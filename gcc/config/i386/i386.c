@@ -7640,6 +7640,9 @@ ix86_file_end (void)
 
   if (NEED_INDICATE_EXEC_STACK)
     file_end_indicate_exec_stack ();
+
+  if (flag_split_stack)
+    file_end_indicate_split_stack ();
 }
 
 /* Emit code for the SET_GOT patterns.  */
@@ -7882,6 +7885,28 @@ ix86_builtin_setjmp_frame_value (void)
 {
   return stack_realign_fp ? hard_frame_pointer_rtx : virtual_stack_vars_rtx;
 }
+
+/* On the x86 -fsplit-stack and -fstack-protector both use the same
+   field in the TCB, so they can not be used together.  */
+
+static bool
+ix86_supports_split_stack (void)
+{
+  bool ret = true;
+
+#ifndef TARGET_THREAD_SPLIT_STACK_OFFSET
+  error ("%<-fsplit-stack%> currently only supported on GNU/Linux");
+  ret = false;
+#endif
+
+  return ret;
+}
+
+/* When using -fsplit-stack, the allocation routines set a field in
+   the TCB to the bottom of the stack plus this much space, measured
+   in bytes.  */
+
+#define SPLIT_STACK_AVAILABLE 256
 
 /* Fill structure ix86_frame about frame of currently computed function.  */
 
@@ -9251,6 +9276,170 @@ ix86_output_function_epilogue (FILE *file ATTRIBUTE_UNUSED,
   }
 #endif
 
+}
+
+/* A SYMBOL_REF for the function which allocates new stackspace for
+   -fsplit-stack.  */
+
+static GTY(()) rtx split_stack_fn;
+
+/* Handle -fsplit-stack.  These are the first instructions in the
+   function, even before the regular prologue.  */
+
+void
+ix86_expand_split_stack_prologue (void)
+{
+  struct ix86_frame frame;
+  HOST_WIDE_INT allocate;
+  tree decl;
+  bool is_fastcall;
+  int regparm, args_size;
+  rtx label, jump_insn, allocate_rtx, call_insn, call_fusage;
+
+  gcc_assert (flag_split_stack && reload_completed);
+
+  ix86_finalize_stack_realign_flags ();
+  ix86_compute_frame_layout (&frame);
+  allocate = (frame.to_allocate
+	      + frame.nregs * UNITS_PER_WORD
+	      + frame.nsseregs * 16
+	      + frame.padding0);
+  decl = cfun->decl;
+  is_fastcall = lookup_attribute ("fastcall",
+				  TYPE_ATTRIBUTES (TREE_TYPE (decl))) != NULL;
+  regparm = ix86_function_regparm (TREE_TYPE (decl), decl);
+
+  /* This is the label we will branch to if we have enough stack
+     space.  We expect the basic block reordering pass to reverse this
+     branch if optimizing, so that we branch in the unlikely case.  */
+  label = gen_label_rtx ();
+
+  /* We need to compare the stack pointer minus the frame size with
+     the stack boundary in the TCB.  The stack boundary always gives
+     us SPLIT_STACK_AVAILABLE bytes, so if we need less than that we
+     can compare directly.  Otherwise we need to do an addition.  */
+  if (allocate < SPLIT_STACK_AVAILABLE)
+    emit_jump_insn (gen_split_stack_check_small (label));
+  else
+    {
+      rtx offset, scratch_reg;
+
+      /* We need a scratch register to hold the stack pointer minus
+	 the required frame size.  Since this is the very start of the
+	 function, the scratch register can be any caller-saved
+	 register which is not used for parameters.  */
+      offset = GEN_INT (- allocate);
+      if (TARGET_64BIT)
+	{
+	  scratch_reg = gen_rtx_REG (Pmode, R11_REG);
+	  if (x86_64_immediate_operand (offset, Pmode))
+	    emit_insn (gen_adddi3 (scratch_reg, stack_pointer_rtx, offset));
+	  else
+	    {
+	      emit_move_insn (scratch_reg, offset);
+	      emit_insn (gen_adddi3 (scratch_reg, scratch_reg,
+				     stack_pointer_rtx));
+	    }
+	}
+      else
+	{
+	  unsigned int scratch_regno;
+
+	  if (is_fastcall)
+	    {
+	      if (DECL_STATIC_CHAIN (current_function_decl))
+		sorry ("-fsplit-stack does not support fastcall with "
+		       "nested function");
+	      scratch_regno = AX_REG;
+	    }
+	  else if (regparm < 3)
+	    {
+	      if (!DECL_STATIC_CHAIN (current_function_decl))
+		scratch_regno = CX_REG;
+	      else
+		{
+		  if (regparm >= 2)
+		    sorry ("-fsplit-stack does not support 2 register "
+			   " parameters for a nested function");
+		  scratch_regno = DX_REG;
+		}
+	    }
+	  else
+	    {
+	      /* FIXME: We could make this work by pushing a register
+		 around the addition and comparison.  */
+	      sorry ("-fsplit-stack does not support 3 register parameters");
+	      scratch_regno = CX_REG;
+	    }
+
+	  scratch_reg = gen_rtx_REG (Pmode, scratch_regno);
+	  emit_insn (gen_addsi3 (scratch_reg, stack_pointer_rtx, offset));
+	}
+
+      emit_jump_insn (gen_split_stack_check_large (scratch_reg, label));
+    }
+
+  /* Mark the jump as very likely to be taken.  */
+  jump_insn = get_last_insn ();
+  gcc_assert (JUMP_P (jump_insn));
+  add_reg_note (jump_insn, REG_BR_PROB,
+		GEN_INT (REG_BR_PROB_BASE - REG_BR_PROB_BASE / 100));
+
+  /* Get more stack space.  We pass in the desired stack space and the
+     size of the arguments to copy to the new stack.  In 32-bit mode
+     we push the parameters; __morestack will return on a new stack
+     anyhow.  In 64-bit mode we pass the parameters in r10 and
+     r11.  */
+  allocate_rtx = GEN_INT (allocate);
+  args_size = crtl->args.size >= 0 ? crtl->args.size : 0;
+  call_fusage = NULL_RTX;
+  if (!TARGET_64BIT)
+    {
+      emit_insn (gen_push (GEN_INT (args_size)));
+      emit_insn (gen_push (allocate_rtx));
+    }
+  else
+    {
+      rtx reg;
+
+      reg = gen_rtx_REG (Pmode, R10_REG);
+
+      /* If this function uses a static chain, it will be in %r10.
+	 Preserve it across the call to __morestack.  */
+      if (DECL_STATIC_CHAIN (current_function_decl))
+	{
+	  emit_insn (gen_push (reg));
+	  args_size += UNITS_PER_WORD;
+	}
+
+      emit_move_insn (reg, allocate_rtx);
+      use_reg (&call_fusage, reg);
+      reg = gen_rtx_REG (Pmode, R11_REG);
+      emit_move_insn (reg, GEN_INT (args_size));
+      use_reg (&call_fusage, reg);
+    }
+  if (split_stack_fn == NULL_RTX)
+    split_stack_fn = gen_rtx_SYMBOL_REF (Pmode, "__morestack");
+  call_insn = ix86_expand_call (NULL_RTX, gen_rtx_MEM (QImode, split_stack_fn),
+				GEN_INT (UNITS_PER_WORD), constm1_rtx,
+				NULL_RTX, 0);
+  add_function_usage_to (call_insn, call_fusage);
+
+  /* In order to make call/return prediction work right, we now need
+     to execute a return instruction.  See
+     libgcc/config/i386/morestack.S for the details on how this works.
+     However, for flow purposes gcc must not see this as a return
+     instruction--we need control flow to continue at the subsequent
+     label.  Therefore, we use an unspec.  */
+  emit_insn (gen_split_stack_return ());
+
+  /* If we are in 64-bit mode and this function uses a static chain,
+     we pushed %r10 before calling _morestack.  */
+  if (TARGET_64BIT && DECL_STATIC_CHAIN (current_function_decl))
+    emit_insn (gen_popdi1 (gen_rtx_REG (Pmode, R10_REG)));
+
+  emit_label (label);
+  LABEL_NUSES (label) = 1;
 }
 
 /* Extract the parts of an RTL expression that is a valid memory address
@@ -19106,7 +19295,7 @@ construct_plt_address (rtx symbol)
   return tmp;
 }
 
-void
+rtx
 ix86_expand_call (rtx retval, rtx fnaddr, rtx callarg1,
 		  rtx callarg2,
 		  rtx pop, int sibcall)
@@ -19197,6 +19386,8 @@ ix86_expand_call (rtx retval, rtx fnaddr, rtx callarg1,
   call = emit_call_insn (call);
   if (use)
     CALL_INSN_FUNCTION_USAGE (call) = use;
+
+  return call;
 }
 
 
@@ -30747,6 +30938,9 @@ ix86_enum_va_list (int idx, const char **pname, tree *ptree)
 
 #undef TARGET_STACK_PROTECT_FAIL
 #define TARGET_STACK_PROTECT_FAIL ix86_stack_protect_fail
+
+#undef TARGET_SUPPORTS_SPLIT_STACK
+#define TARGET_SUPPORTS_SPLIT_STACK ix86_supports_split_stack
 
 #undef TARGET_FUNCTION_VALUE
 #define TARGET_FUNCTION_VALUE ix86_function_value

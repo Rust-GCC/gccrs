@@ -1,0 +1,184 @@
+# Make-lang.in -- Top level -*- makefile -*- fragment for gcc Go frontend.
+
+# Copyright 2009 The Go Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style
+# license that can be found in the LICENSE file.
+
+# This file provides the language dependent support in the main Makefile.
+
+# C++ support.  These should really be in the top level Makefile.
+
+.SUFFIXES:
+.SUFFIXES: .c .cc .o .po .pox .gmo
+
+ALL_CXXFLAGS = $(filter-out -Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition -Wc++-compat, $(ALL_COMPILERFLAGS)) $(CXXFLAGS)
+.cc.o:
+	$(CXX) -c -I $(srcdir)/../elfcpp $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $< $(OUTPUT_OPTION)
+
+# Build Go export info generator.
+INTERNAL_CFLAGS += -DGO_DEBUGGING_INFO
+
+# Installation name.
+
+GCCGO_INSTALL_NAME := $(shell echo gccgo|sed '$(program_transform_name)')
+GCCGO_TARGET_INSTALL_NAME := $(target_noncanonical)-$(shell echo gccgo|sed '$(program_transform_name)')
+
+# The name for selecting go in LANGUAGES.
+go: go1$(exeext)
+
+.PHONY: go
+
+gospec.o: $(srcdir)/go/gospec.c $(SYSTEM_H) coretypes.h $(TM_H) $(GCC_H) $(CONFIG_H)
+	(SHLIB_LINK='$(SHLIB_LINK)'; \
+	$(CC) -c $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(DRIVER_DEFINES) \
+		$(INCLUDES) $(srcdir)/go/gospec.c)
+
+GCCGO_OBJS = $(GCC_OBJS) gospec.o intl.o prefix.o version.o
+gccgo$(exeext): $(GCCGO_OBJS) $(EXTRA_GCC_OBJS) $(LIBDEPS)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ \
+	  $(GCCGO_OBJS) $(EXTRA_GCC_OBJS) $(LIBS)
+
+# Create a version of the g++ driver which calls the cross-compiler.
+gccgo-cross$(exeext): gccgo$(exeext)
+	-rm -f gccgo-cross$(exeext)
+	cp gccgo$(exeext) gccgo-cross$(exeext)
+
+# Use strict warnings.
+go-warn = $(STRICT_WARN)
+
+GO_OBJS = \
+	go/dataflow.o \
+	go/export.o \
+	go/expressions.o \
+	go/go-dump.o \
+	go/go-lang.o \
+	go/go.o \
+	go/gogo-tree.o \
+	go/gogo.o \
+	go/import.o \
+	go/import-archive.o \
+	go/import-elf.o \
+	go/lex.o \
+	go/parse.o \
+	go/refcount.o \
+	go/statements.o \
+	go/types.o \
+	go/unsafe.o
+
+go1$(exeext): $(GO_OBJS) attribs.o $(BACKEND) $(LIBDEPS)
+	$(CXX) $(ALL_CXXFLAGS) $(LDFLAGS) -o $@ \
+	      $(GO_OBJS) attribs.o $(BACKEND) $(LIBS) $(BACKENDLIBS)
+
+# Build hooks.
+
+go.all.cross: gccgo-cross$(exeext)
+go.start.encap: gccgo$(exeext)
+go.rest.encap:
+go.info:
+go.install-info:
+go.dvi:
+go.pdf:
+go.install-pdf:
+go.html:
+go.srcinfo:
+go.srcextra:
+go.tags:
+go.man:
+go.srcman:
+
+check-go:
+lang_checks += check-go
+
+# Install hooks.
+
+go.install-common: installdirs
+	-rm -f $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
+	-$(INSTALL_PROGRAM) gccgo$(exeext) $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
+	-chmod a+x $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
+
+go.install-man:
+
+go.uninstall:
+	-rm -rf $(DESTDIR)/$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
+
+# Clean hooks.
+
+go.mostlyclean:
+	-rm -f go/*$(objext)
+	-rm -f go/*$(coverageexts)
+go.clean:
+go.distclean:
+go.maintainer-clean:
+
+# Stage hooks.
+
+go.stage1: stage1-start
+	-mv go/*$(objext) stage1/go
+go.stage2: stage2-start
+	-mv go/*$(objext) stage2/go
+go.stage3: stage3-start
+	-mv go/*$(objext) stage3/go
+go.stage4: stage4-start
+	-mv go/*$(objext) stage4/go
+go.stageprofile: stageprofile-start
+	-mv go/*$(objext) stageprofile/go
+go.stagefeedback: stagefeedback-start
+	-mv go/*$(objext) stagefeedback/go
+
+GO_SYSTEM_H = go/go-system.h $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
+	toplev.h input.h
+
+GO_C_H = go/go-c.h $(MACHMODE_H)
+GO_LEX_H = go/lex.h double-int.h $(REAL_H) go/operator.h
+GO_PARSE_H = go/parse.h
+GO_GOGO_H = go/gogo.h $(GO_LEX_H)
+GO_TYPES_H = go/types.h
+GO_STATEMENTS_H = go/statements.h go/operator.h
+GO_EXPRESSIONS_H = go/expressions.h go/operator.h
+GO_IMPORT_H = go/import.h go/export.h
+
+ELFCPP_H = $(srcdir)/../elfcpp/elfcpp.h $(srcdir)/../elfcpp/elfcpp_swap.h \
+	$(srcdir)/../elfcpp/elfcpp_internal.h
+
+go/dataflow.o: go/dataflow.cc $(GO_SYSTEM_H) $(GO_GOGO_H) $(GO_EXPRESSIONS_H) \
+	$(GO_STATEMENTS_H) go/dataflow.h
+go/export.o: go/export.cc $(GO_SYSTEM_H) $(srcdir)/../include/sha1.h \
+	$(MACHMODE_H) output.h $(TARGET_H) $(DIAGNOSTIC_H) $(GO_GOGO_H) \
+	$(GO_TYPES_H) $(GO_STATEMENTS_H) go/export.h
+go/expressions.o: go/expressions.cc $(GO_SYSTEM_H) intl.h $(TREE_H) \
+	$(GIMPLE_H) convert.h $(REAL_H) $(DIAGNOSTIC_H) $(TM_P_H) $(GO_C_H) \
+	$(GO_GOGO_H) $(GO_TYPES_H) go/export.h $(GO_IMPORT_H) \
+	go/refcount.h $(GO_STATEMENTS_H) $(GO_LEX_H) $(GO_EXPRESSIONS_H)
+go/go.o: go/go.cc $(GO_SYSTEM_H) options.h $(DIAGNOSTIC_H) $(GO_C_H) \
+	$(GO_LEX_H) $(GO_PARSE_H) $(GO_GOGO_H)
+go/go-dump.o: go/go-dump.cc $(GO_SYSTEM_H) $(GO_C_H) go/go-dump.h
+go/go-lang.o: go/go-lang.c $(GO_SYSTEM_H) coretypes.h opts.h $(TREE_H) \
+	$(GIMPLE_H) $(GGC_H) toplev.h debug.h options.h $(FLAGS_H) convert.h \
+	langhooks.h langhooks-def.h $(TARGET_H) $(DIAGNOSTIC_H) $(GO_C_H) \
+	gt-go-go-lang.h gtype-go.h
+go/gogo-tree.o: go/gogo-tree.cc $(GO_SYSTEM_H) $(TREE_H) $(GIMPLE_H) \
+	tree-iterator.h $(CGRAPH_H) langhooks.h convert.h output.h \
+	$(TM_P_H) $(DIAGNOSTIC_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) \
+	$(GO_STATEMENTS_H) go/refcount.h $(GO_GOGO_H)
+go/gogo.o: go/gogo.cc $(GO_SYSTEM_H) go/go-dump.h $(GO_LEX_H) $(GO_TYPES_H) \
+	$(GO_STATEMENTS_H) $(GO_EXPRESSIONS_H) go/dataflow.h $(GO_IMPORT_H) \
+	go/export.h go/refcount.h $(GO_GOGO_H)
+go/import.o: go/import.cc $(GO_SYSTEM_H) $(srcdir)/../include/filenames.h \
+	$(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) go/export.h $(GO_IMPORT_H)
+go/import-archive.o: go/import-archive.cc $(GO_SYSTEM_H) $(GO_IMPORT_H)
+go/import-elf.o: go/import-elf.cc $(GO_SYSTEM_H) intl.h $(DIAGNOSTIC_H) \
+	$(ELFCPP_H) $(srcdir)/../elfcpp/elfcpp_file.h $(GO_IMPORT_H)
+go/lex.o: go/lex.cc $(GO_LEX_H) $(GO_SYSTEM_H)
+go/parse.o: go/parse.cc $(GO_SYSTEM_H) $(GO_LEX_H) $(GO_GOGO_H) $(GO_TYPES_H) \
+	$(GO_STATEMENTS_H) $(GO_EXPRESSIONS_H) $(GO_PARSE_H)
+go/refcount.o: go/refcount.cc $(GO_SYSTEM_H) $(TREE_H) $(GIMPLE_H) \
+	tree-iterator.h $(RTL_H) $(GO_C_H) go/go-dump.h $(GO_GOGO_H) \
+	$(GO_TYPES_H) $(GO_EXPRESSIONS_H) $(GO_STATEMENTS_H) go/refcount.h
+go/statements.o: go/statements.cc $(GO_SYSTEM_H) intl.h $(TREE_H) \
+	$(GIMPLE_H) tree-iterator.h $(REAL_H) $(GO_C_H) $(GO_TYPES_H) \
+	$(GO_EXPRESSIONS_H) $(GO_GOGO_H) go/refcount.h $(GO_STATEMENTS_H)
+go/types.o: go/types.cc $(GO_SYSTEM_H) intl.h $(TREE_H) $(GIMPLE_H) \
+	$(REAL_H) $(DIAGNOSTIC_H) $(GO_C_H) $(GO_GOGO_H) go/operator.h \
+	$(GO_EXPRESSIONS_H) $(GO_STATEMENTS_H) go/export.h $(GO_IMPORT_H) \
+	go/refcount.h $(GO_TYPES_H)
+go/unsafe.o: go/unsafe.cc $(GO_SYSTEM_H) $(GO_TYPES_H) $(GO_GOGO_H)

@@ -1139,6 +1139,20 @@ decode_options (unsigned int argc, const char **argv)
      check option consistency.  */
   if (flag_lto && flag_whopr)
     error ("-flto and -fwhopr are mutually exclusive");
+
+  /* We initialize flag_split_stack to -1 so that targets can set a
+     default value if they choose based on other options.  */
+  if (flag_split_stack == -1)
+    flag_split_stack = 0;
+  else
+    {
+      if (!targetm.supports_split_stack())
+	{
+	  error ("%<-fsplit-stack%> is not supported by "
+		 "this compiler configuration");
+	  flag_split_stack = 0;
+	}
+    }
 }
 
 #define LEFT_COLUMN	27
@@ -2088,6 +2102,10 @@ common_handle_option (size_t scode, const char *arg, int value,
 
     case OPT_ggdb:
       set_debug_level (NO_DEBUG, 2, arg);
+      break;
+
+    case OPT_ggo:
+      set_debug_level (GO_DEBUG, 1, "3");
       break;
 
     case OPT_gstabs:

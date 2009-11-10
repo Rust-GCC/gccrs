@@ -1181,7 +1181,7 @@ decode_d_option (const char *arg)
 /* Indexed by enum debug_info_type.  */
 const char *const debug_type_names[] =
 {
-  "none", "stabs", "coff", "dwarf-2", "xcoff", "vms"
+  "none", "stabs", "coff", "dwarf-2", "xcoff", "vms", "go"
 };
 
 /* Print version information to FILE.
@@ -1986,6 +1986,10 @@ process_options (void)
 #ifdef VMS_DEBUGGING_INFO
   else if (write_symbols == VMS_DEBUG || write_symbols == VMS_AND_DWARF2_DEBUG)
     debug_hooks = &vmsdbg_debug_hooks;
+#endif
+#ifdef GO_DEBUGGING_INFO
+  else if (write_symbols == GO_DEBUG)
+    debug_hooks = &go_debug_hooks;
 #endif
   else
     error ("target system does not support the \"%s\" debug format",

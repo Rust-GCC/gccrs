@@ -42,6 +42,7 @@ proc check_compile {basename type contents args} {
     switch -glob -- $contents {
 	"*! Fortran*" { set src ${basename}[pid].f90 }
 	"*// C++*" { set src ${basename}[pid].cc }
+	"*// Go*" { set src ${basename}[pid].go }
 	default { set src ${basename}[pid].c }
     }
     set compile_type $type
@@ -3161,6 +3162,15 @@ proc check_effective_target_mpc_pow { } {
 	    link_error();
 	}
     }]
+}
+
+# Return 1 if this target supports the -fsplit-stack option, 0
+# otherwise.
+
+proc check_effective_target_split_stack {} {
+    return [check_no_compiler_messages split_stack object {
+	void foo (void) { }
+    } "-fsplit-stack"]
 }
 
 # Return 1 if the MPC library with "arc" functions is integrated with GCC, 0 otherwise.

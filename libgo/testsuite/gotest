@@ -1,0 +1,167 @@
+#!/bin/sh
+# Copyright 2009 The Go Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style
+# license that can be found in the LICENSE file.
+
+# Using all the test*.go files in the current directory, write out a file
+# _testmain.go that runs all its tests. Compile everything and run the
+# tests.
+# If files are named on the command line, use them instead of test*.go.
+
+GC=${GC:-gccgo}
+GL=${GL:-${GC-gccgo}}
+GOLIBS=${GOLIBS:=-lgotesting}
+export GC GL GOLIBS
+
+srcdir=.
+gofiles=""
+loop=true
+keep=false
+while $loop; do
+	case "x$1" in
+        x--srcdir)
+		srcdir=$2
+		shift
+		shift
+		;;
+	x--srcdir=*)
+		srcdir=`echo $1 | sed -e 's/^--srcdir=//'`
+		shift
+		;;
+	x--keep)
+		keep=true
+                shift
+		;;
+	x-*)
+		loop=false
+		;;
+	x)
+		loop=false
+		;;
+	*)
+		gofiles="$gofiles $1"
+		shift
+		;;
+	esac
+done
+
+DIR=gotest$$
+rm -rf $DIR
+mkdir $DIR
+cd $DIR
+
+if test $keep = false; then
+  trap "cd ..; rm -rf $DIR" 0 1 2 3 14 15
+else
+  trap "cd ..; echo Keeping $DIR" 0 1 2 3 14 15
+fi
+
+case "$srcdir" in
+	/*)
+		;;
+	*)
+		srcdir="../$srcdir"
+                ;;
+esac
+
+SRCDIR=$srcdir
+export SRCDIR
+
+# Link all the files/directories in srcdir into our working directory,
+# so that the tests do not have to refer to srcdir to find test data.
+ln -s $srcdir/* .
+
+# Copy the .go files because io/utils_test.go expects a regular file.
+for f in `cd $srcdir; ls *.go`; do
+  rm -f $f;
+  cp $srcdir/$f .
+done
+
+# Some tests expect the _obj directory created by the gc Makefiles.
+mkdir _obj
+
+case "x$gofiles" in
+x)
+	gofiles=$(echo -n $(ls *_test.go *_test.pb.go 2>/dev/null))
+esac
+
+case "x$gofiles" in
+x)
+	echo 'no test files found' 1>&2
+	exit 1
+esac
+
+# Run any commands given in sources, like
+#   // gotest: $GC foo.go
+# to build any test-only dependencies.
+holdGC="$GC"
+GC="$GC -g -c -I ."
+sed -n 's/^\/\/ gotest: //p' $gofiles | sh
+GC="$holdGC"
+
+pkgfiles=$(echo -n $(ls *.go | grep -v _test.go | grep -v test.pb.go 2>/dev/null))
+
+# Split $gofiles into external gofiles (those in *_test packages)
+# and internal ones (those in the main package).
+xgofiles=$(echo $(grep '^package[ 	]' $gofiles /dev/null | grep ':.*_test' | sed 's/:.*//'))
+gofiles=$(echo $(grep '^package[ 	]' $gofiles /dev/null | grep -v ':.*_test' | sed 's/:.*//'))
+
+# External $O file
+xofile=""
+havex=false
+if [ "x$xgofiles" != "x" ]; then
+	xofile="_xtest_.o"
+	havex=true
+fi
+
+set -e
+
+package=`echo ${srcdir} | sed -e 's|^.*libgo/go/||'`
+
+$GC -g -c -I . -o _gotest_.o $gofiles $pkgfiles
+if $havex; then
+	mkdir -p `dirname $package`
+	cp _gotest_.o `dirname $package`/lib`basename $package`.a
+	$GC -g -c -I . -o $xofile $xgofiles
+fi
+
+# They all compile; now generate the code to call them.
+{
+	# package spec
+	echo 'package main'
+	echo
+        echo 'import "./_gotest_"'
+	if $havex; then
+		echo 'import "./_xtest_"'
+	fi
+        if test "$package" != "testing"; then
+		echo 'import "testing"'
+	fi
+	# test array
+	echo
+	echo 'var tests = []testing.Test {'
+
+	# test functions are named TestFoo
+	# the grep -v eliminates methods and other special names
+	# that have multiple dots.
+	pattern='Test([^a-z].*)?'
+	tests=$(nm -s _gotest_.o $xofile | egrep ' T .*\.'$pattern'$' | grep -v '\..*\.' | sed 's/.* //')
+	if [ "x$tests" = x ]; then
+		echo 'gotest: warning: no tests matching '$pattern in _test/$importpath.a $xofile 1>&2
+	else
+		for i in $tests
+		do
+			echo '	testing.Test{ "'$i'", '$i' },'
+		done
+	fi
+	echo '}'
+	# body
+	echo
+	echo 'func main() {'
+	echo '	testing.Main(tests)'
+	echo '}'
+}>_testmain.go
+
+${GC} -g -c _testmain.go
+${GL} *.o ${GOLIBS}
+./a.out "$@"

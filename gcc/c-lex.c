@@ -93,7 +93,8 @@ init_c_lex (void)
   /* Set the debug callbacks if we can use them.  */
   if (debug_info_level == DINFO_LEVEL_VERBOSE
       && (write_symbols == DWARF2_DEBUG
-	  || write_symbols == VMS_AND_DWARF2_DEBUG))
+	  || write_symbols == VMS_AND_DWARF2_DEBUG
+	  || write_symbols == GO_DEBUG))
     {
       cb->define = cb_define;
       cb->undef = cb_undef;

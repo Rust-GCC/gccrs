@@ -34,8 +34,9 @@ enum debug_info_type
   DWARF2_DEBUG,	    /* Write Dwarf v2 debug info (using dwarf2out.c).  */
   XCOFF_DEBUG,	    /* Write IBM/Xcoff debug info (using dbxout.c).  */
   VMS_DEBUG,        /* Write VMS debug info (using vmsdbgout.c).  */
-  VMS_AND_DWARF2_DEBUG /* Write VMS debug info (using vmsdbgout.c).
+  VMS_AND_DWARF2_DEBUG, /* Write VMS debug info (using vmsdbgout.c).
                           and DWARF v2 debug info (using dwarf2out.c).  */
+  GO_DEBUG	    /* Write Go language exports (using goout.c).  */
 };
 
 /* Specify which kind of debugging info to generate.  */

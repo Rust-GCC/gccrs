@@ -190,6 +190,7 @@ extern const struct gcc_debug_hooks sdb_debug_hooks;
 extern const struct gcc_debug_hooks xcoff_debug_hooks;
 extern const struct gcc_debug_hooks dwarf2_debug_hooks;
 extern const struct gcc_debug_hooks vmsdbg_debug_hooks;
+extern const struct gcc_debug_hooks go_debug_hooks;
 
 /* Dwarf2 frame information.  */
 

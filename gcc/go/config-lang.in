@@ -1,0 +1,19 @@
+# config-lang.in -- Top level configure fragment for gcc Go frontend.
+
+# Copyright 2009 The Go Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style
+# license that can be found in the LICENSE file.
+
+# Configure looks for the existence of this file to auto-config each language.
+# We define several parameters used by configure:
+#
+# language	- name of language as it would appear in $(LANGUAGES)
+# compilers	- value to add to $(COMPILERS)
+
+language="go"
+
+compilers="go1\$(exeext)"
+
+target_libs="target-libgo"
+
+gtfiles="\$(srcdir)/go/go-lang.c"

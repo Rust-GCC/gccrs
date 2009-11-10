@@ -875,6 +875,11 @@ struct gcc_target
      that is invoked when a check vs the guard variable fails.  */
   tree (* stack_protect_fail) (void);
 
+  /* Whether this target supports splitting stack frames.  This is
+     called after options have been parsed, so the target may reject
+     splitting stack frames in some configurations.  */
+  bool (* supports_split_stack) (void);
+
   /* Returns NULL if target supports the insn within a doloop block,
      otherwise it returns an error message.  */
   const char * (*invalid_within_doloop) (const_rtx);

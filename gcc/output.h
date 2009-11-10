@@ -626,6 +626,7 @@ extern void default_emit_except_table_label (FILE *);
 extern void default_internal_label (FILE *, const char *, unsigned long);
 extern void default_file_start (void);
 extern void file_end_indicate_exec_stack (void);
+extern void file_end_indicate_split_stack (void);
 
 extern void default_elf_asm_output_external (FILE *file, tree,
 					     const char *);

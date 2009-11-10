@@ -625,6 +625,8 @@
 #define TARGET_STACK_PROTECT_GUARD  default_stack_protect_guard
 #define TARGET_STACK_PROTECT_FAIL   default_external_stack_protect_fail
 
+#define TARGET_SUPPORTS_SPLIT_STACK hook_bool_void_false
+
 #define TARGET_ARM_EABI_UNWINDER false
 
 #define TARGET_PROMOTE_FUNCTION_MODE default_promote_function_mode
@@ -988,6 +990,7 @@
   TARGET_STDARG_OPTIMIZE_HOOK,			\
   TARGET_STACK_PROTECT_GUARD,			\
   TARGET_STACK_PROTECT_FAIL,			\
+  TARGET_SUPPORTS_SPLIT_STACK,			\
   TARGET_INVALID_WITHIN_DOLOOP,			\
   TARGET_VALID_DLLIMPORT_ATTRIBUTE_P,		\
   TARGET_CONST_ANCHOR,				\

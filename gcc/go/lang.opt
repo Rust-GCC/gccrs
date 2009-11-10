@@ -1,0 +1,38 @@
+; lang.opt -- Options for the gcc Go front end.
+
+; Copyright 2009 The Go Authors. All rights reserved.
+; Use of this source code is governed by a BSD-style
+; license that can be found in the LICENSE file.
+
+; See the GCC internals manual for a description of this file's format.
+
+; Please try to keep this file in ASCII collating order.
+
+Language
+Go
+
+I
+Go Joined Separate
+-I<directory>	Add a directory for import searching
+
+L
+Go Joined Separate
+-L<directory>	Add a directory for import searching
+
+Wall
+Go
+; Documented in c.opt
+
+fgo-dump-
+Go Joined RejectNegative
+-fgo-dump-<type>	Dump Go frontend internal information
+
+fdefault-private
+Go Var(go_default_private)
+Default visibility is private to file
+
+frequire-return-statement
+Go Var(go_require_return_statement) Init(1) Warning
+Functions which return values must end with return statements
+
+; This comment is to ensure we retain the blank line above.

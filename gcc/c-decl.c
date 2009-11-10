@@ -6523,18 +6523,18 @@ grokfield (location_t loc,
 	 is the anonymous union extension.  Similarly for struct.
 
 	 If this is something of the form "struct foo;", then
-	   If MS extensions are enabled, this is handled as an
-	     anonymous struct.
+	   If MS or Plan 9 extensions are enabled, this is handled as
+	     an anonymous struct.
 	   Otherwise this is a forward declaration of a structure tag.
 
 	 If this is something of the form "foo;" and foo is a TYPE_DECL, then
-	   If MS extensions are enabled and foo names a structure, then
-	     again this is an anonymous struct.
+	   If MS or Plan 9 extensions are enabled and foo names a
+	     structure, then again this is an anonymous struct.
 	   Otherwise this is an error.
 
 	 Oh what a horrid tangled web we weave.  I wonder if MS consciously
-	 took this from Plan 9 or if it was an accident of implementation
-	 that took root before someone noticed the bug...  */
+	 copied Plan 9 or if it was an accident of implementation that
+	 took root before someone noticed the bug...  */
 
       tree type = declspecs->type;
       bool type_ok = (TREE_CODE (type) == RECORD_TYPE
@@ -6542,9 +6542,11 @@ grokfield (location_t loc,
       bool ok = false;
 
       if (type_ok
-	  && (flag_ms_extensions || !declspecs->typedef_p))
+	  && (flag_ms_extensions
+	      || flag_plan9_extensions
+	      || !declspecs->typedef_p))
 	{
-	  if (flag_ms_extensions)
+	  if (flag_ms_extensions || flag_plan9_extensions)
 	    ok = true;
 	  else if (flag_iso)
 	    ok = false;

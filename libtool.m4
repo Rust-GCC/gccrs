@@ -770,6 +770,7 @@ AC_DEFUN([LT_LANG],
 m4_case([$1],
   [C],			[_LT_LANG(C)],
   [C++],		[_LT_LANG(CXX)],
+  [Go],			[_LT_LANG(GO)],
   [Java],		[_LT_LANG(GCJ)],
   [Fortran 77],		[_LT_LANG(F77)],
   [Fortran],		[_LT_LANG(FC)],
@@ -820,6 +821,10 @@ AC_PROVIDE_IFELSE([AC_PROG_GCJ],
 	[m4_define([A][M_PROG_GCJ], defn([A][M_PROG_GCJ])[LT_LANG(GCJ)])])
        m4_ifdef([LT_PROG_GCJ],
 	[m4_define([LT_PROG_GCJ], defn([LT_PROG_GCJ])[LT_LANG(GCJ)])])])])])
+
+AC_PROVIDE_IFELSE([AC_PROG_GO],
+  [LT_LANG(GO)],
+  [m4_define([AC_PROG_GO], defn([AC_PROG_GO])[LT_LANG(GO)])])
 
 AC_PROVIDE_IFELSE([LT_PROG_RC],
   [LT_LANG(RC)],
@@ -6400,6 +6405,10 @@ public class foo {
   }
 };
 _LT_EOF
+], [$1], [GO], [cat > conftest.$ac_ext <<_LT_EOF
+package foo
+func foo() { }
+_LT_EOF
 ])
 dnl Parse the compiler output and extract the necessary
 dnl objects, libraries and library flags.
@@ -6918,6 +6927,67 @@ GCC=$lt_save_GCC
 CC="$lt_save_CC"
 ])# _LT_LANG_GCJ_CONFIG
 
+# _LT_LANG_GO_CONFIG([TAG])
+# --------------------------
+# Ensure that the configuration variables for the GNU Go compiler
+# are suitably defined.  These variables are subsequently used by _LT_CONFIG
+# to write the compiler configuration to `libtool'.
+m4_defun([_LT_LANG_GO_CONFIG],
+[AC_REQUIRE([LT_PROG_GO])dnl
+AC_LANG_SAVE
+
+# Source file extension for Go test sources.
+ac_ext=go
+
+# Object file extension for compiled Go test sources.
+objext=o
+_LT_TAGVAR(objext, $1)=$objext
+
+# Code to be used in simple compile tests
+lt_simple_compile_test_code="package main func main() { }"
+
+# Code to be used in simple link tests
+lt_simple_link_test_code='package main func main() { }'
+
+# ltmain only uses $CC for tagged configurations so make sure $CC is set.
+_LT_TAG_COMPILER
+
+# save warnings/boilerplate of simple test code
+_LT_COMPILER_BOILERPLATE
+_LT_LINKER_BOILERPLATE
+
+# Allow CC to be a program name with arguments.
+lt_save_CC="$CC"
+CC=${GCCGO-"gccgo"}
+compiler=$CC
+_LT_TAGVAR(compiler, $1)=$CC
+_LT_CC_BASENAME([$compiler])
+
+# Go did not exist at the time GCC didn't implicitly link libc in.
+_LT_TAGVAR(archive_cmds_need_lc, $1)=no
+
+_LT_TAGVAR(old_archive_cmds, $1)=$old_archive_cmds
+
+## CAVEAT EMPTOR:
+## There is no encapsulation within the following macros, do not change
+## the running order or otherwise move them around unless you know exactly
+## what you are doing...
+if test -n "$compiler"; then
+  _LT_COMPILER_NO_RTTI($1)
+  _LT_COMPILER_PIC($1)
+  _LT_TAGVAR(lt_cv_prog_compiler_c_o, $1)=yes
+  _LT_COMPILER_FILE_LOCKS($1)
+  _LT_LINKER_SHLIBS($1)
+  _LT_SYS_DYNAMIC_LINKER($1)
+  _LT_LINKER_HARDCODE_LIBPATH($1)
+
+  _LT_CONFIG($1)
+fi
+
+AC_LANG_RESTORE
+CC="$lt_save_CC"
+])# _LT_LANG_GO_CONFIG
+
 
 # _LT_LANG_RC_CONFIG([TAG])
 # -------------------------
@@ -6984,6 +7054,11 @@ AU_ALIAS([LT_AC_PROG_GCJ], [LT_PROG_GCJ])
 dnl aclocal-1.4 backwards compatibility:
 dnl AC_DEFUN([LT_AC_PROG_GCJ], [])
 
+# LT_PROG_GO
+# -----------
+AC_DEFUN([LT_PROG_GO],
+[AC_CHECK_TOOL(GCCGO, gccgo,)
+])
 
 # LT_PROG_RC
 # ----------

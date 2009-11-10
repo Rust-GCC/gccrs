@@ -1,0 +1,29 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package malloc
+#include "go-alloc.h"
+#include "runtime.h"
+#include "malloc.h"
+
+func Alloc(n uintptr) (p *byte) {
+	p = __go_alloc(n);
+}
+
+func Free(p *byte) {
+	__go_free(p);
+}
+
+func Lookup(p *byte) (base *byte, size uintptr) {
+	mlookup(p, &base, &size, nil);
+}
+
+func GetStats() (s *MStats) {
+	s = &mstats;
+}
+
+func GC() {
+	gc(1);
+}
+

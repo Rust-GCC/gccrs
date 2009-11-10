@@ -1358,7 +1358,7 @@ func_mode_compile ()
     *.[cCFSifmso] | \
     *.ada | *.adb | *.ads | *.asm | \
     *.c++ | *.cc | *.ii | *.class | *.cpp | *.cxx | \
-    *.[fF][09]? | *.for | *.java | *.obj | *.sx)
+    *.[fF][09]? | *.for | *.java | *.obj | *.go | *.sx)
       func_xform "$libobj"
       libobj=$func_xform_result
       ;;

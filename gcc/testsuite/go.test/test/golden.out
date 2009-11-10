@@ -1,0 +1,203 @@
+
+== ./
+
+=========== ./cmp2.go
+comparing uncomparable type []int
+throw: interface compare
+
+panic PC=xxx
+
+=========== ./cmp3.go
+comparing uncomparable type []int
+throw: interface compare
+
+panic PC=xxx
+
+=========== ./cmp4.go
+hash of unhashable type []int
+throw: interface hash
+
+panic PC=xxx
+
+=========== ./cmp5.go
+hash of unhashable type []int
+throw: interface hash
+
+panic PC=xxx
+
+=========== ./helloworld.go
+hello, world
+
+=========== ./peano.go
+0! = 1
+1! = 1
+2! = 2
+3! = 6
+4! = 24
+5! = 120
+6! = 720
+7! = 5040
+8! = 40320
+9! = 362880
+
+=========== ./printbig.go
+-9223372036854775808
+9223372036854775807
+
+=========== ./sigchld.go
+survived SIGCHLD
+
+=========== ./turing.go
+Hello World!
+
+== ken/
+
+=========== ken/intervar.go
+ print 1 bio 2 file 3 -- abc
+
+=========== ken/label.go
+100
+
+=========== ken/rob1.go
+9876543210
+
+=========== ken/rob2.go
+(defn foo (add 12 34))
+
+=========== ken/simpprint.go
+hello world
+
+=========== ken/simpswitch.go
+0out01out12out2aout34out4fiveout56out6aout78out89out9
+
+=========== ken/string.go
+abcxyz-abcxyz-abcxyz-abcxyz-abcxyz-abcxyz-abcxyz
+
+== chan/
+
+=========== chan/nonblock.go
+PASS
+
+== interface/
+
+=========== interface/fail.go
+*main.S is not main.I: missing method Foo
+throw: interface conversion
+
+panic PC=xxx
+
+=========== interface/returntype.go
+*main.S is not main.I2: missing method Name
+throw: interface conversion
+
+panic PC=xxx
+
+== nilptr/
+
+=========== nilptr/arrayindex.go
+SIGSEGV: segmentation violation
+Faulting address: 0x0
+pc: xxx
+
+
+=========== nilptr/arrayindex1.go
+SIGSEGV: segmentation violation
+Faulting address: 0x0
+pc: xxx
+
+
+=========== nilptr/arraytoslice.go
+SIGSEGV: segmentation violation
+Faulting address: 0x0
+pc: xxx
+
+
+=========== nilptr/arraytoslice1.go
+SIGSEGV: segmentation violation
+Faulting address: 0x0
+pc: xxx
+
+
+=========== nilptr/arraytoslice2.go
+SIGSEGV: segmentation violation
+Faulting address: 0x0
+pc: xxx
+
+
+=========== nilptr/slicearray.go
+SIGSEGV: segmentation violation
+Faulting address: 0xa
+pc: xxx
+
+
+=========== nilptr/structfield.go
+SIGSEGV: segmentation violation
+Faulting address: 0x0
+pc: xxx
+
+
+=========== nilptr/structfield1.go
+SIGSEGV: segmentation violation
+Faulting address: 0x0
+pc: xxx
+
+
+=========== nilptr/structfield2.go
+SIGSEGV: segmentation violation
+Faulting address: 0x0
+pc: xxx
+
+
+=========== nilptr/structfieldaddr.go
+SIGSEGV: segmentation violation
+Faulting address: 0x0
+pc: xxx
+
+
+== fixedbugs/
+
+=========== fixedbugs/bug016.go
+fixedbugs/bug016.go:11: constant -3 overflows uint
+
+=========== fixedbugs/bug027.go
+hi
+0 44444
+1 3333
+2 222
+3 11
+4 0
+0 44444
+1 3333
+2 222
+3 11
+4 0
+
+=========== fixedbugs/bug067.go
+ok
+
+=========== fixedbugs/bug070.go
+outer loop top k 0
+inner loop top i 0
+do break
+broke
+
+=========== fixedbugs/bug081.go
+fixedbugs/bug081.go:9: fatal error: typecheck loop
+
+=========== fixedbugs/bug093.go
+M
+
+=========== fixedbugs/bug113.go
+interface is int, not int32
+throw: interface conversion
+
+panic PC=xxx
+
+=========== fixedbugs/bug148.go
+2 3
+interface is main.T, not main.T·1
+throw: interface conversion
+
+panic PC=xxx
+
+== bugs/

@@ -192,7 +192,8 @@ target_libraries="target-libgcc \
 		target-boehm-gc \
 		${libgcj} \
 		target-libobjc \
-		target-libada"
+		target-libada \
+		target-libgo"
 
 # these tools are built using the target libraries, and are intended to
 # run only in the target environment
@@ -1854,6 +1855,16 @@ if test -d ${srcdir}/gcc; then
 	  boot_language=yes
 	fi
 
+	# FIXME: A general mechanism for specifying the language of a
+	# frontend would be nice.
+	case ,${enable_languages}, in
+	  *,go,*)
+	    if test "$language" = "c++"; then
+	      boot_language=yes
+	    fi
+	    ;;
+	esac
+
         case ,${enable_languages}, in
           *,${language},*)
             # Language was explicitly selected; include it.
@@ -2055,6 +2066,13 @@ for dir in . $skipdirs $noconfigdirs ; do
     fi
   fi
 done
+
+# If target-libgo is in $target_configdirs, then put target-libffi in
+# there too.  It may have been removed because it is currently treated
+# as a Java target library.
+if echo " ${target_configdirs} " | grep " target-libgo " >/dev/null 2>&1; then
+  target_configdirs="${target_configdirs} target-libffi"
+fi
 
 # Sometimes the tools are distributed with libiberty but with no other
 # libraries.  In that case, we don't want to build target-libiberty.
@@ -3214,6 +3232,7 @@ NCN_STRICT_CHECK_TARGET_TOOLS(CXX_FOR_TARGET, c++ g++ cxx gxx)
 NCN_STRICT_CHECK_TARGET_TOOLS(GCC_FOR_TARGET, gcc, ${CC_FOR_TARGET})
 NCN_STRICT_CHECK_TARGET_TOOLS(GCJ_FOR_TARGET, gcj)
 NCN_STRICT_CHECK_TARGET_TOOLS(GFORTRAN_FOR_TARGET, gfortran)
+NCN_STRICT_CHECK_TARGET_TOOLS(GCCGO_FOR_TARGET, gccgo)
 
 ACX_CHECK_INSTALLED_TARGET_TOOL(AR_FOR_TARGET, ar)
 ACX_CHECK_INSTALLED_TARGET_TOOL(AS_FOR_TARGET, as)
@@ -3244,6 +3263,8 @@ GCC_TARGET_TOOL(gcj, GCJ_FOR_TARGET, GCJ,
 		[gcc/gcj -B$$r/$(HOST_SUBDIR)/gcc/], java)
 GCC_TARGET_TOOL(gfortran, GFORTRAN_FOR_TARGET, GFORTRAN,
 		[gcc/gfortran -B$$r/$(HOST_SUBDIR)/gcc/], fortran)
+GCC_TARGET_TOOL(gccgo, GCCGO_FOR_TARGET, GCCGO,
+		[gcc/gccgo -B$$r/$(HOST_SUBDIR)/gcc/], go)
 GCC_TARGET_TOOL(ld, LD_FOR_TARGET, LD, [ld/ld-new])
 GCC_TARGET_TOOL(lipo, LIPO_FOR_TARGET, LIPO)
 GCC_TARGET_TOOL(nm, NM_FOR_TARGET, NM, [binutils/nm-new])
