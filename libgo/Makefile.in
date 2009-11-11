@@ -2643,7 +2643,7 @@ image/libimage.a: $(go_image_files)
 	$(BUILDARCHIVE)
 image/libimage.la: image/libimage.a
 
-io/libio.a: $(go_io_files) bytes.gox os.gox strings.gox sync.gox
+io/libio.a: $(go_io_files) bytes.gox os.gox sort.gox strings.gox sync.gox
 	$(BUILDARCHIVE)
 io/libio.la: io/libio.a
 
