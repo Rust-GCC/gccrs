@@ -96,6 +96,7 @@ go.install-common: installdirs
 	-$(INSTALL_PROGRAM) gccgo$(exeext) $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
 	-chmod a+x $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
 
+go.install-plugin:
 go.install-man:
 
 go.uninstall:
