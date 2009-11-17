@@ -41,12 +41,8 @@ cat > sysinfo.c <<EOF
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/un.h>
+#include <sys/user.h>
 #include <unistd.h>
-EOF
-
-# FIXME: GNU/Linux specific.
-cat >>sysinfo.c <<EOF
-#include <linux/user.h>
 EOF
 
 ${CC} -D_GNU_SOURCE -ggo -S -o sysinfo.s sysinfo.c
@@ -196,7 +192,8 @@ regs=`grep '^#GO type _user_regs_struct struct' sysinfo.s | sed -e 's/#GO //'`
 if test "$regs" != ""; then
   regs=`echo $regs | sed -e 's/type _user_regs_struct struct //'`
   regs=`echo $regs | sed -e 's/\([^a-zA-Z0-9_]*\)\([a-zA-Z0-9_]\)\([a-zA-Z0-9_]* [^;]*;\)/\1\U\2\E\3/g'`
-  regs=`echo $regs | sed -e 's/ __/ X__/'g`
+  # FIXME: x86 specific.
+  regs=`echo $regs | sed -e 's/X\([a-z]\)\([a-z]\) int32/ \U\1\E\2 uint16; X\1\2 uint16/g'`
   echo "type PtraceRegs struct $regs" >> ${OUT}
 fi
 
