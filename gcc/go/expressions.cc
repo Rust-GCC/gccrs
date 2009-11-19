@@ -121,7 +121,7 @@ Expression::do_discarding_value()
 // address of an expression.
 
 bool
-Expression::do_address_taken(source_location location)
+Expression::do_address_taken(source_location location, bool)
 {
   this->report_address_taken_error(location);
   return false;
@@ -738,7 +738,7 @@ class Error_expression : public Expression
   { return true; }
 
   bool
-  do_address_taken(source_location)
+  do_address_taken(source_location, bool)
   { return true; }
 
   Expression*
@@ -844,9 +844,11 @@ Var_expression::do_type()
 // may want to move the variable onto the heap.
 
 bool
-Var_expression::do_address_taken(source_location location)
+Var_expression::do_address_taken(source_location location, bool escapes)
 {
-  if (this->variable_->is_variable())
+  if (!escapes)
+    return true;
+  else if (this->variable_->is_variable())
     {
       this->variable_->var_value()->set_address_taken();
       return true;
@@ -1892,8 +1894,11 @@ class Const_expression : public Expression
   { return this; }
 
   bool
-  do_address_taken(source_location location)
-  { return this->constant_->const_value()->expr()->address_taken(location); }
+  do_address_taken(source_location location, bool escapes)
+  {
+    return this->constant_->const_value()->expr()->address_taken(location,
+								 escapes);
+  }
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -2260,6 +2265,562 @@ Expression::make_iota()
   return &iota_expression;
 }
 
+// A type conversion expression.
+
+class Type_conversion_expression : public Expression
+{
+ public:
+  Type_conversion_expression(Type* type, Expression* expr,
+			     source_location location)
+    : Expression(EXPRESSION_CONVERSION, location),
+      type_(type), expr_(expr), is_being_copied_(false)
+  { }
+
+  // Return the type to which we are converting.
+  Type*
+  type() const
+  { return this->type_; }
+
+  // Return the expression which we are converting.
+  Expression*
+  expr() const
+  { return this->expr_; }
+
+  static Expression*
+  do_import(Import*);
+
+ protected:
+  int
+  do_traverse(Traverse* traverse);
+
+  Expression*
+  do_lower(Gogo*, int);
+
+  bool
+  do_is_constant() const
+  { return this->expr_->is_constant(); }
+
+  bool
+  do_integer_constant_value(bool, mpz_t, Type**) const;
+
+  bool
+  do_float_constant_value(mpfr_t, Type**) const;
+
+  bool
+  do_string_constant_value(std::string*) const;
+
+  Type*
+  do_type()
+  { return this->type_; }
+
+  void
+  do_determine_type(const Type_context*)
+  {
+    Type_context subcontext(this->type_, true);
+    this->expr_->determine_type(&subcontext);
+  }
+
+  void
+  do_check_types(Gogo*);
+
+  Expression*
+  do_copy()
+  {
+    return new Type_conversion_expression(this->type_, this->expr_->copy(),
+					  this->location());
+  }
+
+  Expression*
+  do_being_copied(Refcounts*, bool);
+
+  Expression*
+  do_note_decrements(Refcounts*);
+
+  tree
+  do_get_tree(Translate_context* context);
+
+  void
+  do_export(Export*) const;
+
+ private:
+  // The type to convert to.
+  Type* type_;
+  // The expression to convert.
+  Expression* expr_;
+  // Whether this expression is being copied.
+  bool is_being_copied_;
+};
+
+// Traversal.
+
+int
+Type_conversion_expression::do_traverse(Traverse* traverse)
+{
+  if (Expression::traverse(&this->expr_, traverse) == TRAVERSE_EXIT
+      || Type::traverse(this->type_, traverse) == TRAVERSE_EXIT)
+    return TRAVERSE_EXIT;
+  return TRAVERSE_CONTINUE;
+}
+
+// Convert to a constant at lowering time.
+
+Expression*
+Type_conversion_expression::do_lower(Gogo*, int)
+{
+  Type* type = this->type_;
+  Expression* val = this->expr_;
+  source_location location = this->location();
+
+  if (type->integer_type() != NULL)
+    {
+      mpz_t ival;
+      mpz_init(ival);
+      Type* dummy;
+      if (val->integer_constant_value(false, ival, &dummy))
+	{
+	  if (!Integer_expression::check_constant(ival, type, location))
+	    mpz_set_ui(ival, 0);
+	  return Expression::make_integer(&ival, type, location);
+	}
+
+      mpfr_t fval;
+      mpfr_init(fval);
+      if (val->float_constant_value(fval, &dummy))
+	{
+	  if (!mpfr_integer_p(fval))
+	    {
+	      error_at(location,
+		       "floating point constant truncated to integer");
+	      return Expression::make_error(location);
+	    }
+	  mpfr_get_z(ival, fval, GMP_RNDN);
+	  if (!Integer_expression::check_constant(ival, type, location))
+	    mpz_set_ui(ival, 0);
+	  return Expression::make_integer(&ival, type, location);
+	}
+      mpfr_clear(fval);
+      mpz_clear(ival);
+    }
+
+  if (type->float_type() != NULL)
+    {
+      mpfr_t fval;
+      mpfr_init(fval);
+      Type* dummy;
+      if (val->float_constant_value(fval, &dummy))
+	{
+	  if (!Float_expression::check_constant(fval, type, location))
+	    mpfr_set_ui(fval, 0, GMP_RNDN);
+	  Float_expression::constrain_float(fval, type);
+	  return Expression::make_float(&fval, type, location);
+	}
+      mpfr_clear(fval);
+    }
+
+  return this;
+}
+
+// Return the constant integer value if there is one.
+
+bool
+Type_conversion_expression::do_integer_constant_value(bool iota_is_constant,
+						      mpz_t val,
+						      Type** ptype) const
+{
+  if (this->type_->integer_type() == NULL)
+    return false;
+
+  mpz_t ival;
+  mpz_init(ival);
+  Type* dummy;
+  if (this->expr_->integer_constant_value(iota_is_constant, ival, &dummy))
+    {
+      if (!Integer_expression::check_constant(ival, this->type_,
+					      this->location()))
+	{
+	  mpz_clear(ival);
+	  return false;
+	}
+      mpz_set(val, ival);
+      mpz_clear(ival);
+      *ptype = this->type_;
+      return true;
+    }
+  mpz_clear(ival);
+
+  mpfr_t fval;
+  mpfr_init(fval);
+  if (this->expr_->float_constant_value(fval, &dummy))
+    {
+      mpfr_get_z(val, fval, GMP_RNDN);
+      mpfr_clear(fval);
+      if (!Integer_expression::check_constant(val, this->type_,
+					      this->location()))
+	return false;
+      *ptype = this->type_;
+      return true;
+    }
+  mpfr_clear(fval);
+
+  return false;
+}
+
+// Return the constant floating point value if there is one.
+
+bool
+Type_conversion_expression::do_float_constant_value(mpfr_t val,
+						    Type** ptype) const
+{
+  if (this->type_->float_type() == NULL)
+    return false;
+
+  mpfr_t fval;
+  mpfr_init(fval);
+  Type* dummy;
+  if (this->expr_->float_constant_value(fval, &dummy))
+    {
+      if (!Float_expression::check_constant(fval, this->type_,
+					    this->location()))
+	{
+	  mpfr_clear(fval);
+	  return false;
+	}
+      mpfr_set(val, fval, GMP_RNDN);
+      mpfr_clear(fval);
+      Float_expression::constrain_float(val, this->type_);
+      *ptype = this->type_;
+      return true;
+    }
+  mpfr_clear(fval);
+
+  mpz_t ival;
+  mpz_init(ival);
+  if (this->expr_->integer_constant_value(false, ival, &dummy))
+    {
+      mpfr_set_z(val, ival, GMP_RNDN);
+      mpz_clear(ival);
+      if (!Float_expression::check_constant(val, this->type_,
+					    this->location()))
+	return false;
+      Float_expression::constrain_float(val, this->type_);
+      *ptype = this->type_;
+      return true;
+    }
+  mpz_clear(ival);
+
+  return false;
+}
+
+// Return the constant string value if there is one.
+
+bool
+Type_conversion_expression::do_string_constant_value(std::string* val) const
+{
+  if (this->type_->is_string_type()
+      && this->expr_->type()->integer_type() != NULL)
+    {
+      mpz_t ival;
+      mpz_init(ival);
+      Type* dummy;
+      if (this->expr_->integer_constant_value(false, ival, &dummy))
+	{
+	  unsigned long ulval = mpz_get_ui(ival);
+	  if (mpz_cmp_ui(ival, ulval) == 0)
+	    {
+	      Lex::append_char(ulval, true, val, this->location());
+	      mpz_clear(ival);
+	      return true;
+	    }
+	}
+      mpz_clear(ival);
+    }
+
+  // FIXME: Could handle conversion from const []int here.
+
+  return false;
+}
+
+// Check that types are convertible.
+
+void
+Type_conversion_expression::do_check_types(Gogo*)
+{
+  Type* type = this->type_;
+  Type* expr_type = this->expr_->type();
+  std::string reason;
+
+  if (Type::are_compatible_for_conversion(type, expr_type, &reason))
+    return;
+
+  bool ok = false;
+  if ((type->integer_type() != NULL || type->float_type() != NULL)
+      && (expr_type->integer_type() != NULL
+	  || expr_type->float_type() != NULL))
+    ok = true;
+  else if (type->is_string_type())
+    {
+      if (expr_type->integer_type() != NULL)
+	ok = true;
+      else
+	{
+	  Type* t = expr_type->deref();
+	  if (t->array_type() != NULL)
+	    {
+	      Type* e = t->array_type()->element_type()->forwarded();
+	      if (e->integer_type() != NULL
+		  && (e == Type::lookup_integer_type("uint8")
+		      || e == Type::lookup_integer_type("int")))
+		ok = true;
+	    }
+	}
+    }
+  else if ((type->is_unsafe_pointer_type()
+	    && (expr_type->points_to() != NULL
+		|| (expr_type->integer_type() != NULL
+		    && expr_type->integer_type()->bits() == POINTER_SIZE
+		    && expr_type->integer_type()->is_unsigned())))
+	   || (expr_type->is_unsafe_pointer_type()
+	       && (type->points_to() != NULL
+		   || (type->integer_type() != NULL
+		       && type->integer_type()->bits() == POINTER_SIZE
+		       && type->integer_type()->is_unsigned()))))
+    {
+      // Conversions between unsafe pointers and other pointers or
+      // integers of appropriate size are permitted.
+      ok = true;
+    }
+
+  // FIXME: Conversions between interfaces and pointers are supported.
+
+  if (!ok)
+    {
+      if (reason.empty())
+	this->report_error(_("invalid type conversion"));
+      else
+	{
+	  error_at(this->location(), "invalid type conversion (%s)",
+		   reason.c_str());
+	  this->set_is_error();
+	}
+    }
+}
+
+// The type conversion is being copied elsewhere.  If we do not call a
+// function which creates a new reference, then we need to pass this
+// on to the subsidiary expression.
+
+Expression*
+Type_conversion_expression::do_being_copied(Refcounts* refcounts,
+					    bool for_local)
+{
+  this->is_being_copied_ = true;
+  Type* type = this->type_;
+  Type* expr_type = this->expr_->type();
+  bool copy_base;
+  if (type == expr_type)
+    copy_base = true;
+  else if (type->interface_type() != NULL
+	   || expr_type->interface_type() != NULL)
+    copy_base = false;
+  else if (type->is_string_type()
+	   && (expr_type->integer_type() != NULL
+	       || expr_type->deref()->array_type() != NULL))
+    copy_base = false;
+  else
+    copy_base = true;
+  if (copy_base && expr_type->has_refcounted_component())
+    this->expr_ = this->expr_->being_copied(refcounts, for_local);
+  return this;
+}
+
+// A type conversion may introduce a reference count.
+
+Expression*
+Type_conversion_expression::do_note_decrements(Refcounts* refcounts)
+{
+  if (this->is_being_copied_)
+    return this;
+  Type* type = this->type_;
+  Type* expr_type = this->expr_->type();
+  bool need_decrement;
+  if (type == expr_type)
+    need_decrement = false;
+  else if (type->interface_type() != NULL)
+    need_decrement = true;
+  else if (expr_type->interface_type() != NULL)
+    need_decrement = type->has_refcounted_component();
+  else if (type->is_string_type()
+	   && (expr_type->integer_type() != NULL
+	       || expr_type->deref()->array_type() != NULL))
+    need_decrement = true;
+  else
+    need_decrement = false;
+  if (!need_decrement)
+    return this;
+  return Expression::make_refcount_adjust(refcounts, REFCOUNT_DECREMENT_NEW,
+					  this, false);
+}
+
+// Get a tree for a type conversion.
+
+tree
+Type_conversion_expression::do_get_tree(Translate_context* context)
+{
+  Gogo* gogo = context->gogo();
+  tree type_tree = this->type_->get_tree(gogo);
+  tree expr_tree = this->expr_->get_tree(context);
+
+  if (type_tree == error_mark_node
+      || expr_tree == error_mark_node
+      || TREE_TYPE(expr_tree) == error_mark_node)
+    return error_mark_node;
+
+  if (TYPE_MAIN_VARIANT(type_tree) == TYPE_MAIN_VARIANT(TREE_TYPE(expr_tree)))
+    return fold_convert(type_tree, expr_tree);
+
+  Type* type = this->type_;
+  Type* expr_type = this->expr_->type();
+  tree ret;
+  if (type->interface_type() != NULL || expr_type->interface_type() != NULL)
+    ret = Expression::convert_for_assignment(context, type, expr_type,
+					     expr_tree, this->location());
+  else if (type->integer_type() != NULL)
+    {
+      if (expr_type->integer_type() != NULL
+	  || expr_type->float_type() != NULL
+	  || expr_type->is_unsafe_pointer_type())
+	ret = fold(convert_to_integer(type_tree, expr_tree));
+      else
+	gcc_unreachable();
+    }
+  else if (type->float_type() != NULL)
+    {
+      if (expr_type->integer_type() != NULL
+	  || expr_type->float_type() != NULL)
+	ret = fold(convert_to_real(type_tree, expr_tree));
+      else
+	gcc_unreachable();
+    }
+  else if (type->is_string_type()
+	   && expr_type->integer_type() != NULL)
+    {
+      expr_tree = fold_convert(integer_type_node, expr_tree);
+      if (host_integerp(expr_tree, 0))
+	{
+	  HOST_WIDE_INT intval = tree_low_cst(expr_tree, 0);
+	  std::string s;
+	  Lex::append_char(intval, true, &s, this->location());
+	  Expression* se = Expression::make_string(s, this->location());
+	  return se->get_tree(context);
+	}
+
+      static tree int_to_string_fndecl;
+      ret = Gogo::call_builtin(&int_to_string_fndecl,
+			       this->location(),
+			       "__go_int_to_string",
+			       1,
+			       type_tree,
+			       integer_type_node,
+			       fold_convert(integer_type_node, expr_tree));
+    }
+  else if (type->is_string_type()
+	   && (expr_type->array_type() != NULL
+	       || (expr_type->points_to() != NULL
+		   && expr_type->points_to()->array_type() != NULL)))
+    {
+      Type* t = expr_type;
+      if (t->points_to() != NULL)
+	{
+	  t = t->points_to();
+	  expr_tree = build_fold_indirect_ref(expr_tree);
+	}
+      if (!DECL_P(expr_tree))
+	expr_tree = save_expr(expr_tree);
+      Array_type* a = t->array_type();
+      Type* e = a->element_type()->forwarded();
+      gcc_assert(e->integer_type() != NULL);
+      tree valptr = fold_convert(const_ptr_type_node,
+				 a->value_pointer_tree(gogo, expr_tree));
+      tree len = a->length_tree(gogo, expr_tree);
+      if (e->integer_type()->is_unsigned()
+	  && e->integer_type()->bits() == 8)
+	{
+	  static tree byte_array_to_string_fndecl;
+	  ret = Gogo::call_builtin(&byte_array_to_string_fndecl,
+				   this->location(),
+				   "__go_byte_array_to_string",
+				   2,
+				   type_tree,
+				   const_ptr_type_node,
+				   valptr,
+				   size_type_node,
+				   len);
+	}
+      else
+	{
+	  gcc_assert(e == Type::lookup_integer_type("int"));
+	  static tree int_array_to_string_fndecl;
+	  ret = Gogo::call_builtin(&int_array_to_string_fndecl,
+				   this->location(),
+				   "__go_int_array_to_string",
+				   2,
+				   type_tree,
+				   const_ptr_type_node,
+				   valptr,
+				   size_type_node,
+				   len);
+	}
+    }
+  else if ((type->is_unsafe_pointer_type()
+	    && expr_type->points_to() != NULL)
+	   || (expr_type->is_unsafe_pointer_type()
+	       && type->points_to() != NULL))
+    ret = fold_convert(type_tree, expr_tree);
+  else if (type->is_unsafe_pointer_type()
+	   && expr_type->integer_type() != NULL)
+    ret = convert_to_pointer(type_tree, expr_tree);
+  else
+    ret = Expression::convert_for_assignment(context, type, expr_type,
+					     expr_tree, this->location());
+
+  return ret;
+}
+
+// Output a type conversion in a constant expression.
+
+void
+Type_conversion_expression::do_export(Export* exp) const
+{
+  exp->write_c_string("convert(");
+  exp->write_type(this->type_);
+  exp->write_c_string(", ");
+  this->expr_->export_expression(exp);
+  exp->write_c_string(")");
+}
+
+// Import a type conversion or a struct construction.
+
+Expression*
+Type_conversion_expression::do_import(Import* imp)
+{
+  imp->require_c_string("convert(");
+  Type* type = imp->read_type();
+  imp->require_c_string(", ");
+  Expression* val = Expression::import_expression(imp);
+  imp->require_c_string(")");
+  return Expression::make_cast(type, val, imp->location());
+}
+
+// Make a type cast expression.
+
+Expression*
+Expression::make_cast(Type* type, Expression* val, source_location location)
+{
+  if (type->is_error_type() || val->is_error_expression())
+    return Expression::make_error(location);
+  return new Type_conversion_expression(type, val, location);
+}
+
 // Unary expressions.
 
 class Unary_expression : public Expression
@@ -2267,7 +2828,7 @@ class Unary_expression : public Expression
  public:
   Unary_expression(Operator op, Expression* expr, source_location location)
     : Expression(EXPRESSION_UNARY, location),
-      op_(op), expr_(expr)
+      op_(op), expr_(expr), escapes_(true)
   { }
 
   // Return the operator.
@@ -2279,6 +2840,14 @@ class Unary_expression : public Expression
   Expression*
   operand() const
   { return this->expr_; }
+
+  // Record that an address expression does not escape.
+  void
+  set_does_not_escape()
+  {
+    gcc_assert(this->op_ == OPERATOR_AND);
+    this->escapes_ = false;
+  }
 
   // Apply unary opcode OP to UVAL, setting VAL.  Return true if this
   // could be done, false if not.
@@ -2332,7 +2901,7 @@ class Unary_expression : public Expression
   { return this->op_ == OPERATOR_MULT; }
 
   bool
-  do_address_taken(source_location);
+  do_address_taken(source_location, bool);
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -2352,6 +2921,9 @@ class Unary_expression : public Expression
  private:
   // The unary operator to apply.
   Operator op_;
+  // Normally true.  False if this is an address expression which does
+  // not escape the current function.
+  bool escapes_;
   // The operand.
   Expression* expr_;
 };
@@ -2370,11 +2942,33 @@ Unary_expression::do_lower(Gogo*, int)
   if (op == OPERATOR_MULT && expr->is_type_expression())
     return Expression::make_type(Type::make_pointer_type(expr->type()), loc);
 
-  if (op == OPERATOR_MULT && expr->classification() == EXPRESSION_UNARY)
+  // *&x simplifies to x.  *(*T)(unsafe.Pointer)(&x) does not require
+  // *moving x to the heap.  FIXME: Is it worth doing a real escape
+  // *analysis here?  This case is found in math/unsafe.go and is
+  // *therefore worth special casing.
+  if (op == OPERATOR_MULT)
     {
-      Unary_expression* uexpr = static_cast<Unary_expression*>(expr);
-      if (uexpr->op_ == OPERATOR_AND)
-	return uexpr->expr_;
+      Expression* e = expr;
+      while (e->classification() == EXPRESSION_CONVERSION)
+	{
+	  Type_conversion_expression* te
+	    = static_cast<Type_conversion_expression*>(e);
+	  e = te->expr();
+	}
+
+      if (e->classification() == EXPRESSION_UNARY)
+	{
+	  Unary_expression* ue = static_cast<Unary_expression*>(e);
+	  if (ue->op_ == OPERATOR_AND)
+	    {
+	      if (e == expr)
+		{
+		  // *&x == x.
+		  return ue->expr_;
+		}
+	      ue->set_does_not_escape();
+	    }
+	}
     }
 
   if (op == OPERATOR_PLUS || op == OPERATOR_MINUS
@@ -2677,7 +3271,7 @@ Unary_expression::do_check_types(Gogo*)
       break;
 
     case OPERATOR_AND:
-      if (!this->expr_->address_taken(this->location()))
+      if (!this->expr_->address_taken(this->location(), this->escapes_))
 	this->set_is_error();
       break;
 
@@ -2699,7 +3293,7 @@ Unary_expression::do_check_types(Gogo*)
 // &*p is OK.
 
 bool
-Unary_expression::do_address_taken(source_location location)
+Unary_expression::do_address_taken(source_location location, bool)
 {
   if (this->op_ == OPERATOR_MULT)
     return true;
@@ -6114,7 +6708,7 @@ class Array_index_expression : public Expression
   { return this->end_ == NULL; }
 
   bool
-  do_address_taken(source_location);
+  do_address_taken(source_location, bool);
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -6251,9 +6845,10 @@ Array_index_expression::do_check_types(Gogo*)
 // address of the array.
 
 bool
-Array_index_expression::do_address_taken(source_location location)
+Array_index_expression::do_address_taken(source_location location,
+					 bool escapes)
 {
-  if (!this->array_->address_taken(location))
+  if (!this->array_->address_taken(location, escapes))
     return false;
   if (this->end_ != NULL)
     {
@@ -6518,7 +7113,7 @@ class String_index_expression : public Expression
   }
 
   bool
-  do_address_taken(source_location)
+  do_address_taken(source_location, bool)
   { return true; }
 
   Expression*
@@ -6796,7 +7391,7 @@ Map_index_expression::do_check_types(Gogo*)
 // lvalue.
 
 bool
-Map_index_expression::do_address_taken(source_location location)
+Map_index_expression::do_address_taken(source_location location, bool)
 {
   if (!this->is_lvalue_)
     {
@@ -7008,9 +7603,10 @@ Field_reference_expression::do_check_types(Gogo*)
 // address of the whole structure.
 
 bool
-Field_reference_expression::do_address_taken(source_location location)
+Field_reference_expression::do_address_taken(source_location location,
+					     bool escapes)
 {
-  if (!this->expr_->address_taken(location))
+  if (!this->expr_->address_taken(location, escapes))
     return false;
   return true;
 }
@@ -7583,562 +8179,6 @@ Expression::make_make(Type* type, Expression_list* args,
   return new Make_expression(type, args, location);
 }
 
-// A type conversion expression.
-
-class Type_conversion_expression : public Expression
-{
- public:
-  Type_conversion_expression(Type* type, Expression* expr,
-			     source_location location)
-    : Expression(EXPRESSION_CONVERSION, location),
-      type_(type), expr_(expr), is_being_copied_(false)
-  { }
-
-  // Return the type to which we are converting.
-  Type*
-  type() const
-  { return this->type_; }
-
-  // Return the expression which we are converting.
-  Expression*
-  expr() const
-  { return this->expr_; }
-
-  static Expression*
-  do_import(Import*);
-
- protected:
-  int
-  do_traverse(Traverse* traverse);
-
-  Expression*
-  do_lower(Gogo*, int);
-
-  bool
-  do_is_constant() const
-  { return this->expr_->is_constant(); }
-
-  bool
-  do_integer_constant_value(bool, mpz_t, Type**) const;
-
-  bool
-  do_float_constant_value(mpfr_t, Type**) const;
-
-  bool
-  do_string_constant_value(std::string*) const;
-
-  Type*
-  do_type()
-  { return this->type_; }
-
-  void
-  do_determine_type(const Type_context*)
-  {
-    Type_context subcontext(this->type_, true);
-    this->expr_->determine_type(&subcontext);
-  }
-
-  void
-  do_check_types(Gogo*);
-
-  Expression*
-  do_copy()
-  {
-    return new Type_conversion_expression(this->type_, this->expr_->copy(),
-					  this->location());
-  }
-
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
-  tree
-  do_get_tree(Translate_context* context);
-
-  void
-  do_export(Export*) const;
-
- private:
-  // The type to convert to.
-  Type* type_;
-  // The expression to convert.
-  Expression* expr_;
-  // Whether this expression is being copied.
-  bool is_being_copied_;
-};
-
-// Traversal.
-
-int
-Type_conversion_expression::do_traverse(Traverse* traverse)
-{
-  if (Expression::traverse(&this->expr_, traverse) == TRAVERSE_EXIT
-      || Type::traverse(this->type_, traverse) == TRAVERSE_EXIT)
-    return TRAVERSE_EXIT;
-  return TRAVERSE_CONTINUE;
-}
-
-// Convert to a constant at lowering time.
-
-Expression*
-Type_conversion_expression::do_lower(Gogo*, int)
-{
-  Type* type = this->type_;
-  Expression* val = this->expr_;
-  source_location location = this->location();
-
-  if (type->integer_type() != NULL)
-    {
-      mpz_t ival;
-      mpz_init(ival);
-      Type* dummy;
-      if (val->integer_constant_value(false, ival, &dummy))
-	{
-	  if (!Integer_expression::check_constant(ival, type, location))
-	    mpz_set_ui(ival, 0);
-	  return Expression::make_integer(&ival, type, location);
-	}
-
-      mpfr_t fval;
-      mpfr_init(fval);
-      if (val->float_constant_value(fval, &dummy))
-	{
-	  if (!mpfr_integer_p(fval))
-	    {
-	      error_at(location,
-		       "floating point constant truncated to integer");
-	      return Expression::make_error(location);
-	    }
-	  mpfr_get_z(ival, fval, GMP_RNDN);
-	  if (!Integer_expression::check_constant(ival, type, location))
-	    mpz_set_ui(ival, 0);
-	  return Expression::make_integer(&ival, type, location);
-	}
-      mpfr_clear(fval);
-      mpz_clear(ival);
-    }
-
-  if (type->float_type() != NULL)
-    {
-      mpfr_t fval;
-      mpfr_init(fval);
-      Type* dummy;
-      if (val->float_constant_value(fval, &dummy))
-	{
-	  if (!Float_expression::check_constant(fval, type, location))
-	    mpfr_set_ui(fval, 0, GMP_RNDN);
-	  Float_expression::constrain_float(fval, type);
-	  return Expression::make_float(&fval, type, location);
-	}
-      mpfr_clear(fval);
-    }
-
-  return this;
-}
-
-// Return the constant integer value if there is one.
-
-bool
-Type_conversion_expression::do_integer_constant_value(bool iota_is_constant,
-						      mpz_t val,
-						      Type** ptype) const
-{
-  if (this->type_->integer_type() == NULL)
-    return false;
-
-  mpz_t ival;
-  mpz_init(ival);
-  Type* dummy;
-  if (this->expr_->integer_constant_value(iota_is_constant, ival, &dummy))
-    {
-      if (!Integer_expression::check_constant(ival, this->type_,
-					      this->location()))
-	{
-	  mpz_clear(ival);
-	  return false;
-	}
-      mpz_set(val, ival);
-      mpz_clear(ival);
-      *ptype = this->type_;
-      return true;
-    }
-  mpz_clear(ival);
-
-  mpfr_t fval;
-  mpfr_init(fval);
-  if (this->expr_->float_constant_value(fval, &dummy))
-    {
-      mpfr_get_z(val, fval, GMP_RNDN);
-      mpfr_clear(fval);
-      if (!Integer_expression::check_constant(val, this->type_,
-					      this->location()))
-	return false;
-      *ptype = this->type_;
-      return true;
-    }
-  mpfr_clear(fval);
-
-  return false;
-}
-
-// Return the constant floating point value if there is one.
-
-bool
-Type_conversion_expression::do_float_constant_value(mpfr_t val,
-						    Type** ptype) const
-{
-  if (this->type_->float_type() == NULL)
-    return false;
-
-  mpfr_t fval;
-  mpfr_init(fval);
-  Type* dummy;
-  if (this->expr_->float_constant_value(fval, &dummy))
-    {
-      if (!Float_expression::check_constant(fval, this->type_,
-					    this->location()))
-	{
-	  mpfr_clear(fval);
-	  return false;
-	}
-      mpfr_set(val, fval, GMP_RNDN);
-      mpfr_clear(fval);
-      Float_expression::constrain_float(val, this->type_);
-      *ptype = this->type_;
-      return true;
-    }
-  mpfr_clear(fval);
-
-  mpz_t ival;
-  mpz_init(ival);
-  if (this->expr_->integer_constant_value(false, ival, &dummy))
-    {
-      mpfr_set_z(val, ival, GMP_RNDN);
-      mpz_clear(ival);
-      if (!Float_expression::check_constant(val, this->type_,
-					    this->location()))
-	return false;
-      Float_expression::constrain_float(val, this->type_);
-      *ptype = this->type_;
-      return true;
-    }
-  mpz_clear(ival);
-
-  return false;
-}
-
-// Return the constant string value if there is one.
-
-bool
-Type_conversion_expression::do_string_constant_value(std::string* val) const
-{
-  if (this->type_->is_string_type()
-      && this->expr_->type()->integer_type() != NULL)
-    {
-      mpz_t ival;
-      mpz_init(ival);
-      Type* dummy;
-      if (this->expr_->integer_constant_value(false, ival, &dummy))
-	{
-	  unsigned long ulval = mpz_get_ui(ival);
-	  if (mpz_cmp_ui(ival, ulval) == 0)
-	    {
-	      Lex::append_char(ulval, true, val, this->location());
-	      mpz_clear(ival);
-	      return true;
-	    }
-	}
-      mpz_clear(ival);
-    }
-
-  // FIXME: Could handle conversion from const []int here.
-
-  return false;
-}
-
-// Check that types are convertible.
-
-void
-Type_conversion_expression::do_check_types(Gogo*)
-{
-  Type* type = this->type_;
-  Type* expr_type = this->expr_->type();
-  std::string reason;
-
-  if (Type::are_compatible_for_conversion(type, expr_type, &reason))
-    return;
-
-  bool ok = false;
-  if ((type->integer_type() != NULL || type->float_type() != NULL)
-      && (expr_type->integer_type() != NULL
-	  || expr_type->float_type() != NULL))
-    ok = true;
-  else if (type->is_string_type())
-    {
-      if (expr_type->integer_type() != NULL)
-	ok = true;
-      else
-	{
-	  Type* t = expr_type->deref();
-	  if (t->array_type() != NULL)
-	    {
-	      Type* e = t->array_type()->element_type()->forwarded();
-	      if (e->integer_type() != NULL
-		  && (e == Type::lookup_integer_type("uint8")
-		      || e == Type::lookup_integer_type("int")))
-		ok = true;
-	    }
-	}
-    }
-  else if ((type->is_unsafe_pointer_type()
-	    && (expr_type->points_to() != NULL
-		|| (expr_type->integer_type() != NULL
-		    && expr_type->integer_type()->bits() == POINTER_SIZE
-		    && expr_type->integer_type()->is_unsigned())))
-	   || (expr_type->is_unsafe_pointer_type()
-	       && (type->points_to() != NULL
-		   || (type->integer_type() != NULL
-		       && type->integer_type()->bits() == POINTER_SIZE
-		       && type->integer_type()->is_unsigned()))))
-    {
-      // Conversions between unsafe pointers and other pointers or
-      // integers of appropriate size are permitted.
-      ok = true;
-    }
-
-  // FIXME: Conversions between interfaces and pointers are supported.
-
-  if (!ok)
-    {
-      if (reason.empty())
-	this->report_error(_("invalid type conversion"));
-      else
-	{
-	  error_at(this->location(), "invalid type conversion (%s)",
-		   reason.c_str());
-	  this->set_is_error();
-	}
-    }
-}
-
-// The type conversion is being copied elsewhere.  If we do not call a
-// function which creates a new reference, then we need to pass this
-// on to the subsidiary expression.
-
-Expression*
-Type_conversion_expression::do_being_copied(Refcounts* refcounts,
-					    bool for_local)
-{
-  this->is_being_copied_ = true;
-  Type* type = this->type_;
-  Type* expr_type = this->expr_->type();
-  bool copy_base;
-  if (type == expr_type)
-    copy_base = true;
-  else if (type->interface_type() != NULL
-	   || expr_type->interface_type() != NULL)
-    copy_base = false;
-  else if (type->is_string_type()
-	   && (expr_type->integer_type() != NULL
-	       || expr_type->deref()->array_type() != NULL))
-    copy_base = false;
-  else
-    copy_base = true;
-  if (copy_base && expr_type->has_refcounted_component())
-    this->expr_ = this->expr_->being_copied(refcounts, for_local);
-  return this;
-}
-
-// A type conversion may introduce a reference count.
-
-Expression*
-Type_conversion_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->is_being_copied_)
-    return this;
-  Type* type = this->type_;
-  Type* expr_type = this->expr_->type();
-  bool need_decrement;
-  if (type == expr_type)
-    need_decrement = false;
-  else if (type->interface_type() != NULL)
-    need_decrement = true;
-  else if (expr_type->interface_type() != NULL)
-    need_decrement = type->has_refcounted_component();
-  else if (type->is_string_type()
-	   && (expr_type->integer_type() != NULL
-	       || expr_type->deref()->array_type() != NULL))
-    need_decrement = true;
-  else
-    need_decrement = false;
-  if (!need_decrement)
-    return this;
-  return Expression::make_refcount_adjust(refcounts, REFCOUNT_DECREMENT_NEW,
-					  this, false);
-}
-
-// Get a tree for a type conversion.
-
-tree
-Type_conversion_expression::do_get_tree(Translate_context* context)
-{
-  Gogo* gogo = context->gogo();
-  tree type_tree = this->type_->get_tree(gogo);
-  tree expr_tree = this->expr_->get_tree(context);
-
-  if (type_tree == error_mark_node
-      || expr_tree == error_mark_node
-      || TREE_TYPE(expr_tree) == error_mark_node)
-    return error_mark_node;
-
-  if (TYPE_MAIN_VARIANT(type_tree) == TYPE_MAIN_VARIANT(TREE_TYPE(expr_tree)))
-    return fold_convert(type_tree, expr_tree);
-
-  Type* type = this->type_;
-  Type* expr_type = this->expr_->type();
-  tree ret;
-  if (type->interface_type() != NULL || expr_type->interface_type() != NULL)
-    ret = Expression::convert_for_assignment(context, type, expr_type,
-					     expr_tree, this->location());
-  else if (type->integer_type() != NULL)
-    {
-      if (expr_type->integer_type() != NULL
-	  || expr_type->float_type() != NULL
-	  || expr_type->is_unsafe_pointer_type())
-	ret = fold(convert_to_integer(type_tree, expr_tree));
-      else
-	gcc_unreachable();
-    }
-  else if (type->float_type() != NULL)
-    {
-      if (expr_type->integer_type() != NULL
-	  || expr_type->float_type() != NULL)
-	ret = fold(convert_to_real(type_tree, expr_tree));
-      else
-	gcc_unreachable();
-    }
-  else if (type->is_string_type()
-	   && expr_type->integer_type() != NULL)
-    {
-      expr_tree = fold_convert(integer_type_node, expr_tree);
-      if (host_integerp(expr_tree, 0))
-	{
-	  HOST_WIDE_INT intval = tree_low_cst(expr_tree, 0);
-	  std::string s;
-	  Lex::append_char(intval, true, &s, this->location());
-	  Expression* se = Expression::make_string(s, this->location());
-	  return se->get_tree(context);
-	}
-
-      static tree int_to_string_fndecl;
-      ret = Gogo::call_builtin(&int_to_string_fndecl,
-			       this->location(),
-			       "__go_int_to_string",
-			       1,
-			       type_tree,
-			       integer_type_node,
-			       fold_convert(integer_type_node, expr_tree));
-    }
-  else if (type->is_string_type()
-	   && (expr_type->array_type() != NULL
-	       || (expr_type->points_to() != NULL
-		   && expr_type->points_to()->array_type() != NULL)))
-    {
-      Type* t = expr_type;
-      if (t->points_to() != NULL)
-	{
-	  t = t->points_to();
-	  expr_tree = build_fold_indirect_ref(expr_tree);
-	}
-      if (!DECL_P(expr_tree))
-	expr_tree = save_expr(expr_tree);
-      Array_type* a = t->array_type();
-      Type* e = a->element_type()->forwarded();
-      gcc_assert(e->integer_type() != NULL);
-      tree valptr = fold_convert(const_ptr_type_node,
-				 a->value_pointer_tree(gogo, expr_tree));
-      tree len = a->length_tree(gogo, expr_tree);
-      if (e->integer_type()->is_unsigned()
-	  && e->integer_type()->bits() == 8)
-	{
-	  static tree byte_array_to_string_fndecl;
-	  ret = Gogo::call_builtin(&byte_array_to_string_fndecl,
-				   this->location(),
-				   "__go_byte_array_to_string",
-				   2,
-				   type_tree,
-				   const_ptr_type_node,
-				   valptr,
-				   size_type_node,
-				   len);
-	}
-      else
-	{
-	  gcc_assert(e == Type::lookup_integer_type("int"));
-	  static tree int_array_to_string_fndecl;
-	  ret = Gogo::call_builtin(&int_array_to_string_fndecl,
-				   this->location(),
-				   "__go_int_array_to_string",
-				   2,
-				   type_tree,
-				   const_ptr_type_node,
-				   valptr,
-				   size_type_node,
-				   len);
-	}
-    }
-  else if ((type->is_unsafe_pointer_type()
-	    && expr_type->points_to() != NULL)
-	   || (expr_type->is_unsafe_pointer_type()
-	       && type->points_to() != NULL))
-    ret = fold_convert(type_tree, expr_tree);
-  else if (type->is_unsafe_pointer_type()
-	   && expr_type->integer_type() != NULL)
-    ret = convert_to_pointer(type_tree, expr_tree);
-  else
-    ret = Expression::convert_for_assignment(context, type, expr_type,
-					     expr_tree, this->location());
-
-  return ret;
-}
-
-// Output a type conversion in a constant expression.
-
-void
-Type_conversion_expression::do_export(Export* exp) const
-{
-  exp->write_c_string("convert(");
-  exp->write_type(this->type_);
-  exp->write_c_string(", ");
-  this->expr_->export_expression(exp);
-  exp->write_c_string(")");
-}
-
-// Import a type conversion or a struct construction.
-
-Expression*
-Type_conversion_expression::do_import(Import* imp)
-{
-  imp->require_c_string("convert(");
-  Type* type = imp->read_type();
-  imp->require_c_string(", ");
-  Expression* val = Expression::import_expression(imp);
-  imp->require_c_string(")");
-  return Expression::make_cast(type, val, imp->location());
-}
-
-// Make a type cast expression.
-
-Expression*
-Expression::make_cast(Type* type, Expression* val, source_location location)
-{
-  if (type->is_error_type() || val->is_error_expression())
-    return Expression::make_error(location);
-  return new Type_conversion_expression(type, val, location);
-}
-
 // Construct a struct.
 
 class Struct_construction_expression : public Expression
@@ -8176,7 +8216,7 @@ class Struct_construction_expression : public Expression
   }
 
   bool
-  do_address_taken(source_location)
+  do_address_taken(source_location, bool)
   {
     gcc_assert(this->is_constant_struct());
     return true;
@@ -8479,7 +8519,7 @@ protected:
   do_check_types(Gogo*);
 
   bool
-  do_address_taken(source_location)
+  do_address_taken(source_location, bool)
   {
     gcc_assert(this->is_constant_array());
     return true;
@@ -8922,7 +8962,7 @@ class Map_construction_expression : public Expression
 
   // Should be turned into Heap_composite_expression.
   bool
-  do_address_taken()
+  do_address_taken(source_location, bool)
   { gcc_unreachable(); }
 
   Expression*

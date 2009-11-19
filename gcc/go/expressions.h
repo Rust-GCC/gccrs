@@ -514,10 +514,11 @@ class Expression
   { return this->do_is_lvalue(); }
 
   // We are taking the address of this expression.  If this is
-  // invalid, report an error and return false.
+  // invalid, report an error and return false.  ESCAPES is true if
+  // this address escapes the current function.
   bool
-  address_taken(source_location location)
-  { return this->do_address_taken(location); }
+  address_taken(source_location location, bool escapes)
+  { return this->do_address_taken(location, escapes); }
 
   // This is called when the value of an expression is being stored
   // somewhere.  In some cases this requires that the reference count
@@ -652,7 +653,7 @@ class Expression
 
   // Child class implements taking the address of an expression.
   virtual bool
-  do_address_taken(source_location);
+  do_address_taken(source_location, bool);
 
   // Child class implements incrementing reference count.
   virtual Expression*
@@ -885,7 +886,7 @@ class Var_expression : public Expression
   { return true; }
 
   bool
-  do_address_taken(source_location);
+  do_address_taken(source_location, bool);
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -1405,7 +1406,7 @@ class Map_index_expression : public Expression
   { return this->is_lvalue_; }
 
   bool
-  do_address_taken(source_location);
+  do_address_taken(source_location, bool);
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -1557,7 +1558,7 @@ class Field_reference_expression : public Expression
   { return true; }
 
   bool
-  do_address_taken(source_location);
+  do_address_taken(source_location, bool);
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -1634,7 +1635,7 @@ class Interface_field_reference_expression : public Expression
   }
 
   bool
-  do_address_taken(source_location)
+  do_address_taken(source_location, bool)
   { return true; }
 
   tree
