@@ -2577,12 +2577,14 @@ Type_conversion_expression::do_check_types(Gogo*)
   else if ((type->is_unsafe_pointer_type()
 	    && (expr_type->points_to() != NULL
 		|| (expr_type->integer_type() != NULL
-		    && expr_type->integer_type()->bits() == POINTER_SIZE
+		    && (expr_type->integer_type()->bits()
+			== static_cast<int>(POINTER_SIZE))
 		    && expr_type->integer_type()->is_unsigned())))
 	   || (expr_type->is_unsafe_pointer_type()
 	       && (type->points_to() != NULL
 		   || (type->integer_type() != NULL
-		       && type->integer_type()->bits() == POINTER_SIZE
+		       && (type->integer_type()->bits()
+			   == static_cast<int>(POINTER_SIZE))
 		       && type->integer_type()->is_unsigned()))))
     {
       // Conversions between unsafe pointers and other pointers or
@@ -5247,7 +5249,10 @@ Builtin_call_expression::do_integer_constant_value(bool iota_is_constant,
 		val_long = BIGGEST_FIELD_ALIGNMENT;
 #endif
 #ifdef ADJUST_FIELD_ALIGN
-	      tree field = build_decl(UNKNOWN_LOCATION, FIELD_DECL, NULL,
+	      // A separate declaration avoids a warning promoted to
+	      // an error if ADJUST_FIELD_ALIGN ignores FIELD.
+	      tree field;
+	      field = build_decl(UNKNOWN_LOCATION, FIELD_DECL, NULL,
 				      arg_type_tree);
 	      val_long = ADJUST_FIELD_ALIGN(field, val_long);
 #endif
