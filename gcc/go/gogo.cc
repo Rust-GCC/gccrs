@@ -58,8 +58,9 @@ Gogo::Gogo()
 
   this->add_named_type(Type::make_float_type("float32", 32,
 					     RUNTIME_TYPE_CODE_FLOAT32));
-  this->add_named_type(Type::make_float_type("float64", 64,
-					     RUNTIME_TYPE_CODE_FLOAT64));
+  Named_type* float64_type = Type::make_float_type("float64", 64,
+						   RUNTIME_TYPE_CODE_FLOAT64);
+  this->add_named_type(float64_type);
 
   const int int_type_size = std::max(INT_TYPE_SIZE, 32);
   this->add_named_type(Type::make_integer_type("uint", true,
@@ -172,6 +173,17 @@ Gogo::Gogo()
   this->globals_->add_function_declaration("closed", NULL, closed_type, loc);
 
   this->define_builtin_function_trees();
+
+  // For the math library.
+  Typed_identifier_list* sqrt_arg = new Typed_identifier_list();
+  sqrt_arg->push_back(Typed_identifier("x", float64_type, loc));
+  Typed_identifier_list* sqrt_result = new Typed_identifier_list();
+  sqrt_result->push_back(Typed_identifier("", float64_type, loc));
+  Function_type* sqrt_type = Type::make_function_type(NULL, sqrt_arg,
+						      sqrt_result, loc);
+  sqrt_type->set_is_builtin();
+  this->globals_->add_function_declaration("__builtin_sqrt", NULL, sqrt_type,
+					   loc);
 
   // Declare "init", to ensure that it is not defined with parameters
   // or return values.

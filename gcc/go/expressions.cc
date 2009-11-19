@@ -2828,7 +2828,7 @@ class Unary_expression : public Expression
  public:
   Unary_expression(Operator op, Expression* expr, source_location location)
     : Expression(EXPRESSION_UNARY, location),
-      op_(op), expr_(expr), escapes_(true)
+      op_(op), escapes_(true), expr_(expr)
   { }
 
   // Return the operator.
@@ -4999,7 +4999,10 @@ class Builtin_call_expression : public Call_expression
       // Builtin functions from the unsafe package.
       BUILTIN_ALIGNOF,
       BUILTIN_OFFSETOF,
-      BUILTIN_SIZEOF
+      BUILTIN_SIZEOF,
+
+      // gccgo specific builtin functions.
+      BUILTIN_SQRT
     };
 
   Expression*
@@ -5051,6 +5054,8 @@ Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
     this->code_ = BUILTIN_OFFSETOF;
   else if (name == "Sizeof")
     this->code_ = BUILTIN_SIZEOF;
+  else if (name == "__builtin_sqrt")
+    this->code_ = BUILTIN_SQRT;
   else
     gcc_unreachable();
 }
@@ -5323,6 +5328,9 @@ Builtin_call_expression::do_type()
 
     case BUILTIN_CLOSED:
       return Type::lookup_bool_type();
+
+    case BUILTIN_SQRT:
+      return Type::lookup_float_type("float64");
     }
 }
 
@@ -5334,6 +5342,8 @@ Builtin_call_expression::do_determine_type(const Type_context*)
   this->fn()->determine_type_no_context();
 
   Type_context subcontext(NULL, true);
+  if (this->code_ == BUILTIN_SQRT)
+    subcontext.type = Type::lookup_float_type("float64");
   const Expression_list* args = this->args();
   if (args != NULL)
     {
@@ -5475,6 +5485,17 @@ Builtin_call_expression::do_check_types(Gogo*)
 	  Expression* arg = this->one_arg();
 	  if (arg->field_reference_expression() == NULL)
 	    this->report_error(_("argument must be a field reference"));
+	}
+      break;
+
+    case BUILTIN_SQRT:
+      if (this->check_one_arg())
+	{
+	  Expression* arg = this->one_arg();
+	  if (arg->type()->float_type() == NULL
+	      || arg->type()->float_type()->is_abstract()
+	      || arg->type()->float_type()->bits() != 64)
+	    this->report_error(_("argument 1 has incompatible type"));
 	}
       break;
 
@@ -5799,6 +5820,22 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	tree ret = Expression::integer_constant_tree(val, type);
 	mpz_clear(val);
 	return ret;
+      }
+
+    case BUILTIN_SQRT:
+      {
+	const Expression_list* args = this->args();
+	gcc_assert(args != NULL && args->size() == 1);
+	Expression* arg = args->front();
+	tree arg_tree = arg->get_tree(context);
+	if (arg_tree == error_mark_node)
+	  return error_mark_node;
+	tree type = Type::lookup_float_type("float64")->get_tree(gogo);
+	arg_tree = fold_convert_loc(this->location(), type, arg_tree);
+	tree fn = built_in_decls[BUILT_IN_SQRT];
+	tree call = build1(ADDR_EXPR, build_pointer_type(TREE_TYPE(fn)), fn);
+	call = build_call_nary(TREE_TYPE(TREE_TYPE(fn)), call, 1, arg_tree);
+	return fold_convert_loc(this->location(), type, call);
       }
 
     default:

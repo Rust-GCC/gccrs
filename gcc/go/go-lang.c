@@ -114,6 +114,9 @@ go_langhook_init_options (unsigned int argc ATTRIBUTE_UNUSED,
      requirements.  */
   flag_strict_aliasing = 1;
 
+  /* The builtin math functions should not set errno.  */
+  flag_errno_math = 0;
+
   /* We default to always showing a column number.  */
   flag_show_column = 1;
 

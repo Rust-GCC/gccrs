@@ -79,6 +79,12 @@ Gogo::define_builtin_function_trees()
 					  long_integer_type_node,
 					  NULL_TREE),
 		 true);
+
+  // We provide __builtin_sqrt for the math library.
+  define_builtin(BUILT_IN_SQRT, "__builtin_sqrt",
+		 build_function_type_list(double_type_node, double_type_node,
+					  NULL_TREE),
+		 true);
 }
 
 // Get the name to use for the import control function.  If there is a
