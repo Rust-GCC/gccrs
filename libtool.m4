@@ -6958,9 +6958,12 @@ _LT_LINKER_BOILERPLATE
 
 # Allow CC to be a program name with arguments.
 lt_save_CC="$CC"
+lt_save_GCC="$GCC"
+GCC=yes
 CC=${GCCGO-"gccgo"}
 compiler=$CC
 _LT_TAGVAR(compiler, $1)=$CC
+_LT_TAGVAR(LD, $1)="$LD"
 _LT_CC_BASENAME([$compiler])
 
 # Go did not exist at the time GCC didn't implicitly link libc in.
@@ -6975,16 +6978,17 @@ _LT_TAGVAR(old_archive_cmds, $1)=$old_archive_cmds
 if test -n "$compiler"; then
   _LT_COMPILER_NO_RTTI($1)
   _LT_COMPILER_PIC($1)
-  _LT_TAGVAR(lt_cv_prog_compiler_c_o, $1)=yes
+  _LT_COMPILER_C_O($1)
   _LT_COMPILER_FILE_LOCKS($1)
   _LT_LINKER_SHLIBS($1)
-  _LT_SYS_DYNAMIC_LINKER($1)
   _LT_LINKER_HARDCODE_LIBPATH($1)
 
   _LT_CONFIG($1)
 fi
 
 AC_LANG_RESTORE
+
+GCC=$lt_save_GCC
 CC="$lt_save_CC"
 ])# _LT_LANG_GO_CONFIG
 
