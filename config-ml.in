@@ -517,6 +517,7 @@ multi-do:
 				prefix="$(prefix)" \
 				exec_prefix="$(exec_prefix)" \
 				GCJFLAGS="$(GCJFLAGS) $${flags}" \
+				GOFLAGS="$(GOFLAGS) $${flags}" \
 				CXXFLAGS="$(CXXFLAGS) $${flags}" \
 				LIBCFLAGS="$(LIBCFLAGS) $${flags}" \
 				LIBCXXFLAGS="$(LIBCXXFLAGS) $${flags}" \
