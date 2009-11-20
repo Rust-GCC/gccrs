@@ -220,6 +220,10 @@ LINKER = $(CXX)
 LINKER_FLAGS = $(CXXFLAGS)
 endif
 
+# This is set by the configure script to be -static-libstdc++ if
+# $(CXX) supports the option.
+STATIC_LIBSTDCXX = @STATIC_LIBSTDCXX@
+
 # -------------------------------------------
 # Programs which operate on the build machine
 # -------------------------------------------

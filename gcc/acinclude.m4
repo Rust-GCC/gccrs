@@ -500,3 +500,4 @@ dnl Make sure that build_exeext is looked for
 AC_DEFUN([gcc_AC_BUILD_EXEEXT], [
 ac_executable_extensions="$build_exeext"])
 
+m4_include([../config/go.m4])

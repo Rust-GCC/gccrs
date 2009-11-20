@@ -4118,6 +4118,22 @@ done
 # UNSORTED
 # --------
 
+# Test whether $CXX supports -static-libstdc++
+AC_CACHE_CHECK([whether $CXX supports -static-libstdc++],
+	gcc_cv_cxx_supports_static_libstdcxx,
+	[if $CXX -static-libstdc++ >/dev/null 2>&1 | 
+	    grep 'unrecognized option' >/dev/null; then
+	   gcc_cv_cxx_supports_static_libstdcxx=no
+	 else
+	   gcc_cv_cxx_supports_static_libstdcxx=yes
+	 fi])
+if test "$gcc_cv_cxx_supports_static_libstdcxx" = yes; then
+  STATIC_LIBSTDCXX=-static-libstdc++
+else
+  STATIC_LIBSTDCXX=
+fi
+AC_SUBST(STATIC_LIBSTDCXX)
+
 # Create .gdbinit.
 
 echo "dir ." > .gdbinit
