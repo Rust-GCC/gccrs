@@ -4121,7 +4121,7 @@ done
 # Test whether $CXX supports -static-libstdc++
 AC_CACHE_CHECK([whether $CXX supports -static-libstdc++],
 	gcc_cv_cxx_supports_static_libstdcxx,
-	[if $CXX -static-libstdc++ >/dev/null 2>&1 | 
+	[if $CXX -static-libstdc++ 2>&1 >/dev/null | 
 	    grep 'unrecognized option' >/dev/null; then
 	   gcc_cv_cxx_supports_static_libstdcxx=no
 	 else
