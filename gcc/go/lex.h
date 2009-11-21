@@ -320,6 +320,9 @@ class Lex
   void
   error(const char*);
 
+  ssize_t
+  get_line();
+
   bool
   require_line();
 

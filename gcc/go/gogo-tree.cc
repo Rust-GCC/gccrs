@@ -2365,7 +2365,10 @@ Gogo::type_descriptor_constructor(int runtime_type_code, Type* type,
 #endif
 #ifdef ADJUST_FIELD_ALIGN
   {
-    tree f = build_decl(UNKNOWN_LOCATION, FIELD_DECL, NULL, type_tree);
+    // A separate declaration avoids a warning promoted to an error if
+    // ADJUST_FIELD_ALIGN ignores FIELD.
+    tree f;
+    f = build_decl(UNKNOWN_LOCATION, FIELD_DECL, NULL, type_tree);
     val = ADJUST_FIELD_ALIGN(f, val);
   }
 #endif

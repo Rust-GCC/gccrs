@@ -431,15 +431,61 @@ Token::print(FILE* file) const
 
 Lex::Lex(const char* input_file_name, FILE* input_file)
   : input_file_name_(input_file_name), input_file_(input_file),
-    linebuf_(NULL), linebufsize_(0), linesize_(0), lineno_(0)
+    linebuf_(NULL), linebufsize_(120), linesize_(0), lineno_(0)
 {
+  this->linebuf_ = new char[this->linebufsize_];
   linemap_add(line_table, LC_ENTER, 0, input_file_name, 1);
 }
 
 Lex::~Lex()
 {
-  free(this->linebuf_);
+  delete[] this->linebuf_;
   linemap_add(line_table, LC_LEAVE, 0, NULL, 0);
+}
+
+// Read a new line from the file.
+
+ssize_t
+Lex::get_line()
+{
+  char* buf = this->linebuf_;
+  size_t size = this->linebufsize_;
+
+  FILE* file = this->input_file_;
+  size_t cur = 0;
+  while (true)
+    {
+      int c = getc(file);
+      if (c == EOF)
+	{
+	  if (cur == 0)
+	    return -1;
+	  break;
+	}
+      if (cur + 1 >= size)
+	{
+	  size_t ns = 2 * size + 1;
+	  if (ns < size || static_cast<ssize_t>(ns) < 0)
+	    this->error("out of memory");
+	  char* nb = new char[ns];
+	  memcpy(nb, buf, cur);
+	  delete[] buf;
+	  buf = nb;
+	  size = ns;
+	}
+      buf[cur] = c;
+      ++cur;
+
+      if (c == '\n')
+	break;
+    }
+
+  buf[cur] = '\0';
+
+  this->linebuf_ = buf;
+  this->linebufsize_ = size;
+
+  return cur;
 }
 
 // See if we need to read a new line.  Return true if there is a new
@@ -451,8 +497,7 @@ Lex::require_line()
   if (this->lineoff_ < this->linesize_)
     return true;
 
-  ssize_t got = ::getline(&this->linebuf_, &this->linebufsize_,
-			  this->input_file_);
+  ssize_t got = this->get_line();
   if (got < 0)
     return false;
   ++this->lineno_;
