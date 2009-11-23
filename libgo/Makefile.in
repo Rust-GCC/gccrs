@@ -54,13 +54,13 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/../config.guess \
 	$(srcdir)/config.h.in $(top_srcdir)/configure
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/../config/depstand.m4 \
+	$(top_srcdir)/../config/go.m4 \
 	$(top_srcdir)/../config/lead-dot.m4 \
 	$(top_srcdir)/../config/multi.m4 \
 	$(top_srcdir)/../config/override.m4 \
 	$(top_srcdir)/../libtool.m4 $(top_srcdir)/../ltoptions.m4 \
 	$(top_srcdir)/../ltsugar.m4 $(top_srcdir)/../ltversion.m4 \
-	$(top_srcdir)/../lt~obsolete.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/../lt~obsolete.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
@@ -244,6 +244,7 @@ RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SPLIT_STACK = @SPLIT_STACK@
 STRIP = @STRIP@
 VERSION = @VERSION@
 WARN_FLAGS = @WARN_FLAGS@
@@ -325,7 +326,7 @@ WARN_CFLAGS = $(WARN_FLAGS) $(WERROR)
 # -I/-D flags to pass when compiling.
 AM_CPPFLAGS = -I $(srcdir)/runtime $(LIBFFIINCS)
 ACLOCAL_AMFLAGS = -I . -I .. -I ../config
-AM_CFLAGS = -fplan9-extensions -fsplit-stack $(WARN_CFLAGS)
+AM_CFLAGS = -fplan9-extensions $(SPLIT_STACK) $(WARN_CFLAGS)
 
 # Multilib support.
 MAKEOVERRIDES = 

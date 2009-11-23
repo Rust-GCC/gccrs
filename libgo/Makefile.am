@@ -28,7 +28,7 @@ AM_CPPFLAGS = -I $(srcdir)/runtime $(LIBFFIINCS)
 
 ACLOCAL_AMFLAGS = -I . -I .. -I ../config
 
-AM_CFLAGS = -fplan9-extensions -fsplit-stack $(WARN_CFLAGS)
+AM_CFLAGS = -fplan9-extensions $(SPLIT_STACK) $(WARN_CFLAGS)
 
 # Multilib support.
 MAKEOVERRIDES=

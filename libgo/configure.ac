@@ -143,6 +143,22 @@ AM_CONDITIONAL(LIBGO_IS_386, test $is_386 = yes)
 AM_CONDITIONAL(LIBGO_IS_X86_64, test $is_x86_64 = yes)
 AM_CONDITIONAL(LIBGO_IS_ARM, test $is_arm = yes)
 
+dnl Use -fsplit-stack when compiling C code if available.
+AC_CACHE_CHECK([whether -fsplit-stack is supported],
+[ac_cv_libgo_split_stack_supported],
+[CFLAGS_hold=$CFLAGS
+CFLAGS="$CFLAGS -fsplit-stack"
+AC_COMPILE_IFELSE([[int i;]],
+[ac_cv_libgo_split_stack_supported=yes],
+[ac_cv_libgo_split_stack_supported=no])
+CFLAGS=$CFLAGS_hold])
+if test "$ac_cv_libgo_split_stack_supported" = yes; then
+  SPLIT_STACK=-fsplit-stack
+else
+  SPLIT_STACK=
+fi
+AC_SUBST(SPLIT_STACK)
+
 AC_CACHE_SAVE
 
 if test ${multilib} = yes; then
