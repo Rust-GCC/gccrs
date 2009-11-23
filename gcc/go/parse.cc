@@ -2564,8 +2564,8 @@ Parse::selector(Expression* left, bool* is_type_switch)
     }
 }
 
-// Index = "[" Expression "]" .
-// Slice = "[" Expression ":" Expression "]" .
+// Index          = "[" Expression "]" .
+// Slice          = "[" Expression ":" [ Expression ] "]" .
 
 Expression*
 Parse::index(Expression* expr)
@@ -2577,8 +2577,11 @@ Parse::index(Expression* expr)
   Expression* end = NULL;
   if (this->peek_token()->is_op(OPERATOR_COLON))
     {
-      this->advance_token();
-      end = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
+      // We use nil to indicate a missing high expression.
+      if (this->advance_token()->is_op(OPERATOR_RSQUARE))
+	end = Expression::make_nil(this->location());
+      else
+	end = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
     }
   if (!this->peek_token()->is_op(OPERATOR_RSQUARE))
     this->error("missing %<]%>");

@@ -6769,7 +6769,8 @@ class Array_index_expression : public Expression
   Expression* array_;
   // The start or only index.
   Expression* start_;
-  // The end index of a slice.  This may be NULL.
+  // The end index of a slice.  This may be NULL for a simple array
+  // index, or it may be a nil expression for the length of the array.
   Expression* end_;
   // The type of the expression.
   Type* type_;
@@ -6839,7 +6840,8 @@ Array_index_expression::do_check_types(Gogo*)
   if (this->start_->type()->integer_type() == NULL)
     this->report_error(_("index must be integer"));
   if (this->end_ != NULL
-      && this->end_->type()->integer_type() == NULL)
+      && this->end_->type()->integer_type() == NULL
+      && !this->end_->is_nil_expression())
     this->report_error(_("slice end must be integer"));
 
   Array_type* array_type = this->array_->type()->deref()->array_type();
@@ -6866,7 +6868,7 @@ Array_index_expression::do_check_types(Gogo*)
 	  this->set_is_error();
 	}
     }
-  if (this->end_ != NULL)
+  if (this->end_ != NULL && !this->end_->is_nil_expression())
     {
       if (this->end_->integer_constant_value(true, ival, &dummy))
 	{
@@ -6980,6 +6982,8 @@ Array_index_expression::do_get_tree(Translate_context* context)
   if (!DECL_P(start_tree))
     start_tree = save_expr(start_tree);
   tree length_tree = array_type->length_tree(gogo, array_tree);
+  if (this->end_ != NULL && this->end_->is_nil_expression())
+    length_tree = save_expr(length_tree);
   start_tree = fold_convert_loc(loc, TREE_TYPE(length_tree), start_tree);
   bad_index = fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node, bad_index,
 			      fold_build2_loc(loc,
@@ -7032,25 +7036,33 @@ Array_index_expression::do_get_tree(Translate_context* context)
 
   // Array slice.
 
-  tree end_tree = this->end_->get_tree(context);
-  if (end_tree == error_mark_node)
-    return error_mark_node;
-  end_tree = fold_convert_loc(loc, TREE_TYPE(length_tree), end_tree);
-
-  if (!DECL_P(end_tree))
-    end_tree = save_expr(end_tree);
   tree capacity_tree = array_type->capacity_tree(gogo, array_tree);
-  capacity_tree = fold_convert_loc(loc, TREE_TYPE(length_tree), capacity_tree);
-  capacity_tree = save_expr(capacity_tree);
-  tree bad_end = fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node,
-				 fold_build2_loc(loc, LT_EXPR,
-						 boolean_type_node,
-						 end_tree, start_tree),
-				 fold_build2_loc(loc, GT_EXPR,
-						 boolean_type_node,
-						 end_tree, capacity_tree));
-  bad_index = fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node,
-			      bad_index, bad_end);
+  capacity_tree = fold_convert_loc(loc, TREE_TYPE(length_tree),
+				   capacity_tree);
+
+  tree end_tree;
+  if (this->end_->is_nil_expression())
+    end_tree = length_tree;
+  else
+    {
+      end_tree = this->end_->get_tree(context);
+      if (end_tree == error_mark_node)
+	return error_mark_node;
+      end_tree = fold_convert_loc(loc, TREE_TYPE(length_tree), end_tree);
+
+      if (!DECL_P(end_tree))
+	end_tree = save_expr(end_tree);
+      capacity_tree = save_expr(capacity_tree);
+      tree bad_end = fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node,
+				     fold_build2_loc(loc, LT_EXPR,
+						     boolean_type_node,
+						     end_tree, start_tree),
+				     fold_build2_loc(loc, GT_EXPR,
+						     boolean_type_node,
+						     end_tree, capacity_tree));
+      bad_index = fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node,
+				  bad_index, bad_end);
+    }
 
   tree element_type_tree = array_type->element_type()->get_tree(gogo);
   tree element_size = TYPE_SIZE_UNIT(element_type_tree);
@@ -7172,7 +7184,8 @@ class String_index_expression : public Expression
   Expression* string_;
   // The start or only index.
   Expression* start_;
-  // The end index of a slice.  This may be NULL.
+  // The end index of a slice.  This may be NULL for a single index,
+  // or it may be a nil expression for the length of the string.
   Expression* end_;
   // Whether the slice is being copied.
   bool is_being_copied_;
@@ -7226,7 +7239,8 @@ String_index_expression::do_check_types(Gogo*)
   if (this->start_->type()->integer_type() == NULL)
     this->report_error(_("index must be integer"));
   if (this->end_ != NULL
-      && this->end_->type()->integer_type() == NULL)
+      && this->end_->type()->integer_type() == NULL
+      && !this->end_->is_nil_expression())
     this->report_error(_("slice end must be integer"));
 
   std::string sval;
@@ -7244,7 +7258,7 @@ String_index_expression::do_check_types(Gogo*)
 	  this->set_is_error();
 	}
     }
-  if (this->end_ != NULL)
+  if (this->end_ != NULL && !this->end_->is_nil_expression())
     {
       if (this->end_->integer_constant_value(true, ival, &dummy))
 	{
@@ -7333,9 +7347,15 @@ String_index_expression::do_get_tree(Translate_context* context)
     }
   else
     {
-      tree end_tree = this->end_->get_tree(context);
-      if (end_tree == error_mark_node)
-	return error_mark_node;
+      tree end_tree;
+      if (this->end_->is_nil_expression())
+	end_tree = integer_minus_one_node;
+      else
+	{
+	  end_tree = this->end_->get_tree(context);
+	  if (end_tree == error_mark_node)
+	    return error_mark_node;
+	}
       end_tree = fold_convert(sizetype, end_tree);
       static tree strslice_fndecl;
       return Gogo::call_builtin(&strslice_fndecl,
