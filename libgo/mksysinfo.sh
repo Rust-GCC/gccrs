@@ -101,6 +101,14 @@ grep '^#GO const _S_' sysinfo.s | \
 grep '^#GO const _W' sysinfo.s |
   sed -e 's/#GO //' \
       -e 's/^\(const \)_\(W[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+# WSTOPPED was introduced in glibc 2.3.4.
+if ! grep '^#GO const _WSTOPPED = ' sysinfo.s >/dev/null 2>&1; then
+  if grep '^#GO const _WUNTRACED = ' sysinfo.s > /dev/null 2>&1; then
+    echo 'const WSTOPPED = _WUNTRACED' >> ${OUT}
+  else
+    echo 'const WSTOPPED = 2' >> ${OUT}
+  fi
+fi
 if grep '^#GO const ___WALL = ' sysinfo.s >/dev/null 2>&1 \
    && ! grep '^#GO const _WALL = ' sysinfo.s >/dev/null 2>&1; then
   echo 'const WALL = ___WALL' >> ${OUT}
