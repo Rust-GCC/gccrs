@@ -71,12 +71,12 @@ grep '^#GO' sysinfo.s | \
 # The errno constants.
 grep '^#GO const _E' sysinfo.s | \
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(E[^=]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+      -e 's/^\(const \)_\(E[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 
 # The O_xxx flags.
 grep '^#GO const _\(O\|F\|FD\)_' sysinfo.s | \
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(\(O\|F\|FD\)_[^=]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+      -e 's/^\(const \)_\(\(O\|F\|FD\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 if ! grep '^const O_CLOEXEC' ${OUT} >/dev/null 2>&1; then \
   echo "const O_CLOEXEC = 0" >> ${OUT}
 fi
@@ -85,22 +85,22 @@ fi
 grep '^#GO const _SIG[^_]' sysinfo.s | \
   grep -v '^#GO const _SIGEV_' | \
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(SIG[^=]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+      -e 's/^\(const \)_\(SIG[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 
 # The syscall numbers.  We force the names to upper case.
 grep '^#GO const _SYS_' sysinfo.s | \
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(SYS_[^=]*\)\(.*\)$/\1\U\2\E = _\2/' >> ${OUT}
+      -e 's/^\(const \)_\(SYS_[^= ]*\)\(.*\)$/\1\U\2\E = _\2/' >> ${OUT}
 
 # Stat constants.
 grep '^#GO const _S_' sysinfo.s | \
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(S_[^=]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+      -e 's/^\(const \)_\(S_[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 
 # Process status constants.
 grep '^#GO const _W' sysinfo.s |
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(W[^=]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+      -e 's/^\(const \)_\(W[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 if grep '^#GO const ___WALL = ' sysinfo.s >/dev/null 2>&1 \
    && ! grep '^#GO const _WALL = ' sysinfo.s >/dev/null 2>&1; then
   echo 'const WALL = ___WALL' >> ${OUT}
@@ -109,17 +109,17 @@ fi
 # Networking constants.
 grep '^#GO const _\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\)_' sysinfo.s |
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\)_[^=]*\)\(.*\)$/\1\2 = _\2/' \
+      -e 's/^\(const \)_\(\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' \
     >> ${OUT}
 grep '^#GO const _SOMAXCONN' sysinfo.s |
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(SOMAXCONN[^=]*\)\(.*\)$/\1\2 = _\2/' \
+      -e 's/^\(const \)_\(SOMAXCONN[^= ]*\)\(.*\)$/\1\2 = _\2/' \
     >> ${OUT}
 
 # pathconf constants.
 grep '^#GO const __PC' sysinfo.s |
   sed -e 's/#GO //' \
-      -e 's/^\(const \)__\(PC[^=]*\)\(.*\)$/\1\2 = __\2/' >> ${OUT}
+      -e 's/^\(const \)__\(PC[^= ]*\)\(.*\)$/\1\2 = __\2/' >> ${OUT}
 
 # The epoll constants were picked up by the errno constants, but we
 # need to be sure the EPOLLRDHUP is defined.
@@ -131,10 +131,10 @@ fi
 # PTRACE_O_xxx and PTRACE_EVENT_xxx ones.
 grep '^#GO const _PTRACE_O' sysinfo.s |
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(PTRACE_O[^=]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+      -e 's/^\(const \)_\(PTRACE_O[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 grep '^#GO const _PTRACE_EVENT' sysinfo.s |
   sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(PTRACE_EVENT[^=]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+      -e 's/^\(const \)_\(PTRACE_EVENT[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 # We need PTRACE_SETOPTIONS and PTRACE_GETEVENTMSG, but they are not
 # defined in older versions of glibc.
 if ! grep '^const _PTRACE_SETOPTIONS' ${OUT} > /dev/null 2>&1; then
