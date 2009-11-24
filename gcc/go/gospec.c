@@ -222,19 +222,6 @@ lang_specific_driver (int *in_argc, const char *const **in_argv,
   /* Copy the 0th argument, i.e., the name of the program itself.  */
   arglist[i++] = argv[j++];
 
-#ifdef TARGET_SSE2
-  /* This is a major hack.  On the x86, we want to use SSE floating
-     point, because it gives more consistent results.  So we insert
-     arguments to select it.  Doing this means that anybody who wants
-     to run on a Pentium 3 or earlier will need to use explicit -march
-     and -mfpmath options.  */
-  arglist[j++] = "-mfpmath=sse";
-  arglist[j++] = "-msse2";
-#if !defined(TARGET_64BIT_DEFAULT) || !TARGET_64BIT_DEFAULT
-  arglist[j++] = "-march=pentium4";
-#endif
-#endif /* defined(TARGET_SSE2) */
-
   /* We always combine all input files.  */
   arglist[j++] = "-combine";
 
