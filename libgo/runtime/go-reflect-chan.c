@@ -6,8 +6,8 @@
 
 #include <stdlib.h>
 #include <stdint.h>
-#include <endian.h>
 
+#include "config.h"
 #include "go-type.h"
 #include "channel.h"
 
@@ -40,7 +40,7 @@ chansend (unsigned char *ch, unsigned char *val, _Bool *pres)
       } u;
 
       __builtin_memset (u.b, 0, sizeof (uint64_t));
-#if __BYTE_ORDER == __LITTLE_ENDIAN
+#ifndef WORDS_BIGENDIAN
       __builtin_memcpy (u.b, val, channel->element_size);
 #else
       __builtin_memcpy (u.b + sizeof (uint64_t) - channel->element_size, val,
@@ -89,7 +89,7 @@ chanrecv (unsigned char *ch, unsigned char *val, _Bool *pres)
 	  u.v = s.__val;
 	}
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
+#ifndef WORDS_BIGENDIAN
       __builtin_memcpy (val, u.b, channel->element_size);
 #else
       __builtin_memcpy (val, u.b + sizeof (uint64_t) - channel->element_size,

@@ -6,7 +6,7 @@
 
 # Process this file with autoreconf to produce configure.
 
-AC_PREREQ(2.59)
+AC_PREREQ(2.64)
 AC_INIT(package-unused, version-unused,, libgo)
 AC_CONFIG_SRCDIR(Makefile.am)
 AC_CONFIG_HEADER(config.h)
@@ -158,6 +158,8 @@ else
   SPLIT_STACK=
 fi
 AC_SUBST(SPLIT_STACK)
+
+AC_C_BIGENDIAN
 
 AC_CACHE_SAVE
 
