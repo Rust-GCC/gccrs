@@ -129,6 +129,7 @@ __morestack:
 	pushl	12(%ebp)		# The size of the parameters.
 	leal	20(%ebp),%eax		# Address of caller's parameters.
 	pushl	%eax
+	addl	$512,8(%ebp)		# Ask for backoff bytes.
 	leal	8(%ebp),%eax		# The address of the new frame size.
 	pushl	%eax
 
@@ -139,7 +140,7 @@ __morestack:
 
 	movl	%eax,%esp		# Switch to the new stack.
 	subl	8(%ebp),%eax		# The end of the stack space.
-	addl	$256,%eax		# Back off 256 bytes.
+	addl	$512,%eax		# Back off 512 bytes.
 
 	# FIXME: The offset must match
 	# TARGET_THREAD_SPLIT_STACK_OFFSET in
@@ -175,7 +176,7 @@ __morestack:
 	call	__generic_releasestack
 
 	subl	4(%esp),%eax		# Subtract available space.
-	addl	$256,%eax		# Back off 256 bytes.
+	addl	$512,%eax		# Back off 512 bytes.
 	movl	%eax,%gs:0x30		# Save the new stack boundary.
 
 	addl	$8,%esp			# Remove values from stack.
@@ -203,6 +204,7 @@ __morestack:
 	# In 64-bit mode the new stack frame size is passed in r10
         # and the argument size is passed in r11.
 
+	addq	$512,%r10		# Ask for backoff bytes.
 	pushq	%r10			# Save new frame size.
 
 	# In 64-bit mode the registers %rdi, %rsi, %rdx, %rcx, %r8,
@@ -236,7 +238,7 @@ __morestack:
 	popq	%r10			# Reload modified frame size
 	movq	%rax,%rsp		# Switch to the new stack.
 	subq	%r10,%rax		# The end of the stack space.
-	addq	$256,%rax		# Back off 256 bytes.
+	addq	$512,%rax		# Back off 512 bytes.
 
 	# FIXME: The offset must match
 	# TARGET_THREAD_SPLIT_STACK_OFFSET in
@@ -263,7 +265,7 @@ __morestack:
 	call	__generic_releasestack
 
 	subq	0(%rsp),%rax		# Subtract available space.
-	addq	$256,%rax		# Back off 256 bytes.
+	addq	$512,%rax		# Back off 512 bytes.
 	movq	%rax,%fs:0x70		# Save the new stack boundary.
 
 	addq	$8,%rsp			# Remove value from stack.

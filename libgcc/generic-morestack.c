@@ -232,8 +232,6 @@ allocate_segment (size_t frame_size)
   pss->size = allocate - overhead;
   current_segment->next = pss;
 
-  current_segment = pss;
-
   return pss;
 }
 

@@ -9303,7 +9303,8 @@ ix86_expand_split_stack_prologue (void)
   allocate = (frame.to_allocate
 	      + frame.nregs * UNITS_PER_WORD
 	      + frame.nsseregs * 16
-	      + frame.padding0);
+	      + frame.padding0
+	      + crtl->outgoing_args_size);
   decl = cfun->decl;
   is_fastcall = lookup_attribute ("fastcall",
 				  TYPE_ATTRIBUTES (TREE_TYPE (decl))) != NULL;
