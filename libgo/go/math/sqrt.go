@@ -4,6 +4,7 @@
 
 package math
 
+func libc_sqrt(float64) float64 __asm__("sqrt")
 
 /*
  *	sqrt returns the square root of its floating
@@ -30,5 +31,5 @@ func Sqrt(x float64) float64 {
 		return 0;
 	}
 
-	return __builtin_sqrt(x);
+	return libc_sqrt(x);
 }

@@ -31,18 +31,35 @@ extern "C"
 #include "refcount.h"
 #include "gogo.h"
 
-// Define a builtin function.
+// Builtin functions.
+
+static std::map<std::string, tree> builtin_functions;
+
+// Define a builtin function.  BCODE is the builtin function code
+// defined by builtins.def.  NAME is the name of the builtin function.
+// LIBNAME is the name of the corresponding library function, and is
+// NULL if there isn't one.  FNTYPE is the type of the function.
+// CONST_P is true if the function has the const attribute.
 
 static void
-define_builtin(built_in_function bcode, const char* name, tree fntype,
-	       bool const_p)
+define_builtin(built_in_function bcode, const char* name, const char* libname,
+	       tree fntype, bool const_p)
 {
-  tree decl = add_builtin_function(name, fntype, bcode, BUILT_IN_NORMAL, NULL,
-				   NULL_TREE);
+  tree decl = add_builtin_function(name, fntype, bcode, BUILT_IN_NORMAL,
+				   libname, NULL_TREE);
   if (const_p)
     TREE_READONLY(decl) = 1;
   built_in_decls[bcode] = decl;
   implicit_built_in_decls[bcode] = decl;
+  builtin_functions[name] = decl;
+  if (libname != NULL)
+    {
+      decl = add_builtin_function(libname, fntype, bcode, BUILT_IN_NORMAL,
+				  NULL, NULL_TREE);
+      if (const_p)
+	TREE_READONLY(decl) = 1;
+      builtin_functions[libname] = decl;
+    }
 }
 
 // Create trees for implicit builtin functions.
@@ -54,35 +71,41 @@ Gogo::define_builtin_function_trees()
      for ++ and --.  */
   tree t = go_type_for_size(BITS_PER_UNIT, 1);
   tree p = build_pointer_type(build_qualified_type(t, TYPE_QUAL_VOLATILE));
-  define_builtin(BUILT_IN_ADD_AND_FETCH_1, "__sync_fetch_and_add_1",
+  define_builtin(BUILT_IN_ADD_AND_FETCH_1, "__sync_fetch_and_add_1", NULL,
 		 build_function_type_list(t, p, t, NULL_TREE), false);
 
   t = go_type_for_size(BITS_PER_UNIT * 2, 1);
   p = build_pointer_type(build_qualified_type(t, TYPE_QUAL_VOLATILE));
-  define_builtin (BUILT_IN_ADD_AND_FETCH_2, "__sync_fetch_and_add_2",
+  define_builtin (BUILT_IN_ADD_AND_FETCH_2, "__sync_fetch_and_add_2", NULL,
 		  build_function_type_list(t, p, t, NULL_TREE), false);
 
   t = go_type_for_size(BITS_PER_UNIT * 4, 1);
   p = build_pointer_type(build_qualified_type(t, TYPE_QUAL_VOLATILE));
-  define_builtin(BUILT_IN_ADD_AND_FETCH_4, "__sync_fetch_and_add_4",
+  define_builtin(BUILT_IN_ADD_AND_FETCH_4, "__sync_fetch_and_add_4", NULL,
 		 build_function_type_list(t, p, t, NULL_TREE), false);
 
   t = go_type_for_size(BITS_PER_UNIT * 8, 1);
   p = build_pointer_type(build_qualified_type(t, TYPE_QUAL_VOLATILE));
-  define_builtin(BUILT_IN_ADD_AND_FETCH_8, "__sync_fetch_and_add_8",
+  define_builtin(BUILT_IN_ADD_AND_FETCH_8, "__sync_fetch_and_add_8", NULL,
 		 build_function_type_list(t, p, t, NULL_TREE), false);
 
   // We use __builtin_expect for magic import functions.
-  define_builtin(BUILT_IN_EXPECT, "__builtin_expect",
+  define_builtin(BUILT_IN_EXPECT, "__builtin_expect", NULL,
 		 build_function_type_list(long_integer_type_node,
 					  long_integer_type_node,
 					  long_integer_type_node,
 					  NULL_TREE),
 		 true);
 
-  // We provide __builtin_sqrt for the math library.
-  define_builtin(BUILT_IN_SQRT, "__builtin_sqrt",
-		 build_function_type_list(double_type_node, double_type_node,
+  // We provide sqrt for the math library.
+  define_builtin(BUILT_IN_SQRT, "__builtin_sqrt", "sqrt",
+		 build_function_type_list(double_type_node,
+					  double_type_node,
+					  NULL_TREE),
+		 true);
+  define_builtin(BUILT_IN_SQRTL, "__builtin_sqrtl", "sqrtl",
+		 build_function_type_list(long_double_type_node,
+					  long_double_type_node,
 					  NULL_TREE),
 		 true);
 }
@@ -992,6 +1015,19 @@ Function_declaration::get_or_make_decl(Gogo* gogo, Named_object*, tree id)
 {
   if (this->fndecl_ == NULL_TREE)
     {
+      // Let Go code use an asm declaration to pick up a builtin
+      // function.
+      if (!this->asm_name_.empty())
+	{
+	  std::map<std::string, tree>::const_iterator p =
+	    builtin_functions.find(this->asm_name_);
+	  if (p != builtin_functions.end())
+	    {
+	      this->fndecl_ = p->second;
+	      return this->fndecl_;
+	    }
+	}
+
       tree functype = this->fntype_->get_tree(gogo);
       tree decl;
       if (functype == error_mark_node)
