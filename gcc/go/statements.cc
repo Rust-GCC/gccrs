@@ -14,6 +14,7 @@ extern "C"
 #include "intl.h"
 #include "tree.h"
 #include "gimple.h"
+#include "convert.h"
 #include "tree-iterator.h"
 #include "real.h"
 }
@@ -524,22 +525,36 @@ Assignment_statement::get_assignment_tree(Translate_context* context,
 	{
 	  gcc_assert(TYPE_MAIN_VARIANT(TREE_TYPE(lhs_tree))
 		     == TYPE_MAIN_VARIANT(TREE_TYPE(rhs_tree)));
-	  rhs_tree = fold_build2(BIT_AND_EXPR, TREE_TYPE(lhs_tree), lhs_tree,
-				 fold_build1(BIT_NOT_EXPR, TREE_TYPE(rhs_tree),
-					     rhs_tree));
+	  rhs_tree = fold_build2_loc(location, BIT_AND_EXPR,
+				     TREE_TYPE(lhs_tree), lhs_tree,
+				     fold_build1(BIT_NOT_EXPR,
+						 TREE_TYPE(rhs_tree),
+						 rhs_tree));
 	}
       else
 	{
+	  tree expr_type = TREE_TYPE(lhs_tree);
 	  gcc_assert(op == OPERATOR_LSHIFTEQ
 		     || op == OPERATOR_RSHIFTEQ
-		     || (TYPE_MAIN_VARIANT(TREE_TYPE(lhs_tree))
+		     || (TYPE_MAIN_VARIANT(expr_type)
 			 == TYPE_MAIN_VARIANT(TREE_TYPE(rhs_tree))));
-	  rhs_tree = fold_build2(Assignment_statement::combine_code(op),
-				 TREE_TYPE(lhs_tree), lhs_tree, rhs_tree);
+	  tree compute_type = excess_precision_type(expr_type);
+	  tree left = lhs_tree;
+	  tree right = rhs_tree;
+	  if (compute_type != NULL_TREE)
+	    {
+	      left = convert_to_real(compute_type, lhs_tree);
+	      right = convert_to_real(compute_type, rhs_tree);
+	    }
+	  rhs_tree = fold_build2_loc(location,
+				     Assignment_statement::combine_code(op),
+				     (compute_type != NULL_TREE
+				      ? compute_type
+				      : expr_type),
+				     left, right);
+	  if (compute_type != NULL_TREE)
+	    rhs_tree = convert_to_real(expr_type, rhs_tree);
 	}
-
-      if (CAN_HAVE_LOCATION_P(rhs_tree))
-	SET_EXPR_LOCATION(rhs_tree, location);
     }
 
   rhs_tree = Expression::convert_for_assignment(context, lhs->type(),

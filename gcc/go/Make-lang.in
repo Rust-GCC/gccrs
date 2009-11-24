@@ -176,8 +176,9 @@ go/refcount.o: go/refcount.cc $(GO_SYSTEM_H) $(TREE_H) $(GIMPLE_H) \
 	tree-iterator.h $(RTL_H) $(GO_C_H) go/go-dump.h $(GO_GOGO_H) \
 	$(GO_TYPES_H) $(GO_EXPRESSIONS_H) $(GO_STATEMENTS_H) go/refcount.h
 go/statements.o: go/statements.cc $(GO_SYSTEM_H) intl.h $(TREE_H) \
-	$(GIMPLE_H) tree-iterator.h $(REAL_H) $(GO_C_H) $(GO_TYPES_H) \
-	$(GO_EXPRESSIONS_H) $(GO_GOGO_H) go/refcount.h $(GO_STATEMENTS_H)
+	$(GIMPLE_H) convert.h tree-iterator.h $(REAL_H) $(GO_C_H) \
+	$(GO_TYPES_H) $(GO_EXPRESSIONS_H) $(GO_GOGO_H) go/refcount.h \
+	$(GO_STATEMENTS_H)
 go/types.o: go/types.cc $(GO_SYSTEM_H) intl.h $(TREE_H) $(GIMPLE_H) \
 	$(REAL_H) $(DIAGNOSTIC_H) $(GO_C_H) $(GO_GOGO_H) go/operator.h \
 	$(GO_EXPRESSIONS_H) $(GO_STATEMENTS_H) go/export.h $(GO_IMPORT_H) \
