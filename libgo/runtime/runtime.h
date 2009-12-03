@@ -87,6 +87,5 @@ struct	M
 #define sys_memclr(buf, size) __builtin_memset(buf, 0, size)
 #define sys_mmap mmap
 MCache*	allocmcache(void);
-void*	malloc(uintptr size);
 void*	mallocgc(uintptr size);
 void	free(void *v);
