@@ -171,6 +171,14 @@ Gogo::Gogo()
   closed_type->set_is_builtin();
   this->globals_->add_function_declaration("closed", NULL, closed_type, loc);
 
+  Typed_identifier_list* copy_result = new Typed_identifier_list();
+  copy_result->push_back(Typed_identifier("", int_type, loc));
+  Function_type* copy_type = Type::make_function_type(NULL, NULL,
+						      copy_result, loc);
+  copy_type->set_is_varargs();
+  copy_type->set_is_builtin();
+  this->globals_->add_function_declaration("copy", NULL, copy_type, loc);
+
   this->define_builtin_function_trees();
 
   // Declare "init", to ensure that it is not defined with parameters

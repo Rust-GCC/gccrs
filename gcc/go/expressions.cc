@@ -4990,6 +4990,7 @@ class Builtin_call_expression : public Call_expression
       BUILTIN_CAP,
       BUILTIN_CLOSE,
       BUILTIN_CLOSED,
+      BUILTIN_COPY,
       BUILTIN_LEN,
       BUILTIN_MAKE,
       BUILTIN_NEW,
@@ -5033,6 +5034,8 @@ Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
     this->code_ = BUILTIN_CLOSE;
   else if (name == "closed")
     this->code_ = BUILTIN_CLOSED;
+  else if (name == "copy")
+    this->code_ = BUILTIN_COPY;
   else if (name == "len")
     this->code_ = BUILTIN_LEN;
   else if (name == "make")
@@ -5313,6 +5316,7 @@ Builtin_call_expression::do_type()
       }
 
     case BUILTIN_CAP:
+    case BUILTIN_COPY:
     case BUILTIN_LEN:
     case BUILTIN_ALIGNOF:
     case BUILTIN_OFFSETOF:
@@ -5483,6 +5487,55 @@ Builtin_call_expression::do_check_types(Gogo*)
 	}
       break;
 
+    case BUILTIN_COPY:
+      {
+	const Expression_list* args = this->args();
+	if (args == NULL || args->size() < 2)
+	  {
+	    this->report_error(_("not enough arguments"));
+	    break;
+	  }
+	else if (args->size() > 2)
+	  {
+	    this->report_error(_("too many arguments"));
+	    break;
+	  }
+	Type* arg1_type = args->front()->type();
+	Type* arg2_type = args->back()->type();
+	if (arg1_type->is_error_type() || arg2_type->is_error_type())
+	  break;
+
+	Type* e1;
+	if (arg1_type->is_open_array_type())
+	  e1 = arg1_type->array_type()->element_type();
+	else if (arg1_type->points_to() != NULL
+		 && arg1_type->points_to()->array_type() != NULL
+		 && !arg1_type->points_to()->is_open_array_type())
+	  e1 = arg1_type->points_to()->array_type()->element_type();
+	else
+	  {
+	    this->report_error(_("both arguments must be slices"));
+	    break;
+	  }
+
+	Type* e2;
+	if (arg2_type->is_open_array_type())
+	  e2 = arg2_type->array_type()->element_type();
+	else if (arg2_type->points_to() != NULL
+		 && arg2_type->points_to()->array_type() != NULL
+		 && !arg2_type->points_to()->is_open_array_type())
+	  e2 = arg2_type->points_to()->array_type()->element_type();
+	else
+	  {
+	    this->report_error(_("both arguments must be slices"));
+	    break;
+	  }
+
+	if (!Type::are_identical(e1, e2))
+	  this->report_error(_("element types must be the same"));
+      }
+      break;
+
     default:
       gcc_unreachable();
     }
@@ -5494,6 +5547,7 @@ tree
 Builtin_call_expression::do_get_tree(Translate_context* context)
 {
   Gogo* gogo = context->gogo();
+  source_location location = this->location();
   switch (this->code_)
     {
     case BUILTIN_INVALID:
@@ -5532,7 +5586,7 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	      {
 		static tree map_len_fndecl;
 		val_tree = Gogo::call_builtin(&map_len_fndecl,
-					      this->location(),
+					      location,
 					      "__go_map_len",
 					      1,
 					      sizetype,
@@ -5543,7 +5597,7 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	      {
 		static tree chan_len_fndecl;
 		val_tree = Gogo::call_builtin(&chan_len_fndecl,
-					      this->location(),
+					      location,
 					      "__go_chan_len",
 					      1,
 					      sizetype,
@@ -5561,7 +5615,7 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	      {
 		static tree chan_cap_fndecl;
 		val_tree = Gogo::call_builtin(&chan_cap_fndecl,
-					      this->location(),
+					      location,
 					      "__go_chan_cap",
 					      1,
 					      sizetype,
@@ -5750,10 +5804,9 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	  }
 
 	tree fnptr = build_fold_addr_expr(*pfndecl);
-	tree call = build_call_array(void_type_node, fnptr, nargs, args);
+	tree call = build_call_array_loc(location, void_type_node,
+					 fnptr, nargs, args);
 	delete[] args;
-
-	SET_EXPR_LOCATION(call, this->location());
 
 	return call;
       }
@@ -5771,7 +5824,7 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	  {
 	    static tree close_fndecl;
 	    return Gogo::call_builtin(&close_fndecl,
-				      this->location(),
+				      location,
 				      "__go_builtin_close",
 				      1,
 				      void_type_node,
@@ -5782,7 +5835,7 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	  {
 	    static tree closed_fndecl;
 	    return Gogo::call_builtin(&closed_fndecl,
-				      this->location(),
+				      location,
 				      "__go_builtin_closed",
 				      1,
 				      boolean_type_node,
@@ -5804,6 +5857,73 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	tree ret = Expression::integer_constant_tree(val, type);
 	mpz_clear(val);
 	return ret;
+      }
+
+    case BUILTIN_COPY:
+      {
+	const Expression_list* args = this->args();
+	gcc_assert(args != NULL && args->size() == 2);
+	Expression* arg1 = args->front();
+	Expression* arg2 = args->back();
+
+	tree arg1_tree = arg1->get_tree(context);
+	tree arg2_tree = arg2->get_tree(context);
+	if (arg1_tree == error_mark_node || arg2_tree == error_mark_node)
+	  return error_mark_node;
+
+	Type* arg1_type = arg1->type();
+	if (!arg1_type->is_open_array_type())
+	  {
+	    gcc_assert(arg1_type->points_to() != NULL
+		       && arg1_type->points_to()->array_type() != NULL
+		       && !arg1_type->points_to()->is_open_array_type());
+	    arg1_type = arg1_type->points_to();
+	    arg1_tree = build_fold_indirect_ref_loc(location, arg1_tree);
+	  }
+	Array_type* at = arg1_type->array_type();
+	arg1_tree = save_expr(arg1_tree);
+	tree arg1_val = at->value_pointer_tree(gogo, arg1_tree);
+	tree arg1_len = at->length_tree(gogo, arg1_tree);
+
+	Type* arg2_type = arg2->type();
+	if (!arg2_type->is_open_array_type())
+	  {
+	    gcc_assert(arg2_type->points_to() != NULL
+		       && arg2_type->points_to()->array_type() != NULL
+		       && !arg2_type->points_to()->is_open_array_type());
+	    arg2_type = arg2_type->points_to();
+	    arg2_tree = build_fold_indirect_ref_loc(location, arg2_tree);
+	  }
+	at = arg2_type->array_type();
+	arg2_tree = save_expr(arg2_tree);
+	tree arg2_val = at->value_pointer_tree(gogo, arg2_tree);
+	tree arg2_len = at->length_tree(gogo, arg2_tree);
+
+	arg1_len = save_expr(arg1_len);
+	arg2_len = save_expr(arg2_len);
+	tree len = fold_build3_loc(location, COND_EXPR, TREE_TYPE(arg1_len),
+				   fold_build2_loc(location, LT_EXPR,
+						   boolean_type_node,
+						   arg1_len, arg2_len),
+				   arg1_len, arg2_len);
+	len = save_expr(len);
+
+	Type* element_type = at->element_type();
+	tree element_type_tree = element_type->get_tree(gogo);
+	tree element_size = TYPE_SIZE_UNIT(element_type_tree);
+	tree bytecount = fold_convert_loc(location, TREE_TYPE(element_size),
+					  len);
+	bytecount = fold_build2_loc(location, MULT_EXPR,
+				    TREE_TYPE(element_size),
+				    bytecount, element_size);
+	bytecount = fold_convert_loc(location, size_type_node, bytecount);
+
+	tree call = build_call_expr_loc(location,
+					built_in_decls[BUILT_IN_MEMMOVE],
+					3, arg1_val, arg2_val, bytecount);
+
+	return fold_build2_loc(location, COMPOUND_EXPR, TREE_TYPE(len),
+			       call, len);
       }
 
     default:

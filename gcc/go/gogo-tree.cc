@@ -97,6 +97,15 @@ Gogo::define_builtin_function_trees()
 					  NULL_TREE),
 		 true);
 
+  // We use __builtin_memmove for the predeclared copy function.
+  define_builtin(BUILT_IN_MEMMOVE, "__builtin_memmove", "memmove",
+		 build_function_type_list(ptr_type_node,
+					  ptr_type_node,
+					  const_ptr_type_node,
+					  size_type_node,
+					  NULL_TREE),
+		 false);
+
   // We provide sqrt for the math library.
   define_builtin(BUILT_IN_SQRT, "__builtin_sqrt", "sqrt",
 		 build_function_type_list(double_type_node,
