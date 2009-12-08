@@ -3295,10 +3295,20 @@ Array_type::do_make_expression_tree(Translate_context* context,
   if (type_tree == error_mark_node)
     return error_mark_node;
 
+  tree values_field = TYPE_FIELDS(type_tree);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(values_field)),
+		    "__values") == 0);
+
+  tree count_field = TREE_CHAIN(values_field);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(count_field)),
+		    "__count") == 0);
+
   tree element_type_tree = this->element_type_->get_tree(gogo);
   if (element_type_tree == error_mark_node)
     return error_mark_node;
   tree element_size_tree = TYPE_SIZE_UNIT(element_type_tree);
+  element_size_tree = fold_convert_loc(location, TREE_TYPE(count_field),
+				       element_size_tree);
 
   tree value = this->element_type_->get_init_tree(gogo, true);
 
@@ -3307,29 +3317,38 @@ Array_type::do_make_expression_tree(Translate_context* context,
   gcc_assert(args != NULL && args->size() >= 1 && args->size() <= 2);
 
   tree length_tree = args->front()->get_tree(context);
+  length_tree = fold_convert_loc(location, TREE_TYPE(count_field), length_tree);
   length_tree = save_expr(length_tree);
-  length_tree = fold_convert(sizetype, length_tree);
   tree capacity_tree;
   if (args->size() == 1)
     capacity_tree = length_tree;
   else
     {
       capacity_tree = args->back()->get_tree(context);
+      capacity_tree = fold_convert_loc(location, TREE_TYPE(count_field),
+				       capacity_tree);
       capacity_tree = save_expr(capacity_tree);
-      capacity_tree = fold_convert(sizetype, capacity_tree);
+      capacity_tree = fold_build3_loc(location, COND_EXPR,
+				      TREE_TYPE(count_field),
+				      fold_build2_loc(location,
+						      LT_EXPR,
+						      boolean_type_node,
+						      capacity_tree,
+						      length_tree),
+				      length_tree,
+				      capacity_tree);
+      capacity_tree = save_expr(capacity_tree);
     }
 
-  tree size_tree = fold_build2(MULT_EXPR, sizetype,
-			       element_size_tree, capacity_tree);
+  tree size_tree = fold_build2_loc(location, MULT_EXPR, TREE_TYPE(count_field),
+				   element_size_tree, capacity_tree);
 
   tree space = context->gogo()->allocate_memory(size_tree, location);
 
   if (value != NULL_TREE)
     space = save_expr(space);
 
-  tree field = TYPE_FIELDS(type_tree);
-  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__values") == 0);
-  space = fold_convert(TREE_TYPE(field), space);
+  space = fold_convert(TREE_TYPE(values_field), space);
 
   tree constructor = gogo->slice_constructor(type_tree, space, length_tree,
 					     capacity_tree);
@@ -3342,12 +3361,17 @@ Array_type::do_make_expression_tree(Translate_context* context,
 
   // The elements must be initialized.
 
-  tree max = fold_build2(MINUS_EXPR, sizetype, capacity_tree, size_one_node);
+  tree max = fold_build2_loc(location, MINUS_EXPR, TREE_TYPE(count_field),
+			     capacity_tree,
+			     fold_convert_loc(location, TREE_TYPE(count_field),
+					      integer_one_node));
 
   tree array_type = build_array_type(element_type_tree,
 				     build_index_type(max));
 
-  tree value_pointer = fold_convert(build_pointer_type(array_type), space);
+  tree value_pointer = fold_convert_loc(location,
+					build_pointer_type(array_type),
+					space);
 
   tree range = build2(RANGE_EXPR, sizetype, size_zero_node, max);
   tree space_init = build_constructor_single(array_type, range, value);
