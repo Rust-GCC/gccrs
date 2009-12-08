@@ -36,7 +36,7 @@ __go_string_range (const struct __go_string* str, int* pindex, int* pvalue)
   if (add > 0)
     *pindex += add;
   else
-    *pindex = (int) length;
+    *pindex += 1;
 
   return 1;
 }
