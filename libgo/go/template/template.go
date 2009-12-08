@@ -10,10 +10,11 @@
 
 	Templates are executed by applying them to a data structure.
 	Annotations in the template refer to elements of the data
-	structure (typically a field of a struct) to control execution
-	and derive values to be displayed.  The template walks the
-	structure as it executes and the "cursor" @ represents the
-	value at the current location in the structure.
+	structure (typically a field of a struct or a key in a map)
+	to control execution and derive values to be displayed.
+	The template walks the structure as it executes and the
+	"cursor" @ represents the value at the current location
+	in the structure.
 
 	Data items may be values or pointers; the interface hides the
 	indirection.
@@ -175,7 +176,7 @@ func New(fmap FormatterMap) *Template {
 	t.fmap = fmap;
 	t.ldelim = lbrace;
 	t.rdelim = rbrace;
-	t.elems = vector.New(0);
+	t.elems = new(vector.Vector);
 	return t;
 }
 
@@ -198,7 +199,7 @@ func white(c uint8) bool	{ return c == ' ' || c == '\t' || c == '\r' || c == '\n
 
 // Safely, does s[n:n+len(t)] == t?
 func equal(s []byte, n int, t []byte) bool {
-	b := s[n:len(s)];
+	b := s[n:];
 	if len(t) > len(b) {	// not enough space left for a match.
 		return false
 	}
@@ -386,7 +387,7 @@ func (t *Template) newVariable(name_formatter string) (v *variableElement) {
 	bar := strings.Index(name_formatter, "|");
 	if bar >= 0 {
 		name = name_formatter[0:bar];
-		formatter = name_formatter[bar+1 : len(name_formatter)];
+		formatter = name_formatter[bar+1:];
 	}
 	// Probably ok, so let's build it.
 	v = &variableElement{t.linenum, name, formatter};
@@ -605,20 +606,24 @@ func (st *state) findVar(s string) reflect.Value {
 	data := st.data;
 	elems := strings.Split(s, ".", 0);
 	for i := 0; i < len(elems); i++ {
-		// Look up field; data must be a struct.
+		// Look up field; data must be a struct or map.
 		data = reflect.Indirect(data);
 		if data == nil {
 			return nil
 		}
-		typ, ok := data.Type().(*reflect.StructType);
-		if !ok {
+
+		switch typ := data.Type().(type) {
+		case *reflect.StructType:
+			field, ok := typ.FieldByName(elems[i]);
+			if !ok {
+				return nil
+			}
+			data = data.(*reflect.StructValue).FieldByIndex(field.Index);
+		case *reflect.MapType:
+			data = data.(*reflect.MapValue).Elem(reflect.NewValue(elems[i]))
+		default:
 			return nil
 		}
-		field, ok := typ.FieldByName(elems[i]);
-		if !ok {
-			return nil
-		}
-		data = data.(*reflect.StructValue).FieldByIndex(field.Index);
 	}
 	return data;
 }
@@ -842,6 +847,9 @@ func validDelim(d []byte) bool {
 // s contains the template text.  If any errors occur, Parse returns
 // the error.
 func (t *Template) Parse(s string) os.Error {
+	if t.elems == nil {
+		return &Error{1, "template not allocated with New"}
+	}
 	if !validDelim(t.ldelim) || !validDelim(t.rdelim) {
 		return &Error{1, fmt.Sprintf("bad delimiter strings %q %q", t.ldelim, t.rdelim)}
 	}

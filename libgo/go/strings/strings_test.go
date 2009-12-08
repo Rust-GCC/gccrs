@@ -46,6 +46,14 @@ var indexTests = []IndexTest{
 	IndexTest{"foo", "", 0},
 	IndexTest{"foo", "o", 1},
 	IndexTest{"abcABCabc", "A", 3},
+	// cases with one byte strings - test special case in Index()
+	IndexTest{"", "a", -1},
+	IndexTest{"x", "a", -1},
+	IndexTest{"x", "x", 0},
+	IndexTest{"abc", "a", 0},
+	IndexTest{"abc", "b", 1},
+	IndexTest{"abc", "c", 2},
+	IndexTest{"abc", "x", -1},
 }
 
 var lastIndexTests = []IndexTest{
@@ -54,6 +62,7 @@ var lastIndexTests = []IndexTest{
 	IndexTest{"", "foo", -1},
 	IndexTest{"fo", "foo", -1},
 	IndexTest{"foo", "foo", 0},
+	IndexTest{"foo", "f", 0},
 	IndexTest{"oofofoofooo", "f", 7},
 	IndexTest{"oofofoofooo", "foo", 7},
 	IndexTest{"barfoobarfoo", "foo", 9},
@@ -226,6 +235,18 @@ func tenRunes(rune int) string {
 	return string(r);
 }
 
+// User-defined self-inverse mapping function
+func rot13(rune int) int {
+	step := 13;
+	if rune >= 'a' && rune <= 'z' {
+		return ((rune - 'a' + step) % 26) + 'a'
+	}
+	if rune >= 'A' && rune <= 'Z' {
+		return ((rune - 'A' + step) % 26) + 'A'
+	}
+	return rune;
+}
+
 func TestMap(t *testing.T) {
 	// Run a couple of awful growth/shrinkage tests
 	a := tenRunes('a');
@@ -236,12 +257,27 @@ func TestMap(t *testing.T) {
 	if m != expect {
 		t.Errorf("growing: expected %q got %q", expect, m)
 	}
+
 	// 2. Shrink
 	minRune := func(rune int) int { return 'a' };
 	m = Map(minRune, tenRunes(unicode.MaxRune));
 	expect = a;
 	if m != expect {
 		t.Errorf("shrinking: expected %q got %q", expect, m)
+	}
+
+	// 3. Rot13
+	m = Map(rot13, "a to zed");
+	expect = "n gb mrq";
+	if m != expect {
+		t.Errorf("rot13: expected %q got %q", expect, m)
+	}
+
+	// 4. Rot13^2
+	m = Map(rot13, Map(rot13, "a to zed"));
+	expect = "a to zed";
+	if m != expect {
+		t.Errorf("rot13: expected %q got %q", expect, m)
 	}
 }
 
@@ -308,4 +344,74 @@ func TestCaseConsistency(t *testing.T) {
 			t.Error("ToLower(upper) consistency fail");
 		}
 	*/
+}
+
+type RepeatTest struct {
+	in, out	string;
+	count	int;
+}
+
+var RepeatTests = []RepeatTest{
+	RepeatTest{"", "", 0},
+	RepeatTest{"", "", 1},
+	RepeatTest{"", "", 2},
+	RepeatTest{"-", "", 0},
+	RepeatTest{"-", "-", 1},
+	RepeatTest{"-", "----------", 10},
+	RepeatTest{"abc ", "abc abc abc ", 3},
+}
+
+func TestRepeat(t *testing.T) {
+	for _, tt := range RepeatTests {
+		a := Repeat(tt.in, tt.count);
+		if !equal("Repeat(s)", a, tt.out, t) {
+			t.Errorf("Repeat(%v, %d) = %v; want %v", tt.in, tt.count, a, tt.out);
+			continue;
+		}
+	}
+}
+
+func runesEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, r := range a {
+		if r != b[i] {
+			return false
+		}
+	}
+	return true;
+}
+
+type RunesTest struct {
+	in	string;
+	out	[]int;
+	lossy	bool;
+}
+
+var RunesTests = []RunesTest{
+	RunesTest{"", []int{}, false},
+	RunesTest{" ", []int{32}, false},
+	RunesTest{"ABC", []int{65, 66, 67}, false},
+	RunesTest{"abc", []int{97, 98, 99}, false},
+	RunesTest{"\u65e5\u672c\u8a9e", []int{26085, 26412, 35486}, false},
+	RunesTest{"ab\x80c", []int{97, 98, 0xFFFD, 99}, true},
+	RunesTest{"ab\xc0c", []int{97, 98, 0xFFFD, 99}, true},
+}
+
+func TestRunes(t *testing.T) {
+	for _, tt := range RunesTests {
+		a := Runes(tt.in);
+		if !runesEqual(a, tt.out) {
+			t.Errorf("Runes(%q) = %v; want %v", tt.in, a, tt.out);
+			continue;
+		}
+		if !tt.lossy {
+			// can only test reassembly if we didn't lose information
+			s := string(a);
+			if s != tt.in {
+				t.Errorf("string(Runes(%q)) = %x; want %x", tt.in, s, tt.in)
+			}
+		}
+	}
 }

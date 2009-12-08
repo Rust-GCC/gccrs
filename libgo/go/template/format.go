@@ -18,7 +18,11 @@ import (
 // You can override the default formatter by storing your default
 // under the name "" in your custom formatter map.
 func StringFormatter(w io.Writer, value interface{}, format string) {
-	fmt.Fprint(w, value)
+	if b, ok := value.([]byte); ok {
+		w.Write(b);
+		return;
+	}
+	fmt.Fprint(w, value);
 }
 
 var (
@@ -53,7 +57,7 @@ func HTMLEscape(w io.Writer, s []byte) {
 		w.Write(esc);
 		last = i + 1;
 	}
-	w.Write(s[last:len(s)]);
+	w.Write(s[last:]);
 }
 
 // HTMLFormatter formats arbitrary values for HTML

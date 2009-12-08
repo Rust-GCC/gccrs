@@ -28,7 +28,7 @@ func sinus(x float64, quad int) float64 {
 		var e float64;
 		e, y = Modf(x);
 		e = e + float64(quad);
-		_, f := Modf(0.25 * e);
+		f, _ := Modf(0.25 * e);
 		quad = int(e - 4*f);
 	} else {
 		k := int32(x);
@@ -45,7 +45,7 @@ func sinus(x float64, quad int) float64 {
 
 	yy := y * y;
 	temp1 := ((((P4*yy+P3)*yy+P2)*yy+P1)*yy + P0) * y;
-	temp2 := ((((yy+Q3)*yy+Q2)*yy + Q1) * yy + Q0);
+	temp2 := ((((yy+Q3)*yy+Q2)*yy+Q1)*yy + Q0);
 	return temp1 / temp2;
 }
 

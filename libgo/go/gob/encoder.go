@@ -213,7 +213,14 @@ func NewEncoder(w io.Writer) *Encoder {
 }
 
 func (enc *Encoder) badType(rt reflect.Type) {
-	enc.state.err = os.ErrorString("gob: can't encode type " + rt.String())
+	enc.setError(os.ErrorString("gob: can't encode type " + rt.String()))
+}
+
+func (enc *Encoder) setError(err os.Error) {
+	if enc.state.err == nil {	// remember the first.
+		enc.state.err = err
+	}
+	enc.state.b.Reset();
 }
 
 // Send the data item preceded by a unsigned count of its length.
@@ -232,32 +239,33 @@ func (enc *Encoder) send() {
 	// Now the data.
 	enc.state.b.Read(enc.buf[countLen:total]);
 	// Write the data.
-	enc.w.Write(enc.buf[0:total]);
+	_, err := enc.w.Write(enc.buf[0:total]);
+	if err != nil {
+		enc.setError(err)
+	}
 }
 
-func (enc *Encoder) sendType(origt reflect.Type, topLevel bool) {
+func (enc *Encoder) sendType(origt reflect.Type) {
 	// Drill down to the base type.
 	rt, _ := indirect(origt);
 
 	// We only send structs - everything else is basic or an error
-	switch rt.(type) {
+	switch rt := rt.(type) {
 	default:
-		// Basic types do not need to be described, but if this is a top-level
-		// type, it's a user error, at least for now.
-		if topLevel {
-			enc.badType(rt)
+		// Basic types do not need to be described.
+		return
+	case reflect.ArrayOrSliceType:
+		// If it's []uint8, don't send; it's considered basic.
+		if _, ok := rt.Elem().(*reflect.Uint8Type); ok {
+			return
 		}
-		return;
+		// Otherwise we do send.
+		break;
+	// Struct types are not sent, only their element types.
 	case *reflect.StructType:
-		// Structs do need to be described.
 		break
 	case *reflect.ChanType, *reflect.FuncType, *reflect.MapType, *reflect.InterfaceType:
 		// Probably a bad field in a struct.
-		enc.badType(rt);
-		return;
-	case *reflect.ArrayType, *reflect.SliceType:
-		// Array and slice types are not sent, only their element types.
-		// If we see one here it's user error; probably a bad top-level value.
 		enc.badType(rt);
 		return;
 	}
@@ -272,7 +280,7 @@ func (enc *Encoder) sendType(origt reflect.Type, topLevel bool) {
 	info, err := getTypeInfo(rt);
 	typeLock.Unlock();
 	if err != nil {
-		enc.state.err = err;
+		enc.setError(err);
 		return;
 	}
 	// Send the pair (-id, type)
@@ -281,15 +289,22 @@ func (enc *Encoder) sendType(origt reflect.Type, topLevel bool) {
 	// Type:
 	encode(enc.state.b, info.wire);
 	enc.send();
+	if enc.state.err != nil {
+		return
+	}
 
 	// Remember we've sent this type.
 	enc.sent[rt] = info.id;
 	// Remember we've sent the top-level, possibly indirect type too.
 	enc.sent[origt] = info.id;
 	// Now send the inner types
-	st := rt.(*reflect.StructType);
-	for i := 0; i < st.NumField(); i++ {
-		enc.sendType(st.Field(i).Type, false)
+	switch st := rt.(type) {
+	case *reflect.StructType:
+		for i := 0; i < st.NumField(); i++ {
+			enc.sendType(st.Field(i).Type)
+		}
+	case reflect.ArrayOrSliceType:
+		enc.sendType(st.Elem())
 	}
 	return;
 }
@@ -297,22 +312,31 @@ func (enc *Encoder) sendType(origt reflect.Type, topLevel bool) {
 // Encode transmits the data item represented by the empty interface value,
 // guaranteeing that all necessary type information has been transmitted first.
 func (enc *Encoder) Encode(e interface{}) os.Error {
-	if enc.state.b.Len() > 0 || enc.countState.b.Len() > 0 {
-		panicln("Encoder: buffer not empty")
-	}
-	rt, _ := indirect(reflect.Typeof(e));
-
-	// Make sure we're single-threaded through here.
+	// Make sure we're single-threaded through here, so multiple
+	// goroutines can share an encoder.
 	enc.mutex.Lock();
 	defer enc.mutex.Unlock();
+
+	enc.state.err = nil;
+	rt, _ := indirect(reflect.Typeof(e));
+	// Must be a struct
+	if _, ok := rt.(*reflect.StructType); !ok {
+		enc.badType(rt);
+		return enc.state.err;
+	}
+
+	// Sanity check only: encoder should never come in with data present.
+	if enc.state.b.Len() > 0 || enc.countState.b.Len() > 0 {
+		enc.state.err = os.ErrorString("encoder: buffer not empty");
+		return enc.state.err;
+	}
 
 	// Make sure the type is known to the other side.
 	// First, have we already sent this type?
 	if _, alreadySent := enc.sent[rt]; !alreadySent {
 		// No, so send it.
-		enc.sendType(rt, true);
+		enc.sendType(rt);
 		if enc.state.err != nil {
-			enc.state.b.Reset();
 			enc.countState.b.Reset();
 			return enc.state.err;
 		}

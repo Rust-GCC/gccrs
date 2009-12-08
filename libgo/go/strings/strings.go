@@ -26,7 +26,7 @@ func explode(s string, n int) []string {
 			break;
 		}
 		rune, size = utf8.DecodeRuneInString(s);
-		s = s[size:len(s)];
+		s = s[size:];
 		a[na] = string(rune);
 		na++;
 	}
@@ -56,6 +56,15 @@ func Index(s, sep string) int {
 		return 0
 	}
 	c := sep[0];
+	if n == 1 {
+		// special case worth making fast
+		for i := 0; i < len(s); i++ {
+			if s[i] == c {
+				return i
+			}
+		}
+		return -1;
+	}
 	for i := 0; i+n <= len(s); i++ {
 		if s[i] == c && (n == 1 || s[i:i+n] == sep) {
 			return i
@@ -71,6 +80,15 @@ func LastIndex(s, sep string) int {
 		return len(s)
 	}
 	c := sep[0];
+	if n == 1 {
+		// special case worth making fast
+		for i := len(s) - 1; i >= 0; i-- {
+			if s[i] == c {
+				return i
+			}
+		}
+		return -1;
+	}
 	for i := len(s) - n; i >= 0; i-- {
 		if s[i] == c && (n == 1 || s[i:i+n] == sep) {
 			return i
@@ -100,13 +118,13 @@ func genSplit(s, sep string, sepSave, n int) []string {
 			i += len(sep) - 1;
 		}
 	}
-	a[na] = s[start:len(s)];
+	a[na] = s[start:];
 	return a[0 : na+1];
 }
 
 // Split splits the string s around each instance of sep, returning an array of substrings of s.
 // If sep is empty, Split splits s after each UTF-8 sequence.
-// If n > 0, split Splits s into at most n substrings; the last substring will be the unsplit remainder.
+// If n > 0, Split splits s into at most n substrings; the last substring will be the unsplit remainder.
 func Split(s, sep string, n int) []string	{ return genSplit(s, sep, 0, n) }
 
 // SplitAfter splits the string s after each instance of sep, returning an array of substrings of s.
@@ -156,7 +174,7 @@ func HasPrefix(s, prefix string) bool {
 
 // HasSuffix tests whether the string s ends with suffix.
 func HasSuffix(s, suffix string) bool {
-	return len(s) >= len(suffix) && s[len(s)-len(suffix):len(s)] == suffix
+	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
 
 // Map returns a copy of the string s with all its characters modified
@@ -188,10 +206,24 @@ func Map(mapping func(rune int) int, s string) string {
 	return string(b[0:nbytes]);
 }
 
+// Repeat returns a new string consisting of count copies of the string s.
+func Repeat(s string, count int) string {
+	b := make([]byte, len(s)*count);
+	bp := 0;
+	for i := 0; i < count; i++ {
+		for j := 0; j < len(s); j++ {
+			b[bp] = s[j];
+			bp++;
+		}
+	}
+	return string(b);
+}
+
+
 // ToUpper returns a copy of the string s with all Unicode letters mapped to their upper case.
 func ToUpper(s string) string	{ return Map(unicode.ToUpper, s) }
 
-// ToUpper returns a copy of the string s with all Unicode letters mapped to their lower case.
+// ToLower returns a copy of the string s with all Unicode letters mapped to their lower case.
 func ToLower(s string) string	{ return Map(unicode.ToLower, s) }
 
 // ToTitle returns a copy of the string s with all Unicode letters mapped to their title case.
@@ -239,4 +271,15 @@ func Bytes(s string) []byte {
 		b[i] = s[i]
 	}
 	return b;
+}
+
+// Runes returns a slice of runes (Unicode code points) equivalent to the string s.
+func Runes(s string) []int {
+	t := make([]int, utf8.RuneCountInString(s));
+	i := 0;
+	for _, r := range s {
+		t[i] = r;
+		i++;
+	}
+	return t;
 }

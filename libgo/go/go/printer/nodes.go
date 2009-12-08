@@ -52,6 +52,7 @@ func (p *printer) linebreak(line, min, max int, ws whiteSpace, newSection bool) 
 	case n > max:
 		n = max
 	}
+
 	if n > 0 {
 		p.print(ws);
 		if newSection {
@@ -199,7 +200,7 @@ func (p *printer) exprList(prev token.Position, list []ast.Expr, depth int, mode
 			if mode&commaSep != 0 {
 				p.print(token.COMMA)
 			}
-			if prev < line {
+			if prev < line && prev > 0 && line > 0 {
 				if p.linebreak(line, 1, 2, ws, true) {
 					ws = ignore;
 					*multiLine = true;
@@ -444,6 +445,11 @@ func walkBinary(e *ast.BinaryExpr) (has5, has6 bool, maxProblem int) {
 
 	switch l := e.X.(type) {
 	case *ast.BinaryExpr:
+		if l.Op.Precedence() < e.Op.Precedence() {
+			// parens will be inserted.
+			// pretend this is an *ast.ParenExpr and do nothing.
+			break
+		}
 		h5, h6, mp := walkBinary(l);
 		has5 = has5 || h5;
 		has6 = has6 || h6;
@@ -454,6 +460,11 @@ func walkBinary(e *ast.BinaryExpr) (has5, has6 bool, maxProblem int) {
 
 	switch r := e.Y.(type) {
 	case *ast.BinaryExpr:
+		if r.Op.Precedence() <= e.Op.Precedence() {
+			// parens will be inserted.
+			// pretend this is an *ast.ParenExpr and do nothing.
+			break
+		}
 		h5, h6, mp := walkBinary(r);
 		has5 = has5 || h5;
 		has6 = has6 || h6;
@@ -564,8 +575,7 @@ func (p *printer) binaryExpr(x *ast.BinaryExpr, prec1, cutoff, depth int, multiL
 	xline := p.pos.Line;	// before the operator (it may be on the next line!)
 	yline := x.Y.Pos().Line;
 	p.print(x.OpPos, x.Op);
-	if xline != yline {
-		//println(x.OpPos.String());
+	if xline != yline && xline > 0 && yline > 0 {
 		// at least one line break, but respect an extra empty line
 		// in the source
 		if p.linebreak(yline, 1, 2, ws, true) {
@@ -577,7 +587,7 @@ func (p *printer) binaryExpr(x *ast.BinaryExpr, prec1, cutoff, depth int, multiL
 	if printBlank {
 		p.print(blank)
 	}
-	p.expr1(x.Y, prec, depth+1, 0, multiLine);
+	p.expr1(x.Y, prec+1, depth+1, 0, multiLine);
 	if ws == ignore {
 		p.print(unindent)
 	}
@@ -615,8 +625,18 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int, ctxt exprContext, multi
 		p.expr(x.Value, multiLine);
 
 	case *ast.StarExpr:
-		p.print(token.MUL);
-		optSemi = p.expr(x.X, multiLine);
+		const prec = token.UnaryPrec;
+		if prec < prec1 {
+			// parenthesis needed
+			p.print(token.LPAREN);
+			p.print(token.MUL);
+			optSemi = p.expr(x.X, multiLine);
+			p.print(token.RPAREN);
+		} else {
+			// no parenthesis needed
+			p.print(token.MUL);
+			optSemi = p.expr(x.X, multiLine);
+		}
 
 	case *ast.UnaryExpr:
 		const prec = token.UnaryPrec;
@@ -665,17 +685,25 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int, ctxt exprContext, multi
 		p.print(token.RPAREN);
 
 	case *ast.IndexExpr:
+		// TODO(gri): should treat[] like parentheses and undo one level of depth
 		p.expr1(x.X, token.HighestPrec, 1, 0, multiLine);
 		p.print(token.LBRACK);
 		p.expr0(x.Index, depth+1, multiLine);
+		p.print(token.RBRACK);
+
+	case *ast.SliceExpr:
+		// TODO(gri): should treat[] like parentheses and undo one level of depth
+		p.expr1(x.X, token.HighestPrec, 1, 0, multiLine);
+		p.print(token.LBRACK);
+		p.expr0(x.Index, depth+1, multiLine);
+		// blanks around ":" if both sides exist and either side is a binary expression
+		if depth <= 1 && x.End != nil && (isBinary(x.Index) || isBinary(x.End)) {
+			p.print(blank, token.COLON, blank)
+		} else {
+			p.print(token.COLON)
+		}
 		if x.End != nil {
-			// blanks around ":" if either side is a binary expression
-			if depth <= 1 && (isBinary(x.Index) || isBinary(x.End)) {
-				p.print(blank, token.COLON, blank)
-			} else {
-				p.print(token.COLON)
-			}
-			p.expr0(x.End, depth+1, multiLine);
+			p.expr0(x.End, depth+1, multiLine)
 		}
 		p.print(token.RBRACK);
 

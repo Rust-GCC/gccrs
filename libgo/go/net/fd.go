@@ -15,11 +15,16 @@ import (
 
 // Network file descriptor.
 type netFD struct {
+	// locking/lifetime of sysfd
+	sysmu	sync.Mutex;
+	sysref	int;
+	closing	bool;
+
 	// immutable until Close
-	fd	int;
+	sysfd	int;
 	family	int;
 	proto	int;
-	file	*os.File;
+	sysfile	*os.File;
 	cr	chan *netFD;
 	cw	chan *netFD;
 	net	string;
@@ -66,6 +71,11 @@ type netFD struct {
 // one will succeed, the pollServer will read the request, and then the
 // channel will be empty for the next process's request.  A larger buffer
 // might help batch requests.
+//
+// To avoid races in closing, all fd operations are locked and
+// refcounted. when netFD.Close() is called, it calls syscall.Shutdown
+// and sets a closing flag. Only when the last reference is removed
+// will the fd be closed.
 
 type pollServer struct {
 	cr, cw		chan *netFD;	// buffered >= 1
@@ -107,18 +117,7 @@ func newPollServer() (s *pollServer, err os.Error) {
 }
 
 func (s *pollServer) AddFD(fd *netFD, mode int) {
-	// TODO(rsc): This check handles a race between
-	// one goroutine reading and another one closing,
-	// but it doesn't solve the race completely:
-	// it still could happen that one goroutine closes
-	// but we read fd.fd before it does, and then
-	// another goroutine creates a new open file with
-	// that fd, which we'd now be referring to.
-	// The fix is probably to send the Close call
-	// through the poll server too, except that
-	// not all Reads and Writes go through the poll
-	// server even now.
-	intfd := fd.fd;
+	intfd := fd.sysfd;
 	if intfd < 0 {
 		// fd closed underfoot
 		if mode == 'r' {
@@ -208,10 +207,10 @@ func (s *pollServer) CheckDeadlines() {
 			if t <= now {
 				s.pending[key] = nil, false;
 				if mode == 'r' {
-					s.poll.DelFD(fd.fd, mode);
+					s.poll.DelFD(fd.sysfd, mode);
 					fd.rdeadline = -1;
 				} else {
-					s.poll.DelFD(fd.fd, mode);
+					s.poll.DelFD(fd.sysfd, mode);
 					fd.wdeadline = -1;
 				}
 				s.WakeFD(fd, mode);
@@ -249,7 +248,6 @@ func (s *pollServer) Run() {
 			for nn, _ := s.pr.Read(&scratch); nn > 0; {
 				nn, _ = s.pr.Read(&scratch)
 			}
-
 			// Read from channels
 			for fd, ok := <-s.cr; ok; fd, ok = <-s.cr {
 				s.AddFD(fd, 'r')
@@ -284,7 +282,6 @@ func (s *pollServer) WaitWrite(fd *netFD) {
 	<-fd.cw;
 }
 
-
 // Network FD methods.
 // All the network FDs use a single pollServer.
 
@@ -304,7 +301,7 @@ func newFD(fd, family, proto int, net string, laddr, raddr Addr) (f *netFD, err 
 		return nil, &OpError{"setnonblock", net, laddr, os.Errno(e)}
 	}
 	f = &netFD{
-		fd: fd,
+		sysfd: fd,
 		family: family,
 		proto: proto,
 		net: net,
@@ -318,10 +315,35 @@ func newFD(fd, family, proto int, net string, laddr, raddr Addr) (f *netFD, err 
 	if raddr != nil {
 		rs = raddr.String()
 	}
-	f.file = os.NewFile(fd, net+":"+ls+"->"+rs);
+	f.sysfile = os.NewFile(fd, net+":"+ls+"->"+rs);
 	f.cr = make(chan *netFD, 1);
 	f.cw = make(chan *netFD, 1);
 	return f, nil;
+}
+
+// Add a reference to this fd.
+func (fd *netFD) incref() {
+	fd.sysmu.Lock();
+	fd.sysref++;
+	fd.sysmu.Unlock();
+}
+
+// Remove a reference to this FD and close if we've been asked to do so (and
+// there are no references left.
+func (fd *netFD) decref() {
+	fd.sysmu.Lock();
+	fd.sysref--;
+	if fd.closing && fd.sysref == 0 && fd.sysfd >= 0 {
+		// In case the user has set linger, switch to blocking mode so
+		// the close blocks.  As long as this doesn't happen often, we
+		// can handle the extra OS processes.  Otherwise we'll need to
+		// use the pollserver for Close too.  Sigh.
+		syscall.SetNonblock(fd.sysfd, false);
+		fd.sysfile.Close();
+		fd.sysfile = nil;
+		fd.sysfd = -1;
+	}
+	fd.sysmu.Unlock();
 }
 
 func isEAGAIN(e os.Error) bool {
@@ -332,40 +354,68 @@ func isEAGAIN(e os.Error) bool {
 }
 
 func (fd *netFD) Close() os.Error {
-	if fd == nil || fd.file == nil {
+	if fd == nil || fd.sysfile == nil {
 		return os.EINVAL
 	}
 
-	// In case the user has set linger,
-	// switch to blocking mode so the close blocks.
-	// As long as this doesn't happen often,
-	// we can handle the extra OS processes.
-	// Otherwise we'll need to use the pollserver
-	// for Close too.  Sigh.
-	syscall.SetNonblock(fd.file.Fd(), false);
-
-	e := fd.file.Close();
-	fd.file = nil;
-	fd.fd = -1;
-	return e;
+	fd.incref();
+	syscall.Shutdown(fd.sysfd, syscall.SHUT_RDWR);
+	fd.closing = true;
+	fd.decref();
+	return nil;
 }
 
 func (fd *netFD) Read(p []byte) (n int, err os.Error) {
-	if fd == nil || fd.file == nil {
+	if fd == nil || fd.sysfile == nil {
 		return 0, os.EINVAL
 	}
 	fd.rio.Lock();
 	defer fd.rio.Unlock();
+	fd.incref();
+	defer fd.decref();
 	if fd.rdeadline_delta > 0 {
 		fd.rdeadline = pollserver.Now() + fd.rdeadline_delta
 	} else {
 		fd.rdeadline = 0
 	}
 	for {
-		n, err = fd.file.Read(p);
+		n, err = fd.sysfile.Read(p);
 		if isEAGAIN(err) && fd.rdeadline >= 0 {
 			pollserver.WaitRead(fd);
 			continue;
+		}
+		break;
+	}
+	if fd.proto == syscall.SOCK_DGRAM && err == os.EOF {
+		// 0 in datagram protocol just means 0-length packet
+		err = nil
+	}
+	return;
+}
+
+func (fd *netFD) ReadFrom(p []byte) (n int, sa syscall.Sockaddr, err os.Error) {
+	if fd == nil || fd.sysfile == nil {
+		return 0, nil, os.EINVAL
+	}
+	fd.rio.Lock();
+	defer fd.rio.Unlock();
+	fd.incref();
+	defer fd.decref();
+	if fd.rdeadline_delta > 0 {
+		fd.rdeadline = pollserver.Now() + fd.rdeadline_delta
+	} else {
+		fd.rdeadline = 0
+	}
+	for {
+		var errno int;
+		n, sa, errno = syscall.Recvfrom(fd.sysfd, p, 0);
+		if errno == syscall.EAGAIN && fd.rdeadline >= 0 {
+			pollserver.WaitRead(fd);
+			continue;
+		}
+		if errno != 0 {
+			n = 0;
+			err = &os.PathError{"recvfrom", fd.sysfile.Name(), os.Errno(errno)};
 		}
 		break;
 	}
@@ -373,11 +423,13 @@ func (fd *netFD) Read(p []byte) (n int, err os.Error) {
 }
 
 func (fd *netFD) Write(p []byte) (n int, err os.Error) {
-	if fd == nil || fd.file == nil {
+	if fd == nil || fd.sysfile == nil {
 		return 0, os.EINVAL
 	}
 	fd.wio.Lock();
 	defer fd.wio.Unlock();
+	fd.incref();
+	defer fd.decref();
 	if fd.wdeadline_delta > 0 {
 		fd.wdeadline = pollserver.Now() + fd.wdeadline_delta
 	} else {
@@ -385,8 +437,10 @@ func (fd *netFD) Write(p []byte) (n int, err os.Error) {
 	}
 	err = nil;
 	nn := 0;
-	for nn < len(p) {
-		n, err = fd.file.Write(p[nn:len(p)]);
+	first := true;	// force at least one Write, to send 0-length datagram packets
+	for nn < len(p) || first {
+		first = false;
+		n, err = fd.sysfile.Write(p[nn:]);
 		if n > 0 {
 			nn += n
 		}
@@ -404,19 +458,53 @@ func (fd *netFD) Write(p []byte) (n int, err os.Error) {
 	return nn, err;
 }
 
+func (fd *netFD) WriteTo(p []byte, sa syscall.Sockaddr) (n int, err os.Error) {
+	if fd == nil || fd.sysfile == nil {
+		return 0, os.EINVAL
+	}
+	fd.wio.Lock();
+	defer fd.wio.Unlock();
+	fd.incref();
+	defer fd.decref();
+	if fd.wdeadline_delta > 0 {
+		fd.wdeadline = pollserver.Now() + fd.wdeadline_delta
+	} else {
+		fd.wdeadline = 0
+	}
+	err = nil;
+	for {
+		errno := syscall.Sendto(fd.sysfd, p, 0, sa);
+		if errno == syscall.EAGAIN && fd.wdeadline >= 0 {
+			pollserver.WaitWrite(fd);
+			continue;
+		}
+		if errno != 0 {
+			err = &os.PathError{"sendto", fd.sysfile.Name(), os.Errno(errno)}
+		}
+		break;
+	}
+	if err == nil {
+		n = len(p)
+	}
+	return;
+}
+
 func (fd *netFD) accept(toAddr func(syscall.Sockaddr) Addr) (nfd *netFD, err os.Error) {
-	if fd == nil || fd.file == nil {
+	if fd == nil || fd.sysfile == nil {
 		return nil, os.EINVAL
 	}
 
+	fd.incref();
+	defer fd.decref();
+
 	// See ../syscall/exec.go for description of ForkLock.
 	// It is okay to hold the lock across syscall.Accept
-	// because we have put fd.fd into non-blocking mode.
+	// because we have put fd.sysfd into non-blocking mode.
 	syscall.ForkLock.RLock();
 	var s, e int;
 	var sa syscall.Sockaddr;
 	for {
-		s, sa, e = syscall.Accept(fd.fd);
+		s, sa, e = syscall.Accept(fd.sysfd);
 		if e != syscall.EAGAIN {
 			break
 		}

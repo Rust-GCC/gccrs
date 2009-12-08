@@ -123,6 +123,9 @@ grep '^#GO const _SOMAXCONN' sysinfo.s |
   sed -e 's/#GO //' \
       -e 's/^\(const \)_\(SOMAXCONN[^= ]*\)\(.*\)$/\1\2 = _\2/' \
     >> ${OUT}
+grep '^#GO const _SHUT_' sysinfo.s |
+  sed -e 's/#GO //' \
+      -e 's/^\(const \)_\(SHUT[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 
 # pathconf constants.
 grep '^#GO const __PC' sysinfo.s |

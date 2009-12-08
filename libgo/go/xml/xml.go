@@ -65,19 +65,19 @@ type EndElement struct {
 // the characters they represent.
 type CharData []byte
 
-func copy(b []byte) []byte {
+func makeCopy(b []byte) []byte {
 	b1 := make([]byte, len(b));
-	bytes.Copy(b1, b);
+	copy(b1, b);
 	return b1;
 }
 
-func (c CharData) Copy() CharData	{ return CharData(copy(c)) }
+func (c CharData) Copy() CharData	{ return CharData(makeCopy(c)) }
 
 // A Comment represents an XML comment of the form <!--comment-->.
 // The bytes do not include the <!-- and --> comment markers.
 type Comment []byte
 
-func (c Comment) Copy() Comment	{ return Comment(copy(c)) }
+func (c Comment) Copy() Comment	{ return Comment(makeCopy(c)) }
 
 // A ProcInst represents an XML processing instruction of the form <?target inst?>
 type ProcInst struct {
@@ -86,7 +86,7 @@ type ProcInst struct {
 }
 
 func (p ProcInst) Copy() ProcInst {
-	p.Inst = copy(p.Inst);
+	p.Inst = makeCopy(p.Inst);
 	return p;
 }
 
@@ -94,7 +94,7 @@ func (p ProcInst) Copy() ProcInst {
 // The bytes do not include the <! and > markers.
 type Directive []byte
 
-func (d Directive) Copy() Directive	{ return Directive(copy(d)) }
+func (d Directive) Copy() Directive	{ return Directive(makeCopy(d)) }
 
 type readByter interface {
 	ReadByte() (b byte, err os.Error);
@@ -497,11 +497,11 @@ func (p *Parser) RawToken() (Token, os.Error) {
 
 		case '[':	// <![
 			// Probably <![CDATA[.
-			for i := 0; i < 7; i++ {
+			for i := 0; i < 6; i++ {
 				if b, ok = p.getc(); !ok {
 					return nil, p.err
 				}
-				if b != "[CDATA["[i] {
+				if b != "CDATA["[i] {
 					p.err = SyntaxError("invalid <![ sequence");
 					return nil, p.err;
 				}
@@ -749,9 +749,9 @@ Input:
 				var n uint64;
 				var err os.Error;
 				if i >= 3 && s[1] == 'x' {
-					n, err = strconv.Btoui64(s[2:len(s)], 16)
+					n, err = strconv.Btoui64(s[2:], 16)
 				} else {
-					n, err = strconv.Btoui64(s[1:len(s)], 10)
+					n, err = strconv.Btoui64(s[1:], 10)
 				}
 				if err == nil && n <= unicode.MaxRune {
 					text = string(n);
@@ -761,7 +761,7 @@ Input:
 				if r, ok := entity[s]; ok {
 					text = string(r);
 					haveText = true;
-				} else {
+				} else if p.Entity != nil {
 					text, haveText = p.Entity[s]
 				}
 			}
@@ -813,7 +813,7 @@ func (p *Parser) nsname() (name Name, ok bool) {
 		name.Local = s
 	} else {
 		name.Space = s[0:i];
-		name.Local = s[i+1 : len(s)];
+		name.Local = s[i+1:];
 	}
 	return name, true;
 }

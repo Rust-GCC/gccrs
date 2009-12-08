@@ -86,6 +86,9 @@ func TestRPC(t *testing.T) {
 	args := &Args{7, 8};
 	reply := new(Reply);
 	err = client.Call("Arith.Add", args, reply);
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.String())
+	}
 	if reply.C != args.A+args.B {
 		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 	}
@@ -93,6 +96,9 @@ func TestRPC(t *testing.T) {
 	args = &Args{7, 8};
 	reply = new(Reply);
 	err = client.Call("Arith.Mul", args, reply);
+	if err != nil {
+		t.Errorf("Mul: expected no error but got string %q", err.String())
+	}
 	if reply.C != args.A*args.B {
 		t.Errorf("Mul: expected %d got %d", reply.C, args.A*args.B)
 	}
@@ -104,12 +110,18 @@ func TestRPC(t *testing.T) {
 	addReply := new(Reply);
 	addCall := client.Go("Arith.Add", args, addReply, nil);
 
-	<-addCall.Done;
+	addCall = <-addCall.Done;
+	if addCall.Error != nil {
+		t.Errorf("Add: expected no error but got string %q", addCall.Error.String())
+	}
 	if addReply.C != args.A+args.B {
 		t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
 	}
 
-	<-mulCall.Done;
+	mulCall = <-mulCall.Done;
+	if mulCall.Error != nil {
+		t.Errorf("Mul: expected no error but got string %q", mulCall.Error.String())
+	}
 	if mulReply.C != args.A*args.B {
 		t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
 	}
@@ -138,6 +150,9 @@ func TestHTTPRPC(t *testing.T) {
 	args := &Args{7, 8};
 	reply := new(Reply);
 	err = client.Call("Arith.Add", args, reply);
+	if err != nil {
+		t.Errorf("Add: expected no error but got string %q", err.String())
+	}
 	if reply.C != args.A+args.B {
 		t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 	}
@@ -199,5 +214,40 @@ func TestCheckBadType(t *testing.T) {
 		t.Error("expected error calling Arith.Add with wrong arg type")
 	} else if strings.Index(err.String(), "type") < 0 {
 		t.Error("expected error about type; got", err)
+	}
+}
+
+type Bad int
+type local struct{}
+
+func (t *Bad) ArgNotPointer(args Args, reply *Reply) os.Error {
+	return nil
+}
+
+func (t *Bad) ArgNotPointerToStruct(args *int, reply *Reply) os.Error {
+	return nil
+}
+
+func (t *Bad) ReplyNotPointer(args *Args, reply Reply) os.Error {
+	return nil
+}
+
+func (t *Bad) ReplyNotPointerToStruct(args *Args, reply *int) os.Error {
+	return nil
+}
+
+func (t *Bad) ArgNotPublic(args *local, reply *Reply) os.Error {
+	return nil
+}
+
+func (t *Bad) ReplyNotPublic(args *Args, reply *local) os.Error {
+	return nil
+}
+
+// Check that registration handles lots of bad methods and a type with no suitable methods.
+func TestRegistrationError(t *testing.T) {
+	err := Register(new(Bad));
+	if err == nil {
+		t.Errorf("expected error registering bad type")
 	}
 }

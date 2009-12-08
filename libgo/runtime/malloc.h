@@ -158,6 +158,8 @@ struct MStats
 	uint64	stacks;
 	uint64	inuse_pages;	// protected by mheap.Lock
 	uint64	next_gc;	// protected by mheap.Lock
+	uint64	nlookup;	// unprotected (approximate)
+	uint64	nmalloc;	// unprotected (approximate)
 	bool	enablegc;
 };
 extern MStats mstats;
@@ -368,6 +370,10 @@ struct MHeap
 	// span lookup
 	MHeapMap map;
 	MHeapMapCache mapcache;
+
+	// range of addresses we might see in the heap
+	byte *min;
+	byte *max;
 
 	// central free lists for small size classes.
 	// the union makes sure that the MCentrals are

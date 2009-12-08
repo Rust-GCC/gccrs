@@ -172,6 +172,8 @@ MHeap_Grow(MHeap *h, uintptr npage)
 	// Ask for a big chunk, to reduce the number of mappings
 	// the operating system needs to track; also amortizes
 	// the overhead of an operating system mapping.
+	// For Native Client, allocate a multiple of 64kB (16 pages).
+	npage = (npage+15)&~15;
 	ask = npage<<PageShift;
 	if(ask < HeapAllocChunk)
 		ask = HeapAllocChunk;
@@ -186,10 +188,14 @@ MHeap_Grow(MHeap *h, uintptr npage)
 			return false;
 	}
 
+	if((byte*)v < h->min || h->min == nil)
+		h->min = v;
+	if((byte*)v+ask > h->max)
+		h->max = (byte*)v+ask;
+
 	// NOTE(rsc): In tcmalloc, if we've accumulated enough
 	// system allocations, the heap map gets entirely allocated
 	// in 32-bit mode.  (In 64-bit mode that's not practical.)
-
 	if(!MHeapMap_Preallocate(&h->map, ((uintptr)v>>PageShift) - 1, (ask>>PageShift) + 2)) {
 		SysFree(v, ask);
 		return false;

@@ -8,6 +8,9 @@
 package json
 
 import (
+	"fmt";
+	"io";
+	"os";
 	"reflect";
 	"strings";
 )
@@ -154,7 +157,7 @@ func (b *structBuilder) Elem(i int) Builder {
 			return &structBuilder{val: v.Elem(i)}
 		}
 	case *reflect.SliceValue:
-		if i > v.Cap() {
+		if i >= v.Cap() {
 			n := v.Cap();
 			if n < 8 {
 				n = 8
@@ -224,7 +227,7 @@ func (b *structBuilder) Key(k string) Builder {
 }
 
 // Unmarshal parses the JSON syntax string s and fills in
-// an arbitrary struct or array pointed at by val.
+// an arbitrary struct or slice pointed at by val.
 // It uses the reflect package to assign to fields
 // and arrays embedded in val.  Well-formed data that does not fit
 // into the struct is discarded.
@@ -279,14 +282,124 @@ func (b *structBuilder) Key(k string) Builder {
 // assign to upper case fields.  Unmarshal uses a case-insensitive
 // comparison to match JSON field names to struct field names.
 //
+// To unmarshal a top-level JSON array, pass in a pointer to an empty
+// slice of the correct type.
+//
 // On success, Unmarshal returns with ok set to true.
 // On a syntax error, it returns with ok set to false and errtok
 // set to the offending token.
 func Unmarshal(s string, val interface{}) (ok bool, errtok string) {
-	b := &structBuilder{val: reflect.NewValue(val)};
+	v := reflect.NewValue(val);
+	var b *structBuilder;
+
+	// If val is a pointer to a slice, we append to the slice.
+	if ptr, ok := v.(*reflect.PtrValue); ok {
+		if slice, ok := ptr.Elem().(*reflect.SliceValue); ok {
+			b = &structBuilder{val: slice}
+		}
+	}
+
+	if b == nil {
+		b = &structBuilder{val: v}
+	}
+
 	ok, _, errtok = Parse(s, b);
 	if !ok {
 		return false, errtok
 	}
 	return true, "";
+}
+
+type MarshalError struct {
+	T reflect.Type;
+}
+
+func (e *MarshalError) String() string {
+	return "json cannot encode value of type " + e.T.String()
+}
+func writeArrayOrSlice(w io.Writer, val reflect.ArrayOrSliceValue) os.Error {
+	fmt.Fprint(w, "[");
+
+	for i := 0; i < val.Len(); i++ {
+		if err := writeValue(w, val.Elem(i)); err != nil {
+			return err
+		}
+
+		if i < val.Len()-1 {
+			fmt.Fprint(w, ",")
+		}
+	}
+
+	fmt.Fprint(w, "]");
+	return nil;
+}
+
+func writeMap(w io.Writer, val *reflect.MapValue) os.Error {
+	key := val.Type().(*reflect.MapType).Key();
+	if _, ok := key.(*reflect.StringType); !ok {
+		return &MarshalError{val.Type()}
+	}
+
+	keys := val.Keys();
+	fmt.Fprint(w, "{");
+	for i := 0; i < len(keys); i++ {
+		fmt.Fprintf(w, "%q:", keys[i].(*reflect.StringValue).Get());
+
+		if err := writeValue(w, val.Elem(keys[i])); err != nil {
+			return err
+		}
+
+		if i < len(keys)-1 {
+			fmt.Fprint(w, ",")
+		}
+	}
+
+	fmt.Fprint(w, "}");
+	return nil;
+}
+
+func writeStruct(w io.Writer, val *reflect.StructValue) os.Error {
+	fmt.Fprint(w, "{");
+
+	typ := val.Type().(*reflect.StructType);
+
+	for i := 0; i < val.NumField(); i++ {
+		fieldValue := val.Field(i);
+		fmt.Fprintf(w, "%q:", typ.Field(i).Name);
+		writeValue(w, fieldValue);
+		if i < val.NumField()-1 {
+			fmt.Fprint(w, ",")
+		}
+	}
+
+	fmt.Fprint(w, "}");
+	return nil;
+}
+
+func writeValue(w io.Writer, val reflect.Value) (err os.Error) {
+	switch v := val.(type) {
+	case *reflect.StringValue:
+		fmt.Fprintf(w, "%q", v.Get())
+	case *reflect.ArrayValue:
+		err = writeArrayOrSlice(w, v)
+	case *reflect.SliceValue:
+		err = writeArrayOrSlice(w, v)
+	case *reflect.MapValue:
+		err = writeMap(w, v)
+	case *reflect.StructValue:
+		err = writeStruct(w, v)
+	case *reflect.ChanValue,
+		*reflect.InterfaceValue,
+		*reflect.PtrValue,
+		*reflect.UnsafePointerValue:
+		err = &MarshalError{val.Type()}
+	default:
+		value := val.(reflect.Value);
+		fmt.Fprint(w, value.Interface());
+	}
+	return;
+}
+
+func Marshal(w io.Writer, val interface{}) os.Error {
+	return writeValue(w, reflect.NewValue(val))
 }

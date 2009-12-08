@@ -4,18 +4,19 @@
 
 // Utility functions.
 
-package io
+package ioutil
 
 import (
 	"bytes";
+	"io";
 	"os";
 	"sort";
 )
 
 // ReadAll reads from r until an error or EOF and returns the data it read.
-func ReadAll(r Reader) ([]byte, os.Error) {
+func ReadAll(r io.Reader) ([]byte, os.Error) {
 	var buf bytes.Buffer;
-	_, err := Copy(&buf, r);
+	_, err := io.Copy(&buf, r);
 	return buf.Bytes(), err;
 }
 
@@ -26,7 +27,23 @@ func ReadFile(filename string) ([]byte, os.Error) {
 		return nil, err
 	}
 	defer f.Close();
-	return ReadAll(f);
+	// It's a good but not certain bet that Stat will tell us exactly how much to
+	// read, so let's try it but be prepared for the answer to be wrong.
+	dir, err := f.Stat();
+	var n uint64;
+	if err != nil && dir.Size < 2e9 {	// Don't preallocate a huge buffer, just in case.
+		n = dir.Size
+	}
+	// Add a little extra in case Size is zero, and to avoid another allocation after
+	// Read has filled the buffer.
+	n += bytes.MinRead;
+	// Pre-allocate the correct size of buffer, then set its size to zero.  The
+	// Buffer will read into the allocated space cheaply.  If the size was wrong,
+	// we'll either waste some space off the end or reallocate as needed, but
+	// in the overwhelmingly common case we'll get it just right.
+	buf := bytes.NewBuffer(make([]byte, 0, n));
+	_, err = buf.ReadFrom(f);
+	return buf.Bytes(), err;
 }
 
 // WriteFile writes data to a file named by filename.
@@ -40,7 +57,7 @@ func WriteFile(filename string, data []byte, perm int) os.Error {
 	n, err := f.Write(data);
 	f.Close();
 	if err == nil && n < len(data) {
-		err = ErrShortWrite
+		err = io.ErrShortWrite
 	}
 	return err;
 }

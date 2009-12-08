@@ -7,7 +7,6 @@
 package ascii85
 
 import (
-	"bytes";
 	"io";
 	"os";
 	"strconv";
@@ -58,7 +57,7 @@ func Encode(dst, src []byte) int {
 		// Special case: zero (!!!!!) shortens to z.
 		if v == 0 && len(src) >= 4 {
 			dst[0] = 'z';
-			dst = dst[1:len(dst)];
+			dst = dst[1:];
 			n++;
 			continue;
 		}
@@ -75,9 +74,9 @@ func Encode(dst, src []byte) int {
 			m -= 4 - len(src);
 			src = nil;
 		} else {
-			src = src[4:len(src)]
+			src = src[4:]
 		}
-		dst = dst[m:len(dst)];
+		dst = dst[m:];
 		n += m;
 	}
 	return n;
@@ -114,7 +113,7 @@ func (e *encoder) Write(p []byte) (n int, err os.Error) {
 			e.nbuf++;
 		}
 		n += i;
-		p = p[i:len(p)];
+		p = p[i:];
 		if e.nbuf < 4 {
 			return
 		}
@@ -139,7 +138,7 @@ func (e *encoder) Write(p []byte) (n int, err os.Error) {
 			}
 		}
 		n += nn;
-		p = p[nn:len(p)];
+		p = p[nn:];
 	}
 
 	// Trailing fringe.
@@ -170,7 +169,7 @@ func (e *encoder) Close() os.Error {
 type CorruptInputError int64
 
 func (e CorruptInputError) String() string {
-	return "illegal ascii85 data at input byte" + strconv.Itoa64(int64(e))
+	return "illegal ascii85 data at input byte " + strconv.Itoa64(int64(e))
 }
 
 // Decode decodes src into dst, returning both the number
@@ -215,11 +214,13 @@ func Decode(dst, src []byte, flush bool) (ndst, nsrc int, err os.Error) {
 			ndst += 4;
 			nb = 0;
 			v = 0;
+			println("ndst =", ndst);
 		}
 	}
 	if flush {
 		nsrc = len(src);
 		if nb > 0 {
+			println("flushing", nb, "ndst =", ndst);
 			// The number of output bytes in the last fragment
 			// is the number of leftover input bytes - 1:
 			// the extra byte provides enough bits to cover
@@ -233,11 +234,13 @@ func Decode(dst, src []byte, flush bool) (ndst, nsrc int, err os.Error) {
 				// in order to ensure that the top bits are correct.
 				v = v*85 + 84
 			}
+			h := ndst;
 			for i := 0; i < nb-1; i++ {
 				dst[ndst] = byte(v >> 24);
 				v <<= 8;
 				ndst++;
 			}
+			println("flushed", dst[h], dst[h + 1], dst[h + 2]);
 		}
 	}
 	return;
@@ -268,8 +271,8 @@ func (d *decoder) Read(p []byte) (n int, err os.Error) {
 	for {
 		// Copy leftover output from last decode.
 		if len(d.out) > 0 {
-			n = bytes.Copy(p, d.out);
-			d.out = d.out[n:len(d.out)];
+			n = copy(p, d.out);
+			d.out = d.out[n:];
 			return;
 		}
 
@@ -279,7 +282,7 @@ func (d *decoder) Read(p []byte) (n int, err os.Error) {
 			ndst, nsrc, d.err = Decode(&d.outbuf, d.buf[0:d.nbuf], d.readErr != nil);
 			if ndst > 0 {
 				d.out = d.outbuf[0:ndst];
-				d.nbuf = bytes.Copy(&d.buf, d.buf[nsrc:d.nbuf]);
+				d.nbuf = copy(&d.buf, d.buf[nsrc:d.nbuf]);
 				continue;	// copy out and return
 			}
 		}
@@ -294,7 +297,7 @@ func (d *decoder) Read(p []byte) (n int, err os.Error) {
 		}
 
 		// Read more data.
-		nn, d.readErr = d.r.Read(d.buf[d.nbuf:len(d.buf)]);
+		nn, d.readErr = d.r.Read(d.buf[d.nbuf:]);
 		d.nbuf += nn;
 	}
 	panic("unreachable");

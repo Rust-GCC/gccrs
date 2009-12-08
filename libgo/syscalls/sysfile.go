@@ -38,6 +38,7 @@ func libc_getcwd(*byte, Size_t) *byte __asm__ ("getcwd");
 func libc_link(oldpath *byte, newpath *byte) int __asm__ ("link");
 func libc_symlink(oldpath *byte, newpath *byte) int __asm__ ("symlink");
 func libc_readlink(*byte, *byte, Size_t) Ssize_t  __asm__ ("readlink");
+func libc_rename(oldpath *byte, newpath *byte) int __asm__ ("rename");
 func libc_chmod(path *byte, mode Mode_t) int __asm__ ("chmod");
 func libc_fchmod(fd int, mode Mode_t) int __asm__ ("fchmod");
 func libc_chown(path *byte, owner Uid_t, group Gid_t) int __asm__ ("chown");
@@ -238,6 +239,12 @@ func Readlink(path string, buf []byte) (n int, errno int) {
   if r < 0 { errno = *errno_location() }
   n = int(r);
   return;
+}
+
+func Rename(oldpath, newpath string) (errno int) {
+	r := libc_rename(StringBytePtr(oldpath), StringBytePtr(newpath));
+	if r < 0 { errno = *errno_location() }
+	return 
 }
 
 func Chmod(path string, mode int) (errno int) {

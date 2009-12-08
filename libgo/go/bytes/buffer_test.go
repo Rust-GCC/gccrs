@@ -111,7 +111,7 @@ func empty(t *testing.T, testname string, buf *Buffer, s string, fub []byte) {
 		if err != nil {
 			t.Errorf(testname+" (empty 2): err should always be nil, found err == %s\n", err)
 		}
-		s = s[n:len(s)];
+		s = s[n:];
 		check(t, testname+" (empty 3)", buf, s);
 	}
 
@@ -228,7 +228,7 @@ func TestMixedReadsAndWrites(t *testing.T) {
 		rlen := rand.Intn(len(data));
 		fub := make([]byte, rlen);
 		n, _ := buf.Read(fub);
-		s = s[n:len(s)];
+		s = s[n:];
 	}
 	empty(t, "TestMixedReadsAndWrites (2)", &buf, s, make([]byte, buf.Len()));
 }
@@ -238,5 +238,27 @@ func TestNil(t *testing.T) {
 	var b *Buffer;
 	if b.String() != "<nil>" {
 		t.Error("expcted <nil>; got %q", b.String())
+	}
+}
+
+
+func TestReadFrom(t *testing.T) {
+	var buf Buffer;
+	for i := 3; i < 30; i += 3 {
+		s := fillBytes(t, "TestReadFrom (1)", &buf, "", 5, bytes[0:len(bytes)/i]);
+		var b Buffer;
+		b.ReadFrom(&buf);
+		empty(t, "TestReadFrom (2)", &b, s, make([]byte, len(data)));
+	}
+}
+
+
+func TestWriteTo(t *testing.T) {
+	var buf Buffer;
+	for i := 3; i < 30; i += 3 {
+		s := fillBytes(t, "TestReadFrom (1)", &buf, "", 5, bytes[0:len(bytes)/i]);
+		var b Buffer;
+		buf.WriteTo(&b);
+		empty(t, "TestReadFrom (2)", &b, s, make([]byte, len(data)));
 	}
 }

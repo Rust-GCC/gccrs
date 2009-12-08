@@ -39,41 +39,123 @@ var faces = "☺☻☹"
 var commas = "1,2,3,4"
 var dots = "1....2....3....4"
 
-type CompareTest struct {
+type BinOpTest struct {
 	a	string;
 	b	string;
-	cmp	int;
+	i	int;
 }
 
-var comparetests = []CompareTest{
-	CompareTest{"", "", 0},
-	CompareTest{"a", "", 1},
-	CompareTest{"", "a", -1},
-	CompareTest{"abc", "abc", 0},
-	CompareTest{"ab", "abc", -1},
-	CompareTest{"abc", "ab", 1},
-	CompareTest{"x", "ab", 1},
-	CompareTest{"ab", "x", -1},
-	CompareTest{"x", "a", 1},
-	CompareTest{"b", "x", -1},
+var comparetests = []BinOpTest{
+	BinOpTest{"", "", 0},
+	BinOpTest{"a", "", 1},
+	BinOpTest{"", "a", -1},
+	BinOpTest{"abc", "abc", 0},
+	BinOpTest{"ab", "abc", -1},
+	BinOpTest{"abc", "ab", 1},
+	BinOpTest{"x", "ab", 1},
+	BinOpTest{"ab", "x", -1},
+	BinOpTest{"x", "a", 1},
+	BinOpTest{"b", "x", -1},
 }
 
 func TestCompare(t *testing.T) {
-	for i := 0; i < len(comparetests); i++ {
-		tt := comparetests[i];
+	for _, tt := range comparetests {
 		a := strings.Bytes(tt.a);
 		b := strings.Bytes(tt.b);
 		cmp := Compare(a, b);
 		eql := Equal(a, b);
-		if cmp != tt.cmp {
+		if cmp != tt.i {
 			t.Errorf(`Compare(%q, %q) = %v`, tt.a, tt.b, cmp)
 		}
-		if eql != (tt.cmp == 0) {
+		if eql != (tt.i == 0) {
 			t.Errorf(`Equal(%q, %q) = %v`, tt.a, tt.b, eql)
 		}
 	}
 }
 
+var indextests = []BinOpTest{
+	BinOpTest{"", "", 0},
+	BinOpTest{"a", "", 0},
+	BinOpTest{"", "a", -1},
+	BinOpTest{"abc", "abc", 0},
+	BinOpTest{"ab", "abc", -1},
+	BinOpTest{"abc", "bc", 1},
+	BinOpTest{"x", "ab", -1},
+	// one-byte tests for IndexByte
+	BinOpTest{"ab", "x", -1},
+	BinOpTest{"", "a", -1},
+	BinOpTest{"x", "a", -1},
+	BinOpTest{"x", "x", 0},
+	BinOpTest{"abc", "a", 0},
+	BinOpTest{"abc", "b", 1},
+	BinOpTest{"abc", "c", 2},
+	BinOpTest{"abc", "x", -1},
+}
+
+func TestIndex(t *testing.T) {
+	for _, tt := range indextests {
+		a := strings.Bytes(tt.a);
+		b := strings.Bytes(tt.b);
+		pos := Index(a, b);
+		if pos != tt.i {
+			t.Errorf(`Index(%q, %q) = %v`, tt.a, tt.b, pos)
+		}
+	}
+}
+
+func TestIndexByte(t *testing.T) {
+	for _, tt := range indextests {
+		if len(tt.b) != 1 {
+			continue
+		}
+		a := strings.Bytes(tt.a);
+		b := tt.b[0];
+		pos := IndexByte(a, b);
+		if pos != tt.i {
+			t.Errorf(`IndexByte(%q, '%c') = %v`, tt.a, b, pos)
+		}
+		posp := IndexBytePortable(a, b);
+		if posp != tt.i {
+			t.Errorf(`indexBytePortable(%q, '%c') = %v`, tt.a, b, posp)
+		}
+	}
+}
+
+func BenchmarkIndexByte4K(b *testing.B)	{ bmIndex(b, IndexByte, 4<<10) }
+
+func BenchmarkIndexByte4M(b *testing.B)	{ bmIndex(b, IndexByte, 4<<20) }
+
+func BenchmarkIndexByte64M(b *testing.B)	{ bmIndex(b, IndexByte, 64<<20) }
+
+func BenchmarkIndexBytePortable4K(b *testing.B) {
+	bmIndex(b, IndexBytePortable, 4<<10)
+}
+
+func BenchmarkIndexBytePortable4M(b *testing.B) {
+	bmIndex(b, IndexBytePortable, 4<<20)
+}
+
+func BenchmarkIndexBytePortable64M(b *testing.B) {
+	bmIndex(b, IndexBytePortable, 64<<20)
+}
+
+var bmbuf []byte
+
+func bmIndex(b *testing.B, index func([]byte, byte) int, n int) {
+	if len(bmbuf) < n {
+		bmbuf = make([]byte, n)
+	}
+	b.SetBytes(int64(n));
+	buf := bmbuf[0:n];
+	buf[n-1] = 'x';
+	for i := 0; i < b.N; i++ {
+		j := index(buf, 'x');
+		if j != n-1 {
+			panic("bad index", j)
+		}
+	}
+	buf[n-1] = '0';
+}
 
 type ExplodeTest struct {
 	s	string;
@@ -172,36 +254,6 @@ func TestSplitAfter(t *testing.T) {
 	}
 }
 
-type CopyTest struct {
-	a	string;
-	b	string;
-	n	int;
-	res	string;
-}
-
-var copytests = []CopyTest{
-	CopyTest{"", "", 0, ""},
-	CopyTest{"a", "", 0, "a"},
-	CopyTest{"a", "a", 1, "a"},
-	CopyTest{"a", "b", 1, "b"},
-	CopyTest{"xyz", "abc", 3, "abc"},
-	CopyTest{"wxyz", "abc", 3, "abcz"},
-	CopyTest{"xyz", "abcd", 3, "abc"},
-}
-
-func TestCopy(t *testing.T) {
-	for i := 0; i < len(copytests); i++ {
-		tt := copytests[i];
-		dst := strings.Bytes(tt.a);
-		n := Copy(dst, strings.Bytes(tt.b));
-		result := string(dst);
-		if result != tt.res || n != tt.n {
-			t.Errorf(`Copy(%q, %q) = %d, %q; want %d, %q`, tt.a, tt.b, n, result, tt.n, tt.res);
-			continue;
-		}
-	}
-}
-
 // Test case for any function which accepts and returns a byte array.
 // For ease of creation, we write the byte arrays as strings.
 type StringTest struct {
@@ -268,9 +320,22 @@ func tenRunes(rune int) string {
 	return string(r);
 }
 
+// User-defined self-inverse mapping function
+func rot13(rune int) int {
+	step := 13;
+	if rune >= 'a' && rune <= 'z' {
+		return ((rune - 'a' + step) % 26) + 'a'
+	}
+	if rune >= 'A' && rune <= 'Z' {
+		return ((rune - 'A' + step) % 26) + 'A'
+	}
+	return rune;
+}
+
 func TestMap(t *testing.T) {
 	// Run a couple of awful growth/shrinkage tests
 	a := tenRunes('a');
+
 	// 1.  Grow.  This triggers two reallocations in Map.
 	maxRune := func(rune int) int { return unicode.MaxRune };
 	m := Map(maxRune, Bytes(a));
@@ -278,12 +343,27 @@ func TestMap(t *testing.T) {
 	if string(m) != expect {
 		t.Errorf("growing: expected %q got %q", expect, m)
 	}
+
 	// 2. Shrink
 	minRune := func(rune int) int { return 'a' };
 	m = Map(minRune, Bytes(tenRunes(unicode.MaxRune)));
 	expect = a;
 	if string(m) != expect {
 		t.Errorf("shrinking: expected %q got %q", expect, m)
+	}
+
+	// 3. Rot13
+	m = Map(rot13, Bytes("a to zed"));
+	expect = "n gb mrq";
+	if string(m) != expect {
+		t.Errorf("rot13: expected %q got %q", expect, m)
+	}
+
+	// 4. Rot13^2
+	m = Map(rot13, Map(rot13, Bytes("a to zed")));
+	expect = "a to zed";
+	if string(m) != expect {
+		t.Errorf("rot13: expected %q got %q", expect, m)
 	}
 }
 
@@ -330,6 +410,79 @@ func TestAddByte(t *testing.T) {
 	for i, c := range b {
 		if c != byte(i) {
 			t.Fatalf("AddByte: b[%d] should be %d is %d", i, c, byte(i))
+		}
+	}
+}
+
+type RepeatTest struct {
+	in, out	string;
+	count	int;
+}
+
+var RepeatTests = []RepeatTest{
+	RepeatTest{"", "", 0},
+	RepeatTest{"", "", 1},
+	RepeatTest{"", "", 2},
+	RepeatTest{"-", "", 0},
+	RepeatTest{"-", "-", 1},
+	RepeatTest{"-", "----------", 10},
+	RepeatTest{"abc ", "abc abc abc ", 3},
+}
+
+func TestRepeat(t *testing.T) {
+	for _, tt := range RepeatTests {
+		tin := strings.Bytes(tt.in);
+		tout := strings.Bytes(tt.out);
+		a := Repeat(tin, tt.count);
+		if !Equal(a, tout) {
+			t.Errorf("Repeat(%q, %d) = %q; want %q", tin, tt.count, a, tout);
+			continue;
+		}
+	}
+}
+
+func runesEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, r := range a {
+		if r != b[i] {
+			return false
+		}
+	}
+	return true;
+}
+
+type RunesTest struct {
+	in	string;
+	out	[]int;
+	lossy	bool;
+}
+
+var RunesTests = []RunesTest{
+	RunesTest{"", []int{}, false},
+	RunesTest{" ", []int{32}, false},
+	RunesTest{"ABC", []int{65, 66, 67}, false},
+	RunesTest{"abc", []int{97, 98, 99}, false},
+	RunesTest{"\u65e5\u672c\u8a9e", []int{26085, 26412, 35486}, false},
+	RunesTest{"ab\x80c", []int{97, 98, 0xFFFD, 99}, true},
+	RunesTest{"ab\xc0c", []int{97, 98, 0xFFFD, 99}, true},
+}
+
+func TestRunes(t *testing.T) {
+	for _, tt := range RunesTests {
+		tin := strings.Bytes(tt.in);
+		a := Runes(tin);
+		if !runesEqual(a, tt.out) {
+			t.Errorf("Runes(%q) = %v; want %v", tin, a, tt.out);
+			continue;
+		}
+		if !tt.lossy {
+			// can only test reassembly if we didn't lose information
+			s := string(a);
+			if s != tt.in {
+				t.Errorf("string(Runes(%q)) = %x; want %x", tin, s, tin)
+			}
 		}
 	}
 }

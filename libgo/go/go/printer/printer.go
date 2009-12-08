@@ -194,7 +194,7 @@ func (p *printer) write(data []byte) {
 	}
 
 	// write remaining segment
-	p.write0(data[i0:len(data)]);
+	p.write0(data[i0:]);
 
 	// update p.pos
 	d := len(data) - i0;
@@ -400,7 +400,7 @@ func split(text []byte) [][]byte {
 			n++;
 		}
 	}
-	lines[n] = text[i:len(text)];
+	lines[n] = text[i:];
 
 	return lines;
 }
@@ -475,7 +475,7 @@ func stripCommonPrefix(lines [][]byte) {
 		// for the opening /*, assume up to 3 blanks or a tab. This
 		// whitespace may be found as suffix in the common prefix.
 		first := lines[0];
-		if isBlank(first[2:len(first)]) {
+		if isBlank(first[2:]) {
 			// no comment text on the first line:
 			// reduce prefix by up to 3 blanks or a tab
 			// if present - this keeps comment text indented
@@ -536,7 +536,7 @@ func stripCommonPrefix(lines [][]byte) {
 	// Remove the common prefix from all but the first and empty lines.
 	for i, line := range lines {
 		if i > 0 && len(line) != 0 {
-			lines[i] = line[len(prefix):len(line)]
+			lines[i] = line[len(prefix):]
 		}
 	}
 }
@@ -892,7 +892,8 @@ func (p *trimmer) Write(data []byte) (n int, err os.Error) {
 const (
 	GenHTML		uint	= 1 << iota;	// generate HTML
 	RawFormat;		// do not use a tabwriter; if set, UseSpaces is ignored
-	UseSpaces;		// use spaces instead of tabs for indentation and alignment
+	TabIndent;		// use tabs for indentation independent of UseSpaces
+	UseSpaces;		// use spaces instead of tabs for alignment
 )
 
 
@@ -937,15 +938,23 @@ func (cfg *Config) Fprint(output io.Writer, node interface{}) (int, os.Error) {
 	// setup tabwriter if needed and redirect output
 	var tw *tabwriter.Writer;
 	if cfg.Mode&RawFormat == 0 {
+		minwidth := cfg.Tabwidth;
+
 		padchar := byte('\t');
 		if cfg.Mode&UseSpaces != 0 {
 			padchar = ' '
 		}
+
 		twmode := tabwriter.DiscardEmptyColumns;
 		if cfg.Mode&GenHTML != 0 {
 			twmode |= tabwriter.FilterHTML
 		}
-		tw = tabwriter.NewWriter(output, cfg.Tabwidth, 1, padchar, twmode);
+		if cfg.Mode&TabIndent != 0 {
+			minwidth = 0;
+			twmode |= tabwriter.TabIndent;
+		}
+
+		tw = tabwriter.NewWriter(output, minwidth, cfg.Tabwidth, 1, padchar, twmode);
 		output = tw;
 	}
 

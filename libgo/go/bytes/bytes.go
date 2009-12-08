@@ -44,20 +44,6 @@ func Equal(a, b []byte) bool {
 	return true;
 }
 
-// Copy copies bytes from src to dst,
-// stopping when either all of src has been copied
-// or all of dst has been filled.
-// It returns the number of bytes copied.
-func Copy(dst, src []byte) int {
-	if len(src) > len(dst) {
-		src = src[0:len(dst)]
-	}
-	for i, x := range src {
-		dst[i] = x
-	}
-	return len(src);
-}
-
 // explode splits s into an array of UTF-8 sequences, one per Unicode character (still arrays of bytes),
 // up to a maximum of n byte arrays. Invalid UTF-8 sequences are chopped into individual bytes.
 func explode(s []byte, n int) [][]byte {
@@ -75,7 +61,7 @@ func explode(s []byte, n int) [][]byte {
 		}
 		_, size = utf8.DecodeRune(s);
 		a[na] = s[0:size];
-		s = s[size:len(s)];
+		s = s[size:];
 		na++;
 	}
 	return a[0:na];
@@ -106,6 +92,18 @@ func Index(s, sep []byte) int {
 	c := sep[0];
 	for i := 0; i+n <= len(s); i++ {
 		if s[i] == c && (n == 1 || Equal(s[i:i+n], sep)) {
+			return i
+		}
+	}
+	return -1;
+}
+
+// IndexByte returns the index of the first instance of c in s, or -1 if c is not present in s.
+func IndexByte(s []byte, c byte) int	// asm_$GOARCH.s
+
+func indexBytePortable(s []byte, c byte) int {
+	for i, b := range s {
+		if b == c {
 			return i
 		}
 	}
@@ -148,7 +146,7 @@ func genSplit(s, sep []byte, sepSave, n int) [][]byte {
 			i += len(sep) - 1;
 		}
 	}
-	a[na] = s[start:len(s)];
+	a[na] = s[start:];
 	return a[0 : na+1];
 }
 
@@ -205,7 +203,7 @@ func HasPrefix(s, prefix []byte) bool {
 
 // HasSuffix tests whether the byte array s ends with suffix.
 func HasSuffix(s, suffix []byte) bool {
-	return len(s) >= len(suffix) && Equal(s[len(s)-len(suffix):len(s)], suffix)
+	return len(s) >= len(suffix) && Equal(s[len(s)-len(suffix):], suffix)
 }
 
 // Map returns a copy of the byte array s with all its characters modified
@@ -220,10 +218,8 @@ func Map(mapping func(rune int) int, s []byte) []byte {
 	for i := 0; i < len(s); {
 		wid := 1;
 		rune := int(s[i]);
-		if rune < utf8.RuneSelf {
-			rune = mapping(rune)
-		} else {
-			rune, wid = utf8.DecodeRune(s[i:len(s)])
+		if rune >= utf8.RuneSelf {
+			rune, wid = utf8.DecodeRune(s[i:])
 		}
 		rune = mapping(rune);
 		if nbytes+utf8.RuneLen(rune) > maxbytes {
@@ -239,6 +235,19 @@ func Map(mapping func(rune int) int, s []byte) []byte {
 		i += wid;
 	}
 	return b[0:nbytes];
+}
+
+// Repeat returns a new byte array consisting of count copies of b.
+func Repeat(b []byte, count int) []byte {
+	nb := make([]byte, len(b)*count);
+	bp := 0;
+	for i := 0; i < count; i++ {
+		for j := 0; j < len(b); j++ {
+			nb[bp] = b[j];
+			bp++;
+		}
+	}
+	return nb;
 }
 
 // ToUpper returns a copy of the byte array s with all Unicode letters mapped to their upper case.
@@ -304,10 +313,10 @@ func Add(s, t []byte) []byte {
 		s = s[0 : lens+lent]
 	} else {
 		news := make([]byte, lens+lent, resize(lens+lent));
-		Copy(news, s);
+		copy(news, s);
 		s = news;
 	}
-	Copy(s[lens:lens+lent], t);
+	copy(s[lens:lens+lent], t);
 	return s;
 }
 
@@ -320,9 +329,22 @@ func AddByte(s []byte, t byte) []byte {
 		s = s[0 : lens+1]
 	} else {
 		news := make([]byte, lens+1, resize(lens+1));
-		Copy(news, s);
+		copy(news, s);
 		s = news;
 	}
 	s[lens] = t;
 	return s;
+}
+
+// Runes returns a slice of runes (Unicode code points) equivalent to s.
+func Runes(s []byte) []int {
+	t := make([]int, utf8.RuneCount(s));
+	i := 0;
+	for len(s) > 0 {
+		r, l := utf8.DecodeRune(s);
+		t[i] = r;
+		i++;
+		s = s[l:];
+	}
+	return t;
 }

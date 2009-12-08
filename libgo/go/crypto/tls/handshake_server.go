@@ -102,7 +102,7 @@ func (h *serverHandshake) loop(writeChan chan<- interface{}, controlChan chan<- 
 	hello.random[1] = byte(currentTime >> 16);
 	hello.random[2] = byte(currentTime >> 8);
 	hello.random[3] = byte(currentTime);
-	_, err := io.ReadFull(config.Rand, hello.random[4:len(hello.random)]);
+	_, err := io.ReadFull(config.Rand, hello.random[4:]);
 	if err != nil {
 		h.error(alertInternalError);
 		return;
@@ -135,7 +135,7 @@ func (h *serverHandshake) loop(writeChan chan<- interface{}, controlChan chan<- 
 	finishedHash.Write(ckx.marshal());
 
 	preMasterSecret := make([]byte, 48);
-	_, err = io.ReadFull(config.Rand, preMasterSecret[2:len(preMasterSecret)]);
+	_, err = io.ReadFull(config.Rand, preMasterSecret[2:]);
 	if err != nil {
 		h.error(alertInternalError);
 		return;
@@ -224,12 +224,12 @@ func (h *serverHandshake) error(e alertType) {
 	if h.msgChan != nil {
 		// If we didn't get an error from the processor, then we need
 		// to tell it about the error.
-		h.controlChan <- ConnectionState{false, "", e};
-		close(h.controlChan);
 		go func() {
 			for _ = range h.msgChan {
 			}
 		}();
+		h.controlChan <- ConnectionState{false, "", e};
+		close(h.controlChan);
 		h.writeChan <- alert{alertLevelError, e};
 	}
 }

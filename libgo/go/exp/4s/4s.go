@@ -5,6 +5,8 @@
 // This is a simple demo of Go running under Native Client.
 // It is a tetris clone built on top of the exp/nacl/av and exp/draw
 // packages.
+//
+// See ../nacl/README for how to run it.
 package main
 
 import (
@@ -55,7 +57,7 @@ func audioServer() {
 		b := <-sndc;
 		for len(b)*2 >= n {
 			var a []uint16;
-			a, b = b[0:n/2], b[n/2:len(b)];
+			a, b = b[0:n/2], b[n/2:];
 			n, err = av.AudioStream(a);
 			if err != nil {
 				log.Exit(err)

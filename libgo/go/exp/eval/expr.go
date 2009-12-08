@@ -581,20 +581,25 @@ func (a *exprCompiler) compile(x ast.Expr, callCtx bool) *expr {
 		return ei.compileIdent(a.block, a.constant, callCtx, x.Value)
 
 	case *ast.IndexExpr:
-		if x.End != nil {
-			arr := a.compile(x.X, false);
-			lo := a.compile(x.Index, false);
-			hi := a.compile(x.End, false);
-			if arr == nil || lo == nil || hi == nil {
-				return nil
-			}
-			return ei.compileSliceExpr(arr, lo, hi);
-		}
 		l, r := a.compile(x.X, false), a.compile(x.Index, false);
 		if l == nil || r == nil {
 			return nil
 		}
 		return ei.compileIndexExpr(l, r);
+
+	case *ast.SliceExpr:
+		end := x.End;
+		if end == nil {
+			// TODO: set end to len(x.X)
+			panic("unimplemented")
+		}
+		arr := a.compile(x.X, false);
+		lo := a.compile(x.Index, false);
+		hi := a.compile(end, false);
+		if arr == nil || lo == nil || hi == nil {
+			return nil
+		}
+		return ei.compileSliceExpr(arr, lo, hi);
 
 	case *ast.KeyValueExpr:
 		goto notimpl
@@ -758,7 +763,7 @@ func (a *exprInfo) compileCharLit(lit string) *expr {
 		a.silentErrors++;
 		return nil;
 	}
-	v, _, tail, err := strconv.UnquoteChar(lit[1:len(lit)], '\'');
+	v, _, tail, err := strconv.UnquoteChar(lit[1:], '\'');
 	if err != nil || tail != "'" {
 		// Caught by parser
 		a.silentErrors++;
@@ -830,7 +835,7 @@ func (a *exprInfo) compileSelectorExpr(v *expr, name string) *expr {
 		default:
 			log.Crashf("Marked field at depth %d, but already found one at depth %d", depth, bestDepth)
 		}
-		amberr += "\n\t" + pathName[1:len(pathName)];
+		amberr += "\n\t" + pathName[1:];
 	};
 
 	visited := make(map[Type]bool);

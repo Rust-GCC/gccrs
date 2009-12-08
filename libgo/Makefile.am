@@ -123,6 +123,8 @@ toolexeclib_DATA = \
 	time.gox \
 	unicode.gox \
 	utf8.gox \
+	websocket.gox \
+	xgb.gox \
 	xml.gox
 
 toolexeclibarchivedir = $(toolexeclibdir)/archive
@@ -151,6 +153,7 @@ toolexeclibcrypto_DATA = \
 	crypto/aes.gox \
 	crypto/block.gox \
 	crypto/hmac.gox \
+	crypto/md4.gox \
 	crypto/md5.gox \
 	crypto/rc4.gox \
 	crypto/rsa.gox \
@@ -182,7 +185,9 @@ toolexeclibexpdir = $(toolexeclibdir)/exp
 
 toolexeclibexp_DATA = \
 	exp/datafmt.gox \
+	exp/draw.gox \
 	exp/eval.gox \
+	exp/exception.gox \
 	exp/iterable.gox
 
 toolexeclibgodir = $(toolexeclibdir)/go
@@ -206,7 +211,13 @@ toolexeclibimagedir = $(toolexeclibdir)/image
 toolexeclibimage_DATA = \
 	image/png.gox
 
+toolexeclibiodir = $(toolexeclibdir)/io
+
+toolexeclibio_DATA = \
+	io/ioutil.gox
+
 toolexeclibtestingdir = $(toolexeclibdir)/testing
+
 toolexeclibtesting_DATA = \
 	testing/iotest.gox \
 	testing/quick.gox \
@@ -227,6 +238,7 @@ runtime_files = \
 	runtime/go-defer.c \
 	runtime/go-go.c \
 	runtime/go-goexit.c \
+	runtime/go-gomaxprocs.c \
 	runtime/go-int-array-to-string.c \
 	runtime/go-int-to-string.c \
 	runtime/go-interface-compare.c \
@@ -275,6 +287,8 @@ runtime_files = \
 	runtime/go-type-string.c \
 	runtime/go-typedesc-equal.c \
 	runtime/go-unreflect.c \
+	runtime/go-unsafe-new.c \
+	runtime/go-unsafe-newarray.c \
 	runtime/go-unsafe-pointer.c \
 	runtime/malloc.c \
 	runtime/mcache.c \
@@ -298,7 +312,9 @@ cgo2c: cgo2c.o
 BUILT_SOURCES = malloc_go.c
 
 go_asn1_files = \
-	go/asn1/asn1.go
+	go/asn1/asn1.go \
+	go/asn1/common.go \
+	go/asn1/marshal.go
 
 go_big_files = \
 	go/big/arith.go \
@@ -317,6 +333,8 @@ go_bufio_files = \
 go_bytes_files = \
 	go/bytes/buffer.go \
 	go/bytes/bytes.go
+go_bytes_c_files = \
+	go/bytes/indexbyte.c
 
 go_ebnf_files = \
 	go/ebnf/ebnf.go \
@@ -359,11 +377,11 @@ go_image_files = \
 
 go_io_files = \
 	go/io/io.go \
-	go/io/pipe.go \
-	go/io/utils.go
+	go/io/pipe.go
 
 go_json_files = \
-	go/json/generic.go \
+	go/json/decode.go \
+	go/json/error.go \
 	go/json/parse.go \
 	go/json/struct.go
 
@@ -469,8 +487,10 @@ go_strings_files = \
 	go/strings/strings.go
 
 go_sync_files = \
-	go/sync/cas.c \
-	go/sync/mutex.go
+	go/sync/mutex.go \
+	go/sync/rwmutex.go
+go_sync_c_files = \
+	go/sync/cas.c
 
 go_tabwriter_files = \
 	go/tabwriter/tabwriter.go
@@ -480,6 +500,7 @@ go_template_files = \
 	go/template/template.go
 
 go_testing_files = \
+	go/testing/benchmark.go \
 	go/testing/regexp.go \
 	go/testing/testing.go
 
@@ -496,6 +517,15 @@ go_unicode_files = \
 
 go_utf8_files = \
 	go/utf8/utf8.go
+
+go_websocket_files = \
+	go/websocket/client.go \
+	go/websocket/server.go \
+	go/websocket/websocket.go
+
+go_xgb_files = \
+	go/xgb/xgb.go \
+	go/xgb/xproto.go
 
 go_xml_files = \
 	go/xml/read.go \
@@ -552,6 +582,9 @@ go_crypto_block_files = \
 	go/crypto/block/xor.go
 go_crypto_hmac_files = \
 	go/crypto/hmac/hmac.go
+go_crypto_md4_files = \
+	go/crypto/md4/md4.go \	
+	go/crypto/md4/md4block.go
 go_crypto_md5_files = \
 	go/crypto/md5/md5.go \
 	go/crypto/md5/md5block.go
@@ -567,7 +600,9 @@ go_crypto_subtle_files = \
 	go/crypto/subtle/constant_time.go
 go_crypto_tls_files = \
 	go/crypto/tls/alert.go \
+	go/crypto/tls/ca_set.go \
 	go/crypto/tls/common.go \
+	go/crypto/tls/handshake_client.go \
 	go/crypto/tls/handshake_messages.go \
 	go/crypto/tls/handshake_server.go \
 	go/crypto/tls/prf.go \
@@ -619,8 +654,21 @@ regs_file =
 endif
 endif
 else
+if LIBGO_IS_FREEBSD
+proc_file = go/debug/proc/proc_freebsd.go
+if LIBGO_IS_386
+regs_file = go/debug/proc/regs_freebsd_386.go
+else
+if LIBGO_IS_X86_64
+regs_file = go/debug/proc/regs_freebsd_amd64.go
+else
+regs_file =
+endif
+endif
+else
 proc_file =
 regs_file =
+endif
 endif
 endif
 
@@ -645,6 +693,11 @@ go_encoding_pem_files = \
 go_exp_datafmt_files = \
 	go/exp/datafmt/datafmt.go \
 	go/exp/datafmt/parser.go
+go_exp_draw_files = \
+	go/exp/draw/arith.go \
+	go/exp/draw/color.go \
+	go/exp/draw/draw.go \
+	go/exp/draw/event.go
 go_exp_eval_files = \
 	go/exp/eval/abort.go \
 	go/exp/eval/bridge.go \
@@ -659,7 +712,10 @@ go_exp_eval_files = \
 	go/exp/eval/util.go \
 	go/exp/eval/value.go \
 	go/exp/eval/world.go
+go_exp_exception_files = \
+	go/exp/exception/exception.go
 go_exp_iterable_files = \
+	go/exp/iterable/array.go \
 	go/exp/iterable/iterable.go
 
 go_go_ast_files = \
@@ -690,6 +746,9 @@ go_hash_crc32_files = \
 go_image_png_files = \
 	go/image/png/reader.go \
 	go/image/png/writer.go
+
+go_io_ioutil_files = \
+	go/io/ioutil/ioutil.go
 
 go_testing_iotest_files = \
 	go/testing/iotest/logger.go \
@@ -765,6 +824,8 @@ libgo_go_objs = \
 	time/libtime.la \
 	unicode/libunicode.la \
 	utf8/libutf8.la \
+	websocket/libwebsocket.la \
+	xgb/libxgb.la \
 	xml/libxml.la \
 	archive/libtar.la \
 	compress/libflate.la \
@@ -777,6 +838,7 @@ libgo_go_objs = \
 	crypto/libaes.la \
 	crypto/libblock.la \
 	crypto/libhmac.la \
+	crypto/libmd4.la \
 	crypto/libmd5.la \
 	crypto/librc4.la \
 	crypto/librsa.la \
@@ -796,7 +858,9 @@ libgo_go_objs = \
 	encoding/libhex.la \
 	encoding/libpem.la \
 	exp/libdatafmt.la \
+	exp/libdraw.la \
 	exp/libeval.la \
+	exp/libexception.la \
 	exp/libiterable.la \
 	go/libast.la \
 	go/libdoc.la \
@@ -807,6 +871,7 @@ libgo_go_objs = \
 	hash/libadler32.la \
 	hash/libcrc32.la \
 	image/libpng.la \
+	io/libioutil.la \
 	libsyscall.la
 
 libgo_la_SOURCES = $(runtime_files)
@@ -855,12 +920,12 @@ BUILDARCHIVE = \
 .a.la:
 	$(LINK) $<.lo
 
-asn1/libasn1.a: $(go_asn1_files) fmt.gox os.gox reflect.gox strconv.gox \
-		strings.gox time.gox
+asn1/libasn1.a: $(go_asn1_files) bytes.gox fmt.gox io.gox os.gox reflect.gox \
+		strconv.gox strings.gox time.gox
 	$(BUILDARCHIVE)
 asn1/libasn1.la: asn1/libasn1.a
 
-big/libbig.a: $(go_big_files)
+big/libbig.a: $(go_big_files) rand.gox
 	$(BUILDARCHIVE)
 big/libbig.la: big/libbig.a
 
@@ -868,13 +933,19 @@ bignum/libbignum.a: $(go_bignum_files) fmt.gox
 	$(BUILDARCHIVE)
 bignum/libbignum.la: bignum/libbignum.a
 
-bufio/libbufio.a: $(go_bufio_files) io.gox os.gox strconv.gox utf8.gox
+bufio/libbufio.a: $(go_bufio_files) bytes.gox io.gox os.gox strconv.gox \
+		utf8.gox
 	$(BUILDARCHIVE)
 bufio/libbufio.la: bufio/libbufio.a
 
-bytes/libbytes.a: $(go_bytes_files) os.gox utf8.gox
-	$(BUILDARCHIVE)
+bytes/libbytes.a: $(go_bytes_files) $(go_bytes_c_files) io.gox os.gox utf8.gox
+	test -d bytes || mkdir -p bytes
+	$(LTGOCOMPILE) -c -o bytes/bytes.o $(srcdir)/go/bytes/buffer.go $(srcdir)/go/bytes/bytes.go
+	$(LTCOMPILE) -c -o bytes/index.o $(srcdir)/go/bytes/indexbyte.c
+	rm -f $@
+	$(AR) rc $@ bytes/bytes.o bytes/index.o
 bytes/libbytes.la: bytes/libbytes.a
+	$(LINK) bytes/bytes.lo bytes/index.lo
 
 ebnf/libebnf.a: $(go_ebnf_files) container/vector.gox go/scanner.gox \
 		go/token.gox os.gox strconv.gox unicode.gox utf8.gox
@@ -894,12 +965,12 @@ flag/libflag.a: $(go_flag_files) fmt.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
 flag/libflag.al: flag/libflag.a
 
-fmt/libfmt.a: $(go_fmt_files) io.gox os.gox reflect.gox strconv.gox
+fmt/libfmt.a: $(go_fmt_files) bytes.gox io.gox os.gox reflect.gox strconv.gox
 	$(BUILDARCHIVE)
 fmt/libfmt.la: fmt/libfmt.a
 
 gob/libgob.a: $(go_gob_files) bytes.gox fmt.gox io.gox math.gox os.gox \
-		reflect.gox strings.gox sync.gox unicode.gox
+		reflect.gox runtime.gox strings.gox sync.gox unicode.gox
 	$(BUILDARCHIVE)
 gob/libgob.la: gob/libgob.a
 
@@ -908,8 +979,8 @@ hash/libhash.a: $(go_hash_files) io.gox
 hash/libhash.la: hash/libhash.a
 
 http/libhttp.a: $(go_http_files) bufio.gox bytes.gox container/vector.gox \
-		fmt.gox io.gox log.gox net.gox os.gox path.gox strconv.gox \
-		strings.gox utf8.gox
+		fmt.gox io.gox io/ioutil.gox log.gox net.gox os.gox path.gox \
+		strconv.gox strings.gox utf8.gox
 	$(BUILDARCHIVE)
 http/libhttp.la: http/libhttp.a
 
@@ -921,8 +992,9 @@ io/libio.a: $(go_io_files) bytes.gox os.gox sort.gox strings.gox sync.gox
 	$(BUILDARCHIVE)
 io/libio.la: io/libio.a
 
-json/libjson.a: $(go_json_files) bytes.gox fmt.gox math.gox reflect.gox \
-		strconv.gox strings.gox utf8.gox container/vector.gox
+json/libjson.a: $(go_json_files) bytes.gox fmt.gox io.gox math.gox os.gox \
+		reflect.gox strconv.gox strings.gox utf8.gox \
+		container/vector.gox
 	$(BUILDARCHIVE)
 json/libjson.la: json/libjson.a
 
@@ -951,7 +1023,7 @@ os/libos.a: $(go_os_files) once.gox syscall.gox
 	$(BUILDARCHIVE)
 os/libos.la: os/libos.a
 
-path/libpath.a: $(go_path_files) io.gox os.gox strings.gox
+path/libpath.a: $(go_path_files) io/ioutil.gox os.gox strings.gox
 	$(BUILDARCHIVE)
 path/libpath.la: path/libpath.a
 
@@ -964,7 +1036,7 @@ reflect/libreflect.a: $(go_reflect_files) runtime.gox strconv.gox
 reflect/libreflect.la: reflect/libreflect.a
 
 regexp/libregexp.a: $(go_regexp_files) bytes.gox container/vector.gox io.gox \
-		os.gox utf8.gox
+		os.gox strings.gox utf8.gox
 	$(BUILDARCHIVE)
 regexp/libregexp.la: regexp/libregexp.a
 
@@ -991,9 +1063,9 @@ strings/libstrings.a: $(go_strings_files) os.gox unicode.gox utf8.gox
 	$(BUILDARCHIVE)
 strings/libstrings.la: strings/libstrings.a
 
-sync/libsync.a: $(go_sync_files) runtime.gox
+sync/libsync.a: $(go_sync_files) $(go_sync_c_files) runtime.gox
 	test -d sync || mkdir -p sync
-	$(LTGOCOMPILE) -c -o sync/mutex.o $(srcdir)/go/sync/mutex.go
+	$(LTGOCOMPILE) -c -o sync/mutex.o $(srcdir)/go/sync/mutex.go $(srcdir)/go/sync/rwmutex.go
 	$(LTCOMPILE) -c -o sync/cas.o $(srcdir)/go/sync/cas.c
 	rm -f $@
 	$(AR) rc $@ sync/mutex.o sync/cas.o
@@ -1011,11 +1083,11 @@ template/libtemplate.a: $(go_template_files) bytes.gox fmt.gox io.gox os.gox \
 template/libtemplate.la: template/libtemplate.a
 
 testing/libtesting.a: $(go_testing_files) flag.gox fmt.gox os.gox regexp.gox \
-		runtime.gox
+		runtime.gox time.gox
 	$(BUILDARCHIVE)
 testing/libtesting.la: testing/libtesting.a
 
-time/libtime.a: $(go_time_files) io.gox once.gox os.gox syscall.gox
+time/libtime.a: $(go_time_files) io/ioutil.gox once.gox os.gox syscall.gox
 	$(BUILDARCHIVE)
 time/libtime.la: time/libtime.a
 
@@ -1027,6 +1099,16 @@ utf8/libutf8.a: $(go_utf8_files) unicode.gox
 	$(BUILDARCHIVE)
 utf8/libutf8.la: utf8/libutf8.a
 
+websocket/libwebsocket.a: $(go_websocket_files) bufio.gox http.gox io.gox \
+		net.gox os.gox
+	$(BUILDARCHIVE)
+websocket/libwebsocket.la: websocket/libwebsocket.a
+
+xgb/libxgb.a: $(go_xgb_files) fmt.gox io.gox net.gox os.gox strconv.gox \
+		strings.gox
+	$(BUILDARCHIVE)
+xgb/libxgb.la: xgb/libxgb.a
+
 xml/libxml.a: $(go_xml_files) bufio.gox bytes.gox io.gox os.gox reflect.gox \
 		strconv.gox strings.gox unicode.gox utf8.gox
 	$(BUILDARCHIVE)
@@ -1037,8 +1119,8 @@ archive/libtar.a: $(go_archive_tar_files) bytes.gox io.gox os.gox strconv.gox \
 	$(BUILDARCHIVE)
 archive/libtar.la: archive/libtar.a
 
-compress/libflate.a: $(go_compress_flate_files) bufio.gox bytes.gox io.gox \
-		math.gox os.gox sort.gox strconv.gox
+compress/libflate.a: $(go_compress_flate_files) bufio.gox io.gox math.gox \
+		os.gox sort.gox strconv.gox
 	$(BUILDARCHIVE)
 compress/libflate.la: compress/libflate.a
 
@@ -1081,6 +1163,10 @@ crypto/libhmac.a: $(go_crypto_hmac_files) crypto/md5.gox crypto/sha1.gox \
 	$(BUILDARCHIVE)
 crypto/libhmac.la: crypto/libhmac.a
 
+crypto/libmd4.a: $(go_crypto_md4_files) hash.gox os.gox
+	$(BUILDARCHIVE)
+crypto/libmd4.la: crypto/libmd4.a
+
 crypto/libmd5.a: $(go_crypto_md5_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 crypto/libmd5.la: crypto/libmd5.a
@@ -1089,8 +1175,8 @@ crypto/librc4.a: $(go_crypto_rc4_files) os.gox strconv.gox
 	$(BUILDARCHIVE)
 crypto/librc4.la: crypto/librc4.a
 
-crypto/librsa.a: $(go_crypto_rsa_files) big.gox bytes.gox crypto/subtle.gox \
-		hash.gox io.gox os.gox
+crypto/librsa.a: $(go_crypto_rsa_files) big.gox crypto/sha1.gox \
+		crypto/subtle.gox encoding/hex.gox hash.gox io.gox os.gox
 	$(BUILDARCHIVE)
 crypto/librsa.la: crypto/librsa.a
 
@@ -1102,16 +1188,17 @@ crypto/libsubtle.a: $(go_crypto_subtle_files)
 	$(BUILDARCHIVE)
 crypto/libsubtle.la: crypto/libsubtle.a
 
-crypto/libtls.a: $(go_crypto_tls_files) bufio.gox bytes.gox \
-		container/list.gox crypto/hmac.gox crypto/md5.gox \
-		crypto/rc4.gox crypto/rsa.gox crypto/sha1.gox \
-		crypto/subtle.gox crypto/rsa.gox fmt.gox \
-		hash.gox io.gox net.gox os.gox strings.gox time.gox
+crypto/libtls.a: $(go_crypto_tls_files) bufio.gox container/list.gox \
+		crypto/hmac.gox crypto/md5.gox crypto/rc4.gox crypto/rsa.gox \
+		crypto/sha1.gox crypto/subtle.gox crypto/rsa.gox \
+		crypto/x509.gox encoding/pem.gox fmt.gox hash.gox io.gox \
+		net.gox os.gox strings.gox time.gox
 	$(BUILDARCHIVE)
 crypto/libtls.la: crypto/libtls.a
 
-crypto/libx509.a: $(go_crypto_x509_files) asn1.gox big.gox crypto/rsa.gox \
-		os.gox
+crypto/libx509.a: $(go_crypto_x509_files) asn1.gox big.gox \
+		container/vector.gox crypto/rsa.gox crypto/sha1.gox hash.gox \
+		os.gox strings.gox time.gox
 	$(BUILDARCHIVE)
 crypto/libx509.la: crypto/libx509.a
 
@@ -1135,19 +1222,17 @@ debug/libmacho.a: $(go_debug_macho_files) bytes.gox debug/dwarf.gox \
 	$(BUILDARCHIVE)
 debug/libmacho.la: debug/libmacho.a
 
-debug/libproc.a: $(go_debug_proc_files) container/vector.gox fmt.gox io.gox \
-		os.gox runtime.gox strconv.gox strings.gox sync.gox \
-		syscall.gox
+debug/libproc.a: $(go_debug_proc_files) container/vector.gox fmt.gox \
+		io/ioutil.gox os.gox runtime.gox strconv.gox strings.gox \
+		sync.gox syscall.gox
 	$(BUILDARCHIVE)
 debug/libproc.la: debug/libproc.a
 
-encoding/libascii85.a: $(go_encoding_ascii85_files) bytes.gox io.gox os.gox \
-		strconv.gox
+encoding/libascii85.a: $(go_encoding_ascii85_files) io.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
 encoding/libascii85.la: encoding/libascii85.a
 
-encoding/libbase64.a: $(go_encoding_base64_files) bytes.gox io.gox os.gox \
-		strconv.gox
+encoding/libbase64.a: $(go_encoding_base64_files) io.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
 encoding/libbase64.la: encoding/libbase64.a
 
@@ -1176,13 +1261,22 @@ exp/libdatafmt.a: $(go_exp_datafmt_files) bytes.gox container/vector.gox \
 	$(BUILDARCHIVE)
 exp/libdatafmt.la: exp/libdatafmt.a
 
+exp/libdraw.a: $(go_exp_draw_files) image.gox
+	$(BUILDARCHIVE)
+exp/libdraw.la: exp/libdraw.a
+
 exp/libeval.a: $(go_exp_eval_files) bignum.gox go/ast.gox go/parser.gox \
 		go/scanner.gox go/token.gox fmt.gox log.gox strconv.gox \
 		strings.gox os.gox reflect.gox runtime.gox sort.gox template.gox
 	$(BUILDARCHIVE)
 exp/libeval.la: exp/libeval.a
 
-exp/libiterable.a: $(go_exp_iterable_files) container/vector.gox
+exp/libexception.a: $(go_exp_exception_files) fmt.gox runtime.gox
+	$(BUILDARCHIVE)
+exp/libexception.la: exp/libexception.a
+
+exp/libiterable.a: $(go_exp_iterable_files) container/list.gox \
+		container/vector.gox
 	$(BUILDARCHIVE)
 exp/libiterable.la: exp/libiterable.a
 
@@ -1197,8 +1291,8 @@ go/libdoc.a: $(go_go_doc_files) container/vector.gox fmt.gox go/ast.gox \
 go/libdoc.la: go/libdoc.a
 
 go/libparser.a: $(go_go_parser_files) bytes.gox container/vector.gox fmt.gox \
-		go/ast.gox go/scanner.gox go/token.gox io.gox os.gox path.gox \
-		strings.gox
+		go/ast.gox go/scanner.gox go/token.gox io.gox io/ioutil.gox \
+		os.gox path.gox strings.gox
 	$(BUILDARCHIVE)
 go/libparser.la: go/libparser.a
 
@@ -1230,6 +1324,10 @@ image/libpng.a: $(go_image_png_files) bufio.gox compress/zlib.gox hash.gox \
 		hash/crc32.gox image.gox io.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
 image/libpng.la: image/libpng.a
+
+io/libioutil.a: $(go_io_ioutil_files) bytes.gox io.gox os.gox sort.gox
+	$(BUILDARCHIVE)
+io/libioutil.la: io/libioutil.a
 
 testing/libiotest.a: $(go_testing_iotest_files) io.gox log.gox os.gox
 	$(BUILDARCHIVE)
@@ -1338,6 +1436,10 @@ unicode.gox: unicode/libunicode.a
 	$(BUILDGOX)
 utf8.gox: utf8/libutf8.a
 	$(BUILDGOX)
+websocket.gox: websocket/libwebsocket.a
+	$(BUILDGOX)
+xgb.gox: xgb/libxgb.a
+	$(BUILDGOX)
 xml.gox: xml/libxml.a
 	$(BUILDGOX)
 
@@ -1365,6 +1467,8 @@ crypto/aes.gox: crypto/libaes.a
 crypto/block.gox: crypto/libblock.a
 	$(BUILDGOX)
 crypto/hmac.gox: crypto/libhmac.a
+	$(BUILDGOX)
+crypto/md4.gox: crypto/libmd4.a
 	$(BUILDGOX)
 crypto/md5.gox: crypto/libmd5.a
 	$(BUILDGOX)
@@ -1407,7 +1511,11 @@ encoding/pem.gox: encoding/libpem.a
 
 exp/datafmt.gox: exp/libdatafmt.a
 	$(BUILDGOX)
+exp/draw.gox: exp/libdraw.a
+	$(BUILDGOX)
 exp/eval.gox: exp/libeval.a
+	$(BUILDGOX)
+exp/exception.gox: exp/libexception.a
 	$(BUILDGOX)
 exp/iterable.gox: exp/libiterable.a
 	$(BUILDGOX)
@@ -1431,6 +1539,9 @@ hash/crc32.gox: hash/libcrc32.a
 	$(BUILDGOX)
 
 image/png.gox: image/libpng.a
+	$(BUILDGOX)
+
+io/ioutil.gox: io/libioutil.a
 	$(BUILDGOX)
 
 testing/iotest.gox: testing/libiotest.a
@@ -1475,6 +1586,7 @@ TEST_PACKAGES = \
 	time \
 	unicode \
 	utf8 \
+	websocket \
 	xml \
 	archive/tar \
 	compress/flate \
@@ -1487,6 +1599,7 @@ TEST_PACKAGES = \
 	crypto/aes \
 	crypto/block \
 	crypto/hmac \
+	crypto/md4 \
 	crypto/md5 \
 	crypto/rc4 \
 	crypto/rsa \
@@ -1505,6 +1618,7 @@ TEST_PACKAGES = \
 	encoding/pem \
 	exp/datafmt \
 	exp/eval \
+	exp/exception \
 	exp/iterable \
 	go/parser \
 	go/printer \
@@ -1512,6 +1626,7 @@ TEST_PACKAGES = \
 	hash/adler32 \
 	hash/crc32 \
 	image/png \
+	io/ioutil \
 	testing/quick \
 	testing/script
 

@@ -42,12 +42,13 @@ type gobType interface {
 	id() typeId;
 	setId(id typeId);
 	Name() string;
-	String() string;
+	string() string;	// not public; only for debugging
 	safeString(seen map[typeId]bool) string;
 }
 
 var types = make(map[reflect.Type]gobType)
 var idToType = make(map[typeId]gobType)
+var builtinIdToType map[typeId]gobType	// set in init() after builtins are established
 
 func setTypeId(typ gobType) {
 	nextId++;
@@ -62,8 +63,8 @@ func (t typeId) gobType() gobType {
 	return idToType[t];
 }
 
-// String returns the string representation of the type associated with the typeId.
-func (t typeId) String() string	{ return t.gobType().String() }
+// string returns the string representation of the type associated with the typeId.
+func (t typeId) string() string	{ return t.gobType().string() }
 
 // Name returns the name of the type associated with the typeId.
 func (t typeId) Name() string	{ return t.gobType().Name() }
@@ -78,7 +79,7 @@ func (t *commonType) id() typeId	{ return t._id }
 
 func (t *commonType) setId(id typeId)	{ t._id = id }
 
-func (t *commonType) String() string	{ return t.name }
+func (t *commonType) string() string	{ return t.name }
 
 func (t *commonType) safeString(seen map[typeId]bool) string {
 	return t.name
@@ -97,13 +98,17 @@ var tBytes = bootstrapType("bytes", make([]byte, 0), 5)
 var tString = bootstrapType("string", "", 6)
 
 // Predefined because it's needed by the Decoder
-var tWireType = getTypeInfoNoError(reflect.Typeof(wireType{})).id
+var tWireType = mustGetTypeInfo(reflect.Typeof(wireType{})).id
 
 func init() {
 	checkId(7, tWireType);
-	checkId(8, getTypeInfoNoError(reflect.Typeof(structType{})).id);
-	checkId(9, getTypeInfoNoError(reflect.Typeof(commonType{})).id);
-	checkId(10, getTypeInfoNoError(reflect.Typeof(fieldType{})).id);
+	checkId(9, mustGetTypeInfo(reflect.Typeof(commonType{})).id);
+	checkId(11, mustGetTypeInfo(reflect.Typeof(structType{})).id);
+	checkId(12, mustGetTypeInfo(reflect.Typeof(fieldType{})).id);
+	builtinIdToType = make(map[typeId]gobType);
+	for k, v := range idToType {
+		builtinIdToType[k] = v
+	}
 }
 
 // Array type
@@ -127,7 +132,7 @@ func (a *arrayType) safeString(seen map[typeId]bool) string {
 	return fmt.Sprintf("[%d]%s", a.Len, a.Elem.gobType().safeString(seen));
 }
 
-func (a *arrayType) String() string	{ return a.safeString(make(map[typeId]bool)) }
+func (a *arrayType) string() string	{ return a.safeString(make(map[typeId]bool)) }
 
 // Slice type
 type sliceType struct {
@@ -149,7 +154,7 @@ func (s *sliceType) safeString(seen map[typeId]bool) string {
 	return fmt.Sprintf("[]%s", s.Elem.gobType().safeString(seen));
 }
 
-func (s *sliceType) String() string	{ return s.safeString(make(map[typeId]bool)) }
+func (s *sliceType) string() string	{ return s.safeString(make(map[typeId]bool)) }
 
 // Struct type
 type fieldType struct {
@@ -178,7 +183,7 @@ func (s *structType) safeString(seen map[typeId]bool) string {
 	return str;
 }
 
-func (s *structType) String() string	{ return s.safeString(make(map[typeId]bool)) }
+func (s *structType) string() string	{ return s.safeString(make(map[typeId]bool)) }
 
 func newStructType(name string) *structType {
 	s := &structType{commonType{name: name}, nil};
@@ -341,12 +346,16 @@ func bootstrapType(name string, e interface{}, expect typeId) typeId {
 // are built in encode.go's init() function.
 
 type wireType struct {
-	s *structType;
+	array	*arrayType;
+	slice	*sliceType;
+	strct	*structType;
 }
 
 func (w *wireType) name() string {
-	// generalize once we can have non-struct types on the wire.
-	return w.s.name
+	if w.strct != nil {
+		return w.strct.name
+	}
+	return "unknown";
 }
 
 type typeInfo struct {
@@ -372,15 +381,25 @@ func getTypeInfo(rt reflect.Type) (*typeInfo, os.Error) {
 			return nil, err
 		}
 		info.id = gt.id();
-		// assume it's a struct type
-		info.wire = &wireType{info.id.gobType().(*structType)};
+		t := info.id.gobType();
+		switch typ := rt.(type) {
+		case *reflect.ArrayType:
+			info.wire = &wireType{array: t.(*arrayType)}
+		case *reflect.SliceType:
+			// []byte == []uint8 is a special case handled separately
+			if _, ok := typ.Elem().(*reflect.Uint8Type); !ok {
+				info.wire = &wireType{slice: t.(*sliceType)}
+			}
+		case *reflect.StructType:
+			info.wire = &wireType{strct: t.(*structType)}
+		}
 		typeInfoMap[rt] = info;
 	}
 	return info, nil;
 }
 
 // Called only when a panic is acceptable and unexpected.
-func getTypeInfoNoError(rt reflect.Type) *typeInfo {
+func mustGetTypeInfo(rt reflect.Type) *typeInfo {
 	t, err := getTypeInfo(rt);
 	if err != nil {
 		panicln("getTypeInfo:", err.String())

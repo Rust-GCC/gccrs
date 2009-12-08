@@ -251,9 +251,11 @@ type Method struct {
 type Type interface {
 	// PkgPath returns the type's package path.
 	// The package path is a full package import path like "container/vector".
+	// PkgPath returns an empty string for unnamed types.
 	PkgPath() string;
 
 	// Name returns the type's name within its package.
+	// Name returns an empty string for unnamed types.
 	Name() string;
 
 	// String returns a string representation of the type.
@@ -578,6 +580,8 @@ func canonicalize(t Type) Type {
 // Same memory layouts, different method sets.
 func toType(i interface{}) Type {
 	switch v := i.(type) {
+	case nil:
+		return nil
 	case *runtime.BoolType:
 		return (*BoolType)(unsafe.Pointer(v))
 	case *runtime.DotDotDotType:

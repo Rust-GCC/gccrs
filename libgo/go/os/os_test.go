@@ -8,6 +8,7 @@ import (
 	"bytes";
 	"fmt";
 	"io";
+	"io/ioutil";
 	. "os";
 	"strings";
 	"testing";
@@ -293,7 +294,8 @@ func TestSymLink(t *testing.T) {
 
 func TestLongSymlink(t *testing.T) {
 	s := "0123456789abcdef";
-	s = s + s + s + s + s + s + s + s + s + s + s + s + s + s + s + s + s;
+	// Long, but not too long: a common limit is 255.
+	s = s + s + s + s + s + s + s + s + s + s + s + s + s + s + s;
 	from := "longsymlinktestfrom";
 	err := Symlink(s, from);
 	if err != nil {
@@ -306,6 +308,27 @@ func TestLongSymlink(t *testing.T) {
 	}
 	if r != s {
 		t.Fatalf("after symlink %q != %q", r, s)
+	}
+}
+
+func TestRename(t *testing.T) {
+	from, to := "renamefrom", "renameto";
+	Remove(to);	// Just in case.
+	file, err := Open(from, O_CREAT|O_WRONLY, 0666);
+	if err != nil {
+		t.Fatalf("open %q failed: %v", to, err)
+	}
+	if err = file.Close(); err != nil {
+		t.Errorf("close %q failed: %v", to, err)
+	}
+	err = Rename(from, to);
+	if err != nil {
+		t.Fatalf("rename %q, %q failed: %v", to, from, err)
+	}
+	defer Remove(to);
+	_, err = Stat(to);
+	if err != nil {
+		t.Errorf("stat %q failed: %v", to, err)
 	}
 }
 
@@ -536,13 +559,18 @@ func TestSeek(t *testing.T) {
 		test{0, 2, int64(len(data))},
 		test{0, 0, 0},
 		test{-1, 2, int64(len(data)) - 1},
-		test{1 << 40, 0, 1 << 40},
-		test{1 << 40, 2, 1<<40 + int64(len(data))},
+		test{1 << 33, 0, 1 << 33},
+		test{1 << 33, 2, 1<<33 + int64(len(data))},
 	};
 	for i, tt := range tests {
 		off, err := f.Seek(tt.in, tt.whence);
 		if off != tt.out || err != nil {
-			t.Errorf("#%d: Seek(%v, %v) = %v, %v want %v, nil", i, tt.in, tt.whence, off, err, tt.out)
+			if e, ok := err.(*PathError); ok && e.Error == EINVAL && tt.out > 1<<32 {
+				// Reiserfs rejects the big seeks.
+				// http://code.google.com/p/go/issues/detail?id=91
+				break
+			}
+			t.Errorf("#%d: Seek(%v, %v) = %v, %v want %v, nil", i, tt.in, tt.whence, off, err, tt.out);
 		}
 	}
 	f.Close();
@@ -656,7 +684,7 @@ func TestWriteAt(t *testing.T) {
 		t.Fatalf("WriteAt 7: %d, %v", n, err)
 	}
 
-	b, err := io.ReadFile("_obj/writetest");
+	b, err := ioutil.ReadFile("_obj/writetest");
 	if err != nil {
 		t.Fatalf("ReadFile _obj/writetest: %v", err)
 	}

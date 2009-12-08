@@ -10,8 +10,7 @@
 package av
 
 import (
-	"bytes";
-	"debug/binary";
+	"encoding/binary";
 	"exp/draw";
 	"log";
 	"os";
@@ -383,8 +382,8 @@ func (r *reader) Read(p []byte) (n int, err os.Error) {
 	if len(b) == 0 && len(p) > 0 {
 		return 0, os.EOF
 	}
-	n = bytes.Copy(p, b);
-	*r = b[n:len(b)];
+	n = copy(p, b);
+	*r = b[n:];
 	return;
 }
 

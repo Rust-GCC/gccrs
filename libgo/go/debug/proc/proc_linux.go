@@ -9,7 +9,7 @@ package proc
 import (
 	"container/vector";
 	"fmt";
-	"io";
+	"io/ioutil";
 	"os";
 	"runtime";
 	"strconv";
@@ -456,12 +456,12 @@ func (t *thread) wait() {
 // necessary, and invokes state transition handlers.
 //
 // Must be called from the monitor thread.
-func (t *thread) setState(new threadState) {
-	old := t.state;
-	t.state = new;
-	t.logTrace("state %v -> %v", old, new);
+func (t *thread) setState(newState threadState) {
+	oldState := t.state;
+	t.state = newState;
+	t.logTrace("state %v -> %v", oldState, newState);
 
-	if !old.isRunning() && (new.isRunning() || new.isZombie()) {
+	if !oldState.isRunning() && (newState.isRunning() || newState.isZombie()) {
 		// Start waiting on this thread
 		go t.wait()
 	}
@@ -472,10 +472,10 @@ func (t *thread) setState(new threadState) {
 		return
 	}
 
-	t.proc.transitionHandlers = vector.New(0);
+	t.proc.transitionHandlers = new(vector.Vector);
 	for _, h := range handlers.Data() {
 		h := h.(*transitionHandler);
-		h.handle(t, old, new);
+		h.handle(t, oldState, newState);
 	}
 }
 
@@ -1215,7 +1215,7 @@ func (p *process) attachAllThreads() os.Error {
 			if err != nil {
 				// There could have been a race, or
 				// this process could be a zobmie.
-				statFile, err2 := io.ReadFile(taskPath + "/" + tidStr + "/stat");
+				statFile, err2 := ioutil.ReadFile(taskPath + "/" + tidStr + "/stat");
 				if err2 != nil {
 					switch err2 := err2.(type) {
 					case *os.PathError:
@@ -1256,7 +1256,7 @@ func newProcess(pid int) *process {
 		debugEvents: make(chan *debugEvent),
 		debugReqs: make(chan *debugReq),
 		stopReq: make(chan os.Error),
-		transitionHandlers: vector.New(0),
+		transitionHandlers: new(vector.Vector),
 	};
 
 	go p.monitor();

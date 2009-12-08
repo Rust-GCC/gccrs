@@ -7,6 +7,7 @@ package fmt_test
 import (
 	. "fmt";
 	"io";
+	"malloc";	// for the malloc count test only
 	"math";
 	"strings";
 	"testing";
@@ -38,6 +39,20 @@ type A struct {
 	j	uint;
 	s	string;
 	x	[]int;
+}
+
+type I int
+
+func (i I) String() string	{ return Sprintf("<%d>", i) }
+
+type B struct {
+	i	I;
+	j	int;
+}
+
+type C struct {
+	i	int;
+	B;
 }
 
 var b byte
@@ -87,7 +102,21 @@ var fmttests = []fmtTest{
 	fmtTest{"%010.3d", -1, "      -001"},
 	fmtTest{"%+d", 12345, "+12345"},
 	fmtTest{"%+d", -12345, "-12345"},
+	fmtTest{"%+d", 0, "+0"},
+	fmtTest{"% d", 0, " 0"},
 	fmtTest{"% d", 12345, " 12345"},
+
+	// floats
+	fmtTest{"%+.3e", 0.0, "+0.000e+00"},
+	fmtTest{"%+.3e", 1.0, "+1.000e+00"},
+	fmtTest{"%+.3f", -1.0, "-1.000"},
+	fmtTest{"% .3E", -1.0, "-1.000E+00"},
+	fmtTest{"% .3e", 1.0, " 1.000e+00"},
+	fmtTest{"%+.3g", 0.0, "+0"},
+	fmtTest{"%+.3g", 1.0, "+1"},
+	fmtTest{"%+.3g", -1.0, "-1"},
+	fmtTest{"% .3g", -1.0, "-1"},
+	fmtTest{"% .3g", 1.0, " 1"},
 
 	// erroneous formats
 	fmtTest{"", 2, "?(extra int=2)"},
@@ -184,6 +213,10 @@ var fmttests = []fmtTest{
 	fmtTest{"%v", A{1, 2, "a", []int{1, 2}}, `{1 2 a [1 2]}`},
 	fmtTest{"%+v", A{1, 2, "a", []int{1, 2}}, `{i:1 j:2 s:a x:[1 2]}`},
 
+	// +v on structs with Stringable items
+	fmtTest{"%+v", B{1, 2}, `{i:<1> j:2}`},
+	fmtTest{"%+v", C{1, B{2, 3}}, `{i:1 B:{i:<2> j:3}}`},
+
 	// go syntax
 	fmtTest{"%#v", A{1, 2, "a", []int{1, 2}}, `fmt_test.A{i:1, j:0x2, s:"a", x:[]int{1, 2}}`},
 	fmtTest{"%#v", &b, "(*uint8)(PTR)"},
@@ -204,18 +237,69 @@ func TestSprintf(t *testing.T) {
 					break
 				}
 			}
-			s = s[0:i] + "PTR" + s[j:len(s)];
+			s = s[0:i] + "PTR" + s[j:];
 		}
 		if s != tt.out {
 			if _, ok := tt.val.(string); ok {
 				// Don't requote the already-quoted strings.
 				// It's too confusing to read the errors.
-				t.Errorf("Sprintf(%q, %q) = %s want %s", tt.fmt, tt.val, s, tt.out)
+				t.Errorf("Sprintf(%q, %q) = <%s> want <%s>", tt.fmt, tt.val, s, tt.out)
 			} else {
 				t.Errorf("Sprintf(%q, %v) = %q want %q", tt.fmt, tt.val, s, tt.out)
 			}
 		}
 	}
+}
+
+func BenchmarkSprintfEmpty(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Sprintf("")
+	}
+}
+
+func BenchmarkSprintfString(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Sprintf("%s", "hello")
+	}
+}
+
+func BenchmarkSprintfInt(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Sprintf("%d", 5)
+	}
+}
+
+func BenchmarkSprintfIntInt(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Sprintf("%d %d", 5, 6)
+	}
+}
+
+func TestCountMallocs(t *testing.T) {
+	mallocs := 0 - malloc.GetStats().Mallocs;
+	for i := 0; i < 100; i++ {
+		Sprintf("")
+	}
+	mallocs += malloc.GetStats().Mallocs;
+	Printf("mallocs per Sprintf(\"\"): %d\n", mallocs/100);
+	mallocs = 0 - malloc.GetStats().Mallocs;
+	for i := 0; i < 100; i++ {
+		Sprintf("xxx")
+	}
+	mallocs += malloc.GetStats().Mallocs;
+	Printf("mallocs per Sprintf(\"xxx\"): %d\n", mallocs/100);
+	mallocs = 0 - malloc.GetStats().Mallocs;
+	for i := 0; i < 100; i++ {
+		Sprintf("%x", i)
+	}
+	mallocs += malloc.GetStats().Mallocs;
+	Printf("mallocs per Sprintf(\"%%x\"): %d\n", mallocs/100);
+	mallocs = 0 - malloc.GetStats().Mallocs;
+	for i := 0; i < 100; i++ {
+		Sprintf("%x %x", i, i)
+	}
+	mallocs += malloc.GetStats().Mallocs;
+	Printf("mallocs per Sprintf(\"%%x %%x\"): %d\n", mallocs/100);
 }
 
 type flagPrinter struct{}

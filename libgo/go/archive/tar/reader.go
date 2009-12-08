@@ -71,7 +71,7 @@ func cString(b []byte) string {
 func (tr *Reader) octal(b []byte) int64 {
 	// Removing leading spaces.
 	for len(b) > 0 && b[0] == ' ' {
-		b = b[1:len(b)]
+		b = b[1:]
 	}
 	// Removing trailing NULs and spaces.
 	for len(b) > 0 && (b[len(b)-1] == ' ' || b[len(b)-1] == '\x00') {
@@ -204,7 +204,7 @@ func (tr *Reader) readHeader() *Header {
 // Read reads from the current entry in the tar archive.
 // It returns 0, nil when it reaches the end of that entry,
 // until Next is called to advance to the next entry.
-func (tr *Reader) Read(b []uint8) (n int, err os.Error) {
+func (tr *Reader) Read(b []byte) (n int, err os.Error) {
 	if int64(len(b)) > tr.nb {
 		b = b[0:tr.nb]
 	}

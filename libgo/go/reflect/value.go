@@ -595,15 +595,11 @@ func (v *SliceValue) Elem(i int) Value {
 // MakeSlice creates a new zero-initialized slice value
 // for the specified slice type, length, and capacity.
 func MakeSlice(typ *SliceType, len, cap int) *SliceValue {
-	s := new(SliceHeader);
-	size := typ.Elem().Size() * uintptr(cap);
-	if size == 0 {
-		size = 1
-	}
-	data := make([]uint8, size);
-	s.Data = uintptr(addr(&data[0]));
-	s.Len = len;
-	s.Cap = cap;
+	s := &SliceHeader{
+		Data: uintptr(unsafe.NewArray(typ.Elem(), cap)),
+		Len: len,
+		Cap: cap,
+	};
 	return newValue(typ, addr(s), true).(*SliceValue);
 }
 
@@ -882,7 +878,10 @@ func setiface(typ *InterfaceType, x *interface{}, addr addr)
 
 // Set assigns x to v.
 func (v *InterfaceValue) Set(x Value) {
-	i := x.Interface();
+	var i interface{}
+	if x != nil {
+		i = x.Interface()
+	}
 	if !v.canSet {
 		panic(cannotSet)
 	}
@@ -1267,13 +1266,8 @@ func newValue(typ Type, addr addr, canSet bool) Value {
 
 // MakeZero returns a zero Value for the specified Type.
 func MakeZero(typ Type) Value {
-	// TODO: this will have to move into
-	// the runtime proper in order to play nicely
-	// with the garbage collector.
-	size := typ.Size();
-	if size == 0 {
-		size = 1
+	if typ == nil {
+		return nil
 	}
-	data := make([]uint8, size);
-	return newValue(typ, addr(&data[0]), true);
+	return newValue(typ, addr(unsafe.New(typ)), true);
 }

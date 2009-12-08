@@ -40,7 +40,7 @@ func (d *digest) Reset() {
 	d.len = 0;
 }
 
-// New returns a Hash computing the SHA1 checksum.
+// New returns a new hash.Hash computing the SHA1 checksum.
 func New() hash.Hash {
 	d := new(digest);
 	d.Reset();
@@ -65,10 +65,10 @@ func (d *digest) Write(p []byte) (nn int, err os.Error) {
 			_Block(d, &d.x);
 			d.nx = 0;
 		}
-		p = p[n:len(p)];
+		p = p[n:];
 	}
 	n := _Block(d, p);
-	p = p[n:len(p)];
+	p = p[n:];
 	if len(p) > 0 {
 		for i := 0; i < len(p); i++ {
 			d.x[i] = p[i]

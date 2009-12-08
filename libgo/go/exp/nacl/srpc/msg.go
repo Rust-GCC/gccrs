@@ -7,7 +7,6 @@
 package srpc
 
 import (
-	"bytes";
 	"math";
 	"os";
 	"strconv";
@@ -121,7 +120,7 @@ func (r *msgReceiver) recv() (*msg, os.Error) {
 	// returned the total byte count as n.
 	m := new(msg);
 	m.rdata = make([]byte, n);
-	bytes.Copy(m.rdata, &r.data);
+	copy(m.rdata, &r.data);
 
 	// Make a copy of the desc too.
 	// The system call *did* update r.hdr.ndesc.
@@ -168,7 +167,7 @@ func (m *msg) uint8() uint8 {
 		return 0;
 	}
 	x := m.rdata[0];
-	m.rdata = m.rdata[1:len(m.rdata)];
+	m.rdata = m.rdata[1:];
 	return x;
 }
 
@@ -182,7 +181,7 @@ func (m *msg) uint32() uint32 {
 	}
 	b := m.rdata[0:4];
 	x := uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24;
-	m.rdata = m.rdata[4:len(m.rdata)];
+	m.rdata = m.rdata[4:];
 	return x;
 }
 
@@ -197,7 +196,7 @@ func (m *msg) uint64() uint64 {
 	b := m.rdata[0:8];
 	x := uint64(uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24);
 	x |= uint64(uint32(b[4])|uint32(b[5])<<8|uint32(b[6])<<16|uint32(b[7])<<24) << 32;
-	m.rdata = m.rdata[8:len(m.rdata)];
+	m.rdata = m.rdata[8:];
 	return x;
 }
 
@@ -210,7 +209,7 @@ func (m *msg) bytes(n int) []byte {
 		return nil;
 	}
 	x := m.rdata[0:n];
-	m.rdata = m.rdata[n:len(m.rdata)];
+	m.rdata = m.rdata[n:];
 	return x;
 }
 
@@ -219,7 +218,7 @@ func (m *msg) grow(n int) []byte {
 	i := len(m.wdata);
 	if i+n > cap(m.wdata) {
 		a := make([]byte, i, (i+n)*2);
-		bytes.Copy(a, m.wdata);
+		copy(a, m.wdata);
 		m.wdata = a;
 	}
 	m.wdata = m.wdata[0 : i+n];
@@ -250,7 +249,7 @@ func (m *msg) wuint64(x uint64) {
 	b[7] = byte(hi >> 24);
 }
 
-func (m *msg) wbytes(p []byte)	{ bytes.Copy(m.grow(len(p)), p) }
+func (m *msg) wbytes(p []byte)	{ copy(m.grow(len(p)), p) }
 
 func (m *msg) wstring(s string) {
 	b := m.grow(len(s));
@@ -357,7 +356,7 @@ func (m *msg) unpackValues(v []interface{}) {
 				return;
 			}
 			v[i] = int(m.rdesc[0]);
-			m.rdesc = m.rdesc[1:len(m.rdesc)];
+			m.rdesc = m.rdesc[1:];
 		case 'i':	// int
 			v[i] = int32(m.uint32())
 		case 'I':	// int array

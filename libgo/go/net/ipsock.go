@@ -18,6 +18,10 @@ import (
 // Unfortunately, we need to run on kernels built without IPv6 support too.
 // So probe the kernel to figure it out.
 func kernelSupportsIPv6() bool {
+	// FreeBSD does not support this sort of interface.
+	if syscall.OS == "freebsd" {
+		return false
+	}
 	fd, e := syscall.Socket(syscall.AF_INET6, syscall.SOCK_STREAM, syscall.IPPROTO_TCP);
 	if fd >= 0 {
 		syscall.Close(fd)
@@ -153,7 +157,7 @@ func splitHostPort(hostport string) (host, port string, err os.Error) {
 		return;
 	}
 
-	host, port = hostport[0:i], hostport[i+1:len(hostport)];
+	host, port = hostport[0:i], hostport[i+1:];
 
 	// Can put brackets around host ...
 	if len(host) > 0 && host[0] == '[' && host[len(host)-1] == ']' {

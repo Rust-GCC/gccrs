@@ -7,6 +7,9 @@
 // TODO(rsc): double-check stats.
 // TODO(rsc): solve "stack overflow during malloc" problem.
 
+#include <stddef.h>
+#include <errno.h>
+#include <stdlib.h>
 #include "go-alloc.h"
 #include "runtime.h"
 #include "malloc.h"
@@ -28,12 +31,13 @@ __go_alloc(uintptr size)
 	uint32 *ref;
 
 	if(m->mallocing)
-		throw("malloc - deadlock");
+		throw("malloc/free - deadlock");
 	m->mallocing = 1;
 
 	if(size == 0)
 		size = 1;
 
+	mstats.nmalloc++;
 	if(size <= MaxSmallSize) {
 		// Allocate from mcache free lists.
 		sizeclass = SizeToClass(size);
@@ -58,7 +62,10 @@ __go_alloc(uintptr size)
 	}
 
 	// setup for mark sweep
-	mlookup(v, nil, nil, &ref);
+	if(!mlookup(v, nil, nil, &ref)) {
+		printf("malloc %zd; mlookup failed\n", (size_t) size);
+		throw("malloc mlookup");
+	}
 	*ref = RefNone;
 
 	m->mallocing = 0;
@@ -89,7 +96,12 @@ __go_free(void *v)
 	if(v == nil)
 		return;
 
-	mlookup(v, nil, nil, &ref);
+	if(m->mallocing)
+		throw("malloc/free - deadlock");
+	m->mallocing = 1;
+
+	if(!mlookup(v, nil, nil, &ref))
+		throw("free mlookup");
 	*ref = RefFree;
 
 	// Find size class for v.
@@ -106,7 +118,7 @@ __go_free(void *v)
 			mstats.alloc -= s->npages<<PageShift;
 			sys_memclr(v, s->npages<<PageShift);
 			MHeap_Free(&mheap, s);
-			return;
+			goto out;
 		}
 		MHeapMapCache_SET(&mheap.mapcache, page, sizeclass);
 	}
@@ -117,15 +129,19 @@ __go_free(void *v)
 	sys_memclr(v, size);
 	mstats.alloc -= size;
 	MCache_Free(c, v, sizeclass, size);
+
+out:
+	m->mallocing = 0;
 }
 
 int32
 mlookup(void *v, byte **base, uintptr *size, uint32 **ref)
 {
-	uintptr n, i;
+	uintptr n, nobj, i;
 	byte *p;
 	MSpan *s;
 
+	mstats.nlookup++;
 	s = MHeap_LookupMaybe(&mheap, (uintptr)v>>PageShift);
 	if(s == nil) {
 		if(base)
@@ -149,15 +165,25 @@ mlookup(void *v, byte **base, uintptr *size, uint32 **ref)
 		return 1;
 	}
 
+	if((byte*)v >= (byte*)s->gcref) {
+		// pointers into the gc ref counts
+		// do not count as pointers.
+		return 0;
+	}
+
 	n = class_to_size[s->sizeclass];
 	i = ((byte*)v - p)/n;
 	if(base)
 		*base = p + i*n;
 	if(size)
 		*size = n;
-	if((byte*)s->gcref < p || (byte*)s->gcref >= p+(s->npages<<PageShift)) {
-		printf("s->base sizeclass %d %p gcref %p block %zd\n",
-			s->sizeclass, p, s->gcref, s->npages<<PageShift);
+	nobj = (s->npages << PageShift) / (n + RefcountOverhead);
+	if((byte*)s->gcref < p || (byte*)(s->gcref+nobj) > p+(s->npages<<PageShift)) {
+		printf("odd span state=%d span=%p base=%p sizeclass=%d n=%zd size=%zd npages=%zd\n",
+			s->state, s, p, s->sizeclass, (size_t)nobj, (size_t)n, (size_t)s->npages);
+		printf("s->base sizeclass %d v=%p base=%p gcref=%p blocksize=%zd nobj=%zd size=%zd end=%p end=%p\n",
+			s->sizeclass, v, p, s->gcref, (size_t)s->npages<<PageShift,
+			(size_t)nobj, (size_t)n, s->gcref + nobj, p+(s->npages<<PageShift));
 		throw("bad gcref");
 	}
 	if(ref)
@@ -206,8 +232,20 @@ enum
 void*
 SysAlloc(uintptr n)
 {
+	void *p;
+
 	mstats.sys += n;
-	return sys_mmap(nil, n, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, 0, 0);
+	p = sys_mmap(nil, n, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, 0, 0);
+	if(p < (void*)4096) {
+		if(errno == EACCES) {
+			printf("mmap: access denied\n");
+			printf("If you're running SELinux, enable execmem for this process.\n");
+		} else {
+			printf("mmap: errno=%d\n", errno);
+		}
+		exit(2);
+	}
+	return p;
 }
 
 void

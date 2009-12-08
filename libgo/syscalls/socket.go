@@ -189,6 +189,7 @@ func libc_recvfrom(fd int, buf *byte, len Size_t, flags int,
 func libc_send(fd int, buf *byte, len Size_t, flags int) Ssize_t __asm__("send");
 func libc_sendto(fd int, buf *byte, len Size_t, flags int,
 	to *RawSockaddrAny, tolen Socklen_t) Ssize_t __asm__("sendto");
+func libc_shutdown(fd int, how int) int __asm__ ("shutdown");
 func errno_location() *int __asm__ ("__errno_location");
 
 func Accept(fd int) (nfd int, sa Sockaddr, errno int) {
@@ -313,5 +314,10 @@ func Sendto(fd int, p []byte, flags int, to Sockaddr) (errno int) {
 	return;
 }
 
+func Shutdown(fd int, how int) (errno int) {
+	r := libc_shutdown(fd, how);
+	if r < 0 { errno = *errno_location() }
+	return;
+}
 
 // FIXME: No getsockopt.

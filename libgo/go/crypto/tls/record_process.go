@@ -10,7 +10,6 @@ package tls
 // state, or for a notification when the state changes.
 
 import (
-	"bytes";
 	"container/list";
 	"crypto/subtle";
 	"hash";
@@ -181,7 +180,7 @@ func (p *recordProcessor) processRecord(r *record) {
 	p.mac.Write(r.payload[0 : len(r.payload)-p.mac.Size()]);
 	macBytes := p.mac.Sum();
 
-	if subtle.ConstantTimeCompare(macBytes, r.payload[len(r.payload)-p.mac.Size():len(r.payload)]) != 1 {
+	if subtle.ConstantTimeCompare(macBytes, r.payload[len(r.payload)-p.mac.Size():]) != 1 {
 		p.error(alertBadRecordMAC);
 		return;
 	}
@@ -211,7 +210,7 @@ func (p *recordProcessor) processRecord(r *record) {
 			return;
 		}
 		p.recordRead = nil;
-		p.appData = r.payload;
+		p.appData = r.payload[0 : len(r.payload)-p.mac.Size()];
 		p.appDataSend = p.appDataChan;
 	default:
 		p.error(alertUnexpectedMessage);
@@ -228,8 +227,8 @@ func (p *recordProcessor) processHandshakeRecord(data []byte) {
 			return;
 		}
 		newBuf := make([]byte, len(p.handshakeBuf)+len(data));
-		bytes.Copy(newBuf, p.handshakeBuf);
-		bytes.Copy(newBuf[len(p.handshakeBuf):len(newBuf)], data);
+		copy(newBuf, p.handshakeBuf);
+		copy(newBuf[len(p.handshakeBuf):], data);
 		p.handshakeBuf = newBuf;
 	}
 
@@ -242,7 +241,7 @@ func (p *recordProcessor) processHandshakeRecord(data []byte) {
 		}
 
 		bytes := p.handshakeBuf[0 : handshakeLen+4];
-		p.handshakeBuf = p.handshakeBuf[handshakeLen+4 : len(p.handshakeBuf)];
+		p.handshakeBuf = p.handshakeBuf[handshakeLen+4:];
 		if bytes[0] == typeFinished {
 			// Special case because Finished is synchronous: the
 			// handshake handler has to tell us if it's ok to start
@@ -284,6 +283,12 @@ func parseHandshakeMsg(data []byte) (interface{}, bool) {
 	switch data[0] {
 	case typeClientHello:
 		m = new(clientHelloMsg)
+	case typeServerHello:
+		m = new(serverHelloMsg)
+	case typeCertificate:
+		m = new(certificateMsg)
+	case typeServerHelloDone:
+		m = new(serverHelloDoneMsg)
 	case typeClientKeyExchange:
 		m = new(clientKeyExchangeMsg)
 	default:

@@ -61,6 +61,7 @@ const (
 	O_NDELAY	= O_NONBLOCK;		// synonym for O_NONBLOCK
 	O_SYNC		= syscall.O_SYNC;	// open for synchronous I/O.
 	O_TRUNC		= syscall.O_TRUNC;	// if possible, truncate file when opened.
+	O_CREATE	= O_CREAT;		// create a new file if none exists.
 )
 
 // Open opens the named file with specified flag (O_RDONLY etc.) and perm, (0666 etc.)
@@ -136,12 +137,15 @@ func (file *File) ReadAt(b []byte, off int64) (n int, err Error) {
 	}
 	for len(b) > 0 {
 		m, e := syscall.Pread(file.fd, b, off);
+		if m == 0 && e == 0 {
+			return n, EOF
+		}
 		n += m;
 		if e != 0 {
 			err = &PathError{"read", file.name, Errno(e)};
 			break;
 		}
-		b = b[m:len(b)];
+		b = b[m:];
 		off += int64(m);
 	}
 	return;
@@ -186,7 +190,7 @@ func (file *File) WriteAt(b []byte, off int64) (n int, err Error) {
 			err = &PathError{"write", file.name, Errno(e)};
 			break;
 		}
-		b = b[m:len(b)];
+		b = b[m:];
 		off += int64(m);
 	}
 	return;
@@ -365,7 +369,7 @@ func Remove(name string) Error {
 	return &PathError{"remove", name, Errno(e)};
 }
 
-// LinkError records an error during a link or symlink
+// LinkError records an error during a link or symlink or rename
 // system call and the paths that caused it.
 type LinkError struct {
 	Op	string;
@@ -411,6 +415,15 @@ func Readlink(name string) (string, Error) {
 	}
 	// Silence 6g.
 	return "", nil;
+}
+
+// Rename renames a file.
+func Rename(oldname, newname string) Error {
+	e := syscall.Rename(oldname, newname);
+	if e != 0 {
+		return &LinkError{"rename", oldname, newname, Errno(e)}
+	}
+	return nil;
 }
 
 // Chmod changes the mode of the named file to mode.

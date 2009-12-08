@@ -8,6 +8,7 @@ import (
 	"bytes";
 	"fmt";
 	"io";
+	"io/ioutil";
 	"testing";
 	"testing/iotest";
 )
@@ -112,8 +113,8 @@ func bytediff(a []byte, b []byte) string {
 		if sa != sb {
 			s += fmt.Sprintf("-%v\n+%v\n", sa, sb)
 		}
-		a = a[na:len(a)];
-		b = b[nb:len(b)];
+		a = a[na:];
+		b = b[nb:];
 	}
 	return s;
 }
@@ -121,7 +122,7 @@ func bytediff(a []byte, b []byte) string {
 func TestWriter(t *testing.T) {
 testLoop:
 	for i, test := range writerTests {
-		expected, err := io.ReadFile(test.file);
+		expected, err := ioutil.ReadFile(test.file);
 		if err != nil {
 			t.Errorf("test %d: Unexpected error: %v", i, err);
 			continue;

@@ -5,6 +5,7 @@
 package math_test
 
 import (
+	"fmt";
 	. "math";
 	"testing";
 )
@@ -168,6 +169,7 @@ func tolerance(a, b, e float64) bool {
 	}
 	return d < e;
 }
+func kindaclose(a, b float64) bool	{ return tolerance(a, b, 1e-8) }
 func close(a, b float64) bool		{ return tolerance(a, b, 1e-14) }
 func veryclose(a, b float64) bool	{ return tolerance(a, b, 4e-16) }
 
@@ -269,6 +271,68 @@ func TestHypot(t *testing.T) {
 		a := Fabs(tanh[i] * Sqrt(2));
 		if f := Hypot(tanh[i], tanh[i]); !veryclose(a, f) {
 			t.Errorf("Hypot(%g, %g) = %g, want %g\n", tanh[i], tanh[i], f, a)
+		}
+	}
+}
+
+// Check that math functions of high angle values
+// return similar results to low angle values
+func TestLargeSin(t *testing.T) {
+	large := float64(100000 * Pi);
+	for i := 0; i < len(vf); i++ {
+		f1 := Sin(vf[i]);
+		f2 := Sin(vf[i] + large);
+		if !kindaclose(f1, f2) {
+			t.Errorf("Sin(%g) = %g, want %g\n", vf[i]+large, f1, f2)
+		}
+	}
+}
+
+func TestLargeCos(t *testing.T) {
+	large := float64(100000 * Pi);
+	for i := 0; i < len(vf); i++ {
+		f1 := Cos(vf[i]);
+		f2 := Cos(vf[i] + large);
+		if !kindaclose(f1, f2) {
+			t.Errorf("Cos(%g) = %g, want %g\n", vf[i]+large, f1, f2)
+		}
+	}
+}
+
+
+func TestLargeTan(t *testing.T) {
+	large := float64(100000 * Pi);
+	for i := 0; i < len(vf); i++ {
+		f1 := Tan(vf[i]);
+		f2 := Tan(vf[i] + large);
+		if !kindaclose(f1, f2) {
+			t.Errorf("Tan(%g) = %g, want %g\n", vf[i]+large, f1, f2)
+		}
+	}
+}
+
+// Check that math constants are accepted by compiler
+// and have right value (assumes strconv.Atof works).
+// http://code.google.com/p/go/issues/detail?id=201
+
+type floatTest struct {
+	val	interface{};
+	name	string;
+	str	string;
+}
+
+var floatTests = []floatTest{
+	floatTest{float64(MaxFloat64), "MaxFloat64", "1.7976931348623157e+308"},
+	floatTest{float64(MinFloat64), "MinFloat64", "5e-324"},
+	floatTest{float32(MaxFloat32), "MaxFloat32", "3.4028235e+38"},
+	floatTest{float32(MinFloat32), "MinFloat32", "1e-45"},
+}
+
+func TestFloatMinMax(t *testing.T) {
+	for _, tt := range floatTests {
+		s := fmt.Sprint(tt.val);
+		if s != tt.str {
+			t.Errorf("Sprint(%v) = %s, want %s", tt.name, s, tt.str)
 		}
 	}
 }

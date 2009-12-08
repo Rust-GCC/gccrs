@@ -5,9 +5,12 @@
 package net
 
 import (
+	"flag";
 	"regexp";
 	"testing";
 )
+
+var runErrorTest = flag.Bool("run_error_test", false, "let TestDialError check for dns errors")
 
 type DialErrorTest struct {
 	Net	string;
@@ -35,7 +38,7 @@ var dialErrorTests = []DialErrorTest{
 	},
 	DialErrorTest{
 		"tcp", "", "no-such-name:80",
-		`dial tcp no-such-name:80: lookup no-such-name\..*\.( on .*)?: no (.*)`,
+		`dial tcp no-such-name:80: lookup no-such-name\.(.*\.)?( on .*)?: no (.*)`,
 	},
 	DialErrorTest{
 		"tcp", "", "mh/astro/r70:http",
@@ -47,11 +50,15 @@ var dialErrorTests = []DialErrorTest{
 	},
 	DialErrorTest{
 		"unix", "", "/etc/",
-		"dial unix /etc/: ([pP]ermission denied|[sS]ocket operation on non-socket)",
+		"dial unix /etc/: ([pP]ermission denied|[sS]ocket operation on non-socket|[cC]onnection refused)",
 	},
 }
 
 func TestDialError(t *testing.T) {
+	if !*runErrorTest {
+		t.Logf("test disabled; use --run_error_test to enable");
+		return;
+	}
 	for i, tt := range dialErrorTests {
 		c, e := Dial(tt.Net, tt.Laddr, tt.Raddr);
 		if c != nil {

@@ -52,14 +52,16 @@ func (e URLEscapeError) String() string {
 	return "invalid URL escape " + strconv.Quote(string(e))
 }
 
-// Return true if the specified character should be escaped when appearing in a
-// URL string.
-//
-// TODO: for now, this is a hack; it only flags a few common characters that have
-// special meaning in URLs.  That will get the job done in the common cases.
+// Return true if the specified character should be escaped when
+// appearing in a URL string, according to RFC 2396.
 func shouldEscape(c byte) bool {
+	if c <= ' ' || c >= 0x7F {
+		return true
+	}
 	switch c {
-	case ' ', '?', '&', '=', '#', '+', '%':
+	case '<', '>', '#', '%', '"',	// RFC 2396 delims
+		'{', '}', '|', '\\', '^', '[', ']', '`',	// RFC2396 unwise
+		'?', '&', '=', '+':	// RFC 2396 reserved in path
 		return true
 	}
 	return false;
@@ -78,7 +80,7 @@ func URLUnescape(s string) (string, os.Error) {
 		case '%':
 			n++;
 			if i+2 >= len(s) || !ishex(s[i+1]) || !ishex(s[i+2]) {
-				s = s[i:len(s)];
+				s = s[i:];
 				if len(s) > 3 {
 					s = s[0:3]
 				}
@@ -194,7 +196,7 @@ func getscheme(rawurl string) (scheme, path string, err os.Error) {
 			if i == 0 {
 				return "", "", os.ErrorString("missing protocol scheme")
 			}
-			return rawurl[0:i], rawurl[i+1 : len(rawurl)], nil;
+			return rawurl[0:i], rawurl[i+1:], nil;
 		default:
 			// we have encountered an invalid character,
 			// so there is no valid scheme
@@ -211,9 +213,9 @@ func split(s string, c byte, cutc bool) (string, string) {
 	for i := 0; i < len(s); i++ {
 		if s[i] == c {
 			if cutc {
-				return s[0:i], s[i+1 : len(s)]
+				return s[0:i], s[i+1:]
 			}
-			return s[0:i], s[i:len(s)];
+			return s[0:i], s[i:];
 		}
 	}
 	return s, "";
@@ -252,7 +254,7 @@ func ParseURL(rawurl string) (url *URL, err os.Error) {
 
 	// Maybe path is //authority/path
 	if len(path) > 2 && path[0:2] == "//" {
-		url.Authority, path = split(path[2:len(path)], '/', false)
+		url.Authority, path = split(path[2:], '/', false)
 	}
 
 	// If there's no @, split's default is wrong.  Check explicitly.

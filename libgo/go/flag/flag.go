@@ -31,8 +31,13 @@
 	Command line flag syntax:
 		-flag
 		-flag=x
-		-flag x
+		-flag x  // non-boolean flags only
 	One or two minus signs may be used; they are equivalent.
+	The last form is not permitted for boolean flags because the
+	meaning of the command
+		cmd -x *
+	will change if there is a file called 0, false, etc.  You must
+	use the -flag=false form to turn off a boolean flag.
 
 	Flag parsing stops just before the first non-flag argument
 	("-" is a non-flag argument) or after the terminator "--".
@@ -298,7 +303,7 @@ func Arg(i int) string {
 func NArg() int	{ return len(os.Args) - flags.first_arg }
 
 // Args returns the non-flag command-line arguments.
-func Args() []string	{ return os.Args[flags.first_arg:len(os.Args)] }
+func Args() []string	{ return os.Args[flags.first_arg:] }
 
 func add(name string, value FlagValue, usage string) {
 	// Remember the default value as a string; it won't change.
@@ -443,7 +448,7 @@ func (f *allFlags) parseOne(index int) (ok bool, next int) {
 			return false, index + 1
 		}
 	}
-	name := s[num_minuses:len(s)];
+	name := s[num_minuses:];
 	if len(name) == 0 || name[0] == '-' || name[0] == '=' {
 		fmt.Fprintln(os.Stderr, "bad flag syntax:", s);
 		Usage();
@@ -455,7 +460,7 @@ func (f *allFlags) parseOne(index int) (ok bool, next int) {
 	value := "";
 	for i := 1; i < len(name); i++ {	// equals cannot be first
 		if name[i] == '=' {
-			value = name[i+1 : len(name)];
+			value = name[i+1:];
 			has_value = true;
 			name = name[0:i];
 			break;

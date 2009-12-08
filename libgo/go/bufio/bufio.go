@@ -8,6 +8,7 @@
 package bufio
 
 import (
+	"bytes";
 	"io";
 	"os";
 	"strconv";
@@ -97,7 +98,7 @@ func (b *Reader) fill() {
 	b.r = 0;
 
 	// Read new data.
-	n, e := b.rd.Read(b.buf[b.w:len(b.buf)]);
+	n, e := b.rd.Read(b.buf[b.w:]);
 	b.w += n;
 	if e != nil {
 		b.err = e
@@ -124,7 +125,7 @@ func (b *Reader) Read(p []byte) (nn int, err os.Error) {
 				if n > 0 {
 					b.lastbyte = int(p[n-1])
 				}
-				p = p[n:len(p)];
+				p = p[n:];
 				nn += n;
 				continue;
 			}
@@ -135,7 +136,7 @@ func (b *Reader) Read(p []byte) (nn int, err os.Error) {
 			n = b.w - b.r
 		}
 		copySlice(p[0:n], b.buf[b.r:b.r+n]);
-		p = p[n:len(p)];
+		p = p[n:];
 		b.r += n;
 		b.lastbyte = int(b.buf[b.r-1]);
 		nn += n;
@@ -193,17 +194,6 @@ func (b *Reader) ReadRune() (rune int, size int, err os.Error) {
 	return rune, size, nil;
 }
 
-// Helper function: look for byte c in array p,
-// returning its index or -1.
-func findByte(p []byte, c byte) int {
-	for i := 0; i < len(p); i++ {
-		if p[i] == c {
-			return i
-		}
-	}
-	return -1;
-}
-
 // Buffered returns the number of bytes that can be read from the current buffer.
 func (b *Reader) Buffered() int	{ return b.w - b.r }
 
@@ -219,7 +209,7 @@ func (b *Reader) Buffered() int	{ return b.w - b.r }
 // ReadSlice returns err != nil if and only if line does not end in delim.
 func (b *Reader) ReadSlice(delim byte) (line []byte, err os.Error) {
 	// Look in buffer.
-	if i := findByte(b.buf[b.r:b.w], delim); i >= 0 {
+	if i := bytes.IndexByte(b.buf[b.r:b.w], delim); i >= 0 {
 		line1 := b.buf[b.r : b.r+i+1];
 		b.r += i + 1;
 		return line1, nil;
@@ -237,7 +227,7 @@ func (b *Reader) ReadSlice(delim byte) (line []byte, err os.Error) {
 		b.fill();
 
 		// Search new part of buffer
-		if i := findByte(b.buf[n:b.w], delim); i >= 0 {
+		if i := bytes.IndexByte(b.buf[n:b.w], delim); i >= 0 {
 			line := b.buf[0 : n+i+1];
 			b.r = n + i + 1;
 			return line, nil;
@@ -423,7 +413,7 @@ func (b *Writer) Write(p []byte) (nn int, err os.Error) {
 			// Write directly from p to avoid copy.
 			n, b.err = b.wr.Write(p);
 			nn += n;
-			p = p[n:len(p)];
+			p = p[n:];
 			if b.err != nil {
 				break
 			}
@@ -435,7 +425,7 @@ func (b *Writer) Write(p []byte) (nn int, err os.Error) {
 		copySlice(b.buf[b.n:b.n+n], p[0:n]);
 		b.n += n;
 		nn += n;
-		p = p[n:len(p)];
+		p = p[n:];
 	}
 	return nn, b.err;
 }
