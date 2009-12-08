@@ -5872,31 +5872,42 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	  return error_mark_node;
 
 	Type* arg1_type = arg1->type();
+	Array_type* at;
+	tree arg1_val;
 	if (!arg1_type->is_open_array_type())
 	  {
 	    gcc_assert(arg1_type->points_to() != NULL
 		       && arg1_type->points_to()->array_type() != NULL
 		       && !arg1_type->points_to()->is_open_array_type());
-	    arg1_type = arg1_type->points_to();
-	    arg1_tree = build_fold_indirect_ref_loc(location, arg1_tree);
+	    // ARG1_TREE is already a pointer to the array.
+	    arg1_val = fold_convert_loc(location, ptr_type_node, arg1_tree);
+	    at = arg1_type->points_to()->array_type();
 	  }
-	Array_type* at = arg1_type->array_type();
-	arg1_tree = save_expr(arg1_tree);
-	tree arg1_val = at->value_pointer_tree(gogo, arg1_tree);
+	else
+	  {
+	    at = arg1_type->array_type();
+	    arg1_tree = save_expr(arg1_tree);
+	    arg1_val = at->value_pointer_tree(gogo, arg1_tree);
+	  }
 	tree arg1_len = at->length_tree(gogo, arg1_tree);
 
 	Type* arg2_type = arg2->type();
+	tree arg2_val;
 	if (!arg2_type->is_open_array_type())
 	  {
 	    gcc_assert(arg2_type->points_to() != NULL
 		       && arg2_type->points_to()->array_type() != NULL
 		       && !arg2_type->points_to()->is_open_array_type());
-	    arg2_type = arg2_type->points_to();
-	    arg2_tree = build_fold_indirect_ref_loc(location, arg2_tree);
+	    // ARG2_TREE is already a pointer to the array.
+	    arg2_val = fold_convert_loc(location, ptr_type_node, arg2_tree);
+	    at = arg2_type->points_to()->array_type();
 	  }
-	at = arg2_type->array_type();
-	arg2_tree = save_expr(arg2_tree);
-	tree arg2_val = at->value_pointer_tree(gogo, arg2_tree);
+	else
+	  {
+	    at = arg2_type->array_type();
+	    arg2_tree = save_expr(arg2_tree);
+	    arg2_val = at->value_pointer_tree(gogo, arg2_tree);
+	  }
 	tree arg2_len = at->length_tree(gogo, arg2_tree);
 
 	arg1_len = save_expr(arg1_len);
@@ -8456,6 +8467,17 @@ Struct_construction_expression::is_constant_struct() const
 	      || (*pv)->is_nonconstant_composite_literal()))
 	return false;
     }
+
+  const Struct_field_list* fields = this->type_->struct_type()->fields();
+  for (Struct_field_list::const_iterator pf = fields->begin();
+       pf != fields->end();
+       ++pf)
+    {
+      // There are no constant constructors for interfaces.
+      if (pf->type()->interface_type() != NULL)
+	return false;
+    }
+
   return true;
 }
 
@@ -9265,6 +9287,7 @@ tree
 Map_construction_expression::do_get_tree(Translate_context* context)
 {
   Gogo* gogo = context->gogo();
+  source_location loc = this->location();
 
   if (this->vals_ == NULL || this->vals_->empty())
     return this->type_->get_init_tree(gogo, false);
@@ -9274,15 +9297,15 @@ Map_construction_expression::do_get_tree(Translate_context* context)
   // Build a struct to hold the key and value.
   tree struct_type = make_node(RECORD_TYPE);
 
+  Type* key_type = mt->key_type();
   tree id = get_identifier("__key");
-  tree key_field = build_decl(this->location(), FIELD_DECL, id,
-			      mt->key_type()->get_tree(gogo));
+  tree key_field = build_decl(loc, FIELD_DECL, id, key_type->get_tree(gogo));
   DECL_CONTEXT(key_field) = struct_type;
   TYPE_FIELDS(struct_type) = key_field;
 
+  Type* val_type = mt->val_type();
   id = get_identifier("__val");
-  tree val_field = build_decl(this->location(), FIELD_DECL, id,
-			      mt->val_type()->get_tree(gogo));
+  tree val_field = build_decl(loc, FIELD_DECL, id, val_type->get_tree(gogo));
   DECL_CONTEXT(val_field) = struct_type;
   TREE_CHAIN(key_field) = val_field;
 
@@ -9303,7 +9326,10 @@ Map_construction_expression::do_get_tree(Translate_context* context)
 
       constructor_elt* elt = VEC_quick_push(constructor_elt, one, NULL);
       elt->index = key_field;
-      elt->value = (*pv)->get_tree(context);
+      elt->value = Expression::convert_for_assignment(context, key_type,
+						      (*pv)->type(),
+						      (*pv)->get_tree(context),
+						      loc);
       if (elt->value == error_mark_node)
 	return error_mark_node;
       if (!TREE_CONSTANT(elt->value))
@@ -9313,7 +9339,10 @@ Map_construction_expression::do_get_tree(Translate_context* context)
 
       elt = VEC_quick_push(constructor_elt, one, NULL);
       elt->index = val_field;
-      elt->value = (*pv)->get_tree(context);
+      elt->value = Expression::convert_for_assignment(context, val_type,
+						      (*pv)->type(),
+						      (*pv)->get_tree(context),
+						      loc);
       if (elt->value == error_mark_node)
 	return error_mark_node;
       if (!TREE_CONSTANT(elt->value))
@@ -9339,23 +9368,18 @@ Map_construction_expression::do_get_tree(Translate_context* context)
     {
       tmp = create_tmp_var(array_type, get_name(array_type));
       DECL_INITIAL(tmp) = init;
-      make_tmp = build1(DECL_EXPR, void_type_node, tmp);
-      SET_EXPR_LOCATION(make_tmp, this->location());
+      make_tmp = fold_build1_loc(loc, DECL_EXPR, void_type_node, tmp);
       TREE_ADDRESSABLE(tmp) = 1;
     }
   else
     {
-      tmp = build_decl(this->location(), VAR_DECL, create_tmp_var_name("M"),
-		       array_type);
+      tmp = build_decl(loc, VAR_DECL, create_tmp_var_name("M"), array_type);
       DECL_EXTERNAL(tmp) = 0;
       TREE_PUBLIC(tmp) = 0;
       TREE_STATIC(tmp) = 1;
       DECL_ARTIFICIAL(tmp) = 1;
       if (!TREE_CONSTANT(init))
-	{
-	  make_tmp = build2(INIT_EXPR, void_type_node, tmp, init);
-	  SET_EXPR_LOCATION(make_tmp, this->location());
-	}
+	make_tmp = fold_build2_loc(loc, INIT_EXPR, void_type_node, tmp, init);
       else
 	{
 	  TREE_READONLY(tmp) = 1;
@@ -9372,7 +9396,7 @@ Map_construction_expression::do_get_tree(Translate_context* context)
 
   static tree construct_map_fndecl;
   tree call = Gogo::call_builtin(&construct_map_fndecl,
-				 this->location(),
+				 loc,
 				 "__go_construct_map",
 				 6,
 				 type_tree,
@@ -9394,7 +9418,7 @@ Map_construction_expression::do_get_tree(Translate_context* context)
   if (make_tmp == NULL)
     ret = call;
   else
-    ret = build2(COMPOUND_EXPR, type_tree, make_tmp, call);
+    ret = fold_build2_loc(loc, COMPOUND_EXPR, type_tree, make_tmp, call);
   return ret;
 }
 
