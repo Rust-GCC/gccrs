@@ -214,13 +214,11 @@ func Decode(dst, src []byte, flush bool) (ndst, nsrc int, err os.Error) {
 			ndst += 4;
 			nb = 0;
 			v = 0;
-			println("ndst =", ndst);
 		}
 	}
 	if flush {
 		nsrc = len(src);
 		if nb > 0 {
-			println("flushing", nb, "ndst =", ndst);
 			// The number of output bytes in the last fragment
 			// is the number of leftover input bytes - 1:
 			// the extra byte provides enough bits to cover
@@ -234,13 +232,11 @@ func Decode(dst, src []byte, flush bool) (ndst, nsrc int, err os.Error) {
 				// in order to ensure that the top bits are correct.
 				v = v*85 + 84
 			}
-			h := ndst;
 			for i := 0; i < nb-1; i++ {
 				dst[ndst] = byte(v >> 24);
 				v <<= 8;
 				ndst++;
 			}
-			println("flushed", dst[h], dst[h + 1], dst[h + 2]);
 		}
 	}
 	return;
