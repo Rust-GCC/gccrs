@@ -255,9 +255,11 @@ Gogo::import_package(const std::string& filename,
 	  is_ln_exported = Lex::is_exported_name(ln);
 	}
       if (ln != ".")
-	ln = this->pack_hidden_name(ln, is_ln_exported);
-      this->package_->bindings()->add_package(ln, package);
-      if (ln == ".")
+	{
+	  ln = this->pack_hidden_name(ln, is_ln_exported);
+	  this->package_->bindings()->add_package(ln, package);
+	}
+      else
 	{
 	  Bindings* bindings = package->bindings();
 	  for (Bindings::const_declarations_iterator p =
