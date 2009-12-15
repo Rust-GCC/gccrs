@@ -1666,6 +1666,12 @@ class Named_object
   name() const
   { return this->name_; }
 
+  // Return the name to use in an error message.  The difference is
+  // that if this Named_object is defined in a different package, this
+  // will return PACKAGE.NAME.
+  std::string
+  message_name() const;
+
   const Package*
   package() const
   { return this->package_; }
@@ -2016,16 +2022,6 @@ class Package
   void
   set_priority(int priority);
 
-  // Whether this is the package being compiled.
-  bool
-  being_compiled() const
-  { return this->being_compiled_; }
-
-  // Set that this is the package being compiled.
-  void
-  set_being_compiled()
-  { this->being_compiled_ = true; }
-
   // Return the bindings.
   Bindings*
   bindings()
@@ -2084,8 +2080,6 @@ class Package
   int priority_;
   // The location of the import statement.
   source_location location_;
-  // True if this is the package of the source file being compiled.
-  bool being_compiled_;
 };
 
 // Return codes for the traversal functions.  This is not an enum

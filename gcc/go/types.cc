@@ -2517,21 +2517,17 @@ Struct_type::struct_has_hidden_fields(const Named_type* within,
   const Package* within_package = (within == NULL
 				   ? NULL
 				   : within->named_object()->package());
-  bool is_in_current_package = (within_package == NULL
-				|| within_package->being_compiled());
   for (Struct_field_list::const_iterator pf = fields->begin();
        pf != fields->end();
        ++pf)
     {
-      if (!is_in_current_package
+      if (within_package != NULL
 	  && !pf->is_anonymous()
 	  && Gogo::is_hidden_name(pf->field_name()))
 	{
 	  if (reason != NULL)
 	    {
-	      std::string within_name = (within_package->name()
-					 + '.'
-					 + within->named_object()->name());
+	      std::string within_name = within->named_object()->message_name();
 	      std::string name = Gogo::unpack_hidden_name(pf->field_name());
 	      size_t bufsize = 200 + within_name.length() + name.length();
 	      char* buf = new char[bufsize];
@@ -4775,6 +4771,14 @@ const std::string&
 Named_type::name() const
 {
   return this->named_object_->name();
+}
+
+// Return the name of the type to use in an error message.
+
+std::string
+Named_type::message_name() const
+{
+  return this->named_object_->message_name();
 }
 
 // Add a method to this type.

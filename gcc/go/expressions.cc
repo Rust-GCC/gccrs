@@ -9634,14 +9634,21 @@ Composite_literal_expression::lower_struct()
       const Struct_field* sf = st->find_local_field(name, &index);
       if (sf == NULL)
 	{
-	  error_at(name_expr->location(), "no field %qs",
-		   Gogo::unpack_hidden_name(name).c_str());
+	  error_at(name_expr->location(), "unknown field %qs in %qs",
+		   Gogo::unpack_hidden_name(name).c_str(),
+		   (this->type_->named_type() != NULL
+		    ? this->type_->named_type()->message_name().c_str()
+		    : "unnamed struct"));
 	  return Expression::make_error(location);
 	}
       if (vals[index] != NULL)
 	{
-	  error_at(name_expr->location(), "duplicate value for field %qs",
-		   Gogo::unpack_hidden_name(name).c_str());
+	  error_at(name_expr->location(),
+		   "duplicate value for field %qs in %qs",
+		   Gogo::unpack_hidden_name(name).c_str(),
+		   (this->type_->named_type() != NULL
+		    ? this->type_->named_type()->message_name().c_str()
+		    : "unnamed struct"));
 	  return Expression::make_error(location);
 	}
 

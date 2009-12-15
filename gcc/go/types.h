@@ -2145,6 +2145,12 @@ class Named_type : public Type
   const std::string&
   name() const;
 
+  // Return the name of the type for an error message.  The difference
+  // is that if the type is defined in a different package, this will
+  // return PACKAGE.NAME.
+  std::string
+  message_name() const;
+
   // Return the underlying type.
   Type*
   real_type()

@@ -211,7 +211,6 @@ Gogo::set_package_name(const std::string& package_name,
     }
 
   this->package_ = this->register_package(package_name, location);
-  this->package_->set_being_compiled();
 
   // We used to permit people to qualify symbols with the current
   // package name (e.g., P.x), but we no longer do.
@@ -2582,6 +2581,16 @@ Named_object::make_package(const std::string& alias, Package* package)
   return named_object;
 }
 
+// Return the name to use in an error message.
+
+std::string
+Named_object::message_name() const
+{
+  if (this->package_ == NULL)
+    return this->name_;
+  return this->package_->name() + '.' + this->name_;
+}
+
 // Set the type when a declaration is defined.
 
 void
@@ -3080,7 +3089,7 @@ Bindings::traverse(Traverse* traverse, bool is_global)
 
 Package::Package(const std::string& name, source_location location)
   : name_(name), bindings_(new Bindings(NULL)), priority_(0),
-    location_(location), being_compiled_(false)
+    location_(location)
 {
 }
 
