@@ -2383,6 +2383,8 @@ Gogo::type_descriptor_constructor(int runtime_type_code, Type* type,
 {
   tree type_descriptor_type_tree = this->type_descriptor_type_tree();
   tree type_tree = type->get_tree(this);
+  if (type_tree == error_mark_node)
+    return error_mark_node;
 
   VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 8);
 
@@ -2547,6 +2549,17 @@ void
 Gogo::finish_type_descriptor_decl(tree* pdecl, Named_type* name,
 				  tree constructor)
 {
+  unsigned int ix;
+  tree elt;
+  FOR_EACH_CONSTRUCTOR_VALUE(CONSTRUCTOR_ELTS(constructor), ix, elt)
+    {
+      if (elt == error_mark_node)
+	{
+	  constructor = error_mark_node;
+	  break;
+	}
+    }
+
   tree decl = *pdecl;
   DECL_INITIAL(decl) = constructor;
 
@@ -2886,7 +2899,10 @@ Gogo::struct_type_fields(Struct_type* struct_type, tree slice_type_tree)
   tree field_type_tree = Gogo::slice_element_type_tree(slice_type_tree);
   size_t count = fields->size();
   VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, count);
-  tree struct_field = TYPE_FIELDS(struct_type->get_tree(this));
+  tree struct_type_tree = struct_type->get_tree(this);
+  if (struct_type_tree == error_mark_node)
+    return error_mark_node;
+  tree struct_field = TYPE_FIELDS(struct_type_tree);
   size_t i = 0;
   for (Struct_field_list::const_iterator p = fields->begin();
        p != fields->end();
