@@ -159,6 +159,7 @@ proc go-gc-tests { } {
 	    # This is a vanilla execution test.
 	    cd [file dirname $test]
 	    go-torture-execute $test
+	    file delete core [glob -nocomplain core.*]
 	    cd $testdir
 	} elseif { [string match \
 			"// \$G \$D/\$F.go && \$L \$F.\$A || echo BUG*" \
