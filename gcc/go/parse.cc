@@ -1968,7 +1968,8 @@ Parse::function_decl()
     }
 }
 
-// Receiver = "(" identifier [ "*" ] TypeName ")" .
+// Receiver     = "(" [ identifier ] [ "*" ] BaseTypeName ")" .
+// BaseTypeName = identifier .
 
 Typed_identifier*
 Parse::receiver()
@@ -1982,7 +1983,11 @@ Parse::receiver()
     {
       if (!token->is_identifier())
 	{
-	  this->error("expected receiver name or type");
+	  this->error("method has no receiver");
+	  while (!token->is_eof() && !token->is_op(OPERATOR_RPAREN))
+	    token = this->advance_token();
+	  if (!token->is_eof())
+	    this->advance_token();
 	  return NULL;
 	}
       name = token->identifier();
@@ -2024,7 +2029,14 @@ Parse::receiver()
     this->advance_token();
   else
     {
-      this->error("expected %<)%>");
+      if (this->peek_token()->is_op(OPERATOR_COMMA))
+	this->error("method has multiple receivers");
+      else
+	this->error("expected %<)%>");
+      while (!token->is_eof() && !token->is_op(OPERATOR_RPAREN))
+	token = this->advance_token();
+      if (!token->is_eof())
+	this->advance_token();
       return NULL;
     }
 
