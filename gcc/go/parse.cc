@@ -1393,6 +1393,15 @@ Parse::type_spec(void*)
     {
       if (named_type->is_type_declaration())
 	{
+	  Type* ftype = type->forwarded();
+	  if (ftype->forward_declaration_type() != NULL
+	      && (ftype->forward_declaration_type()->named_object()
+		  == named_type))
+	    {
+	      error_at(location, "recursive type definition");
+	      type = Type::make_error_type();
+	    }
+
 	  this->gogo_->define_type(named_type,
 				   Type::make_named_type(named_type, type,
 							 location));
