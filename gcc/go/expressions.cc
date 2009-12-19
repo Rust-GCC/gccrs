@@ -6221,8 +6221,32 @@ Call_expression::do_check_types(Gogo*)
     {
       // We don't support pointers to methods, so the function has to
       // be a bound method expression.
-      if (this->fn_->bound_method_expression() == NULL)
-	this->report_error(_("method call without object"));
+      Bound_method_expression* bme = this->fn_->bound_method_expression();
+      if (bme == NULL)
+	{
+	  this->report_error(_("method call without object"));
+	  return;
+	}
+      Type* first_arg_type = bme->first_argument()->type();
+      if (first_arg_type->points_to() == NULL)
+	{
+	  // When passing a value, we need to check that we are
+	  // permitted to copy it.
+	  std::string reason;
+	  if (!Type::are_compatible_for_assign(fntype->receiver()->type(),
+					       first_arg_type, &reason))
+	    {
+	      if (reason.empty())
+		this->report_error("incompatible type for receiver");
+	      else
+		{
+		  error_at(this->location(),
+			   "incompatible type for receiver (%s)",
+			   reason.c_str());
+		  this->set_is_error();
+		}
+	    }
+	}
     }
 
   const Typed_identifier_list* parameters = fntype->parameters();

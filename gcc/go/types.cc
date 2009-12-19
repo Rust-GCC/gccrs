@@ -4893,6 +4893,8 @@ Named_type::bind_field_or_method(Expression* expr, const std::string& name,
 		       Gogo::unpack_hidden_name(name).c_str());
 	      return Expression::make_error(location);
 	    }
+	  if (!m->is_value_method() && expr->type()->points_to() == NULL)
+	    expr = Expression::make_unary(OPERATOR_AND, expr, location);
 	  return m->bind_method(expr, location);
 	}
       else
@@ -5107,7 +5109,8 @@ Named_type::add_local_methods_for_type(
       bool is_value_method = (is_embedded_pointer
 			      || !Named_type::method_expects_pointer(no));
       Method* m = new Named_method(no, field_indexes, depth, is_value_method,
-				   needs_stub_method);
+				   (needs_stub_method
+				    || (depth > 0 && is_value_method)));
       if (this->all_methods_->insert(no->name(), m))
 	ret = true;
       else
@@ -5255,7 +5258,9 @@ Named_type::build_stub_methods(Gogo* gogo)
       snprintf(buf, sizeof buf, "%s%d", Named_type::receiver_name, counter);
       ++counter;
 
-      Type* receiver_type = Type::make_pointer_type(this);
+      Type* receiver_type = this;
+      if (!m->is_value_method())
+	receiver_type = Type::make_pointer_type(receiver_type);
       source_location receiver_location = m->receiver_location();
       Typed_identifier* receiver = new Typed_identifier(buf, receiver_type,
 							receiver_location);
