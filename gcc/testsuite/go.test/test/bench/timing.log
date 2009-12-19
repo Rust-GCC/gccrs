@@ -398,3 +398,19 @@ nbody -n 50000000
 	gccgo -O2 nbody.go	121.03u 0.00s 121.04r
 	gc nbody	30.26u 0.00s 30.27r	# -65% ***
 	gc_B nbody	30.20u 0.02s 30.22r	# -72% *** 
+
+Nov 13 2009
+
+# fix bug in regexp; take performance hit.  good regexps will come in time.
+regex-dna 100000
+	gcc -O2 regex-dna.c -lpcre	0.92u 0.00s 0.94r
+	gc regex-dna	29.78u 0.03s 29.83r
+	gc_B regex-dna	32.63u 0.03s 32.74r
+
+Nov 24 2009
+
+# Roger Peppe's rewrite of the benchmark
+chameneos 6000000
+	gcc -O2 chameneosredux.c -lpthread	18.00u 303.29s 83.64r
+	gc chameneosredux	12.10u 0.00s 12.10r  # 2.22X faster
+

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Copyright 2009 The Go Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
@@ -13,7 +13,7 @@ X386)
 	;;
 Xarm)
 	export A=5
-	export E="qemu-arm -cpu cortex-a8 "
+	export E=${EMU_arm:-qemu-arm -cpu cortex-a8}
 	;;
 *)
 	echo 1>&2 run: unsupported '$GOARCH'
@@ -28,6 +28,8 @@ esac
 export G=${A}g
 export L=${A}l
 export GOTRACEBACK=0
+export LANG=C
+unset GREP_OPTIONS	# in case user has a non-standard set
 
 failed=0
 
@@ -41,6 +43,9 @@ TMP2FILE=/tmp/gotest2-$$-$USER
 # on thresher, 3GB suffices to run the tests; with 2GB, peano fails.
 ulimit -v 4000000
 
+# no core files please
+ulimit -c 0
+
 true >pass.out >times.out
 
 for dir in . ken chan interface nilptr fixedbugs bugs
@@ -52,7 +57,7 @@ do
 		export F=$(basename $i .go)
 		export D=$dir
 		sed '/^\/\//!q' $i | sed 's@//@@; $d' |sed 's|./\$A.out|$E &|' >$RUNFILE
-		if ! /usr/bin/time -p sh -c "sh $RUNFILE >$TMP1FILE 2>&1" 2>$TMP2FILE
+		if ! { time -p bash -c "bash $RUNFILE >$TMP1FILE 2>&1" ; } 2>$TMP2FILE
 		then
 			echo
 			echo "===========" $i

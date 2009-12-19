@@ -14,21 +14,24 @@ var	lb,hb	int
 var	t	int
 
 func
-main()
-{
+main() {
 
 	// width 1 (byte)
 	lb = 0; hb = 10;
 	by = bx[lb:hb]; tstb();
 	by = bx[lb:10]; tstb();
+	by = bx[lb:]; tstb();
 	by = bx[0:hb]; tstb();
 	by = bx[0:10]; tstb();
+	by = bx[0:]; tstb();
 
 	lb = 2; hb = 10;
 	by = bx[lb:hb]; tstb();
 	by = bx[lb:10]; tstb();
+	by = bx[lb:]; tstb();
 	by = bx[2:hb]; tstb();
 	by = bx[2:10]; tstb();
+	by = bx[2:]; tstb();
 
 	lb = 0; hb = 8;
 	by = bx[lb:hb]; tstb();
@@ -46,14 +49,18 @@ main()
 	lb = 0; hb = 10;
 	fy = fx[lb:hb]; tstf();
 	fy = fx[lb:10]; tstf();
+	fy = fx[lb:]; tstf();
 	fy = fx[0:hb]; tstf();
 	fy = fx[0:10]; tstf();
+	fy = fx[0:]; tstf();
 
 	lb = 2; hb = 10;
 	fy = fx[lb:hb]; tstf();
 	fy = fx[lb:10]; tstf();
+	fy = fx[lb:]; tstf();
 	fy = fx[2:hb]; tstf();
 	fy = fx[2:10]; tstf();
+	fy = fx[2:]; tstf();
 
 	lb = 0; hb = 8;
 	fy = fx[lb:hb]; tstf();
@@ -69,8 +76,7 @@ main()
 }
 
 func
-tstb()
-{
+tstb() {
 	t++;
 	if len(by) != hb-lb {
 		panicln("t=", t, "lb=", lb, "hb=", hb,
@@ -91,8 +97,7 @@ tstb()
 }
 
 func
-tstf()
-{
+tstf() {
 	t++;
 	if len(fy) != hb-lb {
 		panicln("t=", t, "lb=", lb, "hb=", hb,
@@ -113,8 +118,7 @@ tstf()
 }
 
 func
-init()
-{
+init() {
 	bx = make([]byte, 10);
 	for i:=0; i<len(bx); i++ {
 		bx[i] = byte(i+20);

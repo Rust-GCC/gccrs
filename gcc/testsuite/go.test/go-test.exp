@@ -36,7 +36,6 @@ proc errchk { test } {
 	    # I worked out the right number of backslashes by
 	    # experimentation, not analysis.
 	    regsub -all "\\.\\*" $out_line "\\\\\[ -~\\\\\]*" out_line
-	    verbose -log $out_line
 	}
 	puts $fdout $out_line
     }
@@ -372,6 +371,36 @@ proc go-gc-tests { } {
 		fail $name
 	    }
 	    file delete $ofile1 $ofile2 $output_file
+	    set runtests $hold_runtests
+	} elseif { [string match \
+			"// \$G \$D/\$F.dir/chanbug.go && \$G -I. \$D/\$F.dir/chanbug2.go" \
+			$test_line] } {
+	    set hold_runtests $runtests
+	    set runtests "go-test.exp"
+	    set dg-do-what-default "assemble"
+	    regsub "\\.go$" $test ".dir/chanbug.go" file1
+	    dg-test -keep-output $file1 "-O" "-w $DEFAULT_GOFLAGS"
+	    regsub "\\.go$" $test ".dir/chanbug2.go" file2
+	    dg-test $file2 "-O" "-w $DEFAULT_GOFLAGS"
+	    file delete "[file rootname [file tail $file1]].o"
+	    set runtests $hold_runtests
+	} elseif { [string match \
+			"// (! \$G \$D/\$F.go) | grep 'initialization loop' *" \
+			$test_line] } {
+	    set dg-do-what-default "assemble"
+	    setup_xfail "*-*-*"
+	    go-dg-runtest $test "-w $DEFAULT_GOFLAGS"
+	} elseif { [string match \
+			"// \$G \$D/\$F.dir/x.go && errchk \$G \$D/\$F.dir/y.go" \
+			$test_line] } {
+	    set hold_runtests $runtests
+	    set runtests "go-test.exp"
+	    set dg-do-what-default "assemble"
+	    regsub "\\.go$" $test ".dir/x.go" file1
+	    dg-test -keep-output $file1 "-O" "-w $DEFAULT_GOFLAGS"
+	    regsub "\\.go$" $test ".dir/y.go" file2
+	    errchk $file2
+	    file delete "[file rootname [file tail $file1]].o"
 	    set runtests $hold_runtests
 	} elseif { [string match "// true*" $test_line] } {
 	    # Not a real test, just ignore.

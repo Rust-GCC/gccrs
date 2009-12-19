@@ -37,85 +37,69 @@ package main
 
 import (
 	"bufio";
-	"bytes";
 	"os";
 )
 
-const	lineSize = 60
+const lineSize = 60
 
-var complement = [256]uint8 {
-	'A':	'T',	'a':	'T',
-	'C':	'G',	'c':	'G',
-	'G':	'C',	'g':	'C',
-	'T':	'A',	't':	'A',
-	'U':	'A',	'u':	'A',
-	'M':	'K',	'm':	'K',
-	'R':	'Y',	'r':	'Y',
-	'W':	'W',	'w':	'W',
-	'S':	'S',	's':	'S',
-	'Y':	'R',	'y':	'R',
-	'K':	'M',	'k':	'M',
-	'V':	'B',	'v':	'B',
-	'H':	'D',	'h':	'D',
-	'D':	'H',	'd':	'H',
-	'B':	'V',	'b':	'V',
-	'N':	'N',	'n':	'N',
-}
-
-var in *bufio.Reader
-
-func reverseComplement(in []byte) []byte {
-	outLen := len(in) + (len(in) + lineSize -1)/lineSize;
-	out := make([]byte, outLen);
-	j := 0;
-	k := 0;
-	for i := len(in)-1; i >= 0; i-- {
-		if k == lineSize {
-			out[j] = '\n';
-			j++;
-			k = 0;
-		}
-		out[j] = complement[in[i]];
-		j++;
-		k++;
-	}
-	out[j] = '\n';
-	j++;
-	return out[0:j];
-}
-
-func output(buf []byte) {
-	if len(buf) == 0 {
-		return
-	}
-	os.Stdout.Write(reverseComplement(buf));
+var complement = [256]uint8{
+	'A': 'T', 'a': 'T',
+	'C': 'G', 'c': 'G',
+	'G': 'C', 'g': 'C',
+	'T': 'A', 't': 'A',
+	'U': 'A', 'u': 'A',
+	'M': 'K', 'm': 'K',
+	'R': 'Y', 'r': 'Y',
+	'W': 'W', 'w': 'W',
+	'S': 'S', 's': 'S',
+	'Y': 'R', 'y': 'R',
+	'K': 'M', 'k': 'M',
+	'V': 'B', 'v': 'B',
+	'H': 'D', 'h': 'D',
+	'D': 'H', 'd': 'H',
+	'B': 'V', 'b': 'V',
+	'N': 'N', 'n': 'N',
 }
 
 func main() {
-	in = bufio.NewReader(os.Stdin);
-	buf := make([]byte, 100*1024);
-	top := 0;
-	for {
-		line, err := in.ReadSlice('\n');
-		if err != nil {
-			break
-		}
-		if line[0] == '>' {
-			if top > 0 {
-				output(buf[0:top]);
-				top = 0;
+	in := bufio.NewReader(os.Stdin);
+	buf := make([]byte, 1024*1024);
+	line, err := in.ReadSlice('\n');
+	for err == nil {
+		os.Stdout.Write(line);
+
+		// Accumulate reversed complement in buf[w:]
+		nchar := 0;
+		w := len(buf);
+		for {
+			line, err = in.ReadSlice('\n');
+			if err != nil || line[0] == '>' {
+				break
 			}
-			os.Stdout.Write(line);
-			continue
+			line = line[0 : len(line)-1];
+			nchar += len(line);
+			if len(line)+nchar/60+128 >= w {
+				nbuf := make([]byte, len(buf)*5);
+				copy(nbuf[len(nbuf)-len(buf):], buf);
+				w += len(nbuf) - len(buf);
+				buf = nbuf;
+			}
+
+			// This loop is the bottleneck.
+			for _, c := range line {
+				w--;
+				buf[w] = complement[c];
+			}
 		}
-		line = line[0:len(line)-1];	// drop newline
-		if top+len(line) > len(buf) {
-			nbuf := make([]byte, 2*len(buf) + 1024*(100+len(line)));
-			bytes.Copy(nbuf, buf[0:top]);
-			buf = nbuf;
+
+		// Copy down to beginning of buffer, inserting newlines.
+		// The loop left room for the newlines and 128 bytes of padding.
+		i := 0;
+		for j := w; j < len(buf); j += 60 {
+			n := copy(buf[i:i+60], buf[j:]);
+			buf[i+n] = '\n';
+			i += n + 1;
 		}
-		bytes.Copy(buf[top:len(buf)], line);
-		top += len(line);
+		os.Stdout.Write(buf[0:i]);
 	}
-	output(buf[0:top]);
 }

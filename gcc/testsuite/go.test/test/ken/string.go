@@ -8,8 +8,7 @@
 package main
 
 func
-main()
-{
+main() {
 	var c string;
 
 	a := `abc`;
@@ -64,7 +63,7 @@ main()
 	}
 
 	/* slice strings */
-	print(c[0:3], c[3:6]);
+	print(c[0:3], c[3:]);
 
 	print("\n");
 

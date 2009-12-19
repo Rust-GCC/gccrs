@@ -1,10 +1,13 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Copyright 2009 The Go Authors.  All rights reserved.
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
 set -e
-. $GOROOT/src/Make.$GOARCH
+
+GOBIN="${GOBIN:-$HOME/bin}"
+
+. "$GOROOT"/src/Make.$GOARCH
 PATH=.:$PATH
 
 mode=run
@@ -15,11 +18,11 @@ X-test)
 esac
 
 gc() {
-	$GC $1.go; $LD $1.$O
+	"$GOBIN"/$GC $1.go; "$GOBIN"/$LD $1.$O
 }
 
 gc_B() {
-	$GC -B $1.go; $LD $1.$O
+	"$GOBIN"/$GC -B $1.go; "$GOBIN"/$LD $1.$O
 }
 
 runonly() {
@@ -59,7 +62,8 @@ run() {
 	echo -n '	'$1'	'
 	$1
 	shift
-	(/home/r/plan9/bin/time $* 2>&1 >/dev/null) |  sed 's/r.*/r/'
+	
+	echo $((time -p $* >/dev/null) 2>&1) | awk '{print $4 "u " $6 "s " $2 "r"}'
 }
 
 fasta() {
@@ -78,6 +82,11 @@ revcomp() {
 	run 'gccgo -O2 reverse-complement.go' a.out < x
 	run 'gc reverse-complement' $O.out < x
 	run 'gc_B reverse-complement' $O.out < x
+	export GOGC=off
+	runonly echo 'GOGC=off'
+	run 'gc reverse-complement' $O.out < x
+	run 'gc_B reverse-complement' $O.out < x
+	unset GOGC
 	rm x
 }
 
@@ -170,8 +179,8 @@ threadring() {
 chameneos() {
 	runonly echo 'chameneos 6000000'
 	run 'gcc -O2 chameneosredux.c -lpthread' a.out 6000000
-#	run 'gccgo -O2 chameneosredux.go' a.out -n 6000000	# doesn't support the non-forward-decl variant
-	run 'gc chameneosredux' $O.out -n 6000000
+#	run 'gccgo -O2 chameneosredux.go' a.out 6000000	# doesn't support the non-forward-decl variant
+	run 'gc chameneosredux' $O.out 6000000
 }
 
 case $# in
