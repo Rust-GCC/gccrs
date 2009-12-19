@@ -917,6 +917,83 @@ Expression::make_var_reference(Named_object* var, source_location location)
   return new Var_expression(var, location);
 }
 
+// A reference to a temporary variable.
+
+class Temporary_reference_expression : public Expression
+{
+ public:
+  Temporary_reference_expression(Temporary_statement* statement,
+				 source_location location)
+    : Expression(EXPRESSION_TEMPORARY_REFERENCE, location),
+      statement_(statement)
+  { }
+
+ protected:
+  Type*
+  do_type()
+  { return this->statement_->type(); }
+
+  void
+  do_determine_type(const Type_context*)
+  { }
+
+  Expression*
+  do_copy()
+  { return make_temporary_reference(this->statement_, this->location()); }
+
+  bool
+  do_is_lvalue() const
+  { return true; }
+
+  Expression*
+  do_being_copied(Refcounts*, bool);
+
+  Expression*
+  do_being_set(Refcounts*);
+
+  tree
+  do_get_tree(Translate_context*)
+  { return this->statement_->get_decl(); }
+
+ private:
+  // The statement where the temporary variable is defined.
+  Temporary_statement* statement_;
+};
+
+// The temporary variable is being copied.  We may need to increment
+// the reference count.
+
+Expression*
+Temporary_reference_expression::do_being_copied(Refcounts* refcounts,
+						bool for_local)
+{
+  if (!this->type()->has_refcounted_component())
+    return this;
+  return Expression::make_refcount_adjust(refcounts,
+					  REFCOUNT_INCREMENT_COPIED,
+					  this, for_local);
+}
+
+// The variable is being set.  We may need to decrement the reference
+// count of the old value.
+
+Expression*
+Temporary_reference_expression::do_being_set(Refcounts* refcounts)
+{
+  if (!this->type()->has_refcounted_component())
+    return this;
+  return Expression::make_refcount_decrement_lvalue(refcounts, this);
+}
+
+// Make a reference to a temporary variable.
+
+Expression*
+Expression::make_temporary_reference(Temporary_statement* statement,
+				     source_location location)
+{
+  return new Temporary_reference_expression(statement, location);
+}
+
 // A sink expression--a use of the blank identifier _.
 
 class Sink_expression : public Expression
@@ -3788,7 +3865,7 @@ Binary_expression::eval_float(Operator op, Type* left_type, mpfr_t left_val,
 }
 
 // Lower a binary expression.  We have to evaluate constant
-// expressions now, in order t implemented Go's unlimited precision
+// expressions now, in order to implement Go's unlimited precision
 // constants.
 
 Expression*
@@ -6030,23 +6107,17 @@ Call_expression::do_lower(Gogo* gogo, int)
 // this returns NULL, and if_ERROR is true, issues an error.
 
 Function_type*
-Call_expression::get_function_type(bool issue_error)
+Call_expression::get_function_type() const
 {
-  Type* type = this->fn_->type()->deref();
-  Function_type* fntype = type->function_type();
-  if (fntype != NULL)
-    return fntype;
-  if (issue_error && !type->is_error_type())
-    this->report_error("expected function");
-  return NULL;
+  return this->fn_->type()->function_type();
 }
 
 // Return the number of values which this call will return.
 
 size_t
-Call_expression::result_count()
+Call_expression::result_count() const
 {
-  Function_type* fntype = this->get_function_type(false);
+  const Function_type* fntype = this->get_function_type();
   if (fntype == NULL)
     return 0;
   if (fntype->results() == NULL)
@@ -6063,7 +6134,7 @@ Call_expression::do_type()
     return this->type_;
 
   Type* ret;
-  Function_type* fntype = this->get_function_type(false);
+  Function_type* fntype = this->get_function_type();
   if (fntype == NULL)
     return Type::make_error_type();
 
@@ -6087,7 +6158,7 @@ void
 Call_expression::do_determine_type(const Type_context*)
 {
   this->fn_->determine_type_no_context();
-  Function_type* fntype = this->get_function_type(false);
+  Function_type* fntype = this->get_function_type();
   const Typed_identifier_list* parameters = NULL;
   if (fntype != NULL)
     parameters = fntype->parameters();
@@ -6138,9 +6209,13 @@ Call_expression::check_argument_type(int i, const Type* parameter_type,
 void
 Call_expression::do_check_types(Gogo*)
 {
-  Function_type* fntype = this->get_function_type(true);
+  Function_type* fntype = this->get_function_type();
   if (fntype == NULL)
-    return;
+    {
+      if (!this->fn_->type()->is_error_type())
+	this->report_error(_("expected function"));
+      return;
+    }
 
   if (fntype->is_method())
     {
@@ -6196,6 +6271,19 @@ Call_expression::do_check_types(Gogo*)
 	  && (!fntype->is_varargs() || pt + 1 != parameters->end()))
 	this->report_error(_("not enough arguments"));
     }
+}
+
+// Return whether we have to use a temporary variable to ensure that
+// we evaluate this call expression in order.  If the call returns no
+// results then it will inevitably be executed last.  If the call
+// returns more than one result then it will be used with Call_result
+// expressions.  So we only have to use a temporary variable if the
+// call returns exactly one result.
+
+bool
+Call_expression::do_must_eval_in_order() const
+{
+  return this->result_count() == 1;
 }
 
 // Get the function and the first argument to use when calling a bound
@@ -6295,7 +6383,7 @@ Call_expression::do_note_decrements(Refcounts* refcounts)
 {
   if (this->is_being_copied_)
     return this;
-  Function_type* fntype = this->get_function_type(false);
+  Function_type* fntype = this->get_function_type();
   if (fntype == NULL)
     return this;
   const Typed_identifier_list* results = fntype->results();
@@ -6342,7 +6430,7 @@ Call_expression::do_get_tree(Translate_context* context)
   if (this->tree_ != NULL_TREE)
     return this->tree_;
 
-  Function_type* fntype = this->get_function_type(false);
+  Function_type* fntype = this->get_function_type();
   if (fntype == NULL)
     return error_mark_node;
 
@@ -6605,7 +6693,7 @@ Call_expression::set_refcount_queue_entries(Translate_context* context,
   Gogo* gogo = context->gogo();
   Refcounts* refcounts = context->function()->func_value()->refcounts();
   tree val = ret;
-  Function_type* fntype = this->get_function_type(false);
+  Function_type* fntype = this->get_function_type();
   const Typed_identifier_list* results = fntype->results();
   gcc_assert(TREE_CODE(TREE_TYPE(val)) == RECORD_TYPE);
   std::vector<Refcount_entry>::const_iterator pre =
@@ -6667,6 +6755,10 @@ class Call_result_expression : public Expression
 				      this->index_);
   }
 
+  bool
+  do_must_eval_in_order() const
+  { return true; }
+
   Expression*
   do_being_copied(Refcounts*, bool);
 
@@ -6704,7 +6796,7 @@ Call_result_expression::do_type()
   if (this->call_->is_error_expression())
     return Type::make_error_type();
   Function_type* fntype =
-    this->call_->call_expression()->get_function_type(false);
+    this->call_->call_expression()->get_function_type();
   if (fntype == NULL)
     return Type::make_error_type();
   const Typed_identifier_list* results = fntype->results();
@@ -7991,7 +8083,7 @@ Interface_field_reference_expression::do_type()
   if (method == NULL)
     return Type::make_error_type();
 
-  return Type::make_pointer_type(method->type());
+  return method->type();
 }
 
 // Determine types.
@@ -10219,6 +10311,10 @@ class Send_expression : public Expression
     return Expression::make_send(this->channel_->copy(), this->val_->copy(),
 				 this->location());
   }
+
+  bool
+  do_must_eval_in_order() const
+  { return true; }
 
   Expression*
   do_being_copied(Refcounts*, bool);

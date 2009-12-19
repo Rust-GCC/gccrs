@@ -336,6 +336,14 @@ class Gogo
   add_import_init_fn(const std::string& name, int prio)
   { this->imported_init_fns_.insert(Import_init(name, prio)); }
 
+  // Turn short-cut operators (&&, ||) into explicit if statements.
+  void
+  remove_shortcuts();
+
+  // Use temporary variables to force order of evaluation.
+  void
+  order_evaluations();
+
   // Simplify statements which might use thunks: go and defer
   // statements.
   void
@@ -535,9 +543,13 @@ class Gogo
   const std::string&
   get_init_fn_name();
 
+  // Get the decl for the magic initialization function.
+  tree
+  initialization_function_decl();
+
   // Write the magic initialization function.
   void
-  write_initialization_function(tree);
+  write_initialization_function(tree fndecl, tree init_stmt_list);
 
   // Initialize imported packages.
   void
@@ -749,9 +761,13 @@ class Block
   void
   replace_statement(size_t index, Statement*);
 
-  // Add a Statement before Statement number INDEX.
+  // Add a Statement before statement number INDEX.
   void
   insert_statement_before(size_t index, Statement*);
+
+  // Add a Statement after statement number INDEX.
+  void
+  insert_statement_after(size_t index, Statement*);
 
   // Set the end location of the block.
   void
@@ -1028,6 +1044,21 @@ class Variable
   init() const
   { return this->init_; }
 
+  // Return whether there are preinit or postinit expressions.
+  bool
+  has_pre_or_post_init() const
+  { return this->preinit_ != NULL || this->postinit_ != NULL; }
+
+  // Return the preinit expressions if any.
+  Block*
+  preinit() const
+  { return this->preinit_; }
+
+  // Return the postinit expressions if any.
+  Block*
+  postinit() const
+  { return this->postinit_; }
+
   // Return whether this is a global variable.
   bool
   is_global() const
@@ -1081,11 +1112,21 @@ class Variable
   clear_init()
   { this->init_ = NULL; }
 
-  // Set the initial value; used for reference counts and
-  // type_from_init_tuple.
+  // Set the initial value; used for reference counts and converting
+  // shortcuts.
   void
   set_init(Expression* init)
   { this->init_ = init; }
+
+  // Add a statement to be run before the initialization expression.
+  // This is only used for global variables.
+  void
+  add_preinit_statement(Statement*);
+
+  // Add a statement to be run after the initialization expression.
+  // This is only used for global variables.
+  void
+  add_postinit_statement(Statement*);
 
   // Lower the initialization expression after parsing is complete.
   void
@@ -1147,9 +1188,11 @@ class Variable
   set_holds_only_args()
   { this->holds_only_args_ = true; }
 
-  // Get the initial value of the variable as a tree.
+  // Get the initial value of the variable as a tree.  Sets *PREINIT
+  // and *POSTINIT to statements to run before and after the
+  // initialization.
   tree
-  get_init_tree(Gogo*, Named_object* function);
+  get_init_tree(Gogo*, Named_object* function, tree* preinit, tree* postinit);
 
   // Export the variable.
   void
@@ -1178,6 +1221,10 @@ class Variable
   // The initial value.  This may be NULL if the variable should be
   // initialized to the default value for the type.
   Expression* init_;
+  // Statements to run before the init statement.
+  Block* preinit_;
+  // Statements to run after the init statement.
+  Block* postinit_;
   // Location of variable definition.
   source_location location_;
   // Whether this is a global variable.

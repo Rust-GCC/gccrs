@@ -1066,13 +1066,22 @@ Lower_parse_tree::function(Named_object* no)
 // Lower statement parse trees.
 
 int
-Lower_parse_tree::statement(Block* block, size_t* pindex, Statement* s)
+Lower_parse_tree::statement(Block* block, size_t* pindex, Statement* sorig)
 {
-  Statement* snew = s->lower(this->gogo_);
-  if (snew == s)
+  // Keep lowering until nothing changes.
+  Statement* s = sorig;
+  while (true)
+    {
+      Statement* snew = s->lower(this->gogo_);
+      if (snew == s)
+	break;
+      s = snew;
+    }
+  if (s == sorig)
     return TRAVERSE_CONTINUE;
-  block->replace_statement(*pindex, snew);
-  int t = snew->traverse(block, pindex, this);
+
+  block->replace_statement(*pindex, s);
+  int t = s->traverse(block, pindex, this);
   if (t != TRAVERSE_CONTINUE)
     return t;
   return TRAVERSE_SKIP_COMPONENTS;
@@ -1334,6 +1343,436 @@ Gogo::check_types_in_block(Block* block)
 {
   Check_types_traverse traverse(this);
   block->traverse(&traverse);
+}
+
+// A traversal class used to find a single shortcut operator within an
+// expression.
+
+class Find_shortcut : public Traverse
+{
+ public:
+  Find_shortcut()
+    : Traverse(traverse_blocks
+	       | traverse_statements
+	       | traverse_expressions),
+      found_(NULL)
+  { }
+
+  // A pointer to the expression which was found, or NULL if none was
+  // found.
+  Expression**
+  found() const
+  { return this->found_; }
+
+ protected:
+  int
+  block(Block*)
+  { return TRAVERSE_SKIP_COMPONENTS; }
+
+  int
+  statement(Block*, size_t*, Statement*)
+  { return TRAVERSE_SKIP_COMPONENTS; }
+
+  int
+  expression(Expression**);
+
+ private:
+  Expression** found_;
+};
+
+// Find a shortcut expression.
+
+int
+Find_shortcut::expression(Expression** pexpr)
+{
+  Expression* expr = *pexpr;
+  Binary_expression* be = expr->binary_expression();
+  if (be == NULL)
+    return TRAVERSE_CONTINUE;
+  Operator op = be->op();
+  if (op != OPERATOR_OROR && op != OPERATOR_ANDAND)
+    return TRAVERSE_CONTINUE;
+  gcc_assert(this->found_ == NULL);
+  this->found_ = pexpr;
+  return TRAVERSE_EXIT;
+}
+
+// A traversal class used to turn shortcut operators into explicit if
+// statements.
+
+class Shortcuts : public Traverse
+{
+ public:
+  Shortcuts()
+    : Traverse(traverse_variables
+	       | traverse_statements)
+  { }
+
+ protected:
+  int
+  variable(Named_object*);
+
+  int
+  statement(Block*, size_t*, Statement*);
+
+ private:
+  // Convert a shortcut operator.
+  Statement*
+  convert_shortcut(Block* enclosing, Expression** pshortcut);
+};
+
+// Remove shortcut operators in a single statement.
+
+int
+Shortcuts::statement(Block* block, size_t* pindex, Statement* s)
+{
+  // FIXME: This approach doesn't work for switch statements, because
+  // we add the new statements before the whole switch when we need to
+  // instead add them just before the switch expression.  The right
+  // fix is probably to lower switch statements with nonconstant cases
+  // to a series of conditionals.
+  if (s->switch_statement() != NULL)
+    return TRAVERSE_CONTINUE;
+
+  while (true)
+    {
+      Find_shortcut find_shortcut;
+
+      // If S is a variable declaration, then ordinary traversal won't
+      // do anything.  We want to explicitly traverse the
+      // initialization expression if there is one.
+      Variable_declaration_statement* vds = s->variable_declaration_statement();
+      Expression* init = NULL;
+      if (vds == NULL)
+	s->traverse_contents(&find_shortcut);
+      else
+	{
+	  init = vds->var()->var_value()->init();
+	  if (init == NULL)
+	    return TRAVERSE_CONTINUE;
+	  init->traverse(&init, &find_shortcut);
+	}
+      Expression** pshortcut = find_shortcut.found();
+      if (pshortcut == NULL)
+	return TRAVERSE_CONTINUE;
+
+      Statement* snew = this->convert_shortcut(block, pshortcut);
+      if (s->for_statement() == NULL)
+	{
+	  block->insert_statement_before(*pindex, snew);
+	  ++*pindex;
+	}
+      else
+	{
+	  // The only expression in a for statement is the conditional
+	  // expression.  We want to run the statement each time the
+	  // conditional is run, not once before the for loop.
+	  s->for_statement()->insert_before_conditional(block, snew);
+	}
+
+      if (pshortcut == &init)
+	vds->var()->var_value()->set_init(init);
+    }
+}
+
+// Remove shortcut operators in the initializer of a global variable.
+
+int
+Shortcuts::variable(Named_object* no)
+{
+  if (no->is_result_variable())
+    return TRAVERSE_CONTINUE;
+  Variable* var = no->var_value();
+  Expression* init = var->init();
+  if (!var->is_global() || init == NULL)
+    return TRAVERSE_CONTINUE;
+
+  while (true)
+    {
+      Find_shortcut find_shortcut;
+      init->traverse(&init, &find_shortcut);
+      Expression** pshortcut = find_shortcut.found();
+      if (pshortcut == NULL)
+	return TRAVERSE_CONTINUE;
+
+      Statement* snew = this->convert_shortcut(NULL, pshortcut);
+      var->add_preinit_statement(snew);
+      if (pshortcut == &init)
+	var->set_init(init);
+    }
+}
+
+// Given an expression which uses a shortcut operator, return a
+// statement which implements it, and update *PSHORTCUT accordingly.
+
+Statement*
+Shortcuts::convert_shortcut(Block* enclosing, Expression** pshortcut)
+{
+  Binary_expression* shortcut = (*pshortcut)->binary_expression();
+  Expression* left = shortcut->left();
+  Expression* right = shortcut->right();
+  source_location loc = shortcut->location();
+
+  Block* retblock = new Block(enclosing, loc);
+  retblock->set_end_location(loc);
+
+  Temporary_statement* ts = Statement::make_temporary(Type::make_boolean_type(),
+						      left, loc);
+  retblock->add_statement(ts);
+
+  Block* block = new Block(retblock, loc);
+  block->set_end_location(loc);
+  Expression* tmpref = Expression::make_temporary_reference(ts, loc);
+  Statement* assign = Statement::make_assignment(OPERATOR_EQ, tmpref, right,
+						 loc);
+  block->add_statement(assign);
+
+  Expression* cond = Expression::make_temporary_reference(ts, loc);
+  if (shortcut->binary_expression()->op() == OPERATOR_OROR)
+    cond = Expression::make_unary(OPERATOR_NOT, cond, loc);
+
+  Statement* if_statement = Statement::make_if_statement(cond, block, NULL,
+							 loc);
+  retblock->add_statement(if_statement);
+
+  *pshortcut = Expression::make_temporary_reference(ts, loc);
+
+  delete shortcut;
+
+  // Now convert any shortcut operators in LEFT and RIGHT.
+  Shortcuts shortcuts;
+  retblock->traverse(&shortcuts);
+
+  return Statement::make_block_statement(retblock, loc);
+}
+
+// Turn shortcut operators into explicit if statements.  Doing this
+// considerably simplifies the order of evaluation rules.
+
+void
+Gogo::remove_shortcuts()
+{
+  Shortcuts shortcuts;
+  this->traverse(&shortcuts);
+}
+
+// A traversal class which finds all the expressions which must be
+// evaluated in order within a statement or larger expression.  This
+// is used to implement the rules about order of evaluation.
+
+class Find_eval_ordering : public Traverse
+{
+ private:
+  typedef std::vector<Expression**> Expression_pointers;
+
+ public:
+  Find_eval_ordering()
+    : Traverse(traverse_blocks
+	       | traverse_statements
+	       | traverse_expressions),
+      exprs_()
+  { }
+
+  size_t
+  size() const
+  { return this->exprs_.size(); }
+
+  typedef Expression_pointers::const_iterator const_iterator;
+
+  const_iterator
+  begin() const
+  { return this->exprs_.begin(); }
+
+  const_iterator
+  end() const
+  { return this->exprs_.end(); }
+
+ protected:
+  int
+  block(Block*)
+  { return TRAVERSE_SKIP_COMPONENTS; }
+
+  int
+  statement(Block*, size_t*, Statement*)
+  { return TRAVERSE_SKIP_COMPONENTS; }
+
+  int
+  expression(Expression**);
+
+ private:
+  // A list of pointers to expressions with side-effects.
+  Expression_pointers exprs_;
+};
+
+// If an expression must be evaluated in order, put it on the list.
+
+int
+Find_eval_ordering::expression(Expression** expression_pointer)
+{
+  // We have to look at subexpressions before this one.
+  if ((*expression_pointer)->traverse_subexpressions(this) == TRAVERSE_EXIT)
+    return TRAVERSE_EXIT;
+  if ((*expression_pointer)->must_eval_in_order())
+    this->exprs_.push_back(expression_pointer);
+  return TRAVERSE_SKIP_COMPONENTS;
+}
+
+// A traversal class for ordering evaluations.
+
+class Order_eval : public Traverse
+{
+ public:
+  Order_eval()
+    : Traverse(traverse_variables
+	       | traverse_statements)
+  { }
+
+  int
+  variable(Named_object*);
+
+  int
+  statement(Block*, size_t*, Statement*);
+};
+
+// Implement the order of evaluation rules for a statement.
+
+int
+Order_eval::statement(Block* block, size_t* pindex, Statement* s)
+{
+  // FIXME: This approach doesn't work for switch statements, because
+  // we add the new statements before the whole switch when we need to
+  // instead add them just before the switch expression.  The right
+  // fix is probably to lower switch statements with nonconstant cases
+  // to a series of conditionals.
+  if (s->switch_statement() != NULL)
+    return TRAVERSE_CONTINUE;
+
+  Find_eval_ordering find_eval_ordering;
+
+  // If S is a variable declaration, then ordinary traversal won't do
+  // anything.  We want to explicitly traverse the initialization
+  // expression if there is one.
+  Variable_declaration_statement* vds = s->variable_declaration_statement();
+  if (vds == NULL)
+    s->traverse_contents(&find_eval_ordering);
+  else
+    {
+      Expression* init = vds->var()->var_value()->init();
+      if (init == NULL)
+	return TRAVERSE_CONTINUE;
+      init->traverse_subexpressions(&find_eval_ordering);
+    }
+
+  if (find_eval_ordering.size() <= 1)
+    {
+      // If there is only one expression with a side-effect, we can
+      // leave it in place.
+      return TRAVERSE_CONTINUE;
+    }
+
+  bool is_thunk = s->thunk_statement() != NULL;
+  for (Find_eval_ordering::const_iterator p = find_eval_ordering.begin();
+       p != find_eval_ordering.end();
+       ++p)
+    {
+      Expression** pexpr = *p;
+
+      // If the last expression is a send or receive expression, we
+      // may be ignoring the value; we don't want to evaluate it
+      // early.
+      if (p + 1 == find_eval_ordering.end()
+	  && ((*pexpr)->classification() == Expression::EXPRESSION_SEND
+	      || (*pexpr)->classification() == Expression::EXPRESSION_RECEIVE))
+	break;
+
+      // The last expression in a thunk will be the call passed to go
+      // or defer, which we must not evaluate early.
+      if (is_thunk && p + 1 == find_eval_ordering.end())
+	break;
+
+      source_location loc = (*pexpr)->location();
+      Temporary_statement* ts = Statement::make_temporary(NULL, *pexpr,
+							  loc);
+      if (s->for_statement() == NULL)
+	{
+	  block->insert_statement_before(*pindex, ts);
+	  ++*pindex;
+	}
+      else
+	{
+	  // The only expression in a for statement is the conditional
+	  // expression.  We want to run the statement each time the
+	  // conditional is run, not once before the for loop.
+	  s->for_statement()->insert_before_conditional(block, ts);
+	}
+      *pexpr = Expression::make_temporary_reference(ts, loc);
+      Statement* sdestroy = Statement::destroy_temporary(ts);
+      if (sdestroy != NULL)
+	{
+	  // FIXME: This does the wrong thing for an expression in a
+	  // compound statement (if, switch, select) and also does the
+	  // wrong thing for a return statement.  The destruction gets
+	  // put after the entire statement rather than after the
+	  // expression.  The reference counting code needs to be
+	  // revamped anyhow.
+	  if (s->for_statement() != NULL)
+	    s->for_statement()->insert_after_conditional(block, sdestroy);
+	  else if (s->return_statement() == NULL)
+	    block->insert_statement_after(*pindex, sdestroy);
+	}
+    }
+
+  return TRAVERSE_CONTINUE;
+}
+
+// Implement the order of evaluation rules for the initializer of a
+// global variable.
+
+int
+Order_eval::variable(Named_object* no)
+{
+  if (no->is_result_variable())
+    return TRAVERSE_CONTINUE;
+  Variable* var = no->var_value();
+  Expression* init = var->init();
+  if (!var->is_global() || init == NULL)
+    return TRAVERSE_CONTINUE;
+
+  Find_eval_ordering find_eval_ordering;
+  init->traverse_subexpressions(&find_eval_ordering);
+
+  if (find_eval_ordering.size() <= 1)
+    {
+      // If there is only one expression with a side-effect, we can
+      // leave it in place.
+      return TRAVERSE_SKIP_COMPONENTS;
+    }
+
+  for (Find_eval_ordering::const_iterator p = find_eval_ordering.begin();
+       p != find_eval_ordering.end();
+       ++p)
+    {
+      Expression** pexpr = *p;
+      source_location loc = (*pexpr)->location();
+      Temporary_statement* ts = Statement::make_temporary(NULL, *pexpr,
+							  loc);
+      var->add_preinit_statement(ts);
+      *pexpr = Expression::make_temporary_reference(ts, loc);
+      Statement* sdestroy = Statement::destroy_temporary(ts);
+      if (sdestroy != NULL)
+	var->add_postinit_statement(sdestroy);
+    }
+
+  return TRAVERSE_SKIP_COMPONENTS;
+}
+
+// Use temporary variables to implement the order of evaluation rules.
+
+void
+Gogo::order_evaluations()
+{
+  Order_eval order_eval;
+  this->traverse(&order_eval);
 }
 
 // A dump for find_only_arg_vars.
@@ -1882,7 +2321,17 @@ Block::replace_statement(size_t index, Statement* s)
 void
 Block::insert_statement_before(size_t index, Statement* s)
 {
+  gcc_assert(index < this->statements_.size());
   this->statements_.insert(this->statements_.begin() + index, s);
+}
+
+// Add a statement after another statement.
+
+void
+Block::insert_statement_after(size_t index, Statement* s)
+{
+  gcc_assert(index < this->statements_.size());
+  this->statements_.insert(this->statements_.begin() + index + 1, s);
 }
 
 // Traverse the tree.
@@ -1997,7 +2446,11 @@ Block::traverse(Traverse* traverse)
 
   // No point in checking traverse_mask here--if we got here we always
   // want to walk the statements.  The traversal can insert new
-  // statements, but only before the current statement.
+  // statements before or after the current statement.  Inserting
+  // statements before the current statement requires updating I via
+  // the pointer; those statements will not be traversed.  Any new
+  // statements inserted after the current statement will be traversed
+  // in their turn.
   for (size_t i = 0; i < this->statements_.size(); ++i)
     {
       if (this->statements_[i]->traverse(this, &i, traverse) == TRAVERSE_EXIT)
@@ -2044,7 +2497,8 @@ Block::may_fall_through() const
 Variable::Variable(Type* type, Expression* init, bool is_global,
 		   bool is_parameter, bool is_receiver,
 		   source_location location)
-  : type_(type), init_(init), location_(location), is_global_(is_global),
+  : type_(type), init_(init), preinit_(NULL), postinit_(NULL),
+    location_(location), is_global_(is_global),
     is_parameter_(is_parameter), is_receiver_(is_receiver),
     is_varargs_parameter_(false), is_address_taken_(false),
     holds_only_args_(false), init_is_lowered_(false),
@@ -2061,9 +2515,22 @@ Variable::Variable(Type* type, Expression* init, bool is_global,
 int
 Variable::traverse_expression(Traverse* traverse)
 {
-  if (this->init_ == NULL)
-    return TRAVERSE_CONTINUE;
-  return Expression::traverse(&this->init_, traverse);
+  if (this->preinit_ != NULL)
+    {
+      if (this->preinit_->traverse(traverse) == TRAVERSE_EXIT)
+	return TRAVERSE_EXIT;
+    }
+  if (this->init_ != NULL)
+    {
+      if (Expression::traverse(&this->init_, traverse) == TRAVERSE_EXIT)
+	return TRAVERSE_EXIT;
+    }
+  if (this->postinit_ != NULL)
+    {
+      if (this->postinit_->traverse(traverse) == TRAVERSE_EXIT)
+	return TRAVERSE_EXIT;
+    }
+  return TRAVERSE_CONTINUE;
 }
 
 // Lower the initialization expression after parsing is complete.
@@ -2077,6 +2544,30 @@ Variable::lower_init_expression(Gogo* gogo)
       lower_parse_tree.expression(&this->init_);
       this->init_is_lowered_ = true;
     }
+}
+
+// Add a statement to be run before the initialization expression.
+
+void
+Variable::add_preinit_statement(Statement* s)
+{
+  gcc_assert(this->is_global_);
+  if (this->preinit_ == NULL)
+    this->preinit_ = new Block(NULL, s->location());
+  this->preinit_->add_statement(s);
+  this->preinit_->set_end_location(s->location());
+}
+
+// Add a statement to be run after the initialization expression.
+
+void
+Variable::add_postinit_statement(Statement* s)
+{
+  gcc_assert(this->is_global_);
+  if (this->postinit_ == NULL)
+    this->postinit_ = new Block(NULL, s->location());
+  this->postinit_->add_statement(s);
+  this->postinit_->set_end_location(s->location());
 }
 
 // In an assignment which sets a variable to a tuple of EXPR, return

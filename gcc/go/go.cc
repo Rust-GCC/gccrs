@@ -97,6 +97,12 @@ go_parse_input_files(const char** filenames, unsigned int filename_count)
   // Export global identifiers as appropriate.
   ::gogo->do_exports();
 
+  // Turn short-cut operators (&&, ||) into explicit if statements.
+  ::gogo->remove_shortcuts();
+
+  // Use temporary variables to force order of evaluation.
+  ::gogo->order_evaluations();
+
   // Convert complicated go and defer statements into simpler ones.
   ::gogo->simplify_thunk_statements();
 

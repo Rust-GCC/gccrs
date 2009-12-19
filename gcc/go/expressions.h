@@ -22,6 +22,7 @@ class Map_type;
 class Expression_list;
 class Var_expression;
 class String_expression;
+class Binary_expression;
 class Call_expression;
 class Func_expression;
 class Unknown_expression;
@@ -37,7 +38,7 @@ class Refcount_decrement_lvalue_expression;
 class Named_object;
 class Export;
 class Import;
-class Temporary_initialization_statement;
+class Temporary_statement;
 class Refcounts;
 class Refcount_entry;
 
@@ -55,6 +56,7 @@ class Expression
     EXPRESSION_BINARY,
     EXPRESSION_CONST_REFERENCE,
     EXPRESSION_VAR_REFERENCE,
+    EXPRESSION_TEMPORARY_REFERENCE,
     EXPRESSION_SINK,
     EXPRESSION_FUNC_REFERENCE,
     EXPRESSION_UNKNOWN_REFERENCE,
@@ -86,7 +88,6 @@ class Expression
     EXPRESSION_HEAP_COMPOSITE,
     EXPRESSION_RECEIVE,
     EXPRESSION_SEND,
-    EXPRESSION_TEMPORARY_REFERENCE,
     EXPRESSION_REFCOUNT_ADJUST,
     EXPRESSION_REFCOUNT_DECREMENT_LVALUE
   };
@@ -120,6 +121,12 @@ class Expression
   // Make a reference to a variable in an expression.
   static Expression*
   make_var_reference(Named_object*, source_location);
+
+  // Make a reference to a temporary variable.  Temporary variables
+  // are always created by a single statement, which is what we use to
+  // refer to them.
+  static Expression*
+  make_temporary_reference(Temporary_statement*, source_location);
 
   // Make a sink expression--a reference to the blank identifier _.
   static Expression*
@@ -254,11 +261,6 @@ class Expression
   static Expression*
   make_send(Expression* channel, Expression* val, source_location);
 
-  // Make a reference to a temporary variable created to decrement a
-  // reference count.
-  static Expression*
-  make_temporary_reference(Temporary_initialization_statement*);
-
   // Make an expression which evaluates another expression and stores
   // the value into the reference queue.  This expression then
   // evaluates to the same value.  FOR_LOCAL is true if this is for a
@@ -354,6 +356,12 @@ class Expression
   bool
   is_nil_expression() const
   { return this->classification_ == EXPRESSION_NIL; }
+
+  // If this is a binary expression, return the Binary_expression
+  // structure.  Otherwise return NULL.
+  Binary_expression*
+  binary_expression()
+  { return this->convert<Binary_expression, EXPRESSION_BINARY>(); }
 
   // If this is a call expression, return the Call_expression
   // structure.  Otherwise, return NULL.  This is a controlled dynamic
@@ -520,6 +528,13 @@ class Expression
   address_taken(source_location location, bool escapes)
   { return this->do_address_taken(location, escapes); }
 
+  // Return whether this expression must be evaluated in order
+  // according to the order of evaluation rules.  This is basically
+  // true of all expressions with side-effects.
+  bool
+  must_eval_in_order() const
+  { return this->do_must_eval_in_order(); }
+
   // This is called when the value of an expression is being stored
   // somewhere.  In some cases this requires that the reference count
   // be incremented.  FOR_LOCAL is true if this is called when either
@@ -654,6 +669,12 @@ class Expression
   // Child class implements taking the address of an expression.
   virtual bool
   do_address_taken(source_location, bool);
+
+  // Child class implements whether this expression must be evaluated
+  // in order.
+  virtual bool
+  do_must_eval_in_order() const
+  { return false; }
 
   // Child class implements incrementing reference count.
   virtual Expression*
@@ -964,6 +985,21 @@ class Binary_expression : public Expression
       op_(op), left_(left), right_(right), is_being_copied_(false)
   { }
 
+  // Return the operator.
+  Operator
+  op()
+  { return this->op_; }
+
+  // Return the left hand expression.
+  Expression*
+  left()
+  { return this->left_; }
+
+  // Return the right hand expression.
+  Expression*
+  right()
+  { return this->right_; }
+
   // Apply binary opcode OP to LEFT_VAL and RIGHT_VAL, setting VAL.
   // LEFT_TYPE is the type of LEFT_VAL, RIGHT_TYPE is the type of
   // RIGHT_VAL; LEFT_TYPE and/or RIGHT_TYPE may be NULL.  Return true
@@ -1083,11 +1119,11 @@ class Call_expression : public Expression
 
   // Get the function type.
   Function_type*
-  get_function_type(bool issue_error);
+  get_function_type() const;
 
   // Return the number of values this call will return.
   size_t
-  result_count();
+  result_count() const;
 
  protected:
   int
@@ -1115,6 +1151,9 @@ class Call_expression : public Expression
     return Expression::make_call(this->fn_->copy(), this->args_->copy(),
 				 this->location());
   }
+
+  bool
+  do_must_eval_in_order() const;
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -1748,6 +1787,10 @@ class Receive_expression : public Expression
   {
     return Expression::make_receive(this->channel_->copy(), this->location());
   }
+
+  bool
+  do_must_eval_in_order() const
+  { return true; }
 
   Expression*
   do_being_copied(Refcounts*, bool);

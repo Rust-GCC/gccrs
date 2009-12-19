@@ -15,6 +15,8 @@ class Gogo;
 class Traverse;
 class Block;
 class Function;
+class Temporary_statement;
+class Variable_declaration_statement;
 class Return_statement;
 class Thunk_statement;
 class Label_statement;
@@ -85,6 +87,8 @@ class Statement
   {
     STATEMENT_ERROR,
     STATEMENT_VARIABLE_DECLARATION,
+    STATEMENT_TEMPORARY,
+    STATEMENT_DESTROY_TEMPORARY,
     STATEMENT_ASSIGNMENT,
     STATEMENT_TUPLE_ASSIGNMENT,
     STATEMENT_TUPLE_MAP_ASSIGNMENT,
@@ -116,6 +120,19 @@ class Statement
   // Make a variable declaration.
   static Statement*
   make_variable_declaration(Named_object*);
+
+  // Make a statement which creates a temporary variable and
+  // initializes it to an expression.  References to the temporary
+  // variable may be constructed using make_temporary_reference.
+  // Either or the type or the initialization expression may be NULL,
+  // but not both.
+  static Temporary_statement*
+  make_temporary(Type*, Expression*, source_location);
+
+  // Make a statement which destroys a temporary variable.  This may
+  // return NULL if there is nothing to do.
+  static Statement*
+  destroy_temporary(Temporary_statement*);
 
   // Make an assignment statement.
   static Statement*
@@ -240,6 +257,11 @@ class Statement
   int
   traverse(Block*, size_t* index, Traverse*);
 
+  // Traverse the contents of this statement--the expressions and
+  // statements which it contains.
+  int
+  traverse_contents(Traverse*);
+
   // If this statement assigns some values, it calls a function for
   // each value to which this statement assigns a value, and returns
   // true.  If this statement does not assign any values, it returns
@@ -268,6 +290,15 @@ class Statement
   bool
   is_block_statement() const
   { return this->classification_ == STATEMENT_BLOCK; }
+
+  // If this is a variable declaration statement, return it.
+  // Otherwise return NULL.
+  Variable_declaration_statement*
+  variable_declaration_statement()
+  {
+    return this->convert<Variable_declaration_statement,
+			 STATEMENT_VARIABLE_DECLARATION>();
+  }
 
   // If this is a return statement, return it.  Otherwise return NULL.
   Return_statement*
@@ -417,6 +448,83 @@ class Statement
   Statement_classification classification_;
   // The location in the input file of the start of this statement.
   source_location location_;
+};
+
+// A statement which creates and initializes a temporary variable.
+
+class Temporary_statement : public Statement
+{
+ public:
+  Temporary_statement(Type* type, Expression* init, source_location location)
+    : Statement(STATEMENT_TEMPORARY, location),
+      type_(type), init_(init), decl_(NULL)
+  { }
+
+  // Return the type of the temporary variable.
+  Type*
+  type() const;
+
+  // Return the initialization expression.
+  Expression*
+  init() const
+  { return this->init_; }
+
+  // Return the tree for the temporary variable itself.  This should
+  // not be called until after the statement itself has been expanded.
+  tree
+  get_decl() const
+  {
+    gcc_assert(this->decl_ != NULL);
+    return this->decl_;
+  }
+
+ protected:
+  int
+  do_traverse(Traverse*);
+
+  bool
+  do_traverse_assignments(Traverse_assignments*);
+
+  void
+  do_check_types(Gogo*);
+
+  tree
+  do_get_tree(Translate_context*);
+
+ private:
+  // The type of the temporary variable.
+  Type* type_;
+  // The initial value of the temporary variable.  This may be NULL.
+  Expression* init_;
+  // The DECL for the temporary variable.
+  tree decl_;
+};
+
+// A variable declaration.  This marks the point in the code where a
+// variable is declared.  The Variable is also attached to a Block.
+
+class Variable_declaration_statement : public Statement
+{
+ public:
+  Variable_declaration_statement(Named_object* var);
+
+  // The variable being declared.
+  Named_object*
+  var()
+  { return this->var_; }
+
+ protected:
+  int
+  do_traverse(Traverse*);
+
+  bool
+  do_traverse_assignments(Traverse_assignments*);
+
+  tree
+  do_get_tree(Translate_context*);
+
+ private:
+  Named_object* var_;
 };
 
 // A return statement.
@@ -834,7 +942,8 @@ class For_statement : public Statement
 		source_location location)
     : Statement(STATEMENT_FOR, location),
       init_(init), cond_(cond), post_(post), statements_(NULL),
-      break_label_(NULL), continue_label_(NULL), needs_break_label_(false),
+      precond_(NULL), postcond_(NULL), break_label_(NULL),
+      continue_label_(NULL), needs_break_label_(false),
       needs_continue_label_(false)
   { }
 
@@ -845,6 +954,14 @@ class For_statement : public Statement
     gcc_assert(this->statements_ == NULL);
     this->statements_ = statements;
   }
+
+  // Insert a statement to run before the conditional expression.
+  void
+  insert_before_conditional(Block* enclosing, Statement*);
+
+  // Insert a statement to run after the conditional expression.
+  void
+  insert_after_conditional(Block* enclosing, Statement*);
 
   // Record that a break statement is used for this for statement.
   // This is called during parsing.
@@ -893,6 +1010,12 @@ class For_statement : public Statement
   Block* post_;
   // The statements in the loop itself.
   Block* statements_;
+  // Statements to run before the conditional expression.  This may be
+  // NULL.
+  Block* precond_;
+  // Statements to run after the conditional expression.  This may be
+  // NULL.
+  Block* postcond_;
   // The break LABEL_EXPR, if needed.
   tree break_label_;
   // The continue LABEL_EXPR, if needed.

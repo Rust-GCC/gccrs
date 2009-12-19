@@ -2297,7 +2297,7 @@ class Call_multiple_result_type : public Type
 tree
 Call_multiple_result_type::do_get_tree(Gogo* gogo)
 {
-  Function_type* fntype = this->call_->get_function_type(false);
+  Function_type* fntype = this->call_->get_function_type();
   gcc_assert(fntype != NULL);
   const Typed_identifier_list* results = fntype->results();
   gcc_assert(results != NULL && results->size() > 1);

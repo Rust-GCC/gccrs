@@ -64,6 +64,14 @@ Statement::traverse(Block* block, size_t* pindex, Traverse* traverse)
   return this->do_traverse(traverse);
 }
 
+// Traverse the contents of a statement.
+
+int
+Statement::traverse_contents(Traverse* traverse)
+{
+  return this->do_traverse(traverse);
+}
+
 // Traverse assignments.
 
 bool
@@ -201,31 +209,23 @@ Statement::make_error_statement(source_location location)
   return new Error_statement(location);
 }
 
-// A variable declaration.  This exists because the middle-end wants
-// to see a DECL_EXPR.
+// Class Variable_declaration_statement.
 
-class Variable_declaration_statement : public Statement
+Variable_declaration_statement::Variable_declaration_statement(
+    Named_object* var)
+  : Statement(STATEMENT_VARIABLE_DECLARATION, var->var_value()->location()),
+    var_(var)
 {
- public:
-  Variable_declaration_statement(Named_object* var)
-    : Statement(STATEMENT_VARIABLE_DECLARATION, var->var_value()->location()),
-      var_(var)
-  { }
+}
 
- protected:
-  int
-  do_traverse(Traverse*)
-  { return TRAVERSE_CONTINUE; }
+// We don't actually traverse the variable here; it was traversed
+// while traversing the Block.
 
-  bool
-  do_traverse_assignments(Traverse_assignments*);
-
-  tree
-  do_get_tree(Translate_context*);
-
- private:
-  Named_object* var_;
-};
+int
+Variable_declaration_statement::do_traverse(Traverse*)
+{
+  return TRAVERSE_CONTINUE;
+}
 
 // Traverse the assignments in a variable declaration.  Note that this
 // traversal is different from the usual traversal.
@@ -248,9 +248,12 @@ Variable_declaration_statement::do_get_tree(Translate_context* context)
     return error_mark_node;
   Variable* variable = this->var_->var_value();
 
-  tree init = variable->get_init_tree(context->gogo(), context->function());
+  tree preinit, postinit;
+  tree init = variable->get_init_tree(context->gogo(), context->function(),
+				      &preinit, &postinit);
   if (init == error_mark_node)
     return error_mark_node;
+  gcc_assert(preinit == NULL_TREE && postinit == NULL_TREE);
 
   // If this variable lives on the heap, we need to allocate it now.
   if (!variable->is_in_heap())
@@ -281,6 +284,119 @@ Statement*
 Statement::make_variable_declaration(Named_object* var)
 {
   return new Variable_declaration_statement(var);
+}
+
+// Class Temporary_statement.
+
+// Return the type of the temporary variable.
+
+Type*
+Temporary_statement::type() const
+{
+  return this->type_ != NULL ? this->type_ : this->init_->type();
+}
+
+// Traversal.
+
+int
+Temporary_statement::do_traverse(Traverse* traverse)
+{
+  if (this->init_ == NULL)
+    return TRAVERSE_CONTINUE;
+  else
+    return this->traverse_expression(traverse, &this->init_);
+}
+
+// Traverse assignments.
+
+bool
+Temporary_statement::do_traverse_assignments(Traverse_assignments* tassign)
+{
+  if (this->init_ == NULL)
+    return false;
+  tassign->value(&this->init_, true, true);
+  return true;
+}
+
+// Check types.
+
+void
+Temporary_statement::do_check_types(Gogo*)
+{
+  if (this->type_ != NULL && this->init_ != NULL)
+    gcc_assert(Type::are_compatible_for_assign(this->type_,
+					       this->init_->type(),
+					       NULL));
+}
+
+// Return a tree.
+
+tree
+Temporary_statement::do_get_tree(Translate_context* context)
+{
+  gcc_assert(this->decl_ == NULL_TREE);
+  this->decl_ = create_tmp_var(this->type()->get_tree(context->gogo()),
+			       "GOTMP");
+  DECL_SOURCE_LOCATION(this->decl_) = this->location();
+  if (this->init_ != NULL)
+    DECL_INITIAL(this->decl_) =
+      Expression::convert_for_assignment(context, this->type(),
+					 this->init_->type(),
+					 this->init_->get_tree(context),
+					 this->location());
+  return this->build_stmt_1(DECL_EXPR, this->decl_);
+}
+
+// Make and initialize a temporary variable.
+
+Temporary_statement*
+Statement::make_temporary(Type* type, Expression* init,
+			  source_location location)
+{
+  return new Temporary_statement(type, init, location);
+}
+
+// Destroy a temporary variable.
+
+class Destroy_temporary_statement : public Statement
+{
+ public:
+  Destroy_temporary_statement(Temporary_statement* statement)
+    : Statement(STATEMENT_DESTROY_TEMPORARY, statement->location()),
+      ref_(Expression::make_temporary_reference(statement,
+						statement->location()))
+  { }
+
+ protected:
+  int
+  do_traverse(Traverse*)
+  { return TRAVERSE_CONTINUE; }
+
+  bool
+  do_traverse_assignments(Traverse_assignments* tassign)
+  {
+    // Destroying a temporary is like assigning an empty value to it.
+    tassign->assignment(&this->ref_, NULL);
+    return true;
+  }
+
+  tree
+  do_get_tree(Translate_context* context)
+  { return this->ref_->get_tree(context); }
+
+ private:
+  // A reference to the temporary variable being destroyed.
+  Expression* ref_;
+};
+
+// Make a statement which destroys a temporary variable.
+
+Statement*
+Statement::destroy_temporary(Temporary_statement* statement)
+{
+  if (!statement->type()->has_refcounted_component())
+    return NULL;
+  return new Destroy_temporary_statement(statement);
 }
 
 // An assignment statement.
@@ -1980,7 +2096,7 @@ Thunk_statement::do_determine_types()
   // Now that we know the types of the call, build the struct used to
   // pass parameters.
   Function_type* fntype =
-    this->call_->call_expression()->get_function_type(false);
+    this->call_->call_expression()->get_function_type();
   if (fntype != NULL && !this->is_simple(fntype))
     this->struct_type_ = this->build_struct(fntype);
 }
@@ -1991,7 +2107,7 @@ void
 Thunk_statement::do_check_types(Gogo*)
 {
   Call_expression* ce = this->call_->call_expression();
-  Function_type* fntype = ce->get_function_type(false);
+  Function_type* fntype = ce->get_function_type();
   if (fntype != NULL && fntype->is_method())
     {
       Expression* fn = ce->fn();
@@ -2058,7 +2174,7 @@ Thunk_statement::simplify_statement(Gogo* gogo, Block* block)
     return false;
 
   Call_expression* ce = this->call_->call_expression();
-  Function_type* fntype = ce->get_function_type(false);
+  Function_type* fntype = ce->get_function_type();
   if (fntype == NULL || this->is_simple(fntype))
     return false;
 
@@ -4484,6 +4600,26 @@ Statement::make_select_statement(source_location location)
 
 // Class For_statement.
 
+// Insert a statement to run before the conditional.
+
+void
+For_statement::insert_before_conditional(Block* enclosing, Statement* s)
+{
+  if (this->precond_ == NULL)
+    this->precond_ = new Block(enclosing, s->location());
+  this->precond_->add_statement(s);
+}
+
+// Insert a statement to run after the conditional.
+
+void
+For_statement::insert_after_conditional(Block* enclosing, Statement* s)
+{
+  if (this->postcond_ == NULL)
+    this->postcond_ = new Block(enclosing, s->location());
+  this->postcond_->add_statement(s);
+}
+
 // Traversal.
 
 int
@@ -4494,9 +4630,19 @@ For_statement::do_traverse(Traverse* traverse)
       if (this->init_->traverse(traverse) == TRAVERSE_EXIT)
 	return TRAVERSE_EXIT;
     }
+  if (this->precond_ != NULL)
+    {
+      if (this->precond_->traverse(traverse) == TRAVERSE_EXIT)
+	return TRAVERSE_EXIT;
+    }
   if (this->cond_ != NULL)
     {
       if (this->traverse_expression(traverse, &this->cond_) == TRAVERSE_EXIT)
+	return TRAVERSE_EXIT;
+    }
+  if (this->postcond_ != NULL)
+    {
+      if (this->postcond_->traverse(traverse) == TRAVERSE_EXIT)
 	return TRAVERSE_EXIT;
     }
   if (this->post_ != NULL)
@@ -4512,6 +4658,7 @@ For_statement::do_determine_types()
 {
   if (this->init_ != NULL)
     this->init_->determine_types();
+  gcc_assert(this->precond_ == NULL && this->postcond_ == NULL);
   if (this->cond_ != NULL)
     {
       Type_context context(Type::lookup_bool_type(), false);
@@ -4640,6 +4787,7 @@ For_statement::do_get_tree(Translate_context* context)
 			     &statements);
   if (this->cond_ == NULL)
     {
+      gcc_assert(this->precond_ == NULL && this->postcond_ == NULL);
       tree t = build_and_jump(&LABEL_EXPR_LABEL(top));
       SET_EXPR_LOCATION(t, this->location());
       append_to_statement_list(t, &statements);
@@ -4648,12 +4796,24 @@ For_statement::do_get_tree(Translate_context* context)
     {
       append_to_statement_list(entry, &statements);
       tree bottom = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-      tree t = fold_build3(COND_EXPR, void_type_node,
-			   this->cond_->get_tree(context),
-			   build_and_jump(&LABEL_EXPR_LABEL(top)),
-			   build_and_jump(&LABEL_EXPR_LABEL(bottom)));
-      if (CAN_HAVE_LOCATION_P(t))
-	SET_EXPR_LOCATION(t, this->location());
+      if (this->precond_ != NULL)
+	append_to_statement_list(this->precond_->get_tree(context),
+				 &statements);
+      tree cond_tree = this->cond_->get_tree(context);
+      if (this->postcond_ != NULL)
+	{
+	  tree tmp = create_tmp_var(TREE_TYPE(cond_tree), get_name(cond_tree));
+	  DECL_INITIAL(tmp) = cond_tree;
+	  append_to_statement_list(build1(DECL_EXPR, void_type_node, tmp),
+				   &statements);
+	  cond_tree = tmp;
+	  append_to_statement_list(this->postcond_->get_tree(context),
+				   &statements);
+	}
+      tree t = fold_build3_loc(this->location(), COND_EXPR, void_type_node,
+			       cond_tree,
+			       build_and_jump(&LABEL_EXPR_LABEL(top)),
+			       build_and_jump(&LABEL_EXPR_LABEL(bottom)));
       append_to_statement_list(t, &statements);
       append_to_statement_list(bottom, &statements);
     }

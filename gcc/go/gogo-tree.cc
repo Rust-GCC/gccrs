@@ -129,32 +129,47 @@ Gogo::get_init_fn_name()
   if (this->init_fn_name_.empty())
     {
       gcc_assert(this->package_ != NULL);
-      std::string s = "Go.import.";
-      Bindings* bindings = this->package_->bindings();
-      for (Bindings::const_definitions_iterator p =
-	     bindings->begin_definitions();
-	   p != bindings->end_definitions();
-	   ++p)
+      if (this->package_name() == "main")
 	{
-	  if (((*p)->is_variable() || (*p)->is_function())
-	      && (*p)->package() == NULL
-	      && (!go_default_private || !Gogo::is_hidden_name((*p)->name())))
+	  // In the "main" package, we run the initialization function
+	  // as a constructor.
+	  char buf[16];
+	  snprintf(buf, sizeof buf, "I_%.5d_0", DEFAULT_INIT_PRIORITY);
+	  tree name = get_file_function_name(buf);
+	  this->init_fn_name_.assign(IDENTIFIER_POINTER(name),
+				     IDENTIFIER_LENGTH(name));
+	}
+      else
+	{
+	  std::string s = "Go.import.";
+	  Bindings* bindings = this->package_->bindings();
+	  for (Bindings::const_definitions_iterator p =
+		 bindings->begin_definitions();
+	       p != bindings->end_definitions();
+	       ++p)
 	    {
-	      tree id = (*p)->get_id(this);
-	      s.append(IDENTIFIER_POINTER(id), IDENTIFIER_LENGTH(id));
-	      break;
+	      if (((*p)->is_variable() || (*p)->is_function())
+		  && (*p)->package() == NULL
+		  && (!go_default_private
+		      || !Gogo::is_hidden_name((*p)->name())))
+		{
+		  tree id = (*p)->get_id(this);
+		  s.append(IDENTIFIER_POINTER(id), IDENTIFIER_LENGTH(id));
+		  break;
+		}
 	    }
-	}
 
-      if (s.empty())
-	{
-	  // This is the unlikely case when we have an init function but
-	  // nothing to export.
-	  tree name_tree = get_file_function_name("N");
-	  s.append(IDENTIFIER_POINTER(name_tree), IDENTIFIER_LENGTH(name_tree));
-	}
+	  if (s.empty())
+	    {
+	      // This is the unlikely case when we have an init
+	      // function but nothing to export.
+	      tree name_tree = get_file_function_name("N");
+	      s.append(IDENTIFIER_POINTER(name_tree),
+		       IDENTIFIER_LENGTH(name_tree));
+	    }
 
-      this->init_fn_name_ = s;
+	  this->init_fn_name_ = s;
+	}
     }
 
   return this->init_fn_name_;
@@ -196,29 +211,48 @@ Gogo::init_imports(tree* init_stmt_list)
     }
 }
 
+// Build the decl for the initialization function.
+
+tree
+Gogo::initialization_function_decl()
+{
+  // The tedious details of building your own function.  There doesn't
+  // seem to be a helper function for this.
+  const std::string& name(this->get_init_fn_name());
+  tree fndecl = build_decl(BUILTINS_LOCATION, FUNCTION_DECL,
+			   get_identifier(name.c_str()),
+			   build_function_type(void_type_node,
+					       void_list_node));
+
+  tree resdecl = build_decl(BUILTINS_LOCATION, RESULT_DECL, NULL_TREE,
+			    void_type_node);
+  DECL_ARTIFICIAL(resdecl) = 1;
+  DECL_CONTEXT(resdecl) = fndecl;
+  DECL_RESULT(fndecl) = resdecl;
+
+  TREE_STATIC(fndecl) = 1;
+  TREE_USED(fndecl) = 1;
+  DECL_ARTIFICIAL(fndecl) = 1;
+  TREE_PUBLIC(fndecl) = 1;
+
+  DECL_INITIAL(fndecl) = make_node(BLOCK);
+  TREE_USED(DECL_INITIAL(fndecl)) = 1;
+
+  if (this->package_name() == "main")
+    DECL_STATIC_CONSTRUCTOR(fndecl) = 1;
+
+  return fndecl;
+}
+
 // Create the magic initialization function.  INIT_STMT_LIST is the
 // code that it needs to run.
 
 void
-Gogo::write_initialization_function(tree init_stmt_list)
+Gogo::write_initialization_function(tree fndecl, tree init_stmt_list)
 {
-  // In the "main" package, we run the initialization function as a
-  // constructor.  We use a constructor priority based on the package
-  // priority to ensure that if there are multiple files in the "main"
-  // package, the initialization functions are run in order.
-  if (this->package_name() == "main")
-    {
-      int priority = (this->package_priority()
-		      + MAX_RESERVED_INIT_PRIORITY
-		      + 10);
-      gcc_assert(priority <= MAX_INIT_PRIORITY);
-      cgraph_build_static_cdtor('I', init_stmt_list, priority);
-      return;
-    }
-
   // Make sure that we thought we needed an initialization function,
   // as otherwise we will not have reported it in the export data.
-  gcc_assert(this->need_init_fn_);
+  gcc_assert(this->package_name() == "main" || this->need_init_fn_);
 
   // If there are multiple files in the "main" package, then it is
   // possible for the import function to be called more than once.
@@ -252,32 +286,16 @@ Gogo::write_initialization_function(tree init_stmt_list)
 			  fold_convert(boolean_type_node, varref),
 			  NULL_TREE, init_stmt_list);
 
-  // Here come the tedious details of building your own function.
-  // There doesn't seem to be a helper function for this.
+  if (fndecl == NULL_TREE)
+    fndecl = this->initialization_function_decl();
 
-  const std::string& name(this->get_init_fn_name());
-  tree fndecl = build_decl(BUILTINS_LOCATION, FUNCTION_DECL,
-			   get_identifier(name.c_str()),
-			   build_function_type(void_type_node,
-					       void_list_node));
-
-  tree resdecl = build_decl(BUILTINS_LOCATION, RESULT_DECL, NULL_TREE,
-			    void_type_node);
-  DECL_ARTIFICIAL(resdecl) = 1;
-  DECL_CONTEXT(resdecl) = fndecl;
-  DECL_RESULT(fndecl) = resdecl;
-
-  TREE_STATIC(fndecl) = 1;
-  TREE_USED(fndecl) = 1;
-  DECL_ARTIFICIAL(fndecl) = 1;
   DECL_SAVED_TREE(fndecl) = init_stmt_list;
-  TREE_PUBLIC(fndecl) = 1;
-
-  DECL_INITIAL(fndecl) = make_node(BLOCK);
-  TREE_USED(DECL_INITIAL(fndecl)) = 1;
 
   current_function_decl = fndecl;
-  push_struct_function(fndecl);
+  if (DECL_STRUCT_FUNCTION(fndecl) == NULL)
+    push_struct_function(fndecl);
+  else
+    push_cfun(DECL_STRUCT_FUNCTION(fndecl));
   cfun->function_end_locus = BUILTINS_LOCATION;
 
   gimplify_function_tree(fndecl);
@@ -382,11 +400,17 @@ Find_var::expression(Expression** pexpr)
 // Return true if EXPR refers to VAR.
 
 static bool
-expression_requires(Expression* expr, Named_object* var)
+expression_requires(Expression* expr, Block* preinit, Block* postinit,
+		    Named_object* var)
 {
   Find_var::Seen_objects seen_objects;
   Find_var find_var(var, &seen_objects);
   Expression::traverse(&expr, &find_var);
+  if (preinit != NULL)
+    preinit->traverse(&find_var);
+  if (postinit != NULL)
+    postinit->traverse(&find_var);
+  
   return find_var.found();
 }
 
@@ -451,6 +475,8 @@ sort_var_inits(Var_inits* var_inits)
       Var_inits::iterator p1 = var_inits->begin();
       Named_object* var = p1->var();
       Expression* init = var->var_value()->init();
+      Block* preinit = var->var_value()->preinit();
+      Block* postinit = var->var_value()->postinit();
 
       // Start walking through the list to see which variables VAR
       // needs to wait for.  We can skip P1->WAITING variables--that
@@ -462,10 +488,13 @@ sort_var_inits(Var_inits* var_inits)
 
       for (; p2 != var_inits->end(); ++p2)
 	{
-	  if (expression_requires(init, p2->var()))
+	  if (expression_requires(init, preinit, postinit, p2->var()))
 	    {
 	      // Check for cycles.
-	      if (expression_requires(p2->var()->var_value()->init(), var))
+	      if (expression_requires(p2->var()->var_value()->init(),
+				      p2->var()->var_value()->preinit(),
+				      p2->var()->var_value()->postinit(),
+				      var))
 		{
 		  std::string n1 = Gogo::unpack_hidden_name(var->name());
 		  std::string n2 = Gogo::unpack_hidden_name(p2->var()->name());
@@ -512,6 +541,7 @@ Gogo::write_globals()
 
   tree* vec = new tree[count];
 
+  tree init_fndecl = NULL_TREE;
   tree init_stmt_list = NULL_TREE;
 
   if (this->package_name() == "main")
@@ -574,8 +604,26 @@ Gogo::write_globals()
       if (TREE_CODE(vec[i]) == VAR_DECL)
 	{
 	  gcc_assert((*p)->is_variable());
-	  tree init = (*p)->var_value()->get_init_tree(this, NULL);
-	  if (init == error_mark_node)
+
+	  if ((*p)->var_value()->has_pre_or_post_init())
+	    {
+	      // We are going to create temporary variables which
+	      // means we need an fndecl.
+	      if (init_fndecl == NULL_TREE)
+		init_fndecl = this->initialization_function_decl();
+	      current_function_decl = init_fndecl;
+	      if (DECL_STRUCT_FUNCTION(init_fndecl) == NULL)
+		push_struct_function(init_fndecl);
+	      else
+		push_cfun(DECL_STRUCT_FUNCTION(init_fndecl));
+	    }
+
+	  tree preinit, postinit;
+	  tree init = (*p)->var_value()->get_init_tree(this, NULL, &preinit,
+						       &postinit);
+	  if (init == NULL_TREE)
+	    gcc_assert(preinit == NULL_TREE && postinit == NULL_TREE);
+	  else if (init == error_mark_node)
 	    gcc_assert(errorcount || sorrycount);
 	  else if ((*p)->name()[0] == '_' && (*p)->name()[1] == '.')
 	    {
@@ -585,19 +633,40 @@ Gogo::write_globals()
 	      --i;
 	      --count;
 	      gcc_assert((*p)->var_value()->init() != NULL);
-	      if (!TREE_CONSTANT(init))
-		var_inits.push_back(Var_init(*p, init));
+	      if (!TREE_CONSTANT(init)
+		  || preinit != NULL_TREE
+		  || postinit != NULL_TREE)
+		{
+		  if (preinit != NULL_TREE)
+		    init = build2(COMPOUND_EXPR, void_type_node, preinit, init);
+		  if (postinit != NULL_TREE)
+		    init = build2(COMPOUND_EXPR, void_type_node, init,
+				  postinit);
+		  var_inits.push_back(Var_init(*p, init));
+		}
 	    }
-	  else if (TREE_CONSTANT(init))
+	  else if (TREE_CONSTANT(init)
+		   && preinit == NULL_TREE
+		   && postinit == NULL_TREE)
 	    DECL_INITIAL(vec[i]) = init;
 	  else
 	    {
 	      tree set = fold_build2(MODIFY_EXPR, void_type_node, vec[i], init);
+	      if (preinit != NULL_TREE)
+		set = build2(COMPOUND_EXPR, void_type_node, preinit, set);
+	      if (postinit != NULL_TREE)
+		set = build2(COMPOUND_EXPR, void_type_node, set, postinit);
 	      Expression* vinit = (*p)->var_value()->init();
 	      if (vinit == NULL)
 		append_to_statement_list(set, &init_stmt_list);
 	      else
 		var_inits.push_back(Var_init(*p, set));
+	    }
+
+	  if ((*p)->var_value()->has_pre_or_post_init())
+	    {
+	      current_function_decl = NULL_TREE;
+	      pop_cfun();
 	    }
 	}
     }
@@ -628,7 +697,7 @@ Gogo::write_globals()
   // Set up a magic function to do all the initialization actions.
   // This will be called if this package is imported.
   if (init_stmt_list != NULL_TREE || this->need_init_fn_)
-    this->write_initialization_function(init_stmt_list);
+    this->write_initialization_function(init_fndecl, init_stmt_list);
 
   // Pass everything back to the middle-end.
 
@@ -931,20 +1000,33 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 // initial value as though it were always stored in the stack.
 
 tree
-Variable::get_init_tree(Gogo* gogo, Named_object* function)
+Variable::get_init_tree(Gogo* gogo, Named_object* function, tree* preinit,
+			tree* postinit)
 {
+  *preinit = NULL_TREE;
+  *postinit = NULL_TREE;
   if (this->init_ == NULL)
     {
       gcc_assert(!this->is_parameter_);
-      return this->type_->get_init_tree(gogo, false);
+      gcc_assert(this->preinit_ == NULL && this->postinit_ == NULL);
+      return this->type_->get_init_tree(gogo, this->is_global_);
     }
   else
     {
       Translate_context context(gogo, function, NULL, NULL_TREE);
+
+      if (this->preinit_ != NULL)
+	append_to_statement_list(this->preinit_->get_tree(&context), preinit);
+
       tree rhs_tree = this->init_->get_tree(&context);
-      return Expression::convert_for_assignment(&context, this->type(),
-						this->init_->type(),
-						rhs_tree, this->location_);
+      tree val = Expression::convert_for_assignment(&context, this->type(),
+						    this->init_->type(),
+						    rhs_tree, this->location_);
+
+      if (this->postinit_ != NULL)
+	append_to_statement_list(this->postinit_->get_tree(&context), postinit);
+
+      return val;
     }
 }
 
@@ -1360,7 +1442,13 @@ Block::get_tree(Translate_context* context)
 
   if (context->block() == NULL)
     {
-      tree fndecl = context->function()->func_value()->get_decl();
+      tree fndecl;
+      if (context->function() != NULL)
+	fndecl = context->function()->func_value()->get_decl();
+      else
+	fndecl = current_function_decl;
+      gcc_assert(fndecl != NULL_TREE);
+
       // We may have already created a block for the receiver.
       if (DECL_INITIAL(fndecl) == NULL_TREE)
 	{
