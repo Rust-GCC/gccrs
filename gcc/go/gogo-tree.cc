@@ -523,6 +523,13 @@ sort_var_inits(Var_inits* var_inits)
       if (p2 == var_inits->end())
 	{
 	  // VAR does not depends upon any other initialization expressions.
+
+	  // Check for a loop of VAR on itself.
+	  if (expression_requires(init, preinit, postinit, var))
+	    error_at(var->location(),
+		     "initialization expression for %qs depends upon itself",
+		     Gogo::unpack_hidden_name(var->name()).c_str());
+
 	  ready.splice(ready.end(), *var_inits, p1);
 	}
     }
