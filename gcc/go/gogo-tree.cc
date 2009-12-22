@@ -131,13 +131,8 @@ Gogo::get_init_fn_name()
       gcc_assert(this->package_ != NULL);
       if (this->package_name() == "main")
 	{
-	  // In the "main" package, we run the initialization function
-	  // as a constructor.
-	  char buf[16];
-	  snprintf(buf, sizeof buf, "I_%.5d_0", DEFAULT_INIT_PRIORITY);
-	  tree name = get_file_function_name(buf);
-	  this->init_fn_name_.assign(IDENTIFIER_POINTER(name),
-				     IDENTIFIER_LENGTH(name));
+	  // Use a name which the runtime knows.
+	  this->init_fn_name_ = "__go_init_main";
 	}
       else
 	{
@@ -238,9 +233,6 @@ Gogo::initialization_function_decl()
   DECL_INITIAL(fndecl) = make_node(BLOCK);
   TREE_USED(DECL_INITIAL(fndecl)) = 1;
 
-  if (this->package_name() == "main")
-    DECL_STATIC_CONSTRUCTOR(fndecl) = 1;
-
   return fndecl;
 }
 
@@ -253,38 +245,6 @@ Gogo::write_initialization_function(tree fndecl, tree init_stmt_list)
   // Make sure that we thought we needed an initialization function,
   // as otherwise we will not have reported it in the export data.
   gcc_assert(this->package_name() == "main" || this->need_init_fn_);
-
-  // If there are multiple files in the "main" package, then it is
-  // possible for the import function to be called more than once.
-  // Use a guard variable to avoid double initialization.
-  // Initialization is always single-threaded, so we don't need to
-  // lock access to the variable.
-
-  tree var = build_decl(BUILTINS_LOCATION, VAR_DECL, get_identifier("imp"),
-			boolean_type_node);
-  DECL_EXTERNAL(var) = 0;
-  TREE_PUBLIC(var) = 0;
-  TREE_STATIC(var) = 1;
-  DECL_ARTIFICIAL(var) = 1;
-  rest_of_decl_compilation(var, 1, 0);
-
-  append_to_statement_list(build2(MODIFY_EXPR, void_type_node,
-				  var, boolean_true_node),
-			   &init_stmt_list);
-
-  // Build a call to __builtin_expect since we expect the guard
-  // variable to be false.
-  tree expect_fn = built_in_decls[BUILT_IN_EXPECT];
-  tree arg_types = TYPE_ARG_TYPES(TREE_TYPE(expect_fn));
-  tree pred_type = TREE_VALUE(arg_types);
-  tree expected_type = TREE_VALUE(TREE_CHAIN(arg_types));
-  tree expect_var = fold_convert(pred_type, var);
-  tree expect_val = fold_convert(expected_type, boolean_false_node);
-  tree varref = build_call_expr(expect_fn, 2, expect_var, expect_val);
-
-  init_stmt_list = build3(COND_EXPR, void_type_node,
-			  fold_convert(boolean_type_node, varref),
-			  NULL_TREE, init_stmt_list);
 
   if (fndecl == NULL_TREE)
     fndecl = this->initialization_function_decl();
@@ -703,7 +663,9 @@ Gogo::write_globals()
 
   // Set up a magic function to do all the initialization actions.
   // This will be called if this package is imported.
-  if (init_stmt_list != NULL_TREE || this->need_init_fn_)
+  if (init_stmt_list != NULL_TREE
+      || this->need_init_fn_
+      || this->package_name() == "main")
     this->write_initialization_function(init_fndecl, init_stmt_list);
 
   // Pass everything back to the middle-end.
