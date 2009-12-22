@@ -5,19 +5,19 @@
 package xml
 
 import (
-	"io";
-	"os";
-	"reflect";
-	"strings";
-	"testing";
+	"io"
+	"os"
+	"reflect"
+	"strings"
+	"testing"
 )
 
 const testInput = `
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<body xmlns:foo="ns1" xmlns="ns2" xmlns:tag="ns3" `
-	"\r\n\t" `  >
+<body xmlns:foo="ns1" xmlns="ns2" xmlns:tag="ns3" ` +
+	"\r\n\t" + `  >
   <hello lang="en">World &lt;&gt;&apos;&quot; &#x767d;&#40300;翔</hello>
   <goodbye />
   <outer foo:attr="value" xmlns:tag="ns4">
@@ -94,9 +94,60 @@ var cookedTokens = []Token{
 	Comment(strings.Bytes(" missing final newline ")),
 }
 
+var xmlInput = []string{
+	// unexpected EOF cases
+	"<",
+	"<t",
+	"<t ",
+	"<t/",
+	"<t/>c",
+	"<!",
+	"<!-",
+	"<!--",
+	"<!--c-",
+	"<!--c--",
+	"<!d",
+	"<t></",
+	"<t></t",
+	"<?",
+	"<?p",
+	"<t a",
+	"<t a=",
+	"<t a='",
+	"<t a=''",
+	"<t/><![",
+	"<t/><![C",
+	"<t/><![CDATA[d",
+	"<t/><![CDATA[d]",
+	"<t/><![CDATA[d]]",
+
+	// other Syntax errors
+	" ",
+	">",
+	"<>",
+	"<t/a",
+	"<0 />",
+	"<?0 >",
+	//	"<!0 >",	// let the Token() caller handle
+	"</0>",
+	"<t 0=''>",
+	"<t a='&'>",
+	"<t a='<'>",
+	"<t>&nbspc;</t>",
+	"<t a>",
+	"<t a=>",
+	"<t a=v>",
+	//	"<![CDATA[d]]>",	// let the Token() caller handle
+	"cdata",
+	"<t></e>",
+	"<t></>",
+	"<t></t!",
+	"<t>cdata]]></t>",
+}
+
 type stringReader struct {
-	s	string;
-	off	int;
+	s   string
+	off int
 }
 
 func (r *stringReader) Read(b []byte) (n int, err os.Error) {
@@ -104,29 +155,29 @@ func (r *stringReader) Read(b []byte) (n int, err os.Error) {
 		return 0, os.EOF
 	}
 	for r.off < len(r.s) && n < len(b) {
-		b[n] = r.s[r.off];
-		n++;
-		r.off++;
+		b[n] = r.s[r.off]
+		n++
+		r.off++
 	}
-	return;
+	return
 }
 
 func (r *stringReader) ReadByte() (b byte, err os.Error) {
 	if r.off >= len(r.s) {
 		return 0, os.EOF
 	}
-	b = r.s[r.off];
-	r.off++;
-	return;
+	b = r.s[r.off]
+	r.off++
+	return
 }
 
-func StringReader(s string) io.Reader	{ return &stringReader{s, 0} }
+func StringReader(s string) io.Reader { return &stringReader{s, 0} }
 
 func TestRawToken(t *testing.T) {
-	p := NewParser(StringReader(testInput));
+	p := NewParser(StringReader(testInput))
 
 	for i, want := range rawTokens {
-		have, err := p.RawToken();
+		have, err := p.RawToken()
 		if err != nil {
 			t.Fatalf("token %d: unexpected error: %s", i, err)
 		}
@@ -137,15 +188,27 @@ func TestRawToken(t *testing.T) {
 }
 
 func TestToken(t *testing.T) {
-	p := NewParser(StringReader(testInput));
+	p := NewParser(StringReader(testInput))
 
 	for i, want := range cookedTokens {
-		have, err := p.Token();
+		have, err := p.Token()
 		if err != nil {
 			t.Fatalf("token %d: unexpected error: %s", i, err)
 		}
 		if !reflect.DeepEqual(have, want) {
 			t.Errorf("token %d = %#v want %#v", i, have, want)
+		}
+	}
+}
+
+func TestSyntax(t *testing.T) {
+	for i := range xmlInput {
+		p := NewParser(StringReader(xmlInput[i]))
+		var err os.Error
+		for _, err = p.Token(); err == nil; _, err = p.Token() {
+		}
+		if _, ok := err.(SyntaxError); !ok {
+			t.Fatalf(`xmlInput "%s": expected SyntaxError not received`, xmlInput[i])
 		}
 	}
 }

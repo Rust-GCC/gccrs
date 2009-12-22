@@ -176,11 +176,9 @@ func libc_accept(fd int, sa *RawSockaddrAny, len *Socklen_t) int __asm__ ("accep
 func libc_bind(fd int, sa *RawSockaddrAny, len Socklen_t) int __asm__ ("bind");
 func libc_connect(fd int, sa *RawSockaddrAny, len Socklen_t) int __asm__ ("connect");
 func libc_socket(domain, typ, protocol int) int __asm__ ("socket");
-func libc_setsockopt(fd, level, optname int, optval *byte, optlen Socklen_t)
-     int __asm__ ("setsockopt");
+func libc_setsockopt(fd, level, optname int, optval *byte, optlen Socklen_t) int __asm__ ("setsockopt");
 func libc_listen(fd, backlog int) int __asm__ ("listen");
-func libc_getsockopt(fd, level, optname int, optval *byte, optlen *Socklen_t)
-     int __asm__ ("getsockopt");
+func libc_getsockopt(fd, level, optname int, optval *byte, optlen *Socklen_t) int __asm__ ("getsockopt");
 func libc_getsockname(fd int, sa *RawSockaddrAny, len *Socklen_t) int __asm__ ("getsockname");
 func libc_getpeername(fd int, sa *RawSockaddrAny, len *Socklen_t) int __asm__ ("getpeername");
 func libc_recv(fd int, buf *byte, len Size_t, flags int) Ssize_t __asm__ ("recv");

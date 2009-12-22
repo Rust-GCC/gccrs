@@ -27,7 +27,7 @@ func errno_location() *int __asm__ ("__errno_location");
 func Syscall(trap, a1, a2, a3 uintptr) (r1, r2, err uintptr) {
   var r uintptr;
   var i int;
-  if unsafe.Sizeof(i) == 32 {
+  if unsafe.Sizeof(i) == 4 {
     r1 := libc_syscall32(int32(trap), int32(a1), int32(a2), int32(a3), 0, 0, 0);
     r = uintptr(r1);
   } else {
@@ -40,7 +40,7 @@ func Syscall(trap, a1, a2, a3 uintptr) (r1, r2, err uintptr) {
 func Syscall6(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2, err uintptr) {
   var r uintptr;
   var i int;
-  if unsafe.Sizeof(i) == 32 {
+  if unsafe.Sizeof(i) == 4 {
     r1 := libc_syscall32(int32(trap), int32(a1), int32(a2), int32(a3),
     			 int32(a4), int32(a5), int32(a6));
     r = uintptr(r1);

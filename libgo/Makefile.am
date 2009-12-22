@@ -106,6 +106,7 @@ toolexeclib_DATA = \
 	net.gox \
 	once.gox \
 	os.gox \
+	patch.gox \
 	path.gox \
 	rand.gox \
 	reflect.gox \
@@ -117,6 +118,7 @@ toolexeclib_DATA = \
 	strings.gox \
 	sync.gox \
 	syscall.gox \
+	syslog.gox \
 	tabwriter.gox \
 	template.gox \
 	testing.gox \
@@ -158,9 +160,11 @@ toolexeclibcrypto_DATA = \
 	crypto/rc4.gox \
 	crypto/rsa.gox \
 	crypto/sha1.gox \
+	crypto/sha256.gox \
 	crypto/subtle.gox \
 	crypto/tls.gox \
-	crypto/x509.gox
+	crypto/x509.gox \
+	crypto/xtea.gox
 
 toolexeclibdebugdir = $(toolexeclibdir)/debug
 
@@ -188,7 +192,8 @@ toolexeclibexp_DATA = \
 	exp/draw.gox \
 	exp/eval.gox \
 	exp/exception.gox \
-	exp/iterable.gox
+	exp/iterable.gox \
+	exp/parser.gox
 
 toolexeclibgodir = $(toolexeclibdir)/go
 
@@ -209,12 +214,18 @@ toolexeclibhash_DATA = \
 toolexeclibimagedir = $(toolexeclibdir)/image
 
 toolexeclibimage_DATA = \
+	image/jpeg.gox \
 	image/png.gox
 
 toolexeclibiodir = $(toolexeclibdir)/io
 
 toolexeclibio_DATA = \
 	io/ioutil.gox
+
+toolexeclibosdir = $(toolexeclibdir)/os
+
+toolexeclibos_DATA = \
+	os/signal.gox
 
 toolexeclibtestingdir = $(toolexeclibdir)/testing
 
@@ -254,6 +265,7 @@ runtime_files = \
 	runtime/go-new-interface-pointer.c \
 	runtime/go-new-map.c \
 	runtime/go-new.c \
+	runtime/go-note.c \
 	runtime/go-panic.c \
 	runtime/go-print.c \
 	runtime/go-rec-big.c \
@@ -276,6 +288,7 @@ runtime_files = \
 	runtime/go-send-nb-big.c \
 	runtime/go-send-nb-small.c \
 	runtime/go-send-small.c \
+	runtime/go-signal.c \
 	runtime/go-strcmp.c \
 	runtime/go-string-range.c \
 	runtime/go-strplus.c \
@@ -297,7 +310,8 @@ runtime_files = \
 	runtime/mheap.c \
 	runtime/msize.c \
 	runtime/proc.c \
-	malloc_go.c
+	malloc_go.c \
+	sigqueue.c
 
 cgo2c.o: runtime/cgo2c.c
 	$(CC_FOR_BUILD) -c $(CFLAGS_FOR_BUILD) $<
@@ -306,10 +320,10 @@ cgo2c: cgo2c.o
 	$(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) $(LDFLAGS_FOR_BUILD) -o $@ $<
 
 %.c: $(srcdir)/runtime/%.cgo cgo2c
-	./cgo2c --gcc < $< > $@.tmp
+	./cgo2c --gcc $< > $@.tmp
 	mv -f $@.tmp $@
 
-BUILT_SOURCES = malloc_go.c
+BUILT_SOURCES = malloc_go.c sigqueue.c
 
 go_asn1_files = \
 	go/asn1/asn1.go \
@@ -445,6 +459,12 @@ go_os_files = \
 	go/os/time.go \
 	go/os/types.go
 
+go_patch_files = \
+	go/patch/apply.go \
+	go/patch/git.go \
+	go/patch/patch.go \
+	go/patch/textdiff.go
+
 go_path_files = \
 	go/path/path.go
 
@@ -452,7 +472,8 @@ go_rand_files = \
 	go/rand/exp.go \
 	go/rand/normal.go \
 	go/rand/rand.go \
-	go/rand/rng.go
+	go/rand/rng.go \
+	go/rand/zipf.go
 
 go_reflect_files = \
 	go/reflect/deepequal.go \
@@ -491,6 +512,9 @@ go_sync_files = \
 	go/sync/rwmutex.go
 go_sync_c_files = \
 	go/sync/cas.c
+
+go_syslog_files = \
+	go/syslog/syslog.go
 
 go_tabwriter_files = \
 	go/tabwriter/tabwriter.go
@@ -583,7 +607,7 @@ go_crypto_block_files = \
 go_crypto_hmac_files = \
 	go/crypto/hmac/hmac.go
 go_crypto_md4_files = \
-	go/crypto/md4/md4.go \	
+	go/crypto/md4/md4.go \
 	go/crypto/md4/md4block.go
 go_crypto_md5_files = \
 	go/crypto/md5/md5.go \
@@ -596,6 +620,9 @@ go_crypto_rsa_files = \
 go_crypto_sha1_files = \
 	go/crypto/sha1/sha1.go \
 	go/crypto/sha1/sha1block.go
+go_crypto_sha256_files = \
+	go/crypto/sha256/sha256.go \
+	go/crypto/sha256/sha256block.go
 go_crypto_subtle_files = \
 	go/crypto/subtle/constant_time.go
 go_crypto_tls_files = \
@@ -612,6 +639,9 @@ go_crypto_tls_files = \
 	go/crypto/tls/tls.go
 go_crypto_x509_files = \
 	go/crypto/x509/x509.go
+go_crypto_xtea_files = \
+	go/crypto/xtea/block.go \
+	go/crypto/xtea/cipher.go
 
 go_debug_dwarf_files = \
 	go/debug/dwarf/buf.go \
@@ -717,6 +747,9 @@ go_exp_exception_files = \
 go_exp_iterable_files = \
 	go/exp/iterable/array.go \
 	go/exp/iterable/iterable.go
+go_exp_parser_files = \
+	go/exp/parser/interface.go \
+	go/exp/parser/parser.go
 
 go_go_ast_files = \
 	go/go/ast/ast.go \
@@ -743,12 +776,20 @@ go_hash_adler32_files = \
 go_hash_crc32_files = \
 	go/hash/crc32/crc32.go
 
+go_image_jpeg_files = \
+	go/image/jpeg/huffman.go \
+	go/image/jpeg/idct.go \
+	go/image/jpeg/reader.go
+
 go_image_png_files = \
 	go/image/png/reader.go \
 	go/image/png/writer.go
 
 go_io_ioutil_files = \
 	go/io/ioutil/ioutil.go
+
+go_os_signal_files = \
+	go/os/signal/signal.go
 
 go_testing_iotest_files = \
 	go/testing/iotest/logger.go \
@@ -809,6 +850,7 @@ libgo_go_objs = \
 	net/libnet.la \
 	once/libonce.la \
 	os/libos.la \
+	patch/libpatch.la \
 	path/libpath.la \
 	rand/librand.la \
 	reflect/libreflect.la \
@@ -819,6 +861,7 @@ libgo_go_objs = \
 	strconv/libstrconv.la \
 	strings/libstrings.la \
 	sync/libsync.la \
+	syslog/libsyslog.la \
 	tabwriter/libtabwriter.la \
 	template/libtemplate.la \
 	time/libtime.la \
@@ -843,9 +886,11 @@ libgo_go_objs = \
 	crypto/librc4.la \
 	crypto/librsa.la \
 	crypto/libsha1.la \
+	crypto/libsha256.la \
 	crypto/libsubtle.la \
 	crypto/libtls.la \
 	crypto/libx509.la \
+	crypto/libxtea.la \
 	debug/libdwarf.la \
 	debug/libelf.la \
 	debug/libgosym.la \
@@ -862,6 +907,7 @@ libgo_go_objs = \
 	exp/libeval.la \
 	exp/libexception.la \
 	exp/libiterable.la \
+	exp/libparser.la \
 	go/libast.la \
 	go/libdoc.la \
 	go/libparser.la \
@@ -870,8 +916,10 @@ libgo_go_objs = \
 	go/libtoken.la \
 	hash/libadler32.la \
 	hash/libcrc32.la \
+	image/libjpeg.la \
 	image/libpng.la \
 	io/libioutil.la \
+	os/libsignal.la \
 	libsyscall.la
 
 libgo_la_SOURCES = $(runtime_files)
@@ -979,8 +1027,8 @@ hash/libhash.a: $(go_hash_files) io.gox
 hash/libhash.la: hash/libhash.a
 
 http/libhttp.a: $(go_http_files) bufio.gox bytes.gox container/vector.gox \
-		fmt.gox io.gox io/ioutil.gox log.gox net.gox os.gox path.gox \
-		strconv.gox strings.gox utf8.gox
+		encoding/base64.gox fmt.gox io.gox io/ioutil.gox log.gox \
+		net.gox os.gox path.gox strconv.gox strings.gox utf8.gox
 	$(BUILDARCHIVE)
 http/libhttp.la: http/libhttp.a
 
@@ -988,7 +1036,7 @@ image/libimage.a: $(go_image_files)
 	$(BUILDARCHIVE)
 image/libimage.la: image/libimage.a
 
-io/libio.a: $(go_io_files) bytes.gox os.gox sort.gox strings.gox sync.gox
+io/libio.a: $(go_io_files) os.gox strings.gox sync.gox
 	$(BUILDARCHIVE)
 io/libio.la: io/libio.a
 
@@ -1022,6 +1070,12 @@ once/libonce.la:once/libonce.a
 os/libos.a: $(go_os_files) once.gox syscall.gox
 	$(BUILDARCHIVE)
 os/libos.la: os/libos.a
+
+patch/libpatch.a: $(go_patch_files) bytes.gox compress/zlib.gox \
+		crypto/sha1.gox encoding/git85.gox fmt.gox io.gox os.gox \
+		path.gox strings.gox
+	$(BUILDARCHIVE)
+patch/libpatch.la: patch/libpatch.a
 
 path/libpath.a: $(go_path_files) io/ioutil.gox os.gox strings.gox
 	$(BUILDARCHIVE)
@@ -1071,6 +1125,10 @@ sync/libsync.a: $(go_sync_files) $(go_sync_c_files) runtime.gox
 	$(AR) rc $@ sync/mutex.o sync/cas.o
 sync/libsync.la: sync/libsync.a
 	$(LINK) sync/mutex.lo sync/cas.lo
+
+syslog/libsyslog.a: $(go_syslog_files) fmt.gox log.gox net.gox os.gox
+	$(BUILDARCHIVE)
+syslog/libsyslog.la: syslog/libsyslog.a
 
 tabwriter/libtabwriter.a: $(go_tabwriter_files) bytes.gox io.gox os.gox \
 		utf8.gox container/vector.gox
@@ -1184,6 +1242,10 @@ crypto/libsha1.a: $(go_crypto_sha1_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 crypto/libsha1.la: crypto/libsha1.a
 
+crypto/libsha256.a: $(go_crypto_sha256_files) hash.gox os.gox
+	$(BUILDARCHIVE)
+crypto/libsha256.la: crypto/libsha256.a
+
 crypto/libsubtle.a: $(go_crypto_subtle_files)
 	$(BUILDARCHIVE)
 crypto/libsubtle.la: crypto/libsubtle.a
@@ -1201,6 +1263,10 @@ crypto/libx509.a: $(go_crypto_x509_files) asn1.gox big.gox \
 		os.gox strings.gox time.gox
 	$(BUILDARCHIVE)
 crypto/libx509.la: crypto/libx509.a
+
+crypto/libxtea.a: $(go_crypto_xtea_files) os.gox strconv.gox
+	$(BUILDARCHIVE)
+crypto/libxtea.la: crypto/libxtea.a
 
 debug/libdwarf.a: $(go_debug_dwarf_files) encoding/binary.gox os.gox \
 		strconv.gox
@@ -1265,7 +1331,7 @@ exp/libdraw.a: $(go_exp_draw_files) image.gox
 	$(BUILDARCHIVE)
 exp/libdraw.la: exp/libdraw.a
 
-exp/libeval.a: $(go_exp_eval_files) bignum.gox go/ast.gox go/parser.gox \
+exp/libeval.a: $(go_exp_eval_files) bignum.gox go/ast.gox exp/parser.gox \
 		go/scanner.gox go/token.gox fmt.gox log.gox strconv.gox \
 		strings.gox os.gox reflect.gox runtime.gox sort.gox template.gox
 	$(BUILDARCHIVE)
@@ -1279,6 +1345,12 @@ exp/libiterable.a: $(go_exp_iterable_files) container/list.gox \
 		container/vector.gox
 	$(BUILDARCHIVE)
 exp/libiterable.la: exp/libiterable.a
+
+exp/libparser.a: $(go_exp_parser_files) bytes.gox container/vector.gox \
+		fmt.gox go/ast.gox go/scanner.gox go/token.gox io.gox \
+		io/ioutil.gox os.gox path.gox strings.gox
+	$(BUILDARCHIVE)
+exp/libparser.la: exp/libparser.a
 
 go/libast.a: $(go_go_ast_files) go/token.gox unicode.gox utf8.gox
 	$(BUILDARCHIVE)
@@ -1320,6 +1392,10 @@ hash/libcrc32.a: $(go_hash_crc32_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 hash/libcrc32.la: hash/libcrc32.a
 
+image/libjpeg.a: $(go_image_jpeg_files) bufio.gox image.gox io.gox os.gox
+	$(BUILDARCHIVE)
+image/libjpeg.la: image/libjpeg.a
+
 image/libpng.a: $(go_image_png_files) bufio.gox compress/zlib.gox hash.gox \
 		hash/crc32.gox image.gox io.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
@@ -1328,6 +1404,10 @@ image/libpng.la: image/libpng.a
 io/libioutil.a: $(go_io_ioutil_files) bytes.gox io.gox os.gox sort.gox
 	$(BUILDARCHIVE)
 io/libioutil.la: io/libioutil.a
+
+os/libsignal.a: $(go_os_signal_files) runtime.gox strconv.gox
+	$(BUILDARCHIVE)
+os/libsignal.la: os/libsignal.a
 
 testing/libiotest.a: $(go_testing_iotest_files) io.gox log.gox os.gox
 	$(BUILDARCHIVE)
@@ -1402,6 +1482,8 @@ once.gox: once/libonce.a
 	$(BUILDGOX)
 os.gox: os/libos.a
 	$(BUILDGOX)
+patch.gox: patch/libpatch.a
+	$(BUILDGOX)
 path.gox: path/libpath.a
 	$(BUILDGOX)
 rand.gox: rand/librand.a
@@ -1421,6 +1503,8 @@ strconv.gox: strconv/libstrconv.a
 strings.gox: strings/libstrings.a
 	$(BUILDGOX)
 sync.gox: sync/libsync.a
+	$(BUILDGOX)
+syslog.gox: syslog/libsyslog.a
 	$(BUILDGOX)
 syscall.gox: libsyscall.a
 	$(BUILDGOX)
@@ -1478,11 +1562,15 @@ crypto/rsa.gox: crypto/librsa.a
 	$(BUILDGOX)
 crypto/sha1.gox: crypto/libsha1.a
 	$(BUILDGOX)
+crypto/sha256.gox: crypto/libsha256.a
+	$(BUILDGOX)
 crypto/subtle.gox: crypto/libsubtle.a
 	$(BUILDGOX)
 crypto/tls.gox: crypto/libtls.a
 	$(BUILDGOX)
 crypto/x509.gox: crypto/libx509.a
+	$(BUILDGOX)
+crypto/xtea.gox: crypto/libxtea.a
 	$(BUILDGOX)
 
 debug/dwarf.gox: debug/libdwarf.a
@@ -1519,6 +1607,8 @@ exp/exception.gox: exp/libexception.a
 	$(BUILDGOX)
 exp/iterable.gox: exp/libiterable.a
 	$(BUILDGOX)
+exp/parser.gox: exp/libparser.a
+	$(BUILDGOX)
 
 go/ast.gox: go/libast.a
 	$(BUILDGOX)
@@ -1538,10 +1628,15 @@ hash/adler32.gox: hash/libadler32.a
 hash/crc32.gox: hash/libcrc32.a
 	$(BUILDGOX)
 
+image/jpeg.gox: image/libjpeg.a
+	$(BUILDGOX)
 image/png.gox: image/libpng.a
 	$(BUILDGOX)
 
 io/ioutil.gox: io/libioutil.a
+	$(BUILDGOX)
+
+os/signal.gox: os/libsignal.a
 	$(BUILDGOX)
 
 testing/iotest.gox: testing/libiotest.a
@@ -1571,6 +1666,7 @@ TEST_PACKAGES = \
 	net \
 	once \
 	os \
+	patch\
 	path \
 	rand \
 	reflect \
@@ -1580,6 +1676,7 @@ TEST_PACKAGES = \
 	strconv \
 	strings \
 	sync \
+	syslog \
 	tabwriter \
 	template \
 	testing \
@@ -1604,9 +1701,11 @@ TEST_PACKAGES = \
 	crypto/rc4 \
 	crypto/rsa \
 	crypto/sha1 \
+	crypto/sha256 \
 	crypto/subtle \
 	crypto/tls \
 	crypto/x509 \
+	crypto/xtea \
 	debug/dwarf \
 	debug/elf \
 	debug/macho \
@@ -1620,6 +1719,7 @@ TEST_PACKAGES = \
 	exp/eval \
 	exp/exception \
 	exp/iterable \
+	exp/parser \
 	go/parser \
 	go/printer \
 	go/scanner \
@@ -1627,6 +1727,7 @@ TEST_PACKAGES = \
 	hash/crc32 \
 	image/png \
 	io/ioutil \
+	os/signal \
 	testing/quick \
 	testing/script
 

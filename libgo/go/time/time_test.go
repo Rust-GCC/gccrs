@@ -5,10 +5,10 @@
 package time_test
 
 import (
-	"os";
-	"testing";
-	"testing/quick";
-	. "time";
+	"os"
+	"testing"
+	"testing/quick"
+	. "time"
 )
 
 func init() {
@@ -19,8 +19,8 @@ func init() {
 }
 
 type TimeTest struct {
-	seconds	int64;
-	golden	Time;
+	seconds int64
+	golden  Time
 }
 
 var utctests = []TimeTest{
@@ -55,42 +55,42 @@ func same(t, u *Time) bool {
 
 func TestSecondsToUTC(t *testing.T) {
 	for i := 0; i < len(utctests); i++ {
-		sec := utctests[i].seconds;
-		golden := &utctests[i].golden;
-		tm := SecondsToUTC(sec);
-		newsec := tm.Seconds();
+		sec := utctests[i].seconds
+		golden := &utctests[i].golden
+		tm := SecondsToUTC(sec)
+		newsec := tm.Seconds()
 		if newsec != sec {
 			t.Errorf("SecondsToUTC(%d).Seconds() = %d", sec, newsec)
 		}
 		if !same(tm, golden) {
-			t.Errorf("SecondsToUTC(%d):", sec);
-			t.Errorf("  want=%+v", *golden);
-			t.Errorf("  have=%+v", *tm);
+			t.Errorf("SecondsToUTC(%d):", sec)
+			t.Errorf("  want=%+v", *golden)
+			t.Errorf("  have=%+v", *tm)
 		}
 	}
 }
 
 func TestSecondsToLocalTime(t *testing.T) {
 	for i := 0; i < len(localtests); i++ {
-		sec := localtests[i].seconds;
-		golden := &localtests[i].golden;
-		tm := SecondsToLocalTime(sec);
-		newsec := tm.Seconds();
+		sec := localtests[i].seconds
+		golden := &localtests[i].golden
+		tm := SecondsToLocalTime(sec)
+		newsec := tm.Seconds()
 		if newsec != sec {
 			t.Errorf("SecondsToLocalTime(%d).Seconds() = %d", sec, newsec)
 		}
 		if !same(tm, golden) {
-			t.Errorf("SecondsToLocalTime(%d):", sec);
-			t.Errorf("  want=%+v", *golden);
-			t.Errorf("  have=%+v", *tm);
+			t.Errorf("SecondsToLocalTime(%d):", sec)
+			t.Errorf("  want=%+v", *golden)
+			t.Errorf("  have=%+v", *tm)
 		}
 	}
 }
 
 func TestSecondsToUTCAndBack(t *testing.T) {
-	f := func(sec int64) bool { return SecondsToUTC(sec).Seconds() == sec };
-	f32 := func(sec int32) bool { return f(int64(sec)) };
-	cfg := &quick.Config{MaxCount: 10000};
+	f := func(sec int64) bool { return SecondsToUTC(sec).Seconds() == sec }
+	f32 := func(sec int32) bool { return f(int64(sec)) }
+	cfg := &quick.Config{MaxCount: 10000}
 
 	// Try a reasonable date first, then the huge ones.
 	if err := quick.Check(f32, cfg); err != nil {
@@ -98,6 +98,27 @@ func TestSecondsToUTCAndBack(t *testing.T) {
 	}
 	if err := quick.Check(f, cfg); err != nil {
 		t.Fatal(err)
+	}
+}
+
+type TimeFormatTest struct {
+	time           Time
+	formattedValue string
+}
+
+var iso8601Formats = []TimeFormatTest{
+	TimeFormatTest{Time{2008, 9, 17, 20, 4, 26, Wednesday, 0, "UTC"}, "2008-09-17T20:04:26Z"},
+	TimeFormatTest{Time{1994, 9, 17, 20, 4, 26, Wednesday, -18000, "EST"}, "1994-09-17T20:04:26-0500"},
+	TimeFormatTest{Time{2000, 12, 26, 1, 15, 6, Wednesday, 15600, "OTO"}, "2000-12-26T01:15:06+0420"},
+}
+
+func TestISO8601Conversion(t *testing.T) {
+	for _, f := range iso8601Formats {
+		if f.time.ISO8601() != f.formattedValue {
+			t.Error("ISO8601():")
+			t.Errorf("  want=%+v", f.formattedValue)
+			t.Errorf("  have=%+v", f.time.ISO8601())
+		}
 	}
 }
 

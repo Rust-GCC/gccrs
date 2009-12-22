@@ -11,8 +11,7 @@ import (
 
 func libc_dup(fd int) int __asm__ ("dup")
 func libc_opendir(*byte) *syscall.DIR __asm__ ("opendir")
-func libc_readdir_r(*syscall.DIR, *syscall.Dirent, **syscall.Dirent) int
-    __asm__ ("readdir_r")
+func libc_readdir_r(*syscall.DIR, *syscall.Dirent, **syscall.Dirent) int __asm__ ("readdir_r")
 func libc_closedir(*syscall.DIR) int __asm__ ("closedir")
 
 // FIXME: pathconf returns long, not int.
@@ -36,10 +35,9 @@ var elen int;
 func (file *File) Readdirnames(count int) (names []string, err Error) {
 	if elen == 0 {
 		var dummy syscall.Dirent;
-		elen = (unsafe.Offsetof(dummy.Name)
-			+ libc_pathconf(syscall.StringBytePtr(file.name),
-					syscall.PC_NAME_MAX)
-			+ 1);
+		elen = (unsafe.Offsetof(dummy.Name) +
+			libc_pathconf(syscall.StringBytePtr(file.name),	syscall.PC_NAME_MAX) +
+			1);
 	}
 
 	if file.dirinfo == nil {

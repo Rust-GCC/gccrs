@@ -28,8 +28,8 @@ func Sqrt(x float64) float64 {
 		if x < 0 {
 			return NaN()
 		}
-		return 0;
+		return 0
 	}
 
-	return libc_sqrt(x);
+	return libc_sqrt(x)
 }

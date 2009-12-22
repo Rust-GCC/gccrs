@@ -9,6 +9,7 @@
 
 #include "go-alloc.h"
 #include "array.h"
+#include "go-signal.h"
 #include "go-string.h"
 
 /* The main function for a Go program.  This records the command line
@@ -21,7 +22,11 @@ extern struct __go_open_array Args asm ("os.Args");
 
 extern struct __go_open_array Envs asm ("os.Envs");
 
-extern void real_main () asm ("main.main");
+/* These functions are created for the main package.  */
+extern void __go_init_main (void);
+extern void real_main (void) asm ("main.main");
+
+/* The main function.  */
 
 int
 main (int argc, char **argv)
@@ -63,8 +68,11 @@ main (int argc, char **argv)
     }
   Envs.__values = values;
 
+  __initsig ();
+
   srandom ((unsigned int) time (NULL));
 
+  __go_init_main ();
   real_main ();
 
   return 0;

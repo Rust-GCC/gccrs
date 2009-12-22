@@ -5,22 +5,22 @@
 package gzip
 
 import (
-	"bytes";
-	"io";
-	"os";
-	"testing";
+	"bytes"
+	"io"
+	"os"
+	"testing"
 )
 
 type gzipTest struct {
-	name	string;
-	desc	string;
-	raw	string;
-	gzip	[]byte;
-	err	os.Error;
+	name string
+	desc string
+	raw  string
+	gzip []byte
+	err  os.Error
 }
 
 var gzipTests = []gzipTest{
-	gzipTest{	// has 1 empty fixed-huffman block
+	gzipTest{ // has 1 empty fixed-huffman block
 		"empty.txt",
 		"empty.txt",
 		"",
@@ -32,7 +32,7 @@ var gzipTests = []gzipTest{
 		},
 		nil,
 	},
-	gzipTest{	// has 1 non-empty fixed huffman block
+	gzipTest{ // has 1 non-empty fixed huffman block
 		"hello.txt",
 		"hello.txt",
 		"hello world\n",
@@ -46,10 +46,10 @@ var gzipTests = []gzipTest{
 		},
 		nil,
 	},
-	gzipTest{	// concatenation
+	gzipTest{ // concatenation
 		"hello.txt",
 		"hello.txt x2",
-		"hello world\n"
+		"hello world\n" +
 			"hello world\n",
 		[]byte{
 			0x1f, 0x8b, 0x08, 0x08, 0xc8, 0x58, 0x13, 0x4a,
@@ -67,7 +67,7 @@ var gzipTests = []gzipTest{
 		},
 		nil,
 	},
-	gzipTest{	// has a fixed huffman block with some length-distance pairs
+	gzipTest{ // has a fixed huffman block with some length-distance pairs
 		"shesells.txt",
 		"shesells.txt",
 		"she sells seashells by the seashore\n",
@@ -83,37 +83,37 @@ var gzipTests = []gzipTest{
 		},
 		nil,
 	},
-	gzipTest{	// has dynamic huffman blocks
+	gzipTest{ // has dynamic huffman blocks
 		"gettysburg",
 		"gettysburg",
-		"  Four score and seven years ago our fathers brought forth on\n"
-			"this continent, a new nation, conceived in Liberty, and dedicated\n"
-			"to the proposition that all men are created equal.\n"
-			"  Now we are engaged in a great Civil War, testing whether that\n"
-			"nation, or any nation so conceived and so dedicated, can long\n"
-			"endure.\n"
-			"  We are met on a great battle-field of that war.\n"
-			"  We have come to dedicate a portion of that field, as a final\n"
-			"resting place for those who here gave their lives that that\n"
-			"nation might live.  It is altogether fitting and proper that\n"
-			"we should do this.\n"
-			"  But, in a larger sense, we can not dedicate — we can not\n"
-			"consecrate — we can not hallow — this ground.\n"
-			"  The brave men, living and dead, who struggled here, have\n"
-			"consecrated it, far above our poor power to add or detract.\n"
-			"The world will little note, nor long remember what we say here,\n"
-			"but it can never forget what they did here.\n"
-			"  It is for us the living, rather, to be dedicated here to the\n"
-			"unfinished work which they who fought here have thus far so\n"
-			"nobly advanced.  It is rather for us to be here dedicated to\n"
-			"the great task remaining before us — that from these honored\n"
-			"dead we take increased devotion to that cause for which they\n"
-			"gave the last full measure of devotion —\n"
-			"  that we here highly resolve that these dead shall not have\n"
-			"died in vain — that this nation, under God, shall have a new\n"
-			"birth of freedom — and that government of the people, by the\n"
-			"people, for the people, shall not perish from this earth.\n"
-			"\n"
+		"  Four score and seven years ago our fathers brought forth on\n" +
+			"this continent, a new nation, conceived in Liberty, and dedicated\n" +
+			"to the proposition that all men are created equal.\n" +
+			"  Now we are engaged in a great Civil War, testing whether that\n" +
+			"nation, or any nation so conceived and so dedicated, can long\n" +
+			"endure.\n" +
+			"  We are met on a great battle-field of that war.\n" +
+			"  We have come to dedicate a portion of that field, as a final\n" +
+			"resting place for those who here gave their lives that that\n" +
+			"nation might live.  It is altogether fitting and proper that\n" +
+			"we should do this.\n" +
+			"  But, in a larger sense, we can not dedicate — we can not\n" +
+			"consecrate — we can not hallow — this ground.\n" +
+			"  The brave men, living and dead, who struggled here, have\n" +
+			"consecrated it, far above our poor power to add or detract.\n" +
+			"The world will little note, nor long remember what we say here,\n" +
+			"but it can never forget what they did here.\n" +
+			"  It is for us the living, rather, to be dedicated here to the\n" +
+			"unfinished work which they who fought here have thus far so\n" +
+			"nobly advanced.  It is rather for us to be here dedicated to\n" +
+			"the great task remaining before us — that from these honored\n" +
+			"dead we take increased devotion to that cause for which they\n" +
+			"gave the last full measure of devotion —\n" +
+			"  that we here highly resolve that these dead shall not have\n" +
+			"died in vain — that this nation, under God, shall have a new\n" +
+			"birth of freedom — and that government of the people, by the\n" +
+			"people, for the people, shall not perish from this earth.\n" +
+			"\n" +
 			"Abraham Lincoln, November 19, 1863, Gettysburg, Pennsylvania\n",
 		[]byte{
 			0x1f, 0x8b, 0x08, 0x08, 0xd1, 0x12, 0x2b, 0x4a,
@@ -221,7 +221,7 @@ var gzipTests = []gzipTest{
 		},
 		nil,
 	},
-	gzipTest{	// has 1 non-empty fixed huffman block then garbage
+	gzipTest{ // has 1 non-empty fixed huffman block then garbage
 		"hello.txt",
 		"hello.txt + garbage",
 		"hello world\n",
@@ -235,7 +235,7 @@ var gzipTests = []gzipTest{
 		},
 		HeaderError,
 	},
-	gzipTest{	// has 1 non-empty fixed huffman block not enough header
+	gzipTest{ // has 1 non-empty fixed huffman block not enough header
 		"hello.txt",
 		"hello.txt + garbage",
 		"hello world\n",
@@ -249,7 +249,7 @@ var gzipTests = []gzipTest{
 		},
 		io.ErrUnexpectedEOF,
 	},
-	gzipTest{	// has 1 non-empty fixed huffman block but corrupt checksum
+	gzipTest{ // has 1 non-empty fixed huffman block but corrupt checksum
 		"hello.txt",
 		"hello.txt + corrupt checksum",
 		"hello world\n",
@@ -263,7 +263,7 @@ var gzipTests = []gzipTest{
 		},
 		ChecksumError,
 	},
-	gzipTest{	// has 1 non-empty fixed huffman block but corrupt size
+	gzipTest{ // has 1 non-empty fixed huffman block but corrupt size
 		"hello.txt",
 		"hello.txt + corrupt size",
 		"hello world\n",
@@ -280,24 +280,24 @@ var gzipTests = []gzipTest{
 }
 
 func TestInflater(t *testing.T) {
-	b := new(bytes.Buffer);
+	b := new(bytes.Buffer)
 	for _, tt := range gzipTests {
-		in := bytes.NewBuffer(tt.gzip);
-		gzip, err := NewInflater(in);
+		in := bytes.NewBuffer(tt.gzip)
+		gzip, err := NewInflater(in)
 		if err != nil {
-			t.Errorf("%s: NewInflater: %s", tt.name, err);
-			continue;
+			t.Errorf("%s: NewInflater: %s", tt.name, err)
+			continue
 		}
-		defer gzip.Close();
+		defer gzip.Close()
 		if tt.name != gzip.Name {
 			t.Errorf("%s: got name %s", tt.name, gzip.Name)
 		}
-		b.Reset();
-		n, err := io.Copy(b, gzip);
+		b.Reset()
+		n, err := io.Copy(b, gzip)
 		if err != tt.err {
 			t.Errorf("%s: io.Copy: %v want %v", tt.name, err, tt.err)
 		}
-		s := b.String();
+		s := b.String()
 		if s != tt.raw {
 			t.Errorf("%s: got %d-byte %q want %d-byte %q", tt.name, n, s, len(tt.raw), tt.raw)
 		}

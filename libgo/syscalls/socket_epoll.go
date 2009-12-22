@@ -20,8 +20,7 @@ type EpollEvent struct {
 };
 
 func libc_epoll_create(size int) int __asm__ ("epoll_create");
-func libc_epoll_ctl(epfd, op, fd int, event *EpollEvent) int
-  __asm__ ("epoll_ctl");
+func libc_epoll_ctl(epfd, op, fd int, event *EpollEvent) int __asm__ ("epoll_ctl");
 func libc_epoll_wait(epfd int, events *EpollEvent, maxevents int,
                      timeout int) int __asm__ ("epoll_wait");
 

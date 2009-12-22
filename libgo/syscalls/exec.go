@@ -108,9 +108,7 @@ func SetNonblock(fd int, nonblocking bool) (errno int) {
 // In the child, this function must not acquire any locks, because
 // they might have been locked at the time of the fork.  This means
 // no rescheduling, no malloc calls, and no new stack segments.
-func forkAndExecInChild(argv0 *byte, argv []*byte, envv []*byte, traceme bool, dir *byte, fd []int, pipe int)
-	(pid int, err int)
-{
+func forkAndExecInChild(argv0 *byte, argv []*byte, envv []*byte, traceme bool, dir *byte, fd []int, pipe int) (pid int, err int) {
 	// Declare all variables at top in case any
 	// declarations require heap allocation (e.g., err1).
 	var r1, r2, err1 uintptr;
@@ -224,9 +222,7 @@ childerror:
 	panic("unreached");
 }
 
-func forkExec(argv0 string, argv []string, envv []string, traceme bool, dir string, fd []int)
-	(pid int, err int)
-{
+func forkExec(argv0 string, argv []string, envv []string, traceme bool, dir string, fd []int) (pid int, err int) {
 	var p [2]int;
 	var r1 int;
 	var err1 uintptr;
@@ -305,16 +301,12 @@ func forkExec(argv0 string, argv []string, envv []string, traceme bool, dir stri
 }
 
 // Combination of fork and exec, careful to be thread safe.
-func ForkExec(argv0 string, argv []string, envv []string, dir string, fd []int)
-	(pid int, err int)
-{
+func ForkExec(argv0 string, argv []string, envv []string, dir string, fd []int) (pid int, err int) {
 	return forkExec(argv0, argv, envv, false, dir, fd);
 }
 
 // PtraceForkExec is like ForkExec, but starts the child in a traced state.
-func PtraceForkExec(argv0 string, argv []string, envv []string, dir string, fd []int)
-	(pid int, err int)
-{
+func PtraceForkExec(argv0 string, argv []string, envv []string, dir string, fd []int) (pid int, err int) {
 	return forkExec(argv0, argv, envv, true, dir, fd);
 }
 

@@ -5,9 +5,9 @@
 package math_test
 
 import (
-	"fmt";
-	. "math";
-	"testing";
+	"fmt"
+	. "math"
+	"testing"
 )
 
 var vf = []float64{
@@ -154,24 +154,157 @@ var tanh = []float64{
 	9.4936501296239700e-01,
 	-9.9999994291374019e-01,
 }
+var vfsin = []float64{
+	NaN(),
+	Inf(-1),
+	0,
+	Inf(1),
+}
+var vfasin = []float64{
+	NaN(),
+	-Pi,
+	0,
+	Pi,
+}
+var vf1 = []float64{
+	NaN(),
+	Inf(-1),
+	-Pi,
+	-1,
+	0,
+	1,
+	Pi,
+	Inf(1),
+}
+var vfhypot = [][2]float64{
+	[2]float64{Inf(-1), 1},
+	[2]float64{Inf(1), 1},
+	[2]float64{1, Inf(-1)},
+	[2]float64{1, Inf(1)},
+	[2]float64{NaN(), Inf(-1)},
+	[2]float64{NaN(), Inf(1)},
+	[2]float64{1, NaN()},
+	[2]float64{NaN(), 1},
+}
+var vf2 = [][2]float64{
+	[2]float64{-Pi, Pi},
+	[2]float64{-Pi, -Pi},
+	[2]float64{Inf(-1), 3},
+	[2]float64{Inf(-1), Pi},
+	[2]float64{Inf(-1), -3},
+	[2]float64{Inf(-1), -Pi},
+	[2]float64{Inf(1), Pi},
+	[2]float64{0, -Pi},
+	[2]float64{Inf(1), -Pi},
+	[2]float64{0, Pi},
+	[2]float64{-1, Inf(-1)},
+	[2]float64{-1, Inf(1)},
+	[2]float64{1, Inf(-1)},
+	[2]float64{1, Inf(1)},
+	[2]float64{-1 / 2, Inf(1)},
+	[2]float64{1 / 2, Inf(1)},
+	[2]float64{-Pi, Inf(-1)},
+	[2]float64{Pi, Inf(-1)},
+	[2]float64{-1 / 2, Inf(-1)},
+	[2]float64{1 / 2, Inf(-1)},
+	[2]float64{-Pi, Inf(1)},
+	[2]float64{Pi, Inf(1)},
+	[2]float64{NaN(), -Pi},
+	[2]float64{NaN(), Pi},
+	[2]float64{Inf(-1), NaN()},
+	[2]float64{-Pi, NaN()},
+	[2]float64{0, NaN()},
+	[2]float64{Pi, NaN()},
+	[2]float64{Inf(1), NaN()},
+	[2]float64{NaN(), NaN()},
+	[2]float64{Inf(-1), 1},
+	[2]float64{-Pi, 1},
+	[2]float64{0, 1},
+	[2]float64{Pi, 1},
+	[2]float64{Inf(1), 1},
+	[2]float64{NaN(), 1},
+	[2]float64{Inf(-1), 0},
+	[2]float64{-Pi, 0},
+	[2]float64{0, 0},
+	[2]float64{Pi, 0},
+	[2]float64{Inf(1), 0},
+	[2]float64{NaN(), 0},
+}
+var pow2 = []float64{
+	NaN(),
+	NaN(),
+	Inf(-1),
+	Inf(1),
+	0,
+	0,
+	Inf(1),
+	Inf(1),
+	0,
+	0,
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+	0,
+	0,
+	0,
+	0,
+	Inf(1),
+	Inf(1),
+	Inf(1),
+	Inf(1),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+	NaN(),
+	Inf(-1),
+	-Pi,
+	0,
+	Pi,
+	Inf(1),
+	NaN(),
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+}
 
 func tolerance(a, b, e float64) bool {
-	d := a - b;
+	d := a - b
 	if d < 0 {
 		d = -d
 	}
 
 	if a != 0 {
-		e = e * a;
+		e = e * a
 		if e < 0 {
 			e = -e
 		}
 	}
-	return d < e;
+	return d < e
 }
-func kindaclose(a, b float64) bool	{ return tolerance(a, b, 1e-8) }
-func close(a, b float64) bool		{ return tolerance(a, b, 1e-14) }
-func veryclose(a, b float64) bool	{ return tolerance(a, b, 4e-16) }
+func kindaclose(a, b float64) bool { return tolerance(a, b, 1e-8) }
+func close(a, b float64) bool      { return tolerance(a, b, 1e-14) }
+func veryclose(a, b float64) bool  { return tolerance(a, b, 4e-16) }
+func alike(a, b float64) bool {
+	switch {
+	case IsNaN(a) && IsNaN(b):
+		return true
+	case IsInf(a, 1) && IsInf(b, 1):
+		return true
+	case IsInf(a, -1) && IsInf(b, -1):
+		return true
+	case a == b:
+		return true
+	}
+	return false
+}
 
 func TestAsin(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
@@ -207,7 +340,7 @@ func TestFloor(t *testing.T) {
 
 func TestLog(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(vf[i]);
+		a := Fabs(vf[i])
 		if f := Log(a); log[i] != f {
 			t.Errorf("Log(%g) = %g, want %g\n", a, f, log[i])
 		}
@@ -221,6 +354,11 @@ func TestPow(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
 		if f := Pow(10, vf[i]); !close(pow[i], f) {
 			t.Errorf("Pow(10, %.17g) = %.17g, want %.17g\n", vf[i], f, pow[i])
+		}
+	}
+	for i := 0; i < len(vf2); i++ {
+		if f := Pow(vf2[i][0], vf2[i][1]); !alike(pow2[i], f) {
+			t.Errorf("Pow(%.17g, %.17g) = %.17g, want %.17g\n", vf2[i][0], vf2[i][1], f, pow2[i])
 		}
 	}
 }
@@ -243,7 +381,7 @@ func TestSinh(t *testing.T) {
 
 func TestSqrt(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(vf[i]);
+		a := Fabs(vf[i])
 		if f := Sqrt(a); !veryclose(sqrt[i], f) {
 			t.Errorf("Sqrt(%g) = %g, want %g\n", a, f, floor[i])
 		}
@@ -268,7 +406,7 @@ func TestTanh(t *testing.T) {
 
 func TestHypot(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
-		a := Fabs(tanh[i] * Sqrt(2));
+		a := Fabs(tanh[i] * Sqrt(2))
 		if f := Hypot(tanh[i], tanh[i]); !veryclose(a, f) {
 			t.Errorf("Hypot(%g, %g) = %g, want %g\n", tanh[i], tanh[i], f, a)
 		}
@@ -278,10 +416,10 @@ func TestHypot(t *testing.T) {
 // Check that math functions of high angle values
 // return similar results to low angle values
 func TestLargeSin(t *testing.T) {
-	large := float64(100000 * Pi);
+	large := float64(100000 * Pi)
 	for i := 0; i < len(vf); i++ {
-		f1 := Sin(vf[i]);
-		f2 := Sin(vf[i] + large);
+		f1 := Sin(vf[i])
+		f2 := Sin(vf[i] + large)
 		if !kindaclose(f1, f2) {
 			t.Errorf("Sin(%g) = %g, want %g\n", vf[i]+large, f1, f2)
 		}
@@ -289,10 +427,10 @@ func TestLargeSin(t *testing.T) {
 }
 
 func TestLargeCos(t *testing.T) {
-	large := float64(100000 * Pi);
+	large := float64(100000 * Pi)
 	for i := 0; i < len(vf); i++ {
-		f1 := Cos(vf[i]);
-		f2 := Cos(vf[i] + large);
+		f1 := Cos(vf[i])
+		f2 := Cos(vf[i] + large)
 		if !kindaclose(f1, f2) {
 			t.Errorf("Cos(%g) = %g, want %g\n", vf[i]+large, f1, f2)
 		}
@@ -301,10 +439,10 @@ func TestLargeCos(t *testing.T) {
 
 
 func TestLargeTan(t *testing.T) {
-	large := float64(100000 * Pi);
+	large := float64(100000 * Pi)
 	for i := 0; i < len(vf); i++ {
-		f1 := Tan(vf[i]);
-		f2 := Tan(vf[i] + large);
+		f1 := Tan(vf[i])
+		f2 := Tan(vf[i] + large)
 		if !kindaclose(f1, f2) {
 			t.Errorf("Tan(%g) = %g, want %g\n", vf[i]+large, f1, f2)
 		}
@@ -316,9 +454,9 @@ func TestLargeTan(t *testing.T) {
 // http://code.google.com/p/go/issues/detail?id=201
 
 type floatTest struct {
-	val	interface{};
-	name	string;
-	str	string;
+	val  interface{}
+	name string
+	str  string
 }
 
 var floatTests = []floatTest{
@@ -330,9 +468,23 @@ var floatTests = []floatTest{
 
 func TestFloatMinMax(t *testing.T) {
 	for _, tt := range floatTests {
-		s := fmt.Sprint(tt.val);
+		s := fmt.Sprint(tt.val)
 		if s != tt.str {
 			t.Errorf("Sprint(%v) = %s, want %s", tt.name, s, tt.str)
 		}
+	}
+}
+
+// Benchmarks
+
+func BenchmarkPowInt(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Pow(2, 2)
+	}
+}
+
+func BenchmarkPowFrac(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Pow(2.5, 1.5)
 	}
 }

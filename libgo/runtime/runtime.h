@@ -4,11 +4,18 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
+#define _GNU_SOURCE
+#include <signal.h>
 #include <stdio.h>
+#include <string.h>
 #include <pthread.h>
 #include <sys/mman.h>
 
+#include "go-alloc.h"
 #include "go-panic.h"
+#include "go-string.h"
+
+typedef struct __go_string *String;
 
 /* This file supports C files copied from the 6g runtime library.
    This is a version of the 6g runtime.h rewritten for gccgo's version
@@ -26,11 +33,11 @@ typedef float        float32 __attribute__ ((mode (SF)));
 typedef double       float64 __attribute__ ((mode (DF)));
 typedef unsigned int uintptr __attribute__ ((mode (pointer)));
 
-/* Copying the 6g runtime.h, remove the C types.  */
+/* Copying the 6g runtime.h, remove the C types.  We leave char,
+   though, since we need it to call some library routines.  */
 
 #define	unsigned		XXunsigned / / /
 #define	signed			XXsigned / / /
-#define	char			XXchar / / /
 #define	short			XXshort / / /
 #define	int			XXint / / /
 #define	long			XXlong / / /
@@ -48,6 +55,14 @@ typedef	struct	MCache		MCache;
    someday we will do that too.  */
 
 typedef pthread_mutex_t		Lock;
+
+/* A Note.  */
+
+typedef	struct	Note		Note;
+
+struct Note {
+	int32 woken;
+};
 
 /* Per CPU declarations.  */
 
@@ -83,9 +98,27 @@ struct	M
 #define unlock(p) \
   (pthread_mutex_unlock(p) == 0 || (__go_panic ("unlock failed"), 0))
 
+void	siginit(void);
+bool	sigsend(int32 sig);
+
+/*
+ * sleep and wakeup on one-time events.
+ * before any calls to notesleep or notewakeup,
+ * must call noteclear to initialize the Note.
+ * then, any number of threads can call notesleep
+ * and exactly one thread can call notewakeup (once).
+ * once notewakeup has been called, all the notesleeps
+ * will return.  future notesleeps will return immediately.
+ */
+void	noteclear(Note*);
+void	notesleep(Note*);
+void	notewakeup(Note*);
+
 /* Functions.  */
 #define sys_memclr(buf, size) __builtin_memset(buf, 0, size)
 #define sys_mmap mmap
 MCache*	allocmcache(void);
 void*	mallocgc(uintptr size);
 void	free(void *v);
+
+#define cas(pval, old, new) __sync_bool_compare_and_swap (pval, old, new)

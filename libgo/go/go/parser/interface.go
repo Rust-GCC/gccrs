@@ -7,15 +7,15 @@
 package parser
 
 import (
-	"bytes";
-	"fmt";
-	"go/ast";
-	"go/scanner";
-	"io";
-	"io/ioutil";
-	"os";
-	pathutil "path";
-	"strings";
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/scanner"
+	"io"
+	"io/ioutil"
+	"os"
+	pathutil "path"
+	"strings"
 )
 
 
@@ -36,18 +36,18 @@ func readSource(filename string, src interface{}) ([]byte, os.Error) {
 				return s.Bytes(), nil
 			}
 		case io.Reader:
-			var buf bytes.Buffer;
-			_, err := io.Copy(&buf, s);
+			var buf bytes.Buffer
+			_, err := io.Copy(&buf, s)
 			if err != nil {
 				return nil, err
 			}
-			return buf.Bytes(), nil;
+			return buf.Bytes(), nil
 		default:
 			return nil, os.ErrorString("invalid source")
 		}
 	}
 
-	return ioutil.ReadFile(filename);
+	return ioutil.ReadFile(filename)
 }
 
 
@@ -57,14 +57,14 @@ func readSource(filename string, src interface{}) ([]byte, os.Error) {
 // may be nil or contain a partial AST.
 //
 func ParseExpr(filename string, src interface{}) (ast.Expr, os.Error) {
-	data, err := readSource(filename, src);
+	data, err := readSource(filename, src)
 	if err != nil {
 		return nil, err
 	}
 
-	var p parser;
-	p.init(filename, data, 0);
-	return p.parseExpr(), p.GetError(scanner.Sorted);
+	var p parser
+	p.init(filename, data, 0)
+	return p.parseExpr(), p.GetError(scanner.Sorted)
 }
 
 
@@ -74,14 +74,14 @@ func ParseExpr(filename string, src interface{}) (ast.Expr, os.Error) {
 // list may be nil or contain partial ASTs.
 //
 func ParseStmtList(filename string, src interface{}) ([]ast.Stmt, os.Error) {
-	data, err := readSource(filename, src);
+	data, err := readSource(filename, src)
 	if err != nil {
 		return nil, err
 	}
 
-	var p parser;
-	p.init(filename, data, 0);
-	return p.parseStmtList(), p.GetError(scanner.Sorted);
+	var p parser
+	p.init(filename, data, 0)
+	return p.parseStmtList(), p.GetError(scanner.Sorted)
 }
 
 
@@ -91,14 +91,14 @@ func ParseStmtList(filename string, src interface{}) ([]ast.Stmt, os.Error) {
 // list may be nil or contain partial ASTs.
 //
 func ParseDeclList(filename string, src interface{}) ([]ast.Decl, os.Error) {
-	data, err := readSource(filename, src);
+	data, err := readSource(filename, src)
 	if err != nil {
 		return nil, err
 	}
 
-	var p parser;
-	p.init(filename, data, 0);
-	return p.parseDeclList(), p.GetError(scanner.Sorted);
+	var p parser
+	p.init(filename, data, 0)
+	return p.parseDeclList(), p.GetError(scanner.Sorted)
 }
 
 
@@ -121,41 +121,42 @@ func ParseDeclList(filename string, src interface{}) ([]ast.Decl, os.Error) {
 // are returned via a scanner.ErrorList which is sorted by file position.
 //
 func ParseFile(filename string, src interface{}, mode uint) (*ast.File, os.Error) {
-	data, err := readSource(filename, src);
+	data, err := readSource(filename, src)
 	if err != nil {
 		return nil, err
 	}
 
-	var p parser;
-	p.init(filename, data, mode);
-	return p.parseFile(), p.GetError(scanner.NoMultiples);
+	var p parser
+	p.init(filename, data, mode)
+	return p.parseFile(), p.GetError(scanner.NoMultiples)
 }
 
 
 // ParsePkgFile parses the file specified by filename and returns the
 // corresponding AST. If the file cannot be read, has syntax errors, or
 // does not belong to the package (i.e., pkgname != "" and the package
-// name in the file doesn't match pkkname), an error is returned. Mode
-// flags that control the amount of source text parsed are ignored.
+// name in the file doesn't match pkkname), an error is returned.
 //
 func ParsePkgFile(pkgname, filename string, mode uint) (*ast.File, os.Error) {
-	src, err := ioutil.ReadFile(filename);
+	src, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
 
 	if pkgname != "" {
-		prog, err := ParseFile(filename, src, PackageClauseOnly);
+		prog, err := ParseFile(filename, src, PackageClauseOnly)
 		if err != nil {
 			return nil, err
 		}
 		if prog.Name.Value != pkgname {
 			return nil, os.NewError(fmt.Sprintf("multiple packages found: %s, %s", prog.Name.Value, pkgname))
 		}
+		if mode == PackageClauseOnly {
+			return prog, nil
+		}
 	}
 
-	// ignore flags that control partial parsing
-	return ParseFile(filename, src, mode&^(PackageClauseOnly|ImportsOnly));
+	return ParseFile(filename, src, mode)
 }
 
 
@@ -164,30 +165,29 @@ func ParsePkgFile(pkgname, filename string, mode uint) (*ast.File, os.Error) {
 // restricted by providing a non-nil filter function; only the files with
 // os.Dir entries passing through the filter are considered.
 // If ParsePackage does not find exactly one package, it returns an error.
-// Mode flags that control the amount of source text parsed are ignored.
 //
 func ParsePackage(path string, filter func(*os.Dir) bool, mode uint) (*ast.Package, os.Error) {
-	fd, err := os.Open(path, os.O_RDONLY, 0);
+	fd, err := os.Open(path, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}
-	defer fd.Close();
+	defer fd.Close()
 
-	list, err := fd.Readdir(-1);
+	list, err := fd.Readdir(-1)
 	if err != nil {
 		return nil, err
 	}
 
-	name := "";
-	files := make(map[string]*ast.File);
+	name := ""
+	files := make(map[string]*ast.File)
 	for i := 0; i < len(list); i++ {
-		entry := &list[i];
+		entry := &list[i]
 		if filter == nil || filter(entry) {
-			src, err := ParsePkgFile(name, pathutil.Join(path, entry.Name), mode);
+			src, err := ParsePkgFile(name, pathutil.Join(path, entry.Name), mode)
 			if err != nil {
 				return nil, err
 			}
-			files[entry.Name] = src;
+			files[entry.Name] = src
 			if name == "" {
 				name = src.Name.Value
 			}
@@ -198,5 +198,5 @@ func ParsePackage(path string, filter func(*os.Dir) bool, mode uint) (*ast.Packa
 		return nil, os.NewError(path + ": no package found")
 	}
 
-	return &ast.Package{name, path, files}, nil;
+	return &ast.Package{name, path, files}, nil
 }

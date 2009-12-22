@@ -43,7 +43,7 @@ hg clone ${repository} ${NEWDIR}
 new_rev=`cd ${NEWDIR} && hg log | sed 1q | sed -e 's/.*://'`
 
 (cd ${NEWDIR}/src/pkg && find . -name '*.go' -print) | while read f; do
-  if test `dirname $f` == "./syscall"; then
+  if test `dirname $f` = "./syscall"; then
     continue
   fi
   oldfile=${OLDDIR}/src/pkg/$f

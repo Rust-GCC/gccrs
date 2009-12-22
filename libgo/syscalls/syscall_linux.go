@@ -10,8 +10,7 @@ import (
 	"unsafe";
 )
 
-func libc_ptrace(request int, pid Pid_t, addr uintptr, data *byte) _C_long
-	__asm__ ("ptrace")
+func libc_ptrace(request int, pid Pid_t, addr uintptr, data *byte) _C_long __asm__ ("ptrace")
 
 var dummy *byte
 const sizeofPtr uintptr = uintptr(unsafe.Sizeof(dummy))
