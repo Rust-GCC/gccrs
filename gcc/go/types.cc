@@ -5164,7 +5164,14 @@ Named_type::add_embedded_methods_for_type(
 	  is_pointer = true;
 	}
       Named_type* fntype = ftype->named_type();
-      gcc_assert(fntype != NULL);
+      if (fntype == NULL)
+	{
+	  Forward_declaration_type *fdtype = ftype->forward_declaration_type();
+	  gcc_assert(fdtype != NULL);
+	  Type* t = fdtype->real_type();
+	  gcc_assert(t->is_error_type());
+	  continue;
+	}
 
       Method::Field_indexes* sub_field_indexes = new Method::Field_indexes();
       sub_field_indexes->next = field_indexes;
