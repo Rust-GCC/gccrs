@@ -130,9 +130,9 @@ GO_SYSTEM_H = go/go-system.h $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
 	toplev.h input.h
 
 GO_C_H = go/go-c.h $(MACHMODE_H)
-GO_LEX_H = go/lex.h double-int.h $(REAL_H) go/operator.h
+GO_LEX_H = go/lex.h go/operator.h
 GO_PARSE_H = go/parse.h
-GO_GOGO_H = go/gogo.h $(GO_LEX_H)
+GO_GOGO_H = go/gogo.h
 GO_TYPES_H = go/types.h
 GO_STATEMENTS_H = go/statements.h go/operator.h
 GO_EXPRESSIONS_H = go/expressions.h go/operator.h
