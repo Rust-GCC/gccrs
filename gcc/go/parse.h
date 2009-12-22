@@ -20,7 +20,7 @@ class Function_type;
 class Block;
 class Expression;
 class Expression_list;
-class Call_expression;
+class Struct_field_list;
 class Case_clauses;
 class Type_case_clauses;
 class Select_clauses;
@@ -165,7 +165,7 @@ class Parse
   Type* array_type(bool may_use_ellipsis, bool* needs_trailing_semicolon);
   Type* map_type(bool* needs_trailing_semicolon);
   Type* struct_type();
-  bool field_decl(void*);
+  void field_decl(Struct_field_list*);
   Type* pointer_type(bool* needs_trailing_semicolon);
   Type* channel_type(bool* needs_trailing_semicolon);
   Function_type* signature(Typed_identifier*, source_location,
@@ -177,12 +177,11 @@ class Parse
   source_location block();
   Type* interface_type();
   bool method_spec(Typed_identifier_list*);
-  bool declaration();
+  void declaration();
   bool declaration_may_start_here();
   bool decl(bool (Parse::*)(void*), void*);
   void list(bool (Parse::*)(void*), void*, bool);
-  bool const_decl();
-  void const_spec_list(Type**, Expression_list**);
+  void const_decl();
   void const_spec(Type**, Expression_list**);
   bool type_decl();
   bool type_spec(void*);
@@ -224,8 +223,9 @@ class Parse
 			 bool* is_type_switch);
   Expression* qualified_expr(Expression*, source_location);
   Expression* id_to_expression(const std::string&, source_location);
-  bool statement(const Label*, const Label**);
+  void statement(const Label*);
   bool statement_may_start_here();
+  void labeled_stmt(const std::string&, source_location);
   Expression* simple_stat(bool, bool, Range_clause*, Type_switch*);
   bool simple_stat_may_start_here();
   void statement_list();
@@ -272,6 +272,11 @@ class Parse
 
   void
   error(const char* msg);
+
+  // Skip past an error looking for a semicolon or OP.  Return true if
+  // all is well, false if we found EOF.
+  bool
+  skip_past_error(Operator op);
 
   // Verify that an expression is not a sink, and return either the
   // expression or an error.

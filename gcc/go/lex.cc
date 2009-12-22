@@ -431,7 +431,8 @@ Token::print(FILE* file) const
 
 Lex::Lex(const char* input_file_name, FILE* input_file)
   : input_file_name_(input_file_name), input_file_(input_file),
-    linebuf_(NULL), linebufsize_(120), linesize_(0), lineno_(0)
+    linebuf_(NULL), linebufsize_(120), linesize_(0), lineno_(0),
+    add_semi_at_eol_(false)
 {
   this->linebuf_ = new char[this->linebufsize_];
   linemap_add(line_table, LC_ENTER, 0, input_file_name, 1);
@@ -548,16 +549,33 @@ Lex::next_token()
 	  unsigned char cc = *p;
 	  switch (cc)
 	    {
-	    case ' ': case '\t': case '\n': case '\r':
+	    case ' ': case '\t': case '\r':
 	      ++p;
 	      // Skip whitespace quickly.
-	      while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+	      while (*p == ' ' || *p == '\t' || *p == '\r')
 		++p;
+	      break;
+
+	    case '\n':
+	      {
+		++p;
+		bool add_semi_at_eol = this->add_semi_at_eol_;
+		this->add_semi_at_eol_ = false;
+		if (add_semi_at_eol)
+		  {
+		    this->lineoff_ = p - this->linebuf_;
+		    return this->make_operator(OPERATOR_SEMICOLON, 1);
+		  }
+	      }
 	      break;
 
 	    case '/':
 	      if (p[1] == '/')
-		p = pend;
+		{
+		  p = pend;
+		  if (p[-1] == '\n' && this->add_semi_at_eol_)
+		    --p;
+		}
 	      else if (p[1] == '*')
 		{
 		  this->lineoff_ = p - this->linebuf_;
@@ -569,11 +587,13 @@ Lex::next_token()
 		}
 	      else if (p[1] == '=')
 		{
+		  this->add_semi_at_eol_ = false;
 		  this->lineoff_ = p + 2 - this->linebuf_;
 		  return this->make_operator(OPERATOR_DIVEQ, 2);
 		}
 	      else
 		{
+		  this->add_semi_at_eol_ = false;
 		  this->lineoff_ = p + 1 - this->linebuf_;
 		  return this->make_operator(OPERATOR_DIV, 1);
 		}
@@ -595,18 +615,22 @@ Lex::next_token()
 
 	    case '0': case '1': case '2': case '3': case '4':
 	    case '5': case '6': case '7': case '8': case '9':
+	      this->add_semi_at_eol_ = true;
 	      this->lineoff_ = p - this->linebuf_;
 	      return this->gather_number();
 
 	    case '\'':
+	      this->add_semi_at_eol_ = true;
 	      this->lineoff_ = p - this->linebuf_;
 	      return this->gather_character();
 
 	    case '"':
+	      this->add_semi_at_eol_ = true;
 	      this->lineoff_ = p - this->linebuf_;
 	      return this->gather_string();
 
 	    case '`':
+	      this->add_semi_at_eol_ = true;
 	      this->lineoff_ = p - this->linebuf_;
 	      return this->gather_raw_string();
 
@@ -615,6 +639,7 @@ Lex::next_token()
 	    case '&':
 	      if (p + 2 < pend)
 		{
+		  this->add_semi_at_eol_ = false;
 		  Operator op = this->three_character_operator(cc, p[1], p[2]);
 		  if (op != OPERATOR_INVALID)
 		    {
@@ -639,6 +664,7 @@ Lex::next_token()
 	    case '{': case '}':
 	    case '[': case ']':
 	      {
+		this->add_semi_at_eol_ = false;
 		Operator op = this->two_character_operator(cc, p[1]);
 		int chars;
 		if (op != OPERATOR_INVALID)
@@ -658,14 +684,17 @@ Lex::next_token()
 	    case '.':
 	      if (p[1] >= '0' && p[1] <= '9')
 		{
+		  this->add_semi_at_eol_ = true;
 		  this->lineoff_ = p - this->linebuf_;
 		  return this->gather_number();
 		}
 	      if (p[1] == '.' && p[2] == '.')
 		{
+		  this->add_semi_at_eol_ = false;
 		  this->lineoff_ = p + 3 - this->linebuf_;
 		  return this->make_operator(OPERATOR_ELLIPSIS, 3);
 		}
+	      this->add_semi_at_eol_ = false;
 	      this->lineoff_ = p + 1 - this->linebuf_;
 	      return this->make_operator(OPERATOR_DOT, 1);
 
@@ -832,17 +861,31 @@ Lex::gather_identifier()
 	}
     }
   source_location location = this->location();
+  this->add_semi_at_eol_ = true;
   this->lineoff_ = p - this->linebuf_;
   if (has_non_ascii_char)
     return Token::make_identifier_token(buf, is_exported, location);
   else
     {
       Keyword code = keywords.keyword_to_code(pstart, p - pstart);
-      if (code != KEYWORD_INVALID)
-	return Token::make_keyword_token(code, location);
-      else
+      if (code == KEYWORD_INVALID)
 	return Token::make_identifier_token(std::string(pstart, p - pstart),
 					    is_exported, location);
+      else
+	{
+	  switch (code)
+	    {
+	    case KEYWORD_BREAK:
+	    case KEYWORD_CONTINUE:
+	    case KEYWORD_FALLTHROUGH:
+	    case KEYWORD_RETURN:
+	      break;
+	    default:
+	      this->add_semi_at_eol_ = false;
+	      break;
+	    }
+	  return Token::make_keyword_token(code, location);
+	}
     }
 }
 
@@ -1342,13 +1385,19 @@ Lex::two_character_operator(char c1, char c2)
       break;
     case '+':
       if (c2 == '+')
-	return OPERATOR_PLUSPLUS;
+	{
+	  this->add_semi_at_eol_ = true;
+	  return OPERATOR_PLUSPLUS;
+	}
       else if (c2 == '=')
 	return OPERATOR_PLUSEQ;
       break;
     case '-':
       if (c2 == '-')
-	return OPERATOR_MINUSMINUS;
+	{
+	  this->add_semi_at_eol_ = true;
+	  return OPERATOR_MINUSMINUS;
+	}
       else if (c2 == '=')
 	return OPERATOR_MINUSEQ;
       break;
@@ -1404,14 +1453,17 @@ Lex::one_character_operator(char c)
     case '(':
       return OPERATOR_LPAREN;
     case ')':
+      this->add_semi_at_eol_ = true;
       return OPERATOR_RPAREN;
     case '{':
       return OPERATOR_LCURLY;
     case '}':
+      this->add_semi_at_eol_ = true;
       return OPERATOR_RCURLY;
     case '[':
       return OPERATOR_LSQUARE;
     case ']':
+      this->add_semi_at_eol_ = true;
       return OPERATOR_RSQUARE;
     default:
       return OPERATOR_INVALID;

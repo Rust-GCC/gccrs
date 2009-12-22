@@ -416,6 +416,8 @@ class Lex
   size_t lineoff_;
   // The current line number.
   size_t lineno_;
+  // Whether to add a semicolon if we see a newline now.
+  bool add_semi_at_eol_;
 };
 
 #endif // !defined(GO_LEX_H)

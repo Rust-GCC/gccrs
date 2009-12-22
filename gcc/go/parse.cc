@@ -451,7 +451,7 @@ Parse::map_type(bool* needs_trailing_semicolon)
   return Type::make_map_type(key_type, value_type, location);
 }
 
-// StructType = "struct" [ "{" [ List<FieldDecl> ] "}" ] .
+// StructType     = "struct" "{" { FieldDecl ";" } "}" .
 
 Type*
 Parse::struct_type()
@@ -466,17 +466,16 @@ Parse::struct_type()
   this->advance_token();
 
   Struct_field_list* sfl = new Struct_field_list;
-  if (!this->peek_token()->is_op(OPERATOR_RCURLY))
+  while (!this->peek_token()->is_op(OPERATOR_RCURLY))
     {
-      this->list(&Parse::field_decl, static_cast<void*>(sfl), false);
-      if (!this->peek_token()->is_op(OPERATOR_RCURLY))
+      this->field_decl(sfl);
+      if (this->peek_token()->is_op(OPERATOR_SEMICOLON))
+	this->advance_token();
+      else if (!this->peek_token()->is_op(OPERATOR_RCURLY))
 	{
-	  this->error("missing %<}%>");
-	  while (!this->advance_token()->is_op(OPERATOR_RCURLY))
-	    {
-	      if (this->peek_token()->is_eof())
-		return Type::make_error_type();
-	    }
+	  this->error("expected %<;%> or %<}%> or newline");
+	  if (!this->skip_past_error(OPERATOR_RCURLY))
+	    return Type::make_error_type();
 	}
     }
   this->advance_token();
@@ -507,10 +506,9 @@ Parse::struct_type()
 // FieldDecl = (IdentifierList CompleteType | TypeName) [ Tag ] .
 // Tag = string_lit .
 
-bool
-Parse::field_decl(void* sfl_arg)
+void
+Parse::field_decl(Struct_field_list* sfl)
 {
-  Struct_field_list* sfl = static_cast<Struct_field_list*>(sfl_arg);
   const Token* token = this->peek_token();
   source_location location = token->location();
   bool is_anonymous;
@@ -540,7 +538,7 @@ Parse::field_decl(void* sfl_arg)
 	     && !token->is_op(OPERATOR_RCURLY)
 	     && !token->is_eof())
 	token = this->advance_token();
-      return false;
+      return;
     }
 
   if (is_anonymous)
@@ -564,7 +562,7 @@ Parse::field_decl(void* sfl_arg)
 	  if (!token->is_identifier())
 	    {
 	      this->error("expected identifier");
-	      return false;
+	      return;
 	    }
 	  std::string name =
 	    this->gogo_->pack_hidden_name(token->identifier(),
@@ -595,8 +593,6 @@ Parse::field_decl(void* sfl_arg)
 	    sfl->back().set_tag(tag);
 	}
     }
-
-  return false;
 }
 
 // PointerType = "*" Type .
@@ -1004,9 +1000,7 @@ Parse::block()
       token = this->peek_token();
       if (!token->is_op(OPERATOR_RCURLY))
 	{
-	  // We can also get here if a statement doesn't end in a
-	  // semicolon.
-	  this->error("expected %<;%> or %<}%>");
+	  this->error("expected %<}%>");
 
 	  // Skip ahead to the end of the block, in hopes of avoiding
 	  // lots of meaningless errors.
@@ -1132,30 +1126,22 @@ Parse::method_spec(Typed_identifier_list* methods)
 
 // Declaration = ConstDecl | TypeDecl | VarDecl | FunctionDecl | MethodDecl .
 
-// This returns true if a semicolon is required before the next
-// statement in a StatementList.  It returns false if a semicolon may
-// be omitted.
-
-bool
+void
 Parse::declaration()
 {
   const Token* token = this->peek_token();
   if (token->is_keyword(KEYWORD_CONST))
-    return this->const_decl();
+    this->const_decl();
   else if (token->is_keyword(KEYWORD_TYPE))
-    return this->type_decl();
+    this->type_decl();
   else if (token->is_keyword(KEYWORD_VAR))
-    return this->var_decl();
+    this->var_decl();
   else if (token->is_keyword(KEYWORD_FUNC))
-    {
-      this->function_decl();
-      return false;
-    }
+    this->function_decl();
   else
     {
       this->error("expected declaration");
       this->advance_token();
-      return false;
     }
 }
 
@@ -1218,12 +1204,9 @@ Parse::list(bool (Parse::*pfn)(void*), void* varg, bool follow_is_paren)
     }
 }
 
-// ConstDecl = "const" ( ConstSpec | "(" [ ConstSpecList ] ")" ) .
+// ConstDecl      = "const" ( ConstSpec | "(" { ConstSpec ";" } ")" ) .
 
-// Returns true if a trailing semicolon is required before the next
-// statement in a StatementList.
-
-bool
+void
 Parse::const_decl()
 {
   gcc_assert(this->peek_token()->is_keyword(KEYWORD_CONST));
@@ -1233,49 +1216,28 @@ Parse::const_decl()
   Type* last_type = NULL;
   Expression_list* last_expr_list = NULL;
 
-  bool ret;
   if (!this->peek_token()->is_op(OPERATOR_LPAREN))
-    {
-      this->const_spec(&last_type, &last_expr_list);
-      ret = true;
-    }
+    this->const_spec(&last_type, &last_expr_list);
   else
     {
-      if (!this->advance_token()->is_op(OPERATOR_RPAREN))
+      this->advance_token();
+      while (!this->peek_token()->is_op(OPERATOR_RPAREN))
 	{
-	  this->const_spec_list(&last_type, &last_expr_list);
-	  if (!this->peek_token()->is_op(OPERATOR_RPAREN))
+	  this->const_spec(&last_type, &last_expr_list);
+	  if (this->peek_token()->is_op(OPERATOR_SEMICOLON))
+	    this->advance_token();
+	  else if (!this->peek_token()->is_op(OPERATOR_RPAREN))
 	    {
-	      this->error("missing %<)%>");
-	      while (!this->advance_token()->is_op(OPERATOR_RPAREN))
-		{
-		  if (this->peek_token()->is_eof())
-		    return false;
-		}
+	      this->error("expected %<;%> or %<)%> or newline");
+	      if (!this->skip_past_error(OPERATOR_RPAREN))
+		return;
 	    }
 	}
       this->advance_token();
-      ret = false;
     }
 
   if (last_expr_list != NULL)
     delete last_expr_list;
-
-  return ret;
-}
-
-// ConstSpecList  = ConstSpec { ";" ConstSpec } [ ";" ] .
-
-void
-Parse::const_spec_list(Type** last_type, Expression_list** last_expr_list)
-{
-  this->const_spec(last_type, last_expr_list);
-  while (this->peek_token()->is_op(OPERATOR_SEMICOLON))
-    {
-      if (this->advance_token()->is_op(OPERATOR_RPAREN))
-	break;
-      this->const_spec(last_type, last_expr_list);
-    }
 }
 
 // ConstSpec = IdentifierList [ [ CompleteType ] "=" ExpressionList ] .
@@ -2155,14 +2117,9 @@ Parse::operand(bool may_be_sink)
       gcc_unreachable();
 
     case Token::TOKEN_STRING:
-      {
-	std::string val = token->string_value();
-	source_location location = token->location();
-	// Implement concatenation of adjacent string literals.
-	while (this->advance_token()->is_string())
-	  val += this->peek_token()->string_value();
-	return Expression::make_string(val, location);
-      }
+      ret = Expression::make_string(token->string_value(), token->location());
+      this->advance_token();
+      return ret;
 
     case Token::TOKEN_INTEGER:
       ret = Expression::make_integer(token->integer_value(), NULL,
@@ -2865,19 +2822,16 @@ Parse::unary_expr(bool may_be_sink, bool may_be_composite_lit,
 }
 
 // Statement =
-//    Declaration | LabelDecl |
-//    SimpleStat | GoStat | ReturnStat | BreakStat | ContinueStat | GotoStat |
-//    Block | IfStat | SwitchStat | SelectStat | ForStat | DeferStat .
+//	Declaration | LabeledStmt | SimpleStmt |
+//	GoStmt | ReturnStmt | BreakStmt | ContinueStmt | GotoStmt |
+//	FallthroughStmt | Block | IfStmt | SwitchStmt | SelectStmt | ForStmt |
+//	DeferStmt .
 
-// This returns true if a semicolon is required before the next
-// statement in a StatementList.  It returns false if a semicolon may
-// be omitted.  LABEL is the label of the current statement, if any.
-// This sets *PLABEL to a label defined here.
+// LABEL is the label of this statement if it has one.
 
-bool
-Parse::statement(const Label* label, const Label** plabel)
+void
+Parse::statement(const Label* label)
 {
-  *plabel = NULL;
   const Token* token = this->peek_token();
   switch (token->classification())
     {
@@ -2888,54 +2842,49 @@ Parse::statement(const Label* label, const Label** plabel)
 	  case KEYWORD_CONST:
 	  case KEYWORD_TYPE:
 	  case KEYWORD_VAR:
-	    // FIXME: The grammar permits a function declaration as a
-	    // statement.  That means that after we see KEYWORD_FUNC
-	    // we need to distinguish between an anonymous signature
-	    // (a function literal, to be handled here by calling
-	    // simple_stat) and a named signature (a function
-	    // declaration, to be handled here by calling
-	    // declaration).
-	    return this->declaration();
+	    this->declaration();
+	    break;
 	  case KEYWORD_FUNC:
 	  case KEYWORD_MAP:
 	  case KEYWORD_STRUCT:
 	  case KEYWORD_INTERFACE:
 	    this->simple_stat(true, false, NULL, NULL);
-	    return true;
+	    break;
 	  case KEYWORD_GO:
 	  case KEYWORD_DEFER:
 	    this->go_or_defer_stat();
-	    return true;
+	    break;
 	  case KEYWORD_RETURN:
 	    this->return_stat();
-	    return true;
+	    break;
 	  case KEYWORD_BREAK:
 	    this->break_stat();
-	    return true;
+	    break;
 	  case KEYWORD_CONTINUE:
 	    this->continue_stat();
-	    return true;
+	    break;
 	  case KEYWORD_GOTO:
 	    this->goto_stat();
-	    return true;
+	    break;
 	  case KEYWORD_IF:
 	    this->if_stat();
-	    return false;
+	    break;
 	  case KEYWORD_SWITCH:
 	    this->switch_stat(label);
-	    return false;
+	    break;
 	  case KEYWORD_SELECT:
 	    this->select_stat(label);
-	    return false;
+	    break;
 	  case KEYWORD_FOR:
 	    this->for_stat(label);
-	    return false;
+	    break;
 	  default:
 	    this->error("expected statement");
 	    this->advance_token();
-	    return false;
+	    break;
 	  }
       }
+      break;
 
     case Token::TOKEN_IDENTIFIER:
       {
@@ -2944,9 +2893,8 @@ Parse::statement(const Label* label, const Label** plabel)
 	source_location location = token->location();
 	if (this->advance_token()->is_op(OPERATOR_COLON))
 	  {
-	    *plabel = this->gogo_->add_label_definition(identifier, location);
 	    this->advance_token();
-	    return false;
+	    this->labeled_stmt(identifier, location);
 	  }
 	else
 	  {
@@ -2954,9 +2902,9 @@ Parse::statement(const Label* label, const Label** plabel)
 							   is_exported,
 							   location));
 	    this->simple_stat(true, false, NULL, NULL);
-	    return true;
 	  }
       }
+      break;
 
     case Token::TOKEN_OPERATOR:
       if (token->is_op(OPERATOR_LCURLY))
@@ -2966,26 +2914,21 @@ Parse::statement(const Label* label, const Label** plabel)
 	  source_location end_loc = this->block();
 	  this->gogo_->add_block(this->gogo_->finish_block(end_loc),
 				 location);
-	  return false;
 	}
-      else if (token->is_op(OPERATOR_SEMICOLON))
-	return true;
-      else
-	{
-	  this->simple_stat(true, false, NULL, NULL);
-	  return true;
-	}
+      else if (!token->is_op(OPERATOR_SEMICOLON))
+	this->simple_stat(true, false, NULL, NULL);
+      break;
 
     case Token::TOKEN_STRING:
     case Token::TOKEN_INTEGER:
     case Token::TOKEN_FLOAT:
       this->simple_stat(true, false, NULL, NULL);
-      return true;
+      break;
 
     default:
       this->error("expected statement");
       this->advance_token();
-      return false;
+      break;
     }
 }
 
@@ -3042,6 +2985,24 @@ Parse::statement_may_start_here()
     default:
       return false;
     }
+}
+
+// LabeledStmt = Label ":" Statement .
+// Label       = identifier .
+
+void
+Parse::labeled_stmt(const std::string& label_name, source_location location)
+{
+  Label* label = this->gogo_->add_label_definition(label_name, location);
+
+  if (this->peek_token()->is_op(OPERATOR_RCURLY))
+    {
+      // This is a label at the end of a block.  A program is
+      // permitted to omit a semicolon here.
+      return;
+    }
+
+  this->statement(label);
 }
 
 // SimpleStat =
@@ -3133,27 +3094,27 @@ Parse::simple_stat_may_start_here()
   return this->expression_may_start_here();
 }
 
-// StatementList = Statement { OptSemicolon Statement } .
+// Parse { Statement ";" } which is used in a few places.  The list of
+// statements may end with a right curly brace, in which case the
+// semicolon may be omitted.
 
 void
 Parse::statement_list()
 {
-  const Label* label = NULL;
-  do
+  while (this->statement_may_start_here())
     {
-      const Label* next_label;
-      bool needs_trailing_semicolon = this->statement(label, &next_label);
-      label = next_label;
-      const Token* token = this->peek_token();
-      if (token->is_op(OPERATOR_SEMICOLON))
-	{
-	  this->advance_token();
-	  label = NULL;
-	}
-      else if (needs_trailing_semicolon)
+      this->statement(NULL);
+      if (this->peek_token()->is_op(OPERATOR_SEMICOLON))
+	this->advance_token();
+      else if (this->peek_token()->is_op(OPERATOR_RCURLY))
 	break;
+      else
+	{
+	  this->error("expected %<;%> or %<}%> or newline");
+	  if (!this->skip_past_error(OPERATOR_RCURLY))
+	    return;
+	}
     }
-  while (this->statement_may_start_here());
 }
 
 bool
@@ -3459,8 +3420,7 @@ Parse::if_stat()
       this->advance_token();
       // We create a block to gather the statement.
       this->gogo_->start_block(this->location());
-      const Label* dummy;
-      this->statement(NULL, &dummy);
+      this->statement(NULL);
       else_block = this->gogo_->finish_block(this->location());
     }
 
@@ -4427,7 +4387,8 @@ Parse::import_spec(void*)
   return false;
 }
 
-// Program = PackageClause { ImportDecl [ ";" ] } { Declaration [ ";" ] } .
+// SourceFile       = PackageClause ";" { ImportDecl ";" }
+//			{ TopLevelDecl ";" } .
 
 void
 Parse::program()
@@ -4435,12 +4396,19 @@ Parse::program()
   this->package_clause();
 
   const Token* token = this->peek_token();
+  if (token->is_op(OPERATOR_SEMICOLON))
+    token = this->advance_token();
+  else
+    this->error("expected %<;%> or newline after package clause");
+
   while (token->is_keyword(KEYWORD_IMPORT))
     {
       this->import_decl();
       token = this->peek_token();
       if (token->is_op(OPERATOR_SEMICOLON))
 	token = this->advance_token();
+      else
+	this->error("expected %<;%> or newline after import declaration");
     }
 
   while (!token->is_eof())
@@ -4461,6 +4429,8 @@ Parse::program()
       token = this->peek_token();
       if (token->is_op(OPERATOR_SEMICOLON))
 	token = this->advance_token();
+      else
+	this->error("expected %<;%> or newline after top level declaration");
     }
 }
 
@@ -4486,6 +4456,29 @@ void
 Parse::increment_iota()
 {
   ++this->iota_;
+}
+
+// Skip forward to a semicolon or OP.  OP will normally be
+// OPERATOR_RPAREN or OPERATOR_RCURLY.  If we find a semicolon, move
+// past it and return.  If we find OP, it will be the next token to
+// read.  Return true if we are OK, false if we found EOF.
+
+bool
+Parse::skip_past_error(Operator op)
+{
+  const Token* token = this->peek_token();
+  while (!token->is_op(op))
+    {
+      if (token->is_eof())
+	return false;
+      if (token->is_op(OPERATOR_SEMICOLON))
+	{
+	  this->advance_token();
+	  return true;
+	}
+      token = this->advance_token();
+    }
+  return true;
 }
 
 // Check that an expression is not a sink.
