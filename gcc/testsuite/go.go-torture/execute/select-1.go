@@ -6,8 +6,7 @@ func main() {
   go func (ch1, ch2 chan int) { ch1 <- 1; ch2 <- 2; } (ch1, ch2);
   count := 0;
   var v int;
-  for count != 2
-    {
+  for count != 2 {
       select
 	{
 	case v := <- ch1:
