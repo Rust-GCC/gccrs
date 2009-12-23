@@ -4306,13 +4306,15 @@ Select_clauses::may_fall_through() const
 }
 
 // Return a tree.  We build a call to
-//   size_t __go_select(size_t count, _Bool has_default, ...);
-// There are COUNT pairs of arguments: a pointer to a channel followed
-// by a boolean: true for send, false for receive.  __go_select
-// returns an integer from 0 to count, inclusive.  A return of 0 means
-// that the default case should be run; this only happens if
-// HAS_DEFAULT is non-zero.  Otherwise the number indicates the case
-// to run.
+//   size_t __go_select(size_t count, _Bool has_default,
+//                      channel* channels, _Bool* is_send)
+//
+// There are COUNT entries in the CHANNELS and IS_SEND arrays.  The
+// value in the IS_SEND array is true for send, false for receive.
+// __go_select returns an integer from 0 to COUNT, inclusive.  A
+// return of 0 means that the default case should be run; this only
+// happens if HAS_DEFAULT is non-zero.  Otherwise the number indicates
+// the case to run.
 
 // FIXME: This doesn't handle channels which send interface types
 // where the receiver has a static type which matches that interface.
@@ -4324,24 +4326,22 @@ Select_clauses::get_tree(Translate_context* context, tree break_label,
   if (this->clauses_.empty())
     return integer_zero_node;
 
-  static tree select_fndecl;
-  if (select_fndecl == NULL_TREE)
-    {
-      tree fnid = get_identifier("__go_select");
-      tree argtypes = tree_cons(NULL_TREE, sizetype,
-				tree_cons(NULL_TREE, boolean_type_node,
-					  NULL_TREE));
-      tree fntype = build_function_type(sizetype, argtypes);
-      select_fndecl = build_decl(BUILTINS_LOCATION, FUNCTION_DECL, fnid,
-				 fntype);
-      Gogo::mark_fndecl_as_builtin_library(select_fndecl);
-      go_preserve_from_gc(select_fndecl);
-    }
+  size_t count = this->clauses_.size();
 
-  int nargs = 2 + this->clauses_.size() * 2;
-  tree* args = new tree[nargs];
+  std::vector<Type*> element_types;
+  std::vector<tree> channels;
+  std::vector<tree> sendvars;
+  element_types.reserve(count);
+  channels.reserve(count);
+  sendvars.reserve(count);
 
+  VEC(constructor_elt, gc)* chan_init = VEC_alloc(constructor_elt, gc, count);
+  VEC(constructor_elt, gc)* is_send_init = VEC_alloc(constructor_elt, gc,
+						     count);
   Select_clause* default_clause = NULL;
+  tree final_stmt_list = NULL_TREE;
+
+  size_t i = 0;
   for (Clauses::iterator p = this->clauses_.begin();
        p != this->clauses_.end();
        ++p)
@@ -4349,79 +4349,120 @@ Select_clauses::get_tree(Translate_context* context, tree break_label,
       if (p->is_default())
 	{
 	  default_clause = &*p;
-	  break;
+	  --count;
+	  continue;
 	}
-    }
-  if (default_clause == NULL)
-    args[1] = boolean_false_node;
-  else
-    {
-      args[1] = boolean_true_node;
-      nargs -= 2;
-    }
 
-  args[0] = size_int(nargs / 2 - 1);
+      Expression* channel = p->channel();
+      Channel_type* ctype = channel->type()->channel_type();
+      gcc_assert(ctype != NULL);
+      element_types.push_back(ctype->element_type());
 
-  std::vector<tree> channels;
-  std::vector<tree> sendvars;
-  std::vector<Type*> element_types;
-  channels.reserve(this->clauses_.size());
-  sendvars.reserve(this->clauses_.size());
-  element_types.reserve(this->clauses_.size());
+      tree channel_tree = channel->get_tree(context);
+      if (channel_tree == error_mark_node)
+	return error_mark_node;
+      channel_tree = save_expr(channel_tree);
+      channels.push_back(channel_tree);
 
-  tree final_stmt_list = NULL_TREE;
-
-  int i = 2;
-  for (Clauses::iterator p = this->clauses_.begin();
-       p != this->clauses_.end();
-       ++p)
-    {
-      if (!p->is_default())
+      if (!p->is_send())
+	sendvars.push_back(NULL_TREE);
+      else
 	{
-	  Expression* channel = p->channel();
-	  Channel_type* ctype = channel->type()->channel_type();
-	  gcc_assert(ctype != NULL);
-	  element_types.push_back(ctype->element_type());
-
-	  tree channel_tree = channel->get_tree(context);
-	  if (channel_tree == error_mark_node)
+	  tree val = p->val()->get_tree(context);
+	  if (val == error_mark_node)
 	    return error_mark_node;
-
-	  channel_tree = save_expr(channel_tree);
-	  channels.push_back(channel_tree);
-
-	  if (!p->is_send())
-	    sendvars.push_back(NULL_TREE);
-	  else
-	    {
-	      tree val = p->val()->get_tree(context);
-	      tree sendvar = create_tmp_var(TREE_TYPE(val), get_name(val));
-	      DECL_IGNORED_P(sendvar) = 0;
-	      DECL_INITIAL(sendvar) = val;
-	      tree decl_expr = build1(DECL_EXPR, void_type_node, sendvar);
-	      SET_EXPR_LOCATION(decl_expr, location);
-	      append_to_statement_list(decl_expr, &final_stmt_list);
-	      sendvars.push_back(sendvar);
-	    }
-
-	  args[i] = channel_tree;
-	  args[i + 1] = build_int_cst(integer_type_node, p->is_send() ? 1 : 0);
-	  i += 2;
+	  tree sendvar = create_tmp_var(TREE_TYPE(val), get_name(val));
+	  DECL_IGNORED_P(sendvar) = 0;
+	  DECL_INITIAL(sendvar) = val;
+	  tree decl_expr = build1(DECL_EXPR, void_type_node, sendvar);
+	  SET_EXPR_LOCATION(decl_expr, p->location());
+	  append_to_statement_list(decl_expr, &final_stmt_list);
+	  sendvars.push_back(sendvar);
 	}
+
+      constructor_elt* elt = VEC_quick_push(constructor_elt, chan_init, NULL);
+      elt->index = build_int_cstu(sizetype, i);
+      elt->value = channel_tree;
+
+      elt = VEC_quick_push(constructor_elt, is_send_init, NULL);
+      elt->index = build_int_cstu(sizetype, i);
+      elt->value = p->is_send() ? boolean_true_node : boolean_false_node;
+
+      ++i;
     }
-  gcc_assert(i == nargs);
+  gcc_assert(i == count);
 
-  tree fnptr = build_fold_addr_expr(select_fndecl);
-  tree call = build_call_array(sizetype, fnptr, nargs, args);
-  delete[] args;
+  if (i == 0)
+    {
+      // There is only a default clause.
+      gcc_assert(default_clause != NULL);
+      gcc_assert(final_stmt_list == NULL_TREE);
+      tree stmt_list = NULL_TREE;
+      append_to_statement_list(default_clause->get_statements_tree(context),
+			       &stmt_list);
+      if (LABEL_EXPR_LABEL(break_label) != NULL_TREE)
+	append_to_statement_list(break_label, &stmt_list);
+      return stmt_list;
+    }
 
-  SET_EXPR_LOCATION(call, location);
+  tree channel_type_tree = TREE_TYPE(channels[0]);
+  tree index_type_tree = build_index_type(size_int(count - 1));
+  tree chan_array_type_tree = build_array_type(channel_type_tree,
+					       index_type_tree);
+  tree chan_constructor = build_constructor(chan_array_type_tree, chan_init);
+  tree chan_var = create_tmp_var(chan_array_type_tree, "CHAN");
+  DECL_IGNORED_P(chan_var) = 0;
+  DECL_INITIAL(chan_var) = chan_constructor;
+  DECL_SOURCE_LOCATION(chan_var) = location;
+  TREE_ADDRESSABLE(chan_var) = 1;
+  tree decl_expr = build1(DECL_EXPR, void_type_node, chan_var);
+  SET_EXPR_LOCATION(decl_expr, location);
+  append_to_statement_list(decl_expr, &final_stmt_list);
+
+  tree is_send_array_type_tree = build_array_type(boolean_type_node,
+						  index_type_tree);
+  tree is_send_constructor = build_constructor(is_send_array_type_tree,
+					       is_send_init);
+  tree is_send_var = create_tmp_var(is_send_array_type_tree, "ISSEND");
+  DECL_IGNORED_P(is_send_var) = 0;
+  DECL_INITIAL(is_send_var) = is_send_constructor;
+  DECL_SOURCE_LOCATION(is_send_var) = location;
+  TREE_ADDRESSABLE(is_send_var) = 1;
+  decl_expr = build1(DECL_EXPR, void_type_node, is_send_var);
+  SET_EXPR_LOCATION(decl_expr, location);
+  append_to_statement_list(decl_expr, &final_stmt_list);
+
+  tree pointer_chan_type_tree = build_pointer_type(channel_type_tree);
+  tree chans_arg = fold_convert_loc(location, pointer_chan_type_tree,
+				    build_fold_addr_expr_loc(location,
+							     chan_var));
+  tree pointer_boolean_type_tree = build_pointer_type(boolean_type_node);
+  tree is_sends_arg = fold_convert_loc(location, pointer_boolean_type_tree,
+				       build_fold_addr_expr_loc(location,
+								is_send_var));
+
+  static tree select_fndecl;
+  tree call = Gogo::call_builtin(&select_fndecl,
+				 location,
+				 "__go_select",
+				 4,
+				 sizetype,
+				 sizetype,
+				 size_int(count),
+				 boolean_type_node,
+				 (default_clause == NULL
+				  ? boolean_false_node
+				  : boolean_true_node),
+				 pointer_chan_type_tree,
+				 chans_arg,
+				 pointer_boolean_type_tree,
+				 is_sends_arg);
 
   tree stmt_list = NULL_TREE;
 
   if (default_clause != NULL)
-    this->add_clause_tree(context, 0, default_clause, NULL_TREE,
-			  NULL, NULL_TREE, break_label, &stmt_list);
+    this->add_clause_tree(context, 0, default_clause, NULL_TREE, NULL,
+			  NULL_TREE, break_label, &stmt_list);
 
   i = 1;
   for (Clauses::iterator p = this->clauses_.begin();

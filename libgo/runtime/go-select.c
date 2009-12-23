@@ -571,9 +571,11 @@ mark_all_channels_waiting (struct select_channel* channels, size_t count,
    is non-zero for send, zero for receive.  */
 
 size_t
-__go_select (size_t count, _Bool has_default, ...)
+__go_select (size_t count, _Bool has_default,
+	     struct __go_channel **channel_args, _Bool *is_send_args)
 {
-  va_list ap;
+  struct select_channel stack_buffer[16];
+  struct select_channel *allocated_buffer;
   struct select_channel *channels;
   size_t i;
   int x;
@@ -581,14 +583,22 @@ __go_select (size_t count, _Bool has_default, ...)
   _Bool selected_for_read;
   _Bool is_queued;
 
-  va_start (ap, has_default);
-
-  channels = __builtin_alloca (count * sizeof (struct select_channel));
+  if (count < sizeof stack_buffer / sizeof stack_buffer[0])
+    {
+      channels = &stack_buffer[0];
+      allocated_buffer = NULL;
+    }
+  else
+    {
+      allocated_buffer = ((struct select_channel *)
+			  malloc (count * sizeof (struct select_channel)));
+      channels = allocated_buffer;
+    }
 
   for (i = 0; i < count; ++i)
     {
-      void *channel_arg = va_arg (ap, void *);
-      _Bool is_send = va_arg (ap, int);
+      struct __go_channel *channel_arg = channel_args[i];
+      _Bool is_send = is_send_args[i];
 
       channels[i].channel = (struct __go_channel*) channel_arg;
       channels[i].retval = i + 1;
@@ -598,8 +608,6 @@ __go_select (size_t count, _Bool has_default, ...)
       channels[i].is_send = is_send;
       channels[i].is_ready = 0;
     }
-
-  va_end (ap);
 
   qsort (channels, count, sizeof (struct select_channel), channel_sort);
 
@@ -678,6 +686,9 @@ __go_select (size_t count, _Bool has_default, ...)
 	      continue;
 	    }
 
+	  if (allocated_buffer != NULL)
+	    free (allocated_buffer);
+
 	  return ret;
 	}
 
@@ -688,6 +699,8 @@ __go_select (size_t count, _Bool has_default, ...)
       if (has_default)
 	{
 	  /* Use the default clause.  */
+	  if (allocated_buffer != NULL)
+	    free (allocated_buffer);
 	  return 0;
 	}
 
