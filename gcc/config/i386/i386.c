@@ -9432,7 +9432,13 @@ ix86_expand_split_stack_prologue (void)
      However, for flow purposes gcc must not see this as a return
      instruction--we need control flow to continue at the subsequent
      label.  Therefore, we use an unspec.  */
-  emit_insn (gen_split_stack_return ());
+  if (crtl->args.pops_args == 0)
+    emit_insn (gen_split_stack_return ());
+  else
+    {
+      gcc_assert (crtl->args.pops_args < 65536);
+      emit_insn (gen_split_stack_pop_return (GEN_INT (crtl->args.pops_args)));
+    }
 
   /* If we are in 64-bit mode and this function uses a static chain,
      we pushed %r10 before calling _morestack.  */

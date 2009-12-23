@@ -151,9 +151,11 @@ __morestack:
 	movl	-12(%ebp),%ecx
 
 	movl	4(%ebp),%eax		# Increment the return address
-	inc	%eax			# to skip the ret instruction;
-					# see above.
-	
+	cmpb	$0xc3,(%eax)		# to skip the ret instruction;
+	je	1f			# see above.
+	addl	$2,%eax
+1:	inc	%eax
+
 	movl	%eax,-8(%ebp)		# Store return address in an
 					# unused slot.
 
