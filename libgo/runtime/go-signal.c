@@ -97,8 +97,15 @@ sighandler (int sig)
 	    return;
 
 	  memset (&sa, 0, sizeof sa);
+
+	  sa.sa_handler = SIG_DFL;
+
+	  i = sigemptyset (&sa.sa_mask);
+	  assert (i == 0);
+
 	  if (sigaction (sig, &sa, NULL) != 0)
 	    abort ();
+
 	  raise (sig);
 	  exit (2);
 	}
