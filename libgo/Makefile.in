@@ -2903,7 +2903,7 @@ path/libpath.a: $(go_path_files) io/ioutil.gox os.gox strings.gox
 	$(BUILDARCHIVE)
 path/libpath.la: path/libpath.a
 
-rand/librand.a: $(go_rand_files) math.gox
+rand/librand.a: $(go_rand_files) math.gox sync.gox
 	$(BUILDARCHIVE)
 rand/librand.la: rand/librand.a
 
