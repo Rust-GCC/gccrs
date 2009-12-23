@@ -33,6 +33,7 @@ AC_SUBST(CFLAGS)
 
 AM_MAINTAINER_MODE
 
+AC_PROG_LD
 AC_PROG_RANLIB
 
 AC_LIBTOOL_DLOPEN
@@ -161,6 +162,22 @@ else
   SPLIT_STACK=
 fi
 AC_SUBST(SPLIT_STACK)
+
+dnl Check whether the linker does stack munging when calling from
+dnl split-stack into non-split-stack code.  We check this by looking
+dnl at the --help output.  FIXME: This is only half right: it's
+dnl possible for the linker to support this for some targets but not
+dnl others.
+AC_CACHE_CHECK([whether linker supports split stack],
+[ac_cv_libgo_linker_supports_split_stack],
+ac_cv_libgo_linker_supports_split_stack=no
+if $LD --help 2>/dev/null | grep split-stack-adjust-size >/dev/null 2>&1; then
+  ac_cv_libgo_linker_supports_split_stack=yes
+fi)
+if test "$ac_cv_libgo_linker_supports_split_stack" = yes; then
+  AC_DEFINE(LINKER_SUPPORTS_SPLIT_STACK, 1,
+	    [Define if the linker support split stack adjustments])
+fi
 
 AC_C_BIGENDIAN
 

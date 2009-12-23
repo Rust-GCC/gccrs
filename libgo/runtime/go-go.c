@@ -5,9 +5,11 @@
    license that can be found in the LICENSE file.  */
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <pthread.h>
 
+#include "config.h"
 #include "go-alloc.h"
 #include "runtime.h"
 
@@ -54,6 +56,19 @@ __go_go (void (*pfn) (void*), void* arg)
   assert (i == 0);
   i = pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
   assert (i == 0);
+
+#ifdef LINKER_SUPPORTS_SPLIT_STACK
+  /* The linker knows how to handle calls between code which uses
+     -fsplit-stack and code which does not.  That means that we can
+     run with a smaller stack and rely on the -fsplit-stack support to
+     save us.  The GNU/Linux glibc library won't let us have a very
+     small stack, but we make it as small as we can.  */
+#ifndef PTHREAD_STACK_MIN
+#define PTHREAD_STACK_MIN 8192
+#endif
+  i = pthread_attr_setstacksize (&attr, PTHREAD_STACK_MIN);
+  assert (i == 0);
+#endif
 
   pc = malloc (sizeof (struct call));
   pc->pfn = pfn;

@@ -33,6 +33,9 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Define if the linker support split stack adjustments */
+#undef LINKER_SUPPORTS_SPLIT_STACK
+
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
