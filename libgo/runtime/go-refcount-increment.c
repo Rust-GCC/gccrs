@@ -15,10 +15,14 @@ void
 __go_increment_refcount (void *value,
 			 const struct __go_type_descriptor *descriptor)
 {
+  struct
+  {
+    struct __go_refcount q;
+    struct __go_refcount_entry e;
+  } s;
   struct __go_refcount *queue;
 
-  queue = __builtin_alloca (sizeof (struct __go_refcount)
-			    + sizeof (struct __go_refcount_entry));
+  queue = &s.q;
   __builtin_memset (queue, 0, sizeof (struct __go_refcount));
   queue->__caller = __go_refcount_head;
   __go_refcount_head = queue;
