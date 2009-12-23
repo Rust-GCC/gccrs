@@ -38,11 +38,12 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #include <assert.h>
 #include <errno.h>
-#include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/uio.h>
+
+#include "generic-morestack.h"
 
 /* This file contains subroutines that are used by code compiled with
    -fsplit-stack.  */
@@ -73,10 +74,7 @@ struct stack_segment
      is running on this stack segment, the next one is not being
      used.  */
   struct stack_segment *next;
-  /* The total size of this stack segment.  This is zero for the
-     special case of a header created to represent the initial stack
-     segment--the one created when the program or thread was
-     started.  */
+  /* The total size of this stack segment.  */
   size_t size;
   /* The stack address when this stack was created.  This is used when
      popping the stack.  */
@@ -85,7 +83,7 @@ struct stack_segment
 
 /* The first stack segment allocated for this thread.  */
 
-static __thread struct stack_segment *stack_segments;
+__thread struct stack_segment *__morestack_segments;
 
 /* The stack segment that we think we are currently using.  This will
    be correct in normal usage, but will be incorrect if an exception
@@ -135,6 +133,36 @@ print_int (int val, char *buf, int buflen, size_t *print_len)
   return buf + i;
 }
 
+/* Print the string MSG/LEN, the errno number ERR, and a newline on
+   stderr.  Then crash.  */
+
+void
+__morestack_fail (const char *, size_t, int) __attribute__ ((noreturn));
+
+void
+__morestack_fail (const char *msg, size_t len, int err)
+{
+  char buf[24];
+  static const char nl[] = "\n";
+  struct iovec iov[3];
+  union { char *p; const char *cp; } const_cast;
+
+  const_cast.cp = msg;
+  iov[0].iov_base = const_cast.p;
+  iov[0].iov_len = len;
+  /* We can't call strerror, because it may try to translate the error
+     message, and that would use too much stack space.  */
+  iov[1].iov_base = print_int (err, buf, sizeof buf, &iov[1].iov_len);
+  const_cast.cp = &nl[0];
+  iov[2].iov_base = const_cast.p;
+  iov[2].iov_len = sizeof nl - 1;
+  /* FIXME: On systems without writev we need to issue three write
+     calls, or punt on printing errno.  For now this is irrelevant
+     since stack splitting only works on GNU/Linux anyhow.  */
+  writev (2, iov, 3);
+  abort ();
+}
+
 /* Allocate a new stack segment.  FRAME_SIZE is the required frame
    size.  */
 
@@ -143,7 +171,6 @@ allocate_segment (size_t frame_size)
 {
   static unsigned int static_pagesize;
   unsigned int pagesize;
-  int first;
   unsigned int overhead;
   unsigned int allocate;
   void *space;
@@ -169,11 +196,7 @@ allocate_segment (size_t frame_size)
       assert (p == 0 || p == pagesize);
     }
 
-  first = current_segment == NULL;
-
   overhead = sizeof (struct stack_segment);
-  if (first)
-    overhead *= 2;
 
   allocate = pagesize;
   if (allocate < MINSIGSTKSZ)
@@ -192,54 +215,33 @@ allocate_segment (size_t frame_size)
 		MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   if (space == MAP_FAILED)
     {
-      static const char err1[] =
+      static const char msg[] =
 	"unable to allocate additional stack space: errno ";
-      char buf[24];
-      static const char err2[] = "\n";
-      struct iovec iov[3];
-      union { char *p; const char *cp; } const_cast;
-
-      const_cast.cp = &err1[0];
-      iov[0].iov_base = const_cast.p;
-      iov[0].iov_len = sizeof err1 - 1;
-      /* We can't call strerror, because it may try to translate the
-	 error message, and that would use too much stack space.  */
-      iov[1].iov_base = print_int (errno, buf, sizeof buf, &iov[1].iov_len);
-      const_cast.cp = &err2[0];
-      iov[2].iov_base = const_cast.p;
-      iov[2].iov_len = sizeof err2 - 1;
-      /* FIXME: On systems without writev we need to issue three write
-	 calls, or punt on printing errno.  For now this is irrelevant
-	 since stack splitting only works on GNU/Linux anyhow.  */
-      writev (2, iov, 3);
-      abort ();
+      __morestack_fail (msg, sizeof msg - 1, errno);
     }
 
   pss = (struct stack_segment *) space;
 
-  if (first)
-    {
-      pss->prev = NULL;
-      pss->next = pss + 1;
-      pss->size = 0;
-      stack_segments = pss;
-      current_segment = pss;
-      pss = pss + 1;
-    }
-
   pss->prev = current_segment;
   pss->next = NULL;
   pss->size = allocate - overhead;
-  current_segment->next = pss;
+
+  if (current_segment != NULL)
+    current_segment->next = pss;
+  else
+    __morestack_segments = pss;
 
   return pss;
 }
 
 /* Release stack segments.  */
 
-static void
-release_segments (struct stack_segment *pss)
+void
+__morestack_release_segments (struct stack_segment **pp)
 {
+  struct stack_segment *pss;
+
+  pss = *pp;
   while (pss != NULL)
     {
       struct stack_segment *next;
@@ -247,23 +249,16 @@ release_segments (struct stack_segment *pss)
 
       next = pss->next;
 
-      if (pss->size != 0)
-	allocate = pss->size + sizeof (struct stack_segment);
-      else
-	{
-	  assert (next == pss + 1);
-	  allocate = next->size = 2 * sizeof (struct stack_segment);
-	  next = next->next;
-	}
-
+      allocate = pss->size + sizeof (struct stack_segment);
       if (munmap (pss, allocate) < 0)
 	{
-	  static const char msg[] = "munmap of stack space failed\n";
-	  write (2, msg, sizeof msg - 1);
+	  static const char msg[] = "munmap of stack space failed: errno ";
+	  __morestack_fail (msg, sizeof msg - 1, errno);
 	}
 
       pss = next;
     }
+  *pp = NULL;
 }
 
 /* This function is called by a processor specific function which is
@@ -292,20 +287,16 @@ __generic_morestack (size_t *pframe_size, void *old_stack, size_t param_size)
 {
   size_t frame_size = *pframe_size;
   struct stack_segment *current;
+  struct stack_segment **pp;
 
   current = current_segment;
 
-  if (current != NULL
-      && current->next != NULL
-      && current->next->size < frame_size)
-    {
-      release_segments (current->next);
-      current->next = NULL;
-    }
+  pp = current != NULL ? &current->next : &__morestack_segments;
+  if (*pp != NULL && (*pp)->size < frame_size)
+    __morestack_release_segments (pp);
+  current = *pp;
 
-  if (current != NULL && current->next != NULL)
-    current = current->next;
-  else
+  if (current == NULL)
     current = allocate_segment (frame_size);
 
   current->old_stack = old_stack;
@@ -327,10 +318,10 @@ __generic_morestack (size_t *pframe_size, void *old_stack, size_t param_size)
 }
 
 /* This function is called by a processor specific function when it is
-   ready to release a stack segment.  This function is actually
-   running on the stack segment which it should release.  So it may
-   not literally free the segment, but must instead mark it for
-   release at a later date.  It returns a pointer to the new stack
+   ready to release a stack segment.  We don't actually release the
+   stack segment, we just move back to the previous one.  The current
+   stack segment will still be available if we need it in
+   __generic_morestack.  This returns a pointer to the new stack
    segment to use, which is the one saved by a previous call to
    __generic_morestack.  The processor specific function is then
    responsible for actually updating the stack pointer.  This sets
@@ -343,82 +334,26 @@ __generic_releasestack (size_t *pavailable)
   void *old_stack;
 
   current = current_segment;
-
-  if (current->next != NULL)
-    {
-      release_segments (current->next);
-      current->next = NULL;
-    }
-
   old_stack = current->old_stack;
   current = current->prev;
   current_segment = current;
 
+  if (current != NULL)
+    {
 #ifdef STACK_GROWS_DOWNWARD
-  *pavailable = (char *) old_stack - (char *) (current + 1);
+      *pavailable = (char *) old_stack - (char *) (current + 1);
 #else
-  *pavailable = (char *) (current + 1) + current->size - (char *) old_stack;
+      *pavailable = (char *) (current + 1) + current->size - (char *) old_stack;
 #endif
+    }
+  else
+    {
+      /* We have popped back to the original stack.  We don't know how
+	 large it is.  */
+      *pavailable = 512;
+    }
 
   return old_stack;
-}
-
-/* Pass information from the pthread_create wrapper to
-   stack_split_initialize_thread.  */
-
-struct pthread_create_args
-{
-  void *(*start_routine) (void *);
-  void *arg;
-};
-
-/* Initialize a thread.  This is called via pthread_create.  It calls
-   a target dependent function to set up any required stack guard.  */
-
-static void* stack_split_initialize_thread (void *)
-  __attribute__ ((no_split_stack));
-
-extern void __stack_split_initialize (void)
-  __attribute__ ((visibility ("hidden")));
-
-static void *
-stack_split_initialize_thread (void *varg)
-{
-  struct pthread_create_args *args = (struct pthread_create_args *) varg;
-  void *(*start_routine) (void *);
-  void *arg;
-
-  __stack_split_initialize ();
-  start_routine = args->start_routine;
-  arg = args->arg;
-  free (args);
-  return (*start_routine) (arg);
-}
-
-/* This function wraps calls to pthread_create to make sure that the
-   stack guard is initialized for new threads.  FIXME: This hack will
-   not be necessary if glibc supports -fsplit-stack directly.  */
-
-int __wrap_pthread_create (pthread_t *, const pthread_attr_t *,
-			   void *(*start_routine) (void *), void *)
-  __attribute__ ((visibility ("hidden")));
-
-extern int __real_pthread_create (pthread_t *, const pthread_attr_t *,
-				  void *(*start_routine) (void *), void *)
-  __attribute__ ((weak));
-
-int
-__wrap_pthread_create (pthread_t *tid, const pthread_attr_t *attr,
-		       void *(*start_routine) (void *), void *arg)
-{
-  struct pthread_create_args* args;
-
-  args = malloc (sizeof (struct pthread_create_args));
-  if (args == NULL)
-    return EAGAIN;
-  args->start_routine = start_routine;
-  args->arg = arg;
-  return __real_pthread_create (tid, attr, stack_split_initialize_thread, args);
 }
 
 #endif /* !defined (inhibit_libc) */
