@@ -90,13 +90,13 @@ struct	M
 #define USED(v)		((void) v)
 
 /* We map throw to panic.  */
-#define throw(s) __go_panic("%s", s)
+#define throw(s) __go_panic_msg (s)
 
 /* Mutual exclusion locks.  */
 #define lock(p) \
-  (pthread_mutex_lock(p) == 0 || (__go_panic ("lock failed"), 0))
+  (pthread_mutex_lock(p) == 0 || (__go_panic_msg ("lock failed"), 0))
 #define unlock(p) \
-  (pthread_mutex_unlock(p) == 0 || (__go_panic ("unlock failed"), 0))
+  (pthread_mutex_unlock(p) == 0 || (__go_panic_msg ("unlock failed"), 0))
 
 void	siginit(void);
 bool	sigsend(int32 sig);

@@ -127,7 +127,7 @@ __go_receive_acquire (struct __go_channel *channel, _Bool for_select)
 	    {
 	      ++channel->closed_op_count;
 	      if (channel->closed_op_count >= MAX_CLOSED_OPERATIONS)
-		__go_panic ("too many operations on closed channel");
+		__go_panic_msg ("too many operations on closed channel");
 	    }
 	  channel->saw_close = 1;
 	  channel->selected_for_receive = 0;

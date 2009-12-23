@@ -147,9 +147,10 @@ go/export.o: go/export.cc $(GO_SYSTEM_H) $(srcdir)/../include/sha1.h \
 	$(MACHMODE_H) output.h $(TARGET_H) $(DIAGNOSTIC_H) $(GO_GOGO_H) \
 	$(GO_TYPES_H) $(GO_STATEMENTS_H) go/export.h
 go/expressions.o: go/expressions.cc $(GO_SYSTEM_H) intl.h $(TREE_H) \
-	$(GIMPLE_H) convert.h $(REAL_H) $(DIAGNOSTIC_H) $(TM_P_H) $(GO_C_H) \
-	$(GO_GOGO_H) $(GO_TYPES_H) go/export.h $(GO_IMPORT_H) \
-	go/refcount.h $(GO_STATEMENTS_H) $(GO_LEX_H) $(GO_EXPRESSIONS_H)
+	$(GIMPLE_H) tree-iterator.h convert.h $(REAL_H) $(DIAGNOSTIC_H) \
+	$(TM_P_H) $(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) go/export.h \
+	$(GO_IMPORT_H) go/refcount.h $(GO_STATEMENTS_H) $(GO_LEX_H) \
+	$(GO_EXPRESSIONS_H)
 go/go.o: go/go.cc $(GO_SYSTEM_H) options.h $(DIAGNOSTIC_H) $(GO_C_H) \
 	$(GO_LEX_H) $(GO_PARSE_H) $(GO_GOGO_H)
 go/go-dump.o: go/go-dump.cc $(GO_SYSTEM_H) $(GO_C_H) go/go-dump.h

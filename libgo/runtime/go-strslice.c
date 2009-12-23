@@ -18,7 +18,7 @@ __go_string_slice (const struct __go_string *s, size_t start, size_t end)
   if (end == (size_t) -1)
     end = len;
   if (start > len || end < start || end > len)
-    __go_panic("string index out of bounds");
+    __go_panic_msg ("string index out of bounds");
   if (s == NULL)
     return NULL;
   len = end - start;

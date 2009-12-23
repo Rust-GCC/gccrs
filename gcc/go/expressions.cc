@@ -13,6 +13,7 @@ extern "C"
 #include "intl.h"
 #include "tree.h"
 #include "gimple.h"
+#include "tree-iterator.h"
 #include "convert.h"
 #include "real.h"
 #include "diagnostic.h"
@@ -5530,8 +5531,11 @@ Builtin_call_expression::do_check_types(Gogo*)
 		    || type->float_type() != NULL
 		    || type->is_boolean_type()
 		    || type->points_to() != NULL
-		    || type->array_type() != NULL
-		    || type->interface_type() != NULL)
+		    || type->interface_type() != NULL
+		    || type->channel_type() != NULL
+		    || type->map_type() != NULL
+		    || type->function_type() != NULL
+		    || type->is_open_array_type())
 		  ;
 		else
 		  this->report_error(_("unsupported argument type to "
@@ -5719,173 +5723,136 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 			       || this->code_ == BUILTIN_PANICLN);
 	const bool is_ln = (this->code_ == BUILTIN_PANICLN
 			    || this->code_ == BUILTIN_PRINTLN);
+	tree stmt_list = NULL_TREE;
+
+	tree panic_arg = is_panic ? boolean_true_node : boolean_false_node;
+
 	const Expression_list* call_args = this->args();
-
-	int nargs;
-	tree* args;
-	std::string format;
-	if (call_args == NULL)
+	if (call_args != NULL)
 	  {
-	    if (!is_panic && !is_ln)
-	      {
-		// A call to print with no arguments.  There is nothing
-		// to do.
-		return integer_zero_node;
-	      }
-	    nargs = 1;
-	    args = new tree[1];
-	  }
-	else
-	  {
-	    nargs = call_args->size() + 1;
-
-	    // We allocate extra space because we use three arguments
-	    // to print arrays.
-	    args = new tree[nargs * 3];
-
-	    int i = 1;
 	    for (Expression_list::const_iterator p = call_args->begin();
 		 p != call_args->end();
-		 ++p, ++i)
+		 ++p)
 	      {
-		if (is_ln && i > 1)
-		  format += " ";
+		if (is_ln && p != call_args->begin())
+		  {
+		    static tree print_space_fndecl;
+		    tree call = Gogo::call_builtin(&print_space_fndecl,
+						   location,
+						   "__go_print_space",
+						   1,
+						   void_type_node,
+						   boolean_type_node,
+						   panic_arg);
+		    append_to_statement_list(call, &stmt_list);
+		  }
 
-		args[i] = (*p)->get_tree(context);
+		Type* type = (*p)->type();
 
-		if (args[i] == error_mark_node)
+		tree arg = (*p)->get_tree(context);
+		if (arg == error_mark_node)
+		  return error_mark_node;
+
+		tree* pfndecl;
+		const char* fnname;
+		if (type->is_string_type())
 		  {
-		    args[i] = integer_zero_node;
-		    format += "%d";
+		    static tree print_string_fndecl;
+		    pfndecl = &print_string_fndecl;
+		    fnname = "__go_print_string";
 		  }
-		else if ((*p)->type()->is_string_type())
+		else if (type->integer_type() != NULL
+			 && type->integer_type()->is_unsigned())
 		  {
-		    // We use a precision to print the right number of
-		    // characters.  FIXME: If the string has embedded
-		    // null bytes, it won't be printed correctly.
-		    tree string = args[i];
-		    tree len = String_type::length_tree(gogo, string);
-		    args[i] = convert_to_integer(integer_type_node, len);
-		    ++i;
-		    ++nargs;
-		    args[i] = String_type::bytes_tree(gogo, string);
-		    format += "%.*s";
+		    static tree print_uint64_fndecl;
+		    pfndecl = &print_uint64_fndecl;
+		    fnname = "__go_print_uint64";
+		    Type* itype = Type::lookup_integer_type("uint64");
+		    arg = fold_convert_loc(location, itype->get_tree(gogo),
+					   arg);
 		  }
-		else if ((*p)->type()->integer_type() != NULL)
+		else if (type->integer_type() != NULL)
 		  {
-		    const Integer_type* itype = (*p)->type()->integer_type();
-		    int bits = TYPE_PRECISION(TREE_TYPE(args[i]));
-		    if (bits <= INT_TYPE_SIZE)
-		      {
-			args[i] = fold_convert((itype->is_unsigned()
-						? unsigned_type_node
-						: integer_type_node),
-					       args[i]);
-			format += itype->is_unsigned() ? "%u" : "%d";
-		      }
-		    else if (bits <= LONG_TYPE_SIZE)
-		      {
-			args[i] = fold_convert((itype->is_unsigned()
-						? long_unsigned_type_node
-						: long_integer_type_node),
-					       args[i]);
-			format += itype->is_unsigned() ? "%lu" : "%ld";
-		      }
-		    else if (bits <= LONG_LONG_TYPE_SIZE)
-		      {
-			args[i] = fold_convert((itype->is_unsigned()
-						? long_long_unsigned_type_node
-						: long_long_integer_type_node),
-					       args[i]);
-			format += itype->is_unsigned() ? "%llu" : "%lld";
-		      }
-		    else
-		      gcc_unreachable();
+		    static tree print_int64_fndecl;
+		    pfndecl = &print_int64_fndecl;
+		    fnname = "__go_print_int64";
+		    Type* itype = Type::lookup_integer_type("int64");
+		    arg = fold_convert_loc(location, itype->get_tree(gogo),
+					   arg);
 		  }
-		else if ((*p)->type()->float_type() != NULL)
+		else if (type->float_type() != NULL)
 		  {
-		    args[i] = fold_convert(double_type_node, args[i]);
-		    format += "%.24g";
+		    static tree print_double_fndecl;
+		    pfndecl = &print_double_fndecl;
+		    fnname = "__go_print_double";
+		    arg = fold_convert_loc(location, double_type_node, arg);
 		  }
-		else if ((*p)->type()->is_boolean_type())
+		else if (type->is_boolean_type())
 		  {
-		    tree string_type = Gogo::const_char_pointer_type_tree();
-		    tree true_string = Gogo::string_constant_tree("true");
-		    true_string = build_fold_addr_expr(true_string);
-		    true_string = fold_convert(string_type, true_string);
-		    tree false_string = Gogo::string_constant_tree("false");
-		    false_string = build_fold_addr_expr(false_string);
-		    false_string = fold_convert(string_type, false_string);
-		    args[i] = fold_build3(COND_EXPR, string_type, args[i],
-					  true_string, false_string);
-		    format += "%s";
+		    static tree print_bool_fndecl;
+		    pfndecl = &print_bool_fndecl;
+		    fnname = "__go_print_bool";
 		  }
-		else if ((*p)->type()->points_to() != NULL
-			 || (*p)->type()->interface_type() != NULL)
+		else if (type->points_to() != NULL
+			 || type->interface_type() != NULL
+			 || type->channel_type() != NULL
+			 || type->map_type() != NULL
+			 || type->function_type() != NULL)
 		  {
-		    args[i] = fold_convert(ptr_type_node, args[i]);
-		    format += "%p";
+		    static tree print_pointer_fndecl;
+		    pfndecl = &print_pointer_fndecl;
+		    fnname = "__go_print_pointer";
+		    arg = fold_convert_loc(location, ptr_type_node, arg);
 		  }
-		else if ((*p)->type()->array_type() != NULL)
+		else if (type->is_open_array_type())
 		  {
-		    Array_type* at = (*p)->type()->array_type();
-		    tree v = save_expr(args[i]);
-		    args[i] = at->length_tree(gogo, v);
-		    ++i;
-		    ++nargs;
-		    args[i] = at->capacity_tree(gogo, v);
-		    ++i;
-		    ++nargs;
-		    args[i] = at->value_pointer_tree(gogo, v);
-		    format += "[%zu/%zu]%p";
+		    static tree print_slice_fndecl;
+		    pfndecl = &print_slice_fndecl;
+		    fnname = "__go_print_slice";
 		  }
 		else
-		  {
-		    args[i] = integer_zero_node;
-		    format += "%d";
-		  }
+		  gcc_unreachable();
+
+		tree call = Gogo::call_builtin(pfndecl,
+					       location,
+					       fnname,
+					       2,
+					       void_type_node,
+					       boolean_type_node,
+					       panic_arg,
+					       TREE_TYPE(arg),
+					       arg);
+		append_to_statement_list(call, &stmt_list);
 	      }
-	    gcc_assert(i == nargs);
 	  }
 
 	if (is_ln)
-	  format += "\n";
-
-	tree string_val = Gogo::string_constant_tree(format);
-	args[0] = build_fold_addr_expr(string_val);
-
-	static tree panic_fndecl;
-	static tree print_fndecl;
-	static tree* pfndecl;
-	if (is_panic)
-	  pfndecl = &panic_fndecl;
-	else
-	  pfndecl = &print_fndecl;
-	if (*pfndecl == NULL_TREE)
 	  {
-	    tree fnid = get_identifier(is_panic ? "__go_panic" : "__go_print");
-	    tree argtypes = tree_cons(NULL_TREE,
-				      Gogo::const_char_pointer_type_tree(),
-				      NULL_TREE);
-	    tree fntype = build_function_type(void_type_node, argtypes);
-
-	    *pfndecl = build_decl(BUILTINS_LOCATION, FUNCTION_DECL, fnid,
-				  fntype);
-	    Gogo::mark_fndecl_as_builtin_library(*pfndecl);
-	    if (is_panic)
-	      {
-		// Mark the function as noreturn.
-		TREE_THIS_VOLATILE(*pfndecl) = 1;
-	      }
-	    go_preserve_from_gc(*pfndecl);
+	    static tree print_nl_fndecl;
+	    tree call = Gogo::call_builtin(&print_nl_fndecl,
+					   location,
+					   "__go_print_nl",
+					   1,
+					   void_type_node,
+					   boolean_type_node,
+					   panic_arg);
+	    append_to_statement_list(call, &stmt_list);
 	  }
 
-	tree fnptr = build_fold_addr_expr(*pfndecl);
-	tree call = build_call_array_loc(location, void_type_node,
-					 fnptr, nargs, args);
-	delete[] args;
-
-	return call;
+	if (is_panic)
+	  {
+	    static tree panic_fndecl;
+	    tree call = Gogo::call_builtin(&panic_fndecl,
+					   location,
+					   "__go_panic",
+					   0,
+					   void_type_node);
+	    // Mark the function as not returning.
+	    TREE_THIS_VOLATILE(panic_fndecl) = 1;
+	    append_to_statement_list(call, &stmt_list);
+	  }
+	  
+	return stmt_list;
       }
 
     case BUILTIN_CLOSE:

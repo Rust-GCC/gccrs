@@ -4,31 +4,32 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "go-panic.h"
 
-/* This implements __go_panic which is used for the panic statement.
-   FIXME: This is only for testing.  */
+/* This implements __go_panic which is used for the panic
+   statement.  */
 
 void
-__go_panic(const char* format, ...)
+__go_panic ()
 {
-  if (*format == '\0')
-    fprintf(stderr, "panic");
-  else
-    {
-      fprintf(stderr, "panic: ");
+  fputs ("\npanic\n", stderr);
+  abort ();
+}
 
-      va_list args;
-      va_start(args, format);
-      vfprintf(stderr, format, args);
-      va_end(args);
-    }
+/* These are used by the runtime library.  */
 
-  fputc('\n', stderr);
+void
+__go_panic_msg (const char* msg)
+{
+  __go_print_msg (1, msg);
+  __go_panic ();
+}
 
-  abort();
+void
+__go_print_msg (_Bool is_panic, const char* msg)
+{
+  fputs (msg, is_panic ? stderr : stdout);
 }

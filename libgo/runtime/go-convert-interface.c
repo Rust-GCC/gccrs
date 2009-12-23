@@ -93,9 +93,9 @@ __go_convert_interface (const struct __go_type_descriptor* lhs_descriptor,
 		  *success = 0;
 		  return NULL;
 		}
-	      __go_panic ("interface conversion failed: no '%.*s' method",
-			  (int) (*p_lhs_method->__name)->__length,
-			  (*p_lhs_method->__name)->__data);
+	      __go_print_msg (1, "interface conversion failed: no '");
+	      __go_print_string (1, *p_lhs_method->__name);
+	      __go_panic_msg ("' method");
 	    }
 
 	  if (p_lhs_method->__hash != p_rhs_method->__hash)
@@ -105,10 +105,9 @@ __go_convert_interface (const struct __go_type_descriptor* lhs_descriptor,
 		  *success = 0;
 		  return NULL;
 		}
-	      __go_panic (("interface conversion failed: "
-			   "'%.*s' method has wrong type"),
-			  (int) (*p_lhs_method->__name)->__length,
-			  (*p_lhs_method->__name)->__data);
+	      __go_print_msg (1, "interface conversion failed: '");
+	      __go_print_string (1, *p_lhs_method->__name);
+	      __go_panic_msg ("' method has wrong type");
 	    }
 
 	  methods[i] = p_rhs_method->__function;
