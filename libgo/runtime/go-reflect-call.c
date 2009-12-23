@@ -308,10 +308,11 @@ call (const struct __go_func_type *func_type, const void *func_addr,
   assert (func_type->__common.__code == GO_FUNC);
   go_func_to_cif (func_type, is_interface, &cif);
 
-  call_result = ((unsigned char *)
-		 __builtin_alloca (go_results_size (func_type)));
+  call_result = (unsigned char *) malloc (go_results_size (func_type));
 
   ffi_call (&cif, func_addr, call_result, params);
 
   go_set_results (func_type, call_result, results);
+
+  free (call_result);
 }
