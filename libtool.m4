@@ -6944,10 +6944,10 @@ objext=o
 _LT_TAGVAR(objext, $1)=$objext
 
 # Code to be used in simple compile tests
-lt_simple_compile_test_code="package main func main() { }"
+lt_simple_compile_test_code="package main; func main() { }"
 
 # Code to be used in simple link tests
-lt_simple_link_test_code='package main func main() { }'
+lt_simple_link_test_code='package main; func main() { }'
 
 # ltmain only uses $CC for tagged configurations so make sure $CC is set.
 _LT_TAG_COMPILER
