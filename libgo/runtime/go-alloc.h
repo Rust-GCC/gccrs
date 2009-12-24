@@ -7,6 +7,5 @@
 #include <stddef.h>
 #include <stdint.h>
 
-extern void *__go_alloc (size_t);
+extern void *__go_alloc (unsigned int __attribute__ ((mode (pointer))));
 extern void __go_free (void *);
-extern int32_t mlookup (void *, unsigned char **, uintptr_t *, uint32_t **);

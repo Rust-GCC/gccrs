@@ -33,17 +33,6 @@ typedef float        float32 __attribute__ ((mode (SF)));
 typedef double       float64 __attribute__ ((mode (DF)));
 typedef unsigned int uintptr __attribute__ ((mode (pointer)));
 
-/* Copying the 6g runtime.h, remove the C types.  We leave char,
-   though, since we need it to call some library routines.  */
-
-#define	unsigned		XXunsigned / / /
-#define	signed			XXsigned / / /
-#define	short			XXshort / / /
-#define	int			XXint / / /
-#define	long			XXlong / / /
-#define	float			XXfloat / / /
-#define	double			XXdouble / / /
-
 /* Defined types.  */
 
 typedef	uint8			bool;
