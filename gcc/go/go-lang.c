@@ -126,7 +126,7 @@ go_langhook_init_options (unsigned int argc ATTRIBUTE_UNUSED,
   mpfr_set_default_prec (128);
 
   /* We turn on stack splitting if we can.  */
-  if (targetm.supports_split_stack())
+  if (targetm.supports_split_stack (false))
     flag_split_stack = 1;
 
   return CL_Go;

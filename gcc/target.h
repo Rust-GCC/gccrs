@@ -877,8 +877,10 @@ struct gcc_target
 
   /* Whether this target supports splitting stack frames.  This is
      called after options have been parsed, so the target may reject
-     splitting stack frames in some configurations.  */
-  bool (* supports_split_stack) (void);
+     splitting stack frames in some configurations.  If REPORT is
+     true, this function may issue a warning or error; if REPORT is
+     false it must simply return a value.  */
+  bool (* supports_split_stack) (bool report);
 
   /* Returns NULL if target supports the insn within a doloop block,
      otherwise it returns an error message.  */

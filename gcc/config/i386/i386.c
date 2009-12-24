@@ -7890,12 +7890,13 @@ ix86_builtin_setjmp_frame_value (void)
    field in the TCB, so they can not be used together.  */
 
 static bool
-ix86_supports_split_stack (void)
+ix86_supports_split_stack (bool report)
 {
   bool ret = true;
 
 #ifndef TARGET_THREAD_SPLIT_STACK_OFFSET
-  error ("%<-fsplit-stack%> currently only supported on GNU/Linux");
+  if (report)
+    error ("%<-fsplit-stack%> currently only supported on GNU/Linux");
   ret = false;
 #endif
 

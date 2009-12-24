@@ -1146,7 +1146,7 @@ decode_options (unsigned int argc, const char **argv)
     flag_split_stack = 0;
   else
     {
-      if (!targetm.supports_split_stack())
+      if (!targetm.supports_split_stack (true))
 	{
 	  error ("%<-fsplit-stack%> is not supported by "
 		 "this compiler configuration");

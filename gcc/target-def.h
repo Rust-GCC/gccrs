@@ -625,7 +625,7 @@
 #define TARGET_STACK_PROTECT_GUARD  default_stack_protect_guard
 #define TARGET_STACK_PROTECT_FAIL   default_external_stack_protect_fail
 
-#define TARGET_SUPPORTS_SPLIT_STACK hook_bool_void_false
+#define TARGET_SUPPORTS_SPLIT_STACK hook_bool_bool_false
 
 #define TARGET_ARM_EABI_UNWINDER false
 
