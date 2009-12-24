@@ -5263,14 +5263,15 @@ Builtin_call_expression::do_integer_constant_value(bool iota_is_constant,
 	return false;
       Type* arg_type = arg->type();
 
-      if (this->code_ == BUILTIN_LEN
-	  && arg_type->is_string_type()
-	  && arg->classification() == EXPRESSION_STRING)
+      if (this->code_ == BUILTIN_LEN && arg_type->is_string_type())
 	{
-	  String_expression* se = static_cast<String_expression*>(arg);
-	  mpz_set_ui(val, se->val().length());
-	  *ptype = Type::lookup_integer_type("int");
-	  return true;
+	  std::string sval;
+	  if (arg->string_constant_value(&sval))
+	    {
+	      mpz_set_ui(val, sval.length());
+	      *ptype = Type::lookup_integer_type("int");
+	      return true;
+	    }
 	}
 
       if (arg_type->points_to() != NULL
