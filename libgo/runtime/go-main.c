@@ -12,6 +12,12 @@
 #include "go-signal.h"
 #include "go-string.h"
 
+#include "runtime.h"
+
+#undef int
+#undef char
+#undef unsigned
+
 /* The main function for a Go program.  This records the command line
    parameters, calls the real main function, and returns a zero status
    if the real main function returns.  */
@@ -33,6 +39,8 @@ main (int argc, char **argv)
 {
   int i;
   struct __go_string **values;
+
+  mallocinit ();
 
   Args.__count = argc;
   Args.__capacity = argc;

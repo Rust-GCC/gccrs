@@ -98,6 +98,7 @@ struct	M
 #define unlock(p) \
   (pthread_mutex_unlock(p) == 0 || (__go_panic_msg ("unlock failed"), 0))
 
+void	mallocinit(void);
 void	siginit(void);
 bool	sigsend(int32 sig);
 

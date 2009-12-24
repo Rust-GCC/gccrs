@@ -199,7 +199,6 @@ allocmcache(void)
 }
 
 void
-__attribute__ ((constructor (101)))
 mallocinit(void)
 {
 	InitSizes();
