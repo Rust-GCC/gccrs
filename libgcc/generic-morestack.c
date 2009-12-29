@@ -64,7 +64,7 @@ __generic_releasestack (size_t *pavailable)
 
 extern void
 __morestack_load_mmap (void)
-  __attribute__ ((no_split_stack, visibility ("hidden")));
+  __attribute__ ((no_split_stack));
 
 /* When we allocate a stack segment we put this header at the
    start.  */
@@ -87,14 +87,16 @@ struct stack_segment
 
 /* The first stack segment allocated for this thread.  */
 
-__thread struct stack_segment *__morestack_segments;
+__thread struct stack_segment *__morestack_segments
+  __attribute__ ((visibility ("default")));
 
 /* The stack segment that we think we are currently using.  This will
    be correct in normal usage, but will be incorrect if an exception
    unwinds into a different stack segment or if longjmp jumps to a
    different stack segment.  */
 
-static __thread struct stack_segment *current_segment;
+__thread struct stack_segment *__morestack_current_segment
+  __attribute__ ((visibility ("default")));
 
 /* Convert an integer to a decimal string without using much stack
    space.  Return a pointer to the part of the buffer to use.  We this
@@ -226,12 +228,12 @@ allocate_segment (size_t frame_size)
 
   pss = (struct stack_segment *) space;
 
-  pss->prev = current_segment;
+  pss->prev = __morestack_current_segment;
   pss->next = NULL;
   pss->size = allocate - overhead;
 
-  if (current_segment != NULL)
-    current_segment->next = pss;
+  if (__morestack_current_segment != NULL)
+    __morestack_current_segment->next = pss;
   else
     __morestack_segments = pss;
 
@@ -293,7 +295,7 @@ __generic_morestack (size_t *pframe_size, void *old_stack, size_t param_size)
   struct stack_segment *current;
   struct stack_segment **pp;
 
-  current = current_segment;
+  current = __morestack_current_segment;
 
   pp = current != NULL ? &current->next : &__morestack_segments;
   if (*pp != NULL && (*pp)->size < frame_size)
@@ -305,7 +307,7 @@ __generic_morestack (size_t *pframe_size, void *old_stack, size_t param_size)
 
   current->old_stack = old_stack;
 
-  current_segment = current;
+  __morestack_current_segment = current;
 
   *pframe_size = current->size - param_size;
 
@@ -337,10 +339,10 @@ __generic_releasestack (size_t *pavailable)
   struct stack_segment *current;
   void *old_stack;
 
-  current = current_segment;
+  current = __morestack_current_segment;
   old_stack = current->old_stack;
   current = current->prev;
-  current_segment = current;
+  __morestack_current_segment = current;
 
   if (current != NULL)
     {
@@ -369,8 +371,9 @@ void
 __morestack_load_mmap (void)
 {
   /* Call with bogus values to run faster.  We don't care if the call
-     fails.  */
-  mmap (NULL, 0, PROT_READ, MAP_ANONYMOUS, -1, 0);
+     fails.  Pass __MORESTACK_CURRENT_SEGMENT to make sure that any
+     TLS accessor function is resolved.  */
+  mmap (__morestack_current_segment, 0, PROT_READ, MAP_ANONYMOUS, -1, 0);
   munmap (0, 0);
 }
 
