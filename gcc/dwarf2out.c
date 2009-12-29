@@ -473,6 +473,7 @@ static void dwarf2out_note_section_used (void);
 static void flush_queued_reg_saves (void);
 static bool clobbers_queued_reg_save (const_rtx);
 static void dwarf2out_frame_debug_expr (rtx, const char *);
+static void dwarf2out_frame_debug_remember_state (void);
 
 /* Support for complex CFA locations.  */
 static void output_cfa_loc (dw_cfi_ref);
@@ -2775,6 +2776,17 @@ dwarf2out_frame_debug (rtx insn, bool after_p)
 	handled_one = true;
 	break;
 
+      case REG_CFA_TEMPORARY:
+	if (!after_p)
+	  {
+	    dwarf2out_frame_debug_remember_state ();
+	    dwarf2out_frame_debug_def_cfa (XEXP (note, 0), label);
+	  }
+	else
+	  dwarf2out_frame_debug_restore_state ();
+	handled_one = true;
+	break;
+
       default:
 	break;
       }
@@ -2857,9 +2869,17 @@ dwarf2out_begin_epilogue (rtx insn)
     }
   emit_note_before (NOTE_INSN_CFA_RESTORE_STATE, i);
 
+  dwarf2out_frame_debug_remember_state ();
+}
+
+/* Remember the current state.  */
+
+static void
+dwarf2out_frame_debug_remember_state (void)
+{
   emit_cfa_remember = true;
 
-  /* And emulate the state save.  */
+  /* Emulate the state save.  */
   gcc_assert (!cfa_remember.in_use);
   cfa_remember = cfa;
   cfa_remember.in_use = 1;

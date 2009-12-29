@@ -153,6 +153,13 @@ REG_NOTE (CFA_REGISTER)
    first pattern is the register to be restored.  */
 REG_NOTE (CFA_RESTORE)
 
+/* Temporarily set the CFA for just one insn.  This saves the old
+   state, sets the CFA, and then restores the state after the insn.
+   The pattern for this note is the new CFA value.  This is used by
+   the split stack code to support unwinding through the call into the
+   split stack routine.  */
+REG_NOTE (CFA_TEMPORARY)
+
 /* Indicates that REG holds the exception context for the function.
    This context is shared by inline functions, so the code to acquire
    the real exception context is delayed until after inlining.  */

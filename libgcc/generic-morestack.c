@@ -62,6 +62,10 @@ extern void *
 __generic_releasestack (size_t *pavailable)
   __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
 
+extern void
+__morestack_load_mmap (void)
+  __attribute__ ((no_split_stack, visibility ("hidden")));
+
 /* When we allocate a stack segment we put this header at the
    start.  */
 
@@ -354,6 +358,20 @@ __generic_releasestack (size_t *pavailable)
     }
 
   return old_stack;
+}
+
+/* This function is called at program startup time to make sure that
+   mmap and munmap are resolved if linking dynamically.  We want to
+   resolve them while we have enough stack for them, rather than
+   calling into the dynamic linker while low on stack space.  */
+
+void
+__morestack_load_mmap (void)
+{
+  /* Call with bogus values to run faster.  We don't care if the call
+     fails.  */
+  mmap (NULL, 0, PROT_READ, MAP_ANONYMOUS, -1, 0);
+  munmap (0, 0);
 }
 
 #endif /* !defined (inhibit_libc) */

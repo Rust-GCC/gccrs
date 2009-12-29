@@ -9410,8 +9410,11 @@ ix86_expand_split_stack_prologue (void)
 	 Preserve it across the call to __morestack.  */
       if (DECL_STATIC_CHAIN (current_function_decl))
 	{
-	  emit_insn (gen_push (reg));
-	  args_size += UNITS_PER_WORD;
+	  rtx rax;
+
+	  rax = gen_rtx_REG (Pmode, AX_REG);
+	  emit_move_insn (rax, reg);
+	  use_reg (&call_fusage, rax);
 	}
 
       emit_move_insn (reg, allocate_rtx);
@@ -9430,13 +9433,25 @@ ix86_expand_split_stack_prologue (void)
   /* In order to make call/return prediction work right, we now need
      to execute a return instruction.  See
      libgcc/config/i386/morestack.S for the details on how this works.
-     However, for flow purposes gcc must not see this as a return
+
+     In order to support backtracing, we need to set the CFA around
+     the call, so that the unwinder knows how to correctly pick up the
+     return address.  We set the CFA around the call because the
+     unwinder looks up to the point of the call but not after the
+     call.  */
+  add_reg_note (call_insn, REG_CFA_TEMPORARY,
+		gen_rtx_PLUS (Pmode, gen_rtx_REG (Pmode, SP_REG),
+			      GEN_INT (UNITS_PER_WORD)));
+  RTX_FRAME_RELATED_P (call_insn) = 1;
+
+  /* For flow purposes gcc must not see this as a return
      instruction--we need control flow to continue at the subsequent
      label.  Therefore, we use an unspec.  */
   if (crtl->args.pops_args == 0)
     emit_insn (gen_split_stack_return ());
   else
     {
+      gcc_assert (!TARGET_64BIT);
       gcc_assert (crtl->args.pops_args < 65536);
       emit_insn (gen_split_stack_pop_return (GEN_INT (crtl->args.pops_args)));
     }
@@ -9444,7 +9459,8 @@ ix86_expand_split_stack_prologue (void)
   /* If we are in 64-bit mode and this function uses a static chain,
      we pushed %r10 before calling _morestack.  */
   if (TARGET_64BIT && DECL_STATIC_CHAIN (current_function_decl))
-    emit_insn (gen_popdi1 (gen_rtx_REG (Pmode, R10_REG)));
+    emit_move_insn (gen_rtx_REG (Pmode, R10_REG),
+		    gen_rtx_REG (Pmode, AX_REG));
 
   emit_label (label);
   LABEL_NUSES (label) = 1;

@@ -189,7 +189,7 @@ __morestack:
 	# Switch back to the old stack via copy back from %ebp.
 	leave
 	.cfi_restore %ebp
-	.cfi_def_cfa %esp, 4
+	.cfi_def_cfa %esp, 12
 	ret	$8			# Return to caller, which will
 					# immediately return.  Pop
 					# arguments as we go.
@@ -210,8 +210,10 @@ __morestack:
 	pushq	%r10			# Save new frame size.
 
 	# In 64-bit mode the registers %rdi, %rsi, %rdx, %rcx, %r8,
-	# and %r9 may be used for parameters.
+	# and %r9 may be used for parameters.  We also preserve %rax
+	# which the caller may use to hold %r10.
 
+	push	%rax
 	pushq	%rdi
 	pushq	%rsi
 	pushq	%rdx
@@ -219,23 +221,20 @@ __morestack:
 	pushq	%r8
 	pushq	%r9
 
-	# An extra push to maintain 16-byte stack alignment.  After this,
-	# we'll be 80 bytes below the (presumably aligned) CFA.
-	pushq	%rdi
-
 	leaq	-8(%rbp),%rdi		# Address of new frame size.
 	leaq	24(%rbp),%rsi		# The caller's parameters.
 	movq	%r11,%rdx		# The size of the parameters.
 
 	call	__generic_morestack
 
-	popq	%rdi			# Restore registers
-	popq	%r9
+	popq	%r9			# Restore registers
 	popq	%r8
 	popq	%rcx
 	popq	%rdx
 	popq	%rsi
 	popq	%rdi
+
+	popq	%r11			# Pop old %rax into %r11.
 
 	popq	%r10			# Reload modified frame size
 	movq	%rax,%rsp		# Switch to the new stack.
@@ -250,6 +249,8 @@ __morestack:
 	movq	8(%rbp),%r10		# Increment the return address
 	incq	%r10			# to skip the ret instruction;
 					# see above.
+
+	movq	%r11,%rax		# Restore caller's %rax.
 
 	call	*%r10			# Call our caller!
 
@@ -327,9 +328,11 @@ __stack_split_initialize:
 #ifndef __x86_64__
 	.align	4
 	.long	__stack_split_initialize
+	.long	__morestack_load_mmap
 #else
 	.align	8
 	.quad	__stack_split_initialize
+	.quad	__morestack_load_mmap
 #endif
 
 #ifdef __ELF__
