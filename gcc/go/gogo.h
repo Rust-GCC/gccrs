@@ -1,6 +1,6 @@
 // gogo.h -- Go frontend parsed representation.     -*- C++ -*-
 
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2009, 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -2034,6 +2034,34 @@ class Label
   std::string name_;
   // The location of the definition.  This is 0 if the label has not
   // yet been defined.
+  source_location location_;
+  // The LABEL_DECL.
+  tree decl_;
+};
+
+// An unnamed label.  These are used when lowering loops.
+
+class Unnamed_label
+{
+ public:
+  Unnamed_label(source_location location)
+    : location_(location), decl_(NULL)
+  { }
+
+  // Return a statement which defines this label.
+  tree
+  get_definition();
+
+  // Return a goto to this label from LOCATION.
+  tree
+  get_goto(source_location location);
+
+ private:
+  // Return the LABEL_DECL to use with GOTO_EXPR.
+  tree
+  get_decl();
+
+  // The location where the label is defined.
   source_location location_;
   // The LABEL_DECL.
   tree decl_;

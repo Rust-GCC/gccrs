@@ -1,6 +1,6 @@
 // statements.cc -- Go frontend statements.
 
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2009, 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -2837,9 +2837,9 @@ Statement::make_return_statement(const Function* function,
 class Bc_statement : public Statement
 {
  public:
-  Bc_statement(bool is_break, Statement* enclosing, source_location location)
+  Bc_statement(bool is_break, Unnamed_label* label, source_location location)
     : Statement(STATEMENT_BREAK_OR_CONTINUE, location),
-      enclosing_(enclosing), is_break_(is_break)
+      label_(label), is_break_(is_break)
   { }
 
   bool
@@ -2856,77 +2856,31 @@ class Bc_statement : public Statement
   { return false; }
 
   tree
-  do_get_tree(Translate_context*);
+  do_get_tree(Translate_context*)
+  { return this->label_->get_goto(this->location()); }
 
  private:
-  // The for or switch statement that this applies to.
-  Statement* enclosing_;
+  // The label that this branches to.
+  Unnamed_label* label_;
   // True if this is "break", false if it is "continue".
   bool is_break_;
 };
 
-// Return the tree for a break or continue statement.
-
-tree
-Bc_statement::do_get_tree(Translate_context*)
-{
-  Statement_classification sc = this->enclosing_->classification();
-  tree label;
-  if (sc == STATEMENT_FOR)
-    {
-      For_statement* f = this->enclosing_->for_statement();
-      if (this->is_break_)
-	label = f->break_label();
-      else
-	label = f->continue_label();
-    }
-  else if (sc == STATEMENT_FOR_RANGE)
-    {
-      For_range_statement* f = this->enclosing_->for_range_statement();
-      if (this->is_break_)
-	label = f->break_label();
-      else
-	label = f->continue_label();
-    }
-  else if (sc == STATEMENT_SWITCH)
-    {
-      Switch_statement* s = this->enclosing_->switch_statement();
-      gcc_assert(this->is_break_);
-      label = s->break_label();
-    }
-  else if (sc == STATEMENT_TYPE_SWITCH)
-    {
-      Type_switch_statement* s = this->enclosing_->type_switch_statement();
-      gcc_assert(this->is_break_);
-      label = s->break_label();
-    }
-  else if (sc == STATEMENT_SELECT)
-    {
-      Select_statement* s = this->enclosing_->select_statement();
-      gcc_assert(this->is_break_);
-      label = s->break_label();
-    }
-  else
-    gcc_unreachable();
-
-  return build_and_jump(&LABEL_EXPR_LABEL(label));
-}
-
 // Make a break statement.
 
 Statement*
-Statement::make_break_statement(Statement* enclosing, source_location location)
+Statement::make_break_statement(Unnamed_label* label, source_location location)
 {
-  return new Bc_statement(true, enclosing, location);
+  return new Bc_statement(true, label, location);
 }
 
 // Make a continue statement.
 
 Statement*
-Statement::make_continue_statement(Statement* enclosing,
+Statement::make_continue_statement(Unnamed_label* label,
 				   source_location location)
 {
-  return new Bc_statement(false, enclosing, location);
+  return new Bc_statement(false, label, location);
 }
 
 // A goto statement.
@@ -3248,7 +3202,7 @@ Case_clauses::Case_clause::may_fall_through() const
 
 void
 Case_clauses::Case_clause::get_constant_tree(Translate_context* context,
-					     tree break_label,
+					     Unnamed_label* break_label,
 					     Case_constants* case_constants,
 					     tree* stmt_list) const
 {
@@ -3307,11 +3261,7 @@ Case_clauses::Case_clause::get_constant_tree(Translate_context* context,
     }
 
   if (!this->is_fallthrough_)
-    {
-      tree t = build_and_jump(&LABEL_EXPR_LABEL(break_label));
-      SET_EXPR_LOCATION(t, this->location_);
-      append_to_statement_list(t, stmt_list);
-    }
+    append_to_statement_list(break_label->get_goto(this->location_), stmt_list);
 }
 
 // Build up a statement list when some case expressions are not
@@ -3323,15 +3273,14 @@ void
 Case_clauses::Case_clause::get_nonconstant_tree(Translate_context* context,
 						Type* switch_val_type,
 						tree switch_val_tree,
-						tree start_label,
-						tree finish_label,
+						Unnamed_label* start_label,
+						Unnamed_label* finish_label,
 						tree* stmt_list) const
 {
   tree next_case_label = NULL_TREE;
   if (this->cases_ != NULL && this->cases_->size() > 0)
     {
-      next_case_label = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-      SET_EXPR_LOCATION(next_case_label, this->location_);
+      next_case_label = create_artificial_label(this->location_);
 
       if (this->cases_->size() == 1)
 	{
@@ -3339,7 +3288,7 @@ Case_clauses::Case_clause::get_nonconstant_tree(Translate_context* context,
 	  //   if SWITCH_VAL != CASE_VAL {
 	  //     goto next_case
 	  //   }
-	  tree jump = build_and_jump(&LABEL_EXPR_LABEL(next_case_label));
+	  tree jump = build1(GOTO_EXPR, void_type_node, next_case_label);
 	  SET_EXPR_LOCATION(jump, this->location_);
 
 	  Expression* case_expr = *this->cases_->begin();
@@ -3376,14 +3325,13 @@ Case_clauses::Case_clause::get_nonconstant_tree(Translate_context* context,
 	  // and then we emit
 	  //   goto next_case;
 	  //  this_case:
-	  tree this_case_label = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-	  SET_EXPR_LOCATION(this_case_label, this->location_);
+	  tree this_case_label = create_artificial_label(this->location_);
 
 	  for (Expression_list::const_iterator p = this->cases_->begin();
 	       p != this->cases_->end();
 	       ++p)
 	    {
-	      tree jump = build_and_jump(&LABEL_EXPR_LABEL(this_case_label));
+	      tree jump = build1(GOTO_EXPR, void_type_node, this_case_label);
 	      SET_EXPR_LOCATION(jump, this->location_);
 
 	      tree case_val = (*p)->get_tree(context);
@@ -3410,20 +3358,18 @@ Case_clauses::Case_clause::get_nonconstant_tree(Translate_context* context,
 	      append_to_statement_list(cond_expr, stmt_list);
 	    }
 
-	  tree next_jump = build_and_jump(&LABEL_EXPR_LABEL(next_case_label));
+	  tree next_jump = build1(GOTO_EXPR, void_type_node, next_case_label);
 	  SET_EXPR_LOCATION(next_jump, this->location_);
 	  append_to_statement_list(next_jump, stmt_list);
 
-	  append_to_statement_list(this_case_label, stmt_list);
+	  tree le = build1(LABEL_EXPR, void_type_node, this_case_label);
+	  SET_EXPR_LOCATION(le, this->location_);
+	  append_to_statement_list(le, stmt_list);
 	}
     }
 
-  if (start_label != NULL_TREE)
-    {
-      append_to_statement_list(start_label, stmt_list);
-      if (this->statements_ != NULL)
-	SET_EXPR_LOCATION(start_label, this->statements_->start_location());
-    }
+  if (start_label != NULL)
+    append_to_statement_list(start_label->get_definition(), stmt_list);
 
   if (this->statements_ != NULL)
     {
@@ -3432,15 +3378,16 @@ Case_clauses::Case_clause::get_nonconstant_tree(Translate_context* context,
 	append_to_statement_list(block_tree, stmt_list);
     }
 
-  tree t = build_and_jump(&LABEL_EXPR_LABEL(finish_label));
-  if (this->statements_ == NULL)
-    SET_EXPR_LOCATION(t, this->location_);
-  else
-    SET_EXPR_LOCATION(t, this->statements_->end_location());
+  tree t = finish_label->get_goto(this->statements_ == NULL
+				  ? this->location_
+				  : this->statements_->end_location());
   append_to_statement_list(t, stmt_list);
 
-  if (next_case_label != NULL)
-    append_to_statement_list(next_case_label, stmt_list);
+  if (next_case_label != NULL_TREE)
+    {
+      tree le = build1(LABEL_EXPR, void_type_node, next_case_label);
+      append_to_statement_list(le, stmt_list);
+    }
 }
 
 // Class Case_clauses.
@@ -3523,7 +3470,7 @@ Case_clauses::may_fall_through() const
 
 tree
 Case_clauses::get_constant_tree(Translate_context* context,
-				tree break_label) const
+				Unnamed_label* break_label) const
 {
   Case_constants case_constants;
   tree stmt_list = NULL_TREE;
@@ -3541,23 +3488,24 @@ Case_clauses::get_constant_tree(Translate_context* context,
 void
 Case_clauses::get_nonconstant_tree(Translate_context* context,
 				   Type* switch_val_type, tree switch_val_tree,
-				   tree break_label, tree* stmt_list) const
+				   Unnamed_label* break_label,
+				   tree* stmt_list) const
 {
   const Case_clause* default_case = NULL;
-  tree last_fallthrough_label = NULL_TREE;
-  tree default_start_label = NULL_TREE;
-  tree default_finish_label = NULL_TREE;
+  Unnamed_label* last_fallthrough_label = NULL;
+  Unnamed_label* default_start_label = NULL;
+  Unnamed_label* default_finish_label = NULL;
   for (Clauses::const_iterator p = this->clauses_.begin();
        p != this->clauses_.end();
        ++p)
     {
-      tree start_label = last_fallthrough_label;
-      tree finish_label = break_label;
+      Unnamed_label* start_label = last_fallthrough_label;
+      Unnamed_label* finish_label = break_label;
 
-      last_fallthrough_label = NULL_TREE;
+      last_fallthrough_label = NULL;
       if (p->is_fallthrough() && p + 1 != this->clauses_.end())
 	{
-	  finish_label = build1(LABEL_EXPR, void_type_node, NULL_TREE);
+	  finish_label = new Unnamed_label(p->location());
 	  last_fallthrough_label = finish_label;
 	}
 
@@ -3650,6 +3598,7 @@ Switch_statement::do_get_tree(Translate_context* context)
   if (this->clauses_->empty())
     return switch_val_tree;
 
+  Unnamed_label* break_label = this->break_label();
   tree stmt_list = NULL_TREE;
   if (this->val_ != NULL
       && this->val_->type()->integer_type() != NULL
@@ -3657,8 +3606,7 @@ Switch_statement::do_get_tree(Translate_context* context)
     {
       tree ret = build3(SWITCH_EXPR, TREE_TYPE(switch_val_tree),
 			switch_val_tree,
-			this->clauses_->get_constant_tree(context,
-							  this->break_label()),
+			this->clauses_->get_constant_tree(context, break_label),
 			NULL_TREE);
       SET_EXPR_LOCATION(ret, this->location());
       append_to_statement_list(ret, &stmt_list);
@@ -3671,12 +3619,11 @@ Switch_statement::do_get_tree(Translate_context* context)
 					    ? Type::make_boolean_type()
 					    : this->val_->type()),
 					   switch_val_tree,
-					   this->break_label(),
+					   break_label,
 					   &stmt_list);
     }
 
-  if (LABEL_EXPR_LABEL(this->break_label_) != NULL_TREE)
-    append_to_statement_list(this->break_label_, &stmt_list);
+  append_to_statement_list(break_label->get_definition(), &stmt_list);
 
   return stmt_list;
 }
@@ -3684,14 +3631,11 @@ Switch_statement::do_get_tree(Translate_context* context)
 // Return the break label for this switch statement, creating it if
 // necessary.
 
-tree
+Unnamed_label*
 Switch_statement::break_label()
 {
-  if (this->break_label_ == NULL_TREE)
-    {
-      this->break_label_ = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-      SET_EXPR_LOCATION(this->break_label_, this->location());
-    }
+  if (this->break_label_ == NULL)
+    this->break_label_ = new Unnamed_label(this->location());
   return this->break_label_;
 }
 
@@ -3751,7 +3695,7 @@ Type_case_clauses::Type_case_clause::may_fall_through() const
 void
 Type_case_clauses::Type_case_clause::get_tree(Translate_context* context,
 					      tree switch_type_descriptor,
-					      tree break_label,
+					      Unnamed_label* break_label,
 					      tree* stmts_label,
 					      tree* stmt_list) const
 {
@@ -3770,16 +3714,16 @@ Type_case_clauses::Type_case_clause::get_tree(Translate_context* context,
       tree jump;
       if (!this->is_fallthrough_)
 	{
-	  next_case_label = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-	  jump = build_and_jump(&LABEL_EXPR_LABEL(next_case_label));
+	  next_case_label = create_artificial_label(UNKNOWN_LOCATION);
+	  jump = build1(GOTO_EXPR, void_type_node, next_case_label);
 	}
       else
 	{
 	  if (*stmts_label == NULL_TREE)
-	    *stmts_label = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-	  jump = build_and_jump(&LABEL_EXPR_LABEL(*stmts_label));
+	    *stmts_label = create_artificial_label(UNKNOWN_LOCATION);
+	  jump = build1(GOTO_EXPR, void_type_node, *stmts_label);
 	}
-
+      SET_EXPR_LOCATION(jump, this->location_);
 
       tree comparison;
       Type* type = this->type_;
@@ -3834,7 +3778,9 @@ Type_case_clauses::Type_case_clause::get_tree(Translate_context* context,
       if (*stmts_label != NULL_TREE)
 	{
 	  gcc_assert(!this->is_default_);
-	  append_to_statement_list(*stmts_label, stmt_list);
+	  tree le = build1(LABEL_EXPR, void_type_node, *stmts_label);
+	  SET_EXPR_LOCATION(le, this->statements_->start_location());
+	  append_to_statement_list(le, stmt_list);
 	  *stmts_label = NULL_TREE;
 	}
       tree block_tree = this->statements_->get_tree(context);
@@ -3846,11 +3792,16 @@ Type_case_clauses::Type_case_clause::get_tree(Translate_context* context,
     gcc_assert(next_case_label == NULL_TREE);
   else
     {
-      tree t = build_and_jump(&LABEL_EXPR_LABEL(break_label));
+      tree t = break_label->get_goto(this->statements_ == NULL
+				     ? this->location_
+				     : this->statements_->end_location());
       append_to_statement_list(t, stmt_list);
 
       if (next_case_label != NULL_TREE)
-	append_to_statement_list(next_case_label, stmt_list);
+	{
+	  tree le = build1(LABEL_EXPR, void_type_node, next_case_label);
+	  append_to_statement_list(le, stmt_list);
+	}
     }
 }
 
@@ -3927,7 +3878,7 @@ Type_case_clauses::may_fall_through() const
 void
 Type_case_clauses::get_tree(Translate_context* context,
 			    tree switch_type_descriptor,
-			    tree break_label,
+			    Unnamed_label* break_label,
 			    tree* stmt_list) const
 {
   const Type_case_clause* default_case = NULL;
@@ -4036,11 +3987,10 @@ Type_switch_statement::do_get_tree(Translate_context* context)
 						     switch_val_tree);
 
   tree stmt_list = NULL_TREE;
-  this->clauses_->get_tree(context, switch_descriptor, this->break_label(),
-			   &stmt_list);
+  this->clauses_->get_tree(context, switch_descriptor,
+			   this->break_label(), &stmt_list);
 
-  if (LABEL_EXPR_LABEL(this->break_label_) != NULL_TREE)
-    append_to_statement_list(this->break_label_, &stmt_list);
+  append_to_statement_list(this->break_label_->get_definition(), &stmt_list);
 
   return stmt_list;
 }
@@ -4085,14 +4035,11 @@ Type_switch_statement::get_type_descriptor(Translate_context* context,
 // Return the break label for this type switch statement, creating it
 // if necessary.
 
-tree
+Unnamed_label*
 Type_switch_statement::break_label()
 {
-  if (this->break_label_ == NULL_TREE)
-    {
-      this->break_label_ = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-      SET_EXPR_LOCATION(this->break_label_, this->location());
-    }
+  if (this->break_label_ == NULL)
+    this->break_label_ = new Unnamed_label(this->location());
   return this->break_label_;
 }
 
@@ -4320,7 +4267,8 @@ Select_clauses::may_fall_through() const
 // where the receiver has a static type which matches that interface.
 
 tree
-Select_clauses::get_tree(Translate_context* context, tree break_label,
+Select_clauses::get_tree(Translate_context* context,
+			 Unnamed_label *break_label,
 			 source_location location)
 {
   if (this->clauses_.empty())
@@ -4400,8 +4348,7 @@ Select_clauses::get_tree(Translate_context* context, tree break_label,
       tree stmt_list = NULL_TREE;
       append_to_statement_list(default_clause->get_statements_tree(context),
 			       &stmt_list);
-      if (LABEL_EXPR_LABEL(break_label) != NULL_TREE)
-	append_to_statement_list(break_label, &stmt_list);
+      append_to_statement_list(break_label->get_definition(), &stmt_list);
       return stmt_list;
     }
 
@@ -4478,7 +4425,7 @@ Select_clauses::get_tree(Translate_context* context, tree break_label,
 	}
     }
 
-  append_to_statement_list(break_label, &stmt_list);
+  append_to_statement_list(break_label->get_definition(), &stmt_list);
 
   tree switch_stmt = build3(SWITCH_EXPR, sizetype, call, stmt_list, NULL_TREE);
   SET_EXPR_LOCATION(switch_stmt, location);
@@ -4493,7 +4440,7 @@ void
 Select_clauses::add_clause_tree(Translate_context* context, int case_index,
 				Select_clause* clause, tree channel,
 				Type* element_type, tree sendvar,
-				tree bottom_label, tree* stmt_list)
+				Unnamed_label* bottom_label, tree* stmt_list)
 {
   tree label = create_artificial_label(clause->location());
   append_to_statement_list(build3(CASE_LABEL_EXPR, void_type_node,
@@ -4584,8 +4531,10 @@ Select_clauses::add_clause_tree(Translate_context* context, int case_index,
     }
 
   append_to_statement_list(statements_tree, stmt_list);
-  append_to_statement_list(build_and_jump(&LABEL_EXPR_LABEL(bottom_label)),
-			   stmt_list);
+  tree g = bottom_label->get_goto(clause->statements() == NULL
+				  ? clause->location()
+				  : clause->statements()->end_location());
+  append_to_statement_list(g, stmt_list);
 }
 
 // Class Select_statement.
@@ -4602,14 +4551,11 @@ Select_statement::do_check_types(Gogo* gogo)
 // Return the break label for this switch statement, creating it if
 // necessary.
 
-tree
+Unnamed_label*
 Select_statement::break_label()
 {
-  if (this->break_label_ == NULL_TREE)
-    {
-      this->break_label_ = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-      SET_EXPR_LOCATION(this->break_label_, this->location());
-    }
+  if (this->break_label_ == NULL)
+    this->break_label_ = new Unnamed_label(this->location());
   return this->break_label_;
 }
 
@@ -4820,8 +4766,9 @@ For_statement::do_get_tree(Translate_context* context)
   append_to_statement_list(this->statements_->get_tree(context),
 			   &statements);
 
-  if (this->needs_continue_label_)
-    append_to_statement_list(this->continue_label(), &statements);
+  if (this->continue_label_ != NULL)
+    append_to_statement_list(this->continue_label_->get_definition(),
+			     &statements);
 
   if (this->post_ != NULL)
     append_to_statement_list(this->post_->get_tree(context),
@@ -4859,33 +4806,29 @@ For_statement::do_get_tree(Translate_context* context)
       append_to_statement_list(bottom, &statements);
     }
 
-  if (this->needs_break_label_)
-    append_to_statement_list(this->break_label(), &statements);
+  if (this->break_label_ != NULL)
+    append_to_statement_list(this->break_label_->get_definition(), &statements);
 
   return statements;
 }
 
-// Return the break LABEL_EXPR.
+// Return the break label, creating it if necessary.
 
-tree
+Unnamed_label*
 For_statement::break_label()
 {
-  gcc_assert(this->needs_break_label_);
-  if (this->break_label_ == NULL_TREE)
-    this->break_label_ = build1(LABEL_EXPR, void_type_node,
-				create_artificial_label(this->location()));
+  if (this->break_label_ == NULL)
+    this->break_label_ = new Unnamed_label(this->location());
   return this->break_label_;
 }
 
 // Return the continue LABEL_EXPR.
 
-tree
+Unnamed_label*
 For_statement::continue_label()
 {
-  gcc_assert(this->needs_continue_label_);
-  if (this->continue_label_ == NULL_TREE)
-    this->continue_label_ = build1(LABEL_EXPR, void_type_node,
-				   create_artificial_label(this->location()));
+  if (this->continue_label_ == NULL)
+    this->continue_label_ = new Unnamed_label(this->location());
   return this->continue_label_;
 }
 
@@ -5119,8 +5062,9 @@ For_range_statement::do_get_tree(Translate_context* context)
   append_to_statement_list(this->statements_->get_tree(context),
 			   &statements);
 
-  if (this->needs_continue_label_)
-    append_to_statement_list(this->continue_label(), &statements);
+  if (this->continue_label_ != NULL)
+    append_to_statement_list(this->continue_label_->get_definition(),
+			     &statements);
 
   if (next != NULL)
     append_to_statement_list(next, &statements);
@@ -5135,8 +5079,8 @@ For_range_statement::do_get_tree(Translate_context* context)
   append_to_statement_list(t, &statements);
   append_to_statement_list(bottom, &statements);
 
-  if (this->needs_break_label_)
-    append_to_statement_list(this->break_label(), &statements);
+  if (this->break_label_ != NULL)
+    append_to_statement_list(this->break_label_->get_definition(), &statements);
 
   return statements;
 }
@@ -5437,25 +5381,21 @@ For_range_statement::get_channel_iteration(Translate_context* context,
 
 // Return the break LABEL_EXPR.
 
-tree
+Unnamed_label*
 For_range_statement::break_label()
 {
-  gcc_assert(this->needs_break_label_);
-  if (this->break_label_ == NULL_TREE)
-    this->break_label_ = build1(LABEL_EXPR, void_type_node,
-				create_artificial_label(this->location()));
+  if (this->break_label_ == NULL)
+    this->break_label_ = new Unnamed_label(this->location());
   return this->break_label_;
 }
 
 // Return the continue LABEL_EXPR.
 
-tree
+Unnamed_label*
 For_range_statement::continue_label()
 {
-  gcc_assert(this->needs_continue_label_);
-  if (this->continue_label_ == NULL_TREE)
-    this->continue_label_ = build1(LABEL_EXPR, void_type_node,
-				   create_artificial_label(this->location()));
+  if (this->continue_label_ == NULL)
+    this->continue_label_ = new Unnamed_label(this->location());
   return this->continue_label_;
 }
 

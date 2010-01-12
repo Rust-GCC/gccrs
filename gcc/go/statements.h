@@ -1,6 +1,6 @@
 // statements.h -- Go frontend statements.     -*- C++ -*-
 
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2009, 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -15,6 +15,7 @@ class Gogo;
 class Traverse;
 class Block;
 class Function;
+class Unnamed_label;
 class Temporary_statement;
 class Variable_declaration_statement;
 class Return_statement;
@@ -196,11 +197,11 @@ class Statement
 
   // Make a break statement.
   static Statement*
-  make_break_statement(Statement* enclosing, source_location);
+  make_break_statement(Unnamed_label* label, source_location);
 
   // Make a continue statement.
   static Statement*
-  make_continue_statement(Statement* enclosing, source_location);
+  make_continue_statement(Unnamed_label* label, source_location);
 
   // Make a goto statement.
   static Statement*
@@ -636,7 +637,7 @@ class Select_clauses
 
   // Return a tree implementing the select statement.
   tree
-  get_tree(Translate_context*, tree break_label, source_location);
+  get_tree(Translate_context*, Unnamed_label* break_label, source_location);
 
  private:
   // A single clause.
@@ -704,6 +705,11 @@ class Select_clauses
       return this->is_send_;
     }
 
+    // Return the statements.
+    const Block*
+    statements() const
+    { return this->statements_; }
+
     // Return the location.
     source_location
     location() const
@@ -737,7 +743,7 @@ class Select_clauses
 
   void
   add_clause_tree(Translate_context*, int, Select_clause*, tree, Type*, tree,
-		  tree, tree*);
+		  Unnamed_label*, tree*);
 
   typedef std::vector<Select_clause> Clauses;
 
@@ -762,16 +768,8 @@ class Select_statement : public Statement
     this->clauses_ = clauses;
   }
 
-  // Rcord that a break statement is used for this select statement.
-  // This is called during parsing.  Actually we always need a break
-  // label, so we don't care about this.
-  void
-  set_needs_break_label()
-  { }
-
-  // Return the break LABEL_EXPR for this select statement.  This is
-  // called when converting to GENERIC.
-  tree
+  // Return the break label for this select statement.
+  Unnamed_label*
   break_label();
 
  protected:
@@ -799,8 +797,8 @@ class Select_statement : public Statement
  private:
   // The select clauses.
   Select_clauses* clauses_;
-  // The break LABEL_EXPR.
-  tree break_label_;
+  // The break label.
+  Unnamed_label* break_label_;
 };
 
 // A statement which requires a thunk: go or defer.
@@ -943,8 +941,7 @@ class For_statement : public Statement
     : Statement(STATEMENT_FOR, location),
       init_(init), cond_(cond), post_(post), statements_(NULL),
       precond_(NULL), postcond_(NULL), break_label_(NULL),
-      continue_label_(NULL), needs_break_label_(false),
-      needs_continue_label_(false)
+      continue_label_(NULL)
   { }
 
   // Add the statements.
@@ -963,26 +960,12 @@ class For_statement : public Statement
   void
   insert_after_conditional(Block* enclosing, Statement*);
 
-  // Record that a break statement is used for this for statement.
-  // This is called during parsing.
-  void
-  set_needs_break_label()
-  { this->needs_break_label_ = true; }
-
-  // Record that a continue statement is used for this for statement.
-  // This is called during parsing.
-  void
-  set_needs_continue_label()
-  { this->needs_continue_label_ = true; }
-
-  // Return the break LABEL_EXPR for this for statement.  This is
-  // called when converting to GENERIC.
-  tree
+  // Return the break label for this for statement.
+  Unnamed_label*
   break_label();
 
-  // Return the continue LABEL_EXPR for this for statement.  This is
-  // called when converting to GENERIC.
-  tree
+  // Return the continue label for this for statement.
+  Unnamed_label*
   continue_label();
 
  protected:
@@ -1016,14 +999,10 @@ class For_statement : public Statement
   // Statements to run after the conditional expression.  This may be
   // NULL.
   Block* postcond_;
-  // The break LABEL_EXPR, if needed.
-  tree break_label_;
-  // The continue LABEL_EXPR, if needed.
-  tree continue_label_;
-  // True if we need a break label.
-  bool needs_break_label_;
-  // True if we need a continue label.
-  bool needs_continue_label_;
+  // The break label, if needed.
+  Unnamed_label* break_label_;
+  // The continue label, if needed.
+  Unnamed_label* continue_label_;
 };
 
 // A for statement over a range clause.
@@ -1035,8 +1014,7 @@ class For_range_statement : public Statement
 		      Expression* range, source_location location)
     : Statement(STATEMENT_FOR_RANGE, location),
       index_var_(index_var), value_var_(value_var), range_(range),
-      statements_(NULL), break_label_(NULL), continue_label_(NULL),
-      needs_break_label_(false), needs_continue_label_(false)
+      statements_(NULL), break_label_(NULL), continue_label_(NULL)
   { }
 
   // Add the statements.
@@ -1047,24 +1025,12 @@ class For_range_statement : public Statement
     this->statements_ = statements;
   }
 
-  // Record that a break statement is used for this for statement.
-  // This is called during parsing.
-  void
-  set_needs_break_label()
-  { this->needs_break_label_ = true; }
-
-  // Record that a continue statement is used for this for statement.
-  // This is called during parsing.
-  void
-  set_needs_continue_label()
-  { this->needs_continue_label_ = true; }
-
-  // Return the break LABEL_EXPR for this for statement.
-  tree
+  // Return the break label for this for statement.
+  Unnamed_label*
   break_label();
 
-  // Return the continue LABEL_EXPR for this for statement.
-  tree
+  // Return the continue label for this for statement.
+  Unnamed_label*
   continue_label();
 
  protected:
@@ -1109,14 +1075,10 @@ class For_range_statement : public Statement
   Expression* range_;
   // The statements in the block.
   Block* statements_;
-  // The break LABEL_EXPR, if needed.
-  tree break_label_;
-  // The continue LABEL_EXPR, if needed.
-  tree continue_label_;
-  // True if we need a break label.
-  bool needs_break_label_;
-  // True if we need a continue label.
-  bool needs_continue_label_;
+  // The break label, if needed.
+  Unnamed_label* break_label_;
+  // The continue label, if needed.
+  Unnamed_label* continue_label_;
 };
 
 // Class Case_clauses holds the clauses of a switch statement.  This
@@ -1172,12 +1134,12 @@ class Case_clauses
   // Return the body of a SWITCH_EXPR when all the clauses are
   // constants.
   tree
-  get_constant_tree(Translate_context*, tree break_label) const;
+  get_constant_tree(Translate_context*, Unnamed_label* break_label) const;
 
   // Build up a statement list when some clauses are not constants.
   void
   get_nonconstant_tree(Translate_context*, Type* switch_val_type,
-		       tree switch_val_tree, tree break_label,
+		       tree switch_val_tree, Unnamed_label* break_label,
 		       tree* stmt_list) const;
 
  private:
@@ -1240,14 +1202,14 @@ class Case_clauses
     // Build up the body of a SWITCH_EXPR when the case expressions
     // are constant.
     void
-    get_constant_tree(Translate_context*, tree break_label,
+    get_constant_tree(Translate_context*, Unnamed_label* break_label,
 		      Case_constants* case_constants, tree* stmt_list) const;
 
     // Build up a statement list when some clauses are not constants.
     void
     get_nonconstant_tree(Translate_context*, Type* switch_val_type,
-			 tree switch_val_tree, tree start_label,
-			 tree finish_label, tree* stmt_list) const;
+			 tree switch_val_tree, Unnamed_label* start_label,
+			 Unnamed_label* finish_label, tree* stmt_list) const;
 
    private:
     // The list of case expressions.
@@ -1278,8 +1240,7 @@ class Switch_statement : public Statement
  public:
   Switch_statement(Expression* val, source_location location)
     : Statement(STATEMENT_SWITCH, location),
-      val_(val), clauses_(NULL), break_label_(NULL),
-      needs_break_label_(false)
+      val_(val), clauses_(NULL), break_label_(NULL)
   { }
 
   // Add the clauses.
@@ -1290,15 +1251,8 @@ class Switch_statement : public Statement
     this->clauses_ = clauses;
   }
 
-  // Record that a break statement is used for this switch statement.
-  // This is called during parsing.
-  void
-  set_needs_break_label()
-  { this->needs_break_label_ = true; }
-
-  // Return the break LABEL_EXPR for this switch statement.  This is
-  // called when converting to GENERIC.
-  tree
+  // Return the break label for this switch statement.
+  Unnamed_label*
   break_label();
 
  protected:
@@ -1322,10 +1276,8 @@ class Switch_statement : public Statement
   Expression* val_;
   // The case clauses.
   Case_clauses* clauses_;
-  // The break LABEL_EXPR, if needed.
-  tree break_label_;
-  // True if we need a break label.
-  bool needs_break_label_;
+  // The break label, if needed.
+  Unnamed_label* break_label_;
 };
 
 // Class Type_case_clauses holds the clauses of a type switch
@@ -1376,7 +1328,7 @@ class Type_case_clauses
   // Build up a statement list for this type switch statement.
   void
   get_tree(Translate_context*, tree switch_descriptor_tree,
-	   tree break_label, tree* stmt_list) const;
+	   Unnamed_label* break_label, tree* stmt_list) const;
 
  private:
   // One type case clause.
@@ -1431,8 +1383,9 @@ class Type_case_clauses
 
     // Build up a statement list.
     void
-    get_tree(Translate_context*, tree switch_type_descriptor, tree break_label,
-	     tree* stmts_label, tree* stmt_list) const;
+    get_tree(Translate_context*, tree switch_type_descriptor,
+	     Unnamed_label* break_label, tree* stmts_label,
+	     tree* stmt_list) const;
 
    private:
     // The type for this type clause.
@@ -1464,8 +1417,7 @@ class Type_switch_statement : public Statement
   Type_switch_statement(Named_object* var, Expression* expr,
 			source_location location)
     : Statement(STATEMENT_TYPE_SWITCH, location),
-      var_(var), expr_(expr), clauses_(NULL), break_label_(NULL),
-      needs_break_label_(false)
+      var_(var), expr_(expr), clauses_(NULL), break_label_(NULL)
   { gcc_assert(var == NULL || expr == NULL); }
 
   // Add the clauses.
@@ -1476,14 +1428,8 @@ class Type_switch_statement : public Statement
     this->clauses_ = clauses;
   }
 
-  // Record that a break statement is used for this type switch
-  // statement.
-  void
-  set_needs_break_label()
-  { this->needs_break_label_ = true; }
-
-  // Return the break LABEL_EXPR for this type switch statement.
-  tree
+  // Return the break label for this type switch statement.
+  Unnamed_label*
   break_label();
 
  protected:
@@ -1513,10 +1459,8 @@ class Type_switch_statement : public Statement
   Expression* expr_;
   // The type case clauses.
   Type_case_clauses* clauses_;
-  // The break LABEL_EXPR, if needed.
-  tree break_label_;
-  // True if we need a break label.
-  bool needs_break_label_;
+  // The break label, if needed.
+  Unnamed_label* break_label_;
 };
 
 #endif // !defined(GO_STATEMENTS_H)

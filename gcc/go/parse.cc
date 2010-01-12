@@ -1,6 +1,6 @@
 // parse.cc -- Go frontend parser.
 
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2009, 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -4225,20 +4225,21 @@ Parse::break_stat()
       this->advance_token();
     }
 
+  Unnamed_label* label;
   if (enclosing->classification() == Statement::STATEMENT_FOR)
-    enclosing->for_statement()->set_needs_break_label();
+    label = enclosing->for_statement()->break_label();
   else if (enclosing->classification() == Statement::STATEMENT_FOR_RANGE)
-    enclosing->for_range_statement()->set_needs_break_label();
+    label = enclosing->for_range_statement()->break_label();
   else if (enclosing->classification() == Statement::STATEMENT_SWITCH)
-    enclosing->switch_statement()->set_needs_break_label();
+    label = enclosing->switch_statement()->break_label();
   else if (enclosing->classification() == Statement::STATEMENT_TYPE_SWITCH)
-    enclosing->type_switch_statement()->set_needs_break_label();
+    label = enclosing->type_switch_statement()->break_label();
   else if (enclosing->classification() == Statement::STATEMENT_SELECT)
-    enclosing->select_statement()->set_needs_break_label();
+    label = enclosing->select_statement()->break_label();
   else
     gcc_unreachable();
 
-  this->gogo_->add_statement(Statement::make_break_statement(enclosing,
+  this->gogo_->add_statement(Statement::make_break_statement(label,
 							     location));
 }
 
@@ -4276,14 +4277,15 @@ Parse::continue_stat()
       this->advance_token();
     }
 
+  Unnamed_label* label;
   if (enclosing->classification() == Statement::STATEMENT_FOR)
-    enclosing->for_statement()->set_needs_continue_label();
+    label = enclosing->for_statement()->continue_label();
   else if (enclosing->classification() == Statement::STATEMENT_FOR_RANGE)
-    enclosing->for_range_statement()->set_needs_continue_label();
+    label = enclosing->for_range_statement()->continue_label();
   else
     gcc_unreachable();
 
-  this->gogo_->add_statement(Statement::make_continue_statement(enclosing,
+  this->gogo_->add_statement(Statement::make_continue_statement(label,
 								location));
 }
 

@@ -1,6 +1,6 @@
 // gogo-tree.cc -- convert Go frontend Gogo IR to gcc trees.
 
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2009, 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -1553,6 +1553,36 @@ Label::get_decl()
       DECL_CONTEXT(this->decl_) = current_function_decl;
     }
   return this->decl_;
+}
+
+// Get the LABEL_DECL for an unnamed label.
+
+tree
+Unnamed_label::get_decl()
+{
+  if (this->decl_ == NULL)
+    this->decl_ = create_artificial_label(this->location_);
+  return this->decl_;
+}
+
+// Get the LABEL_EXPR for an unnamed label.
+
+tree
+Unnamed_label::get_definition()
+{
+  tree t = build1(LABEL_EXPR, void_type_node, this->get_decl());
+  SET_EXPR_LOCATION(t, this->location_);
+  return t;
+}
+
+// Return a goto to this label.
+
+tree
+Unnamed_label::get_goto(source_location location)
+{
+  tree t = build1(GOTO_EXPR, void_type_node, this->get_decl());
+  SET_EXPR_LOCATION(t, location);
+  return t;
 }
 
 // Return the integer type to use for a size.
