@@ -2942,6 +2942,42 @@ Statement::make_goto_statement(Label* label, source_location location)
   return new Goto_statement(label, location);
 }
 
+// A goto statement to an unnamed label.
+
+class Goto_unnamed_statement : public Statement
+{
+ public:
+  Goto_unnamed_statement(Unnamed_label* label, source_location location)
+    : Statement(STATEMENT_GOTO_UNNAMED, location),
+      label_(label)
+  { }
+
+ protected:
+  int
+  do_traverse(Traverse*)
+  { return TRAVERSE_CONTINUE; }
+
+  bool
+  do_may_fall_through() const
+  { return false; }
+
+  tree
+  do_get_tree(Translate_context*)
+  { return this->label_->get_goto(this->location()); }
+
+ private:
+  Unnamed_label* label_;
+};
+
+// Make a goto statement to an unnamed label.
+
+Statement*
+Statement::make_goto_unnamed_statement(Unnamed_label* label,
+				       source_location location)
+{
+  return new Goto_unnamed_statement(label, location);
+}
+
 // Class Label_statement.
 
 // Traversal.
@@ -2982,6 +3018,38 @@ Statement*
 Statement::make_label_statement(Label* label, source_location location)
 {
   return new Label_statement(label, location);
+}
+
+// An unnamed label statement.
+
+class Unnamed_label_statement : public Statement
+{
+ public:
+  Unnamed_label_statement(Unnamed_label* label)
+    : Statement(STATEMENT_UNNAMED_LABEL, label->location()),
+      label_(label)
+  { }
+
+ protected:
+  int
+  do_traverse(Traverse*)
+  { return TRAVERSE_CONTINUE; }
+
+  tree
+  do_get_tree(Translate_context*)
+  { return this->label_->get_definition(); }
+
+ private:
+  // The label.
+  Unnamed_label* label_;
+};
+
+// Make an unnamed label statement.
+
+Statement*
+Statement::make_unnamed_label_statement(Unnamed_label* label)
+{
+  return new Unnamed_label_statement(label);
 }
 
 // An if statement.
@@ -3061,7 +3129,7 @@ If_statement::do_check_types(Gogo*)
       if (type->is_error_type())
 	this->set_is_error();
       else if (!type->is_boolean_type())
-	this->report_error(_("if statement expects boolean expression"));
+	this->report_error(_("expected boolean expression"));
     }
 }
 
@@ -4587,26 +4655,6 @@ Statement::make_select_statement(source_location location)
 
 // Class For_statement.
 
-// Insert a statement to run before the conditional.
-
-void
-For_statement::insert_before_conditional(Block* enclosing, Statement* s)
-{
-  if (this->precond_ == NULL)
-    this->precond_ = new Block(enclosing, s->location());
-  this->precond_->add_statement(s);
-}
-
-// Insert a statement to run after the conditional.
-
-void
-For_statement::insert_after_conditional(Block* enclosing, Statement* s)
-{
-  if (this->postcond_ == NULL)
-    this->postcond_ = new Block(enclosing, s->location());
-  this->postcond_->add_statement(s);
-}
-
 // Traversal.
 
 int
@@ -4617,19 +4665,9 @@ For_statement::do_traverse(Traverse* traverse)
       if (this->init_->traverse(traverse) == TRAVERSE_EXIT)
 	return TRAVERSE_EXIT;
     }
-  if (this->precond_ != NULL)
-    {
-      if (this->precond_->traverse(traverse) == TRAVERSE_EXIT)
-	return TRAVERSE_EXIT;
-    }
   if (this->cond_ != NULL)
     {
       if (this->traverse_expression(traverse, &this->cond_) == TRAVERSE_EXIT)
-	return TRAVERSE_EXIT;
-    }
-  if (this->postcond_ != NULL)
-    {
-      if (this->postcond_->traverse(traverse) == TRAVERSE_EXIT)
 	return TRAVERSE_EXIT;
     }
   if (this->post_ != NULL)
@@ -4640,176 +4678,73 @@ For_statement::do_traverse(Traverse* traverse)
   return this->statements_->traverse(traverse);
 }
 
-void
-For_statement::do_determine_types()
+// Lower a For_statement into if statements and gotos.  Getting rid of
+// complex statements make it easier to handle garbage collection.
+
+Statement*
+For_statement::do_lower(Gogo*, Block* enclosing)
 {
+  Statement* s;
+  source_location loc = this->location();
+
+  Block* b = new Block(enclosing, this->location());
   if (this->init_ != NULL)
-    this->init_->determine_types();
-  gcc_assert(this->precond_ == NULL && this->postcond_ == NULL);
+    {
+      s = Statement::make_block_statement(this->init_,
+					  this->init_->start_location());
+      b->add_statement(s);
+    }
+
+  Unnamed_label* entry = NULL;
   if (this->cond_ != NULL)
     {
-      Type_context context(Type::lookup_bool_type(), false);
-      this->cond_->determine_type(&context);
-    }
-  if (this->post_ != NULL)
-    this->post_->determine_types();
-  this->statements_->determine_types();
-}
-
-// Check types.
-
-void
-For_statement::do_check_types(Gogo*)
-{
-  if (this->cond_ != NULL
-      && !this->cond_->type()->is_boolean_type()
-      && !this->cond_->type()->is_error_type())
-    this->report_error(_("for statement expects boolean expression "
-			 "for condition"));
-}
-
-// Traversal class used to look for a break out of a for.
-
-class Find_break_traverse : public Traverse
-{
- public:
-  Find_break_traverse()
-    : Traverse(traverse_statements),
-      found_break_or_goto_(false)
-  { }
-
-  int
-  statement(Block*, size_t* pindex, Statement*);
-
-  bool
-  found_break_or_goto() const
-  { return this->found_break_or_goto_; }
-
- private:
-  bool
-  found_break_or_goto_;
-};
-
-int
-Find_break_traverse::statement(Block*, size_t*, Statement* s)
-{
-  if (s->classification() == Statement::STATEMENT_GOTO)
-    {
-      this->found_break_or_goto_ = true;
-      return TRAVERSE_EXIT;
+      entry = new Unnamed_label(this->location());
+      b->add_statement(Statement::make_goto_unnamed_statement(entry, loc));
     }
 
-  // FIXME: We don't check for breaks out of a different loop.
-  if (s->classification() == Statement::STATEMENT_BREAK_OR_CONTINUE)
-    {
-      const Bc_statement* bcs = static_cast<const Bc_statement*>(s);
-      if (bcs->is_break())
-	{
-	  this->found_break_or_goto_ = true;
-	  return TRAVERSE_EXIT;
-	}
-    }
+  Unnamed_label* top = new Unnamed_label(this->location());
+  b->add_statement(Statement::make_unnamed_label_statement(top));
 
-  return TRAVERSE_CONTINUE;
-}
+  s = Statement::make_block_statement(this->statements_,
+				      this->statements_->start_location());
+  b->add_statement(s);
 
-// Return whether this may fall through.
+  source_location end_loc = this->statements_->end_location();
 
-bool
-For_statement::do_may_fall_through() const
-{
-  if (this->cond_ != NULL)
-    {
-      // FIXME: Should check "for true { }".
-      return true;
-    }
-
-  Find_break_traverse fbt;
-  this->statements_->traverse(&fbt);
-  return fbt.found_break_or_goto();
-}
-
-// Return the tree.
-
-tree
-For_statement::do_get_tree(Translate_context* context)
-{
-  tree statements = NULL_TREE;
-
-  if (this->init_ != NULL)
-    append_to_statement_list(this->init_->get_tree(context), &statements);
-
-  tree entry = NULL_TREE;
-  if (this->cond_ != NULL)
-    {
-      entry = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-      tree t = build_and_jump(&LABEL_EXPR_LABEL(entry));
-      SET_EXPR_LOCATION(t, this->location());
-      append_to_statement_list(t, &statements);
-    }
-
-  tree top = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-  append_to_statement_list(top, &statements);
-
-  // If this function has a reference count queue, we flush it at the
-  // start of each loop iteration.  We must do this, since each
-  // iteration of the loop may change the same entries in the queue.
-  Refcounts* refcounts = context->function()->func_value()->refcounts();
-  if (refcounts != NULL && !refcounts->empty())
-    {
-      source_location loc = this->statements_->start_location();
-      append_to_statement_list(refcounts->flush_queue(context->gogo(), false,
-						      loc),
-			       &statements);
-    }
-
-  append_to_statement_list(this->statements_->get_tree(context),
-			   &statements);
-
-  if (this->continue_label_ != NULL)
-    append_to_statement_list(this->continue_label_->get_definition(),
-			     &statements);
+  Unnamed_label* cont = this->continue_label_;
+  if (cont != NULL)
+    b->add_statement(Statement::make_unnamed_label_statement(cont));
 
   if (this->post_ != NULL)
-    append_to_statement_list(this->post_->get_tree(context),
-			     &statements);
+    {
+      s = Statement::make_block_statement(this->post_,
+					  this->post_->start_location());
+      b->add_statement(s);
+      end_loc = this->post_->end_location();
+    }
+
   if (this->cond_ == NULL)
-    {
-      gcc_assert(this->precond_ == NULL && this->postcond_ == NULL);
-      tree t = build_and_jump(&LABEL_EXPR_LABEL(top));
-      SET_EXPR_LOCATION(t, this->location());
-      append_to_statement_list(t, &statements);
-    }
+    b->add_statement(Statement::make_goto_unnamed_statement(top, end_loc));
   else
     {
-      append_to_statement_list(entry, &statements);
-      tree bottom = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-      if (this->precond_ != NULL)
-	append_to_statement_list(this->precond_->get_tree(context),
-				 &statements);
-      tree cond_tree = this->cond_->get_tree(context);
-      if (this->postcond_ != NULL)
-	{
-	  tree tmp = create_tmp_var(TREE_TYPE(cond_tree), get_name(cond_tree));
-	  DECL_INITIAL(tmp) = cond_tree;
-	  append_to_statement_list(build1(DECL_EXPR, void_type_node, tmp),
-				   &statements);
-	  cond_tree = tmp;
-	  append_to_statement_list(this->postcond_->get_tree(context),
-				   &statements);
-	}
-      tree t = fold_build3_loc(this->location(), COND_EXPR, void_type_node,
-			       cond_tree,
-			       build_and_jump(&LABEL_EXPR_LABEL(top)),
-			       build_and_jump(&LABEL_EXPR_LABEL(bottom)));
-      append_to_statement_list(t, &statements);
-      append_to_statement_list(bottom, &statements);
+      b->add_statement(Statement::make_unnamed_label_statement(entry));
+
+      source_location cond_loc = this->cond_->location();
+      Block* then_block = new Block(b, cond_loc);
+      s = Statement::make_goto_unnamed_statement(top, cond_loc);
+      then_block->add_statement(s);
+
+      s = Statement::make_if_statement(this->cond_, then_block, NULL, cond_loc);
+      b->add_statement(s);
     }
 
-  if (this->break_label_ != NULL)
-    append_to_statement_list(this->break_label_->get_definition(), &statements);
+  Unnamed_label* brk = this->break_label_;
+  if (brk != NULL)
+    b->add_statement(Statement::make_unnamed_label_statement(brk));
 
-  return statements;
+  b->set_end_location(end_loc);
+
+  return Statement::make_block_statement(b, loc);
 }
 
 // Return the break label, creating it if necessary.

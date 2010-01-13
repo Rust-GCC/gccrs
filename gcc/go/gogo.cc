@@ -1072,7 +1072,7 @@ Lower_parse_tree::statement(Block* block, size_t* pindex, Statement* sorig)
   Statement* s = sorig;
   while (true)
     {
-      Statement* snew = s->lower(this->gogo_);
+      Statement* snew = s->lower(this->gogo_, block);
       if (snew == s)
 	break;
       s = snew;
@@ -1457,18 +1457,8 @@ Shortcuts::statement(Block* block, size_t* pindex, Statement* s)
 	return TRAVERSE_CONTINUE;
 
       Statement* snew = this->convert_shortcut(block, pshortcut);
-      if (s->for_statement() == NULL)
-	{
-	  block->insert_statement_before(*pindex, snew);
-	  ++*pindex;
-	}
-      else
-	{
-	  // The only expression in a for statement is the conditional
-	  // expression.  We want to run the statement each time the
-	  // conditional is run, not once before the for loop.
-	  s->for_statement()->insert_before_conditional(block, snew);
-	}
+      block->insert_statement_before(*pindex, snew);
+      ++*pindex;
 
       if (pshortcut == &init)
 	vds->var()->var_value()->set_init(init);
@@ -1693,18 +1683,9 @@ Order_eval::statement(Block* block, size_t* pindex, Statement* s)
       source_location loc = (*pexpr)->location();
       Temporary_statement* ts = Statement::make_temporary(NULL, *pexpr,
 							  loc);
-      if (s->for_statement() == NULL)
-	{
-	  block->insert_statement_before(*pindex, ts);
-	  ++*pindex;
-	}
-      else
-	{
-	  // The only expression in a for statement is the conditional
-	  // expression.  We want to run the statement each time the
-	  // conditional is run, not once before the for loop.
-	  s->for_statement()->insert_before_conditional(block, ts);
-	}
+      block->insert_statement_before(*pindex, ts);
+      ++*pindex;
+
       *pexpr = Expression::make_temporary_reference(ts, loc);
       Statement* sdestroy = Statement::destroy_temporary(ts);
       if (sdestroy != NULL)
@@ -1715,9 +1696,7 @@ Order_eval::statement(Block* block, size_t* pindex, Statement* s)
 	  // put after the entire statement rather than after the
 	  // expression.  The reference counting code needs to be
 	  // revamped anyhow.
-	  if (s->for_statement() != NULL)
-	    s->for_statement()->insert_after_conditional(block, sdestroy);
-	  else if (s->return_statement() == NULL)
+	  if (s->return_statement() == NULL)
 	    block->insert_statement_after(*pindex, sdestroy);
 	}
     }

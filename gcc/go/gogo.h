@@ -2048,6 +2048,11 @@ class Unnamed_label
     : location_(location), decl_(NULL)
   { }
 
+  // Get the location where the label is defined.
+  source_location
+  location() const
+  { return this->location_; }
+
   // Return a statement which defines this label.
   tree
   get_definition();

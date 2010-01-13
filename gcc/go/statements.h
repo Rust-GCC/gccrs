@@ -104,7 +104,9 @@ class Statement
     STATEMENT_RETURN,
     STATEMENT_BREAK_OR_CONTINUE,
     STATEMENT_GOTO,
+    STATEMENT_GOTO_UNNAMED,
     STATEMENT_LABEL,
+    STATEMENT_UNNAMED_LABEL,
     STATEMENT_IF,
     STATEMENT_SWITCH,
     STATEMENT_TYPE_SWITCH,
@@ -207,9 +209,17 @@ class Statement
   static Statement*
   make_goto_statement(Label* label, source_location);
 
-  // Make a label statement.
+  // Make a goto statement to an unnamed label.
+  static Statement*
+  make_goto_unnamed_statement(Unnamed_label* label, source_location);
+
+  // Make a label statement--where the label is defined.
   static Statement*
   make_label_statement(Label* label, source_location);
+
+  // Make an unnamed label statement--where the label is defined.
+  static Statement*
+  make_unnamed_label_statement(Unnamed_label* label);
 
   // Make an if statement.
   static Statement*
@@ -272,10 +282,11 @@ class Statement
 
   // Lower a statement.  This is called immediately after parsing to
   // simplify statements for further processing.  It returns the same
-  // Statement or a new one.
+  // Statement or a new one.  BLOCK is the block containing this
+  // statement.
   Statement*
-  lower(Gogo* gogo)
-  { return this->do_lower(gogo); }
+  lower(Gogo* gogo, Block* block)
+  { return this->do_lower(gogo, block); }
 
   // Set type information for unnamed constants.
   void
@@ -368,7 +379,7 @@ class Statement
   // Implemented by the child class: lower this statement to a simpler
   // one.
   virtual Statement*
-  do_lower(Gogo*)
+  do_lower(Gogo*, Block*)
   { return this; }
 
   // Implemented by child class: set type information for unnamed
@@ -940,8 +951,7 @@ class For_statement : public Statement
 		source_location location)
     : Statement(STATEMENT_FOR, location),
       init_(init), cond_(cond), post_(post), statements_(NULL),
-      precond_(NULL), postcond_(NULL), break_label_(NULL),
-      continue_label_(NULL)
+      break_label_(NULL), continue_label_(NULL)
   { }
 
   // Add the statements.
@@ -951,14 +961,6 @@ class For_statement : public Statement
     gcc_assert(this->statements_ == NULL);
     this->statements_ = statements;
   }
-
-  // Insert a statement to run before the conditional expression.
-  void
-  insert_before_conditional(Block* enclosing, Statement*);
-
-  // Insert a statement to run after the conditional expression.
-  void
-  insert_after_conditional(Block* enclosing, Statement*);
 
   // Return the break label for this for statement.
   Unnamed_label*
@@ -972,17 +974,12 @@ class For_statement : public Statement
   int
   do_traverse(Traverse*);
 
-  void
-  do_determine_types();
-
-  void
-  do_check_types(Gogo*);
-
-  bool
-  do_may_fall_through() const;
+  Statement*
+  do_lower(Gogo*, Block*);
 
   tree
-  do_get_tree(Translate_context*);
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
 
  private:
   // The initialization statements.  This may be NULL.
@@ -993,12 +990,6 @@ class For_statement : public Statement
   Block* post_;
   // The statements in the loop itself.
   Block* statements_;
-  // Statements to run before the conditional expression.  This may be
-  // NULL.
-  Block* precond_;
-  // Statements to run after the conditional expression.  This may be
-  // NULL.
-  Block* postcond_;
   // The break label, if needed.
   Unnamed_label* break_label_;
   // The continue label, if needed.
