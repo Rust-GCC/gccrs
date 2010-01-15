@@ -1469,10 +1469,6 @@ class Map_index_expression : public Expression
   tree
   get_value_pointer(Translate_context*, bool insert);
 
-  // Return a tree to delete this key from the map.
-  tree
-  delete_key(Translate_context*);
-
  protected:
   int
   do_traverse(Traverse*);

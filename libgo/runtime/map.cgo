@@ -15,7 +15,7 @@ typedef struct __go_hash_iter hiter;
 /* Access a value in a map, returning a value and a presence indicator.  */
 
 func mapaccess2(h *hmap, key *byte, val *byte) (present bool) {
-	byte* mapval;
+	byte *mapval;
 	size_t valsize;
 
 	mapval = __go_map_index(h, key, 0);
@@ -25,6 +25,21 @@ func mapaccess2(h *hmap, key *byte, val *byte) (present bool) {
 		valsize = h->__descriptor->__map_descriptor->__val_type->__size;
 		__builtin_memcpy(val, mapval, valsize);
 		present = 1;
+	}
+}
+
+/* Optionally assign a value to a map (m[k] = v, p).  */
+
+func mapassign2(h *hmap, key *byte, val *byte, p bool) {
+	if (!p) {
+		__go_map_delete(h, key);
+	} else {
+		byte *mapval;
+		size_t valsize;
+
+		mapval = __go_map_index(h, key, 1);
+		valsize = h->__descriptor->__map_descriptor->__val_type->__size;
+		__builtin_memcpy(mapval, val, valsize);
 	}
 }
 

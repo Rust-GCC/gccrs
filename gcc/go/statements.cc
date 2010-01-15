@@ -817,6 +817,10 @@ class Tuple_assignment_statement : public Statement
   int
   do_traverse(Traverse* traverse);
 
+  bool
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
+
   Statement*
   do_lower(Gogo*, Block*);
 
@@ -933,6 +937,10 @@ public:
  protected:
   int
   do_traverse(Traverse* traverse);
+
+  bool
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
 
   Statement*
   do_lower(Gogo*, Block*);
@@ -1069,6 +1077,7 @@ Statement::make_tuple_map_assignment(Expression* val, Expression* present,
 }
 
 // Assign a pair of entries to a map.
+//   m[k] = v, p
 
 class Map_assignment_statement : public Statement
 {
@@ -1085,16 +1094,15 @@ class Map_assignment_statement : public Statement
   do_traverse(Traverse* traverse);
 
   bool
-  do_traverse_assignments(Traverse_assignments*);
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
 
-  void
-  do_determine_types();
-
-  void
-  do_check_types(Gogo*);
+  Statement*
+  do_lower(Gogo*, Block*);
 
   tree
-  do_get_tree(Translate_context* context);
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
 
  private:
   // A reference to the map index which should be set or deleted.
@@ -1116,101 +1124,80 @@ Map_assignment_statement::do_traverse(Traverse* traverse)
   return this->traverse_expression(traverse, &this->should_set_);
 }
 
-bool
-Map_assignment_statement::do_traverse_assignments(
-    Traverse_assignments *tassign)
+// Lower a map assignment to a function call.
+
+Statement*
+Map_assignment_statement::do_lower(Gogo*, Block* enclosing)
 {
-  tassign->assignment(&this->map_index_, NULL);
-  tassign->value(&this->val_, true, false);
-  tassign->value(&this->should_set_, false, false);
-  return true;
-}
+  source_location loc = this->location();
 
-// Determine types of expressions in a map assignment.
-
-void
-Map_assignment_statement::do_determine_types()
-{
-  this->map_index_->determine_type_no_context();
-  Map_type* mt = this->map_index_->map_index_expression()->get_map_type();
-  Type_context context1(mt->val_type(), false);
-  this->val_->determine_type(&context1);
-  Type_context context2(Type::lookup_bool_type(), false);
-  this->should_set_->determine_type(&context2);
-}
-
-// Check types in a map assignment.
-
-void
-Map_assignment_statement::do_check_types(Gogo*)
-{
-  if (this->map_index_->map_index_expression() == NULL)
+  Map_index_expression* map_index = this->map_index_->map_index_expression();
+  if (map_index == NULL)
     {
-      this->report_error("expected map index on left hand side");
-      return;
+      this->report_error(_("expected map index on left hand side"));
+      return Statement::make_error_statement(loc);
     }
+  Map_type* map_type = map_index->get_map_type();
 
-  Map_type *map_type = this->map_index_->map_index_expression()->get_map_type();
-  std::string reason;
-  if (!Type::are_compatible_for_assign(map_type->val_type(),
-				       this->val_->type(),
-				       &reason))
-    {
-      if (reason.empty())
-	this->report_error("incompatible types for map and value");
-      else
-	{
-	  error_at(this->location(),
-		   "incompatible types for map and value (%s)",
-		   reason.c_str());
-	  this->set_is_error();
-	}
-    }
+  Block* b = new Block(enclosing, loc);
 
-  if (!Type::are_compatible_for_assign(Type::lookup_bool_type(),
-					    this->should_set_->type(),
-					    &reason))
-    {
-      if (reason.empty())
-	error_at(this->should_set_->location(),
-		 "incompatible type for map assignment");
-      else
-	error_at(this->should_set_->location(),
-		 "incompatible type for map assignment (%s)",
-		 reason.c_str());
-      this->set_is_error();
-    }
-}
+  // Evaluate the map first to get order of evaluation right.
+  // map_temp := m // we are evaluating m[k] = v, p
+  Temporary_statement* map_temp = Statement::make_temporary(map_type,
+							    map_index->map(),
+							    loc);
+  b->add_statement(map_temp);
 
-// Return a tree for a map assignment of a pair.
+  // var key_temp MAP_KEY_TYPE
+  Temporary_statement* key_temp =
+    Statement::make_temporary(map_type->key_type(), NULL, loc);
+  b->add_statement(key_temp);
 
-tree
-Map_assignment_statement::do_get_tree(Translate_context* context)
-{
-  tree should_set_tree = this->should_set_->get_tree(context);
-  Refcount_decrement_lvalue_expression* rdle =
-    this->map_index_->refcount_decrement_lvalue_expression();
-  tree ins;
-  tree del;
-  if (rdle == NULL)
-    {
-      ins = Assignment_statement::get_assignment_tree(context, OPERATOR_EQ,
-						      this->map_index_,
-						      NULL, this->val_, NULL,
-						      NULL, this->location());
-      del = this->map_index_->map_index_expression()->delete_key(context);
-    }
-  else
-    {
-      ins = rdle->set(context, rdle->get_tree(context),
-		      this->val_->get_tree(context));
-      del = rdle->expr()->map_index_expression()->delete_key(context);
-    }
-  if (should_set_tree == error_mark_node
-      || ins == error_mark_node
-      || del == error_mark_node)
-    return error_mark_node;
-  return fold_build3(COND_EXPR, void_type_node, should_set_tree, ins, del);
+  // key_temp = k // we are evaluating m[k] = v, p
+  Expression* ref = Expression::make_temporary_reference(key_temp, loc);
+  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref,
+					    map_index->index(), loc);
+  b->add_statement(s);
+
+  // var val_temp MAP_VAL_TYPE
+  Temporary_statement* val_temp =
+    Statement::make_temporary(map_type->val_type(), NULL, loc);
+  b->add_statement(val_temp);
+
+  // val_temp = v // we are evaluating m[k] = v, p
+  ref = Expression::make_temporary_reference(val_temp, loc);
+  s = Statement::make_assignment(OPERATOR_EQ, ref, this->val_, loc);
+  b->add_statement(s);
+
+  // func mapassign2(hmap map[k]v, key *k, val *v, p)
+  source_location bloc = BUILTINS_LOCATION;
+  Typed_identifier_list* param_types = new Typed_identifier_list();
+  param_types->push_back(Typed_identifier("hmap", map_type, bloc));
+  Type* pkey_type = Type::make_pointer_type(map_type->key_type());
+  param_types->push_back(Typed_identifier("key", pkey_type, bloc));
+  Type* pval_type = Type::make_pointer_type(map_type->val_type());
+  param_types->push_back(Typed_identifier("val", pval_type, bloc));
+  param_types->push_back(Typed_identifier("p", Type::lookup_bool_type(), bloc));
+  Function_type* fntype = Type::make_function_type(NULL, param_types,
+						   NULL, bloc);
+  Named_object* mapassign2 =
+    Named_object::make_function_declaration("mapassign2", NULL, fntype, bloc);
+  mapassign2->func_declaration_value()->set_asm_name("runtime.mapassign2");
+
+  // mapassign2(map_temp, &key_temp, &val_temp, p)
+  Expression* func = Expression::make_func_reference(mapassign2, NULL, loc);
+  Expression_list* params = new Expression_list();
+  params->push_back(Expression::make_temporary_reference(map_temp, loc));
+  ref = Expression::make_temporary_reference(key_temp, loc);
+  params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
+  ref = Expression::make_temporary_reference(val_temp, loc);
+  params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
+  params->push_back(this->should_set_);
+  Expression* call = Expression::make_call(func, params, loc);
+  s = Statement::make_statement(call);
+  b->add_statement(s);
+
+  return Statement::make_block_statement(b, loc);
 }
 
 // Make a statement which assigns a pair of entries to a map.

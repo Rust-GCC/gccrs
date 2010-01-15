@@ -7790,42 +7790,6 @@ Map_index_expression::get_value_pointer(Translate_context* context,
 		fold_convert(ptr_val_type_tree, call));
 }
 
-// Return a tree to delete this key from the map.
-
-tree
-Map_index_expression::delete_key(Translate_context* context)
-{
-  tree map_tree = this->map_->get_tree(context);
-  tree index_tree = this->index_->get_tree(context);
-  if (map_tree == error_mark_node || index_tree == error_mark_node)
-    return error_mark_node;
-
-  if (this->map_->type()->points_to() != NULL)
-    map_tree = build_fold_indirect_ref(map_tree);
-
-  // We need to pass in a pointer to the key, so stuff it in a
-  // variable.
-  tree tmp = create_tmp_var(TREE_TYPE(index_tree), get_name(index_tree));
-  DECL_IGNORED_P(tmp) = 0;
-  DECL_INITIAL(tmp) = index_tree;
-  tree make_tmp = build1(DECL_EXPR, void_type_node, tmp);
-  tree tmpref = fold_convert(const_ptr_type_node, build_fold_addr_expr(tmp));
-  TREE_ADDRESSABLE(tmp) = 1;
-
-  static tree map_delete_fndecl;
-  tree call = Gogo::call_builtin(&map_delete_fndecl,
-				 this->location(),
-				 "__go_map_delete",
-				 2,
-				 void_type_node,
-				 TREE_TYPE(map_tree),
-				 map_tree,
-				 const_ptr_type_node,
-				 tmpref);
-
-  return build2(COMPOUND_EXPR, void_type_node, make_tmp, call);
-}
-
 // Make a map index expression.
 
 Map_index_expression*

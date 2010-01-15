@@ -91,9 +91,6 @@ class Statement
     STATEMENT_TEMPORARY,
     STATEMENT_DESTROY_TEMPORARY,
     STATEMENT_ASSIGNMENT,
-    STATEMENT_TUPLE_ASSIGNMENT,
-    STATEMENT_TUPLE_MAP_ASSIGNMENT,
-    STATEMENT_MAP_ASSIGNMENT,
     STATEMENT_TUPLE_RECEIVE_ASSIGNMENT,
     STATEMENT_TUPLE_TYPE_GUARD_ASSIGNMENT,
     STATEMENT_EXPRESSION,
@@ -111,9 +108,15 @@ class Statement
     STATEMENT_SWITCH,
     STATEMENT_TYPE_SWITCH,
     STATEMENT_SELECT,
+    STATEMENT_REFCOUNT_QUEUE_ASSIGNMENT,
+
+    // These statements types are created by the parser, but they
+    // disappear during the lowering pass.
+    STATEMENT_TUPLE_ASSIGNMENT,
+    STATEMENT_TUPLE_MAP_ASSIGNMENT,
+    STATEMENT_MAP_ASSIGNMENT,
     STATEMENT_FOR,
-    STATEMENT_FOR_RANGE,
-    STATEMENT_REFCOUNT_QUEUE_ASSIGNMENT
+    STATEMENT_FOR_RANGE
   };
 
   Statement(Statement_classification, source_location);
@@ -991,6 +994,10 @@ class For_statement : public Statement
   int
   do_traverse(Traverse*);
 
+  bool
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
+
   Statement*
   do_lower(Gogo*, Block*);
 
@@ -1044,6 +1051,10 @@ class For_range_statement : public Statement
  protected:
   int
   do_traverse(Traverse*);
+
+  bool
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
 
   Statement*
   do_lower(Gogo*, Block*);
