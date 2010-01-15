@@ -4,11 +4,29 @@
 
 package runtime
 #include "map.h"
+#define nil NULL
 
 typedef unsigned char byte;
+typedef _Bool bool;
 
 typedef struct __go_map hmap;
 typedef struct __go_hash_iter hiter;
+
+/* Access a value in a map, returning a value and a presence indicator.  */
+
+func mapaccess2(h *hmap, key *byte, val *byte) (present bool) {
+	byte* mapval;
+	size_t valsize;
+
+	mapval = __go_map_index(h, key, 0);
+	if (mapval == nil) {
+		present = 0;
+	} else {
+		valsize = h->__descriptor->__map_descriptor->__val_type->__size;
+		__builtin_memcpy(val, mapval, valsize);
+		present = 1;
+	}
+}
 
 /* Initialize a range over a map.  */
 
