@@ -1,6 +1,6 @@
 /* go-rune.c -- rune functions for Go.
 
-   Copyright 2009 The Go Authors. All rights reserved.
+   Copyright 2009, 2010 The Go Authors. All rights reserved.
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
@@ -21,7 +21,7 @@ __go_get_rune (const unsigned char *str, size_t len, int *rune)
   *rune = 0xfffd;
 
   if (len <= 0)
-    return 0;
+    return 1;
 
   c = *str;
   if (c <= 0x7f)
@@ -31,7 +31,7 @@ __go_get_rune (const unsigned char *str, size_t len, int *rune)
     }
 
   if (len <= 1)
-    return 0;
+    return 1;
 
   c1 = str[1];
   if ((c & 0xe0) == 0xc0
@@ -43,7 +43,7 @@ __go_get_rune (const unsigned char *str, size_t len, int *rune)
     }
 
   if (len <= 2)
-    return 0;
+    return 1;
 
   c2 = str[2];
   if ((c & 0xf0) == 0xe0
@@ -57,7 +57,7 @@ __go_get_rune (const unsigned char *str, size_t len, int *rune)
     }
 
   if (len <= 3)
-    return 0;
+    return 1;
 
   c3 = str[3];
   if ((c & 0xf8) == 0xf0

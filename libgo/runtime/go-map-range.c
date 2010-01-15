@@ -1,70 +1,102 @@
 /* go-map-range.c -- implement a range clause over a map.
 
-   Copyright 2009 The Go Authors. All rights reserved.
+   Copyright 2009, 2010 The Go Authors. All rights reserved.
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
+#include <assert.h>
+
 #include "map.h"
 
-/* A map iteration uses two variables: an index into the buckets and a
-   pointer to a map entry.  The index is initially zero and the
-   pointer is initially NULL.  This function updates them to point to
-   the next entry we care about.  It sets *PKEY and *PVALUE to point
-   to the key and value of that entry.  It returns true if there is a
-   new entry, false at the end of the iteration.  */
+/* Initialize a range over a map.  */
 
-_Bool
-__go_map_range (const struct __go_map *map, size_t *pbucket,
-		const void **pentry,
-		const void **pkey, const void **pvalue)
+void
+__go_mapiterinit (const struct __go_map *h, struct __go_hash_iter *it)
 {
-  size_t bucket;
-  const char *entry;
-
-  if (map == NULL)
-    return 0;
-
-  /* Since *PBUCKET starts at zero, we use that to signal
-     initialization, and always subtract one for the actual bucket
-     number.  */
-
-  bucket = *pbucket;
-  if (bucket == 0)
+  it->entry = NULL;
+  if (h != NULL)
     {
-      /* This is the first call to this function in this
-	 iteration.  */
-      entry = NULL;
+      it->map = h;
+      it->next_entry = NULL;
+      it->bucket = -1U;
+      __go_mapiternext(it);
     }
-  else
-    {
-      /* In the previous iteration, we set *PENTRY to point to the
-	 next entry in the current bucket.  That is, it is the entry
-	 that we should return now.  */
-      entry = (const char *) *pentry;
-    }
+}
 
+/* Move to the next iteration, updating *HITER.  */
+
+void
+__go_mapiternext (struct __go_hash_iter *it)
+{
+  const void *entry;
+
+  entry = it->next_entry;
   if (entry == NULL)
     {
+      const struct __go_map *map;
+      size_t bucket;
+
+      map = it->map;
+      bucket = it->bucket;
       while (1)
 	{
 	  ++bucket;
-	  if (bucket - 1 >= map->__bucket_count)
-	    return 0;
-	  entry = (const char *) map->__buckets[bucket - 1];
+	  if (bucket >= map->__bucket_count)
+	    {
+	      /* Map iteration is complete.  */
+	      it->entry = NULL;
+	      return;
+	    }
+	  entry = map->__buckets[bucket];
 	  if (entry != NULL)
 	    break;
 	}
+      it->bucket = bucket;
     }
+  it->entry = entry;
+  it->next_entry = *(const void * const *) entry;
+}
 
-  /* The first field of ENTRY is a pointer to the next entry in this
-     bucket.  Set *PENTRY to point to that next entry, the one which
-     we should return next time.  Tracking the next entry permits the
-     current entry to be deleted.  */
-  *pentry = *(const void * const *) entry;
+/* Get the key of the current iteration.  */
 
-  *pbucket = bucket;
-  *pkey = entry + map->__descriptor->__key_offset;
-  if (pvalue != NULL)
-    *pvalue = entry + map->__descriptor->__val_offset;
-  return 1;
+void
+__go_mapiter1 (struct __go_hash_iter *it, unsigned char *key)
+{
+  const struct __go_map *map;
+  const struct __go_map_descriptor *descriptor;
+  const struct __go_type_descriptor *key_descriptor;
+  const char *p;
+
+  map = it->map;
+  descriptor = map->__descriptor;
+  key_descriptor = descriptor->__map_descriptor->__key_type;
+  p = it->entry;
+  assert(p != NULL);
+  __builtin_memcpy (key, p + descriptor->__key_offset, key_descriptor->__size);
+}
+
+/* Get the key and value of the current iteration.  */
+
+void
+__go_mapiter2 (struct __go_hash_iter *it, unsigned char *key,
+	       unsigned char *val)
+{
+  const struct __go_map *map;
+  const struct __go_map_descriptor *descriptor;
+  const struct __go_map_type *map_descriptor;
+  const struct __go_type_descriptor *key_descriptor;
+  const struct __go_type_descriptor *val_descriptor;
+  const char *p;
+
+  map = it->map;
+  descriptor = map->__descriptor;
+  map_descriptor = descriptor->__map_descriptor;
+  key_descriptor = map_descriptor->__key_type;
+  val_descriptor = map_descriptor->__val_type;
+  p = it->entry;
+  assert(p != NULL);
+  __builtin_memcpy (key, p + descriptor->__key_offset,
+		    key_descriptor->__size);
+  __builtin_memcpy (val, p + descriptor->__val_offset,
+		    val_descriptor->__size);
 }

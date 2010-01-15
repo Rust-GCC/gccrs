@@ -432,6 +432,10 @@ class Statement
   void
   report_error(const char*);
 
+  // For children to return an error statement from lower().
+  static Statement*
+  make_error_statement(source_location);
+
  private:
   // Convert to the desired statement classification, or return NULL.
   // This is a controlled dynamic cast.
@@ -453,9 +457,6 @@ class Statement
 	    : NULL);
   }
 
-  static Statement*
-  make_error_statement(source_location);
-
   // The statement classification.
   Statement_classification classification_;
   // The location in the input file of the start of this statement.
@@ -469,7 +470,7 @@ class Temporary_statement : public Statement
  public:
   Temporary_statement(Type* type, Expression* init, source_location location)
     : Statement(STATEMENT_TEMPORARY, location),
-      type_(type), init_(init), decl_(NULL)
+      type_(type), init_(init), decl_(NULL), is_address_taken_(false)
   { }
 
   // Return the type of the temporary variable.
@@ -480,6 +481,12 @@ class Temporary_statement : public Statement
   Expression*
   init() const
   { return this->init_; }
+
+  // Record that something takes the address of this temporary
+  // variable.
+  void
+  set_is_address_taken()
+  { this->is_address_taken_ = true; }
 
   // Return the tree for the temporary variable itself.  This should
   // not be called until after the statement itself has been expanded.
@@ -510,6 +517,8 @@ class Temporary_statement : public Statement
   Expression* init_;
   // The DECL for the temporary variable.
   tree decl_;
+  // True if something takes the address of this temporary variable.
+  bool is_address_taken_;
 };
 
 // A variable declaration.  This marks the point in the code where a
@@ -970,6 +979,11 @@ class For_statement : public Statement
   Unnamed_label*
   continue_label();
 
+  // Set the break and continue labels for this statement.
+  void
+  set_break_continue_labels(Unnamed_label* break_label,
+			    Unnamed_label* continue_label);
+
  protected:
   int
   do_traverse(Traverse*);
@@ -1028,34 +1042,40 @@ class For_range_statement : public Statement
   int
   do_traverse(Traverse*);
 
-  bool
-  do_traverse_assignments(Traverse_assignments*);
-
-  void
-  do_determine_types();
-
-  void
-  do_check_types(Gogo*);
+  Statement*
+  do_lower(Gogo*, Block*);
 
   tree
-  do_get_tree(Translate_context*);
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
 
  private:
-  void
-  get_array_iteration(Translate_context*, tree, tree, tree, tree*, tree*,
-		      tree*, tree*);
+  Expression*
+  make_range_ref(Named_object*, Temporary_statement*, source_location);
+
+  Expression*
+  call_builtin(Gogo*, const char* funcname, Expression* arg, source_location);
 
   void
-  get_string_iteration(Translate_context*, tree, tree, tree, tree*, tree*,
-		       tree*, tree*);
+  lower_range_array(Gogo*, Block*, Block*, Named_object*, Temporary_statement*,
+		    Temporary_statement*, Temporary_statement*,
+		    Block**, Expression**, Block**, Block**);
 
   void
-  get_map_iteration(Translate_context*, tree, tree, tree, tree*, tree*,
-		    tree*, tree*);
+  lower_range_string(Gogo*, Block*, Block*, Named_object*, Temporary_statement*,
+		     Temporary_statement*, Temporary_statement*,
+		     Block**, Expression**, Block**, Block**);
 
   void
-  get_channel_iteration(Translate_context*, tree, tree, tree*, tree*,tree*,
-			tree*);
+  lower_range_map(Gogo*, Block*, Block*, Named_object*, Temporary_statement*,
+		  Temporary_statement*, Temporary_statement*,
+		  Block**, Expression**, Block**, Block**);
+
+  void
+  lower_range_channel(Gogo*, Block*, Block*, Named_object*,
+		      Temporary_statement*, Temporary_statement*,
+		      Temporary_statement*, Block**, Expression**, Block**,
+		      Block**);
 
   // The variable which is set to the index value.
   Expression* index_var_;

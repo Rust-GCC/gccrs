@@ -16,6 +16,7 @@ extern "C"
 #include "gimple.h"
 #include "convert.h"
 #include "tree-iterator.h"
+#include "tree-flow.h"
 #include "real.h"
 }
 
@@ -335,15 +336,43 @@ tree
 Temporary_statement::do_get_tree(Translate_context* context)
 {
   gcc_assert(this->decl_ == NULL_TREE);
-  this->decl_ = create_tmp_var(this->type()->get_tree(context->gogo()),
-			       "GOTMP");
-  DECL_SOURCE_LOCATION(this->decl_) = this->location();
-  if (this->init_ != NULL)
-    DECL_INITIAL(this->decl_) =
-      Expression::convert_for_assignment(context, this->type(),
-					 this->init_->type(),
-					 this->init_->get_tree(context),
-					 this->location());
+  tree type_tree = this->type()->get_tree(context->gogo());
+  // We can only use create_tmp_var if the type is not addressable.
+  if (!TREE_ADDRESSABLE(type_tree))
+    {
+      this->decl_ = create_tmp_var(type_tree, "GOTMP");
+      DECL_SOURCE_LOCATION(this->decl_) = this->location();
+      if (this->init_ != NULL)
+	DECL_INITIAL(this->decl_) =
+	  Expression::convert_for_assignment(context, this->type(),
+					     this->init_->type(),
+					     this->init_->get_tree(context),
+					     this->location());
+    }
+  else
+    {
+      gcc_assert(this->init_ == NULL);
+      gcc_assert(context->function() != NULL && context->block() != NULL);
+      tree decl = build_decl(this->location(), VAR_DECL,
+			     create_tmp_var_name("GOTMP"),
+			     type_tree);
+      DECL_ARTIFICIAL(decl) = 1;
+      DECL_IGNORED_P(decl) = 1;
+      TREE_USED(decl) = 1;
+      gcc_assert(current_function_decl != NULL_TREE);
+      DECL_CONTEXT(decl) = current_function_decl;
+
+      // We have to add this variable to the block so that it winds up
+      // in a BIND_EXPR.
+      tree block_tree = context->block_tree();
+      gcc_assert(block_tree != NULL_TREE);
+      TREE_CHAIN(decl) = BLOCK_VARS(block_tree);
+      BLOCK_VARS(block_tree) = decl;
+
+      this->decl_ = decl;
+    }
+  if (this->is_address_taken_)
+    TREE_ADDRESSABLE(this->decl_) = 1;
   return this->build_stmt_1(DECL_EXPR, this->decl_);
 }
 
@@ -1936,6 +1965,20 @@ Inc_dec_statement::do_get_tree(Translate_context* context)
 		       ? build_int_cst(TREE_TYPE(expr_tree), 1)
 		       : build_real(TREE_TYPE(expr_tree), dconst1)));
     }
+
+  // Nor for a temporary variable.
+  Temporary_reference_expression* tre =
+    this->expr_->temporary_reference_expression();
+  if (tre != NULL)
+    return fold_build2_loc(this->location(),
+			   (this->is_inc_
+			    ? PREINCREMENT_EXPR
+			    : PREDECREMENT_EXPR),
+			   TREE_TYPE(expr_tree),
+			   expr_tree,
+			   (type->integer_type() != NULL
+			    ? build_int_cst(TREE_TYPE(expr_tree), 1)
+			    : build_real(TREE_TYPE(expr_tree), dconst1)));
 
   if (type->float_type() != NULL)
     {
@@ -4767,6 +4810,18 @@ For_statement::continue_label()
   return this->continue_label_;
 }
 
+// Set the break and continue labels a for statement.  This is used
+// when lowering a for range statement.
+
+void
+For_statement::set_break_continue_labels(Unnamed_label* break_label,
+					 Unnamed_label* continue_label)
+{
+  gcc_assert(this->break_label_ == NULL && this->continue_label_ == NULL);
+  this->break_label_ = break_label;
+  this->continue_label_ = continue_label;
+}
+
 // Make a for statement.
 
 For_statement*
@@ -4796,31 +4851,21 @@ For_range_statement::do_traverse(Traverse* traverse)
   return this->statements_->traverse(traverse);
 }
 
-// Traverse assignments.
+// Lower a for range statement.  For simplicity we lower this into a
+// for statement, which will then be lowered in turn to goto
+// statements.
 
-bool
-For_range_statement::do_traverse_assignments(Traverse_assignments* tassign)
+Statement*
+For_range_statement::do_lower(Gogo* gogo, Block* enclosing)
 {
-  tassign->assignment(&this->index_var_, NULL);
-  if (this->value_var_ != NULL)
-    tassign->assignment(&this->value_var_, NULL);
-  tassign->value(&this->range_, false, this->index_var_->is_local_variable());
-  return true;
-}
-
-// Determine types.
-
-void
-For_range_statement::do_determine_types()
-{
-  this->range_->determine_type_no_context();
   Type* range_type = this->range_->type();
   if (range_type->points_to() != NULL
       && range_type->points_to()->array_type() != NULL
       && !range_type->points_to()->is_open_array_type())
     range_type = range_type->points_to();
+
   Type* index_type;
-  Type* value_type;
+  Type* value_type = NULL;
   if (range_type->array_type() != NULL)
     {
       index_type = Type::lookup_integer_type("int");
@@ -4839,479 +4884,638 @@ For_range_statement::do_determine_types()
   else if (range_type->channel_type() != NULL)
     {
       index_type = range_type->channel_type()->element_type();
-      value_type = NULL;
-    }
-  else
-    {
-      index_type = NULL;
-      value_type = NULL;
-    }
-  if (index_type != NULL)
-    {
-      Type_context context1(index_type, false);
-      this->index_var_->determine_type(&context1);
-    }
-  if (value_type != NULL && this->value_var_ != NULL)
-    {
-      Type_context context2(value_type, false);
-      this->value_var_->determine_type(&context2);
-    }
-  this->statements_->determine_types();
-}
-
-// Check types.
-
-void
-For_range_statement::do_check_types(Gogo*)
-{
-  Type* range_type = this->range_->type();
-  if (range_type->points_to() != NULL
-      && range_type->points_to()->array_type() != NULL
-      && !range_type->points_to()->is_open_array_type())
-    range_type = range_type->points_to();
-  Type* index_type;
-  Type* value_type;
-  if (range_type->array_type() != NULL)
-    {
-      index_type = Type::lookup_integer_type("int");
-      value_type = range_type->array_type()->element_type();
-    }
-  else if (range_type->is_string_type())
-    {
-      index_type = Type::lookup_integer_type("int");
-      value_type = index_type;
-    }
-  else if (range_type->map_type() != NULL)
-    {
-      index_type = range_type->map_type()->key_type();
-      value_type = range_type->map_type()->val_type();
-    }
-  else if (range_type->channel_type() != NULL)
-    {
-      index_type = range_type->channel_type()->element_type();
-      if (this->value_var_ != NULL
-	  && !this->value_var_->type()->is_error_type())
+      if (this->value_var_ != NULL)
 	{
-	  this->report_error(_("too many variables for range clause "
-			       "with channel"));
-	  return;
+	  if (!this->value_var_->type()->is_error_type())
+	    this->report_error(_("too many variables for range clause "
+				 "with channel"));
+	  return Statement::make_error_statement(this->location());
 	}
-      value_type = Type::make_error_type();
     }
   else
     {
       this->report_error(_("range clause must have "
-			   "array, string, slice, map, or channel type"));
-      return;
+			   "array, slice, setring, map, or channel type"));
+      return Statement::make_error_statement(this->location());
     }
-  if (!this->index_var_->is_lvalue()
-      || (this->value_var_ != NULL && !this->value_var_->is_lvalue()))
-    this->report_error("invalid left hand side of assignment");
-  else if (!Type::are_compatible_for_assign(this->index_var_->type(),
-					    index_type, NULL))
-    this->report_error("incompatible types for range index");
-  else if (this->value_var_ != NULL
-	   && !Type::are_compatible_for_assign(this->value_var_->type(),
-					       value_type, NULL))
-    this->report_error("incompatible types for range value");
-}
 
-// Return the tree.
+  source_location loc = this->location();
+  Block* temp_block = new Block(enclosing, loc);
 
-tree
-For_range_statement::do_get_tree(Translate_context* context)
-{
-  tree index_var_tree = this->index_var_->get_tree(context);
-  if (index_var_tree == error_mark_node)
-    return error_mark_node;
-  index_var_tree = stabilize_reference(index_var_tree);
-  tree value_var_tree;
-  if (this->value_var_ == NULL)
-    value_var_tree = NULL_TREE;
+  Named_object* range_object = NULL;
+  Temporary_statement* range_temp = NULL;
+  Var_expression* ve = this->range_->var_expression();
+  if (ve != NULL)
+    range_object = ve->named_object();
   else
     {
-      value_var_tree = this->value_var_->get_tree(context);
-      if (value_var_tree == error_mark_node)
-	return error_mark_node;
-      value_var_tree = stabilize_reference(value_var_tree);
+      range_temp = Statement::make_temporary(this->range_->type(), NULL, loc);
+      temp_block->add_statement(range_temp);
+
+      Expression* ref = Expression::make_temporary_reference(range_temp, loc);
+      Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, this->range_,
+						loc);
+      temp_block->add_statement(s);
     }
 
-  tree range_tree = this->range_->get_tree(context);
-  if (range_tree == error_mark_node)
-    return false;
-  Type* range_type = this->range_->type();
-  if (range_type->points_to() != NULL)
+  Temporary_statement* index_temp = Statement::make_temporary(index_type,
+							      NULL, loc);
+  temp_block->add_statement(index_temp);
+
+  Temporary_statement* value_temp = NULL;
+  if (this->value_var_ != NULL)
     {
-      range_type = range_type->points_to();
-      gcc_assert(range_type->array_type() != NULL
-		 && !range_type->is_open_array_type());
-      range_tree = build_fold_indirect_ref(range_tree);
+      value_temp = Statement::make_temporary(value_type, NULL, loc);
+      temp_block->add_statement(value_temp);
     }
 
-  tree prep;
-  tree test;
-  tree setvars;
-  tree next;
-  if (this->range_->type()->deref()->array_type() != NULL)
-    this->get_array_iteration(context, index_var_tree, value_var_tree,
-			      range_tree, &prep, &test, &setvars, &next);
-  else if (this->range_->type()->deref()->is_string_type())
-    this->get_string_iteration(context, index_var_tree, value_var_tree,
-			       range_tree, &prep, &test, &setvars, &next);
-  else if (this->range_->type()->deref()->map_type() != NULL)
-    this->get_map_iteration(context, index_var_tree, value_var_tree,
-			    range_tree, &prep, &test, &setvars, &next);
-  else if (this->range_->type()->channel_type() != NULL)
-    this->get_channel_iteration(context, index_var_tree, range_tree,
-				&prep, &test, &setvars, &next);
+  Block* body = new Block(temp_block, loc);
+
+  Block* init;
+  Expression* cond;
+  Block* iter_init;
+  Block* post;
+
+  // Arrange to do a loop appropriate for the type.  We will produce
+  //   for INIT ; COND ; POST {
+  //           ITER_INIT
+  //           INDEX = INDEX_TEMP
+  //           VALUE = VALUE_TEMP // If there is a value
+  //           original statements
+  //   }
+
+  if (range_type->array_type() != NULL)
+    this->lower_range_array(gogo, temp_block, body, range_object, range_temp,
+			    index_temp, value_temp, &init, &cond, &iter_init,
+			    &post);
+  else if (range_type->is_string_type())
+    this->lower_range_string(gogo, temp_block, body, range_object, range_temp,
+			     index_temp, value_temp, &init, &cond, &iter_init,
+			     &post);
+  else if (range_type->map_type() != NULL)
+    this->lower_range_map(gogo, temp_block, body, range_object, range_temp,
+			  index_temp, value_temp, &init, &cond, &iter_init,
+			  &post);
+  else if (range_type->channel_type() != NULL)
+    this->lower_range_channel(gogo, temp_block, body, range_object, range_temp,
+			      index_temp, value_temp, &init, &cond, &iter_init,
+			      &post);
   else
     gcc_unreachable();
 
-  tree statements = NULL_TREE;
+  if (iter_init != NULL)
+    body->add_statement(Statement::make_block_statement(iter_init, loc));
 
-  if (prep != NULL_TREE)
-    append_to_statement_list(prep, &statements);
-
-  tree entry = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-  tree t = build_and_jump(&LABEL_EXPR_LABEL(entry));
-  SET_EXPR_LOCATION(t, this->location());
-  append_to_statement_list(t, &statements);
-
-  tree top = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-  append_to_statement_list(top, &statements);
-
-  // If this function has a reference count queue, we flush it at the
-  // start of each loop iteration.  We must do this, since each
-  // iteration of the loop may change the same entries in the queue.
-  Refcounts* refcounts = context->function()->func_value()->refcounts();
-  if (refcounts != NULL && !refcounts->empty())
+  Statement* assign;
+  Expression* index_ref = Expression::make_temporary_reference(index_temp, loc);
+  if (this->value_var_ == NULL)
     {
-      source_location loc = this->statements_->start_location();
-      append_to_statement_list(refcounts->flush_queue(context->gogo(), false,
-						      loc),
-			       &statements);
+      assign = Statement::make_assignment(OPERATOR_EQ, this->index_var_,
+					  index_ref, loc);
     }
+  else
+    {
+      Expression_list* lhs = new Expression_list();
+      lhs->push_back(this->index_var_);
+      lhs->push_back(this->value_var_);
 
-  append_to_statement_list(setvars, &statements);
+      Expression_list* rhs = new Expression_list();
+      rhs->push_back(index_ref);
+      rhs->push_back(Expression::make_temporary_reference(value_temp, loc));
 
-  append_to_statement_list(this->statements_->get_tree(context),
-			   &statements);
+      assign = Statement::make_tuple_assignment(OPERATOR_EQ, lhs, rhs, loc);
+    }
+  body->add_statement(assign);
 
-  if (this->continue_label_ != NULL)
-    append_to_statement_list(this->continue_label_->get_definition(),
-			     &statements);
+  body->add_statement(Statement::make_block_statement(this->statements_, loc));
 
-  if (next != NULL)
-    append_to_statement_list(next, &statements);
+  body->set_end_location(this->statements_->end_location());
 
-  append_to_statement_list(entry, &statements);
-  tree bottom = build1(LABEL_EXPR, void_type_node, NULL_TREE);
-  t = fold_build3(COND_EXPR, void_type_node, test,
-		  build_and_jump(&LABEL_EXPR_LABEL(top)),
-		  build_and_jump(&LABEL_EXPR_LABEL(bottom)));
-  if (CAN_HAVE_LOCATION_P(t))
-    SET_EXPR_LOCATION(t, this->location());
-  append_to_statement_list(t, &statements);
-  append_to_statement_list(bottom, &statements);
+  For_statement* loop = Statement::make_for_statement(init, cond, post,
+						      this->location());
+  loop->add_statements(body);
+  loop->set_break_continue_labels(this->break_label_, this->continue_label_);
 
-  if (this->break_label_ != NULL)
-    append_to_statement_list(this->break_label_->get_definition(), &statements);
+  temp_block->add_statement(loop);
 
-  return statements;
+  return Statement::make_block_statement(temp_block, loc);
 }
 
-// The steps for iterating over an array.
+// Return a reference to the range, which may be in RANGE_OBJECT or in
+// RANGE_TEMP.
+
+Expression*
+For_range_statement::make_range_ref(Named_object* range_object,
+				    Temporary_statement* range_temp,
+				    source_location loc)
+{
+  if (range_object != NULL)
+    return Expression::make_var_reference(range_object, loc);
+  else
+    return Expression::make_temporary_reference(range_temp, loc);
+}
+
+// Return a call to the predeclared function FUNCNAME passing a
+// reference to the temporary variable ARG.
+
+Expression*
+For_range_statement::call_builtin(Gogo* gogo, const char* funcname,
+				  Expression* arg,
+				  source_location loc)
+{
+  Named_object* no = gogo->lookup_global(funcname);
+  gcc_assert(no != NULL && no->is_function_declaration());
+  Expression* func = Expression::make_func_reference(no, NULL, loc);
+  Expression_list* params = new Expression_list();
+  params->push_back(arg);
+  return Expression::make_call(func, params, loc);
+}
+
+// Lower a for range over an array or slice.
 
 void
-For_range_statement::get_array_iteration(Translate_context* context,
-					 tree index_var_tree,
-					 tree value_var_tree, tree range_tree,
-					 tree* prep, tree* test, tree* setvars,
-					 tree* next)
+For_range_statement::lower_range_array(Gogo* gogo,
+				       Block* enclosing,
+				       Block* body_block,
+				       Named_object* range_object,
+				       Temporary_statement* range_temp,
+				       Temporary_statement* index_temp,
+				       Temporary_statement* value_temp,
+				       Block** pinit,
+				       Expression** pcond,
+				       Block** piter_init,
+				       Block** ppost)
 {
-  Array_type* range_type = this->range_->type()->deref()->array_type();
-  Type* element_type = range_type->element_type();
-  tree element_type_tree = element_type->get_tree(context->gogo());
+  source_location loc = this->location();
 
-  tree values_tree;
-  if (value_var_tree == NULL)
-    values_tree = NULL_TREE;
-  else if (range_type->length() != NULL)
+  // The loop we generate:
+  //   len_temp := len(range)
+  //   for index_temp = 0; index_temp < len_temp; index_temp++ {
+  //           value_temp = range[index_temp]
+  //           index = index_temp
+  //           value = value_temp
+  //           original body
+  //   }
+
+  // Set *PINIT to
+  //   var len_temp int
+  //   len_temp = len(range)
+  //   index_temp = 0
+
+  Block* init = new Block(enclosing, loc);
+
+  Temporary_statement* len_temp = Statement::make_temporary(index_temp->type(),
+							    NULL, loc);
+  init->add_statement(len_temp);
+
+  Expression* ref = this->make_range_ref(range_object, range_temp, loc);
+  Expression* len_call = this->call_builtin(gogo, "len", ref, loc);
+  ref = Expression::make_temporary_reference(len_temp, loc);
+  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, len_call, loc);
+  init->add_statement(s);
+
+  mpz_t zval;
+  mpz_init_set_ui(zval, 0UL);
+  Expression* zexpr = Expression::make_integer(&zval, NULL, loc);
+  mpz_clear(zval);
+
+  ref = Expression::make_temporary_reference(index_temp, loc);
+  s = Statement::make_assignment(OPERATOR_EQ, ref, zexpr, loc);
+  init->add_statement(s);
+
+  *pinit = init;
+
+  // Set *PCOND to
+  //   index_temp < len_temp
+
+  ref = Expression::make_temporary_reference(index_temp, loc);
+  Expression* ref2 = Expression::make_temporary_reference(len_temp, loc);
+  Expression* lt = Expression::make_binary(OPERATOR_LT, ref, ref2, loc);
+
+  *pcond = lt;
+
+  // Set *PITER_INIT to
+  //   value_temp = range[index_temp]
+
+  Block* iter_init = NULL;
+  if (value_temp != NULL)
     {
-      range_tree = stabilize_reference(range_tree);
-      values_tree = NULL_TREE;
+      iter_init = new Block(body_block, loc);
+
+      ref = this->make_range_ref(range_object, range_temp, loc);
+      Expression* ref2 = Expression::make_temporary_reference(index_temp, loc);
+      Expression* index = Expression::make_index(ref, ref2, NULL, loc);
+
+      ref = Expression::make_temporary_reference(value_temp, loc);
+      s = Statement::make_assignment(OPERATOR_EQ, ref, index, loc);
+
+      iter_init->add_statement(s);
     }
-  else
+  *piter_init = iter_init;
+
+  // Set *PPOST to
+  //   index_temp++
+
+  Block* post = new Block(enclosing, loc);
+  ref = Expression::make_temporary_reference(index_temp, loc);
+  s = Statement::make_inc_statement(ref);
+  post->add_statement(s);
+  *ppost = post;
+}
+
+// Lower a for range over a string.
+
+void
+For_range_statement::lower_range_string(Gogo* gogo,
+					Block* enclosing,
+					Block* body_block,
+					Named_object* range_object,
+					Temporary_statement* range_temp,
+					Temporary_statement* index_temp,
+					Temporary_statement* value_temp,
+					Block** pinit,
+					Expression** pcond,
+					Block** piter_init,
+					Block** ppost)
+{
+  source_location loc = this->location();
+
+  // The loop we generate:
+  //   var next_index_temp int
+  //   for index_temp = 0; ; index_temp = next_index_temp {
+  //           next_index_temp, value_temp = stringiter2(range, index_temp)
+  //           if next_index_temp == 0 {
+  //                   break
+  //           }
+  //           index = index_temp
+  //           value = value_temp
+  //           original body
+  //   }
+
+  // Set *PINIT to
+  //   var next_index_temp int
+  //   index_temp = 0
+
+  Block* init = new Block(enclosing, loc);
+
+  Temporary_statement* next_index_temp =
+    Statement::make_temporary(index_temp->type(), NULL, loc);
+  init->add_statement(next_index_temp);
+
+  mpz_t zval;
+  mpz_init_set_ui(zval, 0UL);
+  Expression* zexpr = Expression::make_integer(&zval, NULL, loc);
+
+  Expression* ref = Expression::make_temporary_reference(index_temp, loc);
+  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, zexpr, loc);
+
+  init->add_statement(s);
+  *pinit = init;
+
+  // The loop has no condition.
+
+  *pcond = NULL;
+
+  // Set *PITER_INIT to
+  //   next_index_temp = runtime.stringiter(range, index_temp)
+  // or
+  //   next_index_temp, value_temp = runtime.stringiter2(range, index_temp)
+  // followed by
+  //   if next_index_temp == 0 {
+  //           break
+  //   }
+
+  Block* iter_init = new Block(body_block, loc);
+
+  Named_object* no;
+  if (value_temp == NULL)
     {
-      range_tree = save_expr(range_tree);
-      values_tree = range_type->value_pointer_tree(context->gogo(),
-						   range_tree);
-      values_tree = save_expr(values_tree);
-    }
-
-  tree tmp_index = create_tmp_var(integer_type_node, NULL);
-  DECL_INITIAL(tmp_index) = integer_zero_node;
-
-  tree tmp_len = create_tmp_var(integer_type_node, NULL);
-  DECL_INITIAL(tmp_len) = range_type->length_tree(context->gogo(), range_tree);
-
-  *prep = build2(COMPOUND_EXPR, void_type_node,
-		 build1(DECL_EXPR, void_type_node, tmp_index),
-		 build1(DECL_EXPR, void_type_node, tmp_len));
-  SET_EXPR_LOCATION(*prep, this->location());
-
-  *test = build2(LT_EXPR, boolean_type_node, tmp_index, tmp_len);
-  SET_EXPR_LOCATION(*test, this->location());
-
-  tree set = build2(MODIFY_EXPR, void_type_node, index_var_tree, tmp_index);
-  SET_EXPR_LOCATION(set, this->location());
-  if (value_var_tree == NULL_TREE)
-    *setvars = set;
-  else
-    {
-      tree val;
-      if (range_type->length() != NULL)
-	val = build4(ARRAY_REF, TREE_TYPE(TREE_TYPE(range_tree)),
-		     range_tree, tmp_index, NULL_TREE, NULL_TREE);
-      else
+      static Named_object* stringiter;
+      if (stringiter == NULL)
 	{
-	  tree element_size = TYPE_SIZE_UNIT(element_type_tree);
-	  tree ptr = fold_build2(POINTER_PLUS_EXPR, TREE_TYPE(values_tree),
-				 values_tree,
-				 fold_build2(MULT_EXPR, sizetype,
-					     fold_convert(sizetype,
-							  tmp_index),
-					     element_size));
-	  val = build_fold_indirect_ref(ptr);
+	  source_location bloc = BUILTINS_LOCATION;
+	  Type* int_type = gogo->lookup_global("int")->type_value();
+
+	  Typed_identifier_list* params = new Typed_identifier_list();
+	  params->push_back(Typed_identifier("s", Type::make_string_type(),
+					     bloc));
+	  params->push_back(Typed_identifier("k", int_type, bloc));
+
+	  Typed_identifier_list* results = new Typed_identifier_list();
+	  results->push_back(Typed_identifier("", int_type, bloc));
+
+	  Function_type* fntype = Type::make_function_type(NULL, params,
+							   results, bloc);
+	  stringiter = Named_object::make_function_declaration("stringiter",
+							       NULL, fntype,
+							       bloc);
+	  const char* n = "runtime.stringiter";
+	  stringiter->func_declaration_value()->set_asm_name(n);
 	}
-      tree set2 = build2(MODIFY_EXPR, void_type_node, value_var_tree, val);
-      SET_EXPR_LOCATION(set2, this->location());
-      *setvars = build2(COMPOUND_EXPR, void_type_node, set, set2);
+      no = stringiter;
     }
-  SET_EXPR_LOCATION(*setvars, this->location());
+  else
+    {
+      static Named_object* stringiter2;
+      if (stringiter2 == NULL)
+	{
+	  source_location bloc = BUILTINS_LOCATION;
+	  Type* int_type = gogo->lookup_global("int")->type_value();
 
-  *next = build2(MODIFY_EXPR, void_type_node, tmp_index,
-		 build2(PLUS_EXPR, integer_type_node, tmp_index,
-			integer_one_node));
-  SET_EXPR_LOCATION(*next, this->location());
+	  Typed_identifier_list* params = new Typed_identifier_list();
+	  params->push_back(Typed_identifier("s", Type::make_string_type(),
+					     bloc));
+	  params->push_back(Typed_identifier("k", int_type, bloc));
+
+	  Typed_identifier_list* results = new Typed_identifier_list();
+	  results->push_back(Typed_identifier("", int_type, bloc));
+	  results->push_back(Typed_identifier("", int_type, bloc));
+
+	  Function_type* fntype = Type::make_function_type(NULL, params,
+							   results, bloc);
+	  stringiter2 = Named_object::make_function_declaration("stringiter",
+								NULL, fntype,
+								bloc);
+	  const char* n = "runtime.stringiter2";
+	  stringiter2->func_declaration_value()->set_asm_name(n);
+	}
+      no = stringiter2;
+    }
+
+  Expression* func = Expression::make_func_reference(no, NULL, loc);
+  Expression_list* params = new Expression_list();
+  params->push_back(this->make_range_ref(range_object, range_temp, loc));
+  params->push_back(Expression::make_temporary_reference(index_temp, loc));
+  Call_expression* call = Expression::make_call(func, params, loc);
+
+  if (value_temp == NULL)
+    {
+      ref = Expression::make_temporary_reference(next_index_temp, loc);
+      s = Statement::make_assignment(OPERATOR_EQ, ref, call, loc);
+    }
+  else
+    {
+      Expression_list* lhs = new Expression_list();
+      lhs->push_back(Expression::make_temporary_reference(next_index_temp,
+							  loc));
+      lhs->push_back(Expression::make_temporary_reference(value_temp, loc));
+
+      Expression_list* rhs = new Expression_list();
+      rhs->push_back(Expression::make_call_result(call, 0));
+      rhs->push_back(Expression::make_call_result(call, 1));
+
+      s = Statement::make_tuple_assignment(OPERATOR_EQ, lhs, rhs, loc);
+    }
+  iter_init->add_statement(s);
+
+  ref = Expression::make_temporary_reference(next_index_temp, loc);
+  zexpr = Expression::make_integer(&zval, NULL, loc);
+  mpz_clear(zval);
+  Expression* equals = Expression::make_binary(OPERATOR_EQEQ, ref, zexpr, loc);
+
+  Block* then_block = new Block(iter_init, loc);
+  s = Statement::make_break_statement(this->break_label(), loc);
+  then_block->add_statement(s);
+
+  s = Statement::make_if_statement(equals, then_block, NULL, loc);
+  iter_init->add_statement(s);
+
+  *piter_init = iter_init;
+
+  // Set *PPOST to
+  //   index_temp = next_index_temp
+
+  Block* post = new Block(enclosing, loc);
+
+  Expression* lhs = Expression::make_temporary_reference(index_temp, loc);
+  Expression* rhs = Expression::make_temporary_reference(next_index_temp, loc);
+  s = Statement::make_assignment(OPERATOR_EQ, lhs, rhs, loc);
+
+  post->add_statement(s);
+  *ppost = post;
 }
 
-// The steps for iterating over a string.
+// Lower a for range over a map.
 
 void
-For_range_statement::get_string_iteration(Translate_context*,
-					  tree index_var_tree,
-					  tree value_var_tree, tree range_tree,
-					  tree* prep, tree* test,
-					  tree* setvars, tree* next)
+For_range_statement::lower_range_map(Gogo* gogo,
+				     Block* enclosing,
+				     Block* body_block,
+				     Named_object* range_object,
+				     Temporary_statement* range_temp,
+				     Temporary_statement* index_temp,
+				     Temporary_statement* value_temp,
+				     Block** pinit,
+				     Expression** pcond,
+				     Block** piter_init,
+				     Block** ppost)
 {
-  range_tree = save_expr(range_tree);
+  source_location loc = this->location();
 
-  tree tmp_index = create_tmp_var(integer_type_node, NULL);
-  DECL_INITIAL(tmp_index) = integer_zero_node;
-  TREE_ADDRESSABLE(tmp_index) = 1;
+  // The runtime uses a struct to handle ranges over a map.  The
+  // struct is four pointers long.  The first pointer is NULL when we
+  // have completed the iteration.
 
-  tree tmp_prev_index = create_tmp_var(integer_type_node, NULL);
-  DECL_INITIAL(tmp_prev_index) = integer_zero_node;
+  // The loop we generate:
+  //   var hiter map_iteration_struct
+  //   for mapiterinit(range, &hiter); hiter[0] != nil; mapiternext(&hiter) {
+  //           mapiter2(hiter, &index_temp, &value_temp)
+  //           index = index_temp
+  //           value = value_temp
+  //           original body
+  //   }
 
-  tree tmps = build2(COMPOUND_EXPR, void_type_node,
-		     build1(DECL_EXPR, void_type_node, tmp_index),
-		     build1(DECL_EXPR, void_type_node, tmp_prev_index));
-  SET_EXPR_LOCATION(tmps, this->location());
+  // Set *PINIT to
+  //   var hiter map_iteration_struct
+  //   runtime.mapiterinit(range, &hiter)
 
-  tree tmp_val = NULL_TREE;
-  if (value_var_tree != NULL_TREE)
+  Block* init = new Block(enclosing, loc);
+
+  const unsigned long map_iteration_size = 4;
+
+  mpz_t ival;
+  mpz_init_set_ui(ival, map_iteration_size);
+  Expression* iexpr = Expression::make_integer(&ival, NULL, loc);
+  mpz_clear(ival);
+
+  Type* byte_type = gogo->lookup_global("byte")->type_value();
+  Type* ptr_type = Type::make_pointer_type(byte_type);
+
+  Type* map_iteration_type = Type::make_array_type(ptr_type, iexpr);
+  Type* map_iteration_ptr = Type::make_pointer_type(map_iteration_type);
+
+  Temporary_statement* hiter = Statement::make_temporary(map_iteration_type,
+							 NULL, loc);
+  init->add_statement(hiter);
+
+  source_location bloc = BUILTINS_LOCATION;
+  Typed_identifier_list* param_types = new Typed_identifier_list();
+  param_types->push_back(Typed_identifier("map", this->range_->type(), bloc));
+  param_types->push_back(Typed_identifier("it", map_iteration_ptr, bloc));
+  Function_type* fntype = Type::make_function_type(NULL, param_types, NULL,
+						   bloc);
+
+  Named_object* mapiterinit =
+    Named_object::make_function_declaration("mapiterinit", NULL, fntype, bloc);
+  const char* n = "runtime.mapiterinit";
+  mapiterinit->func_declaration_value()->set_asm_name(n);
+
+  Expression* func = Expression::make_func_reference(mapiterinit, NULL, loc);
+  Expression_list* params = new Expression_list();
+  params->push_back(this->make_range_ref(range_object, range_temp, loc));
+  Expression* ref = Expression::make_temporary_reference(hiter, loc);
+  params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
+  Expression* call = Expression::make_call(func, params, loc);
+  init->add_statement(Statement::make_statement(call));
+
+  *pinit = init;
+
+  // Set *PCOND to
+  //   hiter[0] != nil
+
+  ref = Expression::make_temporary_reference(hiter, loc);
+
+  mpz_t zval;
+  mpz_init_set_ui(zval, 0UL);
+  Expression* zexpr = Expression::make_integer(&zval, NULL, loc);
+  mpz_clear(zval);
+
+  Expression* index = Expression::make_index(ref, zexpr, NULL, loc);
+
+  Expression* ne = Expression::make_binary(OPERATOR_NOTEQ, index,
+					   Expression::make_nil(loc),
+					   loc);
+
+  *pcond = ne;
+
+  // Set *PITER_INIT to
+  //   mapiter1(hiter, &index_temp)
+  // or
+  //   mapiter2(hiter, &index_temp, &value_temp)
+
+  Block* iter_init = new Block(body_block, loc);
+
+  param_types = new Typed_identifier_list();
+  param_types->push_back(Typed_identifier("hiter", map_iteration_ptr, bloc));
+  Type* pkey_type = Type::make_pointer_type(index_temp->type());
+  param_types->push_back(Typed_identifier("key", pkey_type, bloc));
+  if (value_temp != NULL)
     {
-      tmp_val = create_tmp_var(integer_type_node, NULL);
-      tmps = build2(COMPOUND_EXPR, void_type_node, tmps,
-		    build1(DECL_EXPR, void_type_node, tmp_val));
-      SET_EXPR_LOCATION(tmps, this->location());
-      TREE_ADDRESSABLE(tmp_val) = 1;
+      Type* pval_type = Type::make_pointer_type(value_temp->type());
+      param_types->push_back(Typed_identifier("val", pval_type, bloc));
+    }
+  fntype = Type::make_function_type(NULL, param_types, NULL, bloc);
+  n = value_temp == NULL ? "mapiter1" : "mapiter2";
+  Named_object* mapiter = Named_object::make_function_declaration(n, NULL,
+								  fntype, bloc);
+  n = value_temp == NULL ? "runtime.mapiter1" : "runtime.mapiter2";
+  mapiter->func_declaration_value()->set_asm_name(n);
+
+  func = Expression::make_func_reference(mapiter, NULL, loc);
+  params = new Expression_list();
+  ref = Expression::make_temporary_reference(hiter, loc);
+  params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
+  ref = Expression::make_temporary_reference(index_temp, loc);
+  params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
+  if (value_temp != NULL)
+    {
+      ref = Expression::make_temporary_reference(value_temp, loc);
+      params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
+    }
+  call = Expression::make_call(func, params, loc);
+  iter_init->add_statement(Statement::make_statement(call));
+
+  *piter_init = iter_init;
+
+  // Set *PPOST to
+  //   mapiternext(&hiter)
+
+  Block* post = new Block(enclosing, loc);
+
+  static Named_object* mapiternext;
+  if (mapiternext == NULL)
+    {
+      param_types = new Typed_identifier_list();
+      param_types->push_back(Typed_identifier("it", map_iteration_ptr, bloc));
+      fntype = Type::make_function_type(NULL, param_types, NULL, bloc);
+      mapiternext = Named_object::make_function_declaration("mapiternext",
+							    NULL, fntype,
+							    bloc);
+      const char* n = "runtime.mapiternext";
+      mapiternext->func_declaration_value()->set_asm_name(n);
     }
 
-  *prep = tmps;
+  func = Expression::make_func_reference(mapiternext, NULL, loc);
+  params = new Expression_list();
+  ref = Expression::make_temporary_reference(hiter, loc);
+  params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
+  call = Expression::make_call(func, params, loc);
+  post->add_statement(Statement::make_statement(call));
 
-  tree value_ptr_tree;
-  if (value_var_tree != NULL_TREE)
-    value_ptr_tree = build_fold_addr_expr(tmp_val);
-  else
-    value_ptr_tree = fold_convert(build_pointer_type(integer_type_node),
-				  null_pointer_node);
-
-  static tree string_range_fndecl;
-  *test = Gogo::call_builtin(&string_range_fndecl,
-			     this->location(),
-			     "__go_string_range",
-			     3,
-			     boolean_type_node,
-			     TREE_TYPE(range_tree),
-			     range_tree,
-			     build_pointer_type(integer_type_node),
-			     build_fold_addr_expr(tmp_index),
-			     build_pointer_type(integer_type_node),
-			     value_ptr_tree);
-
-  tree set = build2(MODIFY_EXPR, void_type_node, index_var_tree,
-		    tmp_prev_index);
-  SET_EXPR_LOCATION(set, this->location());
-  if (value_var_tree == NULL_TREE)
-    *setvars = set;
-  else
-    {
-      tree set2 = build2(MODIFY_EXPR, void_type_node, value_var_tree, tmp_val);
-      SET_EXPR_LOCATION(set2, this->location());
-      *setvars = build2(COMPOUND_EXPR, void_type_node, set, set2);
-    }
-
-  *next = build2(MODIFY_EXPR, void_type_node, tmp_prev_index, tmp_index);
-  SET_EXPR_LOCATION(*next, this->location());
+  *ppost = post;
 }
 
-// The steps for iterating over a map.
+// Lower a for range over a channel.
 
 void
-For_range_statement::get_map_iteration(Translate_context* context,
-				       tree index_var_tree,
-				       tree value_var_tree, tree range_tree,
-				       tree* prep, tree* test, tree* setvars,
-				       tree* next)
+For_range_statement::lower_range_channel(Gogo* gogo,
+					 Block*,
+					 Block* body_block,
+					 Named_object* range_object,
+					 Temporary_statement* range_temp,
+					 Temporary_statement* index_temp,
+					 Temporary_statement* value_temp,
+					 Block** pinit,
+					 Expression** pcond,
+					 Block** piter_init,
+					 Block** ppost)
 {
-  tree tmp_bucket = create_tmp_var(sizetype, NULL);
-  DECL_INITIAL(tmp_bucket) = size_zero_node;
-  TREE_ADDRESSABLE(tmp_bucket) = 1;
+  gcc_assert(value_temp == NULL);
 
-  tree entry_type = build_pointer_type(const_ptr_type_node);
-  tree tmp_entry = create_tmp_var(entry_type, NULL);
-  DECL_INITIAL(tmp_entry) = fold_convert(entry_type, null_pointer_node);
-  TREE_ADDRESSABLE(tmp_entry) = 1;
+  source_location loc = this->location();
 
-  *prep = build2(COMPOUND_EXPR, void_type_node,
-		 build1(DECL_EXPR, void_type_node, tmp_bucket),
-		 build1(DECL_EXPR, void_type_node, tmp_entry));
-  SET_EXPR_LOCATION(*prep, this->location());
+  // The loop we generate:
+  //   for {
+  //           index_temp = <-range
+  //           if closed(range) {
+  //                   break
+  //           }
+  //           index = index_temp
+  //           value = value_temp
+  //           original body
+  //   }
 
-  tree index_ptr_type = build_pointer_type(TREE_TYPE(index_var_tree));
-  tree key_ptr = create_tmp_var(index_ptr_type, NULL);
-  TREE_ADDRESSABLE(key_ptr) = 1;
-  tree val_ptr_type;
-  tree val_ptr;
-  if (value_var_tree == NULL_TREE)
-    {
-      val_ptr_type = NULL_TREE;
-      val_ptr = NULL_TREE;
-    }
-  else
-    {
-      val_ptr_type = build_pointer_type(TREE_TYPE(value_var_tree));
-      val_ptr = create_tmp_var(val_ptr_type, NULL);
-      TREE_ADDRESSABLE(val_ptr) = 1;
-    }
+  // We have no initialization code, no condition, and no post code.
 
-  tree ptr_ptr_type = build_pointer_type(ptr_type_node);
+  *pinit = NULL;
+  *pcond = NULL;
+  *ppost = NULL;
 
-  range_tree = save_expr(range_tree);
-  static tree map_range_fndecl;
-  *test = Gogo::call_builtin(&map_range_fndecl,
-			     this->location(),
-			     "__go_map_range",
-			     5,
-			     boolean_type_node,
-			     TREE_TYPE(range_tree),
-			     range_tree,
-			     build_pointer_type(sizetype),
-			     build_fold_addr_expr(tmp_bucket),
-			     build_pointer_type(entry_type),
-			     build_fold_addr_expr(tmp_entry),
-			     ptr_ptr_type,
-			     fold_convert(ptr_ptr_type,
-					  build_fold_addr_expr(key_ptr)),
-			     ptr_ptr_type,
-			     fold_convert(ptr_ptr_type,
-					  (val_ptr == NULL_TREE
-					   ? null_pointer_node
-					   : build_fold_addr_expr(val_ptr))));
+  // Set *PITER_INIT to
+  //   index_temp = <-range
+  //   if closed(range) {
+  //           break
+  //   }
 
-  Map_type* mt = this->range_->type()->deref()->map_type();
-  tree key_val = build_fold_indirect_ref(key_ptr);
-  tree set = Assignment_statement::get_assignment_tree(context,
-						       OPERATOR_EQ,
-						       this->index_var_,
-						       index_var_tree,
-						       NULL,
-						       mt->key_type(),
-						       key_val,
-						       this->location());
-  if (value_var_tree == NULL_TREE)
-    *setvars = set;
-  else
-    {
-      tree val_val = build_fold_indirect_ref(val_ptr);
-      tree set2 = Assignment_statement::get_assignment_tree(context,
-							    OPERATOR_EQ,
-							    this->value_var_,
-							    value_var_tree,
-							    NULL,
-							    mt->val_type(),
-							    val_val,
-							    this->location());
-      *setvars = build2(COMPOUND_EXPR, void_type_node, set, set2);
-    }
+  Block* iter_init = new Block(body_block, loc);
 
-  *next = NULL_TREE;
-}
+  Expression* ref = this->make_range_ref(range_object, range_temp, loc);
+  Expression* cond = this->call_builtin(gogo, "closed", ref, loc);
 
-// The steps for iterating over an channel.
+  ref = this->make_range_ref(range_object, range_temp, loc);
+  Expression* recv = Expression::make_receive(ref, loc);
+  ref = Expression::make_temporary_reference(index_temp, loc);
+  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, recv, loc);
+  iter_init->add_statement(s);
 
-void
-For_range_statement::get_channel_iteration(Translate_context* context,
-					   tree index_var_tree,
-					   tree range_tree,
-					   tree* prep, tree* test,
-					   tree* setvars, tree* next)
-{
-  Channel_type* range_type = this->range_->type()->channel_type();
-  Type* element_type = range_type->element_type();
-  tree element_type_tree = element_type->get_tree(context->gogo());
+  Block* then_block = new Block(iter_init, loc);
+  s = Statement::make_break_statement(this->break_label(), loc);
+  then_block->add_statement(s);
 
-  tree tmp_chan = create_tmp_var(TREE_TYPE(range_tree), get_name(range_tree));
-  DECL_INITIAL(tmp_chan) = range_tree;
+  s = Statement::make_if_statement(cond, then_block, NULL, loc);
+  iter_init->add_statement(s);
 
-  tree tmp_var = create_tmp_var(element_type_tree, NULL);
-
-  *prep = build2(COMPOUND_EXPR, void_type_node,
-		 build1(DECL_EXPR, void_type_node, tmp_chan),
-		 build1(DECL_EXPR, void_type_node, tmp_var));
-
-  // Closed only returns true after we have read a nil value.  The
-  // test for the range clause is
-  //   tmp := <- chan; !closed(chan)
-
-  tree recv = Gogo::receive_from_channel(element_type_tree, tmp_chan, true,
-					 false, this->location());
-  tree set_tmp = build2(MODIFY_EXPR, void_type_node, tmp_var, recv);
-  // FIXME: Duplicates Builtin_call_expression::do_get_tree.
-  static tree closed_fndecl;
-  tree is_closed = Gogo::call_builtin(&closed_fndecl,
-				      this->location(),
-				      "__go_builtin_closed",
-				      1,
-				      boolean_type_node,
-				      TREE_TYPE(tmp_chan),
-				      tmp_chan);
-  tree is_not_closed = build1(TRUTH_NOT_EXPR, boolean_type_node, is_closed);
-  *test = build2(COMPOUND_EXPR, boolean_type_node, set_tmp, is_not_closed);
-
-  // Set the variable to the value we received from the channel.
-  *setvars = Assignment_statement::get_assignment_tree(context,
-						       OPERATOR_EQ,
-						       this->index_var_,
-						       index_var_tree,
-						       NULL,
-						       element_type,
-						       tmp_var,
-						       this->location());
-
-  *next = NULL_TREE;
+  *piter_init = iter_init;
 }
 
 // Return the break LABEL_EXPR.

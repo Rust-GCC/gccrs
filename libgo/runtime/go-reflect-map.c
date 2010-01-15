@@ -1,6 +1,6 @@
 /* go-reflect-map.c -- map reflection support for Go.
 
-   Copyright 2009 The Go Authors. All rights reserved.
+   Copyright 2009, 2010 The Go Authors. All rights reserved.
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
@@ -66,60 +66,41 @@ maplen (unsigned char *m __attribute__ ((unused)))
   return (int32_t) map->__element_count;
 }
 
-/* The compiler uses several variables for a map iteration.  For the
-   reflect interface we need to build them into a structure.  */
-
-struct mapiter
-{
-  const struct __go_map *map;
-  size_t bucket;
-  const void *pentry;
-  const void *pkey;
-  const void *pvalue;
-  _Bool valid;
-};
-
 extern unsigned char *mapiterinit (unsigned char *)
   asm ("reflect.mapiterinit");
-
-extern void mapiternext (unsigned char *)
-  asm ("reflect.mapiternext");
 
 unsigned char *
 mapiterinit (unsigned char *m)
 {
-  struct mapiter *mi;
+  struct __go_hash_iter *it;
 
-  mi = __go_alloc (sizeof (struct mapiter));
-  mi->map = (struct __go_map *) m;
-  mi->bucket = 0;
-  mi->pentry = NULL;
-  mapiternext ((unsigned char *) mi);
-  return (unsigned char *) mi;
+  it = __go_alloc (sizeof (struct __go_hash_iter));
+  __go_mapiterinit ((struct __go_map *) m, it);
+  return (unsigned char *) it;
 }
+
+extern void mapiternext (unsigned char *)
+  asm ("reflect.mapiternext");
 
 void
 mapiternext (unsigned char *it)
 {
-  struct mapiter *mi = (struct mapiter *) it;
-  mi->valid = __go_map_range (mi->map, &mi->bucket, &mi->pentry,
-			      &mi->pkey, &mi->pvalue);
+  __go_mapiternext ((struct __go_hash_iter *) it);
 }
 
 extern _Bool mapiterkey (unsigned char *, unsigned char *)
   asm ("reflect.mapiterkey");
 
 _Bool
-mapiterkey (unsigned char *it, unsigned char *key)
+mapiterkey (unsigned char *ita, unsigned char *key)
 {
-  struct mapiter *mi = (struct mapiter *) it;
-  if (!mi->valid)
+  struct __go_hash_iter *it = (struct __go_hash_iter *) ita;
+
+  if (it->entry == NULL)
     return 0;
   else
     {
-      const struct __go_map_descriptor *md = mi->map->__descriptor;
-      __builtin_memcpy (key, mi->pkey,
-			md->__map_descriptor->__key_type->__size);
+      __go_mapiter1 (it, key);
       return 1;
     }
 }

@@ -1,6 +1,6 @@
 # Makefile.am -- Go library Makefile.
 
-# Copyright 2009 The Go Authors. All rights reserved.
+# Copyright 2009, 2010 The Go Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
@@ -290,7 +290,6 @@ runtime_files = \
 	runtime/go-send-small.c \
 	runtime/go-signal.c \
 	runtime/go-strcmp.c \
-	runtime/go-string-range.c \
 	runtime/go-strplus.c \
 	runtime/go-strslice.c \
 	runtime/go-trampoline.c \
@@ -311,7 +310,9 @@ runtime_files = \
 	runtime/msize.c \
 	runtime/proc.c \
 	malloc_go.c \
-	sigqueue.c
+	map.c \
+	sigqueue.c \
+	string.c
 
 cgo2c.o: runtime/cgo2c.c
 	$(CC_FOR_BUILD) -c $(CFLAGS_FOR_BUILD) $<
@@ -323,7 +324,7 @@ cgo2c: cgo2c.o
 	./cgo2c --gcc $< > $@.tmp
 	mv -f $@.tmp $@
 
-BUILT_SOURCES = malloc_go.c sigqueue.c
+BUILT_SOURCES = malloc_go.c map.c sigqueue.c string.c
 
 go_asn1_files = \
 	go/asn1/asn1.go \

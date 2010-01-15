@@ -1,6 +1,6 @@
 // expressions.cc -- Go frontend expression handling.
 
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2009, 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -918,48 +918,27 @@ Expression::make_var_reference(Named_object* var, source_location location)
   return new Var_expression(var, location);
 }
 
-// A reference to a temporary variable.
+// Class Temporary_reference_expression.
 
-class Temporary_reference_expression : public Expression
+// The type.
+
+Type*
+Temporary_reference_expression::do_type()
 {
- public:
-  Temporary_reference_expression(Temporary_statement* statement,
-				 source_location location)
-    : Expression(EXPRESSION_TEMPORARY_REFERENCE, location),
-      statement_(statement)
-  { }
+  return this->statement_->type();
+}
 
- protected:
-  Type*
-  do_type()
-  { return this->statement_->type(); }
+// Called if something takes the address of this temporary variable.
+// We never have to move temporary variables to the heap, but we do
+// need to know that they must live in the stack rather than in a
+// register.
 
-  void
-  do_determine_type(const Type_context*)
-  { }
-
-  Expression*
-  do_copy()
-  { return make_temporary_reference(this->statement_, this->location()); }
-
-  bool
-  do_is_lvalue() const
-  { return true; }
-
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_being_set(Refcounts*);
-
-  tree
-  do_get_tree(Translate_context*)
-  { return this->statement_->get_decl(); }
-
- private:
-  // The statement where the temporary variable is defined.
-  Temporary_statement* statement_;
-};
+bool
+Temporary_reference_expression::do_address_taken(source_location, bool)
+{
+  this->statement_->set_is_address_taken();
+  return true;
+}
 
 // The temporary variable is being copied.  We may need to increment
 // the reference count.
@@ -984,6 +963,14 @@ Temporary_reference_expression::do_being_set(Refcounts* refcounts)
   if (!this->type()->has_refcounted_component())
     return this;
   return Expression::make_refcount_decrement_lvalue(refcounts, this);
+}
+
+// Get a tree referring to the variable.
+
+tree
+Temporary_reference_expression::do_get_tree(Translate_context*)
+{
+  return this->statement_->get_decl();
 }
 
 // Make a reference to a temporary variable.
@@ -3023,9 +3010,9 @@ Unary_expression::do_lower(Gogo*, int)
     return Expression::make_type(Type::make_pointer_type(expr->type()), loc);
 
   // *&x simplifies to x.  *(*T)(unsafe.Pointer)(&x) does not require
-  // *moving x to the heap.  FIXME: Is it worth doing a real escape
-  // *analysis here?  This case is found in math/unsafe.go and is
-  // *therefore worth special casing.
+  // moving x to the heap.  FIXME: Is it worth doing a real escape
+  // analysis here?  This case is found in math/unsafe.go and is
+  // therefore worth special casing.
   if (op == OPERATOR_MULT)
     {
       Expression* e = expr;

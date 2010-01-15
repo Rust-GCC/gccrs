@@ -1,0 +1,35 @@
+// Copyright 2010 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package runtime
+#include "map.h"
+
+typedef unsigned char byte;
+
+typedef struct __go_map hmap;
+typedef struct __go_hash_iter hiter;
+
+/* Initialize a range over a map.  */
+
+func mapiterinit(h *hmap, it *hiter) {
+	__go_mapiterinit(h, it);
+}
+
+/* Move to the next iteration, updating *HITER.  */
+
+func mapiternext(it *hiter) {
+	__go_mapiternext(it);
+}
+
+/* Get the key of the current iteration.  */
+
+func mapiter1(it *hiter, key *byte) {
+	__go_mapiter1(it, key);
+}
+
+/* Get the key and value of the current iteration.  */
+
+func mapiter2(it *hiter, key *byte, val *byte) {
+	__go_mapiter2(it, key, val);
+}

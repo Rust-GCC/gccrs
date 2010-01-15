@@ -1,6 +1,6 @@
 // gogo.cc -- Go frontend parsed representation.
 
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2009, 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -1068,6 +1068,11 @@ Lower_parse_tree::function(Named_object* no)
 int
 Lower_parse_tree::statement(Block* block, size_t* pindex, Statement* sorig)
 {
+  // Lower the expressions first.
+  int t = sorig->traverse_contents(this);
+  if (t == TRAVERSE_EXIT)
+    return t;
+
   // Keep lowering until nothing changes.
   Statement* s = sorig;
   while (true)
@@ -1076,14 +1081,14 @@ Lower_parse_tree::statement(Block* block, size_t* pindex, Statement* sorig)
       if (snew == s)
 	break;
       s = snew;
+      t = s->traverse_contents(this);
+      if (t == TRAVERSE_EXIT)
+	return t;
     }
-  if (s == sorig)
-    return TRAVERSE_CONTINUE;
 
-  block->replace_statement(*pindex, s);
-  int t = s->traverse(block, pindex, this);
-  if (t != TRAVERSE_CONTINUE)
-    return t;
+  if (s != sorig)
+    block->replace_statement(*pindex, s);
+
   return TRAVERSE_SKIP_COMPONENTS;
 }
 

@@ -1,6 +1,6 @@
 // expressions.h -- Go frontend expression handling.     -*- C++ -*-
 
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2009, 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -21,6 +21,7 @@ class Function_type;
 class Map_type;
 class Expression_list;
 class Var_expression;
+class Temporary_reference_expression;
 class String_expression;
 class Binary_expression;
 class Call_expression;
@@ -340,6 +341,15 @@ class Expression
   const Var_expression*
   var_expression() const
   { return this->convert<const Var_expression, EXPRESSION_VAR_REFERENCE>(); }
+
+  // If this is a reference to a temporary variable, return the
+  // Temporary_reference_expression.  Otherwise, return NULL.
+  Temporary_reference_expression*
+  temporary_reference_expression()
+  {
+    return this->convert<Temporary_reference_expression,
+			 EXPRESSION_TEMPORARY_REFERENCE>();
+  }
 
   // Return whether this is a sink expression.
   bool
@@ -921,6 +931,50 @@ class Var_expression : public Expression
  private:
   // The variable we are referencing.
   Named_object* variable_;
+};
+
+// A reference to a temporary variable.
+
+class Temporary_reference_expression : public Expression
+{
+ public:
+  Temporary_reference_expression(Temporary_statement* statement,
+				 source_location location)
+    : Expression(EXPRESSION_TEMPORARY_REFERENCE, location),
+      statement_(statement)
+  { }
+
+ protected:
+  Type*
+  do_type();
+
+  void
+  do_determine_type(const Type_context*)
+  { }
+
+  Expression*
+  do_copy()
+  { return make_temporary_reference(this->statement_, this->location()); }
+
+  bool
+  do_is_lvalue() const
+  { return true; }
+
+  bool
+  do_address_taken(source_location, bool);
+
+  Expression*
+  do_being_copied(Refcounts*, bool);
+
+  Expression*
+  do_being_set(Refcounts*);
+
+  tree
+  do_get_tree(Translate_context*);
+
+ private:
+  // The statement where the temporary variable is defined.
+  Temporary_statement* statement_;
 };
 
 // A string expression.
