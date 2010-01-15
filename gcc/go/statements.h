@@ -505,6 +505,9 @@ class Temporary_statement : public Statement
   do_traverse_assignments(Traverse_assignments*);
 
   void
+  do_determine_types();
+
+  void
   do_check_types(Gogo*);
 
   tree

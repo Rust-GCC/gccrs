@@ -319,6 +319,29 @@ Temporary_statement::do_traverse_assignments(Traverse_assignments* tassign)
   return true;
 }
 
+// Determine types.
+
+void
+Temporary_statement::do_determine_types()
+{
+  if (this->init_ != NULL)
+    {
+      if (this->type_ == NULL)
+	this->init_->determine_type_no_context();
+      else
+	{
+	  Type_context context(this->type_, false);
+	  this->init_->determine_type(&context);
+	}
+    }
+
+  if (this->type_ == NULL)
+    this->type_ = this->init_->type();
+
+  if (this->type_->is_abstract())
+    this->type_ = this->type_->make_non_abstract_type();
+}
+
 // Check types.
 
 void
@@ -757,17 +780,12 @@ class Tuple_assignment_statement : public Statement
   int
   do_traverse(Traverse* traverse);
 
-  bool
-  do_traverse_assignments(Traverse_assignments*);
-
-  void
-  do_determine_types();
-
-  void
-  do_check_types(Gogo*);
+  Statement*
+  do_lower(Gogo*, Block*);
 
   tree
-  do_get_tree(Translate_context* context);
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
 
  private:
   // Operator.
@@ -788,141 +806,61 @@ Tuple_assignment_statement::do_traverse(Traverse* traverse)
   return this->traverse_expression_list(traverse, this->rhs_);
 }
 
-bool
-Tuple_assignment_statement::do_traverse_assignments(
-    Traverse_assignments* tassign)
-{
-  Expression_list::iterator prhs = this->rhs_->begin();
-  for (Expression_list::iterator plhs = this->lhs_->begin();
-       plhs != this->lhs_->end();
-       ++plhs, ++prhs)
-    {
-      gcc_assert(prhs != this->rhs_->end());
-      tassign->assignment(&*plhs, &*prhs);
-    }
-  gcc_assert(prhs == this->rhs_->end());
-  return true;
-}
+// Lower a tuple assignment.  We use temporary variables to split it
+// up into a set of single assignments.
 
-// Set types if necessary.
-
-void
-Tuple_assignment_statement::do_determine_types()
+Statement*
+Tuple_assignment_statement::do_lower(Gogo*, Block* enclosing)
 {
+  source_location loc = this->location();
+
+  Block* b = new Block(enclosing, loc);
+  
+  std::vector<Temporary_statement*> temps;
+  temps.reserve(this->lhs_->size());
+
   Expression_list::const_iterator prhs = this->rhs_->begin();
   for (Expression_list::const_iterator plhs = this->lhs_->begin();
        plhs != this->lhs_->end();
        ++plhs, ++prhs)
     {
       gcc_assert(prhs != this->rhs_->end());
-      (*plhs)->determine_type_no_context();
-      Type_context context((*plhs)->type(), false);
-      (*prhs)->determine_type(&context);
-    }
-  gcc_assert(prhs == this->rhs_->end());
-}
 
-// Check types.
-
-void
-Tuple_assignment_statement::do_check_types(Gogo*)
-{
-  int index = 1;
-  Expression_list::const_iterator prhs = this->rhs_->begin();
-  for (Expression_list::const_iterator plhs = this->lhs_->begin();
-       plhs != this->lhs_->end();
-       ++plhs, ++prhs, ++index)
-    {
-      gcc_assert(prhs != this->rhs_->end());
-      std::string reason;
-      if (!(*plhs)->is_lvalue())
-	this->report_error(_("invalid left hand side of assignment"));
-      else if (!Type::are_compatible_for_assign((*plhs)->type(),
-						(*prhs)->type(),
-						&reason))
+      if ((*plhs)->is_sink_expression())
 	{
-	  if (reason.empty())
-	    error_at(this->location(), "incompatible types in assignment %d",
-		     index);
-	  else
-	    error_at(this->location(),
-		     "incompatible types in assignment %d (%s)",
-		     index, reason.c_str());
-	  this->set_is_error();
+	  b->add_statement(Statement::make_statement(*prhs));
+	  continue;
 	}
+
+      Temporary_statement* temp = Statement::make_temporary((*plhs)->type(),
+							    NULL,
+							    loc);
+      b->add_statement(temp);
+      temps.push_back(temp);
+
+      Expression* ref = Expression::make_temporary_reference(temp, loc);
+      Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, *prhs, loc);
+      b->add_statement(s);
     }
   gcc_assert(prhs == this->rhs_->end());
-}
 
-// Build a tree for a tuple assignment.  We compute all the right hand
-// side values into temporary variables, and then assign to temporary
-// variables to the left hand side expressions.
-
-tree
-Tuple_assignment_statement::do_get_tree(Translate_context* context)
-{
-  Gogo* gogo = context->gogo();
-
-  tree stmt_list = NULL_TREE;
-  std::vector<tree> assignments;
-  assignments.reserve(this->lhs_->size());
-
-  source_location location = this->location();
-
-  Expression_list::const_iterator prhs = this->rhs_->begin();
+  prhs = this->rhs_->begin();
+  std::vector<Temporary_statement*>::const_iterator ptemp = temps.begin();
   for (Expression_list::const_iterator plhs = this->lhs_->begin();
        plhs != this->lhs_->end();
        ++plhs, ++prhs)
     {
-      gcc_assert(prhs != this->rhs_->end());
-
-      Type* type = ((*plhs)->is_sink_expression()
-		    ? (*prhs)->type()
-		    : (*plhs)->type());
-      tree tmpvar = create_tmp_var_raw(type->get_tree(gogo), NULL);
-      DECL_SOURCE_LOCATION(tmpvar) = location;
-      append_to_statement_list(this->build_stmt_1(DECL_EXPR, tmpvar),
-			       &stmt_list);
-
-      tree assign = Assignment_statement::get_assignment_tree(context,
-							      this->op_,
-							      *plhs, tmpvar,
-							      *prhs, NULL,
-							      NULL_TREE,
-							      location);
-      if (assign == error_mark_node)
-	continue;
-
-      append_to_statement_list(assign, &stmt_list);
-
       if ((*plhs)->is_sink_expression())
 	continue;
 
-      tree lhs_tree = (*plhs)->get_tree(context);
-      if (lhs_tree == error_mark_node)
-	continue;
-
-      Refcount_decrement_lvalue_expression* rdle =
-	(*plhs)->refcount_decrement_lvalue_expression();
-      tree set;
-      if (rdle == NULL)
-	set = fold_build2(MODIFY_EXPR, void_type_node, lhs_tree, tmpvar);
-      else
-	set = rdle->set(context, lhs_tree, tmpvar);
-
-      if (CAN_HAVE_LOCATION_P(set))
-	SET_EXPR_LOCATION(set, location);
-
-      assignments.push_back(set);
+      Expression* ref = Expression::make_temporary_reference(*ptemp, loc);
+      Statement* s = Statement::make_assignment(this->op_, *plhs, ref, loc);
+      b->add_statement(s);
+      ++ptemp;
     }
-  gcc_assert(prhs == this->rhs_->end());
+  gcc_assert(ptemp == temps.end());
 
-  for (std::vector<tree>::const_iterator p = assignments.begin();
-       p != assignments.end();
-       ++p)
-    append_to_statement_list(*p, &stmt_list);
-
-  return stmt_list;
+  return Statement::make_block_statement(b, loc);
 }
 
 // Make a tuple assignment statement.
