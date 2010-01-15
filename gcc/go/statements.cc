@@ -763,6 +763,43 @@ Statement::make_assignment(Operator op, Expression* lhs, Expression* rhs,
   return new Assignment_statement(op, lhs, rhs, location);
 }
 
+// The Move_ordered_evals class is used to find any subexpressions of
+// an expression that have an evaluation order dependency.  It creates
+// temporary variables to hold them.
+
+class Move_ordered_evals : public Traverse
+{
+ public:
+  Move_ordered_evals(Block* block)
+    : Traverse(traverse_expressions),
+      block_(block)
+  { }
+
+ protected:
+  int
+  expression(Expression**);
+
+ private:
+  // The block where new temporary variables should be added.
+  Block* block_;
+};
+
+int
+Move_ordered_evals::expression(Expression** pexpr)
+{
+  // We have to look at subexpressions first.
+  if ((*pexpr)->traverse_subexpressions(this) == TRAVERSE_EXIT)
+    return TRAVERSE_EXIT;
+  if ((*pexpr)->must_eval_in_order())
+    {
+      source_location loc = (*pexpr)->location();
+      Temporary_statement* temp = Statement::make_temporary(NULL, *pexpr, loc);
+      this->block_->add_statement(temp);
+      *pexpr = Expression::make_temporary_reference(temp, loc);
+    }
+  return TRAVERSE_SKIP_COMPONENTS;
+}
+
 // A tuple assignment statement.  This differs from an assignment
 // statement in that the right-hand-side expressions are evaluated in
 // parallel.
@@ -816,6 +853,14 @@ Tuple_assignment_statement::do_lower(Gogo*, Block* enclosing)
 
   Block* b = new Block(enclosing, loc);
   
+  // First move out any subexpressions on the left hand side.  The
+  // right hand side will be evaluated in the required order anyhow.
+  Move_ordered_evals moe(b);
+  for (Expression_list::const_iterator plhs = this->lhs_->begin();
+       plhs != this->lhs_->end();
+       ++plhs)
+    (*plhs)->traverse_subexpressions(&moe);
+
   std::vector<Temporary_statement*> temps;
   temps.reserve(this->lhs_->size());
 
@@ -932,6 +977,12 @@ Tuple_map_assignment_statement::do_lower(Gogo*, Block* enclosing)
   Map_type* map_type = map_index->get_map_type();
 
   Block* b = new Block(enclosing, loc);
+
+  // Move out any subexpressions to make sure that functions are
+  // called in the required order.
+  Move_ordered_evals moe(b);
+  this->val_->traverse_subexpressions(&moe);
+  this->present_->traverse_subexpressions(&moe);
 
   // Copy the key value into a temporary so that we can take its
   // address without pushing the value onto the heap.
