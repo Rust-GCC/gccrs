@@ -1227,16 +1227,15 @@ class Tuple_receive_assignment_statement : public Statement
   do_traverse(Traverse* traverse);
 
   bool
-  do_traverse_assignments(Traverse_assignments*);
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
 
-  void
-  do_determine_types();
-
-  void
-  do_check_types(Gogo*);
+  Statement*
+  do_lower(Gogo*, Block*);
 
   tree
-  do_get_tree(Translate_context*);
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
 
  private:
   // Lvalue which receives the value from the channel.
@@ -1258,155 +1257,85 @@ Tuple_receive_assignment_statement::do_traverse(Traverse* traverse)
   return this->traverse_expression(traverse, &this->channel_);
 }
 
-bool
-Tuple_receive_assignment_statement::do_traverse_assignments(
-    Traverse_assignments* tassign)
+// Lower to a function call.
+
+Statement*
+Tuple_receive_assignment_statement::do_lower(Gogo*, Block* enclosing)
 {
-  tassign->assignment(&this->val_, NULL);
-  tassign->assignment(&this->success_, NULL);
-  tassign->value(&this->channel_, false, this->val_->is_local_variable());
-  return true;
-}
-
-// Set types if necessary.
-
-void
-Tuple_receive_assignment_statement::do_determine_types()
-{
-  this->channel_->determine_type_no_context();
-  Type* type = this->channel_->type();
-  Channel_type* channel_type = type->channel_type();
-
-  Type_context subcontext1((channel_type != NULL
-			    ? channel_type->element_type()
-			    : NULL),
-			   false);
-  this->val_->determine_type(&subcontext1);
-
-  Type_context subcontext2(Type::lookup_bool_type(), false);
-  this->success_->determine_type(&subcontext2);
-}
-
-// Check types.
-
-void
-Tuple_receive_assignment_statement::do_check_types(Gogo*)
-{
-  Type* type = this->channel_->type();
-  if (type->channel_type() == NULL)
-    {
-      this->report_error(_("expected channel"));
-      return;
-    }
-  if (!type->channel_type()->may_receive())
-    {
-      this->report_error(_("invalid receive on send-only channel"));
-      return;
-    }
-
-  if (!this->val_->is_lvalue() || !this->success_->is_lvalue())
-    {
-      this->report_error(_("invalid left hand side of assignment"));
-      return;
-    }
-
-  std::string reason;
-  if (!Type::are_compatible_for_assign(this->val_->type(),
-				       type->channel_type()->element_type(),
-				       &reason))
-    {
-      if (reason.empty())
-	error_at(this->val_->location(),
-		 "incompatible types for variable and channel");
-      else
-	error_at(this->val_->location(),
-		 "incompatible types for variable and channel (%s)",
-		 reason.c_str());
-      this->set_is_error();
-    }
-
-  if (!Type::are_compatible_for_assign(this->success_->type(),
-				       Type::lookup_bool_type(),
-				       &reason))
-    {
-      if (reason.empty())
-	error_at(this->success_->location(), "incompatible type for receive");
-      else
-	error_at(this->success_->location(),
-		 "incompatible type for receive (%s)",
-		 reason.c_str());
-      this->set_is_error();
-    }
-}
-
-// Get a tree for a nonblocking receive statement.
-
-tree
-Tuple_receive_assignment_statement::do_get_tree(Translate_context* context)
-{
-  Gogo* gogo = context->gogo();
+  source_location loc = this->location();
 
   Channel_type* channel_type = this->channel_->type()->channel_type();
-  gcc_assert(channel_type != NULL);
-  Type* element_type = channel_type->element_type();
-  tree element_type_tree = element_type->get_tree(gogo);
-
-  tree stmt_list = NULL_TREE;
-
-  tree channel_tree = this->channel_->get_tree(context);
-  if (element_type_tree == error_mark_node || channel_tree == error_mark_node)
-    return error_mark_node;
-
-  tree val_success = Gogo::receive_from_channel(element_type_tree,
-						channel_tree, false, false,
-						this->location());
-  val_success = save_expr(val_success);
-
-  // VAL_SUCCESS is a struct.  The first field is the value.  The
-  // second field is whether the receive succeeded.
-  tree val_field = TYPE_FIELDS(TREE_TYPE(val_success));
-  tree success_field = TREE_CHAIN(val_field);
-  gcc_assert(TREE_TYPE(success_field) == boolean_type_node);
-
-  tree success = build3(COMPONENT_REF, boolean_type_node, val_success,
-			success_field, NULL_TREE);
-
-  tree set_success =
-    Assignment_statement::get_assignment_tree(context, OPERATOR_EQ,
-					      this->success_, NULL_TREE,
-					      NULL,
-					      Type::lookup_bool_type(),
-					      success,
-					      this->location());
-  append_to_statement_list(set_success, &stmt_list);
-
-  tree val_rhs = build3(COMPONENT_REF, TREE_TYPE(val_field), val_success,
-			val_field, NULL_TREE);
-
-  tree val_type_tree = this->val_->type()->get_tree(gogo);
-
-  // FIXME: Duplicates Gogo::receive_from_channel.
-  if (int_size_in_bytes(element_type_tree) <= 8
-      && !AGGREGATE_TYPE_P(element_type_tree))
+  if (channel_type == NULL)
     {
-      int bitsize = GET_MODE_BITSIZE(TYPE_MODE(val_type_tree));
-      tree int_type_tree = go_type_for_size(bitsize, 1);
-      val_rhs = fold_convert_loc(this->location(), int_type_tree, val_rhs);
+      this->report_error(_("expected channel"));
+      return Statement::make_error_statement(loc);
+    }
+  if (!channel_type->may_receive())
+    {
+      this->report_error(_("invalid receive on send-only channel"));
+      return Statement::make_error_statement(loc);
     }
 
-  val_rhs = fold_convert_loc(this->location(), val_type_tree, val_rhs);
-  tree sval = Assignment_statement::get_assignment_tree(context,
-							OPERATOR_EQ,
-							this->val_,
-							NULL_TREE,
-							NULL,
-							element_type,
-							val_rhs,
-							this->location());
-  tree cmove = build3(COND_EXPR, void_type_node, success, sval, NULL_TREE);
-  append_to_statement_list(cmove, &stmt_list);
+  Block* b = new Block(enclosing, loc);
 
-  return stmt_list;
+  // Make sure that any subexpressions on the left hand side are
+  // evaluated in the right order.
+  Move_ordered_evals moe(b);
+  this->val_->traverse_subexpressions(&moe);
+  this->success_->traverse_subexpressions(&moe);
+
+  // var val_temp ELEMENT_TYPE
+  Temporary_statement* val_temp =
+    Statement::make_temporary(channel_type->element_type(), NULL, loc);
+  b->add_statement(val_temp);
+
+  // var success_temp bool
+  Temporary_statement* success_temp =
+    Statement::make_temporary(Type::lookup_bool_type(), NULL, loc);
+  b->add_statement(success_temp);
+
+  // func chanrecv2(c chan T, val *T) bool
+  source_location bloc = BUILTINS_LOCATION;
+  Typed_identifier_list* param_types = new Typed_identifier_list();
+  param_types->push_back(Typed_identifier("c", channel_type, bloc));
+  Type* pelement_type = Type::make_pointer_type(channel_type->element_type());
+  param_types->push_back(Typed_identifier("val", pelement_type, bloc));
+
+  Typed_identifier_list* ret_types = new Typed_identifier_list();
+  ret_types->push_back(Typed_identifier("", Type::lookup_bool_type(), bloc));
+
+  Function_type* fntype = Type::make_function_type(NULL, param_types,
+						   ret_types, bloc);
+  Named_object* chanrecv2 =
+    Named_object::make_function_declaration("chanrecv2", NULL, fntype, bloc);
+  chanrecv2->func_declaration_value()->set_asm_name("runtime.chanrecv2");
+
+  // success_temp = chanrecv2(channel, &val_temp)
+  Expression* func = Expression::make_func_reference(chanrecv2, NULL, loc);
+  Expression_list* params = new Expression_list();
+  params->push_back(this->channel_);
+  Expression* ref = Expression::make_temporary_reference(val_temp, loc);
+  params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
+  Expression* call = Expression::make_call(func, params, loc);
+  ref = Expression::make_temporary_reference(success_temp, loc);
+  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, call, loc);
+  b->add_statement(s);
+
+  // if success_temp { val = val_temp }
+  Block* then_block = new Block(b, loc);
+  ref = Expression::make_temporary_reference(val_temp, loc);
+  s = Statement::make_assignment(OPERATOR_EQ, this->val_, ref, loc);
+  then_block->add_statement(s);
+  ref = Expression::make_temporary_reference(success_temp, loc);
+  s = Statement::make_if_statement(ref, then_block, NULL, loc);
+  b->add_statement(s);
+
+  // success = success_temp
+  ref = Expression::make_temporary_reference(success_temp, loc);
+  s = Statement::make_assignment(OPERATOR_EQ, this->success_, ref, loc);
+  b->add_statement(s);
+
+  return Statement::make_block_statement(b, loc);
 }
 
 // Make a nonblocking receive statement.

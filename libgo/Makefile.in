@@ -17,7 +17,7 @@
 
 # Makefile.am -- Go library Makefile.
 
-# Copyright 2009 The Go Authors. All rights reserved.
+# Copyright 2009, 2010 The Go Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
@@ -136,7 +136,7 @@ am__objects_1 = go-bad-index.lo go-byte-array-to-string.lo \
 	go-typedesc-equal.lo go-unreflect.lo go-unsafe-new.lo \
 	go-unsafe-newarray.lo go-unsafe-pointer.lo malloc.lo mcache.lo \
 	mcentral.lo mfixalloc.lo mheap.lo msize.lo proc.lo \
-	malloc_go.lo map.lo sigqueue.lo string.lo
+	malloc_go.lo chan.lo map.lo sigqueue.lo string.lo
 am_libgo_la_OBJECTS = $(am__objects_1)
 libgo_la_OBJECTS = $(am_libgo_la_OBJECTS)
 libgotesting_la_DEPENDENCIES = testing/libtesting.la \
@@ -598,6 +598,7 @@ runtime_files = \
 	runtime/msize.c \
 	runtime/proc.c \
 	malloc_go.c \
+	chan.c \
 	map.c \
 	sigqueue.c \
 	string.c
@@ -1464,6 +1465,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chan.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-bad-index.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-breakpoint.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-byte-array-to-string.Plo@am__quote@

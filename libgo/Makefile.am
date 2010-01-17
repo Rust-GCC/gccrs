@@ -310,6 +310,7 @@ runtime_files = \
 	runtime/msize.c \
 	runtime/proc.c \
 	malloc_go.c \
+	chan.c \
 	map.c \
 	sigqueue.c \
 	string.c
