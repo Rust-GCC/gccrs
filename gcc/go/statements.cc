@@ -3591,143 +3591,164 @@ Type_case_clauses::Type_case_clause::traverse(Traverse* traverse)
   return TRAVERSE_CONTINUE;
 }
 
-// Determine types.
+// Lower one clause in a type switch.  Add statements to the block B.
+// The type descriptor we are switching on is in DESCRIPTOR_TEMP.
+// BREAK_LABEL is the label at the end of the type switch.
+// *STMTS_LABEL, if not NULL, is a label to put at the start of the
+// statements.
 
 void
-Type_case_clauses::Type_case_clause::determine_types()
+Type_case_clauses::Type_case_clause::lower(Block* b,
+					   Temporary_statement* descriptor_temp,
+					   Unnamed_label* break_label,
+					   Unnamed_label** stmts_label) const
 {
-  // The language permits case nil, which is of course a constant
-  // rather than a type.  It will appear here as an invalid forwarding
-  // type.
-  if (this->type_ != NULL && this->type_->is_nil_constant_as_type())
-    this->type_ = Type::make_nil_type();
+  source_location loc = this->location_;
 
-  if (this->statements_ != NULL)
-    this->statements_->determine_types();
-}
-
-// Return true if this clause may fall through to the statements
-// following the overall type switch statement.
-
-bool
-Type_case_clauses::Type_case_clause::may_fall_through() const
-{
-  if (this->statements_ == NULL)
-    return true;
-  return this->statements_->may_fall_through();
-}
-
-// Add code for this clause to the statement list.
-
-void
-Type_case_clauses::Type_case_clause::get_tree(Translate_context* context,
-					      tree switch_type_descriptor,
-					      Unnamed_label* break_label,
-					      tree* stmts_label,
-					      tree* stmt_list) const
-{
-  Gogo* gogo = context->gogo();
-  tree next_case_label = NULL_TREE;
+  Unnamed_label* next_case_label = NULL;
   if (!this->is_default_)
     {
-      // For the normal non-fallthrough case we generate
-      //   if (! <types match>) goto next_case;
-      //   statements;
-      //   goto break_label;
-      //  next_case:
-      // For the fallthrough case we generate
-      //   if (!! <types match>) goto stmts_label;
+      Type* type = this->type_;
 
-      tree jump;
+      Expression* cond;
+      // The language permits case nil, which is of course a constant
+      // rather than a type.  It will appear here as an invalid
+      // forwarding type.
+      if (type->is_nil_constant_as_type())
+	{
+	  Expression* ref =
+	    Expression::make_temporary_reference(descriptor_temp, loc);
+	  cond = Expression::make_binary(OPERATOR_EQEQ, ref,
+					 Expression::make_nil(loc),
+					 loc);
+	}
+      else
+	{
+	  Expression* func;
+	  if (type->interface_type() == NULL)
+	    {
+	      // func ifacetypeeq(*descriptor, *descriptor) bool
+	      static Named_object* ifacetypeeq;
+	      if (ifacetypeeq == NULL)
+		{
+		  const source_location bloc = BUILTINS_LOCATION;
+		  Typed_identifier_list* param_types =
+		    new Typed_identifier_list();
+		  Type* descriptor_type = Type::make_type_descriptor_ptr_type();
+		  param_types->push_back(Typed_identifier("a", descriptor_type,
+							  bloc));
+		  param_types->push_back(Typed_identifier("b", descriptor_type,
+							  bloc));
+		  Typed_identifier_list* ret_types =
+		    new Typed_identifier_list();
+		  Type* bool_type = Type::lookup_bool_type();
+		  ret_types->push_back(Typed_identifier("", bool_type, bloc));
+		  Function_type* fntype = Type::make_function_type(NULL,
+								   param_types,
+								   ret_types,
+								   bloc);
+		  ifacetypeeq =
+		    Named_object::make_function_declaration("ifacetypeeq", NULL,
+							    fntype, bloc);
+		  const char* n = "runtime.ifacetypeeq";
+		  ifacetypeeq->func_declaration_value()->set_asm_name(n);
+		}
+
+	      // ifacetypeeq(descriptor_temp, DESCRIPTOR)
+	      func = Expression::make_func_reference(ifacetypeeq, NULL, loc);
+	    }
+	  else
+	    {
+	      // func ifaceI2Tp(*descriptor, *descriptor) bool
+	      static Named_object* ifaceI2Tp;
+	      if (ifaceI2Tp == NULL)
+		{
+		  const source_location bloc = BUILTINS_LOCATION;
+		  Typed_identifier_list* param_types =
+		    new Typed_identifier_list();
+		  Type* descriptor_type = Type::make_type_descriptor_ptr_type();
+		  param_types->push_back(Typed_identifier("a", descriptor_type,
+							  bloc));
+		  param_types->push_back(Typed_identifier("b", descriptor_type,
+							  bloc));
+		  Typed_identifier_list* ret_types =
+		    new Typed_identifier_list();
+		  Type* bool_type = Type::lookup_bool_type();
+		  ret_types->push_back(Typed_identifier("", bool_type, bloc));
+		  Function_type* fntype = Type::make_function_type(NULL,
+								   param_types,
+								   ret_types,
+								   bloc);
+		  ifaceI2Tp =
+		    Named_object::make_function_declaration("ifaceI2Tp", NULL,
+							    fntype, bloc);
+		  const char* n = "runtime.ifaceI2Tp";
+		  ifaceI2Tp->func_declaration_value()->set_asm_name(n);
+		}
+
+	      // ifaceI2Tp(descriptor_temp, DESCRIPTOR)
+	      func = Expression::make_func_reference(ifaceI2Tp, NULL, loc);
+	    }
+	  Expression_list* params = new Expression_list();
+	  params->push_back(Expression::make_type_descriptor(type, loc));
+	  Expression* ref =
+	    Expression::make_temporary_reference(descriptor_temp, loc);
+	  params->push_back(ref);
+	  cond = Expression::make_call(func, params, loc);
+	}
+
+      Unnamed_label* dest;
       if (!this->is_fallthrough_)
 	{
-	  next_case_label = create_artificial_label(UNKNOWN_LOCATION);
-	  jump = build1(GOTO_EXPR, void_type_node, next_case_label);
+	  // if !COND { goto NEXT_CASE_LABEL }
+	  next_case_label = new Unnamed_label(UNKNOWN_LOCATION);
+	  dest = next_case_label;
+	  cond = Expression::make_unary(OPERATOR_NOT, cond, loc);
 	}
       else
 	{
-	  if (*stmts_label == NULL_TREE)
-	    *stmts_label = create_artificial_label(UNKNOWN_LOCATION);
-	  jump = build1(GOTO_EXPR, void_type_node, *stmts_label);
+	  // if COND { goto STMTS_LABEL }
+	  gcc_assert(stmts_label != NULL);
+	  if (*stmts_label == NULL)
+	    *stmts_label = new Unnamed_label(UNKNOWN_LOCATION);
+	  dest = *stmts_label;
 	}
-      SET_EXPR_LOCATION(jump, this->location_);
-
-      tree comparison;
-      Type* type = this->type_;
-      if (type->is_nil_type())
-	{
-	  comparison = build2(EQ_EXPR, boolean_type_node,
-			      switch_type_descriptor,
-			      fold_convert(TREE_TYPE(switch_type_descriptor),
-					   null_pointer_node));
-	}
-      else if (type->interface_type() == NULL)
-	{
-	  tree this_type_descriptor = type->type_descriptor(gogo);
-	  static tree type_descriptors_equal_fndecl;
-	  comparison = Gogo::call_builtin(&type_descriptors_equal_fndecl,
-					  this->location(),
-					  "__go_type_descriptors_equal",
-					  2,
-					  boolean_type_node,
-					  TREE_TYPE(switch_type_descriptor),
-					  switch_type_descriptor,
-					  TREE_TYPE(this_type_descriptor),
-					  this_type_descriptor);
-	}
-      else
-	{
-	  tree this_type_descriptor = type->type_descriptor(gogo);
-	  static tree can_convert_to_interface_fndecl;
-	  comparison = Gogo::call_builtin(&can_convert_to_interface_fndecl,
-					  this->location(),
-					  "__go_can_convert_to_interface",
-					  2,
-					  boolean_type_node,
-					  TREE_TYPE(this_type_descriptor),
-					  this_type_descriptor,
-					  TREE_TYPE(switch_type_descriptor),
-					  switch_type_descriptor);
-	}
-
-      if (this->is_fallthrough_)
-	comparison = fold_build1(TRUTH_NOT_EXPR, boolean_type_node,
-				 comparison);
-
-      tree cond_expr = build3(COND_EXPR, void_type_node, comparison,
-			      NULL_TREE, jump);
-      append_to_statement_list(cond_expr, stmt_list);
+      Block* then_block = new Block(b, loc);
+      Statement* s = Statement::make_goto_unnamed_statement(dest, loc);
+      then_block->add_statement(s);
+      s = Statement::make_if_statement(cond, then_block, NULL, loc);
+      b->add_statement(s);
     }
 
   if (this->statements_ != NULL)
     {
       gcc_assert(!this->is_fallthrough_);
-      if (*stmts_label != NULL_TREE)
+      if (stmts_label != NULL && *stmts_label != NULL)
 	{
 	  gcc_assert(!this->is_default_);
-	  tree le = build1(LABEL_EXPR, void_type_node, *stmts_label);
-	  SET_EXPR_LOCATION(le, this->statements_->start_location());
-	  append_to_statement_list(le, stmt_list);
-	  *stmts_label = NULL_TREE;
+	  (*stmts_label)->set_location(this->statements_->start_location());
+	  Statement* s = Statement::make_unnamed_label_statement(*stmts_label);
+	  b->add_statement(s);
+	  *stmts_label = NULL;
 	}
-      tree block_tree = this->statements_->get_tree(context);
-      if (block_tree != error_mark_node)
-	append_to_statement_list(block_tree, stmt_list);
+      b->add_statement(Statement::make_block_statement(this->statements_,
+						       loc));
     }
 
   if (this->is_fallthrough_)
-    gcc_assert(next_case_label == NULL_TREE);
+    gcc_assert(next_case_label == NULL);
   else
     {
-      tree t = break_label->get_goto(this->statements_ == NULL
-				     ? this->location_
-				     : this->statements_->end_location());
-      append_to_statement_list(t, stmt_list);
-
-      if (next_case_label != NULL_TREE)
+      source_location gloc = (this->statements_ == NULL
+			      ? loc
+			      : this->statements_->end_location());
+      b->add_statement(Statement::make_goto_unnamed_statement(break_label,
+							      gloc));
+      if (next_case_label != NULL)
 	{
-	  tree le = build1(LABEL_EXPR, void_type_node, next_case_label);
-	  append_to_statement_list(le, stmt_list);
+	  Statement* s =
+	    Statement::make_unnamed_label_statement(next_case_label);
+	  b->add_statement(s);
 	}
     }
 }
@@ -3749,17 +3770,6 @@ Type_case_clauses::traverse(Traverse* traverse)
   return TRAVERSE_CONTINUE;
 }
 
-// Determine types.
-
-void
-Type_case_clauses::determine_types()
-{
-  for (Type_clauses::iterator p = this->clauses_.begin();
-       p != this->clauses_.end();
-       ++p)
-    p->determine_types();
-}
-
 // Check for duplicate types.
 
 void
@@ -3775,49 +3785,31 @@ Type_case_clauses::check_duplicates() const
       Type* t = p->type();
       if (t == NULL)
 	continue;
+      if (t->is_nil_constant_as_type())
+	t = Type::make_nil_type();
       std::pair<Types_seen::iterator, bool> ins = types_seen.insert(t);
       if (!ins.second)
 	error_at(p->location(), "duplicate type in switch");
     }
 }
 
-// Return true if these clauses may fall through to the statements
-// following the type switch statement.
-
-bool
-Type_case_clauses::may_fall_through() const
-{
-  bool found_default = false;
-  for (Type_clauses::const_iterator p = this->clauses_.begin();
-       p != this->clauses_.end();
-       ++p)
-    {
-      if (p->may_fall_through())
-	return true;
-      if (p->is_default())
-	found_default = true;
-    }
-  return !found_default;
-}
-
-// Build up a statement list for the type switch.
+// Lower the clauses in a type switch.  Add statements to the block B.
+// The type descriptor we are switching on is in DESCRIPTOR_TEMP.
+// BREAK_LABEL is the label at the end of the type switch.
 
 void
-Type_case_clauses::get_tree(Translate_context* context,
-			    tree switch_type_descriptor,
-			    Unnamed_label* break_label,
-			    tree* stmt_list) const
+Type_case_clauses::lower(Block* b, Temporary_statement* descriptor_temp,
+			 Unnamed_label* break_label) const
 {
   const Type_case_clause* default_case = NULL;
 
-  tree stmts_label = NULL_TREE;
+  Unnamed_label* stmts_label = NULL;
   for (Type_clauses::const_iterator p = this->clauses_.begin();
        p != this->clauses_.end();
        ++p)
     {
       if (!p->is_default())
-	p->get_tree(context, switch_type_descriptor, break_label,
-		    &stmts_label, stmt_list);
+	p->lower(b, descriptor_temp, break_label, &stmts_label);
       else
 	{
 	  // We are generating a series of tests, which means that we
@@ -3825,12 +3817,10 @@ Type_case_clauses::get_tree(Translate_context* context,
 	  default_case = &*p;
 	}
     }
+  gcc_assert(stmts_label == NULL);
 
   if (default_case != NULL)
-    default_case->get_tree(context, switch_type_descriptor, break_label,
-			   &stmts_label, stmt_list);
-
-  gcc_assert(stmts_label == NULL_TREE);
+    default_case->lower(b, descriptor_temp, break_label, NULL);
 }
 
 // Class Type_switch_statement.
@@ -3850,113 +3840,87 @@ Type_switch_statement::do_traverse(Traverse* traverse)
   return TRAVERSE_CONTINUE;
 }
 
-// Determine types.
+// Lower a type switch statement to a series of if statements.  The gc
+// compiler is able to generate a table in some cases.  However, that
+// does not work for us because we may have type descriptors in
+// different shared libraries, so we can't compare them with simple
+// equality testing.
 
-void
-Type_switch_statement::do_determine_types()
+Statement*
+Type_switch_statement::do_lower(Gogo*, Block* enclosing)
 {
-  if (this->var_ == NULL)
-    this->expr_->determine_type_no_context();
-  if (this->clauses_ != NULL)
-    this->clauses_->determine_types();
-}
+  const source_location loc = this->location();
 
-// Check types.  There can't be any type errors here, but we check for
-// duplicate cases.
-
-void
-Type_switch_statement::do_check_types(Gogo*)
-{
   if (this->clauses_ != NULL)
     this->clauses_->check_duplicates();
-}
 
-// Return whether this type switch may fall through.
+  Block* b = new Block(enclosing, loc);
 
-bool
-Type_switch_statement::do_may_fall_through() const
-{
-  if (this->clauses_ == NULL)
-    return true;
-  return this->clauses_->may_fall_through();
-}
+  Type* val_type = (this->var_ != NULL
+		    ? this->var_->var_value()->type()
+		    : this->expr_->type());
 
-// Convert to GENERIC.  We can have multiple type descriptors for the
-// same type, so we generate a series of type descriptor comparisons.
-// FIXME: If we had a unique hash code which only depended on the
-// reflection string, then we could do a constant switch which would
-// be faster.  I'm not sure how much different it makes--I don't know
-// how big these type switches will get.
+  // var descriptor_temp DESCRIPTOR_TYPE
+  Type* descriptor_type = Type::make_type_descriptor_ptr_type();
+  Temporary_statement* descriptor_temp =
+    Statement::make_temporary(descriptor_type, NULL, loc);
+  b->add_statement(descriptor_temp);
 
-tree
-Type_switch_statement::do_get_tree(Translate_context* context)
-{
-  tree switch_val_tree;
-  if (this->var_ != NULL)
-    switch_val_tree = this->var_->get_tree(context->gogo(),
-					   context->function());
-  else
-    switch_val_tree = this->expr_->get_tree(context);
-
-  if (this->clauses_->empty())
+  if (val_type->interface_type() == NULL)
     {
-      // Just evaluate for side-effects.
-      return switch_val_tree;
+      // Doing a type switch on a non-interface type.  Should we issue
+      // a warning for this case?
+      // descriptor_temp = DESCRIPTOR
+      Expression* lhs = Expression::make_temporary_reference(descriptor_temp,
+							     loc);
+      Expression* rhs = Expression::make_type_descriptor(val_type, loc);
+      Statement* s = Statement::make_assignment(OPERATOR_EQ, lhs, rhs, loc);
+      b->add_statement(s);
+    }
+  else
+    {
+      const source_location bloc = BUILTINS_LOCATION;
+
+      // func ifacetype(*interface) *descriptor
+      // FIXME: This should be inlined.
+      Typed_identifier_list* param_types = new Typed_identifier_list();
+      param_types->push_back(Typed_identifier("i", val_type, bloc));
+      Typed_identifier_list* ret_types = new Typed_identifier_list();
+      ret_types->push_back(Typed_identifier("", descriptor_type, bloc));
+      Function_type* fntype = Type::make_function_type(NULL, param_types,
+						       ret_types, bloc);
+      Named_object* ifacetype =
+	Named_object::make_function_declaration("ifacetype", NULL, fntype,
+						bloc);
+      ifacetype->func_declaration_value()->set_asm_name("runtime.ifacetype");
+
+      // descriptor_temp = ifacetype(val_temp)
+      Expression* func = Expression::make_func_reference(ifacetype, NULL, loc);
+      Expression_list* params = new Expression_list();
+      Expression* ref;
+      if (this->var_ == NULL)
+	ref = this->expr_;
+      else
+	ref = Expression::make_var_reference(this->var_, loc);
+      params->push_back(ref);
+      Expression* call = Expression::make_call(func, params, loc);
+      Expression* lhs = Expression::make_temporary_reference(descriptor_temp,
+							     loc);
+      Statement* s = Statement::make_assignment(OPERATOR_EQ, lhs, call, loc);
+      b->add_statement(s);
     }
 
-  Type* switch_var_type;
-  if (this->var_ != NULL)
-    switch_var_type = this->var_->var_value()->type();
-  else
-    switch_var_type = this->expr_->type();
-  tree switch_descriptor = this->get_type_descriptor(context,
-						     switch_var_type,
-						     switch_val_tree);
+  if (this->clauses_ != NULL)
+    this->clauses_->lower(b, descriptor_temp, this->break_label());
 
-  tree stmt_list = NULL_TREE;
-  this->clauses_->get_tree(context, switch_descriptor,
-			   this->break_label(), &stmt_list);
-
-  append_to_statement_list(this->break_label_->get_definition(), &stmt_list);
-
-  return stmt_list;
-}
-
-// Return a tree for the type descriptor of a type switch.
-// SWITCH_VAR_TYPE is the Go type, which is probably an interface
-// type.  SWITCH_VAL_TREE is the value.
-
-tree
-Type_switch_statement::get_type_descriptor(Translate_context* context,
-					   Type* switch_var_type,
-					   tree switch_val_tree)
-{
-  Interface_type* interface_type = switch_var_type->interface_type();
-  if (interface_type == NULL)
+  if (this->break_label_ != NULL)
     {
-      // This is a type switch using a value which does not have
-      // interface type.  Perhaps we should issue a warning.
-      return switch_var_type->type_descriptor(context->gogo());
+      Statement* s =
+	Statement::make_unnamed_label_statement(this->break_label_);
+      b->add_statement(s);
     }
 
-  // Pull the type descriptor out of SWITCH_VAL_TREE.
-  switch_val_tree = save_expr(switch_val_tree);
-  gcc_assert(POINTER_TYPE_P(TREE_TYPE(switch_val_tree)));
-  tree struct_type = TREE_TYPE(TREE_TYPE(switch_val_tree));
-  gcc_assert(TREE_CODE(struct_type) == RECORD_TYPE);
-  tree field = TYPE_FIELDS(struct_type);
-  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
-		    "__type_descriptor") == 0);
-  tree ret = build3(COMPONENT_REF, TREE_TYPE(field),
-		    build_fold_indirect_ref(switch_val_tree),
-		    field, NULL_TREE);
-  ret = build3(COND_EXPR, TREE_TYPE(ret),
-	       build2(EQ_EXPR, boolean_type_node, switch_val_tree,
-		      fold_convert(TREE_TYPE(switch_val_tree),
-				   null_pointer_node)),
-	       fold_convert(TREE_TYPE(ret), null_pointer_node),
-	       ret);
-  return save_expr(ret);
+  return Statement::make_block_statement(b, loc);
 }
 
 // Return the break label for this type switch statement, creating it

@@ -9,12 +9,33 @@ package runtime
 
 typedef _Bool bool;
 typedef struct __go_type_descriptor descriptor;
+typedef const struct __go_type_descriptor const_descriptor;
 typedef struct __go_interface interface;
 
+// Compare two type descriptors.
+func ifacetypeeq(a *descriptor, b *descriptor) (eq bool) {
+	eq = __go_type_descriptors_equal(a, b);
+}
+
+// Return the descriptor for an interface type.
+func ifacetype(i *interface) (d *const_descriptor) {
+	if (i == nil) {
+		return nil;
+	}
+	d = i->__type_descriptor;
+}
+
+// Convert an interface to a different interface type.
 func ifaceI2I2(inter *descriptor, i *interface) (ret *interface, ok bool) {
 	ret = __go_convert_interface(inter, i, &ok);
 }
 
+// Return whether we can convert an interface to a type.
+func ifaceI2Tp(to *descriptor, from *descriptor) (ok bool) {
+	ok = __go_can_convert_to_interface(to, from);
+}
+
+// Convert an interface to a pointer type.
 func ifaceI2T2P(inter *descriptor, i *interface) (ret *void, ok bool) {
 	if (i != nil && __go_type_descriptors_equal(inter, i->__type_descriptor)) {
 		ret = i->__object;
@@ -25,6 +46,7 @@ func ifaceI2T2P(inter *descriptor, i *interface) (ret *void, ok bool) {
 	}
 }
 
+// Convert an interface to a non-pointer type.
 func ifaceI2T2(inter *descriptor, i *interface, ret *void) (ok bool) {
 	if (i != nil && __go_type_descriptors_equal(inter, i->__type_descriptor)) {
 		__builtin_memcpy(ret, i->__object, inter->__size);

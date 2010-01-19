@@ -45,3 +45,7 @@ extern struct __go_interface *
 __go_convert_interface (const struct __go_type_descriptor *,
 			const void *rhs,
 			_Bool *success);
+
+extern _Bool
+__go_can_convert_to_interface(const struct __go_type_descriptor *,
+			      const struct __go_type_descriptor *);

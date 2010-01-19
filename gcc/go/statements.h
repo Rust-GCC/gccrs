@@ -104,7 +104,6 @@ class Statement
     STATEMENT_UNNAMED_LABEL,
     STATEMENT_IF,
     STATEMENT_SWITCH,
-    STATEMENT_TYPE_SWITCH,
     STATEMENT_SELECT,
     STATEMENT_REFCOUNT_QUEUE_ASSIGNMENT,
 
@@ -116,7 +115,8 @@ class Statement
     STATEMENT_TUPLE_RECEIVE_ASSIGNMENT,
     STATEMENT_TUPLE_TYPE_GUARD_ASSIGNMENT,
     STATEMENT_FOR,
-    STATEMENT_FOR_RANGE
+    STATEMENT_FOR_RANGE,
+    STATEMENT_TYPE_SWITCH
   };
 
   Statement(Statement_classification, source_location);
@@ -1337,23 +1337,14 @@ class Type_case_clauses
   int
   traverse(Traverse*);
 
-  // Determine types of expressions.
-  void
-  determine_types();
-
   // Check for duplicates.
   void
   check_duplicates() const;
 
-  // Return true if these clauses may fall through to the statements
-  // following the type switch statement.
-  bool
-  may_fall_through() const;
-
-  // Build up a statement list for this type switch statement.
+  // Lower to if and goto statements.
   void
-  get_tree(Translate_context*, tree switch_descriptor_tree,
-	   Unnamed_label* break_label, tree* stmt_list) const;
+  lower(Block*, Temporary_statement* descriptor_temp,
+	Unnamed_label* break_label) const;
 
  private:
   // One type case clause.
@@ -1376,11 +1367,6 @@ class Type_case_clauses
     type() const
     { return this->type_; }
 
-    // Whether this falls through--this is true for "case T1, T2".
-    bool
-    is_fallthrough() const
-    { return this->is_fallthrough_; }
-
     // Whether this is the default.
     bool
     is_default() const
@@ -1395,29 +1381,17 @@ class Type_case_clauses
     int
     traverse(Traverse*);
 
-    // Determine types.
+    // Lower to if and goto statements.
     void
-    determine_types();
-
-    // Return true if this clause may fall through to execute the
-    // statements following the type switch statement.  This does not
-    // mean that this type clause falls through to the next type
-    // clause.
-    bool
-    may_fall_through() const;
-
-    // Build up a statement list.
-    void
-    get_tree(Translate_context*, tree switch_type_descriptor,
-	     Unnamed_label* break_label, tree* stmts_label,
-	     tree* stmt_list) const;
+    lower(Block*, Temporary_statement* descriptor_temp,
+	  Unnamed_label* break_label, Unnamed_label** stmts_label) const;
 
    private:
     // The type for this type clause.
     Type* type_;
     // The statements to execute.
     Block* statements_;
-    // Whether this falls through.
+    // Whether this falls through--this is true for "case T1, T2".
     bool is_fallthrough_;
     // Whether this is the default case.
     bool is_default_;
@@ -1461,17 +1435,12 @@ class Type_switch_statement : public Statement
   int
   do_traverse(Traverse*);
 
-  void
-  do_determine_types();
-
-  void
-  do_check_types(Gogo*);
-
-  bool
-  do_may_fall_through() const;
+  Statement*
+  do_lower(Gogo*, Block*);
 
   tree
-  do_get_tree(Translate_context*);
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
 
  private:
   // Get the type descriptor.

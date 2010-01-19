@@ -2053,6 +2053,11 @@ class Unnamed_label
   location() const
   { return this->location_; }
 
+  // Set the location where the label is defined.
+  void
+  set_location(source_location location)
+  { this->location_ = location; }
+
   // Return a statement which defines this label.
   tree
   get_definition();
