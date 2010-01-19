@@ -4632,6 +4632,39 @@ Type::make_interface_type(Typed_identifier_list* methods,
   return new Interface_type(methods, location);
 }
 
+// Make the type of a pointer to a type descriptor as represented in
+// Go.  We should really tie this to runtime.Type rather than copying
+// it.
+
+Type*
+Type::make_type_descriptor_ptr_type()
+{
+  static Type* ret;
+  if (ret == NULL)
+    {
+      source_location bloc = BUILTINS_LOCATION;
+      Struct_field_list* sfl = new Struct_field_list();
+      Type* uint8_type = Type::lookup_integer_type("uint8");
+      Type* uintptr_type = Type::lookup_integer_type("uintptr");
+      sfl->push_back(Struct_field(Typed_identifier("Code", uint8_type, bloc)));
+      sfl->push_back(Struct_field(Typed_identifier("align", uint8_type, bloc)));
+      sfl->push_back(Struct_field(Typed_identifier("fieldAlign", uint8_type,
+						   bloc)));
+      sfl->push_back(Struct_field(Typed_identifier("size", uintptr_type,
+						   bloc)));
+      // We don't try to represent the real function type.
+      Type* fntype = Type::make_function_type(NULL, NULL, NULL, bloc);
+      sfl->push_back(Struct_field(Typed_identifier("hash", fntype, bloc)));
+      sfl->push_back(Struct_field(Typed_identifier("equal", fntype, bloc)));
+      Type* stype = Type::make_pointer_type(Type::lookup_string_type());
+      sfl->push_back(Struct_field(Typed_identifier("string", stype, bloc)));
+      // We omit the pointer to uncommonType.
+      Type* t = Type::make_struct_type(sfl, bloc);
+      ret = Type::make_pointer_type(t);
+    }
+  return ret;
+}
+
 // Class Method.
 
 // Bind a method to an object.

@@ -10562,6 +10562,47 @@ Refcount_decrement_lvalue_expression::set(Translate_context* context,
   return fold_build2(COMPOUND_EXPR, void_type_node, save, set);
 }
 
+// An expression which evaluates to a pointer to the type descriptor
+// of a type.
+
+class Type_descriptor_expression : public Expression
+{
+ public:
+  Type_descriptor_expression(Type* type, source_location location)
+    : Expression(EXPRESSION_TYPE_DESCRIPTOR, location),
+      type_(type)
+  { }
+
+ protected:
+  Type*
+  do_type()
+  { return Type::make_type_descriptor_ptr_type(); }
+
+  void
+  do_determine_type(const Type_context*)
+  { }
+
+  Expression*
+  do_copy()
+  { return this; }
+
+  tree
+  do_get_tree(Translate_context* context)
+  { return this->type_->type_descriptor(context->gogo()); }
+
+ private:
+  // The type for which this is the descriptor.
+  Type* type_;
+};
+
+// Make a type descriptor expression.
+
+Expression*
+Expression::make_type_descriptor(Type* type, source_location location)
+{
+  return new Type_descriptor_expression(type, location);
+}
+
 // Make a reference count decrement of an lvalue.
 
 Expression*

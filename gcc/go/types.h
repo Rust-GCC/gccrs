@@ -201,6 +201,9 @@ class Type
   static Interface_type*
   make_interface_type(Typed_identifier_list* methods, source_location);
 
+  static Type*
+  make_type_descriptor_ptr_type();
+
   static Named_type*
   make_named_type(Named_object*, Type*, source_location);
 

@@ -311,6 +311,7 @@ runtime_files = \
 	runtime/proc.c \
 	malloc_go.c \
 	chan.c \
+	iface.c \
 	map.c \
 	sigqueue.c \
 	string.c

@@ -1350,7 +1350,7 @@ Statement::make_tuple_receive_assignment(Expression* val, Expression* success,
 }
 
 // An assignment to a pair of values from a type guard.  This is a
-// conditional type guard.
+// conditional type guard.  v, ok = i.(type).
 
 class Tuple_type_guard_assignment_statement : public Statement
 {
@@ -1367,18 +1367,26 @@ class Tuple_type_guard_assignment_statement : public Statement
   do_traverse(Traverse*);
 
   bool
-  do_traverse_assignments(Traverse_assignments*);
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
 
-  void
-  do_determine_types();
-
-  void
-  do_check_types(Gogo*);
+  Statement*
+  do_lower(Gogo*, Block*);
 
   tree
-  do_get_tree(Translate_context*);
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
 
  private:
+  void
+  lower_to_interface(Block*);
+
+  void
+  lower_to_pointer_type(Block*);
+
+  void
+  lower_to_type(Block*);
+
   // The variable which recieves the converted value.
   Expression* val_;
   // The variable which receives the indication of success.
@@ -1401,225 +1409,161 @@ Tuple_type_guard_assignment_statement::do_traverse(Traverse* traverse)
   return this->traverse_expression(traverse, &this->expr_);
 }
 
-bool
-Tuple_type_guard_assignment_statement::do_traverse_assignments(
-    Traverse_assignments* tassign)
+// Lower to a function call.
+
+Statement*
+Tuple_type_guard_assignment_statement::do_lower(Gogo*, Block* enclosing)
 {
-  tassign->assignment(&this->val_, NULL);
-  tassign->assignment(&this->ok_, NULL);
-  tassign->value(&this->expr_, false, this->val_->is_local_variable());
-  return true;
-}
+  source_location loc = this->location();
 
-// Determine types of a type guard tuple assignment.
-
-void
-Tuple_type_guard_assignment_statement::do_determine_types()
-{
-  this->val_->determine_type_no_context();
-  Type_context subcontext(Type::lookup_bool_type(), false);
-  this->ok_->determine_type(&subcontext);
-  this->expr_->determine_type_no_context();
-}
-
-// Check types of a type guard tuple assignment.
-
-void
-Tuple_type_guard_assignment_statement::do_check_types(Gogo*)
-{
   if (this->expr_->type()->interface_type() == NULL)
     {
-      this->report_error(_("type guard only valid for interface types"));
-      return;
+      this->report_error(_("type assertion only valid for interface types"));
+      return Statement::make_error_statement(loc);
     }
 
-  if (!this->val_->is_lvalue() || !this->ok_->is_lvalue())
-    {
-      this->report_error(_("invalid left hand side of assignment"));
-      return;
-    }
+  Block* b = new Block(enclosing, loc);
 
-  std::string reason;
-  if (!Type::are_compatible_for_assign(this->val_->type(), this->type_,
-				       &reason))
-    {
-      if (reason.empty())
-	error_at(this->val_->location(),
-		 "incompatible types for type guard value");
-      else
-	error_at(this->val_->location(),
-		 "incompatible types for type guard value (%s)",
-		 reason.c_str());
-      this->set_is_error();
-    }
+  // Make sure that any subexpressions on the left hand side are
+  // evaluated in the right order.
+  Move_ordered_evals moe(b);
+  this->val_->traverse_subexpressions(&moe);
+  this->ok_->traverse_subexpressions(&moe);
 
-  if (!Type::are_compatible_for_assign(this->ok_->type(),
-				       Type::lookup_bool_type(), &reason))
-    {
-      if (reason.empty())
-	error_at(this->ok_->location(), "incompatible type for type guard");
-      else
-	error_at(this->ok_->location(), "incompatible type for type guard (%s)",
-		 reason.c_str());
-      this->set_is_error();
-    }
+  if (this->type_->interface_type() != NULL)
+    this->lower_to_interface(b);
+  else if (this->type_->points_to() != NULL)
+    this->lower_to_pointer_type(b);
+  else
+    this->lower_to_type(b);
+
+  return Statement::make_block_statement(b, loc);
 }
 
-// Return the tree for a type guard tuple statement.  The right hand
-// side (THIS->EXPR_) is an interface type.  There are two cases to
-// consider: whether or not we are converting to an interface type.
+// Lower a conversion to an interface type.
 
-tree
-Tuple_type_guard_assignment_statement::do_get_tree(Translate_context* context)
+void
+Tuple_type_guard_assignment_statement::lower_to_interface(Block* b)
 {
-  Gogo* gogo = context->gogo();
+  source_location loc = this->location();
 
-  tree expr_tree = this->expr_->get_tree(context);
-  if (expr_tree == error_mark_node)
-    return error_mark_node;
+  // func ifaceI2I2(*descriptor, *interface) (*interface, bool)
+  source_location bloc = BUILTINS_LOCATION;
+  Typed_identifier_list* param_types = new Typed_identifier_list();
+  param_types->push_back(Typed_identifier("inter",
+					  Type::make_type_descriptor_ptr_type(),
+					  bloc));
+  param_types->push_back(Typed_identifier("i", this->expr_->type(), bloc));
+  Typed_identifier_list* ret_types = new Typed_identifier_list();
+  ret_types->push_back(Typed_identifier("ret", this->type_, bloc));
+  ret_types->push_back(Typed_identifier("ok", Type::lookup_bool_type(), bloc));
+  Function_type* fntype = Type::make_function_type(NULL, param_types,
+						   ret_types, bloc);
+  Named_object* ifaceI2I2 =
+    Named_object::make_function_declaration("ifaceI2I2", NULL, fntype, bloc);
+  ifaceI2I2->func_declaration_value()->set_asm_name("runtime.ifaceI2I2");
 
-  source_location location = this->location();
+  // val, ok = ifaceI2I2(type_descriptor, expr)
+  Expression* func = Expression::make_func_reference(ifaceI2I2, NULL, loc);
+  Expression_list* params = new Expression_list();
+  params->push_back(Expression::make_type_descriptor(this->type_, loc));
+  params->push_back(this->expr_);
+  Call_expression* call = Expression::make_call(func, params, loc);
 
-  gcc_assert(this->expr_->type()->interface_type() != NULL);
+  Expression* res = Expression::make_call_result(call, 0);
+  Statement* s = Statement::make_assignment(OPERATOR_EQ, this->val_, res,
+					    loc);
+  b->add_statement(s);
 
-  Interface_type* interface_type = this->type_->interface_type();
-  if (interface_type != NULL)
-    {
-      tree lhs_type_descriptor = interface_type->type_descriptor(gogo);
-      gcc_assert(POINTER_TYPE_P(TREE_TYPE(expr_tree)));
+  res = Expression::make_call_result(call, 1);
+  s = Statement::make_assignment(OPERATOR_EQ, this->ok_, res, loc);
+  b->add_statement(s);
+}
 
-      tree stmt_list = NULL_TREE;
+// Lower a conversion to a pointer type.
 
-      tree ok_tree = this->ok_->get_tree(context);
-      if (ok_tree == error_mark_node)
-	return error_mark_node;
+void
+Tuple_type_guard_assignment_statement::lower_to_pointer_type(Block* b)
+{
+  source_location loc = this->location();
 
-      tree tmp;
-      tree ok_addr;
-      if (TREE_CODE(ok_tree) == VAR_DECL)
-	{
-	  tmp = NULL_TREE;
-	  gcc_assert(TREE_CODE(TREE_TYPE(ok_tree)) == BOOLEAN_TYPE);
-	  ok_addr = build_fold_addr_expr(ok_tree);
-	  TREE_ADDRESSABLE(ok_tree) = 1;
-	}
-      else
-	{
-	  tmp = create_tmp_var(boolean_type_node, get_name(boolean_type_node));
-	  DECL_IGNORED_P(tmp) = 0;
-	  TREE_ADDRESSABLE(tmp) = 1;
-	  tree make_tmp = build1(DECL_EXPR, void_type_node, tmp);
-	  SET_EXPR_LOCATION(make_tmp, location);
-	  append_to_statement_list(make_tmp, &stmt_list);
-	  ok_addr = build_fold_addr_expr(tmp);
-	}
+  // func ifaceI2T2P(*descriptor, *interface) (T, bool)
+  source_location bloc = BUILTINS_LOCATION;
+  Typed_identifier_list* param_types = new Typed_identifier_list();
+  param_types->push_back(Typed_identifier("inter",
+					  Type::make_type_descriptor_ptr_type(),
+					  bloc));
+  param_types->push_back(Typed_identifier("i", this->expr_->type(), bloc));
+  Typed_identifier_list* ret_types = new Typed_identifier_list();
+  ret_types->push_back(Typed_identifier("ret", this->type_, bloc));
+  ret_types->push_back(Typed_identifier("ok", Type::lookup_bool_type(), bloc));
+  Function_type* fntype = Type::make_function_type(NULL, param_types,
+						   ret_types, bloc);
+  Named_object* ifaceI2T2P =
+    Named_object::make_function_declaration("ifaceI2T2P", NULL, fntype, bloc);
+  ifaceI2T2P->func_declaration_value()->set_asm_name("runtime.ifaceI2T2P");
 
-      static tree convert_interface_decl;
-      tree call = Gogo::call_builtin(&convert_interface_decl,
-				     location,
-				     "__go_convert_interface",
-				     3,
-				     ptr_type_node,
-				     TREE_TYPE(lhs_type_descriptor),
-				     lhs_type_descriptor,
-				     ptr_type_node,
-				     fold_convert(ptr_type_node, expr_tree),
-				     build_pointer_type(boolean_type_node),
-				     ok_addr);
-      call = save_expr(call);
-      append_to_statement_list(call, &stmt_list);
-      if (tmp != NULL_TREE)
-	append_to_statement_list(build2(MODIFY_EXPR, void_type_node,
-					ok_tree, tmp),
-				 &stmt_list);
-      else
-	tmp = ok_tree;
+  // val, ok = ifaceI2T2P(type_descriptor, expr)
+  Expression* func = Expression::make_func_reference(ifaceI2T2P, NULL, loc);
+  Expression_list* params = new Expression_list();
+  params->push_back(Expression::make_type_descriptor(this->type_, loc));
+  params->push_back(this->expr_);
+  Call_expression* call = Expression::make_call(func, params, loc);
 
-      call = fold_convert(interface_type->get_tree(gogo), call);
-      tree assign = Assignment_statement::get_assignment_tree(context,
-							      OPERATOR_EQ,
-							      this->val_,
-							      NULL_TREE,
-							      NULL,
-							      this->type_,
-							      call,
-							      location);
+  Expression* res = Expression::make_call_result(call, 0);
+  Statement* s = Statement::make_assignment(OPERATOR_EQ, this->val_, res,
+					    loc);
+  b->add_statement(s);
 
-      append_to_statement_list(build3(COND_EXPR, void_type_node, tmp, assign,
-				      NULL_TREE),
-			       &stmt_list);
+  res = Expression::make_call_result(call, 1);
+  s = Statement::make_assignment(OPERATOR_EQ, this->ok_, res, loc);
+  b->add_statement(s);
+}
 
-      return stmt_list;
-    }
-  else
-    {
-      // We are converting from an interface to a plain type.  This is
-      // OK if the type descriptors are the same.
-      expr_tree = save_expr(expr_tree);
-      gcc_assert(POINTER_TYPE_P(TREE_TYPE(expr_tree)));
-      tree struct_type = TREE_TYPE(TREE_TYPE(expr_tree));
-      gcc_assert(TREE_CODE(struct_type) == RECORD_TYPE);
-      tree field = TYPE_FIELDS(struct_type);
-      gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
-			"__type_descriptor") == 0);
-      tree rhs_td = build3(COMPONENT_REF, TREE_TYPE(field),
-			   build_fold_indirect_ref(expr_tree),
-			   field, NULL_TREE);
+// Lower a conversion to a non-interface non-pointer type.
 
-      tree lhs_td = this->type_->type_descriptor(gogo);
+void
+Tuple_type_guard_assignment_statement::lower_to_type(Block* b)
+{
+  source_location loc = this->location();
 
-      tree ok_true =
-	Assignment_statement::get_assignment_tree(context,
-						  OPERATOR_EQ,
-						  this->ok_,
-						  NULL_TREE,
-						  NULL,
-						  Type::lookup_bool_type(),
-						  boolean_true_node,
-						  location);
-      tree ok_false =
-	Assignment_statement::get_assignment_tree(context,
-						  OPERATOR_EQ,
-						  this->ok_,
-						  NULL_TREE,
-						  NULL,
-						  Type::lookup_bool_type(),
-						  boolean_false_node,
-						  location);
-      tree val_true =
-	Assignment_statement::get_assignment_tree(context,
-						  OPERATOR_EQ,
-						  this->val_,
-						  NULL_TREE,
-						  this->expr_,
-						  NULL,
-						  expr_tree,
-						  location);
+  // var val_temp TYPE
+  Temporary_statement* val_temp = Statement::make_temporary(this->type_, NULL,
+							    loc);
+  b->add_statement(val_temp);
 
-      static tree type_descriptors_equal_fndecl;
-      tree compare = Gogo::call_builtin(&type_descriptors_equal_fndecl,
-					location,
-					"__go_type_descriptors_equal",
-					2,
-					boolean_type_node,
-					TREE_TYPE(lhs_td),
-					lhs_td,
-					TREE_TYPE(rhs_td),
-					rhs_td);
+  // func ifaceI2T2(*descriptor, *interface, *T) bool
+  source_location bloc = BUILTINS_LOCATION;
+  Typed_identifier_list* param_types = new Typed_identifier_list();
+  param_types->push_back(Typed_identifier("inter",
+					  Type::make_type_descriptor_ptr_type(),
+					  bloc));
+  param_types->push_back(Typed_identifier("i", this->expr_->type(), bloc));
+  Type* ptype = Type::make_pointer_type(this->type_);
+  param_types->push_back(Typed_identifier("v", ptype, bloc));
+  Typed_identifier_list* ret_types = new Typed_identifier_list();
+  ret_types->push_back(Typed_identifier("ok", Type::lookup_bool_type(), bloc));
+  Function_type* fntype = Type::make_function_type(NULL, param_types,
+						   ret_types, bloc);
+  Named_object* ifaceI2T2 =
+    Named_object::make_function_declaration("ifaceI2T2", NULL, fntype, bloc);
+  ifaceI2T2->func_declaration_value()->set_asm_name("runtime.ifaceI2T2");
 
-      tree is_nil = fold_build2(EQ_EXPR, boolean_type_node, expr_tree,
-				fold_convert(TREE_TYPE(expr_tree),
-					     null_pointer_node));
+  // ok = ifaceI2T2(type_descriptor, expr, &val_temp)
+  Expression* func = Expression::make_func_reference(ifaceI2T2, NULL, loc);
+  Expression_list* params = new Expression_list();
+  params->push_back(Expression::make_type_descriptor(this->type_, loc));
+  params->push_back(this->expr_);
+  Expression* ref = Expression::make_temporary_reference(val_temp, loc);
+  params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
+  Expression* call = Expression::make_call(func, params, loc);
+  Statement* s = Statement::make_assignment(OPERATOR_EQ, this->ok_, call, loc);
+  b->add_statement(s);
 
-      return fold_build3(COND_EXPR, void_type_node,
-			 is_nil,
-			 ok_false,
-			 build3(COND_EXPR, void_type_node,
-				compare,
-				build2(COMPOUND_EXPR, void_type_node, ok_true,
-				       val_true),
-				ok_false));
-    }
+  // val = val_temp
+  ref = Expression::make_temporary_reference(val_temp, loc);
+  s = Statement::make_assignment(OPERATOR_EQ, this->val_, ref, loc);
+  b->add_statement(s);
 }
 
 // Make an assignment from a type guard to a pair of variables.

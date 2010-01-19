@@ -90,7 +90,8 @@ class Expression
     EXPRESSION_RECEIVE,
     EXPRESSION_SEND,
     EXPRESSION_REFCOUNT_ADJUST,
-    EXPRESSION_REFCOUNT_DECREMENT_LVALUE
+    EXPRESSION_REFCOUNT_DECREMENT_LVALUE,
+    EXPRESSION_TYPE_DESCRIPTOR
   };
 
   Expression(Expression_classification, source_location);
@@ -274,6 +275,11 @@ class Expression
   // old value of an lvalue.
   static Expression*
   make_refcount_decrement_lvalue(Refcounts*, Expression*);
+
+  // Make an expression which evaluates to the type descriptor of a
+  // type.
+  static Expression*
+  make_type_descriptor(Type* type, source_location);
 
   // Return the expression classification.
   Expression_classification

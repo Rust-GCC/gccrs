@@ -136,7 +136,7 @@ am__objects_1 = go-bad-index.lo go-byte-array-to-string.lo \
 	go-typedesc-equal.lo go-unreflect.lo go-unsafe-new.lo \
 	go-unsafe-newarray.lo go-unsafe-pointer.lo malloc.lo mcache.lo \
 	mcentral.lo mfixalloc.lo mheap.lo msize.lo proc.lo \
-	malloc_go.lo chan.lo map.lo sigqueue.lo string.lo
+	malloc_go.lo chan.lo iface.lo map.lo sigqueue.lo string.lo
 am_libgo_la_OBJECTS = $(am__objects_1)
 libgo_la_OBJECTS = $(am_libgo_la_OBJECTS)
 libgotesting_la_DEPENDENCIES = testing/libtesting.la \
@@ -599,6 +599,7 @@ runtime_files = \
 	runtime/proc.c \
 	malloc_go.c \
 	chan.c \
+	iface.c \
 	map.c \
 	sigqueue.c \
 	string.c
@@ -1534,6 +1535,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unsafe-new.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unsafe-newarray.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unsafe-pointer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/iface.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc_go.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/map.Plo@am__quote@
