@@ -365,16 +365,9 @@ Temporary_statement::do_get_tree(Translate_context* context)
     {
       this->decl_ = create_tmp_var(type_tree, "GOTMP");
       DECL_SOURCE_LOCATION(this->decl_) = this->location();
-      if (this->init_ != NULL)
-	DECL_INITIAL(this->decl_) =
-	  Expression::convert_for_assignment(context, this->type(),
-					     this->init_->type(),
-					     this->init_->get_tree(context),
-					     this->location());
     }
   else
     {
-      gcc_assert(this->init_ == NULL);
       gcc_assert(context->function() != NULL && context->block() != NULL);
       tree decl = build_decl(this->location(), VAR_DECL,
 			     create_tmp_var_name("GOTMP"),
@@ -394,6 +387,12 @@ Temporary_statement::do_get_tree(Translate_context* context)
 
       this->decl_ = decl;
     }
+  if (this->init_ != NULL)
+    DECL_INITIAL(this->decl_) =
+      Expression::convert_for_assignment(context, this->type(),
+					 this->init_->type(),
+					 this->init_->get_tree(context),
+					 this->location());
   if (this->is_address_taken_)
     TREE_ADDRESSABLE(this->decl_) = 1;
   return this->build_stmt_1(DECL_EXPR, this->decl_);
@@ -833,14 +832,10 @@ Tuple_assignment_statement::do_lower(Gogo*, Block* enclosing)
 	}
 
       Temporary_statement* temp = Statement::make_temporary((*plhs)->type(),
-							    NULL,
-							    loc);
+							    *prhs, loc);
       b->add_statement(temp);
       temps.push_back(temp);
 
-      Expression* ref = Expression::make_temporary_reference(temp, loc);
-      Statement* s = Statement::make_assignment(ref, *prhs, loc);
-      b->add_statement(s);
     }
   gcc_assert(prhs == this->rhs_->end());
 
@@ -946,15 +941,10 @@ Tuple_map_assignment_statement::do_lower(Gogo*, Block* enclosing)
   // Copy the key value into a temporary so that we can take its
   // address without pushing the value onto the heap.
 
-  // var key_temp KEY_TYPE
+  // var key_temp KEY_TYPE = MAP_INDEX
   Temporary_statement* key_temp =
-    Statement::make_temporary(map_type->key_type(), NULL, loc);
+    Statement::make_temporary(map_type->key_type(), map_index->index(), loc);
   b->add_statement(key_temp);
-
-  // key_temp = MAP_INDEX
-  Expression* ref = Expression::make_temporary_reference(key_temp, loc);
-  Statement* s = Statement::make_assignment(ref, map_index->index(), loc);
-  b->add_statement(s);
 
   // var val_temp VAL_TYPE
   Temporary_statement* val_temp =
@@ -988,14 +978,14 @@ Tuple_map_assignment_statement::do_lower(Gogo*, Block* enclosing)
   Expression* func = Expression::make_func_reference(mapaccess2, NULL, loc);
   Expression_list* params = new Expression_list();
   params->push_back(map_index->map());
-  ref = Expression::make_temporary_reference(key_temp, loc);
+  Expression* ref = Expression::make_temporary_reference(key_temp, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
   ref = Expression::make_temporary_reference(val_temp, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
   Expression* call = Expression::make_call(func, params, loc);
 
   ref = Expression::make_temporary_reference(present_temp, loc);
-  s = Statement::make_assignment(ref, call, loc);
+  Statement* s = Statement::make_assignment(ref, call, loc);
   b->add_statement(s);
 
   // if present_temp { val = val_temp }
@@ -1098,25 +1088,15 @@ Map_assignment_statement::do_lower(Gogo*, Block* enclosing)
 							    loc);
   b->add_statement(map_temp);
 
-  // var key_temp MAP_KEY_TYPE
+  // var key_temp MAP_KEY_TYPE = k
   Temporary_statement* key_temp =
-    Statement::make_temporary(map_type->key_type(), NULL, loc);
+    Statement::make_temporary(map_type->key_type(), map_index->index(), loc);
   b->add_statement(key_temp);
 
-  // key_temp = k // we are evaluating m[k] = v, p
-  Expression* ref = Expression::make_temporary_reference(key_temp, loc);
-  Statement* s = Statement::make_assignment(ref, map_index->index(), loc);
-  b->add_statement(s);
-
-  // var val_temp MAP_VAL_TYPE
+  // var val_temp MAP_VAL_TYPE = v
   Temporary_statement* val_temp =
-    Statement::make_temporary(map_type->val_type(), NULL, loc);
+    Statement::make_temporary(map_type->val_type(), this->val_, loc);
   b->add_statement(val_temp);
-
-  // val_temp = v // we are evaluating m[k] = v, p
-  ref = Expression::make_temporary_reference(val_temp, loc);
-  s = Statement::make_assignment(ref, this->val_, loc);
-  b->add_statement(s);
 
   // func mapassign2(hmap map[k]v, key *k, val *v, p)
   source_location bloc = BUILTINS_LOCATION;
@@ -1137,13 +1117,13 @@ Map_assignment_statement::do_lower(Gogo*, Block* enclosing)
   Expression* func = Expression::make_func_reference(mapassign2, NULL, loc);
   Expression_list* params = new Expression_list();
   params->push_back(Expression::make_temporary_reference(map_temp, loc));
-  ref = Expression::make_temporary_reference(key_temp, loc);
+  Expression* ref = Expression::make_temporary_reference(key_temp, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
   ref = Expression::make_temporary_reference(val_temp, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
   params->push_back(this->should_set_);
   Expression* call = Expression::make_call(func, params, loc);
-  s = Statement::make_statement(call);
+  Statement* s = Statement::make_statement(call);
   b->add_statement(s);
 
   return Statement::make_block_statement(b, loc);
@@ -4417,12 +4397,8 @@ For_range_statement::do_lower(Gogo* gogo, Block* enclosing)
     range_object = ve->named_object();
   else
     {
-      range_temp = Statement::make_temporary(this->range_->type(), NULL, loc);
+      range_temp = Statement::make_temporary(NULL, this->range_, loc);
       temp_block->add_statement(range_temp);
-
-      Expression* ref = Expression::make_temporary_reference(range_temp, loc);
-      Statement* s = Statement::make_assignment(ref, this->range_, loc);
-      temp_block->add_statement(s);
     }
 
   Temporary_statement* index_temp = Statement::make_temporary(index_type,
@@ -4570,15 +4546,11 @@ For_range_statement::lower_range_array(Gogo* gogo,
 
   Block* init = new Block(enclosing, loc);
 
-  Temporary_statement* len_temp = Statement::make_temporary(index_temp->type(),
-							    NULL, loc);
-  init->add_statement(len_temp);
-
   Expression* ref = this->make_range_ref(range_object, range_temp, loc);
   Expression* len_call = this->call_builtin(gogo, "len", ref, loc);
-  ref = Expression::make_temporary_reference(len_temp, loc);
-  Statement* s = Statement::make_assignment(ref, len_call, loc);
-  init->add_statement(s);
+  Temporary_statement* len_temp = Statement::make_temporary(index_temp->type(),
+							    len_call, loc);
+  init->add_statement(len_temp);
 
   mpz_t zval;
   mpz_init_set_ui(zval, 0UL);
@@ -4586,7 +4558,7 @@ For_range_statement::lower_range_array(Gogo* gogo,
   mpz_clear(zval);
 
   ref = Expression::make_temporary_reference(index_temp, loc);
-  s = Statement::make_assignment(ref, zexpr, loc);
+  Statement* s = Statement::make_assignment(ref, zexpr, loc);
   init->add_statement(s);
 
   *pinit = init;
