@@ -1753,82 +1753,20 @@ Inc_dec_statement::do_check_types(Gogo*)
 			 "non-integer, non-float value"));
 }
 
-// Get a tree for an increment or decrement statement.  Increment and
-// decrement statements are atomic.  FIXME: To implement this
-// correctly we need special handling for increments of values in
-// maps, as in map["keyval"]++.
+// Get a tree for an increment or decrement statement.
 
 tree
 Inc_dec_statement::do_get_tree(Translate_context* context)
 {
   Type* type = this->expr_->type();
   gcc_assert(type->integer_type() != NULL || type->float_type() != NULL);
-
   tree expr_tree = this->expr_->get_tree(context);
-
-  // We don't need to use atomic operations for a local variable.
-  Var_expression* ve = this->expr_->var_expression();
-  if (ve != NULL)
-    {
-      Named_object* no = ve->named_object();
-      if ((no->is_variable()
-	   && !no->var_value()->is_global()
-	   && !no->var_value()->is_address_taken())
-	  || no->is_result_variable())
-	return build2(this->is_inc_ ? PREINCREMENT_EXPR : PREDECREMENT_EXPR,
-		      TREE_TYPE(expr_tree), expr_tree,
-		      (type->integer_type() != NULL
-		       ? build_int_cst(TREE_TYPE(expr_tree), 1)
-		       : build_real(TREE_TYPE(expr_tree), dconst1)));
-    }
-
-  // Nor for a temporary variable.
-  Temporary_reference_expression* tre =
-    this->expr_->temporary_reference_expression();
-  if (tre != NULL)
-    return fold_build2_loc(this->location(),
-			   (this->is_inc_
-			    ? PREINCREMENT_EXPR
-			    : PREDECREMENT_EXPR),
-			   TREE_TYPE(expr_tree),
-			   expr_tree,
-			   (type->integer_type() != NULL
-			    ? build_int_cst(TREE_TYPE(expr_tree), 1)
-			    : build_real(TREE_TYPE(expr_tree), dconst1)));
-
-  if (type->float_type() != NULL)
-    {
-      sorry("atomic increment/decrement of float");
-      return error_mark_node;
-    }
-
-  gcc_assert(TREE_CODE(TREE_TYPE(expr_tree)) == INTEGER_TYPE);
-
-  built_in_function bcode;
-  switch (TYPE_PRECISION(TREE_TYPE(expr_tree)))
-    {
-    case 8:
-      bcode = BUILT_IN_ADD_AND_FETCH_1;
-      break;
-    case 16:
-      bcode = BUILT_IN_ADD_AND_FETCH_2;
-      break;
-    case 32:
-      bcode = BUILT_IN_ADD_AND_FETCH_4;
-      break;
-    case 64:
-      bcode = BUILT_IN_ADD_AND_FETCH_8;
-      break;
-    default:
-      gcc_unreachable();
-    }
-
-  tree val = build_int_cst(TREE_TYPE(expr_tree),
-			   this->is_inc_ ? 1 : -1);
-
-  return build_call_expr(implicit_built_in_decls[bcode], 2,
-			 build_fold_addr_expr(expr_tree),
-			 val);
+  return fold_build2_loc(this->location(),
+			 this->is_inc_ ? PREINCREMENT_EXPR : PREDECREMENT_EXPR,
+			 TREE_TYPE(expr_tree), expr_tree,
+			 (type->integer_type() != NULL
+			  ? build_int_cst(TREE_TYPE(expr_tree), 1)
+			  : build_real(TREE_TYPE(expr_tree), dconst1)));
 }
 
 // Make an increment statement.
