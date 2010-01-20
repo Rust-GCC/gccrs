@@ -3950,7 +3950,8 @@ Statement::make_type_switch_statement(Named_object* var, Expression* expr,
 int
 Select_clauses::Select_clause::traverse(Traverse* traverse)
 {
-  if ((traverse->traverse_mask() & Traverse::traverse_expressions) != 0)
+  if (!this->is_lowered_
+      && (traverse->traverse_mask() & Traverse::traverse_expressions) != 0)
     {
       if (this->channel_ != NULL)
 	{
@@ -3971,28 +3972,83 @@ Select_clauses::Select_clause::traverse(Traverse* traverse)
   return TRAVERSE_CONTINUE;
 }
 
-// Traverse assignments.  Any value sent on a channel is effectively
-// an RHS.
+// Lowering.  Here we pull out the channel and the send values, to
+// enforce the order of evaluation.  We also add explicit send and
+// receive statements to the clauses.
 
 void
-Select_clauses::Select_clause::traverse_assignments(
-    Traverse_assignments* tassign)
+Select_clauses::Select_clause::lower(Block* b)
 {
-  if (!this->is_default_)
+  if (this->is_default_)
     {
-      if (this->is_send_)
-	tassign->value(&this->val_, true, false);
+      gcc_assert(this->channel_ == NULL && this->val_ == NULL);
+      this->is_lowered_ = true;
+      return;
+    }
+
+  source_location loc = this->location_;
+
+  // Evaluate the channel before the select statement.
+  Temporary_statement* channel_temp = Statement::make_temporary(NULL,
+								this->channel_,
+								loc);
+  b->add_statement(channel_temp);
+  this->channel_ = Expression::make_temporary_reference(channel_temp, loc);
+
+  // If this is a send clause, evaluate the value to send before the
+  // select statement.
+  Temporary_statement* val_temp = NULL;
+  if (this->is_send_)
+    {
+      val_temp = Statement::make_temporary(NULL, this->val_, loc);
+      b->add_statement(val_temp);
+    }
+
+  // Add the send or receive before the rest of the statements if any.
+  Block *init = new Block(b, loc);
+  Expression* ref = Expression::make_temporary_reference(channel_temp, loc);
+  if (this->is_send_)
+    {
+      Expression* ref2 = Expression::make_temporary_reference(val_temp, loc);
+      Send_expression* send = Expression::make_send(ref, ref2, loc);
+      send->discarding_value();
+      send->set_for_select();
+      init->add_statement(Statement::make_statement(send));
+    }
+  else
+    {
+      Receive_expression* recv = Expression::make_receive(ref, loc);
+      recv->set_for_select();
+      if (this->val_ != NULL)
+	{
+	  gcc_assert(this->var_ == NULL);
+	  init->add_statement(Statement::make_assignment(OPERATOR_EQ,
+							 this->val_, recv,
+							 loc));
+	}
+      else if (this->var_ != NULL)
+	{
+	  this->var_->var_value()->set_init(recv);
+	  this->var_->var_value()->clear_type_from_chan_element();
+	}
       else
 	{
-	  if (this->val_ != NULL)
-	    tassign->assignment(&this->val_, NULL);
-	  else if (this->var_ != NULL)
-	    tassign->initialize_variable(this->var_);
-	  // FIXME: Otherwise we may need to decrement the reference
-	  // count.
+	  recv->discarding_value();
+	  init->add_statement(Statement::make_statement(recv));
 	}
-      tassign->value(&this->channel_, false, false);
     }
+
+  if (this->statements_ != NULL)
+    init->add_statement(Statement::make_block_statement(this->statements_,
+							loc));
+
+  this->statements_ = init;
+
+  // Now all references should be handled through the statements, not
+  // through here.
+  this->is_lowered_ = true;
+  this->val_ = NULL;
+  this->var_ = NULL;
 }
 
 // Determine types.
@@ -4000,57 +4056,9 @@ Select_clauses::Select_clause::traverse_assignments(
 void
 Select_clauses::Select_clause::determine_types()
 {
-  if (this->channel_ != NULL)
-    this->channel_->determine_type_no_context();
-  if (this->val_ != NULL)
-    {
-      Channel_type* channel_type = this->channel_->type()->channel_type();
-      Type_context subcontext((channel_type == NULL
-			       ? NULL
-			       : channel_type->element_type()),
-			      false);
-      this->val_->determine_type(&subcontext);
-    }
+  gcc_assert(this->is_lowered_);
   if (this->statements_ != NULL)
     this->statements_->determine_types();
-}
-
-// Check types.  Returns false if there was an error.
-
-bool
-Select_clauses::Select_clause::check_types(Gogo*)
-{
-  if (this->is_default_)
-    return true;
-  Channel_type* channel_type = this->channel_->type()->channel_type();
-  if (channel_type == NULL)
-    {
-      error_at(this->location_, "expected channel");
-      return false;
-    }
-  else if (this->is_send_ && !channel_type->may_send())
-    {
-      error_at(this->location_, "invalid send on receive-only channel");
-      return false;
-    }
-  else if (!this->is_send_ && !channel_type->may_receive())
-    {
-      error_at(this->location_, "invalid receive on send-only channel");
-      return false;
-    }
-  else if (this->val_ != NULL)
-    {
-      Type* element_type = channel_type->element_type();
-      Type* val_type = this->val_->type();
-      if (this->is_send_
-	  ? !Type::are_compatible_for_assign(element_type, val_type, NULL)
-	  : !Type::are_compatible_for_assign(val_type, element_type, NULL))
-	{
-	  error_at(this->location_, "incompatible types");
-	  return false;
-	}
-    }
-  return true;
 }
 
 // Whether this clause may fall through to the statement which follows
@@ -4091,15 +4099,17 @@ Select_clauses::traverse(Traverse* traverse)
   return TRAVERSE_CONTINUE;
 }
 
-// Traversal of assignments.
+// Lowering.  Here we pull out the channel and the send values, to
+// enforce the order of evaluation.  We also add explicit send and
+// receive statements to the clauses.
 
 void
-Select_clauses::traverse_assignments(Traverse_assignments* tassign)
+Select_clauses::lower(Block* b)
 {
   for (Clauses::iterator p = this->clauses_.begin();
        p != this->clauses_.end();
        ++p)
-    p->traverse_assignments(tassign);
+    p->lower(b);
 }
 
 // Determine types.
@@ -4111,22 +4121,6 @@ Select_clauses::determine_types()
        p != this->clauses_.end();
        ++p)
     p->determine_types();
-}
-
-// Check types.  Returns false if there was an error.
-
-bool
-Select_clauses::check_types(Gogo* gogo)
-{
-  bool ret = true;
-  for (Clauses::iterator p = this->clauses_.begin();
-       p != this->clauses_.end();
-       ++p)
-    {
-      if (!p->check_types(gogo))
-	ret = false;
-    }
-  return ret;
 }
 
 // Return whether these select clauses fall through to the statement
@@ -4166,19 +4160,12 @@ Select_clauses::get_tree(Translate_context* context,
     return integer_zero_node;
 
   size_t count = this->clauses_.size();
-
-  std::vector<Type*> element_types;
-  std::vector<tree> channels;
-  std::vector<tree> sendvars;
-  element_types.reserve(count);
-  channels.reserve(count);
-  sendvars.reserve(count);
-
   VEC(constructor_elt, gc)* chan_init = VEC_alloc(constructor_elt, gc, count);
   VEC(constructor_elt, gc)* is_send_init = VEC_alloc(constructor_elt, gc,
 						     count);
   Select_clause* default_clause = NULL;
   tree final_stmt_list = NULL_TREE;
+  tree channel_type_tree = NULL_TREE;
 
   size_t i = 0;
   for (Clauses::iterator p = this->clauses_.begin();
@@ -4192,32 +4179,10 @@ Select_clauses::get_tree(Translate_context* context,
 	  continue;
 	}
 
-      Expression* channel = p->channel();
-      Channel_type* ctype = channel->type()->channel_type();
-      gcc_assert(ctype != NULL);
-      element_types.push_back(ctype->element_type());
-
-      tree channel_tree = channel->get_tree(context);
+      tree channel_tree = p->channel()->get_tree(context);
       if (channel_tree == error_mark_node)
 	return error_mark_node;
-      channel_tree = save_expr(channel_tree);
-      channels.push_back(channel_tree);
-
-      if (!p->is_send())
-	sendvars.push_back(NULL_TREE);
-      else
-	{
-	  tree val = p->val()->get_tree(context);
-	  if (val == error_mark_node)
-	    return error_mark_node;
-	  tree sendvar = create_tmp_var(TREE_TYPE(val), get_name(val));
-	  DECL_IGNORED_P(sendvar) = 0;
-	  DECL_INITIAL(sendvar) = val;
-	  tree decl_expr = build1(DECL_EXPR, void_type_node, sendvar);
-	  SET_EXPR_LOCATION(decl_expr, p->location());
-	  append_to_statement_list(decl_expr, &final_stmt_list);
-	  sendvars.push_back(sendvar);
-	}
+      channel_type_tree = TREE_TYPE(channel_tree);
 
       constructor_elt* elt = VEC_quick_push(constructor_elt, chan_init, NULL);
       elt->index = build_int_cstu(sizetype, i);
@@ -4243,7 +4208,6 @@ Select_clauses::get_tree(Translate_context* context,
       return stmt_list;
     }
 
-  tree channel_type_tree = TREE_TYPE(channels[0]);
   tree index_type_tree = build_index_type(size_int(count - 1));
   tree chan_array_type_tree = build_array_type(channel_type_tree,
 					       index_type_tree);
@@ -4299,8 +4263,7 @@ Select_clauses::get_tree(Translate_context* context,
   tree stmt_list = NULL_TREE;
 
   if (default_clause != NULL)
-    this->add_clause_tree(context, 0, default_clause, NULL_TREE, NULL,
-			  NULL_TREE, break_label, &stmt_list);
+    this->add_clause_tree(context, 0, default_clause, break_label, &stmt_list);
 
   i = 1;
   for (Clauses::iterator p = this->clauses_.begin();
@@ -4309,9 +4272,7 @@ Select_clauses::get_tree(Translate_context* context,
     {
       if (!p->is_default())
 	{
-	  this->add_clause_tree(context, i, &*p, channels[i - 1],
-				element_types[i - 1], sendvars[i - 1],
-				break_label, &stmt_list);
+	  this->add_clause_tree(context, i, &*p, break_label, &stmt_list);
 	  ++i;
 	}
     }
@@ -4329,8 +4290,7 @@ Select_clauses::get_tree(Translate_context* context,
 
 void
 Select_clauses::add_clause_tree(Translate_context* context, int case_index,
-				Select_clause* clause, tree channel,
-				Type* element_type, tree sendvar,
+				Select_clause* clause,
 				Unnamed_label* bottom_label, tree* stmt_list)
 {
   tree label = create_artificial_label(clause->location());
@@ -4338,90 +4298,7 @@ Select_clauses::add_clause_tree(Translate_context* context, int case_index,
 				  build_int_cst(sizetype, case_index),
 				  NULL_TREE, label),
 			   stmt_list);
-  tree rec = NULL_TREE;
-  if (!clause->is_default())
-    {
-      if (clause->is_send())
-	{
-	  gcc_assert(sendvar != NULL_TREE);
-	  sendvar = Expression::convert_for_assignment(context,
-						       element_type,
-						       clause->val()->type(),
-						       sendvar,
-						       clause->location());
-	  tree send = Gogo::send_on_channel(channel, sendvar, true, true,
-					    clause->location());
-	  append_to_statement_list(send, stmt_list);
-	}
-      else
-	{
-	  gcc_assert(sendvar == NULL_TREE);
-	  tree element_type_tree = element_type->get_tree(context->gogo());
-	  gcc_assert(element_type_tree != error_mark_node);
-	  rec = Gogo::receive_from_channel(element_type_tree, channel,
-					   true, true, clause->location());
-	  Expression* val = clause->val();
-	  if (val != NULL)
-	    {
-	      tree assign =
-		Assignment_statement::get_assignment_tree(context, OPERATOR_EQ,
-							  val, NULL_TREE,
-							  NULL, element_type,
-							  rec,
-							  clause->location());
-	      append_to_statement_list(assign, stmt_list);
-	    }
-	  else if (clause->var() == NULL)
-	    append_to_statement_list(rec, stmt_list);
-	}
-    }
-
-  tree statements_tree = clause->get_statements_tree(context);
-
-  if (clause->var() != NULL)
-    {
-      // This is the case where the receive clause defines a variable.
-      // We expect to see a BIND_EXPR.  The first statement within the
-      // BIND_EXPR should be a DECL_EXPR for the variable we defining.
-      // We set the initialization of the variable to the value
-      // received.
-      std::string s = clause->var()->name();
-      s = Gogo::unpack_hidden_name(s);
-
-      gcc_assert(rec != NULL_TREE);
-      gcc_assert(TREE_CODE(statements_tree) == BIND_EXPR);
-
-      tree body = BIND_EXPR_BODY(statements_tree);
-      if (TREE_CODE(body) == TRY_FINALLY_EXPR)
-	body = TREE_OPERAND(body, 0);
-
-      gcc_assert(TREE_CODE(body) == STATEMENT_LIST);
-
-      tree_stmt_iterator p = tsi_start(body);
-      tree vd = tsi_stmt(p);
-
-      if (TREE_CODE(vd) == DECL_EXPR)
-	{
-	  tree decl = DECL_EXPR_DECL(vd);
-	  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(decl)),
-			    s.c_str()) == 0);
-	  DECL_INITIAL(decl) = rec;
-	}
-      else if (TREE_CODE(vd) == COMPOUND_EXPR)
-	{
-	  // The variable is on the heap.
-	  gcc_assert(TREE_CODE(TREE_OPERAND(vd, 0)) == DECL_EXPR);
-	  gcc_assert(TREE_CODE(TREE_OPERAND(vd, 1)) == MODIFY_EXPR);
-	  tree decl = DECL_EXPR_DECL(TREE_OPERAND(vd, 0));
-	  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(decl)),
-			    s.c_str()) == 0);
-	  TREE_OPERAND(TREE_OPERAND(vd, 1), 1) = rec;
-	}
-      else
-	gcc_unreachable();
-    }
-
-  append_to_statement_list(statements_tree, stmt_list);
+  append_to_statement_list(clause->get_statements_tree(context), stmt_list);
   tree g = bottom_label->get_goto(clause->statements() == NULL
 				  ? clause->location()
 				  : clause->statements()->end_location());
@@ -4429,15 +4306,6 @@ Select_clauses::add_clause_tree(Translate_context* context, int case_index,
 }
 
 // Class Select_statement.
-
-// Check types for a select statement.
-
-void
-Select_statement::do_check_types(Gogo* gogo)
-{
-  if (!this->clauses_->check_types(gogo))
-    this->set_is_error();
-}
 
 // Return the break label for this switch statement, creating it if
 // necessary.
@@ -4450,13 +4318,21 @@ Select_statement::break_label()
   return this->break_label_;
 }
 
-// Traverse assignments in a select statement.
+// Lower a select statement.  This will still return a select
+// statement, but it will be modified to implement the order of
+// evaluation rules, and to include the send and receive statements as
+// explicit statements in the clauses.
 
-bool
-Select_statement::do_traverse_assignments(Traverse_assignments* tassign)
+Statement*
+Select_statement::do_lower(Gogo*, Block* enclosing)
 {
-  this->clauses_->traverse_assignments(tassign);
-  return true;
+  if (this->is_lowered_)
+    return this;
+  Block* b = new Block(enclosing, this->location());
+  this->clauses_->lower(b);
+  this->is_lowered_ = true;
+  b->add_statement(this);
+  return Statement::make_block_statement(b, this->location());
 }
 
 // Return the tree for a select statement.

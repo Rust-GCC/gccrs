@@ -644,17 +644,13 @@ class Select_clauses
   int
   traverse(Traverse*);
 
-  // Traverse assignments in the select clauses.
+  // Lower statements.
   void
-  traverse_assignments(Traverse_assignments*);
+  lower(Block*);
 
   // Determine types.
   void
   determine_types();
-
-  // Check types.
-  bool
-  check_types(Gogo*);
 
   // Whether the select clauses may fall through to the statement
   // which follows the overall select statement.
@@ -679,24 +675,21 @@ class Select_clauses
 		  Named_object* var, bool is_default, Block* statements,
 		  source_location location)
       : channel_(channel), val_(val), var_(var), statements_(statements),
-	location_(location), is_send_(is_send), is_default_(is_default)
+	location_(location), is_send_(is_send), is_default_(is_default),
+	is_lowered_(false)
     { gcc_assert(is_default ? channel == NULL : channel != NULL); }
 
     // Traverse the select clause.
     int
     traverse(Traverse*);
 
-    // Traverse assignments in the select clause.
+    // Lower statements.
     void
-    traverse_assignments(Traverse_assignments*);
+    lower(Block*);
 
     // Determine types.
     void
     determine_types();
-
-    // Check types.
-    bool
-    check_types(Gogo*);
 
     // Return true if this is the default clause.
     bool
@@ -765,11 +758,13 @@ class Select_clauses
     bool is_send_;
     // Whether this is the default.
     bool is_default_;
+    // Whether this has been lowered.
+    bool is_lowered_;
   };
 
   void
-  add_clause_tree(Translate_context*, int, Select_clause*, tree, Type*, tree,
-		  Unnamed_label*, tree*);
+  add_clause_tree(Translate_context*, int, Select_clause*, Unnamed_label*,
+		  tree*);
 
   typedef std::vector<Select_clause> Clauses;
 
@@ -783,7 +778,7 @@ class Select_statement : public Statement
  public:
   Select_statement(source_location location)
     : Statement(STATEMENT_SELECT, location),
-      clauses_(NULL), break_label_(NULL)
+      clauses_(NULL), break_label_(NULL), is_lowered_(false)
   { }
 
   // Add the clauses.
@@ -803,15 +798,12 @@ class Select_statement : public Statement
   do_traverse(Traverse* traverse)
   { return this->clauses_->traverse(traverse); }
 
-  bool
-  do_traverse_assignments(Traverse_assignments*);
+  Statement*
+  do_lower(Gogo*, Block*);
 
   void
   do_determine_types()
   { this->clauses_->determine_types(); }
-
-  void
-  do_check_types(Gogo* gogo);
 
   bool
   do_may_fall_through() const
@@ -825,6 +817,8 @@ class Select_statement : public Statement
   Select_clauses* clauses_;
   // The break label.
   Unnamed_label* break_label_;
+  // Whether this statement has been lowered.
+  bool is_lowered_;
 };
 
 // A statement which requires a thunk: go or defer.

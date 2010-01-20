@@ -34,6 +34,7 @@ class Field_reference_expression;
 class Interface_field_reference_expression;
 class Type_guard_expression;
 class Receive_expression;
+class Send_expression;
 class Refcount_adjust_expression;
 class Refcount_decrement_lvalue_expression;
 class Named_object;
@@ -256,11 +257,11 @@ class Expression
   make_heap_composite(Expression*, bool for_go_statement, source_location);
 
   // Make a receive expression.  VAL is NULL for a unary receive.
-  static Expression*
+  static Receive_expression*
   make_receive(Expression* channel, source_location);
 
   // Make a send expression.
-  static Expression*
+  static Send_expression*
   make_send(Expression* channel, Expression* val, source_location);
 
   // Make an expression which evaluates another expression and stores
@@ -1811,13 +1812,19 @@ class Receive_expression : public Expression
  public:
   Receive_expression(Expression* channel, source_location location)
     : Expression(EXPRESSION_RECEIVE, location),
-      channel_(channel), is_value_discarded_(false), is_being_copied_(false)
+      channel_(channel), is_value_discarded_(false), for_select_(false),
+      is_being_copied_(false)
   { }
 
   // Return the channel.
   Expression*
   channel()
   { return this->channel_; }
+
+  // Note that this is for a select statement.
+  void
+  set_for_select()
+  { this->for_select_ = true; }
 
  protected:
   int
@@ -1862,8 +1869,75 @@ class Receive_expression : public Expression
   Expression* channel_;
   // Whether the value is being discarded.
   bool is_value_discarded_;
+  // Whether this is for a select statement.
+  bool for_select_;
   // Whether the value is being copied.
   bool is_being_copied_;
+};
+
+// A send expression.
+
+class Send_expression : public Expression
+{
+ public:
+  Send_expression(Expression* channel, Expression* val,
+		  source_location location)
+    : Expression(EXPRESSION_SEND, location),
+      channel_(channel), val_(val), is_value_discarded_(false),
+      for_select_(false)
+  { }
+
+  // Note that this is for a select statement.
+  void
+  set_for_select()
+  { this->for_select_ = true; }
+
+ protected:
+  int
+  do_traverse(Traverse* traverse);
+
+  void
+  do_discarding_value()
+  { this->is_value_discarded_ = true; }
+
+  Type*
+  do_type();
+
+  void
+  do_determine_type(const Type_context*);
+
+  void
+  do_check_types(Gogo*);
+
+  Expression*
+  do_copy()
+  {
+    return Expression::make_send(this->channel_->copy(), this->val_->copy(),
+				 this->location());
+  }
+
+  bool
+  do_must_eval_in_order() const
+  { return true; }
+
+  Expression*
+  do_being_copied(Refcounts*, bool);
+
+  Expression*
+  do_note_decrements(Refcounts*);
+
+  tree
+  do_get_tree(Translate_context*);
+
+ private:
+  // The channel on which to send the value.
+  Expression* channel_;
+  // The value to send.
+  Expression* val_;
+  // Whether the value is being discarded.
+  bool is_value_discarded_;
+  // Whether this is for a select statement.
+  bool for_select_;
 };
 
 // Adjust the reference count of a value.

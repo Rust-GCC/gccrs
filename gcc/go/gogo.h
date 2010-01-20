@@ -1165,6 +1165,15 @@ class Variable
   set_type_from_chan_element()
   { this->type_from_chan_element_ = true; }
 
+  // After we lower the select statement, we once again set the type
+  // from the initialization expression.
+  void
+  clear_type_from_chan_element()
+  {
+    gcc_assert(this->type_from_chan_element_);
+    this->type_from_chan_element_ = false;
+  }
+
   // Note that this variable was created for a type switch clause.
   void
   set_is_type_switch_var()

@@ -10208,74 +10208,18 @@ Receive_expression::do_get_tree(Translate_context* context)
     return error_mark_node;
 
   return Gogo::receive_from_channel(element_type_tree, channel, true,
-				    false, this->location());
+				    this->for_select_, this->location());
 }
 
 // Make a receive expression.
 
-Expression*
+Receive_expression*
 Expression::make_receive(Expression* channel, source_location location)
 {
   return new Receive_expression(channel, location);
 }
 
 // Class Send_expression.
-
-class Send_expression : public Expression
-{
- public:
-  Send_expression(Expression* channel, Expression* val,
-		  source_location location)
-    : Expression(EXPRESSION_SEND, location),
-      channel_(channel), val_(val), is_value_discarded_(false)
-  { }
-
- protected:
-  int
-  do_traverse(Traverse* traverse);
-
-  void
-  do_discarding_value()
-  { this->is_value_discarded_ = true; }
-
-  Type*
-  do_type()
-  { return Type::lookup_bool_type(); }
-
-  void
-  do_determine_type(const Type_context*);
-
-  void
-  do_check_types(Gogo*);
-
-  Expression*
-  do_copy()
-  {
-    return Expression::make_send(this->channel_->copy(), this->val_->copy(),
-				 this->location());
-  }
-
-  bool
-  do_must_eval_in_order() const
-  { return true; }
-
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
-  tree
-  do_get_tree(Translate_context*);
-
- private:
-  // The channel on which to send the value.
-  Expression* channel_;
-  // The value to send.
-  Expression* val_;
-  // Whether the value is being discarded.
-  bool is_value_discarded_;
-};
 
 // Traversal.
 
@@ -10285,6 +10229,14 @@ Send_expression::do_traverse(Traverse* traverse)
   if (Expression::traverse(&this->channel_, traverse) == TRAVERSE_EXIT)
     return TRAVERSE_EXIT;
   return Expression::traverse(&this->val_, traverse);
+}
+
+// Get the type.
+
+Type*
+Send_expression::do_type()
+{
+  return Type::lookup_bool_type();
 }
 
 // Set types.
@@ -10367,12 +10319,12 @@ Send_expression::do_get_tree(Translate_context* context)
 					   val,
 					   this->location());
   return Gogo::send_on_channel(channel, val, this->is_value_discarded_,
-			       false, this->location());
+			       this->for_select_, this->location());
 }
 
 // Make a send expression
 
-Expression*
+Send_expression*
 Expression::make_send(Expression* channel, Expression* val,
 		      source_location location)
 {

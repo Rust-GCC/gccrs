@@ -2718,15 +2718,12 @@ Variable::determine_type()
 					  true);
       this->init_ = NULL;
     }
-  else if (this->type_from_chan_element_)
-    {
-      Expression* init = this->init_;
-      init->determine_type_no_context();
-      this->type_ = this->type_from_chan_element(init, true);
-      this->init_ = NULL;
-    }
   else
     {
+      // type_from_chan_element_ should have been cleared during
+      // lowering.
+      gcc_assert(!this->type_from_chan_element_);
+
       Type_context context(this->type_, false);
       this->init_->determine_type(&context);
       if (this->type_ == NULL)
