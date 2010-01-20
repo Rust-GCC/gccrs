@@ -1710,8 +1710,7 @@ Parse::init_var(const Typed_identifier& tid, Type* type, Expression* init,
 	  if (!type_from_init && init != NULL)
 	    {
 	      Expression *v = Expression::make_var_reference(no, location);
-	      Statement *s = Statement::make_assignment(OPERATOR_EQ, v,
-							init, location);
+	      Statement *s = Statement::make_assignment(v, init, location);
 	      this->gogo_->add_statement(s);
 	    }
 	  return no;
@@ -3253,11 +3252,19 @@ Parse::tuple_assignment(Expression_list* lhs, Range_clause* p_range_clause)
     {
       Statement* s;
       if (lhs->size() > 1)
-	s = Statement::make_tuple_assignment(op, lhs, vals, location);
+	{
+	  if (op != OPERATOR_EQ)
+	    error_at(location, "multiple values only permitted with %<=%>");
+	  s = Statement::make_tuple_assignment(lhs, vals, location);
+	}
       else
 	{
-	  s = Statement::make_assignment(op, lhs->front(), vals->front(),
-					 location);
+	  if (op == OPERATOR_EQ)
+	    s = Statement::make_assignment(lhs->front(), vals->front(),
+					   location);
+	  else
+	    s = Statement::make_assignment_operation(op, lhs->front(),
+						     vals->front(), location);
 	  delete lhs;
 	  delete vals;
 	}
@@ -3266,11 +3273,13 @@ Parse::tuple_assignment(Expression_list* lhs, Range_clause* p_range_clause)
   else if (vals->size() == 1
 	   && (call = (*vals->begin())->call_expression()) != NULL)
     {
+      if (op != OPERATOR_EQ)
+	error_at(location, "multiple results only permitted with %<=%>");
       delete vals;
       vals = new Expression_list;
       for (unsigned int i = 0; i < lhs->size(); ++i)
 	vals->push_back(Expression::make_call_result(call, i));
-      Statement* s = Statement::make_tuple_assignment(op, lhs, vals, location);
+      Statement* s = Statement::make_tuple_assignment(lhs, vals, location);
       this->gogo_->add_statement(s);
     }
   else if (lhs->size() == 2
@@ -3278,7 +3287,7 @@ Parse::tuple_assignment(Expression_list* lhs, Range_clause* p_range_clause)
 	   && (map_index = (*vals->begin())->index_expression()) != NULL)
     {
       if (op != OPERATOR_EQ)
-	this->error("two values from map requires %<=%>");
+	error_at(location, "two values from map requires %<=%>");
       Expression* val = lhs->front();
       Expression* present = lhs->back();
       Statement* s = Statement::make_tuple_map_assignment(val, present,
@@ -3290,7 +3299,7 @@ Parse::tuple_assignment(Expression_list* lhs, Range_clause* p_range_clause)
 	   && (map_index = lhs->front()->index_expression()) != NULL)
     {
       if (op != OPERATOR_EQ)
-	this->error("assigning tuple to map index requires %<=%>");
+	error_at(location, "assigning tuple to map index requires %<=%>");
       Expression* val = vals->front();
       Expression* should_set = vals->back();
       Statement* s = Statement::make_map_assignment(map_index, val, should_set,
@@ -3302,7 +3311,7 @@ Parse::tuple_assignment(Expression_list* lhs, Range_clause* p_range_clause)
 	   && (receive = (*vals->begin())->receive_expression()) != NULL)
     {
       if (op != OPERATOR_EQ)
-	this->error("two values from receive requires %<=%>");
+	error_at(location, "two values from receive requires %<=%>");
       Expression* val = lhs->front();
       Expression* success = lhs->back();
       Expression* channel = receive->channel();
@@ -3316,7 +3325,7 @@ Parse::tuple_assignment(Expression_list* lhs, Range_clause* p_range_clause)
 	   && (type_guard = (*vals->begin())->type_guard_expression()) != NULL)
     {
       if (op != OPERATOR_EQ)
-	this->error("two values from type guard requires %<=%>");
+	error_at(location, "two values from type guard requires %<=%>");
       Expression* val = lhs->front();
       Expression* ok = lhs->back();
       Expression* expr = type_guard->expr();
@@ -3328,7 +3337,7 @@ Parse::tuple_assignment(Expression_list* lhs, Range_clause* p_range_clause)
     }
   else
     {
-      this->error("number of variables does not match number of values");
+      error_at(location, "number of variables does not match number of values");
     }
 }
 

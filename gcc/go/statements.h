@@ -109,6 +109,7 @@ class Statement
 
     // These statements types are created by the parser, but they
     // disappear during the lowering pass.
+    STATEMENT_ASSIGNMENT_OPERATION,
     STATEMENT_TUPLE_ASSIGNMENT,
     STATEMENT_TUPLE_MAP_ASSIGNMENT,
     STATEMENT_MAP_ASSIGNMENT,
@@ -142,12 +143,16 @@ class Statement
 
   // Make an assignment statement.
   static Statement*
-  make_assignment(Operator, Expression*, Expression*, source_location);
+  make_assignment(Expression*, Expression*, source_location);
+
+  // Make an assignment operation (+=, etc.).
+  static Statement*
+  make_assignment_operation(Operator, Expression*, Expression*,
+			    source_location);
 
   // Make a tuple assignment statement.
   static Statement*
-  make_tuple_assignment(Operator, Expression_list*, Expression_list*,
-			source_location);
+  make_tuple_assignment(Expression_list*, Expression_list*, source_location);
 
   // Make an assignment from a map index to a pair of variables.
   static Statement*

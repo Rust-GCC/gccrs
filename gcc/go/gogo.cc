@@ -1518,8 +1518,7 @@ Shortcuts::convert_shortcut(Block* enclosing, Expression** pshortcut)
   Block* block = new Block(retblock, loc);
   block->set_end_location(loc);
   Expression* tmpref = Expression::make_temporary_reference(ts, loc);
-  Statement* assign = Statement::make_assignment(OPERATOR_EQ, tmpref, right,
-						 loc);
+  Statement* assign = Statement::make_assignment(tmpref, right, loc);
   block->add_statement(assign);
 
   Expression* cond = Expression::make_temporary_reference(ts, loc);

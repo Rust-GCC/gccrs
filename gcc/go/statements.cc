@@ -456,20 +456,11 @@ Statement::destroy_temporary(Temporary_statement* statement)
 class Assignment_statement : public Statement
 {
  public:
-  Assignment_statement(Operator op, Expression* lhs, Expression* rhs,
+  Assignment_statement(Expression* lhs, Expression* rhs,
 		       source_location location)
     : Statement(STATEMENT_ASSIGNMENT, location),
-      op_(op), lhs_(lhs), rhs_(rhs)
+      lhs_(lhs), rhs_(rhs)
   { }
-
-  // Return the tree code for a combining assignment such as +=.
-  static tree_code
-  combine_code(Operator op);
-
-  // Return a tree for assigning RHS to LHS.
-  static tree
-  get_assignment_tree(Translate_context*, Operator, Expression* lhs, tree,
-		      Expression* rhs, Type* rhs_type, tree, source_location);
 
  protected:
   int
@@ -488,9 +479,6 @@ class Assignment_statement : public Statement
   do_get_tree(Translate_context*);
 
  private:
-  // Operator.  This is normally OPERATOR_EQ, but may OPERATOR_PLUSEQ,
-  // etc.
-  Operator op_;
   // Left hand side--the lvalue.
   Expression* lhs_;
   // Right hand side--the rvalue.
@@ -520,16 +508,8 @@ void
 Assignment_statement::do_determine_types()
 {
   this->lhs_->determine_type_no_context();
-  if (this->op_ != OPERATOR_LSHIFTEQ && this->op_ != OPERATOR_RSHIFTEQ)
-    {
-      Type_context context(this->lhs_->type(), false);
-      this->rhs_->determine_type(&context);
-    }
-  else
-    {
-      Type_context context(NULL, true);
-      this->rhs_->determine_type(&context);
-    }
+  Type_context context(this->lhs_->type(), false);
+  this->rhs_->determine_type(&context);
 }
 
 // Check types for an assignment.
@@ -545,41 +525,15 @@ Assignment_statement::do_check_types(Gogo*)
 
   Type* lhs_type = this->lhs_->type();
   Type* rhs_type = this->rhs_->type();
-  if (this->op_ != OPERATOR_LSHIFTEQ && this->op_ != OPERATOR_RSHIFTEQ)
+  std::string reason;
+  if (!Type::are_compatible_for_assign(lhs_type, rhs_type, &reason))
     {
-      std::string reason;
-      if (!Type::are_compatible_for_assign(lhs_type, rhs_type, &reason))
-	{
-	  if (reason.empty())
-	    error_at(this->location(), "incompatible types in assignment");
-	  else
-	    error_at(this->location(), "incompatible types in assignment (%s)",
-		     reason.c_str());
-	  this->set_is_error();
-	}
-      else if (this->op_ != OPERATOR_EQ
-	       && !lhs_type->is_error_type()
-	       && !rhs_type->is_error_type())
-	{
-	  if (!Type::are_compatible_for_binop(lhs_type, rhs_type))
-	    this->report_error(_("incompatible types in binary expression"));
-	  else if (!Binary_expression::check_operator_type(this->op_, lhs_type,
-							   this->location()))
-	    this->set_is_error();
-	}
-    }
-  else
-    {
-      if (lhs_type->integer_type() == NULL && !lhs_type->is_error_type())
-	this->report_error(_("shift of non-integer operand"));
+      if (reason.empty())
+	error_at(this->location(), "incompatible types in assignment");
       else
-	{
-	  if (!rhs_type->is_error_type()
-	      && !rhs_type->is_abstract()
-	      && (rhs_type->integer_type() == NULL
-		  || !rhs_type->integer_type()->is_unsigned()))
-	    this->report_error(_("shift count not unsigned integer"));
-	}
+	error_at(this->location(), "incompatible types in assignment (%s)",
+		 reason.c_str());
+      this->set_is_error();
     }
 
   if (lhs_type->is_error_type()
@@ -594,173 +548,48 @@ Assignment_statement::do_check_types(Gogo*)
     }
 }
 
-// Return the tree code for a combining assignment code.
-
-tree_code
-Assignment_statement::combine_code(Operator op)
-{
-  switch (op)
-    {
-    case OPERATOR_PLUSEQ:
-      return PLUS_EXPR;
-    case OPERATOR_MINUSEQ:
-      return MINUS_EXPR;
-    case OPERATOR_OREQ:
-      return BIT_IOR_EXPR;
-    case OPERATOR_XOREQ:
-      return BIT_XOR_EXPR;
-    case OPERATOR_MULTEQ:
-      return MULT_EXPR;
-    case OPERATOR_DIVEQ:
-      return TRUNC_DIV_EXPR;
-    case OPERATOR_MODEQ:
-      return TRUNC_MOD_EXPR;
-    case OPERATOR_LSHIFTEQ:
-      return LSHIFT_EXPR;
-    case OPERATOR_RSHIFTEQ:
-      return RSHIFT_EXPR;
-    case OPERATOR_ANDEQ:
-      return BIT_AND_EXPR;
-    default:
-      gcc_unreachable();
-    }
-}
-
-// Return a tree which implements an assignment from RHS to LHS.  OP
-// is the assignment operator--typically OPERATOR_EQ, but it can be
-// OPERATOR_PLUSEQ, etc.  LHS_TREE is the tree to use for the left
-// hand side; it may be NULL.  LHS may not be NULL.  RHS_TREE is the
-// tree to use for the right hand side; it may be NULL.  RHS may be
-// NULL, but at least one of RHS and RHS_TREE must not be NULL.  If
-// LHS_TREE is not NULL then LHS may not be the right location, but it
-// will have the right Type.  RHS_TYPE, if not NULL, is the Type of
-// RHS/RHS_TREE; if RHS is NULL, RHS_TYPE must not be NULL.
-
-tree
-Assignment_statement::get_assignment_tree(Translate_context* context,
-					  Operator op,
-					  Expression* lhs,
-					  tree lhs_tree,
-					  Expression* rhs,
-					  Type* rhs_type,
-					  tree rhs_tree,
-					  source_location location)
-{
-  gcc_assert(lhs != NULL && (rhs != NULL || rhs_type != NULL));
-
-  if (rhs_tree == NULL_TREE)
-    rhs_tree = rhs->get_tree(context);
-
-  if (lhs->is_sink_expression())
-    return rhs_tree;
-
-  bool computed_lhs_tree;
-  if (lhs_tree != NULL_TREE)
-    computed_lhs_tree = false;
-  else
-    {
-      lhs_tree = lhs->get_tree(context);
-      computed_lhs_tree = true;
-    }
-
-  if (lhs_tree == error_mark_node || rhs_tree == error_mark_node)
-    return error_mark_node;
-
-  if (rhs_type == NULL)
-    rhs_type = rhs->type();
-
-  if (op != OPERATOR_EQ)
-    {
-      lhs_tree = stabilize_reference(lhs_tree);
-      if (lhs->type()->is_string_type())
-	{
-	  gcc_assert(TYPE_CANONICAL(TREE_TYPE(lhs_tree))
-		     == TYPE_CANONICAL(TREE_TYPE(rhs_tree)));
-	  // Implement string append.  FIXME: This is also in
-	  // Binary_expression::get_string_plus_tree.
-	  static tree string_plus_decl;
-	  rhs_tree = Gogo::call_builtin(&string_plus_decl,
-					location,
-					"__go_string_plus",
-					2,
-					TREE_TYPE(lhs_tree),
-					TREE_TYPE(lhs_tree),
-					lhs_tree,
-					TREE_TYPE(lhs_tree),
-					rhs_tree);
-	}
-      else if (op == OPERATOR_BITCLEAREQ)
-	{
-	  gcc_assert(TYPE_MAIN_VARIANT(TREE_TYPE(lhs_tree))
-		     == TYPE_MAIN_VARIANT(TREE_TYPE(rhs_tree)));
-	  rhs_tree = fold_build2_loc(location, BIT_AND_EXPR,
-				     TREE_TYPE(lhs_tree), lhs_tree,
-				     fold_build1(BIT_NOT_EXPR,
-						 TREE_TYPE(rhs_tree),
-						 rhs_tree));
-	}
-      else
-	{
-	  tree expr_type = TREE_TYPE(lhs_tree);
-	  gcc_assert(op == OPERATOR_LSHIFTEQ
-		     || op == OPERATOR_RSHIFTEQ
-		     || (TYPE_MAIN_VARIANT(expr_type)
-			 == TYPE_MAIN_VARIANT(TREE_TYPE(rhs_tree))));
-	  tree compute_type = excess_precision_type(expr_type);
-	  tree left = lhs_tree;
-	  tree right = rhs_tree;
-	  if (compute_type != NULL_TREE)
-	    {
-	      left = convert_to_real(compute_type, lhs_tree);
-	      right = convert_to_real(compute_type, rhs_tree);
-	    }
-	  rhs_tree = fold_build2_loc(location,
-				     Assignment_statement::combine_code(op),
-				     (compute_type != NULL_TREE
-				      ? compute_type
-				      : expr_type),
-				     left, right);
-	  if (compute_type != NULL_TREE)
-	    rhs_tree = convert_to_real(expr_type, rhs_tree);
-	}
-    }
-
-  rhs_tree = Expression::convert_for_assignment(context, lhs->type(),
-						rhs_type, rhs_tree,
-						location);
-
-  Refcount_decrement_lvalue_expression* rdle =
-    lhs->refcount_decrement_lvalue_expression();
-  tree ret;
-  if (!computed_lhs_tree || rdle == NULL)
-    ret = fold_build2(MODIFY_EXPR, void_type_node, lhs_tree, rhs_tree);
-  else
-    ret = rdle->set(context, lhs_tree, rhs_tree);
-
-  if (CAN_HAVE_LOCATION_P(ret))
-    SET_EXPR_LOCATION(ret, location);
-
-  return ret;
-}
-
 // Build a tree for an assignment statement.
 
 tree
 Assignment_statement::do_get_tree(Translate_context* context)
 {
-  return Assignment_statement::get_assignment_tree(context, this->op_,
-						   this->lhs_, NULL_TREE,
-						   this->rhs_, NULL, NULL_TREE,
-						   this->location());
+  tree rhs_tree = this->rhs_->get_tree(context);
+
+  if (this->lhs_->is_sink_expression())
+    return rhs_tree;
+
+  tree lhs_tree = this->lhs_->get_tree(context);
+
+  if (lhs_tree == error_mark_node || rhs_tree == error_mark_node)
+    return error_mark_node;
+
+  rhs_tree = Expression::convert_for_assignment(context, this->lhs_->type(),
+						this->rhs_->type(), rhs_tree,
+						this->location());
+
+  Refcount_decrement_lvalue_expression *rdle =
+    this->lhs_->refcount_decrement_lvalue_expression();
+  tree ret;
+  if (rdle == NULL)
+    ret = fold_build2_loc(this->location(), MODIFY_EXPR, void_type_node,
+			  lhs_tree, rhs_tree);
+  else
+    {
+      ret = rdle->set(context, lhs_tree, rhs_tree);
+      if (CAN_HAVE_LOCATION_P(ret))
+	SET_EXPR_LOCATION(ret, this->location());
+    }
+
+  return ret;
 }
 
 // Make an assignment statement.
 
 Statement*
-Statement::make_assignment(Operator op, Expression* lhs, Expression* rhs,
+Statement::make_assignment(Expression* lhs, Expression* rhs,
 			   source_location location)
 {
-  return new Assignment_statement(op, lhs, rhs, location);
+  return new Assignment_statement(lhs, rhs, location);
 }
 
 // The Move_ordered_evals class is used to find any subexpressions of
@@ -800,6 +629,130 @@ Move_ordered_evals::expression(Expression** pexpr)
   return TRAVERSE_SKIP_COMPONENTS;
 }
 
+// An assignment operation statement.
+
+class Assignment_operation_statement : public Statement
+{
+ public:
+  Assignment_operation_statement(Operator op, Expression* lhs, Expression* rhs,
+				 source_location location)
+    : Statement(STATEMENT_ASSIGNMENT_OPERATION, location),
+      op_(op), lhs_(lhs), rhs_(rhs)
+  { }
+
+ protected:
+  int
+  do_traverse(Traverse*);
+
+  bool
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
+
+  Statement*
+  do_lower(Gogo*, Block*);
+
+  tree
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
+
+ private:
+  // The operator (OPERATOR_PLUSEQ, etc.).
+  Operator op_;
+  // Left hand side.
+  Expression* lhs_;
+  // Right hand side.
+  Expression* rhs_;
+};
+
+// Traversal.
+
+int
+Assignment_operation_statement::do_traverse(Traverse* traverse)
+{
+  if (this->traverse_expression(traverse, &this->lhs_) == TRAVERSE_EXIT)
+    return TRAVERSE_EXIT;
+  return this->traverse_expression(traverse, &this->rhs_);
+}
+
+// Lower an assignment operation statement to a regular assignment
+// statement.
+
+Statement*
+Assignment_operation_statement::do_lower(Gogo*, Block* enclosing)
+{
+  source_location loc = this->location();
+
+  // We have to evaluate the left hand side expression only once.  We
+  // do this by moving out any expression with side effects.
+  Block* b = new Block(enclosing, loc);
+  Move_ordered_evals moe(b);
+  this->lhs_->traverse_subexpressions(&moe);
+
+  Expression* lval = this->lhs_->copy();
+
+  Operator op;
+  switch (this->op_)
+    {
+    case OPERATOR_PLUSEQ:
+      op = OPERATOR_PLUS;
+      break;
+    case OPERATOR_MINUSEQ:
+      op = OPERATOR_MINUS;
+      break;
+    case OPERATOR_OREQ:
+      op = OPERATOR_OR;
+      break;
+    case OPERATOR_XOREQ:
+      op = OPERATOR_XOR;
+      break;
+    case OPERATOR_MULTEQ:
+      op = OPERATOR_MULT;
+      break;
+    case OPERATOR_DIVEQ:
+      op = OPERATOR_DIV;
+      break;
+    case OPERATOR_MODEQ:
+      op = OPERATOR_MOD;
+      break;
+    case OPERATOR_LSHIFTEQ:
+      op = OPERATOR_LSHIFT;
+      break;
+    case OPERATOR_RSHIFTEQ:
+      op = OPERATOR_RSHIFT;
+      break;
+    case OPERATOR_ANDEQ:
+      op = OPERATOR_AND;
+      break;
+    case OPERATOR_BITCLEAREQ:
+      op = OPERATOR_BITCLEAR;
+      break;
+    default:
+      gcc_unreachable();
+    }
+
+  Expression* binop = Expression::make_binary(op, lval, this->rhs_, loc);
+  Statement* s = Statement::make_assignment(this->lhs_, binop, loc);
+  if (b->statements()->empty())
+    {
+      delete b;
+      return s;
+    }
+  else
+    {
+      b->add_statement(s);
+      return Statement::make_block_statement(b, loc);
+    }
+}
+
+// Make an assignment operation statement.
+
+Statement*
+Statement::make_assignment_operation(Operator op, Expression* lhs,
+				     Expression* rhs, source_location location)
+{
+  return new Assignment_operation_statement(op, lhs, rhs, location);
+}
+
 // A tuple assignment statement.  This differs from an assignment
 // statement in that the right-hand-side expressions are evaluated in
 // parallel.
@@ -807,10 +760,10 @@ Move_ordered_evals::expression(Expression** pexpr)
 class Tuple_assignment_statement : public Statement
 {
  public:
-  Tuple_assignment_statement(Operator op, Expression_list* lhs,
-			     Expression_list* rhs, source_location location)
+  Tuple_assignment_statement(Expression_list* lhs, Expression_list* rhs,
+			     source_location location)
     : Statement(STATEMENT_TUPLE_ASSIGNMENT, location),
-      op_(op), lhs_(lhs), rhs_(rhs)
+      lhs_(lhs), rhs_(rhs)
   { }
 
  protected:
@@ -829,8 +782,6 @@ class Tuple_assignment_statement : public Statement
   { gcc_unreachable(); }
 
  private:
-  // Operator.
-  Operator op_;
   // Left hand side--a list of lvalues.
   Expression_list* lhs_;
   // Right hand side--a list of rvalues.
@@ -888,7 +839,7 @@ Tuple_assignment_statement::do_lower(Gogo*, Block* enclosing)
       temps.push_back(temp);
 
       Expression* ref = Expression::make_temporary_reference(temp, loc);
-      Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, *prhs, loc);
+      Statement* s = Statement::make_assignment(ref, *prhs, loc);
       b->add_statement(s);
     }
   gcc_assert(prhs == this->rhs_->end());
@@ -903,7 +854,7 @@ Tuple_assignment_statement::do_lower(Gogo*, Block* enclosing)
 	continue;
 
       Expression* ref = Expression::make_temporary_reference(*ptemp, loc);
-      Statement* s = Statement::make_assignment(this->op_, *plhs, ref, loc);
+      Statement* s = Statement::make_assignment(*plhs, ref, loc);
       b->add_statement(s);
       ++ptemp;
     }
@@ -915,10 +866,10 @@ Tuple_assignment_statement::do_lower(Gogo*, Block* enclosing)
 // Make a tuple assignment statement.
 
 Statement*
-Statement::make_tuple_assignment(Operator op, Expression_list* lhs,
-				 Expression_list* rhs, source_location location)
+Statement::make_tuple_assignment(Expression_list* lhs, Expression_list* rhs,
+				 source_location location)
 {
-  return new Tuple_assignment_statement(op, lhs, rhs, location);
+  return new Tuple_assignment_statement(lhs, rhs, location);
 }
 
 // A tuple assignment from a map index expression.
@@ -1002,8 +953,7 @@ Tuple_map_assignment_statement::do_lower(Gogo*, Block* enclosing)
 
   // key_temp = MAP_INDEX
   Expression* ref = Expression::make_temporary_reference(key_temp, loc);
-  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref,
-					    map_index->index(), loc);
+  Statement* s = Statement::make_assignment(ref, map_index->index(), loc);
   b->add_statement(s);
 
   // var val_temp VAL_TYPE
@@ -1045,13 +995,13 @@ Tuple_map_assignment_statement::do_lower(Gogo*, Block* enclosing)
   Expression* call = Expression::make_call(func, params, loc);
 
   ref = Expression::make_temporary_reference(present_temp, loc);
-  s = Statement::make_assignment(OPERATOR_EQ, ref, call, loc);
+  s = Statement::make_assignment(ref, call, loc);
   b->add_statement(s);
 
   // if present_temp { val = val_temp }
   Block* then_block = new Block(b, loc);
   ref = Expression::make_temporary_reference(val_temp, loc);
-  s = Statement::make_assignment(OPERATOR_EQ, this->val_, ref, loc);
+  s = Statement::make_assignment(this->val_, ref, loc);
   then_block->add_statement(s);
 
   ref = Expression::make_temporary_reference(present_temp, loc);
@@ -1060,7 +1010,7 @@ Tuple_map_assignment_statement::do_lower(Gogo*, Block* enclosing)
 
   // present = present_temp
   ref = Expression::make_temporary_reference(present_temp, loc);
-  s = Statement::make_assignment(OPERATOR_EQ, this->present_, ref, loc);
+  s = Statement::make_assignment(this->present_, ref, loc);
   b->add_statement(s);
 
   return Statement::make_block_statement(b, loc);
@@ -1155,8 +1105,7 @@ Map_assignment_statement::do_lower(Gogo*, Block* enclosing)
 
   // key_temp = k // we are evaluating m[k] = v, p
   Expression* ref = Expression::make_temporary_reference(key_temp, loc);
-  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref,
-					    map_index->index(), loc);
+  Statement* s = Statement::make_assignment(ref, map_index->index(), loc);
   b->add_statement(s);
 
   // var val_temp MAP_VAL_TYPE
@@ -1166,7 +1115,7 @@ Map_assignment_statement::do_lower(Gogo*, Block* enclosing)
 
   // val_temp = v // we are evaluating m[k] = v, p
   ref = Expression::make_temporary_reference(val_temp, loc);
-  s = Statement::make_assignment(OPERATOR_EQ, ref, this->val_, loc);
+  s = Statement::make_assignment(ref, this->val_, loc);
   b->add_statement(s);
 
   // func mapassign2(hmap map[k]v, key *k, val *v, p)
@@ -1318,13 +1267,13 @@ Tuple_receive_assignment_statement::do_lower(Gogo*, Block* enclosing)
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
   Expression* call = Expression::make_call(func, params, loc);
   ref = Expression::make_temporary_reference(success_temp, loc);
-  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, call, loc);
+  Statement* s = Statement::make_assignment(ref, call, loc);
   b->add_statement(s);
 
   // if success_temp { val = val_temp }
   Block* then_block = new Block(b, loc);
   ref = Expression::make_temporary_reference(val_temp, loc);
-  s = Statement::make_assignment(OPERATOR_EQ, this->val_, ref, loc);
+  s = Statement::make_assignment(this->val_, ref, loc);
   then_block->add_statement(s);
   ref = Expression::make_temporary_reference(success_temp, loc);
   s = Statement::make_if_statement(ref, then_block, NULL, loc);
@@ -1332,7 +1281,7 @@ Tuple_receive_assignment_statement::do_lower(Gogo*, Block* enclosing)
 
   // success = success_temp
   ref = Expression::make_temporary_reference(success_temp, loc);
-  s = Statement::make_assignment(OPERATOR_EQ, this->success_, ref, loc);
+  s = Statement::make_assignment(this->success_, ref, loc);
   b->add_statement(s);
 
   return Statement::make_block_statement(b, loc);
@@ -1471,12 +1420,11 @@ Tuple_type_guard_assignment_statement::lower_to_interface(Block* b)
   Call_expression* call = Expression::make_call(func, params, loc);
 
   Expression* res = Expression::make_call_result(call, 0);
-  Statement* s = Statement::make_assignment(OPERATOR_EQ, this->val_, res,
-					    loc);
+  Statement* s = Statement::make_assignment(this->val_, res, loc);
   b->add_statement(s);
 
   res = Expression::make_call_result(call, 1);
-  s = Statement::make_assignment(OPERATOR_EQ, this->ok_, res, loc);
+  s = Statement::make_assignment(this->ok_, res, loc);
   b->add_statement(s);
 }
 
@@ -1511,12 +1459,11 @@ Tuple_type_guard_assignment_statement::lower_to_pointer_type(Block* b)
   Call_expression* call = Expression::make_call(func, params, loc);
 
   Expression* res = Expression::make_call_result(call, 0);
-  Statement* s = Statement::make_assignment(OPERATOR_EQ, this->val_, res,
-					    loc);
+  Statement* s = Statement::make_assignment(this->val_, res, loc);
   b->add_statement(s);
 
   res = Expression::make_call_result(call, 1);
-  s = Statement::make_assignment(OPERATOR_EQ, this->ok_, res, loc);
+  s = Statement::make_assignment(this->ok_, res, loc);
   b->add_statement(s);
 }
 
@@ -1557,12 +1504,12 @@ Tuple_type_guard_assignment_statement::lower_to_type(Block* b)
   Expression* ref = Expression::make_temporary_reference(val_temp, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
   Expression* call = Expression::make_call(func, params, loc);
-  Statement* s = Statement::make_assignment(OPERATOR_EQ, this->ok_, call, loc);
+  Statement* s = Statement::make_assignment(this->ok_, call, loc);
   b->add_statement(s);
 
   // val = val_temp
   ref = Expression::make_temporary_reference(val_temp, loc);
-  s = Statement::make_assignment(OPERATOR_EQ, this->val_, ref, loc);
+  s = Statement::make_assignment(this->val_, ref, loc);
   b->add_statement(s);
 }
 
@@ -3812,7 +3759,7 @@ Type_switch_statement::do_lower(Gogo*, Block* enclosing)
       Expression* lhs = Expression::make_temporary_reference(descriptor_temp,
 							     loc);
       Expression* rhs = Expression::make_type_descriptor(val_type, loc);
-      Statement* s = Statement::make_assignment(OPERATOR_EQ, lhs, rhs, loc);
+      Statement* s = Statement::make_assignment(lhs, rhs, loc);
       b->add_statement(s);
     }
   else
@@ -3844,7 +3791,7 @@ Type_switch_statement::do_lower(Gogo*, Block* enclosing)
       Expression* call = Expression::make_call(func, params, loc);
       Expression* lhs = Expression::make_temporary_reference(descriptor_temp,
 							     loc);
-      Statement* s = Statement::make_assignment(OPERATOR_EQ, lhs, call, loc);
+      Statement* s = Statement::make_assignment(lhs, call, loc);
       b->add_statement(s);
     }
 
@@ -3960,8 +3907,7 @@ Select_clauses::Select_clause::lower(Block* b)
       if (this->val_ != NULL)
 	{
 	  gcc_assert(this->var_ == NULL);
-	  init->add_statement(Statement::make_assignment(OPERATOR_EQ,
-							 this->val_, recv,
+	  init->add_statement(Statement::make_assignment(this->val_, recv,
 							 loc));
 	}
       else if (this->var_ != NULL)
@@ -4507,8 +4453,7 @@ For_range_statement::do_lower(Gogo* gogo, Block* enclosing)
       temp_block->add_statement(range_temp);
 
       Expression* ref = Expression::make_temporary_reference(range_temp, loc);
-      Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, this->range_,
-						loc);
+      Statement* s = Statement::make_assignment(ref, this->range_, loc);
       temp_block->add_statement(s);
     }
 
@@ -4564,8 +4509,7 @@ For_range_statement::do_lower(Gogo* gogo, Block* enclosing)
   Expression* index_ref = Expression::make_temporary_reference(index_temp, loc);
   if (this->value_var_ == NULL)
     {
-      assign = Statement::make_assignment(OPERATOR_EQ, this->index_var_,
-					  index_ref, loc);
+      assign = Statement::make_assignment(this->index_var_, index_ref, loc);
     }
   else
     {
@@ -4577,7 +4521,7 @@ For_range_statement::do_lower(Gogo* gogo, Block* enclosing)
       rhs->push_back(index_ref);
       rhs->push_back(Expression::make_temporary_reference(value_temp, loc));
 
-      assign = Statement::make_tuple_assignment(OPERATOR_EQ, lhs, rhs, loc);
+      assign = Statement::make_tuple_assignment(lhs, rhs, loc);
     }
   body->add_statement(assign);
 
@@ -4665,7 +4609,7 @@ For_range_statement::lower_range_array(Gogo* gogo,
   Expression* ref = this->make_range_ref(range_object, range_temp, loc);
   Expression* len_call = this->call_builtin(gogo, "len", ref, loc);
   ref = Expression::make_temporary_reference(len_temp, loc);
-  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, len_call, loc);
+  Statement* s = Statement::make_assignment(ref, len_call, loc);
   init->add_statement(s);
 
   mpz_t zval;
@@ -4674,7 +4618,7 @@ For_range_statement::lower_range_array(Gogo* gogo,
   mpz_clear(zval);
 
   ref = Expression::make_temporary_reference(index_temp, loc);
-  s = Statement::make_assignment(OPERATOR_EQ, ref, zexpr, loc);
+  s = Statement::make_assignment(ref, zexpr, loc);
   init->add_statement(s);
 
   *pinit = init;
@@ -4701,7 +4645,7 @@ For_range_statement::lower_range_array(Gogo* gogo,
       Expression* index = Expression::make_index(ref, ref2, NULL, loc);
 
       ref = Expression::make_temporary_reference(value_temp, loc);
-      s = Statement::make_assignment(OPERATOR_EQ, ref, index, loc);
+      s = Statement::make_assignment(ref, index, loc);
 
       iter_init->add_statement(s);
     }
@@ -4761,7 +4705,7 @@ For_range_statement::lower_range_string(Gogo* gogo,
   Expression* zexpr = Expression::make_integer(&zval, NULL, loc);
 
   Expression* ref = Expression::make_temporary_reference(index_temp, loc);
-  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, zexpr, loc);
+  Statement* s = Statement::make_assignment(ref, zexpr, loc);
 
   init->add_statement(s);
   *pinit = init;
@@ -4845,7 +4789,7 @@ For_range_statement::lower_range_string(Gogo* gogo,
   if (value_temp == NULL)
     {
       ref = Expression::make_temporary_reference(next_index_temp, loc);
-      s = Statement::make_assignment(OPERATOR_EQ, ref, call, loc);
+      s = Statement::make_assignment(ref, call, loc);
     }
   else
     {
@@ -4858,7 +4802,7 @@ For_range_statement::lower_range_string(Gogo* gogo,
       rhs->push_back(Expression::make_call_result(call, 0));
       rhs->push_back(Expression::make_call_result(call, 1));
 
-      s = Statement::make_tuple_assignment(OPERATOR_EQ, lhs, rhs, loc);
+      s = Statement::make_tuple_assignment(lhs, rhs, loc);
     }
   iter_init->add_statement(s);
 
@@ -4883,7 +4827,7 @@ For_range_statement::lower_range_string(Gogo* gogo,
 
   Expression* lhs = Expression::make_temporary_reference(index_temp, loc);
   Expression* rhs = Expression::make_temporary_reference(next_index_temp, loc);
-  s = Statement::make_assignment(OPERATOR_EQ, lhs, rhs, loc);
+  s = Statement::make_assignment(lhs, rhs, loc);
 
   post->add_statement(s);
   *ppost = post;
@@ -5099,7 +5043,7 @@ For_range_statement::lower_range_channel(Gogo* gogo,
   ref = this->make_range_ref(range_object, range_temp, loc);
   Expression* recv = Expression::make_receive(ref, loc);
   ref = Expression::make_temporary_reference(index_temp, loc);
-  Statement* s = Statement::make_assignment(OPERATOR_EQ, ref, recv, loc);
+  Statement* s = Statement::make_assignment(ref, recv, loc);
   iter_init->add_statement(s);
 
   Block* then_block = new Block(iter_init, loc);
