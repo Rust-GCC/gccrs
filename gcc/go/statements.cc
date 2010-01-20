@@ -1651,17 +1651,15 @@ class Inc_dec_statement : public Statement
   { return this->traverse_expression(traverse, &this->expr_); }
 
   bool
-  do_traverse_assignments(Traverse_assignments*);
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
 
-  void
-  do_determine_types()
-  { this->expr_->determine_type_no_context(); }
-
-  void
-  do_check_types(Gogo*);
+  Statement*
+  do_lower(Gogo*, Block*);
 
   tree
-  do_get_tree(Translate_context*);
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
 
  private:
   // The l-value to increment or decrement.
@@ -1670,50 +1668,20 @@ class Inc_dec_statement : public Statement
   bool is_inc_;
 };
 
-// Traverse.
+// Lower to += or -=.
 
-bool
-Inc_dec_statement::do_traverse_assignments(Traverse_assignments* tassign)
+Statement*
+Inc_dec_statement::do_lower(Gogo*, Block*)
 {
-  // The expression is both used and set.
-  tassign->assignment(&this->expr_, NULL);
-  tassign->value(&this->expr_, false, this->expr_->is_local_variable());
-  return true;
-}
+  source_location loc = this->location();
 
-// Check types for an increment or decrement statement.
+  mpz_t oval;
+  mpz_init_set_ui(oval, 1UL);
+  Expression* oexpr = Expression::make_integer(&oval, NULL, loc);
+  mpz_clear(oval);
 
-void
-Inc_dec_statement::do_check_types(Gogo*)
-{
-  if (!this->expr_->is_lvalue())
-    {
-      this->report_error(_("attempt to increment or decrement "
-			   "something which is not an object"));
-      return;
-    }
-
-  Type* type = this->expr_->type();
-  if (type->integer_type() == NULL
-      && type->float_type() == NULL)
-    this->report_error(_("attempt to increment or decrement "
-			 "non-integer, non-float value"));
-}
-
-// Get a tree for an increment or decrement statement.
-
-tree
-Inc_dec_statement::do_get_tree(Translate_context* context)
-{
-  Type* type = this->expr_->type();
-  gcc_assert(type->integer_type() != NULL || type->float_type() != NULL);
-  tree expr_tree = this->expr_->get_tree(context);
-  return fold_build2_loc(this->location(),
-			 this->is_inc_ ? PREINCREMENT_EXPR : PREDECREMENT_EXPR,
-			 TREE_TYPE(expr_tree), expr_tree,
-			 (type->integer_type() != NULL
-			  ? build_int_cst(TREE_TYPE(expr_tree), 1)
-			  : build_real(TREE_TYPE(expr_tree), dconst1)));
+  Operator op = this->is_inc_ ? OPERATOR_PLUSEQ : OPERATOR_MINUSEQ;
+  return Statement::make_assignment_operation(op, this->expr_, oexpr, loc);
 }
 
 // Make an increment statement.
