@@ -1,6 +1,6 @@
 // statements.cc -- Go frontend statements.
 
-// Copyright 2009, 2010 The Go Authors. All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -249,12 +249,9 @@ Variable_declaration_statement::do_get_tree(Translate_context* context)
     return error_mark_node;
   Variable* variable = this->var_->var_value();
 
-  tree preinit, postinit;
-  tree init = variable->get_init_tree(context->gogo(), context->function(),
-				      &preinit, &postinit);
+  tree init = variable->get_init_tree(context->gogo(), context->function());
   if (init == error_mark_node)
     return error_mark_node;
-  gcc_assert(preinit == NULL_TREE && postinit == NULL_TREE);
 
   // If this variable lives on the heap, we need to allocate it now.
   if (!variable->is_in_heap())
@@ -398,13 +395,16 @@ Temporary_statement::do_get_tree(Translate_context* context)
   return this->build_stmt_1(DECL_EXPR, this->decl_);
 }
 
-// Make and initialize a temporary variable.
+// Make and initialize a temporary variable in BLOCK.
 
 Temporary_statement*
-Statement::make_temporary(Type* type, Expression* init,
+Statement::make_temporary(Block* block, Type* type, Expression* init,
 			  source_location location)
 {
-  return new Temporary_statement(type, init, location);
+  Temporary_statement* ret = new Temporary_statement(type, init, location);
+  if (ret->type()->has_refcounted_component())
+    block->add_final_statement(Statement::destroy_temporary(ret));
+  return ret;
 }
 
 // Destroy a temporary variable.
@@ -421,16 +421,13 @@ class Destroy_temporary_statement : public Statement
  protected:
   int
   do_traverse(Traverse*)
-  { return TRAVERSE_CONTINUE; }
+  { gcc_unreachable(); }
 
   bool
-  do_traverse_assignments(Traverse_assignments* tassign)
-  {
-    // Destroying a temporary is like assigning an empty value to it.
-    tassign->assignment(&this->ref_, NULL);
-    return true;
-  }
+  do_traverse_assignments(Traverse_assignments*)
+  { gcc_unreachable(); }
 
+  // FIXME.
   tree
   do_get_tree(Translate_context* context)
   { return this->ref_->get_tree(context); }
@@ -445,8 +442,7 @@ class Destroy_temporary_statement : public Statement
 Statement*
 Statement::destroy_temporary(Temporary_statement* statement)
 {
-  if (!statement->type()->has_refcounted_component())
-    return NULL;
+  gcc_assert(statement->type()->has_refcounted_component());
   return new Destroy_temporary_statement(statement);
 }
 
@@ -621,7 +617,8 @@ Move_ordered_evals::expression(Expression** pexpr)
   if ((*pexpr)->must_eval_in_order())
     {
       source_location loc = (*pexpr)->location();
-      Temporary_statement* temp = Statement::make_temporary(NULL, *pexpr, loc);
+      Temporary_statement* temp = Statement::make_temporary(this->block_,
+							    NULL, *pexpr, loc);
       this->block_->add_statement(temp);
       *pexpr = Expression::make_temporary_reference(temp, loc);
     }
@@ -831,7 +828,7 @@ Tuple_assignment_statement::do_lower(Gogo*, Block* enclosing)
 	  continue;
 	}
 
-      Temporary_statement* temp = Statement::make_temporary((*plhs)->type(),
+      Temporary_statement* temp = Statement::make_temporary(b, (*plhs)->type(),
 							    *prhs, loc);
       b->add_statement(temp);
       temps.push_back(temp);
@@ -943,17 +940,17 @@ Tuple_map_assignment_statement::do_lower(Gogo*, Block* enclosing)
 
   // var key_temp KEY_TYPE = MAP_INDEX
   Temporary_statement* key_temp =
-    Statement::make_temporary(map_type->key_type(), map_index->index(), loc);
+    Statement::make_temporary(b, map_type->key_type(), map_index->index(), loc);
   b->add_statement(key_temp);
 
   // var val_temp VAL_TYPE
   Temporary_statement* val_temp =
-    Statement::make_temporary(map_type->val_type(), NULL, loc);
+    Statement::make_temporary(b, map_type->val_type(), NULL, loc);
   b->add_statement(val_temp);
 
   // var present_temp bool
   Temporary_statement* present_temp =
-    Statement::make_temporary(Type::lookup_bool_type(), NULL, loc);
+    Statement::make_temporary(b, Type::lookup_bool_type(), NULL, loc);
   b->add_statement(present_temp);
 
   // func mapaccess2(hmap map[k]v, key *k, val *v) bool
@@ -1083,19 +1080,19 @@ Map_assignment_statement::do_lower(Gogo*, Block* enclosing)
 
   // Evaluate the map first to get order of evaluation right.
   // map_temp := m // we are evaluating m[k] = v, p
-  Temporary_statement* map_temp = Statement::make_temporary(map_type,
+  Temporary_statement* map_temp = Statement::make_temporary(b, map_type,
 							    map_index->map(),
 							    loc);
   b->add_statement(map_temp);
 
   // var key_temp MAP_KEY_TYPE = k
   Temporary_statement* key_temp =
-    Statement::make_temporary(map_type->key_type(), map_index->index(), loc);
+    Statement::make_temporary(b, map_type->key_type(), map_index->index(), loc);
   b->add_statement(key_temp);
 
   // var val_temp MAP_VAL_TYPE = v
   Temporary_statement* val_temp =
-    Statement::make_temporary(map_type->val_type(), this->val_, loc);
+    Statement::make_temporary(b, map_type->val_type(), this->val_, loc);
   b->add_statement(val_temp);
 
   // func mapassign2(hmap map[k]v, key *k, val *v, p)
@@ -1215,12 +1212,12 @@ Tuple_receive_assignment_statement::do_lower(Gogo*, Block* enclosing)
 
   // var val_temp ELEMENT_TYPE
   Temporary_statement* val_temp =
-    Statement::make_temporary(channel_type->element_type(), NULL, loc);
+    Statement::make_temporary(b, channel_type->element_type(), NULL, loc);
   b->add_statement(val_temp);
 
   // var success_temp bool
   Temporary_statement* success_temp =
-    Statement::make_temporary(Type::lookup_bool_type(), NULL, loc);
+    Statement::make_temporary(b, Type::lookup_bool_type(), NULL, loc);
   b->add_statement(success_temp);
 
   // func chanrecv2(c chan T, val *T) bool
@@ -1455,8 +1452,8 @@ Tuple_type_guard_assignment_statement::lower_to_type(Block* b)
   source_location loc = this->location();
 
   // var val_temp TYPE
-  Temporary_statement* val_temp = Statement::make_temporary(this->type_, NULL,
-							    loc);
+  Temporary_statement* val_temp = Statement::make_temporary(b, this->type_,
+							    NULL, loc);
   b->add_statement(val_temp);
 
   // func ifaceI2T2(*descriptor, *interface, *T) bool
@@ -3696,7 +3693,7 @@ Type_switch_statement::do_lower(Gogo*, Block* enclosing)
   // var descriptor_temp DESCRIPTOR_TYPE
   Type* descriptor_type = Type::make_type_descriptor_ptr_type();
   Temporary_statement* descriptor_temp =
-    Statement::make_temporary(descriptor_type, NULL, loc);
+    Statement::make_temporary(b, descriptor_type, NULL, loc);
   b->add_statement(descriptor_temp);
 
   if (val_type->interface_type() == NULL)
@@ -3822,7 +3819,7 @@ Select_clauses::Select_clause::lower(Block* b)
   source_location loc = this->location_;
 
   // Evaluate the channel before the select statement.
-  Temporary_statement* channel_temp = Statement::make_temporary(NULL,
+  Temporary_statement* channel_temp = Statement::make_temporary(b, NULL,
 								this->channel_,
 								loc);
   b->add_statement(channel_temp);
@@ -3833,7 +3830,7 @@ Select_clauses::Select_clause::lower(Block* b)
   Temporary_statement* val_temp = NULL;
   if (this->is_send_)
     {
-      val_temp = Statement::make_temporary(NULL, this->val_, loc);
+      val_temp = Statement::make_temporary(b, NULL, this->val_, loc);
       b->add_statement(val_temp);
     }
 
@@ -4397,18 +4394,20 @@ For_range_statement::do_lower(Gogo* gogo, Block* enclosing)
     range_object = ve->named_object();
   else
     {
-      range_temp = Statement::make_temporary(NULL, this->range_, loc);
+      range_temp = Statement::make_temporary(temp_block, NULL, this->range_,
+					     loc);
       temp_block->add_statement(range_temp);
     }
 
-  Temporary_statement* index_temp = Statement::make_temporary(index_type,
+  Temporary_statement* index_temp = Statement::make_temporary(temp_block,
+							      index_type,
 							      NULL, loc);
   temp_block->add_statement(index_temp);
 
   Temporary_statement* value_temp = NULL;
   if (this->value_var_ != NULL)
     {
-      value_temp = Statement::make_temporary(value_type, NULL, loc);
+      value_temp = Statement::make_temporary(temp_block, value_type, NULL, loc);
       temp_block->add_statement(value_temp);
     }
 
@@ -4548,7 +4547,8 @@ For_range_statement::lower_range_array(Gogo* gogo,
 
   Expression* ref = this->make_range_ref(range_object, range_temp, loc);
   Expression* len_call = this->call_builtin(gogo, "len", ref, loc);
-  Temporary_statement* len_temp = Statement::make_temporary(index_temp->type(),
+  Temporary_statement* len_temp = Statement::make_temporary(init,
+							    index_temp->type(),
 							    len_call, loc);
   init->add_statement(len_temp);
 
@@ -4637,7 +4637,7 @@ For_range_statement::lower_range_string(Gogo* gogo,
   Block* init = new Block(enclosing, loc);
 
   Temporary_statement* next_index_temp =
-    Statement::make_temporary(index_temp->type(), NULL, loc);
+    Statement::make_temporary(init, index_temp->type(), NULL, loc);
   init->add_statement(next_index_temp);
 
   mpz_t zval;
@@ -4822,7 +4822,8 @@ For_range_statement::lower_range_map(Gogo* gogo,
   Type* map_iteration_type = Type::make_array_type(ptr_type, iexpr);
   Type* map_iteration_ptr = Type::make_pointer_type(map_iteration_type);
 
-  Temporary_statement* hiter = Statement::make_temporary(map_iteration_type,
+  Temporary_statement* hiter = Statement::make_temporary(init,
+							 map_iteration_type,
 							 NULL, loc);
   init->add_statement(hiter);
 
@@ -5026,8 +5027,6 @@ Statement::make_for_range_statement(Expression* index_var,
 {
   return new For_range_statement(index_var, value_var, range, location);
 }
-
-// Return the tree for looping over an array.
 
 // An assignment to an entry in the reference count queue.
 

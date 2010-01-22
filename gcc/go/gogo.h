@@ -1,6 +1,6 @@
 // gogo.h -- Go frontend parsed representation.     -*- C++ -*-
 
-// Copyright 2009, 2010 The Go Authors. All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -1044,20 +1044,15 @@ class Variable
   init() const
   { return this->init_; }
 
-  // Return whether there are preinit or postinit expressions.
+  // Return whether there are any preinit statements.
   bool
-  has_pre_or_post_init() const
-  { return this->preinit_ != NULL || this->postinit_ != NULL; }
+  has_pre_init() const
+  { return this->preinit_ != NULL; }
 
-  // Return the preinit expressions if any.
+  // Return the preinit statements if any.
   Block*
   preinit() const
   { return this->preinit_; }
-
-  // Return the postinit expressions if any.
-  Block*
-  postinit() const
-  { return this->postinit_; }
 
   // Return whether this is a global variable.
   bool
@@ -1118,15 +1113,15 @@ class Variable
   set_init(Expression* init)
   { this->init_ = init; }
 
+  // Get the preinit block, a block of statements to be run before the
+  // initialization expression.
+  Block*
+  preinit_block();
+
   // Add a statement to be run before the initialization expression.
   // This is only used for global variables.
   void
   add_preinit_statement(Statement*);
-
-  // Add a statement to be run after the initialization expression.
-  // This is only used for global variables.
-  void
-  add_postinit_statement(Statement*);
 
   // Lower the initialization expression after parsing is complete.
   void
@@ -1197,11 +1192,16 @@ class Variable
   set_holds_only_args()
   { this->holds_only_args_ = true; }
 
-  // Get the initial value of the variable as a tree.  Sets *PREINIT
-  // and *POSTINIT to statements to run before and after the
-  // initialization.
+  // Get the initial value of the variable as a tree.  This may only
+  // be called if has_pre_init() returns false.
   tree
-  get_init_tree(Gogo*, Named_object* function, tree* preinit, tree* postinit);
+  get_init_tree(Gogo*, Named_object* function);
+
+  // Return a series of statements which sets the value of the
+  // variable in DECL.  This should only be called is has_pre_init()
+  // returns true.  DECL may be NULL for a sink variable.
+  tree
+  get_init_block(Gogo*, Named_object* function, tree decl);
 
   // Export the variable.
   void
@@ -1232,8 +1232,6 @@ class Variable
   Expression* init_;
   // Statements to run before the init statement.
   Block* preinit_;
-  // Statements to run after the init statement.
-  Block* postinit_;
   // Location of variable definition.
   source_location location_;
   // Whether this is a global variable.

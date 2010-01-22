@@ -1,6 +1,6 @@
 // statements.h -- Go frontend statements.     -*- C++ -*-
 
-// Copyright 2009, 2010 The Go Authors. All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -129,12 +129,14 @@ class Statement
   make_variable_declaration(Named_object*);
 
   // Make a statement which creates a temporary variable and
-  // initializes it to an expression.  References to the temporary
+  // initializes it to an expression.  The block is used if the
+  // temporary variable has to be explicitly destroyed; the variable
+  // must still be added to the block.  References to the temporary
   // variable may be constructed using make_temporary_reference.
-  // Either or the type or the initialization expression may be NULL,
-  // but not both.
+  // Either the type or the initialization expression may be NULL, but
+  // not both.
   static Temporary_statement*
-  make_temporary(Type*, Expression*, source_location);
+  make_temporary(Block*, Type*, Expression*, source_location);
 
   // Make a statement which destroys a temporary variable.  This may
   // return NULL if there is nothing to do.

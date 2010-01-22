@@ -1,6 +1,6 @@
 // gogo-tree.cc -- convert Go frontend Gogo IR to gcc trees.
 
-// Copyright 2009, 2010 The Go Authors. All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -360,16 +360,13 @@ Find_var::expression(Expression** pexpr)
 // Return true if EXPR refers to VAR.
 
 static bool
-expression_requires(Expression* expr, Block* preinit, Block* postinit,
-		    Named_object* var)
+expression_requires(Expression* expr, Block* preinit, Named_object* var)
 {
   Find_var::Seen_objects seen_objects;
   Find_var find_var(var, &seen_objects);
   Expression::traverse(&expr, &find_var);
   if (preinit != NULL)
     preinit->traverse(&find_var);
-  if (postinit != NULL)
-    postinit->traverse(&find_var);
   
   return find_var.found();
 }
@@ -436,7 +433,6 @@ sort_var_inits(Var_inits* var_inits)
       Named_object* var = p1->var();
       Expression* init = var->var_value()->init();
       Block* preinit = var->var_value()->preinit();
-      Block* postinit = var->var_value()->postinit();
 
       // Start walking through the list to see which variables VAR
       // needs to wait for.  We can skip P1->WAITING variables--that
@@ -448,12 +444,11 @@ sort_var_inits(Var_inits* var_inits)
 
       for (; p2 != var_inits->end(); ++p2)
 	{
-	  if (expression_requires(init, preinit, postinit, p2->var()))
+	  if (expression_requires(init, preinit, p2->var()))
 	    {
 	      // Check for cycles.
 	      if (expression_requires(p2->var()->var_value()->init(),
 				      p2->var()->var_value()->preinit(),
-				      p2->var()->var_value()->postinit(),
 				      var))
 		{
 		  std::string n1 = Gogo::unpack_hidden_name(var->name());
@@ -485,7 +480,7 @@ sort_var_inits(Var_inits* var_inits)
 	  // VAR does not depends upon any other initialization expressions.
 
 	  // Check for a loop of VAR on itself.
-	  if (expression_requires(init, preinit, postinit, var))
+	  if (expression_requires(init, preinit, var))
 	    error_at(var->location(),
 		     "initialization expression for %qs depends upon itself",
 		     Gogo::unpack_hidden_name(var->name()).c_str());
@@ -522,10 +517,11 @@ Gogo::write_globals()
        p != bindings->end_definitions();
        ++p, ++i)
     {
-      gcc_assert(!(*p)->is_type_declaration()
-		 && !(*p)->is_function_declaration());
+      Named_object* no = *p;
+
+      gcc_assert(!no->is_type_declaration() && !no->is_function_declaration());
       // There is nothing to do for a package.
-      if ((*p)->is_package())
+      if (no->is_package())
 	{
 	  --i;
 	  --count;
@@ -534,7 +530,7 @@ Gogo::write_globals()
 
       // There is nothing to do for an object which was imported from
       // a different package into the global scope.
-      if ((*p)->package() != NULL)
+      if (no->package() != NULL)
 	{
 	  --i;
 	  --count;
@@ -543,11 +539,11 @@ Gogo::write_globals()
 
       // Don't try to output anything for constants which still have
       // abstract type.
-      if ((*p)->is_const())
+      if (no->is_const())
 	{
-	  Type* type = (*p)->const_value()->type();
+	  Type* type = no->const_value()->type();
 	  if (type == NULL)
-	    type = (*p)->const_value()->expr()->type();
+	    type = no->const_value()->expr()->type();
 	  if (type->is_abstract())
 	    {
 	      --i;
@@ -556,7 +552,7 @@ Gogo::write_globals()
 	    }
 	}
 
-      vec[i] = (*p)->get_tree(this, NULL);
+      vec[i] = no->get_tree(this, NULL);
 
       if (vec[i] == error_mark_node)
 	{
@@ -570,12 +566,32 @@ Gogo::write_globals()
       // initialization in an initialization function.
       if (TREE_CODE(vec[i]) == VAR_DECL)
 	{
-	  gcc_assert((*p)->is_variable());
+	  gcc_assert(no->is_variable());
 
-	  if ((*p)->var_value()->has_pre_or_post_init())
+	  // Check for a sink variable, which may be used to run
+	  // an initializer purely for its side effects.
+	  bool is_sink = no->name()[0] == '_' && no->name()[1] == '.';
+
+	  tree var_init_tree = NULL_TREE;
+	  if (!no->var_value()->has_pre_init())
+	    {
+	      tree init = no->var_value()->get_init_tree(this, NULL);
+	      if (init == error_mark_node)
+		gcc_assert(errorcount || sorrycount);
+	      else if (init == NULL_TREE)
+		;
+	      else if (TREE_CONSTANT(init))
+		DECL_INITIAL(vec[i]) = init;
+	      else if (is_sink)
+		var_init_tree = init;
+	      else
+		var_init_tree = fold_build2_loc(no->location(), MODIFY_EXPR,
+						void_type_node, vec[i], init);
+	    }
+	  else
 	    {
 	      // We are going to create temporary variables which
-	      // means we need an fndecl.
+	      // means that we need an fndecl.
 	      if (init_fndecl == NULL_TREE)
 		init_fndecl = this->initialization_function_decl();
 	      current_function_decl = init_fndecl;
@@ -583,57 +599,21 @@ Gogo::write_globals()
 		push_struct_function(init_fndecl);
 	      else
 		push_cfun(DECL_STRUCT_FUNCTION(init_fndecl));
-	    }
 
-	  tree preinit, postinit;
-	  tree init = (*p)->var_value()->get_init_tree(this, NULL, &preinit,
-						       &postinit);
-	  if (init == NULL_TREE)
-	    gcc_assert(preinit == NULL_TREE && postinit == NULL_TREE);
-	  else if (init == error_mark_node)
-	    gcc_assert(errorcount || sorrycount);
-	  else if ((*p)->name()[0] == '_' && (*p)->name()[1] == '.')
-	    {
-	      // This is a dummy variable created to run a global
-	      // initializer.  We don't want to actually output the
-	      // variable, just the initializer.
-	      --i;
-	      --count;
-	      gcc_assert((*p)->var_value()->init() != NULL);
-	      if (!TREE_CONSTANT(init)
-		  || preinit != NULL_TREE
-		  || postinit != NULL_TREE)
-		{
-		  if (preinit != NULL_TREE)
-		    init = build2(COMPOUND_EXPR, void_type_node, preinit, init);
-		  if (postinit != NULL_TREE)
-		    init = build2(COMPOUND_EXPR, void_type_node, init,
-				  postinit);
-		  var_inits.push_back(Var_init(*p, init));
-		}
-	    }
-	  else if (TREE_CONSTANT(init)
-		   && preinit == NULL_TREE
-		   && postinit == NULL_TREE)
-	    DECL_INITIAL(vec[i]) = init;
-	  else
-	    {
-	      tree set = fold_build2(MODIFY_EXPR, void_type_node, vec[i], init);
-	      if (preinit != NULL_TREE)
-		set = build2(COMPOUND_EXPR, void_type_node, preinit, set);
-	      if (postinit != NULL_TREE)
-		set = build2(COMPOUND_EXPR, void_type_node, set, postinit);
-	      Expression* vinit = (*p)->var_value()->init();
-	      if (vinit == NULL)
-		append_to_statement_list(set, &init_stmt_list);
-	      else
-		var_inits.push_back(Var_init(*p, set));
-	    }
+	      tree var_decl = is_sink ? NULL_TREE : vec[i];
+	      var_init_tree = no->var_value()->get_init_block(this, NULL,
+							      var_decl);
 
-	  if ((*p)->var_value()->has_pre_or_post_init())
-	    {
 	      current_function_decl = NULL_TREE;
 	      pop_cfun();
+	    }
+
+	  if (var_init_tree != NULL_TREE)
+	    {
+	      if (no->var_value()->init() == NULL)
+		append_to_statement_list(var_init_tree, &init_stmt_list);
+	      else
+		var_inits.push_back(Var_init(no, var_init_tree));
 	    }
 	}
     }
@@ -969,34 +949,57 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 // initial value as though it were always stored in the stack.
 
 tree
-Variable::get_init_tree(Gogo* gogo, Named_object* function, tree* preinit,
-			tree* postinit)
+Variable::get_init_tree(Gogo* gogo, Named_object* function)
 {
-  *preinit = NULL_TREE;
-  *postinit = NULL_TREE;
+  gcc_assert(this->preinit_ == NULL);
   if (this->init_ == NULL)
     {
       gcc_assert(!this->is_parameter_);
-      gcc_assert(this->preinit_ == NULL && this->postinit_ == NULL);
       return this->type_->get_init_tree(gogo, this->is_global_);
     }
   else
     {
       Translate_context context(gogo, function, NULL, NULL_TREE);
-
-      if (this->preinit_ != NULL)
-	append_to_statement_list(this->preinit_->get_tree(&context), preinit);
-
       tree rhs_tree = this->init_->get_tree(&context);
+      return Expression::convert_for_assignment(&context, this->type(),
+						this->init_->type(),
+						rhs_tree, this->location());
+    }
+}
+
+// Get the initial value of a variable when a block is required.
+// VAR_DECL is the decl to set; it may be NULL for a sink variable.
+
+tree
+Variable::get_init_block(Gogo* gogo, Named_object* function, tree var_decl)
+{
+  gcc_assert(this->preinit_ != NULL);
+
+  // We want to add the variable assignment to the end of the preinit
+  // block.  The preinit block may have a TRY_FINALLY_EXPR; if it
+  // does, we want to add to the end of the regular statements.
+
+  Translate_context context(gogo, function, NULL, NULL_TREE);
+  tree block_tree = this->preinit_->get_tree(&context);
+  gcc_assert(TREE_CODE(block_tree) == BIND_EXPR);
+  tree statements = BIND_EXPR_BODY(block_tree);
+  if (TREE_CODE(statements) == TRY_FINALLY_EXPR)
+    statements = TREE_OPERAND(statements, 0);
+
+  tree rhs_tree = this->init_->get_tree(&context);
+  if (var_decl == NULL_TREE)
+    append_to_statement_list(rhs_tree, &statements);
+  else
+    {
       tree val = Expression::convert_for_assignment(&context, this->type(),
 						    this->init_->type(),
-						    rhs_tree, this->location_);
-
-      if (this->postinit_ != NULL)
-	append_to_statement_list(this->postinit_->get_tree(&context), postinit);
-
-      return val;
+						    rhs_tree, this->location());
+      tree set = fold_build2_loc(this->location(), MODIFY_EXPR, void_type_node,
+				 var_decl, val);
+      append_to_statement_list(set, &statements);
     }
+
+  return block_tree;
 }
 
 // Get a tree for a function decl.

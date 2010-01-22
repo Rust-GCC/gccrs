@@ -1,6 +1,6 @@
 // gogo.cc -- Go frontend parsed representation.
 
-// Copyright 2009, 2010 The Go Authors. All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -1511,7 +1511,8 @@ Shortcuts::convert_shortcut(Block* enclosing, Expression** pshortcut)
   Block* retblock = new Block(enclosing, loc);
   retblock->set_end_location(loc);
 
-  Temporary_statement* ts = Statement::make_temporary(Type::make_boolean_type(),
+  Temporary_statement* ts = Statement::make_temporary(retblock,
+						      Type::make_boolean_type(),
 						      left, loc);
   retblock->add_statement(ts);
 
@@ -1685,24 +1686,12 @@ Order_eval::statement(Block* block, size_t* pindex, Statement* s)
 	break;
 
       source_location loc = (*pexpr)->location();
-      Temporary_statement* ts = Statement::make_temporary(NULL, *pexpr,
+      Temporary_statement* ts = Statement::make_temporary(block, NULL, *pexpr,
 							  loc);
       block->insert_statement_before(*pindex, ts);
       ++*pindex;
 
       *pexpr = Expression::make_temporary_reference(ts, loc);
-      Statement* sdestroy = Statement::destroy_temporary(ts);
-      if (sdestroy != NULL)
-	{
-	  // FIXME: This does the wrong thing for an expression in a
-	  // compound statement (if, switch, select) and also does the
-	  // wrong thing for a return statement.  The destruction gets
-	  // put after the entire statement rather than after the
-	  // expression.  The reference counting code needs to be
-	  // revamped anyhow.
-	  if (s->return_statement() == NULL)
-	    block->insert_statement_after(*pindex, sdestroy);
-	}
     }
 
   return TRAVERSE_CONTINUE;
@@ -1737,13 +1726,10 @@ Order_eval::variable(Named_object* no)
     {
       Expression** pexpr = *p;
       source_location loc = (*pexpr)->location();
-      Temporary_statement* ts = Statement::make_temporary(NULL, *pexpr,
-							  loc);
+      Temporary_statement* ts = Statement::make_temporary(var->preinit_block(),
+							  NULL, *pexpr, loc);
       var->add_preinit_statement(ts);
       *pexpr = Expression::make_temporary_reference(ts, loc);
-      Statement* sdestroy = Statement::destroy_temporary(ts);
-      if (sdestroy != NULL)
-	var->add_postinit_statement(sdestroy);
     }
 
   return TRAVERSE_SKIP_COMPONENTS;
@@ -2440,6 +2426,9 @@ Block::traverse(Traverse* traverse)
 	return TRAVERSE_EXIT;
     }
 
+  // We don't traverse the final statements, which are only used for
+  // reference counting purposes.
+
   return TRAVERSE_CONTINUE;
 }
 
@@ -2480,11 +2469,10 @@ Block::may_fall_through() const
 Variable::Variable(Type* type, Expression* init, bool is_global,
 		   bool is_parameter, bool is_receiver,
 		   source_location location)
-  : type_(type), init_(init), preinit_(NULL), postinit_(NULL),
-    location_(location), is_global_(is_global),
-    is_parameter_(is_parameter), is_receiver_(is_receiver),
-    is_varargs_parameter_(false), is_address_taken_(false),
-    holds_only_args_(false), init_is_lowered_(false),
+  : type_(type), init_(init), preinit_(NULL), location_(location),
+    is_global_(is_global), is_parameter_(is_parameter),
+    is_receiver_(is_receiver), is_varargs_parameter_(false),
+    is_address_taken_(false), holds_only_args_(false), init_is_lowered_(false),
     type_from_init_tuple_(false), type_from_range_index_(false),
     type_from_range_value_(false), type_from_chan_element_(false),
     is_type_switch_var_(false)
@@ -2508,11 +2496,6 @@ Variable::traverse_expression(Traverse* traverse)
       if (Expression::traverse(&this->init_, traverse) == TRAVERSE_EXIT)
 	return TRAVERSE_EXIT;
     }
-  if (this->postinit_ != NULL)
-    {
-      if (this->postinit_->traverse(traverse) == TRAVERSE_EXIT)
-	return TRAVERSE_EXIT;
-    }
   return TRAVERSE_CONTINUE;
 }
 
@@ -2529,28 +2512,25 @@ Variable::lower_init_expression(Gogo* gogo)
     }
 }
 
+// Get the preinit block.
+
+Block*
+Variable::preinit_block()
+{
+  gcc_assert(this->is_global_);
+  if (this->preinit_ == NULL)
+    this->preinit_ = new Block(NULL, this->location());
+  return this->preinit_;
+}
+
 // Add a statement to be run before the initialization expression.
 
 void
 Variable::add_preinit_statement(Statement* s)
 {
-  gcc_assert(this->is_global_);
-  if (this->preinit_ == NULL)
-    this->preinit_ = new Block(NULL, s->location());
-  this->preinit_->add_statement(s);
-  this->preinit_->set_end_location(s->location());
-}
-
-// Add a statement to be run after the initialization expression.
-
-void
-Variable::add_postinit_statement(Statement* s)
-{
-  gcc_assert(this->is_global_);
-  if (this->postinit_ == NULL)
-    this->postinit_ = new Block(NULL, s->location());
-  this->postinit_->add_statement(s);
-  this->postinit_->set_end_location(s->location());
+  Block* b = this->preinit_block();
+  b->add_statement(s);
+  b->set_end_location(s->location());
 }
 
 // In an assignment which sets a variable to a tuple of EXPR, return
