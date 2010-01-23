@@ -5126,7 +5126,7 @@ Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
 }
 
 // Lower a builtin call expression.  This turns new and make into
-// specific expressions.
+// specific expressions.  We also convert to a constant if we can.
 
 Expression*
 Builtin_call_expression::do_lower(Gogo*, int)
@@ -5180,6 +5180,20 @@ Builtin_call_expression::do_lower(Gogo*, int)
 					   this->location());
 	    }
 	}
+    }
+  else if (this->is_constant())
+    {
+      mpz_t ival;
+      mpz_init(ival);
+      Type* type;
+      if (this->integer_constant_value(true, ival, &type))
+	{
+	  Expression* ret = Expression::make_integer(&ival, type,
+						     this->location());
+	  mpz_clear(ival);
+	  return ret;
+	}
+      mpz_clear(ival);
     }
 
   return this;
@@ -6756,14 +6770,16 @@ class Call_result_expression : public Expression
   bool is_being_copied_;
 };
 
-// Traverse a call result.  We only traverse the call expression for
-// index 0, to avoid traversing it multiple times.
+// Traverse a call result.
 
 int
 Call_result_expression::do_traverse(Traverse* traverse)
 {
-  if (this->index_ > 0)
-    return TRAVERSE_CONTINUE;
+  if (traverse->remember_expression(this->call_))
+    {
+      // We have already traversed the call expression.
+      return TRAVERSE_CONTINUE;
+    }
   return Expression::traverse(&this->call_, traverse);
 }
 

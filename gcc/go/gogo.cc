@@ -1648,14 +1648,32 @@ Order_eval::statement(Block* block, size_t* pindex, Statement* s)
   // anything.  We want to explicitly traverse the initialization
   // expression if there is one.
   Variable_declaration_statement* vds = s->variable_declaration_statement();
+  Expression* init = NULL;
+  Expression* orig_init = NULL;
   if (vds == NULL)
     s->traverse_contents(&find_eval_ordering);
   else
     {
-      Expression* init = vds->var()->var_value()->init();
+      init = vds->var()->var_value()->init();
       if (init == NULL)
 	return TRAVERSE_CONTINUE;
-      init->traverse_subexpressions(&find_eval_ordering);
+      orig_init = init;
+
+      // It might seem that this could be
+      // init->traverse_subexpressions.  Unfortunately that can fail
+      // in a case like
+      //   var err os.Error
+      //   newvar, err := call(arg())
+      // Here newvar will have an init of call result 0 of
+      // call(arg()).  If we only traverse subexpressions, we will
+      // only find arg(), and we won't bother to move anything out.
+      // Then we get to the assignment to err, we will traverse the
+      // whole statement, and this time we will find both call() and
+      // arg(), and so we will move them out.  This will cause them to
+      // be put into temporary variables before the assignment to err
+      // but after the declaration of newvar.  To avoid that problem,
+      // we traverse the entire expression here.
+      Expression::traverse(&init, &find_eval_ordering);
     }
 
   if (find_eval_ordering.size() <= 1)
@@ -1693,6 +1711,9 @@ Order_eval::statement(Block* block, size_t* pindex, Statement* s)
 
       *pexpr = Expression::make_temporary_reference(ts, loc);
     }
+
+  if (init != orig_init)
+    vds->var()->var_value()->set_init(init);
 
   return TRAVERSE_CONTINUE;
 }
@@ -3579,6 +3600,8 @@ Traverse::~Traverse()
 {
   if (this->types_seen_ != NULL)
     delete this->types_seen_;
+  if (this->expressions_seen_ != NULL)
+    delete this->expressions_seen_;
 }
 
 // Record that we are looking at a type, and return true if we have
@@ -3596,6 +3619,21 @@ Traverse::remember_type(const Type* type)
   if (this->types_seen_ == NULL)
     this->types_seen_ = new Types_seen();
   std::pair<Types_seen::iterator, bool> ins = this->types_seen_->insert(type);
+  return !ins.second;
+}
+
+// Record that we are looking at an expression, and return true if we
+// have already seen it.
+
+bool
+Traverse::remember_expression(const Expression* expression)
+{
+  gcc_assert((this->traverse_mask() & traverse_types) != 0
+	     || (this->traverse_mask() & traverse_expressions) != 0);
+  if (this->expressions_seen_ == NULL)
+    this->expressions_seen_ = new Expressions_seen();
+  std::pair<Expressions_seen::iterator, bool> ins =
+    this->expressions_seen_->insert(expression);
   return !ins.second;
 }
 

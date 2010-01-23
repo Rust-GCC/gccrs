@@ -2206,7 +2206,7 @@ class Traverse
   static const unsigned int traverse_types =       0x40;
 
   Traverse(unsigned int traverse_mask)
-    : traverse_mask_(traverse_mask), types_seen_(NULL)
+    : traverse_mask_(traverse_mask), types_seen_(NULL), expressions_seen_(NULL)
   { }
 
   virtual ~Traverse();
@@ -2222,6 +2222,13 @@ class Traverse
   // graph.
   bool
   remember_type(const Type*);
+
+  // Record that we are going to see an expression.  This returns true
+  // if the expression has already been seen in this traversal.  This
+  // is only needed for cases where multiple expressions can point to
+  // a single one.
+  bool
+  remember_expression(const Expression*);
 
   // These functions return one of the TRAVERSE codes defined above.
 
@@ -2265,10 +2272,14 @@ class Traverse
   typedef std::tr1::unordered_set<const Type*, Type_hash,
 				  Type_identical> Types_seen;
 
+  typedef std::tr1::unordered_set<const Expression*> Expressions_seen;
+
   // Bitmask of what sort of objects to traverse.
   unsigned int traverse_mask_;
   // Types which have been seen in this traversal.
   Types_seen* types_seen_;
+  // Expressions which have been seen in this traversal.
+  Expressions_seen* expressions_seen_;
 };
 
 // When translating the gogo IR into trees, this is the context we
