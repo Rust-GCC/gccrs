@@ -3313,6 +3313,8 @@ Array_type::do_make_expression_tree(Translate_context* context,
   gcc_assert(args != NULL && args->size() >= 1 && args->size() <= 2);
 
   tree length_tree = args->front()->get_tree(context);
+  if (length_tree == error_mark_node)
+    return error_mark_node;
   length_tree = fold_convert_loc(location, TREE_TYPE(count_field), length_tree);
   length_tree = save_expr(length_tree);
   tree capacity_tree;
