@@ -2880,6 +2880,88 @@ Case_clauses::Case_clause::traverse(Traverse* traverse)
   return TRAVERSE_CONTINUE;
 }
 
+// Check whether all the case expressions are integer constants.
+
+bool
+Case_clauses::Case_clause::is_constant() const
+{
+  if (this->cases_ != NULL)
+    {
+      for (Expression_list::const_iterator p = this->cases_->begin();
+	   p != this->cases_->end();
+	   ++p)
+	if (!(*p)->is_constant() || (*p)->type()->integer_type() == NULL)
+	  return false;
+    }
+  return true;
+}
+
+// Lower a case clause for a nonconstant switch.  VAL_TEMP is the
+// value we are switching on; it may be NULL.  If START_LABEL is not
+// NULL, it goes at the start of the statements, after the condition
+// test.  We branch to FINISH_LABEL at the end of the statements.
+
+void
+Case_clauses::Case_clause::lower(Block* b, Temporary_statement* val_temp,
+				 Unnamed_label* start_label,
+				 Unnamed_label* finish_label) const
+{
+  source_location loc = this->location_;
+  Unnamed_label* next_case_label;
+  if (this->cases_ == NULL || this->cases_->empty())
+    {
+      gcc_assert(this->is_default_);
+      next_case_label = NULL;
+    }
+  else
+    {
+      Expression* cond = NULL;
+
+      for (Expression_list::const_iterator p = this->cases_->begin();
+	   p != this->cases_->end();
+	   ++p)
+	{
+	  Expression* this_cond;
+	  if (val_temp == NULL)
+	    this_cond = *p;
+	  else
+	    {
+	      Expression* ref = Expression::make_temporary_reference(val_temp,
+								     loc);
+	      this_cond = Expression::make_binary(OPERATOR_EQEQ, ref, *p, loc);
+	    }
+
+	  if (cond == NULL)
+	    cond = this_cond;
+	  else
+	    cond = Expression::make_binary(OPERATOR_OROR, cond, this_cond, loc);
+	}
+
+      Block* then_block = new Block(b, loc);
+      next_case_label = new Unnamed_label(UNKNOWN_LOCATION);
+      Statement* s = Statement::make_goto_unnamed_statement(next_case_label,
+							    loc);
+      then_block->add_statement(s);
+
+      // if !COND { goto NEXT_CASE_LABEL }
+      cond = Expression::make_unary(OPERATOR_NOT, cond, loc);
+      s = Statement::make_if_statement(cond, then_block, NULL, loc);
+      b->add_statement(s);
+    }
+
+  if (start_label != NULL)
+    b->add_statement(Statement::make_unnamed_label_statement(start_label));
+
+  if (this->statements_ != NULL)
+    b->add_statement(Statement::make_block_statement(this->statements_, loc));
+
+  Statement* s = Statement::make_goto_unnamed_statement(finish_label, loc);
+  b->add_statement(s);
+
+  if (next_case_label != NULL)
+    b->add_statement(Statement::make_unnamed_label_statement(next_case_label));
+}
+
 // Determine types.
 
 void
@@ -2891,12 +2973,7 @@ Case_clauses::Case_clause::determine_types(Type* type)
       for (Expression_list::iterator p = this->cases_->begin();
 	   p != this->cases_->end();
 	   ++p)
-	{
-	  if (!(*p)->is_constant())
-	    (*p)->determine_type_no_context();
-	  else
-	    (*p)->determine_type(&case_context);
-	}
+	(*p)->determine_type(&case_context);
     }
   if (this->statements_ != NULL)
     this->statements_->determine_types();
@@ -2905,7 +2982,7 @@ Case_clauses::Case_clause::determine_types(Type* type)
 // Check types.  Returns false if there was an error.
 
 bool
-Case_clauses::Case_clause::check_types(Gogo*, Type* type)
+Case_clauses::Case_clause::check_types(Type* type)
 {
   if (this->cases_ != NULL)
     {
@@ -2913,8 +2990,7 @@ Case_clauses::Case_clause::check_types(Gogo*, Type* type)
 	   p != this->cases_->end();
 	   ++p)
 	{
-	  if (!Type::are_compatible_for_binop(type, (*p)->type())
-	      && ((*p)->is_constant() || !(*p)->type()->is_boolean_type()))
+	  if (!Type::are_compatible_for_binop(type, (*p)->type()))
 	    {
 	      error_at((*p)->location(),
 		       "type mismatch between switch value and case clause");
@@ -2925,26 +3001,9 @@ Case_clauses::Case_clause::check_types(Gogo*, Type* type)
   return true;
 }
 
-// Check whether all the case expressions are integer constants.
-
-bool
-Case_clauses::Case_clause::is_constant() const
-{
-  if (this->cases_ != NULL)
-    {
-      for (Expression_list::const_iterator p = this->cases_->begin();
-	   p != this->cases_->end();
-	   ++p)
-	if (!(*p)->is_constant()
-	    || (*p)->type()->is_abstract()
-	    || (*p)->type()->integer_type() == NULL)
-	  return false;
-    }
-  return true;
-}
-
-// Return true if this clause may fall through to the statements
-// following the switch statement.
+// Return true if this clause may fall through to the following
+// statements.  Note that this is not the same as whether the case
+// uses the "fallthrough" keyword.
 
 bool
 Case_clauses::Case_clause::may_fall_through() const
@@ -2954,8 +3013,7 @@ Case_clauses::Case_clause::may_fall_through() const
   return this->statements_->may_fall_through();
 }
 
-// Build up the body of a SWITCH_EXPR when all expressions are
-// constants.  Return true if this is a default case.
+// Build up the body of a SWITCH_EXPR.
 
 void
 Case_clauses::Case_clause::get_constant_tree(Translate_context* context,
@@ -2974,8 +3032,7 @@ Case_clauses::Case_clause::get_constant_tree(Translate_context* context,
 	  mpz_init(ival);
 	  if (!(*p)->integer_constant_value(true, ival, &itype))
 	    gcc_unreachable();
-	  if (itype == NULL)
-	    itype = Type::lookup_integer_type("int");
+	  gcc_assert(itype != NULL);
 	  tree type_tree = itype->get_tree(context->gogo());
 	  tree val = Expression::integer_constant_tree(ival, type_tree);
 	  mpz_clear(ival);
@@ -3021,132 +3078,6 @@ Case_clauses::Case_clause::get_constant_tree(Translate_context* context,
     append_to_statement_list(break_label->get_goto(this->location_), stmt_list);
 }
 
-// Build up a statement list when some case expressions are not
-// constants.  If START_LABEL is not NULL, it goes at the start of the
-// statements, after the condition test.  We branch to FINISH_LABEL at
-// the end.
-
-void
-Case_clauses::Case_clause::get_nonconstant_tree(Translate_context* context,
-						Type* switch_val_type,
-						tree switch_val_tree,
-						Unnamed_label* start_label,
-						Unnamed_label* finish_label,
-						tree* stmt_list) const
-{
-  tree next_case_label = NULL_TREE;
-  if (this->cases_ != NULL && this->cases_->size() > 0)
-    {
-      next_case_label = create_artificial_label(this->location_);
-
-      if (this->cases_->size() == 1)
-	{
-	  // For a single case CASE_VAL, we generate
-	  //   if SWITCH_VAL != CASE_VAL {
-	  //     goto next_case
-	  //   }
-	  tree jump = build1(GOTO_EXPR, void_type_node, next_case_label);
-	  SET_EXPR_LOCATION(jump, this->location_);
-
-	  Expression* case_expr = *this->cases_->begin();
-	  tree case_val = case_expr->get_tree(context);
-	  if (case_val == error_mark_node)
-	    return;
-
-	  tree cond_expr;
-	  if (!case_expr->is_constant()
-	      && case_expr->type()->is_boolean_type())
-	    cond_expr = build3(COND_EXPR, void_type_node,
-			       case_val, NULL_TREE, jump);
-	  else
-	    {
-	      tree comparison = Expression::comparison_tree(context,
-							    OPERATOR_NOTEQ,
-							    switch_val_type,
-							    switch_val_tree,
-							    case_expr->type(),
-							    case_val,
-							    this->location_);
-	      cond_expr = build3(COND_EXPR, void_type_node,
-				 comparison, jump, NULL_TREE);
-	    }
-	  SET_EXPR_LOCATION(cond_expr, this->location_);
-	  append_to_statement_list(cond_expr, stmt_list);
-	}
-      else
-	{
-	  // For each CASE_VAL, we generate
-	  //   if SWITCH_VAL == CASE_VAL {
-	  //     goto this_case
-	  //   }
-	  // and then we emit
-	  //   goto next_case;
-	  //  this_case:
-	  tree this_case_label = create_artificial_label(this->location_);
-
-	  for (Expression_list::const_iterator p = this->cases_->begin();
-	       p != this->cases_->end();
-	       ++p)
-	    {
-	      tree jump = build1(GOTO_EXPR, void_type_node, this_case_label);
-	      SET_EXPR_LOCATION(jump, this->location_);
-
-	      tree case_val = (*p)->get_tree(context);
-	      if (case_val == error_mark_node)
-		return;
-
-	      tree cond_expr;
-	      if (!(*p)->is_constant() && (*p)->type()->is_boolean_type())
-		cond_expr = build3(COND_EXPR, void_type_node,
-				   case_val, jump, NULL_TREE);
-	      else
-		{
-		  tree comparison =
-		    Expression::comparison_tree(context, OPERATOR_EQEQ,
-						switch_val_type,
-						switch_val_tree,
-						(*p)->type(),
-						case_val,
-						this->location_);
-		  cond_expr = build3(COND_EXPR, void_type_node,
-				     comparison, jump, NULL_TREE);
-		}
-	      SET_EXPR_LOCATION(cond_expr, this->location_);
-	      append_to_statement_list(cond_expr, stmt_list);
-	    }
-
-	  tree next_jump = build1(GOTO_EXPR, void_type_node, next_case_label);
-	  SET_EXPR_LOCATION(next_jump, this->location_);
-	  append_to_statement_list(next_jump, stmt_list);
-
-	  tree le = build1(LABEL_EXPR, void_type_node, this_case_label);
-	  SET_EXPR_LOCATION(le, this->location_);
-	  append_to_statement_list(le, stmt_list);
-	}
-    }
-
-  if (start_label != NULL)
-    append_to_statement_list(start_label->get_definition(), stmt_list);
-
-  if (this->statements_ != NULL)
-    {
-      tree block_tree = this->statements_->get_tree(context);
-      if (block_tree != error_mark_node)
-	append_to_statement_list(block_tree, stmt_list);
-    }
-
-  tree t = finish_label->get_goto(this->statements_ == NULL
-				  ? this->location_
-				  : this->statements_->end_location());
-  append_to_statement_list(t, stmt_list);
-
-  if (next_case_label != NULL_TREE)
-    {
-      tree le = build1(LABEL_EXPR, void_type_node, next_case_label);
-      append_to_statement_list(le, stmt_list);
-    }
-}
-
 // Class Case_clauses.
 
 // Traversal.
@@ -3164,6 +3095,77 @@ Case_clauses::traverse(Traverse* traverse)
   return TRAVERSE_CONTINUE;
 }
 
+// Check whether all the case expressions are constant.
+
+bool
+Case_clauses::is_constant() const
+{
+  for (Clauses::const_iterator p = this->clauses_.begin();
+       p != this->clauses_.end();
+       ++p)
+    if (!p->is_constant())
+      return false;
+  return true;
+}
+
+// Lower case clauses for a nonconstant switch.
+
+void
+Case_clauses::lower(Block* b, Temporary_statement* val_temp,
+		    Unnamed_label* break_label) const
+{
+  // The default case.
+  const Case_clause* default_case = NULL;
+
+  // The label for the fallthrough of the previous case.
+  Unnamed_label* last_fallthrough_label = NULL;
+
+  // The label for the start of the default case.  This is used if the
+  // case before the default case falls through.
+  Unnamed_label* default_start_label = NULL;
+
+  // The label for the end of the default case.  This normally winds
+  // up as BREAK_LABEL, but it will be different if the default case
+  // falls through.
+  Unnamed_label* default_finish_label = NULL;
+
+  for (Clauses::const_iterator p = this->clauses_.begin();
+       p != this->clauses_.end();
+       ++p)
+    {
+      // The label to use for the start of the statements for this
+      // case.  This is NULL unless the previous case falls through.
+      Unnamed_label* start_label = last_fallthrough_label;
+
+      // The label to jump to after the end of the statements for this
+      // case.
+      Unnamed_label* finish_label = break_label;
+
+      last_fallthrough_label = NULL;
+      if (p->is_fallthrough() && p + 1 != this->clauses_.end())
+	{
+	  finish_label = new Unnamed_label(p->location());
+	  last_fallthrough_label = finish_label;
+	}
+
+      if (!p->is_default())
+	p->lower(b, val_temp, start_label, finish_label);
+      else
+	{
+	  // We have to move the default case to the end, so that we
+	  // only use it if all the other tests fail.
+	  default_case = &*p;
+	  default_start_label = start_label;
+	  default_finish_label = finish_label;
+	}
+    }
+
+  if (default_case != NULL)
+    default_case->lower(b, val_temp, default_start_label,
+			default_finish_label);
+      
+}
+
 // Determine types.
 
 void
@@ -3178,30 +3180,17 @@ Case_clauses::determine_types(Type* type)
 // Check types.  Returns false if there was an error.
 
 bool
-Case_clauses::check_types(Gogo* gogo, Type* type)
+Case_clauses::check_types(Type* type)
 {
   bool ret = true;
   for (Clauses::iterator p = this->clauses_.begin();
        p != this->clauses_.end();
        ++p)
     {
-      if (!p->check_types(gogo, type))
+      if (!p->check_types(type))
 	ret = false;
     }
   return ret;
-}
-
-// Check whether all the case expressions are constant.
-
-bool
-Case_clauses::is_constant() const
-{
-  for (Clauses::const_iterator p = this->clauses_.begin();
-       p != this->clauses_.end();
-       ++p)
-    if (!p->is_constant())
-      return false;
-  return true;
 }
 
 // Return true if these clauses may fall through to the statements
@@ -3239,51 +3228,109 @@ Case_clauses::get_constant_tree(Translate_context* context,
   return stmt_list;
 }
 
-// Build up a statement list when some case expressions are not
-// constants.
+// A constant switch statement.  A Switch_statement is lowered to this
+// when all the cases are constants.
+
+class Constant_switch_statement : public Statement
+{
+ public:
+  Constant_switch_statement(Expression* val, Case_clauses* clauses,
+			    Unnamed_label* break_label,
+			    source_location location)
+    : Statement(STATEMENT_CONSTANT_SWITCH, location),
+      val_(val), clauses_(clauses), break_label_(break_label)
+  { }
+
+ protected:
+  int
+  do_traverse(Traverse*);
+
+  void
+  do_determine_types();
+
+  void
+  do_check_types(Gogo*);
+
+  bool
+  do_may_fall_through() const;
+
+  tree
+  do_get_tree(Translate_context*);
+
+ private:
+  // The value to switch on.
+  Expression* val_;
+  // The case clauses.
+  Case_clauses* clauses_;
+  // The break label, if needed.
+  Unnamed_label* break_label_;
+};
+
+// Traversal.
+
+int
+Constant_switch_statement::do_traverse(Traverse* traverse)
+{
+  if (this->traverse_expression(traverse, &this->val_) == TRAVERSE_EXIT)
+    return TRAVERSE_EXIT;
+  return this->clauses_->traverse(traverse);
+}
+
+// Determine types.
 
 void
-Case_clauses::get_nonconstant_tree(Translate_context* context,
-				   Type* switch_val_type, tree switch_val_tree,
-				   Unnamed_label* break_label,
-				   tree* stmt_list) const
+Constant_switch_statement::do_determine_types()
 {
-  const Case_clause* default_case = NULL;
-  Unnamed_label* last_fallthrough_label = NULL;
-  Unnamed_label* default_start_label = NULL;
-  Unnamed_label* default_finish_label = NULL;
-  for (Clauses::const_iterator p = this->clauses_.begin();
-       p != this->clauses_.end();
-       ++p)
-    {
-      Unnamed_label* start_label = last_fallthrough_label;
-      Unnamed_label* finish_label = break_label;
+  this->val_->determine_type_no_context();
+  this->clauses_->determine_types(this->val_->type());
+}
 
-      last_fallthrough_label = NULL;
-      if (p->is_fallthrough() && p + 1 != this->clauses_.end())
-	{
-	  finish_label = new Unnamed_label(p->location());
-	  last_fallthrough_label = finish_label;
-	}
+// Check types.
 
-      if (!p->is_default())
-	p->get_nonconstant_tree(context, switch_val_type, switch_val_tree,
-				start_label, finish_label, stmt_list);
-      else
-	{
-	  // We are translating this switch into a series of tests,
-	  // which means that we need to move the default case to the
-	  // end.
-	  default_case = &*p;
-	  default_start_label = start_label;
-	  default_finish_label = finish_label;
-	}
-    }
+void
+Constant_switch_statement::do_check_types(Gogo*)
+{
+  if (!this->clauses_->check_types(this->val_->type()))
+    this->set_is_error();
+}
 
-  if (default_case != NULL)
-    default_case->get_nonconstant_tree(context, switch_val_type,
-				       switch_val_tree, default_start_label,
-				       default_finish_label, stmt_list);
+// Return whether this switch may fall through.
+
+bool
+Constant_switch_statement::do_may_fall_through() const
+{
+  if (this->clauses_ == NULL)
+    return true;
+
+  // If we have a break label, then some case needed it.  That implies
+  // that the switch statement as a whole can fall through.
+  if (this->break_label_ != NULL)
+    return true;
+
+  return this->clauses_->may_fall_through();
+}
+
+// Convert to GENERIC.
+
+tree
+Constant_switch_statement::do_get_tree(Translate_context* context)
+{
+  tree switch_val_tree = this->val_->get_tree(context);
+
+  Unnamed_label* break_label = this->break_label_;
+  if (break_label == NULL)
+    break_label = new Unnamed_label(this->location());
+
+  tree stmt_list = NULL_TREE;
+  tree s = build3(SWITCH_EXPR, void_type_node, switch_val_tree,
+		  this->clauses_->get_constant_tree(context, break_label),
+		  NULL_TREE);
+  SET_EXPR_LOCATION(s, this->location());
+  append_to_statement_list(s, &stmt_list);
+
+  append_to_statement_list(break_label->get_definition(), &stmt_list);
+
+  return stmt_list;
 }
 
 // Class Switch_statement.
@@ -3301,88 +3348,47 @@ Switch_statement::do_traverse(Traverse* traverse)
   return this->clauses_->traverse(traverse);
 }
 
-// Determine types.
+// Lower a Switch_statement to a Constant_switch_statement or a series
+// of if statements.
 
-void
-Switch_statement::do_determine_types()
+Statement*
+Switch_statement::do_lower(Gogo*, Block* enclosing)
 {
-  Type* type;
-  if (this->val_ == NULL)
-    type = Type::make_boolean_type();
-  else
-    {
-      this->val_->determine_type_no_context();
-      type = this->val_->type();
-    }
-  this->clauses_->determine_types(type);
-}
+  source_location loc = this->location();
 
-// Check types.
-
-void
-Switch_statement::do_check_types(Gogo* gogo)
-{
-  Type* type;
-  if (this->val_ == NULL)
-    type = Type::make_boolean_type();
-  else
-    type = this->val_->type();
-  if (!this->clauses_->check_types(gogo, type))
-    this->set_is_error();
-}
-
-// Return whether this switch may fall through.
-
-bool
-Switch_statement::do_may_fall_through() const
-{
-  if (this->clauses_ == NULL)
-    return true;
-  return this->clauses_->may_fall_through();
-}
-
-// Convert to GENERIC.
-
-tree
-Switch_statement::do_get_tree(Translate_context* context)
-{
-  tree switch_val_tree;
-  if (this->val_ == NULL)
-    switch_val_tree = boolean_true_node;
-  else
-    switch_val_tree = this->val_->get_tree(context);
-
-  if (this->clauses_->empty())
-    return switch_val_tree;
-
-  Unnamed_label* break_label = this->break_label();
-  tree stmt_list = NULL_TREE;
   if (this->val_ != NULL
       && this->val_->type()->integer_type() != NULL
+      && !this->clauses_->empty()
       && this->clauses_->is_constant())
+    return new Constant_switch_statement(this->val_, this->clauses_,
+					 this->break_label_, loc);
+
+  Block* b = new Block(enclosing, loc);
+
+  if (this->clauses_->empty())
     {
-      tree ret = build3(SWITCH_EXPR, TREE_TYPE(switch_val_tree),
-			switch_val_tree,
-			this->clauses_->get_constant_tree(context, break_label),
-			NULL_TREE);
-      SET_EXPR_LOCATION(ret, this->location());
-      append_to_statement_list(ret, &stmt_list);
+      Expression* val = this->val_;
+      if (val == NULL)
+	val = Expression::make_boolean(true, loc);
+      return Statement::make_statement(val);
     }
+
+  Temporary_statement* val_temp;
+  if (this->val_ == NULL)
+    val_temp = NULL;
   else
     {
-      switch_val_tree = save_expr(switch_val_tree);
-      this->clauses_->get_nonconstant_tree(context,
-					   (this->val_ == NULL
-					    ? Type::make_boolean_type()
-					    : this->val_->type()),
-					   switch_val_tree,
-					   break_label,
-					   &stmt_list);
+      // var val_temp VAL_TYPE = VAL
+      val_temp = Statement::make_temporary(b, NULL, this->val_, loc);
+      b->add_statement(val_temp);
     }
 
-  append_to_statement_list(break_label->get_definition(), &stmt_list);
+  this->clauses_->lower(b, val_temp, this->break_label());
 
-  return stmt_list;
+  Statement* s = Statement::make_unnamed_label_statement(this->break_label_);
+  b->add_statement(s);
+
+  return Statement::make_block_statement(b, loc);
 }
 
 // Return the break label for this switch statement, creating it if
@@ -3743,12 +3749,8 @@ Type_switch_statement::do_lower(Gogo*, Block* enclosing)
   if (this->clauses_ != NULL)
     this->clauses_->lower(b, descriptor_temp, this->break_label());
 
-  if (this->break_label_ != NULL)
-    {
-      Statement* s =
-	Statement::make_unnamed_label_statement(this->break_label_);
-      b->add_statement(s);
-    }
+  Statement* s = Statement::make_unnamed_label_statement(this->break_label_);
+  b->add_statement(s);
 
   return Statement::make_block_statement(b, loc);
 }

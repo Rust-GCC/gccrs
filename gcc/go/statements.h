@@ -102,7 +102,7 @@ class Statement
     STATEMENT_LABEL,
     STATEMENT_UNNAMED_LABEL,
     STATEMENT_IF,
-    STATEMENT_SWITCH,
+    STATEMENT_CONSTANT_SWITCH,
     STATEMENT_SELECT,
     STATEMENT_REFCOUNT_QUEUE_ASSIGNMENT,
 
@@ -117,6 +117,7 @@ class Statement
     STATEMENT_INCDEC,
     STATEMENT_FOR,
     STATEMENT_FOR_RANGE,
+    STATEMENT_SWITCH,
     STATEMENT_TYPE_SWITCH
   };
 
@@ -1139,6 +1140,10 @@ class Case_clauses
   int
   traverse(Traverse*);
 
+  // Lower for a nonconstant switch.
+  void
+  lower(Block*, Temporary_statement*, Unnamed_label*) const;
+
   // Determine types of expressions.  The Type parameter is the type
   // of the switch value.
   void
@@ -1146,7 +1151,7 @@ class Case_clauses
 
   // Check types.  The Type parameter is the type of the switch value.
   bool
-  check_types(Gogo*, Type*);
+  check_types(Type*);
 
   // Return true if all the clauses are constant values.
   bool
@@ -1161,12 +1166,6 @@ class Case_clauses
   // constants.
   tree
   get_constant_tree(Translate_context*, Unnamed_label* break_label) const;
-
-  // Build up a statement list when some clauses are not constants.
-  void
-  get_nonconstant_tree(Translate_context*, Type* switch_val_type,
-		       tree switch_val_tree, Unnamed_label* break_label,
-		       tree* stmt_list) const;
 
  private:
   // For a constant tree we need to keep a record of constants we have
@@ -1207,13 +1206,17 @@ class Case_clauses
     int
     traverse(Traverse*);
 
+    // Lower for a nonconstant switch.
+    void
+    lower(Block*, Temporary_statement*, Unnamed_label*, Unnamed_label*) const;
+
     // Determine types.
     void
     determine_types(Type*);
 
     // Check types.
     bool
-    check_types(Gogo*, Type*);
+    check_types(Type*);
 
     // Return true if all the case expressions are constant.
     bool
@@ -1230,12 +1233,6 @@ class Case_clauses
     void
     get_constant_tree(Translate_context*, Unnamed_label* break_label,
 		      Case_constants* case_constants, tree* stmt_list) const;
-
-    // Build up a statement list when some clauses are not constants.
-    void
-    get_nonconstant_tree(Translate_context*, Type* switch_val_type,
-			 tree switch_val_tree, Unnamed_label* start_label,
-			 Unnamed_label* finish_label, tree* stmt_list) const;
 
    private:
     // The list of case expressions.
@@ -1285,17 +1282,12 @@ class Switch_statement : public Statement
   int
   do_traverse(Traverse*);
 
-  void
-  do_determine_types();
-
-  void
-  do_check_types(Gogo*);
-
-  bool
-  do_may_fall_through() const;
+  Statement*
+  do_lower(Gogo*, Block*);
 
   tree
-  do_get_tree(Translate_context*);
+  do_get_tree(Translate_context*)
+  { gcc_unreachable(); }
 
  private:
   // The value to switch on.  This may be NULL.

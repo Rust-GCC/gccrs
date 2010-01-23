@@ -11,12 +11,13 @@ func f1(i int) bool {
 }
 
 func f2(i int) int {
-  switch i {
+  switch {
     case i < 0: return -1
     case i > 0: return 1
     default: return 0
     case i != 0: return 1000
   }
+  panic()
 }
 
 func f3(i int) int {
