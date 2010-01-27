@@ -34,7 +34,7 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   if (no == NULL)
     {
       Type* type = Type::make_pointer_type(Type::make_void_type());
-      no = bindings->add_type("Pointer", package, type, bloc);
+      no = bindings->add_type("Pointer", package, type, UNKNOWN_LOCATION);
     }
   else
     {

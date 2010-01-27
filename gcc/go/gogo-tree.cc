@@ -2223,21 +2223,26 @@ std::string
 Gogo::type_descriptor_decl_name(const Named_object* no,
 				const Named_object* in_function)
 {
-  const std::string& unique_prefix(no->package() == NULL
-				   ? this->unique_prefix()
-				   : no->package()->unique_prefix());
-  const std::string& package_name(no->package() == NULL
-				  ? this->package_name()
-				  : no->package()->name());
   std::string ret = "__go_tdn_";
-  ret.append(unique_prefix);
-  ret.append(1, '.');
-  ret.append(package_name);
-  ret.append(1, '.');
-  if (in_function != NULL)
+  if (no->type_value()->is_builtin())
+    gcc_assert(in_function == NULL);
+  else
     {
-      ret.append(Gogo::unpack_hidden_name(in_function->name()));
+      const std::string& unique_prefix(no->package() == NULL
+				       ? this->unique_prefix()
+				       : no->package()->unique_prefix());
+      const std::string& package_name(no->package() == NULL
+				      ? this->package_name()
+				      : no->package()->name());
+      ret.append(unique_prefix);
       ret.append(1, '.');
+      ret.append(package_name);
+      ret.append(1, '.');
+      if (in_function != NULL)
+	{
+	  ret.append(Gogo::unpack_hidden_name(in_function->name()));
+	  ret.append(1, '.');
+	}
     }
   ret.append(no->name());
   return ret;
