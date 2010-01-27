@@ -5798,20 +5798,26 @@ void
 Named_type::do_mangled_name(Gogo* gogo, std::string* ret) const
 {
   Named_object* no = this->named_object_;
-  const std::string& unique_prefix(no->package() == NULL
-				   ? gogo->unique_prefix()
-				   : no->package()->unique_prefix());
-  const std::string& package_name(no->package() == NULL
-				  ? gogo->package_name()
-				  : no->package()->name());
-  std::string name = unique_prefix;
-  name.append(1, '.');
-  name.append(package_name);
-  name.append(1, '.');
-  if (this->in_function_ != NULL)
+  std::string name;
+  if (this->location() == BUILTINS_LOCATION)
+    gcc_assert(this->in_function_ == NULL);
+  else
     {
-      name.append(Gogo::unpack_hidden_name(this->in_function_->name()));
-      name.append(1, '$');
+      const std::string& unique_prefix(no->package() == NULL
+				       ? gogo->unique_prefix()
+				       : no->package()->unique_prefix());
+      const std::string& package_name(no->package() == NULL
+				      ? gogo->package_name()
+				      : no->package()->name());
+      name = unique_prefix;
+      name.append(1, '.');
+      name.append(package_name);
+      name.append(1, '.');
+      if (this->in_function_ != NULL)
+	{
+	  name.append(Gogo::unpack_hidden_name(this->in_function_->name()));
+	  name.append(1, '$');
+	}
     }
   name.append(Gogo::unpack_hidden_name(no->name()));
   char buf[20];
