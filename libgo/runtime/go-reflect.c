@@ -24,57 +24,57 @@ struct field_align
 /* The type descriptors in the runtime package.  */
 
 extern const struct __go_type_descriptor ptr_bool_descriptor
-  asm ("__go_td_pN16_runtime.BoolType");
+  asm ("__go_td_pN30_libgo_runtime.runtime.BoolType");
 extern const struct __go_type_descriptor ptr_float32_descriptor
-  asm ("__go_td_pN19_runtime.Float32Type");
+  asm ("__go_td_pN33_libgo_runtime.runtime.Float32Type");
 extern const struct __go_type_descriptor ptr_float64_descriptor
-  asm ("__go_td_pN19_runtime.Float64Type");
+  asm ("__go_td_pN33_libgo_runtime.runtime.Float64Type");
 extern const struct __go_type_descriptor ptr_float_descriptor
-  asm ("__go_td_pN17_runtime.FloatType");
+  asm ("__go_td_pN31_libgo_runtime.runtime.FloatType");
 extern const struct __go_type_descriptor ptr_int16_descriptor
-  asm ("__go_td_pN17_runtime.Int16Type");
+  asm ("__go_td_pN31_libgo_runtime.runtime.Int16Type");
 extern const struct __go_type_descriptor ptr_int32_descriptor
-  asm ("__go_td_pN17_runtime.Int32Type");
+  asm ("__go_td_pN31_libgo_runtime.runtime.Int32Type");
 extern const struct __go_type_descriptor ptr_int64_descriptor
-  asm ("__go_td_pN17_runtime.Int64Type");
+  asm ("__go_td_pN31_libgo_runtime.runtime.Int64Type");
 extern const struct __go_type_descriptor ptr_int8_descriptor
-  asm ("__go_td_pN16_runtime.Int8Type");
+  asm ("__go_td_pN30_libgo_runtime.runtime.Int8Type");
 extern const struct __go_type_descriptor ptr_int_descriptor
-  asm ("__go_td_pN15_runtime.IntType");
+  asm ("__go_td_pN29_libgo_runtime.runtime.IntType");
 extern const struct __go_type_descriptor ptr_uint16_descriptor
-  asm ("__go_td_pN18_runtime.Uint16Type");
+  asm ("__go_td_pN32_libgo_runtime.runtime.Uint16Type");
 extern const struct __go_type_descriptor ptr_uint32_descriptor
-  asm ("__go_td_pN18_runtime.Uint32Type");
+  asm ("__go_td_pN32_libgo_runtime.runtime.Uint32Type");
 extern const struct __go_type_descriptor ptr_uint64_descriptor
-  asm ("__go_td_pN18_runtime.Uint64Type");
+  asm ("__go_td_pN32_libgo_runtime.runtime.Uint64Type");
 extern const struct __go_type_descriptor ptr_uint8_descriptor
-  asm ("__go_td_pN17_runtime.Uint8Type");
+  asm ("__go_td_pN31_libgo_runtime.runtime.Uint8Type");
 extern const struct __go_type_descriptor ptr_uint_descriptor
-  asm ("__go_td_pN16_runtime.UintType");
+  asm ("__go_td_pN30_libgo_runtime.runtime.UintType");
 extern const struct __go_type_descriptor ptr_string_descriptor
-  asm ("__go_td_pN18_runtime.StringType");
+  asm ("__go_td_pN32_libgo_runtime.runtime.StringType");
 extern const struct __go_type_descriptor ptr_uintptr_descriptor
-  asm ("__go_td_pN19_runtime.UintptrType");
+  asm ("__go_td_pN33_libgo_runtime.runtime.UintptrType");
 extern const struct __go_type_descriptor ptr_dotdotdot_descriptor
-  asm ("__go_td_pN21_runtime.DotDotDotType");
+  asm ("__go_td_pN35_libgo_runtime.runtime.DotDotDotType");
 extern const struct __go_type_descriptor ptr_unsafe_pointer_decriptor
-  asm ("__go_td_pN25_runtime.UnsafePointerType");
+  asm ("__go_td_pN39_libgo_runtime.runtime.UnsafePointerType");
 extern const struct __go_type_descriptor ptr_array_descriptor
-  asm ("__go_td_pN17_runtime.ArrayType");
+  asm ("__go_td_pN31_libgo_runtime.runtime.ArrayType");
 extern const struct __go_type_descriptor ptr_slice_descriptor
-  asm ("__go_td_pN17_runtime.SliceType");
+  asm ("__go_td_pN31_libgo_runtime.runtime.SliceType");
 extern const struct __go_type_descriptor ptr_chan_descriptor
-  asm ("__go_td_pN16_runtime.ChanType");
+  asm ("__go_td_pN30_libgo_runtime.runtime.ChanType");
 extern const struct __go_type_descriptor ptr_func_descriptor
-  asm ("__go_td_pN16_runtime.FuncType");
+  asm ("__go_td_pN30_libgo_runtime.runtime.FuncType");
 extern const struct __go_type_descriptor ptr_interface_descriptor
-  asm ("__go_td_pN21_runtime.InterfaceType");
+  asm ("__go_td_pN35_libgo_runtime.runtime.InterfaceType");
 extern const struct __go_type_descriptor ptr_map_descriptor
-  asm ("__go_td_pN15_runtime.MapType");
+  asm ("__go_td_pN29_libgo_runtime.runtime.MapType");
 extern const struct __go_type_descriptor ptr_ptr_descriptor
-  asm ("__go_td_pN15_runtime.PtrType");
+  asm ("__go_td_pN29_libgo_runtime.runtime.PtrType");
 extern const struct __go_type_descriptor ptr_struct_descriptor
-  asm ("__go_td_pN18_runtime.StructType");
+  asm ("__go_td_pN32_libgo_runtime.runtime.StructType");
 
 const struct __go_type_descriptor *
 get_descriptor (int code)
@@ -147,7 +147,7 @@ struct reflect_ret
 };
 
 struct reflect_ret Reflect (const struct __go_interface *)
-  asm ("unsafe.Reflect");
+  asm ("libgo_unsafe.unsafe.Reflect");
 
 struct reflect_ret
 Reflect (const struct __go_interface *p)
@@ -194,7 +194,7 @@ Reflect (const struct __go_interface *p)
 /* Implement unsafe.Typeof.  */
 
 struct __go_interface *Typeof (const struct __go_interface *)
-  asm ("unsafe.Typeof");
+  asm ("libgo_unsafe.unsafe.Typeof");
 
 struct __go_interface *
 Typeof (const struct __go_interface *p)

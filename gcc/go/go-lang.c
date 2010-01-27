@@ -155,6 +155,10 @@ go_langhook_handle_option (size_t scode, const char *arg,
       ret = go_enable_dump (arg);
       break;
 
+    case OPT_fgo_prefix_:
+      go_set_prefix (arg);
+      break;
+
     default:
       /* Just return 1 to indicate that the option is valid.  */
       break;

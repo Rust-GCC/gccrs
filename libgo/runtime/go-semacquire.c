@@ -41,7 +41,7 @@ acquire (int32_t *addr)
    We have acquired the semaphore when we have decremented the count
    and it remains nonnegative.  */
 
-void Semacquire (int32_t *) asm ("runtime.Semacquire");
+void Semacquire (int32_t *) asm ("libgo_runtime.runtime.Semacquire");
 
 void
 Semacquire (int32_t *addr)
@@ -85,7 +85,7 @@ Semacquire (int32_t *addr)
    positive, we signal the condition variable to wake up another
    process.  */
 
-void Semrelease (int32_t *) asm ("runtime.Semrelease");
+void Semrelease (int32_t *) asm ("libgo_runtime.runtime.Semrelease");
 
 void
 Semrelease (int32_t *addr)

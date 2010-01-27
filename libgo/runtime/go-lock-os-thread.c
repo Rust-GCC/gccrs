@@ -8,14 +8,15 @@
    meaningless in the current implementation, since for us a goroutine
    always stays on a single OS thread.  */
 
-extern void LockOSThread (void) __asm__ ("runtime.LockOSThread");
+extern void LockOSThread (void) __asm__ ("libgo_runtime.runtime.LockOSThread");
 
 void
 LockOSThread (void)
 {
 }
 
-extern void UnlockOSThread (void) __asm__ ("runtime.UnlockOSThread");
+extern void UnlockOSThread (void)
+  __asm__ ("libgo_runtime.runtime.UnlockOSThread");
 
 void
 UnlockOSThread (void)

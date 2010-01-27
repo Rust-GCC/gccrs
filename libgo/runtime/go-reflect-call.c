@@ -296,7 +296,7 @@ go_set_results (const struct __go_func_type *func, unsigned char *call_result,
 
 extern void call (const struct __go_func_type *, const void *, _Bool, void **,
 		  void **)
-  asm ("reflect.call");
+  asm ("libgo_reflect.reflect.call");
 
 void
 call (const struct __go_func_type *func_type, const void *func_addr,

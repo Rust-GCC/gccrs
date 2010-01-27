@@ -33,7 +33,8 @@ Gogo::Gogo()
     init_functions_(),
     need_init_fn_(false),
     init_fn_name_(),
-    imported_init_fns_()
+    imported_init_fns_(),
+    unique_prefix_()
 {
   const source_location loc = BUILTINS_LOCATION;
 
@@ -210,7 +211,13 @@ Gogo::set_package_name(const std::string& package_name,
       return;
     }
 
-  this->package_ = this->register_package(package_name, location);
+  // If the user did not specify a unique prefix, we always use "go".
+  // This in effect requires that the package name be unique.
+  if (this->unique_prefix_.empty())
+    this->unique_prefix_ = "go";
+
+  this->package_ = this->register_package(package_name, this->unique_prefix_,
+					  location);
 
   // We used to permit people to qualify symbols with the current
   // package name (e.g., P.x), but we no longer do.
@@ -394,6 +401,7 @@ Package*
 Gogo::add_imported_package(const std::string& real_name,
 			   const std::string& alias_arg,
 			   bool is_alias_exported,
+			   const std::string& unique_prefix,
 			   source_location location,
 			   bool* padd_to_globals)
 {
@@ -413,10 +421,10 @@ Gogo::add_imported_package(const std::string& real_name,
   else if (alias_arg == ".")
     {
       *padd_to_globals = true;
-      return this->register_package(real_name, location);
+      return this->register_package(real_name, unique_prefix, location);
     }
   else if (alias_arg == "_")
-    return this->register_package(real_name, location);
+    return this->register_package(real_name, unique_prefix, location);
   else
     {
       *padd_to_globals = false;
@@ -427,7 +435,8 @@ Gogo::add_imported_package(const std::string& real_name,
 	  is_alias_exported = Lex::is_exported_name(alias);
 	}
       alias = this->pack_hidden_name(alias, is_alias_exported);
-      Named_object* no = this->add_package(real_name, alias, location);
+      Named_object* no = this->add_package(real_name, alias, unique_prefix,
+					   location);
       if (!no->is_package())
 	return NULL;
       return no->package_value();
@@ -438,13 +447,13 @@ Gogo::add_imported_package(const std::string& real_name,
 
 Named_object*
 Gogo::add_package(const std::string& real_name, const std::string& alias,
-		  source_location location)
+		  const std::string& unique_prefix, source_location location)
 {
   gcc_assert(this->in_global_scope());
 
   // Register the package.  Note that we might have already seen it in
   // an earlier import.
-  Package* package = this->register_package(real_name, location);
+  Package* package = this->register_package(real_name, unique_prefix, location);
 
   return this->package_->bindings()->add_package(alias, package);
 }
@@ -454,8 +463,12 @@ Gogo::add_package(const std::string& real_name, const std::string& alias,
 // necessary.
 
 Package*
-Gogo::register_package(const std::string& name, source_location location)
+Gogo::register_package(const std::string& package_name,
+		       const std::string& unique_prefix,
+		       source_location location)
 {
+  gcc_assert(!unique_prefix.empty() && !package_name.empty());
+  std::string name = unique_prefix + '.' + package_name;
   Package* package = NULL;
   std::pair<Packages::iterator, bool> ins =
     this->packages_.insert(std::make_pair(name, package));
@@ -464,13 +477,15 @@ Gogo::register_package(const std::string& name, source_location location)
       // We have seen this package name before.
       package = ins.first->second;
       gcc_assert(package != NULL);
+      gcc_assert(package->name() == package_name
+		 && package->unique_prefix() == unique_prefix);
       if (package->location() == UNKNOWN_LOCATION)
 	package->set_location(location);
     }
   else
     {
       // First time we have seen this package name.
-      package = new Package(name, location);
+      package = new Package(package_name, unique_prefix, location);
       gcc_assert(ins.first->second == NULL);
       ins.first->second = package;
     }
@@ -1911,6 +1926,26 @@ Gogo::check_return_statements()
   this->traverse(&traverse);
 }
 
+// Get the unique prefix to use before all exported symbols.  This
+// must be unique across the entire link.
+
+const std::string&
+Gogo::unique_prefix()
+{
+  gcc_assert(!this->unique_prefix_.empty());
+  return this->unique_prefix_;
+}
+
+// Set the unique prefix to use before all exported symbols.  This
+// comes from the command line option -fgo-prefix=XXX.
+
+void
+Gogo::set_unique_prefix(const std::string& arg)
+{
+  gcc_assert(this->unique_prefix_.empty());
+  this->unique_prefix_ = arg;
+}
+
 // Work out the package priority.  It is one more than the maximum
 // priority of an imported package.
 
@@ -1938,6 +1973,7 @@ Gogo::do_exports()
   Export exp(&stream);
   exp.register_builtin_types(this);
   exp.export_globals(this->package_name(),
+		     this->unique_prefix(),
 		     this->package_priority(),
 		     (this->need_init_fn_ && this->package_name() != "main"
 		      ? this->get_init_fn_name()
@@ -3559,10 +3595,12 @@ Bindings::traverse(Traverse* traverse, bool is_global)
 
 // Class Package.
 
-Package::Package(const std::string& name, source_location location)
-  : name_(name), bindings_(new Bindings(NULL)), priority_(0),
-    location_(location)
+Package::Package(const std::string& name, const std::string& unique_prefix,
+		 source_location location)
+  : name_(name), unique_prefix_(unique_prefix), bindings_(new Bindings(NULL)),
+    priority_(0), location_(location)
 {
+  gcc_assert(!name.empty() && !unique_prefix.empty());
 }
 
 // Set the priority.  We may see multiple priorities for an imported

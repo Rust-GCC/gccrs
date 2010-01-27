@@ -5797,15 +5797,23 @@ Named_type::do_reflection(Gogo* gogo, std::string* ret) const
 void
 Named_type::do_mangled_name(Gogo* gogo, std::string* ret) const
 {
-  std::string package_name;
-  if (this->named_object_->package() == NULL)
-    package_name = gogo->package_name();
-  else
-    package_name = this->named_object_->package()->name();
-  std::string name = package_name + '.';
+  Named_object* no = this->named_object_;
+  const std::string& unique_prefix(no->package() == NULL
+				   ? gogo->unique_prefix()
+				   : no->package()->unique_prefix());
+  const std::string& package_name(no->package() == NULL
+				  ? gogo->package_name()
+				  : no->package()->name());
+  std::string name = unique_prefix;
+  name.append(1, '.');
+  name.append(package_name);
+  name.append(1, '.');
   if (this->in_function_ != NULL)
-    name += Gogo::unpack_hidden_name(this->in_function_->name()) + '$';
-  name += Gogo::unpack_hidden_name(this->named_object_->name());
+    {
+      name.append(Gogo::unpack_hidden_name(this->in_function_->name()));
+      name.append(1, '$');
+    }
+  name.append(Gogo::unpack_hidden_name(no->name()));
   char buf[20];
   snprintf(buf, sizeof buf, "N%u_", static_cast<unsigned int>(name.length()));
   ret->append(buf);

@@ -112,6 +112,7 @@ class Export
   // Export the identifiers in BINDINGS which are marked for export.
   // The exporting is done via a series of calls to THIS->STREAM_.  If
   // is nothing to export, this->stream_->write will not be called.
+  // UNIQUE_PREFIX is a prefix for all global symbols.
   // PACKAGE_PRIORITY is the priority to use for this package.
   // IMPORT_INIT_FN is the name of the import initialization function
   // for this package; it will be empty if none is needed.
@@ -119,6 +120,7 @@ class Export
   // imported packages.
   void
   export_globals(const std::string& package_name,
+		 const std::string& unique_prefix,
 		 int package_priority,
 		 const std::string& import_init_fn,
 		 const std::set<Import_init>& imported_init_fns,
@@ -150,8 +152,8 @@ class Export
 
   // Write out the imported initialization functions.
   void
-  write_imported_init_fns(int priority, const std::string&,
-			  const std::set<Import_init>&);
+  write_imported_init_fns(const std::string& package_name, int priority,
+			  const std::string&, const std::set<Import_init>&);
 
   // Register one builtin type.
   void

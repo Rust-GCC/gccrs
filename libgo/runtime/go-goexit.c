@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <pthread.h>
 
-void Goexit (void) asm ("runtime.Goexit");
+void Goexit (void) asm ("libgo_runtime.runtime.Goexit");
 
 void
 Goexit (void)

@@ -1220,12 +1220,6 @@ GOLINK = $(LIBTOOL) --tag GO --mode-link $(GCCGO) \
 	$(OPT_LDFLAGS) $(SECTION_LDFLAGS) $(AM_GOFLAGS) $(LTLDFLAGS) \
 	-lpthread -o $@
 
-GOBUILD_FLAGS = \
-	--go-compiler $(LTGOCOMPILE) -L $$dir -c -o \; \
-	--c-compiler $(LTCOMPILE) -c -o \; \
-	--packager $(AR) rc \; \
-	--output-ext ".$(OBJEXT)"
-
 
 # Build a package.
 BUILDARCHIVE = \
@@ -1233,7 +1227,7 @@ BUILDARCHIVE = \
 	test -d $(@D) || mkdir -p $(@D); \
 	rm -f $@; \
 	files=`echo $^ | sed -e 's/[^ ]*\.gox//g'`; \
-	if $(LTGOCOMPILE) -c -o $@.o $$files; then \
+	if $(LTGOCOMPILE) -c -fgo-prefix="libgo_$(@D)" -o $@.o $$files; then \
 	  $(AR) rc $@ $@.o; \
 	else exit 1; fi
 
@@ -2780,6 +2774,14 @@ cgo2c.o: runtime/cgo2c.c
 cgo2c: cgo2c.o
 	$(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) $(LDFLAGS_FOR_BUILD) -o $@ $<
 
+malloc_go.c: $(srcdir)/runtime/malloc_go.cgo cgo2c
+	./cgo2c --gcc --go-prefix libgo_malloc $< > $@.tmp
+	mv -f $@.tmp $@
+
+sigqueue.c: $(srcdir)/runtime/sigqueue.cgo cgo2c
+	./cgo2c --gcc --go-prefix libgo_runtime $< > $@.tmp
+	mv -f $@.tmp $@
+
 %.c: $(srcdir)/runtime/%.cgo cgo2c
 	./cgo2c --gcc $< > $@.tmp
 	mv -f $@.tmp $@
@@ -2808,7 +2810,7 @@ bufio/libbufio.la: bufio/libbufio.a
 
 bytes/libbytes.a: $(go_bytes_files) $(go_bytes_c_files) io.gox os.gox utf8.gox
 	test -d bytes || mkdir -p bytes
-	$(LTGOCOMPILE) -c -o bytes/bytes.o $(srcdir)/go/bytes/buffer.go $(srcdir)/go/bytes/bytes.go
+	$(LTGOCOMPILE) -c -o bytes/bytes.o -fgo-prefix=libgo_bytes $(srcdir)/go/bytes/buffer.go $(srcdir)/go/bytes/bytes.go
 	$(LTCOMPILE) -c -o bytes/index.o $(srcdir)/go/bytes/indexbyte.c
 	rm -f $@
 	$(AR) rc $@ bytes/bytes.o bytes/index.o
@@ -2939,7 +2941,7 @@ strings/libstrings.la: strings/libstrings.a
 
 sync/libsync.a: $(go_sync_files) $(go_sync_c_files) runtime.gox
 	test -d sync || mkdir -p sync
-	$(LTGOCOMPILE) -c -o sync/mutex.o $(srcdir)/go/sync/mutex.go $(srcdir)/go/sync/rwmutex.go
+	$(LTGOCOMPILE) -c -o sync/mutex.o -fgo-prefix=libgo_sync $(srcdir)/go/sync/mutex.go $(srcdir)/go/sync/rwmutex.go
 	$(LTCOMPILE) -c -o sync/cas.o $(srcdir)/go/sync/cas.c
 	rm -f $@
 	$(AR) rc $@ sync/mutex.o sync/cas.o
@@ -3465,7 +3467,9 @@ check-am: libgo.la libgobegin.a $(toolexeclib_DATA)
 	export GC GOLIBS; \
 	for d in $(TEST_PACKAGES); do \
 	  echo -n "$${d} "; \
-	  $(srcdir)/testsuite/gotest --srcdir=$(srcdir)/go/$$d || x=1; \
+	  prefix=`dirname $${d}`; \
+	  test "$${prefix}" != "." || prefix=$${d}; \
+	  $(srcdir)/testsuite/gotest --srcdir=$(srcdir)/go/$$d --prefix="libgo_$${prefix}" || x=1; \
 	done; \
 	exit $$x
 

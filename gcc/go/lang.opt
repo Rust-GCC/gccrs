@@ -23,13 +23,17 @@ Wall
 Go
 ; Documented in c.opt
 
+fdefault-private
+Go Var(go_default_private)
+Default visibility is private to file
+
 fgo-dump-
 Go Joined RejectNegative
 -fgo-dump-<type>	Dump Go frontend internal information
 
-fdefault-private
-Go Var(go_default_private)
-Default visibility is private to file
+fgo-prefix=
+Go Joined RejectNegative
+-fgo-prefix=<string>	Set package-specific prefix for exported Go names
 
 frequire-return-statement
 Go Var(go_require_return_statement) Init(1) Warning

@@ -22,7 +22,7 @@ struct caller_ret
 
 /* Implement runtime.Caller.  */
 
-struct caller_ret Caller (int n) asm ("runtime.Caller");
+struct caller_ret Caller (int n) asm ("libgo_runtime.runtime.Caller");
 
 struct caller_ret
 Caller (int n __attribute__ ((unused)))

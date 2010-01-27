@@ -98,6 +98,7 @@ should_export(Named_object* no)
 
 void
 Export::export_globals(const std::string& package_name,
+		       const std::string& unique_prefix,
 		       int package_priority,
 		       const std::string& import_init_fn,
 		       const std::set<Import_init>& imported_init_fns,
@@ -153,12 +154,17 @@ Export::export_globals(const std::string& package_name,
   this->write_string(package_name);
   this->write_c_string(";\n");
 
+  // The unique prefix.  This prefix is used for all global symbols.
+  this->write_c_string("prefix ");
+  this->write_string(unique_prefix);
+  this->write_c_string(";\n");
+
   // The package priority.
   char buf[100];
   snprintf(buf, sizeof buf, "priority %d;\n", package_priority);
   this->write_c_string(buf);
 
-  this->write_imported_init_fns(package_priority, import_init_fn,
+  this->write_imported_init_fns(package_name, package_priority, import_init_fn,
 				imported_init_fns);
 
   // FIXME: It might be clever to add something about the processor
@@ -190,6 +196,7 @@ Export::export_globals(const std::string& package_name,
 
 void
 Export::write_imported_init_fns(
+    const std::string& package_name,
     int priority,
     const std::string& import_init_fn,
     const std::set<Import_init>& imported_init_fns)
@@ -201,6 +208,8 @@ Export::write_imported_init_fns(
 
   if (!import_init_fn.empty())
     {
+      this->write_c_string(" ");
+      this->write_string(package_name);
       this->write_c_string(" ");
       this->write_string(import_init_fn);
       char buf[100];
@@ -223,7 +232,9 @@ Export::write_imported_init_fns(
 	   ++p)
 	{
 	  this->write_c_string(" ");
-	  this->write_string(p->name());
+	  this->write_string(p->package_name());
+	  this->write_c_string(" ");
+	  this->write_string(p->init_name());
 	  char buf[100];
 	  snprintf(buf, sizeof buf, " %d", p->priority());
 	  this->write_c_string(buf);
@@ -294,8 +305,16 @@ Export::write_type(const Type* type)
       const Package* package = named_object->package();
 
       std::string s = "\"";
-      if (package != NULL && !Gogo::is_hidden_name(named_object->name()))
-	s += package->name() + '.';
+      if (package != NULL)
+	{
+	  s += package->unique_prefix();
+	  s += '.';
+	  if (!Gogo::is_hidden_name(named_object->name()))
+	    {
+	      s += package->name();
+	      s += '.';
+	    }
+	}
       s += named_object->name();
       s += "\" ";
       this->write_string(s);

@@ -17,6 +17,7 @@ srcdir=.
 gofiles=""
 loop=true
 keep=false
+prefix=
 while $loop; do
 	case "x$1" in
         x--srcdir)
@@ -26,6 +27,15 @@ while $loop; do
 		;;
 	x--srcdir=*)
 		srcdir=`echo $1 | sed -e 's/^--srcdir=//'`
+		shift
+		;;
+	x--prefix)
+		prefix=$2
+		shift
+		shift
+		;;
+	x--prefix=*)
+		prefix=`echo $1 | sed -e 's/^--prefix=//'`
 		shift
 		;;
 	x--keep)
@@ -118,7 +128,12 @@ set -e
 
 package=`echo ${srcdir} | sed -e 's|^.*libgo/go/||'`
 
-$GC -g -c -I . -o _gotest_.o $gofiles $pkgfiles
+prefixarg=
+if test -n "$prefix"; then
+	prefixarg="-fgo-prefix=$prefix"
+fi
+
+$GC -g $prefixarg -c -I . -o _gotest_.o $gofiles $pkgfiles
 if $havex; then
 	mkdir -p `dirname $package`
 	cp _gotest_.o `dirname $package`/lib`basename $package`.a
@@ -145,9 +160,9 @@ fi
 	# the grep -v eliminates methods and other special names
 	# that have multiple dots.
 	pattern='Test([^a-z].*)?'
-	tests=$(nm -s _gotest_.o $xofile | egrep ' T .*\.'$pattern'$' | grep -v '\..*\.' | sed 's/.* //')
+	tests=$(nm -s _gotest_.o $xofile | egrep ' T .*\.'$pattern'$' | grep -v '\..*\..*\.' | sed 's/.* //' | sed 's/.*\.\(.*\.\)/\1/')
 	if [ "x$tests" = x ]; then
-		echo 'gotest: warning: no tests matching '$pattern in _test/$importpath.a $xofile 1>&2
+		echo 'gotest: warning: no tests matching '$pattern in _gotest_.o $xofile 1>&2
 	else
 		for i in $tests
 		do

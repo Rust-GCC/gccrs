@@ -9,7 +9,8 @@
 /* This is in C so that the compiler can optimize it
    appropriately.  */
 
-int IndexByte (struct __go_open_array, char) asm ("bytes.IndexByte");
+int IndexByte (struct __go_open_array, char)
+  asm ("libgo_bytes.bytes.IndexByte");
 
 int
 IndexByte (struct __go_open_array s, char b)

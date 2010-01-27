@@ -10,7 +10,7 @@
 
 /* Implement unsafe.New.  */
 
-void *New (const struct __go_interface *type) asm ("unsafe.New");
+void *New (const struct __go_interface *type) asm ("libgo_unsafe.unsafe.New");
 
 /* The dynamic type of the argument will be a pointer to a type
    descriptor.  */

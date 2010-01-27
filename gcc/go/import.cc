@@ -236,9 +236,15 @@ Import::import(Gogo* gogo, const std::string& local_name,
 
       this->require_c_string("package ");
       std::string package_name = this->read_identifier();
+      this->require_c_string(";\n");
+
+      this->require_c_string("prefix ");
+      std::string unique_prefix = this->read_identifier();
+      this->require_c_string(";\n");
 
       this->package_ = gogo->add_imported_package(package_name, local_name,
 						  is_local_name_exported,
+						  unique_prefix,
 						  this->location_,
 						  &this->add_to_globals_);
       if (this->package_ == NULL)
@@ -246,8 +252,6 @@ Import::import(Gogo* gogo, const std::string& local_name,
 	  stream->set_saw_error();
 	  return NULL;
 	}
-
-      this->require_c_string(";\n");
 
       this->require_c_string("priority ");
       std::string priority_string = this->read_identifier();
@@ -303,11 +307,13 @@ Import::read_import_init_fns(Gogo* gogo)
   while (!this->match_c_string(";"))
     {
       this->require_c_string(" ");
-      std::string name = this->read_identifier();
+      std::string package_name = this->read_identifier();
+      this->require_c_string(" ");
+      std::string init_name = this->read_identifier();
       this->require_c_string(" ");
       std::string prio_string = this->read_identifier();
       int prio = atoi(prio_string.c_str());
-      gogo->add_import_init_fn(name, prio);
+      gogo->add_import_init_fn(package_name, init_name, prio);
     }
   this->require_c_string(";\n");
 }
@@ -478,46 +484,61 @@ Import::read_type()
 
   // This type has a name.
 
-  std::string package_name;
-  std::string type_name;
   stream->advance(1);
-  c = stream->get_char();
-  if (c == '.')
-    {
-      // A hidden name is read exactly as written.
-      do
-	{
-	  type_name += c;
-	}
-      while ((c = stream->get_char()) != '"');
+  std::string type_name;
+  while ((c = stream->get_char()) != '"')
+    type_name += c;
 
-      // The package name is the first part of the name.
-      package_name = type_name.substr(1, type_name.find('.', 1) - 1);
-    }
-  else
+  // If this type is in the current package, the name will be
+  // .PACKAGE.NAME or simply NAME with no dots.  Otherwise, a
+  // non-hidden symbol will be PREFIX.PACKAGE.NAME and a hidden symbol
+  // will be PREFIX..PACKAGE.NAME.
+  std::string package_name;
+  std::string unique_prefix;
+  size_t dot = type_name.rfind('.');
+  if (dot != std::string::npos)
     {
-      // This name may have a package.
-      type_name += c;
-      gcc_assert(c != '"');
-      while ((c = stream->get_char()) != '"')
+      size_t dot2;
+      if (dot == 0)
+	dot2 = std::string::npos;
+      else
+	dot2 = type_name.rfind('.', dot - 1);
+      if (dot2 == 0)
+	;
+      else if (dot2 == std::string::npos
+	       || (dot2 == 1 && type_name[0] == '.'))
 	{
-	  if (c != '.')
-	    type_name += c;
+	  if (!stream->saw_error())
+	    {
+	      if (dot2 == 1)
+		error_at(this->location_,
+			 ("error at import data at %d: "
+			  "missing prefix in type name"),
+			 stream->pos());
+	      else
+		error_at(this->location_,
+			 ("error at import data at %d: "
+			  "missing dot in type name"),
+			 stream->pos());
+	    }
+	  stream->set_saw_error();
+	}
+      else
+	{
+	  package_name = type_name.substr(dot2 + 1, dot - (dot2 + 1));
+	  if (type_name[dot2 - 1] != '.')
+	    {
+	      unique_prefix = type_name.substr(0, dot2);
+	      type_name = type_name.substr(dot + 1);
+	    }
 	  else
 	    {
-	      if (!package_name.empty())
-		{
-		  error_at(this->location_,
-			   "error in import data at %d: too many dots",
-			   stream->pos());
-		  stream->set_saw_error();
-		  return Type::make_error_type();
-		}
-	      package_name = type_name;
-	      type_name.clear();
+	      unique_prefix = type_name.substr(0, dot2 - 1);
+	      type_name = type_name.substr(dot2);
 	    }
 	}
     }
+
   this->require_c_string(" ");
 
   // Declare the type in the appropriate package.  If we haven't seen
@@ -528,7 +549,8 @@ Import::read_type()
   if (package_name.empty())
     package = this->package_;
   else
-    package = this->gogo_->register_package(package_name, UNKNOWN_LOCATION);
+    package = this->gogo_->register_package(package_name, unique_prefix,
+					    UNKNOWN_LOCATION);
 
   Named_object* no = package->bindings()->lookup(type_name);
   if (no == NULL)

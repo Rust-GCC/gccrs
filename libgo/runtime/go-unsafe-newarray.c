@@ -11,7 +11,7 @@
 /* Implement unsafe.NewArray.  */
 
 void *NewArray (const struct __go_interface *type, int n)
-  asm ("unsafe.NewArray");
+  asm ("libgo_unsafe.unsafe.NewArray");
 
 /* The dynamic type of the argument will be a pointer to a type
    descriptor.  */

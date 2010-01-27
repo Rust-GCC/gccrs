@@ -15,7 +15,7 @@
    descriptor.  */
 
 extern const struct __go_type_descriptor unsafe_Pointer
-  asm ("__go_tdn_unsafe.Pointer");
+  asm ("__go_tdn_libgo_unsafe.unsafe.Pointer");
 
 /* Used to determine the field alignment.  */
 struct field_align

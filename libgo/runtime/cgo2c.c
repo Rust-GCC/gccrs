@@ -26,6 +26,9 @@
 /* Whether we're emitting for gcc */
 static int gcc;
 
+/* Package prefix to use; only meaningful for gcc */
+static const char *prefix;
+
 /* File and line number */
 static const char *file;
 static unsigned int lineno;
@@ -526,7 +529,10 @@ write_gcc_func_header(char *package, char *name, struct params *params,
 	printf(" %s_%s(", package, name);
 	first = 1;
 	write_params(params, &first);
-	printf(") asm (\"%s.%s\");\n", package, name);
+	printf(") asm (\"");
+	if (prefix != NULL)
+	  printf("%s.", prefix);
+	printf("%s.%s\");\n", package, name);
 	write_gcc_return_type(package, name, rets);
 	printf(" %s_%s(", package, name);
 	first = 1;
@@ -667,7 +673,7 @@ process_file(void)
 static void
 usage(void)
 {
-	fprintf(stderr, "Usage: cgo2c [--6g | --gc] [file]\n");
+	fprintf(stderr, "Usage: cgo2c [--6g | --gcc] [--go-prefix PREFIX] [file]\n");
 	exit(1);
 }
 
@@ -683,7 +689,11 @@ main(int argc, char **argv)
 			gcc = 0;
 		else if(strcmp(argv[1], "--gcc") == 0)
 			gcc = 1;
-		else
+		else if (strcmp(argv[1], "--go-prefix") == 0 && argc > 2) {
+			prefix = argv[2];
+			argc--;
+			argv++;
+		} else
 			usage();
 		argc--;
 		argv++;

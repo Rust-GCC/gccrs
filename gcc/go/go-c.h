@@ -15,6 +15,7 @@ extern "C"
 #include "machmode.h"
 
 extern int go_enable_dump(const char*);
+extern void go_set_prefix(const char*);
 
 extern void go_preserve_from_gc(tree);
 

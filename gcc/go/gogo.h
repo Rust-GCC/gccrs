@@ -56,14 +56,20 @@ class Refcounts;
 class Import_init
 {
  public:
-  Import_init(const std::string& name, int priority)
-    : name_(name), priority_(priority)
+  Import_init(const std::string& package_name, const std::string& init_name,
+	      int priority)
+    : package_name_(package_name), init_name_(init_name), priority_(priority)
   { }
 
-  // The name of the initialization function.
+  // The name of the package being imported.
   const std::string&
-  name() const
-  { return this->name_; }
+  package_name() const
+  { return this->package_name_; }
+
+  // The name of the package's init function.
+  const std::string&
+  init_name() const
+  { return this->init_name_; }
 
   // The priority of the initialization function.  Functions with a
   // lower priority number must be run first.
@@ -72,8 +78,10 @@ class Import_init
   { return this->priority_; }
 
  private:
-  // The name.
-  std::string name_;
+  // The name of the package being imported.
+  std::string package_name_;
+  // The name of the package's init function.
+  std::string init_name_;
   // The priority.
   int priority_;
 };
@@ -87,7 +95,9 @@ operator<(const Import_init& i1, const Import_init& i2)
     return true;
   if (i1.priority() > i2.priority())
     return false;
-  return i1.name() < i2.name();
+  if (i1.package_name() != i2.package_name())
+    return i1.package_name() < i2.package_name();
+  return i1.init_name() < i2.init_name();
 }
 
 // The holder for the internal representation of the entire
@@ -141,6 +151,14 @@ class Gogo
 	    && name[name.length() - 2] == '.');
   }
 
+  // Return the unique prefix to use for all exported symbols.
+  const std::string&
+  unique_prefix();
+
+  // Set the unique prefix.
+  void
+  set_unique_prefix(const std::string&);
+
   // Return the priority to use for the package we are compiling.
   // This is two more than the largest priority of any package we
   // import.
@@ -178,14 +196,17 @@ class Gogo
   // statement.  This returns the new package, or NULL on error.
   Package*
   add_imported_package(const std::string& real_name, const std::string& alias,
-		       bool is_alias_exported, source_location location,
+		       bool is_alias_exported,
+		       const std::string& unique_prefix,
+		       source_location location,
 		       bool* padd_to_globals);
 
   // Register a package.  This package may or may not be imported.
   // This returns the Package structure for the package, creating if
   // it necessary.
   Package*
-  register_package(const std::string& name, source_location);
+  register_package(const std::string& name, const std::string& unique_prefix,
+		   source_location);
 
   // Start compiling a function.  ADD_METHOD_TO_TYPE is true if a
   // method function should be added to the type of its receiver.
@@ -333,8 +354,12 @@ class Gogo
   // Add an import control function for an imported package to the
   // list.
   void
-  add_import_init_fn(const std::string& name, int prio)
-  { this->imported_init_fns_.insert(Import_init(name, prio)); }
+  add_import_init_fn(const std::string& package_name,
+		     const std::string& init_name, int prio)
+  {
+    this->imported_init_fns_.insert(Import_init(package_name, init_name,
+						prio));
+  }
 
   // Turn short-cut operators (&&, ||) into explicit if statements.
   void
@@ -526,7 +551,7 @@ class Gogo
   // Add a new imported package.
   Named_object*
   add_package(const std::string& real_name, const std::string& alias,
-	      source_location location);
+	      const std::string& unique_prefix, source_location location);
 
   // Return the current binding contour.
   Bindings*
@@ -710,6 +735,8 @@ class Gogo
   std::string init_fn_name_;
   // A list of import control variables for packages that we import.
   std::set<Import_init> imported_init_fns_;
+  // The unique prefix used for all global symbols.
+  std::string unique_prefix_;
 };
 
 // A block of statements.
@@ -2089,7 +2116,8 @@ class Unnamed_label
 class Package
 {
  public:
-  Package(const std::string& name, source_location location);
+  Package(const std::string& name, const std::string& unique_prefix,
+	  source_location location);
 
   // The real name of this package.  This may be different from the
   // name in the associated Named_object if the import statement used
@@ -2102,6 +2130,15 @@ class Package
   source_location
   location() const
   { return this->location_; }
+
+  // Get the unique prefix used for all symbols exported from this
+  // package.
+  const std::string&
+  unique_prefix() const
+  {
+    gcc_assert(!this->unique_prefix_.empty());
+    return this->unique_prefix_;
+  }
 
   // The priority of this package.  The init function of packages with
   // lower priority must be run before the init function of packages
@@ -2164,6 +2201,8 @@ class Package
  private:
   // The real name of this package.
   std::string name_;
+  // The unique prefix for all exported global symbols.
+  std::string unique_prefix_;
   // The names in this package.
   Bindings* bindings_;
   // The priority of this package.  A package has a priority higher

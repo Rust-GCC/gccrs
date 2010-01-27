@@ -6,7 +6,7 @@
 
 #include <sched.h>
 
-void Gosched (void) asm ("runtime.Gosched");
+void Gosched (void) asm ("libgo_runtime.runtime.Gosched");
 
 void
 Gosched (void)

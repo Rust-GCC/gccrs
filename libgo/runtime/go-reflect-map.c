@@ -15,7 +15,7 @@
    functions are called from reflect/value.go.  */
 
 extern _Bool mapaccess (unsigned char *, unsigned char *, unsigned char *)
-  asm ("reflect.mapaccess");
+  asm ("libgo_reflect.reflect.mapaccess");
 
 _Bool
 mapaccess (unsigned char *m, unsigned char *key, unsigned char *val)
@@ -36,7 +36,7 @@ mapaccess (unsigned char *m, unsigned char *key, unsigned char *val)
 }
 
 extern void mapassign (unsigned char *, unsigned char *, unsigned char *)
-  asm ("reflect.mapassign");
+  asm ("libgo_reflect.reflect.mapassign");
 
 void
 mapassign (unsigned char *m, unsigned char *key, unsigned char *val)
@@ -57,7 +57,7 @@ mapassign (unsigned char *m, unsigned char *key, unsigned char *val)
 }
 
 extern int32_t maplen (unsigned char *)
-  asm ("reflect.maplen");
+  asm ("libgo_reflect.reflect.maplen");
 
 int32_t
 maplen (unsigned char *m __attribute__ ((unused)))
@@ -67,7 +67,7 @@ maplen (unsigned char *m __attribute__ ((unused)))
 }
 
 extern unsigned char *mapiterinit (unsigned char *)
-  asm ("reflect.mapiterinit");
+  asm ("libgo_reflect.reflect.mapiterinit");
 
 unsigned char *
 mapiterinit (unsigned char *m)
@@ -80,7 +80,7 @@ mapiterinit (unsigned char *m)
 }
 
 extern void mapiternext (unsigned char *)
-  asm ("reflect.mapiternext");
+  asm ("libgo_reflect.reflect.mapiternext");
 
 void
 mapiternext (unsigned char *it)
@@ -89,7 +89,7 @@ mapiternext (unsigned char *it)
 }
 
 extern _Bool mapiterkey (unsigned char *, unsigned char *)
-  asm ("reflect.mapiterkey");
+  asm ("libgo_reflect.reflect.mapiterkey");
 
 _Bool
 mapiterkey (unsigned char *ita, unsigned char *key)
@@ -108,7 +108,7 @@ mapiterkey (unsigned char *ita, unsigned char *key)
 /* Make a new map.  We have to build our own map descriptor.  */
 
 extern unsigned char *makemap (const struct __go_map_type *)
-  asm ("reflect.makemap");
+  asm ("libgo_reflect.reflect.makemap");
 
 unsigned char *
 makemap (const struct __go_map_type *t)

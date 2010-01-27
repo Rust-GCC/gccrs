@@ -12,7 +12,7 @@
 
 struct __go_interface *Unreflect (const struct __go_interface *type,
 				  void *object)
-  asm ("unsafe.Unreflect");
+  asm ("libgo_unsafe.unsafe.Unreflect");
 
 struct __go_interface *
 Unreflect (const struct __go_interface *type, void *object)

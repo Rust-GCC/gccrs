@@ -24,9 +24,9 @@
 
 extern char **environ;
 
-extern struct __go_open_array Args asm ("os.Args");
+extern struct __go_open_array Args asm ("libgo_os.os.Args");
 
-extern struct __go_open_array Envs asm ("os.Envs");
+extern struct __go_open_array Envs asm ("libgo_os.os.Envs");
 
 /* These functions are created for the main package.  */
 extern void __go_init_main (void);

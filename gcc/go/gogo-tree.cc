@@ -31,6 +31,14 @@ extern "C"
 #include "refcount.h"
 #include "gogo.h"
 
+// A helper function.
+
+static inline tree
+get_identifier_from_string(const std::string& str)
+{
+  return get_identifier_with_length(str.data(), str.length());
+}
+
 // Builtin functions.
 
 static std::map<std::string, tree> builtin_functions;
@@ -136,33 +144,10 @@ Gogo::get_init_fn_name()
 	}
       else
 	{
-	  std::string s = "Go.import.";
-	  Bindings* bindings = this->package_->bindings();
-	  for (Bindings::const_definitions_iterator p =
-		 bindings->begin_definitions();
-	       p != bindings->end_definitions();
-	       ++p)
-	    {
-	      if (((*p)->is_variable() || (*p)->is_function())
-		  && (*p)->package() == NULL
-		  && (!go_default_private
-		      || !Gogo::is_hidden_name((*p)->name())))
-		{
-		  tree id = (*p)->get_id(this);
-		  s.append(IDENTIFIER_POINTER(id), IDENTIFIER_LENGTH(id));
-		  break;
-		}
-	    }
-
-	  if (s.empty())
-	    {
-	      // This is the unlikely case when we have an init
-	      // function but nothing to export.
-	      tree name_tree = get_file_function_name("N");
-	      s.append(IDENTIFIER_POINTER(name_tree),
-		       IDENTIFIER_LENGTH(name_tree));
-	    }
-
+	  std::string s = this->unique_prefix();
+	  s.append(1, '.');
+	  s.append(this->package_name());
+	  s.append("..import");
 	  this->init_fn_name_ = s;
 	}
     }
@@ -197,9 +182,12 @@ Gogo::init_imports(tree* init_stmt_list)
        p != v.end();
        ++p)
     {
+      std::string user_name = p->package_name() + ".init";
       tree decl = build_decl(UNKNOWN_LOCATION, FUNCTION_DECL,
-			     get_identifier(p->name().c_str()),
+			     get_identifier_from_string(user_name),
 			     fntype);
+      const std::string& init_name(p->init_name());
+      SET_DECL_ASSEMBLER_NAME(decl, get_identifier_from_string(init_name));
       TREE_PUBLIC(decl) = 1;
       DECL_EXTERNAL(decl) = 1;
       append_to_statement_list(build_call_expr(decl, 0), init_stmt_list);
@@ -213,11 +201,13 @@ Gogo::initialization_function_decl()
 {
   // The tedious details of building your own function.  There doesn't
   // seem to be a helper function for this.
-  const std::string& name(this->get_init_fn_name());
+  std::string name = this->package_name() + ".init";
   tree fndecl = build_decl(BUILTINS_LOCATION, FUNCTION_DECL,
-			   get_identifier(name.c_str()),
+			   get_identifier_from_string(name),
 			   build_function_type(void_type_node,
 					       void_list_node));
+  const std::string& asm_name(this->get_init_fn_name());
+  SET_DECL_ASSEMBLER_NAME(fndecl, get_identifier_from_string(asm_name));
 
   tree resdecl = build_decl(BUILTINS_LOCATION, RESULT_DECL, NULL_TREE,
 			    void_type_node);
@@ -718,8 +708,7 @@ Named_object::get_id(Gogo* gogo)
       if (in_function != NULL)
 	decl_name += '$' + in_function->name();
     }
-  return get_identifier_with_length(decl_name.c_str(),
-				    decl_name.length());
+  return get_identifier_from_string(decl_name);
 }
 
 // Get a tree for a named object.
@@ -842,12 +831,23 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 
 	    if (var->is_global())
 	      {
-		if (this->package() == NULL)
+		const Package* package = this->package();
+		if (package == NULL)
 		  TREE_STATIC(decl) = 1;
 		else
 		  DECL_EXTERNAL(decl) = 1;
 		if (!go_default_private || !Gogo::is_hidden_name(this->name_))
-		  TREE_PUBLIC(decl) = 1;
+		  {
+		    TREE_PUBLIC(decl) = 1;
+		    std::string asm_name = (package == NULL
+					    ? gogo->unique_prefix()
+					    : package->unique_prefix());
+		    asm_name.append(1, '.');
+		    asm_name.append(IDENTIFIER_POINTER(name),
+				    IDENTIFIER_LENGTH(name));
+		    tree asm_id = get_identifier_from_string(asm_name);
+		    SET_DECL_ASSEMBLER_NAME(decl, asm_id);
+		  }
 	      }
 
 	    // FIXME: We should only set this for variables which are
@@ -1024,18 +1024,24 @@ Function::get_or_make_decl(Gogo* gogo, Named_object* no, tree id)
 
 	  TREE_NOTHROW(decl) = 1;
 
+	  gcc_assert(no->package() == NULL);
 	  if (this->enclosing_ != NULL || Go_statement::is_thunk(no))
 	    ;
-	  else if (!Gogo::is_hidden_name(no->name()))
-	    TREE_PUBLIC(decl) = 1;
 	  else if (Gogo::unpack_hidden_name(no->name()) == "init"
 		   && !this->type_->is_method())
 	    ;
-	  else if (!go_default_private)
-	    TREE_PUBLIC(decl) = 1;
 	  else if (Gogo::unpack_hidden_name(no->name()) == "main"
 		   && gogo->package_name() == "main")
 	    TREE_PUBLIC(decl) = 1;
+	  else if (!go_default_private || !Gogo::is_hidden_name(no->name()))
+	    {
+	      TREE_PUBLIC(decl) = 1;
+	      std::string asm_name = gogo->unique_prefix();
+	      asm_name.append(1, '.');
+	      asm_name.append(IDENTIFIER_POINTER(id), IDENTIFIER_LENGTH(id));
+	      SET_DECL_ASSEMBLER_NAME(decl,
+				      get_identifier_from_string(asm_name));
+	    }
 
 	  // Why do we have to do this in the frontend?
 	  tree restype = TREE_TYPE(functype);
@@ -1074,7 +1080,7 @@ Function::get_or_make_decl(Gogo* gogo, Named_object* no, tree id)
 // Get a tree for a function declaration.
 
 tree
-Function_declaration::get_or_make_decl(Gogo* gogo, Named_object*, tree id)
+Function_declaration::get_or_make_decl(Gogo* gogo, Named_object* no, tree id)
 {
   if (this->fndecl_ == NULL_TREE)
     {
@@ -1104,6 +1110,17 @@ Function_declaration::get_or_make_decl(Gogo* gogo, Named_object*, tree id)
 	  decl = build_decl(this->location(), FUNCTION_DECL, id, functype);
 	  TREE_PUBLIC(decl) = 1;
 	  DECL_EXTERNAL(decl) = 1;
+
+	  if (this->asm_name_.empty())
+	    {
+	      std::string asm_name = (no->package() == NULL
+				      ? gogo->unique_prefix()
+				      : no->package()->unique_prefix());
+	      asm_name.append(1, '.');
+	      asm_name.append(IDENTIFIER_POINTER(id), IDENTIFIER_LENGTH(id));
+	      SET_DECL_ASSEMBLER_NAME(decl,
+				      get_identifier_from_string(asm_name));
+	    }
 	}
       this->fndecl_ = decl;
       go_preserve_from_gc(decl);
@@ -1140,9 +1157,10 @@ Function::make_receiver_parm_decl(Gogo* gogo, Named_object* no, tree var_decl)
   gcc_assert(TREE_CODE(var_decl) == VAR_DECL);
   std::string name = IDENTIFIER_POINTER(DECL_NAME(var_decl));
   name += ".pointer";
-  tree id = get_identifier(name.c_str());
+  tree id = get_identifier_from_string(name);
   tree parm_decl = build_decl(DECL_SOURCE_LOCATION(var_decl), PARM_DECL, id,
 			      build_pointer_type(val_type));
+  DECL_CONTEXT(parm_decl) = current_function_decl;
   DECL_ARG_TYPE(parm_decl) = TREE_TYPE(parm_decl);
 
   gcc_assert(DECL_INITIAL(var_decl) == NULL_TREE);
@@ -1186,13 +1204,14 @@ Function::copy_parm_to_heap(Gogo* gogo, tree ref)
 
   std::string name = IDENTIFIER_POINTER(DECL_NAME(var_decl));
   name += ".param";
-  tree id = get_identifier(name.c_str());
+  tree id = get_identifier_from_string(name);
 
   tree type = TREE_TYPE(var_decl);
   gcc_assert(POINTER_TYPE_P(type));
   type = TREE_TYPE(type);
 
   tree parm_decl = build_decl(loc, PARM_DECL, id, type);
+  DECL_CONTEXT(parm_decl) = current_function_decl;
   DECL_ARG_TYPE(parm_decl) = type;
 
   tree size = TYPE_SIZE_UNIT(type);
@@ -1550,8 +1569,7 @@ Label::get_decl()
 {
   if (this->decl_ == NULL)
     {
-      tree id = get_identifier_with_length(this->name_.c_str(),
-					   this->name_.length());
+      tree id = get_identifier_from_string(this->name_);
       this->decl_ = build_decl(this->location_, LABEL_DECL, id, void_type_node);
       DECL_CONTEXT(this->decl_) = current_function_decl;
     }
@@ -1943,8 +1961,7 @@ Gogo::map_descriptor(Map_type* maptype)
 
   std::string mangled_name = ("__go_map_" + maptype->mangled_name(this));
 
-  tree id = get_identifier_with_length(mangled_name.data(),
-				       mangled_name.length());
+  tree id = get_identifier_from_string(mangled_name);
 
   // Get the type of the map descriptor.  This is __go_map_descriptor
   // in libgo/map.h.
@@ -2206,13 +2223,23 @@ std::string
 Gogo::type_descriptor_decl_name(const Named_object* no,
 				const Named_object* in_function)
 {
+  const std::string& unique_prefix(no->package() == NULL
+				   ? this->unique_prefix()
+				   : no->package()->unique_prefix());
   const std::string& package_name(no->package() == NULL
 				  ? this->package_name()
 				  : no->package()->name());
-  std::string ret = "__go_tdn_" + package_name + ".";
+  std::string ret = "__go_tdn_";
+  ret.append(unique_prefix);
+  ret.append(1, '.');
+  ret.append(package_name);
+  ret.append(1, '.');
   if (in_function != NULL)
-    ret += Gogo::unpack_hidden_name(in_function->name()) + '.';
-  ret += no->name();
+    {
+      ret.append(Gogo::unpack_hidden_name(in_function->name()));
+      ret.append(1, '.');
+    }
+  ret.append(no->name());
   return ret;
 }
 
@@ -2597,7 +2624,7 @@ Gogo::build_type_descriptor_decl(const Type* type, tree descriptor_type_tree,
   else
     decl_name = this->type_descriptor_decl_name(name->named_object(),
 						name->in_function());
-  tree id = get_identifier_with_length(decl_name.data(), decl_name.length());
+  tree id = get_identifier_from_string(decl_name);
   tree decl = build_decl(name == NULL ? BUILTINS_LOCATION : name->location(),
 			 VAR_DECL, id,
 			 build_qualified_type(descriptor_type_tree,
@@ -2706,8 +2733,7 @@ Gogo::undefined_type_descriptor_decl(Forward_declaration_type *forward,
 		      ? name->named_object()
 		      : forward->named_object());
   std::string decl_name = this->type_descriptor_decl_name(no, NULL);
-  tree id = get_identifier_with_length(decl_name.data(),
-				       decl_name.length());
+  tree id = get_identifier_from_string(decl_name);
   tree decl = build_decl(no->location(), VAR_DECL, id,
 			 this->type_descriptor_type_tree());
   TREE_READONLY(decl) = 1;
@@ -3491,8 +3517,7 @@ Gogo::interface_method_table_for_type(const Interface_type* interface,
 			      + "__"
 			      + type->mangled_name(this));
 
-  tree id = get_identifier_with_length(mangled_name.data(),
-				       mangled_name.length());
+  tree id = get_identifier_from_string(mangled_name);
 
   tree decl = build_decl(BUILTINS_LOCATION, VAR_DECL, id, array_type);
   TREE_STATIC(decl) = 1;

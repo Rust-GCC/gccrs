@@ -15,7 +15,7 @@
    functions are called from reflect/value.go.  */
 
 extern unsigned char *makechan (const struct __go_type_descriptor *, uint32_t)
-  asm ("reflect.makechan");
+  asm ("libgo_reflect.reflect.makechan");
 
 unsigned char *
 makechan (const struct __go_type_descriptor *typ, uint32_t size)
@@ -24,7 +24,7 @@ makechan (const struct __go_type_descriptor *typ, uint32_t size)
 }
 
 extern void chansend (unsigned char *, unsigned char *, _Bool *)
-  asm ("reflect.chansend");
+  asm ("libgo_reflect.reflect.chansend");
 
 void
 chansend (unsigned char *ch, unsigned char *val, _Bool *pres)
@@ -61,7 +61,7 @@ chansend (unsigned char *ch, unsigned char *val, _Bool *pres)
 }
 
 extern void chanrecv (unsigned char *, unsigned char *, _Bool *)
-  asm ("reflect.chanrecv");
+  asm ("libgo_reflect.reflect.chanrecv");
 
 void
 chanrecv (unsigned char *ch, unsigned char *val, _Bool *pres)
@@ -105,7 +105,8 @@ chanrecv (unsigned char *ch, unsigned char *val, _Bool *pres)
     }
 }
 
-extern _Bool chanclosed (unsigned char *) asm ("reflect.chanclosed");
+extern _Bool chanclosed (unsigned char *)
+  asm ("libgo_reflect.reflect.chanclosed");
 
 _Bool
 chanclosed (unsigned char *ch)
@@ -115,7 +116,8 @@ chanclosed (unsigned char *ch)
   return __go_builtin_closed (channel);
 }
 
-extern void chanclose (unsigned char *) asm ("reflect.chanclose");
+extern void chanclose (unsigned char *)
+  asm ("libgo_reflect.reflect.chanclose");
 
 void
 chanclose (unsigned char *ch)
@@ -125,7 +127,7 @@ chanclose (unsigned char *ch)
   __go_builtin_close (channel);
 }
 
-extern int32_t chanlen (unsigned char *) asm ("reflect.chanlen");
+extern int32_t chanlen (unsigned char *) asm ("libgo_reflect.reflect.chanlen");
 
 int32_t
 chanlen (unsigned char *ch)
@@ -135,7 +137,7 @@ chanlen (unsigned char *ch)
   return (int32_t) __go_chan_len (channel);
 }
 
-extern int32_t chancap (unsigned char *) asm ("reflect.chancap");
+extern int32_t chancap (unsigned char *) asm ("libgo_reflect.reflect.chancap");
 
 int32_t
 chancap (unsigned char *ch)
