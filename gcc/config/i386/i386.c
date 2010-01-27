@@ -4587,6 +4587,10 @@ ix86_function_regparm (const_tree type, const_tree decl)
 	  if (local_regparm == 3 && DECL_STATIC_CHAIN (decl))
 	    local_regparm = 2;
 
+	  /* In 32-bit mode save a register for the split stack.  */
+	  if (!TARGET_64BIT && local_regparm == 3 && flag_split_stack)
+	    local_regparm = 2;
+
 	  /* Each fixed register usage increases register pressure,
 	     so less registers should be used for argument passing.
 	     This functionality can be overriden by an explicit
