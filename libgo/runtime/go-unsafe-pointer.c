@@ -59,3 +59,51 @@ const struct __go_type_descriptor unsafe_Pointer =
   /* __uncommon */
   NULL
 };
+
+/* We also need the type descriptor for the pointer to unsafe.Pointer,
+   since any package which refers to that type descriptor will expect
+   it to be defined elsewhere.  */
+
+extern const struct __go_ptr_type pointer_unsafe_Pointer
+  asm ("__go_td_pN27_libgo_unsafe.unsafe.Pointer");
+
+/* The reflection string.  */
+#define PREFLECTION "*unsafe.Pointer"
+#define PREFLECTION_LEN 15
+static const struct
+{
+  size_t length;
+  char data[PREFLECTION_LEN];
+} preflection_string =
+{
+  sizeof PREFLECTION - 1,
+  { PREFLECTION }
+};
+
+static const struct __go_string * const ptr_preflection_string =
+  (const struct __go_string *) &preflection_string;
+
+const struct __go_ptr_type pointer_unsafe_Pointer =
+{
+  /* __common */
+  {
+    /* __code */
+    GO_PTR,
+    /* __align */
+    __alignof (void *),
+    /* __field_align */
+    offsetof (struct field_align, p) - 1,
+    /* __size */
+    sizeof (void *),
+    /* __hash */
+    __go_type_hash_identity,
+    /* __equal */
+    __go_type_equal_identity,
+    /* __reflection */
+    &ptr_preflection_string,
+    /* __uncommon */
+    NULL
+  },
+  /* __element_type */
+  &unsafe_Pointer
+};

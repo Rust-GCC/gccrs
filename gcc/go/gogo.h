@@ -16,7 +16,6 @@ class Type;
 class Type_hash;
 class Type_equal;
 class Type_identical;
-class Interface_type;
 class Typed_identifier;
 class Typed_identifier_list;
 class Function_type;
@@ -296,6 +295,11 @@ class Gogo
   void
   add_named_object(Named_object*);
 
+  // Note that we've seen an interface type.  This is used to build
+  // all required interface method tables.
+  void
+  record_interface_type(Interface_type*);
+
   // Clear out all names in file scope.  This is called when we start
   // parsing a new file.
   void
@@ -483,6 +487,10 @@ class Gogo
   undefined_type_descriptor_decl(Forward_declaration_type* forward,
 				 Named_type* name, tree* pdecl);
 
+  // Build required interface method tables.
+  void
+  build_interface_method_tables();
+
   // Build an interface method table for a type: a list of function
   // pointers, one for each interface method.  This returns a decl.
   tree
@@ -616,13 +624,28 @@ class Gogo
   type_descriptor_constructor(int runtime_type_code, Type* type,
 			      Named_type* name, Named_type* methods_type);
 
+  // Where a type descriptor should be defined.
+  enum Type_descriptor_location
+    {
+      // Defined in this file.
+      TYPE_DESCRIPTOR_DEFINED,
+      // Defined in some other file.
+      TYPE_DESCRIPTOR_UNDEFINED,
+      // Common definition which may occur in multiple files.
+      TYPE_DESCRIPTOR_COMMON
+    };
+
+  // Return where the decl for TYPE should be defined.
+  Type_descriptor_location
+  type_descriptor_location(const Type* type, Named_type*);
+
   // Create a type descriptor decl.
   bool
   build_type_descriptor_decl(const Type*, tree, Named_type*, tree*);
 
   // Finish building a type descriptor decl.
   void
-  finish_type_descriptor_decl(tree*, Named_type*, tree);
+  finish_type_descriptor_decl(tree*, const Type*, Named_type*, tree);
 
   // Return the type of a pointer type descriptor.
   tree
@@ -737,6 +760,8 @@ class Gogo
   std::set<Import_init> imported_init_fns_;
   // The unique prefix used for all global symbols.
   std::string unique_prefix_;
+  // A list of interface types defined while parsing.
+  std::vector<Interface_type*> interface_types_;
 };
 
 // A block of statements.

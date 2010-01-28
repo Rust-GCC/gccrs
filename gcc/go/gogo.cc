@@ -34,7 +34,8 @@ Gogo::Gogo()
     need_init_fn_(false),
     init_fn_name_(),
     imported_init_fns_(),
-    unique_prefix_()
+    unique_prefix_(),
+    interface_types_()
 {
   const source_location loc = BUILTINS_LOCATION;
 
@@ -898,6 +899,14 @@ void
 Gogo::add_named_object(Named_object* no)
 {
   this->current_bindings()->add_named_object(no);
+}
+
+// Record that we've seen an interface type.
+
+void
+Gogo::record_interface_type(Interface_type* itype)
+{
+  this->interface_types_.push_back(itype);
 }
 
 // Define the global names.  We do this only after parsing all the
@@ -1778,6 +1787,100 @@ Gogo::order_evaluations()
 {
   Order_eval order_eval;
   this->traverse(&order_eval);
+}
+
+// Look for named types to see whether we need to create an interface
+// method table.
+
+class Build_method_tables : public Traverse
+{
+ public:
+  Build_method_tables(Gogo* gogo,
+		      const std::vector<Interface_type*>& interfaces)
+    : Traverse(traverse_types),
+      gogo_(gogo), interfaces_(interfaces)
+  { }
+
+  int
+  type(Type*);
+
+ private:
+  // The IR.
+  Gogo* gogo_;
+  // A list of locally defined interfaces which have hidden methods.
+  const std::vector<Interface_type*>& interfaces_;
+};
+
+// Build all required interface method tables for types.  We need to
+// ensure that we have an interface method table for every interface
+// which has a hidden method, for every named type which implements
+// that interface.  Normally we can just build interface method tables
+// as we need them.  However, in some cases we can require an
+// interface method table for an interface defined in a different
+// package for a type defined in that package.  If that interface and
+// type both use a hidden method, that is OK.  However, we will not be
+// able to build that interface method table when we need it, because
+// the type's hidden method will be static.  So we have to build it
+// here, and just refer it from other packages as needed.
+
+void
+Gogo::build_interface_method_tables()
+{
+  std::vector<Interface_type*> hidden_interfaces;
+  hidden_interfaces.reserve(this->interface_types_.size());
+  for (std::vector<Interface_type*>::const_iterator pi =
+	 this->interface_types_.begin();
+       pi != this->interface_types_.end();
+       ++pi)
+    {
+      const Typed_identifier_list* methods = (*pi)->methods();
+      for (Typed_identifier_list::const_iterator pm = methods->begin();
+	   pm != methods->end();
+	   ++pm)
+	{
+	  if (Gogo::is_hidden_name(pm->name()))
+	    {
+	      hidden_interfaces.push_back(*pi);
+	      break;
+	    }
+	}
+    }
+
+  if (!hidden_interfaces.empty())
+    {
+      // Now traverse the tree looking for all named types.
+      Build_method_tables bmt(this, hidden_interfaces);
+      this->traverse(&bmt);
+    }
+
+  // We no longer need the list of interfaces.
+
+  this->interface_types_.clear();
+}
+
+// This is called for each type.  For a named type, for each of the
+// interfaces with hidden methods that it implements, create the
+// method table.
+
+int
+Build_method_tables::type(Type* type)
+{
+  Named_type* nt = type->named_type();
+  if (nt != NULL)
+    {
+      for (std::vector<Interface_type*>::const_iterator p =
+	     this->interfaces_.begin();
+	   p != this->interfaces_.end();
+	   ++p)
+	{
+	  // We ask whether a pointer to the named type implements the
+	  // interface, because a pointer can implement more methods
+	  // than a value.
+	  if ((*p)->implements_interface(Type::make_pointer_type(nt), NULL))
+	    nt->interface_method_table(this->gogo_, *p);
+	}
+    }
+  return TRAVERSE_CONTINUE;
 }
 
 // A dump for find_only_arg_vars.

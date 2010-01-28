@@ -1158,10 +1158,7 @@ Func_expression::get_tree_without_closure(Gogo* gogo)
   else
     gcc_unreachable();
 
-  tree ret = build_fold_addr_expr(fndecl);
-  if (CAN_HAVE_LOCATION_P(ret))
-    SET_EXPR_LOCATION(ret, this->location());
-  return ret;
+  return build_fold_addr_expr_loc(this->location(), fndecl);
 }
 
 // Get the tree for a function expression.  This is used when we take
@@ -1176,6 +1173,10 @@ Func_expression::do_get_tree(Translate_context* context)
   tree fnaddr = this->get_tree_without_closure(gogo);
   if (fnaddr == error_mark_node)
     return error_mark_node;
+
+  gcc_assert(TREE_CODE(fnaddr) == ADDR_EXPR
+	     && TREE_CODE(TREE_OPERAND(fnaddr, 0)) == FUNCTION_DECL);
+  TREE_ADDRESSABLE(TREE_OPERAND(fnaddr, 0)) = 1;
 
   // For a normal non-nested function call, that is all we have to do.
   if (!this->function_->is_function()

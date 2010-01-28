@@ -1069,7 +1069,9 @@ Parse::interface_type()
     }
   this->advance_token();
 
-  return Type::make_interface_type(methods, location);
+  Interface_type* ret = Type::make_interface_type(methods, location);
+  this->gogo_->record_interface_type(ret);
+  return ret;
 }
 
 // MethodSpec         = MethodName Signature | InterfaceTypeName .

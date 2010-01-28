@@ -124,6 +124,9 @@ go_parse_input_files(const char** filenames, unsigned int filename_count)
   // Export global identifiers as appropriate.
   ::gogo->do_exports();
 
+  // Build required interface method tables.
+  ::gogo->build_interface_method_tables();
+
   // Turn short-cut operators (&&, ||) into explicit if statements.
   ::gogo->remove_shortcuts();
 

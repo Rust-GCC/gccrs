@@ -66,8 +66,8 @@ should_export(Named_object* no)
   if (no->is_package())
     return false;
 
-  // We don't export hidden names if -fdefault-private was used.
-  if (go_default_private && Gogo::is_hidden_name(no->name()))
+  // We don't export hidden names.
+  if (Gogo::is_hidden_name(no->name()))
     return false;
 
   // We don't export nested functions.

@@ -640,9 +640,10 @@ Gogo::write_globals()
 
   // Pass everything back to the middle-end.
 
+  wrapup_global_declarations(vec, count);
+
   cgraph_finalize_compilation_unit();
 
-  wrapup_global_declarations(vec, count);
   check_global_declarations(vec, count);
   emit_debug_global_declarations(vec, count);
 
@@ -777,13 +778,17 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 	    gcc_assert(decl != NULL_TREE);
 
 	    // We need to produce a type descriptor for every named
-	    // type, since other files or packages might refer to
-	    // them.  Simply calling the type_descriptor method is
-	    // enough to create the type descriptor, even though we
-	    // don't do anything with it.
-	    if (this->package_ == NULL
-		&& (!go_default_private || !Gogo::is_hidden_name(this->name_)))
-	      named_type->type_descriptor(gogo);
+	    // type, and for a pointer to every named type, since
+	    // other files or packages might refer to them.  We need
+	    // to do this even for hidden types, because they might
+	    // still be returned by some function.  Simply calling the
+	    // type_descriptor method is enough to create the type
+	    // descriptor, even though we don't do anything with it.
+	    if (this->package_ == NULL)
+	      {
+		named_type->type_descriptor(gogo);
+		Type::make_pointer_type(named_type)->type_descriptor(gogo);
+	      }
 	  }
       }
       break;
@@ -836,7 +841,7 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 		  TREE_STATIC(decl) = 1;
 		else
 		  DECL_EXTERNAL(decl) = 1;
-		if (!go_default_private || !Gogo::is_hidden_name(this->name_))
+		if (!Gogo::is_hidden_name(this->name_))
 		  {
 		    TREE_PUBLIC(decl) = 1;
 		    std::string asm_name = (package == NULL
@@ -1033,7 +1038,11 @@ Function::get_or_make_decl(Gogo* gogo, Named_object* no, tree id)
 	  else if (Gogo::unpack_hidden_name(no->name()) == "main"
 		   && gogo->package_name() == "main")
 	    TREE_PUBLIC(decl) = 1;
-	  else if (!go_default_private || !Gogo::is_hidden_name(no->name()))
+	  // Methods have to be public even if they are hidden because
+	  // they can be pulled into type descriptors when using
+	  // anonymous fields.
+	  else if (!Gogo::is_hidden_name(no->name())
+		   || this->type_->is_method())
 	    {
 	      TREE_PUBLIC(decl) = 1;
 	      std::string asm_name = gogo->unique_prefix();
@@ -2592,6 +2601,53 @@ Gogo::type_descriptor_constructor(int runtime_type_code, Type* type,
   return ret;
 }
 
+// Where a type descriptor decl should be defined.
+
+Gogo::Type_descriptor_location
+Gogo::type_descriptor_location(const Type* type, Named_type* name)
+{
+  if (name != NULL)
+    {
+      if (name->named_object()->package() != NULL)
+	{
+	  // This is a named type defined in a different package.  The
+	  // descriptor should be defined in that package.
+	  return TYPE_DESCRIPTOR_UNDEFINED;
+	}
+      else if (name->is_builtin())
+	{
+	  // We create the descriptor for a builtin type whenever we
+	  // need it.
+	  return TYPE_DESCRIPTOR_COMMON;
+	}
+      else
+	{
+	  // This is a named type defined in this package.  The
+	  // descriptor should be defined here.
+	  return TYPE_DESCRIPTOR_DEFINED;
+	}
+    }
+  else
+    {
+      if (type->points_to() != NULL
+	  && type->points_to()->named_type() != NULL
+	  && type->points_to()->named_type()->named_object()->package() != NULL)
+	{
+	  // This is an unnamed pointer to a named type defined in a
+	  // different package.  The descriptor should be defined in
+	  // that package.
+	  return TYPE_DESCRIPTOR_UNDEFINED;
+	}
+      else
+	{
+	  // This is an unnamed type.  The descriptor could be defined
+	  // in any package where it is needed, and the linker will
+	  // pick one descriptor to keep.
+	  return TYPE_DESCRIPTOR_COMMON;
+	}
+    }
+}
+
 // Create the decl which will hold the type descriptor for TYPE.
 // DESCRIPTOR_TYPE_TREE is the type of the decl to create.  NAME is
 // the name of the type; it may be NULL.  The new decl is stored into
@@ -2647,9 +2703,8 @@ Gogo::build_type_descriptor_decl(const Type* type, tree descriptor_type_tree,
   if (phash != NULL)
     *phash = decl;
 
-  // For a named type defined in a different package, we just want to
-  // refer to the exported type identifier.
-  if (name != NULL && name->named_object()->package() != NULL)
+  // If appropriate, just refer to the exported type identifier.
+  if (this->type_descriptor_location(type, name) == TYPE_DESCRIPTOR_UNDEFINED)
     {
       TREE_PUBLIC(decl) = 1;
       DECL_EXTERNAL(decl) = 1;
@@ -2663,13 +2718,13 @@ Gogo::build_type_descriptor_decl(const Type* type, tree descriptor_type_tree,
     }
 }
 
-// Initialize and finish the type descriptor decl *PDECL.  NAME is the
-// name of the type; it may be NULL.  CONSTRUCTOR is the value to
-// which is should be initialized.
+// Initialize and finish the type descriptor decl *PDECL for TYPE.
+// NAME is the name of the type; it may be NULL.  CONSTRUCTOR is the
+// value to which is should be initialized.
 
 void
-Gogo::finish_type_descriptor_decl(tree* pdecl, Named_type* name,
-				  tree constructor)
+Gogo::finish_type_descriptor_decl(tree* pdecl, const Type* type,
+				  Named_type* name, tree constructor)
 {
   unsigned int ix;
   tree elt;
@@ -2685,14 +2740,14 @@ Gogo::finish_type_descriptor_decl(tree* pdecl, Named_type* name,
   tree decl = *pdecl;
   DECL_INITIAL(decl) = constructor;
 
-  if (name == NULL || name->is_builtin())
+  if (this->type_descriptor_location(type, name) == TYPE_DESCRIPTOR_COMMON)
     {
       // All type descriptors for the same unnamed or builtin type
       // should be shared.
       make_decl_one_only(decl, DECL_ASSEMBLER_NAME(decl));
       resolve_unique_section(decl, 1, 0);
     }
-  else if (!go_default_private || !Gogo::is_hidden_name(name->name()))
+  else
     {
       // Give the decl protected visibility.  This avoids out-of-range
       // references with shared libraries with the x86_64 small model
@@ -2725,7 +2780,7 @@ Gogo::type_descriptor_decl(int runtime_type_code, Type* type, Named_type* name,
   tree constructor = this->type_descriptor_constructor(runtime_type_code,
 						       type, name, NULL);
 
-  this->finish_type_descriptor_decl(pdecl, name, constructor);
+  this->finish_type_descriptor_decl(pdecl, type, name, constructor);
 }
 
 // Build a decl for the type descriptor of an undefined type.
@@ -2798,6 +2853,7 @@ Gogo::pointer_type_descriptor_decl(Pointer_type* type, Named_type* name,
   elt->value = type->points_to()->type_descriptor(this);
 
   this->finish_type_descriptor_decl(pdecl,
+				    type,
 				    name,
 				    build_constructor(type_descriptor_type_tree,
 						      init));
@@ -2903,7 +2959,7 @@ Gogo::function_type_descriptor_decl(Function_type* type, Named_type* name,
   elt->value = this->function_type_params(TREE_TYPE(field), NULL,
 					  type->results());
 
-  this->finish_type_descriptor_decl(pdecl, name,
+  this->finish_type_descriptor_decl(pdecl, type, name,
 				    build_constructor(type_descriptor_type_tree,
 						      init));
 }
@@ -3066,7 +3122,7 @@ Gogo::struct_type_descriptor_decl(Struct_type* type, Named_type* name,
   elt->index = field;
   elt->value = this->struct_type_fields(type, TREE_TYPE(field));
 
-  this->finish_type_descriptor_decl(pdecl, name,
+  this->finish_type_descriptor_decl(pdecl, type, name,
 				    build_constructor(type_descriptor_type_tree,
 						      init));
 }
@@ -3133,7 +3189,7 @@ Gogo::array_type_descriptor_decl(Array_type* type, Named_type* name,
   elt->value = fold_convert(TREE_TYPE(field),
 			    type->length_tree(this, null_pointer_node));
 
-  this->finish_type_descriptor_decl(pdecl, name,
+  this->finish_type_descriptor_decl(pdecl, type, name,
 				    build_constructor(type_descriptor_type_tree,
 						      init));
 }
@@ -3188,7 +3244,7 @@ Gogo::slice_type_descriptor_decl(Array_type* type, Named_type* name,
   elt->index = field;
   elt->value = type->element_type()->type_descriptor(this);
 
-  this->finish_type_descriptor_decl(pdecl, name,
+  this->finish_type_descriptor_decl(pdecl, type, name,
 				    build_constructor(type_descriptor_type_tree,
 						      init));
 }
@@ -3249,7 +3305,7 @@ Gogo::map_type_descriptor_decl(Map_type* type, Named_type* name, tree* pdecl)
   elt->index = field;
   elt->value = type->val_type()->type_descriptor(this);
 
-  this->finish_type_descriptor_decl(pdecl, name,
+  this->finish_type_descriptor_decl(pdecl, type, name,
 				    build_constructor(type_descriptor_type_tree,
 						      init));
 }
@@ -3323,7 +3379,7 @@ Gogo::channel_type_descriptor_decl(Channel_type* type, Named_type* name,
 
   elt->value = build_int_cst_type(TREE_TYPE(field), val);
 
-  this->finish_type_descriptor_decl(pdecl, name,
+  this->finish_type_descriptor_decl(pdecl, type, name,
 				    build_constructor(type_descriptor_type_tree,
 						      init));
 }
@@ -3464,7 +3520,7 @@ Gogo::interface_type_descriptor_decl(Interface_type* type, Named_type* name,
   elt->index = field;
   elt->value = this->interface_type_methods(type, TREE_TYPE(field));
 
-  this->finish_type_descriptor_decl(pdecl, name,
+  this->finish_type_descriptor_decl(pdecl, type, name,
 				    build_constructor(type_descriptor_type_tree,
 						      init));
 }
@@ -3479,6 +3535,42 @@ Gogo::interface_method_table_for_type(const Interface_type* interface,
 {
   const Typed_identifier_list* interface_methods = interface->methods();
   gcc_assert(!interface_methods->empty());
+
+  std::string mangled_name = ("__go_imt_"
+			      + interface->mangled_name(this)
+			      + "__"
+			      + type->mangled_name(this));
+
+  tree id = get_identifier_from_string(mangled_name);
+
+  // See whether this interface has any hidden methods.
+  bool has_hidden_methods = false;
+  for (Typed_identifier_list::const_iterator p = interface_methods->begin();
+       p != interface_methods->end();
+       ++p)
+    {
+      if (Gogo::is_hidden_name(p->name()))
+	{
+	  has_hidden_methods = true;
+	  break;
+	}
+    }
+
+  // We already know that the named type is convertible to the
+  // interface.  If the interface has hidden methods, and the named
+  // type is defined in a different package, then the interface
+  // conversion table will be defined by that other package.
+  if (has_hidden_methods && type->named_object()->package() != NULL)
+    {
+      tree array_type = build_array_type(const_ptr_type_node, NULL);
+      tree decl = build_decl(BUILTINS_LOCATION, VAR_DECL, id, array_type);
+      TREE_READONLY(decl) = 1;
+      TREE_CONSTANT(decl) = 1;
+      TREE_PUBLIC(decl) = 1;
+      DECL_EXTERNAL(decl) = 1;
+      go_preserve_from_gc(decl);
+      return decl;
+    }
 
   size_t count = interface_methods->size();
   VEC(constructor_elt, gc)* pointers = VEC_alloc(constructor_elt, gc, count);
@@ -3517,21 +3609,31 @@ Gogo::interface_method_table_for_type(const Interface_type* interface,
 				     build_index_type(size_int(count - 1)));
   tree constructor = build_constructor(array_type, pointers);
 
-  std::string mangled_name = ("__go_imt_"
-			      + interface->mangled_name(this)
-			      + "__"
-			      + type->mangled_name(this));
-
-  tree id = get_identifier_from_string(mangled_name);
-
   tree decl = build_decl(BUILTINS_LOCATION, VAR_DECL, id, array_type);
   TREE_STATIC(decl) = 1;
   TREE_USED(decl) = 1;
   TREE_READONLY(decl) = 1;
   TREE_CONSTANT(decl) = 1;
   DECL_INITIAL(decl) = constructor;
-  make_decl_one_only(decl, DECL_ASSEMBLER_NAME(decl));
-  resolve_unique_section(decl, 1, 0);
+
+  // If the interface type has hidden methods, then this is the only
+  // definition of the table.  Otherwise it is a comdat table which
+  // may be defined in multiple packages.
+  if (has_hidden_methods)
+    {
+      // Give the decl protected visibility.  This avoids out-of-range
+      // references with shared libraries with the x86_64 small model
+      // when the table gets a COPY reloc into the main executable.
+      DECL_VISIBILITY(decl) = VISIBILITY_PROTECTED;
+      DECL_VISIBILITY_SPECIFIED(decl) = 1;
+
+      TREE_PUBLIC(decl) = 1;
+    }
+  else
+    {
+      make_decl_one_only(decl, DECL_ASSEMBLER_NAME(decl));
+      resolve_unique_section(decl, 1, 0);
+    }
 
   rest_of_decl_compilation(decl, 1, 0);
 
