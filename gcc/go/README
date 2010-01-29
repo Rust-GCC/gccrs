@@ -1,20 +1,30 @@
-This is a compiler frontend for the Go programming language.  For more
-information about Go, see http://golang.org/ .
-
-The frontend was originally developed at Google, and was released in
-November 2009.  It was written by Ian Lance Taylor <iant@google.com>.
-
-This was originally written to be a frontend for GCC, and the code
-remains closely tied to GCC.  However, it is a goal to separate the
-GCC specific parts from the non-GCC specific parts, in order to make
-the frontend usable for other purposes such as analysis programs
-written in C++.
+See ../README.
 
 The frontend is written in C++.
 
 The frontend lexes and parses the input into an IR specific to this
 frontend known as gogo.  It then runs a series of passes over the
-code.  Finally it converts gogo to gcc's GENERIC.
+code.
+
+Finally it converts gogo to gcc's GENERIC.  A goal is to move the gcc
+support code into a gcc-interface subdirectory.  The gcc code will be
+put under the GPL.  The rest of the frontend will not include any gcc
+header files.
+
+Issues to be faced in this transition:
+
+* Representation of source locations.
+  + Currently the frontend uses gcc's source_location codes, using the
+    interface in libcpp/line-map.h.
+
+* Handling of error messages.
+  + Currently the frontend uses gcc's error_at and warning_at
+    functions.
+  + Currently the frontend uses gcc's diagnostic formatter, using
+    features such as %<%> for appropriate quoting.
+  + Localization may be an issue.
+
+* Use of gcc_assert and gcc_unreachable.
 
 This compiler works, but the code is a work in progress.  Notably, the
 support for garbage collection is ineffective and needs a complete
