@@ -1161,7 +1161,8 @@ class Call_expression : public Expression
 		  source_location location)
     : Expression(EXPRESSION_CALL, location),
       fn_(fn), args_(args), type_(NULL), tree_(NULL), refcount_entries_(NULL),
-      is_value_discarded_(false), is_being_copied_(false)
+      is_value_discarded_(false), varargs_are_lowered_(false),
+      is_being_copied_(false)
   { }
 
   // The function to call.
@@ -1226,7 +1227,10 @@ class Call_expression : public Expression
   do_get_tree(Translate_context*);
 
  private:
-  void
+  Expression*
+  lower_varargs(Gogo*);
+
+  bool
   check_argument_type(int, const Type*, const Type*, source_location);
 
   tree
@@ -1255,6 +1259,8 @@ class Call_expression : public Expression
   std::vector<Refcount_entry>* refcount_entries_;
   // True if the value is being discarded.
   bool is_value_discarded_;
+  // True if varargs have already been lowered.
+  bool varargs_are_lowered_;
   // True if the value is being copied.
   bool is_being_copied_;
 };

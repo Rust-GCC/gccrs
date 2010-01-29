@@ -6026,19 +6026,19 @@ Call_expression::do_traverse(Traverse* traverse)
   return TRAVERSE_CONTINUE;
 }
 
-// Lower a call statement.  This is where we handle an argument which
-// is a call to a function which returns multiple results.  We also
-// may discover that we thought was a call is actually a type cast.
+// Lower a call statement.
 
 Expression*
 Call_expression::do_lower(Gogo* gogo, int)
 {
+  // A type case can look like a function call.
   if (this->fn_->is_type_expression()
       && this->args_ != NULL
       && this->args_->size() == 1)
     return Expression::make_cast(this->fn_->type(), this->args_->front(),
 				 this->location());
 
+  // Recognize a call to a builtin function.
   Func_expression* fne = this->fn_->func_expression();
   if (fne != NULL
       && fne->named_object()->is_function_declaration()
@@ -6046,6 +6046,8 @@ Call_expression::do_lower(Gogo* gogo, int)
     return new Builtin_call_expression(gogo, this->fn_, this->args_,
 				       this->location());
 
+  // Handle an argument which is a call to a function which returns
+  // multiple results.
   if (this->args_ != NULL
       && this->args_->size() == 1
       && this->args_->front()->call_expression() != NULL
@@ -6070,7 +6072,168 @@ Call_expression::do_lower(Gogo* gogo, int)
 	}
     }
 
+  // Handle a call to a varargs function by packaging up the extra
+  // parameters.
+  if (!this->varargs_are_lowered_
+      && this->fn_->type()->function_type() != NULL
+      && this->fn_->type()->function_type()->is_varargs())
+    return this->lower_varargs(gogo);
+
   return this;
+}
+
+// Lower a call to a varargs function.
+
+Expression*
+Call_expression::lower_varargs(Gogo* gogo)
+{
+  source_location loc = this->location();
+
+  Function_type* fntype = this->fn_->type()->function_type();
+  const Typed_identifier_list* parameters = fntype->parameters();
+  gcc_assert(parameters != NULL && !parameters->empty());
+  Varargs_type* varargs_type = parameters->back().type()->varargs_type();
+  gcc_assert(varargs_type != NULL);
+
+  size_t arg_count = this->args_ == NULL ? 0 : this->args_->size();
+  if (arg_count < parameters->size() - 1)
+    {
+      // Not enough arguments; will be caught in check_types.
+      return this;
+    }
+
+  Expression_list* old_args = this->args_;
+  Expression_list* new_args = new Expression_list();
+  bool push_empty_arg = false;
+  if (old_args == NULL || old_args->empty())
+    {
+      gcc_assert(parameters->size() == 1);
+      push_empty_arg = true;
+    }
+  else
+    {
+      Typed_identifier_list::const_iterator pp = parameters->begin();
+      Expression_list::const_iterator pa;
+      int i = 1;
+      for (pa = old_args->begin(); pa != old_args->end(); ++pa, ++pp, ++i)
+	{
+	  if (pp + 1 == parameters->end())
+	    break;
+	  new_args->push_back(*pa);
+	}
+
+      // We have reached the varargs parameter.  If we are at the last
+      // argument, and it is itself a varargs parameter of the callee,
+      // and the types are identical, we pass it without further
+      // encapsulation.
+      bool pass_last_arg = false;
+      if (pa != old_args->end() && pa + 1 == old_args->end())
+	{
+	  Var_expression* ve = (*pa)->var_expression();
+	  if (ve != NULL && ve->named_object()->is_variable())
+	    {
+	      Variable* var = ve->named_object()->var_value();
+	      if (var->is_varargs_parameter())
+		{
+		  if (var->type()->interface_type() != NULL)
+		    {
+		      // The argument is ... with no type.  We only
+		      // match if the parameter is too.
+		      pass_last_arg = varargs_type->argument_type() == NULL;
+		    }
+		  else
+		    {
+		      // The argument is ... T with a type.  We only
+		      // match if the parameter is the same, with an
+		      // identical type.
+		      Array_type* var_at = var->type()->array_type();
+		      gcc_assert(var_at != NULL);
+		      Type* etype = var_at->element_type();
+		      Type* vtt = varargs_type->argument_type();
+		      pass_last_arg = (vtt != NULL
+				       && Type::are_identical(vtt, etype));
+		    }
+		}
+	    }
+	}
+
+      if (pass_last_arg)
+	new_args->push_back(*pa);
+      else if (pa == old_args->end())
+	push_empty_arg = true;
+      else
+	{
+	  Type* vtt = varargs_type->argument_type();
+	  Struct_field_list* fields = NULL;
+	  if (vtt == NULL)
+	    fields = new Struct_field_list();
+
+	  Expression_list* vals = new Expression_list;
+	  for (; pa != old_args->end(); ++pa, ++i)
+	    {
+	      // Check types here so that we get a better message.
+	      Type* patype = (*pa)->type();
+	      source_location paloc = (*pa)->location();
+	      if (vtt != NULL)
+		{
+		  if (!this->check_argument_type(i, vtt, patype, paloc))
+		    continue;
+		}
+	      else
+		{
+		  if (patype->is_nil_type())
+		    {
+		      error_at((*pa)->location(),
+			       "invalid use of %<nil%> for %<...%> argument");
+		      continue;
+		    }
+		  if (patype->is_abstract())
+		    patype = patype->make_non_abstract_type();
+		  fields->push_back(Struct_field(Typed_identifier("UNNAMED",
+								  patype,
+								  paloc)));
+		}
+
+	      vals->push_back(*pa);
+	    }
+
+	  Type* ctype;
+	  if (vtt == NULL)
+	    ctype = Type::make_struct_type(fields, loc);
+	  else
+	    ctype = Type::make_array_type(vtt, NULL);
+
+	  new_args->push_back(Expression::make_composite_literal(ctype, false,
+								 vals, loc));
+	}
+    }
+
+  if (push_empty_arg)
+    {
+      if (varargs_type->argument_type() != NULL)
+	new_args->push_back(Expression::make_nil(loc));
+      else
+	{
+	  Struct_field_list* fields = new Struct_field_list();
+	  Type* param_type = Type::make_struct_type(fields, loc);
+	  new_args->push_back(Expression::make_composite_literal(param_type,
+								 false, NULL,
+								 loc));
+	}
+    }
+
+  // We can't return a new call expression here, because this one may
+  // be referenced by Call_result expressions.  FIXME.
+  if (old_args != NULL)
+    delete old_args;
+  this->args_ = new_args;
+  this->varargs_are_lowered_ = true;
+
+  // Lower all the new subexpressions.
+  Expression* ret = this;
+  gogo->lower_expression(&ret);
+  gcc_assert(ret == this);
+  return ret;
 }
 
 // Get the function type.  Returns NULL if we don't know the type.  If
@@ -6157,7 +6320,7 @@ Call_expression::do_determine_type(const Type_context*)
 
 // Check types for parameter I.
 
-void
+bool
 Call_expression::check_argument_type(int i, const Type* parameter_type,
 				     const Type* argument_type,
 				     source_location argument_location)
@@ -6171,7 +6334,9 @@ Call_expression::check_argument_type(int i, const Type* parameter_type,
 	error_at(argument_location, "argument %d has incompatible type (%s)",
 		 i, reason.c_str());
       this->set_is_error();
+      return false;
     }
+  return true;
 }
 
 // Check types.
@@ -6222,9 +6387,7 @@ Call_expression::do_check_types(Gogo*)
   const Typed_identifier_list* parameters = fntype->parameters();
   if (this->args_ == NULL)
     {
-      // A single varargs parameter can accept zero arguments.
-      if (parameters != NULL
-	  && (!fntype->is_varargs() || parameters->size() > 1))
+      if (parameters != NULL && !parameters->empty())
 	this->report_error(_("not enough arguments"));
     }
   else if (parameters == NULL)
@@ -6237,33 +6400,17 @@ Call_expression::do_check_types(Gogo*)
 	   pa != this->args_->end();
 	   ++pa, ++pt, ++i)
 	{
-	  if (fntype->is_varargs() && pt + 1 == parameters->end())
-	    {
-	      // A varargs parameter can accept any number of
-	      // arguments, but you can't pass nil.
-	      for (; pa != this->args_->end(); ++pa)
-		{
-		  if ((*pa)->type()->is_nil_type())
-		    {
-		      this->report_error(_("invalid use of %<nil%> for "
-					   "%<...%> argument"));
-		      return;
-		    }
-		}
-	      break;
-	    }
 	  if (pt == parameters->end())
 	    {
 	      this->report_error(_("too many arguments"));
 	      return;
 	    }
-	  this->check_argument_type(i + 1, pt->type(), (*pa)->type(),
+	  Type* ptype = pt->type();
+	  if (ptype->varargs_type() != NULL)
+	    ptype = ptype->varargs_type()->use_type();
+	  this->check_argument_type(i + 1, ptype, (*pa)->type(),
 				    (*pa)->location());
 	}
-      // The varargs parameter can accept zero arguments.
-      if (pt != parameters->end()
-	  && (!fntype->is_varargs() || pt + 1 != parameters->end()))
-	this->report_error(_("not enough arguments"));
     }
 }
 
@@ -6442,40 +6589,19 @@ Call_expression::do_get_tree(Translate_context* context)
   const bool is_method = bound_method != NULL || interface_method != NULL;
   gcc_assert(!fntype->is_method() || is_method);
 
-  bool is_varargs = fntype->is_varargs();
-
   int nargs;
   tree* args;
   if (this->args_ == NULL || this->args_->empty())
     {
       nargs = is_method ? 1 : 0;
-      if (is_varargs)
-	++nargs;
       args = nargs == 0 ? NULL : new tree[nargs];
-      if (is_varargs)
-	{
-	  Type* varargs_type = Function_type::varargs_type();
-	  // The old way, passing array[]interface{}.
-	  // args[nargs - 1] = varargs_type->get_init_tree(gogo, false);
-	  Struct_field_list* fields = new Struct_field_list();
-	  Type* struct_type = Type::make_struct_type(fields, location);
-	  tree val = struct_type->get_init_tree(gogo, false);
-	  args[nargs - 1] = Expression::convert_for_assignment(context,
-							       varargs_type,
-							       struct_type,
-							       val,
-							       location);
-	}
     }
   else
     {
       const Typed_identifier_list* params = fntype->parameters();
       gcc_assert(params != NULL);
 
-      if (is_varargs)
-	nargs = params->size();
-      else
-	nargs = this->args_->size();
+      nargs = this->args_->size();
       int i = is_method ? 1 : 0;
       nargs += i;
       args = new tree[nargs];
@@ -6486,111 +6612,18 @@ Call_expression::do_get_tree(Translate_context* context)
 	   pe != this->args_->end();
 	   ++pe, ++pp, ++i)
 	{
-	  Type* pp_type = pp->type();
-	  if (is_varargs && pp + 1 == params->end())
-	    {
-	      // If the last argument is itself a varargs argument for
-	      // the caller, we pass it without further encapsulation.
-	      if (pe + 1 == this->args_->end()
-		  && (*pe)->var_expression() != NULL
-		  && (*pe)->var_expression()->named_object()->is_variable()
-		  && ((*pe)->var_expression()->named_object()->var_value()->
-		      is_varargs_parameter()))
-		{
-		  pp_type = Function_type::varargs_type();
-		  is_varargs = false;
-		}
-	      else
-		break;
-	    }
 	  tree arg_val = (*pe)->get_tree(context);
+	  Type* ptype = pp->type();
+	  if (ptype->varargs_type() != NULL)
+	    ptype = ptype->varargs_type()->use_type();
 	  args[i] = Expression::convert_for_assignment(context,
-						       pp_type,
+						       ptype,
 						       (*pe)->type(),
 						       arg_val,
 						       location);
 	  if (args[i] == error_mark_node)
 	    return error_mark_node;
 	}
-
-      if (is_varargs)
-	{
-	  Type* varargs_type = Function_type::varargs_type();
-
-#if 0
-	  // The old way, passing array[]interface{}.
-	  Type* element_type = varargs_type->array_type()->element_type();
-	  VEC(constructor_elt,gc)* values = VEC_alloc(constructor_elt, gc,
-						      this->args_->size());
-	  size_t j = 0;
-	  for (; pe != this->args_->end(); ++pe, ++j)
-	    {
-	      constructor_elt* elt = VEC_quick_push(constructor_elt, values,
-						    NULL);
-	      elt->index = size_int(j);
-	      tree expr_tree = (*pe)->get_tree(context);
-	      elt->value = Expression::convert_for_assignment(context,
-							      element_type,
-							      (*pe)->type(),
-							      expr_tree,
-							      location);
-	    }
-
-	  mpz_t val;
-	  mpz_init_set_ui(val, j);
-	  Type* array_type =
-	    Type::make_array_type(element_type,
-				  Expression::make_integer(&val, NULL,
-							   location));
-	  mpz_clear(val);
-
-	  tree varargs_val = build_constructor(array_type->get_tree(gogo),
-					       values);
-
-	  args[i] = Expression::convert_for_assignment(context, varargs_type,
-						       array_type,
-						       varargs_val,
-						       location);
-#else
-	  // The new way, passing a struct converted to an empty
-	  // interface.
-	  Struct_field_list* fields = new Struct_field_list();
-	  Expression_list::const_iterator pehold = pe;
-	  for (; pe != this->args_->end(); ++pe)
-	    fields->push_back(Struct_field(Typed_identifier("UNNAMED",
-							    (*pe)->type(),
-							    location)));
-	  Type* struct_type = Type::make_struct_type(fields, location);
-	  tree struct_tree = struct_type->get_tree(gogo);
-	  if (struct_tree == error_mark_node)
-	    return error_mark_node;
-
-	  VEC(constructor_elt,gc)* values = VEC_alloc(constructor_elt, gc,
-						      this->args_->size());
-	  tree field = TYPE_FIELDS(struct_tree);
-	  for (pe = pehold; pe != this->args_->end(); ++pe)
-	    {
-	      gcc_assert(field != NULL_TREE);
-	      constructor_elt* elt = VEC_quick_push(constructor_elt, values,
-						    NULL);
-	      elt->index = field;
-	      elt->value = (*pe)->get_tree(context);
-	      field = TREE_CHAIN(field);
-	    }
-	  gcc_assert(field == NULL_TREE);
-
-	  tree varargs_val = build_constructor(struct_tree, values);
-
-	  args[i] = Expression::convert_for_assignment(context, varargs_type,
-						       struct_type,
-						       varargs_val,
-						       location);
-#endif
-
-	  ++i;
-	  ++pp;
-	}
-
       gcc_assert(pp == params->end());
       gcc_assert(i == nargs);
     }

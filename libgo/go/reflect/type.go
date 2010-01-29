@@ -139,12 +139,6 @@ type UintptrType struct {
 	commonType
 }
 
-// DotDotDotType represents the ... that can
-// be used as the type of the final function parameter.
-type DotDotDotType struct {
-	commonType
-}
-
 // UnsafePointerType represents an unsafe.Pointer type.
 type UnsafePointerType struct {
 	commonType
@@ -226,6 +220,13 @@ type structField struct {
 type StructType struct {
 	commonType
 	fields []structField
+}
+
+// DotDotDotType represents the ... that can
+// be used as the type of the final function parameter.
+type DotDotDotType struct {
+	commonType
+	typ *runtime.Type
 }
 
 

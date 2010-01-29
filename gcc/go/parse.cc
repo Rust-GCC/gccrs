@@ -678,7 +678,7 @@ Parse::signature(Typed_identifier* receiver, source_location location,
   return ret;
 }
 
-// Parameters     = "(" [ ParameterList ] ")" .
+// Parameters     = "(" [ ParameterList [ "," ] ] ")" .
 
 Typed_identifier_list*
 Parse::parameters(bool* is_varargs)
@@ -698,6 +698,8 @@ Parse::parameters(bool* is_varargs)
       token = this->peek_token();
     }
 
+  // The optional trailing comma is picked up in parameter_list.
+
   if (!token->is_op(OPERATOR_RPAREN))
     this->error("expected %<)%>");
   else
@@ -706,10 +708,12 @@ Parse::parameters(bool* is_varargs)
   return params;
 }
 
-// ParameterList = ParameterSection { "," ParameterSection } .
+// ParameterList  = ParameterDecl { "," ParameterDecl } .
 
 // This sets *IS_VARARGS if the list ends with an ellipsis.
 // IS_VARARGS will be NULL if varargs are not permitted.
+
+// We pick up an optional trailing comma.
 
 Typed_identifier_list*
 Parse::parameter_list(bool* is_varargs)
@@ -764,9 +768,9 @@ Parse::parameter_list(bool* is_varargs)
 	{
 	  // An identifier followed by a comma may be the first in a
 	  // list of parameter names followed by a type, or it may be
-	  // the first in a list of types without names.  To find out
-	  // we gather as many identifiers separated by commas as we
-	  // can.
+	  // the first in a list of types without parameter names.  To
+	  // find out we gather as many identifiers separated by
+	  // commas as we can.
 	  std::string id_name = this->gogo_->pack_hidden_name(name,
 							      is_exported);
 	  ret->push_back(Typed_identifier(id_name, NULL, location));
@@ -820,6 +824,7 @@ Parse::parameter_list(bool* is_varargs)
 
 	  if (parameters_have_names)
 	    {
+	      gcc_assert(!just_saw_comma);
 	      // We have just seen ID1, ID2 xxx.  xxx may not be an
 	      // ellipsis, since that would imply that there are two
 	      // names for the varargs parameter, so we don't check
@@ -830,7 +835,8 @@ Parse::parameter_list(bool* is_varargs)
 		ret->set_type(i, type);
 	      if (!this->peek_token()->is_op(OPERATOR_COMMA))
 		return ret;
-	      this->advance_token();
+	      if (this->advance_token()->is_op(OPERATOR_RPAREN))
+		return ret;
 	    }
 	  else
 	    {
@@ -860,34 +866,35 @@ Parse::parameter_list(bool* is_varargs)
 		}
 	      delete ret;
 	      ret = tret;
-	      if (!just_saw_comma)
+	      if (!just_saw_comma
+		  || this->peek_token()->is_op(OPERATOR_RPAREN))
 		return ret;
 	    }
 	}
     }
 
   bool mix_error = false;
-  this->parameter_section(parameters_have_names, ret, is_varargs, &mix_error);
+  this->parameter_decl(parameters_have_names, ret, is_varargs, &mix_error);
   while (this->peek_token()->is_op(OPERATOR_COMMA))
     {
       if (is_varargs != NULL && *is_varargs)
 	this->error("ellipsis must be last parameter");
-      this->advance_token();
-      this->parameter_section(parameters_have_names, ret, is_varargs,
-			      &mix_error);
+      if (this->advance_token()->is_op(OPERATOR_RPAREN))
+	break;
+      this->parameter_decl(parameters_have_names, ret, is_varargs, &mix_error);
     }
   if (mix_error)
     error_at(location, "invalid named/anonymous mix");
   return ret;
 }
 
-// ParameterSection = [ IdentifierList ] Type .
+// ParameterDecl  = [ IdentifierList ] ( Type | "..." [ Type ] ) .
 
 void
-Parse::parameter_section(bool parameters_have_names,
-			 Typed_identifier_list* til,
-			 bool* is_varargs,
-			 bool* mix_error)
+Parse::parameter_decl(bool parameters_have_names,
+		      Typed_identifier_list* til,
+		      bool* is_varargs,
+		      bool* mix_error)
 {
   if (!parameters_have_names)
     {
@@ -901,8 +908,13 @@ Parse::parameter_section(bool parameters_have_names,
 		this->error("invalid ellipsis");
 	      else
 		*is_varargs = true;
-	      this->advance_token();
-	      type = Type::make_varargs_type();
+	      Type* varargs_type = NULL;
+	      if (!this->advance_token()->is_op(OPERATOR_RPAREN))
+		{
+		  bool dummy;
+		  varargs_type = this->type(&dummy);
+		}
+	      type = Type::make_varargs_type(varargs_type);
 	    }
 	  else
 	    {
@@ -944,8 +956,13 @@ Parse::parameter_section(bool parameters_have_names,
 	    this->error("ellipsis only permits one name");
 	  else
 	    *is_varargs = true;
-	  this->advance_token();
-	  type = Type::make_varargs_type();
+	  Type* varargs_type = NULL;
+	  if (!this->advance_token()->is_op(OPERATOR_RPAREN))
+	    {
+	      bool dummy;
+	      varargs_type = this->type(&dummy);
+	    }
+	  type = Type::make_varargs_type(varargs_type);
 	}
       else
 	{

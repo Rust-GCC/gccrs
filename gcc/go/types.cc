@@ -756,7 +756,13 @@ Type::import_type(Import* imp)
   else if (imp->match_c_string("..."))
     {
       imp->advance(3);
-      return Type::make_varargs_type();
+      Type* varargs_type = NULL;
+      if (imp->match_c_string(" "))
+	{
+	  imp->advance(1);
+	  varargs_type = imp->read_type();
+	}
+      return Type::make_varargs_type(varargs_type);
     }
   else
     {
@@ -1678,6 +1684,18 @@ Function_type::is_compatible(const Function_type* t,
   return true;
 }
 
+// For a varargs function, return the type of the varargs parameter.
+
+Varargs_type*
+Function_type::varargs_type() const
+{
+  gcc_assert(this->is_varargs_);
+  gcc_assert(this->parameters_ != NULL && !this->parameters_->empty());
+  Varargs_type* ret = this->parameters_->back().type()->varargs_type();
+  gcc_assert(ret != NULL);
+  return ret;
+}
+
 // Hash code.
 
 size_t
@@ -1972,7 +1990,7 @@ Function_type::do_import(Import* imp)
       while (true)
 	{
 	  Type* ptype = imp->read_type();
-	  if (ptype->is_varargs_type())
+	  if (ptype->varargs_type() != NULL)
 	    is_varargs = true;
 	  parameters->push_back(Typed_identifier(Import::import_marker,
 						 ptype, imp->location()));
@@ -2019,20 +2037,6 @@ Function_type::do_import(Import* imp)
   return ret;
 }
 
-// The type of a varargs parameter: an empty interface.
-
-Type*
-Function_type::varargs_type()
-{
-  static Type* vt;
-  if (vt == NULL)
-    {
-      Typed_identifier_list* methods = new Typed_identifier_list();
-      vt = Type::make_interface_type(methods, BUILTINS_LOCATION);
-    }
-  return vt;
-}
-
 // Make a function type.
 
 Function_type*
@@ -2044,58 +2048,110 @@ Type::make_function_type(Typed_identifier* receiver,
   return new Function_type(receiver, parameters, results, location);
 }
 
-// The varargs type.  This is the type of the last parameter of a
-// varargs function.
+// Class Varargs_type.
 
-class Varargs_type : public Type
+// Get the type to use in the body of the function.
+
+Type*
+Varargs_type::use_type()
 {
- public:
-  Varargs_type()
-    : Type(TYPE_VARARGS)
-  { }
+  if (this->use_type_ == NULL)
+    {
+      if (this->argument_type_ != NULL)
+	this->use_type_ = Type::make_array_type(this->argument_type_, NULL);
+      else
+	{
+	  static Type* empty;
+	  if (empty == NULL)
+	    {
+	      Typed_identifier_list* methods = new Typed_identifier_list();
+	      empty = Type::make_interface_type(methods, BUILTINS_LOCATION);
+	    }
+	  this->use_type_ = empty;
+	}
+    }
+  return this->use_type_;
+}
 
- protected:
-  tree
-  do_get_tree(Gogo*);
-
-  tree
-  do_init_tree(Gogo*, bool)
-  { gcc_unreachable(); }
-
-  void
-  do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl)
-  {
-    gogo->type_descriptor_decl(RUNTIME_TYPE_CODE_DOTDOTDOT, this, name, pdecl);
-  }
-
-  void
-  do_reflection(Gogo*, std::string* ret) const
-  { ret->append("..."); }
-
-  void
-  do_mangled_name(Gogo*, std::string* ret) const
-  { ret->push_back('V'); }
-
-  void
-  do_export(Export* exp) const
-  { exp->write_c_string("..."); }
-};
-
-// The varargs type is an empty interface.
+// Get a tree.  The varargs type is either a slice or an empty
+// interface.
 
 tree
 Varargs_type::do_get_tree(Gogo* gogo)
 {
-  return Function_type::varargs_type()->get_tree(gogo);
+  return this->use_type()->get_tree(gogo);
+}
+
+// Type descriptor.
+
+void
+Varargs_type::do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl)
+{
+  gogo->dotdotdot_type_descriptor_decl(this, name, pdecl);
+}
+
+// Reflection string.
+
+void
+Varargs_type::do_reflection(Gogo* gogo, std::string* ret) const
+{
+  ret->append("...");
+  if (this->argument_type_ != NULL)
+    {
+      // Since the varargs type always comes at the end of the
+      // function parameters, it is always followed by a right
+      // parenthesis.  No special marker is required to indicate that
+      // a type is specified.
+      ret->append(1, ' ');
+      this->append_reflection(this->argument_type_, gogo, ret);
+    }
+}
+
+// Mangled name.
+
+void
+Varargs_type::do_mangled_name(Gogo* gogo, std::string* ret) const
+{
+  ret->push_back('V');
+  if (this->argument_type_ != NULL)
+    {
+      // Since the varargs type always comes at the end of the
+      // function parameters, it is always followed by 'e'.  No
+      // special marker is required to indicate that a type is
+      // specified.
+      this->append_mangled_name(this->argument_type_, gogo, ret);
+    }
+}
+
+// Export string.
+
+void
+Varargs_type::do_export(Export* exp) const
+{
+  exp->write_c_string("...");
+  if (this->argument_type_ != NULL)
+    {
+      // Since the varargs type always comes at the end of the
+      // function parameters, it is always followed by a right
+      // parenthesis.  No special marker is required to indicate that
+      // a type is specified.
+      exp->write_c_string(" ");
+      exp->write_type(this->argument_type_);
+    }
 }
 
 // Make the varargs type.
 
 Type*
-Type::make_varargs_type()
+Type::make_varargs_type(Type* argument_type)
 {
-  static Varargs_type singleton_varargs_type;
-  return &singleton_varargs_type;
+  if (argument_type != NULL)
+    return new Varargs_type(argument_type);
+  else
+    {
+      static Varargs_type singleton_simple_varargs_type(NULL);
+      return &singleton_simple_varargs_type;
+    }
 }
 
 // Class Pointer_type.

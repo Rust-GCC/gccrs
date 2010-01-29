@@ -286,6 +286,18 @@ struct __go_struct_type
   struct __go_open_array __fields;
 };
 
+/* The type of a varargs parameter to a function.  */
+
+struct __go_dotdotdot_type
+{
+  /* Starts like all other type descriptors.  */
+  struct __go_type_descriptor __common;
+
+  /* The type of varargs parameters; this will be NULL if no type is
+     specified.  */
+  const struct __go_type_descriptor *__type;
+};
+
 /* Whether a type descriptor is a pointer.  */
 
 static inline _Bool

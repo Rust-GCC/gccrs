@@ -172,7 +172,7 @@ class Parse
 			   bool* needs_trailing_semicolon);
   Typed_identifier_list* parameters(bool* is_varargs);
   Typed_identifier_list* parameter_list(bool* is_varargs);
-  void parameter_section(bool, Typed_identifier_list*, bool*, bool*);
+  void parameter_decl(bool, Typed_identifier_list*, bool*, bool*);
   Typed_identifier_list* result(bool* needs_trailing_semicolon);
   source_location block();
   Type* interface_type();

@@ -541,9 +541,10 @@ Gogo::start_function(const std::string& name, Function_type* type,
 	  // We use a varargs type in the function type, but an empty
 	  // interface for the actual parameter.
 	  bool is_varargs_param = false;
-	  if (param_type->is_varargs_type())
+	  Varargs_type* vt = param_type->varargs_type();
+	  if (vt != NULL)
 	    {
-	      param_type = Function_type::varargs_type();
+	      param_type = vt->use_type();
 	      is_varargs_param = true;
 	    }
 
@@ -1146,6 +1147,15 @@ Gogo::lower_parse_tree()
 {
   Lower_parse_tree lower_parse_tree(this);
   this->traverse(&lower_parse_tree);
+}
+
+// Lower an expression.
+
+void
+Gogo::lower_expression(Expression** pexpr)
+{
+  Lower_parse_tree lower_parse_tree(this);
+  lower_parse_tree.expression(pexpr);
 }
 
 // Lower a constant.  This is called when lowering a reference to a
@@ -2354,7 +2364,7 @@ Function::import_func(Import* imp, std::string* pname,
       while (true)
 	{
 	  Type* ptype = imp->read_type();
-	  if (ptype->is_varargs_type())
+	  if (ptype->varargs_type() != NULL)
 	    *is_varargs = true;
 	  parameters->push_back(Typed_identifier(Import::import_marker,
 						 ptype, imp->location()));
@@ -2666,8 +2676,7 @@ Variable::lower_init_expression(Gogo* gogo)
 {
   if (this->init_ != NULL && !this->init_is_lowered_)
     {
-      Lower_parse_tree lower_parse_tree(gogo);
-      lower_parse_tree.expression(&this->init_);
+      gogo->lower_expression(&this->init_);
       this->init_is_lowered_ = true;
     }
 }

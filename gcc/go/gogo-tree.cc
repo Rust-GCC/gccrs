@@ -3525,6 +3525,65 @@ Gogo::interface_type_descriptor_decl(Interface_type* type, Named_type* name,
 						      init));
 }
 
+// The type of a type descriptor for varargs.  This must match struct
+// __go_dotdotdot_type in libgo/runtime/go-type.h.
+
+tree
+Gogo::dotdotdot_type_descriptor_type_tree()
+{
+  static tree dotdotdot_descriptor_type;
+  if (dotdotdot_descriptor_type == NULL_TREE)
+    {
+      tree common = this->type_descriptor_type_tree();
+      Gogo::builtin_struct(&dotdotdot_descriptor_type, "__go_dotdotdot_type",
+			   NULL_TREE, 2,
+			   "__common",
+			   common,
+			   "__argument_type",
+			   build_pointer_type(common));
+    }
+  return dotdotdot_descriptor_type;
+}
+
+// Build a type descriptor for a varargs type.
+
+void
+Gogo::dotdotdot_type_descriptor_decl(Varargs_type* type, Named_type* name,
+				     tree* pdecl)
+{
+  tree type_descriptor_type_tree = this->dotdotdot_type_descriptor_type_tree();
+
+  if (!this->build_type_descriptor_decl(type, type_descriptor_type_tree,
+					name, pdecl))
+    return;
+
+  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
+
+  tree field = TYPE_FIELDS(type_descriptor_type_tree);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
+  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
+  elt->index = field;
+  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_DOTDOTDOT,
+						 type, name, NULL);
+
+  field = TREE_CHAIN(field);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
+		    "__argument_type") == 0);
+  elt = VEC_quick_push(constructor_elt, init, NULL);
+  elt->index = field;
+  Type* argument_type = type->argument_type();
+  if (argument_type == NULL)
+    elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
+  else
+    elt->value = type->argument_type()->type_descriptor(this);
+
+  this->finish_type_descriptor_decl(pdecl,
+				    type,
+				    name,
+				    build_constructor(type_descriptor_type_tree,
+						      init));
+}
+
 // Build an interface method table for a type: a list of function
 // pointers, one for each interface method.  This is used for
 // interfaces.

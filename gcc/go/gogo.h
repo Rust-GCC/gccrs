@@ -34,6 +34,7 @@ class Array_type;
 class Map_type;
 class Channel_type;
 class Interface_type;
+class Varargs_type;
 class Named_type;
 class Forward_declaration_type;
 class Method;
@@ -321,6 +322,10 @@ class Gogo
   void
   lower_parse_tree();
 
+  // Lower an expression.
+  void
+  lower_expression(Expression**);
+
   // Lower a constant.
   void
   lower_constant(Named_object*);
@@ -481,6 +486,10 @@ class Gogo
   // Build a type descriptor for an interface.
   void
   interface_type_descriptor_decl(Interface_type*, Named_type*, tree* pdecl);
+
+  // Build a type descriptor for the varargs type.
+  void
+  dotdotdot_type_descriptor_decl(Varargs_type*, Named_type*, tree* pdecl);
 
   // Build a type descriptor for an undefined type.
   void
@@ -700,6 +709,10 @@ class Gogo
   // Build the methods in an interface type descriptor.
   tree
   interface_type_methods(const Interface_type*, tree);
+
+  // Return the type of a varargs type descriptor.
+  tree
+  dotdotdot_type_descriptor_type_tree();
 
   // Return pointers to functions which compute a hash code for TYPE
   // and which compare whether two objects of type TYPE are equal.

@@ -131,10 +131,6 @@ type StringType commonType
 // UintptrType represents a uintptr type.
 type UintptrType commonType
 
-// DotDotDotType represents the ... that can
-// be used as the type of the final function parameter.
-type DotDotDotType commonType
-
 // UnsafePointerType represents an unsafe.Pointer type.
 type UnsafePointerType commonType
 
@@ -214,6 +210,13 @@ type structField struct {
 type StructType struct {
 	commonType
 	fields []structField // sorted by offset
+}
+
+// DotDotDotType represents the ... [T] that can
+// be used as the type of the final function parameter.
+type DotDotDotType struct {
+	commonType
+	typ *Type // varargs type; nil if not given
 }
 
 /*

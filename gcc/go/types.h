@@ -19,6 +19,7 @@ class Integer_type;
 class Float_type;
 class String_type;
 class Function_type;
+class Varargs_type;
 class Struct_field;
 class Struct_field_list;
 class Struct_type;
@@ -175,7 +176,7 @@ class Type
 		     source_location);
 
   static Type*
-  make_varargs_type();
+  make_varargs_type(Type*);
 
   static Pointer_type*
   make_pointer_type(Type*);
@@ -385,6 +386,11 @@ class Type
   function_type() const
   { return this->convert<const Function_type, TYPE_FUNCTION>(); }
 
+  // If this is a varargs type, return it.  Otherwise, return NULL.
+  Varargs_type*
+  varargs_type()
+  { return this->convert_no_base<Varargs_type, TYPE_VARARGS>(); }
+
   // If this is a pointer type, return the type to which it points.
   // Otherwise, return NULL.
   Type*
@@ -405,13 +411,6 @@ class Type
     const Type* pt = this->points_to();
     return pt != NULL ? pt : this;
   }
-
-  // Return true if this is the varargs type.  We don't use base()
-  // here, because this can be called during parse, and there is no
-  // way to name the varargs type anyhow.
-  bool
-  is_varargs_type() const
-  { return this->classification_ == TYPE_VARARGS; }
 
   // Return true if this is the nil type.  We don't use base() here,
   // because this can be called during parse, and there is no way to
@@ -1116,6 +1115,10 @@ class Function_type : public Type
   is_varargs() const
   { return this->is_varargs_; }
 
+  // For a varargs function, return the type of the varargs parameter.
+  Varargs_type*
+  varargs_type() const;
+
   // Whether this is a builtin function.
   bool
   is_builtin() const
@@ -1154,10 +1157,6 @@ class Function_type : public Type
   // Import a function type.
   static Function_type*
   do_import(Import*);
-
-  // Return the real type to use for the varargs parameter.
-  static Type*
-  varargs_type();
 
  protected:
   int
@@ -1208,6 +1207,56 @@ class Function_type : public Type
   // Whether this is a special builtin function which can not simply
   // be called.  This is used for len, cap, etc.
   bool is_builtin_;
+};
+
+// The varargs type.  This is the type used for the last parameter of
+// a varargs function.
+
+class Varargs_type : public Type
+{
+ public:
+  Varargs_type(Type* argument_type)
+    : Type(TYPE_VARARGS),
+      argument_type_(argument_type), use_type_(NULL)
+  { }
+
+  // Get the type of the varargs arguments.  This will be NULL if no
+  // type is specified.
+  Type*
+  argument_type()
+  { return this->argument_type_; }
+
+  // In the body of the function, the actual parameter is not
+  // Varargs_type.  Return the type that it should have.
+  Type*
+  use_type();
+
+ protected:
+  tree
+  do_get_tree(Gogo*);
+
+  tree
+  do_init_tree(Gogo*, bool)
+  { gcc_unreachable(); }
+
+  void
+  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+
+  void
+  do_reflection(Gogo*, std::string*) const;
+
+  void
+  do_mangled_name(Gogo*, std::string*) const;
+
+  void
+  do_export(Export*) const;
+
+ private:
+  // The type given with the varargs; e.g., "int" in "... int".  This
+  // will be NULL if no type is given.
+  Type* argument_type_;
+  // The type to use in the body of the function.
+  Type* use_type_;
 };
 
 // The type of a pointer.
