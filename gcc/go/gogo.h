@@ -1405,6 +1405,10 @@ class Named_constant
   void
   determine_type();
 
+  // Indicate that we found and reported an error for this constant.
+  void
+  set_error();
+
   // Export the constant.
   void
   export_const(Export*, const std::string& name) const;
@@ -1421,8 +1425,8 @@ class Named_constant
   // If the predeclared constant iota is used in EXPR_, this is the
   // value it will have.  We do this because at parse time we don't
   // know whether the name "iota" will refer to the predeclared
-  // constant or to something else.  We put the right value in when we
-  // lower.
+  // constant or to something else.  We put in the right value in when
+  // we lower.
   int iota_value_;
   // The location of the definition.
   source_location location_;

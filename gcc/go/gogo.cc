@@ -1340,11 +1340,27 @@ int
 Check_types_traverse::constant(Named_object* named_object, bool)
 {
   Named_constant* constant = named_object->const_value();
-  if (!constant->expr()->is_constant())
-    error_at(constant->expr()->location(), "expression is not constant");
+  Type* ctype = constant->type();
+  if (ctype->integer_type() == NULL
+      && ctype->float_type() == NULL
+      && !ctype->is_boolean_type()
+      && !ctype->is_string_type())
+    {
+      error_at(constant->location(), "invalid constant type");
+      constant->set_error();
+    }
+  else if (!constant->expr()->is_constant())
+    {
+      error_at(constant->expr()->location(), "expression is not constant");
+      constant->set_error();
+    }
   else if (!Type::are_compatible_for_assign(constant->type(),
 					    constant->expr()->type(), NULL))
-    error_at(constant->location(), "initialization expression has wrong type");
+    {
+      error_at(constant->location(),
+	       "initialization expression has wrong type");
+      constant->set_error();
+    }
   return TRAVERSE_CONTINUE;
 }
 
@@ -2956,6 +2972,15 @@ Named_constant::determine_type()
       this->type_ = this->expr_->type();
       gcc_assert(this->type_ != NULL);
     }
+}
+
+// Indicate that we found and reported an error for this constant.
+
+void
+Named_constant::set_error()
+{
+  this->type_ = Type::make_error_type();
+  this->expr_ = Expression::make_error(this->location_);
 }
 
 // Export a constant.
