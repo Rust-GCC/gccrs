@@ -23,12 +23,12 @@ __go_receive_nonblocking_big (struct __go_channel* channel, void *val)
   int data = __go_receive_nonblocking_acquire (channel);
   if (data != RECEIVE_NONBLOCKING_ACQUIRE_DATA)
     {
+      __builtin_memset (val, 0, channel->element_size);
       if (data == RECEIVE_NONBLOCKING_ACQUIRE_NODATA)
 	return 0;
       else
 	{
 	  /* Channel is closed.  */
-	  __builtin_memset (val, 0, channel->element_size);
 	  return 1;
 	}
     }

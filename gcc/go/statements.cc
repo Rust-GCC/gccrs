@@ -1248,13 +1248,9 @@ Tuple_receive_assignment_statement::do_lower(Gogo*, Block* enclosing)
   Statement* s = Statement::make_assignment(ref, call, loc);
   b->add_statement(s);
 
-  // if success_temp { val = val_temp }
-  Block* then_block = new Block(b, loc);
+  // val = val_temp
   ref = Expression::make_temporary_reference(val_temp, loc);
   s = Statement::make_assignment(this->val_, ref, loc);
-  then_block->add_statement(s);
-  ref = Expression::make_temporary_reference(success_temp, loc);
-  s = Statement::make_if_statement(ref, then_block, NULL, loc);
   b->add_statement(s);
 
   // success = success_temp

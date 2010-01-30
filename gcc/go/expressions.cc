@@ -10329,7 +10329,7 @@ Receive_expression::do_get_tree(Translate_context* context)
   if (element_type_tree == error_mark_node || channel == error_mark_node)
     return error_mark_node;
 
-  return Gogo::receive_from_channel(element_type_tree, channel, true,
+  return Gogo::receive_from_channel(element_type_tree, channel,
 				    this->for_select_, this->location());
 }
 

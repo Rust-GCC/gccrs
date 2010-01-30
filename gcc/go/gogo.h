@@ -529,8 +529,8 @@ class Gogo
 
   // Receive a value from a channel.
   static tree
-  receive_from_channel(tree type_tree, tree channel, bool blocking,
-		       bool for_select, source_location);
+  receive_from_channel(tree type_tree, tree channel, bool for_select,
+		       source_location);
 
   // Return a tree for receiving an integer on a channel.
   static tree
@@ -718,13 +718,6 @@ class Gogo
   // and which compare whether two objects of type TYPE are equal.
   void
   type_functions(const Type* type, tree* hash_fn, tree* equal_fn);
-
-  // Build return types for nonblocking receives.
-  static tree
-  build_small_nonblocking_receive_return_type();
-
-  static tree
-  build_big_nonblocking_receive_return_type(tree);
 
   // Return the type of a trampoline.
   static tree

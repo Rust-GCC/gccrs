@@ -3892,89 +3892,35 @@ Gogo::send_on_channel(tree channel, tree val, bool blocking, bool for_select,
     }
 }
 
-// Build the return type for a nonblocking receive of a value 64 bits
-// or smaller.  This is a struct with two fields.  The first field is
-// the value, of type uint64_t.  The second is a boolean which is true
-// if a value was received.
-
-tree
-Gogo::build_small_nonblocking_receive_return_type()
-{
-  static tree struct_type;
-  return Gogo::builtin_struct(&struct_type, "__go_receive_nonblocking_small",
-			      NULL_TREE, 2,
-			      "__val",
-			      uint64_type_node,
-			      "__success",
-			      boolean_type_node);
-}
-
-// Build the return type for a nonblocking receive of a value more
-// than 64 bits in size.  This is a struct with two fields.  The first
-// field is the value, of the specified type.  The second is a boolean
-// which is true if a value was received.
-
-tree
-Gogo::build_big_nonblocking_receive_return_type(tree valtype)
-{
-  return Gogo::builtin_struct(NULL, "__go_receive_nonblocking_big",
-			      NULL_TREE, 2,
-			      "__val",
-			      valtype,
-			      "__success",
-			      boolean_type_node);
-}
-
 // Return a tree for receiving a value of type TYPE_TREE on CHANNEL.
-// If BLOCKING is true this does a blocking receive, and returns the
-// value read from the channel.  If BLOCKING is false, this does a
-// nonblocking read, and returns a struct with two fields.  The first
-// field is the value read from the channel, and the second field is a
-// boolean which will be true if a value was read.  As a special hack,
-// the first field may not have the correct type, and the caller may
-// need to convert it.  If FOR_SELECT is true, this is being done
-// because it was chosen in a select statement.
+// This does a blocking receive and returns the value read from the
+// channel.  If FOR_SELECT is true, this is being done because it was
+// chosen in a select statement.
 
 tree
-Gogo::receive_from_channel(tree type_tree, tree channel, bool blocking,
-			   bool for_select, source_location location)
+Gogo::receive_from_channel(tree type_tree, tree channel, bool for_select,
+			   source_location location)
 {
   if (int_size_in_bytes(type_tree) <= 8
       && !AGGREGATE_TYPE_P(type_tree))
     {
-      if (blocking)
-	{
-	  static tree receive_small_fndecl;
-	  tree call = Gogo::call_builtin(&receive_small_fndecl,
-					 location,
-					 "__go_receive_small",
-					 2,
-					 uint64_type_node,
-					 ptr_type_node,
-					 channel,
-					 boolean_type_node,
-					 (for_select
-					  ? boolean_true_node
-					  : boolean_false_node));
-	  int bitsize = GET_MODE_BITSIZE(TYPE_MODE(type_tree));
-	  tree int_type_tree = go_type_for_size(bitsize, 1);
-	  return fold_convert_loc(location, type_tree,
-				  fold_convert_loc(location, int_type_tree,
-						   call));
-	}
-      else
-	{
-	  gcc_assert(!for_select);
-	  tree ret_type = Gogo::build_small_nonblocking_receive_return_type();
-	  static tree receive_nonblocking_fndecl;
-	  return Gogo::call_builtin(&receive_nonblocking_fndecl,
-				    location,
-				    "__go_receive_nonblocking_small",
-				    1,
-				    ret_type,
-				    ptr_type_node,
-				    channel);
-	}
+      static tree receive_small_fndecl;
+      tree call = Gogo::call_builtin(&receive_small_fndecl,
+				     location,
+				     "__go_receive_small",
+				     2,
+				     uint64_type_node,
+				     ptr_type_node,
+				     channel,
+				     boolean_type_node,
+				     (for_select
+				      ? boolean_true_node
+				      : boolean_false_node));
+      int bitsize = GET_MODE_BITSIZE(TYPE_MODE(type_tree));
+      tree int_type_tree = go_type_for_size(bitsize, 1);
+      return fold_convert_loc(location, type_tree,
+			      fold_convert_loc(location, int_type_tree,
+					       call));
     }
   else
     {
@@ -3985,62 +3931,22 @@ Gogo::receive_from_channel(tree type_tree, tree channel, bool blocking,
       SET_EXPR_LOCATION(make_tmp, location);
       tree tmpaddr = build_fold_addr_expr(tmp);
       tmpaddr = fold_convert(ptr_type_node, tmpaddr);
-      if (blocking)
-	{
-	  static tree receive_big_fndecl;
-	  tree call = Gogo::call_builtin(&receive_big_fndecl,
-					 location,
-					 "__go_receive_big",
-					 3,
-					 void_type_node,
-					 ptr_type_node,
-					 channel,
-					 ptr_type_node,
-					 tmpaddr,
-					 boolean_type_node,
-					 (for_select
-					  ? boolean_true_node
-					  : boolean_false_node));
-	  return build2(COMPOUND_EXPR, type_tree, make_tmp,
-			build2(COMPOUND_EXPR, type_tree, call, tmp));
-	}
-      else
-	{
-	  gcc_assert(!for_select);
-	  static tree receive_nonblocking_big_fndecl;
-	  tree call = Gogo::call_builtin(&receive_nonblocking_big_fndecl,
-					 location,
-					 "__go_receive_nonblocking_big",
-					 2,
-					 boolean_type_node,
-					 ptr_type_node,
-					 channel,
-					 ptr_type_node,
-					 tmpaddr);
-
-	  tree tmp2 = create_tmp_var(boolean_type_node,
-				     get_name(boolean_type_node));
-	  DECL_IGNORED_P(tmp2) = 0;
-	  DECL_INITIAL(tmp2) = call;
-	  tree make_tmp2 = build1(DECL_EXPR, void_type_node, tmp2);
-	  SET_EXPR_LOCATION(make_tmp2, location);
-
-	  tree rettype =
-	    Gogo::build_big_nonblocking_receive_return_type(type_tree);
-	  VEC(constructor_elt,gc)* values = VEC_alloc(constructor_elt, gc, 2);
-	  constructor_elt* elt = VEC_quick_push(constructor_elt, values, NULL);
-	  elt->index = TYPE_FIELDS(rettype);
-	  elt->value = tmp;
-	  elt = VEC_quick_push(constructor_elt, values, NULL);
-	  elt->index = TREE_CHAIN(TYPE_FIELDS(rettype));
-	  elt->value = tmp2;
-	  tree retval = build_constructor(rettype, values);
-
-	  return build2(COMPOUND_EXPR, rettype,
-			build2(COMPOUND_EXPR, void_type_node, make_tmp,
-			       make_tmp2),
-			retval);
-	}
+      static tree receive_big_fndecl;
+      tree call = Gogo::call_builtin(&receive_big_fndecl,
+				     location,
+				     "__go_receive_big",
+				     3,
+				     void_type_node,
+				     ptr_type_node,
+				     channel,
+				     ptr_type_node,
+				     tmpaddr,
+				     boolean_type_node,
+				     (for_select
+				      ? boolean_true_node
+				      : boolean_false_node));
+      return build2(COMPOUND_EXPR, type_tree, make_tmp,
+		    build2(COMPOUND_EXPR, type_tree, call, tmp));
     }
 }
 
