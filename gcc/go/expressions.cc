@@ -5423,14 +5423,65 @@ Builtin_call_expression::do_determine_type(const Type_context*)
 {
   this->fn()->determine_type_no_context();
 
-  Type_context subcontext(NULL, true);
+  bool is_print;
+  switch (this->code_)
+    {
+    case BUILTIN_PANIC:
+    case BUILTIN_PANICLN:
+    case BUILTIN_PRINT:
+    case BUILTIN_PRINTLN:
+      // Do not force a large integer constant to "int".
+      is_print = true;
+      break;
+
+    default:
+      is_print = false;
+      break;
+    }
+
   const Expression_list* args = this->args();
   if (args != NULL)
     {
       for (Expression_list::const_iterator pa = args->begin();
 	   pa != args->end();
 	   ++pa)
-	(*pa)->determine_type(&subcontext);
+	{
+	  Type_context subcontext;
+
+	  if (is_print)
+	    {
+	      // We want to print large constants, we so can't just
+	      // use the appropriate nonabstract type.  Use uint64 for
+	      // an integer if we know it is nonnegative, otherwise
+	      // use int64 for a integer, otherwise use float64 for a
+	      // float.
+	      Type* want_type = NULL;
+	      Type* atype = (*pa)->type();
+	      if (atype->is_abstract())
+		{
+		  if (atype->integer_type() != NULL)
+		    {
+		      mpz_t val;
+		      mpz_init(val);
+		      Type* dummy;
+		      if (this->integer_constant_value(true, val, &dummy)
+			  && mpz_sgn(val) >= 0)
+			want_type = Type::lookup_integer_type("uint64");
+		      else
+			want_type = Type::lookup_integer_type("int64");
+		      mpz_clear(val);
+		    }
+		  else
+		    {
+		      gcc_assert(atype->float_type() != NULL);
+		      want_type = Type::lookup_float_type("float64");
+		    }
+		  subcontext.type = want_type;
+		}
+	    }
+
+	  (*pa)->determine_type(&subcontext);
+	}
     }
 }
 
