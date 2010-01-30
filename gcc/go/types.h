@@ -1488,6 +1488,11 @@ class Struct_type : public Type
   bool
   struct_has_hidden_fields(const Named_type* within, std::string*) const;
 
+  // Return whether NAME is a field which is not exported.  This is
+  // only used for better error reporting.
+  bool
+  is_unexported_field(const std::string& name) const;
+
   // Import a struct type.
   static Struct_type*
   do_import(Import*);
@@ -1853,6 +1858,11 @@ class Interface_type : public Type
   // be false.
   bool
   is_compatible_for_assign(const Interface_type*, std::string* reason) const;
+
+  // Return whether NAME is a method which is not exported.  This is
+  // only used for better error reporting.
+  bool
+  is_unexported_method(const std::string& name) const;
 
   // Import an interface type.
   static Interface_type*
@@ -2283,6 +2293,11 @@ class Named_type : public Type
   // NULL, this sets *IS_AMBIGUOUS if the method name is ambiguous.
   Method*
   method_function(const std::string& name, bool *is_ambiguous) const;
+
+  // Return whether NAME is a known field or method which is not
+  // exported.  This is only used for better error reporting.
+  bool
+  is_unexported_field_or_method(const std::string& name) const;
 
   // Return a pointer to the interface method table for this type for
   // the interface INTERFACE.

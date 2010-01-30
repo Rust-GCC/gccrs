@@ -2758,6 +2758,32 @@ Struct_type::total_field_count() const
   return ret;
 }
 
+// Return whether NAME is an unexported field, for better error reporting.
+
+bool
+Struct_type::is_unexported_field(const std::string& name) const
+{
+  const Struct_field_list* fields = this->fields_;
+  if (fields == NULL)
+    return false;
+  for (Struct_field_list::const_iterator pf = fields->begin();
+       pf != fields->end();
+       ++pf)
+    {
+      const std::string& field_name(pf->field_name());
+      if (Gogo::is_hidden_name(field_name)
+	  && name == Gogo::unpack_hidden_name(field_name))
+	return true;
+      if (pf->is_anonymous())
+	{
+	  Struct_type* st = pf->type()->deref()->struct_type();
+	  if (st != NULL && st->is_unexported_field(name))
+	    return true;
+	}
+    }
+  return false;
+}
+
 // Get the tree for a struct type.
 
 tree
@@ -4164,6 +4190,26 @@ Interface_type::method_index(const std::string& name) const
   gcc_unreachable();
 }
 
+// Return whether NAME is an unexported method, for better error
+// reporting.
+
+bool
+Interface_type::is_unexported_method(const std::string& name) const
+{
+  if (this->methods_ == NULL)
+    return false;
+  for (Typed_identifier_list::const_iterator p = this->methods_->begin();
+       p != this->methods_->end();
+       ++p)
+    {
+      const std::string& method_name(p->name());
+      if (Gogo::is_hidden_name(method_name)
+	  && name == Gogo::unpack_hidden_name(method_name))
+	return true;
+    }
+  return false;
+}
+
 // Whether this type is compatible with T.
 
 bool
@@ -5094,6 +5140,55 @@ Named_type::find_field_or_method(const std::string& name,
 	*level = found_level;
       *is_method = found_is_method;
       return true;
+    }
+
+  return false;
+}
+
+// Return whether NAME is an unexported field or method, for better
+// error reporting.
+
+bool
+Named_type::is_unexported_field_or_method(const std::string& name) const
+{
+  if (this->local_methods_ != NULL)
+    {
+      for (Bindings::const_declarations_iterator p =
+	     this->local_methods_->begin_declarations();
+	   p != this->local_methods_->end_declarations();
+	   ++p)
+	{
+	  if (Gogo::is_hidden_name(p->first)
+	      && name == Gogo::unpack_hidden_name(p->first))
+	    return true;
+	}
+    }
+
+  const Interface_type* it = this->interface_type();
+  if (it != NULL && it->is_unexported_method(name))
+    return true;
+
+  const Struct_type* st = this->deref()->struct_type();
+  if (st == NULL)
+    return false;
+  if (st->is_unexported_field(name))
+    return true;
+
+  const Struct_field_list* fields = st->fields();
+  if (fields == NULL)
+    return false;
+
+  for (Struct_field_list::const_iterator pf = fields->begin();
+       pf != fields->end();
+       ++pf)
+    {
+      if (pf->is_anonymous())
+	{
+	  Named_type* subtype = pf->type()->deref()->named_type();
+	  gcc_assert(subtype != NULL);
+	  if (subtype->is_unexported_field_or_method(name))
+	    return true;
+	}
     }
 
   return false;

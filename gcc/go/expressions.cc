@@ -8270,8 +8270,29 @@ Selector_expression::do_lower(Gogo*, int)
 	     "request for %qs in something which has no fields or methods",
 	     Gogo::unpack_hidden_name(name).c_str());
   else
-    error_at(location, "reference to undefined field or method %qs",
-	     Gogo::unpack_hidden_name(name).c_str());
+    {
+      bool is_unexported;
+      std::string unpacked = Gogo::unpack_hidden_name(name);
+      if (!Gogo::is_hidden_name(name))
+	is_unexported = false;
+      else
+	{
+	  if (named_type != NULL)
+	    is_unexported = named_type->is_unexported_field_or_method(unpacked);
+	  else if (struct_type != NULL)
+	    is_unexported = struct_type->is_unexported_field(unpacked);
+	  else if (interface_type != NULL)
+	    is_unexported = interface_type->is_unexported_method(unpacked);
+	  else
+	    is_unexported = false;
+	}
+      if (is_unexported)
+	error_at(location, "reference to unexported field or method %qs",
+		 unpacked.c_str());
+      else
+	error_at(location, "reference to undefined field or method %qs",
+		 unpacked.c_str());
+    }
   return Expression::make_error(location);
 }
 

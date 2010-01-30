@@ -2050,10 +2050,17 @@ Parse::operand(bool may_be_sink)
 	    if (package != NULL)
 	      {
 		const std::string& pname(package->name());
-		error_at(location,
-			 "reference to undefined identifier %<%s.%s%>",
-			 Gogo::unpack_hidden_name(pname).c_str(),
-			 id.c_str());
+		if (!is_exported)
+		  error_at(location,
+			   ("invalid reference to unexported identifier "
+			    "%<%s.%s%>"),
+			   Gogo::unpack_hidden_name(pname).c_str(),
+			   id.c_str());
+		else
+		  error_at(location,
+			   "reference to undefined identifier %<%s.%s%>",
+			   Gogo::unpack_hidden_name(pname).c_str(),
+			   id.c_str());
 		return Expression::make_error(location);
 	      }
 
