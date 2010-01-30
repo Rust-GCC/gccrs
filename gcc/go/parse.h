@@ -159,34 +159,33 @@ class Parse
   void identifier_list(Typed_identifier_list*);
   Expression_list* expression_list(Expression*, bool may_be_sink);
   bool qualified_ident(std::string*, Named_object**);
-  Type* type(bool* needs_trailing_semicolon);
+  Type* type();
   bool type_may_start_here();
   Type* type_name(bool issue_error);
-  Type* array_type(bool may_use_ellipsis, bool* needs_trailing_semicolon);
-  Type* map_type(bool* needs_trailing_semicolon);
+  Type* array_type(bool may_use_ellipsis);
+  Type* map_type();
   Type* struct_type();
   void field_decl(Struct_field_list*);
-  Type* pointer_type(bool* needs_trailing_semicolon);
-  Type* channel_type(bool* needs_trailing_semicolon);
-  Function_type* signature(Typed_identifier*, source_location,
-			   bool* needs_trailing_semicolon);
+  Type* pointer_type();
+  Type* channel_type();
+  Function_type* signature(Typed_identifier*, source_location);
   Typed_identifier_list* parameters(bool* is_varargs);
   Typed_identifier_list* parameter_list(bool* is_varargs);
   void parameter_decl(bool, Typed_identifier_list*, bool*, bool*);
-  Typed_identifier_list* result(bool* needs_trailing_semicolon);
+  Typed_identifier_list* result();
   source_location block();
   Type* interface_type();
   bool method_spec(Typed_identifier_list*);
   void declaration();
   bool declaration_may_start_here();
-  bool decl(bool (Parse::*)(void*), void*);
-  void list(bool (Parse::*)(void*), void*, bool);
+  void decl(void (Parse::*)(void*), void*);
+  void list(void (Parse::*)(void*), void*, bool);
   void const_decl();
   void const_spec(Type**, Expression_list**);
-  bool type_decl();
-  bool type_spec(void*);
-  bool var_decl();
-  bool var_spec(void*);
+  void type_decl();
+  void type_spec(void*);
+  void var_decl();
+  void var_spec(void*);
   void init_vars(const Typed_identifier_list*, Type*, Expression_list*,
 		 bool is_coloneq, source_location);
   bool init_vars_from_call(const Typed_identifier_list*, Type*, Expression*,
@@ -264,7 +263,7 @@ class Parse
   void goto_stat();
   void package_clause();
   void import_decl();
-  bool import_spec(void*);
+  void import_spec(void*);
 
   void reset_iota();
   int iota_value();

@@ -225,47 +225,35 @@ Parse::qualified_ident(std::string* pname, Named_object** ppackage)
 // 	ArrayType | StructType | PointerType | FunctionType | InterfaceType |
 // 	SliceType | MapType | ChannelType .
 
-// This sets *NEEDS_TRAILING_SEMICOLON to true if a trailing semicolon
-// is required before the next statement in a StatementList.
-
 Type*
-Parse::type(bool* needs_trailing_semicolon)
+Parse::type()
 {
   const Token* token = this->peek_token();
   if (token->is_identifier())
-    {
-      *needs_trailing_semicolon = true;
-      return this->type_name(true);
-    }
+    return this->type_name(true);
   else if (token->is_op(OPERATOR_LSQUARE))
-    return this->array_type(false, needs_trailing_semicolon);
+    return this->array_type(false);
   else if (token->is_keyword(KEYWORD_CHAN)
 	   || token->is_op(OPERATOR_CHANOP))
-    return this->channel_type(needs_trailing_semicolon);
+    return this->channel_type();
   else if (token->is_keyword(KEYWORD_INTERFACE))
-    {
-      *needs_trailing_semicolon = false;
-      return this->interface_type();
-    }
+    return this->interface_type();
   else if (token->is_keyword(KEYWORD_FUNC))
     {
       source_location location = token->location();
       this->advance_token();
-      return this->signature(NULL, location, needs_trailing_semicolon);
+      return this->signature(NULL, location);
     }
   else if (token->is_keyword(KEYWORD_MAP))
-    return this->map_type(needs_trailing_semicolon);
+    return this->map_type();
   else if (token->is_keyword(KEYWORD_STRUCT))
-    {
-      *needs_trailing_semicolon = false;
-      return this->struct_type();
-    }
+    return this->struct_type();
   else if (token->is_op(OPERATOR_MULT))
-    return this->pointer_type(needs_trailing_semicolon);
+    return this->pointer_type();
   else if (token->is_op(OPERATOR_LPAREN))
     {
       this->advance_token();
-      Type* ret = this->type(needs_trailing_semicolon);
+      Type* ret = this->type();
       if (this->peek_token()->is_op(OPERATOR_RPAREN))
 	this->advance_token();
       else
@@ -273,12 +261,10 @@ Parse::type(bool* needs_trailing_semicolon)
 	  if (!ret->is_error_type())
 	    this->error("expected %<)%>");
 	}
-      *needs_trailing_semicolon = false;
       return ret;
     }
   else
     {
-      *needs_trailing_semicolon = false;
       error_at(token->location(), "expected type");
       return Type::make_error_type();
     }
@@ -375,10 +361,8 @@ Parse::type_name(bool issue_error)
 // ArrayLength = Expression .
 // ElementType = CompleteType .
 
-// NEEDS_TRAILING_SEMICOLON is as in Parse::type.
-
 Type*
-Parse::array_type(bool may_use_ellipsis, bool* needs_trailing_semicolon)
+Parse::array_type(bool may_use_ellipsis)
 {
   gcc_assert(this->peek_token()->is_op(OPERATOR_LSQUARE));
   const Token* token = this->advance_token();
@@ -402,13 +386,12 @@ Parse::array_type(bool may_use_ellipsis, bool* needs_trailing_semicolon)
       if (!this->peek_token()->is_op(OPERATOR_RSQUARE))
 	{
 	  this->error("expected %<]%>");
-	  *needs_trailing_semicolon = false;
 	  return Type::make_error_type();
 	}
       this->advance_token();
     }
 
-  Type* element_type = this->type(needs_trailing_semicolon);
+  Type* element_type = this->type();
 
   return Type::make_array_type(element_type, length);
 }
@@ -417,33 +400,28 @@ Parse::array_type(bool may_use_ellipsis, bool* needs_trailing_semicolon)
 // KeyType = CompleteType .
 // ValueType = CompleteType .
 
-// NEEDS_TRAILING_SEMICOLON is as in Parse::type.
-
 Type*
-Parse::map_type(bool* needs_trailing_semicolon)
+Parse::map_type()
 {
   source_location location = this->location();
   gcc_assert(this->peek_token()->is_keyword(KEYWORD_MAP));
   if (!this->advance_token()->is_op(OPERATOR_LSQUARE))
     {
       this->error("expected %<[%>");
-      *needs_trailing_semicolon = false;
       return Type::make_error_type();
     }
   this->advance_token();
 
-  bool dummy;
-  Type* key_type = this->type(&dummy);
+  Type* key_type = this->type();
 
   if (!this->peek_token()->is_op(OPERATOR_RSQUARE))
     {
       this->error("expected %<]%>");
-      *needs_trailing_semicolon = false;
       return Type::make_error_type();
     }
   this->advance_token();
 
-  Type* value_type = this->type(needs_trailing_semicolon);
+  Type* value_type = this->type();
 
   if (key_type->is_error_type() || value_type->is_error_type())
     return Type::make_error_type();
@@ -573,8 +551,7 @@ Parse::field_decl(Struct_field_list* sfl)
 	  this->advance_token();
 	}
 
-      bool dummy;
-      Type* type = this->type(&dummy);
+      Type* type = this->type();
 
       std::string tag;
       if (this->peek_token()->is_string())
@@ -597,14 +574,12 @@ Parse::field_decl(Struct_field_list* sfl)
 
 // PointerType = "*" Type .
 
-// NEEDS_TRAILING_SEMICOLON is as in Parse::type.
-
 Type*
-Parse::pointer_type(bool* needs_trailing_semicolon)
+Parse::pointer_type()
 {
   gcc_assert(this->peek_token()->is_op(OPERATOR_MULT));
   this->advance_token();
-  Type* type = this->type(needs_trailing_semicolon);
+  Type* type = this->type();
   if (type->is_error_type())
     return type;
   return Type::make_pointer_type(type);
@@ -615,10 +590,8 @@ Parse::pointer_type(bool* needs_trailing_semicolon)
 // SendChannel = "chan" "<-" ValueType .
 // RecvChannel = "<-" "chan" ValueType .
 
-// NEEDS_TRAILING_SEMICOLON is as in Parse::type.
-
 Type*
-Parse::channel_type(bool* needs_trailing_semicolon)
+Parse::channel_type()
 {
   const Token* token = this->peek_token();
   bool send = true;
@@ -628,7 +601,6 @@ Parse::channel_type(bool* needs_trailing_semicolon)
       if (!this->advance_token()->is_keyword(KEYWORD_CHAN))
 	{
 	  this->error("expected %<chan%>");
-	  *needs_trailing_semicolon = false;
 	  return Type::make_error_type();
 	}
       send = false;
@@ -643,19 +615,17 @@ Parse::channel_type(bool* needs_trailing_semicolon)
 	  this->advance_token();
 	}
     }
-  Type* element_type = this->type(needs_trailing_semicolon);
+  Type* element_type = this->type();
   return Type::make_channel_type(send, receive, element_type);
 }
 
 // Signature      = Parameters [ Result ] .
 
-// NEEDS_TRAILING_SEMICOLON is as in Parse::type.  RECEIVER is the
-// receiver if there is one, or NULL.  LOCATION is the location of the
-// start of the type.
+// RECEIVER is the receiver if there is one, or NULL.  LOCATION is the
+// location of the start of the type.
 
 Function_type*
-Parse::signature(Typed_identifier* receiver, source_location location,
-		 bool* needs_trailing_semicolon)
+Parse::signature(Typed_identifier* receiver, source_location location)
 {
   bool is_varargs = false;
   Typed_identifier_list* params = this->parameters(&is_varargs);
@@ -667,9 +637,7 @@ Parse::signature(Typed_identifier* receiver, source_location location,
       || (this->type_may_start_here()
 	  && (!this->gogo_->in_global_scope()
 	      || !this->peek_token()->is_keyword(KEYWORD_FUNC))))
-    result = this->result(needs_trailing_semicolon);
-  else
-    *needs_trailing_semicolon = true;
+    result = this->result();
 
   Function_type* ret = Type::make_function_type(receiver, params, result,
 						location);
@@ -827,16 +795,13 @@ Parse::parameter_list(bool* is_varargs)
 	      gcc_assert(!just_saw_comma);
 	      // We have just seen ID1, ID2 xxx.
 	      Type* type;
-	      if (this->peek_token()->is_op(OPERATOR_ELLIPSIS))
+	      if (!this->peek_token()->is_op(OPERATOR_ELLIPSIS))
+		type = this->type();
+	      else
 		{
 		  this->error("%<...%> only permits one name");
 		  this->advance_token();
 		  type = Type::make_error_type();
-		}
-	      else
-		{
-		  bool dummy;
-		  type = this->type(&dummy);
 		}
 	      for (size_t i = 0; i < ret->size(); ++i)
 		ret->set_type(i, type);
@@ -909,7 +874,9 @@ Parse::parameter_decl(bool parameters_have_names,
       source_location location = this->location();
       if (!this->peek_token()->is_identifier())
 	{
-	  if (this->peek_token()->is_op(OPERATOR_ELLIPSIS))
+	  if (!this->peek_token()->is_op(OPERATOR_ELLIPSIS))
+	    type = this->type();
+	  else
 	    {
 	      if (is_varargs == NULL)
 		this->error("invalid use of %<...%>");
@@ -917,16 +884,8 @@ Parse::parameter_decl(bool parameters_have_names,
 		*is_varargs = true;
 	      Type* varargs_type = NULL;
 	      if (!this->advance_token()->is_op(OPERATOR_RPAREN))
-		{
-		  bool dummy;
-		  varargs_type = this->type(&dummy);
-		}
+		varargs_type = this->type();
 	      type = Type::make_varargs_type(varargs_type);
-	    }
-	  else
-	    {
-	      bool dummy;
-	      type = this->type(&dummy);
 	    }
 	}
       else
@@ -955,7 +914,9 @@ Parse::parameter_decl(bool parameters_have_names,
       size_t new_count = til->size();
 
       Type* type;
-      if (this->peek_token()->is_op(OPERATOR_ELLIPSIS))
+      if (!this->peek_token()->is_op(OPERATOR_ELLIPSIS))
+	type = this->type();
+      else
 	{
 	  if (is_varargs == NULL)
 	    this->error("invalid use of %<...%>");
@@ -966,16 +927,8 @@ Parse::parameter_decl(bool parameters_have_names,
 	  Type* varargs_type = NULL;
 	  this->advance_token();
 	  if (this->type_may_start_here())
-	    {
-	      bool dummy;
-	      varargs_type = this->type(&dummy);
-	    }
+	    varargs_type = this->type();
 	  type = Type::make_varargs_type(varargs_type);
-	}
-      else
-	{
-	  bool dummy;
-	  type = this->type(&dummy);
 	}
       for (size_t i = orig_count; i < new_count; ++i)
 	til->set_type(i, type);
@@ -984,21 +937,16 @@ Parse::parameter_decl(bool parameters_have_names,
 
 // Result         = Parameters | Type .
 
-// NEEDS_TRAILING_SEMICOLON is as in Parse::type.
-
 Typed_identifier_list*
-Parse::result(bool* needs_trailing_semicolon)
+Parse::result()
 {
   if (this->peek_token()->is_op(OPERATOR_LPAREN))
-    {
-      *needs_trailing_semicolon = true;
-      return this->parameters(NULL);
-    }
+    return this->parameters(NULL);
   else
     {
       source_location location = this->location();
       Typed_identifier_list* til = new Typed_identifier_list();
-      Type* type = this->type(needs_trailing_semicolon);
+      Type* type = this->type();
       til->push_back(Typed_identifier("", type, location));
       return til;
     }
@@ -1121,8 +1069,7 @@ Parse::method_spec(Typed_identifier_list* methods)
     {
       // This is a MethodName.
       name = this->gogo_->pack_hidden_name(name, is_exported);
-      bool dummy;
-      Function_type* type = this->signature(NULL, location, &dummy);
+      Function_type* type = this->signature(NULL, location);
       methods->push_back(Typed_identifier(name, type, location));
     }
   else
@@ -1184,15 +1131,11 @@ Parse::declaration_may_start_here()
 
 // Decl<P> = P | "(" [ List<P> ] ")" .
 
-// Returns true if a trailing semicolon is required before the next
-// statement in a StatementList.  The return value of PFN indicates
-// this.
-
-bool
-Parse::decl(bool (Parse::*pfn)(void*), void* varg)
+void
+Parse::decl(void (Parse::*pfn)(void*), void* varg)
 {
   if (!this->peek_token()->is_op(OPERATOR_LPAREN))
-    return (this->*pfn)(varg);
+    (this->*pfn)(varg);
   else
     {
       if (!this->advance_token()->is_op(OPERATOR_RPAREN))
@@ -1204,12 +1147,11 @@ Parse::decl(bool (Parse::*pfn)(void*), void* varg)
 	      while (!this->advance_token()->is_op(OPERATOR_RPAREN))
 		{
 		  if (this->peek_token()->is_eof())
-		    return false;
+		    return;
 		}
 	    }
 	}
       this->advance_token();
-      return false;
     }
 }
 
@@ -1219,7 +1161,7 @@ Parse::decl(bool (Parse::*pfn)(void*), void* varg)
 // might follow.  This is either a '}' or a ')'.
 
 void
-Parse::list(bool (Parse::*pfn)(void*), void* varg, bool follow_is_paren)
+Parse::list(void (Parse::*pfn)(void*), void* varg, bool follow_is_paren)
 {
   (this->*pfn)(varg);
   Operator follow = follow_is_paren ? OPERATOR_RPAREN : OPERATOR_RCURLY;
@@ -1278,8 +1220,7 @@ Parse::const_spec(Type** last_type, Expression_list** last_expr_list)
   Type* type = NULL;
   if (this->type_may_start_here())
     {
-      bool dummy;
-      type = this->type(&dummy);
+      type = this->type();
       *last_type = NULL;
       *last_expr_list = NULL;
     }
@@ -1338,12 +1279,12 @@ Parse::const_spec(Type** last_type, Expression_list** last_expr_list)
 // Return true if a semicolon may be required before the next
 // statement in a StatementList.
 
-bool
+void
 Parse::type_decl()
 {
   gcc_assert(this->peek_token()->is_keyword(KEYWORD_TYPE));
   this->advance_token();
-  return this->decl(&Parse::type_spec, NULL);
+  this->decl(&Parse::type_spec, NULL);
 }
 
 // TypeSpec = identifier Type .
@@ -1351,14 +1292,14 @@ Parse::type_decl()
 // Return true if a semicolon may be required before the next
 // statement in a StatementList.
 
-bool
+void
 Parse::type_spec(void*)
 {
   const Token* token = this->peek_token();
   if (!token->is_identifier())
     {
       this->error("expected identifier");
-      return false;
+      return;
     }
   std::string name = token->identifier();
   bool is_exported = token->is_identifier_exported();
@@ -1375,8 +1316,7 @@ Parse::type_spec(void*)
       named_type = this->gogo_->declare_type(name, location);
     }
 
-  bool needs_trailing_semicolon;
-  Type* type = this->type(&needs_trailing_semicolon);
+  Type* type = this->type();
 
   if (type->is_error_type())
     {
@@ -1409,8 +1349,6 @@ Parse::type_spec(void*)
 	  this->gogo_->add_type(name, type, location);
 	}
     }
-
-  return needs_trailing_semicolon;
 }
 
 // VarDecl = "var" Decl<VarSpec> .
@@ -1418,12 +1356,12 @@ Parse::type_spec(void*)
 // Return true if a semicolon is required before the next statement in
 // a StatementList.
 
-bool
+void
 Parse::var_decl()
 {
   gcc_assert(this->peek_token()->is_keyword(KEYWORD_VAR));
   this->advance_token();
-  return this->decl(&Parse::var_spec, NULL);
+  this->decl(&Parse::var_spec, NULL);
 }
 
 // VarSpec = IdentifierList
@@ -1432,7 +1370,7 @@ Parse::var_decl()
 // Return true if a semicolon is required before the next statement in
 // a StatementList.
 
-bool
+void
 Parse::var_spec(void*)
 {
   // Get the variable names.
@@ -1443,10 +1381,9 @@ Parse::var_spec(void*)
 
   Type* type = NULL;
   Expression_list* init = NULL;
-  bool needs_trailing_semicolon = true;
   if (!this->peek_token()->is_op(OPERATOR_EQ))
     {
-      type = this->type(&needs_trailing_semicolon);
+      type = this->type();
       if (type->is_error_type())
 	{
 	  while (!this->peek_token()->is_op(OPERATOR_EQ)
@@ -1458,7 +1395,6 @@ Parse::var_spec(void*)
 	{
 	  this->advance_token();
 	  init = this->expression_list(NULL, false);
-	  needs_trailing_semicolon = true;
 	}
     }
   else
@@ -1471,8 +1407,6 @@ Parse::var_spec(void*)
 
   if (init != NULL)
     delete init;
-
-  return needs_trailing_semicolon;
 }
 
 // Create variables.  TIL is a list of variable names.  If TYPE is not
@@ -1937,8 +1871,7 @@ Parse::function_decl()
 
   this->advance_token();
 
-  bool dummy;
-  Function_type* fntype = this->signature(rec, this->location(), &dummy);
+  Function_type* fntype = this->signature(rec, this->location());
 
   Named_object* named_object = NULL;
 
@@ -2196,8 +2129,7 @@ Parse::operand(bool may_be_sink)
 	case KEYWORD_STRUCT:
 	  {
 	    source_location location = token->location();
-	    bool dummy;
-	    return Expression::make_type(this->type(&dummy), location);
+	    return Expression::make_type(this->type(), location);
 	  }
 	default:
 	  break;
@@ -2220,9 +2152,7 @@ Parse::operand(bool may_be_sink)
 	  // Here we call array_type directly, as this is the only
 	  // case where an ellipsis is permitted for an array type.
 	  source_location location = token->location();
-	  bool dummy;
-	  return Expression::make_type(this->array_type(true, &dummy),
-				       location);
+	  return Expression::make_type(this->array_type(true), location);
 	}
       break;
 
@@ -2391,8 +2321,7 @@ Parse::function_lit()
   Enclosing_vars hold_enclosing_vars;
   hold_enclosing_vars.swap(this->enclosing_vars_);
 
-  bool dummy;
-  Function_type* type = this->signature(NULL, location, &dummy);
+  Function_type* type = this->signature(NULL, location);
 
   // For a function literal, the next token must be a '{'.  If we
   // don't see that, then we may have a type expression.
@@ -2568,16 +2497,13 @@ Parse::selector(Expression* left, bool* is_type_switch)
     {
       this->advance_token();
       Type* type = NULL;
-      if (is_type_switch != NULL
-	  && this->peek_token()->is_keyword(KEYWORD_TYPE))
+      if (is_type_switch == NULL
+	  || !this->peek_token()->is_keyword(KEYWORD_TYPE))
+	type = this->type();
+      else
 	{
 	  *is_type_switch = true;
 	  this->advance_token();
-	}
-      else
-	{
-	  bool dummy;
-	  type = this->type(&dummy);
 	}
       if (!this->peek_token()->is_op(OPERATOR_RPAREN))
 	this->error("missing %<)%>");
@@ -3791,10 +3717,9 @@ Parse::type_switch_case(std::vector<Type*>* types, bool* is_default)
   if (token->is_keyword(KEYWORD_CASE))
     {
       this->advance_token();
-      bool dummy;
       while (true)
 	{
-	  Type* t = this->type(&dummy);
+	  Type* t = this->type();
 	  if (!t->is_error_type())
 	    types->push_back(t);
 	  if (!this->peek_token()->is_op(OPERATOR_COMMA))
@@ -4417,7 +4342,7 @@ Parse::import_decl()
 
 // ImportSpec = [ "." | PackageName ] PackageFileName .
 
-bool
+void
 Parse::import_spec(void*)
 {
   const Token* token = this->peek_token();
@@ -4440,15 +4365,13 @@ Parse::import_spec(void*)
   if (!token->is_string())
     {
       this->error("missing import package name");
-      return false;
+      return;
     }
 
   this->gogo_->import_package(token->string_value(), local_name,
 			      is_local_name_exported, location);
 
   this->advance_token();
-
-  return false;
 }
 
 // SourceFile       = PackageClause ";" { ImportDecl ";" }
