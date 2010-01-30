@@ -825,12 +825,19 @@ Parse::parameter_list(bool* is_varargs)
 	  if (parameters_have_names)
 	    {
 	      gcc_assert(!just_saw_comma);
-	      // We have just seen ID1, ID2 xxx.  xxx may not be an
-	      // ellipsis, since that would imply that there are two
-	      // names for the varargs parameter, so we don't check
-	      // for one.
-	      bool dummy;
-	      Type* type = this->type(&dummy);
+	      // We have just seen ID1, ID2 xxx.
+	      Type* type;
+	      if (this->peek_token()->is_op(OPERATOR_ELLIPSIS))
+		{
+		  this->error("%<...%> only permits one name");
+		  this->advance_token();
+		  type = Type::make_error_type();
+		}
+	      else
+		{
+		  bool dummy;
+		  type = this->type(&dummy);
+		}
 	      for (size_t i = 0; i < ret->size(); ++i)
 		ret->set_type(i, type);
 	      if (!this->peek_token()->is_op(OPERATOR_COMMA))
@@ -878,7 +885,7 @@ Parse::parameter_list(bool* is_varargs)
   while (this->peek_token()->is_op(OPERATOR_COMMA))
     {
       if (is_varargs != NULL && *is_varargs)
-	this->error("ellipsis must be last parameter");
+	this->error("%<...%> must be last parameter");
       if (this->advance_token()->is_op(OPERATOR_RPAREN))
 	break;
       this->parameter_decl(parameters_have_names, ret, is_varargs, &mix_error);
@@ -905,7 +912,7 @@ Parse::parameter_decl(bool parameters_have_names,
 	  if (this->peek_token()->is_op(OPERATOR_ELLIPSIS))
 	    {
 	      if (is_varargs == NULL)
-		this->error("invalid ellipsis");
+		this->error("invalid use of %<...%>");
 	      else
 		*is_varargs = true;
 	      Type* varargs_type = NULL;
@@ -951,13 +958,14 @@ Parse::parameter_decl(bool parameters_have_names,
       if (this->peek_token()->is_op(OPERATOR_ELLIPSIS))
 	{
 	  if (is_varargs == NULL)
-	    this->error("invalid ellipsis");
+	    this->error("invalid use of %<...%>");
 	  else if (new_count > orig_count + 1)
-	    this->error("ellipsis only permits one name");
+	    this->error("%<...%> only permits one name");
 	  else
 	    *is_varargs = true;
 	  Type* varargs_type = NULL;
-	  if (!this->advance_token()->is_op(OPERATOR_RPAREN))
+	  this->advance_token();
+	  if (this->type_may_start_here())
 	    {
 	      bool dummy;
 	      varargs_type = this->type(&dummy);
@@ -1370,6 +1378,13 @@ Parse::type_spec(void*)
   bool needs_trailing_semicolon;
   Type* type = this->type(&needs_trailing_semicolon);
 
+  if (type->is_error_type())
+    {
+      while (!this->peek_token()->is_op(OPERATOR_SEMICOLON)
+	     && !this->peek_token()->is_eof())
+	this->advance_token();
+    }
+
   if (name != "_")
     {
       if (named_type->is_type_declaration())
@@ -1432,6 +1447,13 @@ Parse::var_spec(void*)
   if (!this->peek_token()->is_op(OPERATOR_EQ))
     {
       type = this->type(&needs_trailing_semicolon);
+      if (type->is_error_type())
+	{
+	  while (!this->peek_token()->is_op(OPERATOR_EQ)
+		 && !this->peek_token()->is_op(OPERATOR_SEMICOLON)
+		 && !this->peek_token()->is_eof())
+	    this->advance_token();
+	}
       if (this->peek_token()->is_op(OPERATOR_EQ))
 	{
 	  this->advance_token();
