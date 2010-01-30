@@ -514,7 +514,8 @@ Assignment_statement::do_check_types(Gogo*)
 {
   if (!this->lhs_->is_lvalue())
     {
-      this->report_error(_("invalid left hand side of assignment"));
+      if (!this->lhs_->type()->is_error_type())
+	this->report_error(_("invalid left hand side of assignment"));
       return;
     }
 
