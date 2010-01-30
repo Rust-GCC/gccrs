@@ -1567,17 +1567,18 @@ Parse::init_vars_from_map(const Typed_identifier_list* vars, Type* type,
   bool any_new = false;
   Typed_identifier_list::const_iterator p = vars->begin();
   Expression* init = type == NULL ? index : NULL;
-  Named_object* no = this->init_var(*p, type, init, is_coloneq, type == NULL,
-				    &any_new);
-  if (type == NULL && any_new && no->is_variable())
-    no->var_value()->set_type_from_init_tuple();
-  Expression* val_var = Expression::make_var_reference(no, location);
+  Named_object* val_no = this->init_var(*p, type, init, is_coloneq,
+					type == NULL, &any_new);
+  if (type == NULL && any_new && val_no->is_variable())
+    val_no->var_value()->set_type_from_init_tuple();
+  Expression* val_var = Expression::make_var_reference(val_no, location);
 
   ++p;
   Type* var_type = type;
   if (var_type == NULL)
     var_type = Type::lookup_bool_type();
-  no = this->init_var(*p, var_type, NULL, is_coloneq, false, &any_new);
+  Named_object* no = this->init_var(*p, var_type, NULL, is_coloneq, false,
+				    &any_new);
   Expression* present_var = Expression::make_var_reference(no, location);
 
   if (!any_new)
@@ -1586,7 +1587,10 @@ Parse::init_vars_from_map(const Typed_identifier_list* vars, Type* type,
   Statement* s = Statement::make_tuple_map_assignment(val_var, present_var,
 						      index, location);
 
-  this->gogo_->add_statement(s);
+  if (!this->gogo_->in_global_scope())
+    this->gogo_->add_statement(s);
+  else
+    val_no->var_value()->add_preinit_statement(s);
 
   return true;
 }
@@ -1612,17 +1616,18 @@ Parse::init_vars_from_receive(const Typed_identifier_list* vars, Type* type,
   bool any_new = false;
   Typed_identifier_list::const_iterator p = vars->begin();
   Expression* init = type == NULL ? receive : NULL;
-  Named_object* no = this->init_var(*p, type, init, is_coloneq, type == NULL,
-				    &any_new);
-  if (type == NULL && any_new && no->is_variable())
-    no->var_value()->set_type_from_init_tuple();
-  Expression* val_var = Expression::make_var_reference(no, location);
+  Named_object* val_no = this->init_var(*p, type, init, is_coloneq,
+					type == NULL, &any_new);
+  if (type == NULL && any_new && val_no->is_variable())
+    val_no->var_value()->set_type_from_init_tuple();
+  Expression* val_var = Expression::make_var_reference(val_no, location);
 
   ++p;
   Type* var_type = type;
   if (var_type == NULL)
     var_type = Type::lookup_bool_type();
-  no = this->init_var(*p, var_type, NULL, is_coloneq, false, &any_new);
+  Named_object* no = this->init_var(*p, var_type, NULL, is_coloneq, false,
+				    &any_new);
   Expression* received_var = Expression::make_var_reference(no, location);
 
   if (!any_new)
@@ -1633,7 +1638,10 @@ Parse::init_vars_from_receive(const Typed_identifier_list* vars, Type* type,
 							  receive->channel(),
 							  location);
 
-  this->gogo_->add_statement(s);
+  if (!this->gogo_->in_global_scope())
+    this->gogo_->add_statement(s);
+  else
+    val_no->var_value()->add_preinit_statement(s);
 
   return true;
 }
@@ -1661,15 +1669,16 @@ Parse::init_vars_from_type_guard(const Typed_identifier_list* vars,
   Type* var_type = type;
   if (var_type == NULL)
     var_type = type_guard->type();
-  Named_object* no = this->init_var(*p, var_type, NULL, is_coloneq, false,
-				    &any_new);
-  Expression* val_var = Expression::make_var_reference(no, location);
+  Named_object* val_no = this->init_var(*p, var_type, NULL, is_coloneq, false,
+					&any_new);
+  Expression* val_var = Expression::make_var_reference(val_no, location);
 
   ++p;
   var_type = type;
   if (var_type == NULL)
     var_type = Type::lookup_bool_type();
-  no = this->init_var(*p, var_type, NULL, is_coloneq, false, &any_new);
+  Named_object* no = this->init_var(*p, var_type, NULL, is_coloneq, false,
+				    &any_new);
   Expression* ok_var = Expression::make_var_reference(no, location);
 
   Expression* texpr = type_guard->expr();
@@ -1681,7 +1690,10 @@ Parse::init_vars_from_type_guard(const Typed_identifier_list* vars,
   if (!any_new)
     error_at(location, "variables redeclared but no variable is new");
 
-  this->gogo_->add_statement(s);
+  if (!this->gogo_->in_global_scope())
+    this->gogo_->add_statement(s);
+  else
+    val_no->var_value()->add_preinit_statement(s);
 
   return true;
 }

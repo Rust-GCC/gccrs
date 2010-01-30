@@ -354,7 +354,8 @@ expression_requires(Expression* expr, Block* preinit, Named_object* var)
 {
   Find_var::Seen_objects seen_objects;
   Find_var find_var(var, &seen_objects);
-  Expression::traverse(&expr, &find_var);
+  if (expr != NULL)
+    Expression::traverse(&expr, &find_var);
   if (preinit != NULL)
     preinit->traverse(&find_var);
   
@@ -469,8 +470,10 @@ sort_var_inits(Var_inits* var_inits)
 	{
 	  // VAR does not depends upon any other initialization expressions.
 
-	  // Check for a loop of VAR on itself.
-	  if (expression_requires(init, preinit, var))
+	  // Check for a loop of VAR on itself.  We only do this if
+	  // INIT is not NULL; when INIT is NULL, it means that
+	  // PREINIT sets VAR, which we will interpret as a loop.
+	  if (init != NULL && expression_requires(init, preinit, var))
 	    error_at(var->location(),
 		     "initialization expression for %qs depends upon itself",
 		     Gogo::unpack_hidden_name(var->name()).c_str());
@@ -600,7 +603,8 @@ Gogo::write_globals()
 
 	  if (var_init_tree != NULL_TREE)
 	    {
-	      if (no->var_value()->init() == NULL)
+	      if (no->var_value()->init() == NULL
+		  && !no->var_value()->has_pre_init())
 		append_to_statement_list(var_init_tree, &init_stmt_list);
 	      else
 		var_inits.push_back(Var_init(no, var_init_tree));
@@ -991,17 +995,23 @@ Variable::get_init_block(Gogo* gogo, Named_object* function, tree var_decl)
   if (TREE_CODE(statements) == TRY_FINALLY_EXPR)
     statements = TREE_OPERAND(statements, 0);
 
-  tree rhs_tree = this->init_->get_tree(&context);
-  if (var_decl == NULL_TREE)
-    append_to_statement_list(rhs_tree, &statements);
-  else
+  // It's possible to have pre-init statements without an initializer
+  // if the pre-init statements set the variable.
+  if (this->init_ != NULL)
     {
-      tree val = Expression::convert_for_assignment(&context, this->type(),
-						    this->init_->type(),
-						    rhs_tree, this->location());
-      tree set = fold_build2_loc(this->location(), MODIFY_EXPR, void_type_node,
-				 var_decl, val);
-      append_to_statement_list(set, &statements);
+      tree rhs_tree = this->init_->get_tree(&context);
+      if (var_decl == NULL_TREE)
+	append_to_statement_list(rhs_tree, &statements);
+      else
+	{
+	  tree val = Expression::convert_for_assignment(&context, this->type(),
+							this->init_->type(),
+							rhs_tree,
+							this->location());
+	  tree set = fold_build2_loc(this->location(), MODIFY_EXPR,
+				     void_type_node, var_decl, val);
+	  append_to_statement_list(set, &statements);
+	}
     }
 
   return block_tree;
