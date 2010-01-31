@@ -13,7 +13,7 @@ func main() {
   }
   val = 5;
   val, present = v[1];
-  if present || val != 5 {
+  if present || val != 0 {
     panic(3);
   }
   if v[2] != 0 {
