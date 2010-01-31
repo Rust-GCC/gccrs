@@ -254,6 +254,7 @@ Gogo::import_package(const std::string& filename,
     {
       Package* package = p->second;
       package->set_location(location);
+      package->set_is_imported();
       std::string ln = local_name;
       bool is_ln_exported = is_local_name_exported;
       if (ln.empty())
@@ -289,6 +290,7 @@ Gogo::import_package(const std::string& filename,
   imp.register_builtin_types(this);
   Package* package = imp.import(this, local_name, is_local_name_exported);
   this->imports_.insert(std::make_pair(filename, package));
+  package->set_is_imported();
 }
 
 // Return whether we are at the global binding level.
@@ -364,7 +366,11 @@ Gogo::lookup(const std::string& name, Named_object** pfunction) const
     {
       Named_object* ret = this->package_->bindings()->lookup(name);
       if (ret != NULL)
-	return ret;
+	{
+	  if (ret->package() != NULL)
+	    ret->package()->set_used();
+	  return ret;
+	}
     }
 
   // We do not look in the global namespace.  If we did, the global
@@ -425,7 +431,11 @@ Gogo::add_imported_package(const std::string& real_name,
       return this->register_package(real_name, unique_prefix, location);
     }
   else if (alias_arg == "_")
-    return this->register_package(real_name, unique_prefix, location);
+    {
+      Package* ret = this->register_package(real_name, unique_prefix, location);
+      ret->set_uses_sink_alias();
+      return ret;
+    }
   else
     {
       *padd_to_globals = false;
@@ -958,6 +968,23 @@ void
 Gogo::clear_file_scope()
 {
   this->package_->bindings()->clear_file_scope();
+
+  // Warn about packages which were imported but not used.
+  for (Packages::iterator p = this->packages_.begin();
+       p != this->packages_.end();
+       ++p)
+    {
+      Package* package = p->second;
+      if (package != this->package_
+	  && package->is_imported()
+	  && !package->used()
+	  && !package->uses_sink_alias())
+	error_at(package->location(), "imported and not used: %s",
+		 package->name().c_str());
+      package->clear_is_imported();
+      package->clear_uses_sink_alias();
+      package->clear_used();
+    }
 }
 
 // Traverse the tree.
@@ -3735,7 +3762,7 @@ Bindings::traverse(Traverse* traverse, bool is_global)
 Package::Package(const std::string& name, const std::string& unique_prefix,
 		 source_location location)
   : name_(name), unique_prefix_(unique_prefix), bindings_(new Bindings(NULL)),
-    priority_(0), location_(location)
+    priority_(0), location_(location), used_(false), is_imported_(false)
 {
   gcc_assert(!name.empty() && !unique_prefix.empty());
 }

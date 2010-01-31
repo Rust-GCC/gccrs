@@ -2191,6 +2191,51 @@ class Package
   bindings()
   { return this->bindings_; }
 
+  // Whether some symbol from the package was used.
+  bool
+  used() const
+  { return this->used_; }
+
+  // Note that some symbol from this package was used.
+  void
+  set_used() const
+  { this->used_ = true; }
+
+  // Clear the used field for the next file.
+  void
+  clear_used()
+  { this->used_ = false; }
+
+  // Whether this package was imported in the current file.
+  bool
+  is_imported() const
+  { return this->is_imported_; }
+
+  // Note that this package was imported in the current file.
+  void
+  set_is_imported()
+  { this->is_imported_ = true; }
+
+  // Clear the imported field for the next file.
+  void
+  clear_is_imported()
+  { this->is_imported_ = false; }
+
+  // Whether this package was imported with a name of "_".
+  bool
+  uses_sink_alias() const
+  { return this->uses_sink_alias_; }
+
+  // Note that this package was imported with a name of "_".
+  void
+  set_uses_sink_alias()
+  { this->uses_sink_alias_ = true; }
+
+  // Clear the sink alias field for the next file.
+  void
+  clear_uses_sink_alias()
+  { this->uses_sink_alias_ = false; }
+
   // Look up a name in the package.  Returns NULL if the name is not
   // found.
   Named_object*
@@ -2246,6 +2291,14 @@ class Package
   int priority_;
   // The location of the import statement.
   source_location location_;
+  // True if some name from this package was used.  This is mutable
+  // because we can use a package even if we have a const pointer to
+  // it.
+  mutable bool used_;
+  // True if this package was imported in the current file.
+  bool is_imported_;
+  // True if this package was imported with a name of "_".
+  bool uses_sink_alias_;
 };
 
 // Return codes for the traversal functions.  This is not an enum

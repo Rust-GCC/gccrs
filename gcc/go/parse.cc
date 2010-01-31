@@ -193,6 +193,8 @@ Parse::qualified_ident(std::string* pname, Named_object** ppackage)
       return false;
     }
 
+  package->package_value()->set_used();
+
   token = this->advance_token();
   if (!token->is_identifier())
     {
@@ -2023,6 +2025,7 @@ Parse::operand(bool may_be_sink)
 		return Expression::make_error(location);
 	      }
 	    package = named_object->package_value();
+	    package->set_used();
 	    id = this->peek_token()->identifier();
 	    is_exported = this->peek_token()->is_identifier_exported();
 	    packed = this->gogo_->pack_hidden_name(id, is_exported);

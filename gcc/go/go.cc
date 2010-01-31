@@ -93,6 +93,8 @@ go_parse_input_files(const char** filenames, unsigned int filename_count)
 	fclose(file);
     }
 
+  ::gogo->clear_file_scope();
+
   // If the global predeclared names are referenced but not defined,
   // define them now.
   ::gogo->define_global_names();

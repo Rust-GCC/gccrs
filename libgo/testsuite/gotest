@@ -142,20 +142,6 @@ fi
 
 # They all compile; now generate the code to call them.
 {
-	# package spec
-	echo 'package main'
-	echo
-        echo 'import "./_gotest_"'
-	if $havex; then
-		echo 'import "./_xtest_"'
-	fi
-        if test "$package" != "testing"; then
-		echo 'import "testing"'
-	fi
-	# test array
-	echo
-	echo 'var tests = []testing.Test {'
-
 	# test functions are named TestFoo
 	# the grep -v eliminates methods and other special names
 	# that have multiple dots.
@@ -163,12 +149,29 @@ fi
 	tests=$(nm -s _gotest_.o $xofile | egrep ' T .*\.'$pattern'$' | grep -v '\..*\..*\.' | sed 's/.* //' | sed 's/.*\.\(.*\.\)/\1/')
 	if [ "x$tests" = x ]; then
 		echo 'gotest: warning: no tests matching '$pattern in _gotest_.o $xofile 1>&2
-	else
-		for i in $tests
-		do
-			echo '	testing.Test{ "'$i'", '$i' },'
-		done
+		exit 2
 	fi
+
+	# package spec
+	echo 'package main'
+	echo
+	# imports
+	if echo "$tests" | egrep -v '_test\.' >/dev/null; then
+		echo 'import "./_gotest_"'
+	fi
+	if $havex; then
+		echo 'import "./_xtest_"'
+	fi
+	if [ $package != "testing" ]; then
+		echo 'import "testing"'
+	fi
+	# test array
+	echo
+	echo 'var tests = []testing.Test {'
+	for i in $tests
+	do
+		echo '	testing.Test{ "'$i'", '$i' },'
+	done
 	echo '}'
 	# body
 	echo
