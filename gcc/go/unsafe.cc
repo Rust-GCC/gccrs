@@ -44,6 +44,8 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
       no->type_value()->set_is_visible();
     }
   Named_type* pointer_type = no->type_value();
+  if (add_to_globals)
+    this->add_named_type(pointer_type);
 
   Type* int_type = this->lookup_global("int")->type_value();
 
@@ -52,7 +54,9 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   results->push_back(Typed_identifier("", int_type, bloc));
   Function_type* fntype = Type::make_function_type(NULL, NULL, results, bloc);
   fntype->set_is_builtin();
-  bindings->add_function_declaration("Sizeof", package, fntype, bloc);
+  no = bindings->add_function_declaration("Sizeof", package, fntype, bloc);
+  if (add_to_globals)
+    this->add_named_object(no);
 
   // Offsetof.
   results = new Typed_identifier_list;
@@ -60,7 +64,9 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   fntype = Type::make_function_type(NULL, NULL, results, bloc);
   fntype->set_is_varargs();
   fntype->set_is_builtin();
-  bindings->add_function_declaration("Offsetof", package, fntype, bloc);
+  no = bindings->add_function_declaration("Offsetof", package, fntype, bloc);
+  if (add_to_globals)
+    this->add_named_object(no);
 
   // Alignof.
   results = new Typed_identifier_list;
@@ -69,6 +75,8 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   fntype->set_is_varargs();
   fntype->set_is_builtin();
   no = bindings->add_function_declaration("Alignof", package, fntype, bloc);
+  if (add_to_globals)
+    this->add_named_object(no);
 
   // Typeof.
   Typed_identifier_list* empty_methods = new Typed_identifier_list();
@@ -78,7 +86,9 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   results = new Typed_identifier_list;
   results->push_back(Typed_identifier("", empty_interface, bloc));
   fntype = Type::make_function_type(NULL, parameters, results, bloc);
-  bindings->add_function_declaration("Typeof", package, fntype, bloc);
+  no = bindings->add_function_declaration("Typeof", package, fntype, bloc);
+  if (add_to_globals)
+    this->add_named_object(no);
 
   // Reflect.
   parameters = new Typed_identifier_list;
@@ -87,7 +97,9 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   results->push_back(Typed_identifier("", empty_interface, bloc));
   results->push_back(Typed_identifier("", pointer_type, bloc));
   fntype = Type::make_function_type(NULL, parameters, results, bloc);
-  bindings->add_function_declaration("Reflect", package, fntype, bloc);
+  no = bindings->add_function_declaration("Reflect", package, fntype, bloc);
+  if (add_to_globals)
+    this->add_named_object(no);
 
   // Unreflect.
   parameters = new Typed_identifier_list;
@@ -96,7 +108,9 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   results = new Typed_identifier_list;
   results->push_back(Typed_identifier("", empty_interface, bloc));
   fntype = Type::make_function_type(NULL, parameters, results, bloc);
-  bindings->add_function_declaration("Unreflect", package, fntype, bloc);
+  no = bindings->add_function_declaration("Unreflect", package, fntype, bloc);
+  if (add_to_globals)
+    this->add_named_object(no);
 
   // New.
   parameters = new Typed_identifier_list;
@@ -104,7 +118,9 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   results = new Typed_identifier_list;
   results->push_back(Typed_identifier("", pointer_type, bloc));
   fntype = Type::make_function_type(NULL, parameters, results, bloc);
-  bindings->add_function_declaration("New", package, fntype, bloc);
+  no = bindings->add_function_declaration("New", package, fntype, bloc);
+  if (add_to_globals)
+    this->add_named_object(no);
 
   // NewArray.
   parameters = new Typed_identifier_list;
@@ -113,5 +129,7 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   results = new Typed_identifier_list;
   results->push_back(Typed_identifier("", pointer_type, bloc));
   fntype = Type::make_function_type(NULL, parameters, results, bloc);
-  bindings->add_function_declaration("NewArray", package, fntype, bloc);
+  no = bindings->add_function_declaration("NewArray", package, fntype, bloc);
+  if (add_to_globals)
+    this->add_named_object(no);
 }
