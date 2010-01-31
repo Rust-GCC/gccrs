@@ -19,10 +19,11 @@ func mapaccess2(h *hmap, key *byte, val *byte) (present bool) {
 	size_t valsize;
 
 	mapval = __go_map_index(h, key, 0);
+	valsize = h->__descriptor->__map_descriptor->__val_type->__size;
 	if (mapval == nil) {
+		__builtin_memset(val, 0, valsize);
 		present = 0;
 	} else {
-		valsize = h->__descriptor->__map_descriptor->__val_type->__size;
 		__builtin_memcpy(val, mapval, valsize);
 		present = 1;
 	}
