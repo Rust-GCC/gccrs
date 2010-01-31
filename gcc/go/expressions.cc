@@ -2096,7 +2096,9 @@ Const_expression::do_determine_type(const Type_context* context)
   Type* ctype = this->constant_->const_value()->type();
   if (ctype != NULL && !ctype->is_abstract())
     ;
-  else if (context->type != NULL)
+  else if (context->type != NULL
+	   && (context->type->integer_type() != NULL
+	       || context->type->float_type() != NULL))
     this->type_ = context->type;
   else if (!context->may_be_abstract)
     {
