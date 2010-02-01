@@ -314,13 +314,14 @@ Parse::type_name(bool issue_error)
 	  && package->name() != this->gogo_->package_name())
 	{
 	  // Check whether the name is there but hidden.
-	  std::string pn = Gogo::unpack_hidden_name(package->name());
-	  std::string s = '.' + pn + '.' + name;
+	  std::string s = ('.' + package->package_value()->unique_prefix()
+			   + '.' + package->package_value()->name()
+			   + '.' + name);
 	  named_object = package->package_value()->lookup(s);
 	  if (named_object != NULL)
 	    {
 	      error_at(location, "invalid reference to hidden type %<%s.%s%>",
-		       pn.c_str(), name.c_str());
+		       package->package_value()->name().c_str(), name.c_str());
 	      issue_error = false;
 	    }
 	}

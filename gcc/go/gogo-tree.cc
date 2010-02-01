@@ -2331,7 +2331,8 @@ Gogo::type_method_table_entry(tree method_entry_tree,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__hash") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = build_int_cst_type(TREE_TYPE(field), mtype->hash_for_method());
+  elt->value = build_int_cst_type(TREE_TYPE(field),
+				  mtype->hash_for_method(this));
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__name") == 0);
@@ -2348,7 +2349,7 @@ Gogo::type_method_table_entry(tree method_entry_tree,
     elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
   else
     {
-      std::string s = Gogo::hidden_name_package(method_name);
+      std::string s = Gogo::hidden_name_prefix(method_name);
       elt->value = this->ptr_go_string_constant_tree(s);
     }
 
@@ -2461,15 +2462,25 @@ Gogo::uncommon_type_information(tree uncommon_type_tree, Named_type* name,
       name_value = this->ptr_go_string_constant_tree(n);
       if (name->is_builtin())
 	pkg_path_value = fold_convert(ptr_string_type_tree, null_pointer_node);
-      else if (Gogo::is_hidden_name(no->name()))
-	n = Gogo::hidden_name_package(no->name());
-      else if (no->package() != NULL)
-	n = no->package()->name();
       else
-	n = this->package_name();
-      if (name->in_function() != NULL)
-	n += "." + Gogo::unpack_hidden_name(name->in_function()->name());
-      pkg_path_value = this->ptr_go_string_constant_tree(n);
+	{
+	  const Package* package = no->package();
+	  const std::string& unique_prefix(package == NULL
+					   ? this->unique_prefix()
+					   : package->unique_prefix());
+	  const std::string& package_name(package == NULL
+					  ? this->package_name()
+					  : package->name());
+	  n.assign(unique_prefix);
+	  n.append(1, '.');
+	  n.append(package_name);
+	  if (name->in_function() != NULL)
+	    {
+	      n.append(1, '.');
+	      n.append(Gogo::unpack_hidden_name(name->in_function()->name()));
+	    }
+	  pkg_path_value = this->ptr_go_string_constant_tree(n);
+	}
     }
 
   VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 3);
@@ -3044,7 +3055,7 @@ Gogo::struct_type_field(tree field_type_tree, const Struct_field* struct_field,
     elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
   else
     {
-      std::string s = Gogo::hidden_name_package(struct_field->field_name());
+      std::string s = Gogo::hidden_name_prefix(struct_field->field_name());
       elt->value = this->ptr_go_string_constant_tree(s);
     }
 
@@ -3444,7 +3455,7 @@ Gogo::interface_type_method(tree method_type_tree,
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = build_int_cst_type(TREE_TYPE(field),
-				  method->type()->hash_for_method());
+				  method->type()->hash_for_method(this));
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__name") == 0);
@@ -3461,7 +3472,7 @@ Gogo::interface_type_method(tree method_type_tree,
     elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
   else
     {
-      std::string s = Gogo::hidden_name_package(method->name());
+      std::string s = Gogo::hidden_name_prefix(method->name());
       elt->value = this->ptr_go_string_constant_tree(s);
     }
 

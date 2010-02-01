@@ -2086,7 +2086,7 @@ Gogo::check_return_statements()
 // must be unique across the entire link.
 
 const std::string&
-Gogo::unique_prefix()
+Gogo::unique_prefix() const
 {
   gcc_assert(!this->unique_prefix_.empty());
   return this->unique_prefix_;

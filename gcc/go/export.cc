@@ -305,15 +305,12 @@ Export::write_type(const Type* type)
       const Package* package = named_object->package();
 
       std::string s = "\"";
-      if (package != NULL)
+      if (package != NULL && !Gogo::is_hidden_name(named_object->name()))
 	{
 	  s += package->unique_prefix();
 	  s += '.';
-	  if (!Gogo::is_hidden_name(named_object->name()))
-	    {
-	      s += package->name();
-	      s += '.';
-	    }
+	  s += package->name();
+	  s += '.';
 	}
       s += named_object->name();
       s += "\" ";

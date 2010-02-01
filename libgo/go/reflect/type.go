@@ -569,7 +569,13 @@ func (t *StructType) NumField() int { return len(t.fields) }
 var canonicalType = make(map[string]Type)
 
 func canonicalize(t Type) Type {
-	s := t.String()
+	u := t.uncommon()
+	var s string
+	if u == nil || u.PkgPath() == "" {
+		s = t.String()
+	} else {
+		s = u.PkgPath() + "." + u.Name()
+	}
 	if r, ok := canonicalType[s]; ok {
 		return r
 	}

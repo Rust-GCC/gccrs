@@ -13,7 +13,7 @@
 
 class Traverse;
 class Type;
-class Type_hash;
+class Type_hash_identical;
 class Type_equal;
 class Type_identical;
 class Typed_identifier;
@@ -121,25 +121,31 @@ class Gogo
   // packages do not collide.
   std::string
   pack_hidden_name(const std::string& name, bool is_exported) const
-  { return is_exported ? name : '.' + this->package_name() + '.' + name; }
+  {
+    return (is_exported
+	    ? name
+	    : ('.' + this->unique_prefix()
+	       + '.' + this->package_name()
+	       + '.' + name));
+  }
 
   // Unpack a name which may have been hidden.  Returns the
   // user-visible name of the object.
   static std::string
   unpack_hidden_name(const std::string& name)
-  { return name[0] != '.' ? name : name.substr(name.find('.', 1) + 1); }
+  { return name[0] != '.' ? name : name.substr(name.rfind('.') + 1); }
 
   // Return whether a possibly packed name is hidden.
   static bool
   is_hidden_name(const std::string& name)
   { return name[0] == '.'; }
 
-  // Return the package of a hidden name.
+  // Return the package prefix of a hidden name.
   static std::string
-  hidden_name_package(const std::string& name)
+  hidden_name_prefix(const std::string& name)
   {
     gcc_assert(Gogo::is_hidden_name(name));
-    return name.substr(1, name.find('.', 1) - 1);
+    return name.substr(1, name.rfind('.', 1) - 1);
   }
 
   // Return whether a name is the blank identifier _.
@@ -153,7 +159,7 @@ class Gogo
 
   // Return the unique prefix to use for all exported symbols.
   const std::string&
-  unique_prefix();
+  unique_prefix() const;
 
   // Set the unique prefix.
   void
@@ -733,11 +739,11 @@ class Gogo
   typedef std::map<std::string, std::string> Sys_names;
 
   // Hash table mapping map types to map descriptor decls.
-  typedef std::tr1::unordered_map<const Map_type*, tree, Type_hash,
+  typedef std::tr1::unordered_map<const Map_type*, tree, Type_hash_identical,
 				  Type_identical> Map_descriptors;
 
   // Map unnamed types to type descriptor decls.
-  typedef std::tr1::unordered_map<const Type*, tree, Type_hash,
+  typedef std::tr1::unordered_map<const Type*, tree, Type_hash_identical,
 				  Type_identical> Type_descriptor_decls;
 
   // The package we are compiling.
@@ -2396,7 +2402,7 @@ class Traverse
   type(Type*);
 
  private:
-  typedef std::tr1::unordered_set<const Type*, Type_hash,
+  typedef std::tr1::unordered_set<const Type*, Type_hash_identical,
 				  Type_identical> Types_seen;
 
   typedef std::tr1::unordered_set<const Expression*> Expressions_seen;

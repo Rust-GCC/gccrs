@@ -357,6 +357,8 @@ Temporary_statement::do_get_tree(Translate_context* context)
 {
   gcc_assert(this->decl_ == NULL_TREE);
   tree type_tree = this->type()->get_tree(context->gogo());
+  if (type_tree == error_mark_node)
+    return error_mark_node;
   // We can only use create_tmp_var if the type is not addressable.
   if (!TREE_ADDRESSABLE(type_tree))
     {
@@ -3603,7 +3605,7 @@ Type_case_clauses::traverse(Traverse* traverse)
 void
 Type_case_clauses::check_duplicates() const
 {
-  typedef std::tr1::unordered_set<const Type*, Type_hash,
+  typedef std::tr1::unordered_set<const Type*, Type_hash_identical,
 				  Type_identical> Types_seen;
   Types_seen types_seen;
   for (Type_clauses::const_iterator p = this->clauses_.begin();

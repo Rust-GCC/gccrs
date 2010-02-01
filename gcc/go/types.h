@@ -267,8 +267,8 @@ class Type
   // Return a hash code for this type for the method hash table.
   // Types which are equivalent according to are_compatible_for_method
   // will have the same hash code.
-  size_t
-  hash_for_method() const;
+  unsigned int
+  hash_for_method(Gogo*) const;
 
   // Return the type classification.
   Type_classification
@@ -610,8 +610,8 @@ class Type
   virtual void
   do_add_refcount_queue_entries(Refcounts* refcounts, Refcount_entry* entry);
 
-  virtual size_t
-  do_hash_for_method() const;
+  virtual unsigned int
+  do_hash_for_method(Gogo*) const;
 
   virtual bool
   do_check_make_expression(Expression_list* args, source_location);
@@ -664,6 +664,10 @@ class Type
   // Store the type tree during construction.
   void
   set_incomplete_type_tree(tree);
+
+  // Incorporate a string into a hash code.
+  static unsigned int
+  hash_string(const std::string&, unsigned int);
 
  private:
   // Convert to the desired type classification, or return NULL.  This
@@ -724,12 +728,12 @@ class Type
 
 // Type hash table operations.
 
-class Type_hash
+class Type_hash_identical
 {
  public:
-  size_t
+  unsigned int
   operator()(const Type* type) const
-  { return type->hash_for_method(); }
+  { return type->hash_for_method(NULL); }
 };
 
 class Type_identical
@@ -928,8 +932,8 @@ class Integer_type : public Type
   is_compatible(const Integer_type* t) const;
 
  protected:
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   tree
   do_get_tree(Gogo*);
@@ -1004,8 +1008,8 @@ class Float_type : public Type
   type_tree() const;
 
  protected:
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   tree
   do_get_tree(Gogo*);
@@ -1168,8 +1172,8 @@ class Function_type : public Type
   do_is_refcounted() const
   { return true; }
 
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   tree
   do_get_tree(Gogo*);
@@ -1285,8 +1289,8 @@ class Pointer_type : public Type
   do_is_refcounted() const
   { return !this->is_unsafe_pointer_type(); }
 
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   tree
   do_get_tree(Gogo*);
@@ -1510,8 +1514,8 @@ class Struct_type : public Type
   void
   do_add_refcount_queue_entries(Refcounts*, Refcount_entry*);
 
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   tree
   do_get_tree(Gogo*);
@@ -1602,8 +1606,8 @@ class Array_type : public Type
 	    || this->element_type_->has_refcounted_component());
   }
 
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   bool
   do_check_make_expression(Expression_list*, source_location);
@@ -1640,7 +1644,7 @@ class Array_type : public Type
 
   // A mapping from Type to tree, used to ensure that arrays of
   // identical types are identical.
-  typedef std::tr1::unordered_map<const Type*, tree, Type_hash,
+  typedef std::tr1::unordered_map<const Type*, tree, Type_hash_identical,
 				  Type_identical> Array_trees;
 
   static Array_trees array_trees;
@@ -1692,8 +1696,8 @@ class Map_type : public Type
   do_is_refcounted() const
   { return true; }
 
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   bool
   do_check_make_expression(Expression_list*, source_location);
@@ -1773,8 +1777,8 @@ class Channel_type : public Type
   do_is_refcounted() const
   { return true; }
 
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   bool
   do_check_make_expression(Expression_list*, source_location);
@@ -1876,8 +1880,8 @@ class Interface_type : public Type
   do_is_refcounted() const
   { return true; }
 
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   tree
   do_get_tree(Gogo*);
@@ -2339,8 +2343,8 @@ class Named_type : public Type
   void
   do_add_refcount_queue_entries(Refcounts* refcounts, Refcount_entry* entry);
 
-  size_t
-  do_hash_for_method() const;
+  unsigned int
+  do_hash_for_method(Gogo*) const;
 
   bool
   do_check_make_expression(Expression_list* args, source_location location)
@@ -2380,7 +2384,8 @@ class Named_type : public Type
  private:
   // A mapping from interfaces to the associated interface method
   // tables for this type.  This maps to a decl.
-  typedef std::tr1::unordered_map<const Interface_type*, tree, Type_hash,
+  typedef std::tr1::unordered_map<const Interface_type*, tree,
+				  Type_hash_identical,
 				  Type_identical> Interface_method_tables;
 
   static const char* const receiver_name;
@@ -2396,7 +2401,7 @@ class Named_type : public Type
 		       bool* found_pointer_method) const;
 
   // A hash table we use to avoid infinite recursion.
-  typedef std::tr1::unordered_set<const Named_type*, Type_hash,
+  typedef std::tr1::unordered_set<const Named_type*, Type_hash_identical,
 				  Type_identical> Types_seen;
 
   // Add all methods for TYPE to the list of methods for THIS.
@@ -2519,9 +2524,9 @@ class Forward_declaration_type : public Type
   do_add_refcount_queue_entries(Refcounts* refcounts, Refcount_entry* entry)
   { return this->real_type()->add_refcount_queue_entries(refcounts, entry); }
 
-  size_t
-  do_hash_for_method() const
-  { return this->real_type()->hash_for_method(); }
+  unsigned int
+  do_hash_for_method(Gogo* gogo) const
+  { return this->real_type()->hash_for_method(gogo); }
 
   bool
   do_check_make_expression(Expression_list* args, source_location location)

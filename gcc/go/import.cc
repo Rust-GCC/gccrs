@@ -490,53 +490,40 @@ Import::read_type()
     type_name += c;
 
   // If this type is in the current package, the name will be
-  // .PACKAGE.NAME or simply NAME with no dots.  Otherwise, a
+  // .PREFIX.PACKAGE.NAME or simply NAME with no dots.  Otherwise, a
   // non-hidden symbol will be PREFIX.PACKAGE.NAME and a hidden symbol
-  // will be PREFIX..PACKAGE.NAME.
+  // will be .PREFIX.PACKAGE.NAME.
   std::string package_name;
   std::string unique_prefix;
-  size_t dot = type_name.rfind('.');
-  if (dot != std::string::npos)
+  if (type_name.find('.') != std::string::npos)
     {
+      bool is_hidden = false;
+      size_t start = 0;
+      if (type_name[0] == '.')
+	{
+	  ++start;
+	  is_hidden = true;
+	}
+      size_t dot1 = type_name.find('.', start);
       size_t dot2;
-      if (dot == 0)
+      if (dot1 == std::string::npos)
 	dot2 = std::string::npos;
       else
-	dot2 = type_name.rfind('.', dot - 1);
-      if (dot2 == 0)
-	;
-      else if (dot2 == std::string::npos
-	       || (dot2 == 1 && type_name[0] == '.'))
+	dot2 = type_name.find('.', dot1 + 1);
+      if (dot1 == std::string::npos || dot2 == std::string::npos)
 	{
-	  if (!stream->saw_error())
-	    {
-	      if (dot2 == 1)
-		error_at(this->location_,
-			 ("error at import data at %d: "
-			  "missing prefix in type name"),
-			 stream->pos());
-	      else
-		error_at(this->location_,
-			 ("error at import data at %d: "
-			  "missing dot in type name"),
-			 stream->pos());
-	    }
+	  error_at(this->location_,
+		   ("error at import data at %d: missing dot in type name"),
+		   stream->pos());
 	  stream->set_saw_error();
 	}
       else
 	{
-	  package_name = type_name.substr(dot2 + 1, dot - (dot2 + 1));
-	  if (type_name[dot2 - 1] != '.')
-	    {
-	      unique_prefix = type_name.substr(0, dot2);
-	      type_name = type_name.substr(dot + 1);
-	    }
-	  else
-	    {
-	      unique_prefix = type_name.substr(0, dot2 - 1);
-	      type_name = type_name.substr(dot2);
-	    }
+	  unique_prefix = type_name.substr(start, dot1 - start);
+	  package_name = type_name.substr(dot1 + 1, dot2 - (dot1 + 1));
 	}
+      if (!is_hidden)
+	type_name.erase(0, dot2 + 1);
     }
 
   this->require_c_string(" ");

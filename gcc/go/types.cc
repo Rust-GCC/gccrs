@@ -578,22 +578,37 @@ Type::has_hidden_fields(const Named_type* within, std::string* reason) const
 
 // Return a hash code for the type to be used for method lookup.
 
-size_t
-Type::hash_for_method() const
+unsigned int
+Type::hash_for_method(Gogo* gogo) const
 {
-  size_t ret = 0;
+  unsigned int ret = 0;
   if (this->classification_ != TYPE_FORWARD)
     ret += this->classification_;
-  return ret + this->do_hash_for_method();
+  return ret + this->do_hash_for_method(gogo);
 }
 
 // Default implementation of do_hash_for_method.  This is appropriate
 // for types with no subfields.
 
-size_t
-Type::do_hash_for_method() const
+unsigned int
+Type::do_hash_for_method(Gogo*) const
 {
   return 0;
+}
+
+// Return a hash code for a string, given a starting hash.
+
+unsigned int
+Type::hash_string(const std::string& s, unsigned int h)
+{
+  const char* p = s.data();
+  size_t len = s.length();
+  for (; len > 0; --len)
+    {
+      h ^= *p++;
+      h*= 16777619;
+    }
+  return h;
 }
 
 // Default check for the expression passed to make.  Any type which
@@ -986,8 +1001,8 @@ Integer_type::is_compatible(const Integer_type* t) const
 
 // Hash code.
 
-size_t
-Integer_type::do_hash_for_method() const
+unsigned int
+Integer_type::do_hash_for_method(Gogo*) const
 {
   return ((this->bits_ << 4)
 	  + ((this->is_unsigned_ ? 1 : 0) << 8)
@@ -1152,8 +1167,8 @@ Float_type::is_compatible(const Float_type* t) const
 
 // Hash code.
 
-size_t
-Float_type::do_hash_for_method() const
+unsigned int
+Float_type::do_hash_for_method(Gogo*) const
 {
   return (this->bits_ << 4) + ((this->is_abstract_ ? 1 : 0) << 8);
 }
@@ -1698,10 +1713,10 @@ Function_type::varargs_type() const
 
 // Hash code.
 
-size_t
-Function_type::do_hash_for_method() const
+unsigned int
+Function_type::do_hash_for_method(Gogo* gogo) const
 {
-  size_t ret = 0;
+  unsigned int ret = 0;
   // We ignore the receiver type for hash codes, because we need to
   // get the same hash code for a method in an interface and a method
   // declared for a type.  The former will not have a receiver.
@@ -1711,7 +1726,7 @@ Function_type::do_hash_for_method() const
       for (Typed_identifier_list::const_iterator p = this->parameters_->begin();
 	   p != this->parameters_->end();
 	   ++p, ++shift)
-	ret += p->type()->hash_for_method() << shift;
+	ret += p->type()->hash_for_method(gogo) << shift;
     }
   if (this->results_ != NULL)
     {
@@ -1719,7 +1734,7 @@ Function_type::do_hash_for_method() const
       for (Typed_identifier_list::const_iterator p = this->results_->begin();
 	   p != this->results_->end();
 	   ++p, ++shift)
-	ret += p->type()->hash_for_method() << shift;
+	ret += p->type()->hash_for_method(gogo) << shift;
     }
   if (this->is_varargs_)
     ret += 1;
@@ -2166,10 +2181,10 @@ Pointer_type::do_traverse(Traverse* traverse)
 
 // Hash code.
 
-size_t
-Pointer_type::do_hash_for_method() const
+unsigned int
+Pointer_type::do_hash_for_method(Gogo* gogo) const
 {
-  return this->to_type_->hash_for_method() << 4;
+  return this->to_type_->hash_for_method(gogo) << 4;
 }
 
 // The tree for a pointer type.
@@ -2606,16 +2621,16 @@ Struct_type::struct_has_hidden_fields(const Named_type* within,
 
 // Hash code.
 
-size_t
-Struct_type::do_hash_for_method() const
+unsigned int
+Struct_type::do_hash_for_method(Gogo* gogo) const
 {
-  size_t ret = 0;
+  unsigned int ret = 0;
   if (this->fields() != NULL)
     {
       for (Struct_field_list::const_iterator pf = this->fields()->begin();
 	   pf != this->fields()->end();
 	   ++pf)
-	ret = (ret << 1) + pf->type()->hash_for_method();
+	ret = (ret << 1) + pf->type()->hash_for_method(gogo);
     }
   return ret <<= 2;
 }
@@ -3172,12 +3187,12 @@ Array_type::do_traverse(Traverse* traverse)
 
 // Array type hash code.
 
-size_t
-Array_type::do_hash_for_method() const
+unsigned int
+Array_type::do_hash_for_method(Gogo* gogo) const
 {
   // There is no very convenient way to get a hash code for the
   // length.
-  return this->element_type_->hash_for_method();
+  return this->element_type_->hash_for_method(gogo) + 1;
 }
 
 // See if the expression passed to make is suitable.  The first
@@ -3699,11 +3714,12 @@ Map_type::is_compatible(const Map_type* t, Type_compatible compatible) const
 
 // Hash code.
 
-size_t
-Map_type::do_hash_for_method() const
+unsigned int
+Map_type::do_hash_for_method(Gogo* gogo) const
 {
-  return (this->key_type_->hash_for_method()
-	  + this->val_type_->hash_for_method());
+  return (this->key_type_->hash_for_method(gogo)
+	  + this->val_type_->hash_for_method(gogo)
+	  + 2);
 }
 
 // Check that a call to the builtin make function is valid.  For a map
@@ -3894,16 +3910,16 @@ Type::make_map_type(Type* key_type, Type* val_type, source_location location)
 
 // Hash code.
 
-size_t
-Channel_type::do_hash_for_method() const
+unsigned int
+Channel_type::do_hash_for_method(Gogo* gogo) const
 {
-  size_t ret = 0;
+  unsigned int ret = 0;
   if (this->may_send_)
     ret += 1;
   if (this->may_receive_)
     ret += 2;
   if (this->element_type_ != NULL)
-    ret += this->element_type_->hash_for_method() << 2;
+    ret += this->element_type_->hash_for_method(gogo) << 2;
   return ret << 3;
 }
 
@@ -4300,22 +4316,18 @@ Interface_type::is_compatible_for_assign(const Interface_type* t,
 
 // Hash code.
 
-size_t
-Interface_type::do_hash_for_method() const
+unsigned int
+Interface_type::do_hash_for_method(Gogo* gogo) const
 {
-  size_t ret = 0;
+  unsigned int ret = 0;
   if (this->methods_ != NULL)
     {
       for (Typed_identifier_list::const_iterator p = this->methods_->begin();
 	   p != this->methods_->end();
 	   ++p)
 	{
-	  for (const char* s = p->name().c_str(); *s != '\0'; ++s)
-	    {
-	      ret += *s;
-	      ret <<= 1;
-	    }
-	  ret += p->type()->hash_for_method();
+	  ret = Type::hash_string(p->name(), ret);
+	  ret += p->type()->hash_for_method(gogo);
 	  ret <<= 1;
 	}
     }
@@ -5845,15 +5857,33 @@ Named_type::do_add_refcount_queue_entries(Refcounts* refcounts,
 // Return a hash code.  This is used for method lookup.  We simply
 // hash on the name itself.
 
-size_t
-Named_type::do_hash_for_method() const
+unsigned int
+Named_type::do_hash_for_method(Gogo* gogo) const
 {
-  size_t ret = 0;
   const std::string& name(this->named_object()->name());
-  size_t len = name.length();
-  const char* p = name.data();
-  for (size_t i = 0; i < len; ++i, ++p)
-    ret = (ret << 1) + *p;
+  unsigned int ret = Type::hash_string(name, 0);
+
+  // GOGO will be NULL here when called from Type_hash_identical.
+  // That is OK because that is only used for internal hash tables
+  // where we are going to be comparing named types for equality.  In
+  // other cases, which are cases where the runtime is going to
+  // compare hash codes to see if the types are the same, we need to
+  // include the package prefix and name in the hash.
+  if (gogo != NULL && !Gogo::is_hidden_name(name) && !this->is_builtin())
+    {
+      const Package* package = this->named_object()->package();
+      if (package == NULL)
+	{
+	  ret = Type::hash_string(gogo->unique_prefix(), ret);
+	  ret = Type::hash_string(gogo->package_name(), ret);
+	}
+      else
+	{
+	  ret = Type::hash_string(package->unique_prefix(), ret);
+	  ret = Type::hash_string(package->name(), ret);
+	}
+    }
+
   return ret;
 }
 
