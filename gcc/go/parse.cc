@@ -633,13 +633,9 @@ Parse::signature(Typed_identifier* receiver, source_location location)
   bool is_varargs = false;
   Typed_identifier_list* params = this->parameters(&is_varargs);
 
-  // At the top level, "func fn () func()" is two func declarations,
-  // not a single one returning a function type.
   Typed_identifier_list* result = NULL;
   if (this->peek_token()->is_op(OPERATOR_LPAREN)
-      || (this->type_may_start_here()
-	  && (!this->gogo_->in_global_scope()
-	      || !this->peek_token()->is_keyword(KEYWORD_FUNC))))
+      || this->type_may_start_here())
     result = this->result();
 
   Function_type* ret = Type::make_function_type(receiver, params, result,
