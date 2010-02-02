@@ -588,10 +588,10 @@ Parse::pointer_type()
   return Type::make_pointer_type(type);
 }
 
-// ChannelType = FullChannel | SendChannel | RecvChannel .
-// FullChannel = "chan" ValueType .
-// SendChannel = "chan" "<-" ValueType .
-// RecvChannel = "<-" "chan" ValueType .
+// ChannelType   = Channel | SendChannel | RecvChannel .
+// Channel       = "chan" ElementType .
+// SendChannel   = "chan" "<-" ElementType .
+// RecvChannel   = "<-" "chan" ElementType .
 
 Type*
 Parse::channel_type()
@@ -2790,6 +2790,15 @@ Parse::unary_expr(bool may_be_sink, bool may_be_composite_lit,
       source_location location = token->location();
       Operator op = token->op();
       this->advance_token();
+
+      if (op == OPERATOR_CHANOP
+	  && this->peek_token()->is_keyword(KEYWORD_CHAN))
+	{
+	  // This is "<- chan" which must be the start of a type.
+	  this->unget_token(Token::make_operator_token(op, location));
+	  return Expression::make_type(this->type(), location);
+	}
+
       Expression* expr = this->unary_expr(false, may_be_composite_lit,
 					  is_type_switch);
       if (expr->is_error_expression())
