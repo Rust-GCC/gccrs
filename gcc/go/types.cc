@@ -5686,8 +5686,8 @@ Named_type::is_compatible(const Type* t, Type_compatible compatible,
 			+ 100);
 	  char* buf = new char[len];
 	  snprintf(buf, len, _("cannot use type %s as type %s"),
-		   t->named_type()->name().c_str(),
-		   this->name().c_str());
+		   t->named_type()->message_name().c_str(),
+		   this->message_name().c_str());
 	  reason->assign(buf);
 	  delete[] buf;
 	}
