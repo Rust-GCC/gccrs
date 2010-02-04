@@ -1040,7 +1040,7 @@ Function::get_or_make_decl(Gogo* gogo, Named_object* no, tree id)
 	  TREE_NOTHROW(decl) = 1;
 
 	  gcc_assert(no->package() == NULL);
-	  if (this->enclosing_ != NULL || Go_statement::is_thunk(no))
+	  if (this->enclosing_ != NULL || Gogo::is_thunk(no))
 	    ;
 	  else if (Gogo::unpack_hidden_name(no->name()) == "init"
 		   && !this->type_->is_method())

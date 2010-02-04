@@ -302,6 +302,16 @@ class Gogo
   void
   add_named_object(Named_object*);
 
+  // Return a name to use for a thunk function.  A thunk function is
+  // one we create during the compilation, for a go statement or a
+  // defer statement or a method expression.
+  static std::string
+  thunk_name();
+
+  // Return whether an object is a thunk.
+  static bool
+  is_thunk(const Named_object*);
+
   // Note that we've seen an interface type.  This is used to build
   // all required interface method tables.
   void

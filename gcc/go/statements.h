@@ -847,10 +847,6 @@ class Thunk_statement : public Statement
   bool
   simplify_statement(Gogo*, Block*);
 
-  // Return whether a function is a thunk.
-  static bool
-  is_thunk(const Named_object*);
-
  protected:
   int
   do_traverse(Traverse* traverse);
@@ -869,9 +865,6 @@ class Thunk_statement : public Statement
   get_fn_and_arg(Translate_context*, tree* pfn, tree* parg);
 
  private:
-  // An counter to generate new thunk names.
-  static int thunk_count;
-
   // Return whether this is a simple go statement.
   bool
   is_simple(Function_type*) const;
@@ -882,7 +875,7 @@ class Thunk_statement : public Statement
 
   // Build the thunk.
   void
-  build_thunk(Gogo*, const char*, Function_type* fntype);
+  build_thunk(Gogo*, const std::string&, Function_type* fntype);
 
   // The field name used in the thunk structure for the function
   // pointer.

@@ -8218,6 +8218,9 @@ class Selector_expression : public Parser_expression
   }
 
  private:
+  Expression*
+  lower_method_expression(Gogo*);
+
   // The expression on the left hand side.
   Expression* left_;
   // The name on the right hand side.
@@ -8228,11 +8231,14 @@ class Selector_expression : public Parser_expression
 // hand side.
 
 Expression*
-Selector_expression::do_lower(Gogo*, int)
+Selector_expression::do_lower(Gogo* gogo, int)
 {
   source_location location = this->location();
   Expression* left = this->left_;
   const std::string& name(this->name_);
+
+  if (left->is_type_expression())
+    return this->lower_method_expression(gogo);
 
   Type* type = left->type();
   Type* ptype = type->deref();
@@ -8296,6 +8302,141 @@ Selector_expression::do_lower(Gogo*, int)
 		 unpacked.c_str());
     }
   return Expression::make_error(location);
+}
+
+// Lower a method expression T.M or (*T).M.  We turn this into a
+// function literal.
+
+Expression*
+Selector_expression::lower_method_expression(Gogo* gogo)
+{
+  source_location location = this->location();
+  Type* type = this->left_->type();
+  const std::string& name(this->name_);
+
+  bool is_pointer;
+  if (type->points_to() == NULL)
+    is_pointer = false;
+  else
+    {
+      is_pointer = true;
+      type = type->points_to();
+    }
+  Named_type* nt = type->named_type();
+  if (nt == NULL)
+    {
+      error_at(location,
+	       ("method expression requires named type or "
+		"pointer to named type"));
+      return Expression::make_error(location);
+    }
+
+  bool is_ambiguous;
+  Method* method = nt->method_function(name, &is_ambiguous);
+  if (method == NULL)
+    {
+      if (!is_ambiguous)
+	error_at(location, "type %<%s%> has no method %<%s%>",
+		 nt->message_name().c_str(), name.c_str());
+      else
+	error_at(location, "method %<%s%> is ambiguous in type %<%s%>",
+		 name.c_str(), nt->message_name().c_str());
+      return Expression::make_error(location);
+    }
+
+  if (!is_pointer && !method->is_value_method())
+    {
+      error_at(location, "method requires pointer (use %<(*%s).%s)%>",
+	       nt->message_name().c_str(), name.c_str());
+      return Expression::make_error(location);
+    }
+
+  std::string method_name = Gogo::thunk_name();
+
+  // Build a new function type in which the receiver becomes the first
+  // argument.
+  Function_type* method_type = method->type();
+  gcc_assert(method_type->is_method());
+
+  const char* const receiver_name = "$this";
+  Typed_identifier_list* parameters = new Typed_identifier_list();
+  parameters->push_back(Typed_identifier(receiver_name, this->left_->type(),
+					 location));
+
+  const Typed_identifier_list* method_parameters = method_type->parameters();
+  if (method_parameters != NULL)
+    {
+      for (Typed_identifier_list::const_iterator p = method_parameters->begin();
+	   p != method_parameters->end();
+	   ++p)
+	parameters->push_back(*p);
+    }
+
+  const Typed_identifier_list* method_results = method_type->results();
+  Typed_identifier_list* results;
+  if (method_results == NULL)
+    results = NULL;
+  else
+    {
+      results = new Typed_identifier_list();
+      for (Typed_identifier_list::const_iterator p = method_results->begin();
+	   p != method_results->end();
+	   ++p)
+	results->push_back(*p);
+    }
+  
+  Function_type* fntype = Type::make_function_type(NULL, parameters, results,
+						   location);
+
+  Named_object* no = gogo->start_function(method_name, fntype, false, location);
+
+  Named_object* vno = gogo->lookup(receiver_name, NULL);
+  gcc_assert(vno != NULL);
+  Expression* ve = Expression::make_var_reference(vno, location);
+  bool dummy;
+  Expression* bm = nt->bind_field_or_method(ve, name, location, &dummy);
+  gcc_assert(bm != NULL);
+
+  Expression_list* args;
+  if (method_parameters == NULL)
+    args = NULL;
+  else
+    {
+      args = new Expression_list();
+      for (Typed_identifier_list::const_iterator p = method_parameters->begin();
+	   p != method_parameters->end();
+	   ++p)
+	{
+	  vno = gogo->lookup(p->name(), NULL);
+	  gcc_assert(vno != NULL);
+	  args->push_back(Expression::make_var_reference(vno, location));
+	}
+    }
+
+  Call_expression* call = Expression::make_call(bm, args, location);
+
+  size_t count = call->result_count();
+  Statement* s;
+  if (count == 0)
+    s = Statement::make_statement(call);
+  else
+    {
+      Expression_list* retvals = new Expression_list();
+      if (count <= 1)
+	retvals->push_back(call);
+      else
+	{
+	  for (size_t i = 0; i < count; ++i)
+	    retvals->push_back(Expression::make_call_result(call, i));
+	}
+      s = Statement::make_return_statement(no->func_value(), retvals,
+					   location);
+    }
+  gogo->add_statement(s);
+
+  gogo->finish_function(location);
+
+  return Expression::make_func_reference(no, NULL, location);
 }
 
 // Make a selector expression.

@@ -75,7 +75,7 @@ should_export(Named_object* no)
     return false;
 
   // We don't export thunks.
-  if (no->is_function() && Go_statement::is_thunk(no))
+  if (no->is_function() && Gogo::is_thunk(no))
     return false;
 
   // Methods are exported with the type, not here.

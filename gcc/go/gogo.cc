@@ -920,6 +920,26 @@ Gogo::record_interface_type(Interface_type* itype)
   this->interface_types_.push_back(itype);
 }
 
+// Return a name for a thunk object.
+
+std::string
+Gogo::thunk_name()
+{
+  static int thunk_count;
+  char thunk_name[50];
+  snprintf(thunk_name, sizeof thunk_name, "$thunk%d", thunk_count);
+  ++thunk_count;
+  return thunk_name;
+}
+
+// Return whether a function is a thunk.
+
+bool
+Gogo::is_thunk(const Named_object* no)
+{
+  return no->name().compare(0, 6, "$thunk") == 0;
+}
+
 // Define the global names.  We do this only after parsing all the
 // input files, because the program might define the global names
 // itself.

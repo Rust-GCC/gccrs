@@ -1674,8 +1674,6 @@ Statement::make_dec_statement(Expression* expr)
 // Class Thunk_statement.  This is the base class for go and defer
 // statements.
 
-int Thunk_statement::thunk_count;
-
 const char* const Thunk_statement::thunk_field_fn = "fn";
 
 const char* const Thunk_statement::thunk_field_receiver = "receiver";
@@ -1869,11 +1867,7 @@ Thunk_statement::simplify_statement(Gogo* gogo, Block* block)
 
   source_location location = this->location();
 
-  // Get a name to use for the thunk.
-  char thunk_name[50];
-  snprintf(thunk_name, sizeof thunk_name, "$thunk%d",
-	   Thunk_statement::thunk_count);
-  ++Thunk_statement::thunk_count;
+  std::string thunk_name = Gogo::thunk_name();
 
   // Build the thunk.
   this->build_thunk(gogo, thunk_name, fntype);
@@ -1971,14 +1965,6 @@ Thunk_statement::simplify_statement(Gogo* gogo, Block* block)
   return true;
 }
 
-// Return whether a function is a thunk.
-
-bool
-Thunk_statement::is_thunk(const Named_object* no)
-{
-  return no->name().compare(0, 6, "$thunk") == 0;
-}
-
 // Set the name to use for thunk parameter N.
 
 void
@@ -2052,7 +2038,7 @@ Thunk_statement::build_struct(Function_type* fntype)
 // artificial, function.
 
 void
-Thunk_statement::build_thunk(Gogo* gogo, const char* thunk_name,
+Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
 			     Function_type* fntype)
 {
   source_location location = this->location();
