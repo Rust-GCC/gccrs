@@ -441,8 +441,15 @@ Parse::struct_type()
   source_location location = this->location();
   if (!this->advance_token()->is_op(OPERATOR_LCURLY))
     {
-      this->error("missing %<{%>");
-      return Type::make_error_type();
+      source_location token_loc = this->location();
+      if (this->peek_token()->is_op(OPERATOR_SEMICOLON)
+	  && this->advance_token()->is_op(OPERATOR_LCURLY))
+	error_at(token_loc, "unexpected semicolon or newline before %<{%>");
+      else
+	{
+	  this->error("expected %<{%>");
+	  return Type::make_error_type();
+	}
     }
   this->advance_token();
 
@@ -960,8 +967,15 @@ Parse::block()
 {
   if (!this->peek_token()->is_op(OPERATOR_LCURLY))
     {
-      this->error("expected %<{%>");
-      return UNKNOWN_LOCATION;
+      source_location loc = this->location();
+      if (this->peek_token()->is_op(OPERATOR_SEMICOLON)
+	  && this->advance_token()->is_op(OPERATOR_LCURLY))
+	error_at(loc, "unexpected semicolon or newline before %<{%>");
+      else
+	{
+	  this->error("expected %<{%>");
+	  return UNKNOWN_LOCATION;
+	}
     }
 
   const Token* token = this->advance_token();
@@ -972,7 +986,8 @@ Parse::block()
       token = this->peek_token();
       if (!token->is_op(OPERATOR_RCURLY))
 	{
-	  this->error("expected %<}%>");
+	  if (!token->is_eof() || !saw_errors())
+	    this->error("expected %<}%>");
 
 	  // Skip ahead to the end of the block, in hopes of avoiding
 	  // lots of meaningless errors.
@@ -1014,8 +1029,15 @@ Parse::interface_type()
 
   if (!this->advance_token()->is_op(OPERATOR_LCURLY))
     {
-      this->error("expected %<{%>");
-      return Type::make_error_type();
+      source_location token_loc = this->location();
+      if (this->peek_token()->is_op(OPERATOR_SEMICOLON)
+	  && this->advance_token()->is_op(OPERATOR_LCURLY))
+	error_at(token_loc, "unexpected semicolon or newline before %<{%>");
+      else
+	{
+	  this->error("expected %<{%>");
+	  return Type::make_error_type();
+	}
     }
   this->advance_token();
 
@@ -1080,7 +1102,10 @@ Parse::method_spec(Typed_identifier_list* methods)
 	  || (!this->peek_token()->is_op(OPERATOR_SEMICOLON)
 	      && !this->peek_token()->is_op(OPERATOR_RCURLY)))
 	{
-	  error_at(location, "expected signature or type name");
+	  if (this->peek_token()->is_op(OPERATOR_COMMA))
+	    this->error("name list not allowed in interface type");
+	  else
+	    error_at(location, "expected signature or type name");
 	  token = this->peek_token();
 	  while (!token->is_eof()
 		 && !token->is_op(OPERATOR_SEMICOLON)
@@ -1164,8 +1189,11 @@ Parse::list(void (Parse::*pfn)(void*), void* varg, bool follow_is_paren)
 {
   (this->*pfn)(varg);
   Operator follow = follow_is_paren ? OPERATOR_RPAREN : OPERATOR_RCURLY;
-  while (this->peek_token()->is_op(OPERATOR_SEMICOLON))
+  while (this->peek_token()->is_op(OPERATOR_SEMICOLON)
+	 || this->peek_token()->is_op(OPERATOR_COMMA))
     {
+      if (this->peek_token()->is_op(OPERATOR_COMMA))
+	this->error("unexpected comma");
       if (this->advance_token()->is_op(follow))
 	break;
       (this->*pfn)(varg);
@@ -1275,9 +1303,6 @@ Parse::const_spec(Type** last_type, Expression_list** last_expr_list)
 
 // TypeDecl = "type" Decl<TypeSpec> .
 
-// Return true if a semicolon may be required before the next
-// statement in a StatementList.
-
 void
 Parse::type_decl()
 {
@@ -1287,9 +1312,6 @@ Parse::type_decl()
 }
 
 // TypeSpec = identifier Type .
-
-// Return true if a semicolon may be required before the next
-// statement in a StatementList.
 
 void
 Parse::type_spec(void*)
@@ -1315,7 +1337,15 @@ Parse::type_spec(void*)
       named_type = this->gogo_->declare_type(name, location);
     }
 
-  Type* type = this->type();
+  Type* type;
+  if (!this->peek_token()->is_op(OPERATOR_SEMICOLON))
+    type = this->type();
+  else
+    {
+      this->error("unexpected semicolon or newline in type declaration");
+      type = Type::make_error_type();
+      this->advance_token();
+    }
 
   if (type->is_error_type())
     {
@@ -1352,9 +1382,6 @@ Parse::type_spec(void*)
 
 // VarDecl = "var" Decl<VarSpec> .
 
-// Return true if a semicolon is required before the next statement in
-// a StatementList.
-
 void
 Parse::var_decl()
 {
@@ -1365,9 +1392,6 @@ Parse::var_decl()
 
 // VarSpec = IdentifierList
 //             ( CompleteType [ "=" ExpressionList ] | "=" ExpressionList ) .
-
-// Return true if a semicolon is required before the next statement in
-// a StatementList.
 
 void
 Parse::var_spec(void*)
@@ -1899,6 +1923,17 @@ Parse::function_decl()
 	named_object->func_declaration_value()->set_asm_name(asm_name);
     }
 
+  // Check for the easy error of a newline before the opening brace.
+  if (this->peek_token()->is_op(OPERATOR_SEMICOLON))
+    {
+      source_location semi_loc = this->location();
+      if (this->advance_token()->is_op(OPERATOR_LCURLY))
+	this->error("unexpected semicolon or newline before %<{%>");
+      else
+	this->unget_token(Token::make_operator_token(OPERATOR_SEMICOLON,
+						     semi_loc));
+    }
+
   if (!this->peek_token()->is_op(OPERATOR_LCURLY))
     {
       if (named_object == NULL)
@@ -2149,7 +2184,7 @@ Parse::operand(bool may_be_sink)
 	  this->advance_token();
 	  ret = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
 	  if (!this->peek_token()->is_op(OPERATOR_RPAREN))
-	    this->error("missing right parenthesis");
+	    this->error("missing %<)%>");
 	  else
 	    this->advance_token();
 	  return ret;
@@ -2536,7 +2571,16 @@ Parse::index(Expression* expr)
   source_location location = this->location();
   gcc_assert(this->peek_token()->is_op(OPERATOR_LSQUARE));
   this->advance_token();
-  Expression* start = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
+
+  Expression* start;
+  if (!this->peek_token()->is_op(OPERATOR_COLON))
+    start = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
+  else
+    {
+      this->error("missing lower bound in slice expression");
+      start = Expression::make_error(this->location());
+    }
+
   Expression* end = NULL;
   if (this->peek_token()->is_op(OPERATOR_COLON))
     {
@@ -3104,7 +3148,8 @@ Parse::statement_list()
 	break;
       else
 	{
-	  this->error("expected %<;%> or %<}%> or newline");
+	  if (!this->peek_token()->is_eof() || !saw_errors())
+	    this->error("expected %<;%> or %<}%> or newline");
 	  if (!this->skip_past_error(OPERATOR_RCURLY))
 	    return;
 	}
@@ -3418,6 +3463,17 @@ Parse::if_stat()
   source_location end_loc = this->block();
   Block* then_block = this->gogo_->finish_block(end_loc);
 
+  // Check for the easy error of a newline before "else".
+  if (this->peek_token()->is_op(OPERATOR_SEMICOLON))
+    {
+      source_location semi_loc = this->location();
+      if (this->advance_token()->is_keyword(KEYWORD_ELSE))
+	this->error("unexpected semicolon or newline before %<else%>");
+      else
+	this->unget_token(Token::make_operator_token(OPERATOR_SEMICOLON,
+						     semi_loc));
+    }
+
   Block* else_block = NULL;
   if (this->peek_token()->is_keyword(KEYWORD_ELSE))
     {
@@ -3509,10 +3565,17 @@ Parse::switch_stat(const Label* label)
 
   if (!this->peek_token()->is_op(OPERATOR_LCURLY))
     {
-      this->error("missing %<{%>");
-      this->gogo_->add_block(this->gogo_->finish_block(this->location()),
-			     location);
-      return;
+      source_location token_loc = this->location();
+      if (this->peek_token()->is_op(OPERATOR_SEMICOLON)
+	  && this->advance_token()->is_op(OPERATOR_LCURLY))
+	error_at(token_loc, "unexpected semicolon or newline before %<{%>");
+      else
+	{
+	  this->error("expected %<{%>");
+	  this->gogo_->add_block(this->gogo_->finish_block(this->location()),
+				 location);
+	  return;
+	}
     }
   this->advance_token();
 
@@ -3546,7 +3609,8 @@ Parse::expr_switch_body(const Label* label, Expression* switch_val,
     {
       if (this->peek_token()->is_eof())
 	{
-	  this->error("missing %<}%>");
+	  if (!saw_errors())
+	    this->error("missing %<}%>");
 	  return NULL;
 	}
       this->expr_case_clause(case_clauses);
@@ -3572,7 +3636,11 @@ Parse::expr_case_clause(Case_clauses* clauses)
   Expression_list* vals = this->expr_switch_case(&is_default);
 
   if (!this->peek_token()->is_op(OPERATOR_COLON))
-    this->error("expected %<:%>");
+    {
+      if (!saw_errors())
+	this->error("expected %<:%>");
+      return;
+    }
   else
     this->advance_token();
 
@@ -3615,7 +3683,8 @@ Parse::expr_switch_case(bool* is_default)
     }
   else
     {
-      this->error("expected %<case%> or %<default%>");
+      if (!saw_errors())
+	this->error("expected %<case%> or %<default%>");
       if (!token->is_op(OPERATOR_RCURLY))
 	this->advance_token();
       return NULL;
@@ -3767,8 +3836,15 @@ Parse::select_stat(const Label* label)
 
   if (!token->is_op(OPERATOR_LCURLY))
     {
-      this->error("expected %<{%>");
-      return;
+      source_location token_loc = token->location();
+      if (token->is_op(OPERATOR_SEMICOLON)
+	  && this->advance_token()->is_op(OPERATOR_LCURLY))
+	error_at(token_loc, "unexpected semicolon or newline before %<{%>");
+      else
+	{
+	  this->error("expected %<{%>");
+	  return;
+	}
     }
   this->advance_token();
 
@@ -3964,6 +4040,12 @@ Parse::for_stat(const Label* label)
 
   if (!token->is_op(OPERATOR_LCURLY))
     {
+      if (token->is_keyword(KEYWORD_VAR))
+	{
+	  this->error("var declaration not allowed in for initializer");
+	  this->var_decl();
+	}
+
       if (token->is_op(OPERATOR_SEMICOLON))
 	this->for_clause(&cond, &post);
       else
@@ -4058,6 +4140,13 @@ Parse::for_clause(Expression** cond, Block** post)
   this->advance_token();
   if (this->peek_token()->is_op(OPERATOR_SEMICOLON))
     *cond = NULL;
+  else if (this->peek_token()->is_op(OPERATOR_LCURLY))
+    {
+      this->error("unexpected semicolon or newline before %<{%>");
+      *cond = NULL;
+      *post = NULL;
+      return;
+    }
   else
     *cond = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
   if (!this->peek_token()->is_op(OPERATOR_SEMICOLON))
@@ -4432,7 +4521,7 @@ Parse::program()
       token = this->peek_token();
       if (token->is_op(OPERATOR_SEMICOLON))
 	token = this->advance_token();
-      else
+      else if (!token->is_eof() || !saw_errors())
 	this->error("expected %<;%> or newline after top level declaration");
     }
 }
