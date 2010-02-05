@@ -16,7 +16,6 @@ extern "C"
 #include "tree.h"
 #include "gimple.h"
 #include "real.h"
-#include "diagnostic.h"
 }
 
 #include "go-c.h"
@@ -811,7 +810,7 @@ class Error_type : public Type
 
   void
   do_reflection(Gogo*, std::string*) const
-  { gcc_assert(errorcount + sorrycount > 0); }
+  { gcc_assert(saw_errors()); }
 
   void
   do_mangled_name(Gogo*, std::string* ret) const

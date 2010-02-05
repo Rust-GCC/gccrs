@@ -2468,4 +2468,8 @@ class Translate_context
 // This is used by some of the langhooks.
 extern Gogo* go_get_gogo();
 
+// Whether we have seen any errors.  FIXME: Replace with a backend
+// interface.
+extern bool saw_errors();
+
 #endif // !defined(GO_GOGO_H)

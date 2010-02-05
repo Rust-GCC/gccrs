@@ -998,7 +998,8 @@ Gogo::clear_file_scope()
       if (package != this->package_
 	  && package->is_imported()
 	  && !package->used()
-	  && !package->uses_sink_alias())
+	  && !package->uses_sink_alias()
+	  && !saw_errors())
 	error_at(package->location(), "imported and not used: %s",
 		 package->name().c_str());
       package->clear_is_imported();

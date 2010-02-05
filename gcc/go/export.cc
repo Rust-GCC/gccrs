@@ -14,7 +14,6 @@ extern "C"
 #include "machmode.h"
 #include "output.h"
 #include "target.h"
-#include "diagnostic.h"
 }
 
 #include "gogo.h"
@@ -107,7 +106,7 @@ Export::export_globals(const std::string& package_name,
   // If there have been any errors so far, don't try to export
   // anything.  That way the export code doesn't have to worry about
   // mismatched types or other confusions.
-  if (errorcount + sorrycount > 0)
+  if (saw_errors())
     return;
 
   // Export the symbols in sorted order.  That will reduce cases where

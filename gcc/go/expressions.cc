@@ -16,7 +16,6 @@ extern "C"
 #include "tree-iterator.h"
 #include "convert.h"
 #include "real.h"
-#include "diagnostic.h"
 #include "tm_p.h"
 }
 

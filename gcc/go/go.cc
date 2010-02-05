@@ -10,11 +10,6 @@
 
 #include "go-system.h"
 
-extern "C" {
-#include "options.h"
-#include "diagnostic.h"
-}
-
 #include "go-c.h"
 
 #include "lex.h"

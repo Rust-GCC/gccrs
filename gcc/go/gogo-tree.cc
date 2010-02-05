@@ -31,6 +31,14 @@ extern "C"
 #include "refcount.h"
 #include "gogo.h"
 
+// Whether we have seen any errors.
+
+bool
+saw_errors()
+{
+  return errorcount != 0 || sorrycount != 0;
+}
+
 // A helper function.
 
 static inline tree
@@ -549,7 +557,7 @@ Gogo::write_globals()
 
       if (vec[i] == error_mark_node)
 	{
-	  gcc_assert(errorcount || sorrycount);
+	  gcc_assert(saw_errors());
 	  --i;
 	  --count;
 	  continue;
@@ -570,7 +578,7 @@ Gogo::write_globals()
 	    {
 	      tree init = no->var_value()->get_init_tree(this, NULL);
 	      if (init == error_mark_node)
-		gcc_assert(errorcount || sorrycount);
+		gcc_assert(saw_errors());
 	      else if (init == NULL_TREE)
 		;
 	      else if (TREE_CONSTANT(init))
