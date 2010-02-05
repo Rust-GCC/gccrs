@@ -3277,48 +3277,64 @@ Array_type::get_length_tree(Gogo* gogo)
 tree
 Array_type::do_get_tree(Gogo* gogo)
 {
-  tree element_type_tree = this->element_type_->get_tree(gogo);
-  if (element_type_tree == error_mark_node)
-    return error_mark_node;
-
   if (this->length_ != NULL)
     {
+      tree element_type_tree = this->element_type_->get_tree(gogo);
       tree length_tree = this->get_length_tree(gogo);
-      if (length_tree == error_mark_node)
+      if (element_type_tree == error_mark_node
+	  || length_tree == error_mark_node)
 	return error_mark_node;
+
       length_tree = fold_convert(sizetype, length_tree);
+
       // build_index_type takes the maximum index, which is one less
       // than the length.
       tree index_type = build_index_type(fold_build2(MINUS_EXPR, sizetype,
 						     length_tree,
 						     size_one_node));
+
       tree ret = build_array_type(element_type_tree, index_type);
+
       // If the element type requires reference counting, then we need
       // this to be stored in memory.
       if (this->element_type_->has_refcounted_component())
 	TREE_ADDRESSABLE(ret) = 1;
+
       return ret;
     }
-
-  // Two different open arrays of the same element type are really the
-  // same type.  In order to make that valid at the tree level, we
-  // make sure to return the same struct.
-
-  std::pair<Type*, tree> val(this->element_type_, NULL);
-  std::pair<Array_trees::iterator, bool> ins =
-    Array_type::array_trees.insert(val);
-  if (!ins.second)
+  else
     {
-      // We've already created a tree type for an array with this
-      // element type.
-      gcc_assert(ins.first->second != NULL_TREE);
-      return ins.first->second;
-    }
+      // Two different slices of the same element type are really the
+      // same type.  In order to make that valid at the tree level, we
+      // make sure to return the same struct.
+      std::pair<Type*, tree> val(this->element_type_, NULL);
+      std::pair<Array_trees::iterator, bool> ins =
+	Array_type::array_trees.insert(val);
+      if (!ins.second)
+	{
+	  // We've already created a tree type for a slice with this
+	  // element type.
+	  gcc_assert(ins.first->second != NULL_TREE);
+	  return ins.first->second;
+	}
 
-  // An open array is a struct.
-  tree struct_type = gogo->slice_type_tree(element_type_tree);
-  ins.first->second = struct_type;
-  return struct_type;
+      // A slice type can be recursive, as in "type T []T".  Avoid
+      // infinite recursion by creating the struct first, and then
+      // filling in the element type.
+      tree struct_type = gogo->slice_type_tree(void_type_node);
+      this->set_incomplete_type_tree(struct_type);
+      ins.first->second = struct_type;
+
+      tree element_type_tree = this->element_type_->get_tree(gogo);
+
+      tree field = TYPE_FIELDS(struct_type);
+      gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__values") == 0);
+      gcc_assert(POINTER_TYPE_P(TREE_TYPE(field))
+		 && TREE_TYPE(TREE_TYPE(field)) == void_type_node);
+      TREE_TYPE(field) = build_pointer_type(element_type_tree);
+
+      return struct_type;
+    }
 }
 
 // Return an initializer for an array type.
