@@ -2055,7 +2055,8 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
 						       NULL, this->location());
 
   // Start building the thunk.
-  gogo->start_function(thunk_name, thunk_type, true, location);
+  Named_object* function = gogo->start_function(thunk_name, thunk_type, true,
+						location);
 
   // Get a reference to the parameter.
   Named_object* named_parameter = gogo->lookup(parameter_name, NULL);
@@ -2123,7 +2124,7 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
 
   Expression* call = Expression::make_call(func_to_call, call_params, location);
   // We need to lower in case this is a builtin function.
-  call = call->lower(gogo, -1);
+  call = call->lower(gogo, function, -1);
 
   Statement* call_statement = Statement::make_statement(call);
 

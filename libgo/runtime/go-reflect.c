@@ -55,8 +55,6 @@ extern const struct __go_type_descriptor ptr_string_descriptor
   asm ("__go_td_pN32_libgo_runtime.runtime.StringType");
 extern const struct __go_type_descriptor ptr_uintptr_descriptor
   asm ("__go_td_pN33_libgo_runtime.runtime.UintptrType");
-extern const struct __go_type_descriptor ptr_dotdotdot_descriptor
-  asm ("__go_td_pN35_libgo_runtime.runtime.DotDotDotType");
 extern const struct __go_type_descriptor ptr_unsafe_pointer_decriptor
   asm ("__go_td_pN39_libgo_runtime.runtime.UnsafePointerType");
 extern const struct __go_type_descriptor ptr_array_descriptor
@@ -113,8 +111,6 @@ get_descriptor (int code)
       return &ptr_string_descriptor;
     case GO_UINTPTR:
       return &ptr_uintptr_descriptor;
-    case GO_DOTDOTDOT:
-      return &ptr_dotdotdot_descriptor;
     case GO_UNSAFE_POINTER:
       return &ptr_unsafe_pointer_decriptor;
     case GO_ARRAY:

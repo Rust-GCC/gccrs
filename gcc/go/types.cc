@@ -767,17 +767,6 @@ Type::import_type(Import* imp)
     return Channel_type::do_import(imp);
   else if (imp->match_c_string("interface"))
     return Interface_type::do_import(imp);
-  else if (imp->match_c_string("..."))
-    {
-      imp->advance(3);
-      Type* varargs_type = NULL;
-      if (imp->match_c_string(" "))
-	{
-	  imp->advance(1);
-	  varargs_type = imp->read_type();
-	}
-      return Type::make_varargs_type(varargs_type);
-    }
   else
     {
       error_at(imp->location(), "import error: expected type");
@@ -1698,18 +1687,6 @@ Function_type::is_compatible(const Function_type* t,
   return true;
 }
 
-// For a varargs function, return the type of the varargs parameter.
-
-Varargs_type*
-Function_type::varargs_type() const
-{
-  gcc_assert(this->is_varargs_);
-  gcc_assert(this->parameters_ != NULL && !this->parameters_->empty());
-  Varargs_type* ret = this->parameters_->back().type()->varargs_type();
-  gcc_assert(ret != NULL);
-  return ret;
-}
-
 // Hash code.
 
 unsigned int
@@ -1870,13 +1847,22 @@ Function_type::do_reflection(Gogo* gogo, std::string* ret) const
   const Typed_identifier_list* params = this->parameters();
   if (params != NULL)
     {
+      bool is_varargs = this->is_varargs_;
       for (Typed_identifier_list::const_iterator p = params->begin();
 	   p != params->end();
 	   ++p)
 	{
 	  if (p != params->begin())
 	    ret->append(", ");
-	  this->append_reflection(p->type(), gogo, ret);
+	  if (!is_varargs || p + 1 != params->end())
+	    this->append_reflection(p->type(), gogo, ret);
+	  else
+	    {
+	      ret->append("...");
+	      if (p->type()->array_type() != NULL)
+		this->append_reflection(p->type()->array_type()->element_type(),
+					gogo, ret);
+	    }
 	}
     }
   ret->push_back(')');
@@ -1918,6 +1904,8 @@ Function_type::do_mangled_name(Gogo* gogo, std::string* ret) const
 	   p != params->end();
 	   ++p)
 	this->append_mangled_name(p->type(), gogo, ret);
+      if (this->is_varargs_)
+	ret->push_back('V');
       ret->push_back('e');
     }
 
@@ -1949,6 +1937,7 @@ Function_type::do_export(Export* exp) const
   bool first = true;
   if (this->parameters_ != NULL)
     {
+      bool is_varargs = this->is_varargs_;
       for (Typed_identifier_list::const_iterator p =
 	     this->parameters_->begin();
 	   p != this->parameters_->end();
@@ -1958,7 +1947,14 @@ Function_type::do_export(Export* exp) const
 	    first = false;
 	  else
 	    exp->write_c_string(", ");
-	  exp->write_type(p->type());
+	  if (!is_varargs || p + 1 != this->parameters_->end())
+	    exp->write_type(p->type());
+	  else
+	    {
+	      exp->write_c_string("...");
+	      if (p->type()->array_type() != NULL)
+		exp->write_type(p->type()->array_type()->element_type());
+	    }
 	}
     }
   exp->write_c_string(")");
@@ -2003,13 +1999,29 @@ Function_type::do_import(Import* imp)
       parameters = new Typed_identifier_list();
       while (true)
 	{
+	  if (imp->match_c_string("..."))
+	    {
+	      imp->advance(3);
+	      is_varargs = true;
+	      if (imp->peek_char() == ')')
+		{
+		  Type* empty = Type::make_interface_type(NULL,
+							  imp->location());
+		  parameters->push_back(Typed_identifier(Import::import_marker,
+							 empty,
+							 imp->location()));
+		  break;
+		}
+	    }
+
 	  Type* ptype = imp->read_type();
-	  if (ptype->varargs_type() != NULL)
-	    is_varargs = true;
+	  if (is_varargs)
+	    ptype = Type::make_array_type(ptype, NULL);
 	  parameters->push_back(Typed_identifier(Import::import_marker,
 						 ptype, imp->location()));
 	  if (imp->peek_char() != ',')
 	    break;
+	  gcc_assert(!is_varargs);
 	  imp->require_c_string(", ");
 	}
     }
@@ -2060,112 +2072,6 @@ Type::make_function_type(Typed_identifier* receiver,
 			 source_location location)
 {
   return new Function_type(receiver, parameters, results, location);
-}
-
-// Class Varargs_type.
-
-// Get the type to use in the body of the function.
-
-Type*
-Varargs_type::use_type()
-{
-  if (this->use_type_ == NULL)
-    {
-      if (this->argument_type_ != NULL)
-	this->use_type_ = Type::make_array_type(this->argument_type_, NULL);
-      else
-	{
-	  static Type* empty;
-	  if (empty == NULL)
-	    {
-	      Typed_identifier_list* methods = new Typed_identifier_list();
-	      empty = Type::make_interface_type(methods, BUILTINS_LOCATION);
-	    }
-	  this->use_type_ = empty;
-	}
-    }
-  return this->use_type_;
-}
-
-// Get a tree.  The varargs type is either a slice or an empty
-// interface.
-
-tree
-Varargs_type::do_get_tree(Gogo* gogo)
-{
-  return this->use_type()->get_tree(gogo);
-}
-
-// Type descriptor.
-
-void
-Varargs_type::do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl)
-{
-  gogo->dotdotdot_type_descriptor_decl(this, name, pdecl);
-}
-
-// Reflection string.
-
-void
-Varargs_type::do_reflection(Gogo* gogo, std::string* ret) const
-{
-  ret->append("...");
-  if (this->argument_type_ != NULL)
-    {
-      // Since the varargs type always comes at the end of the
-      // function parameters, it is always followed by a right
-      // parenthesis.  No special marker is required to indicate that
-      // a type is specified.
-      ret->append(1, ' ');
-      this->append_reflection(this->argument_type_, gogo, ret);
-    }
-}
-
-// Mangled name.
-
-void
-Varargs_type::do_mangled_name(Gogo* gogo, std::string* ret) const
-{
-  ret->push_back('V');
-  if (this->argument_type_ != NULL)
-    {
-      // Since the varargs type always comes at the end of the
-      // function parameters, it is always followed by 'e'.  No
-      // special marker is required to indicate that a type is
-      // specified.
-      this->append_mangled_name(this->argument_type_, gogo, ret);
-    }
-}
-
-// Export string.
-
-void
-Varargs_type::do_export(Export* exp) const
-{
-  exp->write_c_string("...");
-  if (this->argument_type_ != NULL)
-    {
-      // Since the varargs type always comes at the end of the
-      // function parameters, it is always followed by a right
-      // parenthesis.  No special marker is required to indicate that
-      // a type is specified.
-      exp->write_c_string(" ");
-      exp->write_type(this->argument_type_);
-    }
-}
-
-// Make the varargs type.
-
-Type*
-Type::make_varargs_type(Type* argument_type)
-{
-  if (argument_type != NULL)
-    return new Varargs_type(argument_type);
-  else
-    {
-      static Varargs_type singleton_simple_varargs_type(NULL);
-      return &singleton_simple_varargs_type;
-    }
 }
 
 // Class Pointer_type.
@@ -4133,6 +4039,8 @@ Type::make_channel_type(bool send, bool receive, Type* element_type)
 int
 Interface_type::do_traverse(Traverse* traverse)
 {
+  if (this->methods_ == NULL)
+    return TRAVERSE_CONTINUE;
   return this->methods_->traverse(traverse);
 }
 
@@ -4175,6 +4083,11 @@ Interface_type::finalize_methods()
 	  continue;
 	}
       const Typed_identifier_list* methods = it->methods();
+      if (methods == NULL)
+	{
+	  ++from;
+	  continue;
+	}
       for (Typed_identifier_list::const_iterator q = methods->begin();
 	   q != methods->end();
 	   ++q)
@@ -4190,8 +4103,16 @@ Interface_type::finalize_methods()
 	}
       ++from;
     }
-  this->methods_->resize(to);
-  this->methods_->sort_by_name();
+  if (to == 0)
+    {
+      delete this->methods_;
+      this->methods_ = NULL;
+    }
+  else
+    {
+      this->methods_->resize(to);
+      this->methods_->sort_by_name();
+    }
 }
 
 // Return the method NAME, or NULL.
@@ -4199,6 +4120,8 @@ Interface_type::finalize_methods()
 const Typed_identifier*
 Interface_type::find_method(const std::string& name) const
 {
+  if (this->methods_ == NULL)
+    return NULL;
   for (Typed_identifier_list::const_iterator p = this->methods_->begin();
        p != this->methods_->end();
        ++p)
@@ -4212,6 +4135,7 @@ Interface_type::find_method(const std::string& name) const
 size_t
 Interface_type::method_index(const std::string& name) const
 {
+  gcc_assert(this->methods_ != NULL);
   size_t ret = 0;
   for (Typed_identifier_list::const_iterator p = this->methods_->begin();
        p != this->methods_->end();
@@ -4570,19 +4494,22 @@ void
 Interface_type::do_reflection(Gogo* gogo, std::string* ret) const
 {
   ret->append("interface {");
-  for (Typed_identifier_list::const_iterator p = this->methods_->begin();
-       p != this->methods_->end();
-       ++p)
+  if (this->methods_ != NULL)
     {
-      if (p != this->methods_->begin())
-	ret->append(";");
-      ret->push_back(' ');
-      ret->append(Gogo::unpack_hidden_name(p->name()));
-      ret->push_back(' ');
-      std::string sub = p->type()->reflection(gogo);
-      gcc_assert(sub.compare(0, 4, "func") == 0);
-      sub = sub.substr(4);
-      ret->append(sub);
+      for (Typed_identifier_list::const_iterator p = this->methods_->begin();
+	   p != this->methods_->end();
+	   ++p)
+	{
+	  if (p != this->methods_->begin())
+	    ret->append(";");
+	  ret->push_back(' ');
+	  ret->append(Gogo::unpack_hidden_name(p->name()));
+	  ret->push_back(' ');
+	  std::string sub = p->type()->reflection(gogo);
+	  gcc_assert(sub.compare(0, 4, "func") == 0);
+	  sub = sub.substr(4);
+	  ret->append(sub);
+	}
     }
   ret->append(" }");
 }
@@ -4622,61 +4549,63 @@ Interface_type::do_export(Export* exp) const
   exp->write_c_string("interface { ");
 
   const Typed_identifier_list* methods = this->methods_;
-  gcc_assert(methods != NULL);
-  for (Typed_identifier_list::const_iterator pm = methods->begin();
-       pm != methods->end();
-       ++pm)
+  if (methods != NULL)
     {
-      exp->write_string(pm->name());
-      exp->write_c_string(" (");
-
-      const Function_type* fntype = pm->type()->function_type();
-
-      bool first = true;
-      const Typed_identifier_list* parameters = fntype->parameters();
-      if (parameters != NULL)
+      for (Typed_identifier_list::const_iterator pm = methods->begin();
+	   pm != methods->end();
+	   ++pm)
 	{
-	  for (Typed_identifier_list::const_iterator pp =
-		 parameters->begin();
-	       pp != parameters->end();
-	       ++pp)
-	    {
-	      if (first)
-		first = false;
-	      else
-		exp->write_c_string(", ");
-	      exp->write_type(pp->type());
-	    }
-	}
+	  exp->write_string(pm->name());
+	  exp->write_c_string(" (");
 
-      exp->write_c_string(")");
+	  const Function_type* fntype = pm->type()->function_type();
 
-      const Typed_identifier_list* results = fntype->results();
-      if (results != NULL)
-	{
-	  exp->write_c_string(" ");
-	  if (results->size() == 1)
-	    exp->write_type(results->begin()->type());
-	  else
+	  bool first = true;
+	  const Typed_identifier_list* parameters = fntype->parameters();
+	  if (parameters != NULL)
 	    {
-	      first = true;
-	      exp->write_c_string("(");
-	      for (Typed_identifier_list::const_iterator p =
-		     results->begin();
-		   p != results->end();
-		   ++p)
+	      for (Typed_identifier_list::const_iterator pp =
+		     parameters->begin();
+		   pp != parameters->end();
+		   ++pp)
 		{
 		  if (first)
 		    first = false;
 		  else
 		    exp->write_c_string(", ");
-		  exp->write_type(p->type());
+		  exp->write_type(pp->type());
 		}
-	      exp->write_c_string(")");
 	    }
-	}
 
-      exp->write_c_string("; ");
+	  exp->write_c_string(")");
+
+	  const Typed_identifier_list* results = fntype->results();
+	  if (results != NULL)
+	    {
+	      exp->write_c_string(" ");
+	      if (results->size() == 1)
+		exp->write_type(results->begin()->type());
+	      else
+		{
+		  first = true;
+		  exp->write_c_string("(");
+		  for (Typed_identifier_list::const_iterator p =
+			 results->begin();
+		       p != results->end();
+		       ++p)
+		    {
+		      if (first)
+			first = false;
+		      else
+			exp->write_c_string(", ");
+		      exp->write_type(p->type());
+		    }
+		  exp->write_c_string(")");
+		}
+	    }
+
+	  exp->write_c_string("; ");
+	}
     }
 
   exp->write_c_string("}");
@@ -4750,6 +4679,12 @@ Interface_type::do_import(Import* imp)
     }
 
   imp->require_c_string("}");
+
+  if (methods->empty())
+    {
+      delete methods;
+      methods = NULL;
+    }
 
   return Type::make_interface_type(methods, imp->location());
 }
@@ -5785,14 +5720,17 @@ Find_type_use::type(Type* type)
   if (type->interface_type() != NULL)
     {
       const Typed_identifier_list* methods = type->interface_type()->methods();
-      for (Typed_identifier_list::const_iterator p = methods->begin();
-	   p != methods->end();
-	   ++p)
+      if (methods != NULL)
 	{
-	  if (p->name().empty())
+	  for (Typed_identifier_list::const_iterator p = methods->begin();
+	       p != methods->end();
+	       ++p)
 	    {
-	      if (Type::traverse(p->type(), this) == TRAVERSE_EXIT)
-		return TRAVERSE_EXIT;
+	      if (p->name().empty())
+		{
+		  if (Type::traverse(p->type(), this) == TRAVERSE_EXIT)
+		    return TRAVERSE_EXIT;
+		}
 	    }
 	}
       return TRAVERSE_SKIP_COMPONENTS;

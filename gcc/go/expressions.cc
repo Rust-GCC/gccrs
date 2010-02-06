@@ -812,10 +812,18 @@ Expression::make_type(Type* type, source_location location)
 // if necessary.
 
 Expression*
-Var_expression::do_lower(Gogo* gogo, int)
+Var_expression::do_lower(Gogo* gogo, Named_object* function, int)
 {
   if (this->variable_->is_variable())
-    this->variable_->var_value()->lower_init_expression(gogo);
+    {
+      Variable* var = this->variable_->var_value();
+      // This is either a local variable or a global variable.  A
+      // reference to a variable which is local to an enclosing
+      // function will be a reference to a field in a closure.
+      if (var->is_global())
+	function = NULL;
+      var->lower_init_expression(gogo, function);
+    }
   return this;
 }
 
@@ -1233,7 +1241,7 @@ Unknown_expression::name() const
 // Lower a reference to an unknown name.
 
 Expression*
-Unknown_expression::do_lower(Gogo*, int)
+Unknown_expression::do_lower(Gogo*, Named_object*, int)
 {
   source_location location = this->location();
   Named_object* no = this->named_object_;
@@ -1928,7 +1936,7 @@ class Const_expression : public Expression
 
  protected:
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   bool
   do_is_constant() const
@@ -1993,7 +2001,7 @@ class Const_expression : public Expression
 // predeclared constant iota into an integer value.
 
 Expression*
-Const_expression::do_lower(Gogo* gogo, int iota_value)
+Const_expression::do_lower(Gogo* gogo, Named_object*, int iota_value)
 {
   if (this->constant_->const_value()->expr()->classification()
       == EXPRESSION_IOTA)
@@ -2313,7 +2321,7 @@ class Iota_expression : public Parser_expression
 
  protected:
   Expression*
-  do_lower(Gogo*, int)
+  do_lower(Gogo*, Named_object*, int)
   { gcc_unreachable(); }
 
   // There should only ever be one of these.
@@ -2361,7 +2369,7 @@ class Type_conversion_expression : public Expression
   do_traverse(Traverse* traverse);
 
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   bool
   do_is_constant() const
@@ -2432,7 +2440,7 @@ Type_conversion_expression::do_traverse(Traverse* traverse)
 // Convert to a constant at lowering time.
 
 Expression*
-Type_conversion_expression::do_lower(Gogo*, int)
+Type_conversion_expression::do_lower(Gogo*, Named_object*, int)
 {
   Type* type = this->type_;
   Expression* val = this->expr_;
@@ -2938,7 +2946,7 @@ class Unary_expression : public Expression
   { return Expression::traverse(&this->expr_, traverse); }
 
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   bool
   do_is_constant() const;
@@ -3002,7 +3010,7 @@ class Unary_expression : public Expression
 // instead.
 
 Expression*
-Unary_expression::do_lower(Gogo*, int)
+Unary_expression::do_lower(Gogo*, Named_object*, int)
 {
   source_location loc = this->location();
   Operator op = this->op_;
@@ -3859,7 +3867,7 @@ Binary_expression::eval_float(Operator op, Type* left_type, mpfr_t left_val,
 // constants.
 
 Expression*
-Binary_expression::do_lower(Gogo*, int)
+Binary_expression::do_lower(Gogo*, Named_object*, int)
 {
   source_location location = this->location();
   Operator op = this->op_;
@@ -5016,7 +5024,7 @@ class Builtin_call_expression : public Call_expression
  protected:
   // This overrides Call_expression::do_lower.
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   bool
   do_is_constant() const;
@@ -5131,7 +5139,7 @@ Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
 // specific expressions.  We also convert to a constant if we can.
 
 Expression*
-Builtin_call_expression::do_lower(Gogo*, int)
+Builtin_call_expression::do_lower(Gogo*, Named_object*, int)
 {
   if (this->code_ == BUILTIN_NEW)
     {
@@ -6081,7 +6089,7 @@ Call_expression::do_traverse(Traverse* traverse)
 // Lower a call statement.
 
 Expression*
-Call_expression::do_lower(Gogo* gogo, int)
+Call_expression::do_lower(Gogo* gogo, Named_object* function, int)
 {
   // A type case can look like a function call.
   if (this->fn_->is_type_expression()
@@ -6129,7 +6137,7 @@ Call_expression::do_lower(Gogo* gogo, int)
   if (!this->varargs_are_lowered_
       && this->fn_->type()->function_type() != NULL
       && this->fn_->type()->function_type()->is_varargs())
-    return this->lower_varargs(gogo);
+    return this->lower_varargs(gogo, function);
 
   return this;
 }
@@ -6137,15 +6145,14 @@ Call_expression::do_lower(Gogo* gogo, int)
 // Lower a call to a varargs function.
 
 Expression*
-Call_expression::lower_varargs(Gogo* gogo)
+Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
 {
   source_location loc = this->location();
 
   Function_type* fntype = this->fn_->type()->function_type();
   const Typed_identifier_list* parameters = fntype->parameters();
   gcc_assert(parameters != NULL && !parameters->empty());
-  Varargs_type* varargs_type = parameters->back().type()->varargs_type();
-  gcc_assert(varargs_type != NULL);
+  Type* varargs_type = parameters->back().type();
 
   size_t arg_count = this->args_ == NULL ? 0 : this->args_->size();
   if (arg_count < parameters->size() - 1)
@@ -6174,51 +6181,28 @@ Call_expression::lower_varargs(Gogo* gogo)
 	  new_args->push_back(*pa);
 	}
 
-      // We have reached the varargs parameter.  If we are at the last
-      // argument, and it is itself a varargs parameter of the callee,
-      // and the types are identical, we pass it without further
-      // encapsulation.
-      bool pass_last_arg = false;
-      if (pa != old_args->end() && pa + 1 == old_args->end())
-	{
-	  Var_expression* ve = (*pa)->var_expression();
-	  if (ve != NULL && ve->named_object()->is_variable())
-	    {
-	      Variable* var = ve->named_object()->var_value();
-	      if (var->is_varargs_parameter())
-		{
-		  if (var->type()->interface_type() != NULL)
-		    {
-		      // The argument is ... with no type.  We only
-		      // match if the parameter is too.
-		      pass_last_arg = varargs_type->argument_type() == NULL;
-		    }
-		  else
-		    {
-		      // The argument is ... T with a type.  We only
-		      // match if the parameter is the same, with an
-		      // identical type.
-		      Array_type* var_at = var->type()->array_type();
-		      gcc_assert(var_at != NULL);
-		      Type* etype = var_at->element_type();
-		      Type* vtt = varargs_type->argument_type();
-		      pass_last_arg = (vtt != NULL
-				       && Type::are_identical(vtt, etype));
-		    }
-		}
-	    }
-	}
+      // We have reached the varargs parameter.
 
-      if (pass_last_arg)
+      if (pa != old_args->end()
+	  && pa + 1 == old_args->end()
+	  && this->is_compatible_varargs_argument(function, *pa, varargs_type))
 	new_args->push_back(*pa);
       else if (pa == old_args->end())
 	push_empty_arg = true;
       else
 	{
-	  Type* vtt = varargs_type->argument_type();
-	  Struct_field_list* fields = NULL;
-	  if (vtt == NULL)
-	    fields = new Struct_field_list();
+	  Type* element_type;
+	  Struct_field_list* fields;
+	  if (varargs_type->interface_type() != NULL)
+	    {
+	      element_type = NULL;
+	      fields = new Struct_field_list();
+	    }
+	  else
+	    {
+	      element_type = varargs_type->array_type()->element_type();
+	      fields = NULL;
+	    }
 
 	  Expression_list* vals = new Expression_list;
 	  for (; pa != old_args->end(); ++pa, ++i)
@@ -6226,9 +6210,10 @@ Call_expression::lower_varargs(Gogo* gogo)
 	      // Check types here so that we get a better message.
 	      Type* patype = (*pa)->type();
 	      source_location paloc = (*pa)->location();
-	      if (vtt != NULL)
+	      if (element_type != NULL)
 		{
-		  if (!this->check_argument_type(i, vtt, patype, paloc))
+		  if (!this->check_argument_type(i, element_type, patype,
+						 paloc))
 		    continue;
 		}
 	      else
@@ -6250,10 +6235,10 @@ Call_expression::lower_varargs(Gogo* gogo)
 	    }
 
 	  Type* ctype;
-	  if (vtt == NULL)
+	  if (element_type == NULL)
 	    ctype = Type::make_struct_type(fields, loc);
 	  else
-	    ctype = Type::make_array_type(vtt, NULL);
+	    ctype = Type::make_array_type(element_type, NULL);
 
 	  new_args->push_back(Expression::make_composite_literal(ctype, false,
 								 vals, loc));
@@ -6262,7 +6247,7 @@ Call_expression::lower_varargs(Gogo* gogo)
 
   if (push_empty_arg)
     {
-      if (varargs_type->argument_type() != NULL)
+      if (varargs_type->interface_type() == NULL)
 	new_args->push_back(Expression::make_nil(loc));
       else
 	{
@@ -6283,9 +6268,89 @@ Call_expression::lower_varargs(Gogo* gogo)
 
   // Lower all the new subexpressions.
   Expression* ret = this;
-  gogo->lower_expression(&ret);
+  gogo->lower_expression(function, &ret);
   gcc_assert(ret == this);
   return ret;
+}
+
+// Return true if ARG is a varargs argment which should be passed to
+// the varargs parameter of type PARAM_TYPE without wrapping.  ARG
+// will be the last argument passed in the call, and PARAM_TYPE will
+// be the type of the last parameter of the varargs function being
+// called.
+
+bool
+Call_expression::is_compatible_varargs_argument(Named_object* function,
+						Expression* arg,
+						Type* param_type)
+{
+  Type* var_type = NULL;
+
+  // The simple case is passing the varargs parameter of the caller.
+  Var_expression* ve = arg->var_expression();
+  if (ve != NULL && ve->named_object()->is_variable())
+    {
+      Variable* var = ve->named_object()->var_value();
+      if (var->is_varargs_parameter())
+	var_type = var->type();
+    }
+
+  // The complex case is passing the varargs parameter of some
+  // enclosing function.  This will look like passing down *c.f where
+  // c is the closure variable and f is a field in the closure.
+  if (function != NULL
+      && function->func_value()->needs_closure()
+      && arg->classification() == EXPRESSION_UNARY)
+    {
+      Unary_expression* ue = static_cast<Unary_expression*>(arg);
+      if (ue->op() == OPERATOR_MULT)
+	{
+	  Field_reference_expression* fre =
+	    ue->operand()->field_reference_expression();
+	  if (fre != NULL)
+	    {
+	      Var_expression* ve = fre->expr()->var_expression();
+	      if (ve != NULL)
+		{
+		  Named_object* no = ve->named_object();
+		  Function* f = function->func_value();
+		  if (no == f->closure_var())
+		    {
+		      // At this point we know that this indeed a
+		      // reference to some enclosing variable.  Now we
+		      // need to figure out whether that variable is a
+		      // varargs parameter.
+		      Named_object* enclosing =
+			f->enclosing_var(fre->field_index());
+		      Variable* var = enclosing->var_value();
+		      if (var->is_varargs_parameter())
+			var_type = var->type();
+		    }
+		}
+	    }
+	}
+    }
+
+  if (var_type == NULL)
+    return false;
+
+  if (var_type->interface_type() != NULL)
+    {
+      // The argument is ... with no type.  We only match if the
+      // parameter is too.
+      return param_type->interface_type() != NULL;
+    }
+  else
+    {
+      // The argument is ... T with a type.  We only match if the
+      // parameter is the same, with an identical type.
+      Array_type* var_at = var_type->array_type();
+      gcc_assert(var_at != NULL);
+      Array_type* param_at = param_type->array_type();
+      return (param_at != NULL
+	      && Type::are_identical(var_at->element_type(),
+				     param_at->element_type()));
+    }
 }
 
 // Get the function type.  Returns NULL if we don't know the type.  If
@@ -6356,9 +6421,7 @@ Call_expression::do_determine_type(const Type_context*)
 	   pa != this->args_->end();
 	   ++pa)
 	{
-	  if (parameters != NULL
-	      && pt != parameters->end()
-	      && (!fntype->is_varargs() || pt + 1 != parameters->end()))
+	  if (parameters != NULL && pt != parameters->end())
 	    {
 	      Type_context subcontext(pt->type(), false);
 	      (*pa)->determine_type(&subcontext);
@@ -6457,10 +6520,7 @@ Call_expression::do_check_types(Gogo*)
 	      this->report_error(_("too many arguments"));
 	      return;
 	    }
-	  Type* ptype = pt->type();
-	  if (ptype->varargs_type() != NULL)
-	    ptype = ptype->varargs_type()->use_type();
-	  this->check_argument_type(i + 1, ptype, (*pa)->type(),
+	  this->check_argument_type(i + 1, pt->type(), (*pa)->type(),
 				    (*pa)->location());
 	}
     }
@@ -6665,11 +6725,8 @@ Call_expression::do_get_tree(Translate_context* context)
 	   ++pe, ++pp, ++i)
 	{
 	  tree arg_val = (*pe)->get_tree(context);
-	  Type* ptype = pp->type();
-	  if (ptype->varargs_type() != NULL)
-	    ptype = ptype->varargs_type()->use_type();
 	  args[i] = Expression::convert_for_assignment(context,
-						       ptype,
+						       pp->type(),
 						       (*pe)->type(),
 						       arg_val,
 						       location);
@@ -6970,7 +7027,7 @@ Index_expression::do_traverse(Traverse* traverse)
 // expression into an array index, a string index, or a map index.
 
 Expression*
-Index_expression::do_lower(Gogo*, int)
+Index_expression::do_lower(Gogo*, Named_object*, int)
 {
   source_location location = this->location();
   Expression* left = this->left_;
@@ -8207,7 +8264,7 @@ class Selector_expression : public Parser_expression
   { return Expression::traverse(&this->left_, traverse); }
 
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   Expression*
   do_copy()
@@ -8230,7 +8287,7 @@ class Selector_expression : public Parser_expression
 // hand side.
 
 Expression*
-Selector_expression::do_lower(Gogo* gogo, int)
+Selector_expression::do_lower(Gogo* gogo, Named_object*, int)
 {
   source_location location = this->location();
   Expression* left = this->left_;
@@ -8386,6 +8443,8 @@ Selector_expression::lower_method_expression(Gogo* gogo)
   
   Function_type* fntype = Type::make_function_type(NULL, parameters, results,
 						   location);
+  if (method_type->is_varargs())
+    fntype->set_is_varargs();
 
   Named_object* no = gogo->start_function(method_name, fntype, false, location);
 
@@ -9755,7 +9814,7 @@ class Composite_literal_expression : public Parser_expression
   do_traverse(Traverse* traverse);
 
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   Expression*
   do_copy()
@@ -9804,7 +9863,7 @@ Composite_literal_expression::do_traverse(Traverse* traverse)
 // the type.
 
 Expression*
-Composite_literal_expression::do_lower(Gogo*, int)
+Composite_literal_expression::do_lower(Gogo*, Named_object*, int)
 {
   Type* type = this->type_;
   if (type->is_error_type())

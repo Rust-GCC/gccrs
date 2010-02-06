@@ -504,8 +504,8 @@ class Expression
   // not be fully parsed into their final form.  It returns the same
   // Expression or a new one.
   Expression*
-  lower(Gogo* gogo, int iota_value)
-  { return this->do_lower(gogo, iota_value); }
+  lower(Gogo* gogo, Named_object* function, int iota_value)
+  { return this->do_lower(gogo, function, iota_value); }
 
   // Determine the real type of an expression with abstract integer or
   // floating point type.  TYPE_CONTEXT describes the expected type.
@@ -631,7 +631,7 @@ class Expression
 
   // Return a lowered expression.
   virtual Expression*
-  do_lower(Gogo*, int)
+  do_lower(Gogo*, Named_object*, int)
   { return this; }
 
   // Return whether this is a constant expression.
@@ -866,7 +866,7 @@ class Parser_expression : public Expression
 
  protected:
   virtual Expression*
-  do_lower(Gogo*, int) = 0;
+  do_lower(Gogo*, Named_object*, int) = 0;
 
   Type*
   do_type()
@@ -906,7 +906,7 @@ class Var_expression : public Expression
 
  protected:
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   Type*
   do_type();
@@ -1098,7 +1098,7 @@ class Binary_expression : public Expression
   do_traverse(Traverse* traverse);
 
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   bool
   do_is_constant() const
@@ -1192,7 +1192,7 @@ class Call_expression : public Expression
   do_traverse(Traverse*);
 
   virtual Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   void
   do_discarding_value()
@@ -1228,7 +1228,10 @@ class Call_expression : public Expression
 
  private:
   Expression*
-  lower_varargs(Gogo*);
+  lower_varargs(Gogo*, Named_object*);
+
+  bool
+  is_compatible_varargs_argument(Named_object*, Expression*, Type*);
 
   bool
   check_argument_type(int, const Type*, const Type*, source_location);
@@ -1362,7 +1365,7 @@ class Unknown_expression : public Parser_expression
 
  protected:
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   Expression*
   do_copy()
@@ -1397,7 +1400,7 @@ class Index_expression : public Parser_expression
   do_traverse(Traverse*);
 
   Expression*
-  do_lower(Gogo*, int);
+  do_lower(Gogo*, Named_object*, int);
 
   Expression*
   do_copy()

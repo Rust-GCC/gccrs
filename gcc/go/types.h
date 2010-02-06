@@ -19,7 +19,6 @@ class Integer_type;
 class Float_type;
 class String_type;
 class Function_type;
-class Varargs_type;
 class Struct_field;
 class Struct_field_list;
 class Struct_type;
@@ -63,16 +62,15 @@ static const int RUNTIME_TYPE_CODE_UINT8 = 12;
 static const int RUNTIME_TYPE_CODE_UINT = 13;
 static const int RUNTIME_TYPE_CODE_STRING = 14;
 static const int RUNTIME_TYPE_CODE_UINTPTR = 15;
-static const int RUNTIME_TYPE_CODE_DOTDOTDOT = 16;
-static const int RUNTIME_TYPE_CODE_UNSAFE_POINTER = 17;
-static const int RUNTIME_TYPE_CODE_ARRAY = 18;
-static const int RUNTIME_TYPE_CODE_SLICE = 19;
-static const int RUNTIME_TYPE_CODE_CHAN = 20;
-static const int RUNTIME_TYPE_CODE_FUNC = 21;
-static const int RUNTIME_TYPE_CODE_INTERFACE = 22;
-static const int RUNTIME_TYPE_CODE_MAP = 23;
-static const int RUNTIME_TYPE_CODE_PTR = 24;
-static const int RUNTIME_TYPE_CODE_STRUCT = 25;
+static const int RUNTIME_TYPE_CODE_UNSAFE_POINTER = 16;
+static const int RUNTIME_TYPE_CODE_ARRAY = 17;
+static const int RUNTIME_TYPE_CODE_SLICE = 18;
+static const int RUNTIME_TYPE_CODE_CHAN = 19;
+static const int RUNTIME_TYPE_CODE_FUNC = 20;
+static const int RUNTIME_TYPE_CODE_INTERFACE = 21;
+static const int RUNTIME_TYPE_CODE_MAP = 22;
+static const int RUNTIME_TYPE_CODE_PTR = 23;
+static const int RUNTIME_TYPE_CODE_STRUCT = 24;
 
 // The base class for all types.
 
@@ -90,7 +88,6 @@ class Type
     TYPE_STRING,
     TYPE_SINK,
     TYPE_FUNCTION,
-    TYPE_VARARGS,
     TYPE_POINTER,
     TYPE_NIL,
     TYPE_CALL_MULTIPLE_RESULT,
@@ -174,9 +171,6 @@ class Type
 		     Typed_identifier_list* parameters,
 		     Typed_identifier_list* results,
 		     source_location);
-
-  static Type*
-  make_varargs_type(Type*);
 
   static Pointer_type*
   make_pointer_type(Type*);
@@ -385,11 +379,6 @@ class Type
   const Function_type*
   function_type() const
   { return this->convert<const Function_type, TYPE_FUNCTION>(); }
-
-  // If this is a varargs type, return it.  Otherwise, return NULL.
-  Varargs_type*
-  varargs_type()
-  { return this->convert_no_base<Varargs_type, TYPE_VARARGS>(); }
 
   // If this is a pointer type, return the type to which it points.
   // Otherwise, return NULL.
@@ -1119,10 +1108,6 @@ class Function_type : public Type
   is_varargs() const
   { return this->is_varargs_; }
 
-  // For a varargs function, return the type of the varargs parameter.
-  Varargs_type*
-  varargs_type() const;
-
   // Whether this is a builtin function.
   bool
   is_builtin() const
@@ -1211,56 +1196,6 @@ class Function_type : public Type
   // Whether this is a special builtin function which can not simply
   // be called.  This is used for len, cap, etc.
   bool is_builtin_;
-};
-
-// The varargs type.  This is the type used for the last parameter of
-// a varargs function.
-
-class Varargs_type : public Type
-{
- public:
-  Varargs_type(Type* argument_type)
-    : Type(TYPE_VARARGS),
-      argument_type_(argument_type), use_type_(NULL)
-  { }
-
-  // Get the type of the varargs arguments.  This will be NULL if no
-  // type is specified.
-  Type*
-  argument_type()
-  { return this->argument_type_; }
-
-  // In the body of the function, the actual parameter is not
-  // Varargs_type.  Return the type that it should have.
-  Type*
-  use_type();
-
- protected:
-  tree
-  do_get_tree(Gogo*);
-
-  tree
-  do_init_tree(Gogo*, bool)
-  { gcc_unreachable(); }
-
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
-
-  void
-  do_reflection(Gogo*, std::string*) const;
-
-  void
-  do_mangled_name(Gogo*, std::string*) const;
-
-  void
-  do_export(Export*) const;
-
- private:
-  // The type given with the varargs; e.g., "int" in "... int".  This
-  // will be NULL if no type is given.
-  Type* argument_type_;
-  // The type to use in the body of the function.
-  Type* use_type_;
 };
 
 // The type of a pointer.
@@ -1825,7 +1760,8 @@ class Interface_type : public Type
       methods_(methods), location_(location)
   { }
 
-  // Return the list of methods.
+  // Return the list of methods.  This can return NULL if there are no
+  // methods.
   const Typed_identifier_list*
   methods() const
   { return this->methods_; }
@@ -1833,7 +1769,7 @@ class Interface_type : public Type
   // Return the number of methods.
   size_t
   method_count() const
-  { return this->methods_->size(); }
+  { return this->methods_ == NULL ? 0 : this->methods_->size(); }
 
   // Return the method NAME, or NULL.
   const Typed_identifier*
@@ -1902,7 +1838,8 @@ class Interface_type : public Type
   do_export(Export*) const;
 
  private:
-  // The list of methods associated with the interface.
+  // The list of methods associated with the interface.  This can be
+  // NULL for the empty interface.
   Typed_identifier_list* methods_;
   // The location where the interface was defined.
   source_location location_;

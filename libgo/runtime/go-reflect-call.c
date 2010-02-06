@@ -143,7 +143,6 @@ go_type_to_ffi (const struct __go_type_descriptor *descriptor)
     case GO_STRUCT:
       return go_struct_to_ffi ((const struct __go_struct_type *) descriptor);
     case GO_STRING:
-    case GO_DOTDOTDOT:
     case GO_CHAN:
     case GO_FUNC:
     case GO_INTERFACE:

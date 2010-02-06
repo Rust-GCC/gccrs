@@ -2103,7 +2103,6 @@ Gogo::type_functions(const Type* keytype, tree* hash_fn, tree* equal_fn)
     case Type::TYPE_ERROR:
     case Type::TYPE_VOID:
     case Type::TYPE_NIL:
-    case Type::TYPE_VARARGS:
       // These types can not be hashed or compared.
       hash_fn_name = "__go_type_hash_error";
       equal_fn_name = "__go_type_equal_error";
@@ -2900,9 +2899,11 @@ Gogo::function_type_descriptor_type_tree()
       tree common = this->type_descriptor_type_tree();
       tree ptr_common = build_pointer_type(common);
       Gogo::builtin_struct(&func_descriptor_type, "__go_func_type",
-			   NULL_TREE, 3,
+			   NULL_TREE, 4,
 			   "__common",
 			   common,
+			   "__dotdotdot",
+			   boolean_type_node,
 			   "__in",
 			   this->slice_type_tree(ptr_common),
 			   "__out",
@@ -2965,7 +2966,7 @@ Gogo::function_type_descriptor_decl(Function_type* type, Named_type* name,
 					name, pdecl))
     return;
 
-  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 3);
+  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 4);
 
   tree field = TYPE_FIELDS(type_descriptor_type_tree);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
@@ -2973,6 +2974,12 @@ Gogo::function_type_descriptor_decl(Function_type* type, Named_type* name,
   elt->index = field;
   elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_FUNC, type,
 						 name, NULL);
+
+  field = TREE_CHAIN(field);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__dotdotdot") == 0);
+  elt = VEC_quick_push(constructor_elt, init, NULL);
+  elt->index = field;
+  elt->value = type->is_varargs() ? boolean_true_node : boolean_false_node;
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__in") == 0);
@@ -3502,8 +3509,9 @@ Gogo::interface_type_methods(const Interface_type* interface_type,
 			     tree slice_type_tree)
 {
   const Typed_identifier_list* methods = interface_type->methods();
-  if (methods == NULL || methods->empty())
+  if (methods == NULL)
     return Gogo::empty_slice_constructor(slice_type_tree);
+  gcc_assert(!methods->empty());
 
   tree method_type_tree = Gogo::slice_element_type_tree(slice_type_tree);
   size_t count = methods->size();
@@ -3550,65 +3558,6 @@ Gogo::interface_type_descriptor_decl(Interface_type* type, Named_type* name,
   elt->value = this->interface_type_methods(type, TREE_TYPE(field));
 
   this->finish_type_descriptor_decl(pdecl, type, name,
-				    build_constructor(type_descriptor_type_tree,
-						      init));
-}
-
-// The type of a type descriptor for varargs.  This must match struct
-// __go_dotdotdot_type in libgo/runtime/go-type.h.
-
-tree
-Gogo::dotdotdot_type_descriptor_type_tree()
-{
-  static tree dotdotdot_descriptor_type;
-  if (dotdotdot_descriptor_type == NULL_TREE)
-    {
-      tree common = this->type_descriptor_type_tree();
-      Gogo::builtin_struct(&dotdotdot_descriptor_type, "__go_dotdotdot_type",
-			   NULL_TREE, 2,
-			   "__common",
-			   common,
-			   "__argument_type",
-			   build_pointer_type(common));
-    }
-  return dotdotdot_descriptor_type;
-}
-
-// Build a type descriptor for a varargs type.
-
-void
-Gogo::dotdotdot_type_descriptor_decl(Varargs_type* type, Named_type* name,
-				     tree* pdecl)
-{
-  tree type_descriptor_type_tree = this->dotdotdot_type_descriptor_type_tree();
-
-  if (!this->build_type_descriptor_decl(type, type_descriptor_type_tree,
-					name, pdecl))
-    return;
-
-  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
-
-  tree field = TYPE_FIELDS(type_descriptor_type_tree);
-  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
-  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
-  elt->index = field;
-  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_DOTDOTDOT,
-						 type, name, NULL);
-
-  field = TREE_CHAIN(field);
-  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
-		    "__argument_type") == 0);
-  elt = VEC_quick_push(constructor_elt, init, NULL);
-  elt->index = field;
-  Type* argument_type = type->argument_type();
-  if (argument_type == NULL)
-    elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
-  else
-    elt->value = type->argument_type()->type_descriptor(this);
-
-  this->finish_type_descriptor_decl(pdecl,
-				    type,
-				    name,
 				    build_constructor(type_descriptor_type_tree,
 						      init));
 }

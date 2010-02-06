@@ -540,28 +540,16 @@ Gogo::start_function(const std::string& name, Function_type* type,
     }
 
   const Typed_identifier_list* parameters = type->parameters();
+  bool is_varargs = type->is_varargs();
   if (parameters != NULL)
     {
       for (Typed_identifier_list::const_iterator p = parameters->begin();
 	   p != parameters->end();
 	   ++p)
 	{
-	  Type* param_type = p->type();
-
-	  // We use a varargs type in the function type, but an empty
-	  // interface for the actual parameter.
-	  bool is_varargs_param = false;
-	  Varargs_type* vt = param_type->varargs_type();
-	  if (vt != NULL)
-	    {
-	      param_type = vt->use_type();
-	      is_varargs_param = true;
-	    }
-
-	  Variable* param = new Variable(param_type, NULL, false, true, false,
+	  Variable* param = new Variable(p->type(), NULL, false, true, false,
 					 location);
-
-	  if (is_varargs_param)
+	  if (is_varargs && p + 1 == parameters->end())
 	    param->set_is_varargs_parameter();
 
 	  std::string name = p->name();
@@ -1072,12 +1060,12 @@ Gogo::verify_types()
 class Lower_parse_tree : public Traverse
 {
  public:
-  Lower_parse_tree(Gogo* gogo)
+  Lower_parse_tree(Gogo* gogo, Named_object* function)
     : Traverse(traverse_constants
 	       | traverse_functions
 	       | traverse_statements
 	       | traverse_expressions),
-      gogo_(gogo), iota_value_(-1)
+      gogo_(gogo), function_(function), iota_value_(-1)
   { }
 
   int
@@ -1095,6 +1083,8 @@ class Lower_parse_tree : public Traverse
  private:
   // General IR.
   Gogo* gogo_;
+  // The function we are traversing.
+  Named_object* function_;
   // Value to use for the predeclared constant iota.
   int iota_value_;
 };
@@ -1127,13 +1117,22 @@ Lower_parse_tree::constant(Named_object* no, bool)
   return TRAVERSE_CONTINUE;
 }
 
-// Lower function closure types.
+// Lower function closure types.  Record the function while lowering
+// it, so that we can pass it down when lowering an expression.
 
 int
 Lower_parse_tree::function(Named_object* no)
 {
   no->func_value()->set_closure_type();
-  return TRAVERSE_CONTINUE;
+
+  gcc_assert(this->function_ == NULL);
+  this->function_ = no;
+  int t = no->func_value()->traverse(this);
+  this->function_ = NULL;
+
+  if (t == TRAVERSE_EXIT)
+    return t;
+  return TRAVERSE_SKIP_COMPONENTS;
 }
 
 // Lower statement parse trees.
@@ -1179,7 +1178,8 @@ Lower_parse_tree::expression(Expression** pexpr)
   while (true)
     {
       Expression* e = *pexpr;
-      Expression* enew = e->lower(this->gogo_, this->iota_value_);
+      Expression* enew = e->lower(this->gogo_, this->function_,
+				  this->iota_value_);
       if (enew == e)
 	break;
       *pexpr = enew;
@@ -1193,16 +1193,16 @@ Lower_parse_tree::expression(Expression** pexpr)
 void
 Gogo::lower_parse_tree()
 {
-  Lower_parse_tree lower_parse_tree(this);
+  Lower_parse_tree lower_parse_tree(this, NULL);
   this->traverse(&lower_parse_tree);
 }
 
 // Lower an expression.
 
 void
-Gogo::lower_expression(Expression** pexpr)
+Gogo::lower_expression(Named_object* function, Expression** pexpr)
 {
-  Lower_parse_tree lower_parse_tree(this);
+  Lower_parse_tree lower_parse_tree(this, function);
   lower_parse_tree.expression(pexpr);
 }
 
@@ -1214,7 +1214,7 @@ void
 Gogo::lower_constant(Named_object* no)
 {
   gcc_assert(no->is_const());
-  Lower_parse_tree lower(this);
+  Lower_parse_tree lower(this, NULL);
   lower.constant(no, false);
 }
 
@@ -1908,6 +1908,8 @@ Gogo::build_interface_method_tables()
        ++pi)
     {
       const Typed_identifier_list* methods = (*pi)->methods();
+      if (methods == NULL)
+	continue;
       for (Typed_identifier_list::const_iterator pm = methods->begin();
 	   pm != methods->end();
 	   ++pm)
@@ -2352,6 +2354,7 @@ Function::export_func_with_type(Export* exp, const std::string& name,
   const Typed_identifier_list* parameters = fntype->parameters();
   if (parameters != NULL)
     {
+      bool is_varargs = fntype->is_varargs();
       bool first = true;
       for (Typed_identifier_list::const_iterator p = parameters->begin();
 	   p != parameters->end();
@@ -2361,7 +2364,14 @@ Function::export_func_with_type(Export* exp, const std::string& name,
 	    first = false;
 	  else
 	    exp->write_c_string(", ");
-	  exp->write_type(p->type());
+	  if (!is_varargs || p + 1 != parameters->end())
+	    exp->write_type(p->type());
+	  else
+	    {
+	      exp->write_c_string("...");
+	      if (p->type()->array_type() != NULL)
+		exp->write_type(p->type()->array_type()->element_type());
+	    }
 	}
     }
   exp->write_c_string(")");
@@ -2427,13 +2437,29 @@ Function::import_func(Import* imp, std::string* pname,
       parameters = new Typed_identifier_list();
       while (true)
 	{
+	  if (imp->match_c_string("..."))
+	    {
+	      imp->advance(3);
+	      *is_varargs = true;
+	      if (imp->peek_char() == ')')
+		{
+		  Type* empty = Type::make_interface_type(NULL,
+							  imp->location());
+		  parameters->push_back(Typed_identifier(Import::import_marker,
+							 empty,
+							 imp->location()));
+		  break;
+		}
+	    }
+
 	  Type* ptype = imp->read_type();
-	  if (ptype->varargs_type() != NULL)
-	    *is_varargs = true;
+	  if (*is_varargs)
+	    ptype = Type::make_array_type(ptype, NULL);
 	  parameters->push_back(Typed_identifier(Import::import_marker,
 						 ptype, imp->location()));
 	  if (imp->peek_char() != ',')
 	    break;
+	  gcc_assert(!*is_varargs);
 	  imp->require_c_string(", ");
 	}
     }
@@ -2736,11 +2762,11 @@ Variable::traverse_expression(Traverse* traverse)
 // Lower the initialization expression after parsing is complete.
 
 void
-Variable::lower_init_expression(Gogo* gogo)
+Variable::lower_init_expression(Gogo* gogo, Named_object* function)
 {
   if (this->init_ != NULL && !this->init_is_lowered_)
     {
-      gogo->lower_expression(&this->init_);
+      gogo->lower_expression(function, &this->init_);
       this->init_is_lowered_ = true;
     }
 }

@@ -45,16 +45,15 @@
 #define GO_UINT 13
 #define GO_STRING 14
 #define GO_UINTPTR 15
-#define GO_DOTDOTDOT 16
-#define GO_UNSAFE_POINTER 17
-#define GO_ARRAY 18
-#define GO_SLICE 19
-#define GO_CHAN 20
-#define GO_FUNC 21
-#define GO_INTERFACE 22
-#define GO_MAP 23
-#define GO_PTR 24
-#define GO_STRUCT 25
+#define GO_UNSAFE_POINTER 16
+#define GO_ARRAY 17
+#define GO_SLICE 18
+#define GO_CHAN 19
+#define GO_FUNC 20
+#define GO_INTERFACE 21
+#define GO_MAP 22
+#define GO_PTR 23
+#define GO_STRUCT 24
 
 /* For each Go type the compiler constructs one of these structures.
    This is used for type reflectin, interfaces, maps, and reference
@@ -187,6 +186,11 @@ struct __go_func_type
   /* Starts like all other type descriptors.  */
   struct __go_type_descriptor __common;
 
+  /* Whether this is a varargs function.  If this is true, there will
+     be at least one parameter.  For "..." the last parameter type is
+     "interface{}".  For "... T" the last parameter type is "[]T".  */
+  _Bool __dotdotdot;
+
   /* The input parameter types.  This is an array of pointers to
      struct __go_type_descriptor.  */
   struct __go_open_array __in;
@@ -284,18 +288,6 @@ struct __go_struct_type
 
   /* An array of struct __go_struct_field.  */
   struct __go_open_array __fields;
-};
-
-/* The type of a varargs parameter to a function.  */
-
-struct __go_dotdotdot_type
-{
-  /* Starts like all other type descriptors.  */
-  struct __go_type_descriptor __common;
-
-  /* The type of varargs parameters; this will be NULL if no type is
-     specified.  */
-  const struct __go_type_descriptor *__type;
 };
 
 /* Whether a type descriptor is a pointer.  */

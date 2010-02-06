@@ -36,16 +36,15 @@ const (
 	UintTypeCode          = 13
 	StringTypeCode        = 14
 	UintptrTypeCode       = 15
-	DotDotDotTypeCode     = 16
-	UnsafePointerTypeCode = 17
-	ArrayTypeCode         = 18
-	SliceTypeCode         = 19
-	ChanTypeCode          = 20
-	FuncTypeCode          = 21
-	InterfaceTypeCode     = 22
-	MapTypeCode           = 23
-	PtrTypeCode           = 24
-	StructTypeCode        = 25
+	UnsafePointerTypeCode = 16
+	ArrayTypeCode         = 17
+	SliceTypeCode         = 18
+	ChanTypeCode          = 19
+	FuncTypeCode          = 20
+	InterfaceTypeCode     = 21
+	MapTypeCode           = 22
+	PtrTypeCode           = 23
+	StructTypeCode        = 24
 )
 
 // All types begin with a few common fields needed for
@@ -166,8 +165,9 @@ type ChanType struct {
 // FuncType represents a function type.
 type FuncType struct {
 	commonType
-	in  []*Type // input parameter types
-	out []*Type // output parameter types
+	dotdotdot bool    // last input parameter is ...
+	in        []*Type // input parameter types
+	out       []*Type // output parameter types
 }
 
 // Method on interface type
@@ -210,13 +210,6 @@ type structField struct {
 type StructType struct {
 	commonType
 	fields []structField // sorted by offset
-}
-
-// DotDotDotType represents the ... [T] that can
-// be used as the type of the final function parameter.
-type DotDotDotType struct {
-	commonType
-	typ *Type // varargs type; nil if not given
 }
 
 /*

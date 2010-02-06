@@ -34,7 +34,6 @@ class Array_type;
 class Map_type;
 class Channel_type;
 class Interface_type;
-class Varargs_type;
 class Named_type;
 class Forward_declaration_type;
 class Method;
@@ -340,7 +339,7 @@ class Gogo
 
   // Lower an expression.
   void
-  lower_expression(Expression**);
+  lower_expression(Named_object* function, Expression**);
 
   // Lower a constant.
   void
@@ -502,10 +501,6 @@ class Gogo
   // Build a type descriptor for an interface.
   void
   interface_type_descriptor_decl(Interface_type*, Named_type*, tree* pdecl);
-
-  // Build a type descriptor for the varargs type.
-  void
-  dotdotdot_type_descriptor_decl(Varargs_type*, Named_type*, tree* pdecl);
 
   // Build a type descriptor for an undefined type.
   void
@@ -726,10 +721,6 @@ class Gogo
   tree
   interface_type_methods(const Interface_type*, tree);
 
-  // Return the type of a varargs type descriptor.
-  tree
-  dotdotdot_type_descriptor_type_tree();
-
   // Return pointers to functions which compute a hash code for TYPE
   // and which compare whether two objects of type TYPE are equal.
   void
@@ -919,10 +910,24 @@ class Function
   add_closure_field(Named_object* var, source_location loc)
   { this->closure_fields_.push_back(std::make_pair(var, loc)); }
 
+  // Whether this function needs a closure.
+  bool
+  needs_closure() const
+  { return !this->closure_fields_.empty(); }
+
   // Return the closure variable, creating it if necessary.  This is
   // passed to the function as a static chain parameter.
   Named_object*
   closure_var();
+
+  // Return the variable for a reference to field INDEX in the closure
+  // variable.
+  Named_object*
+  enclosing_var(unsigned int index)
+  {
+    gcc_assert(index < this->closure_fields_.size());
+    return closure_fields_[index].first;
+  }
 
   // Set the type of the closure variable if there is one.
   void
@@ -1199,7 +1204,7 @@ class Variable
 
   // Lower the initialization expression after parsing is complete.
   void
-  lower_init_expression(Gogo*);
+  lower_init_expression(Gogo*, Named_object*);
 
   // A special case: the init value is used only to determine the
   // type.  This is used if the variable is defined using := with the
