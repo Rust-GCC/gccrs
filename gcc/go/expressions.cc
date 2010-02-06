@@ -6338,7 +6338,10 @@ Call_expression::is_compatible_varargs_argument(Named_object* function,
     {
       // The argument is ... with no type.  We only match if the
       // parameter is too.
-      return param_type->interface_type() != NULL;
+      if (param_type->interface_type() != NULL)
+	return true;
+      error_at(arg->location(), "... mismatch: passing ... as ...T");
+      return false;
     }
   else
     {
@@ -6347,9 +6350,12 @@ Call_expression::is_compatible_varargs_argument(Named_object* function,
       Array_type* var_at = var_type->array_type();
       gcc_assert(var_at != NULL);
       Array_type* param_at = param_type->array_type();
-      return (param_at != NULL
-	      && Type::are_identical(var_at->element_type(),
-				     param_at->element_type()));
+      if (param_at != NULL
+	  && Type::are_identical(var_at->element_type(),
+				 param_at->element_type()))
+	return true;
+      error_at(arg->location(), "... mismatch: passing ...T as ...");
+      return false;
     }
 }
 
