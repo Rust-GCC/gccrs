@@ -4093,7 +4093,8 @@ Interface_type::finalize_methods()
 	   ++q)
 	{
 	  if (q->name().empty() || this->find_method(q->name()) == NULL)
-	    this->methods_->push_back(*q);
+	    this->methods_->push_back(Typed_identifier(q->name(), q->type(),
+						       p->location()));
 	  else
 	    {
 	      if (!is_recursive)
