@@ -29,6 +29,10 @@ class Channel_type;
 class Interface_type;
 class Named_type;
 class Forward_declaration_type;
+class Method;
+class Methods;
+class Type_hash_identical;
+class Type_identical;
 class Expression;
 class Expression_list;
 class Call_expression;
@@ -71,6 +75,262 @@ static const int RUNTIME_TYPE_CODE_INTERFACE = 21;
 static const int RUNTIME_TYPE_CODE_MAP = 22;
 static const int RUNTIME_TYPE_CODE_PTR = 23;
 static const int RUNTIME_TYPE_CODE_STRUCT = 24;
+
+// To build the complete list of methods for a named type we need to
+// gather all methods from anonymous fields.  Those methods may
+// require an arbitrary set of indirections and field offsets.  There
+// is also the possibility of ambiguous methods, which we could ignore
+// except that we want to give a better error message for that case.
+// This is a base class.  There are two types of methods: named
+// methods, and methods which are inherited from an anonymous field of
+// interface type.
+
+class Method
+{
+ public:
+  // For methods in anonymous types we need to know the sequence of
+  // field references used to extract the pointer to pass to the
+  // method.  Since each method for a particular anonymous field will
+  // have the sequence of field indexes, and since the indexes can be
+  // shared going down the chain, we use a manually managed linked
+  // list.  The first entry in the list is the field index for the
+  // last field, the one passed to the method.
+
+  struct Field_indexes
+  {
+    const Field_indexes* next;
+    unsigned int field_index;
+  };
+
+  virtual ~Method()
+  { }
+
+  // Get the list of field indexes.
+  const Field_indexes*
+  field_indexes() const
+  { return this->field_indexes_; }
+
+  // Get the depth.
+  unsigned int
+  depth() const
+  { return this->depth_; }
+
+  // Return whether this is a value method--a method which does not
+  // require a pointer expression.
+  bool
+  is_value_method() const
+  { return this->is_value_method_; }
+
+  // Return whether we need a stub method--this is true if we can't
+  // just pass the main object to the method.
+  bool
+  needs_stub_method() const
+  { return this->needs_stub_method_; }
+
+  // Return whether this is an ambiguous method name.
+  bool
+  is_ambiguous() const
+  { return this->is_ambiguous_; }
+
+  // Note that this method is ambiguous.
+  void
+  set_is_ambiguous()
+  { this->is_ambiguous_ = true; }
+
+  // Return the type of the method.
+  Function_type*
+  type() const
+  { return this->do_type(); }
+
+  // Return the location of the method receiver.
+  source_location
+  receiver_location() const
+  { return this->do_receiver_location(); }
+
+  // Return an expression which binds this method to EXPR.  This is
+  // something which can be used with a function call.
+  Expression*
+  bind_method(Expression* expr, source_location location) const;
+
+  // Return the named object for this method.  This may only be called
+  // after methods are finalized.
+  Named_object*
+  named_object() const;
+
+  // Set the stub object.
+  void
+  set_stub_object(Named_object* no)
+  {
+    gcc_assert(this->stub_ == NULL);
+    this->stub_ = no;
+  }
+
+ protected:
+  // These objects are only built by the child classes.
+  Method(const Field_indexes* field_indexes, unsigned int depth,
+	 bool is_value_method, bool needs_stub_method)
+    : field_indexes_(field_indexes), depth_(depth), stub_(NULL),
+      is_value_method_(is_value_method), needs_stub_method_(needs_stub_method),
+      is_ambiguous_(false)
+  { }
+
+  // The named object for this method.
+  virtual Named_object*
+  do_named_object() const = 0;
+
+  // The type of the method.
+  virtual Function_type*
+  do_type() const = 0;
+
+  // Return the location of the method receiver.
+  virtual source_location
+  do_receiver_location() const = 0;
+
+  // Bind a method to an object.
+  virtual Expression*
+  do_bind_method(Expression* expr, source_location location) const = 0;
+
+ private:
+  // The sequence of field indexes used for this method.  If this is
+  // NULL, then the method is defined for the current type.
+  const Field_indexes* field_indexes_;
+  // The depth at which this method was found.
+  unsigned int depth_;
+  // If a stub method is required, this is its object.  This is only
+  // set after stub methods are built in finalize_methods.
+  Named_object* stub_;
+  // Whether this is a value method--a method that does not require a
+  // pointer.
+  bool is_value_method_;
+  // Whether a stub method is required.
+  bool needs_stub_method_;
+  // Whether this method is ambiguous.
+  bool is_ambiguous_;
+};
+
+// A named method.  This is what you get with a method declaration,
+// either directly on the type, or inherited from some anonymous
+// embedded field.
+
+class Named_method : public Method
+{
+ public:
+  Named_method(Named_object* named_object, const Field_indexes* field_indexes,
+	       unsigned int depth, bool is_value_method,
+	       bool needs_stub_method)
+    : Method(field_indexes, depth, is_value_method, needs_stub_method),
+      named_object_(named_object)
+  { }
+
+ protected:
+  // Get the Named_object for the method.
+  Named_object*
+  do_named_object() const
+  { return this->named_object_; }
+
+  // The type of the method.
+  Function_type*
+  do_type() const;
+
+  // Return the location of the method receiver.
+  source_location
+  do_receiver_location() const;
+
+  // Bind a method to an object.
+  Expression*
+  do_bind_method(Expression* expr, source_location location) const;
+
+ private:
+  // The method itself.  For a method which needs a stub, this starts
+  // out as the underlying method, and is later replaced with the stub
+  // method.
+  Named_object* named_object_;
+};
+
+// An interface method.  This is used when an interface appears as an
+// anonymous field in a named struct.
+
+class Interface_method : public Method
+{
+ public:
+  Interface_method(const std::string& name, source_location location,
+		   Function_type* fntype, const Field_indexes* field_indexes,
+		   unsigned int depth)
+    : Method(field_indexes, depth, true, true),
+      name_(name), location_(location), fntype_(fntype)
+  { }
+
+ protected:
+  // Get the Named_object for the method.  This should never be
+  // called, as we always create a stub.
+  Named_object*
+  do_named_object() const
+  { gcc_unreachable(); }
+
+  // The type of the method.
+  Function_type*
+  do_type() const
+  { return this->fntype_; }
+
+  // Return the location of the method receiver.
+  source_location
+  do_receiver_location() const
+  { return this->location_; }
+
+  // Bind a method to an object.
+  Expression*
+  do_bind_method(Expression* expr, source_location location) const;
+
+ private:
+  // The name of the interface method to call.
+  std::string name_;
+  // The location of the definition of the interface method.
+  source_location location_;
+  // The type of the interface method.
+  Function_type* fntype_;
+};
+
+// A mapping from method name to Method.  This is a wrapper around a
+// hash table.
+
+class Methods
+{
+ private:
+  typedef std::tr1::unordered_map<std::string, Method*> Method_map;
+
+ public:
+  typedef Method_map::const_iterator const_iterator;
+
+  Methods()
+    : methods_()
+  { }
+
+  // Insert a new method.  Returns true if it was inserted, false if
+  // it was overidden or ambiguous.
+  bool
+  insert(const std::string& name, Method* m);
+
+  // The number of (unambiguous) methods.
+  size_t
+  count() const;
+
+  // Iterate.
+  const_iterator
+  begin() const
+  { return this->methods_.begin(); }
+
+  const_iterator
+  end() const
+  { return this->methods_.end(); }
+
+  // Lookup.
+  const_iterator
+  find(const std::string& name) const
+  { return this->methods_.find(name); }
+
+ private:
+  Method_map methods_;
+};
 
 // The base class for all types.
 
@@ -499,6 +759,16 @@ class Type
   is_unsafe_pointer_type() const
   { return this->points_to() != NULL && this->points_to()->is_void_type(); }
 
+  // Look for field or method NAME for TYPE.  Return an expression for
+  // it, bound to EXPR.
+  static Expression*
+  bind_field_or_method(const Type* type, Expression* expr,
+		       const std::string& name, source_location);
+
+  // Return true if NAME is an unexported field or method of TYPE.
+  static bool
+  is_unexported_field_or_method(const Type*, const std::string&);
+
   // This type was passed to the builtin function make.  ARGS are the
   // arguments passed to make after the type; this may be NULL if
   // there were none.  Issue any required errors.
@@ -633,6 +903,19 @@ class Type
   virtual void
   do_export(Export*) const;
 
+  // Return whether a method expects a pointer as the receiver.
+  static bool
+  method_expects_pointer(const Named_object*);
+
+  // Finalize the methods for a type.
+  static void
+  finalize_methods(Gogo*, const Type*, source_location, Methods**);
+
+  // Return a method from a set of methods.
+  static Method*
+  method_function(const Methods*, const std::string& name,
+		  bool* is_ambiguous);
+
   // Build a type descriptor entry for TYPE, using NAME as the name of
   // the type.  PACKAGE is the package where TYPE is defined, or NULL
   // if defined in the package currently being compiled.  Store the
@@ -705,6 +988,53 @@ class Type
   tree
   inc_or_dec_refcount(Gogo* gogo, tree expr_tree, source_location,
 		      bool is_local, bool is_increment);
+
+  // A hash table we use to avoid infinite recursion.
+  typedef std::tr1::unordered_set<const Named_type*, Type_hash_identical,
+				  Type_identical> Types_seen;
+
+  // Add all methods for TYPE to the list of methods for THIS.
+  static void
+  add_methods_for_type(const Type* type, const Method::Field_indexes*,
+		       unsigned int depth, bool, bool, Types_seen*,
+		       Methods**);
+
+  static void
+  add_local_methods_for_type(const Named_type* type,
+			     const Method::Field_indexes*,
+			     unsigned int depth, bool, bool, Methods**);
+
+  static void
+  add_embedded_methods_for_type(const Type* type,
+				const Method::Field_indexes*,
+				unsigned int depth, bool, bool, Types_seen*,
+				Methods**);
+
+  static void
+  add_interface_methods_for_type(const Type* type,
+				 const Method::Field_indexes*,
+				 unsigned int depth, Methods**);
+
+  // Build stub methods for a type.
+  static void
+  build_stub_methods(Gogo*, const Type* type, const Methods* methods,
+		     source_location);
+
+  static void
+  build_one_stub_method(Gogo*, Method*, const char* receiver_name,
+			const Typed_identifier_list*, source_location);
+
+  static Expression*
+  apply_field_indexes(Expression*, const Method::Field_indexes*,
+		      source_location);
+
+  // Look for a field or method named NAME in TYPE.
+  static bool
+  find_field_or_method(const Type* type, const std::string& name,
+		       bool receiver_can_be_pointer,
+		       int* level, bool* is_method,
+		       bool* found_pointer_method,
+		       std::string* ambig1, std::string* ambig2);
 
   // The type classification.
   Type_classification classification_;
@@ -1147,6 +1477,16 @@ class Function_type : public Type
   static Function_type*
   do_import(Import*);
 
+  // Return a copy of this type without a receiver.  This is only
+  // valid for a method type.
+  Function_type*
+  copy_without_receiver() const;
+
+  // Return a copy of this type with a receiver.  This is used when an
+  // interface method is attached to a named or struct type.
+  Function_type*
+  copy_with_receiver(Type*) const;
+
  protected:
   int
   do_traverse(Traverse*);
@@ -1374,7 +1714,7 @@ class Struct_type : public Type
  public:
   Struct_type(Struct_field_list* fields, source_location location)
     : Type(TYPE_STRUCT),
-      fields_(fields), location_(location)
+      fields_(fields), location_(location), all_methods_(NULL)
   { }
 
   // Return the field NAME.  This only looks at local fields, not at
@@ -1427,10 +1767,38 @@ class Struct_type : public Type
   bool
   struct_has_hidden_fields(const Named_type* within, std::string*) const;
 
-  // Return whether NAME is a field which is not exported.  This is
-  // only used for better error reporting.
+  // Return whether NAME is a local field which is not exported.  This
+  // is only used for better error reporting.
   bool
-  is_unexported_field(const std::string& name) const;
+  is_unexported_local_field(const std::string& name) const;
+
+  // If this is an unnamed struct, build the complete list of methods,
+  // including those from anonymous fields, and build methods stubs if
+  // needed.
+  void
+  finalize_methods(Gogo*);
+
+  // Return whether this type has any methods.  This should only be
+  // called after the finalize_methods pass.
+  bool
+  has_any_methods() const
+  { return this->all_methods_ != NULL; }
+
+  // Return the methods for tihs type.  This should only be called
+  // after the finalize_methods pass.
+  const Methods*
+  methods() const
+  { return this->all_methods_; }
+
+  // Return the method to use for NAME.  This returns NULL if there is
+  // no such method or if the method is ambiguous.
+  Method*
+  method_function(const std::string& name) const;
+
+  // Traverse just the field types of a struct type.
+  int
+  traverse_field_types(Traverse* traverse)
+  { return this->do_traverse(traverse); }
 
   // Import a struct type.
   static Struct_type*
@@ -1483,6 +1851,8 @@ class Struct_type : public Type
   Struct_field_list* fields_;
   // The place where the struct was declared.
   source_location location_;
+  // If this struct is unnamed, a list of methods.
+  Methods* all_methods_;
 };
 
 // The type of an array.
@@ -1845,262 +2215,6 @@ class Interface_type : public Type
   source_location location_;
 };
 
-// To build the complete list of methods for a named type we need to
-// gather all methods from anonymous fields.  Those methods may
-// require an arbitrary set of indirections and field offsets.  There
-// is also the possibility of ambiguous methods, which we could ignore
-// except that we want to give a better error message for that case.
-// This is a base class.  There are two types of methods: named
-// methods, and methods which are inherited from an anonymous field of
-// interface type.
-
-class Method
-{
- public:
-  // For methods in anonymous types we need to know the sequence of
-  // field references used to extract the pointer to pass to the
-  // method.  Since each method for a particular anonymous field will
-  // have the sequence of field indexes, and since the indexes can be
-  // shared going down the chain, we use a manually managed linked
-  // list.  The first entry in the list is the field index for the
-  // last field, the one passed to the method.
-
-  struct Field_indexes
-  {
-    const Field_indexes* next;
-    unsigned int field_index;
-  };
-
-  virtual ~Method()
-  { }
-
-  // Get the list of field indexes.
-  const Field_indexes*
-  field_indexes() const
-  { return this->field_indexes_; }
-
-  // Get the depth.
-  unsigned int
-  depth() const
-  { return this->depth_; }
-
-  // Return whether this is a value method--a method which does not
-  // require a pointer expression.
-  bool
-  is_value_method() const
-  { return this->is_value_method_; }
-
-  // Return whether we need a stub method--this is true if we can't
-  // just pass the main object to the method.
-  bool
-  needs_stub_method() const
-  { return this->needs_stub_method_; }
-
-  // Return whether this is an ambiguous method name.
-  bool
-  is_ambiguous() const
-  { return this->is_ambiguous_; }
-
-  // Note that this method is ambiguous.
-  void
-  set_is_ambiguous()
-  { this->is_ambiguous_ = true; }
-
-  // Return the type of the method.
-  Function_type*
-  type() const
-  { return this->do_type(); }
-
-  // Return the location of the method receiver.
-  source_location
-  receiver_location() const
-  { return this->do_receiver_location(); }
-
-  // Return an expression which binds this method to EXPR.  This is
-  // something which can be used with a function call.
-  Expression*
-  bind_method(Expression* expr, source_location location) const;
-
-  // Return the named object for this method.  This may only be called
-  // after methods are finalized.
-  Named_object*
-  named_object() const;
-
-  // Set the stub object.
-  void
-  set_stub_object(Named_object* no)
-  {
-    gcc_assert(this->stub_ == NULL);
-    this->stub_ = no;
-  }
-
- protected:
-  // These objects are only built by the child classes.
-  Method(const Field_indexes* field_indexes, unsigned int depth,
-	 bool is_value_method, bool needs_stub_method)
-    : field_indexes_(field_indexes), depth_(depth), stub_(NULL),
-      is_value_method_(is_value_method), needs_stub_method_(needs_stub_method),
-      is_ambiguous_(false)
-  { }
-
-  // The named object for this method.
-  virtual Named_object*
-  do_named_object() const = 0;
-
-  // The type of the method.
-  virtual Function_type*
-  do_type() const = 0;
-
-  // Return the location of the method receiver.
-  virtual source_location
-  do_receiver_location() const = 0;
-
-  // Bind a method to an object.
-  virtual Expression*
-  do_bind_method(Expression* expr, source_location location) const = 0;
-
- private:
-  // The sequence of field indexes used for this method.  If this is
-  // NULL, then the method is defined for the current type.
-  const Field_indexes* field_indexes_;
-  // The depth at which this method was found.
-  unsigned int depth_;
-  // If a stub method is required, this is its object.  This is only
-  // set after stub methods are built in finalize_methods.
-  Named_object* stub_;
-  // Whether this is a value method--a method that does not require a
-  // pointer.
-  bool is_value_method_;
-  // Whether a stub method is required.
-  bool needs_stub_method_;
-  // Whether this method is ambiguous.
-  bool is_ambiguous_;
-};
-
-// A named method.  This is what you get with a method declaration,
-// either directly on the type, or inherited from some anonymous
-// embedded field.
-
-class Named_method : public Method
-{
- public:
-  Named_method(Named_object* named_object, const Field_indexes* field_indexes,
-	       unsigned int depth, bool is_value_method,
-	       bool needs_stub_method)
-    : Method(field_indexes, depth, is_value_method, needs_stub_method),
-      named_object_(named_object)
-  { }
-
- protected:
-  // Get the Named_object for the method.
-  Named_object*
-  do_named_object() const
-  { return this->named_object_; }
-
-  // The type of the method.
-  Function_type*
-  do_type() const;
-
-  // Return the location of the method receiver.
-  source_location
-  do_receiver_location() const;
-
-  // Bind a method to an object.
-  Expression*
-  do_bind_method(Expression* expr, source_location location) const;
-
- private:
-  // The method itself.  For a method which needs a stub, this starts
-  // out as the underlying method, and is later replaced with the stub
-  // method.
-  Named_object* named_object_;
-};
-
-// An interface method.  This is used when an interface appears as an
-// anonymous field in a named struct.
-
-class Interface_method : public Method
-{
- public:
-  Interface_method(const std::string& name, source_location location,
-		   Function_type* fntype, const Field_indexes* field_indexes,
-		   unsigned int depth)
-    : Method(field_indexes, depth, true, true),
-      name_(name), location_(location), fntype_(fntype)
-  { }
-
- protected:
-  // Get the Named_object for the method.  This should never be
-  // called, as we always create a stub.
-  Named_object*
-  do_named_object() const
-  { gcc_unreachable(); }
-
-  // The type of the method.
-  Function_type*
-  do_type() const
-  { return this->fntype_; }
-
-  // Return the location of the method receiver.
-  source_location
-  do_receiver_location() const
-  { return this->location_; }
-
-  // Bind a method to an object.
-  Expression*
-  do_bind_method(Expression* expr, source_location location) const;
-
- private:
-  // The name of the interface method to call.
-  std::string name_;
-  // The location of the definition of the interface method.
-  source_location location_;
-  // The type of the interface method.
-  Function_type* fntype_;
-};
-
-// A mapping from method name to Method.  This is a wrapper around a
-// hash table.
-
-class Methods
-{
- private:
-  typedef std::tr1::unordered_map<std::string, Method*> Method_map;
-
- public:
-  typedef Method_map::const_iterator const_iterator;
-
-  Methods()
-    : methods_()
-  { }
-
-  // Insert a new method.  Returns true if it was inserted, false if
-  // it was overidden or ambiguous.
-  bool
-  insert(const std::string& name, Method* m);
-
-  // The number of (unambiguous) methods.
-  size_t
-  count() const;
-
-  // Iterate.
-  const_iterator
-  begin() const
-  { return this->methods_.begin(); }
-
-  const_iterator
-  end() const
-  { return this->methods_.end(); }
-
-  // Lookup.
-  const_iterator
-  find(const std::string& name) const
-  { return this->methods_.find(name); }
-
- private:
-  Method_map methods_;
-};
-
 // The value we keep for a named type.  This lets us get the right
 // name when we convert to trees.  Note that we don't actually keep
 // the name here; the name is in the Named_object which points to
@@ -2202,6 +2316,15 @@ class Named_type : public Type
   void
   add_existing_method(Named_object*);
 
+  // Look up a local method.
+  Named_object*
+  find_local_method(const std::string& name) const;
+
+  // Return the list of local methods.
+  const Bindings*
+  local_methods() const
+  { return this->local_methods_; }
+
   // Build the complete list of methods, including those from
   // anonymous fields, and build method stubs if needed.
   void
@@ -2219,16 +2342,6 @@ class Named_type : public Type
   methods() const
   { return this->all_methods_; }
 
-  // EXPR has this type.  Look for field or method NAME associated
-  // with this type.  Return a Field_reference_expression or
-  // Bound_method_expression for the field or method bound to EXPR.
-  // Return NULL if there is no such field or method.  If this returns
-  // NULL, it sets *FOUND_POINTER_METHOD if a method was found which
-  // takes a pointer but EXPR is value whose address can not be taken.
-  Expression*
-  bind_field_or_method(Expression* expr, const std::string& name,
-		       source_location, bool *found_pointer_method) const;
-
   // Return the method to use for NAME.  This returns NULL if there is
   // no such method or if the method is ambiguous.  When it returns
   // NULL, this sets *IS_AMBIGUOUS if the method name is ambiguous.
@@ -2238,7 +2351,7 @@ class Named_type : public Type
   // Return whether NAME is a known field or method which is not
   // exported.  This is only used for better error reporting.
   bool
-  is_unexported_field_or_method(const std::string& name) const;
+  is_unexported_local_method(const std::string& name) const;
 
   // Return a pointer to the interface method table for this type for
   // the interface INTERFACE.
@@ -2324,53 +2437,6 @@ class Named_type : public Type
   typedef std::tr1::unordered_map<const Interface_type*, tree,
 				  Type_hash_identical,
 				  Type_identical> Interface_method_tables;
-
-  static const char* const receiver_name;
-
-  // Return whether a method expects a pointer as the receiver.
-  static bool
-  method_expects_pointer(const Named_object*);
-
-  // Look for a field or method named NAME.
-  bool
-  find_field_or_method(const std::string& name, bool receiver_can_be_pointer,
-		       int* level, bool* is_method,
-		       bool* found_pointer_method) const;
-
-  // A hash table we use to avoid infinite recursion.
-  typedef std::tr1::unordered_set<const Named_type*, Type_hash_identical,
-				  Type_identical> Types_seen;
-
-  // Add all methods for TYPE to the list of methods for THIS.
-  bool
-  add_methods_for_type(const Named_type* type, const Method::Field_indexes*,
-		       unsigned int depth, bool, bool, Types_seen*);
-
-  bool
-  add_local_methods_for_type(const Named_type* type,
-			     const Method::Field_indexes*,
-			     unsigned int depth, bool, bool);
-
-  bool
-  add_embedded_methods_for_type(const Named_type* type,
-				const Method::Field_indexes*,
-				unsigned int depth, bool, bool, Types_seen*);
-
-  bool
-  add_interface_methods_for_type(const Named_type* type,
-				 const Method::Field_indexes*,
-				 unsigned int depth);
-
-  // Build stub methods.
-  void
-  build_stub_methods(Gogo*);
-
-  void
-  build_one_stub_method(Gogo*, Method*, const char* receiver_name,
-			const Typed_identifier_list*);
-
-  Expression*
-  apply_field_indexes(Expression*, const Method::Field_indexes*);
 
   // A pointer back to the Named_object for this type.
   Named_object* named_object_;

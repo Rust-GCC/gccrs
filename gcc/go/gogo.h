@@ -631,18 +631,19 @@ class Gogo
 
   // Return the method table for a type.
   tree
-  type_method_table(tree method_type_tree, Named_type*,
+  type_method_table(tree method_type_tree, const Methods*,
 		    bool only_value_methods);
 
   // Return the uncommon type information for a type descriptor.
   tree
   uncommon_type_information(tree uncommon_type_tree, Named_type* name,
-			    Named_type* methods_type);
+			    const Methods*, bool only_value_methods);
 
   // Return a constructor for the basic type descriptor for TYPE.
   tree
   type_descriptor_constructor(int runtime_type_code, Type* type,
-			      Named_type* name, Named_type* methods_type);
+			      Named_type* name, const Methods*,
+			      bool only_value_methods);
 
   // Where a type descriptor should be defined.
   enum Type_descriptor_location
@@ -1844,11 +1845,6 @@ class Named_object
   // The location where this object was defined or referenced.
   source_location
   location() const;
-
-  // Set the package where the object is defined.
-  void
-  set_package(const Package* package)
-  { this->package_ = package; }
 
   // Return a tree for the external identifier for this object.
   tree

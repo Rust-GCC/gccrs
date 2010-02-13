@@ -1224,12 +1224,16 @@ Gogo::lower_constant(Named_object* no)
 class Finalize_methods : public Traverse
 {
  public:
-  Finalize_methods()
-    : Traverse(traverse_types)
+  Finalize_methods(Gogo* gogo)
+    : Traverse(traverse_types),
+      gogo_(gogo)
   { }
 
   int
   type(Type*);
+
+ private:
+  Gogo* gogo_;
 };
 
 // Finalize the methods of an interface type.
@@ -1239,47 +1243,53 @@ Finalize_methods::type(Type* t)
 {
   // Check the classification so that we don't finalize the methods
   // twice for a named interface type.
-  if (t->classification() == Type::TYPE_INTERFACE)
-    t->interface_type()->finalize_methods();
+  switch (t->classification())
+    {
+    case Type::TYPE_INTERFACE:
+      t->interface_type()->finalize_methods();
+      break;
+
+    case Type::TYPE_NAMED:
+      {
+	// We have to finalize the methods of the real type first.
+	// But if the real type is a struct type, then we only want to
+	// finalize the methods of the field types, not of the struct
+	// type itself.  We don't want to add methods to the struct,
+	// since it has a name.
+	Type* rt = t->named_type()->real_type();
+	if (rt->classification() != Type::TYPE_STRUCT)
+	  {
+	    if (Type::traverse(rt, this) == TRAVERSE_EXIT)
+	      return TRAVERSE_EXIT;
+	  }
+	else
+	  {
+	    if (rt->struct_type()->traverse_field_types(this) == TRAVERSE_EXIT)
+	      return TRAVERSE_EXIT;
+	  }
+
+	t->named_type()->finalize_methods(this->gogo_);
+
+	return TRAVERSE_SKIP_COMPONENTS;
+      }
+
+    case Type::TYPE_STRUCT:
+      t->struct_type()->finalize_methods(this->gogo_);
+      break;
+
+    default:
+      break;
+    }
+
   return TRAVERSE_CONTINUE;
 }
 
-// Finalize method lists and build stub methods for named types.
+// Finalize method lists and build stub methods for types.
 
 void
 Gogo::finalize_methods()
 {
-  // Finalizing methods can add new definitions, so gather the types
-  // first.
-  std::vector<Named_type*> types;
-  for (Packages::const_iterator p = this->packages_.begin();
-       p != this->packages_.end();
-       ++p)
-    {
-      Bindings* bindings = p->second->bindings();
-      for (Bindings::const_definitions_iterator pd =
-	     bindings->begin_definitions();
-	   pd != bindings->end_definitions();
-	   ++pd)
-	{
-	  if (p->second == this->package_ && (*pd)->package() != NULL)
-	    {
-	      // This was brought in via 'import . "pkg"'.  We will
-	      // pick it up when we look at its original package.
-	      continue;
-	    }
-
-	  if ((*pd)->is_type())
-	    types.push_back((*pd)->type_value());
-	}
-    }
-
-  for (std::vector<Named_type*>::const_iterator p = types.begin();
-       p != types.end();
-       ++p)
-    (*p)->finalize_methods(this);
-
-  Finalize_methods finalize;
+  Finalize_methods finalize(this);
   this->traverse(&finalize);
 }
 

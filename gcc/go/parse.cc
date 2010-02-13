@@ -1383,7 +1383,7 @@ Parse::type_spec(void*)
 	  this->gogo_->define_type(named_type,
 				   Type::make_named_type(named_type, type,
 							 location));
-	  named_type->set_package(NULL);
+	  gcc_assert(named_type->package() == NULL);
 	}
       else
 	{
@@ -1954,11 +1954,9 @@ Parse::function_decl()
     }
   else
     {
-      named_object = this->gogo_->start_function(name, fntype, true, location);
+      this->gogo_->start_function(name, fntype, true, location);
       source_location end_loc = this->block();
       this->gogo_->finish_function(end_loc);
-      if (named_object != NULL)
-	named_object->set_package(NULL);
     }
 }
 

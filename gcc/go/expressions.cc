@@ -8295,75 +8295,11 @@ class Selector_expression : public Parser_expression
 Expression*
 Selector_expression::do_lower(Gogo* gogo, Named_object*, int)
 {
-  source_location location = this->location();
   Expression* left = this->left_;
-  const std::string& name(this->name_);
-
   if (left->is_type_expression())
     return this->lower_method_expression(gogo);
-
-  Type* type = left->type();
-  Type* ptype = type->deref();
-  Struct_type* struct_type = ptype->struct_type();
-  Interface_type* interface_type = ptype->interface_type();
-  Named_type* named_type = type->named_type();
-  if (named_type == NULL && type != ptype)
-    named_type = ptype->named_type();
-
-  if (type->is_error_type())
-    return Expression::make_error(location);
-  else if (struct_type != NULL && named_type == NULL)
-    {
-      Expression* ret = struct_type->field_reference(left, name, location);
-      if (ret != NULL)
-	return ret;
-    }
-  else if (interface_type != NULL && interface_type->find_method(name) != NULL)
-    return Expression::make_interface_field_reference(left, name, location);
-
-  if (named_type != NULL)
-    {
-      bool found_pointer_method;
-      Expression* ret = named_type->bind_field_or_method(left, name, location,
-							 &found_pointer_method);
-      if (ret != NULL)
-	return ret;
-      if (found_pointer_method)
-	{
-	  error_at(location, "method requires a pointer");
-	  return Expression::make_error(location);
-	}
-    }
-
-  if (struct_type == NULL && interface_type == NULL && named_type == NULL)
-    error_at(location,
-	     "request for %qs in something which has no fields or methods",
-	     Gogo::unpack_hidden_name(name).c_str());
-  else
-    {
-      bool is_unexported;
-      std::string unpacked = Gogo::unpack_hidden_name(name);
-      if (!Gogo::is_hidden_name(name))
-	is_unexported = false;
-      else
-	{
-	  if (named_type != NULL)
-	    is_unexported = named_type->is_unexported_field_or_method(unpacked);
-	  else if (struct_type != NULL)
-	    is_unexported = struct_type->is_unexported_field(unpacked);
-	  else if (interface_type != NULL)
-	    is_unexported = interface_type->is_unexported_method(unpacked);
-	  else
-	    is_unexported = false;
-	}
-      if (is_unexported)
-	error_at(location, "reference to unexported field or method %qs",
-		 unpacked.c_str());
-      else
-	error_at(location, "reference to undefined field or method %qs",
-		 unpacked.c_str());
-    }
-  return Expression::make_error(location);
+  return Type::bind_field_or_method(left->type(), left, this->name_,
+				    this->location());
 }
 
 // Lower a method expression T.M or (*T).M.  We turn this into a
@@ -8457,9 +8393,8 @@ Selector_expression::lower_method_expression(Gogo* gogo)
   Named_object* vno = gogo->lookup(receiver_name, NULL);
   gcc_assert(vno != NULL);
   Expression* ve = Expression::make_var_reference(vno, location);
-  bool dummy;
-  Expression* bm = nt->bind_field_or_method(ve, name, location, &dummy);
-  gcc_assert(bm != NULL);
+  Expression* bm = Type::bind_field_or_method(nt, ve, name, location);
+  gcc_assert(bm != NULL && !bm->is_error_expression());
 
   Expression_list* args;
   if (method_parameters == NULL)

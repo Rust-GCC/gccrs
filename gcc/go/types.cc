@@ -2063,6 +2063,28 @@ Function_type::do_import(Import* imp)
   return ret;
 }
 
+// Make a copy of a function type without a receiver.
+
+Function_type*
+Function_type::copy_without_receiver() const
+{
+  gcc_assert(this->is_method());
+  return Type::make_function_type(NULL, this->parameters_, this->results_,
+				  this->location_);
+}
+
+// Make a copy of a function type with a receiver.
+
+Function_type*
+Function_type::copy_with_receiver(Type* receiver_type) const
+{
+  gcc_assert(!this->is_method());
+  Typed_identifier* receiver = new Typed_identifier("", receiver_type,
+						    this->location_);
+  return Type::make_function_type(receiver, this->parameters_,
+				  this->results_, this->location_);
+}
+
 // Make a function type.
 
 Function_type*
@@ -2602,9 +2624,9 @@ Struct_type::field_reference_depth(Expression* struct_expr,
 
   // Look for an anonymous field which contains a field with this
   // name.
+  unsigned int found_depth = 0;
   Field_reference_expression* ret = NULL;
   const Struct_field* parent = NULL;
-  unsigned int retdepth = 0;
   i = 0;
   for (Struct_field_list::const_iterator pf = fields->begin();
        pf != fields->end();
@@ -2627,13 +2649,13 @@ Struct_type::field_reference_depth(Expression* struct_expr,
       if (sub == NULL)
 	continue;
 
-      if (ret == NULL || subdepth < retdepth)
+      if (ret == NULL || subdepth < found_depth)
 	{
 	  if (ret != NULL)
 	    delete ret;
 	  ret = sub;
 	  parent = &*pf;
-	  retdepth = subdepth;
+	  found_depth = subdepth;
 	  Expression* here = Expression::make_field_reference(struct_expr, i,
 							      location);
 	  while (sub->expr() != NULL)
@@ -2643,18 +2665,21 @@ Struct_type::field_reference_depth(Expression* struct_expr,
 	    }
 	  sub->set_struct_expression(here);
 	}
-      else if (subdepth > retdepth)
+      else if (subdepth > found_depth)
 	delete sub;
       else
 	{
-	  error_at(location, "field %<%s%> is ambiguous via %<%s%> and %<%s%>",
-		   name.c_str(), parent->field_name().c_str(),
-		   pf->field_name().c_str());
+	  // We do not handle ambiguity here--it should be handled by
+	  // Type::bind_field_or_method.
 	  delete sub;
+	  found_depth = 0;
+	  ret = NULL;
 	}
     }
 
-  *depth = retdepth + 1;
+  if (ret != NULL)
+    *depth = found_depth + 1;
+
   return ret;
 }
 
@@ -2681,27 +2706,40 @@ Struct_type::total_field_count() const
 // Return whether NAME is an unexported field, for better error reporting.
 
 bool
-Struct_type::is_unexported_field(const std::string& name) const
+Struct_type::is_unexported_local_field(const std::string& name) const
 {
   const Struct_field_list* fields = this->fields_;
-  if (fields == NULL)
-    return false;
-  for (Struct_field_list::const_iterator pf = fields->begin();
-       pf != fields->end();
-       ++pf)
+  if (fields != NULL)
     {
-      const std::string& field_name(pf->field_name());
-      if (Gogo::is_hidden_name(field_name)
-	  && name == Gogo::unpack_hidden_name(field_name))
-	return true;
-      if (pf->is_anonymous())
+      for (Struct_field_list::const_iterator pf = fields->begin();
+	   pf != fields->end();
+	   ++pf)
 	{
-	  Struct_type* st = pf->type()->deref()->struct_type();
-	  if (st != NULL && st->is_unexported_field(name))
+	  const std::string& field_name(pf->field_name());
+	  if (Gogo::is_hidden_name(field_name)
+	      && name == Gogo::unpack_hidden_name(field_name))
 	    return true;
 	}
     }
   return false;
+}
+
+// Finalize the methods of an unnamed struct.
+
+void
+Struct_type::finalize_methods(Gogo* gogo)
+{
+  Type::finalize_methods(gogo, this, this->location_, &this->all_methods_);
+}
+
+// Return the method NAME, or NULL if there isn't one or if it is
+// ambiguous.  Set *IS_AMBIGUOUS if the method exists but is
+// ambiguous.
+
+Method*
+Struct_type::method_function(const std::string& name) const
+{
+  return Type::method_function(this->all_methods_, name, NULL);
 }
 
 // Get the tree for a struct type.
@@ -4914,211 +4952,29 @@ Named_type::add_existing_method(Named_object* no)
   this->local_methods_->add_named_object(no);
 }
 
-// Return whether NO is a method for which the receiver is a pointer.
+// Look for a local method NAME, and returns its named object, or NULL
+// if not there.
 
-bool
-Named_type::method_expects_pointer(const Named_object* no)
+Named_object*
+Named_type::find_local_method(const std::string& name) const
 {
-  const Function_type *fntype;
-  if (no->is_function())
-    fntype = no->func_value()->type();
-  else if (no->is_function_declaration())
-    fntype = no->func_declaration_value()->type();
-  else
-    gcc_unreachable();
-  return fntype->receiver()->type()->points_to() != NULL;
-}
-
-// Look for field or method NAME associated with this type at parse
-// time.  Return an Expression for the field or method bound to EXPR,
-// or NULL if there is no such field or method.  When returning NULL,
-// this sets *FOUND_POINTER_METHOD if we found a method we couldn't
-// use because it requires a pointer.
-
-Expression*
-Named_type::bind_field_or_method(Expression* expr, const std::string& name,
-				 source_location location,
-				 bool *found_pointer_method) const
-{
-  *found_pointer_method = false;
-
-  const Struct_type* st = this->deref()->struct_type();
-  if (st != NULL)
-    {
-      unsigned int index = 0;
-      const Struct_field* sf = st->find_local_field(name, &index);
-      if (sf != NULL)
-	return Expression::make_field_reference(expr, index, location);
-    }
-
-  if (this->local_methods_ != NULL)
-    {
-      Named_object* no = this->local_methods_->lookup(name);
-      if (no != NULL)
-	{
-	  // Take the address of the expression if necessary.
-	  if (expr->type()->points_to() == NULL
-	      && Named_type::method_expects_pointer(no))
-	    {
-	      if (expr->is_lvalue())
-		expr = Expression::make_unary(OPERATOR_AND, expr, location);
-	      else
-		{
-		  *found_pointer_method = true;
-		  return NULL;
-		}
-	    }
-	  Expression* func = Expression::make_func_reference(no, NULL,
-							     location);
-	  return Expression::make_bound_method(expr, func, location);
-	}
-    }
-
-  bool receiver_can_be_pointer = (expr->type()->points_to() != NULL
-				  || expr->is_lvalue());
-  bool is_method;
-  if (this->find_field_or_method(name, receiver_can_be_pointer, NULL,
-				 &is_method, found_pointer_method))
-    {
-      if (is_method)
-	{
-	  bool is_ambiguous;
-	  Method* m = this->method_function(name, &is_ambiguous);
-	  if (m == NULL)
-	    {
-	      // We just found the method, so this can only fail if it
-	      // is ambiguous.
-	      gcc_assert(is_ambiguous);
-	      error_at(location, "reference to method %qs is ambiguous",
-		       Gogo::unpack_hidden_name(name).c_str());
-	      return Expression::make_error(location);
-	    }
-	  if (!m->is_value_method() && expr->type()->points_to() == NULL)
-	    expr = Expression::make_unary(OPERATOR_AND, expr, location);
-	  return m->bind_method(expr, location);
-	}
-      else
-	{
-	  // This is a field in an embedded struct.  We look it up
-	  // again, looking only at fields this time.  This is simpler
-	  // than building the subexpression we need as we go along.
-	  gcc_assert(this->struct_type() != NULL);
-	  Expression* ret = this->struct_type()->field_reference(expr, name,
-								 location);
-	  gcc_assert(ret != NULL);
-	  return ret;
-	}
-    }
-
-  return NULL;
-}
-
-// Look for a field or method named NAME, returning whether one is
-// found.  This looks through embedded anonymous fields and handles
-// ambiguity.  If a method is found, set *IS_METHOD to true;
-// otherwise, if a field is found, set it to false.  If
-// RECEIVER_CAN_BE_POINTER is false, then the receiver is a value
-// whose address can not be taken.  When returning false, this sets
-// *FOUND_POINTER_METHOD if we found a method we couldn't use because
-// it requires a pointer.  LEVEL is used for recursive calls.
-
-bool
-Named_type::find_field_or_method(const std::string& name,
-				 bool receiver_can_be_pointer,
-				 int* level,
-				 bool* is_method,
-				 bool* found_pointer_method) const
-{
-  if (this->local_methods_ != NULL)
-    {
-      Named_object* no = this->local_methods_->lookup(name);
-      if (no != NULL)
-	{
-	  if (!receiver_can_be_pointer
-	      && Named_type::method_expects_pointer(no))
-	    *found_pointer_method = true;
-	  else
-	    {
-	      *is_method = true;
-	      return true;
-	    }
-	}
-    }
-
-  const Interface_type* it = this->interface_type();
-  if (it != NULL)
-    {
-      const Typed_identifier* tid = it->find_method(name);
-      if (tid == NULL)
-	return false;
-      *is_method = true;
-      return true;
-    }
-
-  const Struct_type* st = this->struct_type();
-  if (st == NULL)
-    return false;
-
-  const Struct_field_list* fields = st->fields();
-  if (fields == NULL)
-    return false;
-
-  bool found = false;
-  bool found_is_method = false;
-  int found_level = 0;
-  for (Struct_field_list::const_iterator pf = fields->begin();
-       pf != fields->end();
-       ++pf)
-    {
-      if (pf->field_name() == name)
-	{
-	  *is_method = false;
-	  return true;
-	}
-
-      if (!pf->is_anonymous())
-	continue;
-
-      Named_type* fntype = pf->type()->deref()->named_type();
-      gcc_assert(fntype != NULL);
-
-      int sublevel = level == NULL ? 1 : *level + 1;
-      bool sub_is_method;
-      bool subfound = fntype->find_field_or_method(name,
-						   receiver_can_be_pointer,
-						   &sublevel,
-						   &sub_is_method,
-						   found_pointer_method);
-      if (subfound && (!found || sublevel < found_level))
-	{
-	  found = true;
-	  found_is_method = sub_is_method;
-	  found_level = sublevel;
-	}
-    }
-
-  if (found)
-    {
-      if (level != NULL)
-	*level = found_level;
-      *is_method = found_is_method;
-      return true;
-    }
-
-  return false;
+  if (this->local_methods_ == NULL)
+    return NULL;
+  return this->local_methods_->lookup(name);
 }
 
 // Return whether NAME is an unexported field or method, for better
 // error reporting.
 
 bool
-Named_type::is_unexported_field_or_method(const std::string& name) const
+Named_type::is_unexported_local_method(const std::string& name) const
 {
-  if (this->local_methods_ != NULL)
+  Bindings* methods = this->local_methods_;
+  if (methods != NULL)
     {
       for (Bindings::const_declarations_iterator p =
-	     this->local_methods_->begin_declarations();
-	   p != this->local_methods_->end_declarations();
+	     methods->begin_declarations();
+	   p != methods->end_declarations();
 	   ++p)
 	{
 	  if (Gogo::is_hidden_name(p->first)
@@ -5126,34 +4982,6 @@ Named_type::is_unexported_field_or_method(const std::string& name) const
 	    return true;
 	}
     }
-
-  const Interface_type* it = this->interface_type();
-  if (it != NULL && it->is_unexported_method(name))
-    return true;
-
-  const Struct_type* st = this->deref()->struct_type();
-  if (st == NULL)
-    return false;
-  if (st->is_unexported_field(name))
-    return true;
-
-  const Struct_field_list* fields = st->fields();
-  if (fields == NULL)
-    return false;
-
-  for (Struct_field_list::const_iterator pf = fields->begin();
-       pf != fields->end();
-       ++pf)
-    {
-      if (pf->is_anonymous())
-	{
-	  Named_type* subtype = pf->type()->deref()->named_type();
-	  gcc_assert(subtype != NULL);
-	  if (subtype->is_unexported_field_or_method(name))
-	    return true;
-	}
-    }
-
   return false;
 }
 
@@ -5164,402 +4992,21 @@ Named_type::is_unexported_field_or_method(const std::string& name) const
 void
 Named_type::finalize_methods(Gogo* gogo)
 {
-  if (this->local_methods_ != NULL && this->points_to() != NULL)
+  if (this->local_methods_ != NULL
+      && (this->points_to() != NULL || this->interface_type() != NULL))
     {
       const Bindings* lm = this->local_methods_;
       for (Bindings::const_declarations_iterator p = lm->begin_declarations();
 	   p != lm->end_declarations();
 	   ++p)
-	error_at(p->second->location(), "invalid pointer receiver type");
+	error_at(p->second->location(),
+		 "invalid pointer or interface receiver type");
       delete this->local_methods_;
       this->local_methods_ = NULL;
       return;
     }
 
-  Types_seen types_seen;
-  this->add_methods_for_type(this, NULL, 0, false, false, &types_seen);
-
-  this->build_stub_methods(gogo);
-}
-
-// Add the method for TYPE to the methods for THIS.  FIELD_INDEX is
-// the index of the field.  FIELD_INDEX will be -1U when TYPE == THIS.
-// Otherwise TYPE is the type of an anonymous field.  DEPTH is the
-// depth of the field within THIS.  IS_EMBEDDED_POINTER is true if we
-// are adding these methods for an anonymous field with pointer type.
-// NEEDS_STUB_METHOD is true if we need to use a stub method which
-// calls the real method.  TYPES_SEEN is used to avoid infinite
-// recursion.  This returns true if any methods were added.
-
-bool
-Named_type::add_methods_for_type(const Named_type* type,
-				 const Method::Field_indexes* field_indexes,
-				 unsigned int depth,
-				 bool is_embedded_pointer,
-				 bool needs_stub_method,
-				 Types_seen* types_seen)
-{
-  // Pointer types may not have methods.
-  if (type->points_to() != NULL)
-    return false;
-
-  std::pair<Types_seen::iterator, bool> ins = types_seen->insert(type);
-  if (!ins.second)
-    return false;
-
-  bool ret = false;
-
-  if (this->add_local_methods_for_type(type, field_indexes, depth,
-				       is_embedded_pointer, needs_stub_method))
-    ret = true;
-
-  if (this->add_embedded_methods_for_type(type, field_indexes, depth,
-					  is_embedded_pointer,
-					  needs_stub_method,
-					  types_seen))
-    ret = true;
-
-  // If we are called with depth > 0, then we are looking at an
-  // anonymous field of a struct.  If such a field has interface type,
-  // then we need to add the interface methods.
-  if (depth > 0)
-    {
-      if (this->add_interface_methods_for_type(type, field_indexes, depth))
-	ret = true;
-    }
-
-  return ret;
-}
-
-// Add the local methods for TYPE to this type.  The parameters and
-// return value are as for add_methods_for_type.
-
-bool
-Named_type::add_local_methods_for_type(
-    const Named_type* type,
-    const Method::Field_indexes* field_indexes,
-    unsigned int depth,
-    bool is_embedded_pointer,
-    bool needs_stub_method)
-{
-  if (type->local_methods_ == NULL)
-    return false;
-
-  if (this->all_methods_ == NULL)
-    this->all_methods_ = new Methods();
-
-  bool ret = false;
-  const Bindings* lm = type->local_methods_;
-  for (Bindings::const_declarations_iterator p = lm->begin_declarations();
-       p != lm->end_declarations();
-       ++p)
-    {
-      Named_object* no = p->second;
-      bool is_value_method = (is_embedded_pointer
-			      || !Named_type::method_expects_pointer(no));
-      Method* m = new Named_method(no, field_indexes, depth, is_value_method,
-				   (needs_stub_method
-				    || (depth > 0 && is_value_method)));
-      if (this->all_methods_->insert(no->name(), m))
-	ret = true;
-      else
-	delete m;
-    }
-
-  return ret;
-}
-
-// Add the embedded methods for TYPE to this type.  These are the
-// methods attached to anonymous fields.  The parameters and return
-// value are as for add_methods_for_type.
-
-bool
-Named_type::add_embedded_methods_for_type(
-    const Named_type* type,
-    const Method::Field_indexes* field_indexes,
-    unsigned int depth,
-    bool is_embedded_pointer,
-    bool needs_stub_method,
-    Types_seen* types_seen)
-{
-  // Look for anonymous fields in TYPE.  TYPE has fields if it is a
-  // struct.
-  const Struct_type* st = type->struct_type();
-  if (st == NULL)
-    return false;
-
-  const Struct_field_list* fields = st->fields();
-  if (fields == NULL)
-    {
-      // Having an incomplete type is most likely an error which will
-      // be reported elsewhere.  Here we just avoid a crash.
-      return false;
-    }
-
-  bool ret = false;
-  unsigned int i = 0;
-  for (Struct_field_list::const_iterator pf = fields->begin();
-       pf != fields->end();
-       ++pf, ++i)
-    {
-      if (!pf->is_anonymous())
-	continue;
-
-      Type* ftype = pf->type();
-      bool is_pointer = false;
-      if (ftype->points_to() != NULL)
-	{
-	  ftype = ftype->points_to();
-	  is_pointer = true;
-	}
-      Named_type* fntype = ftype->named_type();
-      if (fntype == NULL)
-	{
-	  Forward_declaration_type *fdtype = ftype->forward_declaration_type();
-	  gcc_assert(fdtype != NULL);
-	  Type* t = fdtype->real_type();
-	  gcc_assert(t->is_error_type());
-	  continue;
-	}
-
-      Method::Field_indexes* sub_field_indexes = new Method::Field_indexes();
-      sub_field_indexes->next = field_indexes;
-      sub_field_indexes->field_index = i;
-
-      if (this->add_methods_for_type(fntype, sub_field_indexes, depth + 1,
-				     (is_embedded_pointer || is_pointer),
-				     (needs_stub_method
-				      || is_pointer
-				      || i > 0),
-				     types_seen))
-	ret = true;
-      else
-	delete sub_field_indexes;
-    }
-
-  return ret;
-}
-
-// If TYPE is an interface type, then add its methods to this type.
-// This is for interface methods attached to an anonymous field.  The
-// parameters and return value are as for add_methods_for_type, except
-// that the boolean parameters are unnecessary.
-
-bool
-Named_type::add_interface_methods_for_type(
-    const Named_type* type,
-    const Method::Field_indexes* field_indexes,
-    unsigned int depth)
-{
-  const Interface_type* it = type->interface_type();
-  if (it == NULL)
-    return false;
-
-  const Typed_identifier_list* methods = it->methods();
-  if (methods == NULL)
-    return false;
-
-  if (this->all_methods_ == NULL)
-    this->all_methods_ = new Methods();
-
-  bool ret = false;
-  for (Typed_identifier_list::const_iterator pm = methods->begin();
-       pm != methods->end();
-       ++pm)
-    {
-      Function_type *fntype = pm->type()->function_type();
-      gcc_assert(fntype != NULL);
-      Method* m = new Interface_method(pm->name(), pm->location(), fntype,
-				       field_indexes, depth);
-      if (this->all_methods_->insert(pm->name(), m))
-	ret = true;
-      else
-	delete m;
-    }
-
-  return ret;
-}
-
-// The name we use for the receiver of a stub method.
-
-const char* const Named_type::receiver_name = "__this";
-
-// Build stub methods as needed.  A stub method may be needed when we
-// inherit a method from an anonymous field.  When we need the address
-// of the method, as in a type descriptor, we need to build a little
-// stub which does the required field dereferences and jumps to the
-// real method.
-
-void
-Named_type::build_stub_methods(Gogo* gogo)
-{
-  if (this->all_methods_ == NULL)
-    return;
-  for (Methods::const_iterator p = this->all_methods_->begin();
-       p != this->all_methods_->end();
-       ++p)
-    {
-      Method* m = p->second;
-      if (m->is_ambiguous() || !m->needs_stub_method())
-	continue;
-
-      const std::string& name(p->first);
-
-      // Build a stub method.
-
-      const Function_type* fntype = m->type();
-
-      static int counter;
-      char buf[100];
-      snprintf(buf, sizeof buf, "%s%d", Named_type::receiver_name, counter);
-      ++counter;
-
-      Type* receiver_type = this;
-      if (!m->is_value_method())
-	receiver_type = Type::make_pointer_type(receiver_type);
-      source_location receiver_location = m->receiver_location();
-      Typed_identifier* receiver = new Typed_identifier(buf, receiver_type,
-							receiver_location);
-
-      const Typed_identifier_list* fnparams = fntype->parameters();
-      Typed_identifier_list* stub_params;
-      if (fnparams == NULL)
-	stub_params = NULL;
-      else
-	{
-	  // We give each stub parameter we create a unique name.
-	  static unsigned int count;
-	  stub_params = new Typed_identifier_list;
-	  for (Typed_identifier_list::const_iterator p = fnparams->begin();
-	       p != fnparams->end();
-	       ++p, ++count)
-	    {
-	      char buf[100];
-	      snprintf(buf, sizeof buf, "p%u", count);
-	      stub_params->push_back(Typed_identifier(buf, p->type(),
-						      p->location()));
-	    }
-	}
-
-      const Typed_identifier_list* fnresults = fntype->results();
-      Typed_identifier_list* stub_results;
-      if (fnresults == NULL)
-	stub_results = NULL;
-      else
-	{
-	  // We create the result parameters without any names, since
-	  // we won't refer to them.
-	  stub_results = new Typed_identifier_list;
-	  for (Typed_identifier_list::const_iterator p = fnresults->begin();
-	       p != fnresults->end();
-	       ++p)
-	    stub_results->push_back(Typed_identifier("", p->type(),
-						     p->location()));
-	}
-
-      Function_type* stub_type = Type::make_function_type(receiver,
-							  stub_params,
-							  stub_results,
-							  fntype->location());
-      if (fntype->is_varargs())
-	stub_type->set_is_varargs();
-
-      // We only create the function in the source file which creates
-      // the type.
-      Named_object* stub;
-      if (this->named_object_->package() != NULL)
-	{
-	  stub = gogo->declare_function(name, stub_type,
-					fntype->location());
-	  stub->set_package(this->named_object_->package());
-	}
-      else
-	{
-	  stub = gogo->start_function(name, stub_type, false,
-				      fntype->location());
-	  this->build_one_stub_method(gogo, m, buf, stub_params);
-	  gogo->finish_function(fntype->location());
-	}
-
-      m->set_stub_object(stub);
-    }
-}
-
-// Build a stub method which adjusts the receiver according to
-// FIELD_INDEXES and calls METHOD.  PARAMS is the list of function
-// parameters.
-
-void
-Named_type::build_one_stub_method(Gogo* gogo, Method* method,
-				  const char* receiver_name,
-				  const Typed_identifier_list* params)
-{
-  // FIXME: Using a predetermined name is a hack.
-  Named_object* this_object = gogo->lookup(receiver_name, NULL);
-  gcc_assert(this_object != NULL);
-
-  source_location location = this->location_;
-  Expression* expr = Expression::make_var_reference(this_object, location);
-
-  expr = this->apply_field_indexes(expr, method->field_indexes());
-  if (expr->type()->points_to() == NULL)
-    expr = Expression::make_unary(OPERATOR_AND, expr, location);
-
-  Expression_list* arguments;
-  if (params == NULL)
-    arguments = NULL;
-  else
-    {
-      arguments = new Expression_list;
-      for (Typed_identifier_list::const_iterator p = params->begin();
-	   p != params->end();
-	   ++p)
-	{
-	  Named_object* param = gogo->lookup(p->name(), NULL);
-	  gcc_assert(param != NULL);
-	  Expression* param_ref = Expression::make_var_reference(param,
-								 location);
-	  arguments->push_back(param_ref);
-	}
-    }
-
-  Expression* func = method->bind_method(expr, location);
-  Call_expression* call = Expression::make_call(func, arguments, location);
-  size_t count = call->result_count();
-  if (count == 0)
-    gogo->add_statement(Statement::make_statement(call));
-  else
-    {
-      Expression_list* retvals = new Expression_list();
-      if (count <= 1)
-	retvals->push_back(call);
-      else
-	{
-	  for (size_t i = 0; i < count; ++i)
-	    retvals->push_back(Expression::make_call_result(call, i));
-	}
-      const Function* function = gogo->current_function()->func_value();
-      Statement* retstat = Statement::make_return_statement(function, retvals,
-							    location);
-      gogo->add_statement(retstat);
-    }
-}
-
-// Apply FIELD_INDEXES to EXPR.  The field indexes have to be applied
-// in reverse order.
-
-Expression*
-Named_type::apply_field_indexes(Expression* expr,
-				const Method::Field_indexes* field_indexes)
-{
-  if (field_indexes == NULL)
-    return expr;
-  expr = this->apply_field_indexes(expr, field_indexes->next);
-  Struct_type* stype = expr->type()->deref()->struct_type();
-  gcc_assert(stype != NULL
-	     && field_indexes->field_index < stype->field_count());
-  return Expression::make_field_reference(expr, field_indexes->field_index,
-					  this->location_);
+  Type::finalize_methods(gogo, this, this->location_, &this->all_methods_);
 }
 
 // Return the method NAME, or NULL if there isn't one or if it is
@@ -5569,19 +5016,7 @@ Named_type::apply_field_indexes(Expression* expr,
 Method*
 Named_type::method_function(const std::string& name, bool* is_ambiguous) const
 {
-  *is_ambiguous = false;
-  if (this->all_methods_ == NULL)
-    return NULL;
-  Methods::const_iterator p = this->all_methods_->find(name);
-  if (p == this->all_methods_->end())
-    return NULL;
-  Method* m = p->second;
-  if (m->is_ambiguous())
-    {
-      *is_ambiguous = true;
-      return NULL;
-    }
-  return m;
+  return Type::method_function(this->all_methods_, name, is_ambiguous);
 }
 
 // Return a pointer to the interface method table for this type for
@@ -6027,6 +5462,720 @@ Type::make_named_type(Named_object* named_object, Type* type,
 		      source_location location)
 {
   return new Named_type(named_object, type, location);
+}
+
+// Finalize the methods for TYPE.  It will be a named type or a struct
+// type.  This sets *ALL_METHODS to the list of methods, and builds
+// all required stubs.
+
+void
+Type::finalize_methods(Gogo* gogo, const Type* type, source_location location,
+		       Methods** all_methods)
+{
+  *all_methods = NULL;
+  Types_seen types_seen;
+  Type::add_methods_for_type(type, NULL, 0, false, false, &types_seen,
+			     all_methods);
+  Type::build_stub_methods(gogo, type, *all_methods, location);
+}
+
+// Add the methods for TYPE to *METHODS.  FIELD_INDEXES is used to
+// build up the struct field indexes as we go.  DEPTH is the depth of
+// the field within TYPE.  IS_EMBEDDED_POINTER is true if we are
+// adding these methods for an anonymous field with pointer type.
+// NEEDS_STUB_METHOD is true if we need to use a stub method which
+// calls the real method.  TYPES_SEEN is used to avoid infinite
+// recursion.
+
+void
+Type::add_methods_for_type(const Type* type,
+			   const Method::Field_indexes* field_indexes,
+			   unsigned int depth,
+			   bool is_embedded_pointer,
+			   bool needs_stub_method,
+			   Types_seen* types_seen,
+			   Methods** methods)
+{
+  // Pointer types may not have methods.
+  if (type->points_to() != NULL)
+    return;
+
+  const Named_type* nt = type->named_type();
+  if (nt != NULL)
+    {
+      std::pair<Types_seen::iterator, bool> ins = types_seen->insert(nt);
+      if (!ins.second)
+	return;
+    }
+
+  if (nt != NULL)
+    Type::add_local_methods_for_type(nt, field_indexes, depth,
+				     is_embedded_pointer, needs_stub_method,
+				     methods);
+
+  Type::add_embedded_methods_for_type(type, field_indexes, depth,
+				      is_embedded_pointer, needs_stub_method,
+				      types_seen, methods);
+
+  // If we are called with depth > 0, then we are looking at an
+  // anonymous field of a struct.  If such a field has interface type,
+  // then we need to add the interface methods.  We don't want to add
+  // them when depth == 0, because we will already handle them
+  // following the usual rules for an interface type.
+  if (depth > 0)
+    Type::add_interface_methods_for_type(type, field_indexes, depth, methods);
+}
+
+// Add the local methods for the named type NT to *METHODS.  The
+// parameters are as for add_methods_to_type.
+
+void
+Type::add_local_methods_for_type(const Named_type* nt,
+				 const Method::Field_indexes* field_indexes,
+				 unsigned int depth,
+				 bool is_embedded_pointer,
+				 bool needs_stub_method,
+				 Methods** methods)
+{
+  const Bindings* local_methods = nt->local_methods();
+  if (local_methods == NULL)
+    return;
+
+  if (*methods == NULL)
+    *methods = new Methods();
+
+  for (Bindings::const_declarations_iterator p =
+	 local_methods->begin_declarations();
+       p != local_methods->end_declarations();
+       ++p)
+    {
+      Named_object* no = p->second;
+      bool is_value_method = (is_embedded_pointer
+			      || !Type::method_expects_pointer(no));
+      Method* m = new Named_method(no, field_indexes, depth, is_value_method,
+				   (needs_stub_method
+				    || (depth > 0 && is_value_method)));
+      if (!(*methods)->insert(no->name(), m))
+	delete m;
+    }
+}
+
+// Add the embedded methods for TYPE to *METHODS.  These are the
+// methods attached to anonymous fields.  The parameters are as for
+// add_methods_to_type.
+
+void
+Type::add_embedded_methods_for_type(const Type* type,
+				    const Method::Field_indexes* field_indexes,
+				    unsigned int depth,
+				    bool is_embedded_pointer,
+				    bool needs_stub_method,
+				    Types_seen* types_seen,
+				    Methods** methods)
+{
+  // Look for anonymous fields in TYPE.  TYPE has fields if it is a
+  // struct.
+  const Struct_type* st = type->struct_type();
+  if (st == NULL)
+    return;
+
+  const Struct_field_list* fields = st->fields();
+  if (fields == NULL)
+    return;
+
+  unsigned int i = 0;
+  for (Struct_field_list::const_iterator pf = fields->begin();
+       pf != fields->end();
+       ++pf, ++i)
+    {
+      if (!pf->is_anonymous())
+	continue;
+
+      Type* ftype = pf->type();
+      bool is_pointer = false;
+      if (ftype->points_to() != NULL)
+	{
+	  ftype = ftype->points_to();
+	  is_pointer = true;
+	}
+      Named_type* fnt = ftype->named_type();
+      if (fnt == NULL)
+	{
+	  // This is an error, but it will be diagnosed elsewhere.
+	  continue;
+	}
+
+      Method::Field_indexes* sub_field_indexes = new Method::Field_indexes();
+      sub_field_indexes->next = field_indexes;
+      sub_field_indexes->field_index = i;
+
+      Type::add_methods_for_type(fnt, sub_field_indexes, depth + 1,
+				 (is_embedded_pointer || is_pointer),
+				 (needs_stub_method
+				  || is_pointer
+				  || i > 0),
+				 types_seen,
+				 methods);
+    }
+}
+
+// If TYPE is an interface type, then add its method to *METHODS.
+// This is for interface methods attached to an anonymous field.  The
+// parameters are as for add_methods_for_type.
+
+void
+Type::add_interface_methods_for_type(const Type* type,
+				     const Method::Field_indexes* field_indexes,
+				     unsigned int depth,
+				     Methods** methods)
+{
+  const Interface_type* it = type->interface_type();
+  if (it == NULL)
+    return;
+
+  const Typed_identifier_list* imethods = it->methods();
+  if (imethods == NULL)
+    return;
+
+  if (*methods == NULL)
+    *methods = new Methods();
+
+  for (Typed_identifier_list::const_iterator pm = imethods->begin();
+       pm != imethods->end();
+       ++pm)
+    {
+      Function_type* fntype = pm->type()->function_type();
+      gcc_assert(fntype != NULL && !fntype->is_method());
+      fntype = fntype->copy_with_receiver(const_cast<Type*>(type));
+      Method* m = new Interface_method(pm->name(), pm->location(), fntype,
+				       field_indexes, depth);
+      if (!(*methods)->insert(pm->name(), m))
+	delete m;
+    }
+}
+
+// Build stub methods for TYPE as needed.  METHODS is the set of
+// methods for the type.  A stub method may be needed when a type
+// inherits a method from an anonymous field.  When we need the
+// address of the method, as in a type descriptor, we need to build a
+// little stub which does the required field dereferences and jumps to
+// the real method.  LOCATION is the location of the type definition.
+
+void
+Type::build_stub_methods(Gogo* gogo, const Type* type, const Methods* methods,
+			 source_location location)
+{
+  if (methods == NULL)
+    return;
+  for (Methods::const_iterator p = methods->begin();
+       p != methods->end();
+       ++p)
+    {
+      Method* m = p->second;
+      if (m->is_ambiguous() || !m->needs_stub_method())
+	continue;
+
+      const std::string& name(p->first);
+
+      // Build a stub method.
+
+      const Function_type* fntype = m->type();
+
+      static unsigned int counter;
+      char buf[100];
+      snprintf(buf, sizeof buf, "$this%u", counter);
+      ++counter;
+
+      Type* receiver_type = const_cast<Type*>(type);
+      if (!m->is_value_method())
+	receiver_type = Type::make_pointer_type(receiver_type);
+      source_location receiver_location = m->receiver_location();
+      Typed_identifier* receiver = new Typed_identifier(buf, receiver_type,
+							receiver_location);
+
+      const Typed_identifier_list* fnparams = fntype->parameters();
+      Typed_identifier_list* stub_params;
+      if (fnparams == NULL || fnparams->empty())
+	stub_params = NULL;
+      else
+	{
+	  // We give each stub parameter a unique name.
+	  stub_params = new Typed_identifier_list();
+	  for (Typed_identifier_list::const_iterator pp = fnparams->begin();
+	       pp != fnparams->end();
+	       ++pp)
+	    {
+	      char pbuf[100];
+	      snprintf(pbuf, sizeof pbuf, "$p%u", counter);
+	      stub_params->push_back(Typed_identifier(pbuf, pp->type(),
+						      pp->location()));
+	      ++counter;
+	    }
+	}
+
+      const Typed_identifier_list* fnresults = fntype->results();
+      Typed_identifier_list* stub_results;
+      if (fnresults == NULL || fnresults->empty())
+	stub_results = NULL;
+      else
+	{
+	  // We create the result parameters without any names, since
+	  // we won't refer to them.
+	  stub_results = new Typed_identifier_list();
+	  for (Typed_identifier_list::const_iterator pr = fnresults->begin();
+	       pr != fnresults->end();
+	       ++pr)
+	    stub_results->push_back(Typed_identifier("", pr->type(),
+						     pr->location()));
+	}
+
+      Function_type* stub_type = Type::make_function_type(receiver,
+							  stub_params,
+							  stub_results,
+							  fntype->location());
+      if (fntype->is_varargs())
+	stub_type->set_is_varargs();
+
+      // We only create the function in the package which creates the
+      // type.
+      const Package* package;
+      if (type->named_type() == NULL)
+	package = NULL;
+      else
+	package = type->named_type()->named_object()->package();
+      Named_object* stub;
+      if (package != NULL)
+	stub = Named_object::make_function_declaration(name, package,
+						       stub_type, location);
+      else
+	{
+	  stub = gogo->start_function(name, stub_type, false,
+				      fntype->location());
+	  Type::build_one_stub_method(gogo, m, buf, stub_params, location);
+	  gogo->finish_function(fntype->location());
+	}
+
+      m->set_stub_object(stub);
+    }
+}
+
+// Build a stub method which adjusts the receiver as required to call
+// METHOD.  RECEIVER_NAME is the name we used for the receiver.
+// PARAMS is the list of function parameters.
+
+void
+Type::build_one_stub_method(Gogo* gogo, Method* method,
+			    const char* receiver_name,
+			    const Typed_identifier_list* params,
+			    source_location location)
+{
+  Named_object* receiver_object = gogo->lookup(receiver_name, NULL);
+  gcc_assert(receiver_object != NULL);
+
+  Expression* expr = Expression::make_var_reference(receiver_object, location);
+  expr = Type::apply_field_indexes(expr, method->field_indexes(), location);
+  if (expr->type()->points_to() == NULL)
+    expr = Expression::make_unary(OPERATOR_AND, expr, location);
+
+  Expression_list* arguments;
+  if (params == NULL || params->empty())
+    arguments = NULL;
+  else
+    {
+      arguments = new Expression_list();
+      for (Typed_identifier_list::const_iterator p = params->begin();
+	   p != params->end();
+	   ++p)
+	{
+	  Named_object* param = gogo->lookup(p->name(), NULL);
+	  gcc_assert(param != NULL);
+	  Expression* param_ref = Expression::make_var_reference(param,
+								 location);
+	  arguments->push_back(param_ref);
+	}
+    }
+
+  Expression* func = method->bind_method(expr, location);
+  gcc_assert(func != NULL);
+  Call_expression* call = Expression::make_call(func, arguments, location);
+  size_t count = call->result_count();
+  if (count == 0)
+    gogo->add_statement(Statement::make_statement(call));
+  else
+    {
+      Expression_list* retvals = new Expression_list();
+      if (count <= 1)
+	retvals->push_back(call);
+      else
+	{
+	  for (size_t i = 0; i < count; ++i)
+	    retvals->push_back(Expression::make_call_result(call, i));
+	}
+      const Function* function = gogo->current_function()->func_value();
+      Statement* retstat = Statement::make_return_statement(function, retvals,
+							    location);
+      gogo->add_statement(retstat);
+    }
+}
+
+// Apply FIELD_INDEXES to EXPR.  The field indexes have to be applied
+// in reverse order.
+
+Expression*
+Type::apply_field_indexes(Expression* expr,
+			  const Method::Field_indexes* field_indexes,
+			  source_location location)
+{
+  if (field_indexes == NULL)
+    return expr;
+  expr = Type::apply_field_indexes(expr, field_indexes->next, location);
+  Struct_type* stype = expr->type()->deref()->struct_type();
+  gcc_assert(stype != NULL
+	     && field_indexes->field_index < stype->field_count());
+  return Expression::make_field_reference(expr, field_indexes->field_index,
+					  location);
+}
+
+// Return whether NO is a method for which the receiver is a pointer.
+
+bool
+Type::method_expects_pointer(const Named_object* no)
+{
+  const Function_type *fntype;
+  if (no->is_function())
+    fntype = no->func_value()->type();
+  else if (no->is_function_declaration())
+    fntype = no->func_declaration_value()->type();
+  else
+    gcc_unreachable();
+  return fntype->receiver()->type()->points_to() != NULL;
+}
+
+// Given a set of methods for a type, METHODS, return the method NAME,
+// or NULL if there isn't one or if it is ambiguous.  If IS_AMBIGUOUS
+// is not NULL, then set *IS_AMBIGUOUS to true if the method exists
+// but is ambiguous (and return NULL).
+
+Method*
+Type::method_function(const Methods* methods, const std::string& name,
+		      bool* is_ambiguous)
+{
+  if (is_ambiguous != NULL)
+    *is_ambiguous = false;
+  if (methods == NULL)
+    return NULL;
+  Methods::const_iterator p = methods->find(name);
+  if (p == methods->end())
+    return NULL;
+  Method* m = p->second;
+  if (m->is_ambiguous())
+    {
+      if (is_ambiguous != NULL)
+	*is_ambiguous = true;
+      return NULL;
+    }
+  return m;
+}
+
+// Look for field or method NAME for TYPE.  Return an Expression for
+// the field or method bound to EXPR.  If there is no such field or
+// method, give an appropriate error and return an error expression.
+
+Expression*
+Type::bind_field_or_method(const Type* type, Expression* expr,
+			   const std::string& name,
+			   source_location location)
+{
+  if (type->is_error_type())
+    return Expression::make_error(location);
+
+  const Named_type* nt = type->named_type();
+  if (nt == NULL)
+    nt = type->deref()->named_type();
+  const Struct_type* st = type->deref()->struct_type();
+  const Interface_type* it = type->deref()->interface_type();
+
+  bool receiver_can_be_pointer = (expr->type()->points_to() != NULL
+				  || expr->is_lvalue());
+  bool is_method = false;
+  bool found_pointer_method = false;
+  std::string ambig1;
+  std::string ambig2;
+  if (Type::find_field_or_method(type, name, receiver_can_be_pointer, NULL,
+				 &is_method, &found_pointer_method,
+				 &ambig1, &ambig2))
+    {
+      Expression* ret;
+      if (!is_method)
+	{
+	  gcc_assert(st != NULL);
+	  ret = st->field_reference(expr, name, location);
+	}
+      else if (it != NULL && it->find_method(name) != NULL)
+	ret = Expression::make_interface_field_reference(expr, name,
+							 location);
+      else
+	{
+	  Method* m;
+	  if (nt != NULL)
+	    m = nt->method_function(name, NULL);
+	  else if (st != NULL)
+	    m = st->method_function(name);
+	  else
+	    gcc_unreachable();
+	  gcc_assert(m != NULL);
+	  if (!m->is_value_method() && expr->type()->points_to() == NULL)
+	    expr = Expression::make_unary(OPERATOR_AND, expr, location);
+	  ret = m->bind_method(expr, location);
+	}
+      gcc_assert(ret != NULL);
+      return ret;
+    }
+  else
+    {
+      if (!ambig1.empty())
+	error_at(location, "%qs is ambiguous via %qs and %qs",
+		 Gogo::unpack_hidden_name(name).c_str(),
+		 ambig1.c_str(), ambig2.c_str());
+      else if (found_pointer_method)
+	error_at(location, "method requires a pointer");
+      else if (nt == NULL && st == NULL && it == NULL)
+	error_at(location,
+		 ("reference to field %qs in object which "
+		  "has no fields or methods"),
+		 name.c_str());
+      else
+	{
+	  bool is_unexported;
+	  std::string unpacked = Gogo::unpack_hidden_name(name);
+	  if (!Gogo::is_hidden_name(name))
+	    is_unexported = false;
+	  else
+	    is_unexported = Type::is_unexported_field_or_method(type, name);
+	  if (is_unexported)
+	    error_at(location, "reference to unexported field or method %qs",
+		     unpacked.c_str());
+	  else
+	    error_at(location, "reference to undefined field or method %qs",
+		     unpacked.c_str());
+	}
+      return Expression::make_error(location);
+    }
+}
+
+// Look in TYPE for a field or method named NAME, return true if one
+// is found.  This looks through embedded anonymous fields and handles
+// ambiguity.  If a method is found, sets *IS_METHOD to true;
+// otherwise, if a field is found, set it to false.  If
+// RECEIVER_CAN_BE_POINTER is false, then the receiver is a value
+// whose address can not be taken.  When returning false, this sets
+// *FOUND_POINTER_METHOD if we found a method we couldn't use because
+// it requires a pointer.  LEVEL is used for recursive calls, and can
+// be NULL for a non-recursive call.  When this function returns false
+// because it finds that the name is ambiguous, it will store a path
+// to the ambiguous names in *AMBIG1 and *AMBIG2.  If the name is not
+// found at all, *AMBIG1 and *AMBIG2 will be unchanged.
+
+// This function just returns whether or not there is a field or
+// method, and whether it is a field or method.  It doesn't build an
+// expression to refer to it.  If it is a method, we then look in the
+// list of all methods for the type.  If it is a field, the search has
+// to be done again, looking only for fields, and building up the
+// expression as we go.
+
+bool
+Type::find_field_or_method(const Type* type,
+			   const std::string& name,
+			   bool receiver_can_be_pointer,
+			   int* level,
+			   bool* is_method,
+			   bool* found_pointer_method,
+			   std::string* ambig1,
+			   std::string* ambig2)
+{
+  // Named types can have locally defined methods.
+  const Named_type* nt = type->named_type();
+  if (nt == NULL && type->points_to() != NULL)
+    nt = type->points_to()->named_type();
+  if (nt != NULL)
+    {
+      Named_object* no = nt->find_local_method(name);
+      if (no != NULL)
+	{
+	  if (receiver_can_be_pointer || !Type::method_expects_pointer(no))
+	    {
+	      *is_method = true;
+	      return true;
+	    }
+
+	  // Record that we have found a pointer method in order to
+	  // give a better error message if we don't find anything
+	  // else.
+	  *found_pointer_method = true;
+	}
+    }
+
+  // Interface types can have methods.
+  const Interface_type* it = type->deref()->interface_type();
+  if (it != NULL && it->find_method(name) != NULL)
+    {
+      *is_method = true;
+      return true;
+    }
+
+  // Struct types can have fields.  They can also inherit fields and
+  // methods from anonymous fields.
+  const Struct_type* st = type->deref()->struct_type();
+  if (st == NULL)
+    return false;
+  const Struct_field_list* fields = st->fields();
+  if (fields == NULL)
+    return false;
+
+  int found_level = 0;
+  bool found_is_method = false;
+  std::string found_ambig1;
+  std::string found_ambig2;
+  const Struct_field* found_parent = NULL;
+  for (Struct_field_list::const_iterator pf = fields->begin();
+       pf != fields->end();
+       ++pf)
+    {
+      if (pf->field_name() == name)
+	{
+	  *is_method = false;
+	  return true;
+	}
+
+      if (!pf->is_anonymous())
+	continue;
+
+      Named_type* fnt = pf->type()->deref()->named_type();
+      gcc_assert(fnt != NULL);
+
+      int sublevel = level == NULL ? 1 : *level + 1;
+      bool sub_is_method;
+      std::string subambig1;
+      std::string subambig2;
+      bool subfound = Type::find_field_or_method(fnt,
+						 name,
+						 receiver_can_be_pointer,
+						 &sublevel,
+						 &sub_is_method,
+						 found_pointer_method,
+						 &subambig1,
+						 &subambig2);
+      if (!subfound)
+	{
+	  if (!subambig1.empty())
+	    {
+	      // The name was found via this field, but is ambiguous.
+	      // if the ambiguity is lower or at the same level as
+	      // anything else we have already found, then we want to
+	      // pass the ambiguity back to the caller.
+	      if (found_level == 0 || sublevel <= found_level)
+		{
+		  found_ambig1 = pf->field_name() + '.' + subambig1;
+		  found_ambig2 = pf->field_name() + '.' + subambig2;
+		  found_level = sublevel;
+		}
+	    }
+	}
+      else
+	{
+	  // The name was found via this field.  Use the level to see
+	  // if we want to use this one, or whether it introduces an
+	  // ambiguity.
+	  if (found_level == 0 || sublevel < found_level)
+	    {
+	      found_level = sublevel;
+	      found_is_method = sub_is_method;
+	      found_ambig1.clear();
+	      found_ambig2.clear();
+	      found_parent = &*pf;
+	    }
+	  else if (sublevel > found_level)
+	    ;
+	  else if (found_ambig1.empty())
+	    {
+	      // We found an ambiguity.
+	      gcc_assert(found_parent != NULL);
+	      found_ambig1 = found_parent->field_name();
+	      found_ambig2 = pf->field_name();
+	    }
+	  else
+	    {
+	      // We found an ambiguity, but we already know of one.
+	      // Just report the earlier one.
+	    }
+	}
+    }
+
+  // Here if we didn't find anything FOUND_LEVEL is 0.  If we found
+  // something ambiguous, FOUND_LEVEL is not 0 and FOUND_AMBIG1 and
+  // FOUND_AMBIG2 are not empty.  If we found the field, FOUND_LEVEL
+  // is not 0 and FOUND_AMBIG1 and FOUND_AMBIG2 are empty.
+
+  if (found_level == 0)
+    return false;
+  else if (!found_ambig1.empty())
+    {
+      gcc_assert(!found_ambig1.empty());
+      ambig1->assign(found_ambig1);
+      ambig2->assign(found_ambig2);
+      if (level != NULL)
+	*level = found_level;
+      return false;
+    }
+  else
+    {
+      if (level != NULL)
+	*level = found_level;
+      *is_method = found_is_method;
+      return true;
+    }
+}
+
+// Return whether NAME is an unexported field or method for TYPE.
+
+bool
+Type::is_unexported_field_or_method(const Type* type, const std::string& name)
+{
+  type = type->deref();
+
+  const Named_type* nt = type->named_type();
+  if (nt != NULL && nt->is_unexported_local_method(name))
+    return true;
+
+  const Interface_type* it = type->interface_type();
+  if (it != NULL && it->is_unexported_method(name))
+    return true;
+
+  const Struct_type* st = type->struct_type();
+  if (st != NULL && st->is_unexported_local_field(name))
+    return true;
+
+  if (st == NULL)
+    return false;
+
+  const Struct_field_list* fields = st->fields();
+  if (fields == NULL)
+    return false;
+
+  for (Struct_field_list::const_iterator pf = fields->begin();
+       pf != fields->end();
+       ++pf)
+    {
+      if (pf->is_anonymous())
+	{
+	  Named_type* subtype = pf->type()->deref()->named_type();
+	  gcc_assert(subtype != NULL);
+	  if (Type::is_unexported_field_or_method(subtype, name))
+	    return true;
+	}
+    }
+
+  return false;
 }
 
 // Class Forward_declaration.

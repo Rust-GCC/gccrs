@@ -2389,16 +2389,14 @@ Gogo::type_method_table_entry(tree method_entry_tree,
 
 // Build a method table for a type descriptor.  METHOD_TYPE_TREE is
 // the type of the method table, and should be the type of a slice.
-// METHODS_TYPE is the type which gives the methods.  If
-// ONLY_VALUE_METHODS is true, then only value methods are used.  This
-// returns a constructor for a slice.
+// METHODS is the list of methods.  If ONLY_VALUE_METHODS is true,
+// then only value methods are used.  This returns a constructor for a
+// slice.
 
 tree
-Gogo::type_method_table(tree method_type_tree, Named_type* methods_type,
+Gogo::type_method_table(tree method_type_tree, const Methods* methods,
 			bool only_value_methods)
 {
-  const Methods* methods = methods_type->methods();
-
   std::vector<std::pair<std::string, const Method*> > smethods;
   if (methods != NULL)
     {
@@ -2440,15 +2438,15 @@ Gogo::type_method_table(tree method_type_tree, Named_type* methods_type,
 // Build a decl for uncommon type information for a type descriptor.
 // UNCOMMON_TYPE_TREE is the type of the uncommon type struct--struct
 // __go_uncommon_type in libgo/runtime/go-type.h.  If NAME is not
-// NULL, it is the name of the type.  If METHODS_TYPE is NULL, then
-// NAME must not be NULL, and the methods are the value methods of
-// NAME.  If METHODS_TYPE is not NULL, then NAME may be NULL, and the
-// methods are all the methods of METHODS_TYPE.  This returns a
-// pointer to the decl that it builds.
+// NULL, it is the name of the type.  If METHODS is not NULL, it is
+// the list of methods.  ONLY_VALUE_METHODS is true if only value
+// methods should be included.  At least one of NAME and METHODS must
+// not be NULL.  This returns a pointer to the decl that it builds.
 
 tree
 Gogo::uncommon_type_information(tree uncommon_type_tree, Named_type* name,
-				Named_type* methods_type)
+				const Methods* methods,
+				bool only_value_methods)
 {
   gcc_assert(TREE_CODE(uncommon_type_tree) == RECORD_TYPE);
 
@@ -2508,11 +2506,8 @@ Gogo::uncommon_type_information(tree uncommon_type_tree, Named_type* name,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__methods") == 0);
   elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = this->type_method_table(TREE_TYPE(field),
-				       (methods_type != NULL
-					? methods_type
-					: name),
-				       methods_type == NULL);
+  elt->value = this->type_method_table(TREE_TYPE(field), methods,
+				       only_value_methods);
 
   tree decl = build_decl(BUILTINS_LOCATION, VAR_DECL, create_tmp_var_name("U"),
 			 uncommon_type_tree);
@@ -2531,14 +2526,15 @@ Gogo::uncommon_type_information(tree uncommon_type_tree, Named_type* name,
 
 // Build a constructor for the basic type descriptor struct for TYPE.
 // RUNTIME_TYPE_CODE is the value to store in the __code field.  If
-// NAME is not NULL, it is the name to use.  If METHODS_TYPE is NULL,
-// then if NAME is NULL there are no methods, and if NAME is not NULL
-// then we use the value methods for NAME.  If METHODS_TYPE is not
-// NULL, then we use all the methods from METHODS_TYPE.
+// NAME is not NULL, it is the name to use.  If METHODS is not NULL,
+// it is the list of methods to use.  If METHODS is NULL, then we get
+// the methods from NAME.  ONLY_VALUE_METHODS is true if only value
+// methods should be included.
 
 tree
 Gogo::type_descriptor_constructor(int runtime_type_code, Type* type,
-				  Named_type* name, Named_type* methods_type)
+				  Named_type* name, const Methods* methods,
+				  bool only_value_methods)
 {
   tree type_descriptor_type_tree = this->type_descriptor_type_tree();
   tree type_tree = type->get_tree(this);
@@ -2617,12 +2613,16 @@ Gogo::type_descriptor_constructor(int runtime_type_code, Type* type,
   elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
 
-  if (name == NULL
-      && (methods_type == NULL || !methods_type->has_any_methods()))
+  if (name == NULL && methods == NULL)
     elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
   else
-    elt->value = this->uncommon_type_information(TREE_TYPE(TREE_TYPE(field)),
-						 name, methods_type);
+    {
+      if (methods == NULL)
+	methods = name->methods();
+      elt->value = this->uncommon_type_information(TREE_TYPE(TREE_TYPE(field)),
+						   name, methods,
+						   only_value_methods);
+    }
 
   tree ret = build_constructor(type_descriptor_type_tree, init);
   TREE_CONSTANT(ret) = 1;
@@ -2806,7 +2806,8 @@ Gogo::type_descriptor_decl(int runtime_type_code, Type* type, Named_type* name,
     return;
 
   tree constructor = this->type_descriptor_constructor(runtime_type_code,
-						       type, name, NULL);
+						       type, name, NULL,
+						       true);
 
   this->finish_type_descriptor_decl(pdecl, type, name, constructor);
 }
@@ -2863,15 +2864,23 @@ Gogo::pointer_type_descriptor_decl(Pointer_type* type, Named_type* name,
 					name, pdecl))
     return;
 
+  const Methods* methods;
+  Type* deref = type->points_to();
+  if (deref->named_type() != NULL)
+    methods = deref->named_type()->methods();
+  else if (deref->struct_type() != NULL)
+    methods = deref->struct_type()->methods();
+  else
+    methods = NULL;
+
   VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
 
   tree field = TYPE_FIELDS(type_descriptor_type_tree);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  Named_type* method_type = type->points_to()->named_type();
   elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_PTR, type,
-						 name, method_type);
+						 name, methods, false);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
@@ -2973,7 +2982,7 @@ Gogo::function_type_descriptor_decl(Function_type* type, Named_type* name,
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_FUNC, type,
-						 name, NULL);
+						 name, NULL, true);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__dotdotdot") == 0);
@@ -3143,6 +3152,11 @@ Gogo::struct_type_descriptor_decl(Struct_type* type, Named_type* name,
 					name, pdecl))
     return;
 
+  const Methods* methods = type->methods();
+  // A named struct should not have methods--the methods should attach
+  // to the named type.
+  gcc_assert(methods == NULL || name == NULL);
+
   VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
 
   tree field = TYPE_FIELDS(type_descriptor_type_tree);
@@ -3150,7 +3164,7 @@ Gogo::struct_type_descriptor_decl(Struct_type* type, Named_type* name,
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_STRUCT,
-						 type, name, NULL);
+						 type, name, methods, true);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__fields") == 0);
@@ -3209,7 +3223,7 @@ Gogo::array_type_descriptor_decl(Array_type* type, Named_type* name,
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_ARRAY,
-						 type, name, NULL);
+						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
@@ -3271,7 +3285,7 @@ Gogo::slice_type_descriptor_decl(Array_type* type, Named_type* name,
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_SLICE,
-						 type, name, NULL);
+						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
@@ -3327,7 +3341,7 @@ Gogo::map_type_descriptor_decl(Map_type* type, Named_type* name, tree* pdecl)
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_MAP,
-						 type, name, NULL);
+						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__key_type") == 0);
@@ -3392,7 +3406,7 @@ Gogo::channel_type_descriptor_decl(Channel_type* type, Named_type* name,
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_CHAN,
-						 type, name, NULL);
+						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
@@ -3549,7 +3563,7 @@ Gogo::interface_type_descriptor_decl(Interface_type* type, Named_type* name,
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_INTERFACE,
-						 type, name, NULL);
+						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__methods") == 0);
