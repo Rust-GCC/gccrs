@@ -144,7 +144,7 @@ class Gogo
   hidden_name_prefix(const std::string& name)
   {
     gcc_assert(Gogo::is_hidden_name(name));
-    return name.substr(1, name.rfind('.', 1) - 1);
+    return name.substr(1, name.rfind('.') - 1);
   }
 
   // Return whether a name is the blank identifier _.

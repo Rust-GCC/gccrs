@@ -1868,9 +1868,12 @@ Function_type::do_reflection(Gogo* gogo, std::string* ret) const
   ret->push_back(')');
 
   const Typed_identifier_list* results = this->results();
-  if (results != NULL)
+  if (results != NULL && !results->empty())
     {
-      ret->append(" (");
+      if (results->size() == 1)
+	ret->push_back(' ');
+      else
+	ret->append(" (");
       for (Typed_identifier_list::const_iterator p = results->begin();
 	   p != results->end();
 	   ++p)
@@ -1879,7 +1882,8 @@ Function_type::do_reflection(Gogo* gogo, std::string* ret) const
 	    ret->append(", ");
 	  this->append_reflection(p->type(), gogo, ret);
 	}
-      ret->push_back(')');
+      if (results->size() > 1)
+	ret->push_back(')');
     }
 }
 
@@ -2706,7 +2710,8 @@ Struct_type::total_field_count() const
 // Return whether NAME is an unexported field, for better error reporting.
 
 bool
-Struct_type::is_unexported_local_field(const std::string& name) const
+Struct_type::is_unexported_local_field(Gogo* gogo,
+				       const std::string& name) const
 {
   const Struct_field_list* fields = this->fields_;
   if (fields != NULL)
@@ -2717,7 +2722,8 @@ Struct_type::is_unexported_local_field(const std::string& name) const
 	{
 	  const std::string& field_name(pf->field_name());
 	  if (Gogo::is_hidden_name(field_name)
-	      && name == Gogo::unpack_hidden_name(field_name))
+	      && name == Gogo::unpack_hidden_name(field_name)
+	      && gogo->pack_hidden_name(name, false) != field_name)
 	    return true;
 	}
     }
@@ -2737,9 +2743,9 @@ Struct_type::finalize_methods(Gogo* gogo)
 // ambiguous.
 
 Method*
-Struct_type::method_function(const std::string& name) const
+Struct_type::method_function(const std::string& name, bool* is_ambiguous) const
 {
-  return Type::method_function(this->all_methods_, name, NULL);
+  return Type::method_function(this->all_methods_, name, is_ambiguous);
 }
 
 // Get the tree for a struct type.
@@ -4188,7 +4194,7 @@ Interface_type::method_index(const std::string& name) const
 // reporting.
 
 bool
-Interface_type::is_unexported_method(const std::string& name) const
+Interface_type::is_unexported_method(Gogo* gogo, const std::string& name) const
 {
   if (this->methods_ == NULL)
     return false;
@@ -4198,7 +4204,8 @@ Interface_type::is_unexported_method(const std::string& name) const
     {
       const std::string& method_name(p->name());
       if (Gogo::is_hidden_name(method_name)
-	  && name == Gogo::unpack_hidden_name(method_name))
+	  && name == Gogo::unpack_hidden_name(method_name)
+	  && gogo->pack_hidden_name(name, false) != method_name)
 	return true;
     }
   return false;
@@ -4323,6 +4330,7 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
 
   bool is_pointer = false;
   const Named_type* nt = t->named_type();
+  const Struct_type* st = t->struct_type();
   // If we start with a named type, we don't dereference it to find
   // methods.
   if (nt == NULL)
@@ -4334,18 +4342,24 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
 	  // the type to which it points.
 	  is_pointer = true;
 	  nt = pt->named_type();
+	  st = pt->struct_type();
 	}
     }
 
-  // Only named types have methods.
-  if (nt == NULL)
+  // If we have a named type, get the methods from it rather than from
+  // any struct type.
+  if (nt != NULL)
+    st = NULL;
+
+  // Only named and struct types have methods.
+  if (nt == NULL && st == NULL)
     {
       if (reason != NULL)
 	reason->assign(_("type has no methods"));
       return false;
     }
 
-  if (!nt->has_any_methods())
+  if (nt != NULL ? !nt->has_any_methods() : !st->has_any_methods())
     {
       if (reason != NULL)
 	reason->assign(_("type has no methods"));
@@ -4357,7 +4371,9 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
        ++p)
     {
       bool is_ambiguous = false;
-      Method* m = nt->method_function(p->name(), &is_ambiguous);
+      Method* m = (nt != NULL
+		   ? nt->method_function(p->name(), &is_ambiguous)
+		   : st->method_function(p->name(), &is_ambiguous));
       if (m == NULL)
 	{
 	  if (reason != NULL)
@@ -4543,7 +4559,6 @@ Interface_type::do_reflection(Gogo* gogo, std::string* ret) const
 	    ret->append(";");
 	  ret->push_back(' ');
 	  ret->append(Gogo::unpack_hidden_name(p->name()));
-	  ret->push_back(' ');
 	  std::string sub = p->type()->reflection(gogo);
 	  gcc_assert(sub.compare(0, 4, "func") == 0);
 	  sub = sub.substr(4);
@@ -4967,7 +4982,8 @@ Named_type::find_local_method(const std::string& name) const
 // error reporting.
 
 bool
-Named_type::is_unexported_local_method(const std::string& name) const
+Named_type::is_unexported_local_method(Gogo* gogo,
+				       const std::string& name) const
 {
   Bindings* methods = this->local_methods_;
   if (methods != NULL)
@@ -4978,7 +4994,8 @@ Named_type::is_unexported_local_method(const std::string& name) const
 	   ++p)
 	{
 	  if (Gogo::is_hidden_name(p->first)
-	      && name == Gogo::unpack_hidden_name(p->first))
+	      && name == Gogo::unpack_hidden_name(p->first)
+	      && gogo->pack_hidden_name(name, false) != p->first)
 	    return true;
 	}
     }
@@ -5882,7 +5899,7 @@ Type::method_function(const Methods* methods, const std::string& name,
 // method, give an appropriate error and return an error expression.
 
 Expression*
-Type::bind_field_or_method(const Type* type, Expression* expr,
+Type::bind_field_or_method(Gogo* gogo, const Type* type, Expression* expr,
 			   const std::string& name,
 			   source_location location)
 {
@@ -5920,7 +5937,7 @@ Type::bind_field_or_method(const Type* type, Expression* expr,
 	  if (nt != NULL)
 	    m = nt->method_function(name, NULL);
 	  else if (st != NULL)
-	    m = st->method_function(name);
+	    m = st->method_function(name, NULL);
 	  else
 	    gcc_unreachable();
 	  gcc_assert(m != NULL);
@@ -5951,7 +5968,8 @@ Type::bind_field_or_method(const Type* type, Expression* expr,
 	  if (!Gogo::is_hidden_name(name))
 	    is_unexported = false;
 	  else
-	    is_unexported = Type::is_unexported_field_or_method(type, name);
+	    is_unexported = Type::is_unexported_field_or_method(gogo, type,
+								unpacked);
 	  if (is_unexported)
 	    error_at(location, "reference to unexported field or method %qs",
 		     unpacked.c_str());
@@ -6139,20 +6157,21 @@ Type::find_field_or_method(const Type* type,
 // Return whether NAME is an unexported field or method for TYPE.
 
 bool
-Type::is_unexported_field_or_method(const Type* type, const std::string& name)
+Type::is_unexported_field_or_method(Gogo* gogo, const Type* type,
+				    const std::string& name)
 {
   type = type->deref();
 
   const Named_type* nt = type->named_type();
-  if (nt != NULL && nt->is_unexported_local_method(name))
+  if (nt != NULL && nt->is_unexported_local_method(gogo, name))
     return true;
 
   const Interface_type* it = type->interface_type();
-  if (it != NULL && it->is_unexported_method(name))
+  if (it != NULL && it->is_unexported_method(gogo, name))
     return true;
 
   const Struct_type* st = type->struct_type();
-  if (st != NULL && st->is_unexported_local_field(name))
+  if (st != NULL && st->is_unexported_local_field(gogo, name))
     return true;
 
   if (st == NULL)
@@ -6170,7 +6189,7 @@ Type::is_unexported_field_or_method(const Type* type, const std::string& name)
 	{
 	  Named_type* subtype = pf->type()->deref()->named_type();
 	  gcc_assert(subtype != NULL);
-	  if (Type::is_unexported_field_or_method(subtype, name))
+	  if (Type::is_unexported_field_or_method(gogo, subtype, name))
 	    return true;
 	}
     }

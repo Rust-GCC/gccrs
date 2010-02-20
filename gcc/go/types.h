@@ -762,12 +762,12 @@ class Type
   // Look for field or method NAME for TYPE.  Return an expression for
   // it, bound to EXPR.
   static Expression*
-  bind_field_or_method(const Type* type, Expression* expr,
+  bind_field_or_method(Gogo*, const Type* type, Expression* expr,
 		       const std::string& name, source_location);
 
   // Return true if NAME is an unexported field or method of TYPE.
   static bool
-  is_unexported_field_or_method(const Type*, const std::string&);
+  is_unexported_field_or_method(Gogo*, const Type*, const std::string&);
 
   // This type was passed to the builtin function make.  ARGS are the
   // arguments passed to make after the type; this may be NULL if
@@ -1770,7 +1770,7 @@ class Struct_type : public Type
   // Return whether NAME is a local field which is not exported.  This
   // is only used for better error reporting.
   bool
-  is_unexported_local_field(const std::string& name) const;
+  is_unexported_local_field(Gogo*, const std::string& name) const;
 
   // If this is an unnamed struct, build the complete list of methods,
   // including those from anonymous fields, and build methods stubs if
@@ -1791,9 +1791,10 @@ class Struct_type : public Type
   { return this->all_methods_; }
 
   // Return the method to use for NAME.  This returns NULL if there is
-  // no such method or if the method is ambiguous.
+  // no such method or if the method is ambiguous.  When it returns
+  // NULL, this sets *IS_AMBIGUOUS if the method name is ambiguous.
   Method*
-  method_function(const std::string& name) const;
+  method_function(const std::string& name, bool* is_ambiguous) const;
 
   // Traverse just the field types of a struct type.
   int
@@ -2172,7 +2173,7 @@ class Interface_type : public Type
   // Return whether NAME is a method which is not exported.  This is
   // only used for better error reporting.
   bool
-  is_unexported_method(const std::string& name) const;
+  is_unexported_method(Gogo*, const std::string& name) const;
 
   // Import an interface type.
   static Interface_type*
@@ -2351,7 +2352,7 @@ class Named_type : public Type
   // Return whether NAME is a known field or method which is not
   // exported.  This is only used for better error reporting.
   bool
-  is_unexported_local_method(const std::string& name) const;
+  is_unexported_local_method(Gogo*, const std::string& name) const;
 
   // Return a pointer to the interface method table for this type for
   // the interface INTERFACE.

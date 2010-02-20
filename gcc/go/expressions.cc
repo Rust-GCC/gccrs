@@ -297,7 +297,8 @@ Expression::convert_for_assignment(Translate_context* context, Type* lhs_type,
 	      // going to copy the value into the interface.
 	      tree make_tmp;
 	      tree object;
-	      if (TREE_ADDRESSABLE(TREE_TYPE(rhs_tree)) || DECL_P(rhs_tree))
+	      if (TREE_ADDRESSABLE(TREE_TYPE(rhs_tree))
+		  || (DECL_P(rhs_tree) && TREE_CODE(rhs_tree) != CONST_DECL))
 		{
 		  make_tmp = NULL_TREE;
 		  object = build_fold_addr_expr(rhs_tree);
@@ -8298,7 +8299,7 @@ Selector_expression::do_lower(Gogo* gogo, Named_object*, int)
   Expression* left = this->left_;
   if (left->is_type_expression())
     return this->lower_method_expression(gogo);
-  return Type::bind_field_or_method(left->type(), left, this->name_,
+  return Type::bind_field_or_method(gogo, left->type(), left, this->name_,
 				    this->location());
 }
 
@@ -8393,7 +8394,7 @@ Selector_expression::lower_method_expression(Gogo* gogo)
   Named_object* vno = gogo->lookup(receiver_name, NULL);
   gcc_assert(vno != NULL);
   Expression* ve = Expression::make_var_reference(vno, location);
-  Expression* bm = Type::bind_field_or_method(nt, ve, name, location);
+  Expression* bm = Type::bind_field_or_method(gogo, nt, ve, name, location);
   gcc_assert(bm != NULL && !bm->is_error_expression());
 
   Expression_list* args;
