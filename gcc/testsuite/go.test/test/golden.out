@@ -25,6 +25,10 @@ throw: interface hash
 
 panic PC=xxx
 
+=========== ./deferprint.go
+printing: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+42 true false true +1.500000e+000 world 0x0 [0/0]0x0 0x0 0x0 255
+
 =========== ./helloworld.go
 hello, world
 
@@ -75,6 +79,9 @@ abcxyz-abcxyz-abcxyz-abcxyz-abcxyz-abcxyz-abcxyz
 
 == chan/
 
+=========== chan/doubleselect.go
+PASS
+
 =========== chan/nonblock.go
 PASS
 
@@ -93,6 +100,8 @@ throw: interface conversion
 panic PC=xxx
 
 == nilptr/
+
+== syntax/
 
 == fixedbugs/
 
@@ -135,13 +144,9 @@ panic PC=xxx
 
 =========== fixedbugs/bug148.go
 2 3
-interface is main.T, not main.T·1
+interface is main.T, not main.T
 throw: interface conversion
 
 panic PC=xxx
 
 == bugs/
-
-=========== bugs/bug219.go
-bugs/bug219.go:16: syntax error near if
-BUG: bug219
