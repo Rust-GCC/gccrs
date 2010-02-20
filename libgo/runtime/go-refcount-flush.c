@@ -164,7 +164,7 @@ __go_refcount_flush_queue (struct __go_refcount *queue)
 	  /* FIXME: For debugging.  We can't just free a slice because
 	     it has an embedded pointer.  */
 	  if (pre->__descriptor->__code != GO_SLICE
-	      && mlookup (value, NULL, NULL, NULL))
+	      && mlookup (value, NULL, NULL, NULL, NULL))
 	    {
 	      size = pre->__descriptor->__size;
 

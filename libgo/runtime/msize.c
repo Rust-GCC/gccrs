@@ -82,7 +82,7 @@ InitSizes(void)
 		// so wasted space is at most 12.5%.
 		allocsize = PageSize;
 		osize = size + RefcountOverhead;
-		while(allocsize%osize > (PageSize/8))
+		while(allocsize%osize > (allocsize/8))
 			allocsize += PageSize;
 		npages = allocsize >> PageShift;
 
@@ -133,6 +133,10 @@ InitSizes(void)
 			}
 		}
 	}
+
+	// Copy out for statistics table.
+	for(i=0; i<nelem(class_to_size); i++)
+		mstats.by_size[i].size = class_to_size[i];
 
 	// Initialize the class_to_transfercount table.
 	for(sizeclass = 1; sizeclass < NumSizeClasses; sizeclass++) {

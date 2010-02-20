@@ -42,7 +42,9 @@ type S struct {
 	false         bool
 	mp            map[string]string
 	innermap      U
+	stringmap     map[string]string
 	bytes         []byte
+	iface         interface{}
 }
 
 func (s *S) pointerMethod() string { return "ptrmethod!" }
@@ -85,6 +87,7 @@ var formatters = FormatterMap{
 var tests = []*Test{
 	// Simple
 	&Test{"", "", ""},
+	&Test{"abc", "abc", ""},
 	&Test{"abc\ndef\n", "abc\ndef\n", ""},
 	&Test{" {.meta-left}   \n", "{", ""},
 	&Test{" {.meta-right}   \n", "}", ""},
@@ -172,6 +175,7 @@ var tests = []*Test{
 		out: "Header=77\n" +
 			"Header=77\n",
 	},
+
 	&Test{
 		in: "{.section data}{.end} {header}\n",
 
@@ -224,6 +228,17 @@ var tests = []*Test{
 			"ItemNumber2\n",
 	},
 	&Test{
+		in: "{.repeated section pdata }\n" +
+			"{item}\n" +
+			"{.alternates with}\n" +
+			"is\nover\nmultiple\nlines\n" +
+			" {.end}\n",
+
+		out: "ItemNumber1\n" +
+			"is\nover\nmultiple\nlines\n" +
+			"ItemNumber2\n",
+	},
+	&Test{
 		in: "{.section pdata }\n" +
 			"{.repeated section @ }\n" +
 			"{item}={value}\n" +
@@ -244,6 +259,13 @@ var tests = []*Test{
 
 		out: "elt1\n" +
 			"elt2\n",
+	},
+	// Same but with a space before {.end}: was a bug.
+	&Test{
+		in: "{.repeated section vec }\n" +
+			"{@} {.end}\n",
+
+		out: "elt1 elt2 \n",
 	},
 	&Test{
 		in: "{.repeated section integer}{.end}",
@@ -314,11 +336,41 @@ var tests = []*Test{
 
 		out: "Ahoy!\n",
 	},
-
 	&Test{
 		in: "{innermap.mp.innerkey}\n",
 
 		out: "55\n",
+	},
+	&Test{
+		in: "{stringmap.stringkey1}\n",
+
+		out: "stringresult\n",
+	},
+	&Test{
+		in: "{.repeated section stringmap}\n" +
+			"{@}\n" +
+			"{.end}",
+
+		out: "stringresult\n" +
+			"stringresult\n",
+	},
+
+	// Interface values
+
+	&Test{
+		in: "{iface}",
+
+		out: "[1 2 3]",
+	},
+	&Test{
+		in: "{.repeated section iface}{@}{.alternates with} {.end}",
+
+		out: "1 2 3",
+	},
+	&Test{
+		in: "{.section iface}{@}{.end}",
+
+		out: "[1 2 3]",
 	},
 }
 
@@ -342,7 +394,11 @@ func TestAll(t *testing.T) {
 	s.mp["mapkey"] = "Ahoy!"
 	s.innermap.mp = make(map[string]int)
 	s.innermap.mp["innerkey"] = 55
+	s.stringmap = make(map[string]string)
+	s.stringmap["stringkey1"] = "stringresult" // the same value so repeated section is order-independent
+	s.stringmap["stringkey2"] = "stringresult"
 	s.bytes = strings.Bytes("hello")
+	s.iface = []int{1, 2, 3}
 
 	var buf bytes.Buffer
 	for _, test := range tests {
@@ -358,7 +414,9 @@ func TestAll(t *testing.T) {
 				t.Error("unexpected execute error:", err)
 			}
 		} else {
-			if err == nil || err.String() != test.err {
+			if err == nil {
+				t.Errorf("expected execute error %q, got nil", test.err)
+			} else if err.String() != test.err {
 				t.Errorf("expected execute error %q, got %q", test.err, err.String())
 			}
 		}

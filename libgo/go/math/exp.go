@@ -86,7 +86,7 @@ package math
 // Special cases are:
 //	Exp(+Inf) = +Inf
 //	Exp(NaN) = NaN
-// Very large values overflow to -Inf or +Inf.
+// Very large values overflow to 0 or +Inf.
 // Very small values underflow to 1.
 func Exp(x float64) float64 {
 	const (
@@ -104,11 +104,13 @@ func Exp(x float64) float64 {
 		NearZero  = 1.0 / (1 << 28) // 2^-28
 	)
 
+	// TODO(rsc): Remove manual inlining of IsNaN, IsInf
+	// when compiler does it for us
 	// special cases
 	switch {
-	case IsNaN(x) || IsInf(x, 1):
+	case x != x || x > MaxFloat64: // IsNaN(x) || IsInf(x, 1):
 		return x
-	case IsInf(x, -1):
+	case x < -MaxFloat64: // IsInf(x, -1):
 		return 0
 	case x > Overflow:
 		return Inf(1)
@@ -137,3 +139,8 @@ func Exp(x float64) float64 {
 	// TODO(rsc): make sure Ldexp can handle boundary k
 	return Ldexp(y, k)
 }
+
+// Exp2 returns 2^x, the base-2 exponential of x.
+//
+// Special cases are the same as Exp.
+func Exp2(x float64) float64 { return Exp(x * Ln2) }

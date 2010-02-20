@@ -101,8 +101,8 @@ toolexeclib_DATA = \
 	io.gox \
 	json.gox \
 	log.gox \
-	malloc.gox \
 	math.gox \
+	mime.gox \
 	net.gox \
 	once.gox \
 	os.gox \
@@ -113,6 +113,7 @@ toolexeclib_DATA = \
 	regexp.gox \
 	rpc.gox \
 	runtime.gox \
+	scanner.gox \
 	sort.gox \
 	strconv.gox \
 	strings.gox \
@@ -302,16 +303,20 @@ runtime_files = \
 	runtime/go-unsafe-new.c \
 	runtime/go-unsafe-newarray.c \
 	runtime/go-unsafe-pointer.c \
-	runtime/malloc.c \
 	runtime/mcache.c \
 	runtime/mcentral.c \
+\	runtime/mem.c \
+	runtime/mfinal.c \
 	runtime/mfixalloc.c \
+	runtime/mgc0.c \
 	runtime/mheap.c \
+	runtime/mheapmap32.c \
+	runtime/mheapmap64.c \
 	runtime/msize.c \
 	runtime/proc.c \
-	malloc_go.c \
 	chan.c \
 	iface.c \
+	malloc.c \
 	map.c \
 	sigqueue.c \
 	string.c
@@ -322,8 +327,8 @@ cgo2c.o: runtime/cgo2c.c
 cgo2c: cgo2c.o
 	$(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) $(LDFLAGS_FOR_BUILD) -o $@ $<
 
-malloc_go.c: $(srcdir)/runtime/malloc_go.cgo cgo2c
-	./cgo2c --gcc --go-prefix libgo_malloc $< > $@.tmp
+malloc.c: $(srcdir)/runtime/malloc.cgo cgo2c
+	./cgo2c --gcc --go-prefix libgo_runtime $< > $@.tmp
 	mv -f $@.tmp $@
 
 sigqueue.c: $(srcdir)/runtime/sigqueue.cgo cgo2c
@@ -334,7 +339,7 @@ sigqueue.c: $(srcdir)/runtime/sigqueue.cgo cgo2c
 	./cgo2c --gcc $< > $@.tmp
 	mv -f $@.tmp $@
 
-BUILT_SOURCES = malloc_go.c map.c sigqueue.c string.c
+BUILT_SOURCES = chan.c iface.c malloc.c map.c sigqueue.c string.c
 
 go_asn1_files = \
 	go/asn1/asn1.go \
@@ -389,16 +394,23 @@ go_hash_files = \
 	go/hash/hash.go
 
 go_http_files = \
+	go/http/chunked.go \
 	go/http/client.go \
+	go/http/dump.go \
 	go/http/fs.go \
+	go/http/lex.go \
+	go/http/persist.go \
 	go/http/request.go \
+	go/http/response.go \
 	go/http/server.go \
 	go/http/status.go \
+	go/http/transfer.go \
 	go/http/url.go
 
 go_image_files = \
 	go/image/color.go \
-	go/image/image.go
+	go/image/image.go \
+	go/image/names.go
 
 go_io_files = \
 	go/io/io.go \
@@ -413,29 +425,44 @@ go_json_files = \
 go_log_files = \
 	go/log/log.go
 
-go_malloc_files = \
-	go/malloc/malloc.go
-
 go_math_files = \
+	go/math/acosh.go \
 	go/math/asin.go \
+	go/math/asinh.go \
 	go/math/atan.go \
+	go/math/atanh.go \
 	go/math/atan2.go \
 	go/math/bits.go \
+	go/math/cbrt.go \
 	go/math/const.go \
+	go/math/copysign.go \
+	go/math/erf.go \
 	go/math/exp.go \
+	go/math/expm1.go \
 	go/math/fabs.go \
+	go/math/fdim.go \
 	go/math/floor.go \
 	go/math/fmod.go \
+	go/math/frexp.go \
 	go/math/hypot.go \
+	go/math/ldexp.go \
 	go/math/log.go \
+	go/math/log1p.go \
+	go/math/modf.go \
+	go/math/nextafter.go \
 	go/math/pow.go \
 	go/math/pow10.go \
 	go/math/sin.go \
+	go/math/sincos.go \
 	go/math/sinh.go \
 	go/math/sqrt.go \
+	go/math/sqrt_port.go \
 	go/math/tan.go \
 	go/math/tanh.go \
 	go/math/unsafe.go
+
+go_mime_files = \
+	go/mime/type.go
 
 go_net_files = \
 	go/net/dnsclient.go \
@@ -443,6 +470,7 @@ go_net_files = \
 	go/net/dnsmsg.go \
 	go/net/fd.go \
 	go/net/fd_linux.go \
+	go/net/hosts.go \
 	go/net/ip.go \
 	go/net/ipsock.go \
 	go/net/net.go \
@@ -503,6 +531,9 @@ go_runtime_files = \
 	go/runtime/extern.go \
 	go/runtime/type.go
 
+go_scanner_files = \
+	go/scanner/scanner.go
+
 go_sort_files = \
 	go/sort/sort.go
 
@@ -540,6 +571,7 @@ go_testing_files = \
 	go/testing/testing.go
 
 go_time_files = \
+	go/time/format.go \
 	go/time/sleep.go \
 	go/time/tick.go \
 	go/time/time.go \
@@ -559,6 +591,7 @@ go_websocket_files = \
 	go/websocket/websocket.go
 
 go_xgb_files = \
+	go/xgb/auth.go \
 	go/xgb/xgb.go \
 	go/xgb/xproto.go
 
@@ -581,6 +614,7 @@ go_compress_flate_files = \
 	go/compress/flate/util.go
 
 go_compress_gzip_files = \
+	go/compress/gzip/gzip.go \
 	go/compress/gzip/gunzip.go
 
 go_compress_zlib_files = \
@@ -597,6 +631,7 @@ go_container_ring_files = \
 	go/container/ring/ring.go
 
 go_container_vector_files = \
+	go/container/vector/defs.go \
 	go/container/vector/intvector.go \
 	go/container/vector/stringvector.go \
 	go/container/vector/vector.go
@@ -800,7 +835,8 @@ go_io_ioutil_files = \
 	go/io/ioutil/ioutil.go
 
 go_os_signal_files = \
-	go/os/signal/signal.go
+	go/os/signal/signal.go \
+	unix.go
 
 go_testing_iotest_files = \
 	go/testing/iotest/logger.go \
@@ -856,8 +892,8 @@ libgo_go_objs = \
 	io/libio.la \
 	json/libjson.la \
 	log/liblog.la \
-	malloc/libmalloc.la \
 	math/libmath.la \
+	mime/libmime.la \
 	net/libnet.la \
 	once/libonce.la \
 	os/libos.la \
@@ -868,6 +904,7 @@ libgo_go_objs = \
 	regexp/libregexp.la \
 	rpc/librpc.la \
 	runtime/libruntime.la \
+	scanner/libscanner.la \
 	sort/libsort.la \
 	strconv/libstrconv.la \
 	strings/libstrings.la \
@@ -1031,9 +1068,10 @@ hash/libhash.a: $(go_hash_files) io.gox
 	$(BUILDARCHIVE)
 hash/libhash.la: hash/libhash.a
 
-http/libhttp.a: $(go_http_files) bufio.gox bytes.gox container/vector.gox \
-		encoding/base64.gox fmt.gox io.gox io/ioutil.gox log.gox \
-		net.gox os.gox path.gox strconv.gox strings.gox utf8.gox
+http/libhttp.a: $(go_http_files) bufio.gox bytes.gox container/list.gox \
+		container/vector.gox encoding/base64.gox fmt.gox io.gox \
+		io/ioutil.gox log.gox net.gox os.gox path.gox sort.gox \
+		strconv.gox strings.gox sync.gox utf8.gox
 	$(BUILDARCHIVE)
 http/libhttp.la: http/libhttp.a
 
@@ -1055,13 +1093,13 @@ log/liblog.a: $(go_log_files) fmt.gox io.gox runtime.gox os.gox time.gox
 	$(BUILDARCHIVE)
 log/liblog.la: log/liblog.a
 
-malloc/libmalloc.a: $(go_malloc_files)
-	$(BUILDARCHIVE)
-malloc/libmalloc.la: malloc/libmalloc.a
-
 math/libmath.a: $(go_math_files)
 	$(BUILDARCHIVE)
 math/libmath.la: math/libmath.a
+
+mime/libmime.a: $(go_mime_files) bufio.gox once.gox os.gox strings.gox
+	$(BUILDARCHIVE)
+mime/libmime.la: mime/libmime.a
 
 net/libnet.a: $(go_net_files) fmt.gox io.gox once.gox os.gox reflect.gox \
 		strconv.gox strings.gox sync.gox syscall.gox
@@ -1109,6 +1147,11 @@ runtime/libruntime.a: $(go_runtime_files)
 	$(BUILDARCHIVE)
 runtime/libruntime.la: runtime/libruntime.a
 
+scanner/libscanner.a: $(go_scanner_files) bytes.gox fmt.gox io.gox os.gox \
+		unicode.gox utf8.gox
+	$(BUILDARCHIVE)
+scanner/libscanner.la: scanner/libscanner.a
+
 sort/libsort.a: $(go_sort_files)
 	$(BUILDARCHIVE)
 sort/libsort.la: sort/libsort.a
@@ -1150,7 +1193,8 @@ testing/libtesting.a: $(go_testing_files) flag.gox fmt.gox os.gox regexp.gox \
 	$(BUILDARCHIVE)
 testing/libtesting.la: testing/libtesting.a
 
-time/libtime.a: $(go_time_files) io/ioutil.gox once.gox os.gox syscall.gox
+time/libtime.a: $(go_time_files) bytes.gox io/ioutil.gox once.gox os.gox \
+		strconv.gox syscall.gox
 	$(BUILDARCHIVE)
 time/libtime.la: time/libtime.a
 
@@ -1167,8 +1211,8 @@ websocket/libwebsocket.a: $(go_websocket_files) bufio.gox http.gox io.gox \
 	$(BUILDARCHIVE)
 websocket/libwebsocket.la: websocket/libwebsocket.a
 
-xgb/libxgb.a: $(go_xgb_files) fmt.gox io.gox net.gox os.gox strconv.gox \
-		strings.gox
+xgb/libxgb.a: $(go_xgb_files) bufio.gox fmt.gox io.gox net.gox os.gox \
+		strconv.gox strings.gox
 	$(BUILDARCHIVE)
 xgb/libxgb.la: xgb/libxgb.a
 
@@ -1414,6 +1458,10 @@ os/libsignal.a: $(go_os_signal_files) runtime.gox strconv.gox
 	$(BUILDARCHIVE)
 os/libsignal.la: os/libsignal.a
 
+unix.go: $(srcdir)/go/os/signal/mkunix.sh sysinfo.go
+	$(SHELL) $(srcdir)/go/os/signal/mkunix.sh sysinfo.go > $@.tmp
+	mv -f $@.tmp $@
+
 testing/libiotest.a: $(go_testing_iotest_files) io.gox log.gox os.gox
 	$(BUILDARCHIVE)
 testing/libiotest.la: testing/libiotest.a
@@ -1477,9 +1525,9 @@ json.gox: json/libjson.a
 	$(BUILDGOX)
 log.gox: log/liblog.a
 	$(BUILDGOX)
-malloc.gox: malloc/libmalloc.a
-	$(BUILDGOX)
 math.gox: math/libmath.a
+	$(BUILDGOX)
+mime.gox: mime/libmime.a
 	$(BUILDGOX)
 net.gox: net/libnet.a
 	$(BUILDGOX)
@@ -1500,6 +1548,8 @@ regexp.gox: regexp/libregexp.a
 rpc.gox: rpc/librpc.a
 	$(BUILDGOX)
 runtime.gox: runtime/libruntime.a
+	$(BUILDGOX)
+scanner.gox: scanner/libscanner.a
 	$(BUILDGOX)
 sort.gox: sort/libsort.a
 	$(BUILDGOX)
@@ -1668,6 +1718,7 @@ TEST_PACKAGES = \
 	json \
 	log \
 	math \
+	mime \
 	net \
 	once \
 	os \
@@ -1677,6 +1728,7 @@ TEST_PACKAGES = \
 	reflect \
 	regexp \
 	rpc \
+	scanner \
 	sort \
 	strconv \
 	strings \
@@ -1721,6 +1773,7 @@ TEST_PACKAGES = \
 	encoding/hex \
 	encoding/pem \
 	exp/datafmt \
+	exp/draw \
 	exp/eval \
 	exp/exception \
 	exp/iterable \
@@ -1744,6 +1797,12 @@ check-am: libgo.la libgobegin.a $(toolexeclib_DATA)
 	export GC GOLIBS; \
 	for d in $(TEST_PACKAGES); do \
 	  echo -n "$${d} "; \
+	  if test "$${d}" = "os/signal"; then \
+	    GOTEST_EXTRAFILES="unix.go"; \
+	  else \
+	    GOTEST_EXTRAFILES=""; \
+	  fi; \
+	  export GOTEST_EXTRAFILES; \
 	  prefix=`dirname $${d}`; \
 	  test "$${prefix}" != "." || prefix=$${d}; \
 	  $(srcdir)/testsuite/gotest --srcdir=$(srcdir)/go/$$d --prefix="libgo_$${prefix}" || x=1; \

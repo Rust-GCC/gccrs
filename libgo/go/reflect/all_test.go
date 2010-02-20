@@ -5,6 +5,7 @@
 package reflect_test
 
 import (
+	"container/vector"
 	"io"
 	"os"
 	. "reflect"
@@ -149,7 +150,7 @@ var typeTests = []pair{
 			b()
 		})
 	}{},
-		"interface { a (func(func(int) (int)) (func(func(int)) (int))); b () }",
+		"interface { a(func(func(int) int) func(func(int)) int); b() }",
 	},
 }
 
@@ -1186,5 +1187,11 @@ func TestFieldByName(t *testing.T) {
 				t.Errorf("%s.%s value not found", s.Name(), test.name)
 			}
 		}
+	}
+}
+
+func TestImportPath(t *testing.T) {
+	if path := Typeof(vector.Vector{}).PkgPath(); path != "libgo_container.vector" {
+		t.Errorf("Typeof(vector.Vector{}).PkgPath() = %q, want \"libgo_container.vector\"", path)
 	}
 }

@@ -148,8 +148,8 @@ func ParsePkgFile(pkgname, filename string, mode uint) (*ast.File, os.Error) {
 		if err != nil {
 			return nil, err
 		}
-		if prog.Name.Value != pkgname {
-			return nil, os.NewError(fmt.Sprintf("multiple packages found: %s, %s", prog.Name.Value, pkgname))
+		if prog.Name.Name() != pkgname {
+			return nil, os.NewError(fmt.Sprintf("multiple packages found: %s, %s", prog.Name.Name(), pkgname))
 		}
 		if mode == PackageClauseOnly {
 			return prog, nil
@@ -183,13 +183,14 @@ func ParsePackage(path string, filter func(*os.Dir) bool, mode uint) (*ast.Packa
 	for i := 0; i < len(list); i++ {
 		entry := &list[i]
 		if filter == nil || filter(entry) {
-			src, err := ParsePkgFile(name, pathutil.Join(path, entry.Name), mode)
+			filename := pathutil.Join(path, entry.Name)
+			src, err := ParsePkgFile(name, filename, mode)
 			if err != nil {
 				return nil, err
 			}
-			files[entry.Name] = src
+			files[filename] = src
 			if name == "" {
-				name = src.Name.Value
+				name = src.Name.Name()
 			}
 		}
 	}
@@ -198,5 +199,5 @@ func ParsePackage(path string, filter func(*os.Dir) bool, mode uint) (*ast.Packa
 		return nil, os.NewError(path + ": no package found")
 	}
 
-	return &ast.Package{name, path, files}, nil
+	return &ast.Package{name, nil, files}, nil
 }

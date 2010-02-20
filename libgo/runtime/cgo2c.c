@@ -49,6 +49,7 @@ enum {
 	Uintptr,
 	String,
 	Slice,
+	Eface,
 };
 
 static struct {
@@ -65,6 +66,7 @@ static struct {
 	"uintptr",	4,
 	"String",	8,
 	"Slice",	12,
+	"Eface",	8,
 
 	/* fixed size */
 	"float32",	4,
@@ -721,6 +723,7 @@ main(int argc, char **argv)
 			type_table[Uintptr].size = 8;
 			type_table[String].size = 16;
 			type_table[Slice].size = 8+4+4;
+			type_table[Eface].size = 8+8;
 			structround = 8;
 		}
 	}

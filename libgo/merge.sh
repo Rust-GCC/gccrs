@@ -76,10 +76,9 @@ new_rev=`cd ${NEWDIR} && hg log | sed 1q | sed -e 's/.*://'`
         mv ${libgofile}.tmp ${libgofile}
         ;;
       1)
-        echo "merge.sh $f: CONFLICTS"
+        echo "merge.sh: $f: CONFLICTS"
         mv ${libgofile}.tmp ${libgofile}
-        # It would be nice if we could force svn to consider the file
-        # to be in conflict at this point.
+	hg resolve -u ${libgofile}
         ;;
       *)
         echo 1>&2 "merge.sh: $f: diff3 failure"
@@ -99,10 +98,9 @@ new_rev=`cd ${NEWDIR} && hg log | sed 1q | sed -e 's/.*://'`
       dir=`dirname ${libgofile}`
       if ! test -d ${dir}; then
         mkdir ${dir}
-        svn add ${dir}
       fi
       cp ${newfile} ${libgofile}
-      svn add ${libgofile}
+      hg add ${libgofile}
     fi
   fi
 done
@@ -117,9 +115,9 @@ done
   if ! test -f ${libgofile}; then
     continue
   fi
-  echo "merge.sh: $1: REMOVED"
+  echo "merge.sh: ${libgofile}: REMOVED"
   rm -f ${libgofile}
-  svn rm ${libgofile}
+  hg rm ${libgofile}
 done
 
 (echo ${new_rev}; sed -ne '2,$p' MERGE) > MERGE.tmp

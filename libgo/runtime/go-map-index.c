@@ -20,7 +20,7 @@ __go_map_rehash (struct __go_map *map)
   const struct __go_type_descriptor *key_descriptor;
   size_t key_offset;
   size_t key_size;
-  size_t (*hash) (const void *, size_t);
+  size_t (*hashfn) (const void *, size_t);
   size_t old_bucket_count;
   void **old_buckets;
   size_t new_bucket_count;
@@ -32,7 +32,7 @@ __go_map_rehash (struct __go_map *map)
   key_descriptor = descriptor->__map_descriptor->__key_type;
   key_offset = descriptor->__key_offset;
   key_size = key_descriptor->__size;
-  hash = key_descriptor->__hash;
+  hashfn = key_descriptor->__hashfn;
 
   old_bucket_count = map->__bucket_count;
   old_buckets = map->__buckets;
@@ -53,7 +53,7 @@ __go_map_rehash (struct __go_map *map)
 
 	  /* We could speed up rehashing at the cost of memory space
 	     by caching the hash code.  */
-	  key_hash = hash (entry + key_offset, key_size);
+	  key_hash = hashfn (entry + key_offset, key_size);
 	  new_bucket_index = key_hash % new_bucket_count;
 
 	  next = *(char **) entry;
@@ -79,7 +79,7 @@ __go_map_index (struct __go_map *map, const void *key, _Bool insert)
   const struct __go_map_descriptor *descriptor;
   const struct __go_type_descriptor *key_descriptor;
   size_t key_offset;
-  _Bool (*equal) (const void*, const void*, size_t);
+  _Bool (*equalfn) (const void*, const void*, size_t);
   size_t key_hash;
   size_t key_size;
   size_t bucket_index;
@@ -90,16 +90,16 @@ __go_map_index (struct __go_map *map, const void *key, _Bool insert)
   key_descriptor = descriptor->__map_descriptor->__key_type;
   key_offset = descriptor->__key_offset;
   key_size = key_descriptor->__size;
-  assert (key_size != 0 && key_size != -1U);
-  equal = key_descriptor->__equal;
+  assert (key_size != 0 && key_size != -1UL);
+  equalfn = key_descriptor->__equalfn;
 
-  key_hash = key_descriptor->__hash (key, key_size);
+  key_hash = key_descriptor->__hashfn (key, key_size);
   bucket_index = key_hash % map->__bucket_count;
 
   entry = (char *) map->__buckets[bucket_index];
   while (entry != NULL)
     {
-      if (equal (key, entry + key_offset, key_size))
+      if (equalfn (key, entry + key_offset, key_size))
 	return entry + descriptor->__val_offset;
       entry = *(char **) entry;
     }

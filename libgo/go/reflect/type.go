@@ -39,16 +39,17 @@ type commonType struct {
 	align      int8
 	fieldAlign uint8
 	size       uintptr
-	hash       func(unsafe.Pointer, uintptr)
-	equal      func(unsafe.Pointer, unsafe.Pointer, uintptr)
+	hash	   uint32
+	hashfn     func(unsafe.Pointer, uintptr)
+	equalfn    func(unsafe.Pointer, unsafe.Pointer, uintptr)
 	string     *string
 	*uncommonType
 }
 
 type method struct {
-	hash    uint32
 	name    *string
 	pkgPath *string
+	mtyp    *runtime.Type
 	typ     *runtime.Type
 	tfn     unsafe.Pointer
 }
@@ -171,13 +172,12 @@ type ChanType struct {
 type FuncType struct {
 	commonType
 	dotdotdot bool
-	in  []*runtime.Type
-	out []*runtime.Type
+	in        []*runtime.Type
+	out       []*runtime.Type
 }
 
 // Method on interface type
 type imethod struct {
-	hash    uint32
 	name    *string
 	pkgPath *string
 	typ     *runtime.Type

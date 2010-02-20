@@ -24,9 +24,9 @@ __go_type_hash_interface (const void *vval,
     return 0;
   size = val->__type_descriptor->__size;
   if (__go_is_pointer_type (val->__type_descriptor))
-    return val->__type_descriptor->__hash (&val->__object, size);
+    return val->__type_descriptor->__hashfn (&val->__object, size);
   else
-    return val->__type_descriptor->__hash (val->__object, size);
+    return val->__type_descriptor->__hashfn (val->__object, size);
 }
 
 /* An equality function for an interface.  */
@@ -48,6 +48,6 @@ __go_type_equal_interface (const void *vv1, const void *vv2,
   if (__go_is_pointer_type (v1->__type_descriptor))
     return v1->__object == v2->__object;
   else
-    return v1->__type_descriptor->__equal (v1->__object, v2->__object,
-					   v1->__type_descriptor->__size);
+    return v1->__type_descriptor->__equalfn (v1->__object, v2->__object,
+					     v1->__type_descriptor->__size);
 }

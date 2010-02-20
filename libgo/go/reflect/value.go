@@ -281,6 +281,12 @@ func (v *Int64Value) Set(x int64) {
 // Set sets v to the value x.
 func (v *Int64Value) SetValue(x Value) { v.Set(x.(*Int64Value).Get()) }
 
+// StringHeader is the runtime representation of a string.
+type StringHeader struct {
+	Data uintptr
+	Len  int
+}
+
 // StringValue represents a string value.
 type StringValue struct {
 	value
@@ -566,6 +572,14 @@ func (v *SliceValue) Set(x *SliceValue) {
 
 // Set sets v to the value x.
 func (v *SliceValue) SetValue(x Value) { v.Set(x.(*SliceValue)) }
+
+// Get returns the uintptr address of the v.Cap()'th element.  This gives
+// the same result for all slices of the same array.
+// It is mainly useful for printing.
+func (v *SliceValue) Get() uintptr {
+	typ := v.typ.(*SliceType)
+	return uintptr(v.addr()) + uintptr(v.Cap())*typ.Elem().Size()
+}
 
 // Slice returns a sub-slice of the slice v.
 func (v *SliceValue) Slice(beg, end int) *SliceValue {
@@ -969,6 +983,10 @@ func (v *MapValue) Set(x *MapValue) {
 
 // Set sets v to the value x.
 func (v *MapValue) SetValue(x Value) { v.Set(x.(*MapValue)) }
+
+// Get returns the uintptr value of v.
+// It is mainly useful for printing.
+func (v *MapValue) Get() uintptr { return *(*uintptr)(v.addr) }
 
 // implemented in ../pkg/runtime/reflect.cgo
 func mapaccess(m, key, val *byte) bool

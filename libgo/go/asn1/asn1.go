@@ -410,11 +410,6 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 		}
 	}
 
-	// We magically map SET and SET OF to SEQUENCE and SEQUENCE OF
-	// because we treat everything as ordered.
-	if ret.tag == tagSet {
-		ret.tag = tagSequence
-	}
 	return
 }
 
@@ -609,6 +604,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 		return
 	}
 	innerBytes := bytes[offset : offset+t.length]
+	offset += t.length
 
 	// We deal with the structures defined in this package first.
 	switch fieldType {
@@ -619,13 +615,11 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 		if err1 == nil {
 			reflect.ArrayCopy(sliceValue, reflect.NewValue(newSlice).(reflect.ArrayOrSliceValue))
 		}
-		offset += t.length
 		err = err1
 		return
 	case bitStringType:
 		structValue := v.(*reflect.StructValue)
 		bs, err1 := parseBitString(innerBytes)
-		offset += t.length
 		if err1 == nil {
 			structValue.Set(reflect.NewValue(bs).(*reflect.StructValue))
 		}
@@ -634,7 +628,6 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 	case timeType:
 		ptrValue := v.(*reflect.PtrValue)
 		time, err1 := parseUTCTime(innerBytes)
-		offset += t.length
 		if err1 == nil {
 			ptrValue.Set(reflect.NewValue(time).(*reflect.PtrValue))
 		}
@@ -644,7 +637,6 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 	switch val := v.(type) {
 	case *reflect.BoolValue:
 		parsedBool, err1 := parseBool(innerBytes)
-		offset += t.length
 		if err1 == nil {
 			val.Set(parsedBool)
 		}
@@ -652,7 +644,6 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 		return
 	case *reflect.IntValue:
 		parsedInt, err1 := parseInt(innerBytes)
-		offset += t.length
 		if err1 == nil {
 			val.Set(parsedInt)
 		}
@@ -660,7 +651,6 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 		return
 	case *reflect.Int64Value:
 		parsedInt, err1 := parseInt64(innerBytes)
-		offset += t.length
 		if err1 == nil {
 			val.Set(parsedInt)
 		}
@@ -671,7 +661,7 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 
 		if structType.NumField() > 0 &&
 			structType.Field(0).Type == rawContentsType {
-			bytes := bytes[initOffset : offset+t.length]
+			bytes := bytes[initOffset:offset]
 			val.Field(0).SetValue(reflect.NewValue(RawContent(bytes)))
 		}
 
@@ -686,7 +676,6 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 				return
 			}
 		}
-		offset += t.length
 		// We allow extra bytes at the end of the SEQUENCE because
 		// adding elements to the end has been used in X.509 as the
 		// version numbers have increased.
@@ -699,7 +688,6 @@ func parseField(v reflect.Value, bytes []byte, initOffset int, params fieldParam
 			return
 		}
 		newSlice, err1 := parseSequenceOf(innerBytes, sliceType, sliceType.Elem())
-		offset += t.length
 		if err1 == nil {
 			val.Set(newSlice)
 		}

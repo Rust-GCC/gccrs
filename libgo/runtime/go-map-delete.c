@@ -19,7 +19,7 @@ __go_map_delete (struct __go_map *map, const void *key)
   const struct __go_map_descriptor *descriptor;
   const struct __go_type_descriptor *key_descriptor;
   size_t key_offset;
-  _Bool (*equal) (const void*, const void*, size_t);
+  _Bool (*equalfn) (const void*, const void*, size_t);
   size_t key_hash;
   size_t key_size;
   size_t bucket_index;
@@ -30,17 +30,17 @@ __go_map_delete (struct __go_map *map, const void *key)
   key_descriptor = descriptor->__map_descriptor->__key_type;
   key_offset = descriptor->__key_offset;
   key_size = key_descriptor->__size;
-  assert (key_size != 0 && key_size != -1U);
-  equal = key_descriptor->__equal;
+  assert (key_size != 0 && key_size != -1UL);
+  equalfn = key_descriptor->__equalfn;
 
-  key_hash = key_descriptor->__hash (key, key_size);
+  key_hash = key_descriptor->__hashfn (key, key_size);
   bucket_index = key_hash % map->__bucket_count;
 
   pentry = map->__buckets + bucket_index;
   while (*pentry != NULL)
     {
       char *entry = (char *) *pentry;
-      if (equal (key, entry + key_offset, key_size))
+      if (equalfn (key, entry + key_offset, key_size))
 	{
 	  *pentry = *(void **) entry;
 	  __go_free (entry);

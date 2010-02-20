@@ -18,7 +18,8 @@ __go_mapiterinit (const struct __go_map *h, struct __go_hash_iter *it)
     {
       it->map = h;
       it->next_entry = NULL;
-      it->bucket = -1U;
+      it->bucket = 0;
+      --it->bucket;
       __go_mapiternext(it);
     }
 }

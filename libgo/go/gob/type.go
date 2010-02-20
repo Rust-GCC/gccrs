@@ -37,6 +37,7 @@ type typeId int32
 
 var nextId typeId       // incremented for each new type we build
 var typeLock sync.Mutex // set while building a type
+const firstUserId = 64  // lowest id number granted to user
 
 type gobType interface {
 	id() typeId
@@ -101,6 +102,7 @@ var tString = bootstrapType("string", "", 6)
 var tWireType = mustGetTypeInfo(reflect.Typeof(wireType{})).id
 
 func init() {
+	// Some magic numbers to make sure there are no surprises.
 	checkId(7, tWireType)
 	checkId(9, mustGetTypeInfo(reflect.Typeof(commonType{})).id)
 	checkId(11, mustGetTypeInfo(reflect.Typeof(structType{})).id)
@@ -109,6 +111,12 @@ func init() {
 	for k, v := range idToType {
 		builtinIdToType[k] = v
 	}
+	// Move the id space upwards to allow for growth in the predefined world
+	// without breaking existing files.
+	if nextId > firstUserId {
+		panicln("nextId too large:", nextId)
+	}
+	nextId = firstUserId
 }
 
 // Array type
@@ -212,35 +220,13 @@ func newTypeObject(name string, rt reflect.Type) (gobType, os.Error) {
 	case *reflect.BoolType:
 		return tBool.gobType(), nil
 
-	case *reflect.IntType:
-		return tInt.gobType(), nil
-	case *reflect.Int8Type:
-		return tInt.gobType(), nil
-	case *reflect.Int16Type:
-		return tInt.gobType(), nil
-	case *reflect.Int32Type:
-		return tInt.gobType(), nil
-	case *reflect.Int64Type:
+	case *reflect.IntType, *reflect.Int8Type, *reflect.Int16Type, *reflect.Int32Type, *reflect.Int64Type:
 		return tInt.gobType(), nil
 
-	case *reflect.UintType:
-		return tUint.gobType(), nil
-	case *reflect.Uint8Type:
-		return tUint.gobType(), nil
-	case *reflect.Uint16Type:
-		return tUint.gobType(), nil
-	case *reflect.Uint32Type:
-		return tUint.gobType(), nil
-	case *reflect.Uint64Type:
-		return tUint.gobType(), nil
-	case *reflect.UintptrType:
+	case *reflect.UintType, *reflect.Uint8Type, *reflect.Uint16Type, *reflect.Uint32Type, *reflect.Uint64Type, *reflect.UintptrType:
 		return tUint.gobType(), nil
 
-	case *reflect.FloatType:
-		return tFloat.gobType(), nil
-	case *reflect.Float32Type:
-		return tFloat.gobType(), nil
-	case *reflect.Float64Type:
+	case *reflect.FloatType, *reflect.Float32Type, *reflect.Float64Type:
 		return tFloat.gobType(), nil
 
 	case *reflect.StringType:

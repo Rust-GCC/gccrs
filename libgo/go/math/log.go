@@ -4,6 +4,9 @@
 
 package math
 
+/*
+	Floating-point logarithm.
+*/
 
 // The original C code, the long comment, and the constants
 // below are from FreeBSD's /usr/src/lib/msun/src/e_log.c
@@ -87,9 +90,11 @@ func Log(x float64) float64 {
 		L7    = 1.479819860511658591e-01   /* 3FC2F112 DF3E5244 */
 	)
 
+	// TODO(rsc): Remove manual inlining of IsNaN, IsInf
+	// when compiler does it for us
 	// special cases
 	switch {
-	case IsNaN(x) || IsInf(x, 1):
+	case x != x || x > MaxFloat64: // IsNaN(x) || IsInf(x, 1):
 		return x
 	case x < 0:
 		return NaN()
@@ -119,9 +124,8 @@ func Log(x float64) float64 {
 
 // Log10 returns the decimal logarithm of x.
 // The special cases are the same as for Log.
-func Log10(x float64) float64 {
-	if x <= 0 {
-		return NaN()
-	}
-	return Log(x) * (1 / Ln10)
-}
+func Log10(x float64) float64 { return Log(x) * (1 / Ln10) }
+
+// Log2 returns the binary logarithm of x.
+// The special cases are the same as for Log.
+func Log2(x float64) float64 { return Log(x) * (1 / Ln2) }

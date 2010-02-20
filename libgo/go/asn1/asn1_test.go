@@ -224,16 +224,17 @@ func newString(s string) *string { return &s }
 func newBool(b bool) *bool { return &b }
 
 var parseFieldParametersTestData []parseFieldParametersTest = []parseFieldParametersTest{
-	parseFieldParametersTest{"", fieldParameters{false, false, nil, nil, 0}},
-	parseFieldParametersTest{"ia5", fieldParameters{false, false, nil, nil, tagIA5String}},
-	parseFieldParametersTest{"printable", fieldParameters{false, false, nil, nil, tagPrintableString}},
-	parseFieldParametersTest{"optional", fieldParameters{true, false, nil, nil, 0}},
-	parseFieldParametersTest{"explicit", fieldParameters{false, true, nil, new(int), 0}},
-	parseFieldParametersTest{"optional,explicit", fieldParameters{true, true, nil, new(int), 0}},
-	parseFieldParametersTest{"default:42", fieldParameters{false, false, newInt64(42), nil, 0}},
-	parseFieldParametersTest{"tag:17", fieldParameters{false, false, nil, newInt(17), 0}},
-	parseFieldParametersTest{"optional,explicit,default:42,tag:17", fieldParameters{true, true, newInt64(42), newInt(17), 0}},
-	parseFieldParametersTest{"optional,explicit,default:42,tag:17,rubbish1", fieldParameters{true, true, newInt64(42), newInt(17), 0}},
+	parseFieldParametersTest{"", fieldParameters{}},
+	parseFieldParametersTest{"ia5", fieldParameters{stringType: tagIA5String}},
+	parseFieldParametersTest{"printable", fieldParameters{stringType: tagPrintableString}},
+	parseFieldParametersTest{"optional", fieldParameters{optional: true}},
+	parseFieldParametersTest{"explicit", fieldParameters{explicit: true, tag: new(int)}},
+	parseFieldParametersTest{"optional,explicit", fieldParameters{optional: true, explicit: true, tag: new(int)}},
+	parseFieldParametersTest{"default:42", fieldParameters{defaultValue: newInt64(42)}},
+	parseFieldParametersTest{"tag:17", fieldParameters{tag: newInt(17)}},
+	parseFieldParametersTest{"optional,explicit,default:42,tag:17", fieldParameters{optional: true, explicit: true, defaultValue: newInt64(42), tag: newInt(17)}},
+	parseFieldParametersTest{"optional,explicit,default:42,tag:17,rubbish1", fieldParameters{true, true, newInt64(42), newInt(17), 0, false}},
+	parseFieldParametersTest{"set", fieldParameters{set: true}},
 }
 
 func TestParseFieldParameters(t *testing.T) {
@@ -263,6 +264,11 @@ type TestContextSpecificTags2 struct {
 	B int
 }
 
+type TestElementsAfterString struct {
+	S    string
+	A, B int
+}
+
 var unmarshalTestData []unmarshalTest = []unmarshalTest{
 	unmarshalTest{[]byte{0x02, 0x01, 0x42}, newInt(0x42)},
 	unmarshalTest{[]byte{0x30, 0x08, 0x06, 0x06, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d}, &TestObjectIdentifierStruct{[]int{1, 2, 840, 113549}}},
@@ -277,6 +283,7 @@ var unmarshalTestData []unmarshalTest = []unmarshalTest{
 	unmarshalTest{[]byte{0x30, 0x08, 0xa1, 0x03, 0x02, 0x01, 0x01, 0x02, 0x01, 0x02}, &TestContextSpecificTags2{1, 2}},
 	unmarshalTest{[]byte{0x01, 0x01, 0x00}, newBool(false)},
 	unmarshalTest{[]byte{0x01, 0x01, 0x01}, newBool(true)},
+	unmarshalTest{[]byte{0x30, 0x0b, 0x13, 0x03, 0x66, 0x6f, 0x6f, 0x02, 0x01, 0x22, 0x02, 0x01, 0x33}, &TestElementsAfterString{"foo", 0x22, 0x33}},
 }
 
 func TestUnmarshal(t *testing.T) {
@@ -315,9 +322,9 @@ type AlgorithmIdentifier struct {
 	Algorithm ObjectIdentifier
 }
 
-type RDNSequence []RelativeDistinguishedName
+type RDNSequence []RelativeDistinguishedNameSET
 
-type RelativeDistinguishedName []AttributeTypeAndValue
+type RelativeDistinguishedNameSET []AttributeTypeAndValue
 
 type AttributeTypeAndValue struct {
 	Type  ObjectIdentifier
@@ -386,21 +393,21 @@ var derEncodedSelfSignedCert = Certificate{
 		SerialNumber: RawValue{Class: 0, Tag: 2, IsCompound: false, Bytes: []uint8{0x0, 0x8c, 0xc3, 0x37, 0x92, 0x10, 0xec, 0x2c, 0x98}},
 		SignatureAlgorithm: AlgorithmIdentifier{Algorithm: ObjectIdentifier{1, 2, 840, 113549, 1, 1, 5}},
 		Issuer: RDNSequence{
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 6}, Value: "XX"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 8}, Value: "Some-State"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 7}, Value: "City"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 10}, Value: "Internet Widgits Pty Ltd"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 3}, Value: "false.example.com"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}, Value: "false@example.com"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 6}, Value: "XX"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 8}, Value: "Some-State"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 7}, Value: "City"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 10}, Value: "Internet Widgits Pty Ltd"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 3}, Value: "false.example.com"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}, Value: "false@example.com"}},
 		},
 		Validity: Validity{NotBefore: &time.Time{Year: 2009, Month: 10, Day: 8, Hour: 0, Minute: 25, Second: 53, Weekday: 0, ZoneOffset: 0, Zone: ""}, NotAfter: &time.Time{Year: 2010, Month: 10, Day: 8, Hour: 0, Minute: 25, Second: 53, Weekday: 0, ZoneOffset: 0, Zone: ""}},
 		Subject: RDNSequence{
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 6}, Value: "XX"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 8}, Value: "Some-State"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 7}, Value: "City"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 10}, Value: "Internet Widgits Pty Ltd"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 3}, Value: "false.example.com"}},
-			RelativeDistinguishedName{AttributeTypeAndValue{Type: ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}, Value: "false@example.com"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 6}, Value: "XX"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 8}, Value: "Some-State"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 7}, Value: "City"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 10}, Value: "Internet Widgits Pty Ltd"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 3}, Value: "false.example.com"}},
+			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}, Value: "false@example.com"}},
 		},
 		PublicKey: PublicKeyInfo{
 			Algorithm: AlgorithmIdentifier{Algorithm: ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}},

@@ -20,8 +20,6 @@
 //	MHeap: the malloc heap, managed at page (4096-byte) granularity.
 //	MSpan: a run of pages managed by the MHeap.
 //	MHeapMap: a mapping from page IDs to MSpans.
-//	MHeapMapCache: a small cache of MHeapMap mapping page IDs
-//		to size classes for pages used for small objects.
 //	MCentral: a shared free list for a given size class.
 //	MCache: a per-thread (in Go, per-M) cache for small objects.
 //	MStats: allocation statistics.
@@ -67,15 +65,26 @@
 // Allocating and freeing a large object uses the page heap
 // directly, bypassing the MCache and MCentral free lists.
 //
+// The small objects on the MCache and MCentral free lists
+// may or may not be zeroed.  They are zeroed if and only if
+// the second word of the object is zero.  The spans in the
+// page heap are always zeroed.  When a span full of objects
+// is returned to the page heap, the objects that need to be
+// are zeroed first.  There are two main benefits to delaying the
+// zeroing this way:
+//
+//	1. stack frames allocated from the small object lists
+//	   can avoid zeroing altogether.
+//	2. the cost of zeroing when reusing a small object is
+//	   charged to the mutator, not the garbage collector.
+//
 // This C code was written with an eye toward translating to Go
 // in the future.  Methods have the form Type_Method(Type *t, ...).
-
 
 typedef struct FixAlloc	FixAlloc;
 typedef struct MCentral	MCentral;
 typedef struct MHeap	MHeap;
 typedef struct MHeapMap	MHeapMap;
-typedef struct MHeapMapCache	MHeapMapCache;
 typedef struct MSpan	MSpan;
 typedef struct MStats	MStats;
 typedef struct MLink	MLink;
@@ -91,7 +100,7 @@ typedef	uintptr	PageID;		// address >> PageShift
 enum
 {
 	// Tunable constants.
-	NumSizeClasses = 150,		// Number of size classes (must match msize.c)
+	NumSizeClasses = 67,		// Number of size classes (must match msize.c)
 	MaxSmallSize = 32<<10,
 
 	FixAllocChunk = 128<<10,	// Chunk size for FixAlloc
@@ -101,6 +110,11 @@ enum
 	HeapAllocChunk = 1<<20,		// Chunk size for heap growth
 };
 
+#if __SIZEOF_POINTER__ == 8
+#include "mheapmap64.h"
+#else
+#include "mheapmap32.h"
+#endif
 
 // A generic linked list of blocks.  (Typically the block is bigger than sizeof(MLink).)
 struct MLink
@@ -108,8 +122,9 @@ struct MLink
 	MLink *next;
 };
 
-// SysAlloc obtains a large chunk of memory from the operating system,
-// typically on the order of a hundred kilobytes or a megabyte.
+// SysAlloc obtains a large chunk of zeroed memory from the
+// operating system, typically on the order of a hundred kilobytes
+// or a megabyte.
 //
 // SysUnused notifies the operating system that the contents
 // of the memory region are no longer needed and can be reused
@@ -150,19 +165,30 @@ void	FixAlloc_Free(FixAlloc *f, void *p);
 
 
 // Statistics.
-// Shared with Go: if you edit this structure, also edit ../lib/malloc.go.
+// Shared with Go: if you edit this structure, also edit extern.go.
 struct MStats
 {
 	uint64	alloc;
+	uint64	total_alloc;
 	uint64	sys;
 	uint64	stacks;
 	uint64	inuse_pages;	// protected by mheap.Lock
 	uint64	next_gc;	// protected by mheap.Lock
 	uint64	nlookup;	// unprotected (approximate)
 	uint64	nmalloc;	// unprotected (approximate)
+	uint64	pause_ns;
+	uint32	numgc;
 	bool	enablegc;
+	bool	debuggc;
+	struct {
+		uint32 size;
+		uint64 nmalloc;
+		uint64 nfree;
+	} by_size[NumSizeClasses];
 };
-extern MStats mstats;
+
+extern MStats mstats
+  __asm__ ("libgo_runtime.runtime.MemStats");
 
 
 // Size classes.  Computed and initialized by InitSizes.
@@ -201,7 +227,7 @@ struct MCache
 	uint64 size;
 };
 
-void*	MCache_Alloc(MCache *c, int32 sizeclass, uintptr size);
+void*	MCache_Alloc(MCache *c, int32 sizeclass, uintptr size, int32 zeroed);
 void	MCache_Free(MCache *c, void *p, int32 sizeclass, uintptr size);
 
 
@@ -255,108 +281,6 @@ void	MCentral_Init(MCentral *c, int32 sizeclass);
 int32	MCentral_AllocList(MCentral *c, int32 n, MLink **first);
 void	MCentral_FreeList(MCentral *c, int32 n, MLink *first);
 
-
-// Free(v) must be able to determine the MSpan containing v.
-// The MHeapMap is a 3-level radix tree mapping page numbers to MSpans.
-//
-// NOTE(rsc): On a 32-bit platform (= 20-bit page numbers),
-// we can swap in a 2-level radix tree.
-//
-// NOTE(rsc): We use a 3-level tree because tcmalloc does, but
-// having only three levels requires approximately 1 MB per node
-// in the tree, making the minimum map footprint 3 MB.
-// Using a 4-level tree would cut the minimum footprint to 256 kB.
-// On the other hand, it's just virtual address space: most of
-// the memory is never going to be touched, thus never paged in.
-
-typedef struct MHeapMapNode2 MHeapMapNode2;
-typedef struct MHeapMapNode3 MHeapMapNode3;
-
-enum
-{
-#if __SIZEOF_POINTER__ == 4
-	// 32 bit address - 12 bit page size == 20 bits to map
-	MHeapMap_Level1Bits = 8,
-	MHeapMap_Level2Bits = 8,
-	MHeapMap_Level3Bits = 4,
-#else
-	// 64 bit address - 12 bit page size = 52 bits to map
-	MHeapMap_Level1Bits = 18,
-	MHeapMap_Level2Bits = 18,
-	MHeapMap_Level3Bits = 16,
-#endif
-
-	MHeapMap_TotalBits =
-		MHeapMap_Level1Bits +
-		MHeapMap_Level2Bits +
-		MHeapMap_Level3Bits,
-
-	MHeapMap_Level1Mask = (1<<MHeapMap_Level1Bits) - 1,
-	MHeapMap_Level2Mask = (1<<MHeapMap_Level2Bits) - 1,
-	MHeapMap_Level3Mask = (1<<MHeapMap_Level3Bits) - 1,
-};
-
-struct MHeapMap
-{
-	void *(*allocator)(uintptr);
-	MHeapMapNode2 *p[1<<MHeapMap_Level1Bits];
-};
-
-struct MHeapMapNode2
-{
-	MHeapMapNode3 *p[1<<MHeapMap_Level2Bits];
-};
-
-struct MHeapMapNode3
-{
-	MSpan *s[1<<MHeapMap_Level3Bits];
-};
-
-void	MHeapMap_Init(MHeapMap *m, void *(*allocator)(uintptr));
-bool	MHeapMap_Preallocate(MHeapMap *m, PageID k, uintptr npages);
-MSpan*	MHeapMap_Get(MHeapMap *m, PageID k);
-MSpan*	MHeapMap_GetMaybe(MHeapMap *m, PageID k);
-void	MHeapMap_Set(MHeapMap *m, PageID k, MSpan *v);
-
-
-// Much of the time, free(v) needs to know only the size class for v,
-// not which span it came from.  The MHeapMap finds the size class
-// by looking up the span.
-//
-// An MHeapMapCache is a simple direct-mapped cache translating
-// page numbers to size classes.  It avoids the expensive MHeapMap
-// lookup for hot pages.
-//
-// The cache entries are 64 bits, with the page number in the low part
-// and the value at the top.
-//
-// NOTE(rsc): On a machine with 32-bit addresses (= 20-bit page numbers),
-// we can use a 16-bit cache entry by not storing the redundant 12 bits
-// of the key that are used as the entry index.  Here in 64-bit land,
-// that trick won't work unless the hash table has 2^28 entries.
-enum
-{
-	MHeapMapCache_HashBits = 12
-};
-
-struct MHeapMapCache
-{
-	uintptr array[1<<MHeapMapCache_HashBits];
-};
-
-// All macros for speed (sorry).
-#define HMASK	((1<<MHeapMapCache_HashBits)-1)
-#define KBITS	MHeapMap_TotalBits
-#define KMASK	((1LL<<KBITS)-1)
-
-#define MHeapMapCache_SET(cache, key, value) \
-	((cache)->array[(key) & HMASK] = (key) | ((uintptr)(value) << KBITS))
-
-#define MHeapMapCache_GET(cache, key, tmp) \
-	(tmp = (cache)->array[(key) & HMASK], \
-	 (tmp & KMASK) == (key) ? (tmp >> KBITS) : 0)
-
-
 // Main malloc heap.
 // The heap itself is the "free[]" and "large" arrays,
 // but all the other global data is here too.
@@ -369,7 +293,6 @@ struct MHeap
 
 	// span lookup
 	MHeapMap map;
-	MHeapMapCache mapcache;
 
 	// range of addresses we might see in the heap
 	byte *min;
@@ -394,17 +317,27 @@ MSpan*	MHeap_Alloc(MHeap *h, uintptr npage, int32 sizeclass);
 void	MHeap_Free(MHeap *h, MSpan *s);
 MSpan*	MHeap_Lookup(MHeap *h, PageID p);
 MSpan*	MHeap_LookupMaybe(MHeap *h, PageID p);
+void	MGetSizeClassInfo(int32 sizeclass, int32 *size, int32 *npages, int32 *nobj);
 
-int32	mlookup(void *v, byte **base, uintptr *size, uint32 **ref);
+void*	mallocgc(uintptr size, uint32 flag, int32 dogc, int32 zeroed);
+int32	mlookup(void *v, byte **base, uintptr *size, MSpan **s, uint32 **ref);
 void	gc(int32 force);
+
+void*	SysAlloc(uintptr);
+void	SysUnused(void*, uintptr);
+void	SysFree(void*, uintptr);
+
+void*	getfinalizer(void*, bool, int32*);
 
 enum
 {
 	RefcountOverhead = 4,	// one uint32 per object
 
 	RefFree = 0,	// must be zero
-	RefManual,	// manual allocation - don't free
 	RefStack,		// stack segment - don't free and don't scan for pointers
 	RefNone,		// no references
 	RefSome,		// some references
+	RefFinalize,	// ready to be finalized
+	RefNoPointers = 0x80000000U,	// flag - no pointers here
+	RefHasFinalizer = 0x40000000U,	// flag - has finalizer
 };

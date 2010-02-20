@@ -6,13 +6,16 @@ package math
 
 
 /*
- * asin(arg) and acos(arg) return the arcsin, arccos,
- * respectively of their arguments.
- *
- * Arctan is called after appropriate range reduction.
- */
+	Floating-point arcsine and arccosine.
 
-// Asin returns the arc sine of x.
+	They are implemented by computing the arctangent
+	after appropriate range reduction.
+*/
+
+// Asin returns the arcsine of x.
+//
+// Special case is:
+//	Asin(x) = NaN if x < -1 or x > 1
 func Asin(x float64) float64 {
 	sign := false
 	if x < 0 {
@@ -25,9 +28,9 @@ func Asin(x float64) float64 {
 
 	temp := Sqrt(1 - x*x)
 	if x > 0.7 {
-		temp = Pi/2 - Atan(temp/x)
+		temp = Pi/2 - satan(temp/x)
 	} else {
-		temp = Atan(x / temp)
+		temp = satan(x / temp)
 	}
 
 	if sign {
@@ -36,10 +39,8 @@ func Asin(x float64) float64 {
 	return temp
 }
 
-// Acos returns the arc cosine of x.
-func Acos(x float64) float64 {
-	if x > 1 || x < -1 {
-		return NaN()
-	}
-	return Pi/2 - Asin(x)
-}
+// Acos returns the arccosine of x.
+//
+// Special case is:
+//	Acos(x) = NaN if x < -1 or x > 1
+func Acos(x float64) float64 { return Pi/2 - Asin(x) }

@@ -58,7 +58,7 @@ func (a *exprInfo) newExpr(t Type, desc string) *expr {
 	return &expr{exprInfo: a, t: t, desc: desc}
 }
 
-func (a *exprInfo) diag(format string, args ...) {
+func (a *exprInfo) diag(format string, args ...interface{}) {
 	a.diagAt(&a.pos, format, args)
 }
 
@@ -578,7 +578,7 @@ func (a *exprCompiler) compile(x ast.Expr, callCtx bool) *expr {
 		}
 
 	case *ast.Ident:
-		return ei.compileIdent(a.block, a.constant, callCtx, x.Value)
+		return ei.compileIdent(a.block, a.constant, callCtx, x.Name())
 
 	case *ast.IndexExpr:
 		l, r := a.compile(x.X, false), a.compile(x.Index, false)
@@ -612,7 +612,7 @@ func (a *exprCompiler) compile(x ast.Expr, callCtx bool) *expr {
 		if v == nil {
 			return nil
 		}
-		return ei.compileSelectorExpr(v, x.Sel.Value)
+		return ei.compileSelectorExpr(v, x.Sel.Name())
 
 	case *ast.StarExpr:
 		// We pass down our call context because this could be

@@ -2187,7 +2187,7 @@ Gogo::type_descriptor_type_tree()
       equal_fntype = build_pointer_type(equal_fntype);
 
       Gogo::builtin_struct(&descriptor_type, "__go_type_descriptor", NULL_TREE,
-			   8,
+			   9,
 			   "__code",
 			   unsigned_char_type_node,
 			   "__align",
@@ -2197,8 +2197,10 @@ Gogo::type_descriptor_type_tree()
 			   "__size",
 			   Type::lookup_integer_type("uintptr")->get_tree(this),
 			   "__hash",
+			   Type::lookup_integer_type("uint32")->get_tree(this),
+			   "__hashfn",
 			   hash_fntype,
-			   "__equal",
+			   "__equalfn",
 			   equal_fntype,
 			   "__reflection",
 			   string_pointer_type,
@@ -2209,12 +2211,12 @@ Gogo::type_descriptor_type_tree()
 
       tree method_type = Gogo::builtin_struct(NULL, "__go_method", NULL_TREE,
 					      5,
-					      "__hash",
-					      uint32_type_node,
 					      "__name",
 					      string_pointer_type,
 					      "__pkg_path",
 					      string_pointer_type,
+					      "__mtype",
+					      descriptor_pointer_type,
 					      "__type",
 					      descriptor_pointer_type,
 					      "__function",
@@ -2335,15 +2337,8 @@ Gogo::type_method_table_entry(tree method_entry_tree,
   Function_type* mtype = m->type();
 
   tree field = TYPE_FIELDS(method_entry_tree);
-  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__hash") == 0);
-  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
-  elt->index = field;
-  elt->value = build_int_cst_type(TREE_TYPE(field),
-				  mtype->hash_for_method(this));
-
-  field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__name") == 0);
-  elt = VEC_quick_push(constructor_elt, init, NULL);
+  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   const std::string& n(Gogo::unpack_hidden_name(method_name));
   elt->value = this->ptr_go_string_constant_tree(Gogo::unpack_hidden_name(n));
@@ -2359,6 +2354,14 @@ Gogo::type_method_table_entry(tree method_entry_tree,
       std::string s = Gogo::hidden_name_prefix(method_name);
       elt->value = this->ptr_go_string_constant_tree(s);
     }
+
+  field = TREE_CHAIN(field);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__mtype") == 0);
+  elt = VEC_quick_push(constructor_elt, init, NULL);
+  elt->index = field;
+  gcc_assert(mtype->is_method());
+  Type* nonmethod_type = mtype->copy_without_receiver();
+  elt->value = nonmethod_type->type_descriptor(this);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__type") == 0);
@@ -2541,7 +2544,7 @@ Gogo::type_descriptor_constructor(int runtime_type_code, Type* type,
   if (type_tree == error_mark_node)
     return error_mark_node;
 
-  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 8);
+  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 9);
 
   tree field = TYPE_FIELDS(type_descriptor_type_tree);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__code") == 0);
@@ -2582,18 +2585,25 @@ Gogo::type_descriptor_constructor(int runtime_type_code, Type* type,
   elt->index = field;
   elt->value = TYPE_SIZE_UNIT(type_tree);
 
+  field = TREE_CHAIN(field);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__hash") == 0);
+  elt = VEC_quick_push(constructor_elt, init, NULL);
+  elt->index = field;
+  elt->value = build_int_cst_type(TREE_TYPE(field),
+				  type->hash_for_method(this));
+
   tree hash_fn;
   tree equal_fn;
   this->type_functions(type, &hash_fn, &equal_fn);
 
   field = TREE_CHAIN(field);
-  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__hash") == 0);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__hashfn") == 0);
   elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = hash_fn;
 
   field = TREE_CHAIN(field);
-  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__equal") == 0);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__equalfn") == 0);
   elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = equal_fn;
@@ -3450,9 +3460,7 @@ Gogo::interface_type_descriptor_type_tree()
       tree ptr_string_type_tree = build_pointer_type(string_type_tree);
 
       tree method_type = Gogo::builtin_struct(NULL, "__go_interface_method",
-					      NULL_TREE, 4,
-					      "__hash",
-					      uint32_type_node,
+					      NULL_TREE, 3,
 					      "__name",
 					      ptr_string_type_tree,
 					      "__pkg_path",
@@ -3477,18 +3485,11 @@ tree
 Gogo::interface_type_method(tree method_type_tree,
 			    const Typed_identifier* method)
 {
-  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 4);
+  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 3);
 
   tree field = TYPE_FIELDS(method_type_tree);
-  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__hash") == 0);
-  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
-  elt->index = field;
-  elt->value = build_int_cst_type(TREE_TYPE(field),
-				  method->type()->hash_for_method(this));
-
-  field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__name") == 0);
-  elt = VEC_quick_push(constructor_elt, init, NULL);
+  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   std::string n = Gogo::unpack_hidden_name(method->name());
   elt->value = this->ptr_go_string_constant_tree(n);

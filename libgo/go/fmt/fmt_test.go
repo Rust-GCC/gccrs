@@ -7,8 +7,8 @@ package fmt_test
 import (
 	. "fmt"
 	"io"
-	"malloc" // for the malloc count test only
 	"math"
+	"runtime" // for the malloc count test only
 	"strings"
 	"testing"
 )
@@ -217,6 +217,11 @@ var fmttests = []fmtTest{
 	fmtTest{"%+v", B{1, 2}, `{i:<1> j:2}`},
 	fmtTest{"%+v", C{1, B{2, 3}}, `{i:1 B:{i:<2> j:3}}`},
 
+	// %p on non-pointers
+	fmtTest{"%p", make(chan int), "PTR"},
+	fmtTest{"%p", make(map[int]int), "PTR"},
+	fmtTest{"%p", make([]int, 1), "PTR"},
+
 	// go syntax
 	fmtTest{"%#v", A{1, 2, "a", []int{1, 2}}, `fmt_test.A{i:1, j:0x2, s:"a", x:[]int{1, 2}}`},
 	fmtTest{"%#v", &b, "(*uint8)(PTR)"},
@@ -224,6 +229,11 @@ var fmttests = []fmtTest{
 	fmtTest{"%#v", make(chan int), "(chan int)(PTR)"},
 	fmtTest{"%#v", uint64(1<<64 - 1), "0xffffffffffffffff"},
 	fmtTest{"%#v", 1000000000, "1000000000"},
+
+	// erroneous things
+	fmtTest{"%d", "hello", "%d(string=hello)"},
+	fmtTest{"no args", "hello", "no args?(extra string=hello)"},
+	fmtTest{"%s", nil, "%s(<nil>)"},
 }
 
 func TestSprintf(t *testing.T) {
@@ -233,7 +243,7 @@ func TestSprintf(t *testing.T) {
 			j := i + 2
 			for ; j < len(s); j++ {
 				c := s[j]
-				if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+				if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
 					break
 				}
 			}
@@ -276,29 +286,29 @@ func BenchmarkSprintfIntInt(b *testing.B) {
 }
 
 func TestCountMallocs(t *testing.T) {
-	mallocs := 0 - malloc.GetStats().Mallocs
+	mallocs := 0 - runtime.MemStats.Mallocs
 	for i := 0; i < 100; i++ {
 		Sprintf("")
 	}
-	mallocs += malloc.GetStats().Mallocs
+	mallocs += runtime.MemStats.Mallocs
 	Printf("mallocs per Sprintf(\"\"): %d\n", mallocs/100)
-	mallocs = 0 - malloc.GetStats().Mallocs
+	mallocs = 0 - runtime.MemStats.Mallocs
 	for i := 0; i < 100; i++ {
 		Sprintf("xxx")
 	}
-	mallocs += malloc.GetStats().Mallocs
+	mallocs += runtime.MemStats.Mallocs
 	Printf("mallocs per Sprintf(\"xxx\"): %d\n", mallocs/100)
-	mallocs = 0 - malloc.GetStats().Mallocs
+	mallocs = 0 - runtime.MemStats.Mallocs
 	for i := 0; i < 100; i++ {
 		Sprintf("%x", i)
 	}
-	mallocs += malloc.GetStats().Mallocs
+	mallocs += runtime.MemStats.Mallocs
 	Printf("mallocs per Sprintf(\"%%x\"): %d\n", mallocs/100)
-	mallocs = 0 - malloc.GetStats().Mallocs
+	mallocs = 0 - runtime.MemStats.Mallocs
 	for i := 0; i < 100; i++ {
 		Sprintf("%x %x", i, i)
 	}
-	mallocs += malloc.GetStats().Mallocs
+	mallocs += runtime.MemStats.Mallocs
 	Printf("mallocs per Sprintf(\"%%x %%x\"): %d\n", mallocs/100)
 }
 

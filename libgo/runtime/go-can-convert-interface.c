@@ -64,7 +64,8 @@ __go_can_convert_to_interface (
       if (from_method_count == 0)
 	return 0;
 
-      if (from_method->__hash != to_method->__hash)
+      if (!__go_type_descriptors_equal (from_method->__mtype,
+					to_method->__type))
 	return 0;
 
       ++to_method;

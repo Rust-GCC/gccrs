@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	maxLineLength  = 1024 // assumed < bufio.DefaultBufSize
-	maxValueLength = 1024
+	maxLineLength  = 4096 // assumed <= bufio.defaultBufSize
+	maxValueLength = 4096
 	maxHeaderLines = 1024
 	chunkSize      = 4 << 10 // 4 KB chunks
 )
@@ -34,9 +34,12 @@ type ProtocolError struct {
 }
 
 var (
-	ErrLineTooLong   = &ProtocolError{"header line too long"}
-	ErrHeaderTooLong = &ProtocolError{"header too long"}
-	ErrShortBody     = &ProtocolError{"entity body too short"}
+	ErrLineTooLong          = &ProtocolError{"header line too long"}
+	ErrHeaderTooLong        = &ProtocolError{"header too long"}
+	ErrShortBody            = &ProtocolError{"entity body too short"}
+	ErrNotSupported         = &ProtocolError{"feature not supported"}
+	ErrUnexpectedTrailer    = &ProtocolError{"trailer header without chunked transfer encoding"}
+	ErrMissingContentLength = &ProtocolError{"missing ContentLength in HEAD response"}
 )
 
 type badStringError struct {
@@ -45,6 +48,15 @@ type badStringError struct {
 }
 
 func (e *badStringError) String() string { return fmt.Sprintf("%s %q", e.what, e.str) }
+
+var reqExcludeHeader = map[string]int{
+	"Host": 0,
+	"User-Agent": 0,
+	"Referer": 0,
+	"Content-Length": 0,
+	"Transfer-Encoding": 0,
+	"Trailer": 0,
+}
 
 // A Request represents a parsed HTTP request header.
 type Request struct {
@@ -77,7 +89,16 @@ type Request struct {
 	Header map[string]string
 
 	// The message body.
-	Body io.Reader
+	Body io.ReadCloser
+
+	// ContentLength records the length of the associated content.
+	// The value -1 indicates that the length is unknown.
+	// Values >= 0 indicate that the given number of bytes may be read from Body.
+	ContentLength int64
+
+	// TransferEncoding lists the transfer encodings from outermost to innermost.
+	// An empty list denotes the "identity" encoding.
+	TransferEncoding []string
 
 	// Whether to close the connection after replying to this request.
 	Close bool
@@ -104,6 +125,11 @@ type Request struct {
 
 	// The parsed form. Only available after ParseForm is called.
 	Form map[string][]string
+
+	// Trailer maps trailer keys to values.  Like for Header, if the
+	// response has multiple trailer lines with the same key, they will be
+	// concatenated, delimited by commas.
+	Trailer map[string]string
 }
 
 // ProtoAtLeast returns whether the HTTP protocol used
@@ -125,6 +151,7 @@ const defaultUserAgent = "Go http package"
 
 // Write writes an HTTP/1.1 request -- header and body -- in wire format.
 // This method consults the following fields of req:
+//	Host
 //	URL
 //	Method (defaults to "GET")
 //	UserAgent (defaults to defaultUserAgent)
@@ -132,24 +159,36 @@ const defaultUserAgent = "Go http package"
 //	Header
 //	Body
 //
-// If Body is present, "Transfer-Encoding: chunked" is forced as a header.
+// If Body is present, Write forces "Transfer-Encoding: chunked" as a header
+// and then closes Body when finished sending it.
 func (req *Request) Write(w io.Writer) os.Error {
-	uri := URLEscape(req.URL.Path)
+	host := req.Host
+	if host == "" {
+		host = req.URL.Host
+	}
+
+	uri := urlEscape(req.URL.Path, false)
 	if req.URL.RawQuery != "" {
 		uri += "?" + req.URL.RawQuery
 	}
 
 	fmt.Fprintf(w, "%s %s HTTP/1.1\r\n", valueOrDefault(req.Method, "GET"), uri)
-	fmt.Fprintf(w, "Host: %s\r\n", req.URL.Host)
-	fmt.Fprintf(w, "User-Agent: %s\r\n", valueOrDefault(req.UserAgent, defaultUserAgent))
 
+	// Header lines
+	fmt.Fprintf(w, "Host: %s\r\n", host)
+	fmt.Fprintf(w, "User-Agent: %s\r\n", valueOrDefault(req.UserAgent, defaultUserAgent))
 	if req.Referer != "" {
 		fmt.Fprintf(w, "Referer: %s\r\n", req.Referer)
 	}
 
-	if req.Body != nil {
-		// Force chunked encoding
-		req.Header["Transfer-Encoding"] = "chunked"
+	// Process Body,ContentLength,Close,Trailer
+	tw, err := newTransferWriter(req)
+	if err != nil {
+		return err
+	}
+	err = tw.WriteHeader(w)
+	if err != nil {
+		return err
 	}
 
 	// TODO: split long values?  (If so, should share code with Conn.Write)
@@ -159,39 +198,17 @@ func (req *Request) Write(w io.Writer) os.Error {
 	// from Request, and introduce Request methods along the lines of
 	// Response.{GetHeader,AddHeader} and string constants for "Host",
 	// "User-Agent" and "Referer".
-	for k, v := range req.Header {
-		io.WriteString(w, k+": "+v+"\r\n")
+	err = writeSortedKeyValue(w, req.Header, reqExcludeHeader)
+	if err != nil {
+		return err
 	}
 
 	io.WriteString(w, "\r\n")
 
-	if req.Body != nil {
-		buf := make([]byte, chunkSize)
-	Loop:
-		for {
-			var nr, nw int
-			var er, ew os.Error
-			if nr, er = req.Body.Read(buf); nr > 0 {
-				if er == nil || er == os.EOF {
-					fmt.Fprintf(w, "%x\r\n", nr)
-					nw, ew = w.Write(buf[0:nr])
-					fmt.Fprint(w, "\r\n")
-				}
-			}
-			switch {
-			case er != nil:
-				if er == os.EOF {
-					break Loop
-				}
-				return er
-			case ew != nil:
-				return ew
-			case nw < nr:
-				return io.ErrShortWrite
-			}
-		}
-		// last-chunk CRLF
-		fmt.Fprint(w, "0\r\n\r\n")
+	// Write body and trailer
+	err = tw.WriteBody(w)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -497,37 +514,24 @@ func ReadRequest(b *bufio.Reader) (req *Request, err os.Error) {
 	//	GET http://www.google.com/index.html HTTP/1.1
 	//	Host: doesntmatter
 	// the same.  In the second case, any Host line is ignored.
-	if v, present := req.Header["Host"]; present && req.URL.Host == "" {
-		req.Host = v
+	req.Host = req.URL.Host
+	if v, present := req.Header["Host"]; present {
+		if req.Host == "" {
+			req.Host = v
+		}
+		req.Header["Host"] = "", false
 	}
 
-	// RFC2616: Should treat
-	//	Pragma: no-cache
-	// like
-	//	Cache-Control: no-cache
-	if v, present := req.Header["Pragma"]; present && v == "no-cache" {
-		if _, presentcc := req.Header["Cache-Control"]; !presentcc {
-			req.Header["Cache-Control"] = "no-cache"
-		}
-	}
-
-	// Determine whether to hang up after sending the reply.
-	if req.ProtoMajor < 1 || (req.ProtoMajor == 1 && req.ProtoMinor < 1) {
-		req.Close = true
-	} else if v, present := req.Header["Connection"]; present {
-		// TODO: Should split on commas, toss surrounding white space,
-		// and check each field.
-		if v == "close" {
-			req.Close = true
-		}
-	}
+	fixPragmaCacheControl(req.Header)
 
 	// Pull out useful fields as a convenience to clients.
 	if v, present := req.Header["Referer"]; present {
 		req.Referer = v
+		req.Header["Referer"] = "", false
 	}
 	if v, present := req.Header["User-Agent"]; present {
 		req.UserAgent = v
+		req.Header["User-Agent"] = "", false
 	}
 
 	// TODO: Parse specific header values:
@@ -556,22 +560,9 @@ func ReadRequest(b *bufio.Reader) (req *Request, err os.Error) {
 	//	Via
 	//	Warning
 
-	// A message body exists when either Content-Length or Transfer-Encoding
-	// headers are present. Transfer-Encoding trumps Content-Length.
-	if v, present := req.Header["Transfer-Encoding"]; present && v == "chunked" {
-		req.Body = newChunkedReader(b)
-	} else if v, present := req.Header["Content-Length"]; present {
-		length, err := strconv.Btoui64(v, 10)
-		if err != nil {
-			return nil, &badStringError{"invalid Content-Length", v}
-		}
-		// TODO: limit the Content-Length. This is an easy DoS vector.
-		raw := make([]byte, length)
-		n, err := b.Read(raw)
-		if err != nil || uint64(n) < length {
-			return nil, ErrShortBody
-		}
-		req.Body = bytes.NewBuffer(raw)
+	err = readTransfer(req, b)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil

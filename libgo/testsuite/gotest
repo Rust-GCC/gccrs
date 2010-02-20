@@ -58,6 +58,13 @@ done
 DIR=gotest$$
 rm -rf $DIR
 mkdir $DIR
+
+if test -n "$GOTEST_EXTRAFILES"; then
+  for f in "$GOTEST_EXTRAFILES"; do
+    cp $f $DIR/
+  done
+fi
+
 cd $DIR
 
 if test $keep = false; then

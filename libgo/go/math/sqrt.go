@@ -6,19 +6,12 @@ package math
 
 func libc_sqrt(float64) float64 __asm__("sqrt")
 
-/*
- *	sqrt returns the square root of its floating
- *	point argument. Newton's method.
- *
- *	calls frexp
- */
-
 // Sqrt returns the square root of x.
 //
 // Special cases are:
 //	Sqrt(+Inf) = +Inf
-//	Sqrt(0) = 0
 //	Sqrt(x < 0) = NaN
+//	Sqrt(NaN) = NaN
 func Sqrt(x float64) float64 {
 	if IsInf(x, 1) {
 		return x
@@ -29,6 +22,10 @@ func Sqrt(x float64) float64 {
 			return NaN()
 		}
 		return 0
+	}
+
+	if IsNaN(x) {
+		return NaN()
 	}
 
 	return libc_sqrt(x)

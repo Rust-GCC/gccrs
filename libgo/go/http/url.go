@@ -67,11 +67,74 @@ func shouldEscape(c byte) bool {
 	return false
 }
 
+// CanonicalPath applies the algorithm specified in RFC 2396 to
+// simplify the path, removing unnecessary  . and .. elements.
+func CanonicalPath(path string) string {
+	buf := strings.Bytes(path)
+	a := buf[0:0]
+	// state helps to find /.. ^.. ^. and /. patterns.
+	// state == 1 - prev char is '/' or beginning of the string.
+	// state > 1  - prev state > 0 and prev char was '.'
+	// state == 0 - otherwise
+	state := 1
+	cnt := 0
+	for _, v := range buf {
+		switch v {
+		case '/':
+			s := state
+			state = 1
+			switch s {
+			case 2:
+				a = a[0 : len(a)-1]
+				continue
+			case 3:
+				if cnt > 0 {
+					i := len(a) - 4
+					for ; i >= 0 && a[i] != '/'; i-- {
+					}
+					a = a[0 : i+1]
+					cnt--
+					continue
+				}
+			default:
+				if len(a) > 0 {
+					cnt++
+				}
+			}
+		case '.':
+			if state > 0 {
+				state++
+			}
+		default:
+			state = 0
+		}
+		l := len(a)
+		a = a[0 : l+1]
+		a[l] = v
+	}
+	switch {
+	case state == 2:
+		a = a[0 : len(a)-1]
+	case state == 3 && cnt > 0:
+		i := len(a) - 4
+		for ; i >= 0 && a[i] != '/'; i-- {
+		}
+		a = a[0 : i+1]
+	}
+	return string(a)
+}
+
 // URLUnescape unescapes a URL-encoded string,
 // converting %AB into the byte 0xAB and '+' into ' ' (space).
 // It returns an error if any % is not followed
 // by two hexadecimal digits.
-func URLUnescape(s string) (string, os.Error) {
+func URLUnescape(s string) (string, os.Error) { return urlUnescape(s, true) }
+
+// urlUnescape is like URLUnescape but can be told not to
+// convert + into space.  URLUnescape implements what is
+// called "URL encoding" but that only applies to query strings.
+// Elsewhere in the URL, + does not mean space.
+func urlUnescape(s string, doPlus bool) (string, os.Error) {
 	// Count %, check that they're well-formed.
 	n := 0
 	hasPlus := false
@@ -88,7 +151,7 @@ func URLUnescape(s string) (string, os.Error) {
 			}
 			i += 3
 		case '+':
-			hasPlus = true
+			hasPlus = doPlus
 			i++
 		default:
 			i++
@@ -108,7 +171,11 @@ func URLUnescape(s string) (string, os.Error) {
 			j++
 			i += 3
 		case '+':
-			t[j] = ' '
+			if doPlus {
+				t[j] = ' '
+			} else {
+				t[j] = '+'
+			}
 			j++
 			i++
 		default:
@@ -121,12 +188,14 @@ func URLUnescape(s string) (string, os.Error) {
 }
 
 // URLEscape converts a string into URL-encoded form.
-func URLEscape(s string) string {
+func URLEscape(s string) string { return urlEscape(s, true) }
+
+func urlEscape(s string, doPlus bool) string {
 	spaceCount, hexCount := 0, 0
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if shouldEscape(c) {
-			if c == ' ' {
+			if c == ' ' && doPlus {
 				spaceCount++
 			} else {
 				hexCount++
@@ -142,7 +211,7 @@ func URLEscape(s string) string {
 	j := 0
 	for i := 0; i < len(s); i++ {
 		switch c := s[i]; {
-		case c == ' ':
+		case c == ' ' && doPlus:
 			t[j] = '+'
 			j++
 		case shouldEscape(c):
@@ -221,13 +290,6 @@ func split(s string, c byte, cutc bool) (string, string) {
 	return s, ""
 }
 
-// TODO(rsc): The BUG comment is supposed to appear in the godoc output
-// in a BUGS section, but that got lost in the transition to godoc.
-
-// BUG(rsc): ParseURL should canonicalize the path,
-// removing unnecessary . and .. elements.
-
-
 // ParseURL parses rawurl into a URL structure.
 // The string rawurl is assumed not to have a #fragment suffix.
 // (Web browsers strip #fragment before sending the URL to a web server.)
@@ -264,18 +326,16 @@ func ParseURL(rawurl string) (url *URL, err os.Error) {
 		url.Userinfo, url.Host = split(url.Authority, '@', true)
 	}
 
-	// What's left is the path.
-	// TODO: Canonicalize (remove . and ..)?
-	if url.Path, err = URLUnescape(path); err != nil {
+	if url.Path, err = urlUnescape(path, false); err != nil {
 		goto Error
 	}
 
 	// Remove escapes from the Authority and Userinfo fields, and verify
 	// that Scheme and Host contain no escapes (that would be illegal).
-	if url.Authority, err = URLUnescape(url.Authority); err != nil {
+	if url.Authority, err = urlUnescape(url.Authority, false); err != nil {
 		goto Error
 	}
-	if url.Userinfo, err = URLUnescape(url.Userinfo); err != nil {
+	if url.Userinfo, err = urlUnescape(url.Userinfo, false); err != nil {
 		goto Error
 	}
 	if strings.Index(url.Scheme, "%") >= 0 {
@@ -301,7 +361,7 @@ func ParseURLReference(rawurlref string) (url *URL, err os.Error) {
 	if url, err = ParseURL(rawurl); err != nil {
 		return nil, err
 	}
-	if url.Fragment, err = URLUnescape(frag); err != nil {
+	if url.Fragment, err = urlUnescape(frag, false); err != nil {
 		return nil, &URLError{"parse", rawurl, err}
 	}
 	return url, nil
@@ -320,16 +380,16 @@ func (url *URL) String() string {
 	if url.Host != "" || url.Userinfo != "" {
 		result += "//"
 		if url.Userinfo != "" {
-			result += URLEscape(url.Userinfo) + "@"
+			result += urlEscape(url.Userinfo, false) + "@"
 		}
 		result += url.Host
 	}
-	result += URLEscape(url.Path)
+	result += urlEscape(url.Path, false)
 	if url.RawQuery != "" {
 		result += "?" + url.RawQuery
 	}
 	if url.Fragment != "" {
-		result += "#" + URLEscape(url.Fragment)
+		result += "#" + urlEscape(url.Fragment, false)
 	}
 	return result
 }

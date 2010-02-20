@@ -21,7 +21,7 @@ __go_type_descriptors_equal (const struct __go_type_descriptor *td1,
   /* In a type switch we can get a NULL descriptor.  */
   if (td1 == NULL || td2 == NULL)
     return 0;
-  if (td1->__code != td2->__code)
+  if (td1->__code != td2->__code || td1->__hash != td2->__hash)
     return 0;
   if (td1->__uncommon != NULL && td1->__uncommon->__name != NULL)
     {

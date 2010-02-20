@@ -7,6 +7,7 @@
 package os
 
 import (
+	"runtime"
 	"syscall"
 )
 
@@ -35,7 +36,9 @@ func NewFile(fd int, name string) *File {
 	if fd < 0 {
 		return nil
 	}
-	return &File{fd, name, nil, 0}
+	f := &File{fd, name, nil, 0}
+	runtime.SetFinalizer(f, (*File).Close)
+	return f
 }
 
 // Stdin, Stdout, and Stderr are open Files pointing to the standard input,
@@ -85,7 +88,7 @@ func Open(name string, flag int, perm int) (file *File, err Error) {
 // Close closes the File, rendering it unusable for I/O.
 // It returns an Error, if any.
 func (file *File) Close() Error {
-	if file == nil {
+	if file == nil || file.fd < 0 {
 		return EINVAL
 	}
 	var err Error
@@ -427,7 +430,7 @@ func Rename(oldname, newname string) Error {
 }
 
 // Chmod changes the mode of the named file to mode.
-// If the file is a symbolic link, it changes the uid and gid of the link's target.
+// If the file is a symbolic link, it changes the mode of the link's target.
 func Chmod(name string, mode int) Error {
 	if e := syscall.Chmod(name, mode); e != 0 {
 		return &PathError{"chmod", name, Errno(e)}

@@ -30,7 +30,6 @@ var good_re = []string{
 	`[^\n]`,
 }
 
-// TODO: nice to do this with a map
 type stringError struct {
 	re  string
 	err os.Error
@@ -97,6 +96,10 @@ var matches = []tester{
 	tester{`[.]`, ".", vec{0, 1}},
 	tester{`/$`, "/abc/", vec{4, 5}},
 	tester{`/$`, "/abc", vec{}},
+
+	// fixed bugs
+	tester{`ab$`, "cab", vec{1, 3}},
+	tester{`axxb$`, "axxcb", vec{}},
 }
 
 func compileTest(t *testing.T, expr string, error os.Error) *Regexp {
@@ -450,6 +453,34 @@ func TestAllMatches(t *testing.T) {
 			t.Log("got: ")
 			printStringSlice(t, result)
 			t.Log("\n")
+		}
+	}
+}
+
+type numSubexpCase struct {
+	input    string
+	expected int
+}
+
+var numSubexpCases = []numSubexpCase{
+	numSubexpCase{``, 0},
+	numSubexpCase{`.*`, 0},
+	numSubexpCase{`abba`, 0},
+	numSubexpCase{`ab(b)a`, 1},
+	numSubexpCase{`ab(.*)a`, 1},
+	numSubexpCase{`(.*)ab(.*)a`, 2},
+	numSubexpCase{`(.*)(ab)(.*)a`, 3},
+	numSubexpCase{`(.*)((a)b)(.*)a`, 4},
+	numSubexpCase{`(.*)(\(ab)(.*)a`, 3},
+	numSubexpCase{`(.*)(\(a\)b)(.*)a`, 3},
+}
+
+func TestNumSubexp(t *testing.T) {
+	for _, c := range numSubexpCases {
+		re, _ := Compile(c.input)
+		n := re.NumSubexp()
+		if n != c.expected {
+			t.Errorf("NumSubexp for %q returned %d, expected %d", c.input, n, c.expected)
 		}
 	}
 }

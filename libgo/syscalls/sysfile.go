@@ -57,6 +57,7 @@ func libc_getpagesize() int __asm__ ("getpagesize");
 func libc_exit(status int) __asm__ ("exit")
 func libc_getpid() Pid_t __asm__ ("getpid")
 func libc_getppid() Pid_t __asm__ ("getppid")
+func libc_kill(Pid_t, int) int __asm__ ("kill")
 func errno_location() *int __asm__ ("__errno_location");
 
 func Open(name string, mode int, perm int) (fd int, errno int) {
@@ -407,4 +408,12 @@ func Getpid() (pid int) {
 
 func Getppid() (ppid int) {
   return int(libc_getppid());
+}
+
+func Kill(pid int, sig int) (errno int) {
+	r := libc_kill(Pid_t(pid), sig)
+	if r < 0 {
+		errno = *errno_location()
+	}
+	return
 }

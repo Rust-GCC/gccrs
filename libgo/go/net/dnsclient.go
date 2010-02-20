@@ -17,6 +17,8 @@ package net
 import (
 	"once"
 	"os"
+	"rand"
+	"time"
 )
 
 // DNSError represents a DNS lookup error.
@@ -44,7 +46,7 @@ func _Exchange(cfg *_DNS_Config, c Conn, name string) (m *_DNS_Msg, err os.Error
 		return nil, &DNSError{"name too long", name, ""}
 	}
 	out := new(_DNS_Msg)
-	out.id = 0x1234
+	out.id = uint16(rand.Int()) ^ uint16(time.Nanoseconds())
 	out.question = []_DNS_Question{
 		_DNS_Question{name, _DNS_TypeA, _DNS_ClassINET},
 	}
@@ -224,7 +226,7 @@ func isDomainName(s string) bool {
 	return ok
 }
 
-// LookupHost looks up the host name using the local DNS resolver.
+// LookupHost looks for name using the local hosts file and DNS resolver.
 // It returns the canonical name for the host and an array of that
 // host's addresses.
 func LookupHost(name string) (cname string, addrs []string, err os.Error) {
@@ -236,7 +238,12 @@ func LookupHost(name string) (cname string, addrs []string, err os.Error) {
 		err = dnserr
 		return
 	}
-
+	// Use entries from /etc/hosts if they match.
+	addrs = lookupStaticHost(name)
+	if len(addrs) > 0 {
+		cname = name
+		return
+	}
 	// If name is rooted (trailing dot) or has enough dots,
 	// try it by itself first.
 	rooted := len(name) > 0 && name[len(name)-1] == '.'

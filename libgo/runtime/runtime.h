@@ -7,6 +7,7 @@
 #define _GNU_SOURCE
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 #include <sys/mman.h>
@@ -70,6 +71,7 @@ enum
 struct	M
 {
 	int32	mallocing;
+	int32	gcing;
 	MCache	*mcache;
 };
 
@@ -105,10 +107,10 @@ void	notesleep(Note*);
 void	notewakeup(Note*);
 
 /* Functions.  */
-#define sys_memclr(buf, size) __builtin_memset(buf, 0, size)
-#define sys_mmap mmap
+#define runtime_memclr(buf, size) __builtin_memset(buf, 0, size)
+#define runtime_mmap mmap
 MCache*	allocmcache(void);
-void*	mallocgc(uintptr size);
 void	free(void *v);
+void	addfinalizer(void*, void(*fn)(void*), int32);
 
 #define cas(pval, old, new) __sync_bool_compare_and_swap (pval, old, new)

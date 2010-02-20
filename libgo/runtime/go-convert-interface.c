@@ -98,7 +98,8 @@ __go_convert_interface (const struct __go_type_descriptor* lhs_descriptor,
 	      __go_panic_msg ("' method");
 	    }
 
-	  if (p_lhs_method->__hash != p_rhs_method->__hash)
+	  if (!__go_type_descriptors_equal (p_lhs_method->__type,
+					    p_rhs_method->__mtype))
 	    {
 	      if (success != NULL)
 		{

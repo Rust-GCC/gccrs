@@ -54,8 +54,10 @@ type commonType struct {
 	align         uint8                                         // alignment of variable with this type
 	fieldAlign    uint8                                         // alignment of struct field with this type
 	size          uintptr                                       // size in bytes
-	hash          func(unsafe.Pointer, uintptr)                 // hash function
-	equal         func(unsafe.Pointer, unsafe.Pointer, uintptr) // equality function
+	hash          uint32  					    // hash of type; avoids computation in hash tables
+
+	hashfn        func(unsafe.Pointer, uintptr)                 // hash function
+	equalfn       func(unsafe.Pointer, unsafe.Pointer, uintptr) // equality function
 	string        *string                                       // string form; unnecessary  but undeniably useful
 	*uncommonType                                               // (relatively) uncommon fields
 }
@@ -65,10 +67,10 @@ type Type commonType
 
 // Method on non-interface type
 type method struct {
-	hash    uint32         // hash of name + pkg + typ
 	name    *string        // name of method
 	pkgPath *string        // nil for exported Names; otherwise import path
-	typ     *Type          // .(*FuncType) underneath
+	mtyp    *Type          // method type (without receiver)
+	typ     *Type          // .(*FuncType) underneath (with receiver)
 	tfn     unsafe.Pointer // fn used for normal method call
 }
 
@@ -93,6 +95,15 @@ type Float64Type commonType
 
 // FloatType represents a float type.
 type FloatType commonType
+
+// Complex64Type represents a complex64 type.
+type Complex64Type commonType
+
+// Complex128Type represents a complex128 type.
+type Complex128Type commonType
+
+// ComplexType represents a complex type.
+type ComplexType commonType
 
 // Int16Type represents an int16 type.
 type Int16Type commonType
@@ -172,7 +183,6 @@ type FuncType struct {
 
 // Method on interface type
 type imethod struct {
-	hash    uint32  // hash of name + pkg + typ; same hash as method
 	name    *string // name of method
 	pkgPath *string // nil for exported Names; otherwise import path
 	typ     *Type   // .(*FuncType) underneath

@@ -55,7 +55,7 @@ func (doc *docReader) init(pkgName string) {
 
 func (doc *docReader) addType(decl *ast.GenDecl) {
 	spec := decl.Specs[0].(*ast.TypeSpec)
-	typ := doc.lookupTypeDoc(spec.Name.Value)
+	typ := doc.lookupTypeDoc(spec.Name.Name())
 	// typ should always be != nil since declared types
 	// are always named - be conservative and check
 	if typ != nil {
@@ -86,7 +86,7 @@ func baseTypeName(typ ast.Expr) string {
 		// if the type is not exported, the effect to
 		// a client is as if there were no type name
 		if t.IsExported() {
-			return string(t.Value)
+			return string(t.Name())
 		}
 	case *ast.StarExpr:
 		return baseTypeName(t.X)
@@ -148,7 +148,7 @@ func (doc *docReader) addValue(decl *ast.GenDecl) {
 
 
 func (doc *docReader) addFunc(fun *ast.FuncDecl) {
-	name := fun.Name.Value
+	name := fun.Name.Name()
 
 	// determine if it should be associated with a type
 	if fun.Recv != nil {
@@ -291,9 +291,9 @@ func (doc *docReader) addFile(src *ast.File) {
 
 func NewFileDoc(file *ast.File) *PackageDoc {
 	var r docReader
-	r.init(file.Name.Value)
+	r.init(file.Name.Name())
 	r.addFile(file)
-	return r.newDoc("", "", nil)
+	return r.newDoc("", nil)
 }
 
 
@@ -307,7 +307,7 @@ func NewPackageDoc(pkg *ast.Package, importpath string) *PackageDoc {
 		filenames[i] = filename
 		i++
 	}
-	return r.newDoc(importpath, pkg.Path, filenames)
+	return r.newDoc(importpath, filenames)
 }
 
 
@@ -336,9 +336,9 @@ func declName(d *ast.GenDecl) string {
 
 	switch v := d.Specs[0].(type) {
 	case *ast.ValueSpec:
-		return v.Names[0].Value
+		return v.Names[0].Name()
 	case *ast.TypeSpec:
-		return v.Name.Value
+		return v.Name.Name()
 	}
 
 	return ""
@@ -400,7 +400,7 @@ func makeFuncDocs(m map[string]*ast.FuncDecl) []*FuncDoc {
 		if f.Recv != nil {
 			doc.Recv = f.Recv.Type
 		}
-		doc.Name = f.Name.Value
+		doc.Name = f.Name.Name()
 		doc.Decl = f
 		d[i] = doc
 		i++
@@ -433,7 +433,7 @@ func (p sortTypeDoc) Less(i, j int) bool {
 	// sort by name
 	// pull blocks (name = "") up to top
 	// in original order
-	if ni, nj := p[i].Type.Name.Value, p[j].Type.Name.Value; ni != nj {
+	if ni, nj := p[i].Type.Name.Name(), p[j].Type.Name.Name(); ni != nj {
 		return ni < nj
 	}
 	return p[i].order < p[j].order
@@ -511,7 +511,6 @@ func makeBugDocs(v *vector.Vector) []string {
 type PackageDoc struct {
 	PackageName string
 	ImportPath  string
-	FilePath    string
 	Filenames   []string
 	Doc         string
 	Consts      []*ValueDoc
@@ -524,11 +523,10 @@ type PackageDoc struct {
 
 // newDoc returns the accumulated documentation for the package.
 //
-func (doc *docReader) newDoc(importpath, filepath string, filenames []string) *PackageDoc {
+func (doc *docReader) newDoc(importpath string, filenames []string) *PackageDoc {
 	p := new(PackageDoc)
 	p.PackageName = doc.pkgName
 	p.ImportPath = importpath
-	p.FilePath = filepath
 	sort.SortStrings(filenames)
 	p.Filenames = filenames
 	p.Doc = CommentText(doc.doc)
@@ -581,12 +579,12 @@ func matchDecl(d *ast.GenDecl, names []string) bool {
 		switch v := d.(type) {
 		case *ast.ValueSpec:
 			for _, name := range v.Names {
-				if match(name.Value, names) {
+				if match(name.Name(), names) {
 					return true
 				}
 			}
 		case *ast.TypeSpec:
-			if match(v.Name.Value, names) {
+			if match(v.Name.Name(), names) {
 				return true
 			}
 		}

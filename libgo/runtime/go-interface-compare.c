@@ -30,8 +30,8 @@ __go_interface_compare (const void *left_arg, const void* right_arg)
     return 1;
   if (__go_is_pointer_type (left->__type_descriptor))
     return left->__object == right->__object ? 0 : 1;
-  if (!left->__type_descriptor->__equal (left->__object, right->__object,
-					 left->__type_descriptor->__size))
+  if (!left->__type_descriptor->__equalfn (left->__object, right->__object,
+					   left->__type_descriptor->__size))
     return 1;
   return 0;
 }

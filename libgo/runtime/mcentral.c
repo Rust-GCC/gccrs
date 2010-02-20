@@ -42,7 +42,6 @@ MCentral_AllocList(MCentral *c, int32 n, MLink **pfirst)
 	MLink *first, *last, *v;
 	int32 i;
 
-
 	lock(c);
 	// Replenish central list if empty.
 	if(MSpanList_IsEmpty(&c->nonempty)) {
@@ -118,6 +117,7 @@ MCentral_Free(MCentral *c, void *v)
 	MSpan *s;
 	PageID page;
 	MLink *p, *next;
+	int32 size;
 
 	// Find span for v.
 	page = (uintptr)v >> PageShift;
@@ -139,19 +139,37 @@ MCentral_Free(MCentral *c, void *v)
 
 	// If s is completely freed, return it to the heap.
 	if(--s->ref == 0) {
+		size = class_to_size[c->sizeclass];
 		MSpanList_Remove(s);
-		// Freed blocks are zeroed except for the link pointer.
-		// Zero the link pointers so that the page is all zero.
+		// The second word of each freed block indicates
+		// whether it needs to be zeroed.  The first word
+		// is the link pointer and must always be cleared.
 		for(p=s->freelist; p; p=next) {
 			next = p->next;
-			p->next = nil;
+			if(size > (int32)sizeof(uintptr) && ((uintptr*)p)[1] != 0)
+				runtime_memclr((byte*)p, size);
+			else
+				p->next = nil;
 		}
 		s->freelist = nil;
-		c->nfree -= (s->npages << PageShift) / class_to_size[c->sizeclass];
+		c->nfree -= (s->npages << PageShift) / size;
 		unlock(c);
 		MHeap_Free(&mheap, s);
 		lock(c);
 	}
+}
+
+void
+MGetSizeClassInfo(int32 sizeclass, int32 *sizep, int32 *npagesp, int32 *nobj)
+{
+	int32 size;
+	int32 npages;
+
+	npages = class_to_allocnpages[sizeclass];
+	size = class_to_size[sizeclass];
+	*npagesp = npages;
+	*sizep = size;
+	*nobj = (npages << PageShift) / (size + RefcountOverhead);
 }
 
 // Fetch a new span from the heap and
@@ -165,7 +183,7 @@ MCentral_Grow(MCentral *c)
 	MSpan *s;
 
 	unlock(c);
-	npages = class_to_allocnpages[c->sizeclass];
+	MGetSizeClassInfo(c->sizeclass, &size, &npages, &n);
 	s = MHeap_Alloc(&mheap, npages, c->sizeclass);
 	if(s == nil) {
 		// TODO(rsc): Log out of memory
@@ -176,8 +194,6 @@ MCentral_Grow(MCentral *c)
 	// Carve span into sequence of blocks.
 	tailp = &s->freelist;
 	p = (byte*)(s->start << PageShift);
-	size = class_to_size[c->sizeclass];
-	n = (npages << PageShift) / (size + RefcountOverhead);
 	s->gcref = (uint32*)(p + size*n);
 	for(i=0; i<n; i++) {
 		v = (MLink*)p;

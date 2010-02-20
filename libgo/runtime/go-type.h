@@ -77,15 +77,18 @@ struct __go_type_descriptor
      in Go have a fixed size.  */
   uintptr_t __size;
 
+  /* The type's hash code.  */
+  uint32_t __hash;
+
   /* This function takes a pointer to a value of this type, and the
      size of this type, and returns a hash code.  We pass the size
      explicitly becaues it means that we can share a single instance
      of this function for various different types.  */
-  size_t (*__hash) (const void *, size_t);
+  size_t (*__hashfn) (const void *, size_t);
 
   /* This function takes two pointers to values of this type, and the
      size of this type, and returns whether the values are equal.  */
-  _Bool (*__equal) (const void *, const void *, size_t);
+  _Bool (*__equalfn) (const void *, const void *, size_t);
 
   /* A string describing this type.  This is only used for
      debugging.  */
@@ -99,12 +102,6 @@ struct __go_type_descriptor
 
 struct __go_method
 {
-  /* A hash code for the type of the method.  This is computed by the
-     compiler.  It is used to ensure that dynamic interface
-     conversions don't get confused by two different types with
-     different methods with the same name.  */
-  uint32_t __hash;
-
   /* The name of the method.  */
   const struct __go_string **__name;
 
@@ -112,7 +109,12 @@ struct __go_method
      where it lives.  */
   const struct __go_string **__pkg_path;
 
-  /* The type of the method.  This will be a function type.  */
+  /* The type of the method, without the receiver.  This will be a
+     function type.  */
+  const struct __go_type_descriptor *__mtype;
+
+  /* The type of the method, with the receiver.  This will be a
+     function type.  */
   const struct __go_type_descriptor *__type;
 
   /* A pointer to the code which implements the method.  This is
@@ -204,11 +206,6 @@ struct __go_func_type
 
 struct __go_interface_method
 {
-  /* Hash code for the type of the method.  This is computed by the
-     compiler, and matches the hash codes used in struct
-     __go_method.  */
-  uint32_t __hash;
-
   /* The name of the method.  */
   const struct __go_string **__name;
 

@@ -6,7 +6,7 @@
 // It is intended to be used in concert with the ``gotest'' utility, which automates
 // execution of any function of the form
 //     func TestXxx(*testing.T)
-// where Xxx can by any alphanumeric string (but the first letter must not be in
+// where Xxx can be any alphanumeric string (but the first letter must not be in
 // [a-z]) and serves to identify the test routine.
 // These TestXxx routines should be declared within the package they are testing.
 //
@@ -89,34 +89,34 @@ func (t *T) FailNow() {
 
 // Log formats its arguments using default formatting, analogous to Print(),
 // and records the text in the error log.
-func (t *T) Log(args ...) { t.errors += "\t" + tabify(fmt.Sprintln(args)) }
+func (t *T) Log(args ...interface{}) { t.errors += "\t" + tabify(fmt.Sprintln(args)) }
 
 // Log formats its arguments according to the format, analogous to Printf(),
 // and records the text in the error log.
-func (t *T) Logf(format string, args ...) {
+func (t *T) Logf(format string, args ...interface{}) {
 	t.errors += "\t" + tabify(fmt.Sprintf(format, args))
 }
 
 // Error is equivalent to Log() followed by Fail().
-func (t *T) Error(args ...) {
+func (t *T) Error(args ...interface{}) {
 	t.Log(args)
 	t.Fail()
 }
 
 // Errorf is equivalent to Logf() followed by Fail().
-func (t *T) Errorf(format string, args ...) {
+func (t *T) Errorf(format string, args ...interface{}) {
 	t.Logf(format, args)
 	t.Fail()
 }
 
 // Fatal is equivalent to Log() followed by FailNow().
-func (t *T) Fatal(args ...) {
+func (t *T) Fatal(args ...interface{}) {
 	t.Log(args)
 	t.FailNow()
 }
 
 // Fatalf is equivalent to Logf() followed by FailNow().
-func (t *T) Fatalf(format string, args ...) {
+func (t *T) Fatalf(format string, args ...interface{}) {
 	t.Logf(format, args)
 	t.FailNow()
 }

@@ -240,11 +240,12 @@ func TestValueError(t *testing.T) {
 func TestArray(t *testing.T) {
 	type Type5 struct {
 		a [3]string
+		b [3]byte
 	}
 	type Type6 struct {
 		a [2]string // can't hold t5.a
 	}
-	t5 := Type5{[3]string{"hello", ",", "world"}}
+	t5 := Type5{[3]string{"hello", ",", "world"}, [3]byte{1, 2, 3}}
 	var t5p Type5
 	if err := encAndDec(t5, &t5p); err != nil {
 		t.Error(err)
@@ -252,5 +253,25 @@ func TestArray(t *testing.T) {
 	var t6 Type6
 	if err := encAndDec(t5, &t6); err == nil {
 		t.Error("should fail with mismatched array sizes")
+	}
+}
+
+// Regression test for bug: must send zero values inside arrays
+func TestDefaultsInArray(t *testing.T) {
+	type Type7 struct {
+		b []bool
+		i []int
+		s []string
+		f []float
+	}
+	t7 := Type7{
+		[]bool{false, false, true},
+		[]int{0, 0, 1},
+		[]string{"hi", "", "there"},
+		[]float{0, 0, 1},
+	}
+	var t7p Type7
+	if err := encAndDec(t7, &t7p); err != nil {
+		t.Error(err)
 	}
 }
