@@ -1070,8 +1070,8 @@ hash/libhash.la: hash/libhash.a
 
 http/libhttp.a: $(go_http_files) bufio.gox bytes.gox container/list.gox \
 		container/vector.gox encoding/base64.gox fmt.gox io.gox \
-		io/ioutil.gox log.gox net.gox os.gox path.gox sort.gox \
-		strconv.gox strings.gox sync.gox utf8.gox
+		io/ioutil.gox log.gox mime.gox net.gox os.gox path.gox \
+		sort.gox strconv.gox strings.gox sync.gox utf8.gox
 	$(BUILDARCHIVE)
 http/libhttp.la: http/libhttp.a
 
