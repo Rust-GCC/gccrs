@@ -56,7 +56,7 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 		mstats.by_size[sizeclass].nmalloc++;
 
 		if(!mlookup(v, nil, nil, nil, &ref)) {
-			printf("malloc %lld; mlookup failed\n", (uint64)size);
+			printf("malloc %lld; mlookup failed\n", (long long)size);
 			throw("malloc mlookup");
 		}
 		*ref = RefNone | refflag;
@@ -184,10 +184,10 @@ mlookup(void *v, byte **base, uintptr *size, MSpan **sp, uint32 **ref)
 		nobj = (s->npages << PageShift) / (n + RefcountOverhead);
 		if((byte*)s->gcref < p || (byte*)(s->gcref+nobj) > p+(s->npages<<PageShift)) {
 			printf("odd span state=%d span=%p base=%p sizeclass=%d n=%llu size=%llu npages=%llu\n",
-				s->state, s, p, s->sizeclass, (uint64)nobj, (uint64)n, (uint64)s->npages);
+				s->state, s, p, s->sizeclass, (unsigned long long)nobj, (unsigned long long)n, (unsigned long long)s->npages);
 			printf("s->base sizeclass %d v=%p base=%p gcref=%p blocksize=%llu nobj=%llu size=%llu end=%p end=%p\n",
-				s->sizeclass, v, p, s->gcref, (uint64)s->npages<<PageShift,
-				(uint64)nobj, (uint64)n, s->gcref + nobj, p+(s->npages<<PageShift));
+				s->sizeclass, v, p, s->gcref, (unsigned long long)s->npages<<PageShift,
+				(unsigned long long)nobj, (unsigned long long)n, s->gcref + nobj, p+(s->npages<<PageShift));
 			throw("bad gcref");
 		}
 	}
@@ -300,7 +300,7 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 		throw("runtime.SetFinalizer");
 	}
 	if(obj->__type_descriptor->__code != GO_PTR) {
-		printf("runtime.SetFinalizer: first argument is %.*s, not pointer\n", (*obj->__type_descriptor->__reflection)->__length, (*obj->__type_descriptor->__reflection)->__data);
+		printf("runtime.SetFinalizer: first argument is %.*s, not pointer\n", (int)(*obj->__type_descriptor->__reflection)->__length, (*obj->__type_descriptor->__reflection)->__data);
 		goto throw;
 	}
 	if(!mlookup(obj->__object, &base, &size, nil, nil) || obj->__object != base) {
@@ -311,7 +311,7 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 	if(finalizer != nil) {
 		if(finalizer->__type_descriptor->__code != GO_FUNC) {
 		badfunc:
-		  printf("runtime.SetFinalizer: second argument is %.*s, not func(%.*s)\n", (*finalizer->__type_descriptor->__reflection)->__length, (*finalizer->__type_descriptor->__reflection)->__data, (*obj->__type_descriptor->__reflection)->__length, (*obj->__type_descriptor->__reflection)->__data);
+		  printf("runtime.SetFinalizer: second argument is %.*s, not func(%.*s)\n", (int)(*finalizer->__type_descriptor->__reflection)->__length, (*finalizer->__type_descriptor->__reflection)->__data, (int)(*obj->__type_descriptor->__reflection)->__length, (*obj->__type_descriptor->__reflection)->__data);
 			goto throw;
 		}
 		ft = (const FuncType*)finalizer->__type_descriptor;
