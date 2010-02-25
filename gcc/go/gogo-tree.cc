@@ -2787,12 +2787,14 @@ Gogo::finish_type_descriptor_decl(tree* pdecl, const Type* type,
     }
   else
     {
+#ifdef OBJECT_FORMAT_ELF
       // Give the decl protected visibility.  This avoids out-of-range
       // references with shared libraries with the x86_64 small model
       // when the type descriptor gets a COPY reloc into the main
       // executable.
       DECL_VISIBILITY(decl) = VISIBILITY_PROTECTED;
       DECL_VISIBILITY_SPECIFIED(decl) = 1;
+#endif
 
       TREE_PUBLIC(decl) = 1;
     }
@@ -3673,11 +3675,13 @@ Gogo::interface_method_table_for_type(const Interface_type* interface,
   // may be defined in multiple packages.
   if (has_hidden_methods)
     {
+#ifdef OBJECT_FORMAT_ELF
       // Give the decl protected visibility.  This avoids out-of-range
       // references with shared libraries with the x86_64 small model
       // when the table gets a COPY reloc into the main executable.
       DECL_VISIBILITY(decl) = VISIBILITY_PROTECTED;
       DECL_VISIBILITY_SPECIFIED(decl) = 1;
+#endif
 
       TREE_PUBLIC(decl) = 1;
     }
