@@ -241,7 +241,7 @@ MHeap_FreeLocked(MHeap *h, MSpan *s)
 	MSpan *t;
 
 	if(s->state != MSpanInUse || s->ref != 0) {
-		printf("MHeap_FreeLocked - span %p ptr %zu state %d ref %d\n", s, s->start<<PageShift, s->state, s->ref);
+		printf("MHeap_FreeLocked - span %p ptr %zu state %u ref %u\n", s, (size_t) (s->start<<PageShift), (unsigned int) s->state, (unsigned int) s->ref);
 		throw("MHeap_FreeLocked - invalid free");
 	}
 	s->state = MSpanFree;
