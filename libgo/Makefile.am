@@ -291,6 +291,8 @@ runtime_files = \
 	runtime/go-send-small.c \
 	runtime/go-signal.c \
 	runtime/go-strcmp.c \
+	runtime/go-string-to-byte-array.c \
+	runtime/go-string-to-int-array.c \
 	runtime/go-strplus.c \
 	runtime/go-strslice.c \
 	runtime/go-trampoline.c \

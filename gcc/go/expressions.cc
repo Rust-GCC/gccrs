@@ -2650,6 +2650,14 @@ Type_conversion_expression::do_check_types(Gogo*)
 	    }
 	}
     }
+  else if (type->is_open_array_type() && expr_type->is_string_type())
+    {
+      Type* e = type->array_type()->element_type()->forwarded();
+      if (e->integer_type() != NULL
+	  && (e == Type::lookup_integer_type("uint8")
+	      || e == Type::lookup_integer_type("int")))
+	ok = true;
+    }
   else if ((type->is_unsafe_pointer_type()
 	    && (expr_type->points_to() != NULL
 		|| (expr_type->integer_type() != NULL
@@ -2704,6 +2712,8 @@ Type_conversion_expression::do_being_copied(Refcounts* refcounts,
 	   && (expr_type->integer_type() != NULL
 	       || expr_type->deref()->array_type() != NULL))
     copy_base = false;
+  else if (type->is_open_array_type() && expr_type->is_string_type())
+    copy_base = false;
   else
     copy_base = true;
   if (copy_base && expr_type->has_refcounted_component())
@@ -2730,6 +2740,8 @@ Type_conversion_expression::do_note_decrements(Refcounts* refcounts)
   else if (type->is_string_type()
 	   && (expr_type->integer_type() != NULL
 	       || expr_type->deref()->array_type() != NULL))
+    need_decrement = true;
+  else if (type->is_open_array_type() && expr_type->is_string_type())
     need_decrement = true;
   else
     need_decrement = false;
@@ -2847,6 +2859,35 @@ Type_conversion_expression::do_get_tree(Translate_context* context)
 				   valptr,
 				   size_type_node,
 				   len);
+	}
+    }
+  else if (type->is_open_array_type() && expr_type->is_string_type())
+    {
+      Type* e = type->array_type()->element_type()->forwarded();
+      gcc_assert(e->integer_type() != NULL);
+      if (e->integer_type()->is_unsigned()
+	  && e->integer_type()->bits() == 8)
+	{
+	  static tree string_to_byte_array_fndecl;
+	  ret = Gogo::call_builtin(&string_to_byte_array_fndecl,
+				   this->location(),
+				   "__go_string_to_byte_array",
+				   1,
+				   type_tree,
+				   TREE_TYPE(expr_tree),
+				   expr_tree);
+	}
+      else
+	{
+	  gcc_assert(e == Type::lookup_integer_type("int"));
+	  static tree string_to_int_array_fndecl;
+	  ret = Gogo::call_builtin(&string_to_int_array_fndecl,
+				   this->location(),
+				   "__go_string_to_int_array",
+				   1,
+				   type_tree,
+				   TREE_TYPE(expr_tree),
+				   expr_tree);
 	}
     }
   else if ((type->is_unsafe_pointer_type()
