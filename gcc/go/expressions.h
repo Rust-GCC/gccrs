@@ -66,6 +66,7 @@ class Expression
     EXPRESSION_STRING,
     EXPRESSION_INTEGER,
     EXPRESSION_FLOAT,
+    EXPRESSION_COMPLEX,
     EXPRESSION_NIL,
     EXPRESSION_IOTA,
     EXPRESSION_CALL,
@@ -161,6 +162,11 @@ class Expression
   // abstract type.
   static Expression*
   make_float(const mpfr_t*, Type*, source_location);
+
+  // Make a constant complex expression.  TYPE should be NULL for an
+  // abstract type.
+  static Expression*
+  make_complex(const mpfr_t* real, const mpfr_t* imag, Type*, source_location);
 
   // Make a nil expression.
   static Expression*
@@ -313,6 +319,14 @@ class Expression
   // type.
   bool
   float_constant_value(mpfr_t val, Type** ptype) const;
+
+  // If this is not a constant expression with complex type, return
+  // false.  If it is one, return true, and set REAL and IMAG to the
+  // value.  REAL and IMAG should already be initialized.  If this
+  // return strue, it sets *PTYPE to the type of the value, or NULL
+  // for an abstract type.
+  bool
+  complex_constant_value(mpfr_t real, mpfr_t imag, Type** ptype) const;
 
   // If this is not a constant expression with string type, return
   // false.  If it is one, return true, and set VAL to the value.
@@ -507,8 +521,9 @@ class Expression
   lower(Gogo* gogo, Named_object* function, int iota_value)
   { return this->do_lower(gogo, function, iota_value); }
 
-  // Determine the real type of an expression with abstract integer or
-  // floating point type.  TYPE_CONTEXT describes the expected type.
+  // Determine the real type of an expression with abstract integer,
+  // floating point, or complex type.  TYPE_CONTEXT describes the
+  // expected type.
   void
   determine_type(const Type_context*);
 
@@ -613,6 +628,10 @@ class Expression
   static tree
   float_constant_tree(mpfr_t val, tree type);
 
+  // Return a tree for the complex value REAL/IMAG in TYPE.
+  static tree
+  complex_constant_tree(mpfr_t real, mpfr_t imag, tree type);
+
   // Export the expression.  This is only used for constants.  It will
   // be used for things like values of named constants and sizes of
   // arrays.
@@ -649,6 +668,12 @@ class Expression
   // type, and set VAL to the value.
   virtual bool
   do_float_constant_value(mpfr_t, Type**) const
+  { return false; }
+
+  // Return whether this is a constant expression of complex type, and
+  // set REAL and IMAGE to the value.
+  virtual bool
+  do_complex_constant_value(mpfr_t, mpfr_t, Type**) const
   { return false; }
 
   // Return whether this is a constant expression of string type, and
@@ -1077,6 +1102,14 @@ class Binary_expression : public Expression
 	     Type* right_type, mpfr_t right_val, mpfr_t val,
 	     source_location);
 
+  // Apply binary opcode OP to LEFT_REAL/LEFT_IMAG and
+  // RIGHT_REAL/RIGHT_IMAG, setting REAL/IMAG.  Return true if this
+  // could be done, false if not.
+  static bool
+  eval_complex(Operator op, Type* left_type, mpfr_t left_real,
+	       mpfr_t left_imag, Type* right_type, mpfr_t right_real,
+	       mpfr_t right_imag, mpfr_t real, mpfr_t imag, source_location);
+
   // Compare integer constants according to OP.
   static bool
   compare_integer(Operator op, mpz_t left_val, mpz_t right_val);
@@ -1084,6 +1117,11 @@ class Binary_expression : public Expression
   // Compare floating point constants according to OP.
   static bool
   compare_float(Operator op, Type* type, mpfr_t left_val, mpfr_t right_val);
+
+  // Compare complex constants according to OP.
+  static bool
+  compare_complex(Operator op, Type* type, mpfr_t left_real, mpfr_t left_imag,
+		  mpfr_t right_val, mpfr_t right_imag);
 
   static Expression*
   do_import(Import*);
@@ -1109,6 +1147,9 @@ class Binary_expression : public Expression
 
   bool
   do_float_constant_value(mpfr_t val, Type**) const;
+
+  bool
+  do_complex_constant_value(mpfr_t real, mpfr_t imag, Type**) const;
 
   void
   do_discarding_value();

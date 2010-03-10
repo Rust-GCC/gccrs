@@ -54,6 +54,9 @@
 #define GO_MAP 22
 #define GO_PTR 23
 #define GO_STRUCT 24
+#define GO_COMPLEX64 25
+#define GO_COMPLEX128 26
+#define GO_COMPLEX 27
 
 /* For each Go type the compiler constructs one of these structures.
    This is used for type reflectin, interfaces, maps, and reference

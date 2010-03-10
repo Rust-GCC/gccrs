@@ -80,6 +80,21 @@ type FloatType struct {
 	commonType
 }
 
+// Complex64Type represents a complex64 type.
+type Complex64Type struct {
+	commonType
+}
+
+// Complex128Type represents acomplex128 type.
+type Complex128Type struct {
+	commonType
+}
+
+// ComplexType represents a complex type.
+type ComplexType struct {
+	commonType
+}
+
 // Int16Type represents an int16 type.
 type Int16Type struct {
 	commonType
@@ -604,6 +619,12 @@ func toType(i interface{}) Type {
 		return (*Float32Type)(unsafe.Pointer(v))
 	case *runtime.Float64Type:
 		return (*Float64Type)(unsafe.Pointer(v))
+	case *runtime.ComplexType:
+		return (*ComplexType)(unsafe.Pointer(v))
+	case *runtime.Complex64Type:
+		return (*Complex64Type)(unsafe.Pointer(v))
+	case *runtime.Complex128Type:
+		return (*Complex128Type)(unsafe.Pointer(v))
 	case *runtime.IntType:
 		return (*IntType)(unsafe.Pointer(v))
 	case *runtime.Int8Type:
@@ -662,6 +683,12 @@ func runtimeToType(v *runtime.Type) Type {
 		r = (*Float32Type)(unsafe.Pointer(v))
 	case runtime.Float64TypeCode:
 		r = (*Float64Type)(unsafe.Pointer(v))
+	case runtime.ComplexTypeCode:
+		r = (*ComplexType)(unsafe.Pointer(v))
+	case runtime.Complex64TypeCode:
+		r = (*Complex64Type)(unsafe.Pointer(v))
+	case runtime.Complex128TypeCode:
+		r = (*Complex128Type)(unsafe.Pointer(v))
 	case runtime.IntTypeCode:
 		r = (*IntType)(unsafe.Pointer(v))
 	case runtime.Int8TypeCode:

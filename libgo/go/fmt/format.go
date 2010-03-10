@@ -42,13 +42,14 @@ type fmt struct {
 	wid  int
 	prec int
 	// flags
-	widPresent  bool
-	precPresent bool
-	minus       bool
-	plus        bool
-	sharp       bool
-	space       bool
-	zero        bool
+	widPresent    bool
+	precPresent   bool
+	minus         bool
+	plus          bool
+	sharp         bool
+	space         bool
+	zero          bool
+	preserveFlags bool // don't clear flags after this print; used to carry over in complex prints
 }
 
 func (f *fmt) clearflags() {
@@ -118,7 +119,9 @@ func (f *fmt) pad(b []byte) {
 	if right > 0 {
 		f.writePadding(right, padding)
 	}
-	f.clearflags()
+	if !f.preserveFlags {
+		f.clearflags()
+	}
 }
 
 // append s to buf, padded on left (w > 0) or right (w < 0 or f.minus).
@@ -136,7 +139,9 @@ func (f *fmt) padString(s string) {
 	if right > 0 {
 		f.writePadding(right, padding)
 	}
-	f.clearflags()
+	if !f.preserveFlags {
+		f.clearflags()
+	}
 }
 
 func putint(buf []byte, base, val uint64, digits string) int {
@@ -418,6 +423,64 @@ func (f *fmt) fmt_G32(v float32) { f.plusSpace(strconv.Ftoa32(v, 'G', doPrec(f, 
 
 // fmt_fb32 formats a float32 in the form -123p3 (exponent is power of 2).
 func (f *fmt) fmt_fb32(v float32) { f.padString(strconv.Ftoa32(v, 'b', 0)) }
+
+// fmt_c64 formats a complex64 according to its fmt_x argument.
+// TODO pass in a method rather than a byte when the compilers mature.
+func (f *fmt) fmt_c64(v complex64, fmt_x byte) {
+	f.buf.WriteByte('(')
+	r := real(v)
+	f.preserveFlags = true
+	for i := 0; ; i++ {
+		switch fmt_x {
+		case 'e':
+			f.fmt_e32(r)
+		case 'E':
+			f.fmt_E32(r)
+		case 'f':
+			f.fmt_f32(r)
+		case 'g':
+			f.fmt_g32(r)
+		case 'G':
+			f.fmt_G32(r)
+		}
+		f.preserveFlags = false
+		if i != 0 {
+			break
+		}
+		f.plus = true
+		r = imag(v)
+	}
+	f.buf.Write(irparenBytes)
+}
+
+// fmt_c128 formats a complex128 according to its fmt_x argument.
+// TODO pass in a method rather than a byte when the compilers mature.
+func (f *fmt) fmt_c128(v complex128, fmt_x byte) {
+	f.buf.WriteByte('(')
+	r := real(v)
+	f.preserveFlags = true
+	for i := 0; ; i++ {
+		switch fmt_x {
+		case 'e':
+			f.fmt_e64(r)
+		case 'E':
+			f.fmt_E64(r)
+		case 'f':
+			f.fmt_f64(r)
+		case 'g':
+			f.fmt_g64(r)
+		case 'G':
+			f.fmt_G64(r)
+		}
+		f.preserveFlags = false
+		if i != 0 {
+			break
+		}
+		f.plus = true
+		r = imag(v)
+	}
+	f.buf.Write(irparenBytes)
+}
 
 // float
 func (x *fmt) f(a float) {

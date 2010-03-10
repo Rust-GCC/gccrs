@@ -1686,9 +1686,33 @@ go_type_for_mode(enum machine_mode mode, int unsignedp)
 	  type = Type::lookup_float_type("float64");
 	  break;
 	default:
+	  // We have to check for long double in order to support
+	  // i386 excess precision.
+	  if (mode == TYPE_MODE(long_double_type_node))
+	    return long_double_type_node;
 	  return NULL_TREE;
 	}
       return type->float_type()->type_tree();
+    }
+  else if (mc == MODE_COMPLEX_FLOAT)
+    {
+      Type *type;
+      switch (GET_MODE_BITSIZE (mode))
+	{
+	case 64:
+	  type = Type::lookup_complex_type("complex64");
+	  break;
+	case 128:
+	  type = Type::lookup_complex_type("complex128");
+	  break;
+	default:
+	  // We have to check for long double in order to support
+	  // i386 excess precision.
+	  if (mode == TYPE_MODE(complex_long_double_type_node))
+	    return complex_long_double_type_node;
+	  return NULL_TREE;
+	}
+      return type->complex_type()->type_tree();
     }
   else
     return NULL_TREE;
@@ -2111,6 +2135,7 @@ Gogo::type_functions(const Type* keytype, tree* hash_fn, tree* equal_fn)
     case Type::TYPE_BOOLEAN:
     case Type::TYPE_INTEGER:
     case Type::TYPE_FLOAT:
+    case Type::TYPE_COMPLEX:
     case Type::TYPE_POINTER:
     case Type::TYPE_FUNCTION:
     case Type::TYPE_CHANNEL:
@@ -3778,7 +3803,8 @@ Gogo::send_on_channel(tree channel, tree val, bool blocking, bool for_select,
 		      source_location location)
 {
   if (int_size_in_bytes(TREE_TYPE(val)) <= 8
-      && !AGGREGATE_TYPE_P(TREE_TYPE(val)))
+      && !AGGREGATE_TYPE_P(TREE_TYPE(val))
+      && !FLOAT_TYPE_P(TREE_TYPE(val)))
     {
       val = convert_to_integer(uint64_type_node, val);
       if (blocking)
@@ -3889,7 +3915,8 @@ Gogo::receive_from_channel(tree type_tree, tree channel, bool for_select,
 			   source_location location)
 {
   if (int_size_in_bytes(type_tree) <= 8
-      && !AGGREGATE_TYPE_P(type_tree))
+      && !AGGREGATE_TYPE_P(type_tree)
+      && !FLOAT_TYPE_P(type_tree))
     {
       static tree receive_small_fndecl;
       tree call = Gogo::call_builtin(&receive_small_fndecl,

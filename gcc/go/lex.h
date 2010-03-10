@@ -72,7 +72,9 @@ class Token
     // Token is an integer.
     TOKEN_INTEGER,
     // Token is a floating point number.
-    TOKEN_FLOAT
+    TOKEN_FLOAT,
+    // Token is an imaginary number.
+    TOKEN_IMAGINARY
   };
 
   ~Token();
@@ -147,6 +149,16 @@ class Token
   make_float_token(mpfr_t val, source_location location)
   {
     Token tok(TOKEN_FLOAT, location);
+    mpfr_init(tok.u_.float_value);
+    mpfr_swap(tok.u_.float_value, val);
+    return tok;
+  }
+
+  // Make a token for an imaginary number.
+  static Token
+  make_imaginary_token(mpfr_t val, source_location location)
+  {
+    Token tok(TOKEN_IMAGINARY, location);
     mpfr_init(tok.u_.float_value);
     mpfr_swap(tok.u_.float_value, val);
     return tok;
@@ -228,6 +240,14 @@ class Token
     return &this->u_.float_value;
   }
 
+  // Return the value of an imaginary number.
+  const mpfr_t*
+  imaginary_value() const
+  {
+    gcc_assert(this->classification_ == TOKEN_IMAGINARY);
+    return &this->u_.float_value;
+  }
+
   // Return the operator value for an operator token.
   Operator
   op() const
@@ -281,7 +301,7 @@ class Token
     std::string* string_value;
     // The token value for TOKEN_INTEGER.
     mpz_t integer_value;
-    // The token value for TOKEN_FLOAT.
+    // The token value for TOKEN_FLOAT or TOKEN_IMAGINARY.
     mpfr_t float_value;
     // The token value for TOKEN_OPERATOR or the keyword value
     Operator op;

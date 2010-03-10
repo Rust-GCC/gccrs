@@ -45,6 +45,9 @@ const (
 	MapTypeCode           = 22
 	PtrTypeCode           = 23
 	StructTypeCode        = 24
+	Complex64TypeCode     = 25
+	Complex128TypeCode    = 26
+	ComplexTypeCode       = 27
 )
 
 // All types begin with a few common fields needed for

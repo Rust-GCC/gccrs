@@ -63,6 +63,11 @@ Gogo::Gogo()
   this->add_named_type(Type::make_float_type("float64", 64,
 					     RUNTIME_TYPE_CODE_FLOAT64));
 
+  this->add_named_type(Type::make_complex_type("complex64", 64,
+					       RUNTIME_TYPE_CODE_COMPLEX64));
+  this->add_named_type(Type::make_complex_type("complex128", 128,
+					       RUNTIME_TYPE_CODE_COMPLEX128));
+
   const int int_type_size = std::max(INT_TYPE_SIZE, 32);
   this->add_named_type(Type::make_integer_type("uint", true,
 					       int_type_size,
@@ -84,6 +89,9 @@ Gogo::Gogo()
 
   this->add_named_type(Type::make_float_type("float", FLOAT_TYPE_SIZE,
 					     RUNTIME_TYPE_CODE_FLOAT));
+
+  this->add_named_type(Type::make_complex_type("complex", FLOAT_TYPE_SIZE * 2,
+					       RUNTIME_TYPE_CODE_COMPLEX));
 
   this->add_named_type(Type::make_named_bool_type());
 
@@ -180,6 +188,21 @@ Gogo::Gogo()
   copy_type->set_is_varargs();
   copy_type->set_is_builtin();
   this->globals_->add_function_declaration("copy", NULL, copy_type, loc);
+
+  Function_type* cmplx_type = Type::make_function_type(NULL, NULL, NULL, loc);
+  cmplx_type->set_is_varargs();
+  cmplx_type->set_is_builtin();
+  this->globals_->add_function_declaration("cmplx", NULL, cmplx_type, loc);
+
+  Function_type* real_type = Type::make_function_type(NULL, NULL, NULL, loc);
+  real_type->set_is_varargs();
+  real_type->set_is_builtin();
+  this->globals_->add_function_declaration("real", NULL, real_type, loc);
+
+  Function_type* imag_type = Type::make_function_type(NULL, NULL, NULL, loc);
+  imag_type->set_is_varargs();
+  imag_type->set_is_builtin();
+  this->globals_->add_function_declaration("imag", NULL, cmplx_type, loc);
 
   this->define_builtin_function_trees();
 
@@ -1401,6 +1424,7 @@ Check_types_traverse::constant(Named_object* named_object, bool)
   Type* ctype = constant->type();
   if (ctype->integer_type() == NULL
       && ctype->float_type() == NULL
+      && ctype->complex_type() == NULL
       && !ctype->is_boolean_type()
       && !ctype->is_string_type())
     {

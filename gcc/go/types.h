@@ -17,6 +17,7 @@ class Typed_identifier;
 class Typed_identifier_list;
 class Integer_type;
 class Float_type;
+class Complex_type;
 class String_type;
 class Function_type;
 class Struct_field;
@@ -75,6 +76,9 @@ static const int RUNTIME_TYPE_CODE_INTERFACE = 21;
 static const int RUNTIME_TYPE_CODE_MAP = 22;
 static const int RUNTIME_TYPE_CODE_PTR = 23;
 static const int RUNTIME_TYPE_CODE_STRUCT = 24;
+static const int RUNTIME_TYPE_CODE_COMPLEX64 = 25;
+static const int RUNTIME_TYPE_CODE_COMPLEX128 = 26;
+static const int RUNTIME_TYPE_CODE_COMPLEX = 27;
 
 // To build the complete list of methods for a named type we need to
 // gather all methods from anonymous fields.  Those methods may
@@ -345,6 +349,7 @@ class Type
     TYPE_BOOLEAN,
     TYPE_INTEGER,
     TYPE_FLOAT,
+    TYPE_COMPLEX,
     TYPE_STRING,
     TYPE_SINK,
     TYPE_FUNCTION,
@@ -410,6 +415,20 @@ class Type
   // Look up a named float type.
   static Named_type*
   lookup_float_type(const char* name);
+
+  // Make an abstract complex type.
+  static Complex_type*
+  make_abstract_complex_type();
+
+  // Make a named complex type with a specific size.
+  // RUNTIME_TYPE_CODE is the code to use in reflection information,
+  // to distinguish complex and complex64.
+  static Named_type*
+  make_complex_type(const char* name, int bits, int runtime_type_code);
+
+  // Look up a named complex type.
+  static Named_type*
+  lookup_complex_type(const char* name);
 
   // Get the unnamed string type.
   static Type*
@@ -555,8 +574,8 @@ class Type
   bool
   is_basic_type() const;
 
-  // Return true if this is an abstract type--an integer or floating
-  // point type whose size has not been determined.
+  // Return true if this is an abstract type--an integer, floating
+  // point, or complex type whose size has not been determined.
   bool
   is_abstract() const;
 
@@ -614,6 +633,16 @@ class Type
   const Float_type*
   float_type() const
   { return this->convert<const Float_type, TYPE_FLOAT>(); }
+
+  // If this is a complex type, return the Complex_type.  Otherwise,
+  // return NULL.
+  Complex_type*
+  complex_type()
+  { return this->convert<Complex_type, TYPE_COMPLEX>(); }
+
+  const Complex_type*
+  complex_type() const
+  { return this->convert<const Complex_type, TYPE_COMPLEX>(); }
 
   // Return true if this is a boolean type.
   bool
@@ -1359,6 +1388,78 @@ class Float_type : public Type
   // True if this is an abstract type.
   bool is_abstract_;
   // The number of bits in the floating point value.
+  int bits_;
+  // The runtime type code used in the type descriptor for this type.
+  int runtime_type_code_;
+};
+
+// The type of a complex number.
+
+class Complex_type : public Type
+{
+ public:
+  // Create a new complex type.
+  static Named_type*
+  create_complex_type(const char* name, int bits, int runtime_type_code);
+
+  // Look up an existing complex type.
+  static Named_type*
+  lookup_complex_type(const char* name);
+
+  // Create an abstract complex type.
+  static Complex_type*
+  create_abstract_complex_type();
+
+  // Whether this is an abstract complex type.
+  bool
+  is_abstract() const
+  { return this->is_abstract_; }
+
+  // The number of bits: 64 or 128.
+  int bits() const
+  { return this->bits_; }
+
+  // Whether this type is the same as T.
+  bool
+  is_compatible(const Complex_type* t) const;
+
+  // Return a tree for this type without using a Gogo*.
+  tree
+  type_tree() const;
+
+ protected:
+  unsigned int
+  do_hash_for_method(Gogo*) const;
+
+  tree
+  do_get_tree(Gogo*);
+
+  tree
+  do_init_tree(Gogo*, bool);
+
+  void
+  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+
+  void
+  do_reflection(Gogo*, std::string*) const;
+
+  void
+  do_mangled_name(Gogo*, std::string*) const;
+
+ private:
+  Complex_type(bool is_abstract, int bits, int runtime_type_code)
+    : Type(TYPE_COMPLEX),
+      is_abstract_(is_abstract), bits_(bits),
+      runtime_type_code_(runtime_type_code)
+  { }
+
+  // Map names of complex types to the types themselves.
+  typedef std::map<std::string, Named_type*> Named_complex_types;
+  static Named_complex_types named_complex_types;
+
+  // True if this is an abstract type.
+  bool is_abstract_;
+  // The number of bits in the complex value--64 or 128.
   int bits_;
   // The runtime type code used in the type descriptor for this type.
   int runtime_type_code_;

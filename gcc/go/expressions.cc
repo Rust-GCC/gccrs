@@ -74,6 +74,24 @@ Expression::float_constant_value(mpfr_t val, Type** ptype) const
   return ret;
 }
 
+// If this expression has a constant complex value, return it.
+
+bool
+Expression::complex_constant_value(mpfr_t real, mpfr_t imag,
+				   Type** ptype) const
+{
+  *ptype = NULL;
+  if (this->do_complex_constant_value(real, imag, ptype))
+    return true;
+  Type *t;
+  if (this->float_constant_value(real, &t))
+    {
+      mpfr_set_ui(imag, 0, GMP_RNDN);
+      return true;
+    }
+  return false;
+}
+
 // Traverse the expressions.
 
 int
@@ -607,7 +625,8 @@ Expression::convert_for_assignment(Translate_context* context, Type* lhs_type,
     }
   else if (POINTER_TYPE_P(lhs_type_tree)
 	   || INTEGRAL_TYPE_P(lhs_type_tree)
-	   || SCALAR_FLOAT_TYPE_P(lhs_type_tree))
+	   || SCALAR_FLOAT_TYPE_P(lhs_type_tree)
+	   || COMPLEX_FLOAT_TYPE_P(lhs_type_tree))
     return fold_convert_loc(location, lhs_type_tree, rhs_tree);
   else if (TREE_CODE(lhs_type_tree) == RECORD_TYPE
 	   && TREE_CODE(TREE_TYPE(rhs_tree)) == RECORD_TYPE)
@@ -658,6 +677,16 @@ Expression::integer_constant_tree(mpz_t val, tree type)
       mpfr_clear(fval);
       return ret;
     }
+  else if (TREE_CODE(type) == COMPLEX_TYPE)
+    {
+      mpfr_t fval;
+      mpfr_init_set_z(fval, val, GMP_RNDN);
+      tree real = Expression::float_constant_tree(fval, TREE_TYPE(type));
+      mpfr_clear(fval);
+      tree imag = build_real_from_int_cst(TREE_TYPE(type),
+					  integer_zero_node);
+      return build_complex(type, real, imag);
+    }
   else
     gcc_unreachable();
 }
@@ -685,6 +714,40 @@ Expression::float_constant_tree(mpfr_t val, tree type)
       REAL_VALUE_TYPE r2;
       real_convert(&r2, TYPE_MODE(type), &r1);
       return build_real(type, r2);
+    }
+  else if (TREE_CODE(type) == COMPLEX_TYPE)
+    {
+      REAL_VALUE_TYPE r1;
+      real_from_mpfr(&r1, val, TREE_TYPE(type), GMP_RNDN);
+      REAL_VALUE_TYPE r2;
+      real_convert(&r2, TYPE_MODE(TREE_TYPE(type)), &r1);
+      tree imag = build_real_from_int_cst(TREE_TYPE(type),
+					  integer_zero_node);
+      return build_complex(type, build_real(TREE_TYPE(type), r2), imag);
+    }
+  else
+    gcc_unreachable();
+}
+
+// Return a tree for REAL/IMAG in TYPE.
+
+tree
+Expression::complex_constant_tree(mpfr_t real, mpfr_t imag, tree type)
+{
+  if (TREE_CODE(type) == COMPLEX_TYPE)
+    {
+      REAL_VALUE_TYPE r1;
+      real_from_mpfr(&r1, real, TREE_TYPE(type), GMP_RNDN);
+      REAL_VALUE_TYPE r2;
+      real_convert(&r2, TYPE_MODE(TREE_TYPE(type)), &r1);
+
+      REAL_VALUE_TYPE r3;
+      real_from_mpfr(&r3, imag, TREE_TYPE(type), GMP_RNDN);
+      REAL_VALUE_TYPE r4;
+      real_convert(&r4, TYPE_MODE(TREE_TYPE(type)), &r3);
+
+      return build_complex(type, build_real(TREE_TYPE(type), r2),
+			   build_real(TREE_TYPE(type), r4));
     }
   else
     gcc_unreachable();
@@ -715,6 +778,14 @@ class Error_expression : public Expression
   do_float_constant_value(mpfr_t val, Type**) const
   {
     mpfr_set_ui(val, 0, GMP_RNDN);
+    return true;
+  }
+
+  bool
+  do_complex_constant_value(mpfr_t real, mpfr_t imag, Type**) const
+  {
+    mpfr_set_ui(real, 0, GMP_RNDN);
+    mpfr_set_ui(imag, 0, GMP_RNDN);
     return true;
   }
 
@@ -1481,6 +1552,10 @@ class Integer_expression : public Expression
   static bool
   check_constant(mpz_t val, Type*, source_location);
 
+  // Write VAL to export data.
+  static void
+  export_integer(Export* exp, const mpz_t val);
+
  protected:
   bool
   do_is_constant() const
@@ -1549,7 +1624,8 @@ Integer_expression::do_determine_type(const Type_context* context)
     ;
   else if (context->type != NULL
 	   && (context->type->integer_type() != NULL
-	       || context->type->float_type() != NULL))
+	       || context->type->float_type() != NULL
+	       || context->type->complex_type() != NULL))
     this->type_ = context->type;
   else if (!context->may_be_abstract)
     this->type_ = Type::lookup_integer_type("int");
@@ -1621,6 +1697,11 @@ Integer_expression::do_get_tree(Translate_context* context)
       // We are converting to an abstract floating point type.
       type = Type::lookup_float_type("float64")->get_tree(gogo);
     }
+  else if (this->type_ != NULL && this->type_->complex_type() != NULL)
+    {
+      // We are converting to an abstract complex type.
+      type = Type::lookup_complex_type("complex128")->get_tree(gogo);
+    }
   else
     {
       // If we still have an abstract type here, then this is being
@@ -1638,27 +1719,84 @@ Integer_expression::do_get_tree(Translate_context* context)
   return Expression::integer_constant_tree(this->val_, type);
 }
 
+// Write VAL to export data.
+
+void
+Integer_expression::export_integer(Export* exp, const mpz_t val)
+{
+  char* s = mpz_get_str(NULL, 10, val);
+  exp->write_c_string(s);
+  free(s);
+}
+
 // Export an integer in a constant expression.
 
 void
 Integer_expression::do_export(Export* exp) const
 {
-  char* s = mpz_get_str(NULL, 10, this->val_);
-  exp->write_c_string(s);
-  free(s);
+  Integer_expression::export_integer(exp, this->val_);
   // A trailing space lets us reliably identify the end of the number.
   exp->write_c_string(" ");
 }
 
-// Import an integer or floating point value.  This handles both
-// because they both start with digits.
+// Import an integer, floating point, or complex value.  This handles
+// all these types because they all start with digits.
 
 Expression*
 Integer_expression::do_import(Import* imp)
 {
   std::string num = imp->read_identifier();
   imp->require_c_string(" ");
-  if (num.find('.') == std::string::npos && num.find('E') == std::string::npos)
+  if (!num.empty() && num[num.length() - 1] == 'i')
+    {
+      mpfr_t real;
+      size_t plus_pos = num.find('+', 1);
+      size_t minus_pos = num.find('-', 1);
+      size_t pos;
+      if (plus_pos == std::string::npos)
+	pos = minus_pos;
+      else if (minus_pos == std::string::npos)
+	pos = plus_pos;
+      else
+	{
+	  error_at(imp->location(), "bad number in import data: %qs",
+		   num.c_str());
+	  return Expression::make_error(imp->location());
+	}
+      if (pos == std::string::npos)
+	mpfr_set_ui(real, 0, GMP_RNDN);
+      else
+	{
+	  std::string real_str = num.substr(0, pos);
+	  if (mpfr_init_set_str(real, real_str.c_str(), 10, GMP_RNDN) != 0)
+	    {
+	      error_at(imp->location(), "bad number in import data: %qs",
+		       real_str.c_str());
+	      return Expression::make_error(imp->location());
+	    }
+	}
+
+      std::string imag_str;
+      if (pos == std::string::npos)
+	imag_str = num;
+      else
+	imag_str = num.substr(pos);
+      imag_str = imag_str.substr(0, imag_str.size() - 1);
+      mpfr_t imag;
+      if (mpfr_init_set_str(imag, imag_str.c_str(), 10, GMP_RNDN) != 0)
+	{
+	  error_at(imp->location(), "bad number in import data: %qs",
+		   imag_str.c_str());
+	  return Expression::make_error(imp->location());
+	}
+      Expression* ret = Expression::make_complex(&real, &imag, NULL,
+						 imp->location());
+      mpfr_clear(real);
+      mpfr_clear(imag);
+      return ret;
+    }
+  else if (num.find('.') == std::string::npos
+	   && num.find('E') == std::string::npos)
     {
       mpz_t val;
       if (mpz_init_set_str(val, num.c_str(), 10) != 0)
@@ -1714,6 +1852,10 @@ class Float_expression : public Expression
   // Return whether VAL fits in the type.
   static bool
   check_constant(mpfr_t val, Type*, source_location);
+
+  // Write VAL to export data.
+  static void
+  export_float(Export* exp, const mpfr_t val);
 
  protected:
   bool
@@ -1798,7 +1940,8 @@ Float_expression::do_determine_type(const Type_context* context)
     ;
   else if (context->type != NULL
 	   && (context->type->integer_type() != NULL
-	       || context->type->float_type() != NULL))
+	       || context->type->float_type() != NULL
+	       || context->type->complex_type() != NULL))
     this->type_ = context->type;
   else if (!context->may_be_abstract)
     this->type_ = Type::lookup_float_type("float");
@@ -1814,7 +1957,7 @@ Float_expression::check_constant(mpfr_t val, Type* type,
 {
   if (type == NULL)
     return true;
-  Float_type* ftype= type->float_type();
+  Float_type* ftype = type->float_type();
   if (ftype == NULL || ftype->is_abstract())
     return true;
 
@@ -1897,18 +2040,29 @@ Float_expression::do_get_tree(Translate_context* context)
   return Expression::float_constant_tree(this->val_, type);
 }
 
+// Write a floating point number to export data.
+
+void
+Float_expression::export_float(Export *exp, const mpfr_t val)
+{
+  mp_exp_t exponent;
+  char* s = mpfr_get_str(NULL, &exponent, 10, 0, val, GMP_RNDN);
+  if (*s == '-')
+    exp->write_c_string("-");
+  exp->write_c_string("0.");
+  exp->write_c_string(*s == '-' ? s + 1 : s);
+  mpfr_free_str(s);
+  char buf[30];
+  snprintf(buf, sizeof buf, "E%ld", exponent);
+  exp->write_c_string(buf);
+}
+
 // Export a floating point number in a constant expression.
 
 void
 Float_expression::do_export(Export* exp) const
 {
-  exp->write_c_string("0.");
-  mp_exp_t exponent;
-  char* s = mpfr_get_str(NULL, &exponent, 10, 0, this->val_, GMP_RNDN);
-  exp->write_c_string(s);
-  char buf[30];
-  snprintf(buf, sizeof buf, "E%ld", exponent);
-  exp->write_c_string(buf);
+  Float_expression::export_float(exp, this->val_);
   // A trailing space lets us reliably identify the end of the number.
   exp->write_c_string(" ");
 }
@@ -1919,6 +2073,247 @@ Expression*
 Expression::make_float(const mpfr_t* val, Type* type, source_location location)
 {
   return new Float_expression(val, type, location);
+}
+
+// Complex numbers.
+
+class Complex_expression : public Expression
+{
+ public:
+  Complex_expression(const mpfr_t* real, const mpfr_t* imag, Type* type,
+		     source_location location)
+    : Expression(EXPRESSION_COMPLEX, location),
+      type_(type)
+  {
+    mpfr_init_set(this->real_, *real, GMP_RNDN);
+    mpfr_init_set(this->imag_, *imag, GMP_RNDN);
+  }
+
+  // Constrain REAL/IMAG to fit into TYPE.
+  static void
+  constrain_complex(mpfr_t real, mpfr_t imag, Type* type);
+
+  // Return whether REAL/IMAG fits in the type.
+  static bool
+  check_constant(mpfr_t real, mpfr_t imag, Type*, source_location);
+
+  // Write REAL/IMAG to export data.
+  static void
+  export_complex(Export* exp, const mpfr_t real, const mpfr_t val);
+
+ protected:
+  bool
+  do_is_constant() const
+  { return true; }
+
+  bool
+  do_complex_constant_value(mpfr_t real, mpfr_t imag, Type**) const;
+
+  Type*
+  do_type();
+
+  void
+  do_determine_type(const Type_context*);
+
+  void
+  do_check_types(Gogo*);
+
+  Expression*
+  do_copy()
+  {
+    return Expression::make_complex(&this->real_, &this->imag_, this->type_,
+				    this->location());
+  }
+
+  tree
+  do_get_tree(Translate_context*);
+
+  void
+  do_export(Export*) const;
+
+ private:
+  // The real part.
+  mpfr_t real_;
+  // The imaginary part;
+  mpfr_t imag_;
+  // The type if known.
+  Type* type_;
+};
+
+// Constrain REAL/IMAG to fit into TYPE.
+
+void
+Complex_expression::constrain_complex(mpfr_t real, mpfr_t imag, Type* type)
+{
+  Complex_type* ctype = type->complex_type();
+  if (ctype != NULL && !ctype->is_abstract())
+    {
+      tree type_tree = ctype->type_tree();
+
+      REAL_VALUE_TYPE rvt;
+      real_from_mpfr(&rvt, real, TREE_TYPE(type_tree), GMP_RNDN);
+      real_convert(&rvt, TYPE_MODE(TREE_TYPE(type_tree)), &rvt);
+      mpfr_from_real(real, &rvt, GMP_RNDN);
+
+      real_from_mpfr(&rvt, imag, TREE_TYPE(type_tree), GMP_RNDN);
+      real_convert(&rvt, TYPE_MODE(TREE_TYPE(type_tree)), &rvt);
+      mpfr_from_real(imag, &rvt, GMP_RNDN);
+    }
+}
+
+// Return a complex constant value.
+
+bool
+Complex_expression::do_complex_constant_value(mpfr_t real, mpfr_t imag,
+					      Type** ptype) const
+{
+  if (this->type_ != NULL)
+    *ptype = this->type_;
+  mpfr_set(real, this->real_, GMP_RNDN);
+  mpfr_set(imag, this->imag_, GMP_RNDN);
+  return true;
+}
+
+// Return the current type.  If we haven't set the type yet, we return
+// an abstract complex type.
+
+Type*
+Complex_expression::do_type()
+{
+  if (this->type_ == NULL)
+    this->type_ = Type::make_abstract_complex_type();
+  return this->type_;
+}
+
+// Set the type of the complex value.  Here we may switch from an
+// abstract type to a real type.
+
+void
+Complex_expression::do_determine_type(const Type_context* context)
+{
+  if (this->type_ != NULL && !this->type_->is_abstract())
+    ;
+  else if (context->type != NULL
+	   && context->type->complex_type() != NULL)
+    this->type_ = context->type;
+  else if (!context->may_be_abstract)
+    this->type_ = Type::lookup_complex_type("complex");
+}
+
+// Return true if the complex value REAL/IMAG fits in the range of the
+// type TYPE.  Otherwise give an error and return false.  TYPE may be
+// NULL.
+
+bool
+Complex_expression::check_constant(mpfr_t real, mpfr_t imag, Type* type,
+				   source_location location)
+{
+  if (type == NULL)
+    return true;
+  Complex_type* ctype = type->complex_type();
+  if (ctype == NULL || ctype->is_abstract())
+    return true;
+
+  mp_exp_t max_exp;
+  switch (ctype->bits())
+    {
+    case 64:
+      max_exp = 128;
+      break;
+    case 128:
+      max_exp = 1024;
+      break;
+    default:
+      gcc_unreachable();
+    }
+
+  // A NaN or Infinity always fits in the range of the type.
+  if (!mpfr_nan_p(real) && !mpfr_inf_p(real) && !mpfr_zero_p(real))
+    {
+      if (mpfr_get_exp(real) > max_exp)
+	{
+	  error_at(location, "complex real part constant overflow");
+	  return false;
+	}
+    }
+
+  if (!mpfr_nan_p(imag) && !mpfr_inf_p(imag) && !mpfr_zero_p(imag))
+    {
+      if (mpfr_get_exp(imag) > max_exp)
+	{
+	  error_at(location, "complex imaginary part constant overflow");
+	  return false;
+	}
+    }
+
+  return true;
+}
+
+// Check the type of a complex value.
+
+void
+Complex_expression::do_check_types(Gogo*)
+{
+  if (this->type_ == NULL)
+    return;
+
+  if (!Complex_expression::check_constant(this->real_, this->imag_,
+					  this->type_, this->location()))
+    this->set_is_error();
+}
+
+// Get a tree for a complex constant.
+
+tree
+Complex_expression::do_get_tree(Translate_context* context)
+{
+  Gogo* gogo = context->gogo();
+  tree type;
+  if (this->type_ != NULL && !this->type_->is_abstract())
+    type = this->type_->get_tree(gogo);
+  else
+    {
+      // If we still have an abstract type here, this this is being
+      // used in a constant expression which didn't get reduced.  We
+      // just use complex128 and hope for the best.
+      type = Type::lookup_complex_type("complex128")->get_tree(gogo);
+    }
+  return Expression::complex_constant_tree(this->real_, this->imag_, type);
+}
+
+// Write REAL/IMAG to export data.
+
+void
+Complex_expression::export_complex(Export* exp, const mpfr_t real,
+				   const mpfr_t imag)
+{
+  if (!mpfr_zero_p(real))
+    {
+      Float_expression::export_float(exp, real);
+      if (mpfr_sgn(imag) > 0)
+	exp->write_c_string("+");
+    }
+  Float_expression::export_float(exp, imag);
+  exp->write_c_string("i");
+}
+
+// Export a complex number in a constant expression.
+
+void
+Complex_expression::do_export(Export* exp) const
+{
+  Complex_expression::export_complex(exp, this->real_, this->imag_);
+  // A trailing space lets us reliably identify the end of the number.
+  exp->write_c_string(" ");
+}
+
+// Make a complex expression.
+
+Expression*
+Expression::make_complex(const mpfr_t* real, const mpfr_t* imag, Type* type,
+			 source_location location)
+{
+  return new Complex_expression(real, imag, type, location);
 }
 
 // A reference to a const in an expression.
@@ -1948,6 +2343,9 @@ class Const_expression : public Expression
 
   bool
   do_float_constant_value(mpfr_t val, Type**) const;
+
+  bool
+  do_complex_constant_value(mpfr_t real, mpfr_t imag, Type**) const;
 
   bool
   do_string_constant_value(std::string* val) const
@@ -2080,6 +2478,35 @@ Const_expression::do_float_constant_value(mpfr_t val, Type** ptype) const
   return r;
 }
 
+// Return a complex constant value.
+
+bool
+Const_expression::do_complex_constant_value(mpfr_t real, mpfr_t imag,
+					    Type **ptype) const
+{
+  Type* ctype;
+  if (this->type_ != NULL)
+    ctype = this->type_;
+  else
+    ctype = this->constant_->const_value()->type();
+  if (ctype != NULL && ctype->complex_type() == NULL)
+    return false;
+
+  Type *t;
+  bool r = this->constant_->const_value()->expr()->complex_constant_value(real,
+									  imag,
+									  &t);
+  if (r && ctype != NULL)
+    {
+      if (!Complex_expression::check_constant(real, imag, ctype,
+					      this->location()))
+	return false;
+      Complex_expression::constrain_complex(real, imag, ctype);
+    }
+  *ptype = ctype != NULL ? ctype : t;
+  return r;
+}
+
 // Return the type of the const reference.
 
 Type*
@@ -2106,7 +2533,8 @@ Const_expression::do_determine_type(const Type_context* context)
     ;
   else if (context->type != NULL
 	   && (context->type->integer_type() != NULL
-	       || context->type->float_type() != NULL))
+	       || context->type->float_type() != NULL
+	       || context->type->complex_type() != NULL))
     this->type_ = context->type;
   else if (!context->may_be_abstract)
     {
@@ -2223,6 +2651,17 @@ Const_expression::do_get_tree(Translate_context* context)
 	  mpfr_clear(fval);
 	  return ret;
 	}
+
+      mpfr_t imag;
+      mpfr_init(imag);
+      if (expr->complex_constant_value(fval, imag, &t))
+	{
+	  tree ret = Expression::complex_constant_tree(fval, imag, type_tree);
+	  mpfr_clear(fval);
+	  mpfr_clear(imag);
+	  return ret;
+	}
+      mpfr_clear(imag);
       mpfr_clear(fval);
     }
 
@@ -2239,6 +2678,8 @@ Const_expression::do_get_tree(Translate_context* context)
     ret = fold(convert_to_integer(type_tree, const_tree));
   else if (TREE_CODE(type_tree) == REAL_TYPE)
     ret = fold(convert_to_real(type_tree, const_tree));
+  else if (TREE_CODE(type_tree) == COMPLEX_TYPE)
+    ret = fold(convert_to_complex(type_tree, const_tree));
   else
     gcc_unreachable();
   return ret;
@@ -2383,6 +2824,9 @@ class Type_conversion_expression : public Expression
   do_float_constant_value(mpfr_t, Type**) const;
 
   bool
+  do_complex_constant_value(mpfr_t, mpfr_t, Type**) const;
+
+  bool
   do_string_constant_value(std::string*) const;
 
   Type*
@@ -2456,7 +2900,9 @@ Type_conversion_expression::do_lower(Gogo*, Named_object*, int)
 	{
 	  if (!Integer_expression::check_constant(ival, type, location))
 	    mpz_set_ui(ival, 0);
-	  return Expression::make_integer(&ival, type, location);
+	  Expression* ret = Expression::make_integer(&ival, type, location);
+	  mpz_clear(ival);
+	  return ret;
 	}
 
       mpfr_t fval;
@@ -2472,7 +2918,10 @@ Type_conversion_expression::do_lower(Gogo*, Named_object*, int)
 	  mpfr_get_z(ival, fval, GMP_RNDN);
 	  if (!Integer_expression::check_constant(ival, type, location))
 	    mpz_set_ui(ival, 0);
-	  return Expression::make_integer(&ival, type, location);
+	  Expression* ret = Expression::make_integer(&ival, type, location);
+	  mpfr_clear(fval);
+	  mpz_clear(ival);
+	  return ret;
 	}
       mpfr_clear(fval);
       mpz_clear(ival);
@@ -2488,9 +2937,36 @@ Type_conversion_expression::do_lower(Gogo*, Named_object*, int)
 	  if (!Float_expression::check_constant(fval, type, location))
 	    mpfr_set_ui(fval, 0, GMP_RNDN);
 	  Float_expression::constrain_float(fval, type);
-	  return Expression::make_float(&fval, type, location);
+	  Expression *ret = Expression::make_float(&fval, type, location);
+	  mpfr_clear(fval);
+	  return ret;
 	}
       mpfr_clear(fval);
+    }
+
+  if (type->complex_type() != NULL)
+    {
+      mpfr_t real;
+      mpfr_t imag;
+      mpfr_init(real);
+      mpfr_init(imag);
+      Type* dummy;
+      if (val->complex_constant_value(real, imag, &dummy))
+	{
+	  if (!Complex_expression::check_constant(real, imag, type, location))
+	    {
+	      mpfr_set_ui(real, 0, GMP_RNDN);
+	      mpfr_set_ui(imag, 0, GMP_RNDN);
+	    }
+	  Complex_expression::constrain_complex(real, imag, type);
+	  Expression* ret = Expression::make_complex(&real, &imag, type,
+						     location);
+	  mpfr_clear(real);
+	  mpfr_clear(imag);
+	  return ret;
+	}
+      mpfr_clear(real);
+      mpfr_clear(imag);
     }
 
   return this;
@@ -2569,22 +3045,45 @@ Type_conversion_expression::do_float_constant_value(mpfr_t val,
     }
   mpfr_clear(fval);
 
-  mpz_t ival;
-  mpz_init(ival);
-  if (this->expr_->integer_constant_value(false, ival, &dummy))
+  return false;
+}
+
+// Return the constant complex value if there is one.
+
+bool
+Type_conversion_expression::do_complex_constant_value(mpfr_t real,
+						      mpfr_t imag,
+						      Type **ptype) const
+{
+  if (this->type_->complex_type() == NULL)
+    return false;
+
+  mpfr_t rval;
+  mpfr_t ival;
+  mpfr_init(rval);
+  mpfr_init(ival);
+  Type* dummy;
+  if (this->expr_->complex_constant_value(rval, ival, &dummy))
     {
-      mpfr_set_z(val, ival, GMP_RNDN);
-      mpz_clear(ival);
-      if (!Float_expression::check_constant(val, this->type_,
-					    this->location()))
-	return false;
-      Float_expression::constrain_float(val, this->type_);
+      if (!Complex_expression::check_constant(rval, ival, this->type_,
+					      this->location()))
+	{
+	  mpfr_clear(rval);
+	  mpfr_clear(ival);
+	  return false;
+	}
+      mpfr_set(real, rval, GMP_RNDN);
+      mpfr_set(imag, ival, GMP_RNDN);
+      mpfr_clear(rval);
+      mpfr_clear(ival);
+      Complex_expression::constrain_complex(real, imag, this->type_);
       *ptype = this->type_;
       return true;
     }
-  mpz_clear(ival);
+  mpfr_clear(rval);
+  mpfr_clear(ival);
 
-  return false;
+  return false;  
 }
 
 // Return the constant string value if there is one.
@@ -2632,6 +3131,9 @@ Type_conversion_expression::do_check_types(Gogo*)
   if ((type->integer_type() != NULL || type->float_type() != NULL)
       && (expr_type->integer_type() != NULL
 	  || expr_type->float_type() != NULL))
+    ok = true;
+  else if (type->complex_type() != NULL
+	   && expr_type->complex_type() != NULL)
     ok = true;
   else if (type->is_string_type())
     {
@@ -2788,6 +3290,13 @@ Type_conversion_expression::do_get_tree(Translate_context* context)
       if (expr_type->integer_type() != NULL
 	  || expr_type->float_type() != NULL)
 	ret = fold(convert_to_real(type_tree, expr_tree));
+      else
+	gcc_unreachable();
+    }
+  else if (type->complex_type() != NULL)
+    {
+      if (expr_type->complex_type() != NULL)
+	ret = fold(convert_to_complex(type_tree, expr_tree));
       else
 	gcc_unreachable();
     }
@@ -2979,6 +3488,12 @@ class Unary_expression : public Expression
   static bool
   eval_float(Operator op, mpfr_t uval, mpfr_t val);
 
+  // Apply unary opcode OP to UREAL/UIMAG, setting REAL/IMAG.  Return
+  // true if this could be done, false if not.
+  static bool
+  eval_complex(Operator op, mpfr_t ureal, mpfr_t uimag, mpfr_t real,
+	       mpfr_t imag);
+
   static Expression*
   do_import(Import*);
 
@@ -2998,6 +3513,9 @@ class Unary_expression : public Expression
 
   bool
   do_float_constant_value(mpfr_t, Type**) const;
+
+  bool
+  do_complex_constant_value(mpfr_t, mpfr_t, Type**) const;
 
   Type*
   do_type();
@@ -3123,6 +3641,26 @@ Unary_expression::do_lower(Gogo*, Named_object*, int)
 		ret = Expression::make_float(&val, ftype, loc);
 	      mpfr_clear(val);
 	    }
+	  if (ret != NULL)
+	    {
+	      mpfr_clear(fval);
+	      return ret;
+	    }
+
+	  mpfr_t ival;
+	  mpfr_init(ival);
+	  if (expr->complex_constant_value(fval, ival, &ftype))
+	    {
+	      mpfr_t real;
+	      mpfr_t imag;
+	      mpfr_init(real);
+	      mpfr_init(imag);
+	      if (Unary_expression::eval_complex(op, fval, ival, real, imag))
+		ret = Expression::make_complex(&real, &imag, ftype, loc);
+	      mpfr_clear(real);
+	      mpfr_clear(imag);
+	    }
+	  mpfr_clear(ival);
 	  mpfr_clear(fval);
 	  if (ret != NULL)
 	    return ret;
@@ -3254,6 +3792,33 @@ Unary_expression::eval_float(Operator op, mpfr_t uval, mpfr_t val)
     }
 }
 
+// Apply unary opcode OP to RVAL/IVAL, setting REAL/IMAG.  Return true
+// if this could be done, false if not.
+
+bool
+Unary_expression::eval_complex(Operator op, mpfr_t rval, mpfr_t ival,
+			       mpfr_t real, mpfr_t imag)
+{
+  switch (op)
+    {
+    case OPERATOR_PLUS:
+      mpfr_set(real, rval, GMP_RNDN);
+      mpfr_set(imag, ival, GMP_RNDN);
+      return true;
+    case OPERATOR_MINUS:
+      mpfr_neg(real, rval, GMP_RNDN);
+      mpfr_neg(imag, ival, GMP_RNDN);
+      return true;
+    case OPERATOR_NOT:
+    case OPERATOR_XOR:
+    case OPERATOR_AND:
+    case OPERATOR_MULT:
+      return false;
+    default:
+      gcc_unreachable();
+    }
+}
+
 // Return the integral constant value of a unary expression, if it has one.
 
 bool
@@ -3286,6 +3851,27 @@ Unary_expression::do_float_constant_value(mpfr_t val, Type** ptype) const
   else
     ret = Unary_expression::eval_float(this->op_, uval, val);
   mpfr_clear(uval);
+  return ret;
+}
+
+// Return the complex constant value of a unary expression, if it has
+// one.
+
+bool
+Unary_expression::do_complex_constant_value(mpfr_t real, mpfr_t imag,
+					    Type** ptype) const
+{
+  mpfr_t rval;
+  mpfr_t ival;
+  mpfr_init(rval);
+  mpfr_init(ival);
+  bool ret;
+  if (!this->expr_->complex_constant_value(rval, ival, ptype))
+    ret = false;
+  else
+    ret = Unary_expression::eval_complex(this->op_, rval, ival, real, imag);
+  mpfr_clear(rval);
+  mpfr_clear(ival);
   return ret;
 }
 
@@ -3373,6 +3959,7 @@ Unary_expression::do_check_types(Gogo*)
 	Type* type = this->expr_->type();
 	if (type->integer_type() == NULL
 	    && type->float_type() == NULL
+	    && type->complex_type() == NULL
 	    && !type->is_error_type())
 	  this->report_error(_("expected numeric type"));
       }
@@ -3486,14 +4073,14 @@ Unary_expression::do_get_tree(Translate_context* context)
 	tree type = TREE_TYPE(expr);
 	tree compute_type = excess_precision_type(type);
 	if (compute_type != NULL_TREE)
-	  expr = convert_to_real(compute_type, expr);
+	  expr = ::convert(compute_type, expr);
 	tree ret = fold_build1_loc(loc, NEGATE_EXPR,
 				   (compute_type != NULL_TREE
 				    ? compute_type
 				    : type),
 				   expr);
 	if (compute_type != NULL_TREE)
-	  ret = convert_to_real(type, ret);
+	  ret = ::convert(type, ret);
 	return ret;
       }
 
@@ -3678,6 +4265,47 @@ Binary_expression::compare_float(Operator op, Type* type, mpfr_t left_val,
       return i > 0;
     case OPERATOR_GE:
       return i >= 0;
+    default:
+      gcc_unreachable();
+    }
+}
+
+// Compare complex constants according to OP.  Complex numbers may
+// only be compared for equality.
+
+bool
+Binary_expression::compare_complex(Operator op, Type* type,
+				   mpfr_t left_real, mpfr_t left_imag,
+				   mpfr_t right_real, mpfr_t right_imag)
+{
+  bool is_equal;
+  if (type == NULL)
+    is_equal = (mpfr_cmp(left_real, right_real) == 0
+		&& mpfr_cmp(left_imag, right_imag) == 0);
+  else
+    {
+      mpfr_t lr;
+      mpfr_t li;
+      mpfr_init_set(lr, left_real, GMP_RNDN);
+      mpfr_init_set(li, left_imag, GMP_RNDN);
+      mpfr_t rr;
+      mpfr_t ri;
+      mpfr_init_set(rr, right_real, GMP_RNDN);
+      mpfr_init_set(ri, right_imag, GMP_RNDN);
+      Complex_expression::constrain_complex(lr, li, type);
+      Complex_expression::constrain_complex(rr, ri, type);
+      is_equal = mpfr_cmp(lr, rr) == 0 && mpfr_cmp(li, ri) == 0;
+      mpfr_clear(lr);
+      mpfr_clear(li);
+      mpfr_clear(rr);
+      mpfr_clear(ri);
+    }
+  switch (op)
+    {
+    case OPERATOR_EQEQ:
+      return is_equal;
+    case OPERATOR_NOTEQ:
+      return !is_equal;
     default:
       gcc_unreachable();
     }
@@ -3904,6 +4532,370 @@ Binary_expression::eval_float(Operator op, Type* left_type, mpfr_t left_val,
   return true;
 }
 
+// Apply binary opcode OP to LEFT_REAL/LEFT_IMAG and
+// RIGHT_REAL/RIGHT_IMAG, setting REAL/IMAG.  Return true if this
+// could be done, false if not.
+
+bool
+Binary_expression::eval_complex(Operator op, Type* left_type,
+				mpfr_t left_real, mpfr_t left_imag,
+				Type *right_type,
+				mpfr_t right_real, mpfr_t right_imag,
+				mpfr_t real, mpfr_t imag,
+				source_location location)
+{
+  switch (op)
+    {
+    case OPERATOR_OROR:
+    case OPERATOR_ANDAND:
+    case OPERATOR_EQEQ:
+    case OPERATOR_NOTEQ:
+    case OPERATOR_LT:
+    case OPERATOR_LE:
+    case OPERATOR_GT:
+    case OPERATOR_GE:
+      // These return boolean values and must be handled differently.
+      return false;
+    case OPERATOR_PLUS:
+      mpfr_add(real, left_real, right_real, GMP_RNDN);
+      mpfr_add(imag, left_imag, right_imag, GMP_RNDN);
+      break;
+    case OPERATOR_MINUS:
+      mpfr_sub(real, left_real, right_real, GMP_RNDN);
+      mpfr_sub(imag, left_imag, right_imag, GMP_RNDN);
+      break;
+    case OPERATOR_OR:
+    case OPERATOR_XOR:
+    case OPERATOR_AND:
+    case OPERATOR_BITCLEAR:
+      return false;
+    case OPERATOR_MULT:
+      {
+	// You might think that multiplying two complex numbers would
+	// be simple, and you would be right, until you start to think
+	// about getting the right answer for infinity.  If one
+	// operand here is infinity and the other is anything other
+	// than zero or NaN, then we are going to wind up subtracting
+	// two infinity values.  That will give us a NaN, but the
+	// correct answer is infinity.
+
+	mpfr_t lrrr;
+	mpfr_init(lrrr);
+	mpfr_mul(lrrr, left_real, right_real, GMP_RNDN);
+
+	mpfr_t lrri;
+	mpfr_init(lrri);
+	mpfr_mul(lrri, left_real, right_imag, GMP_RNDN);
+
+	mpfr_t lirr;
+	mpfr_init(lirr);
+	mpfr_mul(lirr, left_imag, right_real, GMP_RNDN);
+
+	mpfr_t liri;
+	mpfr_init(liri);
+	mpfr_mul(liri, left_imag, right_imag, GMP_RNDN);
+
+	mpfr_sub(real, lrrr, liri, GMP_RNDN);
+	mpfr_add(imag, lrri, lirr, GMP_RNDN);
+
+	// If we get NaN on both sides, check whether it should really
+	// be infinity.  The rule is that if either side of the
+	// complex number is infinity, then the whole value is
+	// infinity, even if the other side is NaN.  So the only case
+	// we have to fix is the one in which both sides are NaN.
+	if (mpfr_nan_p(real) && mpfr_nan_p(imag)
+	    && (!mpfr_nan_p(left_real) || !mpfr_nan_p(left_imag))
+	    && (!mpfr_nan_p(right_real) || !mpfr_nan_p(right_imag)))
+	  {
+	    bool is_infinity = false;
+
+	    mpfr_t lr;
+	    mpfr_t li;
+	    mpfr_init_set(lr, left_real, GMP_RNDN);
+	    mpfr_init_set(li, left_imag, GMP_RNDN);
+
+	    mpfr_t rr;
+	    mpfr_t ri;
+	    mpfr_init_set(rr, right_real, GMP_RNDN);
+	    mpfr_init_set(ri, right_imag, GMP_RNDN);
+
+	    // If the left side is infinity, then the result is
+	    // infinity.
+	    if (mpfr_inf_p(lr) || mpfr_inf_p(li))
+	      {
+		mpfr_set_ui(lr, mpfr_inf_p(lr) ? 1 : 0, GMP_RNDN);
+		mpfr_copysign(lr, lr, left_real, GMP_RNDN);
+		mpfr_set_ui(li, mpfr_inf_p(li) ? 1 : 0, GMP_RNDN);
+		mpfr_copysign(li, li, left_imag, GMP_RNDN);
+		if (mpfr_nan_p(rr))
+		  {
+		    mpfr_set_ui(rr, 0, GMP_RNDN);
+		    mpfr_copysign(rr, rr, right_real, GMP_RNDN);
+		  }
+		if (mpfr_nan_p(ri))
+		  {
+		    mpfr_set_ui(ri, 0, GMP_RNDN);
+		    mpfr_copysign(ri, ri, right_imag, GMP_RNDN);
+		  }
+		is_infinity = true;
+	      }
+
+	    // If the right side is infinity, then the result is
+	    // infinity.
+	    if (mpfr_inf_p(rr) || mpfr_inf_p(ri))
+	      {
+		mpfr_set_ui(rr, mpfr_inf_p(rr) ? 1 : 0, GMP_RNDN);
+		mpfr_copysign(rr, rr, right_real, GMP_RNDN);
+		mpfr_set_ui(ri, mpfr_inf_p(ri) ? 1 : 0, GMP_RNDN);
+		mpfr_copysign(ri, ri, right_imag, GMP_RNDN);
+		if (mpfr_nan_p(lr))
+		  {
+		    mpfr_set_ui(lr, 0, GMP_RNDN);
+		    mpfr_copysign(lr, lr, left_real, GMP_RNDN);
+		  }
+		if (mpfr_nan_p(li))
+		  {
+		    mpfr_set_ui(li, 0, GMP_RNDN);
+		    mpfr_copysign(li, li, left_imag, GMP_RNDN);
+		  }
+		is_infinity = true;
+	      }
+
+	    // If we got an overflow in the intermediate computations,
+	    // then the result is infinity.
+	    if (!is_infinity
+		&& (mpfr_inf_p(lrrr) || mpfr_inf_p(lrri)
+		    || mpfr_inf_p(lirr) || mpfr_inf_p(liri)))
+	      {
+		if (mpfr_nan_p(lr))
+		  {
+		    mpfr_set_ui(lr, 0, GMP_RNDN);
+		    mpfr_copysign(lr, lr, left_real, GMP_RNDN);
+		  }
+		if (mpfr_nan_p(li))
+		  {
+		    mpfr_set_ui(li, 0, GMP_RNDN);
+		    mpfr_copysign(li, li, left_imag, GMP_RNDN);
+		  }
+		if (mpfr_nan_p(rr))
+		  {
+		    mpfr_set_ui(rr, 0, GMP_RNDN);
+		    mpfr_copysign(rr, rr, right_real, GMP_RNDN);
+		  }
+		if (mpfr_nan_p(ri))
+		  {
+		    mpfr_set_ui(ri, 0, GMP_RNDN);
+		    mpfr_copysign(ri, ri, right_imag, GMP_RNDN);
+		  }
+		is_infinity = true;
+	      }
+
+	    if (is_infinity)
+	      {
+		mpfr_mul(lrrr, lr, rr, GMP_RNDN);
+		mpfr_mul(lrri, lr, ri, GMP_RNDN);
+		mpfr_mul(lirr, li, rr, GMP_RNDN);
+		mpfr_mul(liri, li, ri, GMP_RNDN);
+		mpfr_sub(real, lrrr, liri, GMP_RNDN);
+		mpfr_add(imag, lrri, lirr, GMP_RNDN);
+		mpfr_set_inf(real, mpfr_sgn(real));
+		mpfr_set_inf(imag, mpfr_sgn(imag));
+	      }
+
+	    mpfr_clear(lr);
+	    mpfr_clear(li);
+	    mpfr_clear(rr);
+	    mpfr_clear(ri);
+	  }
+
+	mpfr_clear(lrrr);
+	mpfr_clear(lrri);
+	mpfr_clear(lirr);
+	mpfr_clear(liri);				  
+      }
+      break;
+    case OPERATOR_DIV:
+      {
+	// For complex division we want to avoid having an
+	// intermediate overflow turn the whole result in a NaN.  We
+	// scale the values to try to avoid this.
+
+	if (mpfr_zero_p(right_real) && mpfr_zero_p(right_imag))
+	  error_at(location, "division by zero");
+
+	mpfr_t rra;
+	mpfr_t ria;
+	mpfr_init(rra);
+	mpfr_init(ria);
+	mpfr_abs(rra, right_real, GMP_RNDN);
+	mpfr_abs(ria, right_imag, GMP_RNDN);
+	mpfr_t t;
+	mpfr_init(t);
+	mpfr_max(t, rra, ria, GMP_RNDN);
+
+	mpfr_t rr;
+	mpfr_t ri;
+	mpfr_init_set(rr, right_real, GMP_RNDN);
+	mpfr_init_set(ri, right_imag, GMP_RNDN);
+	long ilogbw = 0;
+	if (!mpfr_inf_p(t) && !mpfr_nan_p(t) && !mpfr_zero_p(t))
+	  {
+	    ilogbw = mpfr_get_exp(t);
+	    mpfr_mul_2si(rr, rr, - ilogbw, GMP_RNDN);
+	    mpfr_mul_2si(ri, ri, - ilogbw, GMP_RNDN);
+	  }
+
+	mpfr_t denom;
+	mpfr_init(denom);
+	mpfr_mul(denom, rr, rr, GMP_RNDN);
+	mpfr_mul(t, ri, ri, GMP_RNDN);
+	mpfr_add(denom, denom, t, GMP_RNDN);
+
+	mpfr_mul(real, left_real, rr, GMP_RNDN);
+	mpfr_mul(t, left_imag, ri, GMP_RNDN);
+	mpfr_add(real, real, t, GMP_RNDN);
+	mpfr_div(real, real, denom, GMP_RNDN);
+	mpfr_mul_2si(real, real, - ilogbw, GMP_RNDN);
+
+	mpfr_mul(imag, left_imag, rr, GMP_RNDN);
+	mpfr_mul(t, left_real, ri, GMP_RNDN);
+	mpfr_sub(imag, imag, t, GMP_RNDN);
+	mpfr_div(imag, imag, denom, GMP_RNDN);
+	mpfr_mul_2si(imag, imag, - ilogbw, GMP_RNDN);
+
+	// If we wind up with NaN on both sides, check whether we
+	// should really have infinity.  The rule is that if either
+	// side of the complex number is infinity, then the whole
+	// value is infinity, even if the other side is NaN.  So the
+	// only case we have to fix is the one in which both sides are
+	// NaN.
+	if (mpfr_nan_p(real) && mpfr_nan_p(imag)
+	    && (!mpfr_nan_p(left_real) || !mpfr_nan_p(left_imag))
+	    && (!mpfr_nan_p(right_real) || !mpfr_nan_p(right_imag)))
+	  {
+	    if (mpfr_zero_p(denom))
+	      {
+		mpfr_set_inf(real, mpfr_sgn(rr));
+		mpfr_mul(real, real, left_real, GMP_RNDN);
+		mpfr_set_inf(imag, mpfr_sgn(rr));
+		mpfr_mul(imag, imag, left_imag, GMP_RNDN);
+	      }
+	    else if ((mpfr_inf_p(left_real) || mpfr_inf_p(left_imag))
+		     && mpfr_number_p(rr) && mpfr_number_p(ri))
+	      {
+		mpfr_set_ui(t, mpfr_inf_p(left_real) ? 1 : 0, GMP_RNDN);
+		mpfr_copysign(t, t, left_real, GMP_RNDN);
+
+		mpfr_t t2;
+		mpfr_init_set_ui(t2, mpfr_inf_p(left_imag) ? 1 : 0, GMP_RNDN);
+		mpfr_copysign(t2, t2, left_imag, GMP_RNDN);
+
+		mpfr_t t3;
+		mpfr_init(t3);
+		mpfr_mul(t3, t, rr, GMP_RNDN);
+
+		mpfr_t t4;
+		mpfr_init(t4);
+		mpfr_mul(t4, t2, ri, GMP_RNDN);
+
+		mpfr_add(t3, t3, t4, GMP_RNDN);
+		mpfr_set_inf(real, mpfr_sgn(t3));
+
+		mpfr_mul(t3, t2, rr, GMP_RNDN);
+		mpfr_mul(t4, t, ri, GMP_RNDN);
+		mpfr_sub(t3, t3, t4, GMP_RNDN);
+		mpfr_set_inf(imag, mpfr_sgn(t3));
+
+		mpfr_clear(t2);
+		mpfr_clear(t3);
+		mpfr_clear(t4);
+	      }
+	    else if ((mpfr_inf_p(right_real) || mpfr_inf_p(right_imag))
+		     && mpfr_number_p(left_real) && mpfr_number_p(left_imag))
+	      {
+		mpfr_set_ui(t, mpfr_inf_p(rr) ? 1 : 0, GMP_RNDN);
+		mpfr_copysign(t, t, rr, GMP_RNDN);
+
+		mpfr_t t2;
+		mpfr_init_set_ui(t2, mpfr_inf_p(ri) ? 1 : 0, GMP_RNDN);
+		mpfr_copysign(t2, t2, ri, GMP_RNDN);
+
+		mpfr_t t3;
+		mpfr_init(t3);
+		mpfr_mul(t3, left_real, t, GMP_RNDN);
+
+		mpfr_t t4;
+		mpfr_init(t4);
+		mpfr_mul(t4, left_imag, t2, GMP_RNDN);
+
+		mpfr_add(t3, t3, t4, GMP_RNDN);
+		mpfr_set_ui(real, 0, GMP_RNDN);
+		mpfr_mul(real, real, t3, GMP_RNDN);
+
+		mpfr_mul(t3, left_imag, t, GMP_RNDN);
+		mpfr_mul(t4, left_real, t2, GMP_RNDN);
+		mpfr_sub(t3, t3, t4, GMP_RNDN);
+		mpfr_set_ui(imag, 0, GMP_RNDN);
+		mpfr_mul(imag, imag, t3, GMP_RNDN);
+
+		mpfr_clear(t2);
+		mpfr_clear(t3);
+		mpfr_clear(t4);
+	      }
+	  }
+
+	mpfr_clear(denom);
+	mpfr_clear(rr);
+	mpfr_clear(ri);
+	mpfr_clear(t);
+	mpfr_clear(rra);
+	mpfr_clear(ria);
+      }
+      break;
+    case OPERATOR_MOD:
+      return false;
+    case OPERATOR_LSHIFT:
+    case OPERATOR_RSHIFT:
+      return false;
+    default:
+      gcc_unreachable();
+    }
+
+  Type* type = left_type;
+  if (type == NULL)
+    type = right_type;
+  else if (type != right_type && right_type != NULL)
+    {
+      if (type->is_abstract())
+	type = right_type;
+      else if (!right_type->is_abstract())
+	{
+	  // This looks like a type error which should be diagnosed
+	  // elsewhere.  Don't do anything here, to avoid an unhelpful
+	  // chain of error messages.
+	  return true;
+	}
+    }
+
+  if (type != NULL && !type->is_abstract())
+    {
+      if ((type != left_type
+	   && !Complex_expression::check_constant(left_real, left_imag,
+						  type, location))
+	  || (type != right_type
+	      && !Complex_expression::check_constant(right_real, right_imag,
+						     type, location))
+	  || !Complex_expression::check_constant(real, imag, type,
+						 location))
+	{
+	  mpfr_set_ui(real, 0, GMP_RNDN);
+	  mpfr_set_ui(imag, 0, GMP_RNDN);
+	}
+    }
+
+  return true;
+}
+
 // Lower a binary expression.  We have to evaluate constant
 // expressions now, in order to implement Go's unlimited precision
 // constants.
@@ -3983,6 +4975,10 @@ Binary_expression::do_lower(Gogo*, Named_object*, int)
 		  type = left_type;
 		else if (right_type->float_type() != NULL)
 		  type = right_type;
+		else if (left_type->complex_type() != NULL)
+		  type = left_type;
+		else if (right_type->complex_type() != NULL)
+		  type = right_type;
 		else
 		  type = left_type;
 		ret = Expression::make_integer(&val, type, location);
@@ -4049,7 +5045,7 @@ Binary_expression::do_lower(Gogo*, Named_object*, int)
 		else if (right_type == NULL)
 		  type = left_type;
 		else if (!left_type->is_abstract()
-		    && left_type->named_type() != NULL)
+			 && left_type->named_type() != NULL)
 		  type = left_type;
 		else if (!right_type->is_abstract()
 			 && right_type->named_type() != NULL)
@@ -4079,6 +5075,103 @@ Binary_expression::do_lower(Gogo*, Named_object*, int)
       }
     mpfr_clear(right_val);
     mpfr_clear(left_val);
+  }
+
+  // Complex constant expressions.
+  {
+    mpfr_t left_real;
+    mpfr_t left_imag;
+    mpfr_init(left_real);
+    mpfr_init(left_imag);
+    Type* left_type;
+
+    mpfr_t right_real;
+    mpfr_t right_imag;
+    mpfr_init(right_real);
+    mpfr_init(right_imag);
+    Type* right_type;
+
+    if (left->complex_constant_value(left_real, left_imag, &left_type)
+	&& right->complex_constant_value(right_real, right_imag, &right_type))
+      {
+	Expression* ret = NULL;
+	if (left_type != right_type
+	    && left_type != NULL
+	    && right_type != NULL
+	    && left_type->base() != right_type->base())
+	  {
+	    // May be a type error--let it be diagnosed later.
+	  }
+	else if (is_comparison)
+	  {
+	    bool b = Binary_expression::compare_complex(op,
+							(left_type != NULL
+							 ? left_type
+							 : right_type),
+							left_real,
+							left_imag,
+							right_real,
+							right_imag);
+	    ret = Expression::make_boolean(b, location);
+	  }
+	else
+	  {
+	    mpfr_t real;
+	    mpfr_t imag;
+	    mpfr_init(real);
+	    mpfr_init(imag);
+
+	    if (Binary_expression::eval_complex(op, left_type,
+						left_real, left_imag,
+						right_type,
+						right_real, right_imag,
+						real, imag,
+						location))
+	      {
+		gcc_assert(op != OPERATOR_OROR && op != OPERATOR_ANDAND
+			   && op != OPERATOR_LSHIFT && op != OPERATOR_RSHIFT);
+		Type* type;
+		if (left_type == NULL)
+		  type = right_type;
+		else if (right_type == NULL)
+		  type = left_type;
+		else if (!left_type->is_abstract()
+			 && left_type->named_type() != NULL)
+		  type = left_type;
+		else if (!right_type->is_abstract()
+			 && right_type->named_type() != NULL)
+		  type = right_type;
+		else if (!left_type->is_abstract())
+		  type = left_type;
+		else if (!right_type->is_abstract())
+		  type = right_type;
+		else if (left_type->complex_type() != NULL)
+		  type = left_type;
+		else if (right_type->complex_type() != NULL)
+		  type = right_type;
+		else
+		  type = left_type;
+		ret = Expression::make_complex(&real, &imag, type,
+					       location);
+	      }
+	    mpfr_clear(real);
+	    mpfr_clear(imag);
+	  }
+
+	if (ret != NULL)
+	  {
+	    mpfr_clear(left_real);
+	    mpfr_clear(left_imag);
+	    mpfr_clear(right_real);
+	    mpfr_clear(right_imag);
+	    return ret;
+	  }
+      }
+
+    mpfr_clear(left_real);
+    mpfr_clear(left_imag);
+    mpfr_clear(right_real);
+    mpfr_clear(right_imag);
   }
 
   // String constant expressions.
@@ -4140,9 +5233,7 @@ Binary_expression::do_integer_constant_value(bool iota_is_constant, mpz_t val,
   mpz_clear(left_val);
 
   if (ret)
-    *ptype = (this->op_ == OPERATOR_OROR || this->op_ == OPERATOR_OROR
-	      ? right_type
-	      : left_type);
+    *ptype = left_type;
 
   return ret;
 }
@@ -4186,9 +5277,64 @@ Binary_expression::do_float_constant_value(mpfr_t val, Type** ptype) const
   mpfr_clear(right_val);
 
   if (ret)
-    *ptype = (this->op_ == OPERATOR_OROR || this->op_ == OPERATOR_OROR
-	      ? right_type
-	      : left_type);
+    *ptype = left_type;
+
+  return ret;
+}
+
+// Return the complex constant value, if it has one.
+
+bool
+Binary_expression::do_complex_constant_value(mpfr_t real, mpfr_t imag,
+					     Type** ptype) const
+{
+  mpfr_t left_real;
+  mpfr_t left_imag;
+  mpfr_init(left_real);
+  mpfr_init(left_imag);
+  Type* left_type;
+  if (!this->left_->complex_constant_value(left_real, left_imag, &left_type))
+    {
+      mpfr_clear(left_real);
+      mpfr_clear(left_imag);
+      return false;
+    }
+
+  mpfr_t right_real;
+  mpfr_t right_imag;
+  mpfr_init(right_real);
+  mpfr_init(right_imag);
+  Type* right_type;
+  if (!this->right_->complex_constant_value(right_real, right_imag,
+					    &right_type))
+    {
+      mpfr_clear(left_real);
+      mpfr_clear(left_imag);
+      mpfr_clear(right_real);
+      mpfr_clear(right_imag);
+      return false;
+    }
+
+  bool ret;
+  if (left_type != right_type
+      && left_type != NULL
+      && right_type != NULL
+      && left_type->base() != right_type->base())
+    ret = false;
+  else
+    ret = Binary_expression::eval_complex(this->op_, left_type,
+					  left_real, left_imag,
+					  right_type,
+					  right_real, right_imag,
+					  real, imag,
+					  this->location());
+  mpfr_clear(left_real);
+  mpfr_clear(left_imag);
+  mpfr_clear(right_real);
+  mpfr_clear(right_imag);
+
+  if (ret)
+    *ptype = left_type;
 
   return ret;
 }
@@ -4240,6 +5386,10 @@ Binary_expression::do_type()
 	else if (!left_type->is_abstract())
 	  return left_type;
 	else if (!right_type->is_abstract())
+	  return right_type;
+	else if (left_type->complex_type() != NULL)
+	  return left_type;
+	else if (right_type->complex_type() != NULL)
 	  return right_type;
 	else if (left_type->float_type() != NULL)
 	  return left_type;
@@ -4308,19 +5458,23 @@ Binary_expression::do_determine_type(const Type_context* context)
   else if (subcontext.type == NULL)
     {
       if ((tleft->integer_type() != NULL && tright->integer_type() != NULL)
-	  || (tleft->float_type() != NULL && tright->float_type() != NULL))
+	  || (tleft->float_type() != NULL && tright->float_type() != NULL)
+	  || (tleft->complex_type() != NULL && tright->complex_type() != NULL))
 	{
-	  // Both sides have an abstract integer type or both sides
-	  // have an abstract float type.  Just let CONTEXT determine
+	  // Both sides have an abstract integer, abstract float, or
+	  // abstract complex type.  Just let CONTEXT determine
 	  // whether they may remain abstract or not.
 	}
+      else if (tleft->complex_type() != NULL)
+	subcontext.type = tleft;
+      else if (tright->complex_type() != NULL)
+	subcontext.type = tright;
+      else if (tleft->float_type() != NULL)
+	subcontext.type = tleft;
+      else if (tright->float_type() != NULL)
+	subcontext.type = tright;
       else
-	{
-	  // Both sides are abstract, but one is integer and one is
-	  // floating point.  Convert the abstract integer to floating
-	  // point.
-	  subcontext.type = tleft->float_type() != NULL ? tleft : tright;
-	}
+	subcontext.type = tleft;
     }
 
   this->left_->determine_type(&subcontext);
@@ -4359,6 +5513,7 @@ Binary_expression::check_operator_type(Operator op, Type* type,
     case OPERATOR_NOTEQ:
       if (type->integer_type() == NULL
 	  && type->float_type() == NULL
+	  && type->complex_type() == NULL
 	  && !type->is_string_type()
 	  && type->points_to() == NULL
 	  && !type->is_nil_type()
@@ -4371,8 +5526,9 @@ Binary_expression::check_operator_type(Operator op, Type* type,
 	  && type->function_type() == NULL)
 	{
 	  error_at(location,
-		   _("expected integer, floating, string, pointer, boolean, "
-		     "interface, slice, map, channel, or function type"));
+		   _("expected integer, floating, complex, string, pointer, "
+		     "boolean, interface, slice, map, channel, "
+		     "or function type"));
 	  return false;
 	}
       break;
@@ -4381,14 +5537,25 @@ Binary_expression::check_operator_type(Operator op, Type* type,
     case OPERATOR_LE:
     case OPERATOR_GT:
     case OPERATOR_GE:
-    case OPERATOR_PLUS:
-    case OPERATOR_PLUSEQ:
       if (type->integer_type() == NULL
 	  && type->float_type() == NULL
 	  && !type->is_string_type())
 	{
 	  error_at(location,
 		   _("expected integer, floating, or string type"));
+	  return false;
+	}
+      break;
+
+    case OPERATOR_PLUS:
+    case OPERATOR_PLUSEQ:
+      if (type->integer_type() == NULL
+	  && type->float_type() == NULL
+	  && type->complex_type() == NULL
+	  && !type->is_string_type())
+	{
+	  error_at(location,
+		   _("expected integer, floating, complex, or string type"));
 	  return false;
 	}
       break;
@@ -4400,9 +5567,10 @@ Binary_expression::check_operator_type(Operator op, Type* type,
     case OPERATOR_DIV:
     case OPERATOR_DIVEQ:
       if (type->integer_type() == NULL
-	  && type->float_type() == NULL)
+	  && type->float_type() == NULL
+	  && type->complex_type() == NULL)
 	{
-	  error_at(location, _("expected integer or floating type"));
+	  error_at(location, _("expected integer, floating, or complex type"));
 	  return false;
 	}
       break;
@@ -4559,11 +5727,15 @@ Binary_expression::do_get_tree(Translate_context* context)
       code = MULT_EXPR;
       break;
     case OPERATOR_DIV:
-      // FIXME: Code depends on whether integer or floating point.
-      code = TRUNC_DIV_EXPR;
+      {
+	Type *t = this->left_->type();
+	if (t->float_type() != NULL || t->complex_type() != NULL)
+	  code = RDIV_EXPR;
+	else
+	  code = TRUNC_DIV_EXPR;
+      }
       break;
     case OPERATOR_MOD:
-      // FIXME: Code depends on whether integer or floating point.
       code = TRUNC_MOD_EXPR;
       break;
     case OPERATOR_LSHIFT:
@@ -4606,8 +5778,8 @@ Binary_expression::do_get_tree(Translate_context* context)
   tree compute_type = excess_precision_type(type);
   if (compute_type != NULL_TREE)
     {
-      left = convert_to_real(compute_type, left);
-      right = convert_to_real(compute_type, right);
+      left = ::convert(compute_type, left);
+      right = ::convert(compute_type, right);
     }
 
   tree eval_saved = NULL_TREE;
@@ -4628,7 +5800,7 @@ Binary_expression::do_get_tree(Translate_context* context)
 			     left, right);
 
   if (compute_type != NULL_TREE)
-    ret = convert_to_real(type, ret);
+    ret = ::convert(type, ret);
 
   // In Go, a shift larger than the size of the type is well-defined.
   // This is not true in GENERIC, so we need to insert a conditional.
@@ -5074,6 +6246,12 @@ class Builtin_call_expression : public Call_expression
   bool
   do_integer_constant_value(bool, mpz_t, Type**) const;
 
+  bool
+  do_float_constant_value(mpfr_t, Type**) const;
+
+  bool
+  do_complex_constant_value(mpfr_t, mpfr_t, Type**) const;
+
   Type*
   do_type();
 
@@ -5107,7 +6285,9 @@ class Builtin_call_expression : public Call_expression
       BUILTIN_CAP,
       BUILTIN_CLOSE,
       BUILTIN_CLOSED,
+      BUILTIN_CMPLX,
       BUILTIN_COPY,
+      BUILTIN_IMAG,
       BUILTIN_LEN,
       BUILTIN_MAKE,
       BUILTIN_NEW,
@@ -5115,6 +6295,7 @@ class Builtin_call_expression : public Call_expression
       BUILTIN_PANICLN,
       BUILTIN_PRINT,
       BUILTIN_PRINTLN,
+      BUILTIN_REAL,
 
       // Builtin functions from the unsafe package.
       BUILTIN_ALIGNOF,
@@ -5127,6 +6308,12 @@ class Builtin_call_expression : public Call_expression
 
   bool
   check_one_arg();
+
+  static Type*
+  real_imag_type(Type*);
+
+  static Type*
+  cmplx_type(Type*);
 
   // A pointer back to the general IR structure.  This avoids a global
   // variable, or passing it around everywhere.
@@ -5151,8 +6338,12 @@ Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
     this->code_ = BUILTIN_CLOSE;
   else if (name == "closed")
     this->code_ = BUILTIN_CLOSED;
+  else if (name == "cmplx")
+    this->code_ = BUILTIN_CMPLX;
   else if (name == "copy")
     this->code_ = BUILTIN_COPY;
+  else if (name == "imag")
+    this->code_ = BUILTIN_IMAG;
   else if (name == "len")
     this->code_ = BUILTIN_LEN;
   else if (name == "make")
@@ -5167,6 +6358,8 @@ Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
     this->code_ = BUILTIN_PRINT;
   else if (name == "println")
     this->code_ = BUILTIN_PRINTLN;
+  else if (name == "real")
+    this->code_ = BUILTIN_REAL;
   else if (name == "Alignof")
     this->code_ = BUILTIN_ALIGNOF;
   else if (name == "Offsetof")
@@ -5246,9 +6439,80 @@ Builtin_call_expression::do_lower(Gogo*, Named_object*, int)
 	  return ret;
 	}
       mpz_clear(ival);
+
+      mpfr_t rval;
+      mpfr_init(rval);
+      if (this->float_constant_value(rval, &type))
+	{
+	  Expression* ret = Expression::make_float(&rval, type,
+						   this->location());
+	  mpfr_clear(rval);
+	  return ret;
+	}
+
+      mpfr_t imag;
+      mpfr_init(imag);
+      if (this->complex_constant_value(rval, imag, &type))
+	{
+	  Expression* ret = Expression::make_complex(&rval, &imag, type,
+						     this->location());
+	  mpfr_clear(rval);
+	  mpfr_clear(imag);
+	  return ret;
+	}
+      mpfr_clear(rval);
+      mpfr_clear(imag);
     }
 
   return this;
+}
+
+// Return the type of the real or imag functions, given the type of
+// the argument.  We need to map complex to float, complex64 to
+// float32, and complex128 to float64, so it has to be done by name.
+// This returns NULL if it can't figure out the type.
+
+Type*
+Builtin_call_expression::real_imag_type(Type* arg_type)
+{
+  if (arg_type == NULL || arg_type->is_abstract())
+    return NULL;
+  Named_type* nt = arg_type->named_type();
+  if (nt == NULL)
+    return NULL;
+  while (nt->real_type()->named_type() != NULL)
+    nt = nt->real_type()->named_type();
+  if (nt->name() == "complex")
+    return Type::lookup_float_type("float");
+  else if (nt->name() == "complex64")
+    return Type::lookup_float_type("float32");
+  else if (nt->name() == "complex128")
+    return Type::lookup_float_type("float64");
+  else
+    return NULL;
+}
+
+// Return the type of the cmplx function, given the type of one of the
+// argments.  Like real_imag_type, we have to map by name.
+
+Type*
+Builtin_call_expression::cmplx_type(Type* arg_type)
+{
+  if (arg_type == NULL || arg_type->is_abstract())
+    return NULL;
+  Named_type* nt = arg_type->named_type();
+  if (nt == NULL)
+    return NULL;
+  while (nt->real_type()->named_type() != NULL)
+    nt = nt->real_type()->named_type();
+  if (nt->name() == "float")
+    return Type::lookup_complex_type("complex");
+  else if (nt->name() == "float32")
+    return Type::lookup_complex_type("complex64");
+  else if (nt->name() == "float64")
+    return Type::lookup_complex_type("complex128");
+  else
+    return NULL;
 }
 
 // Return a single argument, or NULL if there isn't one.
@@ -5268,36 +6532,61 @@ Builtin_call_expression::one_arg() const
 bool
 Builtin_call_expression::do_is_constant() const
 {
-  if (this->code_ == BUILTIN_LEN
-      || this->code_ == BUILTIN_CAP)
+  switch (this->code_)
     {
-      Expression* arg = this->one_arg();
-      if (arg == NULL)
-	return false;
-      Type* arg_type = arg->type();
+    case BUILTIN_LEN:
+    case BUILTIN_CAP:
+      {
+	Expression* arg = this->one_arg();
+	if (arg == NULL)
+	  return false;
+	Type* arg_type = arg->type();
 
-      if (arg_type->points_to() != NULL
-	  && arg_type->points_to()->array_type() != NULL
-	  && !arg_type->points_to()->is_open_array_type())
-	arg_type = arg_type->points_to();
+	if (arg_type->points_to() != NULL
+	    && arg_type->points_to()->array_type() != NULL
+	    && !arg_type->points_to()->is_open_array_type())
+	  arg_type = arg_type->points_to();
 
-      if (arg_type->array_type() != NULL
-	  && arg_type->array_type()->length() != NULL)
-	return arg_type->array_type()->length()->is_constant();
+	if (arg_type->array_type() != NULL
+	    && arg_type->array_type()->length() != NULL)
+	  return arg_type->array_type()->length()->is_constant();
 
-      if (this->code_ == BUILTIN_LEN && arg_type->is_string_type())
-	return arg->is_constant();
+	if (this->code_ == BUILTIN_LEN && arg_type->is_string_type())
+	  return arg->is_constant();
+      }
+      break;
+
+    case BUILTIN_SIZEOF:
+    case BUILTIN_ALIGNOF:
+      return this->one_arg() != NULL;
+
+    case BUILTIN_OFFSETOF:
+      {
+	Expression* arg = this->one_arg();
+	if (arg == NULL)
+	  return false;
+	return arg->field_reference_expression() != NULL;
+      }
+
+    case BUILTIN_CMPLX:
+      {
+	const Expression_list* args = this->args();
+	if (args != NULL && args->size() == 2)
+	  return args->front()->is_constant() && args->back()->is_constant();
+      }
+      break;
+
+    case BUILTIN_REAL:
+    case BUILTIN_IMAG:
+      {
+	Expression* arg = this->one_arg();
+	return arg != NULL && arg->is_constant();
+      }
+
+    default:
+      break;
     }
-  else if (this->code_ == BUILTIN_SIZEOF
-	   || this->code_ == BUILTIN_ALIGNOF)
-    return this->one_arg() != NULL;
-  else if (this->code_ == BUILTIN_OFFSETOF)
-    {
-      Expression* arg = this->one_arg();
-      if (arg == NULL)
-	return false;
-      return arg->field_reference_expression() != NULL;
-    }
+
   return false;
 }
 
@@ -5427,6 +6716,87 @@ Builtin_call_expression::do_integer_constant_value(bool iota_is_constant,
   return false;
 }
 
+// Return a floating point constant value if possible.
+
+bool
+Builtin_call_expression::do_float_constant_value(mpfr_t val,
+						 Type** ptype) const
+{
+  if (this->code_ == BUILTIN_REAL || this->code_ == BUILTIN_IMAG)
+    {
+      Expression* arg = this->one_arg();
+      if (arg == NULL)
+	return false;
+
+      mpfr_t real;
+      mpfr_t imag;
+      mpfr_init(real);
+      mpfr_init(imag);
+
+      bool ret = false;
+      Type* type;
+      if (arg->complex_constant_value(real, imag, &type))
+	{
+	  if (this->code_ == BUILTIN_REAL)
+	    mpfr_set(val, real, GMP_RNDN);
+	  else
+	    mpfr_set(val, imag, GMP_RNDN);
+	  *ptype = Builtin_call_expression::real_imag_type(type);
+	  ret = true;
+	}
+
+      mpfr_clear(real);
+      mpfr_clear(imag);
+      return ret;
+    }
+
+  return false;
+}
+
+// Return a complex constant value if possible.
+
+bool
+Builtin_call_expression::do_complex_constant_value(mpfr_t real, mpfr_t imag,
+						   Type** ptype) const
+{
+  if (this->code_ == BUILTIN_CMPLX)
+    {
+      const Expression_list* args = this->args();
+      if (args == NULL || args->size() != 2)
+	return false;
+
+      mpfr_t r;
+      mpfr_init(r);
+      Type* rtype;
+      if (!args->front()->float_constant_value(r, &rtype))
+	{
+	  mpfr_clear(r);
+	  return false;
+	}
+
+      mpfr_t i;
+      mpfr_init(i);
+
+      bool ret = false;
+      Type* itype;
+      if (args->back()->float_constant_value(i, &itype)
+	  && Type::are_identical(rtype, itype))
+	{
+	  mpfr_set(real, r, GMP_RNDN);
+	  mpfr_set(imag, i, GMP_RNDN);
+	  *ptype = Builtin_call_expression::cmplx_type(rtype);
+	  ret = true;
+	}
+
+      mpfr_clear(r);
+      mpfr_clear(i);
+
+      return ret;
+    }
+
+  return false;
+}
+
 // Return the type.
 
 Type*
@@ -5464,17 +6834,51 @@ Builtin_call_expression::do_type()
 
     case BUILTIN_CLOSED:
       return Type::lookup_bool_type();
+
+    case BUILTIN_REAL:
+    case BUILTIN_IMAG:
+      {
+	Expression* arg = this->one_arg();
+	if (arg == NULL)
+	  return Type::make_error_type();
+	Type* t = arg->type();
+	if (t->is_abstract())
+	  t = t->make_non_abstract_type();
+	t = Builtin_call_expression::real_imag_type(t);
+	if (t == NULL)
+	  t = Type::make_error_type();
+	return t;
+      }
+
+    case BUILTIN_CMPLX:
+      {
+	const Expression_list* args = this->args();
+	if (args == NULL || args->size() != 2)
+	  return Type::make_error_type();
+	Type* t = args->front()->type();
+	if (t->is_abstract())
+	  {
+	    t = args->back()->type();
+	    if (t->is_abstract())
+	      t = t->make_non_abstract_type();
+	  }
+	t = Builtin_call_expression::cmplx_type(t);
+	if (t == NULL)
+	  t = Type::make_error_type();
+	return t;
+      }
     }
 }
 
 // Determine the type.
 
 void
-Builtin_call_expression::do_determine_type(const Type_context*)
+Builtin_call_expression::do_determine_type(const Type_context* context)
 {
   this->fn()->determine_type_no_context();
 
   bool is_print;
+  Type* arg_type = NULL;
   switch (this->code_)
     {
     case BUILTIN_PANIC:
@@ -5483,6 +6887,17 @@ Builtin_call_expression::do_determine_type(const Type_context*)
     case BUILTIN_PRINTLN:
       // Do not force a large integer constant to "int".
       is_print = true;
+      break;
+
+    case BUILTIN_REAL:
+    case BUILTIN_IMAG:
+      arg_type = Builtin_call_expression::cmplx_type(context->type);
+      is_print = false;
+      break;
+
+    case BUILTIN_CMPLX:
+      arg_type = Builtin_call_expression::real_imag_type(context->type);
+      is_print = false;
       break;
 
     default:
@@ -5498,6 +6913,7 @@ Builtin_call_expression::do_determine_type(const Type_context*)
 	   ++pa)
 	{
 	  Type_context subcontext;
+	  subcontext.type = arg_type;
 
 	  if (is_print)
 	    {
@@ -5505,7 +6921,7 @@ Builtin_call_expression::do_determine_type(const Type_context*)
 	      // use the appropriate nonabstract type.  Use uint64 for
 	      // an integer if we know it is nonnegative, otherwise
 	      // use int64 for a integer, otherwise use float64 for a
-	      // float.
+	      // float or complex128 for a complex.
 	      Type* want_type = NULL;
 	      Type* atype = (*pa)->type();
 	      if (atype->is_abstract())
@@ -5522,11 +6938,12 @@ Builtin_call_expression::do_determine_type(const Type_context*)
 			want_type = Type::lookup_integer_type("int64");
 		      mpz_clear(val);
 		    }
+		  else if (atype->float_type() != NULL)
+		    want_type = Type::lookup_float_type("float64");
+		  else if (atype->complex_type() != NULL)
+		    want_type = Type::lookup_complex_type("complex128");
 		  else
-		    {
-		      gcc_assert(atype->float_type() != NULL);
-		      want_type = Type::lookup_float_type("float64");
-		    }
+		    gcc_unreachable();
 		  subcontext.type = want_type;
 		}
 	    }
@@ -5634,6 +7051,7 @@ Builtin_call_expression::do_check_types(Gogo*)
 		    || type->is_string_type()
 		    || type->integer_type() != NULL
 		    || type->float_type() != NULL
+		    || type->complex_type() != NULL
 		    || type->is_boolean_type()
 		    || type->points_to() != NULL
 		    || type->interface_type() != NULL
@@ -5719,6 +7137,35 @@ Builtin_call_expression::do_check_types(Gogo*)
 
 	if (!Type::are_identical(e1, e2))
 	  this->report_error(_("element types must be the same"));
+      }
+      break;
+
+    case BUILTIN_REAL:
+    case BUILTIN_IMAG:
+      if (this->check_one_arg())
+	{
+	  if (this->one_arg()->type()->complex_type() == NULL)
+	    this->report_error(_("argument must have complex type"));
+	}
+      break;
+
+    case BUILTIN_CMPLX:
+      {
+	const Expression_list* args = this->args();
+	if (args == NULL || args->size() < 2)
+	  this->report_error(_("not enough arguments"));
+	else if (args->size() > 2)
+	  this->report_error(_("too many arguments"));
+	else if (args->front()->is_error_expression()
+		 || args->front()->type()->is_error_type()
+		 || args->back()->is_error_expression()
+		 || args->back()->type()->is_error_type())
+	  this->set_is_error();
+	else if (!Type::are_identical(args->front()->type(),
+				      args->back()->type()))
+	  this->report_error(_("arguments must have identical types"));
+	else if (args->front()->type()->float_type() == NULL)
+	  this->report_error(_("arguments must have floating-point type"));
       }
       break;
 
@@ -5891,6 +7338,14 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 		    pfndecl = &print_double_fndecl;
 		    fnname = "__go_print_double";
 		    arg = fold_convert_loc(location, double_type_node, arg);
+		  }
+		else if (type->complex_type() != NULL)
+		  {
+		    static tree print_complex_fndecl;
+		    pfndecl = &print_complex_fndecl;
+		    fnname = "__go_print_complex";
+		    arg = fold_convert_loc(location, complex_double_type_node,
+					   arg);
 		  }
 		else if (type->is_boolean_type())
 		  {
@@ -6086,6 +7541,42 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 			       call, len);
       }
 
+    case BUILTIN_REAL:
+    case BUILTIN_IMAG:
+      {
+	const Expression_list* args = this->args();
+	gcc_assert(args != NULL && args->size() == 1);
+	Expression* arg = args->front();
+	tree arg_tree = arg->get_tree(context);
+	if (arg_tree == error_mark_node)
+	  return error_mark_node;
+	gcc_assert(COMPLEX_FLOAT_TYPE_P(TREE_TYPE(arg_tree)));
+	if (this->code_ == BUILTIN_REAL)
+	  return fold_build1_loc(location, REALPART_EXPR,
+				 TREE_TYPE(TREE_TYPE(arg_tree)),
+				 arg_tree);
+	else
+	  return fold_build1_loc(location, IMAGPART_EXPR,
+				 TREE_TYPE(TREE_TYPE(arg_tree)),
+				 arg_tree);
+      }
+
+    case BUILTIN_CMPLX:
+      {
+	const Expression_list* args = this->args();
+	gcc_assert(args != NULL && args->size() == 2);
+	tree r = args->front()->get_tree(context);
+	tree i = args->back()->get_tree(context);
+	if (r == error_mark_node || i == error_mark_node)
+	  return error_mark_node;
+	gcc_assert(TYPE_MAIN_VARIANT(TREE_TYPE(r))
+		   == TYPE_MAIN_VARIANT(TREE_TYPE(i)));
+	gcc_assert(SCALAR_FLOAT_TYPE_P(TREE_TYPE(r)));
+	return fold_build2_loc(location, COMPLEX_EXPR,
+			       build_complex_type(TREE_TYPE(r)),
+			       r, i);
+      }
+
     default:
       gcc_unreachable();
     }
@@ -6097,18 +7588,53 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 void
 Builtin_call_expression::do_export(Export* exp) const
 {
+  bool ok = false;
+
   mpz_t val;
   mpz_init(val);
   Type* dummy;
-  bool b = this->integer_constant_value(true, val, &dummy);
-  if (!b)
-    error_at(this->location(), "value is not constant");
-  char* s = mpz_get_str(NULL, 10, val);
-  exp->write_c_string(s);
-  free(s);
+  if (this->integer_constant_value(true, val, &dummy))
+    {
+      Integer_expression::export_integer(exp, val);
+      ok = true;
+    }
+  mpz_clear(val);
+
+  if (!ok)
+    {
+      mpfr_t fval;
+      mpfr_init(fval);
+      if (this->float_constant_value(fval, &dummy))
+	{
+	  Float_expression::export_float(exp, fval);
+	  ok = true;
+	}
+      mpfr_clear(fval);
+    }
+
+  if (!ok)
+    {
+      mpfr_t real;
+      mpfr_t imag;
+      mpfr_init(real);
+      mpfr_init(imag);
+      if (this->complex_constant_value(real, imag, &dummy))
+	{
+	  Complex_expression::export_complex(exp, real, imag);
+	  ok = true;
+	}
+      mpfr_clear(real);
+      mpfr_clear(imag);
+    }
+
+  if (!ok)
+    {
+      error_at(this->location(), "value is not constant");
+      return;
+    }
+
   // A trailing space lets us reliably identify the end of the number.
   exp->write_c_string(" ");
-  mpz_clear(val);
 }
 
 // Class Call_expression.
@@ -6813,8 +8339,10 @@ Call_expression::do_get_tree(Translate_context* context)
       && DECL_IS_BUILTIN(fndecl)
       && DECL_BUILT_IN_CLASS(fndecl) == BUILT_IN_NORMAL
       && nargs > 0
-      && SCALAR_FLOAT_TYPE_P(rettype)
-      && SCALAR_FLOAT_TYPE_P(TREE_TYPE(args[0])))
+      && ((SCALAR_FLOAT_TYPE_P(rettype)
+	   && SCALAR_FLOAT_TYPE_P(TREE_TYPE(args[0])))
+	  || (COMPLEX_FLOAT_TYPE_P(rettype)
+	      && COMPLEX_FLOAT_TYPE_P(TREE_TYPE(args[0])))))
     {
       excess_type = excess_precision_type(TREE_TYPE(args[0]));
       if (excess_type != NULL_TREE)
@@ -6827,10 +8355,7 @@ Call_expression::do_get_tree(Translate_context* context)
 	    {
 	      fn = build_fold_addr_expr_loc(location, excess_fndecl);
 	      for (int i = 0; i < nargs; ++i)
-		{
-		  if (SCALAR_FLOAT_TYPE_P(TREE_TYPE(args[i])))
-		    args[i] = convert_to_real(excess_type, args[i]);
-		}
+		args[i] = ::convert(excess_type, args[i]);
 	    }
 	}
     }
@@ -6850,8 +8375,8 @@ Call_expression::do_get_tree(Translate_context* context)
 
   if (excess_type != NULL_TREE)
     {
-      // Calling convert_to_real here can undo our excess precision
-      // change.  That may or may not be a bug in convert_to_real.
+      // Calling convert here can undo our excess precision change.
+      // That may or may not be a bug in convert_to_real.
       ret = build1(NOP_EXPR, rettype, ret);
     }
 
@@ -10892,7 +12417,7 @@ Expression::import_expression(Import* imp)
     return String_expression::do_import(imp);
   else if (c == '-' || (c >= '0' && c <= '9'))
     {
-      // This handles both integers and floats.
+      // This handles integers, floats and complex constants.
       return Integer_expression::do_import(imp);
     }
   else if (imp->match_c_string("nil"))

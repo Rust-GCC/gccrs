@@ -2035,9 +2035,9 @@ Parse::receiver()
   return new Typed_identifier(name, type, location);
 }
 
-// Operand = Literal | QualifiedIdent | "(" Expression ")" .
-// Literal = int_lit | float_lit | char_lit | string_lit |
-//   CompositeLit | FunctionLit .
+// Operand    = Literal | QualifiedIdent | MethodExpr | "(" Expression ")" .
+// Literal    = BasicLit | CompositeLit | FunctionLit .
+// BasicLit   = int_lit | float_lit | imaginary_lit | char_lit | string_lit .
 
 // If MAY_BE_SINK is true, this operand may be "_".
 
@@ -2170,6 +2170,17 @@ Parse::operand(bool may_be_sink)
 				   token->location());
       this->advance_token();
       return ret;
+
+    case Token::TOKEN_IMAGINARY:
+      {
+	mpfr_t zero;
+	mpfr_init_set_ui(zero, 0, GMP_RNDN);
+	ret = Expression::make_complex(&zero, token->imaginary_value(),
+				       NULL, token->location());
+	mpfr_clear(zero);
+	this->advance_token();
+	return ret;
+      }
 
     case Token::TOKEN_KEYWORD:
       switch (token->keyword())
@@ -2809,6 +2820,7 @@ Parse::expression_may_start_here()
 	}
     case Token::TOKEN_INTEGER:
     case Token::TOKEN_FLOAT:
+    case Token::TOKEN_IMAGINARY:
       return true;
     default:
       gcc_unreachable();
@@ -2971,6 +2983,7 @@ Parse::statement(const Label* label)
     case Token::TOKEN_STRING:
     case Token::TOKEN_INTEGER:
     case Token::TOKEN_FLOAT:
+    case Token::TOKEN_IMAGINARY:
       this->simple_stat(true, false, NULL, NULL);
       break;
 
@@ -3029,6 +3042,7 @@ Parse::statement_may_start_here()
     case Token::TOKEN_STRING:
     case Token::TOKEN_INTEGER:
     case Token::TOKEN_FLOAT:
+    case Token::TOKEN_IMAGINARY:
       return true;
 
     default:

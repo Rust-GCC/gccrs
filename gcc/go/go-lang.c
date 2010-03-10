@@ -114,6 +114,10 @@ go_langhook_init_options (unsigned int argc ATTRIBUTE_UNUSED,
      requirements.  */
   flag_strict_aliasing = 1;
 
+  /* Default to avoiding range issues for complex multiply and
+     divide.  */
+  flag_complex_method = 2;
+
   /* The builtin math functions should not set errno.  */
   flag_errno_math = 0;
 
@@ -285,6 +289,8 @@ convert (tree type, tree expr)
       return fold (convert_to_pointer (type, expr));
     case REAL_TYPE:
       return fold (convert_to_real (type, expr));
+    case COMPLEX_TYPE:
+      return fold (convert_to_complex (type, expr));
     default:
       break;
     }

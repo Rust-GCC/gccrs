@@ -169,7 +169,8 @@ Token::clear()
 {
   if (this->classification_ == TOKEN_INTEGER)
     mpz_clear(this->u_.integer_value);
-  else if (this->classification_ == TOKEN_FLOAT)
+  else if (this->classification_ == TOKEN_FLOAT
+	   || this->classification_ == TOKEN_IMAGINARY)
     mpfr_clear(this->u_.float_value);
 }
 
@@ -197,6 +198,7 @@ Token::Token(const Token& tok)
       mpz_init_set(this->u_.integer_value, tok.u_.integer_value);
       break;
     case TOKEN_FLOAT:
+    case TOKEN_IMAGINARY:
       mpfr_init_set(this->u_.float_value, tok.u_.float_value, GMP_RNDN);
       break;
     default:
@@ -235,6 +237,7 @@ Token::operator=(const Token& tok)
       mpz_init_set(this->u_.integer_value, tok.u_.integer_value);
       break;
     case TOKEN_FLOAT:
+    case TOKEN_IMAGINARY:
       mpfr_init_set(this->u_.float_value, tok.u_.float_value, GMP_RNDN);
       break;
     default:
@@ -271,6 +274,10 @@ Token::print(FILE* file) const
       break;
     case TOKEN_FLOAT:
       fprintf(file, "float ");
+      mpfr_out_str(file, 10, 0, this->u_.float_value, GMP_RNDN);
+      break;
+    case TOKEN_IMAGINARY:
+      fprintf(file, "imaginary ");
       mpfr_out_str(file, 10, 0, this->u_.float_value, GMP_RNDN);
       break;
     case TOKEN_OPERATOR:
@@ -948,7 +955,7 @@ Lex::gather_number()
 	    }
 	}
 
-      if (*p != '.' && *p != 'e' && *p != 'E')
+      if (*p != '.' && *p != 'e' && *p != 'E' && *p != 'i')
 	{
 	  std::string s(pnum, p - pnum);
 	  mpz_t val;
@@ -972,7 +979,7 @@ Lex::gather_number()
       ++p;
     }
 
-  if (*p != '.' && *p != 'E' && *p != 'e')
+  if (*p != '.' && *p != 'E' && *p != 'e' && *p != 'i')
     {
       std::string s(pnum, p - pnum);
       mpz_t val;
@@ -988,33 +995,36 @@ Lex::gather_number()
       return ret;
     }
 
-  bool dot = *p == '.';
-
-  ++p;
-
-  if (!dot)
+  if (*p != 'i')
     {
-      if (*p == '+' || *p == '-')
-	++p;
-    }
+      bool dot = *p == '.';
 
-  while (p < pend)
-    {
-      if (*p < '0' || *p > '9')
-	break;
       ++p;
-    }
 
-  if (dot && (*p == 'E' || *p == 'e'))
-    {
-      ++p;
-      if (*p == '+' || *p == '-')
-	++p;
+      if (!dot)
+	{
+	  if (*p == '+' || *p == '-')
+	    ++p;
+	}
+
       while (p < pend)
 	{
 	  if (*p < '0' || *p > '9')
 	    break;
 	  ++p;
+	}
+
+      if (dot && (*p == 'E' || *p == 'e'))
+	{
+	  ++p;
+	  if (*p == '+' || *p == '-')
+	    ++p;
+	  while (p < pend)
+	    {
+	      if (*p < '0' || *p > '9')
+		break;
+	      ++p;
+	    }
 	}
     }
 
@@ -1026,10 +1036,23 @@ Lex::gather_number()
   if (neg)
     mpfr_neg(val, val, GMP_RNDN);
 
+  bool is_imaginary = *p == 'i';
+  if (is_imaginary)
+    ++p;
+
   this->lineoff_ = p - this->linebuf_;
-  Token ret = Token::make_float_token(val, location);
-  mpfr_clear(val);
-  return ret;
+  if (is_imaginary)
+    {
+      Token ret = Token::make_imaginary_token(val, location);
+      mpfr_clear(val);
+      return ret;
+    }
+  else
+    {
+      Token ret = Token::make_float_token(val, location);
+      mpfr_clear(val);
+      return ret;
+    }
 }
 
 // Advance one character, possibly escaped.  Return the pointer beyond

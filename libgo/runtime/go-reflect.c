@@ -31,6 +31,12 @@ extern const struct __go_type_descriptor ptr_float64_descriptor
   asm ("__go_td_pN33_libgo_runtime.runtime.Float64Type");
 extern const struct __go_type_descriptor ptr_float_descriptor
   asm ("__go_td_pN31_libgo_runtime.runtime.FloatType");
+extern const struct __go_type_descriptor ptr_complex64_descriptor
+  asm ("__go_td_pN35_libgo_runtime.runtime.Complex64Type");
+extern const struct __go_type_descriptor ptr_complex128_descriptor
+  asm ("__go_td_pN36_libgo_runtime.runtime.Complex128Type");
+extern const struct __go_type_descriptor ptr_complex_descriptor
+  asm ("__go_td_pN33_libgo_runtime.runtime.ComplexType");
 extern const struct __go_type_descriptor ptr_int16_descriptor
   asm ("__go_td_pN31_libgo_runtime.runtime.Int16Type");
 extern const struct __go_type_descriptor ptr_int32_descriptor
@@ -87,6 +93,12 @@ get_descriptor (int code)
       return &ptr_float64_descriptor;
     case GO_FLOAT:
       return &ptr_float_descriptor;
+    case GO_COMPLEX64:
+      return &ptr_complex64_descriptor;
+    case GO_COMPLEX128:
+      return &ptr_complex128_descriptor;
+    case GO_COMPLEX:
+      return &ptr_complex_descriptor;
     case GO_INT16:
       return &ptr_int16_descriptor;
     case GO_INT32:

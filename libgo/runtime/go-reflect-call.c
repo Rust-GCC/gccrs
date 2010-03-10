@@ -108,6 +108,11 @@ go_type_to_ffi (const struct __go_type_descriptor *descriptor)
       abort ();
     case GO_FLOAT:
       return &ffi_type_float;
+    case GO_COMPLEX64:
+    case GO_COMPLEX128:
+    case GO_COMPLEX:
+      /* FIXME.  */
+      abort ();
     case GO_INT16:
       return &ffi_type_sint16;
     case GO_INT32:

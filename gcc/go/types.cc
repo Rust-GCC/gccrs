@@ -134,6 +134,7 @@ Type::is_basic_type() const
     {
     case TYPE_INTEGER:
     case TYPE_FLOAT:
+    case TYPE_COMPLEX:
     case TYPE_BOOLEAN:
     case TYPE_STRING:
     case TYPE_NIL:
@@ -164,13 +165,17 @@ Type::is_basic_type() const
 bool
 Type::is_abstract() const
 {
-  const Integer_type* it = this->integer_type();
-  if (it != NULL)
-    return it->is_abstract();
-  const Float_type* ft = this->float_type();
-  if (ft != NULL)
-    return ft->is_abstract();
-  return false;
+  switch (this->classification())
+    {
+    case TYPE_INTEGER:
+      return this->integer_type()->is_abstract();
+    case TYPE_FLOAT:
+      return this->float_type()->is_abstract();
+    case TYPE_COMPLEX:
+      return this->complex_type()->is_abstract();
+    default:
+      return false;
+    }
 }
 
 // Return a non-abstract version of an abstract type.
@@ -179,12 +184,17 @@ Type*
 Type::make_non_abstract_type()
 {
   gcc_assert(this->is_abstract());
-  if (this->integer_type() != NULL)
-    return Type::lookup_integer_type("int");
-  else if (this->float_type() != NULL)
-    return Type::lookup_float_type("float");
-  else
-    gcc_unreachable();
+  switch (this->classification())
+    {
+    case TYPE_INTEGER:
+      return Type::lookup_integer_type("int");
+    case TYPE_FLOAT:
+      return Type::lookup_float_type("float");
+    case TYPE_COMPLEX:
+      return Type::lookup_complex_type("complex");
+    default:
+      gcc_unreachable();
+    }
 }
 
 // Add entries to the reference count queue for this type.  This is
@@ -360,6 +370,9 @@ Type::are_compatible_for(const Type* t1, const Type* t2,
     case TYPE_FLOAT:
       return t1base->float_type()->is_compatible(t2base->float_type());
 
+    case TYPE_COMPLEX:
+      return t1base->complex_type()->is_compatible(t2base->complex_type());
+
     case TYPE_FUNCTION:
       return t1base->function_type()->is_compatible(t2base->function_type(),
 						    compatible,
@@ -406,12 +419,16 @@ Type::are_compatible_for_binop(const Type* lhs, const Type* rhs)
   lhs = lhs->base();
   rhs = rhs->base();
 
-  // A constant of abstract integer or float type may be mixed with an
-  // integer or float type.
+  // A constant of abstract integer, float, or complex type may be
+  // mixed with an integer, float, or complex type.
   if ((rhs->is_abstract()
-       && (lhs->integer_type() != NULL || lhs->float_type() != NULL))
+       && (lhs->integer_type() != NULL
+	   || lhs->float_type() != NULL
+	   || lhs->complex_type() != NULL))
       || (lhs->is_abstract()
-	  && (rhs->integer_type() != NULL || rhs->float_type() != NULL)))
+	  && (rhs->integer_type() != NULL
+	      || rhs->float_type() != NULL
+	      || rhs->complex_type() != NULL)))
     return true;
 
   // The nil type may be compared to a pointer, an interface type, a
@@ -526,9 +543,11 @@ Type::are_assignment_compatible(const Type* lhs, const Type* rhs,
     return true;
 
   // A constant of abstract integer or float type may be assigned to
-  // integer or float type.
+  // integer, float, or complex type.
   if (rhs->is_abstract()
-      && (lhs->integer_type() != NULL || lhs->float_type() != NULL))
+      && (lhs->integer_type() != NULL
+	  || lhs->float_type() != NULL
+	  || lhs->complex_type() != NULL))
     return true;
 
   // The nil type may be assigned to a pointer type, an interface
@@ -1251,6 +1270,169 @@ Named_type*
 Type::lookup_float_type(const char* name)
 {
   return Float_type::lookup_float_type(name);
+}
+
+// Class Complex_type.
+
+Complex_type::Named_complex_types Complex_type::named_complex_types;
+
+// Create a new complex type.  Non-abstract complex types always have
+// names.
+
+Named_type*
+Complex_type::create_complex_type(const char* name, int bits,
+				  int runtime_type_code)
+{
+  Complex_type* complex_type = new Complex_type(false, bits,
+						runtime_type_code);
+  std::string sname(name);
+  Named_object* named_object = Named_object::make_type(sname, NULL,
+						       complex_type,
+						       BUILTINS_LOCATION);
+  Named_type* named_type = named_object->type_value();
+  std::pair<Named_complex_types::iterator, bool> ins =
+    Complex_type::named_complex_types.insert(std::make_pair(sname,
+							    named_type));
+  gcc_assert(ins.second);
+  return named_type;
+}
+
+// Look up an existing complex type.
+
+Named_type*
+Complex_type::lookup_complex_type(const char* name)
+{
+  Named_complex_types::const_iterator p =
+    Complex_type::named_complex_types.find(name);
+  gcc_assert(p != Complex_type::named_complex_types.end());
+  return p->second;
+}
+
+// Create a new abstract complex type.
+
+Complex_type*
+Complex_type::create_abstract_complex_type()
+{
+  static Complex_type* abstract_type;
+  if (abstract_type == NULL)
+    abstract_type = new Complex_type(true, FLOAT_TYPE_SIZE * 2,
+				     RUNTIME_TYPE_CODE_FLOAT);
+  return abstract_type;
+}
+
+// Whether this type is compatible with T.
+
+bool
+Complex_type::is_compatible(const Complex_type *t) const
+{
+  if (this->bits_ != t->bits_)
+    return false;
+  return this->is_abstract_ == t->is_abstract_;
+}
+
+// Hash code.
+
+unsigned int
+Complex_type::do_hash_for_method(Gogo*) const
+{
+  return (this->bits_ << 4) + ((this->is_abstract_ ? 1 : 0) << 8);
+}
+
+// Get a tree without using a Gogo*.
+
+tree
+Complex_type::type_tree() const
+{
+  if (this->bits_ == FLOAT_TYPE_SIZE * 2)
+    return complex_float_type_node;
+  else if (this->bits_ == DOUBLE_TYPE_SIZE * 2)
+    return complex_double_type_node;
+  else if (this->bits_ == LONG_DOUBLE_TYPE_SIZE * 2)
+    return complex_long_double_type_node;
+  else
+    {
+      tree ret = make_node(REAL_TYPE);
+      TYPE_PRECISION(ret) = this->bits_ / 2;
+      layout_type(ret);
+      return build_complex_type(ret);
+    }
+}
+
+// Get a tree.
+
+tree
+Complex_type::do_get_tree(Gogo*)
+{
+  return this->type_tree();
+}
+
+// Zero initializer.
+
+tree
+Complex_type::do_init_tree(Gogo* gogo, bool is_clear)
+{
+  if (is_clear)
+    return NULL;
+  tree type = this->get_tree(gogo);
+  REAL_VALUE_TYPE r;
+  real_from_integer(&r, TYPE_MODE(TREE_TYPE(type)), 0, 0, 0);
+  return build_complex(type, build_real(TREE_TYPE(type), r),
+		       build_real(TREE_TYPE(type), r));
+}
+
+// The type descriptor for a complex type.  Complex types are always
+// named.
+
+void
+Complex_type::do_type_descriptor_decl(Gogo* gogo, Named_type* name,
+				      tree* pdecl)
+{
+  gcc_assert(name != NULL);
+  gogo->type_descriptor_decl(this->runtime_type_code_, this, name, pdecl);
+}
+
+// We should not be asked for the reflection string of a basic type.
+
+void
+Complex_type::do_reflection(Gogo*, std::string*) const
+{
+  gcc_unreachable();
+}
+
+// Mangled name.
+
+void
+Complex_type::do_mangled_name(Gogo*, std::string* ret) const
+{
+  char buf[100];
+  snprintf(buf, sizeof buf, "c%s%de",
+	   this->is_abstract_ ? "a" : "",
+	   this->bits_);
+  ret->append(buf);
+}
+
+// Make a complex type.
+
+Named_type*
+Type::make_complex_type(const char* name, int bits, int runtime_type_code)
+{
+  return Complex_type::create_complex_type(name, bits, runtime_type_code);
+}
+
+// Make an abstract complex type.
+
+Complex_type*
+Type::make_abstract_complex_type()
+{
+  return Complex_type::create_abstract_complex_type();
+}
+
+// Look up a complex type.
+
+Named_type*
+Type::lookup_complex_type(const char* name)
+{
+  return Complex_type::lookup_complex_type(name);
 }
 
 // Class String_type.

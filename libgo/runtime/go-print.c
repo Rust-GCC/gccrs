@@ -52,6 +52,15 @@ __go_print_double (_Bool is_panic, double val)
 }
 
 void
+__go_print_complex (_Bool is_panic, __complex double val)
+{
+  fprintf (is_panic ? stderr : stdout, "(%.24g%s%.24gi)",
+	   __builtin_creal (val),
+	   __builtin_cimag (val) >= 0 ? "+" : "",
+	   __builtin_cimag (val));
+}
+
+void
 __go_print_bool (_Bool is_panic, _Bool val)
 {
   fputs (val ? "true" : "false", is_panic ? stderr : stdout);
