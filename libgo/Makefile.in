@@ -234,6 +234,7 @@ MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
+OBJCOPY = @OBJCOPY@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 OTOOL = @OTOOL@
@@ -1278,7 +1279,7 @@ BUILDGOX = \
 	set -e; \
 	rm -f $@.o; \
 	$(CC) -r -nostdlib -o $@.o -Wl,--whole-archive $<; \
-	objcopy -j .go_export $@.o $@.tmp; \
+	$(OBJCOPY) -j .go_export $@.o $@.tmp; \
 	mv -f $@.tmp $@; \
 	rm -f $@.o
 
