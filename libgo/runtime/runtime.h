@@ -4,13 +4,18 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
+#include "config.h"
+
 #define _GNU_SOURCE
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+
+#ifdef HAVE_SYS_MMAN_H
 #include <sys/mman.h>
+#endif
 
 #include "go-alloc.h"
 #include "go-panic.h"
@@ -108,9 +113,15 @@ void	notewakeup(Note*);
 
 /* Functions.  */
 #define runtime_memclr(buf, size) __builtin_memset(buf, 0, size)
-#define runtime_mmap mmap
 MCache*	allocmcache(void);
 void	free(void *v);
 void	addfinalizer(void*, void(*fn)(void*), int32);
+
+#ifdef HAVE_SYS_MMAN_H
+#define runtime_mmap mmap
+#else
+#define runtime_mmap(start, len, prot, flags, fd, offset) malloc(len)
+#define MAP_FAILED NULL
+#endif
 
 #define cas(pval, old, new) __sync_bool_compare_and_swap (pval, old, new)

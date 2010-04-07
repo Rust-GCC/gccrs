@@ -181,6 +181,7 @@ fi
 
 AC_C_BIGENDIAN
 
+AC_CHECK_HEADERS(sys/mman.h)
 AC_CACHE_SAVE
 
 if test ${multilib} = yes; then
