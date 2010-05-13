@@ -3337,6 +3337,10 @@ Switch_statement::do_lower(Gogo*, Block* enclosing)
 {
   source_location loc = this->location();
 
+  if (this->val_->is_error_expression()
+      || this->val_->type()->is_error_type())
+    return Statement::make_error_statement(loc);
+
   if (this->val_ != NULL
       && this->val_->type()->integer_type() != NULL
       && !this->clauses_->empty()
