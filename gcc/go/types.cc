@@ -2255,8 +2255,14 @@ Function_type*
 Function_type::copy_without_receiver() const
 {
   gcc_assert(this->is_method());
-  return Type::make_function_type(NULL, this->parameters_, this->results_,
-				  this->location_);
+  Function_type *ret = Type::make_function_type(NULL, this->parameters_,
+						this->results_,
+						this->location_);
+  if (this->is_varargs())
+    ret->set_is_varargs();
+  if (this->is_builtin())
+    ret->set_is_builtin();
+  return ret;
 }
 
 // Make a copy of a function type with a receiver.
@@ -4800,6 +4806,7 @@ Interface_type::do_export(Export* exp) const
 	  const Typed_identifier_list* parameters = fntype->parameters();
 	  if (parameters != NULL)
 	    {
+	      bool is_varargs = fntype->is_varargs();
 	      for (Typed_identifier_list::const_iterator pp =
 		     parameters->begin();
 		   pp != parameters->end();
@@ -4809,7 +4816,15 @@ Interface_type::do_export(Export* exp) const
 		    first = false;
 		  else
 		    exp->write_c_string(", ");
-		  exp->write_type(pp->type());
+		  if (!is_varargs || pp + 1 != parameters->end())
+		    exp->write_type(pp->type());
+		  else
+		    {
+		      exp->write_c_string("...");
+		      Type *pptype = pp->type();
+		      if (pptype->array_type() != NULL)
+			exp->write_type(pptype->array_type()->element_type());
+		    }
 		}
 	    }
 
@@ -4861,6 +4876,7 @@ Interface_type::do_import(Import* imp)
       imp->require_c_string(" (");
 
       Typed_identifier_list* parameters;
+      bool is_varargs = false;
       if (imp->peek_char() == ')')
 	parameters = NULL;
       else
@@ -4868,11 +4884,29 @@ Interface_type::do_import(Import* imp)
 	  parameters = new Typed_identifier_list;
 	  while (true)
 	    {
+	      if (imp->match_c_string("..."))
+		{
+		  imp->advance(3);
+		  is_varargs = true;
+		  if (imp->peek_char() == ')')
+		    {
+		      Type* empty = Type::make_interface_type(NULL,
+							      imp->location());
+		      Typed_identifier tid(Import::import_marker, empty,
+					   imp->location());
+		      parameters->push_back(tid);
+		      break;
+		    }
+		}
+
 	      Type* ptype = imp->read_type();
+	      if (is_varargs)
+		ptype = Type::make_array_type(ptype, NULL);
 	      parameters->push_back(Typed_identifier(Import::import_marker,
 						     ptype, imp->location()));
 	      if (imp->peek_char() != ',')
 		break;
+	      gcc_assert(!is_varargs);
 	      imp->require_c_string(", ");
 	    }
 	}
@@ -4907,8 +4941,11 @@ Interface_type::do_import(Import* imp)
 	    }
 	}
 
-      Type* fntype = Type::make_function_type(NULL, parameters, results,
-					      imp->location());
+      Function_type* fntype = Type::make_function_type(NULL, parameters,
+						       results,
+						       imp->location());
+      if (is_varargs)
+	fntype->set_is_varargs();
       methods->push_back(Typed_identifier(name, fntype, imp->location()));
 
       imp->require_c_string("; ");
