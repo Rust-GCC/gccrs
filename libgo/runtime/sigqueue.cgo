@@ -37,6 +37,7 @@
 // and gives up ownership by clearing mask.
 
 package runtime
+#include "config.h"
 #include "runtime.h"
 #include "defs.h"
 
@@ -90,8 +91,11 @@ func Sigrecv() (m uint32) {
 }
 
 func Signame(sig int32) (name String) {
-	const char* s = strsignal(sig);
+	const char* s = NULL;
 	char buf[100];
+#if defined(HAVE_STRSIGNAL)
+	s = strsignal(sig);
+#endif
 	if (s == NULL) {
 		snprintf(buf, sizeof buf, "signal %d", sig);
 		s = buf;

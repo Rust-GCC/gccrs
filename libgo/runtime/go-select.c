@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "channel.h"
 
 /* __go_select builds an array of these structures.  */
@@ -444,8 +445,11 @@ unlock_channels_and_select (struct select_channel *channels,
   int x;
 
   /* Pick which channel we are going to return.  */
+#if defined(HAVE_RANDOM)
   selected = (size_t) random () % ready_count;
-
+#else
+  selected = (size_t) rand () % ready_count;
+#endif
   ret = 0;
   needs_broadcast = 0;
 

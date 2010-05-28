@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "config.h"
 #include "go-alloc.h"
 #include "array.h"
 #include "go-signal.h"
@@ -78,8 +79,11 @@ main (int argc, char **argv)
 
   __initsig ();
 
+#if defined(HAVE_SRANDOM)
   srandom ((unsigned int) time (NULL));
-
+#else
+  srand ((unsigned int) time (NULL));
+#endif
   __go_init_main ();
   real_main ();
 
