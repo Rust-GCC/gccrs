@@ -137,8 +137,8 @@ am__objects_1 = go-bad-index.lo go-byte-array-to-string.lo \
 	go-typedesc-equal.lo go-unreflect.lo go-unsafe-new.lo \
 	go-unsafe-newarray.lo go-unsafe-pointer.lo mcache.lo \
 	mcentral.lo mem.lo mfinal.lo mfixalloc.lo mgc0.lo mheap.lo \
-	mheapmap32.lo mheapmap64.lo msize.lo proc.lo chan.lo iface.lo \
-	malloc.lo map.lo sigqueue.lo string.lo
+	mheapmap32.lo mheapmap64.lo msize.lo proc.lo thread.lo chan.lo \
+	iface.lo malloc.lo map.lo sigqueue.lo string.lo
 am_libgo_la_OBJECTS = $(am__objects_1)
 libgo_la_OBJECTS = $(am_libgo_la_OBJECTS)
 libgotesting_la_DEPENDENCIES = testing/libtesting.la \
@@ -607,6 +607,7 @@ runtime_files = \
 	runtime/mheapmap64.c \
 	runtime/msize.c \
 	runtime/proc.c \
+	runtime/thread.c \
 	chan.c \
 	iface.c \
 	malloc.c \
@@ -1592,6 +1593,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sigqueue.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/string.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/thread.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -2187,6 +2189,13 @@ proc.lo: runtime/proc.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/proc.c' object='proc.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o proc.lo `test -f 'runtime/proc.c' || echo '$(srcdir)/'`runtime/proc.c
+
+thread.lo: runtime/thread.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT thread.lo -MD -MP -MF $(DEPDIR)/thread.Tpo -c -o thread.lo `test -f 'runtime/thread.c' || echo '$(srcdir)/'`runtime/thread.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/thread.Tpo $(DEPDIR)/thread.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/thread.c' object='thread.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o thread.lo `test -f 'runtime/thread.c' || echo '$(srcdir)/'`runtime/thread.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

@@ -45,11 +45,15 @@ typedef	uint8			bool;
 typedef	uint8			byte;
 typedef	struct	M		M;
 typedef	struct	MCache		MCache;
+typedef	struct	Lock		Lock;
 
 /* We use mutexes for locks.  6g uses futexes directly, and perhaps
    someday we will do that too.  */
 
-typedef pthread_mutex_t		Lock;
+struct	Lock
+{
+	pthread_mutex_t	mutex;
+};
 
 /* A Note.  */
 
@@ -88,15 +92,20 @@ struct	M
 /* We map throw to panic.  */
 #define throw(s) __go_panic_msg (s)
 
-/* Mutual exclusion locks.  */
-#define lock(p) \
-  (pthread_mutex_lock(p) == 0 || (__go_panic_msg ("lock failed"), 0))
-#define unlock(p) \
-  (pthread_mutex_unlock(p) == 0 || (__go_panic_msg ("unlock failed"), 0))
-
 void	mallocinit(void);
 void	siginit(void);
 bool	sigsend(int32 sig);
+
+/*
+ * mutual exclusion locks.  in the uncontended case,
+ * as fast as spin locks (just a few user-level instructions),
+ * but on the contention path they sleep in the kernel.
+ * a zeroed Lock is unlocked (no need to initialize each lock).
+ */
+void	initlock(Lock*);
+void	lock(Lock*);
+void	unlock(Lock*);
+void	destroylock(Lock*);
 
 /*
  * sleep and wakeup on one-time events.

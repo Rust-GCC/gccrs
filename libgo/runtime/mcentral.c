@@ -25,8 +25,7 @@ static void MCentral_Free(MCentral *c, void *v);
 void
 MCentral_Init(MCentral *c, int32 sizeclass)
 {
-	if (pthread_mutex_init(c, NULL) != 0)
-		throw("pthread_mutex_init failed");
+	initlock(c);
 	c->sizeclass = sizeclass;
 	MSpanList_Init(&c->nonempty);
 	MSpanList_Init(&c->empty);

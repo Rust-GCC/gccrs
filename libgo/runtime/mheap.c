@@ -39,8 +39,7 @@ MHeap_Init(MHeap *h, void *(*alloc)(uintptr))
 {
 	uint32 i;
 
-	if (pthread_mutex_init(h, NULL) != 0)
-		throw("pthread_mutex_init failed");
+	initlock(h);
 	FixAlloc_Init(&h->spanalloc, sizeof(MSpan), alloc, RecordSpan, h);
 	FixAlloc_Init(&h->cachealloc, sizeof(MCache), alloc, nil, nil);
 	MHeapMap_Init(&h->map, alloc);

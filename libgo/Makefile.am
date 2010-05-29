@@ -316,6 +316,7 @@ runtime_files = \
 	runtime/mheapmap64.c \
 	runtime/msize.c \
 	runtime/proc.c \
+	runtime/thread.c \
 	chan.c \
 	iface.c \
 	malloc.c \
