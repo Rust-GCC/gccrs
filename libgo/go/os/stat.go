@@ -17,8 +17,8 @@ func dirFromStat(name string, dir *Dir, lstat, stat *syscall.Stat_t) *Dir {
 	dir.Ino = uint64(stat.Ino);
 	dir.Nlink = uint64(stat.Nlink);
 	dir.Mode = uint32(stat.Mode);
-	dir.Uid = stat.Uid;
-	dir.Gid = stat.Gid;
+	dir.Uid = uint32(stat.Uid);
+	dir.Gid = uint32(stat.Gid);
 	dir.Rdev = uint64(stat.Rdev);
 	dir.Size = uint64(stat.Size);
 	dir.Blksize = uint64(stat.Blksize);
