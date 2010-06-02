@@ -4,18 +4,21 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include "go-alloc.h"
 #include "go-string.h"
+#include "runtime.h"
+#include "malloc.h"
 
-const struct __go_string *
+struct __go_string
 __go_byte_array_to_string (const void* p, size_t len)
 {
   const unsigned char *bytes;
-  struct __go_string *ret;
+  unsigned char *retdata;
+  struct __go_string ret;
 
   bytes = (const unsigned char *) p;
-  ret = __go_alloc (sizeof (struct __go_string) + len);
-  ret->__length = len;
-  __builtin_memcpy (ret->__data, bytes, len);
+  retdata = mallocgc (len, RefNoPointers, 1, 0);
+  __builtin_memcpy (retdata, bytes, len);
+  ret.__data = retdata;
+  ret.__length = len;
   return ret;
 }

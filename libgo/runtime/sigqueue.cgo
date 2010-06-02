@@ -39,6 +39,7 @@
 package runtime
 #include "config.h"
 #include "runtime.h"
+#include "malloc.h"
 #include "defs.h"
 
 static struct {
@@ -100,10 +101,11 @@ func Signame(sig int32) (name String) {
 		snprintf(buf, sizeof buf, "signal %d", sig);
 		s = buf;
 	}
-	int32 len = strlen(s);
-	name = __go_alloc(sizeof(struct __go_string) + len);
-	name->__length = len;
-	memcpy(name->__data, s, len);
+	int32 len = __builtin_strlen(s);
+	unsigned char *data = mallocgc(len, RefNoPointers, 0, 0);
+	__builtin_memcpy(data, s, len);
+	name.__data = data;
+	name.__length = len;
 }
 
 func Siginit() {

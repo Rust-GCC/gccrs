@@ -27,10 +27,10 @@ __go_print_nl (_Bool is_panic)
 }
 
 void
-__go_print_string (_Bool is_panic, const struct __go_string* val)
+__go_print_string (_Bool is_panic, struct __go_string val)
 {
-  fprintf (is_panic ? stderr : stdout, "%.*s", (int) val->__length,
-	   (const char *) &val->__data[0]);
+  fprintf (is_panic ? stderr : stdout, "%.*s", (int) val.__length,
+	   (const char *) val.__data);
 }
 
 void

@@ -1493,6 +1493,10 @@ class String_type : public Type
   tree
   do_init_tree(Gogo* gogo, bool);
 
+  tree
+  do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
+			      Refcount_entry* entry, tree val) const;
+
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
 

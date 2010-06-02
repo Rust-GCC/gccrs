@@ -1437,45 +1437,18 @@ Type::lookup_complex_type(const char* name)
 
 // Class String_type.
 
-// Return the tree for String_type.  We represent strings as a pointer
-// to a struct.
-//   struct __go_string { size_t __length; unsigned char __data[]; };
+// Return the tree for String_type.  A string is a struct with two
+// fields: a pointer to the characters and a length.
 
 tree
 String_type::do_get_tree(Gogo*)
 {
   static tree struct_type;
-  if (struct_type == NULL_TREE)
-    {
-      struct_type = make_node(RECORD_TYPE);
-
-      tree name = get_identifier("__length");
-      tree field = build_decl(BUILTINS_LOCATION, FIELD_DECL, name, sizetype);
-      DECL_CONTEXT(field) = struct_type;
-      TYPE_FIELDS(struct_type) = field;
-      tree last_field = field;
-
-      name = get_identifier("__data");
-      tree t = build_qualified_type(unsigned_char_type_node, TYPE_QUAL_CONST);
-      t = build_array_type(t, NULL);
-      field = build_decl(BUILTINS_LOCATION, FIELD_DECL, name, t);
-      DECL_CONTEXT(field) = struct_type;
-      TREE_CHAIN(last_field) = field;
-
-      layout_type(struct_type);
-
-      go_preserve_from_gc(struct_type);
-
-      // Give the struct a name for better debugging info.
-      name = get_identifier("__go_string");
-      tree type_decl = build_decl(BUILTINS_LOCATION, TYPE_DECL, name,
-				  struct_type);
-      DECL_ARTIFICIAL(type_decl) = 1;
-      TYPE_NAME(struct_type) = type_decl;
-      go_preserve_from_gc(type_decl);
-      rest_of_decl_compilation(type_decl, 1, 0);
-    }
-  return build_pointer_type(struct_type);
+  return Gogo::builtin_struct(&struct_type, "__go_string", NULL_TREE, 2,
+			      "__data",
+			      build_pointer_type(unsigned_char_type_node),
+			      "__length",
+			      integer_type_node);
 }
 
 // Return a tree for the length of STRING.
@@ -1484,21 +1457,12 @@ tree
 String_type::length_tree(Gogo*, tree string)
 {
   tree string_type = TREE_TYPE(string);
-  gcc_assert(POINTER_TYPE_P(string_type));
-  tree struct_type = TREE_TYPE(string_type);
-  gcc_assert(TREE_CODE(struct_type) == RECORD_TYPE);
-  tree length_field = TYPE_FIELDS(struct_type);
+  gcc_assert(TREE_CODE(string_type) == RECORD_TYPE);
+  tree length_field = TREE_CHAIN(TYPE_FIELDS(string_type));
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(length_field)),
 		    "__length") == 0);
-
-  string = save_expr(string);
-  return fold_build3(COND_EXPR, sizetype,
-		     fold_build2(EQ_EXPR, boolean_type_node, string,
-				 fold_convert(string_type, null_pointer_node)),
-		     size_zero_node,
-		     fold_build3(COMPONENT_REF, sizetype,
-				 build_fold_indirect_ref(string),
-				 length_field, NULL_TREE));
+  return fold_build3(COMPONENT_REF, integer_type_node, string,
+		     length_field, NULL_TREE);
 }
 
 // Return a tree for a pointer to the bytes of STRING.
@@ -1507,34 +1471,51 @@ tree
 String_type::bytes_tree(Gogo*, tree string)
 {
   tree string_type = TREE_TYPE(string);
-  gcc_assert(POINTER_TYPE_P(string_type));
-  tree struct_type = TREE_TYPE(string_type);
-  gcc_assert(TREE_CODE(struct_type) == RECORD_TYPE);
-  tree bytes_field = TREE_CHAIN(TYPE_FIELDS(struct_type));
+  gcc_assert(TREE_CODE(string_type) == RECORD_TYPE);
+  tree bytes_field = TYPE_FIELDS(string_type);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(bytes_field)),
 		    "__data") == 0);
-
-  string = save_expr(string);
-
-  tree r = fold_build3(COMPONENT_REF, TREE_TYPE(bytes_field),
-		       build_fold_indirect_ref(string),
-		       bytes_field, NULL_TREE);
-  r = build_fold_addr_expr(r);
-  r = fold_convert(Gogo::const_char_pointer_type_tree(), r);
-
-  return fold_build3(COND_EXPR, TREE_TYPE(r),
-		     fold_build2(EQ_EXPR, boolean_type_node, string,
-				 fold_convert(string_type, null_pointer_node)),
-		     fold_convert(TREE_TYPE(r), null_pointer_node),
-		     r);
+  return fold_build3(COMPONENT_REF, TREE_TYPE(bytes_field), string,
+		     bytes_field, NULL_TREE);
 }
 
-// We initialize a string to simply a nil pointer.
+// We initialize a string to { NULL, 0 }.
 
 tree
 String_type::do_init_tree(Gogo* gogo, bool is_clear)
 {
-  return is_clear ? NULL : build_int_cst(this->get_tree(gogo), 0);
+  if (is_clear)
+    return NULL_TREE;
+
+  tree type_tree = this->get_tree(gogo);
+  gcc_assert(TREE_CODE(type_tree) == RECORD_TYPE);
+
+  VEC(constructor_elt, gc)* init = VEC_alloc(constructor_elt, gc, 2);
+
+  for (tree field = TYPE_FIELDS(type_tree);
+       field != NULL_TREE;
+       field = TREE_CHAIN(field))
+    {
+      constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
+      elt->index = field;
+      elt->value = fold_convert(TREE_TYPE(field), size_zero_node);
+    }
+
+  tree ret = build_constructor(type_tree, init);
+  TREE_CONSTANT(ret) = 1;
+  return ret;
+}
+
+// Copy a string into the reference count queue.
+
+tree
+String_type::do_set_refcount_queue_entry(Gogo *gogo, Refcounts* refcounts,
+					 Refcount_entry *entry, tree val) const
+{
+  tree ret = refcounts->set_entry_tree(gogo, *entry,
+				       this->bytes_tree(gogo, val));
+  entry->increment();
+  return ret;
 }
 
 // The type descriptor for the string type.

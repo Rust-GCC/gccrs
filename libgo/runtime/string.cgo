@@ -3,58 +3,54 @@
 // license that can be found in the LICENSE file.
 
 package runtime
-#include "go-string.h"
-#define nil NULL
+#include "runtime.h"
 #define charntorune(pv, str, len) __go_get_rune(str, len, pv)
-
-typedef struct __go_string __go_string;
-typedef int int32;
 
 enum
 {
 	Runeself	= 0x80,
 };
 
-func stringiter(s *__go_string, k int32) (retk int32) {
+func stringiter(s String, k int32) (retk int32) {
 	int32 l, n;
 
-	if(s == nil || (size_t) k >= s->__length) {
+	if(k >= s.__length) {
 		// retk=0 is end of iteration
 		retk = 0;
 		goto out;
 	}
 
-	l = s->__data[k];
+	l = s.__data[k];
 	if(l < Runeself) {
 		retk = k+1;
 		goto out;
 	}
 
 	// multi-char rune
-	n = charntorune(&l, s->__data+k, s->__length+k);
+	n = charntorune(&l, s.__data+k, s.__length-k);
 	retk = k + (n ? n : 1);
 
 out:
 }
 
-func stringiter2(s *__go_string, k int32) (retk int32, retv int32) {
+func stringiter2(s String, k int32) (retk int32, retv int32) {
 	int32 n;
 
-	if(s == nil || (size_t) k >= s->__length) {
+	if(k >= s.__length) {
 		// retk=0 is end of iteration
 		retk = 0;
 		retv = 0;
 		goto out;
 	}
 
-	retv = s->__data[k];
+	retv = s.__data[k];
 	if(retv < Runeself) {
 		retk = k+1;
 		goto out;
 	}
 
 	// multi-char rune
-	n = charntorune(&retv, s->__data+k, s->__length-k);
+	n = charntorune(&retv, s.__data+k, s.__length-k);
 	retk = k + (n ? n : 1);
 
 out:

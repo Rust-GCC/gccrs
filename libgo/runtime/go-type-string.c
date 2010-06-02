@@ -22,9 +22,7 @@ __go_type_hash_string (const void *vkey,
   const unsigned char *p;
 
   ret = 5381;
-  key = *(const struct __go_string * const *) vkey;
-  if (key == NULL)
-    return ret;
+  key = (const struct __go_string *) vkey;
   len = key->__length;
   for (i = 0, p = key->__data; i < len; i++, p++)
     ret = ret * 33 + *p;
@@ -40,14 +38,8 @@ __go_type_equal_string (const void *vk1, const void *vk2,
   const struct __go_string *k1;
   const struct __go_string *k2;
 
-  k1 = *(const struct __go_string * const *) vk1;
-  k2 = *(const struct __go_string * const *) vk2;
-  if (k1 == NULL)
-    return k2 == NULL || k2->__length == 0;
-  else if (k2 == NULL)
-    return k1->__length == 0;
-  else if (k1->__length != k2->__length)
-    return 0;
-  else
-    return __builtin_memcmp (k1->__data, k2->__data, k1->__length) == 0;
+  k1 = (const struct __go_string *) vk1;
+  k2 = (const struct __go_string *) vk2;
+  return (k1->__length == k2->__length
+	  && __builtin_memcmp (k1->__data, k2->__data, k1->__length) == 0);
 }

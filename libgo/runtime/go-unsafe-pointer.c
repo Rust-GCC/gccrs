@@ -26,19 +26,11 @@ struct field_align
 
 /* The reflection string.  */
 #define REFLECTION "unsafe.Pointer"
-#define REFLECTION_LEN 14
-static const struct
+static const struct __go_string reflection_string =
 {
-  size_t length;
-  char data[REFLECTION_LEN];
-} reflection_string =
-{
-  sizeof REFLECTION - 1,
-  { REFLECTION }
+  (const unsigned char *) REFLECTION,
+  sizeof REFLECTION - 1
 };
-
-static const struct __go_string * const ptr_reflection_string =
-  (const struct __go_string *) &reflection_string;
 
 const struct __go_type_descriptor unsafe_Pointer =
 {
@@ -57,7 +49,7 @@ const struct __go_type_descriptor unsafe_Pointer =
   /* __equalfn */
   __go_type_equal_identity,
   /* __reflection */
-  &ptr_reflection_string,
+  &reflection_string,
   /* __uncommon */
   NULL
 };
@@ -71,19 +63,11 @@ extern const struct __go_ptr_type pointer_unsafe_Pointer
 
 /* The reflection string.  */
 #define PREFLECTION "*unsafe.Pointer"
-#define PREFLECTION_LEN 15
-static const struct
+static const struct __go_string preflection_string =
 {
-  size_t length;
-  char data[PREFLECTION_LEN];
-} preflection_string =
-{
+  (const unsigned char *) PREFLECTION,
   sizeof PREFLECTION - 1,
-  { PREFLECTION }
 };
-
-static const struct __go_string * const ptr_preflection_string =
-  (const struct __go_string *) &preflection_string;
 
 const struct __go_ptr_type pointer_unsafe_Pointer =
 {
@@ -104,7 +88,7 @@ const struct __go_ptr_type pointer_unsafe_Pointer =
     /* __equalfn */
     __go_type_equal_identity,
     /* __reflection */
-    &ptr_preflection_string,
+    &preflection_string,
     /* __uncommon */
     NULL
   },

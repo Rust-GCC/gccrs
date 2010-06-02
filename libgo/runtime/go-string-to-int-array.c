@@ -11,7 +11,7 @@
 #include "malloc.h"
 
 struct __go_open_array
-__go_string_to_int_array (const struct __go_string *str)
+__go_string_to_int_array (struct __go_string str)
 {
   size_t c;
   const unsigned char *p;
@@ -21,8 +21,8 @@ __go_string_to_int_array (const struct __go_string *str)
   struct __go_open_array ret;
 
   c = 0;
-  p = str->__data;
-  pend = p + str->__length;
+  p = str.__data;
+  pend = p + str.__length;
   while (p < pend)
     {
       int rune;
@@ -31,8 +31,8 @@ __go_string_to_int_array (const struct __go_string *str)
       p += __go_get_rune (p, pend - p, &rune);
     }
 
-  data = (uint32_t *) mallocgc (c * sizeof (uint32_t), RefNoPointers, 0, 0);
-  p = str->__data;
+  data = (uint32_t *) mallocgc (c * sizeof (uint32_t), RefNoPointers, 1, 0);
+  p = str.__data;
   pd = data;
   while (p < pend)
     {

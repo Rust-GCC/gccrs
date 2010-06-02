@@ -13,4 +13,4 @@ extern void __go_panic_msg (const char* msg)
 extern void __go_print_msg (_Bool is_panic, const char* msg);
 
 struct __go_string;
-extern void __go_print_string (_Bool is_panic, const struct __go_string *);
+extern void __go_print_string (_Bool is_panic, struct __go_string);

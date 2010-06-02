@@ -6,16 +6,18 @@
 
 #include <assert.h>
 
-#include "go-alloc.h"
 #include "go-string.h"
+#include "runtime.h"
+#include "malloc.h"
 
-const struct __go_string *
+struct __go_string
 __go_int_array_to_string (const void* p, size_t len)
 {
   const int *ints;
   size_t slen;
   size_t i;
-  struct __go_string *ret;
+  unsigned char *retdata;
+  struct __go_string ret;
   unsigned char *s;
 
   ints = (const int *) p;
@@ -40,10 +42,11 @@ __go_int_array_to_string (const void* p, size_t len)
 	slen += 4;
     }
 
-  ret = __go_alloc (sizeof (struct __go_string) + slen);
-  ret->__length = slen;
+  retdata = mallocgc (slen, RefNoPointers, 1, 0);
+  ret.__data = retdata;
+  ret.__length = slen;
 
-  s = ret->__data;
+  s = retdata;
   for (i = 0; i < len; ++i)
     {
       int v;
@@ -77,7 +80,7 @@ __go_int_array_to_string (const void* p, size_t len)
 	}
     }
 
-  assert ((size_t) (s - ret->__data) == slen);
+  assert ((size_t) (s - retdata) == slen);
 
   return ret;
 }

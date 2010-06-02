@@ -538,14 +538,14 @@ Gogo::write_globals()
 	  continue;
 	}
 
-      // Don't try to output anything for constants which still have
-      // abstract type.
+      // There is nothing useful we can output for constants which
+      // have ideal or non-integeral type.
       if (no->is_const())
 	{
 	  Type* type = no->const_value()->type();
 	  if (type == NULL)
 	    type = no->const_value()->expr()->type();
-	  if (type->is_abstract())
+	  if (type->is_abstract() || type->integer_type() == NULL)
 	    {
 	      --i;
 	      --count;
@@ -767,12 +767,21 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 	      expr_tree = fold_convert(type->get_tree(gogo), expr_tree);
 	    if (expr_tree == error_mark_node)
 	      decl = error_mark_node;
-	    else
+	    else if (INTEGRAL_TYPE_P(TREE_TYPE(expr_tree)))
 	      {
 		decl = build_decl(named_constant->location(), CONST_DECL,
 				  name, TREE_TYPE(expr_tree));
 		DECL_INITIAL(decl) = expr_tree;
 		TREE_CONSTANT(decl) = 1;
+		TREE_READONLY(decl) = 1;
+	      }
+	    else
+	      {
+		// A CONST_DECL is only for an enum constant, so we
+		// shouldn't use for non-integral types.  Instead we
+		// just return the constant itself, rather than a
+		// decl.
+		decl = expr_tree;
 	      }
 	  }
       }
@@ -1502,7 +1511,8 @@ Block::get_tree(Translate_context* context)
        ++pv)
     {
       if ((!(*pv)->is_variable() || !(*pv)->var_value()->is_parameter())
-	  && !(*pv)->is_result_variable())
+	  && !(*pv)->is_result_variable()
+	  && !(*pv)->is_const())
 	{
 	  tree var = (*pv)->get_tree(gogo, context->function());
 	  if (var != error_mark_node && TREE_TYPE(var) != error_mark_node)
@@ -1818,66 +1828,33 @@ tree
 Gogo::go_string_constant_tree(const std::string& val)
 {
   tree string_type = Type::make_string_type()->get_tree(this);
-  tree struct_type = TREE_TYPE(string_type);
-
-  // Build a version of STRING_TYPE with the length of the array
-  // specified.
-  tree new_struct_type = make_node(RECORD_TYPE);
-
-  tree field = copy_node(TYPE_FIELDS(struct_type));
-  DECL_CONTEXT(field) = new_struct_type;
-  TYPE_FIELDS(new_struct_type) = field;
-
-  if (!val.empty())
-    {
-      field = copy_node(TREE_CHAIN(TYPE_FIELDS(struct_type)));
-      DECL_CONTEXT(field) = new_struct_type;
-      tree index_type = build_index_type(size_int(val.length() - 1));
-      TREE_TYPE(field) = build_array_type(TREE_TYPE(TREE_TYPE(field)),
-					  index_type);
-      TREE_CHAIN(TYPE_FIELDS(new_struct_type)) = field;
-    }
-
-  layout_type(new_struct_type);
 
   VEC(constructor_elt, gc)* init = VEC_alloc(constructor_elt, gc, 2);
 
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
-  elt->index = TYPE_FIELDS(new_struct_type);
-  elt->value = size_int(val.length());
+  tree field = TYPE_FIELDS(string_type);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__data") == 0);
+  elt->index = field;
+  tree str = Gogo::string_constant_tree(val);
+  elt->value = fold_convert(TREE_TYPE(field),
+			    build_fold_addr_expr(str));
 
-  if (!val.empty())
-    {
-      elt = VEC_quick_push(constructor_elt, init, NULL);
-      elt->index = TREE_CHAIN(TYPE_FIELDS(new_struct_type));
-      elt->value = Gogo::string_constant_tree(val);
-    }
+  elt = VEC_quick_push(constructor_elt, init, NULL);
+  field = TREE_CHAIN(field);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__length") == 0);
+  elt->index = field;
+  elt->value = build_int_cst_type(TREE_TYPE(field), val.length());
 
-  tree constructor = build_constructor(new_struct_type, init);
+  tree constructor = build_constructor(string_type, init);
   TREE_READONLY(constructor) = 1;
   TREE_CONSTANT(constructor) = 1;
 
-  // FIXME: We won't merge string constants between object files.
-  tree decl = build_decl(UNKNOWN_LOCATION, VAR_DECL,
-			 create_tmp_var_name("S"), new_struct_type);
-  DECL_EXTERNAL(decl) = 0;
-  TREE_PUBLIC(decl) = 0;
-  TREE_USED(decl) = 1;
-  TREE_READONLY(decl) = 1;
-  TREE_CONSTANT(decl) = 1;
-  TREE_STATIC(decl) = 1;
-  DECL_ARTIFICIAL(decl) = 1;
-  DECL_INITIAL(decl) = constructor;
-  rest_of_decl_compilation(decl, 1, 0);
-
-  return fold_convert(string_type, build_fold_addr_expr(decl));
+  return constructor;
 }
 
 // Return a tree for a pointer to a Go string constant.  This is only
 // used for type descriptors, so we return a pointer to a constant
-// decl.  FIXME: In gc a string is a two word value, so it makes sense
-// for code to work with pointers to strings.  We should adapt the
-// code or something.
+// decl.
 
 tree
 Gogo::ptr_go_string_constant_tree(const std::string& val)

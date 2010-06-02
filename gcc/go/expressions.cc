@@ -9246,7 +9246,7 @@ String_index_expression::do_get_tree(Translate_context* context)
   tree start_tree = this->start_->get_tree(context);
   if (start_tree == error_mark_node)
     return error_mark_node;
-  start_tree = fold_convert(sizetype, start_tree);
+  start_tree = fold_convert(integer_type_node, start_tree);
 
   tree string_type = TREE_TYPE(string_tree);
 
@@ -9273,7 +9273,8 @@ String_index_expression::do_get_tree(Translate_context* context)
 
       tree bytes_tree = String_type::bytes_tree(context->gogo(), string_tree);
       tree ptr = fold_build2(POINTER_PLUS_EXPR, TREE_TYPE(bytes_tree),
-			     bytes_tree, start_tree);
+			     bytes_tree,
+			     fold_convert(sizetype, start_tree));
       tree index = build_fold_indirect_ref(ptr);
 
       return fold_build2(COMPOUND_EXPR, TREE_TYPE(index),
@@ -9292,7 +9293,7 @@ String_index_expression::do_get_tree(Translate_context* context)
 	  if (end_tree == error_mark_node)
 	    return error_mark_node;
 	}
-      end_tree = fold_convert(sizetype, end_tree);
+      end_tree = fold_convert(integer_type_node, end_tree);
       static tree strslice_fndecl;
       return Gogo::call_builtin(&strslice_fndecl,
 				this->location(),
@@ -9301,9 +9302,9 @@ String_index_expression::do_get_tree(Translate_context* context)
 				string_type,
 				string_type,
 				string_tree,
-				sizetype,
+				integer_type_node,
 				start_tree,
-				sizetype,
+				integer_type_node,
 				end_tree);
     }
 }

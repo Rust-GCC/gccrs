@@ -9,31 +9,26 @@
 
 #include <stddef.h>
 
-/* A string is represented as a pointer to this structure.  */
+/* A string is an instance of this structure.  */
 
 struct __go_string
 {
-  /* The number of bytes in the string.  */
-  size_t __length;
-  /* The actual bytes.  */
-  unsigned char __data[];
+  /* The bytes.  */
+  const unsigned char *__data;
+  /* The length.  */
+  int __length;
 };
 
 static inline _Bool
-__go_strings_equal (const struct __go_string *s1, const struct __go_string *s2)
+__go_strings_equal (struct __go_string s1, struct __go_string s2)
 {
-  if (s1 == NULL)
-    return s2 == NULL || s2->__length == 0;
-  if (s2 == NULL)
-    return s1->__length == 0;
-  if (s1->__length != s2->__length)
-    return 0;
-  return __builtin_memcmp (s1->__data, s2->__data, s1->__length) == 0;
+  return (s1.__length == s2.__length
+	  && __builtin_memcmp (s1.__data, s2.__data, s1.__length) == 0);
 }
 
 static inline _Bool
-__go_ptr_strings_equal (const struct __go_string * const *ps1,
-			const struct __go_string * const *ps2)
+__go_ptr_strings_equal (const struct __go_string *ps1,
+			const struct __go_string *ps2)
 {
   if (ps1 == NULL)
     return ps2 == NULL;

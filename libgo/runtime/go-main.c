@@ -39,23 +39,17 @@ int
 main (int argc, char **argv)
 {
   int i;
-  struct __go_string **values;
+  struct __go_string *values;
 
   mallocinit ();
 
   Args.__count = argc;
   Args.__capacity = argc;
-  values = __go_alloc (argc * sizeof (struct __go_string *));
+  values = __go_alloc (argc * sizeof (struct __go_string));
   for (i = 0; i < argc; ++i)
     {
-      size_t len;
-      struct __go_string *s;
-
-      len = __builtin_strlen (argv[i]);
-      s = __go_alloc (sizeof (struct __go_string) + len);
-      s->__length = len;
-      __builtin_memcpy (&s->__data[0], argv[i], len);
-      values[i] = s;
+      values[i].__data = (unsigned char *) argv[i];
+      values[i].__length = __builtin_strlen (argv[i]);
     }
   Args.__values = values;
 
@@ -63,17 +57,11 @@ main (int argc, char **argv)
     ;
   Envs.__count = i;
   Envs.__capacity = i;
-  values = __go_alloc (i * sizeof (struct __go_string *));
+  values = __go_alloc (i * sizeof (struct __go_string));
   for (i = 0; environ[i] != NULL; ++i)
     {
-      size_t len;
-      struct __go_string *s;
-
-      len = __builtin_strlen (environ[i]);
-      s = __go_alloc (sizeof (struct __go_string) + len);
-      s->__length = len;
-      __builtin_memcpy (&s->__data[0], environ[i], len);
-      values[i] = s;
+      values[i].__data = (unsigned char *) environ[i];
+      values[i].__length = __builtin_strlen (environ[i]);
     }
   Envs.__values = values;
 

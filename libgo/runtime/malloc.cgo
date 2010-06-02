@@ -300,7 +300,7 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 		throw("runtime.SetFinalizer");
 	}
 	if(obj->__type_descriptor->__code != GO_PTR) {
-		printf("runtime.SetFinalizer: first argument is %.*s, not pointer\n", (int)(*obj->__type_descriptor->__reflection)->__length, (*obj->__type_descriptor->__reflection)->__data);
+		printf("runtime.SetFinalizer: first argument is %.*s, not pointer\n", (int)obj->__type_descriptor->__reflection->__length, obj->__type_descriptor->__reflection->__data);
 		goto throw;
 	}
 	if(!mlookup(obj->__object, &base, &size, nil, nil) || obj->__object != base) {
@@ -311,7 +311,7 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 	if(finalizer != nil) {
 		if(finalizer->__type_descriptor->__code != GO_FUNC) {
 		badfunc:
-		  printf("runtime.SetFinalizer: second argument is %.*s, not func(%.*s)\n", (int)(*finalizer->__type_descriptor->__reflection)->__length, (*finalizer->__type_descriptor->__reflection)->__data, (int)(*obj->__type_descriptor->__reflection)->__length, (*obj->__type_descriptor->__reflection)->__data);
+		  printf("runtime.SetFinalizer: second argument is %.*s, not func(%.*s)\n", (int)finalizer->__type_descriptor->__reflection->__length, finalizer->__type_descriptor->__reflection->__data, (int)obj->__type_descriptor->__reflection->__length, obj->__type_descriptor->__reflection->__data);
 			goto throw;
 		}
 		ft = (const FuncType*)finalizer->__type_descriptor;

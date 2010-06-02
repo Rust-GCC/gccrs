@@ -4,15 +4,17 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include "go-alloc.h"
 #include "go-string.h"
+#include "runtime.h"
+#include "malloc.h"
 
-const struct __go_string *
+struct __go_string
 __go_int_to_string (int v)
 {
   char buf[4];
-  size_t len;
-  struct __go_string *ret;
+  int len;
+  unsigned char *retdata;
+  struct __go_string ret;
 
   if (v <= 0x7f)
     {
@@ -49,9 +51,10 @@ __go_int_to_string (int v)
 	}
     }
 
-  ret = (struct __go_string *) __go_alloc (sizeof (struct __go_string) + len);
-  ret->__length = len;
-  __builtin_memcpy (ret->__data, buf, len);
+  retdata = mallocgc (len, RefNoPointers, 1, 0);
+  __builtin_memcpy (retdata, buf, len);
+  ret.__data = retdata;
+  ret.__length = len;
 
   return ret;
 }

@@ -15,7 +15,7 @@
 struct caller_ret
 {
   uintptr_t pc;
-  const struct __go_string *file;
+  struct __go_string file;
   int line;
   _Bool ok;
 };
@@ -32,7 +32,8 @@ Caller (int n __attribute__ ((unused)))
   /* A proper implementation needs to dig through the debugging
      information.  */
   ret.pc = (uint64_t) (uintptr_t) __builtin_return_address (1);
-  ret.file = NULL;
+  ret.file.__data = NULL;
+  ret.file.__length = 0;
   ret.line = 0;
   ret.ok = 0;
 

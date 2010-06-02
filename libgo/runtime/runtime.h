@@ -21,7 +21,7 @@
 #include "go-panic.h"
 #include "go-string.h"
 
-typedef struct __go_string *String;
+typedef struct __go_string String;
 
 /* This file supports C files copied from the 6g runtime library.
    This is a version of the 6g runtime.h rewritten for gccgo's version
