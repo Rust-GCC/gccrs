@@ -8073,6 +8073,9 @@ Call_expression::do_check_types(Gogo*)
 	}
     }
 
+  // Note that varargs was handled by the lower_varargs() method, so
+  // we don't have to worry about it here.
+
   const Typed_identifier_list* parameters = fntype->parameters();
   if (this->args_ == NULL)
     {
@@ -8097,6 +8100,8 @@ Call_expression::do_check_types(Gogo*)
 	  this->check_argument_type(i + 1, pt->type(), (*pa)->type(),
 				    (*pa)->location());
 	}
+      if (pt != parameters->end())
+	this->report_error(_("not enough arguments"));
     }
 }
 
