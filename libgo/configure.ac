@@ -182,8 +182,14 @@ fi
 
 AC_C_BIGENDIAN
 
-AC_CHECK_HEADERS(sys/mman.h)
+AC_CHECK_HEADERS(sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/user.h)
 AC_CHECK_FUNCS(srandom random strsignal)
+
+CFLAGS_hold=$CFLAGS
+CFLAGS="$CFLAGS -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE"
+AC_CHECK_TYPES(off64_t)
+CFLAGS=$CFLAGS_hold
+
 AC_CACHE_SAVE
 
 if test ${multilib} = yes; then

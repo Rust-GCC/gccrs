@@ -1481,7 +1481,7 @@ testing/libscript.a: $(go_testing_script_files) fmt.gox os.gox rand.gox \
 	$(BUILDARCHIVE)
 testing/libscript.la: testing/libscript.a
 
-sysinfo.go: $(srcdir)/mksysinfo.sh
+sysinfo.go: $(srcdir)/mksysinfo.sh config.h
 	$(SHELL) $(srcdir)/mksysinfo.sh
 libsyscall.a: $(go_syscall_files) $(go_syscall_c_files) sync.gox
 	rm -f syscall.gox libsyscall.a

@@ -19,9 +19,9 @@ func libc_open(name *byte, mode int, perm int) int __asm__ ("open");
 func libc_close(fd int) int __asm__ ("close");
 func libc_read(fd int, buf *byte, count Size_t) Ssize_t __asm__ ("read");
 func libc_write(fd int, buf *byte, count Size_t) Ssize_t __asm__ ("write");
-func libc_pread(fd int, buf *byte, count Size_t, offset Off64_t) Ssize_t __asm__ ("pread64");
-func libc_pwrite(fd int, buf *byte, count Size_t, offset Off64_t) Ssize_t __asm__ ("pwrite64");
-func libc_lseek64(int, Off64_t, int) Off64_t __asm__ ("lseek64");
+func libc_pread(fd int, buf *byte, count Size_t, offset Offset_t) Ssize_t __asm__ ("pread64");
+func libc_pwrite(fd int, buf *byte, count Size_t, offset Offset_t) Ssize_t __asm__ ("pwrite64");
+func libc_lseek64(int, Offset_t, int) Offset_t __asm__ ("lseek64");
 func libc_pipe(filedes *int) int __asm__("pipe");
 func libc_stat(name *byte, buf *Stat_t) int __asm__ ("stat");
 func libc_fstat(fd int, buf *Stat_t) int __asm__ ("fstat");
@@ -44,8 +44,8 @@ func libc_fchmod(fd int, mode Mode_t) int __asm__ ("fchmod");
 func libc_chown(path *byte, owner Uid_t, group Gid_t) int __asm__ ("chown");
 func libc_fchown(fd int, owner Uid_t, group Gid_t) int __asm__ ("fchown");
 func libc_lchown(path *byte, owner Uid_t, group Gid_t) int __asm__ ("lchown");
-func libc_truncate64(path *byte, length Off64_t) int __asm__ ("truncate64");
-func libc_ftruncate64(fd int, length Off64_t) int __asm__ ("ftruncate64");
+func libc_truncate64(path *byte, length Offset_t) int __asm__ ("truncate64");
+func libc_ftruncate64(fd int, length Offset_t) int __asm__ ("ftruncate64");
 func libc_utimes(filename *byte, times *[2]Timeval) int __asm__ ("utimes");
 func libc_getuid() Uid_t __asm__ ("getuid");
 func libc_geteuid() Uid_t __asm__ ("geteuid");
@@ -98,7 +98,7 @@ func Write(fd int, p []byte) (n int, errno int) {
 func Pread(fd int, p []byte, offset int64) (n int, errno int) {
   var _p0 *byte;
   if len(p) > 0 { _p0 = &p[0]; }
-  r := libc_pread(fd, _p0, Size_t(len(p)), Off64_t(offset));
+  r := libc_pread(fd, _p0, Size_t(len(p)), Offset_t(offset));
   if r == -1 { errno = GetErrno() }
   n = int(r);
   return;
@@ -107,14 +107,14 @@ func Pread(fd int, p []byte, offset int64) (n int, errno int) {
 func Pwrite(fd int, p []byte, offset int64) (n int, errno int) {
   var _p0 *byte;
   if len(p) > 0 { _p0 = &p[0]; }
-  r := libc_pwrite(fd, _p0, Size_t(len(p)), Off64_t(offset));
+  r := libc_pwrite(fd, _p0, Size_t(len(p)), Offset_t(offset));
   if r == -1 { errno = GetErrno() }
   n = int(r);
   return;
 }
 
 func Seek(fd int, offset int64, whence int) (off int64, errno int) {
-  r := libc_lseek64(fd, Off64_t(offset), whence);
+  r := libc_lseek64(fd, Offset_t(offset), whence);
   if r == -1 { errno = GetErrno() }
   off = int64(r);
   return;
@@ -278,13 +278,13 @@ func Fchown(fd int, uid int, gid int) (errno int) {
 }
 
 func Truncate(path string, length int64) (errno int) {
-  r := libc_truncate64(StringBytePtr(path), Off64_t(length));
+  r := libc_truncate64(StringBytePtr(path), Offset_t(length));
   if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Ftruncate(fd int, length int64) (errno int) {
-  r := libc_ftruncate64(fd, Off64_t(length));
+  r := libc_ftruncate64(fd, Offset_t(length));
   if r < 0 { errno = GetErrno() }
   return;
 }

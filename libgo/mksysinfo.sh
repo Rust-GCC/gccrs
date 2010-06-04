@@ -25,6 +25,7 @@ rm -f sysinfo.go
 
 rm -f sysinfo.c
 cat > sysinfo.c <<EOF
+#include "config.h"
 #include <sys/types.h>
 #include <dirent.h>
 #include <errno.h>
@@ -32,16 +33,24 @@ cat > sysinfo.c <<EOF
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <signal.h>
+#if defined(HAVE_SYSCALL_H)
 #include <syscall.h>
+#endif
+#if defined(HAVE_SYS_EPOLL_H)
 #include <sys/epoll.h>
+#endif
+#if defined(HAVE_SYS_PTRACE_H)
 #include <sys/ptrace.h>
+#endif
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/un.h>
+#if defined(HAVE_SYS_USER_H)
 #include <sys/user.h>
+#endif
 #include <unistd.h>
 EOF
 
@@ -211,7 +220,11 @@ fi
 # Some basic types.
 echo 'type Size_t _size_t' >> ${OUT}
 echo "type Ssize_t _ssize_t" >> ${OUT}
-echo "type Off64_t _off64_t" >> ${OUT}
+if grep '^#GO const _HAVE_OFF64_T = ' sysinfo.s > /dev/null 2>&1; then
+  echo "type Offset_t _off64_t" >> ${OUT}
+else
+  echo "type Offset_t _off_t" >> ${OUT}
+fi
 echo "type Mode_t _mode_t" >> ${OUT}
 echo "type Pid_t _pid_t" >> ${OUT}
 echo "type Uid_t _uid_t" >> ${OUT}
