@@ -58,23 +58,22 @@ func libc_exit(status int) __asm__ ("exit")
 func libc_getpid() Pid_t __asm__ ("getpid")
 func libc_getppid() Pid_t __asm__ ("getppid")
 func libc_kill(Pid_t, int) int __asm__ ("kill")
-func errno_location() *int __asm__ ("__errno_location");
 
 func Open(name string, mode int, perm int) (fd int, errno int) {
   fd = libc_open(StringBytePtr(name), mode, perm);
-  if fd < 0 { errno = *errno_location() }
+  if fd < 0 { errno = GetErrno() }
   return;
 }
 
 func Creat(name string, perm int) (fd int, errno int) {
   fd = libc_open(StringBytePtr(name), O_CREAT | O_WRONLY | O_TRUNC, perm);
-  if fd < 0 { errno = *errno_location() }
+  if fd < 0 { errno = GetErrno() }
   return;
 }
 
 func Close(fd int) (errno int) {
   r := libc_close(fd);
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
@@ -82,7 +81,7 @@ func Read(fd int, p []byte) (n int, errno int) {
   var _p0 *byte;
   if len(p) > 0 { _p0 = &p[0]; }
   r := libc_read(fd, _p0, Size_t(len(p)));
-  if r == -1 { errno = *errno_location() }
+  if r == -1 { errno = GetErrno() }
   n = int(r);
   return;
 }
@@ -91,7 +90,7 @@ func Write(fd int, p []byte) (n int, errno int) {
   var _p0 *byte;
   if len(p) > 0 { _p0 = &p[0]; }
   r := libc_write(fd, _p0, Size_t(len(p)));
-  if r == -1 { errno = *errno_location() }
+  if r == -1 { errno = GetErrno() }
   n = int(r);
   return;
 }
@@ -100,7 +99,7 @@ func Pread(fd int, p []byte, offset int64) (n int, errno int) {
   var _p0 *byte;
   if len(p) > 0 { _p0 = &p[0]; }
   r := libc_pread(fd, _p0, Size_t(len(p)), Off64_t(offset));
-  if r == -1 { errno = *errno_location() }
+  if r == -1 { errno = GetErrno() }
   n = int(r);
   return;
 }
@@ -109,14 +108,14 @@ func Pwrite(fd int, p []byte, offset int64) (n int, errno int) {
   var _p0 *byte;
   if len(p) > 0 { _p0 = &p[0]; }
   r := libc_pwrite(fd, _p0, Size_t(len(p)), Off64_t(offset));
-  if r == -1 { errno = *errno_location() }
+  if r == -1 { errno = GetErrno() }
   n = int(r);
   return;
 }
 
 func Seek(fd int, offset int64, whence int) (off int64, errno int) {
   r := libc_lseek64(fd, Off64_t(offset), whence);
-  if r == -1 { errno = *errno_location() }
+  if r == -1 { errno = GetErrno() }
   off = int64(r);
   return;
 }
@@ -128,7 +127,7 @@ func Pipe(p []int) (errno int) {
   var pp [2]int;
   r := libc_pipe(&pp[0]);
   if r < 0 {
-    errno = *errno_location();
+    errno = GetErrno();
   }
   p[0] = pp[0];
   p[1] = pp[1];
@@ -137,43 +136,43 @@ func Pipe(p []int) (errno int) {
 
 func Stat(name string, buf *Stat_t) (errno int) {
   r := libc_stat(StringBytePtr(name), buf);
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Lstat(name string, buf *Stat_t) (errno int) {
   r := libc_lstat(StringBytePtr(name), buf);
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Fstat(fd int, buf *Stat_t) (errno int) {
   r := libc_fstat(fd, buf);
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Unlink(name string) (errno int) {
   r := libc_unlink(StringBytePtr(name));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Rmdir(name string) (errno int) {
   r := libc_rmdir(StringBytePtr(name));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Mkdir(path string, mode int) (errno int) {
   r := libc_mkdir(StringBytePtr(path), Mode_t(mode));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Gettimeofday(tv *Timeval) (errno int) {
   r := libc_gettimeofday(tv, nil);
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
@@ -185,19 +184,19 @@ func Select(nfds int, r *FdSet, w *FdSet, e *FdSet, timeout *Timeval) (n int, er
   n = libc_select(nfds, (*byte)(unsafe.Pointer(r)),
 		  (*byte)(unsafe.Pointer(e)),
 		  (*byte)(unsafe.Pointer(e)), timeout);
-  if n < 0 { errno = *errno_location() }
+  if n < 0 { errno = GetErrno() }
   return;
 }
 
 func Chdir(path string) (errno int) {
   r := libc_chdir(StringBytePtr(path));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Fchdir(fd int) (errno int) {
   r := libc_fchdir(int(fd));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
@@ -214,7 +213,7 @@ func Getwd() (ret string, errno int) {
 			}
 			return string(b[0:i]), 0;
 		}
-		e := *errno_location();
+		e := GetErrno();
 		if e != ERANGE {
 			return "", e;
 		}
@@ -223,13 +222,13 @@ func Getwd() (ret string, errno int) {
 
 func Link(oldpath, newpath string) (errno int) {
   r := libc_link(StringBytePtr(oldpath), StringBytePtr(newpath));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Symlink(oldpath, newpath string) (errno int) {
   r := libc_symlink(StringBytePtr(oldpath), StringBytePtr(newpath));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
@@ -237,56 +236,56 @@ func Readlink(path string, buf []byte) (n int, errno int) {
   var _p0 *byte;
   if len(buf) > 0 { _p0 = &buf[0]; }
   r := libc_readlink(StringBytePtr(path), _p0, Size_t(len(buf)));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   n = int(r);
   return;
 }
 
 func Rename(oldpath, newpath string) (errno int) {
 	r := libc_rename(StringBytePtr(oldpath), StringBytePtr(newpath));
-	if r < 0 { errno = *errno_location() }
+	if r < 0 { errno = GetErrno() }
 	return 
 }
 
 func Chmod(path string, mode int) (errno int) {
   r := libc_chmod(StringBytePtr(path), Mode_t(mode));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Fchmod(fd, mode int) (errno int) {
   r := libc_fchmod(fd, Mode_t(mode));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Chown(path string, uid int, gid int) (errno int) {
   r := libc_chown(StringBytePtr(path), Uid_t(uid), Gid_t(gid));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Lchown(path string, uid int, gid int) (errno int) {
   r := libc_lchown(StringBytePtr(path), Uid_t(uid), Gid_t(gid));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Fchown(fd int, uid int, gid int) (errno int) {
   r := libc_fchown(fd, Uid_t(uid), Gid_t(gid));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Truncate(path string, length int64) (errno int) {
   r := libc_truncate64(StringBytePtr(path), Off64_t(length));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func Ftruncate(fd int, length int64) (errno int) {
   r := libc_ftruncate64(fd, Off64_t(length));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
@@ -297,7 +296,7 @@ func Utimes(path string, tv []Timeval) (errno int) {
   r := libc_utimes(StringBytePtr(path),
 		   (*[2]Timeval)(unsafe.Pointer(&tv[0])));
   if r < 0 {
-    errno = *errno_location();
+    errno = GetErrno();
   }
   return;
 }
@@ -326,7 +325,7 @@ func Getegid() int {
 func Getgroups() (gids []int, errno int) {
 	n := libc_getgroups(0, nil);
 	if n < 0 {
-		return nil, *errno_location();
+		return nil, GetErrno();
 	}
 	if n == 0 {
 		return nil, 0;
@@ -340,7 +339,7 @@ func Getgroups() (gids []int, errno int) {
 	a := make([]Gid_t, n);
 	n = libc_getgroups(n, &a[0]);
 	if n < 0 {
-		return nil, *errno_location();
+		return nil, GetErrno();
 	}
 	gids = make([]int, n);
 	for i, v := range a[0:n] {
@@ -398,7 +397,7 @@ func Sleep(nsec int64) (errno int) {
 
 func fcntl(fd, cmd, arg int) (val int, errno int) {
   val = libc_fcntl(int(fd), int(cmd), int(arg));
-  if val == -1 { errno = *errno_location() }
+  if val == -1 { errno = GetErrno() }
   return;
 }
 
@@ -413,7 +412,7 @@ func Getppid() (ppid int) {
 func Kill(pid int, sig int) (errno int) {
 	r := libc_kill(Pid_t(pid), sig)
 	if r < 0 {
-		errno = *errno_location()
+		errno = GetErrno()
 	}
 	return
 }

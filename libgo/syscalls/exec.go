@@ -121,7 +121,7 @@ func forkAndExecInChild(argv0 *byte, argv []*byte, envv []*byte, traceme bool, d
 	// No more allocation or calls of non-assembly functions.
 	child := libc_fork();
 	if child == -1 {
-		return 0, *errno_location();
+		return 0, GetErrno();
 	}
 
 	if child != 0 {
@@ -209,7 +209,7 @@ func forkAndExecInChild(argv0 *byte, argv []*byte, envv []*byte, traceme bool, d
 
 childerror:
 	// send error code on pipe
-	var e uintptr = uintptr(*errno_location());
+	var e uintptr = uintptr(GetErrno());
 	libc_write(pipe, (*byte)(unsafe.Pointer(&e)),
 		   Size_t(unsafe.Sizeof(err1)));
 	for {
@@ -276,7 +276,7 @@ func forkExec(argv0 string, argv []string, envv []string, traceme bool, dir stri
 		       Size_t(unsafe.Sizeof(err1)));
 	err = 0;
 	if n < 0 {
-		err = *errno_location();
+		err = GetErrno();
 	}
 	Close(p[0]);
 	if err != 0 || n != 0 {
@@ -315,7 +315,7 @@ func Exec(argv0 string, argv []string, envv []string) (err int) {
 	argv_arg := StringArrayPtr(argv);
 	envv_arg := StringArrayPtr(envv);
 	libc_execve(StringBytePtr(argv0), &argv_arg[0], &envv_arg[0]);
-	return *errno_location();
+	return GetErrno();
 }
 
 // Wait status is 7 bits at bottom, either 0 (exited),
@@ -388,7 +388,7 @@ func Wait4(pid int, wstatus *WaitStatus, options int, rusage *Rusage) (wpid int,
 	r := libc_wait4(Pid_t(pid), &status, options, rusage);
 	wpid = int(r);
 	if r < 0 {
-		errno = *errno_location();
+		errno = GetErrno();
 	}
 	if wstatus != nil {
 		*wstatus = WaitStatus(status);

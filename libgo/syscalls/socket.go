@@ -188,14 +188,13 @@ func libc_send(fd int, buf *byte, len Size_t, flags int) Ssize_t __asm__("send")
 func libc_sendto(fd int, buf *byte, len Size_t, flags int,
 	to *RawSockaddrAny, tolen Socklen_t) Ssize_t __asm__("sendto");
 func libc_shutdown(fd int, how int) int __asm__ ("shutdown");
-func errno_location() *int __asm__ ("__errno_location");
 
 func Accept(fd int) (nfd int, sa Sockaddr, errno int) {
 	var rsa RawSockaddrAny;
 	var len Socklen_t = SizeofSockaddrAny;
 	nfd = libc_accept(fd, &rsa, &len);
 	if nfd < 0 {
-		errno = *errno_location();
+		errno = GetErrno();
 		return;
 	}
 	sa, errno = anyToSockaddr(&rsa);
@@ -212,7 +211,7 @@ func Bind(fd int, sa Sockaddr) (errno int) {
 		return err;
 	}
 	if libc_bind(fd, ptr, n) < 0 {
-		errno = *errno_location();
+		errno = GetErrno();
 	}
 	return;
 }
@@ -223,7 +222,7 @@ func Connect(fd int, sa Sockaddr) (errno int) {
 		return err;
 	}
 	if libc_connect(fd, ptr, n) < 0 {
-		errno = *errno_location();
+		errno = GetErrno();
 	}
 	return;
 }
@@ -234,21 +233,21 @@ func Socket(domain, typ, proto int) (fd, errno int) {
   }
   fd = libc_socket(int(domain), int(typ), int(proto));
   if fd < 0 {
-    errno = *errno_location();
+    errno = GetErrno();
   }
   return;
 }
 
 func Listen(fd int, n int) (errno int) {
   r := libc_listen(int(fd), int(n));
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
 func setsockopt(fd, level, opt int, valueptr uintptr, length Socklen_t) (errno int) {
   r := libc_setsockopt(fd, level, opt, (*byte)(unsafe.Pointer(valueptr)),
 		       length);
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
@@ -269,7 +268,7 @@ func Getsockname(fd int) (sa Sockaddr, errno int) {
 	var rsa RawSockaddrAny;
 	var len Socklen_t = SizeofSockaddrAny;
 	if libc_getsockname(fd, &rsa, &len) != 0 {
-		errno = *errno_location();
+		errno = GetErrno();
 		return;
 	}
 	return anyToSockaddr(&rsa);
@@ -279,7 +278,7 @@ func Getpeername(fd int) (sa Sockaddr, errno int) {
 	var rsa RawSockaddrAny;
 	var len Socklen_t = SizeofSockaddrAny;
 	if libc_getpeername(fd, &rsa, &len) != 0 {
-		errno = *errno_location();
+		errno = GetErrno();
 		return;
 	}
 	return anyToSockaddr(&rsa);
@@ -293,7 +292,7 @@ func Recvfrom(fd int, p []byte, flags int) (n int, from Sockaddr, errno int) {
 	r := libc_recvfrom(fd, _p0, Size_t(len(p)), flags, &rsa, &slen);
 	n = int(r);
 	if r == -1 {
-		errno = *errno_location();
+		errno = GetErrno();
 	} else {
 		from, errno = anyToSockaddr(&rsa);
 	}
@@ -308,13 +307,13 @@ func Sendto(fd int, p []byte, flags int, to Sockaddr) (errno int) {
 	var _p0 *byte;
 	if len(p) > 0 { _p0 = &p[0]; }
 	r := libc_sendto(fd, _p0, Size_t(len(p)), flags, ptr, n);
-	if r == -1 { errno = *errno_location(); }
+	if r == -1 { errno = GetErrno(); }
 	return;
 }
 
 func Shutdown(fd int, how int) (errno int) {
 	r := libc_shutdown(fd, how);
-	if r < 0 { errno = *errno_location() }
+	if r < 0 { errno = GetErrno() }
 	return;
 }
 

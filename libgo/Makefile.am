@@ -24,7 +24,7 @@ LIBFFIINCS = @LIBFFIINCS@
 WARN_CFLAGS = $(WARN_FLAGS) $(WERROR)
 
 # -I/-D flags to pass when compiling.
-AM_CPPFLAGS = -I $(srcdir)/runtime $(LIBFFIINCS)
+AM_CPPFLAGS = -I $(srcdir)/runtime $(LIBFFIINCS) -pthread
 
 ACLOCAL_AMFLAGS = -I . -I .. -I ../config
 
@@ -876,6 +876,8 @@ go_syscall_files = \
 	$(syscall_arch_file) \
 	syscalls/sysfile.go \
 	sysinfo.go
+go_syscall_c_files = \
+	syscalls/errno.c
 
 libgo_go_objs = \
 	asn1/libasn1.la \
@@ -1481,9 +1483,15 @@ testing/libscript.la: testing/libscript.a
 
 sysinfo.go: $(srcdir)/mksysinfo.sh
 	$(SHELL) $(srcdir)/mksysinfo.sh
-libsyscall.a: $(go_syscall_files) sync.gox
-	$(BUILDARCHIVE)
+libsyscall.a: $(go_syscall_files) $(go_syscall_c_files) sync.gox
+	rm -f syscall.gox libsyscall.a
+	test -d syscalls || mkdir -p syscalls
+	files=`echo $^ | sed -e 's/[^ ]*\.gox//g' -e's/[^ ]*\.c//g'`; \
+	$(LTGOCOMPILE) -c -fgo-prefix="libgo__" -o syscalls/syscall.o $$files
+	$(LTCOMPILE) -c -o syscalls/errno.o $(srcdir)/syscalls/errno.c
+	$(AR) rc libsyscall.a syscalls/syscall.o syscalls/errno.o
 libsyscall.la: libsyscall.a
+	$(LINK) syscalls/syscall.lo syscalls/errno.lo
 
 # How to build a .gox file from a .a file.
 BUILDGOX = \

@@ -24,17 +24,16 @@ func libc_epoll_ctl(epfd, op, fd int, event *EpollEvent) int __asm__ ("epoll_ctl
 func libc_epoll_wait(epfd int, events *EpollEvent, maxevents int,
                      timeout int) int __asm__ ("epoll_wait");
 
-func errno_location() *int __asm__ ("__errno_location");
 
 func EpollCreate(size int) (fd int, errno int) {
   fd = libc_epoll_create(int(size));
-  if fd < 0 { errno = *errno_location() }
+  if fd < 0 { errno = GetErrno() }
   return;
 }
 
 func EpollCtl(epfd, op, fd int, ev *EpollEvent) (errno int) {
   r := libc_epoll_ctl(epfd, op, fd, ev);
-  if r < 0 { errno = *errno_location() }
+  if r < 0 { errno = GetErrno() }
   return;
 }
 
@@ -46,6 +45,6 @@ func EpollWait(epfd int, ev []EpollEvent, msec int) (n int, errno int) {
     events = &ev[0]
   }
   n = libc_epoll_wait(epfd, events, maxevents, msec);
-  if n < 0 { errno = *errno_location() }
+  if n < 0 { errno = GetErrno() }
   return;
 }

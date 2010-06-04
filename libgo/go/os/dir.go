@@ -17,9 +17,6 @@ func libc_closedir(*syscall.DIR) int __asm__ ("closedir")
 // FIXME: pathconf returns long, not int.
 func libc_pathconf(*byte, int) int __asm__ ("pathconf")
 
-// FIXME: This should be in syscall.
-func errno_location() *int __asm__ ("__errno_location");
-
 func clen(n []byte) int {
 	for i := 0; i < len(n); i++ {
 		if n[i] == 0 {
@@ -56,7 +53,7 @@ func (file *File) Readdirnames(count int) (names []string, err Error) {
 
 	dir := file.dirinfo.dir;
 	if dir == nil {
-		return names, NewSyscallError("opendir", *errno_location())
+		return names, NewSyscallError("opendir", syscall.GetErrno())
 	}	
 
 	for count != 0 {

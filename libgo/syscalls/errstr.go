@@ -10,7 +10,8 @@ const ENONE = 0;
 
 // FIXME: The name is only right for glibc.
 func libc_strerror_r(int, *byte, Size_t) int __asm__ ("__xpg_strerror_r")
-func errno_location() *int __asm__ ("__errno_location");
+func GetErrno() int
+func SetErrno(int)
 
 func Errstr(errno int) string {
 	for len := Size_t(128); ; len *= 2 {
@@ -23,7 +24,7 @@ func Errstr(errno int) string {
 			}
 			return string(b[0:i]);
 		}
-		if *errno_location() != ERANGE {
+		if GetErrno() != ERANGE {
 			return "Errstr failure";
 		}
 	}

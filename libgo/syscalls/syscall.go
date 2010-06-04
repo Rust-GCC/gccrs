@@ -13,13 +13,10 @@
 // the manuals for the appropriate operating system.
 package syscall
 
-import (
-	"unsafe";
-)
+import "unsafe"
 
 func libc_syscall32(trap int32, a1, a2, a3, a4, a5, a6 int32) int32 __asm__ ("syscall");
 func libc_syscall64(trap int64, a1, a2, a3, a4, a5, a6 int64) int64 __asm__ ("syscall");
-func errno_location() *int __asm__ ("__errno_location");
 
 // Do a system call.  We look at the size of int to see how to pass
 // the arguments, so that we don't pass a 64-bit value when the function
@@ -34,7 +31,7 @@ func Syscall(trap, a1, a2, a3 uintptr) (r1, r2, err uintptr) {
     r1 := libc_syscall64(int64(trap), int64(a1), int64(a2), int64(a3), 0, 0, 0);
     r = uintptr(r1);
   }
-  return r, 0, uintptr(*errno_location());
+  return r, 0, uintptr(GetErrno());
 }
 
 func Syscall6(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2, err uintptr) {
@@ -49,7 +46,7 @@ func Syscall6(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2, err uintptr) {
 			 int64(a4), int64(a5), int64(a6));
     r = uintptr(r1);
   }
-  return r, 0, uintptr(*errno_location());
+  return r, 0, uintptr(GetErrno());
 }
 
 // StringByteSlice returns a NUL-terminated slice of bytes

@@ -6,9 +6,7 @@
 
 package syscall
 
-import (
-	"unsafe";
-)
+import "unsafe"
 
 func libc_ptrace(request int, pid Pid_t, addr uintptr, data *byte) _C_long __asm__ ("ptrace")
 
@@ -39,9 +37,9 @@ func ptracePeek(req int, pid int, addr uintptr, out []byte) (count int, errno in
 	// boundary.
 	n := 0;
 	if addr % sizeofPtr != 0 {
-		*errno_location() = 0;
+		SetErrno(0);
 		val := libc_ptrace(req, Pid_t(pid), addr - addr%sizeofPtr, nil);
-		if errno := *errno_location(); errno != 0 {
+		if errno := GetErrno(); errno != 0 {
 			return 0, errno;
 		}
 		*(*_C_long)(unsafe.Pointer(&buf[0])) = val;
@@ -53,9 +51,9 @@ func ptracePeek(req int, pid int, addr uintptr, out []byte) (count int, errno in
 	for len(out) > 0 {
 		// We use an internal buffer to gaurantee alignment.
 		// It's not documented if this is necessary, but we're paranoid.
-		*errno_location() = 0;
+		SetErrno(0);
 		val := libc_ptrace(req, Pid_t(pid), addr+uintptr(n), nil);
-		if errno = *errno_location(); errno != 0 {
+		if errno = GetErrno(); errno != 0 {
 			return n, errno;
 		}
 		*(*_C_long)(unsafe.Pointer(&buf[0])) = val;
@@ -84,12 +82,12 @@ func ptracePoke(pokeReq int, peekReq int, pid int, addr uintptr, data []byte) (c
 	if addr % sizeofPtr != 0 {
 		var buf [sizeofPtr]byte;
 		if libc_ptrace(peekReq, Pid_t(pid), addr - addr%sizeofPtr, &buf[0]) < 0 {
-			return 0, *errno_location();
+			return 0, GetErrno();
 		}
 		n += bytesCopy(buf[addr%sizeofPtr:len(buf)], data);
 		word := (*byte)(unsafe.Pointer(*((*uintptr)(unsafe.Pointer(&buf[0])))));
 		if libc_ptrace(pokeReq, Pid_t(pid), addr - addr%sizeofPtr, word) < 0 {
-			return 0, *errno_location();
+			return 0, GetErrno();
 		}
 		data = data[n:len(data)];
 	}
@@ -98,7 +96,7 @@ func ptracePoke(pokeReq int, peekReq int, pid int, addr uintptr, data []byte) (c
 	for uintptr(len(data)) > sizeofPtr {
 		word := (*byte)(unsafe.Pointer(*((*uintptr)(unsafe.Pointer(&data[0])))));
 		if libc_ptrace(pokeReq, Pid_t(pid), addr+uintptr(n), word) < 0 {
-			return n, *errno_location();
+			return n, GetErrno();
 		}
 		n += int(sizeofPtr);
 		data = data[sizeofPtr:len(data)];
@@ -108,12 +106,12 @@ func ptracePoke(pokeReq int, peekReq int, pid int, addr uintptr, data []byte) (c
 	if len(data) > 0 {
 		var buf [sizeofPtr]byte;
 		if libc_ptrace(peekReq, Pid_t(pid), addr+uintptr(n), &buf[0]) < 0 {
-			return n, *errno_location();
+			return n, GetErrno();
 		}
 		bytesCopy(&buf, data);
 		word := (*byte)(unsafe.Pointer(*((*uintptr)(unsafe.Pointer(&buf[0])))));
 		if libc_ptrace(pokeReq, Pid_t(pid), addr+uintptr(n), word) < 0 {
-			return n, *errno_location();
+			return n, GetErrno();
 		}
 		n += len(data);
 	}
@@ -131,7 +129,7 @@ func PtracePokeData(pid int, addr uintptr, data []byte) (count int, errno int) {
 
 func PtraceGetRegs(pid int, regsout *PtraceRegs) (errno int) {
 	if libc_ptrace(_PTRACE_GETREGS, Pid_t(pid), 0, (*byte)(unsafe.Pointer(regsout))) < 0 {
-		return *errno_location();
+		return GetErrno();
 	} else {
 		return 0;
 	}
@@ -139,7 +137,7 @@ func PtraceGetRegs(pid int, regsout *PtraceRegs) (errno int) {
 
 func PtraceSetRegs(pid int, regs *PtraceRegs) (errno int) {
 	if libc_ptrace(_PTRACE_SETREGS, Pid_t(pid), 0, (*byte)(unsafe.Pointer(regs))) < 0 {
-		return *errno_location();
+		return GetErrno();
 	} else {
 		return 0;
 	}
@@ -147,7 +145,7 @@ func PtraceSetRegs(pid int, regs *PtraceRegs) (errno int) {
 
 func PtraceSetOptions(pid int, options int) (errno int) {
 	if libc_ptrace(_PTRACE_SETOPTIONS, Pid_t(pid), 0, (*byte)(unsafe.Pointer(uintptr(options)))) < 0 {
-		return *errno_location();
+		return GetErrno();
 	} else {
 		return 0;
 	}
@@ -156,7 +154,7 @@ func PtraceSetOptions(pid int, options int) (errno int) {
 func PtraceGetEventMsg(pid int) (msg uint, errno int) {
 	var data _C_long;
 	if libc_ptrace(_PTRACE_GETEVENTMSG, Pid_t(pid), 0, (*byte)(unsafe.Pointer(&data))) < 0 {
-		errno = *errno_location();
+		errno = GetErrno();
 	}
 	msg = uint(data);
 	return;
@@ -164,7 +162,7 @@ func PtraceGetEventMsg(pid int) (msg uint, errno int) {
 
 func PtraceCont(pid int, signal int) (errno int) {
 	if libc_ptrace(_PTRACE_CONT, Pid_t(pid), 0, (*byte)(unsafe.Pointer(uintptr(signal)))) < 0 {
-		return *errno_location();
+		return GetErrno();
 	} else {
 		return 0;
 	}
@@ -172,7 +170,7 @@ func PtraceCont(pid int, signal int) (errno int) {
 
 func PtraceSingleStep(pid int) (errno int) {
 	if libc_ptrace(_PTRACE_SINGLESTEP, Pid_t(pid), 0, nil) < 0 {
-		return *errno_location();
+		return GetErrno();
 	} else {
 		return 0;
 	}
@@ -180,7 +178,7 @@ func PtraceSingleStep(pid int) (errno int) {
 
 func PtraceAttach(pid int) (errno int) {
 	if libc_ptrace(_PTRACE_ATTACH, Pid_t(pid), 0, nil) < 0 {
-		return *errno_location();
+		return GetErrno();
 	} else {
 		return 0;
 	}
@@ -188,7 +186,7 @@ func PtraceAttach(pid int) (errno int) {
 
 func PtraceDetach(pid int) (errno int) {
 	if libc_ptrace(_PTRACE_DETACH, Pid_t(pid), 0, nil) < 0 {
-		return *errno_location();
+		return GetErrno();
 	} else {
 		return 0;
 	}
