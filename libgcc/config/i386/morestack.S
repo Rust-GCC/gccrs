@@ -114,6 +114,13 @@ __morestack:
 	movl	%esp, %ebp
 	.cfi_def_cfa_register %ebp
 
+	# We return below with a ret $8.  We will return to a single
+	# return instruction, which will return to the caller of our
+	# caller.  We let the unwinder skip that single return
+	# instruction, and just return to the real caller.
+	.cfi_offset 8, 8
+	.cfi_escape 0x15, 4, 0x7d	# DW_CFA_val_offset_sf, %esp, 12/-4
+
 	# In 32-bit mode the parameters are pushed on the stack.  The
 	# argument size is pushed then the new stack frame size is
 	# pushed.
