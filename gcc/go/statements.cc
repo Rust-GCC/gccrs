@@ -1548,10 +1548,8 @@ Expression_statement::do_may_fall_through() const
 	  else
 	    fntype = NULL;
 
-	  // The builtin functions panic and panicln do not return.
-	  if ((no->name() == "panic" || no->name() == "panicln")
-	      && fntype != NULL
-	      && fntype->is_builtin())
+	  // The builtin function panic does not return.
+	  if (fntype != NULL && fntype->is_builtin() && no->name() == "panic")
 	    return false;
 	}
     }
@@ -1699,6 +1697,11 @@ Thunk_statement::is_simple(Function_type* fntype) const
   if (fntype->is_method() || fntype->is_varargs())
     return false;
 
+  // A defer statement requires a thunk to set up for whether the
+  // function can call recover.
+  if (this->classification() == STATEMENT_DEFER)
+    return false;
+
   // We can only permit a single parameter of pointer type.
   const Typed_identifier_list* parameters = fntype->parameters();
   if (parameters != NULL
@@ -1760,10 +1763,11 @@ Thunk_statement::do_traverse(Traverse* traverse)
 bool
 Thunk_statement::do_traverse_assignments(Traverse_assignments* tassign)
 {
+  // FIXME: This doesn't work, because we might get a REFCOUNT_ADJUST
+  // which we will never execute.
   Expression* fn = this->call_->call_expression()->fn();
   Expression* fn2 = fn;
   tassign->value(&fn2, true, false);
-  gcc_assert(fn == fn2);
   return true;
 }
 
@@ -2003,6 +2007,15 @@ Thunk_statement::build_struct(Function_type* fntype)
       Typed_identifier tid(Go_statement::thunk_field_fn, fntype, location);
       fields->push_back(Struct_field(tid));
     }
+  else if (ce->is_recover_call())
+    {
+      // The predeclared recover function has no argument.  However,
+      // we add an argument when building recover thunks.  Handle that
+      // here.
+      fields->push_back(Struct_field(Typed_identifier("can_recover",
+						      Type::make_boolean_type(),
+						      location)));
+    }
 
   if (fn->bound_method_expression() != NULL)
     {
@@ -2043,6 +2056,24 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
 {
   source_location location = this->location();
 
+  Call_expression* ce = this->call_->call_expression();
+
+  bool may_call_recover = false;
+  if (this->classification() == STATEMENT_DEFER)
+    {
+      Func_expression* fn = ce->fn()->func_expression();
+      if (fn == NULL)
+	may_call_recover = true;
+      else
+	{
+	  const Named_object* no = fn->named_object();
+	  if (!no->is_function())
+	    may_call_recover = true;
+	  else
+	    may_call_recover = no->func_value()->calls_recover();
+	}
+    }
+
   // Build the type of the thunk.  The thunk takes a single parameter,
   // which is a pointer to the special structure we build.
   const char* const parameter_name = "__go_thunk_parameter";
@@ -2050,13 +2081,76 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
   Type* pointer_to_struct_type = Type::make_pointer_type(this->struct_type_);
   thunk_parameters->push_back(Typed_identifier(parameter_name,
 					       pointer_to_struct_type,
-					       this->location()));
+					       location));
+
+  Typed_identifier_list* thunk_results = NULL;
+  if (may_call_recover)
+    {
+      // When deferring a function which may call recover, add a
+      // return value, to disable tail call optimizations which will
+      // break the way we check whether recover is permitted.
+      thunk_results = new Typed_identifier_list();
+      thunk_results->push_back(Typed_identifier("", Type::make_boolean_type(),
+						location));
+    }
+
   Function_type* thunk_type = Type::make_function_type(NULL, thunk_parameters,
-						       NULL, this->location());
+						       thunk_results,
+						       location);
 
   // Start building the thunk.
   Named_object* function = gogo->start_function(thunk_name, thunk_type, true,
 						location);
+
+  // For a defer statement, start with a call to
+  // __go_set_defer_retaddr.  */
+  Label* retaddr_label = NULL; 
+  if (may_call_recover)
+    {
+      retaddr_label = gogo->add_label_reference("retaddr");
+      Expression* arg = Expression::make_label_addr(retaddr_label, location);
+      Expression_list* args = new Expression_list();
+      args->push_back(arg);
+
+      static Named_object* set_defer_retaddr;
+      if (set_defer_retaddr == NULL)
+	{
+	  const source_location bloc = BUILTINS_LOCATION;
+	  Typed_identifier_list* param_types = new Typed_identifier_list();
+	  Type *voidptr_type = Type::make_pointer_type(Type::make_void_type());
+	  param_types->push_back(Typed_identifier("r", voidptr_type, bloc));
+
+	  Typed_identifier_list* result_types = new Typed_identifier_list();
+	  result_types->push_back(Typed_identifier("",
+						   Type::make_boolean_type(),
+						   bloc));
+
+	  Function_type* t = Type::make_function_type(NULL, param_types,
+						      result_types, bloc);
+	  set_defer_retaddr =
+	    Named_object::make_function_declaration("__go_set_defer_retaddr",
+						    NULL, t, bloc);
+	  const char* n = "__go_set_defer_retaddr";
+	  set_defer_retaddr->func_declaration_value()->set_asm_name(n);
+	}
+
+      Expression* fn = Expression::make_func_reference(set_defer_retaddr,
+						       NULL, location);
+      Expression* call = Expression::make_call(fn, args, location);
+
+      // This is a hack to prevent the middle-end from deleting the
+      // label.
+      gogo->start_block(location);
+      gogo->add_statement(Statement::make_goto_statement(retaddr_label,
+							 location));
+      Block* then_block = gogo->finish_block(location);
+      then_block->determine_types();
+
+      Statement* s = Statement::make_if_statement(call, then_block, NULL,
+						  location);
+      s->determine_types();
+      gogo->add_statement(s);
+    }
 
   // Get a reference to the parameter.
   Named_object* named_parameter = gogo->lookup(parameter_name, NULL);
@@ -2067,7 +2161,6 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
   Expression* thunk_parameter = Expression::make_var_reference(named_parameter,
 							       location);
 
-  Call_expression* ce = this->call_->call_expression();
   Bound_method_expression* bound_method = ce->fn()->bound_method_expression();
   Interface_field_reference_expression* interface_method =
     ce->fn()->interface_field_reference_expression();
@@ -2125,6 +2218,12 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
   Expression* call = Expression::make_call(func_to_call, call_params, location);
   // We need to lower in case this is a builtin function.
   call = call->lower(gogo, function, -1);
+  if (may_call_recover)
+    {
+      Call_expression* ce = call->call_expression();
+      if (ce != NULL)
+	ce->set_is_deferred();
+    }
 
   Statement* call_statement = Statement::make_statement(call);
 
@@ -2133,6 +2232,20 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
   call_statement->determine_types();
 
   gogo->add_statement(call_statement);
+
+  // If this is a defer statement, the label comes immediately after
+  // the call.
+  if (may_call_recover)
+    {
+      gogo->add_label_definition("retaddr", location);
+
+      Expression_list* vals = new Expression_list();
+      vals->push_back(Expression::make_boolean(false, location));
+      const Typed_identifier_list* results =
+	function->func_value()->type()->results();
+      gogo->add_statement(Statement::make_return_statement(results, vals,
+							  location));
+    }
 
   // FIXME: Now we need to decrement the reference count of the
   // parameter.
@@ -2226,6 +2339,8 @@ Statement::make_go_statement(Call_expression* call, source_location location)
 tree
 Defer_statement::do_get_tree(Translate_context* context)
 {
+  source_location loc = this->location();
+
   tree fn_tree;
   tree arg_tree;
   this->get_fn_and_arg(context, &fn_tree, &arg_tree);
@@ -2243,20 +2358,19 @@ Defer_statement::do_get_tree(Translate_context* context)
       fn_arg_type = build_pointer_type(subfntype);
     }
 
-  tree defer_stack = context->function()->func_value()->defer_stack();
+  tree defer_stack = context->function()->func_value()->defer_stack(loc);
 
-  tree call = Gogo::call_builtin(&defer_fndecl,
-				 this->location(),
-				 "__go_defer",
-				 3,
-				 ptr_type_node,
-				 ptr_type_node,
-				 defer_stack,
-				 fn_arg_type,
-				 fn_tree,
-				 ptr_type_node,
-				 arg_tree);
-  return build2(MODIFY_EXPR, void_type_node, defer_stack, call);
+  return Gogo::call_builtin(&defer_fndecl,
+			    loc,
+			    "__go_defer",
+			    3,
+			    void_type_node,
+			    ptr_type_node,
+			    defer_stack,
+			    fn_arg_type,
+			    fn_tree,
+			    ptr_type_node,
+			    arg_tree);
 }
 
 // Make a defer statement.
@@ -2311,6 +2425,125 @@ Return_statement::do_traverse_assignments(Traverse_assignments* tassign)
   return true;
 }
 
+// Lower a return statement.  If we are returning a function call
+// which returns multiple values which match the current function,
+// split up the call's results.  If the function has named result
+// variables, and the return statement lists explicit values, then
+// implement it by assigning the values to the result variables and
+// changing the statement to not list any values.  This lets
+// panic/recover work correctly.
+
+Statement*
+Return_statement::do_lower(Gogo*, Block* enclosing)
+{
+  if (this->vals_ == NULL)
+    return this;
+
+  const Typed_identifier_list* results = this->results_;
+  if (results == NULL || results->empty())
+    return this;
+
+  // If the current function has multiple return values, and we are
+  // returning a single call expression, split up the call expression.
+  size_t results_count = results->size();
+  if (results_count > 1
+      && this->vals_->size() == 1
+      && this->vals_->front()->call_expression() != NULL)
+    {
+      Call_expression* call = this->vals_->front()->call_expression();
+      size_t count = results->size();
+      Expression_list* vals = new Expression_list;
+      for (size_t i = 0; i < count; ++i)
+	vals->push_back(Expression::make_call_result(call, i));
+      delete this->vals_;
+      this->vals_ = vals;
+    }
+
+  if (results->front().name().empty())
+    return this;
+
+  if (results_count != this->vals_->size())
+    {
+      // Presumably an error which will be reported in check_types.
+      return this;
+    }
+
+  // Assign to named return values and then return them.
+
+  source_location loc = this->location();
+  const Block* top = enclosing;
+  while (top->enclosing() != NULL)
+    top = top->enclosing();
+
+  const Bindings *bindings = top->bindings();
+  Block* b = new Block(enclosing, loc);
+
+  Expression_list* lhs = new Expression_list();
+  Expression_list* rhs = new Expression_list();
+
+  Expression_list::const_iterator pe = this->vals_->begin();
+  int i = 1;
+  for (Typed_identifier_list::const_iterator pr = results->begin();
+       pr != results->end();
+       ++pr, ++pe, ++i)
+    {
+      Named_object* rv = bindings->lookup_local(pr->name());
+      if (rv == NULL || !rv->is_result_variable())
+	{
+	  // Presumably an error.
+	  delete b;
+	  delete lhs;
+	  delete rhs;
+	  return this;
+	}
+
+      Expression* e = *pe;
+
+      // Check types now so that we give a good error message.  The
+      // result type is known.  We determine the expression type
+      // early.
+
+      Type *rvtype = rv->result_var_value()->type();
+      Type_context type_context(rvtype, false);
+      e->determine_type(&type_context);
+
+      std::string reason;
+      if (Type::are_compatible_for_assign(rvtype, e->type(), &reason))
+	{
+	  Expression* ve = Expression::make_var_reference(rv, e->location());
+	  lhs->push_back(ve);
+	  rhs->push_back(e);
+	}
+      else
+	{
+	  if (reason.empty())
+	    error_at(e->location(), "incompatible type for return value %d", i);
+	  else
+	    error_at(e->location(),
+		     "incompatible type for return value %d (%s)",
+		     i, reason.c_str());
+	}
+    }
+  gcc_assert(lhs->size() == rhs->size());
+
+  if (lhs->empty())
+    ;
+  else if (lhs->size() == 1)
+    {
+      b->add_statement(Statement::make_assignment(lhs->front(), rhs->front(),
+						  loc));
+      delete lhs;
+      delete rhs;
+    }
+  else
+    b->add_statement(Statement::make_tuple_assignment(lhs, rhs, loc));
+
+  b->add_statement(Statement::make_return_statement(this->results_, NULL,
+						    loc));
+
+  return Statement::make_block_statement(b, loc);
+}
+
 // Determine types.
 
 void
@@ -2318,40 +2551,16 @@ Return_statement::do_determine_types()
 {
   if (this->vals_ == NULL)
     return;
-  Function_type* type = this->function_->type();
-  const Typed_identifier_list* results = type->results();
-  if (results == NULL)
-    return;
+  const Typed_identifier_list* results = this->results_;
 
-  // If the current function has multiple return values, and we are
-  // returning a single function call expression, split up the call
-  // expression.  We have to determine the type of the call expression
-  // first, because we don't know how many values it returns until
-  // method references are resolved.
-  if (results->size() > 1
-      && this->vals_->size() == 1
-      && this->vals_->front()->call_expression() != NULL)
-    {
-      Call_expression* call = this->vals_->front()->call_expression();
-      call->determine_type_no_context();
-      size_t count = call->result_count();
-      if (count > 1)
-	{
-	  Expression_list* vals = new Expression_list;
-	  for (size_t i = 0; i < count; ++i)
-	    vals->push_back(Expression::make_call_result(call, i));
-	  delete this->vals_;
-	  this->vals_ = vals;
-	}
-      return;
-    }
-
-  Typed_identifier_list::const_iterator pt = results->begin();
+  Typed_identifier_list::const_iterator pt;
+  if (results != NULL)
+    pt = results->begin();
   for (Expression_list::iterator pe = this->vals_->begin();
        pe != this->vals_->end();
        ++pe)
     {
-      if (pt == results->end())
+      if (results == NULL || pt == results->end())
 	(*pe)->determine_type_no_context();
       else
 	{
@@ -2370,9 +2579,7 @@ Return_statement::do_check_types(Gogo*)
   if (this->vals_ == NULL)
     return;
 
-  Function_type* type = this->function_->type();
-
-  const Typed_identifier_list* results = type->results();
+  const Typed_identifier_list* results = this->results_;
   if (results == NULL)
     {
       this->report_error(_("return with value in function "
@@ -2380,7 +2587,7 @@ Return_statement::do_check_types(Gogo*)
       return;
     }
 
-  int i = 0;
+  int i = 1;
   Typed_identifier_list::const_iterator pt = results->begin();
   for (Expression_list::const_iterator pe = this->vals_->begin();
        pe != this->vals_->end();
@@ -2425,21 +2632,27 @@ Return_statement::do_check_types(Gogo*)
 tree
 Return_statement::do_get_tree(Translate_context* context)
 {
-  tree fndecl = context->function()->func_value()->get_decl();
+  Function* function = context->function()->func_value();
+  tree fndecl = function->get_decl();
 
-  gcc_assert(this->function_ == context->function()->func_value());
-  Function_type* type = this->function_->type();
-  const Typed_identifier_list* results = type->results();
+  const Typed_identifier_list* results = this->results_;
 
   if (this->vals_ == NULL)
     {
-      tree retval;
-      if (VOID_TYPE_P(TREE_TYPE(TREE_TYPE(fndecl))))
-	retval = NULL_TREE;
+      tree stmt_list = NULL_TREE;
+      tree retval = function->return_value(context->gogo(),
+					   context->function(),
+					   this->location(),
+					   &stmt_list);
+      tree set;
+      if (retval == NULL_TREE)
+	set = NULL_TREE;
       else
-	retval = build2(MODIFY_EXPR, void_type_node, DECL_RESULT(fndecl),
-			context->function()->func_value()->return_value());
-      return this->build_stmt_1(RETURN_EXPR, retval);
+	set = fold_build2_loc(this->location(), MODIFY_EXPR, void_type_node,
+			      DECL_RESULT(fndecl), retval);
+      append_to_statement_list(this->build_stmt_1(RETURN_EXPR, set),
+			       &stmt_list);
+      return stmt_list;
     }
   else if (this->vals_->size() == 1)
     {
@@ -2495,11 +2708,11 @@ Return_statement::do_get_tree(Translate_context* context)
 // Make a return statement.
 
 Statement*
-Statement::make_return_statement(const Function* function,
+Statement::make_return_statement(const Typed_identifier_list* results,
 				 Expression_list* vals,
 				 source_location location)
 {
-  return new Return_statement(function, vals, location);
+  return new Return_statement(results, vals, location);
 }
 
 // A break or continue statement.

@@ -43,6 +43,7 @@ class Import;
 class Temporary_statement;
 class Refcounts;
 class Refcount_entry;
+class Label;
 
 // The base class for all expressions.
 
@@ -93,7 +94,8 @@ class Expression
     EXPRESSION_SEND,
     EXPRESSION_REFCOUNT_ADJUST,
     EXPRESSION_REFCOUNT_DECREMENT_LVALUE,
-    EXPRESSION_TYPE_DESCRIPTOR
+    EXPRESSION_TYPE_DESCRIPTOR,
+    EXPRESSION_LABEL_ADDR
   };
 
   Expression(Expression_classification, source_location);
@@ -248,7 +250,7 @@ class Expression
   static Expression*
   make_cast(Type*, Expression*, source_location);
 
-  // Make a composit_literal.
+  // Make a composite literal.
   static Expression*
   make_composite_literal(Type*, bool has_keys, Expression_list*,
 			 source_location);
@@ -287,6 +289,11 @@ class Expression
   // type.
   static Expression*
   make_type_descriptor(Type* type, source_location);
+
+  // Make an expression which evaluates to the address of an unnamed
+  // label.
+  static Expression*
+  make_label_addr(Label*, source_location);
 
   // Return the expression classification.
   Expression_classification
@@ -1203,7 +1210,7 @@ class Call_expression : public Expression
     : Expression(EXPRESSION_CALL, location),
       fn_(fn), args_(args), type_(NULL), tree_(NULL), refcount_entries_(NULL),
       is_value_discarded_(false), varargs_are_lowered_(false),
-      is_being_copied_(false)
+      is_being_copied_(false), is_deferred_(false)
   { }
 
   // The function to call.
@@ -1227,6 +1234,25 @@ class Call_expression : public Expression
   // Return the number of values this call will return.
   size_t
   result_count() const;
+
+  // Return whether this is a call to the predeclared function
+  // recover.
+  bool
+  is_recover_call() const;
+
+  // Set the argument for a call to recover.
+  void
+  set_recover_arg(Expression*);
+
+  // Whether this call is being deferred.
+  bool
+  is_deferred() const
+  { return this->is_deferred_; }
+
+  // Note that the call is being deferred.
+  void
+  set_is_deferred()
+  { this->is_deferred_ = true; }
 
  protected:
   int
@@ -1266,6 +1292,17 @@ class Call_expression : public Expression
 
   virtual tree
   do_get_tree(Translate_context*);
+
+  virtual bool
+  do_is_recover_call() const;
+
+  virtual void
+  do_set_recover_arg(Expression*);
+
+  // Let a builtin expression change the argument list.
+  void
+  set_args(Expression_list* args)
+  { this->args_ = args; }
 
  private:
   Expression*
@@ -1307,6 +1344,8 @@ class Call_expression : public Expression
   bool varargs_are_lowered_;
   // True if the value is being copied.
   bool is_being_copied_;
+  // True if the call is an argument to a defer statement.
+  bool is_deferred_;
 };
 
 // An expression which represents a pointer to a function.

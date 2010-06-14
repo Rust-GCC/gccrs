@@ -157,15 +157,21 @@ Gogo::Gogo()
   print_type->set_is_builtin();
   this->globals_->add_function_declaration("println", NULL, print_type, loc);
 
-  Function_type* panic_type = Type::make_function_type(NULL, NULL, NULL, loc);
-  panic_type->set_is_varargs();
+  Type *empty = Type::make_interface_type(NULL, loc);
+  Typed_identifier_list* panic_parms = new Typed_identifier_list();
+  panic_parms->push_back(Typed_identifier("e", empty, loc));
+  Function_type *panic_type = Type::make_function_type(NULL, panic_parms,
+						       NULL, loc);
   panic_type->set_is_builtin();
   this->globals_->add_function_declaration("panic", NULL, panic_type, loc);
 
-  panic_type = Type::make_function_type(NULL, NULL, NULL, loc);
-  panic_type->set_is_varargs();
-  panic_type->set_is_builtin();
-  this->globals_->add_function_declaration("panicln", NULL, panic_type, loc);
+  Typed_identifier_list* recover_result = new Typed_identifier_list();
+  recover_result->push_back(Typed_identifier("", empty, loc));
+  Function_type* recover_type = Type::make_function_type(NULL, NULL,
+							 recover_result,
+							 loc);
+  recover_type->set_is_builtin();
+  this->globals_->add_function_declaration("recover", NULL, recover_type, loc);
 
   Function_type* close_type = Type::make_function_type(NULL, NULL, NULL, loc);
   close_type->set_is_varargs();
@@ -590,21 +596,7 @@ Gogo::start_function(const std::string& name, Function_type* type,
 	}
     }
 
-  const Typed_identifier_list* results = type->results();
-  if (results != NULL
-      && !results->empty()
-      && !results->front().name().empty())
-    {
-      int index = 0;
-      for (Typed_identifier_list::const_iterator p = results->begin();
-	   p != results->end();
-	   ++p, ++index)
-	{
-	  Result_variable* result = new Result_variable(p->type(), function,
-							index);
-	  block->bindings()->add_result_variable(p->name(), result);
-	}
-    }
+  function->create_named_result_variables();
 
   const std::string* pname;
   std::string nested_name;
@@ -1897,6 +1889,331 @@ Gogo::order_evaluations()
   this->traverse(&order_eval);
 }
 
+// Traversal to convert calls to the predeclared recover function to
+// pass in an argument indicating whether it can recover from a panic
+// or not.
+
+class Convert_recover : public Traverse
+{
+ public:
+  Convert_recover(Named_object* arg)
+    : Traverse(traverse_expressions),
+      arg_(arg)
+  { }
+
+ protected:
+  int
+  expression(Expression**);
+
+ private:
+  // The argument to pass to the function.
+  Named_object* arg_;
+};
+
+// Convert calls to recover.
+
+int
+Convert_recover::expression(Expression** pp)
+{
+  Call_expression* ce = (*pp)->call_expression();
+  if (ce != NULL && ce->is_recover_call())
+    ce->set_recover_arg(Expression::make_var_reference(this->arg_,
+						       ce->location()));
+  return TRAVERSE_CONTINUE;
+}
+
+// Traversal for build_recover_thunks.
+
+class Build_recover_thunks : public Traverse
+{
+ public:
+  Build_recover_thunks(Gogo* gogo)
+    : Traverse(traverse_functions),
+      gogo_(gogo)
+  { }
+
+  int
+  function(Named_object*);
+
+ private:
+  Expression*
+  can_recover_arg(source_location);
+
+  // General IR.
+  Gogo* gogo_;
+};
+
+// If this function calls recover, turn it into a thunk.
+
+int
+Build_recover_thunks::function(Named_object* orig_no)
+{
+  Function* orig_func = orig_no->func_value();
+  if (!orig_func->calls_recover()
+      || orig_func->is_recover_thunk()
+      || orig_func->has_recover_thunk())
+    return TRAVERSE_CONTINUE;
+
+  Gogo* gogo = this->gogo_;
+  source_location location = orig_func->location();
+
+  static int count;
+  char buf[50];
+
+  Function_type* orig_fntype = orig_func->type();
+  Typed_identifier_list* new_params = new Typed_identifier_list();
+  std::string receiver_name;
+  if (orig_fntype->is_method())
+    {
+      const Typed_identifier* receiver = orig_fntype->receiver();
+      snprintf(buf, sizeof buf, "rt.%u", count);
+      ++count;
+      receiver_name = buf;
+      new_params->push_back(Typed_identifier(receiver_name, receiver->type(),
+					     receiver->location()));
+    }
+  const Typed_identifier_list* orig_params = orig_fntype->parameters();
+  if (orig_params != NULL && !orig_params->empty())
+    {
+      for (Typed_identifier_list::const_iterator p = orig_params->begin();
+	   p != orig_params->end();
+	   ++p)
+	{
+	  snprintf(buf, sizeof buf, "pt.%u", count);
+	  ++count;
+	  new_params->push_back(Typed_identifier(buf, p->type(),
+						 p->location()));
+	}
+    }
+  snprintf(buf, sizeof buf, "pr.%u", count);
+  ++count;
+  std::string can_recover_name = buf;
+  new_params->push_back(Typed_identifier(can_recover_name,
+					 Type::make_boolean_type(),
+					 orig_fntype->location()));
+
+  const Typed_identifier_list* orig_results = orig_fntype->results();
+  Typed_identifier_list* new_results;
+  if (orig_results == NULL || orig_results->empty())
+    new_results = NULL;
+  else
+    {
+      new_results = new Typed_identifier_list();
+      for (Typed_identifier_list::const_iterator p = orig_results->begin();
+	   p != orig_results->end();
+	   ++p)
+	new_results->push_back(*p);
+    }
+
+  Function_type *new_fntype = Type::make_function_type(NULL, new_params,
+						       new_results,
+						       orig_fntype->location());
+  if (orig_fntype->is_varargs())
+    new_fntype->set_is_varargs();
+
+  std::string name = orig_no->name() + "$recover";
+  Named_object *new_no = gogo->start_function(name, new_fntype, false,
+					      location);
+  Function *new_func = new_no->func_value();
+  if (orig_func->enclosing() != NULL)
+    new_func->set_enclosing(orig_func->enclosing());
+
+  // We build the code for the original function attached to the new
+  // function, and then swap the original and new function bodies.
+  // This means that existing references to the original function will
+  // then refer to the new function.  That makes this code a little
+  // confusing, in that the reference to NEW_NO really refers to the
+  // other function, not the one we are building.
+
+  Expression* closure = NULL;
+  if (orig_func->needs_closure())
+    {
+      Named_object* orig_closure_no = orig_func->closure_var();
+      Variable* orig_closure_var = orig_closure_no->var_value();
+      Variable* new_var = new Variable(orig_closure_var->type(), NULL, false,
+				       true, false, location);
+      snprintf(buf, sizeof buf, "closure.%u", count);
+      ++count;
+      Named_object* new_closure_no = Named_object::make_variable(buf, NULL,
+								 new_var);
+      new_func->set_closure_var(new_closure_no);
+      closure = Expression::make_var_reference(new_closure_no, location);
+    }
+
+  Expression* fn = Expression::make_func_reference(new_no, closure, location);
+
+  Expression_list* args = new Expression_list();
+  if (orig_fntype->is_method())
+    {
+      Named_object* rec_no = gogo->lookup(receiver_name, NULL);
+      gcc_assert(rec_no != NULL
+		 && rec_no->is_variable()
+		 && rec_no->var_value()->is_parameter());
+      args->push_back(Expression::make_var_reference(rec_no, location));
+    }
+  if (new_params != NULL)
+    {
+      // Note that we skip the last parameter, which is the boolean
+      // indicating whether recover can succed.
+      for (Typed_identifier_list::const_iterator p = new_params->begin();
+	   p + 1 != new_params->end();
+	   ++p)
+	{
+	  Named_object* p_no = gogo->lookup(p->name(), NULL);
+	  gcc_assert(p_no != NULL
+		     && p_no->is_variable()
+		     && p_no->var_value()->is_parameter());
+	  args->push_back(Expression::make_var_reference(p_no, location));
+	}
+    }
+  args->push_back(this->can_recover_arg(location));
+
+  Expression* call = Expression::make_call(fn, args, location);
+
+  Statement* s;
+  if (orig_fntype->results() == NULL || orig_fntype->results()->empty())
+    s = Statement::make_statement(call);
+  else
+    {
+      Expression_list* vals = new Expression_list();
+      vals->push_back(call);
+      s = Statement::make_return_statement(new_func->type()->results(),
+					   vals, location);
+    }
+  s->determine_types();
+  gogo->add_statement(s);
+
+  gogo->finish_function(location);
+
+  // Swap the function bodies and types.
+  new_func->swap_for_recover(orig_func);
+  orig_func->set_is_recover_thunk();
+  new_func->set_calls_recover();
+  new_func->set_has_recover_thunk();
+
+  Bindings* orig_bindings = orig_func->block()->bindings();
+  Bindings* new_bindings = new_func->block()->bindings();
+  if (orig_fntype->is_method())
+    {
+      // We changed the receiver to be a regular parameter.  We have
+      // to update the binding accordingly in both functions.
+      Named_object* orig_rec_no = orig_bindings->lookup_local(receiver_name);
+      gcc_assert(orig_rec_no != NULL
+		 && orig_rec_no->is_variable()
+		 && !orig_rec_no->var_value()->is_receiver());
+      orig_rec_no->var_value()->set_is_receiver();
+
+      Named_object* new_rec_no = new_bindings->lookup_local(receiver_name);
+      gcc_assert(new_rec_no != NULL
+		 && new_rec_no->is_variable()
+		 && !new_rec_no->var_value()->is_receiver());
+      new_rec_no->var_value()->set_is_not_receiver();
+    }
+
+  // Because we flipped blocks but not types, the can_recover
+  // parameter appears in the (now) old bindings as a parameter.
+  // Change it to a local variable, whereupon it will be discarded.
+  Named_object* can_recover_no = orig_bindings->lookup_local(can_recover_name);
+  gcc_assert(can_recover_no != NULL
+	     && can_recover_no->is_variable()
+	     && can_recover_no->var_value()->is_parameter());
+  orig_bindings->remove_binding(can_recover_no);
+
+  // Add the can_recover argument to the (now) new bindings, and
+  // attach it to any recover statements.
+  Variable* can_recover_var = new Variable(Type::make_boolean_type(), NULL,
+					   false, true, false, location);
+  can_recover_no = new_bindings->add_variable(can_recover_name, NULL,
+					      can_recover_var);
+  Convert_recover convert_recover(can_recover_no);
+  new_func->traverse(&convert_recover);
+
+  return TRAVERSE_CONTINUE;
+}
+
+// Return the expression to pass for the .can_recover parameter to the
+// new function.  This indicates whether a call to recover may return
+// non-nil.  The expression is
+// __go_can_recover(__builtin_return_address()).
+
+Expression*
+Build_recover_thunks::can_recover_arg(source_location location)
+{
+  static Named_object* builtin_return_address;
+  if (builtin_return_address == NULL)
+    {
+      const source_location bloc = BUILTINS_LOCATION;
+
+      Typed_identifier_list* param_types = new Typed_identifier_list();
+      Type* uint_type = Type::lookup_integer_type("uint");
+      param_types->push_back(Typed_identifier("l", uint_type, bloc));
+
+      Typed_identifier_list* return_types = new Typed_identifier_list();
+      Type* voidptr_type = Type::make_pointer_type(Type::make_void_type());
+      return_types->push_back(Typed_identifier("", voidptr_type, bloc));
+
+      Function_type* fntype = Type::make_function_type(NULL, param_types,
+						       return_types, bloc);
+      builtin_return_address =
+	Named_object::make_function_declaration("__builtin_return_address",
+						NULL, fntype, bloc);
+      const char* n = "__builtin_return_address";
+      builtin_return_address->func_declaration_value()->set_asm_name(n);
+    }
+
+  static Named_object* can_recover;
+  if (can_recover == NULL)
+    {
+      const source_location bloc = BUILTINS_LOCATION;
+      Typed_identifier_list* param_types = new Typed_identifier_list();
+      Type* voidptr_type = Type::make_pointer_type(Type::make_void_type());
+      param_types->push_back(Typed_identifier("a", voidptr_type, bloc));
+      Type* boolean_type = Type::make_boolean_type();
+      Typed_identifier_list* results = new Typed_identifier_list();
+      results->push_back(Typed_identifier("", boolean_type, bloc));
+      Function_type* fntype = Type::make_function_type(NULL, param_types,
+						       results, bloc);
+      can_recover = Named_object::make_function_declaration("__go_can_recover",
+							    NULL, fntype,
+							    bloc);
+      can_recover->func_declaration_value()->set_asm_name("__go_can_recover");
+    }
+
+  Expression* fn = Expression::make_func_reference(builtin_return_address,
+						   NULL, location);
+
+  mpz_t zval;
+  mpz_init_set_ui(zval, 0UL);
+  Expression* zexpr = Expression::make_integer(&zval, NULL, location);
+  mpz_clear(zval);
+  Expression_list *args = new Expression_list();
+  args->push_back(zexpr);
+
+  Expression* call = Expression::make_call(fn, args, location);
+
+  args = new Expression_list();
+  args->push_back(call);
+
+  fn = Expression::make_func_reference(can_recover, NULL, location);
+  return Expression::make_call(fn, args, location);
+}
+
+// Build thunks for functions which call recover.  We build a new
+// function with an extra parameter, which is whether a call to
+// recover can succeed.  We then move the body of this function to
+// that one.  We then turn this function into a thunk which calls the
+// new one, passing the value of
+// __go_can_recover(__builtin_return_address()).  The function will be
+// marked as not splitting the stack.  This will cooperate with the
+// implementation of defer to make recover do the right thing.
+
+void
+Gogo::build_recover_thunks()
+{
+  Build_recover_thunks build_recover_thunks(this);
+  this->traverse(&build_recover_thunks);
+}
+
 // Look for named types to see whether we need to create an interface
 // method table.
 
@@ -2199,10 +2516,39 @@ Gogo::do_exports()
 
 Function::Function(Function_type* type, Function* enclosing, Block* block,
 		   source_location location)
-  : type_(type), enclosing_(enclosing), closure_var_(NULL), refcounts_(NULL),
-    block_(block), location_(location), fndecl_(NULL), return_value_(NULL),
-    defer_stack_(NULL)
+  : type_(type), enclosing_(enclosing), named_results_(NULL),
+    closure_var_(NULL), refcounts_(NULL), block_(block), location_(location),
+    fndecl_(NULL), defer_stack_(NULL), calls_recover_(false),
+    is_recover_thunk_(false), has_recover_thunk_(false)
 {
+}
+
+// Create the named result variables.
+
+void
+Function::create_named_result_variables()
+{
+  const Typed_identifier_list* results = this->type_->results();
+  if (results == NULL
+      || results->empty()
+      || results->front().name().empty())
+    return;
+
+  this->named_results_ = new Named_results();
+  this->named_results_->reserve(results->size());
+
+  Block* block = this->block_;
+  int index = 0;
+  for (Typed_identifier_list::const_iterator p = results->begin();
+       p != results->end();
+       ++p, ++index)
+    {
+      Result_variable* result = new Result_variable(p->type(), this,
+						    index);
+      Named_object* no = block->bindings()->add_result_variable(p->name(),
+								result);
+      this->named_results_->push_back(no);
+    }
 }
 
 // Return the closure variable, creating it if necessary.
@@ -2243,7 +2589,11 @@ Function::set_closure_type()
       char buf[20];
       snprintf(buf, sizeof buf, "%u", index);
       std::string n = no->name() + buf;
-      Type* var_type = no->var_value()->type();
+      Type* var_type;
+      if (no->is_variable())
+	var_type = no->var_value()->type();
+      else
+	var_type = no->result_var_value()->type();
       Type* field_type = Type::make_pointer_type(var_type);
       st->push_field(Struct_field(Typed_identifier(n, field_type, p->second)));
     }
@@ -2323,6 +2673,23 @@ Function::add_label_reference(const std::string& label_name)
       ins.first->second = label;
       return label;
     }
+}
+
+// Swap one function with another.  This is used when building the
+// thunk we use to call a function which calls recover.  It may not
+// work for any other case.
+
+void
+Function::swap_for_recover(Function *x)
+{
+  gcc_assert(this->enclosing_ == x->enclosing_);
+  gcc_assert(this->named_results_ == x->named_results_);
+  std::swap(this->closure_var_, x->closure_var_);
+  gcc_assert(this->refcounts_ == NULL && x->refcounts_ == NULL);
+  std::swap(this->block_, x->block_);
+  gcc_assert(this->location_ == x->location_);
+  gcc_assert(this->fndecl_ == NULL && x->fndecl_ == NULL);
+  gcc_assert(this->defer_stack_ == NULL && x->defer_stack_ == NULL);
 }
 
 // Traverse the tree.
@@ -3515,6 +3882,28 @@ Bindings::lookup_local(const std::string& name) const
   if (p == this->bindings_.end())
     return NULL;
   return p->second;
+}
+
+// Remove an object from a set of bindings.  This is used for a
+// special case in thunks for functions which call recover.
+
+void
+Bindings::remove_binding(Named_object* no)
+{
+  Contour::iterator pb = this->bindings_.find(no->name());
+  gcc_assert(pb != this->bindings_.end());
+  this->bindings_.erase(pb);
+  for (std::vector<Named_object*>::iterator pn = this->named_objects_.begin();
+       pn != this->named_objects_.end();
+       ++pn)
+    {
+      if (*pn == no)
+	{
+	  this->named_objects_.erase(pn);
+	  return;
+	}
+    }
+  gcc_unreachable();
 }
 
 // Add a method to the list of objects.  This is not added to the

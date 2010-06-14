@@ -6029,7 +6029,8 @@ Type::build_one_stub_method(Gogo* gogo, Method* method,
 	    retvals->push_back(Expression::make_call_result(call, i));
 	}
       const Function* function = gogo->current_function()->func_value();
-      Statement* retstat = Statement::make_return_statement(function, retvals,
+      const Typed_identifier_list* results = function->type()->results();
+      Statement* retstat = Statement::make_return_statement(results, retvals,
 							    location);
       gogo->add_statement(retstat);
     }

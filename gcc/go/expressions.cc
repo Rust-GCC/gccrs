@@ -417,6 +417,8 @@ Expression::convert_for_assignment(Translate_context* context, Type* lhs_type,
 					 fold_convert(ptr_type_node, rhs_tree),
 					 build_pointer_type(boolean_type_node),
 					 null_pointer_node);
+	  // This will panic if the interface conversion fails.
+	  TREE_NOTHROW(convert_interface_decl) = 0;
 	  return fold_convert(lhs_type_tree, call);
 	}
     }
@@ -442,6 +444,8 @@ Expression::convert_for_assignment(Translate_context* context, Type* lhs_type,
 					 const_ptr_type_node,
 					 fold_convert(const_ptr_type_node,
 						      rhs_tree));
+	  // This call will panic if the conversion fails.
+	  TREE_NOTHROW(interface_to_pointer_decl) = 0;
 	  gcc_assert(POINTER_TYPE_P(lhs_type_tree));
 	  return fold_convert(lhs_type_tree, call);
 	}
@@ -471,6 +475,8 @@ Expression::convert_for_assignment(Translate_context* context, Type* lhs_type,
 					 ptr_type_node,
 					 fold_convert(ptr_type_node,
 						      rhs_tree));
+	  // This call will panic if the conversion fails.
+	  TREE_NOTHROW(interface_to_object_decl) = 0;
 	  return build2(COMPOUND_EXPR, lhs_type_tree, make_tmp,
 			build2(COMPOUND_EXPR, lhs_type_tree, call, tmp));
 	}
@@ -568,6 +574,7 @@ Expression::convert_for_assignment(Translate_context* context, Type* lhs_type,
 					  "__go_bad_index",
 					  0,
 					  void_type_node);
+	  TREE_NOTHROW(bad_index_fndecl) = 0;
 	  TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
 	  val = build2(COMPOUND_EXPR, TREE_TYPE(val),
 		       build3(COND_EXPR, void_type_node,
@@ -924,7 +931,7 @@ Var_expression::do_type()
 // may want to move the variable onto the heap.
 
 bool
-Var_expression::do_address_taken(source_location location, bool escapes)
+Var_expression::do_address_taken(source_location, bool escapes)
 {
   if (!escapes)
     return true;
@@ -935,10 +942,8 @@ Var_expression::do_address_taken(source_location location, bool escapes)
     }
   else if (this->variable_->is_result_variable())
     {
-      // There is no way to make a result variable permanent; it has
-      // to disappear after the function returns.
-      error_at(location, "may not take address of out parameter");
-      return false;
+      this->variable_->result_var_value()->set_address_taken();
+      return true;
     }
   else
     gcc_unreachable();
@@ -6112,6 +6117,8 @@ Expression::comparison_tree(Translate_context* context, Operator op,
 				     const_ptr_type_node,
 				     fold_convert(const_ptr_type_node,
 						  right_tree));
+      // This can panic if the type is uncomparable.
+      TREE_NOTHROW(interface_compare_decl) = 0;
       right_tree = build_int_cst_type(integer_type_node, 0);
     }
 
@@ -6275,6 +6282,12 @@ class Builtin_call_expression : public Call_expression
   void
   do_export(Export*) const;
 
+  virtual bool
+  do_is_recover_call() const;
+
+  virtual void
+  do_set_recover_arg(Expression*);
+
  private:
   // The builtin functions.
   enum Builtin_function_code
@@ -6292,10 +6305,10 @@ class Builtin_call_expression : public Call_expression
       BUILTIN_MAKE,
       BUILTIN_NEW,
       BUILTIN_PANIC,
-      BUILTIN_PANICLN,
       BUILTIN_PRINT,
       BUILTIN_PRINTLN,
       BUILTIN_REAL,
+      BUILTIN_RECOVER,
 
       // Builtin functions from the unsafe package.
       BUILTIN_ALIGNOF,
@@ -6352,14 +6365,14 @@ Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
     this->code_ = BUILTIN_NEW;
   else if (name == "panic")
     this->code_ = BUILTIN_PANIC;
-  else if (name == "panicln")
-    this->code_ = BUILTIN_PANICLN;
   else if (name == "print")
     this->code_ = BUILTIN_PRINT;
   else if (name == "println")
     this->code_ = BUILTIN_PRINTLN;
   else if (name == "real")
     this->code_ = BUILTIN_REAL;
+  else if (name == "recover")
+    this->code_ = BUILTIN_RECOVER;
   else if (name == "Alignof")
     this->code_ = BUILTIN_ALIGNOF;
   else if (name == "Offsetof")
@@ -6370,11 +6383,34 @@ Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
     gcc_unreachable();
 }
 
+// Return whether this is a call to recover.  This is a virtual
+// function called from the parent class.
+
+bool
+Builtin_call_expression::do_is_recover_call() const
+{
+  if (this->classification() == EXPRESSION_ERROR)
+    return false;
+  return this->code_ == BUILTIN_RECOVER;
+}
+
+// Set the argument for a call to recover.
+
+void
+Builtin_call_expression::do_set_recover_arg(Expression* arg)
+{
+  const Expression_list* args = this->args();
+  gcc_assert(args == NULL || args->empty());
+  Expression_list* new_args = new Expression_list();
+  new_args->push_back(arg);
+  this->set_args(new_args);
+}
+
 // Lower a builtin call expression.  This turns new and make into
 // specific expressions.  We also convert to a constant if we can.
 
 Expression*
-Builtin_call_expression::do_lower(Gogo*, Named_object*, int)
+Builtin_call_expression::do_lower(Gogo*, Named_object* function, int)
 {
   if (this->code_ == BUILTIN_NEW)
     {
@@ -6462,6 +6498,20 @@ Builtin_call_expression::do_lower(Gogo*, Named_object*, int)
 	}
       mpfr_clear(rval);
       mpfr_clear(imag);
+    }
+  else if (this->code_ == BUILTIN_RECOVER)
+    {
+      if (function != NULL)
+	function->func_value()->set_calls_recover();
+      else
+	{
+	  // Calling recover outside of a function always returns the
+	  // nil empty interface.
+	  Type* eface = Type::make_interface_type(NULL, this->location());
+	  return Expression::make_cast(eface,
+				       Expression::make_nil(this->location()),
+				       this->location());
+	}
     }
 
   return this;
@@ -6827,13 +6877,15 @@ Builtin_call_expression::do_type()
 
     case BUILTIN_CLOSE:
     case BUILTIN_PANIC:
-    case BUILTIN_PANICLN:
     case BUILTIN_PRINT:
     case BUILTIN_PRINTLN:
       return Type::make_void_type();
 
     case BUILTIN_CLOSED:
       return Type::lookup_bool_type();
+
+    case BUILTIN_RECOVER:
+      return Type::make_interface_type(NULL, BUILTINS_LOCATION);
 
     case BUILTIN_REAL:
     case BUILTIN_IMAG:
@@ -6881,8 +6933,6 @@ Builtin_call_expression::do_determine_type(const Type_context* context)
   Type* arg_type = NULL;
   switch (this->code_)
     {
-    case BUILTIN_PANIC:
-    case BUILTIN_PANICLN:
     case BUILTIN_PRINT:
     case BUILTIN_PRINTLN:
       // Do not force a large integer constant to "int".
@@ -7025,8 +7075,6 @@ Builtin_call_expression::do_check_types(Gogo*)
       }
       break;
 
-    case BUILTIN_PANIC:
-    case BUILTIN_PANICLN:
     case BUILTIN_PRINT:
     case BUILTIN_PRINTLN:
       {
@@ -7077,9 +7125,15 @@ Builtin_call_expression::do_check_types(Gogo*)
 	}
       break;
 
+    case BUILTIN_PANIC:
     case BUILTIN_SIZEOF:
     case BUILTIN_ALIGNOF:
       this->check_one_arg();
+      break;
+
+    case BUILTIN_RECOVER:
+      if (this->args() != NULL && !this->args()->empty())
+	this->report_error(_("too many arguments"));
       break;
 
     case BUILTIN_OFFSETOF:
@@ -7266,18 +7320,11 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	  return fold(convert_to_integer(type_tree, val_tree));
       }
 
-    case BUILTIN_PANIC:
-    case BUILTIN_PANICLN:
     case BUILTIN_PRINT:
     case BUILTIN_PRINTLN:
       {
-	const bool is_panic = (this->code_ == BUILTIN_PANIC
-			       || this->code_ == BUILTIN_PANICLN);
-	const bool is_ln = (this->code_ == BUILTIN_PANICLN
-			    || this->code_ == BUILTIN_PRINTLN);
+	const bool is_ln = this->code_ == BUILTIN_PRINTLN;
 	tree stmt_list = NULL_TREE;
-
-	tree panic_arg = is_panic ? boolean_true_node : boolean_false_node;
 
 	const Expression_list* call_args = this->args();
 	if (call_args != NULL)
@@ -7292,10 +7339,8 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 		    tree call = Gogo::call_builtin(&print_space_fndecl,
 						   location,
 						   "__go_print_space",
-						   1,
-						   void_type_node,
-						   boolean_type_node,
-						   panic_arg);
+						   0,
+						   void_type_node);
 		    append_to_statement_list(call, &stmt_list);
 		  }
 
@@ -7376,10 +7421,8 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 		tree call = Gogo::call_builtin(pfndecl,
 					       location,
 					       fnname,
-					       2,
+					       1,
 					       void_type_node,
-					       boolean_type_node,
-					       panic_arg,
 					       TREE_TYPE(arg),
 					       arg);
 		append_to_statement_list(call, &stmt_list);
@@ -7392,27 +7435,88 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	    tree call = Gogo::call_builtin(&print_nl_fndecl,
 					   location,
 					   "__go_print_nl",
-					   1,
-					   void_type_node,
-					   boolean_type_node,
-					   panic_arg);
+					   0,
+					   void_type_node);
 	    append_to_statement_list(call, &stmt_list);
 	  }
 
-	if (is_panic)
-	  {
-	    static tree panic_fndecl;
-	    tree call = Gogo::call_builtin(&panic_fndecl,
-					   location,
-					   "__go_panic",
-					   0,
-					   void_type_node);
-	    // Mark the function as not returning.
-	    TREE_THIS_VOLATILE(panic_fndecl) = 1;
-	    append_to_statement_list(call, &stmt_list);
-	  }
-	  
 	return stmt_list;
+      }
+
+    case BUILTIN_PANIC:
+      {
+	const Expression_list* args = this->args();
+	gcc_assert(args != NULL && args->size() == 1);
+	Expression* arg = args->front();
+	tree arg_tree = arg->get_tree(context);
+	if (arg_tree == error_mark_node)
+	  return error_mark_node;
+	Type *empty = Type::make_interface_type(NULL, BUILTINS_LOCATION);
+	arg_tree = Expression::convert_for_assignment(context, empty,
+						      arg->type(),
+						      arg_tree, location);
+	static tree panic_fndecl;
+	tree call = Gogo::call_builtin(&panic_fndecl,
+				       location,
+				       "__go_panic",
+				       1,
+				       void_type_node,
+				       TREE_TYPE(arg_tree),
+				       arg_tree);
+	// This function will throw an exception.
+	TREE_NOTHROW(panic_fndecl) = 0;
+	// This function will not return.
+	TREE_THIS_VOLATILE(panic_fndecl) = 1;
+	return call;
+      }
+
+    case BUILTIN_RECOVER:
+      {
+	// The argument is set when building recover thunks.  It's a
+	// boolean value which is true if we can recover a value now.
+	const Expression_list* args = this->args();
+	gcc_assert(args != NULL && args->size() == 1);
+	Expression* arg = args->front();
+	tree arg_tree = arg->get_tree(context);
+	if (arg_tree == error_mark_node)
+	  return error_mark_node;
+
+	Type *empty = Type::make_interface_type(NULL, BUILTINS_LOCATION);
+	tree empty_tree = empty->get_tree(context->gogo());
+
+	Type* nil_type = Type::make_nil_type();
+	Expression* nil = Expression::make_nil(location);
+	tree nil_tree = nil->get_tree(context);
+	tree empty_nil_tree = Expression::convert_for_assignment(context,
+								 empty,
+								 nil_type,
+								 nil_tree,
+								 location);
+
+	// We need to handle a deferred call to recover specially,
+	// because it changes whether it can recover a panic or not.
+	// See test7 in test/recover1.go.
+	tree call;
+	if (this->is_deferred())
+	  {
+	    static tree deferred_recover_fndecl;
+	    call = Gogo::call_builtin(&deferred_recover_fndecl,
+				      location,
+				      "__go_deferred_recover",
+				      0,
+				      empty_tree);
+	  }
+	else
+	  {
+	    static tree recover_fndecl;
+	    call = Gogo::call_builtin(&recover_fndecl,
+				      location,
+				      "__go_recover",
+				      0,
+				      empty_tree);
+	  }
+	return fold_build3_loc(location, COND_EXPR, empty_tree, arg_tree,
+			       call, empty_nil_tree);
       }
 
     case BUILTIN_CLOSE:
@@ -7947,6 +8051,36 @@ Call_expression::result_count() const
   if (fntype->results() == NULL)
     return 0;
   return fntype->results()->size();
+}
+
+// Return whether this is a call to the predeclared function recover.
+
+bool
+Call_expression::is_recover_call() const
+{
+  return this->do_is_recover_call();
+}
+
+// Set the argument to the recover function.
+
+void
+Call_expression::set_recover_arg(Expression* arg)
+{
+  this->do_set_recover_arg(arg);
+}
+
+// Virtual functions also implemented by Builtin_call_expression.
+
+bool
+Call_expression::do_is_recover_call() const
+{
+  return false;
+}
+
+void
+Call_expression::do_set_recover_arg(Expression*)
+{
+  gcc_unreachable();
 }
 
 // Get the type.
@@ -8940,6 +9074,7 @@ Array_index_expression::do_get_tree(Translate_context* context)
 				  "__go_bad_index",
 				  0,
 				  void_type_node);
+  TREE_NOTHROW(bad_index_fndecl) = 0;
   TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
 
   if (this->end_ == NULL)
@@ -9274,6 +9409,7 @@ String_index_expression::do_get_tree(Translate_context* context)
 				      "__go_bad_index",
 				      0,
 				      void_type_node);
+      TREE_NOTHROW(bad_index_fndecl) = 0;
       TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
 
       tree bytes_tree = String_type::bytes_tree(context->gogo(), string_tree);
@@ -9300,17 +9436,21 @@ String_index_expression::do_get_tree(Translate_context* context)
 	}
       end_tree = fold_convert(integer_type_node, end_tree);
       static tree strslice_fndecl;
-      return Gogo::call_builtin(&strslice_fndecl,
-				this->location(),
-				"__go_string_slice",
-				3,
-				string_type,
-				string_type,
-				string_tree,
-				integer_type_node,
-				start_tree,
-				integer_type_node,
-				end_tree);
+      tree ret = Gogo::call_builtin(&strslice_fndecl,
+				    this->location(),
+				    "__go_string_slice",
+				    3,
+				    string_type,
+				    string_type,
+				    string_tree,
+				    integer_type_node,
+				    start_tree,
+				    integer_type_node,
+				    end_tree);
+      // This will panic if the bounds are out of range for the
+      // string.
+      TREE_NOTHROW(strslice_fndecl) = 0;
+      return ret;
     }
 }
 
@@ -9517,6 +9657,9 @@ Map_index_expression::get_value_pointer(Translate_context* context,
 				 (insert
 				  ? boolean_true_node
 				  : boolean_false_node));
+  // This can panic on a map of interface type if the interface holds
+  // an uncomparable or unhashable type.
+  TREE_NOTHROW(map_index_fndecl) = 0;
 
   tree val_type_tree = type->val_type()->get_tree(context->gogo());
   if (val_type_tree == error_mark_node)
@@ -9645,6 +9788,7 @@ Field_reference_expression::do_get_tree(Translate_context* context)
 					  "__go_bad_index",
 					  0,
 					  void_type_node);
+	  TREE_NOTHROW(bad_index_fndecl) = 0;
 	  TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
 	  struct_tree = build2(COMPOUND_EXPR, TREE_TYPE(struct_tree),
 			       build3(COND_EXPR, void_type_node, compare,
@@ -10001,8 +10145,8 @@ Selector_expression::lower_method_expression(Gogo* gogo)
 	  for (size_t i = 0; i < count; ++i)
 	    retvals->push_back(Expression::make_call_result(call, i));
 	}
-      s = Statement::make_return_statement(no->func_value(), retvals,
-					   location);
+      s = Statement::make_return_statement(no->func_value()->type()->results(),
+					   retvals, location);
     }
   gogo->add_statement(s);
 
@@ -12390,6 +12534,46 @@ Expression*
 Expression::make_type_descriptor(Type* type, source_location location)
 {
   return new Type_descriptor_expression(type, location);
+}
+
+// An expression which evaluates to the address of an unnamed label.
+
+class Label_addr_expression : public Expression
+{
+ public:
+  Label_addr_expression(Label* label, source_location location)
+    : Expression(EXPRESSION_LABEL_ADDR, location),
+      label_(label)
+  { }
+
+ protected:
+  Type*
+  do_type()
+  { return Type::make_pointer_type(Type::make_void_type()); }
+
+  void
+  do_determine_type(const Type_context*)
+  { }
+
+  Expression*
+  do_copy()
+  { return new Label_addr_expression(this->label_, this->location()); }
+
+  tree
+  do_get_tree(Translate_context*)
+  { return this->label_->get_addr(this->location()); }
+
+ private:
+  // The label whose address we are taking.
+  Label* label_;
+};
+
+// Make an expression for the address of an unnamed label.
+
+Expression*
+Expression::make_label_addr(Label* label, source_location location)
+{
+  return new Label_addr_expression(label, location);
 }
 
 // Make a reference count decrement of an lvalue.

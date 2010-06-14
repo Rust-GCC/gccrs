@@ -155,8 +155,8 @@ go/go.o: go/go.cc $(GO_SYSTEM_H) $(GO_C_H) $(GO_LEX_H) $(GO_PARSE_H) \
 go/go-dump.o: go/go-dump.cc $(GO_SYSTEM_H) $(GO_C_H) go/go-dump.h
 go/go-lang.o: go/go-lang.c $(GO_SYSTEM_H) coretypes.h opts.h $(TREE_H) \
 	$(GIMPLE_H) $(GGC_H) toplev.h debug.h options.h $(FLAGS_H) convert.h \
-	langhooks.h langhooks-def.h $(TARGET_H) $(DIAGNOSTIC_H) $(GO_C_H) \
-	gt-go-go-lang.h gtype-go.h
+	langhooks.h langhooks-def.h $(EXCEPT_H) $(TARGET_H) $(DIAGNOSTIC_H) \
+	$(GO_C_H) gt-go-go-lang.h gtype-go.h
 go/gogo-tree.o: go/gogo-tree.cc $(GO_SYSTEM_H) $(TREE_H) $(GIMPLE_H) \
 	tree-iterator.h $(CGRAPH_H) langhooks.h convert.h output.h \
 	$(TM_P_H) $(DIAGNOSTIC_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) \

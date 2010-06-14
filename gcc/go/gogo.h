@@ -393,6 +393,10 @@ class Gogo
   void
   order_evaluations();
 
+  // Build thunks for functions which call recover.
+  void
+  build_recover_thunks();
+
   // Simplify statements which might use thunks: go and defer
   // statements.
   void
@@ -785,6 +789,11 @@ class Block
  public:
   Block(Block* enclosing, source_location);
 
+  // Return the enclosing block.
+  const Block*
+  enclosing() const
+  { return this->enclosing_; }
+
   // Return the bindings of the block.
   Bindings*
   bindings()
@@ -906,6 +915,19 @@ class Function
   enclosing()
   { return this->enclosing_; }
 
+  // Set the enclosing function.  This is used when building thunks
+  // for functions which call recover.
+  void
+  set_enclosing(Function* enclosing)
+  {
+    gcc_assert(this->enclosing_ == NULL);
+    this->enclosing_ = enclosing;
+  }
+
+  // Create the named result variables in the outer block.
+  void
+  create_named_result_variables();
+
   // Add a new field to the closure variable.
   void
   add_closure_field(Named_object* var, source_location loc)
@@ -920,6 +942,15 @@ class Function
   // passed to the function as a static chain parameter.
   Named_object*
   closure_var();
+
+  // Set the closure variable.  This is used when building thunks for
+  // functions which call recover.
+  void
+  set_closure_var(Named_object* v)
+  {
+    gcc_assert(this->closure_var_ == NULL);
+    this->closure_var_ = v;
+  }
 
   // Return the variable for a reference to field INDEX in the closure
   // variable.
@@ -960,6 +991,43 @@ class Function
   Label*
   add_label_reference(const std::string& label_name);
 
+  // Whether this function calls the predeclared recover function.
+  bool
+  calls_recover() const
+  { return this->calls_recover_; }
+
+  // Record that this function calls the predeclared recover function.
+  // This is set during the lowering pass.
+  void
+  set_calls_recover()
+  { this->calls_recover_ = true; }
+
+  // Whether this is a recover thunk function.
+  bool
+  is_recover_thunk() const
+  { return this->is_recover_thunk_; }
+
+  // Record that this is a thunk built for a function which calls
+  // recover.
+  void
+  set_is_recover_thunk()
+  { this->is_recover_thunk_ = true; }
+
+  // Whether this function already has a recover thunk.
+  bool
+  has_recover_thunk() const
+  { return this->has_recover_thunk_; }
+
+  // Record that this function already has a recover thunk.
+  void
+  set_has_recover_thunk()
+  { this->has_recover_thunk_ = true; }
+
+  // Swap with another function.  Used only for the thunk which calls
+  // recover.
+  void
+  swap_for_recover(Function *);
+
   // Traverse the tree.
   int
   traverse(Traverse*);
@@ -984,17 +1052,14 @@ class Function
   void
   build_tree(Gogo*, Named_object*);
 
-  // Get a tree for the return value.
+  // Get the value to return when not explicitly specified.  May also
+  // add statements to execute first to STMT_LIST.
   tree
-  return_value()
-  {
-    gcc_assert(this->return_value_ != NULL);
-    return this->return_value_;
-  }
+  return_value(Gogo*, Named_object*, source_location, tree* stmt_list) const;
 
   // Get a tree for the variable holding the defer stack.
   tree
-  defer_stack();
+  defer_stack(source_location);
 
   // Export the function.
   void
@@ -1021,6 +1086,11 @@ class Function
   tree
   copy_parm_to_heap(Gogo*, tree);
 
+  void
+  build_defer_wrapper(Gogo*, Named_object*, tree, tree*, tree*);
+
+  typedef std::vector<Named_object*> Named_results;
+
   typedef std::vector<std::pair<Named_object*,
 				source_location> > Closure_fields;
 
@@ -1029,6 +1099,8 @@ class Function
   // The enclosing function.  This is NULL when there isn't one, which
   // is the normal case.
   Function* enclosing_;
+  // The named result variables, if any.
+  Named_results* named_results_;
   // If there is a closure, this is the list of variables which appear
   // in the closure.  This is created by the parser, and then resolved
   // to a real type when we lower parse trees.
@@ -1047,12 +1119,15 @@ class Function
   Labels labels_;
   // The function decl.
   tree fndecl_;
-  // If the function has named return values, this variable holds the
-  // value returned by a return statement which does not name a value.
-  tree return_value_;
-  // A variable holding the defer stack.  This is NULL unless we
-  // actually need a defer stack.
+  // A variable holding the defer stack variable.  This is NULL unless
+  // we actually need a defer stack.
   tree defer_stack_;
+  // True if this function calls the predeclared recover function.
+  bool calls_recover_;
+  // True if this a thunk built for a function which calls recover.
+  bool is_recover_thunk_;
+  // True if this function already has a recover thunk.
+  bool has_recover_thunk_;
 };
 
 // A function declaration.
@@ -1148,6 +1223,24 @@ class Variable
   bool
   is_receiver() const
   { return this->is_receiver_; }
+
+  // Change this parameter to be a receiver.  This is used when
+  // creating the thunks created for functions which call recover.
+  void
+  set_is_receiver()
+  {
+    gcc_assert(this->is_parameter_);
+    this->is_receiver_ = true;
+  }
+
+  // Change this parameter to not be a receiver.  This is used when
+  // creating the thunks created for functions which call recover.
+  void
+  set_is_not_receiver()
+  {
+    gcc_assert(this->is_parameter_);
+    this->is_receiver_ = false;
+  }
 
   // Return whether this is the varargs parameter of a function.
   bool
@@ -1349,7 +1442,8 @@ class Result_variable
 {
  public:
   Result_variable(Type* type, Function* function, int index)
-    : type_(type), function_(function), index_(index)
+    : type_(type), function_(function), index_(index),
+      is_address_taken_(false)
   { }
 
   // Get the type of the result variable.
@@ -1367,6 +1461,21 @@ class Result_variable
   index() const
   { return this->index_; }
 
+  // Whether this variable's address is taken.
+  bool
+  is_address_taken() const
+  { return this->is_address_taken_; }
+
+  // Note that something takes the address of this variable.
+  void
+  set_address_taken()
+  { this->is_address_taken_ = true; }
+
+  // Whether this variable should live in the heap.
+  bool
+  is_in_heap() const
+  { return this->is_address_taken_; }
+
  private:
   // Type of result variable.
   Type* type_;
@@ -1374,6 +1483,8 @@ class Result_variable
   Function* function_;
   // Index in list of results.
   int index_;
+  // Whether something takes the address of this variable.
+  bool is_address_taken_;
 };
 
 // The value we keep for a named constant.  This lets us hold a type
@@ -2008,6 +2119,10 @@ class Bindings
   Named_object*
   lookup_local(const std::string&) const;
 
+  // Remove a name.
+  void
+  remove_binding(Named_object*);
+
   // Traverse the tree.  See the Traverse class.
   int
   traverse(Traverse*, bool is_global);
@@ -2114,6 +2229,10 @@ class Label
   // Return the LABEL_DECL for this decl.
   tree
   get_decl();
+
+  // Return an expression for the address of this label.
+  tree
+  get_addr(source_location location);
 
  private:
   // The name of the label.

@@ -2237,13 +2237,7 @@ Expression*
 Parse::enclosing_var_reference(Named_object* in_function, Named_object* var,
 			       source_location location)
 {
-  if (var->is_result_variable())
-    {
-      error_at(location, "reference to out parameter in an enclosing function");
-      return Expression::make_error(location);
-    }
-
-  gcc_assert(var->is_variable());
+  gcc_assert(var->is_variable() || var->is_result_variable());
 
   Named_object* this_function = this->gogo_->current_function();
   Named_object* closure = this_function->func_value()->closure_var();
@@ -3451,7 +3445,8 @@ Parse::return_stat()
   if (this->expression_may_start_here())
     vals = this->expression_list(NULL, false);
   const Function* function = this->gogo_->current_function()->func_value();
-  this->gogo_->add_statement(Statement::make_return_statement(function, vals,
+  const Typed_identifier_list* results = function->type()->results();
+  this->gogo_->add_statement(Statement::make_return_statement(results, vals,
 							      location));
 }
 

@@ -39,6 +39,7 @@ class Receive_expression;
 class Case_clauses;
 class Type_case_clauses;
 class Select_clauses;
+class Typed_identifier_list;
 class Refcounts;
 class Refcount_entry;
 
@@ -206,7 +207,8 @@ class Statement
 
   // Make a return statement.
   static Statement*
-  make_return_statement(const Function*, Expression_list*, source_location);
+  make_return_statement(const Typed_identifier_list*, Expression_list*,
+			source_location);
 
   // Make a break statement.
   static Statement*
@@ -567,10 +569,10 @@ class Variable_declaration_statement : public Statement
 class Return_statement : public Statement
 {
  public:
-  Return_statement(const Function* function, Expression_list* vals,
+  Return_statement(const Typed_identifier_list* results, Expression_list* vals,
 		   source_location location)
     : Statement(STATEMENT_RETURN, location),
-      function_(function), vals_(vals), do_not_increment_(NULL)
+      results_(results), vals_(vals), do_not_increment_(NULL)
   { }
 
   // The list of values being returned.  This may be NULL.
@@ -597,6 +599,9 @@ class Return_statement : public Statement
   bool
   do_traverse_assignments(Traverse_assignments*);
 
+  Statement*
+  do_lower(Gogo*, Block*);
+
   void
   do_determine_types();
 
@@ -611,9 +616,10 @@ class Return_statement : public Statement
   do_get_tree(Translate_context*);
 
  private:
-  // The function we are returning from.  We use this to get the
-  // return types.
-  const Function* function_;
+  // The result types of the function we are returning from.  This is
+  // here because in some of the traversals it is inconvenient to get
+  // it.
+  const Typed_identifier_list* results_;
   // Return values.  This may be NULL.
   Expression_list* vals_;
   // List of variables whose reference count should not be

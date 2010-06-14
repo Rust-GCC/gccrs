@@ -20,6 +20,7 @@
 #include "diagnostic.h"
 #include "langhooks.h"
 #include "langhooks-def.h"
+#include "except.h"
 #include "target.h"
 
 #include <mpfr.h>
@@ -132,6 +133,10 @@ go_langhook_init_options (unsigned int argc ATTRIBUTE_UNUSED,
   /* We turn on stack splitting if we can.  */
   if (targetm.supports_split_stack (false))
     flag_split_stack = 1;
+
+  /* Exceptions are used to handle recovering from panics.  */
+  flag_exceptions = 1;
+  using_eh_for_cleanups ();
 
   return CL_Go;
 }
@@ -262,6 +267,24 @@ go_langhook_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
   return GS_UNHANDLED;
 }
 
+/* Return a decl for the exception personality function.  The function
+   itself is implemented in libgo/runtime/go-unwind.c.  */
+
+static tree
+go_langhook_eh_personality (void)
+{
+  static tree personality_decl;
+  if (personality_decl == NULL_TREE)
+    {
+      const char* name = (USING_SJLJ_EXCEPTIONS
+			  ? "__gccgo_personality_sj0"
+			  : "__gccgo_personality_v0");
+      personality_decl = build_personality_function (name);
+      go_preserve_from_gc (personality_decl);
+    }
+  return personality_decl;
+}
+
 /* Functions called directly by the generic backend.  */
 
 tree
@@ -323,6 +346,7 @@ go_preserve_from_gc(tree t)
 #undef LANG_HOOKS_GETDECLS
 #undef LANG_HOOKS_WRITE_GLOBALS
 #undef LANG_HOOKS_GIMPLIFY_EXPR
+#undef LANG_HOOKS_EH_PERSONALITY
 
 #define LANG_HOOKS_NAME			"GNU Go"
 #define LANG_HOOKS_INIT			go_langhook_init
@@ -338,6 +362,7 @@ go_preserve_from_gc(tree t)
 #define LANG_HOOKS_GETDECLS		go_langhook_getdecls
 #define LANG_HOOKS_WRITE_GLOBALS	go_langhook_write_globals
 #define LANG_HOOKS_GIMPLIFY_EXPR	go_langhook_gimplify_expr
+#define LANG_HOOKS_EH_PERSONALITY	go_langhook_eh_personality
 
 struct lang_hooks lang_hooks = LANG_HOOKS_INITIALIZER;
 

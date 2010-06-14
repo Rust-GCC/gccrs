@@ -133,14 +133,6 @@ Export::export_globals(const std::string& package_name,
 	exports.push_back(p->second);
     }
 
-  if (exports.empty()
-      && import_init_fn.empty()
-      && imported_init_fns.empty())
-    {
-      // Nothing to export.
-      return;
-    }
-
   std::sort(exports.begin(), exports.end(), Sort_bindings());
 
   // Although the export data is readable, at least this version is,
