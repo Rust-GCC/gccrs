@@ -17,7 +17,7 @@ func f2(i int) int {
     default: return 0
     case i != 0: return 1000
   }
-  panic()
+  panic(0)
 }
 
 func f3(i int) int {
@@ -37,32 +37,32 @@ func f3(i int) int {
 
 func main() {
   if !f1(1) {
-    panic();
+    panic(1);
   }
   if f1(2) {
-    panic();
+    panic(2);
   }
   if !f1(3) {
-    panic();
+    panic(3);
   }
   if !f1(4) {
-    panic();
+    panic(4);
   }
   if f1(5) {
-    panic();
+    panic(5);
   }
 
   if f2(-100) != -1 {
-    panic();
+    panic(6);
   }
   if f2(1000) != 1 {
-    panic();
+    panic(7);
   }
   if f2(0) != 0 {
-    panic();
+    panic(8);
   }
 
   if f3(1) != 1 || f3(2) != 2 || f3(3) != 1 || f3(4) != 4 {
-    panic();
+    panic(9);
   }
 }

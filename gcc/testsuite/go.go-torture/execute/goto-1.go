@@ -2,6 +2,6 @@ package main
 
 func main() {
   goto lab;
-  panic();
+  panic(0);
  lab:
 }

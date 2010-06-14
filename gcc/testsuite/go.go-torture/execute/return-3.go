@@ -12,5 +12,5 @@ func main() {
   } else {
     ret = 1;
   }
-  if ret != 0 { panic() }
+  if ret != 0 { panic(0) }
 }

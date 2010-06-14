@@ -11,9 +11,9 @@ func fn(a []int) int {
 func main() {
   var a [2]int;
   if fn(&a) != 2 {
-    panic();
+    panic(0);
   }
   if a[0] != 0 || a[1] != 1 {
-    panic();
+    panic(1);
   }
 }

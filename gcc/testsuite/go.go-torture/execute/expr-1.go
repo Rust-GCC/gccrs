@@ -6,6 +6,6 @@ func main() {
   var v3 = (v1 + v2) / (v1 + v2);
   var v4 = (v3 * v3) % (v3 * v3);
   if v4 != 0 {
-    panic()
+    panic(0)
   }
 }

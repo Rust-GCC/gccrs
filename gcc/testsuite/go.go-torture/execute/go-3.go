@@ -10,5 +10,5 @@ func main() {
   var i I = &s;
   c := make(chan int);
   go i.send(c);
-  if <- c != 0 { panic() }
+  if <- c != 0 { panic(0) }
 }

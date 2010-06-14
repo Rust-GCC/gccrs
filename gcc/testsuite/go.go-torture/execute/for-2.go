@@ -9,7 +9,7 @@ func f1() {
     j = i;
   }
   if (j != 2) {
-    panic();
+    panic(0);
   }
 }
 
@@ -18,7 +18,7 @@ func f2() {
     if i >= 0 {
       continue;
     }
-    panic();
+    panic(1);
   }
 }
 
@@ -30,7 +30,7 @@ func f3() {
         break lab1;
       }
     }
-    panic();
+    panic(2);
   }
 }
 
@@ -40,7 +40,7 @@ func f4() {
     for j := 0; j < 10; j++ {
       continue lab1;
     }
-    panic();
+    panic(3);
   }
 }
 

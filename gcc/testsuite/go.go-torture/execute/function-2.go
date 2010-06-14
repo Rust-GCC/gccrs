@@ -5,5 +5,5 @@ func subr(p int) int {
 }
 
 func main() {
-  if subr(0) != 0 { panic() }
+  if subr(0) != 0 { panic(0) }
 }

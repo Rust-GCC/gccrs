@@ -6,5 +6,5 @@ func fn() {
 }
 func main() {
   fn();
-  if a[0] != a[1] { panic() }
+  if a[0] != a[1] { panic(0) }
 }

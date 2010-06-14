@@ -11,18 +11,18 @@ func main() {
 	{
 	case v := <- ch1:
 	  if v != 1 {
-	    panic()
+	    panic(0)
 	  }
 	  count++
 
 	case v = <- ch2:
 	  if v != 2 {
-	    panic()
+	    panic(1)
 	  }
 	  count++
 	}
     }
   if v != 2 {
-    panic()
+    panic(2)
   }
 }
