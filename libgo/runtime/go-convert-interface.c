@@ -86,29 +86,27 @@ __go_convert_interface (const struct __go_type_descriptor* lhs_descriptor,
 	      --rhs_method_count;
 	    }
 
-	  if (rhs_method_count == 0)
+	  if (rhs_method_count == 0
+	      || !__go_type_descriptors_equal (p_lhs_method->__type,
+					       p_rhs_method->__mtype))
 	    {
-	      if (success != NULL)
-		{
-		  *success = 0;
-		  return NULL;
-		}
-	      __go_print_msg (1, "interface conversion failed: no '");
-	      __go_print_string (1, *p_lhs_method->__name);
-	      __go_panic_msg ("' method");
-	    }
+	      struct __go_interface *panic_arg;
 
-	  if (!__go_type_descriptors_equal (p_lhs_method->__type,
-					    p_rhs_method->__mtype))
-	    {
 	      if (success != NULL)
 		{
 		  *success = 0;
 		  return NULL;
 		}
-	      __go_print_msg (1, "interface conversion failed: '");
-	      __go_print_string (1, *p_lhs_method->__name);
-	      __go_panic_msg ("' method has wrong type");
+
+	      newTypeAssertionError(NULL,
+				    rhs->__type_descriptor,
+				    lhs_descriptor,
+				    NULL,
+				    rhs->__type_descriptor->__reflection,
+				    lhs_descriptor->__reflection,
+				    p_lhs_method->__name,
+				    &panic_arg);
+	      __go_panic (panic_arg);
 	    }
 
 	  methods[i] = p_rhs_method->__function;

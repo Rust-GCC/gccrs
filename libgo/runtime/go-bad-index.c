@@ -11,5 +11,5 @@ extern void __go_bad_index () __attribute__ ((noreturn));
 void
 __go_bad_index ()
 {
-  __go_panic_msg ("index out of range");
+  __go_panic_msg ("index or slice out of range");
 }

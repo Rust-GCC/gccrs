@@ -4,10 +4,15 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
+#include "config.h"
+
 #include <stdlib.h>
 #include <time.h>
 
-#include "config.h"
+#ifdef HAVE_FPU_CONTROL_H
+#include <fpu_control.h>
+#endif
+
 #include "go-alloc.h"
 #include "array.h"
 #include "go-signal.h"

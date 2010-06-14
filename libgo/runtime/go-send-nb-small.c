@@ -31,7 +31,11 @@ __go_send_nonblocking_acquire (struct __go_channel *channel)
     {
       ++channel->closed_op_count;
       if (channel->closed_op_count >= MAX_CLOSED_OPERATIONS)
-	__go_panic_msg ("too many operations on closed channel");
+	{
+	  i = pthread_mutex_unlock (&channel->lock);
+	  assert (i == 0);
+	  __go_panic_msg ("too many operations on closed channel");
+	}
       i = pthread_mutex_unlock (&channel->lock);
       assert (i == 0);
       return SEND_NONBLOCKING_ACQUIRE_CLOSED;

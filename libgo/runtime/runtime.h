@@ -7,6 +7,7 @@
 #include "config.h"
 
 #define _GNU_SOURCE
+#include <assert.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,8 +90,8 @@ struct	M
 #define	nil		((void*)0)
 #define USED(v)		((void) v)
 
-/* We map throw to panic.  */
-#define throw(s) __go_panic_msg (s)
+/* We map throw to assert.  */
+#define throw(s) assert(s == 0)
 
 void	mallocinit(void);
 void	siginit(void);

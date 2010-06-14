@@ -15,66 +15,66 @@
    the predeclared functions print/println/panic/panicln.  */
 
 void
-__go_print_space (_Bool is_panic)
+__go_print_space ()
 {
-  putc (' ', is_panic ? stderr : stdout);
+  putchar (' ');
 }
 
 void
-__go_print_nl (_Bool is_panic)
+__go_print_nl ()
 {
-  putc ('\n', is_panic ? stderr : stdout);
+  putchar ('\n');
 }
 
 void
-__go_print_string (_Bool is_panic, struct __go_string val)
+__go_print_string (struct __go_string val)
 {
-  fprintf (is_panic ? stderr : stdout, "%.*s", (int) val.__length,
-	   (const char *) val.__data);
+  printf ("%.*s", (int) val.__length, (const char *) val.__data);
 }
 
 void
-__go_print_uint64 (_Bool is_panic, uint64_t val)
+__go_print_uint64 (uint64_t val)
 {
-  fprintf (is_panic ? stderr : stdout, "%llu", (unsigned long long) val);
+  printf ("%llu", (unsigned long long) val);
 }
 
 void
-__go_print_int64 (_Bool is_panic, int64_t val)
+__go_print_int64 (int64_t val)
 {
-  fprintf (is_panic ? stderr : stdout, "%lld", (long long) val);
+  printf ("%lld", (long long) val);
 }
 
 void
-__go_print_double (_Bool is_panic, double val)
+__go_print_double (double val)
 {
-  fprintf (is_panic ? stderr : stdout, "%.24g", val);
+  printf ("%.24g", val);
 }
 
 void
-__go_print_complex (_Bool is_panic, __complex double val)
+__go_print_complex (__complex double val)
 {
-  fprintf (is_panic ? stderr : stdout, "(%.24g%s%.24gi)",
-	   __builtin_creal (val),
-	   __builtin_cimag (val) >= 0 ? "+" : "",
-	   __builtin_cimag (val));
+  printf ("(%.24g%s%.24gi)",
+	  __builtin_creal (val),
+	  (__builtin_cimag (val) >= 0 || __builtin_isnan (__builtin_cimag(val))
+	   ? "+"
+	   : ""),
+	  __builtin_cimag (val));
 }
 
 void
-__go_print_bool (_Bool is_panic, _Bool val)
+__go_print_bool (_Bool val)
 {
-  fputs (val ? "true" : "false", is_panic ? stderr : stdout);
+  fputs (val ? "true" : "false", stdout);
 }
 
 void
-__go_print_pointer (_Bool is_panic, void *val)
+__go_print_pointer (void *val)
 {
-  fprintf (is_panic ? stderr : stdout, "%p", val);
+  printf ("%p", val);
 }
 
 void
-__go_print_slice (_Bool is_panic, struct __go_open_array val)
+__go_print_slice (struct __go_open_array val)
 {
-  fprintf (is_panic ? stderr : stdout, "[%d/%d]%p",
-	   val.__count, val.__capacity, val.__values);
+  printf ("[%d/%d]%p", val.__count, val.__capacity, val.__values);
 }

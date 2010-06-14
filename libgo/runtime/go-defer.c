@@ -7,50 +7,63 @@
 #include <stddef.h>
 
 #include "go-alloc.h"
-
-/* The defer stack is a list of these structures.  */
-
-struct __defer_stack
-{
-  /* The next entry in the stack.  */
-  struct __defer_stack* __next;
-
-  /* The function to call.  */
-  void (*__pfn) (void *);
-
-  /* The argument to pass to the function.  */
-  void *__arg;
-};
+#include "go-panic.h"
+#include "go-defer.h"
 
 /* This function is called each time we need to defer a call.  */
 
-void *
-__go_defer (void *stack, void (*pfn) (void *), void *arg)
+void
+__go_defer (void *frame, void (*pfn) (void *), void *arg)
 {
-  struct __defer_stack *n;
+  struct __go_defer_stack *n;
 
-  n = (struct __defer_stack *) __go_alloc (sizeof (struct __defer_stack));
-  n->__next = (struct __defer_stack *) stack;
+  if (__go_panic_defer == NULL)
+    __go_panic_defer = ((struct __go_panic_defer_struct *)
+			__go_alloc (sizeof (struct __go_panic_defer_struct)));
+
+  n = (struct __go_defer_stack *) __go_alloc (sizeof (struct __go_defer_stack));
+  n->__next = __go_panic_defer->__defer;
+  n->__frame = frame;
+  n->__panic = __go_panic_defer->__panic;
   n->__pfn = pfn;
   n->__arg = arg;
-  return (void *) n;
+  n->__retaddr = NULL;
+  __go_panic_defer->__defer = n;
 }
 
 /* This function is called when we want to undefer the stack.  */
 
 void
-__go_undefer (void *arg)
+__go_undefer (void *frame)
 {
-  struct __defer_stack *p;
-
-  p = (struct __defer_stack *) arg;
-  while (p != NULL)
+  if (__go_panic_defer == NULL)
+    return;
+  while (__go_panic_defer->__defer != NULL
+	 && __go_panic_defer->__defer->__frame == frame)
     {
-      struct __defer_stack *n;
+      struct __go_defer_stack *d;
+      void (*pfn) (void *);
 
-      n = p->__next;
-      (*p->__pfn) (p->__arg);
-      __go_free (p);
-      p = n;
+      d = __go_panic_defer->__defer;
+      pfn = d->__pfn;
+      d->__pfn = NULL;
+
+      if (pfn != NULL)
+	(*pfn) (d->__arg);
+
+      __go_panic_defer->__defer = d->__next;
+      __go_free (d);
     }
+}
+
+/* This function is called to record the address to which the deferred
+   function returns.  This may in turn be checked by __go_can_recover.
+   The frontend relies on this function returning false.  */
+
+_Bool
+__go_set_defer_retaddr (void *retaddr)
+{
+  if (__go_panic_defer != NULL && __go_panic_defer->__defer != NULL)
+    __go_panic_defer->__defer->__retaddr = retaddr;
+  return 0;
 }

@@ -58,6 +58,7 @@ am__aclocal_m4_deps = $(top_srcdir)/../config/depstand.m4 \
 	$(top_srcdir)/../config/lead-dot.m4 \
 	$(top_srcdir)/../config/multi.m4 \
 	$(top_srcdir)/../config/override.m4 \
+	$(top_srcdir)/../config/unwind_ipinfo.m4 \
 	$(top_srcdir)/../libtool.m4 $(top_srcdir)/../ltoptions.m4 \
 	$(top_srcdir)/../ltsugar.m4 $(top_srcdir)/../ltversion.m4 \
 	$(top_srcdir)/../lt~obsolete.m4 $(top_srcdir)/configure.ac
@@ -117,28 +118,30 @@ am__objects_1 = go-bad-index.lo go-byte-array-to-string.lo \
 	go-breakpoint.lo go-caller.lo go-can-convert-interface.lo \
 	go-chan-cap.lo go-chan-len.lo go-close.lo go-closed.lo \
 	go-construct-map.lo go-convert-interface.lo go-defer.lo \
-	go-go.lo go-goexit.lo go-gomaxprocs.lo \
-	go-int-array-to-string.lo go-int-to-string.lo \
+	go-defer-stack.lo go-deferred-recover.lo go-go.lo go-goexit.lo \
+	go-gomaxprocs.lo go-int-array-to-string.lo go-int-to-string.lo \
 	go-interface-compare.lo go-interface-to-object.lo \
 	go-interface-to-pointer.lo go-lock-os-thread.lo \
 	go-map-delete.lo go-map-index.lo go-map-len.lo go-map-range.lo \
 	go-new-channel.lo go-new-interface-object.lo \
 	go-new-interface-pointer.lo go-new-map.lo go-new.lo go-note.lo \
-	go-panic.lo go-print.lo go-rec-big.lo go-rec-nb-big.lo \
-	go-rec-nb-small.lo go-rec-small.lo go-refcount-decrement.lo \
-	go-refcount-flush.lo go-refcount-increment.lo \
-	go-refcount-msg.lo go-reflect.lo go-reflect-call.lo \
-	go-reflect-chan.lo go-reflect-map.lo go-rune.lo go-sched.lo \
-	go-select.lo go-semacquire.lo go-send-big.lo go-send-nb-big.lo \
-	go-send-nb-small.lo go-send-small.lo go-signal.lo go-strcmp.lo \
+	go-panic.lo go-panic-defer.lo go-print.lo go-rec-big.lo \
+	go-rec-nb-big.lo go-rec-nb-small.lo go-rec-small.lo \
+	go-recover.lo go-refcount-decrement.lo go-refcount-flush.lo \
+	go-refcount-increment.lo go-refcount-msg.lo go-reflect.lo \
+	go-reflect-call.lo go-reflect-chan.lo go-reflect-map.lo \
+	go-rune.lo go-sched.lo go-select.lo go-semacquire.lo \
+	go-send-big.lo go-send-nb-big.lo go-send-nb-small.lo \
+	go-send-small.lo go-signal.lo go-strcmp.lo \
 	go-string-to-byte-array.lo go-string-to-int-array.lo \
 	go-strplus.lo go-strslice.lo go-trampoline.lo go-type-error.lo \
 	go-type-identity.lo go-type-interface.lo go-type-string.lo \
 	go-typedesc-equal.lo go-unreflect.lo go-unsafe-new.lo \
-	go-unsafe-newarray.lo go-unsafe-pointer.lo mcache.lo \
-	mcentral.lo mem.lo mfinal.lo mfixalloc.lo mgc0.lo mheap.lo \
-	mheapmap32.lo mheapmap64.lo msize.lo proc.lo thread.lo chan.lo \
-	iface.lo malloc.lo map.lo sigqueue.lo string.lo
+	go-unsafe-newarray.lo go-unsafe-pointer.lo go-unwind.lo \
+	mcache.lo mcentral.lo mem.lo mfinal.lo mfixalloc.lo mgc0.lo \
+	mheap.lo mheapmap32.lo mheapmap64.lo msize.lo proc.lo \
+	thread.lo chan.lo iface.lo malloc.lo map.lo sigqueue.lo \
+	string.lo
 am_libgo_la_OBJECTS = $(am__objects_1)
 libgo_la_OBJECTS = $(am_libgo_la_OBJECTS)
 libgotesting_la_DEPENDENCIES = testing/libtesting.la \
@@ -333,7 +336,9 @@ WARN_CFLAGS = $(WARN_FLAGS) $(WERROR)
 # -I/-D flags to pass when compiling.
 AM_CPPFLAGS = -I $(srcdir)/runtime $(LIBFFIINCS) -pthread
 ACLOCAL_AMFLAGS = -I . -I .. -I ../config
-AM_CFLAGS = -fplan9-extensions $(SPLIT_STACK) $(WARN_CFLAGS)
+AM_CFLAGS = -fexceptions -fplan9-extensions $(SPLIT_STACK) $(WARN_CFLAGS) \
+	-I $(srcdir)/../gcc -I $(MULTIBUILDTOP)../../gcc/include
+
 
 # Multilib support.
 MAKEOVERRIDES = 
@@ -539,6 +544,8 @@ runtime_files = \
 	runtime/go-construct-map.c \
 	runtime/go-convert-interface.c \
 	runtime/go-defer.c \
+	runtime/go-defer-stack.c \
+	runtime/go-deferred-recover.c \
 	runtime/go-go.c \
 	runtime/go-goexit.c \
 	runtime/go-gomaxprocs.c \
@@ -559,11 +566,13 @@ runtime_files = \
 	runtime/go-new.c \
 	runtime/go-note.c \
 	runtime/go-panic.c \
+	runtime/go-panic-defer.c \
 	runtime/go-print.c \
 	runtime/go-rec-big.c \
 	runtime/go-rec-nb-big.c \
 	runtime/go-rec-nb-small.c \
 	runtime/go-rec-small.c \
+	runtime/go-recover.c \
 	runtime/go-refcount-decrement.c \
 	runtime/go-refcount-flush.c \
 	runtime/go-refcount-increment.c \
@@ -596,9 +605,10 @@ runtime_files = \
 	runtime/go-unsafe-new.c \
 	runtime/go-unsafe-newarray.c \
 	runtime/go-unsafe-pointer.c \
+	runtime/go-unwind.c \
 	runtime/mcache.c \
 	runtime/mcentral.c \
-\	runtime/mem.c \
+	runtime/mem.c \
 	runtime/mfinal.c \
 	runtime/mfixalloc.c \
 	runtime/mgc0.c \
@@ -804,6 +814,7 @@ go_rpc_files = \
 	go/rpc/server.go
 
 go_runtime_files = \
+	go/runtime/error.go \
 	go/runtime/extern.go \
 	go/runtime/type.go
 
@@ -1521,7 +1532,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-closed.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-construct-map.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-convert-interface.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-defer-stack.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-defer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-deferred-recover.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-go.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-goexit.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-gomaxprocs.Plo@am__quote@
@@ -1542,12 +1555,14 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-new-map.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-new.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-note.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-panic-defer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-panic.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-print.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-rec-big.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-rec-nb-big.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-rec-nb-small.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-rec-small.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-recover.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-refcount-decrement.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-refcount-flush.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-refcount-increment.Plo@am__quote@
@@ -1580,6 +1595,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unsafe-new.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unsafe-newarray.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unsafe-pointer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-unwind.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/iface.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/map.Plo@am__quote@
@@ -1716,6 +1732,20 @@ go-defer.lo: runtime/go-defer.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-defer.c' object='go-defer.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-defer.lo `test -f 'runtime/go-defer.c' || echo '$(srcdir)/'`runtime/go-defer.c
+
+go-defer-stack.lo: runtime/go-defer-stack.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-defer-stack.lo -MD -MP -MF $(DEPDIR)/go-defer-stack.Tpo -c -o go-defer-stack.lo `test -f 'runtime/go-defer-stack.c' || echo '$(srcdir)/'`runtime/go-defer-stack.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-defer-stack.Tpo $(DEPDIR)/go-defer-stack.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-defer-stack.c' object='go-defer-stack.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-defer-stack.lo `test -f 'runtime/go-defer-stack.c' || echo '$(srcdir)/'`runtime/go-defer-stack.c
+
+go-deferred-recover.lo: runtime/go-deferred-recover.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-deferred-recover.lo -MD -MP -MF $(DEPDIR)/go-deferred-recover.Tpo -c -o go-deferred-recover.lo `test -f 'runtime/go-deferred-recover.c' || echo '$(srcdir)/'`runtime/go-deferred-recover.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-deferred-recover.Tpo $(DEPDIR)/go-deferred-recover.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-deferred-recover.c' object='go-deferred-recover.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-deferred-recover.lo `test -f 'runtime/go-deferred-recover.c' || echo '$(srcdir)/'`runtime/go-deferred-recover.c
 
 go-go.lo: runtime/go-go.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-go.lo -MD -MP -MF $(DEPDIR)/go-go.Tpo -c -o go-go.lo `test -f 'runtime/go-go.c' || echo '$(srcdir)/'`runtime/go-go.c
@@ -1857,6 +1887,13 @@ go-panic.lo: runtime/go-panic.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-panic.lo `test -f 'runtime/go-panic.c' || echo '$(srcdir)/'`runtime/go-panic.c
 
+go-panic-defer.lo: runtime/go-panic-defer.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-panic-defer.lo -MD -MP -MF $(DEPDIR)/go-panic-defer.Tpo -c -o go-panic-defer.lo `test -f 'runtime/go-panic-defer.c' || echo '$(srcdir)/'`runtime/go-panic-defer.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-panic-defer.Tpo $(DEPDIR)/go-panic-defer.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-panic-defer.c' object='go-panic-defer.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-panic-defer.lo `test -f 'runtime/go-panic-defer.c' || echo '$(srcdir)/'`runtime/go-panic-defer.c
+
 go-print.lo: runtime/go-print.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-print.lo -MD -MP -MF $(DEPDIR)/go-print.Tpo -c -o go-print.lo `test -f 'runtime/go-print.c' || echo '$(srcdir)/'`runtime/go-print.c
 @am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-print.Tpo $(DEPDIR)/go-print.Plo
@@ -1891,6 +1928,13 @@ go-rec-small.lo: runtime/go-rec-small.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-rec-small.c' object='go-rec-small.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-rec-small.lo `test -f 'runtime/go-rec-small.c' || echo '$(srcdir)/'`runtime/go-rec-small.c
+
+go-recover.lo: runtime/go-recover.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-recover.lo -MD -MP -MF $(DEPDIR)/go-recover.Tpo -c -o go-recover.lo `test -f 'runtime/go-recover.c' || echo '$(srcdir)/'`runtime/go-recover.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-recover.Tpo $(DEPDIR)/go-recover.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-recover.c' object='go-recover.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-recover.lo `test -f 'runtime/go-recover.c' || echo '$(srcdir)/'`runtime/go-recover.c
 
 go-refcount-decrement.lo: runtime/go-refcount-decrement.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-refcount-decrement.lo -MD -MP -MF $(DEPDIR)/go-refcount-decrement.Tpo -c -o go-refcount-decrement.lo `test -f 'runtime/go-refcount-decrement.c' || echo '$(srcdir)/'`runtime/go-refcount-decrement.c
@@ -2115,6 +2159,13 @@ go-unsafe-pointer.lo: runtime/go-unsafe-pointer.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-unsafe-pointer.c' object='go-unsafe-pointer.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-unsafe-pointer.lo `test -f 'runtime/go-unsafe-pointer.c' || echo '$(srcdir)/'`runtime/go-unsafe-pointer.c
+
+go-unwind.lo: runtime/go-unwind.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-unwind.lo -MD -MP -MF $(DEPDIR)/go-unwind.Tpo -c -o go-unwind.lo `test -f 'runtime/go-unwind.c' || echo '$(srcdir)/'`runtime/go-unwind.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-unwind.Tpo $(DEPDIR)/go-unwind.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-unwind.c' object='go-unwind.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-unwind.lo `test -f 'runtime/go-unwind.c' || echo '$(srcdir)/'`runtime/go-unwind.c
 
 mcache.lo: runtime/mcache.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mcache.lo -MD -MP -MF $(DEPDIR)/mcache.Tpo -c -o mcache.lo `test -f 'runtime/mcache.c' || echo '$(srcdir)/'`runtime/mcache.c

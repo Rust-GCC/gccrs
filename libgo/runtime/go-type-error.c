@@ -14,7 +14,7 @@ size_t
 __go_type_hash_error (const void *val __attribute__ ((unused)),
 		      size_t key_size __attribute__ ((unused)))
 {
-  __go_panic_msg ("hash of type which does not support hash computations");
+  __go_panic_msg ("hash of unhashable type");
 }
 
 /* An equality function for an interface.  */
@@ -24,5 +24,5 @@ __go_type_equal_error (const void *v1 __attribute__ ((unused)),
 		       const void *v2 __attribute__ ((unused)),
 		       size_t key_size __attribute__ ((unused)))
 {
-  __go_panic_msg ("comparison of type which may not be compared");
+  __go_panic_msg ("comparing uncomparable types");
 }

@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <stdlib.h>
 
+#include "go-panic.h"
 #include "go-signal.h"
 
 #include "runtime.h"
@@ -36,11 +37,26 @@ static struct sigtab signals[] =
   { SIGINT, 0 },
   { SIGALRM, 1 },
   { SIGTERM, 0 },
+#ifdef SIGBUS
+  { SIGBUS, 0 },
+#endif
+#ifdef SIGFPE
+  { SIGFPE, 0 },
+#endif
 #ifdef SIGUSR1
   { SIGUSR1, 1 },
 #endif
+#ifdef SIGSEGV
+  { SIGSEGV, 0 },
+#endif
 #ifdef SIGUSR2
   { SIGUSR2, 1 },
+#endif
+#ifdef SIGPIPE
+  { SIGPIPE, 1 },
+#endif
+#ifdef SIGCHLD
+  { SIGCHLD, 1 },
 #endif
 #ifdef SIGTSTP
   { SIGTSTP, 1 },
@@ -83,7 +99,48 @@ static struct sigtab signals[] =
 static void
 sighandler (int sig)
 {
+  const char *msg;
   int i;
+
+  /* FIXME: Should check siginfo for more information when
+     available.  */
+  msg = NULL;
+  switch (sig)
+    {
+#ifdef SIGBUS
+    case SIGBUS:
+      msg = "invalid memory address or nil pointer dereference";
+      break;
+#endif
+
+#ifdef SIGFPE
+    case SIGFPE:
+      msg = "division by zero or floating point error";
+      break;
+#endif
+
+#ifdef SIGSEGV
+    case SIGSEGV:
+      msg = "invalid memory address or nil pointer dereference";
+      break;
+#endif
+
+    default:
+      break;
+    }
+
+  if (msg != NULL)
+    {
+      sigset_t clear;
+
+      /* The signal handler blocked signals; unblock them.  */
+      i = sigfillset (&clear);
+      assert (i == 0);
+      i = sigprocmask (SIG_UNBLOCK, &clear, NULL);
+      assert (i == 0);
+
+      __go_panic_msg (msg);
+    }
 
   if (sigsend (sig))
     return;

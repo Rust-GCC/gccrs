@@ -28,7 +28,8 @@ AM_CPPFLAGS = -I $(srcdir)/runtime $(LIBFFIINCS) -pthread
 
 ACLOCAL_AMFLAGS = -I . -I .. -I ../config
 
-AM_CFLAGS = -fplan9-extensions $(SPLIT_STACK) $(WARN_CFLAGS)
+AM_CFLAGS = -fexceptions -fplan9-extensions $(SPLIT_STACK) $(WARN_CFLAGS) \
+	-I $(srcdir)/../gcc -I $(MULTIBUILDTOP)../../gcc/include
 
 # Multilib support.
 MAKEOVERRIDES=
@@ -248,6 +249,8 @@ runtime_files = \
 	runtime/go-construct-map.c \
 	runtime/go-convert-interface.c \
 	runtime/go-defer.c \
+	runtime/go-defer-stack.c \
+	runtime/go-deferred-recover.c \
 	runtime/go-go.c \
 	runtime/go-goexit.c \
 	runtime/go-gomaxprocs.c \
@@ -268,11 +271,13 @@ runtime_files = \
 	runtime/go-new.c \
 	runtime/go-note.c \
 	runtime/go-panic.c \
+	runtime/go-panic-defer.c \
 	runtime/go-print.c \
 	runtime/go-rec-big.c \
 	runtime/go-rec-nb-big.c \
 	runtime/go-rec-nb-small.c \
 	runtime/go-rec-small.c \
+	runtime/go-recover.c \
 	runtime/go-refcount-decrement.c \
 	runtime/go-refcount-flush.c \
 	runtime/go-refcount-increment.c \
@@ -305,9 +310,10 @@ runtime_files = \
 	runtime/go-unsafe-new.c \
 	runtime/go-unsafe-newarray.c \
 	runtime/go-unsafe-pointer.c \
+	runtime/go-unwind.c \
 	runtime/mcache.c \
 	runtime/mcentral.c \
-\	runtime/mem.c \
+	runtime/mem.c \
 	runtime/mfinal.c \
 	runtime/mfixalloc.c \
 	runtime/mgc0.c \
@@ -531,6 +537,7 @@ go_rpc_files = \
 	go/rpc/server.go
 
 go_runtime_files = \
+	go/runtime/error.go \
 	go/runtime/extern.go \
 	go/runtime/type.go
 

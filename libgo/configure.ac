@@ -182,6 +182,8 @@ fi
 
 AC_C_BIGENDIAN
 
+GCC_CHECK_UNWIND_GETIPINFO
+
 AC_CHECK_HEADERS(sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/user.h)
 AC_CHECK_FUNCS(srandom random strsignal)
 
