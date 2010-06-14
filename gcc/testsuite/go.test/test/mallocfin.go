@@ -27,14 +27,16 @@ var final [N]int
 
 func finalA(a *A) {
 	if final[a.n] != 0 {
-		panicln("finalA", a.n, final[a.n])
+		println("finalA", a.n, final[a.n])
+		panic("fail")
 	}
 	final[a.n] = 1
 }
 
 func finalB(b *B) {
 	if final[b.n] != 1 {
-		panicln("finalB", b.n, final[b.n])
+		println("finalB", b.n, final[b.n])
+		panic("fail")
 	}
 	final[b.n] = 2
 	nfinal++
@@ -53,6 +55,7 @@ func main() {
 		runtime.Gosched()
 	}
 	if nfinal < N*9/10 {
-		panic("not enough finalizing:", nfinal, "/", N)
+		println("not enough finalizing:", nfinal, "/", N)
+		panic("fail")
 	}
 }
