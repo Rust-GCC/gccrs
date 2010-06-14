@@ -6,6 +6,8 @@
 
 package syscall
 
+const ARCH = "386"
+
 func (r *PtraceRegs) PC() uint64 {
 	return uint64(uint32(r.Eip));
 }
