@@ -668,7 +668,7 @@ func toType(i interface{}) Type {
 	case *runtime.StructType:
 		return (*StructType)(unsafe.Pointer(v))
 	}
-	panicln("toType", i)
+	panic("toType")
 }
 
 // Convert pointer to runtime Type structure to our Type structure.
@@ -732,7 +732,7 @@ func runtimeToType(v *runtime.Type) Type {
 	case runtime.StructTypeCode:
 		r = (*StructType)(unsafe.Pointer(v))
 	default:
-		panicln("runtimeToType", v)
+		panic("runtimeToType")
 	}
 	return canonicalize(r)
 }

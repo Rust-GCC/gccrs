@@ -1624,7 +1624,7 @@ func (p *parser) parseForStmt() ast.Stmt {
 		return &ast.ForStmt{pos, s1, p.makeExpr(s2), s3, body}
 	}
 
-	panic() // unreachable
+	panic("unreachable") // unreachable
 	return nil
 }
 

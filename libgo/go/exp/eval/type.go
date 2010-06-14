@@ -231,7 +231,7 @@ func (t *uintType) Zero() Value {
 		res := uint64V(0)
 		return &res
 	}
-	panic("unexpected uint bit count: ", t.Bits)
+	panic("unexpected uint bit count")
 }
 
 func (t *uintType) minVal() *bignum.Rational { return bignum.Rat(0, 1) }
@@ -304,7 +304,7 @@ func (t *intType) Zero() Value {
 		res := intV(0)
 		return &res
 	}
-	panic("unexpected int bit count: ", t.Bits)
+	panic("unexpected int bit count")
 }
 
 func (t *intType) minVal() *bignum.Rational {
@@ -390,7 +390,7 @@ func (t *floatType) Zero() Value {
 		res := floatV(0)
 		return &res
 	}
-	panic("unexpected float bit count: ", t.Bits)
+	panic("unexpected float bit count")
 }
 
 var maxFloat32Val = bignum.MakeRat(bignum.Int(0xffffff).Shl(127-23), bignum.Nat(1))
@@ -410,7 +410,7 @@ func (t *floatType) minVal() *bignum.Rational {
 		return minFloat64Val
 	}
 	log.Crashf("unexpected floating point bit count: %d", bits)
-	panic()
+	panic("unreachable")
 }
 
 func (t *floatType) maxVal() *bignum.Rational {
@@ -425,7 +425,7 @@ func (t *floatType) maxVal() *bignum.Rational {
 		return maxFloat64Val
 	}
 	log.Crashf("unexpected floating point bit count: %d", bits)
-	panic()
+	panic("unreachable")
 }
 
 /*
@@ -702,7 +702,6 @@ var (
 	makeType    = &FuncType{builtin: "make"}
 	newType     = &FuncType{builtin: "new"}
 	panicType   = &FuncType{builtin: "panic"}
-	paniclnType = &FuncType{builtin: "panicln"}
 	printType   = &FuncType{builtin: "print"}
 	printlnType = &FuncType{builtin: "println"}
 )
@@ -1237,7 +1236,6 @@ func init() {
 	universe.DefineConst("make", universePos, makeType, nil)
 	universe.DefineConst("new", universePos, newType, nil)
 	universe.DefineConst("panic", universePos, panicType, nil)
-	universe.DefineConst("panicln", universePos, paniclnType, nil)
 	universe.DefineConst("print", universePos, printType, nil)
 	universe.DefineConst("println", universePos, printlnType, nil)
 }

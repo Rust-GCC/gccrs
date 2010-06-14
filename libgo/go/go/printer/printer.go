@@ -105,7 +105,7 @@ func (p *printer) internalError(msg ...interface{}) {
 	if debug {
 		fmt.Print(p.pos.String() + ": ")
 		fmt.Println(msg)
-		panic()
+		panic("go/printer")
 	}
 }
 
@@ -770,7 +770,8 @@ func (p *printer) print(args ...) {
 				next = x // accurate position of next item
 			}
 		default:
-			panicln("print: unsupported argument type", f.Type().String())
+			fmt.Fprintf(os.Stderr, "print: unsupported argument type %T\n", f)
+			panic("go/printer type")
 		}
 		p.pos = next
 

@@ -503,7 +503,7 @@ func (v *UnsafePointerValue) SetValue(x Value) {
 
 func typesMustMatch(t1, t2 Type) {
 	if t1 != t2 {
-		panicln("type mismatch:", t1.String(), "!=", t2.String())
+		panic("type mismatch: " + t1.String() + " != " + t2.String())
 	}
 }
 
@@ -571,7 +571,7 @@ func (v *ArrayValue) Elem(i int) Value {
 	typ := v.typ.(*ArrayType).Elem()
 	n := v.Len()
 	if i < 0 || i >= n {
-		panic("index", i, "in array len", n)
+		panic("array index out of bounds")
 	}
 	p := addr(uintptr(v.addr()) + uintptr(i)*typ.Size())
 	return newValue(typ, p, v.canSet)
@@ -612,7 +612,7 @@ func (v *SliceValue) addr() addr { return addr(v.slice().Data) }
 func (v *SliceValue) SetLen(n int) {
 	s := v.slice()
 	if n < 0 || n > int(s.Cap) {
-		panicln("SetLen", n, "with capacity", s.Cap)
+		panic("reflect: slice length out of range in SetLen")
 	}
 	s.Len = n
 }
@@ -642,7 +642,7 @@ func (v *SliceValue) Get() uintptr {
 func (v *SliceValue) Slice(beg, end int) *SliceValue {
 	cap := v.Cap()
 	if beg < 0 || end < beg || end > cap {
-		panic("slice bounds [", beg, ":", end, "] with capacity ", cap)
+		panic("slice index out of bounds")
 	}
 	typ := v.typ.(*SliceType)
 	s := new(SliceHeader)
@@ -657,7 +657,7 @@ func (v *SliceValue) Elem(i int) Value {
 	typ := v.typ.(*SliceType).Elem()
 	n := v.Len()
 	if i < 0 || i >= n {
-		panicln("index", i, "in array of length", n)
+		panic("reflect: slice index out of range")
 	}
 	p := addr(uintptr(v.addr()) + uintptr(i)*typ.Size())
 	return newValue(typ, p, v.canSet)
@@ -985,7 +985,7 @@ func (v *InterfaceValue) Set(x Value) {
 				j++
 			}
 			if j >= xmc {
-				panicln("no method", vm.Name)
+				panic("no method" + vm.Name)
 			}
 		}
 		pv[1] = addr(&methods[0])
@@ -1342,7 +1342,7 @@ func newValue(typ Type, addr addr, canSet bool) Value {
 	case *UnsafePointerType:
 		return (*UnsafePointerValue)(v)
 	}
-	panicln("newValue", typ.String())
+	panic("newValue" + typ.String())
 }
 
 // MakeZero returns a zero Value for the specified Type.

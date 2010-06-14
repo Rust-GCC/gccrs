@@ -964,7 +964,7 @@ func Parse(s string, fmap FormatterMap) (t *Template, err os.Error) {
 func MustParse(s string, fmap FormatterMap) *Template {
 	t, err := Parse(s, fmap)
 	if err != nil {
-		panic("template parse error: ", err.String())
+		panic("template.MustParse error: " + err.String())
 	}
 	return t
 }

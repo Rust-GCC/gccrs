@@ -30,7 +30,7 @@ import (
 		http.Handle("/echo", websocket.Handler(EchoServer));
 		err := http.ListenAndServe(":12345", nil);
 		if err != nil {
-			panic("ListenAndServe: ", err.String())
+			panic("ListenAndServe: " + err.String())
 		}
 	}
 */
@@ -62,7 +62,7 @@ func (f Handler) ServeHTTP(c *http.Conn, req *http.Request) {
 
 	rwc, buf, err := c.Hijack()
 	if err != nil {
-		panic("Hijack failed: ", err.String())
+		panic("Hijack failed: " + err.String())
 		return
 	}
 	defer rwc.Close()
