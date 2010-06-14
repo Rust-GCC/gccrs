@@ -578,6 +578,7 @@ replace_goto_queue (struct leh_tf_state *tf)
   if (tf->goto_queue_active == 0)
     return;
   replace_goto_queue_stmt_list (tf->top_p_seq, tf);
+  replace_goto_queue_stmt_list (eh_seq, tf);
 }
 
 /* Add a new record to the goto queue contained in TF. NEW_STMT is the
@@ -658,7 +659,6 @@ record_in_goto_queue_label (struct leh_tf_state *tf, treemple stmt, tree label)
      labels. */
   new_stmt = stmt;
   record_in_goto_queue (tf, new_stmt, index, true);
-
 }
 
 /* For any GIMPLE_GOTO or GIMPLE_RETURN, decide whether it leaves a try_finally
@@ -1545,6 +1545,7 @@ lower_try_finally (struct leh_state *state, gimple tp)
   struct leh_tf_state this_tf;
   struct leh_state this_state;
   int ndests;
+  gimple_seq old_eh_seq;
 
   /* Process the try block.  */
 
@@ -1560,6 +1561,9 @@ lower_try_finally (struct leh_state *state, gimple tp)
   this_state.cur_region = this_tf.region;
   this_state.ehp_region = state->ehp_region;
   this_state.tf = &this_tf;
+
+  old_eh_seq = eh_seq;
+  eh_seq = NULL;
 
   lower_eh_constructs_1 (&this_state, gimple_try_eval(tp));
 
@@ -1615,6 +1619,20 @@ lower_try_finally (struct leh_state *state, gimple tp)
     free (this_tf.goto_queue);
   if (this_tf.goto_queue_map)
     pointer_map_destroy (this_tf.goto_queue_map);
+
+  /* If there was an old (aka outer) eh_seq, append the current eh_seq.
+     If there was no old eh_seq, then the append is trivially already done.  */
+  if (old_eh_seq)
+    {
+      if (eh_seq == NULL)
+	eh_seq = old_eh_seq;
+      else
+	{
+	  gimple_seq new_eh_seq = eh_seq;
+	  eh_seq = old_eh_seq;
+	  gimple_seq_add_seq(&eh_seq, new_eh_seq);
+	}
+    }
 
   return this_tf.top_p_seq;
 }
@@ -2844,7 +2862,8 @@ struct gimple_opt_pass pass_refactor_eh =
 /* At the end of gimple optimization, we can lower RESX.  */
 
 static bool
-lower_resx (basic_block bb, gimple stmt, struct pointer_map_t *mnt_map)
+lower_resx (basic_block bb, gimple stmt, struct pointer_map_t *mnt_map,
+	    bool *any_removed)
 {
   int lp_nr;
   eh_region src_r, dst_r;
@@ -2877,7 +2896,31 @@ lower_resx (basic_block bb, gimple stmt, struct pointer_map_t *mnt_map)
       gsi_insert_before (&gsi, x, GSI_SAME_STMT);
 
       while (EDGE_COUNT (bb->succs) > 0)
-	remove_edge (EDGE_SUCC (bb, 0));
+	{
+	  edge e = EDGE_SUCC (bb, 0);
+	  basic_block bbnext = e->dest;
+
+	  remove_edge (e);
+
+	  /* If we removed the last exception edge to the destination
+	     block, remove the landing pad.  */
+	  if (lp_nr >= 0)
+	    {
+	      edge_iterator ei;
+
+	      FOR_EACH_EDGE (e, ei, bbnext->preds)
+		if (e->flags & EDGE_EH)
+		  break;
+	      if (e == NULL)
+		{
+		  eh_landing_pad lp = get_eh_landing_pad_from_number (lp_nr);
+		  remove_eh_landing_pad (lp);
+		  if (EDGE_COUNT (bbnext->preds) == 0)
+		    *any_removed = true;
+		  ret = true;
+		}
+	    }
+	}
     }
   else if (dst_r)
     {
@@ -2998,6 +3041,8 @@ execute_lower_resx (void)
   struct pointer_map_t *mnt_map;
   bool dominance_invalidated = false;
   bool any_rewritten = false;
+  bool any_removed = false;
+  unsigned int todo;
 
   mnt_map = pointer_map_create ();
 
@@ -3006,7 +3051,8 @@ execute_lower_resx (void)
       gimple last = last_stmt (bb);
       if (last && is_gimple_resx (last))
 	{
-	  dominance_invalidated |= lower_resx (bb, last, mnt_map);
+	  dominance_invalidated |= lower_resx (bb, last, mnt_map,
+					       &any_removed);
 	  any_rewritten = true;
 	}
     }
@@ -3019,7 +3065,12 @@ execute_lower_resx (void)
       free_dominance_info (CDI_POST_DOMINATORS);
     }
 
-  return any_rewritten ? TODO_update_ssa_only_virtuals : 0;
+  todo = 0;
+  if (any_removed)
+    todo |= TODO_cleanup_cfg;
+  if (any_rewritten)
+    todo |= TODO_update_ssa_only_virtuals;
+  return todo;
 }
 
 static bool
