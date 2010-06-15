@@ -126,12 +126,5 @@ void	notewakeup(Note*);
 MCache*	allocmcache(void);
 void	free(void *v);
 void	addfinalizer(void*, void(*fn)(void*), int32);
-
-#ifdef HAVE_SYS_MMAN_H
 #define runtime_mmap mmap
-#else
-#define runtime_mmap(start, len, prot, flags, fd, offset) malloc(len)
-#define MAP_FAILED NULL
-#endif
-
 #define cas(pval, old, new) __sync_bool_compare_and_swap (pval, old, new)

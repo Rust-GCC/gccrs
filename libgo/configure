@@ -741,6 +741,8 @@ ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
 LIBOBJS
+HAVE_SYS_MMAN_H_FALSE
+HAVE_SYS_MMAN_H_TRUE
 SPLIT_STACK
 LIBGO_IS_ARM_FALSE
 LIBGO_IS_ARM_TRUE
@@ -13391,6 +13393,14 @@ fi
 
 done
 
+ if test "$ac_cv_header_sys_mman_h" = yes; then
+  HAVE_SYS_MMAN_H_TRUE=
+  HAVE_SYS_MMAN_H_FALSE='#'
+else
+  HAVE_SYS_MMAN_H_TRUE='#'
+  HAVE_SYS_MMAN_H_FALSE=
+fi
+
 for ac_func in srandom random strsignal
 do :
   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
@@ -13648,6 +13658,10 @@ if test -z "${LIBGO_IS_ARM_TRUE}" && test -z "${LIBGO_IS_ARM_FALSE}"; then
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 
+if test -z "${HAVE_SYS_MMAN_H_TRUE}" && test -z "${HAVE_SYS_MMAN_H_FALSE}"; then
+  as_fn_error "conditional \"HAVE_SYS_MMAN_H\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
 
 : ${CONFIG_STATUS=./config.status}
 ac_write_fail=0

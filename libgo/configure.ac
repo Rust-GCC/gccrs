@@ -185,6 +185,7 @@ AC_C_BIGENDIAN
 GCC_CHECK_UNWIND_GETIPINFO
 
 AC_CHECK_HEADERS(sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/user.h)
+AM_CONDITIONAL(HAVE_SYS_MMAN_H, test "$ac_cv_header_sys_mman_h" = yes)
 AC_CHECK_FUNCS(srandom random strsignal)
 
 CFLAGS_hold=$CFLAGS

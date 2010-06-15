@@ -236,6 +236,12 @@ toolexeclibtesting_DATA = \
 	testing/quick.gox \
 	testing/script.gox
 
+if HAVE_SYS_MMAN_H
+runtime_mem_file = runtime/mem.c
+else
+runtime_mem_file = runtime/mem_posix_memalign.c
+endif
+
 runtime_files = \
 	runtime/go-bad-index.c \
 	runtime/go-byte-array-to-string.c \
@@ -313,7 +319,7 @@ runtime_files = \
 	runtime/go-unwind.c \
 	runtime/mcache.c \
 	runtime/mcentral.c \
-	runtime/mem.c \
+	$(runtime_mem_file) \
 	runtime/mfinal.c \
 	runtime/mfixalloc.c \
 	runtime/mgc0.c \

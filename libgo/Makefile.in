@@ -114,7 +114,52 @@ libgobegin_a_OBJECTS = $(am_libgobegin_a_OBJECTS)
 LTLIBRARIES = $(toolexeclib_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libgo_la_DEPENDENCIES = $(libgo_go_objs) $(am__DEPENDENCIES_1)
-am__objects_1 = go-bad-index.lo go-byte-array-to-string.lo \
+am__libgo_la_SOURCES_DIST = runtime/go-bad-index.c \
+	runtime/go-byte-array-to-string.c runtime/go-breakpoint.c \
+	runtime/go-caller.c runtime/go-can-convert-interface.c \
+	runtime/go-chan-cap.c runtime/go-chan-len.c runtime/go-close.c \
+	runtime/go-closed.c runtime/go-construct-map.c \
+	runtime/go-convert-interface.c runtime/go-defer.c \
+	runtime/go-defer-stack.c runtime/go-deferred-recover.c \
+	runtime/go-go.c runtime/go-goexit.c runtime/go-gomaxprocs.c \
+	runtime/go-int-array-to-string.c runtime/go-int-to-string.c \
+	runtime/go-interface-compare.c \
+	runtime/go-interface-to-object.c \
+	runtime/go-interface-to-pointer.c runtime/go-lock-os-thread.c \
+	runtime/go-map-delete.c runtime/go-map-index.c \
+	runtime/go-map-len.c runtime/go-map-range.c \
+	runtime/go-new-channel.c runtime/go-new-interface-object.c \
+	runtime/go-new-interface-pointer.c runtime/go-new-map.c \
+	runtime/go-new.c runtime/go-note.c runtime/go-panic.c \
+	runtime/go-panic-defer.c runtime/go-print.c \
+	runtime/go-rec-big.c runtime/go-rec-nb-big.c \
+	runtime/go-rec-nb-small.c runtime/go-rec-small.c \
+	runtime/go-recover.c runtime/go-refcount-decrement.c \
+	runtime/go-refcount-flush.c runtime/go-refcount-increment.c \
+	runtime/go-refcount-msg.c runtime/go-reflect.c \
+	runtime/go-reflect-call.c runtime/go-reflect-chan.c \
+	runtime/go-reflect-map.c runtime/go-rune.c runtime/go-sched.c \
+	runtime/go-select.c runtime/go-semacquire.c \
+	runtime/go-send-big.c runtime/go-send-nb-big.c \
+	runtime/go-send-nb-small.c runtime/go-send-small.c \
+	runtime/go-signal.c runtime/go-strcmp.c \
+	runtime/go-string-to-byte-array.c \
+	runtime/go-string-to-int-array.c runtime/go-strplus.c \
+	runtime/go-strslice.c runtime/go-trampoline.c \
+	runtime/go-type-error.c runtime/go-type-identity.c \
+	runtime/go-type-interface.c runtime/go-type-string.c \
+	runtime/go-typedesc-equal.c runtime/go-unreflect.c \
+	runtime/go-unsafe-new.c runtime/go-unsafe-newarray.c \
+	runtime/go-unsafe-pointer.c runtime/go-unwind.c \
+	runtime/mcache.c runtime/mcentral.c \
+	runtime/mem_posix_memalign.c runtime/mem.c runtime/mfinal.c \
+	runtime/mfixalloc.c runtime/mgc0.c runtime/mheap.c \
+	runtime/mheapmap32.c runtime/mheapmap64.c runtime/msize.c \
+	runtime/proc.c runtime/thread.c chan.c iface.c malloc.c map.c \
+	sigqueue.c string.c
+@HAVE_SYS_MMAN_H_FALSE@am__objects_1 = mem_posix_memalign.lo
+@HAVE_SYS_MMAN_H_TRUE@am__objects_1 = mem.lo
+am__objects_2 = go-bad-index.lo go-byte-array-to-string.lo \
 	go-breakpoint.lo go-caller.lo go-can-convert-interface.lo \
 	go-chan-cap.lo go-chan-len.lo go-close.lo go-closed.lo \
 	go-construct-map.lo go-convert-interface.lo go-defer.lo \
@@ -138,11 +183,11 @@ am__objects_1 = go-bad-index.lo go-byte-array-to-string.lo \
 	go-type-identity.lo go-type-interface.lo go-type-string.lo \
 	go-typedesc-equal.lo go-unreflect.lo go-unsafe-new.lo \
 	go-unsafe-newarray.lo go-unsafe-pointer.lo go-unwind.lo \
-	mcache.lo mcentral.lo mem.lo mfinal.lo mfixalloc.lo mgc0.lo \
-	mheap.lo mheapmap32.lo mheapmap64.lo msize.lo proc.lo \
+	mcache.lo mcentral.lo $(am__objects_1) mfinal.lo mfixalloc.lo \
+	mgc0.lo mheap.lo mheapmap32.lo mheapmap64.lo msize.lo proc.lo \
 	thread.lo chan.lo iface.lo malloc.lo map.lo sigqueue.lo \
 	string.lo
-am_libgo_la_OBJECTS = $(am__objects_1)
+am_libgo_la_OBJECTS = $(am__objects_2)
 libgo_la_OBJECTS = $(am_libgo_la_OBJECTS)
 libgotesting_la_DEPENDENCIES = testing/libtesting.la \
 	testing/libiotest.la testing/libquick.la testing/libscript.la
@@ -163,7 +208,7 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libgobegin_a_SOURCES) $(libgo_la_SOURCES) \
 	$(libgotesting_la_SOURCES)
-DIST_SOURCES = $(libgobegin_a_SOURCES) $(libgo_la_SOURCES) \
+DIST_SOURCES = $(libgobegin_a_SOURCES) $(am__libgo_la_SOURCES_DIST) \
 	$(libgotesting_la_SOURCES)
 MULTISRCTOP = 
 MULTIBUILDTOP = 
@@ -531,6 +576,8 @@ toolexeclibtesting_DATA = \
 	testing/quick.gox \
 	testing/script.gox
 
+@HAVE_SYS_MMAN_H_FALSE@runtime_mem_file = runtime/mem_posix_memalign.c
+@HAVE_SYS_MMAN_H_TRUE@runtime_mem_file = runtime/mem.c
 runtime_files = \
 	runtime/go-bad-index.c \
 	runtime/go-byte-array-to-string.c \
@@ -608,7 +655,7 @@ runtime_files = \
 	runtime/go-unwind.c \
 	runtime/mcache.c \
 	runtime/mcentral.c \
-	runtime/mem.c \
+	$(runtime_mem_file) \
 	runtime/mfinal.c \
 	runtime/mfixalloc.c \
 	runtime/mgc0.c \
@@ -1602,6 +1649,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mcache.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mcentral.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mem.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mem_posix_memalign.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mfinal.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mfixalloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mgc0.Plo@am__quote@
@@ -2180,6 +2228,13 @@ mcentral.lo: runtime/mcentral.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/mcentral.c' object='mcentral.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mcentral.lo `test -f 'runtime/mcentral.c' || echo '$(srcdir)/'`runtime/mcentral.c
+
+mem_posix_memalign.lo: runtime/mem_posix_memalign.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mem_posix_memalign.lo -MD -MP -MF $(DEPDIR)/mem_posix_memalign.Tpo -c -o mem_posix_memalign.lo `test -f 'runtime/mem_posix_memalign.c' || echo '$(srcdir)/'`runtime/mem_posix_memalign.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/mem_posix_memalign.Tpo $(DEPDIR)/mem_posix_memalign.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/mem_posix_memalign.c' object='mem_posix_memalign.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mem_posix_memalign.lo `test -f 'runtime/mem_posix_memalign.c' || echo '$(srcdir)/'`runtime/mem_posix_memalign.c
 
 mem.lo: runtime/mem.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mem.lo -MD -MP -MF $(DEPDIR)/mem.Tpo -c -o mem.lo `test -f 'runtime/mem.c' || echo '$(srcdir)/'`runtime/mem.c
