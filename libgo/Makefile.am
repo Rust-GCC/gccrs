@@ -336,22 +336,22 @@ runtime_files = \
 	sigqueue.c \
 	string.c
 
-cgo2c.o: runtime/cgo2c.c
+goc2c.o: runtime/goc2c.c
 	$(CC_FOR_BUILD) -c $(CFLAGS_FOR_BUILD) $<
 
-cgo2c: cgo2c.o
+goc2c: goc2c.o
 	$(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) $(LDFLAGS_FOR_BUILD) -o $@ $<
 
-malloc.c: $(srcdir)/runtime/malloc.cgo cgo2c
-	./cgo2c --gcc --go-prefix libgo_runtime $< > $@.tmp
+malloc.c: $(srcdir)/runtime/malloc.goc goc2c
+	./goc2c --gcc --go-prefix libgo_runtime $< > $@.tmp
 	mv -f $@.tmp $@
 
-sigqueue.c: $(srcdir)/runtime/sigqueue.cgo cgo2c
-	./cgo2c --gcc --go-prefix libgo_runtime $< > $@.tmp
+sigqueue.c: $(srcdir)/runtime/sigqueue.goc goc2c
+	./goc2c --gcc --go-prefix libgo_runtime $< > $@.tmp
 	mv -f $@.tmp $@
 
-%.c: $(srcdir)/runtime/%.cgo cgo2c
-	./cgo2c --gcc $< > $@.tmp
+%.c: $(srcdir)/runtime/%.goc goc2c
+	./goc2c --gcc $< > $@.tmp
 	mv -f $@.tmp $@
 
 BUILT_SOURCES = chan.c iface.c malloc.c map.c sigqueue.c string.c
