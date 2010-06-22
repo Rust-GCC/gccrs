@@ -560,12 +560,17 @@ class Expression
   is_lvalue() const
   { return this->do_is_lvalue(); }
 
-  // We are taking the address of this expression.  If this is
-  // invalid, report an error and return false.  ESCAPES is true if
-  // this address escapes the current function.
+  // Return whether the expression is addressable--something which may
+  // be used as the operand of the unary & operator.
   bool
-  address_taken(source_location location, bool escapes)
-  { return this->do_address_taken(location, escapes); }
+  is_addressable() const
+  { return this->do_is_addressable(); }
+
+  // Note that we are taking the address of this expression.  ESCAPES
+  // is true if this address escapes the current function.
+  void
+  address_taken(bool escapes)
+  { this->do_address_taken(escapes); }
 
   // Return whether this expression must be evaluated in order
   // according to the order of evaluation rules.  This is basically
@@ -715,9 +720,15 @@ class Expression
   do_is_lvalue() const
   { return false; }
 
-  // Child class implements taking the address of an expression.
+  // Child class implements whether the expression is addressable.
   virtual bool
-  do_address_taken(source_location, bool);
+  do_is_addressable() const
+  { return false; }
+
+  // Child class implements taking the address of an expression.
+  virtual void
+  do_address_taken(bool)
+  { }
 
   // Child class implements whether this expression must be evaluated
   // in order.
@@ -759,10 +770,6 @@ class Expression
   // For children to call to report an error conveniently.
   void
   report_error(const char*);
-
-  // For errors when taking the address.
-  void
-  report_address_taken_error(source_location);
 
  private:
   // Convert to the desired statement classification, or return NULL.
@@ -956,7 +963,11 @@ class Var_expression : public Expression
   { return true; }
 
   bool
-  do_address_taken(source_location, bool);
+  do_is_addressable() const
+  { return true; }
+
+  void
+  do_address_taken(bool);
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -1000,7 +1011,11 @@ class Temporary_reference_expression : public Expression
   { return true; }
 
   bool
-  do_address_taken(source_location, bool);
+  do_is_addressable() const
+  { return true; }
+
+  void
+  do_address_taken(bool);
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -1590,8 +1605,7 @@ class Map_index_expression : public Expression
   do_is_lvalue() const
   { return this->is_lvalue_; }
 
-  bool
-  do_address_taken(source_location, bool);
+  // A map index expression is an lvalue but it is not addressable.
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -1743,7 +1757,8 @@ class Field_reference_expression : public Expression
   { return true; }
 
   bool
-  do_address_taken(source_location, bool);
+  do_is_addressable() const
+  { return this->expr_->is_addressable(); }
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -1818,10 +1833,6 @@ class Interface_field_reference_expression : public Expression
 						      this->name_,
 						      this->location());
   }
-
-  bool
-  do_address_taken(source_location, bool)
-  { return true; }
 
   tree
   do_get_tree(Translate_context*);

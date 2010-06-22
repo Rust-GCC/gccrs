@@ -135,24 +135,6 @@ Expression::do_discarding_value()
   this->warn_unused_value();
 }
 
-// This virtual function is the default behaviour for taking the
-// address of an expression.
-
-bool
-Expression::do_address_taken(source_location location, bool)
-{
-  this->report_address_taken_error(location);
-  return false;
-}
-
-// Report an error taking the address of an expression.
-
-void
-Expression::report_address_taken_error(source_location location)
-{
-  error_at(location, "invalid operand for unary %<&%>");
-}
-
 // This is the default implementation of the function to handle
 // decrementing the reference count of the old value of an lvalue.
 // Any expression which may be an l-value must implement this.
@@ -813,11 +795,11 @@ class Error_expression : public Expression
   { return this; }
 
   bool
-  do_is_value() const
+  do_is_lvalue() const
   { return true; }
 
   bool
-  do_address_taken(source_location, bool)
+  do_is_addressable() const
   { return true; }
 
   Expression*
@@ -930,21 +912,15 @@ Var_expression::do_type()
 // Something takes the address of this variable.  This means that we
 // may want to move the variable onto the heap.
 
-bool
-Var_expression::do_address_taken(source_location, bool escapes)
+void
+Var_expression::do_address_taken(bool escapes)
 {
   if (!escapes)
-    return true;
+    ;
   else if (this->variable_->is_variable())
-    {
-      this->variable_->var_value()->set_address_taken();
-      return true;
-    }
+    this->variable_->var_value()->set_address_taken();
   else if (this->variable_->is_result_variable())
-    {
-      this->variable_->result_var_value()->set_address_taken();
-      return true;
-    }
+    this->variable_->result_var_value()->set_address_taken();
   else
     gcc_unreachable();
 }
@@ -1017,11 +993,10 @@ Temporary_reference_expression::do_type()
 // need to know that they must live in the stack rather than in a
 // register.
 
-bool
-Temporary_reference_expression::do_address_taken(source_location, bool)
+void
+Temporary_reference_expression::do_address_taken(bool)
 {
   this->statement_->set_is_address_taken();
-  return true;
 }
 
 // The temporary variable is being copied.  We may need to increment
@@ -2370,13 +2345,6 @@ class Const_expression : public Expression
   do_copy()
   { return this; }
 
-  bool
-  do_address_taken(source_location location, bool escapes)
-  {
-    return this->constant_->const_value()->expr()->address_taken(location,
-								 escapes);
-  }
-
   Expression*
   do_being_copied(Refcounts*, bool);
 
@@ -3600,7 +3568,8 @@ class Unary_expression : public Expression
   { return this->op_ == OPERATOR_MULT; }
 
   bool
-  do_address_taken(source_location, bool);
+  do_is_addressable() const
+  { return this->op_ == OPERATOR_MULT; }
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -4039,8 +4008,10 @@ Unary_expression::do_check_types(Gogo*)
       break;
 
     case OPERATOR_AND:
-      if (!this->expr_->address_taken(this->location(), this->escapes_))
-	this->set_is_error();
+      if (!this->expr_->is_addressable())
+	this->report_error(_("invalid operand for unary %<&%>"));
+      else
+	this->expr_->address_taken(this->escapes_);
       break;
 
     case OPERATOR_MULT:
@@ -4056,17 +4027,6 @@ Unary_expression::do_check_types(Gogo*)
     default:
       gcc_unreachable();
     }
-}
-
-// &*p is OK.
-
-bool
-Unary_expression::do_address_taken(source_location location, bool)
-{
-  if (this->op_ == OPERATOR_MULT)
-    return true;
-  this->report_address_taken_error(location);
-  return false;
 }
 
 // Copying a unary expression may require incrementing a reference
@@ -8882,7 +8842,12 @@ class Array_index_expression : public Expression
   { return this->end_ == NULL; }
 
   bool
-  do_address_taken(source_location, bool);
+  do_is_addressable() const
+  { return this->end_ == NULL; }
+
+  void
+  do_address_taken(bool escapes)
+  { this->array_->address_taken(escapes); }
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -9013,25 +8978,6 @@ Array_index_expression::do_check_types(Gogo*)
     }
   mpz_clear(ival);
   mpz_clear(lval);
-}
-
-// We can take the address of an array index.  We don't support taking
-// the address of a slice--I'm not sure what the type of that would
-// be.  Taking the address of an array index implies taking the
-// address of the array.
-
-bool
-Array_index_expression::do_address_taken(source_location location,
-					 bool escapes)
-{
-  if (!this->array_->address_taken(location, escapes))
-    return false;
-  if (this->end_ != NULL)
-    {
-      error_at(location, "may not take address of array slice");
-      return false;
-    }
-  return true;
 }
 
 // Copying an element of an array may require incrementing a reference
@@ -9298,10 +9244,6 @@ class String_index_expression : public Expression
 					  : this->end_->copy()),
 					 this->location());
   }
-
-  bool
-  do_address_taken(source_location, bool)
-  { return true; }
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -9588,20 +9530,6 @@ Map_index_expression::do_check_types(Gogo*)
     }
 }
 
-// We can take the address of a map index expression if it is an
-// lvalue.
-
-bool
-Map_index_expression::do_address_taken(source_location location, bool)
-{
-  if (!this->is_lvalue_)
-    {
-      this->report_address_taken_error(location);
-      return false;
-    }
-  return true;
-}
-
 // If we are copying the map index to a variable, we need to increment
 // the reference count.
 
@@ -9765,18 +9693,6 @@ Field_reference_expression::do_check_types(Gogo*)
   Struct_type* struct_type = expr_type->struct_type();
   gcc_assert(struct_type != NULL);
   gcc_assert(struct_type->field(this->field_index_) != NULL);
-}
-
-// We can take the address of a field, and it implies taking the
-// address of the whole structure.
-
-bool
-Field_reference_expression::do_address_taken(source_location location,
-					     bool escapes)
-{
-  if (!this->expr_->address_taken(location, escapes))
-    return false;
-  return true;
 }
 
 // If we are copying the field to a variable, we need to increment the
@@ -10484,11 +10400,8 @@ class Struct_construction_expression : public Expression
   }
 
   bool
-  do_address_taken(source_location, bool)
-  {
-    gcc_assert(this->is_constant_struct());
-    return true;
-  }
+  do_is_addressable() const
+  { return true; }
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -10798,11 +10711,8 @@ protected:
   do_check_types(Gogo*);
 
   bool
-  do_address_taken(source_location, bool)
-  {
-    gcc_assert(this->is_constant_array());
-    return true;
-  }
+  do_is_addressable() const
+  { return true; }
 
   Expression*
   do_being_copied(Refcounts*, bool);
@@ -11238,11 +11148,6 @@ class Map_construction_expression : public Expression
     return new Map_construction_expression(this->type_, this->vals_->copy(),
 					   this->location());
   }
-
-  // Should be turned into Heap_composite_expression.
-  bool
-  do_address_taken(source_location, bool)
-  { gcc_unreachable(); }
 
   Expression*
   do_being_copied(Refcounts*, bool);
