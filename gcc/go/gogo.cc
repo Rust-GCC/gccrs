@@ -443,7 +443,8 @@ Gogo::add_imported_package(const std::string& real_name,
 {
   // FIXME: Now that we compile packages as a whole, should we permit
   // importing the current package?
-  if (this->package_name() == real_name)
+  if (this->package_name() == real_name
+      && this->unique_prefix() == unique_prefix)
     {
       *padd_to_globals = false;
       if (!alias_arg.empty() && alias_arg != ".")
