@@ -932,6 +932,10 @@ class Type
   virtual void
   do_export(Export*) const;
 
+  // Return whether an expression is an integer.
+  static bool
+  check_int_value(Expression*, const char*, source_location);
+
   // Return whether a method expects a pointer as the receiver.
   static bool
   method_expects_pointer(const Named_object*);

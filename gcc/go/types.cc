@@ -638,6 +638,59 @@ Type::do_check_make_expression(Expression_list*, source_location)
   gcc_unreachable();
 }
 
+// Return whether an expression has an integer value.  Report an error
+// if not.  This is used when handling calls to the predeclared make
+// function.
+
+bool
+Type::check_int_value(Expression* e, const char* errmsg,
+		      source_location location)
+{
+  if (e->type()->integer_type() != NULL)
+    return true;
+
+  // Check for a floating point constant with integer value.
+  mpfr_t fval;
+  mpfr_init(fval);
+
+  Type* dummy;
+  if (e->float_constant_value(fval, &dummy))
+    {
+      mpz_t ival;
+      mpz_init(ival);
+
+      bool ok = false;
+
+      mpfr_clear_overflow();
+      mpfr_clear_erangeflag();
+      mpfr_get_z(ival, fval, GMP_RNDN);
+      if (!mpfr_overflow_p()
+	  && !mpfr_erangeflag_p()
+	  && mpz_sgn(ival) >= 0)
+	{
+	  Named_type* ntype = Type::lookup_integer_type("int");
+	  Integer_type* inttype = ntype->integer_type();
+	  mpz_t max;
+	  mpz_init_set_ui(max, 1);
+	  mpz_mul_2exp(max, max, inttype->bits() - 1);
+	  ok = mpz_cmp(ival, max) < 0;
+	  mpz_clear(max);
+	}
+      mpz_clear(ival);
+
+      if (ok)
+	{
+	  mpfr_clear(fval);
+	  return true;
+	}
+    }
+
+  mpfr_clear(fval);
+
+  error_at(location, errmsg);
+  return false;
+}
+
 // Return a tree representing this type.
 
 tree
@@ -3334,21 +3387,18 @@ Array_type::do_check_make_expression(Expression_list* args,
     }
   else
     {
-      Type* type = (*args->begin())->type();
-      if (type == NULL || type->integer_type() == NULL)
-	{
-	  error_at(location, "bad type for length when making slice");
-	  return false;
-	}
+      if (!Type::check_int_value(args->front(),
+				 _("bad length when making slice"), location))
+	return false;
+
       if (args->size() > 1)
 	{
-	  type = args->back()->type();
-	  if (type == NULL || type->integer_type() == NULL)
-	    {
-	      error_at(location, "bad type for capacity when making slice");
-	      return false;
-	    }
+	  if (!Type::check_int_value(args->back(),
+				     _("bad capacity when making slice"),
+				     location))
+	    return false;
 	}
+
       return true;
     }
 }
@@ -3546,7 +3596,7 @@ Array_type::do_make_expression_tree(Translate_context* context,
   tree length_tree = args->front()->get_tree(context);
   if (length_tree == error_mark_node)
     return error_mark_node;
-  length_tree = fold_convert_loc(location, TREE_TYPE(count_field), length_tree);
+  length_tree = ::convert(TREE_TYPE(count_field), length_tree);
   length_tree = save_expr(length_tree);
   tree capacity_tree;
   if (args->size() == 1)
@@ -3554,8 +3604,7 @@ Array_type::do_make_expression_tree(Translate_context* context,
   else
     {
       capacity_tree = args->back()->get_tree(context);
-      capacity_tree = fold_convert_loc(location, TREE_TYPE(count_field),
-				       capacity_tree);
+      capacity_tree = ::convert(TREE_TYPE(count_field), capacity_tree);
       capacity_tree = save_expr(capacity_tree);
       capacity_tree = fold_build3_loc(location, COND_EXPR,
 				      TREE_TYPE(count_field),
@@ -3866,12 +3915,9 @@ Map_type::do_check_make_expression(Expression_list* args,
 {
   if (args != NULL && !args->empty())
     {
-      Type* type = (*args->begin())->type();
-      if (type == NULL || type->integer_type() == NULL)
-	{
-	  error_at(location, "bad type for map size");
-	  return false;
-	}
+      if (!Type::check_int_value(args->front(), _("bad size when making map"),
+				 location))
+	return false;
       else if (args->size() > 1)
 	{
 	  error_at(location, "too many arguments when making map");
@@ -3960,9 +4006,10 @@ Map_type::do_make_expression_tree(Translate_context* context,
     expr_tree = size_zero_node;
   else
     {
-      expr_tree = (*args->begin())->get_tree(context);
+      expr_tree = args->front()->get_tree(context);
       if (expr_tree == error_mark_node)
 	return error_mark_node;
+      expr_tree = ::convert(sizetype, expr_tree);
     }
 
   tree map_type = this->get_tree(context->gogo());
@@ -4080,12 +4127,10 @@ Channel_type::do_check_make_expression(Expression_list* args,
 {
   if (args != NULL && !args->empty())
     {
-      Type* type = args->front()->type();
-      if (type == NULL || type->integer_type() == NULL)
-	{
-	  error_at(location, "bad type for channel buffer size");
-	  return false;
-	}
+      if (!Type::check_int_value(args->front(),
+				 _("bad buffer size when making channel"),
+				 location))
+	return false;
       else if (args->size() > 1)
 	{
 	  error_at(location, "too many arguments when making channel");
@@ -4140,7 +4185,7 @@ Channel_type::do_make_expression_tree(Translate_context* context,
 
   tree expr_tree;
   if (args != NULL && !args->empty())
-    expr_tree = fold_convert(sizetype, (*args->begin())->get_tree(context));
+    expr_tree = ::convert(sizetype, args->front()->get_tree(context));
   else
     expr_tree = size_zero_node;
 
