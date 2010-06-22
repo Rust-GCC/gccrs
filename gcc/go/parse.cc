@@ -141,7 +141,7 @@ Parse::expression_list(Expression* first, bool may_be_sink)
       if (!token->is_op(OPERATOR_COMMA))
 	return ret;
 
-      // A trailing comma is permitted in CompositeLit.
+      // Most expression lists permit a trailing comma.
       source_location location = token->location();
       this->advance_token();
       if (!this->expression_may_start_here())
@@ -2613,7 +2613,7 @@ Parse::index(Expression* expr)
   return Expression::make_index(expr, start, end, location);
 }
 
-// Call = "(" [ ExpressionList ] ")" .
+// Call = "(" [ ExpressionList [ "," ] ] ")" .
 
 Expression*
 Parse::call(Expression* func)
@@ -2626,6 +2626,8 @@ Parse::call(Expression* func)
       args = this->expression_list(NULL, false);
       token = this->peek_token();
     }
+  if (token->is_op(OPERATOR_COMMA))
+    token = this->advance_token();
   if (!token->is_op(OPERATOR_RPAREN))
     this->error("missing %<)%>");
   else
