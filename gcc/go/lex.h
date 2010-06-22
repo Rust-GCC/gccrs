@@ -336,6 +336,12 @@ class Lex
   append_char(unsigned int v, bool is_charater, std::string* str,
 	      source_location);
 
+  // A helper function.  Fetch a UTF-8 character from STR and store it
+  // in *VALUE.  Return the number of bytes read from STR.  Return 0
+  // if STR does not point to a valid UTF-8 character.
+  static int
+  fetch_char(const char* str, unsigned int *value);
+
  private:
   void
   error(const char*);

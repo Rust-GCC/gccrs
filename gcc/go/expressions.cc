@@ -2974,6 +2974,63 @@ Type_conversion_expression::do_lower(Gogo*, Named_object*, int)
       mpfr_clear(imag);
     }
 
+  if (type->is_open_array_type())
+    {
+      Type* element_type = type->array_type()->element_type()->forwarded();
+      bool is_byte = element_type == Type::lookup_integer_type("uint8");
+      bool is_int = element_type == Type::lookup_integer_type("int");
+      if (is_byte || is_int)
+	{
+	  std::string s;
+	  if (val->string_constant_value(&s))
+	    {
+	      Expression_list* vals = new Expression_list();
+	      if (is_byte)
+		{
+		  for (std::string::const_iterator p = s.begin();
+		       p != s.end();
+		       p++)
+		    {
+		      mpz_t val;
+		      mpz_init_set_ui(val, static_cast<unsigned char>(*p));
+		      Expression* v = Expression::make_integer(&val,
+							       element_type,
+							       location);
+		      vals->push_back(v);
+		      mpz_clear(val);
+		    }
+		}
+	      else
+		{
+		  const char *p = s.data();
+		  const char *pend = s.data() + s.length();
+		  while (p < pend)
+		    {
+		      unsigned int c;
+		      int adv = Lex::fetch_char(p, &c);
+		      if (adv == 0)
+			{
+			  warning_at(this->location(), 0,
+				     "invalid UTF-8 encoding");
+			  adv = 1;
+			}
+		      p += adv;
+		      mpz_t val;
+		      mpz_init_set_ui(val, c);
+		      Expression* v = Expression::make_integer(&val,
+							       element_type,
+							       location);
+		      vals->push_back(v);
+		      mpz_clear(val);
+		    }
+		}
+
+	      return Expression::make_composite_literal(type, false, vals,
+							location);
+	    }
+	}
+    }
+
   return this;
 }
 

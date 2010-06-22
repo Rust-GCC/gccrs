@@ -729,24 +729,25 @@ Lex::next_token()
     }
 }
 
-// Advance one UTF-8 character.  Return the pointer beyond the
-// character.  Set *VALUE to the value.
+// Fetch one UTF-8 character from a string.  Set *VALUE to the value.
+// Return the number of bytes read from the string.  Returns 0 if the
+// string does not point to a valid UTF-8 character.
 
-const char*
-Lex::advance_one_utf8_char(const char* p, unsigned int* value)
+int
+Lex::fetch_char(const char* p, unsigned int* value)
 {
   unsigned char c = *p;
   if (c <= 0x7f)
     {
       *value = c;
-      return p + 1;
+      return 1;
     }
   else if ((c & 0xe0) == 0xc0
 	   && (p[1] & 0xc0) == 0x80)
     {
       *value = (((c & 0x1f) << 6)
 		+ (p[1] & 0x3f));
-      return p + 2;
+      return 2;
     }
   else if ((c & 0xf0) == 0xe0
 	   && (p[1] & 0xc0) == 0x80
@@ -755,7 +756,7 @@ Lex::advance_one_utf8_char(const char* p, unsigned int* value)
       *value = (((c & 0xf) << 12)
 		+ ((p[1] & 0x3f) << 6)
 		+ (p[2] & 0x3f));
-      return p + 3;
+      return 3;
     }
   else if ((c & 0xf8) == 0xf0
 	   && (p[1] & 0xc0) == 0x80
@@ -766,7 +767,7 @@ Lex::advance_one_utf8_char(const char* p, unsigned int* value)
 		+ ((p[1] & 0x3f) << 12)
 		+ ((p[2] & 0x3f) << 6)
 		+ (p[3] & 0x3f));
-      return p + 4;
+      return 4;
     }
   else if ((c & 0xfc) == 0xf8
 	   && (p[1] & 0xc0) == 0x80
@@ -779,7 +780,7 @@ Lex::advance_one_utf8_char(const char* p, unsigned int* value)
 		+ ((p[2] & 0x3f) << 12)
 		+ ((p[3] & 0x3f) << 6)
 		+ (p[4] & 0x3f));
-      return p + 5;
+      return 5;
     }
   else if ((c & 0xf7) == 0xfc
 	   && (p[1] & 0xc0) == 0x80
@@ -794,13 +795,30 @@ Lex::advance_one_utf8_char(const char* p, unsigned int* value)
 		+ ((p[3] & 0x3f) << 12)
 		+ ((p[4] & 0x3f) << 6)
 		+ (p[5] & 0x3f));
-      return p + 6;
+      return 6;
     }
   else
+    {
+      /* Invalid encoding. Return the Unicode replacement
+	 character.  */
+      *value = 0xfffd;
+      return 0;
+    }
+}
+
+// Advance one UTF-8 character.  Return the pointer beyond the
+// character.  Set *VALUE to the value.
+
+const char*
+Lex::advance_one_utf8_char(const char* p, unsigned int* value)
+{
+  int adv = Lex::fetch_char(p, value);
+  if (adv == 0)
     {
       this->error("invalid UTF-8 encoding");
       return p + 1;
     }
+  return p + adv;
 }
 
 // Pick up an identifier.
