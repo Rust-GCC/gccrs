@@ -103,9 +103,20 @@ __morestack_non_split:
 #endif
 
 __morestack:
+.LFB1:
 	.cfi_startproc
 
 #ifndef __x86_64__
+
+	# We use a cleanup to restore the stack guard if an exception
+	# is thrown through this code.
+#ifndef __PIC__
+	.cfi_personality 0,__gcc_personality_v0
+	.cfi_lsda 0,.LLSDA1
+#else
+	.cfi_personality 0x9b,DW.ref.__gcc_personality_v0
+	.cfi_lsda 0x1b,.LLSDA1
+#endif
 
 	# Set up a normal backtrace.
 	pushl	%ebp
@@ -152,6 +163,7 @@ __morestack:
 	# FIXME: The offset must match
 	# TARGET_THREAD_SPLIT_STACK_OFFSET in
 	# gcc/config/i386/linux.h.
+.LEHB0:
 	movl	%eax,%gs:0x30		# Save the new stack boundary.
 
 	movl	-8(%ebp),%edx		# Restore registers.
@@ -186,6 +198,7 @@ __morestack:
 
 	subl	4(%esp),%eax		# Subtract available space.
 	addl	$512,%eax		# Back off 512 bytes.
+.LEHE0:
 	movl	%eax,%gs:0x30		# Save the new stack boundary.
 
 	addl	$8,%esp			# Remove values from stack.
@@ -195,13 +208,41 @@ __morestack:
 
 	# Switch back to the old stack via copy back from %ebp.
 	leave
+	.cfi_remember_state
 	.cfi_restore %ebp
 	.cfi_def_cfa %esp, 12
 	ret	$8			# Return to caller, which will
 					# immediately return.  Pop
 					# arguments as we go.
 
+# This is the cleanup code called by the stack unwinder when unwinding
+# through the code between .LEHB0 and .LEHE0 above.
+	
+.L1:
+	.cfi_restore_state
+	subl	$16,%esp		# Maintain 16 byte alignment.
+	movl	%eax,4(%esp)		# Save exception header.
+	movl	%ebp,(%esp)		# Stack pointer after resume.
+	call	__generic_findstack
+	movl	%esp,%ecx		# Get the stack pointer.
+	subl	%eax,%ecx		# Subtract available space.
+	addl	$512,%ecx		# Back off 512 bytes.
+	movl	%ecx,%gs:0x30		# Save new stack boundary.
+	movl	4(%esp),%eax		# Function argument.
+	movl	%eax,(%esp)
+	call	_Unwind_Resume		# Resume unwinding.
+
 #else /* defined(__x86_64__) */
+
+	# We use a cleanup to restore the stack guard if an exception
+	# is thrown through this code.
+#ifndef __PIC__
+	.cfi_personality 0x3,__gcc_personality_v0
+	.cfi_lsda 0x3,.LLSDA1
+#else
+	.cfi_personality 0x9b,DW.ref.__gcc_personality_v0
+	.cfi_lsda 0x1b,.LLSDA1
+#endif
 
 	# Set up a normal backtrace.
 	pushq	%rbp
@@ -251,6 +292,7 @@ __morestack:
 	# FIXME: The offset must match
 	# TARGET_THREAD_SPLIT_STACK_OFFSET in
 	# gcc/config/i386/linux64.h.
+.LEHB0:
 	movq	%rax,%fs:0x70		# Save the new stack boundary.
 
 	movq	8(%rbp),%r10		# Increment the return address
@@ -276,6 +318,7 @@ __morestack:
 
 	subq	0(%rsp),%rax		# Subtract available space.
 	addq	$512,%rax		# Back off 512 bytes.
+.LEHE0:
 	movq	%rax,%fs:0x70		# Save the new stack boundary.
 
 	addq	$8,%rsp			# Remove value from stack.
@@ -284,17 +327,69 @@ __morestack:
 	popq	%rax
 
 	# Switch back to the old stack via copy back from %rbp.
+	.cfi_remember_state
 	leave
 	.cfi_restore %rbp
 	.cfi_def_cfa %rsp, 8
 	ret				# Return to caller, which will
 					# immediately return.
 
+# This is the cleanup code called by the stack unwinder when unwinding
+# through the code between .LEHB0 and .LEHE0 above.
+	
+.L1:
+	.cfi_restore_state
+	movl	%edx,%ebx		# Save exception data
+	movq	%rax,%r12
+	movl	%rbp,%rdi		# Stack pointer after resume.
+	call	__generic_findstack
+	movq	%rsp,%rcx		# Get the stack pointer.
+	subq	%rax,%rcx		# Subtract available space.
+	addq	$512,%rcx		# Back off 512 bytes.
+	movq	%rcx,%fs:0x70		# Save new stack boundary.
+	movq	%r12,%rdi		# Restore exception data for call.
+	movslq	%ebx,%rdx
+	call	_Unwind_Resume		# Resume unwinding.
+
 #endif /* defined(__x86_64__) */
 
 	.cfi_endproc
 #ifdef __ELF__
 	.size	__morestack, . - __morestack
+#endif
+
+	.globl __gcc_personality_v0
+	.section	.gcc_except_table,"a",@progbits
+	.align	4
+.LLSDA1:
+	.byte	0xff	# @LPStart format (omit)
+	.byte	0xff	# @TType format (omit)
+	.byte	0x1	# call-site format (uleb128)
+	.uleb128 .LLSDACSE1-.LLSDACSB1	# Call-site table length
+.LLSDACSB1:
+	.uleb128 .LEHB0-.LFB1	# region 0 start
+	.uleb128 .LEHE0-.LEHB0	# length
+	.uleb128 .L1-.LFB1	# landing pad
+	.uleb128 0		# action
+.LLSDACSE1:
+
+#ifdef __PIC__
+	# Build a position independent reference to the basic
+        # personality function.
+	.hidden DW.ref.__gcc_personality_v0
+	.weak   DW.ref.__gcc_personality_v0
+	.section .data.DW.ref.__gcc_personality_v0,"awG",@progbits,DW.ref.__gcc_personality_v0,comdat
+	.type	DW.ref.__gcc_personality_v0, @object
+DW.ref.__gcc_personality_v0:
+#ifndef __x86_64
+	.align 4
+	.size	DW.ref.__gcc_personality_v0, 4
+	.long	__gcc_personality_v0
+#else
+	.align 8
+	.size	DW.ref.__gcc_personality_v0, 8
+	.quad	__gcc_personality_v0
+#endif
 #endif
 
 # Initialize the stack test value when the program starts or when a

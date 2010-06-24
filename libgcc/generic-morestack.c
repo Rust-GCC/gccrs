@@ -62,6 +62,10 @@ extern void *
 __generic_releasestack (size_t *pavailable)
   __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
 
+extern size_t
+__generic_findstack (void *stack)
+  __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
+
 extern void
 __morestack_load_mmap (void)
   __attribute__ ((no_split_stack));
@@ -360,6 +364,33 @@ __generic_releasestack (size_t *pavailable)
     }
 
   return old_stack;
+}
+
+/* Find the stack segment for STACK and return the amount of space
+   available.  This is used when unwinding the stack because of an
+   exception, in order to reset the stack guard correctly.  */
+
+size_t
+__generic_findstack (void *stack)
+{
+  struct stack_segment *pss;
+
+  for (pss = __morestack_current_segment; pss != NULL; pss = pss->prev)
+    {
+      if ((char *) pss < (char *) stack
+	  && (char *) pss + pss->size > (char *) stack)
+	{
+	  __morestack_current_segment = pss;
+#ifdef STACK_GROWS_DOWNWARD
+	  return (char *) stack - (char *) (pss + 1);
+#else
+	  return (char *) (pss + 1) + pss->size - (char *) stack;
+#endif
+	}
+    }
+
+  // We don't know where we are on the stack.
+  return 512;
 }
 
 /* This function is called at program startup time to make sure that
