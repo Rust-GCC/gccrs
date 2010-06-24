@@ -1096,8 +1096,6 @@ Function::get_or_make_decl(Gogo* gogo, Named_object* no, tree id)
 
 	  this->fndecl_ = decl;
 
-	  TREE_NOTHROW(decl) = 1;
-
 	  gcc_assert(no->package() == NULL);
 	  if (this->enclosing_ != NULL || Gogo::is_thunk(no))
 	    ;
