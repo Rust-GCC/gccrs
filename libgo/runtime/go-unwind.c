@@ -47,7 +47,12 @@ __go_check_defer (void *frame)
 {
   struct _Unwind_Exception *hdr;
 
-  if (__go_panic_defer->__is_foreign)
+  if (__go_panic_defer == NULL)
+    {
+      /* Some other language has thrown an exception.  We know there
+	 are no defer handlers, so there is nothing to do.  */
+    }
+  else if (__go_panic_defer->__is_foreign)
     {
       struct __go_panic_stack *n;
       _Bool was_recovered;
@@ -210,6 +215,11 @@ parse_lsda_header (struct _Unwind_Context *context, const unsigned char *p,
   return p;
 }
 
+/* The personality function is invoked when unwinding the stack due to
+   a panic.  Its job is to find the cleanup and exception handlers to
+   run.  We can't split the stack here, because we won't be able to
+   unwind from that split.  */
+
 #ifdef __ARM_EABI_UNWINDER__
 /* ARM EABI personality routines must also unwind the stack.  */
 #define CONTINUE_UNWINDING \
@@ -234,7 +244,8 @@ parse_lsda_header (struct _Unwind_Context *context, const unsigned char *p,
 #ifdef __ARM_EABI_UNWINDER__
 _Unwind_Reason_Code
 PERSONALITY_FUNCTION (_Unwind_State, struct _Unwind_Exception *,
-		      struct _Unwind_Context *);
+		      struct _Unwind_Context *)
+  __attribute__ ((no_split_stack, flatten));
 
 _Unwind_Reason_Code
 PERSONALITY_FUNCTION (_Unwind_State state,
@@ -243,7 +254,8 @@ PERSONALITY_FUNCTION (_Unwind_State state,
 #else
 _Unwind_Reason_Code
 PERSONALITY_FUNCTION (int, _Unwind_Action, _Unwind_Exception_Class,
-		      struct _Unwind_Exception *, struct _Unwind_Context *);
+		      struct _Unwind_Exception *, struct _Unwind_Context *)
+  __attribute__ ((no_split_stack, flatten));
 
 _Unwind_Reason_Code
 PERSONALITY_FUNCTION (int version,
@@ -316,6 +328,7 @@ PERSONALITY_FUNCTION (int version,
   if (! ip_before_insn)
     --ip;
   landing_pad = 0;
+  action_record = NULL;
 
 #ifdef __USING_SJLJ_EXCEPTIONS__
   /* The given "IP" is an index into the call-site table, with two
@@ -380,18 +393,29 @@ PERSONALITY_FUNCTION (int version,
     }
 
   if (actions & _UA_SEARCH_PHASE)
-    return _URC_HANDLER_FOUND;
+    {
+      if (action_record == 0)
+	{
+	  /* This indicates a cleanup rather than an exception
+	     handler.  */
+	  CONTINUE_UNWINDING;
+	}
 
+      return _URC_HANDLER_FOUND;
+    }
+
+  /* It's possible for __go_panic_defer to be NULL here for an
+     exception thrown by a language other than Go.  */
   if (__go_panic_defer == NULL)
     {
       if (!is_foreign)
-	abort();
-      __go_panic_defer = ((struct __go_panic_defer_struct *)
-			  __go_alloc (sizeof (struct __go_panic_defer_struct)));
+	abort ();
     }
-
-  __go_panic_defer->__exception = ue_header;
-  __go_panic_defer->__is_foreign = is_foreign;
+  else
+    {
+      __go_panic_defer->__exception = ue_header;
+      __go_panic_defer->__is_foreign = is_foreign;
+    }
 
   _Unwind_SetGR (context, __builtin_eh_return_data_regno (0),
 		 (_Unwind_Ptr) ue_header);
