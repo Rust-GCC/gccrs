@@ -608,7 +608,7 @@ Gogo::start_function(const std::string& name, Function_type* type,
       // Invent a name for a nested function.
       static int nested_count;
       char buf[30];
-      snprintf(buf, sizeof buf, "__nested%d", nested_count);
+      snprintf(buf, sizeof buf, ".$nested%d", nested_count);
       ++nested_count;
       nested_name = buf;
       pname = &nested_name;
