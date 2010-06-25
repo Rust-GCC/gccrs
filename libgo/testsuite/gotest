@@ -97,6 +97,9 @@ done
 # Some tests expect the _obj directory created by the gc Makefiles.
 mkdir _obj
 
+# Some tests expect the _test directory created by the gc Makefiles.
+mkdir _test
+
 case "x$gofiles" in
 x)
 	gofiles=$(echo -n $(ls *_test.go *_test.pb.go 2>/dev/null))
