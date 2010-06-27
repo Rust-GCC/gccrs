@@ -879,15 +879,35 @@ syscall_os_file =
 syscall_arch_file =
 endif
 
+if LIBGO_IS_RTEMS
+syscall_exec_os_file = syscalls/exec_stubs.go
+syscall_socket_os_file = syscalls/socket_bsd.go
+syscall_socket_epoll_file=
+syscall_sysfile_os_file = syscalls/sysfile_rtems.go
+syscall_syscall_file = syscalls/syscall_stubs.go
+syscall_errstr_file = syscalls/errstr_rtems.go
+else
+syscall_exec_os_file = syscalls/exec.go
+syscall_socket_os_file = syscalls/socket_linux.go
+syscall_socket_epoll_file = syscalls/socket_epoll.go
+syscall_sysfile_os_file = syscalls/sysfile_linux.go
+syscall_syscall_file = syscalls/syscall.go
+syscall_errstr_file = syscalls/errstr.go
+endif
+
 go_syscall_files = \
-	syscalls/errstr.go \
-	syscalls/exec.go \
+	$(syscall_errstr_file) \
+	syscalls/exec_helpers.go \
+	$(syscall_exec_os_file) \
 	syscalls/socket.go \
-	syscalls/socket_epoll.go \
-	syscalls/syscall.go \
+	$(syscall_socket_os_file) \
+	$(syscall_socket_epoll_file) \
+	$(syscall_syscall_file) \
+	syscalls/stringbyte.go \
 	$(syscall_os_file) \
 	$(syscall_arch_file) \
-	syscalls/sysfile.go \
+	syscalls/sysfile_posix.go \
+	$(syscall_sysfile_os_file) \
 	sysinfo.go
 go_syscall_c_files = \
 	syscalls/errno.c

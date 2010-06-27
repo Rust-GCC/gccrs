@@ -1,6 +1,6 @@
-// sysfile.go -- File handling.
+// sysfile_posix.go -- POSIX File handling.
 
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -12,16 +12,10 @@ package syscall
 
 import "unsafe"
 
-// FIXME.
-const OS = "linux"
-
 func libc_open(name *byte, mode int, perm int) int __asm__ ("open");
 func libc_close(fd int) int __asm__ ("close");
 func libc_read(fd int, buf *byte, count Size_t) Ssize_t __asm__ ("read");
 func libc_write(fd int, buf *byte, count Size_t) Ssize_t __asm__ ("write");
-func libc_pread(fd int, buf *byte, count Size_t, offset Offset_t) Ssize_t __asm__ ("pread64");
-func libc_pwrite(fd int, buf *byte, count Size_t, offset Offset_t) Ssize_t __asm__ ("pwrite64");
-func libc_lseek64(int, Offset_t, int) Offset_t __asm__ ("lseek64");
 func libc_pipe(filedes *int) int __asm__("pipe");
 func libc_stat(name *byte, buf *Stat_t) int __asm__ ("stat");
 func libc_fstat(fd int, buf *Stat_t) int __asm__ ("fstat");
@@ -44,15 +38,12 @@ func libc_fchmod(fd int, mode Mode_t) int __asm__ ("fchmod");
 func libc_chown(path *byte, owner Uid_t, group Gid_t) int __asm__ ("chown");
 func libc_fchown(fd int, owner Uid_t, group Gid_t) int __asm__ ("fchown");
 func libc_lchown(path *byte, owner Uid_t, group Gid_t) int __asm__ ("lchown");
-func libc_truncate64(path *byte, length Offset_t) int __asm__ ("truncate64");
-func libc_ftruncate64(fd int, length Offset_t) int __asm__ ("ftruncate64");
 func libc_utimes(filename *byte, times *[2]Timeval) int __asm__ ("utimes");
 func libc_getuid() Uid_t __asm__ ("getuid");
 func libc_geteuid() Uid_t __asm__ ("geteuid");
 func libc_getgid() Gid_t __asm__ ("getgid");
 func libc_getegid() Gid_t __asm__ ("getegid");
 func libc_getgroups(size int, list *Gid_t) int __asm__ ("getgroups");
-func libc_setgroups(size Size_t, list *Gid_t) int __asm__ ("setgroups");
 func libc_getpagesize() int __asm__ ("getpagesize");
 func libc_exit(status int) __asm__ ("exit")
 func libc_getpid() Pid_t __asm__ ("getpid")
@@ -176,11 +167,33 @@ func Gettimeofday(tv *Timeval) (errno int) {
   return;
 }
 
-type FdSet struct {
-	__fds_bits [32]int32;
+type FdSet_t struct {
+	Fds_bits [(FD_SETSIZE + 63) / 64]int64;
 }
 
-func Select(nfds int, r *FdSet, w *FdSet, e *FdSet, timeout *Timeval) (n int, errno int) {
+func FDSet(fd int, set *FdSet_t) {
+	set.Fds_bits[fd / 64] |= (1 << (uint)(fd % 64))
+}
+
+func FDClr(fd int, set *FdSet_t) {
+	set.Fds_bits[fd / 64] &= ^(1 << (uint)(fd % 64))
+}
+
+func FDIsSet(fd int, set *FdSet_t) bool {
+	if set.Fds_bits[fd / 64] & (1 << (uint)(fd % 64)) != 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
+func FDZero(set *FdSet_t) {
+	for i := 0; i < ((FD_SETSIZE + 63) / 64); i++ {
+		set.Fds_bits[i] = 0
+	}
+}
+
+func Select(nfds int, r *FdSet_t, w *FdSet_t, e *FdSet_t, timeout *Timeval) (n int, errno int) {
   n = libc_select(nfds, (*byte)(unsafe.Pointer(r)),
 		  (*byte)(unsafe.Pointer(e)),
 		  (*byte)(unsafe.Pointer(e)), timeout);
@@ -348,18 +361,6 @@ func Getgroups() (gids []int, errno int) {
 	return;
 }
 
-func Setgroups(gids []int) (errno int) {
-	if len(gids) == 0 {
-		return libc_setgroups(0, nil);
-	}
-
-	a := make([]Gid_t, len(gids));
-	for i, v := range gids {
-		a[i] = Gid_t(v);
-	}
-	return libc_setgroups(Size_t(len(a)), &a[0]);
-}
-
 func Getpagesize() int {
 	return libc_getpagesize();
 }
@@ -387,12 +388,6 @@ func NsecToTimeval(nsec int64) (tv Timeval) {
 
 func Exit(code int) {
 	libc_exit(code);
-}
-
-func Sleep(nsec int64) (errno int) {
-	tv := NsecToTimeval(nsec);
-	n, err := Select(0, nil, nil, nil, &tv);
-	return err;
 }
 
 func fcntl(fd, cmd, arg int) (val int, errno int) {

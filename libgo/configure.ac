@@ -115,14 +115,17 @@ AC_SUBST(LIBFFIINCS)
 is_darwin=no
 is_freebsd=no
 is_linux=no
+is_rtems=no
 case ${host} in
   *-*-darwin*) is_darwin=yes ;;
   *-*-freebsd*) is_freebsd=yes ;;
   *-*-linux*)  is_linux=yes  ;;
+  *-*-rtems*)  is_rtems=yes  ;;
 esac
 AM_CONDITIONAL(LIBGO_IS_DARWIN, test $is_darwin = yes)
 AM_CONDITIONAL(LIBGO_IS_FREEBSD, test $is_freebsd = yes)
 AM_CONDITIONAL(LIBGO_IS_LINUX, test $is_linux = yes)
+AM_CONDITIONAL(LIBGO_IS_RTEMS, test $is_rtems = yes)
 
 is_386=no
 is_x86_64=no

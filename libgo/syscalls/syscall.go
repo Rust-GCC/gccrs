@@ -48,20 +48,3 @@ func Syscall6(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2, err uintptr) {
   }
   return r, 0, uintptr(GetErrno());
 }
-
-// StringByteSlice returns a NUL-terminated slice of bytes
-// containing the text of s.
-func StringByteSlice(s string) []byte {
-	a := make([]byte, len(s)+1);
-	for i := 0; i < len(s); i++ {
-		a[i] = s[i];
-	}
-	return a;
-}
-
-// StringBytePtr returns a pointer to a NUL-terminated array of bytes
-// containing the text of s.
-func StringBytePtr(s string) *byte {
-	p := StringByteSlice(s);
-	return &p[0];
-}

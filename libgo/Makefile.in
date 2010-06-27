@@ -1193,15 +1193,31 @@ go_testing_script_files = \
 @LIBGO_IS_386_FALSE@@LIBGO_IS_LINUX_TRUE@@LIBGO_IS_X86_64_TRUE@syscall_arch_file = syscalls/syscall_linux_amd64.go
 @LIBGO_IS_386_TRUE@@LIBGO_IS_LINUX_TRUE@syscall_arch_file = syscalls/syscall_linux_386.go
 @LIBGO_IS_LINUX_FALSE@syscall_arch_file = 
+@LIBGO_IS_RTEMS_FALSE@syscall_exec_os_file = syscalls/exec.go
+@LIBGO_IS_RTEMS_TRUE@syscall_exec_os_file = syscalls/exec_stubs.go
+@LIBGO_IS_RTEMS_FALSE@syscall_socket_os_file = syscalls/socket_linux.go
+@LIBGO_IS_RTEMS_TRUE@syscall_socket_os_file = syscalls/socket_bsd.go
+@LIBGO_IS_RTEMS_FALSE@syscall_socket_epoll_file = syscalls/socket_epoll.go
+@LIBGO_IS_RTEMS_TRUE@syscall_socket_epoll_file = 
+@LIBGO_IS_RTEMS_FALSE@syscall_sysfile_os_file = syscalls/sysfile_linux.go
+@LIBGO_IS_RTEMS_TRUE@syscall_sysfile_os_file = syscalls/sysfile_rtems.go
+@LIBGO_IS_RTEMS_FALSE@syscall_syscall_file = syscalls/syscall.go
+@LIBGO_IS_RTEMS_TRUE@syscall_syscall_file = syscalls/syscall_stubs.go
+@LIBGO_IS_RTEMS_FALSE@syscall_errstr_file = syscalls/errstr.go
+@LIBGO_IS_RTEMS_TRUE@syscall_errstr_file = syscalls/errstr_rtems.go
 go_syscall_files = \
-	syscalls/errstr.go \
-	syscalls/exec.go \
+	$(syscall_errstr_file) \
+	syscalls/exec_helpers.go \
+	$(syscall_exec_os_file) \
 	syscalls/socket.go \
-	syscalls/socket_epoll.go \
-	syscalls/syscall.go \
+	$(syscall_socket_os_file) \
+	$(syscall_socket_epoll_file) \
+	$(syscall_syscall_file) \
+	syscalls/stringbyte.go \
 	$(syscall_os_file) \
 	$(syscall_arch_file) \
-	syscalls/sysfile.go \
+	syscalls/sysfile_posix.go \
+	$(syscall_sysfile_os_file) \
 	sysinfo.go
 
 go_syscall_c_files = \
