@@ -31,7 +31,7 @@ __go_receive_nonblocking_big (struct __go_channel* channel, void *val)
 	}
     }
 
-  offset = channel->next_store * alloc_size;
+  offset = channel->next_fetch * alloc_size;
   __builtin_memcpy (val, &channel->data[offset], channel->element_size);
 
   __go_receive_release (channel);
