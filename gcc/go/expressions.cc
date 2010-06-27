@@ -3371,6 +3371,7 @@ Type_conversion_expression::do_get_tree(Translate_context* context)
       tree valptr = fold_convert(const_ptr_type_node,
 				 a->value_pointer_tree(gogo, expr_tree));
       tree len = a->length_tree(gogo, expr_tree);
+      len = fold_convert_loc(this->location(), size_type_node, len);
       if (e->integer_type()->is_unsigned()
 	  && e->integer_type()->bits() == 8)
 	{
