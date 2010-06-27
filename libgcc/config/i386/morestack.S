@@ -224,13 +224,17 @@ __morestack:
 	movl	%eax,4(%esp)		# Save exception header.
 	movl	%ebp,(%esp)		# Stack pointer after resume.
 	call	__generic_findstack
-	movl	%esp,%ecx		# Get the stack pointer.
+	movl	%ebp,%ecx		# Get the stack pointer.
 	subl	%eax,%ecx		# Subtract available space.
 	addl	$512,%ecx		# Back off 512 bytes.
 	movl	%ecx,%gs:0x30		# Save new stack boundary.
 	movl	4(%esp),%eax		# Function argument.
 	movl	%eax,(%esp)
-	call	_Unwind_Resume		# Resume unwinding.
+#ifdef __PIC__
+	call	_Unwind_Resume@PLT	# Resume unwinding.
+#else
+	call	_Unwind_Resume
+#endif
 
 #else /* defined(__x86_64__) */
 
@@ -339,17 +343,20 @@ __morestack:
 	
 .L1:
 	.cfi_restore_state
-	movl	%edx,%ebx		# Save exception data
-	movq	%rax,%r12
-	movl	%rbp,%rdi		# Stack pointer after resume.
+	subq	$16,%rsp		# Maintain 16 byte alignment.
+	movq	%rax,(%rsp)		# Save exception header.
+	movq	%rbp,%rdi		# Stack pointer after resume.
 	call	__generic_findstack
-	movq	%rsp,%rcx		# Get the stack pointer.
+	movq	%rbp,%rcx		# Get the stack pointer.
 	subq	%rax,%rcx		# Subtract available space.
 	addq	$512,%rcx		# Back off 512 bytes.
 	movq	%rcx,%fs:0x70		# Save new stack boundary.
-	movq	%r12,%rdi		# Restore exception data for call.
-	movslq	%ebx,%rdx
+	movq	(%rsp),%rdi		# Restore exception data for call.
+#ifdef __PIC__
+	call	_Unwind_Resume@PLT	# Resume unwinding.
+#else
 	call	_Unwind_Resume		# Resume unwinding.
+#endif
 
 #endif /* defined(__x86_64__) */
 
@@ -396,6 +403,7 @@ DW.ref.__gcc_personality_v0:
 # new thread starts.  We don't know how large the main stack is, so we
 # guess conservatively.  We might be able to use getrlimit here.
 
+	.text
 	.global	__stack_split_initialize
 
 #ifdef __ELF__
