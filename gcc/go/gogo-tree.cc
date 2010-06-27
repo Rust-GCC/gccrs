@@ -918,9 +918,9 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 	      init = type->get_init_tree(gogo, false);
 	    else
 	      {
-		result_type = build_pointer_type(result_type);
 		tree space = gogo->allocate_memory(TYPE_SIZE_UNIT(result_type),
 						   loc);
+		result_type = build_pointer_type(result_type);
 		tree subinit = type->get_init_tree(gogo, true);
 		if (subinit == NULL_TREE)
 		  init = fold_convert_loc(loc, result_type, space);
