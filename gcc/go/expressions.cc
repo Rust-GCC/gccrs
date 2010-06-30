@@ -11055,9 +11055,10 @@ Open_array_construction_expression::do_get_tree(Translate_context* context)
   if (values == error_mark_node)
     return error_mark_node;
 
-  tree space;
-  tree set;
-  if (TREE_CONSTANT(values))
+  bool is_constant_initializer = TREE_CONSTANT(values);
+  bool is_in_function = context->function() != NULL;
+
+  if (is_constant_initializer)
     {
       tree tmp = build_decl(this->location(), VAR_DECL,
 			    create_tmp_var_name("C"), TREE_TYPE(values));
@@ -11065,11 +11066,27 @@ Open_array_construction_expression::do_get_tree(Translate_context* context)
       TREE_PUBLIC(tmp) = 0;
       TREE_STATIC(tmp) = 1;
       DECL_ARTIFICIAL(tmp) = 1;
-      // We can't make the decl readonly, because the program can
-      // change the values in the array.
+      if (is_in_function)
+	{
+	  // If this is not a function, we will only initialize the
+	  // value once, so we can use this directly rather than
+	  // copying it.  In that case we can't make it read-only,
+	  // because the program is permitted to change it.
+	  TREE_READONLY(tmp) = 1;
+	  TREE_CONSTANT(tmp) = 1;
+	}
       DECL_INITIAL(tmp) = values;
       rest_of_decl_compilation(tmp, 1, 0);
-      space = build_fold_addr_expr(tmp);
+      values = tmp;
+    }
+
+  tree space;
+  tree set;
+  if (!is_in_function && is_constant_initializer)
+    {
+      // Outside of a function, we know the initializer will only run
+      // once.
+      space = build_fold_addr_expr(values);
       set = NULL_TREE;
     }
   else
@@ -11109,7 +11126,7 @@ Open_array_construction_expression::do_get_tree(Translate_context* context)
   elt->value = fold_convert(TREE_TYPE(field), length_tree);
 
   tree constructor = build_constructor(type_tree, init);
-  if (TREE_CONSTANT(values))
+  if (!is_in_function && is_constant_initializer)
     TREE_CONSTANT(constructor) = 1;
 
   if (set == NULL_TREE)
