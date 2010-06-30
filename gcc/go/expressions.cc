@@ -176,7 +176,7 @@ Expression::set_is_error()
 void
 Expression::report_error(const char* msg)
 {
-  error_at(this->location_, msg);
+  error_at(this->location_, "%s", msg);
   this->set_is_error();
 }
 
@@ -11268,9 +11268,6 @@ Map_construction_expression::do_get_tree(Translate_context* context)
   Gogo* gogo = context->gogo();
   source_location loc = this->location();
 
-  if (this->vals_ == NULL || this->vals_->empty())
-    return this->type_->get_init_tree(gogo, false);
-
   Map_type* mt = this->type_->map_type();
 
   // Build a struct to hold the key and value.
@@ -11290,83 +11287,96 @@ Map_construction_expression::do_get_tree(Translate_context* context)
 
   layout_type(struct_type);
 
-  VEC(constructor_elt,gc)* values = VEC_alloc(constructor_elt, gc,
-					      this->vals_->size() / 2);
-
   bool is_constant = true;
   size_t i = 0;
-  for (Expression_list::const_iterator pv = this->vals_->begin();
-       pv != this->vals_->end();
-       ++pv, ++i)
-    {
-      bool one_is_constant = true;
-
-      VEC(constructor_elt,gc)* one = VEC_alloc(constructor_elt, gc, 2);
-
-      constructor_elt* elt = VEC_quick_push(constructor_elt, one, NULL);
-      elt->index = key_field;
-      elt->value = Expression::convert_for_assignment(context, key_type,
-						      (*pv)->type(),
-						      (*pv)->get_tree(context),
-						      loc);
-      if (elt->value == error_mark_node)
-	return error_mark_node;
-      if (!TREE_CONSTANT(elt->value))
-	one_is_constant = false;
-
-      ++pv;
-
-      elt = VEC_quick_push(constructor_elt, one, NULL);
-      elt->index = val_field;
-      elt->value = Expression::convert_for_assignment(context, val_type,
-						      (*pv)->type(),
-						      (*pv)->get_tree(context),
-						      loc);
-      if (elt->value == error_mark_node)
-	return error_mark_node;
-      if (!TREE_CONSTANT(elt->value))
-	one_is_constant = false;
-
-      elt = VEC_quick_push(constructor_elt, values, NULL);
-      elt->index = size_int(i);
-      elt->value = build_constructor(struct_type, one);
-      if (one_is_constant)
-	TREE_CONSTANT(elt->value) = 1;
-      else
-	is_constant = false;
-    }
-
-  tree index_type = build_index_type(size_int(i - 1));
-  tree array_type = build_array_type(struct_type, index_type);
-  tree init = build_constructor(array_type, values);
-  if (is_constant)
-    TREE_CONSTANT(init) = 1;
-  tree tmp;
+  tree valaddr;
   tree make_tmp;
-  if (current_function_decl != NULL)
+
+  if (this->vals_ == NULL || this->vals_->empty())
     {
-      tmp = create_tmp_var(array_type, get_name(array_type));
-      DECL_INITIAL(tmp) = init;
-      make_tmp = fold_build1_loc(loc, DECL_EXPR, void_type_node, tmp);
-      TREE_ADDRESSABLE(tmp) = 1;
+      valaddr = null_pointer_node;
+      make_tmp = NULL_TREE;
     }
   else
     {
-      tmp = build_decl(loc, VAR_DECL, create_tmp_var_name("M"), array_type);
-      DECL_EXTERNAL(tmp) = 0;
-      TREE_PUBLIC(tmp) = 0;
-      TREE_STATIC(tmp) = 1;
-      DECL_ARTIFICIAL(tmp) = 1;
-      if (!TREE_CONSTANT(init))
-	make_tmp = fold_build2_loc(loc, INIT_EXPR, void_type_node, tmp, init);
+      VEC(constructor_elt,gc)* values = VEC_alloc(constructor_elt, gc,
+						  this->vals_->size() / 2);
+
+      for (Expression_list::const_iterator pv = this->vals_->begin();
+	   pv != this->vals_->end();
+	   ++pv, ++i)
+	{
+	  bool one_is_constant = true;
+
+	  VEC(constructor_elt,gc)* one = VEC_alloc(constructor_elt, gc, 2);
+
+	  constructor_elt* elt = VEC_quick_push(constructor_elt, one, NULL);
+	  elt->index = key_field;
+	  tree val_tree = (*pv)->get_tree(context);
+	  elt->value = Expression::convert_for_assignment(context, key_type,
+							  (*pv)->type(),
+							  val_tree, loc);
+	  if (elt->value == error_mark_node)
+	    return error_mark_node;
+	  if (!TREE_CONSTANT(elt->value))
+	    one_is_constant = false;
+
+	  ++pv;
+
+	  elt = VEC_quick_push(constructor_elt, one, NULL);
+	  elt->index = val_field;
+	  val_tree = (*pv)->get_tree(context);
+	  elt->value = Expression::convert_for_assignment(context, val_type,
+							  (*pv)->type(),
+							  val_tree, loc);
+	  if (elt->value == error_mark_node)
+	    return error_mark_node;
+	  if (!TREE_CONSTANT(elt->value))
+	    one_is_constant = false;
+
+	  elt = VEC_quick_push(constructor_elt, values, NULL);
+	  elt->index = size_int(i);
+	  elt->value = build_constructor(struct_type, one);
+	  if (one_is_constant)
+	    TREE_CONSTANT(elt->value) = 1;
+	  else
+	    is_constant = false;
+	}
+
+      tree index_type = build_index_type(size_int(i - 1));
+      tree array_type = build_array_type(struct_type, index_type);
+      tree init = build_constructor(array_type, values);
+      if (is_constant)
+	TREE_CONSTANT(init) = 1;
+      tree tmp;
+      if (current_function_decl != NULL)
+	{
+	  tmp = create_tmp_var(array_type, get_name(array_type));
+	  DECL_INITIAL(tmp) = init;
+	  make_tmp = fold_build1_loc(loc, DECL_EXPR, void_type_node, tmp);
+	  TREE_ADDRESSABLE(tmp) = 1;
+	}
       else
 	{
-	  TREE_READONLY(tmp) = 1;
-	  TREE_CONSTANT(tmp) = 1;
-	  DECL_INITIAL(tmp) = init;
-	  make_tmp = NULL_TREE;
+	  tmp = build_decl(loc, VAR_DECL, create_tmp_var_name("M"), array_type);
+	  DECL_EXTERNAL(tmp) = 0;
+	  TREE_PUBLIC(tmp) = 0;
+	  TREE_STATIC(tmp) = 1;
+	  DECL_ARTIFICIAL(tmp) = 1;
+	  if (!TREE_CONSTANT(init))
+	    make_tmp = fold_build2_loc(loc, INIT_EXPR, void_type_node, tmp,
+				       init);
+	  else
+	    {
+	      TREE_READONLY(tmp) = 1;
+	      TREE_CONSTANT(tmp) = 1;
+	      DECL_INITIAL(tmp) = init;
+	      make_tmp = NULL_TREE;
+	    }
+	  rest_of_decl_compilation(tmp, 1, 0);
 	}
-      rest_of_decl_compilation(tmp, 1, 0);
+
+      valaddr = build_fold_addr_expr(tmp);
     }
 
   tree descriptor = gogo->map_descriptor(mt);
@@ -11390,8 +11400,7 @@ Map_construction_expression::do_get_tree(Translate_context* context)
 				 sizetype,
 				 TYPE_SIZE_UNIT(TREE_TYPE(val_field)),
 				 const_ptr_type_node,
-				 fold_convert(const_ptr_type_node,
-					      build_fold_addr_expr(tmp)));
+				 fold_convert(const_ptr_type_node, valaddr));
 
   tree ret;
   if (make_tmp == NULL)
