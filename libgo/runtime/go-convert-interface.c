@@ -35,7 +35,7 @@ __go_convert_interface (const struct __go_type_descriptor* lhs_descriptor,
   if (rhs == NULL)
     {
       if (success != NULL)
-	*success = 1;
+	*success = 0;
       return NULL;
     }
 
