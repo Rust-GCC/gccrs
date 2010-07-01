@@ -298,6 +298,10 @@ __generic_morestack (size_t *pframe_size, void *old_stack, size_t param_size)
   size_t frame_size = *pframe_size;
   struct stack_segment *current;
   struct stack_segment **pp;
+  char *from;
+  char *to;
+  void *ret;
+  size_t i;
 
   current = __morestack_current_segment;
 
@@ -318,13 +322,21 @@ __generic_morestack (size_t *pframe_size, void *old_stack, size_t param_size)
 #ifdef STACK_GROWS_DOWNWARD
   {
     char *bottom = (char *) (current + 1) + current->size;
-    __builtin_memcpy (bottom - param_size, old_stack, param_size);
-    return bottom - param_size;
+    to = bottom - param_size;
+    ret = bottom - param_size;
   }
 #else
-  __builtin_memcpy (current + 1, old_stack, param_size);
-  return (char *) (current + 1) + param_size;
+  to = current + 1;
+  ret = (char *) (current + 1) + param_size;
 #endif
+
+  /* We don't call memcpy to avoid worrying about the dynamic linker
+     trying to resolve it.  */
+  from = (char *) old_stack;
+  for (i = 0; i < param_size; i++)
+    *to++ = *from++;
+
+  return ret;
 }
 
 /* This function is called by a processor specific function when it is
@@ -394,9 +406,9 @@ __generic_findstack (void *stack)
 }
 
 /* This function is called at program startup time to make sure that
-   mmap and munmap are resolved if linking dynamically.  We want to
-   resolve them while we have enough stack for them, rather than
-   calling into the dynamic linker while low on stack space.  */
+   mmap, munmap, and getpagesize are resolved if linking dynamically.
+   We want to resolve them while we have enough stack for them, rather
+   than calling into the dynamic linker while low on stack space.  */
 
 void
 __morestack_load_mmap (void)
@@ -405,7 +417,7 @@ __morestack_load_mmap (void)
      fails.  Pass __MORESTACK_CURRENT_SEGMENT to make sure that any
      TLS accessor function is resolved.  */
   mmap (__morestack_current_segment, 0, PROT_READ, MAP_ANONYMOUS, -1, 0);
-  munmap (0, 0);
+  munmap (0, getpagesize ());
 }
 
 #endif /* !defined (inhibit_libc) */

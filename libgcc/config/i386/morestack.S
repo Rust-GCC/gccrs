@@ -76,6 +76,15 @@
 # __morestack to call __morestack_non_split instead.  We just bump the
 # requested stack space by 16K.
 
+# The amount of extra space we ask for.  In general this has to be
+# enough for the dynamic loader to find a symbol.
+	
+#ifndef __x86_64__
+#define BACKOFF (512)
+#else
+#define BACKOFF (1024)
+#endif
+
 	.global __morestack_non_split
 
 #ifdef __ELF__
@@ -147,7 +156,7 @@ __morestack:
 	pushl	12(%ebp)		# The size of the parameters.
 	leal	20(%ebp),%eax		# Address of caller's parameters.
 	pushl	%eax
-	addl	$512,8(%ebp)		# Ask for backoff bytes.
+	addl	$BACKOFF,8(%ebp)	# Ask for backoff bytes.
 	leal	8(%ebp),%eax		# The address of the new frame size.
 	pushl	%eax
 
@@ -158,7 +167,7 @@ __morestack:
 
 	movl	%eax,%esp		# Switch to the new stack.
 	subl	8(%ebp),%eax		# The end of the stack space.
-	addl	$512,%eax		# Back off 512 bytes.
+	addl	$BACKOFF,%eax		# Back off 512 bytes.
 
 	# FIXME: The offset must match
 	# TARGET_THREAD_SPLIT_STACK_OFFSET in
@@ -197,7 +206,7 @@ __morestack:
 	call	__generic_releasestack
 
 	subl	4(%esp),%eax		# Subtract available space.
-	addl	$512,%eax		# Back off 512 bytes.
+	addl	$BACKOFF,%eax		# Back off 512 bytes.
 .LEHE0:
 	movl	%eax,%gs:0x30		# Save the new stack boundary.
 
@@ -226,7 +235,7 @@ __morestack:
 	call	__generic_findstack
 	movl	%ebp,%ecx		# Get the stack pointer.
 	subl	%eax,%ecx		# Subtract available space.
-	addl	$512,%ecx		# Back off 512 bytes.
+	addl	$BACKOFF,%ecx		# Back off 512 bytes.
 	movl	%ecx,%gs:0x30		# Save new stack boundary.
 	movl	4(%esp),%eax		# Function argument.
 	movl	%eax,(%esp)
@@ -258,7 +267,7 @@ __morestack:
 	# In 64-bit mode the new stack frame size is passed in r10
         # and the argument size is passed in r11.
 
-	addq	$512,%r10		# Ask for backoff bytes.
+	addq	$BACKOFF,%r10		# Ask for backoff bytes.
 	pushq	%r10			# Save new frame size.
 
 	# In 64-bit mode the registers %rdi, %rsi, %rdx, %rcx, %r8,
@@ -291,7 +300,7 @@ __morestack:
 	popq	%r10			# Reload modified frame size
 	movq	%rax,%rsp		# Switch to the new stack.
 	subq	%r10,%rax		# The end of the stack space.
-	addq	$512,%rax		# Back off 512 bytes.
+	addq	$BACKOFF,%rax		# Back off 1024 bytes.
 
 	# FIXME: The offset must match
 	# TARGET_THREAD_SPLIT_STACK_OFFSET in
@@ -321,7 +330,7 @@ __morestack:
 	call	__generic_releasestack
 
 	subq	0(%rsp),%rax		# Subtract available space.
-	addq	$512,%rax		# Back off 512 bytes.
+	addq	$BACKOFF,%rax		# Back off 1024 bytes.
 .LEHE0:
 	movq	%rax,%fs:0x70		# Save the new stack boundary.
 
@@ -349,7 +358,7 @@ __morestack:
 	call	__generic_findstack
 	movq	%rbp,%rcx		# Get the stack pointer.
 	subq	%rax,%rcx		# Subtract available space.
-	addq	$512,%rcx		# Back off 512 bytes.
+	addq	$BACKOFF,%rcx		# Back off 1024 bytes.
 	movq	%rcx,%fs:0x70		# Save new stack boundary.
 	movq	(%rsp),%rdi		# Restore exception data for call.
 #ifdef __PIC__
