@@ -12,7 +12,6 @@ package xml
 
 // TODO(rsc):
 //	Test error handling.
-//	Expose parser line number in errors.
 
 import (
 	"bufio"
@@ -26,9 +25,14 @@ import (
 )
 
 // A SyntaxError represents a syntax error in the XML input stream.
-type SyntaxError string
+type SyntaxError struct {
+	Msg  string
+	Line int
+}
 
-func (e SyntaxError) String() string { return "XML syntax error: " + string(e) }
+func (e *SyntaxError) String() string {
+	return "XML syntax error on line " + strconv.Itoa(e.Line) + ": " + e.Msg
+}
 
 // A Name represents an XML name (Local) annotated
 // with a name space identifier (Space).
@@ -53,6 +57,13 @@ type Token interface{}
 type StartElement struct {
 	Name Name
 	Attr []Attr
+}
+
+func (e StartElement) Copy() StartElement {
+	attrs := make([]Attr, len(e.Attr))
+	copy(e.Attr, attrs)
+	e.Attr = attrs
+	return e
 }
 
 // An EndElement represents an XML end element.
@@ -96,8 +107,21 @@ type Directive []byte
 
 func (d Directive) Copy() Directive { return Directive(makeCopy(d)) }
 
-type readByter interface {
-	ReadByte() (b byte, err os.Error)
+// CopyToken returns a copy of a Token.
+func CopyToken(t Token) Token {
+	switch v := t.(type) {
+	case CharData:
+		return v.Copy()
+	case Comment:
+		return v.Copy()
+	case Directive:
+		return v.Copy()
+	case ProcInst:
+		return v.Copy()
+	case StartElement:
+		return v.Copy()
+	}
+	return t
 }
 
 // A Parser represents an XML parser reading a particular input stream.
@@ -134,13 +158,13 @@ type Parser struct {
 	//	"lt": "<",
 	//	"gt": ">",
 	//	"amp": "&",
-	//	"pos": "'",
+	//	"apos": "'",
 	//	"quot": `"`,
-	//
 	Entity map[string]string
 
-	r         readByter
+	r         io.ReadByter
 	buf       bytes.Buffer
+	saved     *bytes.Buffer
 	stk       *stack
 	free      *stack
 	needClose bool
@@ -156,17 +180,17 @@ type Parser struct {
 // NewParser creates a new XML parser reading from r.
 func NewParser(r io.Reader) *Parser {
 	p := &Parser{
-		ns: make(map[string]string),
+		ns:       make(map[string]string),
 		nextByte: -1,
-		line: 1,
-		Strict: true,
+		line:     1,
+		Strict:   true,
 	}
 
 	// Get efficient byte at a time reader.
 	// Assume that if reader has its own
 	// ReadByte, it's efficient enough.
 	// Otherwise, use bufio.
-	if rb, ok := r.(readByter); ok {
+	if rb, ok := r.(io.ReadByter); ok {
 		p.r = rb
 	} else {
 		p.r = bufio.NewReader(r)
@@ -180,8 +204,8 @@ func NewParser(r io.Reader) *Parser {
 //
 // Slices of bytes in the returned token data refer to the
 // parser's internal buffer and remain valid only until the next
-// call to Token.  To acquire a copy of the bytes, call the token's
-// Copy method.
+// call to Token.  To acquire a copy of the bytes, call CopyToken
+// or the token's Copy method.
 //
 // Token expands self-closing elements such as <br/>
 // into separate start and end elements returned by successive calls.
@@ -197,7 +221,6 @@ func NewParser(r io.Reader) *Parser {
 // set to the URL identifying its name space when known.
 // If Token encounters an unrecognized name space prefix,
 // it uses the prefix as the Space rather than report an error.
-//
 func (p *Parser) Token() (t Token, err os.Error) {
 	if p.nextToken != nil {
 		t = p.nextToken
@@ -320,6 +343,11 @@ func (p *Parser) pushNs(local string, url string, ok bool) {
 	s.ok = ok
 }
 
+// Creates a SyntaxError with the current line number.
+func (p *Parser) syntaxError(msg string) os.Error {
+	return &SyntaxError{Msg: msg, Line: p.line}
+}
+
 // Record that we are ending an element with the given name.
 // The name must match the record at the top of the stack,
 // which must be a pushElement record.
@@ -331,7 +359,7 @@ func (p *Parser) popElement(t *EndElement) bool {
 	name := t.Name
 	switch {
 	case s == nil || s.kind != stkStart:
-		p.err = SyntaxError("unexpected end element </" + name.Local + ">")
+		p.err = p.syntaxError("unexpected end element </" + name.Local + ">")
 		return false
 	case s.name.Local != name.Local:
 		if !p.Strict {
@@ -340,10 +368,10 @@ func (p *Parser) popElement(t *EndElement) bool {
 			t.Name = s.name
 			return true
 		}
-		p.err = SyntaxError("element <" + s.name.Local + "> closed by </" + name.Local + ">")
+		p.err = p.syntaxError("element <" + s.name.Local + "> closed by </" + name.Local + ">")
 		return false
 	case s.name.Space != name.Space:
-		p.err = SyntaxError("element <" + s.name.Local + "> in space " + s.name.Space +
+		p.err = p.syntaxError("element <" + s.name.Local + "> in space " + s.name.Space +
 			"closed by </" + name.Local + "> in space " + name.Space)
 		return false
 	}
@@ -418,7 +446,7 @@ func (p *Parser) RawToken() (Token, os.Error) {
 		var name Name
 		if name, ok = p.nsname(); !ok {
 			if p.err == nil {
-				p.err = SyntaxError("expected element name after </")
+				p.err = p.syntaxError("expected element name after </")
 			}
 			return nil, p.err
 		}
@@ -427,7 +455,7 @@ func (p *Parser) RawToken() (Token, os.Error) {
 			return nil, p.err
 		}
 		if b != '>' {
-			p.err = SyntaxError("invalid characters between </" + name.Local + " and >")
+			p.err = p.syntaxError("invalid characters between </" + name.Local + " and >")
 			return nil, p.err
 		}
 		return EndElement{name}, nil
@@ -439,7 +467,7 @@ func (p *Parser) RawToken() (Token, os.Error) {
 		var target string
 		if target, ok = p.name(); !ok {
 			if p.err == nil {
-				p.err = SyntaxError("expected target name after <?")
+				p.err = p.syntaxError("expected target name after <?")
 			}
 			return nil, p.err
 		}
@@ -472,7 +500,7 @@ func (p *Parser) RawToken() (Token, os.Error) {
 				return nil, p.err
 			}
 			if b != '-' {
-				p.err = SyntaxError("invalid sequence <!- not part of <!--")
+				p.err = p.syntaxError("invalid sequence <!- not part of <!--")
 				return nil, p.err
 			}
 			// Look for terminator.
@@ -499,7 +527,7 @@ func (p *Parser) RawToken() (Token, os.Error) {
 					return nil, p.err
 				}
 				if b != "CDATA["[i] {
-					p.err = SyntaxError("invalid <![ sequence")
+					p.err = p.syntaxError("invalid <![ sequence")
 					return nil, p.err
 				}
 			}
@@ -537,7 +565,7 @@ func (p *Parser) RawToken() (Token, os.Error) {
 	)
 	if name, ok = p.nsname(); !ok {
 		if p.err == nil {
-			p.err = SyntaxError("expected element name after <")
+			p.err = p.syntaxError("expected element name after <")
 		}
 		return nil, p.err
 	}
@@ -554,7 +582,7 @@ func (p *Parser) RawToken() (Token, os.Error) {
 				return nil, p.err
 			}
 			if b != '>' {
-				p.err = SyntaxError("expected /> in element")
+				p.err = p.syntaxError("expected /> in element")
 				return nil, p.err
 			}
 			break
@@ -576,7 +604,7 @@ func (p *Parser) RawToken() (Token, os.Error) {
 		a := &attr[n]
 		if a.Name, ok = p.nsname(); !ok {
 			if p.err == nil {
-				p.err = SyntaxError("expected attribute name in element")
+				p.err = p.syntaxError("expected attribute name in element")
 			}
 			return nil, p.err
 		}
@@ -585,7 +613,7 @@ func (p *Parser) RawToken() (Token, os.Error) {
 			return nil, p.err
 		}
 		if b != '=' {
-			p.err = SyntaxError("attribute name without = in element")
+			p.err = p.syntaxError("attribute name without = in element")
 			return nil, p.err
 		}
 		p.space()
@@ -614,7 +642,7 @@ func (p *Parser) attrval() []byte {
 	}
 	// Handle unquoted attribute values for strict parsers
 	if p.Strict {
-		p.err = SyntaxError("unquoted or missing attribute value in element")
+		p.err = p.syntaxError("unquoted or missing attribute value in element")
 		return nil
 	}
 	// Handle unquoted attribute values for unstrict parsers
@@ -669,11 +697,24 @@ func (p *Parser) getc() (b byte, ok bool) {
 		if p.err != nil {
 			return 0, false
 		}
+		if p.saved != nil {
+			p.saved.WriteByte(b)
+		}
 	}
 	if b == '\n' {
 		p.line++
 	}
 	return b, true
+}
+
+// Return saved offset.
+// If we did ungetc (nextByte >= 0), have to back up one.
+func (p *Parser) savedOffset() int {
+	n := p.saved.Len()
+	if p.nextByte >= 0 {
+		n--
+	}
+	return n
 }
 
 // Must read a single byte.
@@ -683,7 +724,7 @@ func (p *Parser) getc() (b byte, ok bool) {
 func (p *Parser) mustgetc() (b byte, ok bool) {
 	if b, ok = p.getc(); !ok {
 		if p.err == os.EOF {
-			p.err = SyntaxError("unexpected EOF")
+			p.err = p.syntaxError("unexpected EOF")
 		}
 	}
 	return
@@ -698,9 +739,9 @@ func (p *Parser) ungetc(b byte) {
 }
 
 var entity = map[string]int{
-	"lt": '<',
-	"gt": '>',
-	"amp": '&',
+	"lt":   '<',
+	"gt":   '>',
+	"amp":  '&',
 	"apos": '\'',
 	"quot": '"',
 }
@@ -715,9 +756,15 @@ func (p *Parser) text(quote int, cdata bool) []byte {
 	p.buf.Reset()
 Input:
 	for {
-		b, ok := p.mustgetc()
+		b, ok := p.getc()
 		if !ok {
-			return nil
+			if cdata {
+				if p.err == os.EOF {
+					p.err = p.syntaxError("unexpected EOF in CDATA section")
+				}
+				return nil
+			}
+			break Input
 		}
 
 		// <![CDATA[ section ends with ]]>.
@@ -727,14 +774,14 @@ Input:
 				trunc = 2
 				break Input
 			}
-			p.err = SyntaxError("unescaped ]]> not in CDATA section")
+			p.err = p.syntaxError("unescaped ]]> not in CDATA section")
 			return nil
 		}
 
 		// Stop reading text if we see a <.
 		if b == '<' && !cdata {
 			if quote >= 0 {
-				p.err = SyntaxError("unescaped < inside quoted string")
+				p.err = p.syntaxError("unescaped < inside quoted string")
 				return nil
 			}
 			p.ungetc('<')
@@ -752,10 +799,11 @@ Input:
 			var i int
 		CharLoop:
 			for i = 0; i < len(p.tmp); i++ {
-				p.tmp[i], p.err = p.r.ReadByte()
-				if p.err != nil {
+				var ok bool
+				p.tmp[i], ok = p.getc()
+				if !ok {
 					if p.err == os.EOF {
-						p.err = SyntaxError("unexpected EOF")
+						p.err = p.syntaxError("unexpected EOF")
 					}
 					return nil
 				}
@@ -780,7 +828,7 @@ Input:
 					p.buf.Write(p.tmp[0:i])
 					continue Input
 				}
-				p.err = SyntaxError("character entity expression &" + s + "... too long")
+				p.err = p.syntaxError("character entity expression &" + s + "... too long")
 				return nil
 			}
 			var haveText bool
@@ -812,10 +860,10 @@ Input:
 					p.buf.Write(p.tmp[0:i])
 					continue Input
 				}
-				p.err = SyntaxError("invalid character entity &" + s + ";")
+				p.err = p.syntaxError("invalid character entity &" + s + ";")
 				return nil
 			}
-			p.buf.Write(strings.Bytes(text))
+			p.buf.Write([]byte(text))
 			b0, b1 = 0, 0
 			continue Input
 		}
@@ -889,7 +937,7 @@ func (p *Parser) name() (s string, ok bool) {
 	s = p.buf.String()
 	for i, c := range s {
 		if !unicode.Is(first, c) && (i == 0 || !unicode.Is(second, c)) {
-			p.err = SyntaxError("invalid XML name: " + s)
+			p.err = p.syntaxError("invalid XML name: " + s)
 			return "", false
 		}
 	}
@@ -1229,258 +1277,258 @@ var htmlEntity = map[string]string{
 			,s/\&lt;!ENTITY ([^ ]+) .*U\+([0-9A-F][0-9A-F][0-9A-F][0-9A-F]) .+/	"\1": "\\u\2",/g
 		'
 	*/
-	"nbsp": "\u00A0",
-	"iexcl": "\u00A1",
-	"cent": "\u00A2",
-	"pound": "\u00A3",
-	"curren": "\u00A4",
-	"yen": "\u00A5",
-	"brvbar": "\u00A6",
-	"sect": "\u00A7",
-	"uml": "\u00A8",
-	"copy": "\u00A9",
-	"ordf": "\u00AA",
-	"laquo": "\u00AB",
-	"not": "\u00AC",
-	"shy": "\u00AD",
-	"reg": "\u00AE",
-	"macr": "\u00AF",
-	"deg": "\u00B0",
-	"plusmn": "\u00B1",
-	"sup2": "\u00B2",
-	"sup3": "\u00B3",
-	"acute": "\u00B4",
-	"micro": "\u00B5",
-	"para": "\u00B6",
-	"middot": "\u00B7",
-	"cedil": "\u00B8",
-	"sup1": "\u00B9",
-	"ordm": "\u00BA",
-	"raquo": "\u00BB",
-	"frac14": "\u00BC",
-	"frac12": "\u00BD",
-	"frac34": "\u00BE",
-	"iquest": "\u00BF",
-	"Agrave": "\u00C0",
-	"Aacute": "\u00C1",
-	"Acirc": "\u00C2",
-	"Atilde": "\u00C3",
-	"Auml": "\u00C4",
-	"Aring": "\u00C5",
-	"AElig": "\u00C6",
-	"Ccedil": "\u00C7",
-	"Egrave": "\u00C8",
-	"Eacute": "\u00C9",
-	"Ecirc": "\u00CA",
-	"Euml": "\u00CB",
-	"Igrave": "\u00CC",
-	"Iacute": "\u00CD",
-	"Icirc": "\u00CE",
-	"Iuml": "\u00CF",
-	"ETH": "\u00D0",
-	"Ntilde": "\u00D1",
-	"Ograve": "\u00D2",
-	"Oacute": "\u00D3",
-	"Ocirc": "\u00D4",
-	"Otilde": "\u00D5",
-	"Ouml": "\u00D6",
-	"times": "\u00D7",
-	"Oslash": "\u00D8",
-	"Ugrave": "\u00D9",
-	"Uacute": "\u00DA",
-	"Ucirc": "\u00DB",
-	"Uuml": "\u00DC",
-	"Yacute": "\u00DD",
-	"THORN": "\u00DE",
-	"szlig": "\u00DF",
-	"agrave": "\u00E0",
-	"aacute": "\u00E1",
-	"acirc": "\u00E2",
-	"atilde": "\u00E3",
-	"auml": "\u00E4",
-	"aring": "\u00E5",
-	"aelig": "\u00E6",
-	"ccedil": "\u00E7",
-	"egrave": "\u00E8",
-	"eacute": "\u00E9",
-	"ecirc": "\u00EA",
-	"euml": "\u00EB",
-	"igrave": "\u00EC",
-	"iacute": "\u00ED",
-	"icirc": "\u00EE",
-	"iuml": "\u00EF",
-	"eth": "\u00F0",
-	"ntilde": "\u00F1",
-	"ograve": "\u00F2",
-	"oacute": "\u00F3",
-	"ocirc": "\u00F4",
-	"otilde": "\u00F5",
-	"ouml": "\u00F6",
-	"divide": "\u00F7",
-	"oslash": "\u00F8",
-	"ugrave": "\u00F9",
-	"uacute": "\u00FA",
-	"ucirc": "\u00FB",
-	"uuml": "\u00FC",
-	"yacute": "\u00FD",
-	"thorn": "\u00FE",
-	"yuml": "\u00FF",
-	"fnof": "\u0192",
-	"Alpha": "\u0391",
-	"Beta": "\u0392",
-	"Gamma": "\u0393",
-	"Delta": "\u0394",
-	"Epsilon": "\u0395",
-	"Zeta": "\u0396",
-	"Eta": "\u0397",
-	"Theta": "\u0398",
-	"Iota": "\u0399",
-	"Kappa": "\u039A",
-	"Lambda": "\u039B",
-	"Mu": "\u039C",
-	"Nu": "\u039D",
-	"Xi": "\u039E",
-	"Omicron": "\u039F",
-	"Pi": "\u03A0",
-	"Rho": "\u03A1",
-	"Sigma": "\u03A3",
-	"Tau": "\u03A4",
-	"Upsilon": "\u03A5",
-	"Phi": "\u03A6",
-	"Chi": "\u03A7",
-	"Psi": "\u03A8",
-	"Omega": "\u03A9",
-	"alpha": "\u03B1",
-	"beta": "\u03B2",
-	"gamma": "\u03B3",
-	"delta": "\u03B4",
-	"epsilon": "\u03B5",
-	"zeta": "\u03B6",
-	"eta": "\u03B7",
-	"theta": "\u03B8",
-	"iota": "\u03B9",
-	"kappa": "\u03BA",
-	"lambda": "\u03BB",
-	"mu": "\u03BC",
-	"nu": "\u03BD",
-	"xi": "\u03BE",
-	"omicron": "\u03BF",
-	"pi": "\u03C0",
-	"rho": "\u03C1",
-	"sigmaf": "\u03C2",
-	"sigma": "\u03C3",
-	"tau": "\u03C4",
-	"upsilon": "\u03C5",
-	"phi": "\u03C6",
-	"chi": "\u03C7",
-	"psi": "\u03C8",
-	"omega": "\u03C9",
+	"nbsp":     "\u00A0",
+	"iexcl":    "\u00A1",
+	"cent":     "\u00A2",
+	"pound":    "\u00A3",
+	"curren":   "\u00A4",
+	"yen":      "\u00A5",
+	"brvbar":   "\u00A6",
+	"sect":     "\u00A7",
+	"uml":      "\u00A8",
+	"copy":     "\u00A9",
+	"ordf":     "\u00AA",
+	"laquo":    "\u00AB",
+	"not":      "\u00AC",
+	"shy":      "\u00AD",
+	"reg":      "\u00AE",
+	"macr":     "\u00AF",
+	"deg":      "\u00B0",
+	"plusmn":   "\u00B1",
+	"sup2":     "\u00B2",
+	"sup3":     "\u00B3",
+	"acute":    "\u00B4",
+	"micro":    "\u00B5",
+	"para":     "\u00B6",
+	"middot":   "\u00B7",
+	"cedil":    "\u00B8",
+	"sup1":     "\u00B9",
+	"ordm":     "\u00BA",
+	"raquo":    "\u00BB",
+	"frac14":   "\u00BC",
+	"frac12":   "\u00BD",
+	"frac34":   "\u00BE",
+	"iquest":   "\u00BF",
+	"Agrave":   "\u00C0",
+	"Aacute":   "\u00C1",
+	"Acirc":    "\u00C2",
+	"Atilde":   "\u00C3",
+	"Auml":     "\u00C4",
+	"Aring":    "\u00C5",
+	"AElig":    "\u00C6",
+	"Ccedil":   "\u00C7",
+	"Egrave":   "\u00C8",
+	"Eacute":   "\u00C9",
+	"Ecirc":    "\u00CA",
+	"Euml":     "\u00CB",
+	"Igrave":   "\u00CC",
+	"Iacute":   "\u00CD",
+	"Icirc":    "\u00CE",
+	"Iuml":     "\u00CF",
+	"ETH":      "\u00D0",
+	"Ntilde":   "\u00D1",
+	"Ograve":   "\u00D2",
+	"Oacute":   "\u00D3",
+	"Ocirc":    "\u00D4",
+	"Otilde":   "\u00D5",
+	"Ouml":     "\u00D6",
+	"times":    "\u00D7",
+	"Oslash":   "\u00D8",
+	"Ugrave":   "\u00D9",
+	"Uacute":   "\u00DA",
+	"Ucirc":    "\u00DB",
+	"Uuml":     "\u00DC",
+	"Yacute":   "\u00DD",
+	"THORN":    "\u00DE",
+	"szlig":    "\u00DF",
+	"agrave":   "\u00E0",
+	"aacute":   "\u00E1",
+	"acirc":    "\u00E2",
+	"atilde":   "\u00E3",
+	"auml":     "\u00E4",
+	"aring":    "\u00E5",
+	"aelig":    "\u00E6",
+	"ccedil":   "\u00E7",
+	"egrave":   "\u00E8",
+	"eacute":   "\u00E9",
+	"ecirc":    "\u00EA",
+	"euml":     "\u00EB",
+	"igrave":   "\u00EC",
+	"iacute":   "\u00ED",
+	"icirc":    "\u00EE",
+	"iuml":     "\u00EF",
+	"eth":      "\u00F0",
+	"ntilde":   "\u00F1",
+	"ograve":   "\u00F2",
+	"oacute":   "\u00F3",
+	"ocirc":    "\u00F4",
+	"otilde":   "\u00F5",
+	"ouml":     "\u00F6",
+	"divide":   "\u00F7",
+	"oslash":   "\u00F8",
+	"ugrave":   "\u00F9",
+	"uacute":   "\u00FA",
+	"ucirc":    "\u00FB",
+	"uuml":     "\u00FC",
+	"yacute":   "\u00FD",
+	"thorn":    "\u00FE",
+	"yuml":     "\u00FF",
+	"fnof":     "\u0192",
+	"Alpha":    "\u0391",
+	"Beta":     "\u0392",
+	"Gamma":    "\u0393",
+	"Delta":    "\u0394",
+	"Epsilon":  "\u0395",
+	"Zeta":     "\u0396",
+	"Eta":      "\u0397",
+	"Theta":    "\u0398",
+	"Iota":     "\u0399",
+	"Kappa":    "\u039A",
+	"Lambda":   "\u039B",
+	"Mu":       "\u039C",
+	"Nu":       "\u039D",
+	"Xi":       "\u039E",
+	"Omicron":  "\u039F",
+	"Pi":       "\u03A0",
+	"Rho":      "\u03A1",
+	"Sigma":    "\u03A3",
+	"Tau":      "\u03A4",
+	"Upsilon":  "\u03A5",
+	"Phi":      "\u03A6",
+	"Chi":      "\u03A7",
+	"Psi":      "\u03A8",
+	"Omega":    "\u03A9",
+	"alpha":    "\u03B1",
+	"beta":     "\u03B2",
+	"gamma":    "\u03B3",
+	"delta":    "\u03B4",
+	"epsilon":  "\u03B5",
+	"zeta":     "\u03B6",
+	"eta":      "\u03B7",
+	"theta":    "\u03B8",
+	"iota":     "\u03B9",
+	"kappa":    "\u03BA",
+	"lambda":   "\u03BB",
+	"mu":       "\u03BC",
+	"nu":       "\u03BD",
+	"xi":       "\u03BE",
+	"omicron":  "\u03BF",
+	"pi":       "\u03C0",
+	"rho":      "\u03C1",
+	"sigmaf":   "\u03C2",
+	"sigma":    "\u03C3",
+	"tau":      "\u03C4",
+	"upsilon":  "\u03C5",
+	"phi":      "\u03C6",
+	"chi":      "\u03C7",
+	"psi":      "\u03C8",
+	"omega":    "\u03C9",
 	"thetasym": "\u03D1",
-	"upsih": "\u03D2",
-	"piv": "\u03D6",
-	"bull": "\u2022",
-	"hellip": "\u2026",
-	"prime": "\u2032",
-	"Prime": "\u2033",
-	"oline": "\u203E",
-	"frasl": "\u2044",
-	"weierp": "\u2118",
-	"image": "\u2111",
-	"real": "\u211C",
-	"trade": "\u2122",
-	"alefsym": "\u2135",
-	"larr": "\u2190",
-	"uarr": "\u2191",
-	"rarr": "\u2192",
-	"darr": "\u2193",
-	"harr": "\u2194",
-	"crarr": "\u21B5",
-	"lArr": "\u21D0",
-	"uArr": "\u21D1",
-	"rArr": "\u21D2",
-	"dArr": "\u21D3",
-	"hArr": "\u21D4",
-	"forall": "\u2200",
-	"part": "\u2202",
-	"exist": "\u2203",
-	"empty": "\u2205",
-	"nabla": "\u2207",
-	"isin": "\u2208",
-	"notin": "\u2209",
-	"ni": "\u220B",
-	"prod": "\u220F",
-	"sum": "\u2211",
-	"minus": "\u2212",
-	"lowast": "\u2217",
-	"radic": "\u221A",
-	"prop": "\u221D",
-	"infin": "\u221E",
-	"ang": "\u2220",
-	"and": "\u2227",
-	"or": "\u2228",
-	"cap": "\u2229",
-	"cup": "\u222A",
-	"int": "\u222B",
-	"there4": "\u2234",
-	"sim": "\u223C",
-	"cong": "\u2245",
-	"asymp": "\u2248",
-	"ne": "\u2260",
-	"equiv": "\u2261",
-	"le": "\u2264",
-	"ge": "\u2265",
-	"sub": "\u2282",
-	"sup": "\u2283",
-	"nsub": "\u2284",
-	"sube": "\u2286",
-	"supe": "\u2287",
-	"oplus": "\u2295",
-	"otimes": "\u2297",
-	"perp": "\u22A5",
-	"sdot": "\u22C5",
-	"lceil": "\u2308",
-	"rceil": "\u2309",
-	"lfloor": "\u230A",
-	"rfloor": "\u230B",
-	"lang": "\u2329",
-	"rang": "\u232A",
-	"loz": "\u25CA",
-	"spades": "\u2660",
-	"clubs": "\u2663",
-	"hearts": "\u2665",
-	"diams": "\u2666",
-	"quot": "\u0022",
-	"amp": "\u0026",
-	"lt": "\u003C",
-	"gt": "\u003E",
-	"OElig": "\u0152",
-	"oelig": "\u0153",
-	"Scaron": "\u0160",
-	"scaron": "\u0161",
-	"Yuml": "\u0178",
-	"circ": "\u02C6",
-	"tilde": "\u02DC",
-	"ensp": "\u2002",
-	"emsp": "\u2003",
-	"thinsp": "\u2009",
-	"zwnj": "\u200C",
-	"zwj": "\u200D",
-	"lrm": "\u200E",
-	"rlm": "\u200F",
-	"ndash": "\u2013",
-	"mdash": "\u2014",
-	"lsquo": "\u2018",
-	"rsquo": "\u2019",
-	"sbquo": "\u201A",
-	"ldquo": "\u201C",
-	"rdquo": "\u201D",
-	"bdquo": "\u201E",
-	"dagger": "\u2020",
-	"Dagger": "\u2021",
-	"permil": "\u2030",
-	"lsaquo": "\u2039",
-	"rsaquo": "\u203A",
-	"euro": "\u20AC",
+	"upsih":    "\u03D2",
+	"piv":      "\u03D6",
+	"bull":     "\u2022",
+	"hellip":   "\u2026",
+	"prime":    "\u2032",
+	"Prime":    "\u2033",
+	"oline":    "\u203E",
+	"frasl":    "\u2044",
+	"weierp":   "\u2118",
+	"image":    "\u2111",
+	"real":     "\u211C",
+	"trade":    "\u2122",
+	"alefsym":  "\u2135",
+	"larr":     "\u2190",
+	"uarr":     "\u2191",
+	"rarr":     "\u2192",
+	"darr":     "\u2193",
+	"harr":     "\u2194",
+	"crarr":    "\u21B5",
+	"lArr":     "\u21D0",
+	"uArr":     "\u21D1",
+	"rArr":     "\u21D2",
+	"dArr":     "\u21D3",
+	"hArr":     "\u21D4",
+	"forall":   "\u2200",
+	"part":     "\u2202",
+	"exist":    "\u2203",
+	"empty":    "\u2205",
+	"nabla":    "\u2207",
+	"isin":     "\u2208",
+	"notin":    "\u2209",
+	"ni":       "\u220B",
+	"prod":     "\u220F",
+	"sum":      "\u2211",
+	"minus":    "\u2212",
+	"lowast":   "\u2217",
+	"radic":    "\u221A",
+	"prop":     "\u221D",
+	"infin":    "\u221E",
+	"ang":      "\u2220",
+	"and":      "\u2227",
+	"or":       "\u2228",
+	"cap":      "\u2229",
+	"cup":      "\u222A",
+	"int":      "\u222B",
+	"there4":   "\u2234",
+	"sim":      "\u223C",
+	"cong":     "\u2245",
+	"asymp":    "\u2248",
+	"ne":       "\u2260",
+	"equiv":    "\u2261",
+	"le":       "\u2264",
+	"ge":       "\u2265",
+	"sub":      "\u2282",
+	"sup":      "\u2283",
+	"nsub":     "\u2284",
+	"sube":     "\u2286",
+	"supe":     "\u2287",
+	"oplus":    "\u2295",
+	"otimes":   "\u2297",
+	"perp":     "\u22A5",
+	"sdot":     "\u22C5",
+	"lceil":    "\u2308",
+	"rceil":    "\u2309",
+	"lfloor":   "\u230A",
+	"rfloor":   "\u230B",
+	"lang":     "\u2329",
+	"rang":     "\u232A",
+	"loz":      "\u25CA",
+	"spades":   "\u2660",
+	"clubs":    "\u2663",
+	"hearts":   "\u2665",
+	"diams":    "\u2666",
+	"quot":     "\u0022",
+	"amp":      "\u0026",
+	"lt":       "\u003C",
+	"gt":       "\u003E",
+	"OElig":    "\u0152",
+	"oelig":    "\u0153",
+	"Scaron":   "\u0160",
+	"scaron":   "\u0161",
+	"Yuml":     "\u0178",
+	"circ":     "\u02C6",
+	"tilde":    "\u02DC",
+	"ensp":     "\u2002",
+	"emsp":     "\u2003",
+	"thinsp":   "\u2009",
+	"zwnj":     "\u200C",
+	"zwj":      "\u200D",
+	"lrm":      "\u200E",
+	"rlm":      "\u200F",
+	"ndash":    "\u2013",
+	"mdash":    "\u2014",
+	"lsquo":    "\u2018",
+	"rsquo":    "\u2019",
+	"sbquo":    "\u201A",
+	"ldquo":    "\u201C",
+	"rdquo":    "\u201D",
+	"bdquo":    "\u201E",
+	"dagger":   "\u2020",
+	"Dagger":   "\u2021",
+	"permil":   "\u2030",
+	"lsaquo":   "\u2039",
+	"rsaquo":   "\u203A",
+	"euro":     "\u20AC",
 }
 
 // HTMLAutoClose is the set of HTML elements that
@@ -1508,11 +1556,11 @@ var htmlAutoClose = []string{
 }
 
 var (
-	esc_quot = strings.Bytes("&#34;") // shorter than "&quot;"
-	esc_apos = strings.Bytes("&#39;") // shorter than "&apos;"
-	esc_amp  = strings.Bytes("&amp;")
-	esc_lt   = strings.Bytes("&lt;")
-	esc_gt   = strings.Bytes("&gt;")
+	esc_quot = []byte("&#34;") // shorter than "&quot;"
+	esc_apos = []byte("&#39;") // shorter than "&apos;"
+	esc_amp  = []byte("&amp;")
+	esc_lt   = []byte("&lt;")
+	esc_gt   = []byte("&gt;")
 )
 
 // Escape writes to w the properly escaped XML equivalent

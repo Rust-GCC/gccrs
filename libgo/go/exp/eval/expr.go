@@ -5,7 +5,7 @@
 package eval
 
 import (
-	"bignum"
+	"exp/bignum"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -250,10 +250,10 @@ type assignCompiler struct {
 // fail and these expressions given a nil type.
 func (a *compiler) checkAssign(pos token.Position, rs []*expr, errOp, errPosName string) (*assignCompiler, bool) {
 	c := &assignCompiler{
-		compiler: a,
-		pos: pos,
-		rs: rs,
-		errOp: errOp,
+		compiler:   a,
+		pos:        pos,
+		rs:         rs,
+		errOp:      errOp,
 		errPosName: errPosName,
 	}
 
@@ -304,7 +304,7 @@ func (a *assignCompiler) allowMapForms(nls int) {
 // a function that expects an l-value and the frame in which to
 // evaluate the RHS expressions.  The l-value must have exactly the
 // type given by lt.  Returns nil if type checking fails.
-func (a *assignCompiler) compile(b *block, lt Type) (func(Value, *Thread)) {
+func (a *assignCompiler) compile(b *block, lt Type) func(Value, *Thread) {
 	lmt, isMT := lt.(*MultiType)
 	rmt, isUnpack := a.rmt, a.isUnpack
 
@@ -447,7 +447,7 @@ func (a *assignCompiler) compile(b *block, lt Type) (func(Value, *Thread)) {
 // compileAssign compiles an assignment operation without the full
 // generality of an assignCompiler.  See assignCompiler for a
 // description of the arguments.
-func (a *compiler) compileAssign(pos token.Position, b *block, lt Type, rs []*expr, errOp, errPosName string) (func(Value, *Thread)) {
+func (a *compiler) compileAssign(pos token.Position, b *block, lt Type, rs []*expr, errOp, errPosName string) func(Value, *Thread) {
 	ac, ok := a.checkAssign(pos, rs, errOp, errPosName)
 	if !ok {
 		return nil
@@ -589,14 +589,16 @@ func (a *exprCompiler) compile(x ast.Expr, callCtx bool) *expr {
 		return ei.compileIndexExpr(l, r)
 
 	case *ast.SliceExpr:
-		end := x.End
-		if end == nil {
-			// TODO: set end to len(x.X)
-			panic("unimplemented")
-		}
+		var hi *expr
 		arr := a.compile(x.X, false)
 		lo := a.compile(x.Index, false)
-		hi := a.compile(end, false)
+		if x.End == nil {
+			// End was omitted, so we need to compute len(x.X)
+			ei := &exprInfo{a.compiler, x.Pos()}
+			hi = ei.compileBuiltinCallExpr(a.block, lenType, []*expr{arr})
+		} else {
+			hi = a.compile(x.End, false)
+		}
 		if arr == nil || lo == nil || hi == nil {
 			return nil
 		}
@@ -627,20 +629,6 @@ func (a *exprCompiler) compile(x ast.Expr, callCtx bool) *expr {
 			return ei.exprFromType(NewPtrType(v.valType))
 		}
 		return ei.compileStarExpr(v)
-
-	case *ast.StringList:
-		strings := make([]*expr, len(x.Strings))
-		bad := false
-		for i, s := range x.Strings {
-			strings[i] = a.compile(s, false)
-			if strings[i] == nil {
-				bad = true
-			}
-		}
-		if bad {
-			return nil
-		}
-		return ei.compileStringList(strings)
 
 	case *ast.StructType:
 		goto notimpl
@@ -774,7 +762,7 @@ func (a *exprInfo) compileCharLit(lit string) *expr {
 }
 
 func (a *exprInfo) compileFloatLit(lit string) *expr {
-	f, _, n := bignum.RatFromString(lit, 0)
+	f, _, n := bignum.RatFromString(lit, 10)
 	if n != len(lit) {
 		log.Crashf("malformed float literal %s at %v passed parser", lit, a.pos)
 	}
@@ -851,15 +839,15 @@ func (a *exprInfo) compileSelectorExpr(v *expr, name string) *expr {
 	// TODO(austin) Now that the expression compiler works on
 	// semantic values instead of AST's, there should be a much
 	// better way of doing this.
-	var find func(Type, int, string) (func(*expr) *expr)
-	find = func(t Type, depth int, pathName string) (func(*expr) *expr) {
+	var find func(Type, int, string) func(*expr) *expr
+	find = func(t Type, depth int, pathName string) func(*expr) *expr {
 		// Don't bother looking if we've found something shallower
 		if bestDepth != -1 && bestDepth < depth {
 			return nil
 		}
 
 		// Don't check the same type twice and avoid loops
-		if _, ok := visited[t]; ok {
+		if visited[t] {
 			return nil
 		}
 		visited[t] = true

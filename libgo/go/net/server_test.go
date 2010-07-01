@@ -17,13 +17,13 @@ import (
 // It causes unexplained timeouts on some systems,
 // including Snow Leopard.  I think that the kernel
 // doesn't quite expect them.
-var testEmptyDatagrams = flag.Bool("empty_datagrams", false, "whether to test empty datagrams")
+var testUDP = flag.Bool("udp", false, "whether to test UDP datagrams")
 
 func runEcho(fd io.ReadWriter, done chan<- int) {
 	var buf [1024]byte
 
 	for {
-		n, err := fd.Read(&buf)
+		n, err := fd.Read(buf[0:])
 		if err != nil || n == 0 {
 			break
 		}
@@ -65,18 +65,18 @@ func connect(t *testing.T, network, addr string, isEmpty bool) {
 
 	var b []byte
 	if !isEmpty {
-		b = strings.Bytes("hello, world\n")
+		b = []byte("hello, world\n")
 	}
 	var b1 [100]byte
 
-	n, err := fd.Write(b)
+	n, err1 := fd.Write(b)
 	if n != len(b) {
-		t.Fatalf("fd.Write(%q) = %d, %v", b, n, err)
+		t.Fatalf("fd.Write(%q) = %d, %v", b, n, err1)
 	}
 
-	n, err = fd.Read(&b1)
-	if n != len(b) || err != nil {
-		t.Fatalf("fd.Read() = %d, %v (want %d, nil)", n, err, len(b))
+	n, err1 = fd.Read(b1[0:])
+	if n != len(b) || err1 != nil {
+		t.Fatalf("fd.Read() = %d, %v (want %d, nil)", n, err1, len(b))
 	}
 	fd.Close()
 }
@@ -126,8 +126,8 @@ func runPacket(t *testing.T, network, addr string, listening chan<- string, done
 	c.SetReadTimeout(10e6) // 10ms
 	var buf [1000]byte
 	for {
-		n, addr, err := c.ReadFrom(&buf)
-		if isEAGAIN(err) {
+		n, addr, err := c.ReadFrom(buf[0:])
+		if e, ok := err.(Error); ok && e.Timeout() {
 			if done <- 1 {
 				break
 			}
@@ -162,7 +162,10 @@ func doTestPacket(t *testing.T, network, listenaddr, dialaddr string, isEmpty bo
 }
 
 func TestUDPServer(t *testing.T) {
-	for _, isEmpty := range []bool{false, *testEmptyDatagrams} {
+	if !*testUDP {
+		return
+	}
+	for _, isEmpty := range []bool{false, true} {
 		doTestPacket(t, "udp", "0.0.0.0", "127.0.0.1", isEmpty)
 		doTestPacket(t, "udp", "", "127.0.0.1", isEmpty)
 		if kernelSupportsIPv6() {
@@ -174,7 +177,7 @@ func TestUDPServer(t *testing.T) {
 }
 
 func TestUnixDatagramServer(t *testing.T) {
-	for _, isEmpty := range []bool{false, *testEmptyDatagrams} {
+	for _, isEmpty := range []bool{false} {
 		os.Remove("/tmp/gotest1.net")
 		os.Remove("/tmp/gotest1.net.local")
 		doTestPacket(t, "unixgram", "/tmp/gotest1.net", "/tmp/gotest1.net", isEmpty)

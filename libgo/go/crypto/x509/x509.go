@@ -74,11 +74,11 @@ func ParsePKCS1PrivateKey(der []byte) (key *rsa.PrivateKey, err os.Error) {
 func MarshalPKCS1PrivateKey(key *rsa.PrivateKey) []byte {
 	priv := pkcs1PrivateKey{
 		Version: 1,
-		N: asn1.RawValue{Tag: 2, Bytes: key.PublicKey.N.Bytes()},
-		E: key.PublicKey.E,
-		D: asn1.RawValue{Tag: 2, Bytes: key.D.Bytes()},
-		P: asn1.RawValue{Tag: 2, Bytes: key.P.Bytes()},
-		Q: asn1.RawValue{Tag: 2, Bytes: key.Q.Bytes()},
+		N:       asn1.RawValue{Tag: 2, Bytes: key.PublicKey.N.Bytes()},
+		E:       key.PublicKey.E,
+		D:       asn1.RawValue{Tag: 2, Bytes: key.D.Bytes()},
+		P:       asn1.RawValue{Tag: 2, Bytes: key.P.Bytes()},
+		Q:       asn1.RawValue{Tag: 2, Bytes: key.Q.Bytes()},
 	}
 
 	b, _ := asn1.MarshalToMemory(priv)
@@ -735,7 +735,7 @@ func buildExtensions(template *Certificate) (ret []extension, err os.Error) {
 		ret[n].Id = oidExtensionSubjectAltName
 		rawValues := make([]asn1.RawValue, len(template.DNSNames))
 		for i, name := range template.DNSNames {
-			rawValues[i] = asn1.RawValue{Tag: 2, Class: 2, Bytes: strings.Bytes(name)}
+			rawValues[i] = asn1.RawValue{Tag: 2, Class: 2, Bytes: []byte(name)}
 		}
 		ret[n].Value, err = asn1.MarshalToMemory(rawValues)
 		if err != nil {
@@ -784,14 +784,14 @@ func CreateCertificate(rand io.Reader, template, parent *Certificate, priv *rsa.
 
 	encodedPublicKey := asn1.BitString{BitLength: len(asn1PublicKey) * 8, Bytes: asn1PublicKey}
 	c := tbsCertificate{
-		Version: 3,
-		SerialNumber: asn1.RawValue{Bytes: template.SerialNumber, Tag: 2},
+		Version:            3,
+		SerialNumber:       asn1.RawValue{Bytes: template.SerialNumber, Tag: 2},
 		SignatureAlgorithm: algorithmIdentifier{oidSHA1WithRSA},
-		Issuer: parent.Subject.toRDNSequence(),
-		Validity: validity{template.NotBefore, template.NotAfter},
-		Subject: template.Subject.toRDNSequence(),
-		PublicKey: publicKeyInfo{algorithmIdentifier{oidRSA}, encodedPublicKey},
-		Extensions: extensions,
+		Issuer:             parent.Subject.toRDNSequence(),
+		Validity:           validity{template.NotBefore, template.NotAfter},
+		Subject:            template.Subject.toRDNSequence(),
+		PublicKey:          publicKeyInfo{algorithmIdentifier{oidRSA}, encodedPublicKey},
+		Extensions:         extensions,
 	}
 
 	tbsCertContents, err := asn1.MarshalToMemory(c)

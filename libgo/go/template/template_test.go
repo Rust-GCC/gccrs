@@ -9,7 +9,9 @@ import (
 	"container/vector"
 	"fmt"
 	"io"
-	"strings"
+	"io/ioutil"
+	"json"
+	"os"
 	"testing"
 )
 
@@ -41,10 +43,12 @@ type S struct {
 	true          bool
 	false         bool
 	mp            map[string]string
+	json          interface{}
 	innermap      U
 	stringmap     map[string]string
 	bytes         []byte
 	iface         interface{}
+	ifaceptr      interface{}
 }
 
 func (s *S) pointerMethod() string { return "ptrmethod!" }
@@ -72,7 +76,7 @@ func plus1(v interface{}) string {
 	return fmt.Sprint(i + 1)
 }
 
-func writer(f func(interface{}) string) (func(io.Writer, interface{}, string)) {
+func writer(f func(interface{}) string) func(io.Writer, interface{}, string) {
 	return func(w io.Writer, v interface{}, format string) {
 		io.WriteString(w, f(v))
 	}
@@ -81,7 +85,7 @@ func writer(f func(interface{}) string) (func(io.Writer, interface{}, string)) {
 
 var formatters = FormatterMap{
 	"uppercase": writer(uppercase),
-	"+1": writer(plus1),
+	"+1":        writer(plus1),
 }
 
 var tests = []*Test{
@@ -342,6 +346,16 @@ var tests = []*Test{
 		out: "55\n",
 	},
 	&Test{
+		in: "{.section innermap}{.section mp}{innerkey}{.end}{.end}\n",
+
+		out: "55\n",
+	},
+	&Test{
+		in: "{.section json}{.repeated section maps}{a}{b}{.end}{.end}\n",
+
+		out: "1234\n",
+	},
+	&Test{
 		in: "{stringmap.stringkey1}\n",
 
 		out: "stringresult\n",
@@ -372,9 +386,24 @@ var tests = []*Test{
 
 		out: "[1 2 3]",
 	},
+	&Test{
+		in: "{.section ifaceptr}{item} {value}{.end}",
+
+		out: "Item Value",
+	},
 }
 
 func TestAll(t *testing.T) {
+	// Parse
+	testAll(t, func(test *Test) (*Template, os.Error) { return Parse(test.in, formatters) })
+	// ParseFile
+	testAll(t, func(test *Test) (*Template, os.Error) {
+		ioutil.WriteFile("_test/test.tmpl", []byte(test.in), 0600)
+		return ParseFile("_test/test.tmpl", formatters)
+	})
+}
+
+func testAll(t *testing.T, parseFunc func(*Test) (*Template, os.Error)) {
 	s := new(S)
 	// initialized by hand for clarity.
 	s.header = "Header"
@@ -392,18 +421,20 @@ func TestAll(t *testing.T) {
 	s.false = false
 	s.mp = make(map[string]string)
 	s.mp["mapkey"] = "Ahoy!"
+	json.Unmarshal([]byte(`{"maps":[{"a":1,"b":2},{"a":3,"b":4}]}`), &s.json)
 	s.innermap.mp = make(map[string]int)
 	s.innermap.mp["innerkey"] = 55
 	s.stringmap = make(map[string]string)
 	s.stringmap["stringkey1"] = "stringresult" // the same value so repeated section is order-independent
 	s.stringmap["stringkey2"] = "stringresult"
-	s.bytes = strings.Bytes("hello")
+	s.bytes = []byte("hello")
 	s.iface = []int{1, 2, 3}
+	s.ifaceptr = &T{"Item", "Value"}
 
 	var buf bytes.Buffer
 	for _, test := range tests {
 		buf.Reset()
-		tmpl, err := Parse(test.in, formatters)
+		tmpl, err := parseFunc(test)
 		if err != nil {
 			t.Error("unexpected parse error:", err)
 			continue
@@ -539,5 +570,16 @@ func TestVarIndirection(t *testing.T) {
 	expect := fmt.Sprintf("%v", &t1) // output should be hex address of t1
 	if buf.String() != expect {
 		t.Errorf("for %q: expected %q got %q", input, expect, buf.String())
+	}
+}
+
+func TestHTMLFormatterWithByte(t *testing.T) {
+	s := "Test string."
+	b := []byte(s)
+	var buf bytes.Buffer
+	HTMLFormatter(&buf, b, "")
+	bs := buf.String()
+	if bs != s {
+		t.Errorf("munged []byte, expected: %s got: %s", s, bs)
 	}
 }

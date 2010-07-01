@@ -49,13 +49,13 @@ type badStringError struct {
 
 func (e *badStringError) String() string { return fmt.Sprintf("%s %q", e.what, e.str) }
 
-var reqExcludeHeader = map[string]int{
-	"Host": 0,
-	"User-Agent": 0,
-	"Referer": 0,
-	"Content-Length": 0,
-	"Transfer-Encoding": 0,
-	"Trailer": 0,
+var reqExcludeHeader = map[string]bool{
+	"Host":              true,
+	"User-Agent":        true,
+	"Referer":           true,
+	"Content-Length":    true,
+	"Transfer-Encoding": true,
+	"Trailer":           true,
 }
 
 // A Request represents a parsed HTTP request header.
@@ -70,16 +70,16 @@ type Request struct {
 	// A header mapping request lines to their values.
 	// If the header says
 	//
-	//	Accept-Language: en-us
 	//	accept-encoding: gzip, deflate
+	//	Accept-Language: en-us
 	//	Connection: keep-alive
 	//
 	// then
 	//
 	//	Header = map[string]string{
-	//		"Accept-Encoding": "en-us",
-	//		"Accept-Language": "gzip, deflate",
-	//		"Connection": "keep-alive"
+	//		"Accept-Encoding": "gzip, deflate",
+	//		"Accept-Language": "en-us",
+	//		"Connection": "keep-alive",
 	//	}
 	//
 	// HTTP defines that header names are case-insensitive.
@@ -152,7 +152,7 @@ const defaultUserAgent = "Go http package"
 // Write writes an HTTP/1.1 request -- header and body -- in wire format.
 // This method consults the following fields of req:
 //	Host
-//	URL
+//	RawURL, if non-empty, or else URL
 //	Method (defaults to "GET")
 //	UserAgent (defaults to defaultUserAgent)
 //	Referer
@@ -167,9 +167,12 @@ func (req *Request) Write(w io.Writer) os.Error {
 		host = req.URL.Host
 	}
 
-	uri := urlEscape(req.URL.Path, false)
-	if req.URL.RawQuery != "" {
-		uri += "?" + req.URL.RawQuery
+	uri := req.RawURL
+	if uri == "" {
+		uri = valueOrDefault(urlEscape(req.URL.Path, false), "/")
+		if req.URL.RawQuery != "" {
+			uri += "?" + req.URL.RawQuery
+		}
 	}
 
 	fmt.Fprintf(w, "%s %s HTTP/1.1\r\n", valueOrDefault(req.Method, "GET"), uri)
@@ -342,7 +345,7 @@ func atoi(s string, i int) (n, i1 int, ok bool) {
 
 // Parse HTTP version: "HTTP/1.2" -> (1, 2, true).
 func parseHTTPVersion(vers string) (int, int, bool) {
-	if vers[0:5] != "HTTP/" {
+	if len(vers) < 5 || vers[0:5] != "HTTP/" {
 		return 0, 0, false
 	}
 	major, i, ok := atoi(vers, 5)
@@ -373,7 +376,7 @@ func CanonicalHeaderKey(s string) string {
 	// and upper case after each dash.
 	// (Host, User-Agent, If-Modified-Since).
 	// HTTP headers are ASCII only, so no Unicode issues.
-	a := strings.Bytes(s)
+	a := []byte(s)
 	upper := true
 	for i, v := range a {
 		if upper && 'a' <= v && v <= 'z' {
@@ -515,24 +518,19 @@ func ReadRequest(b *bufio.Reader) (req *Request, err os.Error) {
 	//	Host: doesntmatter
 	// the same.  In the second case, any Host line is ignored.
 	req.Host = req.URL.Host
-	if v, present := req.Header["Host"]; present {
-		if req.Host == "" {
-			req.Host = v
-		}
-		req.Header["Host"] = "", false
+	if req.Host == "" {
+		req.Host = req.Header["Host"]
 	}
+	req.Header["Host"] = "", false
 
 	fixPragmaCacheControl(req.Header)
 
 	// Pull out useful fields as a convenience to clients.
-	if v, present := req.Header["Referer"]; present {
-		req.Referer = v
-		req.Header["Referer"] = "", false
-	}
-	if v, present := req.Header["User-Agent"]; present {
-		req.UserAgent = v
-		req.Header["User-Agent"] = "", false
-	}
+	req.Referer = req.Header["Referer"]
+	req.Header["Referer"] = "", false
+
+	req.UserAgent = req.Header["User-Agent"]
+	req.Header["User-Agent"] = "", false
 
 	// TODO: Parse specific header values:
 	//	Accept
@@ -568,8 +566,8 @@ func ReadRequest(b *bufio.Reader) (req *Request, err os.Error) {
 	return req, nil
 }
 
-func parseForm(m map[string][]string, query string) (err os.Error) {
-	data := make(map[string]*vector.StringVector)
+func ParseQuery(query string) (m map[string][]string, err os.Error) {
+	m = make(map[string][]string)
 	for _, kv := range strings.Split(query, "&", 0) {
 		kvPair := strings.Split(kv, "=", 2)
 
@@ -583,16 +581,9 @@ func parseForm(m map[string][]string, query string) (err os.Error) {
 			err = e
 		}
 
-		vec, ok := data[key]
-		if !ok {
-			vec = new(vector.StringVector)
-			data[key] = vec
-		}
+		vec := vector.StringVector(m[key])
 		vec.Push(value)
-	}
-
-	for k, vec := range data {
-		m[k] = vec.Data()
+		m[key] = vec
 	}
 
 	return
@@ -604,7 +595,6 @@ func (r *Request) ParseForm() (err os.Error) {
 	if r.Form != nil {
 		return
 	}
-	r.Form = make(map[string][]string)
 
 	var query string
 	switch r.Method {
@@ -612,22 +602,26 @@ func (r *Request) ParseForm() (err os.Error) {
 		query = r.URL.RawQuery
 	case "POST":
 		if r.Body == nil {
+			r.Form = make(map[string][]string)
 			return os.ErrorString("missing form body")
 		}
-		ct, _ := r.Header["Content-Type"]
+		ct := r.Header["Content-Type"]
 		switch strings.Split(ct, ";", 2)[0] {
 		case "text/plain", "application/x-www-form-urlencoded", "":
 			var b []byte
 			if b, err = ioutil.ReadAll(r.Body); err != nil {
+				r.Form = make(map[string][]string)
 				return err
 			}
 			query = string(b)
 		// TODO(dsymonds): Handle multipart/form-data
 		default:
+			r.Form = make(map[string][]string)
 			return &badStringError{"unknown Content-Type", ct}
 		}
 	}
-	return parseForm(r.Form, query)
+	r.Form, err = ParseQuery(query)
+	return
 }
 
 // FormValue returns the first value for the named component of the query.
@@ -636,8 +630,13 @@ func (r *Request) FormValue(key string) string {
 	if r.Form == nil {
 		r.ParseForm()
 	}
-	if vs, ok := r.Form[key]; ok && len(vs) > 0 {
+	if vs := r.Form[key]; len(vs) > 0 {
 		return vs[0]
 	}
 	return ""
+}
+
+func (r *Request) expectsContinue() bool {
+	expectation, ok := r.Header["Expect"]
+	return ok && strings.ToLower(expectation) == "100-continue"
 }

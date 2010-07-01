@@ -26,6 +26,7 @@ import (
 // Errors introduced by the HTTP server.
 var (
 	ErrWriteAfterFlush = os.NewError("Conn.Write called after Flush")
+	ErrBodyNotAllowed  = os.NewError("http: response status code does not allow body")
 	ErrHijacked        = os.NewError("Conn has been hijacked")
 )
 
@@ -55,6 +56,7 @@ type Conn struct {
 	closeAfterReply bool              // close connection after this reply
 	chunking        bool              // using chunked transfer encoding for reply body
 	wroteHeader     bool              // reply header has been written
+	wroteContinue   bool              // 100 Continue response was written
 	header          map[string]string // reply header parameters
 	written         int64             // number of bytes written in body
 	status          int               // status code passed to WriteHeader
@@ -74,6 +76,28 @@ func newConn(rwc net.Conn, handler Handler) (c *Conn, err os.Error) {
 	return c, nil
 }
 
+// wrapper around io.ReaderCloser which on first read, sends an
+// HTTP/1.1 100 Continue header
+type expectContinueReader struct {
+	conn       *Conn
+	readCloser io.ReadCloser
+}
+
+func (ecr *expectContinueReader) Read(p []byte) (n int, err os.Error) {
+	if !ecr.conn.wroteContinue && !ecr.conn.hijacked {
+		ecr.conn.wroteContinue = true
+		if ecr.conn.Req.ProtoAtLeast(1, 1) {
+			io.WriteString(ecr.conn.buf, "HTTP/1.1 100 Continue\r\n\r\n")
+			ecr.conn.buf.Flush()
+		}
+	}
+	return ecr.readCloser.Read(p)
+}
+
+func (ecr *expectContinueReader) Close() os.Error {
+	return ecr.readCloser.Close()
+}
+
 // Read next request from connection.
 func (c *Conn) readRequest() (req *Request, err os.Error) {
 	if c.hijacked {
@@ -86,7 +110,14 @@ func (c *Conn) readRequest() (req *Request, err os.Error) {
 	// Reset per-request connection state.
 	c.header = make(map[string]string)
 	c.wroteHeader = false
+	c.wroteContinue = false
 	c.Req = req
+
+	// Expect 100 Continue support
+	if req.expectsContinue() {
+		// Wrap the Body reader with one that replies on the connection
+		req.Body = &expectContinueReader{readCloser: req.Body, conn: c}
+	}
 
 	// Default output is HTML encoded in UTF-8.
 	c.SetHeader("Content-Type", "text/html; charset=utf-8")
@@ -138,6 +169,11 @@ func (c *Conn) WriteHeader(code int) {
 	}
 	c.wroteHeader = true
 	c.status = code
+	if code == StatusNotModified {
+		// Must not have body.
+		c.header["Content-Type"] = "", false
+		c.header["Transfer-Encoding"] = "", false
+	}
 	c.written = 0
 	if !c.Req.ProtoAtLeast(1, 0) {
 		return
@@ -171,6 +207,11 @@ func (c *Conn) Write(data []byte) (n int, err os.Error) {
 	}
 	if len(data) == 0 {
 		return 0, nil
+	}
+
+	if c.status == StatusNotModified {
+		// Must not have body.
+		return 0, ErrBodyNotAllowed
 	}
 
 	c.written += int64(len(data)) // ignoring errors, for errorKludge
@@ -328,12 +369,15 @@ func (f HandlerFunc) ServeHTTP(c *Conn, req *Request) {
 
 // Helper handlers
 
-// NotFound replies to the request with an HTTP 404 not found error.
-func NotFound(c *Conn, req *Request) {
+// Error replies to the request with the specified error message and HTTP code.
+func Error(c *Conn, error string, code int) {
 	c.SetHeader("Content-Type", "text/plain; charset=utf-8")
-	c.WriteHeader(StatusNotFound)
-	io.WriteString(c, "404 page not found\n")
+	c.WriteHeader(code)
+	fmt.Fprintln(c, error)
 }
+
+// NotFound replies to the request with an HTTP 404 not found error.
+func NotFound(c *Conn, req *Request) { Error(c, "404 page not found", StatusNotFound) }
 
 // NotFoundHandler returns a simple request handler
 // that replies to each request with a ``404 page not found'' reply.
@@ -521,9 +565,20 @@ func (mux *ServeMux) Handle(pattern string, handler Handler) {
 	}
 }
 
+// HandleFunc registers the handler function for the given pattern.
+func (mux *ServeMux) HandleFunc(pattern string, handler func(*Conn, *Request)) {
+	mux.Handle(pattern, HandlerFunc(handler))
+}
+
 // Handle registers the handler for the given pattern
 // in the DefaultServeMux.
 func Handle(pattern string, handler Handler) { DefaultServeMux.Handle(pattern, handler) }
+
+// HandleFunc registers the handler function for the given pattern
+// in the DefaultServeMux.
+func HandleFunc(pattern string, handler func(*Conn, *Request)) {
+	DefaultServeMux.HandleFunc(pattern, handler)
+}
 
 // Serve accepts incoming HTTP connections on the listener l,
 // creating a new service thread for each.  The service threads
@@ -557,20 +612,21 @@ func Serve(l net.Listener, handler Handler) os.Error {
 //	package main
 //
 //	import (
-//		"http";
-//		"io";
+//		"http"
+//		"io"
+//		"log"
 //	)
 //
 //	// hello world, the web server
 //	func HelloServer(c *http.Conn, req *http.Request) {
-//		io.WriteString(c, "hello, world!\n");
+//		io.WriteString(c, "hello, world!\n")
 //	}
 //
 //	func main() {
-//		http.Handle("/hello", http.HandlerFunc(HelloServer));
-//		err := http.ListenAndServe(":12345", nil);
+//		http.HandleFunc("/hello", HelloServer)
+//		err := http.ListenAndServe(":12345", nil)
 //		if err != nil {
-//			panic("ListenAndServe: ", err.String())
+//			log.Exit("ListenAndServe: ", err.String())
 //		}
 //	}
 func ListenAndServe(addr string, handler Handler) os.Error {

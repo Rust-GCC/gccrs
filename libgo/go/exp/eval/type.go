@@ -5,7 +5,7 @@
 package eval
 
 import (
-	"bignum"
+	"exp/bignum"
 	"go/ast"
 	"go/token"
 	"log"
@@ -119,7 +119,7 @@ nextEnt:
 
 func (m typeArrayMap) Put(key []Type, v interface{}) interface{} {
 	hash := hashTypeArray(key)
-	ent, _ := m[hash]
+	ent := m[hash]
 
 	new := &typeArrayMapEntry{key, v, ent}
 	m[hash] = new

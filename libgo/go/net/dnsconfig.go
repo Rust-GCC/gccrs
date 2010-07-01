@@ -8,7 +8,7 @@ package net
 
 import "os"
 
-type _DNS_Config struct {
+type dnsConfig struct {
 	servers  []string // servers to use
 	search   []string // suffixes to append to local name
 	ndots    int      // number of dots in name to trigger absolute lookup
@@ -17,23 +17,35 @@ type _DNS_Config struct {
 	rotate   bool     // round robin among servers
 }
 
-var _DNS_configError os.Error
+var dnsconfigError os.Error
+
+type DNSConfigError struct {
+	Error os.Error
+}
+
+func (e *DNSConfigError) String() string {
+	return "error reading DNS config: " + e.Error.String()
+}
+
+func (e *DNSConfigError) Timeout() bool   { return false }
+func (e *DNSConfigError) Temporary() bool { return false }
+
 
 // See resolv.conf(5) on a Linux machine.
 // TODO(rsc): Supposed to call uname() and chop the beginning
 // of the host name to get the default search domain.
 // We assume it's in resolv.conf anyway.
-func _DNS_ReadConfig() (*_DNS_Config, os.Error) {
+func dnsReadConfig() (*dnsConfig, os.Error) {
 	file, err := open("/etc/resolv.conf")
 	if err != nil {
-		return nil, err
+		return nil, &DNSConfigError{err}
 	}
-	conf := new(_DNS_Config)
+	conf := new(dnsConfig)
 	conf.servers = make([]string, 3)[0:0] // small, but the standard limit
 	conf.search = make([]string, 0)
 	conf.ndots = 1
-	conf.timeout = 1
-	conf.attempts = 1
+	conf.timeout = 5
+	conf.attempts = 2
 	conf.rotate = false
 	for line, ok := file.readLine(); ok; line, ok = file.readLine() {
 		f := getFields(line)
@@ -49,7 +61,11 @@ func _DNS_ReadConfig() (*_DNS_Config, os.Error) {
 				// just an IP address.  Otherwise we need DNS
 				// to look it up.
 				name := f[1]
-				if len(ParseIP(name)) != 0 {
+				switch len(ParseIP(name)) {
+				case 16:
+					name = "[" + name + "]"
+					fallthrough
+				case 4:
 					a = a[0 : n+1]
 					a[n] = name
 					conf.servers = a

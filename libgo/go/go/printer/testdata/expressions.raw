@@ -20,6 +20,7 @@ var (
 
 func _() {
 	// no spaces around simple or parenthesized expressions
+	_ = (a + 0)
 	_ = a + b
 	_ = a + b + c
 	_ = a + b - c
@@ -209,14 +210,31 @@ func _() {
 
 
 func _() {
-	// one-line function literals
+	// one-line function literals (body is on a single line)
 	_ = func() {}
 	_ = func() int { return 0 }
-	_ = func(x, y int) bool { return x < y }
+	_ = func(x, y int) bool { m := (x + y) / 2; return m < 0 }
 
-	f(func() {})
-	f(func() int { return 0 })
-	f(func(x, y int) bool { return x < y })
+	// multi-line function literals (body is not on one line)
+	_ = func() {
+	}
+	_ = func() int {
+		return 0
+	}
+	_ = func(x, y int) bool {
+		m := (x + y) / 2
+		return x < y
+	}
+
+	f(func() {
+	})
+	f(func() int {
+		return 0
+	})
+	f(func(x, y int) bool {
+		m := (x + y) / 2
+		return x < y
+	})
 }
 
 
@@ -288,12 +306,12 @@ func _() {
 
 // Alignment after overlong lines
 const (
-	_		= "991"
-	_		= "2432902008176640000"	// 20!
-	_		= "933262154439441526816992388562667004907159682643816214685929" +
+	_	= "991"
+	_	= "2432902008176640000"		// 20!
+	_	= "933262154439441526816992388562667004907159682643816214685929" +
 		"638952175999932299156089414639761565182862536979208272237582" +
 		"51185210916864000000000000000000000000"	// 100!
-	_		= "170141183460469231731687303715884105727"	// prime
+	_	= "170141183460469231731687303715884105727"		// prime
 )
 
 
@@ -337,6 +355,21 @@ func _() {
 }
 
 
+// Align comments in multi-line lists of single-line expressions.
+var txpix = [NCOL]draw.Color{
+	draw.Yellow,	// yellow
+	draw.Cyan,	// cyan
+	draw.Green,	// lime green
+	draw.GreyBlue,	// slate
+	draw.Red,	/* red */
+	draw.GreyGreen,	/* olive green */
+	draw.Blue,	/* blue */
+	draw.Color(0xFF55AAFF),	/* pink */
+	draw.Color(0xFFAAFFFF),	/* lavender */
+	draw.Color(0xBB005DFF),	/* maroon */
+}
+
+
 func same(t, u *Time) bool {
 	// respect source lines in multi-line expressions
 	return t.Year == u.Year &&
@@ -369,4 +402,96 @@ func addState(s []state, inst instr, match []int) {
 			return s
 		}
 	}
+}
+
+func (self *T) foo(x int) *T	{ return self }
+
+func _()	{ module.Func1().Func2() }
+
+func _() {
+	_ = new(T).
+		foo(1).
+		foo(2).
+		foo(3)
+
+	_ = new(T).
+		foo(1).
+		foo(2).	// inline comments
+		foo(3)
+
+	_ = new(T).foo(1).foo(2).foo(3)
+
+	// handle multiline argument list correctly
+	_ = new(T).
+		foo(
+			1).
+		foo(2)
+
+	_ = new(T).foo(
+		1).foo(2)
+
+	_ = Array[3+
+		4]
+
+	_ = Method(1, 2,
+		3)
+
+	_ = new(T).
+		foo().
+		bar().(*Type)
+
+	_ = new(T).
+		foo().
+		bar().(*Type).
+		baz()
+
+	_ = new(T).
+		foo().
+		bar()["idx"]
+
+	_ = new(T).
+		foo().
+		bar()["idx"].
+		baz()
+
+	_ = new(T).
+		foo().
+		bar()[1:2]
+
+	_ = new(T).
+		foo().
+		bar()[1:2].
+		baz()
+
+	_ = new(T).
+		Field.
+		Array[3+
+			4].
+		Table["foo"].
+		Blob.(*Type).
+		Slices[1:4].
+		Method(1, 2,
+			3).
+		Thingy
+
+	_ = a.b.c
+	_ = a.
+		b.
+		c
+	_ = a.b().c
+	_ = a.
+		b().
+		c
+	_ = a.b[0].c
+	_ = a.
+		b[0].
+		c
+	_ = a.b[0:].c
+	_ = a.
+		b[0:].
+		c
+	_ = a.b.(T).c
+	_ = a.
+		b.(T).
+		c
 }

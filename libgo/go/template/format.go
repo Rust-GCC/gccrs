@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"strings"
 )
 
 // StringFormatter formats into the default string representation.
@@ -26,11 +25,11 @@ func StringFormatter(w io.Writer, value interface{}, format string) {
 }
 
 var (
-	esc_quot = strings.Bytes("&#34;") // shorter than "&quot;"
-	esc_apos = strings.Bytes("&#39;") // shorter than "&apos;"
-	esc_amp  = strings.Bytes("&amp;")
-	esc_lt   = strings.Bytes("&lt;")
-	esc_gt   = strings.Bytes("&gt;")
+	esc_quot = []byte("&#34;") // shorter than "&quot;"
+	esc_apos = []byte("&#39;") // shorter than "&apos;"
+	esc_amp  = []byte("&amp;")
+	esc_lt   = []byte("&lt;")
+	esc_gt   = []byte("&gt;")
 )
 
 // HTMLEscape writes to w the properly escaped HTML equivalent
@@ -62,7 +61,11 @@ func HTMLEscape(w io.Writer, s []byte) {
 
 // HTMLFormatter formats arbitrary values for HTML
 func HTMLFormatter(w io.Writer, value interface{}, format string) {
-	var b bytes.Buffer
-	fmt.Fprint(&b, value)
-	HTMLEscape(w, b.Bytes())
+	b, ok := value.([]byte)
+	if !ok {
+		var buf bytes.Buffer
+		fmt.Fprint(&buf, value)
+		b = buf.Bytes()
+	}
+	HTMLEscape(w, b)
 }

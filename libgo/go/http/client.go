@@ -46,7 +46,7 @@ func send(req *Request) (resp *Response, err os.Error) {
 	if len(info) > 0 {
 		enc := base64.URLEncoding
 		encoded := make([]byte, enc.EncodedLen(len(info)))
-		enc.Encode(encoded, strings.Bytes(info))
+		enc.Encode(encoded, []byte(info))
 		if req.Header == nil {
 			req.Header = make(map[string]string)
 		}
@@ -130,18 +130,20 @@ func Get(url string) (r *Response, finalURL string, err os.Error) {
 	return
 }
 
-
 // Post issues a POST to the specified URL.
 //
 // Caller should close r.Body when done reading it.
 func Post(url string, bodyType string, body io.Reader) (r *Response, err os.Error) {
 	var req Request
 	req.Method = "POST"
+	req.ProtoMajor = 1
+	req.ProtoMinor = 1
+	req.Close = true
 	req.Body = nopCloser{body}
 	req.Header = map[string]string{
 		"Content-Type": bodyType,
-		"Transfer-Encoding": "chunked",
 	}
+	req.TransferEncoding = []string{"chunked"}
 
 	req.URL, err = ParseURL(url)
 	if err != nil {
@@ -149,6 +151,19 @@ func Post(url string, bodyType string, body io.Reader) (r *Response, err os.Erro
 	}
 
 	return send(&req)
+}
+
+// Head issues a HEAD to the specified URL.
+func Head(url string) (r *Response, err os.Error) {
+	var req Request
+	req.Method = "HEAD"
+	if req.URL, err = ParseURL(url); err != nil {
+		return
+	}
+	if r, err = send(&req); err != nil {
+		return
+	}
+	return
 }
 
 type nopCloser struct {

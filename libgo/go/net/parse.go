@@ -13,27 +13,33 @@ import (
 )
 
 type file struct {
-	file *os.File
-	data []byte
+	file  *os.File
+	data  []byte
+	atEOF bool
 }
 
 func (f *file) close() { f.file.Close() }
 
 func (f *file) getLineFromData() (s string, ok bool) {
 	data := f.data
-	for i := 0; i < len(data); i++ {
+	i := 0
+	for i = 0; i < len(data); i++ {
 		if data[i] == '\n' {
 			s = string(data[0:i])
 			ok = true
 			// move data
 			i++
 			n := len(data) - i
-			for j := 0; j < n; j++ {
-				data[j] = data[i+j]
-			}
+			copy(data[0:], data[i:])
 			f.data = data[0:n]
 			return
 		}
+	}
+	if f.atEOF && len(f.data) > 0 {
+		// EOF, return all we have
+		s = string(data)
+		f.data = f.data[0:0]
+		ok = true
 	}
 	return
 }
@@ -44,9 +50,12 @@ func (f *file) readLine() (s string, ok bool) {
 	}
 	if len(f.data) < cap(f.data) {
 		ln := len(f.data)
-		n, _ := io.ReadFull(f.file, f.data[ln:cap(f.data)])
+		n, err := io.ReadFull(f.file, f.data[ln:cap(f.data)])
 		if n >= 0 {
 			f.data = f.data[0 : ln+n]
+		}
+		if err == os.EOF {
+			f.atEOF = true
 		}
 	}
 	s, ok = f.getLineFromData()
@@ -58,7 +67,7 @@ func open(name string) (*file, os.Error) {
 	if err != nil {
 		return nil, err
 	}
-	return &file{fd, make([]byte, 1024)[0:0]}, nil
+	return &file{fd, make([]byte, 1024)[0:0], false}, nil
 }
 
 func byteIndex(s string, c byte) int {
@@ -181,6 +190,16 @@ func count(s string, b byte) int {
 		}
 	}
 	return n
+}
+
+// Returns the prefix of s up to but not including the character c
+func prefixBefore(s string, c byte) string {
+	for i, v := range s {
+		if v == int(c) {
+			return s[0:i]
+		}
+	}
+	return s
 }
 
 // Index of rightmost occurrence of b in s.

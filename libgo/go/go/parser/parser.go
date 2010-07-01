@@ -28,9 +28,9 @@ var noPos token.Position
 //
 const (
 	PackageClauseOnly uint = 1 << iota // parsing stops after package clause
-	ImportsOnly            // parsing stops after import declarations
-	ParseComments          // parse comments and add them to AST
-	Trace                  // print a trace of parsed productions
+	ImportsOnly                        // parsing stops after import declarations
+	ParseComments                      // parse comments and add them to AST
+	Trace                              // print a trace of parsed productions
 )
 
 
@@ -45,8 +45,7 @@ type parser struct {
 	indent uint // indentation used for tracing output
 
 	// Comments
-	comments    *ast.CommentGroup // list of collected comments
-	lastComment *ast.CommentGroup // last comment in the comments list
+	comments    vector.Vector     // list of *CommentGroup
 	leadComment *ast.CommentGroup // the last lead comment
 	lineComment *ast.CommentGroup // the last line comment
 
@@ -163,13 +162,13 @@ func (p *parser) consumeComment() (comment *ast.Comment, endline int) {
 
 
 // Consume a group of adjacent comments, add it to the parser's
-// comments list, and return the line of which the last comment
-// in the group ends. An empty line or non-comment token terminates
-// a comment group.
+// comments list, and return it together with the line at which
+// the last comment in the group ends. An empty line or non-comment
+// token terminates a comment group.
 //
-func (p *parser) consumeCommentGroup() int {
+func (p *parser) consumeCommentGroup() (comments *ast.CommentGroup, endline int) {
 	var list vector.Vector
-	endline := p.pos.Line
+	endline = p.pos.Line
 	for p.tok == token.COMMENT && endline+1 >= p.pos.Line {
 		var comment *ast.Comment
 		comment, endline = p.consumeComment()
@@ -183,15 +182,10 @@ func (p *parser) consumeCommentGroup() int {
 	}
 
 	// add comment group to the comments list
-	g := &ast.CommentGroup{group, nil}
-	if p.lastComment != nil {
-		p.lastComment.Next = g
-	} else {
-		p.comments = g
-	}
-	p.lastComment = g
+	comments = &ast.CommentGroup{group}
+	p.comments.Push(comments)
 
-	return endline
+	return
 }
 
 
@@ -217,27 +211,30 @@ func (p *parser) next() {
 	p.next0()
 
 	if p.tok == token.COMMENT {
+		var comment *ast.CommentGroup
+		var endline int
+
 		if p.pos.Line == line {
 			// The comment is on same line as previous token; it
 			// cannot be a lead comment but may be a line comment.
-			endline := p.consumeCommentGroup()
+			comment, endline = p.consumeCommentGroup()
 			if p.pos.Line != endline {
 				// The next token is on a different line, thus
 				// the last comment group is a line comment.
-				p.lineComment = p.lastComment
+				p.lineComment = comment
 			}
 		}
 
 		// consume successor comments, if any
-		endline := -1
+		endline = -1
 		for p.tok == token.COMMENT {
-			endline = p.consumeCommentGroup()
+			comment, endline = p.consumeCommentGroup()
 		}
 
-		if endline >= 0 && endline+1 == p.pos.Line {
+		if endline+1 == p.pos.Line {
 			// The next token is following on the line immediately after the
 			// comment group, thus the last comment group is a lead comment.
-			p.leadComment = p.lastComment
+			p.leadComment = comment
 		}
 	}
 }
@@ -526,11 +523,10 @@ func (p *parser) parseFieldDecl() *ast.Field {
 	typ := p.tryType()
 
 	// optional tag
-	var tag []*ast.BasicLit
+	var tag *ast.BasicLit
 	if p.tok == token.STRING {
-		x := &ast.BasicLit{p.pos, p.tok, p.lit}
+		tag = &ast.BasicLit{p.pos, p.tok, p.lit}
 		p.next()
-		tag = []*ast.BasicLit{x}
 	}
 
 	// analyze case
@@ -577,7 +573,7 @@ func (p *parser) parseStructType() *ast.StructType {
 	// TODO(gri) The struct scope shouldn't get lost.
 	p.declFieldList(ast.NewScope(nil), fields)
 
-	return &ast.StructType{pos, lbrace, fields, rbrace, false}
+	return &ast.StructType{pos, &ast.FieldList{lbrace, fields, rbrace}, false}
 }
 
 
@@ -684,44 +680,44 @@ func (p *parser) parseParameterList(ellipsisOk bool) []*ast.Field {
 }
 
 
-func (p *parser) parseParameters(scope *ast.Scope, ellipsisOk bool) []*ast.Field {
+func (p *parser) parseParameters(scope *ast.Scope, ellipsisOk bool) *ast.FieldList {
 	if p.trace {
 		defer un(trace(p, "Parameters"))
 	}
 
 	var params []*ast.Field
-	p.expect(token.LPAREN)
+	lparen := p.expect(token.LPAREN)
 	if p.tok != token.RPAREN {
 		params = p.parseParameterList(ellipsisOk)
 		p.declFieldList(scope, params)
 	}
-	p.expect(token.RPAREN)
+	rparen := p.expect(token.RPAREN)
 
-	return params
+	return &ast.FieldList{lparen, params, rparen}
 }
 
 
-func (p *parser) parseResult(scope *ast.Scope) []*ast.Field {
+func (p *parser) parseResult(scope *ast.Scope) *ast.FieldList {
 	if p.trace {
 		defer un(trace(p, "Result"))
 	}
 
-	var results []*ast.Field
 	if p.tok == token.LPAREN {
-		results = p.parseParameters(scope, false)
-	} else {
-		typ := p.tryType()
-		if typ != nil {
-			results = make([]*ast.Field, 1)
-			results[0] = &ast.Field{Type: typ}
-		}
+		return p.parseParameters(scope, false)
 	}
 
-	return results
+	typ := p.tryType()
+	if typ != nil {
+		list := make([]*ast.Field, 1)
+		list[0] = &ast.Field{Type: typ}
+		return &ast.FieldList{List: list}
+	}
+
+	return nil
 }
 
 
-func (p *parser) parseSignature(scope *ast.Scope) (params []*ast.Field, results []*ast.Field) {
+func (p *parser) parseSignature(scope *ast.Scope) (params, results *ast.FieldList) {
 	if p.trace {
 		defer un(trace(p, "Signature"))
 	}
@@ -792,7 +788,7 @@ func (p *parser) parseInterfaceType() *ast.InterfaceType {
 	// TODO(gri) The interface scope shouldn't get lost.
 	p.declFieldList(ast.NewScope(nil), methods)
 
-	return &ast.InterfaceType{pos, lbrace, methods, rbrace, false}
+	return &ast.InterfaceType{pos, &ast.FieldList{lbrace, methods, rbrace}, false}
 }
 
 
@@ -964,7 +960,7 @@ func (p *parser) parseOperand() ast.Expr {
 	case token.IDENT:
 		return p.findIdent()
 
-	case token.INT, token.FLOAT, token.CHAR, token.STRING:
+	case token.INT, token.FLOAT, token.IMAG, token.CHAR, token.STRING:
 		x := &ast.BasicLit{p.pos, p.tok, p.lit}
 		p.next()
 		return x
@@ -1109,9 +1105,11 @@ func (p *parser) parseCompositeLit(typ ast.Expr) ast.Expr {
 
 	lbrace := p.expect(token.LBRACE)
 	var elts []ast.Expr
+	p.exprLev++
 	if p.tok != token.RBRACE {
 		elts = p.parseElementList()
 	}
+	p.exprLev--
 	rbrace := p.expect(token.RBRACE)
 	return &ast.CompositeLit{typ, lbrace, elts, rbrace}
 }
@@ -1129,7 +1127,6 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.BadExpr:
 	case *ast.Ident:
 	case *ast.BasicLit:
-	case *ast.StringList:
 	case *ast.FuncLit:
 	case *ast.CompositeLit:
 	case *ast.ParenExpr:
@@ -1227,7 +1224,8 @@ func (p *parser) parsePrimaryExpr() ast.Expr {
 	}
 
 	x := p.parseOperand()
-L: for {
+L:
+	for {
 		switch p.tok {
 		case token.PERIOD:
 			x = p.parseSelectorOrTypeAssertion(p.checkExpr(x))
@@ -1718,8 +1716,7 @@ func (p *parser) parseForStmt() ast.Stmt {
 		var key, value ast.Expr
 		switch len(as.Lhs) {
 		case 2:
-			value = as.Lhs[1]
-			fallthrough
+			key, value = as.Lhs[0], as.Lhs[1]
 		case 1:
 			key = as.Lhs[0]
 		default:
@@ -1787,8 +1784,8 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 	case token.FOR:
 		s = p.parseForStmt()
 	case token.SEMICOLON:
+		s = &ast.EmptyStmt{p.pos}
 		p.next()
-		fallthrough
 	case token.RBRACE:
 		// a semicolon may be omitted before a closing "}"
 		s = &ast.EmptyStmt{p.pos}
@@ -1826,11 +1823,10 @@ func parseImportSpec(p *parser, doc *ast.CommentGroup) ast.Spec {
 		p.declIdent(p.fileScope, ident)
 	}
 
-	var path []*ast.BasicLit
+	var path *ast.BasicLit
 	if p.tok == token.STRING {
-		x := &ast.BasicLit{p.pos, p.tok, p.lit}
+		path = &ast.BasicLit{p.pos, p.tok, p.lit}
 		p.next()
-		path = []*ast.BasicLit{x}
 	} else {
 		p.expect(token.STRING) // use expect() error handling
 	}
@@ -1948,7 +1944,7 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 }
 
 
-func (p *parser) parseReceiver(scope *ast.Scope) *ast.Field {
+func (p *parser) parseReceiver(scope *ast.Scope) *ast.FieldList {
 	if p.trace {
 		defer un(trace(p, "Receiver"))
 	}
@@ -1957,12 +1953,12 @@ func (p *parser) parseReceiver(scope *ast.Scope) *ast.Field {
 	par := p.parseParameters(scope, false)
 
 	// must have exactly one receiver
-	if len(par) != 1 || len(par) == 1 && len(par[0].Names) > 1 {
+	if par.NumFields() != 1 {
 		p.errorExpected(pos, "exactly one receiver")
-		return &ast.Field{Type: &ast.BadExpr{noPos}}
+		par.List = []*ast.Field{&ast.Field{Type: &ast.BadExpr{noPos}}}
 	}
 
-	recv := par[0]
+	recv := par.List[0]
 
 	// recv type must be TypeName or *TypeName
 	base := recv.Type
@@ -1973,7 +1969,7 @@ func (p *parser) parseReceiver(scope *ast.Scope) *ast.Field {
 		p.errorExpected(base.Pos(), "type name")
 	}
 
-	return recv
+	return par
 }
 
 
@@ -1986,7 +1982,7 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	pos := p.expect(token.FUNC)
 	scope := ast.NewScope(p.funcScope)
 
-	var recv *ast.Field
+	var recv *ast.FieldList
 	if p.tok == token.LPAREN {
 		recv = p.parseReceiver(scope)
 	}
@@ -2097,5 +2093,11 @@ func (p *parser) parseFile() *ast.File {
 		}
 	}
 
-	return &ast.File{doc, pos, ident, decls, p.comments}
+	// convert comments list
+	comments := make([]*ast.CommentGroup, len(p.comments))
+	for i, x := range p.comments {
+		comments[i] = x.(*ast.CommentGroup)
+	}
+
+	return &ast.File{doc, pos, ident, decls, comments}
 }

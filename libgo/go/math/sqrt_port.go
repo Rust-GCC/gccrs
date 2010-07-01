@@ -31,8 +31,8 @@ package math
 //   Bit by bit method using integer arithmetic. (Slow, but portable)
 //   1. Normalization
 //      Scale x to y in [1,4) with even powers of 2:
-//      find an integer k such that  1 <= (y=x*2^(2k)) < 4, then
-//              sqrt(x) = 2^k * sqrt(y)
+//      find an integer k such that  1 <= (y=x*2**(2k)) < 4, then
+//              sqrt(x) = 2**k * sqrt(y)
 //   2. Bit by bit computation
 //      Let q  = sqrt(y) truncated to i bit after binary point (q = 1),
 //           i                                                   0
@@ -90,7 +90,7 @@ package math
 //
 // Special cases are:
 //	Sqrt(+Inf) = +Inf
-//	Sqrt(0) = 0
+//	Sqrt(±0) = ±0
 //	Sqrt(x < 0) = NaN
 //	Sqrt(NaN) = NaN
 func sqrtGo(x float64) float64 {
@@ -98,10 +98,8 @@ func sqrtGo(x float64) float64 {
 	// TODO(rsc): Remove manual inlining of IsNaN, IsInf
 	// when compiler does it for us
 	switch {
-	case x != x || x > MaxFloat64: // IsNaN(x) || IsInf(x, 1):
+	case x == 0 || x != x || x > MaxFloat64: // x == 0 || IsNaN(x) || IsInf(x, 1):
 		return x
-	case x == 0:
-		return 0
 	case x < 0:
 		return NaN()
 	}

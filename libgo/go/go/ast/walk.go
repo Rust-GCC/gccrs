@@ -64,29 +64,22 @@ func Walk(v Visitor, node interface{}) {
 		for _, c := range n.List {
 			Walk(v, c)
 		}
-		// TODO(gri): Keep comments in a list/vector instead
-		// of linking them via Next. Following next will lead
-		// to multiple visits and potentially n^2 behavior
-		// since Doc and Comments fields point into the global
-		// comments list.
 
 	case *Field:
 		walkCommentGroup(v, n.Doc)
 		Walk(v, n.Names)
 		Walk(v, n.Type)
-		for _, x := range n.Tag {
-			Walk(v, x)
-		}
+		Walk(v, n.Tag)
 		walkCommentGroup(v, n.Comment)
+
+	case *FieldList:
+		for _, f := range n.List {
+			Walk(v, f)
+		}
 
 	// Expressions
 	case *BadExpr, *Ident, *Ellipsis, *BasicLit:
 		// nothing to do
-
-	case *StringList:
-		for _, x := range n.Strings {
-			Walk(v, x)
-		}
 
 	case *FuncLit:
 		if n != nil {
@@ -146,7 +139,9 @@ func Walk(v Visitor, node interface{}) {
 
 	case *FuncType:
 		Walk(v, n.Params)
-		Walk(v, n.Results)
+		if n.Results != nil {
+			Walk(v, n.Results)
+		}
 
 	case *InterfaceType:
 		Walk(v, n.Methods)
@@ -249,9 +244,7 @@ func Walk(v Visitor, node interface{}) {
 	case *ImportSpec:
 		walkCommentGroup(v, n.Doc)
 		walkIdent(v, n.Name)
-		for _, x := range n.Path {
-			Walk(v, x)
-		}
+		Walk(v, n.Path)
 		walkCommentGroup(v, n.Comment)
 
 	case *ValueSpec:
@@ -292,16 +285,13 @@ func Walk(v Visitor, node interface{}) {
 		walkCommentGroup(v, n.Doc)
 		walkIdent(v, n.Name)
 		Walk(v, n.Decls)
-		walkCommentGroup(v, n.Comments)
+		for _, g := range n.Comments {
+			Walk(v, g)
+		}
 
 	case *Package:
 		for _, f := range n.Files {
 			Walk(v, f)
-		}
-
-	case []*Field:
-		for _, x := range n {
-			Walk(v, x)
 		}
 
 	case []*Ident:

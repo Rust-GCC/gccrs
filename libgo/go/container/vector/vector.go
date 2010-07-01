@@ -12,6 +12,9 @@ func (p *Vector) realloc(length, capacity int) (b []interface{}) {
 	if capacity < initialSize {
 		capacity = initialSize
 	}
+	if capacity < length {
+		capacity = length
+	}
 	b = make(Vector, length, capacity)
 	copy(b, *p)
 	*p = b
@@ -210,4 +213,13 @@ func (p *Vector) Iter() <-chan interface{} {
 	c := make(chan interface{})
 	go p.iterate(c)
 	return c
+}
+
+
+// Do calls function f for each element of the vector, in order.
+// The behavior of Do is undefined if f changes *p.
+func (p *Vector) Do(f func(elem interface{})) {
+	for _, e := range *p {
+		f(e)
+	}
 }

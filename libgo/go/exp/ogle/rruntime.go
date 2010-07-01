@@ -141,13 +141,13 @@ type rt1G struct {
 }
 
 var rt1GStatus = runtimeGStatus{
-	Gidle: 0,
+	Gidle:     0,
 	Grunnable: 1,
-	Grunning: 2,
-	Gsyscall: 3,
-	Gwaiting: 4,
+	Grunning:  2,
+	Gsyscall:  3,
+	Gwaiting:  4,
 	Gmoribund: 5,
-	Gdead: 6,
+	Gdead:     6,
 }
 
 // runtimeIndexes stores the indexes of fields in the runtime
@@ -214,7 +214,7 @@ type runtimeValues struct {
 	String, Slice, Eface *remoteType
 	// Runtime type structures
 	Type, CommonType, UncommonType, StructField, StructType, PtrType,
-		ArrayType, SliceType *remoteType
+	ArrayType, SliceType *remoteType
 	// Runtime scheduler structures
 	Stktop, Gobuf, G *remoteType
 	// Addresses of *runtime.XType types.  These are the
@@ -222,12 +222,12 @@ type runtimeValues struct {
 	// reflection to fill these in from the remote symbol table,
 	// so the names must match the runtime names.
 	PBoolType,
-		PUint8Type, PUint16Type, PUint32Type, PUint64Type, PUintType, PUintptrType,
-		PInt8Type, PInt16Type, PInt32Type, PInt64Type, PIntType,
-		PFloat32Type, PFloat64Type, PFloatType,
-		PArrayType, PStringType, PStructType, PPtrType, PFuncType,
-		PInterfaceType, PSliceType, PMapType, PChanType,
-		PDotDotDotType, PUnsafePointerType proc.Word
+	PUint8Type, PUint16Type, PUint32Type, PUint64Type, PUintType, PUintptrType,
+	PInt8Type, PInt16Type, PInt32Type, PInt64Type, PIntType,
+	PFloat32Type, PFloat64Type, PFloatType,
+	PArrayType, PStringType, PStructType, PPtrType, PFuncType,
+	PInterfaceType, PSliceType, PMapType, PChanType,
+	PDotDotDotType, PUnsafePointerType proc.Word
 	// G status values
 	runtimeGStatus
 }

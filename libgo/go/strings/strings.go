@@ -13,24 +13,21 @@ import (
 // explode splits s into an array of UTF-8 sequences, one per Unicode character (still strings) up to a maximum of n (n <= 0 means no limit).
 // Invalid UTF-8 sequences become correct encodings of U+FFF8.
 func explode(s string, n int) []string {
-	if n <= 0 {
-		n = len(s)
+	l := utf8.RuneCountInString(s)
+	if n <= 0 || n > l {
+		n = l
 	}
 	a := make([]string, n)
 	var size, rune int
-	na := 0
-	for len(s) > 0 {
-		if na+1 >= n {
-			a[na] = s
-			na++
-			break
-		}
-		rune, size = utf8.DecodeRuneInString(s)
-		s = s[size:]
-		a[na] = string(rune)
-		na++
+	i, cur := 0, 0
+	for ; i+1 < n; i++ {
+		rune, size = utf8.DecodeRuneInString(s[cur:])
+		a[i] = string(rune)
+		cur += size
 	}
-	return a[0:na]
+	// add the rest
+	a[i] = s[cur:]
+	return a
 }
 
 // Count counts the number of non-overlapping instances of sep in s.
@@ -39,11 +36,21 @@ func Count(s, sep string) int {
 		return utf8.RuneCountInString(s) + 1
 	}
 	c := sep[0]
+	l := len(sep)
 	n := 0
-	for i := 0; i+len(sep) <= len(s); i++ {
-		if s[i] == c && (len(sep) == 1 || s[i:i+len(sep)] == sep) {
+	if l == 1 {
+		// special case worth making fast
+		for i := 0; i < len(s); i++ {
+			if s[i] == c {
+				n++
+			}
+		}
+		return n
+	}
+	for i := 0; i+l <= len(s); i++ {
+		if s[i] == c && s[i:i+l] == sep {
 			n++
-			i += len(sep) - 1
+			i += l - 1
 		}
 	}
 	return n
@@ -65,8 +72,9 @@ func Index(s, sep string) int {
 		}
 		return -1
 	}
+	// n > 1
 	for i := 0; i+n <= len(s); i++ {
-		if s[i] == c && (n == 1 || s[i:i+n] == sep) {
+		if s[i] == c && s[i:i+n] == sep {
 			return i
 		}
 	}
@@ -89,9 +97,36 @@ func LastIndex(s, sep string) int {
 		}
 		return -1
 	}
+	// n > 1
 	for i := len(s) - n; i >= 0; i-- {
-		if s[i] == c && (n == 1 || s[i:i+n] == sep) {
+		if s[i] == c && s[i:i+n] == sep {
 			return i
+		}
+	}
+	return -1
+}
+
+// IndexRune returns the index of the first instance of the Unicode code point
+// rune, or -1 if rune is not present in s.
+func IndexRune(s string, rune int) int {
+	for i, c := range s {
+		if c == rune {
+			return i
+		}
+	}
+	return -1
+}
+
+// IndexAny returns the index of the first instance of any Unicode code point
+// from chars in s, or -1 if no Unicode code point from chars is present in s.
+func IndexAny(s, chars string) int {
+	if len(chars) > 0 {
+		for i, c := range s {
+			for _, m := range chars {
+				if c == m {
+					return i
+				}
+			}
 		}
 	}
 	return -1
@@ -137,21 +172,30 @@ func SplitAfter(s, sep string, n int) []string {
 // Fields splits the string s around each instance of one or more consecutive white space
 // characters, returning an array of substrings of s or an empty list if s contains only white space.
 func Fields(s string) []string {
+	return FieldsFunc(s, unicode.IsSpace)
+}
+
+// FieldsFunc splits the string s at each run of Unicode code points c satifying f(c)
+// and returns an array of slices of s. If no code points in s satisfy f(c), an empty slice
+// is returned.
+func FieldsFunc(s string, f func(int) bool) []string {
+	// First count the fields.
 	n := 0
 	inField := false
 	for _, rune := range s {
 		wasInField := inField
-		inField = !unicode.IsSpace(rune)
+		inField = !f(rune)
 		if inField && !wasInField {
 			n++
 		}
 	}
 
+	// Now create them.
 	a := make([]string, n)
 	na := 0
-	fieldStart := -1
+	fieldStart := -1 // Set to -1 when looking for start of field.
 	for i, rune := range s {
-		if unicode.IsSpace(rune) {
+		if f(rune) {
 			if fieldStart >= 0 {
 				a[na] = s[fieldStart:i]
 				na++
@@ -161,11 +205,10 @@ func Fields(s string) []string {
 			fieldStart = i
 		}
 	}
-	if fieldStart != -1 {
+	if fieldStart != -1 { // Last field might end at EOF.
 		a[na] = s[fieldStart:]
-		na++
 	}
-	return a[0:na]
+	return a
 }
 
 // Join concatenates the elements of a to create a single string.   The separator string
@@ -232,9 +275,7 @@ func Map(mapping func(rune int) int, s string) string {
 				// Grow the buffer.
 				maxbytes = maxbytes*2 + utf8.UTFMax
 				nb := make([]byte, maxbytes)
-				for i, c := range b[0:nbytes] {
-					nb[i] = c
-				}
+				copy(nb, b[0:nbytes])
 				b = nb
 			}
 			nbytes += utf8.EncodeRune(rune, b[nbytes:maxbytes])
@@ -266,57 +307,155 @@ func ToLower(s string) string { return Map(unicode.ToLower, s) }
 // ToTitle returns a copy of the string s with all Unicode letters mapped to their title case.
 func ToTitle(s string) string { return Map(unicode.ToTitle, s) }
 
-// Trim returns a slice of the string s, with all leading and trailing white space
-// removed, as defined by Unicode.
-func TrimSpace(s string) string {
-	start, end := 0, len(s)
-	for start < end {
+// ToUpperSpecial returns a copy of the string s with all Unicode letters mapped to their
+// upper case, giving priority to the special casing rules.
+func ToUpperSpecial(_case unicode.SpecialCase, s string) string {
+	return Map(func(r int) int { return _case.ToUpper(r) }, s)
+}
+
+// ToLowerSpecial returns a copy of the string s with all Unicode letters mapped to their
+// lower case, giving priority to the special casing rules.
+func ToLowerSpecial(_case unicode.SpecialCase, s string) string {
+	return Map(func(r int) int { return _case.ToLower(r) }, s)
+}
+
+// ToTitleSpecial returns a copy of the string s with all Unicode letters mapped to their
+// title case, giving priority to the special casing rules.
+func ToTitleSpecial(_case unicode.SpecialCase, s string) string {
+	return Map(func(r int) int { return _case.ToTitle(r) }, s)
+}
+
+// TrimLeftFunc returns a slice of the string s with all leading
+// Unicode code points c satisfying f(c) removed.
+func TrimLeftFunc(s string, f func(r int) bool) string {
+	i := indexFunc(s, f, false)
+	if i == -1 {
+		return ""
+	}
+	return s[i:]
+}
+
+// TrimRightFunc returns a slice of the string s with all trailing
+// Unicode code points c satisfying f(c) removed.
+func TrimRightFunc(s string, f func(r int) bool) string {
+	i := lastIndexFunc(s, f, false)
+	if i >= 0 && s[i] >= utf8.RuneSelf {
+		_, wid := utf8.DecodeRuneInString(s[i:])
+		i += wid
+	} else {
+		i++
+	}
+	return s[0:i]
+}
+
+// TrimFunc returns a slice of the string s with all leading
+// and trailing Unicode code points c satisfying f(c) removed.
+func TrimFunc(s string, f func(r int) bool) string {
+	return TrimRightFunc(TrimLeftFunc(s, f), f)
+}
+
+// IndexFunc returns the index into s of the first Unicode
+// code point satisfying f(c), or -1 if none do.
+func IndexFunc(s string, f func(r int) bool) int {
+	return indexFunc(s, f, true)
+}
+
+// LastIndexFunc returns the index into s of the last
+// Unicode code point satisfying f(c), or -1 if none do.
+func LastIndexFunc(s string, f func(r int) bool) int {
+	return lastIndexFunc(s, f, true)
+}
+
+// indexFunc is the same as IndexFunc except that if
+// truth==false, the sense of the predicate function is
+// inverted. We could use IndexFunc directly, but this
+// way saves a closure allocation.
+func indexFunc(s string, f func(r int) bool, truth bool) int {
+	start := 0
+	for start < len(s) {
 		wid := 1
 		rune := int(s[start])
 		if rune >= utf8.RuneSelf {
-			rune, wid = utf8.DecodeRuneInString(s[start:end])
+			rune, wid = utf8.DecodeRuneInString(s[start:])
 		}
-		if !unicode.IsSpace(rune) {
-			break
+		if f(rune) == truth {
+			return start
 		}
 		start += wid
 	}
-	for start < end {
-		wid := 1
-		rune := int(s[end-1])
+	return -1
+}
+
+// lastIndexFunc is the same as LastIndexFunc except that if
+// truth==false, the sense of the predicate function is
+// inverted. We could use IndexFunc directly, but this
+// way saves a closure allocation.
+func lastIndexFunc(s string, f func(r int) bool, truth bool) int {
+	end := len(s)
+	for end > 0 {
+		start := end - 1
+		rune := int(s[start])
 		if rune >= utf8.RuneSelf {
-			// Back up carefully looking for beginning of rune. Mustn't pass start.
-			for wid = 2; start <= end-wid && !utf8.RuneStart(s[end-wid]); wid++ {
+			// Back up & look for beginning of rune. Mustn't pass start.
+			for start--; start >= 0; start-- {
+				if utf8.RuneStart(s[start]) {
+					break
+				}
 			}
-			if start > end-wid { // invalid UTF-8 sequence; stop processing
-				return s[start:end]
+			if start < 0 {
+				return -1
 			}
-			rune, wid = utf8.DecodeRuneInString(s[end-wid : end])
+			var wid int
+			rune, wid = utf8.DecodeRuneInString(s[start:end])
+
+			// If we've decoded fewer bytes than we expected,
+			// we've got some invalid UTF-8, so make sure we return
+			// the last possible index in s.
+			if start+wid < end && f(utf8.RuneError) == truth {
+				return end - 1
+			}
 		}
-		if !unicode.IsSpace(rune) {
-			break
+		if f(rune) == truth {
+			return start
 		}
-		end -= wid
+		end = start
 	}
-	return s[start:end]
+	return -1
 }
 
-// Bytes returns a new slice containing the bytes in s.
-func Bytes(s string) []byte {
-	b := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		b[i] = s[i]
-	}
-	return b
+func makeCutsetFunc(cutset string) func(rune int) bool {
+	return func(rune int) bool { return IndexRune(cutset, rune) != -1 }
 }
 
-// Runes returns a slice of runes (Unicode code points) equivalent to the string s.
-func Runes(s string) []int {
-	t := make([]int, utf8.RuneCountInString(s))
-	i := 0
-	for _, r := range s {
-		t[i] = r
-		i++
+// Trim returns a slice of the string s with all leading and
+// trailing Unicode code points contained in cutset removed.
+func Trim(s string, cutset string) string {
+	if s == "" || cutset == "" {
+		return s
 	}
-	return t
+	return TrimFunc(s, makeCutsetFunc(cutset))
+}
+
+// TrimLeft returns a slice of the string s with all leading
+// Unicode code points contained in cutset removed.
+func TrimLeft(s string, cutset string) string {
+	if s == "" || cutset == "" {
+		return s
+	}
+	return TrimLeftFunc(s, makeCutsetFunc(cutset))
+}
+
+// TrimRight returns a slice of the string s, with all trailing
+// Unicode code points contained in cutset removed.
+func TrimRight(s string, cutset string) string {
+	if s == "" || cutset == "" {
+		return s
+	}
+	return TrimRightFunc(s, makeCutsetFunc(cutset))
+}
+
+// TrimSpace returns a slice of the string s, with all leading
+// and trailing white space removed, as defined by Unicode.
+func TrimSpace(s string) string {
+	return TrimFunc(s, unicode.IsSpace)
 }

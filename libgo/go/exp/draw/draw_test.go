@@ -94,12 +94,72 @@ var drawTests = []drawTest{
 	drawTest{"genericSrc", fillBlue(255), vgradAlpha(192), Src, image.RGBAColor{0, 0, 102, 102}},
 }
 
+func makeGolden(dst image.Image, t drawTest) image.Image {
+	// Since golden is a newly allocated image, we don't have to check if the
+	// input source and mask images and the output golden image overlap.
+	golden := image.NewRGBA(dst.Width(), dst.Height())
+	for y := 0; y < golden.Height(); y++ {
+		my, sy := y, y
+		for x := 0; x < golden.Width(); x++ {
+			mx, sx := x, x
+			const M = 1<<16 - 1
+			var dr, dg, db, da uint32
+			if t.op == Over {
+				dr, dg, db, da = dst.At(x, y).RGBA()
+			}
+			sr, sg, sb, sa := t.src.At(sx, sy).RGBA()
+			ma := uint32(M)
+			if t.mask != nil {
+				_, _, _, ma = t.mask.At(mx, my).RGBA()
+			}
+			a := M - (sa * ma / M)
+			golden.Set(x, y, image.RGBA64Color{
+				uint16((dr*a + sr*ma) / M),
+				uint16((dg*a + sg*ma) / M),
+				uint16((db*a + sb*ma) / M),
+				uint16((da*a + sa*ma) / M),
+			})
+		}
+	}
+	return golden
+}
+
 func TestDraw(t *testing.T) {
+loop:
 	for _, test := range drawTests {
 		dst := hgradRed(255)
-		DrawMask(dst, Rect(0, 0, 16, 16), test.src, ZP, test.mask, ZP, test.op)
+		// Draw the (src, mask, op) onto a copy of dst using a slow but obviously correct implementation.
+		golden := makeGolden(dst, test)
+		// Draw the same combination onto the actual dst using the optimized DrawMask implementation.
+		DrawMask(dst, Rect(0, 0, dst.Width(), dst.Height()), test.src, ZP, test.mask, ZP, test.op)
+		// Check that the resultant pixel at (8, 8) matches what we expect
+		// (the expected value can be verified by hand).
 		if !eq(dst.At(8, 8), test.expected) {
-			t.Errorf("draw %s: %v versus %v", test.desc, dst.At(8, 8), test.expected)
+			t.Errorf("draw %s: at (8, 8) %v versus %v", test.desc, dst.At(8, 8), test.expected)
+			continue
 		}
+		// Check that the resultant dst image matches the golden output.
+		for y := 0; y < golden.Height(); y++ {
+			for x := 0; x < golden.Width(); x++ {
+				if !eq(dst.At(x, y), golden.At(x, y)) {
+					t.Errorf("draw %s: at (%d, %d), %v versus golden %v", test.desc, x, y, dst.At(x, y), golden.At(x, y))
+					continue loop
+				}
+			}
+		}
+	}
+}
+
+// TestIssue836 verifies http://code.google.com/p/go/issues/detail?id=836.
+func TestIssue836(t *testing.T) {
+	a := image.NewRGBA(1, 1)
+	b := image.NewRGBA(2, 2)
+	b.Set(0, 0, image.RGBAColor{0, 0, 0, 5})
+	b.Set(1, 0, image.RGBAColor{0, 0, 5, 5})
+	b.Set(0, 1, image.RGBAColor{0, 5, 0, 5})
+	b.Set(1, 1, image.RGBAColor{5, 0, 0, 5})
+	Draw(a, Rect(0, 0, 1, 1), b, Pt(1, 1))
+	if !eq(image.RGBAColor{5, 0, 0, 5}, a.At(0, 0)) {
+		t.Errorf("Issue 836: want %v got %v", image.RGBAColor{5, 0, 0, 5}, a.At(0, 0))
 	}
 }

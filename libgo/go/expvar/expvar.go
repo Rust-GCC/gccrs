@@ -5,13 +5,28 @@
 // The expvar package provides a standardized interface to public variables,
 // such as operation counters in servers. It exposes these variables via
 // HTTP at /debug/vars in JSON format.
+//
+// In addition to adding the HTTP handler, this package registers the
+// following variables:
+//
+//	cmdline   os.Args
+//	memstats  runtime.Memstats
+//
+// The package is sometimes only imported for the side effect of
+// registering its HTTP handler and the above variables.  To use it
+// this way, simply link this package into your program:
+//	import _ "expvar"
+//
 package expvar
 
 import (
 	"bytes"
 	"fmt"
 	"http"
+	"json"
 	"log"
+	"os"
+	"runtime"
 	"strconv"
 	"sync"
 )
@@ -72,10 +87,7 @@ func (v *Map) Init() *Map {
 func (v *Map) Get(key string) Var {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if av, ok := v.m[key]; ok {
-		return av
-	}
-	return nil
+	return v.m[key]
 }
 
 func (v *Map) Set(key string, av Var) {
@@ -128,6 +140,12 @@ type IntFunc func() int64
 
 func (v IntFunc) String() string { return strconv.Itoa64(v()) }
 
+// StringFunc wraps a func() string to create value that satisfies the Var interface.
+// The function will be called each time the Var is evaluated.
+type StringFunc func() string
+
+func (f StringFunc) String() string { return f() }
+
 
 // All published variables.
 var vars map[string]Var = make(map[string]Var)
@@ -147,10 +165,7 @@ func Publish(name string, v Var) {
 
 // Get retrieves a named exported variable.
 func Get(name string) Var {
-	if v, ok := vars[name]; ok {
-		return v
-	}
-	return nil
+	return vars[name]
 }
 
 // RemoveAll removes all exported variables.
@@ -204,9 +219,23 @@ func expvarHandler(c *http.Conn, req *http.Request) {
 			fmt.Fprintf(c, ",\n")
 		}
 		first = false
-		fmt.Fprintf(c, "  %q: %s", name, value)
+		fmt.Fprintf(c, "%q: %s", name, value)
 	}
 	fmt.Fprintf(c, "\n}\n")
 }
 
-func init() { http.Handle("/debug/vars", http.HandlerFunc(expvarHandler)) }
+func memstats() string {
+	b, _ := json.MarshalIndent(&runtime.MemStats, "", "\t")
+	return string(b)
+}
+
+func cmdline() string {
+	b, _ := json.Marshal(os.Args)
+	return string(b)
+}
+
+func init() {
+	http.Handle("/debug/vars", http.HandlerFunc(expvarHandler))
+	Publish("cmdline", StringFunc(cmdline))
+	Publish("memstats", StringFunc(memstats))
+}

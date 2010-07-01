@@ -75,7 +75,6 @@ type Comment struct {
 //
 type CommentGroup struct {
 	List []*Comment
-	Next *CommentGroup // next comment group in source order
 }
 
 
@@ -90,7 +89,7 @@ type Field struct {
 	Doc     *CommentGroup // associated documentation; or nil
 	Names   []*Ident      // field/method/parameter names; or nil if anonymous field
 	Type    Expr          // field/method/parameter type
-	Tag     []*BasicLit   // field tag; or nil
+	Tag     *BasicLit     // field tag; or nil
 	Comment *CommentGroup // line comments; or nil
 }
 
@@ -100,6 +99,30 @@ func (f *Field) Pos() token.Position {
 		return f.Names[0].Pos()
 	}
 	return f.Type.Pos()
+}
+
+
+// A FieldList represents a list of Fields, enclosed by parentheses or braces.
+type FieldList struct {
+	Opening token.Position // position of opening parenthesis/brace
+	List    []*Field       // field list
+	Closing token.Position // position of closing parenthesis/brace
+}
+
+
+// NumFields returns the number of (named and anonymous fields) in a FieldList.
+func (f *FieldList) NumFields() int {
+	n := 0
+	if f != nil {
+		for _, g := range f.List {
+			m := len(g.Names)
+			if m == 0 {
+				m = 1 // anonymous field
+			}
+			n += m
+		}
+	}
+	return n
 }
 
 
@@ -132,19 +155,8 @@ type (
 	// A BasicLit node represents a literal of basic type.
 	BasicLit struct {
 		token.Position             // literal position
-		Kind           token.Token //  token.INT, token.FLOAT, token.CHAR, or token.STRING
+		Kind           token.Token // token.INT, token.FLOAT, token.IMAG, token.CHAR, or token.STRING
 		Value          []byte      // literal string; e.g. 42, 0x7f, 3.14, 1e-9, 'a', '\x7f', "foo" or `\m\n\o`
-	}
-
-	// A StringList node represents a sequence of adjacent string literals.
-	// A single string literal (common case) is represented by a BasicLit
-	// node; StringList nodes are used only if there are two or more string
-	// literals in a sequence.
-	// TODO(gri) Deprecated. StringLists are only created by exp/parser;
-	//           Remove when exp/parser is removed.
-	//
-	StringList struct {
-		Strings []*BasicLit // list of strings, len(Strings) > 1
 	}
 
 	// A FuncLit node represents a function literal.
@@ -265,29 +277,25 @@ type (
 
 	// A StructType node represents a struct type.
 	StructType struct {
-		token.Position                // position of "struct" keyword
-		Lbrace         token.Position // position of "{"
-		Fields         []*Field       // list of field declarations
-		Rbrace         token.Position // position of "}"
-		Incomplete     bool           // true if (source) fields are missing in the Fields list
+		token.Position            // position of "struct" keyword
+		Fields         *FieldList // list of field declarations
+		Incomplete     bool       // true if (source) fields are missing in the Fields list
 	}
 
 	// Pointer types are represented via StarExpr nodes.
 
 	// A FuncType node represents a function type.
 	FuncType struct {
-		token.Position          // position of "func" keyword
-		Params         []*Field // (incoming) parameters
-		Results        []*Field // (outgoing) results
+		token.Position            // position of "func" keyword
+		Params         *FieldList // (incoming) parameters
+		Results        *FieldList // (outgoing) results
 	}
 
 	// An InterfaceType node represents an interface type.
 	InterfaceType struct {
-		token.Position                // position of "interface" keyword
-		Lbrace         token.Position // position of "{"
-		Methods        []*Field       // list of methods
-		Rbrace         token.Position // position of "}"
-		Incomplete     bool           // true if (source) methods are missing in the Methods list
+		token.Position            // position of "interface" keyword
+		Methods        *FieldList // list of methods
+		Incomplete     bool       // true if (source) methods are missing in the Methods list
 	}
 
 	// A MapType node represents a map type.
@@ -309,7 +317,6 @@ type (
 // Pos() implementations for expression/type where the position
 // corresponds to the position of a sub-node.
 //
-func (x *StringList) Pos() token.Position     { return x.Strings[0].Pos() }
 func (x *FuncLit) Pos() token.Position        { return x.Type.Pos() }
 func (x *CompositeLit) Pos() token.Position   { return x.Type.Pos() }
 func (x *SelectorExpr) Pos() token.Position   { return x.X.Pos() }
@@ -327,7 +334,6 @@ func (x *BadExpr) exprNode()        {}
 func (x *Ident) exprNode()          {}
 func (x *Ellipsis) exprNode()       {}
 func (x *BasicLit) exprNode()       {}
-func (x *StringList) exprNode()     {}
 func (x *FuncLit) exprNode()        {}
 func (x *CompositeLit) exprNode()   {}
 func (x *ParenExpr) exprNode()      {}
@@ -351,6 +357,8 @@ func (x *ChanType) exprNode()      {}
 
 // ----------------------------------------------------------------------------
 // Convenience functions for Idents
+
+var noPos token.Position
 
 // NewIdent creates a new Ident without position and minimal object
 // information. Useful for ASTs generated by code other than the Go
@@ -604,7 +612,7 @@ type (
 	ImportSpec struct {
 		Doc     *CommentGroup // associated documentation; or nil
 		Name    *Ident        // local package name (including "."); or nil
-		Path    []*BasicLit   // package path
+		Path    *BasicLit     // package path
 		Comment *CommentGroup // line comments; or nil
 	}
 
@@ -634,7 +642,7 @@ func (s *ImportSpec) Pos() token.Position {
 	if s.Name != nil {
 		return s.Name.Pos()
 	}
-	return s.Path[0].Pos()
+	return s.Path.Pos()
 }
 
 func (s *ValueSpec) Pos() token.Position { return s.Names[0].Pos() }
@@ -683,7 +691,7 @@ type (
 	// A FuncDecl node represents a function declaration.
 	FuncDecl struct {
 		Doc  *CommentGroup // associated documentation; or nil
-		Recv *Field        // receiver (methods); or nil (functions)
+		Recv *FieldList    // receiver (methods); or nil (functions)
 		Name *Ident        // function/method name
 		Type *FuncType     // position of Func keyword, parameters and results
 		Body *BlockStmt    // function body; or nil (forward declaration)
@@ -708,12 +716,16 @@ func (d *FuncDecl) declNode() {}
 
 // A File node represents a Go source file.
 //
+// The Comments list contains all comments in the source file in order of
+// appearance, including the comments that are pointed to from other nodes
+// via Doc and Comment fields.
+//
 type File struct {
-	Doc            *CommentGroup // associated documentation; or nil
-	token.Position               // position of "package" keyword
-	Name           *Ident        // package name
-	Decls          []Decl        // top-level declarations
-	Comments       *CommentGroup // list of all comments in the source file
+	Doc            *CommentGroup   // associated documentation; or nil
+	token.Position                 // position of "package" keyword
+	Name           *Ident          // package name
+	Decls          []Decl          // top-level declarations
+	Comments       []*CommentGroup // list of all comments in the source file
 }
 
 

@@ -9,7 +9,7 @@ package eval
 
 import (
 	"go/ast"
-	parser "exp/parser"
+	"go/parser"
 	"go/scanner"
 	"go/token"
 	"os"
@@ -51,16 +51,16 @@ func (w *World) CompileStmtList(stmts []ast.Stmt) (Code, os.Error) {
 	cc := &compiler{errors, 0, 0}
 	cb := newCodeBuf()
 	fc := &funcCompiler{
-		compiler: cc,
-		fnType: nil,
+		compiler:     cc,
+		fnType:       nil,
 		outVarsNamed: false,
-		codeBuf: cb,
-		flow: newFlowBuf(cb),
-		labels: make(map[string]*label),
+		codeBuf:      cb,
+		flow:         newFlowBuf(cb),
+		labels:       make(map[string]*label),
 	}
 	bc := &blockCompiler{
 		funcCompiler: fc,
-		block: w.scope.block,
+		block:        w.scope.block,
 	}
 	nerr := cc.numError()
 	for _, stmt := range stmts {
@@ -136,13 +136,13 @@ func (e *exprCode) Run() (Value, os.Error) {
 }
 
 func (w *World) Compile(text string) (Code, os.Error) {
-	stmts, err := parser.ParseStmtList("input", text)
+	stmts, err := parser.ParseStmtList("input", text, nil)
 	if err == nil {
 		return w.CompileStmtList(stmts)
 	}
 
 	// Otherwise try as DeclList.
-	decls, err1 := parser.ParseDeclList("input", text)
+	decls, err1 := parser.ParseDeclList("input", text, nil)
 	if err1 == nil {
 		return w.CompileDeclList(decls)
 	}

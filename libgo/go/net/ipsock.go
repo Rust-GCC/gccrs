@@ -46,9 +46,10 @@ type sockaddr interface {
 	family() int
 }
 
-func internetSocket(net string, laddr, raddr sockaddr, proto int, mode string, toAddr func(syscall.Sockaddr) Addr) (fd *netFD, err os.Error) {
+func internetSocket(net string, laddr, raddr sockaddr, socktype, proto int, mode string, toAddr func(syscall.Sockaddr) Addr) (fd *netFD, err os.Error) {
 	// Figure out IP version.
 	// If network has a suffix like "tcp4", obey it.
+	var oserr os.Error
 	family := syscall.AF_INET6
 	switch net[len(net)-1] {
 	case '4':
@@ -67,17 +68,17 @@ func internetSocket(net string, laddr, raddr sockaddr, proto int, mode string, t
 
 	var la, ra syscall.Sockaddr
 	if laddr != nil {
-		if la, err = laddr.sockaddr(family); err != nil {
+		if la, oserr = laddr.sockaddr(family); err != nil {
 			goto Error
 		}
 	}
 	if raddr != nil {
-		if ra, err = raddr.sockaddr(family); err != nil {
+		if ra, oserr = raddr.sockaddr(family); err != nil {
 			goto Error
 		}
 	}
-	fd, err = socket(net, family, proto, 0, la, ra, toAddr)
-	if err != nil {
+	fd, oserr = socket(net, family, socktype, proto, la, ra, toAddr)
+	if oserr != nil {
 		goto Error
 	}
 	return fd, nil
@@ -87,7 +88,7 @@ Error:
 	if mode == "listen" {
 		addr = laddr
 	}
-	return nil, &OpError{mode, net, addr, err}
+	return nil, &OpError{mode, net, addr, oserr}
 }
 
 func getip(fd int, remote bool) (ip []byte, port int, ok bool) {
@@ -102,12 +103,19 @@ func getip(fd int, remote bool) (ip []byte, port int, ok bool) {
 	}
 	switch sa := sa.(type) {
 	case *syscall.SockaddrInet4:
-		return &sa.Addr, sa.Port, true
+		return sa.Addr[0:], sa.Port, true
 	case *syscall.SockaddrInet6:
-		return &sa.Addr, sa.Port, true
+		return sa.Addr[0:], sa.Port, true
 	}
 	return
 }
+
+type InvalidAddrError string
+
+func (e InvalidAddrError) String() string  { return string(e) }
+func (e InvalidAddrError) Timeout() bool   { return false }
+func (e InvalidAddrError) Temporary() bool { return false }
+
 
 func ipToSockaddr(family int, ip IP, port int) (syscall.Sockaddr, os.Error) {
 	switch family {
@@ -116,7 +124,7 @@ func ipToSockaddr(family int, ip IP, port int) (syscall.Sockaddr, os.Error) {
 			ip = IPv4zero
 		}
 		if ip = ip.To4(); ip == nil {
-			return nil, os.EINVAL
+			return nil, InvalidAddrError("non-IPv4 address")
 		}
 		s := new(syscall.SockaddrInet4)
 		for i := 0; i < IPv4len; i++ {
@@ -135,7 +143,7 @@ func ipToSockaddr(family int, ip IP, port int) (syscall.Sockaddr, os.Error) {
 			ip = IPzero
 		}
 		if ip = ip.To16(); ip == nil {
-			return nil, os.EINVAL
+			return nil, InvalidAddrError("non-IPv6 address")
 		}
 		s := new(syscall.SockaddrInet6)
 		for i := 0; i < IPv6len; i++ {
@@ -144,7 +152,7 @@ func ipToSockaddr(family int, ip IP, port int) (syscall.Sockaddr, os.Error) {
 		s.Port = port
 		return s, nil
 	}
-	return nil, os.EINVAL
+	return nil, InvalidAddrError("unexpected socket family")
 }
 
 // Split "host:port" into "host" and "port".

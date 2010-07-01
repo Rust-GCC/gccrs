@@ -157,6 +157,8 @@ struct FixAlloc
 	MLink *list;
 	byte *chunk;
 	uint32 nchunk;
+	uintptr inuse;	// in-use bytes now
+	uintptr sys;	// bytes obtained from system
 };
 
 void	FixAlloc_Init(FixAlloc *f, uintptr size, void *(*alloc)(uintptr), void (*first)(void*, byte*), void *arg);
@@ -168,18 +170,41 @@ void	FixAlloc_Free(FixAlloc *f, void *p);
 // Shared with Go: if you edit this structure, also edit extern.go.
 struct MStats
 {
-	uint64	alloc;
-	uint64	total_alloc;
-	uint64	sys;
-	uint64	stacks;
-	uint64	inuse_pages;	// protected by mheap.Lock
-	uint64	next_gc;	// protected by mheap.Lock
-	uint64	nlookup;	// unprotected (approximate)
-	uint64	nmalloc;	// unprotected (approximate)
+	// General statistics.  No locking; approximate.
+	uint64	alloc;		// bytes allocated and still in use
+	uint64	total_alloc;	// bytes allocated (even if freed)
+	uint64	sys;		// bytes obtained from system (should be sum of xxx_sys below)
+	uint64	nlookup;	// number of pointer lookups
+	uint64	nmalloc;	// number of mallocs
+	
+	// Statistics about malloc heap.
+	// protected by mheap.Lock
+	uint64	heap_alloc;	// bytes allocated and still in use
+	uint64	heap_sys;	// bytes obtained from system
+	uint64	heap_idle;	// bytes in idle spans
+	uint64	heap_inuse;	// bytes in non-idle spans
+
+	// Statistics about allocation of low-level fixed-size structures.
+	// Protected by FixAlloc locks.
+	uint64	stacks_inuse;	// bootstrap stacks
+	uint64	stacks_sys;
+	uint64	mspan_inuse;	// MSpan structures
+	uint64	mspan_sys;
+	uint64	mcache_inuse;	// MCache structures
+	uint64	mcache_sys;
+	uint64	heapmap_sys;	// heap map
+	uint64	buckhash_sys;	// profiling bucket hash table
+	
+	// Statistics about garbage collector.
+	// Protected by stopping the world during GC.
+	uint64	next_gc;	// next GC (in heap_alloc time)
 	uint64	pause_ns;
 	uint32	numgc;
 	bool	enablegc;
 	bool	debuggc;
+	
+	// Statistics about allocation size classes.
+	// No locking; approximate.
 	struct {
 		uint32 size;
 		uint64 nmalloc;
@@ -225,11 +250,13 @@ struct MCache
 {
 	MCacheList list[NumSizeClasses];
 	uint64 size;
+	int64 local_alloc;	// bytes allocated (or freed) since last lock of heap
+	int32 next_sample;	// trigger heap sample after allocating this many bytes
 };
 
 void*	MCache_Alloc(MCache *c, int32 sizeclass, uintptr size, int32 zeroed);
 void	MCache_Free(MCache *c, void *p, int32 sizeclass, uintptr size);
-
+void	MCache_ReleaseAll(MCache *c);
 
 // An MSpan is a run of pages.
 enum
@@ -297,6 +324,10 @@ struct MHeap
 	// range of addresses we might see in the heap
 	byte *min;
 	byte *max;
+	
+	// range of addresses we might see in a Native Client closure
+	byte *closure_min;
+	byte *closure_max;
 
 	// central free lists for small size classes.
 	// the union makes sure that the MCentrals are
@@ -313,8 +344,8 @@ struct MHeap
 extern MHeap mheap;
 
 void	MHeap_Init(MHeap *h, void *(*allocator)(uintptr));
-MSpan*	MHeap_Alloc(MHeap *h, uintptr npage, int32 sizeclass);
-void	MHeap_Free(MHeap *h, MSpan *s);
+MSpan*	MHeap_Alloc(MHeap *h, uintptr npage, int32 sizeclass, int32 acct);
+void	MHeap_Free(MHeap *h, MSpan *s, int32 acct);
 MSpan*	MHeap_Lookup(MHeap *h, PageID p);
 MSpan*	MHeap_LookupMaybe(MHeap *h, PageID p);
 void	MGetSizeClassInfo(int32 sizeclass, int32 *size, int32 *npages, int32 *nobj);
@@ -327,8 +358,6 @@ void*	SysAlloc(uintptr);
 void	SysUnused(void*, uintptr);
 void	SysFree(void*, uintptr);
 
-void*	getfinalizer(void*, bool, int32*);
-
 enum
 {
 	RefcountOverhead = 4,	// one uint32 per object
@@ -337,7 +366,32 @@ enum
 	RefStack,		// stack segment - don't free and don't scan for pointers
 	RefNone,		// no references
 	RefSome,		// some references
-	RefFinalize,	// ready to be finalized
 	RefNoPointers = 0x80000000U,	// flag - no pointers here
 	RefHasFinalizer = 0x40000000U,	// flag - has finalizer
+	RefProfiled = 0x20000000U,	// flag - is in profiling table
+	RefNoProfiling = 0x10000000U,	// flag - must not profile
+	RefFlags = 0xFFFF0000U,
 };
+
+void	MProf_Malloc(void*, uintptr);
+void	MProf_Free(void*, uintptr);
+
+// Malloc profiling settings.
+// Must match definition in extern.go.
+enum {
+	MProf_None = 0,
+	MProf_Sample = 1,
+	MProf_All = 2,
+};
+extern int32 malloc_profile;
+
+typedef struct Finalizer Finalizer;
+struct Finalizer
+{
+	Finalizer *next;	// for use by caller of getfinalizer
+	void (*fn)(void*);
+	void *arg;
+	int32 nret;
+};
+
+Finalizer*	getfinalizer(void*, bool);

@@ -23,13 +23,31 @@ typedef struct __go_func_type FuncType;
 MHeap mheap;
 MStats mstats;
 
+extern volatile int32 MemProfileRate
+  __asm__ ("libgo_runtime.runtime.MemProfileRate");
+
+// Same algorithm from chan.c, but a different
+// instance of the static uint32 x.
+// Not protected by a lock - let the threads use
+// the same random number if they like.
+static uint32
+fastrand1(void)
+{
+	static uint32 x = 0x49f6428aUL;
+
+	x += x;
+	if(x & 0x80000000L)
+		x ^= 0x88888eefUL;
+	return x;
+}
+
 // Allocate an object of at least size bytes.
 // Small objects are allocated from the per-thread cache's free lists.
 // Large objects (> 32 kB) are allocated straight from the heap.
 void*
 mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 {
-	int32 sizeclass;
+	int32 sizeclass, rate;
 	MCache *c;
 	uintptr npages;
 	MSpan *s;
@@ -67,20 +85,38 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 		npages = size >> PageShift;
 		if((size & PageMask) != 0)
 			npages++;
-		s = MHeap_Alloc(&mheap, npages, 0);
+		s = MHeap_Alloc(&mheap, npages, 0, 1);
 		if(s == nil)
 			throw("out of memory");
-		mstats.alloc += npages<<PageShift;
-		mstats.total_alloc += npages<<PageShift;
+		size = npages<<PageShift;
+		mstats.alloc += size;
+		mstats.total_alloc += size;
 		v = (void*)(s->start << PageShift);
 
 		// setup for mark sweep
 		s->gcref0 = RefNone | refflag;
+		ref = &s->gcref0;
 	}
 
 	m->mallocing = 0;
 
-	if(dogc && mstats.inuse_pages > mstats.next_gc)
+	if(!(refflag & RefNoProfiling) && (rate = MemProfileRate) > 0) {
+		if(size >= (uint32) rate)
+			goto profile;
+		if((uint32) m->mcache->next_sample > size)
+			m->mcache->next_sample -= size;
+		else {
+			// pick next profile time
+			if(rate > 0x3fffffff)	// make 2*rate not overflow
+				rate = 0x3fffffff;
+			m->mcache->next_sample = fastrand1() % (2*rate);
+		profile:
+			*ref |= RefProfiled;
+			MProf_Malloc(v, size);
+		}
+	}
+
+	if(dogc && mstats.heap_alloc >= mstats.next_gc)
 		gc(0);
 	return v;
 }
@@ -88,7 +124,7 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 void*
 __go_alloc(uintptr size)
 {
-	return mallocgc(size, 0, 0, 1);
+	return mallocgc(size, 0, 1, 1);
 }
 
 // Free the object whose base pointer is v.
@@ -98,7 +134,7 @@ __go_free(void *v)
 	int32 sizeclass, size;
 	MSpan *s;
 	MCache *c;
-	uint32 *ref;
+	uint32 prof, *ref;
 
 	if(v == nil)
 		return;
@@ -111,21 +147,26 @@ __go_free(void *v)
 		printf("free %p: not an allocated block\n", v);
 		throw("free mlookup");
 	}
+	prof = *ref & RefProfiled;
 	*ref = RefFree;
 
 	// Find size class for v.
 	sizeclass = s->sizeclass;
 	if(sizeclass == 0) {
 		// Large object.
+		if(prof)
+			MProf_Free(v, s->npages<<PageShift);
 		mstats.alloc -= s->npages<<PageShift;
 		runtime_memclr(v, s->npages<<PageShift);
-		MHeap_Free(&mheap, s);
+		MHeap_Free(&mheap, s, 1);
 	} else {
 		// Small object.
 		c = m->mcache;
 		size = class_to_size[sizeclass];
 		if(size > (int32)sizeof(uintptr))
 			((uintptr*)v)[1] = 1;	// mark as "needs to be zeroed"
+		if(prof)
+			MProf_Free(v, size);
 		mstats.alloc -= size;
 		mstats.by_size[sizeclass].nfree++;
 		MCache_Free(c, v, sizeclass, size);
@@ -200,7 +241,12 @@ mlookup(void *v, byte **base, uintptr *size, MSpan **sp, uint32 **ref)
 MCache*
 allocmcache(void)
 {
-	return FixAlloc_Alloc(&mheap.cachealloc);
+	MCache *c;
+
+	c = FixAlloc_Alloc(&mheap.cachealloc);
+	mstats.mcache_inuse = mheap.cachealloc.inuse;
+	mstats.mcache_sys = mheap.cachealloc.sys;
+	return c;
 }
 
 void
@@ -217,7 +263,7 @@ mallocinit(void)
 // Runtime stubs.
 
 void*
-mal(uint32 n)
+mal(uintptr n)
 {
 	return mallocgc(n, 0, 1, 1);
 }
@@ -249,10 +295,12 @@ stackalloc(uint32 n)
 			throw("stackalloc");
 		}
 		v = FixAlloc_Alloc(&stacks);
+		mstats.stacks_inuse = stacks.inuse;
+		mstats.stacks_sys = stacks.sys;
 		unlock(&stacks);
 		return v;
 	}
-	v = mallocgc(n, 0, 0, 0);
+	v = mallocgc(n, RefNoProfiling, 0, 0);
 	if(!mlookup(v, nil, nil, nil, &ref))
 		throw("stackalloc mlookup");
 	*ref = RefStack;
@@ -265,6 +313,8 @@ stackfree(void *v)
 	if(m->mallocing || m->gcing) {
 		lock(&stacks);
 		FixAlloc_Free(&stacks, v);
+		mstats.stacks_inuse = stacks.inuse;
+		mstats.stacks_sys = stacks.sys;
 		unlock(&stacks);
 		return;
 	}
@@ -326,7 +376,7 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 		}
 		nret = (nret + sizeof(void*)-1) & ~(sizeof(void*)-1);
 
-		if(getfinalizer(obj->__object, 0, nil)) {
+		if(getfinalizer(obj->__object, 0)) {
 			printf("runtime.SetFinalizer: finalizer already set");
 			goto throw;
 		}

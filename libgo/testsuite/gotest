@@ -13,8 +13,13 @@ GL=${GL:-${GC-gccgo}}
 GOLIBS=${GOLIBS:=-lgotesting}
 export GC GL GOLIBS
 
+# srcdir is where the source files are found.  basedir is where the
+# source file paths are relative to.
+# gofiles are the test files.  pkgfiles are the source files.
 srcdir=.
+basedir=.
 gofiles=""
+pkgfiles=""
 loop=true
 keep=false
 prefix=
@@ -29,6 +34,15 @@ while $loop; do
 		srcdir=`echo $1 | sed -e 's/^--srcdir=//'`
 		shift
 		;;
+        x--basedir)
+		basedir=$2
+		shift
+		shift
+		;;
+	x--basedir=*)
+		basedir=`echo $1 | sed -e 's/^--basedir=//'`
+		shift
+		;;
 	x--prefix)
 		prefix=$2
 		shift
@@ -41,6 +55,15 @@ while $loop; do
 	x--keep)
 		keep=true
                 shift
+		;;
+	x--pkgfiles)
+		pkgfiles=$2
+		shift
+		shift
+		;;
+	x--pkgfiles=*)
+		pkgfiles=`echo $1 | sed -e 's/^--pkgfiles=//'`
+		shift
 		;;
 	x-*)
 		loop=false
@@ -58,12 +81,6 @@ done
 DIR=gotest$$
 rm -rf $DIR
 mkdir $DIR
-
-if test -n "$GOTEST_EXTRAFILES"; then
-  for f in "$GOTEST_EXTRAFILES"; do
-    cp $f $DIR/
-  done
-fi
 
 cd $DIR
 
@@ -84,15 +101,82 @@ esac
 SRCDIR=$srcdir
 export SRCDIR
 
+case "$basedir" in
+	/*)
+		;;
+	*)
+		basedir="../$basedir"
+                ;;
+esac
+
 # Link all the files/directories in srcdir into our working directory,
 # so that the tests do not have to refer to srcdir to find test data.
 ln -s $srcdir/* .
 
 # Copy the .go files because io/utils_test.go expects a regular file.
-for f in `cd $srcdir; ls *.go`; do
-  rm -f $f;
-  cp $srcdir/$f .
-done
+case "x$gofiles" in
+x)
+	case "x$pkgfiles" in
+	x)
+		for f in `cd $srcdir; ls *.go`; do
+		    rm -f $f;
+		    cp $srcdir/$f .
+		done
+		;;
+	*)
+		for f in $pkgfiles; do
+		    if test -f $basedir/$f; then
+			b=`basename $f`
+			rm -f $b
+			cp $basedir/$f $b
+		    elif test -f ../$f; then
+			b=`basename $f`
+			rm -f $b
+			cp ../$f $b
+		    else
+			echo "file $f not found" 1>&2
+			exit 1
+		    fi
+		done
+		for f in `cd $srcdir; ls *_test.go`; do
+		    rm -f $f
+		    cp $srcdir/$f .
+		done
+		;;
+	esac
+	;;
+*)
+	for f in $gofiles; do
+	    b=`basename $f`
+	    rm -f $b
+	    cp $basedir/$f $b
+	done
+	case "x$pkgfiles" in
+	x)
+		for f in `cd $srcdir; ls *.go | grep -v *_test.go`; do
+		    rm -f $f
+		    cp $srcdir/$f .
+		done
+		;;
+	*)
+		for f in $pkgfiles; do
+		    if test -f $basedir/$f; then
+			b=`basename $f`
+			rm -f $b
+			cp $basedir/$f $b
+		    elif test -f ../$f; then
+			b=`basename $f`
+			rm -f $b
+			cp ../$f $b
+		    else
+			echo "file $f not found" 1>&2
+			exit 1
+		    fi
+		done
+		;;
+	esac
+	;;
+esac
 
 # Some tests expect the _obj directory created by the gc Makefiles.
 mkdir _obj
@@ -102,7 +186,7 @@ mkdir _test
 
 case "x$gofiles" in
 x)
-	gofiles=$(echo -n $(ls *_test.go *_test.pb.go 2>/dev/null))
+	gofiles=$(echo -n $(ls *_test.go 2>/dev/null))
 esac
 
 case "x$gofiles" in
@@ -119,7 +203,23 @@ GC="$GC -g -c -I ."
 sed -n 's/^\/\/ gotest: //p' $gofiles | sh
 GC="$holdGC"
 
-pkgfiles=$(echo -n $(ls *.go | grep -v _test.go | grep -v test.pb.go 2>/dev/null))
+case "x$pkgfiles" in
+x)
+	pkgbasefiles=$(echo -n $(ls *.go | grep -v _test.go 2>/dev/null))
+	;;
+*)
+	for f in $pkgfiles; do
+	    pkgbasefiles="$pkgbasefiles `basename $f`"
+	done
+	;;
+esac
+
+case "x$pkgfiles" in
+x)
+	echo 'no source files found' 1>&2
+	exit 1
+	;;
+esac
 
 # Split $gofiles into external gofiles (those in *_test packages)
 # and internal ones (those in the main package).
@@ -143,7 +243,7 @@ if test -n "$prefix"; then
 	prefixarg="-fgo-prefix=$prefix"
 fi
 
-$GC -g $prefixarg -c -I . -o _gotest_.o $gofiles $pkgfiles
+$GC -g $prefixarg -c -I . -o _gotest_.o $gofiles $pkgbasefiles
 if $havex; then
 	mkdir -p `dirname $package`
 	cp _gotest_.o `dirname $package`/lib`basename $package`.a

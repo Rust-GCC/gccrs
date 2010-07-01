@@ -16,7 +16,7 @@ func runSyslog(c net.PacketConn, done chan<- string) {
 	var buf [4096]byte
 	var rcvd string = ""
 	for {
-		n, _, err := c.ReadFrom(&buf)
+		n, _, err := c.ReadFrom(buf[0:])
 		if err != nil || n == 0 {
 			break
 		}
@@ -31,7 +31,7 @@ func startServer(done chan<- string) {
 		log.Exitf("net.ListenPacket failed udp :0 %v", e)
 	}
 	serverAddr = c.LocalAddr().String()
-	c.SetReadTimeout(10e6) // 10ms
+	c.SetReadTimeout(100e6) // 100ms
 	go runSyslog(c, done)
 }
 

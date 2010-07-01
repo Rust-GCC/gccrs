@@ -5,14 +5,14 @@
 package eval
 
 import (
-	"bignum"
+	"exp/bignum"
 	"testing"
 )
 
 var undefined = "undefined"
 var typeAsExpr = "type .* used as expression"
 var badCharLit = "character literal"
-var illegalEscape = "illegal char escape"
+var unknownEscape = "unknown escape sequence"
 var opTypes = "illegal (operand|argument) type|cannot index into"
 var badAddrOf = "cannot take the address"
 var constantTruncated = "constant [^ ]* truncated"
@@ -37,7 +37,7 @@ var exprTests = []test{
 	// Produces two parse errors
 	//CErr("'''", ""),
 	CErr("'\n'", badCharLit),
-	CErr("'\\z'", illegalEscape),
+	CErr("'\\z'", unknownEscape),
 	CErr("'ab'", badCharLit),
 
 	Val("1.0", bignum.Rat(1, 1)),
@@ -48,11 +48,8 @@ var exprTests = []test{
 	Val("\"abc\"", "abc"),
 	Val("\"\"", ""),
 	Val("\"\\n\\\"\"", "\n\""),
-	CErr("\"\\z\"", illegalEscape),
+	CErr("\"\\z\"", unknownEscape),
 	CErr("\"abc", "string not terminated"),
-
-	Val("\"abc\" \"def\"", "abcdef"),
-	CErr("\"abc\" \"\\z\"", illegalEscape),
 
 	Val("(i)", 1),
 
@@ -88,6 +85,15 @@ var exprTests = []test{
 	RErr("s[-i]", "negative index"),
 	RErr("s[3]", "index 3 exceeds"),
 
+	Val("ai[0:2]", vslice{varray{1, 2}, 2, 2}),
+	Val("ai[0:1]", vslice{varray{1, 2}, 1, 2}),
+	Val("ai[0:]", vslice{varray{1, 2}, 2, 2}),
+	Val("ai[i:]", vslice{varray{2}, 1, 1}),
+
+	Val("sli[0:2]", vslice{varray{1, 2, 3}, 2, 3}),
+	Val("sli[0:i]", vslice{varray{1, 2, 3}, 1, 3}),
+	Val("sli[1:]", vslice{varray{2, 3}, 1, 2}),
+
 	CErr("1(2)", "cannot call"),
 	CErr("fn(1,2)", "too many"),
 	CErr("fn()", "not enough"),
@@ -115,8 +121,14 @@ var exprTests = []test{
 	Val("len(s)", 3),
 	Val("len(ai)", 2),
 	Val("len(&ai)", 2),
+	Val("len(ai[0:])", 2),
+	Val("len(ai[1:])", 1),
+	Val("len(ai[2:])", 0),
 	Val("len(aai)", 2),
 	Val("len(sli)", 2),
+	Val("len(sli[0:])", 2),
+	Val("len(sli[1:])", 1),
+	Val("len(sli[2:])", 0),
 	// TODO(austin) Test len of map
 	CErr("len(0)", opTypes),
 	CErr("len(i)", opTypes),
@@ -130,6 +142,7 @@ var exprTests = []test{
 
 	Val("+1", bignum.Int(+1)),
 	Val("+1.0", bignum.Rat(1, 1)),
+	Val("01.5", bignum.Rat(15, 10)),
 	CErr("+\"x\"", opTypes),
 
 	Val("-42", bignum.Int(-42)),

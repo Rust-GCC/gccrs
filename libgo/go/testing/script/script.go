@@ -129,8 +129,12 @@ func (s Send) getSend() sendAction { return s }
 
 func (s Send) getChannel() interface{} { return s.Channel }
 
-func newEmptyInterface(args ...) reflect.Value {
-	return reflect.NewValue(args).(*reflect.StructValue).Field(0)
+type empty struct {
+	x interface{}
+}
+
+func newEmptyInterface(e empty) reflect.Value {
+	return reflect.NewValue(e).(*reflect.StructValue).Field(0)
 }
 
 func (s Send) send() {
@@ -140,7 +144,7 @@ func (s Send) send() {
 	c := reflect.NewValue(s.Channel).(*reflect.ChanValue)
 	var v reflect.Value
 	if iface, ok := c.Type().(*reflect.ChanType).Elem().(*reflect.InterfaceType); ok && iface.NumMethod() == 0 {
-		v = newEmptyInterface(s.Value)
+		v = newEmptyInterface(empty{s.Value})
 	} else {
 		v = reflect.NewValue(s.Value)
 	}
@@ -206,10 +210,10 @@ func NewEvent(name string, predecessors []*Event, action action) *Event {
 // receive events must list the send event as a predecessor but there is no
 // ordering between the receive events.
 //
-//  send := NewEvent("send", nil, Send{c, 1});
-//  recv1 := NewEvent("recv 1", []*Event{send}, Recv{c, 1});
-//  recv2 := NewEvent("recv 2", []*Event{send}, Recv{c, 1});
-//  Perform(0, []*Event{send, recv1, recv2});
+//  send := NewEvent("send", nil, Send{c, 1})
+//  recv1 := NewEvent("recv 1", []*Event{send}, Recv{c, 1})
+//  recv2 := NewEvent("recv 2", []*Event{send}, Recv{c, 1})
+//  Perform(0, []*Event{send, recv1, recv2})
 //
 // At first, only the send event would be in the ready set and thus Perform will
 // send a value to the input channel. Now the two receive events are ready and

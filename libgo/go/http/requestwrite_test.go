@@ -21,36 +21,36 @@ var reqWriteTests = []reqWriteTest{
 			Method: "GET",
 			RawURL: "http://www.techcrunch.com/",
 			URL: &URL{
-				Raw: "http://www.techcrunch.com/",
-				Scheme: "http",
-				RawPath: "//www.techcrunch.com/",
+				Raw:       "http://www.techcrunch.com/",
+				Scheme:    "http",
+				RawPath:   "http://www.techcrunch.com/",
 				Authority: "www.techcrunch.com",
-				Userinfo: "",
-				Host: "www.techcrunch.com",
-				Path: "/",
-				RawQuery: "",
-				Fragment: "",
+				Userinfo:  "",
+				Host:      "www.techcrunch.com",
+				Path:      "/",
+				RawQuery:  "",
+				Fragment:  "",
 			},
-			Proto: "HTTP/1.1",
+			Proto:      "HTTP/1.1",
 			ProtoMajor: 1,
 			ProtoMinor: 1,
 			Header: map[string]string{
-				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-				"Accept-Charset": "ISO-8859-1,utf-8;q=0.7,*;q=0.7",
-				"Accept-Encoding": "gzip,deflate",
-				"Accept-Language": "en-us,en;q=0.5",
-				"Keep-Alive": "300",
+				"Accept":           "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+				"Accept-Charset":   "ISO-8859-1,utf-8;q=0.7,*;q=0.7",
+				"Accept-Encoding":  "gzip,deflate",
+				"Accept-Language":  "en-us,en;q=0.5",
+				"Keep-Alive":       "300",
 				"Proxy-Connection": "keep-alive",
 			},
-			Body: nil,
-			Close: false,
-			Host: "www.techcrunch.com",
-			Referer: "",
+			Body:      nil,
+			Close:     false,
+			Host:      "www.techcrunch.com",
+			Referer:   "",
 			UserAgent: "Fake",
-			Form: map[string][]string{},
+			Form:      map[string][]string{},
 		},
 
-		"GET / HTTP/1.1\r\n" +
+		"GET http://www.techcrunch.com/ HTTP/1.1\r\n" +
 			"Host: www.techcrunch.com\r\n" +
 			"User-Agent: Fake\r\n" +
 			"Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7\r\n" +
@@ -66,13 +66,13 @@ var reqWriteTests = []reqWriteTest{
 			Method: "GET",
 			URL: &URL{
 				Scheme: "http",
-				Host: "www.google.com",
-				Path: "/search",
+				Host:   "www.google.com",
+				Path:   "/search",
 			},
-			ProtoMajor: 1,
-			ProtoMinor: 1,
-			Header: map[string]string{},
-			Body: nopCloser{bytes.NewBufferString("abcdef")},
+			ProtoMajor:       1,
+			ProtoMinor:       1,
+			Header:           map[string]string{},
+			Body:             nopCloser{bytes.NewBufferString("abcdef")},
 			TransferEncoding: []string{"chunked"},
 		},
 
@@ -81,6 +81,43 @@ var reqWriteTests = []reqWriteTest{
 			"User-Agent: Go http package\r\n" +
 			"Transfer-Encoding: chunked\r\n\r\n" +
 			"6\r\nabcdef\r\n0\r\n\r\n",
+	},
+	// HTTP/1.1 POST => chunked coding; body; empty trailer
+	reqWriteTest{
+		Request{
+			Method: "POST",
+			URL: &URL{
+				Scheme: "http",
+				Host:   "www.google.com",
+				Path:   "/search",
+			},
+			ProtoMajor:       1,
+			ProtoMinor:       1,
+			Header:           map[string]string{},
+			Close:            true,
+			Body:             nopCloser{bytes.NewBufferString("abcdef")},
+			TransferEncoding: []string{"chunked"},
+		},
+
+		"POST /search HTTP/1.1\r\n" +
+			"Host: www.google.com\r\n" +
+			"User-Agent: Go http package\r\n" +
+			"Connection: close\r\n" +
+			"Transfer-Encoding: chunked\r\n\r\n" +
+			"6\r\nabcdef\r\n0\r\n\r\n",
+	},
+	// default to HTTP/1.1
+	reqWriteTest{
+		Request{
+			Method: "GET",
+			RawURL: "/search",
+			Host:   "www.google.com",
+		},
+
+		"GET /search HTTP/1.1\r\n" +
+			"Host: www.google.com\r\n" +
+			"User-Agent: Go http package\r\n" +
+			"\r\n",
 	},
 }
 

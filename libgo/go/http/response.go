@@ -16,10 +16,10 @@ import (
 	"strings"
 )
 
-var respExcludeHeader = map[string]int{
-	"Content-Length": 0,
-	"Transfer-Encoding": 0,
-	"Trailer": 0,
+var respExcludeHeader = map[string]bool{
+	"Content-Length":    true,
+	"Transfer-Encoding": true,
+	"Trailer":           true,
 }
 
 // Response represents the response from an HTTP request.
@@ -133,7 +133,7 @@ func ReadResponse(r *bufio.Reader, requestMethod string) (resp *Response, err os
 // like
 //	Cache-Control: no-cache
 func fixPragmaCacheControl(header map[string]string) {
-	if v, present := header["Pragma"]; present && v == "no-cache" {
+	if header["Pragma"] == "no-cache" {
 		if _, presentcc := header["Cache-Control"]; !presentcc {
 			header["Cache-Control"] = "no-cache"
 		}
@@ -152,14 +152,12 @@ func (r *Response) AddHeader(key, value string) {
 	}
 }
 
-// GetHeader returns the value of the response header with the given
-// key, and true.  If there were multiple headers with this key, their
-// values are concatenated, with a comma delimiter.  If there were no
-// response headers with the given key, it returns the empty string and
-// false.  Keys are not case sensitive.
+// GetHeader returns the value of the response header with the given key.
+// If there were multiple headers with this key, their values are concatenated,
+// with a comma delimiter.  If there were no response headers with the given
+// key, GetHeader returns an empty string.  Keys are not case sensitive.
 func (r *Response) GetHeader(key string) (value string) {
-	value, _ = r.Header[CanonicalHeaderKey(key)]
-	return
+	return r.Header[CanonicalHeaderKey(key)]
 }
 
 // ProtoAtLeast returns whether the HTTP protocol used
@@ -188,9 +186,13 @@ func (resp *Response) Write(w io.Writer) os.Error {
 	resp.RequestMethod = strings.ToUpper(resp.RequestMethod)
 
 	// Status line
-	text, ok := statusText[resp.StatusCode]
-	if !ok {
-		text = "status code " + strconv.Itoa(resp.StatusCode)
+	text := resp.Status
+	if text == "" {
+		var ok bool
+		text, ok = statusText[resp.StatusCode]
+		if !ok {
+			text = "status code " + strconv.Itoa(resp.StatusCode)
+		}
 	}
 	io.WriteString(w, "HTTP/"+strconv.Itoa(resp.ProtoMajor)+".")
 	io.WriteString(w, strconv.Itoa(resp.ProtoMinor)+" ")
@@ -225,11 +227,11 @@ func (resp *Response) Write(w io.Writer) os.Error {
 	return nil
 }
 
-func writeSortedKeyValue(w io.Writer, kvm map[string]string, exclude map[string]int) os.Error {
+func writeSortedKeyValue(w io.Writer, kvm map[string]string, exclude map[string]bool) os.Error {
 	kva := make([]string, len(kvm))
 	i := 0
 	for k, v := range kvm {
-		if _, exc := exclude[k]; !exc {
+		if !exclude[k] {
 			kva[i] = fmt.Sprint(k + ": " + v + "\r\n")
 			i++
 		}

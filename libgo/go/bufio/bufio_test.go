@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+	"utf8"
 )
 
 // Reads from a reader and rot13s the result.
@@ -225,6 +226,35 @@ func TestReadRune(t *testing.T) {
 	}
 }
 
+func TestReadWriteRune(t *testing.T) {
+	const NRune = 1000
+	byteBuf := new(bytes.Buffer)
+	w := NewWriter(byteBuf)
+	// Write the runes out using WriteRune
+	buf := make([]byte, utf8.UTFMax)
+	for rune := 0; rune < NRune; rune++ {
+		size := utf8.EncodeRune(rune, buf)
+		nbytes, err := w.WriteRune(rune)
+		if err != nil {
+			t.Fatalf("WriteRune(0x%x) error: %s", rune, err)
+		}
+		if nbytes != size {
+			t.Fatalf("WriteRune(0x%x) expected %d, got %d", rune, size, nbytes)
+		}
+	}
+	w.Flush()
+
+	r := NewReader(byteBuf)
+	// Read them back with ReadRune
+	for rune := 0; rune < NRune; rune++ {
+		size := utf8.EncodeRune(rune, buf)
+		nr, nbytes, err := r.ReadRune()
+		if nr != rune || nbytes != size || err != nil {
+			t.Fatalf("ReadRune(0x%x) got 0x%x,%d not 0x%x,%d (err=%s)", r, nr, nbytes, r, size, err)
+		}
+	}
+}
+
 func TestWriter(t *testing.T) {
 	var data [8192]byte
 
@@ -296,7 +326,7 @@ var errorWriterTests = []errorWriterTest{
 func TestWriteErrors(t *testing.T) {
 	for _, w := range errorWriterTests {
 		buf := NewWriter(w)
-		_, e := buf.Write(strings.Bytes("hello world"))
+		_, e := buf.Write([]byte("hello world"))
 		if e != nil {
 			t.Errorf("Write hello to %v: %v", w, e)
 			continue
@@ -375,5 +405,17 @@ func TestWriteString(t *testing.T) {
 	s := "01234567890abcdefghijklmnopqrstuvwxyz"
 	if string(buf.Bytes()) != s {
 		t.Errorf("WriteString wants %q gets %q", s, string(buf.Bytes()))
+	}
+}
+
+func TestBufferFull(t *testing.T) {
+	buf, _ := NewReaderSize(strings.NewReader("hello, world"), 5)
+	line, err := buf.ReadSlice(',')
+	if string(line) != "hello" || err != ErrBufferFull {
+		t.Errorf("first ReadSlice(,) = %q, %v", line, err)
+	}
+	line, err = buf.ReadSlice(',')
+	if string(line) != "," || err != nil {
+		t.Errorf("second ReadSlice(,) = %q, %v", line, err)
 	}
 }

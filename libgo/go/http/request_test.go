@@ -19,22 +19,21 @@ type parseTest struct {
 var parseTests = []parseTest{
 	parseTest{
 		query: "a=1&b=2",
-		out: stringMultimap{"a": []string{"1"}, "b": []string{"2"}},
+		out:   stringMultimap{"a": []string{"1"}, "b": []string{"2"}},
 	},
 	parseTest{
 		query: "a=1&a=2&a=banana",
-		out: stringMultimap{"a": []string{"1", "2", "banana"}},
+		out:   stringMultimap{"a": []string{"1", "2", "banana"}},
 	},
 	parseTest{
 		query: "ascii=%3Ckey%3A+0x90%3E",
-		out: stringMultimap{"ascii": []string{"<key: 0x90>"}},
+		out:   stringMultimap{"ascii": []string{"<key: 0x90>"}},
 	},
 }
 
 func TestParseForm(t *testing.T) {
 	for i, test := range parseTests {
-		form := make(map[string][]string)
-		err := parseForm(form, test.query)
+		form, err := ParseQuery(test.query)
 		if err != nil {
 			t.Errorf("test %d: Unexpected error: %v", i, err)
 			continue
@@ -81,7 +80,7 @@ var parseContentTypeTests = []parseContentTypeTest{
 	parseContentTypeTest{contentType: stringMap{"Content-Type": "text/plain; boundary="}},
 	parseContentTypeTest{
 		contentType: stringMap{"Content-Type": "application/unknown"},
-		error: true,
+		error:       true,
 	},
 }
 
@@ -90,7 +89,7 @@ func TestPostContentTypeParsing(t *testing.T) {
 		req := &Request{
 			Method: "POST",
 			Header: test.contentType,
-			Body: nopCloser{bytes.NewBufferString("body")},
+			Body:   nopCloser{bytes.NewBufferString("body")},
 		}
 		err := req.ParseForm()
 		if !test.error && err != nil {

@@ -67,6 +67,48 @@ import _ "io"
 var _ int
 
 
+// printing of constant literals
+const (
+	_ = "foobar"
+	_ = "a۰۱۸"
+	_ = "foo६४"
+	_ = "bar９８７６"
+	_ = 0
+	_ = 1
+	_ = 123456789012345678890
+	_ = 01234567
+	_ = 0xcafebabe
+	_ = 0.
+	_ = .0
+	_ = 3.14159265
+	_ = 1e0
+	_ = 1e+100
+	_ = 1e-100
+	_ = 2.71828e-1000
+	_ = 0i
+	_ = 1i
+	_ = 012345678901234567889i
+	_ = 123456789012345678890i
+	_ = 0.i
+	_ = .0i
+	_ = 3.14159265i
+	_ = 1e0i
+	_ = 1e+100i
+	_ = 1e-100i
+	_ = 2.71828e-1000i
+	_ = 'a'
+	_ = '\000'
+	_ = '\xFF'
+	_ = '\uff16'
+	_ = '\U0000ff16'
+	_ = `foobar`
+	_ = `foo
+---
+---
+bar`
+)
+
+
 func _() {
 	// the following decls need a semicolon at the end
 	type _ int
@@ -368,13 +410,19 @@ type _ struct {
 	h float "tag"  // comment
 }
 
+type _ struct { a, b,
+c, d int  // this line should be indented
+u, v, w, x float // this line should be indented
+p, q,
+r, s float // this line should be indented
+}
+
 
 // difficult cases
 type _ struct {
 	bool  // comment
 	text []byte  // comment
 }
-
 
 
 // formatting of interfaces
@@ -402,6 +450,7 @@ type _ interface {  // this comment must not change indentation
 	gggggggggggg(x, y, z int) ()  // hurray
 }
 
+
 // formatting of variable declarations
 func _() {
 	type day struct { n int; short, long string }
@@ -414,6 +463,30 @@ func _() {
 		Friday = day{ 5, "FRI", "Friday" }
 		Saturday = day{ 6, "SAT", "Saturday" }
 	)
+}
+
+
+// formatting of multi-line variable declarations
+var a1, b1, c1 int  // all on one line
+
+var a2, b2,
+c2 int  // this line should be indented
+
+var (a3, b3,
+c3, d3 int  // this line should be indented
+a4, b4, c4 int  // this line should be indented
+)
+
+
+func _() {
+	var privateKey2 = &Block{Type: "RSA PRIVATE KEY",
+					Headers: map[string]string{},
+					Bytes: []uint8{0x30, 0x82, 0x1, 0x3a, 0x2, 0x1, 0x0, 0x2,
+			0x41, 0x0, 0xb2, 0x99, 0xf, 0x49, 0xc4, 0x7d, 0xfa, 0x8c,
+			0xd4, 0x0, 0xae, 0x6a, 0x4d, 0x1b, 0x8a, 0x3b, 0x6a, 0x13,
+			0x64, 0x2b, 0x23, 0xf2, 0x8b, 0x0, 0x3b, 0xfb, 0x97, 0x79,
+		},
+	}
 }
 
 
@@ -461,11 +534,42 @@ func _() {
 }
 
 
+// alignment of map composite entries
+var _ = map[int]int{
+	// small key sizes: always align even if size ratios are large
+	a: a,
+	abcdefghabcdefgh: a,
+	ab: a,
+	abc: a,
+	abcdefgabcdefg: a,
+	abcd: a,
+	abcde: a,
+	abcdef: a,
+
+	// mixed key sizes: align when key sizes change within accepted ratio
+	abcdefgh: a,
+	abcdefghabcdefg: a,
+	abcdefghij: a,
+	abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij: a, // outlier - do not align with previous line
+	abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij: a, // align with previous line
+
+	ab: a, // do not align with previous line
+	abcde: a, // align with previous line
+}
+
+
 func _() {
 	var _ = T{
 		a,	// must introduce trailing comma
 	}
 }
+
+
+// formatting of function results
+func _() func() {}
+func _() func(int) { return nil }
+func _() func(int) int { return nil }
+func _() func(int) func(int) func() { return nil }
 
 
 // formatting of consecutive single-line functions
@@ -477,22 +581,27 @@ func _() {}  // an empty line before this function
 func _() {}
 func _() {}
 
+func _() { f(1, 2, 3) }
+func _(x int) int { y := x; return y+1 }
+func _() int { type T struct{}; var x T; return x }
+
+// these must remain multi-line since they are multi-line in the source
 func _() {
 	f(1, 2, 3)
 }
 func _(x int) int {
-	return x+1
+	y := x; return y+1
 }
 func _() int {
-	type T struct{}
+	type T struct{}; var x T; return x
 }
 
 
 // making function declarations safe for new semicolon rules
-func _() { /* one-line func */ }
+func _() { /* multi-line func because of comment */ }
 
 func _() {
-/* one-line func */ }
+/* multi-line func because block is on multiple lines */ }
 
 
 // ellipsis parameters

@@ -8,7 +8,6 @@
 package net
 
 // TODO(rsc):
-//	support for raw IP sockets
 //	support for raw ethernet sockets
 
 import "os"
@@ -22,16 +21,17 @@ type Addr interface {
 // Conn is a generic stream-oriented network connection.
 type Conn interface {
 	// Read reads data from the connection.
-	// Read can be made to time out and return err == os.EAGAIN
+	// Read can be made to time out and return a net.Error with Timeout() == true
 	// after a fixed time limit; see SetTimeout and SetReadTimeout.
 	Read(b []byte) (n int, err os.Error)
 
 	// Write writes data to the connection.
-	// Write can be made to time out and return err == os.EAGAIN
-	// after a fixed time limit; see SetTimeout and SetReadTimeout.
+	// Write can be made to time out and return a net.Error with Timeout() == true
+	// after a fixed time limit; see SetTimeout and SetWriteTimeout.
 	Write(b []byte) (n int, err os.Error)
 
 	// Close closes the connection.
+	// The error returned is an os.Error to satisfy io.Closer;
 	Close() os.Error
 
 	// LocalAddr returns the local network address.
@@ -45,16 +45,23 @@ type Conn interface {
 	SetTimeout(nsec int64) os.Error
 
 	// SetReadTimeout sets the time (in nanoseconds) that
-	// Read will wait for data before returning os.EAGAIN.
+	// Read will wait for data before returning an error with Timeout() == true.
 	// Setting nsec == 0 (the default) disables the deadline.
 	SetReadTimeout(nsec int64) os.Error
 
 	// SetWriteTimeout sets the time (in nanoseconds) that
-	// Write will wait to send its data before returning os.EAGAIN.
+	// Write will wait to send its data before returning an error with Timeout() == true.
 	// Setting nsec == 0 (the default) disables the deadline.
 	// Even if write times out, it may return n > 0, indicating that
 	// some of the data was successfully written.
 	SetWriteTimeout(nsec int64) os.Error
+}
+
+// An Error represents a network error.
+type Error interface {
+	os.Error
+	Timeout() bool   // Is the error a timeout?
+	Temporary() bool // Is the error temporary?
 }
 
 // PacketConn is a generic packet-oriented network connection.
@@ -63,17 +70,20 @@ type PacketConn interface {
 	// copying the payload into b.  It returns the number of
 	// bytes copied into b and the return address that
 	// was on the packet.
-	// ReadFrom can be made to time out and return err == os.EAGAIN
-	// after a fixed time limit; see SetTimeout and SetReadTimeout.
+	// ReadFrom can be made to time out and return
+	// an error with Timeout() == true after a fixed time limit;
+	// see SetTimeout and SetReadTimeout.
 	ReadFrom(b []byte) (n int, addr Addr, err os.Error)
 
 	// WriteTo writes a packet with payload b to addr.
-	// WriteTo can be made to time out and return err == os.EAGAIN
-	// after a fixed time limit; see SetTimeout and SetWriteTimeout.
+	// WriteTo can be made to time out and return
+	// an error with Timeout() == true after a fixed time limit;
+	// see SetTimeout and SetWriteTimeout.
 	// On packet-oriented connections, write timeouts are rare.
 	WriteTo(b []byte, addr Addr) (n int, err os.Error)
 
 	// Close closes the connection.
+	// The error returned is an os.Error to satisfy io.Closer;
 	Close() os.Error
 
 	// LocalAddr returns the local network address.
@@ -84,12 +94,12 @@ type PacketConn interface {
 	SetTimeout(nsec int64) os.Error
 
 	// SetReadTimeout sets the time (in nanoseconds) that
-	// Read will wait for data before returning os.EAGAIN.
+	// Read will wait for data before returning an error with Timeout() == true.
 	// Setting nsec == 0 (the default) disables the deadline.
 	SetReadTimeout(nsec int64) os.Error
 
 	// SetWriteTimeout sets the time (in nanoseconds) that
-	// Write will wait to send its data before returning os.EAGAIN.
+	// Write will wait to send its data before returning an error with Timeout() == true.
 	// Setting nsec == 0 (the default) disables the deadline.
 	// Even if write times out, it may return n > 0, indicating that
 	// some of the data was successfully written.
@@ -97,11 +107,16 @@ type PacketConn interface {
 }
 
 // A Listener is a generic network listener for stream-oriented protocols.
-// Accept waits for the next connection and Close closes the connection.
 type Listener interface {
+	// Accept waits for and returns the next connection to the listener.
 	Accept() (c Conn, err os.Error)
+
+	// Close closes the listener.
+	// The error returned is an os.Error to satisfy io.Closer;
 	Close() os.Error
-	Addr() Addr // Listener's network address
+
+	// Addr returns the listener's network address.
+	Addr() Addr
 }
 
 // Dial connects to the remote address raddr on the network net.
@@ -109,7 +124,8 @@ type Listener interface {
 // for the connection.
 //
 // Known networks are "tcp", "tcp4" (IPv4-only), "tcp6" (IPv6-only),
-// "udp", "udp4" (IPv4-only), and "udp6" (IPv6-only).
+// "udp", "udp4" (IPv4-only), "udp6" (IPv6-only), "ip", "ip4"
+// (IPv4-only) and "ip6" IPv6-only).
 //
 // For IP networks, addresses have the form host:port.  If host is
 // a literal IPv6 address, it must be enclosed in square brackets.
@@ -121,7 +137,7 @@ type Listener interface {
 //	Dial("tcp", "127.0.0.1:123", "127.0.0.1:88")
 //
 func Dial(net, laddr, raddr string) (c Conn, err os.Error) {
-	switch net {
+	switch prefixBefore(net, ':') {
 	case "tcp", "tcp4", "tcp6":
 		var la, ra *TCPAddr
 		if laddr != "" {
@@ -139,7 +155,7 @@ func Dial(net, laddr, raddr string) (c Conn, err os.Error) {
 			return nil, err
 		}
 		return c, nil
-	case "udp", "udp4", "upd6":
+	case "udp", "udp4", "udp6":
 		var la, ra *UDPAddr
 		if laddr != "" {
 			if la, err = ResolveUDPAddr(laddr); err != nil {
@@ -173,6 +189,24 @@ func Dial(net, laddr, raddr string) (c Conn, err os.Error) {
 			return nil, err
 		}
 		return c, nil
+	case "ip", "ip4", "ip6":
+		var la, ra *IPAddr
+		if laddr != "" {
+			if la, err = ResolveIPAddr(laddr); err != nil {
+				goto Error
+			}
+		}
+		if raddr != "" {
+			if ra, err = ResolveIPAddr(raddr); err != nil {
+				goto Error
+			}
+		}
+		c, err := DialIP(net, la, ra)
+		if err != nil {
+			return nil, err
+		}
+		return c, nil
+
 	}
 	err = UnknownNetworkError(net)
 Error:
@@ -216,7 +250,7 @@ func Listen(net, laddr string) (l Listener, err os.Error) {
 // The network string net must be a packet-oriented network:
 // "udp", "udp4", "udp6", or "unixgram".
 func ListenPacket(net, laddr string) (c PacketConn, err os.Error) {
-	switch net {
+	switch prefixBefore(net, ':') {
 	case "udp", "udp4", "udp6":
 		var la *UDPAddr
 		if laddr != "" {
@@ -237,6 +271,18 @@ func ListenPacket(net, laddr string) (c PacketConn, err os.Error) {
 			}
 		}
 		c, err := DialUnix(net, la, nil)
+		if err != nil {
+			return nil, err
+		}
+		return c, nil
+	case "ip", "ip4", "ip6":
+		var la *IPAddr
+		if laddr != "" {
+			if la, err = ResolveIPAddr(laddr); err != nil {
+				return nil, err
+			}
+		}
+		c, err := ListenIP(net, la)
 		if err != nil {
 			return nil, err
 		}
@@ -266,6 +312,24 @@ func (e *OpError) String() string {
 	return s
 }
 
+type temporary interface {
+	Temporary() bool
+}
+
+func (e *OpError) Temporary() bool {
+	t, ok := e.Error.(temporary)
+	return ok && t.Temporary()
+}
+
+type timeout interface {
+	Timeout() bool
+}
+
+func (e *OpError) Timeout() bool {
+	t, ok := e.Error.(timeout)
+	return ok && t.Timeout()
+}
+
 type AddrError struct {
 	Error string
 	Addr  string
@@ -279,6 +343,16 @@ func (e *AddrError) String() string {
 	return s
 }
 
+func (e *AddrError) Temporary() bool {
+	return false
+}
+
+func (e *AddrError) Timeout() bool {
+	return false
+}
+
 type UnknownNetworkError string
 
-func (e UnknownNetworkError) String() string { return "unknown network " + string(e) }
+func (e UnknownNetworkError) String() string  { return "unknown network " + string(e) }
+func (e UnknownNetworkError) Temporary() bool { return false }
+func (e UnknownNetworkError) Timeout() bool   { return false }

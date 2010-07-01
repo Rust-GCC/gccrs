@@ -111,6 +111,44 @@ func _() {
 }
 
 
+// Don't remove mandatory parentheses around composite literals in control clauses.
+func _() {
+	// strip parentheses - no composite literals or composite literals don't start with a type name
+	if (x) {}
+	if (((x))) {}
+	if ([]T{}) {}
+	if (([]T{})) {}
+	if ; (((([]T{})))) {}
+
+	for (x) {}
+	for (((x))) {}
+	for ([]T{}) {}
+	for (([]T{})) {}
+	for ; (((([]T{})))) ; {}
+
+	switch (x) {}
+	switch (((x))) {}
+	switch ([]T{}) {}
+	switch ; (((([]T{})))) {}
+
+	for _ = range ((([]T{T{42}}))) {}
+
+	// leave parentheses - composite literals start with a type name
+	if (T{}) {}
+	if ((T{})) {}
+	if ; ((((T{})))) {}
+
+	for (T{}) {}
+	for ((T{})) {}
+	for ; ((((T{})))) ; {}
+
+	switch (T{}) {}
+	switch ; ((((T{})))) {}
+
+	for _ = range (((T1{T{42}}))) {}
+}
+
+
 // Extra empty lines inside functions. Do respect source code line
 // breaks between statement boundaries but print at most one empty
 // line at a time.
@@ -146,6 +184,34 @@ func _() {
 // Formatting around labels.
 func _() {
 	L:
+}
+
+
+func _() {
+	// this comment should be indented
+	L: ;  // no semicolon needed
+}
+
+
+func _() {
+	switch 0 {
+	case 0:
+		L0: ;  // semicolon required
+	case 1:
+		L1: ;  // semicolon required
+	default:
+		L2: ;  // no semicolon needed
+	}
+}
+
+
+func _() {
+	f()
+L1:
+	f()
+L2:
+	;
+L3:
 }
 
 

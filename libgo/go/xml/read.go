@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"utf8"
 )
 
 // BUG(rsc): Mapping between XML elements and data structures is inherently flawed:
@@ -29,18 +30,18 @@ import (
 // For example, given these definitions:
 //
 //	type Email struct {
-//		Where string "attr";
-//		Addr string;
+//		Where string "attr"
+//		Addr  string
 //	}
 //
 //	type Result struct {
-//		XMLName xml.Name "result";
-//		Name string;
-//		Phone string;
-//		Email []Email;
+//		XMLName xml.Name "result"
+//		Name	string
+//		Phone	string
+//		Email	[]Email
 //	}
 //
-//	result := Result{ Name: "name", Phone: "phone", Email: nil }
+//	result := Result{Name: "name", Phone: "phone", Email: nil}
 //
 // unmarshalling the XML input
 //
@@ -57,14 +58,13 @@ import (
 //
 // via Unmarshal(r, &result) is equivalent to assigning
 //
-//	r = Result{
-//		xml.Name{"", "result"},
-//		"Grace R. Emlin",	// name
-//		"phone",	// no phone given
+//	r = Result{xml.Name{"", "result"},
+//		"Grace R. Emlin", // name
+//		"phone",	  // no phone given
 //		[]Email{
-//			Email{ "home", "gre@example.com" },
-//			Email{ "work", "gre@work.com" }
-//		}
+//			Email{"home", "gre@example.com"},
+//			Email{"work", "gre@work.com"},
+//		},
 //	}
 //
 // Note that the field r.Phone has not been modified and
@@ -75,6 +75,10 @@ import (
 // comparison to match XML element names to struct field names.
 //
 // Unmarshal maps an XML element to a struct using the following rules:
+//
+//   * If the struct has a field of type []byte or string with tag "innerxml",
+//      Unmarshal accumulates the raw XML nested inside the element
+//      in that field.  The rest of the rules still apply.
 //
 //   * If the struct has a field named XMLName of type xml.Name,
 //      Unmarshal records the element name in that field.
@@ -105,7 +109,8 @@ import (
 // Unmarshal maps an XML element to a slice by extending the length
 // of the slice and mapping the element to the newly created value.
 //
-// Unmarshal maps an XML element to a bool by setting the bool to true.
+// Unmarshal maps an XML element to a bool by setting it to the boolean
+// value represented by the string.
 //
 // Unmarshal maps an XML element to an integer or floating-point
 // field by setting the field to the result of interpreting the string
@@ -197,19 +202,19 @@ func (p *Parser) unmarshal(val reflect.Value, start *StartElement) os.Error {
 	}
 
 	var (
-		data        []byte
-		saveData    reflect.Value
-		comment     []byte
-		saveComment reflect.Value
-		sv          *reflect.StructValue
-		styp        *reflect.StructType
+		data         []byte
+		saveData     reflect.Value
+		comment      []byte
+		saveComment  reflect.Value
+		saveXML      reflect.Value
+		saveXMLIndex int
+		saveXMLData  []byte
+		sv           *reflect.StructValue
+		styp         *reflect.StructType
 	)
 	switch v := val.(type) {
 	default:
 		return os.ErrorString("unknown type " + v.Type().String())
-
-	case *reflect.BoolValue:
-		v.Set(true)
 
 	case *reflect.SliceValue:
 		typ := v.Type().(*reflect.SliceType)
@@ -244,7 +249,7 @@ func (p *Parser) unmarshal(val reflect.Value, start *StartElement) os.Error {
 		*reflect.IntValue, *reflect.UintValue, *reflect.UintptrValue,
 		*reflect.Int8Value, *reflect.Int16Value, *reflect.Int32Value, *reflect.Int64Value,
 		*reflect.Uint8Value, *reflect.Uint16Value, *reflect.Uint32Value, *reflect.Uint64Value,
-		*reflect.FloatValue, *reflect.Float32Value, *reflect.Float64Value:
+		*reflect.FloatValue, *reflect.Float32Value, *reflect.Float64Value, *reflect.BoolValue:
 		saveData = v
 
 	case *reflect.StructValue:
@@ -318,6 +323,17 @@ func (p *Parser) unmarshal(val reflect.Value, start *StartElement) os.Error {
 				if saveData == nil {
 					saveData = sv.FieldByIndex(f.Index)
 				}
+
+			case "innerxml":
+				if saveXML == nil {
+					saveXML = sv.FieldByIndex(f.Index)
+					if p.saved == nil {
+						saveXMLIndex = 0
+						p.saved = new(bytes.Buffer)
+					} else {
+						saveXMLIndex = p.savedOffset()
+					}
+				}
 			}
 		}
 	}
@@ -326,6 +342,10 @@ func (p *Parser) unmarshal(val reflect.Value, start *StartElement) os.Error {
 	// Process sub-elements along the way.
 Loop:
 	for {
+		var savedOffset int
+		if saveXML != nil {
+			savedOffset = p.savedOffset()
+		}
 		tok, err := p.Token()
 		if err != nil {
 			return err
@@ -334,24 +354,24 @@ Loop:
 		case StartElement:
 			// Sub-element.
 			// Look up by tag name.
-			// If that fails, fall back to mop-up field named "Any".
 			if sv != nil {
 				k := fieldName(t.Name.Local)
-				any := -1
-				for i, n := 0, styp.NumField(); i < n; i++ {
-					f := styp.Field(i)
-					if strings.ToLower(f.Name) == k {
-						if err := p.unmarshal(sv.FieldByIndex(f.Index), &t); err != nil {
-							return err
-						}
-						continue Loop
+				match := func(s string) bool {
+					// check if the name matches ignoring case
+					if strings.ToLower(s) != strings.ToLower(k) {
+						return false
 					}
-					if any < 0 && f.Name == "Any" {
-						any = i
-					}
+					// now check that it's public
+					c, _ := utf8.DecodeRuneInString(s)
+					return unicode.IsUpper(c)
 				}
-				if any >= 0 {
-					if err := p.unmarshal(sv.FieldByIndex(styp.Field(any).Index), &t); err != nil {
+
+				f, found := styp.FieldByNameFunc(match)
+				if !found { // fall back to mop-up field named "Any"
+					f, found = styp.FieldByName("Any")
+				}
+				if found {
+					if err := p.unmarshal(sv.FieldByIndex(f.Index), &t); err != nil {
 						return err
 					}
 					continue Loop
@@ -363,6 +383,12 @@ Loop:
 			}
 
 		case EndElement:
+			if saveXML != nil {
+				saveXMLData = p.saved.Bytes()[saveXMLIndex:savedOffset]
+				if saveXMLIndex == 0 {
+					p.saved = nil
+				}
+			}
 			break Loop
 
 		case CharData:
@@ -474,6 +500,12 @@ Loop:
 			return err
 		}
 		t.Set(ftmp)
+	case *reflect.BoolValue:
+		value, err := strconv.Atob(strings.TrimSpace(string(data)))
+		if err != nil {
+			return err
+		}
+		t.Set(value)
 	case *reflect.StringValue:
 		t.Set(string(data))
 	case *reflect.SliceValue:
@@ -485,6 +517,13 @@ Loop:
 		t.Set(string(comment))
 	case *reflect.SliceValue:
 		t.Set(reflect.NewValue(comment).(*reflect.SliceValue))
+	}
+
+	switch t := saveXML.(type) {
+	case *reflect.StringValue:
+		t.Set(string(saveXMLData))
+	case *reflect.SliceValue:
+		t.Set(reflect.NewValue(saveXMLData).(*reflect.SliceValue))
 	}
 
 	return nil

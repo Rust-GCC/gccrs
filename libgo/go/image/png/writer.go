@@ -37,7 +37,7 @@ func opaque(m image.Image) bool {
 	for y := 0; y < m.Height(); y++ {
 		for x := 0; x < m.Width(); x++ {
 			_, _, _, a := m.At(x, y).RGBA()
-			if a != 0xffffffff {
+			if a != 0xffff {
 				return false
 			}
 		}
@@ -101,13 +101,13 @@ func (e *encoder) writePLTE(p image.PalettedColorModel) {
 	}
 	for i := 0; i < len(p); i++ {
 		r, g, b, a := p[i].RGBA()
-		if a != 0xffffffff {
+		if a != 0xffff {
 			e.err = UnsupportedError("non-opaque palette color")
 			return
 		}
-		e.tmp[3*i+0] = uint8(r >> 24)
-		e.tmp[3*i+1] = uint8(g >> 24)
-		e.tmp[3*i+2] = uint8(b >> 24)
+		e.tmp[3*i+0] = uint8(r >> 8)
+		e.tmp[3*i+1] = uint8(g >> 8)
+		e.tmp[3*i+2] = uint8(b >> 8)
 	}
 	e.writeChunk(e.tmp[0:3*len(p)], "PLTE")
 }
@@ -119,7 +119,7 @@ func (e *encoder) writePLTE(p image.PalettedColorModel) {
 // This method should only be called from writeIDATs (via writeImage).
 // No other code should treat an encoder as an io.Writer.
 //
-// Note that, because the zlib deflater may involve an io.Pipe, e.Write calls may
+// Note that, because the zlib Reader may involve an io.Pipe, e.Write calls may
 // occur on a separate go-routine than the e.writeIDATs call, and care should be
 // taken that e's state (such as its tmp buffer) is not modified concurrently.
 func (e *encoder) Write(b []byte) (int, os.Error) {
@@ -225,7 +225,7 @@ func filter(cr [][]byte, pr []byte, bpp int) int {
 }
 
 func writeImage(w io.Writer, m image.Image, ct uint8) os.Error {
-	zw, err := zlib.NewDeflater(w)
+	zw, err := zlib.NewWriter(w)
 	if err != nil {
 		return err
 	}
@@ -261,9 +261,9 @@ func writeImage(w io.Writer, m image.Image, ct uint8) os.Error {
 			for x := 0; x < m.Width(); x++ {
 				// We have previously verified that the alpha value is fully opaque.
 				r, g, b, _ := m.At(x, y).RGBA()
-				cr[0][3*x+1] = uint8(r >> 24)
-				cr[0][3*x+2] = uint8(g >> 24)
-				cr[0][3*x+3] = uint8(b >> 24)
+				cr[0][3*x+1] = uint8(r >> 8)
+				cr[0][3*x+2] = uint8(g >> 8)
+				cr[0][3*x+3] = uint8(b >> 8)
 			}
 		case ctPaletted:
 			for x := 0; x < m.Width(); x++ {

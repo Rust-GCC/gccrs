@@ -224,13 +224,13 @@ func mark(name string) {
 
 type TestVisitor struct{}
 
-func (v *TestVisitor) VisitDir(path string, d *os.Dir) bool {
-	mark(d.Name)
+func (v *TestVisitor) VisitDir(path string, f *os.FileInfo) bool {
+	mark(f.Name)
 	return true
 }
 
-func (v *TestVisitor) VisitFile(path string, d *os.Dir) {
-	mark(d.Name)
+func (v *TestVisitor) VisitFile(path string, f *os.FileInfo) {
+	mark(f.Name)
 }
 
 func TestWalk(t *testing.T) {
@@ -282,5 +282,28 @@ func TestWalk(t *testing.T) {
 	os.Chmod(Join(tree.name, tree.entries[3].name), 0770)
 	if err := os.RemoveAll(tree.name); err != nil {
 		t.Errorf("removeTree: %v", err)
+	}
+}
+
+var basetests = []CleanTest{
+	// Already clean
+	CleanTest{"", "."},
+	CleanTest{".", "."},
+	CleanTest{"/.", "."},
+	CleanTest{"/", "/"},
+	CleanTest{"////", "/"},
+	CleanTest{"x/", "x"},
+	CleanTest{"abc", "abc"},
+	CleanTest{"abc/def", "def"},
+	CleanTest{"a/b/.x", ".x"},
+	CleanTest{"a/b/c.", "c."},
+	CleanTest{"a/b/c.x", "c.x"},
+}
+
+func TestBase(t *testing.T) {
+	for _, test := range basetests {
+		if s := Base(test.path); s != test.clean {
+			t.Errorf("Base(%q) = %q, want %q", test.path, s, test.clean)
+		}
 	}
 }

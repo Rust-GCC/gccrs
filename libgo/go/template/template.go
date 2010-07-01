@@ -4,9 +4,7 @@
 
 /*
 	Data-driven templates for generating textual output such as
-	HTML. See
-		http://code.google.com/p/json-template/wiki/Reference
-	for full documentation of the template language. A summary:
+	HTML.
 
 	Templates are executed by applying them to a data structure.
 	Annotations in the template refer to elements of the data
@@ -66,9 +64,9 @@ import (
 	"container/vector"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"reflect"
-	"runtime"
 	"strings"
 )
 
@@ -107,8 +105,8 @@ type FormatterMap map[string]func(io.Writer, interface{}, string)
 // Built-in formatters.
 var builtins = FormatterMap{
 	"html": HTMLFormatter,
-	"str": StringFormatter,
-	"": StringFormatter,
+	"str":  StringFormatter,
+	"":     StringFormatter,
 }
 
 // The parsed state of a template is a vector of xxxElement structs.
@@ -152,11 +150,10 @@ type repeatedElement struct {
 type Template struct {
 	fmap FormatterMap // formatters for variables
 	// Used during parsing:
-	ldelim, rdelim []byte   // delimiters; default {}
-	buf            []byte   // input text to process
-	p              int      // position in buf
-	linenum        int      // position in input
-	error          os.Error // error during parsing (only)
+	ldelim, rdelim []byte // delimiters; default {}
+	buf            []byte // input text to process
+	p              int    // position in buf
+	linenum        int    // position in input
 	// Parsed results:
 	elems *vector.Vector
 }
@@ -168,11 +165,10 @@ type state struct {
 	parent *state        // parent in hierarchy
 	data   reflect.Value // the driver data for this section etc.
 	wr     io.Writer     // where to send output
-	errors chan os.Error // for reporting errors during execute
 }
 
 func (parent *state) clone(data reflect.Value) *state {
-	return &state{parent, data, parent.wr, parent.errors}
+	return &state{parent, data, parent.wr}
 }
 
 // New creates a new template with the specified formatter map (which
@@ -188,14 +184,13 @@ func New(fmap FormatterMap) *Template {
 
 // Report error and stop executing.  The line number must be provided explicitly.
 func (t *Template) execError(st *state, line int, err string, args ...interface{}) {
-	st.errors <- &Error{line, fmt.Sprintf(err, args)}
-	runtime.Goexit()
+	panic(&Error{line, fmt.Sprintf(err, args)})
 }
 
-// Report error, save in Template to terminate parsing.
+// Report error, panic to terminate parsing.
 // The line number comes from the template state.
 func (t *Template) parseError(err string, args ...interface{}) {
-	t.error = &Error{t.linenum, fmt.Sprintf(err, args)}
+	panic(&Error{t.linenum, fmt.Sprintf(err, args)})
 }
 
 // -- Lexical analysis
@@ -426,9 +421,6 @@ func (t *Template) newVariable(name_formatter string) (v *variableElement) {
 // Otherwise return its details.
 func (t *Template) parseSimple(item []byte) (done bool, tok int, w []string) {
 	tok, w = t.analyze(item)
-	if t.error != nil {
-		return
-	}
 	done = true // assume for simplicity
 	switch tok {
 	case tokComment:
@@ -448,7 +440,6 @@ func (t *Template) parseSimple(item []byte) (done bool, tok int, w []string) {
 			t.elems.Push(&literalElement{tab})
 		default:
 			t.parseError("internal error: unknown literal: %s", w[0])
-			return
 		}
 		return
 	case tokVariable:
@@ -471,19 +462,13 @@ func (t *Template) parseRepeated(words []string) *repeatedElement {
 	r.altstart = -1
 	r.altend = -1
 Loop:
-	for t.error == nil {
+	for {
 		item := t.nextItem()
-		if t.error != nil {
-			break
-		}
 		if len(item) == 0 {
 			t.parseError("missing .end for .repeated section")
 			break
 		}
 		done, tok, w := t.parseSimple(item)
-		if t.error != nil {
-			break
-		}
 		if done {
 			continue
 		}
@@ -516,9 +501,6 @@ Loop:
 			break Loop
 		}
 	}
-	if t.error != nil {
-		return nil
-	}
 	if r.altend < 0 {
 		r.altend = t.elems.Len()
 	}
@@ -535,19 +517,13 @@ func (t *Template) parseSection(words []string) *sectionElement {
 	s.start = t.elems.Len()
 	s.or = -1
 Loop:
-	for t.error == nil {
+	for {
 		item := t.nextItem()
-		if t.error != nil {
-			break
-		}
 		if len(item) == 0 {
 			t.parseError("missing .end for .section")
 			break
 		}
 		done, tok, w := t.parseSimple(item)
-		if t.error != nil {
-			break
-		}
 		if done {
 			continue
 		}
@@ -570,19 +546,13 @@ Loop:
 			t.parseError("internal error: unknown section item: %s", item)
 		}
 	}
-	if t.error != nil {
-		return nil
-	}
 	s.end = t.elems.Len()
 	return s
 }
 
 func (t *Template) parse() {
-	for t.error == nil {
+	for {
 		item := t.nextItem()
-		if t.error != nil {
-			break
-		}
 		if len(item) == 0 {
 			break
 		}
@@ -605,6 +575,55 @@ func (t *Template) parse() {
 
 // -- Execution
 
+// Evaluate interfaces and pointers looking for a value that can look up the name, via a
+// struct field, method, or map key, and return the result of the lookup.
+func lookup(v reflect.Value, name string) reflect.Value {
+	for v != nil {
+		typ := v.Type()
+		if n := v.Type().NumMethod(); n > 0 {
+			for i := 0; i < n; i++ {
+				m := typ.Method(i)
+				mtyp := m.Type
+				// We must check receiver type because of a bug in the reflection type tables:
+				// it should not be possible to find a method with the wrong receiver type but
+				// this can happen due to value/pointer receiver mismatch.
+				if m.Name == name && mtyp.NumIn() == 1 && mtyp.NumOut() == 1 && mtyp.In(0) == typ {
+					return v.Method(i).Call(nil)[0]
+				}
+			}
+		}
+		switch av := v.(type) {
+		case *reflect.PtrValue:
+			v = av.Elem()
+		case *reflect.InterfaceValue:
+			v = av.Elem()
+		case *reflect.StructValue:
+			return av.FieldByName(name)
+		case *reflect.MapValue:
+			return av.Elem(reflect.NewValue(name))
+		default:
+			return nil
+		}
+	}
+	return v
+}
+
+// Walk v through pointers and interfaces, extracting the elements within.
+func indirect(v reflect.Value) reflect.Value {
+loop:
+	for v != nil {
+		switch av := v.(type) {
+		case *reflect.PtrValue:
+			v = av.Elem()
+		case *reflect.InterfaceValue:
+			v = av.Elem()
+		default:
+			break loop
+		}
+	}
+	return v
+}
+
 // If the data for this template is a struct, find the named variable.
 // Names of the form a.b.c are walked down the data tree.
 // The special name "@" (the "cursor") denotes the current data.
@@ -617,85 +636,18 @@ func (st *state) findVar(s string) reflect.Value {
 	}
 	data := st.data
 	for _, elem := range strings.Split(s, ".", 0) {
-		origData := data // for method lookup need value before indirection.
 		// Look up field; data must be a struct or map.
-		data = reflect.Indirect(data)
+		data = lookup(data, elem)
 		if data == nil {
 			return nil
 		}
-
-		switch typ := data.Type().(type) {
-		case *reflect.StructType:
-			if field, ok := typ.FieldByName(elem); ok {
-				data = data.(*reflect.StructValue).FieldByIndex(field.Index)
-				continue
-			}
-		case *reflect.MapType:
-			data = data.(*reflect.MapValue).Elem(reflect.NewValue(elem))
-			continue
-		}
-
-		// No luck with that name; is it a method?
-		if result, found := callMethod(origData, elem); found {
-			data = result
-			continue
-		}
-		return nil
 	}
 	return data
 }
 
-// See if name is a method of the value at some level of indirection.
-// The return values are the result of the call (which may be nil if
-// there's trouble) and whether a method of the right name exists with
-// any signature.
-func callMethod(data reflect.Value, name string) (result reflect.Value, found bool) {
-	found = false
-	// Method set depends on pointerness, and the value may be arbitrarily
-	// indirect.  Simplest approach is to walk down the pointer chain and
-	// see if we can find the method at each step.
-	// Most steps will see NumMethod() == 0.
-	for {
-		typ := data.Type()
-		if nMethod := data.Type().NumMethod(); nMethod > 0 {
-			for i := 0; i < nMethod; i++ {
-				method := typ.Method(i)
-				if method.Name == name {
-					found = true // we found the name regardless
-					// does receiver type match? (pointerness might be off)
-					if typ == method.Type.In(0) {
-						return call(data, method), found
-					}
-				}
-			}
-		}
-		if nd, ok := data.(*reflect.PtrValue); ok {
-			data = nd.Elem()
-		} else {
-			break
-		}
-	}
-	return
-}
-
-// Invoke the method. If its signature is wrong, return nil.
-func call(v reflect.Value, method reflect.Method) reflect.Value {
-	funcType := method.Type
-	// Method must take no arguments, meaning as a func it has one argument (the receiver)
-	if funcType.NumIn() != 1 {
-		return nil
-	}
-	// Method must return a single value.
-	if funcType.NumOut() != 1 {
-		return nil
-	}
-	// Result will be the zeroth element of the returned slice.
-	return method.Func.Call([]reflect.Value{v})[0]
-}
-
 // Is there no data to look at?
 func empty(v reflect.Value) bool {
-	v = reflect.Indirect(v)
+	v = indirect(v)
 	if v == nil {
 		return true
 	}
@@ -705,6 +657,8 @@ func empty(v reflect.Value) bool {
 	case *reflect.StringValue:
 		return v.Get() == ""
 	case *reflect.StructValue:
+		return false
+	case *reflect.MapValue:
 		return false
 	case *reflect.ArrayValue:
 		return v.Len() == 0
@@ -719,12 +673,9 @@ func (t *Template) varValue(name string, st *state) reflect.Value {
 	field := st.findVar(name)
 	if field == nil {
 		if st.parent == nil {
-			t.execError(st, t.linenum, "name not found: %s", name)
+			t.execError(st, t.linenum, "name not found: %s in type %s", name, st.data.Type())
 		}
 		return t.varValue(name, st.parent)
-	}
-	if iface, ok := field.(*reflect.InterfaceValue); ok && !iface.IsNil() {
-		field = iface.Elem()
 	}
 	return field
 }
@@ -785,7 +736,7 @@ func (t *Template) executeSection(s *sectionElement, st *state) {
 	// Find driver data for this section.  It must be in the current struct.
 	field := t.varValue(s.field, st)
 	if field == nil {
-		t.execError(st, s.linenum, ".section: cannot find field %s in %s", s.field, reflect.Indirect(st.data).Type())
+		t.execError(st, s.linenum, ".section: cannot find field %s in %s", s.field, st.data.Type())
 	}
 	st = st.clone(field)
 	start, end := s.start, s.or
@@ -830,8 +781,9 @@ func (t *Template) executeRepeated(r *repeatedElement, st *state) {
 	// Find driver data for this section.  It must be in the current struct.
 	field := t.varValue(r.field, st)
 	if field == nil {
-		t.execError(st, r.linenum, ".repeated: cannot find field %s in %s", r.field, reflect.Indirect(st.data).Type())
+		t.execError(st, r.linenum, ".repeated: cannot find field %s in %s", r.field, st.data.Type())
 	}
+	field = indirect(field)
 
 	start, end := r.start, r.or
 	if end < 0 {
@@ -903,37 +855,48 @@ func validDelim(d []byte) bool {
 	return true
 }
 
+// checkError is a deferred function to turn a panic with type *Error into a plain error return.
+// Other panics are unexpected and so are re-enabled.
+func checkError(error *os.Error) {
+	if v := recover(); v != nil {
+		if e, ok := v.(*Error); ok {
+			*error = e
+		} else {
+			// runtime errors should crash
+			panic(v)
+		}
+	}
+}
+
 // -- Public interface
 
 // Parse initializes a Template by parsing its definition.  The string
 // s contains the template text.  If any errors occur, Parse returns
 // the error.
-func (t *Template) Parse(s string) os.Error {
+func (t *Template) Parse(s string) (err os.Error) {
 	if t.elems == nil {
 		return &Error{1, "template not allocated with New"}
 	}
 	if !validDelim(t.ldelim) || !validDelim(t.rdelim) {
 		return &Error{1, fmt.Sprintf("bad delimiter strings %q %q", t.ldelim, t.rdelim)}
 	}
-	t.buf = strings.Bytes(s)
+	defer checkError(&err)
+	t.buf = []byte(s)
 	t.p = 0
 	t.linenum = 1
 	t.parse()
-	return t.error
+	return nil
 }
 
 // Execute applies a parsed template to the specified data object,
 // generating output to wr.
-func (t *Template) Execute(data interface{}, wr io.Writer) os.Error {
+func (t *Template) Execute(data interface{}, wr io.Writer) (err os.Error) {
 	// Extract the driver data.
 	val := reflect.NewValue(data)
-	errors := make(chan os.Error)
-	go func() {
-		t.p = 0
-		t.execute(0, t.elems.Len(), &state{nil, val, wr, errors})
-		errors <- nil // clean return;
-	}()
-	return <-errors
+	defer checkError(&err)
+	t.p = 0
+	t.execute(0, t.elems.Len(), &state{nil, val, wr})
+	return nil
 }
 
 // SetDelims sets the left and right delimiters for operations in the
@@ -942,8 +905,8 @@ func (t *Template) Execute(data interface{}, wr io.Writer) os.Error {
 // delimiters are very rarely invalid and Parse has the necessary
 // error-handling interface already.
 func (t *Template) SetDelims(left, right string) {
-	t.ldelim = strings.Bytes(left)
-	t.rdelim = strings.Bytes(right)
+	t.ldelim = []byte(left)
+	t.rdelim = []byte(right)
 }
 
 // Parse creates a Template with default parameters (such as {} for
@@ -960,6 +923,19 @@ func Parse(s string, fmap FormatterMap) (t *Template, err os.Error) {
 	return
 }
 
+// ParseFile is a wrapper function that creates a Template with default
+// parameters (such as {} for metacharacters).  The filename identifies
+// a file containing the template text, while the formatter map fmap, which
+// may be nil, defines auxiliary functions for formatting variables.
+// The template is returned. If any errors occur, err will be non-nil.
+func ParseFile(filename string, fmap FormatterMap) (t *Template, err os.Error) {
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return Parse(string(b), fmap)
+}
+
 // MustParse is like Parse but panics if the template cannot be parsed.
 func MustParse(s string, fmap FormatterMap) *Template {
 	t, err := Parse(s, fmap)
@@ -967,4 +943,14 @@ func MustParse(s string, fmap FormatterMap) *Template {
 		panic("template.MustParse error: " + err.String())
 	}
 	return t
+}
+
+// MustParseFile is like ParseFile but panics if the file cannot be read
+// or the template cannot be parsed.
+func MustParseFile(filename string, fmap FormatterMap) *Template {
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		panic("template.MustParseFile error: " + err.String())
+	}
+	return MustParse(string(b), fmap)
 }

@@ -11,12 +11,25 @@ type ObjKind int
 // The list of possible Object kinds.
 const (
 	Err ObjKind = iota // object kind unknown (forward reference or error)
-	Pkg         // package
-	Con         // constant
-	Typ         // type
-	Var         // variable
-	Fun         // function or method
+	Pkg                // package
+	Con                // constant
+	Typ                // type
+	Var                // variable
+	Fun                // function or method
 )
+
+
+var objKindStrings = [...]string{
+	Err: "<unknown object kind>",
+	Pkg: "package",
+	Con: "const",
+	Typ: "type",
+	Var: "var",
+	Fun: "func",
+}
+
+
+func (kind ObjKind) String() string { return objKindStrings[kind] }
 
 
 // An Object describes a language entity such as a package,

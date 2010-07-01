@@ -32,7 +32,6 @@ import (
 	"log"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 	"./pdp1"
 )
@@ -53,7 +52,7 @@ func main() {
 	var m SpacewarPDP1
 	m.Init(w)
 	m.PC = 4
-	f := bytes.NewBuffer(strings.Bytes(spacewarCode))
+	f := bytes.NewBuffer([]byte(spacewarCode))
 	if err = m.Load(f); err != nil {
 		log.Exitf("loading %s: %s", "spacewar.lst", err)
 	}
@@ -122,14 +121,14 @@ const (
 )
 
 var ctlBits = [...]pdp1.Word{
-	'f': 0000001,
-	'd': 0000002,
-	'a': 0000004,
-	's': 0000010,
+	'f':  0000001,
+	'd':  0000002,
+	'a':  0000004,
+	's':  0000010,
 	'\'': 0040000,
-	';': 0100000,
-	'k': 0200000,
-	'l': 0400000,
+	';':  0100000,
+	'k':  0200000,
+	'l':  0400000,
 }
 
 func (m *SpacewarPDP1) Step() os.Error {

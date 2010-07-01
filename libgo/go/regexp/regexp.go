@@ -1,4 +1,3 @@
-// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -33,18 +32,25 @@ import (
 
 var debug = false
 
+// Error is the local type for a parsing error.
+type Error string
+
+func (e Error) String() string {
+	return string(e)
+}
+
 // Error codes returned by failures to parse an expression.
 var (
-	ErrInternal            = os.NewError("internal error")
-	ErrUnmatchedLpar       = os.NewError("unmatched '('")
-	ErrUnmatchedRpar       = os.NewError("unmatched ')'")
-	ErrUnmatchedLbkt       = os.NewError("unmatched '['")
-	ErrUnmatchedRbkt       = os.NewError("unmatched ']'")
-	ErrBadRange            = os.NewError("bad range in character class")
-	ErrExtraneousBackslash = os.NewError("extraneous backslash")
-	ErrBadClosure          = os.NewError("repeated closure (**, ++, etc.)")
-	ErrBareClosure         = os.NewError("closure applies to nothing")
-	ErrBadBackslash        = os.NewError("illegal backslash escape")
+	ErrInternal            = Error("internal error")
+	ErrUnmatchedLpar       = Error("unmatched '('")
+	ErrUnmatchedRpar       = Error("unmatched ')'")
+	ErrUnmatchedLbkt       = Error("unmatched '['")
+	ErrUnmatchedRbkt       = Error("unmatched ']'")
+	ErrBadRange            = Error("bad range in character class")
+	ErrExtraneousBackslash = Error("extraneous backslash")
+	ErrBadClosure          = Error("repeated closure (**, ++, etc.)")
+	ErrBareClosure         = Error("closure applies to nothing")
+	ErrBadBackslash        = Error("illegal backslash escape")
 )
 
 // An instruction executed by the NFA
@@ -82,17 +88,17 @@ type Regexp struct {
 
 const (
 	_START     = iota // beginning of program
-	_END       // end of program: success
-	_BOT       // '^' beginning of text
-	_EOT       // '$' end of text
-	_CHAR      // 'a' regular character
-	_CHARCLASS // [a-z] character class
-	_ANY       // '.' any character including newline
-	_NOTNL     // [^\n] special case: any character but newline
-	_BRA       // '(' parenthesized expression
-	_EBRA      // ')'; end of '(' parenthesized expression
-	_ALT       // '|' alternation
-	_NOP       // do nothing; makes it easy to link without patching
+	_END              // end of program: success
+	_BOT              // '^' beginning of text
+	_EOT              // '$' end of text
+	_CHAR             // 'a' regular character
+	_CHARCLASS        // [a-z] character class
+	_ANY              // '.' any character including newline
+	_NOTNL            // [^\n] special case: any character but newline
+	_BRA              // '(' parenthesized expression
+	_EBRA             // ')'; end of '(' parenthesized expression
+	_ALT              // '|' alternation
+	_NOP              // do nothing; makes it easy to link without patching
 )
 
 // --- START start of program
@@ -146,10 +152,10 @@ func newChar(char int) *_Char {
 
 type _CharClass struct {
 	common
-	char   int
 	negate bool // is character class negated? ([^a-z])
 	// vector of int, stored pairwise: [a-z] is (a,z); x is (x,x):
-	ranges *vector.IntVector
+	ranges     *vector.IntVector
+	cmin, cmax int
 }
 
 func (cclass *_CharClass) kind() int { return _CHARCLASS }
@@ -174,13 +180,21 @@ func (cclass *_CharClass) addRange(a, b int) {
 	// range is a through b inclusive
 	cclass.ranges.Push(a)
 	cclass.ranges.Push(b)
+	if a < cclass.cmin {
+		cclass.cmin = a
+	}
+	if b > cclass.cmax {
+		cclass.cmax = b
+	}
 }
 
 func (cclass *_CharClass) matches(c int) bool {
-	for i := 0; i < cclass.ranges.Len(); i = i + 2 {
-		min := cclass.ranges.At(i)
-		max := cclass.ranges.At(i + 1)
-		if min <= c && c <= max {
+	if c < cclass.cmin || c > cclass.cmax {
+		return cclass.negate
+	}
+	ranges := []int(*cclass.ranges)
+	for i := 0; i < len(ranges); i = i + 2 {
+		if ranges[i] <= c && c <= ranges[i+1] {
 			return !cclass.negate
 		}
 	}
@@ -190,6 +204,8 @@ func (cclass *_CharClass) matches(c int) bool {
 func newCharClass() *_CharClass {
 	c := new(_CharClass)
 	c.ranges = new(vector.IntVector)
+	c.cmin = 0x10FFFF + 1 // MaxRune + 1
+	c.cmax = -1
 	return c
 }
 
@@ -252,10 +268,13 @@ func (re *Regexp) add(i instr) instr {
 
 type parser struct {
 	re    *Regexp
-	error os.Error
 	nlpar int // number of unclosed lpars
 	pos   int
 	ch    int
+}
+
+func (p *parser) error(err Error) {
+	panic(err)
 }
 
 const endOfFile = -1
@@ -289,8 +308,8 @@ func special(c int) bool {
 	return false
 }
 
-func specialcclass(c int) bool {
-	for _, r := range `\-[]` {
+func ispunct(c int) bool {
+	for _, r := range "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~" {
 		if c == r {
 			return true
 		}
@@ -309,8 +328,7 @@ func (p *parser) charClass() instr {
 		switch c := p.c(); c {
 		case ']', endOfFile:
 			if left >= 0 {
-				p.error = ErrBadRange
-				return nil
+				p.error(ErrBadRange)
 			}
 			// Is it [^\n]?
 			if cc.negate && cc.ranges.Len() == 2 &&
@@ -328,21 +346,18 @@ func (p *parser) charClass() instr {
 			p.re.add(cc)
 			return cc
 		case '-': // do this before backslash processing
-			p.error = ErrBadRange
-			return nil
+			p.error(ErrBadRange)
 		case '\\':
 			c = p.nextc()
 			switch {
 			case c == endOfFile:
-				p.error = ErrExtraneousBackslash
-				return nil
+				p.error(ErrExtraneousBackslash)
 			case c == 'n':
 				c = '\n'
-			case specialcclass(c):
+			case ispunct(c):
 				// c is as delivered
 			default:
-				p.error = ErrBadBackslash
-				return nil
+				p.error(ErrBadBackslash)
 			}
 			fallthrough
 		default:
@@ -359,8 +374,7 @@ func (p *parser) charClass() instr {
 				cc.addRange(left, c)
 				left = -1
 			default:
-				p.error = ErrBadRange
-				return nil
+				p.error(ErrBadRange)
 			}
 		}
 	}
@@ -368,28 +382,18 @@ func (p *parser) charClass() instr {
 }
 
 func (p *parser) term() (start, end instr) {
-	// term() is the leaf of the recursion, so it's sufficient to pick off the
-	// error state here for early exit.
-	// The other functions (closure(), concatenation() etc.) assume
-	// it's safe to recur to here.
-	if p.error != nil {
-		return
-	}
 	switch c := p.c(); c {
 	case '|', endOfFile:
 		return nil, nil
 	case '*', '+':
-		p.error = ErrBareClosure
-		return
+		p.error(ErrBareClosure)
 	case ')':
 		if p.nlpar == 0 {
-			p.error = ErrUnmatchedRpar
-			return
+			p.error(ErrUnmatchedRpar)
 		}
 		return nil, nil
 	case ']':
-		p.error = ErrUnmatchedRbkt
-		return
+		p.error(ErrUnmatchedRbkt)
 	case '^':
 		p.nextc()
 		start = p.re.add(new(_Bot))
@@ -405,12 +409,8 @@ func (p *parser) term() (start, end instr) {
 	case '[':
 		p.nextc()
 		start = p.charClass()
-		if p.error != nil {
-			return
-		}
 		if p.c() != ']' {
-			p.error = ErrUnmatchedLbkt
-			return
+			p.error(ErrUnmatchedLbkt)
 		}
 		p.nextc()
 		return start, start
@@ -421,8 +421,7 @@ func (p *parser) term() (start, end instr) {
 		nbra := p.re.nbra
 		start, end = p.regexp()
 		if p.c() != ')' {
-			p.error = ErrUnmatchedLpar
-			return
+			p.error(ErrUnmatchedLpar)
 		}
 		p.nlpar--
 		p.nextc()
@@ -434,7 +433,7 @@ func (p *parser) term() (start, end instr) {
 		ebra.n = nbra
 		if start == nil {
 			if end == nil {
-				p.error = ErrInternal
+				p.error(ErrInternal)
 				return
 			}
 			start = ebra
@@ -447,15 +446,13 @@ func (p *parser) term() (start, end instr) {
 		c = p.nextc()
 		switch {
 		case c == endOfFile:
-			p.error = ErrExtraneousBackslash
-			return
+			p.error(ErrExtraneousBackslash)
 		case c == 'n':
 			c = '\n'
-		case special(c):
+		case ispunct(c):
 			// c is as delivered
 		default:
-			p.error = ErrBadBackslash
-			return
+			p.error(ErrBadBackslash)
 		}
 		fallthrough
 	default:
@@ -469,7 +466,7 @@ func (p *parser) term() (start, end instr) {
 
 func (p *parser) closure() (start, end instr) {
 	start, end = p.term()
-	if start == nil || p.error != nil {
+	if start == nil {
 		return
 	}
 	switch p.c() {
@@ -504,7 +501,7 @@ func (p *parser) closure() (start, end instr) {
 	}
 	switch p.nextc() {
 	case '*', '+', '?':
-		p.error = ErrBadClosure
+		p.error(ErrBadClosure)
 	}
 	return
 }
@@ -512,9 +509,6 @@ func (p *parser) closure() (start, end instr) {
 func (p *parser) concatenation() (start, end instr) {
 	for {
 		nstart, nend := p.closure()
-		if p.error != nil {
-			return
-		}
 		switch {
 		case nstart == nil: // end of this concatenation
 			if start == nil { // this is the empty string
@@ -534,9 +528,6 @@ func (p *parser) concatenation() (start, end instr) {
 
 func (p *parser) regexp() (start, end instr) {
 	start, end = p.concatenation()
-	if p.error != nil {
-		return
-	}
 	for {
 		switch p.c() {
 		default:
@@ -544,9 +535,6 @@ func (p *parser) regexp() (start, end instr) {
 		case '|':
 			p.nextc()
 			nstart, nend := p.concatenation()
-			if p.error != nil {
-				return
-			}
 			alt := new(_Alt)
 			p.re.add(alt)
 			alt.left = start
@@ -595,14 +583,11 @@ func (re *Regexp) dump() {
 	}
 }
 
-func (re *Regexp) doParse() os.Error {
+func (re *Regexp) doParse() {
 	p := newParser(re)
 	start := new(_Start)
 	re.add(start)
 	s, e := p.regexp()
-	if p.error != nil {
-		return p.error
-	}
 	start.setNext(s)
 	re.start = start
 	e.setNext(re.add(new(_End)))
@@ -617,14 +602,11 @@ func (re *Regexp) doParse() os.Error {
 		re.dump()
 		println()
 	}
-	if p.error == nil {
-		re.setPrefix()
-		if debug {
-			re.dump()
-			println()
-		}
+	re.setPrefix()
+	if debug {
+		re.dump()
+		println()
 	}
-	return p.error
 }
 
 // Extract regular text from the beginning of the pattern.
@@ -661,9 +643,16 @@ Loop:
 // object that can be used to match against text.
 func Compile(str string) (regexp *Regexp, error os.Error) {
 	regexp = new(Regexp)
+	// doParse will panic if there is a parse error.
+	defer func() {
+		if e := recover(); e != nil {
+			regexp = nil
+			error = e.(Error) // Will re-panic if error was not an Error, e.g. nil-pointer exception
+		}
+	}()
 	regexp.expr = str
 	regexp.inst = new(vector.Vector)
-	error = regexp.doParse()
+	regexp.doParse()
 	return
 }
 
@@ -1006,6 +995,14 @@ func Match(pattern string, b []byte) (matched bool, error os.Error) {
 // have been replaced by repl.  No support is provided for expressions
 // (e.g. \1 or $1) in the replacement string.
 func (re *Regexp) ReplaceAllString(src, repl string) string {
+	return re.ReplaceAllStringFunc(src, func(string) string { return repl })
+}
+
+// ReplaceAllStringFunc returns a copy of src in which all matches for the
+// Regexp have been replaced by the return value of of function repl (whose
+// first argument is the matched string).  No support is provided for
+// expressions (e.g. \1 or $1) in the replacement string.
+func (re *Regexp) ReplaceAllStringFunc(src string, repl func(string) string) string {
 	lastMatchEnd := 0 // end position of the most recent match
 	searchPos := 0    // position where we next look for a match
 	buf := new(bytes.Buffer)
@@ -1023,7 +1020,7 @@ func (re *Regexp) ReplaceAllString(src, repl string) string {
 		// (Otherwise, we get double replacement for patterns that
 		// match both empty and nonempty strings.)
 		if a[1] > lastMatchEnd || a[0] == 0 {
-			io.WriteString(buf, repl)
+			io.WriteString(buf, repl(src[a[0]:a[1]]))
 		}
 		lastMatchEnd = a[1]
 
@@ -1050,6 +1047,14 @@ func (re *Regexp) ReplaceAllString(src, repl string) string {
 // have been replaced by repl.  No support is provided for expressions
 // (e.g. \1 or $1) in the replacement text.
 func (re *Regexp) ReplaceAll(src, repl []byte) []byte {
+	return re.ReplaceAllFunc(src, func([]byte) []byte { return repl })
+}
+
+// ReplaceAllFunc returns a copy of src in which all matches for the
+// Regexp have been replaced by the return value of of function repl (whose
+// first argument is the matched []byte).  No support is provided for
+// expressions (e.g. \1 or $1) in the replacement string.
+func (re *Regexp) ReplaceAllFunc(src []byte, repl func([]byte) []byte) []byte {
 	lastMatchEnd := 0 // end position of the most recent match
 	searchPos := 0    // position where we next look for a match
 	buf := new(bytes.Buffer)
@@ -1067,7 +1072,7 @@ func (re *Regexp) ReplaceAll(src, repl []byte) []byte {
 		// (Otherwise, we get double replacement for patterns that
 		// match both empty and nonempty strings.)
 		if a[1] > lastMatchEnd || a[0] == 0 {
-			buf.Write(repl)
+			buf.Write(repl(src[a[0]:a[1]]))
 		}
 		lastMatchEnd = a[1]
 

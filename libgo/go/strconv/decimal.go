@@ -41,32 +41,25 @@ func (a *decimal) String() string {
 		buf[w] = '.'
 		w++
 		w += digitZero(buf[w : w+-a.dp])
-		w += copy(buf[w:w+a.nd], a.d[0:a.nd])
+		w += copy(buf[w:], a.d[0:a.nd])
 
 	case a.dp < a.nd:
 		// decimal point in middle of digits
-		w += copy(buf[w:w+a.dp], a.d[0:a.dp])
+		w += copy(buf[w:], a.d[0:a.dp])
 		buf[w] = '.'
 		w++
-		w += copy(buf[w:w+a.nd-a.dp], a.d[a.dp:a.nd])
+		w += copy(buf[w:], a.d[a.dp:a.nd])
 
 	default:
 		// zeros fill space between digits and decimal point
-		w += copy(buf[w:w+a.nd], a.d[0:a.nd])
+		w += copy(buf[w:], a.d[0:a.nd])
 		w += digitZero(buf[w : w+a.dp-a.nd])
 	}
 	return string(buf[0:w])
 }
 
-func copy(dst []byte, src []byte) int {
-	for i := 0; i < len(dst); i++ {
-		dst[i] = src[i]
-	}
-	return len(dst)
-}
-
 func digitZero(dst []byte) int {
-	for i := 0; i < len(dst); i++ {
+	for i := range dst {
 		dst[i] = '0'
 	}
 	return len(dst)
@@ -195,31 +188,31 @@ var leftcheats = []leftCheat{
 		}'
 	*/
 	leftCheat{0, ""},
-	leftCheat{1, "5"}, // * 2
-	leftCheat{1, "25"}, // * 4
-	leftCheat{1, "125"}, // * 8
-	leftCheat{2, "625"}, // * 16
-	leftCheat{2, "3125"}, // * 32
-	leftCheat{2, "15625"}, // * 64
-	leftCheat{3, "78125"}, // * 128
-	leftCheat{3, "390625"}, // * 256
-	leftCheat{3, "1953125"}, // * 512
-	leftCheat{4, "9765625"}, // * 1024
-	leftCheat{4, "48828125"}, // * 2048
-	leftCheat{4, "244140625"}, // * 4096
-	leftCheat{4, "1220703125"}, // * 8192
-	leftCheat{5, "6103515625"}, // * 16384
-	leftCheat{5, "30517578125"}, // * 32768
-	leftCheat{5, "152587890625"}, // * 65536
-	leftCheat{6, "762939453125"}, // * 131072
-	leftCheat{6, "3814697265625"}, // * 262144
-	leftCheat{6, "19073486328125"}, // * 524288
-	leftCheat{7, "95367431640625"}, // * 1048576
-	leftCheat{7, "476837158203125"}, // * 2097152
-	leftCheat{7, "2384185791015625"}, // * 4194304
-	leftCheat{7, "11920928955078125"}, // * 8388608
-	leftCheat{8, "59604644775390625"}, // * 16777216
-	leftCheat{8, "298023223876953125"}, // * 33554432
+	leftCheat{1, "5"},                   // * 2
+	leftCheat{1, "25"},                  // * 4
+	leftCheat{1, "125"},                 // * 8
+	leftCheat{2, "625"},                 // * 16
+	leftCheat{2, "3125"},                // * 32
+	leftCheat{2, "15625"},               // * 64
+	leftCheat{3, "78125"},               // * 128
+	leftCheat{3, "390625"},              // * 256
+	leftCheat{3, "1953125"},             // * 512
+	leftCheat{4, "9765625"},             // * 1024
+	leftCheat{4, "48828125"},            // * 2048
+	leftCheat{4, "244140625"},           // * 4096
+	leftCheat{4, "1220703125"},          // * 8192
+	leftCheat{5, "6103515625"},          // * 16384
+	leftCheat{5, "30517578125"},         // * 32768
+	leftCheat{5, "152587890625"},        // * 65536
+	leftCheat{6, "762939453125"},        // * 131072
+	leftCheat{6, "3814697265625"},       // * 262144
+	leftCheat{6, "19073486328125"},      // * 524288
+	leftCheat{7, "95367431640625"},      // * 1048576
+	leftCheat{7, "476837158203125"},     // * 2097152
+	leftCheat{7, "2384185791015625"},    // * 4194304
+	leftCheat{7, "11920928955078125"},   // * 8388608
+	leftCheat{8, "59604644775390625"},   // * 16777216
+	leftCheat{8, "298023223876953125"},  // * 33554432
 	leftCheat{8, "1490116119384765625"}, // * 67108864
 	leftCheat{9, "7450580596923828125"}, // * 134217728
 }

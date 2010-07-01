@@ -7,6 +7,7 @@
 package net
 
 import (
+	"io"
 	"once"
 	"os"
 	"sync"
@@ -26,8 +27,8 @@ type netFD struct {
 	family  int
 	proto   int
 	sysfile *os.File
-	cr      chan *netFD
-	cw      chan *netFD
+	cr      chan bool
+	cw      chan bool
 	net     string
 	laddr   Addr
 	raddr   Addr
@@ -43,6 +44,12 @@ type netFD struct {
 	// owned by fd wait server
 	ncr, ncw int
 }
+
+type InvalidConnError struct{}
+
+func (e *InvalidConnError) String() string  { return "invalid net.Conn" }
+func (e *InvalidConnError) Temporary() bool { return false }
+func (e *InvalidConnError) Timeout() bool   { return false }
 
 // A pollServer helps FDs determine when to retry a non-blocking
 // read or write after they get EAGAIN.  When an FD needs to wait,
@@ -122,9 +129,9 @@ func (s *pollServer) AddFD(fd *netFD, mode int) {
 	if intfd < 0 {
 		// fd closed underfoot
 		if mode == 'r' {
-			fd.cr <- fd
+			fd.cr <- true
 		} else {
-			fd.cw <- fd
+			fd.cw <- true
 		}
 		return
 	}
@@ -166,12 +173,12 @@ func (s *pollServer) WakeFD(fd *netFD, mode int) {
 	if mode == 'r' {
 		for fd.ncr > 0 {
 			fd.ncr--
-			fd.cr <- fd
+			fd.cr <- true
 		}
 	} else {
 		for fd.ncw > 0 {
 			fd.ncw--
-			fd.cw <- fd
+			fd.cw <- true
 		}
 	}
 }
@@ -224,7 +231,7 @@ func (s *pollServer) Run() {
 		var t = s.deadline
 		if t > 0 {
 			t = t - s.Now()
-			if t < 0 {
+			if t <= 0 {
 				s.CheckDeadlines()
 				continue
 			}
@@ -241,8 +248,8 @@ func (s *pollServer) Run() {
 		}
 		if fd == s.pr.Fd() {
 			// Drain our wakeup pipe.
-			for nn, _ := s.pr.Read(&scratch); nn > 0; {
-				nn, _ = s.pr.Read(&scratch)
+			for nn, _ := s.pr.Read(scratch[0:]); nn > 0; {
+				nn, _ = s.pr.Read(scratch[0:])
 			}
 			// Read from channels
 			for fd, ok := <-s.cr; ok; fd, ok = <-s.cr {
@@ -264,7 +271,7 @@ func (s *pollServer) Run() {
 
 var wakeupbuf [1]byte
 
-func (s *pollServer) Wakeup() { s.pw.Write(&wakeupbuf) }
+func (s *pollServer) Wakeup() { s.pw.Write(wakeupbuf[0:]) }
 
 func (s *pollServer) WaitRead(fd *netFD) {
 	s.cr <- fd
@@ -297,12 +304,12 @@ func newFD(fd, family, proto int, net string, laddr, raddr Addr) (f *netFD, err 
 		return nil, &OpError{"setnonblock", net, laddr, os.Errno(e)}
 	}
 	f = &netFD{
-		sysfd: fd,
+		sysfd:  fd,
 		family: family,
-		proto: proto,
-		net: net,
-		laddr: laddr,
-		raddr: raddr,
+		proto:  proto,
+		net:    net,
+		laddr:  laddr,
+		raddr:  raddr,
 	}
 	var ls, rs string
 	if laddr != nil {
@@ -312,8 +319,8 @@ func newFD(fd, family, proto int, net string, laddr, raddr Addr) (f *netFD, err 
 		rs = raddr.String()
 	}
 	f.sysfile = os.NewFile(fd, net+":"+ls+"->"+rs)
-	f.cr = make(chan *netFD, 1)
-	f.cw = make(chan *netFD, 1)
+	f.cr = make(chan bool, 1)
+	f.cw = make(chan bool, 1)
 	return f, nil
 }
 
@@ -342,13 +349,6 @@ func (fd *netFD) decref() {
 	fd.sysmu.Unlock()
 }
 
-func isEAGAIN(e os.Error) bool {
-	if e1, ok := e.(*os.PathError); ok {
-		return e1.Error == os.EAGAIN
-	}
-	return e == os.EAGAIN
-}
-
 func (fd *netFD) Close() os.Error {
 	if fd == nil || fd.sysfile == nil {
 		return os.EINVAL
@@ -362,29 +362,39 @@ func (fd *netFD) Close() os.Error {
 }
 
 func (fd *netFD) Read(p []byte) (n int, err os.Error) {
-	if fd == nil || fd.sysfile == nil {
+	if fd == nil {
 		return 0, os.EINVAL
 	}
 	fd.rio.Lock()
 	defer fd.rio.Unlock()
 	fd.incref()
 	defer fd.decref()
+	if fd.sysfile == nil {
+		return 0, os.EINVAL
+	}
 	if fd.rdeadline_delta > 0 {
 		fd.rdeadline = pollserver.Now() + fd.rdeadline_delta
 	} else {
 		fd.rdeadline = 0
 	}
+	var oserr os.Error
 	for {
-		n, err = fd.sysfile.Read(p)
-		if isEAGAIN(err) && fd.rdeadline >= 0 {
+		var errno int
+		n, errno = syscall.Read(fd.sysfile.Fd(), p)
+		if errno == syscall.EAGAIN && fd.rdeadline >= 0 {
 			pollserver.WaitRead(fd)
 			continue
 		}
+		if errno != 0 {
+			n = 0
+			oserr = os.Errno(errno)
+		} else if n == 0 && errno == 0 && fd.proto != syscall.SOCK_DGRAM {
+			err = os.EOF
+		}
 		break
 	}
-	if fd.proto == syscall.SOCK_DGRAM && err == os.EOF {
-		// 0 in datagram protocol just means 0-length packet
-		err = nil
+	if oserr != nil {
+		err = &OpError{"read", fd.net, fd.raddr, oserr}
 	}
 	return
 }
@@ -402,6 +412,7 @@ func (fd *netFD) ReadFrom(p []byte) (n int, sa syscall.Sockaddr, err os.Error) {
 	} else {
 		fd.rdeadline = 0
 	}
+	var oserr os.Error
 	for {
 		var errno int
 		n, sa, errno = syscall.Recvfrom(fd.sysfd, p, 0)
@@ -411,45 +422,59 @@ func (fd *netFD) ReadFrom(p []byte) (n int, sa syscall.Sockaddr, err os.Error) {
 		}
 		if errno != 0 {
 			n = 0
-			err = &os.PathError{"recvfrom", fd.sysfile.Name(), os.Errno(errno)}
+			oserr = os.Errno(errno)
 		}
 		break
+	}
+	if oserr != nil {
+		err = &OpError{"read", fd.net, fd.laddr, oserr}
 	}
 	return
 }
 
 func (fd *netFD) Write(p []byte) (n int, err os.Error) {
-	if fd == nil || fd.sysfile == nil {
+	if fd == nil {
 		return 0, os.EINVAL
 	}
 	fd.wio.Lock()
 	defer fd.wio.Unlock()
 	fd.incref()
 	defer fd.decref()
+	if fd.sysfile == nil {
+		return 0, os.EINVAL
+	}
 	if fd.wdeadline_delta > 0 {
 		fd.wdeadline = pollserver.Now() + fd.wdeadline_delta
 	} else {
 		fd.wdeadline = 0
 	}
-	err = nil
 	nn := 0
-	first := true // force at least one Write, to send 0-length datagram packets
-	for nn < len(p) || first {
-		first = false
-		n, err = fd.sysfile.Write(p[nn:])
+	var oserr os.Error
+
+	for {
+		n, errno := syscall.Write(fd.sysfile.Fd(), p[nn:])
 		if n > 0 {
 			nn += n
 		}
 		if nn == len(p) {
 			break
 		}
-		if isEAGAIN(err) && fd.wdeadline >= 0 {
+		if errno == syscall.EAGAIN && fd.wdeadline >= 0 {
 			pollserver.WaitWrite(fd)
 			continue
 		}
-		if n == 0 || err != nil {
+		if errno != 0 {
+			n = 0
+			oserr = os.Errno(errno)
 			break
 		}
+		if n == 0 {
+			oserr = io.ErrUnexpectedEOF
+			break
+		}
+	}
+	if oserr != nil {
+		err = &OpError{"write", fd.net, fd.raddr, oserr}
 	}
 	return nn, err
 }
@@ -467,7 +492,7 @@ func (fd *netFD) WriteTo(p []byte, sa syscall.Sockaddr) (n int, err os.Error) {
 	} else {
 		fd.wdeadline = 0
 	}
-	err = nil
+	var oserr os.Error
 	for {
 		errno := syscall.Sendto(fd.sysfd, p, 0, sa)
 		if errno == syscall.EAGAIN && fd.wdeadline >= 0 {
@@ -475,12 +500,14 @@ func (fd *netFD) WriteTo(p []byte, sa syscall.Sockaddr) (n int, err os.Error) {
 			continue
 		}
 		if errno != 0 {
-			err = &os.PathError{"sendto", fd.sysfile.Name(), os.Errno(errno)}
+			oserr = os.Errno(errno)
 		}
 		break
 	}
-	if err == nil {
+	if oserr == nil {
 		n = len(p)
+	} else {
+		err = &OpError{"write", fd.net, fd.raddr, oserr}
 	}
 	return
 }

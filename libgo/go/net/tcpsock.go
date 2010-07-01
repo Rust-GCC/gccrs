@@ -14,9 +14,9 @@ import (
 func sockaddrToTCP(sa syscall.Sockaddr) Addr {
 	switch sa := sa.(type) {
 	case *syscall.SockaddrInet4:
-		return &TCPAddr{&sa.Addr, sa.Port}
+		return &TCPAddr{sa.Addr[0:], sa.Port}
 	case *syscall.SockaddrInet6:
-		return &TCPAddr{&sa.Addr, sa.Port}
+		return &TCPAddr{sa.Addr[0:], sa.Port}
 	}
 	return nil
 }
@@ -81,10 +81,7 @@ func (c *TCPConn) ok() bool { return c != nil && c.fd != nil }
 
 // Implementation of the Conn interface - see Conn for documentation.
 
-// Read reads data from the TCP connection.
-//
-// Read can be made to time out and return err == os.EAGAIN
-// after a fixed time limit; see SetTimeout and SetReadTimeout.
+// Read implements the net.Conn Read method.
 func (c *TCPConn) Read(b []byte) (n int, err os.Error) {
 	if !c.ok() {
 		return 0, os.EINVAL
@@ -92,10 +89,7 @@ func (c *TCPConn) Read(b []byte) (n int, err os.Error) {
 	return c.fd.Read(b)
 }
 
-// Write writes data to the TCP connection.
-//
-// Write can be made to time out and return err == os.EAGAIN
-// after a fixed time limit; see SetTimeout and SetReadTimeout.
+// Write implements the net.Conn Write method.
 func (c *TCPConn) Write(b []byte) (n int, err os.Error) {
 	if !c.ok() {
 		return 0, os.EINVAL
@@ -129,8 +123,7 @@ func (c *TCPConn) RemoteAddr() Addr {
 	return c.fd.raddr
 }
 
-// SetTimeout sets the read and write deadlines associated
-// with the connection.
+// SetTimeout implements the net.Conn SetTimeout method.
 func (c *TCPConn) SetTimeout(nsec int64) os.Error {
 	if !c.ok() {
 		return os.EINVAL
@@ -138,9 +131,7 @@ func (c *TCPConn) SetTimeout(nsec int64) os.Error {
 	return setTimeout(c.fd, nsec)
 }
 
-// SetReadTimeout sets the time (in nanoseconds) that
-// Read will wait for data before returning os.EAGAIN.
-// Setting nsec == 0 (the default) disables the deadline.
+// SetReadTimeout implements the net.Conn SetReadTimeout method.
 func (c *TCPConn) SetReadTimeout(nsec int64) os.Error {
 	if !c.ok() {
 		return os.EINVAL
@@ -148,11 +139,7 @@ func (c *TCPConn) SetReadTimeout(nsec int64) os.Error {
 	return setReadTimeout(c.fd, nsec)
 }
 
-// SetWriteTimeout sets the time (in nanoseconds) that
-// Write will wait to send its data before returning os.EAGAIN.
-// Setting nsec == 0 (the default) disables the deadline.
-// Even if write times out, it may return n > 0, indicating that
-// some of the data was successfully written.
+// SetWriteTimeout implements the net.Conn SetWriteTimeout method.
 func (c *TCPConn) SetWriteTimeout(nsec int64) os.Error {
 	if !c.ok() {
 		return os.EINVAL
@@ -211,7 +198,7 @@ func DialTCP(net string, laddr, raddr *TCPAddr) (c *TCPConn, err os.Error) {
 	if raddr == nil {
 		return nil, &OpError{"dial", "tcp", nil, errMissingAddress}
 	}
-	fd, e := internetSocket(net, laddr.toAddr(), raddr.toAddr(), syscall.SOCK_STREAM, "dial", sockaddrToTCP)
+	fd, e := internetSocket(net, laddr.toAddr(), raddr.toAddr(), syscall.SOCK_STREAM, 0, "dial", sockaddrToTCP)
 	if e != nil {
 		return nil, e
 	}
@@ -230,7 +217,7 @@ type TCPListener struct {
 // If laddr has a port of 0, it means to listen on some available port.
 // The caller can use l.Addr() to retrieve the chosen address.
 func ListenTCP(net string, laddr *TCPAddr) (l *TCPListener, err os.Error) {
-	fd, err := internetSocket(net, laddr.toAddr(), nil, syscall.SOCK_STREAM, "listen", sockaddrToTCP)
+	fd, err := internetSocket(net, laddr.toAddr(), nil, syscall.SOCK_STREAM, 0, "listen", sockaddrToTCP)
 	if err != nil {
 		return nil, err
 	}

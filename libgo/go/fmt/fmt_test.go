@@ -13,6 +13,29 @@ import (
 	"testing"
 )
 
+type (
+	renamedBool       bool
+	renamedInt        int
+	renamedInt8       int8
+	renamedInt16      int16
+	renamedInt32      int32
+	renamedInt64      int64
+	renamedUint       uint
+	renamedUint8      uint8
+	renamedUint16     uint16
+	renamedUint32     uint32
+	renamedUint64     uint64
+	renamedUintptr    uintptr
+	renamedString     string
+	renamedBytes      []byte
+	renamedFloat      float
+	renamedFloat32    float32
+	renamedFloat64    float64
+	renamedComplex    complex
+	renamedComplex64  complex64
+	renamedComplex128 complex128
+)
+
 func TestFmtInterface(t *testing.T) {
 	var i1 interface{}
 	i1 = "abc"
@@ -43,7 +66,7 @@ type A struct {
 
 type I int
 
-func (i I) String() string { return Sprintf("<%d>", i) }
+func (i I) String() string { return Sprintf("<%d>", int(i)) }
 
 type B struct {
 	i I
@@ -58,6 +81,10 @@ type C struct {
 var b byte
 
 var fmttests = []fmtTest{
+	fmtTest{"%d", 12345, "12345"},
+	fmtTest{"%v", 12345, "12345"},
+	fmtTest{"%t", true, "true"},
+
 	// basic string
 	fmtTest{"%s", "abc", "abc"},
 	fmtTest{"%x", "abc", "616263"},
@@ -66,12 +93,12 @@ var fmttests = []fmtTest{
 	fmtTest{"%q", "abc", `"abc"`},
 
 	// basic bytes
-	fmtTest{"%s", strings.Bytes("abc"), "abc"},
-	fmtTest{"%x", strings.Bytes("abc"), "616263"},
-	fmtTest{"% x", strings.Bytes("abc"), "61 62 63"},
-	fmtTest{"%x", strings.Bytes("xyz"), "78797a"},
-	fmtTest{"%X", strings.Bytes("xyz"), "78797A"},
-	fmtTest{"%q", strings.Bytes("abc"), `"abc"`},
+	fmtTest{"%s", []byte("abc"), "abc"},
+	fmtTest{"%x", []byte("abc"), "616263"},
+	fmtTest{"% x", []byte("abc"), "61 62 63"},
+	fmtTest{"%x", []byte("xyz"), "78797a"},
+	fmtTest{"%X", []byte("xyz"), "78797A"},
+	fmtTest{"%q", []byte("abc"), `"abc"`},
 
 	// escaped strings
 	fmtTest{"%#q", `abc`, "`abc`"},
@@ -86,6 +113,7 @@ var fmttests = []fmtTest{
 
 	// width
 	fmtTest{"%5s", "abc", "  abc"},
+	fmtTest{"%2s", "\u263a", " \u263a"},
 	fmtTest{"%-5s", "abc", "abc  "},
 	fmtTest{"%05s", "abc", "00abc"},
 
@@ -118,6 +146,26 @@ var fmttests = []fmtTest{
 	fmtTest{"% .3g", -1.0, "-1"},
 	fmtTest{"% .3g", 1.0, " 1"},
 
+	// complex values
+	fmtTest{"%+.3e", 0i, "(+0.000e+00+0.000e+00i)"},
+	fmtTest{"%+.3f", 0i, "(+0.000+0.000i)"},
+	fmtTest{"%+.3g", 0i, "(+0+0i)"},
+	fmtTest{"%+.3e", 1 + 2i, "(+1.000e+00+2.000e+00i)"},
+	fmtTest{"%+.3f", 1 + 2i, "(+1.000+2.000i)"},
+	fmtTest{"%+.3g", 1 + 2i, "(+1+2i)"},
+	fmtTest{"%.3e", 0i, "(0.000e+00+0.000e+00i)"},
+	fmtTest{"%.3f", 0i, "(0.000+0.000i)"},
+	fmtTest{"%.3g", 0i, "(0+0i)"},
+	fmtTest{"%.3e", 1 + 2i, "(1.000e+00+2.000e+00i)"},
+	fmtTest{"%.3f", 1 + 2i, "(1.000+2.000i)"},
+	fmtTest{"%.3g", 1 + 2i, "(1+2i)"},
+	fmtTest{"%.3e", -1 - 2i, "(-1.000e+00-2.000e+00i)"},
+	fmtTest{"%.3f", -1 - 2i, "(-1.000-2.000i)"},
+	fmtTest{"%.3g", -1 - 2i, "(-1-2i)"},
+	fmtTest{"% .3E", -1 - 2i, "(-1.000E+00-2.000E+00i)"},
+	fmtTest{"%+.3g", complex64(1 + 2i), "(+1+2i)"},
+	fmtTest{"%+.3g", complex128(1 + 2i), "(+1+2i)"},
+
 	// erroneous formats
 	fmtTest{"", 2, "?(extra int=2)"},
 	fmtTest{"%d", "hello", "%d(string=hello)"},
@@ -141,6 +189,7 @@ var fmttests = []fmtTest{
 	fmtTest{"%x", b64, "ffffffffffffffff"},
 	fmtTest{"%b", 7, "111"},
 	fmtTest{"%b", b64, "1111111111111111111111111111111111111111111111111111111111111111"},
+	fmtTest{"%b", -6, "-110"},
 	fmtTest{"%e", float64(1), "1.000000e+00"},
 	fmtTest{"%e", float64(1234.5678e3), "1.234568e+06"},
 	fmtTest{"%e", float64(1234.5678e-8), "1.234568e-05"},
@@ -209,6 +258,11 @@ var fmttests = []fmtTest{
 	fmtTest{"%v", &array, "&[1 2 3 4 5]"},
 	fmtTest{"%v", &iarray, "&[1 hello 2.5 <nil>]"},
 
+	// complexes with %v
+	fmtTest{"%v", 1 + 2i, "(1+2i)"},
+	fmtTest{"%v", complex64(1 + 2i), "(1+2i)"},
+	fmtTest{"%v", complex128(1 + 2i), "(1+2i)"},
+
 	// structs
 	fmtTest{"%v", A{1, 2, "a", []int{1, 2}}, `{1 2 a [1 2]}`},
 	fmtTest{"%+v", A{1, 2, "a", []int{1, 2}}, `{i:1 j:2 s:a x:[1 2]}`},
@@ -216,6 +270,12 @@ var fmttests = []fmtTest{
 	// +v on structs with Stringable items
 	fmtTest{"%+v", B{1, 2}, `{i:<1> j:2}`},
 	fmtTest{"%+v", C{1, B{2, 3}}, `{i:1 B:{i:<2> j:3}}`},
+
+	// q on Stringable items
+	fmtTest{"%s", I(23), `<23>`},
+	fmtTest{"%q", I(23), `"<23>"`},
+	fmtTest{"%x", I(23), `3c32333e`},
+	fmtTest{"%d", I(23), `%d(string=<23>)`},
 
 	// %p on non-pointers
 	fmtTest{"%p", make(chan int), "PTR"},
@@ -230,10 +290,42 @@ var fmttests = []fmtTest{
 	fmtTest{"%#v", uint64(1<<64 - 1), "0xffffffffffffffff"},
 	fmtTest{"%#v", 1000000000, "1000000000"},
 
+	// renamings
+	fmtTest{"%v", renamedBool(true), "true"},
+	fmtTest{"%d", renamedBool(true), "%d(fmt_test.renamedBool=true)"},
+	fmtTest{"%o", renamedInt(8), "10"},
+	fmtTest{"%d", renamedInt8(-9), "-9"},
+	fmtTest{"%v", renamedInt16(10), "10"},
+	fmtTest{"%v", renamedInt32(-11), "-11"},
+	fmtTest{"%X", renamedInt64(255), "FF"},
+	fmtTest{"%v", renamedUint(13), "13"},
+	fmtTest{"%o", renamedUint8(14), "16"},
+	fmtTest{"%X", renamedUint16(15), "F"},
+	fmtTest{"%d", renamedUint32(16), "16"},
+	fmtTest{"%X", renamedUint64(17), "11"},
+	fmtTest{"%o", renamedUintptr(18), "22"},
+	fmtTest{"%x", renamedString("thing"), "7468696e67"},
+	// TODO: It would be nice if this one worked, but it's hard.
+	//	fmtTest{"%q", renamedBytes([]byte("hello")), `"hello"`},
+	fmtTest{"%v", renamedFloat(11), "11"},
+	fmtTest{"%v", renamedFloat32(22), "22"},
+	fmtTest{"%v", renamedFloat64(33), "33"},
+	fmtTest{"%v", renamedComplex(7 + .2i), "(7+0.2i)"},
+	fmtTest{"%v", renamedComplex64(3 + 4i), "(3+4i)"},
+	fmtTest{"%v", renamedComplex128(4 - 3i), "(4-3i)"},
+
+	// %T
+	fmtTest{"%T", (4 - 3i), "complex"},
+	fmtTest{"%T", renamedComplex128(4 - 3i), "fmt_test.renamedComplex128"},
+	fmtTest{"%T", intVal, "int"},
+	fmtTest{"%6T", &intVal, "  *int"},
+
 	// erroneous things
 	fmtTest{"%d", "hello", "%d(string=hello)"},
 	fmtTest{"no args", "hello", "no args?(extra string=hello)"},
 	fmtTest{"%s", nil, "%s(<nil>)"},
+	fmtTest{"%T", nil, "<nil>"},
+	fmtTest{"%-1", 100, "%1(int=100)"},
 }
 
 func TestSprintf(t *testing.T) {

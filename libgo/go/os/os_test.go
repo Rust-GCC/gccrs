@@ -29,7 +29,7 @@ var etc = []string{
 	"passwd",
 }
 
-func size(name string, t *testing.T) uint64 {
+func size(name string, t *testing.T) int64 {
 	file, err := Open(name, O_RDONLY, 0)
 	defer file.Close()
 	if err != nil {
@@ -38,7 +38,7 @@ func size(name string, t *testing.T) uint64 {
 	var buf [100]byte
 	len := 0
 	for {
-		n, e := file.Read(&buf)
+		n, e := file.Read(buf[0:])
 		len += n
 		if e == EOF {
 			break
@@ -47,7 +47,7 @@ func size(name string, t *testing.T) uint64 {
 			t.Fatal("read failed:", err)
 		}
 	}
-	return uint64(len)
+	return int64(len)
 }
 
 func TestStat(t *testing.T) {
@@ -297,6 +297,7 @@ func TestLongSymlink(t *testing.T) {
 	// Long, but not too long: a common limit is 255.
 	s = s + s + s + s + s + s + s + s + s + s + s + s + s + s + s
 	from := "longsymlinktestfrom"
+	Remove(from) // Just in case.
 	err := Symlink(s, from)
 	if err != nil {
 		t.Fatalf("symlink %q, %q failed: %v", s, from, err)
@@ -359,7 +360,7 @@ func checkMode(t *testing.T, path string, mode uint32) {
 		t.Fatalf("Stat %q (looking for mode %#o): %s", path, mode, err)
 	}
 	if dir.Mode&0777 != mode {
-		t.Errorf("Stat %q: mode %#o want %#o", path, dir.Mode, 0777)
+		t.Errorf("Stat %q: mode %#o want %#o", path, dir.Mode, mode)
 	}
 }
 
@@ -390,10 +391,10 @@ func checkUidGid(t *testing.T, path string, uid, gid int) {
 	if err != nil {
 		t.Fatalf("Stat %q (looking for uid/gid %d/%d): %s", path, uid, gid, err)
 	}
-	if dir.Uid != uint32(uid) {
+	if dir.Uid != uid {
 		t.Errorf("Stat %q: uid %d want %d", path, dir.Uid, uid)
 	}
-	if dir.Gid != uint32(gid) {
+	if dir.Gid != gid {
 		t.Errorf("Stat %q: gid %d want %d", path, dir.Gid, gid)
 	}
 }
@@ -423,7 +424,7 @@ func TestChown(t *testing.T) {
 	if err = Chown(Path, -1, gid); err != nil {
 		t.Fatalf("chown %s -1 %d: %s", Path, gid, err)
 	}
-	checkUidGid(t, Path, int(dir.Uid), gid)
+	checkUidGid(t, Path, dir.Uid, gid)
 
 	// Then try all the auxiliary groups.
 	groups, err := Getgroups()
@@ -435,17 +436,17 @@ func TestChown(t *testing.T) {
 		if err = Chown(Path, -1, g); err != nil {
 			t.Fatalf("chown %s -1 %d: %s", Path, g, err)
 		}
-		checkUidGid(t, Path, int(dir.Uid), g)
+		checkUidGid(t, Path, dir.Uid, g)
 
 		// change back to gid to test fd.Chown
 		if err = fd.Chown(-1, gid); err != nil {
 			t.Fatalf("fchown %s -1 %d: %s", Path, gid, err)
 		}
-		checkUidGid(t, Path, int(dir.Uid), gid)
+		checkUidGid(t, Path, dir.Uid, gid)
 	}
 }
 
-func checkSize(t *testing.T, path string, size uint64) {
+func checkSize(t *testing.T, path string, size int64) {
 	dir, err := Stat(path)
 	if err != nil {
 		t.Fatalf("Stat %q (looking for size %d): %s", path, size, err)
@@ -464,7 +465,7 @@ func TestTruncate(t *testing.T) {
 	}
 
 	checkSize(t, Path, 0)
-	fd.Write(strings.Bytes("hello, world\n"))
+	fd.Write([]byte("hello, world\n"))
 	checkSize(t, Path, 13)
 	fd.Truncate(10)
 	checkSize(t, Path, 10)
@@ -472,9 +473,51 @@ func TestTruncate(t *testing.T) {
 	checkSize(t, Path, 1024)
 	fd.Truncate(0)
 	checkSize(t, Path, 0)
-	fd.Write(strings.Bytes("surprise!"))
+	fd.Write([]byte("surprise!"))
 	checkSize(t, Path, 13+9) // wrote at offset past where hello, world was.
 	fd.Close()
+	Remove(Path)
+}
+
+func TestChtimes(t *testing.T) {
+	MkdirAll("_obj", 0777)
+	const Path = "_obj/_TestChtimes_"
+	fd, err := Open(Path, O_WRONLY|O_CREAT, 0666)
+	if err != nil {
+		t.Fatalf("create %s: %s", Path, err)
+	}
+	fd.Write([]byte("hello, world\n"))
+	fd.Close()
+
+	preStat, err := Stat(Path)
+	if err != nil {
+		t.Fatalf("Stat %s: %s", Path, err)
+	}
+
+	// Move access and modification time back a second
+	const OneSecond = 1e9 // in nanoseconds
+	err = Chtimes(Path, preStat.Atime_ns-OneSecond, preStat.Mtime_ns-OneSecond)
+	if err != nil {
+		t.Fatalf("Chtimes %s: %s", Path, err)
+	}
+
+	postStat, err := Stat(Path)
+	if err != nil {
+		t.Fatalf("second Stat %s: %s", Path, err)
+	}
+
+	if postStat.Atime_ns >= preStat.Atime_ns {
+		t.Errorf("Atime_ns didn't go backwards; was=%d, after=%d",
+			preStat.Atime_ns,
+			postStat.Atime_ns)
+	}
+
+	if postStat.Mtime_ns >= preStat.Mtime_ns {
+		t.Errorf("Mtime_ns didn't go backwards; was=%d, after=%d",
+			preStat.Mtime_ns,
+			postStat.Mtime_ns)
+	}
+
 	Remove(Path)
 }
 
@@ -684,7 +727,7 @@ func TestWriteAt(t *testing.T) {
 	const data = "hello, world\n"
 	io.WriteString(f, data)
 
-	n, err := f.WriteAt(strings.Bytes("WORLD"), 7)
+	n, err := f.WriteAt([]byte("WORLD"), 7)
 	if err != nil || n != 5 {
 		t.Fatalf("WriteAt 7: %d, %v", n, err)
 	}

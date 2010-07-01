@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -25,26 +24,26 @@ var gnuTarTest = &untarTest{
 	file: "testdata/gnu.tar",
 	headers: []*Header{
 		&Header{
-			Name: "small.txt",
-			Mode: 0640,
-			Uid: 73025,
-			Gid: 5000,
-			Size: 5,
-			Mtime: 1244428340,
+			Name:     "small.txt",
+			Mode:     0640,
+			Uid:      73025,
+			Gid:      5000,
+			Size:     5,
+			Mtime:    1244428340,
 			Typeflag: '0',
-			Uname: "dsymonds",
-			Gname: "eng",
+			Uname:    "dsymonds",
+			Gname:    "eng",
 		},
 		&Header{
-			Name: "small2.txt",
-			Mode: 0640,
-			Uid: 73025,
-			Gid: 5000,
-			Size: 11,
-			Mtime: 1244436044,
+			Name:     "small2.txt",
+			Mode:     0640,
+			Uid:      73025,
+			Gid:      5000,
+			Size:     11,
+			Mtime:    1244436044,
 			Typeflag: '0',
-			Uname: "dsymonds",
-			Gname: "eng",
+			Uname:    "dsymonds",
+			Gname:    "eng",
 		},
 	},
 	cksums: []string{
@@ -59,30 +58,30 @@ var untarTests = []*untarTest{
 		file: "testdata/star.tar",
 		headers: []*Header{
 			&Header{
-				Name: "small.txt",
-				Mode: 0640,
-				Uid: 73025,
-				Gid: 5000,
-				Size: 5,
-				Mtime: 1244592783,
+				Name:     "small.txt",
+				Mode:     0640,
+				Uid:      73025,
+				Gid:      5000,
+				Size:     5,
+				Mtime:    1244592783,
 				Typeflag: '0',
-				Uname: "dsymonds",
-				Gname: "eng",
-				Atime: 1244592783,
-				Ctime: 1244592783,
+				Uname:    "dsymonds",
+				Gname:    "eng",
+				Atime:    1244592783,
+				Ctime:    1244592783,
 			},
 			&Header{
-				Name: "small2.txt",
-				Mode: 0640,
-				Uid: 73025,
-				Gid: 5000,
-				Size: 11,
-				Mtime: 1244592783,
+				Name:     "small2.txt",
+				Mode:     0640,
+				Uid:      73025,
+				Gid:      5000,
+				Size:     11,
+				Mtime:    1244592783,
 				Typeflag: '0',
-				Uname: "dsymonds",
-				Gname: "eng",
-				Atime: 1244592783,
-				Ctime: 1244592783,
+				Uname:    "dsymonds",
+				Gname:    "eng",
+				Atime:    1244592783,
+				Ctime:    1244592783,
 			},
 		},
 	},
@@ -90,21 +89,21 @@ var untarTests = []*untarTest{
 		file: "testdata/v7.tar",
 		headers: []*Header{
 			&Header{
-				Name: "small.txt",
-				Mode: 0444,
-				Uid: 73025,
-				Gid: 5000,
-				Size: 5,
-				Mtime: 1244593104,
+				Name:     "small.txt",
+				Mode:     0444,
+				Uid:      73025,
+				Gid:      5000,
+				Size:     5,
+				Mtime:    1244593104,
 				Typeflag: '\x00',
 			},
 			&Header{
-				Name: "small2.txt",
-				Mode: 0444,
-				Uid: 73025,
-				Gid: 5000,
-				Size: 11,
-				Mtime: 1244593104,
+				Name:     "small2.txt",
+				Mode:     0444,
+				Uid:      73025,
+				Gid:      5000,
+				Size:     11,
+				Mtime:    1244593104,
 				Typeflag: '\x00',
 			},
 		},
@@ -161,7 +160,7 @@ func TestPartialRead(t *testing.T) {
 	if _, err := io.ReadFull(tr, buf); err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if expected := strings.Bytes("Kilt"); !bytes.Equal(buf, expected) {
+	if expected := []byte("Kilt"); !bytes.Equal(buf, expected) {
 		t.Errorf("Contents = %v, want %v", buf, expected)
 	}
 
@@ -174,7 +173,7 @@ func TestPartialRead(t *testing.T) {
 	if _, err := io.ReadFull(tr, buf); err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if expected := strings.Bytes("Google"); !bytes.Equal(buf, expected) {
+	if expected := []byte("Google"); !bytes.Equal(buf, expected) {
 		t.Errorf("Contents = %v, want %v", buf, expected)
 	}
 }

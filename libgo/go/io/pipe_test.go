@@ -8,7 +8,6 @@ import (
 	"fmt"
 	. "io"
 	"os"
-	"strings"
 	"testing"
 	"time"
 )
@@ -29,7 +28,7 @@ func TestPipe1(t *testing.T) {
 	c := make(chan int)
 	r, w := Pipe()
 	var buf = make([]byte, 64)
-	go checkWrite(t, w, strings.Bytes("hello, world"), c)
+	go checkWrite(t, w, []byte("hello, world"), c)
 	n, err := r.Read(buf)
 	if err != nil {
 		t.Errorf("read: %v", err)
@@ -205,6 +204,18 @@ func TestPipeReadClose(t *testing.T) {
 		if err = r.Close(); err != nil {
 			t.Errorf("r.Close: %v", err)
 		}
+	}
+}
+
+// Test close on Read side during Read.
+func TestPipeReadClose2(t *testing.T) {
+	c := make(chan int, 1)
+	r, _ := Pipe()
+	go delayClose(t, r, c, pipeTest{})
+	n, err := r.Read(make([]byte, 64))
+	<-c
+	if n != 0 || err != os.EINVAL {
+		t.Errorf("read from closed pipe: %v, %v want %v, %v", n, err, 0, os.EINVAL)
 	}
 }
 

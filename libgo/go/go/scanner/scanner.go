@@ -46,13 +46,15 @@ func (S *Scanner) next() {
 	if S.offset < len(S.src) {
 		S.pos.Offset = S.offset
 		S.pos.Column++
+		if S.ch == '\n' {
+			// next character starts a new line
+			S.pos.Line++
+			S.pos.Column = 1
+		}
 		r, w := int(S.src[S.offset]), 1
 		switch {
 		case r == 0:
 			S.error(S.pos, "illegal character NUL")
-		case r == '\n':
-			S.pos.Line++
-			S.pos.Column = 0
 		case r >= 0x80:
 			// not ASCII
 			r, w = utf8.DecodeRune(S.src[S.offset:])
@@ -74,8 +76,8 @@ func (S *Scanner) next() {
 //
 const (
 	ScanComments      = 1 << iota // return comments as COMMENT tokens
-	AllowIllegalChars // do not report an error for illegal chars
-	InsertSemis       // automatically insert semicolons
+	AllowIllegalChars             // do not report an error for illegal chars
+	InsertSemis                   // automatically insert semicolons
 )
 
 
@@ -145,7 +147,7 @@ func (S *Scanner) expect(ch int) {
 }
 
 
-var prefix = []byte{'l', 'i', 'n', 'e', ' '} // "line "
+var prefix = []byte("line ")
 
 func (S *Scanner) scanComment(pos token.Position) {
 	// first '/' already consumed
@@ -168,7 +170,7 @@ func (S *Scanner) scanComment(pos token.Position) {
 								// valid //line filename:line comment;
 								// update scanner position
 								S.pos.Filename = string(text[len(prefix):i])
-								S.pos.Line = line
+								S.pos.Line = line - 1 // -1 since the '\n' has not been consumed yet
 							}
 						}
 					}
@@ -211,7 +213,7 @@ func (S *Scanner) findNewline(pos token.Position) bool {
 			newline = true
 			break
 		}
-		S.skipWhitespace()
+		S.skipWhitespace() // S.insertSemi is set
 		if S.ch == '\n' {
 			newline = true
 			break
@@ -302,7 +304,7 @@ func (S *Scanner) scanNumber(pos token.Position, seenDecimalPoint bool) token.To
 				seenDecimalDigit = true
 				S.scanMantissa(10)
 			}
-			if S.ch == '.' || S.ch == 'e' || S.ch == 'E' {
+			if S.ch == '.' || S.ch == 'e' || S.ch == 'E' || S.ch == 'i' {
 				goto fraction
 			}
 			// octal int
@@ -333,39 +335,53 @@ exponent:
 		S.scanMantissa(10)
 	}
 
+	if S.ch == 'i' {
+		tok = token.IMAG
+		S.next()
+	}
+
 exit:
 	return tok
 }
 
 
-func (S *Scanner) scanDigits(base, length int) {
-	for length > 0 && digitVal(S.ch) < base {
-		S.next()
-		length--
-	}
-	if length > 0 {
-		S.error(S.pos, "illegal char escape")
-	}
-}
-
-
 func (S *Scanner) scanEscape(quote int) {
 	pos := S.pos
-	ch := S.ch
-	S.next()
-	switch ch {
+
+	var i, base, max uint32
+	switch S.ch {
 	case 'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', quote:
-	// nothing to do
+		S.next()
+		return
 	case '0', '1', '2', '3', '4', '5', '6', '7':
-		S.scanDigits(8, 3-1) // 1 char read already
+		i, base, max = 3, 8, 255
 	case 'x':
-		S.scanDigits(16, 2)
+		S.next()
+		i, base, max = 2, 16, 255
 	case 'u':
-		S.scanDigits(16, 4)
+		S.next()
+		i, base, max = 4, 16, unicode.MaxRune
 	case 'U':
-		S.scanDigits(16, 8)
+		S.next()
+		i, base, max = 8, 16, unicode.MaxRune
 	default:
-		S.error(pos, "illegal char escape")
+		S.next() // always make progress
+		S.error(pos, "unknown escape sequence")
+		return
+	}
+
+	var x uint32
+	for ; i > 0; i-- {
+		d := uint32(digitVal(S.ch))
+		if d > base {
+			S.error(S.pos, "illegal character in escape sequence")
+			return
+		}
+		x = x*base + d
+		S.next()
+	}
+	if x > max || 0xd800 <= x && x < 0xe000 {
+		S.error(pos, "escape sequence is invalid Unicode code point")
 	}
 }
 
@@ -521,7 +537,7 @@ scanAgain:
 		case -1:
 			tok = token.EOF
 		case '\n':
-			// we only reach here of S.insertSemi was
+			// we only reach here if S.insertSemi was
 			// set in the first place and exited early
 			// from S.skipWhitespace()
 			S.insertSemi = false // newline consumed

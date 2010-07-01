@@ -83,6 +83,7 @@ struct	M
 	int32	mallocing;
 	int32	gcing;
 	MCache	*mcache;
+	int32	nomemprof;
 };
 
 /* Macros.  */
@@ -93,6 +94,7 @@ struct	M
 /* We map throw to assert.  */
 #define throw(s) assert(s == 0)
 
+void*	mal(uintptr);
 void	mallocinit(void);
 void	siginit(void);
 bool	sigsend(int32 sig);
@@ -122,7 +124,8 @@ void	notesleep(Note*);
 void	notewakeup(Note*);
 
 /* Functions.  */
-#define runtime_memclr(buf, size) __builtin_memset(buf, 0, size)
+#define runtime_memclr(buf, size) __builtin_memset((buf), 0, (size))
+#define mcmp(a, b, s) __builtin_memcmp((a), (b), (s))
 MCache*	allocmcache(void);
 void	free(void *v);
 void	addfinalizer(void*, void(*fn)(void*), int32);

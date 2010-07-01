@@ -7,7 +7,6 @@ package asn1
 import (
 	"bytes"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 )
@@ -165,7 +164,7 @@ var timeTestData = []timeTest{
 
 func TestTime(t *testing.T) {
 	for i, test := range timeTestData {
-		ret, err := parseUTCTime(strings.Bytes(test.in))
+		ret, err := parseUTCTime([]byte(test.in))
 		if (err == nil) != test.ok {
 			t.Errorf("#%d: Incorrect error result (did fail? %v, expected: %v)", i, err == nil, test.ok)
 		}
@@ -277,7 +276,7 @@ var unmarshalTestData []unmarshalTest = []unmarshalTest{
 	unmarshalTest{[]byte{0x02, 0x01, 0x10}, newInt(16)},
 	unmarshalTest{[]byte{0x13, 0x04, 't', 'e', 's', 't'}, newString("test")},
 	unmarshalTest{[]byte{0x16, 0x04, 't', 'e', 's', 't'}, newString("test")},
-	unmarshalTest{[]byte{0x16, 0x04, 't', 'e', 's', 't'}, &RawValue{0, 22, false, []byte{'t', 'e', 's', 't'}}},
+	unmarshalTest{[]byte{0x16, 0x04, 't', 'e', 's', 't'}, &RawValue{0, 22, false, []byte("test")}},
 	unmarshalTest{[]byte{0x04, 0x04, 1, 2, 3, 4}, &RawValue{0, 4, false, []byte{1, 2, 3, 4}}},
 	unmarshalTest{[]byte{0x30, 0x03, 0x81, 0x01, 0x01}, &TestContextSpecificTags{1}},
 	unmarshalTest{[]byte{0x30, 0x08, 0xa1, 0x03, 0x02, 0x01, 0x01, 0x02, 0x01, 0x02}, &TestContextSpecificTags2{1, 2}},
@@ -389,8 +388,8 @@ func TestRawStructs(t *testing.T) {
 
 var derEncodedSelfSignedCert = Certificate{
 	TBSCertificate: TBSCertificate{
-		Version: 0,
-		SerialNumber: RawValue{Class: 0, Tag: 2, IsCompound: false, Bytes: []uint8{0x0, 0x8c, 0xc3, 0x37, 0x92, 0x10, 0xec, 0x2c, 0x98}},
+		Version:            0,
+		SerialNumber:       RawValue{Class: 0, Tag: 2, IsCompound: false, Bytes: []uint8{0x0, 0x8c, 0xc3, 0x37, 0x92, 0x10, 0xec, 0x2c, 0x98}},
 		SignatureAlgorithm: AlgorithmIdentifier{Algorithm: ObjectIdentifier{1, 2, 840, 113549, 1, 1, 5}},
 		Issuer: RDNSequence{
 			RelativeDistinguishedNameSET{AttributeTypeAndValue{Type: ObjectIdentifier{2, 5, 4, 6}, Value: "XX"}},

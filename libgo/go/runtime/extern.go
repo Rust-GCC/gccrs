@@ -10,24 +10,87 @@
 */
 package runtime
 
-// These functions are implemented in the base runtime library, ../../runtime/.
-
 // Gosched yields the processor, allowing other goroutines to run.  It does not
 // suspend the current goroutine, so execution resumes automatically.
 func Gosched()
 
 // Goexit terminates the goroutine that calls it.  No other goroutine is affected.
+// Goexit runs all deferred calls before terminating the goroutine.
 func Goexit()
 
 // Breakpoint() executes a breakpoint trap.
 func Breakpoint()
 
 // Caller reports file and line number information about function invocations on
-// the calling goroutine's stack.  The argument is the number of stack frames to
+// the calling goroutine's stack.  The argument skip is the number of stack frames to
 // ascend, with 0 identifying the the caller of Caller.  The return values report the
 // program counter, file name, and line number within the file of the corresponding
 // call.  The boolean ok is false if it was not possible to recover the information.
-func Caller(n int) (pc uintptr, file string, line int, ok bool)
+func Caller(skip int) (pc uintptr, file string, line int, ok bool)
+
+// Callers fills the slice pc with the program counters of function invocations
+// on the calling goroutine's stack.  The argument skip is the number of stack frames
+// to skip before recording in pc, with 0 starting at the caller of Caller.
+// It returns the number of entries written to pc.
+func Callers(skip int, pc []uintptr) int
+
+// FuncForPC returns a *Func describing the function that contains the
+// given program counter address, or else nil.
+func FuncForPC(pc uintptr) *Func
+
+// NOTE(rsc): Func must match struct Func in runtime.h
+
+// Func records information about a function in the program,
+// in particular  the mapping from program counters to source
+// line numbers within that function.
+type Func struct {
+	name   string
+	typ    string
+	src    string
+	pcln   []byte
+	entry  uintptr
+	pc0    uintptr
+	ln0    int32
+	frame  int32
+	args   int32
+	locals int32
+}
+
+// Name returns the name of the function.
+func (f *Func) Name() string { return f.name }
+
+// Entry returns the entry address of the function.
+func (f *Func) Entry() uintptr { return f.entry }
+
+// FileLine returns the file name and line number of the
+// source code corresponding to the program counter pc.
+// The result will not be accurate if pc is not a program
+// counter within f.
+func (f *Func) FileLine(pc uintptr) (file string, line int) {
+	// NOTE(rsc): If you edit this function, also edit
+	// symtab.c:/^funcline.
+	const PcQuant = 1
+
+	p := f.pcln
+	pc1 := f.pc0
+	line = int(f.ln0)
+	file = f.src
+	for i := 0; i < len(p) && pc1 <= pc; i++ {
+		switch {
+		case p[i] == 0:
+			line += int(p[i+1]<<24) | int(p[i+2]<<16) | int(p[i+3]<<8) | int(p[i+4])
+			i += 4
+		case p[i] <= 64:
+			line += int(p[i])
+		case p[i] <= 128:
+			line += int(p[i] - 64)
+		default:
+			line += PcQuant * int(p[i]-129)
+		}
+		pc += PcQuant
+	}
+	return
+}
 
 // mid returns the current os thread (m) id.
 func mid() uint32
@@ -43,8 +106,10 @@ func LockOSThread()
 func UnlockOSThread()
 
 // GOMAXPROCS sets the maximum number of CPUs that can be executing
-// simultaneously.   This call will go away when the scheduler improves.
-func GOMAXPROCS(n int)
+// simultaneously and returns the previous setting.  If n < 1, it does not
+// change the current setting.
+// This call will go away when the scheduler improves.
+func GOMAXPROCS(n int) int
 
 // Cgocalls returns the number of cgo calls made by the current process.
 func Cgocalls() int64
@@ -72,19 +137,42 @@ func Signame(sig int32) string
 func Siginit()
 
 type MemStatsType struct {
-	Alloc      uint64
-	TotalAlloc uint64
-	Sys        uint64
-	Stacks     uint64
-	InusePages uint64
-	NextGC     uint64
-	Lookups    uint64
-	Mallocs    uint64
-	PauseNs    uint64
-	NumGC      uint32
-	EnableGC   bool
-	DebugGC    bool
-	BySize     [67]struct {
+	// General statistics.
+	// Not locked during update; approximate.
+	Alloc      uint64 // bytes allocated and still in use
+	TotalAlloc uint64 // bytes allocated (even if freed)
+	Sys        uint64 // bytes obtained from system (should be sum of XxxSys below)
+	Lookups    uint64 // number of pointer lookups
+	Mallocs    uint64 // number of mallocs
+
+	// Main allocation heap statistics.
+	HeapAlloc uint64 // bytes allocated and still in use
+	HeapSys   uint64 // bytes obtained from system
+	HeapIdle  uint64 // bytes in idle spans
+	HeapInuse uint64 // bytes in non-idle span
+
+	// Low-level fixed-size structure allocator statistics.
+	//	Inuse is bytes used now.
+	//	Sys is bytes obtained from system.
+	StackInuse  uint64 // bootstrap stacks
+	StackSys    uint64
+	MSpanInuse  uint64 // mspan structures
+	MSpanSys    uint64
+	MCacheInuse uint64 // mcache structures
+	MCacheSys   uint64
+	MHeapMapSys uint64 // heap map
+	BuckHashSys uint64 // profiling bucket hash table
+
+	// Garbage collector statistics.
+	NextGC   uint64
+	PauseNs  uint64
+	NumGC    uint32
+	EnableGC bool
+	DebugGC  bool
+
+	// Per-size allocation statistics.
+	// Not locked during update; approximate.
+	BySize [67]struct {
 		Size    uint32
 		Mallocs uint64
 		Frees   uint64
@@ -145,7 +233,84 @@ func GC()
 // to depend on a finalizer to flush an in-memory I/O buffer such as a
 // bufio.Writer, because the buffer would not be flushed at program exit.
 //
+// A single goroutine runs all finalizers for a program, sequentially.
+// If a finalizer must run for a long time, it should do so by starting
+// a new goroutine.
+//
 // TODO(rsc): make os.File use SetFinalizer
 // TODO(rsc): allow f to have (ignored) return values
 //
 func SetFinalizer(x, f interface{})
+
+func getgoroot() string
+
+// GOROOT returns the root of the Go tree.
+// It uses the GOROOT environment variable, if set,
+// or else the root used during the Go build.
+func GOROOT() string {
+	s := getgoroot()
+	if s != "" {
+		return s
+	}
+	return defaultGoroot
+}
+
+// Version returns the Go tree's version string.
+// It is either a sequence number or, when possible,
+// a release tag like "release.2010-03-04".
+// A trailing + indicates that the tree had local modifications
+// at the time of the build.
+func Version() string { return defaultVersion }
+
+// MemProfileRate controls the fraction of memory allocations
+// that are recorded and reported in the memory profile.
+// The profiler aims to sample an average of
+// one allocation per MemProfileRate bytes allocated.
+//
+// To include every allocated block in the profile, set MemProfileRate to 1.
+// To turn off profiling entirely, set MemProfileRate to 0.
+//
+// The tools that process the memory profiles assume that the
+// profile rate is constant across the lifetime of the program
+// and equal to the current value.  Programs that change the
+// memory profiling rate should do so just once, as early as
+// possible in the execution of the program (for example,
+// at the beginning of main).
+var MemProfileRate int = 512 * 1024
+
+// A MemProfileRecord describes the live objects allocated
+// by a particular call sequence (stack trace).
+type MemProfileRecord struct {
+	AllocBytes, FreeBytes     int64       // number of bytes allocated, freed
+	AllocObjects, FreeObjects int64       // number of objects allocated, freed
+	Stack0                    [32]uintptr // stack trace for this record; ends at first 0 entry
+}
+
+// InUseBytes returns the number of bytes in use (AllocBytes - FreeBytes).
+func (r *MemProfileRecord) InUseBytes() int64 { return r.AllocBytes - r.FreeBytes }
+
+// InUseObjects returns the number of objects in use (AllocObjects - FreeObjects).
+func (r *MemProfileRecord) InUseObjects() int64 {
+	return r.AllocObjects - r.FreeObjects
+}
+
+// Stack returns the stack trace associated with the record,
+// a prefix of r.Stack0.
+func (r *MemProfileRecord) Stack() []uintptr {
+	for i, v := range r.Stack0 {
+		if v == 0 {
+			return r.Stack0[0:i]
+		}
+	}
+	return r.Stack0[0:]
+}
+
+// MemProfile returns n, the number of records in the current memory profile.
+// If len(p) >= n, MemProfile copies the profile into p and returns n, true.
+// If len(p) < n, MemProfile does not change p and returns n, false.
+//
+// If inuseZero is true, the profile includes allocation records
+// where r.AllocBytes > 0 but r.AllocBytes == r.FreeBytes.
+// These are sites where memory was allocated, but it has all
+// been released back to the runtime.
+func MemProfile(p []MemProfileRecord, inuseZero bool) (n int, ok bool)

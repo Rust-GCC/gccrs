@@ -5,6 +5,7 @@
 package strings_test
 
 import (
+	"os"
 	. "strings"
 	"testing"
 	"unicode"
@@ -72,6 +73,20 @@ var lastIndexTests = []IndexTest{
 	IndexTest{"abcABCabc", "a", 6},
 }
 
+var indexAnyTests = []IndexTest{
+	IndexTest{"", "", -1},
+	IndexTest{"", "a", -1},
+	IndexTest{"", "abc", -1},
+	IndexTest{"a", "", -1},
+	IndexTest{"a", "a", 0},
+	IndexTest{"aaa", "a", 0},
+	IndexTest{"abc", "xyz", -1},
+	IndexTest{"abc", "xcz", 2},
+	IndexTest{"a☺b☻c☹d", "uvw☻xyz", 2 + len("☺")},
+	IndexTest{"aRegExp*", ".(|)*+?^$[]", 7},
+	IndexTest{dots + dots + dots, " ", -1},
+}
+
 // Execute f on each test case.  funcName should be the name of f; it's used
 // in failure reports.
 func runIndexTests(t *testing.T, f func(s, sep string) int, funcName string, testCases []IndexTest) {
@@ -83,10 +98,9 @@ func runIndexTests(t *testing.T, f func(s, sep string) int, funcName string, tes
 	}
 }
 
-func TestIndex(t *testing.T) { runIndexTests(t, Index, "Index", indexTests) }
-
+func TestIndex(t *testing.T)     { runIndexTests(t, Index, "Index", indexTests) }
 func TestLastIndex(t *testing.T) { runIndexTests(t, LastIndex, "LastIndex", lastIndexTests) }
-
+func TestIndexAny(t *testing.T)  { runIndexTests(t, IndexAny, "IndexAny", indexAnyTests) }
 
 type ExplodeTest struct {
 	s string
@@ -209,6 +223,22 @@ func TestFields(t *testing.T) {
 	}
 }
 
+func TestFieldsFunc(t *testing.T) {
+	pred := func(c int) bool { return c == 'X' }
+	var fieldsFuncTests = []FieldsTest{
+		FieldsTest{"", []string{}},
+		FieldsTest{"XX", []string{}},
+		FieldsTest{"XXhiXXX", []string{"hi"}},
+		FieldsTest{"aXXbXXXcX", []string{"a", "b", "c"}},
+	}
+	for _, tt := range fieldsFuncTests {
+		a := FieldsFunc(tt.s, pred)
+		if !eq(a, tt.a) {
+			t.Errorf("FieldsFunc(%q) = %v, want %v", tt.s, a, tt.a)
+		}
+	}
+}
+
 
 // Test case for any function which accepts and returns a single string.
 type StringTest struct {
@@ -253,8 +283,14 @@ var trimSpaceTests = []StringTest{
 	StringTest{" \t\r\n x\t\t\r\r\n\n ", "x"},
 	StringTest{" \u2000\t\r\n x\t\t\r\r\ny\n \u3000", "x\t\t\r\r\ny"},
 	StringTest{"1 \t\r\n2", "1 \t\r\n2"},
-	StringTest{" x\x80", "x\x80"}, // invalid UTF-8 on end
-	StringTest{" x\xc0", "x\xc0"}, // invalid UTF-8 on end
+	StringTest{" x\x80", "x\x80"},
+	StringTest{" x\xc0", "x\xc0"},
+	StringTest{"x \xc0\xc0 ", "x \xc0\xc0"},
+	StringTest{"x \xc0", "x \xc0"},
+	StringTest{"x \xc0 ", "x \xc0"},
+	StringTest{"x \xc0\xc0 ", "x \xc0\xc0"},
+	StringTest{"x ☺\xc0\xc0 ", "x ☺\xc0\xc0"},
+	StringTest{"x ☺ ", "x ☺"},
 }
 
 func tenRunes(rune int) string {
@@ -328,7 +364,191 @@ func TestToUpper(t *testing.T) { runStringTests(t, ToUpper, "ToUpper", upperTest
 
 func TestToLower(t *testing.T) { runStringTests(t, ToLower, "ToLower", lowerTests) }
 
+func TestSpecialCase(t *testing.T) {
+	lower := "abcçdefgğhıijklmnoöprsştuüvyz"
+	upper := "ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ"
+	u := ToUpperSpecial(unicode.TurkishCase, upper)
+	if u != upper {
+		t.Errorf("Upper(upper) is %s not %s", u, upper)
+	}
+	u = ToUpperSpecial(unicode.TurkishCase, lower)
+	if u != upper {
+		t.Errorf("Upper(lower) is %s not %s", u, upper)
+	}
+	l := ToLowerSpecial(unicode.TurkishCase, lower)
+	if l != lower {
+		t.Errorf("Lower(lower) is %s not %s", l, lower)
+	}
+	l = ToLowerSpecial(unicode.TurkishCase, upper)
+	if l != lower {
+		t.Errorf("Lower(upper) is %s not %s", l, lower)
+	}
+}
+
 func TestTrimSpace(t *testing.T) { runStringTests(t, TrimSpace, "TrimSpace", trimSpaceTests) }
+
+type TrimTest struct {
+	f               func(string, string) string
+	in, cutset, out string
+}
+
+var trimTests = []TrimTest{
+	TrimTest{Trim, "abba", "a", "bb"},
+	TrimTest{Trim, "abba", "ab", ""},
+	TrimTest{TrimLeft, "abba", "ab", ""},
+	TrimTest{TrimRight, "abba", "ab", ""},
+	TrimTest{TrimLeft, "abba", "a", "bba"},
+	TrimTest{TrimRight, "abba", "a", "abb"},
+	TrimTest{Trim, "<tag>", "<>", "tag"},
+	TrimTest{Trim, "* listitem", " *", "listitem"},
+	TrimTest{Trim, `"quote"`, `"`, "quote"},
+	TrimTest{Trim, "\u2C6F\u2C6F\u0250\u0250\u2C6F\u2C6F", "\u2C6F", "\u0250\u0250"},
+	//empty string tests
+	TrimTest{Trim, "abba", "", "abba"},
+	TrimTest{Trim, "", "123", ""},
+	TrimTest{Trim, "", "", ""},
+	TrimTest{TrimLeft, "abba", "", "abba"},
+	TrimTest{TrimLeft, "", "123", ""},
+	TrimTest{TrimLeft, "", "", ""},
+	TrimTest{TrimRight, "abba", "", "abba"},
+	TrimTest{TrimRight, "", "123", ""},
+	TrimTest{TrimRight, "", "", ""},
+	TrimTest{TrimRight, "☺\xc0", "☺", "☺\xc0"},
+}
+
+// naiveTrimRight implements a version of TrimRight
+// by scanning forwards from the start of s.
+func naiveTrimRight(s string, cutset string) string {
+	i := -1
+	for j, r := range s {
+		if IndexRune(cutset, r) == -1 {
+			i = j
+		}
+	}
+	if i >= 0 && s[i] >= utf8.RuneSelf {
+		_, wid := utf8.DecodeRuneInString(s[i:])
+		i += wid
+	} else {
+		i++
+	}
+	return s[0:i]
+}
+
+
+func TestTrim(t *testing.T) {
+	for _, tc := range trimTests {
+		actual := tc.f(tc.in, tc.cutset)
+		var name string
+		switch tc.f {
+		case Trim:
+			name = "Trim"
+		case TrimLeft:
+			name = "TrimLeft"
+		case TrimRight:
+			name = "TrimRight"
+		default:
+			t.Error("Undefined trim function")
+		}
+		if actual != tc.out {
+			t.Errorf("%s(%q, %q) = %q; want %q", name, tc.in, tc.cutset, actual, tc.out)
+		}
+		// test equivalence of TrimRight to naive version
+		if tc.f == TrimRight {
+			naive := naiveTrimRight(tc.in, tc.cutset)
+			if naive != actual {
+				t.Errorf("TrimRight(%q, %q) = %q, want %q", tc.in, tc.cutset, actual, naive)
+			}
+		}
+	}
+}
+
+var isSpace = predicate{unicode.IsSpace, "IsSpace"}
+var isDigit = predicate{unicode.IsDigit, "IsDigit"}
+var isUpper = predicate{unicode.IsUpper, "IsUpper"}
+var isValidRune = predicate{
+	func(r int) bool {
+		return r != utf8.RuneError
+	},
+	"IsValidRune",
+}
+
+type predicate struct {
+	f    func(r int) bool
+	name string
+}
+
+type TrimFuncTest struct {
+	f       predicate
+	in, out string
+}
+
+func not(p predicate) predicate {
+	return predicate{
+		func(r int) bool {
+			return !p.f(r)
+		},
+		"not " + p.name,
+	}
+}
+
+var trimFuncTests = []TrimFuncTest{
+	TrimFuncTest{isSpace, space + " hello " + space, "hello"},
+	TrimFuncTest{isDigit, "\u0e50\u0e5212hello34\u0e50\u0e51", "hello"},
+	TrimFuncTest{isUpper, "\u2C6F\u2C6F\u2C6F\u2C6FABCDhelloEF\u2C6F\u2C6FGH\u2C6F\u2C6F", "hello"},
+	TrimFuncTest{not(isSpace), "hello" + space + "hello", space},
+	TrimFuncTest{not(isDigit), "hello\u0e50\u0e521234\u0e50\u0e51helo", "\u0e50\u0e521234\u0e50\u0e51"},
+	TrimFuncTest{isValidRune, "ab\xc0a\xc0cd", "\xc0a\xc0"},
+	TrimFuncTest{not(isValidRune), "\xc0a\xc0", "a"},
+}
+
+func TestTrimFunc(t *testing.T) {
+	for _, tc := range trimFuncTests {
+		actual := TrimFunc(tc.in, tc.f.f)
+		if actual != tc.out {
+			t.Errorf("TrimFunc(%q, %q) = %q; want %q", tc.in, tc.f.name, actual, tc.out)
+		}
+	}
+}
+
+type IndexFuncTest struct {
+	in          string
+	f           predicate
+	first, last int
+}
+
+var indexFuncTests = []IndexFuncTest{
+	IndexFuncTest{"", isValidRune, -1, -1},
+	IndexFuncTest{"abc", isDigit, -1, -1},
+	IndexFuncTest{"0123", isDigit, 0, 3},
+	IndexFuncTest{"a1b", isDigit, 1, 1},
+	IndexFuncTest{space, isSpace, 0, len(space) - 3}, // last rune in space is 3 bytes
+	IndexFuncTest{"\u0e50\u0e5212hello34\u0e50\u0e51", isDigit, 0, 18},
+	IndexFuncTest{"\u2C6F\u2C6F\u2C6F\u2C6FABCDhelloEF\u2C6F\u2C6FGH\u2C6F\u2C6F", isUpper, 0, 34},
+	IndexFuncTest{"12\u0e50\u0e52hello34\u0e50\u0e51", not(isDigit), 8, 12},
+
+	// broken unicode tests
+	IndexFuncTest{"\x801", isDigit, 1, 1},
+	IndexFuncTest{"\x80abc", isDigit, -1, -1},
+	IndexFuncTest{"\xc0a\xc0", isValidRune, 1, 1},
+	IndexFuncTest{"\xc0a\xc0", not(isValidRune), 0, 2},
+	IndexFuncTest{"\xc0☺\xc0", not(isValidRune), 0, 4},
+	IndexFuncTest{"\xc0☺\xc0\xc0", not(isValidRune), 0, 5},
+	IndexFuncTest{"ab\xc0a\xc0cd", not(isValidRune), 2, 4},
+	IndexFuncTest{"a\xe0\x80cd", not(isValidRune), 1, 2},
+}
+
+func TestIndexFunc(t *testing.T) {
+	for _, tc := range indexFuncTests {
+		first := IndexFunc(tc.in, tc.f.f)
+		if first != tc.first {
+			t.Errorf("IndexFunc(%q, %s) = %d; want %d", tc.in, tc.f.name, first, tc.first)
+		}
+		last := LastIndexFunc(tc.in, tc.f.f)
+		if last != tc.last {
+			t.Errorf("LastIndexFunc(%q, %s) = %d; want %d", tc.in, tc.f.name, last, tc.last)
+		}
+	}
+}
 
 func equal(m string, s1, s2 string, t *testing.T) bool {
 	if s1 == s2 {
@@ -444,17 +664,39 @@ var RunesTests = []RunesTest{
 
 func TestRunes(t *testing.T) {
 	for _, tt := range RunesTests {
-		a := Runes(tt.in)
+		a := []int(tt.in)
 		if !runesEqual(a, tt.out) {
-			t.Errorf("Runes(%q) = %v; want %v", tt.in, a, tt.out)
+			t.Errorf("[]int(%q) = %v; want %v", tt.in, a, tt.out)
 			continue
 		}
 		if !tt.lossy {
 			// can only test reassembly if we didn't lose information
 			s := string(a)
 			if s != tt.in {
-				t.Errorf("string(Runes(%q)) = %x; want %x", tt.in, s, tt.in)
+				t.Errorf("string([]int(%q)) = %x; want %x", tt.in, s, tt.in)
 			}
+		}
+	}
+}
+
+func TestReadRune(t *testing.T) {
+	testStrings := []string{"", abcd, faces, commas}
+	for _, s := range testStrings {
+		reader := NewReader(s)
+		res := ""
+		for {
+			r, _, e := reader.ReadRune()
+			if e == os.EOF {
+				break
+			}
+			if e != nil {
+				t.Errorf("Reading %q: %s", s, e)
+				break
+			}
+			res += string(r)
+		}
+		if res != s {
+			t.Errorf("Reader(%q).ReadRune() produced %q", s, res)
 		}
 	}
 }

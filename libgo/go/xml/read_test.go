@@ -17,14 +17,14 @@ func TestUnmarshalFeed(t *testing.T) {
 		t.Fatalf("Unmarshal: %s", err)
 	}
 	if !reflect.DeepEqual(f, rssFeed) {
-		t.Fatalf("have %#v\nwant %#v\n\n%#v", f)
+		t.Fatalf("have %#v\nwant %#v", f, rssFeed)
 	}
 }
 
 // hget http://codereview.appspot.com/rss/mine/rsc
 const rssFeedString = `
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-us"><title>Code Review - My issues</title><link href="http://codereview.appspot.com/" rel="alternate"></link><li-nk href="http://codereview.appspot.com/rss/mine/rsc" rel="self"></li-nk><id>http://codereview.appspot.com/</id><updated>2009-10-04T01:35:58+00:00</updated><author><name>rietveld</name></author><entry><title>rietveld: an attempt at pubsubhubbub
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-us"><title>Code Review - My issues</title><link href="http://codereview.appspot.com/" rel="alternate"></link><li-nk href="http://codereview.appspot.com/rss/mine/rsc" rel="self"></li-nk><id>http://codereview.appspot.com/</id><updated>2009-10-04T01:35:58+00:00</updated><author><name>rietveld&lt;&gt;</name></author><entry><title>rietveld: an attempt at pubsubhubbub
 </title><link hre-f="http://codereview.appspot.com/126085" rel="alternate"></link><updated>2009-10-04T01:35:58+00:00</updated><author><name>email-address-removed</name></author><id>urn:md5:134d9179c41f806be79b3a5f7877d19a</id><summary type="html">
   An attempt at adding pubsubhubbub support to Rietveld.
 http://code.google.com/p/pubsubhubbub
@@ -75,7 +75,7 @@ call sites.  I also wanted to verify that ExpandTabs was
 not being used from outside intra_region_diff.py.
 
 
-</summary></entry></feed>`
+</summary></entry></feed> 	   `
 
 type Feed struct {
 	XMLName Name "http://www.w3.org/2005/Atom feed"
@@ -102,9 +102,10 @@ type Link struct {
 }
 
 type Person struct {
-	Name  string
-	URI   string
-	Email string
+	Name     string
+	URI      string
+	Email    string
+	InnerXML string "innerxml"
 }
 
 type Text struct {
@@ -116,15 +117,16 @@ type Time string
 
 var rssFeed = Feed{
 	XMLName: Name{"http://www.w3.org/2005/Atom", "feed"},
-	Title: "Code Review - My issues",
+	Title:   "Code Review - My issues",
 	Link: []Link{
 		Link{Rel: "alternate", Href: "http://codereview.appspot.com/"},
 		Link{Rel: "self", Href: "http://codereview.appspot.com/rss/mine/rsc"},
 	},
-	Id: "http://codereview.appspot.com/",
+	Id:      "http://codereview.appspot.com/",
 	Updated: "2009-10-04T01:35:58+00:00",
 	Author: Person{
-		Name: "rietveld",
+		Name:     "rietveld<>",
+		InnerXML: "<name>rietveld&lt;&gt;</name>",
 	},
 	Entry: []Entry{
 		Entry{
@@ -134,7 +136,8 @@ var rssFeed = Feed{
 			},
 			Updated: "2009-10-04T01:35:58+00:00",
 			Author: Person{
-				Name: "email-address-removed",
+				Name:     "email-address-removed",
+				InnerXML: "<name>email-address-removed</name>",
 			},
 			Id: "urn:md5:134d9179c41f806be79b3a5f7877d19a",
 			Summary: Text{
@@ -180,7 +183,8 @@ the top of feeds.py marked NOTE(rsc).
 			},
 			Updated: "2009-10-03T23:02:17+00:00",
 			Author: Person{
-				Name: "email-address-removed",
+				Name:     "email-address-removed",
+				InnerXML: "<name>email-address-removed</name>",
 			},
 			Id: "urn:md5:0a2a4f19bb815101f0ba2904aed7c35a",
 			Summary: Text{

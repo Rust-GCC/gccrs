@@ -6,6 +6,7 @@ package reflect_test
 
 import (
 	"container/vector"
+	"fmt"
 	"io"
 	"os"
 	. "reflect"
@@ -139,14 +140,14 @@ var typeTests = []pair{
 	},
 	pair{struct {
 		x struct {
-			f func(args ...)
+			f func(args ...int)
 		}
 	}{},
-		"struct { f func(...) }",
+		"struct { f func(...int) }",
 	},
 	pair{struct {
 		x (interface {
-			a(func(func(int) int) (func(func(int)) int))
+			a(func(func(int) int) func(func(int)) int)
 			b()
 		})
 	}{},
@@ -349,6 +350,26 @@ func TestPtrPointTo(t *testing.T) {
 		t.Errorf("got %d, want 1234", *ip)
 	}
 }
+
+func TestPtrSetNil(t *testing.T) {
+	var i int32 = 1234
+	ip := &i
+	vip := NewValue(&ip)
+	vip.(*PtrValue).Elem().(*PtrValue).Set(nil)
+	if ip != nil {
+		t.Errorf("got non-nil (%d), want nil", *ip)
+	}
+}
+
+func TestMapSetNil(t *testing.T) {
+	m := make(map[string]int)
+	vm := NewValue(&m)
+	vm.(*PtrValue).Elem().(*MapValue).Set(nil)
+	if m != nil {
+		t.Errorf("got non-nil (%p), want nil", m)
+	}
+}
+
 
 func TestAll(t *testing.T) {
 	testType(t, 1, Typeof((int8)(0)), "int8")
@@ -838,6 +859,12 @@ func TestMap(t *testing.T) {
 	if ok {
 		t.Errorf("newm[\"a\"] = %d after delete", v)
 	}
+
+	mv = NewValue(&m).(*PtrValue).Elem().(*MapValue)
+	mv.Set(nil)
+	if m != nil {
+		t.Errorf("mv.Set(nil) failed")
+	}
 }
 
 func TestChan(t *testing.T) {
@@ -1194,4 +1221,27 @@ func TestImportPath(t *testing.T) {
 	if path := Typeof(vector.Vector{}).PkgPath(); path != "libgo_container.vector" {
 		t.Errorf("Typeof(vector.Vector{}).PkgPath() = %q, want \"libgo_container.vector\"", path)
 	}
+}
+
+func TestDotDotDot(t *testing.T) {
+	// Test example from FuncType.DotDotDot documentation.
+	var f func(x int, y ...float)
+	typ := Typeof(f).(*FuncType)
+	if typ.NumIn() == 2 && typ.In(0) == Typeof(int(0)) {
+		sl, ok := typ.In(1).(*SliceType)
+		if ok {
+			if sl.Elem() == Typeof(float(0)) {
+				// ok
+				return
+			}
+		}
+	}
+
+	// Failed
+	t.Errorf("want NumIn() = 2, In(0) = int, In(1) = []float")
+	s := fmt.Sprintf("have NumIn() = %d", typ.NumIn())
+	for i := 0; i < typ.NumIn(); i++ {
+		s += fmt.Sprintf(", In(%d) = %s", i, typ.In(i))
+	}
+	t.Error(s)
 }

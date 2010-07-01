@@ -98,13 +98,13 @@ type WrongValueError struct {
 
 func newHuffmanBitWriter(w io.Writer) *huffmanBitWriter {
 	return &huffmanBitWriter{
-		w: w,
-		literalFreq: make([]int32, maxLit),
-		offsetFreq: make([]int32, extendedOffsetCodeCount),
-		codegen: make([]uint8, maxLit+extendedOffsetCodeCount+1),
-		codegenFreq: make([]int32, codegenCodeCount),
+		w:               w,
+		literalFreq:     make([]int32, maxLit),
+		offsetFreq:      make([]int32, extendedOffsetCodeCount),
+		codegen:         make([]uint8, maxLit+extendedOffsetCodeCount+1),
+		codegenFreq:     make([]int32, codegenCodeCount),
 		literalEncoding: newHuffmanEncoder(maxLit),
-		offsetEncoding: newHuffmanEncoder(extendedOffsetCodeCount),
+		offsetEncoding:  newHuffmanEncoder(extendedOffsetCodeCount),
 		codegenEncoding: newHuffmanEncoder(codegenCodeCount),
 	}
 }
@@ -126,7 +126,7 @@ func (w *huffmanBitWriter) flushBits() {
 	w.bytes[n] = byte(bits)
 	w.bytes[n+1] = byte(bits >> 8)
 	if n += 2; n >= len(w.bytes) {
-		_, w.err = w.w.Write(&w.bytes)
+		_, w.err = w.w.Write(w.bytes[0:])
 		n = 0
 	}
 	w.nbytes = n
@@ -291,7 +291,7 @@ func (w *huffmanBitWriter) writeDynamicHeader(numLiterals int, numOffsets int, n
 	w.writeBits(firstBits, 3)
 	w.writeBits(int32(numLiterals-257), 5)
 	if numOffsets > offsetCodeCount {
-		// Extended version of deflater
+		// Extended version of decompressor
 		w.writeBits(int32(offsetCodeCount+((numOffsets-(1+offsetCodeCount))>>3)), 5)
 		w.writeBits(int32((numOffsets-(1+offsetCodeCount))&0x7), 3)
 	} else {

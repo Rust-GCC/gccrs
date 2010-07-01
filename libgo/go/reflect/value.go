@@ -668,8 +668,8 @@ func (v *SliceValue) Elem(i int) Value {
 func MakeSlice(typ *SliceType, len, cap int) *SliceValue {
 	s := &SliceHeader{
 		Data: uintptr(unsafe.NewArray(typ.Elem(), cap)),
-		Len: len,
-		Cap: cap,
+		Len:  len,
+		Cap:  cap,
 	}
 	return newValue(typ, addr(s), true).(*SliceValue)
 }
@@ -844,7 +844,7 @@ func (v *value) Method(i int) *FuncValue {
 // implemented in ../pkg/runtime/*/asm.s
 func call(typ *FuncType, fnaddr *byte, isInterface bool, params *addr, results *addr)
 
-// Call calls the function v with input parameters in.
+// Call calls the function fv with input parameters in.
 // It returns the function's output parameters as Values.
 func (fv *FuncValue) Call(in []Value) []Value {
 	t := fv.Type().(*FuncType)
@@ -956,6 +956,10 @@ func (v *InterfaceValue) Set(x Value) {
 	if !v.canSet {
 		panic(cannotSet)
 	}
+	if x == nil {
+		*(*addr)(v.addr) = nil
+		return
+	}
 	pv := (*[3]addr)(*(*addr)(v.addr))
 	if pv == nil {
 		pv = new([3]addr)
@@ -1034,12 +1038,22 @@ func (v *MapValue) Set(x *MapValue) {
 	if !v.canSet {
 		panic(cannotSet)
 	}
+	if x == nil {
+		*(**uintptr)(v.addr) = nil
+		return
+	}
 	typesMustMatch(v.typ, x.typ)
 	*(*uintptr)(v.addr) = *(*uintptr)(x.addr)
 }
 
 // Set sets v to the value x.
-func (v *MapValue) SetValue(x Value) { v.Set(x.(*MapValue)) }
+func (v *MapValue) SetValue(x Value) {
+	if x == nil {
+		v.Set(nil)
+		return
+	}
+	v.Set(x.(*MapValue))
+}
 
 // Get returns the uintptr value of v.
 // It is mainly useful for printing.
@@ -1142,6 +1156,10 @@ func (v *PtrValue) Get() uintptr { return *(*uintptr)(v.addr) }
 // Set assigns x to v.
 // The new value x must have the same type as v.
 func (v *PtrValue) Set(x *PtrValue) {
+	if x == nil {
+		*(**uintptr)(v.addr) = nil
+		return
+	}
 	if !v.canSet {
 		panic(cannotSet)
 	}
@@ -1152,7 +1170,13 @@ func (v *PtrValue) Set(x *PtrValue) {
 }
 
 // Set sets v to the value x.
-func (v *PtrValue) SetValue(x Value) { v.Set(x.(*PtrValue)) }
+func (v *PtrValue) SetValue(x Value) {
+	if x == nil {
+		v.Set(nil)
+		return
+	}
+	v.Set(x.(*PtrValue))
+}
 
 // PointTo changes v to point to x.
 func (v *PtrValue) PointTo(x Value) {
@@ -1242,6 +1266,16 @@ func (t *StructValue) FieldByIndex(index []int) (v Value) {
 // The result is nil if no field was found.
 func (t *StructValue) FieldByName(name string) Value {
 	if f, ok := t.Type().(*StructType).FieldByName(name); ok {
+		return t.FieldByIndex(f.Index)
+	}
+	return nil
+}
+
+// FieldByNameFunc returns the struct field with a name that satisfies the
+// match function.
+// The result is nil if no field was found.
+func (t *StructValue) FieldByNameFunc(match func(string) bool) Value {
+	if f, ok := t.Type().(*StructType).FieldByNameFunc(match); ok {
 		return t.FieldByIndex(f.Index)
 	}
 	return nil

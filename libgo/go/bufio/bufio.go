@@ -229,7 +229,8 @@ func (b *Reader) ReadSlice(delim byte) (line []byte, err os.Error) {
 
 		// Buffer is full?
 		if b.Buffered() >= len(b.buf) {
-			return nil, ErrBufferFull
+			b.r = b.w
+			return b.buf, ErrBufferFull
 		}
 	}
 	panic("not reached")
@@ -259,20 +260,9 @@ func (b *Reader) ReadBytes(delim byte) (line []byte, err os.Error) {
 			break
 		}
 
-		// Read bytes out of buffer.
-		buf := make([]byte, b.Buffered())
-		var n int
-		n, e = b.Read(buf)
-		if e != nil {
-			frag = buf[0:n]
-			err = e
-			break
-		}
-		if n != len(buf) {
-			frag = buf[0:n]
-			err = errInternal
-			break
-		}
+		// Make a copy of the buffer.
+		buf := make([]byte, len(frag))
+		copy(buf, frag)
 
 		// Grow list if needed.
 		if full == nil {
@@ -435,6 +425,35 @@ func (b *Writer) WriteByte(c byte) os.Error {
 	b.buf[b.n] = c
 	b.n++
 	return nil
+}
+
+// WriteRune writes a single Unicode code point, returning
+// the number of bytes written and any error.
+func (b *Writer) WriteRune(rune int) (size int, err os.Error) {
+	if rune < utf8.RuneSelf {
+		err = b.WriteByte(byte(rune))
+		if err != nil {
+			return 0, err
+		}
+		return 1, nil
+	}
+	if b.err != nil {
+		return 0, b.err
+	}
+	n := b.Available()
+	if n < utf8.UTFMax {
+		if b.Flush(); b.err != nil {
+			return 0, b.err
+		}
+		n = b.Available()
+		if n < utf8.UTFMax {
+			// Can only happen if buffer is silly small.
+			return b.WriteString(string(rune))
+		}
+	}
+	size = utf8.EncodeRune(rune, b.buf[b.n:])
+	b.n += size
+	return size, nil
 }
 
 // WriteString writes a string.

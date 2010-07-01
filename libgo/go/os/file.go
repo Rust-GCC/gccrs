@@ -11,12 +11,6 @@ import (
 	"syscall"
 )
 
-// Auxiliary information if the File describes a directory
-type dirInfo struct {
-	buf []byte       // buffer for directory I/O
-	dir *syscall.DIR // from opendir
-}
-
 // File represents an open file descriptor.
 type File struct {
 	fd      int
@@ -44,9 +38,9 @@ func NewFile(fd int, name string) *File {
 // Stdin, Stdout, and Stderr are open Files pointing to the standard input,
 // standard output, and standard error file descriptors.
 var (
-	Stdin  = NewFile(0, "/dev/stdin")
-	Stdout = NewFile(1, "/dev/stdout")
-	Stderr = NewFile(2, "/dev/stderr")
+	Stdin  = NewFile(syscall.Stdin, "/dev/stdin")
+	Stdout = NewFile(syscall.Stdout, "/dev/stdout")
+	Stderr = NewFile(syscall.Stderr, "/dev/stderr")
 )
 
 // Flags to Open wrapping those of the underlying system. Not all flags
@@ -66,38 +60,6 @@ const (
 	O_TRUNC    = syscall.O_TRUNC    // if possible, truncate file when opened.
 	O_CREATE   = O_CREAT            // create a new file if none exists.
 )
-
-// Open opens the named file with specified flag (O_RDONLY etc.) and perm, (0666 etc.)
-// if applicable.  If successful, methods on the returned File can be used for I/O.
-// It returns the File and an Error, if any.
-func Open(name string, flag int, perm int) (file *File, err Error) {
-	r, e := syscall.Open(name, flag|syscall.O_CLOEXEC, perm)
-	if e != 0 {
-		return nil, &PathError{"open", name, Errno(e)}
-	}
-
-	// There's a race here with fork/exec, which we are
-	// content to live with.  See ../syscall/exec.go
-	if syscall.O_CLOEXEC == 0 { // O_CLOEXEC not supported
-		syscall.CloseOnExec(r)
-	}
-
-	return NewFile(r, name), nil
-}
-
-// Close closes the File, rendering it unusable for I/O.
-// It returns an Error, if any.
-func (file *File) Close() Error {
-	if file == nil || file.fd < 0 {
-		return EINVAL
-	}
-	var err Error
-	if e := syscall.Close(file.fd); e != 0 {
-		err = &PathError{"close", file.name, Errno(e)}
-	}
-	file.fd = -1 // so it can't be closed again
-	return err
-}
 
 type eofError int
 
@@ -232,7 +194,7 @@ func Pipe() (r *File, w *File, err Error) {
 
 	// See ../syscall/exec.go for description of lock.
 	syscall.ForkLock.RLock()
-	e := syscall.Pipe(&p)
+	e := syscall.Pipe(p[0:])
 	if e != 0 {
 		syscall.ForkLock.RUnlock()
 		return nil, nil, NewSyscallError("pipe", e)
@@ -254,12 +216,12 @@ func Mkdir(name string, perm int) Error {
 	return nil
 }
 
-// Stat returns a Dir structure describing the named file and an error, if any.
-// If name names a valid symbolic link, the returned Dir describes
-// the file pointed at by the link and has dir.FollowedSymlink set to true.
-// If name names an invalid symbolic link, the returned Dir describes
-// the link itself and has dir.FollowedSymlink set to false.
-func Stat(name string) (dir *Dir, err Error) {
+// Stat returns a FileInfo structure describing the named file and an error, if any.
+// If name names a valid symbolic link, the returned FileInfo describes
+// the file pointed at by the link and has fi.FollowedSymlink set to true.
+// If name names an invalid symbolic link, the returned FileInfo describes
+// the link itself and has fi.FollowedSymlink set to false.
+func Stat(name string) (fi *FileInfo, err Error) {
 	var lstat, stat syscall.Stat_t
 	e := syscall.Lstat(name, &lstat)
 	if e != 0 {
@@ -272,57 +234,19 @@ func Stat(name string) (dir *Dir, err Error) {
 			statp = &stat
 		}
 	}
-	return dirFromStat(name, new(Dir), &lstat, statp), nil
+	return fileInfoFromStat(name, new(FileInfo), &lstat, statp), nil
 }
 
-// Stat returns the Dir structure describing file.
-// It returns the Dir and an error, if any.
-func (file *File) Stat() (dir *Dir, err Error) {
-	var stat syscall.Stat_t
-	e := syscall.Fstat(file.fd, &stat)
-	if e != 0 {
-		return nil, &PathError{"stat", file.name, Errno(e)}
-	}
-	return dirFromStat(file.name, new(Dir), &stat, &stat), nil
-}
-
-// Lstat returns the Dir structure describing the named file and an error, if any.
-// If the file is a symbolic link, the returned Dir describes the
-// symbolic link.  Lstat makes no attempt to follow the link.
-func Lstat(name string) (dir *Dir, err Error) {
+// Lstat returns the FileInfo structure describing the named file and an
+// error, if any.  If the file is a symbolic link, the returned FileInfo
+// describes the symbolic link.  Lstat makes no attempt to follow the link.
+func Lstat(name string) (fi *FileInfo, err Error) {
 	var stat syscall.Stat_t
 	e := syscall.Lstat(name, &stat)
 	if e != 0 {
 		return nil, &PathError{"lstat", name, Errno(e)}
 	}
-	return dirFromStat(name, new(Dir), &stat, &stat), nil
-}
-
-// Readdir reads the contents of the directory associated with file and
-// returns an array of up to count Dir structures, as would be returned
-// by Stat, in directory order.  Subsequent calls on the same file will yield further Dirs.
-// A negative count means to read until EOF.
-// Readdir returns the array and an Error, if any.
-func (file *File) Readdir(count int) (dirs []Dir, err Error) {
-	dirname := file.name
-	if dirname == "" {
-		dirname = "."
-	}
-	dirname += "/"
-	names, err1 := file.Readdirnames(count)
-	if err1 != nil {
-		return nil, err1
-	}
-	dirs = make([]Dir, len(names))
-	for i, filename := range names {
-		dirp, err := Lstat(dirname + filename)
-		if dirp == nil || err != nil {
-			dirs[i].Name = filename // rest is already zeroed out
-		} else {
-			dirs[i] = *dirp
-		}
-	}
-	return
+	return fileInfoFromStat(name, new(FileInfo), &stat, &stat), nil
 }
 
 // Chdir changes the current working directory to the named directory.
@@ -366,6 +290,9 @@ func Remove(name string) Error {
 	// file path, like /etc/passwd/foo, but in that case,
 	// both errors will be ENOTDIR, so it's okay to
 	// use the error from unlink.
+	// For windows syscall.ENOTDIR is set
+	// to syscall.ERROR_DIRECTORY, hopefully it should
+	// do the trick.
 	if e1 != syscall.ENOTDIR {
 		e = e1
 	}
@@ -472,20 +399,27 @@ func (f *File) Chown(uid, gid int) Error {
 	return nil
 }
 
-// Truncate changes the size of the named file.
-// If the file is a symbolic link, it changes the size of the link's target.
-func Truncate(name string, size int64) Error {
-	if e := syscall.Truncate(name, size); e != 0 {
-		return &PathError{"truncate", name, Errno(e)}
-	}
-	return nil
-}
-
 // Truncate changes the size of the file.
 // It does not change the I/O offset.
 func (f *File) Truncate(size int64) Error {
 	if e := syscall.Ftruncate(f.fd, size); e != 0 {
 		return &PathError{"truncate", f.name, Errno(e)}
+	}
+	return nil
+}
+
+// Chtimes changes the access and modification times of the named
+// file, similar to the Unix utime() or utimes() functions.
+//
+// The argument times are in nanoseconds, although the underlying
+// filesystem may truncate or round the values to a more
+// coarse time unit.
+func Chtimes(name string, atime_ns int64, mtime_ns int64) Error {
+	var utimes [2]syscall.Timeval
+	utimes[0] = syscall.NsecToTimeval(atime_ns)
+	utimes[1] = syscall.NsecToTimeval(mtime_ns)
+	if e := syscall.Utimes(name, utimes[0:]); e != 0 {
+		return &PathError{"chtimes", name, Errno(e)}
 	}
 	return nil
 }

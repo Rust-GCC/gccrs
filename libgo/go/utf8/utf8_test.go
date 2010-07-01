@@ -6,7 +6,6 @@ package utf8_test
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 	. "utf8"
 )
@@ -48,7 +47,7 @@ var utf8map = []Utf8Map{
 // strings.Bytes with one extra byte at end
 func makeBytes(s string) []byte {
 	s += "\x00"
-	b := strings.Bytes(s)
+	b := []byte(s)
 	return b[0 : len(s)-1]
 }
 
@@ -79,7 +78,7 @@ func TestEncodeRune(t *testing.T) {
 		m := utf8map[i]
 		b := makeBytes(m.str)
 		var buf [10]byte
-		n := EncodeRune(m.rune, &buf)
+		n := EncodeRune(m.rune, buf[0:])
 		b1 := buf[0:n]
 		if !bytes.Equal(b, b1) {
 			t.Errorf("EncodeRune(%#04x) = %q want %q", m.rune, b1, b)
@@ -214,7 +213,7 @@ func BenchmarkDecodeASCIIRune(b *testing.B) {
 }
 
 func BenchmarkDecodeJapaneseRune(b *testing.B) {
-	nihon := strings.Bytes("本")
+	nihon := []byte("本")
 	for i := 0; i < b.N; i++ {
 		DecodeRune(nihon)
 	}

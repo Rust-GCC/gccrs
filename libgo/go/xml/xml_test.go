@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -30,69 +29,71 @@ const testInput = `
 </body><!-- missing final newline -->`
 
 var rawTokens = []Token{
-	CharData(strings.Bytes("\n")),
-	ProcInst{"xml", strings.Bytes(`version="1.0" encoding="UTF-8"`)},
-	CharData(strings.Bytes("\n")),
-	Directive(strings.Bytes(`DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"`)),
-	CharData(strings.Bytes("\n")),
+	CharData([]byte("\n")),
+	ProcInst{"xml", []byte(`version="1.0" encoding="UTF-8"`)},
+	CharData([]byte("\n")),
+	Directive([]byte(`DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"`),
+	),
+	CharData([]byte("\n")),
 	StartElement{Name{"", "body"}, []Attr{Attr{Name{"xmlns", "foo"}, "ns1"}, Attr{Name{"", "xmlns"}, "ns2"}, Attr{Name{"xmlns", "tag"}, "ns3"}}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	StartElement{Name{"", "hello"}, []Attr{Attr{Name{"", "lang"}, "en"}}},
-	CharData(strings.Bytes("World <>'\" 白鵬翔")),
+	CharData([]byte("World <>'\" 白鵬翔")),
 	EndElement{Name{"", "hello"}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	StartElement{Name{"", "goodbye"}, nil},
 	EndElement{Name{"", "goodbye"}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	StartElement{Name{"", "outer"}, []Attr{Attr{Name{"foo", "attr"}, "value"}, Attr{Name{"xmlns", "tag"}, "ns4"}}},
-	CharData(strings.Bytes("\n    ")),
+	CharData([]byte("\n    ")),
 	StartElement{Name{"", "inner"}, nil},
 	EndElement{Name{"", "inner"}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	EndElement{Name{"", "outer"}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	StartElement{Name{"tag", "name"}, nil},
-	CharData(strings.Bytes("\n    ")),
-	CharData(strings.Bytes("Some text here.")),
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n    ")),
+	CharData([]byte("Some text here.")),
+	CharData([]byte("\n  ")),
 	EndElement{Name{"tag", "name"}},
-	CharData(strings.Bytes("\n")),
+	CharData([]byte("\n")),
 	EndElement{Name{"", "body"}},
-	Comment(strings.Bytes(" missing final newline ")),
+	Comment([]byte(" missing final newline ")),
 }
 
 var cookedTokens = []Token{
-	CharData(strings.Bytes("\n")),
-	ProcInst{"xml", strings.Bytes(`version="1.0" encoding="UTF-8"`)},
-	CharData(strings.Bytes("\n")),
-	Directive(strings.Bytes(`DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"`)),
-	CharData(strings.Bytes("\n")),
+	CharData([]byte("\n")),
+	ProcInst{"xml", []byte(`version="1.0" encoding="UTF-8"`)},
+	CharData([]byte("\n")),
+	Directive([]byte(`DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"`),
+	),
+	CharData([]byte("\n")),
 	StartElement{Name{"ns2", "body"}, []Attr{Attr{Name{"xmlns", "foo"}, "ns1"}, Attr{Name{"", "xmlns"}, "ns2"}, Attr{Name{"xmlns", "tag"}, "ns3"}}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	StartElement{Name{"ns2", "hello"}, []Attr{Attr{Name{"", "lang"}, "en"}}},
-	CharData(strings.Bytes("World <>'\" 白鵬翔")),
+	CharData([]byte("World <>'\" 白鵬翔")),
 	EndElement{Name{"ns2", "hello"}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	StartElement{Name{"ns2", "goodbye"}, nil},
 	EndElement{Name{"ns2", "goodbye"}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	StartElement{Name{"ns2", "outer"}, []Attr{Attr{Name{"ns1", "attr"}, "value"}, Attr{Name{"xmlns", "tag"}, "ns4"}}},
-	CharData(strings.Bytes("\n    ")),
+	CharData([]byte("\n    ")),
 	StartElement{Name{"ns2", "inner"}, nil},
 	EndElement{Name{"ns2", "inner"}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	EndElement{Name{"ns2", "outer"}},
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n  ")),
 	StartElement{Name{"ns3", "name"}, nil},
-	CharData(strings.Bytes("\n    ")),
-	CharData(strings.Bytes("Some text here.")),
-	CharData(strings.Bytes("\n  ")),
+	CharData([]byte("\n    ")),
+	CharData([]byte("Some text here.")),
+	CharData([]byte("\n  ")),
 	EndElement{Name{"ns3", "name"}},
-	CharData(strings.Bytes("\n")),
+	CharData([]byte("\n")),
 	EndElement{Name{"ns2", "body"}},
-	Comment(strings.Bytes(" missing final newline ")),
+	Comment([]byte(" missing final newline ")),
 }
 
 var xmlInput = []string{
@@ -101,7 +102,6 @@ var xmlInput = []string{
 	"<t",
 	"<t ",
 	"<t/",
-	"<t/>c",
 	"<!",
 	"<!-",
 	"<!--",
@@ -123,8 +123,6 @@ var xmlInput = []string{
 	"<t/><![CDATA[d]]",
 
 	// other Syntax errors
-	" ",
-	">",
 	"<>",
 	"<t/a",
 	"<0 />",
@@ -139,7 +137,6 @@ var xmlInput = []string{
 	"<t a=>",
 	"<t a=v>",
 	//	"<![CDATA[d]]>",	// let the Token() caller handle
-	"cdata",
 	"<t></e>",
 	"<t></>",
 	"<t></t!",
@@ -208,14 +205,17 @@ func TestSyntax(t *testing.T) {
 		var err os.Error
 		for _, err = p.Token(); err == nil; _, err = p.Token() {
 		}
-		if _, ok := err.(SyntaxError); !ok {
+		if _, ok := err.(*SyntaxError); !ok {
 			t.Fatalf(`xmlInput "%s": expected SyntaxError not received`, xmlInput[i])
 		}
 	}
 }
 
 type allScalars struct {
-	Bool    bool
+	True1   bool
+	True2   bool
+	False1  bool
+	False2  bool
 	Int     int
 	Int8    int8
 	Int16   int16
@@ -234,26 +234,32 @@ type allScalars struct {
 }
 
 var all = allScalars{
-	Bool: true,
-	Int: 1,
-	Int8: -2,
-	Int16: 3,
-	Int32: -4,
-	Int64: 5,
-	Uint: 6,
-	Uint8: 7,
-	Uint16: 8,
-	Uint32: 9,
-	Uint64: 10,
+	True1:   true,
+	True2:   true,
+	False1:  false,
+	False2:  false,
+	Int:     1,
+	Int8:    -2,
+	Int16:   3,
+	Int32:   -4,
+	Int64:   5,
+	Uint:    6,
+	Uint8:   7,
+	Uint16:  8,
+	Uint32:  9,
+	Uint64:  10,
 	Uintptr: 11,
-	Float: 12.0,
+	Float:   12.0,
 	Float32: 13.0,
 	Float64: 14.0,
-	String: "15",
+	String:  "15",
 }
 
 const testScalarsInput = `<allscalars>
-	<bool/>
+	<true1>true</true1>
+	<true2>1</true2>
+	<false1>false</false1>
+	<false2>0</false2>
 	<int>1</int>
 	<int8>-2</int8>
 	<int16>3</int16>
@@ -280,7 +286,7 @@ func TestAllScalars(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(a, all) {
-		t.Errorf("expected %+v got %+v", a, all)
+		t.Errorf("expected %+v got %+v", all, a)
 	}
 }
 
@@ -304,7 +310,7 @@ func TestUnquotedAttrs(t *testing.T) {
 	p := NewParser(StringReader(data))
 	p.Strict = false
 	token, err := p.Token()
-	if _, ok := err.(SyntaxError); ok {
+	if _, ok := err.(*SyntaxError); ok {
 		t.Errorf("Unexpected error: %v", err)
 	}
 	if token.(StartElement).Name.Local != "tag" {
@@ -316,5 +322,68 @@ func TestUnquotedAttrs(t *testing.T) {
 	}
 	if attr.Name.Local != "attr" {
 		t.Errorf("Unexpected attribute name: %v", attr.Name.Local)
+	}
+}
+
+func TestCopyTokenCharData(t *testing.T) {
+	data := []byte("same data")
+	var tok1 Token = CharData(data)
+	tok2 := CopyToken(tok1)
+	if !reflect.DeepEqual(tok1, tok2) {
+		t.Error("CopyToken(CharData) != CharData")
+	}
+	data[1] = 'o'
+	if reflect.DeepEqual(tok1, tok2) {
+		t.Error("CopyToken(CharData) uses same buffer.")
+	}
+}
+
+func TestCopyTokenStartElement(t *testing.T) {
+	elt := StartElement{Name{"", "hello"}, []Attr{Attr{Name{"", "lang"}, "en"}}}
+	var tok1 Token = elt
+	tok2 := CopyToken(tok1)
+	if !reflect.DeepEqual(tok1, tok2) {
+		t.Error("CopyToken(StartElement) != StartElement")
+	}
+	elt.Attr[0] = Attr{Name{"", "lang"}, "de"}
+	if reflect.DeepEqual(tok1, tok2) {
+		t.Error("CopyToken(CharData) uses same buffer.")
+	}
+}
+
+func TestSyntaxErrorLineNum(t *testing.T) {
+	testInput := "<P>Foo<P>\n\n<P>Bar</>\n"
+	p := NewParser(StringReader(testInput))
+	var err os.Error
+	for _, err = p.Token(); err == nil; _, err = p.Token() {
+	}
+	synerr, ok := err.(*SyntaxError)
+	if !ok {
+		t.Error("Expected SyntaxError.")
+	}
+	if synerr.Line != 3 {
+		t.Error("SyntaxError didn't have correct line number.")
+	}
+}
+
+func TestTrailingRawToken(t *testing.T) {
+	input := `<FOO></FOO>  `
+	p := NewParser(StringReader(input))
+	var err os.Error
+	for _, err = p.RawToken(); err == nil; _, err = p.RawToken() {
+	}
+	if err != os.EOF {
+		t.Fatalf("p.RawToken() = _, %v, want _, os.EOF", err)
+	}
+}
+
+func TestTrailingToken(t *testing.T) {
+	input := `<FOO></FOO>  `
+	p := NewParser(StringReader(input))
+	var err os.Error
+	for _, err = p.Token(); err == nil; _, err = p.Token() {
+	}
+	if err != os.EOF {
+		t.Fatalf("p.Token() = _, %v, want _, os.EOF", err)
 	}
 }

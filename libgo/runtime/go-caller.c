@@ -1,4 +1,4 @@
-/* go-caller.c -- runtime.Caller for Go.
+/* go-caller.c -- runtime.Caller and runtime.FuncForPC for Go.
 
    Copyright 2009 The Go Authors. All rights reserved.
    Use of this source code is governed by a BSD-style
@@ -38,4 +38,14 @@ Caller (int n __attribute__ ((unused)))
   ret.ok = 0;
 
   return ret;
+}
+
+/* Implement runtime.FuncForPC.  */
+
+void *FuncForPC (uintptr_t) asm ("libgo_runtime.runtime.FuncForPC");
+
+void *
+FuncForPC(uintptr_t pc __attribute__ ((unused)))
+{
+  return NULL;
 }

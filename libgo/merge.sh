@@ -42,6 +42,66 @@ hg clone ${repository} ${NEWDIR}
 
 new_rev=`cd ${NEWDIR} && hg log | sed 1q | sed -e 's/.*://'`
 
+merge() {
+  name=$1
+  old=$2
+  new=$3
+  libgo=$4
+  if test -f ${old}; then
+    # The file exists in the old version.
+    if ! test -f ${libgo}; then
+      echo "merge.sh: $name: skipping: exists in old and new hg, but not in libgo"
+      continue
+    fi
+    if cmp -s ${old} ${libgo}; then
+      # The libgo file is unchanged from the old version.
+      if cmp -s ${new} ${libgo}; then
+        # File is unchanged from old to new version.
+        continue
+      fi
+      # Update file in libgo.
+      echo "merge.sh: $name: updating"
+      cp ${new} ${libgo}
+    else
+      # The libgo file has local changes.
+      set +e
+      diff3 -m -E ${libgo} ${old} ${new} > ${libgo}.tmp
+      status=$?
+      set -e
+      case $status in
+      0)
+        echo "merge.sh: $name: updating"
+        mv ${libgo}.tmp ${libgo}
+        ;;
+      1)
+        echo "merge.sh: $name: CONFLICTS"
+        mv ${libgo}.tmp ${libgo}
+        hg resolve -u ${libgo}
+        ;;
+      *)
+        echo 1>&2 "merge.sh: $name: diff3 failure"
+        exit 1
+        ;;
+      esac
+    fi
+  else
+    # The file does not exist in the old version.
+    if test -f ${libgo}; then
+      if ! cmp -s ${new} ${libgo}; then
+        echo 1>&2 "merge.sh: $name: IN NEW AND LIBGO BUT NOT OLD"
+      fi
+    else
+      echo "merge.sh: $name: NEW"
+      dir=`dirname ${libgo}`
+      if ! test -d ${dir}; then
+        mkdir -p ${dir}
+      fi
+      cp ${new} ${libgo}
+      hg add ${libgo}
+    fi
+  fi
+}
+
 (cd ${NEWDIR}/src/pkg && find . -name '*.go' -print) | while read f; do
   if test `dirname $f` = "./syscall"; then
     continue
@@ -49,60 +109,35 @@ new_rev=`cd ${NEWDIR} && hg log | sed 1q | sed -e 's/.*://'`
   oldfile=${OLDDIR}/src/pkg/$f
   newfile=${NEWDIR}/src/pkg/$f
   libgofile=go/$f
-  if test -f ${oldfile}; then
-    # The file exists in the old version.
-    if ! test -f ${libgofile}; then
-      echo "merge.sh: $f: skipping: exists in old and new hg, but not in libgo"
+  merge $f ${oldfile} ${newfile} ${libgofile}
+done
+
+(cd ${NEWDIR}/src/pkg && find . -name testdata -print) | while read d; do
+  oldtd=${OLDDIR}/src/pkg/$d
+  newtd=${NEWDIR}/src/pkg/$d
+  libgotd=go/$d
+  if ! test -d ${oldtd}; then
+    continue
+  fi
+  (cd ${oldtd} && hg status -A) | while read f; do
+    if test "`basename $f`" = ".hgignore"; then
       continue
     fi
-    if cmp -s ${oldfile} ${libgofile}; then
-      # The libgo file is unchanged from the old version.
-      if cmp -s ${newfile} ${libgofile}; then
-        # File is unchanged from old to new version.
-        continue
-      fi
-      # Update file in libgo.
-      echo "merge.sh: $f: updating"
-      cp ${newfile} ${libgofile}
-    else
-      # The libgo file has local changes.
-      set +e
-      diff3 -m -E ${libgofile} ${oldfile} ${newfile} > ${libgofile}.tmp
-      status=$?
-      set -e
-      case $status in
-      0)
-        echo "merge.sh: $f: updating"
-        mv ${libgofile}.tmp ${libgofile}
-        ;;
-      1)
-        echo "merge.sh: $f: CONFLICTS"
-        mv ${libgofile}.tmp ${libgofile}
-	hg resolve -u ${libgofile}
-        ;;
-      *)
-        echo 1>&2 "merge.sh: $f: diff3 failure"
-        exit 1
-        ;;
-      esac
-    fi
-  else
-    # The file does not exist in the old version.
-    if test -f ${libgofile}; then
-      if ! cmp -s ${newfile} ${libgofile}; then
-        echo 1>&2 "merge.sh: $1: in new and libgo but not old"
-        exit 1
-      fi
-    else
-      echo "merge.sh: $f: NEW"
-      dir=`dirname ${libgofile}`
-      if ! test -d ${dir}; then
-        mkdir ${dir}
-      fi
-      cp ${newfile} ${libgofile}
-      hg add ${libgofile}
-    fi
-  fi
+    f=`echo $f | sed -e 's/^..//'`
+    name=$d/$f
+    oldfile=${oldtd}/$f
+    newfile=${newtd}/$f
+    libgofile=${libgotd}/$f
+    merge ${name} ${oldfile} ${newfile} ${libgofile}
+  done
+done
+
+runtime="goc2c.c mcache.c mcentral.c mfinal.c mfixalloc.c mgc0.c mheap.c mheapmap32.c mheapmap64.c msize.c malloc.h mheapmap32.h mheapmap64.h malloc.goc mprof.goc"
+for f in $runtime; do
+  oldfile=${OLDDIR}/src/pkg/runtime/$f
+  newfile=${NEWDIR}/src/pkg/runtime/$f
+  libgofile=runtime/$f
+  merge $f ${oldfile} ${newfile} ${libgofile}
 done
 
 (cd ${OLDDIR}/src/pkg && find . -name '*.go' -print) | while read f; do

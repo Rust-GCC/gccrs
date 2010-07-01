@@ -36,13 +36,31 @@ func (p *RGBA) At(x, y int) Color { return p.Pixel[y][x] }
 
 func (p *RGBA) Set(x, y int, c Color) { p.Pixel[y][x] = toRGBAColor(c).(RGBAColor) }
 
+// Opaque scans the entire image and returns whether or not it is fully opaque.
+func (p *RGBA) Opaque() bool {
+	h := len(p.Pixel)
+	if h > 0 {
+		w := len(p.Pixel[0])
+		for y := 0; y < h; y++ {
+			pix := p.Pixel[y]
+			for x := 0; x < w; x++ {
+				if pix[x].A != 0xff {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 // NewRGBA returns a new RGBA with the given width and height.
 func NewRGBA(w, h int) *RGBA {
-	pixel := make([][]RGBAColor, h)
-	for y := 0; y < h; y++ {
-		pixel[y] = make([]RGBAColor, w)
+	buf := make([]RGBAColor, w*h)
+	pix := make([][]RGBAColor, h)
+	for y := range pix {
+		pix[y] = buf[w*y : w*(y+1)]
 	}
-	return &RGBA{pixel}
+	return &RGBA{pix}
 }
 
 // An RGBA64 is an in-memory image backed by a 2-D slice of RGBA64Color values.
@@ -66,13 +84,31 @@ func (p *RGBA64) At(x, y int) Color { return p.Pixel[y][x] }
 
 func (p *RGBA64) Set(x, y int, c Color) { p.Pixel[y][x] = toRGBA64Color(c).(RGBA64Color) }
 
+// Opaque scans the entire image and returns whether or not it is fully opaque.
+func (p *RGBA64) Opaque() bool {
+	h := len(p.Pixel)
+	if h > 0 {
+		w := len(p.Pixel[0])
+		for y := 0; y < h; y++ {
+			pix := p.Pixel[y]
+			for x := 0; x < w; x++ {
+				if pix[x].A != 0xffff {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 // NewRGBA64 returns a new RGBA64 with the given width and height.
 func NewRGBA64(w, h int) *RGBA64 {
-	pixel := make([][]RGBA64Color, h)
-	for y := 0; y < h; y++ {
-		pixel[y] = make([]RGBA64Color, w)
+	buf := make([]RGBA64Color, w*h)
+	pix := make([][]RGBA64Color, h)
+	for y := range pix {
+		pix[y] = buf[w*y : w*(y+1)]
 	}
-	return &RGBA64{pixel}
+	return &RGBA64{pix}
 }
 
 // A NRGBA is an in-memory image backed by a 2-D slice of NRGBAColor values.
@@ -96,13 +132,31 @@ func (p *NRGBA) At(x, y int) Color { return p.Pixel[y][x] }
 
 func (p *NRGBA) Set(x, y int, c Color) { p.Pixel[y][x] = toNRGBAColor(c).(NRGBAColor) }
 
+// Opaque scans the entire image and returns whether or not it is fully opaque.
+func (p *NRGBA) Opaque() bool {
+	h := len(p.Pixel)
+	if h > 0 {
+		w := len(p.Pixel[0])
+		for y := 0; y < h; y++ {
+			pix := p.Pixel[y]
+			for x := 0; x < w; x++ {
+				if pix[x].A != 0xff {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 // NewNRGBA returns a new NRGBA with the given width and height.
 func NewNRGBA(w, h int) *NRGBA {
-	pixel := make([][]NRGBAColor, h)
-	for y := 0; y < h; y++ {
-		pixel[y] = make([]NRGBAColor, w)
+	buf := make([]NRGBAColor, w*h)
+	pix := make([][]NRGBAColor, h)
+	for y := range pix {
+		pix[y] = buf[w*y : w*(y+1)]
 	}
-	return &NRGBA{pixel}
+	return &NRGBA{pix}
 }
 
 // A NRGBA64 is an in-memory image backed by a 2-D slice of NRGBA64Color values.
@@ -126,13 +180,31 @@ func (p *NRGBA64) At(x, y int) Color { return p.Pixel[y][x] }
 
 func (p *NRGBA64) Set(x, y int, c Color) { p.Pixel[y][x] = toNRGBA64Color(c).(NRGBA64Color) }
 
+// Opaque scans the entire image and returns whether or not it is fully opaque.
+func (p *NRGBA64) Opaque() bool {
+	h := len(p.Pixel)
+	if h > 0 {
+		w := len(p.Pixel[0])
+		for y := 0; y < h; y++ {
+			pix := p.Pixel[y]
+			for x := 0; x < w; x++ {
+				if pix[x].A != 0xffff {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 // NewNRGBA64 returns a new NRGBA64 with the given width and height.
 func NewNRGBA64(w, h int) *NRGBA64 {
-	pixel := make([][]NRGBA64Color, h)
-	for y := 0; y < h; y++ {
-		pixel[y] = make([]NRGBA64Color, w)
+	buf := make([]NRGBA64Color, w*h)
+	pix := make([][]NRGBA64Color, h)
+	for y := range pix {
+		pix[y] = buf[w*y : w*(y+1)]
 	}
-	return &NRGBA64{pixel}
+	return &NRGBA64{pix}
 }
 
 // An Alpha is an in-memory image backed by a 2-D slice of AlphaColor values.
@@ -156,13 +228,79 @@ func (p *Alpha) At(x, y int) Color { return p.Pixel[y][x] }
 
 func (p *Alpha) Set(x, y int, c Color) { p.Pixel[y][x] = toAlphaColor(c).(AlphaColor) }
 
+// Opaque scans the entire image and returns whether or not it is fully opaque.
+func (p *Alpha) Opaque() bool {
+	h := len(p.Pixel)
+	if h > 0 {
+		w := len(p.Pixel[0])
+		for y := 0; y < h; y++ {
+			pix := p.Pixel[y]
+			for x := 0; x < w; x++ {
+				if pix[x].A != 0xff {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 // NewAlpha returns a new Alpha with the given width and height.
 func NewAlpha(w, h int) *Alpha {
-	pixel := make([][]AlphaColor, h)
-	for y := 0; y < h; y++ {
-		pixel[y] = make([]AlphaColor, w)
+	buf := make([]AlphaColor, w*h)
+	pix := make([][]AlphaColor, h)
+	for y := range pix {
+		pix[y] = buf[w*y : w*(y+1)]
 	}
-	return &Alpha{pixel}
+	return &Alpha{pix}
+}
+
+// An Alpha16 is an in-memory image backed by a 2-D slice of Alpha16Color values.
+type Alpha16 struct {
+	// The Pixel field's indices are y first, then x, so that At(x, y) == Pixel[y][x].
+	Pixel [][]Alpha16Color
+}
+
+func (p *Alpha16) ColorModel() ColorModel { return Alpha16ColorModel }
+
+func (p *Alpha16) Width() int {
+	if len(p.Pixel) == 0 {
+		return 0
+	}
+	return len(p.Pixel[0])
+}
+
+func (p *Alpha16) Height() int { return len(p.Pixel) }
+
+func (p *Alpha16) At(x, y int) Color { return p.Pixel[y][x] }
+
+func (p *Alpha16) Set(x, y int, c Color) { p.Pixel[y][x] = toAlpha16Color(c).(Alpha16Color) }
+
+// Opaque scans the entire image and returns whether or not it is fully opaque.
+func (p *Alpha16) Opaque() bool {
+	h := len(p.Pixel)
+	if h > 0 {
+		w := len(p.Pixel[0])
+		for y := 0; y < h; y++ {
+			pix := p.Pixel[y]
+			for x := 0; x < w; x++ {
+				if pix[x].A != 0xffff {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// NewAlpha16 returns a new Alpha16 with the given width and height.
+func NewAlpha16(w, h int) *Alpha16 {
+	buf := make([]Alpha16Color, w*h)
+	pix := make([][]Alpha16Color, h)
+	for y := range pix {
+		pix[y] = buf[w*y : w*(y+1)]
+	}
+	return &Alpha16{pix}
 }
 
 // A PalettedColorModel represents a fixed palette of colors.
@@ -180,21 +318,18 @@ func (p PalettedColorModel) Convert(c Color) Color {
 	if len(p) == 0 {
 		return nil
 	}
-	// TODO(nigeltao): Revisit the "pick the palette color which minimizes sum-squared-difference"
-	// algorithm when the premultiplied vs unpremultiplied issue is resolved.
-	// Currently, we only compare the R, G and B values, and ignore A.
 	cr, cg, cb, _ := c.RGBA()
-	// Shift by 17 bits to avoid potential uint32 overflow in sum-squared-difference.
-	cr >>= 17
-	cg >>= 17
-	cb >>= 17
+	// Shift by 1 bit to avoid potential uint32 overflow in sum-squared-difference.
+	cr >>= 1
+	cg >>= 1
+	cb >>= 1
 	result := Color(nil)
 	bestSSD := uint32(1<<32 - 1)
 	for _, v := range p {
 		vr, vg, vb, _ := v.RGBA()
-		vr >>= 17
-		vg >>= 17
-		vb >>= 17
+		vr >>= 1
+		vg >>= 1
+		vb >>= 1
 		dr, dg, db := diff(cr, vr), diff(cg, vg), diff(cb, vb)
 		ssd := (dr * dr) + (dg * dg) + (db * db)
 		if ssd < bestSSD {
@@ -233,11 +368,23 @@ func (p *Paletted) SetColorIndex(x, y int, index uint8) {
 	p.Pixel[y][x] = index
 }
 
+// Opaque scans the entire image and returns whether or not it is fully opaque.
+func (p *Paletted) Opaque() bool {
+	for _, c := range p.Palette {
+		_, _, _, a := c.RGBA()
+		if a != 0xffff {
+			return false
+		}
+	}
+	return true
+}
+
 // NewPaletted returns a new Paletted with the given width, height and palette.
 func NewPaletted(w, h int, m PalettedColorModel) *Paletted {
-	pixel := make([][]uint8, h)
-	for y := 0; y < h; y++ {
-		pixel[y] = make([]uint8, w)
+	buf := make([]uint8, w*h)
+	pix := make([][]uint8, h)
+	for y := range pix {
+		pix[y] = buf[w*y : w*(y+1)]
 	}
-	return &Paletted{pixel, m}
+	return &Paletted{pix, m}
 }

@@ -38,6 +38,9 @@ var validPrograms = []interface{}{
 	`package main; func f(func() func() func())` + "\n",
 	`package main; func f(...)` + "\n",
 	`package main; func f(float, ...int)` + "\n",
+	`package main; type T []int; var a []bool; func f() { if a[T{42}[0]] {} }` + "\n",
+	`package main; type T []int; func g(int) bool { return true }; func f() { if g(T{42}[0]) {} }` + "\n",
+	`package main; type T []int; func f() { for _ = range []int{T{42}[0]} {} }` + "\n",
 }
 
 
@@ -79,7 +82,7 @@ func nameFilter(filename string) bool {
 }
 
 
-func dirFilter(d *os.Dir) bool { return nameFilter(d.Name) }
+func dirFilter(f *os.FileInfo) bool { return nameFilter(f.Name) }
 
 
 func TestParse4(t *testing.T) {
@@ -91,8 +94,8 @@ func TestParse4(t *testing.T) {
 	if len(pkgs) != 1 {
 		t.Errorf("incorrect number of packages: %d", len(pkgs))
 	}
-	pkg, found := pkgs["parser"]
-	if pkg == nil || !found {
+	pkg := pkgs["parser"]
+	if pkg == nil {
 		t.Errorf(`package "parser" not found`)
 		return
 	}
