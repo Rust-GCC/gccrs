@@ -535,12 +535,21 @@ go_math_files = \
 go_mime_files = \
 	go/mime/type.go
 
+if LIBGO_IS_RTEMS
+go_net_fd_os_file = go/net/fd_rtems.go
+go_net_newpollserver_file = go/net/newpollserver_rtems.go
+else
+go_net_fd_os_file = go/net/fd_linux.go
+go_net_newpollserver_file = go/net/newpollserver.go
+endif
+
 go_net_files = \
 	go/net/dnsclient.go \
 	go/net/dnsconfig.go \
 	go/net/dnsmsg.go \
+	$(go_net_newpollserver_file) \
 	go/net/fd.go \
-	go/net/fd_linux.go \
+	$(go_net_fd_os_file) \
 	go/net/hosts.go \
 	go/net/ip.go \
 	go/net/iprawsock.go \
