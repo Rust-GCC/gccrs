@@ -133,3 +133,8 @@ func anyToSockaddr(rsa *RawSockaddrAny) (Sockaddr, int) {
 	}
 	return nil, EAFNOSUPPORT;
 }
+
+// BindToDevice binds the socket associated with fd to device.
+func BindToDevice(fd int, device string) (errno int) {
+	return SetsockoptString(fd, SOL_SOCKET, SO_BINDTODEVICE, device)
+}

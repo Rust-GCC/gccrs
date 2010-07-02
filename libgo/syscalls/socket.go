@@ -149,11 +149,6 @@ func SetsockoptString(fd, level, opt int, s string) (errno int) {
 	return setsockopt(fd, level, opt, uintptr(unsafe.Pointer(&[]byte(s)[0])), Socklen_t(len(s)))
 }
 
-// BindToDevice binds the socket associated with fd to device.
-func BindToDevice(fd int, device string) (errno int) {
-	return SetsockoptString(fd, SOL_SOCKET, SO_BINDTODEVICE, device)
-}
-
 func Getsockname(fd int) (sa Sockaddr, errno int) {
 	var rsa RawSockaddrAny;
 	var len Socklen_t = SizeofSockaddrAny;
