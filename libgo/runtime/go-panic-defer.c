@@ -6,4 +6,8 @@
 
 #include "go-panic.h"
 
+#ifdef __rtems__
+#define __thread
+#endif
+
 __thread struct __go_panic_defer_struct *__go_panic_defer;

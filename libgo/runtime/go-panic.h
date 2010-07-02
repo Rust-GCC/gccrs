@@ -50,7 +50,15 @@ struct __go_panic_defer_struct
   _Bool __is_foreign;
 };
 
+#ifdef __rtems__
+#define __thread
+#endif
+
 extern __thread struct __go_panic_defer_struct *__go_panic_defer;
+
+#ifdef __rtems__
+#undef __thread
+#endif
 
 extern void __go_panic (struct __go_interface *)
   __attribute__ ((noreturn));

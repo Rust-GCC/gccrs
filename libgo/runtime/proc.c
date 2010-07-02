@@ -9,4 +9,8 @@ typedef struct Sched Sched;
 
 M	m0;
 
+#ifdef __rtems__
+#define __thread
+#endif
+
 __thread M *m = &m0;

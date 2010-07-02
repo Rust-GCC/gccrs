@@ -66,7 +66,15 @@ struct Note {
 
 /* Per CPU declarations.  */
 
+#ifdef __rtems__
+#define __thread
+#endif
+
 extern __thread		M* 	m;
+
+#ifdef __rtems__
+#undef __thread
+#endif
 
 /* Constants.  */
 
@@ -131,3 +139,7 @@ void	free(void *v);
 void	addfinalizer(void*, void(*fn)(void*), int32);
 #define runtime_mmap mmap
 #define cas(pval, old, new) __sync_bool_compare_and_swap (pval, old, new)
+
+#ifdef __rtems__
+void __wrap_rtems_task_variable_add(void **);
+#endif

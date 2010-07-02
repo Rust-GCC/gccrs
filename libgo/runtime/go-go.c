@@ -10,6 +10,7 @@
 #include <pthread.h>
 
 #include "config.h"
+#include "go-panic.h"
 #include "go-alloc.h"
 #include "runtime.h"
 
@@ -32,6 +33,11 @@ start_go_thread (void *thread_arg)
   struct call *pc = (struct call *) thread_arg;
   void (*pfn) (void *);
   void *arg;
+
+#ifdef __rtems__
+  __wrap_rtems_task_variable_add ((void **) &m);
+  __wrap_rtems_task_variable_add ((void **) &__go_panic_defer);
+#endif
 
   pfn = pc->pfn;
   arg = pc->arg;

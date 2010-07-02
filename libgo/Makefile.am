@@ -263,6 +263,12 @@ else
 runtime_mem_file = runtime/mem_posix_memalign.c
 endif
 
+if LIBGO_IS_RTEMS
+rtems_task_variable_add_file = runtime/rtems-task-variable-add.c
+else
+rtems_task_variable_add_file =
+endif
+
 runtime_files = \
 	runtime/go-bad-index.c \
 	runtime/go-byte-array-to-string.c \
@@ -351,6 +357,7 @@ runtime_files = \
 	runtime/msize.c \
 	runtime/proc.c \
 	runtime/thread.c \
+	$(rtems_task_variable_add_file) \
 	chan.c \
 	iface.c \
 	malloc.c \
