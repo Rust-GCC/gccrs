@@ -111,8 +111,8 @@ bool	sigsend(int32 sig);
  * mutual exclusion locks.  in the uncontended case,
  * as fast as spin locks (just a few user-level instructions),
  * but on the contention path they sleep in the kernel.
- * a zeroed Lock is unlocked (no need to initialize each lock).
  */
+#define	LOCK_INITIALIZER	{ PTHREAD_MUTEX_INITIALIZER }
 void	initlock(Lock*);
 void	lock(Lock*);
 void	unlock(Lock*);

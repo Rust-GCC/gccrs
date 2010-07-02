@@ -5,7 +5,7 @@
 #include "runtime.h"
 #include "malloc.h"
 
-Lock finlock;
+Lock finlock = LOCK_INITIALIZER;
 
 // Finalizer hash table.  Direct hash, linear scan, at most 3/4 full.
 // Table size is power of 3 so that hash can be key % max.
