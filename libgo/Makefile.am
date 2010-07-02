@@ -282,7 +282,6 @@ runtime_files = \
 	runtime/go-construct-map.c \
 	runtime/go-convert-interface.c \
 	runtime/go-defer.c \
-	runtime/go-defer-stack.c \
 	runtime/go-deferred-recover.c \
 	runtime/go-getgoroot.c \
 	runtime/go-go.c \
