@@ -8614,6 +8614,9 @@ class Call_result_expression : public Expression
   void
   do_determine_type(const Type_context*);
 
+  void
+  do_check_types(Gogo*);
+
   Expression*
   do_copy()
   {
@@ -8661,21 +8664,48 @@ Call_result_expression::do_traverse(Traverse* traverse)
 Type*
 Call_result_expression::do_type()
 {
-  if (this->call_->is_error_expression())
+  // THIS->CALL_ can be replaced with a temporary reference due to
+  // Call_expression::do_must_eval_in_order when there is an error.
+  Call_expression* ce = this->call_->call_expression();
+  if (ce == NULL)
     return Type::make_error_type();
-  Function_type* fntype =
-    this->call_->call_expression()->get_function_type();
+  Function_type* fntype = ce->get_function_type();
   if (fntype == NULL)
     return Type::make_error_type();
   const Typed_identifier_list* results = fntype->results();
   Typed_identifier_list::const_iterator pr = results->begin();
   for (unsigned int i = 0; i < this->index_; ++i)
     {
-      gcc_assert(pr != results->end());
+      if (pr == results->end())
+	return Type::make_error_type();
       ++pr;
     }
-  gcc_assert(pr != results->end());
+  if (pr == results->end())
+    return Type::make_error_type();
   return pr->type();
+}
+
+// Check the type.  This is where we give an error if we're trying to
+// extract too many values from a call.
+
+void
+Call_result_expression::do_check_types(Gogo*)
+{
+  bool ok = true;
+  Call_expression* ce = this->call_->call_expression();
+  if (ce != NULL)
+    ok = this->index_ < ce->result_count();
+  else
+    {
+      // This can happen when the call returns a single value but we
+      // are asking for the second result.
+      if (this->call_->is_error_expression())
+	return;
+      ok = false;
+    }
+  if (!ok)
+    error_at(this->location(),
+	     "number of results does not match number of values");
 }
 
 // Determine the type.  We have nothing to do here, but the 0 result
