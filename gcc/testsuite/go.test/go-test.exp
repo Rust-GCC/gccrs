@@ -194,10 +194,8 @@ proc go-gc-tests { } {
 			   "// \$G \$D/\$F.go && \$L \$F.\$A && ./\$A.out >* || echo BUG*" \
 			   $test_line] } {
 	    # This is a vanilla execution test.
-	    cd [file dirname $test]
 	    go-torture-execute $test
 	    file delete core [glob -nocomplain core.*]
-	    cd $testdir
 	} elseif { [string match \
 			"// \$G \$D/\$F.go && \$L \$F.\$A || echo BUG*" \
 			$test_line] \
@@ -351,11 +349,9 @@ proc go-gc-tests { } {
 				 $output_file "executable" "$DEFAULT_GOFLAGS"]
 	    set comp_output [go-dg-prune $target_triplet $comp_output]
 	    verbose -log $comp_output
-	    if { [catch "exec $output_file" ] != 0 } {
-		fail $name
-	    } else {
-		pass $name
-	    }
+	    set result [go_load "$output_file" "" ""]
+	    set status [lindex $result 0]
+	    $status $name
 	    file delete $ofile1 $ofile2 $output_file
 	    set runtests $hold_runtests
 	} elseif { [string match \
