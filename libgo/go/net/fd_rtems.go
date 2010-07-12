@@ -112,11 +112,11 @@ func (p *pollster) WaitFD(nsec int64) (fd int, mode int, err os.Error) {
 	for i := p.lastFd; i < p.maxFd + 1; i++ {
 		if syscall.FDIsSet(i, p.readyReadFds) {
 			flag = true
-			mode := 'r'
+			mode = 'r'
 			syscall.FDClr(i, p.readyReadFds)
 		} else if syscall.FDIsSet(i, p.readyWriteFds) {
 			flag = true
-			mode := 'w'
+			mode = 'w'
 			syscall.FDClr(i, p.readyWriteFds)
 		}
 		if flag {
