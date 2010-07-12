@@ -67,6 +67,23 @@ proc errchk { test } {
     set dg-do-what-default ${saved-dg-do-what-default}
 }
 
+# This is an execution test which should fail.
+proc go-execute-xfail { test } {
+    global DEFAULT_GOFLAGS
+
+    set filename [file tail $test]
+    set fdin [open $test r]
+    set fdout [open $filename w]
+    puts $fdout "// { dg-do run { xfail *-*-* } }"
+    while { [gets $fdin copy_line] >= 0 } {
+	puts $fdout $copy_line
+    }
+    close $fdin
+    close $fdout
+    go-dg-runtest $filename "-w $DEFAULT_GOFLAGS"
+    file delete $filename
+}
+
 proc go-gc-tests { } {
     global srcdir subdir
     global runtests
@@ -111,6 +128,31 @@ proc go-gc-tests { } {
 	}
 
 	set name [dg-trim-dirname $srcdir $test]
+
+	# Skip certain tests if target is RTEMS OS.
+	if [istarget "*-*-rtems*"] {
+	    if { [string match "*go.test/test/args.go" \
+		   $test] \
+		 || [string match "*go.test/test/env.go" \
+		   $test] } {
+		    untested "$name: uses the command-line or environment variables"
+		    continue
+	    }
+
+	    if { [string match "*go.test/test/sigchld.go" \
+		   $test] \
+		 || [string match "*go.test/test/stack.go" \
+		   $test] \
+		 || [string match "*go.test/test/peano.go" \
+		   $test] \
+		 || [string match "*go.test/test/chan/goroutines.go" \
+		   $test] \
+		 || [string match "*go.test/test/chan/powser1.go" \
+		   $test] } {
+		    untested "$name: has very high memory requirement"
+		    continue
+	    }
+	}
 
 	set fd [open $test r]
 	if { [gets $fd test_line] < 0 } {
@@ -193,6 +235,20 @@ proc go-gc-tests { } {
 		   || [string match \
 			   "// \$G \$D/\$F.go && \$L \$F.\$A && ./\$A.out >* || echo BUG*" \
 			   $test_line] } {
+	    # XFAIL certain tests for RTEMS OS.
+	    if [istarget "*-*-rtems*"] {
+		    if { [string match "*go.test/test/ken/chan.go" \
+				$test] \
+			 || [string match "*go.test/test/ken/modconst.go" \
+				$test] \
+			 || [string match "*go.test/test/ken/divconst.go" \
+				$test] \
+			 || [string match "*go.test/test/chan/powser2.go" \
+				$test] } {
+			go-execute-xfail $test
+			continue
+		    }
+	    }
 	    # This is a vanilla execution test.
 	    go-torture-execute $test
 	    file delete core [glob -nocomplain core.*]
@@ -233,18 +289,7 @@ proc go-gc-tests { } {
 			$test_line] \
 		   || ($test_line == "// \$G \$D/\$F.go && \$L \$F.\$A &&"
 		       && $test_line2 == "//	((! sh -c ./\$A.out) >/dev/null 2>&1 || echo BUG: should fail)") } {
-	    # This is an execution test which should fail.
-	    set filename [file tail $test]
-	    set fdin [open $test r]
-	    set fdout [open $filename w]
-	    puts $fdout "// { dg-do run { xfail *-*-* } }"
-	    while { [gets $fdin copy_line] >= 0 } {
-		puts $fdout $copy_line
-	    }
-	    close $fdin
-	    close $fdout
-	    go-dg-runtest $filename "-w $DEFAULT_GOFLAGS"
-	    file delete $filename
+	    go-execute-xfail $test
 	} elseif { [string match "// errchk \$G \$F.go" $test_line] \
 		    || [string match "// errchk \$G -e \$F.go" $test_line] \
 		    || [string match "// errchk \$G \$D/\$F.go" $test_line] \
