@@ -429,13 +429,20 @@ go_output_type (struct goout_container *container, tree type,
     case RECORD_TYPE:
       {
 	tree field;
+	int i;
 
 	fprintf (asm_out_file, "struct { ");
+	i = 0;
 	for (field = TYPE_FIELDS (type);
 	     field != NULL_TREE;
 	     field = TREE_CHAIN (field))
 	  {
-	    if (DECL_NAME (field) != NULL)
+	    if (DECL_NAME (field) == NULL)
+	      {
+		fprintf (asm_out_file, "_f%d ", i);
+		i++;
+	      }
+	    else
               {
 		const char *var_name;
 		void **slot;
@@ -449,8 +456,6 @@ go_output_type (struct goout_container *container, tree type,
 		else
 		  fprintf (asm_out_file, "_%s ", var_name);
 	      }
-	    else
-	      fprintf (asm_out_file, "INVALID-unnamed ");
 	    if (DECL_BIT_FIELD (field))
 	      fprintf (asm_out_file, "INVALID-bit-field");
 	    else
