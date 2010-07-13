@@ -4233,7 +4233,8 @@ Bindings::traverse(Traverse* traverse, bool is_global)
 Package::Package(const std::string& name, const std::string& unique_prefix,
 		 source_location location)
   : name_(name), unique_prefix_(unique_prefix), bindings_(new Bindings(NULL)),
-    priority_(0), location_(location), used_(false), is_imported_(false)
+    priority_(0), location_(location), used_(false), is_imported_(false),
+    uses_sink_alias_(false)
 {
   gcc_assert(!name.empty() && !unique_prefix.empty());
 }
