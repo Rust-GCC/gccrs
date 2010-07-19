@@ -1423,7 +1423,7 @@ libgo_go_objs = \
 	os/libsignal.la \
 	rpc/libjsonrpc.la \
 	runtime/libpprof.la \
-	libsyscall.la
+	syscalls/libsyscall.la
 
 libgo_la_SOURCES = $(runtime_files)
 libgo_la_LIBADD = $(libgo_go_objs) $(LIBFFI) -lpthread
@@ -1598,6 +1598,7 @@ TEST_PACKAGES = \
 	testing/quick/check \
 	testing/script/check
 
+CLEANFILES = *.go *.gox goc2c *.c s-version
 all: $(BUILT_SOURCES) config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -3071,6 +3072,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
@@ -3082,8 +3084,9 @@ maintainer-clean-generic:
 	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 clean: clean-am clean-multi
 
-clean-am: clean-generic clean-libtool clean-toolexeclibLIBRARIES \
-	clean-toolexeclibLTLIBRARIES mostlyclean-am
+clean-am: clean-generic clean-libtool clean-local \
+	clean-toolexeclibLIBRARIES clean-toolexeclibLTLIBRARIES \
+	mostlyclean-am
 
 distclean: distclean-am distclean-multi
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
@@ -3151,7 +3154,7 @@ maintainer-clean-am: distclean-am maintainer-clean-generic
 mostlyclean: mostlyclean-am mostlyclean-multi
 
 mostlyclean-am: mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool
+	mostlyclean-libtool mostlyclean-local
 
 pdf: pdf-am
 
@@ -3179,7 +3182,7 @@ uninstall-am: uninstall-toolexeclibDATA uninstall-toolexeclibLIBRARIES \
 	mostlyclean-multi
 
 .PHONY: CTAGS GTAGS all all-am all-multi am--refresh check check-am \
-	clean clean-generic clean-libtool clean-multi \
+	clean clean-generic clean-libtool clean-local clean-multi \
 	clean-toolexeclibLIBRARIES clean-toolexeclibLTLIBRARIES ctags \
 	dist dist-all dist-bzip2 dist-gzip dist-lzma dist-shar \
 	dist-tarZ dist-xz dist-zip distcheck distclean \
@@ -3204,8 +3207,8 @@ uninstall-am: uninstall-toolexeclibDATA uninstall-toolexeclibLIBRARIES \
 	installcheck installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic maintainer-clean-multi mostlyclean \
 	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	mostlyclean-multi pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-toolexeclibDATA \
+	mostlyclean-local mostlyclean-multi pdf pdf-am ps ps-am tags \
+	uninstall uninstall-am uninstall-toolexeclibDATA \
 	uninstall-toolexeclibLIBRARIES \
 	uninstall-toolexeclibLTLIBRARIES \
 	uninstall-toolexeclibarchiveDATA \
@@ -4144,14 +4147,14 @@ testing/script/check: $(CHECK_DEPS)
 
 sysinfo.go: $(srcdir)/mksysinfo.sh config.h
 	$(SHELL) $(srcdir)/mksysinfo.sh
-libsyscall.a: $(go_syscall_files) $(go_syscall_c_files) sync.gox
-	rm -f syscall.gox libsyscall.a
+syscalls/libsyscall.a: $(go_syscall_files) $(go_syscall_c_files) sync.gox
+	rm -f syscall.gox syscalls/libsyscall.a
 	test -d syscalls || mkdir -p syscalls
 	files=`echo $^ | sed -e 's/[^ ]*\.gox//g' -e's/[^ ]*\.c//g'`; \
 	$(LTGOCOMPILE) -c -fgo-prefix="libgo__" -o syscalls/syscall.o $$files
 	$(LTCOMPILE) -c -o syscalls/errno.o $(srcdir)/syscalls/errno.c
-	$(AR) rc libsyscall.a syscalls/syscall.o syscalls/errno.o
-libsyscall.la: libsyscall.a
+	$(AR) rc syscalls/libsyscall.a syscalls/syscall.o syscalls/errno.o
+syscalls/libsyscall.la: syscalls/libsyscall.a
 	$(LINK) syscalls/syscall.lo syscalls/errno.lo
 
 asn1.gox: asn1/libasn1.a
@@ -4228,7 +4231,7 @@ sync.gox: sync/libsync.a
 	$(BUILDGOX)
 syslog.gox: syslog/libsyslog.a
 	$(BUILDGOX)
-syscall.gox: libsyscall.a
+syscall.gox: syscalls/libsyscall.a
 	$(BUILDGOX)
 tabwriter.gox: tabwriter/libtabwriter.a
 	$(BUILDGOX)
@@ -4386,6 +4389,14 @@ testing/script.gox: testing/libscript.a
 	$(BUILDGOX)
 
 check-am: $(TEST_PACKAGES)
+
+mostlyclean-local:
+	find . -name '*.lo' -print | xargs $(LIBTOOL) --mode=clean rm -f
+	find . -name '*.o' -print | xargs rm -f
+
+clean-local:
+	find . -name '*.la' -print | xargs $(LIBTOOL) --mode=clean rm -f
+	find . -name '*.a' -print | xargs rm -f
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

@@ -1125,7 +1125,7 @@ libgo_go_objs = \
 	os/libsignal.la \
 	rpc/libjsonrpc.la \
 	runtime/libpprof.la \
-	libsyscall.la
+	syscalls/libsyscall.la
 
 libgo_la_SOURCES = $(runtime_files)
 
@@ -2089,14 +2089,14 @@ testing/script/check: $(CHECK_DEPS)
 
 sysinfo.go: $(srcdir)/mksysinfo.sh config.h
 	$(SHELL) $(srcdir)/mksysinfo.sh
-libsyscall.a: $(go_syscall_files) $(go_syscall_c_files) sync.gox
-	rm -f syscall.gox libsyscall.a
+syscalls/libsyscall.a: $(go_syscall_files) $(go_syscall_c_files) sync.gox
+	rm -f syscall.gox syscalls/libsyscall.a
 	test -d syscalls || mkdir -p syscalls
 	files=`echo $^ | sed -e 's/[^ ]*\.gox//g' -e's/[^ ]*\.c//g'`; \
 	$(LTGOCOMPILE) -c -fgo-prefix="libgo__" -o syscalls/syscall.o $$files
 	$(LTCOMPILE) -c -o syscalls/errno.o $(srcdir)/syscalls/errno.c
-	$(AR) rc libsyscall.a syscalls/syscall.o syscalls/errno.o
-libsyscall.la: libsyscall.a
+	$(AR) rc syscalls/libsyscall.a syscalls/syscall.o syscalls/errno.o
+syscalls/libsyscall.la: syscalls/libsyscall.a
 	$(LINK) syscalls/syscall.lo syscalls/errno.lo
 
 # How to build a .gox file from a .a file.
@@ -2182,7 +2182,7 @@ sync.gox: sync/libsync.a
 	$(BUILDGOX)
 syslog.gox: syslog/libsyslog.a
 	$(BUILDGOX)
-syscall.gox: libsyscall.a
+syscall.gox: syscalls/libsyscall.a
 	$(BUILDGOX)
 tabwriter.gox: tabwriter/libtabwriter.a
 	$(BUILDGOX)
@@ -2436,3 +2436,13 @@ TEST_PACKAGES = \
 	testing/script/check
 
 check-am: $(TEST_PACKAGES)
+
+mostlyclean-local:
+	find . -name '*.lo' -print | xargs $(LIBTOOL) --mode=clean rm -f
+	find . -name '*.o' -print | xargs rm -f
+
+clean-local:
+	find . -name '*.la' -print | xargs $(LIBTOOL) --mode=clean rm -f
+	find . -name '*.a' -print | xargs rm -f
+
+CLEANFILES = *.go *.gox goc2c *.c s-version
