@@ -9,7 +9,6 @@ package net
 import (
 	"os"
 	"syscall"
-	//"fmt"
 )
 
 type pollster struct {
