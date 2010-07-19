@@ -142,7 +142,7 @@ sighandler (int sig)
       __go_panic_msg (msg);
     }
 
-  if (sigsend (sig))
+  if (__go_sigsend (sig))
     return;
   for (i = 0; signals[i].sig != -1; ++i)
     {

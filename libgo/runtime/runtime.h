@@ -105,7 +105,7 @@ struct	M
 void*	mal(uintptr);
 void	mallocinit(void);
 void	siginit(void);
-bool	sigsend(int32 sig);
+bool	__go_sigsend(int32 sig);
 
 /*
  * mutual exclusion locks.  in the uncontended case,

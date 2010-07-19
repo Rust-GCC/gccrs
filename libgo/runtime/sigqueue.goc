@@ -56,7 +56,7 @@ siginit(void)
 
 // Called from sighandler to send a signal back out of the signal handling thread.
 bool
-sigsend(int32 s)
+__go_sigsend(int32 s)
 {
 	uint32 bit, mask;
 
