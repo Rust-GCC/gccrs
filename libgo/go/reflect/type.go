@@ -18,6 +18,7 @@ package reflect
 import (
 	"runtime"
 	"strconv"
+	"sync"
 	"unsafe"
 )
 
@@ -597,6 +598,8 @@ func (t *StructType) NumField() int { return len(t.fields) }
 // Canonicalize a Type.
 var canonicalType = make(map[string]Type)
 
+var canonicalTypeLock sync.Mutex
+
 func canonicalize(t Type) Type {
 	u := t.uncommon()
 	var s string
@@ -605,10 +608,13 @@ func canonicalize(t Type) Type {
 	} else {
 		s = u.PkgPath() + "." + u.Name()
 	}
+	canonicalTypeLock.Lock()
 	if r, ok := canonicalType[s]; ok {
+		canonicalTypeLock.Unlock()
 		return r
 	}
 	canonicalType[s] = t
+	canonicalTypeLock.Unlock()
 	return t
 }
 

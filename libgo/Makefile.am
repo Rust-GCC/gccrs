@@ -1411,7 +1411,7 @@ rand/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: rand/check
 
-reflect/libreflect.a: $(go_reflect_files) runtime.gox strconv.gox
+reflect/libreflect.a: $(go_reflect_files) runtime.gox strconv.gox sync.gox
 	$(BUILDARCHIVE)
 reflect/libreflect.la: reflect/libreflect.a
 reflect/check: $(CHECK_DEPS)
