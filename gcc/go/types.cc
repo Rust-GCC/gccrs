@@ -687,7 +687,7 @@ Type::check_int_value(Expression* e, const char* errmsg,
 
   mpfr_clear(fval);
 
-  error_at(location, errmsg);
+  error_at(location, "%s", errmsg);
   return false;
 }
 
