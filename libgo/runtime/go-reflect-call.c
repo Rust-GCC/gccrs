@@ -12,6 +12,7 @@
 
 #include "go-alloc.h"
 #include "go-type.h"
+#include "runtime.h"
 
 /* Forward declaration.  */
 
@@ -316,13 +317,9 @@ go_set_results (const struct __go_func_type *func, unsigned char *call_result,
    address is FUNC_ADDR.  PARAMS is an array of parameter addresses.
    RESULTS is an array of result addresses.  */
 
-extern void call (const struct __go_func_type *, const void *, _Bool, void **,
-		  void **)
-  asm ("libgo_reflect.reflect.call");
-
 void
-call (const struct __go_func_type *func_type, const void *func_addr,
-      _Bool is_interface, void **params, void **results)
+reflect_call (const struct __go_func_type *func_type, const void *func_addr,
+	      _Bool is_interface, void **params, void **results)
 {
   ffi_cif cif;
   unsigned char *call_result;
@@ -334,7 +331,10 @@ call (const struct __go_func_type *func_type, const void *func_addr,
 
   ffi_call (&cif, func_addr, call_result, params);
 
-  go_set_results (func_type, call_result, results);
+  /* Some day we may need to free result values if RESULTS is
+     NULL.  */
+  if (results != NULL)
+    go_set_results (func_type, call_result, results);
 
   free (call_result);
 }

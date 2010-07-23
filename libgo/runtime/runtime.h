@@ -90,8 +90,20 @@ struct	M
 {
 	int32	mallocing;
 	int32	gcing;
-	MCache	*mcache;
+	int32	locks;
 	int32	nomemprof;
+	MCache	*mcache;
+
+	/* For the list of all threads.  */
+	struct __go_thread_id *list_entry;
+
+	/* For the garbage collector.  */
+	void	*gc_sp;
+	size_t	gc_len;
+	void	*gc_next_segment;
+	void	*gc_next_sp;
+	void	*gc_initial_sp;
+	struct __go_panic_defer_struct *gc_panic_defer;
 };
 
 /* Macros.  */
@@ -106,6 +118,16 @@ void*	mal(uintptr);
 void	mallocinit(void);
 void	siginit(void);
 bool	__go_sigsend(int32 sig);
+int64	nanotime(void);
+
+void	stoptheworld(void);
+void	starttheworld(void);
+void	__go_go(void (*pfn)(void*), void*);
+void	__go_gc_goroutine_init(void*);
+void	__go_enable_gc(void);
+int	__go_run_goroutine_gc(int);
+void	__go_scanstacks(void (*scan)(int32, byte *, int64));
+void	__go_stealcache(void);
 
 /*
  * mutual exclusion locks.  in the uncontended case,
@@ -117,6 +139,10 @@ void	initlock(Lock*);
 void	lock(Lock*);
 void	unlock(Lock*);
 void	destroylock(Lock*);
+bool	trylock(Lock*);
+
+void semacquire (uint32 *) asm ("libgo_runtime.runtime.Semacquire");
+void semrelease (uint32 *) asm ("libgo_runtime.runtime.Semrelease");
 
 /*
  * sleep and wakeup on one-time events.
@@ -136,9 +162,16 @@ void	notewakeup(Note*);
 #define mcmp(a, b, s) __builtin_memcmp((a), (b), (s))
 MCache*	allocmcache(void);
 void	free(void *v);
-void	addfinalizer(void*, void(*fn)(void*), int32);
+struct __go_func_type;
+void	addfinalizer(void*, void(*fn)(void*), const struct __go_func_type *);
+void	walkfintab(void (*fn)(void*));
 #define runtime_mmap mmap
 #define cas(pval, old, new) __sync_bool_compare_and_swap (pval, old, new)
+
+struct __go_func_type;
+void reflect_call(const struct __go_func_type *, const void *, _Bool, void **,
+		  void **)
+  asm ("libgo_reflect.reflect.call");
 
 #ifdef __rtems__
 void __wrap_rtems_task_variable_add(void **);

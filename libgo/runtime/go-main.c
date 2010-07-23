@@ -19,6 +19,7 @@
 #include "go-string.h"
 
 #include "runtime.h"
+#include "malloc.h"
 
 #undef int
 #undef char
@@ -47,6 +48,7 @@ main (int argc, char **argv)
   struct __go_string *values;
 
   mallocinit ();
+  __go_gc_goroutine_init (&argc);
 
   Args.__count = argc;
   Args.__capacity = argc;
@@ -78,6 +80,9 @@ main (int argc, char **argv)
   srand ((unsigned int) time (NULL));
 #endif
   __go_init_main ();
+
+  __go_enable_gc ();
+
   real_main ();
 
   return 0;

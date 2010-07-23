@@ -162,10 +162,14 @@ AC_COMPILE_IFELSE([[int i;]],
 CFLAGS=$CFLAGS_hold])
 if test "$ac_cv_libgo_split_stack_supported" = yes; then
   SPLIT_STACK=-fsplit-stack
+  AC_DEFINE(USING_SPLIT_STACK, 1,
+		[Define if the compiler supports -fsplit-stack])
 else
   SPLIT_STACK=
 fi
 AC_SUBST(SPLIT_STACK)
+AM_CONDITIONAL(USING_SPLIT_STACK,
+	test "$ac_cv_libgo_split_stack_supported" = yes)
 
 dnl Check whether the linker does stack munging when calling from
 dnl split-stack into non-split-stack code.  We check this by looking

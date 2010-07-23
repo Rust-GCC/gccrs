@@ -97,6 +97,9 @@
 /* Define if we're to use libffi. */
 #undef USE_LIBFFI
 
+/* Define if the compiler supports -fsplit-stack */
+#undef USING_SPLIT_STACK
+
 /* Version number of package */
 #undef VERSION
 

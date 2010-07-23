@@ -9,6 +9,8 @@
 
 #include <pthread.h>
 
+#include "runtime.h"
+
 /* We use a single global lock and condition variable.  This is
    painful, since it will cause unnecessary contention, but is hard to
    avoid in a portable manner.  On Linux we can use futexes, but they
@@ -23,14 +25,14 @@ static pthread_cond_t sem_cond = PTHREAD_COND_INITIALIZER;
    false.  */
 
 static _Bool
-acquire (int32_t *addr)
+acquire (uint32 *addr)
 {
   while (1)
     {
-      int32_t val;
+      uint32 val;
 
       val = *addr;
-      if (val <= 0)
+      if (val == 0)
 	return 0;
       if (__sync_bool_compare_and_swap (addr, val, val - 1))
 	return 1;
@@ -41,10 +43,8 @@ acquire (int32_t *addr)
    We have acquired the semaphore when we have decremented the count
    and it remains nonnegative.  */
 
-void Semacquire (int32_t *) asm ("libgo_runtime.runtime.Semacquire");
-
 void
-Semacquire (int32_t *addr)
+semacquire (uint32 *addr)
 {
   while (1)
     {
@@ -85,10 +85,8 @@ Semacquire (int32_t *addr)
    positive, we signal the condition variable to wake up another
    process.  */
 
-void Semrelease (int32_t *) asm ("libgo_runtime.runtime.Semrelease");
-
 void
-Semrelease (int32_t *addr)
+semrelease (uint32 *addr)
 {
   int32_t val;
 

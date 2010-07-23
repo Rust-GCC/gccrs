@@ -193,10 +193,8 @@ MProf_Malloc(void *p, uintptr size)
 	uintptr stk[32];
 	Bucket *b;
 
-	if(m->nomemprof > 0)
+	if(!__sync_bool_compare_and_swap(&m->nomemprof, 0, 1))
 		return;
-
-	m->nomemprof++;
 #if 0
 	nstk = callers(1, stk, 32);
 #else
@@ -208,7 +206,10 @@ MProf_Malloc(void *p, uintptr size)
 	b->alloc_bytes += size;
 	setaddrbucket((uintptr)p, b);
 	unlock(&proflock);
-	m->nomemprof--;
+	__sync_bool_compare_and_swap(&m->nomemprof, 1, 0);
+
+	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
+		__go_run_goroutine_gc(100);
 }
 
 // Called when freeing a profiled block.
@@ -217,10 +218,9 @@ MProf_Free(void *p, uintptr size)
 {
 	Bucket *b;
 
-	if(m->nomemprof > 0)
+	if(!__sync_bool_compare_and_swap(&m->nomemprof, 0, 1))
 		return;
 
-	m->nomemprof++;
 	lock(&proflock);
 	b = getaddrbucket((uintptr)p);
 	if(b != nil) {
@@ -228,7 +228,10 @@ MProf_Free(void *p, uintptr size)
 		b->free_bytes += size;
 	}
 	unlock(&proflock);
-	m->nomemprof--;
+	__sync_bool_compare_and_swap(&m->nomemprof, 1, 0);
+
+	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
+		__go_run_goroutine_gc(101);
 }
 
 
@@ -263,6 +266,8 @@ func MemProfile(p Slice, include_inuse_zero bool) (n int32, ok bool) {
 	Bucket *b;
 	Record *r;
 
+	__sync_bool_compare_and_swap(&m->nomemprof, 0, 1);
+
 	lock(&proflock);
 	n = 0;
 	for(b=buckets; b; b=b->allnext)
@@ -277,4 +282,9 @@ func MemProfile(p Slice, include_inuse_zero bool) (n int32, ok bool) {
 				record(r++, b);
 	}
 	unlock(&proflock);
+
+	__sync_bool_compare_and_swap(&m->nomemprof, 1, 0);
+
+	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
+		__go_run_goroutine_gc(102);
 }

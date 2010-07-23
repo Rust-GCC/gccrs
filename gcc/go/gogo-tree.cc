@@ -4218,16 +4218,21 @@ Gogo::make_trampoline(tree fnaddr, tree closure, source_location location)
   tree trampoline_type = Gogo::trampoline_type_tree();
   tree trampoline_size = TYPE_SIZE_UNIT(trampoline_type);
 
+  closure = save_expr(closure);
+
   // We allocate the trampoline using a special function which will
   // mark it as executable.
   static tree trampoline_fndecl;
   tree x = Gogo::call_builtin(&trampoline_fndecl,
 			      location,
 			      "__go_allocate_trampoline",
-			      1,
+			      2,
 			      ptr_type_node,
 			      size_type_node,
-			      trampoline_size);
+			      trampoline_size,
+			      ptr_type_node,
+			      fold_convert_loc(location, ptr_type_node,
+					       closure));
 
   x = save_expr(x);
 

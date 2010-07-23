@@ -54,9 +54,8 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 	void *v;
 	uint32 *ref;
 
-	if(m->mallocing)
+	if(!__sync_bool_compare_and_swap(&m->mallocing, 0, 1))
 		throw("malloc/free - deadlock");
-	m->mallocing = 1;
 	if(size == 0)
 		size = 1;
 
@@ -98,7 +97,10 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 		ref = &s->gcref0;
 	}
 
-	m->mallocing = 0;
+	__sync_bool_compare_and_swap(&m->mallocing, 1, 0);
+
+	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
+		__go_run_goroutine_gc(0);
 
 	if(!(refflag & RefNoProfiling) && (rate = MemProfileRate) > 0) {
 		if(size >= (uint32) rate)
@@ -139,9 +141,8 @@ __go_free(void *v)
 	if(v == nil)
 		return;
 
-	if(m->mallocing)
+	if(!__sync_bool_compare_and_swap(&m->mallocing, 0, 1))
 		throw("malloc/free - deadlock");
-	m->mallocing = 1;
 
 	if(!mlookup(v, nil, nil, &s, &ref)) {
 		printf("free %p: not an allocated block\n", v);
@@ -171,7 +172,10 @@ __go_free(void *v)
 		mstats.by_size[sizeclass].nfree++;
 		MCache_Free(c, v, sizeclass, size);
 	}
-	m->mallocing = 0;
+	__sync_bool_compare_and_swap(&m->mallocing, 1, 0);
+
+	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
+		__go_run_goroutine_gc(1);
 }
 
 int32
@@ -268,59 +272,6 @@ mal(uintptr n)
 	return mallocgc(n, 0, 1, 1);
 }
 
-// Stack allocator uses malloc/free most of the time,
-// but if we're in the middle of malloc and need stack,
-// we have to do something else to avoid deadlock.
-// In that case, we fall back on a fixed-size free-list
-// allocator, assuming that inside malloc all the stack
-// frames are small, so that all the stack allocations
-// will be a single size, the minimum (right now, 5k).
-struct {
-	Lock;
-	FixAlloc;
-} stacks;
-
-void*
-stackalloc(uint32 n)
-{
-	void *v;
-	uint32 *ref;
-
-	if(m->mallocing || m->gcing) {
-		lock(&stacks);
-		if(stacks.size == 0)
-			FixAlloc_Init(&stacks, n, SysAlloc, nil, nil);
-		if(stacks.size != n) {
-			printf("stackalloc: in malloc, size=%zu want %d", (size_t)stacks.size, n);
-			throw("stackalloc");
-		}
-		v = FixAlloc_Alloc(&stacks);
-		mstats.stacks_inuse = stacks.inuse;
-		mstats.stacks_sys = stacks.sys;
-		unlock(&stacks);
-		return v;
-	}
-	v = mallocgc(n, RefNoProfiling, 0, 0);
-	if(!mlookup(v, nil, nil, nil, &ref))
-		throw("stackalloc mlookup");
-	*ref = RefStack;
-	return v;
-}
-
-void
-stackfree(void *v)
-{
-	if(m->mallocing || m->gcing) {
-		lock(&stacks);
-		FixAlloc_Free(&stacks, v);
-		mstats.stacks_inuse = stacks.inuse;
-		mstats.stacks_sys = stacks.sys;
-		unlock(&stacks);
-		return;
-	}
-	__go_free(v);
-}
-
 func Alloc(n uintptr) (p *byte) {
 	p = __go_alloc(n);
 }
@@ -341,8 +292,6 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 	byte *base;
 	uintptr size;
 	const FuncType *ft;
-	int32 i, nret;
-	Type *t;
 
 	if(obj == nil) {
 		printf("runtime.SetFinalizer: first argument is nil interface\n");
@@ -357,7 +306,7 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 		printf("runtime.SetFinalizer: pointer not at beginning of allocated block\n");
 		goto throw;
 	}
-	nret = 0;
+	ft = nil;
 	if(finalizer != nil) {
 		if(finalizer->__type_descriptor->__code != GO_FUNC) {
 		badfunc:
@@ -368,18 +317,10 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 		if(ft->__dotdotdot || ft->__in.__count != 1 || !__go_type_descriptors_equal(*(Type**)ft->__in.__values, obj->__type_descriptor))
 			goto badfunc;
 
-		// compute size needed for return parameters
-		for(i=0; i<ft->__out.__count; i++) {
-			t = ((Type**)ft->__out.__values)[i];
-			nret = (nret + t->__align - 1) & ~(t->__align - 1);
-			nret += t->__size;
-		}
-		nret = (nret + sizeof(void*)-1) & ~(sizeof(void*)-1);
-
 		if(getfinalizer(obj->__object, 0)) {
 			printf("runtime.SetFinalizer: finalizer already set");
 			goto throw;
 		}
 	}
-	addfinalizer(obj->__object, finalizer ? finalizer->__object : nil, nret);
+	addfinalizer(obj->__object, finalizer ? *(void**)finalizer->__object : nil, ft);
 }

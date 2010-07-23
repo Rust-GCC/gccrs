@@ -30,3 +30,9 @@ destroylock(Lock *l)
 {
 	pthread_mutex_destroy(&l->mutex);
 }
+
+bool
+trylock(Lock *l)
+{
+	return pthread_mutex_trylock(&l->mutex) == 0;
+}

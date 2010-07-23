@@ -7,6 +7,7 @@
 #include "config.h"
 
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "unwind.h"
 #define NO_SIZE_OF_ENCODED_VALUE

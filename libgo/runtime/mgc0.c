@@ -19,26 +19,18 @@ enum {
 	Debug = 0
 };
 
-extern byte data[];
-extern byte etext[];
-extern byte end[];
-
-#if 0
-static G *fing;
+static bool finstarted;
+static Lock finlock = LOCK_INITIALIZER;
+static pthread_cond_t fincond = PTHREAD_COND_INITIALIZER;
 static Finalizer *finq;
 static int32 fingwait;
-#endif
 
-#if 0
-static void sweepblock(byte*, int64, uint32*, int32);
-static void runfinq(void);
-#endif
+static void runfinq(void*);
 
 enum {
 	PtrSize = sizeof(void*)
 };
 
-#if 0
 static void
 scanblock(int32 depth, byte *b, int64 n)
 {
@@ -50,7 +42,7 @@ scanblock(int32 depth, byte *b, int64 n)
 	int64 i;
 
 	if(Debug > 1)
-		printf("%d scanblock %p %lld\n", depth, b, n);
+		printf("%d scanblock %p %lld\n", depth, b, (long long) n);
 	off = (uint32)(uintptr)b & (PtrSize-1);
 	if(off) {
 		b += PtrSize - off;
@@ -80,7 +72,7 @@ scanblock(int32 depth, byte *b, int64 n)
 			obj = *pp;
 		}
 		if(mheap.min <= (byte*)obj && (byte*)obj < mheap.max) {
-			if(mlookup(obj, &obj, &size, nil, &refp)) {
+			if(mlookup(obj, (byte**)&obj, &size, nil, &refp)) {
 				ref = *refp;
 				switch(ref & ~RefFlags) {
 				case RefNone:
@@ -97,26 +89,6 @@ scanblock(int32 depth, byte *b, int64 n)
 }
 
 static void
-scanstack(G *gp)
-{
-	Stktop *stk;
-	byte *sp;
-
-	if(gp == g)
-		sp = (byte*)&gp;
-	else
-		sp = gp->sched.sp;
-	if(Debug > 1)
-		printf("scanstack %d %p\n", gp->goid, sp);
-	stk = (Stktop*)gp->stackbase;
-	while(stk) {
-		scanblock(0, sp, (byte*)stk - sp);
-		sp = stk->gobuf.sp;
-		stk = (Stktop*)stk->stackbase;
-	}
-}
-
-static void
 markfin(void *v)
 {
 	uintptr size;
@@ -124,45 +96,84 @@ markfin(void *v)
 
 	size = 0;
 	refp = nil;
-	if(!mlookup(v, &v, &size, nil, &refp) || !(*refp & RefHasFinalizer))
+	if(!mlookup(v, (byte**)&v, &size, nil, &refp) || !(*refp & RefHasFinalizer))
 		throw("mark - finalizer inconsistency");
 	
 	// do not mark the finalizer block itself.  just mark the things it points at.
 	scanblock(1, v, size);
 }
 
+struct globals {
+	byte *start;
+	uintptr size;
+};
+
+// FIXME: This needs to grow as needed.
+#define GLOBALS_ENTRIES 16
+
+static struct globals globals[GLOBALS_ENTRIES];
+
+// Called by runtime.
+void
+__go_register_mem(void *start, void *end)
+{
+	int i;
+
+	if(start == nil || end == nil)
+		throw("__go_register_mem");
+	if(start == end)
+		return;
+	for(i = 0; i < GLOBALS_ENTRIES; ++i) {
+		if(globals[i].start == nil) {
+			globals[i].start = (byte*)start;
+			globals[i].size = (byte*)end - (byte*)start;
+			return;
+		}
+	}
+	throw("__go_register_mem out of space");
+}
+
+// Called by runtime for dlclose.
+void
+__go_deregister_mem(void *start, void *end)
+{
+	int i;
+
+	if(start == end)
+		return;
+	for(i = 0; i < GLOBALS_ENTRIES; ++i) {
+		if(globals[i].start == (byte*)start
+		   && globals[i].size == (size_t)((byte*)end - (byte*)start)) {
+			globals[i].start = nil;
+			return;
+		}
+	}
+	throw("__go_deregister_mem not found");
+}
+
 static void
 mark(void)
 {
-	G *gp;
+	int i;
 
 	// mark data+bss.
 	// skip mheap itself, which has no interesting pointers
 	// and is mostly zeroed and would not otherwise be paged in.
-	scanblock(0, data, (byte*)&mheap - data);
-	scanblock(0, (byte*)(&mheap+1), end - (byte*)(&mheap+1));
+	for(i = 0; i < GLOBALS_ENTRIES; ++i) {
+		if (globals[i].start == nil)
+			continue;
+		if ((byte*)&mheap >= globals[i].start
+		    && (byte*)&mheap < globals[i].start + globals[i].size) {
+			scanblock(0, globals[i].start, (byte*)&mheap - globals[i].start);
+			scanblock(0, (byte*)(&mheap+1),
+				  globals[i].start + globals[i].size - (byte*)(&mheap+1));
+		}
+		else
+			scanblock(0, globals[i].start, globals[i].size);
+	}
 
 	// mark stacks
-	for(gp=allg; gp!=nil; gp=gp->alllink) {
-		switch(gp->status){
-		default:
-			printf("unexpected G.status %d\n", gp->status);
-			throw("mark - bad status");
-		case Gdead:
-			break;
-		case Grunning:
-		case Grecovery:
-			if(gp != g)
-				throw("mark - world not stopped");
-			scanstack(gp);
-			break;
-		case Grunnable:
-		case Gsyscall:
-		case Gwaiting:
-			scanstack(gp);
-			break;
-		}
-	}
+	__go_scanstacks(scanblock);
 
 	// mark things pointed at by objects with finalizers
 	walkfintab(markfin);
@@ -257,14 +268,7 @@ sweep(void)
 			sweepspan(s);
 }
 
-#endif
-
-#if 0
-// Semaphore, not Lock, so that the goroutine
-// reschedules when there is contention rather
-// than spinning.
-static uint32 gcsema = 1;
-#endif
+static Lock gcsema = LOCK_INITIALIZER;
 
 // Initialized from $GOGC.  GOGC=off means no gc.
 //
@@ -277,27 +281,12 @@ static uint32 gcsema = 1;
 // extra memory used).
 static int32 gcpercent = -2;
 
-#if 0
-static void
-stealcache(void)
-{
-	M *m;
-	
-	for(m=allm; m; m=m->alllink)
-		MCache_ReleaseAll(m->mcache);
-}
-#endif
-
 void
 gc(int32 force __attribute__ ((unused)))
 {
-#if 0
 	int64 t0, t1;
-#endif
 	char *p;
-#if 0
 	Finalizer *fp;
-#endif
 
 	// The gc is turned off (via enablegc) until
 	// the bootstrap has completed.
@@ -307,7 +296,7 @@ gc(int32 force __attribute__ ((unused)))
 	// problems, don't bother trying to run gc
 	// while holding a lock.  The next mallocgc
 	// without a lock will do the gc instead.
-	if(!mstats.enablegc /* || m->locks > 0 || panicking */)
+	if(!mstats.enablegc || m->locks > 0 /* || panicking */)
 		return;
 
 	if(gcpercent == -2) {	// first time through
@@ -322,82 +311,78 @@ gc(int32 force __attribute__ ((unused)))
 	if(gcpercent < 0)
 		return;
 
-#if 0
-	semacquire(&gcsema);
+	lock(&finlock);
+	lock(&gcsema);
+	m->locks++;	// disable gc during the mallocs in newproc
 	t0 = nanotime();
-	m->gcing = 1;
 	stoptheworld();
-	if(mheap.Lock.key != 0)
-		throw("mheap locked during gc");
 	if(force || mstats.heap_alloc >= mstats.next_gc) {
 		mark();
 		sweep();
-		stealcache();
+		__go_stealcache();
 		mstats.next_gc = mstats.heap_alloc+mstats.heap_alloc*gcpercent/100;
 	}
-	m->gcing = 0;
-
-	m->locks++;	// disable gc during the mallocs in newproc
-	fp = finq;
-	if(fp != nil) {
-		// kick off or wake up goroutine to run queued finalizers
-		if(fing == nil)
-			fing = newproc1((byte*)runfinq, nil, 0, 0);
-		else if(fingwait) {
-			fingwait = 0;
-			ready(fing);
-		}
-	}
-	m->locks--;
 
 	t1 = nanotime();
 	mstats.numgc++;
 	mstats.pause_ns += t1 - t0;
 	if(mstats.debuggc)
-		printf("pause %D\n", t1-t0);
-	semrelease(&gcsema);
+		printf("pause %llu\n", (unsigned long long)t1-t0);
+	unlock(&gcsema);
 	starttheworld();
-	
-	// give the queued finalizers, if any, a chance to run
-	if(fp != nil)
-		gosched();
-#endif
+
+	// finlock is still held.
+	fp = finq;
+	if(fp != nil) {
+		// kick off or wake up goroutine to run queued finalizers
+		if(!finstarted) {
+			__go_go(runfinq, nil);
+			finstarted = 1;
+		}
+		else if(fingwait) {
+			fingwait = 0;
+			pthread_cond_signal(&fincond);
+		}
+	}
+	m->locks--;
+	unlock(&finlock);
 }
 
-#if 0
 static void
-runfinq(void)
+runfinq(void* dummy)
 {
 	Finalizer *f, *next;
-	byte *frame;
+
+	USED(dummy);
 
 	for(;;) {
-		// There's no need for a lock in this section
-		// because it only conflicts with the garbage
-		// collector, and the garbage collector only
-		// runs when everyone else is stopped, and
-		// runfinq only stops at the gosched() or
-		// during the calls in the for loop.
+		lock(&finlock);
 		f = finq;
 		finq = nil;
 		if(f == nil) {
 			fingwait = 1;
-			g->status = Gwaiting;
-			gosched();
+			pthread_cond_wait(&fincond, &finlock.mutex);
+			unlock(&finlock);
 			continue;
 		}
+		unlock(&finlock);
 		for(; f; f=next) {
+			void *params[1];
+
 			next = f->next;
-			frame = mal(sizeof(uintptr) + f->nret);
-			*(void**)frame = f->arg;
-			reflect·call((byte*)f->fn, frame, sizeof(uintptr) + f->nret);
-			free(frame);
+			params[0] = &f->arg;
+			reflect_call(f->ft, (void*)f->fn, 0, params, nil);
 			f->fn = nil;
 			f->arg = nil;
 			f->next = nil;
-			free(f);
+			__go_free(f);
 		}
 		gc(1);	// trigger another gc to clean up the finalized objects, if possible
 	}
 }
-#endif
+
+void
+__go_enable_gc()
+{
+  mstats.enablegc = 1;
+}

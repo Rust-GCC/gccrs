@@ -85,7 +85,7 @@ static Fintab fintab;
 
 // add finalizer; caller is responsible for making sure not already in table
 void
-addfinalizer(void *p, void (*f)(void*), int32 nret)
+addfinalizer(void *p, void (*f)(void*), const struct __go_func_type *ft)
 {
 	Fintab newtab;
 	int32 i;
@@ -97,7 +97,7 @@ addfinalizer(void *p, void (*f)(void*), int32 nret)
 	if(f != nil) {
 		e = mal(sizeof *e);
 		e->fn = f;
-		e->nret = nret;
+		e->ft = ft;
 	}
 
 	lock(&finlock);

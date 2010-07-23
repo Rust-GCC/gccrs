@@ -391,7 +391,7 @@ struct Finalizer
 	Finalizer *next;	// for use by caller of getfinalizer
 	void (*fn)(void*);
 	void *arg;
-	int32 nret;
+	const struct __go_func_type *ft;
 };
 
 Finalizer*	getfinalizer(void*, bool);

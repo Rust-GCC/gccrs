@@ -31,6 +31,10 @@ ACLOCAL_AMFLAGS = -I . -I .. -I ../config
 AM_CFLAGS = -fexceptions -fplan9-extensions $(SPLIT_STACK) $(WARN_CFLAGS) \
 	-I $(srcdir)/../gcc -I $(MULTIBUILDTOP)../../gcc/include
 
+if USING_SPLIT_STACK
+AM_LDFLAGS = -XCClinker $(SPLIT_STACK)
+endif
+
 # Multilib support.
 MAKEOVERRIDES=
 
@@ -285,7 +289,6 @@ runtime_files = \
 	runtime/go-deferred-recover.c \
 	runtime/go-getgoroot.c \
 	runtime/go-go.c \
-	runtime/go-goexit.c \
 	runtime/go-gomaxprocs.c \
 	runtime/go-int-array-to-string.c \
 	runtime/go-int-to-string.c \
@@ -297,6 +300,7 @@ runtime_files = \
 	runtime/go-map-index.c \
 	runtime/go-map-len.c \
 	runtime/go-map-range.c \
+	runtime/go-nanotime.c \
 	runtime/go-new-channel.c \
 	runtime/go-new-interface-object.c \
 	runtime/go-new-interface-pointer.c \
