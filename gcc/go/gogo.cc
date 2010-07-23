@@ -27,6 +27,7 @@ Gogo::Gogo()
     functions_(),
     globals_(new Bindings(NULL)),
     imports_(),
+    imported_unsafe_(false),
     packages_(),
     map_descriptors_(NULL),
     type_descriptor_decls_(NULL),

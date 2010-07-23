@@ -583,6 +583,13 @@ class Type
   Type*
   make_non_abstract_type();
 
+  // Return true if this type is or contains a pointer.  This
+  // determines whether the garbage collector needs to look at a value
+  // of this type.
+  bool
+  has_pointer() const
+  { return this->do_has_pointer(); }
+
   // Return true if this type requires reference counting: if copying
   // or destroying a value of this type requires adjusting a reference
   // count.
@@ -886,6 +893,10 @@ class Type
   virtual bool
   do_verify()
   { return true; }
+
+  virtual bool
+  do_has_pointer() const
+  { return false; }
 
   virtual bool
   do_is_refcounted() const
@@ -1488,6 +1499,10 @@ class String_type : public Type
 
  protected:
   bool
+  do_has_pointer() const
+  { return true; }
+
+  bool
   do_is_refcounted() const
   { return true; }
 
@@ -1600,6 +1615,11 @@ class Function_type : public Type
   int
   do_traverse(Traverse*);
 
+  // A trampoline function has a pointer which matters for GC.
+  bool
+  do_has_pointer() const
+  { return true; }
+
   // Function types are really pointers, and they are reference
   // counted in case that pointer points to a trampoline.
   bool
@@ -1668,6 +1688,10 @@ class Pointer_type : public Type
  protected:
   int
   do_traverse(Traverse*);
+
+  bool
+  do_has_pointer() const
+  { return true; }
 
   bool
   do_is_refcounted() const
@@ -1922,6 +1946,9 @@ class Struct_type : public Type
   do_verify();
 
   bool
+  do_has_pointer() const;
+
+  bool
   do_has_refcounted_component() const;
 
   void
@@ -2013,6 +2040,12 @@ class Array_type : public Type
  protected:
   int
   do_traverse(Traverse* traverse);
+
+  bool
+  do_has_pointer() const
+  {
+    return this->length_ == NULL || this->element_type_->has_pointer();
+  }
 
   bool
   do_is_refcounted() const
@@ -2108,6 +2141,10 @@ class Map_type : public Type
   do_verify();
 
   bool
+  do_has_pointer() const
+  { return true; }
+
+  bool
   do_is_refcounted() const
   { return true; }
 
@@ -2187,6 +2224,10 @@ class Channel_type : public Type
   int
   do_traverse(Traverse* traverse)
   { return Type::traverse(this->element_type_, traverse); }
+
+  bool
+  do_has_pointer() const
+  { return true; }
 
   bool
   do_is_refcounted() const
@@ -2291,6 +2332,10 @@ class Interface_type : public Type
  protected:
   int
   do_traverse(Traverse*);
+
+  bool
+  do_has_pointer() const
+  { return true; }
 
   bool
   do_is_refcounted() const
@@ -2493,6 +2538,10 @@ class Named_type : public Type
   do_verify();
 
   bool
+  do_has_pointer() const
+  { return this->type_->has_pointer(); }
+
+  bool
   do_is_refcounted() const
   { return this->type_->is_refcounted(); }
 
@@ -2624,6 +2673,10 @@ class Forward_declaration_type : public Type
  protected:
   int
   do_traverse(Traverse* traverse);
+
+  bool
+  do_has_pointer() const
+  { return this->base()->has_pointer(); }
 
   bool
   do_is_refcounted() const

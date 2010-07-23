@@ -18,9 +18,6 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
 {
   location_t bloc = BUILTINS_LOCATION;
 
-  // Importing the "unsafe" package automatically disables TBAA.
-  flag_strict_aliasing = false;
-
   bool add_to_globals;
   Package* package = this->add_imported_package("unsafe", local_name,
 						is_local_name_exported,
@@ -132,4 +129,6 @@ Gogo::import_unsafe(const std::string& local_name, bool is_local_name_exported,
   no = bindings->add_function_declaration("NewArray", package, fntype, bloc);
   if (add_to_globals)
     this->add_named_object(no);
+
+  this->imported_unsafe_ = true;
 }

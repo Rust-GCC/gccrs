@@ -520,9 +520,10 @@ class Gogo
   tree
   interface_method_table_for_type(const Interface_type*, const Named_type*);
 
-  // Return a tree which allocates SIZE bytes.
+  // Return a tree which allocate SIZE bytes to hold values of type
+  // TYPE.
   tree
-  allocate_memory(tree size, source_location);
+  allocate_memory(Type *type, tree size, source_location);
 
   // Return a type to use for pointer to const char.
   static tree
@@ -761,6 +762,8 @@ class Gogo
   Bindings* globals_;
   // Mapping from import file names to packages.
   Imports imports_;
+  // Whether the magic unsafe package was imported.
+  bool imported_unsafe_;
   // Mapping from package names we have seen to packages.  This does
   // not include the package we are compiling.
   Packages packages_;
@@ -1084,7 +1087,7 @@ class Function
   make_receiver_parm_decl(Gogo*, Named_object*, tree);
 
   tree
-  copy_parm_to_heap(Gogo*, tree);
+  copy_parm_to_heap(Gogo*, Named_object*, tree);
 
   void
   build_defer_wrapper(Gogo*, Named_object*, tree, tree*, tree*);

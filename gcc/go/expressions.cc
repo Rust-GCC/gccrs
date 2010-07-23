@@ -10252,8 +10252,9 @@ Allocation_expression::do_get_tree(Translate_context* context)
 {
   tree type_tree = this->type_->get_tree(context->gogo());
   tree size_tree = TYPE_SIZE_UNIT(type_tree);
-  tree space = context->gogo()->allocate_memory(size_tree, this->location());
-  return fold_convert(build_pointer_type (type_tree), space);
+  tree space = context->gogo()->allocate_memory(this->type_, size_tree,
+						this->location());
+  return fold_convert(build_pointer_type(type_tree), space);
 }
 
 // Make an allocation expression.
@@ -11122,7 +11123,8 @@ Open_array_construction_expression::do_get_tree(Translate_context* context)
   else
     {
       tree memsize = TYPE_SIZE_UNIT(TREE_TYPE(values));
-      space = context->gogo()->allocate_memory(memsize, this->location());
+      space = context->gogo()->allocate_memory(element_type, memsize,
+					       this->location());
       space = save_expr(space);
 
       tree s = fold_convert(build_pointer_type(TREE_TYPE(values)), space);
@@ -12106,7 +12108,8 @@ Heap_composite_expression::do_get_tree(Translate_context* context)
     return error_mark_node;
   tree expr_size = TYPE_SIZE_UNIT(TREE_TYPE(expr_tree));
   gcc_assert(TREE_CODE(expr_size) == INTEGER_CST);
-  tree space = context->gogo()->allocate_memory(expr_size, this->location());
+  tree space = context->gogo()->allocate_memory(this->expr_->type(),
+						expr_size, this->location());
   space = fold_convert(build_pointer_type(TREE_TYPE(expr_tree)), space);
   space = save_expr(space);
   tree ret = build2(COMPOUND_EXPR, TREE_TYPE(space),

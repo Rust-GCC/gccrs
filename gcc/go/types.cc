@@ -2492,6 +2492,10 @@ class Call_multiple_result_type : public Type
   { }
 
  protected:
+  bool
+  do_has_pointer() const
+  { gcc_unreachable(); }
+
   tree
   do_get_tree(Gogo*);
 
@@ -2647,6 +2651,24 @@ Struct_type::do_verify()
 	}
     }
   return true;
+}
+
+// Whether this contains a pointer.
+
+bool
+Struct_type::do_has_pointer() const
+{
+  const Struct_field_list* fields = this->fields();
+  if (fields == NULL)
+    return false;
+  for (Struct_field_list::const_iterator p = fields->begin();
+       p != fields->end();
+       ++p)
+    {
+      if (p->type()->has_pointer())
+	return true;
+    }
+  return false;
 }
 
 // Whether this contains a reference counted component.
@@ -3621,7 +3643,8 @@ Array_type::do_make_expression_tree(Translate_context* context,
   tree size_tree = fold_build2_loc(location, MULT_EXPR, TREE_TYPE(count_field),
 				   element_size_tree, capacity_tree);
 
-  tree space = context->gogo()->allocate_memory(size_tree, location);
+  tree space = context->gogo()->allocate_memory(this->element_type_,
+						size_tree, location);
 
   if (value != NULL_TREE)
     space = save_expr(space);

@@ -267,7 +267,8 @@ Variable_declaration_statement::do_get_tree(Translate_context* context)
       tree type = TREE_TYPE(decl);
       gcc_assert(POINTER_TYPE_P(type));
       tree size = TYPE_SIZE_UNIT(TREE_TYPE(type));
-      tree space = context->gogo()->allocate_memory(size, this->location());
+      tree space = context->gogo()->allocate_memory(variable->type(), size,
+						    this->location());
       space = fold_convert(TREE_TYPE(decl), space);
       DECL_INITIAL(decl) = space;
       return build2(COMPOUND_EXPR, void_type_node,

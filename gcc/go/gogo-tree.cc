@@ -666,6 +666,12 @@ Gogo::write_globals()
 
   // Pass everything back to the middle-end.
 
+  if (this->imported_unsafe_)
+    {
+      // Importing the "unsafe" package automatically disables TBAA.
+      flag_strict_aliasing = false;
+    }
+
   wrapup_global_declarations(vec, count);
 
   cgraph_finalize_compilation_unit();
@@ -918,7 +924,8 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 	      init = type->get_init_tree(gogo, false);
 	    else
 	      {
-		tree space = gogo->allocate_memory(TYPE_SIZE_UNIT(result_type),
+		tree space = gogo->allocate_memory(type,
+						   TYPE_SIZE_UNIT(result_type),
 						   loc);
 		result_type = build_pointer_type(result_type);
 		tree subinit = type->get_init_tree(gogo, true);
@@ -1265,7 +1272,8 @@ Function::make_receiver_parm_decl(Gogo* gogo, Named_object* no, tree var_decl)
   if (is_in_heap)
     {
       tree size = TYPE_SIZE_UNIT(val_type);
-      tree space = gogo->allocate_memory(size, DECL_SOURCE_LOCATION(var_decl));
+      tree space = gogo->allocate_memory(no->var_value()->type(), size,
+					 no->location());
       space = save_expr(space);
       space = fold_convert(build_pointer_type(val_type), space);
       init = build2(COMPOUND_EXPR, TREE_TYPE(space),
@@ -1285,7 +1293,7 @@ Function::make_receiver_parm_decl(Gogo* gogo, Named_object* no, tree var_decl)
 // indirection.
 
 tree
-Function::copy_parm_to_heap(Gogo* gogo, tree ref)
+Function::copy_parm_to_heap(Gogo* gogo, Named_object* no, tree ref)
 {
   gcc_assert(TREE_CODE(ref) == INDIRECT_REF);
 
@@ -1306,7 +1314,7 @@ Function::copy_parm_to_heap(Gogo* gogo, tree ref)
   DECL_ARG_TYPE(parm_decl) = type;
 
   tree size = TYPE_SIZE_UNIT(type);
-  tree space = gogo->allocate_memory(size, loc);
+  tree space = gogo->allocate_memory(no->var_value()->type(), size, loc);
   space = save_expr(space);
   space = fold_convert(TREE_TYPE(var_decl), space);
   tree init = build2(COMPOUND_EXPR, TREE_TYPE(space),
@@ -1359,7 +1367,7 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
 	    {
 	      // If we take the address of a parameter, then we need
 	      // to copy it into the heap.
-	      tree parm_decl = this->copy_parm_to_heap(gogo, *pp);
+	      tree parm_decl = this->copy_parm_to_heap(gogo, *p, *pp);
 	      gcc_assert(TREE_CODE(*pp) == INDIRECT_REF);
 	      tree var_decl = TREE_OPERAND(*pp, 0);
 	      gcc_assert(TREE_CODE(var_decl) == VAR_DECL);
@@ -1927,19 +1935,36 @@ go_type_for_mode(enum machine_mode mode, int unsignedp)
     return NULL_TREE;
 }
 
-// Return a tree which allocates SIZE bytes.
+// Return a tree which allocates SIZE bytes which will holds value of
+// type TYPE.
 
 tree
-Gogo::allocate_memory(tree size, source_location location)
+Gogo::allocate_memory(Type* type, tree size, source_location location)
 {
-  static tree new_fndecl;
-  return Gogo::call_builtin(&new_fndecl,
-			    location,
-			    "__go_new",
-			    1,
-			    ptr_type_node,
-			    sizetype,
-			    size);
+  // If the package imports unsafe, then it may play games with
+  // pointers that look like integers.
+  if (this->imported_unsafe_ || type->has_pointer())
+    {
+      static tree new_fndecl;
+      return Gogo::call_builtin(&new_fndecl,
+				location,
+				"__go_new",
+				1,
+				ptr_type_node,
+				sizetype,
+				size);
+    }
+  else
+    {
+      static tree new_nopointers_fndecl;
+      return Gogo::call_builtin(&new_nopointers_fndecl,
+				location,
+				"__go_new_nopointers",
+				1,
+				ptr_type_node,
+				sizetype,
+				size);
+    }
 }
 
 // Build a builtin struct with a list of fields.  The name is
