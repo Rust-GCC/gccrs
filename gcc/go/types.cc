@@ -25,7 +25,6 @@ extern "C"
 #include "statements.h"
 #include "export.h"
 #include "import.h"
-#include "refcount.h"
 #include "types.h"
 
 // Class Type.
@@ -195,17 +194,6 @@ Type::make_non_abstract_type()
     default:
       gcc_unreachable();
     }
-}
-
-// Add entries to the reference count queue for this type.  This is
-// the default version, which adds a single pointer.
-
-void
-Type::do_add_refcount_queue_entries(Refcounts* refcounts,
-				    Refcount_entry* entry)
-{
-  gcc_assert(this->is_refcounted());
-  refcounts->add_one(this, entry);
 }
 
 // Return true if this is an error type.  Don't give an error if we
@@ -729,30 +717,6 @@ Type::do_make_expression_tree(Translate_context*, Expression_list*,
 			      source_location)
 {
   gcc_unreachable();
-}
-
-// Return a tree copying VAL, a value of this type, into the reference
-// count queue at ENTRY.  This modifies ENTRY.
-
-tree
-Type::set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-			       Refcount_entry* entry, tree val) const
-{
-  return this->do_set_refcount_queue_entry(gogo, refcounts, entry, val);
-}
-
-// Default implementation of do_set_refcount_queue_entry.  This works
-// for any reference count type which is represented as a pointer.
-
-tree
-Type::do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-				  Refcount_entry* entry, tree val) const
-{
-  gcc_assert(this->is_refcounted());
-  gcc_assert(POINTER_TYPE_P(TREE_TYPE(val)));
-  tree ret = refcounts->set_entry_tree(gogo, *entry, val);
-  entry->increment();
-  return ret;
 }
 
 // Return a type descriptor for this type.
@@ -1556,18 +1520,6 @@ String_type::do_init_tree(Gogo* gogo, bool is_clear)
 
   tree ret = build_constructor(type_tree, init);
   TREE_CONSTANT(ret) = 1;
-  return ret;
-}
-
-// Copy a string into the reference count queue.
-
-tree
-String_type::do_set_refcount_queue_entry(Gogo *gogo, Refcounts* refcounts,
-					 Refcount_entry *entry, tree val) const
-{
-  tree ret = refcounts->set_entry_tree(gogo, *entry,
-				       this->bytes_tree(gogo, val));
-  entry->increment();
   return ret;
 }
 
@@ -2671,41 +2623,6 @@ Struct_type::do_has_pointer() const
   return false;
 }
 
-// Whether this contains a reference counted component.
-
-bool
-Struct_type::do_has_refcounted_component() const
-{
-  const Struct_field_list* fields = this->fields();
-  if (fields == NULL)
-    return false;
-  for (Struct_field_list::const_iterator p = fields->begin();
-       p != fields->end();
-       ++p)
-    {
-      if (p->type()->has_refcounted_component())
-	return true;
-    }
-  return false;
-}
-
-// Add entries to the refcount queue for this type.
-
-void
-Struct_type::do_add_refcount_queue_entries(Refcounts* refcounts,
-					   Refcount_entry* entry)
-{
-  const Struct_field_list* fields = this->fields();
-  gcc_assert(fields != NULL);
-  for (Struct_field_list::const_iterator p = fields->begin();
-       p != fields->end();
-       ++p)
-    {
-      if (p->type()->has_refcounted_component())
-	p->type()->add_refcount_queue_entries(refcounts, entry);
-    }
-}
-
 // Whether this type is compatible with T.
 
 bool
@@ -3084,38 +3001,6 @@ Struct_type::do_init_tree(Gogo* gogo, bool is_clear)
   return ret;
 }
 
-// Copy a struct into the reference count queue.
-
-tree
-Struct_type::do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-					 Refcount_entry* entry, tree val) const
-{
-  const Struct_field_list* fields = this->fields();
-  gcc_assert(fields != NULL);
-  tree ret = NULL_TREE;
-  tree field = TYPE_FIELDS(TREE_TYPE(val));
-  for (Struct_field_list::const_iterator p = fields->begin();
-       p != fields->end();
-       ++p, field = TREE_CHAIN(field))
-    {
-      gcc_assert(field != NULL_TREE);
-      if (p->type()->has_refcounted_component())
-	{
-	  tree f = build3(COMPONENT_REF, TREE_TYPE(field), val, field,
-			  NULL_TREE);
-	  tree set = p->type()->set_refcount_queue_entry(gogo, refcounts,
-							 entry, f);
-	  if (ret == NULL_TREE)
-	    ret = set;
-	  else
-	    ret = build2(COMPOUND_EXPR, void_type_node, ret, set);
-	}
-    }
-  gcc_assert(field == NULL_TREE);
-  gcc_assert(ret != NULL_TREE);
-  return ret;
-}
-
 // Type descriptor.
 
 void
@@ -3484,14 +3369,7 @@ Array_type::do_get_tree(Gogo* gogo)
 						     length_tree,
 						     size_one_node));
 
-      tree ret = build_array_type(element_type_tree, index_type);
-
-      // If the element type requires reference counting, then we need
-      // this to be stored in memory.
-      if (this->element_type_->has_refcounted_component())
-	TREE_ADDRESSABLE(ret) = 1;
-
-      return ret;
+      return build_array_type(element_type_tree, index_type);
     }
   else
     {
@@ -3682,18 +3560,6 @@ Array_type::do_make_expression_tree(Translate_context* context,
 		       build_fold_indirect_ref(value_pointer),
 		       space_init),
 		constructor);
-}
-
-// Copy an array into the reference count queue.
-
-tree
-Array_type::do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-					Refcount_entry* entry, tree val) const
-{
-  tree ret = refcounts->set_entry_tree(gogo, *entry,
-				       this->value_pointer_tree(gogo, val));
-  entry->increment();
-  return ret;
 }
 
 // Return a tree for a pointer to the values in ARRAY.
@@ -5513,19 +5379,6 @@ Named_type::do_verify()
     }
 
   return true;
-}
-
-// The number of reference count queue entries required.
-
-void
-Named_type::do_add_refcount_queue_entries(Refcounts* refcounts,
-					  Refcount_entry* entry)
-{
-  // If this is not a struct or an array, just use the type itself.
-  if (this->struct_type() == NULL && this->array_type() == NULL)
-    this->Type::do_add_refcount_queue_entries(refcounts, entry);
-  else
-    this->type_->add_refcount_queue_entries(refcounts, entry);
 }
 
 // Return a hash code.  This is used for method lookup.  We simply

@@ -45,8 +45,6 @@ class Function;
 class Translate_context;
 class Export;
 class Import;
-class Refcounts;
-class Refcount_entry;
 
 // Type codes used in type descriptors.  These must match the values
 // in libgo/runtime/go-type.h.
@@ -590,27 +588,6 @@ class Type
   has_pointer() const
   { return this->do_has_pointer(); }
 
-  // Return true if this type requires reference counting: if copying
-  // or destroying a value of this type requires adjusting a reference
-  // count.
-  bool
-  is_refcounted() const
-  { return this->do_is_refcounted(); }
-
-  // Return true if this type has some component which is reference
-  // counted.  If IS_REFCOUNTED returns true for this type, then this
-  // returns true as well.
-  bool
-  has_refcounted_component() const
-  { return this->do_has_refcounted_component(); }
-
-  // Add entries to the reference count queue to hold an object of
-  // this type.  This normally adds a single entry but may add more
-  // for structures.
-  void
-  add_refcount_queue_entries(Refcounts* refcounts, Refcount_entry* entry)
-  { return this->do_add_refcount_queue_entries(refcounts, entry); }
-
   // Return true if this is an error type.  An error type indicates a
   // parsing error.
   bool
@@ -829,12 +806,6 @@ class Type
 		       source_location location)
   { return this->do_make_expression_tree(context, args, location); }
 
-  // Return a tree copying VAL, a value of this type, into the
-  // reference count queue at ENTRY.  This modifies ENTRY.
-  tree
-  set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-			   Refcount_entry* entry, tree val) const;
-
   // Build a type descriptor entry for this type.  Return a pointer to
   // it.
   tree
@@ -898,17 +869,6 @@ class Type
   do_has_pointer() const
   { return false; }
 
-  virtual bool
-  do_is_refcounted() const
-  { return false; }
-
-  virtual bool
-  do_has_refcounted_component() const
-  { return this->do_is_refcounted(); }
-
-  virtual void
-  do_add_refcount_queue_entries(Refcounts* refcounts, Refcount_entry* entry);
-
   virtual unsigned int
   do_hash_for_method(Gogo*) const;
 
@@ -925,10 +885,6 @@ class Type
   virtual tree
   do_make_expression_tree(Translate_context*, Expression_list*,
 			  source_location);
-
-  virtual tree
-  do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-			      Refcount_entry* entry, tree val) const;
 
   virtual void
   do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl) = 0;
@@ -1028,10 +984,6 @@ class Type
 
   static tree
   build_receive_return_type(tree type);
-
-  tree
-  inc_or_dec_refcount(Gogo* gogo, tree expr_tree, source_location,
-		      bool is_local, bool is_increment);
 
   // A hash table we use to avoid infinite recursion.
   typedef std::tr1::unordered_set<const Named_type*, Type_hash_identical,
@@ -1502,19 +1454,11 @@ class String_type : public Type
   do_has_pointer() const
   { return true; }
 
-  bool
-  do_is_refcounted() const
-  { return true; }
-
   tree
   do_get_tree(Gogo*);
 
   tree
   do_init_tree(Gogo* gogo, bool);
-
-  tree
-  do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-			      Refcount_entry* entry, tree val) const;
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -1620,12 +1564,6 @@ class Function_type : public Type
   do_has_pointer() const
   { return true; }
 
-  // Function types are really pointers, and they are reference
-  // counted in case that pointer points to a trampoline.
-  bool
-  do_is_refcounted() const
-  { return true; }
-
   unsigned int
   do_hash_for_method(Gogo*) const;
 
@@ -1692,10 +1630,6 @@ class Pointer_type : public Type
   bool
   do_has_pointer() const
   { return true; }
-
-  bool
-  do_is_refcounted() const
-  { return !this->is_unsafe_pointer_type(); }
 
   unsigned int
   do_hash_for_method(Gogo*) const;
@@ -1948,12 +1882,6 @@ class Struct_type : public Type
   bool
   do_has_pointer() const;
 
-  bool
-  do_has_refcounted_component() const;
-
-  void
-  do_add_refcount_queue_entries(Refcounts*, Refcount_entry*);
-
   unsigned int
   do_hash_for_method(Gogo*) const;
 
@@ -1962,10 +1890,6 @@ class Struct_type : public Type
 
   tree
   do_init_tree(Gogo*, bool);
-
-  tree
-  do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-			      Refcount_entry* entry, tree val) const;
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -2047,13 +1971,6 @@ class Array_type : public Type
     return this->length_ == NULL || this->element_type_->has_pointer();
   }
 
-  bool
-  do_is_refcounted() const
-  {
-    return (this->length_ == NULL
-	    || this->element_type_->has_refcounted_component());
-  }
-
   unsigned int
   do_hash_for_method(Gogo*) const;
 
@@ -2069,10 +1986,6 @@ class Array_type : public Type
   tree
   do_make_expression_tree(Translate_context*, Expression_list*,
 			  source_location);
-
-  tree
-  do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-			      Refcount_entry* entry, tree val) const;
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -2142,10 +2055,6 @@ class Map_type : public Type
 
   bool
   do_has_pointer() const
-  { return true; }
-
-  bool
-  do_is_refcounted() const
   { return true; }
 
   unsigned int
@@ -2227,10 +2136,6 @@ class Channel_type : public Type
 
   bool
   do_has_pointer() const
-  { return true; }
-
-  bool
-  do_is_refcounted() const
   { return true; }
 
   unsigned int
@@ -2335,10 +2240,6 @@ class Interface_type : public Type
 
   bool
   do_has_pointer() const
-  { return true; }
-
-  bool
-  do_is_refcounted() const
   { return true; }
 
   unsigned int
@@ -2541,17 +2442,6 @@ class Named_type : public Type
   do_has_pointer() const
   { return this->type_->has_pointer(); }
 
-  bool
-  do_is_refcounted() const
-  { return this->type_->is_refcounted(); }
-
-  bool
-  do_has_refcounted_component() const
-  { return this->type_->has_refcounted_component(); }
-
-  void
-  do_add_refcount_queue_entries(Refcounts* refcounts, Refcount_entry* entry);
-
   unsigned int
   do_hash_for_method(Gogo*) const;
 
@@ -2570,13 +2460,6 @@ class Named_type : public Type
   do_make_expression_tree(Translate_context* context, Expression_list* args,
 			  source_location location)
   { return this->type_->make_expression_tree(context, args, location); }
-
-  tree
-  do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-			      Refcount_entry* entry, tree val) const
-  {
-    return this->type_->set_refcount_queue_entry(gogo, refcounts, entry, val);
-  }
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -2678,18 +2561,6 @@ class Forward_declaration_type : public Type
   do_has_pointer() const
   { return this->base()->has_pointer(); }
 
-  bool
-  do_is_refcounted() const
-  { return this->base()->is_refcounted(); }
-
-  bool
-  do_has_refcounted_component() const
-  { return this->base()->has_refcounted_component(); }
-
-  void
-  do_add_refcount_queue_entries(Refcounts* refcounts, Refcount_entry* entry)
-  { return this->real_type()->add_refcount_queue_entries(refcounts, entry); }
-
   unsigned int
   do_hash_for_method(Gogo* gogo) const
   { return this->real_type()->hash_for_method(gogo); }
@@ -2709,13 +2580,6 @@ class Forward_declaration_type : public Type
   do_make_expression_tree(Translate_context* context, Expression_list* args,
 			  source_location location)
   { return this->base()->make_expression_tree(context, args, location); }
-
-  tree
-  do_set_refcount_queue_entry(Gogo* gogo, Refcounts* refcounts,
-			      Refcount_entry* entry, tree val) const
-  {
-    return this->base()->set_refcount_queue_entry(gogo, refcounts, entry, val);
-  }
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);

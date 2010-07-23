@@ -24,7 +24,6 @@ extern "C"
 #include "types.h"
 #include "expressions.h"
 #include "gogo.h"
-#include "refcount.h"
 #include "statements.h"
 
 // Class Statement.
@@ -407,49 +406,7 @@ Temporary_statement*
 Statement::make_temporary(Block* block, Type* type, Expression* init,
 			  source_location location)
 {
-  Temporary_statement* ret = new Temporary_statement(type, init, location);
-  if (ret->type()->has_refcounted_component())
-    block->add_final_statement(Statement::destroy_temporary(ret));
-  return ret;
-}
-
-// Destroy a temporary variable.
-
-class Destroy_temporary_statement : public Statement
-{
- public:
-  Destroy_temporary_statement(Temporary_statement* statement)
-    : Statement(STATEMENT_DESTROY_TEMPORARY, statement->location()),
-      ref_(Expression::make_temporary_reference(statement,
-						statement->location()))
-  { }
-
- protected:
-  int
-  do_traverse(Traverse*)
-  { gcc_unreachable(); }
-
-  bool
-  do_traverse_assignments(Traverse_assignments*)
-  { gcc_unreachable(); }
-
-  // FIXME.
-  tree
-  do_get_tree(Translate_context* context)
-  { return this->ref_->get_tree(context); }
-
- private:
-  // A reference to the temporary variable being destroyed.
-  Expression* ref_;
-};
-
-// Make a statement which destroys a temporary variable.
-
-Statement*
-Statement::destroy_temporary(Temporary_statement* statement)
-{
-  gcc_assert(statement->type()->has_refcounted_component());
-  return new Destroy_temporary_statement(statement);
+  return new Temporary_statement(type, init, location);
 }
 
 // An assignment statement.
@@ -568,21 +525,11 @@ Assignment_statement::do_get_tree(Translate_context* context)
   rhs_tree = Expression::convert_for_assignment(context, this->lhs_->type(),
 						this->rhs_->type(), rhs_tree,
 						this->location());
+  if (rhs_tree == error_mark_node)
+    return error_mark_node;
 
-  Refcount_decrement_lvalue_expression *rdle =
-    this->lhs_->refcount_decrement_lvalue_expression();
-  tree ret;
-  if (rdle == NULL)
-    ret = fold_build2_loc(this->location(), MODIFY_EXPR, void_type_node,
-			  lhs_tree, rhs_tree);
-  else
-    {
-      ret = rdle->set(context, lhs_tree, rhs_tree);
-      if (CAN_HAVE_LOCATION_P(ret))
-	SET_EXPR_LOCATION(ret, this->location());
-    }
-
-  return ret;
+  return fold_build2_loc(this->location(), MODIFY_EXPR, void_type_node,
+			 lhs_tree, rhs_tree);
 }
 
 // Make an assignment statement.
@@ -1714,15 +1661,6 @@ Thunk_statement::is_simple(Function_type* fntype) const
 	      && parameters->begin()->type()->points_to() == NULL)))
     return false;
 
-  // If the single parameter is reference counted, then we need a
-  // thunk in order to decrement the reference count when the function
-  // is complete.  FIXME: In practice this means that the only simple
-  // go statements are the ones with no parameters.
-  if (parameters != NULL
-      && !parameters->empty()
-      && parameters->begin()->type()->has_refcounted_component())
-    return false;
-
   // If the function returns multiple values, or returns a type other
   // than integer, floating point, or pointer, then it may get a
   // hidden first parameter, in which case we need the more
@@ -1734,13 +1672,6 @@ Thunk_statement::is_simple(Function_type* fntype) const
 	  || (results->size() == 1
 	      && !results->begin()->type()->is_basic_type()
 	      && results->begin()->type()->points_to() == NULL)))
-    return false;
-
-  // If the function returns a reference counted type, then we need a
-  // thunk in order to discard the function's return value.
-  if (results != NULL
-      && !results->empty()
-      && results->begin()->type()->has_refcounted_component())
     return false;
 
   // If this calls something which is not a simple function, then we
@@ -1767,8 +1698,6 @@ Thunk_statement::do_traverse(Traverse* traverse)
 bool
 Thunk_statement::do_traverse_assignments(Traverse_assignments* tassign)
 {
-  // FIXME: This doesn't work, because we might get a REFCOUNT_ADJUST
-  // which we will never execute.
   Expression* fn = this->call_->call_expression()->fn();
   Expression* fn2 = fn;
   tassign->value(&fn2, true, false);
@@ -1933,7 +1862,7 @@ Thunk_statement::simplify_statement(Gogo* gogo, Block* block)
 					      location);
 
   // Allocate the initialized struct on the heap.
-  constructor = Expression::make_heap_composite(constructor, true, location);
+  constructor = Expression::make_heap_composite(constructor, location);
 
   // Look up the thunk.
   Named_object* named_thunk = gogo->lookup(thunk_name, NULL);
@@ -2251,9 +2180,6 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
 							  location));
     }
 
-  // FIXME: Now we need to decrement the reference count of the
-  // parameter.
-
   // That is all the thunk has to do.
   gogo->finish_function(location);
 }
@@ -2282,19 +2208,6 @@ Thunk_statement::get_fn_and_arg(Translate_context* context, tree* pfn,
   else
     {
       gcc_assert(args->size() == 1);
-      Expression* arg = args->front();
-
-      // The argument will typically include a reference count
-      // decrement.  We do not want that decrement: the thunk is
-      // responsible for decrementing the reference count.  FIXME: We
-      // will have an entry on the queue which is never used.
-      if (arg->refcount_adjust_expression() != NULL)
-	{
-	  int cl = arg->refcount_adjust_expression()->classification();
-	  if (cl != REFCOUNT_INCREMENT_COPIED)
-	    arg = arg->refcount_adjust_expression()->expr();
-	}
-
       *parg = args->front()->get_tree(context);
     }
 }
@@ -2388,32 +2301,8 @@ Statement::make_defer_statement(Call_expression* call,
 
 // Class Return_statement.
 
-// Record that we should not increment the reference count of NO.
-
-void
-Return_statement::add_do_not_increment(Named_object* no)
-{
-  gcc_assert(this->vals_ != NULL);
-  for (Expression_list::const_iterator p = this->vals_->begin();
-       p != this->vals_->end();
-       ++p)
-    {
-      Var_expression* ve = (*p)->var_expression();
-      if (ve != NULL && ve->named_object() == no)
-	{
-	  if (this->do_not_increment_ == NULL)
-	    this->do_not_increment_ = new Expression_list;
-	  this->do_not_increment_->push_back(ve);
-	  return;
-	}
-    }
-  gcc_unreachable();
-}
-
-// Traverse assignments.  A return statement doesn't assign any
-// values, but it does require that we increment the reference count
-// of the values we are returning.  So we treat each return value as a
-// top level RHS in an expression.
+// Traverse assignments.  We treat each return value as a top level
+// RHS in an expression.
 
 bool
 Return_statement::do_traverse_assignments(Traverse_assignments* tassign)
@@ -2880,23 +2769,7 @@ Label_statement::do_traverse(Traverse*)
 tree
 Label_statement::do_get_tree(Translate_context* context)
 {
-  tree ret = this->build_stmt_1(LABEL_EXPR, this->label_->get_decl());
-
-  // If this function has a reference count queue, we flush it at each
-  // label.  We need to do this in case the label is used to implement
-  // a loop; otherwise some entries in the reference count queue may
-  // get reused.
-  Refcounts* refcounts = context->function()->func_value()->refcounts();
-  if (refcounts != NULL && !refcounts->empty())
-    {
-      tree flush = refcounts->flush_queue(context->gogo(), false,
-					  this->location());
-      tree statements = NULL_TREE;
-      append_to_statement_list(ret, &statements);
-      append_to_statement_list(flush, &statements);
-      ret = statements;
-    }
-  return ret;
+  return this->build_stmt_1(LABEL_EXPR, this->label_->get_decl());
 }
 
 // Make a label statement.
@@ -5231,74 +5104,4 @@ Statement::make_for_range_statement(Expression* index_var,
 				    source_location location)
 {
   return new For_range_statement(index_var, value_var, range, location);
-}
-
-// An assignment to an entry in the reference count queue.
-
-class Refcount_queue_assignment_statement : public Statement
-{
- public:
-  Refcount_queue_assignment_statement(Refcount_entry entry,
-				      Expression* expr,
-				      source_location location)
-    : Statement(STATEMENT_REFCOUNT_QUEUE_ASSIGNMENT, location),
-      entry_(entry), expr_(expr)
-  { }
-
- protected:
-  int
-  do_traverse(Traverse* traverse)
-  { return this->traverse_expression(traverse, &this->expr_); }
-
-  // Types should have been determined and checked before any of these
-  // statements are created.
-
-  void
-  do_determine_types()
-  { gcc_unreachable(); }
-
-  void
-  do_check_types(Gogo*)
-  { gcc_unreachable(); }
-
-  tree
-  do_get_tree(Translate_context*);
-
- private:
-  // The entry in the reference count queue.
-  Refcount_entry entry_;
-  // The expression we are storing in the queue.
-  Expression* expr_;
-};
-
-// Implement the actual assignment.
-
-tree
-Refcount_queue_assignment_statement::do_get_tree(Translate_context* context)
-{
-  // We only need this statement for variables.  It will only work for
-  // expressions without side effects.
-  tree expr_tree = this->expr_->get_tree(context);
-  if (expr_tree == error_mark_node)
-    return error_mark_node;
-  gcc_assert(TREE_CODE(expr_tree) == VAR_DECL
-	     || TREE_CODE(expr_tree) == PARM_DECL
-	     || (TREE_CODE(expr_tree) == INDIRECT_REF
-		 && TREE_CODE(TREE_OPERAND(expr_tree, 0)) == VAR_DECL));
-  Refcounts* refcounts = context->function()->func_value()->refcounts();
-  return this->expr_->type()->set_refcount_queue_entry(context->gogo(),
-						       refcounts,
-						       &this->entry_,
-						       expr_tree);
-}
-
-// Make an assignment to an entry in the reference count queue.
-
-Statement*
-Statement::make_refcount_queue_assignment_statement(Refcounts*,
-						    Refcount_entry* entry,
-						    Expression* expr,
-						    source_location location)
-{
-  return new Refcount_queue_assignment_statement(*entry, expr, location);
 }

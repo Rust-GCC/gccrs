@@ -40,8 +40,6 @@ class Case_clauses;
 class Type_case_clauses;
 class Select_clauses;
 class Typed_identifier_list;
-class Refcounts;
-class Refcount_entry;
 
 // This class is used to traverse assignments made by a statement
 // which makes assignments.
@@ -90,7 +88,6 @@ class Statement
     STATEMENT_ERROR,
     STATEMENT_VARIABLE_DECLARATION,
     STATEMENT_TEMPORARY,
-    STATEMENT_DESTROY_TEMPORARY,
     STATEMENT_ASSIGNMENT,
     STATEMENT_EXPRESSION,
     STATEMENT_BLOCK,
@@ -105,7 +102,6 @@ class Statement
     STATEMENT_IF,
     STATEMENT_CONSTANT_SWITCH,
     STATEMENT_SELECT,
-    STATEMENT_REFCOUNT_QUEUE_ASSIGNMENT,
 
     // These statements types are created by the parser, but they
     // disappear during the lowering pass.
@@ -139,11 +135,6 @@ class Statement
   // not both.
   static Temporary_statement*
   make_temporary(Block*, Type*, Expression*, source_location);
-
-  // Make a statement which destroys a temporary variable.  This may
-  // return NULL if there is nothing to do.
-  static Statement*
-  destroy_temporary(Temporary_statement*);
 
   // Make an assignment statement.
   static Statement*
@@ -260,12 +251,6 @@ class Statement
   static For_range_statement*
   make_for_range_statement(Expression* index_var, Expression* value_var,
 			   Expression* range, source_location);
-
-  // Make a statement which stores a value in the reference count
-  // queue.
-  static Statement*
-  make_refcount_queue_assignment_statement(Refcounts*, Refcount_entry*,
-					   Expression*, source_location);
 
   // Return the statement classification.
   Statement_classification
@@ -572,24 +557,13 @@ class Return_statement : public Statement
   Return_statement(const Typed_identifier_list* results, Expression_list* vals,
 		   source_location location)
     : Statement(STATEMENT_RETURN, location),
-      results_(results), vals_(vals), do_not_increment_(NULL)
+      results_(results), vals_(vals)
   { }
 
   // The list of values being returned.  This may be NULL.
   const Expression_list*
   vals() const
   { return this->vals_; }
-
-  // Return list of expressions whose reference count should not be
-  // incremented.  This is modified by the caller.
-  Expression_list*
-  do_not_increment()
-  { return this->do_not_increment_; }
-
-  // Indicate that we should not increment the reference count of the
-  // variable.  The variable is being returned by this statement.
-  void
-  add_do_not_increment(Named_object*);
 
  protected:
   int
@@ -622,10 +596,6 @@ class Return_statement : public Statement
   const Typed_identifier_list* results_;
   // Return values.  This may be NULL.
   Expression_list* vals_;
-  // List of variables whose reference count should not be
-  // incremented.  This may be NULL.  This is only used during the
-  // reference counting pass.
-  Expression_list* do_not_increment_;
 };
 
 // Select_clauses holds the clauses of a select statement.  This is

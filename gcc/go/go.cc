@@ -135,12 +135,6 @@ go_parse_input_files(const char** filenames, unsigned int filename_count)
 
   // Convert complicated go and defer statements into simpler ones.
   ::gogo->simplify_thunk_statements();
-
-  // Check which variables are only set to argument values.
-  ::gogo->find_only_arg_vars();
-
-  // Add reference counts for garbage collection.
-  ::gogo->add_refcounts();
 }
 
 // Write out globals.

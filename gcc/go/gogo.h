@@ -43,7 +43,6 @@ class Label;
 class Translate_context;
 class Export;
 class Import;
-class Refcounts;
 
 // This file declares the basic classes used to hold the internal
 // representation of Go which is built by the parser.
@@ -363,10 +362,6 @@ class Gogo
   void
   check_types_in_block(Block*);
 
-  // Find variables which are only set to argument values.
-  void
-  find_only_arg_vars();
-
   // Check for return statements.
   void
   check_return_statements();
@@ -401,10 +396,6 @@ class Gogo
   // statements.
   void
   simplify_thunk_statements();
-
-  // Add reference counts for garbage collection.
-  void
-  add_refcounts();
 
   // Write out the global values.
   void
@@ -831,10 +822,6 @@ class Block
   void
   add_statement_at_front(Statement*);
 
-  // Add a statement which runs when the block is done.
-  void
-  add_final_statement(Statement*);
-
   // Replace a statement in a block.
   void
   replace_statement(size_t index, Statement*);
@@ -893,8 +880,6 @@ class Block
   std::vector<Statement*> statements_;
   // Binding contour.
   Bindings* bindings_;
-  // A list of statements which must be run when exiting the block.
-  std::vector<Statement*> final_statements_;
   // Location of start of block.
   source_location start_location_;
   // Location of end of block.
@@ -967,10 +952,6 @@ class Function
   // Set the type of the closure variable if there is one.
   void
   set_closure_type();
-
-  // Get the reference count adjustments for this function.
-  Refcounts*
-  refcounts();
 
   // Get the block of statements associated with the function.
   Block*
@@ -1090,7 +1071,7 @@ class Function
   copy_parm_to_heap(Gogo*, Named_object*, tree);
 
   void
-  build_defer_wrapper(Gogo*, Named_object*, tree, tree*, tree*);
+  build_defer_wrapper(Gogo*, Named_object*, tree*, tree*);
 
   typedef std::vector<Named_object*> Named_results;
 
@@ -1111,9 +1092,6 @@ class Function
   // The closure variable, passed as a parameter using the static
   // chain parameter.  Normally NULL.
   Named_object* closure_var_;
-  // The reference count adjustments which must be made in this
-  // function.
-  Refcounts* refcounts_;
   // The outer block of statements in the function.
   Block* block_;
   // The source location of the start of the function.
@@ -1255,11 +1233,6 @@ class Variable
   is_address_taken() const
   { return this->is_address_taken_; }
 
-  // Whether this variable only holds argument values.
-  bool
-  holds_only_args() const
-  { return this->holds_only_args_; }
-
   // Whether this variable should live in the heap.
   bool
   is_in_heap() const
@@ -1283,8 +1256,7 @@ class Variable
   clear_init()
   { this->init_ = NULL; }
 
-  // Set the initial value; used for reference counts and converting
-  // shortcuts.
+  // Set the initial value; used for converting shortcuts.
   void
   set_init(Expression* init)
   { this->init_ = init; }
@@ -1363,11 +1335,6 @@ class Variable
   set_address_taken()
   { this->is_address_taken_ = true; }
 
-  // Note that this variable only holds argument values.
-  void
-  set_holds_only_args()
-  { this->holds_only_args_ = true; }
-
   // Get the initial value of the variable as a tree.  This may only
   // be called if has_pre_init() returns false.
   tree
@@ -1420,10 +1387,6 @@ class Variable
   bool is_varargs_parameter_ : 1;
   // Whether something takes the address of this variable.
   bool is_address_taken_ : 1;
-  // True if this variable is only set to argument values (e.g., it is
-  // a parameter which is not changed, or a local variable set only to
-  // parameters).
-  bool holds_only_args_ : 1;
   // True if we have lowered the initialization expression.
   bool init_is_lowered_ : 1;
   // True if init is a tuple used to set the type.

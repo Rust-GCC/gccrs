@@ -315,10 +315,6 @@ runtime_files = \
 	runtime/go-rec-nb-small.c \
 	runtime/go-rec-small.c \
 	runtime/go-recover.c \
-	runtime/go-refcount-decrement.c \
-	runtime/go-refcount-flush.c \
-	runtime/go-refcount-increment.c \
-	runtime/go-refcount-msg.c \
 	runtime/go-reflect.c \
 	runtime/go-reflect-call.c \
 	runtime/go-reflect-chan.c \

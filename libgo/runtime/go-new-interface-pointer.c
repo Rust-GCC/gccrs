@@ -7,7 +7,6 @@
 #include <assert.h>
 
 #include "go-alloc.h"
-#include "go-refcount.h"
 #include "interface.h"
 
 /* Allocate a new interface for a type which is represented as a
@@ -24,8 +23,6 @@ __go_new_interface_pointer (const struct __go_type_descriptor *type_descriptor,
   ret->__type_descriptor = type_descriptor;
   ret->__methods = methods;
   ret->__object = object;
-
-  __go_increment_refcount (object, type_descriptor);
 
   return ret;
 }

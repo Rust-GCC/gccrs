@@ -9,7 +9,6 @@
 
 #include "go-alloc.h"
 #include "go-panic.h"
-#include "go-refcount.h"
 #include "interface.h"
 
 /* Convert one interface type into another interface type.
@@ -117,8 +116,6 @@ __go_convert_interface (const struct __go_type_descriptor* lhs_descriptor,
   ret->__type_descriptor = rhs->__type_descriptor;
   ret->__methods = methods;
   ret->__object = rhs->__object;
-
-  __go_increment_refcount (ret->__object, ret->__type_descriptor);
 
   if (success != NULL)
     *success = 1;

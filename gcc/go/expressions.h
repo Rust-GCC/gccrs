@@ -35,14 +35,10 @@ class Interface_field_reference_expression;
 class Type_guard_expression;
 class Receive_expression;
 class Send_expression;
-class Refcount_adjust_expression;
-class Refcount_decrement_lvalue_expression;
 class Named_object;
 class Export;
 class Import;
 class Temporary_statement;
-class Refcounts;
-class Refcount_entry;
 class Label;
 
 // The base class for all expressions.
@@ -92,8 +88,6 @@ class Expression
     EXPRESSION_HEAP_COMPOSITE,
     EXPRESSION_RECEIVE,
     EXPRESSION_SEND,
-    EXPRESSION_REFCOUNT_ADJUST,
-    EXPRESSION_REFCOUNT_DECREMENT_LVALUE,
     EXPRESSION_TYPE_DESCRIPTOR,
     EXPRESSION_LABEL_ADDR
   };
@@ -262,7 +256,7 @@ class Expression
 
   // Take a composite literal and allocate it on the heap.
   static Expression*
-  make_heap_composite(Expression*, bool for_go_statement, source_location);
+  make_heap_composite(Expression*, source_location);
 
   // Make a receive expression.  VAL is NULL for a unary receive.
   static Receive_expression*
@@ -271,19 +265,6 @@ class Expression
   // Make a send expression.
   static Send_expression*
   make_send(Expression* channel, Expression* val, source_location);
-
-  // Make an expression which evaluates another expression and stores
-  // the value into the reference queue.  This expression then
-  // evaluates to the same value.  FOR_LOCAL is true if this is for a
-  // local variable.
-  static Expression*
-  make_refcount_adjust(Refcounts*, int classification, Expression*,
-		       bool for_local);
-
-  // Make an expression which decrements the reference count of the
-  // old value of an lvalue.
-  static Expression*
-  make_refcount_decrement_lvalue(Refcounts*, Expression*);
 
   // Make an expression which evaluates to the type descriptor of a
   // type.
@@ -481,24 +462,6 @@ class Expression
   receive_expression()
   { return this->convert<Receive_expression, EXPRESSION_RECEIVE>(); }
 
-  // If this is a reference count adjustment, return the
-  // Refcount_adjust_expression.  Otherwise, return NULL.
-  Refcount_adjust_expression*
-  refcount_adjust_expression()
-  {
-    return this->convert<Refcount_adjust_expression,
-			 EXPRESSION_REFCOUNT_ADJUST>();
-  }
-
-  // If this is a reference decrement expression, return it.
-  // Otherwise, return NULL.
-  Refcount_decrement_lvalue_expression*
-  refcount_decrement_lvalue_expression()
-  {
-    return this->convert<Refcount_decrement_lvalue_expression,
-  			 EXPRESSION_REFCOUNT_DECREMENT_LVALUE>();
-  }
-
   // Return true if this is a composite literal.
   bool
   is_composite_literal() const;
@@ -578,42 +541,6 @@ class Expression
   bool
   must_eval_in_order() const
   { return this->do_must_eval_in_order(); }
-
-  // This is called when the value of an expression is being stored
-  // somewhere.  In some cases this requires that the reference count
-  // be incremented.  FOR_LOCAL is true if this is called when either
-  // a local variable appears on the left hand of the assignment or
-  // when this is in a return statement.  This should return a new
-  // Expression which does the appropriate reference count adjustment.
-  // When no reference count needs to be increment, this should simply
-  // return THIS.  The note_decrements method will be called on this
-  // expression later; in some cases all that being_copied has to do
-  // is prevent note_decrements from doing anything.
-  Expression*
-  being_copied(Refcounts* refcounts, bool for_local)
-  { return this->do_being_copied(refcounts, for_local); }
-
-  // If this expression computes any values whose reference count must
-  // be decremented when the statement is complete, store them in the
-  // reference count decrement queue.  This is not called for an
-  // expression which is the complete left hand side of an assignment.
-  // It will be called for subexpressions of LHS's, and for all RHS
-  // expressions.  This returns a new expression which should replace
-  // the current expression.  When no reference counts need to be
-  // decremented, this should simply return THIS.
-  Expression*
-  note_decrements(Refcounts* refcounts)
-  { return this->do_note_decrements(refcounts); }
-
-  // This is called when the expression is being set.  The expression
-  // must be an lvalue.  In some cases this requires that the
-  // reference count of the old value of the expression be
-  // decremented.  This should return a new Expression which does the
-  // appropriate adjustment.  When no reference count needs to be
-  // decremented, this should simply return THIS.
-  Expression*
-  being_set(Refcounts* refcounts)
-  { return this->do_being_set(refcounts); }
 
   // Return the tree for this expression.
   tree
@@ -735,21 +662,6 @@ class Expression
   virtual bool
   do_must_eval_in_order() const
   { return false; }
-
-  // Child class implements incrementing reference count.
-  virtual Expression*
-  do_being_copied(Refcounts*, bool)
-  { return this; }
-
-  // Child class implements noting reference count decrements.
-  virtual Expression*
-  do_note_decrements(Refcounts*)
-  { return this; }
-
-  // Child class implements whether the old value of an lvalue needs
-  // to have its reference count decremented.
-  virtual Expression*
-  do_being_set(Refcounts*);
 
   // Child class implements conversion to tree.
   virtual tree
@@ -969,12 +881,6 @@ class Var_expression : public Expression
   void
   do_address_taken(bool);
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_being_set(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -1016,12 +922,6 @@ class Temporary_reference_expression : public Expression
 
   void
   do_address_taken(bool);
-
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_being_set(Refcounts*);
 
   tree
   do_get_tree(Translate_context*);
@@ -1090,7 +990,7 @@ class Binary_expression : public Expression
   Binary_expression(Operator op, Expression* left, Expression* right,
 		    source_location location)
     : Expression(EXPRESSION_BINARY, location),
-      op_(op), left_(left), right_(right), is_being_copied_(false)
+      op_(op), left_(left), right_(right)
   { }
 
   // Return the operator.
@@ -1192,12 +1092,6 @@ class Binary_expression : public Expression
 				   this->right_->copy(), this->location());
   }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -1211,8 +1105,6 @@ class Binary_expression : public Expression
   Expression* left_;
   // The right hand side operand.
   Expression* right_;
-  // Whether the expression is being copied.
-  bool is_being_copied_;
 };
 
 // A call expression.  The go statement needs to dig inside this.
@@ -1223,9 +1115,9 @@ class Call_expression : public Expression
   Call_expression(Expression* fn, Expression_list* args,
 		  source_location location)
     : Expression(EXPRESSION_CALL, location),
-      fn_(fn), args_(args), type_(NULL), tree_(NULL), refcount_entries_(NULL),
+      fn_(fn), args_(args), type_(NULL), tree_(NULL),
       is_value_discarded_(false), varargs_are_lowered_(false),
-      is_being_copied_(false), is_deferred_(false)
+      is_deferred_(false)
   { }
 
   // The function to call.
@@ -1299,12 +1191,6 @@ class Call_expression : public Expression
   bool
   do_must_eval_in_order() const;
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   virtual tree
   do_get_tree(Translate_context*);
 
@@ -1337,9 +1223,6 @@ class Call_expression : public Expression
 			    Interface_field_reference_expression*,
 			    tree*);
 
-  tree
-  set_refcount_queue_entries(Translate_context*, tree ret);
-
   // The function to call.
   Expression* fn_;
   // The arguments to pass.  This may be NULL if there are no
@@ -1349,16 +1232,10 @@ class Call_expression : public Expression
   Type* type_;
   // The tree for the call, used for a call which returns a tuple.
   tree tree_;
-  // If needed a list of entries in the reference count queue.  These
-  // are set to values returned by a tuple call if some of the values
-  // need to have their reference counts decremented.
-  std::vector<Refcount_entry>* refcount_entries_;
   // True if the value is being discarded.
   bool is_value_discarded_;
   // True if varargs have already been lowered.
   bool varargs_are_lowered_;
-  // True if the value is being copied.
-  bool is_being_copied_;
   // True if the call is an argument to a defer statement.
   bool is_deferred_;
 };
@@ -1414,12 +1291,6 @@ class Func_expression : public Expression
 					   this->closure_->copy(),
 					   this->location());
   }
-
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
 
   tree
   do_get_tree(Translate_context*);
@@ -1607,15 +1478,6 @@ class Map_index_expression : public Expression
 
   // A map index expression is an lvalue but it is not addressable.
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
-  Expression*
-  do_being_set(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -1760,15 +1622,6 @@ class Field_reference_expression : public Expression
   do_is_addressable() const
   { return this->expr_->is_addressable(); }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
-  Expression*
-  do_being_set(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -1852,7 +1705,7 @@ class Type_guard_expression : public Expression
  public:
   Type_guard_expression(Expression* expr, Type* type, source_location location)
     : Expression(EXPRESSION_TYPE_GUARD, location),
-      expr_(expr), type_(type), is_being_copied_(false)
+      expr_(expr), type_(type)
   { }
 
   // Return the expression to convert.
@@ -1887,12 +1740,6 @@ class Type_guard_expression : public Expression
 				     this->location());
   }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -1901,8 +1748,6 @@ class Type_guard_expression : public Expression
   Expression* expr_;
   // The type to which to convert.
   Type* type_;
-  // Whether this expression is being copied.
-  bool is_being_copied_;
 };
 
 // A receive expression.
@@ -1912,8 +1757,7 @@ class Receive_expression : public Expression
  public:
   Receive_expression(Expression* channel, source_location location)
     : Expression(EXPRESSION_RECEIVE, location),
-      channel_(channel), is_value_discarded_(false), for_select_(false),
-      is_being_copied_(false)
+      channel_(channel), is_value_discarded_(false), for_select_(false)
   { }
 
   // Return the channel.
@@ -1955,12 +1799,6 @@ class Receive_expression : public Expression
   do_must_eval_in_order() const
   { return true; }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -1971,8 +1809,6 @@ class Receive_expression : public Expression
   bool is_value_discarded_;
   // Whether this is for a select statement.
   bool for_select_;
-  // Whether the value is being copied.
-  bool is_being_copied_;
 };
 
 // A send expression.
@@ -2020,12 +1856,6 @@ class Send_expression : public Expression
   do_must_eval_in_order() const
   { return true; }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -2038,117 +1868,6 @@ class Send_expression : public Expression
   bool is_value_discarded_;
   // Whether this is for a select statement.
   bool for_select_;
-};
-
-// Adjust the reference count of a value.
-
-class Refcount_adjust_expression : public Expression
-{
- public:
-  Refcount_adjust_expression(Refcount_entry* entry, Expression* expr,
-			     bool for_local)
-    : Expression(EXPRESSION_REFCOUNT_ADJUST, expr->location()),
-      refcount_entry_(entry), expr_(expr), for_local_(for_local)
-  { }
-
-  // The type of adjustment.
-  int
-  classification() const;
-
-  // The underlying expression.
-  Expression*
-  expr()
-  { return this->expr_; }
-
- protected:
-  int
-  do_traverse(Traverse* traverse)
-  { return Expression::traverse(&this->expr_, traverse); }
-
-  Type*
-  do_type()
-  { return this->expr_->type(); }
-
-  void
-  do_determine_type(const Type_context*);
-
-  void
-  do_check_types(Gogo*);
-
-  Expression*
-  do_copy()
-  {
-    return new Refcount_adjust_expression(this->refcount_entry_,
-					  this->expr_,
-					  this->for_local_);
-  }
-
-  tree
-  do_get_tree(Translate_context*);
-
- private:
-  // The reference count entry.
-  Refcount_entry* refcount_entry_;
-  // The expression whose reference count we are incrementing.
-  Expression* expr_;
-  // Whether this is to be stored in a local variable, for debugging
-  // purposes.
-  bool for_local_;
-};
-
-// Decrement the reference count of the old value of an lvalue in an
-// assignment.
-
-class Refcount_decrement_lvalue_expression : public Expression
-{
- public:
-  Refcount_decrement_lvalue_expression(Refcount_entry* entry,
-				       Expression* expr);
-
-  // The underlying expression.
-  Expression*
-  expr()
-  { return this->expr_; }
-
-  // Set THIS->EXPR_ (an lvalue) to RHS_TREE.  LHS_TREE is THIS
-  // converted to tree form.  This should be called instead of
-  // get_tree.
-  tree
-  set(Translate_context*, tree lhs_tree, tree rhs_tree);
-
- protected:
-  int
-  do_traverse(Traverse*);
-
-  Type*
-  do_type()
-  { return this->expr_->type(); }
-
-  void
-  do_determine_type(const Type_context*);
-
-  void
-  do_check_types(Gogo*);
-
-  Expression*
-  do_copy()
-  {
-    return new Refcount_decrement_lvalue_expression(this->refcount_entry_,
-						    this->expr_);
-  }
-
-  bool
-  do_is_lvalue() const
-  { return true; }
-
-  tree
-  do_get_tree(Translate_context*);
-
- private:
-  // The reference count entry.
-  Refcount_entry* refcount_entry_;
-  // The expression which is being set.
-  Expression* expr_;
 };
 
 #endif // !defined(GO_EXPRESSIONS_H)

@@ -28,7 +28,6 @@ extern "C"
 #include "types.h"
 #include "expressions.h"
 #include "statements.h"
-#include "refcount.h"
 #include "gogo.h"
 
 // Whether we have seen any errors.
@@ -1424,7 +1423,6 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
       tree init = NULL_TREE;
       tree except = NULL_TREE;
       tree fini = NULL_TREE;
-      source_location end_loc = this->block_->end_location();
 
       // Initialize variables if necessary.
       for (tree v = declare_vars; v != NULL_TREE; v = TREE_CHAIN(v))
@@ -1433,21 +1431,6 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
 	  SET_EXPR_LOCATION(dv, DECL_SOURCE_LOCATION(v));
 	  append_to_statement_list(dv, &init);
 	}
-
-      // If there is a reference count queue, initialize it at the
-      // start of the function.
-      bool have_refcounts = (this->refcounts_ != NULL
-			     && !this->refcounts_->empty());
-      if (have_refcounts)
-	{
-	  tree iq = this->refcounts_->init_queue(gogo, this->location_);
-	  append_to_statement_list(iq, &init);
-	}
-
-      // Flush the reference count queue when we leave the function.
-      tree flush = NULL_TREE;
-      if (have_refcounts)
-	flush = this->refcounts_->flush_queue(gogo, true, end_loc);
 
       // If we have a defer stack, initialize it at the start of a
       // function.
@@ -1459,15 +1442,7 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
 	  append_to_statement_list(defer_init, &init);
 
 	  // Clean up the defer stack when we leave the function.
-	  this->build_defer_wrapper(gogo, named_function, flush, &except,
-				    &fini);
-	  flush = NULL_TREE;
-	}
-
-      if (flush != NULL_TREE)
-	{
-	  gcc_assert(fini == NULL_TREE);
-	  fini = flush;
+	  this->build_defer_wrapper(gogo, named_function, &except, &fini);
 	}
 
       if (code != NULL_TREE && code != error_mark_node)
@@ -1495,11 +1470,11 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
 
 // Build the wrappers around function code needed if the function has
 // any defer statements.  This sets *EXCEPT to an exception handler
-// and *FINI to a finally handler.  FLUSH is run in *FINI if not NULL.
+// and *FINI to a finally handler.
 
 void
 Function::build_defer_wrapper(Gogo* gogo, Named_object* named_function,
-			      tree flush, tree *except, tree *fini)
+			      tree *except, tree *fini)
 {
   source_location end_loc = this->block_->end_location();
 
@@ -1570,9 +1545,6 @@ Function::build_defer_wrapper(Gogo* gogo, Named_object* named_function,
   tree try_catch = build2(TRY_CATCH_EXPR, void_type_node, undefer, catch_body);
 
   append_to_statement_list(try_catch, &stmt_list);
-
-  if (flush != NULL_TREE)
-    append_to_statement_list(flush, &stmt_list);
 
   if (this->type_->results() != NULL
       && !this->type_->results()->empty()
@@ -1758,31 +1730,6 @@ Block::get_tree(Translate_context* context)
       tree statement = (*p)->get_tree(&subcontext);
       if (statement != error_mark_node)
 	append_to_statement_list(statement, &statements);
-    }
-
-  if (!this->final_statements_.empty())
-    {
-      tree final_statements = NULL_TREE;
-      source_location loc = UNKNOWN_LOCATION;
-      for (std::vector<Statement*>::const_iterator p =
-	     this->final_statements_.begin();
-	   p != this->final_statements_.end();
-	   ++p)
-	{
-	  tree statement = (*p)->get_tree(&subcontext);
-	  if (statement != error_mark_node)
-	    {
-	      append_to_statement_list(statement, &final_statements);
-	      if (loc == UNKNOWN_LOCATION)
-		loc = (*p)->location();
-	    }
-	}
-      if (final_statements != NULL_TREE)
-	{
-	  statements = build2(TRY_FINALLY_EXPR, void_type_node,
-			      statements, final_statements);
-	  SET_EXPR_LOCATION(statements, loc);
-	}
     }
 
   TREE_USED(block) = 1;
@@ -2961,7 +2908,7 @@ Gogo::build_type_descriptor_decl(const Type* type, tree descriptor_type_tree,
   // which the length of an array calls the len function on another
   // array with the same type descriptor, and that other array is
   // initialized with values which require reference count
-  // adjustments.
+  // adjustments.  This may no longer be required.
   go_preserve_from_gc(decl);
   *pdecl = decl;
   if (phash != NULL)

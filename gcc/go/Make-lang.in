@@ -60,7 +60,6 @@ GO_OBJS = \
 	go/import-elf.o \
 	go/lex.o \
 	go/parse.o \
-	go/refcount.o \
 	go/statements.o \
 	go/types.o \
 	go/unsafe.o
@@ -149,7 +148,7 @@ go/export.o: go/export.cc $(GO_SYSTEM_H) $(srcdir)/../include/sha1.h \
 go/expressions.o: go/expressions.cc $(GO_SYSTEM_H) intl.h $(TREE_H) \
 	$(GIMPLE_H) tree-iterator.h convert.h $(REAL_H) $(TM_P_H) \
 	$(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) go/export.h $(GO_IMPORT_H) \
-	go/refcount.h $(GO_STATEMENTS_H) $(GO_LEX_H) $(GO_EXPRESSIONS_H)
+	$(GO_STATEMENTS_H) $(GO_LEX_H) $(GO_EXPRESSIONS_H)
 go/go.o: go/go.cc $(GO_SYSTEM_H) $(GO_C_H) $(GO_LEX_H) $(GO_PARSE_H) \
 	$(GO_GOGO_H)
 go/go-dump.o: go/go-dump.cc $(GO_SYSTEM_H) $(GO_C_H) go/go-dump.h
@@ -160,10 +159,10 @@ go/go-lang.o: go/go-lang.c $(GO_SYSTEM_H) coretypes.h opts.h $(TREE_H) \
 go/gogo-tree.o: go/gogo-tree.cc $(GO_SYSTEM_H) $(TREE_H) $(GIMPLE_H) \
 	tree-iterator.h $(CGRAPH_H) langhooks.h convert.h output.h \
 	$(TM_P_H) $(DIAGNOSTIC_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) \
-	$(GO_STATEMENTS_H) go/refcount.h $(GO_GOGO_H)
+	$(GO_STATEMENTS_H) $(GO_GOGO_H)
 go/gogo.o: go/gogo.cc $(GO_SYSTEM_H) go/go-dump.h $(GO_LEX_H) $(GO_TYPES_H) \
 	$(GO_STATEMENTS_H) $(GO_EXPRESSIONS_H) go/dataflow.h $(GO_IMPORT_H) \
-	go/export.h go/refcount.h $(GO_GOGO_H)
+	go/export.h $(GO_GOGO_H)
 go/import.o: go/import.cc $(GO_SYSTEM_H) $(srcdir)/../include/filenames.h \
 	$(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) go/export.h $(GO_IMPORT_H)
 go/import-archive.o: go/import-archive.cc $(GO_SYSTEM_H) $(GO_IMPORT_H)
@@ -172,15 +171,11 @@ go/import-elf.o: go/import-elf.cc $(GO_SYSTEM_H) intl.h $(DIAGNOSTIC_H) \
 go/lex.o: go/lex.cc $(GO_LEX_H) $(GO_SYSTEM_H)
 go/parse.o: go/parse.cc $(GO_SYSTEM_H) $(GO_LEX_H) $(GO_GOGO_H) $(GO_TYPES_H) \
 	$(GO_STATEMENTS_H) $(GO_EXPRESSIONS_H) $(GO_PARSE_H)
-go/refcount.o: go/refcount.cc $(GO_SYSTEM_H) $(TREE_H) $(GIMPLE_H) \
-	tree-iterator.h $(RTL_H) $(GO_C_H) go/go-dump.h $(GO_GOGO_H) \
-	$(GO_TYPES_H) $(GO_EXPRESSIONS_H) $(GO_STATEMENTS_H) go/refcount.h
 go/statements.o: go/statements.cc $(GO_SYSTEM_H) intl.h $(TREE_H) \
 	$(GIMPLE_H) convert.h tree-iterator.h $(TREE_FLOW_H) $(REAL_H) \
-	$(GO_C_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) $(GO_GOGO_H) go/refcount.h \
+	$(GO_C_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) $(GO_GOGO_H) \
 	$(GO_STATEMENTS_H)
 go/types.o: go/types.cc $(GO_SYSTEM_H) intl.h $(TREE_H) $(GIMPLE_H) \
 	$(REAL_H) $(GO_C_H) $(GO_GOGO_H) go/operator.h $(GO_EXPRESSIONS_H) \
-	$(GO_STATEMENTS_H) go/export.h $(GO_IMPORT_H) go/refcount.h \
-	$(GO_TYPES_H)
+	$(GO_STATEMENTS_H) go/export.h $(GO_IMPORT_H) $(GO_TYPES_H)
 go/unsafe.o: go/unsafe.cc $(GO_SYSTEM_H) $(GO_TYPES_H) $(GO_GOGO_H)

@@ -24,7 +24,6 @@ extern "C"
 #include "types.h"
 #include "export.h"
 #include "import.h"
-#include "refcount.h"
 #include "statements.h"
 #include "lex.h"
 #include "expressions.h"
@@ -133,16 +132,6 @@ void
 Expression::do_discarding_value()
 {
   this->warn_unused_value();
-}
-
-// This is the default implementation of the function to handle
-// decrementing the reference count of the old value of an lvalue.
-// Any expression which may be an l-value must implement this.
-
-Expression*
-Expression::do_being_set(Refcounts*)
-{
-  gcc_unreachable();
 }
 
 // This virtual function is called to export expressions.  This will
@@ -802,10 +791,6 @@ class Error_expression : public Expression
   do_is_addressable() const
   { return true; }
 
-  Expression*
-  do_being_set(Refcounts*)
-  { return this; }
-
   tree
   do_get_tree(Translate_context*)
   { return error_mark_node; }
@@ -925,38 +910,6 @@ Var_expression::do_address_taken(bool escapes)
     gcc_unreachable();
 }
 
-// This variable is being copied.  We may need to increment the
-// reference count.
-
-Expression*
-Var_expression::do_being_copied(Refcounts* refcounts, bool for_local)
-{
-  if (!this->type()->has_refcounted_component())
-    return this;
-
-  // FIXME: If this is the last use of this variable, then instead of
-  // introducing a copy we can avoid freeing this variable at the end
-  // of the function.
-
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_INCREMENT_COPIED,
-					  this, for_local);
-}
-
-// This variable is being set.  We may need to decrement the reference
-// count of the old value.
-
-Expression*
-Var_expression::do_being_set(Refcounts* refcounts)
-{
-  if (this->variable_->is_variable()
-      && this->variable_->var_value()->holds_only_args())
-    return this;
-  if (!this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_decrement_lvalue(refcounts, this);
-}
-
 // Get the tree for a reference to a variable.
 
 tree
@@ -997,31 +950,6 @@ void
 Temporary_reference_expression::do_address_taken(bool)
 {
   this->statement_->set_is_address_taken();
-}
-
-// The temporary variable is being copied.  We may need to increment
-// the reference count.
-
-Expression*
-Temporary_reference_expression::do_being_copied(Refcounts* refcounts,
-						bool for_local)
-{
-  if (!this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_INCREMENT_COPIED,
-					  this, for_local);
-}
-
-// The variable is being set.  We may need to decrement the reference
-// count of the old value.
-
-Expression*
-Temporary_reference_expression::do_being_set(Refcounts* refcounts)
-{
-  if (!this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_decrement_lvalue(refcounts, this);
 }
 
 // Get a tree referring to the variable.
@@ -1069,10 +997,6 @@ class Sink_expression : public Expression
   bool
   do_is_lvalue() const
   { return true; }
-
-  Expression*
-  do_being_set(Refcounts*)
-  { return this; }
 
   tree
   do_get_tree(Translate_context*);
@@ -1141,9 +1065,7 @@ Func_expression::name() const
   return this->function_->name();
 }
 
-// Traversal.  FIXME: Traversing the closure means that we make an
-// entry in the reference count queue for it, but we will never use
-// that entry in practice.
+// Traversal.
 
 int
 Func_expression::do_traverse(Traverse* traverse)
@@ -1164,24 +1086,6 @@ Func_expression::do_type()
     return this->function_->func_declaration_value()->type();
   else
     gcc_unreachable();
-}
-
-// Copying a function expression requires copying the closure, if any.
-
-Expression*
-Func_expression::do_being_copied(Refcounts* refcounts, bool for_local)
-{
-  if (this->closure_ != NULL)
-    this->closure_ = this->closure_->being_copied(refcounts, for_local);
-  return this;
-}
-
-// There is nothing to do if we discard a function expression.
-
-Expression*
-Func_expression::do_note_decrements(Refcounts*)
-{
-  return this;
 }
 
 // Get the tree for a function expression without evaluating the
@@ -2345,12 +2249,6 @@ class Const_expression : public Expression
   do_copy()
   { return this; }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context* context);
 
@@ -2556,32 +2454,6 @@ Const_expression::do_check_types(Gogo*)
     }
 }
 
-// Copying a constant will require incrementing a reference count if
-// the constant is a struct or an array with components that require
-// reference counts.  If the type itself is reference counted then
-// copying it should not require any adustment.
-
-Expression*
-Const_expression::do_being_copied(Refcounts* refcounts, bool for_local)
-{
-  Type* type = this->type();
-  if (type->is_refcounted())
-    return this;
-  if (!type->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_INCREMENT_COPIED,
-					  this, for_local);
-}
-
-// Referring to a constant never increments a reference count.
-
-Expression*
-Const_expression::do_note_decrements(Refcounts*)
-{
-  return this;
-}
-
 // Return a tree for the const reference.
 
 tree
@@ -2763,7 +2635,7 @@ class Type_conversion_expression : public Expression
   Type_conversion_expression(Type* type, Expression* expr,
 			     source_location location)
     : Expression(EXPRESSION_CONVERSION, location),
-      type_(type), expr_(expr), is_being_copied_(false)
+      type_(type), expr_(expr)
   { }
 
   // Return the type to which we are converting.
@@ -2823,12 +2695,6 @@ class Type_conversion_expression : public Expression
 					  this->location());
   }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context* context);
 
@@ -2840,8 +2706,6 @@ class Type_conversion_expression : public Expression
   Type* type_;
   // The expression to convert.
   Expression* expr_;
-  // Whether this expression is being copied.
-  bool is_being_copied_;
 };
 
 // Traversal.
@@ -3223,66 +3087,6 @@ Type_conversion_expression::do_check_types(Gogo*)
     }
 }
 
-// The type conversion is being copied elsewhere.  If we do not call a
-// function which creates a new reference, then we need to pass this
-// on to the subsidiary expression.
-
-Expression*
-Type_conversion_expression::do_being_copied(Refcounts* refcounts,
-					    bool for_local)
-{
-  this->is_being_copied_ = true;
-  Type* type = this->type_;
-  Type* expr_type = this->expr_->type();
-  bool copy_base;
-  if (type == expr_type)
-    copy_base = true;
-  else if (type->interface_type() != NULL
-	   || expr_type->interface_type() != NULL)
-    copy_base = false;
-  else if (type->is_string_type()
-	   && (expr_type->integer_type() != NULL
-	       || expr_type->deref()->array_type() != NULL))
-    copy_base = false;
-  else if (type->is_open_array_type() && expr_type->is_string_type())
-    copy_base = false;
-  else
-    copy_base = true;
-  if (copy_base && expr_type->has_refcounted_component())
-    this->expr_ = this->expr_->being_copied(refcounts, for_local);
-  return this;
-}
-
-// A type conversion may introduce a reference count.
-
-Expression*
-Type_conversion_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->is_being_copied_)
-    return this;
-  Type* type = this->type_;
-  Type* expr_type = this->expr_->type();
-  bool need_decrement;
-  if (type == expr_type)
-    need_decrement = false;
-  else if (type->interface_type() != NULL)
-    need_decrement = true;
-  else if (expr_type->interface_type() != NULL)
-    need_decrement = type->has_refcounted_component();
-  else if (type->is_string_type()
-	   && (expr_type->integer_type() != NULL
-	       || expr_type->deref()->array_type() != NULL))
-    need_decrement = true;
-  else if (type->is_open_array_type() && expr_type->is_string_type())
-    need_decrement = true;
-  else
-    need_decrement = false;
-  if (!need_decrement)
-    return this;
-  return Expression::make_refcount_adjust(refcounts, REFCOUNT_DECREMENT_NEW,
-					  this, false);
-}
-
 // Get a tree for a type conversion.
 
 tree
@@ -3571,15 +3375,6 @@ class Unary_expression : public Expression
   bool
   do_is_addressable() const
   { return this->op_ == OPERATOR_MULT; }
-
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
-  Expression*
-  do_being_set(Refcounts*);
 
   tree
   do_get_tree(Translate_context*);
@@ -4028,52 +3823,6 @@ Unary_expression::do_check_types(Gogo*)
     default:
       gcc_unreachable();
     }
-}
-
-// Copying a unary expression may require incrementing a reference
-// count.
-
-Expression*
-Unary_expression::do_being_copied(Refcounts* refcounts, bool for_local)
-{
-  if (!this->type()->has_refcounted_component())
-    return this;
-  if (this->op_ == OPERATOR_PLUS)
-    {
-      this->expr_ = this->expr_->being_copied(refcounts, for_local);
-      return this;
-    }
-  else if (this->op_ == OPERATOR_AND && this->is_constant())
-    {
-      // No need to increment the reference count when the address is
-      // a constant.
-      return this;
-    }
-  else
-    return Expression::make_refcount_adjust(refcounts,
-					    REFCOUNT_INCREMENT_COPIED,
-					    this, for_local);
-}
-
-// A unary expression does not increment any reference counts, so
-// there are no reference counts to decrement afterward.
-
-Expression*
-Unary_expression::do_note_decrements(Refcounts*)
-{
-  return this;
-}
-
-// Assigning to *p requires decrementing the reference count of the
-// old value.
-
-Expression*
-Unary_expression::do_being_set(Refcounts* refcounts)
-{
-  gcc_assert(this->op_ == OPERATOR_MULT);
-  if (!this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_decrement_lvalue(refcounts, this);
 }
 
 // Get a tree for a unary expression.
@@ -5672,31 +5421,6 @@ Binary_expression::do_check_types(Gogo*)
 	    }
 	}
     }
-}
-
-// Copying a binary expression never requires incrementing a reference
-// count, but we do have to disable incrementing the reference count.
-
-Expression*
-Binary_expression::do_being_copied(Refcounts*, bool)
-{
-  this->is_being_copied_ = true;
-  return this;
-}
-
-// A binary expression increments a reference count when adding
-// strings.
-
-Expression*
-Binary_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->op_ != OPERATOR_PLUS
-      || !this->left_->type()->is_string_type()
-      || this->is_being_copied_)
-    return this;
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_DECREMENT_NEW,
-					  this, false);
 }
 
 // Get a tree for a binary expression.
@@ -8348,64 +8072,6 @@ Call_expression::interface_method_function(
   return interface_method->get_function_tree(context, expr);
 }
 
-// The call expression is being copied.  There is nothing to do here
-// except to disable any decrements--the function should return with
-// an appropriate reference count.
-
-Expression*
-Call_expression::do_being_copied(Refcounts*, bool)
-{
-  this->is_being_copied_ = true;
-  return this;
-}
-
-// Where needed, decrement the reference counts of any values returned
-// by this call.
-
-Expression*
-Call_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->is_being_copied_)
-    return this;
-  Function_type* fntype = this->get_function_type();
-  if (fntype == NULL)
-    return this;
-  const Typed_identifier_list* results = fntype->results();
-  if (results == NULL)
-    return this;
-  if (results->size() == 1)
-    {
-      if (!results->begin()->type()->has_refcounted_component())
-	return this;
-      return Expression::make_refcount_adjust(refcounts,
-					      REFCOUNT_DECREMENT_COMPUTED,
-					      this, false);
-    }
-  else if (!this->is_value_discarded_)
-    {
-      // If the value is not discarded, each result will be handled
-      // separately via Call_expression_result.
-      return this;
-    }
-  else
-    {
-      for (Typed_identifier_list::const_iterator p = results->begin();
-	   p != results->end();
-	   p++)
-	{
-	  if (p->type()->has_refcounted_component())
-	    {
-	      if (this->refcount_entries_ == NULL)
-		this->refcount_entries_ = new std::vector<Refcount_entry>;
-	      Refcount_entry re = refcounts->add(REFCOUNT_DECREMENT_COMPUTED,
-						 p->type());
-	      this->refcount_entries_->push_back(re);
-	    }
-	}
-      return this;
-    }
-}
-
 // Build the call expression.
 
 tree
@@ -8542,46 +8208,8 @@ Call_expression::do_get_tree(Translate_context* context)
   if (fntype->results() != NULL && fntype->results()->size() > 1)
     ret = save_expr(ret);
 
-  if (this->refcount_entries_ != NULL)
-    ret = this->set_refcount_queue_entries(context, ret);
-
   this->tree_ = ret;
 
-  return ret;
-}
-
-// Set entries in the decrement queue as needed.
-
-tree
-Call_expression::set_refcount_queue_entries(Translate_context* context,
-					    tree ret)
-{
-  Gogo* gogo = context->gogo();
-  Refcounts* refcounts = context->function()->func_value()->refcounts();
-  tree val = ret;
-  Function_type* fntype = this->get_function_type();
-  const Typed_identifier_list* results = fntype->results();
-  gcc_assert(TREE_CODE(TREE_TYPE(val)) == RECORD_TYPE);
-  std::vector<Refcount_entry>::const_iterator pre =
-    this->refcount_entries_->begin();
-  tree field = TYPE_FIELDS(TREE_TYPE(val));
-  for (Typed_identifier_list::const_iterator pr = results->begin();
-       pr != results->end();
-       ++pr, field = TREE_CHAIN(field))
-    {
-      gcc_assert(field != NULL_TREE);
-      if (pr->type()->has_refcounted_component())
-	{
-	  gcc_assert(pre != this->refcount_entries_->end());
-	  Refcount_entry re = *pre;
-	  tree f = fold_build3(COMPONENT_REF, TREE_TYPE(field), val, field,
-			       NULL_TREE);
-	  pr->type()->set_refcount_queue_entry(gogo, refcounts, &re, f);
-	  ++pre;
-	}
-    }
-  gcc_assert(pre == this->refcount_entries_->end());
-  gcc_assert(field == NULL_TREE);
   return ret;
 }
 
@@ -8601,7 +8229,7 @@ class Call_result_expression : public Expression
  public:
   Call_result_expression(Call_expression* call, unsigned int index)
     : Expression(EXPRESSION_CALL_RESULT, call->location()),
-      call_(call), index_(index), is_being_copied_(false)
+      call_(call), index_(index)
   { }
 
  protected:
@@ -8628,12 +8256,6 @@ class Call_result_expression : public Expression
   do_must_eval_in_order() const
   { return true; }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -8642,8 +8264,6 @@ class Call_result_expression : public Expression
   Expression* call_;
   // Which result we want.
   unsigned int index_;
-  // Whether the result is being copied.
-  bool is_being_copied_;
 };
 
 // Traverse a call result.
@@ -8716,28 +8336,6 @@ Call_result_expression::do_determine_type(const Type_context*)
 {
   if (this->index_ == 0)
     this->call_->determine_type_no_context();
-}
-
-// The result will come back with a reference, so we don't need to do
-// anything to copy it.
-
-Expression*
-Call_result_expression::do_being_copied(Refcounts*, bool)
-{
-  this->is_being_copied_ = true;
-  return this;
-}
-
-// Decrement the reference count if necessary.
-
-Expression*
-Call_result_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->is_being_copied_ || !this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_DECREMENT_COMPUTED,
-					  this, false);
 }
 
 // Return the tree.
@@ -8880,15 +8478,6 @@ class Array_index_expression : public Expression
   do_address_taken(bool escapes)
   { this->array_->address_taken(escapes); }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
-  Expression*
-  do_being_set(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -9009,44 +8598,6 @@ Array_index_expression::do_check_types(Gogo*)
     }
   mpz_clear(ival);
   mpz_clear(lval);
-}
-
-// Copying an element of an array may require incrementing a reference
-// count.  Copying a slice requires incrementing the reference count
-// of the underlying array.
-
-Expression*
-Array_index_expression::do_being_copied(Refcounts* refcounts, bool for_local)
-{
-  if (this->end_ == NULL && !this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_INCREMENT_COPIED,
-					  this, for_local);
-}
-
-// Referring to an element of an array does not require changing any
-// reference counts.  If the array is changed before the value is
-// used, the program is ill-defined.  We do not introduce a reference
-// count for a slice, so there is nothing to decrement.  FIXME: Is
-// that safe?
-
-Expression*
-Array_index_expression::do_note_decrements(Refcounts*)
-{
-  return this;
-}
-
-// Assigning to an element of an array may require decrementing a
-// reference count of the old value.
-
-Expression*
-Array_index_expression::do_being_set(Refcounts* refcounts)
-{
-  gcc_assert(this->end_ == NULL);
-  if (!this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_decrement_lvalue(refcounts, this);
 }
 
 // Get a tree for an array index.
@@ -9249,7 +8800,7 @@ class String_index_expression : public Expression
   String_index_expression(Expression* string, Expression* start,
 			  Expression* end, source_location location)
     : Expression(EXPRESSION_STRING_INDEX, location),
-      string_(string), start_(start), end_(end), is_being_copied_(false)
+      string_(string), start_(start), end_(end)
   { }
 
  protected:
@@ -9276,12 +8827,6 @@ class String_index_expression : public Expression
 					 this->location());
   }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -9293,8 +8838,6 @@ class String_index_expression : public Expression
   // The end index of a slice.  This may be NULL for a single index,
   // or it may be a nil expression for the length of the string.
   Expression* end_;
-  // Whether the slice is being copied.
-  bool is_being_copied_;
 };
 
 // String index traversal.
@@ -9377,28 +8920,6 @@ String_index_expression::do_check_types(Gogo*)
 	}
     }
   mpz_clear(ival);
-}
-
-// Copying a string index or a string slice does not require any
-// special action.
-
-Expression*
-String_index_expression::do_being_copied(Refcounts*, bool)
-{
-  this->is_being_copied_ = true;
-  return this;
-}
-
-// A string slice introduces a new reference which must be decremented
-// if the value is discarded.
-
-Expression*
-String_index_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->end_ == NULL || this->is_being_copied_)
-    return this;
-  return Expression::make_refcount_adjust(refcounts, REFCOUNT_DECREMENT_NEW,
-					  this, false);
 }
 
 // Get a tree for a string index.
@@ -9561,43 +9082,6 @@ Map_index_expression::do_check_types(Gogo*)
     }
 }
 
-// If we are copying the map index to a variable, we need to increment
-// the reference count.
-
-Expression*
-Map_index_expression::do_being_copied(Refcounts* refcounts, bool for_local)
-{
-  if (!this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_INCREMENT_COPIED,
-					  this, for_local);
-}
-
-// We don't do anything with the reference count of a map index if we
-// aren't copying it, so there is nothing to do here.  FIXME: Is this
-// safe?
-
-Expression*
-Map_index_expression::do_note_decrements(Refcounts*)
-{
-  return this;
-}
-
-// If we are changing the map index, we need to decrement the
-// reference count for the old value, and we may need to increment the
-// reference count for the new index.
-
-Expression*
-Map_index_expression::do_being_set(Refcounts* refcounts)
-{
-  if (this->get_map_type()->key_type()->has_refcounted_component())
-    this->index_ = this->index_->being_copied(refcounts, false);
-  if (!this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_decrement_lvalue(refcounts, this);
-}
-
 // Get a tree for a map index.
 
 tree
@@ -9724,41 +9208,6 @@ Field_reference_expression::do_check_types(Gogo*)
   Struct_type* struct_type = expr_type->struct_type();
   gcc_assert(struct_type != NULL);
   gcc_assert(struct_type->field(this->field_index_) != NULL);
-}
-
-// If we are copying the field to a variable, we need to increment the
-// reference count.
-
-Expression*
-Field_reference_expression::do_being_copied(Refcounts* refcounts,
-					    bool for_local)
-{
-  if (!this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_INCREMENT_COPIED,
-					  this, for_local);
-}
-
-// We do not need to bump the reference count; any change to the
-// structure before the value of the field is used would mean an
-// invalid program.
-
-Expression*
-Field_reference_expression::do_note_decrements(Refcounts*)
-{
-  return this;
-}
-
-// If we are changing the field, we need to decrement the reference
-// count for the old value.
-
-Expression*
-Field_reference_expression::do_being_set(Refcounts* refcounts)
-{
-  if (!this->type()->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_decrement_lvalue(refcounts, this);
 }
 
 // Get a tree for a field reference.
@@ -10175,7 +9624,7 @@ class Allocation_expression : public Expression
  public:
   Allocation_expression(Type* type, source_location location)
     : Expression(EXPRESSION_ALLOCATION, location),
-      type_(type), is_being_copied_(false)
+      type_(type)
   { }
 
  protected:
@@ -10198,20 +9647,12 @@ class Allocation_expression : public Expression
   do_copy()
   { return new Allocation_expression(this->type_, this->location()); }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
  private:
   // The type we are allocating.
   Type* type_;
-  // Whether this value is being copied.
-  bool is_being_copied_;
 };
 
 // Check the type of an allocation expression.
@@ -10221,28 +9662,6 @@ Allocation_expression::do_check_types(Gogo*)
 {
   if (this->type_->function_type() != NULL)
     this->report_error(_("invalid new of function type"));
-}
-
-// An allocation expression arrives with a reference count, so nothing
-// special is needed to copy it.
-
-Expression*
-Allocation_expression::do_being_copied(Refcounts*, bool)
-{
-  this->is_being_copied_ = true;
-  return this;
-}
-
-// An allocation expression arrives with a reference count, so if we
-// don't copy the value we must free it.
-
-Expression*
-Allocation_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->is_being_copied_)
-    return this;
-  return Expression::make_refcount_adjust(refcounts, REFCOUNT_DECREMENT_NEW,
-					  this, false);
 }
 
 // Return a tree for an allocation expression.
@@ -10272,7 +9691,7 @@ class Make_expression : public Expression
  public:
   Make_expression(Type* type, Expression_list* args, source_location location)
     : Expression(EXPRESSION_MAKE, location),
-      type_(type), args_(args), is_being_copied_(false)
+      type_(type), args_(args)
   { }
 
  protected:
@@ -10296,12 +9715,6 @@ class Make_expression : public Expression
 			       this->location());
   }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -10310,8 +9723,6 @@ class Make_expression : public Expression
   Type* type_;
   // The arguments to pass to the make routine.
   Expression_list* args_;
-  // Whether the expression is being copied.
-  bool is_being_copied_;
 };
 
 // Traversal.
@@ -10353,28 +9764,6 @@ Make_expression::do_check_types(Gogo*)
     this->report_error(_("invalid type for make function"));
   else if (!this->type_->check_make_expression(this->args_, this->location()))
     this->set_is_error();
-}
-
-// An newly created object arrives with a reference count, so nothing
-// special is needed to copy it.
-
-Expression*
-Make_expression::do_being_copied(Refcounts*, bool)
-{
-  this->is_being_copied_ = true;
-  return this;
-}
-
-// A newly created object arrives with a reference count, so if we
-// don't copy the value we must free it.
-
-Expression*
-Make_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->is_being_copied_)
-    return this;
-  return Expression::make_refcount_adjust(refcounts, REFCOUNT_DECREMENT_NEW,
-					  this, false);
 }
 
 // Return a tree for a make expression.
@@ -10434,12 +9823,6 @@ class Struct_construction_expression : public Expression
   bool
   do_is_addressable() const
   { return true; }
-
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
 
   tree
   do_get_tree(Translate_context*);
@@ -10570,49 +9953,6 @@ Struct_construction_expression::do_check_types(Gogo*)
 	}
     }
   gcc_assert(pv == this->vals_->end());
-}
-
-// If we are copying the constructed struct, then we need to increment
-// the reference count of any elements as needed.
-
-Expression*
-Struct_construction_expression::do_being_copied(Refcounts* refcounts,
-						bool for_local)
-{
-  if (this->vals_ == NULL
-      || !this->type()->has_refcounted_component()
-      || this->is_constant_struct())
-    return this;
-  Expression_list* newvals = new Expression_list;
-  for (Expression_list::const_iterator pv = this->vals_->begin();
-       pv != this->vals_->end();
-       ++pv)
-    {
-      if (*pv == NULL)
-	newvals->push_back(NULL);
-      else if (!(*pv)->type()->has_refcounted_component())
-	newvals->push_back(*pv);
-      else
-	{
-	  Expression* e = (*pv)->being_copied(refcounts, for_local);
-	  newvals->push_back(e);
-	}
-    }
-  delete this->vals_;
-  this->vals_ = newvals;
-  return this;
-}
-
-// This is called if the constructed struct does not appear on the
-// right hand side of an assignment statement--in other words, the
-// value is built, used, and discarded.  In this case we don't need to
-// do anything.  If any of the values require a reference count
-// adjustment, that will be handled by the expression itself.
-
-Expression*
-Struct_construction_expression::do_note_decrements(Refcounts*)
-{
-  return this;
 }
 
 // Return a tree for constructing a struct.
@@ -10746,12 +10086,6 @@ protected:
   do_is_addressable() const
   { return true; }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts* refcounts);
-
   void
   do_export(Export*) const;
 
@@ -10865,49 +10199,6 @@ Array_construction_expression::do_check_types(Gogo*)
 	}
       mpz_clear(val);
     }
-}
-
-// If we are copying the constructed array, then we need to increment
-// the reference count of any elements as needed.
-
-Expression*
-Array_construction_expression::do_being_copied(Refcounts* refcounts,
-					       bool for_local)
-{
-  if (this->vals_ == NULL
-      || !this->type()->has_refcounted_component()
-      || this->is_constant_array())
-    return this;
-  Expression_list* newvals = new Expression_list;
-  for (Expression_list::const_iterator pv = this->vals_->begin();
-       pv != this->vals_->end();
-       ++pv)
-    {
-      if (*pv == NULL)
-	newvals->push_back(NULL);
-      else if (!(*pv)->type()->has_refcounted_component())
-	newvals->push_back(*pv);
-      else
-	{
-	  Expression* e = (*pv)->being_copied(refcounts, for_local);
-	  newvals->push_back(e);
-	}
-    }
-  delete this->vals_;
-  this->vals_ = newvals;
-  return this;
-}
-
-// This is called if the constructed array does not appear on the
-// right hand side of an assignment statement--in other words, the
-// value is built, used, and discarded.  In this case we don't need to
-// do anything.  If any of the values require a reference count
-// adjustment, that will be handled by the expression itself.
-
-Expression*
-Array_construction_expression::do_note_decrements(Refcounts*)
-{
-  return this;
 }
 
 // Get a constructor tree for the array values.
@@ -11175,7 +10466,7 @@ class Map_construction_expression : public Expression
   Map_construction_expression(Type* type, Expression_list* vals,
 			      source_location location)
     : Expression(EXPRESSION_MAP_CONSTRUCTION, location),
-      type_(type), vals_(vals), is_being_copied_(false)
+      type_(type), vals_(vals)
   { gcc_assert(vals == NULL || vals->size() % 2 == 0); }
 
  protected:
@@ -11199,12 +10490,6 @@ class Map_construction_expression : public Expression
 					   this->location());
   }
 
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts* refcounts);
-
   tree
   do_get_tree(Translate_context*);
 
@@ -11216,8 +10501,6 @@ class Map_construction_expression : public Expression
   Type* type_;
   // The list of values.
   Expression_list* vals_;
-  // Whether the expression is being copied.
-  bool is_being_copied_;
 };
 
 // Traversal.
@@ -11287,26 +10570,6 @@ Map_construction_expression::do_check_types(Gogo*)
 	  this->set_is_error();
 	}
     }
-}
-
-// Copying a map construction should not require any special action.
-
-Expression*
-Map_construction_expression::do_being_copied(Refcounts*, bool)
-{
-  this->is_being_copied_ = true;
-  return this;
-}
-
-// Constructing a map always introduces a reference count.
-
-Expression*
-Map_construction_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->is_being_copied_)
-    return this;
-  return Expression::make_refcount_adjust(refcounts, REFCOUNT_DECREMENT_NEW,
-					  this, false);
 }
 
 // Return a tree for constructing a map.
@@ -11953,29 +11216,6 @@ Type_guard_expression::do_check_types(Gogo*)
     this->report_error(_("type guard only valid for interface types"));
 }
 
-// If we are copying the type guard to a variable, we don't need to do
-// anything; any reference count will already have been incremented.
-
-Expression*
-Type_guard_expression::do_being_copied(Refcounts*, bool)
-{
-  this->is_being_copied_ = true;
-  return this;
-}
-
-// If we are converting to a reference counted type, then the
-// conversion process will increment the reference count.
-
-Expression*
-Type_guard_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (!this->type_->has_refcounted_component() || this->is_being_copied_)
-    return this;
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_DECREMENT_COMPUTED,
-					  this, false);
-}
-
 // Return a tree for a type guard expression.
 
 tree
@@ -12018,10 +11258,9 @@ Expression::make_type_guard(Expression* expr, Type* type,
 class Heap_composite_expression : public Expression
 {
  public:
-  Heap_composite_expression(Expression* expr, bool for_go_statement,
-			    source_location location)
+  Heap_composite_expression(Expression* expr, source_location location)
     : Expression(EXPRESSION_HEAP_COMPOSITE, location),
-      expr_(expr), for_go_statement_(for_go_statement), is_being_copied_(false)
+      expr_(expr)
   { }
 
  protected:
@@ -12041,15 +11280,8 @@ class Heap_composite_expression : public Expression
   do_copy()
   {
     return Expression::make_heap_composite(this->expr_->copy(),
-					   this->for_go_statement_,
 					   this->location());
   }
-
-  Expression*
-  do_being_copied(Refcounts*, bool);
-
-  Expression*
-  do_note_decrements(Refcounts*);
 
   tree
   do_get_tree(Translate_context*);
@@ -12063,40 +11295,7 @@ class Heap_composite_expression : public Expression
  private:
   // The composite literal which is being put on the heap.
   Expression* expr_;
-  // True if this composite literal is being created for a go
-  // statement.  This is used to control reference count adjustments.
-  bool for_go_statement_;
-  // Whether this expression is being copied.
-  bool is_being_copied_;
 };
-
-// A heap composite is created with a new reference count, so nothing
-// special need be done to copy it.  However, we do have to increment
-// the reference counts of the composite literal of which it is a
-// copy.
-
-Expression*
-Heap_composite_expression::do_being_copied(Refcounts* refcounts,
-					   bool for_local)
-{
-  gcc_assert(!this->for_go_statement_);
-  this->is_being_copied_ = true;
-  this->expr_ = this->expr_->being_copied(refcounts, for_local);
-  return this;
-}
-
-// Constructing a heap composite always introduces a reference count.
-// If we are creating this for a go statement, then the reference
-// count should be decremented in the thunk, not here.
-
-Expression*
-Heap_composite_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->for_go_statement_ || this->is_being_copied_)
-    return this;
-  return Expression::make_refcount_adjust(refcounts, REFCOUNT_DECREMENT_NEW,
-					  this, false);
-}
 
 // Return a tree which allocates a composite literal on the heap.
 
@@ -12124,10 +11323,9 @@ Heap_composite_expression::do_get_tree(Translate_context* context)
 // Allocate a composite literal on the heap.
 
 Expression*
-Expression::make_heap_composite(Expression* expr, bool for_go_statement,
-				source_location location)
+Expression::make_heap_composite(Expression* expr, source_location location)
 {
-  return new Heap_composite_expression(expr, for_go_statement, location);
+  return new Heap_composite_expression(expr, location);
 }
 
 // Class Receive_expression.
@@ -12164,36 +11362,6 @@ Receive_expression::do_check_types(Gogo*)
       this->report_error(_("invalid receive on send-only channel"));
       return;
     }
-}
-
-// If we are copying the received value to a variable, we don't need
-// to do anything; any reference count will already have been
-// incremented.
-
-Expression*
-Receive_expression::do_being_copied(Refcounts*, bool)
-{
-  this->is_being_copied_ = true;
-  return this;
-}
-
-// The receive will come with a reference count which we need to
-// decrement afterward.
-
-Expression*
-Receive_expression::do_note_decrements(Refcounts* refcounts)
-{
-  if (this->is_being_copied_)
-    return this;
-  Channel_type* channel_type = this->channel_->type()->channel_type();
-  if (channel_type == NULL)
-    return this;
-  Type* element_type = channel_type->element_type();
-  if (!element_type->has_refcounted_component())
-    return this;
-  return Expression::make_refcount_adjust(refcounts,
-					  REFCOUNT_DECREMENT_COMPUTED,
-					  this, false);
 }
 
 // Get a tree for a receive expression.
@@ -12288,24 +11456,6 @@ Send_expression::do_check_types(Gogo*)
     }
 }
 
-// Called if the value is being copied.  There is nothing to do here.
-
-Expression*
-Send_expression::do_being_copied(Refcounts*, bool)
-{
-  return this;
-}
-
-// Reference count adjustments for a send expression.  The expression
-// that we are sending is being copied.
-
-Expression*
-Send_expression::do_note_decrements(Refcounts* refcounts)
-{
-  this->val_ = this->val_->being_copied(refcounts, false);
-  return this;
-}
-
 // Get a tree for a send expression.
 
 tree
@@ -12332,189 +11482,6 @@ Expression::make_send(Expression* channel, Expression* val,
 		      source_location location)
 {
   return new Send_expression(channel, val, location);
-}
-
-// Class Refcount_adjust_expression.
-
-// The type of adjustment.
-
-int
-Refcount_adjust_expression::classification() const
-{
-  return this->refcount_entry_->classification();
-}
-
-// Types should already have been determined and checked.
-
-void
-Refcount_adjust_expression::do_determine_type(const Type_context*)
-{
-  gcc_unreachable();
-}
-
-void
-Refcount_adjust_expression::do_check_types(Gogo*)
-{
-  gcc_unreachable();
-}
-
-// Return a tree for the reference count adjustment.
-
-tree
-Refcount_adjust_expression::do_get_tree(Translate_context* context)
-{
-  // If we are incrementing a decrement, then skip both adjustments.
-  if (this->expr_->classification() == EXPRESSION_REFCOUNT_ADJUST
-      && this->classification() == REFCOUNT_INCREMENT_COPIED)
-    {
-      Refcount_adjust_expression* rae =
-	static_cast<Refcount_adjust_expression*>(this->expr_);
-      int rae_cl = rae->classification();
-      // We should never see an increment of an old value; that makes
-      // no sense.
-      if (rae_cl == REFCOUNT_DECREMENT_NEW
-	  || rae_cl == REFCOUNT_DECREMENT_COMPUTED)
-	return rae->expr()->get_tree(context);
-    }
-
-  tree expr_tree = this->expr_->get_tree(context);
-  if (expr_tree == error_mark_node)
-    return error_mark_node;
-  if (DECL_P(expr_tree)
-      || (TREE_CODE(expr_tree) == ADDR_EXPR
-	  && DECL_P(TREE_OPERAND(expr_tree, 0))))
-    {
-      // Because of the limited context, we don't need to save V or
-      // &V.
-    }
-  else if (this->expr_->type()->array_type() != NULL
-	   && !this->expr_->type()->is_open_array_type())
-    {
-      // We are just going to take the address of a fixed array, don't
-      // try to save it.  Saving it fails because it requires an array
-      // copy to the temporary variable.
-    }
-  else
-    expr_tree = save_expr(expr_tree);
-  Refcounts* refcounts = context->function()->func_value()->refcounts();
-  Refcount_entry re = *this->refcount_entry_;
-  tree set = this->expr_->type()->set_refcount_queue_entry(context->gogo(),
-							   refcounts,
-							   &re,
-							   expr_tree);
-  return build2(COMPOUND_EXPR, TREE_TYPE(expr_tree), set, expr_tree);
-}
-
-// Make a reference count adjustment.
-
-Expression*
-Expression::make_refcount_adjust(Refcounts* refcounts, int classification,
-				 Expression* expr, bool for_local)
-{
-  // Simplify adjusting the reference count of a reference count
-  // adjustment.
-  if (expr->classification() == EXPRESSION_REFCOUNT_ADJUST)
-    {
-      Refcount_adjust_expression* rae =
-	static_cast<Refcount_adjust_expression*>(expr);
-      int rae_cl = rae->classification();
-
-      // If we are incrementing a decrement, then we can discard both
-      // the increment and the decrement.
-      if (classification == REFCOUNT_INCREMENT_COPIED)
-	{
-	  // We should never see an increment of an old value; that
-	  // makes no sense.
-	  gcc_assert(rae_cl != REFCOUNT_DECREMENT_OLD);
-	  if (rae_cl == REFCOUNT_DECREMENT_NEW
-	      || rae_cl == REFCOUNT_DECREMENT_COMPUTED)
-	    {
-	      // FIXME: We don't reclaim the Refcount_entry.
-	      return rae->expr();
-	    }
-	}
-
-      // If we are decrementing an increment, then we can not in
-      // general discard both adjustments.  The count might be
-      // incremented in order to pass the value to a function.  If we
-      // discard both adjustments, then the object may be freed during
-      // the function call.
-    }
-
-  Refcount_entry entry = refcounts->add(classification, expr->type());
-  return new Refcount_adjust_expression(new Refcount_entry(entry),
-					expr, for_local);
-}
-
-// Class Refcount_decrement_lvalue_expression
-
-// Constructor.
-
-Refcount_decrement_lvalue_expression::Refcount_decrement_lvalue_expression(
-    Refcount_entry* entry,
-    Expression* expr)
-  : Expression(EXPRESSION_REFCOUNT_DECREMENT_LVALUE, expr->location()),
-    refcount_entry_(entry), expr_(expr)
-{
-  gcc_assert(expr->is_lvalue());
-}
-
-
-// Traversal.
-
-int
-Refcount_decrement_lvalue_expression::do_traverse(Traverse* traverse)
-{
-  return Expression::traverse(&this->expr_, traverse);
-}
-
-// Types should already have been determined and checked at this
-// point.
-
-void
-Refcount_decrement_lvalue_expression::do_determine_type(const Type_context*)
-{
-  gcc_unreachable();
-}
-
-void
-Refcount_decrement_lvalue_expression::do_check_types(Gogo*)
-{
-  gcc_unreachable();
-}
-
-// The normal tree expansion is simply the one for THIS->EXPR_.  We
-// require that the user call the set function appropriately.
-
-tree
-Refcount_decrement_lvalue_expression::do_get_tree(Translate_context* context)
-{
-  return this->expr_->get_tree(context);
-}
-
-// Set the expression to VAL.
-
-tree
-Refcount_decrement_lvalue_expression::set(Translate_context* context,
-					  tree lhs_tree, tree rhs_tree)
-{
-  if (lhs_tree == error_mark_node || rhs_tree == error_mark_node)
-    return error_mark_node;
-  lhs_tree = stabilize_reference(lhs_tree);
-
-  // FIXME: If we are changing a value which may be visible to
-  // multiple goroutines--i.e., anything other than a local
-  // variable--then we should use an atomic swap.  Otherwise we can
-  // get inconsistent reference counts.
-
-  Refcounts* refcounts = context->function()->func_value()->refcounts();
-  Refcount_entry re = *this->refcount_entry_;
-  tree save = this->expr_->type()->set_refcount_queue_entry(context->gogo(),
-							    refcounts,
-							    &re,
-							    lhs_tree);
-  tree set = fold_build2(MODIFY_EXPR, void_type_node, lhs_tree, rhs_tree);
-  return fold_build2(COMPOUND_EXPR, void_type_node, save, set);
 }
 
 // An expression which evaluates to a pointer to the type descriptor
@@ -12596,17 +11563,6 @@ Expression*
 Expression::make_label_addr(Label* label, source_location location)
 {
   return new Label_addr_expression(label, location);
-}
-
-// Make a reference count decrement of an lvalue.
-
-Expression*
-Expression::make_refcount_decrement_lvalue(Refcounts* refcounts,
-					   Expression* expr)
-{
-  Refcount_entry entry = refcounts->add(REFCOUNT_DECREMENT_OLD, expr->type());
-  return new Refcount_decrement_lvalue_expression(new Refcount_entry(entry),
-						  expr);
 }
 
 // Import an expression.  This comes at the end in order to see the

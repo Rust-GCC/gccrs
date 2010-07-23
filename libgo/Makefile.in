@@ -138,9 +138,7 @@ am__libgo_la_SOURCES_DIST = runtime/go-bad-index.c \
 	runtime/go-panic-defer.c runtime/go-print.c \
 	runtime/go-rec-big.c runtime/go-rec-nb-big.c \
 	runtime/go-rec-nb-small.c runtime/go-rec-small.c \
-	runtime/go-recover.c runtime/go-refcount-decrement.c \
-	runtime/go-refcount-flush.c runtime/go-refcount-increment.c \
-	runtime/go-refcount-msg.c runtime/go-reflect.c \
+	runtime/go-recover.c runtime/go-reflect.c \
 	runtime/go-reflect-call.c runtime/go-reflect-chan.c \
 	runtime/go-reflect-map.c runtime/go-rune.c runtime/go-sched.c \
 	runtime/go-select.c runtime/go-semacquire.c \
@@ -178,12 +176,10 @@ am__objects_3 = go-bad-index.lo go-byte-array-to-string.lo \
 	go-new-interface-pointer.lo go-new-map.lo go-new.lo go-note.lo \
 	go-panic.lo go-panic-defer.lo go-print.lo go-rec-big.lo \
 	go-rec-nb-big.lo go-rec-nb-small.lo go-rec-small.lo \
-	go-recover.lo go-refcount-decrement.lo go-refcount-flush.lo \
-	go-refcount-increment.lo go-refcount-msg.lo go-reflect.lo \
-	go-reflect-call.lo go-reflect-chan.lo go-reflect-map.lo \
-	go-rune.lo go-sched.lo go-select.lo go-semacquire.lo \
-	go-send-big.lo go-send-nb-big.lo go-send-nb-small.lo \
-	go-send-small.lo go-signal.lo go-strcmp.lo \
+	go-recover.lo go-reflect.lo go-reflect-call.lo \
+	go-reflect-chan.lo go-reflect-map.lo go-rune.lo go-sched.lo \
+	go-select.lo go-semacquire.lo go-send-big.lo go-send-nb-big.lo \
+	go-send-nb-small.lo go-send-small.lo go-signal.lo go-strcmp.lo \
 	go-string-to-byte-array.lo go-string-to-int-array.lo \
 	go-strplus.lo go-strslice.lo go-trampoline.lo go-type-error.lo \
 	go-type-identity.lo go-type-interface.lo go-type-string.lo \
@@ -649,10 +645,6 @@ runtime_files = \
 	runtime/go-rec-nb-small.c \
 	runtime/go-rec-small.c \
 	runtime/go-recover.c \
-	runtime/go-refcount-decrement.c \
-	runtime/go-refcount-flush.c \
-	runtime/go-refcount-increment.c \
-	runtime/go-refcount-msg.c \
 	runtime/go-reflect.c \
 	runtime/go-reflect-call.c \
 	runtime/go-reflect-chan.c \
@@ -1778,10 +1770,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-rec-nb-small.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-rec-small.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-recover.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-refcount-decrement.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-refcount-flush.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-refcount-increment.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-refcount-msg.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-reflect-call.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-reflect-chan.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-reflect-map.Plo@am__quote@
@@ -2153,34 +2141,6 @@ go-recover.lo: runtime/go-recover.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-recover.c' object='go-recover.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-recover.lo `test -f 'runtime/go-recover.c' || echo '$(srcdir)/'`runtime/go-recover.c
-
-go-refcount-decrement.lo: runtime/go-refcount-decrement.c
-@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-refcount-decrement.lo -MD -MP -MF $(DEPDIR)/go-refcount-decrement.Tpo -c -o go-refcount-decrement.lo `test -f 'runtime/go-refcount-decrement.c' || echo '$(srcdir)/'`runtime/go-refcount-decrement.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-refcount-decrement.Tpo $(DEPDIR)/go-refcount-decrement.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-refcount-decrement.c' object='go-refcount-decrement.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-refcount-decrement.lo `test -f 'runtime/go-refcount-decrement.c' || echo '$(srcdir)/'`runtime/go-refcount-decrement.c
-
-go-refcount-flush.lo: runtime/go-refcount-flush.c
-@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-refcount-flush.lo -MD -MP -MF $(DEPDIR)/go-refcount-flush.Tpo -c -o go-refcount-flush.lo `test -f 'runtime/go-refcount-flush.c' || echo '$(srcdir)/'`runtime/go-refcount-flush.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-refcount-flush.Tpo $(DEPDIR)/go-refcount-flush.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-refcount-flush.c' object='go-refcount-flush.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-refcount-flush.lo `test -f 'runtime/go-refcount-flush.c' || echo '$(srcdir)/'`runtime/go-refcount-flush.c
-
-go-refcount-increment.lo: runtime/go-refcount-increment.c
-@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-refcount-increment.lo -MD -MP -MF $(DEPDIR)/go-refcount-increment.Tpo -c -o go-refcount-increment.lo `test -f 'runtime/go-refcount-increment.c' || echo '$(srcdir)/'`runtime/go-refcount-increment.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-refcount-increment.Tpo $(DEPDIR)/go-refcount-increment.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-refcount-increment.c' object='go-refcount-increment.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-refcount-increment.lo `test -f 'runtime/go-refcount-increment.c' || echo '$(srcdir)/'`runtime/go-refcount-increment.c
-
-go-refcount-msg.lo: runtime/go-refcount-msg.c
-@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-refcount-msg.lo -MD -MP -MF $(DEPDIR)/go-refcount-msg.Tpo -c -o go-refcount-msg.lo `test -f 'runtime/go-refcount-msg.c' || echo '$(srcdir)/'`runtime/go-refcount-msg.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-refcount-msg.Tpo $(DEPDIR)/go-refcount-msg.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-refcount-msg.c' object='go-refcount-msg.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-refcount-msg.lo `test -f 'runtime/go-refcount-msg.c' || echo '$(srcdir)/'`runtime/go-refcount-msg.c
 
 go-reflect.lo: runtime/go-reflect.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-reflect.lo -MD -MP -MF $(DEPDIR)/go-reflect.Tpo -c -o go-reflect.lo `test -f 'runtime/go-reflect.c' || echo '$(srcdir)/'`runtime/go-reflect.c

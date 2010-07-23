@@ -17,7 +17,6 @@
 #include "dataflow.h"
 #include "import.h"
 #include "export.h"
-#include "refcount.h"
 #include "gogo.h"
 
 // Class Gogo.
@@ -2312,111 +2311,6 @@ Build_method_tables::type(Type* type)
   return TRAVERSE_CONTINUE;
 }
 
-// A dump for find_only_arg_vars.
-
-static Go_dump find_only_arg_vars_dump("argvars");
-
-// A traversal class to find all the local variables.
-
-class Traverse_find_vars : public Traverse
-{
- public:
-  Traverse_find_vars(std::list<Named_object*>* vars)
-    : Traverse(traverse_variables),
-      vars_(vars)
-  { }
-
- protected:
-  int
-  variable(Named_object* var)
-  {
-    if (var->is_variable() && !var->var_value()->is_global())
-      this->vars_->push_back(var);
-    return TRAVERSE_CONTINUE;
-  }
-
- private:
-  // We add variables to this list.
-  std::list<Named_object*>* vars_;
-};
-
-// Find variables which are only set to argument values.
-
-void
-Gogo::find_only_arg_vars()
-{
-  std::list<Named_object*> vars;
-  Traverse_find_vars tfv(&vars);
-  this->traverse(&tfv);
-
-  Dataflow dataflow;
-  dataflow.initialize(this);
-
-  // We start with all the variables.  As we find variables which are
-  // set to values which are not arguments, we remove them from the
-  // list.  Note that this is flow-insensitive; we could in some cases
-  // do slightly better by being flow-sensitive.
-
-  bool changed = true;
-  while (changed)
-    {
-      changed = false;
-      std::list<Named_object*>::iterator pv = vars.begin();
-      while (pv != vars.end())
-	{
-	  const Dataflow::Defs* defs = dataflow.find_defs(*pv);
-	  if (defs == NULL)
-	    {
-	      // The variable is never set.
-	      gcc_assert((*pv)->var_value()->is_parameter());
-	      ++pv;
-	    }
-	  else
-	    {
-	      Dataflow::Defs::const_iterator pd;
-	      for (pd = defs->begin(); pd != defs->end(); ++pd)
-		{
-		  if (pd->val == NULL)
-		    {
-		      if (!pd->is_init)
-			break;
-		    }
-		  else if (pd->val->var_expression() == NULL)
-		    break;
-		  else
-		    {
-		      Var_expression* ve = pd->val->var_expression();
-		      Named_object* source = ve->named_object();
-		      if (std::find(vars.begin(), vars.end(), source)
-			  == vars.end())
-			break;
-		    }
-		}
-	      if (pd == defs->end())
-		++pv;
-	      else
-		{
-		  // This variable is set to something which is not an
-		  // argument value.
-		  pv = vars.erase(pv);
-		  changed = true;
-		}
-	    }
-	}
-    }
-
-  for (std::list<Named_object*>::const_iterator pv = vars.begin();
-       pv != vars.end();
-       ++pv)
-    {
-      (*pv)->var_value()->set_holds_only_args();
-
-      // FIXME: This should go to a file.
-      if (find_only_arg_vars_dump.is_enabled())
-	inform((*pv)->location(), "%qs: only args var", (*pv)->name().c_str());
-    }
-}
-
 // Traversal class used to check for return statements.
 
 class Check_return_statements_traverse : public Traverse
@@ -2519,9 +2413,9 @@ Gogo::do_exports()
 Function::Function(Function_type* type, Function* enclosing, Block* block,
 		   source_location location)
   : type_(type), enclosing_(enclosing), named_results_(NULL),
-    closure_var_(NULL), refcounts_(NULL), block_(block), location_(location),
-    fndecl_(NULL), defer_stack_(NULL), calls_recover_(false),
-    is_recover_thunk_(false), has_recover_thunk_(false)
+    closure_var_(NULL), block_(block), location_(location), fndecl_(NULL),
+    defer_stack_(NULL), calls_recover_(false), is_recover_thunk_(false),
+    has_recover_thunk_(false)
 {
 }
 
@@ -2601,16 +2495,6 @@ Function::set_closure_type()
     }
 }
 
-// Allocate reference count information for the function.
-
-Refcounts*
-Function::refcounts()
-{
-  if (this->refcounts_ == NULL)
-    this->refcounts_ = new Refcounts;
-  return this->refcounts_;
-}
-
 // Return whether this function is a method.
 
 bool
@@ -2687,7 +2571,6 @@ Function::swap_for_recover(Function *x)
   gcc_assert(this->enclosing_ == x->enclosing_);
   gcc_assert(this->named_results_ == x->named_results_);
   std::swap(this->closure_var_, x->closure_var_);
-  gcc_assert(this->refcounts_ == NULL && x->refcounts_ == NULL);
   std::swap(this->block_, x->block_);
   gcc_assert(this->location_ == x->location_);
   gcc_assert(this->fndecl_ == NULL && x->fndecl_ == NULL);
@@ -2908,7 +2791,6 @@ Block::Block(Block* enclosing, source_location location)
     bindings_(new Bindings(enclosing == NULL
 			   ? NULL
 			   : enclosing->bindings())),
-    final_statements_(),
     start_location_(location),
     end_location_(UNKNOWN_LOCATION)
 {
@@ -2929,14 +2811,6 @@ void
 Block::add_statement_at_front(Statement* statement)
 {
   this->statements_.insert(this->statements_.begin(), statement);
-}
-
-// Add a statement which runs when the block is complete.
-
-void
-Block::add_final_statement(Statement* statement)
-{
-  this->final_statements_.push_back(statement);
 }
 
 // Replace a statement in a block.
@@ -3089,9 +2963,6 @@ Block::traverse(Traverse* traverse)
 	return TRAVERSE_EXIT;
     }
 
-  // We don't traverse the final statements, which are only used for
-  // reference counting purposes.
-
   return TRAVERSE_CONTINUE;
 }
 
@@ -3135,7 +3006,7 @@ Variable::Variable(Type* type, Expression* init, bool is_global,
   : type_(type), init_(init), preinit_(NULL), location_(location),
     is_global_(is_global), is_parameter_(is_parameter),
     is_receiver_(is_receiver), is_varargs_parameter_(false),
-    is_address_taken_(false), holds_only_args_(false), init_is_lowered_(false),
+    is_address_taken_(false), init_is_lowered_(false),
     type_from_init_tuple_(false), type_from_range_index_(false),
     type_from_range_value_(false), type_from_chan_element_(false),
     is_type_switch_var_(false)
