@@ -39,6 +39,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/uio.h>
@@ -54,12 +55,24 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    minimize stack usage even at the cost of code size, and in general
    inlining everything will do that.  */
 
+extern void
+__generic_morestack_set_initial_sp (void *sp, size_t len)
+  __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
+
 extern void *
 __generic_morestack (size_t *frame_size, void *old_stack, size_t param_size)
   __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
 
 extern void *
 __generic_releasestack (size_t *pavailable)
+  __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
+
+extern void
+__morestack_block_signals (void)
+  __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
+
+extern void
+__morestack_unblock_signals (void)
   __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
 
 extern size_t
@@ -69,6 +82,10 @@ __generic_findstack (void *stack)
 extern void
 __morestack_load_mmap (void)
   __attribute__ ((no_split_stack));
+
+extern void *
+__splitstack_find (void *, void *, size_t *, void **, void **, void **)
+  __attribute__ ((visibility ("default")));
 
 /* When we allocate a stack segment we put this header at the
    start.  */
@@ -101,6 +118,26 @@ __thread struct stack_segment *__morestack_segments
 
 __thread struct stack_segment *__morestack_current_segment
   __attribute__ ((visibility ("default")));
+
+/* The (approximate) initial stack pointer and size for this thread on
+   the system supplied stack.  This is set when the thread is created.
+   We also store a sigset_t here to hold the signal mask while
+   splitting the stack, since we don't want to store that on the
+   stack.  */
+
+struct initial_sp
+{
+  void *sp;
+  size_t len;
+  sigset_t mask;
+};
+
+__thread struct initial_sp __morestack_initial_sp
+  __attribute__ ((visibility ("default")));
+
+/* A static signal mask, to avoid taking up stack space.  */
+
+static sigset_t __morestack_fullmask;
 
 /* Convert an integer to a decimal string without using much stack
    space.  Return a pointer to the part of the buffer to use.  We this
@@ -180,6 +217,7 @@ static struct stack_segment *
 allocate_segment (size_t frame_size)
 {
   static unsigned int static_pagesize;
+  static int use_guard_page;
   unsigned int pagesize;
   unsigned int overhead;
   unsigned int allocate;
@@ -201,6 +239,8 @@ allocate_segment (size_t frame_size)
       p = 0;
 #endif
 
+      use_guard_page = getenv ("SPLIT_STACK_GUARD") != 0;
+
       /* FIXME: I'm not sure this assert should be in the released
 	 code.  */
       assert (p == 0 || p == pagesize);
@@ -216,6 +256,9 @@ allocate_segment (size_t frame_size)
     allocate = ((frame_size + overhead + pagesize - 1)
 		& ~ (pagesize - 1));
 
+  if (use_guard_page)
+    allocate += pagesize;
+
   /* FIXME: If this binary requires an executable stack, then we need
      to set PROT_EXEC.  Unfortunately figuring that out is complicated
      and target dependent.  We would need to use dl_iterate_phdr to
@@ -228,6 +271,21 @@ allocate_segment (size_t frame_size)
       static const char msg[] =
 	"unable to allocate additional stack space: errno ";
       __morestack_fail (msg, sizeof msg - 1, errno);
+    }
+
+  if (use_guard_page)
+    {
+      void *guard;
+
+#ifdef STACK_GROWS_DOWNWARD
+      guard = space;
+      space = (char *) space + pagesize;
+#else
+      guard = space + allocate - pagesize;
+#endif
+
+      mprotect (guard, pagesize, PROT_NONE);
+      allocate -= pagesize;
     }
 
   pss = (struct stack_segment *) space;
@@ -269,6 +327,41 @@ __morestack_release_segments (struct stack_segment **pp)
       pss = next;
     }
   *pp = NULL;
+}
+
+/* This function is called by a processor specific function to set the
+   initial stack pointer for a thread.  The operating system will
+   always create a stack for a thread.  Here we record a stack pointer
+   near the base of that stack.  The size argument lets the processor
+   specific code estimate how much stack space is available on this
+   initial stack.  */
+
+void
+__generic_morestack_set_initial_sp (void *sp, size_t len)
+{
+  /* The stack pointer most likely starts on a page boundary.  Adjust
+     to the nearest 512 byte boundary.  It's not essential that we be
+     precise here; getting it wrong will just leave some stack space
+     unused.  */
+#ifdef STACK_GROWS_DOWNWARD
+  sp = (void *) ((((__UINTPTR_TYPE__) sp + 511U) / 512U) * 512U);
+#else
+  sp = (void *) ((((__UINTPTR_TYPE__) sp - 511U) / 512U) * 512U);
+#endif
+
+  __morestack_initial_sp.sp = sp;
+  __morestack_initial_sp.len = len;
+  sigemptyset (&__morestack_initial_sp.mask);
+
+  sigfillset (&__morestack_fullmask);
+#ifdef __linux__
+  /* On Linux, the first two real time signals are used by the NPTL
+     threading library.  By taking them out of the set of signals, we
+     avoiding copying the signal mask in pthread_sigmask.  More
+     importantly, pthread_sigmask uses less stack space on x86_64.  */
+  sigdelset (&__morestack_fullmask, __SIGRTMIN);
+  sigdelset (&__morestack_fullmask, __SIGRTMIN + 1);
+#endif
 }
 
 /* This function is called by a processor specific function which is
@@ -370,12 +463,57 @@ __generic_releasestack (size_t *pavailable)
     }
   else
     {
-      /* We have popped back to the original stack.  We don't know how
-	 large it is.  */
-      *pavailable = 512;
+      size_t used;
+
+      /* We have popped back to the original stack.  */
+#ifdef STACK_GROWS_DOWNWARD
+      if ((char *) old_stack >= (char *) __morestack_initial_sp.sp)
+	used = 0;
+      else
+	used = (char *) __morestack_initial_sp.sp - (char *) old_stack;
+#else
+      if ((char *) old_stack <= (char *) __morestack_initial_sp.sp)
+	used = 0;
+      else
+	used = (char *) old_stack - (char *) __morestack_initial_sp.sp;
+#endif
+
+      if (used > __morestack_initial_sp.len)
+	*pavailable = 0;
+      else
+	*pavailable = __morestack_initial_sp.len - used;
     }
 
   return old_stack;
+}
+
+/* Block signals while splitting the stack.  This avoids trouble if we
+   try to invoke a signal handler which itself wants to split the
+   stack.  */
+
+extern int pthread_sigmask (int, const sigset_t *, sigset_t *)
+  __attribute__ ((weak));
+
+void
+__morestack_block_signals (void)
+{
+  if (pthread_sigmask)
+    pthread_sigmask (SIG_BLOCK, &__morestack_fullmask,
+		     &__morestack_initial_sp.mask);
+  else
+    sigprocmask (SIG_BLOCK, &__morestack_fullmask,
+		 &__morestack_initial_sp.mask);
+}
+
+/* Unblock signals while splitting the stack.  */
+
+void
+__morestack_unblock_signals (void)
+{
+  if (pthread_sigmask)
+    pthread_sigmask (SIG_SETMASK, &__morestack_initial_sp.mask, NULL);
+  else
+    sigprocmask (SIG_SETMASK, &__morestack_initial_sp.mask, NULL);
 }
 
 /* Find the stack segment for STACK and return the amount of space
@@ -386,6 +524,7 @@ size_t
 __generic_findstack (void *stack)
 {
   struct stack_segment *pss;
+  size_t used;
 
   for (pss = __morestack_current_segment; pss != NULL; pss = pss->prev)
     {
@@ -401,8 +540,23 @@ __generic_findstack (void *stack)
 	}
     }
 
-  // We don't know where we are on the stack.
-  return 512;
+  /* We have popped back to the original stack.  */
+#ifdef STACK_GROWS_DOWNWARD
+  if ((char *) stack >= (char *) __morestack_initial_sp.sp)
+    used = 0;
+  else
+    used = (char *) __morestack_initial_sp.sp - (char *) stack;
+#else
+  if ((char *) stack <= (char *) __morestack_initial_sp.sp)
+    used = 0;
+  else
+    used = (char *) stack - (char *) __morestack_initial_sp.sp;
+#endif
+
+  if (used > __morestack_initial_sp.len)
+    return 0;
+  else
+    return __morestack_initial_sp.len - used;
 }
 
 /* This function is called at program startup time to make sure that
@@ -417,7 +571,121 @@ __morestack_load_mmap (void)
      fails.  Pass __MORESTACK_CURRENT_SEGMENT to make sure that any
      TLS accessor function is resolved.  */
   mmap (__morestack_current_segment, 0, PROT_READ, MAP_ANONYMOUS, -1, 0);
+  mprotect (NULL, 0, 0);
   munmap (0, getpagesize ());
+}
+
+/* This function may be used to iterate over the stack segments.
+   This can be called like this.
+     void *next_segment = NULL;
+     void *next_sp = NULL;
+     void *initial_sp = NULL;
+     void *stack;
+     size_t stack_size;
+     while ((stack = __splitstack_find (next_segment, next_sp, &stack_size,
+                                        &next_segment, &next_sp,
+					&initial_sp)) != NULL)
+       {
+         // Stack segment starts at stack and is stack_size bytes long.
+       }
+
+   There is no way to iterate over the stack segments of a different
+   thread.  However, what is permitted is for one thread to call this
+   with the first two values NULL, to pass next_segment, next_sp, and
+   initial_sp to a different thread, and then to suspend one way or
+   another.  A different thread may run the subsequent
+   __morestack_find iterations.  Of course, this will only work if the
+   first thread is suspended during the __morestack_find iterations.
+   If not, the second thread will be looking at the stack while it is
+   changing, and anything could happen.
+
+   FIXME: This should be declared in some header file, but where?  */
+
+void *
+__splitstack_find (void *segment_arg, void *sp, size_t *len,
+		   void **next_segment, void **next_sp,
+		   void **initial_sp)
+{
+  struct stack_segment *segment;
+  void *ret;
+  char *nsp;
+
+  if (segment_arg == (void *) 1)
+    {
+      char *isp = (char *) *initial_sp;
+
+      *next_segment = (void *) 2;
+      *next_sp = NULL;
+#ifdef STACK_GROWS_DOWNWARD
+      if ((char *) sp >= isp)
+	return NULL;
+      *len = (char *) isp - (char *) sp;
+      return sp;
+#else
+      if ((char *) sp <= (char *) isp)
+	return NULL;
+      *len = (char *) sp - (char *) isp;
+      return (void *) isp;
+#endif
+    }
+  else if (segment_arg == (void *) 2)
+    return NULL;
+  else if (segment_arg != NULL)
+    segment = (struct stack_segment *) segment_arg;
+  else
+    {
+      *initial_sp = __morestack_initial_sp.sp;
+      segment = __morestack_current_segment;
+      sp = (void *) &segment;
+      while (1)
+	{
+	  if (segment == NULL)
+	    return __splitstack_find ((void *) 1, sp, len, next_segment,
+				      next_sp, initial_sp);
+	  if ((char *) sp >= (char *) (segment + 1)
+	      && (char *) sp <= (char *) (segment + 1) + segment->size)
+	    break;
+	  segment = segment->prev;
+	}
+    }
+
+  if (segment->prev == NULL)
+    *next_segment = (void *) 1;
+  else
+    *next_segment = segment->prev;
+
+  /* The old_stack value is the address of the function parameters of
+     the function which called __morestack.  So if f1 called f2 which
+     called __morestack, the stack looks like this:
+
+         parameters       <- old_stack
+         return in f1
+	 return in f2
+	 data pushed by __morestack
+
+     On x86, the data pushed by __morestack includes the saved value
+     of the ebp/rbp register.  We want our caller to be able to see
+     that value, which can not be found on any other stack.  So we
+     adjust accordingly.  This may need to be tweaked for other
+     targets.  */
+
+  nsp = (char *) segment->old_stack;
+#ifdef STACK_GROWS_DOWNWARD
+  nsp -= 3 * sizeof (void *);
+#else
+  nsp += 3 * sizeof (void *);
+#endif
+  *next_sp = (void *) nsp;
+
+#ifdef STACK_GROWS_DOWNWARD
+  *len = (char *) (segment + 1) + segment->size - (char *) sp;
+  ret = (void *) sp;
+#else
+  *len = (char *) sp - (char *) (segment + 1);
+  ret = (void *) (segment + 1);
+#endif
+
+  return ret;
 }
 
 #endif /* !defined (inhibit_libc) */

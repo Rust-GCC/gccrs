@@ -77,12 +77,13 @@
 # requested stack space by 16K.
 
 # The amount of extra space we ask for.  In general this has to be
-# enough for the dynamic loader to find a symbol.
+# enough for the dynamic loader to find a symbol and for a signal
+# handler to run.
 	
 #ifndef __x86_64__
-#define BACKOFF (512)
-#else
 #define BACKOFF (1024)
+#else
+#define BACKOFF (1536)
 #endif
 
 	.global __morestack_non_split
@@ -153,6 +154,8 @@ __morestack:
 	pushl	%edx
 	pushl	%ecx
 
+	call	__morestack_block_signals
+
 	pushl	12(%ebp)		# The size of the parameters.
 	leal	20(%ebp),%eax		# Address of caller's parameters.
 	pushl	%eax
@@ -174,6 +177,8 @@ __morestack:
 	# gcc/config/i386/linux.h.
 .LEHB0:
 	movl	%eax,%gs:0x30		# Save the new stack boundary.
+
+	call	__morestack_unblock_signals
 
 	movl	-8(%ebp),%edx		# Restore registers.
 	movl	-12(%ebp),%ecx
@@ -199,6 +204,8 @@ __morestack:
 	pushl	%eax
 	pushl	%edx
 
+	call	__morestack_block_signals
+
 	pushl	$0			# Where the available space is returned.
 	leal	0(%esp),%eax		# Push its address.
 	push	%eax
@@ -212,12 +219,27 @@ __morestack:
 
 	addl	$8,%esp			# Remove values from stack.
 
-	popl	%edx			# Restore possible return value
+	# We need to restore the old stack pointer, which is in %rbp,
+	# before we unblock signals.  We also need to restore %eax and
+	# %edx after we unblock signals but before we return.  Do this
+	# by moving %eax and %edx from the current stack to the old
+	# stack.
+
+	popl	%edx			# Pop return value from current stack.
 	popl	%eax
 
-	# Switch back to the old stack via copy back from %ebp.
-	leave
+	movl	%ebp,%esp		# Restore stack pointer.
+
+	pushl	%eax			# Push return value on old stack.
+	pushl	%edx
+
+	call	__morestack_unblock_signals
+
+	popl	%edx			# Restore return value.
+	popl	%eax
+
 	.cfi_remember_state
+	popl	%ebp
 	.cfi_restore %ebp
 	.cfi_def_cfa %esp, 12
 	ret	$8			# Return to caller, which will
@@ -240,6 +262,9 @@ __morestack:
 	movl	4(%esp),%eax		# Function argument.
 	movl	%eax,(%esp)
 #ifdef __PIC__
+#undef __i686
+	call	__i686.get_pc_thunk.bx	# %ebx may not be set up for us.
+	addl	$_GLOBAL_OFFSET_TABLE_, %ebx
 	call	_Unwind_Resume@PLT	# Resume unwinding.
 #else
 	call	_Unwind_Resume
@@ -264,6 +289,13 @@ __morestack:
 	movq	%rsp, %rbp
 	.cfi_def_cfa_register %rbp
 
+	# We will return a single return instruction, which will
+	# return to the caller of our caller.  Let the unwinder skip
+	# that single return instruction, and just return to the real
+	# caller.
+	.cfi_offset 16, 0
+	.cfi_escape 0x15, 7, 0x7f	# DW_CFA_val_offset_sf, %esp, 8/-8
+
 	# In 64-bit mode the new stack frame size is passed in r10
         # and the argument size is passed in r11.
 
@@ -282,22 +314,17 @@ __morestack:
 	pushq	%r8
 	pushq	%r9
 
+	pushq	%r11
+
+	call	__morestack_block_signals
+
 	leaq	-8(%rbp),%rdi		# Address of new frame size.
 	leaq	24(%rbp),%rsi		# The caller's parameters.
-	movq	%r11,%rdx		# The size of the parameters.
+	popq	%rdx			# The size of the parameters.
 
 	call	__generic_morestack
 
-	popq	%r9			# Restore registers
-	popq	%r8
-	popq	%rcx
-	popq	%rdx
-	popq	%rsi
-	popq	%rdi
-
-	popq	%r11			# Pop old %rax into %r11.
-
-	popq	%r10			# Reload modified frame size
+	movq	-8(%rbp),%r10		# Reload modified frame size
 	movq	%rax,%rsp		# Switch to the new stack.
 	subq	%r10,%rax		# The end of the stack space.
 	addq	$BACKOFF,%rax		# Back off 1024 bytes.
@@ -308,11 +335,20 @@ __morestack:
 .LEHB0:
 	movq	%rax,%fs:0x70		# Save the new stack boundary.
 
+	call	__morestack_unblock_signals
+
+	movq	-24(%rbp),%rdi		# Restore registers.
+	movq	-32(%rbp),%rsi
+	movq	-40(%rbp),%rdx
+	movq	-48(%rbp),%rcx
+	movq	-56(%rbp),%r8
+	movq	-64(%rbp),%r9
+
 	movq	8(%rbp),%r10		# Increment the return address
 	incq	%r10			# to skip the ret instruction;
 					# see above.
 
-	movq	%r11,%rax		# Restore caller's %rax.
+	movq	-16(%rbp),%rax		# Restore caller's %rax.
 
 	call	*%r10			# Call our caller!
 
@@ -323,6 +359,8 @@ __morestack:
 	# floating point or vector registers.
 	pushq	%rax
 	pushq	%rdx
+
+	call	__morestack_block_signals
 
 	pushq	$0			# Where the available space is returned.
 	leaq	0(%rsp),%rdi		# Pass its address.
@@ -336,12 +374,27 @@ __morestack:
 
 	addq	$8,%rsp			# Remove value from stack.
 
-	popq	%rdx			# Restore possible return value
+	# We need to restore the old stack pointer, which is in %rbp,
+	# before we unblock signals.  We also need to restore %rax and
+	# %rdx after we unblock signals but before we return.  Do this
+	# by moving %rax and %rdx from the current stack to the old
+	# stack.
+
+	popq	%rdx			# Pop return value from current stack.
 	popq	%rax
 
-	# Switch back to the old stack via copy back from %rbp.
+	movq	%rbp,%rsp		# Restore stack pointer.
+
+	pushq	%rax			# Push return value on old stack.
+	pushq	%rdx
+
+	call	__morestack_unblock_signals
+
+	popq	%rdx			# Restore return value.
+	popq	%rax
+
 	.cfi_remember_state
-	leave
+	popq	%rbp
 	.cfi_restore %rbp
 	.cfi_def_cfa %rsp, 8
 	ret				# Return to caller, which will
@@ -425,12 +478,27 @@ __stack_split_initialize:
 
 	leal	-16000(%esp),%eax	# We should have at least 16K.
 	movl	%eax,%gs:0x30
+	pushl	$16000
+	pushl	%esp
+#ifdef __PIC__
+	call	__generic_morestack_set_initial_sp@PLT
+#else
+	call	__generic_morestack_set_initial_sp
+#endif
+	addl	$8,%esp
 	ret
 
 #else /* defined(__x86_64__) */
 
 	leaq	-16000(%rsp),%rax	# We should have at least 16K.
 	movq	%rax,%fs:0x70
+	movq	%rsp,%rdi
+	movq	$16000,%rsi
+#ifdef __PIC__
+	call	__generic_morestack_set_initial_sp@PLT
+#else
+	call	__generic_morestack_set_initial_sp
+#endif
 	ret
 
 #endif /* defined(__x86_64__) */
