@@ -116,6 +116,10 @@ call_ ## FUNC (void)					\
 # define HIDDEN_DTOR_LIST_END
 #endif
 
+/* If the Go runtime is present, we currently always register memory
+   with it.  */
+#define GO_REGISTER_MEM
+
 /* We do not want to add the weak attribute to the declarations of these
    routines in unwind-dw2-fde.h because that will cause the definition of
    these symbols to be weak as well.
@@ -151,6 +155,12 @@ extern void __do_global_ctors_1 (void);
 
 /* Likewise for _Jv_RegisterClasses.  */
 extern void _Jv_RegisterClasses (void *) TARGET_ATTRIBUTE_WEAK;
+
+/* And for __go_register_mem.  */
+extern char _end[] TARGET_ATTRIBUTE_WEAK
+  __attribute__ ((__visibility__ ("hidden")));
+extern void __go_register_mem (void *, void *) TARGET_ATTRIBUTE_WEAK;
+extern void __go_deregister_mem (void *, void *) TARGET_ATTRIBUTE_WEAK;
 
 #ifdef OBJECT_FORMAT_ELF
 
@@ -328,6 +338,11 @@ __do_global_dtors_aux (void)
 #endif
 #endif
 
+#ifdef GO_REGISTER_MEM
+  if (__go_deregister_mem)
+    __go_deregister_mem (__CTOR_LIST__, _end);
+#endif
+
   completed = 1;
 }
 
@@ -347,7 +362,7 @@ __do_global_dtors_aux_1 (void)
 CRT_CALL_STATIC_FUNCTION (INIT_SECTION_ASM_OP, __do_global_dtors_aux_1)
 #endif
 
-#if defined(USE_EH_FRAME_REGISTRY) || defined(JCR_SECTION_NAME)
+#if defined(USE_EH_FRAME_REGISTRY) || defined(JCR_SECTION_NAME) || defined(GO_REGISTER_MEM)
 /* Stick a call to __register_frame_info into the .init section.  For some
    reason calls with no arguments work more reliably in .init, so stick the
    call in another function.  */
@@ -377,6 +392,10 @@ frame_dummy (void)
 	register_classes (__JCR_LIST__);
     }
 #endif /* JCR_SECTION_NAME */
+#ifdef GO_REGISTER_MEM
+  if (__go_register_mem)
+    __go_register_mem (__CTOR_LIST__, _end);
+#endif
 }
 
 #ifdef INIT_SECTION_ASM_OP
@@ -447,9 +466,14 @@ __do_global_dtors (void)
   if (__deregister_frame_info)
     __deregister_frame_info (__EH_FRAME_BEGIN__);
 #endif
+
+#ifdef GO_REGISTER_MEM
+  if (__go_deregister_mem)
+    __go_deregister_mem (__CTOR_LIST__, _end);
+#endif
 }
 
-#if defined(USE_EH_FRAME_REGISTRY) || defined(JCR_SECTION_NAME)
+#if defined(USE_EH_FRAME_REGISTRY) || defined(JCR_SECTION_NAME) || defined(GO_REGISTER_MEM)
 /* A helper function for __do_global_ctors, which is in crtend.o.  Here
    in crtbegin.o, we can reference a couple of symbols not visible there.
    Plus, since we're before libgcc.a, we have no problems referencing
@@ -470,6 +494,10 @@ __do_global_ctors_1(void)
       if (register_classes)
 	register_classes (__JCR_LIST__);
     }
+#endif
+#ifdef GO_REGISTER_MEM
+  if (__go_register_mem)
+    __go_register_mem (__CTOR_LIST__, _end);
 #endif
 }
 #endif /* USE_EH_FRAME_REGISTRY || JCR_SECTION_NAME */
@@ -616,7 +644,7 @@ void
 __do_global_ctors (void)
 {
   func_ptr *p;
-#if defined(USE_EH_FRAME_REGISTRY) || defined(JCR_SECTION_NAME)
+#if defined(USE_EH_FRAME_REGISTRY) || defined(JCR_SECTION_NAME) || defined(GO_REGISTER_MEM)
   __do_global_ctors_1();
 #endif
   for (p = __CTOR_END__ - 1; *p != (func_ptr) -1; p--)
