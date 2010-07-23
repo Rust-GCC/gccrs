@@ -225,11 +225,11 @@ lang_specific_driver (int *in_argc, const char *const **in_argv,
   /* We always combine all input files.  */
   arglist[j++] = "-combine";
 
-  /* If we are going to link in libgo, force __go_register_types to be
-     pulled in.  This will let the runtime support code find the type
-     descriptors.  */
-  if (library > 0)
-    arglist[j++] = "-Wl,-u,__go_register_types";
+  /* If we are linking, pass -fsplit-stack if it is supported.  */
+#ifdef TARGET_SUPPORTS_SPLIT_STACK
+  if (library >= 0)
+    arglist[j++] = "-fsplit-stack";
+#endif
 
   /* NOTE: We start at 1 now, not 0.  */
   while (i < argc)
