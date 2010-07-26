@@ -9,6 +9,12 @@
 # Go support.
 SUFFIXES = .c .go .gox .o .obj .lo .a
 
+if LIBGO_IS_RTEMS
+subdirs = testsuite
+endif
+
+SUBDIRS = ${subdirs}
+
 MAINT_CHARSET = latin1
 
 mkinstalldirs = $(SHELL) $(toplevel_srcdir)/mkinstalldirs
@@ -1167,15 +1173,25 @@ BUILDARCHIVE = \
 .a.la:
 	$(LINK) $<.lo
 
+if LIBGO_IS_RTEMS
+use_dejagnu = yes
+else
+use_dejagnu = no
+endif
+
 # Check a package.
 CHECK = \
 	@GC="$(GCCGO) -L `${PWD_COMMAND}` -L `${PWD_COMMAND}`/.libs -Wl,-R,`${PWD_COMMAND}`/.libs"; \
 	export GC; \
+	RUNTESTFLAGS="$(RUNTESTFLAGS)"; \
+	export RUNTESTFLAGS; \
+	MAKE="$(MAKE)"; \
+	export MAKE; \
 	rm -f $@-log; \
 	echo -n "$(@D) " >$@-log 2>&1; \
 	prefix=`dirname $(@D)`; \
 	test "$${prefix}" != "." || prefix="$(@D)"; \
-	$(srcdir)/testsuite/gotest --basedir=$(srcdir) --srcdir=$(srcdir)/go/$(@D) --prefix="libgo_$${prefix}" --pkgfiles="$(go_$(subst /,_,$(@D))_files)" >>$@-log 2>&1; \
+	$(srcdir)/testsuite/gotest --dejagnu=$(use_dejagnu) --basedir=$(srcdir) --srcdir=$(srcdir)/go/$(@D) --prefix="libgo_$${prefix}" --pkgfiles="$(go_$(subst /,_,$(@D))_files)" >>$@-log 2>&1; \
 	x=$$?; \
 	cat $@-log; \
 	exit $$x
@@ -2435,7 +2451,7 @@ TEST_PACKAGES = \
 	testing/quick/check \
 	testing/script/check
 
-check-am: $(TEST_PACKAGES)
+check-recursive: $(TEST_PACKAGES)
 
 mostlyclean-local:
 	find . -name '*.lo' -print | xargs $(LIBTOOL) --mode=clean rm -f

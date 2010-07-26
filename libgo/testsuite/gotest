@@ -3,10 +3,10 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-# Using all the test*.go files in the current directory, write out a file
+# Using all the *_test.go files in the current directory, write out a file
 # _testmain.go that runs all its tests. Compile everything and run the
 # tests.
-# If files are named on the command line, use them instead of test*.go.
+# If files are named on the command line, use them instead of *_test.go.
 
 # Makes egrep,grep work better in general if we put them
 # in ordinary C mode instead of what the current language is.
@@ -29,6 +29,7 @@ pkgfiles=""
 loop=true
 keep=false
 prefix=
+dejagnu=no
 while $loop; do
 	case "x$1" in
         x--srcdir)
@@ -69,6 +70,15 @@ while $loop; do
 		;;
 	x--pkgfiles=*)
 		pkgfiles=`echo $1 | sed -e 's/^--pkgfiles=//'`
+		shift
+		;;
+	x--dejagnu)
+		dejagnu=$2
+		shift
+		shift
+		;;
+	x--dejagnu=*)
+		dejagnu=`echo $1 | sed -e 's/^--dejagnu=//'`
 		shift
 		;;
 	x-*)
@@ -296,6 +306,23 @@ fi
 	echo '}'
 }>_testmain.go
 
-${GC} -g -c _testmain.go
-${GL} *.o ${GOLIBS}
-./a.out "$@"
+case "x$dejagnu" in
+xno)
+	${GC} -g -c _testmain.go
+	${GL} *.o ${GOLIBS}
+	./a.out "$@"
+	;;
+xyes)
+	# This is the only file which is optionally made.
+	# All others are overwritten on copying/building,
+	# but this may remain and cause conflicts if not
+	# deleted.
+	rm -rf ../testsuite/_xtest_.o
+	cp *.o _testmain.go ../testsuite
+	cd ../testsuite
+	$MAKE check RUNTESTFLAGS="$RUNTESTFLAGS GOTEST_TMPDIR=$DIR"
+	# Useful when using make check-target-libgo
+	cat libgo.log >> libgo-all.log
+	cat libgo.sum >> libgo-all.sum
+	;;
+esac
