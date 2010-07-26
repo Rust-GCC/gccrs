@@ -114,6 +114,11 @@ remove_current_thread (void)
 
   free (list_entry);
   m->list_entry = NULL;
+
+  MCache_ReleaseAll (m->mcache);
+  __builtin_memset (m->mcache, 0, sizeof (struct MCache));
+  FixAlloc_Free (&mheap.cachealloc, m->mcache);
+  m->mcache = NULL;
 }
 
 /* Start the thread.  */
@@ -511,7 +516,7 @@ __go_stealcache(void)
   struct __go_thread_id *p;
 
   for (p = __go_all_thread_ids; p != NULL; p = p->next)
-    MCache_ReleaseAll(p->m->mcache);
+    MCache_ReleaseAll (p->m->mcache);
 }
 
 /* Start the other threads after garbage collection.  */

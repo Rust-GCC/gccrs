@@ -248,6 +248,10 @@ allocmcache(void)
 	MCache *c;
 
 	c = FixAlloc_Alloc(&mheap.cachealloc);
+
+	// Clear the free list used by FixAlloc; assume the rest is zeroed.
+	c->list[0].list = nil;
+
 	mstats.mcache_inuse = mheap.cachealloc.inuse;
 	mstats.mcache_sys = mheap.cachealloc.sys;
 	return c;
