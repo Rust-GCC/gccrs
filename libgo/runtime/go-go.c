@@ -50,6 +50,10 @@ extern void *__splitstack_find (void *, void *, size_t *, void **, void **,
 #define GO_SIG_START (SIGRTMIN + 1)
 #define GO_SIG_STOP (SIGRTMIN + 2)
 
+#ifndef SA_RESTART
+  #define SA_RESTART 0
+#endif
+
 /* A doubly linked list of the threads we have started.  */
 
 struct __go_thread_id
@@ -416,7 +420,7 @@ stoptheworld (void)
    with __go_thread_ids_lock held.  */
 
 void
-__go_scanstacks (void (*scan) (int32_t, unsigned char *, int64_t))
+__go_scanstacks (void (*scan) (int32, unsigned char *, int64_t))
 {
   pthread_t me;
   struct __go_thread_id *p;
