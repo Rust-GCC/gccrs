@@ -20,8 +20,8 @@ enum {
 };
 
 static bool finstarted;
-static Lock finlock = LOCK_INITIALIZER;
-static pthread_cond_t fincond = PTHREAD_COND_INITIALIZER;
+static Lock finqlock = LOCK_INITIALIZER;
+static pthread_cond_t finqcond = PTHREAD_COND_INITIALIZER;
 static Finalizer *finq;
 static int32 fingwait;
 
@@ -311,7 +311,7 @@ gc(int32 force __attribute__ ((unused)))
 	if(gcpercent < 0)
 		return;
 
-	lock(&finlock);
+	lock(&finqlock);
 	lock(&gcsema);
 	m->locks++;	// disable gc during the mallocs in newproc
 	t0 = nanotime();
@@ -331,7 +331,7 @@ gc(int32 force __attribute__ ((unused)))
 	unlock(&gcsema);
 	starttheworld();
 
-	// finlock is still held.
+	// finqlock is still held.
 	fp = finq;
 	if(fp != nil) {
 		// kick off or wake up goroutine to run queued finalizers
@@ -341,11 +341,11 @@ gc(int32 force __attribute__ ((unused)))
 		}
 		else if(fingwait) {
 			fingwait = 0;
-			pthread_cond_signal(&fincond);
+			pthread_cond_signal(&finqcond);
 		}
 	}
 	m->locks--;
-	unlock(&finlock);
+	unlock(&finqlock);
 }
 
 static void
@@ -356,16 +356,16 @@ runfinq(void* dummy)
 	USED(dummy);
 
 	for(;;) {
-		lock(&finlock);
+		lock(&finqlock);
 		f = finq;
 		finq = nil;
 		if(f == nil) {
 			fingwait = 1;
-			pthread_cond_wait(&fincond, &finlock.mutex);
-			unlock(&finlock);
+			pthread_cond_wait(&finqcond, &finqlock.mutex);
+			unlock(&finqlock);
 			continue;
 		}
-		unlock(&finlock);
+		unlock(&finqlock);
 		for(; f; f=next) {
 			void *params[1];
 
