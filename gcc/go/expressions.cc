@@ -8670,6 +8670,7 @@ Array_index_expression::do_get_tree(Translate_context* context)
 			  build3(COND_EXPR, void_type_node,
 				 bad_index, crash, NULL_TREE),
 			  start_tree);
+      start_tree = fold_convert_loc(loc, sizetype, start_tree);
 
       if (array_type->length() != NULL)
 	{
@@ -8683,14 +8684,10 @@ Array_index_expression::do_get_tree(Translate_context* context)
 	  tree values = array_type->value_pointer_tree(gogo, array_tree);
 	  tree element_type_tree = array_type->element_type()->get_tree(gogo);
 	  tree element_size = TYPE_SIZE_UNIT(element_type_tree);
-	  tree offset = fold_build2_loc(loc, MULT_EXPR, TREE_TYPE(length_tree),
-					start_tree,
-					fold_convert_loc(loc,
-							 TREE_TYPE(length_tree),
-							 element_size));
+	  tree offset = fold_build2_loc(loc, MULT_EXPR, sizetype,
+					start_tree, element_size);
 	  tree ptr = fold_build2_loc(loc, POINTER_PLUS_EXPR,
-				     TREE_TYPE(values), values,
-				     fold_convert_loc(loc, sizetype, offset));
+				     TREE_TYPE(values), values, offset);
 	  return build_fold_indirect_ref(ptr);
 	}
     }
@@ -8727,17 +8724,16 @@ Array_index_expression::do_get_tree(Translate_context* context)
 
   tree element_type_tree = array_type->element_type()->get_tree(gogo);
   tree element_size = TYPE_SIZE_UNIT(element_type_tree);
-  element_size = fold_convert_loc(loc, TREE_TYPE(length_tree), element_size);
 
-  tree offset = fold_build2_loc(loc, MULT_EXPR, TREE_TYPE(length_tree),
-				start_tree, element_size);
+  tree offset = fold_build2_loc(loc, MULT_EXPR, sizetype,
+				fold_convert_loc(loc, sizetype, start_tree),
+				element_size);
 
   tree value_pointer = array_type->value_pointer_tree(gogo, array_tree);
 
   value_pointer = fold_build2_loc(loc, POINTER_PLUS_EXPR,
 				  TREE_TYPE(value_pointer),
-				  value_pointer,
-				  fold_convert_loc(loc, sizetype, offset));
+				  value_pointer, offset);
 
   tree result_length_tree = fold_build2_loc(loc, MINUS_EXPR,
 					    TREE_TYPE(length_tree),
