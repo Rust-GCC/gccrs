@@ -2305,8 +2305,16 @@ Gogo::type_functions(const Type* keytype, tree* hash_fn, tree* equal_fn)
       break;
 
     case Type::TYPE_INTERFACE:
-      hash_fn_name = "__go_type_hash_interface";
-      equal_fn_name = "__go_type_equal_interface";
+      if (keytype->interface_type()->is_empty())
+	{
+	  hash_fn_name = "__go_type_hash_empty_interface";
+	  equal_fn_name = "__go_type_equal_empty_interface";
+	}
+      else
+	{
+	  hash_fn_name = "__go_type_hash_interface";
+	  equal_fn_name = "__go_type_equal_interface";
+	}
       break;
 
     case Type::TYPE_NAMED:
@@ -3758,12 +3766,13 @@ Gogo::interface_type_descriptor_decl(Interface_type* type, Named_type* name,
 
 tree
 Gogo::interface_method_table_for_type(const Interface_type* interface,
-				      const Named_type* type)
+				      Named_type* type,
+				      bool is_pointer)
 {
   const Typed_identifier_list* interface_methods = interface->methods();
   gcc_assert(!interface_methods->empty());
 
-  std::string mangled_name = ("__go_imt_"
+  std::string mangled_name = ((is_pointer ? "__go_pimt__" : "__go_imt_")
 			      + interface->mangled_name(this)
 			      + "__"
 			      + type->mangled_name(this));
@@ -3800,9 +3809,21 @@ Gogo::interface_method_table_for_type(const Interface_type* interface,
     }
 
   size_t count = interface_methods->size();
-  VEC(constructor_elt, gc)* pointers = VEC_alloc(constructor_elt, gc, count);
+  VEC(constructor_elt, gc)* pointers = VEC_alloc(constructor_elt, gc,
+						 count + 1);
 
-  size_t i = 0;
+  // The first element is the type descriptor.
+  constructor_elt* elt = VEC_quick_push(constructor_elt, pointers, NULL);
+  elt->index = size_zero_node;
+  Type* td_type;
+  if (!is_pointer)
+    td_type = type;
+  else
+    td_type = Type::make_pointer_type(type);
+  elt->value = fold_convert(const_ptr_type_node,
+			    td_type->type_descriptor(this));
+
+  size_t i = 1;
   for (Typed_identifier_list::const_iterator p = interface_methods->begin();
        p != interface_methods->end();
        ++p, ++i)
@@ -3825,15 +3846,14 @@ Gogo::interface_method_table_for_type(const Interface_type* interface,
 	gcc_unreachable();
       fndecl = build_fold_addr_expr(fndecl);
 
-      constructor_elt* elt = VEC_quick_push(constructor_elt, pointers,
-					    NULL);
+      elt = VEC_quick_push(constructor_elt, pointers, NULL);
       elt->index = size_int(i);
       elt->value = fold_convert(const_ptr_type_node, fndecl);
     }
-  gcc_assert(i == count);
+  gcc_assert(i == count + 1);
 
   tree array_type = build_array_type(const_ptr_type_node,
-				     build_index_type(size_int(count - 1)));
+				     build_index_type(size_int(count)));
   tree constructor = build_constructor(array_type, pointers);
 
   tree decl = build_decl(BUILTINS_LOCATION, VAR_DECL, id, array_type);

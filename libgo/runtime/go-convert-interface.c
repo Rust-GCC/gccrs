@@ -5,36 +5,37 @@
    license that can be found in the LICENSE file.  */
 
 #include <assert.h>
-#include <stdlib.h>
 
 #include "go-alloc.h"
 #include "go-panic.h"
 #include "interface.h"
 
-/* Convert one interface type into another interface type.
-   LHS_DESCRIPTOR is the type descriptor of the resulting interface.
-   RHS is the interface we are converting, a pointer to struct
-   __go_interface.  We need to build a new set of interface method
-   pointers.  If any interface method is not implemented by the
-   object, the conversion fails.  If SUCCESS is not NULL, we set it to
-   whether or not the conversion succeeds.  If SUCCESS is NULL, and
-   the conversion fails, we panic.  */
+/* This is called when converting one interface type into another
+   interface type.  LHS_DESCRIPTOR is the type descriptor of the
+   resulting interface.  RHS_DESCRIPTOR is the type descriptor of the
+   object being converted.  This builds and returns a new interface
+   method table.  If any method in the LHS_DESCRIPTOR interface is not
+   implemented by the object, the conversion fails.  If the conversion
+   fails, then if MAY_FAIL is true this returns NULL; otherwise, it
+   panics.  */
 
-struct __go_interface *
-__go_convert_interface (const struct __go_type_descriptor* lhs_descriptor,
-			const void *rhs_arg, _Bool *success)
+void *
+__go_convert_interface_2 (const struct __go_type_descriptor *lhs_descriptor,
+			  const struct __go_type_descriptor *rhs_descriptor,
+			  _Bool may_fail)
 {
-  const struct __go_interface *rhs = (const struct __go_interface *) rhs_arg;
   const struct __go_interface_type *lhs_interface;
   int lhs_method_count;
   const struct __go_interface_method* lhs_methods;
   const void **methods;
-  struct __go_interface *ret;
+  const struct __go_uncommon_type *rhs_uncommon;
+  int rhs_method_count;
+  const struct __go_method *p_rhs_method;
+  int i;
 
-  if (rhs == NULL)
+  if (rhs_descriptor == NULL)
     {
-      if (success != NULL)
-	*success = 0;
+      /* A nil value always converts to nil.  */
       return NULL;
     }
 
@@ -44,81 +45,95 @@ __go_convert_interface (const struct __go_type_descriptor* lhs_descriptor,
   lhs_methods = ((const struct __go_interface_method *)
 		 lhs_interface->__methods.__values);
 
-  if (lhs_method_count == 0)
-    methods = NULL;
-  else
+  /* This should not be called for an empty interface.  */
+  assert (lhs_method_count > 0);
+
+  rhs_uncommon = rhs_descriptor->__uncommon;
+  if (rhs_uncommon == NULL || rhs_uncommon->__methods.__count == 0)
     {
-      const struct __go_uncommon_type *rhs_uncommon;
-      int rhs_method_count;
-      const struct __go_method *p_rhs_method;
-      int i;
+      struct __go_empty_interface panic_arg;
 
-      methods = (const void **) __go_alloc (lhs_method_count
-					    * sizeof (void *));
+      if (may_fail)
+	return NULL;
 
-      rhs_uncommon = rhs->__type_descriptor->__uncommon;
-      if (rhs_uncommon == NULL)
-	{
-	  rhs_method_count = 0;
-	  p_rhs_method = NULL;
-	}
-      else
-	{
-	  rhs_method_count = rhs_uncommon->__methods.__count;
-	  p_rhs_method = ((const struct __go_method *)
-			  rhs_uncommon->__methods.__values);
-	}
-
-      for (i = 0; i < lhs_method_count; ++i)
-	{
-	  const struct __go_interface_method *p_lhs_method;
-
-	  p_lhs_method = &lhs_methods[i];
-
-	  while (rhs_method_count > 0
-		 && (!__go_ptr_strings_equal (p_lhs_method->__name,
-					      p_rhs_method->__name)
-		     || !__go_ptr_strings_equal (p_lhs_method->__pkg_path,
-						 p_rhs_method->__pkg_path)))
-	    {
-	      ++p_rhs_method;
-	      --rhs_method_count;
-	    }
-
-	  if (rhs_method_count == 0
-	      || !__go_type_descriptors_equal (p_lhs_method->__type,
-					       p_rhs_method->__mtype))
-	    {
-	      struct __go_interface *panic_arg;
-
-	      if (success != NULL)
-		{
-		  *success = 0;
-		  return NULL;
-		}
-
-	      newTypeAssertionError(NULL,
-				    rhs->__type_descriptor,
-				    lhs_descriptor,
-				    NULL,
-				    rhs->__type_descriptor->__reflection,
-				    lhs_descriptor->__reflection,
-				    p_lhs_method->__name,
-				    &panic_arg);
-	      __go_panic (panic_arg);
-	    }
-
-	  methods[i] = p_rhs_method->__function;
-	}
+      newTypeAssertionError (NULL,
+			     rhs_descriptor,
+			     lhs_descriptor,
+			     NULL,
+			     rhs_descriptor->__reflection,
+			     lhs_descriptor->__reflection,
+			     lhs_methods[0].__name,
+			     &panic_arg);
+      __go_panic (panic_arg);
     }
 
-  ret = (struct __go_interface *) __go_alloc (sizeof (struct __go_interface));
-  ret->__type_descriptor = rhs->__type_descriptor;
-  ret->__methods = methods;
-  ret->__object = rhs->__object;
+  rhs_method_count = rhs_uncommon->__methods.__count;
+  p_rhs_method = ((const struct __go_method *)
+		  rhs_uncommon->__methods.__values);
 
-  if (success != NULL)
-    *success = 1;
+  methods = NULL;
 
-  return ret;
+  for (i = 0; i < lhs_method_count; ++i)
+    {
+      const struct __go_interface_method *p_lhs_method;
+
+      p_lhs_method = &lhs_methods[i];
+
+      while (rhs_method_count > 0
+	     && (!__go_ptr_strings_equal (p_lhs_method->__name,
+					  p_rhs_method->__name)
+		 || !__go_ptr_strings_equal (p_lhs_method->__pkg_path,
+					     p_rhs_method->__pkg_path)))
+	{
+	  ++p_rhs_method;
+	  --rhs_method_count;
+	}
+
+      if (rhs_method_count == 0
+	  || !__go_type_descriptors_equal (p_lhs_method->__type,
+					   p_rhs_method->__mtype))
+	{
+	  struct __go_empty_interface panic_arg;
+
+	  if (methods != NULL)
+	    __go_free (methods);
+
+	  if (may_fail)
+	    return NULL;
+
+	  newTypeAssertionError (NULL,
+				 rhs_descriptor,
+				 lhs_descriptor,
+				 NULL,
+				 rhs_descriptor->__reflection,
+				 lhs_descriptor->__reflection,
+				 p_lhs_method->__name,
+				 &panic_arg);
+	  __go_panic (panic_arg);
+	}
+
+      if (methods == NULL)
+	{
+	  methods = (const void **) __go_alloc ((lhs_method_count + 1)
+						* sizeof (void *));
+
+	  /* The first field in the method table is always the type of
+	     the object.  */
+	  methods[0] = rhs_descriptor;
+	}
+
+      methods[i + 1] = p_rhs_method->__function;
+    }
+
+  return methods;
+}
+
+/* This is called by the compiler to convert a value from one
+   interface type to another.  */
+
+void *
+__go_convert_interface (const struct __go_type_descriptor *lhs_descriptor,
+			const struct __go_type_descriptor *rhs_descriptor)
+{
+  return __go_convert_interface_2 (lhs_descriptor, rhs_descriptor, 0);
 }

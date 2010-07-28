@@ -65,7 +65,8 @@ __go_check_defer (void *frame)
       n = ((struct __go_panic_stack *)
 	   __go_alloc (sizeof (struct __go_panic_stack)));
 
-      n->__arg = NULL;
+      n->__arg.__type_descriptor = NULL;
+      n->__arg.__object = NULL;
       n->__was_recovered = 0;
       n->__is_foreign = 1;
       n->__next = __go_panic_defer->__panic;

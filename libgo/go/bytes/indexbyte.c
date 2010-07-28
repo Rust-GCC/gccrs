@@ -4,6 +4,8 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
+#include <stddef.h>
+
 #include "array.h"
 
 /* This is in C so that the compiler can optimize it

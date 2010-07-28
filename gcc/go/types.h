@@ -2184,10 +2184,15 @@ class Interface_type : public Type
   Interface_type(Typed_identifier_list* methods, source_location location)
     : Type(TYPE_INTERFACE),
       methods_(methods), location_(location)
-  { }
+  { gcc_assert(methods == NULL || !methods->empty()); }
 
-  // Return the list of methods.  This can return NULL if there are no
-  // methods.
+  // Return whether this is an empty interface.
+  bool
+  is_empty() const
+  { return this->methods_ == NULL; }
+
+  // Return the list of methods.  This will return NULL for an empty
+  // interface.
   const Typed_identifier_list*
   methods() const
   { return this->methods_; }
@@ -2264,7 +2269,7 @@ class Interface_type : public Type
   do_export(Export*) const;
 
  private:
-  // The list of methods associated with the interface.  This can be
+  // The list of methods associated with the interface.  This will be
   // NULL for the empty interface.
   Typed_identifier_list* methods_;
   // The location where the interface was defined.
@@ -2284,8 +2289,8 @@ class Named_type : public Type
     : Type(TYPE_NAMED),
       named_object_(named_object), in_function_(NULL), type_(type),
       local_methods_(NULL), all_methods_(NULL),
-      interface_method_tables_(NULL), location_(location), is_visible_(true),
-      is_error_(false), seen_(false)
+      interface_method_tables_(NULL), pointer_interface_method_tables_(NULL),
+      location_(location), is_visible_(true), is_error_(false), seen_(false)
   { }
 
   // Return the associated Named_object.  This holds the actual name.
@@ -2410,9 +2415,12 @@ class Named_type : public Type
   is_unexported_local_method(Gogo*, const std::string& name) const;
 
   // Return a pointer to the interface method table for this type for
-  // the interface INTERFACE.
+  // the interface INTERFACE.  If IS_POINTER is true, set the type
+  // descriptor to a pointer to this type, otherwise set it to this
+  // type.
   tree
-  interface_method_table(Gogo*, const Interface_type* interface);
+  interface_method_table(Gogo*, const Interface_type* interface,
+			 bool is_pointer);
 
   // Whether this type is compatible with T.
   bool
@@ -2496,6 +2504,9 @@ class Named_type : public Type
   // A mapping from interfaces to the associated interface method
   // tables for this type.
   Interface_method_tables* interface_method_tables_;
+  // A mapping from interfaces to the associated interface method
+  // tables for pointers to this type.
+  Interface_method_tables* pointer_interface_method_tables_;
   // The location where this type was defined.
   source_location location_;
   // Whether this type is visible.  This is false if this type was

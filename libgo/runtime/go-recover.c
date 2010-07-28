@@ -48,17 +48,22 @@ __go_can_recover (const void* retaddr)
 /* This is only called when it is valid for the caller to recover the
    value on top of the panic stack, if there is one.  */
 
-struct __go_interface *
+struct __go_empty_interface
 __go_recover ()
 {
   struct __go_panic_stack *p;
 
-  if (__go_panic_defer == NULL)
-    return NULL;
-  p = __go_panic_defer->__panic;
-  if (p == NULL || p->__was_recovered)
-    return NULL;
+  if (__go_panic_defer == NULL
+      || __go_panic_defer->__panic == NULL
+      || __go_panic_defer->__panic->__was_recovered)
+    {
+      struct __go_empty_interface ret;
 
+      ret.__type_descriptor = NULL;
+      ret.__object = NULL;
+      return ret;
+    }
+  p = __go_panic_defer->__panic;
   p->__was_recovered = 1;
   return p->__arg;
 }

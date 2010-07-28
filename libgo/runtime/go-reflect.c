@@ -150,50 +150,48 @@ get_descriptor (int code)
 
 struct reflect_ret
 {
-  struct __go_interface *rettype;
+  struct __go_empty_interface rettype;
   void *addr;
 };
 
-struct reflect_ret Reflect (const struct __go_interface *)
+struct reflect_ret Reflect (struct __go_empty_interface)
   asm ("libgo_unsafe.unsafe.Reflect");
 
 struct reflect_ret
-Reflect (const struct __go_interface *p)
+Reflect (struct __go_empty_interface e)
 {
   struct reflect_ret ret;
 
-  if (p == NULL)
+  if (e.__type_descriptor == NULL)
     {
-      ret.rettype = NULL;
+      ret.rettype.__type_descriptor = NULL;
+      ret.rettype.__object = NULL;
       ret.addr = NULL;
     }
   else
     {
       size_t size;
 
-      ret.rettype = ((struct __go_interface *)
-		     __go_alloc (sizeof (struct __go_interface)));
-      ret.rettype->__type_descriptor =
-	get_descriptor (p->__type_descriptor->__code);
-      ret.rettype->__methods = NULL;
+      ret.rettype.__type_descriptor =
+	get_descriptor (e.__type_descriptor->__code);
 
       /* This memcpy is really just an assignment of a const pointer
 	 to a non-const pointer.  FIXME: We should canonicalize this
 	 pointer, so that for a given type we always return the same
 	 pointer.  */
-      __builtin_memcpy (&ret.rettype->__object, &p->__type_descriptor,
+      __builtin_memcpy (&ret.rettype.__object, &e.__type_descriptor,
 			sizeof (void *));
 
       /* Make a copy of the value.  */
-      size = p->__type_descriptor->__size;
+      size = e.__type_descriptor->__size;
       if (size <= sizeof (uint64_t))
 	ret.addr = __go_alloc (sizeof (uint64_t));
       else
 	ret.addr = __go_alloc (size);
-      if (__go_is_pointer_type (p->__type_descriptor))
-	*(void **) ret.addr = p->__object;
+      if (__go_is_pointer_type (e.__type_descriptor))
+	*(void **) ret.addr = e.__object;
       else
-	__builtin_memcpy (ret.addr, p->__object, size);
+	__builtin_memcpy (ret.addr, e.__object, size);
     }
 
   return ret;
@@ -201,29 +199,29 @@ Reflect (const struct __go_interface *p)
 
 /* Implement unsafe.Typeof.  */
 
-struct __go_interface *Typeof (const struct __go_interface *)
+struct __go_empty_interface Typeof (struct __go_empty_interface)
   asm ("libgo_unsafe.unsafe.Typeof");
 
-struct __go_interface *
-Typeof (const struct __go_interface *p)
+struct __go_empty_interface
+Typeof (const struct __go_empty_interface e)
 {
-  if (p == NULL)
-    return NULL;
+  struct __go_empty_interface ret;
+
+  if (e.__type_descriptor == NULL)
+    {
+      ret.__type_descriptor = NULL;
+      ret.__object = NULL;
+    }
   else
     {
-      struct __go_interface *ret;
-
-      ret = ((struct __go_interface *)
-	     __go_alloc (sizeof (struct __go_interface)));
-      ret->__type_descriptor = get_descriptor (p->__type_descriptor->__code);
-      ret->__methods = NULL;
+      ret.__type_descriptor = get_descriptor (e.__type_descriptor->__code);
 
       /* This memcpy is really just an assignment of a const pointer
 	 to a non-const pointer.  FIXME: We should canonicalize this
 	 pointer, so that for a given type we always return the same
 	 pointer.  */
-      __builtin_memcpy (&ret->__object, &p->__type_descriptor, sizeof (void *));
-
-      return ret;
+      __builtin_memcpy (&ret.__object, &e.__type_descriptor, sizeof (void *));
     }
+
+  return ret;
 }

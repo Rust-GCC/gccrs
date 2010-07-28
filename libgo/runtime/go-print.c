@@ -10,6 +10,7 @@
 #include "array.h"
 #include "go-panic.h"
 #include "go-string.h"
+#include "interface.h"
 
 /* This implements the various little functions which are called by
    the predeclared functions print/println/panic/panicln.  */
@@ -71,6 +72,18 @@ void
 __go_print_pointer (void *val)
 {
   printf ("%p", val);
+}
+
+void
+__go_print_empty_interface (struct __go_empty_interface e)
+{
+  printf ("(%p,%p)", e.__type_descriptor, e.__object);
+}
+
+void
+__go_print_interface (struct __go_interface i)
+{
+  printf ("(%p,%p)", i.__methods, i.__object);
 }
 
 void

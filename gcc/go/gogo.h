@@ -509,7 +509,8 @@ class Gogo
   // Build an interface method table for a type: a list of function
   // pointers, one for each interface method.  This returns a decl.
   tree
-  interface_method_table_for_type(const Interface_type*, const Named_type*);
+  interface_method_table_for_type(const Interface_type*, Named_type*,
+				  bool is_pointer);
 
   // Return a tree which allocate SIZE bytes to hold values of type
   // TYPE.

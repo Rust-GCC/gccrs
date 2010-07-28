@@ -75,17 +75,18 @@
    because you are not permitted to take the address of a predeclared
    function like recover.  */
 
-struct __go_interface *
+struct __go_empty_interface
 __go_deferred_recover ()
 {
-  struct __go_defer_stack *d;
+  if (__go_panic_defer == NULL
+      || __go_panic_defer->__defer == NULL
+      || __go_panic_defer->__defer->__panic != __go_panic_defer->__panic)
+    {
+      struct __go_empty_interface ret;
 
-  if (__go_panic_defer == NULL)
-    return NULL;
-  d = __go_panic_defer->__defer;
-  if (d == NULL)
-    return 0;
-  if (d->__panic != __go_panic_defer->__panic)
-    return 0;
+      ret.__type_descriptor = NULL;
+      ret.__object = NULL;
+      return ret;
+    }
   return __go_recover();
 }

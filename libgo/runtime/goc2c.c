@@ -336,9 +336,11 @@ type_size(char *p)
 	for(i=0; type_table[i].name; i++)
 		if(strcmp(type_table[i].name, p) == 0)
 			return type_table[i].size;
-	fprintf(stderr, "%s:%u: unknown type %s\n", file, lineno, p);
-	exit(1);
-	return 0;
+	if(!gcc) {
+		fprintf(stderr, "%s:%u: unknown type %s\n", file, lineno, p);
+		exit(1);
+	}
+	return 1;
 }
 
 /* Read a list of parameters.  Each parameter is a name and a type.

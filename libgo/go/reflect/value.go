@@ -867,8 +867,7 @@ func (fv *FuncValue) Call(in []Value) []Value {
 		// Hard-wired first argument.
 		if fv.isInterface {
 			// v is a single uninterpreted word
-			firstAddr := v.getAddr()
-			params[0] = addr(&firstAddr)
+			params[0] = v.getAddr()
 		} else {
 			// v is a real value
 			tv := v.Type()
@@ -956,44 +955,16 @@ func (v *InterfaceValue) Set(x Value) {
 	if !v.canSet {
 		panic(cannotSet)
 	}
-	if x == nil {
-		*(*addr)(v.addr) = nil
+	// Two different representations; see comment in Get.
+	// Empty interface is easy.
+	t := v.typ.(*InterfaceType)
+	if t.NumMethod() == 0 {
+		*(*interface{})(v.addr) = i
 		return
 	}
-	pv := (*[3]addr)(*(*addr)(v.addr))
-	if pv == nil {
-		pv = new([3]addr)
-		*(*addr)(v.addr) = addr(pv)
-	}
-	pi := *(**[3]addr)((unsafe.Pointer)(&i))
-	pv[0] = pi[0]
-	pv[2] = pi[2]
 
-	vt := v.typ.(*InterfaceType)
-	vmc := vt.NumMethod()
-	xt := x.Type()
-	xmc := xt.NumMethod()
-	if vmc == 0 {
-		pv[1] = nil
-	} else {
-		methods := make([]addr, vmc)
-		j := 0
-		for i := 0; i < vmc; i++ {
-			vm := vt.Method(i)
-			for j < xmc {
-				xm := xt.Method(j)
-				if xm.Name == vm.Name && xm.PkgPath == vm.PkgPath {
-					methods[i] = *(*addr)(xm.Func.getAddr())
-					break
-				}
-				j++
-			}
-			if j >= xmc {
-				panic("no method" + vm.Name)
-			}
-		}
-		pv[1] = addr(&methods[0])
-	}
+	// Non-empty interface requires a runtime check.
+	setiface(t, &i, v.addr)
 }
 
 // Set sets v to the value x.
@@ -1010,12 +981,11 @@ func (v *InterfaceValue) Method(i int) *FuncValue {
 	}
 	p := &t.methods[i]
 
-	// gccgo interface is three words: type descriptor, methods,
-	// data pointer.
-	iv := (*[3]addr)(*(*addr)(v.addr))
-	tab := (*[10000]addr)(iv[1])
-	data := &value{Typeof((*byte)(nil)), iv[2], true}
-	fn := tab[i]
+	// Interface is two words: itable, data.
+	tab := *(**[10000]addr)(v.addr)
+	data := &value{Typeof((*byte)(nil)), addr(uintptr(v.addr) + ptrSize), true}
+
+	fn := tab[i+1]
 	fv := &FuncValue{value: value{runtimeToType(p.typ), addr(&fn), true}, first: data, isInterface: true}
 	return fv
 }

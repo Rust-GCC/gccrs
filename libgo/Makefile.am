@@ -280,6 +280,7 @@ rtems_task_variable_add_file =
 endif
 
 runtime_files = \
+	runtime/go-assert-interface.c \
 	runtime/go-bad-index.c \
 	runtime/go-byte-array-to-string.c \
 	runtime/go-breakpoint.c \
@@ -287,20 +288,20 @@ runtime_files = \
 	runtime/go-can-convert-interface.c \
 	runtime/go-chan-cap.c \
 	runtime/go-chan-len.c \
+	runtime/go-check-interface.c \
 	runtime/go-close.c \
 	runtime/go-closed.c \
 	runtime/go-construct-map.c \
 	runtime/go-convert-interface.c \
 	runtime/go-defer.c \
 	runtime/go-deferred-recover.c \
+	runtime/go-eface-compare.c \
 	runtime/go-getgoroot.c \
 	runtime/go-go.c \
 	runtime/go-gomaxprocs.c \
 	runtime/go-int-array-to-string.c \
 	runtime/go-int-to-string.c \
 	runtime/go-interface-compare.c \
-	runtime/go-interface-to-object.c \
-	runtime/go-interface-to-pointer.c \
 	runtime/go-lock-os-thread.c \
 	runtime/go-map-delete.c \
 	runtime/go-map-index.c \
@@ -308,8 +309,6 @@ runtime_files = \
 	runtime/go-map-range.c \
 	runtime/go-nanotime.c \
 	runtime/go-new-channel.c \
-	runtime/go-new-interface-object.c \
-	runtime/go-new-interface-pointer.c \
 	runtime/go-new-map.c \
 	runtime/go-new.c \
 	runtime/go-note.c \
@@ -340,6 +339,7 @@ runtime_files = \
 	runtime/go-strplus.c \
 	runtime/go-strslice.c \
 	runtime/go-trampoline.c \
+	runtime/go-type-eface.c \
 	runtime/go-type-error.c \
 	runtime/go-type-identity.c \
 	runtime/go-type-interface.c \
@@ -368,6 +368,7 @@ runtime_files = \
 	malloc.c \
 	map.c \
 	mprof.c \
+	reflect.c \
 	sigqueue.c \
 	string.c
 
@@ -383,6 +384,10 @@ malloc.c: $(srcdir)/runtime/malloc.goc goc2c
 
 mprof.c: $(srcdir)/runtime/mprof.goc goc2c
 	./goc2c --gcc --go-prefix libgo_runtime $< > $@.tmp
+	mv -f $@.tmp $@
+
+reflect.c: $(srcdir)/runtime/reflect.goc goc2c
+	./goc2c --gcc --go-prefix libgo_reflect $< > $@.tmp
 	mv -f $@.tmp $@
 
 sigqueue.c: $(srcdir)/runtime/sigqueue.goc goc2c

@@ -552,6 +552,14 @@ class Expression
   convert_for_assignment(Translate_context*, Type* lhs_type, Type* rhs_type,
 			 tree rhs_tree, source_location location);
 
+  // Return a tree converting a value of one interface type to another
+  // interface type.  If FOR_TYPE_GUARD is true this is for a type
+  // assertion.
+  static tree
+  convert_interface_to_interface(Translate_context*, Type* lhs_type,
+				 Type* rhs_type, tree rhs_tree,
+				 bool for_type_guard, source_location);
+
   // Return a tree implementing the comparison LHS_TREE OP RHS_TREE.
   // TYPE is the type of both sides.
   static tree
@@ -705,6 +713,18 @@ class Expression
 	    ? static_cast<const Expression_class*>(this)
 	    : NULL);
   }
+
+  static tree
+  convert_type_to_interface(Translate_context*, Type*, Type*, tree,
+			    source_location);
+
+  static tree
+  get_interface_type_descriptor(Translate_context*, Type*, tree,
+				source_location);
+
+  static tree
+  convert_interface_to_type(Translate_context*, Type*, Type*, tree,
+			    source_location);
 
   // The expression classification.
   Expression_classification classification_;

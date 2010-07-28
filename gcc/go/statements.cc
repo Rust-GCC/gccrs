@@ -1248,14 +1248,14 @@ class Tuple_type_guard_assignment_statement : public Statement
   { gcc_unreachable(); }
 
  private:
-  void
-  lower_to_interface(Block*);
+  Call_expression*
+  lower_to_empty_interface(const char*);
+
+  Call_expression*
+  lower_to_type(const char*);
 
   void
-  lower_to_pointer_type(Block*);
-
-  void
-  lower_to_type(Block*);
+  lower_to_object_type(Block*, const char*);
 
   // The variable which recieves the converted value.
   Expression* val_;
@@ -1286,7 +1286,8 @@ Tuple_type_guard_assignment_statement::do_lower(Gogo*, Block* enclosing)
 {
   source_location loc = this->location();
 
-  if (this->expr_->type()->interface_type() == NULL)
+  Type* expr_type = this->expr_->type();
+  if (expr_type->interface_type() == NULL)
     {
       this->report_error(_("type assertion only valid for interface types"));
       return Statement::make_error_statement(loc);
@@ -1300,63 +1301,77 @@ Tuple_type_guard_assignment_statement::do_lower(Gogo*, Block* enclosing)
   this->val_->traverse_subexpressions(&moe);
   this->ok_->traverse_subexpressions(&moe);
 
+  bool expr_is_empty = expr_type->interface_type()->is_empty();
+  Call_expression* call;
   if (this->type_->interface_type() != NULL)
-    this->lower_to_interface(b);
+    {
+      if (this->type_->interface_type()->is_empty())
+	call = this->lower_to_empty_interface(expr_is_empty
+					      ? "ifaceE2E2"
+					      : "ifaceI2E2");
+      else
+	call = this->lower_to_type(expr_is_empty ? "ifaceE2I2" : "ifaceI2I2");
+    }
   else if (this->type_->points_to() != NULL)
-    this->lower_to_pointer_type(b);
+    call = this->lower_to_type(expr_is_empty ? "ifaceE2T2P" : "ifaceI2T2P");
   else
-    this->lower_to_type(b);
+    {
+      this->lower_to_object_type(b, expr_is_empty ? "ifaceE2T2" : "ifaceI2T2");
+      call = NULL;
+    }
+
+  if (call != NULL)
+    {
+      Expression* res = Expression::make_call_result(call, 0);
+      Statement* s = Statement::make_assignment(this->val_, res, loc);
+      b->add_statement(s);
+
+      res = Expression::make_call_result(call, 1);
+      s = Statement::make_assignment(this->ok_, res, loc);
+      b->add_statement(s);
+    }
 
   return Statement::make_block_statement(b, loc);
 }
 
-// Lower a conversion to an interface type.
+// Lower a conversion to an empty interface type.
 
-void
-Tuple_type_guard_assignment_statement::lower_to_interface(Block* b)
+Call_expression*
+Tuple_type_guard_assignment_statement::lower_to_empty_interface(
+    const char *fnname)
 {
   source_location loc = this->location();
 
-  // func ifaceI2I2(*descriptor, *interface) (*interface, bool)
+  // func FNNAME(interface) (empty, bool)
   source_location bloc = BUILTINS_LOCATION;
   Typed_identifier_list* param_types = new Typed_identifier_list();
-  param_types->push_back(Typed_identifier("inter",
-					  Type::make_type_descriptor_ptr_type(),
-					  bloc));
   param_types->push_back(Typed_identifier("i", this->expr_->type(), bloc));
   Typed_identifier_list* ret_types = new Typed_identifier_list();
   ret_types->push_back(Typed_identifier("ret", this->type_, bloc));
   ret_types->push_back(Typed_identifier("ok", Type::lookup_bool_type(), bloc));
   Function_type* fntype = Type::make_function_type(NULL, param_types,
 						   ret_types, bloc);
-  Named_object* ifaceI2I2 =
-    Named_object::make_function_declaration("ifaceI2I2", NULL, fntype, bloc);
-  ifaceI2I2->func_declaration_value()->set_asm_name("runtime.ifaceI2I2");
+  Named_object* fn =
+    Named_object::make_function_declaration(fnname, NULL, fntype, bloc);
+  std::string asm_name = "runtime.";
+  asm_name += fnname;
+  fn->func_declaration_value()->set_asm_name(asm_name);
 
-  // val, ok = ifaceI2I2(type_descriptor, expr)
-  Expression* func = Expression::make_func_reference(ifaceI2I2, NULL, loc);
+  // val, ok = FNNAME(expr)
+  Expression* func = Expression::make_func_reference(fn, NULL, loc);
   Expression_list* params = new Expression_list();
-  params->push_back(Expression::make_type_descriptor(this->type_, loc));
   params->push_back(this->expr_);
-  Call_expression* call = Expression::make_call(func, params, loc);
-
-  Expression* res = Expression::make_call_result(call, 0);
-  Statement* s = Statement::make_assignment(this->val_, res, loc);
-  b->add_statement(s);
-
-  res = Expression::make_call_result(call, 1);
-  s = Statement::make_assignment(this->ok_, res, loc);
-  b->add_statement(s);
+  return Expression::make_call(func, params, loc);
 }
 
-// Lower a conversion to a pointer type.
+// Lower a conversion to a non-empty interface type or a pointer type.
 
-void
-Tuple_type_guard_assignment_statement::lower_to_pointer_type(Block* b)
+Call_expression*
+Tuple_type_guard_assignment_statement::lower_to_type(const char* fnname)
 {
   source_location loc = this->location();
 
-  // func ifaceI2T2P(*descriptor, *interface) (T, bool)
+  // func FNNAME(*descriptor, interface) (interface, bool)
   source_location bloc = BUILTINS_LOCATION;
   Typed_identifier_list* param_types = new Typed_identifier_list();
   param_types->push_back(Typed_identifier("inter",
@@ -1368,30 +1383,25 @@ Tuple_type_guard_assignment_statement::lower_to_pointer_type(Block* b)
   ret_types->push_back(Typed_identifier("ok", Type::lookup_bool_type(), bloc));
   Function_type* fntype = Type::make_function_type(NULL, param_types,
 						   ret_types, bloc);
-  Named_object* ifaceI2T2P =
-    Named_object::make_function_declaration("ifaceI2T2P", NULL, fntype, bloc);
-  ifaceI2T2P->func_declaration_value()->set_asm_name("runtime.ifaceI2T2P");
+  Named_object* fn =
+    Named_object::make_function_declaration(fnname, NULL, fntype, bloc);
+  std::string asm_name = "runtime.";
+  asm_name += fnname;
+  fn->func_declaration_value()->set_asm_name(asm_name);
 
-  // val, ok = ifaceI2T2P(type_descriptor, expr)
-  Expression* func = Expression::make_func_reference(ifaceI2T2P, NULL, loc);
+  // val, ok = FNNAME(type_descriptor, expr)
+  Expression* func = Expression::make_func_reference(fn, NULL, loc);
   Expression_list* params = new Expression_list();
   params->push_back(Expression::make_type_descriptor(this->type_, loc));
   params->push_back(this->expr_);
-  Call_expression* call = Expression::make_call(func, params, loc);
-
-  Expression* res = Expression::make_call_result(call, 0);
-  Statement* s = Statement::make_assignment(this->val_, res, loc);
-  b->add_statement(s);
-
-  res = Expression::make_call_result(call, 1);
-  s = Statement::make_assignment(this->ok_, res, loc);
-  b->add_statement(s);
+  return Expression::make_call(func, params, loc);
 }
 
 // Lower a conversion to a non-interface non-pointer type.
 
 void
-Tuple_type_guard_assignment_statement::lower_to_type(Block* b)
+Tuple_type_guard_assignment_statement::lower_to_object_type(Block* b,
+							    const char *fnname)
 {
   source_location loc = this->location();
 
@@ -1400,7 +1410,7 @@ Tuple_type_guard_assignment_statement::lower_to_type(Block* b)
 							    NULL, loc);
   b->add_statement(val_temp);
 
-  // func ifaceI2T2(*descriptor, *interface, *T) bool
+  // func FNNAME(*descriptor, interface, *T) bool
   source_location bloc = BUILTINS_LOCATION;
   Typed_identifier_list* param_types = new Typed_identifier_list();
   param_types->push_back(Typed_identifier("inter",
@@ -1413,12 +1423,14 @@ Tuple_type_guard_assignment_statement::lower_to_type(Block* b)
   ret_types->push_back(Typed_identifier("ok", Type::lookup_bool_type(), bloc));
   Function_type* fntype = Type::make_function_type(NULL, param_types,
 						   ret_types, bloc);
-  Named_object* ifaceI2T2 =
-    Named_object::make_function_declaration("ifaceI2T2", NULL, fntype, bloc);
-  ifaceI2T2->func_declaration_value()->set_asm_name("runtime.ifaceI2T2");
+  Named_object* fn =
+    Named_object::make_function_declaration(fnname, NULL, fntype, bloc);
+  std::string asm_name = "runtime.";
+  asm_name += fnname;
+  fn->func_declaration_value()->set_asm_name(asm_name);
 
-  // ok = ifaceI2T2(type_descriptor, expr, &val_temp)
-  Expression* func = Expression::make_func_reference(ifaceI2T2, NULL, loc);
+  // ok = FNNAME(type_descriptor, expr, &val_temp)
+  Expression* func = Expression::make_func_reference(fn, NULL, loc);
   Expression_list* params = new Expression_list();
   params->push_back(Expression::make_type_descriptor(this->type_, loc));
   params->push_back(this->expr_);
@@ -3792,7 +3804,7 @@ Type_switch_statement::do_lower(Gogo*, Block* enclosing)
     {
       const source_location bloc = BUILTINS_LOCATION;
 
-      // func ifacetype(*interface) *descriptor
+      // func {efacetype,ifacetype}(*interface) *descriptor
       // FIXME: This should be inlined.
       Typed_identifier_list* param_types = new Typed_identifier_list();
       param_types->push_back(Typed_identifier("i", val_type, bloc));
@@ -3800,13 +3812,17 @@ Type_switch_statement::do_lower(Gogo*, Block* enclosing)
       ret_types->push_back(Typed_identifier("", descriptor_type, bloc));
       Function_type* fntype = Type::make_function_type(NULL, param_types,
 						       ret_types, bloc);
-      Named_object* ifacetype =
-	Named_object::make_function_declaration("ifacetype", NULL, fntype,
-						bloc);
-      ifacetype->func_declaration_value()->set_asm_name("runtime.ifacetype");
+      bool is_empty = val_type->interface_type()->is_empty();
+      const char* fnname = is_empty ? "efacetype" : "ifacetype";
+      Named_object* fn =
+	Named_object::make_function_declaration(fnname, NULL, fntype, bloc);
+      const char* asm_name = (is_empty
+			      ? "runtime.efacetype"
+			      : "runtime.ifacetype");
+      fn->func_declaration_value()->set_asm_name(asm_name);
 
       // descriptor_temp = ifacetype(val_temp)
-      Expression* func = Expression::make_func_reference(ifacetype, NULL, loc);
+      Expression* func = Expression::make_func_reference(fn, NULL, loc);
       Expression_list* params = new Expression_list();
       Expression* ref;
       if (this->var_ == NULL)

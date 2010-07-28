@@ -220,238 +220,18 @@ Expression::convert_for_assignment(Translate_context* context, Type* lhs_type,
 
   if (lhs_type->interface_type() != NULL)
     {
-      Interface_type* lhs_interface_type = lhs_type->interface_type();
-
       if (rhs_type->interface_type() == NULL)
-	{
-	  // Assignment of a non-interface to an interface.  Since
-	  // RHS_TYPE is a static type, we can fill in the interface
-	  // method table at compile time.
-
-	  // When setting an interface to nil, we just use NULL.
-	  if (rhs_type->is_nil_type())
-	    return fold_convert(lhs_type_tree, null_pointer_node);
-
-	  // This should have been checked already.
-	  gcc_assert(lhs_interface_type->implements_interface(rhs_type,
-							      NULL));
-
-	  // Get the decl for the type descriptor that we are going to
-	  // store in the interface value.
-	  tree type_descriptor = rhs_type->type_descriptor(gogo);
-
-	  // Build the interface method table for this interface and
-	  // this object type: a list of function pointers for each
-	  // interface method.
-	  Named_type* rhs_named_type = rhs_type->named_type();
-	  bool is_pointer = false;
-	  if (rhs_named_type == NULL)
-	    {
-	      rhs_named_type = rhs_type->deref()->named_type();
-	      is_pointer = true;
-	    }
-	  tree method_table;
-	  if (rhs_named_type == NULL)
-	    method_table = null_pointer_node;
-	  else
-	    method_table =
-	      rhs_named_type->interface_method_table(gogo,
-						     lhs_interface_type);
-	  method_table = fold_convert(const_ptr_type_node, method_table);
-
-	  // If we are assigning a pointer to the interface, then the
-	  // interface refers to the original value.  If we are
-	  // assigning a value to the interface, then the interface
-	  // takes ownership of the value.
-
-	  if (rhs_type->points_to() != NULL)
-	    {
-	      static tree new_interface_pointer_decl;
-	      tree call = Gogo::call_builtin(&new_interface_pointer_decl,
-					     location,
-					     "__go_new_interface_pointer",
-					     3,
-					     ptr_type_node,
-					     TREE_TYPE(type_descriptor),
-					     type_descriptor,
-					     const_ptr_type_node,
-					     method_table,
-					     ptr_type_node,
-					     rhs_tree);
-	      return fold_convert(lhs_type_tree, call);
-	    }
-	  else
-	    {
-	      // We need an addressable copy of the value.  We are
-	      // going to copy the value into the interface.
-	      tree make_tmp;
-	      tree object;
-	      if (TREE_ADDRESSABLE(TREE_TYPE(rhs_tree))
-		  || (DECL_P(rhs_tree) && TREE_CODE(rhs_tree) != CONST_DECL))
-		{
-		  make_tmp = NULL_TREE;
-		  object = build_fold_addr_expr(rhs_tree);
-		  if (DECL_P(rhs_tree))
-		    TREE_ADDRESSABLE(rhs_tree) = 1;
-		}
-	      else
-		{
-		  tree tmp;
-		  if (current_function_decl != NULL)
-		    {
-		      tmp = create_tmp_var(TREE_TYPE(rhs_tree),
-					   get_name(rhs_tree));
-		      DECL_INITIAL(tmp) = rhs_tree;
-		      make_tmp = build1(DECL_EXPR, void_type_node, tmp);
-		      TREE_ADDRESSABLE(tmp) = 1;
-		    }
-		  else
-		    {
-		      tmp = build_decl(location, VAR_DECL,
-				       create_tmp_var_name("I"),
-				       TREE_TYPE(rhs_tree));
-		      DECL_EXTERNAL(tmp) = 0;
-		      TREE_PUBLIC(tmp) = 0;
-		      TREE_STATIC(tmp) = 1;
-		      DECL_ARTIFICIAL(tmp) = 1;
-		      if (!TREE_CONSTANT(rhs_tree))
-			make_tmp = build2(MODIFY_EXPR, void_type_node,
-					  tmp, rhs_tree);
-		      else
-			{
-			  TREE_READONLY(tmp) = 1;
-			  TREE_CONSTANT(tmp) = 1;
-			  DECL_INITIAL(tmp) = rhs_tree;
-			  make_tmp = NULL_TREE;
-			}
-		      rest_of_decl_compilation(tmp, 1, 0);
-		    }
-		  object = build_fold_addr_expr(tmp);
-		}
-	      object = fold_convert(ptr_type_node, object);
-
-	      tree object_size = TYPE_SIZE_UNIT(TREE_TYPE(rhs_tree));
-
-	      static tree new_interface_object_decl;
-	      tree call = Gogo::call_builtin(&new_interface_object_decl,
-					     location,
-					     "__go_new_interface_object",
-					     4,
-					     ptr_type_node,
-					     TREE_TYPE(type_descriptor),
-					     type_descriptor,
-					     const_ptr_type_node,
-					     method_table,
-					     sizetype,
-					     object_size,
-					     ptr_type_node,
-					     object);
-	      call = fold_convert(lhs_type_tree, call);
-	      if (make_tmp == NULL_TREE)
-		return call;
-	      else
-		return build2(COMPOUND_EXPR, lhs_type_tree, make_tmp, call);
-	    }
-	}
+	return Expression::convert_type_to_interface(context, lhs_type,
+						     rhs_type, rhs_tree,
+						     location);
       else
-	{
-	  // Converting from one interface type to another.  In the
-	  // general case this requires runtime examination of the
-	  // type method table to match it up with the interface
-	  // methods.
-
-	  // FIXME: If the right hand side is a subset of the left
-	  // hand side, we don't need the runtime examination of
-	  // method names.
-
-	  // FIXME: We could do better with some analysis to determine
-	  // the type of the right hand side.
-
-	  // FIXME: What if one interface should be a pointer and the
-	  // other should be an object?
-
-	  // Build the general interface method table for the left
-	  // hand side interface.
-	  tree lhs_type_descriptor = lhs_type->type_descriptor(gogo);
-
-	  gcc_assert(POINTER_TYPE_P(TREE_TYPE(rhs_tree)));
-
-	  static tree convert_interface_decl;
-	  tree call = Gogo::call_builtin(&convert_interface_decl,
-					 location,
-					 "__go_convert_interface",
-					 3,
-					 ptr_type_node,
-					 TREE_TYPE(lhs_type_descriptor),
-					 lhs_type_descriptor,
-					 ptr_type_node,
-					 fold_convert(ptr_type_node, rhs_tree),
-					 build_pointer_type(boolean_type_node),
-					 null_pointer_node);
-	  // This will panic if the interface conversion fails.
-	  TREE_NOTHROW(convert_interface_decl) = 0;
-	  return fold_convert(lhs_type_tree, call);
-	}
+	return Expression::convert_interface_to_interface(context, lhs_type,
+							  rhs_type, rhs_tree,
+							  false, location);
     }
   else if (rhs_type->interface_type() != NULL)
-    {
-      // Converting from an interface type to a non-interface type.
-      // If the object associated with the interface has the right
-      // type, we get the object.  Otherwise we fail at runtime.
-      tree lhs_type_descriptor = lhs_type->type_descriptor(gogo);
-
-      gcc_assert(POINTER_TYPE_P(TREE_TYPE(rhs_tree)));
-
-      if (lhs_type->points_to() != NULL)
-	{
-	  static tree interface_to_pointer_decl;
-	  tree call = Gogo::call_builtin(&interface_to_pointer_decl,
-					 location,
-					 "__go_interface_to_pointer",
-					 2,
-					 ptr_type_node,
-					 TREE_TYPE(lhs_type_descriptor),
-					 lhs_type_descriptor,
-					 const_ptr_type_node,
-					 fold_convert(const_ptr_type_node,
-						      rhs_tree));
-	  // This call will panic if the conversion fails.
-	  TREE_NOTHROW(interface_to_pointer_decl) = 0;
-	  gcc_assert(POINTER_TYPE_P(lhs_type_tree));
-	  return fold_convert(lhs_type_tree, call);
-	}
-      else
-	{
-	  tree tmp = create_tmp_var(lhs_type_tree, NULL);
-	  DECL_IGNORED_P(tmp) = 0;
-	  tree make_tmp = build1(DECL_EXPR, void_type_node, tmp);
-	  tree tmpaddr = build_fold_addr_expr(tmp);
-	  TREE_ADDRESSABLE(tmp) = 1;
-
-	  tree object_size = DECL_SIZE_UNIT(tmp);
-
-	  static tree interface_to_object_decl;
-	  tree call = Gogo::call_builtin(&interface_to_object_decl,
-					 location,
-					 "__go_interface_to_object",
-					 4,
-					 void_type_node,
-					 ptr_type_node,
-					 fold_convert(ptr_type_node,
-						      tmpaddr),
-					 TREE_TYPE(lhs_type_descriptor),
-					 lhs_type_descriptor,
-					 sizetype,
-					 object_size,
-					 ptr_type_node,
-					 fold_convert(ptr_type_node,
-						      rhs_tree));
-	  // This call will panic if the conversion fails.
-	  TREE_NOTHROW(interface_to_object_decl) = 0;
-	  return build2(COMPOUND_EXPR, lhs_type_tree, make_tmp,
-			build2(COMPOUND_EXPR, lhs_type_tree, call, tmp));
-	}
-    }
+    return Expression::convert_interface_to_type(context, lhs_type, rhs_type,
+						 rhs_tree, location);
   else if (lhs_type->is_open_array_type()
 	   && rhs_type->points_to() != NULL
 	   && rhs_type->points_to()->array_type() != NULL
@@ -621,6 +401,331 @@ Expression::convert_for_assignment(Translate_context* context, Type* lhs_type,
       gcc_assert(useless_type_conversion_p(lhs_type_tree, TREE_TYPE(rhs_tree)));
       return rhs_tree;
     }
+}
+
+// Return a tree for a conversion from a non-interface type to an
+// interface type.
+
+tree
+Expression::convert_type_to_interface(Translate_context* context,
+				      Type* lhs_type, Type* rhs_type,
+				      tree rhs_tree, source_location location)
+{
+  Gogo* gogo = context->gogo();
+  Interface_type* lhs_interface_type = lhs_type->interface_type();
+  bool lhs_is_empty = lhs_interface_type->is_empty();
+
+  // Since RHS_TYPE is a static type, we can create the interface
+  // method table at compile time.
+
+  // When setting an interface to nil, we just set both fields to
+  // NULL.
+  if (rhs_type->is_nil_type())
+    return lhs_type->get_init_tree(gogo, false);
+
+  // This should have been checked already.
+  gcc_assert(lhs_interface_type->implements_interface(rhs_type, NULL));
+
+  tree lhs_type_tree = lhs_type->get_tree(gogo);
+  if (lhs_type_tree == error_mark_node)
+    return error_mark_node;
+
+  // An interface is a tuple.  If LHS_TYPE is an empty interface type,
+  // then the first field is the type descriptor for RHS_TYPE.
+  // Otherwise it is the interface method table for RHS_TYPE.
+  tree first_field_value;
+  if (lhs_is_empty)
+    first_field_value = rhs_type->type_descriptor(gogo);
+  else
+    {
+      // Build the interface method table for this interface and this
+      // object type: a list of function pointers for each interface
+      // method.
+      Named_type* rhs_named_type = rhs_type->named_type();
+      bool is_pointer = false;
+      if (rhs_named_type == NULL)
+	{
+	  rhs_named_type = rhs_type->deref()->named_type();
+	  is_pointer = true;
+	}
+      tree method_table;
+      if (rhs_named_type == NULL)
+	method_table = null_pointer_node;
+      else
+	method_table =
+	  rhs_named_type->interface_method_table(gogo, lhs_interface_type,
+						 is_pointer);
+      first_field_value = fold_convert_loc(location, const_ptr_type_node,
+					   method_table);
+    }
+
+  // Start building a constructor for the value we will return.
+
+  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
+
+  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
+  tree field = TYPE_FIELDS(lhs_type_tree);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
+		    (lhs_is_empty ? "__type_descriptor" : "__methods")) == 0);
+  elt->index = field;
+  elt->value = fold_convert_loc(location, TREE_TYPE(field), first_field_value);
+
+  elt = VEC_quick_push(constructor_elt, init, NULL);
+  field = TREE_CHAIN(field);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__object") == 0);
+  elt->index = field;
+
+  if (rhs_type->points_to() != NULL)
+    {
+      //  We are assigning a pointer to the interface; the interface
+      // holds the pointer itself.
+      elt->value = rhs_tree;
+      return build_constructor(lhs_type_tree, init);
+    }
+
+  // We are assigning a non-pointer value to the interface; the
+  // interface gets a copy of the value in the heap.
+
+  tree object_size = TYPE_SIZE_UNIT(TREE_TYPE(rhs_tree));
+
+  tree space = gogo->allocate_memory(rhs_type, object_size, location);
+  space = fold_convert_loc(location, build_pointer_type(TREE_TYPE(rhs_tree)),
+			   space);
+  space = save_expr(space);
+
+  tree set = fold_build2_loc(location, MODIFY_EXPR, void_type_node,
+			     build_fold_indirect_ref_loc(location, space),
+			     rhs_tree);
+
+  elt->value = fold_convert_loc(location, TREE_TYPE(field), space);
+
+  return build2(COMPOUND_EXPR, lhs_type_tree, set,
+		build_constructor(lhs_type_tree, init));
+}
+
+// Return a tree for the type descriptor of RHS_TREE, which has
+// interface type RHS_TYPE.  If RHS_TREE is nil the result will be
+// NULL.
+
+tree
+Expression::get_interface_type_descriptor(Translate_context*,
+					  Type* rhs_type, tree rhs_tree,
+					  source_location location)
+{
+  tree rhs_type_tree = TREE_TYPE(rhs_tree);
+  gcc_assert(TREE_CODE(rhs_type_tree) == RECORD_TYPE);
+  tree rhs_field = TYPE_FIELDS(rhs_type_tree);
+  tree v = build3(COMPONENT_REF, TREE_TYPE(rhs_field), rhs_tree, rhs_field,
+		  NULL_TREE);
+  if (rhs_type->interface_type()->is_empty())
+    {
+      gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(rhs_field)),
+			"__type_descriptor") == 0);
+      return v;
+    }
+
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(rhs_field)), "__methods")
+	     == 0);
+  gcc_assert(POINTER_TYPE_P(TREE_TYPE(v)));
+  v = save_expr(v);
+  tree v1 = build_fold_indirect_ref_loc(location, v);
+  gcc_assert(TREE_CODE(TREE_TYPE(v1)) == RECORD_TYPE);
+  tree f = TYPE_FIELDS(TREE_TYPE(v1));
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(f)), "__type_descriptor")
+	     == 0);
+  v1 = build3(COMPONENT_REF, TREE_TYPE(f), v1, f, NULL_TREE);
+
+  tree eq = fold_build2_loc(location, EQ_EXPR, boolean_type_node, v,
+			    fold_convert_loc(location, TREE_TYPE(v),
+					     null_pointer_node));
+  tree n = fold_convert_loc(location, TREE_TYPE(v1), null_pointer_node);
+  return fold_build3_loc(location, COND_EXPR, TREE_TYPE(v1),
+			 eq, n, v1);
+}
+
+// Return a tree for the conversion of an interface type to an
+// interface type.
+
+tree
+Expression::convert_interface_to_interface(Translate_context* context,
+					   Type *lhs_type, Type *rhs_type,
+					   tree rhs_tree, bool for_type_guard,
+					   source_location location)
+{
+  Gogo* gogo = context->gogo();
+  Interface_type* lhs_interface_type = lhs_type->interface_type();
+  bool lhs_is_empty = lhs_interface_type->is_empty();
+
+  tree lhs_type_tree = lhs_type->get_tree(gogo);
+  if (lhs_type_tree == error_mark_node)
+    return error_mark_node;
+
+  // In the general case this requires runtime examination of the type
+  // method table to match it up with the interface methods.
+
+  // FIXME: If all of the methods in the right hand side interface
+  // also appear in the left hand side interface, then we don't need
+  // to do a runtime check, although we still need to build a new
+  // method table.
+
+  // Get the type descriptor for the right hand side.  This will be
+  // NULL for a nil interface.
+
+  if (!DECL_P(rhs_tree))
+    rhs_tree = save_expr(rhs_tree);
+
+  tree rhs_type_descriptor =
+    Expression::get_interface_type_descriptor(context, rhs_type, rhs_tree,
+					      location);
+
+  // The result is going to be a two element constructor.
+
+  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
+
+  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
+  tree field = TYPE_FIELDS(lhs_type_tree);
+  elt->index = field;
+
+  if (for_type_guard)
+    {
+      // A type assertion fails when converting a nil interface.
+      tree lhs_type_descriptor = lhs_type->type_descriptor(gogo);
+      static tree assert_interface_decl;
+      tree call = Gogo::call_builtin(&assert_interface_decl,
+				     location,
+				     "__go_assert_interface",
+				     2,
+				     ptr_type_node,
+				     TREE_TYPE(lhs_type_descriptor),
+				     lhs_type_descriptor,
+				     TREE_TYPE(rhs_type_descriptor),
+				     rhs_type_descriptor);
+      // This will panic if the interface conversion fails.
+      TREE_NOTHROW(assert_interface_decl) = 0;
+      elt->value = fold_convert_loc(location, TREE_TYPE(field), call);
+    }
+  else if (lhs_is_empty)
+    {
+      // A convertion to an empty interface always succeeds, and the
+      // first field is just the type descriptor of the object.
+      gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)),
+			"__type_descriptor") == 0);
+      gcc_assert(TREE_TYPE(field) == TREE_TYPE(rhs_type_descriptor));
+      elt->value = rhs_type_descriptor;
+    }
+  else
+    {
+      // A conversion to a non-empty interface may fail, but unlike a
+      // type assertion converting nil will always succeed.
+      gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__methods")
+		 == 0);
+      tree lhs_type_descriptor = lhs_type->type_descriptor(gogo);
+      static tree convert_interface_decl;
+      tree call = Gogo::call_builtin(&convert_interface_decl,
+				     location,
+				     "__go_convert_interface",
+				     2,
+				     ptr_type_node,
+				     TREE_TYPE(lhs_type_descriptor),
+				     lhs_type_descriptor,
+				     TREE_TYPE(rhs_type_descriptor),
+				     rhs_type_descriptor);
+      // This will panic if the interface conversion fails.
+      TREE_NOTHROW(convert_interface_decl) = 0;
+      elt->value = fold_convert_loc(location, TREE_TYPE(field), call);
+    }
+
+  // The second field is simply the object pointer.
+
+  elt = VEC_quick_push(constructor_elt, init, NULL);
+  field = TREE_CHAIN(field);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__object") == 0);
+  elt->index = field;
+
+  tree rhs_type_tree = TREE_TYPE(rhs_tree);
+  gcc_assert(TREE_CODE(rhs_type_tree) == RECORD_TYPE);
+  tree rhs_field = TREE_CHAIN(TYPE_FIELDS(rhs_type_tree));
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(rhs_field)), "__object") == 0);
+  elt->value = build3(COMPONENT_REF, TREE_TYPE(rhs_field), rhs_tree, rhs_field,
+		      NULL_TREE);
+
+  return build_constructor(lhs_type_tree, init);
+}
+
+// Return a tree for the conversion of an interface type to a
+// non-interface type.
+
+tree
+Expression::convert_interface_to_type(Translate_context* context,
+				      Type *lhs_type, Type* rhs_type,
+				      tree rhs_tree, source_location location)
+{
+  Gogo* gogo = context->gogo();
+  tree rhs_type_tree = TREE_TYPE(rhs_tree);
+
+  tree lhs_type_tree = lhs_type->get_tree(gogo);
+  if (lhs_type_tree == error_mark_node)
+    return error_mark_node;
+
+  // Call a function to check that the type is valid.  The function
+  // will panic with an appropriate runtime type error if the type is
+  // not valid.
+
+  tree lhs_type_descriptor = lhs_type->type_descriptor(gogo);
+
+  if (!DECL_P(rhs_tree))
+    rhs_tree = save_expr(rhs_tree);
+
+  tree rhs_type_descriptor =
+    Expression::get_interface_type_descriptor(context, rhs_type, rhs_tree,
+					      location);
+
+  tree rhs_inter_descriptor = rhs_type->type_descriptor(gogo);
+
+  static tree check_interface_type_decl;
+  tree call = Gogo::call_builtin(&check_interface_type_decl,
+				 location,
+				 "__go_check_interface_type",
+				 3,
+				 void_type_node,
+				 TREE_TYPE(lhs_type_descriptor),
+				 lhs_type_descriptor,
+				 TREE_TYPE(rhs_type_descriptor),
+				 rhs_type_descriptor,
+				 TREE_TYPE(rhs_inter_descriptor),
+				 rhs_inter_descriptor);
+  // This call will panic if the conversion is invalid.
+  TREE_NOTHROW(check_interface_type_decl) = 0;
+
+  tree stmt_list = NULL_TREE;
+  append_to_statement_list(call, &stmt_list);
+
+  // If the call succeeds, pull out the value.
+  gcc_assert(TREE_CODE(rhs_type_tree) == RECORD_TYPE);
+  tree rhs_field = TREE_CHAIN(TYPE_FIELDS(rhs_type_tree));
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(rhs_field)), "__object") == 0);
+  tree val = build3(COMPONENT_REF, TREE_TYPE(rhs_field), rhs_tree, rhs_field,
+		    NULL_TREE);
+
+  // If the value is a pointer, then we can just get it from the
+  // interface.  Otherwise we have to make a copy.
+  if (lhs_type->points_to() != NULL)
+    return build2(COMPOUND_EXPR, lhs_type_tree, stmt_list,
+		  fold_convert_loc(location, lhs_type_tree, val));
+
+  tree tmp = create_tmp_var(lhs_type_tree, NULL);
+  DECL_IGNORED_P(tmp) = 0;
+
+  tree make_tmp = fold_build1_loc(location, DECL_EXPR, void_type_node, tmp);
+  append_to_statement_list(make_tmp, &stmt_list);
+
+  val = fold_convert_loc(location, build_pointer_type(lhs_type_tree), val);
+  val = build_fold_indirect_ref_loc(location, val);
+  tree set = fold_build2_loc(location, MODIFY_EXPR, void_type_node,
+			     tmp, val);
+  append_to_statement_list(set, &stmt_list);
+
+  return build2(COMPOUND_EXPR, lhs_type_tree, stmt_list, tmp);
 }
 
 // Convert an expression to a tree.  This is implemented by the child
@@ -5847,21 +5952,40 @@ Expression::comparison_tree(Translate_context* context, Operator op,
   if (left_type->interface_type() != NULL
       && right_type->interface_type() != NULL)
     {
-      static tree interface_compare_decl;
-      left_tree = Gogo::call_builtin(&interface_compare_decl,
-				     location,
-				     "__go_interface_compare",
-				     2,
-				     integer_type_node,
-				     const_ptr_type_node,
-				     fold_convert(const_ptr_type_node,
-						  left_tree),
-				     const_ptr_type_node,
-				     fold_convert(const_ptr_type_node,
-						  right_tree));
-      // This can panic if the type is uncomparable.
-      TREE_NOTHROW(interface_compare_decl) = 0;
-      right_tree = build_int_cst_type(integer_type_node, 0);
+      if (left_type->interface_type()->is_empty())
+	{
+	  gcc_assert(right_type->interface_type()->is_empty());
+	  static tree empty_interface_compare_decl;
+	  left_tree = Gogo::call_builtin(&empty_interface_compare_decl,
+					 location,
+					 "__go_empty_interface_compare",
+					 2,
+					 integer_type_node,
+					 TREE_TYPE(left_tree),
+					 left_tree,
+					 TREE_TYPE(right_tree),
+					 right_tree);
+	  // This can panic if the type is uncomparable.
+	  TREE_NOTHROW(empty_interface_compare_decl) = 0;
+	  right_tree = build_int_cst_type(integer_type_node, 0);
+	}
+      else
+	{
+	  gcc_assert(!right_type->interface_type()->is_empty());
+	  static tree interface_compare_decl;
+	  left_tree = Gogo::call_builtin(&interface_compare_decl,
+					 location,
+					 "__go_interface_compare",
+					 2,
+					 integer_type_node,
+					 TREE_TYPE(left_tree),
+					 left_tree,
+					 TREE_TYPE(right_tree),
+					 right_tree);
+	  // This can panic if the type is uncomparable.
+	  TREE_NOTHROW(interface_compare_decl) = 0;
+	  right_tree = build_int_cst_type(integer_type_node, 0);
+	}
     }
 
   if (left_type->is_nil_type()
@@ -5878,6 +6002,16 @@ Expression::comparison_tree(Translate_context* context, Operator op,
 	{
 	  Array_type* at = left_type->array_type();
 	  left_tree = at->value_pointer_tree(context->gogo(), left_tree);
+	  right_tree = fold_convert(TREE_TYPE(left_tree), null_pointer_node);
+	}
+      else if (left_type->interface_type() != NULL)
+	{
+	  // An interface is nil if the first field is nil.
+	  tree left_type_tree = TREE_TYPE(left_tree);
+	  gcc_assert(TREE_CODE(left_type_tree) == RECORD_TYPE);
+	  tree field = TYPE_FIELDS(left_type_tree);
+	  left_tree = build3(COMPONENT_REF, TREE_TYPE(field), left_tree,
+			     field, NULL_TREE);
 	  right_tree = fold_convert(TREE_TYPE(left_tree), null_pointer_node);
 	}
       else
@@ -7141,7 +7275,6 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 		    fnname = "__go_print_bool";
 		  }
 		else if (type->points_to() != NULL
-			 || type->interface_type() != NULL
 			 || type->channel_type() != NULL
 			 || type->map_type() != NULL
 			 || type->function_type() != NULL)
@@ -7150,6 +7283,21 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 		    pfndecl = &print_pointer_fndecl;
 		    fnname = "__go_print_pointer";
 		    arg = fold_convert_loc(location, ptr_type_node, arg);
+		  }
+		else if (type->interface_type() != NULL)
+		  {
+		    if (type->interface_type()->is_empty())
+		      {
+			static tree print_empty_interface_fndecl;
+			pfndecl = &print_empty_interface_fndecl;
+			fnname = "__go_print_empty_interface";
+		      }
+		    else
+		      {
+			static tree print_interface_fndecl;
+			pfndecl = &print_interface_fndecl;
+			fnname = "__go_print_interface";
+		      }
 		  }
 		else if (type->is_open_array_type())
 		  {
@@ -9280,12 +9428,9 @@ Interface_field_reference_expression::get_function_tree(Translate_context*,
     expr = build_fold_indirect_ref(expr);
 
   tree expr_type = TREE_TYPE(expr);
-  gcc_assert(POINTER_TYPE_P(expr_type));
-  expr_type = TREE_TYPE(expr_type);
-  expr = build_fold_indirect_ref(expr);
   gcc_assert(TREE_CODE(expr_type) == RECORD_TYPE);
 
-  tree field = TREE_CHAIN(TYPE_FIELDS(expr_type));
+  tree field = TYPE_FIELDS(expr_type);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__methods") == 0);
 
   tree table = build3(COMPONENT_REF, TREE_TYPE(field), expr, field, NULL_TREE);
@@ -9295,7 +9440,7 @@ Interface_field_reference_expression::get_function_tree(Translate_context*,
   gcc_assert(TREE_CODE(TREE_TYPE(table)) == RECORD_TYPE);
 
   std::string name = Gogo::unpack_hidden_name(this->name_);
-  for (field = TYPE_FIELDS(TREE_TYPE(table));
+  for (field = TREE_CHAIN(TYPE_FIELDS(TREE_TYPE(table)));
        field != NULL_TREE;
        field = TREE_CHAIN(field))
     {
@@ -9319,12 +9464,9 @@ Interface_field_reference_expression::get_underlying_object_tree(
     expr = build_fold_indirect_ref(expr);
 
   tree expr_type = TREE_TYPE(expr);
-  gcc_assert(POINTER_TYPE_P(expr_type));
-  expr_type = TREE_TYPE(expr_type);
-  expr = build_fold_indirect_ref(expr);
   gcc_assert(TREE_CODE(expr_type) == RECORD_TYPE);
 
-  tree field = TREE_CHAIN(TREE_CHAIN(TYPE_FIELDS(expr_type)));
+  tree field = TREE_CHAIN(TYPE_FIELDS(expr_type));
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__object") == 0);
 
   return build3(COMPONENT_REF, TREE_TYPE(field), expr, field, NULL_TREE);
@@ -11231,6 +11373,11 @@ Type_guard_expression::do_get_tree(Translate_context* context)
   else if (expr_type->is_unsafe_pointer_type()
 	   && this->type_->integer_type() != NULL)
     return convert_to_integer(this->type_->get_tree(gogo), expr_tree);
+  else if (this->type_->interface_type() != NULL)
+    return Expression::convert_interface_to_interface(context, this->type_,
+						      this->expr_->type(),
+						      expr_tree, true,
+						      this->location());
   else
     return Expression::convert_for_assignment(context, this->type_,
 					      this->expr_->type(), expr_tree,

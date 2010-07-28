@@ -2302,7 +2302,10 @@ Build_method_tables::type(Type* type)
 	  // interface, because a pointer can implement more methods
 	  // than a value.
 	  if ((*p)->implements_interface(Type::make_pointer_type(nt), NULL))
-	    nt->interface_method_table(this->gogo_, *p);
+	    {
+	      nt->interface_method_table(this->gogo_, *p, false);
+	      nt->interface_method_table(this->gogo_, *p, true);
+	    }
 	}
     }
   return TRAVERSE_CONTINUE;

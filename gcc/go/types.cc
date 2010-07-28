@@ -4428,7 +4428,7 @@ Interface_type::do_hash_for_method(Gogo* gogo) const
 bool
 Interface_type::implements_interface(const Type* t, std::string* reason) const
 {
-  if (this->methods_ == NULL || this->methods_->empty())
+  if (this->methods_ == NULL)
     return true;
 
   bool is_pointer = false;
@@ -4556,74 +4556,88 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
 tree
 Interface_type::do_get_tree(Gogo* gogo)
 {
-  // Interface types can refer to themselves via pointers.
-  tree ret = make_node(POINTER_TYPE);
-  SET_TYPE_MODE(ret, ptr_mode);
+  tree dtype = gogo->type_descriptor_type_tree();
+  dtype = build_pointer_type(build_qualified_type(dtype, TYPE_QUAL_CONST));
+
+  if (this->methods_ == NULL)
+    {
+      // At the tree level, use the same type for all empty
+      // interfaces.  This lets us assign them to each other directly
+      // without triggering GIMPLE type errors.
+      static tree empty_interface;
+      return Gogo::builtin_struct(&empty_interface, "__go_empty_interface",
+				  NULL_TREE, 2,
+				  "__type_descriptor",
+				  dtype,
+				  "__object",
+				  ptr_type_node);
+    }
+
+  // Interface types can have methods which refer to the interface
+  // type itself, so build the type first and then the method table.
+  tree ret = make_node(RECORD_TYPE);
+
+  tree field_trees = NULL_TREE;
+  tree* pp = &field_trees;
+
+  // Create the pointer to the method table but don't fill it in yet.
+  tree mtype = make_node(POINTER_TYPE);
+  SET_TYPE_MODE(mtype, ptr_mode);
+  layout_type(mtype);
+
+  tree name_tree = get_identifier("__methods");
+  tree field = build_decl(this->location_, FIELD_DECL, name_tree, mtype);
+  DECL_CONTEXT(field) = ret;
+  *pp = field;
+  pp = &TREE_CHAIN(field);
+
+  name_tree = get_identifier("__object");
+  field = build_decl(this->location_, FIELD_DECL, name_tree, ptr_type_node);
+  DECL_CONTEXT(field) = ret;
+  *pp = field;
+
+  TYPE_FIELDS(ret) = field_trees;
+
   layout_type(ret);
+
   this->set_incomplete_type_tree(ret);
 
   // Build the type of the table of methods.
-  std::string last_name = "";
   tree method_table = make_node(RECORD_TYPE);
-  if (this->methods_ != NULL)
+
+  // The first field is a pointer to the type descriptor.
+  name_tree = get_identifier("__type_descriptor");
+  field = build_decl(this->location_, FIELD_DECL, name_tree, dtype);
+  DECL_CONTEXT(field) = method_table;
+  TYPE_FIELDS(method_table) = field;
+
+  std::string last_name = "";
+  pp = &TREE_CHAIN(field);
+  for (Typed_identifier_list::const_iterator p = this->methods_->begin();
+       p != this->methods_->end();
+       ++p)
     {
-      tree* pp = &TYPE_FIELDS(method_table);
-      for (Typed_identifier_list::const_iterator p = this->methods_->begin();
-	   p != this->methods_->end();
-	   ++p)
-	{
-	  std::string name = Gogo::unpack_hidden_name(p->name());
-	  tree name_tree = get_identifier_with_length(name.data(),
-						      name.length());
-	  tree field_type = p->type()->get_tree(gogo);
-	  if (field_type == error_mark_node)
-	    return error_mark_node;
-	  tree field = build_decl(this->location_, FIELD_DECL, name_tree,
-				  field_type);
-	  DECL_CONTEXT(field) = method_table;
-	  *pp = field;
-	  pp = &TREE_CHAIN(field);
-	  // Sanity check: the names should be sorted.
-	  gcc_assert(p->name() > last_name);
-	  last_name = p->name();
-	}
+      std::string name = Gogo::unpack_hidden_name(p->name());
+      name_tree = get_identifier_with_length(name.data(), name.length());
+      tree field_type = p->type()->get_tree(gogo);
+      if (field_type == error_mark_node)
+	return error_mark_node;
+      field = build_decl(this->location_, FIELD_DECL, name_tree, field_type);
+      DECL_CONTEXT(field) = method_table;
+      *pp = field;
+      pp = &TREE_CHAIN(field);
+      // Sanity check: the names should be sorted.
+      gcc_assert(p->name() > last_name);
+      last_name = p->name();
     }
   layout_type(method_table);
 
-  // Build the type of the struct.  We don't use finish_builtin_struct
-  // because we want to set the name of the interface to the name of
-  // the type, if possible.
-  tree struct_type = make_node(RECORD_TYPE);
+  // Finish up the pointer to the method table.
+  TREE_TYPE(mtype) = method_table;
+  TYPE_POINTER_TO(method_table) = mtype;
+  if (TYPE_STRUCTURAL_EQUALITY_P(method_table))
+    SET_TYPE_STRUCTURAL_EQUALITY(mtype);
 
-  tree id = get_identifier("__type_descriptor");
-  tree dtype = gogo->type_descriptor_type_tree();
-  dtype = build_qualified_type(dtype, TYPE_QUAL_CONST);
-  tree field = build_decl(this->location_, FIELD_DECL, id,
-			  build_pointer_type(dtype));
-  DECL_CONTEXT(field) = struct_type;
-  TYPE_FIELDS(struct_type) = field;
-  tree last_field = field;
-
-  id = get_identifier("__methods");
-  field = build_decl(this->location_, FIELD_DECL, id,
-		     build_pointer_type(method_table));
-  DECL_CONTEXT(field) = struct_type;
-  TREE_CHAIN(last_field) = field;
-  last_field = field;
-
-  id = get_identifier("__object");
-  field = build_decl(this->location_, FIELD_DECL, id, ptr_type_node);
-  DECL_CONTEXT(field) = struct_type;
-  TREE_CHAIN(last_field) = field;
-
-  layout_type(struct_type);
-
-  // We have to do this by hand since we had to create the node
-  // already.
-  TREE_TYPE(ret) = struct_type;
-  TYPE_POINTER_TO(struct_type) = ret;
-  if (TYPE_STRUCTURAL_EQUALITY_P(struct_type))
-    SET_TYPE_STRUCTURAL_EQUALITY(ret);
   return ret;
 }
 
@@ -4632,9 +4646,24 @@ Interface_type::do_get_tree(Gogo* gogo)
 tree
 Interface_type::do_init_tree(Gogo* gogo, bool is_clear)
 {
-  return (is_clear
-	  ? NULL
-	  : fold_convert(this->get_tree(gogo), null_pointer_node));
+  if (is_clear)
+    return NULL;
+
+  tree type_tree = this->get_tree(gogo);
+
+  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
+  for (tree field = TYPE_FIELDS(type_tree);
+       field != NULL_TREE;
+       field = TREE_CHAIN(field))
+    {
+      constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
+      elt->index = field;
+      elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
+    }
+
+  tree ret = build_constructor(type_tree, init);
+  TREE_CONSTANT(ret) = 1;
+  return ret;
 }
 
 // Type descriptor.
@@ -5171,28 +5200,32 @@ Named_type::method_function(const std::string& name, bool* is_ambiguous) const
 }
 
 // Return a pointer to the interface method table for this type for
-// the interface INTERFACE.  IS_POINTER is true if this is for value
-// of pointer type.
+// the interface INTERFACE.  IS_POINTER is true if this is for a
+// pointer to THIS.
 
 tree
-Named_type::interface_method_table(Gogo* gogo, const Interface_type* interface)
+Named_type::interface_method_table(Gogo* gogo, const Interface_type* interface,
+				   bool is_pointer)
 {
-  if (interface->method_count() == 0)
-    return null_pointer_node;
+  gcc_assert(!interface->is_empty());
 
-  if (this->interface_method_tables_ == NULL)
-    this->interface_method_tables_ = new Interface_method_tables(5);
+  Interface_method_tables** pimt = (is_pointer
+				    ? &this->interface_method_tables_
+				    : &this->pointer_interface_method_tables_);
+
+  if (*pimt == NULL)
+    *pimt = new Interface_method_tables(5);
 
   std::pair<const Interface_type*, tree> val(interface, NULL_TREE);
-  std::pair<Interface_method_tables::iterator, bool> ins =
-    this->interface_method_tables_->insert(val);
+  std::pair<Interface_method_tables::iterator, bool> ins = (*pimt)->insert(val);
 
   if (ins.second)
     {
       // This is a new entry in the hash table.
       gcc_assert(ins.first->second == NULL_TREE);
       ins.first->second = gogo->interface_method_table_for_type(interface,
-								this);
+								this,
+								is_pointer);
     }
 
   tree decl = ins.first->second;
@@ -5423,11 +5456,7 @@ Named_type::do_get_tree(Gogo* gogo)
     return error_mark_node;
 
   tree type_tree = this->type_->get_tree(gogo);
-  // If an interface refers to itself recursively, then we may have an
-  // incomplete type here.  It should get filled in somewhere higher
-  // on the call stack.
-  if (type_tree != error_mark_node
-      && (!POINTER_TYPE_P (type_tree) || TREE_TYPE(type_tree) != NULL_TREE))
+  if (type_tree != error_mark_node)
     {
       tree id = this->named_object_->get_id(gogo);
 
@@ -5447,18 +5476,6 @@ Named_type::do_get_tree(Gogo* gogo)
 
       tree decl = build_decl(this->location_, TYPE_DECL, id, type_tree);
       TYPE_NAME(type_tree) = decl;
-
-      // Interfaces are pointers to structs; give the struct a name so
-      // that the debugging information will be more useful.
-      if (this->type_->interface_type() != NULL)
-	{
-	  gcc_assert(TREE_CODE(type_tree) == POINTER_TYPE);
-	  tree stree = TREE_TYPE(type_tree);
-	  gcc_assert(TREE_CODE(stree) == RECORD_TYPE);
-	  if (TYPE_NAME(stree) != NULL)
-	    stree = build_variant_type_copy(stree);
-	  TYPE_NAME(stree) = decl;
-	}
     }
   return type_tree;
 }

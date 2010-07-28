@@ -102,6 +102,23 @@ go_string_to_ffi (void)
   return ret;
 }
 
+/* Return an ffi_type for a Go interface type.  This describes the
+   __go_interface and __go_empty_interface structs.  */
+
+static ffi_type *
+go_interface_to_ffi (void)
+{
+  ffi_type *ret;
+
+  ret = (ffi_type *) __go_alloc (sizeof (ffi_type));
+  ret->type = FFI_TYPE_STRUCT;
+  ret->elements = (ffi_type **) __go_alloc (3 * sizeof (ffi_type *));
+  ret->elements[0] = &ffi_type_pointer;
+  ret->elements[1] = &ffi_type_pointer;
+  ret->elements[2] = NULL;
+  return ret;
+}
+
 /* Return an ffi_type for a type described by a
    __go_type_descriptor.  */
 
@@ -167,9 +184,10 @@ go_type_to_ffi (const struct __go_type_descriptor *descriptor)
       return go_struct_to_ffi ((const struct __go_struct_type *) descriptor);
     case GO_STRING:
       return go_string_to_ffi ();
+    case GO_INTERFACE:
+      return go_interface_to_ffi ();
     case GO_CHAN:
     case GO_FUNC:
-    case GO_INTERFACE:
     case GO_MAP:
     case GO_PTR:
     case GO_UNSAFE_POINTER:

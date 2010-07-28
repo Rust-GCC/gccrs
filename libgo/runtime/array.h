@@ -4,7 +4,8 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <stddef.h>
+#ifndef LIBGO_ARRAY_H
+#define LIBGO_ARRAY_H
 
 /* An open array is an instance of this structure.  */
 
@@ -23,3 +24,5 @@ struct __go_open_array
      the __VALUES field.  */
   int __capacity;
 };
+
+#endif /* !defined(LIBGO_ARRAY_H) */

@@ -36,7 +36,7 @@ __printpanics (struct __go_panic_stack *p)
    function.  */
 
 void
-__go_panic (struct __go_interface *arg)
+__go_panic (struct __go_empty_interface arg)
 {
   struct __go_panic_stack *n;
 
@@ -109,7 +109,7 @@ __go_panic_msg (const char* msg)
   size_t len;
   unsigned char *sdata;
   struct __go_string s;
-  struct __go_interface *arg;
+  struct __go_empty_interface arg;
 
   len = __builtin_strlen (msg);
   sdata = mallocgc (len, RefNoPointers, 0, 0);

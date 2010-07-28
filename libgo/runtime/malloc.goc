@@ -16,7 +16,7 @@ package runtime
 #include "go-string.h"
 #include "interface.h"
 #include "go-type.h"
-typedef struct __go_interface* Eface;
+typedef struct __go_empty_interface Eface;
 typedef struct __go_type_descriptor Type;
 typedef struct __go_func_type FuncType;
 
@@ -297,34 +297,34 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 	uintptr size;
 	const FuncType *ft;
 
-	if(obj == nil) {
+	if(obj.__type_descriptor == nil) {
 		printf("runtime.SetFinalizer: first argument is nil interface\n");
 	throw:
 		throw("runtime.SetFinalizer");
 	}
-	if(obj->__type_descriptor->__code != GO_PTR) {
-		printf("runtime.SetFinalizer: first argument is %.*s, not pointer\n", (int)obj->__type_descriptor->__reflection->__length, obj->__type_descriptor->__reflection->__data);
+	if(obj.__type_descriptor->__code != GO_PTR) {
+		printf("runtime.SetFinalizer: first argument is %.*s, not pointer\n", (int)obj.__type_descriptor->__reflection->__length, obj.__type_descriptor->__reflection->__data);
 		goto throw;
 	}
-	if(!mlookup(obj->__object, &base, &size, nil, nil) || obj->__object != base) {
+	if(!mlookup(obj.__object, &base, &size, nil, nil) || obj.__object != base) {
 		printf("runtime.SetFinalizer: pointer not at beginning of allocated block\n");
 		goto throw;
 	}
 	ft = nil;
-	if(finalizer != nil) {
-		if(finalizer->__type_descriptor->__code != GO_FUNC) {
+	if(finalizer.__type_descriptor != nil) {
+		if(finalizer.__type_descriptor->__code != GO_FUNC) {
 		badfunc:
-		  printf("runtime.SetFinalizer: second argument is %.*s, not func(%.*s)\n", (int)finalizer->__type_descriptor->__reflection->__length, finalizer->__type_descriptor->__reflection->__data, (int)obj->__type_descriptor->__reflection->__length, obj->__type_descriptor->__reflection->__data);
+		  printf("runtime.SetFinalizer: second argument is %.*s, not func(%.*s)\n", (int)finalizer.__type_descriptor->__reflection->__length, finalizer.__type_descriptor->__reflection->__data, (int)obj.__type_descriptor->__reflection->__length, obj.__type_descriptor->__reflection->__data);
 			goto throw;
 		}
-		ft = (const FuncType*)finalizer->__type_descriptor;
-		if(ft->__dotdotdot || ft->__in.__count != 1 || !__go_type_descriptors_equal(*(Type**)ft->__in.__values, obj->__type_descriptor))
+		ft = (const FuncType*)finalizer.__type_descriptor;
+		if(ft->__dotdotdot || ft->__in.__count != 1 || !__go_type_descriptors_equal(*(Type**)ft->__in.__values, obj.__type_descriptor))
 			goto badfunc;
 
-		if(getfinalizer(obj->__object, 0)) {
+		if(getfinalizer(obj.__object, 0)) {
 			printf("runtime.SetFinalizer: finalizer already set");
 			goto throw;
 		}
 	}
-	addfinalizer(obj->__object, finalizer ? *(void**)finalizer->__object : nil, ft);
+	addfinalizer(obj.__object, finalizer.__type_descriptor != nil ? *(void**)finalizer.__object : nil, ft);
 }
