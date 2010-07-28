@@ -35,11 +35,7 @@ extern void *__splitstack_find (void *, void *, size_t *, void **, void **,
   #define SAVE_REGS asm ("" : : : "esi", "edi")
  #endif
 #elif defined(__x86_64__)
- #ifndef __PIC__
-  #define SAVE_REGS asm ("" : : : "r12", "r13", "r14", "r15", "rbp", "rbx")
- #else
-  #define SAVE_REGS asm ("" : : : "r12", "r13", "r14", "r15", "rbp")
- #endif
+ #define SAVE_REGS asm ("" : : : "r12", "r13", "r14", "r15", "rbp", "rbx")
 #else
  #error must define SAVE_REGS
 #endif
