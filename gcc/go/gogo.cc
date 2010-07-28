@@ -1636,8 +1636,7 @@ Shortcuts::convert_shortcut(Block* enclosing, Expression** pshortcut)
   Block* retblock = new Block(enclosing, loc);
   retblock->set_end_location(loc);
 
-  Temporary_statement* ts = Statement::make_temporary(retblock,
-						      Type::make_boolean_type(),
+  Temporary_statement* ts = Statement::make_temporary(Type::make_boolean_type(),
 						      left, loc);
   retblock->add_statement(ts);
 
@@ -1829,8 +1828,7 @@ Order_eval::statement(Block* block, size_t* pindex, Statement* s)
 	break;
 
       source_location loc = (*pexpr)->location();
-      Temporary_statement* ts = Statement::make_temporary(block, NULL, *pexpr,
-							  loc);
+      Temporary_statement* ts = Statement::make_temporary(NULL, *pexpr, loc);
       block->insert_statement_before(*pindex, ts);
       ++*pindex;
 
@@ -1872,8 +1870,7 @@ Order_eval::variable(Named_object* no)
     {
       Expression** pexpr = *p;
       source_location loc = (*pexpr)->location();
-      Temporary_statement* ts = Statement::make_temporary(var->preinit_block(),
-							  NULL, *pexpr, loc);
+      Temporary_statement* ts = Statement::make_temporary(NULL, *pexpr, loc);
       var->add_preinit_statement(ts);
       *pexpr = Expression::make_temporary_reference(ts, loc);
     }

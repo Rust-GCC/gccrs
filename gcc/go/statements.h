@@ -134,7 +134,7 @@ class Statement
   // Either the type or the initialization expression may be NULL, but
   // not both.
   static Temporary_statement*
-  make_temporary(Block*, Type*, Expression*, source_location);
+  make_temporary(Type*, Expression*, source_location);
 
   // Make an assignment statement.
   static Statement*
