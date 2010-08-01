@@ -73,7 +73,7 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 		mstats.by_size[sizeclass].nmalloc++;
 
 		if(!mlookup(v, nil, nil, nil, &ref)) {
-			printf("malloc %lld; mlookup failed\n", (long long)size);
+			//printf("malloc %lld; mlookup failed\n", (long long)size);
 			throw("malloc mlookup");
 		}
 		*ref = RefNone | refflag;
@@ -145,7 +145,7 @@ __go_free(void *v)
 		throw("malloc/free - deadlock");
 
 	if(!mlookup(v, nil, nil, &s, &ref)) {
-		printf("free %p: not an allocated block\n", v);
+		//printf("free %p: not an allocated block\n", v);
 		throw("free mlookup");
 	}
 	prof = *ref & RefProfiled;
@@ -228,11 +228,11 @@ mlookup(void *v, byte **base, uintptr *size, MSpan **sp, uint32 **ref)
 	if(0) {
 		nobj = (s->npages << PageShift) / (n + RefcountOverhead);
 		if((byte*)s->gcref < p || (byte*)(s->gcref+nobj) > p+(s->npages<<PageShift)) {
-			printf("odd span state=%d span=%p base=%p sizeclass=%d n=%llu size=%llu npages=%llu\n",
-				s->state, s, p, s->sizeclass, (unsigned long long)nobj, (unsigned long long)n, (unsigned long long)s->npages);
-			printf("s->base sizeclass %d v=%p base=%p gcref=%p blocksize=%llu nobj=%llu size=%llu end=%p end=%p\n",
-				s->sizeclass, v, p, s->gcref, (unsigned long long)s->npages<<PageShift,
-				(unsigned long long)nobj, (unsigned long long)n, s->gcref + nobj, p+(s->npages<<PageShift));
+			//printf("odd span state=%d span=%p base=%p sizeclass=%d n=%llu size=%llu npages=%llu\n",
+			//	s->state, s, p, s->sizeclass, (unsigned long long)nobj, (unsigned long long)n, (unsigned long long)s->npages);
+			//printf("s->base sizeclass %d v=%p base=%p gcref=%p blocksize=%llu nobj=%llu size=%llu end=%p end=%p\n",
+			//	s->sizeclass, v, p, s->gcref, (unsigned long long)s->npages<<PageShift,
+			//	(unsigned long long)nobj, (unsigned long long)n, s->gcref + nobj, p+(s->npages<<PageShift));
 			throw("bad gcref");
 		}
 	}
@@ -298,23 +298,23 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 	const FuncType *ft;
 
 	if(obj.__type_descriptor == nil) {
-		printf("runtime.SetFinalizer: first argument is nil interface\n");
+		//printf("runtime.SetFinalizer: first argument is nil interface\n");
 	throw:
 		throw("runtime.SetFinalizer");
 	}
 	if(obj.__type_descriptor->__code != GO_PTR) {
-		printf("runtime.SetFinalizer: first argument is %.*s, not pointer\n", (int)obj.__type_descriptor->__reflection->__length, obj.__type_descriptor->__reflection->__data);
+		//printf("runtime.SetFinalizer: first argument is %.*s, not pointer\n", (int)obj.__type_descriptor->__reflection->__length, obj.__type_descriptor->__reflection->__data);
 		goto throw;
 	}
 	if(!mlookup(obj.__object, &base, &size, nil, nil) || obj.__object != base) {
-		printf("runtime.SetFinalizer: pointer not at beginning of allocated block\n");
+		//printf("runtime.SetFinalizer: pointer not at beginning of allocated block\n");
 		goto throw;
 	}
 	ft = nil;
 	if(finalizer.__type_descriptor != nil) {
 		if(finalizer.__type_descriptor->__code != GO_FUNC) {
 		badfunc:
-		  printf("runtime.SetFinalizer: second argument is %.*s, not func(%.*s)\n", (int)finalizer.__type_descriptor->__reflection->__length, finalizer.__type_descriptor->__reflection->__data, (int)obj.__type_descriptor->__reflection->__length, obj.__type_descriptor->__reflection->__data);
+		  //printf("runtime.SetFinalizer: second argument is %.*s, not func(%.*s)\n", (int)finalizer.__type_descriptor->__reflection->__length, finalizer.__type_descriptor->__reflection->__data, (int)obj.__type_descriptor->__reflection->__length, obj.__type_descriptor->__reflection->__data);
 			goto throw;
 		}
 		ft = (const FuncType*)finalizer.__type_descriptor;
@@ -322,7 +322,7 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 			goto badfunc;
 
 		if(getfinalizer(obj.__object, 0)) {
-			printf("runtime.SetFinalizer: finalizer already set");
+			//printf("runtime.SetFinalizer: finalizer already set");
 			goto throw;
 		}
 	}

@@ -4,7 +4,6 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <signal.h>
@@ -14,6 +13,7 @@
 #include <semaphore.h>
 
 #include "config.h"
+#include "go-assert.h"
 #include "go-panic.h"
 #include "go-alloc.h"
 #include "runtime.h"
@@ -98,7 +98,7 @@ remove_current_thread (void)
   mcache = m->mcache;
 
   i = pthread_mutex_lock (&__go_thread_ids_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   if (list_entry->prev != NULL)
     list_entry->prev->next = list_entry->next;
@@ -113,7 +113,7 @@ remove_current_thread (void)
   FixAlloc_Free (&mheap.cachealloc, mcache);
 
   i = pthread_mutex_unlock (&__go_thread_ids_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   free (list_entry);
 }
@@ -151,7 +151,7 @@ start_go_thread (void *thread_arg)
   /* Finish up the entry on the thread list.  */
 
   i = pthread_mutex_lock (&__go_thread_ids_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   list_entry->id = pthread_self ();
   list_entry->pfn = NULL;
@@ -159,7 +159,7 @@ start_go_thread (void *thread_arg)
   list_entry->tentative = 0;
 
   i = pthread_mutex_unlock (&__go_thread_ids_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   (*pfn) (arg);
 
@@ -192,9 +192,9 @@ __go_go (void (*pfn) (void*), void *arg)
   pthread_t tid;
 
   i = pthread_attr_init (&attr);
-  assert (i == 0);
+  __go_assert (i == 0);
   i = pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
-  assert (i == 0);
+  __go_assert (i == 0);
 
 #ifdef LINKER_SUPPORTS_SPLIT_STACK
   /* The linker knows how to handle calls between code which uses
@@ -206,7 +206,7 @@ __go_go (void (*pfn) (void*), void *arg)
 #define PTHREAD_STACK_MIN 8192
 #endif
   i = pthread_attr_setstacksize (&attr, PTHREAD_STACK_MIN);
-  assert (i == 0);
+  __go_assert (i == 0);
 #endif
 
   newm = __go_alloc (sizeof (M));
@@ -224,7 +224,7 @@ __go_go (void (*pfn) (void*), void *arg)
   /* Add the thread to the list of all threads, marked as tentative
      since it is not yet ready to go.  */
   i = pthread_mutex_lock (&__go_thread_ids_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   /* We use __go_thread_ids_lock as a lock for mheap.cachealloc.  */
   newm->mcache = allocmcache ();
@@ -235,14 +235,14 @@ __go_go (void (*pfn) (void*), void *arg)
   __go_all_thread_ids = list_entry;
 
   i = pthread_mutex_unlock (&__go_thread_ids_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   /* Start the thread.  */
   i = pthread_create (&tid, &attr, start_go_thread, newm);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   i = pthread_attr_destroy (&attr);
-  assert (i == 0);
+  __go_assert (i == 0);
 }
 
 /* This is the signal handler for GO_SIG_START.  The garbage collector
@@ -294,7 +294,7 @@ stop_for_gc (void)
   /* Tell the garbage collector that we are ready by posting to the
      semaphore.  */
   i = sem_post (&__go_thread_ready_sem);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   /* Wait for the garbage collector to tell us to continue.  */
   sigsuspend (&__go_thread_wait_sigset);
@@ -361,7 +361,7 @@ stoptheworld (void)
   struct __go_thread_id *p;
 
   i = pthread_mutex_lock (&__go_thread_ids_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   me = pthread_self ();
   c = 0;
@@ -409,7 +409,7 @@ stoptheworld (void)
       i = sem_wait (&__go_thread_ready_sem);
       if (i < 0 && errno == EINTR)
 	continue;
-      assert (i == 0);
+      __go_assert (i == 0);
       --c;
     }
 
@@ -546,7 +546,7 @@ starttheworld (void)
     }
 
   i = pthread_mutex_unlock (&__go_thread_ids_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 }
 
 /* Initialize the interaction between goroutines and the garbage
@@ -576,50 +576,50 @@ __go_gc_goroutine_init (void *sp __attribute__ ((unused)))
      GC.  */
 
   i = sem_init (&__go_thread_ready_sem, 0, 0);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   /* Fetch the current signal mask.  */
 
   i = sigemptyset (&sset);
-  assert (i == 0);
+  __go_assert (i == 0);
   i = sigprocmask (SIG_BLOCK, NULL, &sset);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   /* Make sure that GO_SIG_START is not blocked and GO_SIG_STOP is
      blocked, and save that set for use with later calls to sigsuspend
      while waiting for GC to complete.  */
 
   i = sigdelset (&sset, GO_SIG_START);
-  assert (i == 0);
+  __go_assert (i == 0);
   i = sigaddset (&sset, GO_SIG_STOP);
-  assert (i == 0);
+  __go_assert (i == 0);
   __go_thread_wait_sigset = sset;
 
   /* Block SIG_SET_START and unblock SIG_SET_STOP, and use that for
      the process signal mask.  */
 
   i = sigaddset (&sset, GO_SIG_START);
-  assert (i == 0);
+  __go_assert (i == 0);
   i = sigdelset (&sset, GO_SIG_STOP);
-  assert (i == 0);
+  __go_assert (i == 0);
   i = sigprocmask (SIG_SETMASK, &sset, NULL);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   /* Install the signal handlers.  */
   memset (&act, 0, sizeof act);
   i = sigemptyset (&act.sa_mask);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   act.sa_handler = gc_start_handler;
   act.sa_flags = SA_RESTART;
   i = sigaction (GO_SIG_START, &act, NULL);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   /* We could consider using an alternate signal stack for this.  The
      function does not use much stack space, so it may be OK.  */
   act.sa_handler = gc_stop_handler;
   i = sigaction (GO_SIG_STOP, &act, NULL);
-  assert (i == 0);
+  __go_assert (i == 0);
 
 #ifndef USING_SPLIT_STACK
   /* If we don't support split stack, record the current stack as the

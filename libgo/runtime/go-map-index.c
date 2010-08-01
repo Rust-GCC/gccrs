@@ -4,11 +4,11 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
 
 #include "go-alloc.h"
+#include "go-assert.h"
 #include "map.h"
 
 /* Rehash MAP to a larger size.  */
@@ -90,7 +90,7 @@ __go_map_index (struct __go_map *map, const void *key, _Bool insert)
   key_descriptor = descriptor->__map_descriptor->__key_type;
   key_offset = descriptor->__key_offset;
   key_size = key_descriptor->__size;
-  assert (key_size != 0 && key_size != -1UL);
+  __go_assert (key_size != 0 && key_size != -1UL);
   equalfn = key_descriptor->__equalfn;
 
   key_hash = key_descriptor->__hashfn (key, key_size);

@@ -5,11 +5,10 @@
    license that can be found in the LICENSE file.  */
 
 #include <stddef.h>
-#include <assert.h>
-
-#include "channel.h"
 
 #include "go-alloc.h"
+#include "go-assert.h"
+#include "channel.h"
 
 struct __go_channel*
 __go_new_channel (size_t element_size, size_t entries)
@@ -32,9 +31,9 @@ __go_new_channel (size_t element_size, size_t entries)
 					      * alloc_size
 					      * sizeof (uint64_t)));
   i = pthread_mutex_init (&ret->lock, NULL);
-  assert (i == 0);
+  __go_assert (i == 0);
   i = pthread_cond_init (&ret->cond, NULL);
-  assert (i == 0);
+  __go_assert (i == 0);
   ret->element_size = element_size;
   ret->closed_op_count = 0;
   ret->waiting_to_send = 0;

@@ -4,8 +4,7 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
-
+#include "go-assert.h"
 #include "channel.h"
 
 /* Return whether a channel is closed.  We only return true after at
@@ -18,18 +17,18 @@ __go_builtin_closed (struct __go_channel *channel)
   _Bool ret;
 
   i = pthread_mutex_lock (&channel->lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   while (channel->selected_for_receive)
     {
       i = pthread_cond_wait (&channel->cond, &channel->lock);
-      assert (i == 0);
+      __go_assert (i == 0);
     }
 
   ret = channel->saw_close;
 
   i = pthread_mutex_unlock (&channel->lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   return ret;
 }

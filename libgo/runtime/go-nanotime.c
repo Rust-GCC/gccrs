@@ -4,9 +4,9 @@
 
 // Return time in nanoseconds.  This is only used for computing runtime.
 
-#include <assert.h>
 #include <sys/time.h>
 
+#include "go-assert.h"
 #include "runtime.h"
 
 int64
@@ -16,7 +16,7 @@ nanotime (void)
   struct timeval tv;
 
   i = gettimeofday (&tv, NULL);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   return (int64) tv.tv_sec * 1000000000 + (int64) tv.tv_usec * 1000;
 }

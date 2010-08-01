@@ -4,7 +4,6 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -13,6 +12,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "go-assert.h"
 #include "channel.h"
 
 /* __go_select builds an array of these structures.  */
@@ -75,7 +75,7 @@ is_queue_ready (struct __go_channel_select *queue)
     return 0;
 
   x = pthread_mutex_lock (&__go_select_data_mutex);
-  assert (x == 0);
+  __go_assert (x == 0);
 
   while (queue != NULL)
     {
@@ -85,7 +85,7 @@ is_queue_ready (struct __go_channel_select *queue)
     }
 
   x = pthread_mutex_unlock (&__go_select_data_mutex);
-  assert (x == 0);
+  __go_assert (x == 0);
 
   return queue != NULL;
 }
@@ -195,12 +195,12 @@ mark_channel_selected (struct __go_channel *channel, _Bool is_send,
 	  struct __go_channel_select *queue;
 
 	  x = pthread_mutex_lock (&__go_select_data_mutex);
-	  assert (x == 0);
+	  __go_assert (x == 0);
 
 	  queue = (is_send
 		   ? channel->select_receive_queue
 		   : channel->select_send_queue);
-	  assert (queue != NULL);
+	  __go_assert (queue != NULL);
 
 	  while (queue != NULL)
 	    {
@@ -214,7 +214,7 @@ mark_channel_selected (struct __go_channel *channel, _Bool is_send,
 	    }
 
 	  x = pthread_mutex_unlock (&__go_select_data_mutex);
-	  assert (x == 0);
+	  __go_assert (x == 0);
 
 	  if (queue == NULL)
 	    return 0;
@@ -313,7 +313,7 @@ clear_select_waiting (struct select_channel *sc,
 	    }
 	}
 
-      assert (found);
+      __go_assert (found);
     }
 }
 
@@ -349,7 +349,7 @@ lock_channels_find_ready (struct select_channel *channels, size_t count)
 	}
 
       x = pthread_mutex_lock (&channel->lock);
-      assert (x == 0);
+      __go_assert (x == 0);
 
       if (is_channel_ready (channel, is_send))
 	{
@@ -396,7 +396,7 @@ force_selected_channel_ready (struct select_channel *channels, size_t count,
 	  ++ready_count;
 	}
     }
-  assert (ready_count > 0);
+  __go_assert (ready_count > 0);
   return ready_count;
 }
 
@@ -419,7 +419,7 @@ unlock_channels (struct select_channel *channels, size_t count)
 	continue;
 
       x = pthread_mutex_unlock (&channel->lock);
-      assert (x == 0);
+      __go_assert (x == 0);
     }
 }
 
@@ -482,7 +482,7 @@ unlock_channels_and_select (struct select_channel *channels,
 	    clear_select_waiting (&channels[j], selected_pointer);
 
 	  x = pthread_mutex_unlock (&channel->lock);
-	  assert (x == 0);
+	  __go_assert (x == 0);
 	}
     }
 
@@ -493,13 +493,13 @@ unlock_channels_and_select (struct select_channel *channels,
   if (needs_broadcast)
     {
       x = pthread_mutex_lock (&__go_select_mutex);
-      assert (x == 0);
+      __go_assert (x == 0);
 
       x = pthread_cond_broadcast (&__go_select_cond);
-      assert (x == 0);
+      __go_assert (x == 0);
 
       x = pthread_mutex_unlock (&__go_select_mutex);
-      assert (x == 0);
+      __go_assert (x == 0);
     }
 
   return ret;
@@ -547,7 +547,7 @@ mark_all_channels_waiting (struct select_channel* channels, size_t count,
 	}
 
       x = pthread_mutex_lock (&channel->lock);
-      assert (x == 0);
+      __go_assert (x == 0);
 
       /* To avoid a race condition, we have to check again whether the
 	 channel is ready.  It may have become ready since we did the
@@ -564,7 +564,7 @@ mark_all_channels_waiting (struct select_channel* channels, size_t count,
 			     selected_for_read_pointer);
 
       x = pthread_mutex_unlock (&channel->lock);
-      assert (x == 0);
+      __go_assert (x == 0);
     }
 
   return ret;
@@ -686,7 +686,7 @@ __go_select (size_t count, _Bool has_default,
 		 to touch SELECTED_CHANNEL here.  It must be NULL,
 		 because otherwise that would somebody has promised to
 		 synch up with us and then failed to do so.  */
-	      assert (selected_channel == NULL);
+	      __go_assert (selected_channel == NULL);
 	      continue;
 	    }
 
@@ -713,7 +713,7 @@ __go_select (size_t count, _Bool has_default,
 	 for something to happen.  */
 
       x = pthread_mutex_lock (&__go_select_mutex);
-      assert (x == 0);
+      __go_assert (x == 0);
 
       /* Check whether CHANNEL_SELECTED was set while the channels
 	 were unlocked.  If it was set, then we can simply loop around
@@ -726,12 +726,12 @@ __go_select (size_t count, _Bool has_default,
 	 signal.  */
 
       x = pthread_mutex_lock (&__go_select_data_mutex);
-      assert (x == 0);
+      __go_assert (x == 0);
 
       is_selected = selected_channel != NULL;
 
       x = pthread_mutex_unlock (&__go_select_data_mutex);
-      assert (x == 0);
+      __go_assert (x == 0);
 
       if (!is_selected)
 	{
@@ -746,13 +746,13 @@ __go_select (size_t count, _Bool has_default,
 					   : &selected_for_read)))
 	    {
 	      x = pthread_cond_wait (&__go_select_cond, &__go_select_mutex);
-	      assert (x == 0);
+	      __go_assert (x == 0);
 	    }
 
 	  is_queued = 1;
 	}
 
       x = pthread_mutex_unlock (&__go_select_mutex);
-      assert (x == 0);
+      __go_assert (x == 0);
     }
 }

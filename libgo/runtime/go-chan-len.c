@@ -4,9 +4,9 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
 #include <stddef.h>
 
+#include "go-assert.h"
 #include "channel.h"
 
 /* Return the len function applied to a channel--the number of
@@ -24,7 +24,7 @@ __go_chan_len (struct __go_channel *channel)
     return 0;
 
   i = pthread_mutex_lock (&channel->lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   if (channel->num_entries == 0)
     ret = 0;
@@ -35,7 +35,7 @@ __go_chan_len (struct __go_channel *channel)
 	   % channel->num_entries);
 
   i = pthread_mutex_unlock (&channel->lock);
-  assert  (i == 0);
+  __go_assert  (i == 0);
 
   return ret;
 }

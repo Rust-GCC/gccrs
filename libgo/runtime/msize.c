@@ -103,7 +103,7 @@ InitSizes(void)
 		sizeclass++;
 	}
 	if(sizeclass != NumSizeClasses) {
-		printf("sizeclass=%d NumSizeClasses=%d\n", sizeclass, NumSizeClasses);
+		// printf("sizeclass=%d NumSizeClasses=%d\n", sizeclass, NumSizeClasses);
 		throw("InitSizes - bad NumSizeClasses");
 	}
 
@@ -122,13 +122,13 @@ InitSizes(void)
 		for(n=0; n < MaxSmallSize; n++) {
 			sizeclass = SizeToClass(n);
 			if(sizeclass < 1 || sizeclass >= NumSizeClasses || class_to_size[sizeclass] < n) {
-				printf("size=%d sizeclass=%d class_to_size=%d\n", n, sizeclass, class_to_size[sizeclass]);
-				printf("incorrect SizeToClass");
+				// printf("size=%d sizeclass=%d class_to_size=%d\n", n, sizeclass, class_to_size[sizeclass]);
+				// printf("incorrect SizeToClass");
 				goto dump;
 			}
 			if(sizeclass > 1 && class_to_size[sizeclass-1] >= n) {
-				printf("size=%d sizeclass=%d class_to_size=%d\n", n, sizeclass, class_to_size[sizeclass]);
-				printf("SizeToClass too big");
+				// printf("size=%d sizeclass=%d class_to_size=%d\n", n, sizeclass, class_to_size[sizeclass]);
+				// printf("SizeToClass too big");
 				goto dump;
 			}
 		}
@@ -150,7 +150,7 @@ InitSizes(void)
 	return;
 
 dump:
-	if(1){
+	if(0){
 		printf("NumSizeClasses=%d\n", NumSizeClasses);
 		printf("class_to_size:");
 		for(sizeclass=0; sizeclass<NumSizeClasses; sizeclass++)

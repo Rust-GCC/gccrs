@@ -4,10 +4,10 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
 #include <signal.h>
 #include <stdlib.h>
 
+#include "go-assert.h"
 #include "go-panic.h"
 #include "go-signal.h"
 
@@ -135,9 +135,9 @@ sighandler (int sig)
 
       /* The signal handler blocked signals; unblock them.  */
       i = sigfillset (&clear);
-      assert (i == 0);
+      __go_assert (i == 0);
       i = sigprocmask (SIG_UNBLOCK, &clear, NULL);
-      assert (i == 0);
+      __go_assert (i == 0);
 
       __go_panic_msg (msg);
     }
@@ -158,7 +158,7 @@ sighandler (int sig)
 	  sa.sa_handler = SIG_DFL;
 
 	  i = sigemptyset (&sa.sa_mask);
-	  assert (i == 0);
+	  __go_assert (i == 0);
 
 	  if (sigaction (sig, &sa, NULL) != 0)
 	    abort ();
@@ -186,9 +186,9 @@ __initsig ()
   sa.sa_handler = sighandler;
 
   i = sigfillset (&sa.sa_mask);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   for (i = 0; signals[i].sig != -1; ++i)
     if (sigaction (signals[i].sig, &sa, NULL) != 0)
-      assert (0);
+      __go_assert (0);
 }

@@ -4,9 +4,8 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
-
 #include "go-alloc.h"
+#include "go-assert.h"
 #include "go-panic.h"
 #include "interface.h"
 
@@ -41,7 +40,7 @@ __go_assert_interface (const struct __go_type_descriptor *lhs_descriptor,
   /* A type assertion to an empty interface just returns the object
      descriptor.  */
 
-  assert (lhs_descriptor->__code == GO_INTERFACE);
+  __go_assert (lhs_descriptor->__code == GO_INTERFACE);
   lhs_interface = (const struct __go_interface_type *) lhs_descriptor;
   if (lhs_interface->__methods.__count == 0)
     return rhs_descriptor;

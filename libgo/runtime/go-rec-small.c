@@ -5,8 +5,8 @@
    license that can be found in the LICENSE file.  */
 
 #include <stdint.h>
-#include <assert.h>
 
+#include "go-assert.h"
 #include "go-panic.h"
 #include "channel.h"
 
@@ -26,10 +26,10 @@ __go_synch_with_select (struct __go_channel *channel, _Bool is_send)
   struct __go_channel_select *p;
   int i;
 
-  assert (channel->num_entries == 0);
+  __go_assert (channel->num_entries == 0);
 
   i = pthread_mutex_lock (&__go_select_data_mutex);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   for (p = (is_send
 	    ? channel->select_receive_queue
@@ -50,7 +50,7 @@ __go_synch_with_select (struct __go_channel *channel, _Bool is_send)
     }
 
   i = pthread_mutex_unlock (&__go_select_data_mutex);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   /* The caller is responsible for signalling the select condition
      variable so that the other select knows that something has
@@ -78,21 +78,21 @@ __go_broadcast_to_select (struct __go_channel *channel)
   select_cond = channel->select_cond;
 
   i = pthread_mutex_unlock (&channel->lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
-  assert (select_mutex != NULL && select_cond != NULL);
+  __go_assert (select_mutex != NULL && select_cond != NULL);
 
   i = pthread_mutex_lock (select_mutex);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   i = pthread_cond_broadcast (select_cond);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   i = pthread_mutex_unlock (select_mutex);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   i = pthread_mutex_lock (&channel->lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 }
 
 /* Prepare to receive something on a channel.  Return true if the
@@ -109,7 +109,7 @@ __go_receive_acquire (struct __go_channel *channel, _Bool for_select)
   synched_with_select = 0;
 
   i = pthread_mutex_lock (&channel->lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   while (1)
     {
@@ -179,7 +179,7 @@ __go_receive_acquire (struct __go_channel *channel, _Bool for_select)
 		  if (!was_marked)
 		    {
 		      i = pthread_cond_broadcast (&channel->cond);
-		      assert (i == 0);
+		      __go_assert (i == 0);
 		    }
 		}
 	    }
@@ -205,7 +205,7 @@ __go_receive_acquire (struct __go_channel *channel, _Bool for_select)
 	 again.  */
 
       i = pthread_cond_wait (&channel->cond, &channel->lock);
-      assert (i == 0);
+      __go_assert (i == 0);
     }
 }
 
@@ -223,7 +223,7 @@ __go_receive_release (struct __go_channel *channel)
       /* For a synchronous receiver, we tell the sender that we picked
 	 up the value by setting the next_store field back to 0.
 	 Using the mutexes should implement a memory barrier.  */
-      assert (channel->next_store == 1);
+      __go_assert (channel->next_store == 1);
       channel->next_store = 0;
 
       channel->waiting_to_receive = 0;
@@ -234,7 +234,7 @@ __go_receive_release (struct __go_channel *channel)
   /* This is a broadcast to make sure that a synchronous sender sees
      it.  */
   i = pthread_cond_broadcast (&channel->cond);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   __go_unlock_and_notify_selects (channel);
 }
@@ -253,16 +253,16 @@ __go_unlock_and_notify_selects (struct __go_channel *channel)
   select_cond = channel->select_cond;
 
   i = pthread_mutex_unlock (&channel->lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   if (select_mutex != NULL)
     {
       i = pthread_mutex_lock (select_mutex);
-      assert (i == 0);
+      __go_assert (i == 0);
       i = pthread_cond_broadcast (select_cond);
-      assert (i == 0);
+      __go_assert (i == 0);
       i = pthread_mutex_unlock (select_mutex);
-      assert (i == 0);
+      __go_assert (i == 0);
     }
 }
 
@@ -273,7 +273,7 @@ __go_receive_small (struct __go_channel *channel, _Bool for_select)
 {
   uint64_t ret;
 
-  assert (channel->element_size <= sizeof (uint64_t));
+  __go_assert (channel->element_size <= sizeof (uint64_t));
 
   if (!__go_receive_acquire (channel, for_select))
     return 0;

@@ -8,8 +8,7 @@
    notesleep waits for a call to notewakeup.  notewakeup wakes up
    every thread waiting on the note.  */
 
-#include <assert.h>
-
+#include "go-assert.h"
 #include "runtime.h"
 
 /* We use a single global lock and condition variable.  It would be
@@ -27,12 +26,12 @@ noteclear (Note* n)
   int32 i;
 
   i = pthread_mutex_lock (&note_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   n->woken = 0;
 
   i = pthread_mutex_unlock (&note_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 }
 
 /* Wait until notewakeup is called.  */
@@ -43,16 +42,16 @@ notesleep (Note* n)
   int32 i;
 
   i = pthread_mutex_lock (&note_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   while (!n->woken)
     {
       i = pthread_cond_wait (&note_cond, &note_lock);
-      assert (i == 0);
+      __go_assert (i == 0);
     }
 
   i = pthread_mutex_unlock (&note_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 }
 
 /* Wake up every thread sleeping on the note.  */
@@ -63,13 +62,13 @@ notewakeup (Note *n)
   int32 i;
 
   i = pthread_mutex_lock (&note_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   n->woken = 1;
 
   i = pthread_cond_broadcast (&note_cond);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   i = pthread_mutex_unlock (&note_lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 }

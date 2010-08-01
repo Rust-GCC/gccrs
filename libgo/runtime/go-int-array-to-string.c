@@ -4,8 +4,7 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
-
+#include "go-assert.h"
 #include "go-string.h"
 #include "runtime.h"
 #include "malloc.h"
@@ -80,7 +79,7 @@ __go_int_array_to_string (const void* p, size_t len)
 	}
     }
 
-  assert ((size_t) (s - retdata) == slen);
+  __go_assert ((size_t) (s - retdata) == slen);
 
   return ret;
 }

@@ -5,8 +5,8 @@
    license that can be found in the LICENSE file.  */
 
 #include <stdint.h>
-#include <assert.h>
 
+#include "go-assert.h"
 #include "go-panic.h"
 #include "channel.h"
 
@@ -19,12 +19,12 @@ __go_send_nonblocking_acquire (struct __go_channel *channel)
   _Bool has_space;
 
   i = pthread_mutex_lock (&channel->lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   while (channel->selected_for_send)
     {
       i = pthread_cond_wait (&channel->cond, &channel->lock);
-      assert (i == 0);
+      __go_assert (i == 0);
     }
 
   if (channel->is_closed)
@@ -33,11 +33,11 @@ __go_send_nonblocking_acquire (struct __go_channel *channel)
       if (channel->closed_op_count >= MAX_CLOSED_OPERATIONS)
 	{
 	  i = pthread_mutex_unlock (&channel->lock);
-	  assert (i == 0);
+	  __go_assert (i == 0);
 	  __go_panic_msg ("too many operations on closed channel");
 	}
       i = pthread_mutex_unlock (&channel->lock);
-      assert (i == 0);
+      __go_assert (i == 0);
       return SEND_NONBLOCKING_ACQUIRE_CLOSED;
     }
 
@@ -78,14 +78,14 @@ __go_send_nonblocking_acquire (struct __go_channel *channel)
       if (has_space)
 	{
 	  channel->waiting_to_send = 1;
-	  assert (channel->next_store == 0);
+	  __go_assert (channel->next_store == 0);
 	}
     }
 
   if (!has_space)
     {
       i = pthread_mutex_unlock (&channel->lock);
-      assert (i == 0);
+      __go_assert (i == 0);
 
       return SEND_NONBLOCKING_ACQUIRE_NOSPACE;
     }
@@ -98,7 +98,7 @@ __go_send_nonblocking_acquire (struct __go_channel *channel)
 _Bool
 __go_send_nonblocking_small (struct __go_channel *channel, uint64_t val)
 {
-  assert (channel->element_size <= sizeof (uint64_t));
+  __go_assert (channel->element_size <= sizeof (uint64_t));
 
   int data = __go_send_nonblocking_acquire (channel);
   if (data != SEND_NONBLOCKING_ACQUIRE_SPACE)

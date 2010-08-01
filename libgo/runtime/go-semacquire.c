@@ -4,11 +4,11 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
 #include <stdint.h>
 
 #include <pthread.h>
 
+#include "go-assert.h"
 #include "runtime.h"
 
 /* We use a single global lock and condition variable.  This is
@@ -57,13 +57,13 @@ semacquire (uint32 *addr)
 
       /* Lock the mutex.  */
       i = pthread_mutex_lock (&sem_lock);
-      assert (i == 0);
+      __go_assert (i == 0);
 
       /* Check the count again with the mutex locked.  */
       if (acquire (addr))
 	{
 	  i = pthread_mutex_unlock (&sem_lock);
-	  assert (i == 0);
+	  __go_assert (i == 0);
 	  return;
 	}
 
@@ -72,11 +72,11 @@ semacquire (uint32 *addr)
 	 acquire the mutex and block, so we are sure to see the signal
 	 of the condition variable.  */
       i = pthread_cond_wait (&sem_cond, &sem_lock);
-      assert (i == 0);
+      __go_assert (i == 0);
 
       /* Unlock the mutex and try again.  */
       i = pthread_mutex_unlock (&sem_lock);
-      assert (i == 0);
+      __go_assert (i == 0);
     }
 }
 
@@ -95,7 +95,7 @@ semrelease (uint32 *addr)
   /* VAL is the old value.  It should never be negative.  If it is
      negative, that implies that Semacquire somehow decremented a zero
      value, or that the count has overflowed.  */
-  assert (val >= 0);
+  __go_assert (val >= 0);
 
   /* If the old value was zero, then we have now released a count, and
      we signal the condition variable.  If the old value was positive,
@@ -108,12 +108,12 @@ semrelease (uint32 *addr)
       int i;
 
       i = pthread_mutex_lock (&sem_lock);
-      assert (i == 0);
+      __go_assert (i == 0);
 
       i = pthread_cond_broadcast (&sem_cond);
-      assert (i == 0);
+      __go_assert (i == 0);
 
       i = pthread_mutex_unlock (&sem_lock);
-      assert (i == 0);
+      __go_assert (i == 0);
     }
 }

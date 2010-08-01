@@ -4,8 +4,7 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
-
+#include "go-assert.h"
 #include "map.h"
 
 /* Initialize a range over a map.  */
@@ -72,7 +71,7 @@ __go_mapiter1 (struct __go_hash_iter *it, unsigned char *key)
   descriptor = map->__descriptor;
   key_descriptor = descriptor->__map_descriptor->__key_type;
   p = it->entry;
-  assert(p != NULL);
+  __go_assert (p != NULL);
   __builtin_memcpy (key, p + descriptor->__key_offset, key_descriptor->__size);
 }
 
@@ -95,7 +94,7 @@ __go_mapiter2 (struct __go_hash_iter *it, unsigned char *key,
   key_descriptor = map_descriptor->__key_type;
   val_descriptor = map_descriptor->__val_type;
   p = it->entry;
-  assert(p != NULL);
+  __go_assert (p != NULL);
   __builtin_memcpy (key, p + descriptor->__key_offset,
 		    key_descriptor->__size);
   __builtin_memcpy (val, p + descriptor->__val_offset,

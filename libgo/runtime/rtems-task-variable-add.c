@@ -4,11 +4,11 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
-
 #include <rtems/error.h>
 #include <rtems/system.h>
 #include <rtems/rtems/tasks.h>
+
+#include "go-assert.h"
 
 /* RTEMS does not support GNU TLS extension __thread.  */
 void
@@ -18,7 +18,7 @@ __wrap_rtems_task_variable_add (void **var)
   if (sc != RTEMS_SUCCESSFUL)
     {
       rtems_error (sc, "rtems_task_variable_add failed");
-      assert (0);
+      __go_assert (0);
     }
 }
 

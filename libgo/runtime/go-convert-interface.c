@@ -4,9 +4,8 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
-
 #include "go-alloc.h"
+#include "go-assert.h"
 #include "go-panic.h"
 #include "interface.h"
 
@@ -39,14 +38,14 @@ __go_convert_interface_2 (const struct __go_type_descriptor *lhs_descriptor,
       return NULL;
     }
 
-  assert (lhs_descriptor->__code == GO_INTERFACE);
+  __go_assert (lhs_descriptor->__code == GO_INTERFACE);
   lhs_interface = (const struct __go_interface_type *) lhs_descriptor;
   lhs_method_count = lhs_interface->__methods.__count;
   lhs_methods = ((const struct __go_interface_method *)
 		 lhs_interface->__methods.__values);
 
   /* This should not be called for an empty interface.  */
-  assert (lhs_method_count > 0);
+  __go_assert (lhs_method_count > 0);
 
   rhs_uncommon = rhs_descriptor->__uncommon;
   if (rhs_uncommon == NULL || rhs_uncommon->__methods.__count == 0)

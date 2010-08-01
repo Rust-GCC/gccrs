@@ -4,8 +4,7 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
-
+#include "go-assert.h"
 #include "channel.h"
 
 /* Close a channel.  After a channel is closed, sends are no longer
@@ -17,18 +16,18 @@ __go_builtin_close (struct __go_channel *channel)
   int i;
 
   i = pthread_mutex_lock (&channel->lock);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   while (channel->selected_for_send)
     {
       i = pthread_cond_wait (&channel->cond, &channel->lock);
-      assert (i == 0);
+      __go_assert (i == 0);
     }
 
   channel->is_closed = 1;
 
   i = pthread_cond_broadcast (&channel->cond);
-  assert (i == 0);
+  __go_assert (i == 0);
 
   __go_unlock_and_notify_selects (channel);
 }

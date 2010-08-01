@@ -4,13 +4,13 @@
    Use of this source code is governed by a BSD-style
    license that can be found in the LICENSE file.  */
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "ffi.h"
 
 #include "go-alloc.h"
+#include "go-assert.h"
 #include "go-type.h"
 #include "runtime.h"
 
@@ -260,7 +260,7 @@ go_func_to_cif (const struct __go_func_type *func, _Bool is_interface,
   rettype = go_func_return_ffi (func);
 
   status = ffi_prep_cif (cif, FFI_DEFAULT_ABI, num_args, rettype, args);
-  assert (status == FFI_OK);
+  __go_assert (status == FFI_OK);
 }
 
 /* Get the total size required for the result parameters of a
@@ -342,7 +342,7 @@ reflect_call (const struct __go_func_type *func_type, const void *func_addr,
   ffi_cif cif;
   unsigned char *call_result;
 
-  assert (func_type->__common.__code == GO_FUNC);
+  __go_assert (func_type->__common.__code == GO_FUNC);
   go_func_to_cif (func_type, is_interface, &cif);
 
   call_result = (unsigned char *) malloc (go_results_size (func_type));

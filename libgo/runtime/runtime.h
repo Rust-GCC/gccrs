@@ -7,7 +7,7 @@
 #include "config.h"
 
 #define _GNU_SOURCE
-#include <assert.h>
+#include "go-assert.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -114,7 +114,7 @@ struct	M
 #define USED(v)		((void) v)
 
 /* We map throw to assert.  */
-#define throw(s) assert(s == 0)
+#define throw(s) __go_assert(s == 0)
 
 void*	mal(uintptr);
 void	mallocinit(void);
