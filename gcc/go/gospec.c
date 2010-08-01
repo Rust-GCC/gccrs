@@ -226,7 +226,7 @@ lang_specific_driver (int *in_argc, const char *const **in_argv,
   arglist[j++] = "-combine";
 
   /* If we are linking, pass -fsplit-stack if it is supported.  */
-#ifdef TARGET_SUPPORTS_SPLIT_STACK
+#ifdef TARGET_CAN_SPLIT_STACK
   if (library >= 0)
     arglist[j++] = "-fsplit-stack";
 #endif
