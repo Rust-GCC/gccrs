@@ -35,6 +35,7 @@ AM_CPPFLAGS = -I $(srcdir)/runtime $(LIBFFIINCS) -pthread
 ACLOCAL_AMFLAGS = -I . -I .. -I ../config
 
 AM_CFLAGS = -fexceptions -fplan9-extensions $(SPLIT_STACK) $(WARN_CFLAGS) \
+	$(STRINGOPS_FLAG) \
 	-I $(srcdir)/../gcc -I $(MULTIBUILDTOP)../../gcc/include
 
 if USING_SPLIT_STACK
@@ -1155,7 +1156,8 @@ libgotesting_la_LIBADD = \
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
 
 GOFLAGS = $(CFLAGS)
-GOCOMPILE = $(GCCGO) $(DEFAULT_INCLUDES) $(INCLUDES) $(GOFLAGS)
+AM_GOFLAGS = $(STRINGOPS_FLAG)
+GOCOMPILE = $(GCCGO) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_GOFLAGS) $(GOFLAGS)
 
 LTGOCOMPILE = $(LIBTOOL) --tag GO --mode=compile $(GCCGO) $(INCLUDES) \
 	$(AM_GOFLAGS) $(GOFLAGS)

@@ -340,6 +340,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SPLIT_STACK = @SPLIT_STACK@
+STRINGOPS_FLAG = @STRINGOPS_FLAG@
 STRIP = @STRIP@
 VERSION = @VERSION@
 WARN_FLAGS = @WARN_FLAGS@
@@ -424,6 +425,7 @@ WARN_CFLAGS = $(WARN_FLAGS) $(WERROR)
 AM_CPPFLAGS = -I $(srcdir)/runtime $(LIBFFIINCS) -pthread
 ACLOCAL_AMFLAGS = -I . -I .. -I ../config
 AM_CFLAGS = -fexceptions -fplan9-extensions $(SPLIT_STACK) $(WARN_CFLAGS) \
+	$(STRINGOPS_FLAG) \
 	-I $(srcdir)/../gcc -I $(MULTIBUILDTOP)../../gcc/include
 
 @USING_SPLIT_STACK_TRUE@AM_LDFLAGS = -XCClinker $(SPLIT_STACK)
@@ -1471,7 +1473,8 @@ libgotesting_la_LIBADD = \
 	testing/libscript.la
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
-GOCOMPILE = $(GCCGO) $(DEFAULT_INCLUDES) $(INCLUDES) $(GOFLAGS)
+AM_GOFLAGS = $(STRINGOPS_FLAG)
+GOCOMPILE = $(GCCGO) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_GOFLAGS) $(GOFLAGS)
 LTGOCOMPILE = $(LIBTOOL) --tag GO --mode=compile $(GCCGO) $(INCLUDES) \
 	$(AM_GOFLAGS) $(GOFLAGS)
 

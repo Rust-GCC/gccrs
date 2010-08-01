@@ -195,6 +195,22 @@ AC_CHECK_HEADERS(sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/user.h)
 AM_CONDITIONAL(HAVE_SYS_MMAN_H, test "$ac_cv_header_sys_mman_h" = yes)
 AC_CHECK_FUNCS(srandom random strsignal)
 
+dnl For x86 we want to use the -minline-all-stringops option to avoid
+dnl forcing a stack split when calling memcpy and friends.
+AC_CACHE_CHECK([whether compiler supports -minline-all-stringops],
+[ac_cv_libgo_compiler_supports_inline_all_stringops],
+[CFLAGS_hold=$CFLAGS
+CFLAGS="$CFLAGS -minline-all-stringops"
+AC_COMPILE_IFELSE([int i;],
+[ac_cv_libgo_compiler_supports_inline_all_stringops=yes],
+[ac_cv_libgo_compiler_supports_inline_all_stringops=no])
+CFLAGS=$CFLAGS_hold])
+STRINGOPS_FLAG=
+if test "$ac_cv_libgo_compiler_supports_inline_all_stringops" = yes; then
+  STRINGOPS_FLAG=-minline-all-stringops
+fi
+AC_SUBST(STRINGOPS_FLAG)
+
 CFLAGS_hold=$CFLAGS
 CFLAGS="$CFLAGS -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE"
 AC_CHECK_TYPES(off64_t)
