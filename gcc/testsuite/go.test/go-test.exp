@@ -139,15 +139,11 @@ proc go-gc-tests { } {
 		    continue
 	    }
 
-	    if { [string match "*go.test/test/sigchld.go" \
-		   $test] \
-		 || [string match "*go.test/test/stack.go" \
+	    if { [string match "*go.test/test/stack.go" \
 		   $test] \
 		 || [string match "*go.test/test/peano.go" \
 		   $test] \
 		 || [string match "*go.test/test/chan/goroutines.go" \
-		   $test] \
-		 || [string match "*go.test/test/chan/powser1.go" \
 		   $test] } {
 		    untested "$name: has very high memory requirement"
 		    continue
@@ -235,20 +231,6 @@ proc go-gc-tests { } {
 		   || [string match \
 			   "// \$G \$D/\$F.go && \$L \$F.\$A && ./\$A.out >* || echo BUG*" \
 			   $test_line] } {
-	    # XFAIL certain tests for RTEMS OS.
-	    if [istarget "*-*-rtems*"] {
-		    if { [string match "*go.test/test/ken/chan.go" \
-				$test] \
-			 || [string match "*go.test/test/ken/modconst.go" \
-				$test] \
-			 || [string match "*go.test/test/ken/divconst.go" \
-				$test] \
-			 || [string match "*go.test/test/chan/powser2.go" \
-				$test] } {
-			go-execute-xfail $test
-			continue
-		    }
-	    }
 	    # This is a vanilla execution test.
 	    go-torture-execute $test
 	    file delete core [glob -nocomplain core.*]
