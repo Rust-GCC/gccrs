@@ -123,5 +123,5 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #endif
 
 /* We steal the last transactional memory word.  */
-#define TARGET_SUPPORTS_SPLIT_STACK
+#define TARGET_CAN_SPLIT_STACK
 #define TARGET_THREAD_SPLIT_STACK_OFFSET (TARGET_64BIT ? 0x70 : 0x30)
