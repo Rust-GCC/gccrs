@@ -167,11 +167,12 @@ getfinalizer(void *p, bool del)
 }
 
 void
-walkfintab(void (*fn)(void*))
+walkfintab(void (*fn)(void*), void (*scan)(int32, byte *, int64))
 {
 	void **key;
 	void **ekey;
 
+	scan(0, (byte*)&fintab, sizeof fintab);
 	lock(&finlock);
 	key = fintab.key;
 	ekey = key + fintab.max;

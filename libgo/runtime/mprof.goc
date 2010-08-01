@@ -288,3 +288,12 @@ func MemProfile(p Slice, include_inuse_zero bool) (n int32, ok bool) {
 	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
 		__go_run_goroutine_gc(102);
 }
+
+void
+MProf_Mark(void (*scan)(int32, byte *, int64))
+{
+	// buckhash is not allocated via mallocgc.
+	scan(0, (byte*)&buckets, sizeof buckets);
+	scan(0, (byte*)&addrhash, sizeof addrhash);
+	scan(0, (byte*)&addrfree, sizeof addrfree);
+}

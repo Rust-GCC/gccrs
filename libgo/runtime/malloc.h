@@ -375,6 +375,7 @@ enum
 
 void	MProf_Malloc(void*, uintptr);
 void	MProf_Free(void*, uintptr);
+void	MProf_Mark(void (*scan)(int32, byte *, int64));
 
 // Malloc profiling settings.
 // Must match definition in extern.go.

@@ -103,80 +103,50 @@ markfin(void *v)
 	scanblock(1, v, size);
 }
 
-struct globals {
-	byte *start;
-	uintptr size;
+struct root_list {
+	struct root_list *next;
+	struct root {
+		void *decl;
+		size_t size;
+	} roots[];
 };
 
-// FIXME: This needs to grow as needed.
-#define GLOBALS_ENTRIES 16
+static struct root_list* roots;
 
-static struct globals globals[GLOBALS_ENTRIES];
-
-// Called by runtime.
 void
-__go_register_mem(void *start, void *end)
+__go_register_gc_roots (struct root_list* r)
 {
-	int i;
-
-	if(start == nil || end == nil)
-		throw("__go_register_mem");
-	if(start == end)
-		return;
-	for(i = 0; i < GLOBALS_ENTRIES; ++i) {
-		if(globals[i].start == nil) {
-			globals[i].start = (byte*)start;
-			globals[i].size = (byte*)end - (byte*)start;
-			return;
-		}
-	}
-	throw("__go_register_mem out of space");
-}
-
-// Called by runtime for dlclose.
-void
-__go_deregister_mem(void *start, void *end)
-{
-	int i;
-
-	if(start == end)
-		return;
-	for(i = 0; i < GLOBALS_ENTRIES; ++i) {
-		if(globals[i].start == (byte*)start
-		   && globals[i].size == (size_t)((byte*)end - (byte*)start)) {
-			globals[i].start = nil;
-			return;
-		}
-	}
-	throw("__go_deregister_mem not found");
+	// FIXME: This needs locking if multiple goroutines can call
+	// dlopen simultaneously.
+	r->next = roots;
+	roots = r;
 }
 
 static void
 mark(void)
 {
-	int i;
+	struct root_list *pl;
 
-	// mark data+bss.
-	// skip mheap itself, which has no interesting pointers
-	// and is mostly zeroed and would not otherwise be paged in.
-	for(i = 0; i < GLOBALS_ENTRIES; ++i) {
-		if (globals[i].start == nil)
-			continue;
-		if ((byte*)&mheap >= globals[i].start
-		    && (byte*)&mheap < globals[i].start + globals[i].size) {
-			scanblock(0, globals[i].start, (byte*)&mheap - globals[i].start);
-			scanblock(0, (byte*)(&mheap+1),
-				  globals[i].start + globals[i].size - (byte*)(&mheap+1));
+	for(pl = roots; pl != nil; pl = pl->next) {
+		struct root* pr = &pl->roots[0];
+		while(1) {
+			void *decl = pr->decl;
+			if(decl == nil)
+				break;
+			scanblock(0, decl, pr->size);
+			pr++;
 		}
-		else
-			scanblock(0, globals[i].start, globals[i].size);
 	}
+
+	scanblock(0, (byte*)&m0, sizeof m0);
+	scanblock(0, (byte*)&finq, sizeof finq);
+	MProf_Mark(scanblock);
 
 	// mark stacks
 	__go_scanstacks(scanblock);
 
 	// mark things pointed at by objects with finalizers
-	walkfintab(markfin);
+	walkfintab(markfin, scanblock);
 }
 
 // free RefNone, free & queue finalizers for RefNone|RefHasFinalizer, reset RefSome

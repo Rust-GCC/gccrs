@@ -72,6 +72,8 @@ struct Note {
 
 extern __thread		M* 	m;
 
+extern M	m0;
+
 #ifdef __rtems__
 #undef __thread
 #endif
@@ -164,7 +166,7 @@ MCache*	allocmcache(void);
 void	free(void *v);
 struct __go_func_type;
 void	addfinalizer(void*, void(*fn)(void*), const struct __go_func_type *);
-void	walkfintab(void (*fn)(void*));
+void	walkfintab(void (*fn)(void*), void (*scan)(int32, byte *, int64));
 #define runtime_mmap mmap
 #define cas(pval, old, new) __sync_bool_compare_and_swap (pval, old, new)
 

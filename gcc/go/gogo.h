@@ -605,6 +605,10 @@ class Gogo
   void
   init_imports(tree*);
 
+  // Register variables with the garbage collector.
+  void
+  register_gc_vars(const std::vector<Named_object*>&, tree*);
+
   // Build a pointer to a Go string constant.  This returns a pointer
   // to the pointer.
   tree

@@ -215,6 +215,131 @@ Gogo::init_imports(tree* init_stmt_list)
     }
 }
 
+// Register global variables with the garbage collector.  We need to
+// register all variables which can hold a pointer value.  They become
+// roots during the mark phase.  We build a struct that is easy to
+// hook into a list of roots.
+
+// struct __go_gc_root_list
+// {
+//   struct __go_gc_root_list* __next;
+//   struct __go_gc_root
+//   {
+//     void* __decl;
+//     size_t __size;
+//   } __roots[];
+// };
+
+// The last entry in the roots array has a NULL decl field.
+
+void
+Gogo::register_gc_vars(const std::vector<Named_object*>& var_gc,
+		       tree* init_stmt_list)
+{
+  if (var_gc.empty())
+    return;
+
+  size_t count = var_gc.size();
+
+  tree root_type = Gogo::builtin_struct(NULL, "__go_gc_root", NULL_TREE, 2,
+					"__next",
+					ptr_type_node,
+					"__size",
+					sizetype);
+
+  tree index_type = build_index_type(size_int(count));
+  tree array_type = build_array_type(root_type, index_type);
+
+  tree root_list_type = make_node(RECORD_TYPE);
+  root_list_type = Gogo::builtin_struct(NULL, "__go_gc_root_list",
+					root_list_type, 2,
+					"__next",
+					build_pointer_type(root_list_type),
+					"__roots",
+					array_type);
+
+  // Build an initialier for the __roots array.
+
+  VEC(constructor_elt,gc)* roots_init = VEC_alloc(constructor_elt, gc,
+						  count + 1);
+
+  size_t i = 0;
+  for (std::vector<Named_object*>::const_iterator p = var_gc.begin();
+       p != var_gc.end();
+       ++p, ++i)
+    {
+      VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
+
+      constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
+      tree field = TYPE_FIELDS(root_type);
+      elt->index = field;
+      tree decl = (*p)->get_tree(this, NULL);
+      gcc_assert(TREE_CODE(decl) == VAR_DECL);
+      elt->value = build_fold_addr_expr(decl);
+
+      elt = VEC_quick_push(constructor_elt, init, NULL);
+      field = TREE_CHAIN(field);
+      elt->index = field;
+      elt->value = DECL_SIZE_UNIT(decl);
+
+      elt = VEC_quick_push(constructor_elt, roots_init, NULL);
+      elt->index = size_int(i);
+      elt->value = build_constructor(root_type, init);
+    }
+
+  // The list ends with a NULL entry.
+
+  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
+
+  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
+  tree field = TYPE_FIELDS(root_type);
+  elt->index = field;
+  elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
+
+  elt = VEC_quick_push(constructor_elt, init, NULL);
+  field = TREE_CHAIN(field);
+  elt->index = field;
+  elt->value = size_zero_node;
+
+  elt = VEC_quick_push(constructor_elt, roots_init, NULL);
+  elt->index = size_int(i);
+  elt->value = build_constructor(root_type, init);
+
+  // Build a constructor for the struct.
+
+  VEC(constructor_elt,gc*) root_list_init = VEC_alloc(constructor_elt, gc, 2);
+
+  elt = VEC_quick_push(constructor_elt, root_list_init, NULL);
+  field = TYPE_FIELDS(root_list_type);
+  elt->index = field;
+  elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
+
+  elt = VEC_quick_push(constructor_elt, root_list_init, NULL);
+  field = TREE_CHAIN(field);
+  elt->index = field;
+  elt->value = build_constructor(array_type, roots_init);
+
+  // Build a decl to register.
+
+  tree decl = build_decl(BUILTINS_LOCATION, VAR_DECL,
+			 create_tmp_var_name("gc"), root_list_type);
+  DECL_EXTERNAL(decl) = 0;
+  TREE_PUBLIC(decl) = 0;
+  TREE_STATIC(decl) = 1;
+  DECL_ARTIFICIAL(decl) = 1;
+  DECL_INITIAL(decl) = build_constructor(root_list_type, root_list_init);
+  rest_of_decl_compilation(decl, 1, 0);
+
+  static tree register_gc_fndecl;
+  tree call = Gogo::call_builtin(&register_gc_fndecl, BUILTINS_LOCATION,
+				 "__go_register_gc_roots",
+				 1,
+				 void_type_node,
+				 build_pointer_type(root_list_type),
+				 build_fold_addr_expr(decl));
+  append_to_statement_list(call, init_stmt_list);
+}
+
 // Build the decl for the initialization function.
 
 tree
@@ -526,6 +651,12 @@ Gogo::write_globals()
   // A list of variable initializations.
   Var_inits var_inits;
 
+  // A list of variables which need to be registered with the garbage
+  // collector.
+  std::vector<Named_object*> var_gc;
+  var_gc.reserve(count);
+
+  tree var_init_stmt_list = NULL_TREE;
   size_t i = 0;
   for (Bindings::const_definitions_iterator p = bindings->begin_definitions();
        p != bindings->end_definitions();
@@ -626,15 +757,25 @@ Gogo::write_globals()
 	    {
 	      if (no->var_value()->init() == NULL
 		  && !no->var_value()->has_pre_init())
-		append_to_statement_list(var_init_tree, &init_stmt_list);
+		append_to_statement_list(var_init_tree, &var_init_stmt_list);
 	      else
 		var_inits.push_back(Var_init(no, var_init_tree));
 	    }
+
+	  if (!is_sink && no->var_value()->type()->has_pointer())
+	    var_gc.push_back(no);
 	}
     }
 
-  // Initialize the variables, first sorting them into a workable
-  // order.
+  // Register global variables with the garbage collector.
+  this->register_gc_vars(var_gc, &init_stmt_list);
+
+  // Simple variable initializations, after all variables are
+  // registered.
+  append_to_statement_list(var_init_stmt_list, &init_stmt_list);
+
+  // Complex variable initializations, first sorting them into a
+  // workable order.
   if (!var_inits.empty())
     {
       sort_var_inits(&var_inits);

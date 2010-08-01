@@ -1326,12 +1326,15 @@ Gogo::determine_types()
       else if ((*p)->is_const())
 	(*p)->const_value()->determine_type();
 
-      // If this is a global variable which requires runtime
-      // initialization, we need an initialization function.  We know
-      // that we will see all global variables here.
-      if ((*p)->is_variable())
+      // See if a variable requires us to build an initialization
+      // function.  We know that we will see all global variables
+      // here.
+      if (!this->need_init_fn_ && (*p)->is_variable())
 	{
 	  Variable* variable = (*p)->var_value();
+
+	  // If this is a global variable which requires runtime
+	  // initialization, we need an initialization function.
 	  if (!variable->is_global() || variable->init() == NULL)
 	    ;
 	  else if (variable->type()->interface_type() != NULL)
@@ -1341,6 +1344,12 @@ Gogo::determine_types()
 	  else if (!variable->init()->is_composite_literal())
 	    this->need_init_fn_ = true;
 	  else if (variable->init()->is_nonconstant_composite_literal())
+	    this->need_init_fn_ = true;
+
+	  // If this is a global variable which holds a pointer value,
+	  // then we need an initialization function to register it as a
+	  // GC root.
+	  if (variable->is_global() && variable->type()->has_pointer())
 	    this->need_init_fn_ = true;
 	}
     }
