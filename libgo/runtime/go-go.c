@@ -91,9 +91,11 @@ static void
 remove_current_thread (void)
 {
   struct __go_thread_id *list_entry;
+  MCache *mcache;
   int i;
   
   list_entry = m->list_entry;
+  mcache = m->mcache;
 
   i = pthread_mutex_lock (&__go_thread_ids_lock);
   assert (i == 0);
@@ -105,16 +107,15 @@ remove_current_thread (void)
   if (list_entry->next != NULL)
     list_entry->next->prev = list_entry->prev;
 
+  /* We use __go_thread_ids_lock as a lock for mheap.cachealloc.  */
+  MCache_ReleaseAll (mcache);
+  __builtin_memset (mcache, 0, sizeof (struct MCache));
+  FixAlloc_Free (&mheap.cachealloc, mcache);
+
   i = pthread_mutex_unlock (&__go_thread_ids_lock);
   assert (i == 0);
 
   free (list_entry);
-  m->list_entry = NULL;
-
-  MCache_ReleaseAll (m->mcache);
-  __builtin_memset (m->mcache, 0, sizeof (struct MCache));
-  FixAlloc_Free (&mheap.cachealloc, m->mcache);
-  m->mcache = NULL;
 }
 
 /* Start the thread.  */
@@ -209,7 +210,6 @@ __go_go (void (*pfn) (void*), void *arg)
 #endif
 
   newm = __go_alloc (sizeof (M));
-  newm->mcache = allocmcache ();
 
   list_entry = malloc (sizeof (struct __go_thread_id));
   list_entry->prev = NULL;
@@ -225,6 +225,9 @@ __go_go (void (*pfn) (void*), void *arg)
      since it is not yet ready to go.  */
   i = pthread_mutex_lock (&__go_thread_ids_lock);
   assert (i == 0);
+
+  /* We use __go_thread_ids_lock as a lock for mheap.cachealloc.  */
+  newm->mcache = allocmcache ();
 
   if (__go_all_thread_ids != NULL)
     __go_all_thread_ids->prev = list_entry;
