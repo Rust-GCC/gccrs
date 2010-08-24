@@ -697,9 +697,6 @@ Expression::convert_interface_to_type(Translate_context* context,
   // This call will panic if the conversion is invalid.
   TREE_NOTHROW(check_interface_type_decl) = 0;
 
-  tree stmt_list = NULL_TREE;
-  append_to_statement_list(call, &stmt_list);
-
   // If the call succeeds, pull out the value.
   gcc_assert(TREE_CODE(rhs_type_tree) == RECORD_TYPE);
   tree rhs_field = TREE_CHAIN(TYPE_FIELDS(rhs_type_tree));
@@ -710,22 +707,22 @@ Expression::convert_interface_to_type(Translate_context* context,
   // If the value is a pointer, then we can just get it from the
   // interface.  Otherwise we have to make a copy.
   if (lhs_type->points_to() != NULL)
-    return build2(COMPOUND_EXPR, lhs_type_tree, stmt_list,
+    return build2(COMPOUND_EXPR, lhs_type_tree, call,
 		  fold_convert_loc(location, lhs_type_tree, val));
 
   tree tmp = create_tmp_var(lhs_type_tree, NULL);
   DECL_IGNORED_P(tmp) = 0;
 
   tree make_tmp = fold_build1_loc(location, DECL_EXPR, void_type_node, tmp);
-  append_to_statement_list(make_tmp, &stmt_list);
+  tree s = build2(COMPOUND_EXPR, void_type_node, call, make_tmp);
 
   val = fold_convert_loc(location, build_pointer_type(lhs_type_tree), val);
   val = build_fold_indirect_ref_loc(location, val);
   tree set = fold_build2_loc(location, MODIFY_EXPR, void_type_node,
 			     tmp, val);
-  append_to_statement_list(set, &stmt_list);
+  s = build2(COMPOUND_EXPR, void_type_node, s, set);
 
-  return build2(COMPOUND_EXPR, lhs_type_tree, stmt_list, tmp);
+  return build2(COMPOUND_EXPR, lhs_type_tree, s, tmp);
 }
 
 // Convert an expression to a tree.  This is implemented by the child
