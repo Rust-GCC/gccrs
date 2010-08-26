@@ -876,11 +876,15 @@ var erfcSC = []float64{
 
 var vfexpSC = []float64{
 	Inf(-1),
+	-2000,
+	2000,
 	Inf(1),
 	NaN(),
 }
 var expSC = []float64{
 	0,
+	0,
+	Inf(1),
 	Inf(1),
 	NaN(),
 }
@@ -1588,6 +1592,11 @@ func TestCopysign(t *testing.T) {
 	for i := 0; i < len(vf); i++ {
 		if f := Copysign(vf[i], -1); copysign[i] != f {
 			t.Errorf("Copysign(%g, -1) = %g, want %g\n", vf[i], f, copysign[i])
+		}
+	}
+	for i := 0; i < len(vf); i++ {
+		if f := Copysign(vf[i], 1); -copysign[i] != f {
+			t.Errorf("Copysign(%g, 1) = %g, want %g\n", vf[i], f, -copysign[i])
 		}
 	}
 	for i := 0; i < len(vfcopysignSC); i++ {
@@ -2343,15 +2352,21 @@ func BenchmarkExp2(b *testing.B) {
 	}
 }
 
-func BenchmarkFloor(b *testing.B) {
+func BenchmarkFabs(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Floor(.5)
+		Fabs(.5)
 	}
 }
 
 func BenchmarkFdim(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		Fdim(10, 3)
+	}
+}
+
+func BenchmarkFloor(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Floor(.5)
 	}
 }
 
@@ -2445,15 +2460,15 @@ func BenchmarkLogb(b *testing.B) {
 	}
 }
 
-func BenchmarkLog10(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		Log10(.5)
-	}
-}
-
 func BenchmarkLog1p(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		Log1p(.5)
+	}
+}
+
+func BenchmarkLog10(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Log10(.5)
 	}
 }
 

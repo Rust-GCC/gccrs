@@ -54,7 +54,7 @@
 	map passed to the template set up routines or in the default
 	set ("html","str","") and is used to process the data for
 	output.  The formatter function has signature
-		func(wr io.Write, data interface{}, formatter string)
+		func(wr io.Writer, data interface{}, formatter string)
 	where wr is the destination for output, data is the field
 	value, and formatter is its name at the invocation site.
 */
@@ -220,8 +220,7 @@ func equal(s []byte, n int, t []byte) bool {
 // either side, up to and including the newline.
 func (t *Template) nextItem() []byte {
 	special := false // is this a {.foo} directive, which means trim white space?
-	// Delete surrounding white space if this {.foo} is the only thing on the line.
-	trimSpace := t.p == 0 || t.buf[t.p-1] == '\n'
+	startOfLine := t.p == 0 || t.buf[t.p-1] == '\n'
 	start := t.p
 	var i int
 	newline := func() {
@@ -234,13 +233,7 @@ func (t *Template) nextItem() []byte {
 			break
 		}
 	}
-	if trimSpace {
-		start = i
-	} else if i > start {
-		// white space is valid text
-		t.p = i
-		return t.buf[start:i]
-	}
+	leadingWhite := i > start
 	// What's left is nothing, newline, delimited string, or plain text
 Switch:
 	switch {
@@ -249,9 +242,16 @@ Switch:
 	case t.buf[i] == '\n':
 		newline()
 	case equal(t.buf, i, t.ldelim):
+		// Delete surrounding white space if this {.foo} is the first thing on the line.
 		i += len(t.ldelim) // position after delimiter
-		if i+1 < len(t.buf) && (t.buf[i] == '.' || t.buf[i] == '#') {
-			special = true
+		special = i+1 < len(t.buf) && (t.buf[i] == '.' || t.buf[i] == '#')
+		if special && startOfLine {
+			start = i - len(t.ldelim)
+		} else if leadingWhite {
+			// not trimming space: return leading white space if there is some.
+			i -= len(t.ldelim)
+			t.p = i
+			return t.buf[start:i]
 		}
 		for ; i < len(t.buf); i++ {
 			if t.buf[i] == '\n' {
@@ -276,7 +276,7 @@ Switch:
 		}
 	}
 	item := t.buf[start:i]
-	if special && trimSpace {
+	if special && startOfLine {
 		// consume trailing white space
 		for ; i < len(t.buf) && white(t.buf[i]); i++ {
 			if t.buf[i] == '\n' {
@@ -635,7 +635,7 @@ func (st *state) findVar(s string) reflect.Value {
 		return st.data
 	}
 	data := st.data
-	for _, elem := range strings.Split(s, ".", 0) {
+	for _, elem := range strings.Split(s, ".", -1) {
 		// Look up field; data must be a struct or map.
 		data = lookup(data, elem)
 		if data == nil {
@@ -886,6 +886,16 @@ func (t *Template) Parse(s string) (err os.Error) {
 	t.linenum = 1
 	t.parse()
 	return nil
+}
+
+// ParseFile is like Parse but reads the template definition from the
+// named file.
+func (t *Template) ParseFile(filename string) (err os.Error) {
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	return t.Parse(string(b))
 }
 
 // Execute applies a parsed template to the specified data object,

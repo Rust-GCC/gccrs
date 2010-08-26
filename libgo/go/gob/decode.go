@@ -13,15 +13,13 @@ import (
 	"math"
 	"os"
 	"reflect"
-	"runtime"
 	"unsafe"
 )
 
 var (
-	errBadUint   = os.ErrorString("gob: encoded unsigned integer out of range")
-	errBadType   = os.ErrorString("gob: unknown type id or corrupted data")
-	errRange     = os.ErrorString("gob: internal error: field numbers out of bounds")
-	errNotStruct = os.ErrorString("gob: TODO: can only handle structs")
+	errBadUint = os.ErrorString("gob: encoded unsigned integer out of range")
+	errBadType = os.ErrorString("gob: unknown type id or corrupted data")
+	errRange   = os.ErrorString("gob: internal error: field numbers out of bounds")
 )
 
 // The global execution state of an instance of the decoder.
@@ -148,6 +146,11 @@ func decIndirect(p unsafe.Pointer, indir int) unsafe.Pointer {
 }
 
 func ignoreUint(i *decInstr, state *decodeState, p unsafe.Pointer) {
+	decodeUint(state)
+}
+
+func ignoreTwoUints(i *decInstr, state *decodeState, p unsafe.Pointer) {
+	decodeUint(state)
 	decodeUint(state)
 }
 
@@ -286,6 +289,20 @@ func floatFromBits(u uint64) float64 {
 	return math.Float64frombits(v)
 }
 
+func storeFloat32(i *decInstr, state *decodeState, p unsafe.Pointer) {
+	v := floatFromBits(decodeUint(state))
+	av := v
+	if av < 0 {
+		av = -av
+	}
+	// +Inf is OK in both 32- and 64-bit floats.  Underflow is always OK.
+	if math.MaxFloat32 < av && av <= math.MaxFloat64 {
+		state.err = i.ovfl
+	} else {
+		*(*float32)(p) = float32(v)
+	}
+}
+
 func decFloat32(i *decInstr, state *decodeState, p unsafe.Pointer) {
 	if i.indir > 0 {
 		if *(*unsafe.Pointer)(p) == nil {
@@ -293,16 +310,7 @@ func decFloat32(i *decInstr, state *decodeState, p unsafe.Pointer) {
 		}
 		p = *(*unsafe.Pointer)(p)
 	}
-	v := floatFromBits(decodeUint(state))
-	av := v
-	if av < 0 {
-		av = -av
-	}
-	if math.MaxFloat32 < av { // underflow is OK
-		state.err = i.ovfl
-	} else {
-		*(*float32)(p) = float32(v)
-	}
+	storeFloat32(i, state, p)
 }
 
 func decFloat64(i *decInstr, state *decodeState, p unsafe.Pointer) {
@@ -313,6 +321,30 @@ func decFloat64(i *decInstr, state *decodeState, p unsafe.Pointer) {
 		p = *(*unsafe.Pointer)(p)
 	}
 	*(*float64)(p) = floatFromBits(uint64(decodeUint(state)))
+}
+
+// Complex numbers are just a pair of floating-point numbers, real part first.
+func decComplex64(i *decInstr, state *decodeState, p unsafe.Pointer) {
+	if i.indir > 0 {
+		if *(*unsafe.Pointer)(p) == nil {
+			*(*unsafe.Pointer)(p) = unsafe.Pointer(new(complex64))
+		}
+		p = *(*unsafe.Pointer)(p)
+	}
+	storeFloat32(i, state, p)
+	storeFloat32(i, state, unsafe.Pointer(uintptr(p)+uintptr(unsafe.Sizeof(float(0)))))
+}
+
+func decComplex128(i *decInstr, state *decodeState, p unsafe.Pointer) {
+	if i.indir > 0 {
+		if *(*unsafe.Pointer)(p) == nil {
+			*(*unsafe.Pointer)(p) = unsafe.Pointer(new(complex128))
+		}
+		p = *(*unsafe.Pointer)(p)
+	}
+	real := floatFromBits(uint64(decodeUint(state)))
+	imag := floatFromBits(uint64(decodeUint(state)))
+	*(*complex128)(p) = cmplx(real, imag)
 }
 
 // uint8 arrays are encoded as an unsigned count followed by the raw bytes.
@@ -355,18 +387,44 @@ type decEngine struct {
 	numInstr int // the number of active instructions
 }
 
-func decodeStruct(engine *decEngine, rtyp *reflect.StructType, b *bytes.Buffer, p uintptr, indir int) os.Error {
-	if indir > 0 {
-		up := unsafe.Pointer(p)
-		if indir > 1 {
-			up = decIndirect(up, indir)
-		}
-		if *(*unsafe.Pointer)(up) == nil {
-			// Allocate object.
-			*(*unsafe.Pointer)(up) = unsafe.New((*runtime.StructType)(unsafe.Pointer(rtyp)))
-		}
-		p = *(*uintptr)(up)
+// allocate makes sure storage is available for an object of underlying type rtyp
+// that is indir levels of indirection through p.
+func allocate(rtyp reflect.Type, p uintptr, indir int) uintptr {
+	if indir == 0 {
+		return p
 	}
+	up := unsafe.Pointer(p)
+	if indir > 1 {
+		up = decIndirect(up, indir)
+	}
+	if *(*unsafe.Pointer)(up) == nil {
+		// Allocate object.
+		*(*unsafe.Pointer)(up) = unsafe.New(rtyp)
+	}
+	return *(*uintptr)(up)
+}
+
+func decodeSingle(engine *decEngine, rtyp reflect.Type, b *bytes.Buffer, p uintptr, indir int) os.Error {
+	p = allocate(rtyp, p, indir)
+	state := newDecodeState(b)
+	state.fieldnum = singletonField
+	basep := p
+	delta := int(decodeUint(state))
+	if delta != 0 {
+		state.err = os.ErrorString("gob decode: corrupted data: non-zero delta for singleton")
+		return state.err
+	}
+	instr := &engine.instr[singletonField]
+	ptr := unsafe.Pointer(basep) // offset will be zero
+	if instr.indir > 1 {
+		ptr = decIndirect(ptr, instr.indir)
+	}
+	instr.op(instr, state, ptr)
+	return state.err
+}
+
+func decodeStruct(engine *decEngine, rtyp *reflect.StructType, b *bytes.Buffer, p uintptr, indir int) os.Error {
+	p = allocate(rtyp, p, indir)
 	state := newDecodeState(b)
 	state.fieldnum = -1
 	basep := p
@@ -434,12 +492,7 @@ func decodeArrayHelper(state *decodeState, p uintptr, elemOp decOp, elemWid uint
 
 func decodeArray(atyp *reflect.ArrayType, state *decodeState, p uintptr, elemOp decOp, elemWid uintptr, length, indir, elemIndir int, ovfl os.ErrorString) os.Error {
 	if indir > 0 {
-		up := unsafe.Pointer(p)
-		if *(*unsafe.Pointer)(up) == nil {
-			// Allocate object.
-			*(*unsafe.Pointer)(up) = unsafe.New(atyp)
-		}
-		p = *(*uintptr)(up)
+		p = allocate(atyp, p, 1) // All but the last level has been allocated by dec.Indirect
 	}
 	if n := decodeUint(state); n != uint64(length) {
 		return os.ErrorString("gob: length mismatch in decodeArray")
@@ -459,12 +512,7 @@ func decodeIntoValue(state *decodeState, op decOp, indir int, v reflect.Value, o
 
 func decodeMap(mtyp *reflect.MapType, state *decodeState, p uintptr, keyOp, elemOp decOp, indir, keyIndir, elemIndir int, ovfl os.ErrorString) os.Error {
 	if indir > 0 {
-		up := unsafe.Pointer(p)
-		if *(*unsafe.Pointer)(up) == nil {
-			// Allocate object.
-			*(*unsafe.Pointer)(up) = unsafe.New(mtyp)
-		}
-		p = *(*uintptr)(up)
+		p = allocate(mtyp, p, 1) // All but the last level has been allocated by dec.Indirect
 	}
 	up := unsafe.Pointer(p)
 	if *(*unsafe.Pointer)(up) == nil { // maps are represented as a pointer in the runtime
@@ -540,21 +588,25 @@ func ignoreSlice(state *decodeState, elemOp decOp) os.Error {
 	return ignoreArrayHelper(state, elemOp, int(decodeUint(state)))
 }
 
-var decOpMap = map[reflect.Type]decOp{
-	valueKind(false):      decBool,
-	valueKind(int8(0)):    decInt8,
-	valueKind(int16(0)):   decInt16,
-	valueKind(int32(0)):   decInt32,
-	valueKind(int64(0)):   decInt64,
-	valueKind(uint8(0)):   decUint8,
-	valueKind(uint16(0)):  decUint16,
-	valueKind(uint32(0)):  decUint32,
-	valueKind(uint64(0)):  decUint64,
-	valueKind(float32(0)): decFloat32,
-	valueKind(float64(0)): decFloat64,
-	valueKind("x"):        decString,
+// Index by Go types.
+var decOpMap = []decOp{
+	reflect.Bool:       decBool,
+	reflect.Int8:       decInt8,
+	reflect.Int16:      decInt16,
+	reflect.Int32:      decInt32,
+	reflect.Int64:      decInt64,
+	reflect.Uint8:      decUint8,
+	reflect.Uint16:     decUint16,
+	reflect.Uint32:     decUint32,
+	reflect.Uint64:     decUint64,
+	reflect.Float32:    decFloat32,
+	reflect.Float64:    decFloat64,
+	reflect.Complex64:  decComplex64,
+	reflect.Complex128: decComplex128,
+	reflect.String:     decString,
 }
 
+// Indexed by gob types.  tComplex will be added during type.init().
 var decIgnoreOpMap = map[typeId]decOp{
 	tBool:   ignoreUint,
 	tInt:    ignoreUint,
@@ -568,8 +620,12 @@ var decIgnoreOpMap = map[typeId]decOp{
 // the indirection count to reach it.
 func (dec *Decoder) decOpFor(wireId typeId, rt reflect.Type, name string) (decOp, int, os.Error) {
 	typ, indir := indirect(rt)
-	op, ok := decOpMap[reflect.Typeof(typ)]
-	if !ok {
+	var op decOp
+	k := typ.Kind()
+	if int(k) < len(decOpMap) {
+		op = decOpMap[k]
+	}
+	if op == nil {
 		// Special cases
 		switch t := typ.(type) {
 		case *reflect.ArrayType:
@@ -604,7 +660,7 @@ func (dec *Decoder) decOpFor(wireId typeId, rt reflect.Type, name string) (decOp
 
 		case *reflect.SliceType:
 			name = "element of " + name
-			if _, ok := t.Elem().(*reflect.Uint8Type); ok {
+			if t.Elem().Kind() == reflect.Uint8 {
 				op = decUint8Array
 				break
 			}
@@ -648,6 +704,8 @@ func (dec *Decoder) decIgnoreOpFor(wireId typeId) (decOp, os.Error) {
 		// Special cases
 		wire := dec.wireType[wireId]
 		switch {
+		case wire == nil:
+			panic("internal error: can't find ignore op for type " + wireId.string())
 		case wire.arrayT != nil:
 			elemId := wire.arrayT.Elem
 			elemOp, err := dec.decIgnoreOpFor(elemId)
@@ -718,12 +776,14 @@ func (dec *Decoder) compatibleType(fr reflect.Type, fw typeId) bool {
 		return false
 	case *reflect.BoolType:
 		return fw == tBool
-	case *reflect.IntType, *reflect.Int8Type, *reflect.Int16Type, *reflect.Int32Type, *reflect.Int64Type:
+	case *reflect.IntType:
 		return fw == tInt
-	case *reflect.UintType, *reflect.Uint8Type, *reflect.Uint16Type, *reflect.Uint32Type, *reflect.Uint64Type, *reflect.UintptrType:
+	case *reflect.UintType:
 		return fw == tUint
-	case *reflect.FloatType, *reflect.Float32Type, *reflect.Float64Type:
+	case *reflect.FloatType:
 		return fw == tFloat
+	case *reflect.ComplexType:
+		return fw == tComplex
 	case *reflect.StringType:
 		return fw == tString
 	case *reflect.ArrayType:
@@ -742,8 +802,7 @@ func (dec *Decoder) compatibleType(fr reflect.Type, fw typeId) bool {
 		return dec.compatibleType(t.Key(), mapType.Key) && dec.compatibleType(t.Elem(), mapType.Elem)
 	case *reflect.SliceType:
 		// Is it an array of bytes?
-		et := t.Elem()
-		if _, ok := et.(*reflect.Uint8Type); ok {
+		if t.Elem().Kind() == reflect.Uint8 {
 			return fw == tBytes
 		}
 		// Extract and compare element types.
@@ -761,18 +820,34 @@ func (dec *Decoder) compatibleType(fr reflect.Type, fw typeId) bool {
 	return true
 }
 
+func (dec *Decoder) compileSingle(remoteId typeId, rt reflect.Type) (engine *decEngine, err os.Error) {
+	engine = new(decEngine)
+	engine.instr = make([]decInstr, 1) // one item
+	name := rt.String()                // best we can do
+	if !dec.compatibleType(rt, remoteId) {
+		return nil, os.ErrorString("gob: wrong type received for local value " + name)
+	}
+	op, indir, err := dec.decOpFor(remoteId, rt, name)
+	if err != nil {
+		return nil, err
+	}
+	ovfl := os.ErrorString(`value for "` + name + `" out of range`)
+	engine.instr[singletonField] = decInstr{op, singletonField, indir, 0, ovfl}
+	engine.numInstr = 1
+	return
+}
+
 func (dec *Decoder) compileDec(remoteId typeId, rt reflect.Type) (engine *decEngine, err os.Error) {
-	srt, ok1 := rt.(*reflect.StructType)
+	srt, ok := rt.(*reflect.StructType)
+	if !ok {
+		return dec.compileSingle(remoteId, rt)
+	}
 	var wireStruct *structType
 	// Builtin types can come from global pool; the rest must be defined by the decoder
 	if t, ok := builtinIdToType[remoteId]; ok {
 		wireStruct = t.(*structType)
 	} else {
-		w, ok2 := dec.wireType[remoteId]
-		if !ok1 || !ok2 {
-			return nil, errNotStruct
-		}
-		wireStruct = w.structT
+		wireStruct = dec.wireType[remoteId].structT
 	}
 	engine = new(decEngine)
 	engine.instr = make([]decInstr, len(wireStruct.field))
@@ -843,62 +918,61 @@ func (dec *Decoder) getIgnoreEnginePtr(wireId typeId) (enginePtr **decEngine, er
 	return
 }
 
-func (dec *Decoder) decode(wireId typeId, e interface{}) os.Error {
+func (dec *Decoder) decode(wireId typeId, val reflect.Value) os.Error {
 	// Dereference down to the underlying struct type.
-	rt, indir := indirect(reflect.Typeof(e))
-	st, ok := rt.(*reflect.StructType)
-	if !ok {
-		return os.ErrorString("gob: decode can't handle " + rt.String())
-	}
+	rt, indir := indirect(val.Type())
 	enginePtr, err := dec.getDecEnginePtr(wireId, rt)
 	if err != nil {
 		return err
 	}
 	engine := *enginePtr
-	if engine.numInstr == 0 && st.NumField() > 0 && len(dec.wireType[wireId].structT.field) > 0 {
-		name := rt.Name()
-		return os.ErrorString("gob: type mismatch: no fields matched compiling decoder for " + name)
+	if st, ok := rt.(*reflect.StructType); ok {
+		if engine.numInstr == 0 && st.NumField() > 0 && len(dec.wireType[wireId].structT.field) > 0 {
+			name := rt.Name()
+			return os.ErrorString("gob: type mismatch: no fields matched compiling decoder for " + name)
+		}
+		return decodeStruct(engine, st, dec.state.b, uintptr(val.Addr()), indir)
 	}
-	return decodeStruct(engine, st, dec.state.b, uintptr(reflect.NewValue(e).Addr()), indir)
+	return decodeSingle(engine, rt, dec.state.b, uintptr(val.Addr()), indir)
 }
 
 func init() {
-	// We assume that the size of float is sufficient to tell us whether it is
-	// equivalent to float32 or to float64.   This is very unlikely to be wrong.
-	var op decOp
-	switch unsafe.Sizeof(float(0)) {
-	case unsafe.Sizeof(float32(0)):
-		op = decFloat32
-	case unsafe.Sizeof(float64(0)):
-		op = decFloat64
+	var fop, cop decOp
+	switch reflect.Typeof(float(0)).Bits() {
+	case 32:
+		fop = decFloat32
+		cop = decComplex64
+	case 64:
+		fop = decFloat64
+		cop = decComplex128
 	default:
 		panic("gob: unknown size of float")
 	}
-	decOpMap[valueKind(float(0))] = op
+	decOpMap[reflect.Float] = fop
+	decOpMap[reflect.Complex] = cop
 
-	// A similar assumption about int and uint.  Also assume int and uint have the same size.
-	var uop decOp
-	switch unsafe.Sizeof(int(0)) {
-	case unsafe.Sizeof(int32(0)):
-		op = decInt32
+	var iop, uop decOp
+	switch reflect.Typeof(int(0)).Bits() {
+	case 32:
+		iop = decInt32
 		uop = decUint32
-	case unsafe.Sizeof(int64(0)):
-		op = decInt64
+	case 64:
+		iop = decInt64
 		uop = decUint64
 	default:
 		panic("gob: unknown size of int/uint")
 	}
-	decOpMap[valueKind(int(0))] = op
-	decOpMap[valueKind(uint(0))] = uop
+	decOpMap[reflect.Int] = iop
+	decOpMap[reflect.Uint] = uop
 
 	// Finally uintptr
-	switch unsafe.Sizeof(uintptr(0)) {
-	case unsafe.Sizeof(uint32(0)):
+	switch reflect.Typeof(uintptr(0)).Bits() {
+	case 32:
 		uop = decUint32
-	case unsafe.Sizeof(uint64(0)):
+	case 64:
 		uop = decUint64
 	default:
 		panic("gob: unknown size of uintptr")
 	}
-	decOpMap[valueKind(uintptr(0))] = uop
+	decOpMap[reflect.Uintptr] = uop
 }

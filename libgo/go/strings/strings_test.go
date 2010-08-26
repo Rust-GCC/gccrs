@@ -109,6 +109,7 @@ type ExplodeTest struct {
 }
 
 var explodetests = []ExplodeTest{
+	ExplodeTest{"", -1, []string{}},
 	ExplodeTest{abcd, 4, []string{"a", "b", "c", "d"}},
 	ExplodeTest{faces, 3, []string{"☺", "☻", "☹"}},
 	ExplodeTest{abcd, 2, []string{"a", "bcd"}},
@@ -136,14 +137,15 @@ type SplitTest struct {
 }
 
 var splittests = []SplitTest{
-	SplitTest{abcd, "a", 0, []string{"", "bcd"}},
-	SplitTest{abcd, "z", 0, []string{"abcd"}},
-	SplitTest{abcd, "", 0, []string{"a", "b", "c", "d"}},
-	SplitTest{commas, ",", 0, []string{"1", "2", "3", "4"}},
-	SplitTest{dots, "...", 0, []string{"1", ".2", ".3", ".4"}},
-	SplitTest{faces, "☹", 0, []string{"☺☻", ""}},
-	SplitTest{faces, "~", 0, []string{faces}},
-	SplitTest{faces, "", 0, []string{"☺", "☻", "☹"}},
+	SplitTest{abcd, "a", 0, nil},
+	SplitTest{abcd, "a", -1, []string{"", "bcd"}},
+	SplitTest{abcd, "z", -1, []string{"abcd"}},
+	SplitTest{abcd, "", -1, []string{"a", "b", "c", "d"}},
+	SplitTest{commas, ",", -1, []string{"1", "2", "3", "4"}},
+	SplitTest{dots, "...", -1, []string{"1", ".2", ".3", ".4"}},
+	SplitTest{faces, "☹", -1, []string{"☺☻", ""}},
+	SplitTest{faces, "~", -1, []string{faces}},
+	SplitTest{faces, "", -1, []string{"☺", "☻", "☹"}},
 	SplitTest{"1 2 3 4", " ", 3, []string{"1", "2", "3 4"}},
 	SplitTest{"1 2", " ", 3, []string{"1", "2"}},
 	SplitTest{"123", "", 2, []string{"1", "23"}},
@@ -157,6 +159,9 @@ func TestSplit(t *testing.T) {
 			t.Errorf("Split(%q, %q, %d) = %v; want %v", tt.s, tt.sep, tt.n, a, tt.a)
 			continue
 		}
+		if tt.n == 0 {
+			continue
+		}
 		s := Join(a, tt.sep)
 		if s != tt.s {
 			t.Errorf("Join(Split(%q, %q, %d), %q) = %q", tt.s, tt.sep, tt.n, tt.sep, s)
@@ -165,14 +170,14 @@ func TestSplit(t *testing.T) {
 }
 
 var splitaftertests = []SplitTest{
-	SplitTest{abcd, "a", 0, []string{"a", "bcd"}},
-	SplitTest{abcd, "z", 0, []string{"abcd"}},
-	SplitTest{abcd, "", 0, []string{"a", "b", "c", "d"}},
-	SplitTest{commas, ",", 0, []string{"1,", "2,", "3,", "4"}},
-	SplitTest{dots, "...", 0, []string{"1...", ".2...", ".3...", ".4"}},
-	SplitTest{faces, "☹", 0, []string{"☺☻☹", ""}},
-	SplitTest{faces, "~", 0, []string{faces}},
-	SplitTest{faces, "", 0, []string{"☺", "☻", "☹"}},
+	SplitTest{abcd, "a", -1, []string{"a", "bcd"}},
+	SplitTest{abcd, "z", -1, []string{"abcd"}},
+	SplitTest{abcd, "", -1, []string{"a", "b", "c", "d"}},
+	SplitTest{commas, ",", -1, []string{"1,", "2,", "3,", "4"}},
+	SplitTest{dots, "...", -1, []string{"1...", ".2...", ".3...", ".4"}},
+	SplitTest{faces, "☹", -1, []string{"☺☻☹", ""}},
+	SplitTest{faces, "~", -1, []string{faces}},
+	SplitTest{faces, "", -1, []string{"☺", "☻", "☹"}},
 	SplitTest{"1 2 3 4", " ", 3, []string{"1 ", "2 ", "3 4"}},
 	SplitTest{"1 2 3", " ", 3, []string{"1 ", "2 ", "3"}},
 	SplitTest{"1 2", " ", 3, []string{"1 ", "2"}},
@@ -416,25 +421,6 @@ var trimTests = []TrimTest{
 	TrimTest{TrimRight, "☺\xc0", "☺", "☺\xc0"},
 }
 
-// naiveTrimRight implements a version of TrimRight
-// by scanning forwards from the start of s.
-func naiveTrimRight(s string, cutset string) string {
-	i := -1
-	for j, r := range s {
-		if IndexRune(cutset, r) == -1 {
-			i = j
-		}
-	}
-	if i >= 0 && s[i] >= utf8.RuneSelf {
-		_, wid := utf8.DecodeRuneInString(s[i:])
-		i += wid
-	} else {
-		i++
-	}
-	return s[0:i]
-}
-
-
 func TestTrim(t *testing.T) {
 	for _, tc := range trimTests {
 		actual := tc.f(tc.in, tc.cutset)
@@ -452,14 +438,12 @@ func TestTrim(t *testing.T) {
 		if actual != tc.out {
 			t.Errorf("%s(%q, %q) = %q; want %q", name, tc.in, tc.cutset, actual, tc.out)
 		}
-		// test equivalence of TrimRight to naive version
-		if tc.f == TrimRight {
-			naive := naiveTrimRight(tc.in, tc.cutset)
-			if naive != actual {
-				t.Errorf("TrimRight(%q, %q) = %q, want %q", tc.in, tc.cutset, actual, naive)
-			}
-		}
 	}
+}
+
+type predicate struct {
+	f    func(r int) bool
+	name string
 }
 
 var isSpace = predicate{unicode.IsSpace, "IsSpace"}
@@ -470,11 +454,6 @@ var isValidRune = predicate{
 		return r != utf8.RuneError
 	},
 	"IsValidRune",
-}
-
-type predicate struct {
-	f    func(r int) bool
-	name string
 }
 
 type TrimFuncTest struct {
@@ -526,7 +505,7 @@ var indexFuncTests = []IndexFuncTest{
 	IndexFuncTest{"\u2C6F\u2C6F\u2C6F\u2C6FABCDhelloEF\u2C6F\u2C6FGH\u2C6F\u2C6F", isUpper, 0, 34},
 	IndexFuncTest{"12\u0e50\u0e52hello34\u0e50\u0e51", not(isDigit), 8, 12},
 
-	// broken unicode tests
+	// tests of invalid UTF-8
 	IndexFuncTest{"\x801", isDigit, 1, 1},
 	IndexFuncTest{"\x80abc", isDigit, -1, -1},
 	IndexFuncTest{"\xc0a\xc0", isValidRune, 1, 1},
@@ -554,8 +533,8 @@ func equal(m string, s1, s2 string, t *testing.T) bool {
 	if s1 == s2 {
 		return true
 	}
-	e1 := Split(s1, "", 0)
-	e2 := Split(s2, "", 0)
+	e1 := Split(s1, "", -1)
+	e2 := Split(s2, "", -1)
 	for i, c1 := range e1 {
 		if i > len(e2) {
 			break
@@ -697,6 +676,65 @@ func TestReadRune(t *testing.T) {
 		}
 		if res != s {
 			t.Errorf("Reader(%q).ReadRune() produced %q", s, res)
+		}
+	}
+}
+
+type ReplaceTest struct {
+	in       string
+	old, new string
+	n        int
+	out      string
+}
+
+var ReplaceTests = []ReplaceTest{
+	ReplaceTest{"hello", "l", "L", 0, "hello"},
+	ReplaceTest{"hello", "l", "L", -1, "heLLo"},
+	ReplaceTest{"hello", "x", "X", -1, "hello"},
+	ReplaceTest{"", "x", "X", -1, ""},
+	ReplaceTest{"radar", "r", "<r>", -1, "<r>ada<r>"},
+	ReplaceTest{"", "", "<>", -1, "<>"},
+	ReplaceTest{"banana", "a", "<>", -1, "b<>n<>n<>"},
+	ReplaceTest{"banana", "a", "<>", 1, "b<>nana"},
+	ReplaceTest{"banana", "a", "<>", 1000, "b<>n<>n<>"},
+	ReplaceTest{"banana", "an", "<>", -1, "b<><>a"},
+	ReplaceTest{"banana", "ana", "<>", -1, "b<>na"},
+	ReplaceTest{"banana", "", "<>", -1, "<>b<>a<>n<>a<>n<>a<>"},
+	ReplaceTest{"banana", "", "<>", 10, "<>b<>a<>n<>a<>n<>a<>"},
+	ReplaceTest{"banana", "", "<>", 6, "<>b<>a<>n<>a<>n<>a"},
+	ReplaceTest{"banana", "", "<>", 5, "<>b<>a<>n<>a<>na"},
+	ReplaceTest{"banana", "", "<>", 1, "<>banana"},
+	ReplaceTest{"banana", "a", "a", -1, "banana"},
+	ReplaceTest{"banana", "a", "a", 1, "banana"},
+	ReplaceTest{"☺☻☹", "", "<>", -1, "<>☺<>☻<>☹<>"},
+}
+
+func TestReplace(t *testing.T) {
+	for _, tt := range ReplaceTests {
+		if s := Replace(tt.in, tt.old, tt.new, tt.n); s != tt.out {
+			t.Errorf("Replace(%q, %q, %q, %d) = %q, want %q", tt.in, tt.old, tt.new, tt.n, s, tt.out)
+		}
+	}
+}
+
+type TitleTest struct {
+	in, out string
+}
+
+var TitleTests = []TitleTest{
+	TitleTest{"", ""},
+	TitleTest{"a", "A"},
+	TitleTest{" aaa aaa aaa ", " Aaa Aaa Aaa "},
+	TitleTest{" Aaa Aaa Aaa ", " Aaa Aaa Aaa "},
+	TitleTest{"123a456", "123a456"},
+	TitleTest{"double-blind", "Double-Blind"},
+	TitleTest{"ÿøû", "Ÿøû"},
+}
+
+func TestTitle(t *testing.T) {
+	for _, tt := range TitleTests {
+		if s := Title(tt.in); s != tt.out {
+			t.Errorf("Title(%q) = %q, want %q", tt.in, s, tt.out)
 		}
 	}
 }

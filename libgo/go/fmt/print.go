@@ -2,132 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-/*
-	Package fmt implements formatted I/O with functions analogous
-	to C's printf and scanf.  The format 'verbs' are derived from C's but
-	are simpler.
-
-	Printing:
-
-	The verbs:
-
-	General:
-		%v	the value in a default format.
-			when printing structs, the plus flag (%+v) adds field names
-		%#v	a Go-syntax representation of the value
-		%T	a Go-syntax representation of the type of the value
-
-	Boolean:
-		%t	the word true or false
-	Integer:
-		%b	base 2
-		%c	the character represented by the corresponding Unicode code point
-		%d	base 10
-		%o	base 8
-		%x	base 16, with lower-case letters for a-f
-		%X	base 16, with upper-case letters for A-F
-	Floating-point and complex constituents:
-		%e	scientific notation, e.g. -1234.456e+78
-		%E	scientific notation, e.g. -1234.456E+78
-		%f	decimal point but no exponent, e.g. 123.456
-		%g	whichever of %e or %f produces more compact output
-		%G	whichever of %E or %f produces more compact output
-	String and slice of bytes:
-		%s	the uninterpreted bytes of the string or slice
-		%q	a double-quoted string safely escaped with Go syntax
-		%x	base 16 notation with two characters per byte
-	Pointer:
-		%p	base 16 notation, with leading 0x
-
-	There is no 'u' flag.  Integers are printed unsigned if they have unsigned type.
-	Similarly, there is no need to specify the size of the operand (int8, int64).
-
-	For numeric values, the width and precision flags control
-	formatting; width sets the width of the field, precision the
-	number of places after the decimal, if appropriate.  The
-	format %6.2f prints 123.45. The width of a field is the number
-	of Unicode code points in the string. This differs from C's printf where
-	the field width is the number of bytes.
-
-	Other flags:
-		+	always print a sign for numeric values
-		-	pad with spaces on the right rather than the left (left-justify the field)
-		#	alternate format: add leading 0 for octal (%#o), 0x for hex (%#x);
-			suppress 0x for %p (%#p);
-			print a raw (backquoted) string if possible for %q (%#q)
-		' '	(space) leave a space for elided sign in numbers (% d);
-			put spaces between bytes printing strings or slices in hex (% x)
-		0	pad with leading zeros rather than spaces
-
-	For each Printf-like function, there is also a Print function
-	that takes no format and is equivalent to saying %v for every
-	operand.  Another variant Println inserts blanks between
-	operands and appends a newline.
-
-	Regardless of the verb, if an operand is an interface value,
-	the internal concrete value is used, not the interface itself.
-	Thus:
-		var i interface{} = 23;
-		fmt.Printf("%v\n", i);
-	will print 23.
-
-	If an operand implements interface Formatter, that interface
-	can be used for fine control of formatting.
-
-	If an operand implements method String() string that method
-	will be used to conver the object to a string, which will then
-	be formatted as required by the verb (if any). To avoid
-	recursion in cases such as
-		type X int
-		func (x X) String() string { return Sprintf("%d", x) }
-	cast the value before recurring:
-		func (x X) String() string { return Sprintf("%d", int(x)) }
-
-	Scanning:
-
-	An analogous set of functions scans formatted text to yield
-	values.  Scan, Scanf and Scanln read from os.Stdin; Fscan,
-	Fscanf and Fscanln read from a specified os.Reader; Sscan,
-	Sscanf and Sscanln read from an argument string.  Sscanln,
-	Fscanln and Sscanln stop scanning at a newline and require that
-	the items be followed by one; the other routines treat newlines
-	as spaces.
-
-	Scanf, Fscanf, and Sscanf parse the arguments according to a
-	format string, analogous to that of Printf.  For example, "%x"
-	will scan an integer as a hexadecimal number, and %v will scan
-	the default representation format for the value.
-
-	The formats behave analogously to those of Printf with the
-	following exceptions:
-
-	%p is not implemented
-	%T is not implemented
-	%e %E %f %F %g %g are all equivalent and scan any floating
-		point or complex value
-	%s and %v on strings scan a space-delimited token
-
-	Width is interpreted in the input text (%5s means at most
-	five runes of input will be read to scan a string) but there
-	is no syntax for scanning with a precision (no %5.2f, just
-	%5f).
-
-	When scanning with a format, all non-empty runs of space
-	characters (including newline) are equivalent to a single
-	space in both the format and the input.  With that proviso,
-	text in the format string must match the input text; scanning
-	stops if it does not, with the return value of the function
-	indicating the number of arguments scanned.
-
-	In all the scanning functions, if an operand implements method
-	Scan (that is, it implements the Scanner interface) that
-	method will be used to scan the text for that operand.  Also,
-	if the number of arguments scanned is less than the number of
-	arguments provided, an error is returned.
-
-	All arguments to be scanned must be either pointers to basic
-	types or implementations of the Scanner interface.
-*/
 package fmt
 
 import (
@@ -258,6 +132,7 @@ func (p *pp) Write(b []byte) (ret int, err os.Error) {
 // These routines end in 'f' and take a format string.
 
 // Fprintf formats according to a format specifier and writes to w.
+// It returns the number of bytes written and any write error encountered.
 func Fprintf(w io.Writer, format string, a ...interface{}) (n int, error os.Error) {
 	p := newPrinter()
 	p.doPrintf(format, a)
@@ -267,12 +142,14 @@ func Fprintf(w io.Writer, format string, a ...interface{}) (n int, error os.Erro
 }
 
 // Printf formats according to a format specifier and writes to standard output.
+// It returns the number of bytes written and any write error encountered.
 func Printf(format string, a ...interface{}) (n int, errno os.Error) {
 	n, errno = Fprintf(os.Stdout, format, a)
 	return n, errno
 }
 
 // Sprintf formats according to a format specifier and returns the resulting string.
+// It returns the number of bytes written.
 func Sprintf(format string, a ...interface{}) string {
 	p := newPrinter()
 	p.doPrintf(format, a)
@@ -285,6 +162,7 @@ func Sprintf(format string, a ...interface{}) string {
 
 // Fprint formats using the default formats for its operands and writes to w.
 // Spaces are added between operands when neither is a string.
+// It returns the number of bytes written and any write error encountered.
 func Fprint(w io.Writer, a ...interface{}) (n int, error os.Error) {
 	p := newPrinter()
 	p.doPrint(a, false, false)
@@ -295,6 +173,7 @@ func Fprint(w io.Writer, a ...interface{}) (n int, error os.Error) {
 
 // Print formats using the default formats for its operands and writes to standard output.
 // Spaces are added between operands when neither is a string.
+// It returns the number of bytes written and any write error encountered.
 func Print(a ...interface{}) (n int, errno os.Error) {
 	n, errno = Fprint(os.Stdout, a)
 	return n, errno
@@ -302,6 +181,7 @@ func Print(a ...interface{}) (n int, errno os.Error) {
 
 // Sprint formats using the default formats for its operands and returns the resulting string.
 // Spaces are added between operands when neither is a string.
+// It returns the number of bytes written.
 func Sprint(a ...interface{}) string {
 	p := newPrinter()
 	p.doPrint(a, false, false)
@@ -316,6 +196,7 @@ func Sprint(a ...interface{}) string {
 
 // Fprintln formats using the default formats for its operands and writes to w.
 // Spaces are always added between operands and a newline is appended.
+// It returns the number of bytes written and any write error encountered.
 func Fprintln(w io.Writer, a ...interface{}) (n int, error os.Error) {
 	p := newPrinter()
 	p.doPrint(a, true, true)
@@ -326,6 +207,7 @@ func Fprintln(w io.Writer, a ...interface{}) (n int, error os.Error) {
 
 // Println formats using the default formats for its operands and writes to standard output.
 // Spaces are always added between operands and a newline is appended.
+// It returns the number of bytes written and any write error encountered.
 func Println(a ...interface{}) (n int, errno os.Error) {
 	n, errno = Fprintln(os.Stdout, a)
 	return n, errno
@@ -333,6 +215,7 @@ func Println(a ...interface{}) (n int, errno os.Error) {
 
 // Sprintln formats using the default formats for its operands and returns the resulting string.
 // Spaces are always added between operands and a newline is appended.
+// It returns the number of bytes written.
 func Sprintln(a ...interface{}) string {
 	p := newPrinter()
 	p.doPrint(a, true, true)
@@ -443,7 +326,7 @@ func (p *pp) fmt0x64(v uint64) {
 	p.fmt.sharp = sharp
 }
 
-func (p *pp) fmtUint64(v uint64, verb int, sharp bool, value interface{}) {
+func (p *pp) fmtUint64(v uint64, verb int, goSyntax bool, value interface{}) {
 	switch verb {
 	case 'b':
 		p.fmt.integer(int64(v), 2, unsigned, ldigits)
@@ -452,7 +335,7 @@ func (p *pp) fmtUint64(v uint64, verb int, sharp bool, value interface{}) {
 	case 'd':
 		p.fmt.integer(int64(v), 10, unsigned, ldigits)
 	case 'v':
-		if sharp {
+		if goSyntax {
 			p.fmt0x64(v)
 		} else {
 			p.fmt.integer(int64(v), 10, unsigned, ldigits)
@@ -467,8 +350,6 @@ func (p *pp) fmtUint64(v uint64, verb int, sharp bool, value interface{}) {
 		p.badVerb(verb, value)
 	}
 }
-
-var floatBits = reflect.Typeof(float(0)).Size() * 8
 
 func (p *pp) fmtFloat32(v float32, verb int, value interface{}) {
 	switch verb {
@@ -508,8 +389,6 @@ func (p *pp) fmtFloat64(v float64, verb int, value interface{}) {
 	}
 }
 
-var complexBits = reflect.Typeof(complex(0i)).Size() * 8
-
 func (p *pp) fmtComplex64(v complex64, verb int, value interface{}) {
 	switch verb {
 	case 'e', 'E', 'f', 'F', 'g', 'G':
@@ -532,10 +411,10 @@ func (p *pp) fmtComplex128(v complex128, verb int, value interface{}) {
 	}
 }
 
-func (p *pp) fmtString(v string, verb int, sharp bool, value interface{}) {
+func (p *pp) fmtString(v string, verb int, goSyntax bool, value interface{}) {
 	switch verb {
 	case 'v':
-		if sharp {
+		if goSyntax {
 			p.fmt.fmt_q(v)
 		} else {
 			p.fmt.fmt_s(v)
@@ -553,24 +432,24 @@ func (p *pp) fmtString(v string, verb int, sharp bool, value interface{}) {
 	}
 }
 
-func (p *pp) fmtBytes(v []byte, verb int, sharp bool, depth int, value interface{}) {
+func (p *pp) fmtBytes(v []byte, verb int, goSyntax bool, depth int, value interface{}) {
 	if verb == 'v' {
-		if p.fmt.sharp {
+		if goSyntax {
 			p.buf.Write(bytesBytes)
 		} else {
 			p.buf.WriteByte('[')
 		}
 		for i, c := range v {
 			if i > 0 {
-				if p.fmt.sharp {
+				if goSyntax {
 					p.buf.Write(commaSpaceBytes)
 				} else {
 					p.buf.WriteByte(' ')
 				}
 			}
-			p.printField(c, 'v', p.fmt.plus, p.fmt.sharp, depth+1)
+			p.printField(c, 'v', p.fmt.plus, goSyntax, depth+1)
 		}
-		if sharp {
+		if goSyntax {
 			p.buf.WriteByte('}')
 		} else {
 			p.buf.WriteByte(']')
@@ -592,13 +471,14 @@ func (p *pp) fmtBytes(v []byte, verb int, sharp bool, depth int, value interface
 	}
 }
 
-func (p *pp) fmtUintptrGetter(field interface{}, value reflect.Value, verb int, sharp bool) bool {
+func (p *pp) fmtPointer(field interface{}, value reflect.Value, verb int, goSyntax bool) {
 	v, ok := value.(uintptrGetter)
-	if !ok {
-		return false
+	if !ok { // reflect.PtrValue is a uintptrGetter, so failure means it's not a pointer at all.
+		p.badVerb(verb, field)
+		return
 	}
 	u := v.Get()
-	if sharp {
+	if goSyntax {
 		p.add('(')
 		p.buf.WriteString(reflect.Typeof(field).String())
 		p.add(')')
@@ -612,22 +492,58 @@ func (p *pp) fmtUintptrGetter(field interface{}, value reflect.Value, verb int, 
 	} else {
 		p.fmt0x64(uint64(u))
 	}
-	return true
 }
 
-func (p *pp) printField(field interface{}, verb int, plus, sharp bool, depth int) (was_string bool) {
-	if field != nil {
-		switch {
-		default:
-			if stringer, ok := field.(Stringer); ok {
-				p.printField(stringer.String(), verb, plus, sharp, depth)
-				return false // this value is not a string
-			}
-		case sharp:
-			if stringer, ok := field.(GoStringer); ok {
-				p.printField(stringer.GoString(), verb, plus, sharp, depth)
-				return false // this value is not a string
-			}
+var (
+	intBits     = reflect.Typeof(0).Bits()
+	floatBits   = reflect.Typeof(0.0).Bits()
+	complexBits = reflect.Typeof(1i).Bits()
+	uintptrBits = reflect.Typeof(uintptr(0)).Bits()
+)
+
+func (p *pp) printField(field interface{}, verb int, plus, goSyntax bool, depth int) (wasString bool) {
+	if field == nil {
+		if verb == 'T' || verb == 'v' {
+			p.buf.Write(nilAngleBytes)
+		} else {
+			p.badVerb(verb, field)
+		}
+		return false
+	}
+
+	// Special processing considerations.
+	// %T (the value's type) and %p (its address) are special; we always do them first.
+	switch verb {
+	case 'T':
+		p.printField(reflect.Typeof(field).String(), 's', false, false, 0)
+		return false
+	case 'p':
+		p.fmtPointer(field, reflect.NewValue(field), verb, goSyntax)
+		return false
+	}
+	// Is it a Formatter?
+	if formatter, ok := field.(Formatter); ok {
+		formatter.Format(p, verb)
+		return false // this value is not a string
+
+	}
+	// Must not touch flags before Formatter looks at them.
+	if plus {
+		p.fmt.plus = false
+	}
+	// If we're doing Go syntax and the field knows how to supply it, take care of it now.
+	if goSyntax {
+		p.fmt.sharp = false
+		if stringer, ok := field.(GoStringer); ok {
+			// Print the result of GoString unadorned.
+			p.fmtString(stringer.GoString(), 's', false, field)
+			return false // this value is not a string
+		}
+	} else {
+		// Is it a Stringer?
+		if stringer, ok := field.(Stringer); ok {
+			p.printField(stringer.String(), verb, plus, false, depth)
+			return false // this value is not a string
 		}
 	}
 
@@ -678,97 +594,58 @@ func (p *pp) printField(field interface{}, verb int, plus, sharp bool, depth int
 		p.fmtInt64(f, verb, field)
 		return false
 	case uint:
-		p.fmtUint64(uint64(f), verb, sharp, field)
+		p.fmtUint64(uint64(f), verb, goSyntax, field)
 		return false
 	case uint8:
-		p.fmtUint64(uint64(f), verb, sharp, field)
+		p.fmtUint64(uint64(f), verb, goSyntax, field)
 		return false
 	case uint16:
-		p.fmtUint64(uint64(f), verb, sharp, field)
+		p.fmtUint64(uint64(f), verb, goSyntax, field)
 		return false
 	case uint32:
-		p.fmtUint64(uint64(f), verb, sharp, field)
+		p.fmtUint64(uint64(f), verb, goSyntax, field)
 		return false
 	case uint64:
-		p.fmtUint64(f, verb, sharp, field)
+		p.fmtUint64(f, verb, goSyntax, field)
 		return false
 	case uintptr:
-		p.fmtUint64(uint64(f), verb, sharp, field)
+		p.fmtUint64(uint64(f), verb, goSyntax, field)
 		return false
 	case string:
-		p.fmtString(f, verb, sharp, field)
+		p.fmtString(f, verb, goSyntax, field)
 		return verb == 's' || verb == 'v'
 	case []byte:
-		p.fmtBytes(f, verb, sharp, depth, field)
+		p.fmtBytes(f, verb, goSyntax, depth, field)
 		return verb == 's'
 	}
 
-	if field == nil {
-		if verb == 'v' {
-			p.buf.Write(nilAngleBytes)
-		} else {
-			p.badVerb(verb, field)
-		}
-		return false
-	}
-
-	value := reflect.NewValue(field)
 	// Need to use reflection
-	// Special case for reflection values that know how to print with %p.
-	if verb == 'p' && p.fmtUintptrGetter(field, value, verb, sharp) {
-		return false
-	}
+	value := reflect.NewValue(field)
 
 BigSwitch:
 	switch f := value.(type) {
 	case *reflect.BoolValue:
 		p.fmtBool(f.Get(), verb, field)
 	case *reflect.IntValue:
-		p.fmtInt64(int64(f.Get()), verb, field)
-	case *reflect.Int8Value:
-		p.fmtInt64(int64(f.Get()), verb, field)
-	case *reflect.Int16Value:
-		p.fmtInt64(int64(f.Get()), verb, field)
-	case *reflect.Int32Value:
-		p.fmtInt64(int64(f.Get()), verb, field)
-	case *reflect.Int64Value:
 		p.fmtInt64(f.Get(), verb, field)
 	case *reflect.UintValue:
-		p.fmtUint64(uint64(f.Get()), verb, sharp, field)
-	case *reflect.Uint8Value:
-		p.fmtUint64(uint64(f.Get()), verb, sharp, field)
-	case *reflect.Uint16Value:
-		p.fmtUint64(uint64(f.Get()), verb, sharp, field)
-	case *reflect.Uint32Value:
-		p.fmtUint64(uint64(f.Get()), verb, sharp, field)
-	case *reflect.Uint64Value:
-		p.fmtUint64(f.Get(), verb, sharp, field)
-	case *reflect.UintptrValue:
-		p.fmtUint64(uint64(f.Get()), verb, sharp, field)
+		p.fmtUint64(uint64(f.Get()), verb, goSyntax, field)
 	case *reflect.FloatValue:
-		if floatBits == 32 {
+		if f.Type().Size() == 4 {
 			p.fmtFloat32(float32(f.Get()), verb, field)
 		} else {
 			p.fmtFloat64(float64(f.Get()), verb, field)
 		}
-	case *reflect.Float32Value:
-		p.fmtFloat64(float64(f.Get()), verb, field)
-	case *reflect.Float64Value:
-		p.fmtFloat64(f.Get(), verb, field)
 	case *reflect.ComplexValue:
-		if complexBits == 64 {
+		if f.Type().Size() == 8 {
 			p.fmtComplex64(complex64(f.Get()), verb, field)
 		} else {
 			p.fmtComplex128(complex128(f.Get()), verb, field)
 		}
-	case *reflect.Complex64Value:
-		p.fmtComplex64(f.Get(), verb, field)
-	case *reflect.Complex128Value:
-		p.fmtComplex128(f.Get(), verb, field)
 	case *reflect.StringValue:
-		p.fmtString(f.Get(), verb, sharp, field)
+		p.fmtString(f.Get(), verb, goSyntax, field)
 	case *reflect.MapValue:
-		if sharp {
+		if goSyntax {
 			p.buf.WriteString(f.Type().String())
 			p.buf.WriteByte('{')
 		} else {
@@ -777,60 +654,75 @@ BigSwitch:
 		keys := f.Keys()
 		for i, key := range keys {
 			if i > 0 {
-				if sharp {
+				if goSyntax {
 					p.buf.Write(commaSpaceBytes)
 				} else {
 					p.buf.WriteByte(' ')
 				}
 			}
-			p.printField(key.Interface(), verb, plus, sharp, depth+1)
+			p.printField(key.Interface(), verb, plus, goSyntax, depth+1)
 			p.buf.WriteByte(':')
-			p.printField(f.Elem(key).Interface(), verb, plus, sharp, depth+1)
+			p.printField(f.Elem(key).Interface(), verb, plus, goSyntax, depth+1)
 		}
-		if sharp {
+		if goSyntax {
 			p.buf.WriteByte('}')
 		} else {
 			p.buf.WriteByte(']')
 		}
 	case *reflect.StructValue:
-		if sharp {
+		if goSyntax {
 			p.buf.WriteString(reflect.Typeof(field).String())
 		}
 		p.add('{')
 		v := f
 		t := v.Type().(*reflect.StructType)
-		p.fmt.clearflags() // clear flags for p.printField
 		for i := 0; i < v.NumField(); i++ {
 			if i > 0 {
-				if sharp {
+				if goSyntax {
 					p.buf.Write(commaSpaceBytes)
 				} else {
 					p.buf.WriteByte(' ')
 				}
 			}
-			if plus || sharp {
+			if plus || goSyntax {
 				if f := t.Field(i); f.Name != "" {
 					p.buf.WriteString(f.Name)
 					p.buf.WriteByte(':')
 				}
 			}
-			p.printField(getField(v, i).Interface(), verb, plus, sharp, depth+1)
+			p.printField(getField(v, i).Interface(), verb, plus, goSyntax, depth+1)
 		}
 		p.buf.WriteByte('}')
 	case *reflect.InterfaceValue:
 		value := f.Elem()
 		if value == nil {
-			if sharp {
+			if goSyntax {
 				p.buf.WriteString(reflect.Typeof(field).String())
 				p.buf.Write(nilParenBytes)
 			} else {
 				p.buf.Write(nilAngleBytes)
 			}
 		} else {
-			return p.printField(value.Interface(), verb, plus, sharp, depth+1)
+			return p.printField(value.Interface(), verb, plus, goSyntax, depth+1)
 		}
 	case reflect.ArrayOrSliceValue:
-		if sharp {
+		// Byte slices are special.
+		if f.Type().(reflect.ArrayOrSliceType).Elem().Kind() == reflect.Uint8 {
+			// We know it's a slice of bytes, but we also know it does not have static type
+			// []byte, or it would have been caught above.  Therefore we cannot convert
+			// it directly in the (slightly) obvious way: f.Interface().([]byte); it doesn't have
+			// that type, and we can't write an expression of the right type and do a
+			// conversion because we don't have a static way to write the right type.
+			// So we build a slice by hand.  This is a rare case but it would be nice
+			// if reflection could help a little more.
+			bytes := make([]byte, f.Len())
+			for i := range bytes {
+				bytes[i] = byte(f.Elem(i).(*reflect.UintValue).Get())
+			}
+			p.fmtBytes(bytes, verb, goSyntax, depth, field)
+			return verb == 's'
+		}
+		if goSyntax {
 			p.buf.WriteString(reflect.Typeof(field).String())
 			p.buf.WriteByte('{')
 		} else {
@@ -838,15 +730,15 @@ BigSwitch:
 		}
 		for i := 0; i < f.Len(); i++ {
 			if i > 0 {
-				if sharp {
+				if goSyntax {
 					p.buf.Write(commaSpaceBytes)
 				} else {
 					p.buf.WriteByte(' ')
 				}
 			}
-			p.printField(f.Elem(i).Interface(), verb, plus, sharp, depth+1)
+			p.printField(f.Elem(i).Interface(), verb, plus, goSyntax, depth+1)
 		}
-		if sharp {
+		if goSyntax {
 			p.buf.WriteByte('}')
 		} else {
 			p.buf.WriteByte(']')
@@ -859,15 +751,15 @@ BigSwitch:
 			switch a := f.Elem().(type) {
 			case reflect.ArrayOrSliceValue:
 				p.buf.WriteByte('&')
-				p.printField(a.Interface(), verb, plus, sharp, depth+1)
+				p.printField(a.Interface(), verb, plus, goSyntax, depth+1)
 				break BigSwitch
 			case *reflect.StructValue:
 				p.buf.WriteByte('&')
-				p.printField(a.Interface(), verb, plus, sharp, depth+1)
+				p.printField(a.Interface(), verb, plus, goSyntax, depth+1)
 				break BigSwitch
 			}
 		}
-		if sharp {
+		if goSyntax {
 			p.buf.WriteByte('(')
 			p.buf.WriteString(reflect.Typeof(field).String())
 			p.buf.WriteByte(')')
@@ -886,10 +778,7 @@ BigSwitch:
 		}
 		p.fmt0x64(uint64(v))
 	case uintptrGetter:
-		if p.fmtUintptrGetter(field, value, verb, sharp) {
-			break
-		}
-		p.unknownType(f)
+		p.fmtPointer(field, value, verb, goSyntax)
 	default:
 		p.unknownType(f)
 	}
@@ -940,7 +829,7 @@ func (p *pp) doPrintf(format string, a []interface{}) {
 		i += w
 		// percent is special - absorbs no operand
 		if c == '%' {
-			p.buf.WriteByte('%') // TODO: should we bother with width & prec?
+			p.buf.WriteByte('%') // We ignore width and prec.
 			continue
 		}
 		if fieldnum >= len(a) { // out of operands
@@ -952,26 +841,9 @@ func (p *pp) doPrintf(format string, a []interface{}) {
 		field := a[fieldnum]
 		fieldnum++
 
-		// %T is special; we always do it here.
-		if c == 'T' {
-			// the value's type
-			if field == nil {
-				p.buf.Write(nilAngleBytes)
-				break
-			}
-			p.printField(reflect.Typeof(field).String(), 's', false, false, 0)
-			continue
-		}
-
-		// Try Formatter (except for %T).
-		if field != nil {
-			if formatter, ok := field.(Formatter); ok {
-				formatter.Format(p, c)
-				continue
-			}
-		}
-
-		p.printField(field, c, p.fmt.plus, p.fmt.sharp, 0)
+		goSyntax := c == 'v' && p.fmt.sharp
+		plus := c == 'v' && p.fmt.plus
+		p.printField(field, c, plus, goSyntax, 0)
 	}
 
 	if fieldnum < len(a) {
@@ -992,17 +864,18 @@ func (p *pp) doPrintf(format string, a []interface{}) {
 }
 
 func (p *pp) doPrint(a []interface{}, addspace, addnewline bool) {
-	prev_string := false
+	prevString := false
 	for fieldnum := 0; fieldnum < len(a); fieldnum++ {
+		p.fmt.clearflags()
 		// always add spaces if we're doing println
 		field := a[fieldnum]
 		if fieldnum > 0 {
-			_, is_string := field.(*reflect.StringValue)
-			if addspace || !is_string && !prev_string {
+			isString := field != nil && reflect.Typeof(field).Kind() == reflect.String
+			if addspace || !isString && !prevString {
 				p.buf.WriteByte(' ')
 			}
 		}
-		prev_string = p.printField(field, 'v', false, false, 0)
+		prevString = p.printField(field, 'v', false, false, 0)
 	}
 	if addnewline {
 		p.buf.WriteByte('\n')

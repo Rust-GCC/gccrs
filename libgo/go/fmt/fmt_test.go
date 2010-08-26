@@ -78,6 +78,32 @@ type C struct {
 	B
 }
 
+type F int
+
+func (f F) Format(s State, c int) {
+	Fprintf(s, "<%c=F(%d)>", c, int(f))
+}
+
+type G int
+
+func (g G) GoString() string {
+	return Sprintf("GoString(%d)", int(g))
+}
+
+type S struct {
+	f F // a struct field that Formats
+	g G // a struct field that GoStrings
+}
+
+// A type with a String method with pointer receiver for testing %p
+type P int
+
+var pValue P
+
+func (p *P) String() string {
+	return "String(p)"
+}
+
 var b byte
 
 var fmttests = []fmtTest{
@@ -277,11 +303,6 @@ var fmttests = []fmtTest{
 	fmtTest{"%x", I(23), `3c32333e`},
 	fmtTest{"%d", I(23), `%d(string=<23>)`},
 
-	// %p on non-pointers
-	fmtTest{"%p", make(chan int), "PTR"},
-	fmtTest{"%p", make(map[int]int), "PTR"},
-	fmtTest{"%p", make([]int, 1), "PTR"},
-
 	// go syntax
 	fmtTest{"%#v", A{1, 2, "a", []int{1, 2}}, `fmt_test.A{i:1, j:0x2, s:"a", x:[]int{1, 2}}`},
 	fmtTest{"%#v", &b, "(*uint8)(PTR)"},
@@ -289,6 +310,14 @@ var fmttests = []fmtTest{
 	fmtTest{"%#v", make(chan int), "(chan int)(PTR)"},
 	fmtTest{"%#v", uint64(1<<64 - 1), "0xffffffffffffffff"},
 	fmtTest{"%#v", 1000000000, "1000000000"},
+	fmtTest{"%#v", map[string]int{"a": 1, "b": 2}, `map[string] int{"a":1, "b":2}`},
+	fmtTest{"%#v", map[string]B{"a": B{1, 2}, "b": B{3, 4}}, `map[string] fmt_test.B{"a":fmt_test.B{i:1, j:2}, "b":fmt_test.B{i:3, j:4}}`},
+	fmtTest{"%#v", []string{"a", "b"}, `[]string{"a", "b"}`},
+
+	// slices with other formats
+	fmtTest{"%#x", []int{1, 2, 15}, `[0x1 0x2 0xf]`},
+	fmtTest{"%x", []int{1, 2, 15}, `[1 2 f]`},
+	fmtTest{"%q", []string{"a", "b"}, `["a" "b"]`},
 
 	// renamings
 	fmtTest{"%v", renamedBool(true), "true"},
@@ -305,8 +334,7 @@ var fmttests = []fmtTest{
 	fmtTest{"%X", renamedUint64(17), "11"},
 	fmtTest{"%o", renamedUintptr(18), "22"},
 	fmtTest{"%x", renamedString("thing"), "7468696e67"},
-	// TODO: It would be nice if this one worked, but it's hard.
-	//	fmtTest{"%q", renamedBytes([]byte("hello")), `"hello"`},
+	fmtTest{"%q", renamedBytes([]byte("hello")), `"hello"`},
 	fmtTest{"%v", renamedFloat(11), "11"},
 	fmtTest{"%v", renamedFloat32(22), "22"},
 	fmtTest{"%v", renamedFloat64(33), "33"},
@@ -314,11 +342,31 @@ var fmttests = []fmtTest{
 	fmtTest{"%v", renamedComplex64(3 + 4i), "(3+4i)"},
 	fmtTest{"%v", renamedComplex128(4 - 3i), "(4-3i)"},
 
+	// Formatter
+	fmtTest{"%x", F(1), "<x=F(1)>"},
+	fmtTest{"%x", G(2), "2"},
+	fmtTest{"%+v", S{F(4), G(5)}, "{f:<v=F(4)> g:5}"},
+
+	// GoStringer
+	fmtTest{"%#v", G(6), "GoString(6)"},
+	fmtTest{"%#v", S{F(7), G(8)}, "fmt_test.S{f:<v=F(7)>, g:GoString(8)}"},
+
 	// %T
 	fmtTest{"%T", (4 - 3i), "complex"},
 	fmtTest{"%T", renamedComplex128(4 - 3i), "fmt_test.renamedComplex128"},
 	fmtTest{"%T", intVal, "int"},
 	fmtTest{"%6T", &intVal, "  *int"},
+
+	// %p
+	fmtTest{"p0=%p", new(int), "p0=PTR"},
+	fmtTest{"p1=%s", &pValue, "p1=String(p)"}, // String method...
+	fmtTest{"p2=%p", &pValue, "p2=PTR"},       // ... not called with %p
+
+	// %p on non-pointers
+	fmtTest{"%p", make(chan int), "PTR"},
+	fmtTest{"%p", make(map[int]int), "PTR"},
+	fmtTest{"%p", make([]int, 1), "PTR"},
+	fmtTest{"%p", 27, "%p(int=27)"}, // not a pointer at all
 
 	// erroneous things
 	fmtTest{"%d", "hello", "%d(string=hello)"},
@@ -516,5 +564,44 @@ func TestEmptyMap(t *testing.T) {
 	s = Sprint(m)
 	if s != emptyMapStr {
 		t.Errorf("empty map printed as %q not %q", s, emptyMapStr)
+	}
+}
+
+// Check that Sprint (and hence Print, Fprint) puts spaces in the right places,
+// that is, between arg pairs in which neither is a string.
+func TestBlank(t *testing.T) {
+	got := Sprint("<", 1, ">:", 1, 2, 3, "!")
+	expect := "<1>:1 2 3!"
+	if got != expect {
+		t.Errorf("got %q expected %q", got, expect)
+	}
+}
+
+// Check that Sprintln (and hence Println, Fprintln) puts spaces in the right places,
+// that is, between all arg pairs.
+func TestBlankln(t *testing.T) {
+	got := Sprintln("<", 1, ">:", 1, 2, 3, "!")
+	expect := "< 1 >: 1 2 3 !\n"
+	if got != expect {
+		t.Errorf("got %q expected %q", got, expect)
+	}
+}
+
+
+// Check Formatter with Sprint, Sprintln, Sprintf
+func TestFormatterPrintln(t *testing.T) {
+	f := F(1)
+	expect := "<v=F(1)>\n"
+	s := Sprint(f, "\n")
+	if s != expect {
+		t.Errorf("Sprint wrong with Formatter: expected %q got %q\n", expect, s)
+	}
+	s = Sprintln(f)
+	if s != expect {
+		t.Errorf("Sprintln wrong with Formatter: expected %q got %q\n", expect, s)
+	}
+	s = Sprintf("%v\n", f)
+	if s != expect {
+		t.Errorf("Sprintf wrong with Formatter: expected %q got %q\n", expect, s)
 	}
 }

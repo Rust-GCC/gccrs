@@ -112,7 +112,9 @@ var boolResult = []byte{0x07, 0x01}
 var signedResult = []byte{0x07, 2 * 17}
 var unsignedResult = []byte{0x07, 17}
 var floatResult = []byte{0x07, 0xFE, 0x31, 0x40}
-// The result of encoding "hello" with field number 6
+// The result of encoding a number 17+19i with field number 7
+var complexResult = []byte{0x07, 0xFE, 0x31, 0x40, 0xFE, 0x33, 0x40}
+// The result of encoding "hello" with field number 7
 var bytesResult = []byte{0x07, 0x05, 'h', 'e', 'l', 'l', 'o'}
 
 func newencoderState(b *bytes.Buffer) *encoderState {
@@ -360,7 +362,7 @@ func TestScalarDecInstructions(t *testing.T) {
 		var data struct {
 			a int
 		}
-		instr := &decInstr{decOpMap[valueKind(data.a)], 6, 0, 0, ovfl}
+		instr := &decInstr{decOpMap[reflect.Int], 6, 0, 0, ovfl}
 		state := newDecodeStateFromData(signedResult)
 		execDec("int", instr, state, t, unsafe.Pointer(&data))
 		if data.a != 17 {
@@ -373,7 +375,7 @@ func TestScalarDecInstructions(t *testing.T) {
 		var data struct {
 			a uint
 		}
-		instr := &decInstr{decOpMap[valueKind(data.a)], 6, 0, 0, ovfl}
+		instr := &decInstr{decOpMap[reflect.Uint], 6, 0, 0, ovfl}
 		state := newDecodeStateFromData(unsignedResult)
 		execDec("uint", instr, state, t, unsafe.Pointer(&data))
 		if data.a != 17 {
@@ -464,7 +466,7 @@ func TestScalarDecInstructions(t *testing.T) {
 		var data struct {
 			a uintptr
 		}
-		instr := &decInstr{decOpMap[valueKind(data.a)], 6, 0, 0, ovfl}
+		instr := &decInstr{decOpMap[reflect.Uintptr], 6, 0, 0, ovfl}
 		state := newDecodeStateFromData(unsignedResult)
 		execDec("uintptr", instr, state, t, unsafe.Pointer(&data))
 		if data.a != 17 {
@@ -503,7 +505,7 @@ func TestScalarDecInstructions(t *testing.T) {
 		var data struct {
 			a float
 		}
-		instr := &decInstr{decOpMap[valueKind(data.a)], 6, 0, 0, ovfl}
+		instr := &decInstr{decOpMap[reflect.Float], 6, 0, 0, ovfl}
 		state := newDecodeStateFromData(floatResult)
 		execDec("float", instr, state, t, unsafe.Pointer(&data))
 		if data.a != 17 {
@@ -534,6 +536,45 @@ func TestScalarDecInstructions(t *testing.T) {
 		execDec("float64", instr, state, t, unsafe.Pointer(&data))
 		if data.a != 17 {
 			t.Errorf("float64 a = %v not 17", data.a)
+		}
+	}
+
+	// complex
+	{
+		var data struct {
+			a complex
+		}
+		instr := &decInstr{decOpMap[reflect.Complex], 6, 0, 0, ovfl}
+		state := newDecodeStateFromData(complexResult)
+		execDec("complex", instr, state, t, unsafe.Pointer(&data))
+		if data.a != 17+19i {
+			t.Errorf("complex a = %v not 17+19i", data.a)
+		}
+	}
+
+	// complex64
+	{
+		var data struct {
+			a complex64
+		}
+		instr := &decInstr{decOpMap[reflect.Complex64], 6, 0, 0, ovfl}
+		state := newDecodeStateFromData(complexResult)
+		execDec("complex", instr, state, t, unsafe.Pointer(&data))
+		if data.a != 17+19i {
+			t.Errorf("complex a = %v not 17+19i", data.a)
+		}
+	}
+
+	// complex128
+	{
+		var data struct {
+			a complex128
+		}
+		instr := &decInstr{decOpMap[reflect.Complex128], 6, 0, 0, ovfl}
+		state := newDecodeStateFromData(complexResult)
+		execDec("complex", instr, state, t, unsafe.Pointer(&data))
+		if data.a != 17+19i {
+			t.Errorf("complex a = %v not 17+19i", data.a)
 		}
 	}
 
@@ -576,6 +617,7 @@ func TestEndToEnd(t *testing.T) {
 		n       *[3]float
 		strs    *[2]string
 		int64s  *[]int64
+		ri      complex64
 		s       string
 		y       []byte
 		t       *T2
@@ -590,6 +632,7 @@ func TestEndToEnd(t *testing.T) {
 		n:      &[3]float{1.5, 2.5, 3.5},
 		strs:   &[2]string{s1, s2},
 		int64s: &[]int64{77, 89, 123412342134},
+		ri:     17 - 23i,
 		s:      "Now is the time",
 		y:      []byte("hello, sailor"),
 		t:      &T2{"this is T2"},
@@ -616,6 +659,8 @@ func TestOverflow(t *testing.T) {
 		maxu uint64
 		maxf float64
 		minf float64
+		maxc complex128
+		minc complex128
 	}
 	var it inputT
 	var err os.Error
@@ -757,6 +802,22 @@ func TestOverflow(t *testing.T) {
 	err = dec.Decode(&o7)
 	if err == nil || err.String() != `value for "maxf" out of range` {
 		t.Error("wrong overflow error for float32:", err)
+	}
+
+	// complex64
+	b.Reset()
+	it = inputT{
+		maxc: cmplx(math.MaxFloat32*2, math.MaxFloat32*2),
+	}
+	type outc64 struct {
+		maxc complex64
+		minc complex64
+	}
+	var o8 outc64
+	enc.Encode(it)
+	err = dec.Decode(&o8)
+	if err == nil || err.String() != `value for "maxc" out of range` {
+		t.Error("wrong overflow error for complex64:", err)
 	}
 }
 
@@ -967,7 +1028,7 @@ func TestInvalidField(t *testing.T) {
 	var bad0 Bad0
 	bad0.inter = 17
 	b := new(bytes.Buffer)
-	err := encode(b, &bad0)
+	err := encode(b, reflect.NewValue(&bad0))
 	if err == nil {
 		t.Error("expected error; got none")
 	} else if strings.Index(err.String(), "interface") < 0 {
@@ -978,7 +1039,7 @@ func TestInvalidField(t *testing.T) {
 type Indirect struct {
 	a ***[3]int
 	s ***[]int
-	m ***map[string]int
+	m ****map[string]int
 }
 
 type Direct struct {
@@ -998,10 +1059,11 @@ func TestIndirectSliceMapArray(t *testing.T) {
 	*i.s = new(*[]int)
 	**i.s = new([]int)
 	***i.s = []int{4, 5, 6}
-	i.m = new(**map[string]int)
-	*i.m = new(*map[string]int)
-	**i.m = new(map[string]int)
-	***i.m = map[string]int{"one": 1, "two": 2, "three": 3}
+	i.m = new(***map[string]int)
+	*i.m = new(**map[string]int)
+	**i.m = new(*map[string]int)
+	***i.m = new(map[string]int)
+	****i.m = map[string]int{"one": 1, "two": 2, "three": 3}
 	b := new(bytes.Buffer)
 	NewEncoder(b).Encode(i)
 	dec := NewDecoder(b)
@@ -1032,12 +1094,12 @@ func TestIndirectSliceMapArray(t *testing.T) {
 		t.Error("error: ", err)
 	}
 	if len(***i.a) != 3 || (***i.a)[0] != 11 || (***i.a)[1] != 22 || (***i.a)[2] != 33 {
-		t.Errorf("indirect to direct: ***i.a is %v not %v", ***i.a, d.a)
+		t.Errorf("direct to indirect: ***i.a is %v not %v", ***i.a, d.a)
 	}
 	if len(***i.s) != 3 || (***i.s)[0] != 44 || (***i.s)[1] != 55 || (***i.s)[2] != 66 {
-		t.Errorf("indirect to direct: ***i.s is %v not %v", ***i.s, ***i.s)
+		t.Errorf("direct to indirect: ***i.s is %v not %v", ***i.s, ***i.s)
 	}
-	if len(***i.m) != 3 || (***i.m)["four"] != 4 || (***i.m)["five"] != 5 || (***i.m)["six"] != 6 {
-		t.Errorf("indirect to direct: ***i.m is %v not %v", ***i.m, d.m)
+	if len(****i.m) != 3 || (****i.m)["four"] != 4 || (****i.m)["five"] != 5 || (****i.m)["six"] != 6 {
+		t.Errorf("direct to indirect: ****i.m is %v not %v", ****i.m, d.m)
 	}
 }

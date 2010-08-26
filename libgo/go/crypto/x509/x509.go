@@ -407,8 +407,8 @@ func matchHostnames(pattern, host string) bool {
 		return false
 	}
 
-	patternParts := strings.Split(pattern, ".", 0)
-	hostParts := strings.Split(host, ".", 0)
+	patternParts := strings.Split(pattern, ".", -1)
+	hostParts := strings.Split(host, ".", -1)
 
 	if len(patternParts) != len(hostParts) {
 		return false
@@ -610,7 +610,12 @@ func parseCertificate(in *certificate) (*Certificate, os.Error) {
 
 			case 14:
 				// RFC 5280, 4.2.1.2
-				out.SubjectKeyId = e.Value
+				var keyid []byte
+				_, err = asn1.Unmarshal(&keyid, e.Value)
+				if err != nil {
+					return nil, err
+				}
+				out.SubjectKeyId = keyid
 				continue
 			}
 		}
@@ -761,19 +766,20 @@ var (
 // MaxPathLen, SubjectKeyId, DNSNames.
 //
 // The certificate is signed by parent. If parent is equal to template then the
-// certificate is self-signed.
+// certificate is self-signed. The parameter pub is the public key of the
+// signee and priv is the private key of the signer.
 //
 // The returned slice is the certificate in DER encoding.
-func CreateCertificate(rand io.Reader, template, parent *Certificate, priv *rsa.PrivateKey) (cert []byte, err os.Error) {
+func CreateCertificate(rand io.Reader, template, parent *Certificate, pub *rsa.PublicKey, priv *rsa.PrivateKey) (cert []byte, err os.Error) {
 	asn1PublicKey, err := asn1.MarshalToMemory(rsaPublicKey{
-		N: asn1.RawValue{Tag: 2, Bytes: priv.PublicKey.N.Bytes()},
-		E: priv.PublicKey.E,
+		N: asn1.RawValue{Tag: 2, Bytes: pub.N.Bytes()},
+		E: pub.E,
 	})
 	if err != nil {
 		return
 	}
 
-	if len(template.SubjectKeyId) > 0 && len(parent.SubjectKeyId) > 0 {
+	if len(parent.SubjectKeyId) > 0 {
 		template.AuthorityKeyId = parent.SubjectKeyId
 	}
 

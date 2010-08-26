@@ -47,36 +47,38 @@ class Export;
 class Import;
 
 // Type codes used in type descriptors.  These must match the values
-// in libgo/runtime/go-type.h.
+// in libgo/runtime/go-type.h.  They also match the values in the gc
+// compiler in src/cmd/gc/reflect.c and src/pkg/runtime/type.go,
+// although this is not required.
 
-static const int RUNTIME_TYPE_CODE_BOOL = 0;
-static const int RUNTIME_TYPE_CODE_FLOAT32 = 1;
-static const int RUNTIME_TYPE_CODE_FLOAT64 = 2;
-static const int RUNTIME_TYPE_CODE_FLOAT = 3;
-static const int RUNTIME_TYPE_CODE_INT16 = 4;
-static const int RUNTIME_TYPE_CODE_INT32 = 5;
-static const int RUNTIME_TYPE_CODE_INT64 = 6;
-static const int RUNTIME_TYPE_CODE_INT8 = 7;
-static const int RUNTIME_TYPE_CODE_INT = 8;
-static const int RUNTIME_TYPE_CODE_UINT16 = 9;
-static const int RUNTIME_TYPE_CODE_UINT32 = 10;
-static const int RUNTIME_TYPE_CODE_UINT64 = 11;
-static const int RUNTIME_TYPE_CODE_UINT8 = 12;
-static const int RUNTIME_TYPE_CODE_UINT = 13;
-static const int RUNTIME_TYPE_CODE_STRING = 14;
-static const int RUNTIME_TYPE_CODE_UINTPTR = 15;
-static const int RUNTIME_TYPE_CODE_UNSAFE_POINTER = 16;
-static const int RUNTIME_TYPE_CODE_ARRAY = 17;
-static const int RUNTIME_TYPE_CODE_SLICE = 18;
-static const int RUNTIME_TYPE_CODE_CHAN = 19;
-static const int RUNTIME_TYPE_CODE_FUNC = 20;
-static const int RUNTIME_TYPE_CODE_INTERFACE = 21;
-static const int RUNTIME_TYPE_CODE_MAP = 22;
-static const int RUNTIME_TYPE_CODE_PTR = 23;
-static const int RUNTIME_TYPE_CODE_STRUCT = 24;
-static const int RUNTIME_TYPE_CODE_COMPLEX64 = 25;
-static const int RUNTIME_TYPE_CODE_COMPLEX128 = 26;
-static const int RUNTIME_TYPE_CODE_COMPLEX = 27;
+static const int RUNTIME_TYPE_KIND_BOOL = 1;
+static const int RUNTIME_TYPE_KIND_INT = 2;
+static const int RUNTIME_TYPE_KIND_INT8 = 3;
+static const int RUNTIME_TYPE_KIND_INT16 = 4;
+static const int RUNTIME_TYPE_KIND_INT32 = 5;
+static const int RUNTIME_TYPE_KIND_INT64 = 6;
+static const int RUNTIME_TYPE_KIND_UINT = 7;
+static const int RUNTIME_TYPE_KIND_UINT8 = 8;
+static const int RUNTIME_TYPE_KIND_UINT16 = 9;
+static const int RUNTIME_TYPE_KIND_UINT32 = 10;
+static const int RUNTIME_TYPE_KIND_UINT64 = 11;
+static const int RUNTIME_TYPE_KIND_UINTPTR = 12;
+static const int RUNTIME_TYPE_KIND_FLOAT = 13;
+static const int RUNTIME_TYPE_KIND_FLOAT32 = 14;
+static const int RUNTIME_TYPE_KIND_FLOAT64 = 15;
+static const int RUNTIME_TYPE_KIND_COMPLEX = 16;
+static const int RUNTIME_TYPE_KIND_COMPLEX64 = 17;
+static const int RUNTIME_TYPE_KIND_COMPLEX128 = 18;
+static const int RUNTIME_TYPE_KIND_ARRAY = 19;
+static const int RUNTIME_TYPE_KIND_CHAN = 20;
+static const int RUNTIME_TYPE_KIND_FUNC = 21;
+static const int RUNTIME_TYPE_KIND_INTERFACE = 22;
+static const int RUNTIME_TYPE_KIND_MAP = 23;
+static const int RUNTIME_TYPE_KIND_PTR = 24;
+static const int RUNTIME_TYPE_KIND_SLICE = 25;
+static const int RUNTIME_TYPE_KIND_STRING = 26;
+static const int RUNTIME_TYPE_KIND_STRUCT = 27;
+static const int RUNTIME_TYPE_KIND_UNSAFE_POINTER = 28;
 
 // To build the complete list of methods for a named type we need to
 // gather all methods from anonymous fields.  Those methods may
@@ -390,11 +392,11 @@ class Type
   make_abstract_integer_type();
 
   // Make a named integer type with a specified size.
-  // RUNTIME_TYPE_CODE is the code to use in reflection information,
+  // RUNTIME_TYPE_KIND is the code to use in reflection information,
   // to distinguish int and int32.
   static Named_type*
   make_integer_type(const char* name, bool is_unsigned, int bits,
-		    int runtime_type_code);
+		    int runtime_type_kind);
 
   // Look up a named integer type.
   static Named_type*
@@ -405,10 +407,10 @@ class Type
   make_abstract_float_type();
 
   // Make a named floating point type with a specific size.
-  // RUNTIME_TYPE_CODE is the code to use in reflection information,
+  // RUNTIME_TYPE_KIND is the code to use in reflection information,
   // to distinguish float and float32.
   static Named_type*
-  make_float_type(const char* name, int bits, int runtime_type_code);
+  make_float_type(const char* name, int bits, int runtime_type_kind);
 
   // Look up a named float type.
   static Named_type*
@@ -419,10 +421,10 @@ class Type
   make_abstract_complex_type();
 
   // Make a named complex type with a specific size.
-  // RUNTIME_TYPE_CODE is the code to use in reflection information,
+  // RUNTIME_TYPE_KIND is the code to use in reflection information,
   // to distinguish complex and complex64.
   static Named_type*
-  make_complex_type(const char* name, int bits, int runtime_type_code);
+  make_complex_type(const char* name, int bits, int runtime_type_kind);
 
   // Look up a named complex type.
   static Named_type*
@@ -1217,7 +1219,7 @@ class Integer_type : public Type
   // Create a new integer type.
   static Named_type*
   create_integer_type(const char* name, bool is_unsigned, int bits,
-		      int runtime_type_code);
+		      int runtime_type_kind);
 
   // Look up an existing integer type.
   static Named_type*
@@ -1267,10 +1269,10 @@ class Integer_type : public Type
 
  private:
   Integer_type(bool is_abstract, bool is_unsigned, int bits,
-	       int runtime_type_code)
+	       int runtime_type_kind)
     : Type(TYPE_INTEGER),
       is_abstract_(is_abstract), is_unsigned_(is_unsigned), bits_(bits),
-      runtime_type_code_(runtime_type_code)
+      runtime_type_kind_(runtime_type_kind)
   { }
 
   // Map names of integer types to the types themselves.
@@ -1284,7 +1286,7 @@ class Integer_type : public Type
   // The number of bits.
   int bits_;
   // The runtime type code used in the type descriptor for this type.
-  int runtime_type_code_;
+  int runtime_type_kind_;
 };
 
 // The type of a floating point number.
@@ -1294,7 +1296,7 @@ class Float_type : public Type
  public:
   // Create a new float type.
   static Named_type*
-  create_float_type(const char* name, int bits, int runtime_type_code);
+  create_float_type(const char* name, int bits, int runtime_type_kind);
 
   // Look up an existing float type.
   static Named_type*
@@ -1342,10 +1344,10 @@ class Float_type : public Type
   do_mangled_name(Gogo*, std::string*) const;
 
  private:
-  Float_type(bool is_abstract, int bits, int runtime_type_code)
+  Float_type(bool is_abstract, int bits, int runtime_type_kind)
     : Type(TYPE_FLOAT),
       is_abstract_(is_abstract), bits_(bits),
-      runtime_type_code_(runtime_type_code)
+      runtime_type_kind_(runtime_type_kind)
   { }
 
   // Map names of float types to the types themselves.
@@ -1357,7 +1359,7 @@ class Float_type : public Type
   // The number of bits in the floating point value.
   int bits_;
   // The runtime type code used in the type descriptor for this type.
-  int runtime_type_code_;
+  int runtime_type_kind_;
 };
 
 // The type of a complex number.
@@ -1367,7 +1369,7 @@ class Complex_type : public Type
  public:
   // Create a new complex type.
   static Named_type*
-  create_complex_type(const char* name, int bits, int runtime_type_code);
+  create_complex_type(const char* name, int bits, int runtime_type_kind);
 
   // Look up an existing complex type.
   static Named_type*
@@ -1414,10 +1416,10 @@ class Complex_type : public Type
   do_mangled_name(Gogo*, std::string*) const;
 
  private:
-  Complex_type(bool is_abstract, int bits, int runtime_type_code)
+  Complex_type(bool is_abstract, int bits, int runtime_type_kind)
     : Type(TYPE_COMPLEX),
       is_abstract_(is_abstract), bits_(bits),
-      runtime_type_code_(runtime_type_code)
+      runtime_type_kind_(runtime_type_kind)
   { }
 
   // Map names of complex types to the types themselves.
@@ -1429,7 +1431,7 @@ class Complex_type : public Type
   // The number of bits in the complex value--64 or 128.
   int bits_;
   // The runtime type code used in the type descriptor for this type.
-  int runtime_type_code_;
+  int runtime_type_kind_;
 };
 
 // The type of a string.

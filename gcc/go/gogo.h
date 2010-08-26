@@ -457,7 +457,7 @@ class Gogo
   tree
   type_descriptor_type_tree();
 
-  // Build a type descriptor for TYPE using RUNTIME_TYPE_CODE as the
+  // Build a type descriptor for TYPE using RUNTIME_TYPE_KIND as the
   // code.  NAME is the name of the type; it may be NULL.  PACKAGE is
   // where the type is defined; it will be NULL for the current file.
   // Store the DECL of the descriptor in *PDECL.

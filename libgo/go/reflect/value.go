@@ -5,6 +5,7 @@
 package reflect
 
 import (
+	"math"
 	"runtime"
 	"unsafe"
 )
@@ -74,6 +75,10 @@ type Value interface {
 	getAddr() addr
 }
 
+// value is the common implementation of most values.
+// It is embedded in other, public struct types, but always
+// with a unique tag like "uint" or "float" so that the client cannot
+// convert from, say, *UintValue to *FloatValue.
 type value struct {
 	typ    Type
 	addr   addr
@@ -112,7 +117,7 @@ func (v *value) CanSet() bool { return v.canSet }
 
 // BoolValue represents a bool value.
 type BoolValue struct {
-	value
+	value "bool"
 }
 
 // Get returns the underlying bool value.
@@ -131,212 +136,143 @@ func (v *BoolValue) SetValue(x Value) { v.Set(x.(*BoolValue).Get()) }
 
 // FloatValue represents a float value.
 type FloatValue struct {
-	value
+	value "float"
 }
 
-// Get returns the underlying float value.
-func (v *FloatValue) Get() float { return *(*float)(v.addr) }
+// Get returns the underlying int value.
+func (v *FloatValue) Get() float64 {
+	switch v.typ.(*FloatType).Kind() {
+	case Float:
+		return float64(*(*float)(v.addr))
+	case Float32:
+		return float64(*(*float32)(v.addr))
+	case Float64:
+		return *(*float64)(v.addr)
+	}
+	panic("reflect: invalid float kind")
+}
 
 // Set sets v to the value x.
-func (v *FloatValue) Set(x float) {
+func (v *FloatValue) Set(x float64) {
 	if !v.canSet {
 		panic(cannotSet)
 	}
-	*(*float)(v.addr) = x
+	switch v.typ.(*FloatType).Kind() {
+	default:
+		panic("reflect: invalid float kind")
+	case Float:
+		*(*float)(v.addr) = float(x)
+	case Float32:
+		*(*float32)(v.addr) = float32(x)
+	case Float64:
+		*(*float64)(v.addr) = x
+	}
+}
+
+// Overflow returns true if x cannot be represented by the type of v.
+func (v *FloatValue) Overflow(x float64) bool {
+	if v.typ.Size() == 8 {
+		return false
+	}
+	if x < 0 {
+		x = -x
+	}
+	return math.MaxFloat32 < x && x <= math.MaxFloat64
 }
 
 // Set sets v to the value x.
 func (v *FloatValue) SetValue(x Value) { v.Set(x.(*FloatValue).Get()) }
 
-// Float32Value represents a float32 value.
-type Float32Value struct {
-	value
-}
-
-// Get returns the underlying float32 value.
-func (v *Float32Value) Get() float32 { return *(*float32)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Float32Value) Set(x float32) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*float32)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Float32Value) SetValue(x Value) { v.Set(x.(*Float32Value).Get()) }
-
-// Float64Value represents a float64 value.
-type Float64Value struct {
-	value
-}
-
-// Get returns the underlying float64 value.
-func (v *Float64Value) Get() float64 { return *(*float64)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Float64Value) Set(x float64) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*float64)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Float64Value) SetValue(x Value) { v.Set(x.(*Float64Value).Get()) }
-
 // ComplexValue represents a complex value.
 type ComplexValue struct {
-	value
+	value "complex"
 }
 
 // Get returns the underlying complex value.
-func (v *ComplexValue) Get() complex { return *(*complex)(v.addr) }
+func (v *ComplexValue) Get() complex128 {
+	switch v.typ.(*ComplexType).Kind() {
+	case Complex:
+		return complex128(*(*complex)(v.addr))
+	case Complex64:
+		return complex128(*(*complex64)(v.addr))
+	case Complex128:
+		return *(*complex128)(v.addr)
+	}
+	panic("reflect: invalid complex kind")
+}
 
 // Set sets v to the value x.
-func (v *ComplexValue) Set(x complex) {
+func (v *ComplexValue) Set(x complex128) {
 	if !v.canSet {
 		panic(cannotSet)
 	}
-	*(*complex)(v.addr) = x
+	switch v.typ.(*ComplexType).Kind() {
+	default:
+		panic("reflect: invalid complex kind")
+	case Complex:
+		*(*complex)(v.addr) = complex(x)
+	case Complex64:
+		*(*complex64)(v.addr) = complex64(x)
+	case Complex128:
+		*(*complex128)(v.addr) = x
+	}
 }
 
 // Set sets v to the value x.
 func (v *ComplexValue) SetValue(x Value) { v.Set(x.(*ComplexValue).Get()) }
 
-// Complex64Value represents a complex64 value.
-type Complex64Value struct {
-	value
-}
-
-// Get returns the underlying complex64 value.
-func (v *Complex64Value) Get() complex64 { return *(*complex64)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Complex64Value) Set(x complex64) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*complex64)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Complex64Value) SetValue(x Value) { v.Set(x.(*Complex64Value).Get()) }
-
-// Complex128Value represents a complex128 value.
-type Complex128Value struct {
-	value
-}
-
-// Get returns the underlying complex128 value.
-func (v *Complex128Value) Get() complex128 { return *(*complex128)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Complex128Value) Set(x complex128) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*complex128)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Complex128Value) SetValue(x Value) { v.Set(x.(*Complex128Value).Get()) }
-
 // IntValue represents an int value.
 type IntValue struct {
-	value
+	value "int"
 }
 
 // Get returns the underlying int value.
-func (v *IntValue) Get() int { return *(*int)(v.addr) }
+func (v *IntValue) Get() int64 {
+	switch v.typ.(*IntType).Kind() {
+	case Int:
+		return int64(*(*int)(v.addr))
+	case Int8:
+		return int64(*(*int8)(v.addr))
+	case Int16:
+		return int64(*(*int16)(v.addr))
+	case Int32:
+		return int64(*(*int32)(v.addr))
+	case Int64:
+		return *(*int64)(v.addr)
+	}
+	panic("reflect: invalid int kind")
+}
 
 // Set sets v to the value x.
-func (v *IntValue) Set(x int) {
+func (v *IntValue) Set(x int64) {
 	if !v.canSet {
 		panic(cannotSet)
 	}
-	*(*int)(v.addr) = x
+	switch v.typ.(*IntType).Kind() {
+	default:
+		panic("reflect: invalid int kind")
+	case Int:
+		*(*int)(v.addr) = int(x)
+	case Int8:
+		*(*int8)(v.addr) = int8(x)
+	case Int16:
+		*(*int16)(v.addr) = int16(x)
+	case Int32:
+		*(*int32)(v.addr) = int32(x)
+	case Int64:
+		*(*int64)(v.addr) = x
+	}
 }
 
 // Set sets v to the value x.
 func (v *IntValue) SetValue(x Value) { v.Set(x.(*IntValue).Get()) }
 
-// Int8Value represents an int8 value.
-type Int8Value struct {
-	value
+// Overflow returns true if x cannot be represented by the type of v.
+func (v *IntValue) Overflow(x int64) bool {
+	bitSize := uint(v.typ.Bits())
+	trunc := (x << (64 - bitSize)) >> (64 - bitSize)
+	return x != trunc
 }
-
-// Get returns the underlying int8 value.
-func (v *Int8Value) Get() int8 { return *(*int8)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Int8Value) Set(x int8) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*int8)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Int8Value) SetValue(x Value) { v.Set(x.(*Int8Value).Get()) }
-
-// Int16Value represents an int16 value.
-type Int16Value struct {
-	value
-}
-
-// Get returns the underlying int16 value.
-func (v *Int16Value) Get() int16 { return *(*int16)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Int16Value) Set(x int16) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*int16)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Int16Value) SetValue(x Value) { v.Set(x.(*Int16Value).Get()) }
-
-// Int32Value represents an int32 value.
-type Int32Value struct {
-	value
-}
-
-// Get returns the underlying int32 value.
-func (v *Int32Value) Get() int32 { return *(*int32)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Int32Value) Set(x int32) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*int32)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Int32Value) SetValue(x Value) { v.Set(x.(*Int32Value).Get()) }
-
-// Int64Value represents an int64 value.
-type Int64Value struct {
-	value
-}
-
-// Get returns the underlying int64 value.
-func (v *Int64Value) Get() int64 { return *(*int64)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Int64Value) Set(x int64) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*int64)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Int64Value) SetValue(x Value) { v.Set(x.(*Int64Value).Get()) }
 
 // StringHeader is the runtime representation of a string.
 type StringHeader struct {
@@ -346,7 +282,7 @@ type StringHeader struct {
 
 // StringValue represents a string value.
 type StringValue struct {
-	value
+	value "string"
 }
 
 // Get returns the underlying string value.
@@ -365,121 +301,64 @@ func (v *StringValue) SetValue(x Value) { v.Set(x.(*StringValue).Get()) }
 
 // UintValue represents a uint value.
 type UintValue struct {
-	value
+	value "uint"
 }
 
-// Get returns the underlying uint value.
-func (v *UintValue) Get() uint { return *(*uint)(v.addr) }
+// Get returns the underlying uuint value.
+func (v *UintValue) Get() uint64 {
+	switch v.typ.(*UintType).Kind() {
+	case Uint:
+		return uint64(*(*uint)(v.addr))
+	case Uint8:
+		return uint64(*(*uint8)(v.addr))
+	case Uint16:
+		return uint64(*(*uint16)(v.addr))
+	case Uint32:
+		return uint64(*(*uint32)(v.addr))
+	case Uint64:
+		return *(*uint64)(v.addr)
+	case Uintptr:
+		return uint64(*(*uintptr)(v.addr))
+	}
+	panic("reflect: invalid uint kind")
+}
 
 // Set sets v to the value x.
-func (v *UintValue) Set(x uint) {
+func (v *UintValue) Set(x uint64) {
 	if !v.canSet {
 		panic(cannotSet)
 	}
-	*(*uint)(v.addr) = x
+	switch v.typ.(*UintType).Kind() {
+	default:
+		panic("reflect: invalid uint kind")
+	case Uint:
+		*(*uint)(v.addr) = uint(x)
+	case Uint8:
+		*(*uint8)(v.addr) = uint8(x)
+	case Uint16:
+		*(*uint16)(v.addr) = uint16(x)
+	case Uint32:
+		*(*uint32)(v.addr) = uint32(x)
+	case Uint64:
+		*(*uint64)(v.addr) = x
+	case Uintptr:
+		*(*uintptr)(v.addr) = uintptr(x)
+	}
+}
+
+// Overflow returns true if x cannot be represented by the type of v.
+func (v *UintValue) Overflow(x uint64) bool {
+	bitSize := uint(v.typ.Bits())
+	trunc := (x << (64 - bitSize)) >> (64 - bitSize)
+	return x != trunc
 }
 
 // Set sets v to the value x.
 func (v *UintValue) SetValue(x Value) { v.Set(x.(*UintValue).Get()) }
 
-// Uint8Value represents a uint8 value.
-type Uint8Value struct {
-	value
-}
-
-// Get returns the underlying uint8 value.
-func (v *Uint8Value) Get() uint8 { return *(*uint8)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Uint8Value) Set(x uint8) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*uint8)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Uint8Value) SetValue(x Value) { v.Set(x.(*Uint8Value).Get()) }
-
-// Uint16Value represents a uint16 value.
-type Uint16Value struct {
-	value
-}
-
-// Get returns the underlying uint16 value.
-func (v *Uint16Value) Get() uint16 { return *(*uint16)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Uint16Value) Set(x uint16) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*uint16)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Uint16Value) SetValue(x Value) { v.Set(x.(*Uint16Value).Get()) }
-
-// Uint32Value represents a uint32 value.
-type Uint32Value struct {
-	value
-}
-
-// Get returns the underlying uint32 value.
-func (v *Uint32Value) Get() uint32 { return *(*uint32)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Uint32Value) Set(x uint32) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*uint32)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Uint32Value) SetValue(x Value) { v.Set(x.(*Uint32Value).Get()) }
-
-// Uint64Value represents a uint64 value.
-type Uint64Value struct {
-	value
-}
-
-// Get returns the underlying uint64 value.
-func (v *Uint64Value) Get() uint64 { return *(*uint64)(v.addr) }
-
-// Set sets v to the value x.
-func (v *Uint64Value) Set(x uint64) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*uint64)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *Uint64Value) SetValue(x Value) { v.Set(x.(*Uint64Value).Get()) }
-
-// UintptrValue represents a uintptr value.
-type UintptrValue struct {
-	value
-}
-
-// Get returns the underlying uintptr value.
-func (v *UintptrValue) Get() uintptr { return *(*uintptr)(v.addr) }
-
-// Set sets v to the value x.
-func (v *UintptrValue) Set(x uintptr) {
-	if !v.canSet {
-		panic(cannotSet)
-	}
-	*(*uintptr)(v.addr) = x
-}
-
-// Set sets v to the value x.
-func (v *UintptrValue) SetValue(x Value) { v.Set(x.(*UintptrValue).Get()) }
-
 // UnsafePointerValue represents an unsafe.Pointer value.
 type UnsafePointerValue struct {
-	value
+	value "unsafe.Pointer"
 }
 
 // Get returns the underlying uintptr value.
@@ -541,7 +420,7 @@ func ArrayCopy(dst, src ArrayOrSliceValue) int {
 
 // An ArrayValue represents an array.
 type ArrayValue struct {
-	value
+	value "array"
 }
 
 // Len returns the length of the array.
@@ -590,7 +469,7 @@ type SliceHeader struct {
 
 // A SliceValue represents a slice.
 type SliceValue struct {
-	value
+	value "slice"
 }
 
 func (v *SliceValue) slice() *SliceHeader { return (*SliceHeader)(v.value.addr) }
@@ -680,7 +559,7 @@ func MakeSlice(typ *SliceType, len, cap int) *SliceValue {
 
 // A ChanValue represents a chan.
 type ChanValue struct {
-	value
+	value "chan"
 }
 
 // IsNil returns whether v is a nil channel.
@@ -801,7 +680,7 @@ func MakeChan(typ *ChanType, buffer int) *ChanValue {
 
 // A FuncValue represents a function value.
 type FuncValue struct {
-	value
+	value       "func"
 	first       *value
 	isInterface bool
 }
@@ -932,7 +811,7 @@ func (fv *FuncValue) Call(in []Value) []Value {
 
 // An InterfaceValue represents an interface value.
 type InterfaceValue struct {
-	value
+	value "interface"
 }
 
 // No Get because v.Interface() is available.
@@ -996,7 +875,7 @@ func (v *InterfaceValue) Method(i int) *FuncValue {
 
 // A MapValue represents a map value.
 type MapValue struct {
-	value
+	value "map"
 }
 
 // IsNil returns whether v is a nil map value.
@@ -1113,7 +992,7 @@ func MakeMap(typ *MapType) *MapValue {
 
 // A PtrValue represents a pointer.
 type PtrValue struct {
-	value
+	value "ptr"
 }
 
 // IsNil returns whether v is a nil pointer.
@@ -1149,7 +1028,12 @@ func (v *PtrValue) SetValue(x Value) {
 }
 
 // PointTo changes v to point to x.
+// If x is a nil Value, PointTo sets v to nil.
 func (v *PtrValue) PointTo(x Value) {
+	if x == nil {
+		*(**uintptr)(v.addr) = nil
+		return
+	}
 	if !x.CanSet() {
 		panic("cannot set x; cannot point to x")
 	}
@@ -1184,7 +1068,7 @@ func Indirect(v Value) Value {
 
 // A StructValue represents a struct value.
 type StructValue struct {
-	value
+	value "struct"
 }
 
 // Set assigns x to v.
@@ -1268,83 +1152,39 @@ func NewValue(i interface{}) Value {
 	return newValue(canonicalize(toType(t)), addr(a), true)
 }
 
-
-func newFuncValue(typ Type, addr addr, canSet bool) *FuncValue {
-	return &FuncValue{value: value{typ, addr, canSet}}
-}
-
 func newValue(typ Type, addr addr, canSet bool) Value {
-	// FuncValue has a different layout;
-	// it needs a extra space for the fixed receivers.
-	if _, ok := typ.(*FuncType); ok {
-		return newFuncValue(typ, addr, canSet)
-	}
-
-	// All values have same memory layout;
-	// build once and convert.
-	v := &struct{ value }{value{typ, addr, canSet}}
+	v := value{typ, addr, canSet}
 	switch typ.(type) {
 	case *ArrayType:
-		// TODO(rsc): Something must prevent
-		// clients of the package from doing
-		// this same kind of cast.
-		// We should be allowed because
-		// they're our types.
-		// Something about implicit assignment
-		// to struct fields.
-		return (*ArrayValue)(v)
+		return &ArrayValue{v}
 	case *BoolType:
-		return (*BoolValue)(v)
+		return &BoolValue{v}
 	case *ChanType:
-		return (*ChanValue)(v)
+		return &ChanValue{v}
 	case *FloatType:
-		return (*FloatValue)(v)
-	case *Float32Type:
-		return (*Float32Value)(v)
-	case *Float64Type:
-		return (*Float64Value)(v)
+		return &FloatValue{v}
+	case *FuncType:
+		return &FuncValue{value: v}
 	case *ComplexType:
-		return (*ComplexValue)(v)
-	case *Complex64Type:
-		return (*Complex64Value)(v)
-	case *Complex128Type:
-		return (*Complex128Value)(v)
+		return &ComplexValue{v}
 	case *IntType:
-		return (*IntValue)(v)
-	case *Int8Type:
-		return (*Int8Value)(v)
-	case *Int16Type:
-		return (*Int16Value)(v)
-	case *Int32Type:
-		return (*Int32Value)(v)
-	case *Int64Type:
-		return (*Int64Value)(v)
+		return &IntValue{v}
 	case *InterfaceType:
-		return (*InterfaceValue)(v)
+		return &InterfaceValue{v}
 	case *MapType:
-		return (*MapValue)(v)
+		return &MapValue{v}
 	case *PtrType:
-		return (*PtrValue)(v)
+		return &PtrValue{v}
 	case *SliceType:
-		return (*SliceValue)(v)
+		return &SliceValue{v}
 	case *StringType:
-		return (*StringValue)(v)
+		return &StringValue{v}
 	case *StructType:
-		return (*StructValue)(v)
+		return &StructValue{v}
 	case *UintType:
-		return (*UintValue)(v)
-	case *Uint8Type:
-		return (*Uint8Value)(v)
-	case *Uint16Type:
-		return (*Uint16Value)(v)
-	case *Uint32Type:
-		return (*Uint32Value)(v)
-	case *Uint64Type:
-		return (*Uint64Value)(v)
-	case *UintptrType:
-		return (*UintptrValue)(v)
+		return &UintValue{v}
 	case *UnsafePointerType:
-		return (*UnsafePointerValue)(v)
+		return &UnsafePointerValue{v}
 	}
 	panic("newValue" + typ.String())
 }

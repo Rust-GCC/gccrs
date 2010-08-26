@@ -15,11 +15,10 @@
 	recursive values (data with cycles) are problematic.  This may change.
 
 	To use gobs, create an Encoder and present it with a series of data items as
-	values or addresses that can be dereferenced to values.  (At the moment, these
-	items must be structs (struct, *struct, **struct etc.), but this may change.) The
-	Encoder makes sure all type information is sent before it is needed.  At the
-	receive side, a Decoder retrieves values from the encoded stream and unpacks them
-	into local variables.
+	values or addresses that can be dereferenced to values.  The Encoder makes sure
+	all type information is sent before it is needed.  At the receive side, a
+	Decoder retrieves values from the encoded stream and unpacks them into local
+	variables.
 
 	The source and destination values/types need not correspond exactly.  For structs,
 	fields (identified by name) that are in the source but absent from the receiving
@@ -251,6 +250,20 @@ package gob
 	output will be just:
 
 		07 ff 82 01 2c 01 42 00
+
+	A single non-struct value at top level is transmitted like a field with
+	delta tag 0.  For instance, a signed integer with value 3 presented as
+	the argument to Encode will emit:
+
+		03 04 00 06
+
+	Which represents:
+
+		03 // this value is 3 bytes long
+		04 // the type number, 2, represents an integer
+		00 // tag delta 0
+		06 // value 3
+
 */
 
 import (
@@ -271,7 +284,7 @@ const uint64Size = unsafe.Sizeof(uint64(0))
 type encoderState struct {
 	b        *bytes.Buffer
 	err      os.Error             // error encountered during encoding.
-	inArray  bool                 // encoding an array element or map key/value pair
+	sendZero bool                 // encoding an array element or map key/value pair; send zero values
 	fieldnum int                  // the last field number written.
 	buf      [1 + uint64Size]byte // buffer used by the encoder; here to avoid allocation.
 }
@@ -352,7 +365,7 @@ func encIndirect(p unsafe.Pointer, indir int) unsafe.Pointer {
 
 func encBool(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	b := *(*bool)(p)
-	if b || state.inArray {
+	if b || state.sendZero {
 		state.update(i)
 		if b {
 			encodeUint(state, 1)
@@ -364,7 +377,7 @@ func encBool(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encInt(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := int64(*(*int)(p))
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeInt(state, v)
 	}
@@ -372,7 +385,7 @@ func encInt(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encUint(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := uint64(*(*uint)(p))
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeUint(state, v)
 	}
@@ -380,7 +393,7 @@ func encUint(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encInt8(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := int64(*(*int8)(p))
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeInt(state, v)
 	}
@@ -388,7 +401,7 @@ func encInt8(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encUint8(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := uint64(*(*uint8)(p))
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeUint(state, v)
 	}
@@ -396,7 +409,7 @@ func encUint8(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encInt16(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := int64(*(*int16)(p))
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeInt(state, v)
 	}
@@ -404,7 +417,7 @@ func encInt16(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encUint16(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := uint64(*(*uint16)(p))
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeUint(state, v)
 	}
@@ -412,7 +425,7 @@ func encUint16(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encInt32(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := int64(*(*int32)(p))
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeInt(state, v)
 	}
@@ -420,7 +433,7 @@ func encInt32(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encUint32(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := uint64(*(*uint32)(p))
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeUint(state, v)
 	}
@@ -428,7 +441,7 @@ func encUint32(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encInt64(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := *(*int64)(p)
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeInt(state, v)
 	}
@@ -436,7 +449,7 @@ func encInt64(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encUint64(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := *(*uint64)(p)
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeUint(state, v)
 	}
@@ -444,7 +457,7 @@ func encUint64(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encUintptr(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	v := uint64(*(*uintptr)(p))
-	if v != 0 || state.inArray {
+	if v != 0 || state.sendZero {
 		state.update(i)
 		encodeUint(state, v)
 	}
@@ -467,8 +480,8 @@ func floatBits(f float64) uint64 {
 }
 
 func encFloat(i *encInstr, state *encoderState, p unsafe.Pointer) {
-	f := float(*(*float)(p))
-	if f != 0 || state.inArray {
+	f := *(*float)(p)
+	if f != 0 || state.sendZero {
 		v := floatBits(float64(f))
 		state.update(i)
 		encodeUint(state, v)
@@ -476,8 +489,8 @@ func encFloat(i *encInstr, state *encoderState, p unsafe.Pointer) {
 }
 
 func encFloat32(i *encInstr, state *encoderState, p unsafe.Pointer) {
-	f := float32(*(*float32)(p))
-	if f != 0 || state.inArray {
+	f := *(*float32)(p)
+	if f != 0 || state.sendZero {
 		v := floatBits(float64(f))
 		state.update(i)
 		encodeUint(state, v)
@@ -486,17 +499,51 @@ func encFloat32(i *encInstr, state *encoderState, p unsafe.Pointer) {
 
 func encFloat64(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	f := *(*float64)(p)
-	if f != 0 || state.inArray {
+	if f != 0 || state.sendZero {
 		state.update(i)
 		v := floatBits(f)
 		encodeUint(state, v)
 	}
 }
 
+// Complex numbers are just a pair of floating-point numbers, real part first.
+func encComplex(i *encInstr, state *encoderState, p unsafe.Pointer) {
+	c := *(*complex)(p)
+	if c != 0+0i || state.sendZero {
+		rpart := floatBits(float64(real(c)))
+		ipart := floatBits(float64(imag(c)))
+		state.update(i)
+		encodeUint(state, rpart)
+		encodeUint(state, ipart)
+	}
+}
+
+func encComplex64(i *encInstr, state *encoderState, p unsafe.Pointer) {
+	c := *(*complex64)(p)
+	if c != 0+0i || state.sendZero {
+		rpart := floatBits(float64(real(c)))
+		ipart := floatBits(float64(imag(c)))
+		state.update(i)
+		encodeUint(state, rpart)
+		encodeUint(state, ipart)
+	}
+}
+
+func encComplex128(i *encInstr, state *encoderState, p unsafe.Pointer) {
+	c := *(*complex128)(p)
+	if c != 0+0i || state.sendZero {
+		rpart := floatBits(real(c))
+		ipart := floatBits(imag(c))
+		state.update(i)
+		encodeUint(state, rpart)
+		encodeUint(state, ipart)
+	}
+}
+
 // Byte arrays are encoded as an unsigned count followed by the raw bytes.
 func encUint8Array(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	b := *(*[]byte)(p)
-	if len(b) > 0 || state.inArray {
+	if len(b) > 0 || state.sendZero {
 		state.update(i)
 		encodeUint(state, uint64(len(b)))
 		state.b.Write(b)
@@ -506,7 +553,7 @@ func encUint8Array(i *encInstr, state *encoderState, p unsafe.Pointer) {
 // Strings are encoded as an unsigned count followed by the raw bytes.
 func encString(i *encInstr, state *encoderState, p unsafe.Pointer) {
 	s := *(*string)(p)
-	if len(s) > 0 || state.inArray {
+	if len(s) > 0 || state.sendZero {
 		state.update(i)
 		encodeUint(state, uint64(len(s)))
 		io.WriteString(state.b, s)
@@ -524,6 +571,26 @@ func encStructTerminator(i *encInstr, state *encoderState, p unsafe.Pointer) {
 // data, typically a struct.  It is executed top to bottom, walking the struct.
 type encEngine struct {
 	instr []encInstr
+}
+
+const singletonField = 0
+
+func encodeSingle(engine *encEngine, b *bytes.Buffer, basep uintptr) os.Error {
+	state := new(encoderState)
+	state.b = b
+	state.fieldnum = singletonField
+	// There is no surrounding struct to frame the transmission, so we must
+	// generate data even if the item is zero.  To do this, set sendZero.
+	state.sendZero = true
+	instr := &engine.instr[singletonField]
+	p := unsafe.Pointer(basep) // offset will be zero
+	if instr.indir > 0 {
+		if p = encIndirect(p, instr.indir); p == nil {
+			return nil
+		}
+	}
+	instr.op(instr, state, p)
+	return state.err
 }
 
 func encodeStruct(engine *encEngine, b *bytes.Buffer, basep uintptr) os.Error {
@@ -550,7 +617,7 @@ func encodeArray(b *bytes.Buffer, p uintptr, op encOp, elemWid uintptr, elemIndi
 	state := new(encoderState)
 	state.b = b
 	state.fieldnum = -1
-	state.inArray = true
+	state.sendZero = true
 	encodeUint(state, uint64(length))
 	for i := 0; i < length && state.err == nil; i++ {
 		elemp := p
@@ -573,22 +640,17 @@ func encodeReflectValue(state *encoderState, v reflect.Value, op encOp, indir in
 		v = reflect.Indirect(v)
 	}
 	if v == nil {
-		state.err = os.ErrorString("gob: encodeMap: nil element")
+		state.err = os.ErrorString("gob: encodeReflectValue: nil element")
 		return
 	}
 	op(nil, state, unsafe.Pointer(v.Addr()))
 }
 
-func encodeMap(b *bytes.Buffer, rt reflect.Type, p uintptr, keyOp, elemOp encOp, keyIndir, elemIndir int) os.Error {
+func encodeMap(b *bytes.Buffer, mv *reflect.MapValue, keyOp, elemOp encOp, keyIndir, elemIndir int) os.Error {
 	state := new(encoderState)
 	state.b = b
 	state.fieldnum = -1
-	state.inArray = true
-	// Maps cannot be accessed by moving addresses around the way
-	// that slices etc. can.  We must recover a full reflection value for
-	// the iteration.
-	v := reflect.NewValue(unsafe.Unreflect(rt, unsafe.Pointer((p))))
-	mv := reflect.Indirect(v).(*reflect.MapValue)
+	state.sendZero = true
 	keys := mv.Keys()
 	encodeUint(state, uint64(len(keys)))
 	for _, key := range keys {
@@ -601,35 +663,42 @@ func encodeMap(b *bytes.Buffer, rt reflect.Type, p uintptr, keyOp, elemOp encOp,
 	return state.err
 }
 
-var encOpMap = map[reflect.Type]encOp{
-	valueKind(false):      encBool,
-	valueKind(int(0)):     encInt,
-	valueKind(int8(0)):    encInt8,
-	valueKind(int16(0)):   encInt16,
-	valueKind(int32(0)):   encInt32,
-	valueKind(int64(0)):   encInt64,
-	valueKind(uint(0)):    encUint,
-	valueKind(uint8(0)):   encUint8,
-	valueKind(uint16(0)):  encUint16,
-	valueKind(uint32(0)):  encUint32,
-	valueKind(uint64(0)):  encUint64,
-	valueKind(uintptr(0)): encUintptr,
-	valueKind(float(0)):   encFloat,
-	valueKind(float32(0)): encFloat32,
-	valueKind(float64(0)): encFloat64,
-	valueKind("x"):        encString,
+var encOpMap = []encOp{
+	reflect.Bool:       encBool,
+	reflect.Int:        encInt,
+	reflect.Int8:       encInt8,
+	reflect.Int16:      encInt16,
+	reflect.Int32:      encInt32,
+	reflect.Int64:      encInt64,
+	reflect.Uint:       encUint,
+	reflect.Uint8:      encUint8,
+	reflect.Uint16:     encUint16,
+	reflect.Uint32:     encUint32,
+	reflect.Uint64:     encUint64,
+	reflect.Uintptr:    encUintptr,
+	reflect.Float:      encFloat,
+	reflect.Float32:    encFloat32,
+	reflect.Float64:    encFloat64,
+	reflect.Complex:    encComplex,
+	reflect.Complex64:  encComplex64,
+	reflect.Complex128: encComplex128,
+	reflect.String:     encString,
 }
 
 // Return the encoding op for the base type under rt and
 // the indirection count to reach it.
 func encOpFor(rt reflect.Type) (encOp, int, os.Error) {
 	typ, indir := indirect(rt)
-	op, ok := encOpMap[reflect.Typeof(typ)]
-	if !ok {
+	var op encOp
+	k := typ.Kind()
+	if int(k) < len(encOpMap) {
+		op = encOpMap[k]
+	}
+	if op == nil {
 		// Special cases
 		switch t := typ.(type) {
 		case *reflect.SliceType:
-			if _, ok := t.Elem().(*reflect.Uint8Type); ok {
+			if t.Elem().Kind() == reflect.Uint8 {
 				op = encUint8Array
 				break
 			}
@@ -666,8 +735,16 @@ func encOpFor(rt reflect.Type) (encOp, int, os.Error) {
 				return nil, 0, err
 			}
 			op = func(i *encInstr, state *encoderState, p unsafe.Pointer) {
+				// Maps cannot be accessed by moving addresses around the way
+				// that slices etc. can.  We must recover a full reflection value for
+				// the iteration.
+				v := reflect.NewValue(unsafe.Unreflect(t, unsafe.Pointer((p))))
+				mv := reflect.Indirect(v).(*reflect.MapValue)
+				if mv.Len() == 0 {
+					return
+				}
 				state.update(i)
-				state.err = encodeMap(state.b, typ, uintptr(p), keyOp, elemOp, keyIndir, elemIndir)
+				state.err = encodeMap(state.b, mv, keyOp, elemOp, keyIndir, elemIndir)
 			}
 		case *reflect.StructType:
 			// Generate a closure that calls out to the engine for the nested type.
@@ -684,28 +761,34 @@ func encOpFor(rt reflect.Type) (encOp, int, os.Error) {
 		}
 	}
 	if op == nil {
-		return op, indir, os.ErrorString("gob enc: can't happen: encode type" + rt.String())
+		return op, indir, os.ErrorString("gob enc: can't happen: encode type " + rt.String())
 	}
 	return op, indir, nil
 }
 
 // The local Type was compiled from the actual value, so we know it's compatible.
 func compileEnc(rt reflect.Type) (*encEngine, os.Error) {
-	srt, ok := rt.(*reflect.StructType)
-	if !ok {
-		panic("can't happen: non-struct")
-	}
+	srt, isStruct := rt.(*reflect.StructType)
 	engine := new(encEngine)
-	engine.instr = make([]encInstr, srt.NumField()+1) // +1 for terminator
-	for fieldnum := 0; fieldnum < srt.NumField(); fieldnum++ {
-		f := srt.Field(fieldnum)
-		op, indir, err := encOpFor(f.Type)
+	if isStruct {
+		engine.instr = make([]encInstr, srt.NumField()+1) // +1 for terminator
+		for fieldnum := 0; fieldnum < srt.NumField(); fieldnum++ {
+			f := srt.Field(fieldnum)
+			op, indir, err := encOpFor(f.Type)
+			if err != nil {
+				return nil, err
+			}
+			engine.instr[fieldnum] = encInstr{op, fieldnum, indir, uintptr(f.Offset)}
+		}
+		engine.instr[srt.NumField()] = encInstr{encStructTerminator, 0, 0, 0}
+	} else {
+		engine.instr = make([]encInstr, 1)
+		op, indir, err := encOpFor(rt)
 		if err != nil {
 			return nil, err
 		}
-		engine.instr[fieldnum] = encInstr{op, fieldnum, indir, uintptr(f.Offset)}
+		engine.instr[0] = encInstr{op, singletonField, indir, 0} // offset is zero
 	}
-	engine.instr[srt.NumField()] = encInstr{encStructTerminator, 0, 0, 0}
 	return engine, nil
 }
 
@@ -724,15 +807,11 @@ func getEncEngine(rt reflect.Type) (*encEngine, os.Error) {
 	return info.encoder, err
 }
 
-func encode(b *bytes.Buffer, e interface{}) os.Error {
+func encode(b *bytes.Buffer, value reflect.Value) os.Error {
 	// Dereference down to the underlying object.
-	rt, indir := indirect(reflect.Typeof(e))
-	v := reflect.NewValue(e)
+	rt, indir := indirect(value.Type())
 	for i := 0; i < indir; i++ {
-		v = reflect.Indirect(v)
-	}
-	if _, ok := v.(*reflect.StructValue); !ok {
-		return os.ErrorString("gob: encode can't handle " + v.Type().String())
+		value = reflect.Indirect(value)
 	}
 	typeLock.Lock()
 	engine, err := getEncEngine(rt)
@@ -740,5 +819,8 @@ func encode(b *bytes.Buffer, e interface{}) os.Error {
 	if err != nil {
 		return err
 	}
-	return encodeStruct(engine, b, v.Addr())
+	if value.Type().Kind() == reflect.Struct {
+		return encodeStruct(engine, b, value.Addr())
+	}
+	return encodeSingle(engine, b, value.Addr())
 }

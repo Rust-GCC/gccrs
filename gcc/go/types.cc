@@ -924,7 +924,7 @@ void
 Boolean_type::do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl)
 {
   if (name != NULL)
-    gogo->type_descriptor_decl(RUNTIME_TYPE_CODE_BOOL, this, name, pdecl);
+    gogo->type_descriptor_decl(RUNTIME_TYPE_KIND_BOOL, this, name, pdecl);
   else
     {
       Named_object* no = gogo->lookup_global("bool");
@@ -975,10 +975,10 @@ Integer_type::Named_integer_types Integer_type::named_integer_types;
 
 Named_type*
 Integer_type::create_integer_type(const char* name, bool is_unsigned,
-				  int bits, int runtime_type_code)
+				  int bits, int runtime_type_kind)
 {
   Integer_type* integer_type = new Integer_type(false, is_unsigned, bits,
-						runtime_type_code);
+						runtime_type_kind);
   std::string sname(name);
   Named_object* named_object = Named_object::make_type(sname, NULL,
 						       integer_type,
@@ -1009,7 +1009,7 @@ Integer_type::create_abstract_integer_type()
   static Integer_type* abstract_type;
   if (abstract_type == NULL)
     abstract_type = new Integer_type(true, false, INT_TYPE_SIZE,
-				     RUNTIME_TYPE_CODE_INT);
+				     RUNTIME_TYPE_KIND_INT);
   return abstract_type;
 }
 
@@ -1084,7 +1084,7 @@ void
 Integer_type::do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl)
 {
   gcc_assert(name != NULL);
-  gogo->type_descriptor_decl(this->runtime_type_code_, this, name, pdecl);
+  gogo->type_descriptor_decl(this->runtime_type_kind_, this, name, pdecl);
 }
 
 // We should not be asked for the reflection string of a basic type.
@@ -1112,10 +1112,10 @@ Integer_type::do_mangled_name(Gogo*, std::string* ret) const
 
 Named_type*
 Type::make_integer_type(const char* name, bool is_unsigned, int bits,
-			int runtime_type_code)
+			int runtime_type_kind)
 {
   return Integer_type::create_integer_type(name, is_unsigned, bits,
-					   runtime_type_code);
+					   runtime_type_kind);
 }
 
 // Make an abstract integer type.
@@ -1143,9 +1143,9 @@ Float_type::Named_float_types Float_type::named_float_types;
 
 Named_type*
 Float_type::create_float_type(const char* name, int bits,
-			      int runtime_type_code)
+			      int runtime_type_kind)
 {
-  Float_type* float_type = new Float_type(false, bits, runtime_type_code);
+  Float_type* float_type = new Float_type(false, bits, runtime_type_kind);
   std::string sname(name);
   Named_object* named_object = Named_object::make_type(sname, NULL, float_type,
 						       BUILTINS_LOCATION);
@@ -1175,7 +1175,7 @@ Float_type::create_abstract_float_type()
   static Float_type* abstract_type;
   if (abstract_type == NULL)
     abstract_type = new Float_type(true, FLOAT_TYPE_SIZE,
-				   RUNTIME_TYPE_CODE_FLOAT);
+				   RUNTIME_TYPE_KIND_FLOAT);
   return abstract_type;
 }
 
@@ -1242,7 +1242,7 @@ void
 Float_type::do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl)
 {
   gcc_assert(name != NULL);
-  gogo->type_descriptor_decl(this->runtime_type_code_, this, name, pdecl);
+  gogo->type_descriptor_decl(this->runtime_type_kind_, this, name, pdecl);
 }
 
 // We should not be asked for the reflection string of a basic type.
@@ -1268,9 +1268,9 @@ Float_type::do_mangled_name(Gogo*, std::string* ret) const
 // Make a floating point type.
 
 Named_type*
-Type::make_float_type(const char* name, int bits, int runtime_type_code)
+Type::make_float_type(const char* name, int bits, int runtime_type_kind)
 {
-  return Float_type::create_float_type(name, bits, runtime_type_code);
+  return Float_type::create_float_type(name, bits, runtime_type_kind);
 }
 
 // Make an abstract float type.
@@ -1298,10 +1298,10 @@ Complex_type::Named_complex_types Complex_type::named_complex_types;
 
 Named_type*
 Complex_type::create_complex_type(const char* name, int bits,
-				  int runtime_type_code)
+				  int runtime_type_kind)
 {
   Complex_type* complex_type = new Complex_type(false, bits,
-						runtime_type_code);
+						runtime_type_kind);
   std::string sname(name);
   Named_object* named_object = Named_object::make_type(sname, NULL,
 						       complex_type,
@@ -1333,7 +1333,7 @@ Complex_type::create_abstract_complex_type()
   static Complex_type* abstract_type;
   if (abstract_type == NULL)
     abstract_type = new Complex_type(true, FLOAT_TYPE_SIZE * 2,
-				     RUNTIME_TYPE_CODE_FLOAT);
+				     RUNTIME_TYPE_KIND_FLOAT);
   return abstract_type;
 }
 
@@ -1405,7 +1405,7 @@ Complex_type::do_type_descriptor_decl(Gogo* gogo, Named_type* name,
 				      tree* pdecl)
 {
   gcc_assert(name != NULL);
-  gogo->type_descriptor_decl(this->runtime_type_code_, this, name, pdecl);
+  gogo->type_descriptor_decl(this->runtime_type_kind_, this, name, pdecl);
 }
 
 // We should not be asked for the reflection string of a basic type.
@@ -1431,9 +1431,9 @@ Complex_type::do_mangled_name(Gogo*, std::string* ret) const
 // Make a complex type.
 
 Named_type*
-Type::make_complex_type(const char* name, int bits, int runtime_type_code)
+Type::make_complex_type(const char* name, int bits, int runtime_type_kind)
 {
-  return Complex_type::create_complex_type(name, bits, runtime_type_code);
+  return Complex_type::create_complex_type(name, bits, runtime_type_kind);
 }
 
 // Make an abstract complex type.
@@ -1529,7 +1529,7 @@ void
 String_type::do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl)
 {
   if (name != NULL)
-    gogo->type_descriptor_decl(RUNTIME_TYPE_CODE_STRING, this, name, pdecl);
+    gogo->type_descriptor_decl(RUNTIME_TYPE_KIND_STRING, this, name, pdecl);
   else
     {
       Named_object* no = gogo->lookup_global("string");
@@ -2323,7 +2323,7 @@ Pointer_type::do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl)
   else
     {
       gcc_assert(name != NULL);
-      gogo->type_descriptor_decl(RUNTIME_TYPE_CODE_UNSAFE_POINTER, this,
+      gogo->type_descriptor_decl(RUNTIME_TYPE_KIND_UNSAFE_POINTER, this,
 				 name, pdecl);
     }
 }

@@ -19,6 +19,9 @@ type Error struct {
 // but failed to return an explicit error.
 var ErrShortWrite os.Error = &Error{"short write"}
 
+// ErrShortBuffer means that a read required a longer buffer than was provided.
+var ErrShortBuffer os.Error = &Error{"short buffer"}
+
 // ErrUnexpectedEOF means that os.EOF was encountered in the
 // middle of reading a fixed-size block or data structure.
 var ErrUnexpectedEOF os.Error = &Error{"unexpected EOF"}
@@ -165,8 +168,11 @@ func WriteString(w Writer, s string) (n int, err os.Error) {
 // The error is os.EOF only if no bytes were read.
 // If an EOF happens after reading fewer than min bytes,
 // ReadAtLeast returns ErrUnexpectedEOF.
+// If min is greater than the length of buf, ReadAtLeast returns ErrShortBuffer.
 func ReadAtLeast(r Reader, buf []byte, min int) (n int, err os.Error) {
-	n = 0
+	if len(buf) < min {
+		return 0, ErrShortBuffer
+	}
 	for n < min {
 		nn, e := r.Read(buf[n:])
 		if nn > 0 {
@@ -179,7 +185,7 @@ func ReadAtLeast(r Reader, buf []byte, min int) (n int, err os.Error) {
 			return n, e
 		}
 	}
-	return n, nil
+	return
 }
 
 // ReadFull reads exactly len(buf) bytes from r into buf.
@@ -336,7 +342,7 @@ func (s *SectionReader) Seek(offset int64, whence int) (ret int64, err os.Error)
 	case 2:
 		offset += s.limit
 	}
-	if offset < s.off || offset > s.limit {
+	if offset < s.base || offset > s.limit {
 		return 0, os.EINVAL
 	}
 	s.off = offset

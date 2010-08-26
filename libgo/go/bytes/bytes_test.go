@@ -8,6 +8,7 @@ import (
 	. "bytes"
 	"testing"
 	"unicode"
+	"utf8"
 )
 
 func eq(a, b []string) bool {
@@ -124,6 +125,15 @@ var indexAnyTests = []BinOpTest{
 	BinOpTest{dots + dots + dots, " ", -1},
 }
 
+var indexRuneTests = []BinOpTest{
+	BinOpTest{"", "a", -1},
+	BinOpTest{"", "☺", -1},
+	BinOpTest{"foo", "☹", -1},
+	BinOpTest{"foo", "o", 1},
+	BinOpTest{"foo☺bar", "☺", 3},
+	BinOpTest{"foo☺☻☹bar", "☹", 9},
+}
+
 // Execute f on each test case.  funcName should be the name of f; it's used
 // in failure reports.
 func runIndexTests(t *testing.T, f func(s, sep []byte) int, funcName string, testCases []BinOpTest) {
@@ -163,6 +173,17 @@ func TestIndexByte(t *testing.T) {
 		posp := IndexBytePortable(a, b)
 		if posp != tt.i {
 			t.Errorf(`indexBytePortable(%q, '%c') = %v`, tt.a, b, posp)
+		}
+	}
+}
+
+func TestIndexRune(t *testing.T) {
+	for _, tt := range indexRuneTests {
+		a := []byte(tt.a)
+		r, _ := utf8.DecodeRuneInString(tt.b)
+		pos := IndexRune(a, r)
+		if pos != tt.i {
+			t.Errorf(`IndexRune(%q, '%c') = %v`, tt.a, r, pos)
 		}
 	}
 }
@@ -211,8 +232,9 @@ type ExplodeTest struct {
 }
 
 var explodetests = []ExplodeTest{
-	ExplodeTest{abcd, 0, []string{"a", "b", "c", "d"}},
-	ExplodeTest{faces, 0, []string{"☺", "☻", "☹"}},
+	ExplodeTest{"", -1, []string{}},
+	ExplodeTest{abcd, -1, []string{"a", "b", "c", "d"}},
+	ExplodeTest{faces, -1, []string{"☺", "☻", "☹"}},
 	ExplodeTest{abcd, 2, []string{"a", "bcd"}},
 }
 
@@ -240,16 +262,16 @@ type SplitTest struct {
 }
 
 var splittests = []SplitTest{
-	SplitTest{abcd, "a", 0, []string{"", "bcd"}},
-	SplitTest{abcd, "z", 0, []string{"abcd"}},
-	SplitTest{abcd, "", 0, []string{"a", "b", "c", "d"}},
-	SplitTest{commas, ",", 0, []string{"1", "2", "3", "4"}},
-	SplitTest{dots, "...", 0, []string{"1", ".2", ".3", ".4"}},
-	SplitTest{faces, "☹", 0, []string{"☺☻", ""}},
-	SplitTest{faces, "~", 0, []string{faces}},
-	SplitTest{faces, "", 0, []string{"☺", "☻", "☹"}},
+	SplitTest{abcd, "a", 0, nil},
+	SplitTest{abcd, "a", -1, []string{"", "bcd"}},
+	SplitTest{abcd, "z", -1, []string{"abcd"}},
+	SplitTest{abcd, "", -1, []string{"a", "b", "c", "d"}},
+	SplitTest{commas, ",", -1, []string{"1", "2", "3", "4"}},
+	SplitTest{dots, "...", -1, []string{"1", ".2", ".3", ".4"}},
+	SplitTest{faces, "☹", -1, []string{"☺☻", ""}},
+	SplitTest{faces, "~", -1, []string{faces}},
+	SplitTest{faces, "", -1, []string{"☺", "☻", "☹"}},
 	SplitTest{"1 2 3 4", " ", 3, []string{"1", "2", "3 4"}},
-	SplitTest{"1 2 3", " ", 3, []string{"1", "2", "3"}},
 	SplitTest{"1 2", " ", 3, []string{"1", "2"}},
 	SplitTest{"123", "", 2, []string{"1", "23"}},
 	SplitTest{"123", "", 17, []string{"1", "2", "3"}},
@@ -263,6 +285,9 @@ func TestSplit(t *testing.T) {
 			t.Errorf(`Split(%q, %q, %d) = %v; want %v`, tt.s, tt.sep, tt.n, result, tt.a)
 			continue
 		}
+		if tt.n == 0 {
+			continue
+		}
 		s := Join(a, []byte(tt.sep))
 		if string(s) != tt.s {
 			t.Errorf(`Join(Split(%q, %q, %d), %q) = %q`, tt.s, tt.sep, tt.n, tt.sep, s)
@@ -271,14 +296,14 @@ func TestSplit(t *testing.T) {
 }
 
 var splitaftertests = []SplitTest{
-	SplitTest{abcd, "a", 0, []string{"a", "bcd"}},
-	SplitTest{abcd, "z", 0, []string{"abcd"}},
-	SplitTest{abcd, "", 0, []string{"a", "b", "c", "d"}},
-	SplitTest{commas, ",", 0, []string{"1,", "2,", "3,", "4"}},
-	SplitTest{dots, "...", 0, []string{"1...", ".2...", ".3...", ".4"}},
-	SplitTest{faces, "☹", 0, []string{"☺☻☹", ""}},
-	SplitTest{faces, "~", 0, []string{faces}},
-	SplitTest{faces, "", 0, []string{"☺", "☻", "☹"}},
+	SplitTest{abcd, "a", -1, []string{"a", "bcd"}},
+	SplitTest{abcd, "z", -1, []string{"abcd"}},
+	SplitTest{abcd, "", -1, []string{"a", "b", "c", "d"}},
+	SplitTest{commas, ",", -1, []string{"1,", "2,", "3,", "4"}},
+	SplitTest{dots, "...", -1, []string{"1...", ".2...", ".3...", ".4"}},
+	SplitTest{faces, "☹", -1, []string{"☺☻☹", ""}},
+	SplitTest{faces, "~", -1, []string{faces}},
+	SplitTest{faces, "", -1, []string{"☺", "☻", "☹"}},
 	SplitTest{"1 2 3 4", " ", 3, []string{"1 ", "2 ", "3 4"}},
 	SplitTest{"1 2 3", " ", 3, []string{"1 ", "2 ", "3"}},
 	SplitTest{"1 2", " ", 3, []string{"1 ", "2"}},
@@ -331,6 +356,23 @@ func TestFields(t *testing.T) {
 	}
 }
 
+func TestFieldsFunc(t *testing.T) {
+	pred := func(c int) bool { return c == 'X' }
+	var fieldsFuncTests = []FieldsTest{
+		FieldsTest{"", []string{}},
+		FieldsTest{"XX", []string{}},
+		FieldsTest{"XXhiXXX", []string{"hi"}},
+		FieldsTest{"aXXbXXXcX", []string{"a", "b", "c"}},
+	}
+	for _, tt := range fieldsFuncTests {
+		a := FieldsFunc([]byte(tt.s), pred)
+		result := arrayOfString(a)
+		if !eq(result, tt.a) {
+			t.Errorf("FieldsFunc(%q) = %v, want %v", tt.s, a, tt.a)
+		}
+	}
+}
+
 // Test case for any function which accepts and returns a byte array.
 // For ease of creation, we write the byte arrays as strings.
 type StringTest struct {
@@ -364,8 +406,14 @@ var trimSpaceTests = []StringTest{
 	StringTest{" \t\r\n x\t\t\r\r\n\n ", "x"},
 	StringTest{" \u2000\t\r\n x\t\t\r\r\ny\n \u3000", "x\t\t\r\r\ny"},
 	StringTest{"1 \t\r\n2", "1 \t\r\n2"},
-	StringTest{" x\x80", "x\x80"}, // invalid UTF-8 on end
-	StringTest{" x\xc0", "x\xc0"}, // invalid UTF-8 on end
+	StringTest{" x\x80", "x\x80"},
+	StringTest{" x\xc0", "x\xc0"},
+	StringTest{"x \xc0\xc0 ", "x \xc0\xc0"},
+	StringTest{"x \xc0", "x \xc0"},
+	StringTest{"x \xc0 ", "x \xc0"},
+	StringTest{"x \xc0\xc0 ", "x \xc0\xc0"},
+	StringTest{"x ☺\xc0\xc0 ", "x ☺\xc0\xc0"},
+	StringTest{"x ☺ ", "x ☺"},
 }
 
 // Bytes returns a new slice containing the bytes in s.
@@ -604,6 +652,7 @@ var trimTests = []TrimTest{
 	TrimTest{TrimRight, "abba", "", "abba"},
 	TrimTest{TrimRight, "", "123", ""},
 	TrimTest{TrimRight, "", "", ""},
+	TrimTest{TrimRight, "☺\xc0", "☺", "☺\xc0"},
 }
 
 func TestTrim(t *testing.T) {
@@ -626,22 +675,149 @@ func TestTrim(t *testing.T) {
 	}
 }
 
+type predicate struct {
+	f    func(r int) bool
+	name string
+}
+
+var isSpace = predicate{unicode.IsSpace, "IsSpace"}
+var isDigit = predicate{unicode.IsDigit, "IsDigit"}
+var isUpper = predicate{unicode.IsUpper, "IsUpper"}
+var isValidRune = predicate{
+	func(r int) bool {
+		return r != utf8.RuneError
+	},
+	"IsValidRune",
+}
+
 type TrimFuncTest struct {
-	f             func(r int) bool
-	name, in, out string
+	f       predicate
+	in, out string
+}
+
+func not(p predicate) predicate {
+	return predicate{
+		func(r int) bool {
+			return !p.f(r)
+		},
+		"not " + p.name,
+	}
 }
 
 var trimFuncTests = []TrimFuncTest{
-	TrimFuncTest{unicode.IsSpace, "IsSpace", space + " hello " + space, "hello"},
-	TrimFuncTest{unicode.IsDigit, "IsDigit", "\u0e50\u0e5212hello34\u0e50\u0e51", "hello"},
-	TrimFuncTest{unicode.IsUpper, "IsUpper", "\u2C6F\u2C6F\u2C6F\u2C6FABCDhelloEF\u2C6F\u2C6FGH\u2C6F\u2C6F", "hello"},
+	TrimFuncTest{isSpace, space + " hello " + space, "hello"},
+	TrimFuncTest{isDigit, "\u0e50\u0e5212hello34\u0e50\u0e51", "hello"},
+	TrimFuncTest{isUpper, "\u2C6F\u2C6F\u2C6F\u2C6FABCDhelloEF\u2C6F\u2C6FGH\u2C6F\u2C6F", "hello"},
+	TrimFuncTest{not(isSpace), "hello" + space + "hello", space},
+	TrimFuncTest{not(isDigit), "hello\u0e50\u0e521234\u0e50\u0e51helo", "\u0e50\u0e521234\u0e50\u0e51"},
+	TrimFuncTest{isValidRune, "ab\xc0a\xc0cd", "\xc0a\xc0"},
+	TrimFuncTest{not(isValidRune), "\xc0a\xc0", "a"},
 }
 
 func TestTrimFunc(t *testing.T) {
 	for _, tc := range trimFuncTests {
-		actual := string(TrimFunc([]byte(tc.in), tc.f))
+		actual := string(TrimFunc([]byte(tc.in), tc.f.f))
 		if actual != tc.out {
-			t.Errorf("TrimFunc(%q, %q) = %q; want %q", tc.in, tc.name, actual, tc.out)
+			t.Errorf("TrimFunc(%q, %q) = %q; want %q", tc.in, tc.f.name, actual, tc.out)
+		}
+	}
+}
+
+type IndexFuncTest struct {
+	in          string
+	f           predicate
+	first, last int
+}
+
+var indexFuncTests = []IndexFuncTest{
+	IndexFuncTest{"", isValidRune, -1, -1},
+	IndexFuncTest{"abc", isDigit, -1, -1},
+	IndexFuncTest{"0123", isDigit, 0, 3},
+	IndexFuncTest{"a1b", isDigit, 1, 1},
+	IndexFuncTest{space, isSpace, 0, len(space) - 3}, // last rune in space is 3 bytes
+	IndexFuncTest{"\u0e50\u0e5212hello34\u0e50\u0e51", isDigit, 0, 18},
+	IndexFuncTest{"\u2C6F\u2C6F\u2C6F\u2C6FABCDhelloEF\u2C6F\u2C6FGH\u2C6F\u2C6F", isUpper, 0, 34},
+	IndexFuncTest{"12\u0e50\u0e52hello34\u0e50\u0e51", not(isDigit), 8, 12},
+
+	// tests of invalid UTF-8
+	IndexFuncTest{"\x801", isDigit, 1, 1},
+	IndexFuncTest{"\x80abc", isDigit, -1, -1},
+	IndexFuncTest{"\xc0a\xc0", isValidRune, 1, 1},
+	IndexFuncTest{"\xc0a\xc0", not(isValidRune), 0, 2},
+	IndexFuncTest{"\xc0☺\xc0", not(isValidRune), 0, 4},
+	IndexFuncTest{"\xc0☺\xc0\xc0", not(isValidRune), 0, 5},
+	IndexFuncTest{"ab\xc0a\xc0cd", not(isValidRune), 2, 4},
+	IndexFuncTest{"a\xe0\x80cd", not(isValidRune), 1, 2},
+}
+
+func TestIndexFunc(t *testing.T) {
+	for _, tc := range indexFuncTests {
+		first := IndexFunc([]byte(tc.in), tc.f.f)
+		if first != tc.first {
+			t.Errorf("IndexFunc(%q, %s) = %d; want %d", tc.in, tc.f.name, first, tc.first)
+		}
+		last := LastIndexFunc([]byte(tc.in), tc.f.f)
+		if last != tc.last {
+			t.Errorf("LastIndexFunc(%q, %s) = %d; want %d", tc.in, tc.f.name, last, tc.last)
+		}
+	}
+}
+
+type ReplaceTest struct {
+	in       string
+	old, new string
+	n        int
+	out      string
+}
+
+var ReplaceTests = []ReplaceTest{
+	ReplaceTest{"hello", "l", "L", 0, "hello"},
+	ReplaceTest{"hello", "l", "L", -1, "heLLo"},
+	ReplaceTest{"hello", "x", "X", -1, "hello"},
+	ReplaceTest{"", "x", "X", -1, ""},
+	ReplaceTest{"radar", "r", "<r>", -1, "<r>ada<r>"},
+	ReplaceTest{"", "", "<>", -1, "<>"},
+	ReplaceTest{"banana", "a", "<>", -1, "b<>n<>n<>"},
+	ReplaceTest{"banana", "a", "<>", 1, "b<>nana"},
+	ReplaceTest{"banana", "a", "<>", 1000, "b<>n<>n<>"},
+	ReplaceTest{"banana", "an", "<>", -1, "b<><>a"},
+	ReplaceTest{"banana", "ana", "<>", -1, "b<>na"},
+	ReplaceTest{"banana", "", "<>", -1, "<>b<>a<>n<>a<>n<>a<>"},
+	ReplaceTest{"banana", "", "<>", 10, "<>b<>a<>n<>a<>n<>a<>"},
+	ReplaceTest{"banana", "", "<>", 6, "<>b<>a<>n<>a<>n<>a"},
+	ReplaceTest{"banana", "", "<>", 5, "<>b<>a<>n<>a<>na"},
+	ReplaceTest{"banana", "", "<>", 1, "<>banana"},
+	ReplaceTest{"banana", "a", "a", -1, "banana"},
+	ReplaceTest{"banana", "a", "a", 1, "banana"},
+	ReplaceTest{"☺☻☹", "", "<>", -1, "<>☺<>☻<>☹<>"},
+}
+
+func TestReplace(t *testing.T) {
+	for _, tt := range ReplaceTests {
+		if s := string(Replace([]byte(tt.in), []byte(tt.old), []byte(tt.new), tt.n)); s != tt.out {
+			t.Errorf("Replace(%q, %q, %q, %d) = %q, want %q", tt.in, tt.old, tt.new, tt.n, s, tt.out)
+		}
+	}
+}
+
+type TitleTest struct {
+	in, out string
+}
+
+var TitleTests = []TitleTest{
+	TitleTest{"", ""},
+	TitleTest{"a", "A"},
+	TitleTest{" aaa aaa aaa ", " Aaa Aaa Aaa "},
+	TitleTest{" Aaa Aaa Aaa ", " Aaa Aaa Aaa "},
+	TitleTest{"123a456", "123a456"},
+	TitleTest{"double-blind", "Double-Blind"},
+	TitleTest{"ÿøû", "Ÿøû"},
+}
+
+func TestTitle(t *testing.T) {
+	for _, tt := range TitleTests {
+		if s := string(Title([]byte(tt.in))); s != tt.out {
+			t.Errorf("Title(%q) = %q, want %q", tt.in, s, tt.out)
 		}
 	}
 }

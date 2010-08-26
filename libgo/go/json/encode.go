@@ -76,6 +76,43 @@ func MarshalIndent(v interface{}, prefix, indent string) ([]byte, os.Error) {
 	return buf.Bytes(), nil
 }
 
+// MarshalForHTML is like Marshal but applies HTMLEscape to the output.
+func MarshalForHTML(v interface{}) ([]byte, os.Error) {
+	b, err := Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	HTMLEscape(&buf, b)
+	return buf.Bytes(), nil
+}
+
+// HTMLEscape appends to dst the JSON-encoded src with <, >, and &
+// characters inside string literals changed to \u003c, \u003e, \u0026
+// so that the JSON will be safe to embed inside HTML <script> tags.
+// For historical reasons, web browsers don't honor standard HTML
+// escaping within <script> tags, so an alternative JSON encoding must
+// be used.
+func HTMLEscape(dst *bytes.Buffer, src []byte) {
+	// < > & can only appear in string literals,
+	// so just scan the string one byte at a time.
+	start := 0
+	for i, c := range src {
+		if c == '<' || c == '>' || c == '&' {
+			if start < i {
+				dst.Write(src[start:i])
+			}
+			dst.WriteString(`\u00`)
+			dst.WriteByte(hex[c>>4])
+			dst.WriteByte(hex[c&0xF])
+			start = i + 1
+		}
+	}
+	if start < len(src) {
+		dst.Write(src[start:])
+	}
+}
+
 // Marshaler is the interface implemented by objects that
 // can marshal themselves into valid JSON.
 type Marshaler interface {
@@ -156,35 +193,13 @@ func (e *encodeState) reflectValue(v reflect.Value) {
 		}
 
 	case *reflect.IntValue:
-		e.WriteString(strconv.Itoa(v.Get()))
-	case *reflect.Int8Value:
-		e.WriteString(strconv.Itoa(int(v.Get())))
-	case *reflect.Int16Value:
-		e.WriteString(strconv.Itoa(int(v.Get())))
-	case *reflect.Int32Value:
-		e.WriteString(strconv.Itoa(int(v.Get())))
-	case *reflect.Int64Value:
 		e.WriteString(strconv.Itoa64(v.Get()))
 
 	case *reflect.UintValue:
-		e.WriteString(strconv.Uitoa(v.Get()))
-	case *reflect.Uint8Value:
-		e.WriteString(strconv.Uitoa(uint(v.Get())))
-	case *reflect.Uint16Value:
-		e.WriteString(strconv.Uitoa(uint(v.Get())))
-	case *reflect.Uint32Value:
-		e.WriteString(strconv.Uitoa(uint(v.Get())))
-	case *reflect.Uint64Value:
 		e.WriteString(strconv.Uitoa64(v.Get()))
-	case *reflect.UintptrValue:
-		e.WriteString(strconv.Uitoa64(uint64(v.Get())))
 
 	case *reflect.FloatValue:
-		e.WriteString(strconv.Ftoa(v.Get(), 'g', -1))
-	case *reflect.Float32Value:
-		e.WriteString(strconv.Ftoa32(v.Get(), 'g', -1))
-	case *reflect.Float64Value:
-		e.WriteString(strconv.Ftoa64(v.Get(), 'g', -1))
+		e.WriteString(strconv.FtoaN(v.Get(), 'g', -1, v.Type().Bits()))
 
 	case *reflect.StringValue:
 		e.string(v.Get())

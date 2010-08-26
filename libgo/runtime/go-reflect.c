@@ -25,42 +25,16 @@ struct field_align
 
 extern const struct __go_type_descriptor ptr_bool_descriptor
   asm ("__go_td_pN30_libgo_runtime.runtime.BoolType");
-extern const struct __go_type_descriptor ptr_float32_descriptor
-  asm ("__go_td_pN33_libgo_runtime.runtime.Float32Type");
-extern const struct __go_type_descriptor ptr_float64_descriptor
-  asm ("__go_td_pN33_libgo_runtime.runtime.Float64Type");
 extern const struct __go_type_descriptor ptr_float_descriptor
   asm ("__go_td_pN31_libgo_runtime.runtime.FloatType");
-extern const struct __go_type_descriptor ptr_complex64_descriptor
-  asm ("__go_td_pN35_libgo_runtime.runtime.Complex64Type");
-extern const struct __go_type_descriptor ptr_complex128_descriptor
-  asm ("__go_td_pN36_libgo_runtime.runtime.Complex128Type");
 extern const struct __go_type_descriptor ptr_complex_descriptor
   asm ("__go_td_pN33_libgo_runtime.runtime.ComplexType");
-extern const struct __go_type_descriptor ptr_int16_descriptor
-  asm ("__go_td_pN31_libgo_runtime.runtime.Int16Type");
-extern const struct __go_type_descriptor ptr_int32_descriptor
-  asm ("__go_td_pN31_libgo_runtime.runtime.Int32Type");
-extern const struct __go_type_descriptor ptr_int64_descriptor
-  asm ("__go_td_pN31_libgo_runtime.runtime.Int64Type");
-extern const struct __go_type_descriptor ptr_int8_descriptor
-  asm ("__go_td_pN30_libgo_runtime.runtime.Int8Type");
 extern const struct __go_type_descriptor ptr_int_descriptor
   asm ("__go_td_pN29_libgo_runtime.runtime.IntType");
-extern const struct __go_type_descriptor ptr_uint16_descriptor
-  asm ("__go_td_pN32_libgo_runtime.runtime.Uint16Type");
-extern const struct __go_type_descriptor ptr_uint32_descriptor
-  asm ("__go_td_pN32_libgo_runtime.runtime.Uint32Type");
-extern const struct __go_type_descriptor ptr_uint64_descriptor
-  asm ("__go_td_pN32_libgo_runtime.runtime.Uint64Type");
-extern const struct __go_type_descriptor ptr_uint8_descriptor
-  asm ("__go_td_pN31_libgo_runtime.runtime.Uint8Type");
 extern const struct __go_type_descriptor ptr_uint_descriptor
   asm ("__go_td_pN30_libgo_runtime.runtime.UintType");
 extern const struct __go_type_descriptor ptr_string_descriptor
   asm ("__go_td_pN32_libgo_runtime.runtime.StringType");
-extern const struct __go_type_descriptor ptr_uintptr_descriptor
-  asm ("__go_td_pN33_libgo_runtime.runtime.UintptrType");
 extern const struct __go_type_descriptor ptr_unsafe_pointer_decriptor
   asm ("__go_td_pN39_libgo_runtime.runtime.UnsafePointerType");
 extern const struct __go_type_descriptor ptr_array_descriptor
@@ -88,41 +62,28 @@ get_descriptor (int code)
     case GO_BOOL:
       return &ptr_bool_descriptor;
     case GO_FLOAT32:
-      return &ptr_float32_descriptor;
     case GO_FLOAT64:
-      return &ptr_float64_descriptor;
     case GO_FLOAT:
       return &ptr_float_descriptor;
     case GO_COMPLEX64:
-      return &ptr_complex64_descriptor;
     case GO_COMPLEX128:
-      return &ptr_complex128_descriptor;
     case GO_COMPLEX:
       return &ptr_complex_descriptor;
     case GO_INT16:
-      return &ptr_int16_descriptor;
     case GO_INT32:
-      return &ptr_int32_descriptor;
     case GO_INT64:
-      return &ptr_int64_descriptor;
     case GO_INT8:
-      return &ptr_int8_descriptor;
     case GO_INT:
       return &ptr_int_descriptor;
     case GO_UINT16:
-      return &ptr_uint16_descriptor;
     case GO_UINT32:
-      return &ptr_uint32_descriptor;
     case GO_UINT64:
-      return &ptr_uint64_descriptor;
     case GO_UINT8:
-      return &ptr_uint8_descriptor;
+    case GO_UINTPTR:
     case GO_UINT:
       return &ptr_uint_descriptor;
     case GO_STRING:
       return &ptr_string_descriptor;
-    case GO_UINTPTR:
-      return &ptr_uintptr_descriptor;
     case GO_UNSAFE_POINTER:
       return &ptr_unsafe_pointer_decriptor;
     case GO_ARRAY:

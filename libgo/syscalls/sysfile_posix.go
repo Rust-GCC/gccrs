@@ -12,7 +12,7 @@ package syscall
 
 import "unsafe"
 
-func libc_open(name *byte, mode int, perm int) int __asm__ ("open");
+func libc_open(name *byte, mode int, perm Mode_t) int __asm__ ("open");
 func libc_close(fd int) int __asm__ ("close");
 func libc_read(fd int, buf *byte, count Size_t) Ssize_t __asm__ ("read");
 func libc_write(fd int, buf *byte, count Size_t) Ssize_t __asm__ ("write");
@@ -50,14 +50,14 @@ func libc_getpid() Pid_t __asm__ ("getpid")
 func libc_getppid() Pid_t __asm__ ("getppid")
 func libc_kill(Pid_t, int) int __asm__ ("kill")
 
-func Open(name string, mode int, perm int) (fd int, errno int) {
-  fd = libc_open(StringBytePtr(name), mode, perm);
+func Open(name string, mode int, perm uint32) (fd int, errno int) {
+  fd = libc_open(StringBytePtr(name), mode, Mode_t(perm));
   if fd < 0 { errno = GetErrno() }
   return;
 }
 
-func Creat(name string, perm int) (fd int, errno int) {
-  fd = libc_open(StringBytePtr(name), O_CREAT | O_WRONLY | O_TRUNC, perm);
+func Creat(name string, perm uint32) (fd int, errno int) {
+  fd = libc_open(StringBytePtr(name), O_CREAT | O_WRONLY | O_TRUNC, Mode_t(perm));
   if fd < 0 { errno = GetErrno() }
   return;
 }
@@ -155,7 +155,7 @@ func Rmdir(name string) (errno int) {
   return;
 }
 
-func Mkdir(path string, mode int) (errno int) {
+func Mkdir(path string, mode uint32) (errno int) {
   r := libc_mkdir(StringBytePtr(path), Mode_t(mode));
   if r < 0 { errno = GetErrno() }
   return;
@@ -260,13 +260,13 @@ func Rename(oldpath, newpath string) (errno int) {
 	return 
 }
 
-func Chmod(path string, mode int) (errno int) {
+func Chmod(path string, mode uint32) (errno int) {
   r := libc_chmod(StringBytePtr(path), Mode_t(mode));
   if r < 0 { errno = GetErrno() }
   return;
 }
 
-func Fchmod(fd, mode int) (errno int) {
+func Fchmod(fd int, mode uint32) (errno int) {
   r := libc_fchmod(fd, Mode_t(mode));
   if r < 0 { errno = GetErrno() }
   return;

@@ -74,8 +74,10 @@ var atoftests = []atofTest{
 	atofTest{"1e-322", "1e-322", nil},
 	// smallest denormal
 	atofTest{"5e-324", "5e-324", nil},
+	atofTest{"4e-324", "5e-324", nil},
+	atofTest{"3e-324", "5e-324", nil},
 	// too small
-	atofTest{"4e-324", "0", nil},
+	atofTest{"2e-324", "0", nil},
 	// way too small
 	atofTest{"1e-350", "0", nil},
 	atofTest{"1e-400000", "0", nil},
@@ -114,11 +116,26 @@ func testAtof(t *testing.T, opt bool) {
 				test.in, out, err, test.out, test.err)
 		}
 
+		out, err = AtofN(test.in, 64)
+		outs = FtoaN(out, 'g', -1, 64)
+		if outs != test.out || !reflect.DeepEqual(err, test.err) {
+			t.Errorf("AtofN(%v, 64) = %v, %v want %v, %v\n",
+				test.in, out, err, test.out, test.err)
+		}
+
 		if float64(float32(out)) == out {
 			out32, err := Atof32(test.in)
 			outs := Ftoa32(out32, 'g', -1)
 			if outs != test.out || !reflect.DeepEqual(err, test.err) {
 				t.Errorf("Atof32(%v) = %v, %v want %v, %v  # %v\n",
+					test.in, out32, err, test.out, test.err, out)
+			}
+
+			out, err := AtofN(test.in, 32)
+			out32 = float32(out)
+			outs = FtoaN(float64(out32), 'g', -1, 32)
+			if outs != test.out || !reflect.DeepEqual(err, test.err) {
+				t.Errorf("AtofN(%v, 32) = %v, %v want %v, %v  # %v\n",
 					test.in, out32, err, test.out, test.err, out)
 			}
 		}

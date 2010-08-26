@@ -59,7 +59,7 @@ func CommentText(comment *ast.CommentGroup) string {
 		}
 
 		// Split on newlines.
-		cl := strings.Split(c, "\n", 0)
+		cl := strings.Split(c, "\n", -1)
 
 		// Walk lines, stripping trailing white space and adding to list.
 		for _, l := range cl {
@@ -199,8 +199,8 @@ var (
 // and '' into &rdquo;).
 func emphasize(w io.Writer, line []byte, words map[string]string, nice bool) {
 	for {
-		m := matchRx.Execute(line)
-		if len(m) == 0 {
+		m := matchRx.FindSubmatchIndex(line)
+		if m == nil {
 			break
 		}
 		// m >= 6 (two parenthesized sub-regexps in matchRx, 1st one is identRx)
@@ -223,7 +223,6 @@ func emphasize(w io.Writer, line []byte, words map[string]string, nice bool) {
 			}
 			italics = false // don't italicize URLs
 		}
-
 
 		// write match
 		if len(url) > 0 {

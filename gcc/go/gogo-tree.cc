@@ -2320,6 +2320,8 @@ Gogo::map_descriptor(Map_type* maptype)
 					keytype->get_tree(this),
 					"__val",
 					valtype->get_tree(this));
+  if (map_entry_type == error_mark_node)
+    return error_mark_node;
 
   tree map_entry_key_field = TREE_CHAIN(TYPE_FIELDS(map_entry_type));
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(map_entry_key_field)),
@@ -2510,7 +2512,7 @@ Gogo::type_descriptor_type_tree()
 
       Gogo::builtin_struct(&descriptor_type, "__go_type_descriptor", NULL_TREE,
 			   9,
-			   "__code",
+			   "__kind",
 			   unsigned_char_type_node,
 			   "__align",
 			   unsigned_char_type_node,
@@ -2850,14 +2852,14 @@ Gogo::uncommon_type_information(tree uncommon_type_tree, Named_type* name,
 }
 
 // Build a constructor for the basic type descriptor struct for TYPE.
-// RUNTIME_TYPE_CODE is the value to store in the __code field.  If
+// RUNTIME_TYPE_KIND is the value to store in the __kind field.  If
 // NAME is not NULL, it is the name to use.  If METHODS is not NULL,
 // it is the list of methods to use.  If METHODS is NULL, then we get
 // the methods from NAME.  ONLY_VALUE_METHODS is true if only value
 // methods should be included.
 
 tree
-Gogo::type_descriptor_constructor(int runtime_type_code, Type* type,
+Gogo::type_descriptor_constructor(int runtime_type_kind, Type* type,
 				  Named_type* name, const Methods* methods,
 				  bool only_value_methods)
 {
@@ -2869,10 +2871,10 @@ Gogo::type_descriptor_constructor(int runtime_type_code, Type* type,
   VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 9);
 
   tree field = TYPE_FIELDS(type_descriptor_type_tree);
-  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__code") == 0);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__kind") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = build_int_cstu(TREE_TYPE(field), runtime_type_code);
+  elt->value = build_int_cstu(TREE_TYPE(field), runtime_type_kind);
 
   field = TREE_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__align") == 0);
@@ -3124,13 +3126,13 @@ Gogo::finish_type_descriptor_decl(tree* pdecl, const Type* type,
   rest_of_decl_compilation(decl, 1, 0);
 }
 
-// Build a type descriptor decl for TYPE.  RUNTIME_TYPE_CODE is the
-// value to store in the __code field.  If NAME is not NULL, it is the
+// Build a type descriptor decl for TYPE.  RUNTIME_TYPE_KIND is the
+// value to store in the __kind field.  If NAME is not NULL, it is the
 // name to use as well as the list of methods.  Store the decl into
 // *PDECL.
 
 void
-Gogo::type_descriptor_decl(int runtime_type_code, Type* type, Named_type* name,
+Gogo::type_descriptor_decl(int runtime_type_kind, Type* type, Named_type* name,
 			   tree* pdecl)
 {
   tree type_descriptor_type_tree = this->type_descriptor_type_tree();
@@ -3139,7 +3141,7 @@ Gogo::type_descriptor_decl(int runtime_type_code, Type* type, Named_type* name,
 					name, pdecl))
     return;
 
-  tree constructor = this->type_descriptor_constructor(runtime_type_code,
+  tree constructor = this->type_descriptor_constructor(runtime_type_kind,
 						       type, name, NULL,
 						       true);
 
@@ -3213,7 +3215,7 @@ Gogo::pointer_type_descriptor_decl(Pointer_type* type, Named_type* name,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_PTR, type,
+  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_KIND_PTR, type,
 						 name, methods, false);
 
   field = TREE_CHAIN(field);
@@ -3315,7 +3317,7 @@ Gogo::function_type_descriptor_decl(Function_type* type, Named_type* name,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_FUNC, type,
+  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_KIND_FUNC, type,
 						 name, NULL, true);
 
   field = TREE_CHAIN(field);
@@ -3497,7 +3499,7 @@ Gogo::struct_type_descriptor_decl(Struct_type* type, Named_type* name,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_STRUCT,
+  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_KIND_STRUCT,
 						 type, name, methods, true);
 
   field = TREE_CHAIN(field);
@@ -3556,7 +3558,7 @@ Gogo::array_type_descriptor_decl(Array_type* type, Named_type* name,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_ARRAY,
+  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_KIND_ARRAY,
 						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);
@@ -3618,7 +3620,7 @@ Gogo::slice_type_descriptor_decl(Array_type* type, Named_type* name,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_SLICE,
+  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_KIND_SLICE,
 						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);
@@ -3674,7 +3676,7 @@ Gogo::map_type_descriptor_decl(Map_type* type, Named_type* name, tree* pdecl)
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_MAP,
+  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_KIND_MAP,
 						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);
@@ -3739,7 +3741,7 @@ Gogo::channel_type_descriptor_decl(Channel_type* type, Named_type* name,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_CHAN,
+  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_KIND_CHAN,
 						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);
@@ -3887,7 +3889,7 @@ Gogo::interface_type_descriptor_decl(Interface_type* type, Named_type* name,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__common") == 0);
   constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
-  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_CODE_INTERFACE,
+  elt->value = this->type_descriptor_constructor(RUNTIME_TYPE_KIND_INTERFACE,
 						 type, name, NULL, true);
 
   field = TREE_CHAIN(field);

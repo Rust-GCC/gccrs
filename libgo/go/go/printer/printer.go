@@ -18,10 +18,7 @@ import (
 )
 
 
-const (
-	debug       = false // enable for debugging
-	maxNewlines = 3     // maximum vertical white space
-)
+const debug = false // enable for debugging
 
 
 type whiteSpace int
@@ -41,8 +38,8 @@ var (
 	esc       = []byte{tabwriter.Escape}
 	htab      = []byte{'\t'}
 	htabs     = []byte("\t\t\t\t\t\t\t\t")
-	newlines  = []byte("\n\n\n\n\n\n\n\n") // more than maxNewlines
-	formfeeds = []byte("\f\f\f\f\f\f\f\f") // more than maxNewlines
+	newlines  = []byte("\n\n\n\n\n\n\n\n") // more than the max determined by nlines
+	formfeeds = []byte("\f\f\f\f\f\f\f\f") // more than the max determined by nlines
 
 	esc_quot = []byte("&#34;") // shorter than "&quot;"
 	esc_apos = []byte("&#39;") // shorter than "&apos;"
@@ -68,6 +65,7 @@ type printer struct {
 	errors chan os.Error
 
 	// Current state
+	nesting int  // nesting level (0: top-level (package scope), >0: functions/decls.)
 	written int  // number of bytes written
 	indent  int  // current indentation
 	escape  bool // true if in escape sequence
@@ -109,6 +107,25 @@ func (p *printer) internalError(msg ...interface{}) {
 		fmt.Println(msg)
 		panic("go/printer")
 	}
+}
+
+
+// nlines returns the adjusted number of linebreaks given the desired number
+// of breaks n such that min <= result <= max where max depends on the current
+// nesting level.
+//
+func (p *printer) nlines(n, min int) int {
+	if n < min {
+		return min
+	}
+	max := 3 // max. number of newlines at the top level (p.nesting == 0)
+	if p.nesting > 0 {
+		max = 2 // max. number of newlines everywhere else
+	}
+	if n > max {
+		return max
+	}
+	return n
 }
 
 
@@ -207,9 +224,7 @@ func (p *printer) write(data []byte) {
 
 func (p *printer) writeNewlines(n int, useFF bool) {
 	if n > 0 {
-		if n > maxNewlines {
-			n = maxNewlines
-		}
+		n = p.nlines(n, 0)
 		if useFF {
 			p.write(formfeeds[0:n])
 		} else {
@@ -292,8 +307,8 @@ func (p *printer) writeCommentPrefix(pos, next token.Position, isFirst, isKeywor
 	}
 
 	if pos.IsValid() && pos.Filename != p.last.Filename {
-		// comment in a different file - separate with newlines
-		p.writeNewlines(maxNewlines, true)
+		// comment in a different file - separate with newlines (writeNewlines will limit the number)
+		p.writeNewlines(10, true)
 		return
 	}
 
@@ -380,7 +395,6 @@ func (p *printer) writeCommentPrefix(pos, next token.Position, isFirst, isKeywor
 
 func (p *printer) writeCommentLine(comment *ast.Comment, pos token.Position, line []byte) {
 	// line must pass through unchanged, bracket it with tabwriter.Escape
-	esc := []byte{tabwriter.Escape}
 	line = bytes.Join([][]byte{esc, line, esc}, nil)
 
 	// apply styler, if any
@@ -765,7 +779,7 @@ func (p *printer) print(args ...interface{}) {
 			if p.Styler != nil {
 				data, tag = p.Styler.Ident(x)
 			} else {
-				data = []byte(x.Name())
+				data = []byte(x.Name)
 			}
 			tok = token.IDENT
 		case *ast.BasicLit:
@@ -844,12 +858,23 @@ func (p *printer) flush(next token.Position, tok token.Token) (droppedFF bool) {
 // A trimmer is an io.Writer filter for stripping tabwriter.Escape
 // characters, trailing blanks and tabs, and for converting formfeed
 // and vtab characters into newlines and htabs (in case no tabwriter
-// is used).
+// is used). Text bracketed by tabwriter.Escape characters is passed
+// through unchanged.
 //
 type trimmer struct {
 	output io.Writer
-	buf    bytes.Buffer
+	space  bytes.Buffer
+	state  int
 }
+
+
+// trimmer is implemented as a state machine.
+// It can be in one of the following states:
+const (
+	inSpace = iota
+	inEscape
+	inText
+)
 
 
 // Design note: It is tempting to eliminate extra blanks occuring in
@@ -859,66 +884,59 @@ type trimmer struct {
 //              the tabwriter.
 
 func (p *trimmer) Write(data []byte) (n int, err os.Error) {
-	// m < 0: no unwritten data except for whitespace
-	// m >= 0: data[m:n] unwritten and no whitespace
-	m := 0
-	if p.buf.Len() > 0 {
-		m = -1
-	}
-
+	m := 0 // if p.state != inSpace, data[m:n] is unwritten
 	var b byte
 	for n, b = range data {
-		switch b {
-		default:
-			// write any pending whitespace
-			if m < 0 {
-				if _, err = p.output.Write(p.buf.Bytes()); err != nil {
-					return
-				}
-				p.buf.Reset()
+		if b == '\v' {
+			b = '\t' // convert to htab
+		}
+		switch p.state {
+		case inSpace:
+			switch b {
+			case '\t', ' ':
+				p.space.WriteByte(b) // WriteByte returns no errors
+			case '\f', '\n':
+				p.space.Reset()                        // discard trailing space
+				_, err = p.output.Write(newlines[0:1]) // write newline
+			case tabwriter.Escape:
+				_, err = p.output.Write(p.space.Bytes())
+				p.space.Reset()
+				p.state = inEscape
+				m = n + 1 // drop tabwriter.Escape
+			default:
+				_, err = p.output.Write(p.space.Bytes())
+				p.space.Reset()
+				p.state = inText
 				m = n
 			}
-
-		case '\v':
-			b = '\t' // convert to htab
-			fallthrough
-
-		case '\t', ' ', tabwriter.Escape:
-			// write any pending (non-whitespace) data
-			if m >= 0 {
-				if _, err = p.output.Write(data[m:n]); err != nil {
-					return
-				}
-				m = -1
+		case inEscape:
+			if b == tabwriter.Escape {
+				_, err = p.output.Write(data[m:n])
+				p.state = inSpace
 			}
-			// collect whitespace but discard tabwriter.Escapes.
-			if b != tabwriter.Escape {
-				p.buf.WriteByte(b) // WriteByte returns no errors
+		case inText:
+			switch b {
+			case '\t', ' ':
+				_, err = p.output.Write(data[m:n])
+				p.state = inSpace
+				p.space.WriteByte(b) // WriteByte returns no errors
+			case '\f':
+				data[n] = '\n' // convert to newline
+			case tabwriter.Escape:
+				_, err = p.output.Write(data[m:n])
+				p.state = inEscape
+				m = n + 1 // drop tabwriter.Escape
 			}
-
-		case '\f', '\n':
-			// discard whitespace
-			p.buf.Reset()
-			// write any pending (non-whitespace) data
-			if m >= 0 {
-				if _, err = p.output.Write(data[m:n]); err != nil {
-					return
-				}
-				m = -1
-			}
-			// convert formfeed into newline
-			if _, err = p.output.Write(newlines[0:1]); err != nil {
-				return
-			}
+		}
+		if err != nil {
+			return
 		}
 	}
 	n = len(data)
 
-	// write any pending non-whitespace
-	if m >= 0 {
-		if _, err = p.output.Write(data[m:n]); err != nil {
-			return
-		}
+	if p.state != inSpace {
+		_, err = p.output.Write(data[m:n])
+		p.state = inSpace
 	}
 
 	return
@@ -1004,9 +1022,11 @@ func (cfg *Config) Fprint(output io.Writer, node interface{}) (int, os.Error) {
 	go func() {
 		switch n := node.(type) {
 		case ast.Expr:
+			p.nesting = 1
 			p.useNodeComments = true
 			p.expr(n, ignoreMultiLine)
 		case ast.Stmt:
+			p.nesting = 1
 			p.useNodeComments = true
 			// A labeled statement will un-indent to position the
 			// label. Set indent to 1 so we don't get indent "underflow".
@@ -1015,12 +1035,15 @@ func (cfg *Config) Fprint(output io.Writer, node interface{}) (int, os.Error) {
 			}
 			p.stmt(n, false, ignoreMultiLine)
 		case ast.Decl:
+			p.nesting = 1
 			p.useNodeComments = true
 			p.decl(n, ignoreMultiLine)
 		case ast.Spec:
+			p.nesting = 1
 			p.useNodeComments = true
 			p.spec(n, 1, false, ignoreMultiLine)
 		case *ast.File:
+			p.nesting = 0
 			p.comments = n.Comments
 			p.useNodeComments = n.Comments == nil
 			p.file(n)

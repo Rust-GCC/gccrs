@@ -13,6 +13,7 @@ type clientHelloMsg struct {
 	compressionMethods []uint8
 	nextProtoNeg       bool
 	serverName         string
+	ocspStapling       bool
 }
 
 func (m *clientHelloMsg) marshal() []byte {
@@ -24,6 +25,10 @@ func (m *clientHelloMsg) marshal() []byte {
 	numExtensions := 0
 	extensionsLength := 0
 	if m.nextProtoNeg {
+		numExtensions++
+	}
+	if m.ocspStapling {
+		extensionsLength += 1 + 2 + 2
 		numExtensions++
 	}
 	if len(m.serverName) > 0 {
@@ -95,11 +100,22 @@ func (m *clientHelloMsg) marshal() []byte {
 		//     ServerName server_name_list<1..2^16-1>
 		// } ServerNameList;
 
-		z[1] = 1
+		z[0] = byte((len(m.serverName) + 3) >> 8)
+		z[1] = byte(len(m.serverName) + 3)
 		z[3] = byte(len(m.serverName) >> 8)
 		z[4] = byte(len(m.serverName))
 		copy(z[5:], []byte(m.serverName))
 		z = z[l:]
+	}
+	if m.ocspStapling {
+		// RFC 4366, section 3.6
+		z[0] = byte(extensionStatusRequest >> 8)
+		z[1] = byte(extensionStatusRequest)
+		z[2] = 0
+		z[3] = 5
+		z[4] = 1 // OCSP type
+		// Two zero valued uint16s for the two lengths.
+		z = z[9:]
 	}
 
 	m.raw = x
@@ -148,6 +164,7 @@ func (m *clientHelloMsg) unmarshal(data []byte) bool {
 
 	m.nextProtoNeg = false
 	m.serverName = ""
+	m.ocspStapling = false
 
 	if len(data) == 0 {
 		// ClientHello is optionally followed by extension data
@@ -202,6 +219,8 @@ func (m *clientHelloMsg) unmarshal(data []byte) bool {
 				return false
 			}
 			m.nextProtoNeg = true
+		case extensionStatusRequest:
+			m.ocspStapling = length > 0 && data[0] == statusTypeOCSP
 		}
 		data = data[length:]
 	}
@@ -218,6 +237,7 @@ type serverHelloMsg struct {
 	compressionMethod uint8
 	nextProtoNeg      bool
 	nextProtos        []string
+	certStatus        bool
 }
 
 func (m *serverHelloMsg) marshal() []byte {
@@ -237,6 +257,9 @@ func (m *serverHelloMsg) marshal() []byte {
 		}
 		nextProtoLen += len(m.nextProtos)
 		extensionsLength += nextProtoLen
+	}
+	if m.certStatus {
+		numExtensions++
 	}
 	if numExtensions > 0 {
 		extensionsLength += 4 * numExtensions
@@ -281,6 +304,11 @@ func (m *serverHelloMsg) marshal() []byte {
 			z = z[1+l:]
 		}
 	}
+	if m.certStatus {
+		z[0] = byte(extensionStatusRequest >> 8)
+		z[1] = byte(extensionStatusRequest)
+		z = z[4:]
+	}
 
 	m.raw = x
 
@@ -322,6 +350,7 @@ func (m *serverHelloMsg) unmarshal(data []byte) bool {
 
 	m.nextProtoNeg = false
 	m.nextProtos = nil
+	m.certStatus = false
 
 	if len(data) == 0 {
 		// ServerHello is optionally followed by extension data
@@ -361,6 +390,11 @@ func (m *serverHelloMsg) unmarshal(data []byte) bool {
 				m.nextProtos = append(m.nextProtos, string(d[0:l]))
 				d = d[l:]
 			}
+		case extensionStatusRequest:
+			if length > 0 {
+				return false
+			}
+			m.certStatus = true
 		}
 		data = data[length:]
 	}
@@ -442,6 +476,61 @@ func (m *certificateMsg) unmarshal(data []byte) bool {
 		d = d[3+certLen:]
 	}
 
+	return true
+}
+
+type certificateStatusMsg struct {
+	raw        []byte
+	statusType uint8
+	response   []byte
+}
+
+func (m *certificateStatusMsg) marshal() []byte {
+	if m.raw != nil {
+		return m.raw
+	}
+
+	var x []byte
+	if m.statusType == statusTypeOCSP {
+		x = make([]byte, 4+4+len(m.response))
+		x[0] = typeCertificateStatus
+		l := len(m.response) + 4
+		x[1] = byte(l >> 16)
+		x[2] = byte(l >> 8)
+		x[3] = byte(l)
+		x[4] = statusTypeOCSP
+
+		l -= 4
+		x[5] = byte(l >> 16)
+		x[6] = byte(l >> 8)
+		x[7] = byte(l)
+		copy(x[8:], m.response)
+	} else {
+		x = []byte{typeCertificateStatus, 0, 0, 1, m.statusType}
+	}
+
+	m.raw = x
+	return x
+}
+
+func (m *certificateStatusMsg) unmarshal(data []byte) bool {
+	m.raw = data
+	if len(data) < 5 {
+		return false
+	}
+	m.statusType = data[4]
+
+	m.response = nil
+	if m.statusType == statusTypeOCSP {
+		if len(data) < 8 {
+			return false
+		}
+		respLen := uint32(data[5])<<16 | uint32(data[6])<<8 | uint32(data[7])
+		if uint32(len(data)) != 4+4+respLen {
+			return false
+		}
+		m.response = data[8:]
+	}
 	return true
 }
 
@@ -576,6 +665,156 @@ func (m *nextProtoMsg) unmarshal(data []byte) bool {
 	if len(data) != paddingLen {
 		return false
 	}
+
+	return true
+}
+
+type certificateRequestMsg struct {
+	raw                    []byte
+	certificateTypes       []byte
+	certificateAuthorities [][]byte
+}
+
+func (m *certificateRequestMsg) marshal() (x []byte) {
+	if m.raw != nil {
+		return m.raw
+	}
+
+	// See http://tools.ietf.org/html/rfc4346#section-7.4.4
+	length := 1 + len(m.certificateTypes) + 2
+	for _, ca := range m.certificateAuthorities {
+		length += 2 + len(ca)
+	}
+
+	x = make([]byte, 4+length)
+	x[0] = typeCertificateRequest
+	x[1] = uint8(length >> 16)
+	x[2] = uint8(length >> 8)
+	x[3] = uint8(length)
+
+	x[4] = uint8(len(m.certificateTypes))
+
+	copy(x[5:], m.certificateTypes)
+	y := x[5+len(m.certificateTypes):]
+
+	numCA := len(m.certificateAuthorities)
+	y[0] = uint8(numCA >> 8)
+	y[1] = uint8(numCA)
+	y = y[2:]
+	for _, ca := range m.certificateAuthorities {
+		y[0] = uint8(len(ca) >> 8)
+		y[1] = uint8(len(ca))
+		y = y[2:]
+		copy(y, ca)
+		y = y[len(ca):]
+	}
+
+	m.raw = x
+
+	return
+}
+
+func (m *certificateRequestMsg) unmarshal(data []byte) bool {
+	m.raw = data
+
+	if len(data) < 5 {
+		return false
+	}
+
+	length := uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3])
+	if uint32(len(data))-4 != length {
+		return false
+	}
+
+	numCertTypes := int(data[4])
+	data = data[5:]
+	if numCertTypes == 0 || len(data) <= numCertTypes {
+		return false
+	}
+
+	m.certificateTypes = make([]byte, numCertTypes)
+	if copy(m.certificateTypes, data) != numCertTypes {
+		return false
+	}
+
+	data = data[numCertTypes:]
+	if len(data) < 2 {
+		return false
+	}
+
+	numCAs := uint16(data[0])<<16 | uint16(data[1])
+	data = data[2:]
+
+	m.certificateAuthorities = make([][]byte, numCAs)
+	for i := uint16(0); i < numCAs; i++ {
+		if len(data) < 2 {
+			return false
+		}
+		caLen := uint16(data[0])<<16 | uint16(data[1])
+
+		data = data[2:]
+		if len(data) < int(caLen) {
+			return false
+		}
+
+		ca := make([]byte, caLen)
+		copy(ca, data)
+		m.certificateAuthorities[i] = ca
+		data = data[caLen:]
+	}
+
+	if len(data) > 0 {
+		return false
+	}
+
+	return true
+}
+
+type certificateVerifyMsg struct {
+	raw       []byte
+	signature []byte
+}
+
+func (m *certificateVerifyMsg) marshal() (x []byte) {
+	if m.raw != nil {
+		return m.raw
+	}
+
+	// See http://tools.ietf.org/html/rfc4346#section-7.4.8
+	siglength := len(m.signature)
+	length := 2 + siglength
+	x = make([]byte, 4+length)
+	x[0] = typeCertificateVerify
+	x[1] = uint8(length >> 16)
+	x[2] = uint8(length >> 8)
+	x[3] = uint8(length)
+	x[4] = uint8(siglength >> 8)
+	x[5] = uint8(siglength)
+	copy(x[6:], m.signature)
+
+	m.raw = x
+
+	return
+}
+
+func (m *certificateVerifyMsg) unmarshal(data []byte) bool {
+	m.raw = data
+
+	if len(data) < 6 {
+		return false
+	}
+
+	length := uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3])
+	if uint32(len(data))-4 != length {
+		return false
+	}
+
+	siglength := int(data[4])<<8 + int(data[5])
+	if len(data)-6 != siglength {
+		return false
+	}
+
+	m.signature = data[6:]
 
 	return true
 }

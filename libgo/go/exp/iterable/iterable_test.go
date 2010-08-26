@@ -15,6 +15,10 @@ func TestArrayTypes(t *testing.T) {
 	if x := Data(bytes)[1].(byte); x != 2 {
 		t.Error("Data(bytes)[1].(byte) = %v, want 2", x)
 	}
+	uints := UintArray([]uint{1, 2, 3})
+	if x := Data(uints)[1].(uint); x != 2 {
+		t.Error("Data(uints)[1].(uint) = %v, want 2", x)
+	}
 	ints := IntArray([]int{1, 2, 3})
 	if x := Data(ints)[2].(int); x != 3 {
 		t.Error("Data(ints)[2].(int) = %v, want 3", x)
@@ -371,7 +375,7 @@ func TestGroupBy(t *testing.T) {
 	for x := range GroupBy(elevenToTwenty, intkey{}).Iter() {
 		out.Push(x.(Group).Key)
 	}
-	assertArraysAreEqual(t, out.Data(), elevenToTwenty)
+	assertArraysAreEqual(t, out, elevenToTwenty)
 }
 
 func TestUnique(t *testing.T) {

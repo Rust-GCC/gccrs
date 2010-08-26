@@ -37,6 +37,9 @@ var unmarshalTests = []unmarshalTest{
 	unmarshalTest{"null", new(interface{}), nil, nil},
 	unmarshalTest{`{"X": [1,2,3], "Y": 4}`, new(T), T{Y: 4}, &UnmarshalTypeError{"array", reflect.Typeof("")}},
 
+	// syntax errors
+	unmarshalTest{`{"X": "foo", "Y"}`, nil, nil, SyntaxError("invalid character '}' after object key")},
+
 	// composite tests
 	unmarshalTest{allValueIndent, new(All), allValue, nil},
 	unmarshalTest{allValueCompact, new(All), allValue, nil},
@@ -75,7 +78,12 @@ func TestUnmarshal(t *testing.T) {
 	for i, tt := range unmarshalTests {
 		in := []byte(tt.in)
 		if err := checkValid(in, &scan); err != nil {
-			t.Errorf("#%d: checkValid: %v", i, err)
+			if !reflect.DeepEqual(err, tt.err) {
+				t.Errorf("#%d: checkValid: %v", i, err)
+				continue
+			}
+		}
+		if tt.ptr == nil {
 			continue
 		}
 		// v = new(right-type)
@@ -136,6 +144,16 @@ func TestUnmarshalPtrPtr(t *testing.T) {
 	}
 	if xint.X != 1 {
 		t.Fatalf("Did not write to xint")
+	}
+}
+
+func TestHTMLEscape(t *testing.T) {
+	b, err := MarshalForHTML("foobarbaz<>&quux")
+	if err != nil {
+		t.Fatalf("MarshalForHTML error: %v", err)
+	}
+	if !bytes.Equal(b, []byte(`"foobarbaz\u003c\u003e\u0026quux"`)) {
+		t.Fatalf("Unexpected encoding of \"<>&\": %s", b)
 	}
 }
 

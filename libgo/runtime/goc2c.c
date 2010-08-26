@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-/* Translate a .cgo file into a .c file.  A .cgo file is a combination
+/* Translate a .goc file into a .c file.  A .goc file is a combination
    of a limited form of Go with C.  */
 
 /*
@@ -31,7 +31,7 @@ static const char *prefix;
 
 /* File and line number */
 static const char *file;
-static unsigned int lineno;
+static unsigned int lineno = 1;
 
 /* List of names and types.  */
 struct params {
@@ -677,7 +677,7 @@ process_file(void)
 static void
 usage(void)
 {
-	fprintf(stderr, "Usage: cgo2c [--6g | --gcc] [--go-prefix PREFIX] [file]\n");
+	fprintf(stderr, "Usage: goc2c [--6g | --gc] [--go-prefix PREFIX] [file]\n");
 	exit(1);
 }
 

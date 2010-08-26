@@ -39,7 +39,7 @@ func modeToFiles(mode, fd int) (*os.File, *os.File, os.Error) {
 		if fd == 0 {
 			rw = os.O_RDONLY
 		}
-		f, err := os.Open("/dev/null", rw, 0)
+		f, err := os.Open(os.DevNull, rw, 0)
 		return f, nil, err
 	case PassThrough:
 		switch fd {
@@ -208,7 +208,7 @@ func LookPath(file string) (string, os.Error) {
 		return "", os.ENOENT
 	}
 	pathenv := os.Getenv("PATH")
-	for _, dir := range strings.Split(pathenv, ":", 0) {
+	for _, dir := range strings.Split(pathenv, ":", -1) {
 		if dir == "" {
 			// Unix shell semantics: path element "" means "."
 			dir = "."

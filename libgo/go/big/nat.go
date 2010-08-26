@@ -103,9 +103,7 @@ func (z nat) setUint64(x uint64) nat {
 
 func (z nat) set(x nat) nat {
 	z = z.make(len(x))
-	for i, d := range x {
-		z[i] = d
-	}
+	copy(z, x)
 	return z
 }
 
@@ -666,7 +664,7 @@ func (z nat) scan(s string, base int) (nat, int, int) {
 		}
 	}
 
-	return z, base, i
+	return z.norm(), base, i
 }
 
 
@@ -818,13 +816,13 @@ func (z nat) or(x, y nat) nat {
 		n, m = m, n
 		s = y
 	}
-	// n >= m
+	// m >= n
 
-	z = z.make(n)
-	for i := 0; i < m; i++ {
+	z = z.make(m)
+	for i := 0; i < n; i++ {
 		z[i] = x[i] | y[i]
 	}
-	copy(z[m:n], s[m:n])
+	copy(z[n:m], s[n:m])
 
 	return z.norm()
 }
@@ -834,17 +832,17 @@ func (z nat) xor(x, y nat) nat {
 	m := len(x)
 	n := len(y)
 	s := x
-	if n < m {
+	if m < n {
 		n, m = m, n
 		s = y
 	}
-	// n >= m
+	// m >= n
 
-	z = z.make(n)
-	for i := 0; i < m; i++ {
+	z = z.make(m)
+	for i := 0; i < n; i++ {
 		z[i] = x[i] ^ y[i]
 	}
-	copy(z[m:n], s[m:n])
+	copy(z[n:m], s[n:m])
 
 	return z.norm()
 }

@@ -172,13 +172,6 @@ func _() {
 	_ = [...]T{}
 	_ = []T{}
 	_ = map[int]T{}
-
-	_ = (T){}
-	_ = (struct{}){}
-	_ = ([10]T){}
-	_ = ([...]T){}
-	_ = ([]T){}
-	_ = (map[int]T){}
 }
 
 
@@ -202,6 +195,8 @@ func _() {
 `
 _ = `foo
 		bar`
+	_ = `three spaces before the end of the line starting here:   
+they must not be removed`
 }
 
 

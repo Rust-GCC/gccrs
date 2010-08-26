@@ -98,6 +98,7 @@ var tests = []*Test{
 	&Test{" {.space}   \n", " ", ""},
 	&Test{" {.tab}   \n", "\t", ""},
 	&Test{"     {#comment}   \n", "", ""},
+	&Test{"\tSome Text\t\n", "\tSome Text\t\n", ""},
 
 	// Variables at top level
 	&Test{
@@ -368,6 +369,14 @@ var tests = []*Test{
 		out: "stringresult\n" +
 			"stringresult\n",
 	},
+	&Test{
+		in: "{.repeated section stringmap}\n" +
+			"\t{@}\n" +
+			"{.end}",
+
+		out: "\tstringresult\n" +
+			"\tstringresult\n",
+	},
 
 	// Interface values
 
@@ -398,8 +407,22 @@ func TestAll(t *testing.T) {
 	testAll(t, func(test *Test) (*Template, os.Error) { return Parse(test.in, formatters) })
 	// ParseFile
 	testAll(t, func(test *Test) (*Template, os.Error) {
-		ioutil.WriteFile("_test/test.tmpl", []byte(test.in), 0600)
+		err := ioutil.WriteFile("_test/test.tmpl", []byte(test.in), 0600)
+		if err != nil {
+			t.Error("unexpected write error:", err)
+			return nil, err
+		}
 		return ParseFile("_test/test.tmpl", formatters)
+	})
+	// tmpl.ParseFile
+	testAll(t, func(test *Test) (*Template, os.Error) {
+		err := ioutil.WriteFile("_test/test.tmpl", []byte(test.in), 0600)
+		if err != nil {
+			t.Error("unexpected write error:", err)
+			return nil, err
+		}
+		tmpl := New(formatters)
+		return tmpl, tmpl.ParseFile("_test/test.tmpl")
 	})
 }
 
@@ -436,7 +459,7 @@ func testAll(t *testing.T, parseFunc func(*Test) (*Template, os.Error)) {
 		buf.Reset()
 		tmpl, err := parseFunc(test)
 		if err != nil {
-			t.Error("unexpected parse error:", err)
+			t.Error("unexpected parse error: ", err)
 			continue
 		}
 		err = tmpl.Execute(s, &buf)

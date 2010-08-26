@@ -5,8 +5,8 @@
 package os
 
 import (
-	"syscall";
-	"unsafe";
+	"syscall"
+	"unsafe"
 )
 
 func libc_dup(fd int) int __asm__ ("dup")
@@ -38,44 +38,44 @@ func (file *File) Readdirnames(count int) (names []string, err Error) {
 	}
 
 	if file.dirinfo == nil {
-		file.dirinfo = new(dirInfo);
-		file.dirinfo.buf = make([]byte, elen);
-		file.dirinfo.dir = libc_opendir(syscall.StringBytePtr(file.name));
+		file.dirinfo = new(dirInfo)
+		file.dirinfo.buf = make([]byte, elen)
+		file.dirinfo.dir = libc_opendir(syscall.StringBytePtr(file.name))
 	}
 
-	entry_dirent := unsafe.Pointer(&file.dirinfo.buf[0]).(*syscall.Dirent);
+	entry_dirent := unsafe.Pointer(&file.dirinfo.buf[0]).(*syscall.Dirent)
 
-	size := count;
+	size := count
 	if size < 0 {
 		size = 100
 	}
-	names = make([]string, 0, size);	// Empty with room to grow.
+	names = make([]string, 0, size) // Empty with room to grow.
 
-	dir := file.dirinfo.dir;
+	dir := file.dirinfo.dir
 	if dir == nil {
 		return names, NewSyscallError("opendir", syscall.GetErrno())
 	}	
 
 	for count != 0 {
-		var result *syscall.Dirent;
-		i := libc_readdir_r(dir, entry_dirent, &result);
+		var result *syscall.Dirent
+		i := libc_readdir_r(dir, entry_dirent, &result)
 		if result == nil {
 			break
 		}
-		var name = string(result.Name[0:clen(&result.Name)]);
+		var name = string(result.Name[0:clen(&result.Name)])
 		if name == "." || name == ".." {	// Useless names
 			continue
 		}
-		count--;
+		count--
 		if len(names) == cap(names) {
-			nnames := make([]string, len(names), 2*len(names));
+			nnames := make([]string, len(names), 2*len(names))
 			for i := 0; i < len(names); i++ {
 				nnames[i] = names[i]
 			}
-			names = nnames;
+			names = nnames
 		}
-		names = names[0:len(names)+1];
-		names[len(names)-1] = name;
+		names = names[0:len(names)+1]
+		names[len(names)-1] = name
 	}
-	return names, nil;
+	return names, nil
 }

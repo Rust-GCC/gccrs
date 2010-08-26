@@ -47,6 +47,18 @@ var prodZZ = []argZZ{
 }
 
 
+func TestSignZ(t *testing.T) {
+	var zero Int
+	for _, a := range sumZZ {
+		s := a.z.Sign()
+		e := a.z.Cmp(&zero)
+		if s != e {
+			t.Errorf("got %d; want %d for z = %v", s, e, a.z)
+		}
+	}
+}
+
+
 func TestSetZ(t *testing.T) {
 	for _, a := range sumZZ {
 		var z Int
@@ -56,6 +68,23 @@ func TestSetZ(t *testing.T) {
 		}
 		if (&z).Cmp(a.z) != 0 {
 			t.Errorf("got z = %v; want %v", z, a.z)
+		}
+	}
+}
+
+
+func TestAbsZ(t *testing.T) {
+	var zero Int
+	for _, a := range sumZZ {
+		var z Int
+		z.Abs(a.z)
+		var e Int
+		e.Set(a.z)
+		if e.Cmp(&zero) < 0 {
+			e.Sub(&zero, &e)
+		}
+		if z.Cmp(&e) != 0 {
+			t.Errorf("got z = %v; want %v", z, e)
 		}
 	}
 }
@@ -219,6 +248,7 @@ var stringTests = []stringTest{
 	stringTest{in: "a", ok: false},
 	stringTest{in: "z", ok: false},
 	stringTest{in: "+", ok: false},
+	stringTest{in: "-", ok: false},
 	stringTest{in: "0b", ok: false},
 	stringTest{in: "0x", ok: false},
 	stringTest{in: "2", base: 2, ok: false},
@@ -230,13 +260,17 @@ var stringTests = []stringTest{
 	stringTest{"0", "0", 0, 0, true},
 	stringTest{"0", "0", 10, 0, true},
 	stringTest{"0", "0", 16, 0, true},
+	stringTest{"+0", "0", 0, 0, true},
+	stringTest{"-0", "0", 0, 0, true},
 	stringTest{"10", "10", 0, 10, true},
 	stringTest{"10", "10", 10, 10, true},
 	stringTest{"10", "10", 16, 16, true},
 	stringTest{"-10", "-10", 16, -16, true},
+	stringTest{"+10", "10", 16, 16, true},
 	stringTest{"0x10", "16", 0, 16, true},
 	stringTest{in: "0x10", base: 16, ok: false},
 	stringTest{"-0x10", "-16", 0, -16, true},
+	stringTest{"+0x10", "16", 0, 16, true},
 	stringTest{"00", "0", 0, 0, true},
 	stringTest{"0", "0", 8, 0, true},
 	stringTest{"07", "7", 0, 7, true},
@@ -904,7 +938,7 @@ var bitwiseTests = []bitwiseTest{
 	bitwiseTest{"0x00", "0x01", "0x00", "0x01", "0x01", "0x00"},
 	bitwiseTest{"0x01", "0x00", "0x00", "0x01", "0x01", "0x01"},
 	bitwiseTest{"-0x01", "0x00", "0x00", "-0x01", "-0x01", "-0x01"},
-	bitwiseTest{"-0xAF", "-0x50", "0x00", "-0xFF", "-0x01", "-0x01"},
+	bitwiseTest{"-0xaf", "-0x50", "-0xf0", "-0x0f", "0xe1", "0x41"},
 	bitwiseTest{"0x00", "-0x01", "0x00", "-0x01", "-0x01", "0x00"},
 	bitwiseTest{"0x01", "0x01", "0x01", "0x01", "0x00", "0x00"},
 	bitwiseTest{"-0x01", "-0x01", "-0x01", "-0x01", "0x00", "0x00"},
@@ -944,24 +978,24 @@ type bitFun func(z, x, y *Int) *Int
 
 func testBitFun(t *testing.T, msg string, f bitFun, x, y *Int, exp string) {
 	expected := new(Int)
-	expected.SetString(exp, 16)
+	expected.SetString(exp, 0)
 
 	out := f(new(Int), x, y)
 	if out.Cmp(expected) != 0 {
-		println("Test failed")
 		t.Errorf("%s: got %s want %s", msg, out, expected)
 	}
 }
 
 
 func testBitFunSelf(t *testing.T, msg string, f bitFun, x, y *Int, exp string) {
+	self := new(Int)
+	self.Set(x)
 	expected := new(Int)
-	expected.SetString(exp, 16)
+	expected.SetString(exp, 0)
 
-	x = f(x, x, y)
-	if x.Cmp(expected) != 0 {
-		println("Test failed")
-		t.Errorf("%s: got %s want %s", msg, x, expected)
+	self = f(self, self, y)
+	if self.Cmp(expected) != 0 {
+		t.Errorf("%s: got %s want %s", msg, self, expected)
 	}
 }
 
@@ -970,8 +1004,8 @@ func TestBitwise(t *testing.T) {
 	x := new(Int)
 	y := new(Int)
 	for _, test := range bitwiseTests {
-		x.SetString(test.x, 16)
-		y.SetString(test.y, 16)
+		x.SetString(test.x, 0)
+		y.SetString(test.y, 0)
 
 		testBitFun(t, "and", (*Int).And, x, y, test.and)
 		testBitFunSelf(t, "and", (*Int).And, x, y, test.and)

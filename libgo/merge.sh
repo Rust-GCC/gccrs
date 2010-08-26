@@ -47,7 +47,21 @@ merge() {
   old=$2
   new=$3
   libgo=$4
-  if test -f ${old}; then
+  if ! test -f ${new}; then
+    # The file does not exist in the new version.
+    if ! test -f ${old}; then
+      echo 1>&2 "merge.sh internal error no files $old $new"
+      exit 1
+    fi
+    if ! test -f ${libgo}; then
+      # File removed in new version and libgo.
+      :;
+    else
+      echo "merge.sh: ${name}: REMOVED"
+      rm -f ${libgo}
+      hg rm ${libgo}
+    fi
+  elif test -f ${old}; then
     # The file exists in the old version.
     if ! test -f ${libgo}; then
       echo "merge.sh: $name: skipping: exists in old and new hg, but not in libgo"
@@ -119,7 +133,7 @@ done
   if ! test -d ${oldtd}; then
     continue
   fi
-  (cd ${oldtd} && hg status -A) | while read f; do
+  (cd ${oldtd} && hg status -A .) | while read f; do
     if test "`basename $f`" = ".hgignore"; then
       continue
     fi

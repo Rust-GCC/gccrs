@@ -96,19 +96,6 @@ func marshalBase128Int(out *forkableWriter, n int64) (err os.Error) {
 	return nil
 }
 
-func base128Length(i int) (numBytes int) {
-	if i == 0 {
-		return 1
-	}
-
-	for i > 0 {
-		numBytes++
-		i >>= 7
-	}
-
-	return
-}
-
 func marshalInt64(out *forkableWriter, i int64) (err os.Error) {
 	n := int64Length(i)
 
@@ -123,11 +110,14 @@ func marshalInt64(out *forkableWriter, i int64) (err os.Error) {
 }
 
 func int64Length(i int64) (numBytes int) {
-	if i == 0 {
-		return 1
+	numBytes = 1
+
+	for i > 127 {
+		numBytes++
+		i >>= 8
 	}
 
-	for i > 0 {
+	for i < -128 {
 		numBytes++
 		i >>= 8
 	}
@@ -333,8 +323,6 @@ func marshalBody(out *forkableWriter, value reflect.Value, params fieldParameter
 		}
 	case *reflect.IntValue:
 		return marshalInt64(out, int64(v.Get()))
-	case *reflect.Int64Value:
-		return marshalInt64(out, v.Get())
 	case *reflect.StructValue:
 		t := v.Type().(*reflect.StructType)
 
@@ -347,7 +335,7 @@ func marshalBody(out *forkableWriter, value reflect.Value, params fieldParameter
 			if s.Len() > 0 {
 				bytes := make([]byte, s.Len())
 				for i := 0; i < s.Len(); i++ {
-					bytes[i] = s.Elem(i).(*reflect.Uint8Value).Get()
+					bytes[i] = uint8(s.Elem(i).(*reflect.UintValue).Get())
 				}
 				/* The RawContents will contain the tag and
 				 * length fields but we'll also be writing
@@ -371,10 +359,10 @@ func marshalBody(out *forkableWriter, value reflect.Value, params fieldParameter
 		return
 	case *reflect.SliceValue:
 		sliceType := v.Type().(*reflect.SliceType)
-		if _, ok := sliceType.Elem().(*reflect.Uint8Type); ok {
+		if sliceType.Elem().Kind() == reflect.Uint8 {
 			bytes := make([]byte, v.Len())
 			for i := 0; i < v.Len(); i++ {
-				bytes[i] = v.Elem(i).(*reflect.Uint8Value).Get()
+				bytes[i] = uint8(v.Elem(i).(*reflect.UintValue).Get())
 			}
 			_, err = out.Write(bytes)
 			return

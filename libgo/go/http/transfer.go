@@ -135,6 +135,8 @@ func (t *transferWriter) WriteBody(w io.Writer) (err os.Error) {
 			if err == nil {
 				err = cw.Close()
 			}
+		} else if t.ContentLength == -1 {
+			_, err = io.Copy(w, t.Body)
 		} else {
 			_, err = io.Copy(w, io.LimitReader(t.Body, t.ContentLength))
 		}
@@ -269,7 +271,7 @@ func fixTransferEncoding(header map[string]string) ([]string, os.Error) {
 	}
 
 	header["Transfer-Encoding"] = "", false
-	encodings := strings.Split(raw, ",", 0)
+	encodings := strings.Split(raw, ",", -1)
 	te := make([]string, 0, len(encodings))
 	// TODO: Even though we only support "identity" and "chunked"
 	// encodings, the loop below is designed with foresight. One
@@ -373,7 +375,7 @@ func fixTrailer(header map[string]string, te []string) (map[string]string, os.Er
 
 	header["Trailer"] = "", false
 	trailer := make(map[string]string)
-	keys := strings.Split(raw, ",", 0)
+	keys := strings.Split(raw, ",", -1)
 	for _, key := range keys {
 		key = CanonicalHeaderKey(strings.TrimSpace(key))
 		switch key {

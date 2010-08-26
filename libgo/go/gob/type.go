@@ -11,25 +11,12 @@ import (
 	"sync"
 )
 
-type kind reflect.Type
-
 // Reflection types are themselves interface values holding structs
 // describing the type.  Each type has a different struct so that struct can
 // be the kind.  For example, if typ is the reflect type for an int8, typ is
 // a pointer to a reflect.Int8Type struct; if typ is the reflect type for a
 // function, typ is a pointer to a reflect.FuncType struct; we use the type
 // of that pointer as the kind.
-
-// typeKind returns a reflect.Type representing typ's kind.  The kind is the
-// general kind of type:
-//	int8, int16, int, uint, float, func, chan, struct, and so on.
-// That is, all struct types have the same kind, all func types have the same
-// kind, all int8 types have the same kind, and so on.
-func typeKind(typ reflect.Type) kind { return kind(reflect.Typeof(typ)) }
-
-// valueKind returns the kind of the value type
-// stored inside the interface v.
-func valueKind(v interface{}) reflect.Type { return typeKind(reflect.Typeof(v)) }
 
 // A typeId represents a gob Type as an integer that can be passed on the wire.
 // Internally, typeIds are used as keys to a map to recover the underlying type info.
@@ -91,12 +78,17 @@ func (t *commonType) Name() string { return t.name }
 // Create and check predefined types
 // The string for tBytes is "bytes" not "[]byte" to signify its specialness.
 
-var tBool = bootstrapType("bool", false, 1)
-var tInt = bootstrapType("int", int(0), 2)
-var tUint = bootstrapType("uint", uint(0), 3)
-var tFloat = bootstrapType("float", float64(0), 4)
-var tBytes = bootstrapType("bytes", make([]byte, 0), 5)
-var tString = bootstrapType("string", "", 6)
+var (
+	// Primordial types, needed during initialization.
+	tBool   = bootstrapType("bool", false, 1)
+	tInt    = bootstrapType("int", int(0), 2)
+	tUint   = bootstrapType("uint", uint(0), 3)
+	tFloat  = bootstrapType("float", float64(0), 4)
+	tBytes  = bootstrapType("bytes", make([]byte, 0), 5)
+	tString = bootstrapType("string", "", 6)
+	// Types added to the language later, not needed during initialization.
+	tComplex typeId
+)
 
 // Predefined because it's needed by the Decoder
 var tWireType = mustGetTypeInfo(reflect.Typeof(wireType{})).id
@@ -107,10 +99,17 @@ func init() {
 	checkId(9, mustGetTypeInfo(reflect.Typeof(commonType{})).id)
 	checkId(11, mustGetTypeInfo(reflect.Typeof(structType{})).id)
 	checkId(12, mustGetTypeInfo(reflect.Typeof(fieldType{})).id)
+
+	// Complex was added after gob was written, so appears after the
+	// fundamental types are built.
+	tComplex = bootstrapType("complex", 0+0i, 15)
+	decIgnoreOpMap[tComplex] = ignoreTwoUints
+
 	builtinIdToType = make(map[typeId]gobType)
 	for k, v := range idToType {
 		builtinIdToType[k] = v
 	}
+
 	// Move the id space upwards to allow for growth in the predefined world
 	// without breaking existing files.
 	if nextId > firstUserId {
@@ -245,14 +244,17 @@ func newTypeObject(name string, rt reflect.Type) (gobType, os.Error) {
 	case *reflect.BoolType:
 		return tBool.gobType(), nil
 
-	case *reflect.IntType, *reflect.Int8Type, *reflect.Int16Type, *reflect.Int32Type, *reflect.Int64Type:
+	case *reflect.IntType:
 		return tInt.gobType(), nil
 
-	case *reflect.UintType, *reflect.Uint8Type, *reflect.Uint16Type, *reflect.Uint32Type, *reflect.Uint64Type, *reflect.UintptrType:
+	case *reflect.UintType:
 		return tUint.gobType(), nil
 
-	case *reflect.FloatType, *reflect.Float32Type, *reflect.Float64Type:
+	case *reflect.FloatType:
 		return tFloat.gobType(), nil
+
+	case *reflect.ComplexType:
+		return tComplex.gobType(), nil
 
 	case *reflect.StringType:
 		return tString.gobType(), nil
@@ -277,7 +279,7 @@ func newTypeObject(name string, rt reflect.Type) (gobType, os.Error) {
 
 	case *reflect.SliceType:
 		// []byte == []uint8 is a special case
-		if _, ok := t.Elem().(*reflect.Uint8Type); ok {
+		if t.Elem().Kind() == reflect.Uint8 {
 			return tBytes.gobType(), nil
 		}
 		gt, err := getType(t.Elem().Name(), t.Elem())
@@ -348,7 +350,7 @@ func bootstrapType(name string, e interface{}, expect typeId) typeId {
 	rt := reflect.Typeof(e)
 	_, present := types[rt]
 	if present {
-		panic("bootstrap type already present: " + name)
+		panic("bootstrap type already present: " + name + ", " + rt.String())
 	}
 	typ := &commonType{name: name}
 	types[rt] = typ
@@ -393,7 +395,7 @@ var typeInfoMap = make(map[reflect.Type]*typeInfo) // protected by typeLock
 // The reflection type must have all its indirections processed out.
 // typeLock must be held.
 func getTypeInfo(rt reflect.Type) (*typeInfo, os.Error) {
-	if _, ok := rt.(*reflect.PtrType); ok {
+	if rt.Kind() == reflect.Ptr {
 		panic("pointer type in getTypeInfo: " + rt.String())
 	}
 	info, ok := typeInfoMap[rt]
@@ -413,7 +415,7 @@ func getTypeInfo(rt reflect.Type) (*typeInfo, os.Error) {
 			info.wire = &wireType{mapT: t.(*mapType)}
 		case *reflect.SliceType:
 			// []byte == []uint8 is a special case handled separately
-			if _, ok := typ.Elem().(*reflect.Uint8Type); !ok {
+			if typ.Elem().Kind() != reflect.Uint8 {
 				info.wire = &wireType{sliceT: t.(*sliceType)}
 			}
 		case *reflect.StructType:

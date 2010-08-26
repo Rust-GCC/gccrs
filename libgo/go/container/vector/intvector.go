@@ -104,8 +104,8 @@ func (p *IntVector) Set(i int, x int) { (*p)[i] = x }
 func (p *IntVector) Last() int { return (*p)[len(*p)-1] }
 
 
-// Data returns all the elements as a slice.
-func (p *IntVector) Data() []int {
+// Copy makes a copy of the vector and returns it.
+func (p *IntVector) Copy() IntVector {
 	arr := make(IntVector, len(*p))
 	copy(arr, *p)
 	return arr
@@ -196,23 +196,6 @@ func (p *IntVector) AppendVector(x *IntVector) { p.InsertVector(len(*p), x) }
 func (p *IntVector) Swap(i, j int) {
 	a := *p
 	a[i], a[j] = a[j], a[i]
-}
-
-
-// Iterate over all elements; driver for range
-func (p *IntVector) iterate(c chan<- int) {
-	for _, v := range *p {
-		c <- v
-	}
-	close(c)
-}
-
-
-// Channel iterator for range.
-func (p *IntVector) Iter() <-chan int {
-	c := make(chan int)
-	go p.iterate(c)
-	return c
 }
 
 

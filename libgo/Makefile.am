@@ -108,6 +108,7 @@ toolexeclib_DATA = \
 	fmt.gox \
 	gob.gox \
 	hash.gox \
+	html.gox \
 	http.gox \
 	image.gox \
 	io.gox \
@@ -118,7 +119,6 @@ toolexeclib_DATA = \
 	net.gox \
 	netchan.gox \
 	nntp.gox \
-	once.gox \
 	os.gox \
 	patch.gox \
 	path.gox \
@@ -173,8 +173,9 @@ toolexeclibcrypto_DATA = \
 	crypto/hmac.gox \
 	crypto/md4.gox \
 	crypto/md5.gox \
-	crypto/rc4.gox \
+	crypto/ocsp.gox \
 	crypto/rand.gox \
+	crypto/rc4.gox \
 	crypto/ripemd160.gox \
 	crypto/rsa.gox \
 	crypto/sha1.gox \
@@ -207,7 +208,6 @@ toolexeclibencoding_DATA = \
 toolexeclibexpdir = $(toolexeclibdir)/exp
 
 toolexeclibexp_DATA = \
-	exp/bignum.gox \
 	exp/datafmt.gox \
 	exp/draw.gox \
 	exp/eval.gox \
@@ -245,6 +245,17 @@ toolexeclibiodir = $(toolexeclibdir)/io
 
 toolexeclibio_DATA = \
 	io/ioutil.gox
+
+toolexeclibmimedir = $(toolexeclibdir)/mime
+
+toolexeclibmime_DATA = \
+	mime/multipart.gox
+
+toolexeclibnetdir = $(toolexeclibdir)/net
+
+toolexeclibnet_DATA = \
+	net/dict.gox \
+	net/textproto.gox
 
 toolexeclibosdir = $(toolexeclibdir)/os
 
@@ -418,7 +429,8 @@ go_bufio_files = \
 
 go_bytes_files = \
 	go/bytes/buffer.go \
-	go/bytes/bytes.go
+	go/bytes/bytes.go \
+	go/bytes/bytes_decl.go
 go_bytes_c_files = \
 	go/bytes/indexbyte.c
 
@@ -452,6 +464,7 @@ go_flag_files = \
 	go/flag/flag.go
 
 go_fmt_files = \
+	go/fmt/doc.go \
 	go/fmt/format.go \
 	go/fmt/print.go \
 	go/fmt/scan.go
@@ -465,6 +478,12 @@ go_gob_files = \
 
 go_hash_files = \
 	go/hash/hash.go
+
+go_html_files = \
+	go/html/doc.go \
+	go/html/entity.go \
+	go/html/escape.go \
+	go/html/token.go
 
 go_http_files = \
 	go/http/chunked.go \
@@ -482,10 +501,13 @@ go_http_files = \
 
 go_image_files = \
 	go/image/color.go \
+	go/image/format.go \
+	go/image/geom.go \
 	go/image/image.go \
 	go/image/names.go
 
 go_io_files = \
+	go/io/multi.go \
 	go/io/io.go \
 	go/io/pipe.go
 
@@ -512,6 +534,7 @@ go_math_files = \
 	go/math/copysign.go \
 	go/math/erf.go \
 	go/math/exp.go \
+	go/math/exp2.go \
 	go/math/expm1.go \
 	go/math/fabs.go \
 	go/math/fdim.go \
@@ -528,6 +551,7 @@ go_math_files = \
 	go/math/lgamma.go \
 	go/math/log.go \
 	go/math/log1p.go \
+	go/math/log10.go \
 	go/math/logb.go \
 	go/math/modf.go \
 	go/math/nextafter.go \
@@ -545,6 +569,8 @@ go_math_files = \
 	go/math/unsafe.go
 
 go_mime_files = \
+	go/mime/grammar.go \
+	go/mime/mediatype.go \
 	go/mime/type.go
 
 if LIBGO_IS_RTEMS
@@ -556,6 +582,7 @@ go_net_newpollserver_file = go/net/newpollserver.go
 endif
 
 go_net_files = \
+	go/net/dial.go \
 	go/net/dnsclient.go \
 	go/net/dnsconfig.go \
 	go/net/dnsmsg.go \
@@ -583,12 +610,9 @@ go_netchan_files = \
 go_nntp_files = \
 	go/nntp/nntp.go
 
-go_once_files = \
-	go/once/once.go
-
 go_os_files = \
 	go/os/dir.go \
-	go/os/env.go \
+	go/os/env_unix.go \
 	go/os/error.go \
 	go/os/exec.go \
 	go/os/file.go \
@@ -632,8 +656,10 @@ go_rpc_files = \
 	go/rpc/server.go
 
 go_runtime_files = \
+	go/runtime/debug.go \
 	go/runtime/error.go \
 	go/runtime/extern.go \
+	go/runtime/sig.go \
 	go/runtime/type.go \
 	version.go
 
@@ -667,6 +693,7 @@ go_strings_files = \
 
 go_sync_files = \
 	go/sync/mutex.go \
+	go/sync/once.go \
 	go/sync/rwmutex.go
 go_sync_c_files = \
 	go/sync/cas.c
@@ -691,7 +718,7 @@ go_time_files = \
 	go/time/sleep.go \
 	go/time/tick.go \
 	go/time/time.go \
-	go/time/zoneinfo.go
+	go/time/zoneinfo_unix.go
 
 go_unicode_files = \
 	go/unicode/casetables.go \
@@ -777,10 +804,13 @@ go_crypto_md4_files = \
 go_crypto_md5_files = \
 	go/crypto/md5/md5.go \
 	go/crypto/md5/md5block.go
+go_crypto_ocsp_files = \
+	go/crypto/ocsp/ocsp.go
+go_crypto_rand_files = \
+	go/crypto/rand/rand.go \
+	go/crypto/rand/rand_unix.go
 go_crypto_rc4_files = \
 	go/crypto/rc4/rc4.go
-go_crypto_rand_files = \
-	go/crypto/rand/rand.go
 go_crypto_ripemd160_files = \
 	go/crypto/ripemd160/ripemd160.go \
 	go/crypto/ripemd160/ripemd160block.go
@@ -891,17 +921,10 @@ go_encoding_hex_files = \
 go_encoding_pem_files = \
 	go/encoding/pem/pem.go
 
-go_exp_bignum_files = \
-	go/exp/bignum/arith.go \
-	go/exp/bignum/bignum.go \
-	go/exp/bignum/integer.go \
-	go/exp/bignum/rational.go
 go_exp_datafmt_files = \
 	go/exp/datafmt/datafmt.go \
 	go/exp/datafmt/parser.go
 go_exp_draw_files = \
-	go/exp/draw/arith.go \
-	go/exp/draw/color.go \
 	go/exp/draw/draw.go \
 	go/exp/draw/event.go
 go_exp_eval_files = \
@@ -915,7 +938,6 @@ go_exp_eval_files = \
 	go/exp/eval/stmt.go \
 	go/exp/eval/type.go \
 	go/exp/eval/typec.go \
-	go/exp/eval/util.go \
 	go/exp/eval/value.go \
 	go/exp/eval/world.go
 go_exp_iterable_files = \
@@ -925,6 +947,7 @@ go_exp_iterable_files = \
 go_go_ast_files = \
 	go/go/ast/ast.go \
 	go/go/ast/filter.go \
+	go/go/ast/print.go \
 	go/go/ast/scope.go \
 	go/go/ast/walk.go
 go_go_doc_files = \
@@ -964,6 +987,18 @@ go_image_png_files = \
 go_io_ioutil_files = \
 	go/io/ioutil/ioutil.go \
 	go/io/ioutil/tempfile.go
+
+go_mime_multipart_files = \
+	go/mime/multipart/multipart.go
+
+go_net_dict_files = \
+	go/net/dict/dict.go
+
+go_net_textproto_files = \
+	go/net/textproto/pipeline.go \
+	go/net/textproto/reader.go \
+	go/net/textproto/textproto.go \
+	go/net/textproto/writer.go
 
 go_os_signal_files = \
 	go/os/signal/signal.go \
@@ -1048,6 +1083,7 @@ libgo_go_objs = \
 	fmt/libfmt.la \
 	gob/libgob.la \
 	hash/libhash.la \
+	html/libhtml.la \
 	http/libhttp.la \
 	image/libimage.la \
 	io/libio.la \
@@ -1058,7 +1094,6 @@ libgo_go_objs = \
 	net/libnet.la \
 	netchan/libnetchan.la \
 	nntp/libnntp.la \
-	once/libonce.la \
 	os/libos.la \
 	patch/libpatch.la \
 	path/libpath.la \
@@ -1095,6 +1130,7 @@ libgo_go_objs = \
 	crypto/libhmac.la \
 	crypto/libmd4.la \
 	crypto/libmd5.la \
+	crypto/libocsp.la \
 	crypto/librand.la \
 	crypto/librc4.la \
 	crypto/libripemd160.la \
@@ -1117,7 +1153,6 @@ libgo_go_objs = \
 	encoding/libgit85.la \
 	encoding/libhex.la \
 	encoding/libpem.la \
-	exp/libbignum.la \
 	exp/libdatafmt.la \
 	exp/libdraw.la \
 	exp/libeval.la \
@@ -1135,6 +1170,9 @@ libgo_go_objs = \
 	image/libjpeg.la \
 	image/libpng.la \
 	io/libioutil.la \
+	mime/libmultipart.la \
+	net/libdict.la \
+	net/libtextproto.la \
 	os/libsignal.la \
 	rpc/libjsonrpc.la \
 	runtime/libpprof.la \
@@ -1249,7 +1287,7 @@ bufio/check: $(CHECK_DEPS)
 
 bytes/libbytes.a: $(go_bytes_files) $(go_bytes_c_files) io.gox os.gox utf8.gox
 	test -d bytes || mkdir -p bytes
-	$(LTGOCOMPILE) -c -o bytes/bytes.o -fgo-prefix=libgo_bytes $(srcdir)/go/bytes/buffer.go $(srcdir)/go/bytes/bytes.go
+	$(LTGOCOMPILE) -c -o bytes/bytes.o -fgo-prefix=libgo_bytes $(srcdir)/go/bytes/buffer.go $(srcdir)/go/bytes/bytes.go $(srcdir)/go/bytes/bytes_decl.go
 	$(LTCOMPILE) -c -o bytes/index.o $(srcdir)/go/bytes/indexbyte.c
 	rm -f $@
 	$(AR) rc $@ bytes/bytes.o bytes/index.o
@@ -1319,17 +1357,26 @@ hash/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: hash/check
 
+html/libhtml.a: $(go_html_files) bytes.gox io.gox log.gox os.gox strconv.gox \
+		strings.gox utf8.gox
+	$(BUILDARCHIVE)
+html/libhtml.la: html/libhtml.a
+html/check: $(CHECK_DEPS)
+	$(CHECK)
+.PHONY: html/check
+
 http/libhttp.a: $(go_http_files) bufio.gox bytes.gox container/list.gox \
-		container/vector.gox encoding/base64.gox fmt.gox io.gox \
-		io/ioutil.gox log.gox mime.gox net.gox os.gox path.gox \
-		sort.gox strconv.gox strings.gox sync.gox utf8.gox
+		container/vector.gox crypto/rand.gox crypto/tls.gox \
+		encoding/base64.gox fmt.gox io.gox io/ioutil.gox log.gox \
+		mime.gox net.gox os.gox path.gox sort.gox strconv.gox \
+		strings.gox sync.gox time.gox utf8.gox
 	$(BUILDARCHIVE)
 http/libhttp.la: http/libhttp.a
 http/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: http/check
 
-image/libimage.a: $(go_image_files)
+image/libimage.a: $(go_image_files) bufio.gox io.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
 image/libimage.la: image/libimage.a
 image/check: $(CHECK_DEPS)
@@ -1366,15 +1413,16 @@ math/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: math/check
 
-mime/libmime.a: $(go_mime_files) bufio.gox once.gox os.gox strings.gox
+mime/libmime.a: $(go_mime_files) bufio.gox bytes.gox os.gox strings.gox \
+		sync.gox unicode.gox
 	$(BUILDARCHIVE)
 mime/libmime.la: mime/libmime.a
 mime/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: mime/check
 
-net/libnet.a: $(go_net_files) fmt.gox io.gox once.gox os.gox reflect.gox \
-		strconv.gox strings.gox sync.gox syscall.gox
+net/libnet.a: $(go_net_files) fmt.gox io.gox os.gox reflect.gox strconv.gox \
+		strings.gox sync.gox syscall.gox
 	$(BUILDARCHIVE)
 net/libnet.la: net/libnet.a
 net/check: $(CHECK_DEPS)
@@ -1398,14 +1446,7 @@ nntp/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: nntp/check
 
-once/libonce.a: $(go_once_files) sync.gox
-	$(BUILDARCHIVE)
-once/libonce.la: once/libonce.a
-once/check: $(CHECK_DEPS)
-	$(CHECK)
-.PHONY: once/check
-
-os/libos.a: $(go_os_files) once.gox syscall.gox
+os/libos.a: $(go_os_files) sync.gox syscall.gox
 	$(BUILDARCHIVE)
 os/libos.la: os/libos.a
 os/check: $(CHECK_DEPS)
@@ -1435,7 +1476,8 @@ rand/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: rand/check
 
-reflect/libreflect.a: $(go_reflect_files) runtime.gox strconv.gox sync.gox
+reflect/libreflect.a: $(go_reflect_files) math.gox runtime.gox strconv.gox \
+		sync.gox
 	$(BUILDARCHIVE)
 reflect/libreflect.la: reflect/libreflect.a
 reflect/check: $(CHECK_DEPS)
@@ -1498,7 +1540,7 @@ strings/check: $(CHECK_DEPS)
 
 sync/libsync.a: $(go_sync_files) $(go_sync_c_files) runtime.gox
 	test -d sync || mkdir -p sync
-	$(LTGOCOMPILE) -c -o sync/mutex.o -fgo-prefix=libgo_sync $(srcdir)/go/sync/mutex.go $(srcdir)/go/sync/rwmutex.go
+	$(LTGOCOMPILE) -c -o sync/mutex.o -fgo-prefix=libgo_sync $(srcdir)/go/sync/mutex.go $(srcdir)/go/sync/once.go $(srcdir)/go/sync/rwmutex.go
 	$(LTCOMPILE) -c -o sync/cas.o $(srcdir)/go/sync/cas.c
 	rm -f $@
 	$(AR) rc $@ sync/mutex.o sync/cas.o
@@ -1539,8 +1581,8 @@ testing/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: testing/check
 
-time/libtime.a: $(go_time_files) bytes.gox io/ioutil.gox once.gox os.gox \
-		strconv.gox syscall.gox
+time/libtime.a: $(go_time_files) bytes.gox io/ioutil.gox os.gox strconv.gox \
+		sync.gox syscall.gox
 	$(BUILDARCHIVE)
 time/libtime.la: time/libtime.a
 time/check: $(CHECK_DEPS)
@@ -1702,6 +1744,15 @@ crypto/md5/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: crypto/md5/check
 
+crypto/libocsp.a: $(go_crypto_ocsp_files) asn1.gox crypto/rsa.gox \
+		crypto/sha1.gox crypto/x509.gox os.gox time.gox
+	$(BUILDARCHIVE)
+crypto/libocsp.la: crypto/libocsp.a
+crypto/ocsp/check: $(CHECK_DEPS)
+	@mkdir -p crypto/ocsp
+	$(CHECK)
+.PHONY: crypto/ocsp/check
+
 crypto/librand.a: $(go_crypto_rand_files) crypto/aes.gox io.gox os.gox \
 		sync.gox time.gox
 	$(BUILDARCHIVE)
@@ -1772,8 +1823,7 @@ crypto/libtls.a: $(go_crypto_tls_files) bufio.gox bytes.gox container/list.gox \
 		crypto/hmac.gox crypto/md5.gox crypto/rc4.gox crypto/rand.gox \
 		crypto/rsa.gox crypto/sha1.gox crypto/subtle.gox \
 		crypto/rsa.gox crypto/x509.gox encoding/pem.gox fmt.gox \
-		hash.gox io.gox io/ioutil.gox net.gox once.gox os.gox \
-		sync.gox time.gox
+		hash.gox io.gox io/ioutil.gox net.gox os.gox sync.gox time.gox
 	$(BUILDARCHIVE)
 crypto/libtls.la: crypto/libtls.a
 crypto/tls/check: $(CHECK_DEPS)
@@ -1895,14 +1945,6 @@ encoding/pem/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: encoding/pem/check
 
-exp/libbignum.a: $(go_exp_bignum_files) fmt.gox
-	$(BUILDARCHIVE)
-exp/libbignum.la: exp/libbignum.a
-exp/bignum/check: $(CHECK_DEPS)
-	@mkdir -p exp/bignum
-	$(CHECK)
-.PHONY: exp/bignum/check
-
 exp/libdatafmt.a: $(go_exp_datafmt_files) bytes.gox container/vector.gox \
 		fmt.gox go/scanner.gox go/token.gox io.gox os.gox reflect.gox \
 		runtime.gox strconv.gox strings.gox
@@ -1921,7 +1963,7 @@ exp/draw/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: exp/draw/check
 
-exp/libeval.a: $(go_exp_eval_files) exp/bignum.gox go/ast.gox go/parser.gox \
+exp/libeval.a: $(go_exp_eval_files) big.gox go/ast.gox go/parser.gox \
 		go/scanner.gox go/token.gox fmt.gox log.gox strconv.gox \
 		strings.gox os.gox reflect.gox runtime.gox sort.gox template.gox
 	$(BUILDARCHIVE)
@@ -1940,7 +1982,8 @@ exp/iterable/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: exp/iterable/check
 
-go/libast.a: $(go_go_ast_files) go/token.gox unicode.gox utf8.gox
+go/libast.a: $(go_go_ast_files) fmt.gox go/token.gox io.gox os.gox \
+		reflect.gox unicode.gox utf8.gox
 	$(BUILDARCHIVE)
 go/libast.la: go/libast.a
 go/ast/check: $(CHECK_DEPS)
@@ -1948,9 +1991,8 @@ go/ast/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: go/ast/check
 
-go/libdoc.a: $(go_go_doc_files) container/vector.gox fmt.gox go/ast.gox \
-		go/token.gox http.gox io.gox once.gox regexp.gox sort.gox \
-		strings.gox template.gox
+go/libdoc.a: $(go_go_doc_files) container/vector.gox go/ast.gox go/token.gox \
+		http.gox io.gox regexp.gox sort.gox strings.gox template.gox
 	$(BUILDARCHIVE)
 go/libdoc.la: go/libdoc.a
 go/doc/check: $(CHECK_DEPS)
@@ -2037,8 +2079,8 @@ image/jpeg/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: image/jpeg/check
 
-image/libpng.a: $(go_image_png_files) bufio.gox compress/zlib.gox hash.gox \
-		hash/crc32.gox image.gox io.gox os.gox strconv.gox
+image/libpng.a: $(go_image_png_files) bufio.gox compress/zlib.gox fmt.gox \
+		hash.gox hash/crc32.gox image.gox io.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
 image/libpng.la: image/libpng.a
 image/png/check: $(CHECK_DEPS)
@@ -2055,6 +2097,30 @@ io/ioutil/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: io/ioutil/check
 
+mime/libmultipart.a: $(go_mime_multipart_files) bufio.gox bytes.gox io.gox \
+		mime.gox os.gox regexp.gox strings.gox
+	$(BUILDARCHIVE)
+mime/libmultipart.la: mime/libmultipart.a
+mime/multipart/check: $(CHECK_DEPS)
+	@mkdir -p mime/multipart
+	$(CHECK)
+.PHONY: mime/multipart/check
+
+net/libdict.a: $(go_net_dict_files) container/vector.gox net/textproto.gox \
+		os.gox strconv.gox strings.gox
+	$(BUILDARCHIVE)
+net/libdict.la: net/libdict.a
+
+net/libtextproto.a: $(go_net_textproto_files) bufio.gox bytes.gox \
+		container/vector.gox fmt.gox io.gox io/ioutil.gox net.gox \
+		os.gox strconv.gox sync.gox
+	$(BUILDARCHIVE)
+net/libtextproto.la: net/libtextproto.a
+net/textproto/check: $(CHECK_DEPS)
+	@mkdir -p net/textproto
+	$(CHECK)
+.PHONY: net/textproto/check
+
 os/libsignal.a: $(go_os_signal_files) runtime.gox strconv.gox
 	$(BUILDARCHIVE)
 os/libsignal.la: os/libsignal.a
@@ -2067,8 +2133,8 @@ unix.go: $(srcdir)/go/os/signal/mkunix.sh sysinfo.go
 	$(SHELL) $(srcdir)/go/os/signal/mkunix.sh sysinfo.go > $@.tmp
 	mv -f $@.tmp $@
 
-rpc/libjsonrpc.a: $(go_rpc_jsonrpc_files) io.gox json.gox net.gox os.gox \
-		rpc.gox sync.gox
+rpc/libjsonrpc.a: $(go_rpc_jsonrpc_files) fmt.gox io.gox json.gox net.gox \
+		os.gox rpc.gox sync.gox
 	$(BUILDARCHIVE)
 rpc/libjsonrpc.la: rpc/libjsonrpc.a
 rpc/jsonrpc/check: $(CHECK_DEPS)
@@ -2156,6 +2222,8 @@ gob.gox: gob/libgob.a
 	$(BUILDGOX)
 hash.gox: hash/libhash.a
 	$(BUILDGOX)
+html.gox: html/libhtml.a
+	$(BUILDGOX)
 http.gox: http/libhttp.a
 	$(BUILDGOX)
 image.gox: image/libimage.a
@@ -2175,8 +2243,6 @@ net.gox: net/libnet.a
 netchan.gox: netchan/libnetchan.a
 	$(BUILDGOX)
 nntp.gox: nntp/libnntp.a
-	$(BUILDGOX)
-once.gox: once/libonce.a
 	$(BUILDGOX)
 os.gox: os/libos.a
 	$(BUILDGOX)
@@ -2258,6 +2324,8 @@ crypto/md4.gox: crypto/libmd4.a
 	$(BUILDGOX)
 crypto/md5.gox: crypto/libmd5.a
 	$(BUILDGOX)
+crypto/ocsp.gox: crypto/libocsp.a
+	$(BUILDGOX)
 crypto/rand.gox: crypto/librand.a
 	$(BUILDGOX)
 crypto/rc4.gox: crypto/librc4.a
@@ -2305,8 +2373,6 @@ encoding/hex.gox: encoding/libhex.a
 encoding/pem.gox: encoding/libpem.a
 	$(BUILDGOX)
 
-exp/bignum.gox: exp/libbignum.a
-	$(BUILDGOX)
 exp/datafmt.gox: exp/libdatafmt.a
 	$(BUILDGOX)
 exp/draw.gox: exp/libdraw.a
@@ -2347,6 +2413,14 @@ image/png.gox: image/libpng.a
 io/ioutil.gox: io/libioutil.a
 	$(BUILDGOX)
 
+mime/multipart.gox: mime/libmultipart.a
+	$(BUILDGOX)
+
+net/dict.gox: net/libdict.a
+	$(BUILDGOX)
+net/textproto.gox: net/libtextproto.a
+	$(BUILDGOX)
+
 os/signal.gox: os/libsignal.a
 	$(BUILDGOX)
 
@@ -2375,6 +2449,7 @@ TEST_PACKAGES = \
 	flag/check \
 	fmt/check \
 	gob/check \
+	html/check \
 	http/check \
 	io/check \
 	json/check \
@@ -2384,7 +2459,6 @@ TEST_PACKAGES = \
 	net/check \
 	netchan/check \
 	nntp/check \
-	once/check \
 	os/check \
 	patch/check \
 	path/check \
@@ -2421,6 +2495,7 @@ TEST_PACKAGES = \
 	crypto/hmac/check \
 	crypto/md4/check \
 	crypto/md5/check \
+	crypto/ocsp/check \
 	crypto/rand/check \
 	crypto/rc4/check \
 	crypto/ripemd160/check \
@@ -2441,7 +2516,6 @@ TEST_PACKAGES = \
 	encoding/git85/check \
 	encoding/hex/check \
 	encoding/pem/check \
-	exp/bignum/check \
 	exp/datafmt/check \
 	exp/draw/check \
 	exp/eval/check \
@@ -2454,6 +2528,8 @@ TEST_PACKAGES = \
 	hash/crc64/check \
 	image/png/check \
 	io/ioutil/check \
+	mime/multipart/check \
+	net/textproto/check \
 	os/signal/check \
 	rpc/jsonrpc/check \
 	testing/quick/check \

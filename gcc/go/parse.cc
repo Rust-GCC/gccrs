@@ -514,7 +514,8 @@ Parse::field_decl(Struct_field_list* sfl)
       token = this->advance_token();
       is_anonymous = (token->is_op(OPERATOR_SEMICOLON)
 		      || token->is_op(OPERATOR_RCURLY)
-		      || token->is_op(OPERATOR_DOT));
+		      || token->is_op(OPERATOR_DOT)
+		      || token->is_string());
       is_anonymous_pointer = false;
       this->unget_token(Token::make_identifier_token(id, is_id_exported,
 						     id_location));
@@ -534,11 +535,21 @@ Parse::field_decl(Struct_field_list* sfl)
       if (is_anonymous_pointer)
 	this->advance_token();
       Type* type = this->type_name(true);
+
+      std::string tag;
+      if (this->peek_token()->is_string())
+	{
+	  tag = this->peek_token()->string_value();
+	  this->advance_token();
+	}
+
       if (!type->is_error_type())
 	{
 	  if (is_anonymous_pointer)
 	    type = Type::make_pointer_type(type);
 	  sfl->push_back(Struct_field(Typed_identifier("", type, location)));
+	  if (!tag.empty())
+	    sfl->back().set_tag(tag);
 	}
     }
   else

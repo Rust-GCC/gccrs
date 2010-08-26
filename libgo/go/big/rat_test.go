@@ -17,6 +17,13 @@ var setStringTests = []setStringTest{
 	setStringTest{"-0", "0", true},
 	setStringTest{"1", "1", true},
 	setStringTest{"-1", "-1", true},
+	setStringTest{"1.", "1", true},
+	setStringTest{"1e0", "1", true},
+	setStringTest{"1.e1", "10", true},
+	setStringTest{in: "1e", ok: false},
+	setStringTest{in: "1.e", ok: false},
+	setStringTest{in: "1e+14e-5", ok: false},
+	setStringTest{in: "1e4.5", ok: false},
 	setStringTest{in: "r", ok: false},
 	setStringTest{in: "a/b", ok: false},
 	setStringTest{in: "a.b", ok: false},
@@ -25,6 +32,12 @@ var setStringTests = []setStringTest{
 	setStringTest{"2/4", "1/2", true},
 	setStringTest{".25", "1/4", true},
 	setStringTest{"-1/5", "-1/5", true},
+	setStringTest{"8129567.7690E14", "812956776900000000000", true},
+	setStringTest{"78189e+4", "781890000", true},
+	setStringTest{"553019.8935e+8", "55301989350000", true},
+	setStringTest{"98765432109876543210987654321e-10", "98765432109876543210987654321/10000000000", true},
+	setStringTest{"9877861857500000E-7", "3951144743/4", true},
+	setStringTest{"2169378.417e-3", "2169378417/1000000", true},
 	setStringTest{"884243222337379604041632732738665534", "884243222337379604041632732738665534", true},
 	setStringTest{"53/70893980658822810696", "53/70893980658822810696", true},
 	setStringTest{"106/141787961317645621392", "53/70893980658822810696", true},
@@ -71,6 +84,20 @@ func TestFloatString(t *testing.T) {
 }
 
 
+func TestRatSign(t *testing.T) {
+	zero := NewRat(0, 1)
+	for _, a := range setStringTests {
+		var x Rat
+		x.SetString(a.in)
+		s := x.Sign()
+		e := x.Cmp(zero)
+		if s != e {
+			t.Errorf("got %d; want %d for z = %v", s, e, &x)
+		}
+	}
+}
+
+
 type ratCmpTest struct {
 	rat1, rat2 string
 	out        int
@@ -96,6 +123,38 @@ func TestRatCmp(t *testing.T) {
 		out := x.Cmp(y)
 		if out != test.out {
 			t.Errorf("#%d got out = %v; want %v", i, out, test.out)
+		}
+	}
+}
+
+
+func TestIsInt(t *testing.T) {
+	one := NewInt(1)
+	for _, a := range setStringTests {
+		var x Rat
+		x.SetString(a.in)
+		i := x.IsInt()
+		e := x.Denom().Cmp(one) == 0
+		if i != e {
+			t.Errorf("got %v; want %v for z = %v", i, e, &x)
+		}
+	}
+}
+
+
+func TestRatAbs(t *testing.T) {
+	zero := NewRat(0, 1)
+	for _, a := range setStringTests {
+		var z Rat
+		z.SetString(a.in)
+		var e Rat
+		e.Set(&z)
+		if e.Cmp(zero) < 0 {
+			e.Sub(zero, &e)
+		}
+		z.Abs(&z)
+		if z.Cmp(&e) != 0 {
+			t.Errorf("got z = %v; want %v", &z, &e)
 		}
 	}
 }

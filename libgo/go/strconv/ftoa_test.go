@@ -34,6 +34,17 @@ var ftoatests = []ftoaTest{
 	ftoaTest{200000, 'g', -1, "200000"},
 	ftoaTest{2000000, 'g', -1, "2e+06"},
 
+	// g conversion and zero suppression
+	ftoaTest{400, 'g', 2, "4e+02"},
+	ftoaTest{40, 'g', 2, "40"},
+	ftoaTest{4, 'g', 2, "4"},
+	ftoaTest{.4, 'g', 2, "0.4"},
+	ftoaTest{.04, 'g', 2, "0.04"},
+	ftoaTest{.004, 'g', 2, "0.004"},
+	ftoaTest{.0004, 'g', 2, "0.0004"},
+	ftoaTest{.00004, 'g', 2, "4e-05"},
+	ftoaTest{.000004, 'g', 2, "4e-06"},
+
 	ftoaTest{0, 'e', 5, "0.00000e+00"},
 	ftoaTest{0, 'f', 5, "0.00000"},
 	ftoaTest{0, 'g', 5, "0"},
@@ -97,6 +108,16 @@ var ftoatests = []ftoaTest{
 	ftoaTest{-math.Inf(0), 'g', -1, "-Inf"},
 
 	ftoaTest{-1, 'b', -1, "-4503599627370496p-52"},
+
+	// fixed bugs
+	ftoaTest{0.9, 'f', 1, "0.9"},
+	ftoaTest{0.09, 'f', 1, "0.1"},
+	ftoaTest{0.0999, 'f', 1, "0.1"},
+	ftoaTest{0.05, 'f', 1, "0.1"},
+	ftoaTest{0.05, 'f', 0, "0"},
+	ftoaTest{0.5, 'f', 1, "0.5"},
+	ftoaTest{0.5, 'f', 0, "0"},
+	ftoaTest{1.5, 'f', 0, "2"},
 }
 
 func TestFtoa(t *testing.T) {
@@ -110,10 +131,18 @@ func TestFtoa(t *testing.T) {
 		if s != test.s {
 			t.Error("test", test.f, string(test.fmt), test.prec, "want", test.s, "got", s)
 		}
+		s = FtoaN(test.f, test.fmt, test.prec, 64)
+		if s != test.s {
+			t.Error("testN=64", test.f, string(test.fmt), test.prec, "want", test.s, "got", s)
+		}
 		if float64(float32(test.f)) == test.f && test.fmt != 'b' {
 			s := Ftoa32(float32(test.f), test.fmt, test.prec)
 			if s != test.s {
 				t.Error("test32", test.f, string(test.fmt), test.prec, "want", test.s, "got", s)
+			}
+			s = FtoaN(test.f, test.fmt, test.prec, 32)
+			if s != test.s {
+				t.Error("testN=32", test.f, string(test.fmt), test.prec, "want", test.s, "got", s)
 			}
 		}
 	}

@@ -6,43 +6,40 @@ package netchan
 
 import "testing"
 
-type value struct {
-	i int
-	s string
-}
-
 const count = 10     // number of items in most tests
 const closeCount = 5 // number of items when sender closes early
 
 func exportSend(exp *Exporter, n int, t *testing.T) {
-	ch := make(chan value)
-	err := exp.Export("exportedSend", ch, Send, new(value))
+	ch := make(chan int)
+	err := exp.Export("exportedSend", ch, Send)
 	if err != nil {
 		t.Fatal("exportSend:", err)
 	}
-	for i := 0; i < n; i++ {
-		ch <- value{23 + i, "hello"}
-	}
-	close(ch)
+	go func() {
+		for i := 0; i < n; i++ {
+			ch <- 23+i
+		}
+		close(ch)
+	}()
 }
 
 func exportReceive(exp *Exporter, t *testing.T) {
-	ch := make(chan value)
-	err := exp.Export("exportedRecv", ch, Recv, new(value))
+	ch := make(chan int)
+	err := exp.Export("exportedRecv", ch, Recv)
 	if err != nil {
 		t.Fatal("exportReceive:", err)
 	}
 	for i := 0; i < count; i++ {
 		v := <-ch
-		if v.i != 45+i || v.s != "hello" {
-			t.Errorf("export Receive: bad value: expected 4%d, hello; got %+v", 45+i, v)
+		if v != 45+i {
+			t.Errorf("export Receive: bad value: expected 4%d; got %d", 45+i, v)
 		}
 	}
 }
 
 func importReceive(imp *Importer, t *testing.T) {
-	ch := make(chan value)
-	err := imp.ImportNValues("exportedSend", ch, Recv, new(value), count)
+	ch := make(chan int)
+	err := imp.ImportNValues("exportedSend", ch, Recv, count)
 	if err != nil {
 		t.Fatal("importReceive:", err)
 	}
@@ -54,25 +51,25 @@ func importReceive(imp *Importer, t *testing.T) {
 			}
 			break
 		}
-		if v.i != 23+i || v.s != "hello" {
-			t.Errorf("importReceive: bad value: expected %d, hello; got %+v", 23+i, v)
+		if v != 23+i {
+			t.Errorf("importReceive: bad value: expected %d; got %+d", 23+i, v)
 		}
 	}
 }
 
 func importSend(imp *Importer, t *testing.T) {
-	ch := make(chan value)
-	err := imp.ImportNValues("exportedRecv", ch, Send, new(value), count)
+	ch := make(chan int)
+	err := imp.ImportNValues("exportedRecv", ch, Send, count)
 	if err != nil {
 		t.Fatal("importSend:", err)
 	}
 	for i := 0; i < count; i++ {
-		ch <- value{45 + i, "hello"}
+		ch <- 45+i
 	}
 }
 
 func TestExportSendImportReceive(t *testing.T) {
-	exp, err := NewExporter("tcp", ":0")
+	exp, err := NewExporter("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal("new exporter:", err)
 	}
@@ -80,12 +77,12 @@ func TestExportSendImportReceive(t *testing.T) {
 	if err != nil {
 		t.Fatal("new importer:", err)
 	}
-	go exportSend(exp, count, t)
+	exportSend(exp, count, t)
 	importReceive(imp, t)
 }
 
 func TestExportReceiveImportSend(t *testing.T) {
-	exp, err := NewExporter("tcp", ":0")
+	exp, err := NewExporter("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal("new exporter:", err)
 	}
@@ -98,7 +95,7 @@ func TestExportReceiveImportSend(t *testing.T) {
 }
 
 func TestClosingExportSendImportReceive(t *testing.T) {
-	exp, err := NewExporter("tcp", ":0")
+	exp, err := NewExporter("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal("new exporter:", err)
 	}
@@ -106,6 +103,6 @@ func TestClosingExportSendImportReceive(t *testing.T) {
 	if err != nil {
 		t.Fatal("new importer:", err)
 	}
-	go exportSend(exp, closeCount, t)
+	exportSend(exp, closeCount, t)
 	importReceive(imp, t)
 }

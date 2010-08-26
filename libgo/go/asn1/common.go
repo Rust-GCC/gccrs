@@ -24,11 +24,13 @@ const (
 	tagBitString       = 3
 	tagOctetString     = 4
 	tagOID             = 6
+	tagEnum            = 10
 	tagSequence        = 16
 	tagSet             = 17
 	tagPrintableString = 19
 	tagIA5String       = 22
 	tagUTCTime         = 23
+	tagGeneralizedTime = 24
 )
 
 const (
@@ -78,7 +80,7 @@ type fieldParameters struct {
 // parseFieldParameters will parse it into a fieldParameters structure,
 // ignoring unknown parts of the string.
 func parseFieldParameters(str string) (ret fieldParameters) {
-	for _, part := range strings.Split(str, ",", 0) {
+	for _, part := range strings.Split(str, ",", -1) {
 		switch {
 		case part == "optional":
 			ret.optional = true
@@ -121,18 +123,18 @@ func getUniversalType(t reflect.Type) (tagNumber int, isCompound, ok bool) {
 		return tagBitString, false, true
 	case timeType:
 		return tagUTCTime, false, true
+	case enumeratedType:
+		return tagEnum, false, true
 	}
-	switch i := t.(type) {
+	switch t := t.(type) {
 	case *reflect.BoolType:
 		return tagBoolean, false, true
 	case *reflect.IntType:
 		return tagInteger, false, true
-	case *reflect.Int64Type:
-		return tagInteger, false, true
 	case *reflect.StructType:
 		return tagSequence, true, true
 	case *reflect.SliceType:
-		if _, ok := t.(*reflect.SliceType).Elem().(*reflect.Uint8Type); ok {
+		if t.Elem().Kind() == reflect.Uint8 {
 			return tagOctetString, false, true
 		}
 		if strings.HasSuffix(t.Name(), "SET") {

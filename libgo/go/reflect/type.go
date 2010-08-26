@@ -35,8 +35,13 @@ import (
  * copy in order to access the private fields.
  */
 
+// commonType is the common implementation of most values.
+// It is embedded in other, public struct types, but always
+// with a unique tag like "uint" or "float" so that the client cannot
+// convert from, say, *UintType to *FloatType.
+
 type commonType struct {
-	code       uint8
+	kind       uint8
 	align      int8
 	fieldAlign uint8
 	size       uintptr
@@ -63,109 +68,44 @@ type uncommonType struct {
 
 // BoolType represents a boolean type.
 type BoolType struct {
-	commonType
-}
-
-// Float32Type represents a float32 type.
-type Float32Type struct {
-	commonType
-}
-
-// Float64Type represents a float64 type.
-type Float64Type struct {
-	commonType
+	commonType "bool"
 }
 
 // FloatType represents a float type.
 type FloatType struct {
-	commonType
-}
-
-// Complex64Type represents a complex64 type.
-type Complex64Type struct {
-	commonType
-}
-
-// Complex128Type represents a complex128 type.
-type Complex128Type struct {
-	commonType
+	commonType "float"
 }
 
 // ComplexType represents a complex type.
 type ComplexType struct {
-	commonType
+	commonType "complex"
 }
 
-// Int16Type represents an int16 type.
-type Int16Type struct {
-	commonType
-}
-
-// Int32Type represents an int32 type.
-type Int32Type struct {
-	commonType
-}
-
-// Int64Type represents an int64 type.
-type Int64Type struct {
-	commonType
-}
-
-// Int8Type represents an int8 type.
-type Int8Type struct {
-	commonType
-}
-
-// IntType represents an int type.
+// IntType represents a signed integer type.
 type IntType struct {
-	commonType
-}
-
-// Uint16Type represents a uint16 type.
-type Uint16Type struct {
-	commonType
-}
-
-// Uint32Type represents a uint32 type.
-type Uint32Type struct {
-	commonType
-}
-
-// Uint64Type represents a uint64 type.
-type Uint64Type struct {
-	commonType
-}
-
-// Uint8Type represents a uint8 type.
-type Uint8Type struct {
-	commonType
+	commonType "int"
 }
 
 // UintType represents a uint type.
 type UintType struct {
-	commonType
+	commonType "uint"
 }
 
 // StringType represents a string type.
 type StringType struct {
-	commonType
-}
-
-// UintptrType represents a uintptr type.
-type UintptrType struct {
-	commonType
+	commonType "string"
 }
 
 // UnsafePointerType represents an unsafe.Pointer type.
 type UnsafePointerType struct {
-	commonType
+	commonType "unsafe.Pointer"
 }
 
 // ArrayType represents a fixed array type.
 type ArrayType struct {
-	commonType
-	elem *runtime.Type
-	len  uintptr
+	commonType "array"
+	elem       *runtime.Type
+	len        uintptr
 }
 
 // ChanDir represents a channel type's direction.
@@ -179,17 +119,17 @@ const (
 
 // ChanType represents a channel type.
 type ChanType struct {
-	commonType
-	elem *runtime.Type
-	dir  uintptr
+	commonType "chan"
+	elem       *runtime.Type
+	dir        uintptr
 }
 
 // FuncType represents a function type.
 type FuncType struct {
-	commonType
-	dotdotdot bool
-	in        []*runtime.Type
-	out       []*runtime.Type
+	commonType "func"
+	dotdotdot  bool
+	in         []*runtime.Type
+	out        []*runtime.Type
 }
 
 // Method on interface type
@@ -201,27 +141,27 @@ type imethod struct {
 
 // InterfaceType represents an interface type.
 type InterfaceType struct {
-	commonType
-	methods []imethod
+	commonType "interface"
+	methods    []imethod
 }
 
 // MapType represents a map type.
 type MapType struct {
-	commonType
-	key  *runtime.Type
-	elem *runtime.Type
+	commonType "map"
+	key        *runtime.Type
+	elem       *runtime.Type
 }
 
 // PtrType represents a pointer type.
 type PtrType struct {
-	commonType
-	elem *runtime.Type
+	commonType "ptr"
+	elem       *runtime.Type
 }
 
 // SliceType represents a slice type.
 type SliceType struct {
-	commonType
-	elem *runtime.Type
+	commonType "slice"
+	elem       *runtime.Type
 }
 
 // Struct field
@@ -235,8 +175,8 @@ type structField struct {
 
 // StructType represents a struct type.
 type StructType struct {
-	commonType
-	fields []structField
+	commonType "struct"
+	fields     []structField
 }
 
 
@@ -280,6 +220,11 @@ type Type interface {
 	// a value of the given type; it is analogous to unsafe.Sizeof.
 	Size() uintptr
 
+	// Bits returns the size of the type in bits.
+	// It is intended for use with numeric types and may overflow
+	// when used for composite types.
+	Bits() int
+
 	// Align returns the alignment of a value of this type
 	// when allocated in memory.
 	Align() int
@@ -288,12 +233,93 @@ type Type interface {
 	// when used as a field in a struct.
 	FieldAlign() int
 
+	// Kind returns the specific kind of this type.
+	Kind() Kind
+
 	// For non-interface types, Method returns the i'th method with receiver T.
 	// For interface types, Method returns the i'th method in the interface.
 	// NumMethod returns the number of such methods.
 	Method(int) Method
 	NumMethod() int
 	uncommon() *uncommonType
+}
+
+// A Kind represents the specific kind of type that a Type represents.
+// For numeric types, the Kind gives more information than the Type's
+// dynamic type.  For example, the Type of a float32 is FloatType, but
+// the Kind is Float32.
+//
+// The zero Kind is not a valid kind.
+type Kind uint8
+
+const (
+	Bool Kind = 1 + iota
+	Int
+	Int8
+	Int16
+	Int32
+	Int64
+	Uint
+	Uint8
+	Uint16
+	Uint32
+	Uint64
+	Uintptr
+	Float
+	Float32
+	Float64
+	Complex
+	Complex64
+	Complex128
+	Array
+	Chan
+	Func
+	Interface
+	Map
+	Ptr
+	Slice
+	String
+	Struct
+	UnsafePointer
+)
+
+// High bit says whether type has
+// embedded pointers,to help garbage collector.
+const kindMask = 0x7f
+
+func (k Kind) String() string {
+	if int(k) < len(kindNames) {
+		return kindNames[k]
+	}
+	return "kind" + strconv.Itoa(int(k))
+}
+
+var kindNames = []string{
+	Bool:          "bool",
+	Int:           "int",
+	Int8:          "int8",
+	Int16:         "int16",
+	Int32:         "int32",
+	Int64:         "int64",
+	Uint:          "uint",
+	Uint8:         "uint8",
+	Uint16:        "uint16",
+	Uint32:        "uint32",
+	Uint64:        "uint64",
+	Uintptr:       "uintptr",
+	Float:         "float",
+	Float32:       "float32",
+	Float64:       "float64",
+	Array:         "array",
+	Chan:          "chan",
+	Func:          "func",
+	Interface:     "interface",
+	Map:           "map",
+	Ptr:           "ptr",
+	Slice:         "slice",
+	String:        "string",
+	Struct:        "struct",
+	UnsafePointer: "unsafe.Pointer",
 }
 
 func (t *uncommonType) uncommon() *uncommonType {
@@ -318,9 +344,13 @@ func (t *commonType) String() string { return *t.string }
 
 func (t *commonType) Size() uintptr { return t.size }
 
+func (t *commonType) Bits() int { return int(t.size * 8) }
+
 func (t *commonType) Align() int { return int(t.align) }
 
 func (t *commonType) FieldAlign() int { return int(t.fieldAlign) }
+
+func (t *commonType) Kind() Kind { return Kind(t.kind & kindMask) }
 
 func (t *uncommonType) Method(i int) (m Method) {
 	if t == nil || i < 0 || i >= len(t.methods) {
@@ -335,7 +365,7 @@ func (t *uncommonType) Method(i int) (m Method) {
 	}
 	m.Type = runtimeToType(p.typ).(*FuncType)
 	fn := p.tfn
-	m.Func = newFuncValue(m.Type, addr(&fn), true)
+	m.Func = &FuncValue{value: value{m.Type, addr(&fn), true}}
 	return
 }
 
@@ -628,40 +658,14 @@ func toType(i interface{}) Type {
 		return (*BoolType)(unsafe.Pointer(v))
 	case *runtime.FloatType:
 		return (*FloatType)(unsafe.Pointer(v))
-	case *runtime.Float32Type:
-		return (*Float32Type)(unsafe.Pointer(v))
-	case *runtime.Float64Type:
-		return (*Float64Type)(unsafe.Pointer(v))
 	case *runtime.ComplexType:
 		return (*ComplexType)(unsafe.Pointer(v))
-	case *runtime.Complex64Type:
-		return (*Complex64Type)(unsafe.Pointer(v))
-	case *runtime.Complex128Type:
-		return (*Complex128Type)(unsafe.Pointer(v))
 	case *runtime.IntType:
 		return (*IntType)(unsafe.Pointer(v))
-	case *runtime.Int8Type:
-		return (*Int8Type)(unsafe.Pointer(v))
-	case *runtime.Int16Type:
-		return (*Int16Type)(unsafe.Pointer(v))
-	case *runtime.Int32Type:
-		return (*Int32Type)(unsafe.Pointer(v))
-	case *runtime.Int64Type:
-		return (*Int64Type)(unsafe.Pointer(v))
 	case *runtime.StringType:
 		return (*StringType)(unsafe.Pointer(v))
 	case *runtime.UintType:
 		return (*UintType)(unsafe.Pointer(v))
-	case *runtime.Uint8Type:
-		return (*Uint8Type)(unsafe.Pointer(v))
-	case *runtime.Uint16Type:
-		return (*Uint16Type)(unsafe.Pointer(v))
-	case *runtime.Uint32Type:
-		return (*Uint32Type)(unsafe.Pointer(v))
-	case *runtime.Uint64Type:
-		return (*Uint64Type)(unsafe.Pointer(v))
-	case *runtime.UintptrType:
-		return (*UintptrType)(unsafe.Pointer(v))
 	case *runtime.UnsafePointerType:
 		return (*UnsafePointerType)(unsafe.Pointer(v))
 	case *runtime.ArrayType:
@@ -681,69 +685,44 @@ func toType(i interface{}) Type {
 	case *runtime.StructType:
 		return (*StructType)(unsafe.Pointer(v))
 	}
+	println(i)
 	panic("toType")
 }
 
 // Convert pointer to runtime Type structure to our Type structure.
 func runtimeToType(v *runtime.Type) Type {
 	var r Type
-	switch v.Code {
-	case runtime.BoolTypeCode:
+	switch Kind(v.Kind) {
+	case Bool:
 		r = (*BoolType)(unsafe.Pointer(v))
-	case runtime.FloatTypeCode:
-		r = (*FloatType)(unsafe.Pointer(v))
-	case runtime.Float32TypeCode:
-		r = (*Float32Type)(unsafe.Pointer(v))
-	case runtime.Float64TypeCode:
-		r = (*Float64Type)(unsafe.Pointer(v))
-	case runtime.ComplexTypeCode:
-		r = (*ComplexType)(unsafe.Pointer(v))
-	case runtime.Complex64TypeCode:
-		r = (*Complex64Type)(unsafe.Pointer(v))
-	case runtime.Complex128TypeCode:
-		r = (*Complex128Type)(unsafe.Pointer(v))
-	case runtime.IntTypeCode:
+	case Int, Int8, Int16, Int32, Int64:
 		r = (*IntType)(unsafe.Pointer(v))
-	case runtime.Int8TypeCode:
-		r = (*Int8Type)(unsafe.Pointer(v))
-	case runtime.Int16TypeCode:
-		r = (*Int16Type)(unsafe.Pointer(v))
-	case runtime.Int32TypeCode:
-		r = (*Int32Type)(unsafe.Pointer(v))
-	case runtime.Int64TypeCode:
-		r = (*Int64Type)(unsafe.Pointer(v))
-	case runtime.StringTypeCode:
-		r = (*StringType)(unsafe.Pointer(v))
-	case runtime.UintTypeCode:
+	case Uint, Uint8, Uint16, Uint32, Uint64, Uintptr:
 		r = (*UintType)(unsafe.Pointer(v))
-	case runtime.Uint8TypeCode:
-		r = (*Uint8Type)(unsafe.Pointer(v))
-	case runtime.Uint16TypeCode:
-		r = (*Uint16Type)(unsafe.Pointer(v))
-	case runtime.Uint32TypeCode:
-		r = (*Uint32Type)(unsafe.Pointer(v))
-	case runtime.Uint64TypeCode:
-		r = (*Uint64Type)(unsafe.Pointer(v))
-	case runtime.UintptrTypeCode:
-		r = (*UintptrType)(unsafe.Pointer(v))
-	case runtime.UnsafePointerTypeCode:
-		r = (*UnsafePointerType)(unsafe.Pointer(v))
-	case runtime.ArrayTypeCode:
+	case Float, Float32, Float64:
+		r = (*FloatType)(unsafe.Pointer(v))
+	case Complex, Complex64, Complex128:
+		r = (*ComplexType)(unsafe.Pointer(v))
+	case Array:
 		r = (*ArrayType)(unsafe.Pointer(v))
-	case runtime.ChanTypeCode:
+	case Chan:
 		r = (*ChanType)(unsafe.Pointer(v))
-	case runtime.FuncTypeCode:
+	case Func:
 		r = (*FuncType)(unsafe.Pointer(v))
-	case runtime.InterfaceTypeCode:
+	case Interface:
 		r = (*InterfaceType)(unsafe.Pointer(v))
-	case runtime.MapTypeCode:
+	case Map:
 		r = (*MapType)(unsafe.Pointer(v))
-	case runtime.PtrTypeCode:
+	case Ptr:
 		r = (*PtrType)(unsafe.Pointer(v))
-	case runtime.SliceTypeCode:
+	case Slice:
 		r = (*SliceType)(unsafe.Pointer(v))
-	case runtime.StructTypeCode:
+	case String:
+		r = (*StringType)(unsafe.Pointer(v))
+	case Struct:
 		r = (*StructType)(unsafe.Pointer(v))
+	case UnsafePointer:
+		r = (*UnsafePointerType)(unsafe.Pointer(v))
 	default:
 		panic("runtimeToType")
 	}

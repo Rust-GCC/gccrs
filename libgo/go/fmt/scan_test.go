@@ -259,6 +259,10 @@ var scanfTests = []ScanfTest{
 	// Custom scanner.
 	ScanfTest{"%s", "  sss ", &xVal, Xs("sss")},
 	ScanfTest{"%2s", "sssss", &xVal, Xs("ss")},
+
+	// Fixed bugs
+	ScanfTest{"%d\n", "27\n", &intVal, 27},  // ok
+	ScanfTest{"%d\n", "28 \n", &intVal, 28}, // was: "unexpected newline"
 }
 
 var overflowTests = []ScanTest{
@@ -303,6 +307,7 @@ var multiTests = []ScanfMultiTest{
 	ScanfMultiTest{"%d %d %d", "23 18", args(&i, &j), args(23, 18), "too few operands"},
 	ScanfMultiTest{"%d %d", "23 18 27", args(&i, &j, &k), args(23, 18), "too many operands"},
 	ScanfMultiTest{"%c", "\u0100", args(&int8Val), nil, "overflow"},
+	ScanfMultiTest{"X%d", "10X", args(&intVal), nil, "input does not match format"},
 
 	// Bad UTF-8: should see every byte.
 	ScanfMultiTest{"%c%c%c", "\xc2X\xc2", args(&i, &j, &k), args(utf8.RuneError, 'X', utf8.RuneError), ""},
@@ -459,6 +464,46 @@ func TestScanMultiple(t *testing.T) {
 	if a != 123 || s != "abc" {
 		t.Errorf("Sscan wrong values: got (%d %q) expected (123 \"abc\")", a, s)
 	}
+	n, err = Sscan("asdf", &s, &a)
+	if n != 1 {
+		t.Errorf("Sscan count error: expected 1: got %d", n)
+	}
+	if err == nil {
+		t.Errorf("Sscan expected error; got none", err)
+	}
+	if s != "asdf" {
+		t.Errorf("Sscan wrong values: got %q expected \"asdf\"", s)
+	}
+}
+
+// Empty strings are not valid input when scanning a string.
+func TestScanEmpty(t *testing.T) {
+	var s1, s2 string
+	n, err := Sscan("abc", &s1, &s2)
+	if n != 1 {
+		t.Errorf("Sscan count error: expected 1: got %d", n)
+	}
+	if err == nil {
+		t.Errorf("Sscan <one item> expected error; got none")
+	}
+	if s1 != "abc" {
+		t.Errorf("Sscan wrong values: got %q expected \"abc\"", s1)
+	}
+	n, err = Sscan("", &s1, &s2)
+	if n != 0 {
+		t.Errorf("Sscan count error: expected 0: got %d", n)
+	}
+	if err == nil {
+		t.Errorf("Sscan <empty> expected error; got none")
+	}
+	// Quoted empty string is OK.
+	n, err = Sscanf(`""`, "%q", &s1)
+	if n != 1 {
+		t.Errorf("Sscanf count error: expected 1: got %d", n)
+	}
+	if err != nil {
+		t.Errorf("Sscanf <empty> expected no error with quoted string; got %s", err)
+	}
 }
 
 func TestScanNotPointer(t *testing.T) {
@@ -490,5 +535,47 @@ func TestScanlnWithMiddleNewline(t *testing.T) {
 		t.Error("expected error scanning string with extra newline")
 	} else if strings.Index(err.String(), "newline") < 0 {
 		t.Errorf("expected newline error scanning string with extra newline, got: %s", err)
+	}
+}
+
+// Special Reader that counts reads at end of file.
+type eofCounter struct {
+	reader   *strings.Reader
+	eofCount int
+}
+
+func (ec *eofCounter) Read(b []byte) (n int, err os.Error) {
+	n, err = ec.reader.Read(b)
+	if n == 0 {
+		ec.eofCount++
+	}
+	return
+}
+
+// Verify that when we scan, we see at most EOF once per call to a Scan function,
+// and then only when it's really an EOF
+func TestEOF(t *testing.T) {
+	ec := &eofCounter{strings.NewReader("123\n"), 0}
+	var a int
+	n, err := Fscanln(ec, &a)
+	if err != nil {
+		t.Error("unexpected error", err)
+	}
+	if n != 1 {
+		t.Error("expected to scan one item, got", n)
+	}
+	if ec.eofCount != 0 {
+		t.Error("expected zero EOFs", ec.eofCount)
+		ec.eofCount = 0 // reset for next test
+	}
+	n, err = Fscanln(ec, &a)
+	if err == nil {
+		t.Error("expected error scanning empty string")
+	}
+	if n != 0 {
+		t.Error("expected to scan zero items, got", n)
+	}
+	if ec.eofCount != 1 {
+		t.Error("expected one EOF, got", ec.eofCount)
 	}
 }

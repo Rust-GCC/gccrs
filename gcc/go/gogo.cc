@@ -40,40 +40,40 @@ Gogo::Gogo()
   const source_location loc = BUILTINS_LOCATION;
 
   Named_type* uint8_type = Type::make_integer_type("uint8", true, 8,
-						   RUNTIME_TYPE_CODE_UINT8);
+						   RUNTIME_TYPE_KIND_UINT8);
   this->add_named_type(uint8_type);
   this->add_named_type(Type::make_integer_type("uint16", true,  16,
-					       RUNTIME_TYPE_CODE_UINT16));
+					       RUNTIME_TYPE_KIND_UINT16));
   this->add_named_type(Type::make_integer_type("uint32", true,  32,
-					       RUNTIME_TYPE_CODE_UINT32));
+					       RUNTIME_TYPE_KIND_UINT32));
   this->add_named_type(Type::make_integer_type("uint64", true,  64,
-					       RUNTIME_TYPE_CODE_UINT64));
+					       RUNTIME_TYPE_KIND_UINT64));
 
   this->add_named_type(Type::make_integer_type("int8",  false,   8,
-					       RUNTIME_TYPE_CODE_INT8));
+					       RUNTIME_TYPE_KIND_INT8));
   this->add_named_type(Type::make_integer_type("int16", false,  16,
-					       RUNTIME_TYPE_CODE_INT16));
+					       RUNTIME_TYPE_KIND_INT16));
   this->add_named_type(Type::make_integer_type("int32", false,  32,
-					       RUNTIME_TYPE_CODE_INT32));
+					       RUNTIME_TYPE_KIND_INT32));
   this->add_named_type(Type::make_integer_type("int64", false,  64,
-					       RUNTIME_TYPE_CODE_INT64));
+					       RUNTIME_TYPE_KIND_INT64));
 
   this->add_named_type(Type::make_float_type("float32", 32,
-					     RUNTIME_TYPE_CODE_FLOAT32));
+					     RUNTIME_TYPE_KIND_FLOAT32));
   this->add_named_type(Type::make_float_type("float64", 64,
-					     RUNTIME_TYPE_CODE_FLOAT64));
+					     RUNTIME_TYPE_KIND_FLOAT64));
 
   this->add_named_type(Type::make_complex_type("complex64", 64,
-					       RUNTIME_TYPE_CODE_COMPLEX64));
+					       RUNTIME_TYPE_KIND_COMPLEX64));
   this->add_named_type(Type::make_complex_type("complex128", 128,
-					       RUNTIME_TYPE_CODE_COMPLEX128));
+					       RUNTIME_TYPE_KIND_COMPLEX128));
 
   const int int_type_size = std::max(INT_TYPE_SIZE, 32);
   this->add_named_type(Type::make_integer_type("uint", true,
 					       int_type_size,
-					       RUNTIME_TYPE_CODE_UINT));
+					       RUNTIME_TYPE_KIND_UINT));
   Named_type* int_type = Type::make_integer_type("int", false, int_type_size,
-						 RUNTIME_TYPE_CODE_INT);
+						 RUNTIME_TYPE_KIND_INT);
   this->add_named_type(int_type);
 
   // "byte" is an alias for "uint8".  Construct a Named_object which
@@ -85,13 +85,13 @@ Gogo::Gogo()
 
   this->add_named_type(Type::make_integer_type("uintptr", true,
 					       POINTER_SIZE,
-					       RUNTIME_TYPE_CODE_UINTPTR));
+					       RUNTIME_TYPE_KIND_UINTPTR));
 
   this->add_named_type(Type::make_float_type("float", FLOAT_TYPE_SIZE,
-					     RUNTIME_TYPE_CODE_FLOAT));
+					     RUNTIME_TYPE_KIND_FLOAT));
 
   this->add_named_type(Type::make_complex_type("complex", FLOAT_TYPE_SIZE * 2,
-					       RUNTIME_TYPE_CODE_COMPLEX));
+					       RUNTIME_TYPE_KIND_COMPLEX));
 
   this->add_named_type(Type::make_named_bool_type());
 

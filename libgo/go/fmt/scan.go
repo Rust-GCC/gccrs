@@ -125,12 +125,15 @@ type scanError struct {
 	err os.Error
 }
 
+const EOF = -1
+
 // ss is the internal implementation of ScanState.
 type ss struct {
 	rr         readRuner    // where to read input
 	buf        bytes.Buffer // token accumulator
 	nlIsSpace  bool         // whether newline counts as white space
 	peekRune   int          // one-rune lookahead
+	atEOF      bool         // already read EOF
 	maxWid     int          // max width of field, in runes
 	widPresent bool         // width was specified
 	wid        int          // width consumed so far; used in accept()
@@ -150,11 +153,12 @@ func (s *ss) Width() (wid int, ok bool) {
 	return s.maxWid, s.widPresent
 }
 
-const EOF = -1
-
 // The public method returns an error; this private one panics.
 // If getRune reaches EOF, the return value is EOF (-1).
 func (s *ss) getRune() (rune int) {
+	if s.atEOF {
+		return EOF
+	}
 	if s.peekRune >= 0 {
 		rune = s.peekRune
 		s.peekRune = -1
@@ -163,6 +167,7 @@ func (s *ss) getRune() (rune int) {
 	rune, _, err := s.rr.ReadRune()
 	if err != nil {
 		if err == os.EOF {
+			s.atEOF = true
 			return EOF
 		}
 		s.error(err)
@@ -174,6 +179,9 @@ func (s *ss) getRune() (rune int) {
 // It is called in cases such as string scanning where an EOF is a
 // syntax error.
 func (s *ss) mustGetRune() (rune int) {
+	if s.atEOF {
+		s.error(io.ErrUnexpectedEOF)
+	}
 	if s.peekRune >= 0 {
 		rune = s.peekRune
 		s.peekRune = -1
@@ -291,6 +299,7 @@ func newScanState(r io.Reader, nlIsSpace bool) *ss {
 	}
 	s.nlIsSpace = nlIsSpace
 	s.peekRune = -1
+	s.atEOF = false
 	s.maxWid = 0
 	s.widPresent = false
 	return s
@@ -307,14 +316,17 @@ func (s *ss) free() {
 	_ = ssFree <- s
 }
 
-// skipSpace skips spaces and maybe newlines
-func (s *ss) skipSpace() {
+// skipSpace skips spaces and maybe newlines.
+func (s *ss) skipSpace(stopAtNewline bool) {
 	for {
 		rune := s.getRune()
 		if rune == EOF {
 			return
 		}
 		if rune == '\n' {
+			if stopAtNewline {
+				break
+			}
 			if s.nlIsSpace {
 				continue
 			}
@@ -332,7 +344,7 @@ func (s *ss) skipSpace() {
 // skips white space.  For Scanln, it stops at newlines.  For Scan,
 // newlines are treated as spaces.
 func (s *ss) token() string {
-	s.skipSpace()
+	s.skipSpace(false)
 	// read until white space or newline
 	for nrunes := 0; !s.widPresent || nrunes < s.maxWid; nrunes++ {
 		rune := s.getRune()
@@ -353,8 +365,6 @@ func (s *ss) typeError(field interface{}, expected string) {
 	s.errorString("expected field of type pointer to " + expected + "; found " + reflect.Typeof(field).String())
 }
 
-var intBits = uint(reflect.Typeof(int(0)).Size() * 8)
-var uintptrBits = uint(reflect.Typeof(int(0)).Size() * 8)
 var complexError = os.ErrorString("syntax error scanning complex number")
 var boolError = os.ErrorString("syntax error scanning boolean")
 
@@ -458,9 +468,10 @@ func (s *ss) scanNumber(digits string) string {
 }
 
 // scanRune returns the next rune value in the input.
-func (s *ss) scanRune(bitSize uint) int64 {
+func (s *ss) scanRune(bitSize int) int64 {
 	rune := int64(s.mustGetRune())
-	x := (rune << (64 - bitSize)) >> (64 - bitSize)
+	n := uint(bitSize)
+	x := (rune << (64 - n)) >> (64 - n)
 	if x != rune {
 		s.errorString("overflow on character value " + string(rune))
 	}
@@ -469,19 +480,20 @@ func (s *ss) scanRune(bitSize uint) int64 {
 
 // scanInt returns the value of the integer represented by the next
 // token, checking for overflow.  Any error is stored in s.err.
-func (s *ss) scanInt(verb int, bitSize uint) int64 {
+func (s *ss) scanInt(verb int, bitSize int) int64 {
 	if verb == 'c' {
 		return s.scanRune(bitSize)
 	}
 	base, digits := s.getBase(verb)
-	s.skipSpace()
+	s.skipSpace(false)
 	s.accept(sign) // If there's a sign, it will be left in the token buffer.
 	tok := s.scanNumber(digits)
 	i, err := strconv.Btoi64(tok, base)
 	if err != nil {
 		s.error(err)
 	}
-	x := (i << (64 - bitSize)) >> (64 - bitSize)
+	n := uint(bitSize)
+	x := (i << (64 - n)) >> (64 - n)
 	if x != i {
 		s.errorString("integer overflow on token " + tok)
 	}
@@ -490,18 +502,19 @@ func (s *ss) scanInt(verb int, bitSize uint) int64 {
 
 // scanUint returns the value of the unsigned integer represented
 // by the next token, checking for overflow.  Any error is stored in s.err.
-func (s *ss) scanUint(verb int, bitSize uint) uint64 {
+func (s *ss) scanUint(verb int, bitSize int) uint64 {
 	if verb == 'c' {
 		return uint64(s.scanRune(bitSize))
 	}
 	base, digits := s.getBase(verb)
-	s.skipSpace()
+	s.skipSpace(false)
 	tok := s.scanNumber(digits)
 	i, err := strconv.Btoui64(tok, base)
 	if err != nil {
 		s.error(err)
 	}
-	x := (i << (64 - bitSize)) >> (64 - bitSize)
+	n := uint(bitSize)
+	x := (i << (64 - n)) >> (64 - n)
 	if x != i {
 		s.errorString("unsigned integer overflow on token " + tok)
 	}
@@ -559,27 +572,9 @@ func (s *ss) complexTokens() (real, imag string) {
 	return real, imagSign + imag
 }
 
-// convertFloat converts the string to a float value.
-func (s *ss) convertFloat(str string) float64 {
-	f, err := strconv.Atof(str)
-	if err != nil {
-		s.error(err)
-	}
-	return float64(f)
-}
-
-// convertFloat32 converts the string to a float32 value.
-func (s *ss) convertFloat32(str string) float64 {
-	f, err := strconv.Atof32(str)
-	if err != nil {
-		s.error(err)
-	}
-	return float64(f)
-}
-
-// convertFloat64 converts the string to a float64 value.
-func (s *ss) convertFloat64(str string) float64 {
-	f, err := strconv.Atof64(str)
+// convertFloat converts the string to a float64value.
+func (s *ss) convertFloat(str string, n int) float64 {
+	f, err := strconv.AtofN(str, n)
 	if err != nil {
 		s.error(err)
 	}
@@ -590,31 +585,37 @@ func (s *ss) convertFloat64(str string) float64 {
 // The atof argument is a type-specific reader for the underlying type.
 // If we're reading complex64, atof will parse float32s and convert them
 // to float64's to avoid reproducing this code for each complex type.
-func (s *ss) scanComplex(verb int, atof func(*ss, string) float64) complex128 {
+func (s *ss) scanComplex(verb int, n int) complex128 {
 	if !s.okVerb(verb, floatVerbs, "complex") {
 		return 0
 	}
-	s.skipSpace()
+	s.skipSpace(false)
 	sreal, simag := s.complexTokens()
-	real := atof(s, sreal)
-	imag := atof(s, simag)
+	real := s.convertFloat(sreal, n/2)
+	imag := s.convertFloat(simag, n/2)
 	return cmplx(real, imag)
 }
 
 // convertString returns the string represented by the next input characters.
 // The format of the input is determined by the verb.
-func (s *ss) convertString(verb int) string {
+func (s *ss) convertString(verb int) (str string) {
 	if !s.okVerb(verb, "svqx", "string") {
 		return ""
 	}
-	s.skipSpace()
+	s.skipSpace(false)
 	switch verb {
 	case 'q':
-		return s.quotedString()
+		str = s.quotedString()
 	case 'x':
-		return s.hexString()
+		str = s.hexString()
+	default:
+		str = s.token() // %s and %v just return the next word
 	}
-	return s.token() // %s and %v just return the next word
+	// Empty strings other than with %q are not OK.
+	if len(str) == 0 && verb != 'q' && s.maxWid > 0 {
+		s.errorString("Scan: no data for string")
+	}
+	return
 }
 
 // quotedString returns the double- or back-quoted string represented by the next input characters.
@@ -725,11 +726,11 @@ func (s *ss) scanOne(verb int, field interface{}) {
 	case *bool:
 		*v = s.scanBool(verb)
 	case *complex:
-		*v = complex(s.scanComplex(verb, (*ss).convertFloat))
+		*v = complex(s.scanComplex(verb, int(complexBits)))
 	case *complex64:
-		*v = complex64(s.scanComplex(verb, (*ss).convertFloat32))
+		*v = complex64(s.scanComplex(verb, 64))
 	case *complex128:
-		*v = s.scanComplex(verb, (*ss).convertFloat64)
+		*v = s.scanComplex(verb, 128)
 	case *int:
 		*v = int(s.scanInt(verb, intBits))
 	case *int8:
@@ -756,18 +757,18 @@ func (s *ss) scanOne(verb int, field interface{}) {
 	// scan in high precision and convert, in order to preserve the correct error condition.
 	case *float:
 		if s.okVerb(verb, floatVerbs, "float") {
-			s.skipSpace()
-			*v = float(s.convertFloat(s.floatToken()))
+			s.skipSpace(false)
+			*v = float(s.convertFloat(s.floatToken(), int(floatBits)))
 		}
 	case *float32:
 		if s.okVerb(verb, floatVerbs, "float32") {
-			s.skipSpace()
-			*v = float32(s.convertFloat32(s.floatToken()))
+			s.skipSpace(false)
+			*v = float32(s.convertFloat(s.floatToken(), 32))
 		}
 	case *float64:
 		if s.okVerb(verb, floatVerbs, "float64") {
-			s.skipSpace()
-			*v = s.convertFloat64(s.floatToken())
+			s.skipSpace(false)
+			*v = s.convertFloat(s.floatToken(), 64)
 		}
 	case *string:
 		*v = s.convertString(verb)
@@ -786,55 +787,27 @@ func (s *ss) scanOne(verb int, field interface{}) {
 		case *reflect.BoolValue:
 			v.Set(s.scanBool(verb))
 		case *reflect.IntValue:
-			v.Set(int(s.scanInt(verb, intBits)))
-		case *reflect.Int8Value:
-			v.Set(int8(s.scanInt(verb, 8)))
-		case *reflect.Int16Value:
-			v.Set(int16(s.scanInt(verb, 16)))
-		case *reflect.Int32Value:
-			v.Set(int32(s.scanInt(verb, 32)))
-		case *reflect.Int64Value:
-			v.Set(s.scanInt(verb, 64))
+			v.Set(s.scanInt(verb, v.Type().Bits()))
 		case *reflect.UintValue:
-			v.Set(uint(s.scanUint(verb, intBits)))
-		case *reflect.Uint8Value:
-			v.Set(uint8(s.scanUint(verb, 8)))
-		case *reflect.Uint16Value:
-			v.Set(uint16(s.scanUint(verb, 16)))
-		case *reflect.Uint32Value:
-			v.Set(uint32(s.scanUint(verb, 32)))
-		case *reflect.Uint64Value:
-			v.Set(s.scanUint(verb, 64))
-		case *reflect.UintptrValue:
-			v.Set(uintptr(s.scanUint(verb, uintptrBits)))
+			v.Set(s.scanUint(verb, v.Type().Bits()))
 		case *reflect.StringValue:
 			v.Set(s.convertString(verb))
 		case *reflect.SliceValue:
 			// For now, can only handle (renamed) []byte.
 			typ := v.Type().(*reflect.SliceType)
-			if _, ok := typ.Elem().(*reflect.Uint8Type); !ok {
+			if typ.Elem().Kind() != reflect.Uint8 {
 				goto CantHandle
 			}
 			str := s.convertString(verb)
 			v.Set(reflect.MakeSlice(typ, len(str), len(str)))
 			for i := 0; i < len(str); i++ {
-				v.Elem(i).(*reflect.Uint8Value).Set(str[i])
+				v.Elem(i).(*reflect.UintValue).Set(uint64(str[i]))
 			}
 		case *reflect.FloatValue:
-			s.skipSpace()
-			v.Set(float(s.convertFloat(s.floatToken())))
-		case *reflect.Float32Value:
-			s.skipSpace()
-			v.Set(float32(s.convertFloat(s.floatToken())))
-		case *reflect.Float64Value:
-			s.skipSpace()
-			v.Set(s.convertFloat(s.floatToken()))
+			s.skipSpace(false)
+			v.Set(s.convertFloat(s.floatToken(), v.Type().Bits()))
 		case *reflect.ComplexValue:
-			v.Set(complex(s.scanComplex(verb, (*ss).convertFloat)))
-		case *reflect.Complex64Value:
-			v.Set(complex64(s.scanComplex(verb, (*ss).convertFloat32)))
-		case *reflect.Complex128Value:
-			v.Set(s.scanComplex(verb, (*ss).convertFloat64))
+			v.Set(s.scanComplex(verb, v.Type().Bits()))
 		default:
 		CantHandle:
 			s.errorString("Scan: can't handle type: " + val.Type().String())
@@ -885,6 +858,7 @@ func (s *ss) doScan(a []interface{}) (numProcessed int, err os.Error) {
 // either input or format behave as a single space. This routine also
 // handles the %% case.  If the return value is zero, either format
 // starts with a % (with no following %) or the input is empty.
+// If it is negative, the input did not match the string.
 func (s *ss) advance(format string) (i int) {
 	for i < len(format) {
 		fmtc, w := utf8.DecodeRuneInString(format[i:])
@@ -913,13 +887,13 @@ func (s *ss) advance(format string) (i int) {
 				// Space in format but not in input: error
 				s.errorString("expected space in input to match format")
 			}
-			s.skipSpace()
+			s.skipSpace(true)
 			continue
 		}
 		inputc := s.mustGetRune()
 		if fmtc != inputc {
 			s.UngetRune(inputc)
-			return
+			return -1
 		}
 		i += w
 	}
@@ -940,10 +914,11 @@ func (s *ss) doScanf(format string, a []interface{}) (numProcessed int, err os.E
 		}
 		// Either we failed to advance, we have a percent character, or we ran out of input.
 		if format[i] != '%' {
-			// Can't advance format.  Do we have arguments still to process?
-			if i < len(a) {
-				s.errorString("too many arguments for format")
+			// Can't advance format.  Why not?
+			if w < 0 {
+				s.errorString("input does not match format")
 			}
+			// Otherwise at EOF; "too many operands" error handled below
 			break
 		}
 		i++ // % is one byte
