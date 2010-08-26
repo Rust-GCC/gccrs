@@ -94,6 +94,7 @@ struct	M
 	int32	gcing;
 	int32	locks;
 	int32	nomemprof;
+	int32	gcing_for_prof;
 	MCache	*mcache;
 
 	/* For the list of all threads.  */

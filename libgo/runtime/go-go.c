@@ -323,7 +323,7 @@ gc_stop_handler (int sig __attribute__ ((unused)))
       /* Similarly, we can't interrupt the thread while it is building
 	 profiling information.  Otherwise we can get into a deadlock
 	 when sweepspan calls MProf_Free.  */
-      __sync_bool_compare_and_swap (&pm->gcing, 0, 1);
+      __sync_bool_compare_and_swap (&pm->gcing_for_prof, 0, 1);
       return;
     }
 

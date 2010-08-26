@@ -208,7 +208,7 @@ MProf_Malloc(void *p, uintptr size)
 	unlock(&proflock);
 	__sync_bool_compare_and_swap(&m->nomemprof, 1, 0);
 
-	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
+	if(__sync_bool_compare_and_swap(&m->gcing_for_prof, 1, 0))
 		__go_run_goroutine_gc(100);
 }
 
@@ -230,7 +230,7 @@ MProf_Free(void *p, uintptr size)
 	unlock(&proflock);
 	__sync_bool_compare_and_swap(&m->nomemprof, 1, 0);
 
-	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
+	if(__sync_bool_compare_and_swap(&m->gcing_for_prof, 1, 0))
 		__go_run_goroutine_gc(101);
 }
 
@@ -285,7 +285,7 @@ func MemProfile(p Slice, include_inuse_zero bool) (n int32, ok bool) {
 
 	__sync_bool_compare_and_swap(&m->nomemprof, 1, 0);
 
-	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
+	if(__sync_bool_compare_and_swap(&m->gcing_for_prof, 1, 0))
 		__go_run_goroutine_gc(102);
 }
 
