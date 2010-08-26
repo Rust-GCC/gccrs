@@ -99,8 +99,16 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 
 	__sync_bool_compare_and_swap(&m->mallocing, 1, 0);
 
-	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0))
-		__go_run_goroutine_gc(0);
+	if(__sync_bool_compare_and_swap(&m->gcing, 1, 0)) {
+		if(!(refflag & RefNoProfiling))
+			__go_run_goroutine_gc(0);
+		else {
+			// We are being called from the profiler.  Tell it
+			// to invoke the garbage collector when it is
+			// done.  No need to use a sync function here.
+			m->gcing_for_prof = 1;
+		}
+	}
 
 	if(!(refflag & RefNoProfiling) && (rate = MemProfileRate) > 0) {
 		if(size >= (uint32) rate)
