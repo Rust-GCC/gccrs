@@ -22,11 +22,15 @@ lappend ld_options "ldflags=-lgotesting"
 if [istarget "*-*-rtems*"] {
     global options
 
+    verbose -log "Executing on host: tar cf FilesystemImage -h -C \
+                         $tool_root_dir/$tool/${GOTEST_TMPDIR} ." 
     if [catch "exec tar cf FilesystemImage -h -C \
 			 $tool_root_dir/$tool/${GOTEST_TMPDIR} ." error] {
 	perror "Error during tar of local filesystem: $error"
 	exit 1
     }
+
+    verbose -log "Executing on host: ${RTEMS_BIN2C} FilesystemImage FilesystemImage"
     if [catch "exec ${RTEMS_BIN2C} FilesystemImage FilesystemImage" error] {
 	perror "Error when creating FilesystemImage source file: $error"
 	exit 1
@@ -50,5 +54,5 @@ if ![ string match "" $comp_output ] {
     verbose -log $comp_output
     exit 1
 }
-verbose -log $comp_output
+
 libgo_load "./a.exe" "" ""

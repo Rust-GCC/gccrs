@@ -14,6 +14,13 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
+set gccdir [lookfor_file $tool_root_dir gcc/libgcc.a]
+if {$gccdir != ""} {
+    set gccdir [file dirname $gccdir]
+}
+set GO_UNDER_TEST "$gccdir/gccgo -B$gccdir/"
+set TESTING_IN_BUILD_TREE 1
+
 proc go_maybe_build_wrapper { args } {
     libgo_maybe_build_wrapper $args
 }
@@ -33,8 +40,6 @@ load_gcc_lib target-libpath.exp
 load_gcc_lib wrapper.exp
 load_gcc_lib gcc-defs.exp
 load_gcc_lib go.exp
-
-set TESTING_IN_BUILD_TREE 1
 
 proc libgo_init { args } {
     go_init $args
