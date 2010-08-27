@@ -1891,6 +1891,15 @@ Function_type::do_hash_for_method(Gogo* gogo) const
 tree
 Function_type::do_get_tree(Gogo* gogo)
 {
+  // A function type can refer to itself indirectly, as in
+  //   type F func() F
+  // A Go function type is represented as a pointer to a GENERIC
+  // function.  Create a pointer node now and fill it in later.
+  tree ret = make_node(POINTER_TYPE);
+  SET_TYPE_MODE(ret, ptr_mode);
+  layout_type(ret);
+  this->set_incomplete_type_tree(ret);
+
   tree args = NULL_TREE;
   tree* pp = &args;
 
@@ -1963,12 +1972,23 @@ Function_type::do_get_tree(Gogo* gogo)
   if (result == error_mark_node)
     return error_mark_node;
 
-  tree ret = build_function_type(result, args);
-  if (ret == error_mark_node)
-    return ret;
+  // A function type whose return type is the function type itself can
+  // not be handled in GENERIC.  Such a type can not be written in C,
+  // but in Go it looks like "type F func() F".  We turn this special
+  // case into a function which returns a generic pointer.
+  if (result == ret)
+    result = ptr_type_node;
 
-  // The type "func ()" is represented as a pointer to a function.
-  return build_pointer_type(ret);
+  tree fntype = build_function_type(result, args);
+  if (fntype == error_mark_node)
+    return fntype;
+
+  TREE_TYPE(ret) = fntype;
+  TYPE_POINTER_TO(fntype) = ret;
+  if (TYPE_STRUCTURAL_EQUALITY_P(fntype))
+    SET_TYPE_STRUCTURAL_EQUALITY(ret);
+
+  return ret;
 }
 
 // Functions are initialized to NULL.
@@ -5460,13 +5480,16 @@ Named_type::do_get_tree(Gogo* gogo)
     {
       tree id = this->named_object_->get_id(gogo);
 
-      // If we are looking at a struct or an interface, we don't need
-      // to make a copy to hold the type.  Doing this makes it easier
-      // for the middle-end to notice when the types refer to
-      // themselves.
+      // If we are looking at a struct, interface, function, channel
+      // or map, we don't need to make a copy to hold the type.  Doing
+      // this makes it easier for the middle-end to notice when the
+      // types refer to themselves.
       if (TYPE_NAME(type_tree) == NULL
 	  && (this->type_->struct_type() != NULL
-	      || this->type_->interface_type() != NULL))
+	      || this->type_->interface_type() != NULL
+	      || this->type_->function_type() != NULL
+	      || this->type_->channel_type() != NULL
+	      || this->type_->map_type() != NULL))
 	;
       else
 	{
