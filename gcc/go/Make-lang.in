@@ -158,7 +158,7 @@ go/go-lang.o: go/go-lang.c $(GO_SYSTEM_H) coretypes.h opts.h $(TREE_H) \
 	$(GO_C_H) gt-go-go-lang.h gtype-go.h
 go/gogo-tree.o: go/gogo-tree.cc $(GO_SYSTEM_H) $(TREE_H) $(GIMPLE_H) \
 	tree-iterator.h $(CGRAPH_H) langhooks.h convert.h output.h \
-	$(TM_P_H) $(DIAGNOSTIC_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) \
+	$(TM_P_H) $(DIAGNOSTIC_H) $(RTL_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) \
 	$(GO_STATEMENTS_H) $(GO_GOGO_H)
 go/gogo.o: go/gogo.cc $(GO_SYSTEM_H) go/go-dump.h $(GO_LEX_H) $(GO_TYPES_H) \
 	$(GO_STATEMENTS_H) $(GO_EXPRESSIONS_H) go/dataflow.h $(GO_IMPORT_H) \

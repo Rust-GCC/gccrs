@@ -22,6 +22,7 @@ extern "C"
 #include "output.h"
 #include "tm_p.h"
 #include "diagnostic.h"
+#include "rtl.h"
 }
 
 #include "go-c.h"
@@ -810,6 +811,11 @@ Gogo::write_globals()
     {
       // Importing the "unsafe" package automatically disables TBAA.
       flag_strict_aliasing = false;
+
+      // This is a real hack.  init_varasm_once has already grabbed an
+      // alias set, which we don't want when we aren't going strict
+      // aliasing.  We reinitialize to make it do it again.  FIXME.
+      init_varasm_once();
     }
 
   wrapup_global_declarations(vec, count);
