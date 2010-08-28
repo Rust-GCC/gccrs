@@ -212,8 +212,6 @@ regs=`grep '^#GO type _user_regs_struct struct' sysinfo.s | sed -e 's/#GO //'`
 if test "$regs" != ""; then
   regs=`echo $regs | sed -e 's/type _user_regs_struct struct //'`
   regs=`echo $regs | sed -e 's/\([^a-zA-Z0-9_]*\)\([a-zA-Z0-9_]\)\([a-zA-Z0-9_]* [^;]*;\)/\1\U\2\E\3/g'`
-  # FIXME: x86 specific.
-  regs=`echo $regs | sed -e 's/X\([a-z]\)\([a-z]\) int32/ \U\1\E\2 uint16; X\1\2 uint16/g'`
   echo "type PtraceRegs struct $regs" >> ${OUT}
 fi
 
