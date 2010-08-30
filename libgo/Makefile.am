@@ -1368,8 +1368,8 @@ html/check: $(CHECK_DEPS)
 http/libhttp.a: $(go_http_files) bufio.gox bytes.gox container/list.gox \
 		container/vector.gox crypto/rand.gox crypto/tls.gox \
 		encoding/base64.gox fmt.gox io.gox io/ioutil.gox log.gox \
-		mime.gox net.gox os.gox path.gox sort.gox strconv.gox \
-		strings.gox sync.gox time.gox utf8.gox
+		mime.gox mime/multipart.gox net.gox os.gox path.gox sort.gox \
+		strconv.gox strings.gox sync.gox time.gox utf8.gox
 	$(BUILDARCHIVE)
 http/libhttp.la: http/libhttp.a
 http/check: $(CHECK_DEPS)
