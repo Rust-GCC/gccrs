@@ -605,7 +605,7 @@ Type::are_convertible(const Type* lhs, const Type* rhs, std::string* reason)
     {
       if (rhs->integer_type() != NULL)
 	return true;
-      if (rhs->is_open_array_type())
+      if (rhs->is_open_array_type() && rhs->named_type() == NULL)
 	{
 	  const Type* e = rhs->array_type()->element_type()->forwarded();
 	  if (e->integer_type() != NULL
@@ -616,7 +616,9 @@ Type::are_convertible(const Type* lhs, const Type* rhs, std::string* reason)
     }
 
   // A string may be converted to []byte or []int.
-  if (rhs->is_string_type() && lhs->is_open_array_type())
+  if (rhs->is_string_type()
+      && lhs->is_open_array_type()
+      && lhs->named_type() == NULL)
     {
       const Type* e = lhs->array_type()->element_type()->forwarded();
       if (e->integer_type() != NULL

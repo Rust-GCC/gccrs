@@ -2959,7 +2959,7 @@ Type_conversion_expression::do_lower(Gogo*, Named_object*, int)
       mpfr_clear(imag);
     }
 
-  if (type->is_open_array_type())
+  if (type->is_open_array_type() && type->named_type() == NULL)
     {
       Type* element_type = type->array_type()->element_type()->forwarded();
       bool is_byte = element_type == Type::lookup_integer_type("uint8");
