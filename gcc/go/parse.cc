@@ -1387,7 +1387,7 @@ Parse::type_spec(void*)
 	      && (ftype->forward_declaration_type()->named_object()
 		  == named_type))
 	    {
-	      error_at(location, "recursive type definition");
+	      error_at(location, "invalid recursive type");
 	      type = Type::make_error_type();
 	    }
 
