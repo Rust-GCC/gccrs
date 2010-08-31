@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 
+#include "go-panic.h"
 #include "channel.h"
 
 void
@@ -13,6 +14,9 @@ __go_send_big (struct __go_channel* channel, const void *val, _Bool for_select)
 {
   size_t alloc_size;
   size_t offset;
+
+  if (channel == NULL)
+    __go_panic_msg ("send to nil channel");
 
   alloc_size = ((channel->element_size + sizeof (uint64_t) - 1)
 		/ sizeof (uint64_t));
