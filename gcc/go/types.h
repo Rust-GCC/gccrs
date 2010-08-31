@@ -1944,6 +1944,9 @@ class Array_type : public Type
   do_traverse(Traverse* traverse);
 
   bool
+  do_verify();
+
+  bool
   do_has_pointer() const
   {
     return this->length_ == NULL || this->element_type_->has_pointer();
@@ -1978,6 +1981,9 @@ class Array_type : public Type
   do_export(Export*) const;
 
  private:
+  bool
+  verify_length();
+
   tree
   get_length_tree(Gogo*);
 

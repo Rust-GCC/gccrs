@@ -3363,6 +3363,98 @@ Array_type::do_traverse(Traverse* traverse)
   return TRAVERSE_CONTINUE;
 }
 
+// Check that the length is valid.
+
+bool
+Array_type::verify_length()
+{
+  if (this->length_ == NULL)
+    return true;
+  if (!this->length_->is_constant())
+    {
+      error_at(this->length_->location(), "array bound is not constant");
+      return false;
+    }
+
+  mpz_t val;
+
+  Type* t = this->length_->type();
+  if (t->integer_type() != NULL)
+    {
+      Type* vt;
+      mpz_init(val);
+      if (!this->length_->integer_constant_value(true, val, &vt))
+	{
+	  error_at(this->length_->location(),
+		   "array bound is not constant");
+	  mpz_clear(val);
+	  return false;
+	}
+    }
+  else if (t->float_type() != NULL)
+    {
+      Type* vt;
+      mpfr_t fval;
+      mpfr_init(fval);
+      if (!this->length_->float_constant_value(fval, &vt))
+	{
+	  error_at(this->length_->location(),
+		   "array bound is not constant");
+	  mpfr_clear(fval);
+	  return false;
+	}
+      if (!mpfr_integer_p(fval))
+	{
+	  error_at(this->length_->location(),
+		   "array bound truncated to integer");
+	  mpfr_clear(fval);
+	  return false;
+	}
+      mpz_init(val);
+      mpfr_get_z(val, fval, GMP_RNDN);
+      mpfr_clear(fval);
+    }
+  else
+    {
+      error_at(this->length_->location(), "array bound is not numeric");
+      return false;
+    }
+
+  if (mpz_sgn(val) < 0)
+    {
+      error_at(this->length_->location(), "negative array bound");
+      mpz_clear(val);
+      return false;
+    }
+
+  Type* int_type = Type::lookup_integer_type("int");
+  int tbits = int_type->integer_type()->bits();
+  int vbits = mpz_sizeinbase(val, 2);
+  if (vbits + 1 > tbits)
+    {
+      error_at(this->length_->location(), "array bound overflows");
+      mpz_clear(val);
+      return false;
+    }
+
+  mpz_clear(val);
+
+  return true;
+}
+
+// Verify the type.
+
+bool
+Array_type::do_verify()
+{
+  if (!this->verify_length())
+    {
+      this->length_ = Expression::make_error(this->length_->location());
+      return false;
+    }
+  return true;
+}
+
 // Array type hash code.
 
 unsigned int
