@@ -10,7 +10,7 @@ func fn(a []int) int {
 
 func main() {
   var a [2]int;
-  if fn(&a) != 2 {
+  if fn(a[0:]) != 2 {
     panic(0);
   }
   if a[0] != 0 || a[1] != 1 {

@@ -13,13 +13,14 @@ var d1 chan<- int = c
 var d2 = (chan<- int)(c)
 
 var e *[4]int
-var f1 []int = e
-var f2 = []int(e)
+var f1 []int = e[0:]
+var f2 = []int(e[0:])
 
 var g = []int(nil)
 
-type H *[4]int
+type H []int
 type J []int
+
 var h H
-var j1 J = h	// ERROR "compat|illegal|cannot|cannot"
+var j1 J = h // ERROR "compat|illegal|cannot"
 var j2 = J(h)
