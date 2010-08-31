@@ -7736,9 +7736,11 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
 
       // We have reached the varargs parameter.
 
+      bool issued_error = false;
       if (pa != old_args->end()
 	  && pa + 1 == old_args->end()
-	  && this->is_compatible_varargs_argument(function, *pa, varargs_type))
+	  && this->is_compatible_varargs_argument(function, *pa, varargs_type,
+						  &issued_error))
 	new_args->push_back(*pa);
       else if (pa == old_args->end())
 	push_empty_arg = true;
@@ -7766,15 +7768,16 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
 	      if (element_type != NULL)
 		{
 		  if (!this->check_argument_type(i, element_type, patype,
-						 paloc))
+						 paloc, issued_error))
 		    continue;
 		}
 	      else
 		{
 		  if (patype->is_nil_type())
 		    {
-		      error_at((*pa)->location(),
-			       "invalid use of %<nil%> for %<...%> argument");
+		      if (!issued_error)
+			error_at((*pa)->location(),
+				 "invalid use of %<nil%> for %<...%> argument");
 		      continue;
 		    }
 		  if (patype->is_abstract())
@@ -7835,8 +7838,11 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
 bool
 Call_expression::is_compatible_varargs_argument(Named_object* function,
 						Expression* arg,
-						Type* param_type)
+						Type* param_type,
+						bool* issued_error)
 {
+  *issued_error = false;
+
   Type* var_type = NULL;
 
   // The simple case is passing the varargs parameter of the caller.
@@ -7894,6 +7900,7 @@ Call_expression::is_compatible_varargs_argument(Named_object* function,
       if (param_type->interface_type() != NULL)
 	return true;
       error_at(arg->location(), "... mismatch: passing ... as ...T");
+      *issued_error = true;
       return false;
     }
   else
@@ -7908,6 +7915,7 @@ Call_expression::is_compatible_varargs_argument(Named_object* function,
 				 param_at->element_type(), NULL))
 	return true;
       error_at(arg->location(), "... mismatch: passing ...T as ...");
+      *issued_error = true;
       return false;
     }
 }
@@ -8027,16 +8035,21 @@ Call_expression::do_determine_type(const Type_context*)
 bool
 Call_expression::check_argument_type(int i, const Type* parameter_type,
 				     const Type* argument_type,
-				     source_location argument_location)
+				     source_location argument_location,
+				     bool issued_error)
 {
   std::string reason;
   if (!Type::are_assignable(parameter_type, argument_type, &reason))
     {
-      if (reason.empty())
-	error_at(argument_location, "argument %d has incompatible type", i);
-      else
-	error_at(argument_location, "argument %d has incompatible type (%s)",
-		 i, reason.c_str());
+      if (!issued_error)
+	{
+	  if (reason.empty())
+	    error_at(argument_location, "argument %d has incompatible type", i);
+	  else
+	    error_at(argument_location,
+		     "argument %d has incompatible type (%s)",
+		     i, reason.c_str());
+	}
       this->set_is_error();
       return false;
     }
@@ -8113,7 +8126,7 @@ Call_expression::do_check_types(Gogo*)
 	      return;
 	    }
 	  this->check_argument_type(i + 1, pt->type(), (*pa)->type(),
-				    (*pa)->location());
+				    (*pa)->location(), false);
 	}
       if (pt != parameters->end())
 	this->report_error(_("not enough arguments"));

@@ -1231,10 +1231,10 @@ class Call_expression : public Expression
   lower_varargs(Gogo*, Named_object*);
 
   bool
-  is_compatible_varargs_argument(Named_object*, Expression*, Type*);
+  is_compatible_varargs_argument(Named_object*, Expression*, Type*, bool*);
 
   bool
-  check_argument_type(int, const Type*, const Type*, source_location);
+  check_argument_type(int, const Type*, const Type*, source_location, bool);
 
   tree
   bound_method_function(Translate_context*, Bound_method_expression*, tree*);
