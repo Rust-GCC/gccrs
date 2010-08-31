@@ -495,40 +495,27 @@ class Type
   verify()
   { return this->do_verify(); }
 
+  // Return true if two types are identical.  If this returns false,
+  // and REASON is not NULL, it may set *REASON.
+  static bool
+  are_identical(const Type* lhs, const Type* rhs, std::string* reason);
+
   // Return true if two types are compatible for use in a binary
   // operation.  This is an equivalence relation.
   static bool
   are_compatible_for_binop(const Type* t1, const Type* t2);
 
-  // Return true if a value with type RHS may be assigned to a value
-  // with type LHS.  This also controls whether a value with type RHS
-  // may be passed to a function which expects type LHS, and whether a
-  // value with type RHS may be returned from a function which returns
-  // type LHS.  This is not an equivalence relation.  If this returns
-  // false, and REASON is not NULL, it sets *REASON to an optional
-  // reason.
+  // Return true if a value with type RHS is assignable to a variable
+  // with type LHS.  This is not an equivalence relation.  If this
+  // returns false, and REASON is not NULL, it sets *REASON.
   static bool
-  are_compatible_for_assign(const Type* lhs, const Type* rhs,
-			    std::string* reason)
-  { return Type::are_assignment_compatible(lhs, rhs, false, reason); }
+  are_assignable(const Type* lhs, const Type* rhs, std::string* reason);
 
-  // Return true if a value with type RHS may be converted to a
-  // valuewith type LHS.  If this returns false, and REASON is not
-  // NULL, it sets *REASON to an optional reason.
+  // Return true if a value with type RHS may be converted to type
+  // LHS.  If this returns false, and REASON is not NULL, it sets
+  // *REASON.
   static bool
-  are_compatible_for_conversion(const Type* lhs, const Type* rhs,
-				std::string* reason)
-  { return Type::are_assignment_compatible(lhs, rhs, true, reason); }
-
-  // Return true if two types are compatible.
-  static bool
-  are_compatible(const Type* lhs, const Type* rhs)
-  { return Type::are_compatible_for(lhs, rhs, COMPATIBLE_COMPATIBLE, NULL); }
-
-  // Return true if two types are identical.
-  static bool
-  are_identical(const Type* lhs, const Type* rhs)
-  { return Type::are_compatible_for(lhs, rhs, COMPATIBLE_IDENTICAL, NULL); }
+  are_convertible(const Type* lhs, const Type* rhs, std::string* reason);
 
   // Whether this type has any hidden fields which are not visible in
   // the current compilation, such as a field whose name begins with a
@@ -538,8 +525,8 @@ class Type
   has_hidden_fields(const Named_type* within, std::string* reason) const;
 
   // Return a hash code for this type for the method hash table.
-  // Types which are equivalent according to are_compatible_for_method
-  // will have the same hash code.
+  // Types which are equivalent according to are_identical will have
+  // the same hash code.
   unsigned int
   hash_for_method(Gogo*) const;
 
@@ -635,10 +622,20 @@ class Type
   is_boolean_type() const
   { return this->base()->classification_ == TYPE_BOOLEAN; }
 
+  // Return true if this is an abstract boolean type.
+  bool
+  is_abstract_boolean_type() const
+  { return this->classification_ == TYPE_BOOLEAN; }
+
   // Return true if this is a string type.
   bool
   is_string_type() const
   { return this->base()->classification_ == TYPE_STRING; }
+
+  // Return true if this is an abstract string type.
+  bool
+  is_abstract_string_type() const
+  { return this->classification_ == TYPE_STRING; }
 
   // Return true if this is the sink type.  This is the type of the
   // blank identifier _.
@@ -818,8 +815,8 @@ class Type
   reflection(Gogo*) const;
 
   // Return a mangled name for the type.  This is a name which can be
-  // used in assembler code.  Types which compare as equal according
-  // to COMPATIBLE_SAME should have the same manged name.
+  // used in assembler code.  Identical types should have the same
+  // manged name.
   std::string
   mangled_name(Gogo*) const;
 
@@ -834,27 +831,6 @@ class Type
 
  protected:
   Type(Type_classification);
-
-  // Different sorts of type compatibility.
-  enum Type_compatible
-  {
-    // Identical types.
-    COMPATIBLE_IDENTICAL,
-    // Compatible types.
-    COMPATIBLE_COMPATIBLE,
-    // Compatible for conversion.
-    COMPATIBLE_FOR_CONVERSION
-  };
-
-  // Return whether types are compatible.
-  static bool
-  are_compatible_for(const Type*, const Type*, Type_compatible,
-		     std::string* reason);
-
-  // Return whether types are assignment compatible.
-  static bool
-  are_assignment_compatible(const Type*, const Type*, bool is_conversion,
-			    std::string* reason);
 
   // Functions implemented by the child class.
 
@@ -1058,7 +1034,7 @@ class Type_identical
  public:
   bool
   operator()(const Type* t1, const Type* t2) const
-  { return Type::are_identical(t1, t2); }
+  { return Type::are_identical(t1, t2, NULL); }
 };
 
 // An identifier with a type.
@@ -1246,7 +1222,7 @@ class Integer_type : public Type
 
   // Whether this type is the same as T.
   bool
-  is_compatible(const Integer_type* t) const;
+  is_identical(const Integer_type* t) const;
 
  protected:
   unsigned int
@@ -1318,7 +1294,7 @@ class Float_type : public Type
 
   // Whether this type is the same as T.
   bool
-  is_compatible(const Float_type* t) const;
+  is_identical(const Float_type* t) const;
 
   // Return a tree for this type without using a Gogo*.
   tree
@@ -1390,7 +1366,7 @@ class Complex_type : public Type
 
   // Whether this type is the same as T.
   bool
-  is_compatible(const Complex_type* t) const;
+  is_identical(const Complex_type* t) const;
 
   // Return a tree for this type without using a Gogo*.
   tree
@@ -1530,8 +1506,8 @@ class Function_type : public Type
 
   // Whether this type is the same as T.
   bool
-  is_compatible(const Function_type* t, Type_compatible,
-		bool ignore_receiver, std::string*) const;
+  is_identical(const Function_type* t, bool ignore_receiver,
+	       std::string*) const;
 
   // Record that this is a varargs function.
   void
@@ -1826,9 +1802,9 @@ class Struct_type : public Type
   unsigned int
   total_field_count() const;
 
-  // Whether this type is compatible with T.
+  // Whether this type is identical with T.
   bool
-  is_compatible(const Struct_type* t, Type_compatible) const;
+  is_identical(const Struct_type* t) const;
 
   // Whether this struct type has any hidden fields.  This returns
   // true if any fields have hidden names, or if any non-pointer
@@ -1938,9 +1914,9 @@ class Array_type : public Type
   length() const
   { return this->length_; }
 
-  // Whether this type is compatible with T.
+  // Whether this type is identical with T.
   bool
-  is_compatible(const Array_type* t, Type_compatible) const;
+  is_identical(const Array_type* t) const;
 
   // Whether this type has any hidden fields.
   bool
@@ -2040,9 +2016,9 @@ class Map_type : public Type
   val_type() const
   { return this->val_type_; }
 
-  // Whether this type is compatible with T.
+  // Whether this type is identical with T.
   bool
-  is_compatible(const Map_type* t, Type_compatible) const;
+  is_identical(const Map_type* t) const;
 
   // Import a map type.
   static Map_type*
@@ -2123,9 +2099,9 @@ class Channel_type : public Type
   element_type() const
   { return this->element_type_; }
 
-  // Whether this type is compatible with T.
+  // Whether this type is identical with T.
   bool
-  is_compatible(const Channel_type* t, Type_compatible) const;
+  is_identical(const Channel_type* t) const;
 
   // Import a channel type.
   static Channel_type*
@@ -2222,12 +2198,12 @@ class Interface_type : public Type
   bool
   implements_interface(const Type* t, std::string* reason) const;
 
-  // Whether this type is compatible with T.  REASON is as in
+  // Whether this type is identical with T.  REASON is as in
   // implements_interface.
   bool
-  is_compatible(const Interface_type* t, Type_compatible) const;
+  is_identical(const Interface_type* t) const;
 
-  // Whether we can assign T to this type.  is_compatible is known to
+  // Whether we can assign T to this type.  is_identical is known to
   // be false.
   bool
   is_compatible_for_assign(const Interface_type*, std::string* reason) const;
@@ -2424,10 +2400,6 @@ class Named_type : public Type
   interface_method_table(Gogo*, const Interface_type* interface,
 			 bool is_pointer);
 
-  // Whether this type is compatible with T.
-  bool
-  is_compatible(const Type* t, Type_compatible, std::string* reason) const;
-
   // Whether this type has any hidden fields.
   bool
   named_type_has_hidden_fields(std::string* reason) const;
@@ -2518,10 +2490,10 @@ class Named_type : public Type
   bool is_visible_;
   // Whether this type is erroneous.
   bool is_error_;
-  // In a recursive operation such as is_compatible, this flag is used
-  // to prevent infinite recursion when a type refers to itself.  This
-  // is mutable because it is always reset to false when the function
-  // exits.
+  // In a recursive operation such as has_hidden_fields, this flag is
+  // used to prevent infinite recursion when a type refers to itself.
+  // This is mutable because it is always reset to false when the
+  // function exits.
   mutable bool seen_;
 };
 

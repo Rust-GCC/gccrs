@@ -62,7 +62,7 @@ func (file *File) Readdirnames(count int) (names []string, err Error) {
 		if result == nil {
 			break
 		}
-		var name = string(result.Name[0:clen(&result.Name)])
+		var name = string(result.Name[0:clen(result.Name[0:])])
 		if name == "." || name == ".." {	// Useless names
 			continue
 		}

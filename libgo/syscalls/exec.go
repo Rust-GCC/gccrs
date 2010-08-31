@@ -162,7 +162,7 @@ func forkExec(argv0 string, argv []string, envv []string, traceme bool, dir stri
 	ForkLock.Lock();
 
 	// Allocate child status pipe close on exec.
-	if err = Pipe(&p); err != 0 {
+	if err = Pipe(p[0:]); err != 0 {
 		goto error;
 	}
 	var val int;

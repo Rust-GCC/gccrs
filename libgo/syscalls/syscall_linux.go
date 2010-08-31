@@ -13,17 +13,6 @@ func libc_ptrace(request int, pid Pid_t, addr uintptr, data *byte) _C_long __asm
 var dummy *byte
 const sizeofPtr uintptr = uintptr(unsafe.Sizeof(dummy))
 
-// See bytes.Copy.
-func bytesCopy(dst, src []byte) int {
-	if len(src) > len(dst) {
-		src = src[0:len(dst)];
-	}
-	for i, x := range src {
-		dst[i] = x
-	}
-	return len(src)
-}
-
 func ptracePeek(req int, pid int, addr uintptr, out []byte) (count int, errno int) {
 	// The peek requests are machine-size oriented, so we wrap it
 	// to retrieve arbitrary-length data.
@@ -43,8 +32,8 @@ func ptracePeek(req int, pid int, addr uintptr, out []byte) (count int, errno in
 			return 0, errno;
 		}
 		*(*_C_long)(unsafe.Pointer(&buf[0])) = val;
-		n += bytesCopy(out, buf[addr%sizeofPtr:len(buf)]);
-		out = out[n:len(out)];
+		n += copy(out, buf[addr%sizeofPtr:]);
+		out = out[n:];
 	}
 
 	// Remainder.
@@ -57,9 +46,9 @@ func ptracePeek(req int, pid int, addr uintptr, out []byte) (count int, errno in
 			return n, errno;
 		}
 		*(*_C_long)(unsafe.Pointer(&buf[0])) = val;
-		copied := bytesCopy(out, &buf);
+		copied := copy(out, buf[0:]);
 		n += copied;
-		out = out[copied:len(out)];
+		out = out[copied:];
 	}
 
 	return n, 0;
@@ -84,7 +73,7 @@ func ptracePoke(pokeReq int, peekReq int, pid int, addr uintptr, data []byte) (c
 		if libc_ptrace(peekReq, Pid_t(pid), addr - addr%sizeofPtr, &buf[0]) < 0 {
 			return 0, GetErrno();
 		}
-		n += bytesCopy(buf[addr%sizeofPtr:len(buf)], data);
+		n += copy(buf[addr%sizeofPtr:], data);
 		word := (*byte)(unsafe.Pointer(*((*uintptr)(unsafe.Pointer(&buf[0])))));
 		if libc_ptrace(pokeReq, Pid_t(pid), addr - addr%sizeofPtr, word) < 0 {
 			return 0, GetErrno();
@@ -108,7 +97,7 @@ func ptracePoke(pokeReq int, peekReq int, pid int, addr uintptr, data []byte) (c
 		if libc_ptrace(peekReq, Pid_t(pid), addr+uintptr(n), &buf[0]) < 0 {
 			return n, GetErrno();
 		}
-		bytesCopy(&buf, data);
+		copy(buf[0:], data);
 		word := (*byte)(unsafe.Pointer(*((*uintptr)(unsafe.Pointer(&buf[0])))));
 		if libc_ptrace(pokeReq, Pid_t(pid), addr+uintptr(n), word) < 0 {
 			return n, GetErrno();

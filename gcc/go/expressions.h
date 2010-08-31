@@ -958,7 +958,7 @@ class String_expression : public Expression
  public:
   String_expression(const std::string& val, source_location location)
     : Expression(EXPRESSION_STRING, location),
-      val_(val)
+      val_(val), type_(NULL)
   { }
 
   const std::string&
@@ -984,8 +984,7 @@ class String_expression : public Expression
   do_type();
 
   void
-  do_determine_type(const Type_context*)
-  { }
+  do_determine_type(const Type_context*);
 
   Expression*
   do_copy()
@@ -1000,6 +999,8 @@ class String_expression : public Expression
  private:
   // The string value.  This is immutable.
   const std::string val_;
+  // The type as determined by context.
+  Type* type_;
 };
 
 // A binary expression.

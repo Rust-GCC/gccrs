@@ -1356,7 +1356,7 @@ class Boolean_expression : public Expression
  public:
   Boolean_expression(bool val, source_location location)
     : Expression(EXPRESSION_BOOLEAN, location),
-      val_(val)
+      val_(val), type_(NULL)
   { }
 
   static Expression*
@@ -1368,12 +1368,10 @@ class Boolean_expression : public Expression
   { return true; }
 
   Type*
-  do_type()
-  { return Type::make_boolean_type(); }
+  do_type();
 
   void
-  do_determine_type(const Type_context*)
-  { }
+  do_determine_type(const Type_context*);
 
   Expression*
   do_copy()
@@ -1388,8 +1386,34 @@ class Boolean_expression : public Expression
   { exp->write_c_string(this->val_ ? "true" : "false"); }
 
  private:
+  // The constant.
   bool val_;
+  // The type as determined by context.
+  Type* type_;
 };
+
+// Get the type.
+
+Type*
+Boolean_expression::do_type()
+{
+  if (this->type_ == NULL)
+    this->type_ = Type::make_boolean_type();
+  return this->type_;
+}
+
+// Set the type from the context.
+
+void
+Boolean_expression::do_determine_type(const Type_context* context)
+{
+  if (this->type_ != NULL && !this->type_->is_abstract())
+    ;
+  else if (context->type != NULL && context->type->is_boolean_type())
+    this->type_ = context->type;
+  else if (!context->may_be_abstract)
+    this->type_ = Type::lookup_bool_type();
+}
 
 // Import a boolean constant.
 
@@ -1418,12 +1442,27 @@ Expression::make_boolean(bool val, source_location location)
 
 // Class String_expression.
 
-// The type of a string expression.
+// Get the type.
 
 Type*
 String_expression::do_type()
 {
-  return Type::make_string_type();
+  if (this->type_ == NULL)
+    this->type_ = Type::make_string_type();
+  return this->type_;
+}
+
+// Set the type from the context.
+
+void
+String_expression::do_determine_type(const Type_context* context)
+{
+  if (this->type_ != NULL && !this->type_->is_abstract())
+    ;
+  else if (context->type != NULL && context->type->is_string_type())
+    this->type_ = context->type;
+  else if (!context->may_be_abstract)
+    this->type_ = Type::lookup_string_type();
 }
 
 // Build a string constant.
@@ -2502,20 +2541,32 @@ void
 Const_expression::do_determine_type(const Type_context* context)
 {
   Type* ctype = this->constant_->const_value()->type();
+  Type* cetype = (ctype != NULL
+		  ? ctype
+		  : this->constant_->const_value()->expr()->type());
   if (ctype != NULL && !ctype->is_abstract())
     ;
   else if (context->type != NULL
 	   && (context->type->integer_type() != NULL
 	       || context->type->float_type() != NULL
-	       || context->type->complex_type() != NULL))
+	       || context->type->complex_type() != NULL)
+	   && (cetype->integer_type() != NULL
+	       || cetype->float_type() != NULL
+	       || cetype->complex_type() != NULL))
+    this->type_ = context->type;
+  else if (context->type != NULL
+	   && context->type->is_string_type()
+	   && cetype->is_string_type())
+    this->type_ = context->type;
+  else if (context->type != NULL
+	   && context->type->is_boolean_type()
+	   && cetype->is_boolean_type())
     this->type_ = context->type;
   else if (!context->may_be_abstract)
     {
-      if (ctype == NULL)
-	ctype = this->constant_->const_value()->expr()->type();
-      if (ctype->is_abstract())
-	ctype = ctype->make_non_abstract_type();
-      this->type_ = ctype;
+      if (cetype->is_abstract())
+	cetype = cetype->make_non_abstract_type();
+      this->type_ = cetype;
     }
 }
 
@@ -3120,73 +3171,11 @@ Type_conversion_expression::do_check_types(Gogo*)
   Type* expr_type = this->expr_->type();
   std::string reason;
 
-  if (Type::are_compatible_for_conversion(type, expr_type, &reason))
+  if (Type::are_convertible(type, expr_type, &reason))
     return;
 
-  bool ok = false;
-  if ((type->integer_type() != NULL || type->float_type() != NULL)
-      && (expr_type->integer_type() != NULL
-	  || expr_type->float_type() != NULL))
-    ok = true;
-  else if (type->complex_type() != NULL
-	   && expr_type->complex_type() != NULL)
-    ok = true;
-  else if (type->is_string_type())
-    {
-      if (expr_type->integer_type() != NULL)
-	ok = true;
-      else
-	{
-	  Type* t = expr_type->deref();
-	  if (t->array_type() != NULL)
-	    {
-	      Type* e = t->array_type()->element_type()->forwarded();
-	      if (e->integer_type() != NULL
-		  && (e == Type::lookup_integer_type("uint8")
-		      || e == Type::lookup_integer_type("int")))
-		ok = true;
-	    }
-	}
-    }
-  else if (type->is_open_array_type() && expr_type->is_string_type())
-    {
-      Type* e = type->array_type()->element_type()->forwarded();
-      if (e->integer_type() != NULL
-	  && (e == Type::lookup_integer_type("uint8")
-	      || e == Type::lookup_integer_type("int")))
-	ok = true;
-    }
-  else if ((type->is_unsafe_pointer_type()
-	    && (expr_type->points_to() != NULL
-		|| (expr_type->integer_type() != NULL
-		    && (expr_type->integer_type()->bits()
-			== static_cast<int>(POINTER_SIZE))
-		    && expr_type->integer_type()->is_unsigned())))
-	   || (expr_type->is_unsafe_pointer_type()
-	       && (type->points_to() != NULL
-		   || (type->integer_type() != NULL
-		       && (type->integer_type()->bits()
-			   == static_cast<int>(POINTER_SIZE))
-		       && type->integer_type()->is_unsigned()))))
-    {
-      // Conversions between unsafe pointers and other pointers or
-      // integers of appropriate size are permitted.
-      ok = true;
-    }
-
-  // FIXME: Conversions between interfaces and pointers are supported.
-
-  if (!ok)
-    {
-      if (reason.empty())
-	this->report_error(_("invalid type conversion"));
-      else
-	{
-	  error_at(this->location(), "invalid type conversion (%s)",
-		   reason.c_str());
-	  this->set_is_error();
-	}
-    }
+  error_at(this->location(), reason.c_str());
+  this->set_is_error();
 }
 
 // Get a tree for a type conversion.
@@ -6081,7 +6070,7 @@ Bound_method_expression::do_check_types(Gogo*)
 		     ? this->expr_type_
 		     : this->expr_->type());
       etype = etype->deref();
-      if (!Type::are_identical(rtype, etype))
+      if (!Type::are_identical(rtype, etype, NULL))
 	this->report_error(_("method type does not match object type"));
     }
 }
@@ -6703,7 +6692,7 @@ Builtin_call_expression::do_complex_constant_value(mpfr_t real, mpfr_t imag,
       bool ret = false;
       Type* itype;
       if (args->back()->float_constant_value(i, &itype)
-	  && Type::are_identical(rtype, itype))
+	  && Type::are_identical(rtype, itype, NULL))
 	{
 	  mpfr_set(real, r, GMP_RNDN);
 	  mpfr_set(imag, i, GMP_RNDN);
@@ -6865,6 +6854,10 @@ Builtin_call_expression::do_determine_type(const Type_context* context)
 		    want_type = Type::lookup_float_type("float64");
 		  else if (atype->complex_type() != NULL)
 		    want_type = Type::lookup_complex_type("complex128");
+		  else if (atype->is_abstract_string_type())
+		    want_type = Type::lookup_string_type();
+		  else if (atype->is_abstract_boolean_type())
+		    want_type = Type::lookup_bool_type();
 		  else
 		    gcc_unreachable();
 		  subcontext.type = want_type;
@@ -7062,7 +7055,7 @@ Builtin_call_expression::do_check_types(Gogo*)
 	    break;
 	  }
 
-	if (!Type::are_identical(e1, e2))
+	if (!Type::are_identical(e1, e2, NULL))
 	  this->report_error(_("element types must be the same"));
       }
       break;
@@ -7089,7 +7082,7 @@ Builtin_call_expression::do_check_types(Gogo*)
 		 || args->back()->type()->is_error_type())
 	  this->set_is_error();
 	else if (!Type::are_identical(args->front()->type(),
-				      args->back()->type()))
+				      args->back()->type(), NULL))
 	  this->report_error(_("arguments must have identical types"));
 	else if (args->front()->type()->float_type() == NULL)
 	  this->report_error(_("arguments must have floating-point type"));
@@ -7911,7 +7904,7 @@ Call_expression::is_compatible_varargs_argument(Named_object* function,
       Array_type* param_at = param_type->array_type();
       if (param_at != NULL
 	  && Type::are_identical(var_at->element_type(),
-				 param_at->element_type()))
+				 param_at->element_type(), NULL))
 	return true;
       error_at(arg->location(), "... mismatch: passing ...T as ...");
       return false;
@@ -8036,7 +8029,7 @@ Call_expression::check_argument_type(int i, const Type* parameter_type,
 				     source_location argument_location)
 {
   std::string reason;
-  if (!Type::are_compatible_for_assign(parameter_type, argument_type, &reason))
+  if (!Type::are_assignable(parameter_type, argument_type, &reason))
     {
       if (reason.empty())
 	error_at(argument_location, "argument %d has incompatible type", i);
@@ -8078,8 +8071,8 @@ Call_expression::do_check_types(Gogo*)
 	  // When passing a value, we need to check that we are
 	  // permitted to copy it.
 	  std::string reason;
-	  if (!Type::are_compatible_for_assign(fntype->receiver()->type(),
-					       first_arg_type, &reason))
+	  if (!Type::are_assignable(fntype->receiver()->type(),
+				    first_arg_type, &reason))
 	    {
 	      if (reason.empty())
 		this->report_error("incompatible type for receiver");
@@ -9208,9 +9201,8 @@ void
 Map_index_expression::do_check_types(Gogo*)
 {
   std::string reason;
-  if (!Type::are_compatible_for_assign(this->get_map_type()->key_type(),
-				       this->index_->type(),
-				       &reason))
+  if (!Type::are_assignable(this->get_map_type()->key_type(),
+			    this->index_->type(), &reason))
     {
       if (reason.empty())
 	this->report_error(_("incompatible type for map index"));
@@ -10072,8 +10064,7 @@ Struct_construction_expression::do_check_types(Gogo*)
 	continue;
 
       std::string reason;
-      if (!Type::are_compatible_for_assign(pf->type(), (*pv)->type(),
-					   &reason))
+      if (!Type::are_assignable(pf->type(), (*pv)->type(), &reason))
 	{
 	  if (reason.empty())
 	    error_at((*pv)->location(),
@@ -10311,8 +10302,7 @@ Array_construction_expression::do_check_types(Gogo*)
        ++pv, ++i)
     {
       if (*pv != NULL
-	  && !Type::are_compatible_for_assign(element_type, (*pv)->type(),
-					      NULL))
+	  && !Type::are_assignable(element_type, (*pv)->type(), NULL))
 	{
 	  error_at((*pv)->location(),
 		   "incompatible type for element %d in composite literal",
@@ -10688,7 +10678,7 @@ Map_construction_expression::do_check_types(Gogo*)
        pv != this->vals_->end();
        ++pv, ++i)
     {
-      if (!Type::are_compatible_for_assign(key_type, (*pv)->type(), NULL))
+      if (!Type::are_assignable(key_type, (*pv)->type(), NULL))
 	{
 	  error_at((*pv)->location(),
 		   "incompatible type for element %d key in map construction",
@@ -10696,7 +10686,7 @@ Map_construction_expression::do_check_types(Gogo*)
 	  this->set_is_error();
 	}
       ++pv;
-      if (!Type::are_compatible_for_assign(val_type, (*pv)->type(), NULL))
+      if (!Type::are_assignable(val_type, (*pv)->type(), NULL))
 	{
 	  error_at((*pv)->location(),
 		   ("incompatible type for element %d value "
@@ -11583,8 +11573,7 @@ Send_expression::do_check_types(Gogo*)
     }
   Type* element_type = channel_type->element_type();
   if (element_type != NULL
-      && !Type::are_compatible_for_assign(element_type, this->val_->type(),
-					  NULL))
+      && !Type::are_assignable(element_type, this->val_->type(), NULL))
     {
       this->report_error(_("incompatible types in send"));
       return;

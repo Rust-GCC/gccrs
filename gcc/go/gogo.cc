@@ -1402,8 +1402,7 @@ Check_types_traverse::variable(Named_object* named_object)
       Expression* init = var->init();
       std::string reason;
       if (init != NULL
-	  && !Type::are_compatible_for_assign(var->type(), init->type(),
-					      &reason))
+	  && !Type::are_assignable(var->type(), init->type(), &reason))
 	{
 	  if (reason.empty())
 	    error_at(var->location(), "incompatible type in initialization");
@@ -1438,8 +1437,8 @@ Check_types_traverse::constant(Named_object* named_object, bool)
       error_at(constant->expr()->location(), "expression is not constant");
       constant->set_error();
     }
-  else if (!Type::are_compatible_for_assign(constant->type(),
-					    constant->expr()->type(), NULL))
+  else if (!Type::are_assignable(constant->type(), constant->expr()->type(),
+				 NULL))
     {
       error_at(constant->location(),
 	       "initialization expression has wrong type");

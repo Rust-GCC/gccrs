@@ -172,6 +172,10 @@ Type::is_abstract() const
       return this->float_type()->is_abstract();
     case TYPE_COMPLEX:
       return this->complex_type()->is_abstract();
+    case TYPE_STRING:
+      return this->is_abstract_string_type();
+    case TYPE_BOOLEAN:
+      return this->is_abstract_boolean_type();
     default:
       return false;
     }
@@ -191,6 +195,10 @@ Type::make_non_abstract_type()
       return Type::lookup_float_type("float");
     case TYPE_COMPLEX:
       return Type::lookup_complex_type("complex");
+    case TYPE_STRING:
+      return Type::lookup_string_type();
+    case TYPE_BOOLEAN:
+      return Type::lookup_bool_type();
     default:
       gcc_unreachable();
     }
@@ -291,13 +299,11 @@ Type::do_traverse(Traverse*)
   return TRAVERSE_CONTINUE;
 }
 
-// Return true if two types are compatible according to COMPATIBLE.
-// If REASON is not NULL, optionally set *REASON to the reason the
-// types are incompatible.
+// Return whether two types are identical.  If REASON is not NULL,
+// optionally set *REASON to the reason the types are not identical.
 
 bool
-Type::are_compatible_for(const Type* t1, const Type* t2,
-			 Type_compatible compatible, std::string* reason)
+Type::are_identical(const Type* t1, const Type* t2, std::string* reason)
 {
   if (t1 == NULL || t2 == NULL)
     {
@@ -323,8 +329,7 @@ Type::are_compatible_for(const Type* t1, const Type* t2,
     return true;
 
   // Get a good reason for the sink type.  Note that the sink type on
-  // the left hand side of an assignment is handled in
-  // are_compatible_for_assign.
+  // the left hand side of an assignment is handled in are_assignable.
   if (t1->is_sink_type() || t2->is_sink_type())
     {
       if (reason != NULL)
@@ -332,76 +337,78 @@ Type::are_compatible_for(const Type* t1, const Type* t2,
       return false;
     }
 
-  // Cut off infinite recursion by using a flag on a named type.
-  const Named_type* nt1 = t1->named_type();
-  if (nt1 != NULL)
-    return nt1->is_compatible(t2, compatible, reason);
-
-  const Type* t1base = t1->base();
-  const Type* t2base = t2->base();
-
-  if (t1base->classification_ != t2base->classification_)
+  // A named type is only identical to itself.
+  if (t1->named_type() != NULL || t2->named_type() != NULL)
     return false;
 
-  switch (t1base->classification_)
+  // Check type shapes.
+  if (t1->classification() != t2->classification())
+    return false;
+
+  switch (t1->classification())
     {
     case TYPE_VOID:
     case TYPE_BOOLEAN:
     case TYPE_STRING:
     case TYPE_NIL:
-      // These types are always compatible with themselves.
+      // These types are always identical.
       return true;
 
     case TYPE_INTEGER:
-      return t1base->integer_type()->is_compatible(t2base->integer_type());
+      return t1->integer_type()->is_identical(t2->integer_type());
 
     case TYPE_FLOAT:
-      return t1base->float_type()->is_compatible(t2base->float_type());
+      return t1->float_type()->is_identical(t2->float_type());
 
     case TYPE_COMPLEX:
-      return t1base->complex_type()->is_compatible(t2base->complex_type());
+      return t1->complex_type()->is_identical(t2->complex_type());
 
     case TYPE_FUNCTION:
-      return t1base->function_type()->is_compatible(t2base->function_type(),
-						    compatible,
-						    false,
-						    reason);
+      return t1->function_type()->is_identical(t2->function_type(),
+					       false,
+					       reason);
 
     case TYPE_POINTER:
-      return Type::are_compatible_for(t1base->points_to(), t2base->points_to(),
-				      compatible, reason);
+      return Type::are_identical(t1->points_to(), t2->points_to(), reason);
 
     case TYPE_STRUCT:
-      return t1base->struct_type()->is_compatible(t2base->struct_type(),
-						  compatible);
+      return t1->struct_type()->is_identical(t2->struct_type());
 
     case TYPE_ARRAY:
-      return t1base->array_type()->is_compatible(t2base->array_type(),
-						 compatible);
+      return t1->array_type()->is_identical(t2->array_type());
 
     case TYPE_MAP:
-      return t1base->map_type()->is_compatible(t2base->map_type(),
-					       compatible);
+      return t1->map_type()->is_identical(t2->map_type());
 
     case TYPE_CHANNEL:
-      return t1base->channel_type()->is_compatible(t2base->channel_type(),
-						   compatible);
+      return t1->channel_type()->is_identical(t2->channel_type());
 
     case TYPE_INTERFACE:
-      return t1base->interface_type()->is_compatible(t2base->interface_type(),
-						     compatible);
+      return t1->interface_type()->is_identical(t2->interface_type());
 
     default:
       gcc_unreachable();
     }
 }
 
-// Return true if it's OK to have a binary operation with types LHS and RHS.
+// Return true if it's OK to have a binary operation with types LHS
+// and RHS.  This is not used for shifts.
 
 bool
 Type::are_compatible_for_binop(const Type* lhs, const Type* rhs)
 {
-  if (Type::are_compatible(lhs, rhs))
+  if (Type::are_identical(lhs, rhs, NULL))
+    return true;
+
+  // A constant of abstract bool type may be mixed with any bool type.
+  if ((rhs->is_abstract_boolean_type() && lhs->is_boolean_type())
+      || (lhs->is_abstract_boolean_type() && rhs->is_boolean_type()))
+    return true;
+
+  // A constant of abstract string type may be mixed with any string
+  // type.
+  if ((rhs->is_abstract_string_type() && lhs->is_string_type())
+      || (lhs->is_abstract_string_type() && rhs->is_string_type()))
     return true;
 
   lhs = lhs->base();
@@ -410,10 +417,16 @@ Type::are_compatible_for_binop(const Type* lhs, const Type* rhs)
   // A constant of abstract integer, float, or complex type may be
   // mixed with an integer, float, or complex type.
   if ((rhs->is_abstract()
+       && (rhs->integer_type() != NULL
+	   || rhs->float_type() != NULL
+	   || rhs->complex_type() != NULL)
        && (lhs->integer_type() != NULL
 	   || lhs->float_type() != NULL
 	   || lhs->complex_type() != NULL))
       || (lhs->is_abstract()
+	  && (lhs->integer_type() != NULL
+	      || lhs->float_type() != NULL
+	      || lhs->complex_type() != NULL)
 	  && (rhs->integer_type() != NULL
 	      || rhs->float_type() != NULL
 	      || rhs->complex_type() != NULL)))
@@ -441,23 +454,22 @@ Type::are_compatible_for_binop(const Type* lhs, const Type* rhs)
   return false;
 }
 
-
-// Return true if a value with type RHS may be assigned to a value
-// with type LHS.  IS_CONVERSION is true to check for conversion
-// compatibility rather than assignment compatibility.
+// Return true if a value with type RHS may be assigned to a variable
+// with type LHS.  If REASON is not NULL, set *REASON to the reason
+// the types are not assignable.
 
 bool
-Type::are_assignment_compatible(const Type* lhs, const Type* rhs,
-				bool is_conversion, std::string* reason)
+Type::are_assignable(const Type* lhs, const Type* rhs, std::string* reason)
 {
-  // Any value may be assigned to the blank identifier.  Make sure
-  // that types are reasonable before calling base().
+  // Do some checks first.  Make sure the types are defined.
   if (lhs != NULL && lhs->forwarded()->forward_declaration_type() == NULL)
     {
-      if (!is_conversion && lhs->is_sink_type())
+      // Any value may be assigned to the blank identifier.
+      if (lhs->is_sink_type())
 	return true;
 
-      // Check for hidden fields before checking for compatibility.
+      // All fields of a struct must be exported, or the assignment
+      // must be in the same package.
       if (rhs != NULL && rhs->forwarded()->forward_declaration_type() == NULL)
 	{
 	  if (lhs->has_hidden_fields(NULL, reason)
@@ -466,89 +478,63 @@ Type::are_assignment_compatible(const Type* lhs, const Type* rhs,
 	}
     }
 
-  if (Type::are_compatible_for(lhs, rhs,
-			       (is_conversion
-				? COMPATIBLE_FOR_CONVERSION
-				: COMPATIBLE_COMPATIBLE),
-			       reason))
+  // Identical types are assignable.
+  if (Type::are_identical(lhs, rhs, reason))
     return true;
 
-  const Type* orig_lhs = lhs;
-  lhs = lhs->base();
-  const Type* orig_rhs = rhs;
-  rhs = rhs->base();
-
-  // Any type may be assigned to an interface type if it implements
-  // the required methods.  Note that we must pass ORIG_RHS here, not
-  // RHS, since the methods will be attached to ORIG_RHS.
-  if (lhs->interface_type() != NULL
-      && lhs->interface_type()->implements_interface(orig_rhs, reason))
+  // The types are assignable if they have identical underlying types
+  // and either LHS or RHS is not a named type.
+  if (((lhs->named_type() != NULL && rhs->named_type() == NULL)
+       || (rhs->named_type() != NULL && lhs->named_type() == NULL))
+      && Type::are_identical(lhs->base(), rhs->base(), reason))
     return true;
 
-  // Interface assignment is permitted if RHS is known to implement
-  // all the methods in LHS.
-  if (lhs->interface_type() != NULL
-      && rhs->interface_type() != NULL
-      && lhs->interface_type()->is_compatible_for_assign(rhs->interface_type(),
-							 reason))
-    return true;
-
-  // Other than the cases checked above, two different named types may
-  // be compatible for conversion, but are never compatible for
-  // assignment.
-  if (!is_conversion
-      && orig_lhs->named_type() != NULL
-      && orig_rhs->named_type() != NULL)
-    return false;
-
-  // The compatibility level to check for when checking subtypes.
-  Type_compatible pass = (is_conversion
-			  ? COMPATIBLE_FOR_CONVERSION
-			  : COMPATIBLE_COMPATIBLE);
-
-  // A pointer to an array may be assigned to a slice of the
-  // same element type.
-  if (lhs->is_open_array_type()
-      && rhs->points_to() != NULL
-      && rhs->points_to()->array_type() != NULL
-      && !rhs->is_open_array_type())
+  // The types are assignable if LHS is an interface type and RHS
+  // implements the required methods.
+  const Interface_type* lhs_interface_type = lhs->interface_type();
+  if (lhs_interface_type != NULL)
     {
-      Type* e1 = lhs->array_type()->element_type();
-      Type* e2 = rhs->points_to()->array_type()->element_type();
-      if (Type::are_compatible_for(e1, e2, pass, reason))
+      if (lhs_interface_type->implements_interface(rhs, reason))
+	return true;
+      const Interface_type* rhs_interface_type = rhs->interface_type();
+      if (rhs_interface_type != NULL
+	  && lhs_interface_type->is_compatible_for_assign(rhs_interface_type,
+							  reason))
 	return true;
     }
 
-  // We can assign a bidirectional channel to a uni-directional
-  // channel.
+  // The type are assignable if RHS is a bidirectional channel type,
+  // LHS is a channel type, they have identical element types, and
+  // either LHS or RHS is not a named type.
   if (lhs->channel_type() != NULL
       && rhs->channel_type() != NULL
       && rhs->channel_type()->may_send()
       && rhs->channel_type()->may_receive()
-      && Type::are_compatible_for(lhs->channel_type()->element_type(),
-				  rhs->channel_type()->element_type(),
-				  pass, reason))
+      && (lhs->named_type() == NULL || rhs->named_type() == NULL)
+      && Type::are_identical(lhs->channel_type()->element_type(),
+			     rhs->channel_type()->element_type(),
+			     reason))
     return true;
 
-  // A constant of abstract integer or float type may be assigned to
-  // integer, float, or complex type.
+  // The nil type may be assigned to a pointer, function, slice, map,
+  // channel, or interface type.
+  if (rhs->is_nil_type()
+      && (lhs->points_to() != NULL
+	  || lhs->function_type() != NULL
+	  || lhs->is_open_array_type()
+	  || lhs->map_type() != NULL
+	  || lhs->channel_type() != NULL
+	  || lhs->interface_type() != NULL))
+    return true;
+
+  // An untyped constant may be assigned to a numeric type if it is
+  // representable in that type.
   if (rhs->is_abstract()
       && (lhs->integer_type() != NULL
 	  || lhs->float_type() != NULL
 	  || lhs->complex_type() != NULL))
     return true;
 
-  // The nil type may be assigned to a pointer type, an interface
-  // type, a slice type, a map type, a channel type, or a function
-  // type.
-  if (rhs->is_nil_type()
-      && (lhs->points_to() != NULL
-	  || lhs->interface_type() != NULL
-	  || lhs->is_open_array_type()
-	  || lhs->map_type() != NULL
-	  || lhs->channel_type() != NULL
-	  || lhs->function_type() != NULL))
-    return true;
 
   // Give some better error messages.
   if (reason != NULL && reason->empty())
@@ -558,6 +544,112 @@ Type::are_assignment_compatible(const Type* lhs, const Type* rhs,
       else if (rhs->is_call_multiple_result_type())
 	reason->assign(_("multiple value function call in "
 			 "single value context"));
+      else if (lhs->named_type() != NULL && rhs->named_type() != NULL)
+	{
+	  size_t len = (lhs->named_type()->name().length()
+			+ rhs->named_type()->name().length()
+			+ 100);
+	  char* buf = new char[len];
+	  snprintf(buf, len, _("cannot use type %s as type %s"),
+		   rhs->named_type()->message_name().c_str(),
+		   lhs->named_type()->message_name().c_str());
+	  reason->assign(buf);
+	  delete[] buf;
+	}
+    }
+
+  return false;
+}
+
+// Return true if a value with type RHS may be converted to type LHS.
+// If REASON is not NULL, set *REASON to the reason the types are not
+// convertible.
+
+bool
+Type::are_convertible(const Type* lhs, const Type* rhs, std::string* reason)
+{
+  // The types are convertible if they are assignable.
+  if (Type::are_assignable(lhs, rhs, reason))
+    return true;
+
+  // The types are convertible if they have identical underlying
+  // types.
+  if ((lhs->named_type() != NULL || rhs->named_type() != NULL)
+      && Type::are_identical(lhs->base(), rhs->base(), reason))
+    return true;
+
+  // The types are convertible if they are both unnamed pointer types
+  // and their pointer base types have identical underlying types.
+  if (lhs->named_type() == NULL
+      && rhs->named_type() == NULL
+      && lhs->points_to() != NULL
+      && rhs->points_to() != NULL
+      && (lhs->points_to()->named_type() != NULL
+	  || rhs->points_to()->named_type() != NULL)
+      && Type::are_identical(lhs->points_to()->base(),
+			     rhs->points_to()->base(),
+			     reason))
+    return true;
+
+  // Integer and floating point types are convertible to each other.
+  if ((lhs->integer_type() != NULL || lhs->float_type() != NULL)
+      && (rhs->integer_type() != NULL || rhs->float_type() != NULL))
+    return true;
+
+  // Complex types are convertible to each other.
+  if (lhs->complex_type() != NULL && rhs->complex_type() != NULL)
+    return true;
+
+  // An integer, or []byte, or []int, may be converted to a string.
+  if (lhs->is_string_type())
+    {
+      if (rhs->integer_type() != NULL)
+	return true;
+      if (rhs->is_open_array_type())
+	{
+	  const Type* e = rhs->array_type()->element_type()->forwarded();
+	  if (e->integer_type() != NULL
+	      && (e == Type::lookup_integer_type("uint8")
+		  || e == Type::lookup_integer_type("int")))
+	    return true;
+	}
+    }
+
+  // A string may be converted to []byte or []int.
+  if (rhs->is_string_type() && lhs->is_open_array_type())
+    {
+      const Type* e = lhs->array_type()->element_type()->forwarded();
+      if (e->integer_type() != NULL
+	  && (e == Type::lookup_integer_type("uint8")
+	      || e == Type::lookup_integer_type("int")))
+	return true;
+    }
+
+  // An unsafe.Pointer type may be converted to any pointer type or to
+  // uintptr, and vice-versa.
+  if (lhs->is_unsafe_pointer_type()
+      && (rhs->points_to() != NULL
+	  || (rhs->integer_type() != NULL
+	      && rhs->forwarded() == Type::lookup_integer_type("uintptr"))))
+    return true;
+  if (rhs->is_unsafe_pointer_type()
+      && (lhs->points_to() != NULL
+	  || (lhs->integer_type() != NULL
+	      && lhs->forwarded() == Type::lookup_integer_type("uintptr"))))
+    return true;
+
+  // Give a better error message.
+  if (reason != NULL)
+    {
+      if (reason->empty())
+	*reason = "invalid type conversion";
+      else
+	{
+	  std::string s = "invalid type conversion (";
+	  s += *reason;
+	  s += ')';
+	  *reason = s;
+	}
     }
 
   return false;
@@ -1016,7 +1108,7 @@ Integer_type::create_abstract_integer_type()
 // Integer type compatibility.
 
 bool
-Integer_type::is_compatible(const Integer_type* t) const
+Integer_type::is_identical(const Integer_type* t) const
 {
   if (this->is_unsigned_ != t->is_unsigned_ || this->bits_ != t->bits_)
     return false;
@@ -1179,10 +1271,10 @@ Float_type::create_abstract_float_type()
   return abstract_type;
 }
 
-// Whether this type is compatible with T.
+// Whether this type is identical with T.
 
 bool
-Float_type::is_compatible(const Float_type* t) const
+Float_type::is_identical(const Float_type* t) const
 {
   if (this->bits_ != t->bits_)
     return false;
@@ -1337,10 +1429,10 @@ Complex_type::create_abstract_complex_type()
   return abstract_type;
 }
 
-// Whether this type is compatible with T.
+// Whether this type is identical with T.
 
 bool
-Complex_type::is_compatible(const Complex_type *t) const
+Complex_type::is_identical(const Complex_type *t) const
 {
   if (this->bits_ != t->bits_)
     return false;
@@ -1657,7 +1749,7 @@ bool
 Function_type::is_valid_redeclaration(const Function_type* t,
 				      std::string* reason) const
 {
-  if (!this->is_compatible(t, COMPATIBLE_IDENTICAL, false, reason))
+  if (!this->is_identical(t, false, reason))
     return false;
 
   // A redeclaration of a function is required to use the same names
@@ -1691,8 +1783,7 @@ Function_type::is_valid_redeclaration(const Function_type* t,
 	    }
 
 	  // This is called at parse time, so we may have unknown
-	  // types.  They will appear compatible according to
-	  // Type::is_compatible.
+	  // types.
 	  Type* t1 = p1->type()->forwarded();
 	  Type* t2 = p2->type()->forwarded();
 	  if (t1 != t2
@@ -1723,8 +1814,7 @@ Function_type::is_valid_redeclaration(const Function_type* t,
 	    }
 
 	  // This is called at parse time, so we may have unknown
-	  // types.  They will appear compatible according to
-	  // Type::is_compatible.
+	  // types.
 	  Type* t1 = res1->type()->forwarded();
 	  Type* t2 = res2->type()->forwarded();
 	  if (t1 != t2
@@ -1742,10 +1832,8 @@ Function_type::is_valid_redeclaration(const Function_type* t,
 // Check whether T is the same as this type.
 
 bool
-Function_type::is_compatible(const Function_type* t,
-			     Type_compatible compatible,
-			     bool ignore_receiver,
-			     std::string* reason) const
+Function_type::is_identical(const Function_type* t, bool ignore_receiver,
+			    std::string* reason) const
 {
   if (!ignore_receiver)
     {
@@ -1759,8 +1847,7 @@ Function_type::is_compatible(const Function_type* t,
 	}
       if (r1 != NULL)
 	{
-	  if (!Type::are_compatible_for(r1->type(), r2->type(), compatible,
-					reason))
+	  if (!Type::are_identical(r1->type(), r2->type(), reason))
 	    {
 	      if (reason != NULL && !reason->empty())
 		*reason = "receiver: " + *reason;
@@ -1791,8 +1878,7 @@ Function_type::is_compatible(const Function_type* t,
 	      return false;
 	    }
 
-	  if (!Type::are_compatible_for(p1->type(), p2->type(), compatible,
-					NULL))
+	  if (!Type::are_identical(p1->type(), p2->type(), NULL))
 	    {
 	      if (reason != NULL)
 		*reason = _("different parameter types");
@@ -1836,8 +1922,7 @@ Function_type::is_compatible(const Function_type* t,
 	      return false;
 	    }
 
-	  if (!Type::are_compatible_for(res1->type(), res2->type(), compatible,
-					NULL))
+	  if (!Type::are_identical(res1->type(), res2->type(), NULL))
 	    {
 	      if (reason != NULL)
 		*reason = _("different result types");
@@ -2643,11 +2728,10 @@ Struct_type::do_has_pointer() const
   return false;
 }
 
-// Whether this type is compatible with T.
+// Whether this type is identical to T.
 
 bool
-Struct_type::is_compatible(const Struct_type* t,
-			   Type_compatible compatible) const
+Struct_type::is_identical(const Struct_type* t) const
 {
   const Struct_field_list* fields1 = this->fields();
   const Struct_field_list* fields2 = t->fields();
@@ -2660,27 +2744,22 @@ Struct_type::is_compatible(const Struct_type* t,
     {
       if (pf2 == fields2->end())
 	return false;
-      if (compatible == COMPATIBLE_IDENTICAL
-	  && pf1->field_name() != pf2->field_name())
+      if (pf1->field_name() != pf2->field_name())
 	return false;
       if (pf1->is_anonymous() != pf2->is_anonymous()
-	  || !Type::are_compatible_for(pf1->type(), pf2->type(), compatible,
-				       NULL))
+	  || !Type::are_identical(pf1->type(), pf2->type(), NULL))
 	return false;
-      if (compatible == COMPATIBLE_IDENTICAL)
+      if (!pf1->has_tag())
 	{
-	  if (!pf1->has_tag())
-	    {
-	      if (pf2->has_tag())
-		return false;
-	    }
-	  else
-	    {
-	      if (!pf2->has_tag())
-		return false;
-	      if (pf1->tag() != pf2->tag())
-		return false;
-	    }
+	  if (pf2->has_tag())
+	    return false;
+	}
+      else
+	{
+	  if (!pf2->has_tag())
+	    return false;
+	  if (pf1->tag() != pf2->tag())
+	    return false;
 	}
     }
   if (pf2 != fields2->end())
@@ -3225,25 +3304,23 @@ Type::make_struct_type(Struct_field_list* fields,
 
 Array_type::Array_trees Array_type::array_trees;
 
-// Whether two array types are compatible.
+// Whether two array types are identical.
 
 bool
-Array_type::is_compatible(const Array_type* t,
-			  Type_compatible compatible) const
+Array_type::is_identical(const Array_type* t) const
 {
-  if (!Type::are_compatible_for(this->element_type(), t->element_type(),
-				compatible, NULL))
+  if (!Type::are_identical(this->element_type(), t->element_type(), NULL))
     return false;
 
   Expression* l1 = this->length();
   Expression* l2 = t->length();
 
-  // Open arrays of the same element type are identical.
+  // Slices of the same element type are identical.
   if (l1 == NULL && l2 == NULL)
     return true;
 
-  // Fixed arrays of the same element type are identical if they have
-  // the same length.
+  // Arrays of the same element type are identical if they have the
+  // same length.
   if (l1 != NULL && l2 != NULL)
     {
       if (l1 == l2)
@@ -3793,15 +3870,13 @@ Map_type::do_verify()
   return true;
 }
 
-// Whether two map types are compatible.
+// Whether two map types are identical.
 
 bool
-Map_type::is_compatible(const Map_type* t, Type_compatible compatible) const
+Map_type::is_identical(const Map_type* t) const
 {
-  return (Type::are_compatible_for(this->key_type(), t->key_type(),
-				   compatible, NULL)
-	  && Type::are_compatible_for(this->val_type(), t->val_type(),
-				      compatible, NULL));
+  return (Type::are_identical(this->key_type(), t->key_type(), NULL)
+	  && Type::are_identical(this->val_type(), t->val_type(), NULL));
 }
 
 // Hash code.
@@ -4016,11 +4091,9 @@ Channel_type::do_hash_for_method(Gogo* gogo) const
 // Whether this type is the same as T.
 
 bool
-Channel_type::is_compatible(const Channel_type* t,
-			    Type_compatible compatible) const
+Channel_type::is_identical(const Channel_type* t) const
 {
-  if (!Type::are_compatible_for(this->element_type(), t->element_type(),
-				compatible, NULL))
+  if (!Type::are_identical(this->element_type(), t->element_type(), NULL))
     return false;
   return (this->may_send_ == t->may_send_
 	  && this->may_receive_ == t->may_receive_);
@@ -4334,11 +4407,10 @@ Interface_type::is_unexported_method(Gogo* gogo, const std::string& name) const
   return false;
 }
 
-// Whether this type is compatible with T.
+// Whether this type is identical with T.
 
 bool
-Interface_type::is_compatible(const Interface_type* t,
-			      Type_compatible compatible) const
+Interface_type::is_identical(const Interface_type* t) const
 {
   // We require the same methods with the same types.  The methods
   // have already been sorted.
@@ -4353,8 +4425,7 @@ Interface_type::is_compatible(const Interface_type* t,
       if (p1 == this->methods()->end())
 	return false;
       if (p1->name() != p2->name()
-	  || !Type::are_compatible_for(p1->type(), p2->type(), compatible,
-				       NULL))
+	  || !Type::are_identical(p1->type(), p2->type(), NULL))
 	return false;
     }
   if (p1 != this->methods()->end())
@@ -4363,7 +4434,7 @@ Interface_type::is_compatible(const Interface_type* t,
 }
 
 // Whether we can assign the interface type T to this type.  The types
-// are known to not be compatible.  An interface assignment is only
+// are known to not be identical.  An interface assignment is only
 // permitted if T is known to implement all methods in THIS.
 // Otherwise a type guard is required.
 
@@ -4394,8 +4465,7 @@ Interface_type::is_compatible_for_assign(const Interface_type* t,
 	}
 
       std::string subreason;
-      if (!Type::are_compatible_for(p->type(), m->type(), COMPATIBLE_COMPATIBLE,
-				    &subreason))
+      if (!Type::are_identical(p->type(), m->type(), &subreason))
 	{
 	  if (reason != NULL)
 	    {
@@ -4522,8 +4592,7 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
       Function_type* m_fn_type = m->type()->function_type();
       gcc_assert(p_fn_type != NULL && m_fn_type != NULL);
       std::string subreason;
-      if (!p_fn_type->is_compatible(m_fn_type, COMPATIBLE_COMPATIBLE, true,
-				    &subreason))
+      if (!p_fn_type->is_identical(m_fn_type, true, &subreason))
 	{
 	  if (reason != NULL)
 	    {
@@ -5253,44 +5322,6 @@ Named_type::interface_method_table(Gogo* gogo, const Interface_type* interface,
     return error_mark_node;
   gcc_assert(decl != NULL_TREE && TREE_CODE(decl) == VAR_DECL);
   return build_fold_addr_expr(decl);
-}
-
-// Whether this type is compatible with T.
-
-bool
-Named_type::is_compatible(const Type* t, Type_compatible compatible,
-			  std::string* reason) const
-{
-  if (compatible == COMPATIBLE_IDENTICAL)
-    return this == t;
-
-  // In general, different named types are not compatible other than
-  // for type conversion.  An exception is assigning to an variable
-  // with interface type.
-  if (t->named_type() != NULL && compatible != COMPATIBLE_FOR_CONVERSION)
-    {
-      if (reason != NULL)
-	{
-	  size_t len = (this->name().length()
-			+ t->named_type()->name().length()
-			+ 100);
-	  char* buf = new char[len];
-	  snprintf(buf, len, _("cannot use type %s as type %s"),
-		   t->named_type()->message_name().c_str(),
-		   this->message_name().c_str());
-	  reason->assign(buf);
-	  delete[] buf;
-	}
-      return false;
-    }
-
-  // We use the seen_ flag to cut off recursion.
-  if (this->seen_)
-    return this->type_->base() == t->base();
-  this->seen_ = true;
-  bool ret = Type::are_compatible_for(this->type_, t, compatible, reason);
-  this->seen_ = false;
-  return ret;
 }
 
 // Return whether a named type has any hidden fields.

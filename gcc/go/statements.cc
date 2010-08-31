@@ -345,9 +345,7 @@ void
 Temporary_statement::do_check_types(Gogo*)
 {
   if (this->type_ != NULL && this->init_ != NULL)
-    gcc_assert(Type::are_compatible_for_assign(this->type_,
-					       this->init_->type(),
-					       NULL));
+    gcc_assert(Type::are_assignable(this->type_, this->init_->type(), NULL));
 }
 
 // Return a tree.
@@ -485,7 +483,7 @@ Assignment_statement::do_check_types(Gogo*)
   Type* lhs_type = this->lhs_->type();
   Type* rhs_type = this->rhs_->type();
   std::string reason;
-  if (!Type::are_compatible_for_assign(lhs_type, rhs_type, &reason))
+  if (!Type::are_assignable(lhs_type, rhs_type, &reason))
     {
       if (reason.empty())
 	error_at(this->location(), "incompatible types in assignment");
@@ -2412,7 +2410,7 @@ Return_statement::do_lower(Gogo*, Block* enclosing)
       e->determine_type(&type_context);
 
       std::string reason;
-      if (Type::are_compatible_for_assign(rvtype, e->type(), &reason))
+      if (Type::are_assignable(rvtype, e->type(), &reason))
 	{
 	  Expression* ve = Expression::make_var_reference(rv, e->location());
 	  lhs->push_back(ve);
@@ -2503,7 +2501,7 @@ Return_statement::do_check_types(Gogo*)
 	  return;
 	}
       std::string reason;
-      if (!Type::are_compatible_for_assign(pt->type(), (*pe)->type(), &reason))
+      if (!Type::are_assignable(pt->type(), (*pe)->type(), &reason))
 	{
 	  if (reason.empty())
 	    error_at(this->location(),
