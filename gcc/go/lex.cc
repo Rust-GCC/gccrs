@@ -1173,9 +1173,16 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
 			+ (hex_value(p[2]) << 8)
 			+ (hex_value(p[3]) << 4)
 			+ hex_value(p[4]));
+	      if (*value >= 0xd800 && *value < 0xe000)
+		{
+		  error_at(this->location(),"invalid unicode code point 0x%x",
+			   *value);
+		  // Use the replacement character.
+		  *value = 0xfffd;
+		}
 	      return p + 5;
 	    }
-	  this->error("invalid little unicode character");
+	  this->error("invalid little unicode code point");
 	  return p + 1;
 
 	case 'U':
@@ -1192,9 +1199,17 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
 			+ (hex_value(p[6]) << 8)
 			+ (hex_value(p[7]) << 4)
 			+ hex_value(p[8]));
+	      if (*value > 0x10ffff
+		  || (*value >= 0xd800 && *value < 0xe000))
+		{
+		  error_at(this->location(), "invalid unicode code point 0x%x",
+			   *value);
+		  // Use the replacement character.
+		  *value = 0xfffd;
+		}
 	      return p + 9;
 	    }
-	  this->error("invalid big unicode character");
+	  this->error("invalid big unicode code point");
 	  return p + 1;
 
 	default:
@@ -1231,7 +1246,7 @@ Lex::append_char(unsigned int v, bool is_character, std::string* str,
       if (v > 0x10ffff)
 	{
 	  warning_at(location, 0,
-		     "unicode character 0x%x out of range in string", v);
+		     "unicode code point 0x%x out of range in string", v);
 	  // Turn it into the "replacement character".
 	  v = 0xfffd;
 	}
