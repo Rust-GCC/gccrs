@@ -7083,9 +7083,10 @@ Builtin_call_expression::do_check_types(Gogo*)
 	  this->set_is_error();
 	else if (!Type::are_identical(args->front()->type(),
 				      args->back()->type(), NULL))
-	  this->report_error(_("arguments must have identical types"));
+	  this->report_error(_("cmplx arguments must have identical types"));
 	else if (args->front()->type()->float_type() == NULL)
-	  this->report_error(_("arguments must have floating-point type"));
+	  this->report_error(_("cmplx arguments must have "
+			       "floating-point type"));
       }
       break;
 
