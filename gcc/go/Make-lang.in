@@ -176,6 +176,7 @@ go/statements.o: go/statements.cc $(GO_SYSTEM_H) intl.h $(TREE_H) \
 	$(GO_C_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) $(GO_GOGO_H) \
 	$(GO_STATEMENTS_H)
 go/types.o: go/types.cc $(GO_SYSTEM_H) intl.h $(TREE_H) $(GIMPLE_H) \
-	$(REAL_H) $(GO_C_H) $(GO_GOGO_H) go/operator.h $(GO_EXPRESSIONS_H) \
-	$(GO_STATEMENTS_H) go/export.h $(GO_IMPORT_H) $(GO_TYPES_H)
+	$(REAL_H) convert.h $(GO_C_H) $(GO_GOGO_H) go/operator.h \
+	$(GO_EXPRESSIONS_H) $(GO_STATEMENTS_H) go/export.h $(GO_IMPORT_H) \
+	$(GO_TYPES_H)
 go/unsafe.o: go/unsafe.cc $(GO_SYSTEM_H) $(GO_TYPES_H) $(GO_GOGO_H)

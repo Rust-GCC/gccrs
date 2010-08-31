@@ -16,6 +16,7 @@ extern "C"
 #include "tree.h"
 #include "gimple.h"
 #include "real.h"
+#include "convert.h"
 }
 
 #include "go-c.h"
@@ -3438,7 +3439,9 @@ Array_type::get_length_tree(Gogo* gogo)
 	  // Make up a translation context for the array length
 	  // expression.  FIXME: This won't work in general.
 	  Translate_context context(gogo, NULL, NULL, NULL_TREE);
-	  this->length_tree_ = save_expr(this->length_->get_tree(&context));
+	  tree len = this->length_->get_tree(&context);
+	  len = convert_to_integer(integer_type_node, len);
+	  this->length_tree_ = save_expr(len);
 	}
     }
   return this->length_tree_;
