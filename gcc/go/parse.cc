@@ -1543,7 +1543,7 @@ Parse::init_vars_from_call(const Typed_identifier_list* vars, Type* type,
       this->init_var(*pv, type, init, is_coloneq, false, &any_new);
     }
 
-  if (!any_new)
+  if (is_coloneq && !any_new)
     error_at(location, "variables redeclared but no variable is new");
 
   return true;
@@ -1584,7 +1584,7 @@ Parse::init_vars_from_map(const Typed_identifier_list* vars, Type* type,
 				    &any_new);
   Expression* present_var = Expression::make_var_reference(no, location);
 
-  if (!any_new)
+  if (is_coloneq && !any_new)
     error_at(location, "variables redeclared but no variable is new");
 
   Statement* s = Statement::make_tuple_map_assignment(val_var, present_var,
@@ -1633,7 +1633,7 @@ Parse::init_vars_from_receive(const Typed_identifier_list* vars, Type* type,
 				    &any_new);
   Expression* received_var = Expression::make_var_reference(no, location);
 
-  if (!any_new)
+  if (is_coloneq && !any_new)
     error_at(location, "variables redeclared but no variable is new");
 
   Statement* s = Statement::make_tuple_receive_assignment(val_var,
@@ -1690,7 +1690,7 @@ Parse::init_vars_from_type_guard(const Typed_identifier_list* vars,
 							     texpr, t,
 							     location);
 
-  if (!any_new)
+  if (is_coloneq && !any_new)
     error_at(location, "variables redeclared but no variable is new");
 
   if (!this->gogo_->in_global_scope())
