@@ -818,7 +818,7 @@ Parse::parameter_list(bool* is_varargs)
 		{
 		  this->error("%<...%> only permits one name");
 		  this->advance_token();
-		  type = Type::make_error_type();
+		  type = this->type();
 		}
 	      for (size_t i = 0; i < ret->size(); ++i)
 		ret->set_type(i, type);
