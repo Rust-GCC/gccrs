@@ -4076,9 +4076,6 @@ Select_clauses::get_tree(Translate_context* context,
 			 Unnamed_label *break_label,
 			 source_location location)
 {
-  if (this->clauses_.empty())
-    return integer_zero_node;
-
   size_t count = this->clauses_.size();
   VEC(constructor_elt, gc)* chan_init = VEC_alloc(constructor_elt, gc, count);
   VEC(constructor_elt, gc)* is_send_init = VEC_alloc(constructor_elt, gc,
@@ -4116,10 +4113,9 @@ Select_clauses::get_tree(Translate_context* context,
     }
   gcc_assert(i == count);
 
-  if (i == 0)
+  if (i == 0 && default_clause != NULL)
     {
       // There is only a default clause.
-      gcc_assert(default_clause != NULL);
       gcc_assert(final_stmt_list == NULL_TREE);
       tree stmt_list = NULL_TREE;
       append_to_statement_list(default_clause->get_statements_tree(context),
@@ -4128,40 +4124,56 @@ Select_clauses::get_tree(Translate_context* context,
       return stmt_list;
     }
 
-  tree index_type_tree = build_index_type(size_int(count - 1));
-  tree chan_array_type_tree = build_array_type(channel_type_tree,
-					       index_type_tree);
-  tree chan_constructor = build_constructor(chan_array_type_tree, chan_init);
-  tree chan_var = create_tmp_var(chan_array_type_tree, "CHAN");
-  DECL_IGNORED_P(chan_var) = 0;
-  DECL_INITIAL(chan_var) = chan_constructor;
-  DECL_SOURCE_LOCATION(chan_var) = location;
-  TREE_ADDRESSABLE(chan_var) = 1;
-  tree decl_expr = build1(DECL_EXPR, void_type_node, chan_var);
-  SET_EXPR_LOCATION(decl_expr, location);
-  append_to_statement_list(decl_expr, &final_stmt_list);
-
-  tree is_send_array_type_tree = build_array_type(boolean_type_node,
-						  index_type_tree);
-  tree is_send_constructor = build_constructor(is_send_array_type_tree,
-					       is_send_init);
-  tree is_send_var = create_tmp_var(is_send_array_type_tree, "ISSEND");
-  DECL_IGNORED_P(is_send_var) = 0;
-  DECL_INITIAL(is_send_var) = is_send_constructor;
-  DECL_SOURCE_LOCATION(is_send_var) = location;
-  TREE_ADDRESSABLE(is_send_var) = 1;
-  decl_expr = build1(DECL_EXPR, void_type_node, is_send_var);
-  SET_EXPR_LOCATION(decl_expr, location);
-  append_to_statement_list(decl_expr, &final_stmt_list);
-
-  tree pointer_chan_type_tree = build_pointer_type(channel_type_tree);
-  tree chans_arg = fold_convert_loc(location, pointer_chan_type_tree,
-				    build_fold_addr_expr_loc(location,
-							     chan_var));
+  tree pointer_chan_type_tree = (channel_type_tree == NULL_TREE
+				 ? ptr_type_node
+				 : build_pointer_type(channel_type_tree));
+  tree chans_arg;
   tree pointer_boolean_type_tree = build_pointer_type(boolean_type_node);
-  tree is_sends_arg = fold_convert_loc(location, pointer_boolean_type_tree,
-				       build_fold_addr_expr_loc(location,
-								is_send_var));
+  tree is_sends_arg;
+
+  if (i == 0)
+    {
+      chans_arg = fold_convert_loc(location, pointer_chan_type_tree,
+				   null_pointer_node);
+      is_sends_arg = fold_convert_loc(location, pointer_boolean_type_tree,
+				      null_pointer_node);
+    }
+  else
+    {
+      tree index_type_tree = build_index_type(size_int(count - 1));
+      tree chan_array_type_tree = build_array_type(channel_type_tree,
+						   index_type_tree);
+      tree chan_constructor = build_constructor(chan_array_type_tree,
+						chan_init);
+      tree chan_var = create_tmp_var(chan_array_type_tree, "CHAN");
+      DECL_IGNORED_P(chan_var) = 0;
+      DECL_INITIAL(chan_var) = chan_constructor;
+      DECL_SOURCE_LOCATION(chan_var) = location;
+      TREE_ADDRESSABLE(chan_var) = 1;
+      tree decl_expr = build1(DECL_EXPR, void_type_node, chan_var);
+      SET_EXPR_LOCATION(decl_expr, location);
+      append_to_statement_list(decl_expr, &final_stmt_list);
+
+      tree is_send_array_type_tree = build_array_type(boolean_type_node,
+						      index_type_tree);
+      tree is_send_constructor = build_constructor(is_send_array_type_tree,
+						   is_send_init);
+      tree is_send_var = create_tmp_var(is_send_array_type_tree, "ISSEND");
+      DECL_IGNORED_P(is_send_var) = 0;
+      DECL_INITIAL(is_send_var) = is_send_constructor;
+      DECL_SOURCE_LOCATION(is_send_var) = location;
+      TREE_ADDRESSABLE(is_send_var) = 1;
+      decl_expr = build1(DECL_EXPR, void_type_node, is_send_var);
+      SET_EXPR_LOCATION(decl_expr, location);
+      append_to_statement_list(decl_expr, &final_stmt_list);
+
+      chans_arg = fold_convert_loc(location, pointer_chan_type_tree,
+				   build_fold_addr_expr_loc(location,
+							    chan_var));
+      is_sends_arg = fold_convert_loc(location, pointer_boolean_type_tree,
+				      build_fold_addr_expr_loc(location,
+							       is_send_var));
+    }
 
   static tree select_fndecl;
   tree call = Gogo::call_builtin(&select_fndecl,
