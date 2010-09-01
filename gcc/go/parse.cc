@@ -3072,6 +3072,14 @@ Parse::labeled_stmt(const std::string& label_name, source_location location)
       return;
     }
 
+  if (!this->statement_may_start_here())
+    {
+      error_at(location, "missing statement after label");
+      this->unget_token(Token::make_operator_token(OPERATOR_SEMICOLON,
+						   location));
+      return;
+    }
+
   this->statement(label);
 }
 
