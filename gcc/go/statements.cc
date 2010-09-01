@@ -473,7 +473,11 @@ Assignment_statement::do_determine_types()
 void
 Assignment_statement::do_check_types(Gogo*)
 {
-  if (!this->lhs_->is_lvalue())
+  // The left hand side must be either addressable, a map index
+  // expression, or the blank identifier.
+  if (!this->lhs_->is_addressable()
+      && this->lhs_->map_index_expression() == NULL
+      && !this->lhs_->is_sink_expression())
     {
       if (!this->lhs_->type()->is_error_type())
 	this->report_error(_("invalid left hand side of assignment"));
@@ -2102,6 +2106,8 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
   // ones used in build_struct.
   Expression* thunk_parameter = Expression::make_var_reference(named_parameter,
 							       location);
+  thunk_parameter = Expression::make_unary(OPERATOR_MULT, thunk_parameter,
+					   location);
 
   Bound_method_expression* bound_method = ce->fn()->bound_method_expression();
   Interface_field_reference_expression* interface_method =
@@ -2151,6 +2157,8 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
     {
       Expression* thunk_param = Expression::make_var_reference(named_parameter,
 							       location);
+      thunk_param = Expression::make_unary(OPERATOR_MULT, thunk_param,
+					   location);
       Expression* param = Expression::make_field_reference(thunk_param,
 							   next_index,
 							   location);

@@ -2925,9 +2925,11 @@ Struct_type::field_reference_depth(Expression* struct_expr,
 	  found_depth = subdepth;
 	  Expression* here = Expression::make_field_reference(struct_expr, i,
 							      location);
+	  if (pf->type()->points_to() != NULL)
+	    here = Expression::make_unary(OPERATOR_MULT, here, location);
 	  while (sub->expr() != NULL)
 	    {
-	      sub = sub->expr()->field_reference_expression();
+	      sub = sub->expr()->deref()->field_reference_expression();
 	      gcc_assert(sub != NULL);
 	    }
 	  sub->set_struct_expression(here);
@@ -6239,6 +6241,12 @@ Type::apply_field_indexes(Expression* expr,
   Struct_type* stype = expr->type()->deref()->struct_type();
   gcc_assert(stype != NULL
 	     && field_indexes->field_index < stype->field_count());
+  if (expr->type()->struct_type() == NULL)
+    {
+      gcc_assert(expr->type()->points_to() != NULL);
+      expr = Expression::make_unary(OPERATOR_MULT, expr, location);
+      gcc_assert(expr->type()->struct_type() == stype);
+    }
   return Expression::make_field_reference(expr, field_indexes->field_index,
 					  location);
 }
@@ -6303,7 +6311,7 @@ Type::bind_field_or_method(Gogo* gogo, const Type* type, Expression* expr,
   const Interface_type* it = type->deref()->interface_type();
 
   bool receiver_can_be_pointer = (expr->type()->points_to() != NULL
-				  || expr->is_lvalue());
+				  || expr->is_addressable());
   bool is_method = false;
   bool found_pointer_method = false;
   std::string ambig1;
@@ -6316,6 +6324,13 @@ Type::bind_field_or_method(Gogo* gogo, const Type* type, Expression* expr,
       if (!is_method)
 	{
 	  gcc_assert(st != NULL);
+	  if (type->struct_type() == NULL)
+	    {
+	      gcc_assert(type->points_to() != NULL);
+	      expr = Expression::make_unary(OPERATOR_MULT, expr,
+					    location);
+	      gcc_assert(expr->type()->struct_type() == st);
+	    }
 	  ret = st->field_reference(expr, name, location);
 	}
       else if (it != NULL && it->find_method(name) != NULL)

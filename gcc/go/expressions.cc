@@ -886,10 +886,6 @@ class Error_expression : public Expression
   { return this; }
 
   bool
-  do_is_lvalue() const
-  { return true; }
-
-  bool
   do_is_addressable() const
   { return true; }
 
@@ -1095,10 +1091,6 @@ class Sink_expression : public Expression
   Expression*
   do_copy()
   { return new Sink_expression(this->location()); }
-
-  bool
-  do_is_lvalue() const
-  { return true; }
 
   tree
   do_get_tree(Translate_context*);
@@ -3460,10 +3452,6 @@ class Unary_expression : public Expression
   }
 
   bool
-  do_is_lvalue() const
-  { return this->op_ == OPERATOR_MULT; }
-
-  bool
   do_is_addressable() const
   { return this->op_ == OPERATOR_MULT; }
 
@@ -3983,8 +3971,39 @@ Unary_expression::do_get_tree(Translate_context* context)
       return build_fold_addr_expr_loc(loc, expr);
 
     case OPERATOR_MULT:
-      gcc_assert(POINTER_TYPE_P(TREE_TYPE(expr)));
-      return build_fold_indirect_ref_loc(loc, expr);
+      {
+	gcc_assert(POINTER_TYPE_P(TREE_TYPE(expr)));
+
+	// If we are dereferencing the pointer to a large struct, we
+	// need to check for nil.  We don't bother to check for small
+	// structs because we expect the system to crash on a nil
+	// pointer dereference.
+	HOST_WIDE_INT s = int_size_in_bytes(TREE_TYPE(TREE_TYPE(expr)));
+	if (s == -1 || s >= 4096)
+	  {
+	    if (!DECL_P(expr))
+	      expr = save_expr(expr);
+	    tree compare = fold_build2_loc(loc, EQ_EXPR, boolean_type_node,
+					   expr,
+					   fold_convert(TREE_TYPE(expr),
+							null_pointer_node));
+	    // FIXME: This should be a different error message.
+	    static tree bad_index_fndecl;
+	    tree crash = Gogo::call_builtin(&bad_index_fndecl,
+					    loc,
+					    "__go_bad_index",
+					    0,
+					    void_type_node);
+	    TREE_NOTHROW(bad_index_fndecl) = 0;
+	    TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
+	    expr = fold_build2_loc(loc, COMPOUND_EXPR, TREE_TYPE(expr),
+				   build3(COND_EXPR, void_type_node,
+					  compare, crash, NULL_TREE),
+				   expr);
+	  }
+
+	return build_fold_indirect_ref_loc(loc, expr);
+      }
 
     default:
       gcc_unreachable();
@@ -4052,6 +4071,21 @@ Expression*
 Expression::make_unary(Operator op, Expression* expr, source_location location)
 {
   return new Unary_expression(op, expr, location);
+}
+
+// If this is an indirection through a pointer, return the expression
+// being pointed through.  Otherwise return this.
+
+Expression*
+Expression::deref()
+{
+  if (this->classification_ == EXPRESSION_UNARY)
+    {
+      Unary_expression* ue = static_cast<Unary_expression*>(this);
+      if (ue->op() == OPERATOR_MULT)
+	return ue->operand();
+    }
+  return this;
 }
 
 // Class Binary_expression.
@@ -7865,10 +7899,10 @@ Call_expression::is_compatible_varargs_argument(Named_object* function,
       if (ue->op() == OPERATOR_MULT)
 	{
 	  Field_reference_expression* fre =
-	    ue->operand()->field_reference_expression();
+	    ue->operand()->deref()->field_reference_expression();
 	  if (fre != NULL)
 	    {
-	      Var_expression* ve = fre->expr()->var_expression();
+	      Var_expression* ve = fre->expr()->deref()->var_expression();
 	      if (ve != NULL)
 		{
 		  Named_object* no = ve->named_object();
@@ -8547,10 +8581,16 @@ Index_expression::do_lower(Gogo*, Named_object*, int)
   Type* type = left->type();
   if (type->is_error_type())
     return Expression::make_error(location);
-  else if (type->array_type() != NULL
-	   || (type->deref()->array_type() != NULL
-	       && !type->deref()->array_type()->is_open_array_type()))
+  else if (type->array_type() != NULL)
     return Expression::make_array_index(left, start, end, location);
+  else if (type->points_to() != NULL
+	   && type->points_to()->array_type() != NULL
+	   && !type->points_to()->is_open_array_type())
+    {
+      Expression* deref = Expression::make_unary(OPERATOR_MULT, left,
+						 location);
+      return Expression::make_array_index(deref, start, end, location);
+    }
   else if (type->is_string_type())
     return Expression::make_string_index(left, start, end, location);
   else if (type->map_type() != NULL)
@@ -8619,12 +8659,7 @@ class Array_index_expression : public Expression
   }
 
   bool
-  do_is_lvalue() const
-  { return this->end_ == NULL; }
-
-  bool
-  do_is_addressable() const
-  { return this->end_ == NULL; }
+  do_is_addressable() const;
 
   void
   do_address_taken(bool escapes)
@@ -8669,7 +8704,7 @@ Array_index_expression::do_type()
 {
   if (this->type_ == NULL)
     {
-      Array_type* type = this->array_->type()->deref()->array_type();
+      Array_type* type = this->array_->type()->array_type();
       if (type == NULL)
 	this->type_ = Type::make_error_type();
       else if (this->end_ == NULL)
@@ -8713,7 +8748,7 @@ Array_index_expression::do_check_types(Gogo*)
       && !this->end_->is_nil_expression())
     this->report_error(_("slice end must be integer"));
 
-  Array_type* array_type = this->array_->type()->deref()->array_type();
+  Array_type* array_type = this->array_->type()->array_type();
   gcc_assert(array_type != NULL);
 
   Type* dummy;
@@ -8750,6 +8785,31 @@ Array_index_expression::do_check_types(Gogo*)
     }
   mpz_clear(ival);
   mpz_clear(lval);
+
+  // A slice of an array requires an addressable array.  A slice of a
+  // slice is always possible.
+  if (this->end_ != NULL
+      && !array_type->is_open_array_type()
+      && !this->array_->is_addressable())
+    this->report_error(_("array is not addressable"));
+}
+
+// Return whether this expression is addressable.
+
+bool
+Array_index_expression::do_is_addressable() const
+{
+  // A slice expression is not addressable.
+  if (this->end_ != NULL)
+    return false;
+
+  // An index into a slice is addressable.
+  if (this->array_->type()->is_open_array_type())
+    return true;
+
+  // An index into an array is addressable if the array is
+  // addressable.
+  return this->array_->is_addressable();
 }
 
 // Get a tree for an array index.
@@ -8760,11 +8820,7 @@ Array_index_expression::do_get_tree(Translate_context* context)
   Gogo* gogo = context->gogo();
   source_location loc = this->location();
 
-  Type* t = this->array_->type();
-  Type* pt = t->points_to();
-  if (pt != NULL)
-    t = pt;
-  Array_type* array_type = t->array_type();
+  Array_type* array_type = this->array_->type()->array_type();
   gcc_assert(array_type != NULL);
 
   tree type_tree = array_type->get_tree(gogo);
@@ -8774,17 +8830,6 @@ Array_index_expression::do_get_tree(Translate_context* context)
     return error_mark_node;
 
   tree bad_index = boolean_false_node;
-  if (pt != NULL)
-    {
-      gcc_assert(!array_type->is_open_array_type());
-      if (!DECL_P(array_tree))
-	array_tree = save_expr(array_tree);
-      bad_index = build2(EQ_EXPR, boolean_type_node, array_tree,
-			 fold_convert(TREE_TYPE(array_tree),
-				      null_pointer_node));
-      array_tree = build_fold_indirect_ref(array_tree);
-    }
-
   tree start_tree = this->start_->get_tree(context);
   if (start_tree == error_mark_node)
     return error_mark_node;
@@ -9334,11 +9379,7 @@ Expression::make_map_index(Expression* map, Expression* index,
 Type*
 Field_reference_expression::do_type()
 {
-  Type* expr_type = this->expr_->type();
-  Type* points_to = expr_type->points_to();
-  if (points_to != NULL)
-    expr_type = points_to;
-  Struct_type* struct_type = expr_type->struct_type();
+  Struct_type* struct_type = this->expr_->type()->struct_type();
   gcc_assert(struct_type != NULL);
   return struct_type->field(this->field_index_)->type();
 }
@@ -9348,11 +9389,7 @@ Field_reference_expression::do_type()
 void
 Field_reference_expression::do_check_types(Gogo*)
 {
-  Type* expr_type = this->expr_->type();
-  Type* points_to = expr_type->points_to();
-  if (points_to != NULL)
-    expr_type = points_to;
-  Struct_type* struct_type = expr_type->struct_type();
+  Struct_type* struct_type = this->expr_->type()->struct_type();
   gcc_assert(struct_type != NULL);
   gcc_assert(struct_type->field(this->field_index_) != NULL);
 }
@@ -9366,38 +9403,6 @@ Field_reference_expression::do_get_tree(Translate_context* context)
   if (struct_tree == error_mark_node
       || TREE_TYPE(struct_tree) == error_mark_node)
     return error_mark_node;
-
-  if (POINTER_TYPE_P(TREE_TYPE(struct_tree)))
-    {
-      // If we are dereferencing the pointer to a large struct, we
-      // need to check for nil.  We don't bother to check for small
-      // structs because we expect the system to crash on a nil
-      // pointer dereference.
-      HOST_WIDE_INT s = int_size_in_bytes(TREE_TYPE(TREE_TYPE(struct_tree)));
-      if (s == -1 || s >= 4096)
-	{
-	  if (!DECL_P(struct_tree))
-	    struct_tree = save_expr(struct_tree);
-	  tree compare = build2(EQ_EXPR, boolean_type_node, struct_tree,
-				fold_convert(TREE_TYPE(struct_tree),
-					     null_pointer_node));
-	  // FIXME: This should be a different error message.
-	  static tree bad_index_fndecl;
-	  tree crash = Gogo::call_builtin(&bad_index_fndecl,
-					  this->location(),
-					  "__go_bad_index",
-					  0,
-					  void_type_node);
-	  TREE_NOTHROW(bad_index_fndecl) = 0;
-	  TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
-	  struct_tree = build2(COMPOUND_EXPR, TREE_TYPE(struct_tree),
-			       build3(COND_EXPR, void_type_node, compare,
-				      crash, NULL_TREE),
-			       struct_tree);
-	}
-      struct_tree = build_fold_indirect_ref(struct_tree);
-    }
-
   gcc_assert(TREE_CODE(TREE_TYPE(struct_tree)) == RECORD_TYPE);
   tree field = TYPE_FIELDS(TREE_TYPE(struct_tree));
   gcc_assert(field != NULL_TREE);

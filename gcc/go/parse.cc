@@ -2265,6 +2265,7 @@ Parse::enclosing_var_reference(Named_object* in_function, Named_object* var,
 
   Expression* closure_ref = Expression::make_var_reference(closure,
 							   location);
+  closure_ref = Expression::make_unary(OPERATOR_MULT, closure_ref, location);
 
   // The closure structure holds pointers to the variables, so we need
   // to introduce an indirection.

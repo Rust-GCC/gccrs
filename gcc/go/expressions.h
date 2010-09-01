@@ -376,6 +376,11 @@ class Expression
   is_nil_expression() const
   { return this->classification_ == EXPRESSION_NIL; }
 
+  // If this is an indirection through a pointer, return the
+  // expression being pointed through.  Otherwise return this.
+  Expression*
+  deref();
+
   // If this is a binary expression, return the Binary_expression
   // structure.  Otherwise return NULL.
   Binary_expression*
@@ -517,12 +522,6 @@ class Expression
   copy()
   { return this->do_copy(); }
 
-  // Return whether the expression is an lvalue--something which may
-  // appear on the left hand side of an assignment statement.
-  bool
-  is_lvalue() const
-  { return this->do_is_lvalue(); }
-
   // Return whether the expression is addressable--something which may
   // be used as the operand of the unary & operator.
   bool
@@ -649,11 +648,6 @@ class Expression
   // Child class implements copying.
   virtual Expression*
   do_copy() = 0;
-
-  // Child class implements whether the expression is an lvalue.
-  virtual bool
-  do_is_lvalue() const
-  { return false; }
 
   // Child class implements whether the expression is addressable.
   virtual bool
@@ -891,10 +885,6 @@ class Var_expression : public Expression
   { return this; }
 
   bool
-  do_is_lvalue() const
-  { return true; }
-
-  bool
   do_is_addressable() const
   { return true; }
 
@@ -931,10 +921,6 @@ class Temporary_reference_expression : public Expression
   Expression*
   do_copy()
   { return make_temporary_reference(this->statement_, this->location()); }
-
-  bool
-  do_is_lvalue() const
-  { return true; }
 
   bool
   do_is_addressable() const
@@ -1493,10 +1479,6 @@ class Map_index_expression : public Expression
 				      this->location());
   }
 
-  bool
-  do_is_lvalue() const
-  { return this->is_lvalue_; }
-
   // A map index expression is an lvalue but it is not addressable.
 
   tree
@@ -1636,10 +1618,6 @@ class Field_reference_expression : public Expression
   }
 
   bool
-  do_is_lvalue() const
-  { return true; }
-
-  bool
   do_is_addressable() const
   { return this->expr_->is_addressable(); }
 
@@ -1648,7 +1626,7 @@ class Field_reference_expression : public Expression
 
  private:
   // The expression we are looking into.  This should have a type of
-  // struct or pointer to struct.
+  // struct.
   Expression* expr_;
   // The zero-based index of the field we are retrieving.
   unsigned int field_index_;
