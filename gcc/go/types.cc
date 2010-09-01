@@ -3652,6 +3652,46 @@ Array_type::do_init_tree(Gogo* gogo, bool is_clear)
     }
 }
 
+// Check that LEN, which has an arbitrary integer type, is
+// non-negative and not more than the maximum value of BOUND_TYPE.
+// Return a tree which performs this check.  The return value may be
+// NULL_TREE.  CHECK is a set of checks so far which are or'ed into
+// the result.
+
+tree
+Array_type::check_make_arg(tree len, tree check, tree bound_type,
+			   source_location location)
+{
+  tree len_type = TREE_TYPE(len);
+  tree ret = NULL_TREE;
+  if (!TYPE_UNSIGNED(len_type))
+    ret = fold_build2_loc(location, LT_EXPR, boolean_type_node,
+			  len,
+			  fold_convert_loc(location, len_type,
+					   integer_zero_node));
+  if ((TYPE_UNSIGNED(len_type) && !TYPE_UNSIGNED(bound_type))
+      || TYPE_SIZE(len_type) > TYPE_SIZE(bound_type))
+    {
+      tree max = TYPE_MAX_VALUE(bound_type);
+      tree big = fold_build2_loc(location, GT_EXPR, boolean_type_node,
+				 len,
+				 fold_convert_loc(location, len_type, max));
+      if (ret == NULL_TREE)
+	ret = big;
+      else
+	ret = fold_build2_loc(location, TRUTH_OR_EXPR, boolean_type_node,
+			      ret, big);
+    }
+
+  if (ret == NULL_TREE)
+    return check;
+  else if (check == NULL_TREE)
+    return ret;
+  else
+    return fold_build2_loc(location, TRUTH_OR_EXPR, boolean_type_node,
+			   ret, check);
+}
+
 // Handle the builtin make function for a slice.
 
 tree
@@ -3678,8 +3718,6 @@ Array_type::do_make_expression_tree(Translate_context* context,
   if (element_type_tree == error_mark_node)
     return error_mark_node;
   tree element_size_tree = TYPE_SIZE_UNIT(element_type_tree);
-  element_size_tree = fold_convert_loc(location, TREE_TYPE(count_field),
-				       element_size_tree);
 
   tree value = this->element_type_->get_init_tree(gogo, true);
 
@@ -3690,30 +3728,76 @@ Array_type::do_make_expression_tree(Translate_context* context,
   tree length_tree = args->front()->get_tree(context);
   if (length_tree == error_mark_node)
     return error_mark_node;
-  length_tree = ::convert(TREE_TYPE(count_field), length_tree);
-  length_tree = save_expr(length_tree);
+  if (!DECL_P(length_tree))
+    length_tree = save_expr(length_tree);
+  if (!INTEGRAL_TYPE_P(TREE_TYPE(length_tree)))
+    length_tree = convert_to_integer(TREE_TYPE(count_field), length_tree);
+
+  tree bad_index = Array_type::check_make_arg(length_tree, NULL_TREE,
+					      TREE_TYPE(count_field),
+					      location);
+
+  length_tree = fold_convert_loc(location, TREE_TYPE(count_field), length_tree);
   tree capacity_tree;
   if (args->size() == 1)
     capacity_tree = length_tree;
   else
     {
       capacity_tree = args->back()->get_tree(context);
-      capacity_tree = ::convert(TREE_TYPE(count_field), capacity_tree);
-      capacity_tree = save_expr(capacity_tree);
-      capacity_tree = fold_build3_loc(location, COND_EXPR,
-				      TREE_TYPE(count_field),
-				      fold_build2_loc(location,
-						      LT_EXPR,
-						      boolean_type_node,
-						      capacity_tree,
-						      length_tree),
-				      length_tree,
-				      capacity_tree);
-      capacity_tree = save_expr(capacity_tree);
+      if (capacity_tree == error_mark_node)
+	return error_mark_node;
+      if (!DECL_P(capacity_tree))
+	capacity_tree = save_expr(capacity_tree);
+      if (!INTEGRAL_TYPE_P(TREE_TYPE(capacity_tree)))
+	capacity_tree = convert_to_integer(TREE_TYPE(count_field),
+					   capacity_tree);
+
+      bad_index = Array_type::check_make_arg(capacity_tree, bad_index,
+					     TREE_TYPE(count_field),
+					     location);
+
+      tree chktype = (((TYPE_SIZE(TREE_TYPE(capacity_tree))
+			> TYPE_SIZE(TREE_TYPE(length_tree)))
+		       || ((TYPE_SIZE(TREE_TYPE(capacity_tree))
+			    == TYPE_SIZE(TREE_TYPE(length_tree)))
+			   && TYPE_UNSIGNED(TREE_TYPE(capacity_tree))))
+		      ? TREE_TYPE(capacity_tree)
+		      : TREE_TYPE(length_tree));
+      tree chk = fold_build2_loc(location, LT_EXPR, boolean_type_node,
+				 fold_convert_loc(location, chktype,
+						  capacity_tree),
+				 fold_convert_loc(location, chktype,
+						  length_tree));
+      if (bad_index == NULL_TREE)
+	bad_index = chk;
+      else
+	bad_index = fold_build2_loc(location, TRUTH_OR_EXPR, boolean_type_node,
+				    bad_index, chk);
+
+      capacity_tree = fold_convert_loc(location, TREE_TYPE(count_field),
+				       capacity_tree);
     }
 
-  tree size_tree = fold_build2_loc(location, MULT_EXPR, TREE_TYPE(count_field),
-				   element_size_tree, capacity_tree);
+  tree size_tree = fold_build2_loc(location, MULT_EXPR, sizetype,
+				   element_size_tree,
+				   fold_convert_loc(location, sizetype,
+						    capacity_tree));
+
+  tree chk = fold_build2_loc(location, TRUTH_AND_EXPR, boolean_type_node,
+			     fold_build2_loc(location, GT_EXPR,
+					     boolean_type_node,
+					     fold_convert_loc(location,
+							      sizetype,
+							      capacity_tree),
+					     size_zero_node),
+			     fold_build2_loc(location, LT_EXPR,
+					     boolean_type_node,
+					     size_tree, element_size_tree));
+  if (bad_index == NULL_TREE)
+    bad_index = chk;
+  else
+    bad_index = fold_build2_loc(location, TRUTH_OR_EXPR, boolean_type_node,
+				bad_index, chk);
 
   tree space = context->gogo()->allocate_memory(this->element_type_,
 						size_tree, location);
@@ -3722,6 +3806,22 @@ Array_type::do_make_expression_tree(Translate_context* context,
     space = save_expr(space);
 
   space = fold_convert(TREE_TYPE(values_field), space);
+
+  if (bad_index != NULL_TREE && bad_index != boolean_false_node)
+    {
+      static tree bad_index_fndecl;
+      tree crash = Gogo::call_builtin(&bad_index_fndecl,
+				      location,
+				      "__go_bad_makeslice",
+				      0,
+				      void_type_node);
+      TREE_NOTHROW(bad_index_fndecl) = 0;
+      TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
+      space = build2(COMPOUND_EXPR, TREE_TYPE(space),
+		     build3(COND_EXPR, void_type_node,
+			    bad_index, crash, NULL_TREE),
+		     space);
+    }
 
   tree constructor = gogo->slice_constructor(type_tree, space, length_tree,
 					     capacity_tree);

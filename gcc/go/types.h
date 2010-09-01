@@ -1987,6 +1987,9 @@ class Array_type : public Type
   tree
   get_length_tree(Gogo*);
 
+  static tree
+  check_make_arg(tree, tree, tree, source_location);
+
   // A mapping from Type to tree, used to ensure that arrays of
   // identical types are identical.
   typedef std::tr1::unordered_map<const Type*, tree, Type_hash_identical,

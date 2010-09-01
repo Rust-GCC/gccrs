@@ -295,6 +295,7 @@ runtime_files = \
 	runtime/go-assert.c \
 	runtime/go-assert-interface.c \
 	runtime/go-bad-index.c \
+	runtime/go-bad-makeslice.c \
 	runtime/go-byte-array-to-string.c \
 	runtime/go-breakpoint.c \
 	runtime/go-caller.c \

@@ -8,6 +8,7 @@
 
 #include "go-alloc.h"
 #include "go-assert.h"
+#include "go-panic.h"
 #include "channel.h"
 
 struct __go_channel*
@@ -16,6 +17,9 @@ __go_new_channel (size_t element_size, size_t entries)
   struct __go_channel* ret;
   size_t alloc_size;
   int i;
+
+  if ((size_t) (int) entries != entries || entries > (size_t) -1 / element_size)
+    __go_panic_msg ("chan size out of range");
 
   alloc_size = (element_size + sizeof (uint64_t) - 1) / sizeof (uint64_t);
 

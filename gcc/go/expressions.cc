@@ -9886,10 +9886,11 @@ Make_expression::do_determine_type(const Type_context*)
 {
   if (this->args_ != NULL)
     {
+      Type_context context(Type::lookup_integer_type("int"), false);
       for (Expression_list::const_iterator pe = this->args_->begin();
 	   pe != this->args_->end();
 	   ++pe)
-	(*pe)->determine_type_no_context();
+	(*pe)->determine_type(&context);
     }
 }
 
