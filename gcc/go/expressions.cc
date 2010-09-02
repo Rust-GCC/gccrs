@@ -2826,7 +2826,7 @@ class Type_conversion_expression : public Expression
   void
   do_determine_type(const Type_context*)
   {
-    Type_context subcontext(this->type_, true);
+    Type_context subcontext(this->type_, false);
     this->expr_->determine_type(&subcontext);
   }
 
