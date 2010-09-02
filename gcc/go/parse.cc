@@ -2503,6 +2503,7 @@ Parse::primary_expr(bool may_be_sink, bool may_be_composite_lit,
 	ret = this->composite_lit(ret->type(), ret->location());
       else if (this->peek_token()->is_op(OPERATOR_LPAREN))
 	{
+	  source_location loc = this->location();
 	  this->advance_token();
 	  Expression* expr = this->expression(PRECEDENCE_NORMAL, false, true,
 					      NULL);
@@ -2512,7 +2513,7 @@ Parse::primary_expr(bool may_be_sink, bool may_be_composite_lit,
 	    this->advance_token();
 	  if (expr->is_error_expression())
 	    return expr;
-	  ret = Expression::make_cast(ret->type(), expr, ret->location());
+	  ret = Expression::make_cast(ret->type(), expr, loc);
 	}
     }
 
