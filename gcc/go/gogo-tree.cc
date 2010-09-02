@@ -2435,6 +2435,7 @@ Gogo::type_functions(const Type* keytype, tree* hash_fn, tree* equal_fn)
     case Type::TYPE_COMPLEX:
     case Type::TYPE_POINTER:
     case Type::TYPE_FUNCTION:
+    case Type::TYPE_MAP:
     case Type::TYPE_CHANNEL:
       hash_fn_name = "__go_type_hash_identity";
       equal_fn_name = "__go_type_equal_identity";
@@ -2447,7 +2448,6 @@ Gogo::type_functions(const Type* keytype, tree* hash_fn, tree* equal_fn)
 
     case Type::TYPE_STRUCT:
     case Type::TYPE_ARRAY:
-    case Type::TYPE_MAP:
       // These types can not be hashed or compared.
       hash_fn_name = "__go_type_hash_error";
       equal_fn_name = "__go_type_equal_error";

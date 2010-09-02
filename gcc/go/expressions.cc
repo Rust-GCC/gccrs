@@ -9250,7 +9250,7 @@ void
 Map_index_expression::do_determine_type(const Type_context*)
 {
   this->map_->determine_type_no_context();
-  Type_context subcontext(this->get_map_type()->key_type(), true);
+  Type_context subcontext(this->get_map_type()->key_type(), false);
   this->index_->determine_type(&subcontext);
 }
 
@@ -9320,6 +9320,10 @@ Map_index_expression::get_value_pointer(Translate_context* context,
 
   tree map_tree = this->map_->get_tree(context);
   tree index_tree = this->index_->get_tree(context);
+  index_tree = Expression::convert_for_assignment(context, type->key_type(),
+						  this->index_->type(),
+						  index_tree,
+						  this->location());
   if (map_tree == error_mark_node || index_tree == error_mark_node)
     return error_mark_node;
 

@@ -4061,8 +4061,7 @@ bool
 Map_type::do_verify()
 {
   if (this->key_type_->struct_type() != NULL
-      || this->key_type_->array_type() != NULL
-      || this->key_type_->map_type() != NULL)
+      || this->key_type_->array_type() != NULL)
     {
       error_at(this->location_, "invalid map key type");
       return false;

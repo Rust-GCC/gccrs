@@ -3057,7 +3057,7 @@ Case_clauses::Case_clause::determine_types(Type* type)
 {
   if (this->cases_ != NULL)
     {
-      Type_context case_context(type, true);
+      Type_context case_context(type, false);
       for (Expression_list::iterator p = this->cases_->begin();
 	   p != this->cases_->end();
 	   ++p)
