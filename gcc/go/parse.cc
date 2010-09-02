@@ -375,15 +375,21 @@ Parse::array_type(bool may_use_ellipsis)
     this->advance_token();
   else
     {
-      if (!may_use_ellipsis || !token->is_op(OPERATOR_ELLIPSIS))
+      if (!token->is_op(OPERATOR_ELLIPSIS))
 	length = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
-      else
+      else if (may_use_ellipsis)
 	{
 	  // An ellipsis is used in composite literals to represent a
 	  // fixed array of the size of the number of elements.  We
 	  // use a length of nil to represent this, and change the
 	  // length when parsing the composite literal.
 	  length = Expression::make_nil(this->location());
+	  this->advance_token();
+	}
+      else
+	{
+	  this->error("use of %<[...]%> outside of array literal");
+	  length = Expression::make_error(this->location());
 	  this->advance_token();
 	}
       if (!this->peek_token()->is_op(OPERATOR_RSQUARE))

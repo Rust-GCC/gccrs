@@ -3418,7 +3418,8 @@ Array_type::verify_length()
     }
   else
     {
-      error_at(this->length_->location(), "array bound is not numeric");
+      if (!t->is_error_type())
+	error_at(this->length_->location(), "array bound is not numeric");
       return false;
     }
 
