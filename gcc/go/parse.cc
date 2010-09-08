@@ -539,7 +539,18 @@ Parse::field_decl(Struct_field_list* sfl)
   if (is_anonymous)
     {
       if (is_anonymous_pointer)
-	this->advance_token();
+	{
+	  this->advance_token();
+	  if (!this->peek_token()->is_identifier())
+	    {
+	      this->error("expected field name");
+	      while (!token->is_op(OPERATOR_SEMICOLON)
+		     && !token->is_op(OPERATOR_RCURLY)
+		     && !token->is_eof())
+		token = this->advance_token();
+	      return;
+	    }
+	}
       Type* type = this->type_name(true);
 
       std::string tag;
@@ -2026,7 +2037,28 @@ Parse::receiver()
   if (token->is_op(OPERATOR_MULT))
     {
       is_pointer = true;
-      this->advance_token();
+      token = this->advance_token();
+    }
+
+  if (!token->is_identifier())
+    {
+      this->error("expected receiver name or type");
+      int c = token->is_op(OPERATOR_LPAREN) ? 1 : 0;
+      while (!token->is_eof())
+	{
+	  token = this->advance_token();
+	  if (token->is_op(OPERATOR_LPAREN))
+	    ++c;
+	  else if (token->is_op(OPERATOR_RPAREN))
+	    {
+	      if (c == 0)
+		break;
+	      --c;
+	    }
+	}
+      if (!token->is_eof())
+	this->advance_token();
+      return NULL;
     }
 
   Type* type = this->type_name(true);
