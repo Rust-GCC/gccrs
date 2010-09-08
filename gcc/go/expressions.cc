@@ -4002,6 +4002,15 @@ Unary_expression::do_get_tree(Translate_context* context)
 				   expr);
 	  }
 
+	// If the type of EXPR is a recursive pointer type, then we
+	// need to insert a cast before indirecting.
+	if (TREE_TYPE(TREE_TYPE(expr)) == ptr_type_node)
+	  {
+	    Type* pt = this->expr_->type()->points_to();
+	    tree ind = pt->get_tree(context->gogo());
+	    expr = fold_convert_loc(loc, build_pointer_type(ind), expr);
+	  }
+
 	return build_fold_indirect_ref_loc(loc, expr);
       }
 
@@ -8380,6 +8389,16 @@ Call_expression::do_get_tree(Translate_context* context)
       tree closure_tree = func->closure()->get_tree(context);
       if (closure_tree != error_mark_node)
 	CALL_EXPR_STATIC_CHAIN(ret) = closure_tree;
+    }
+
+  // If this is a recursive function type which returns itself, as in
+  //   type F func() F
+  // we have used ptr_type_node for the return type.  Add a cast here
+  // to the correct type.
+  if (TREE_TYPE(ret) == ptr_type_node)
+    {
+      tree t = this->type()->get_tree(gogo);
+      ret = fold_convert_loc(location, t, ret);
     }
 
   if (excess_type != NULL_TREE)

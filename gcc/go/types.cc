@@ -781,9 +781,19 @@ Type::get_tree(Gogo* gogo)
 {
   if (this->tree_ == NULL)
     {
-      this->tree_ = this->do_get_tree(gogo);
-      go_preserve_from_gc(this->tree_);
+      tree t = this->do_get_tree(gogo);
+
+      // For a recursive function or pointer type, we will temporarily
+      // return ptr_type_node during the recursion.  We don't want to
+      // record that for a forwarding type, as it may confuse us
+      // later.
+      if (t == ptr_type_node && this->forward_declaration_type() != NULL)
+	return t;
+
+      this->tree_ = t;
+      go_preserve_from_gc(t);
     }
+
   return this->tree_;
 }
 
