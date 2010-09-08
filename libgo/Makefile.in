@@ -192,10 +192,6 @@ am__objects_3 = go-assert.lo go-assert-interface.lo go-bad-index.lo \
 	malloc.lo map.lo mprof.lo reflect.lo sigqueue.lo string.lo
 am_libgo_la_OBJECTS = $(am__objects_3)
 libgo_la_OBJECTS = $(am_libgo_la_OBJECTS)
-libgotesting_la_DEPENDENCIES = testing/libtesting.la \
-	testing/libiotest.la testing/libquick.la testing/libscript.la
-am_libgotesting_la_OBJECTS =
-libgotesting_la_OBJECTS = $(am_libgotesting_la_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/../depcomp
 am__depfiles_maybe = depfiles
@@ -209,10 +205,8 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libgobegin_a_SOURCES) $(libgo_la_SOURCES) \
-	$(libgotesting_la_SOURCES)
-DIST_SOURCES = $(libgobegin_a_SOURCES) $(am__libgo_la_SOURCES_DIST) \
-	$(libgotesting_la_SOURCES)
+SOURCES = $(libgobegin_a_SOURCES) $(libgo_la_SOURCES)
+DIST_SOURCES = $(libgobegin_a_SOURCES) $(am__libgo_la_SOURCES_DIST)
 MULTISRCTOP = 
 MULTIBUILDTOP = 
 MULTIDIRS = 
@@ -484,7 +478,7 @@ AM_MAKEFLAGS = \
 
 # Subdir rules rely on $(FLAGS_TO_PASS)
 FLAGS_TO_PASS = $(AM_MAKEFLAGS)
-toolexeclib_LTLIBRARIES = libgo.la libgotesting.la
+toolexeclib_LTLIBRARIES = libgo.la
 toolexeclib_LIBRARIES = libgobegin.a
 toolexeclib_DATA = \
 	asn1.gox \
@@ -1500,19 +1494,16 @@ libgo_go_objs = \
 	os/libsignal.la \
 	rpc/libjsonrpc.la \
 	runtime/libpprof.la \
-	syscalls/libsyscall.la
+	syscalls/libsyscall.la \
+	testing/libtesting.la \
+	testing/libiotest.la \
+	testing/libquick.la \
+	testing/libscript.la
 
 libgo_la_SOURCES = $(runtime_files)
 libgo_la_LIBADD = $(libgo_go_objs) $(LIBFFI) -lpthread
 libgobegin_a_SOURCES = \
 	runtime/go-main.c
-
-libgotesting_la_SOURCES = 
-libgotesting_la_LIBADD = \
-	testing/libtesting.la \
-	testing/libiotest.la \
-	testing/libquick.la \
-	testing/libscript.la
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
 AM_GOFLAGS = $(STRINGOPS_FLAG)
@@ -1810,8 +1801,6 @@ clean-toolexeclibLTLIBRARIES:
 	done
 libgo.la: $(libgo_la_OBJECTS) $(libgo_la_DEPENDENCIES) 
 	$(LINK) -rpath $(toolexeclibdir) $(libgo_la_OBJECTS) $(libgo_la_LIBADD) $(LIBS)
-libgotesting.la: $(libgotesting_la_OBJECTS) $(libgotesting_la_DEPENDENCIES) 
-	$(LINK) -rpath $(toolexeclibdir) $(libgotesting_la_OBJECTS) $(libgotesting_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

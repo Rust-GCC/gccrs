@@ -92,7 +92,7 @@ AM_MAKEFLAGS = \
 # Subdir rules rely on $(FLAGS_TO_PASS)
 FLAGS_TO_PASS = $(AM_MAKEFLAGS)
 
-toolexeclib_LTLIBRARIES = libgo.la libgotesting.la
+toolexeclib_LTLIBRARIES = libgo.la
 toolexeclib_LIBRARIES = libgobegin.a
 
 toolexeclib_DATA = \
@@ -1177,7 +1177,11 @@ libgo_go_objs = \
 	os/libsignal.la \
 	rpc/libjsonrpc.la \
 	runtime/libpprof.la \
-	syscalls/libsyscall.la
+	syscalls/libsyscall.la \
+	testing/libtesting.la \
+	testing/libiotest.la \
+	testing/libquick.la \
+	testing/libscript.la
 
 libgo_la_SOURCES = $(runtime_files)
 
@@ -1185,13 +1189,6 @@ libgo_la_LIBADD = $(libgo_go_objs) $(LIBFFI) -lpthread
 
 libgobegin_a_SOURCES = \
 	runtime/go-main.c
-
-libgotesting_la_SOURCES =
-libgotesting_la_LIBADD = \
-	testing/libtesting.la \
-	testing/libiotest.la \
-	testing/libquick.la \
-	testing/libscript.la
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
 

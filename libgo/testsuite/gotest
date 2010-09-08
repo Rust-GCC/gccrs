@@ -16,7 +16,7 @@ export LC_CTYPE=C
 
 GC=${GC:-gccgo}
 GL=${GL:-${GC-gccgo}}
-GOLIBS=${GOLIBS:=-lgotesting}
+GOLIBS=
 export GC GL GOLIBS
 
 # srcdir is where the source files are found.  basedir is where the
