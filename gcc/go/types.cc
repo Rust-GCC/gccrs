@@ -5707,14 +5707,28 @@ Named_type::do_get_tree(Gogo* gogo)
       break;
 
     case TYPE_FUNCTION:
+      // GENERIC can't handle a pointer to a function type whose
+      // return type is a pointer to the function type itself.  It
+      // does into infinite loops when walking the types.
+      if (this->seen_
+	  && this->function_type()->results() != NULL
+	  && this->function_type()->results()->size() == 1
+	  && (this->function_type()->results()->front().type()->forwarded()
+	      == this))
+	return ptr_type_node;
+      this->seen_ = true;
+      t = this->type_->get_tree(gogo);
+      this->seen_ = false;
+      if (t == error_mark_node)
+	return error_mark_node;
+      t = build_variant_type_copy(t);
+      break;
+
     case TYPE_POINTER:
-      if (this->seen_)
-	{
-	  // GENERIC can't handle a pointer type which points to
-	  // itself.  It goes into infinite loops when walking the
-	  // types.
-	  return ptr_type_node;
-	}
+      // GENERIC can't handle a pointer type which points to itself.
+      // It goes into infinite loops when walking the types.
+      if (this->seen_ && this->points_to()->forwarded() == this)
+	return ptr_type_node;
       this->seen_ = true;
       t = this->type_->get_tree(gogo);
       this->seen_ = false;
