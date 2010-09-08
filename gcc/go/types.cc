@@ -3634,46 +3634,6 @@ Array_type::do_get_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
     }
 }
 
-// Check that LEN, which has an arbitrary integer type, is
-// non-negative and not more than the maximum value of BOUND_TYPE.
-// Return a tree which performs this check.  The return value may be
-// NULL_TREE.  CHECK is a set of checks so far which are or'ed into
-// the result.
-
-tree
-Array_type::check_make_arg(tree len, tree check, tree bound_type,
-			   source_location location)
-{
-  tree len_type = TREE_TYPE(len);
-  tree ret = NULL_TREE;
-  if (!TYPE_UNSIGNED(len_type))
-    ret = fold_build2_loc(location, LT_EXPR, boolean_type_node,
-			  len,
-			  fold_convert_loc(location, len_type,
-					   integer_zero_node));
-  if ((TYPE_UNSIGNED(len_type) && !TYPE_UNSIGNED(bound_type))
-      || TYPE_SIZE(len_type) > TYPE_SIZE(bound_type))
-    {
-      tree max = TYPE_MAX_VALUE(bound_type);
-      tree big = fold_build2_loc(location, GT_EXPR, boolean_type_node,
-				 len,
-				 fold_convert_loc(location, len_type, max));
-      if (ret == NULL_TREE)
-	ret = big;
-      else
-	ret = fold_build2_loc(location, TRUTH_OR_EXPR, boolean_type_node,
-			      ret, big);
-    }
-
-  if (ret == NULL_TREE)
-    return check;
-  else if (check == NULL_TREE)
-    return ret;
-  else
-    return fold_build2_loc(location, TRUTH_OR_EXPR, boolean_type_node,
-			   ret, check);
-}
-
 // Handle the builtin make function for a slice.
 
 tree
@@ -3715,9 +3675,9 @@ Array_type::do_make_expression_tree(Translate_context* context,
   if (!INTEGRAL_TYPE_P(TREE_TYPE(length_tree)))
     length_tree = convert_to_integer(TREE_TYPE(count_field), length_tree);
 
-  tree bad_index = Array_type::check_make_arg(length_tree, NULL_TREE,
-					      TREE_TYPE(count_field),
-					      location);
+  tree bad_index = Expression::check_bounds(length_tree,
+					    TREE_TYPE(count_field),
+					    NULL_TREE, location);
 
   length_tree = fold_convert_loc(location, TREE_TYPE(count_field), length_tree);
   tree capacity_tree;
@@ -3734,9 +3694,9 @@ Array_type::do_make_expression_tree(Translate_context* context,
 	capacity_tree = convert_to_integer(TREE_TYPE(count_field),
 					   capacity_tree);
 
-      bad_index = Array_type::check_make_arg(capacity_tree, bad_index,
-					     TREE_TYPE(count_field),
-					     location);
+      bad_index = Expression::check_bounds(capacity_tree,
+					   TREE_TYPE(count_field),
+					   bad_index, location);
 
       tree chktype = (((TYPE_SIZE(TREE_TYPE(capacity_tree))
 			> TYPE_SIZE(TREE_TYPE(length_tree)))
@@ -4163,6 +4123,8 @@ Map_type::do_make_expression_tree(Translate_context* context,
 				  Expression_list* args,
 				  source_location location)
 {
+  tree bad_index = NULL_TREE;
+
   tree expr_tree;
   if (args == NULL || args->empty())
     expr_tree = size_zero_node;
@@ -4171,21 +4133,48 @@ Map_type::do_make_expression_tree(Translate_context* context,
       expr_tree = args->front()->get_tree(context);
       if (expr_tree == error_mark_node)
 	return error_mark_node;
-      expr_tree = ::convert(sizetype, expr_tree);
+      if (!DECL_P(expr_tree))
+	expr_tree = save_expr(expr_tree);
+      if (!INTEGRAL_TYPE_P(TREE_TYPE(expr_tree)))
+	expr_tree = convert_to_integer(sizetype, expr_tree);
+      bad_index = Expression::check_bounds(expr_tree, sizetype, bad_index,
+					   location);
     }
 
   tree map_type = this->get_tree(context->gogo());
 
   static tree new_map_fndecl;
-  return Gogo::call_builtin(&new_map_fndecl,
-			    location,
-			    "__go_new_map",
-			    2,
-			    map_type,
-			    TREE_TYPE(TYPE_FIELDS(TREE_TYPE(map_type))),
-			    context->gogo()->map_descriptor(this),
-			    sizetype,
-			    expr_tree);
+  tree ret = Gogo::call_builtin(&new_map_fndecl,
+				location,
+				"__go_new_map",
+				2,
+				map_type,
+				TREE_TYPE(TYPE_FIELDS(TREE_TYPE(map_type))),
+				context->gogo()->map_descriptor(this),
+				sizetype,
+				expr_tree);
+  // This can panic if the capacity is out of range.
+  TREE_NOTHROW(new_map_fndecl) = 0;
+
+  if (bad_index == NULL_TREE)
+    return ret;
+  else
+    {
+      // FIXME: Wrong message.
+      static tree bad_index_fndecl;
+      tree crash = Gogo::call_builtin(&bad_index_fndecl,
+				      location,
+				      "__go_bad_index",
+				      0,
+				      void_type_node);
+      TREE_NOTHROW(bad_index_fndecl) = 0;
+      TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
+
+      return build2(COMPOUND_EXPR, TREE_TYPE(ret),
+		    build3(COND_EXPR, void_type_node,
+			   bad_index, crash, NULL_TREE),
+		    ret);
+    }
 }
 
 // Type descriptor.
@@ -4343,22 +4332,56 @@ Channel_type::do_make_expression_tree(Translate_context* context,
   tree element_tree = this->element_type_->get_tree(gogo);
   tree element_size_tree = size_in_bytes(element_tree);
 
+  tree bad_index = NULL_TREE;
+
   tree expr_tree;
-  if (args != NULL && !args->empty())
-    expr_tree = ::convert(sizetype, args->front()->get_tree(context));
-  else
+  if (args == NULL || args->empty())
     expr_tree = size_zero_node;
+  else
+    {
+      expr_tree = args->front()->get_tree(context);
+      if (expr_tree == error_mark_node)
+	return error_mark_node;
+      if (!DECL_P(expr_tree))
+	expr_tree = save_expr(expr_tree);
+      if (!INTEGRAL_TYPE_P(TREE_TYPE(expr_tree)))
+	expr_tree = convert_to_integer(sizetype, expr_tree);
+      bad_index = Expression::check_bounds(expr_tree, sizetype, bad_index,
+					   location);
+    }
 
   static tree new_channel_fndecl;
-  return Gogo::call_builtin(&new_channel_fndecl,
-			    location,
-			    "__go_new_channel",
-			    2,
-			    channel_type,
-			    sizetype,
-			    element_size_tree,
-			    sizetype,
-			    expr_tree);
+  tree ret = Gogo::call_builtin(&new_channel_fndecl,
+				location,
+				"__go_new_channel",
+				2,
+				channel_type,
+				sizetype,
+				element_size_tree,
+				sizetype,
+				expr_tree);
+  // This can panic if the capacity is out of range.
+  TREE_NOTHROW(new_channel_fndecl) = 0;
+
+  if (bad_index == NULL_TREE)
+    return ret;
+  else
+    {
+      // FIXME: Wrong message.
+      static tree bad_index_fndecl;
+      tree crash = Gogo::call_builtin(&bad_index_fndecl,
+				      location,
+				      "__go_bad_index",
+				      0,
+				      void_type_node);
+      TREE_NOTHROW(bad_index_fndecl) = 0;
+      TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
+
+      return build2(COMPOUND_EXPR, TREE_TYPE(ret),
+		    build3(COND_EXPR, void_type_node,
+			   bad_index, crash, NULL_TREE),
+		    ret);
+    }
 }
 
 // Type descriptor.

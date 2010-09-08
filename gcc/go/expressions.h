@@ -589,6 +589,13 @@ class Expression
   static Expression*
   import_expression(Import*);
 
+  // Return a tree which checks that VAL, of arbitrary integer type,
+  // is non-negative and is not more than the maximum value of
+  // BOUND_TYPE.  If SOFAR is not NULL, it is or'red into the result.
+  // The return value may be NULL if SOFAR is NULL.
+  static tree
+  check_bounds(tree val, tree bound_type, tree sofar, source_location);
+
  protected:
   // May be implemented by child class: traverse the expressions.
   virtual int

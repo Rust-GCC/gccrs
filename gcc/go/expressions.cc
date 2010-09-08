@@ -833,6 +833,50 @@ Expression::complex_constant_tree(mpfr_t real, mpfr_t imag, tree type)
     gcc_unreachable();
 }
 
+// Return a tree which evaluates to true if VAL, of arbitrary integer
+// type, is negative or is more than the maximum value of BOUND_TYPE.
+// If SOFAR is not NULL, it is or'red into the result.  The return
+// value may be NULL if SOFAR is NULL.
+
+tree
+Expression::check_bounds(tree val, tree bound_type, tree sofar,
+			 source_location loc)
+{
+  tree val_type = TREE_TYPE(val);
+  tree ret = NULL_TREE;
+
+  if (!TYPE_UNSIGNED(val_type))
+    {
+      ret = fold_build2_loc(loc, LT_EXPR, boolean_type_node, val,
+			    build_int_cst(val_type, 0));
+      if (ret == boolean_false_node)
+	ret = NULL_TREE;
+    }
+
+  if ((TYPE_UNSIGNED(val_type) && !TYPE_UNSIGNED(bound_type))
+      || TYPE_SIZE(val_type) > TYPE_SIZE(bound_type))
+    {
+      tree max = TYPE_MAX_VALUE(bound_type);
+      tree big = fold_build2_loc(loc, GT_EXPR, boolean_type_node, val,
+				 fold_convert_loc(loc, val_type, max));
+      if (big == boolean_false_node)
+	;
+      else if (ret == NULL_TREE)
+	ret = big;
+      else
+	ret = fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node,
+			      ret, big);
+    }
+
+  if (ret == NULL_TREE)
+    return sofar;
+  else if (sofar == NULL_TREE)
+    return ret;
+  else
+    return fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node,
+			   sofar, ret);
+}
+
 // Error expressions.  This are used to avoid cascading errors.
 
 class Error_expression : public Expression
@@ -8723,7 +8767,7 @@ Array_index_expression::do_type()
 {
   if (this->type_ == NULL)
     {
-      Array_type* type = this->array_->type()->array_type();
+     Array_type* type = this->array_->type()->array_type();
       if (type == NULL)
 	this->type_ = Type::make_error_type();
       else if (this->end_ == NULL)
@@ -8770,6 +8814,9 @@ Array_index_expression::do_check_types(Gogo*)
   Array_type* array_type = this->array_->type()->array_type();
   gcc_assert(array_type != NULL);
 
+  unsigned int int_bits =
+    Type::lookup_integer_type("int")->integer_type()->bits();
+
   Type* dummy;
   mpz_t lval;
   mpz_init(lval);
@@ -8782,6 +8829,7 @@ Array_index_expression::do_check_types(Gogo*)
   if (this->start_->integer_constant_value(true, ival, &dummy))
     {
       if (mpz_sgn(ival) < 0
+	  || mpz_sizeinbase(ival, 2) >= int_bits
 	  || (lval_valid
 	      && (this->end_ == NULL
 		  ? mpz_cmp(ival, lval) >= 0
@@ -8795,7 +8843,9 @@ Array_index_expression::do_check_types(Gogo*)
     {
       if (this->end_->integer_constant_value(true, ival, &dummy))
 	{
-	  if (mpz_sgn(ival) < 0 || (lval_valid && mpz_cmp(ival, lval) > 0))
+	  if (mpz_sgn(ival) < 0
+	      || mpz_sizeinbase(ival, 2) >= int_bits
+	      || (lval_valid && mpz_cmp(ival, lval) > 0))
 	    {
 	      error_at(this->end_->location(), "array index out of bounds");
 	      this->set_is_error();
@@ -8848,19 +8898,26 @@ Array_index_expression::do_get_tree(Translate_context* context)
   if (array_tree == error_mark_node)
     return error_mark_node;
 
+  if (array_type->length() == NULL && !DECL_P(array_tree))
+    array_tree = save_expr(array_tree);
+  tree length_tree = array_type->length_tree(gogo, array_tree);
+  length_tree = save_expr(length_tree);
+  tree length_type = TREE_TYPE(length_tree);
+
   tree bad_index = boolean_false_node;
+
   tree start_tree = this->start_->get_tree(context);
   if (start_tree == error_mark_node)
     return error_mark_node;
-
-  if (array_type->length() == NULL && !DECL_P(array_tree))
-    array_tree = save_expr(array_tree);
   if (!DECL_P(start_tree))
     start_tree = save_expr(start_tree);
-  tree length_tree = array_type->length_tree(gogo, array_tree);
-  if (this->end_ != NULL && this->end_->is_nil_expression())
-    length_tree = save_expr(length_tree);
-  start_tree = fold_convert_loc(loc, TREE_TYPE(length_tree), start_tree);
+  if (!INTEGRAL_TYPE_P(TREE_TYPE(start_tree)))
+    start_tree = convert_to_integer(length_type, start_tree);
+
+  bad_index = Expression::check_bounds(start_tree, length_type, bad_index,
+				       loc);
+
+  start_tree = fold_convert_loc(loc, length_type, start_tree);
   bad_index = fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node, bad_index,
 			      fold_build2_loc(loc,
 					      (this->end_ == NULL
@@ -8911,8 +8968,7 @@ Array_index_expression::do_get_tree(Translate_context* context)
   // Array slice.
 
   tree capacity_tree = array_type->capacity_tree(gogo, array_tree);
-  capacity_tree = fold_convert_loc(loc, TREE_TYPE(length_tree),
-				   capacity_tree);
+  capacity_tree = fold_convert_loc(loc, length_type, capacity_tree);
 
   tree end_tree;
   if (this->end_->is_nil_expression())
@@ -8922,10 +8978,16 @@ Array_index_expression::do_get_tree(Translate_context* context)
       end_tree = this->end_->get_tree(context);
       if (end_tree == error_mark_node)
 	return error_mark_node;
-      end_tree = fold_convert_loc(loc, TREE_TYPE(length_tree), end_tree);
-
       if (!DECL_P(end_tree))
 	end_tree = save_expr(end_tree);
+      if (!INTEGRAL_TYPE_P(TREE_TYPE(end_tree)))
+	end_tree = convert_to_integer(length_type, end_tree);
+
+      bad_index = Expression::check_bounds(end_tree, length_type, bad_index,
+					   loc);
+
+      end_tree = fold_convert_loc(loc, length_type, end_tree);
+
       capacity_tree = save_expr(capacity_tree);
       tree bad_end = fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node,
 				     fold_build2_loc(loc, LT_EXPR,
@@ -8951,12 +9013,10 @@ Array_index_expression::do_get_tree(Translate_context* context)
 				  TREE_TYPE(value_pointer),
 				  value_pointer, offset);
 
-  tree result_length_tree = fold_build2_loc(loc, MINUS_EXPR,
-					    TREE_TYPE(length_tree),
+  tree result_length_tree = fold_build2_loc(loc, MINUS_EXPR, length_type,
 					    end_tree, start_tree);
 
-  tree result_capacity_tree = fold_build2_loc(loc, MINUS_EXPR,
-					      TREE_TYPE(length_tree),
+  tree result_capacity_tree = fold_build2_loc(loc, MINUS_EXPR, length_type,
 					      capacity_tree, start_tree);
 
   tree struct_tree = this->type()->get_tree(gogo);
@@ -9139,81 +9199,110 @@ String_index_expression::do_check_types(Gogo*)
 tree
 String_index_expression::do_get_tree(Translate_context* context)
 {
+  source_location loc = this->location();
+
   tree string_tree = this->string_->get_tree(context);
   if (string_tree == error_mark_node)
     return error_mark_node;
 
   if (this->string_->type()->points_to() != NULL)
     string_tree = build_fold_indirect_ref(string_tree);
+  if (!DECL_P(string_tree))
+    string_tree = save_expr(string_tree);
+  tree string_type = TREE_TYPE(string_tree);
+
+  tree length_tree = String_type::length_tree(context->gogo(), string_tree);
+  length_tree = save_expr(length_tree);
+  tree length_type = TREE_TYPE(length_tree);
+
+  tree bad_index = boolean_false_node;
 
   tree start_tree = this->start_->get_tree(context);
   if (start_tree == error_mark_node)
     return error_mark_node;
-  start_tree = fold_convert(integer_type_node, start_tree);
+  if (!DECL_P(start_tree))
+    start_tree = save_expr(start_tree);
+  if (!INTEGRAL_TYPE_P(TREE_TYPE(start_tree)))
+    start_tree = convert_to_integer(length_type, start_tree);
 
-  tree string_type = TREE_TYPE(string_tree);
+  bad_index = Expression::check_bounds(start_tree, length_type, bad_index,
+				       loc);
+
+  start_tree = fold_convert_loc(loc, length_type, start_tree);
+
+  // FIXME: Duplicates Array_index::do_get_tree.
+  static tree bad_index_fndecl;
+  tree crash = Gogo::call_builtin(&bad_index_fndecl,
+				  this->location(),
+				  "__go_bad_index",
+				  0,
+				  void_type_node);
+  TREE_NOTHROW(bad_index_fndecl) = 0;
+  TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
 
   if (this->end_ == NULL)
     {
-      if (!DECL_P(string_tree))
-	string_tree = save_expr(string_tree);
-      if (!DECL_P(start_tree))
-	start_tree = save_expr(start_tree);
-
-      tree length_tree = String_type::length_tree(context->gogo(),
-						  string_tree);
-      tree bad_index = fold_build2(GE_EXPR, boolean_type_node,
-				   start_tree, length_tree);
-
-      // FIXME: Duplicates Array_index::do_get_tree.
-      static tree bad_index_fndecl;
-      tree crash = Gogo::call_builtin(&bad_index_fndecl,
-				      this->location(),
-				      "__go_bad_index",
-				      0,
-				      void_type_node);
-      TREE_NOTHROW(bad_index_fndecl) = 0;
-      TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
+      bad_index = fold_build2_loc(loc, TRUTH_OR_EXPR, boolean_type_node,
+				  bad_index,
+				  fold_build2_loc(loc, GE_EXPR,
+						  boolean_type_node,
+						  start_tree, length_tree));
 
       tree bytes_tree = String_type::bytes_tree(context->gogo(), string_tree);
-      tree ptr = fold_build2(POINTER_PLUS_EXPR, TREE_TYPE(bytes_tree),
-			     bytes_tree,
-			     fold_convert(sizetype, start_tree));
-      tree index = build_fold_indirect_ref(ptr);
+      tree ptr = fold_build2_loc(loc, POINTER_PLUS_EXPR, TREE_TYPE(bytes_tree),
+				 bytes_tree,
+				 fold_convert_loc(loc, sizetype, start_tree));
+      tree index = build_fold_indirect_ref_loc(loc, ptr);
 
-      return fold_build2(COMPOUND_EXPR, TREE_TYPE(index),
-			 build3(COND_EXPR, void_type_node,
-				bad_index, crash, NULL_TREE),
-			 index);
+      return build2(COMPOUND_EXPR, TREE_TYPE(index),
+		    build3(COND_EXPR, void_type_node,
+			   bad_index, crash, NULL_TREE),
+		    index);
     }
   else
     {
       tree end_tree;
       if (this->end_->is_nil_expression())
-	end_tree = integer_minus_one_node;
+	end_tree = build_int_cst(length_type, -1);
       else
 	{
 	  end_tree = this->end_->get_tree(context);
 	  if (end_tree == error_mark_node)
 	    return error_mark_node;
+	  if (!DECL_P(end_tree))
+	    end_tree = save_expr(end_tree);
+	  if (!INTEGRAL_TYPE_P(TREE_TYPE(end_tree)))
+	    end_tree = convert_to_integer(length_type, end_tree);
+
+	  bad_index = Expression::check_bounds(end_tree, length_type,
+					       bad_index, loc);
+
+	  end_tree = fold_convert_loc(loc, length_type, end_tree);
 	}
-      end_tree = fold_convert(integer_type_node, end_tree);
+
       static tree strslice_fndecl;
       tree ret = Gogo::call_builtin(&strslice_fndecl,
-				    this->location(),
+				    loc,
 				    "__go_string_slice",
 				    3,
 				    string_type,
 				    string_type,
 				    string_tree,
-				    integer_type_node,
+				    length_type,
 				    start_tree,
-				    integer_type_node,
+				    length_type,
 				    end_tree);
       // This will panic if the bounds are out of range for the
       // string.
       TREE_NOTHROW(strslice_fndecl) = 0;
-      return ret;
+
+      if (bad_index == boolean_false_node)
+	return ret;
+      else
+	return build2(COMPOUND_EXPR, TREE_TYPE(ret),
+		      build3(COND_EXPR, void_type_node,
+			     bad_index, crash, NULL_TREE),
+		      ret);
     }
 }
 
