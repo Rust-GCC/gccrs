@@ -2513,11 +2513,15 @@ Expression*
 Parse::primary_expr(bool may_be_sink, bool may_be_composite_lit,
 		    bool* is_type_switch)
 {
+  source_location start_loc = this->location();
+  bool is_parenthesized = this->peek_token()->is_op(OPERATOR_LPAREN);
+
   Expression* ret = this->operand(may_be_sink);
 
   // An unknown name followed by a curly brace must be a composite
   // literal, and the unknown name must be a type.
   if (may_be_composite_lit
+      && !is_parenthesized
       && ret->unknown_expression() != NULL
       && this->peek_token()->is_op(OPERATOR_LCURLY))
     {
@@ -2528,11 +2532,16 @@ Parse::primary_expr(bool may_be_sink, bool may_be_composite_lit,
 
   // We handle composite literals and type casts here, as it is the
   // easiest way to handle types which are in parentheses, as in
-  // "((([]int))){1}".
+  // "((uint))(1)".
   if (ret->is_type_expression())
     {
       if (this->peek_token()->is_op(OPERATOR_LCURLY))
-	ret = this->composite_lit(ret->type(), ret->location());
+	{
+	  if (is_parenthesized)
+	    error_at(start_loc,
+		     "cannot parenthesize type in composite literal");
+	  ret = this->composite_lit(ret->type(), ret->location());
+	}
       else if (this->peek_token()->is_op(OPERATOR_LPAREN))
 	{
 	  source_location loc = this->location();
