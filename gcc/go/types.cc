@@ -787,21 +787,15 @@ Type::get_tree(Gogo* gogo)
   return this->tree_;
 }
 
-// Store an incomplete type tree during construction.
-
-void
-Type::set_incomplete_type_tree(tree incomplete)
-{
-  gcc_assert(this->tree_ == NULL);
-  this->tree_ = incomplete;
-}
-
 // Return a tree representing a zero initialization for this type.
 
 tree
 Type::get_init_tree(Gogo* gogo, bool is_clear)
 {
-  return this->do_init_tree(gogo, is_clear);
+  tree type_tree = this->get_tree(gogo);
+  if (type_tree == error_mark_node)
+    return error_mark_node;
+  return this->do_get_init_tree(gogo, type_tree, is_clear);
 }
 
 // Any type which supports the builtin make function must implement
@@ -921,7 +915,7 @@ class Error_type : public Type
   { return error_mark_node; }
 
   tree
-  do_init_tree(Gogo*, bool)
+  do_get_init_tree(Gogo*, tree, bool)
   { return error_mark_node; }
 
   void
@@ -959,7 +953,7 @@ class Void_type : public Type
   { return void_type_node; }
 
   tree
-  do_init_tree(Gogo*, bool)
+  do_get_init_tree(Gogo*, tree, bool)
   { gcc_unreachable(); }
 
   void
@@ -997,8 +991,8 @@ class Boolean_type : public Type
   { return boolean_type_node; }
 
   tree
-  do_init_tree(Gogo*, bool is_clear)
-  { return is_clear ? NULL : boolean_false_node; }
+  do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
+  { return is_clear ? NULL : fold_convert(type_tree, boolean_false_node); }
 
   void
   do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl);
@@ -1167,9 +1161,9 @@ Integer_type::do_get_tree(Gogo*)
 }
 
 tree
-Integer_type::do_init_tree(Gogo* gogo, bool is_clear)
+Integer_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 {
-  return is_clear ? NULL : build_int_cst(this->get_tree(gogo), 0);
+  return is_clear ? NULL : build_int_cst(type_tree, 0);
 }
 
 // The type descriptor for an integer type.  Integer types are always
@@ -1321,14 +1315,13 @@ Float_type::do_get_tree(Gogo*)
 }
 
 tree
-Float_type::do_init_tree(Gogo* gogo, bool is_clear)
+Float_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 {
   if (is_clear)
     return NULL;
-  tree type = this->get_tree(gogo);
   REAL_VALUE_TYPE r;
-  real_from_integer(&r, TYPE_MODE(type), 0, 0, 0);
-  return build_real(type, r);
+  real_from_integer(&r, TYPE_MODE(type_tree), 0, 0, 0);
+  return build_real(type_tree, r);
 }
 
 // The type descriptor for a float type.  Float types are always named.
@@ -1481,15 +1474,14 @@ Complex_type::do_get_tree(Gogo*)
 // Zero initializer.
 
 tree
-Complex_type::do_init_tree(Gogo* gogo, bool is_clear)
+Complex_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 {
   if (is_clear)
     return NULL;
-  tree type = this->get_tree(gogo);
   REAL_VALUE_TYPE r;
-  real_from_integer(&r, TYPE_MODE(TREE_TYPE(type)), 0, 0, 0);
-  return build_complex(type, build_real(TREE_TYPE(type), r),
-		       build_real(TREE_TYPE(type), r));
+  real_from_integer(&r, TYPE_MODE(TREE_TYPE(type_tree)), 0, 0, 0);
+  return build_complex(type_tree, build_real(TREE_TYPE(type_tree), r),
+		       build_real(TREE_TYPE(type_tree), r));
 }
 
 // The type descriptor for a complex type.  Complex types are always
@@ -1594,12 +1586,11 @@ String_type::bytes_tree(Gogo*, tree string)
 // We initialize a string to { NULL, 0 }.
 
 tree
-String_type::do_init_tree(Gogo* gogo, bool is_clear)
+String_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 {
   if (is_clear)
     return NULL_TREE;
 
-  tree type_tree = this->get_tree(gogo);
   gcc_assert(TREE_CODE(type_tree) == RECORD_TYPE);
 
   VEC(constructor_elt, gc)* init = VEC_alloc(constructor_elt, gc, 2);
@@ -1700,7 +1691,7 @@ class Sink_type : public Type
   { gcc_unreachable(); }
 
   tree
-  do_init_tree(Gogo*, bool)
+  do_get_init_tree(Gogo*, tree, bool)
   { gcc_unreachable(); }
 
   void
@@ -1979,15 +1970,6 @@ Function_type::do_hash_for_method(Gogo* gogo) const
 tree
 Function_type::do_get_tree(Gogo* gogo)
 {
-  // A function type can refer to itself indirectly, as in
-  //   type F func() F
-  // A Go function type is represented as a pointer to a GENERIC
-  // function.  Create a pointer node now and fill it in later.
-  tree ret = make_node(POINTER_TYPE);
-  SET_TYPE_MODE(ret, ptr_mode);
-  layout_type(ret);
-  this->set_incomplete_type_tree(ret);
-
   tree args = NULL_TREE;
   tree* pp = &args;
 
@@ -2060,35 +2042,20 @@ Function_type::do_get_tree(Gogo* gogo)
   if (result == error_mark_node)
     return error_mark_node;
 
-  // A function type whose return type is the function type itself can
-  // not be handled in GENERIC.  Such a type can not be written in C,
-  // but in Go it looks like "type F func() F".  We turn this special
-  // case into a function which returns a generic pointer.
-  if (result == ret)
-    result = ptr_type_node;
-
   tree fntype = build_function_type(result, args);
   if (fntype == error_mark_node)
     return fntype;
 
-  TREE_TYPE(ret) = fntype;
-  TYPE_POINTER_TO(fntype) = ret;
-  if (TYPE_STRUCTURAL_EQUALITY_P(fntype))
-    SET_TYPE_STRUCTURAL_EQUALITY(ret);
-
-  return ret;
+  return build_pointer_type(fntype);
 }
 
 // Functions are initialized to NULL.
 
 tree
-Function_type::do_init_tree(Gogo* gogo, bool is_clear)
+Function_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 {
   if (is_clear)
     return NULL;
-  tree type_tree = this->get_tree(gogo);
-  if (type_tree == error_mark_node)
-    return error_mark_node;
   return fold_convert(type_tree, null_pointer_node);
 }
 
@@ -2411,13 +2378,10 @@ Pointer_type::do_get_tree(Gogo* gogo)
 // Initialize a pointer type.
 
 tree
-Pointer_type::do_init_tree(Gogo* gogo, bool is_clear)
+Pointer_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 {
   if (is_clear)
     return NULL;
-  tree type_tree = this->get_tree(gogo);
-  if (type_tree == error_mark_node)
-    return error_mark_node;
   return fold_convert(type_tree, null_pointer_node);
 }
 
@@ -2513,8 +2477,8 @@ class Nil_type : public Type
   { return ptr_type_node; }
 
   tree
-  do_init_tree(Gogo*, bool is_clear)
-  { return is_clear ? NULL : null_pointer_node; }
+  do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
+  { return is_clear ? NULL : fold_convert(type_tree, null_pointer_node); }
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*)
@@ -2560,7 +2524,7 @@ class Call_multiple_result_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool)
+  do_get_init_tree(Gogo*, tree, bool)
   { gcc_unreachable(); }
 
   void
@@ -3019,11 +2983,16 @@ tree
 Struct_type::do_get_tree(Gogo* gogo)
 {
   tree type = make_node(RECORD_TYPE);
-  this->set_incomplete_type_tree(type);
+  return this->fill_in_tree(gogo, type);
+}
 
+// Fill in the fields for a struct type.
+
+tree
+Struct_type::fill_in_tree(Gogo* gogo, tree type)
+{
   tree field_trees = NULL_TREE;
   tree* pp = &field_trees;
-  gcc_assert(this->fields_ != NULL);
   for (Struct_field_list::const_iterator p = this->fields_->begin();
        p != this->fields_->end();
        ++p)
@@ -3050,12 +3019,8 @@ Struct_type::do_get_tree(Gogo* gogo)
 // Initialize struct fields.
 
 tree
-Struct_type::do_init_tree(Gogo* gogo, bool is_clear)
+Struct_type::do_get_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
 {
-  tree type_tree = this->get_tree(gogo);
-  if (type_tree == error_mark_node)
-    return error_mark_node;
-
   if (this->fields_ == NULL || this->fields_->empty())
     {
       if (is_clear)
@@ -3550,7 +3515,12 @@ Array_type::get_length_tree(Gogo* gogo)
 tree
 Array_type::do_get_tree(Gogo* gogo)
 {
-  if (this->length_ != NULL)
+  if (this->length_ == NULL)
+    {
+      tree struct_type = gogo->slice_type_tree(void_type_node);
+      return this->fill_in_tree(gogo, struct_type);
+    }
+  else
     {
       tree element_type_tree = this->element_type_->get_tree(gogo);
       tree length_tree = this->get_length_tree(gogo);
@@ -3568,48 +3538,47 @@ Array_type::do_get_tree(Gogo* gogo)
 
       return build_array_type(element_type_tree, index_type);
     }
-  else
+}
+
+// Fill in the fields for a slice type.  This is used for named slice
+// types.
+
+tree
+Array_type::fill_in_tree(Gogo* gogo, tree struct_type)
+{
+  gcc_assert(this->length_ == NULL);
+
+  // Two different slices of the same element type are really the same
+  // type.  In order to make that valid at the tree level, we make
+  // sure to return the same struct.
+  std::pair<Type*, tree> val(this->element_type_, NULL);
+  std::pair<Array_trees::iterator, bool> ins =
+    Array_type::array_trees.insert(val);
+  if (!ins.second)
     {
-      // Two different slices of the same element type are really the
-      // same type.  In order to make that valid at the tree level, we
-      // make sure to return the same struct.
-      std::pair<Type*, tree> val(this->element_type_, NULL);
-      std::pair<Array_trees::iterator, bool> ins =
-	Array_type::array_trees.insert(val);
-      if (!ins.second)
-	{
-	  // We've already created a tree type for a slice with this
-	  // element type.
-	  gcc_assert(ins.first->second != NULL_TREE);
-	  return ins.first->second;
-	}
-
-      // A slice type can be recursive, as in "type T []T".  Avoid
-      // infinite recursion by creating the struct first, and then
-      // filling in the element type.
-      tree struct_type = gogo->slice_type_tree(void_type_node);
-      this->set_incomplete_type_tree(struct_type);
-      ins.first->second = struct_type;
-
-      tree element_type_tree = this->element_type_->get_tree(gogo);
-
-      tree field = TYPE_FIELDS(struct_type);
-      gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__values") == 0);
-      gcc_assert(POINTER_TYPE_P(TREE_TYPE(field))
-		 && TREE_TYPE(TREE_TYPE(field)) == void_type_node);
-      TREE_TYPE(field) = build_pointer_type(element_type_tree);
-
-      return struct_type;
+      // We've already created a tree type for a slice with this
+      // element type.
+      gcc_assert(ins.first->second != NULL_TREE);
+      return ins.first->second;
     }
+
+  ins.first->second = struct_type;
+
+  tree element_type_tree = this->element_type_->get_tree(gogo);
+  tree field = TYPE_FIELDS(struct_type);
+  gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__values") == 0);
+  gcc_assert(POINTER_TYPE_P(TREE_TYPE(field))
+	     && TREE_TYPE(TREE_TYPE(field)) == void_type_node);
+  TREE_TYPE(field) = build_pointer_type(element_type_tree);
+
+  return struct_type;
 }
 
 // Return an initializer for an array type.
 
 tree
-Array_type::do_init_tree(Gogo* gogo, bool is_clear)
+Array_type::do_get_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
 {
-  tree type_tree = this->get_tree(gogo);
-
   if (this->length_ == NULL)
     {
       // Open array.
@@ -4170,11 +4139,11 @@ Map_type::do_get_tree(Gogo* gogo)
 // Initialize a map.
 
 tree
-Map_type::do_init_tree(Gogo* gogo, bool is_clear)
+Map_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 {
   if (is_clear)
     return NULL;
-  return fold_convert(this->get_tree(gogo), null_pointer_node);
+  return fold_convert(type_tree, null_pointer_node);
 }
 
 // Return an expression for a newly allocated map.
@@ -4344,11 +4313,11 @@ Channel_type::do_get_tree(Gogo*)
 // Initialize a channel variable.
 
 tree
-Channel_type::do_init_tree(Gogo* gogo, bool is_clear)
+Channel_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 {
   if (is_clear)
     return NULL;
-  return fold_convert(this->get_tree(gogo), null_pointer_node);
+  return fold_convert(type_tree, null_pointer_node);
 }
 
 // Handle the builtin function make for a channel.
@@ -4844,14 +4813,13 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
 tree
 Interface_type::do_get_tree(Gogo* gogo)
 {
-  tree dtype = gogo->type_descriptor_type_tree();
-  dtype = build_pointer_type(build_qualified_type(dtype, TYPE_QUAL_CONST));
-
   if (this->methods_ == NULL)
     {
       // At the tree level, use the same type for all empty
       // interfaces.  This lets us assign them to each other directly
       // without triggering GIMPLE type errors.
+      tree dtype = gogo->type_descriptor_type_tree();
+      dtype = build_pointer_type(build_qualified_type(dtype, TYPE_QUAL_CONST));
       static tree empty_interface;
       return Gogo::builtin_struct(&empty_interface, "__go_empty_interface",
 				  NULL_TREE, 2,
@@ -4861,46 +4829,31 @@ Interface_type::do_get_tree(Gogo* gogo)
 				  ptr_type_node);
     }
 
-  // Interface types can have methods which refer to the interface
-  // type itself, so build the type first and then the method table.
-  tree ret = make_node(RECORD_TYPE);
+  return this->fill_in_tree(gogo, make_node(RECORD_TYPE));
+}
 
-  tree field_trees = NULL_TREE;
-  tree* pp = &field_trees;
+// Fill in the tree for an interface type.  This is used for named
+// interface types.
 
-  // Create the pointer to the method table but don't fill it in yet.
-  tree mtype = make_node(POINTER_TYPE);
-  SET_TYPE_MODE(mtype, ptr_mode);
-  layout_type(mtype);
-
-  tree name_tree = get_identifier("__methods");
-  tree field = build_decl(this->location_, FIELD_DECL, name_tree, mtype);
-  DECL_CONTEXT(field) = ret;
-  *pp = field;
-  pp = &TREE_CHAIN(field);
-
-  name_tree = get_identifier("__object");
-  field = build_decl(this->location_, FIELD_DECL, name_tree, ptr_type_node);
-  DECL_CONTEXT(field) = ret;
-  *pp = field;
-
-  TYPE_FIELDS(ret) = field_trees;
-
-  layout_type(ret);
-
-  this->set_incomplete_type_tree(ret);
+tree
+Interface_type::fill_in_tree(Gogo* gogo, tree type)
+{
+  gcc_assert(this->methods_ != NULL);
 
   // Build the type of the table of methods.
+
   tree method_table = make_node(RECORD_TYPE);
 
   // The first field is a pointer to the type descriptor.
-  name_tree = get_identifier("__type_descriptor");
-  field = build_decl(this->location_, FIELD_DECL, name_tree, dtype);
+  tree name_tree = get_identifier("__type_descriptor");
+  tree dtype = gogo->type_descriptor_type_tree();
+  dtype = build_pointer_type(build_qualified_type(dtype, TYPE_QUAL_CONST));
+  tree field = build_decl(this->location_, FIELD_DECL, name_tree, dtype);
   DECL_CONTEXT(field) = method_table;
   TYPE_FIELDS(method_table) = field;
 
   std::string last_name = "";
-  pp = &TREE_CHAIN(field);
+  tree* pp = &TREE_CHAIN(field);
   for (Typed_identifier_list::const_iterator p = this->methods_->begin();
        p != this->methods_->end();
        ++p)
@@ -4920,24 +4873,36 @@ Interface_type::do_get_tree(Gogo* gogo)
     }
   layout_type(method_table);
 
-  // Finish up the pointer to the method table.
-  TREE_TYPE(mtype) = method_table;
-  TYPE_POINTER_TO(method_table) = mtype;
-  if (TYPE_STRUCTURAL_EQUALITY_P(method_table))
-    SET_TYPE_STRUCTURAL_EQUALITY(mtype);
+  tree mtype = build_pointer_type(method_table);
 
-  return ret;
+  tree field_trees = NULL_TREE;
+  pp = &field_trees;
+
+  name_tree = get_identifier("__methods");
+  field = build_decl(this->location_, FIELD_DECL, name_tree, mtype);
+  DECL_CONTEXT(field) = type;
+  *pp = field;
+  pp = &TREE_CHAIN(field);
+
+  name_tree = get_identifier("__object");
+  field = build_decl(this->location_, FIELD_DECL, name_tree, ptr_type_node);
+  DECL_CONTEXT(field) = type;
+  *pp = field;
+
+  TYPE_FIELDS(type) = field_trees;
+
+  layout_type(type);
+
+  return type;
 }
 
 // Initialization value.
 
 tree
-Interface_type::do_init_tree(Gogo* gogo, bool is_clear)
+Interface_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 {
   if (is_clear)
     return NULL;
-
-  tree type_tree = this->get_tree(gogo);
 
   VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
   for (tree field = TYPE_FIELDS(type_tree);
@@ -5705,32 +5670,127 @@ Named_type::do_get_tree(Gogo* gogo)
   if (this->is_error_)
     return error_mark_node;
 
-  tree type_tree = this->type_->get_tree(gogo);
-  if (type_tree != error_mark_node)
+  // Go permits types to refer to themselves in various ways.  Break
+  // the recursion here.
+  tree t;
+  switch (this->type_->forwarded()->classification())
     {
-      tree id = this->named_object_->get_id(gogo);
+    case TYPE_ERROR:
+      return error_mark_node;
 
-      // If we are looking at a struct, interface, function, channel
-      // or map, we don't need to make a copy to hold the type.  Doing
-      // this makes it easier for the middle-end to notice when the
-      // types refer to themselves.
-      if (TYPE_NAME(type_tree) == NULL
-	  && (this->type_->struct_type() != NULL
-	      || this->type_->interface_type() != NULL
-	      || this->type_->function_type() != NULL
-	      || this->type_->channel_type() != NULL
-	      || this->type_->map_type() != NULL))
-	;
+    case TYPE_VOID:
+    case TYPE_BOOLEAN:
+    case TYPE_INTEGER:
+    case TYPE_FLOAT:
+    case TYPE_COMPLEX:
+    case TYPE_STRING:
+    case TYPE_NIL:
+      // These types can not refer to themselves.
+    case TYPE_MAP:
+    case TYPE_CHANNEL:
+      // All maps and channels have the same type in GENERIC.
+      t = this->type_->get_tree(gogo);
+      if (t == error_mark_node)
+	return error_mark_node;
+      // Build a copy to set TYPE_NAME.
+      t = build_variant_type_copy(t);
+      break;
+
+    case TYPE_FUNCTION:
+    case TYPE_POINTER:
+      if (this->seen_)
+	{
+	  // GENERIC can't handle a pointer type which points to
+	  // itself.  It goes into infinite loops when walking the
+	  // types.
+	  return ptr_type_node;
+	}
+      this->seen_ = true;
+      t = this->type_->get_tree(gogo);
+      this->seen_ = false;
+      if (t == error_mark_node)
+	return error_mark_node;
+      t = build_variant_type_copy(t);
+      break;
+
+    case TYPE_STRUCT:
+      if (this->named_tree_ != NULL_TREE)
+	return this->named_tree_;
+      t = make_node(RECORD_TYPE);
+      this->named_tree_ = t;
+      this->type_->struct_type()->fill_in_tree(gogo, t);
+      break;
+
+    case TYPE_ARRAY:
+      if (!this->is_open_array_type())
+	t = this->type_->get_tree(gogo);
       else
 	{
-	  // Make a copy so that we can set TYPE_NAME.
-	  type_tree = build_variant_type_copy(type_tree);
+	  if (this->named_tree_ != NULL_TREE)
+	    return this->named_tree_;
+	  t = gogo->slice_type_tree(void_type_node);
+	  this->named_tree_ = t;
+	  t = this->type_->array_type()->fill_in_tree(gogo, t);
 	}
+      if (t == error_mark_node)
+	return error_mark_node;
+      t = build_variant_type_copy(t);
+      break;
 
-      tree decl = build_decl(this->location_, TYPE_DECL, id, type_tree);
-      TYPE_NAME(type_tree) = decl;
+    case TYPE_INTERFACE:
+      if (this->type_->interface_type()->is_empty())
+	{
+	  t = this->type_->get_tree(gogo);
+	  if (t == error_mark_node)
+	    return error_mark_node;
+	  t = build_variant_type_copy(t);
+	}
+      else
+	{
+	  if (this->named_tree_ != NULL_TREE)
+	    return this->named_tree_;
+	  t = make_node(RECORD_TYPE);
+	  this->named_tree_ = t;
+	  t = this->type_->interface_type()->fill_in_tree(gogo, t);
+	}
+      break;
+
+    case TYPE_NAMED:
+      {
+	// When a named type T1 is defined as another named type T2,
+	// the definition must simply be "type T1 T2".  If the
+	// definition of T2 may refer to T1, then we must simply
+	// return the type for T2 here.  It's not precisely correct,
+	// but it's as close as we can get with GENERIC.
+	bool was_seen = this->seen_;
+	this->seen_ = true;
+	t = this->type_->get_tree(gogo);
+	this->seen_ = was_seen;
+	if (was_seen)
+	  return t;
+	if (t == error_mark_node)
+	  return error_mark_node;
+	t = build_variant_type_copy(t);
+      }
+      break;
+
+    case TYPE_FORWARD:
+      // An undefined forwarding type.  Make sure the error is
+      // emitted.
+      this->type_->forward_declaration_type()->real_type();
+      return error_mark_node;
+
+    default:
+    case TYPE_SINK:
+    case TYPE_CALL_MULTIPLE_RESULT:
+      gcc_unreachable();
     }
-  return type_tree;
+
+  tree id = this->named_object_->get_id(gogo);
+  tree decl = build_decl(this->location_, TYPE_DECL, id, t);
+  TYPE_NAME(t) = decl;
+
+  return t;
 }
 
 // Type descriptor decl.

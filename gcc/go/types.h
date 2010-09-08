@@ -799,6 +799,12 @@ class Type
   tree
   get_init_tree(Gogo*, bool is_clear);
 
+  // Like get_init_tree, but passing in the type to use for the
+  // initializer.
+  tree
+  get_typed_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
+  { return this->do_get_init_tree(gogo, type_tree, is_clear); }
+
   // Return a tree for a make expression applied to this type.
   tree
   make_expression_tree(Translate_context* context, Expression_list* args,
@@ -858,7 +864,7 @@ class Type
   do_get_tree(Gogo*) = 0;
 
   virtual tree
-  do_init_tree(Gogo*, bool) = 0;
+  do_get_init_tree(Gogo*, tree, bool) = 0;
 
   virtual tree
   do_make_expression_tree(Translate_context*, Expression_list*,
@@ -910,10 +916,6 @@ class Type
   void
   append_mangled_name(const Type* type, Gogo* gogo, std::string* ret) const
   { type->do_mangled_name(gogo, ret); }
-
-  // Store the type tree during construction.
-  void
-  set_incomplete_type_tree(tree);
 
   // Incorporate a string into a hash code.
   static unsigned int
@@ -1232,7 +1234,7 @@ class Integer_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool);
+  do_get_init_tree(Gogo*, tree, bool);
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -1308,7 +1310,7 @@ class Float_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool);
+  do_get_init_tree(Gogo*, tree, bool);
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -1380,7 +1382,7 @@ class Complex_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool);
+  do_get_init_tree(Gogo*, tree, bool);
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -1436,7 +1438,7 @@ class String_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo* gogo, bool);
+  do_get_init_tree(Gogo* gogo, tree, bool);
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -1549,7 +1551,7 @@ class Function_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool);
+  do_get_init_tree(Gogo*, tree, bool);
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -1616,7 +1618,7 @@ class Pointer_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool);
+  do_get_init_tree(Gogo*, tree, bool);
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -1850,6 +1852,10 @@ class Struct_type : public Type
   static Struct_type*
   do_import(Import*);
 
+  // Fill in the fields for a named struct type.
+  tree
+  fill_in_tree(Gogo*, tree);
+
  protected:
   int
   do_traverse(Traverse*);
@@ -1867,7 +1873,7 @@ class Struct_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool);
+  do_get_init_tree(Gogo*, tree, bool);
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -1939,6 +1945,10 @@ class Array_type : public Type
   static Array_type*
   do_import(Import*);
 
+  // Fill in the fields for a named slice type.
+  tree
+  fill_in_tree(Gogo*, tree);
+
  protected:
   int
   do_traverse(Traverse* traverse);
@@ -1962,7 +1972,7 @@ class Array_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool);
+  do_get_init_tree(Gogo*, tree, bool);
 
   tree
   do_make_expression_tree(Translate_context*, Expression_list*,
@@ -2054,7 +2064,7 @@ class Map_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool);
+  do_get_init_tree(Gogo*, tree, bool);
 
   tree
   do_make_expression_tree(Translate_context*, Expression_list*,
@@ -2135,7 +2145,7 @@ class Channel_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo*, bool);
+  do_get_init_tree(Gogo*, tree, bool);
 
   tree
   do_make_expression_tree(Translate_context*, Expression_list*,
@@ -2226,6 +2236,10 @@ class Interface_type : public Type
   static Interface_type*
   do_import(Import*);
 
+  // Fill in the fields for a named interface type.
+  tree
+  fill_in_tree(Gogo*, tree);
+
  protected:
   int
   do_traverse(Traverse*);
@@ -2241,7 +2255,7 @@ class Interface_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo* gogo, bool);
+  do_get_init_tree(Gogo* gogo, tree, bool);
 
   void
   do_type_descriptor_decl(Gogo*, Named_type*, tree*);
@@ -2277,7 +2291,8 @@ class Named_type : public Type
       named_object_(named_object), in_function_(NULL), type_(type),
       local_methods_(NULL), all_methods_(NULL),
       interface_method_tables_(NULL), pointer_interface_method_tables_(NULL),
-      location_(location), is_visible_(true), is_error_(false), seen_(false)
+      location_(location), named_tree_(NULL), is_visible_(true),
+      is_error_(false), seen_(false)
   { }
 
   // Return the associated Named_object.  This holds the actual name.
@@ -2444,8 +2459,8 @@ class Named_type : public Type
   do_get_tree(Gogo*);
 
   tree
-  do_init_tree(Gogo* gogo, bool is_clear)
-  { return this->type_->get_init_tree(gogo, is_clear); }
+  do_get_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
+  { return this->type_->get_typed_init_tree(gogo, type_tree, is_clear); }
 
   tree
   do_make_expression_tree(Translate_context* context, Expression_list* args,
@@ -2492,6 +2507,9 @@ class Named_type : public Type
   Interface_method_tables* pointer_interface_method_tables_;
   // The location where this type was defined.
   source_location location_;
+  // The tree for this type while converting to GENERIC.  This is used
+  // to avoid endless recursion when a named type refers to itself.
+  tree named_tree_;
   // Whether this type is visible.  This is false if this type was
   // created because it was referenced by an imported object, but the
   // type itself was not exported.  This will always be true for types
@@ -2567,8 +2585,8 @@ class Forward_declaration_type : public Type
   do_get_tree(Gogo* gogo);
 
   tree
-  do_init_tree(Gogo* gogo, bool is_clear)
-  { return this->base()->get_init_tree(gogo, is_clear); }
+  do_get_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
+  { return this->base()->get_typed_init_tree(gogo, type_tree, is_clear); }
 
   tree
   do_make_expression_tree(Translate_context* context, Expression_list* args,
