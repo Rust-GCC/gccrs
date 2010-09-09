@@ -4749,14 +4749,26 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
   if (nt == NULL && st == NULL)
     {
       if (reason != NULL)
-	reason->assign(_("type has no methods"));
+	{
+	  if (t->points_to() != NULL
+	      && t->points_to()->interface_type() != NULL)
+	    reason->assign(_("pointer to interface type has no methods"));
+	  else
+	    reason->assign(_("type has no methods"));
+	}
       return false;
     }
 
   if (nt != NULL ? !nt->has_any_methods() : !st->has_any_methods())
     {
       if (reason != NULL)
-	reason->assign(_("type has no methods"));
+	{
+	  if (t->points_to() != NULL
+	      && t->points_to()->interface_type() != NULL)
+	    reason->assign(_("pointer to interface type has no methods"));
+	  else
+	    reason->assign(_("type has no methods"));
+	}
       return false;
     }
 
