@@ -704,25 +704,16 @@ Expression::convert_interface_to_type(Translate_context* context,
   tree val = build3(COMPONENT_REF, TREE_TYPE(rhs_field), rhs_tree, rhs_field,
 		    NULL_TREE);
 
-  // If the value is a pointer, then we can just get it from the
-  // interface.  Otherwise we have to make a copy.
-  if (lhs_type->points_to() != NULL)
-    return build2(COMPOUND_EXPR, lhs_type_tree, call,
-		  fold_convert_loc(location, lhs_type_tree, val));
+  // If the value is a pointer, then it is the value we want.
+  // Otherwise it points to the value.
+  if (lhs_type->points_to() == NULL)
+    {
+      val = fold_convert_loc(location, build_pointer_type(lhs_type_tree), val);
+      val = build_fold_indirect_ref_loc(location, val);
+    }
 
-  tree tmp = create_tmp_var(lhs_type_tree, NULL);
-  DECL_IGNORED_P(tmp) = 0;
-
-  tree make_tmp = fold_build1_loc(location, DECL_EXPR, void_type_node, tmp);
-  tree s = build2(COMPOUND_EXPR, void_type_node, call, make_tmp);
-
-  val = fold_convert_loc(location, build_pointer_type(lhs_type_tree), val);
-  val = build_fold_indirect_ref_loc(location, val);
-  tree set = fold_build2_loc(location, MODIFY_EXPR, void_type_node,
-			     tmp, val);
-  s = build2(COMPOUND_EXPR, void_type_node, s, set);
-
-  return build2(COMPOUND_EXPR, lhs_type_tree, s, tmp);
+  return build2(COMPOUND_EXPR, lhs_type_tree, call,
+		fold_convert_loc(location, lhs_type_tree, val));
 }
 
 // Convert an expression to a tree.  This is implemented by the child
@@ -11459,18 +11450,40 @@ Type_guard_expression::do_check_types(Gogo*)
   if (expr_type->is_unsafe_pointer_type())
     {
       if (this->type_->points_to() == NULL
-	  && this->type_->integer_type() == NULL)
-	this->report_error(_("invalid unsafe.pointer conversion"));
+	  && (this->type_->integer_type() == NULL
+	      || (this->type_->forwarded()
+		  != Type::lookup_integer_type("uintptr"))))
+	this->report_error(_("invalid unsafe.Pointer conversion"));
     }
   else if (this->type_->is_unsafe_pointer_type())
     {
-      if (expr_type->interface_type() == NULL
-	  && expr_type->points_to() == NULL
-	  && expr_type->integer_type() == NULL)
-	this->report_error(_("invalid unsafe.pointer conversion"));
+      if (expr_type->points_to() == NULL
+	  && (expr_type->integer_type() == NULL
+	      || (expr_type->forwarded()
+		  != Type::lookup_integer_type("uintptr"))))
+	this->report_error(_("invalid unsafe.Pointer conversion"));
     }
   else if (expr_type->interface_type() == NULL)
-    this->report_error(_("type guard only valid for interface types"));
+    this->report_error(_("type assertion only valid for interface types"));
+  else if (this->type_->interface_type() == NULL)
+    {
+      std::string reason;
+      if (!expr_type->interface_type()->implements_interface(this->type_,
+							     &reason))
+	{
+	  if (reason.empty())
+	    this->report_error(_("impossible type assertion: "
+				 "type does not implement interface"));
+	  else
+	    {
+	      error_at(this->location(),
+		       ("impossible type assertion: "
+			"type does not implement interface (%s)"),
+		       reason.c_str());
+	      this->set_is_error();
+	    }
+	}
+    }
 }
 
 // Return a tree for a type guard expression.
