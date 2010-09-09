@@ -579,6 +579,8 @@ Lex::next_token()
 	    case '/':
 	      if (p[1] == '/')
 		{
+		  this->lineoff_ = p + 2 - this->linebuf_;
+		  this->skip_cpp_comment();
 		  p = pend;
 		  if (p[-1] == '\n' && this->add_semi_at_eol_)
 		    --p;
@@ -708,16 +710,17 @@ Lex::next_token()
 	    default:
 	      {
 		unsigned int ci;
-		this->advance_one_utf8_char(p, &ci);
+		bool issued_error;
+		this->lineoff_ = p - this->linebuf_;
+		this->advance_one_utf8_char(p, &ci, &issued_error);
 		if (Lex::is_unicode_letter(ci))
-		  {
-		    this->lineoff_ = p - this->linebuf_;
-		    return this->gather_identifier();
-		  }
+		  return this->gather_identifier();
 
-		error_at(this->location(),
-			 "invalid character 0x%x in input file",
-			 ci);
+		if (!issued_error)
+		  error_at(this->location(),
+			   "invalid character 0x%x in input file",
+			   ci);
+
 		p = pend;
 
 		break;
@@ -737,7 +740,12 @@ int
 Lex::fetch_char(const char* p, unsigned int* value)
 {
   unsigned char c = *p;
-  if (c <= 0x7f)
+  if (c == 0)
+    {    
+      *value = 0xfffd;
+      return 0;
+    }
+  else if (c <= 0x7f)
     {
       *value = c;
       return 1;
@@ -747,6 +755,11 @@ Lex::fetch_char(const char* p, unsigned int* value)
     {
       *value = (((c & 0x1f) << 6)
 		+ (p[1] & 0x3f));
+      if (*value <= 0x7f)
+	{
+	  *value = 0xfffd;
+	  return 0;
+	}
       return 2;
     }
   else if ((c & 0xf0) == 0xe0
@@ -756,6 +769,11 @@ Lex::fetch_char(const char* p, unsigned int* value)
       *value = (((c & 0xf) << 12)
 		+ ((p[1] & 0x3f) << 6)
 		+ (p[2] & 0x3f));
+      if (*value <= 0x7ff)
+	{
+	  *value = 0xfffd;
+	  return 0;
+	}
       return 3;
     }
   else if ((c & 0xf8) == 0xf0
@@ -767,35 +785,12 @@ Lex::fetch_char(const char* p, unsigned int* value)
 		+ ((p[1] & 0x3f) << 12)
 		+ ((p[2] & 0x3f) << 6)
 		+ (p[3] & 0x3f));
+      if (*value <= 0xffff)
+	{
+	  *value = 0xfffd;
+	  return 0;
+	}
       return 4;
-    }
-  else if ((c & 0xfc) == 0xf8
-	   && (p[1] & 0xc0) == 0x80
-	   && (p[2] & 0xc0) == 0x80
-	   && (p[3] & 0xc0) == 0x80
-	   && (p[4] & 0xc0) == 0x80)
-    {
-      *value = (((c & 0x3) << 24)
-		+ ((p[1] & 0x3f) << 18)
-		+ ((p[2] & 0x3f) << 12)
-		+ ((p[3] & 0x3f) << 6)
-		+ (p[4] & 0x3f));
-      return 5;
-    }
-  else if ((c & 0xf7) == 0xfc
-	   && (p[1] & 0xc0) == 0x80
-	   && (p[2] & 0xc0) == 0x80
-	   && (p[3] & 0xc0) == 0x80
-	   && (p[4] & 0xc0) == 0x80
-	   && (p[5] & 0xc0) == 0x80)
-    {
-      *value = (((c & 0x1) << 30)
-		+ ((p[1] & 0x3f) << 24)
-		+ ((p[2] & 0x3f) << 18)
-		+ ((p[3] & 0x3f) << 12)
-		+ ((p[4] & 0x3f) << 6)
-		+ (p[5] & 0x3f));
-      return 6;
     }
   else
     {
@@ -807,15 +802,22 @@ Lex::fetch_char(const char* p, unsigned int* value)
 }
 
 // Advance one UTF-8 character.  Return the pointer beyond the
-// character.  Set *VALUE to the value.
+// character.  Set *VALUE to the value.  Set *ISSUED_ERROR if an error
+// was issued.
 
 const char*
-Lex::advance_one_utf8_char(const char* p, unsigned int* value)
+Lex::advance_one_utf8_char(const char* p, unsigned int* value,
+			   bool* issued_error)
 {
+  *issued_error = false;
   int adv = Lex::fetch_char(p, value);
   if (adv == 0)
     {
-      this->error("invalid UTF-8 encoding");
+      if (*p == '\0')
+	this->error("invalid NUL byte");
+      else
+	this->error("invalid UTF-8 encoding");
+      *issued_error = true;
       return p + 1;
     }
   return p + adv;
@@ -855,17 +857,20 @@ Lex::gather_identifier()
       else
 	{
 	  unsigned int ci;
-	  const char* pnext = this->advance_one_utf8_char(p, &ci);
+	  bool issued_error;
+	  this->lineoff_ = p - this->linebuf_;
+	  const char* pnext = this->advance_one_utf8_char(p, &ci,
+							  &issued_error);
 	  if (!Lex::is_unicode_letter(ci) && !Lex::is_unicode_digit(ci))
 	    {
 	      // There is no valid place for a non-ASCII character
 	      // other than an identifier, so we get better error
 	      // handling behaviour if we swallow this character after
 	      // giving an error.
-	      this->lineoff_ = p - this->linebuf_;
-	      error_at(this->location(),
-		       "invalid character 0x%x in identifier",
-		       ci);
+	      if (!issued_error)
+		error_at(this->location(),
+			 "invalid character 0x%x in identifier",
+			 ci);
 	    }
 	  if (is_first)
 	    {
@@ -1086,8 +1091,11 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
   *is_character = true;
   if (*p != '\\')
     {
-      const char* ret = this->advance_one_utf8_char(p, value);
-      if (is_single_quote && (*value == '\'' || *value == '\n'))
+      bool issued_error;
+      const char* ret = this->advance_one_utf8_char(p, value, &issued_error);
+      if (is_single_quote
+	  && (*value == '\'' || *value == '\n')
+	  && !issued_error)
 	this->error("invalid character literal");
       return ret;
     }
@@ -1274,7 +1282,8 @@ Lex::append_char(unsigned int v, bool is_character, std::string* str,
 Token
 Lex::gather_character()
 {
-  const char* pstart = this->linebuf_ + this->lineoff_ + 1;
+  ++this->lineoff_;
+  const char* pstart = this->linebuf_ + this->lineoff_;
   const char* p = pstart;
 
   unsigned int value;
@@ -1313,6 +1322,7 @@ Lex::gather_string()
       source_location loc = this->location();
       unsigned int c;
       bool is_character;
+      this->lineoff_ = p - this->linebuf_;
       p = this->advance_one_char(p, false, &c, &is_character);
       if (p >= pend)
 	{
@@ -1349,7 +1359,9 @@ Lex::gather_raw_string()
 	    }
 	  source_location loc = this->location();
 	  unsigned int c;
-	  p = this->advance_one_utf8_char(p, &c);
+	  bool issued_error;
+	  this->lineoff_ = p - this->linebuf_;
+	  p = this->advance_one_utf8_char(p, &c, &issued_error);
 	  Lex::append_char(c, true, &value, loc);
 	}
       this->lineoff_ = p - this->linebuf_;
@@ -1539,20 +1551,40 @@ Lex::skip_c_comment()
 	  return false;
 	}
 
-      const void* starv = memchr(this->linebuf_ + this->lineoff_, '*',
-				 this->linesize_ - this->lineoff_);
-      if (starv == NULL)
-	this->lineoff_ = this->linesize_;
-      else
+      const char* p = this->linebuf_ + this->lineoff_;
+      const char* pend = this->linebuf_ + this->linesize_;
+
+      while (p < pend)
 	{
-	  const char* p = static_cast<const char*>(starv);
-	  if (p[1] == '/')
+	  if (p[0] == '*' && p + 1 < pend && p[1] == '/')
 	    {
 	      this->lineoff_ = p + 2 - this->linebuf_;
 	      return true;
 	    }
-	  this->lineoff_ = p + 1 - this->linebuf_;
+
+	  this->lineoff_ = p - this->linebuf_;
+	  unsigned int c;
+	  bool issued_error;
+	  p = this->advance_one_utf8_char(p, &c, &issued_error);
 	}
+
+      this->lineoff_ = p - this->linebuf_;
+    }
+}
+
+// Skip a C++-style comment.
+
+void
+Lex::skip_cpp_comment()
+{
+  const char* p = this->linebuf_ + this->lineoff_;
+  const char* pend = this->linebuf_ + this->linesize_;
+  while (p < pend)
+    {
+      this->lineoff_ = p - this->linebuf_;
+      unsigned int c;
+      bool issued_error;
+      p = this->advance_one_utf8_char(p, &c, &issued_error);
     }
 }
 

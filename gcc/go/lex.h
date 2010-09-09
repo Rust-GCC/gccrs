@@ -395,7 +395,7 @@ class Lex
   gather_raw_string();
 
   const char*
-  advance_one_utf8_char(const char*, unsigned int*);
+  advance_one_utf8_char(const char*, unsigned int*, bool*);
 
   const char*
   advance_one_char(const char*, bool, unsigned int*, bool*);
@@ -424,6 +424,9 @@ class Lex
 
   bool
   skip_c_comment();
+
+  void
+  skip_cpp_comment();
 
   void
   error();
