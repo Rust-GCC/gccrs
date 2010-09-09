@@ -6346,6 +6346,38 @@ Builtin_call_expression::do_set_recover_arg(Expression* arg)
   this->set_args(new_args);
 }
 
+// A traversal class which looks for a call expression.
+
+class Find_call_expression : public Traverse
+{
+ public:
+  Find_call_expression()
+    : Traverse(traverse_expressions),
+      found_(false)
+  { }
+
+  int
+  expression(Expression**);
+
+  bool
+  found()
+  { return this->found_; }
+
+ private:
+  bool found_;
+};
+
+int
+Find_call_expression::expression(Expression** pexpr)
+{
+  if ((*pexpr)->call_expression() != NULL)
+    {
+      this->found_ = true;
+      return TRAVERSE_EXIT;
+    }
+  return TRAVERSE_CONTINUE;
+}
+
 // Lower a builtin call expression.  This turns new and make into
 // specific expressions.  We also convert to a constant if we can.
 
@@ -6404,6 +6436,20 @@ Builtin_call_expression::do_lower(Gogo*, Named_object* function, int)
     }
   else if (this->is_constant())
     {
+      // We can only lower len and cap if there are no function calls
+      // in the arguments.  Otherwise we have to make the call.
+      if (this->code_ == BUILTIN_LEN || this->code_ == BUILTIN_CAP)
+	{
+	  Expression* arg = this->one_arg();
+	  if (!arg->is_constant())
+	    {
+	      Find_call_expression find_call;
+	      Expression::traverse(&arg, &find_call);
+	      if (find_call.found())
+		return this;
+	    }
+	}
+
       mpz_t ival;
       mpz_init(ival);
       Type* type;
