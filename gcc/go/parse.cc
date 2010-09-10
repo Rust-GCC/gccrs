@@ -4613,7 +4613,10 @@ Parse::program()
       if (token->is_op(OPERATOR_SEMICOLON))
 	token = this->advance_token();
       else if (!token->is_eof() || !saw_errors())
-	this->error("expected %<;%> or newline after top level declaration");
+	{
+	  this->error("expected %<;%> or newline after top level declaration");
+	  this->skip_past_error(OPERATOR_INVALID);
+	}
     }
 }
 
