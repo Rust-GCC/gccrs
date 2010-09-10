@@ -120,16 +120,15 @@ LTLIBRARIES = $(toolexeclib_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libgo_la_DEPENDENCIES = $(libgo_go_objs) $(am__DEPENDENCIES_1)
 am__libgo_la_SOURCES_DIST = runtime/go-assert.c \
-	runtime/go-assert-interface.c runtime/go-bad-index.c \
-	runtime/go-bad-makeslice.c runtime/go-byte-array-to-string.c \
-	runtime/go-breakpoint.c runtime/go-caller.c \
-	runtime/go-can-convert-interface.c runtime/go-chan-cap.c \
-	runtime/go-chan-len.c runtime/go-check-interface.c \
-	runtime/go-close.c runtime/go-closed.c \
-	runtime/go-construct-map.c runtime/go-convert-interface.c \
-	runtime/go-defer.c runtime/go-deferred-recover.c \
-	runtime/go-eface-compare.c runtime/go-getgoroot.c \
-	runtime/go-go.c runtime/go-gomaxprocs.c \
+	runtime/go-assert-interface.c \
+	runtime/go-byte-array-to-string.c runtime/go-breakpoint.c \
+	runtime/go-caller.c runtime/go-can-convert-interface.c \
+	runtime/go-chan-cap.c runtime/go-chan-len.c \
+	runtime/go-check-interface.c runtime/go-close.c \
+	runtime/go-closed.c runtime/go-construct-map.c \
+	runtime/go-convert-interface.c runtime/go-defer.c \
+	runtime/go-deferred-recover.c runtime/go-eface-compare.c \
+	runtime/go-getgoroot.c runtime/go-go.c runtime/go-gomaxprocs.c \
 	runtime/go-int-array-to-string.c runtime/go-int-to-string.c \
 	runtime/go-interface-compare.c runtime/go-lock-os-thread.c \
 	runtime/go-map-delete.c runtime/go-map-index.c \
@@ -141,7 +140,8 @@ am__libgo_la_SOURCES_DIST = runtime/go-assert.c \
 	runtime/go-rec-nb-small.c runtime/go-rec-small.c \
 	runtime/go-recover.c runtime/go-reflect.c \
 	runtime/go-reflect-call.c runtime/go-reflect-chan.c \
-	runtime/go-reflect-map.c runtime/go-rune.c runtime/go-sched.c \
+	runtime/go-reflect-map.c runtime/go-rune.c \
+	runtime/go-runtime-error.c runtime/go-sched.c \
 	runtime/go-select.c runtime/go-semacquire.c \
 	runtime/go-send-big.c runtime/go-send-nb-big.c \
 	runtime/go-send-nb-small.c runtime/go-send-small.c \
@@ -164,22 +164,22 @@ am__libgo_la_SOURCES_DIST = runtime/go-assert.c \
 @HAVE_SYS_MMAN_H_FALSE@am__objects_1 = mem_posix_memalign.lo
 @HAVE_SYS_MMAN_H_TRUE@am__objects_1 = mem.lo
 @LIBGO_IS_RTEMS_TRUE@am__objects_2 = rtems-task-variable-add.lo
-am__objects_3 = go-assert.lo go-assert-interface.lo go-bad-index.lo \
-	go-bad-makeslice.lo go-byte-array-to-string.lo \
-	go-breakpoint.lo go-caller.lo go-can-convert-interface.lo \
-	go-chan-cap.lo go-chan-len.lo go-check-interface.lo \
-	go-close.lo go-closed.lo go-construct-map.lo \
-	go-convert-interface.lo go-defer.lo go-deferred-recover.lo \
-	go-eface-compare.lo go-getgoroot.lo go-go.lo go-gomaxprocs.lo \
-	go-int-array-to-string.lo go-int-to-string.lo \
-	go-interface-compare.lo go-lock-os-thread.lo go-map-delete.lo \
-	go-map-index.lo go-map-len.lo go-map-range.lo go-nanotime.lo \
-	go-new-channel.lo go-new-map.lo go-new.lo go-note.lo \
-	go-panic.lo go-panic-defer.lo go-print.lo go-rec-big.lo \
-	go-rec-nb-big.lo go-rec-nb-small.lo go-rec-small.lo \
-	go-recover.lo go-reflect.lo go-reflect-call.lo \
-	go-reflect-chan.lo go-reflect-map.lo go-rune.lo go-sched.lo \
-	go-select.lo go-semacquire.lo go-send-big.lo go-send-nb-big.lo \
+am__objects_3 = go-assert.lo go-assert-interface.lo \
+	go-byte-array-to-string.lo go-breakpoint.lo go-caller.lo \
+	go-can-convert-interface.lo go-chan-cap.lo go-chan-len.lo \
+	go-check-interface.lo go-close.lo go-closed.lo \
+	go-construct-map.lo go-convert-interface.lo go-defer.lo \
+	go-deferred-recover.lo go-eface-compare.lo go-getgoroot.lo \
+	go-go.lo go-gomaxprocs.lo go-int-array-to-string.lo \
+	go-int-to-string.lo go-interface-compare.lo \
+	go-lock-os-thread.lo go-map-delete.lo go-map-index.lo \
+	go-map-len.lo go-map-range.lo go-nanotime.lo go-new-channel.lo \
+	go-new-map.lo go-new.lo go-note.lo go-panic.lo \
+	go-panic-defer.lo go-print.lo go-rec-big.lo go-rec-nb-big.lo \
+	go-rec-nb-small.lo go-rec-small.lo go-recover.lo go-reflect.lo \
+	go-reflect-call.lo go-reflect-chan.lo go-reflect-map.lo \
+	go-rune.lo go-runtime-error.lo go-sched.lo go-select.lo \
+	go-semacquire.lo go-send-big.lo go-send-nb-big.lo \
 	go-send-nb-small.lo go-send-small.lo go-signal.lo go-strcmp.lo \
 	go-string-to-byte-array.lo go-string-to-int-array.lo \
 	go-strplus.lo go-strslice.lo go-trampoline.lo go-type-eface.lo \
@@ -653,8 +653,6 @@ toolexeclibtesting_DATA = \
 runtime_files = \
 	runtime/go-assert.c \
 	runtime/go-assert-interface.c \
-	runtime/go-bad-index.c \
-	runtime/go-bad-makeslice.c \
 	runtime/go-byte-array-to-string.c \
 	runtime/go-breakpoint.c \
 	runtime/go-caller.c \
@@ -698,6 +696,7 @@ runtime_files = \
 	runtime/go-reflect-chan.c \
 	runtime/go-reflect-map.c \
 	runtime/go-rune.c \
+	runtime/go-runtime-error.c \
 	runtime/go-sched.c \
 	runtime/go-select.c \
 	runtime/go-semacquire.c \
@@ -1811,8 +1810,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chan.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-assert-interface.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-assert.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-bad-index.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-bad-makeslice.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-breakpoint.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-byte-array-to-string.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-caller.Plo@am__quote@
@@ -1857,6 +1854,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-reflect-map.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-reflect.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-rune.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-runtime-error.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-sched.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-select.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-semacquire.Plo@am__quote@
@@ -1952,20 +1950,6 @@ go-assert-interface.lo: runtime/go-assert-interface.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-assert-interface.c' object='go-assert-interface.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-assert-interface.lo `test -f 'runtime/go-assert-interface.c' || echo '$(srcdir)/'`runtime/go-assert-interface.c
-
-go-bad-index.lo: runtime/go-bad-index.c
-@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-bad-index.lo -MD -MP -MF $(DEPDIR)/go-bad-index.Tpo -c -o go-bad-index.lo `test -f 'runtime/go-bad-index.c' || echo '$(srcdir)/'`runtime/go-bad-index.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-bad-index.Tpo $(DEPDIR)/go-bad-index.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-bad-index.c' object='go-bad-index.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-bad-index.lo `test -f 'runtime/go-bad-index.c' || echo '$(srcdir)/'`runtime/go-bad-index.c
-
-go-bad-makeslice.lo: runtime/go-bad-makeslice.c
-@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-bad-makeslice.lo -MD -MP -MF $(DEPDIR)/go-bad-makeslice.Tpo -c -o go-bad-makeslice.lo `test -f 'runtime/go-bad-makeslice.c' || echo '$(srcdir)/'`runtime/go-bad-makeslice.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-bad-makeslice.Tpo $(DEPDIR)/go-bad-makeslice.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-bad-makeslice.c' object='go-bad-makeslice.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-bad-makeslice.lo `test -f 'runtime/go-bad-makeslice.c' || echo '$(srcdir)/'`runtime/go-bad-makeslice.c
 
 go-byte-array-to-string.lo: runtime/go-byte-array-to-string.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-byte-array-to-string.lo -MD -MP -MF $(DEPDIR)/go-byte-array-to-string.Tpo -c -o go-byte-array-to-string.lo `test -f 'runtime/go-byte-array-to-string.c' || echo '$(srcdir)/'`runtime/go-byte-array-to-string.c
@@ -2267,6 +2251,13 @@ go-rune.lo: runtime/go-rune.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-rune.c' object='go-rune.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-rune.lo `test -f 'runtime/go-rune.c' || echo '$(srcdir)/'`runtime/go-rune.c
+
+go-runtime-error.lo: runtime/go-runtime-error.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-runtime-error.lo -MD -MP -MF $(DEPDIR)/go-runtime-error.Tpo -c -o go-runtime-error.lo `test -f 'runtime/go-runtime-error.c' || echo '$(srcdir)/'`runtime/go-runtime-error.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-runtime-error.Tpo $(DEPDIR)/go-runtime-error.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-runtime-error.c' object='go-runtime-error.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-runtime-error.lo `test -f 'runtime/go-runtime-error.c' || echo '$(srcdir)/'`runtime/go-runtime-error.c
 
 go-sched.lo: runtime/go-sched.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-sched.lo -MD -MP -MF $(DEPDIR)/go-sched.Tpo -c -o go-sched.lo `test -f 'runtime/go-sched.c' || echo '$(srcdir)/'`runtime/go-sched.c

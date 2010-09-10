@@ -294,8 +294,6 @@ endif
 runtime_files = \
 	runtime/go-assert.c \
 	runtime/go-assert-interface.c \
-	runtime/go-bad-index.c \
-	runtime/go-bad-makeslice.c \
 	runtime/go-byte-array-to-string.c \
 	runtime/go-breakpoint.c \
 	runtime/go-caller.c \
@@ -339,6 +337,7 @@ runtime_files = \
 	runtime/go-reflect-chan.c \
 	runtime/go-reflect-map.c \
 	runtime/go-rune.c \
+	runtime/go-runtime-error.c \
 	runtime/go-sched.c \
 	runtime/go-select.c \
 	runtime/go-semacquire.c \

@@ -390,9 +390,10 @@ Expression::convert_type_to_interface(Translate_context* context,
 			   space);
   space = save_expr(space);
 
+  tree ref = build_fold_indirect_ref_loc(location, space);
+  TREE_THIS_NOTRAP(ref) = 1;
   tree set = fold_build2_loc(location, MODIFY_EXPR, void_type_node,
-			     build_fold_indirect_ref_loc(location, space),
-			     rhs_tree);
+			     ref, rhs_tree);
 
   elt->value = fold_convert_loc(location, TREE_TYPE(field), space);
 
@@ -3919,15 +3920,8 @@ Unary_expression::do_get_tree(Translate_context* context)
 					   expr,
 					   fold_convert(TREE_TYPE(expr),
 							null_pointer_node));
-	    // FIXME: This should be a different error message.
-	    static tree bad_index_fndecl;
-	    tree crash = Gogo::call_builtin(&bad_index_fndecl,
-					    loc,
-					    "__go_bad_index",
-					    0,
-					    void_type_node);
-	    TREE_NOTHROW(bad_index_fndecl) = 0;
-	    TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
+	    tree crash = Gogo::runtime_error(RUNTIME_ERROR_NIL_DEREFERENCE,
+					     loc);
 	    expr = fold_build2_loc(loc, COMPOUND_EXPR, TREE_TYPE(expr),
 				   build3(COND_EXPR, void_type_node,
 					  compare, crash, NULL_TREE),
@@ -8860,14 +8854,14 @@ Array_index_expression::do_get_tree(Translate_context* context)
 					      boolean_type_node, start_tree,
 					      length_tree));
 
-  static tree bad_index_fndecl;
-  tree crash = Gogo::call_builtin(&bad_index_fndecl,
-				  loc,
-				  "__go_bad_index",
-				  0,
-				  void_type_node);
-  TREE_NOTHROW(bad_index_fndecl) = 0;
-  TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
+  int code = (array_type->length() != NULL
+	      ? (this->end_ == NULL
+		 ? RUNTIME_ERROR_ARRAY_INDEX_OUT_OF_BOUNDS
+		 : RUNTIME_ERROR_ARRAY_SLICE_OUT_OF_BOUNDS)
+	      : (this->end_ == NULL
+		 ? RUNTIME_ERROR_SLICE_INDEX_OUT_OF_BOUNDS
+		 : RUNTIME_ERROR_SLICE_SLICE_OUT_OF_BOUNDS));
+  tree crash = Gogo::runtime_error(code, loc);
 
   if (this->end_ == NULL)
     {
@@ -9164,15 +9158,10 @@ String_index_expression::do_get_tree(Translate_context* context)
 
   start_tree = fold_convert_loc(loc, length_type, start_tree);
 
-  // FIXME: Duplicates Array_index::do_get_tree.
-  static tree bad_index_fndecl;
-  tree crash = Gogo::call_builtin(&bad_index_fndecl,
-				  this->location(),
-				  "__go_bad_index",
-				  0,
-				  void_type_node);
-  TREE_NOTHROW(bad_index_fndecl) = 0;
-  TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
+  int code = (this->end_ == NULL
+	      ? RUNTIME_ERROR_STRING_INDEX_OUT_OF_BOUNDS
+	      : RUNTIME_ERROR_STRING_SLICE_OUT_OF_BOUNDS);
+  tree crash = Gogo::runtime_error(code, loc);
 
   if (this->end_ == NULL)
     {
@@ -10610,8 +10599,9 @@ Open_array_construction_expression::do_get_tree(Translate_context* context)
       space = save_expr(space);
 
       tree s = fold_convert(build_pointer_type(TREE_TYPE(values)), space);
-      set = build2(MODIFY_EXPR, void_type_node,
-		   build_fold_indirect_ref(s), values);
+      tree ref = build_fold_indirect_ref_loc(this->location(), s);
+      TREE_THIS_NOTRAP(ref) = 1;
+      set = build2(MODIFY_EXPR, void_type_node, ref, values);
     }
 
   // Build a constructor for the open array.
@@ -11529,10 +11519,10 @@ Heap_composite_expression::do_get_tree(Translate_context* context)
 						expr_size, this->location());
   space = fold_convert(build_pointer_type(TREE_TYPE(expr_tree)), space);
   space = save_expr(space);
+  tree ref = build_fold_indirect_ref_loc(this->location(), space);
+  TREE_THIS_NOTRAP(ref) = 1;
   tree ret = build2(COMPOUND_EXPR, TREE_TYPE(space),
-		    build2(MODIFY_EXPR, void_type_node,
-			   build_fold_indirect_ref(space),
-			   expr_tree),
+		    build2(MODIFY_EXPR, void_type_node, ref, expr_tree),
 		    space);
   SET_EXPR_LOCATION(ret, this->location());
   return ret;

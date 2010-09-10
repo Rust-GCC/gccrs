@@ -3751,14 +3751,8 @@ Array_type::do_make_expression_tree(Translate_context* context,
 
   if (bad_index != NULL_TREE && bad_index != boolean_false_node)
     {
-      static tree bad_index_fndecl;
-      tree crash = Gogo::call_builtin(&bad_index_fndecl,
-				      location,
-				      "__go_bad_makeslice",
-				      0,
-				      void_type_node);
-      TREE_NOTHROW(bad_index_fndecl) = 0;
-      TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
+      tree crash = Gogo::runtime_error(RUNTIME_ERROR_MAKE_SLICE_OUT_OF_BOUNDS,
+				       location);
       space = build2(COMPOUND_EXPR, TREE_TYPE(space),
 		     build3(COND_EXPR, void_type_node,
 			    bad_index, crash, NULL_TREE),
@@ -4160,16 +4154,8 @@ Map_type::do_make_expression_tree(Translate_context* context,
     return ret;
   else
     {
-      // FIXME: Wrong message.
-      static tree bad_index_fndecl;
-      tree crash = Gogo::call_builtin(&bad_index_fndecl,
-				      location,
-				      "__go_bad_index",
-				      0,
-				      void_type_node);
-      TREE_NOTHROW(bad_index_fndecl) = 0;
-      TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
-
+      tree crash = Gogo::runtime_error(RUNTIME_ERROR_MAKE_MAP_OUT_OF_BOUNDS,
+				       location);
       return build2(COMPOUND_EXPR, TREE_TYPE(ret),
 		    build3(COND_EXPR, void_type_node,
 			   bad_index, crash, NULL_TREE),
@@ -4367,16 +4353,8 @@ Channel_type::do_make_expression_tree(Translate_context* context,
     return ret;
   else
     {
-      // FIXME: Wrong message.
-      static tree bad_index_fndecl;
-      tree crash = Gogo::call_builtin(&bad_index_fndecl,
-				      location,
-				      "__go_bad_index",
-				      0,
-				      void_type_node);
-      TREE_NOTHROW(bad_index_fndecl) = 0;
-      TREE_THIS_VOLATILE(bad_index_fndecl) = 1;
-
+      tree crash = Gogo::runtime_error(RUNTIME_ERROR_MAKE_CHAN_OUT_OF_BOUNDS,
+				       location);
       return build2(COMPOUND_EXPR, TREE_TYPE(ret),
 		    build3(COND_EXPR, void_type_node,
 			   bad_index, crash, NULL_TREE),

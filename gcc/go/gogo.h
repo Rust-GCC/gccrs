@@ -410,6 +410,10 @@ class Gogo
   call_builtin(tree* pdecl, source_location, const char* name, int nargs,
 	       tree rettype, ...);
 
+  // Build a call to the runtime error function.
+  static tree
+  runtime_error(int code, source_location);
+
   // Build a builtin struct with a list of fields.
   static tree
   builtin_struct(tree* ptype, const char* struct_name, tree struct_type,
@@ -2555,6 +2559,45 @@ class Translate_context
   // The BLOCK node for the current block.
   tree block_tree_;
 };
+
+// Runtime error codes.  These must match the values in
+// libgo/runtime/go-runtime-error.c.
+
+// Slice index out of bounds: negative or larger than the length of
+// the slice.
+static const int RUNTIME_ERROR_SLICE_INDEX_OUT_OF_BOUNDS = 0;
+
+// Array index out of bounds.
+static const int RUNTIME_ERROR_ARRAY_INDEX_OUT_OF_BOUNDS = 1;
+
+// String index out of bounds.
+static const int RUNTIME_ERROR_STRING_INDEX_OUT_OF_BOUNDS = 2;
+
+// Slice slice out of bounds: negative or larger than the length of
+// the slice or high bound less than low bound.
+static const int RUNTIME_ERROR_SLICE_SLICE_OUT_OF_BOUNDS = 3;
+
+// Array slice out of bounds.
+static const int RUNTIME_ERROR_ARRAY_SLICE_OUT_OF_BOUNDS = 4;
+
+// String slice out of bounds.
+static const int RUNTIME_ERROR_STRING_SLICE_OUT_OF_BOUNDS = 5;
+
+// Dereference of nil pointer.  This is used when there is a
+// dereference of a pointer to a very large struct or array, to ensure
+// that a gigantic array is not used a proxy to access random memory
+// locations.
+static const int RUNTIME_ERROR_NIL_DEREFERENCE = 6;
+
+// Slice length or capacity out of bounds in make: negative or
+// overflow or length greater than capacity.
+static const int RUNTIME_ERROR_MAKE_SLICE_OUT_OF_BOUNDS = 7;
+
+// Map capacity out of bounds in make: negative or overflow.
+static const int RUNTIME_ERROR_MAKE_MAP_OUT_OF_BOUNDS = 8;
+
+// Channel capacity out of bounds in make: negative or overflow.
+static const int RUNTIME_ERROR_MAKE_CHAN_OUT_OF_BOUNDS = 9;
 
 // This is used by some of the langhooks.
 extern Gogo* go_get_gogo();

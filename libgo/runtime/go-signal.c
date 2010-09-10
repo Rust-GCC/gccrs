@@ -115,7 +115,7 @@ sighandler (int sig)
 
 #ifdef SIGFPE
     case SIGFPE:
-      msg = "division by zero or floating point error";
+      msg = "integer divide by zero or floating point error";
       break;
 #endif
 

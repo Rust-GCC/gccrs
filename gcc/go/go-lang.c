@@ -122,6 +122,9 @@ go_langhook_init_options (unsigned int argc ATTRIBUTE_UNUSED,
   /* The builtin math functions should not set errno.  */
   flag_errno_math = 0;
 
+  /* By default assume that floating point math does not trap.  */
+  flag_trapping_math = 0;
+
   /* We default to always showing a column number.  */
   flag_show_column = 1;
 
@@ -136,6 +139,7 @@ go_langhook_init_options (unsigned int argc ATTRIBUTE_UNUSED,
 
   /* Exceptions are used to handle recovering from panics.  */
   flag_exceptions = 1;
+  flag_non_call_exceptions = 1;
   using_eh_for_cleanups ();
 
   return CL_Go;

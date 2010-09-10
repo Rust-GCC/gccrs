@@ -908,6 +908,7 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 	{
 	  gcc_assert(TREE_CODE(ret) == INDIRECT_REF);
 	  ret = build_fold_indirect_ref(TREE_OPERAND(ret, 0));
+	  TREE_THIS_NOTRAP(ret) = 1;
 	}
       return ret;
     }
@@ -1082,6 +1083,7 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
 		    space = save_expr(space);
 		    space = fold_convert_loc(loc, result_type, space);
 		    tree spaceref = build_fold_indirect_ref_loc(loc, space);
+		    TREE_THIS_NOTRAP(spaceref) = 1;
 		    tree set = fold_build2_loc(loc, MODIFY_EXPR, void_type_node,
 					       spaceref, subinit);
 		    init = fold_build2_loc(loc, COMPOUND_EXPR, TREE_TYPE(space),
@@ -1153,6 +1155,7 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
     {
       gcc_assert(POINTER_TYPE_P(TREE_TYPE(ret)));
       ret = build_fold_indirect_ref(ret);
+      TREE_THIS_NOTRAP(ret) = 1;
     }
 
   this->tree_ = ret;
@@ -1399,21 +1402,24 @@ Function::make_receiver_parm_decl(Gogo* gogo, Named_object* no, tree var_decl)
       val_type = TREE_TYPE(TREE_TYPE(var_decl));
     }
   gcc_assert(TREE_CODE(var_decl) == VAR_DECL);
+  source_location loc = DECL_SOURCE_LOCATION(var_decl);
   std::string name = IDENTIFIER_POINTER(DECL_NAME(var_decl));
   name += ".pointer";
   tree id = get_identifier_from_string(name);
-  tree parm_decl = build_decl(DECL_SOURCE_LOCATION(var_decl), PARM_DECL, id,
-			      build_pointer_type(val_type));
+  tree parm_decl = build_decl(loc, PARM_DECL, id, build_pointer_type(val_type));
   DECL_CONTEXT(parm_decl) = current_function_decl;
   DECL_ARG_TYPE(parm_decl) = TREE_TYPE(parm_decl);
 
   gcc_assert(DECL_INITIAL(var_decl) == NULL_TREE);
   // The receiver might be passed as a null pointer.
-  tree check = build2(NE_EXPR, boolean_type_node, parm_decl,
-		      fold_convert(TREE_TYPE(parm_decl), null_pointer_node));
-  tree ind = build_fold_indirect_ref(parm_decl);
+  tree check = fold_build2_loc(loc, NE_EXPR, boolean_type_node, parm_decl,
+			       fold_convert_loc(loc, TREE_TYPE(parm_decl),
+						null_pointer_node));
+  tree ind = build_fold_indirect_ref_loc(loc, parm_decl);
+  TREE_THIS_NOTRAP(ind) = 1;
   tree zero_init = no->var_value()->type()->get_init_tree(gogo, false);
-  tree init = build3(COND_EXPR, TREE_TYPE(ind), check, ind, zero_init);
+  tree init = fold_build3_loc(loc, COND_EXPR, TREE_TYPE(ind),
+			      check, ind, zero_init);
 
   if (is_in_heap)
     {
@@ -1422,11 +1428,20 @@ Function::make_receiver_parm_decl(Gogo* gogo, Named_object* no, tree var_decl)
 					 no->location());
       space = save_expr(space);
       space = fold_convert(build_pointer_type(val_type), space);
-      init = build2(COMPOUND_EXPR, TREE_TYPE(space),
-		    build2(MODIFY_EXPR, void_type_node,
-			   build_fold_indirect_ref(space),
-			   build_fold_indirect_ref(parm_decl)),
-		    space);
+      tree spaceref = build_fold_indirect_ref_loc(no->location(), space);
+      TREE_THIS_NOTRAP(spaceref) = 1;
+      tree check = fold_build2_loc(loc, NE_EXPR, boolean_type_node,
+				   parm_decl,
+				   fold_convert_loc(loc, TREE_TYPE(parm_decl),
+						    null_pointer_node));
+      tree parmref = build_fold_indirect_ref_loc(no->location(), parm_decl);
+      TREE_THIS_NOTRAP(parmref) = 1;
+      tree set = fold_build2_loc(loc, MODIFY_EXPR, void_type_node,
+				 spaceref, parmref);
+      init = fold_build2_loc(loc, COMPOUND_EXPR, TREE_TYPE(space),
+			     build3(COND_EXPR, void_type_node,
+				    check, set, NULL_TREE),
+			     space);
     }
 
   DECL_INITIAL(var_decl) = init;
@@ -1463,10 +1478,10 @@ Function::copy_parm_to_heap(Gogo* gogo, Named_object* no, tree ref)
   tree space = gogo->allocate_memory(no->var_value()->type(), size, loc);
   space = save_expr(space);
   space = fold_convert(TREE_TYPE(var_decl), space);
+  tree spaceref = build_fold_indirect_ref_loc(loc, space);
+  TREE_THIS_NOTRAP(spaceref) = 1;
   tree init = build2(COMPOUND_EXPR, TREE_TYPE(space),
-		     build2(MODIFY_EXPR, void_type_node,
-			    build_fold_indirect_ref(space),
-			    parm_decl),
+		     build2(MODIFY_EXPR, void_type_node, spaceref, parm_decl),
 		     space);
   DECL_INITIAL(var_decl) = init;
 
@@ -4106,6 +4121,25 @@ Gogo::call_builtin(tree* pdecl, source_location location, const char* name,
   delete[] types;
   delete[] args;
 
+  return ret;
+}
+
+// Build a call to the runtime error function.
+
+tree
+Gogo::runtime_error(int code, source_location location)
+{
+  static tree runtime_error_fndecl;
+  tree ret = Gogo::call_builtin(&runtime_error_fndecl,
+				location,
+				"__go_runtime_error",
+				1,
+				void_type_node,
+				integer_type_node,
+				build_int_cst(integer_type_node, code));
+  // The runtime error function panics and does not return.
+  TREE_NOTHROW(runtime_error_fndecl) = 0;
+  TREE_THIS_VOLATILE(runtime_error_fndecl) = 1;
   return ret;
 }
 
