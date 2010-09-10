@@ -2653,8 +2653,10 @@ Parse::index(Expression* expr)
     start = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
   else
     {
-      this->error("missing lower bound in slice expression");
-      start = Expression::make_error(this->location());
+      mpz_t zero;
+      mpz_init_set_ui(zero, 0);
+      start = Expression::make_integer(&zero, NULL, location);
+      mpz_clear(zero);
     }
 
   Expression* end = NULL;
