@@ -4605,7 +4605,8 @@ Parse::program()
 	  while (!this->peek_token()->is_eof()
 		 && !this->peek_token()->is_op(OPERATOR_SEMICOLON)
 		 && !this->peek_token()->is_op(OPERATOR_RCURLY));
-	  if (!this->peek_token()->is_eof())
+	  if (!this->peek_token()->is_eof()
+	      && !this->peek_token()->is_op(OPERATOR_SEMICOLON))
 	    this->advance_token();
 	}
       token = this->peek_token();
