@@ -3,7 +3,8 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-export E=""
+eval $(gomake --no-print-directory -f ../src/Make.inc go-env)
+
 case X"$GOARCH" in
 Xamd64)
 	export A=6
@@ -13,7 +14,7 @@ X386)
 	;;
 Xarm)
 	export A=5
-	export E=${EMU_arm:-qemu-arm -cpu cortex-a8}
+	export E=${GORUN:-qemu-arm -cpu cortex-a8}
 	;;
 *)
 	echo 1>&2 run: unsupported '$GOARCH'
@@ -22,7 +23,7 @@ esac
 
 case X"$GOOS" in
 Xnacl)
-	export E="nacl"
+	export E=${GORUN:-$GOROOT/misc/nacl/naclrun}
 esac
 
 export G=${A}g
@@ -33,7 +34,7 @@ unset GREP_OPTIONS	# in case user has a non-standard set
 
 failed=0
 
-PATH=/bin:/usr/bin:/usr/local/bin:${GOBIN:-$HOME/bin}:`pwd`
+PATH=/bin:/usr/bin:/usr/local/bin:${GOBIN:-$GOROOT/bin}:`pwd`
 
 RUNFILE=/tmp/gorun-$$-$USER
 TMP1FILE=/tmp/gotest1-$$-$USER
@@ -63,11 +64,22 @@ do
 			echo "===========" $i
 			cat $TMP1FILE
 			echo >&2 fail: $i
+			echo "# $i	# fail" >>pass.out
 		elif test -s $TMP1FILE
 		then
 			echo
 			echo "===========" $i
 			cat $TMP1FILE
+			if grep -q '^BUG' $TMP1FILE
+			then
+				if [ $dir != bugs ]
+				then
+					echo >&2 bug: $i
+				fi
+				echo "# $i	# fail, BUG" >>pass.out
+			else
+				echo $i >>pass.out
+			fi
 		elif [ $dir = "bugs" ]
 		then
 			echo $i succeeded with no output.
@@ -87,15 +99,12 @@ done | # clean up some stack noise
 		/^Trace\/BPT trap/d
 		/RUNFILE/ s/line 1: *[0-9]*/line 1: PID/
 		/^\$RUNFILE: line 1: PID Trace\/breakpoint trap/d
+		/Segmentation fault/d
 		/^qemu: uncaught target signal 11 (Segmentation fault) - exiting/d' > run.out
 
-case $failed in
-1)
-	echo FAIL
-esac
-rm  -f $RUNFILE $TMP1FILE $TMP2FILE *.$A $A.out
+rm  -f $RUNFILE $TMP1FILE $TMP2FILE *.$A *.a $A.out
 diffmsg=""
-if ! diff run.out golden.out
+if ! diff golden.out run.out
 then
 	diffmsg="; test output differs"
 	failed=1
@@ -105,5 +114,9 @@ notinbugs=$(sed '/^== bugs/q' run.out | grep -c '^BUG')
 inbugs=$(sed '1,/^== bugs/d' run.out | grep -c '^BUG')
 
 echo 2>&1 $inbugs known bugs';' $notinbugs unexpected bugs$diffmsg
+
+if [ "$failed" != "0" ]; then
+	echo FAILED
+fi
 
 exit $failed

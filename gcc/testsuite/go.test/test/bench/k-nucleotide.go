@@ -42,7 +42,6 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
-	"strings"
 )
 
 var in *bufio.Reader
@@ -52,23 +51,14 @@ func count(data string, n int) map[string]int {
 	top := len(data) - n
 	for i := 0; i <= top; i++ {
 		s := data[i : i+n]
-		if k, ok := counts[s]; ok {
-			counts[s] = k + 1
-		} else {
-			counts[s] = 1
-		}
+		counts[s]++
 	}
 	return counts
 }
 
 func countOne(data string, s string) int {
-	counts := count(data, len(s))
-	if i, ok := counts[s]; ok {
-		return i
-	}
-	return 0
+	return count(data, len(s))[s]
 }
-
 
 type kNuc struct {
 	name  string
@@ -111,7 +101,7 @@ func print(m map[string]int) {
 
 func main() {
 	in = bufio.NewReader(os.Stdin)
-	three := strings.Bytes(">THREE ")
+	three := []byte(">THREE ")
 	for {
 		line, err := in.ReadSlice('\n')
 		if err != nil {

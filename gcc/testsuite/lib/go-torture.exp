@@ -261,6 +261,14 @@ proc go-torture-execute { src } {
 	set result [go_load "$executable" "$go_execute_args" ""]
 	set status [lindex $result 0]
 	set output [lindex $result 1]
+
+	# In order to cooperate nicely with the master Go testsuite,
+	# if the output contains the string BUG, we treat the test as
+	# failing.
+	if [ string match "*BUG*" $output ] {
+	    set status "fail"
+	}
+
         if { $status == "pass" } {
 	    catch { remote_file build delete $executable }
         }

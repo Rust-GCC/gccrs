@@ -5,9 +5,7 @@
 
 set -e
 
-GOBIN="${GOBIN:-$HOME/bin}"
-
-. "$GOROOT"/src/Make.$GOARCH
+eval $(gomake --no-print-directory -f ../../src/Make.inc go-env)
 PATH=.:$PATH
 
 mode=run
@@ -18,11 +16,11 @@ X-test)
 esac
 
 gc() {
-	"$GOBIN"/$GC $1.go; "$GOBIN"/$LD $1.$O
+	$GC $1.go; $LD $1.$O
 }
 
 gc_B() {
-	"$GOBIN"/$GC -B $1.go; "$GOBIN"/$LD $1.$O
+	$GC -B $1.go; $LD $1.$O
 }
 
 runonly() {
@@ -82,11 +80,6 @@ revcomp() {
 	run 'gccgo -O2 reverse-complement.go' a.out < x
 	run 'gc reverse-complement' $O.out < x
 	run 'gc_B reverse-complement' $O.out < x
-	export GOGC=off
-	runonly echo 'GOGC=off'
-	run 'gc reverse-complement' $O.out < x
-	run 'gc_B reverse-complement' $O.out < x
-	unset GOGC
 	rm x
 }
 
@@ -111,7 +104,9 @@ fannkuch() {
 	runonly echo 'fannkuch 12'
 	run 'gcc -O2 fannkuch.c' a.out 12
 	run 'gccgo -O2 fannkuch.go' a.out -n 12
+	run 'gccgo -O2 fannkuch-parallel.go' a.out -n 12
 	run 'gc fannkuch' $O.out -n 12
+	run 'gc fannkuch-parallel' $O.out -n 12
 	run 'gc_B fannkuch' $O.out -n 12
 }
 
@@ -122,6 +117,7 @@ regexdna() {
 	run 'gcc -O2 regex-dna.c -lpcre' a.out <x
 #	run 'gccgo -O2 regex-dna.go' a.out <x	# pages badly; don't run
 	run 'gc regex-dna' $O.out <x
+	run 'gc regex-dna-parallel' $O.out <x
 	run 'gc_B regex-dna' $O.out <x
 	rm x
 }
@@ -140,7 +136,9 @@ knucleotide() {
 	runonly echo 'k-nucleotide 1000000'
 	run 'gcc -O2 -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include k-nucleotide.c -lglib-2.0' a.out <x
 	run 'gccgo -O2 k-nucleotide.go' a.out <x	# warning: pages badly!
+	run 'gccgo -O2 k-nucleotide-parallel.go' a.out <x	# warning: pages badly!
 	run 'gc k-nucleotide' $O.out <x
+	run 'gc k-nucleotide-parallel' $O.out <x
 	run 'gc_B k-nucleotide' $O.out <x
 	rm x
 }
@@ -179,7 +177,7 @@ threadring() {
 chameneos() {
 	runonly echo 'chameneos 6000000'
 	run 'gcc -O2 chameneosredux.c -lpthread' a.out 6000000
-#	run 'gccgo -O2 chameneosredux.go' a.out 6000000	# doesn't support the non-forward-decl variant
+	run 'gccgo -O2 chameneosredux.go' a.out 6000000
 	run 'gc chameneosredux' $O.out 6000000
 }
 

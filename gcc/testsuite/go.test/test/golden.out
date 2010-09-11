@@ -2,26 +2,22 @@
 == ./
 
 =========== ./cmp2.go
-comparing uncomparable type []int
-throw: interface compare
+panic: runtime error: comparing uncomparable type []int
 
 panic PC=xxx
 
 =========== ./cmp3.go
-comparing uncomparable type []int
-throw: interface compare
+panic: runtime error: comparing uncomparable type []int
 
 panic PC=xxx
 
 =========== ./cmp4.go
-hash of unhashable type []int
-throw: interface hash
+panic: runtime error: hash of unhashable type []int
 
 panic PC=xxx
 
 =========== ./cmp5.go
-hash of unhashable type []int
-throw: interface hash
+panic: runtime error: hash of unhashable type []int
 
 panic PC=xxx
 
@@ -51,10 +47,41 @@ hello, world
 =========== ./sigchld.go
 survived SIGCHLD
 
+=========== ./sinit.go
+FAIL
+
 =========== ./turing.go
 Hello World!
 
 == ken/
+
+=========== ken/cplx0.go
+(+5.000000e+000+6.000000e+000i)
+(+5.000000e+000+6.000000e+000i)
+(+5.000000e+000+6.000000e+000i)
+(+5.000000e+000+6.000000e+000i)
+
+=========== ken/cplx3.go
+(+1.292308e+000-1.384615e-001i)
+(+1.292308e+000-1.384615e-001i)
+64
+
+=========== ken/cplx4.go
+c = (-5.000000-6.000000i)
+c = (5.000000+6.000000i)
+c = (5.000000+6.000000i)
+c = (5.000000+6.000000i)
+c = (5+6i)
+c = (13+7i)
+
+=========== ken/cplx5.go
+(+5.000000e+000-5.000000e+000i)
+(+5.000000e+000-5.000000e+000i)
+(+5.000000e+000-5.000000e+000i)
+(+5.000000e+000-5.000000e+000i)
+(+5.000000e+000-5.000000e+000i)
+(+5.000000e+000-5.000000e+000i)
+(+5.000000e+000-5.000000e+000i)
 
 =========== ken/intervar.go
  print 1 bio 2 file 3 -- abc
@@ -88,14 +115,12 @@ PASS
 == interface/
 
 =========== interface/fail.go
-*main.S is not main.I: missing method Foo
-throw: interface conversion
+panic: interface conversion: *main.S is not main.I: missing method Foo
 
 panic PC=xxx
 
 =========== interface/returntype.go
-*main.S is not main.I2: missing method Name
-throw: interface conversion
+panic: interface conversion: *main.S is not main.I2: missing method Name
 
 panic PC=xxx
 
@@ -131,22 +156,24 @@ do break
 broke
 
 =========== fixedbugs/bug081.go
-fixedbugs/bug081.go:9: fatal error: typecheck loop
+fixedbugs/bug081.go:9: typechecking loop
 
 =========== fixedbugs/bug093.go
 M
 
 =========== fixedbugs/bug113.go
-interface is int, not int32
-throw: interface conversion
+panic: interface conversion: interface is int, not int32
 
 panic PC=xxx
 
 =========== fixedbugs/bug148.go
 2 3
-interface is main.T, not main.T
-throw: interface conversion
+panic: interface conversion: interface is main.T, not main.T
 
 panic PC=xxx
 
 == bugs/
+
+=========== bugs/bug260.go
+FAIL
+BUG: bug260 failed

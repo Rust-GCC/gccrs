@@ -31,7 +31,12 @@ close(SRC);
 # Run command
 $cmd = join(' ', @ARGV);
 open(CMD, "exec $cmd </dev/null 2>&1 |") || die "BUG: errchk: run $cmd: $!";
-@out = grep { !/^	/ } <CMD>;
+
+# 6g error messages continue onto additional lines with leading tabs.
+# Split the output at the beginning of each line that doesn't begin with a tab.
+$out = join('', <CMD>);
+@out = split(/^(?!\t)/m, $out);
+
 close CMD;
 
 if($? == 0) {
@@ -55,8 +60,8 @@ sub bug() {
 $line = 0;
 foreach $src (@src) {
 	$line++;
-	next unless $src =~ m|// ERROR (.*)|;
-	$regexp = $1;
+	next unless $src =~ m|// (GC_)?ERROR (.*)|;
+	$regexp = $2;
 	if($regexp !~ /^"([^"]*)"/) {
 		print STDERR "$file:$line: malformed regexp\n";
 		next;
