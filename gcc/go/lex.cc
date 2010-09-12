@@ -448,7 +448,6 @@ Lex::Lex(const char* input_file_name, FILE* input_file)
 Lex::~Lex()
 {
   delete[] this->linebuf_;
-  linemap_add(line_table, LC_LEAVE, 0, NULL, 0);
 }
 
 // Read a new line from the file.
@@ -1579,6 +1578,44 @@ Lex::skip_cpp_comment()
 {
   const char* p = this->linebuf_ + this->lineoff_;
   const char* pend = this->linebuf_ + this->linesize_;
+
+  // By convention, a C++ comment at the start of the line of the form
+  //   //line FILE:LINENO
+  // is interpreted as setting the file name and line number of the
+  // next source line.
+
+  if (this->lineoff_ == 2
+      && pend - p > 5
+      && memcmp(p, "line ", 5) == 0)
+    {
+      p += 5;
+      while (p < pend && *p == ' ')
+	++p;
+      const char* pcolon = static_cast<const char*>(memchr(p, ':', pend - p));
+      if (pcolon != NULL
+	  && pcolon[1] >= '0'
+	  && pcolon[1] <= '9')
+	{
+	  char* plend;
+	  long lineno = strtol(pcolon + 1, &plend, 10);
+	  if (plend > pcolon + 1
+	      && (plend == pend
+		  || *plend < '0'
+		  || *plend > '9'))
+	    {
+	      unsigned int filelen = pcolon - p;
+	      char* file = new char[filelen + 1];
+	      memcpy(file, p, filelen);
+	      file[filelen] = '\0';
+
+	      linemap_add(line_table, LC_ENTER, 0, file, lineno);
+	      this->lineno_ = lineno - 1;
+
+	      p = plend;
+	    }
+	}
+    }
+
   while (p < pend)
     {
       this->lineoff_ = p - this->linebuf_;
