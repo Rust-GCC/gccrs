@@ -9299,7 +9299,7 @@ ix86_expand_split_stack_prologue (void)
   tree decl;
   bool is_fastcall;
   int regparm, args_size;
-  rtx label, jump_insn, allocate_rtx, call_insn, call_fusage;
+  rtx label, limit, current, jump_insn, allocate_rtx, call_insn, call_fusage;
 
   gcc_assert (flag_split_stack && reload_completed);
 
@@ -9324,8 +9324,13 @@ ix86_expand_split_stack_prologue (void)
      the stack boundary in the TCB.  The stack boundary always gives
      us SPLIT_STACK_AVAILABLE bytes, so if we need less than that we
      can compare directly.  Otherwise we need to do an addition.  */
+
+  limit = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, const0_rtx),
+			  UNSPEC_STACK_CHECK);
+  limit = gen_rtx_CONST (Pmode, limit);
+  limit = gen_rtx_MEM (Pmode, limit);
   if (allocate < SPLIT_STACK_AVAILABLE)
-    emit_jump_insn (gen_split_stack_check_small (label));
+    current = stack_pointer_rtx;
   else
     {
       rtx offset, scratch_reg;
@@ -9382,8 +9387,13 @@ ix86_expand_split_stack_prologue (void)
 	  emit_insn (gen_addsi3 (scratch_reg, stack_pointer_rtx, offset));
 	}
 
-      emit_jump_insn (gen_split_stack_check_large (scratch_reg, label));
+      current = scratch_reg;
     }
+
+  ix86_compare_op0 = current;
+  ix86_compare_op1 = limit;
+  ix86_expand_branch (GEU, label);
+  JUMP_LABEL (get_last_insn ()) = label;
 
   /* Mark the jump as very likely to be taken.  */
   jump_insn = get_last_insn ();
@@ -10101,6 +10111,10 @@ ix86_legitimate_address_p (enum machine_mode mode ATTRIBUTE_UNUSED,
 	  case UNSPEC_INDNTPOFF:
 	  case UNSPEC_NTPOFF:
 	  case UNSPEC_DTPOFF:
+	    break;
+
+	  case UNSPEC_STACK_CHECK:
+	    gcc_assert (flag_split_stack);
 	    break;
 
 	  default:
@@ -10994,6 +11008,13 @@ output_pic_addr_const (FILE *file, rtx x, int code)
       break;
 
      case UNSPEC:
+       if (XINT (x, 1) == UNSPEC_STACK_CHECK)
+	 {
+	   bool f = output_addr_const_extra (file, x);
+	   gcc_assert (f);
+	   break;
+	 }
+
        gcc_assert (XVECLEN (x, 0) == 1);
        output_pic_addr_const (file, XVECEXP (x, 0, 0), code);
        switch (XINT (x, 1))
@@ -12356,6 +12377,22 @@ output_addr_const_extra (FILE *file, rtx x)
       machopic_output_function_base_name (file);
       break;
 #endif
+
+    case UNSPEC_STACK_CHECK:
+      {
+	int offset;
+
+	gcc_assert (flag_split_stack);
+
+#ifdef TARGET_THREAD_SPLIT_STACK_OFFSET
+	offset = TARGET_THREAD_SPLIT_STACK_OFFSET;
+#else
+	gcc_unreachable ();
+#endif
+
+	fprintf (file, "%s:%d", TARGET_64BIT ? "%fs" : "%gs", offset);
+      }
+      break;
 
     default:
       return false;
