@@ -1,5 +1,5 @@
 # x86/x86_64 support for -fsplit-stack.
-# Copyright (C) 2009 Free Software Foundation, Inc.
+# Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 # Contributed by Ian Lance Taylor <iant@google.com>.
 
 # This file is part of GCC.
@@ -47,13 +47,13 @@
 # the stack which we should not use.
 
 # void *__generic_morestack (size_t *frame_size, void *old_stack,
-#			      size_t param_size);
+#			     size_t param_size);
 
-# The __morestack routine arranges for the caller to return to a stub
-# on the new stack.  The stub is responsible for restoring the old
-# stack pointer and returning to the caller's caller.  This calls
-# __generic_releasestack to retrieve the old stack pointer and
-# release the newly allocated stack.
+# The __morestack routine has to arrange for the caller to return to a
+# stub on the new stack.  The stub is responsible for restoring the
+# old stack pointer and returning to the caller's caller.  This calls
+# __generic_releasestack to retrieve the old stack pointer and release
+# the newly allocated stack.
 
 # void *__generic_releasestack (size_t *available);
 
@@ -71,10 +71,6 @@
 # the call to __generic_morestack.  That then returns to the caller of
 # the original caller.
 
-# This entry point is for split-stack code which calls non-split-stack
-# code.  When the linker sees this case, it converts the call to
-# __morestack to call __morestack_non_split instead.  We just bump the
-# requested stack space by 16K.
 
 # The amount of extra space we ask for.  In general this has to be
 # enough for the dynamic loader to find a symbol and for a signal
@@ -85,6 +81,12 @@
 #else
 #define BACKOFF (1536)
 #endif
+
+
+# This entry point is for split-stack code which calls non-split-stack
+# code.  When the linker sees this case, it converts the call to
+# __morestack to call __morestack_non_split instead.  We just bump the
+# requested stack space by 16K.
 
 	.global __morestack_non_split
 
@@ -106,6 +108,9 @@ __morestack_non_split:
 
 # __morestack_non_split falls through into __morestack.
 
+
+# The __morestack function.
+
 	.global	__morestack
 
 #ifdef __ELF__
@@ -116,7 +121,11 @@ __morestack:
 .LFB1:
 	.cfi_startproc
 
+
 #ifndef __x86_64__
+
+
+# The 32-bit __morestack function.
 
 	# We use a cleanup to restore the stack guard if an exception
 	# is thrown through this code.
@@ -172,10 +181,10 @@ __morestack:
 	subl	8(%ebp),%eax		# The end of the stack space.
 	addl	$BACKOFF,%eax		# Back off 512 bytes.
 
+.LEHB0:
 	# FIXME: The offset must match
 	# TARGET_THREAD_SPLIT_STACK_OFFSET in
 	# gcc/config/i386/linux.h.
-.LEHB0:
 	movl	%eax,%gs:0x30		# Save the new stack boundary.
 
 	call	__morestack_unblock_signals
@@ -204,11 +213,14 @@ __morestack:
 	pushl	%eax
 	pushl	%edx
 
-	call	__morestack_block_signals
-
+	# Push the arguments to __generic_releasestack now so that the
+	# stack is at a 16-byte boundary for
+	# __morestack_block_signals.
 	pushl	$0			# Where the available space is returned.
 	leal	0(%esp),%eax		# Push its address.
 	push	%eax
+
+	call	__morestack_block_signals
 
 	call	__generic_releasestack
 
@@ -232,9 +244,11 @@ __morestack:
 
 	pushl	%eax			# Push return value on old stack.
 	pushl	%edx
+	subl	$8,%esp			# Align stack to 16-byte boundary.
 
 	call	__morestack_unblock_signals
 
+	addl	$8,%esp
 	popl	%edx			# Restore return value.
 	popl	%eax
 
@@ -272,6 +286,9 @@ __morestack:
 
 #else /* defined(__x86_64__) */
 
+
+# The 64-bit __morestack function.
+
 	# We use a cleanup to restore the stack guard if an exception
 	# is thrown through this code.
 #ifndef __PIC__
@@ -306,7 +323,7 @@ __morestack:
 	# and %r9 may be used for parameters.  We also preserve %rax
 	# which the caller may use to hold %r10.
 
-	push	%rax
+	pushq	%rax
 	pushq	%rdi
 	pushq	%rsi
 	pushq	%rdx
@@ -315,11 +332,13 @@ __morestack:
 	pushq	%r9
 
 	pushq	%r11
+	pushq	$0			# For alignment.
 
 	call	__morestack_block_signals
 
 	leaq	-8(%rbp),%rdi		# Address of new frame size.
 	leaq	24(%rbp),%rsi		# The caller's parameters.
+	addq	$8,%rsp
 	popq	%rdx			# The size of the parameters.
 
 	call	__generic_morestack
@@ -329,10 +348,10 @@ __morestack:
 	subq	%r10,%rax		# The end of the stack space.
 	addq	$BACKOFF,%rax		# Back off 1024 bytes.
 
+.LEHB0:
 	# FIXME: The offset must match
 	# TARGET_THREAD_SPLIT_STACK_OFFSET in
 	# gcc/config/i386/linux64.h.
-.LEHB0:
 	movq	%rax,%fs:0x70		# Save the new stack boundary.
 
 	call	__morestack_unblock_signals
@@ -362,6 +381,7 @@ __morestack:
 
 	call	__morestack_block_signals
 
+	pushq	$0			# For alignment.
 	pushq	$0			# Where the available space is returned.
 	leaq	0(%rsp),%rdi		# Pass its address.
 
@@ -372,7 +392,7 @@ __morestack:
 .LEHE0:
 	movq	%rax,%fs:0x70		# Save the new stack boundary.
 
-	addq	$8,%rsp			# Remove value from stack.
+	addq	$16,%rsp		# Remove values from stack.
 
 	# We need to restore the old stack pointer, which is in %rbp,
 	# before we unblock signals.  We also need to restore %rax and
@@ -427,7 +447,10 @@ __morestack:
 	.size	__morestack, . - __morestack
 #endif
 
-	.globl __gcc_personality_v0
+
+# The exception table.  This tells the personality routine to execute
+# the exception handler.
+
 	.section	.gcc_except_table,"a",@progbits
 	.align	4
 .LLSDA1:
@@ -442,6 +465,8 @@ __morestack:
 	.uleb128 0		# action
 .LLSDACSE1:
 
+
+	.globl __gcc_personality_v0
 #ifdef __PIC__
 	# Build a position independent reference to the basic
         # personality function.
@@ -460,6 +485,7 @@ DW.ref.__gcc_personality_v0:
 	.quad	__gcc_personality_v0
 #endif
 #endif
+
 
 # Initialize the stack test value when the program starts or when a
 # new thread starts.  We don't know how large the main stack is, so we
@@ -506,6 +532,7 @@ __stack_split_initialize:
 #ifdef __ELF__
 	.size	__stack_split_initialize, . - __stack_split_initialize
 #endif
+
 
 # Make __stack_split_initialize a high priority constructor.  FIXME:
 # This is ELF specific.
