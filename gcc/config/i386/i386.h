@@ -2376,6 +2376,13 @@ struct GTY(()) machine_function {
      to be used. MS_ABI means ms abi. Otherwise SYSV_ABI means sysv abi.  */
   enum calling_abi call_abi;
 
+  /* For -fsplit-stack support: A stack local which holds a pointer to
+     the stack arguments for a function with a variable number of
+     arguments.  This is set at the start of the function and is used
+     to initialize the overflow_arg_area field of the va_list
+     structure.  */
+  rtx split_stack_varargs_pointer;
+
   /* Nonzero if the function accesses a previous frame.  */
   BOOL_BITFIELD accesses_prev_frame : 1;
 
