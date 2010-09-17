@@ -68,7 +68,7 @@ static pthread_once_t create_key_once = PTHREAD_ONCE_INIT;
 static void
 free_segments (void* arg)
 {
-  __morestack_release_segments ((struct stack_segment **) arg);
+  __morestack_release_segments ((struct stack_segment **) arg, 1);
 }
 
 /* Set up the key for the list of segments.  This is called via

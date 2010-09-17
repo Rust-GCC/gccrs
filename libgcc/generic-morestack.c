@@ -75,6 +75,10 @@ extern void
 __morestack_unblock_signals (void)
   __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
 
+extern void *
+__morestack_allocate_stack_space (size_t)
+  __attribute__ ((visibility ("default")));
+
 extern size_t
 __generic_findstack (void *stack)
   __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
@@ -104,6 +108,25 @@ struct stack_segment
   /* The stack address when this stack was created.  This is used when
      popping the stack.  */
   void *old_stack;
+  /* A list of memory blocks allocated by dynamic stack
+     allocation.  */
+  struct dynamic_allocation_blocks *dynamic_allocation;
+  /* A list of dynamic memory blocks no longer needed.  */
+  struct dynamic_allocation_blocks *free_dynamic_allocation;
+};
+
+/* A list of memory blocks allocated by dynamic stack allocation.
+   This is used for code that calls alloca or uses variably sized
+   arrays.  */
+
+struct dynamic_allocation_blocks
+{
+  /* The next block in the list.  */
+  struct dynamic_allocation_blocks *next;
+  /* The size of the allocated memory.  */
+  size_t size;
+  /* The allocated memory.  */
+  void *block;
 };
 
 /* The first stack segment allocated for this thread.  */
@@ -293,6 +316,8 @@ allocate_segment (size_t frame_size)
   pss->prev = __morestack_current_segment;
   pss->next = NULL;
   pss->size = allocate - overhead;
+  pss->dynamic_allocation = NULL;
+  pss->free_dynamic_allocation = NULL;
 
   if (__morestack_current_segment != NULL)
     __morestack_current_segment->next = pss;
@@ -302,13 +327,50 @@ allocate_segment (size_t frame_size)
   return pss;
 }
 
-/* Release stack segments.  */
+/* Free a list of dynamic blocks.  */
 
-void
-__morestack_release_segments (struct stack_segment **pp)
+static void
+free_dynamic_blocks (struct dynamic_allocation_blocks *p)
 {
+  while (p != NULL)
+    {
+      struct dynamic_allocation_blocks *next;
+
+      next = p->next;
+      free (p->block);
+      free (p);
+      p = next;
+    }
+}
+
+/* Merge two lists of dynamic blocks.  */
+
+static struct dynamic_allocation_blocks *
+merge_dynamic_blocks (struct dynamic_allocation_blocks *a,
+		      struct dynamic_allocation_blocks *b)
+{
+  struct dynamic_allocation_blocks **pp;
+
+  if (a == NULL)
+    return b;
+  if (b == NULL)
+    return a;
+  for (pp = &a->next; *pp != NULL; pp = &(*pp)->next)
+    ;
+  *pp = b;
+  return a;
+}
+
+/* Release stack segments.  If FREE_DYNAMIC is non-zero, we also free
+   any dynamic blocks.  Otherwise we return them.  */
+
+struct dynamic_allocation_blocks *
+__morestack_release_segments (struct stack_segment **pp, int free_dynamic)
+{
+  struct dynamic_allocation_blocks *ret;
   struct stack_segment *pss;
 
+  ret = NULL;
   pss = *pp;
   while (pss != NULL)
     {
@@ -316,6 +378,21 @@ __morestack_release_segments (struct stack_segment **pp)
       unsigned int allocate;
 
       next = pss->next;
+
+      if (pss->dynamic_allocation != NULL
+	  || pss->free_dynamic_allocation != NULL)
+	{
+	  if (free_dynamic)
+	    {
+	      free_dynamic_blocks (pss->dynamic_allocation);
+	      free_dynamic_blocks (pss->free_dynamic_allocation);
+	    }
+	  else
+	    {
+	      ret = merge_dynamic_blocks (pss->dynamic_allocation, ret);
+	      ret = merge_dynamic_blocks (pss->free_dynamic_allocation, ret);
+	    }
+	}
 
       allocate = pss->size + sizeof (struct stack_segment);
       if (munmap (pss, allocate) < 0)
@@ -327,6 +404,8 @@ __morestack_release_segments (struct stack_segment **pp)
       pss = next;
     }
   *pp = NULL;
+
+  return ret;
 }
 
 /* This function is called by a processor specific function to set the
@@ -391,6 +470,7 @@ __generic_morestack (size_t *pframe_size, void *old_stack, size_t param_size)
   size_t frame_size = *pframe_size;
   struct stack_segment *current;
   struct stack_segment **pp;
+  struct dynamic_allocation_blocks *dynamic;
   char *from;
   char *to;
   void *ret;
@@ -400,7 +480,9 @@ __generic_morestack (size_t *pframe_size, void *old_stack, size_t param_size)
 
   pp = current != NULL ? &current->next : &__morestack_segments;
   if (*pp != NULL && (*pp)->size < frame_size)
-    __morestack_release_segments (pp);
+    dynamic = __morestack_release_segments (pp, 0);
+  else
+    dynamic = NULL;
   current = *pp;
 
   if (current == NULL)
@@ -409,6 +491,14 @@ __generic_morestack (size_t *pframe_size, void *old_stack, size_t param_size)
   current->old_stack = old_stack;
 
   __morestack_current_segment = current;
+
+  if (dynamic != NULL)
+    {
+      /* Move the free blocks onto our list.  We don't want to call
+	 free here, as we are short on stack space.  */
+      current->free_dynamic_allocation =
+	merge_dynamic_blocks (dynamic, current->free_dynamic_allocation);
+    }
 
   *pframe_size = current->size - param_size;
 
@@ -514,6 +604,70 @@ __morestack_unblock_signals (void)
     pthread_sigmask (SIG_SETMASK, &__morestack_initial_sp.mask, NULL);
   else
     sigprocmask (SIG_SETMASK, &__morestack_initial_sp.mask, NULL);
+}
+
+/* This function is called to allocate dynamic stack space, for alloca
+   or a variably sized array.  This is a regular function with
+   sufficient stack space, so we just use malloc to allocate the
+   space.  We attach the allocated blocks to the current stack
+   segment, so that they will eventually be reused or freed.  */
+
+void *
+__morestack_allocate_stack_space (size_t size)
+{
+  struct stack_segment *seg, *current;
+  struct dynamic_allocation_blocks *p;
+
+  /* We have to block signals to avoid getting confused if we get
+     interrupted by a signal whose handler itself uses alloca or a
+     variably sized array.  */
+  __morestack_block_signals ();
+
+  /* Since we don't want to call free while we are low on stack space,
+     we may have a list of already allocated blocks waiting to be
+     freed.  Release them all, unless we find one that is large
+     enough.  We don't look at every block to see if one is large
+     enough, just the first one, because we aren't trying to build a
+     memory allocator here, we're just trying to speed up common
+     cases.  */
+
+  current = __morestack_current_segment;
+  p = NULL;
+  for (seg = __morestack_segments; seg != NULL; seg = seg->next)
+    {
+      p = seg->free_dynamic_allocation;
+      if (p != NULL)
+	{
+	  if (p->size >= size)
+	    {
+	      seg->free_dynamic_allocation = p->next;
+	      break;
+	    }
+
+	  free_dynamic_blocks (p);
+	  seg->free_dynamic_allocation = NULL;
+	  p = NULL;
+	}
+    }
+
+  if (p == NULL)
+    {
+      /* We need to allocate additional memory.  */
+      p = malloc (sizeof (*p));
+      if (p == NULL)
+	abort ();
+      p->size = size;
+      p->block = malloc (size);
+      if (p->block == NULL)
+	abort ();
+    }
+
+  p->next = current->dynamic_allocation;
+  current->dynamic_allocation = p;
+
+  __morestack_unblock_signals ();
+
+  return p->block;
 }
 
 /* Find the stack segment for STACK and return the amount of space

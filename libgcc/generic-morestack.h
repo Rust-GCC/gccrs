@@ -43,7 +43,8 @@ extern void __morestack_fail (const char *msg, size_t len, int err)
 
 /* Release stack segments.  */
 
-extern void __morestack_release_segments (struct stack_segment **)
+extern struct dynamic_allocation_blocks *
+  __morestack_release_segments (struct stack_segment **, int)
   __attribute__ ((visibility ("hidden")));
 
 /* Store the stack information in a processor dependent manner.  */
