@@ -4394,7 +4394,7 @@ syscalls/libsyscall.a: $(go_syscall_files) $(go_syscall_c_files) sync.gox
 	rm -f syscall.gox syscalls/libsyscall.a
 	test -d syscalls || mkdir -p syscalls
 	files=`echo $^ | sed -e 's/[^ ]*\.gox//g' -e's/[^ ]*\.c//g'`; \
-	$(LTGOCOMPILE) -c -fgo-prefix="libgo__" -o syscalls/syscall.o $$files
+	$(LTGOCOMPILE) -c -fgo-prefix="libgo_syscalls" -o syscalls/syscall.o $$files
 	$(LTCOMPILE) -c -o syscalls/errno.o $(srcdir)/syscalls/errno.c
 	$(AR) rc syscalls/libsyscall.a syscalls/syscall.o syscalls/errno.o
 syscalls/libsyscall.la: syscalls/libsyscall.a

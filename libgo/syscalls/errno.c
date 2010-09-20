@@ -9,8 +9,8 @@
 /* errno is typically a macro. These functions set 
    and get errno specific to the libc being used.  */
 
-int GetErrno() asm ("libgo__.syscall.GetErrno");
-void SetErrno(int) asm ("libgo__.syscall.SetErrno");
+int GetErrno() asm ("libgo_syscalls.syscall.GetErrno");
+void SetErrno(int) asm ("libgo_syscalls.syscall.SetErrno");
 
 int 
 GetErrno()
