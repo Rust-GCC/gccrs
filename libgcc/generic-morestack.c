@@ -50,10 +50,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    -fsplit-stack.  */
 
 /* Declare functions to avoid warnings--there is no header file for
-   these internal functions.  We give these functions the flatten
-   attribute in order to minimize their stack usage--here we must
-   minimize stack usage even at the cost of code size, and in general
-   inlining everything will do that.  */
+   these internal functions.  We give most of these functions the
+   flatten attribute in order to minimize their stack usage--here we
+   must minimize stack usage even at the cost of code size, and in
+   general inlining everything will do that.  */
 
 extern void
 __generic_morestack_set_initial_sp (void *sp, size_t len)
@@ -75,17 +75,21 @@ extern void
 __morestack_unblock_signals (void)
   __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
 
-extern void *
-__morestack_allocate_stack_space (size_t)
-  __attribute__ ((visibility ("default")));
-
 extern size_t
 __generic_findstack (void *stack)
   __attribute__ ((no_split_stack, flatten, visibility ("hidden")));
 
 extern void
 __morestack_load_mmap (void)
-  __attribute__ ((no_split_stack));
+  __attribute__ ((no_split_stack, visibility ("hidden")));
+
+extern void *
+__morestack_allocate_stack_space (size_t size)
+  __attribute__ ((visibility ("hidden")));
+
+/* This is a function which -fsplit-stack code can call to get a list
+   of the stacks.  Since it is not called only by the compiler, it is
+   not hidden.  */
 
 extern void *
 __splitstack_find (void *, void *, size_t *, void **, void **, void **)
@@ -113,6 +117,28 @@ struct stack_segment
   struct dynamic_allocation_blocks *dynamic_allocation;
   /* A list of dynamic memory blocks no longer needed.  */
   struct dynamic_allocation_blocks *free_dynamic_allocation;
+  /* An extra pointer in case we need some more information some
+     day.  */
+  void *extra;
+};
+
+/* This structure holds the (approximate) initial stack pointer and
+   size for the system supplied stack for a thread.  This is set when
+   the thread is created.  We also store a sigset_t here to hold the
+   signal mask while splitting the stack, since we don't want to store
+   that on the stack.  */
+
+struct initial_sp
+{
+  /* The initial stack pointer.  */
+  void *sp;
+  /* The stack length.  */
+  size_t len;
+  /* A signal mask, put here so that the thread can use it without
+     needing stack space.  */
+  sigset_t mask;
+  /* Some extra space for later extensibility.  */
+  void *extra[5];
 };
 
 /* A list of memory blocks allocated by dynamic stack allocation.
@@ -129,6 +155,16 @@ struct dynamic_allocation_blocks
   void *block;
 };
 
+/* These thread local global variables must be shared by all split
+   stack code across shared library boundaries.  Therefore, they have
+   default visibility.  They have extensibility fields if needed for
+   new versions.  If more radical changes are needed, new code can be
+   written using new variable names, while still using the existing
+   variables in a backward compatible manner.  Symbol versioning is
+   also used, although, since these variables are only referenced by
+   code in this file and generic-morestack-thread.c, it is likely that
+   simply using new names will suffice.  */
+
 /* The first stack segment allocated for this thread.  */
 
 __thread struct stack_segment *__morestack_segments
@@ -142,18 +178,7 @@ __thread struct stack_segment *__morestack_segments
 __thread struct stack_segment *__morestack_current_segment
   __attribute__ ((visibility ("default")));
 
-/* The (approximate) initial stack pointer and size for this thread on
-   the system supplied stack.  This is set when the thread is created.
-   We also store a sigset_t here to hold the signal mask while
-   splitting the stack, since we don't want to store that on the
-   stack.  */
-
-struct initial_sp
-{
-  void *sp;
-  size_t len;
-  sigset_t mask;
-};
+/* The initial stack pointer and size for this thread.  */
 
 __thread struct initial_sp __morestack_initial_sp
   __attribute__ ((visibility ("default")));
@@ -318,6 +343,7 @@ allocate_segment (size_t frame_size)
   pss->size = allocate - overhead;
   pss->dynamic_allocation = NULL;
   pss->free_dynamic_allocation = NULL;
+  pss->extra = NULL;
 
   if (__morestack_current_segment != NULL)
     __morestack_current_segment->next = pss;
@@ -662,8 +688,13 @@ __morestack_allocate_stack_space (size_t size)
 	abort ();
     }
 
-  p->next = current->dynamic_allocation;
-  current->dynamic_allocation = p;
+  /* If we are still on the initial stack, then we have a space leak.
+     FIXME.  */
+  if (current != NULL)
+    {
+      p->next = current->dynamic_allocation;
+      current->dynamic_allocation = p;
+    }
 
   __morestack_unblock_signals ();
 

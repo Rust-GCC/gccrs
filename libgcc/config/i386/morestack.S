@@ -89,6 +89,7 @@
 # requested stack space by 16K.
 
 	.global __morestack_non_split
+	.hidden	__morestack_non_split
 
 #ifdef __ELF__
        .type	__morestack_non_split,@function
@@ -112,6 +113,7 @@ __morestack_non_split:
 # The __morestack function.
 
 	.global	__morestack
+	.hidden	__morestack
 
 #ifdef __ELF__
 	.type	__morestack,@function
@@ -466,7 +468,7 @@ __morestack:
 .LLSDACSE1:
 
 
-	.globl __gcc_personality_v0
+	.global __gcc_personality_v0
 #ifdef __PIC__
 	# Build a position independent reference to the basic
         # personality function.
@@ -493,6 +495,7 @@ DW.ref.__gcc_personality_v0:
 
 	.text
 	.global	__stack_split_initialize
+	.hidden	__stack_split_initialize
 
 #ifdef __ELF__
 	.type	__stack_split_initialize, @function
