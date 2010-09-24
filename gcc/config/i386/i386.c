@@ -9393,7 +9393,8 @@ ix86_expand_split_stack_prologue (void)
   HOST_WIDE_INT allocate;
   int args_size;
   rtx label, limit, current, jump_insn, allocate_rtx, call_insn, call_fusage;
-  rtx scratch_reg, varargs_label;
+  rtx scratch_reg = NULL_RTX;
+  rtx varargs_label = NULL_RTX;
 
   gcc_assert (flag_split_stack && reload_completed);
 
