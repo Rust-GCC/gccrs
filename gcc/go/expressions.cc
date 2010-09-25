@@ -6806,6 +6806,8 @@ Builtin_call_expression::do_determine_type(const Type_context* context)
 {
   this->fn()->determine_type_no_context();
 
+  const Expression_list* args = this->args();
+
   bool is_print;
   Type* arg_type = NULL;
   switch (this->code_)
@@ -6823,8 +6825,21 @@ Builtin_call_expression::do_determine_type(const Type_context* context)
       break;
 
     case BUILTIN_CMPLX:
-      arg_type = Builtin_call_expression::real_imag_type(context->type);
-      is_print = false;
+      {
+	// For the cmplx function the type of one operand can
+	// determine the type of the other, as in a binary expression.
+	arg_type = Builtin_call_expression::real_imag_type(context->type);
+	if (args != NULL && args->size() == 2)
+	  {
+	    Type* t1 = args->front()->type();
+	    Type* t2 = args->front()->type();
+	    if (!t1->is_abstract())
+	      arg_type = t1;
+	    else if (!t2->is_abstract())
+	      arg_type = t2;
+	  }
+	is_print = false;
+      }
       break;
 
     default:
@@ -6832,7 +6847,6 @@ Builtin_call_expression::do_determine_type(const Type_context* context)
       break;
     }
 
-  const Expression_list* args = this->args();
   if (args != NULL)
     {
       for (Expression_list::const_iterator pa = args->begin();
