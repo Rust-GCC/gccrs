@@ -12,6 +12,7 @@
 
 extern "C"
 {
+#include "toplev.h"
 #include "intl.h"
 #include "tree.h"
 #include "gimple.h"
@@ -2867,7 +2868,6 @@ Struct_type::field_reference_depth(Expression* struct_expr,
   // name.
   unsigned int found_depth = 0;
   Field_reference_expression* ret = NULL;
-  const Struct_field* parent = NULL;
   i = 0;
   for (Struct_field_list::const_iterator pf = fields->begin();
        pf != fields->end();
@@ -2895,7 +2895,6 @@ Struct_type::field_reference_depth(Expression* struct_expr,
 	  if (ret != NULL)
 	    delete ret;
 	  ret = sub;
-	  parent = &*pf;
 	  found_depth = subdepth;
 	  Expression* here = Expression::make_field_reference(struct_expr, i,
 							      location);
