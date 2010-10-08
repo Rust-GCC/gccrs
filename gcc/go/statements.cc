@@ -1768,11 +1768,11 @@ class Simplify_thunk_traverse : public Traverse
 int
 Simplify_thunk_traverse::block(Block* b)
 {
-  // The parser ensures that thunk statements always appear in a block
-  // which has only a single statement.
-  if (b->statements()->size() != 1)
+  // The parser ensures that thunk statements always appear at the end
+  // of a block.
+  if (b->statements()->size() < 1)
     return TRAVERSE_CONTINUE;
-  Thunk_statement* stat = b->statements()->front()->thunk_statement();
+  Thunk_statement* stat = b->statements()->back()->thunk_statement();
   if (stat == NULL)
     return TRAVERSE_CONTINUE;
   if (stat->simplify_statement(this->gogo_, b))
@@ -1897,16 +1897,14 @@ Thunk_statement::simplify_statement(Gogo* gogo, Block* block)
   else
     gcc_unreachable();
 
-  // The current block should only have the go statement.
-  gcc_assert(block->statements()->size() == 1);
-  gcc_assert(block->statements()->front() == this);
-  std::vector<Statement*> statements;
-  statements.push_back(s);
-  block->swap_statements(statements);
+  // The current block should end with the go statement.
+  gcc_assert(block->statements()->size() >= 1);
+  gcc_assert(block->statements()->back() == this);
+  block->replace_statement(block->statements()->size() - 1, s);
 
   // We already ran the determine_types pass, so we need to run it now
-  // for this new block.
-  block->determine_types();
+  // for the new statement.
+  s->determine_types();
 
   // Sanity check.
   gogo->check_types_in_block(block);

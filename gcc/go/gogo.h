@@ -856,11 +856,6 @@ class Block
   void
   determine_types();
 
-  // Swap the block's statements with STATEMENTS.
-  void
-  swap_statements(std::vector<Statement*>& statements)
-  { this->statements_.swap(statements); }
-
   // Return true if execution of this block may fall through to the
   // next block.
   bool
