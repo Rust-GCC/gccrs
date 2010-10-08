@@ -35,4 +35,8 @@ frequire-return-statement
 Go Var(go_require_return_statement) Init(1) Warning
 Functions which return values must end with return statements
 
+o
+Go Joined Separate
+; Documented in common.opt
+
 ; This comment is to ensure we retain the blank line above.
