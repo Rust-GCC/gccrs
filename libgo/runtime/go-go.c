@@ -435,8 +435,6 @@ __go_scanstacks (void (*scan) (int32, unsigned char *, int64_t))
   me = pthread_self ();
   for (p = __go_all_thread_ids; p != NULL; p = p->next)
     {
-      _Bool isme = 0;
-
       if (p->tentative)
 	{
 	  /* The goroutine function and argument can be allocated on
@@ -458,7 +456,6 @@ __go_scanstacks (void (*scan) (int32, unsigned char *, int64_t))
 
       if (pthread_equal (me, p->id))
 	{
-	  isme = 1;
 	  next_segment = NULL;
 	  next_sp = NULL;
 	  initial_sp = NULL;
@@ -485,7 +482,6 @@ __go_scanstacks (void (*scan) (int32, unsigned char *, int64_t))
 
       if (pthread_equal (me, p->id))
 	{
-	  isme = 1;
 	  uintptr_t top = (uintptr_t) m->gc_sp;
 	  uintptr_t bottom = (uintptr_t) &top;
 	  if (top < bottom)

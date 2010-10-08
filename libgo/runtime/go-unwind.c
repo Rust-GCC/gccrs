@@ -157,11 +157,10 @@ __go_unwind_stack ()
 
   __go_panic_defer->__exception = hdr;
 
-  _Unwind_Reason_Code code;
 #ifdef __USING_SJLJ_EXCEPTIONS__
-  code = _Unwind_SjLj_RaiseException (hdr);
+  _Unwind_SjLj_RaiseException (hdr);
 #else
-  code = _Unwind_RaiseException (hdr);
+  _Unwind_RaiseException (hdr);
 #endif
 
   /* Raising an exception should not return.  */
