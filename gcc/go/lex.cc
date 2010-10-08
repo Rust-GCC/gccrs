@@ -448,6 +448,7 @@ Lex::Lex(const char* input_file_name, FILE* input_file)
 Lex::~Lex()
 {
   delete[] this->linebuf_;
+  linemap_add(line_table, LC_LEAVE, 0, NULL, 0);
 }
 
 // Read a new line from the file.
@@ -1608,6 +1609,7 @@ Lex::skip_cpp_comment()
 	      memcpy(file, p, filelen);
 	      file[filelen] = '\0';
 
+	      linemap_add(line_table, LC_LEAVE, 0, NULL, 0);
 	      linemap_add(line_table, LC_ENTER, 0, file, lineno);
 	      this->lineno_ = lineno - 1;
 
