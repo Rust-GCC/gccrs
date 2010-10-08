@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -537,6 +537,14 @@ package body Sem_Ch11 is
             Analyze_And_Resolve (Expression (N), Standard_String);
          end if;
       end if;
+
+      --  Check obsolescent use of Numeric_Error
+
+      if Exception_Name = Standard_Numeric_Error then
+         Check_Restriction (No_Obsolescent_Features, Exception_Id);
+      end if;
+
+      --  Kill last assignment indication
 
       Kill_Current_Values (Last_Assignment_Only => True);
    end Analyze_Raise_Statement;

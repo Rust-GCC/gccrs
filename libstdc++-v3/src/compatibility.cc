@@ -1,6 +1,6 @@
 // Compatibility symbols for previous versions -*- C++ -*-
 
-// Copyright (C) 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -26,7 +26,8 @@
 #include <bits/c++config.h>
 
 #if defined(_GLIBCXX_SYMVER_GNU) && defined(PIC) \
-    && defined(_GLIBCXX_HAVE_AS_SYMVER_DIRECTIVE)
+    && defined(_GLIBCXX_HAVE_AS_SYMVER_DIRECTIVE)\
+    && defined(_GLIBCXX_HAVE_SYMVER_SYMBOL_RENAMING_RUNTIME_SUPPORT)
 #define istreambuf_iterator istreambuf_iteratorXX
 #define basic_fstream basic_fstreamXX
 #define basic_ifstream basic_ifstreamXX
@@ -201,7 +202,8 @@ _GLIBCXX_END_NAMESPACE
 // NB: These symbols renames should go into the shared library only,
 // and only those shared libraries that support versioning.
 #if defined(_GLIBCXX_SYMVER_GNU) && defined(PIC) \
-    && defined(_GLIBCXX_HAVE_AS_SYMVER_DIRECTIVE)
+    && defined(_GLIBCXX_HAVE_AS_SYMVER_DIRECTIVE) \
+    && defined(_GLIBCXX_HAVE_SYMVER_SYMBOL_RENAMING_RUNTIME_SUPPORT)
 
 /* gcc-3.4.4
 _ZNSt19istreambuf_iteratorIcSt11char_traitsIcEEppEv
@@ -386,7 +388,7 @@ _ZN10__gnu_norm15_List_node_base7reverseEv;
 _ZN10__gnu_norm15_List_node_base8transferEPS0_S1_;
 */
 #include "list.cc"
-_GLIBCXX_ASM_SYMVER(_ZNSt17_List_node_baseXX4hookEPS_, \
+_GLIBCXX_ASM_SYMVER(_ZNSt17_List_node_baseXX7_M_hookEPS_, \
 _ZN10__gnu_norm15_List_node_base4hookEPS0_, \
 GLIBCXX_3.4)
 
@@ -394,15 +396,15 @@ _GLIBCXX_ASM_SYMVER(_ZNSt17_List_node_baseXX4swapERS_S0_, \
 _ZN10__gnu_norm15_List_node_base4swapERS0_S1_, \
 GLIBCXX_3.4)
 
-_GLIBCXX_ASM_SYMVER(_ZNSt17_List_node_baseXX6unhookEv, \
+_GLIBCXX_ASM_SYMVER(_ZNSt17_List_node_baseXX9_M_unhookEv, \
 _ZN10__gnu_norm15_List_node_base6unhookEv, \
 GLIBCXX_3.4)
 
-_GLIBCXX_ASM_SYMVER(_ZNSt17_List_node_baseXX7reverseEv, \
+_GLIBCXX_ASM_SYMVER(_ZNSt17_List_node_baseXX10_M_reverseEv, \
 _ZN10__gnu_norm15_List_node_base7reverseEv, \
 GLIBCXX_3.4)
 
-_GLIBCXX_ASM_SYMVER(_ZNSt17_List_node_baseXX8transferEPS_S0_, \
+_GLIBCXX_ASM_SYMVER(_ZNSt17_List_node_baseXX11_M_transferEPS_S0_, \
 _ZN10__gnu_norm15_List_node_base8transferEPS0_S1_, \
 GLIBCXX_3.4)
 #undef _List_node_base
@@ -410,7 +412,11 @@ GLIBCXX_3.4)
 // gcc-4.1.0
 // Long double versions of "C" math functions. 
 #if defined (_GLIBCXX_LONG_DOUBLE_COMPAT) \
-    || (defined (__hppa__) && defined (__linux__))
+    || (defined (__arm__) && defined (__linux__) && defined (__ARM_EABI__)) \
+    || (defined (__hppa__) && defined (__linux__)) \
+    || (defined (__m68k__) && defined (__mcoldfire__) && defined (__linux__)) \
+    || (defined (__mips__) && defined (_ABIO32) && defined (__linux__)) \
+    || (defined (__sh__) && defined (__linux__) && __SIZEOF_SIZE_T__ == 4) \
 
 #define _GLIBCXX_MATHL_WRAPPER(name, argdecl, args, ver) \
 extern "C" double						\
@@ -512,25 +518,6 @@ extern __attribute__((used, weak)) const void * const _ZTIPKe[4]
   = { (void *) &_ZTVN10__cxxabiv119__pointer_type_infoE[2],
       (void *) _ZTSPKe, (void *) 1L, (void *) _ZTIe };
 #endif // _GLIBCXX_LONG_DOUBLE_COMPAT
-
-// gcc-4.4.0
-// <mutex> exported std::lock_error
-#if defined(_GLIBCXX_HAS_GTHREADS) && defined(_GLIBCXX_USE_C99_STDINT_TR1)
-namespace std
-{
-  class lock_error : public exception
-  {
-  public:
-    virtual const char*
-    _GLIBCXX_CONST what() const throw();
-  };
-
-  const char*
-  lock_error::what() const throw()
-  { return "std::lock_error"; }
-}
-#endif
-
 
 #ifdef _GLIBCXX_SYMVER_DARWIN
 #if (defined(__ppc__) || defined(__ppc64__)) && defined(PIC)

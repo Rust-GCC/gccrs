@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -50,8 +50,6 @@ package body ALI.Util is
 
    procedure Error_Msg_SP (Msg : String);
 
-   procedure Obsolescent_Check (S : Source_Ptr);
-
    --  Instantiation of Styleg, needed to instantiate Scng
 
    package Style is new Styleg
@@ -61,8 +59,7 @@ package body ALI.Util is
    --  Get_File_Checksum).
 
    package Scanner is new Scng
-     (Post_Scan, Error_Msg, Error_Msg_S, Error_Msg_SC, Error_Msg_SP,
-      Obsolescent_Check, Style);
+     (Post_Scan, Error_Msg, Error_Msg_S, Error_Msg_SC, Error_Msg_SP, Style);
 
    type Header_Num is range 0 .. 1_000;
 
@@ -201,16 +198,6 @@ package body ALI.Util is
       Interfaces.Reset;
    end Initialize_ALI_Source;
 
-   -----------------------
-   -- Obsolescent_Check --
-   -----------------------
-
-   procedure Obsolescent_Check (S : Source_Ptr) is
-      pragma Warnings (Off, S);
-   begin
-      null;
-   end Obsolescent_Check;
-
    ---------------
    -- Post_Scan --
    ---------------
@@ -220,11 +207,11 @@ package body ALI.Util is
       null;
    end Post_Scan;
 
-   --------------
-   -- Read_ALI --
-   --------------
+   ----------------------
+   -- Read_Withed_ALIs --
+   ----------------------
 
-   procedure Read_ALI (Id : ALI_Id) is
+   procedure Read_Withed_ALIs (Id : ALI_Id) is
       Afile  : File_Name_Type;
       Text   : Text_Buffer_Ptr;
       Idread : ALI_Id;
@@ -298,7 +285,7 @@ package body ALI.Util is
                else
                   --  Otherwise, recurse to get new dependents
 
-                  Read_ALI (Idread);
+                  Read_Withed_ALIs (Idread);
                end if;
 
             --  If the ALI file has already been processed and is an interface,
@@ -309,7 +296,7 @@ package body ALI.Util is
             end if;
          end loop;
       end loop;
-   end Read_ALI;
+   end Read_Withed_ALIs;
 
    ----------------------
    -- Set_Source_Table --
@@ -481,6 +468,14 @@ package body ALI.Util is
                  (Get_File_Checksum (Sdep.Table (D).Sfile),
                   Source.Table (Src).Checksum)
             then
+               if Verbose_Mode then
+                  Write_Str ("   ");
+                  Write_Str (Get_Name_String (Sdep.Table (D).Sfile));
+                  Write_Str (": up to date, different timestamps " &
+                             "but same checksum");
+                  Write_Eol;
+               end if;
+
                Sdep.Table (D).Stamp := Source.Table (Src).Stamp;
             end if;
 

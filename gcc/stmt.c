@@ -1,7 +1,7 @@
 /* Expands front end tree to back end RTL for GCC
    Copyright (C) 1987, 1988, 1989, 1992, 1993, 1994, 1995, 1996, 1997,
-   1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
-   Free Software Foundation, Inc.
+   1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
+   2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -41,6 +41,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "libfuncs.h"
 #include "recog.h"
 #include "machmode.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "output.h"
 #include "ggc.h"
@@ -52,6 +53,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "regs.h"
 #include "alloc-pool.h"
 #include "pretty-print.h"
+#include "bitmap.h"
+
 
 /* Functions and data structures for expanding case statements.  */
 
@@ -937,7 +940,7 @@ expand_asm_operands (tree string, tree outputs, tree inputs,
       ASM_OPERANDS_INPUT (body, i) = op;
 
       ASM_OPERANDS_INPUT_CONSTRAINT_EXP (body, i)
-	= gen_rtx_ASM_INPUT (TYPE_MODE (type), 
+	= gen_rtx_ASM_INPUT (TYPE_MODE (type),
 			     ggc_strdup (constraints[i + noutputs]));
 
       if (tree_conflicts_with_clobbers_p (val, &clobbered_regs))
@@ -1099,6 +1102,7 @@ expand_asm_stmt (gimple stmt)
   size_t i, n;
   const char *s;
   tree str, out, in, cl, labels;
+  location_t locus = gimple_location (stmt);
 
   /* Meh... convert the gimple asm operands into real tree lists.
      Eventually we should make all routines work on the vectors instead
@@ -1144,7 +1148,7 @@ expand_asm_stmt (gimple stmt)
 
   if (gimple_asm_input_p (stmt))
     {
-      expand_asm_loc (str, gimple_asm_volatile_p (stmt), input_location);
+      expand_asm_loc (str, gimple_asm_volatile_p (stmt), locus);
       return;
     }
 
@@ -1160,7 +1164,7 @@ expand_asm_stmt (gimple stmt)
   /* Generate the ASM_OPERANDS insn; store into the TREE_VALUEs of
      OUTPUTS some trees for where the values were actually stored.  */
   expand_asm_operands (str, outputs, in, cl, labels,
-		       gimple_asm_volatile_p (stmt), input_location);
+		       gimple_asm_volatile_p (stmt), locus);
 
   /* Copy all the intermediate outputs into the specified outputs.  */
   for (i = 0, tail = outputs; tail; tail = TREE_CHAIN (tail), i++)
@@ -1316,7 +1320,7 @@ resolve_asm_operand_names (tree string, tree outputs, tree inputs, tree labels)
 	break;
       else
 	{
-	  c += 1;
+	  c += 1 + (c[1] == '%');
 	  continue;
 	}
     }
@@ -1338,7 +1342,7 @@ resolve_asm_operand_names (tree string, tree outputs, tree inputs, tree labels)
 	    p += 2;
 	  else
 	    {
-	      p += 1;
+	      p += 1 + (p[1] == '%');
 	      continue;
 	    }
 
@@ -1591,8 +1595,11 @@ expand_value_return (rtx val)
       tree type = TREE_TYPE (decl);
       int unsignedp = TYPE_UNSIGNED (type);
       enum machine_mode old_mode = DECL_MODE (decl);
-      enum machine_mode mode = promote_function_mode (type, old_mode,
-						      &unsignedp, funtype, 1);
+      enum machine_mode mode;
+      if (DECL_BY_REFERENCE (decl))
+        mode = promote_function_mode (type, old_mode, &unsignedp, funtype, 2);
+      else
+        mode = promote_function_mode (type, old_mode, &unsignedp, funtype, 1);
 
       if (mode != old_mode)
 	val = convert_modes (mode, old_mode, val, unsignedp);
@@ -1827,7 +1834,7 @@ expand_nl_goto_receiver (void)
        decrementing fp by STARTING_FRAME_OFFSET.  */
     emit_move_insn (virtual_stack_vars_rtx, hard_frame_pointer_rtx);
 
-#if ARG_POINTER_REGNUM != HARD_FRAME_POINTER_REGNUM
+#if !HARD_FRAME_POINTER_IS_ARG_POINTER
   if (fixed_regs[ARG_POINTER_REGNUM])
     {
 #ifdef ELIMINABLE_REGS
@@ -2068,7 +2075,7 @@ add_case_node (struct case_node *head, tree type, tree low, tree high,
 
 /* By default, enable case bit tests on targets with ashlsi3.  */
 #ifndef CASE_USE_BIT_TESTS
-#define CASE_USE_BIT_TESTS  (optab_handler (ashl_optab, word_mode)->insn_code \
+#define CASE_USE_BIT_TESTS  (optab_handler (ashl_optab, word_mode) \
 			     != CODE_FOR_nothing)
 #endif
 
@@ -2331,11 +2338,8 @@ expand_case (gimple stmt)
 	  /* If we have not seen this label yet, then increase the
 	     number of unique case node targets seen.  */
 	  lab = label_rtx (n->code_label);
-	  if (!bitmap_bit_p (label_bitmap, CODE_LABEL_NUMBER (lab)))
-	    {
-	      bitmap_set_bit (label_bitmap, CODE_LABEL_NUMBER (lab));
-	      uniq++;
-	    }
+	  if (bitmap_set_bit (label_bitmap, CODE_LABEL_NUMBER (lab)))
+	    uniq++;
 	}
 
       BITMAP_FREE (label_bitmap);
@@ -2534,7 +2538,7 @@ do_jump_if_equal (enum machine_mode mode, rtx op0, rtx op1, rtx label,
 		  int unsignedp)
 {
   do_compare_rtx_and_jump (op0, op1, EQ, unsignedp, mode,
-			   NULL_RTX, NULL_RTX, label);
+			   NULL_RTX, NULL_RTX, label, -1);
 }
 
 /* Not all case values are encountered equally.  This function

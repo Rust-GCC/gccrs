@@ -1,5 +1,5 @@
 /* Header for array handling functions
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Paul Brook
 
@@ -37,15 +37,17 @@ tree gfc_trans_create_temp_array (stmtblock_t *, stmtblock_t *, gfc_loopinfo *,
 
 /* Generate function entry code for allocation of compiler allocated array
    variables.  */
-tree gfc_trans_auto_array_allocation (tree, gfc_symbol *, tree);
+void gfc_trans_auto_array_allocation (tree, gfc_symbol *, gfc_wrapped_block *);
 /* Generate entry and exit code for dummy array parameters.  */
-tree gfc_trans_dummy_array_bias (gfc_symbol *, tree, tree);
+void gfc_trans_dummy_array_bias (gfc_symbol *, tree, gfc_wrapped_block *);
 /* Generate entry and exit code for g77 calling convention arrays.  */
-tree gfc_trans_g77_array (gfc_symbol *, tree);
+void gfc_trans_g77_array (gfc_symbol *, gfc_wrapped_block *);
 /* Generate code to deallocate an array, if it is allocated.  */
 tree gfc_trans_dealloc_allocated (tree);
 
-tree gfc_duplicate_allocatable(tree dest, tree src, tree type, int rank);
+tree gfc_duplicate_allocatable (tree dest, tree src, tree type, int rank);
+
+tree gfc_copy_allocatable_data (tree dest, tree src, tree type, int rank);
 
 tree gfc_nullify_alloc_comp (gfc_symbol *, tree, int);
 
@@ -53,13 +55,17 @@ tree gfc_deallocate_alloc_comp (gfc_symbol *, tree, int);
 
 tree gfc_copy_alloc_comp (gfc_symbol *, tree, tree, int);
 
+tree gfc_copy_only_alloc_comp (gfc_symbol *, tree, tree, int);
+
 /* Add initialization for deferred arrays.  */
-tree gfc_trans_deferred_array (gfc_symbol *, tree);
+void gfc_trans_deferred_array (gfc_symbol *, gfc_wrapped_block *);
 /* Generate an initializer for a static pointer or allocatable array.  */
 void gfc_trans_static_array_pointer (gfc_symbol *);
 
 /* Generate scalarization information for an expression.  */
 gfc_ss *gfc_walk_expr (gfc_expr *);
+/* Workhorse for gfc_walk_expr.  */
+gfc_ss *gfc_walk_subexpr (gfc_ss *, gfc_expr *);
 /* Walk the arguments of an elemental function.  */
 gfc_ss *gfc_walk_elemental_function_args (gfc_ss *, gfc_actual_arglist *,
 					  gfc_ss_type);
@@ -75,6 +81,8 @@ void gfc_cleanup_loop (gfc_loopinfo *);
 void gfc_add_ss_to_loop (gfc_loopinfo *, gfc_ss *);
 /* Mark a SS chain as used in this loop.  */
 void gfc_mark_ss_chain_used (gfc_ss *, unsigned);
+/* Free a gfc_ss chain.  */
+void gfc_free_ss_chain (gfc_ss *);
 
 /* Calculates the lower bound and stride of array sections.  */
 void gfc_conv_ss_startstride (gfc_loopinfo *);
@@ -107,7 +115,7 @@ void gfc_conv_tmp_ref (gfc_se *);
 /* Evaluate an array expression.  */
 void gfc_conv_expr_descriptor (gfc_se *, gfc_expr *, gfc_ss *);
 /* Convert an array for passing as an actual function parameter.  */
-void gfc_conv_array_parameter (gfc_se *, gfc_expr *, gfc_ss *, int,
+void gfc_conv_array_parameter (gfc_se *, gfc_expr *, gfc_ss *, bool,
 			       const gfc_symbol *, const char *, tree *);
 /* Evaluate and transpose a matrix expression.  */
 void gfc_conv_array_transpose (gfc_se *, gfc_expr *);
@@ -135,13 +143,20 @@ void gfc_conv_descriptor_stride_set (stmtblock_t *, tree, tree, tree);
 void gfc_conv_descriptor_lbound_set (stmtblock_t *, tree, tree, tree);
 void gfc_conv_descriptor_ubound_set (stmtblock_t *, tree, tree, tree);
 
+/* Shift lower bound of descriptor, updating ubound and offset.  */
+void gfc_conv_shift_descriptor_lbound (stmtblock_t*, tree, int, tree);
+
 /* Add pre-loop scalarization code for intrinsic functions which require
    special handling.  */
 void gfc_add_intrinsic_ss_code (gfc_loopinfo *, gfc_ss *);
 
 /* Functions for constant array constructor processing.  */
-unsigned HOST_WIDE_INT gfc_constant_array_constructor_p (gfc_constructor *);
+unsigned HOST_WIDE_INT gfc_constant_array_constructor_p (gfc_constructor_base);
 tree gfc_build_constant_array_constructor (gfc_expr *, tree);
 
 /* Copy a string from src to dest.  */
 void gfc_trans_string_copy (stmtblock_t *, tree, tree, int, tree, tree, int);
+
+/* Calculate extent / size of an array.  */
+tree gfc_conv_array_extent_dim (tree, tree, tree*);
+tree gfc_conv_descriptor_size (tree, int);

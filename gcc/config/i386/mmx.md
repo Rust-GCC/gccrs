@@ -65,15 +65,16 @@
 
 (define_insn "*mov<mode>_internal_rex64"
   [(set (match_operand:MMXMODEI8 0 "nonimmediate_operand"
-				"=rm,r,!?y,!?y ,m  ,!y,*Y2,x,x ,m,r,Yi")
+	 "=rm,r,!?y,!y,!?y,m  ,!y ,*Y2,x,x ,m,r ,Yi")
 	(match_operand:MMXMODEI8 1 "vector_move_operand"
-				"Cr ,m,C  ,!?ym,!?y,*Y2,!y,C,xm,x,Yi,r"))]
+	 "Cr ,m,C  ,!y,m  ,!?y,*Y2,!y ,C,xm,x,Yi,r"))]
   "TARGET_64BIT && TARGET_MMX
    && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     mov{q}\t{%1, %0|%0, %1}
     mov{q}\t{%1, %0|%0, %1}
     pxor\t%0, %0
+    movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movdq2q\t{%1, %0|%0, %1}
@@ -83,29 +84,30 @@
     %vmovq\t{%1, %0|%0, %1}
     %vmovq\t{%1, %0|%0, %1}
     %vmovq\t{%1, %0|%0, %1}"
-  [(set_attr "type" "imov,imov,mmx,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,ssemov,ssemov")
-   (set_attr "unit" "*,*,*,*,*,mmx,mmx,*,*,*,*,*")
-   (set_attr "prefix_rep" "*,*,*,*,*,1,1,*,1,*,*,*")
-   (set_attr "prefix_data16" "*,*,*,*,*,*,*,*,*,1,1,1")
+  [(set_attr "type" "imov,imov,mmx,mmxmov,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,ssemov,ssemov")
+   (set_attr "unit" "*,*,*,*,*,*,mmx,mmx,*,*,*,*,*")
+   (set_attr "prefix_rep" "*,*,*,*,*,*,1,1,*,1,*,*,*")
+   (set_attr "prefix_data16" "*,*,*,*,*,*,*,*,*,*,1,1,1")
    (set (attr "prefix_rex")
-     (if_then_else (eq_attr "alternative" "8,9")
+     (if_then_else (eq_attr "alternative" "9,10")
        (symbol_ref "x86_extended_reg_mentioned_p (insn)")
        (const_string "*")))
    (set (attr "prefix")
-     (if_then_else (eq_attr "alternative" "7,8,9,10,11")
+     (if_then_else (eq_attr "alternative" "8,9,10,11,12")
        (const_string "maybe_vex")
        (const_string "orig")))
    (set_attr "mode" "DI")])
 
 (define_insn "*mov<mode>_internal_avx"
   [(set (match_operand:MMXMODEI8 0 "nonimmediate_operand"
-			"=!?y,!?y,m  ,!y ,*Y2,*Y2,*Y2 ,m  ,r  ,m")
+	 "=!?y,!y,!?y,m  ,!y ,*Y2,*Y2,*Y2 ,m  ,r  ,m")
 	(match_operand:MMXMODEI8 1 "vector_move_operand"
-			"C   ,!ym,!?y,*Y2,!y ,C  ,*Y2m,*Y2,irm,r"))]
+	 "C   ,!y,m  ,!?y,*Y2,!y ,C  ,*Y2m,*Y2,irm,r"))]
   "TARGET_AVX
    && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     pxor\t%0, %0
+    movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movdq2q\t{%1, %0|%0, %1}
@@ -115,24 +117,25 @@
     vmovq\t{%1, %0|%0, %1}
     #
     #"
-  [(set_attr "type" "mmx,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,*,*")
-   (set_attr "unit" "*,*,*,mmx,mmx,*,*,*,*,*")
-   (set_attr "prefix_rep" "*,*,*,1,1,*,*,*,*,*")
+  [(set_attr "type" "mmx,mmxmov,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,*,*")
+   (set_attr "unit" "*,*,*,*,mmx,mmx,*,*,*,*,*")
+   (set_attr "prefix_rep" "*,*,*,*,1,1,*,*,*,*,*")
    (set (attr "prefix")
-     (if_then_else (eq_attr "alternative" "5,6,7")
+     (if_then_else (eq_attr "alternative" "6,7,8")
        (const_string "vex")
        (const_string "orig")))
-   (set_attr "mode" "DI,DI,DI,DI,DI,TI,DI,DI,DI,DI")])
+   (set_attr "mode" "DI,DI,DI,DI,DI,DI,TI,DI,DI,DI,DI")])
 
 (define_insn "*mov<mode>_internal"
   [(set (match_operand:MMXMODEI8 0 "nonimmediate_operand"
-			"=!?y,!?y,m  ,!y ,*Y2,*Y2,*Y2 ,m  ,*x,*x,*x,m ,r  ,m")
+	 "=!?y,!y,!?y,m  ,!y ,*Y2,*Y2,*Y2 ,m  ,*x,*x,*x,m ,r  ,m")
 	(match_operand:MMXMODEI8 1 "vector_move_operand"
-			"C   ,!ym,!?y,*Y2,!y ,C  ,*Y2m,*Y2,C ,*x,m ,*x,irm,r"))]
+	 "C   ,!y,m  ,!?y,*Y2,!y ,C  ,*Y2m,*Y2,C ,*x,m ,*x,irm,r"))]
   "TARGET_MMX
    && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     pxor\t%0, %0
+    movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movdq2q\t{%1, %0|%0, %1}
@@ -146,11 +149,11 @@
     movlps\t{%1, %0|%0, %1}
     #
     #"
-  [(set_attr "type" "mmx,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,sselog1,ssemov,ssemov,ssemov,*,*")
-   (set_attr "unit" "*,*,*,mmx,mmx,*,*,*,*,*,*,*,*,*")
-   (set_attr "prefix_rep" "*,*,*,1,1,*,1,*,*,*,*,*,*,*")
-   (set_attr "prefix_data16" "*,*,*,*,*,*,*,1,*,*,*,*,*,*")
-   (set_attr "mode" "DI,DI,DI,DI,DI,TI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
+  [(set_attr "type" "mmx,mmxmov,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,sselog1,ssemov,ssemov,ssemov,*,*")
+   (set_attr "unit" "*,*,*,*,mmx,mmx,*,*,*,*,*,*,*,*,*")
+   (set_attr "prefix_rep" "*,*,*,*,1,1,*,1,*,*,*,*,*,*,*")
+   (set_attr "prefix_data16" "*,*,*,*,*,*,*,*,1,*,*,*,*,*,*")
+   (set_attr "mode" "DI,DI,DI,DI,DI,DI,TI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
 
 (define_expand "movv2sf"
   [(set (match_operand:V2SF 0 "nonimmediate_operand" "")
@@ -163,15 +166,16 @@
 
 (define_insn "*movv2sf_internal_rex64_avx"
   [(set (match_operand:V2SF 0 "nonimmediate_operand"
-				"=rm,r ,!?y,!?y ,m ,!y,Y2,x,x,x,m,r,x")
+	 "=rm,r,!?y,!y,!?y,m  ,!y,Y2,x,x,x,m,r,x")
         (match_operand:V2SF 1 "vector_move_operand"
-				"Cr ,m ,C  ,!?ym,!y,Y2,!y,C,x,m,x,x,r"))]
+	 "Cr ,m,C  ,!y,m  ,!?y,Y2,!y,C,x,m,x,x,r"))]
   "TARGET_64BIT && TARGET_AVX
    && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     mov{q}\t{%1, %0|%0, %1}
     mov{q}\t{%1, %0|%0, %1}
     pxor\t%0, %0
+    movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movdq2q\t{%1, %0|%0, %1}
@@ -182,27 +186,28 @@
     vmovlps\t{%1, %0|%0, %1}
     vmovq\t{%1, %0|%0, %1}
     vmovq\t{%1, %0|%0, %1}"
-  [(set_attr "type" "imov,imov,mmx,mmxmov,mmxmov,ssecvt,ssecvt,ssemov,sselog1,ssemov,ssemov,ssemov,ssemov")
-   (set_attr "unit" "*,*,*,*,*,mmx,mmx,*,*,*,*,*,*")
-   (set_attr "prefix_rep" "*,*,*,*,*,1,1,*,*,*,*,*,*")
-   (set_attr "length_vex" "*,*,*,*,*,*,*,*,*,*,*,4,4")
+  [(set_attr "type" "imov,imov,mmx,mmxmov,mmxmov,mmxmov,ssecvt,ssecvt,ssemov,sselog1,ssemov,ssemov,ssemov,ssemov")
+   (set_attr "unit" "*,*,*,*,*,*,mmx,mmx,*,*,*,*,*,*")
+   (set_attr "prefix_rep" "*,*,*,*,*,*,1,1,*,*,*,*,*,*")
+   (set_attr "length_vex" "*,*,*,*,*,*,*,*,*,*,*,*,4,4")
    (set (attr "prefix")
-     (if_then_else (eq_attr "alternative" "7,8,9,10,11,12")
+     (if_then_else (eq_attr "alternative" "8,9,10,11,12,13")
        (const_string "vex")
        (const_string "orig")))
-   (set_attr "mode" "DI,DI,DI,DI,DI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
+   (set_attr "mode" "DI,DI,DI,DI,DI,DI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
 
 (define_insn "*movv2sf_internal_rex64"
   [(set (match_operand:V2SF 0 "nonimmediate_operand"
-				"=rm,r ,!?y,!?y ,m ,!y,*Y2,x,x,x,m,r,Yi")
+	 "=rm,r,!?y,!y,!?y,m  ,!y ,*Y2,x,x,x,m,r ,Yi")
         (match_operand:V2SF 1 "vector_move_operand"
-				"Cr ,m ,C  ,!?ym,!y,*Y2,!y,C,x,m,x,Yi,r"))]
+	 "Cr ,m,C  ,!y,m  ,!?y,*Y2,!y ,C,x,m,x,Yi,r"))]
   "TARGET_64BIT && TARGET_MMX
    && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     mov{q}\t{%1, %0|%0, %1}
     mov{q}\t{%1, %0|%0, %1}
     pxor\t%0, %0
+    movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movdq2q\t{%1, %0|%0, %1}
@@ -213,20 +218,21 @@
     movlps\t{%1, %0|%0, %1}
     movd\t{%1, %0|%0, %1}
     movd\t{%1, %0|%0, %1}"
-  [(set_attr "type" "imov,imov,mmx,mmxmov,mmxmov,ssecvt,ssecvt,ssemov,sselog1,ssemov,ssemov,ssemov,ssemov")
-   (set_attr "unit" "*,*,*,*,*,mmx,mmx,*,*,*,*,*,*")
-   (set_attr "prefix_rep" "*,*,*,*,*,1,1,*,*,*,*,*,*")
-   (set_attr "mode" "DI,DI,DI,DI,DI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
+  [(set_attr "type" "imov,imov,mmx,mmxmov,mmxmov,mmxmov,ssecvt,ssecvt,ssemov,sselog1,ssemov,ssemov,ssemov,ssemov")
+   (set_attr "unit" "*,*,*,*,*,*,mmx,mmx,*,*,*,*,*,*")
+   (set_attr "prefix_rep" "*,*,*,*,*,*,1,1,*,*,*,*,*,*")
+   (set_attr "mode" "DI,DI,DI,DI,DI,DI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
 
 (define_insn "*movv2sf_internal_avx"
   [(set (match_operand:V2SF 0 "nonimmediate_operand"
-			"=!?y,!?y ,m  ,!y ,*Y2,*x,*x,*x,m ,r  ,m")
+	 "=!?y,!y,!?y,m  ,!y ,*Y2,*x,*x,*x,m ,r  ,m")
         (match_operand:V2SF 1 "vector_move_operand"
-			"C   ,!?ym,!?y,*Y2,!y ,C ,*x,m ,*x,irm,r"))]
+	 "C   ,!y,m  ,!?y,*Y2,!y ,C ,*x,m ,*x,irm,r"))]
   "TARGET_AVX
    && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     pxor\t%0, %0
+    movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movdq2q\t{%1, %0|%0, %1}
@@ -237,24 +243,25 @@
     vmovlps\t{%1, %0|%0, %1}
     #
     #"
-  [(set_attr "type" "mmx,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,ssemov,*,*")
-   (set_attr "unit" "*,*,*,mmx,mmx,*,*,*,*,*,*")
-   (set_attr "prefix_rep" "*,*,*,1,1,*,*,*,*,*,*")
+  [(set_attr "type" "mmx,mmxmov,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,ssemov,*,*")
+   (set_attr "unit" "*,*,*,*,mmx,mmx,*,*,*,*,*,*")
+   (set_attr "prefix_rep" "*,*,*,*,1,1,*,*,*,*,*,*")
    (set (attr "prefix")
-     (if_then_else (eq_attr "alternative" "5,6,7,8")
+     (if_then_else (eq_attr "alternative" "6,7,8,9")
        (const_string "vex")
        (const_string "orig")))
-   (set_attr "mode" "DI,DI,DI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
+   (set_attr "mode" "DI,DI,DI,DI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
 
 (define_insn "*movv2sf_internal"
   [(set (match_operand:V2SF 0 "nonimmediate_operand"
-			"=!?y,!?y ,m  ,!y ,*Y2,*x,*x,*x,m ,r  ,m")
+	 "=!?y,!y,!?y,m  ,!y ,*Y2,*x,*x,*x,m ,r  ,m")
         (match_operand:V2SF 1 "vector_move_operand"
-			"C   ,!?ym,!?y,*Y2,!y ,C ,*x,m ,*x,irm,r"))]
+	 "C   ,!y,m  ,!?y,*Y2,!y ,C ,*x,m ,*x,irm,r"))]
   "TARGET_MMX
    && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     pxor\t%0, %0
+    movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
     movdq2q\t{%1, %0|%0, %1}
@@ -265,10 +272,10 @@
     movlps\t{%1, %0|%0, %1}
     #
     #"
-  [(set_attr "type" "mmx,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,ssemov,*,*")
-   (set_attr "unit" "*,*,*,mmx,mmx,*,*,*,*,*,*")
-   (set_attr "prefix_rep" "*,*,*,1,1,*,*,*,*,*,*")
-   (set_attr "mode" "DI,DI,DI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
+  [(set_attr "type" "mmx,mmxmov,mmxmov,mmxmov,ssecvt,ssecvt,sselog1,ssemov,ssemov,ssemov,*,*")
+   (set_attr "unit" "*,*,*,*,mmx,mmx,*,*,*,*,*,*")
+   (set_attr "prefix_rep" "*,*,*,*,1,1,*,*,*,*,*,*")
+   (set_attr "mode" "DI,DI,DI,DI,DI,DI,V4SF,V4SF,V2SF,V2SF,DI,DI")])
 
 ;; %%% This multiword shite has got to go.
 (define_split
@@ -334,15 +341,13 @@
   [(set (match_operand:V2SF 0 "register_operand" "")
         (minus:V2SF (match_operand:V2SF 1 "register_operand" "")
 		    (match_operand:V2SF 2 "nonimmediate_operand" "")))]
-  "TARGET_3DNOW"
-  "")
+  "TARGET_3DNOW")
 
 (define_expand "mmx_subrv2sf3"
   [(set (match_operand:V2SF 0 "register_operand" "")
         (minus:V2SF (match_operand:V2SF 2 "register_operand" "")
 		    (match_operand:V2SF 1 "nonimmediate_operand" "")))]
-  "TARGET_3DNOW"
-  "")
+  "TARGET_3DNOW")
 
 (define_insn "*mmx_subv2sf3"
   [(set (match_operand:V2SF 0 "register_operand" "=y,y")
@@ -351,7 +356,7 @@
   "TARGET_3DNOW && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
    pfsub\t{%2, %0|%0, %2}
-   pfsubr\t{%2, %0|%0, %2}"
+   pfsubr\t{%1, %0|%0, %1}"
   [(set_attr "type" "mmxadd")
    (set_attr "prefix_extra" "1")
    (set_attr "mode" "V2SF")])
@@ -396,7 +401,7 @@
 	  (match_operand:V2SF 2 "nonimmediate_operand" "ym")))]
   "TARGET_3DNOW && flag_finite_math_only
    && ix86_binary_operator_ok (<CODE>, V2SFmode, operands)"
-  "pf<maxminfprefix>\t{%2, %0|%0, %2}"
+  "pf<maxmin_float>\t{%2, %0|%0, %2}"
   [(set_attr "type" "mmxadd")
    (set_attr "prefix_extra" "1")
    (set_attr "mode" "V2SF")])
@@ -407,7 +412,7 @@
 	  (match_operand:V2SF 1 "register_operand" "0")
 	  (match_operand:V2SF 2 "nonimmediate_operand" "ym")))]
   "TARGET_3DNOW"
-  "pf<maxminfprefix>\t{%2, %0|%0, %2}"
+  "pf<maxmin_float>\t{%2, %0|%0, %2}"
   [(set_attr "type" "mmxadd")
    (set_attr "prefix_extra" "1")
    (set_attr "mode" "V2SF")])
@@ -970,7 +975,7 @@
 	  (match_operand:V4HI 2 "nonimmediate_operand" "ym")))]
   "(TARGET_SSE || TARGET_3DNOW_A)
    && ix86_binary_operator_ok (<CODE>, V4HImode, operands)"
-  "p<maxminiprefix>w\t{%2, %0|%0, %2}"
+  "p<maxmin_int>w\t{%2, %0|%0, %2}"
   [(set_attr "type" "mmxadd")
    (set_attr "mode" "DI")])
 
@@ -989,7 +994,7 @@
 	  (match_operand:V8QI 2 "nonimmediate_operand" "ym")))]
   "(TARGET_SSE || TARGET_3DNOW_A)
    && ix86_binary_operator_ok (<CODE>, V8QImode, operands)"
-  "p<maxminiprefix>b\t{%2, %0|%0, %2}"
+  "p<maxmin_int>b\t{%2, %0|%0, %2}"
   [(set_attr "type" "mmxadd")
    (set_attr "mode" "DI")])
 
@@ -1087,7 +1092,7 @@
 
 (define_expand "mmx_<code><mode>3"
   [(set (match_operand:MMXMODEI 0 "register_operand" "")
-	(plogic:MMXMODEI
+	(any_logic:MMXMODEI
 	  (match_operand:MMXMODEI 1 "nonimmediate_operand" "")
 	  (match_operand:MMXMODEI 2 "nonimmediate_operand" "")))]
   "TARGET_MMX"
@@ -1095,11 +1100,11 @@
 
 (define_insn "*mmx_<code><mode>3"
   [(set (match_operand:MMXMODEI 0 "register_operand" "=y")
-        (plogic:MMXMODEI
+        (any_logic:MMXMODEI
 	  (match_operand:MMXMODEI 1 "nonimmediate_operand" "%0")
 	  (match_operand:MMXMODEI 2 "nonimmediate_operand" "ym")))]
   "TARGET_MMX && ix86_binary_operator_ok (<CODE>, <MODE>mode, operands)"
-  "p<plogicprefix>\t{%2, %0|%0, %2}"
+  "p<logic>\t{%2, %0|%0, %2}"
   [(set_attr "type" "mmxadd")
    (set_attr "mode" "DI")])
 
@@ -1250,7 +1255,10 @@
   "TARGET_SSE || TARGET_3DNOW_A"
 {
   operands[3] = GEN_INT (exact_log2 (INTVAL (operands[3])));
-  return "pinsrw\t{%3, %k2, %0|%0, %k2, %3}";
+  if (MEM_P (operands[2]))
+    return "pinsrw\t{%3, %2, %0|%0, %2, %3}";
+  else
+    return "pinsrw\t{%3, %k2, %0|%0, %k2, %3}";
 }
   [(set_attr "type" "mmxcvt")
    (set_attr "length_immediate" "1")
@@ -1613,8 +1621,7 @@
 		      (match_operand:V8QI 2 "register_operand" "")
 		      (match_dup 0)]
 		     UNSPEC_MASKMOV))]
-  "TARGET_SSE || TARGET_3DNOW_A"
-  "")
+  "TARGET_SSE || TARGET_3DNOW_A")
 
 (define_insn "*mmx_maskmovq"
   [(set (mem:V8QI (match_operand:SI 0 "register_operand" "D"))
@@ -1640,48 +1647,66 @@
   [(set_attr "type" "mmxcvt")
    (set_attr "mode" "DI")])
 
-(define_insn "mmx_emms"
-  [(unspec_volatile [(const_int 0)] UNSPECV_EMMS)
-   (clobber (reg:XF ST0_REG))
-   (clobber (reg:XF ST1_REG))
-   (clobber (reg:XF ST2_REG))
-   (clobber (reg:XF ST3_REG))
-   (clobber (reg:XF ST4_REG))
-   (clobber (reg:XF ST5_REG))
-   (clobber (reg:XF ST6_REG))
-   (clobber (reg:XF ST7_REG))
-   (clobber (reg:DI MM0_REG))
-   (clobber (reg:DI MM1_REG))
-   (clobber (reg:DI MM2_REG))
-   (clobber (reg:DI MM3_REG))
-   (clobber (reg:DI MM4_REG))
-   (clobber (reg:DI MM5_REG))
-   (clobber (reg:DI MM6_REG))
-   (clobber (reg:DI MM7_REG))]
+(define_expand "mmx_emms"
+  [(match_par_dup 0 [(const_int 0)])]
+  "TARGET_MMX"
+{
+  int regno;
+
+  operands[0] = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (17));
+
+  XVECEXP (operands[0], 0, 0)
+    = gen_rtx_UNSPEC_VOLATILE (VOIDmode, gen_rtvec (1, const0_rtx),
+			       UNSPECV_EMMS);
+
+  for (regno = 0; regno < 8; regno++)
+    {
+      XVECEXP (operands[0], 0, regno + 1)
+	= gen_rtx_CLOBBER (VOIDmode,
+			   gen_rtx_REG (XFmode, FIRST_STACK_REG + regno));
+
+      XVECEXP (operands[0], 0, regno + 9)
+	= gen_rtx_CLOBBER (VOIDmode,
+			   gen_rtx_REG (DImode, FIRST_MMX_REG + regno));
+    }
+})
+
+(define_insn "*mmx_emms"
+  [(match_parallel 0 "emms_operation"
+    [(unspec_volatile [(const_int 0)] UNSPECV_EMMS)])]
   "TARGET_MMX"
   "emms"
   [(set_attr "type" "mmx")
    (set_attr "modrm" "0")
-   (set_attr "memory" "unknown")])
+   (set_attr "memory" "none")])
 
-(define_insn "mmx_femms"
-  [(unspec_volatile [(const_int 0)] UNSPECV_FEMMS)
-   (clobber (reg:XF ST0_REG))
-   (clobber (reg:XF ST1_REG))
-   (clobber (reg:XF ST2_REG))
-   (clobber (reg:XF ST3_REG))
-   (clobber (reg:XF ST4_REG))
-   (clobber (reg:XF ST5_REG))
-   (clobber (reg:XF ST6_REG))
-   (clobber (reg:XF ST7_REG))
-   (clobber (reg:DI MM0_REG))
-   (clobber (reg:DI MM1_REG))
-   (clobber (reg:DI MM2_REG))
-   (clobber (reg:DI MM3_REG))
-   (clobber (reg:DI MM4_REG))
-   (clobber (reg:DI MM5_REG))
-   (clobber (reg:DI MM6_REG))
-   (clobber (reg:DI MM7_REG))]
+(define_expand "mmx_femms"
+  [(match_par_dup 0 [(const_int 0)])]
+  "TARGET_3DNOW"
+{
+  int regno;
+
+  operands[0] = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (17));
+
+  XVECEXP (operands[0], 0, 0)
+    = gen_rtx_UNSPEC_VOLATILE (VOIDmode, gen_rtvec (1, const0_rtx),
+			       UNSPECV_FEMMS);
+
+  for (regno = 0; regno < 8; regno++)
+    {
+      XVECEXP (operands[0], 0, regno + 1)
+	= gen_rtx_CLOBBER (VOIDmode,
+			   gen_rtx_REG (XFmode, FIRST_STACK_REG + regno));
+
+      XVECEXP (operands[0], 0, regno + 9)
+	= gen_rtx_CLOBBER (VOIDmode,
+			   gen_rtx_REG (DImode, FIRST_MMX_REG + regno));
+    }
+})
+
+(define_insn "*mmx_femms"
+  [(match_parallel 0 "emms_operation"
+    [(unspec_volatile [(const_int 0)] UNSPECV_FEMMS)])]
   "TARGET_3DNOW"
   "femms"
   [(set_attr "type" "mmx")

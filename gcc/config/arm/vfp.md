@@ -82,13 +82,16 @@
   "
   [(set_attr "predicable" "yes")
    (set_attr "type" "*,*,*,*,load1,store1,r_2_f,f_2_r,fcpys,f_loads,f_stores")
+   (set_attr "insn" "mov,mov,mvn,mov,*,*,*,*,*,*,*")
    (set_attr "pool_range"     "*,*,*,*,4096,*,*,*,*,1020,*")
    (set_attr "neg_pool_range" "*,*,*,*,4084,*,*,*,*,1008,*")]
 )
 
+;; See thumb2.md:thumb2_movsi_insn for an explanation of the split
+;; high/low register alternatives for loads and stores here.
 (define_insn "*thumb2_movsi_vfp"
-  [(set (match_operand:SI 0 "nonimmediate_operand" "=rk,r,r,r,rk,m,*t,r, *t,*t, *Uv")
-      (match_operand:SI 1 "general_operand"	   "rk, I,K,j,mi,rk,r,*t,*t,*Uvi,*t"))]
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rk,r,r,r, l,*hk,m, *m,*t, r,*t,*t,  *Uv")
+	(match_operand:SI 1 "general_operand"	   "rk, I,K,j,mi,*mi,l,*hk, r,*t,*t,*Uvi,*t"))]
   "TARGET_THUMB2 && TARGET_VFP && TARGET_HARD_FLOAT
    && (   s_register_operand (operands[0], SImode)
        || s_register_operand (operands[1], SImode))"
@@ -102,25 +105,28 @@
     case 3:
       return \"movw%?\\t%0, %1\";
     case 4:
-      return \"ldr%?\\t%0, %1\";
     case 5:
-      return \"str%?\\t%1, %0\";
+      return \"ldr%?\\t%0, %1\";
     case 6:
-      return \"fmsr%?\\t%0, %1\\t%@ int\";
     case 7:
-      return \"fmrs%?\\t%0, %1\\t%@ int\";
+      return \"str%?\\t%1, %0\";
     case 8:
+      return \"fmsr%?\\t%0, %1\\t%@ int\";
+    case 9:
+      return \"fmrs%?\\t%0, %1\\t%@ int\";
+    case 10:
       return \"fcpys%?\\t%0, %1\\t%@ int\";
-    case 9: case 10:
+    case 11: case 12:
       return output_move_vfp (operands);
     default:
       gcc_unreachable ();
     }
   "
   [(set_attr "predicable" "yes")
-   (set_attr "type" "*,*,*,*,load1,store1,r_2_f,f_2_r,fcpys,f_load,f_store")
-   (set_attr "pool_range"     "*,*,*,*,4096,*,*,*,*,1020,*")
-   (set_attr "neg_pool_range" "*,*,*,*,   0,*,*,*,*,1008,*")]
+   (set_attr "type" "*,*,*,*,load1,load1,store1,store1,r_2_f,f_2_r,fcpys,f_load,f_store")
+   (set_attr "insn" "mov,mov,mvn,mov,*,*,*,*,*,*,*,*,*")
+   (set_attr "pool_range"     "*,*,*,*,1020,4096,*,*,*,*,*,1020,*")
+   (set_attr "neg_pool_range" "*,*,*,*,   0,   0,*,*,*,*,*,1008,*")]
 )
 
 
@@ -348,6 +354,7 @@
   [(set_attr "predicable" "yes")
    (set_attr "type"
      "r_2_f,f_2_r,fconsts,f_loads,f_stores,load1,store1,fcpys,*")
+   (set_attr "insn" "*,*,*,*,*,*,*,*,mov")
    (set_attr "pool_range" "*,*,*,1020,*,4096,*,*,*")
    (set_attr "neg_pool_range" "*,*,*,1008,*,4080,*,*,*")]
 )
@@ -384,6 +391,7 @@
   [(set_attr "predicable" "yes")
    (set_attr "type"
      "r_2_f,f_2_r,fconsts,f_load,f_store,load1,store1,fcpys,*")
+   (set_attr "insn" "*,*,*,*,*,*,*,*,mov")
    (set_attr "pool_range" "*,*,*,1020,*,4092,*,*,*")
    (set_attr "neg_pool_range" "*,*,*,1008,*,0,*,*,*")]
 )
@@ -1095,7 +1103,7 @@
    fcmpes%?\\t%0, %1
    fcmpezs%?\\t%0"
   [(set_attr "predicable" "yes")
-   (set_attr "type" "fcmpd")]
+   (set_attr "type" "fcmps")]
 )
 
 (define_insn "*cmpdf_vfp"
@@ -1128,7 +1136,7 @@
 (define_insn "*push_multi_vfp"
   [(match_parallel 2 "multi_register_push"
     [(set (match_operand:BLK 0 "memory_operand" "=m")
-	  (unspec:BLK [(match_operand:DF 1 "s_register_operand" "w")]
+	  (unspec:BLK [(match_operand:DF 1 "vfp_register_operand" "")]
 		      UNSPEC_PUSH_MULT))])]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP"
   "* return vfp_output_fstmd (operands);"

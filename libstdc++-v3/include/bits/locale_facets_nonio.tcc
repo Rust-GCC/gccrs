@@ -1,6 +1,6 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -44,7 +44,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	const locale::facet** __caches = __loc._M_impl->_M_caches;
 	if (!__caches[__i])
 	  {
-	    __moneypunct_cache<_CharT, _Intl>* __tmp = NULL;
+	    __moneypunct_cache<_CharT, _Intl>* __tmp = 0;
 	    __try
 	      {
 		__tmp = new __moneypunct_cache<_CharT, _Intl>;
@@ -778,16 +778,16 @@ _GLIBCXX_END_LDBL_NAMESPACE
 		  break;
 		case 'y':
 		case 'C': // C99
-		  // Two digit year. [tm_year]
-		  __beg = _M_extract_num(__beg, __end, __tm->tm_year, 0, 99, 2,
-					 __io, __tmperr);
-		  break;
+		  // Two digit year.
 		case 'Y':
-		  // Year [1900). [tm_year]
+		  // Year [1900).
+		  // NB: We parse either two digits, implicitly years since
+		  // 1900, or 4 digits, full year.  In both cases we can 
+		  // reconstruct [tm_year].  See also libstdc++/26701.
 		  __beg = _M_extract_num(__beg, __end, __mem, 0, 9999, 4,
 					 __io, __tmperr);
 		  if (!__tmperr)
-		    __tm->tm_year = __mem - 1900;
+		    __tm->tm_year = __mem < 0 ? __mem + 100 : __mem - 1900;
 		  break;
 		case 'Z':
 		  // Timezone info.
@@ -865,6 +865,9 @@ _GLIBCXX_END_LDBL_NAMESPACE
 	}
       if (__i == __len)
 	__member = __value;
+      // Special encoding for do_get_year, 'y', and 'Y' above.
+      else if (__len == 4 && __i == 2)
+	__member = __value - 100;
       else
 	__err |= ios_base::failbit;
 
@@ -950,6 +953,77 @@ _GLIBCXX_END_LDBL_NAMESPACE
   template<typename _CharT, typename _InIter>
     _InIter
     time_get<_CharT, _InIter>::
+    _M_extract_wday_or_month(iter_type __beg, iter_type __end, int& __member,
+			     const _CharT** __names, size_t __indexlen,
+			     ios_base& __io, ios_base::iostate& __err) const
+    {
+      typedef char_traits<_CharT>		__traits_type;
+      const locale& __loc = __io._M_getloc();
+      const ctype<_CharT>& __ctype = use_facet<ctype<_CharT> >(__loc);
+
+      int* __matches = static_cast<int*>(__builtin_alloca(2 * sizeof(int)
+							  * __indexlen));
+      size_t __nmatches = 0;
+      size_t* __matches_lengths = 0;
+      size_t __pos = 0;
+
+      if (__beg != __end)
+	{
+	  const char_type __c = *__beg;
+	  for (size_t __i = 0; __i < 2 * __indexlen; ++__i)
+	    if (__c == __names[__i][0]
+		|| __c == __ctype.toupper(__names[__i][0]))
+	      __matches[__nmatches++] = __i;
+	}
+
+      if (__nmatches)
+	{
+	  ++__beg, ++__pos;
+
+	  __matches_lengths
+	    = static_cast<size_t*>(__builtin_alloca(sizeof(size_t)
+						    * __nmatches));
+	  for (size_t __i = 0; __i < __nmatches; ++__i)
+	    __matches_lengths[__i]
+	      = __traits_type::length(__names[__matches[__i]]);
+	}
+
+      for (; __beg != __end; ++__beg, ++__pos)
+	{
+	  size_t __nskipped = 0;
+	  const char_type __c = *__beg;
+	  for (size_t __i = 0; __i < __nmatches;)
+	    {
+	      const char_type* __name = __names[__matches[__i]];
+	      if (__pos >= __matches_lengths[__i])
+		++__nskipped, ++__i;
+	      else if (!(__name[__pos] == __c))
+		{
+		  --__nmatches;
+		  __matches[__i] = __matches[__nmatches];
+		  __matches_lengths[__i] = __matches_lengths[__nmatches];
+		}
+	      else
+		++__i;
+	    }
+	  if (__nskipped == __nmatches)
+	    break;
+	}
+
+      if ((__nmatches == 1 && __matches_lengths[0] == __pos)
+	  || (__nmatches == 2 && (__matches_lengths[0] == __pos
+				  || __matches_lengths[1] == __pos)))
+	__member = (__matches[0] >= __indexlen
+		    ? __matches[0] - __indexlen : __matches[0]);
+      else
+	__err |= ios_base::failbit;
+
+      return __beg;
+    }
+
+  template<typename _CharT, typename _InIter>
+    _InIter
+    time_get<_CharT, _InIter>::
     do_get_time(iter_type __beg, iter_type __end, ios_base& __io,
 		ios_base::iostate& __err, tm* __tm) const
     {
@@ -991,35 +1065,14 @@ _GLIBCXX_END_LDBL_NAMESPACE
       const locale& __loc = __io._M_getloc();
       const __timepunct<_CharT>& __tp = use_facet<__timepunct<_CharT> >(__loc);
       const ctype<_CharT>& __ctype = use_facet<ctype<_CharT> >(__loc);
-      const char_type*  __days[7];
+      const char_type* __days[14];
       __tp._M_days_abbreviated(__days);
+      __tp._M_days(__days + 7);
       int __tmpwday;
       ios_base::iostate __tmperr = ios_base::goodbit;
-      __beg = _M_extract_name(__beg, __end, __tmpwday, __days, 7,
-			      __io, __tmperr);
 
-      // Check to see if non-abbreviated name exists, and extract.
-      // NB: Assumes both _M_days and _M_days_abbreviated organized in
-      // exact same order, first to last, such that the resulting
-      // __days array with the same index points to a day, and that
-      // day's abbreviated form.
-      // NB: Also assumes that an abbreviated name is a subset of the name.
-      if (!__tmperr && __beg != __end)
-	{
-	  size_t __pos = __traits_type::length(__days[__tmpwday]);
-	  __tp._M_days(__days);
-	  const char_type* __name = __days[__tmpwday];
-	  if (__name[__pos] == *__beg)
-	    {
-	      // Extract the rest of it.
-	      const size_t __len = __traits_type::length(__name);
-	      while (__pos < __len && __beg != __end
-		     && __name[__pos] == *__beg)
-		++__beg, ++__pos;
-	      if (__len != __pos)
-		__tmperr |= ios_base::failbit;
-	    }
-	}
+      __beg = _M_extract_wday_or_month(__beg, __end, __tmpwday, __days, 7,
+				       __io, __tmperr);
       if (!__tmperr)
 	__tm->tm_wday = __tmpwday;
       else
@@ -1040,35 +1093,14 @@ _GLIBCXX_END_LDBL_NAMESPACE
       const locale& __loc = __io._M_getloc();
       const __timepunct<_CharT>& __tp = use_facet<__timepunct<_CharT> >(__loc);
       const ctype<_CharT>& __ctype = use_facet<ctype<_CharT> >(__loc);
-      const char_type*  __months[12];
+      const char_type*  __months[24];
       __tp._M_months_abbreviated(__months);
+      __tp._M_months(__months + 12);
       int __tmpmon;
       ios_base::iostate __tmperr = ios_base::goodbit;
-      __beg = _M_extract_name(__beg, __end, __tmpmon, __months, 12, 
-			      __io, __tmperr);
 
-      // Check to see if non-abbreviated name exists, and extract.
-      // NB: Assumes both _M_months and _M_months_abbreviated organized in
-      // exact same order, first to last, such that the resulting
-      // __months array with the same index points to a month, and that
-      // month's abbreviated form.
-      // NB: Also assumes that an abbreviated name is a subset of the name.
-      if (!__tmperr && __beg != __end)
-	{
-	  size_t __pos = __traits_type::length(__months[__tmpmon]);
-	  __tp._M_months(__months);
-	  const char_type* __name = __months[__tmpmon];
-	  if (__name[__pos] == *__beg)
-	    {
-	      // Extract the rest of it.
-	      const size_t __len = __traits_type::length(__name);
-	      while (__pos < __len && __beg != __end
-		     && __name[__pos] == *__beg)
-		++__beg, ++__pos;
-	      if (__len != __pos)
-		__tmperr |= ios_base::failbit;
-	    }
-	}
+      __beg = _M_extract_wday_or_month(__beg, __end, __tmpmon, __months, 12,
+				       __io, __tmperr);
       if (!__tmperr)
 	__tm->tm_mon = __tmpmon;
       else
@@ -1087,19 +1119,13 @@ _GLIBCXX_END_LDBL_NAMESPACE
     {
       const locale& __loc = __io._M_getloc();
       const ctype<_CharT>& __ctype = use_facet<ctype<_CharT> >(__loc);
+      int __tmpyear;
+      ios_base::iostate __tmperr = ios_base::goodbit;
 
-      size_t __i = 0;
-      int __value = 0;
-      for (; __beg != __end && __i < 4; ++__beg, ++__i)
-	{
-	  const char __c = __ctype.narrow(*__beg, '*');
-	  if (__c >= '0' && __c <= '9')
-	    __value = __value * 10 + (__c - '0');
-	  else
-	    break;
-	}
-      if (__i == 2 || __i == 4)
-	__tm->tm_year = __i == 2 ? __value : __value - 1900;
+      __beg = _M_extract_num(__beg, __end, __tmpyear, 0, 9999, 4,
+			     __io, __tmperr);
+      if (!__tmperr)
+	__tm->tm_year = __tmpyear < 0 ? __tmpyear + 100 : __tmpyear - 1900;
       else
 	__err |= ios_base::failbit;
 
@@ -1156,8 +1182,7 @@ _GLIBCXX_END_LDBL_NAMESPACE
       // NB: This size is arbitrary. Should this be a data member,
       // initialized at construction?
       const size_t __maxlen = 128;
-      char_type* __res = 
-       static_cast<char_type*>(__builtin_alloca(sizeof(char_type) * __maxlen));
+      char_type __res[__maxlen];
 
       // NB: In IEE 1003.1-200x, and perhaps other locale models, it
       // is possible that the format character will be longer than one

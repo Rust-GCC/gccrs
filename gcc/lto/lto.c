@@ -1,5 +1,5 @@
 /* Top-level LTO routines.
-   Copyright 2009 Free Software Foundation, Inc.
+   Copyright 2009, 2010 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -24,7 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "opts.h"
 #include "toplev.h"
 #include "tree.h"
-#include "diagnostic.h"
+#include "diagnostic-core.h"
 #include "tm.h"
 #include "libiberty.h"
 #include "cgraph.h"
@@ -37,11 +37,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "pointer-set.h"
 #include "ipa-prop.h"
 #include "common.h"
+#include "debug.h"
 #include "timevar.h"
 #include "gimple.h"
 #include "lto.h"
 #include "lto-tree.h"
 #include "lto-streamer.h"
+#include "splay-tree.h"
+#include "params.h"
 
 /* This needs to be included after config.h.  Otherwise, _GNU_SOURCE will not
    be defined in time to set __USE_GNU in the system headers, and strsignal
@@ -50,8 +53,56 @@ along with GCC; see the file COPYING3.  If not see
 #include <sys/mman.h>
 #endif
 
-DEF_VEC_P(bitmap);
-DEF_VEC_ALLOC_P(bitmap,heap);
+/* Handle opening elf files on hosts, such as Windows, that may use 
+   text file handling that will break binary access.  */
+
+#ifndef O_BINARY
+# define O_BINARY 0
+#endif
+
+static GTY(()) tree first_personality_decl;
+
+/* Returns a hash code for P.  */
+
+static hashval_t
+hash_name (const void *p)
+{
+  const struct lto_section_slot *ds = (const struct lto_section_slot *) p;
+  return (hashval_t) htab_hash_string (ds->name);
+}
+
+
+/* Returns nonzero if P1 and P2 are equal.  */
+
+static int
+eq_name (const void *p1, const void *p2)
+{
+  const struct lto_section_slot *s1 =
+    (const struct lto_section_slot *) p1;
+  const struct lto_section_slot *s2 =
+    (const struct lto_section_slot *) p2;
+
+  return strcmp (s1->name, s2->name) == 0;
+}
+
+/* Free lto_section_slot */
+
+static void
+free_with_string (void *arg)
+{
+  struct lto_section_slot *s = (struct lto_section_slot *)arg;
+
+  free (CONST_CAST (char *, s->name));
+  free (arg);
+}
+
+/* Create section hash table */
+
+htab_t 
+lto_obj_create_section_hash_table (void)
+{
+  return htab_create (37, hash_name, eq_name, free_with_string);
+}
 
 /* Read the constructors and inits.  */
 
@@ -67,7 +118,35 @@ lto_materialize_constructors_and_inits (struct lto_file_decl_data * file_data)
 			 data, len);
 }
 
-/* Read the function body for the function associated with NODE if possible.  */
+/* Return true when NODE has a clone that is analyzed (i.e. we need
+   to load its body even if the node itself is not needed).  */
+
+static bool
+has_analyzed_clone_p (struct cgraph_node *node)
+{
+  struct cgraph_node *orig = node;
+  node = node->clones;
+  if (node)
+    while (node != orig)
+      {
+	if (node->analyzed)
+	  return true;
+	if (node->clones)
+	  node = node->clones;
+	else if (node->next_sibling_clone)
+	  node = node->next_sibling_clone;
+	else
+	  {
+	    while (node != orig && !node->next_sibling_clone)
+	      node = node->clone_of;
+	    if (node != orig)
+	      node = node->next_sibling_clone;
+	  }
+      }
+  return false;
+}
+
+/* Read the function body for the function associated with NODE.  */
 
 static void
 lto_materialize_function (struct cgraph_node *node)
@@ -76,65 +155,50 @@ lto_materialize_function (struct cgraph_node *node)
   struct lto_file_decl_data *file_data;
   const char *data, *name;
   size_t len;
-  tree step;
-
-  /* Ignore clone nodes.  Read the body only from the original one.
-     We may find clone nodes during LTRANS after WPA has made inlining
-     decisions.  */
-  if (node->clone_of)
-    return;
 
   decl = node->decl;
-  file_data = node->local.lto_file_data;
-  name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl)); 
-
-  /* We may have renamed the declaration, e.g., a static function.  */
-  name = lto_get_decl_name_mapping (file_data, name);
-
-  data = lto_get_section_data (file_data, LTO_section_function_body,
-			       name, &len);
-  if (data)
+  /* Read in functions with body (analyzed nodes)
+     and also functions that are needed to produce virtual clones.  */
+  if (node->analyzed || has_analyzed_clone_p (node))
     {
-      struct function *fn;
+      /* Clones don't need to be read.  */
+      if (node->clone_of)
+	return;
+      file_data = node->local.lto_file_data;
+      name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl)); 
 
-      gcc_assert (!DECL_IS_BUILTIN (decl));
+      /* We may have renamed the declaration, e.g., a static function.  */
+      name = lto_get_decl_name_mapping (file_data, name);
 
-      /* This function has a definition.  */
-      TREE_STATIC (decl) = 1;
+      data = lto_get_section_data (file_data, LTO_section_function_body,
+				   name, &len);
+      if (!data)
+	fatal_error ("%s: section %s is missing",
+		     file_data->file_name,
+		     name);
 
       gcc_assert (DECL_STRUCT_FUNCTION (decl) == NULL);
-      allocate_struct_function (decl, false);
 
       /* Load the function body only if not operating in WPA mode.  In
 	 WPA mode, the body of the function is not needed.  */
       if (!flag_wpa)
 	{
+	  allocate_struct_function (decl, false);
+	  announce_function (decl);
 	  lto_input_function_body (file_data, decl, data);
+	  if (DECL_FUNCTION_PERSONALITY (decl) && !first_personality_decl)
+	    first_personality_decl = DECL_FUNCTION_PERSONALITY (decl);
 	  lto_stats.num_function_bodies++;
 	}
 
-      fn = DECL_STRUCT_FUNCTION (decl);
       lto_free_section_data (file_data, LTO_section_function_body, name,
 			     data, len);
-
-      /* Look for initializers of constant variables and private
-	 statics.  */
-      for (step = fn->local_decls; step; step = TREE_CHAIN (step))
-	{
-	  tree decl = TREE_VALUE (step);
-	  if (TREE_CODE (decl) == VAR_DECL
-	      && (TREE_STATIC (decl) && !DECL_EXTERNAL (decl))
-	      && flag_unit_at_a_time)
-	    varpool_finalize_decl (decl);
-	}
+      if (!flag_wpa)
+	ggc_collect ();
     }
-  else
-    DECL_EXTERNAL (decl) = 1;
 
   /* Let the middle end know about the function.  */
   rest_of_decl_compilation (decl, 1, 0);
-  if (cgraph_node (decl)->needed)
-    cgraph_mark_reachable_node (cgraph_node (decl));
 }
 
 
@@ -162,7 +226,7 @@ lto_read_in_decl_state (struct data_in *data_in, const uint32_t *data,
   for (i = 0; i < LTO_N_DECL_STREAMS; i++)
     {
       uint32_t size = *data++;
-      tree *decls = (tree *) xcalloc (size, sizeof (tree));
+      tree *decls = ggc_alloc_vec_tree (size);
 
       for (j = 0; j < size; j++)
 	{
@@ -227,7 +291,7 @@ lto_read_decls (struct lto_file_decl_data *decl_data, const void *data,
 
   /* Read in per-function decl states and enter them in hash table.  */
   decl_data->function_decl_states =
-    htab_create (37, lto_hash_in_decl_state, lto_eq_in_decl_state, free);
+    htab_create_ggc (37, lto_hash_in_decl_state, lto_eq_in_decl_state, NULL);
 
   for (i = 1; i < num_decl_states; i++)
     {
@@ -249,12 +313,33 @@ lto_read_decls (struct lto_file_decl_data *decl_data, const void *data,
   lto_data_in_delete (data_in);
 }
 
-/* Read resolution for file named FILE_NAME. The resolution is read from
-   RESOLUTION. An array with the symbol resolution is returned. The array
-   size is written to SIZE. */
+/* strtoll is not portable. */
+int64_t
+lto_parse_hex (const char *p) {
+  uint64_t ret = 0;
+  for (; *p != '\0'; ++p)
+    {
+      char c = *p;
+      unsigned char part;
+      ret <<= 4;
+      if (c >= '0' && c <= '9')
+        part = c - '0';
+      else if (c >= 'a' && c <= 'f')
+        part = c - 'a' + 10;
+      else if (c >= 'A' && c <= 'F')
+        part = c - 'A' + 10;
+      else
+        internal_error ("could not parse hex number");
+      ret |= part;
+    }
+  return ret;
+}
 
-static VEC(ld_plugin_symbol_resolution_t,heap) *
-lto_resolution_read (FILE *resolution, const char *file_name)
+/* Read resolution for file named FILE_NAME. The resolution is read from
+   RESOLUTION. */
+
+static void
+lto_resolution_read (splay_tree file_ids, FILE *resolution, lto_file *file)
 {
   /* We require that objects in the resolution file are in the same
      order as the lto1 command line. */
@@ -262,21 +347,34 @@ lto_resolution_read (FILE *resolution, const char *file_name)
   char *obj_name;
   unsigned int num_symbols;
   unsigned int i;
-  VEC(ld_plugin_symbol_resolution_t,heap) *ret = NULL;
+  struct lto_file_decl_data *file_data;
   unsigned max_index = 0;
+  splay_tree_node nd = NULL; 
 
   if (!resolution)
-    return NULL;
+    return;
 
-  name_len = strlen (file_name);
+  name_len = strlen (file->filename);
   obj_name = XNEWVEC (char, name_len + 1);
   fscanf (resolution, " ");   /* Read white space. */
 
   fread (obj_name, sizeof (char), name_len, resolution);
   obj_name[name_len] = '\0';
-  if (strcmp (obj_name, file_name) != 0)
+  if (strcmp (obj_name, file->filename) != 0)
     internal_error ("unexpected file name %s in linker resolution file. "
-		    "Expected %s", obj_name, file_name);
+		    "Expected %s", obj_name, file->filename);
+  if (file->offset != 0)
+    {
+      int t;
+      char offset_p[17];
+      int64_t offset;
+      t = fscanf (resolution, "@0x%16s", offset_p);
+      if (t != 1)
+        internal_error ("could not parse file offset");
+      offset = lto_parse_hex (offset_p);
+      if (offset != file->offset)
+        internal_error ("unexpected offset");
+    }
 
   free (obj_name);
 
@@ -284,14 +382,17 @@ lto_resolution_read (FILE *resolution, const char *file_name)
 
   for (i = 0; i < num_symbols; i++)
     {
-      unsigned index;
+      int t;
+      unsigned index, id;
       char r_str[27];
-      enum ld_plugin_symbol_resolution r;
+      enum ld_plugin_symbol_resolution r = (enum ld_plugin_symbol_resolution) 0;
       unsigned int j;
       unsigned int lto_resolution_str_len =
 	sizeof (lto_resolution_str) / sizeof (char *);
 
-      fscanf (resolution, "%u %26s", &index, r_str);
+      t = fscanf (resolution, "%u %x %26s %*[^\n]\n", &index, &id, r_str);
+      if (t != 3)
+        internal_error ("Invalid line in the resolution file.");
       if (index > max_index)
 	max_index = index;
 
@@ -303,16 +404,127 @@ lto_resolution_read (FILE *resolution, const char *file_name)
 	      break;
 	    }
 	}
-      if (j >= lto_resolution_str_len)
-	internal_error ("tried to read past the end of the linker resolution "
-			"file");
+      if (j == lto_resolution_str_len)
+	internal_error ("Invalid resolution in the resolution file.");
 
-      VEC_safe_grow_cleared (ld_plugin_symbol_resolution_t, heap, ret,
-			     index + 1);
-      VEC_replace (ld_plugin_symbol_resolution_t, ret, index, r);
+      if (!(nd && nd->key == id))
+	{
+	  nd = splay_tree_lookup (file_ids, id);
+	  if (nd == NULL)
+	    internal_error ("Resolution sub id %x not in object file", id);
+	}
+
+      file_data = (struct lto_file_decl_data *)nd->value;
+      if (cgraph_dump_file)
+	fprintf (cgraph_dump_file, "Adding resolution %u %u to id %x\n",
+		 index, r, file_data->id);
+      VEC_safe_grow_cleared (ld_plugin_symbol_resolution_t, heap, 
+			     file_data->resolutions,
+			     max_index + 1);
+      VEC_replace (ld_plugin_symbol_resolution_t, 
+		   file_data->resolutions, index, r);
+    }
+}
+
+/* Is the name for a id'ed LTO section? */
+
+static int 
+lto_section_with_id (const char *name, unsigned *id)
+{
+  const char *s;
+
+  if (strncmp (name, LTO_SECTION_NAME_PREFIX, strlen (LTO_SECTION_NAME_PREFIX)))
+    return 0;
+  s = strrchr (name, '.');
+  return s && sscanf (s, ".%x", id) == 1;
+}
+
+/* Create file_data of each sub file id */
+
+static int 
+create_subid_section_table (void **slot, void *data)
+{
+  struct lto_section_slot s_slot, *new_slot;
+  struct lto_section_slot *ls = *(struct lto_section_slot **)slot;
+  splay_tree file_ids = (splay_tree)data;
+  unsigned id;
+  splay_tree_node nd;
+  void **hash_slot;
+  char *new_name;
+  struct lto_file_decl_data *file_data;
+
+  if (!lto_section_with_id (ls->name, &id))
+    return 1;
+  
+  /* Find hash table of sub module id */
+  nd = splay_tree_lookup (file_ids, id);
+  if (nd != NULL)
+    {
+      file_data = (struct lto_file_decl_data *)nd->value;
+    }
+  else
+    {
+      file_data = ggc_alloc_lto_file_decl_data ();
+      memset(file_data, 0, sizeof (struct lto_file_decl_data));
+      file_data->id = id;
+      file_data->section_hash_table = lto_obj_create_section_hash_table ();;
+      splay_tree_insert (file_ids, id, (splay_tree_value)file_data);
     }
 
-  return ret;
+  /* Copy section into sub module hash table */
+  new_name = XDUPVEC (char, ls->name, strlen (ls->name) + 1);
+  s_slot.name = new_name;
+  hash_slot = htab_find_slot (file_data->section_hash_table, &s_slot, INSERT);
+  gcc_assert (*hash_slot == NULL);
+
+  new_slot = XDUP (struct lto_section_slot, ls);
+  new_slot->name = new_name;
+  *hash_slot = new_slot;
+  return 1;
+}
+
+/* Read declarations and other initializations for a FILE_DATA. */
+
+static void
+lto_file_finalize (struct lto_file_decl_data *file_data, lto_file *file)
+{
+  const char *data;
+  size_t len;
+
+  file_data->renaming_hash_table = lto_create_renaming_table ();
+  file_data->file_name = file->filename;
+  data = lto_get_section_data (file_data, LTO_section_decls, NULL, &len);
+  if (data == NULL)
+    {
+      internal_error ("Cannot read LTO decls from %s", file_data->file_name);
+      return;
+    }
+  lto_read_decls (file_data, data, file_data->resolutions);
+  lto_free_section_data (file_data, LTO_section_decls, NULL, data, len);
+}
+
+struct lwstate
+{
+  lto_file *file;
+  struct lto_file_decl_data **file_data;
+  int *count;
+};
+
+/* Traverse ids and create a list of file_datas out of it. */      
+
+static int lto_create_files_from_ids (splay_tree_node node, void *data)
+{
+  struct lwstate *lw = (struct lwstate *)data;
+  struct lto_file_decl_data *file_data = (struct lto_file_decl_data *)node->value;
+
+  lto_file_finalize (file_data, lw->file);
+  if (cgraph_dump_file)
+    fprintf (cgraph_dump_file, "Creating file %s with sub id %x\n", 
+	     file_data->file_name, file_data->id);
+  file_data->next = *lw->file_data;
+  *lw->file_data = file_data;
+  (*lw->count)++;
+  return 0;
 }
 
 /* Generate a TREE representation for all types and external decls
@@ -323,23 +535,32 @@ lto_resolution_read (FILE *resolution, const char *file_name)
    the .o file to load the functions and ipa information.   */
 
 static struct lto_file_decl_data *
-lto_file_read (lto_file *file, FILE *resolution_file)
+lto_file_read (lto_file *file, FILE *resolution_file, int *count)
 {
-  struct lto_file_decl_data *file_data;
-  const char *data;
-  size_t len;
-  VEC(ld_plugin_symbol_resolution_t,heap) *resolutions;
+  struct lto_file_decl_data *file_data = NULL;
+  splay_tree file_ids;
+  htab_t section_hash_table;
+  struct lwstate state;
   
-  resolutions = lto_resolution_read (resolution_file, file->filename);
+  section_hash_table = lto_obj_build_section_table (file);
 
-  file_data = XCNEW (struct lto_file_decl_data);
-  file_data->file_name = file->filename;
-  file_data->section_hash_table = lto_elf_build_section_table (file);
-  file_data->renaming_hash_table = lto_create_renaming_table ();
+  /* Find all sub modules in the object and put their sections into new hash
+     tables in a splay tree. */
+  file_ids = splay_tree_new (splay_tree_compare_ints, NULL, NULL);
+  htab_traverse (section_hash_table, create_subid_section_table, file_ids);
+  
+  /* Add resolutions to file ids */
+  lto_resolution_read (file_ids, resolution_file, file);
 
-  data = lto_get_section_data (file_data, LTO_section_decls, NULL, &len);
-  lto_read_decls (file_data, data, resolutions);
-  lto_free_section_data (file_data, LTO_section_decls, NULL, data, len);
+  /* Finalize each lto file for each submodule in the merged object
+     and create list for returning. */
+  state.file = file;
+  state.file_data = &file_data;
+  state.count = count;
+  splay_tree_foreach (file_ids, lto_create_files_from_ids, &state);
+    
+  splay_tree_delete (file_ids);
+  htab_delete (section_hash_table);
 
   return file_data;
 }
@@ -385,7 +606,7 @@ lto_read_section_data (struct lto_file_decl_data *file_data,
   if (fd == -1)
     {
       fd_name = xstrdup (file_data->file_name);
-      fd = open (file_data->file_name, O_RDONLY);
+      fd = open (file_data->file_name, O_RDONLY|O_BINARY);
       if (fd == -1)
 	return NULL;
     }
@@ -434,7 +655,7 @@ get_section_data (struct lto_file_decl_data *file_data,
   htab_t section_hash_table = file_data->section_hash_table;
   struct lto_section_slot *f_slot;
   struct lto_section_slot s_slot;
-  const char *section_name = lto_get_section_name (section_type, name);
+  const char *section_name = lto_get_section_name (section_type, name, file_data);
   char *data = NULL;
 
   *len = 0;
@@ -477,9 +698,168 @@ free_section_data (struct lto_file_decl_data *file_data ATTRIBUTE_UNUSED,
 #endif
 }
 
-/* Vector of all cgraph node sets. */
-static GTY (()) VEC(cgraph_node_set, gc) *lto_cgraph_node_sets;
+/* Structure describing ltrans partitions.  */
 
+struct GTY (()) ltrans_partition_def
+{
+  cgraph_node_set cgraph_set;
+  varpool_node_set varpool_set;
+  const char * GTY ((skip)) name;
+  int insns;
+};
+
+typedef struct ltrans_partition_def *ltrans_partition;
+DEF_VEC_P(ltrans_partition);
+DEF_VEC_ALLOC_P(ltrans_partition,gc);
+
+static GTY (()) VEC(ltrans_partition, gc) *ltrans_partitions;
+
+static void add_cgraph_node_to_partition (ltrans_partition part, struct cgraph_node *node);
+static void add_varpool_node_to_partition (ltrans_partition part, struct varpool_node *vnode);
+
+/* Create new partition with name NAME.  */
+static ltrans_partition
+new_partition (const char *name)
+{
+  ltrans_partition part = ggc_alloc_ltrans_partition_def ();
+  part->cgraph_set = cgraph_node_set_new ();
+  part->varpool_set = varpool_node_set_new ();
+  part->name = name;
+  part->insns = 0;
+  VEC_safe_push (ltrans_partition, gc, ltrans_partitions, part);
+  return part;
+}
+
+/* See all references that go to comdat objects and bring them into partition too.  */
+static void
+add_references_to_partition (ltrans_partition part, struct ipa_ref_list *refs)
+{
+  int i;
+  struct ipa_ref *ref;
+  for (i = 0; ipa_ref_list_reference_iterate (refs, i, ref); i++)
+    {
+      if (ref->refered_type == IPA_REF_CGRAPH
+	  && DECL_COMDAT (ipa_ref_node (ref)->decl)
+	  && !cgraph_node_in_set_p (ipa_ref_node (ref), part->cgraph_set))
+	add_cgraph_node_to_partition (part, ipa_ref_node (ref));
+      else
+	if (ref->refered_type == IPA_REF_VARPOOL
+	    && DECL_COMDAT (ipa_ref_varpool_node (ref)->decl)
+	    && !varpool_node_in_set_p (ipa_ref_varpool_node (ref), part->varpool_set))
+	  add_varpool_node_to_partition (part, ipa_ref_varpool_node (ref));
+    }
+}
+
+/* Add NODE to partition as well as the inline callees and referred comdats into partition PART. */
+
+static void
+add_cgraph_node_to_partition (ltrans_partition part, struct cgraph_node *node)
+{
+  struct cgraph_edge *e;
+
+  part->insns += node->local.inline_summary.self_size;
+
+  if (node->aux)
+    node->in_other_partition = 1;
+  node->aux = (void *)((size_t)node->aux + 1);
+
+  cgraph_node_set_add (part->cgraph_set, node);
+
+  for (e = node->callees; e; e = e->next_callee)
+    if ((!e->inline_failed || DECL_COMDAT (e->callee->decl))
+	&& !cgraph_node_in_set_p (e->callee, part->cgraph_set))
+      add_cgraph_node_to_partition (part, e->callee);
+
+  add_references_to_partition (part, &node->ref_list);
+
+  if (node->same_comdat_group
+      && !cgraph_node_in_set_p (node->same_comdat_group, part->cgraph_set))
+    add_cgraph_node_to_partition (part, node->same_comdat_group);
+}
+
+/* Add VNODE to partition as well as comdat references partition PART. */
+
+static void
+add_varpool_node_to_partition (ltrans_partition part, struct varpool_node *vnode)
+{
+  varpool_node_set_add (part->varpool_set, vnode);
+
+  if (vnode->aux)
+    vnode->in_other_partition = 1;
+  vnode->aux = (void *)((size_t)vnode->aux + 1);
+
+  add_references_to_partition (part, &vnode->ref_list);
+
+  if (vnode->same_comdat_group
+      && !varpool_node_in_set_p (vnode->same_comdat_group, part->varpool_set))
+    add_varpool_node_to_partition (part, vnode->same_comdat_group);
+}
+
+/* Undo all additions until number of cgraph nodes in PARITION is N_CGRAPH_NODES
+   and number of varpool nodes is N_VARPOOL_NODES.  */
+
+static void
+undo_partition (ltrans_partition partition, unsigned int n_cgraph_nodes,
+		unsigned int n_varpool_nodes)
+{
+  while (VEC_length (cgraph_node_ptr, partition->cgraph_set->nodes) >
+	 n_cgraph_nodes)
+    {
+      struct cgraph_node *node = VEC_index (cgraph_node_ptr,
+					    partition->cgraph_set->nodes,
+					    n_cgraph_nodes);
+      partition->insns -= node->local.inline_summary.self_size;
+      cgraph_node_set_remove (partition->cgraph_set, node);
+      node->aux = (void *)((size_t)node->aux - 1);
+    }
+  while (VEC_length (varpool_node_ptr, partition->varpool_set->nodes) >
+	 n_varpool_nodes)
+    {
+      struct varpool_node *node = VEC_index (varpool_node_ptr,
+					     partition->varpool_set->nodes,
+					     n_varpool_nodes);
+      varpool_node_set_remove (partition->varpool_set, node);
+      node->aux = (void *)((size_t)node->aux - 1);
+    }
+}
+
+/* Return true if NODE should be partitioned.
+   This means that partitioning algorithm should put NODE into one of partitions.
+   This apply to most functions with bodies.  Functions that are not partitions
+   are put into every unit needing them.  This is the case of i.e. COMDATs.  */
+
+static bool
+partition_cgraph_node_p (struct cgraph_node *node)
+{
+  /* We will get proper partition based on function they are inlined to.  */
+  if (node->global.inlined_to)
+    return false;
+  /* Nodes without a body do not need partitioning.  */
+  if (!node->analyzed)
+    return false;
+  /* Extern inlines and comdat are always only in partitions they are needed.  */
+  if (DECL_EXTERNAL (node->decl)
+      || (DECL_COMDAT (node->decl)
+	  && !cgraph_used_from_object_file_p (node)))
+    return false;
+  return true;
+}
+
+/* Return true if VNODE should be partitioned. 
+   This means that partitioning algorithm should put VNODE into one of partitions. */
+
+static bool
+partition_varpool_node_p (struct varpool_node *vnode)
+{
+  if (vnode->alias || !vnode->needed)
+    return false;
+  /* Constant pool and comdat are always only in partitions they are needed.  */
+  if (DECL_IN_CONSTANT_POOL (vnode->decl)
+      || (DECL_COMDAT (vnode->decl)
+	  && !varpool_used_from_object_file_p (vnode)))
+    return false;
+  return true;
+}
 
 /* Group cgrah nodes by input files.  This is used mainly for testing
    right now.  */
@@ -488,313 +868,426 @@ static void
 lto_1_to_1_map (void)
 {
   struct cgraph_node *node;
+  struct varpool_node *vnode;
   struct lto_file_decl_data *file_data;
   struct pointer_map_t *pmap;
-  cgraph_node_set set;
+  ltrans_partition partition;
   void **slot;
+  int npartitions = 0;
 
   timevar_push (TV_WHOPR_WPA);
-
-  lto_cgraph_node_sets = VEC_alloc (cgraph_node_set, gc, 1);
-
-  /* If the cgraph is empty, create one cgraph node set so that there is still
-     an output file for any variables that need to be exported in a DSO.  */
-  if (!cgraph_nodes)
-    {
-      set = cgraph_node_set_new ();
-      VEC_safe_push (cgraph_node_set, gc, lto_cgraph_node_sets, set);
-      goto finish;
-    }
 
   pmap = pointer_map_create ();
 
   for (node = cgraph_nodes; node; node = node->next)
     {
-      /* We only need to partition the nodes that we read from the
-	 gimple bytecode files.  */
-      file_data = node->local.lto_file_data;
-      if (file_data == NULL)
+      if (!partition_cgraph_node_p (node))
 	continue;
 
-      slot = pointer_map_contains (pmap, file_data);
-      if (slot)
-	set = (cgraph_node_set) *slot;
+      file_data = node->local.lto_file_data;
+      gcc_assert (!node->same_body_alias);
+
+      if (file_data)
+	{
+          slot = pointer_map_contains (pmap, file_data);
+          if (slot)
+	    partition = (ltrans_partition) *slot;
+	  else
+	    {
+	      partition = new_partition (file_data->file_name);
+	      slot = pointer_map_insert (pmap, file_data);
+	      *slot = partition;
+	      npartitions++;
+	    }
+	}
+      else if (!file_data
+	       && VEC_length (ltrans_partition, ltrans_partitions))
+	partition = VEC_index (ltrans_partition, ltrans_partitions, 0);
       else
 	{
-	  set = cgraph_node_set_new ();
-	  slot = pointer_map_insert (pmap, file_data);
-	  *slot = set;
-	  VEC_safe_push (cgraph_node_set, gc, lto_cgraph_node_sets, set);
+	  partition = new_partition ("");
+	  slot = pointer_map_insert (pmap, NULL);
+	  *slot = partition;
+	  npartitions++;
 	}
 
-      cgraph_node_set_add (set, node);
+      add_cgraph_node_to_partition (partition, node);
     }
+
+  for (vnode = varpool_nodes; vnode; vnode = vnode->next)
+    {
+      if (!partition_varpool_node_p (vnode))
+	continue;
+      file_data = vnode->lto_file_data;
+      slot = pointer_map_contains (pmap, file_data);
+      if (slot)
+	partition = (ltrans_partition) *slot;
+      else
+	{
+	  partition = new_partition (file_data->file_name);
+	  slot = pointer_map_insert (pmap, file_data);
+	  *slot = partition;
+	  npartitions++;
+	}
+
+      add_varpool_node_to_partition (partition, vnode);
+    }
+  for (node = cgraph_nodes; node; node = node->next)
+    node->aux = NULL;
+  for (vnode = varpool_nodes; vnode; vnode = vnode->next)
+    vnode->aux = NULL;
+
+  /* If the cgraph is empty, create one cgraph node set so that there is still
+     an output file for any variables that need to be exported in a DSO.  */
+  if (!npartitions)
+    new_partition ("empty");
 
   pointer_map_destroy (pmap);
 
-finish:
   timevar_pop (TV_WHOPR_WPA);
 
-  lto_stats.num_cgraph_partitions += VEC_length (cgraph_node_set, 
-						 lto_cgraph_node_sets);
+  lto_stats.num_cgraph_partitions += VEC_length (ltrans_partition, 
+						 ltrans_partitions);
 }
 
 
-/* Add inlined clone NODE and its master clone to SET, if NODE itself has
-   inlined callees, recursively add the callees.  */
+/* Group cgraph nodes in qually sized partitions.
+
+   The algorithm deciding paritions are simple: nodes are taken in predefined
+   order.  The order correspond to order we wish to have functions in final
+   output.  In future this will be given by function reordering pass, but at
+   the moment we use topological order that serve a good approximation.
+
+   The goal is to partition this linear order into intervals (partitions) such
+   that all partitions have approximately the same size and that the number of
+   callgraph or IPA reference edgess crossing boundaries is minimal.
+
+   This is a lot faster (O(n) in size of callgraph) than algorithms doing
+   priority based graph clustering that are generally O(n^2) and since WHOPR
+   is designed to make things go well across partitions, it leads to good results.
+
+   We compute the expected size of partition as
+   max (total_size / lto_partitions, min_partition_size).
+   We use dynamic expected size of partition, so small programs
+   are partitioning into enough partitions to allow use of multiple CPUs while
+   large programs are not partitioned too much. Creating too many partition
+   increase streaming overhead significandly.
+
+   In the future we would like to bound maximal size of partition to avoid
+   ltrans stage consuming too much memory.  At the moment however WPA stage is
+   most memory intensive phase at large benchmark since too many types and
+   declarations are read into memory.
+
+   The function implement simple greedy algorithm.  Nodes are begin added into
+   current partition until 3/4th of expected partition size is reached.
+   After this threshold we keep track of boundary size (number of edges going to
+   other partitions) and continue adding functions until the current partition
+   grows into a double of expected partition size.  Then the process is undone
+   till the point when minimal ration of boundary size and in partition calls
+   was reached.  */
 
 static void
-lto_add_inline_clones (cgraph_node_set set, struct cgraph_node *node,
-		       bitmap original_decls, bitmap inlined_decls)
+lto_balanced_map (void)
 {
-   struct cgraph_node *callee;
-   struct cgraph_edge *edge;
-
-   cgraph_node_set_add (set, node);
-
-   if (!bitmap_bit_p (original_decls, DECL_UID (node->decl)))
-     bitmap_set_bit (inlined_decls, DECL_UID (node->decl));
-
-   /* Check to see if NODE has any inlined callee.  */
-   for (edge = node->callees; edge != NULL; edge = edge->next_callee)
-     {
-	callee = edge->callee;
-	if (callee->global.inlined_to != NULL)
-	  lto_add_inline_clones (set, callee, original_decls, inlined_decls);
-     }
-}
-
-/* Compute the transitive closure of inlining of SET based on the
-   information in the callgraph.  Returns a bitmap of decls that have
-   been inlined into SET indexed by UID.  */
-
-static bitmap
-lto_add_all_inlinees (cgraph_node_set set)
-{
-  cgraph_node_set_iterator csi;
+  int n_nodes = 0;
+  struct cgraph_node **postorder =
+    XCNEWVEC (struct cgraph_node *, cgraph_n_nodes);
+  struct cgraph_node **order = XNEWVEC (struct cgraph_node *, cgraph_max_uid);
+  int i, postorder_len;
   struct cgraph_node *node;
-  bitmap original_nodes = lto_bitmap_alloc ();
-  bitmap original_decls = lto_bitmap_alloc ();
-  bitmap inlined_decls = lto_bitmap_alloc ();
-  bool changed;
-
-  /* We are going to iterate SET while adding to it, mark all original
-     nodes so that we only add node inlined to original nodes.  */
-  for (csi = csi_start (set); !csi_end_p (csi); csi_next (&csi))
-    {
-      bitmap_set_bit (original_nodes, csi_node (csi)->uid);
-      bitmap_set_bit (original_decls, DECL_UID (csi_node (csi)->decl));
-    }
-
-  /* Some of the original nodes might not be needed anymore.  
-     Remove them.  */
-  do
-    {
-      changed = false;
-      for (csi = csi_start (set); !csi_end_p (csi); csi_next (&csi))
-	{
-	  struct cgraph_node *inlined_to;
-	  node = csi_node (csi);
-
-	  /* NODE was not inlined.  We still need it.  */
-	  if (!node->global.inlined_to)
-	    continue;
-
-	  inlined_to = node->global.inlined_to;
-
-	  /* NODE should have only one caller.  */
-	  gcc_assert (!node->callers->next_caller);
-
-	  if (!bitmap_bit_p (original_nodes, inlined_to->uid))
-	    {
-	      bitmap_clear_bit (original_nodes, node->uid);
-	      cgraph_node_set_remove (set, node);
-	      changed = true;
-	    }
-	}
-    }
-  while (changed);
-
-  /* Transitively add to SET all the inline clones for every node that
-     has been inlined.  */
-  for (csi = csi_start (set); !csi_end_p (csi); csi_next (&csi))
-    {
-      node = csi_node (csi);
-      if (bitmap_bit_p (original_nodes, node->uid))
-	lto_add_inline_clones (set, node, original_decls, inlined_decls);
-    }
-
-  lto_bitmap_free (original_nodes);
-  lto_bitmap_free (original_decls);
-
-  return inlined_decls;
-}
-
-/* Owing to inlining, we may need to promote a file-scope variable
-   to a global variable.  Consider this case:
-
-   a.c:
-   static int var;
-
-   void
-   foo (void)
-   {
-     var++;
-   }
-
-   b.c:
-
-   extern void foo (void);
-
-   void
-   bar (void)
-   {
-     foo ();
-   }
-
-   If WPA inlines FOO inside BAR, then the static variable VAR needs to
-   be promoted to global because BAR and VAR may be in different LTRANS
-   files. */
-
-/* This struct keeps track of states used in globalization.  */
-
-typedef struct
-{
-  /* Current cgraph node set.  */  
-  cgraph_node_set set;
-
-  /* Function DECLs of cgraph nodes seen.  */
-  bitmap seen_node_decls;
-
-  /* Use in walk_tree to avoid multiple visits of a node.  */
-  struct pointer_set_t *visited;
-
-  /* static vars in this set.  */
-  bitmap static_vars_in_set;
-
-  /* static vars in all previous set.  */
-  bitmap all_static_vars;
-
-  /* all vars in all previous set.  */
-  bitmap all_vars;
-} globalize_context_t;
-
-/* Callback for walk_tree.  Examine the tree pointer to by TP and see if
-   if its a file-scope static variable of function that need to be turned
-   into a global.  */
-
-static tree
-globalize_cross_file_statics (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED,
-			      void *data)
-{
-  globalize_context_t *context = (globalize_context_t *) data;
-  tree t = *tp;
-
-  if (t == NULL_TREE)
-    return NULL;
-
-  /* The logic for globalization of VAR_DECLs and FUNCTION_DECLs are
-     different.  For functions, we can simply look at the cgraph node sets
-     to tell if there are references to static functions outside the set.
-     The cgraph node sets do not keep track of vars, we need to traverse
-     the trees to determine what vars need to be globalized.  */
-  if (TREE_CODE (t) == VAR_DECL)
-    {
-      if (!TREE_PUBLIC (t))
-	{
-	  /* This file-scope static variable is reachable from more
-	     that one set.  Make it global but with hidden visibility
-	     so that we do not export it in dynamic linking.  */
-	  if (bitmap_bit_p (context->all_static_vars, DECL_UID (t)))
-	    {
-	      TREE_PUBLIC (t) = 1;
-	      DECL_VISIBILITY (t) = VISIBILITY_HIDDEN;
-	    }
-	  bitmap_set_bit (context->static_vars_in_set, DECL_UID (t));
-	}
-      bitmap_set_bit (context->all_vars, DECL_UID (t));
-      walk_tree (&DECL_INITIAL (t), globalize_cross_file_statics, context,
-		 context->visited);
-    }
-  else if (TREE_CODE (t) == FUNCTION_DECL && !TREE_PUBLIC (t))
-    {
-      if (!cgraph_node_in_set_p (cgraph_node (t), context->set))
-	{
-	  /* This file-scope static function is reachable from a set
-	     which does not contain the function DECL.  Make it global
-	     but with hidden visibility.  */
-	  TREE_PUBLIC (t) = 1;
-	  DECL_VISIBILITY (t) = VISIBILITY_HIDDEN;
-	}
-    }
-
-  return NULL; 
-}
-
-/* Helper of lto_scan_statics_in_cgraph_node below.  Scan TABLE for
-   static decls that may be used in more than one LTRANS file.
-   CONTEXT is a globalize_context_t for storing scanning states.  */
-
-static void
-lto_scan_statics_in_ref_table (struct lto_tree_ref_table *table,
-			       globalize_context_t *context)
-{
-  unsigned i;
-
-  for (i = 0; i < table->size; i++)
-    walk_tree (&table->trees[i], globalize_cross_file_statics, context,
-	       context->visited);
-}
-
-/* Promote file-scope decl reachable from NODE if necessary to global.
-   CONTEXT is a globalize_context_t storing scanning states.  */
-
-static void
-lto_scan_statics_in_cgraph_node (struct cgraph_node *node,
-				 globalize_context_t *context)
-{
-  struct lto_in_decl_state *state;
-  
-  /* Do nothing if NODE has no function body.  */
-  if (!node->analyzed)
-    return;
-  
-  /* Return if the DECL of nodes has been visited before.  */
-  if (bitmap_bit_p (context->seen_node_decls, DECL_UID (node->decl)))
-    return;
-
-  bitmap_set_bit (context->seen_node_decls, DECL_UID (node->decl));
-
-  state = lto_get_function_in_decl_state (node->local.lto_file_data,
-					  node->decl);
-  gcc_assert (state);
-
-  lto_scan_statics_in_ref_table (&state->streams[LTO_DECL_STREAM_VAR_DECL],
-				 context);
-  lto_scan_statics_in_ref_table (&state->streams[LTO_DECL_STREAM_FN_DECL],
-				 context);
-}
-
-/* Scan all global variables that we have not yet seen so far.  CONTEXT
-   is a globalize_context_t storing scanning states.  */
-
-static void
-lto_scan_statics_in_remaining_global_vars (globalize_context_t *context)
-{
-  tree var, var_context;
+  int total_size = 0;
+  int partition_size;
+  ltrans_partition partition;
+  unsigned int last_visited_cgraph_node = 0, last_visited_varpool_node = 0;
   struct varpool_node *vnode;
+  int cost = 0, internal = 0;
+  int best_n_nodes = 0, best_n_varpool_nodes = 0, best_i = 0, best_cost =
+    INT_MAX, best_internal = 0;
+  int npartitions;
 
-  FOR_EACH_STATIC_VARIABLE (vnode)
+  /* Until we have better ordering facility, use toplogical order.
+     Include only nodes we will partition and compute estimate of program
+     size.  Note that since nodes that are not partitioned might be put into
+     multiple partitions, this is just an estimate of real size.  This is why
+     we keep partition_size updated after every partition is finalized.  */
+  postorder_len = cgraph_postorder (postorder);
+  for (i = 0; i < postorder_len; i++)
     {
-      var = vnode->decl;
-      var_context = DECL_CONTEXT (var);
-      if (TREE_STATIC (var)
-	  && TREE_PUBLIC (var)
-          && (!var_context || TREE_CODE (var_context) != FUNCTION_DECL)
-          && !bitmap_bit_p (context->all_vars, DECL_UID (var)))
-	walk_tree (&var, globalize_cross_file_statics, context,
-		   context->visited);
+      node = postorder[i];
+      if (partition_cgraph_node_p (node))
+	{
+	  order[n_nodes++] = node;
+          total_size += node->local.inline_summary.self_size;
+	}
     }
+  free (postorder);
+
+  /* Compute partition size and create the first partition.  */
+  partition_size = total_size / PARAM_VALUE (PARAM_LTO_PARTITIONS);
+  if (partition_size < PARAM_VALUE (MIN_PARTITION_SIZE))
+    partition_size = PARAM_VALUE (MIN_PARTITION_SIZE);
+  npartitions = 1;
+  partition = new_partition ("");
+  if (cgraph_dump_file)
+    fprintf (cgraph_dump_file, "Total unit size: %i, partition size: %i\n",
+	     total_size, partition_size);
+
+  for (i = 0; i < n_nodes; i++)
+    {
+      add_cgraph_node_to_partition (partition, order[i]);
+
+      /* Once we added a new node to the partition, we also want to add
+         all referenced variables unless they was already added into some
+         earlier partition.
+	 add_cgraph_node_to_partition adds possibly multiple nodes and
+	 variables that are needed to satisfy needs of ORDER[i].
+         We remember last visited cgraph and varpool node from last iteration
+         of outer loop that allows us to process every new addition. 
+
+	 At the same time we compute size of the boundary into COST.  Every
+         callgraph or IPA reference edge leaving the partition contributes into
+         COST.  Every edge inside partition was earlier computed as one leaving
+	 it and thus we need to subtract it from COST.  */
+      while (last_visited_cgraph_node <
+	     VEC_length (cgraph_node_ptr, partition->cgraph_set->nodes)
+	     || last_visited_varpool_node < VEC_length (varpool_node_ptr,
+							partition->varpool_set->
+							nodes))
+	{
+	  struct ipa_ref_list *refs;
+	  int j;
+	  struct ipa_ref *ref;
+	  bool cgraph_p = false;
+
+	  if (last_visited_cgraph_node <
+	      VEC_length (cgraph_node_ptr, partition->cgraph_set->nodes))
+	    {
+	      struct cgraph_edge *edge;
+
+	      cgraph_p = true;
+	      node = VEC_index (cgraph_node_ptr, partition->cgraph_set->nodes,
+				last_visited_cgraph_node);
+	      refs = &node->ref_list;
+
+	      total_size -= node->local.inline_summary.self_size;
+	      last_visited_cgraph_node++;
+
+	      gcc_assert (node->analyzed);
+
+	      /* Compute boundary cost of callgrpah edges.  */
+	      for (edge = node->callees; edge; edge = edge->next_callee)
+		if (edge->callee->analyzed)
+		  {
+		    int edge_cost = edge->frequency;
+		    cgraph_node_set_iterator csi;
+
+		    if (!edge_cost)
+		      edge_cost = 1;
+		    gcc_assert (edge_cost > 0);
+		    csi = cgraph_node_set_find (partition->cgraph_set, edge->callee);
+		    if (!csi_end_p (csi)
+		        && csi.index < last_visited_cgraph_node - 1)
+		      cost -= edge_cost, internal+= edge_cost;
+		    else
+		      cost += edge_cost;
+		  }
+	      for (edge = node->callers; edge; edge = edge->next_caller)
+		{
+		  int edge_cost = edge->frequency;
+		  cgraph_node_set_iterator csi;
+
+		  gcc_assert (edge->caller->analyzed);
+		  if (!edge_cost)
+		    edge_cost = 1;
+		  gcc_assert (edge_cost > 0);
+		  csi = cgraph_node_set_find (partition->cgraph_set, edge->caller);
+		  if (!csi_end_p (csi)
+		      && csi.index < last_visited_cgraph_node)
+		    cost -= edge_cost;
+		  else
+		    cost += edge_cost;
+		}
+	    }
+	  else
+	    {
+	      refs =
+		&VEC_index (varpool_node_ptr, partition->varpool_set->nodes,
+			    last_visited_varpool_node)->ref_list;
+	      last_visited_varpool_node++;
+	    }
+
+	  /* Compute boundary cost of IPA REF edges and at the same time look into
+	     variables referenced from current partition and try to add them.  */
+	  for (j = 0; ipa_ref_list_reference_iterate (refs, j, ref); j++)
+	    if (ref->refered_type == IPA_REF_VARPOOL)
+	      {
+		varpool_node_set_iterator vsi;
+
+		vnode = ipa_ref_varpool_node (ref);
+		if (!vnode->finalized)
+		  continue;
+		if (!vnode->aux && partition_varpool_node_p (vnode))
+		  add_varpool_node_to_partition (partition, vnode);
+		vsi = varpool_node_set_find (partition->varpool_set, vnode);
+		if (!vsi_end_p (vsi)
+		    && vsi.index < last_visited_varpool_node - !cgraph_p)
+		  cost--, internal++;
+		else
+		  cost++;
+	      }
+	    else
+	      {
+		cgraph_node_set_iterator csi;
+
+		node = ipa_ref_node (ref);
+		if (!node->analyzed)
+		  continue;
+		csi = cgraph_node_set_find (partition->cgraph_set, node);
+		if (!csi_end_p (csi)
+		    && csi.index < last_visited_cgraph_node - cgraph_p)
+		  cost--, internal++;
+		else
+		  cost++;
+	      }
+	  for (j = 0; ipa_ref_list_refering_iterate (refs, j, ref); j++)
+	    if (ref->refering_type == IPA_REF_VARPOOL)
+	      {
+		varpool_node_set_iterator vsi;
+
+		vnode = ipa_ref_refering_varpool_node (ref);
+		gcc_assert (vnode->finalized);
+		if (!vnode->aux && partition_varpool_node_p (vnode))
+		  add_varpool_node_to_partition (partition, vnode);
+		vsi = varpool_node_set_find (partition->varpool_set, vnode);
+		if (!vsi_end_p (vsi)
+		    && vsi.index < last_visited_varpool_node)
+		  cost--;
+		else
+		  cost++;
+	      }
+	    else
+	      {
+		cgraph_node_set_iterator csi;
+
+		node = ipa_ref_refering_node (ref);
+		gcc_assert (node->analyzed);
+		csi = cgraph_node_set_find (partition->cgraph_set, node);
+		if (!csi_end_p (csi)
+		    && csi.index < last_visited_cgraph_node)
+		  cost--;
+		else
+		  cost++;
+	      }
+	}
+
+      /* If the partition is large enough, start looking for smallest boundary cost.  */
+      if (partition->insns < partition_size * 3 / 4
+	  || best_cost == INT_MAX
+	  || ((!cost 
+	       || (best_internal * (HOST_WIDE_INT) cost
+		   > (internal * (HOST_WIDE_INT)best_cost)))
+  	      && partition->insns < partition_size * 5 / 4))
+	{
+	  best_cost = cost;
+	  best_internal = internal;
+	  best_i = i;
+	  best_n_nodes = VEC_length (cgraph_node_ptr,
+				     partition->cgraph_set->nodes);
+	  best_n_varpool_nodes = VEC_length (varpool_node_ptr,
+					     partition->varpool_set->nodes);
+	}
+      if (cgraph_dump_file)
+	fprintf (cgraph_dump_file, "Step %i: added %s, size %i, cost %i/%i best %i/%i, step %i\n", i,
+		 cgraph_node_name (order[i]), partition->insns, cost, internal,
+		 best_cost, best_internal, best_i);
+      /* Partition is too large, unwind into step when best cost was reached and
+	 start new partition.  */
+      if (partition->insns > 2 * partition_size)
+	{
+	  if (best_i != i)
+	    {
+	      if (cgraph_dump_file)
+		fprintf (cgraph_dump_file, "Unwinding %i insertions to step %i\n",
+			 i - best_i, best_i);
+	      undo_partition (partition, best_n_nodes, best_n_varpool_nodes);
+	    }
+	  i = best_i;
+	  partition = new_partition ("");
+	  last_visited_cgraph_node = 0;
+	  last_visited_varpool_node = 0;
+	  cost = 0;
+
+	  if (cgraph_dump_file)
+	    fprintf (cgraph_dump_file, "New partition\n");
+	  best_n_nodes = 0;
+	  best_n_varpool_nodes = 0;
+	  best_cost = INT_MAX;
+
+	  /* Since the size of partitions is just approximate, update the size after
+	     we finished current one.  */
+	  if (npartitions < PARAM_VALUE (PARAM_LTO_PARTITIONS))
+	    partition_size = total_size
+	      / (PARAM_VALUE (PARAM_LTO_PARTITIONS) - npartitions);
+	  else
+	    partition_size = INT_MAX;
+
+	  if (partition_size < PARAM_VALUE (MIN_PARTITION_SIZE))
+	    partition_size = PARAM_VALUE (MIN_PARTITION_SIZE);
+	  npartitions ++;
+	}
+    }
+
+  /* Varables that are not reachable from the code go into last partition.  */
+  for (vnode = varpool_nodes; vnode; vnode = vnode->next)
+    if (partition_varpool_node_p (vnode) && !vnode->aux)
+      add_varpool_node_to_partition (partition, vnode);
+  free (order);
+}
+
+/* Promote variable VNODE to be static.  */
+
+static bool
+promote_var (struct varpool_node *vnode)
+{
+  if (TREE_PUBLIC (vnode->decl) || DECL_EXTERNAL (vnode->decl))
+    return false;
+  gcc_assert (flag_wpa);
+  TREE_PUBLIC (vnode->decl) = 1;
+  DECL_VISIBILITY (vnode->decl) = VISIBILITY_HIDDEN;
+  DECL_VISIBILITY_SPECIFIED (vnode->decl) = true;
+  if (cgraph_dump_file)
+    fprintf (cgraph_dump_file,
+	    "Promoting var as hidden: %s\n", varpool_node_name (vnode));
+  return true;
+}
+
+/* Promote function NODE to be static.  */
+
+static bool
+promote_fn (struct cgraph_node *node)
+{
+  gcc_assert (flag_wpa);
+  if (TREE_PUBLIC (node->decl) || DECL_EXTERNAL (node->decl))
+    return false;
+  TREE_PUBLIC (node->decl) = 1;
+  DECL_VISIBILITY (node->decl) = VISIBILITY_HIDDEN;
+  DECL_VISIBILITY_SPECIFIED (node->decl) = true;
+  if (node->same_body)
+    {
+      struct cgraph_node *alias;
+      for (alias = node->same_body;
+	   alias; alias = alias->next)
+	{
+	  TREE_PUBLIC (alias->decl) = 1;
+	  DECL_VISIBILITY (alias->decl) = VISIBILITY_HIDDEN;
+	  DECL_VISIBILITY_SPECIFIED (alias->decl) = true;
+	}
+    }
+  if (cgraph_dump_file)
+    fprintf (cgraph_dump_file,
+	     "Promoting function as hidden: %s/%i\n",
+	     cgraph_node_name (node), node->uid);
+  return true;
 }
 
 /* Find out all static decls that need to be promoted to global because
@@ -804,394 +1297,230 @@ lto_scan_statics_in_remaining_global_vars (globalize_context_t *context)
 static void
 lto_promote_cross_file_statics (void)
 {
+  struct varpool_node *vnode;
   unsigned i, n_sets;
   cgraph_node_set set;
+  varpool_node_set vset;
   cgraph_node_set_iterator csi;
-  globalize_context_t context;
+  varpool_node_set_iterator vsi;
+  VEC(varpool_node_ptr, heap) *promoted_initializers = NULL;
+  struct pointer_set_t *inserted = pointer_set_create ();
 
-  memset (&context, 0, sizeof (context));
-  context.all_vars = lto_bitmap_alloc ();
-  context.all_static_vars = lto_bitmap_alloc ();
+  gcc_assert (flag_wpa);
 
-  n_sets = VEC_length (cgraph_node_set, lto_cgraph_node_sets);
+  n_sets = VEC_length (ltrans_partition, ltrans_partitions);
   for (i = 0; i < n_sets; i++)
     {
-      set = VEC_index (cgraph_node_set, lto_cgraph_node_sets, i);
-      context.set = set;
-      context.visited = pointer_set_create ();
-      context.static_vars_in_set = lto_bitmap_alloc ();
-      context.seen_node_decls = lto_bitmap_alloc ();
+      ltrans_partition part = VEC_index (ltrans_partition, ltrans_partitions, i);
+      set = part->cgraph_set;
+      vset = part->varpool_set;
 
+      /* If node has either address taken (and we have no clue from where)
+	 or it is called from other partition, it needs to be globalized.  */
       for (csi = csi_start (set); !csi_end_p (csi); csi_next (&csi))
-	lto_scan_statics_in_cgraph_node (csi_node (csi), &context);
-
-      if (i == n_sets - 1)
-        lto_scan_statics_in_remaining_global_vars (&context);
-
-      bitmap_ior_into (context.all_static_vars, context.static_vars_in_set);
-
-      pointer_set_destroy (context.visited);
-      lto_bitmap_free (context.static_vars_in_set);
-      lto_bitmap_free (context.seen_node_decls);
-    }
-
-  lto_bitmap_free (context.all_vars);
-  lto_bitmap_free (context.all_static_vars);
-}
-
-
-/* Given a file name FNAME, return a string with FNAME prefixed with '*'.  */
-
-static char *
-prefix_name_with_star (const char *fname)
-{
-  char *star_fname;
-  size_t len;
-  
-  len = strlen (fname) + 1 + 1;
-  star_fname = XNEWVEC (char, len);
-  snprintf (star_fname, len, "*%s", fname);
-
-  return star_fname;
-}
-
-
-/* Return a copy of FNAME without the .o extension.  */
-
-static char *
-strip_extension (const char *fname)
-{
-  char *s = XNEWVEC (char, strlen (fname) - 2 + 1);
-  gcc_assert (strstr (fname, ".o"));
-  snprintf (s, strlen (fname) - 2 + 1, "%s", fname);
-
-  return s;
-}
-
-
-/* Return a file name associated with cgraph node set SET.  This may
-   be a new temporary file name if SET needs to be processed by
-   LTRANS, or the original file name if all the nodes in SET belong to
-   the same input file.  */
-
-static char *
-get_filename_for_set (cgraph_node_set set)
-{
-  char *fname = NULL;
-  static const size_t max_fname_len = 100;
-
-  if (cgraph_node_set_needs_ltrans_p (set))
-    {
-      /* Create a new temporary file to store SET.  To facilitate
-	 debugging, use file names from SET as part of the new
-	 temporary file name.  */
-      cgraph_node_set_iterator si;
-      struct pointer_set_t *pset = pointer_set_create ();
-      for (si = csi_start (set); !csi_end_p (si); csi_next (&si))
 	{
-	  struct cgraph_node *n = csi_node (si);
-	  const char *node_fname;
-	  char *f;
-
-	  /* Don't use the same file name more than once.  */
-	  if (pointer_set_insert (pset, n->local.lto_file_data))
+	  struct cgraph_node *node = csi_node (csi);
+	  if (node->local.externally_visible)
 	    continue;
-
-	  /* The first file name found in SET determines the output
-	     directory.  For the remaining files, we use their
-	     base names.  */
-	  node_fname = n->local.lto_file_data->file_name;
-	  if (fname == NULL)
-	    {
-	      fname = strip_extension (node_fname);
-	      continue;
-	    }
-
-	  f = strip_extension (lbasename (node_fname));
-
-	  /* If the new name causes an excessively long file name,
-	     make the last component "___" to indicate overflow.  */
-	  if (strlen (fname) + strlen (f) > max_fname_len - 3)
-	    {
-	      fname = reconcat (fname, fname, "___", NULL);
-	      break;
-	    }
-	  else
-	    {
-	      fname = reconcat (fname, fname, "_", f, NULL);
-	      free (f);
-	    }
+	  if (node->global.inlined_to)
+	    continue;
+	  if ((!DECL_EXTERNAL (node->decl) && !DECL_COMDAT (node->decl))
+	      && (referenced_from_other_partition_p (&node->ref_list, set, vset)
+		  || reachable_from_other_partition_p (node, set)))
+	    promote_fn (node);
+	}
+      for (vsi = vsi_start (vset); !vsi_end_p (vsi); vsi_next (&vsi))
+	{
+	  vnode = vsi_node (vsi);
+	  /* Constant pool references use internal labels and thus can not
+	     be made global.  It is sensible to keep those ltrans local to
+	     allow better optimization.  */
+	  if (!DECL_IN_CONSTANT_POOL (vnode->decl) && !DECL_COMDAT (vnode->decl)
+	      && !vnode->externally_visible && vnode->analyzed
+	      && referenced_from_other_partition_p (&vnode->ref_list,
+						    set, vset))
+	    promote_var (vnode);
 	}
 
-      pointer_set_destroy (pset);
+      /* We export initializers of read-only var into each partition
+	 referencing it.  Folding might take declarations from the
+	 initializers and use it; so everything referenced from the
+	 initializers needs can be accessed from this partition after
+	 folding.
 
-      /* Add the extension .wpa.o to indicate that this file has been
-	 produced by WPA.  */
-      fname = reconcat (fname, fname, ".wpa.o", NULL);
-      gcc_assert (fname);
-    }
-  else
-    {
-      /* Since SET does not need to be processed by LTRANS, use
-	 the original file name and mark it with a '*' prefix so that
-	 lto_execute_ltrans knows not to process it.  */
-      cgraph_node_set_iterator si = csi_start (set);
-      struct cgraph_node *first = csi_node (si);
-      fname = prefix_name_with_star (first->local.lto_file_data->file_name);
-    }
+	 This means that we need to promote all variables and functions
+	 referenced from all initializers from readonly vars referenced
+	 from this partition that are not in this partition.
+	 This needs to be done recursively.  */
+      for (vnode = varpool_nodes; vnode; vnode = vnode->next)
+	if (const_value_known_p (vnode->decl)
+	    && DECL_INITIAL (vnode->decl)
+	    && !varpool_node_in_set_p (vnode, vset)
+	    && referenced_from_this_partition_p (&vnode->ref_list, set, vset)
+	    && !pointer_set_insert (inserted, vnode))
+	VEC_safe_push (varpool_node_ptr, heap, promoted_initializers, vnode);
+      while (!VEC_empty (varpool_node_ptr, promoted_initializers))
+	{
+	  int i;
+	  struct ipa_ref *ref;
 
-  return fname;
+	  vnode = VEC_pop (varpool_node_ptr, promoted_initializers);
+	  for (i = 0; ipa_ref_list_reference_iterate (&vnode->ref_list, i, ref); i++)
+	    {
+	      if (ref->refered_type == IPA_REF_CGRAPH)
+		{
+		  struct cgraph_node *n = ipa_ref_node (ref);
+		  gcc_assert (!n->global.inlined_to);
+		  if (!n->local.externally_visible
+		      && !cgraph_node_in_set_p (n, set))
+		    promote_fn (n);
+		}
+	      else
+		{
+		  struct varpool_node *v = ipa_ref_varpool_node (ref);
+		  if (varpool_node_in_set_p (v, vset))
+		    continue;
+		  /* Constant pool references use internal labels and thus can not
+		     be made global.  It is sensible to keep those ltrans local to
+		     allow better optimization.  */
+		  if (DECL_IN_CONSTANT_POOL (v->decl))
+		    {
+		      if (!pointer_set_insert (inserted, vnode))
+			VEC_safe_push (varpool_node_ptr, heap,
+				       promoted_initializers, v);
+		    }
+		  else if (!DECL_IN_CONSTANT_POOL (v->decl)
+			   && !v->externally_visible && v->analyzed)
+		    {
+		      if (promote_var (v)
+			  && DECL_INITIAL (v->decl)
+			  && const_value_known_p (v->decl)
+			  && !pointer_set_insert (inserted, vnode))
+			VEC_safe_push (varpool_node_ptr, heap,
+				       promoted_initializers, v);
+		    }
+		}
+	    }
+	}
+    }
+  pointer_set_destroy (inserted);
 }
 
 static lto_file *current_lto_file;
 
+/* Helper for qsort; compare partitions and return one with smaller size.
+   We sort from greatest to smallest so parallel build doesn't stale on the
+   longest compilation being executed too late.  */
 
-/* Write all output files in WPA mode.  Returns a NULL-terminated array of
-   output file names.  */
+static int
+cmp_partitions (const void *a, const void *b)
+{
+  const struct ltrans_partition_def *pa
+     = *(struct ltrans_partition_def *const *)a;
+  const struct ltrans_partition_def *pb
+     = *(struct ltrans_partition_def *const *)b;
+  return pb->insns - pa->insns;
+}
 
-static char **
+/* Write all output files in WPA mode and the file with the list of
+   LTRANS units.  */
+
+static void
 lto_wpa_write_files (void)
 {
-  char **output_files;
-  unsigned i, n_sets, last_out_file_ix, num_out_files;
+  unsigned i, n_sets;
   lto_file *file;
   cgraph_node_set set;
-  bitmap decls;
-  VEC(bitmap,heap) *inlined_decls = NULL;
+  varpool_node_set vset;
+  ltrans_partition part;
+  FILE *ltrans_output_list_stream;
+  char *temp_filename;
+  size_t blen;
+
+  /* Open the LTRANS output list.  */
+  if (!ltrans_output_list)
+    fatal_error ("no LTRANS output list filename provided");
+  ltrans_output_list_stream = fopen (ltrans_output_list, "w");
+  if (ltrans_output_list_stream == NULL)
+    fatal_error ("opening LTRANS output list %s: %m", ltrans_output_list);
 
   timevar_push (TV_WHOPR_WPA);
 
-  /* Include all inlined functions and determine what sets need to be
-     compiled by LTRANS.  After this loop, only those sets that
-     contain callgraph nodes from more than one file will need to be
-     compiled by LTRANS.  */
-  for (i = 0; VEC_iterate (cgraph_node_set, lto_cgraph_node_sets, i, set); i++)
-    {
-      decls = lto_add_all_inlinees (set);
-      VEC_safe_push (bitmap, heap, inlined_decls, decls);
-      lto_stats.num_output_cgraph_nodes += VEC_length (cgraph_node_ptr,
-						       set->nodes);
-    }
+  FOR_EACH_VEC_ELT (ltrans_partition, ltrans_partitions, i, part)
+    lto_stats.num_output_cgraph_nodes += VEC_length (cgraph_node_ptr,
+						     part->cgraph_set->nodes);
 
-  /* After adding all inlinees, find out statics that need to be promoted
-     to globals because of cross-file inlining.  */
+  /* Find out statics that need to be promoted
+     to globals with hidden visibility because they are accessed from multiple
+     partitions.  */
   lto_promote_cross_file_statics ();
 
   timevar_pop (TV_WHOPR_WPA);
 
   timevar_push (TV_WHOPR_WPA_IO);
 
-  /* The number of output files depends on the number of input files
-     and how many callgraph node sets we create.  Reserve enough space
-     for the maximum of these two.  */
-  num_out_files = MAX (VEC_length (cgraph_node_set, lto_cgraph_node_sets),
-                       num_in_fnames);
-  output_files = XNEWVEC (char *, num_out_files + 1);
+  /* Generate a prefix for the LTRANS unit files.  */
+  blen = strlen (ltrans_output_list);
+  temp_filename = (char *) xmalloc (blen + sizeof ("2147483648.o"));
+  strcpy (temp_filename, ltrans_output_list);
+  if (blen > sizeof (".out")
+      && strcmp (temp_filename + blen - sizeof (".out") + 1,
+		 ".out") == 0)
+    temp_filename[blen - sizeof (".out") + 1] = '\0';
+  blen = strlen (temp_filename);
 
-  n_sets = VEC_length (cgraph_node_set, lto_cgraph_node_sets);
+  n_sets = VEC_length (ltrans_partition, ltrans_partitions);
+  qsort (VEC_address (ltrans_partition, ltrans_partitions), n_sets,
+	 sizeof (ltrans_partition), cmp_partitions);
   for (i = 0; i < n_sets; i++)
     {
-      char *temp_filename;
+      size_t len;
+      ltrans_partition part = VEC_index (ltrans_partition, ltrans_partitions, i);
 
-      set = VEC_index (cgraph_node_set, lto_cgraph_node_sets, i);
-      temp_filename = get_filename_for_set (set);
-      output_files[i] = temp_filename;
+      set = part->cgraph_set;
+      vset = part->varpool_set;
 
-      if (cgraph_node_set_needs_ltrans_p (set))
+      /* Write all the nodes in SET.  */
+      sprintf (temp_filename + blen, "%u.o", i);
+      file = lto_obj_file_open (temp_filename, true);
+      if (!file)
+	fatal_error ("lto_obj_file_open() failed");
+
+      if (!quiet_flag)
+	fprintf (stderr, " %s (%s %i insns)", temp_filename, part->name, part->insns);
+      if (cgraph_dump_file)
 	{
-	  /* Write all the nodes in SET to TEMP_FILENAME.  */
-	  file = lto_elf_file_open (temp_filename, true);
-	  if (!file)
-	    fatal_error ("lto_elf_file_open() failed");
-
-	  lto_set_current_out_file (file);
-	  lto_new_extern_inline_states ();
-
-	  decls = VEC_index (bitmap, inlined_decls, i);
-	  lto_force_functions_extern_inline (decls);
-
-	  ipa_write_summaries_of_cgraph_node_set (set);
-	  lto_delete_extern_inline_states ();
-
-	  lto_set_current_out_file (NULL);
-	  lto_elf_file_close (file);
+	  fprintf (cgraph_dump_file, "Writting partition %s to file %s, %i insns\n",
+		   part->name, temp_filename, part->insns);
+	  fprintf (cgraph_dump_file, "cgraph nodes:");
+	  dump_cgraph_node_set (cgraph_dump_file, set);
+	  fprintf (cgraph_dump_file, "varpool nodes:");
+	  dump_varpool_node_set (cgraph_dump_file, vset);
 	}
-    }
+      gcc_assert (cgraph_node_set_nonempty_p (set)
+		  || varpool_node_set_nonempty_p (vset) || !i);
 
-  last_out_file_ix = n_sets;
+      lto_set_current_out_file (file);
+
+      ipa_write_optimization_summaries (set, vset);
+
+      lto_set_current_out_file (NULL);
+      lto_obj_file_close (file);
+
+      len = strlen (temp_filename);
+      if (fwrite (temp_filename, 1, len, ltrans_output_list_stream) < len
+	  || fwrite ("\n", 1, 1, ltrans_output_list_stream) < 1)
+	fatal_error ("writing to LTRANS output list %s: %m",
+		     ltrans_output_list);
+    }
 
   lto_stats.num_output_files += n_sets;
 
-  output_files[last_out_file_ix] = NULL;
-
-  for (i = 0; VEC_iterate (bitmap, inlined_decls, i, decls); i++)
-    lto_bitmap_free (decls);
-  VEC_free (bitmap, heap, inlined_decls);
+  /* Close the LTRANS output list.  */
+  if (fclose (ltrans_output_list_stream))
+    fatal_error ("closing LTRANS output list %s: %m", ltrans_output_list);
 
   timevar_pop (TV_WHOPR_WPA_IO);
-
-  return output_files;
-}
-
-
-/* Perform local transformations (LTRANS) on the files in the NULL-terminated
-   FILES array.  These should have been written previously by
-   lto_wpa_write_files ().  Transformations are performed via executing
-   COLLECT_GCC for reach file.  */
-
-static void
-lto_execute_ltrans (char *const *files)
-{
-  struct pex_obj *pex;
-  const char *collect_gcc_options, *collect_gcc;
-  struct obstack env_obstack;
-  const char **argv;
-  const char **argv_ptr;
-  const char *errmsg;
-  size_t i, j;
-  int err;
-  int status;
-  FILE *ltrans_output_list_stream = NULL;
-
-  timevar_push (TV_WHOPR_WPA_LTRANS_EXEC);
-
-  /* Get the driver and options.  */
-  collect_gcc = getenv ("COLLECT_GCC");
-  if (!collect_gcc)
-    fatal_error ("environment variable COLLECT_GCC must be set");
-
-  /* Set the CFLAGS environment variable.  */
-  collect_gcc_options = getenv ("COLLECT_GCC_OPTIONS");
-  if (!collect_gcc_options)
-    fatal_error ("environment variable COLLECT_GCC_OPTIONS must be set");
-
-  /* Count arguments.  */
-  i = 0;
-  for (j = 0; collect_gcc_options[j] != '\0'; ++j)
-    if (collect_gcc_options[j] == '\'')
-      ++i;
-
-  if (i % 2 != 0)
-    fatal_error ("malformed COLLECT_GCC_OPTIONS");
-
-  /* Initalize the arguments for the LTRANS driver.  */
-  argv = XNEWVEC (const char *, 8 + i / 2);
-  argv_ptr = argv;
-  *argv_ptr++ = collect_gcc;
-  *argv_ptr++ = "-xlto";
-  for (j = 0; collect_gcc_options[j] != '\0'; ++j)
-    if (collect_gcc_options[j] == '\'')
-      {
-	char *option;
-
-	++j;
-	i = j;
-	while (collect_gcc_options[j] != '\'')
-	  ++j;
-	obstack_init (&env_obstack);
-	obstack_grow (&env_obstack, &collect_gcc_options[i], j - i);
-	obstack_1grow (&env_obstack, 0);
-	option = XOBFINISH (&env_obstack, char *);
-
-	/* LTRANS does not need -fwpa nor -fltrans-*.  */
-	if (strncmp (option, "-fwpa", 5) != 0
-	    && strncmp (option, "-fltrans-", 9) != 0)
-	  *argv_ptr++ = option;
-      }
-  *argv_ptr++ = "-fltrans";
-
-  /* Open the LTRANS output list.  */
-  if (ltrans_output_list)
-    {
-      ltrans_output_list_stream = fopen (ltrans_output_list, "w");
-      if (ltrans_output_list_stream == NULL)
-	error ("opening LTRANS output list %s: %m", ltrans_output_list);
-    }
-
-  for (i = 0; files[i]; ++i)
-    {
-      size_t len;
-
-      /* If the file is prefixed with a '*', it means that we do not
-	 need to re-compile it with LTRANS because it has not been
-	 modified by WPA.  Skip it from the command line to
-	 lto_execute_ltrans, but add it to ltrans_output_list_stream
-	 so it is linked after we are done.  */
-      if (files[i][0] == '*')
-	{
-	  size_t len = strlen (files[i]) - 1;
-	  if (ltrans_output_list_stream)
-	    if (fwrite (&files[i][1], 1, len, ltrans_output_list_stream) < len
-		|| fwrite ("\n", 1, 1, ltrans_output_list_stream) < 1)
-	      error ("writing to LTRANS output list %s: %m",
-		     ltrans_output_list);
-	}
-      else
-	{
-	  char *output_name;
-
-	  /* Otherwise, add FILES[I] to lto_execute_ltrans command line
-	     and add the resulting file to LTRANS output list.  */
-
-	  /* Replace the .o suffix with a .ltrans.o suffix and write
-	     the resulting name to the LTRANS output list.  */
-	  obstack_init (&env_obstack);
-	  obstack_grow (&env_obstack, files[i], strlen (files[i]) - 2);
-	  obstack_grow (&env_obstack, ".ltrans.o", sizeof (".ltrans.o"));
-	  output_name = XOBFINISH (&env_obstack, char *);
-	  if (ltrans_output_list_stream)
-	    {
-	      len = strlen (output_name);
-
-	      if (fwrite (output_name, 1, len, ltrans_output_list_stream) < len
-		  || fwrite ("\n", 1, 1, ltrans_output_list_stream) < 1)
-		error ("writing to LTRANS output list %s: %m",
-		       ltrans_output_list);
-	    }
-
-	  argv_ptr[0] = "-o";
-	  argv_ptr[1] = output_name;
-	  argv_ptr[2] = files[i];
-	  argv_ptr[3] = NULL;
-
-	  /* Execute the driver.  */
-	  pex = pex_init (0, "lto1", NULL);
-	  if (pex == NULL)
-	    fatal_error ("pex_init failed: %s", xstrerror (errno));
-
-	  errmsg = pex_run (pex, PEX_LAST | PEX_SEARCH, argv[0],
-			    CONST_CAST (char **, argv), NULL, NULL, &err);
-	  if (errmsg)
-	    fatal_error ("%s: %s", errmsg, xstrerror (err));
-
-	  if (!pex_get_status (pex, 1, &status))
-	    fatal_error ("can't get program status: %s", xstrerror (errno));
-
-	  if (status)
-	    {
-	      if (WIFSIGNALED (status))
-		{
-		  int sig = WTERMSIG (status);
-		  fatal_error ("%s terminated with signal %d [%s]%s",
-			       argv[0], sig, strsignal (sig),
-			       WCOREDUMP (status) ? ", core dumped" : "");
-		}
-	      else
-		fatal_error ("%s terminated with status %d", argv[0], status);
-	    }
-
-	  pex_free (pex);
-	}
-    }
-
-  /* Close the LTRANS output list.  */
-  if (ltrans_output_list_stream && fclose (ltrans_output_list_stream))
-    error ("closing LTRANS output list %s: %m", ltrans_output_list);
-
-  obstack_free (&env_obstack, NULL);
-  free (argv);
-
-  timevar_pop (TV_WHOPR_WPA_LTRANS_EXEC);
 }
 
 
@@ -1340,7 +1669,7 @@ static void
 lto_fixup_field_decl (tree t, void *data)
 {
   lto_fixup_decl_common (t, data);
-  gcc_assert (no_fixup_p (DECL_FIELD_OFFSET (t)));
+  LTO_FIXUP_SUBTREE (DECL_FIELD_OFFSET (t));
   LTO_FIXUP_SUBTREE (DECL_BIT_FIELD_TYPE (t));
   LTO_FIXUP_SUBTREE (DECL_QUALIFIER (t));
   gcc_assert (no_fixup_p (DECL_FIELD_BIT_OFFSET (t)));
@@ -1369,8 +1698,18 @@ lto_fixup_type (tree t, void *data)
   /* Accessor is for derived node types only. */
   LTO_FIXUP_SUBTREE (t->type.binfo);
 
-  LTO_REGISTER_TYPE_AND_FIXUP_SUBTREE (TYPE_CONTEXT (t));
-  LTO_REGISTER_TYPE_AND_FIXUP_SUBTREE (TYPE_CANONICAL (t));
+  if (TYPE_CONTEXT (t))
+    {
+      if (TYPE_P (TYPE_CONTEXT (t)))
+	LTO_REGISTER_TYPE_AND_FIXUP_SUBTREE (TYPE_CONTEXT (t));
+      else
+	LTO_FIXUP_SUBTREE (TYPE_CONTEXT (t));
+    }
+
+  /* TYPE_CANONICAL does not need to be fixed up, instead it should
+     always point to ourselves at this time as we never fixup
+     non-canonical ones.  */
+  gcc_assert (TYPE_CANONICAL (t) == t);
 
   /* The following re-creates proper variant lists while fixing up
      the variant leaders.  We do not stream TYPE_NEXT_VARIANT so the
@@ -1499,7 +1838,7 @@ lto_fixup_tree (tree *tp, int *walk_subtrees, void *data)
 
   t = *tp;
   *walk_subtrees = 0;
-  if (pointer_set_contains (fixup_data->seen, t))
+  if (!t || pointer_set_contains (fixup_data->seen, t))
     return NULL;
 
   if (TREE_CODE (t) == VAR_DECL || TREE_CODE (t) == FUNCTION_DECL)
@@ -1508,28 +1847,6 @@ lto_fixup_tree (tree *tp, int *walk_subtrees, void *data)
 
       if (t != prevailing)
 	{
-	  if (TREE_CODE (t) == FUNCTION_DECL
-	      && TREE_NOTHROW (prevailing) != TREE_NOTHROW (t))
-	    {
-	      /* If the prevailing definition does not throw but the
-		 declaration (T) was considered throwing, then we
-		 simply add PREVAILING to the list of throwing
-		 functions.  However, if the opposite is true, then
-		 the call to PREVAILING was generated assuming that
-		 the function didn't throw, which means that CFG
-		 cleanup may have removed surrounding try/catch
-		 regions.
-
-		 Note that we currently accept these cases even when
-		 they occur within a single file.  It's certainly a
-		 user error, but we silently allow the compiler to
-		 remove surrounding try/catch regions.  Perhaps we
-		 could emit a warning here, instead of silently
-		 accepting the conflicting declaration.  */
-	      if (TREE_NOTHROW (prevailing))
-		lto_mark_nothrow_fndecl (prevailing);
-	    }
-
 	   /* Also replace t with prevailing defintion.  We don't want to
 	      insert the other defintion in the seen set as we want to
 	      replace all instances of it.  */
@@ -1659,7 +1976,7 @@ lto_fixup_decls (struct lto_file_decl_data **files)
       htab_traverse (file->function_decl_states, lto_fixup_state_aux, &data);
     }
 
-  for (i = 0; VEC_iterate (tree, lto_global_var_decls, i, decl); i++)
+  FOR_EACH_VEC_ELT (tree, lto_global_var_decls, i, decl)
     {
       tree saved_decl = decl;
       walk_tree (&decl, lto_fixup_tree, &data, NULL);
@@ -1668,20 +1985,6 @@ lto_fixup_decls (struct lto_file_decl_data **files)
     }
 
   pointer_set_destroy (seen);
-}
-
-/* Unlink a temporary LTRANS file unless requested otherwise.  */
-
-static void
-lto_maybe_unlink (const char *file)
-{
-  if (!getenv ("WPA_SAVE_LTRANS"))
-    {
-      if (unlink_if_ordinary (file))
-        error ("deleting LTRANS input file %s: %m", file);
-    }
-  else
-    fprintf (stderr, "[Leaving LTRANS input file %s]\n", file);
 }
 
 /* Read the options saved from each file in the command line.  Called
@@ -1705,29 +2008,72 @@ lto_read_all_file_options (void)
 
   /* Set the hooks to read ELF sections.  */
   lto_set_in_hooks (NULL, get_section_data, free_section_data);
+  if (!quiet_flag)
+    fprintf (stderr, "Reading command line options:");
 
   for (i = 0; i < num_in_fnames; i++)
     {
       struct lto_file_decl_data *file_data;
-      lto_file *file = lto_elf_file_open (in_fnames[i], false);
+      lto_file *file = lto_obj_file_open (in_fnames[i], false);
       if (!file)
 	break;
+      if (!quiet_flag)
+	{
+	  fprintf (stderr, " %s", in_fnames[i]);
+	  fflush (stderr);
+	}
 
       file_data = XCNEW (struct lto_file_decl_data);
       file_data->file_name = file->filename;
-      file_data->section_hash_table = lto_elf_build_section_table (file);
+      file_data->section_hash_table = lto_obj_build_section_table (file);
 
       lto_read_file_options (file_data);
 
-      lto_elf_file_close (file);
+      lto_obj_file_close (file);
       htab_delete (file_data->section_hash_table);
       free (file_data);
     }
+
+  if (!quiet_flag)
+    fprintf (stderr, "\n");
 
   /* Apply globally the options read from all the files.  */
   lto_reissue_options ();
 }
 
+static GTY((length ("lto_stats.num_input_files + 1"))) struct lto_file_decl_data **all_file_decl_data;
+
+/* Turn file datas for sub files into a single array, so that they look
+   like separate files for further passes. */
+
+static void
+lto_flatten_files (struct lto_file_decl_data **orig, int count, int last_file_ix)
+{
+  struct lto_file_decl_data *n, *next;
+  int i, k;
+
+  lto_stats.num_input_files = count;
+  all_file_decl_data
+    = ggc_alloc_cleared_vec_lto_file_decl_data_ptr (count + 1);
+  /* Set the hooks so that all of the ipa passes can read in their data.  */
+  lto_set_in_hooks (all_file_decl_data, get_section_data, free_section_data);
+  for (i = 0, k = 0; i < last_file_ix; i++) 
+    {
+      for (n = orig[i]; n != NULL; n = next)
+	{
+	  all_file_decl_data[k++] = n;
+	  next = n->next;
+	  n->next = NULL;
+	}
+    }
+  all_file_decl_data[k] = NULL;
+  gcc_assert (k == count);
+}
+
+/* Input file data before flattening (i.e. splitting them to subfiles to support
+   incremental linking.  */
+static int real_file_count;
+static GTY((length ("real_file_count + 1"))) struct lto_file_decl_data **real_file_decl_data;
 
 /* Read all the symbols from the input files FNAMES.  NFILES is the
    number of files requested in the command line.  Instantiate a
@@ -1738,17 +2084,18 @@ static void
 read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
 {
   unsigned int i, last_file_ix;
-  struct lto_file_decl_data **all_file_decl_data;
   FILE *resolution;
   struct cgraph_node *node;
+  int count = 0;
+  struct lto_file_decl_data **decl_data;
 
-  lto_stats.num_input_files = nfiles;
+  init_cgraph ();
 
-  timevar_push (TV_IPA_LTO_DECL_IO);
+  timevar_push (TV_IPA_LTO_DECL_IN);
 
-  /* Set the hooks so that all of the ipa passes can read in their data.  */
-  all_file_decl_data = XNEWVEC (struct lto_file_decl_data *, nfiles + 1);
-  lto_set_in_hooks (all_file_decl_data, get_section_data, free_section_data);
+  real_file_decl_data
+    = decl_data = ggc_alloc_cleared_vec_lto_file_decl_data_ptr (nfiles + 1);
+  real_file_count = nfiles;
 
   /* Read the resolution file.  */
   resolution = NULL;
@@ -1759,8 +2106,7 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
 
       resolution = fopen (resolution_file_name, "r");
       if (resolution == NULL)
-	fatal_error ("could not open symbol resolution file: %s",
-		     xstrerror (errno));
+	fatal_error ("could not open symbol resolution file: %m");
 
       t = fscanf (resolution, "%u", &num_objects);
       gcc_assert (t == 1);
@@ -1769,70 +2115,111 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
       gcc_assert (num_objects == nfiles);
     }
 
+  if (!quiet_flag)
+    fprintf (stderr, "Reading object files:");
+
   /* Read all of the object files specified on the command line.  */
   for (i = 0, last_file_ix = 0; i < nfiles; ++i)
     {
       struct lto_file_decl_data *file_data = NULL;
+      if (!quiet_flag)
+	{
+	  fprintf (stderr, " %s", fnames[i]);
+	  fflush (stderr);
+	}
 
-      current_lto_file = lto_elf_file_open (fnames[i], false);
+      current_lto_file = lto_obj_file_open (fnames[i], false);
       if (!current_lto_file)
 	break;
 
-      file_data = lto_file_read (current_lto_file, resolution);
+      file_data = lto_file_read (current_lto_file, resolution, &count);
       if (!file_data)
 	break;
 
-      all_file_decl_data[last_file_ix++] = file_data;
+      decl_data[last_file_ix++] = file_data;
 
-      lto_elf_file_close (current_lto_file);
+      lto_obj_file_close (current_lto_file);
       current_lto_file = NULL;
+      ggc_collect ();
     }
+
+  lto_flatten_files (decl_data, count, last_file_ix);
+  lto_stats.num_input_files = count;
+  ggc_free(decl_data);
+  real_file_decl_data = NULL;
 
   if (resolution_file_name)
     fclose (resolution);
 
-  all_file_decl_data[last_file_ix] = NULL;
-
   /* Set the hooks so that all of the ipa passes can read in their data.  */
   lto_set_in_hooks (all_file_decl_data, get_section_data, free_section_data);
 
-  /* Each pass will set the appropriate timer.  */
-  timevar_pop (TV_IPA_LTO_DECL_IO);
+  timevar_pop (TV_IPA_LTO_DECL_IN);
 
+  if (!quiet_flag)
+    fprintf (stderr, "\nReading the callgraph\n");
+
+  timevar_push (TV_IPA_LTO_CGRAPH_IO);
   /* Read the callgraph.  */
   input_cgraph ();
+  timevar_pop (TV_IPA_LTO_CGRAPH_IO);
 
+  if (!quiet_flag)
+    fprintf (stderr, "Merging declarations\n");
+
+  timevar_push (TV_IPA_LTO_DECL_MERGE);
   /* Merge global decls.  */
   lto_symtab_merge_decls ();
 
   /* Fixup all decls and types and free the type hash tables.  */
   lto_fixup_decls (all_file_decl_data);
   free_gimple_type_tables ();
+  ggc_collect ();
+
+  timevar_pop (TV_IPA_LTO_DECL_MERGE);
+  /* Each pass will set the appropriate timer.  */
+
+  if (!quiet_flag)
+    fprintf (stderr, "Reading summaries\n");
 
   /* Read the IPA summary data.  */
-  ipa_read_summaries ();
+  if (flag_ltrans)
+    ipa_read_optimization_summaries ();
+  else
+    ipa_read_summaries ();
 
   /* Finally merge the cgraph according to the decl merging decisions.  */
+  timevar_push (TV_IPA_LTO_CGRAPH_MERGE);
+  if (cgraph_dump_file)
+    {
+      fprintf (cgraph_dump_file, "Before merging:\n");
+      dump_cgraph (cgraph_dump_file);
+      dump_varpool (cgraph_dump_file);
+    }
   lto_symtab_merge_cgraph_nodes ();
+  ggc_collect ();
 
-  /* Mark cgraph nodes needed in the merged cgraph
-     This normally happens in whole-program pass, but for
-     ltrans the pass was already run at WPA phase.
-     
-     FIXME:  This is not valid way to do so; nodes can be needed
-     for non-obvious reasons.  We should stream the flags from WPA
-     phase. */
   if (flag_ltrans)
     for (node = cgraph_nodes; node; node = node->next)
-      if (!node->global.inlined_to
-	  && cgraph_decide_is_function_needed (node, node->decl))
-        cgraph_mark_needed_node (node);
+      {
+	/* FIXME: ipa_transforms_to_apply holds list of passes that have optimization
+	   summaries computed and needs to apply changes.  At the moment WHOPR only
+	   supports inlining, so we can push it here by hand.  In future we need to stream
+	   this field into ltrans compilation.  */
+	if (node->analyzed)
+	  VEC_safe_push (ipa_opt_pass, heap,
+			 node->ipa_transforms_to_apply,
+			 (ipa_opt_pass)&pass_ipa_inline);
+      }
+  lto_symtab_free ();
 
-  timevar_push (TV_IPA_LTO_DECL_IO);
+  timevar_pop (TV_IPA_LTO_CGRAPH_MERGE);
+
+  timevar_push (TV_IPA_LTO_DECL_INIT_IO);
 
   /* FIXME lto. This loop needs to be changed to use the pass manager to
      call the ipa passes directly.  */
-  if (!errorcount)
+  if (!seen_error ())
     for (i = 0; i < last_file_ix; i++)
       {
 	struct lto_file_decl_data *file_data = all_file_decl_data [i];
@@ -1842,7 +2229,9 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
   /* Indicate that the cgraph is built and ready.  */
   cgraph_function_flags_ready = true;
 
-  timevar_pop (TV_IPA_LTO_DECL_IO);
+  timevar_pop (TV_IPA_LTO_DECL_INIT_IO);
+  ggc_free (all_file_decl_data);
+  all_file_decl_data = NULL;
 }
 
 
@@ -1856,30 +2245,25 @@ materialize_cgraph (void)
   unsigned i;
   timevar_id_t lto_timer;
 
+  if (!quiet_flag)
+    fprintf (stderr,
+	     flag_wpa ? "Materializing decls:" : "Reading function bodies:");
+
+
   /* Now that we have input the cgraph, we need to clear all of the aux
      nodes and read the functions if we are not running in WPA mode.  */
-  timevar_push (TV_IPA_LTO_GIMPLE_IO);
+  timevar_push (TV_IPA_LTO_GIMPLE_IN);
 
   for (node = cgraph_nodes; node; node = node->next)
     {
-      /* Some cgraph nodes get created on the fly, and they don't need
-	 to be materialized.  For instance, nodes for nested functions
-	 where the parent function was not streamed out or builtin
-	 functions.  Additionally, builtin functions should not be
-	 materialized and may, in fact, cause confusion because there
-	 may be a regular function in the file whose assembler name
-	 matches that of the function.
-	 See gcc.c-torture/execute/20030125-1.c and
-	 gcc.c-torture/execute/921215-1.c.  */
-      if (node->local.lto_file_data
-          && !DECL_IS_BUILTIN (node->decl))
+      if (node->local.lto_file_data)
 	{
 	  lto_materialize_function (node);
 	  lto_stats.num_input_cgraph_nodes++;
 	}
     }
 
-  timevar_pop (TV_IPA_LTO_GIMPLE_IO);
+  timevar_pop (TV_IPA_LTO_GIMPLE_IN);
 
   /* Start the appropriate timer depending on the mode that we are
      operating in.  */
@@ -1892,11 +2276,11 @@ materialize_cgraph (void)
   set_cfun (NULL);
 
   /* Inform the middle end about the global variables we have seen.  */
-  for (i = 0; VEC_iterate (tree, lto_global_var_decls, i, decl); i++)
+  FOR_EACH_VEC_ELT (tree, lto_global_var_decls, i, decl)
     rest_of_decl_compilation (decl, 1, 0);
 
-  /* Fix up any calls to DECLs that have become not exception throwing.  */
-  lto_fixup_nothrow_decls ();
+  if (!quiet_flag)
+    fprintf (stderr, "\n");
 
   timevar_pop (lto_timer);
 }
@@ -1908,12 +2292,6 @@ materialize_cgraph (void)
 static void
 do_whole_program_analysis (void)
 {
-  char **output_files;
-  size_t i;
-  struct cgraph_node *node; 
-
-  lto_1_to_1_map ();
-
   /* Note that since we are in WPA mode, materialize_cgraph will not
      actually read in all the function bodies.  It only materializes
      the decls and cgraph nodes so that analysis can be performed.  */
@@ -1922,44 +2300,83 @@ do_whole_program_analysis (void)
   /* Reading in the cgraph uses different timers, start timing WPA now.  */
   timevar_push (TV_WHOPR_WPA);
 
-  /* FIXME lto. Hack. We should use the IPA passes.  There are a
-     number of issues with this now. 1. There is no convenient way to
-     do this. 2. Some passes may depend on properties that requires
-     the function bodies to compute.  */
+  if (pre_ipa_mem_report)
+    {
+      fprintf (stderr, "Memory consumption before IPA\n");
+      dump_memory_report (false);
+    }
+
+  if (cgraph_dump_file)
+    {
+      dump_cgraph (cgraph_dump_file);
+      dump_varpool (cgraph_dump_file);
+    }
+
   cgraph_function_flags_ready = true;
   bitmap_obstack_initialize (NULL);
   ipa_register_cgraph_hooks ();
+  cgraph_state = CGRAPH_STATE_IPA_SSA;
 
-  /* Reset inlining information before running IPA inliner.  */
-  for (node = cgraph_nodes; node; node = node->next)
-    reset_inline_failed (node);
+  execute_ipa_pass_list (all_regular_ipa_passes);
 
-  /* FIXME lto.  We should not call this function directly. */
-  pass_ipa_inline.pass.execute ();
-
+  if (cgraph_dump_file)
+    {
+      fprintf (cgraph_dump_file, "Optimized ");
+      dump_cgraph (cgraph_dump_file);
+      dump_varpool (cgraph_dump_file);
+    }
   verify_cgraph ();
   bitmap_obstack_release (NULL);
 
   /* We are about to launch the final LTRANS phase, stop the WPA timer.  */
   timevar_pop (TV_WHOPR_WPA);
 
-  output_files = lto_wpa_write_files ();
+  if (flag_lto_partition_1to1)
+    lto_1_to_1_map ();
+  else
+    lto_balanced_map ();
+
+  if (!quiet_flag)
+    {
+      fprintf (stderr, "\nStreaming out");
+      fflush (stderr);
+    }
+  lto_wpa_write_files ();
+  ggc_collect ();
+  if (!quiet_flag)
+    fprintf (stderr, "\n");
+
+  if (post_ipa_mem_report)
+    {
+      fprintf (stderr, "Memory consumption after IPA\n");
+      dump_memory_report (false);
+    }
 
   /* Show the LTO report before launching LTRANS.  */
   if (flag_lto_report)
     print_lto_report ();
+}
 
-  lto_execute_ltrans (output_files);
 
-  for (i = 0; output_files[i]; ++i)
+static GTY(()) tree lto_eh_personality_decl;
+
+/* Return the LTO personality function decl.  */
+
+tree
+lto_eh_personality (void)
+{
+  if (!lto_eh_personality_decl)
     {
-      if (output_files[i][0] != '*')
-	lto_maybe_unlink (output_files[i]);
-
-      free (output_files[i]);
+      /* Use the first personality DECL for our personality if we don't
+	 support multiple ones.  This ensures that we don't artificially
+	 create the need for them in a single-language program.  */
+      if (first_personality_decl && !dwarf2out_do_cfi_asm ())
+	lto_eh_personality_decl = first_personality_decl;
+      else
+	lto_eh_personality_decl = lhd_gcc_personality ();
     }
 
-  XDELETEVEC (output_files);
+  return lto_eh_personality_decl;
 }
 
 
@@ -1992,7 +2409,7 @@ lto_main (int debug_p ATTRIBUTE_UNUSED)
      command line.  */
   read_cgraph_and_symbols (num_in_fnames, in_fnames);
 
-  if (!errorcount)
+  if (!seen_error ())
     {
       /* If WPA is enabled analyze the whole call graph and create an
 	 optimization plan.  Otherwise, read in all the function

@@ -3,13 +3,14 @@
 
 /* { dg-do assemble } */
 /* { dg-require-effective-target arm_neon_ok } */
-/* { dg-options "-save-temps -O0 -mfpu=neon -mfloat-abi=softfp" } */
+/* { dg-options "-save-temps -O0" } */
+/* { dg-add-options arm_neon } */
 
 #include "arm_neon.h"
 
 void test_vget_lowf32 (void)
 {
-  float32x2_t out_float32x2_t;
+  register float32x2_t out_float32x2_t asm ("d18");
   float32x4_t arg0_float32x4_t;
 
   out_float32x2_t = vget_low_f32 (arg0_float32x4_t);

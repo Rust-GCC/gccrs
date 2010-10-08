@@ -1,6 +1,6 @@
 /* Subroutines for insn-output.c for Motorola 68000 family.
    Copyright (C) 1987, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   2001, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -28,12 +28,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "function.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "output.h"
 #include "insn-attr.h"
 #include "recog.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "expr.h"
 #include "reload.h"
@@ -135,6 +135,7 @@ static int m68k_sched_first_cycle_multipass_dfa_lookahead (void);
 static bool m68k_can_eliminate (const int, const int);
 static bool m68k_legitimate_address_p (enum machine_mode, rtx, bool);
 static bool m68k_handle_option (size_t, const char *, int);
+static void m68k_option_override (void);
 static rtx find_addr_reg (rtx);
 static const char *singlemove_string (rtx *);
 static void m68k_output_mi_thunk (FILE *, tree, HOST_WIDE_INT,
@@ -154,6 +155,8 @@ static bool m68k_return_in_memory (const_tree, const_tree);
 #endif
 static void m68k_output_dwarf_dtprel (FILE *, int, rtx) ATTRIBUTE_UNUSED;
 static void m68k_trampoline_init (rtx, tree, rtx);
+static int m68k_return_pops_args (tree, tree, int);
+static rtx m68k_delegitimize_address (rtx);
 
 
 /* Specify the identification number of the library being built */
@@ -231,6 +234,9 @@ const char *m68k_library_id_string = "_current_shared_library_a5_offset_";
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION m68k_handle_option
 
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE m68k_option_override
+
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS m68k_rtx_costs
 
@@ -270,6 +276,12 @@ const char *m68k_library_id_string = "_current_shared_library_a5_offset_";
 
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT m68k_trampoline_init
+
+#undef TARGET_RETURN_POPS_ARGS
+#define TARGET_RETURN_POPS_ARGS m68k_return_pops_args
+
+#undef TARGET_DELEGITIMIZE_ADDRESS
+#define TARGET_DELEGITIMIZE_ADDRESS m68k_delegitimize_address
 
 static const struct attribute_spec m68k_attribute_table[] =
 {
@@ -531,17 +543,10 @@ m68k_handle_option (size_t code, const char *arg, int value)
     }
 }
 
-/* Sometimes certain combinations of command options do not make
-   sense on a particular target machine.  You can define a macro
-   `OVERRIDE_OPTIONS' to take account of this.  This macro, if
-   defined, is executed once just after all the command options have
-   been parsed.
+/* Implement TARGET_OPTION_OVERRIDE.  */
 
-   Don't use this macro to turn on various extra optimizations for
-   `-O'.  That is what `OPTIMIZATION_OPTIONS' is for.  */
-
-void
-override_options (void)
+static void
+m68k_option_override (void)
 {
   const struct m68k_target_selection *entry;
   unsigned long target_mask;
@@ -1035,7 +1040,7 @@ void
 m68k_expand_prologue (void)
 {
   HOST_WIDE_INT fsize_with_regs;
-  rtx limit, src, dest, insn;
+  rtx limit, src, dest;
 
   m68k_compute_frame_layout ();
 
@@ -1178,7 +1183,7 @@ m68k_expand_prologue (void)
 
   if (!TARGET_SEP_DATA
       && crtl->uses_pic_offset_table)
-    insn = emit_insn (gen_load_got (pic_offset_table_rtx));
+    emit_insn (gen_load_got (pic_offset_table_rtx));
 }
 
 /* Return true if a simple (return) instruction is sufficient for this
@@ -4594,7 +4599,8 @@ m68k_output_addr_const_extra (FILE *file, rtx x)
 	case UNSPEC_RELOC16:
 	case UNSPEC_RELOC32:
 	  output_addr_const (file, XVECEXP (x, 0, 0));
-	  fputs (m68k_get_reloc_decoration (INTVAL (XVECEXP (x, 0, 1))), file);
+	  fputs (m68k_get_reloc_decoration
+		 ((enum m68k_reloc) INTVAL (XVECEXP (x, 0, 1))), file);
 	  return true;
 
 	default:
@@ -4616,6 +4622,58 @@ m68k_output_dwarf_dtprel (FILE *file, int size, rtx x)
   fputs ("@TLSLDO+0x8000", file);
 }
 
+/* In the name of slightly smaller debug output, and to cater to
+   general assembler lossage, recognize various UNSPEC sequences
+   and turn them back into a direct symbol reference.  */
+
+static rtx
+m68k_delegitimize_address (rtx orig_x)
+{
+  rtx x, y;
+  rtx addend = NULL_RTX;
+  rtx result;
+
+  orig_x = delegitimize_mem_from_attrs (orig_x);
+  if (! MEM_P (orig_x))
+    return orig_x;
+
+  x = XEXP (orig_x, 0);
+
+  if (GET_CODE (x) == PLUS
+      && GET_CODE (XEXP (x, 1)) == CONST
+      && REG_P (XEXP (x, 0))
+      && REGNO (XEXP (x, 0)) == PIC_REG)
+    {
+      y = x = XEXP (XEXP (x, 1), 0);
+
+      /* Handle an addend.  */
+      if ((GET_CODE (x) == PLUS || GET_CODE (x) == MINUS)
+	  && CONST_INT_P (XEXP (x, 1)))
+	{
+	  addend = XEXP (x, 1);
+	  x = XEXP (x, 0);
+	}
+
+      if (GET_CODE (x) == UNSPEC
+	  && (XINT (x, 1) == UNSPEC_RELOC16
+	      || XINT (x, 1) == UNSPEC_RELOC32))
+	{
+	  result = XVECEXP (x, 0, 0);
+	  if (addend)
+	    {
+	      if (GET_CODE (y) == PLUS)
+		result = gen_rtx_PLUS (Pmode, result, addend);
+	      else
+		result = gen_rtx_MINUS (Pmode, result, addend);
+	      result = gen_rtx_CONST (Pmode, result);
+	    }
+	  return result;
+	}
+    }
+
+  return orig_x;
+}
+  
 
 /* A C compound statement to output to stdio stream STREAM the
    assembler syntax for an instruction operand that is a memory
@@ -5554,7 +5612,6 @@ m68k_sched_attr_opx_type (rtx insn, int address_p)
 
     default:
       gcc_unreachable ();
-      return 0;
     }
 }
 
@@ -5598,7 +5655,6 @@ m68k_sched_attr_opy_type (rtx insn, int address_p)
 
     default:
       gcc_unreachable ();
-      return 0;
     }
 }
 
@@ -5704,7 +5760,6 @@ m68k_sched_attr_size (rtx insn)
 
     default:
       gcc_unreachable ();
-      return 0;
     }
 }
 
@@ -5736,7 +5791,6 @@ sched_get_opxy_mem_type (rtx insn, bool opx_p)
 
 	default:
 	  gcc_unreachable ();
-	  return 0;
 	}
     }
   else
@@ -5762,7 +5816,6 @@ sched_get_opxy_mem_type (rtx insn, bool opx_p)
 
 	default:
 	  gcc_unreachable ();
-	  return 0;
 	}
     }
 }
@@ -5795,7 +5848,6 @@ m68k_sched_attr_op_mem (rtx insn)
 
 	default:
 	  gcc_unreachable ();
-	  return 0;
 	}
     }
 
@@ -5814,7 +5866,6 @@ m68k_sched_attr_op_mem (rtx insn)
 
 	default:
 	  gcc_unreachable ();
-	  return 0;
 	}
     }
 
@@ -6096,7 +6147,7 @@ m68k_sched_first_cycle_multipass_dfa_lookahead (void)
   return m68k_sched_issue_rate () - 1;
 }
 
-/* Implementation of targetm.sched.md_init_global () hook.
+/* Implementation of targetm.sched.init_global () hook.
    It is invoked once per scheduling pass and is used here
    to initialize scheduler constants.  */
 static void
@@ -6204,7 +6255,7 @@ m68k_sched_md_finish_global (FILE *dump ATTRIBUTE_UNUSED,
   sched_branch_type = NULL;
 }
 
-/* Implementation of targetm.sched.md_init () hook.
+/* Implementation of targetm.sched.init () hook.
    It is invoked each time scheduler starts on the new block (basic block or
    extended basic block).  */
 static void
@@ -6469,6 +6520,25 @@ m68k_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
   emit_move_insn (mem, fnaddr);
 
   FINALIZE_TRAMPOLINE (XEXP (m_tramp, 0));
+}
+
+/* On the 68000, the RTS insn cannot pop anything.
+   On the 68010, the RTD insn may be used to pop them if the number
+     of args is fixed, but if the number is variable then the caller
+     must pop them all.  RTD can't be used for library calls now
+     because the library is compiled with the Unix compiler.
+   Use of RTD is a selectable option, since it is incompatible with
+   standard Unix calling sequences.  If the option is not selected,
+   the caller must always pop the args.  */
+
+static int
+m68k_return_pops_args (tree fundecl, tree funtype, int size)
+{
+  return ((TARGET_RTD
+	   && (!fundecl
+	       || TREE_CODE (fundecl) != IDENTIFIER_NODE)
+	   && (!stdarg_p (funtype)))
+	  ? size : 0);
 }
 
 #include "gt-m68k.h"

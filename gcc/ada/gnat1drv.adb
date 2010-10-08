@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -30,6 +30,7 @@ with Csets;    use Csets;
 with Debug;    use Debug;
 with Elists;
 with Errout;   use Errout;
+with Exp_CG;
 with Fmap;
 with Fname;    use Fname;
 with Fname.UF; use Fname.UF;
@@ -49,6 +50,7 @@ with Par_SCO;
 with Prepcomp;
 with Repinfo;  use Repinfo;
 with Restrict;
+with Rident;   use Rident;
 with Rtsfind;
 with SCOs;
 with Sem;
@@ -149,7 +151,7 @@ procedure Gnat1drv is
          Front_End_Inlining := False;
       end if;
 
-      --  Tune settings for optimal SCIL generation in CodePeer_Mode
+      --  Tune settings for optimal SCIL generation in CodePeer mode
 
       if CodePeer_Mode then
 
@@ -158,9 +160,24 @@ procedure Gnat1drv is
          Front_End_Inlining := False;
          Inline_Active      := False;
 
-         --  Turn off ASIS mode: incompatible with front-end expansion.
+         --  Turn off ASIS mode: incompatible with front-end expansion
 
          ASIS_Mode := False;
+
+         --  Disable front-end optimizations, to keep the tree as close to the
+         --  source code as possible, and also to avoid inconsistencies between
+         --  trees when using different optimization switches.
+
+         Optimization_Level := 0;
+
+         --  Enable some restrictions systematically to simplify the generated
+         --  code (and ease analysis). Note that restriction checks are also
+         --  disabled in CodePeer mode, see Restrict.Check_Restriction
+
+         Restrict.Restrictions.Set   (No_Task_Hierarchy)               := True;
+         Restrict.Restrictions.Set   (No_Abort_Statements)             := True;
+         Restrict.Restrictions.Set   (Max_Asynchronous_Select_Nesting) := True;
+         Restrict.Restrictions.Value (Max_Asynchronous_Select_Nesting) := 0;
 
          --  Suppress overflow, division by zero and access checks since they
          --  are handled implicitly by CodePeer.
@@ -188,7 +205,7 @@ procedure Gnat1drv is
 
          Debug_Generated_Code := False;
 
-         --  Turn cross-referencing on in case it was disabled (by e.g. -gnatD)
+         --  Turn cross-referencing on in case it was disabled (e.g. by -gnatD)
          --  Do we really need to spend time generating xref in CodePeer
          --  mode??? Consider setting Xref_Active to False.
 
@@ -198,8 +215,8 @@ procedure Gnat1drv is
 
          Polling_Required := False;
 
-         --  Set operating mode to Generate_Code to benefit from full
-         --  front-end expansion (e.g. generics).
+         --  Set operating mode to Generate_Code to benefit from full front-end
+         --  expansion (e.g. generics).
 
          Operating_Mode := Generate_Code;
 
@@ -210,17 +227,15 @@ procedure Gnat1drv is
          --  Enable assertions and debug pragmas, since they give CodePeer
          --  valuable extra information.
 
-         Assertions_Enabled     := True;
-         Debug_Pragmas_Enabled  := True;
+         Assertions_Enabled    := True;
+         Debug_Pragmas_Enabled := True;
 
-         --  Suppress compiler warnings, since what we are interested in here
-         --  is what CodePeer can find out. Also disable all simple value
-         --  propagation. This is an optimization which is valuable for code
-         --  optimization, and also for generation of compiler warnings, but
-         --  these are being turned off anyway, and CodePeer understands
-         --  things more clearly if references are not optimized in this way.
+         --  Disable all simple value propagation. This is an optimization
+         --  which is valuable for code optimization, and also for generation
+         --  of compiler warnings, but these are being turned off by default,
+         --  and CodePeer generates better messages (referencing original
+         --  variables) this way.
 
-         Warning_Mode  := Suppress;
          Debug_Flag_MM := True;
 
          --  Set normal RM validity checking, and checking of IN OUT parameters
@@ -238,6 +253,12 @@ procedure Gnat1drv is
          --  front-end warnings when we are getting CodePeer output.
 
          Reset_Style_Check_Options;
+
+         --  Always perform semantics and generate ali files in CodePeer mode,
+         --  so that a gnatmake -c -k will proceed further when possible.
+
+         Force_ALI_Tree_File := True;
+         Try_Semantics := True;
       end if;
 
       --  Set Configurable_Run_Time mode if system.ads flag set
@@ -303,10 +324,10 @@ procedure Gnat1drv is
          end if;
       end if;
 
-      --  Set proper status for overflow checks. We turn on overflow checks
-      --  if -gnatp was not specified, and either -gnato is set or the back
-      --  end takes care of overflow checks. Otherwise we suppress overflow
-      --  checks by default (since front end checks are expensive).
+      --  Set proper status for overflow checks. We turn on overflow checks if
+      --  -gnatp was not specified, and either -gnato is set or the back-end
+      --  takes care of overflow checks. Otherwise we suppress overflow checks
+      --  by default (since front end checks are expensive).
 
       if not Opt.Suppress_Checks
         and then (Opt.Enable_Overflow_Checks
@@ -318,6 +339,48 @@ procedure Gnat1drv is
          Suppress_Options (Overflow_Check) := False;
       else
          Suppress_Options (Overflow_Check) := True;
+      end if;
+
+      --  Set switch indicating if we can use N_Expression_With_Actions
+
+      --  Debug flag -gnatd.X decisively sets usage on
+
+      if Debug_Flag_Dot_XX then
+         Use_Expression_With_Actions := True;
+
+      --  Debug flag -gnatd.Y decisively sets usage off
+
+      elsif Debug_Flag_Dot_YY then
+         Use_Expression_With_Actions := False;
+
+      --  Otherwise this feature is implemented, so we allow its use
+
+      else
+         Use_Expression_With_Actions := True;
+      end if;
+
+      --  Set switch indicating if back end can handle limited types, and
+      --  guarantee that no incorrect copies are made (e.g. in the context
+      --  of a conditional expression).
+
+      --  Debug flag -gnatd.L decisively sets usage on
+
+      if Debug_Flag_Dot_LL then
+         Back_End_Handles_Limited_Types := True;
+
+      --  If no debug flag, usage off for AAMP, VM, SCIL cases
+
+      elsif AAMP_On_Target
+        or else VM_Target /= No_VM
+        or else Generate_SCIL
+      then
+         Back_End_Handles_Limited_Types := False;
+
+      --  Otherwise normal gcc back end, for now still turn flag off by
+      --  default, since there are unresolved problems in the front end.
+
+      else
+         Back_End_Handles_Limited_Types := False;
       end if;
    end Adjust_Global_Switches;
 
@@ -344,7 +407,7 @@ procedure Gnat1drv is
          Error_Msg_N ("remove incorrect body in file{!", Main_Unit_Node);
       end Bad_Body_Error;
 
-      --  Start of processing for Check_Bad_Body
+   --  Start of processing for Check_Bad_Body
 
    begin
       --  Nothing to do if we are only checking syntax, because we don't know
@@ -368,7 +431,7 @@ procedure Gnat1drv is
          Sname := Unit_Name (Main_Unit);
 
          --  If we do not already have a body name, then get the body name
-         --  (but how can we have a body name here ???)
+         --  (but how can we have a body name here???)
 
          if not Is_Body_Name (Sname) then
             Sname := Get_Body_Name (Sname);
@@ -377,20 +440,19 @@ procedure Gnat1drv is
          Fname := Get_File_Name (Sname, Subunit => False);
          Src_Ind := Load_Source_File (Fname);
 
-         --  Case where body is present and it is not a subunit. Exclude
-         --  the subunit case, because it has nothing to do with the
-         --  package we are compiling. It is illegal for a child unit and a
-         --  subunit with the same expanded name (RM 10.2(9)) to appear
-         --  together in a partition, but there is nothing to stop a
-         --  compilation environment from having both, and the test here
-         --  simply allows that. If there is an attempt to include both in
-         --  a partition, this is diagnosed at bind time. In Ada 83 mode
-         --  this is not a warning case.
+         --  Case where body is present and it is not a subunit. Exclude the
+         --  subunit case, because it has nothing to do with the package we are
+         --  compiling. It is illegal for a child unit and a subunit with the
+         --  same expanded name (RM 10.2(9)) to appear together in a partition,
+         --  but there is nothing to stop a compilation environment from having
+         --  both, and the test here simply allows that. If there is an attempt
+         --  to include both in a partition, this is diagnosed at bind time. In
+         --  Ada 83 mode this is not a warning case.
 
-         --  Note: if weird file names are being used, we can have
-         --  situation where the file name that supposedly contains body,
-         --  in fact contains a spec, or we can't tell what it contains.
-         --  Skip the error message in these cases.
+         --  Note: if weird file names are being used, we can have a situation
+         --  where the file name that supposedly contains body in fact contains
+         --  a spec, or we can't tell what it contains. Skip the error message
+         --  in these cases.
 
          --  Also ignore body that is nothing but pragma No_Body; (that's the
          --  whole point of this pragma, to be used this way and to cause the
@@ -536,11 +598,11 @@ begin
       Nlists.Initialize;
       Sinput.Initialize;
       Sem.Initialize;
+      Exp_CG.Initialize;
       Csets.Initialize;
       Uintp.Initialize;
       Urealp.Initialize;
       Errout.Initialize;
-      Namet.Initialize;
       SCOs.Initialize;
       Snames.Initialize;
       Stringt.Initialize;
@@ -570,8 +632,7 @@ begin
          if S = No_Source_File then
             Write_Line
               ("fatal error, run-time library not installed correctly");
-            Write_Line
-              ("cannot locate file system.ads");
+            Write_Line ("cannot locate file system.ads");
             raise Unrecoverable_Error;
 
          --  Remember source index of system.ads (which was read successfully)
@@ -602,9 +663,8 @@ begin
          Write_Str ("GNAT ");
          Write_Str (Gnat_Version_String);
          Write_Eol;
-         Write_Str ("Copyright 1992-" &
-                    Current_Year &
-                    ", Free Software Foundation, Inc.");
+         Write_Str ("Copyright 1992-" & Current_Year
+                    & ", Free Software Foundation, Inc.");
          Write_Eol;
       end if;
 
@@ -664,9 +724,9 @@ begin
 
       Set_Generate_Code (Main_Unit);
 
-      --  If we have a corresponding spec, and it comes from source
-      --  or it is not a generated spec for a child subprogram body,
-      --  then we need object code for the spec unit as well.
+      --  If we have a corresponding spec, and it comes from source or it is
+      --  not a generated spec for a child subprogram body, then we need object
+      --  code for the spec unit as well.
 
       if Nkind (Unit (Main_Unit_Node)) in N_Unit_Body
         and then not Acts_As_Spec (Main_Unit_Node)
@@ -700,8 +760,8 @@ begin
          Back_End_Mode := Declarations_Only;
 
       --  All remaining cases are cases in which the user requested that code
-      --  be generated (i.e. no -gnatc or -gnats switch was used). Check if
-      --  we can in fact satisfy this request.
+      --  be generated (i.e. no -gnatc or -gnats switch was used). Check if we
+      --  can in fact satisfy this request.
 
       --  Cannot generate code if someone has turned off code generation for
       --  any reason at all. We will try to figure out a reason below.
@@ -713,26 +773,22 @@ begin
       --  subunits. Note that we always generate code for all generic units (a
       --  change from some previous versions of GNAT).
 
-      elsif Main_Kind = N_Subprogram_Body
-        and then not Subunits_Missing
-      then
+      elsif Main_Kind = N_Subprogram_Body and then not Subunits_Missing then
          Back_End_Mode := Generate_Object;
 
       --  We can generate code for a package body unless there are subunits
       --  missing (note that we always generate code for generic units, which
       --  is a change from some earlier versions of GNAT).
 
-      elsif Main_Kind = N_Package_Body
-        and then not Subunits_Missing
-      then
+      elsif Main_Kind = N_Package_Body and then not Subunits_Missing then
          Back_End_Mode := Generate_Object;
 
       --  We can generate code for a package declaration or a subprogram
       --  declaration only if it does not required a body.
 
-      elsif (Main_Kind = N_Package_Declaration
-               or else
-             Main_Kind = N_Subprogram_Declaration)
+      elsif Nkind_In (Main_Kind,
+              N_Package_Declaration,
+              N_Subprogram_Declaration)
         and then
           (not Body_Required (Main_Unit_Node)
              or else
@@ -743,18 +799,17 @@ begin
       --  We can generate code for a generic package declaration of a generic
       --  subprogram declaration only if does not require a body.
 
-      elsif (Main_Kind = N_Generic_Package_Declaration
-               or else
-             Main_Kind = N_Generic_Subprogram_Declaration)
+      elsif Nkind_In (Main_Kind, N_Generic_Package_Declaration,
+                                 N_Generic_Subprogram_Declaration)
         and then not Body_Required (Main_Unit_Node)
       then
          Back_End_Mode := Generate_Object;
 
-      --  Compilation units that are renamings do not require bodies,
-      --  so we can generate code for them.
+      --  Compilation units that are renamings do not require bodies, so we can
+      --  generate code for them.
 
-      elsif Main_Kind = N_Package_Renaming_Declaration
-        or else Main_Kind = N_Subprogram_Renaming_Declaration
+      elsif Nkind_In (Main_Kind, N_Package_Renaming_Declaration,
+                                 N_Subprogram_Renaming_Declaration)
       then
          Back_End_Mode := Generate_Object;
 
@@ -799,42 +854,28 @@ begin
          if Subunits_Missing then
             Write_Str (" (missing subunits)");
             Write_Eol;
-            Write_Str ("to check parent unit");
 
          elsif Main_Kind = N_Subunit then
             Write_Str (" (subunit)");
             Write_Eol;
-            Write_Str ("to check subunit");
 
          elsif Main_Kind = N_Subprogram_Declaration then
             Write_Str (" (subprogram spec)");
             Write_Eol;
-            Write_Str ("to check subprogram spec");
 
          --  Generic package body in GNAT implementation mode
 
          elsif Main_Kind = N_Package_Body and then GNAT_Mode then
             Write_Str (" (predefined generic)");
             Write_Eol;
-            Write_Str ("to check predefined generic");
 
          --  Only other case is a package spec
 
          else
             Write_Str (" (package spec)");
             Write_Eol;
-            Write_Str ("to check package spec");
          end if;
 
-         Write_Str (" for errors, use ");
-
-         if Hostparm.OpenVMS then
-            Write_Str ("/NOLOAD");
-         else
-            Write_Str ("-gnatc");
-         end if;
-
-         Write_Eol;
          Set_Standard_Output;
 
          Sem_Ch13.Validate_Unchecked_Conversions;
@@ -852,8 +893,8 @@ begin
          Exit_Program (E_No_Code);
       end if;
 
-      --  In -gnatc mode, we only do annotation if -gnatt or -gnatR is also
-      --  set as indicated by Back_Annotate_Rep_Info being set to True.
+      --  In -gnatc mode, we only do annotation if -gnatt or -gnatR is also set
+      --  as indicated by Back_Annotate_Rep_Info being set to True.
 
       --  We don't call for annotations on a subunit, because to process those
       --  the back-end requires that the parent(s) be properly compiled.
@@ -861,8 +902,8 @@ begin
       --  Annotation is suppressed for targets where front-end layout is
       --  enabled, because the front end determines representations.
 
-      --  Annotation is also suppressed in the case of compiling for
-      --  a VM, since representations are largely symbolic there.
+      --  Annotation is also suppressed in the case of compiling for a VM,
+      --  since representations are largely symbolic there.
 
       if Back_End_Mode = Declarations_Only
         and then (not (Back_Annotate_Rep_Info or Generate_SCIL)
@@ -925,6 +966,10 @@ begin
 
       Namet.Unlock;
 
+      --  Generate the call-graph output of dispatching calls
+
+      Exp_CG.Generate_CG_Output;
+
       --  Validate unchecked conversions (using the values for size and
       --  alignment annotated by the backend where possible).
 
@@ -956,11 +1001,10 @@ begin
 
       Write_ALI (Object => (Back_End_Mode = Generate_Object));
 
-      --  Generate the ASIS tree after writing the ALI file, since in ASIS
-      --  mode, Write_ALI may in fact result in further tree decoration from
-      --  the original tree file. Note that we dump the tree just before
-      --  generating it, so that the dump will exactly reflect what is written
-      --  out.
+      --  Generate ASIS tree after writing the ALI file, since in ASIS mode,
+      --  Write_ALI may in fact result in further tree decoration from the
+      --  original tree file. Note that we dump the tree just before generating
+      --  it, so that the dump will exactly reflect what is written out.
 
       Treepr.Tree_Dump;
       Tree_Gen;

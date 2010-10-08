@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler for picoChip
-   Copyright (C) 2001, 2008 Free Software Foundation, Inc.
+   Copyright (C) 2001, 2008, 2009, 2010 Free Software Foundation, Inc.
 
    Contributed by picoChip Designs Ltd. (http://www.picochip.com)
    Maintained by Daniel Towner (daniel.towner@picochip.com) and
@@ -83,12 +83,6 @@ extern enum picochip_dfa_type picochip_schedule_type;
 #define TARGET_HAS_MUL_UNIT (picochip_has_mul_unit)
 #define TARGET_HAS_MAC_UNIT (picochip_has_mac_unit)
 #define TARGET_HAS_MULTIPLY (picochip_has_mac_unit || picochip_has_mul_unit)
-
-/* Allow some options to be overriden.  In particular, the 2nd
-   scheduling pass option is switched off, and a machine dependent
-   reorganisation ensures that it is run later on, after the second
-   jump optimisation. */
-#define OVERRIDE_OPTIONS picochip_override_options()
 
 #define CAN_DEBUG_WITHOUT_FP 1
 
@@ -261,7 +255,7 @@ extern enum picochip_dfa_type picochip_schedule_type;
 /* We can dynamically change the REG_ALLOC_ORDER using the following hook.
    It would be desirable to change it for leaf functions so we can put
    r12 at the end of this list.*/
-#define ORDER_REGS_FOR_LOCAL_ALLOC picochip_order_regs_for_local_alloc ()
+#define ADJUST_REG_ALLOC_ORDER picochip_order_regs_for_local_alloc ()
 
 /* How Values Fit in Registers  */
 
@@ -406,9 +400,6 @@ extern const enum reg_class picochip_regno_reg_class[FIRST_PSEUDO_REGISTER];
 
 #define PUSH_ARGS 0
 
-/* Functions don't pop their args.  */
-#define RETURN_POPS_ARGS(FNDECL, FNTYPE, STACK) 0
-
 /* Passing Arguments in Registers  */
 
 /* Store the offset of the next argument. */
@@ -495,7 +486,10 @@ extern const enum reg_class picochip_regno_reg_class[FIRST_PSEUDO_REGISTER];
    correct code is generated. */
 
 #define LEGITIMIZE_RELOAD_ADDRESS(X,MODE,OPNUM,TYPE,IND_LEVELS,WIN)	     \
-if (picochip_symbol_offset(X)) { X = gen_rtx_CONST(MODE, X); }
+do {                                                                         \
+  if (picochip_legitimize_reload_address(&X,MODE,OPNUM,TYPE,IND_LEVELS))     \
+    goto WIN;                                                                \
+  } while(0);                                                                \
 
 /* Nonzero if the constant rtx X is a legitimate general operand.  X
    satisfies CONSTANT_P.  */

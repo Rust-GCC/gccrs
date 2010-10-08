@@ -1,7 +1,8 @@
 // -*- C++ -*-
 // Testing utilities for the tr1 testsuite.
 //
-// Copyright (C) 2004, 2005, 2006, 2007, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2004, 2005, 2006, 2007, 2009, 2010
+// Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -56,8 +57,7 @@ namespace __gnu_test
   // For testing tr1/type_traits/extent, which has a second template
   // parameter.
   template<template<typename, unsigned> class Property,
-           typename Type,
-	   unsigned Uint>
+           typename Type, unsigned Uint>
     bool
     test_property(typename Property<Type, Uint>::value_type value)
     {
@@ -66,6 +66,18 @@ namespace __gnu_test
       ret &= Property<Type, Uint>::type::value == value;
       return ret;
     }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  template<template<typename...> class Property, typename... Types>
+    bool
+    test_property(typename Property<Types...>::value_type value)
+    {
+      bool ret = true;
+      ret &= Property<Types...>::value == value;
+      ret &= Property<Types...>::type::value == value;
+      return ret;
+    }
+#endif
 
   template<template<typename, typename> class Relationship,
            typename Type1, typename Type2>
@@ -111,6 +123,70 @@ namespace __gnu_test
   union UnionType { };
 
   class IncompleteClass;
+
+  struct ExplicitClass
+  {
+    ExplicitClass(double&);
+    explicit ExplicitClass(int&);
+    ExplicitClass(double&, int&, double&);
+  };
+
+  struct NothrowExplicitClass
+  {
+    NothrowExplicitClass(double&) throw();
+    explicit NothrowExplicitClass(int&) throw();
+    NothrowExplicitClass(double&, int&, double&) throw();
+  };
+
+  struct ThrowExplicitClass
+  {
+    ThrowExplicitClass(double&) throw(int);
+    explicit ThrowExplicitClass(int&) throw(int);
+    ThrowExplicitClass(double&, int&, double&) throw(int);
+  };
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  struct NoexceptExplicitClass
+  {
+    NoexceptExplicitClass(double&) noexcept(true);
+    explicit NoexceptExplicitClass(int&) noexcept(true);
+    NoexceptExplicitClass(double&, int&, double&) noexcept(true);
+  };
+
+  struct ExceptExplicitClass
+  {
+    ExceptExplicitClass(double&) noexcept(false);
+    explicit ExceptExplicitClass(int&) noexcept(false);
+    ExceptExplicitClass(double&, int&, double&) noexcept(false);
+  };
+#endif
+
+  struct NType   // neither trivial nor standard-layout
+  {
+    int i;
+    int j;
+    virtual ~NType();
+  };
+
+  struct TType   // trivial but not standard-layout
+  {
+    int i;
+  private:
+    int j;
+  };
+
+  struct SLType  // standard-layout but not trivial
+  {
+    int i;
+    int j;
+    ~SLType();
+  };
+
+  struct PODType // both trivial and standard-layout
+  {
+    int i;
+    int j;
+  };
 
   int truncate_float(float x) { return (int)x; }
   long truncate_double(double x) { return (long)x; }

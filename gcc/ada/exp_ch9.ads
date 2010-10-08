@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -50,14 +50,6 @@ package Exp_Ch9 is
    --  Task_Id of the associated task as the parameter. The caller is
    --  responsible for analyzing and resolving the resulting tree.
 
-   function Build_Corresponding_Record
-     (N    : Node_Id;
-      Ctyp : Node_Id;
-      Loc  : Source_Ptr) return Node_Id;
-   --  Common to tasks and protected types. Copy discriminant specifications,
-   --  build record declaration. N is the type declaration, Ctyp is the
-   --  concurrent entity (task type or protected type).
-
    function Build_Entry_Names (Conc_Typ : Entity_Id) return Node_Id;
    --  Create the statements which populate the entry names array of a task or
    --  protected type. The statements are wrapped inside a block due to a local
@@ -81,6 +73,15 @@ package Exp_Ch9 is
    --  object at the outer level, but it is much easier to generate one per
    --  declarative part.
 
+   function Build_Private_Protected_Declaration (N : Node_Id) return Entity_Id;
+   --  A subprogram body without a previous spec that appears in a protected
+   --  body must be expanded separately to create a subprogram declaration
+   --  for it, in order to resolve internal calls to it from other protected
+   --  operations. It would seem that no locking version of the operation is
+   --  needed, but in fact, in Ada 2005 the subprogram may be used in a call-
+   --  back, and therefore a protected version of the operation must be
+   --  generated as well.
+
    function Build_Protected_Sub_Specification
      (N        : Node_Id;
       Prot_Typ : Entity_Id;
@@ -96,28 +97,28 @@ package Exp_Ch9 is
       Name     : Node_Id;
       Rec      : Node_Id;
       External : Boolean := True);
-   --  The node N is a subprogram or entry call to a protected subprogram.
-   --  This procedure rewrites this call with the appropriate expansion.
-   --  Name is the subprogram, and Rec is the record corresponding to the
-   --  protected object. External is False if the call is to another
-   --  protected subprogram within the same object.
+   --  The node N is a subprogram or entry call to a protected subprogram. This
+   --  procedure rewrites this call with the appropriate expansion. Name is the
+   --  subprogram, and Rec is the record corresponding to the protected object.
+   --  External is False if the call is to another protected subprogram within
+   --  the same object.
 
    procedure Build_Task_Activation_Call (N : Node_Id);
-   --  This procedure is called for constructs that can be task activators
-   --  i.e. task bodies, subprogram bodies, package bodies and blocks. If
-   --  the construct is a task activator (as indicated by the non-empty
-   --  setting of Activation_Chain_Entity, either in the construct, or, in
-   --  the case of a package body, in its associated package spec), then
-   --  a call to Activate_Tasks with this entity as the single parameter
-   --  is inserted at the start of the statements of the activator.
+   --  This procedure is called for constructs that can be task activators,
+   --  i.e. task bodies, subprogram bodies, package bodies and blocks. If the
+   --  construct is a task activator (as indicated by the non-empty setting of
+   --  Activation_Chain_Entity, either in the construct, or, in the case of a
+   --  package body, in its associated package spec), then a call to
+   --  Activate_Tasks with this entity as the single parameter is inserted at
+   --  the start of the statements of the activator.
 
    procedure Build_Task_Allocate_Block
      (Actions : List_Id;
       N       : Node_Id;
       Args    : List_Id);
-   --  This routine is used in the case of allocators where the designated
-   --  type is a task or contains tasks. In this case, the normal initialize
-   --  call is replaced by:
+   --  This routine is used in the case of allocators where the designated type
+   --  is a task or contains tasks. In this case, the normal initialize call
+   --  is replaced by:
    --
    --    blockname : label;
    --    blockname : declare
@@ -137,10 +138,10 @@ package Exp_Ch9 is
    --
    --  to get the task or tasks created and initialized. The expunge call
    --  ensures that any tasks that get created but not activated due to an
-   --  exception are properly expunged (it has no effect in the normal case)
-   --  The argument N is the allocator, and Args is the list of arguments
-   --  for the initialization call, constructed by the caller, which uses
-   --  the Master_Id of the access type as the _Master parameter, and _Chain
+   --  exception are properly expunged (it has no effect in the normal case).
+   --  The argument N is the allocator, and Args is the list of arguments for
+   --  the initialization call, constructed by the caller, which uses the
+   --  Master_Id of the access type as the _Master parameter, and _Chain
    --  (defined above) as the _Chain parameter.
 
    procedure Build_Task_Allocate_Block_With_Init_Stmts
@@ -190,28 +191,28 @@ package Exp_Ch9 is
       Index : Node_Id;
       Ttyp  : Entity_Id)
       return  Node_Id;
-   --  Returns an expression to compute a task entry index given the name
-   --  of the entry or entry family. For the case of a task entry family,
-   --  the Index parameter contains the expression for the subscript.
-   --  Ttyp is the task type.
+   --  Returns an expression to compute a task entry index given the name of
+   --  the entry or entry family. For the case of a task entry family, the
+   --  Index parameter contains the expression for the subscript. Ttyp is the
+   --  task type.
 
    procedure Establish_Task_Master (N : Node_Id);
    --  Given a subprogram body, or a block statement, or a task body, this
-   --  procedure makes the necessary transformations required of a task
-   --  master (add Enter_Master call at start, and establish a cleanup
-   --  routine to make sure Complete_Master is called on exit).
+   --  procedure makes the necessary transformations required of a task master
+   --  (add Enter_Master call at start, and establish a cleanup routine to make
+   --  sure Complete_Master is called on exit).
 
    procedure Expand_Access_Protected_Subprogram_Type (N : Node_Id);
    --  Build Equivalent_Type for an Access_To_Protected_Subprogram.
-   --  Equivalent_Type is a record type with two components: a pointer
-   --  to the protected object, and a pointer to the operation itself.
+   --  Equivalent_Type is a record type with two components: a pointer to the
+   --  protected object, and a pointer to the operation itself.
 
    procedure Expand_Accept_Declarations (N : Node_Id; Ent : Entity_Id);
-   --  Expand declarations required for accept statement. See bodies of
-   --  both Expand_Accept_Declarations and Expand_N_Accept_Statement for
-   --  full details of the nature and use of these declarations, which
-   --  are inserted immediately before the accept node N. The second
-   --  argument is the entity for the corresponding entry.
+   --  Expand declarations required for accept statement. See bodies of both
+   --  Expand_Accept_Declarations and Expand_N_Accept_Statement for full
+   --  details of the nature and use of these declarations, which are inserted
+   --  immediately before the accept node N. The second argument is the entity
+   --  for the corresponding entry.
 
    procedure Expand_Entry_Barrier (N : Node_Id; Ent : Entity_Id);
    --  Expand the entry barrier into a function. This is called directly
@@ -261,6 +262,15 @@ package Exp_Ch9 is
    function External_Subprogram (E : Entity_Id) return Entity_Id;
    --  return the external version of a protected operation, which locks
    --  the object before invoking the internal protected subprogram body.
+
+   function Find_Master_Scope (E : Entity_Id) return Entity_Id;
+   --  When a type includes tasks, a master entity is created in the scope, to
+   --  be used by the runtime during activation. In general the master is the
+   --  immediate scope in which the type is declared, but in Ada2005, in the
+   --  presence of synchronized classwide interfaces, the immediate scope of
+   --  an anonymous access type may be a transient scope, which has no run-time
+   --  presence. In this case, the scope of the master is the innermost scope
+   --  that comes from source.
 
    function First_Protected_Operation (D : List_Id) return Node_Id;
    --  Given the declarations list for a protected body, find the

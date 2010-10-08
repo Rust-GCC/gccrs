@@ -4,7 +4,7 @@
    files.  On this glorious day maybe this code can be integrated into
    it too.  */
 
-/* Copyright (C) 2005, 2008, 2009  Free Software Foundation, Inc.
+/* Copyright (C) 2005, 2008, 2009, 2010  Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -75,7 +75,7 @@ extern int __clzhi2 (UHWtype);
 extern int __ctzhi2 (UHWtype);
 
 
-
+#ifdef XSTORMY16_UDIVMODSI4
 USItype
 udivmodsi4 (USItype num, USItype den, word_type modwanted)
 {
@@ -102,7 +102,9 @@ udivmodsi4 (USItype num, USItype den, word_type modwanted)
     return num;
   return res;
 }
+#endif
 
+#ifdef XSTORMY16_DIVSI3
 SItype
 __divsi3 (SItype a, SItype b)
 {
@@ -128,7 +130,9 @@ __divsi3 (SItype a, SItype b)
 
   return res;
 }
+#endif
 
+#ifdef XSTORMY16_MODSI3
 SItype
 __modsi3 (SItype a, SItype b)
 {
@@ -151,19 +155,25 @@ __modsi3 (SItype a, SItype b)
 
   return res;
 }
+#endif
 
+#ifdef XSTORMY16_UDIVSI3
 SItype
 __udivsi3 (SItype a, SItype b)
 {
   return udivmodsi4 (a, b, 0);
 }
+#endif
 
+#ifdef XSTORMY16_UMODSI3
 SItype
 __umodsi3 (SItype a, SItype b)
 {
   return udivmodsi4 (a, b, 1);
 }
+#endif
 
+#ifdef XSTORMY16_ASHLSI3
 SItype
 __ashlsi3 (SItype a, SItype b)
 {
@@ -177,7 +187,9 @@ __ashlsi3 (SItype a, SItype b)
     a <<= 1;
   return a;
 }
+#endif
 
+#ifdef XSTORMY16_ASHRSI3
 SItype
 __ashrsi3 (SItype a, SItype b)
 {
@@ -191,7 +203,9 @@ __ashrsi3 (SItype a, SItype b)
     a >>= 1;
   return a;
 }
+#endif
 
+#ifdef XSTORMY16_LSHRSI3
 USItype
 __lshrsi3 (USItype a, USItype b)
 {
@@ -205,9 +219,11 @@ __lshrsi3 (USItype a, USItype b)
     a >>= 1;
   return a;
 }
+#endif
 
+#ifdef XSTORMY16_POPCOUNTHI2
 /* Returns the number of set bits in X.
-   FIXME:  The return type really should be unsigned,
+   FIXME:  The return type really should be "unsigned int"
    but this is not how the builtin is prototyped.  */
 int
 __popcounthi2 (UHWtype x)
@@ -219,9 +235,11 @@ __popcounthi2 (UHWtype x)
 
   return ret;
 }
+#endif
 
+#ifdef XSTORMY16_PARITYHI2
 /* Returns the number of set bits in X, modulo 2.
-   FIXME:  The return type really should be unsigned,
+   FIXME:  The return type really should be "unsigned int"
    but this is not how the builtin is prototyped.  */
 
 int
@@ -232,32 +250,108 @@ __parityhi2 (UHWtype x)
   x &= 0xf;
   return (0x6996 >> x) & 1;
 }
+#endif
 
-/* Returns the number of leading zero bits in X.
-   FIXME:  The return type really should be unsigned,
-   but this is not how the builtin is prototyped.  */
-
+#ifdef XSTORMY16_CLZHI2
+/* Returns the number of zero-bits from the most significant bit to the
+   first nonzero bit in X.  Returns 16 for X == 0.  Implemented as a
+   simple for loop in order to save space by removing the need for
+   the __clz_tab array.
+   FIXME:  The return type really should be "unsigned int" but this is
+   not how the builtin is prototyped.  */
+#undef unsigned
 int
 __clzhi2 (UHWtype x)
 {
-  if (x > 0xff)
-    return 8 - __clz_tab[x >> 8];
-  return 16 - __clz_tab[x];
-}
+  unsigned int i;
+  unsigned int c;
+  unsigned int value = x;
 
+  for (c = 0, i = 1 << 15; i; i >>= 1, c++)
+    if (i & value)
+      break;
+  return c;
+}
+#endif
+
+#ifdef XSTORMY16_CTZHI2
 /* Returns the number of trailing zero bits in X.
-   FIXME:  The return type really should be unsigned,
-   but this is not how the builtin is prototyped.  */
+   FIXME:  The return type really should be "signed int" since
+   ctz(0) returns -1, but this is not how the builtin is prototyped.  */
 
 int
 __ctzhi2 (UHWtype x)
 {
   /* This is cunning.  It converts X into a number with only the one bit
-     set, the bit was the least significant bit in X.  From this we can
-     use the __clz_tab[] array to compute the number of trailing bits.  */
+     set, the bit that was the least significant bit in X.  From this we
+     can use the count_leading_zeros to compute the number of trailing
+     bits.  */
   x &= - x;
 
-  if (x > 0xff)
-    return __clz_tab[x >> 8] + 7;
-  return __clz_tab[x] - 1;
+  return 15 - __builtin_clz (x);
 }
+#endif
+
+#ifdef XSTORMY16_FFSHI2
+/* Returns one plus the index of the least significant 1-bit of X,
+   or if X is zero, returns zero.  FIXME:  The return type really
+   should be "unsigned int" but this is not how the builtin is
+   prototyped.  */
+
+int
+__ffshi2 (UHWtype u)
+{
+  UHWtype count;
+
+  if (u == 0)
+    return 0;
+
+  return 16 - __builtin_clz (u & - u);
+}
+#endif
+
+#ifdef XSTORMY16_UCMPSI2
+/* Performs an unsigned comparison of two 32-bit values: A and B.
+   If A is less than B, then 0 is returned.  If A is greater than B,
+   then 2 is returned.  Otherwise A and B are equal and 1 is returned.  */
+
+word_type
+__ucmpsi2 (USItype a, USItype b)
+{
+  word_type hi_a = (a >> 16);
+  word_type hi_b = (b >> 16);
+
+  if (hi_a == hi_b)
+    {
+      word_type low_a = (a & 0xffff);
+      word_type low_b = (b & 0xffff);
+
+      return low_a < low_b ? 0 : (low_a > low_b ? 2 : 1);
+    }
+
+  return hi_a < hi_b ? 0 : 2;
+}
+#endif
+
+#ifdef XSTORMY16_CMPSI2
+/* Performs an signed comparison of two 32-bit values: A and B.
+   If A is less than B, then 0 is returned.  If A is greater than B,
+   then 2 is returned.  Otherwise A and B are equal and 1 is returned.  */
+
+word_type
+__cmpsi2 (SItype a, SItype b)
+{
+  word_type hi_a = (a >> 16);
+  word_type hi_b = (b >> 16);
+
+  if (hi_a == hi_b)
+    {
+      word_type low_a = (a & 0xffff);
+      word_type low_b = (b & 0xffff);
+
+      return low_a < low_b ? 0 : (low_a > low_b ? 2 : 1);
+    }
+
+  return hi_a < hi_b ? 0 : 2;
+}
+#endif

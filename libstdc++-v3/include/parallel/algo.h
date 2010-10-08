@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -150,7 +150,7 @@ namespace __parallel
 
       if (_GLIBCXX_PARALLEL_CONDITION(true))
         {
-          binder2nd<__gnu_parallel::_EqualTo<_ValueType, const _Tp&> >
+	  std::binder2nd<__gnu_parallel::_EqualTo<_ValueType, const _Tp&> >
             __comp(__gnu_parallel::_EqualTo<_ValueType, const _Tp&>(), __val);
           return __gnu_parallel::__find_template(
                    __begin, __end, __begin, __comp,
@@ -292,8 +292,8 @@ namespace __parallel
       typedef typename _IIterTraits::value_type _IValueType;
       typedef typename iteratorf_traits::value_type _FValueType;
 
-      return find_first_of(__begin1, __end1, __begin2, __end2, __gnu_parallel::
-                           _EqualTo<_IValueType, _FValueType>());
+      return _GLIBCXX_STD_P::find_first_of(__begin1, __end1, __begin2, __end2,
+                         __gnu_parallel::_EqualTo<_IValueType, _FValueType>());
     }
 
   // Sequential fallback
@@ -1043,7 +1043,9 @@ namespace __parallel
       typedef std::iterator_traits<_RAIter2> _Iterator2Traits;
       typedef typename _Iterator2Traits::value_type _ValueType2;
 
-      if (_GLIBCXX_PARALLEL_CONDITION(true))
+      if (_GLIBCXX_PARALLEL_CONDITION(
+                static_cast<__gnu_parallel::_SequenceIndex>(__end1 - __begin1)
+            >= __gnu_parallel::_Settings::get().search_minimal_n))
         return __gnu_parallel::
           __search_template(
             __begin1, __end1, __begin2, __end2,
@@ -1097,7 +1099,9 @@ namespace __parallel
                   _BinaryPredicate __pred,
                   random_access_iterator_tag, random_access_iterator_tag)
     {
-      if (_GLIBCXX_PARALLEL_CONDITION(true))
+      if (_GLIBCXX_PARALLEL_CONDITION(
+                static_cast<__gnu_parallel::_SequenceIndex>(__end1 - __begin1)
+            >= __gnu_parallel::_Settings::get().search_minimal_n))
         return __gnu_parallel::__search_template(__begin1, __end1,
                                                __begin2, __end2, __pred);
       else
@@ -1156,7 +1160,7 @@ namespace __parallel
              const _Tp& __val)
     {
       typedef typename iterator_traits<_FIterator>::value_type _ValueType;
-      return search_n(__begin, __end, __count, __val,
+      return _GLIBCXX_STD_P::search_n(__begin, __end, __count, __val,
                       __gnu_parallel::_EqualTo<_ValueType, _Tp>());
     }
 
@@ -1168,15 +1172,17 @@ namespace __parallel
                       const _Tp& __val, _BinaryPredicate __binary_pred,
                       random_access_iterator_tag)
     {
-      if (_GLIBCXX_PARALLEL_CONDITION(true))
+      if (_GLIBCXX_PARALLEL_CONDITION(
+                static_cast<__gnu_parallel::_SequenceIndex>(__end - __begin)
+            >= __gnu_parallel::_Settings::get().search_minimal_n))
         {
           __gnu_parallel::_PseudoSequence<_Tp, _Integer> __ps(__val, __count);
           return __gnu_parallel::__search_template(
                    __begin, __end, __ps.begin(), __ps.end(), __binary_pred);
         }
       else
-        return std::__search_n(__begin, __end, __count, __val,
-                               __binary_pred, random_access_iterator_tag());
+        return _GLIBCXX_STD_P::search_n(__begin, __end, __count, __val,
+                                        __binary_pred);
     }
 
   // Sequential fallback for input iterator case.
@@ -1186,8 +1192,8 @@ namespace __parallel
     __search_n_switch(_FIterator __begin, _FIterator __end, _Integer __count,
                       const _Tp& __val, _BinaryPredicate __binary_pred,
                       _IteratorTag)
-    { return __search_n(__begin, __end, __count, __val, __binary_pred,
-                        _IteratorTag()); }
+    { return _GLIBCXX_STD_P::search_n(__begin, __end, __count, __val,
+                                      __binary_pred); }
 
   // Public interface.
   template<typename _FIterator, typename _Integer, typename _Tp,
@@ -1639,7 +1645,7 @@ namespace __parallel
   // Sequential fallback.
   template<typename _RAIter, typename _RandomNumberGenerator>
     inline void
-    random_shuffle(_RAIter __begin, _RAIter __end, 
+    random_shuffle(_RAIter __begin, _RAIter __end,
                    _RandomNumberGenerator& __rand,
                    __gnu_parallel::sequential_tag)
     { _GLIBCXX_STD_P::random_shuffle(__begin, __end, __rand); }
@@ -1667,8 +1673,12 @@ namespace __parallel
   // Parallel algorithm for random access iterators.
   template<typename _RAIter, typename _RandomNumberGenerator>
     void
-    random_shuffle(_RAIter __begin, _RAIter __end, 
+    random_shuffle(_RAIter __begin, _RAIter __end,
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+                   _RandomNumberGenerator&& __rand)
+#else
                    _RandomNumberGenerator& __rand)
+#endif
     {
       if (__begin == __end)
         return;
@@ -2076,8 +2086,8 @@ namespace __parallel
       typedef typename _Iterator1Traits::value_type _ValueType1;
       typedef typename _Iterator2Traits::value_type _ValueType2;
 
-      return merge(__begin1, __end1, __begin2, __end2, __result, 
-                   __gnu_parallel::_Less<_ValueType1, _ValueType2>());
+      return _GLIBCXX_STD_P::merge(__begin1, __end1, __begin2, __end2,
+                  __result, __gnu_parallel::_Less<_ValueType1, _ValueType2>());
     }
 
   // Sequential fallback
@@ -2118,7 +2128,8 @@ namespace __parallel
     {
       typedef iterator_traits<_RAIter> _TraitsType;
       typedef typename _TraitsType::value_type _ValueType;
-      nth_element(__begin, __nth, __end, std::less<_ValueType>());
+      _GLIBCXX_STD_P::nth_element(__begin, __nth, __end,
+                                  std::less<_ValueType>());
     }
 
   // Sequential fallback
@@ -2160,7 +2171,8 @@ namespace __parallel
     {
       typedef iterator_traits<_RAIter> _TraitsType;
       typedef typename _TraitsType::value_type _ValueType;
-      partial_sort(__begin, __middle, __end, std::less<_ValueType>());
+      _GLIBCXX_STD_P::partial_sort(__begin, __middle, __end,
+                                   std::less<_ValueType>());
     }
 
   // Sequential fallback
@@ -2229,7 +2241,8 @@ namespace __parallel
     max_element(_FIterator __begin, _FIterator __end)
     {
       typedef typename iterator_traits<_FIterator>::value_type _ValueType;
-      return max_element(__begin, __end, std::less<_ValueType>());
+      return _GLIBCXX_STD_P::max_element(__begin, __end,
+                                         std::less<_ValueType>());
     }
 
   // Public interface
@@ -2320,7 +2333,8 @@ namespace __parallel
     min_element(_FIterator __begin, _FIterator __end)
     {
       typedef typename iterator_traits<_FIterator>::value_type _ValueType;
-      return min_element(__begin, __end, std::less<_ValueType>());
+      return _GLIBCXX_STD_P::min_element(__begin, __end,
+                                         std::less<_ValueType>());
     }
 
   // Public interface

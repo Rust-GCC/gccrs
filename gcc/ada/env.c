@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *            Copyright (C) 2005-2009, Free Software Foundation, Inc.       *
+ *            Copyright (C) 2005-2010, Free Software Foundation, Inc.       *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -52,7 +52,8 @@
 #include <stdlib.h>
 #endif
 
-#if defined (__vxworks) && ! (defined (__RTP__) || defined (__COREOS__))
+#if defined (__vxworks) \
+  && ! (defined (__RTP__) || defined (__COREOS__) || defined (__VXWORKSMILS__))
 #include "envLib.h"
 extern char** ppGlobalEnviron;
 #endif
@@ -106,9 +107,7 @@ typedef struct _ile3
 void
 __gnat_setenv (char *name, char *value)
 {
-#ifdef MSDOS
-
-#elif defined (VMS)
+#if defined (VMS)
   struct descriptor_s name_desc;
   /* Put in JOB table for now, so that the project stuff at least works.  */
   struct descriptor_s table_desc = {7, 0, "LNM$JOB"};
@@ -198,7 +197,8 @@ __gnat_setenv (char *name, char *value)
 char **
 __gnat_environ (void)
 {
-#if defined (VMS) || defined (RTX) || defined (VTHREADS)
+#if defined (VMS) || defined (RTX) \
+   || (defined (VTHREADS) && ! defined (__VXWORKSMILS__))
   /* Not implemented */
   return NULL;
 #elif defined (__APPLE__)
@@ -210,9 +210,11 @@ __gnat_environ (void)
   extern char **_environ;
   return _environ;
 #else
-#if ! (defined (__vxworks) && ! (defined (__RTP__) || defined (__COREOS__)))
+#if ! (defined (__vxworks) \
+   && ! (defined (__RTP__) || defined (__COREOS__) \
+   || defined (__VXWORKSMILS__)))
   /* in VxWorks kernel mode environ is macro and not a variable */
-  /* same thing on 653 in the CoreOS */
+  /* same thing on 653 in the CoreOS and for VxWorks MILS vThreads */
   extern char **environ;
 #endif
   return environ;

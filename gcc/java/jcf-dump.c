@@ -2,7 +2,7 @@
    Functionally similar to Sun's javap.
 
    Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-   2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -51,8 +51,6 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "ggc.h"
 #include "intl.h"
 
 #include "jcf.h"
@@ -77,10 +75,6 @@ int flag_print_constant_pool = 0;
 int flag_print_fields = 1;
 int flag_print_methods = 1;
 int flag_print_attributes = 1;
-
-/* When nonzero, warn when source file is newer than matching class
-   file.  */
-int flag_newer = 1;
 
 /* Print names of classes that have a "main" method. */
 int flag_print_main = 0;
@@ -1167,7 +1161,7 @@ static void
 version (void)
 {
   printf ("jcf-dump %s%s\n\n", pkgversion_string, version_string);
-  printf ("Copyright %s 2009 Free Software Foundation, Inc.\n", _("(C)"));
+  printf ("Copyright %s 2010 Free Software Foundation, Inc.\n", _("(C)"));
   printf (_("This is free software; see the source for copying conditions.  There is NO\n"
 	    "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"));
   exit (0);
@@ -1305,7 +1299,6 @@ main (int argc, char** argv)
 	    {
 	      long compressed_size, member_size;
 	      int compression_method, filename_length, extra_length;
-	      int general_purpose_bits;
 	      const char *filename;
 	      int total_length;
 	      if (flag_print_class_info)
@@ -1325,7 +1318,7 @@ main (int argc, char** argv)
 		    }
 		  JCF_FILL (jcf, 26);
 		  JCF_SKIP (jcf, 2);
-		  general_purpose_bits = JCF_readu2_le (jcf);
+		  (void) /* general_purpose_bits = */ JCF_readu2_le (jcf);
 		  compression_method = JCF_readu2_le (jcf);
 		  JCF_SKIP (jcf, 8);
 		  compressed_size = JCF_readu4_le (jcf);

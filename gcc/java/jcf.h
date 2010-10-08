@@ -1,6 +1,6 @@
 /* Utility macros to read Java(TM) .class files and byte codes.
    Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2006, 2007, 2008 Free Software Foundation, Inc.
+   2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -66,7 +66,7 @@ jcf_open_exact_case (const char* filename, int oflag);
 struct JCF;
 typedef int (*jcf_filbuf_t) (struct JCF*, int needed);
 
-union GTY(()) cpool_entry {
+union GTY((variable_size)) cpool_entry {
   jword GTY ((tag ("0"))) w;
   tree GTY ((tag ("1"))) t;
 };
@@ -274,7 +274,6 @@ extern const char *jcf_write_base_directory;
 
 /* Debug macros, for the front end */
 
-extern int quiet_flag;
 #ifdef VERBOSE_SKELETON
 #undef SOURCE_FRONTEND_DEBUG
 #define SOURCE_FRONTEND_DEBUG(X)				\

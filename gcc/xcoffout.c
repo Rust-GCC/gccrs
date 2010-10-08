@@ -30,6 +30,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "rtl.h"
 #include "flags.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "output.h"
 #include "ggc.h"
@@ -145,7 +146,7 @@ static const struct xcoff_type_number xcoff_type_numbers[] = {
 
   /* ??? Should also handle built-in C++ and Obj-C types.  There perhaps
      aren't any that C doesn't already have.  */
-};    
+};
 
 /* Returns an XCOFF fundamental type number for DECL (assumed to be a
    TYPE_DECL), or 0 if dbxout.c should assign a type number normally.  */

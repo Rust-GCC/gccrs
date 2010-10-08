@@ -1,4 +1,5 @@
-/* Copyright (C) 2002, 2003, 2005, 2007, 2008, 2009 Free Software Foundation, Inc.
+/* Copyright (C) 2002, 2003, 2005, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Andy Vaught
    F2003 I/O support contributed by Jerry DeLisle
 
@@ -24,7 +25,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
 #include "io.h"
+#include "fbuf.h"
 #include "format.h"
+#include "unix.h"
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
@@ -37,7 +40,7 @@ typedef unsigned char uchar;
 
 
 /* set_integer()-- All of the integer assignments come here to
- * actually place the value into memory.  */
+   actually place the value into memory.  */
 
 void
 set_integer (void *dest, GFC_INTEGER_LARGEST value, int length)
@@ -45,6 +48,8 @@ set_integer (void *dest, GFC_INTEGER_LARGEST value, int length)
   switch (length)
     {
 #ifdef HAVE_GFC_INTEGER_16
+/* length=10 comes about for kind=10 real/complex BOZ, cf. PR41711. */
+    case 10:
     case 16:
       {
 	GFC_INTEGER_16 tmp = value;
@@ -126,11 +131,10 @@ max_value (int length, int signed_flag)
 
 
 /* convert_real()-- Convert a character representation of a floating
- * point number to the machine number.  Returns nonzero if there is a
- * range problem during conversion.  Note: many architectures
- * (e.g. IA-64, HP-PA) require that the storage pointed to by the dest
- * argument is properly aligned for the type in question.  TODO:
- * handle not-a-numbers and infinities.  */
+   point number to the machine number.  Returns nonzero if there is a
+   range problem during conversion.  Note: many architectures
+   (e.g. IA-64, HP-PA) require that the storage pointed to by the dest
+   argument is properly aligned for the type in question.  */
 
 int
 convert_real (st_parameter_dt *dtp, void *dest, const char *buffer, int length)
@@ -142,25 +146,25 @@ convert_real (st_parameter_dt *dtp, void *dest, const char *buffer, int length)
     case 4:
       *((GFC_REAL_4*) dest) =
 #if defined(HAVE_STRTOF)
-	strtof (buffer, NULL);
+	gfc_strtof (buffer, NULL);
 #else
-	(GFC_REAL_4) strtod (buffer, NULL);
+	(GFC_REAL_4) gfc_strtod (buffer, NULL);
 #endif
       break;
 
     case 8:
-      *((GFC_REAL_8*) dest) = strtod (buffer, NULL);
+      *((GFC_REAL_8*) dest) = gfc_strtod (buffer, NULL);
       break;
 
 #if defined(HAVE_GFC_REAL_10) && defined (HAVE_STRTOLD)
     case 10:
-      *((GFC_REAL_10*) dest) = strtold (buffer, NULL);
+      *((GFC_REAL_10*) dest) = gfc_strtold (buffer, NULL);
       break;
 #endif
 
 #if defined(HAVE_GFC_REAL_16) && defined (HAVE_STRTOLD)
     case 16:
-      *((GFC_REAL_16*) dest) = strtold (buffer, NULL);
+      *((GFC_REAL_16*) dest) = gfc_strtold (buffer, NULL);
       break;
 #endif
 
@@ -379,26 +383,51 @@ read_utf8_char4 (st_parameter_dt *dtp, void *p, int len, int width)
 static void
 read_default_char4 (st_parameter_dt *dtp, char *p, int len, int width)
 {
-  char *s;
-  gfc_char4_t *dest;
   int m, n;
+  gfc_char4_t *dest;
 
-  s = read_block_form (dtp, &width);
-  
-  if (s == NULL)
-    return;
-  if (width > len)
-     s += (width - len);
+  if (is_char4_unit(dtp))
+    {
+      gfc_char4_t *s4;
 
-  m = ((int) width > len) ? len : (int) width;
-  
-  dest = (gfc_char4_t *) p;
-  
-  for (n = 0; n < m; n++, dest++, s++)
-    *dest = (unsigned char ) *s;
+      s4 = (gfc_char4_t *) read_block_form4 (dtp, &width);
 
-  for (n = 0; n < len - (int) width; n++, dest++)
-    *dest = (unsigned char) ' ';
+      if (s4 == NULL)
+	return;
+      if (width > len)
+	 s4 += (width - len);
+
+      m = ((int) width > len) ? len : (int) width;
+
+      dest = (gfc_char4_t *) p;
+
+      for (n = 0; n < m; n++)
+	*dest++ = *s4++;
+
+      for (n = 0; n < len - (int) width; n++)
+	*dest++ = (gfc_char4_t) ' ';
+    }
+  else
+    {
+      char *s;
+
+      s = read_block_form (dtp, &width);
+
+      if (s == NULL)
+	return;
+      if (width > len)
+	 s += (width - len);
+
+      m = ((int) width > len) ? len : (int) width;
+
+      dest = (gfc_char4_t *) p;
+
+      for (n = 0; n < m; n++, dest++, s++)
+	*dest = (unsigned char ) *s;
+
+      for (n = 0; n < len - (int) width; n++, dest++)
+	*dest = (unsigned char) ' ';
+    }
 }
 
 
@@ -805,6 +834,66 @@ read_f (st_parameter_dt *dtp, const fnode *f, char *dest, int length)
   if (w == 0)
     goto zero;
 
+  /* Check for Infinity or NaN.  */    
+  if (unlikely ((w >= 3 && (*p == 'i' || *p == 'I' || *p == 'n' || *p == 'N'))))
+    {
+      int seen_paren = 0;
+      char *save = out;
+
+      /* Scan through the buffer keeping track of spaces and parenthesis. We
+	 null terminate the string as soon as we see a left paren or if we are
+	 BLANK_NULL mode.  Leading spaces have already been skipped above,
+	 trailing spaces are ignored by converting to '\0'. A space
+	 between "NaN" and the optional perenthesis is not permitted.  */
+      while (w > 0)
+	{
+	  *out = tolower (*p);
+	  switch (*p)
+	    {
+	    case ' ':
+	      if (dtp->u.p.blank_status == BLANK_ZERO)
+		{
+		  *out = '0';
+		  break;
+		}
+	      *out = '\0';
+	      if (seen_paren == 1)
+	        goto bad_float;
+	      break;
+	    case '(':
+	      seen_paren++;
+	      *out = '\0';
+	      break;
+	    case ')':
+	      if (seen_paren++ != 1)
+		goto bad_float;
+	      break;
+	    default:
+	      if (!isalnum (*out))
+		goto bad_float;
+	    }
+	  --w;
+	  ++p;
+	  ++out;
+	}
+	 
+      *out = '\0';
+      
+      if (seen_paren != 0 && seen_paren != 2)
+	goto bad_float;
+
+      if ((strcmp (save, "inf") == 0) || (strcmp (save, "infinity") == 0))
+	{
+	   if (seen_paren)
+	     goto bad_float;
+	}
+      else if (strcmp (save, "nan") != 0)
+	goto bad_float;
+
+      convert_real (dtp, dest, buffer, length);
+      return;
+    }
+
   /* Process the mantissa string.  */
   while (w > 0)
     {
@@ -1020,16 +1109,84 @@ bad_float:
  * and never look at it. */
 
 void
-read_x (st_parameter_dt * dtp, int n)
+read_x (st_parameter_dt *dtp, int n)
 {
+  int length;
+  char *p, q;
+
   if ((dtp->u.p.current_unit->pad_status == PAD_NO || is_internal_unit (dtp))
        && dtp->u.p.current_unit->bytes_left < n)
     n = dtp->u.p.current_unit->bytes_left;
+    
+  if (n == 0)
+    return;
 
-  dtp->u.p.sf_read_comma = 0;
-  if (n > 0)
-    read_sf (dtp, &n, 1);
-  dtp->u.p.sf_read_comma = 1;
+  length = n;
+
+  if (is_internal_unit (dtp))
+    {
+      p = mem_alloc_r (dtp->u.p.current_unit->s, &length);
+      if (unlikely (length < n))
+	n = length;
+      goto done;
+    }
+
+  if (dtp->u.p.sf_seen_eor)
+    return;
+
+  p = fbuf_read (dtp->u.p.current_unit, &length);
+  if (p == NULL)
+    {
+      hit_eof (dtp);
+      return;
+    }
+  
+  if (length == 0 && dtp->u.p.item_count == 1)
+    {
+      if (dtp->u.p.current_unit->pad_status == PAD_NO)
+	{
+	  hit_eof (dtp);
+	  return;
+	}
+      else
+	return;
+    }
+
+  n = 0;
+  while (n < length)
+    {
+      q = *p;
+      if (q == '\n' || q == '\r')
+	{
+	  /* Unexpected end of line. Set the position.  */
+	  fbuf_seek (dtp->u.p.current_unit, n + 1 ,SEEK_CUR);
+	  dtp->u.p.sf_seen_eor = 1;
+
+	  /* If we encounter a CR, it might be a CRLF.  */
+	  if (q == '\r') /* Probably a CRLF */
+	    {
+	      /* See if there is an LF. Use fbuf_read rather then fbuf_getc so
+		 the position is not advanced unless it really is an LF.  */
+	      int readlen = 1;
+	      p = fbuf_read (dtp->u.p.current_unit, &readlen);
+	      if (*p == '\n' && readlen == 1)
+	        {
+		  dtp->u.p.sf_seen_eor = 2;
+		  fbuf_seek (dtp->u.p.current_unit, 1 ,SEEK_CUR);
+		}
+	    }
+	  goto done;
+	}
+      n++;
+      p++;
+    } 
+
+  fbuf_seek (dtp->u.p.current_unit, n, SEEK_CUR);
+  
+ done:
+  if ((dtp->common.flags & IOPARM_DT_HAS_SIZE) != 0)
+    dtp->u.p.size_used += (GFC_IO_INT) n;
+  dtp->u.p.current_unit->bytes_left -= n;
   dtp->u.p.current_unit->strm_pos += (gfc_offset) n;
 }
 

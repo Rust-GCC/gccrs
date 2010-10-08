@@ -235,7 +235,9 @@ along with GCC; see the file COPYING3.  If not see
 %{T} \
 %{Ym,*} \
 %{Wa,*:%*} \
--s %{fpic|fPIC|fpie|fPIE:-K PIC} \
+-s \
+%{fpic|fPIC|fpie|fPIE:-K PIC} \
+%{!.c:%{findirect-dispatch:-K PIC}} \
 %{mlittle-endian:-EL} \
 %(asm_cpu) %(asm_arch) %(asm_relax)"
 
@@ -285,6 +287,9 @@ do {									\
 /* We use GNU ld so undefine this so that attribute((init_priority)) works.  */
 #undef CTORS_SECTION_ASM_OP
 #undef DTORS_SECTION_ASM_OP
+
+/* Static stack checking is supported by means of probes.  */
+#define STACK_CHECK_STATIC_BUILTIN 1
 
 #define MD_UNWIND_SUPPORT "config/sparc/linux-unwind.h"
 

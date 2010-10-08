@@ -22,7 +22,8 @@ proc prune_gcc_output { text } {
 
     regsub -all "(^|\n)(\[^\n\]*: )?In ((static member |lambda )?function|member|method|(copy )?constructor|destructor|instantiation|program|subroutine|block-data)\[^\n\]*" $text "" text
     regsub -all "(^|\n)\[^\n\]*(: )?At (top level|global scope):\[^\n\]*" $text "" text
-    regsub -all "(^|\n)\[^\n\]*:   instantiated from \[^\n\]*" $text "" text
+    regsub -all "(^|\n)\[^\n\]*:   (recursively )?instantiated from \[^\n\]*" $text "" text
+    regsub -all "(^|\n)\[^\n\]*:   . skipping \[0-9\]* instantiation contexts \[^\n\]*" $text "" text
     regsub -all "(^|\n)    inlined from \[^\n\]*" $text "" text
     regsub -all "(^|\n)collect2: ld returned \[^\n\]*" $text "" text
     regsub -all "(^|\n)collect: re(compiling|linking)\[^\n\]*" $text "" text
@@ -37,6 +38,9 @@ proc prune_gcc_output { text } {
     regsub -all "(^|\n)\[^\n\]*: Additional NOP may be necessary to workaround Itanium processor A/B step errata" $text "" text
     regsub -all "(^|\n)\[^\n*\]*: Assembler messages:\[^\n\]*" $text "" text
 
+    # Ignore harmless VTA note.
+    regsub -all "(^|\n)\[^\n\]*: note: variable tracking size limit exceeded with -fvar-tracking-assignments, retrying without\[^\n\]*" $text "" text
+
     # It would be nice to avoid passing anything to gcc that would cause it to
     # issue these messages (since ignoring them seems like a hack on our part),
     # but that's too difficult in the general case.  For example, sometimes
@@ -44,6 +48,9 @@ proc prune_gcc_output { text } {
     # that don't have crt0.o.
     regsub -all "(^|\n)\[^\n\]*file path prefix \[^\n\]* never used" $text "" text
     regsub -all "(^|\n)\[^\n\]*linker input file unused since linking not done" $text "" text
+
+    # Ignore harmless warnings from Xcode 3.2.x.
+    regsub -all "(^|\n)\[^\n\]*ld: warning: can't add line info to anonymous symbol\[^\n\]*" $text "" text
 
     #send_user "After:$text\n"
 

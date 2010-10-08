@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -157,7 +157,7 @@ package Lib.Writ is
 
    --      One of these lines appears for each of the arguments present in the
    --      call to the gnat1 program. This can be used if it is necessary to
-   --      reconstruct this call (e.g. for fix and continue)
+   --      reconstruct this call (e.g. for fix and continue).
 
    --  -------------------
    --  -- P  Parameters --
@@ -235,7 +235,7 @@ package Lib.Writ is
    --             generated exception tables. If ZX is not present, the
    --             longjmp/setjmp exception scheme is in use.
    --
-   --      Note that language defined units never output policy (Lx,Tx,Qx)
+   --      Note that language defined units never output policy (Lx, Tx, Qx)
    --      parameters. Language defined units must correctly handle all
    --      possible cases. These values are checked for consistency by the
    --      binder and then copied to the generated binder output file.
@@ -571,13 +571,47 @@ package Lib.Writ is
    --      source file, so that this order is preserved by the binder in
    --      constructing the set of linker arguments.
 
+   --  --------------
+   --  -- N  Notes --
+   --  --------------
+
+   --  The final section of unit-specific lines contains notes which record
+   --  annotations inserted in source code for processing by external tools
+   --  using pragmas. For each occurrence of any of these pragmas, a line is
+   --  generated with the following syntax:
+
+   --    N x<sloc> [<arg_id>:]<arg> ...
+
+   --      x is one of:
+   --        A  pragma Annotate
+   --        C  pragma Comment
+   --        I  pragma Ident
+   --        T  pragma Title
+   --        S  pragma Subtitle
+
+   --      <sloc> is the source location of the pragma in line:col format
+
+   --      Successive entries record the pragma_argument_associations.
+
+   --        If a pragma argument identifier is present, the entry is prefixed
+   --        with the pragma argument identifier <arg_id> followed by a colon.
+
+   --        <arg> represents the pragma argument, and has the following
+   --        conventions:
+
+   --          - identifiers are output verbatim
+   --          - static string expressions are output as literals encoded as
+   --            for L lines
+   --          - static integer expressions are output as decimal literals
+   --          - any other expression is replaced by the placeholder "<expr>"
+
    ---------------------
    -- Reference Lines --
    ---------------------
 
    --  The reference lines contain information about references from any of the
-   --  units in the compilation (including, body version and version
-   --  attributes, linker options pragmas and source dependencies.
+   --  units in the compilation (including body version and version attributes,
+   --  linker options pragmas and source dependencies).
 
    --  ------------------------------------
    --  -- E  External Version References --
@@ -662,14 +696,13 @@ package Lib.Writ is
    --  reference data. See the spec of Par_SCO for full details of the format.
 
    ----------------------
-   -- Global_Variables --
+   -- Global Variables --
    ----------------------
 
-   --  The table structure defined here stores one entry for each
-   --  Interrupt_State pragma encountered either in the main source or
-   --  in an ancillary with'ed source. Since interrupt state values
-   --  have to be consistent across all units in a partition, we may
-   --  as well detect inconsistencies at compile time when we can.
+   --  The table defined here stores one entry for each Interrupt_State pragma
+   --  encountered either in the main source or in an ancillary with'ed source.
+   --  Since interrupt state values have to be consistent across all units in a
+   --  partition, we detect inconsistencies at compile time when we can.
 
    type Interrupt_State_Entry is record
       Interrupt_Number : Pos;

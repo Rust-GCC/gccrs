@@ -1,5 +1,5 @@
 /* Basic block reordering routines for the GNU compiler.
-   Copyright (C) 2000, 2001, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2000, 2001, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -39,6 +39,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "df.h"
 #include "vecprim.h"
+#include "emit-rtl.h"
 
 /* Holds the interesting trailing notes for the function.  */
 rtx cfg_layout_function_footer;
@@ -694,7 +695,7 @@ relink_block_chain (bool stay_in_cfglayout_mode)
   free_original_copy_tables ();
   if (stay_in_cfglayout_mode)
     initialize_original_copy_tables ();
-  
+
   /* Finally, put basic_block_info in the new order.  */
   compact_blocks ();
 }
@@ -793,7 +794,8 @@ fixup_reorder_chain (void)
 		 to prevent rtl_verify_flow_info from complaining.  */
 	      if (!e_fall)
 		{
-		  gcc_assert (!onlyjump_p (bb_end_insn));
+		  gcc_assert (!onlyjump_p (bb_end_insn)
+			      || returnjump_p (bb_end_insn));
 		  bb->il.rtl->footer = emit_barrier_after (bb_end_insn);
 		  continue;
 		}
@@ -861,8 +863,11 @@ fixup_reorder_chain (void)
 	    }
 	  else if (extract_asm_operands (PATTERN (bb_end_insn)) != NULL)
 	    {
-	      /* If the old fallthru is still next, nothing to do.  */
-	      if (bb->aux == e_fall->dest
+	      /* If the old fallthru is still next or if
+		 asm goto doesn't have a fallthru (e.g. when followed by
+		 __builtin_unreachable ()), nothing to do.  */
+	      if (! e_fall
+		  || bb->aux == e_fall->dest
 		  || e_fall->dest == EXIT_BLOCK_PTR)
 		continue;
 
@@ -928,7 +933,7 @@ fixup_reorder_chain (void)
       FOR_EACH_EDGE (e, ei, bb->succs)
 	if (e->flags & EDGE_FALLTHRU)
 	  break;
-      
+
       if (e && !can_fallthru (e->src, e->dest))
 	force_nonfallthru (e);
     }
@@ -950,7 +955,7 @@ fixup_reorder_chain (void)
 	      insn = BB_END (e->src);
 	      end = PREV_INSN (BB_HEAD (e->src));
 	      while (insn != end
-		     && (!INSN_P (insn) || INSN_LOCATOR (insn) == 0))
+		     && (!NONDEBUG_INSN_P (insn) || INSN_LOCATOR (insn) == 0))
 		insn = PREV_INSN (insn);
 	      if (insn != end
 		  && locator_eq (INSN_LOCATOR (insn), (int) e->goto_locus))
@@ -965,7 +970,7 @@ fixup_reorder_chain (void)
 		{
 		  insn = BB_HEAD (e->dest);
 		  end = NEXT_INSN (BB_END (e->dest));
-		  while (insn != end && !INSN_P (insn))
+		  while (insn != end && !NONDEBUG_INSN_P (insn))
 		    insn = NEXT_INSN (insn);
 		  if (insn != end && INSN_LOCATOR (insn)
 		      && locator_eq (INSN_LOCATOR (insn), (int) e->goto_locus))
@@ -986,7 +991,7 @@ fixup_reorder_chain (void)
    2. Count insns in chain, going both directions, and check if equal.
    3. Check that get_last_insn () returns the actual end of chain.  */
 
-void
+DEBUG_FUNCTION void
 verify_insn_chain (void)
 {
   rtx x, prevx, nextx;

@@ -22,8 +22,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
-#include "fixed-value.h"
 
 /* Compare two fixed objects for bitwise identity.  */
 
@@ -68,7 +68,7 @@ check_real_for_fixed_mode (REAL_VALUE_TYPE *real_value, enum machine_mode mode)
   real_2expN (&epsilon_value, -GET_MODE_FBIT (mode), mode);
 
   if (SIGNED_FIXED_POINT_MODE_P (mode))
-    min_value = REAL_VALUE_NEGATE (max_value);
+    min_value = real_value_negate (&max_value);
   else
     real_from_string (&min_value, "0.0");
 
@@ -362,7 +362,7 @@ do_fixed_add (FIXED_VALUE_TYPE *f, const FIXED_VALUE_TYPE *a,
 		  double_int one;
 		  one.low = 1;
 		  one.high = 0;
-		  f->data = double_int_add (f->data, double_int_neg (one));
+		  f->data = double_int_sub (f->data, one);
 		}
 	    }
 	  else
@@ -444,12 +444,12 @@ do_fixed_multiply (FIXED_VALUE_TYPE *f, const FIXED_VALUE_TYPE *a,
       temp1.high = 0;
       r = double_int_add (r, temp1);
 
-      /* We need to add neg(b) to r, if a < 0.  */
+      /* We need to subtract b from r, if a < 0.  */
       if (!unsigned_p && a->data.high < 0)
-	r = double_int_add (r, double_int_neg (b->data));
-      /* We need to add neg(a) to r, if b < 0.  */
+	r = double_int_sub (r, b->data);
+      /* We need to subtract a from r, if b < 0.  */
       if (!unsigned_p && b->data.high < 0)
-	r = double_int_add (r, double_int_neg (a->data));
+	r = double_int_sub (r, a->data);
 
       /* Shift right the result by FBIT.  */
       if (GET_MODE_FBIT (f->mode) == 2 * HOST_BITS_PER_WIDE_INT)
@@ -589,7 +589,7 @@ do_fixed_divide (FIXED_VALUE_TYPE *f, const FIXED_VALUE_TYPE *a,
 			 &quo_s.low, &quo_s.high, 0);
 
 	  /* Try to calculate (mod - pos_b).  */
-	  temp = double_int_add (mod, double_int_neg (pos_b));
+	  temp = double_int_sub (mod, pos_b);
 
 	  if (leftmost_mod == 1 || double_int_cmp (mod, pos_b, 1) != -1)
 	    {

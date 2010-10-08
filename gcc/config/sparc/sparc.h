@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, for Sun SPARC.
    Copyright (C) 1987, 1988, 1989, 1992, 1994, 1995, 1996, 1997, 1998, 1999
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com).
    64-bit SPARC-V9 support by Michael Tiemann, Jim Wilson, and Doug Evans,
@@ -499,10 +499,6 @@ extern enum cmodel sparc_cmodel;
 
 /* Show we can debug even without a frame pointer.  */
 #define CAN_DEBUG_WITHOUT_FP
-
-/* Option handling.  */
-
-#define OVERRIDE_OPTIONS  sparc_override_options ()
 
 /* Mask of all CPU selection flags.  */
 #define MASK_ISA \
@@ -606,8 +602,6 @@ extern struct sparc_cpu_select sparc_select[];
 #else
 #define MIN_UNITS_PER_WORD	4
 #endif
-
-#define UNITS_PER_SIMD_WORD(MODE) (TARGET_VIS ? 8 : UNITS_PER_WORD)
 
 /* Now define the sizes of the C data types.  */
 
@@ -1068,6 +1062,15 @@ enum reg_class { NO_REGS, FPCC_REGS, I64_REGS, GENERAL_REGS, FP_REGS,
    {-1, -1, -1, 0x20},	/* GENERAL_OR_EXTRA_FP_REGS */	\
    {-1, -1, -1, 0x3f}}	/* ALL_REGS */
 
+/* The same information, inverted:
+   Return the class number of the smallest class containing
+   reg number REGNO.  This could be a conditional expression
+   or could index an array.  */
+
+extern enum reg_class sparc_regno_reg_class[FIRST_PSEUDO_REGISTER];
+
+#define REGNO_REG_CLASS(REGNO) sparc_regno_reg_class[(REGNO)]
+
 /* The following macro defines cover classes for Integrated Register
    Allocator.  Cover classes is a set of non-intersected register
    classes covering all hard registers used for register allocation
@@ -1094,15 +1097,6 @@ enum reg_class { NO_REGS, FPCC_REGS, I64_REGS, GENERAL_REGS, FP_REGS,
    && (FROM) == SImode						\
    && GET_MODE_SIZE (FROM) != GET_MODE_SIZE (TO)		\
    ? reg_classes_intersect_p (CLASS, FP_REGS) : 0)
-
-/* The same information, inverted:
-   Return the class number of the smallest class containing
-   reg number REGNO.  This could be a conditional expression
-   or could index an array.  */
-
-extern enum reg_class sparc_regno_reg_class[FIRST_PSEUDO_REGISTER];
-
-#define REGNO_REG_CLASS(REGNO) sparc_regno_reg_class[(REGNO)]
 
 /* This is the order in which to allocate registers normally.
 
@@ -1181,7 +1175,7 @@ extern enum reg_class sparc_regno_reg_class[FIRST_PSEUDO_REGISTER];
   96, 97, 98, 99,			/* %fcc0-3 */	\
   100, 0, 14, 30, 31, 101}		/* %icc, %g0, %o6, %i6, %i7, %sfp */
 
-#define ORDER_REGS_FOR_LOCAL_ALLOC order_regs_for_local_alloc ()
+#define ADJUST_REG_ALLOC_ORDER order_regs_for_local_alloc ()
 
 extern char sparc_leaf_regs[];
 #define LEAF_REGISTERS sparc_leaf_regs
@@ -1387,15 +1381,6 @@ extern char leaf_reg_remap[];
    the function!  */
 #define ACCUMULATE_OUTGOING_ARGS 1
 
-/* Value is the number of bytes of arguments automatically
-   popped when returning from a subroutine call.
-   FUNDECL is the declaration node of the function (as a tree),
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.
-   SIZE is the number of bytes of arguments passed on the stack.  */
-
-#define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE) 0
-
 /* Define this macro if the target machine has "register windows".  This
    C expression returns the register number as seen by the called function
    corresponding to register number OUT as seen by the calling function.
@@ -1418,34 +1403,6 @@ extern char leaf_reg_remap[];
 
 #define LOCAL_REGNO(REGNO) \
   ((REGNO) >= 16 && (REGNO) <= 31)
-
-/* Define how to find the value returned by a function.
-   VALTYPE is the data type of the value (as a tree).
-   If the precise function being called is known, FUNC is its FUNCTION_DECL;
-   otherwise, FUNC is 0.  */
-
-/* On SPARC the value is found in the first "output" register.  */
-
-#define FUNCTION_VALUE(VALTYPE, FUNC) \
-  function_value ((VALTYPE), TYPE_MODE (VALTYPE), 1)
-
-/* But the called function leaves it in the first "input" register.  */
-
-#define FUNCTION_OUTGOING_VALUE(VALTYPE, FUNC) \
-  function_value ((VALTYPE), TYPE_MODE (VALTYPE), 0)
-
-/* Define how to find the value returned by a library function
-   assuming the value has mode MODE.  */
-
-#define LIBCALL_VALUE(MODE) \
-  function_value (NULL_TREE, (MODE), 1)
-
-/* 1 if N is a possible register number for a function value
-   as seen by the caller.
-   On SPARC, the first "output" reg is used for integer values,
-   and the first floating point register is used for floating point values.  */
-
-#define FUNCTION_VALUE_REGNO_P(N) ((N) == 8 || (N) == 32)
 
 /* Define the size of space to allocate for the return value of an
    untyped_call.  */
@@ -1835,66 +1792,17 @@ do {									\
 #define RTX_OK_FOR_OLO10_P(X)						\
   (GET_CODE (X) == CONST_INT && INTVAL (X) >= -0x1000 && INTVAL (X) < 0xc00 - 8)
 
-/* Go to LABEL if ADDR (a legitimate address expression)
-   has an effect that depends on the machine mode it is used for.
-
-   In PIC mode,
-
-      (mem:HI [%l7+a])
-
-   is not equivalent to
-   
-      (mem:QI [%l7+a]) (mem:QI [%l7+a+1])
-
-   because [%l7+a+1] is interpreted as the address of (a+1).  */
-
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)	\
-{							\
-  if (flag_pic == 1)					\
-    {							\
-      if (GET_CODE (ADDR) == PLUS)			\
-	{						\
-	  rtx op0 = XEXP (ADDR, 0);			\
-	  rtx op1 = XEXP (ADDR, 1);			\
-	  if (op0 == pic_offset_table_rtx		\
-	      && SYMBOLIC_CONST (op1))			\
-	    goto LABEL;					\
-	}						\
-    }							\
-}
 
 /* Try a machine-dependent way of reloading an illegitimate address
    operand.  If we find one, push the reload and jump to WIN.  This
-   macro is used in only one place: `find_reloads_address' in reload.c.
-
-   For SPARC 32, we wish to handle addresses by splitting them into
-   HIGH+LO_SUM pairs, retaining the LO_SUM in the memory reference.
-   This cuts the number of extra insns by one.
-
-   Do nothing when generating PIC code and the address is a
-   symbolic operand or requires a scratch register.  */
-
-#define LEGITIMIZE_RELOAD_ADDRESS(X,MODE,OPNUM,TYPE,IND_LEVELS,WIN)     \
-do {                                                                    \
-  /* Decompose SImode constants into hi+lo_sum.  We do have to 		\
-     rerecognize what we produce, so be careful.  */			\
-  if (CONSTANT_P (X)							\
-      && (MODE != TFmode || TARGET_ARCH64)				\
-      && GET_MODE (X) == SImode						\
-      && GET_CODE (X) != LO_SUM && GET_CODE (X) != HIGH			\
-      && ! (flag_pic							\
-	    && (symbolic_operand (X, Pmode)				\
-		|| pic_address_needs_scratch (X)))			\
-      && sparc_cmodel <= CM_MEDLOW)					\
-    {									\
-      X = gen_rtx_LO_SUM (GET_MODE (X),					\
-			  gen_rtx_HIGH (GET_MODE (X), X), X);		\
-      push_reload (XEXP (X, 0), NULL_RTX, &XEXP (X, 0), NULL,		\
-                   BASE_REG_CLASS, GET_MODE (X), VOIDmode, 0, 0,	\
-                   OPNUM, TYPE);					\
-      goto WIN;								\
-    }									\
-  /* ??? 64-bit reloads.  */						\
+   macro is used in only one place: `find_reloads_address' in reload.c.  */
+#define LEGITIMIZE_RELOAD_ADDRESS(X,MODE,OPNUM,TYPE,IND_LEVELS,WIN)	   \
+do {									   \
+  int win;								   \
+  (X) = sparc_legitimize_reload_address ((X), (MODE), (OPNUM),		   \
+					 (int)(TYPE), (IND_LEVELS), &win); \
+  if (win)								   \
+    goto WIN;								   \
 } while (0)
 
 /* Specify the machine mode that this machine uses
@@ -2212,9 +2120,6 @@ extern int sparc_indent_opcode;
 	sparc_indent_opcode = 0;	\
       }					\
   } while (0)
-
-#define SPARC_SYMBOL_REF_TLS_P(RTX) \
-  (GET_CODE (RTX) == SYMBOL_REF && SYMBOL_REF_TLS_MODEL (RTX) != 0)
 
 #define PRINT_OPERAND_PUNCT_VALID_P(CHAR) \
   ((CHAR) == '#' || (CHAR) == '*' || (CHAR) == '('		\

@@ -1,4 +1,4 @@
-/* Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+/* Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Andy Vaught
    F2003 I/O support contributed by Jerry DeLisle
@@ -58,6 +58,8 @@ struct gfc_unit;
 #define is_internal_unit(dtp) ((dtp)->u.p.unit_is_internal)
 
 #define is_stream_io(dtp) ((dtp)->u.p.current_unit->flags.access == ACCESS_STREAM)
+
+#define is_char4_unit(dtp) ((dtp)->u.p.unit_is_internal && (dtp)->common.unit)
 
 /* The array_loop_spec contains the variables for the loops over index ranges
    that are encountered.  Since the variables can be negative, ssize_t
@@ -331,7 +333,7 @@ typedef struct
   CHARACTER2 (round);
   CHARACTER1 (sign);
   GFC_INTEGER_4 *pending;
-  GFC_INTEGER_4 *size;
+  GFC_IO_INT *size;
   GFC_INTEGER_4 *id;
 }
 st_parameter_inquire;
@@ -642,8 +644,8 @@ internal_proto(type_name);
 extern void * read_block_form (st_parameter_dt *, int *);
 internal_proto(read_block_form);
 
-extern char *read_sf (st_parameter_dt *, int *, int);
-internal_proto(read_sf);
+extern void * read_block_form4 (st_parameter_dt *, int *);
+internal_proto(read_block_form4);
 
 extern void *write_block (st_parameter_dt *, int);
 internal_proto(write_block);

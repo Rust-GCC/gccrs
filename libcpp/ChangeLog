@@ -1,3 +1,235 @@
+2010-09-29  Kai Tietz  <kai.tietz@onevision.com>
+
+	PR preprocessor/45362
+	* directives.c (cpp_pop_definition): Make static.
+	(do_pragma_push_macro): Reworked to store text
+	definition.
+	(do_pragma_pop_macro): Add free text definition.
+	(cpp_push_definition): Removed.
+	* include/cpplib.h (cpp_push_definition): Removed.
+	(cpp_pop_definition): Likewise.
+	* internal.h (def_pragma_macro): Remove member 'value'
+	and add new members 'definition', 'line',
+	'syshdr', 'sued' and 'is_undef'.
+	* pch.c (_cpp_restore_pushed_macros): Rework to work
+	on text definition and store additional macro flags.
+	(_cpp_save_pushed_macros): Likewise.
+
+2010-09-29  Joseph Myers  <joseph@codesourcery.com>
+
+	* include/cpplib.h (cpp_options): Rename warn_deprecated,
+	warn_traditional, warn_long_long and pedantic.
+	* directives.c (directive_diagnostics, _cpp_handle_directive):
+	Update names of cpp_options members.
+	* expr.c (cpp_classify_number, eval_token): Update names of
+	cpp_options members.
+	* init.c (cpp_create_reader, post_options): Update names of
+	cpp_options members.
+	* internal.h (CPP_PEDANTIC, CPP_WTRADITIONAL): Update names of
+	cpp_options members.
+	* macro.c (parse_params): Update names of cpp_options members.
+
+2010-09-15  Ian Lance Taylor  <iant@google.com>
+
+	* init.c: Fix type name in comment.
+
+2010-08-31  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/45457
+	* expr.c (parse_defined): Call pfile->cb.user_builtin_macro hook if
+	needed.
+	* directives.c (do_ifdef, do_ifndef): Likewise.
+
+2010-08-26  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* system.h [HAVE_INTTYPES_H]: Include inttypes.h.
+
+2010-08-24  Richard Henderson  <rth@redhat.com>
+
+	PR bootstrap/45376
+	* configure.ac (HAVE_SSE4): New check.
+	* configure, config.in: Rebuild.
+	* lex.c (search_line_sse42): Omit if !HAVE_SSE4.
+
+2010-08-24  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* lex.c [__sun__ && __svr4__]: Disable init_vectorized_lexer
+	etc. on Solaris 2/x86.
+
+2010-08-21  Richard Henderson  <rth@redhat.com>
+	    Andi Kleen <ak@linux.intel.com>
+	    David S. Miller  <davem@davemloft.net>
+
+	* configure.ac (AC_C_BIGENDIAN, AC_TYPE_UINTPTR_T): New tests.
+	(ssize_t): Check via AC_TYPE_SSIZE_T instead of AC_CHECK_TYPE.
+	(ptrdiff_t): Check via AC_CHECK_TYPE.
+	* config.in, configure: Rebuild.
+	* system.h: Include stdint.h, if available.
+	* lex.c (WORDS_BIGENDIAN): Provide default.
+	(acc_char_mask_misalign, acc_char_replicate, acc_char_cmp,
+	acc_char_index, search_line_acc_char, repl_chars, search_line_mmx,
+	search_line_sse2, search_line_sse42, init_vectorized_lexer,
+	search_line_fast): New.
+	(_cpp_clean_line): Use search_line_fast.  Restructure the fast
+	loop to make it clear when we're leaving the loop.  Stay in the
+	fast loop for non-trigraph '?'.
+
+2010-06-11  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/cpplib.h (struct cpp_callbacks): Add user_builtin_macro
+	callback.
+	(enum cpp_builtin_type): Add BT_FIRST_USER and BT_LAST_USER.
+	(cpp_macro_definition): Remove const qual from second argument.
+	* macro.c (enter_macro_context): Call user_builtin_macro callback for
+	NODE_BUILTIN !NODE_USED macros.
+	(warn_of_redefinition): Likewise.  Remove const qual from second
+	argument.
+	(cpp_macro_definition): Likewise.
+	* pch.c (write_macdef, save_macros): Call user_builtin_macro callback
+	for NODE_BUILTIN !NODE_USED macros.
+
+2010-06-10  Joseph Myers  <joseph@codesourcery.com>
+
+	* include/cpplib.h (struct cpp_options): Remove show_column.
+	* init.c (cpp_create_reader, post_options): Don't set show_column.
+
+2010-06-09  Joern Rennecke  <joern.rennecke@embecosm.com>
+
+	PR bootstrap/44432
+	* configure.ac: Before using ZW_PROG_COMPILER_DEPENDENCIES for C++,
+	check that C++ compiler works.
+	* configure: Regenerate.
+
+2010-06-08  Laurynas Biveinis  <laurynas.biveinis@gmail.com>
+
+	* include/symtab.h (ht_identifier_ptr): New.
+
+2010-06-03  Joern Rennecke <joern.rennecke@embecosm.com>
+	    Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR bootstrap/42798
+	* configure.ac: Check for declaration of 'basename(char *)'.
+	* configure: Regenerate.
+	* config.in: Regenerate.
+
+2010-04-25  Joseph Myers  <joseph@codesourcery.com>
+
+	* include/cpplib.h (enum c_lang): Add CLK_GNUC1X and CLK_STDC1X.
+	* init.c (lang_defaults): Add entries for new language variants.
+	(cpp_init_builtins): Define __STDC_VERSION__ to 201000L for C1X
+	variants.
+
+2010-04-09  Manuel López-Ibáñez <manu@gcc.gnu.org>
+
+	PR cpp/43195
+	* files.c (report_missing_guard): Test for #pragma once.
+
+2010-04-07  Simon Baldwin  <simonb@google.com>
+
+	* directives.c (do_diagnostic): Add warning reason argument,
+	call appropriate error reporting function for code.
+	(directive_diagnostics): Call specific warning functions with
+	warning reason where appropriate.
+	(do_error, do_warning, do_pragma_dependency): Add warning reason
+	argument to do_diagnostic calls.
+	* macro.c (_cpp_warn_if_unused_macro, enter_macro_context,
+	_cpp_create_definition): Call specific warning functions with
+	warning reason where appropriate.
+	* Makefile.in: Add new diagnostic functions to gettext translations.
+	* include/cpplib.h (struct cpp_callbacks): Add warning reason code
+	to error callback.
+	(CPP_DL_WARNING, CPP_DL_WARNING_SYSHDR, CPP_DL_PEDWARN, CPP_DL_ERROR,
+	CPP_DL_ICE, CPP_DL_NOTE, CPP_DL_FATAL): Replace macros with enums.
+	(CPP_W_NONE, CPP_W_DEPRECATED, CPP_W_COMMENTS,
+	CPP_W_MISSING_INCLUDE_DIRS, CPP_W_TRIGRAPHS, CPP_W_MULTICHAR,
+	CPP_W_TRADITIONAL, CPP_W_LONG_LONG, CPP_W_ENDIF_LABELS,
+	CPP_W_NUM_SIGN_CHANGE, CPP_W_VARIADIC_MACROS,
+	CPP_W_BUILTIN_MACRO_REDEFINED, CPP_W_DOLLARS, CPP_W_UNDEF,
+	CPP_W_UNUSED_MACROS, CPP_W_CXX_OPERATOR_NAMES, CPP_W_NORMALIZE,
+	CPP_W_INVALID_PCH, CPP_W_WARNING_DIRECTIVE): New enums for cpp
+	warning reason codes.
+	(cpp_warning, cpp_pedwarning, cpp_warning_syshdr,
+	cpp_warning_with_line, cpp_pedwarning_with_line,
+	cpp_warning_with_line_syshdr): New specific error reporting functions.
+	* pch.c (cpp_valid_state): Call specific warning functions with
+	warning reason where appropriate.
+	* errors.c (cpp_diagnostic, cpp_diagnostic_with_line): New central
+	diagnostic handlers.
+	(cpp_warning, cpp_pedwarning, cpp_warning_syshdr,
+	cpp_warning_with_line, cpp_pedwarning_with_line,
+	cpp_warning_with_line_syshdr): New specific error reporting functions.
+	* expr.c (cpp_classify_number, eval_token, num_unary_op): Call
+	specific warning functions with warning reason where appropriate.
+	* lex.c (_cpp_process_line_notes, _cpp_skip_block_comment,
+	warn_about_normalization, lex_identifier_intern, lex_identifier,
+	_cpp_lex_direct): Ditto.
+	* charset.c (_cpp_valid_ucn, convert_hex, convert_escape,
+	narrow_str_to_charconst): Ditto.
+
+2010-04-06  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/43642
+	* lex.c (lex_raw_string): Change type of TYPE variable to
+	unsigned char.
+
+2010-04-02  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* aclocal.m4: Regenerate.
+
+2010-03-29  Jason Merrill  <jason@redhat.com>
+
+	More N3077 raw string changes
+	* charset.c (cpp_interpret_string): Don't transform UCNs in raw
+	strings.
+	* lex.c (bufring_append): Split out from...
+	(lex_raw_string): ...here.  Undo trigraph and line splicing
+	transformations.  Do process line notes in multi-line literals.
+	(_cpp_process_line_notes): Ignore notes that were already handled.
+
+	Some raw string changes from N3077
+	* charset.c (cpp_interpret_string): Change inner delimiters to ().
+	* lex.c (lex_raw_string): Likewise.  Also disallow '\' in delimiter.
+
+2010-02-11  Jakub Jelinek  <jakub@redhat.com>
+
+	* init.c (read_original_filename): Don't call read_original_directory
+	if _cpp_handle_directive returns 0.
+
+2010-01-01  Joseph Myers  <joseph@codesourcery.com>
+
+	PR preprocessor/41947
+	* expr.c (cpp_classify_number): Give error for hexadecimal
+	floating-point constant with no digits before or after point.
+
+2009-11-20  Arnaud Charlet  <charlet@adacore.com>
+
+	* macro.c (enter_macro_context): Call cb.used callback if defined.
+	* directives.c (do_idef, do_ifndef): Ditto.
+	* include/cpplib.h (struct cpp_callbacks): Add used callback.
+
+2009-11-11  Kai Tietz  <kai.tietz@onevision.com>
+
+	* directives.c (do_pragma_push_macro): New pragma handler.
+	(do_pragma_pop_macro): Likewise.
+	(_cpp_init_internal_pragmas): Add push_macro and
+	pop_macro handler to internal pragmas.
+	(lex_macro_node_from_str): Removed.
+	(cpp_push_definition): Replace lex_macro_node_from_str
+	by _cpp_lex_identifier.
+	(cpp_pop_definition): Likewise.
+	* internal.h (_cpp_lex_identifier): New prototype.
+	(def_pragma_macro): New structure.
+	(cpp_reader): New member pushed_macros.
+	* lex.c (_cpp_lex_identifier): New function.
+	(lex_identifier_intern): New function.
+	* init.c (cpp_create_reader): Initialize pushed_macros
+	member.
+	(cpp_destroy): Free elements in pushed_macros member.
+	* pch.c (_cpp_save_pushed_macros): New function.
+	(_cpp_restore_pushed_macros): Likewise.
+	(_cpp_restore_pushed_macros): Use _cpp_save_pushed_macros.
+	(cpp_read_state): Use _cpp_restore_pushed_macros.
+
 2009-10-19  Jakub Jelinek  <jakub@redhat.com>
 
 	* charset.c (cpp_init_iconv): Initialize utf8_cset_desc.

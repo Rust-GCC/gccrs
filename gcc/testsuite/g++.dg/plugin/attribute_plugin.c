@@ -8,6 +8,9 @@
 #include "tree.h"
 #include "tree-pass.h"
 #include "intl.h"
+#include "toplev.h"
+#include "plugin.h"
+#include "diagnostic.h"
 
 int plugin_is_GPL_compatible;
 
@@ -41,7 +44,7 @@ handle_pre_generic (void *event_data, void *data)
 {
   tree fndecl = (tree) event_data;
   tree arg;
-  for (arg = DECL_ARGUMENTS(fndecl); arg; arg = TREE_CHAIN (arg)) {
+  for (arg = DECL_ARGUMENTS(fndecl); arg; arg = DECL_CHAIN (arg)) {
       tree attr;
       for (attr = DECL_ATTRIBUTES (arg); attr; attr = TREE_CHAIN (attr)) {
           tree attrname = TREE_PURPOSE (attr);
@@ -60,7 +63,7 @@ plugin_init (struct plugin_name_args *plugin_info,
              struct plugin_gcc_version *version)
 {
   const char *plugin_name = plugin_info->base_name;
-  register_callback (plugin_name, PLUGIN_CXX_CP_PRE_GENERICIZE,
+  register_callback (plugin_name, PLUGIN_PRE_GENERICIZE,
                      handle_pre_generic, NULL);
 
   register_callback (plugin_name, PLUGIN_ATTRIBUTES, register_attributes, NULL);

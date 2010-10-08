@@ -1,5 +1,6 @@
 /* Prototypes for exported functions defined in mmix.c
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2007, 2010
+   Free Software Foundation, Inc.
    Contributed by Hans-Peter Nilsson (hp@bitrange.com)
 
 This file is part of GCC.
@@ -18,7 +19,6 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-extern void mmix_override_options (void);
 extern void mmix_init_expanders (void);
 extern int mmix_eh_return_data_regno (int);
 extern int mmix_initial_elimination_offset (int, int);
@@ -30,7 +30,6 @@ extern int mmix_register_move_cost
   (enum machine_mode, enum reg_class, enum reg_class);
 extern const char *mmix_text_section_asm_op (void);
 extern const char *mmix_data_section_asm_op (void);
-extern void mmix_asm_output_source_filename (FILE *, const char *);
 extern void mmix_output_quoted_string (FILE *, const char *, int);
 extern void mmix_asm_output_source_line  (FILE *, int);
 extern void mmix_asm_output_ascii (FILE *, const char *, int);
@@ -52,8 +51,6 @@ extern int mmix_local_regno (int);
 extern int mmix_dbx_register_number (int);
 extern int mmix_use_simple_return (void);
 extern void mmix_make_decl_one_only (tree);
-extern rtx mmix_function_outgoing_value (const_tree, const_tree);
-extern int mmix_function_value_regno_p (int);
 extern int mmix_data_alignment (tree, int);
 extern int mmix_constant_alignment (tree, int);
 extern int mmix_local_alignment (tree, int);

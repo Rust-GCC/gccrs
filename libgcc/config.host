@@ -1,6 +1,6 @@
 # libgcc host-specific configuration file.
 # Copyright 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
-# 2008, 2009 Free Software Foundation, Inc.
+# 2008, 2009, 2010 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -97,12 +97,18 @@ ia64-*-*)
 hppa*-*-*)
 	cpu_type=pa
 	;;
+lm32*-*-*)
+	cpu_type=lm32
+	;;
 m32r*-*-*)
         cpu_type=m32r
         ;;
 m68k-*-*)
 	;;
 mep*-*-*)
+	;;
+microblaze*-*-*)
+	cpu_type=microblaze
 	;;
 mips*-*-*)
 	cpu_type=mips
@@ -186,7 +192,7 @@ alpha*-*-netbsd*)
 	;;
 alpha*-*-openbsd*)
 	;;
-alpha*-dec-osf[45]*)
+alpha*-dec-osf5.1*)
 	;;
 alpha64-dec-*vms*)
 	tmake_file="vms/t-vms vms/t-vms64 alpha/t-vms"
@@ -276,8 +282,10 @@ i[34567]86-*-elf*)
 x86_64-*-elf*)
 	;;
 i[34567]86-*-freebsd*)
+	tmake_file="${tmake_file} i386/t-freebsd"
 	;;
 x86_64-*-freebsd*)
+	tmake_file="${tmake_file} i386/t-freebsd"
 	;;
 i[34567]86-*-netbsdelf*)
 	;;
@@ -342,6 +350,8 @@ ia64*-*-elf*)
 	tmake_file="ia64/t-ia64"
 	;;
 ia64*-*-freebsd*)
+	extra_parts="crtbegin.o crtend.o crtbeginS.o crtendS.o crtfastmath.o"
+	tmake_file="ia64/t-ia64"
 	;;
 ia64*-*-linux*)
 	extra_parts="crtbegin.o crtend.o crtbeginS.o crtendS.o crtfastmath.o"
@@ -354,6 +364,14 @@ ia64-hp-*vms*)
 	;;
 iq2000*-*-elf*)
         ;;
+lm32-*-elf*|lm32-*-rtems*)
+        extra_parts="crtbegin.o crtend.o crti.o crtn.o"
+        tmake_file="lm32/t-lm32 lm32/t-elf t-softfp"
+	;;
+lm32-*-uclinux*)
+        extra_parts="crtbegin.o crtend.o crtbeginS.o crtendS.o crtbeginT.o"
+        tmake_file="lm32/t-lm32 lm32/t-uclinux t-softfp"
+	;;	
 m32r-*-elf*|m32r-*-rtems*)
  	;;
 m32rle-*-elf*)
@@ -384,13 +402,20 @@ mcore-*-elf)
 	;;
 mcore-*-pe*)
 	;;
+microblaze*-*-*)
+        tmake_file="microblaze/t-microblaze"
+	;;
 mips-sgi-irix[56]*)
 	;;
 mips*-*-netbsd*)			# NetBSD/mips, either endian.
 	;;
 mips64*-*-linux*)
+	extra_parts="$extra_parts crtfastmath.o"
+	tmake_file="{$tmake_file} mips/t-crtfm"
 	;;
 mips*-*-linux*)				# Linux MIPS, either endian.
+	extra_parts="$extra_parts crtfastmath.o"
+	tmake_file="{$tmake_file} mips/t-crtfm"
 	;;
 mips*-*-openbsd*)
 	;;
@@ -421,11 +446,13 @@ mips-wrs-vxworks)
 mipstx39-*-elf* | mipstx39el-*-elf*)
 	;;
 mmix-knuth-mmixware)
+	extra_parts="crti.o crtn.o crtbegin.o crtend.o"
+	tmake_file="${tmake_file} ${cpu_type}/t-${cpu_type}"
 	;;
 mn10300-*-*)
 	;;
 moxie-*-*)
-	tmake_file=${cpu_type}/t-moxie
+	tmake_file="moxie/t-moxie moxie/t-moxie-softfp"
 	extra_parts="crtbegin.o crtend.o crti.o crtn.o"
 	;;
 pdp11-*-*)
@@ -441,6 +468,7 @@ powerpc*-*-freebsd*)
 powerpc-*-netbsd*)
 	;;
 powerpc-*-eabispe*)
+	tmake_file="${tmake_file} rs6000/t-ppccomm"
 	;;
 powerpc-*-eabisimaltivec*)
 	;;
@@ -451,6 +479,7 @@ powerpc-*-elf*)
 powerpc-*-eabialtivec*)
 	;;
 powerpc-*-eabi*)
+	tmake_file="${tmake_file} rs6000/t-ppccomm"
 	;;
 powerpc-*-rtems*)
 	;;
@@ -522,7 +551,7 @@ sparc-*-linux*)		# SPARC's running GNU/Linux, libc6
 	extra_parts="$extra_parts crtfastmath.o"
 	tmake_file="${tmake_file} sparc/t-crtfm"
 	;;
-sparc-*-rtems*)
+sparc-*-rtems* | sparc64-*-rtems* )
 	;;
 sparc64-*-solaris2* | sparcv9-*-solaris2*)
 	;;
@@ -579,7 +608,10 @@ case ${host} in
 i[34567]86-*-linux* | x86_64-*-linux* | \
   i[34567]86-*-kfreebsd*-gnu | i[34567]86-*-knetbsd*-gnu | \
   i[34567]86-*-gnu*)
-	tmake_file="${tmake_file} t-tls t-stack i386/t-stack-i386"
+	tmake_file="${tmake_file} t-tls"
+	if test "$libgcc_cv_cfi" = "yes"; then
+		tmake_file="${tmake_file} t-stack i386/t-stack-i386"
+	fi
 	;;
 esac
 
@@ -587,7 +619,10 @@ case ${host} in
 i[34567]86-*-darwin* | x86_64-*-darwin* | \
   i[34567]86-*-kfreebsd*-gnu | x86_64-*-kfreebsd*-gnu | \
   i[34567]86-*-linux* | x86_64-*-linux* | \
-  i[34567]86-*-cygwin* | i[34567]86-*-mingw* | x86_64-*-mingw*)
+  i[34567]86-*-gnu* | \
+  i[34567]86-*-solaris2* | \
+  i[34567]86-*-cygwin* | i[34567]86-*-mingw* | x86_64-*-mingw* | \
+  i[34567]86-*-freebsd* | x86_64-*-freebsd*)
 	if test "${host_address}" = 32; then
 		tmake_file="${tmake_file} t-softfp i386/${host_address}/t-fprules-softfp"
 	fi

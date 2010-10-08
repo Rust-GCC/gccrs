@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -31,13 +31,12 @@
 
 with Ada.Finalization;            use Ada.Finalization;
 with Ada.IO_Exceptions;           use Ada.IO_Exceptions;
-with Ada.Unchecked_Conversion;
 
 with Interfaces.C;
 with Interfaces.C.Strings;        use Interfaces.C.Strings;
 with Interfaces.C_Streams;        use Interfaces.C_Streams;
 
-with System.CRTL;
+with System.CRTL.Runtime;
 with System.Case_Util;            use System.Case_Util;
 with System.OS_Lib;
 with System.Soft_Links;
@@ -105,7 +104,7 @@ package body System.File_IO is
    File_Names_Case_Sensitive : constant Boolean := Get_Case_Sensitive /= 0;
    --  Set to indicate whether the operating system convention is for file
    --  names to be case sensitive (e.g., in Unix, set True), or non case
-   --  sensitive (e.g., in OS/2, set False).
+   --  sensitive (e.g., in Windows, set False).
 
    -----------------------
    -- Local Subprograms --
@@ -206,7 +205,7 @@ package body System.File_IO is
    begin
       if File = null then
          raise Status_Error with "file not open";
-      elsif File.Mode > Inout_File then
+      elsif File.Mode not in Read_File_Mode then
          raise Mode_Error with "file not readable";
       end if;
    end Check_Read_Status;
@@ -375,16 +374,7 @@ package body System.File_IO is
    -------------------
 
    function Errno_Message (Errno : Integer := OS_Lib.Errno) return String is
-      pragma Warnings (Off);
-      function To_Chars_Ptr is
-        new Ada.Unchecked_Conversion (System.Address, chars_ptr);
-      --  On VMS, the compiler warns because System.Address is 64 bits, but
-      --  chars_ptr is 32 bits. It should be safe, though, because strerror
-      --  will return a 32-bit pointer.
-      pragma Warnings (On);
-
-      Message : constant chars_ptr :=
-                  To_Chars_Ptr (CRTL.strerror (Errno));
+      Message : constant chars_ptr := CRTL.Runtime.strerror (Errno);
 
    begin
       if Message = Null_Ptr then
@@ -395,7 +385,7 @@ package body System.File_IO is
    end Errno_Message;
 
    function Errno_Message
-     (Name : String;
+     (Name  : String;
       Errno : Integer := OS_Lib.Errno) return String
    is
    begin
@@ -529,27 +519,17 @@ package body System.File_IO is
             end if;
 
          when Inout_File | Append_File =>
-            if Creat then
-               Fopstr (1) := 'w';
-            else
-               Fopstr (1) := 'r';
-            end if;
-
+            Fopstr (1) := (if Creat then 'w' else 'r');
             Fopstr (2) := '+';
             Fptr := 3;
 
       end case;
 
-      --  If text_translation_required is true then we need to append
-      --  either a t or b to the string to get the right mode
+      --  If text_translation_required is true then we need to append either a
+      --  "t" or "b" to the string to get the right mode.
 
       if text_translation_required then
-         if Text then
-            Fopstr (Fptr) := 't';
-         else
-            Fopstr (Fptr) := 'b';
-         end if;
-
+         Fopstr (Fptr) := (if Text then 't' else 'b');
          Fptr := Fptr + 1;
       end if;
 
@@ -1203,7 +1183,7 @@ package body System.File_IO is
       --  reopen.
 
       if Mode = File.Mode
-        and then Mode <= Inout_File
+        and then Mode in Read_File_Mode
       then
          rewind (File.Stream);
 

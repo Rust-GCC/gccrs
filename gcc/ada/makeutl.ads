@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -43,9 +43,25 @@ package Makeutl is
    Project_Tree : constant Project_Tree_Ref := new Project_Tree_Data;
    --  The project tree
 
+   Source_Info_Option : constant String := "--source-info=";
+   --  Switch to indicate the source info file
+
    Subdirs_Option : constant String := "--subdirs=";
    --  Switch used to indicate that the real directories (object, exec,
    --  library, ...) are subdirectories of those in the project file.
+
+   Unchecked_Shared_Lib_Imports : constant String :=
+                                    "--unchecked-shared-lib-imports";
+   --  Command line switch to allow shared library projects to import projects
+   --  that are not shared library projects.
+
+   Single_Compile_Per_Obj_Dir_Switch : constant String :=
+                                         "--single-compile-per-obj-dir";
+   --  Switch to forbid simultaneous compilations for the same object directory
+   --  when project files are used.
+
+   Create_Map_File_Switch : constant String := "--create-map-file";
+   --  Switch to create a map file when an executable is linked
 
    procedure Add
      (Option : String_Access;
@@ -57,10 +73,20 @@ package Makeutl is
       Last   : in out Natural);
    --  Add a string to a list of strings
 
+   function Create_Binder_Mapping_File return Path_Name_Type;
+   --  Create a binder mapping file and returns its path name
+
    function Create_Name (Name : String) return File_Name_Type;
    function Create_Name (Name : String) return Name_Id;
    function Create_Name (Name : String) return Path_Name_Type;
-   --  Get the Name_Id of a name
+   --  Get an id for a name
+
+   function Base_Name_Index_For
+     (Main            : String;
+      Main_Index      : Int;
+      Index_Separator : Character) return File_Name_Type;
+   --  Returns the base name of Main, without the extension, followed by the
+   --  Index_Separator followed by the Main_Index if it is non-zero.
 
    function Executable_Prefix_Path return String;
    --  Return the absolute path parent directory of the directory where the
@@ -80,9 +106,9 @@ package Makeutl is
    --  one of its source. Returns False otherwise.
 
    function Check_Source_Info_In_ALI (The_ALI : ALI.ALI_Id) return Boolean;
-   --  Check whether all file references in ALI are still valid (ie the
+   --  Check whether all file references in ALI are still valid (i.e. the
    --  source files are still associated with the same units). Return True
-   --  if everything is still valid
+   --  if everything is still valid.
 
    function Is_External_Assignment
      (Tree : Prj.Tree.Project_Node_Tree_Ref;
@@ -114,11 +140,11 @@ package Makeutl is
       S2                : String  := "";
       Prefix            : String  := "  -> ";
       Minimum_Verbosity : Opt.Verbosity_Level_Type := Opt.Low);
-   --  If the verbose flag (Verbose_Mode) is set and the verbosity level is
-   --  at least equal to Minimum_Verbosity, then print Prefix to standard
-   --  output followed by N1 and S1. If N2 /= No_Name then N2 is printed after
-   --  S1. S2 is printed last. Both N1 and N2 are printed in quotation marks.
-   --  The two forms differ only in taking Name_Id or File_name_Type arguments.
+   --  If the verbose flag (Verbose_Mode) is set and the verbosity level is at
+   --  least equal to Minimum_Verbosity, then print Prefix to standard output
+   --  followed by N1 and S1. If N2 /= No_Name then N2 is printed after S1. S2
+   --  is printed last. Both N1 and N2 are printed in quotation marks. The two
+   --  forms differ only in taking Name_Id or File_name_Type arguments.
 
    function Linker_Options_Switches
      (Project  : Project_Id;
@@ -135,40 +161,6 @@ package Makeutl is
    --  Find the index of a unit in a source file. Return zero if the file is
    --  not a multi-unit source file.
 
-   package Mains is
-
-      --  Mains are stored in a table. An index is used to retrieve the mains
-      --  from the table.
-
-      procedure Add_Main (Name : String);
-      --  Add one main to the table
-
-      procedure Set_Location (Location : Source_Ptr);
-      --  Set the location of the last main added. By default, the location is
-      --  No_Location.
-
-      procedure Delete;
-      --  Empty the table
-
-      procedure Reset;
-      --  Reset the index to the beginning of the table
-
-      function Next_Main return String;
-      --  Increase the index and return the next main. If table is exhausted,
-      --  return an empty string.
-
-      function Get_Location return Source_Ptr;
-      --  Get the location of the current main
-
-      procedure Update_Main (Name : String);
-      --  Update the file name of the current main
-
-      function Number_Of_Mains return Natural;
-      --  Returns the number of mains added with Add_Main since the last call
-      --  to Delete.
-
-   end Mains;
-
    procedure Test_If_Relative_Path
      (Switch               : in out String_Access;
       Parent               : String;
@@ -184,6 +176,48 @@ package Makeutl is
 
    function Path_Or_File_Name (Path : Path_Name_Type) return String;
    --  Returns a file name if -df is used, otherwise return a path name
+
+   -----------
+   -- Mains --
+   -----------
+
+   --  Mains are stored in a table. An index is used to retrieve the mains
+   --  from the table.
+
+   package Mains is
+
+      procedure Add_Main (Name : String);
+      --  Add one main to the table
+
+      procedure Set_Index (Index : Int);
+
+      procedure Set_Location (Location : Source_Ptr);
+      --  Set the location of the last main added. By default, the location is
+      --  No_Location.
+
+      procedure Delete;
+      --  Empty the table
+
+      procedure Reset;
+      --  Reset the index to the beginning of the table
+
+      function Next_Main return String;
+      --  Increase the index and return the next main. If table is exhausted,
+      --  return an empty string.
+
+      function Get_Index return Int;
+
+      function Get_Location return Source_Ptr;
+      --  Get the location of the current main
+
+      procedure Update_Main (Name : String);
+      --  Update the file name of the current main
+
+      function Number_Of_Mains return Natural;
+      --  Returns the number of mains added with Add_Main since the last call
+      --  to Delete.
+
+   end Mains;
 
    ----------------------
    -- Marking Routines --

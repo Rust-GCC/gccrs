@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2001-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -31,6 +31,7 @@ with GNAT.Dynamic_Tables;
 with Table;
 
 with Prj.Attr; use Prj.Attr;
+with Prj.Env;
 
 package Prj.Tree is
 
@@ -408,7 +409,8 @@ package Prj.Tree is
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref) return Project_Node_Id;
    pragma Inline (First_Declarative_Item_Of);
-   --  Only valid for N_With_Clause nodes
+   --  Only valid for N_Project_Declaration, N_Case_Item and
+   --  N_Package_Declaration.
 
    function Extended_Project_Of
      (Node    : Project_Node_Id;
@@ -492,7 +494,7 @@ package Prj.Tree is
       In_Tree : Project_Node_Tree_Ref) return Name_Id;
    pragma Inline (Associative_Array_Index_Of);
    --  Only valid for N_Attribute_Declaration and N_Attribute_Reference.
-   --  Returns No_String for non associative array attributes.
+   --  Returns No_Name for non associative array attributes.
 
    function Next_Variable
      (Node    : Project_Node_Id;
@@ -573,8 +575,8 @@ package Prj.Tree is
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref) return Project_Node_Id;
    pragma Inline (First_Choice_Of);
-   --  Return the first choice in a N_Case_Item, or Empty_Node if
-   --  this is when others.
+   --  Only valid for N_Case_Item nodes. Return the first choice in a
+   --  N_Case_Item, or Empty_Node if this is when others.
 
    function Next_Case_Item
      (Node    : Project_Node_Id;
@@ -613,16 +615,25 @@ package Prj.Tree is
      (Tree       : Project_Node_Tree_Ref;
       Prj_Or_Pkg : Project_Node_Id;
       Name       : Name_Id;
-      Index_Name : Name_Id       := No_Name;
-      Kind       : Variable_Kind := List;
-      At_Index   : Integer       := 0) return Project_Node_Id;
+      Index_Name : Name_Id         := No_Name;
+      Kind       : Variable_Kind   := List;
+      At_Index   : Integer         := 0;
+      Value      : Project_Node_Id := Empty_Node) return Project_Node_Id;
    --  Create a new attribute. The new declaration is added at the end of the
    --  declarative item list for Prj_Or_Pkg (a project or a package), but
    --  before any package declaration). No addition is done if Prj_Or_Pkg is
    --  Empty_Node. If Index_Name is not "", then if creates an attribute value
    --  for a specific index. At_Index is used for the " at <idx>" in the naming
-   --  exceptions. Use Set_Expression_Of to set the value of the attribute (in
-   --  which case Enclose_In_Expression might be useful)
+   --  exceptions.
+   --
+   --  To set the value of the attribute, either provide a value for Value, or
+   --  use Set_Expression_Of to set the value of the attribute (in which case
+   --  Enclose_In_Expression might be useful). The former is recommended since
+   --  it will more correctly handle cases where the index needs to be set on
+   --  the expression rather than on the index of the attribute (i.e. 'for
+   --  Specification ("unit") use "file" at 3', versus 'for Executable ("file"
+   --  at 3) use "name"'). Value must be a N_String_Literal if an index will be
+   --  added to it.
 
    function Create_Literal_String
      (Str  : Namet.Name_Id;
@@ -647,7 +658,8 @@ package Prj.Tree is
    function Enclose_In_Expression
      (Node : Project_Node_Id;
       Tree : Project_Node_Tree_Ref) return Project_Node_Id;
-   --  Enclose the Node inside a N_Expression node, and return this expression
+   --  Enclose the Node inside a N_Expression node, and return this expression.
+   --  This does nothing if Node is already a N_Expression.
 
    --------------------
    -- Set Procedures --
@@ -656,8 +668,11 @@ package Prj.Tree is
    --  The following procedures are part of the abstract interface of the
    --  Project File tree.
 
-   --  Each Set_* procedure is valid only for the same Project_Node_Kind
-   --  nodes as the corresponding query function above.
+   --  Foe each Set_* procedure the condition of validity is specified. If an
+   --  access function is called with invalid arguments, then exception
+   --  Assertion_Error is raised if assertions are enabled, otherwise the
+   --  behaviour is not defined and may result in a crash.
+
    --  These are very low-level, and manipulate the tree itself directly. You
    --  should look at the Create_* procedure instead if you want to use higher
    --  level constructs
@@ -667,146 +682,183 @@ package Prj.Tree is
       In_Tree : Project_Node_Tree_Ref;
       To      : Name_Id);
    pragma Inline (Set_Name_Of);
+   --  Valid for all non empty nodes.
 
    procedure Set_Kind_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Kind);
    pragma Inline (Set_Kind_Of);
+   --  Valid for all non empty nodes
 
    procedure Set_Location_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Source_Ptr);
    pragma Inline (Set_Location_Of);
+   --  Valid for all non empty nodes
 
    procedure Set_First_Comment_After
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Comment_After);
+   --  Valid only for N_Comment_Zones nodes
 
    procedure Set_First_Comment_After_End
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Comment_After_End);
+   --  Valid only for N_Comment_Zones nodes
 
    procedure Set_First_Comment_Before
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Comment_Before);
+   --  Valid only for N_Comment_Zones nodes
 
    procedure Set_First_Comment_Before_End
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Comment_Before_End);
+   --  Valid only for N_Comment_Zones nodes
 
    procedure Set_Next_Comment
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_Comment);
+   --  Valid only for N_Comment nodes
 
    procedure Set_Parent_Project_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
+   --  Valid only for N_Project nodes
 
    procedure Set_Project_File_Includes_Unkept_Comments
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Boolean);
+   --  Valid only for N_Project nodes
 
    procedure Set_Directory_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Path_Name_Type);
    pragma Inline (Set_Directory_Of);
+   --  Valid only for N_Project nodes
 
    procedure Set_Expression_Kind_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Variable_Kind);
    pragma Inline (Set_Expression_Kind_Of);
+   --  Only valid for N_Literal_String, N_Attribute_Declaration,
+   --  N_Variable_Declaration, N_Typed_Variable_Declaration, N_Expression,
+   --  N_Term, N_Variable_Reference or N_Attribute_Reference nodes.
 
    procedure Set_Is_Extending_All
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref);
    pragma Inline (Set_Is_Extending_All);
+   --  Only valid for N_Project and N_With_Clause
 
    procedure Set_Is_Not_Last_In_List
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref);
    pragma Inline (Set_Is_Not_Last_In_List);
+   --  Only valid for N_With_Clause
 
    procedure Set_First_Variable_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Variable_Node_Id);
    pragma Inline (Set_First_Variable_Of);
+   --  Only valid for N_Project or N_Package_Declaration nodes
 
    procedure Set_First_Package_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Package_Declaration_Id);
    pragma Inline (Set_First_Package_Of);
+   --  Only valid for N_Project nodes
 
    procedure Set_Package_Id_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Package_Node_Id);
    pragma Inline (Set_Package_Id_Of);
+   --  Only valid for N_Package_Declaration nodes
 
    procedure Set_Path_Name_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Path_Name_Type);
    pragma Inline (Set_Path_Name_Of);
+   --  Only valid for N_Project and N_With_Clause nodes
 
    procedure Set_String_Value_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Name_Id);
    pragma Inline (Set_String_Value_Of);
+   --  Only valid for N_With_Clause, N_Literal_String nodes or N_Comment.
+
+   procedure Set_Source_Index_Of
+     (Node    : Project_Node_Id;
+      In_Tree : Project_Node_Tree_Ref;
+      To      : Int);
+   pragma Inline (Set_Source_Index_Of);
+   --  Only valid for N_Literal_String and N_Attribute_Declaration nodes. For
+   --  N_Literal_String, set the source index of the litteral string. For
+   --  N_Attribute_Declaration, set the source index of the index of the
+   --  associative array element.
 
    procedure Set_First_With_Clause_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_With_Clause_Of);
+   --  Only valid for N_Project nodes
 
    procedure Set_Project_Declaration_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Project_Declaration_Of);
+   --  Only valid for N_Project nodes
 
    procedure Set_Project_Qualifier_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Qualifier);
    pragma Inline (Set_Project_Qualifier_Of);
+   --  Only valid for N_Project nodes
 
    procedure Set_Extending_Project_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Extending_Project_Of);
+   --  Only valid for N_Project_Declaration nodes
 
    procedure Set_First_String_Type_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_String_Type_Of);
+   --  Only valid for N_Project nodes
 
    procedure Set_Extended_Project_Path_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Path_Name_Type);
    pragma Inline (Set_Extended_Project_Path_Of);
+   --  Only valid for N_With_Clause nodes
 
    procedure Set_Project_Node_Of
      (Node         : Project_Node_Id;
@@ -814,185 +866,214 @@ package Prj.Tree is
       To           : Project_Node_Id;
       Limited_With : Boolean := False);
    pragma Inline (Set_Project_Node_Of);
+   --  Only valid for N_With_Clause, N_Variable_Reference and
+   --  N_Attribute_Reference nodes.
 
    procedure Set_Next_With_Clause_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_With_Clause_Of);
+   --  Only valid for N_With_Clause nodes
 
    procedure Set_First_Declarative_Item_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Declarative_Item_Of);
+   --  Only valid for N_Project_Declaration, N_Case_Item and
+   --  N_Package_Declaration.
 
    procedure Set_Extended_Project_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Extended_Project_Of);
+   --  Only valid for N_Project_Declaration nodes
 
    procedure Set_Current_Item_Node
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Current_Item_Node);
+   --  Only valid for N_Declarative_Item nodes
 
    procedure Set_Next_Declarative_Item
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_Declarative_Item);
+   --  Only valid for N_Declarative_Item node
 
    procedure Set_Project_Of_Renamed_Package_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Project_Of_Renamed_Package_Of);
+   --  Only valid for N_Package_Declaration nodes.
 
    procedure Set_Next_Package_In_Project
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_Package_In_Project);
+   --  Only valid for N_Package_Declaration nodes
 
    procedure Set_First_Literal_String
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Literal_String);
+   --  Only valid for N_String_Type_Declaration nodes
 
    procedure Set_Next_String_Type
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_String_Type);
+   --  Only valid for N_String_Type_Declaration nodes
 
    procedure Set_Next_Literal_String
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_Literal_String);
+   --  Only valid for N_Literal_String nodes
 
    procedure Set_Expression_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Expression_Of);
+   --  Only valid for N_Attribute_Declaration, N_Typed_Variable_Declaration
+   --  or N_Variable_Declaration nodes
 
    procedure Set_Associative_Project_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Associative_Project_Of);
+   --  Only valid for N_Attribute_Declaration nodes
 
    procedure Set_Associative_Package_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Associative_Package_Of);
+   --  Only valid for N_Attribute_Declaration nodes
 
    procedure Set_Associative_Array_Index_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Name_Id);
    pragma Inline (Set_Associative_Array_Index_Of);
+   --  Only valid for N_Attribute_Declaration and N_Attribute_Reference.
 
    procedure Set_Next_Variable
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_Variable);
+   --  Only valid for N_Typed_Variable_Declaration or N_Variable_Declaration
+   --  nodes.
 
    procedure Set_First_Term
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Term);
+   --  Only valid for N_Expression nodes
 
    procedure Set_Next_Expression_In_List
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_Expression_In_List);
+   --  Only valid for N_Expression nodes
 
    procedure Set_Current_Term
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Current_Term);
+   --  Only valid for N_Term nodes
 
    procedure Set_Next_Term
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_Term);
+   --  Only valid for N_Term nodes
 
    procedure Set_First_Expression_In_List
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Expression_In_List);
+   --  Only valid for N_Literal_String_List nodes
 
    procedure Set_Package_Node_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Package_Node_Of);
-
-   procedure Set_Source_Index_Of
-     (Node    : Project_Node_Id;
-      In_Tree : Project_Node_Tree_Ref;
-      To      : Int);
-   pragma Inline (Set_Source_Index_Of);
+   --  Only valid for N_Variable_Reference or N_Attribute_Reference nodes.
 
    procedure Set_String_Type_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_String_Type_Of);
+   --  Only valid for N_Variable_Reference or N_Typed_Variable_Declaration
+   --  nodes.
 
    procedure Set_External_Reference_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_External_Reference_Of);
+   --  Only valid for N_External_Value nodes
 
    procedure Set_External_Default_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_External_Default_Of);
+   --  Only valid for N_External_Value nodes
 
    procedure Set_Case_Variable_Reference_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Case_Variable_Reference_Of);
+   --  Only valid for N_Case_Construction nodes
 
    procedure Set_First_Case_Item_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Case_Item_Of);
+   --  Only valid for N_Case_Construction nodes
 
    procedure Set_First_Choice_Of
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_First_Choice_Of);
+   --  Only valid for N_Case_Item nodes.
 
    procedure Set_Next_Case_Item
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Project_Node_Id);
    pragma Inline (Set_Next_Case_Item);
+   --  Only valid for N_Case_Item nodes.
 
    procedure Set_Case_Insensitive
      (Node    : Project_Node_Id;
       In_Tree : Project_Node_Tree_Ref;
       To      : Boolean);
+   --  Only valid for N_Attribute_Declaration and N_Attribute_Reference nodes
 
    -------------------------------
    -- Restricted Access Section --
@@ -1377,8 +1458,8 @@ package Prj.Tree is
       Key        => Name_Id,
       Hash       => Hash,
       Equal      => "=");
-   --  General type for htables associating name_id to name_id.
-   --  This is in particular used to store the values of external references
+   --  General type for htables associating name_id to name_id. This is in
+   --  particular used to store the values of external references.
 
    type Project_Node_Tree_Data is record
       Project_Nodes : Tree_Private_Part.Project_Node_Table.Instance;
@@ -1390,12 +1471,11 @@ package Prj.Tree is
       --  project-tree specific so that one can load the same tree twice but
       --  have two views of it, for instance.
 
-      Project_Path : String_Access;
-      --  The project path, manipulated through subprograms in prj-ext.ads.
-      --  As a special case, if the first character is '#:" or this variable is
-      --  unset, this means that the PATH has not been fully initialized yet
-      --  (although subprograms prj-ext.ads will properly take care of that).
-      --
+      Target_Name : String_Access := null;
+      --  The target name, if any, specified with the gprbuild or gprclean
+      --  switch --target=.
+
+      Project_Path : aliased Prj.Env.Project_Search_Path;
       --  The project path is tree specific, since we might want to load
       --  simultaneously multiple projects, each with its own search path, in
       --  particular when using different compilers with different default

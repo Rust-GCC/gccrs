@@ -32,7 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cp-tree.h"
 #include "cpplib.h"
 #include "flags.h"
-#include "c-pragma.h"
+#include "c-family/c-pragma.h"
 #include "toplev.h"
 #include "output.h"
 #include "tm_p.h"
@@ -184,7 +184,7 @@ init_reswords (void)
   /* The Objective-C keywords are all context-dependent.  */
   mask |= D_OBJC;
 
-  ridpointers = GGC_CNEWVEC (tree, (int) RID_MAX);
+  ridpointers = ggc_alloc_cleared_vec_tree ((int) RID_MAX);
   for (i = 0; i < num_c_common_reswords; i++)
     {
       if (c_common_reswords[i].disable & D_CONLY)
@@ -226,8 +226,9 @@ cxx_init (void)
    CTOR_INITIALIZER,	TRY_BLOCK,	HANDLER,
    EH_SPEC_BLOCK,	USING_STMT,	TAG_DEFN,
    IF_STMT,		CLEANUP_STMT,	FOR_STMT,
-   WHILE_STMT,		DO_STMT,	BREAK_STMT,
-   CONTINUE_STMT,	SWITCH_STMT,	EXPR_STMT
+   RANGE_FOR_STMT,	WHILE_STMT,	DO_STMT,
+   BREAK_STMT,		CONTINUE_STMT,	SWITCH_STMT,
+   EXPR_STMT
   };
 
   memset (&statement_code_p, 0, sizeof (statement_code_p));
@@ -507,13 +508,25 @@ unqualified_fn_lookup_error (tree name)
   return unqualified_name_lookup_error (name);
 }
 
+/* Wrapper around build_lang_decl_loc(). Should gradually move to
+   build_lang_decl_loc() and then rename build_lang_decl_loc() back to
+   build_lang_decl().  */
+
 tree
 build_lang_decl (enum tree_code code, tree name, tree type)
 {
+  return build_lang_decl_loc (input_location, code, name, type);
+}
+
+/* Build a decl from CODE, NAME, TYPE declared at LOC, and then add
+   DECL_LANG_SPECIFIC info to the result.  */
+
+tree
+build_lang_decl_loc (location_t loc, enum tree_code code, tree name, tree type)
+{
   tree t;
 
-  t = build_decl (input_location,
-		  code, name, type);
+  t = build_decl (loc, code, name, type);
   retrofit_lang_decl (t);
 
   return t;
@@ -540,7 +553,7 @@ retrofit_lang_decl (tree t)
   else
     gcc_unreachable ();
 
-  ld = GGC_CNEWVAR (struct lang_decl, size);
+  ld = ggc_alloc_cleared_lang_decl (size);
 
   ld->u.base.selector = sel;
 
@@ -581,7 +594,7 @@ cxx_dup_lang_specific_decl (tree node)
   else
     gcc_unreachable ();
 
-  ld = GGC_NEWVAR (struct lang_decl, size);
+  ld = ggc_alloc_lang_decl (size);
   memcpy (ld, DECL_LANG_SPECIFIC (node), size);
   DECL_LANG_SPECIFIC (node) = ld;
 
@@ -618,7 +631,7 @@ copy_lang_type (tree node)
     size = sizeof (struct lang_type);
   else
     size = sizeof (struct lang_type_ptrmem);
-  lt = GGC_NEWVAR (struct lang_type, size);
+  lt = ggc_alloc_lang_type (size);
   memcpy (lt, TYPE_LANG_SPECIFIC (node), size);
   TYPE_LANG_SPECIFIC (node) = lt;
 
@@ -649,7 +662,8 @@ cxx_make_type (enum tree_code code)
   if (RECORD_OR_UNION_CODE_P (code)
       || code == BOUND_TEMPLATE_TEMPLATE_PARM)
     {
-      struct lang_type *pi = GGC_CNEW (struct lang_type);
+      struct lang_type *pi
+          = ggc_alloc_cleared_lang_type (sizeof (struct lang_type));
 
       TYPE_LANG_SPECIFIC (t) = pi;
       pi->u.c.h.is_lang_type_class = 1;

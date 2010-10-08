@@ -1,6 +1,7 @@
 ;;- Machine description for Renesas / SuperH SH.
 ;;  Copyright (C) 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
-;;  2003, 2004, 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+;;  2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+;;  Free Software Foundation, Inc.
 ;;  Contributed by Steve Chamberlain (sac@cygnus.com).
 ;;  Improved by Jim Wilson (wilson@cygnus.com).
 
@@ -591,7 +592,7 @@
 (define_insn ""
   [(set (reg:SI T_REG)
 	(eq:SI (and:SI (match_operand:SI 0 "arith_reg_operand" "z,r")
-		       (match_operand:SI 1 "arith_operand" "K08,r"))
+		       (match_operand:SI 1 "logical_operand" "K08,r"))
 	       (const_int 0)))]
   "TARGET_SH1"
   "tst	%1,%0"
@@ -4836,6 +4837,21 @@ label:
   "TARGET_SH1"
   "sett")
 
+;; Define additional pop for SH1 and SH2 so it does not get 
+;; placed in the delay slot.
+(define_insn "*movsi_pop"
+  [(set (match_operand:SI 0 "register_operand" "=r,x,l")
+        (match_operand:SI 1 "sh_no_delay_pop_operand" ">,>,>"))]
+  "(TARGET_SH1 || TARGET_SH2E || TARGET_SH2A)
+   && ! TARGET_SH3"
+  "@
+   mov.l   %1,%0
+   lds.l   %1,%0
+   lds.l   %1,%0"
+  [(set_attr "type" "load_si,mem_mac,pload")
+   (set_attr "length" "2,2,2")
+   (set_attr "in_delay_slot" "no,no,no")])
+
 ;; t/r must come after r/r, lest reload will try to reload stuff like
 ;; (set (subreg:SI (mem:QI (plus:SI (reg:SI SP_REG) (const_int 12)) 0) 0)
 ;; (made from (set (subreg:SI (reg:QI ###) 0) ) into T.
@@ -7034,22 +7050,21 @@ label:
 
 (define_insn_and_split "doloop_end_split"
   [(set (pc)
-	(if_then_else (ne:SI (match_operand:SI 0 "arith_reg_dest" "+r")
+	(if_then_else (ne:SI  (match_operand:SI 2 "arith_reg_dest" "0")
 			  (const_int 1))
 		      (label_ref (match_operand 1 "" ""))
 		      (pc)))
-   (set (match_dup 0)
-	(plus (match_dup 0) (const_int -1)))
+   (set (match_operand:SI 0 "arith_reg_dest" "=r")
+	(plus (match_dup 2) (const_int -1)))
    (clobber (reg:SI T_REG))]
   "TARGET_SH2"
   "#"
   ""
   [(parallel [(set (reg:SI T_REG)
-		   (eq:SI (match_operand:SI 0 "arith_reg_dest" "+r")
-			  (const_int 1)))
-	      (set (match_dup 0) (plus:SI (match_dup 0) (const_int -1)))])
+		   (eq:SI (match_dup 2) (const_int 1)))
+	      (set (match_dup 0) (plus:SI (match_dup 2) (const_int -1)))])
    (set (pc) (if_then_else (eq (reg:SI T_REG) (const_int 0))
-			   (label_ref (match_operand 1 "" ""))
+			   (label_ref (match_dup 1))
 			   (pc)))]
 ""
    [(set_attr "type" "cbranch")])
@@ -8292,8 +8307,9 @@ label:
 
 (define_insn "dect"
   [(set (reg:SI T_REG)
-	(eq:SI (match_operand:SI 0 "arith_reg_dest" "+r") (const_int 1)))
-   (set (match_dup 0) (plus:SI (match_dup 0) (const_int -1)))]
+	(eq:SI (match_operand:SI 1 "arith_reg_dest" "0") (const_int 1)))
+   (set (match_operand:SI 0 "arith_reg_dest" "=r")
+	(plus:SI (match_dup 1) (const_int -1)))]
   "TARGET_SH2"
   "dt	%0"
   [(set_attr "type" "arith")])
@@ -8453,7 +8469,7 @@ label:
   ""
   "
 {
-  rtx insn, mem;
+  rtx mem;
 
   operands[2] = !can_create_pseudo_p () ? operands[0] : gen_reg_rtx (Pmode);
   operands[3] = !can_create_pseudo_p () ? operands[0] : gen_reg_rtx (Pmode);
@@ -8502,7 +8518,7 @@ label:
   mem = gen_rtx_MEM (Pmode, operands[3]);
   MEM_NOTRAP_P (mem) = 1;
   /* ??? Should we have a special alias set for the GOT?  */
-  insn = emit_move_insn (operands[0], mem);
+  emit_move_insn (operands[0], mem);
 
   DONE;
 }")
@@ -8669,7 +8685,7 @@ mov.l\\t1f,r4\\n\\
   ""
   "
 {
-  rtx dtpoffsym, insn;
+  rtx dtpoffsym;
   rtx t = (!can_create_pseudo_p ()
 	   ? operands[0]
 	   : gen_reg_rtx (GET_MODE (operands[0])));
@@ -8677,8 +8693,7 @@ mov.l\\t1f,r4\\n\\
   dtpoffsym = gen_sym2DTPOFF (operands[1]);
   PUT_MODE (dtpoffsym, Pmode);
   emit_move_insn (t, dtpoffsym);
-  insn = emit_move_insn (operands[0],
-			 gen_rtx_PLUS (Pmode, t, operands[2]));
+  emit_move_insn (operands[0], gen_rtx_PLUS (Pmode, t, operands[2]));
   DONE;
 }")
 
@@ -8720,11 +8735,11 @@ mov.l\\t1f,r0\\n\\
   ""
   "
 {
-  rtx tpoffsym, insn;
+  rtx tpoffsym;
 
   tpoffsym = gen_sym2TPOFF (operands[1]);
   PUT_MODE (tpoffsym, Pmode);
-  insn = emit_move_insn (operands[0], tpoffsym);
+  emit_move_insn (operands[0], tpoffsym);
   DONE;
 }")
 
@@ -9200,6 +9215,39 @@ mov.l\\t1f,r0\\n\\
   ""
   ""
   [(set_attr "length" "0")])
+
+;; Define movml instructions for SH2A target.  Currently they are
+;; used to push and pop all banked registers only.
+
+(define_insn "movml_push_banked"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	  (plus (match_dup 0) (const_int -32)))
+   (set (mem:SI (plus:SI (match_dup 0) (const_int 28))) (reg:SI R7_REG))
+   (set (mem:SI (plus:SI (match_dup 0) (const_int 24))) (reg:SI R6_REG))
+   (set (mem:SI (plus:SI (match_dup 0) (const_int 20))) (reg:SI R5_REG))
+   (set (mem:SI (plus:SI (match_dup 0) (const_int 16))) (reg:SI R4_REG))
+   (set (mem:SI (plus:SI (match_dup 0) (const_int 12))) (reg:SI R3_REG))
+   (set (mem:SI (plus:SI (match_dup 0) (const_int 8))) (reg:SI R2_REG))
+   (set (mem:SI (plus:SI (match_dup 0) (const_int 4))) (reg:SI R1_REG))
+   (set (mem:SI (plus:SI (match_dup 0) (const_int 0))) (reg:SI R0_REG))]
+  "TARGET_SH2A && REGNO (operands[0]) == 15"
+  "movml.l\tr7,@-r15"
+  [(set_attr "in_delay_slot" "no")])
+
+(define_insn "movml_pop_banked"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	  (plus (match_dup 0) (const_int 32)))
+   (set (reg:SI R0_REG) (mem:SI (plus:SI (match_dup 0) (const_int -32))))
+   (set (reg:SI R1_REG) (mem:SI (plus:SI (match_dup 0) (const_int -28))))
+   (set (reg:SI R2_REG) (mem:SI (plus:SI (match_dup 0) (const_int -24))))
+   (set (reg:SI R3_REG) (mem:SI (plus:SI (match_dup 0) (const_int -20))))
+   (set (reg:SI R4_REG) (mem:SI (plus:SI (match_dup 0) (const_int -16))))
+   (set (reg:SI R5_REG) (mem:SI (plus:SI (match_dup 0) (const_int -12))))
+   (set (reg:SI R6_REG) (mem:SI (plus:SI (match_dup 0) (const_int -8))))
+   (set (reg:SI R7_REG) (mem:SI (plus:SI (match_dup 0) (const_int -4))))]
+  "TARGET_SH2A && REGNO (operands[0]) == 15"
+  "movml.l\t@r15+,r7"
+  [(set_attr "in_delay_slot" "no")])
 
 ;; ------------------------------------------------------------------------
 ;; Scc instructions

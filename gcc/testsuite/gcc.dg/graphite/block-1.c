@@ -1,15 +1,21 @@
-#define MAX 8192
+/* { dg-require-effective-target size32plus } */
 
-void bar (void);
+#define DEBUG 0
+#if DEBUG
+#include <stdio.h>
+#endif
 
-int main()
+#define MAX 100
+
+extern void abort ();
+
+int
+main (void)
 {
   int i, j;
   int sum = 0;
   int A[MAX * MAX];
   int B[MAX * MAX];
-
-  bar ();
 
   for (i = 0; i < MAX; i++)
     for (j = 0; j < MAX; j++)
@@ -22,16 +28,18 @@ int main()
     for (j = 0; j < MAX; j++)
       A[i*MAX + j] += B[j*MAX + i];
 
-  bar ();
-
-  /* FIXME: For now, reductions are not handled by the code generation
-     of graphite.  We have to bound the scop to the above loops.  */
-
   for(i = 0; i < MAX; i++)
     for(j = 0; j < MAX; j++)
       sum += A[i*MAX + j];
 
-  return sum;
+#if DEBUG
+  fprintf (stderr, "sum = %d \n", sum);
+#endif
+
+  if (sum != 990000)
+    abort ();
+
+  return 0;
 }
 
 /* { dg-final { scan-tree-dump-times "will be loop blocked" 2 "graphite" { xfail *-*-* } } } */ 

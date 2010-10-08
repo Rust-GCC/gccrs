@@ -35,6 +35,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "dbgcnt.h"
 #include "tm_p.h"
+#include "emit-rtl.h"  /* FIXME: Can go away once crtl is moved to rtl.h.  */
 
 
 /* -------------------------------------------------------------------------
@@ -93,14 +94,6 @@ deletable_insn_p (rtx insn, bool fast, bitmap arg_stores)
   rtx body, x;
   int i;
 
-  /* Don't delete jumps, notes and the like.  */
-  if (!NONJUMP_INSN_P (insn))
-    return false;
-
-  /* Don't delete insns that can throw.  */
-  if (!insn_nothrow_p (insn))
-    return false;
-
   if (CALL_P (insn)
       /* We cannot delete calls inside of the recursive dce because
 	 this may cause basic blocks to be deleted and this messes up
@@ -114,6 +107,14 @@ deletable_insn_p (rtx insn, bool fast, bitmap arg_stores)
       && (RTL_CONST_OR_PURE_CALL_P (insn)
 	  && !RTL_LOOPING_CONST_OR_PURE_CALL_P (insn)))
     return find_call_stack_args (insn, false, fast, arg_stores);
+
+  /* Don't delete jumps, notes and the like.  */
+  if (!NONJUMP_INSN_P (insn))
+    return false;
+
+  /* Don't delete insns that can throw.  */
+  if (!insn_nothrow_p (insn))
+    return false;
 
   body = PATTERN (insn);
   switch (GET_CODE (body))
@@ -622,7 +623,7 @@ mark_artificial_uses (void)
 
   FOR_ALL_BB (bb)
     {
-      for (use_rec = df_get_artificial_uses (bb->index); 
+      for (use_rec = df_get_artificial_uses (bb->index);
 	   *use_rec; use_rec++)
 	for (defs = DF_REF_CHAIN (*use_rec); defs; defs = defs->next)
 	  if (! DF_REF_IS_ARTIFICIAL (defs->ref))
@@ -766,12 +767,11 @@ struct rtl_opt_pass pass_ud_rtl_dce =
    artificial uses. */
 
 static bool
-byte_dce_process_block (basic_block bb, bool redo_out, bitmap au)
+word_dce_process_block (basic_block bb, bool redo_out)
 {
   bitmap local_live = BITMAP_ALLOC (&dce_tmp_bitmap_obstack);
   rtx insn;
   bool block_changed;
-  df_ref *def_rec;
 
   if (redo_out)
     {
@@ -780,8 +780,8 @@ byte_dce_process_block (basic_block bb, bool redo_out, bitmap au)
 	 set.  */
       edge e;
       edge_iterator ei;
-      df_confluence_function_n con_fun_n = df_byte_lr->problem->con_fun_n;
-      bitmap_clear (DF_BYTE_LR_OUT (bb));
+      df_confluence_function_n con_fun_n = df_word_lr->problem->con_fun_n;
+      bitmap_clear (DF_WORD_LR_OUT (bb));
       FOR_EACH_EDGE (e, ei, bb->succs)
 	(*con_fun_n) (e);
     }
@@ -789,76 +789,38 @@ byte_dce_process_block (basic_block bb, bool redo_out, bitmap au)
   if (dump_file)
     {
       fprintf (dump_file, "processing block %d live out = ", bb->index);
-      df_print_byte_regset (dump_file, DF_BYTE_LR_OUT (bb));
+      df_print_word_regset (dump_file, DF_WORD_LR_OUT (bb));
     }
 
-  bitmap_copy (local_live, DF_BYTE_LR_OUT (bb));
-
-  df_byte_lr_simulate_artificial_refs_at_end (bb, local_live);
+  bitmap_copy (local_live, DF_WORD_LR_OUT (bb));
 
   FOR_BB_INSNS_REVERSE (bb, insn)
-    if (INSN_P (insn))
+    if (NONDEBUG_INSN_P (insn))
       {
-	/* The insn is needed if there is someone who uses the output.  */
-	for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
-	  {
-	    df_ref def = *def_rec;
-	    unsigned int last;
-	    unsigned int dregno = DF_REF_REGNO (def);
-	    unsigned int start = df_byte_lr_get_regno_start (dregno);
-	    unsigned int len = df_byte_lr_get_regno_len (dregno);
-
-	    unsigned int sb;
-	    unsigned int lb;
-	    /* This is one of the only places where DF_MM_MAY should
-	       be used for defs.  Need to make sure that we are
-	       checking for all of the bits that may be used.  */
-
-	    if (!df_compute_accessed_bytes (def, DF_MM_MAY, &sb, &lb))
-	      {
-		start += sb;
-		len = lb - sb;
-	      }
-
-	    if (bitmap_bit_p (au, dregno))
-	      {
-		mark_insn (insn, true);
-		goto quickexit;
-	      }
-	    
-	    last = start + len;
-	    while (start < last)
-	      if (bitmap_bit_p (local_live, start++))
-		{
-		  mark_insn (insn, true);
-		  goto quickexit;
-		}
-	  }
-	
-      quickexit: 
-	
+	bool any_changed;
 	/* No matter if the instruction is needed or not, we remove
 	   any regno in the defs from the live set.  */
-	df_byte_lr_simulate_defs (insn, local_live);
+	any_changed = df_word_lr_simulate_defs (insn, local_live);
+	if (any_changed)
+	  mark_insn (insn, true);
 
 	/* On the other hand, we do not allow the dead uses to set
 	   anything in local_live.  */
 	if (marked_insn_p (insn))
-	  df_byte_lr_simulate_uses (insn, local_live);
+	  df_word_lr_simulate_uses (insn, local_live);
 
 	if (dump_file)
 	  {
-	    fprintf (dump_file, "finished processing insn %d live out = ", 
+	    fprintf (dump_file, "finished processing insn %d live out = ",
 		     INSN_UID (insn));
-	    df_print_byte_regset (dump_file, local_live);
+	    df_print_word_regset (dump_file, local_live);
 	  }
       }
-  
-  df_byte_lr_simulate_artificial_refs_at_top (bb, local_live);
 
-  block_changed = !bitmap_equal_p (local_live, DF_BYTE_LR_IN (bb));
+  block_changed = !bitmap_equal_p (local_live, DF_WORD_LR_IN (bb));
   if (block_changed)
-    bitmap_copy (DF_BYTE_LR_IN (bb), local_live);
+    bitmap_copy (DF_WORD_LR_IN (bb), local_live);
+
   BITMAP_FREE (local_live);
   return block_changed;
 }
@@ -903,30 +865,29 @@ dce_process_block (basic_block bb, bool redo_out, bitmap au)
   FOR_BB_INSNS_REVERSE (bb, insn)
     if (INSN_P (insn))
       {
-	bool needed = false;
+	bool needed = marked_insn_p (insn);
 
 	/* The insn is needed if there is someone who uses the output.  */
-	for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
-	  if (bitmap_bit_p (local_live, DF_REF_REGNO (*def_rec))
-	      || bitmap_bit_p (au, DF_REF_REGNO (*def_rec)))
-	    {
-	      needed = true;
-	      break;
-	    }
-	    
-	if (needed)
-	  mark_insn (insn, true);
-	
+	if (!needed)
+	  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
+	    if (bitmap_bit_p (local_live, DF_REF_REGNO (*def_rec))
+		|| bitmap_bit_p (au, DF_REF_REGNO (*def_rec)))
+	      {
+		needed = true;
+		mark_insn (insn, true);
+		break;
+	      }
+
 	/* No matter if the instruction is needed or not, we remove
 	   any regno in the defs from the live set.  */
 	df_simulate_defs (insn, local_live);
 
 	/* On the other hand, we do not allow the dead uses to set
 	   anything in local_live.  */
-	if (marked_insn_p (insn))
+	if (needed)
 	  df_simulate_uses (insn, local_live);
       }
-  
+
   df_simulate_finalize_backwards (bb, local_live);
 
   block_changed = !bitmap_equal_p (local_live, DF_LR_IN (bb));
@@ -938,12 +899,12 @@ dce_process_block (basic_block bb, bool redo_out, bitmap au)
 }
 
 
-/* Perform fast DCE once initialization is done.  If BYTE_LEVEL is
-   true, use the byte level dce, otherwise do it at the pseudo
+/* Perform fast DCE once initialization is done.  If WORD_LEVEL is
+   true, use the word level dce, otherwise do it at the pseudo
    level.  */
 
 static void
-fast_dce (bool byte_level)
+fast_dce (bool word_level)
 {
   int *postorder = df_get_postorder (DF_BACKWARD);
   int n_blocks = df_get_n_blocks (DF_BACKWARD);
@@ -960,8 +921,8 @@ fast_dce (bool byte_level)
      df_simulate_fixup_sets has the disadvantage of calling
      bb_has_eh_pred once per insn, so we cache the information
      here.  */
-  bitmap au = df->regular_block_artificial_uses;
-  bitmap au_eh = df->eh_block_artificial_uses;
+  bitmap au = &df->regular_block_artificial_uses;
+  bitmap au_eh = &df->eh_block_artificial_uses;
   int i;
 
   prescan_insns_for_dce (true);
@@ -985,16 +946,15 @@ fast_dce (bool byte_level)
 	      continue;
 	    }
 
-	  if (byte_level)
-	    local_changed 
-	      = byte_dce_process_block (bb, bitmap_bit_p (redo_out, index),
-					  bb_has_eh_pred (bb) ? au_eh : au);
+	  if (word_level)
+	    local_changed
+	      = word_dce_process_block (bb, bitmap_bit_p (redo_out, index));
 	  else
-	    local_changed 
+	    local_changed
 	      = dce_process_block (bb, bitmap_bit_p (redo_out, index),
 				   bb_has_eh_pred (bb) ? au_eh : au);
 	  bitmap_set_bit (processed, index);
-	  
+
 	  if (local_changed)
 	    {
 	      edge e;
@@ -1010,7 +970,7 @@ fast_dce (bool byte_level)
 		  bitmap_set_bit (redo_out, e->src->index);
 	    }
 	}
-      
+
       if (global_changed)
 	{
 	  /* Turn off the RUN_DCE flag to prevent recursive calls to
@@ -1023,13 +983,13 @@ fast_dce (bool byte_level)
 	  sbitmap_zero (marked);
 	  bitmap_clear (processed);
 	  bitmap_clear (redo_out);
-	  
+
 	  /* We do not need to rescan any instructions.  We only need
 	     to redo the dataflow equations for the blocks that had a
 	     change at the top of the block.  Then we need to redo the
-	     iteration.  */ 
-	  if (byte_level)
-	    df_analyze_problem (df_byte_lr, all_blocks, postorder, n_blocks);
+	     iteration.  */
+	  if (word_level)
+	    df_analyze_problem (df_word_lr, all_blocks, postorder, n_blocks);
 	  else
 	    df_analyze_problem (df_lr, all_blocks, postorder, n_blocks);
 
@@ -1062,14 +1022,22 @@ rest_of_handle_fast_dce (void)
 
 /* Fast byte level DCE.  */
 
-static unsigned int
-rest_of_handle_fast_byte_dce (void)
+void
+run_word_dce (void)
 {
-  df_byte_lr_add_problem ();
+  int old_flags;
+
+  if (!flag_dce)
+    return;
+
+  timevar_push (TV_DCE);
+  old_flags = df_clear_flags (DF_DEFER_INSN_RESCAN + DF_NO_INSN_RESCAN);
+  df_word_lr_add_problem ();
   init_dce (true);
   fast_dce (true);
   fini_dce (true);
-  return 0;
+  df_set_flags (old_flags);
+  timevar_pop (TV_DCE);
 }
 
 
@@ -1126,27 +1094,6 @@ struct rtl_opt_pass pass_fast_rtl_dce =
   "rtl dce",                            /* name */
   gate_fast_dce,                        /* gate */
   rest_of_handle_fast_dce,              /* execute */
-  NULL,                                 /* sub */
-  NULL,                                 /* next */
-  0,                                    /* static_pass_number */
-  TV_DCE,                               /* tv_id */
-  0,                                    /* properties_required */
-  0,                                    /* properties_provided */
-  0,                                    /* properties_destroyed */
-  0,                                    /* todo_flags_start */
-  TODO_dump_func |
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_ggc_collect                      /* todo_flags_finish */
- }
-};
-
-struct rtl_opt_pass pass_fast_rtl_byte_dce =
-{
- {
-  RTL_PASS,
-  "byte-dce",                           /* name */
-  gate_fast_dce,                        /* gate */
-  rest_of_handle_fast_byte_dce,         /* execute */
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */

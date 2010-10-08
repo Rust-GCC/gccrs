@@ -1,6 +1,6 @@
 // Profiling deque implementation -*- C++ -*-
 
-// Copyright (C) 2009 Free Software Foundation, Inc.
+// Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -35,7 +35,7 @@ namespace std
 {
 namespace __profile
 {
-  /** @brief Deque wrapper with performance instrumentation.  */
+  /// Class std::deque wrapper with performance instrumentation.
   template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
     class deque
     : public _GLIBCXX_STD_D::deque<_Tp, _Allocator>
@@ -60,12 +60,24 @@ namespace __profile
       typedef typename _Base::const_pointer         const_pointer;
 
       // 23.2.1.1 construct/copy/destroy:
-      explicit deque(const _Allocator& __a = _Allocator())
+      explicit
+      deque(const _Allocator& __a = _Allocator())
       : _Base(__a) { }
 
-      explicit deque(size_type __n, const _Tp& __value = _Tp(),
-		     const _Allocator& __a = _Allocator())
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      explicit
+      deque(size_type __n)
+      : _Base(__n) { }
+
+      deque(size_type __n, const _Tp& __value,
+	    const _Allocator& __a = _Allocator())
       : _Base(__n, __value, __a) { }
+#else
+      explicit
+      deque(size_type __n, const _Tp& __value = _Tp(),
+	    const _Allocator& __a = _Allocator())
+      : _Base(__n, __value, __a) { }
+#endif
 
       template<class _InputIterator>
         deque(_InputIterator __first, _InputIterator __last,
@@ -81,7 +93,7 @@ namespace __profile
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       deque(deque&& __x)
-      : _Base(std::forward<deque>(__x))
+      : _Base(std::move(__x))
       { }
 
       deque(initializer_list<value_type> __l,
@@ -102,9 +114,10 @@ namespace __profile
       deque&
       operator=(deque&& __x)
       {
-        // NB: DR 675.
+	// NB: DR 1204.
+	// NB: DR 675.
 	this->clear();
-	this->swap(__x);	  
+	this->swap(__x);
 	return *this;
       }
 
@@ -194,11 +207,29 @@ namespace __profile
       using _Base::size;
       using _Base::max_size;
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      void
+      resize(size_type __sz)
+      {
+	_Base::resize(__sz);
+      }
+
+      void
+      resize(size_type __sz, const _Tp& __c)
+      {
+	_Base::resize(__sz, __c);
+      }
+#else
       void
       resize(size_type __sz, _Tp __c = _Tp())
       {
 	_Base::resize(__sz, __c);
       }
+#endif
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      using _Base::shrink_to_fit;
+#endif
 
       using _Base::empty;
 

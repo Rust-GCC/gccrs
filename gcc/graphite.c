@@ -1,5 +1,5 @@
 /* Gimple Represented as Polyhedra.
-   Copyright (C) 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <sebastian.pop@inria.fr>.
 
 This file is part of GCC.
@@ -55,11 +55,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "sese.h"
 #include "predict.h"
+#include "dbgcnt.h"
 
 #ifdef HAVE_cloog
 
 #include "cloog/cloog.h"
 #include "ppl_c.h"
+#include "graphite-cloog-compat.h"
 #include "graphite-ppl.h"
 #include "graphite.h"
 #include "graphite-poly.h"
@@ -190,7 +192,7 @@ print_graphite_statistics (FILE* file, VEC (scop_p, heap) *scops)
 
   scop_p scop;
 
-  for (i = 0; VEC_iterate (scop_p, scops, i, scop); i++)
+  FOR_EACH_VEC_ELT (scop_p, scops, i, scop)
     print_graphite_scop_statistics (file, scop);
 }
 
@@ -199,7 +201,12 @@ print_graphite_statistics (FILE* file, VEC (scop_p, heap) *scops)
 static bool
 graphite_initialize (void)
 {
-  if (number_of_loops () <= 1)
+  int ppl_initialized;
+
+  if (number_of_loops () <= 1
+      /* FIXME: This limit on the number of basic blocks of a function
+	 should be removed when the SCOP detection is faster.  */
+      || n_basic_blocks > PARAM_VALUE (PARAM_GRAPHITE_MAX_BBS_PER_FUNCTION))
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
 	print_global_statistics (dump_file);
@@ -207,8 +214,13 @@ graphite_initialize (void)
       return false;
     }
 
+  scev_reset ();
   recompute_all_dominators ();
   initialize_original_copy_tables ();
+
+  ppl_initialized = ppl_initialize ();
+  gcc_assert (ppl_initialized == 0);
+
   cloog_initialize ();
 
   if (dump_file && dump_flags)
@@ -225,6 +237,7 @@ graphite_finalize (bool need_cfg_cleanup_p)
 {
   if (need_cfg_cleanup_p)
     {
+      scev_reset ();
       cleanup_tree_cfg ();
       profile_status = PROFILE_ABSENT;
       release_recorded_exits ();
@@ -232,8 +245,8 @@ graphite_finalize (bool need_cfg_cleanup_p)
     }
 
   cloog_finalize ();
+  ppl_finalize ();
   free_original_copy_tables ();
-  free_aux_in_new_loops ();
 
   if (dump_file && dump_flags)
     print_loops (dump_file, 3);
@@ -250,6 +263,7 @@ graphite_transform_loops (void)
   bool need_cfg_cleanup_p = false;
   VEC (scop_p, heap) *scops = NULL;
   htab_t bb_pbb_mapping;
+  sbitmap reductions;
 
   if (!graphite_initialize ())
     return;
@@ -263,28 +277,33 @@ graphite_transform_loops (void)
     }
 
   bb_pbb_mapping = htab_create (10, bb_pbb_map_hash, eq_bb_pbb_map, free);
+  reductions = sbitmap_alloc (last_basic_block * 2);
+  sbitmap_zero (reductions);
 
-  for (i = 0; VEC_iterate (scop_p, scops, i, scop); i++)
-    {
-      bool transform_done = false;
+  FOR_EACH_VEC_ELT (scop_p, scops, i, scop)
+    if (dbg_cnt (graphite_scop))
+      rewrite_commutative_reductions_out_of_ssa (SCOP_REGION (scop),
+						 reductions);
 
-      if (!build_poly_scop (scop))
-	continue;
+  FOR_EACH_VEC_ELT (scop_p, scops, i, scop)
+    if (dbg_cnt (graphite_scop))
+      {
+	rewrite_reductions_out_of_ssa (scop);
+	rewrite_cross_bb_scalar_deps_out_of_ssa (scop);
+	build_scop_bbs (scop, reductions);
+      }
 
-      if (apply_poly_transforms (scop))
-	transform_done = gloog (scop, bb_pbb_mapping);
-      else
-	check_poly_representation (scop);
+  sbitmap_free (reductions);
 
-      if (transform_done)
-	{
-	  scev_reset ();
-	  need_cfg_cleanup_p = true;
-	}
-    }
+  FOR_EACH_VEC_ELT (scop_p, scops, i, scop)
+    if (dbg_cnt (graphite_scop))
+      build_poly_scop (scop);
 
-  if (flag_loop_parallelize_all)
-    mark_loops_parallel (bb_pbb_mapping);
+  FOR_EACH_VEC_ELT (scop_p, scops, i, scop)
+    if (POLY_SCOP_P (scop)
+	&& apply_poly_transforms (scop)
+	&& gloog (scop, bb_pbb_mapping))
+      need_cfg_cleanup_p = true;
 
   htab_delete (bb_pbb_mapping);
   free_scops (scops);

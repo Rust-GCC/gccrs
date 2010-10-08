@@ -1,6 +1,6 @@
 /* Store motion via Lazy Code Motion on the reverse CFG.
    Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-   2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,6 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 
 #include "rtl.h"
@@ -30,7 +31,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "regs.h"
 #include "hard-reg-set.h"
 #include "flags.h"
-#include "real.h"
 #include "insn-config.h"
 #include "recog.h"
 #include "basic-block.h"
@@ -276,7 +276,7 @@ store_ops_ok (const_rtx x, int *regs_set)
 }
 
 /* Helper for extract_mentioned_regs.  */
- 
+
 static int
 extract_mentioned_regs_1 (rtx *loc, void *data)
 {
@@ -398,7 +398,7 @@ store_killed_in_insn (const_rtx x, const_rtx x_regs, const_rtx insn, int after)
 {
   const_rtx reg, base, note, pat;
 
-  if (!INSN_P (insn))
+  if (! NONDEBUG_INSN_P (insn))
     return false;
 
   if (CALL_P (insn))
@@ -561,9 +561,9 @@ find_moveable_store (rtx insn, int *regs_set_before, int *regs_set_after)
     return;
 
   /* If we are handling exceptions, we must be careful with memory references
-     that may trap. If we are not, the behavior is undefined, so we may just
+     that may trap.  If we are not, the behavior is undefined, so we may just
      continue.  */
-  if (flag_non_call_exceptions && may_trap_p (dest))
+  if (cfun->can_throw_non_call_exceptions && may_trap_p (dest))
     return;
 
   /* Even if the destination cannot trap, the source may.  In this case we'd
@@ -667,7 +667,7 @@ compute_store_table (void)
       FOR_BB_INSNS (bb, insn)
 	{
 
-	  if (! INSN_P (insn))
+	  if (! NONDEBUG_INSN_P (insn))
 	    continue;
 
 	  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
@@ -678,7 +678,7 @@ compute_store_table (void)
       memset (already_set, 0, sizeof (int) * max_gcse_regno);
       FOR_BB_INSNS (bb, insn)
 	{
-	  if (! INSN_P (insn))
+	  if (! NONDEBUG_INSN_P (insn))
 	    continue;
 
 	  for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
@@ -803,7 +803,7 @@ insert_store (struct st_expr * expr, edge e)
     if (!(tmp->flags & EDGE_FAKE))
       {
 	int index = EDGE_INDEX (edge_list, tmp->src, tmp->dest);
-	
+
 	gcc_assert (index != EDGE_INDEX_NO_EDGE);
 	if (! TEST_BIT (st_insert_map[index], expr->index))
 	  break;
@@ -897,7 +897,7 @@ remove_reachable_equiv_notes (basic_block bb, struct st_expr *smexpr)
 	last = NEXT_INSN (BB_END (bb));
 
       for (insn = BB_HEAD (bb); insn != last; insn = NEXT_INSN (insn))
-	if (INSN_P (insn))
+	if (NONDEBUG_INSN_P (insn))
 	  {
 	    note = find_reg_equal_equiv_note (insn);
 	    if (!note || !exp_equiv_p (XEXP (note, 0), mem, 0, true))
@@ -963,7 +963,7 @@ replace_store_insn (rtx reg, rtx del, basic_block bb, struct st_expr *smexpr)
      they are no longer accurate provided that they are reached by this
      definition, so drop them.  */
   for (; insn != NEXT_INSN (BB_END (bb)); insn = NEXT_INSN (insn))
-    if (INSN_P (insn))
+    if (NONDEBUG_INSN_P (insn))
       {
 	set = single_set (insn);
 	if (!set)
@@ -1067,8 +1067,10 @@ build_store_vectors (void)
 
   FOR_EACH_BB (bb)
     {
+      memset (regs_set_in_block, 0, sizeof (int) * max_gcse_regno);
+
       FOR_BB_INSNS (bb, insn)
-	if (INSN_P (insn))
+	if (NONDEBUG_INSN_P (insn))
 	  {
 	    df_ref *def_rec;
 	    for (def_rec = DF_INSN_DEFS (insn); *def_rec; def_rec++)
@@ -1184,7 +1186,7 @@ one_store_motion_pass (void)
 		     INDEX_EDGE (edge_list, x)->dest->index);
 	  continue;
 	}
-		      
+
       /* Now we want to insert the new stores which are going to be needed.  */
 
       FOR_EACH_BB (bb)
@@ -1235,7 +1237,6 @@ static unsigned int
 execute_rtl_store_motion (void)
 {
   delete_unreachable_blocks ();
-  df_note_add_problem ();
   df_analyze ();
   flag_rerun_cse_after_global_opts |= one_store_motion_pass ();
   return 0;
@@ -1246,8 +1247,8 @@ struct rtl_opt_pass pass_rtl_store_motion =
  {
   RTL_PASS,
   "store_motion",                       /* name */
-  gate_rtl_store_motion,                /* gate */   
-  execute_rtl_store_motion,		/* execute */       
+  gate_rtl_store_motion,                /* gate */
+  execute_rtl_store_motion,		/* execute */
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */

@@ -1,6 +1,6 @@
 /* Subroutines used for code generation on the DEC Alpha.
    Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001,
-   2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
@@ -29,7 +29,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "output.h"
@@ -42,6 +41,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "obstack.h"
 #include "except.h"
 #include "function.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "ggc.h"
 #include "integrate.h"
@@ -251,8 +251,8 @@ alpha_mangle_type (const_tree type)
 
 /* Parse target option strings.  */
 
-void
-override_options (void)
+static void
+alpha_option_override (void)
 {
   static const struct cpu_table {
     const char *const name;
@@ -277,6 +277,10 @@ override_options (void)
 
   int const ct_size = ARRAY_SIZE (cpu_table);
   int i;
+
+#ifdef SUBTARGET_OVERRIDE_OPTIONS
+  SUBTARGET_OVERRIDE_OPTIONS;
+#endif
 
   /* Unicos/Mk doesn't have shared libraries.  */
   if (TARGET_ABI_UNICOSMK && flag_pic)
@@ -388,7 +392,7 @@ override_options (void)
 	    break;
 	  }
       if (i == ct_size)
-	error ("bad value %qs for -mcpu switch", alpha_tune_string);
+	error ("bad value %qs for -mtune switch", alpha_tune_string);
     }
 
   /* Do some sanity checks on the above options.  */
@@ -478,7 +482,7 @@ override_options (void)
   }
 
   /* Default the definition of "small data" to 8 bytes.  */
-  if (!g_switch_set)
+  if (!global_options_set.x_g_switch_value)
     g_switch_value = 8;
 
   /* Infer TARGET_SMALL_DATA from -fpic/-fPIC.  */
@@ -766,7 +770,7 @@ alpha_in_small_data_p (const_tree exp)
 
       /* If this is an incomplete type with size 0, then we can't put it
 	 in sdata because it might be too big when completed.  */
-      if (size > 0 && (unsigned HOST_WIDE_INT) size <= g_switch_value)
+      if (size > 0 && size <= g_switch_value)
 	return true;
     }
 
@@ -1475,6 +1479,10 @@ get_aligned_mem (rtx ref, rtx *paligned_mem, rtx *pbitnum)
   else
     offset = disp & 3;
 
+  /* The location should not cross aligned word boundary.  */
+  gcc_assert (offset + GET_MODE_SIZE (GET_MODE (ref))
+	      <= GET_MODE_SIZE (SImode));
+
   /* Access the entire aligned word.  */
   *paligned_mem = widen_memory_access (ref, SImode, -offset);
 
@@ -1566,10 +1574,12 @@ alpha_preferred_reload_class(rtx x, enum reg_class rclass)
    RCLASS requires an extra scratch or immediate register.  Return the class
    needed for the immediate register.  */
 
-static enum reg_class
-alpha_secondary_reload (bool in_p, rtx x, enum reg_class rclass,
+static reg_class_t
+alpha_secondary_reload (bool in_p, rtx x, reg_class_t rclass_i,
 			enum machine_mode mode, secondary_reload_info *sri)
 {
+  enum reg_class rclass = (enum reg_class) rclass_i;
+
   /* Loading and storing HImode or QImode values to and from memory
      usually requires a scratch register.  */
   if (!TARGET_BWX && (mode == QImode || mode == HImode || mode == CQImode))
@@ -1579,10 +1589,10 @@ alpha_secondary_reload (bool in_p, rtx x, enum reg_class rclass,
 	  if (in_p)
 	    {
 	      if (!aligned_memory_operand (x, mode))
-		sri->icode = reload_in_optab[mode];
+		sri->icode = direct_optab_handler (reload_in_optab, mode);
 	    }
 	  else
-	    sri->icode = reload_out_optab[mode];
+	    sri->icode = direct_optab_handler (reload_out_optab, mode);
 	  return NO_REGS;
 	}
     }
@@ -4728,7 +4738,7 @@ alpha_split_lock_test_and_set_12 (enum machine_mode mode, rtx dest, rtx addr,
 static int
 alpha_adjust_cost (rtx insn, rtx link, rtx dep_insn, int cost)
 {
-  enum attr_type insn_type, dep_insn_type;
+  enum attr_type dep_insn_type;
 
   /* If the dependence is an anti-dependence, there is no cost.  For an
      output dependence, there is sometimes a cost, but it doesn't seem
@@ -4740,7 +4750,6 @@ alpha_adjust_cost (rtx insn, rtx link, rtx dep_insn, int cost)
   if (recog_memoized (insn) < 0 || recog_memoized (dep_insn) < 0)
     return cost;
 
-  insn_type = get_attr_type (insn);
   dep_insn_type = get_attr_type (dep_insn);
 
   /* Bring in the user-defined memory latency.  */
@@ -4804,8 +4813,7 @@ struct GTY(()) machine_function
 static struct machine_function *
 alpha_init_machine_status (void)
 {
-  return ((struct machine_function *)
-		ggc_alloc_cleared (sizeof (struct machine_function)));
+  return ggc_alloc_cleared_machine_function ();
 }
 
 /* Support for frame based VMS condition handlers.  */
@@ -5851,7 +5859,7 @@ rtx
 function_value (const_tree valtype, const_tree func ATTRIBUTE_UNUSED,
 		enum machine_mode mode)
 {
-  unsigned int regnum, dummy;
+  unsigned int regnum, dummy ATTRIBUTE_UNUSED;
   enum mode_class mclass;
 
   gcc_assert (!valtype || !alpha_return_in_memory (valtype, func));
@@ -5940,13 +5948,17 @@ alpha_build_builtin_va_list (void)
 		    FIELD_DECL, get_identifier ("__offset"),
 		    integer_type_node);
   DECL_FIELD_CONTEXT (ofs) = record;
-  TREE_CHAIN (ofs) = space;
+  DECL_CHAIN (ofs) = space;
+  /* ??? This is a hack, __offset is marked volatile to prevent
+     DCE that confuses stdarg optimization and results in
+     gcc.c-torture/execute/stdarg-1.c failure.  See PR 41089.  */
+  TREE_THIS_VOLATILE (ofs) = 1;
 
   base = build_decl (BUILTINS_LOCATION,
 		     FIELD_DECL, get_identifier ("__base"),
 		     ptr_type_node);
   DECL_FIELD_CONTEXT (base) = record;
-  TREE_CHAIN (base) = ofs;
+  DECL_CHAIN (base) = ofs;
 
   TYPE_FIELDS (record) = base;
   layout_type (record);
@@ -6022,7 +6034,7 @@ alpha_stdarg_optimize_hook (struct stdarg_info *si, const_gimple stmt)
   rhs = gimple_assign_rhs1 (stmt);
   while (handled_component_p (rhs))
     rhs = TREE_OPERAND (rhs, 0);
-  if (TREE_CODE (rhs) != INDIRECT_REF
+  if (TREE_CODE (rhs) != MEM_REF
       || TREE_CODE (TREE_OPERAND (rhs, 0)) != SSA_NAME)
     return false;
 
@@ -6300,7 +6312,7 @@ alpha_va_start (tree valist, rtx nextarg ATTRIBUTE_UNUSED)
   else
     {
       base_field = TYPE_FIELDS (TREE_TYPE (valist));
-      offset_field = TREE_CHAIN (base_field);
+      offset_field = DECL_CHAIN (base_field);
 
       base_field = build3 (COMPONENT_REF, TREE_TYPE (base_field),
 			   valist, base_field, NULL_TREE);
@@ -6404,7 +6416,7 @@ alpha_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
     return std_gimplify_va_arg_expr (valist, type, pre_p, post_p);
 
   base_field = TYPE_FIELDS (va_list_type_node);
-  offset_field = TREE_CHAIN (base_field);
+  offset_field = DECL_CHAIN (base_field);
   base_field = build3 (COMPONENT_REF, TREE_TYPE (base_field),
 		       valist, base_field, NULL_TREE);
   offset_field = build3 (COMPONENT_REF, TREE_TYPE (offset_field),
@@ -6617,6 +6629,36 @@ static GTY(()) tree alpha_v8qi_s;
 static GTY(()) tree alpha_v4hi_u;
 static GTY(()) tree alpha_v4hi_s;
 
+static GTY(()) tree alpha_builtins[(int) ALPHA_BUILTIN_max];
+
+/* Return the alpha builtin for CODE.  */
+
+static tree
+alpha_builtin_decl (unsigned code, bool initialize_p ATTRIBUTE_UNUSED)
+{
+  if (code >= ALPHA_BUILTIN_max)
+    return error_mark_node;
+  return alpha_builtins[code];
+}
+
+/* Helper function of alpha_init_builtins.  Add the built-in specified
+   by NAME, TYPE, CODE, and ECF.  */
+
+static void
+alpha_builtin_function (const char *name, tree ftype,
+			enum alpha_builtin code, unsigned ecf)
+{
+  tree decl = add_builtin_function (name, ftype, (int) code,
+				    BUILT_IN_MD, NULL, NULL_TREE);
+
+  if (ecf & ECF_CONST)
+    TREE_READONLY (decl) = 1;
+  if (ecf & ECF_NOTHROW)
+    TREE_NOTHROW (decl) = 1;
+
+  alpha_builtins [(int) code] = decl;
+}
+
 /* Helper function of alpha_init_builtins.  Add the COUNT built-in
    functions pointed to by P, with function type FTYPE.  */
 
@@ -6624,26 +6666,19 @@ static void
 alpha_add_builtins (const struct alpha_builtin_def *p, size_t count,
 		    tree ftype)
 {
-  tree decl;
   size_t i;
 
   for (i = 0; i < count; ++i, ++p)
     if ((target_flags & p->target_mask) == p->target_mask)
-      {
-	decl = add_builtin_function (p->name, ftype, p->code, BUILT_IN_MD,
-				     NULL, NULL);
-	if (p->is_const)
-	  TREE_READONLY (decl) = 1;
-	TREE_NOTHROW (decl) = 1;
-      }
+      alpha_builtin_function (p->name, ftype, p->code,
+			      (p->is_const ? ECF_CONST : 0) | ECF_NOTHROW);
 }
-
 
 static void
 alpha_init_builtins (void)
 {
   tree dimode_integer_type_node;
-  tree ftype, decl;
+  tree ftype;
 
   dimode_integer_type_node = lang_hooks.types.type_for_mode (DImode, 0);
 
@@ -6669,30 +6704,26 @@ alpha_init_builtins (void)
 		      ftype);
 
   ftype = build_function_type (ptr_type_node, void_list_node);
-  decl = add_builtin_function ("__builtin_thread_pointer", ftype,
-			       ALPHA_BUILTIN_THREAD_POINTER, BUILT_IN_MD,
-			       NULL, NULL);
-  TREE_NOTHROW (decl) = 1;
+  alpha_builtin_function ("__builtin_thread_pointer", ftype,
+			  ALPHA_BUILTIN_THREAD_POINTER, ECF_NOTHROW);
 
   ftype = build_function_type_list (void_type_node, ptr_type_node, NULL_TREE);
-  decl = add_builtin_function ("__builtin_set_thread_pointer", ftype,
-			       ALPHA_BUILTIN_SET_THREAD_POINTER, BUILT_IN_MD,
-			       NULL, NULL);
-  TREE_NOTHROW (decl) = 1;
+  alpha_builtin_function ("__builtin_set_thread_pointer", ftype,
+			  ALPHA_BUILTIN_SET_THREAD_POINTER, ECF_NOTHROW);
 
   if (TARGET_ABI_OPEN_VMS)
     {
       ftype = build_function_type_list (ptr_type_node, ptr_type_node,
 					NULL_TREE);
-      add_builtin_function ("__builtin_establish_vms_condition_handler", ftype,
-			    ALPHA_BUILTIN_ESTABLISH_VMS_CONDITION_HANDLER,
-			    BUILT_IN_MD, NULL, NULL_TREE);
+      alpha_builtin_function ("__builtin_establish_vms_condition_handler",
+			      ftype,
+			      ALPHA_BUILTIN_ESTABLISH_VMS_CONDITION_HANDLER,
+			      0);
 
       ftype = build_function_type_list (ptr_type_node, void_type_node,
 					NULL_TREE);
-      add_builtin_function ("__builtin_revert_vms_condition_handler", ftype,
-			    ALPHA_BUILTIN_REVERT_VMS_CONDITION_HANDLER,
-			     BUILT_IN_MD, NULL, NULL_TREE);
+      alpha_builtin_function ("__builtin_revert_vms_condition_handler", ftype,
+			      ALPHA_BUILTIN_REVERT_VMS_CONDITION_HANDLER, 0);
     }
 
   alpha_v8qi_u = build_vector_type (unsigned_intQI_type_node, 8);
@@ -7135,26 +7166,27 @@ alpha_fold_builtin_ctpop (unsigned HOST_WIDE_INT opint[], long op_const)
 /* Fold one of our builtin functions.  */
 
 static tree
-alpha_fold_builtin (tree fndecl, tree arglist, bool ignore ATTRIBUTE_UNUSED)
+alpha_fold_builtin (tree fndecl, int n_args, tree *op,
+		    bool ignore ATTRIBUTE_UNUSED)
 {
-  tree op[MAX_ARGS], t;
   unsigned HOST_WIDE_INT opint[MAX_ARGS];
-  long op_const = 0, arity = 0;
+  long op_const = 0;
+  int i;
 
-  for (t = arglist; t ; t = TREE_CHAIN (t), ++arity)
+  if (n_args >= MAX_ARGS)
+    return NULL;
+
+  for (i = 0; i < n_args; i++)
     {
-      tree arg = TREE_VALUE (t);
+      tree arg = op[i];
       if (arg == error_mark_node)
 	return NULL;
-      if (arity >= MAX_ARGS)
-	return NULL;
 
-      op[arity] = arg;
-      opint[arity] = 0;
+      opint[i] = 0;
       if (TREE_CODE (arg) == INTEGER_CST)
 	{
-          op_const |= 1L << arity;
-	  opint[arity] = int_cst_value (arg);
+          op_const |= 1L << i;
+	  opint[i] = int_cst_value (arg);
 	}
     }
 
@@ -7749,6 +7781,30 @@ emit_frame_store (unsigned int regno, rtx base_reg,
   emit_frame_store_1 (reg, base_reg, frame_bias, base_ofs, reg);
 }
 
+/* Compute the frame size.  SIZE is the size of the "naked" frame
+   and SA_SIZE is the size of the register save area.  */
+
+static HOST_WIDE_INT
+compute_frame_size (HOST_WIDE_INT size, HOST_WIDE_INT sa_size)
+{
+  if (TARGET_ABI_OPEN_VMS)
+    return ALPHA_ROUND (sa_size 
+			+ (alpha_procedure_type == PT_STACK ? 8 : 0)
+			+ size
+			+ crtl->args.pretend_args_size);
+  else if (TARGET_ABI_UNICOSMK)
+    /* We have to allocate space for the DSIB if we generate a frame.  */
+    return ALPHA_ROUND (sa_size
+			+ (alpha_procedure_type == PT_STACK ? 48 : 0))
+	   + ALPHA_ROUND (size
+			  + crtl->outgoing_args_size);
+  else
+    return ALPHA_ROUND (crtl->outgoing_args_size)
+	   + sa_size
+	   + ALPHA_ROUND (size
+			  + crtl->args.pretend_args_size);
+}
+
 /* Write function prologue.  */
 
 /* On vms we have two kinds of functions:
@@ -7776,30 +7832,19 @@ alpha_expand_prologue (void)
   HOST_WIDE_INT sa_size;
   /* Complete stack size needed.  */
   HOST_WIDE_INT frame_size;
+  /* Probed stack size; it additionally includes the size of
+     the "reserve region" if any.  */
+  HOST_WIDE_INT probed_size;
   /* Offset from base reg to register save area.  */
   HOST_WIDE_INT reg_offset;
   rtx sa_reg;
   int i;
 
   sa_size = alpha_sa_size ();
+  frame_size = compute_frame_size (get_frame_size (), sa_size);
 
-  frame_size = get_frame_size ();
-  if (TARGET_ABI_OPEN_VMS)
-    frame_size = ALPHA_ROUND (sa_size
-			      + (alpha_procedure_type == PT_STACK ? 8 : 0)
-			      + frame_size
-			      + crtl->args.pretend_args_size);
-  else if (TARGET_ABI_UNICOSMK)
-    /* We have to allocate space for the DSIB if we generate a frame.  */
-    frame_size = ALPHA_ROUND (sa_size
-			      + (alpha_procedure_type == PT_STACK ? 48 : 0))
-		 + ALPHA_ROUND (frame_size
-				+ crtl->outgoing_args_size);
-  else
-    frame_size = (ALPHA_ROUND (crtl->outgoing_args_size)
-		  + sa_size
-		  + ALPHA_ROUND (frame_size
-				 + crtl->args.pretend_args_size));
+  if (flag_stack_usage)
+    current_function_static_stack_size = frame_size;
 
   if (TARGET_ABI_OPEN_VMS)
     reg_offset = 8 + 8 * cfun->machine->uses_condition_handler;
@@ -7835,20 +7880,26 @@ alpha_expand_prologue (void)
 
      Note that we are only allowed to adjust sp once in the prologue.  */
 
-  if (frame_size <= 32768)
+  probed_size = frame_size;
+  if (flag_stack_check)
+    probed_size += STACK_CHECK_PROTECT;
+
+  if (probed_size <= 32768)
     {
-      if (frame_size > 4096)
+      if (probed_size > 4096)
 	{
 	  int probed;
 
-	  for (probed = 4096; probed < frame_size; probed += 8192)
+	  for (probed = 4096; probed < probed_size; probed += 8192)
 	    emit_insn (gen_probe_stack (GEN_INT (TARGET_ABI_UNICOSMK
 						 ? -probed + 64
 						 : -probed)));
 
-	  /* We only have to do this probe if we aren't saving registers.  */
-	  if (sa_size == 0 && frame_size > probed - 4096)
-	    emit_insn (gen_probe_stack (GEN_INT (-frame_size)));
+	  /* We only have to do this probe if we aren't saving registers or
+	     if we are probing beyond the frame because of -fstack-check.  */
+	  if ((sa_size == 0 && probed_size > probed - 4096)
+	      || flag_stack_check)
+	    emit_insn (gen_probe_stack (GEN_INT (-probed_size)));
 	}
 
       if (frame_size != 0)
@@ -7863,10 +7914,11 @@ alpha_expand_prologue (void)
 	 number of 8192 byte blocks to probe.  We then probe each block
 	 in the loop and then set SP to the proper location.  If the
 	 amount remaining is > 4096, we have to do one more probe if we
-	 are not saving any registers.  */
+	 are not saving any registers or if we are probing beyond the
+	 frame because of -fstack-check.  */
 
-      HOST_WIDE_INT blocks = (frame_size + 4096) / 8192;
-      HOST_WIDE_INT leftover = frame_size + 4096 - blocks * 8192;
+      HOST_WIDE_INT blocks = (probed_size + 4096) / 8192;
+      HOST_WIDE_INT leftover = probed_size + 4096 - blocks * 8192;
       rtx ptr = gen_rtx_REG (DImode, 22);
       rtx count = gen_rtx_REG (DImode, 23);
       rtx seq;
@@ -7879,19 +7931,22 @@ alpha_expand_prologue (void)
 	 late in the compilation, generate the loop as a single insn.  */
       emit_insn (gen_prologue_stack_probe_loop (count, ptr));
 
-      if (leftover > 4096 && sa_size == 0)
+      if ((leftover > 4096 && sa_size == 0) || flag_stack_check)
 	{
 	  rtx last = gen_rtx_MEM (DImode, plus_constant (ptr, -leftover));
 	  MEM_VOLATILE_P (last) = 1;
 	  emit_move_insn (last, const0_rtx);
 	}
 
-      if (TARGET_ABI_WINDOWS_NT)
+      if (TARGET_ABI_WINDOWS_NT || flag_stack_check)
 	{
 	  /* For NT stack unwind (done by 'reverse execution'), it's
 	     not OK to take the result of a loop, even though the value
 	     is already in ptr, so we reload it via a single operation
 	     and subtract it to sp.
+
+	     Same if -fstack-check is specified, because the probed stack
+	     size is not equal to the frame size.
 
 	     Yes, that's correct -- we have to reload the whole constant
 	     into a temporary via ldah+lda then subtract from sp.  */
@@ -8121,23 +8176,7 @@ alpha_start_function (FILE *file, const char *fnname,
 
   alpha_fnname = fnname;
   sa_size = alpha_sa_size ();
-
-  frame_size = get_frame_size ();
-  if (TARGET_ABI_OPEN_VMS)
-    frame_size = ALPHA_ROUND (sa_size
-			      + (alpha_procedure_type == PT_STACK ? 8 : 0)
-			      + frame_size
-			      + crtl->args.pretend_args_size);
-  else if (TARGET_ABI_UNICOSMK)
-    frame_size = ALPHA_ROUND (sa_size
-			      + (alpha_procedure_type == PT_STACK ? 48 : 0))
-		 + ALPHA_ROUND (frame_size
-			      + crtl->outgoing_args_size);
-  else
-    frame_size = (ALPHA_ROUND (crtl->outgoing_args_size)
-		  + sa_size
-		  + ALPHA_ROUND (frame_size
-				 + crtl->args.pretend_args_size));
+  frame_size = compute_frame_size (get_frame_size (), sa_size);
 
   if (TARGET_ABI_OPEN_VMS)
     reg_offset = 8 + 8 * cfun->machine->uses_condition_handler;
@@ -8339,23 +8378,7 @@ alpha_expand_epilogue (void)
   int i;
 
   sa_size = alpha_sa_size ();
-
-  frame_size = get_frame_size ();
-  if (TARGET_ABI_OPEN_VMS)
-    frame_size = ALPHA_ROUND (sa_size
-			      + (alpha_procedure_type == PT_STACK ? 8 : 0)
-			      + frame_size
-			      + crtl->args.pretend_args_size);
-  else if (TARGET_ABI_UNICOSMK)
-    frame_size = ALPHA_ROUND (sa_size
-			      + (alpha_procedure_type == PT_STACK ? 48 : 0))
-		 + ALPHA_ROUND (frame_size
-			      + crtl->outgoing_args_size);
-  else
-    frame_size = (ALPHA_ROUND (crtl->outgoing_args_size)
-		  + sa_size
-		  + ALPHA_ROUND (frame_size
-				 + crtl->args.pretend_args_size));
+  frame_size = compute_frame_size (get_frame_size (), sa_size);
 
   if (TARGET_ABI_OPEN_VMS)
     {
@@ -9740,7 +9763,7 @@ alpha_file_start (void)
   /* If emitting dwarf2 debug information, we cannot generate a .file
      directive to start the file, as it will conflict with dwarf2out
      file numbers.  So it's only useful when emitting mdebug output.  */
-  targetm.file_start_file_directive = (write_symbols == DBX_DEBUG);
+  targetm.asm_file_start_file_directive = (write_symbols == DBX_DEBUG);
 #endif
 
   default_file_start ();
@@ -9898,10 +9921,13 @@ alpha_need_linkage (const char *name, int is_local)
       struct alpha_funcs *cfaf;
 
       if (!alpha_funcs_tree)
-        alpha_funcs_tree = splay_tree_new_ggc ((splay_tree_compare_fn)
-					       splay_tree_compare_pointers);
+        alpha_funcs_tree = splay_tree_new_ggc
+	 (splay_tree_compare_pointers,
+	  ggc_alloc_splay_tree_tree_node_tree_node_splay_tree_s,
+	  ggc_alloc_splay_tree_tree_node_tree_node_splay_tree_node_s);
 
-      cfaf = (struct alpha_funcs *) ggc_alloc (sizeof (struct alpha_funcs));
+
+      cfaf = ggc_alloc_alpha_funcs ();
 
       cfaf->links = 0;
       cfaf->num = ++alpha_funcs_num;
@@ -9935,9 +9961,12 @@ alpha_need_linkage (const char *name, int is_local)
 	}
     }
   else
-    alpha_links_tree = splay_tree_new_ggc ((splay_tree_compare_fn) strcmp);
+    alpha_links_tree = splay_tree_new_ggc
+	 ((splay_tree_compare_fn) strcmp,
+	  ggc_alloc_splay_tree_str_alpha_links_splay_tree_s,
+	  ggc_alloc_splay_tree_str_alpha_links_splay_tree_node_s);
 
-  al = (struct alpha_links *) ggc_alloc (sizeof (struct alpha_links));
+  al = ggc_alloc_alpha_links ();
   name = ggc_strdup (name);
 
   /* Assume external if no definition.  */
@@ -9993,7 +10022,10 @@ alpha_use_linkage (rtx func, tree cfundecl, int lflag, int rflag)
 	al = (struct alpha_links *) lnode->value;
     }
   else
-    cfaf->links = splay_tree_new_ggc ((splay_tree_compare_fn) strcmp);
+    cfaf->links = splay_tree_new_ggc
+      ((splay_tree_compare_fn) strcmp,
+       ggc_alloc_splay_tree_str_alpha_links_splay_tree_s,
+       ggc_alloc_splay_tree_str_alpha_links_splay_tree_node_s);
 
   if (!al)
     {
@@ -10009,8 +10041,9 @@ alpha_use_linkage (rtx func, tree cfundecl, int lflag, int rflag)
       name_len = strlen (name);
       linksym = (char *) alloca (name_len + 50);
 
-      al = (struct alpha_links *) ggc_alloc (sizeof (struct alpha_links));
+      al = ggc_alloc_alpha_links ();
       al->num = cfaf->num;
+      al->target = NULL;
 
       node = splay_tree_lookup (alpha_links_tree, (splay_tree_key) name);
       if (node)
@@ -11063,6 +11096,8 @@ alpha_init_libfuncs (void)
 #undef TARGET_HAVE_TLS
 #define TARGET_HAVE_TLS HAVE_AS_TLS
 
+#undef  TARGET_BUILTIN_DECL
+#define TARGET_BUILTIN_DECL  alpha_builtin_decl
 #undef  TARGET_INIT_BUILTINS
 #define TARGET_INIT_BUILTINS alpha_init_builtins
 #undef  TARGET_EXPAND_BUILTIN
@@ -11142,6 +11177,9 @@ alpha_init_libfuncs (void)
   (TARGET_DEFAULT | TARGET_CPU_DEFAULT | TARGET_DEFAULT_EXPLICIT_RELOCS)
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION alpha_handle_option
+
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE alpha_option_override
 
 #ifdef TARGET_ALTERNATE_LONG_DOUBLE_MANGLING
 #undef TARGET_MANGLE_TYPE

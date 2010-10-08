@@ -1,6 +1,6 @@
 /* Definitions of various defaults for tm.h macros.
    Copyright (C) 1992, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2005, 2007, 2008, 2009
+   2005, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Ron Guilmette (rfg@monkeys.com)
 
@@ -32,13 +32,37 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define GET_ENVIRONMENT(VALUE, NAME) do { (VALUE) = getenv (NAME); } while (0)
 #endif
 
-#define obstack_chunk_alloc	((void *(*) (long)) xmalloc)
-#define obstack_chunk_free	((void (*) (void *)) free)
-#define OBSTACK_CHUNK_SIZE	0
-#define gcc_obstack_init(OBSTACK)			\
-  _obstack_begin ((OBSTACK), OBSTACK_CHUNK_SIZE, 0,	\
-		  obstack_chunk_alloc,			\
-		  obstack_chunk_free)
+/* This defines which switch letters take arguments.  */
+
+#define DEFAULT_SWITCH_TAKES_ARG(CHAR) \
+  ((CHAR) == 'D' || (CHAR) == 'U' || (CHAR) == 'o' \
+   || (CHAR) == 'e' || (CHAR) == 'T' || (CHAR) == 'u' \
+   || (CHAR) == 'I' || (CHAR) == 'J' || (CHAR) == 'm' \
+   || (CHAR) == 'x' || (CHAR) == 'L' || (CHAR) == 'A' \
+   || (CHAR) == 'B' || (CHAR) == 'd')
+
+/* This defines which multi-letter switches take arguments.  */
+
+#define DEFAULT_WORD_SWITCH_TAKES_ARG(STR)		\
+ (!strcmp (STR, "Tdata") || !strcmp (STR, "Ttext")	\
+  || !strcmp (STR, "Tbss") || !strcmp (STR, "include")	\
+  || !strcmp (STR, "imacros") || !strcmp (STR, "aux-info") \
+  || !strcmp (STR, "idirafter") || !strcmp (STR, "iprefix") \
+  || !strcmp (STR, "iwithprefix") || !strcmp (STR, "iwithprefixbefore") \
+  || !strcmp (STR, "iquote") || !strcmp (STR, "isystem") \
+  || !strcmp (STR, "isysroot") || !strcmp (STR, "imultilib") \
+  || !strcmp (STR, "-param") || !strcmp (STR, "specs") \
+  || !strcmp (STR, "MF") || !strcmp (STR, "MT") || !strcmp (STR, "MQ") \
+  || !strcmp (STR, "fintrinsic-modules-path") \
+  || !strcmp (STR, "dumpbase") || !strcmp (STR, "dumpdir"))
+
+#ifndef SWITCH_TAKES_ARG
+#define SWITCH_TAKES_ARG(CHAR) DEFAULT_SWITCH_TAKES_ARG (CHAR)
+#endif
+
+#ifndef WORD_SWITCH_TAKES_ARG
+#define WORD_SWITCH_TAKES_ARG(STR) DEFAULT_WORD_SWITCH_TAKES_ARG (STR)
+#endif
 
 /* Store in OUTPUT a string (made with alloca) containing an
    assembler-name for a local static variable or function named NAME.
@@ -118,11 +142,19 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #endif
 #endif
 
+#ifndef IFUNC_ASM_TYPE
+#define IFUNC_ASM_TYPE "gnu_indirect_function"
+#endif
+
+#ifndef TLS_COMMON_ASM_OP
+#define TLS_COMMON_ASM_OP ".tls_common"
+#endif
+
 #if defined (HAVE_AS_TLS) && !defined (ASM_OUTPUT_TLS_COMMON)
 #define ASM_OUTPUT_TLS_COMMON(FILE, DECL, NAME, SIZE)			\
   do									\
     {									\
-      fprintf ((FILE), "\t.tls_common\t");				\
+      fprintf ((FILE), "\t%s\t", TLS_COMMON_ASM_OP);			\
       assemble_name ((FILE), (NAME));					\
       fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",		\
 	       (SIZE), DECL_ALIGN (DECL) / BITS_PER_UNIT);		\
@@ -137,11 +169,19 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #endif
 
 /* This is how to output the definition of a user-level label named
-   NAME, such as the label on a static function or variable NAME.  */
+   NAME, such as the label on variable NAME.  */
 
 #ifndef ASM_OUTPUT_LABEL
 #define ASM_OUTPUT_LABEL(FILE,NAME) \
   do { assemble_name ((FILE), (NAME)); fputs (":\n", (FILE)); } while (0)
+#endif
+
+/* This is how to output the definition of a user-level label named
+   NAME, such as the label on a function.  */
+
+#ifndef ASM_OUTPUT_FUNCTION_LABEL
+#define ASM_OUTPUT_FUNCTION_LABEL(FILE, NAME, DECL) \
+  ASM_OUTPUT_LABEL ((FILE), (NAME))
 #endif
 
 /* Output the definition of a compiler-generated label named NAME.  */
@@ -336,8 +376,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 /* If we have a definition of INCOMING_RETURN_ADDR_RTX, assume that
    the rest of the DWARF 2 frame unwind support is also provided.  */
-#if !defined (DWARF2_UNWIND_INFO) && defined (INCOMING_RETURN_ADDR_RTX) \
-    && !defined (TARGET_UNWIND_INFO)
+#if !defined (DWARF2_UNWIND_INFO) && defined (INCOMING_RETURN_ADDR_RTX)
 #define DWARF2_UNWIND_INFO 1
 #endif
 
@@ -460,11 +499,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #ifndef DECIMAL32_TYPE_SIZE
 #define DECIMAL32_TYPE_SIZE 32
-#endif 
+#endif
 
-#ifndef DECIMAL64_TYPE_SIZE 
+#ifndef DECIMAL64_TYPE_SIZE
 #define DECIMAL64_TYPE_SIZE 64
-#endif 
+#endif
 
 #ifndef DECIMAL128_TYPE_SIZE
 #define DECIMAL128_TYPE_SIZE 128
@@ -686,6 +725,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define PIC_OFFSET_TABLE_REGNUM INVALID_REGNUM
 #endif
 
+#ifndef PIC_OFFSET_TABLE_REG_CALL_CLOBBERED
+#define PIC_OFFSET_TABLE_REG_CALL_CLOBBERED 0
+#endif
+
 #ifndef TARGET_DLLIMPORT_DECL_ATTRIBUTES
 #define TARGET_DLLIMPORT_DECL_ATTRIBUTES 0
 #endif
@@ -905,12 +948,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define HAS_LONG_UNCOND_BRANCH 0
 #endif
 
-/* By default, only attempt to parallelize bitwise operations, and
-   possibly adds/subtracts using bit-twiddling.  */
-#ifndef UNITS_PER_SIMD_WORD
-#define UNITS_PER_SIMD_WORD(MODE) UNITS_PER_WORD
-#endif
-
 /* Determine whether __cxa_atexit, rather than atexit, is used to
    register C++ destructors for local statics and global objects.  */
 #ifndef DEFAULT_USE_CXA_ATEXIT
@@ -985,10 +1022,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #endif /* old constraint mechanism in use */
 
-#ifndef REGISTER_MOVE_COST
-#define REGISTER_MOVE_COST(m, x, y) 2
-#endif
-
 /* Determine whether the entire c99 runtime
    is present in the runtime library.  */
 #ifndef TARGET_C99_FUNCTIONS
@@ -1023,6 +1056,18 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #ifndef MOVE_MAX_PIECES
 #define MOVE_MAX_PIECES   MOVE_MAX
+#endif
+
+#ifndef MAX_MOVE_MAX
+#define MAX_MOVE_MAX MOVE_MAX
+#endif
+
+#ifndef MIN_UNITS_PER_WORD
+#define MIN_UNITS_PER_WORD UNITS_PER_WORD
+#endif
+
+#ifndef MAX_BITS_PER_WORD
+#define MAX_BITS_PER_WORD BITS_PER_WORD
 #endif
 
 #ifndef STACK_POINTER_OFFSET
@@ -1086,7 +1131,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 /* On most machines, the CFA coincides with the first incoming parm.  */
 #ifndef ARG_POINTER_CFA_OFFSET
-#define ARG_POINTER_CFA_OFFSET(FNDECL) FIRST_PARM_OFFSET (FNDECL)
+#define ARG_POINTER_CFA_OFFSET(FNDECL) \
+  (FIRST_PARM_OFFSET (FNDECL) + crtl->args.pretend_args_size)
 #endif
 
 /* On most machines, we use the CFA as DW_AT_frame_base.  */
@@ -1159,5 +1205,179 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifndef CONSTANT_ADDRESS_P
 #define CONSTANT_ADDRESS_P(X)   (CONSTANT_P (X) && GET_CODE (X) != CONST_DOUBLE)
 #endif
+
+#ifndef MAX_FIXED_MODE_SIZE
+#define MAX_FIXED_MODE_SIZE GET_MODE_BITSIZE (DImode)
+#endif
+
+/* Nonzero if structures and unions should be returned in memory.
+
+   This should only be defined if compatibility with another compiler or
+   with an ABI is needed, because it results in slower code.  */
+
+#ifndef DEFAULT_PCC_STRUCT_RETURN
+#define DEFAULT_PCC_STRUCT_RETURN 1
+#endif
+
+#ifdef GCC_INSN_FLAGS_H
+/* Dependent default target macro definitions
+
+   This section of defaults.h defines target macros that depend on generated
+   headers.  This is a bit awkward:  We want to put all default definitions
+   for target macros in defaults.h, but some of the defaults depend on the
+   HAVE_* flags defines of insn-flags.h.  But insn-flags.h is not always
+   included by files that do include defaults.h.
+
+   Fortunately, the default macro definitions that depend on the HAVE_*
+   macros are also the ones that will only be used inside GCC itself, i.e.
+   not in the gen* programs or in target objects like libgcc.
+
+   Obviously, it would be best to keep this section of defaults.h as small
+   as possible, by converting the macros defined below to target hooks or
+   functions.
+*/
+
+/* The default branch cost is 1.  */
+#ifndef BRANCH_COST
+#define BRANCH_COST(speed_p, predictable_p) 1
+#endif
+
+/* If a memory-to-memory move would take MOVE_RATIO or more simple
+   move-instruction sequences, we will do a movmem or libcall instead.  */
+
+#ifndef MOVE_RATIO
+#if defined (HAVE_movmemqi) || defined (HAVE_movmemhi) || defined (HAVE_movmemsi) || defined (HAVE_movmemdi) || defined (HAVE_movmemti)
+#define MOVE_RATIO(speed) 2
+#else
+/* If we are optimizing for space (-Os), cut down the default move ratio.  */
+#define MOVE_RATIO(speed) ((speed) ? 15 : 3)
+#endif
+#endif
+
+/* If a clear memory operation would take CLEAR_RATIO or more simple
+   move-instruction sequences, we will do a setmem or libcall instead.  */
+
+#ifndef CLEAR_RATIO
+#if defined (HAVE_setmemqi) || defined (HAVE_setmemhi) || defined (HAVE_setmemsi) || defined (HAVE_setmemdi) || defined (HAVE_setmemti)
+#define CLEAR_RATIO(speed) 2
+#else
+/* If we are optimizing for space, cut down the default clear ratio.  */
+#define CLEAR_RATIO(speed) ((speed) ? 15 :3)
+#endif
+#endif
+
+/* If a memory set (to value other than zero) operation would take
+   SET_RATIO or more simple move-instruction sequences, we will do a movmem
+   or libcall instead.  */
+#ifndef SET_RATIO
+#define SET_RATIO(speed) MOVE_RATIO(speed)
+#endif
+
+/* Supply a default definition for FUNCTION_ARG_PADDING:
+   usually pad upward, but pad short args downward on
+   big-endian machines.  */
+
+#define DEFAULT_FUNCTION_ARG_PADDING(MODE, TYPE)			\
+  (! BYTES_BIG_ENDIAN							\
+   ? upward								\
+   : (((MODE) == BLKmode						\
+       ? ((TYPE) && TREE_CODE (TYPE_SIZE (TYPE)) == INTEGER_CST		\
+	  && int_size_in_bytes (TYPE) < (PARM_BOUNDARY / BITS_PER_UNIT)) \
+       : GET_MODE_BITSIZE (MODE) < PARM_BOUNDARY)			\
+      ? downward : upward))
+
+#ifndef FUNCTION_ARG_PADDING
+#define FUNCTION_ARG_PADDING(MODE, TYPE)	\
+  DEFAULT_FUNCTION_ARG_PADDING ((MODE), (TYPE))
+#endif
+
+/* Supply a default definition for FUNCTION_ARG_BOUNDARY.  Normally, we let
+   FUNCTION_ARG_PADDING, which also pads the length, handle any needed
+   alignment.  */
+
+#ifndef FUNCTION_ARG_BOUNDARY
+#define FUNCTION_ARG_BOUNDARY(MODE, TYPE)	PARM_BOUNDARY
+#endif
+
+/* Supply a default definition of STACK_SAVEAREA_MODE for emit_stack_save.
+   Normally move_insn, so Pmode stack pointer.  */
+
+#ifndef STACK_SAVEAREA_MODE
+#define STACK_SAVEAREA_MODE(LEVEL) Pmode
+#endif
+
+/* Supply a default definition of STACK_SIZE_MODE for
+   allocate_dynamic_stack_space.  Normally PLUS/MINUS, so word_mode.  */
+
+#ifndef STACK_SIZE_MODE
+#define STACK_SIZE_MODE word_mode
+#endif
+
+/* Provide default values for the macros controlling stack checking.  */
+
+/* The default is neither full builtin stack checking...  */
+#ifndef STACK_CHECK_BUILTIN
+#define STACK_CHECK_BUILTIN 0
+#endif
+
+/* ...nor static builtin stack checking.  */
+#ifndef STACK_CHECK_STATIC_BUILTIN
+#define STACK_CHECK_STATIC_BUILTIN 0
+#endif
+
+/* The default interval is one page (4096 bytes).  */
+#ifndef STACK_CHECK_PROBE_INTERVAL_EXP
+#define STACK_CHECK_PROBE_INTERVAL_EXP 12
+#endif
+
+/* The default is not to move the stack pointer.  */
+#ifndef STACK_CHECK_MOVING_SP
+#define STACK_CHECK_MOVING_SP 0
+#endif
+
+/* This is a kludge to try to capture the discrepancy between the old
+   mechanism (generic stack checking) and the new mechanism (static
+   builtin stack checking).  STACK_CHECK_PROTECT needs to be bumped
+   for the latter because part of the protection area is effectively
+   included in STACK_CHECK_MAX_FRAME_SIZE for the former.  */
+#ifdef STACK_CHECK_PROTECT
+#define STACK_OLD_CHECK_PROTECT STACK_CHECK_PROTECT
+#else
+#define STACK_OLD_CHECK_PROTECT \
+ (targetm.except_unwind_info () == UI_SJLJ ? 75 * UNITS_PER_WORD : 8 * 1024)
+#endif
+
+/* Minimum amount of stack required to recover from an anticipated stack
+   overflow detection.  The default value conveys an estimate of the amount
+   of stack required to propagate an exception.  */
+#ifndef STACK_CHECK_PROTECT
+#define STACK_CHECK_PROTECT \
+ (targetm.except_unwind_info () == UI_SJLJ ? 75 * UNITS_PER_WORD : 12 * 1024)
+#endif
+
+/* Make the maximum frame size be the largest we can and still only need
+   one probe per function.  */
+#ifndef STACK_CHECK_MAX_FRAME_SIZE
+#define STACK_CHECK_MAX_FRAME_SIZE \
+  ((1 << STACK_CHECK_PROBE_INTERVAL_EXP) - UNITS_PER_WORD)
+#endif
+
+/* This is arbitrary, but should be large enough everywhere.  */
+#ifndef STACK_CHECK_FIXED_FRAME_SIZE
+#define STACK_CHECK_FIXED_FRAME_SIZE (4 * UNITS_PER_WORD)
+#endif
+
+/* Provide a reasonable default for the maximum size of an object to
+   allocate in the fixed frame.  We may need to be able to make this
+   controllable by the user at some point.  */
+#ifndef STACK_CHECK_MAX_VAR_SIZE
+#define STACK_CHECK_MAX_VAR_SIZE (STACK_CHECK_MAX_FRAME_SIZE / 100)
+#endif
+
+#ifndef SWITCHABLE_TARGET
+#define SWITCHABLE_TARGET 0
+#endif
+
+#endif /* GCC_INSN_FLAGS_H  */
 
 #endif  /* ! GCC_DEFAULTS_H */

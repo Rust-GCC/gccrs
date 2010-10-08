@@ -19,16 +19,13 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#undef FLOAT /* This is for hpux. They should change hpux.  */
-#undef FFS  /* Some systems define this in param.h.  */
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "rtl.h"
+#include "rtl-error.h"
 #include "insn-attr.h"
 #include "insn-config.h"
 #include "input.h"
-#include "toplev.h"
 #include "intl.h"
 #include "diagnostic.h"
 

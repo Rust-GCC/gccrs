@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2008, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -46,7 +46,12 @@ package Sem_Disp is
    --  if it has a parameter of this type and is defined at a proper place for
    --  primitive operations (new primitives are only defined in package spec,
    --  overridden operation can be defined in any scope). If Old_Subp is not
-   --  Empty we are in the overriding case.
+   --  Empty we are in the overriding case. If the tagged type associated with
+   --  Subp is a concurrent type (case that occurs when the type is declared in
+   --  a generic because the analysis of generics disables generation of the
+   --  corresponding record) then this routine does does not add "Subp" to the
+   --  list of primitive operations but leaves Subp decorated as dispatching
+   --  operation to enable checks associated with the Object.Operation notation
 
    procedure Check_Operation_From_Incomplete_Type
      (Subp : Entity_Id;
@@ -61,6 +66,11 @@ package Sem_Disp is
    --  of "OldSubp" is adjusted to point to the inherited procedure of the
    --  full view because it is always this one which has to be called.
 
+   function Covers_Some_Interface (Prim : Entity_Id) return Boolean;
+   --  Returns true if Prim covers some interface primitive of its associated
+   --  tagged type. The tagged type of Prim must be frozen when this function
+   --  is invoked.
+
    function Find_Controlling_Arg (N : Node_Id) return Node_Id;
    --  Returns the actual controlling argument if N is dynamically tagged,
    --  and Empty if it is not dynamically tagged.
@@ -72,15 +82,24 @@ package Sem_Disp is
    function Find_Primitive_Covering_Interface
      (Tagged_Type : Entity_Id;
       Iface_Prim  : Entity_Id) return Entity_Id;
-   --  Search in the homonym chain for the primitive of Tagged_Type that
-   --  covers Iface_Prim. The homonym chain traversal is required to catch
-   --  primitives associated with the partial view of private types when
-   --  processing the corresponding full view.
+   --  Search in the homonym chain for the primitive of Tagged_Type that covers
+   --  Iface_Prim. The homonym chain traversal is required to catch primitives
+   --  associated with the partial view of private types when processing the
+   --  corresponding full view. If the entity is not found then search for it
+   --  in the list of primitives of Tagged_Type. This latter search is needed
+   --  when the interface primitive is covered by a private subprogram. If the
+   --  primitive has not been covered yet then return the entity that will be
+   --  overriden when the primitive is covered (that is, return the entity
+   --  whose alias attribute references the interface primitive). If none of
+   --  these entities is found then return Empty.
 
    function Is_Dynamically_Tagged (N : Node_Id) return Boolean;
    --  Used to determine whether a call is dispatching, i.e. if is an
    --  an expression of a class_Wide type, or a call to a function with
    --  controlling result where at least one operand is dynamically tagged.
+
+   function Is_Null_Interface_Primitive (E : Entity_Id) return Boolean;
+   --  Returns True if E is a null procedure that is an interface primitive
 
    function Is_Tag_Indeterminate (N : Node_Id) return Boolean;
    --  An expression is tag-indeterminate if it is a call that dispatches

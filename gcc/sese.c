@@ -1,5 +1,6 @@
 /* Single entry single exit control flow regions.
-   Copyright (C) 2008, 2009  Free Software Foundation, Inc.
+   Copyright (C) 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Jan Sjodin <jan.sjodin@amd.com> and
    Sebastian Pop <sebastian.pop@amd.com>.
 
@@ -28,6 +29,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "basic-block.h"
 #include "diagnostic.h"
+#include "tree-pretty-print.h"
 #include "tree-flow.h"
 #include "toplev.h"
 #include "tree-dump.h"
@@ -65,12 +67,12 @@ debug_rename_map_1 (void **slot, void *s ATTRIBUTE_UNUSED)
   return 1;
 }
 
-/* Print to stderr all the elements of MAP.  */
+/* Print to stderr all the elements of RENAME_MAP.  */
 
-void
-debug_rename_map (htab_t map)
+DEBUG_FUNCTION void
+debug_rename_map (htab_t rename_map)
 {
-  htab_traverse (map, debug_rename_map_1, NULL);
+  htab_traverse (rename_map, debug_rename_map_1, NULL);
 }
 
 /* Computes a hash function for database element ELT.  */
@@ -78,7 +80,7 @@ debug_rename_map (htab_t map)
 hashval_t
 rename_map_elt_info (const void *elt)
 {
-  return htab_hash_pointer (((const struct rename_map_elt_s *) elt)->old_name);
+  return SSA_NAME_VERSION (((const struct rename_map_elt_s *) elt)->old_name);
 }
 
 /* Compares database elements E1 and E2.  */
@@ -116,7 +118,7 @@ debug_ivtype_map_1 (void **slot, void *s ATTRIBUTE_UNUSED)
 
 /* Print to stderr all the elements of MAP.  */
 
-void
+DEBUG_FUNCTION void
 debug_ivtype_map (htab_t map)
 {
   htab_traverse (map, debug_ivtype_map_1, NULL);
@@ -179,7 +181,7 @@ build_sese_loop_nests (sese region)
   /* Make sure that the loops in the SESE_LOOP_NEST are ordered.  It
      can be the case that an inner loop is inserted before an outer
      loop.  To avoid this, semi-sort once.  */
-  for (i = 0; VEC_iterate (loop_p, SESE_LOOP_NEST (region), i, loop0); i++)
+  FOR_EACH_VEC_ELT (loop_p, SESE_LOOP_NEST (region), i, loop0)
     {
       if (VEC_length (loop_p, SESE_LOOP_NEST (region)) == i + 1)
 	break;
@@ -235,8 +237,73 @@ sese_build_liveouts_bb (sese region, bitmap liveouts, basic_block bb)
 			       PHI_ARG_DEF_FROM_EDGE (gsi_stmt (bsi), e));
 
   for (bsi = gsi_start_bb (bb); !gsi_end_p (bsi); gsi_next (&bsi))
-    FOR_EACH_SSA_USE_OPERAND (use_p, gsi_stmt (bsi), iter, SSA_OP_ALL_USES)
-      sese_build_liveouts_use (region, liveouts, bb, USE_FROM_PTR (use_p));
+    {
+      gimple stmt = gsi_stmt (bsi);
+
+      if (is_gimple_debug (stmt))
+	continue;
+
+      FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_ALL_USES)
+	sese_build_liveouts_use (region, liveouts, bb, USE_FROM_PTR (use_p));
+    }
+}
+
+/* For a USE in BB, return true if BB is outside REGION and it's not
+   in the LIVEOUTS set.  */
+
+static bool
+sese_bad_liveouts_use (sese region, bitmap liveouts, basic_block bb,
+		       tree use)
+{
+  unsigned ver;
+  basic_block def_bb;
+
+  if (TREE_CODE (use) != SSA_NAME)
+    return false;
+
+  ver = SSA_NAME_VERSION (use);
+
+  /* If it's in liveouts, the variable will get a new PHI node, and
+     the debug use will be properly adjusted.  */
+  if (bitmap_bit_p (liveouts, ver))
+    return false;
+
+  def_bb = gimple_bb (SSA_NAME_DEF_STMT (use));
+
+  if (!def_bb
+      || !bb_in_sese_p (def_bb, region)
+      || bb_in_sese_p (bb, region))
+    return false;
+
+  return true;
+}
+
+/* Reset debug stmts that reference SSA_NAMES defined in REGION that
+   are not marked as liveouts.  */
+
+static void
+sese_reset_debug_liveouts_bb (sese region, bitmap liveouts, basic_block bb)
+{
+  gimple_stmt_iterator bsi;
+  ssa_op_iter iter;
+  use_operand_p use_p;
+
+  for (bsi = gsi_start_bb (bb); !gsi_end_p (bsi); gsi_next (&bsi))
+    {
+      gimple stmt = gsi_stmt (bsi);
+
+      if (!is_gimple_debug (stmt))
+	continue;
+
+      FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_ALL_USES)
+	if (sese_bad_liveouts_use (region, liveouts, bb,
+				   USE_FROM_PTR (use_p)))
+	  {
+	    gimple_debug_bind_reset_value (stmt);
+	    update_stmt (stmt);
+	    break;
+	  }
+    }
 }
 
 /* Build the LIVEOUTS of REGION: the set of variables defined inside
@@ -249,6 +316,9 @@ sese_build_liveouts (sese region, bitmap liveouts)
 
   FOR_EACH_BB (bb)
     sese_build_liveouts_bb (region, liveouts, bb);
+  if (MAY_HAVE_DEBUG_INSNS)
+    FOR_EACH_BB (bb)
+      sese_reset_debug_liveouts_bb (region, liveouts, bb);
 }
 
 /* Builds a new SESE region from edges ENTRY and EXIT.  */
@@ -264,9 +334,6 @@ new_sese (edge entry, edge exit)
   SESE_LOOP_NEST (region) = VEC_alloc (loop_p, heap, 3);
   SESE_ADD_PARAMS (region) = true;
   SESE_PARAMS (region) = VEC_alloc (tree, heap, 3);
-  SESE_PARAMS_INDEX (region) = htab_create (10, clast_name_index_elt_info,
-					    eq_clast_name_indexes, free);
-  SESE_PARAMS_NAMES (region) = XNEWVEC (char *, num_ssa_names);
 
   return region;
 }
@@ -280,12 +347,7 @@ free_sese (sese region)
     SESE_LOOPS (region) = BITMAP_ALLOC (NULL);
 
   VEC_free (tree, heap, SESE_PARAMS (region));
-  VEC_free (loop_p, heap, SESE_LOOP_NEST (region)); 
-
-  if (SESE_PARAMS_INDEX (region))
-    htab_delete (SESE_PARAMS_INDEX (region));
-
-  /* Do not free SESE_PARAMS_NAMES: CLooG does that.  */
+  VEC_free (loop_p, heap, SESE_LOOP_NEST (region));
 
   XDELETE (region);
 }
@@ -332,563 +394,6 @@ sese_insert_phis_for_liveouts (sese region, basic_block bb,
   update_ssa (TODO_update_ssa);
 }
 
-/* Get the definition of NAME before the SESE.  Keep track of the
-   basic blocks that have been VISITED in a bitmap.  */
-
-static tree
-get_vdef_before_sese (sese region, tree name, sbitmap visited)
-{
-  unsigned i;
-  gimple def_stmt = SSA_NAME_DEF_STMT (name);
-  basic_block def_bb = gimple_bb (def_stmt);
-
-  if (!def_bb || !bb_in_sese_p (def_bb, region))
-    return name;
-
-  if (TEST_BIT (visited, def_bb->index))
-    return NULL_TREE;
-
-  SET_BIT (visited, def_bb->index);
-
-  switch (gimple_code (def_stmt))
-    {
-    case GIMPLE_PHI:
-      for (i = 0; i < gimple_phi_num_args (def_stmt); i++)
-	{
-	  tree arg = gimple_phi_arg_def (def_stmt, i);
-	  tree res = get_vdef_before_sese (region, arg, visited);
-	  if (res)
-	    return res;
-	}
-      return NULL_TREE;
-
-    default:
-      return NULL_TREE;
-    }
-}
-
-/* Adjust a virtual phi node PHI that is placed at the end of the
-   generated code for SCOP:
-
-   | if (1)
-   |   generated code from REGION;
-   | else
-   |   REGION;
-
-   The FALSE_E edge comes from the original code, TRUE_E edge comes
-   from the code generated for the SCOP.  */
-
-static void
-sese_adjust_vphi (sese region, gimple phi, edge true_e)
-{
-  unsigned i;
-
-  gcc_assert (gimple_phi_num_args (phi) == 2);
-
-  for (i = 0; i < gimple_phi_num_args (phi); i++)
-    if (gimple_phi_arg_edge (phi, i) == true_e)
-      {
-	tree true_arg, false_arg, before_scop_arg;
-	sbitmap visited;
-
-	true_arg = gimple_phi_arg_def (phi, i);
-	if (!SSA_NAME_IS_DEFAULT_DEF (true_arg))
-	  return;
-
-	false_arg = gimple_phi_arg_def (phi, i == 0 ? 1 : 0);
-	if (SSA_NAME_IS_DEFAULT_DEF (false_arg))
-	  return;
-
-	visited = sbitmap_alloc (last_basic_block);
-	sbitmap_zero (visited);
-	before_scop_arg = get_vdef_before_sese (region, false_arg, visited);
-	gcc_assert (before_scop_arg != NULL_TREE);
-	SET_PHI_ARG_DEF (phi, i, before_scop_arg);
-	sbitmap_free (visited);
-      }
-}
-
-/* Returns the name associated to OLD_NAME in MAP.  */
-
-static tree
-get_rename (htab_t map, tree old_name)
-{
-  struct rename_map_elt_s tmp;
-  PTR *slot;
-
-  tmp.old_name = old_name;
-  slot = htab_find_slot (map, &tmp, NO_INSERT);
-
-  if (slot && *slot)
-    return ((rename_map_elt) *slot)->expr;
-
-  return old_name;
-}
-
-/* Register in MAP the rename tuple (old_name, expr).  */
-
-void
-set_rename (htab_t map, tree old_name, tree expr)
-{
-  struct rename_map_elt_s tmp;
-  PTR *slot;
-
-  if (old_name == expr)
-    return;
-
-  tmp.old_name = old_name;
-  slot = htab_find_slot (map, &tmp, INSERT);
-
-  if (!slot)
-    return;
-
-  if (*slot)
-    free (*slot);
-
-  *slot = new_rename_map_elt (old_name, expr);
-}
-
-/* Adjusts the phi nodes in the block BB for variables defined in
-   SCOP_REGION and used outside the SCOP_REGION.  The code generation
-   moves SCOP_REGION in the else clause of an "if (1)" and generates
-   code in the then clause:
-
-   | if (1)
-   |   generated code from REGION;
-   | else
-   |   REGION;
-
-   To adjust the phi nodes after the condition, the RENAME_MAP is
-   used.  */
-
-void
-sese_adjust_liveout_phis (sese region, htab_t rename_map, basic_block bb,
-			  edge false_e, edge true_e)
-{
-  gimple_stmt_iterator si;
-
-  for (si = gsi_start_phis (bb); !gsi_end_p (si); gsi_next (&si))
-    {
-      unsigned i;
-      unsigned false_i = 0;
-      gimple phi = gsi_stmt (si);
-
-      if (!is_gimple_reg (PHI_RESULT (phi)))
-	{
-	  sese_adjust_vphi (region, phi, true_e);
-	  continue;
-	}
-
-      for (i = 0; i < gimple_phi_num_args (phi); i++)
-	if (gimple_phi_arg_edge (phi, i) == false_e)
-	  {
-	    false_i = i;
-	    break;
-	  }
-
-      for (i = 0; i < gimple_phi_num_args (phi); i++)
-	if (gimple_phi_arg_edge (phi, i) == true_e)
-	  {
-	    tree old_name = gimple_phi_arg_def (phi, false_i);
-	    tree expr = get_rename (rename_map, old_name);
-	    gimple_seq stmts;
-
-	    gcc_assert (old_name != expr);
-
-	    if (TREE_CODE (expr) != SSA_NAME
-		&& is_gimple_reg (old_name))
-	      {
-		tree type = TREE_TYPE (old_name);
-		tree var = create_tmp_var (type, "var");
-
-		expr = build2 (MODIFY_EXPR, type, var, expr);
-		expr = force_gimple_operand (expr, &stmts, true, NULL);
-		gsi_insert_seq_on_edge_immediate (true_e, stmts);
-	      }
-
-	    SET_PHI_ARG_DEF (phi, i, expr);
-	  }
-    }
-}
-
-/* Rename the SSA_NAMEs used in STMT and that appear in MAP.  */
-
-static void 
-rename_variables_in_stmt (gimple stmt, htab_t map, gimple_stmt_iterator *insert_gsi)
-{
-  ssa_op_iter iter;
-  use_operand_p use_p;
-
-  FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_ALL_USES)
-    {
-      tree use = USE_FROM_PTR (use_p);
-      tree expr = get_rename (map, use);
-      tree type_use = TREE_TYPE (use);
-      tree type_expr = TREE_TYPE (expr);
-      gimple_seq stmts;
-
-      if (use == expr)
-	continue;
-
-      if (type_use != type_expr
-	  || (TREE_CODE (expr) != SSA_NAME
-	      && is_gimple_reg (use)))
-	{
-	  tree var = create_tmp_var (type_use, "var");
-
-	  if (type_use != type_expr)
-	    expr = fold_convert (type_use, expr);
-
-	  expr = build2 (MODIFY_EXPR, type_use, var, expr);
-	  expr = force_gimple_operand (expr, &stmts, true, NULL);
-	  gsi_insert_seq_before (insert_gsi, stmts, GSI_SAME_STMT);
-	}
-
-      replace_exp (use_p, expr);
-    }
-
-  update_stmt (stmt);
-}
-
-/* Returns true if NAME is a parameter of SESE.  */
-
-static bool
-is_parameter (sese region, tree name)
-{
-  int i;
-  tree p;
-
-  for (i = 0; VEC_iterate (tree, SESE_PARAMS (region), i, p); i++)
-    if (p == name)
-      return true;
-
-  return false;
-}
-
-/* Returns true if NAME is an induction variable.  */
-
-static bool
-is_iv (tree name)
-{
-  return gimple_code (SSA_NAME_DEF_STMT (name)) == GIMPLE_PHI;
-}
-
-static void expand_scalar_variables_stmt (gimple, basic_block, sese,
-					  htab_t, gimple_stmt_iterator *);
-static tree
-expand_scalar_variables_expr (tree, tree, enum tree_code, tree, basic_block,
-			      sese, htab_t, gimple_stmt_iterator *);
-
-static tree
-expand_scalar_variables_call (gimple stmt, basic_block bb, sese region,
-			      htab_t map, gimple_stmt_iterator *gsi)
-{
-  int i, nargs = gimple_call_num_args (stmt);
-  VEC (tree, gc) *args = VEC_alloc (tree, gc, nargs);
-  tree fn_type = TREE_TYPE (gimple_call_fn (stmt));
-  tree fn = gimple_call_fndecl (stmt);
-  tree call_expr, var, lhs;
-  gimple call;
-
-  for (i = 0; i < nargs; i++)
-    {
-      tree arg = gimple_call_arg (stmt, i);
-      tree t = TREE_TYPE (arg);
-
-      var = create_tmp_var (t, "var");
-      arg = expand_scalar_variables_expr (t, arg, TREE_CODE (arg), NULL,
-					  bb, region, map, gsi);
-      arg = build2 (MODIFY_EXPR, t, var, arg);
-      arg = force_gimple_operand_gsi (gsi, arg, true, NULL,
-				      true, GSI_SAME_STMT);
-      VEC_quick_push (tree, args, arg);
-    }
-
-  lhs = gimple_call_lhs (stmt);
-  var = create_tmp_var (TREE_TYPE (lhs), "var");
-  call_expr = build_call_vec (fn_type, fn, args);
-  call = gimple_build_call_from_tree (call_expr);
-  var = make_ssa_name (var, call);
-  gimple_call_set_lhs (call, var);
-  gsi_insert_before (gsi, call, GSI_SAME_STMT);
-
-  return var;
-}
-
-/* Copies at GSI all the scalar computations on which the ssa_name OP0
-   depends on in the SESE: these are all the scalar variables used in
-   the definition of OP0, that are defined outside BB and still in the
-   SESE, i.e. not a parameter of the SESE.  The expression that is
-   returned contains only induction variables from the generated code:
-   MAP contains the induction variables renaming mapping, and is used
-   to translate the names of induction variables.  */
-
-static tree
-expand_scalar_variables_ssa_name (tree op0, basic_block bb,
-				  sese region, htab_t map, 
-				  gimple_stmt_iterator *gsi)
-{
-  gimple def_stmt;
-  tree new_op;
-      
-  if (is_parameter (region, op0)
-      || is_iv (op0))
-    return get_rename (map, op0);
-      
-  def_stmt = SSA_NAME_DEF_STMT (op0);
-
-  /* Check whether we already have a rename for OP0.  */
-  new_op = get_rename (map, op0);
-
-  if (new_op != op0
-      && gimple_bb (SSA_NAME_DEF_STMT (new_op)) == bb)
-    return new_op;
-      
-  if (gimple_bb (def_stmt) == bb)
-    {
-      /* If the defining statement is in the basic block already
-	 we do not need to create a new expression for it, we
-	 only need to ensure its operands are expanded.  */
-      expand_scalar_variables_stmt (def_stmt, bb, region, map, gsi);
-      return new_op;
-    }
-  else
-    {
-      if (!gimple_bb (def_stmt)
-	  || !bb_in_sese_p (gimple_bb (def_stmt), region))
-	return new_op;
-
-      switch (gimple_code (def_stmt))
-	{
-	case GIMPLE_ASSIGN:
-	  {
-	    tree var0 = gimple_assign_rhs1 (def_stmt);
-	    enum tree_code subcode = gimple_assign_rhs_code (def_stmt);
-	    tree var1 = gimple_assign_rhs2 (def_stmt);
-	    tree type = gimple_expr_type (def_stmt);
-
-	    return expand_scalar_variables_expr (type, var0, subcode, var1, bb,
-						 region, map, gsi);
-	  }
-
-	case GIMPLE_CALL:
-	  return expand_scalar_variables_call (def_stmt, bb, region, map, gsi);
-
-	default:
-	  gcc_unreachable ();
-	  return new_op;
-	}
-    }
-}
-
-/* Copies at GSI all the scalar computations on which the expression
-   OP0 CODE OP1 depends on in the SESE: these are all the scalar
-   variables used in OP0 and OP1, defined outside BB and still defined
-   in the SESE, i.e. not a parameter of the SESE.  The expression that
-   is returned contains only induction variables from the generated
-   code: MAP contains the induction variables renaming mapping, and is
-   used to translate the names of induction variables.  */
-
-static tree
-expand_scalar_variables_expr (tree type, tree op0, enum tree_code code, 
-			      tree op1, basic_block bb, sese region, 
-			      htab_t map, gimple_stmt_iterator *gsi)
-{
-  if (TREE_CODE_CLASS (code) == tcc_constant
-      || TREE_CODE_CLASS (code) == tcc_declaration)
-    return op0;
-
-  /* For data references we have to duplicate also its memory
-     indexing.  */
-  if (TREE_CODE_CLASS (code) == tcc_reference)
-    {
-      switch (code)
-	{
-	case REALPART_EXPR:
-	case IMAGPART_EXPR:
-	  {
-	    tree op = TREE_OPERAND (op0, 0);
-	    tree res = expand_scalar_variables_expr
-	      (type, op, TREE_CODE (op), NULL, bb, region, map, gsi);
-	    return build1 (code, type, res);
-	  }
-
-	case INDIRECT_REF:
-	  {
-	    tree old_name = TREE_OPERAND (op0, 0);
-	    tree expr = expand_scalar_variables_ssa_name
-	      (old_name, bb, region, map, gsi);
-
-	    if (TREE_CODE (expr) != SSA_NAME
-		&& is_gimple_reg (old_name))
-	      {
-		tree type = TREE_TYPE (old_name);
-		tree var = create_tmp_var (type, "var");
-
-		expr = build2 (MODIFY_EXPR, type, var, expr);
-		expr = force_gimple_operand_gsi (gsi, expr, true, NULL,
-						 true, GSI_SAME_STMT);
-	      }
-
-	    return fold_build1 (code, type, expr);
-	  }
-
-	case ARRAY_REF:
-	  {
-	    tree op00 = TREE_OPERAND (op0, 0);
-	    tree op01 = TREE_OPERAND (op0, 1);
-	    tree op02 = TREE_OPERAND (op0, 2);
-	    tree op03 = TREE_OPERAND (op0, 3);
-	    tree base = expand_scalar_variables_expr
-	      (TREE_TYPE (op00), op00, TREE_CODE (op00), NULL, bb, region,
-	       map, gsi);
-	    tree subscript = expand_scalar_variables_expr
-	      (TREE_TYPE (op01), op01, TREE_CODE (op01), NULL, bb, region,
-	       map, gsi);
-
-	    return build4 (ARRAY_REF, type, base, subscript, op02, op03);
-	  }
-
-	default:
-	  /* The above cases should catch everything.  */
-	  gcc_unreachable ();
-	}
-    }
-
-  if (TREE_CODE_CLASS (code) == tcc_unary)
-    {
-      tree op0_type = TREE_TYPE (op0);
-      enum tree_code op0_code = TREE_CODE (op0);
-      tree op0_expr = expand_scalar_variables_expr (op0_type, op0, op0_code,
-						    NULL, bb, region, map, gsi);
-  
-      return fold_build1 (code, type, op0_expr);
-    }
-
-  if (TREE_CODE_CLASS (code) == tcc_binary
-      || TREE_CODE_CLASS (code) == tcc_comparison)
-    {
-      tree op0_type = TREE_TYPE (op0);
-      enum tree_code op0_code = TREE_CODE (op0);
-      tree op0_expr = expand_scalar_variables_expr (op0_type, op0, op0_code,
-						    NULL, bb, region, map, gsi);
-      tree op1_type = TREE_TYPE (op1);
-      enum tree_code op1_code = TREE_CODE (op1);
-      tree op1_expr = expand_scalar_variables_expr (op1_type, op1, op1_code,
-						    NULL, bb, region, map, gsi);
-
-      return fold_build2 (code, type, op0_expr, op1_expr);
-    }
-
-  if (code == SSA_NAME)
-    return expand_scalar_variables_ssa_name (op0, bb, region, map, gsi);
-
-  if (code == ADDR_EXPR)
-    return op0;
-
-  gcc_unreachable ();
-  return NULL;
-}
-
-/* Copies at the beginning of BB all the scalar computations on which
-   STMT depends on in the SESE: these are all the scalar variables used
-   in STMT, defined outside BB and still defined in the SESE, i.e. not a
-   parameter of the SESE.  The expression that is returned contains
-   only induction variables from the generated code: MAP contains the
-   induction variables renaming mapping, and is used to translate the
-   names of induction variables.  */
- 
-static void
-expand_scalar_variables_stmt (gimple stmt, basic_block bb, sese region,
-			      htab_t map, gimple_stmt_iterator *gsi)
-{
-  ssa_op_iter iter;
-  use_operand_p use_p;
-
-  FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_ALL_USES)
-    {
-      tree use = USE_FROM_PTR (use_p);
-      tree type = TREE_TYPE (use);
-      enum tree_code code = TREE_CODE (use);
-      tree use_expr;
-
-      if (!is_gimple_reg (use))
-	continue;
-
-      /* Don't expand USE if we already have a rename for it.  */
-      use_expr = get_rename (map, use);
-      if (use_expr != use)
-	continue;
-
-      use_expr = expand_scalar_variables_expr (type, use, code, NULL, bb,
-					       region, map, gsi);
-      use_expr = fold_convert (type, use_expr);
-
-      if (use_expr == use)
-	continue;
-
-      if (TREE_CODE (use_expr) != SSA_NAME)
-	{
-	  tree var = create_tmp_var (type, "var");
-
-	  use_expr = build2 (MODIFY_EXPR, type, var, use_expr);
-	  use_expr = force_gimple_operand_gsi (gsi, use_expr, true, NULL,
-					       true, GSI_SAME_STMT);
-	}
-
-      replace_exp (use_p, use_expr);
-    }
-
-  update_stmt (stmt);
-}
-
-/* Copies at the beginning of BB all the scalar computations on which
-   BB depends on in the SESE: these are all the scalar variables used
-   in BB, defined outside BB and still defined in the SESE, i.e. not a
-   parameter of the SESE.  The expression that is returned contains
-   only induction variables from the generated code: MAP contains the
-   induction variables renaming mapping, and is used to translate the
-   names of induction variables.  */
-
-static void 
-expand_scalar_variables (basic_block bb, sese region, htab_t map)
-{
-  gimple_stmt_iterator gsi;
-  
-  for (gsi = gsi_after_labels (bb); !gsi_end_p (gsi);)
-    {
-      gimple stmt = gsi_stmt (gsi);
-      expand_scalar_variables_stmt (stmt, bb, region, map, &gsi);
-      gsi_next (&gsi);
-    }
-}
-
-/* Rename all the SSA_NAMEs from block BB according to the MAP.  */
-
-static void 
-rename_variables (basic_block bb, htab_t map)
-{
-  gimple_stmt_iterator gsi;
-  gimple_stmt_iterator insert_gsi = gsi_start_bb (bb);
-  
-  for (gsi = gsi_after_labels (bb); !gsi_end_p (gsi); gsi_next (&gsi))
-    rename_variables_in_stmt (gsi_stmt (gsi), map, &insert_gsi);
-}
-
-/* Remove condition from BB.  */
-
-static void
-remove_condition (basic_block bb)
-{
-  gimple last = last_stmt (bb);
-
-  if (last && gimple_code (last) == GIMPLE_COND)
-    {
-      gimple_stmt_iterator gsi = gsi_last_bb (bb);
-      gsi_remove (&gsi, true);
-    }
-}
-
 /* Returns the first successor edge of BB with EDGE_TRUE_VALUE flag set.  */
 
 edge
@@ -898,7 +403,7 @@ get_true_edge_from_guard_bb (basic_block bb)
   edge_iterator ei;
 
   FOR_EACH_EDGE (e, ei, bb->succs)
-    if (e->flags & EDGE_TRUE_VALUE) 
+    if (e->flags & EDGE_TRUE_VALUE)
       return e;
 
   gcc_unreachable ();
@@ -914,272 +419,148 @@ get_false_edge_from_guard_bb (basic_block bb)
   edge_iterator ei;
 
   FOR_EACH_EDGE (e, ei, bb->succs)
-    if (!(e->flags & EDGE_TRUE_VALUE)) 
+    if (!(e->flags & EDGE_TRUE_VALUE))
       return e;
 
   gcc_unreachable ();
   return NULL;
 }
 
-/* Returns true when NAME is defined in LOOP.  */
-
-static bool
-defined_in_loop_p (tree name, loop_p loop)
-{
-  gimple stmt = SSA_NAME_DEF_STMT (name);
-
-  return (gimple_bb (stmt)->loop_father == loop);
-}
-
-/* Returns the gimple statement that uses NAME outside the loop it is
-   defined in, returns NULL if there is no such loop close phi node.
-   An invariant of the loop closed SSA form is that the only use of a
-   variable, outside the loop it is defined in, is in the loop close
-   phi node that just follows the loop.  */
-
-static gimple
-alive_after_loop (tree name)
-{
-  use_operand_p use_p;
-  imm_use_iterator imm_iter;
-  loop_p loop = gimple_bb (SSA_NAME_DEF_STMT (name))->loop_father;
-
-  FOR_EACH_IMM_USE_FAST (use_p, imm_iter, name)
-    {
-      gimple stmt = USE_STMT (use_p);
-
-      if (gimple_code (stmt) == GIMPLE_PHI
-	  && gimple_bb (stmt)->loop_father != loop)
-	return stmt;
-    }
-
-  return NULL;
-}
-
-/* Return true if a close phi has not yet been inserted for the use of
-   variable NAME on the single exit of LOOP.  */
-
-static bool
-close_phi_not_yet_inserted_p (loop_p loop, tree name)
-{
-  gimple_stmt_iterator psi;
-  basic_block bb = single_exit (loop)->dest;
-
-  for (psi = gsi_start_phis (bb); !gsi_end_p (psi); gsi_next (&psi))
-    if (gimple_phi_arg_def (gsi_stmt (psi), 0) == name)
-      return false;
-
-  return true;
-}
-
-/* A structure for passing parameters to add_loop_exit_phis.  */
-
-typedef struct alep {
-  loop_p loop;
-  VEC (rename_map_elt, heap) *new_renames;
-} *alep_p;
-
-/* Helper function for htab_traverse in insert_loop_close_phis.  */
-
-static int
-add_loop_exit_phis (void **slot, void *data)
-{
-  struct rename_map_elt_s *entry;
-  alep_p a;
-  loop_p loop;
-  tree expr, new_name;
-  bool def_in_loop_p, used_outside_p, need_close_phi_p;
-  gimple old_close_phi;
-
-  if (!slot || !data)
-    return 1;
-
-  entry = (struct rename_map_elt_s *) *slot;
-  a = (alep_p) data;
-  loop = a->loop;
-  expr = entry->expr;
-
-  if (TREE_CODE (expr) != SSA_NAME)
-    return 1;
-
-  new_name = expr;
-  def_in_loop_p = defined_in_loop_p (new_name, loop);
-  old_close_phi = alive_after_loop (entry->old_name);
-  used_outside_p = (old_close_phi != NULL);
-  need_close_phi_p = (def_in_loop_p && used_outside_p
-		      && close_phi_not_yet_inserted_p (loop, new_name));
-
-  /* Insert a loop close phi node.  */
-  if (need_close_phi_p)
-    {
-      basic_block bb = single_exit (loop)->dest;
-      gimple phi = create_phi_node (new_name, bb);
-      tree new_res = create_new_def_for (gimple_phi_result (phi), phi,
-					 gimple_phi_result_ptr (phi));
-
-      add_phi_arg (phi, new_name, single_pred_edge (bb), UNKNOWN_LOCATION);
-      VEC_safe_push (rename_map_elt, heap, a->new_renames,
-		     new_rename_map_elt (gimple_phi_result (old_close_phi),
-					 new_res));
-    }
-
-  /* Remove the old rename from the map.  */
-  if (def_in_loop_p && *slot)
-    {
-      free (*slot);
-      *slot = NULL;
-    }
-
-  return 1;
-}
-
-/* Traverses MAP and removes from it all the tuples (OLD, NEW) where
-   NEW is defined in LOOP.  Inserts on the exit of LOOP the close phi
-   node "RES = phi (NEW)" corresponding to "OLD_RES = phi (OLD)" in
-   the original code.  Inserts in MAP the tuple (OLD_RES, RES).  */
-
-void
-insert_loop_close_phis (htab_t map, loop_p loop)
-{
-  int i;
-  struct alep a;
-  rename_map_elt elt;
-
-  a.loop = loop;
-  a.new_renames = VEC_alloc (rename_map_elt, heap, 3);
-  update_ssa (TODO_update_ssa);
-  htab_traverse (map, add_loop_exit_phis, &a);
-  update_ssa (TODO_update_ssa);
-
-  for (i = 0; VEC_iterate (rename_map_elt, a.new_renames, i, elt); i++)
-    {
-      set_rename (map, elt->old_name, elt->expr);
-      free (elt);
-    }
-
-  VEC_free (rename_map_elt, heap, a.new_renames);
-}
-
-/* Helper structure for htab_traverse in insert_guard_phis.  */
-
-struct igp {
-  basic_block bb;
-  edge true_edge, false_edge;
-  htab_t before_guard;
-};
-
-/* Return the default name that is before the guard.  */
+/* Returns the expression associated to OLD_NAME in RENAME_MAP.  */
 
 static tree
-default_before_guard (htab_t before_guard, tree old_name)
+get_rename (htab_t rename_map, tree old_name)
 {
-  tree res = get_rename (before_guard, old_name);
+  struct rename_map_elt_s tmp;
+  PTR *slot;
 
-  if (res == old_name)
-    {
-      if (is_gimple_reg (res))
-	return fold_convert (TREE_TYPE (res), integer_zero_node);
-      return gimple_default_def (cfun, SSA_NAME_VAR (res));
-    }
+  gcc_assert (TREE_CODE (old_name) == SSA_NAME);
+  tmp.old_name = old_name;
+  slot = htab_find_slot (rename_map, &tmp, NO_INSERT);
 
-  return res;
+  if (slot && *slot)
+    return ((rename_map_elt) *slot)->expr;
+
+  return NULL_TREE;
 }
 
-/* Prepares EXPR to be a good phi argument when the phi result is
-   RES.  Insert needed statements on edge E.  */
-
-static tree
-convert_for_phi_arg (tree expr, tree res, edge e)
-{
-  tree type = TREE_TYPE (res);
-
-  if (TREE_TYPE (expr) != type)
-    expr = fold_convert (type, expr);
-
-  if (TREE_CODE (expr) != SSA_NAME
-      && !is_gimple_min_invariant (expr))
-    {
-      tree var = create_tmp_var (type, "var");
-      gimple_seq stmts;
-
-      expr = build2 (MODIFY_EXPR, type, var, expr);
-      expr = force_gimple_operand (expr, &stmts, true, NULL);
-      gsi_insert_seq_on_edge_immediate (e, stmts);
-    }
-
-  return expr;
-}
-
-/* Helper function for htab_traverse in insert_guard_phis.  */
-
-static int
-add_guard_exit_phis (void **slot, void *s)
-{
-  struct rename_map_elt_s *entry = (struct rename_map_elt_s *) *slot;
-  struct igp *i = (struct igp *) s;
-  basic_block bb = i->bb;
-  edge true_edge = i->true_edge;
-  edge false_edge = i->false_edge;
-  tree res = entry->old_name;
-  tree name1 = entry->expr;
-  tree name2 = default_before_guard (i->before_guard, res);
-  gimple phi;
-
-  /* Nothing to be merged if the name before the guard is the same as
-     the one after.  */
-  if (name1 == name2)
-    return 1;
-
-  name1 = convert_for_phi_arg (name1, res, true_edge);
-  name2 = convert_for_phi_arg (name2, res, false_edge);
-
-  phi = create_phi_node (res, bb);
-  res = create_new_def_for (gimple_phi_result (phi), phi,
-			    gimple_phi_result_ptr (phi));
-
-  add_phi_arg (phi, name1, true_edge, UNKNOWN_LOCATION);
-  add_phi_arg (phi, name2, false_edge, UNKNOWN_LOCATION);
-
-  entry->expr = res;
-  *slot = entry;
-  return 1;
-}
-
-/* Iterate over RENAME_MAP and get tuples of the form (OLD, NAME1).
-   If there is a correspondent tuple (OLD, NAME2) in BEFORE_GUARD,
-   with NAME1 different than NAME2, then insert in BB the phi node:
-
-   | RES = phi (NAME1 (on TRUE_EDGE), NAME2 (on FALSE_EDGE))"
-
-   if there is no tuple for OLD in BEFORE_GUARD, insert
-
-   | RES = phi (NAME1 (on TRUE_EDGE),
-   |            DEFAULT_DEFINITION of NAME1 (on FALSE_EDGE))".
-
-   Finally register in RENAME_MAP the tuple (OLD, RES).  */
-
-void
-insert_guard_phis (basic_block bb, edge true_edge, edge false_edge,
-		   htab_t before_guard, htab_t rename_map)
-{
-  struct igp i;
-  i.bb = bb;
-  i.true_edge = true_edge;
-  i.false_edge = false_edge;
-  i.before_guard = before_guard;
-
-  update_ssa (TODO_update_ssa);
-  htab_traverse (rename_map, add_guard_exit_phis, &i);
-  update_ssa (TODO_update_ssa);
-}
-
-/* Create a duplicate of the basic block BB.  NOTE: This does not
-   preserve SSA form.  */
+/* Register in RENAME_MAP the rename tuple (OLD_NAME, EXPR).  */
 
 static void
-graphite_copy_stmts_from_block (basic_block bb, basic_block new_bb, htab_t map)
+set_rename (htab_t rename_map, tree old_name, tree expr)
+{
+  struct rename_map_elt_s tmp;
+  PTR *slot;
+
+  if (old_name == expr)
+    return;
+
+  tmp.old_name = old_name;
+  slot = htab_find_slot (rename_map, &tmp, INSERT);
+
+  if (!slot)
+    return;
+
+  if (*slot)
+    free (*slot);
+
+  *slot = new_rename_map_elt (old_name, expr);
+}
+
+/* Renames the scalar uses of the statement COPY, using the
+   substitution map RENAME_MAP, inserting the gimplification code at
+   GSI_TGT, for the translation REGION, with the original copied
+   statement in LOOP, and using the induction variable renaming map
+   IV_MAP.  */
+
+static void
+rename_uses (gimple copy, htab_t rename_map, gimple_stmt_iterator *gsi_tgt,
+	     sese region, loop_p loop, VEC (tree, heap) *iv_map)
+{
+  use_operand_p use_p;
+  ssa_op_iter op_iter;
+
+  if (is_gimple_debug (copy))
+    {
+      if (gimple_debug_bind_p (copy))
+	gimple_debug_bind_reset_value (copy);
+      else
+	gcc_unreachable ();
+
+      return;
+    }
+
+  FOR_EACH_SSA_USE_OPERAND (use_p, copy, op_iter, SSA_OP_ALL_USES)
+    {
+      tree old_name = USE_FROM_PTR (use_p);
+      tree new_expr, scev;
+      gimple_seq stmts;
+
+      if (TREE_CODE (old_name) != SSA_NAME
+	  || !is_gimple_reg (old_name)
+	  || SSA_NAME_IS_DEFAULT_DEF (old_name))
+	continue;
+
+      new_expr = get_rename (rename_map, old_name);
+      if (new_expr)
+	{
+	  tree type_old_name = TREE_TYPE (old_name);
+	  tree type_new_expr = TREE_TYPE (new_expr);
+
+	  if (type_old_name != type_new_expr
+	      || (TREE_CODE (new_expr) != SSA_NAME
+		  && is_gimple_reg (old_name)))
+	    {
+	      tree var = create_tmp_var (type_old_name, "var");
+
+	      if (type_old_name != type_new_expr)
+		new_expr = fold_convert (type_old_name, new_expr);
+
+	      new_expr = build2 (MODIFY_EXPR, type_old_name, var, new_expr);
+	      new_expr = force_gimple_operand (new_expr, &stmts, true, NULL);
+	      gsi_insert_seq_before (gsi_tgt, stmts, GSI_SAME_STMT);
+	    }
+
+	  replace_exp (use_p, new_expr);
+	  continue;
+	}
+
+      scev = scalar_evolution_in_region (region, loop, old_name);
+
+      /* At this point we should know the exact scev for each
+	 scalar SSA_NAME used in the scop: all the other scalar
+	 SSA_NAMEs should have been translated out of SSA using
+	 arrays with one element.  */
+      gcc_assert (!chrec_contains_undetermined (scev));
+
+      new_expr = chrec_apply_map (scev, iv_map);
+
+      /* The apply should produce an expression tree containing
+	 the uses of the new induction variables.  We should be
+	 able to use new_expr instead of the old_name in the newly
+	 generated loop nest.  */
+      gcc_assert (!chrec_contains_undetermined (new_expr)
+		  && !tree_contains_chrecs (new_expr, NULL));
+
+      /* Replace the old_name with the new_expr.  */
+      new_expr = force_gimple_operand (unshare_expr (new_expr), &stmts,
+				       true, NULL_TREE);
+      gsi_insert_seq_before (gsi_tgt, stmts, GSI_SAME_STMT);
+      replace_exp (use_p, new_expr);
+      set_rename (rename_map, old_name, new_expr);
+    }
+}
+
+/* Duplicates the statements of basic block BB into basic block NEW_BB
+   and compute the new induction variables according to the IV_MAP.  */
+
+static void
+graphite_copy_stmts_from_block (basic_block bb, basic_block new_bb,
+				htab_t rename_map,
+				VEC (tree, heap) *iv_map, sese region)
 {
   gimple_stmt_iterator gsi, gsi_tgt;
+  loop_p loop = bb->loop_father;
 
   gsi_tgt = gsi_start_bb (new_bb);
   for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -1188,8 +569,19 @@ graphite_copy_stmts_from_block (basic_block bb, basic_block new_bb, htab_t map)
       ssa_op_iter op_iter;
       gimple stmt = gsi_stmt (gsi);
       gimple copy;
+      tree lhs;
 
-      if (gimple_code (stmt) == GIMPLE_LABEL)
+      /* Do not copy labels or conditions.  */
+      if (gimple_code (stmt) == GIMPLE_LABEL
+	  || gimple_code (stmt) == GIMPLE_COND)
+	continue;
+
+      /* Do not copy induction variables.  */
+      if (is_gimple_assign (stmt)
+	  && (lhs = gimple_assign_lhs (stmt))
+	  && TREE_CODE (lhs) == SSA_NAME
+	  && is_gimple_reg (lhs)
+	  && scev_analyzable_p (lhs, region))
 	continue;
 
       /* Create a new copy of STMT and duplicate STMT's virtual
@@ -1204,30 +596,34 @@ graphite_copy_stmts_from_block (basic_block bb, basic_block new_bb, htab_t map)
       /* Create new names for all the definitions created by COPY and
 	 add replacement mappings for each new name.  */
       FOR_EACH_SSA_DEF_OPERAND (def_p, copy, op_iter, SSA_OP_ALL_DEFS)
-	{
-	  tree old_name = DEF_FROM_PTR (def_p);
-	  tree new_name = create_new_def_for (old_name, copy, def_p);
-	  set_rename (map, old_name, new_name);
-	}
+ 	{
+ 	  tree old_name = DEF_FROM_PTR (def_p);
+ 	  tree new_name = create_new_def_for (old_name, copy, def_p);
+	  set_rename (rename_map, old_name, new_name);
+ 	}
+
+      rename_uses (copy, rename_map, &gsi_tgt, region, loop, iv_map);
+
+      update_stmt (copy);
     }
 }
 
 /* Copies BB and includes in the copied BB all the statements that can
    be reached following the use-def chains from the memory accesses,
    and returns the next edge following this new block.  */
- 
+
 edge
 copy_bb_and_scalar_dependences (basic_block bb, sese region,
-				edge next_e, htab_t map)
+				edge next_e, VEC (tree, heap) *iv_map)
 {
   basic_block new_bb = split_edge (next_e);
+  htab_t rename_map = htab_create (10, rename_map_elt_info,
+				   eq_rename_map_elts, free);
 
   next_e = single_succ_edge (new_bb);
-  graphite_copy_stmts_from_block (bb, new_bb, map);
-  remove_condition (new_bb);
+  graphite_copy_stmts_from_block (bb, new_bb, rename_map, iv_map, region);
   remove_phi_nodes (new_bb);
-  expand_scalar_variables (new_bb, region, map);
-  rename_variables (new_bb, map);
+  htab_delete (rename_map);
 
   return next_e;
 }
@@ -1276,11 +672,14 @@ if_region_set_false_region (ifsese if_region, sese region)
   recompute_all_dominators ();
 
   SESE_EXIT (region) = false_edge;
+
+  if (if_region->false_region)
+    free (if_region->false_region);
   if_region->false_region = region;
 
   if (slot)
     {
-      struct loop_exit *loop_exit = GGC_CNEW (struct loop_exit);
+      struct loop_exit *loop_exit = ggc_alloc_cleared_loop_exit ();
 
       memcpy (loop_exit, *((struct loop_exit **) slot), sizeof (struct loop_exit));
       htab_clear_slot (current_loops->exits, slot);
@@ -1296,15 +695,15 @@ if_region_set_false_region (ifsese if_region, sese region)
 
 /* Creates an IFSESE with CONDITION on edge ENTRY.  */
 
-ifsese
+static ifsese
 create_if_region_on_edge (edge entry, tree condition)
 {
   edge e;
   edge_iterator ei;
-  sese sese_region = GGC_NEW (struct sese_s);
-  sese true_region = GGC_NEW (struct sese_s);
-  sese false_region = GGC_NEW (struct sese_s);
-  ifsese if_region = GGC_NEW (struct ifsese_s);
+  sese sese_region = XNEW (struct sese_s);
+  sese true_region = XNEW (struct sese_s);
+  sese false_region = XNEW (struct sese_s);
+  ifsese if_region = XNEW (struct ifsese_s);
   edge exit = create_empty_if_region_on_edge (entry, condition);
 
   if_region->region = sese_region;
@@ -1341,7 +740,7 @@ ifsese
 move_sese_in_condition (sese region)
 {
   basic_block pred_block = split_edge (SESE_ENTRY (region));
-  ifsese if_region = NULL;
+  ifsese if_region;
 
   SESE_ENTRY (region) = single_succ_edge (pred_block);
   if_region = create_if_region_on_edge (single_pred_edge (pred_block), integer_one_node);
@@ -1350,16 +749,32 @@ move_sese_in_condition (sese region)
   return if_region;
 }
 
-/* Reset the loop->aux pointer for all loops in REGION.  */
+/* Replaces the condition of the IF_REGION with CONDITION:
+   | if (CONDITION)
+   |   true_region;
+   | else
+   |   false_region;
+*/
 
 void
-sese_reset_aux_in_loops (sese region)
+set_ifsese_condition (ifsese if_region, tree condition)
 {
-  int i;
-  loop_p loop;
+  sese region = if_region->region;
+  edge entry = region->entry;
+  basic_block bb = entry->dest;
+  gimple last = last_stmt (bb);
+  gimple_stmt_iterator gsi = gsi_last_bb (bb);
+  gimple cond_stmt;
 
-  for (i = 0; VEC_iterate (loop_p, SESE_LOOP_NEST (region), i, loop); i++)
-    loop->aux = NULL;
+  gcc_assert (gimple_code (last) == GIMPLE_COND);
+
+  gsi_remove (&gsi, true);
+  gsi = gsi_last_bb (bb);
+  condition = force_gimple_operand_gsi (&gsi, condition, true, NULL,
+					false, GSI_NEW_STMT);
+  cond_stmt = gimple_build_cond_from_tree (condition, NULL_TREE, NULL_TREE);
+  gsi = gsi_last_bb (bb);
+  gsi_insert_after (&gsi, cond_stmt, GSI_NEW_STMT);
 }
 
 /* Returns the scalar evolution of T in REGION.  Every variable that

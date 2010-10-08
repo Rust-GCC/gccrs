@@ -1,6 +1,6 @@
 /* LTO IL compression streams.
 
-   Copyright 2009 Free Software Foundation, Inc.
+   Copyright 2009, 2010 Free Software Foundation, Inc.
    Contributed by Simon Baldwin <simonb@google.com>
 
 This file is part of GCC.
@@ -28,8 +28,8 @@ along with GCC; see the file COPYING3.  If not see
 #include <zlib.h>
 #include "coretypes.h"
 #include "tree.h"
-#include "diagnostic.h"
-#include "errors.h"
+#include "diagnostic-core.h"
+#include "toplev.h"
 #include "langhooks.h"
 #include "lto-streamer.h"
 #include "lto-compress.h"
@@ -245,7 +245,7 @@ lto_uncompress_block (struct lto_compression_stream *stream,
 }
 
 /* Finalize STREAM uncompression, and free stream allocations.
-  
+
    Because of the way LTO IL streams are compressed, there may be several
    concatenated compressed segments in the accumulated data, so for this
    function we iterate decompressions until no data remains.  */

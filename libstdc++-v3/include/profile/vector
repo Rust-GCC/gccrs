@@ -1,6 +1,6 @@
 // Profiling vector implementation -*- C++ -*-
 
-// Copyright (C) 2009 Free Software Foundation, Inc.
+// Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -37,12 +37,12 @@
 #include <vector>
 #include <utility>
 #include <profile/base.h>
+#include <profile/iterator_tracker.h>
 
 namespace std
 {
 namespace __profile
 {
-  /** @brief Vector wrapper with performance instrumentation.  */
   template<typename _Tp,
 	   typename _Allocator = std::allocator<_Tp> >
     class vector
@@ -54,17 +54,21 @@ namespace __profile
       typedef typename _Base::reference             reference;
       typedef typename _Base::const_reference       const_reference;
 
-      typedef typename _Base::iterator iterator;
-      typedef typename _Base::const_iterator const_iterator;
+      typedef __iterator_tracker<typename _Base::iterator, vector>
+                                                    iterator;
+      typedef __iterator_tracker<typename _Base::const_iterator, vector>
+				                    const_iterator;
 
       typedef typename _Base::size_type             size_type;
       typedef typename _Base::difference_type       difference_type;
 
-      typedef _Tp				                    value_type;
-      typedef _Allocator			                allocator_type;
+      typedef _Tp				    value_type;
+      typedef _Allocator			    allocator_type;
       typedef typename _Base::pointer               pointer;
       typedef typename _Base::const_pointer         const_pointer;
-
+      typedef std::reverse_iterator<iterator>       reverse_iterator;
+      typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+      
       _Base&
       _M_base()       { return *this; }
 
@@ -72,20 +76,40 @@ namespace __profile
       _M_base() const { return *this; }
 
       // 23.2.4.1 construct/copy/destroy:
-      explicit vector(const _Allocator& __a = _Allocator())
+      explicit
+      vector(const _Allocator& __a = _Allocator())
       : _Base(__a)
       { 
         __profcxx_vector_construct(this, this->capacity());
         __profcxx_vector_construct2(this);
       }
 
-      explicit vector(size_type __n, const _Tp& __value = _Tp(),
-		      const _Allocator& __a = _Allocator())
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      explicit
+      vector(size_type __n)
+      :  _Base(__n)
+      { 
+        __profcxx_vector_construct(this, this->capacity());
+        __profcxx_vector_construct2(this);
+      }
+
+      vector(size_type __n, const _Tp& __value,
+	     const _Allocator& __a = _Allocator())
       :  _Base(__n, __value, __a)
       { 
         __profcxx_vector_construct(this, this->capacity());
         __profcxx_vector_construct2(this);
       }
+#else
+      explicit
+      vector(size_type __n, const _Tp& __value = _Tp(),
+	     const _Allocator& __a = _Allocator())
+      :  _Base(__n, __value, __a)
+      { 
+        __profcxx_vector_construct(this, this->capacity());
+        __profcxx_vector_construct2(this);
+      }
+#endif
 
       template<class _InputIterator>
         vector(_InputIterator __first, _InputIterator __last,
@@ -113,7 +137,7 @@ namespace __profile
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       vector(vector&& __x)
-      : _Base(std::forward<vector>(__x))
+      : _Base(std::move(__x))
       {
         __profcxx_vector_construct(this, this->capacity());
         __profcxx_vector_construct2(this);
@@ -140,10 +164,11 @@ namespace __profile
       vector&
       operator=(vector&& __x)
       {
-        // NB: DR 675.
-        this->clear();
-        this->swap(__x);
-        return *this;
+	// NB: DR 1204.
+	// NB: DR 675.
+	this->clear();
+	this->swap(__x);
+	return *this;
       }
 
       vector&
@@ -157,10 +182,79 @@ namespace __profile
       using _Base::assign;
       using _Base::get_allocator;
 
+
+      // iterators:
+      iterator
+      begin()
+      { return iterator(_Base::begin(), this); }
+
+      const_iterator
+      begin() const
+      { return const_iterator(_Base::begin(), this); }
+
+      iterator
+      end()
+      { return iterator(_Base::end(), this); }
+
+      const_iterator
+      end() const
+      { return const_iterator(_Base::end(), this); }
+
+      reverse_iterator
+      rbegin()
+      { return reverse_iterator(end()); }
+
+      const_reverse_iterator
+      rbegin() const
+      { return const_reverse_iterator(end()); }
+
+      reverse_iterator
+      rend()
+      { return reverse_iterator(begin()); }
+
+      const_reverse_iterator
+      rend() const
+      { return const_reverse_iterator(begin()); }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      const_iterator
+      cbegin() const
+      { return const_iterator(_Base::begin(), this); }
+
+      const_iterator
+      cend() const
+      { return const_iterator(_Base::end(), this); }
+
+      const_reverse_iterator
+      crbegin() const
+      { return const_reverse_iterator(end()); }
+
+      const_reverse_iterator
+      crend() const
+      { return const_reverse_iterator(begin()); }
+#endif
+
       // 23.2.4.2 capacity:
       using _Base::size;
       using _Base::max_size;
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      void
+      resize(size_type __sz)
+      {
+        __profcxx_vector_invalid_operator(this);
+        _M_profile_resize(this, this->capacity(), __sz);
+        _Base::resize(__sz);
+      }
+
+      void
+      resize(size_type __sz, const _Tp& __c)
+      {
+        __profcxx_vector_invalid_operator(this);
+        _M_profile_resize(this, this->capacity(), __sz);
+        _Base::resize(__sz, __c);
+      }
+#else
       void
       resize(size_type __sz, _Tp __c = _Tp())
       {
@@ -168,6 +262,11 @@ namespace __profile
         _M_profile_resize(this, this->capacity(), __sz);
         _Base::resize(__sz, __c);
       }
+#endif
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      using _Base::shrink_to_fit;
+#endif
 
       using _Base::empty;
 
@@ -238,22 +337,24 @@ namespace __profile
       iterator
       insert(iterator __position, const _Tp& __x)
       {
-        __profcxx_vector_insert(this,  __position-_Base::begin(), this->size());
+        __profcxx_vector_insert(this, __position.base() - _Base::begin(),
+                                this->size());
         size_type __old_size = this->capacity();
-	typename _Base::iterator __res = _Base::insert(__position,__x);
+	typename _Base::iterator __res = _Base::insert(__position.base(), __x);
         _M_profile_resize(this, __old_size, this->capacity());
-	return __res;
+	return iterator(__res, this);
       }
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       iterator
       insert(iterator __position, _Tp&& __x)
       {
-        __profcxx_vector_insert(this,  __position-_Base::begin(), this->size());
+        __profcxx_vector_insert(this, __position.base() - _Base::begin(),
+                                this->size());
         size_type __old_size = this->capacity();
-	typename _Base::iterator __res = _Base::insert(__position,__x);
+	typename _Base::iterator __res = _Base::insert(__position.base(), __x);
         _M_profile_resize(this, __old_size, this->capacity());
-	return __res;
+	return iterator(__res, this);
       }
 
       void
@@ -261,20 +362,27 @@ namespace __profile
       { this->insert(__position, __l.begin(), __l.end()); }
 #endif
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
       void
+      swap(vector&& __x)
+      {
+        _Base::swap(__x);
+      }
+#endif
 
+      void
       swap(vector& __x)
       {
         _Base::swap(__x);
       }
 
-
       void
       insert(iterator __position, size_type __n, const _Tp& __x)
       {
-        __profcxx_vector_insert(this,  __position-_Base::begin(), this->size());
+        __profcxx_vector_insert(this, __position.base() - _Base::begin(),
+                                this->size());
         size_type __old_size = this->capacity();
-	    _Base::insert(__position, __n, __x);
+        _Base::insert(__position, __n, __x);
         _M_profile_resize(this, __old_size, this->capacity());
       }
 
@@ -283,10 +391,29 @@ namespace __profile
       insert(iterator __position,
              _InputIterator __first, _InputIterator __last)
       {
-        __profcxx_vector_insert(this,  __position-_Base::begin(), this->size());
+        __profcxx_vector_insert(this, __position.base()-_Base::begin(),
+                                this->size());
         size_type __old_size = this->capacity();
         _Base::insert(__position, __first, __last);
         _M_profile_resize(this, __old_size, this->capacity());
+      }
+
+
+      iterator
+      erase(iterator __position)
+      {
+	typename _Base::iterator __res = _Base::erase(__position.base());
+	return iterator(__res, this);
+      }
+
+      iterator
+      erase(iterator __first, iterator __last)
+      {
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 151. can't currently clear() empty container
+	typename _Base::iterator __res = _Base::erase(__first.base(),
+                                                      __last.base());
+	return iterator(__res, this);
       }
 
       void
@@ -297,17 +424,14 @@ namespace __profile
         _Base::clear();
       }
 
-      // iterators:
-      iterator
-      begin()
+      inline void _M_profile_find() const 
       { 
-        return _Base::begin(); 
+        __profcxx_vector_find(this, size()); 
       }
 
-      const_iterator
-      begin() const
+      inline void _M_profile_iterate(int __rewind = 0) const 
       { 
-        return _Base::begin(); 
+        __profcxx_vector_iterate(this); 
       }
 
     private:
@@ -362,8 +486,34 @@ namespace __profile
     swap(vector<_Tp, _Alloc>& __lhs, vector<_Tp, _Alloc>& __rhs)
     { __lhs.swap(__rhs); }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  template<typename _Tp, typename _Alloc>
+    inline void
+    swap(vector<_Tp, _Alloc>&& __lhs, vector<_Tp, _Alloc>& __rhs)
+    { __lhs.swap(__rhs); }
+
+  template<typename _Tp, typename _Alloc>
+    inline void
+    swap(vector<_Tp, _Alloc>& __lhs, vector<_Tp, _Alloc>&& __rhs)
+    { __lhs.swap(__rhs); }
+#endif
+
 } // namespace __profile
-  using _GLIBCXX_STD_D::_S_word_bit;
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  // DR 1182.
+  /// std::hash specialization for vector<bool>.
+  template<typename _Alloc>
+    struct hash<__profile::vector<bool, _Alloc>>
+    : public __hash_base<size_t, __profile::vector<bool, _Alloc>>
+    {
+      size_t
+      operator()(const __profile::vector<bool, _Alloc>& __b) const
+      { return std::hash<_GLIBCXX_STD_D::vector<bool, _Alloc>>()
+	  (__b._M_base()); }
+    };
+#endif
+
 } // namespace std
 
 #endif

@@ -1,8 +1,9 @@
-/* Copyright (C) 2002, 2003, 2005, 2007, 2008, 2009 Free Software Foundation, Inc.
+/* Copyright (C) 2002, 2003, 2005, 2007, 2008, 2009, 2010 
+   Free Software Foundation, Inc.
    Contributed by Andy Vaught
    F2003 I/O support contributed by Jerry DeLisle
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -210,7 +211,7 @@ static void
 destroy_unit_mutex (gfc_unit * u)
 {
   __gthread_mutex_destroy (&u->lock);
-  free_mem (u);
+  free (u);
 }
 
 
@@ -422,9 +423,16 @@ get_internal_unit (st_parameter_dt *dtp)
     }
 
   /* Set initial values for unit parameters.  */
+  if (dtp->common.unit)
+    {
+      iunit->s = open_internal4 (dtp->internal_unit - start_record,
+				 dtp->internal_unit_len, -start_record);
+      fbuf_init (iunit, 256);
+    }
+  else
+    iunit->s = open_internal (dtp->internal_unit - start_record,
+			      dtp->internal_unit_len, -start_record);
 
-  iunit->s = open_internal (dtp->internal_unit - start_record,
-			    dtp->internal_unit_len, -start_record);
   iunit->bytes_left = iunit->recl;
   iunit->last_record=0;
   iunit->maxrec=0;
@@ -470,13 +478,16 @@ free_internal_unit (st_parameter_dt *dtp)
   if (!is_internal_unit (dtp))
     return;
 
+  if (unlikely (is_char4_unit (dtp)))
+    fbuf_destroy (dtp->u.p.current_unit);
+
   if (dtp->u.p.current_unit != NULL)
     {
       if (dtp->u.p.current_unit->ls != NULL)
-	free_mem (dtp->u.p.current_unit->ls);
+	free (dtp->u.p.current_unit->ls);
   
       if (dtp->u.p.current_unit->s)
-	free_mem (dtp->u.p.current_unit->s);
+	free (dtp->u.p.current_unit->s);
   
       destroy_unit_mutex (dtp->u.p.current_unit);
     }
@@ -492,7 +503,7 @@ get_unit (st_parameter_dt *dtp, int do_create)
 {
 
   if ((dtp->common.flags & IOPARM_DT_HAS_INTERNAL_UNIT) != 0)
-    return get_internal_unit(dtp);
+    return get_internal_unit (dtp);
 
   /* Has to be an external unit.  */
 
@@ -642,7 +653,7 @@ close_unit_1 (gfc_unit *u, int locked)
   delete_unit (u);
 
   if (u->file)
-    free_mem (u->file);
+    free (u->file);
   u->file = NULL;
   u->file_len = 0;
 
@@ -703,12 +714,19 @@ close_units (void)
 void
 update_position (gfc_unit *u)
 {
-  if (stell (u->s) == 0)
-    u->flags.position = POSITION_REWIND;
-  else if (file_length (u->s) == stell (u->s))
-    u->flags.position = POSITION_APPEND;
-  else
-    u->flags.position = POSITION_ASIS;
+  /* If unit is not seekable, this makes no sense (and the standard is
+     silent on this matter), and thus we don't change the position for
+     a non-seekable file.  */
+  if (is_seekable (u->s))
+    {
+      gfc_offset cur = stell (u->s);
+      if (cur == 0)
+	u->flags.position = POSITION_REWIND;
+      else if (cur != -1 && (file_length (u->s) == cur))
+	u->flags.position = POSITION_APPEND;
+      else
+	u->flags.position = POSITION_ASIS;
+    }
 }
 
 

@@ -1,5 +1,5 @@
 /* Default language-specific hooks.
-   Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Alexandre Oliva  <aoliva@redhat.com>
 
@@ -37,6 +37,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks-def.h"
 #include "ggc.h"
 #include "diagnostic.h"
+#include "tree-diagnostic.h"
 #include "cgraph.h"
 #include "output.h"
 
@@ -162,7 +163,7 @@ lhd_set_decl_assembler_name (tree decl)
 		  && (TREE_STATIC (decl)
 		      || DECL_EXTERNAL (decl)
 		      || TREE_PUBLIC (decl))));
-  
+
   /* By default, assume the name to use in assembly code is the same
      as that used in the source language.  (That's correct for C, and
      GCC used to set DECL_ASSEMBLER_NAME to the same value as
@@ -170,18 +171,18 @@ lhd_set_decl_assembler_name (tree decl)
      compatibility with existing front-ends.  This assumption is wrapped
      in a target hook, to allow for target-specific modification of the
      identifier.
- 
+
      Can't use just the variable's own name for a variable whose scope
      is less than the whole compilation.  Concatenate a distinguishing
      number - we use the DECL_UID.  */
 
-  if (TREE_PUBLIC (decl) || DECL_CONTEXT (decl) == NULL_TREE)
+  if (TREE_PUBLIC (decl) || DECL_FILE_SCOPE_P (decl))
     id = targetm.mangle_decl_assembler_name (decl, DECL_NAME (decl));
   else
     {
       const char *name = IDENTIFIER_POINTER (DECL_NAME (decl));
       char *label;
-      
+
       ASM_FORMAT_PRIVATE_NAME (label, name, DECL_UID (decl));
       id = get_identifier (label);
     }
@@ -319,7 +320,7 @@ write_global_declarations (void)
   /* Process the decls in reverse order--earliest first.
      Put them into VEC from back to front, then take out from front.  */
 
-  for (i = 0, decl = globals; i < len; i++, decl = TREE_CHAIN (decl))
+  for (i = 0, decl = globals; i < len; i++, decl = DECL_CHAIN (decl))
     vec[len - i - 1] = decl;
 
   wrapup_global_declarations (vec, len);
@@ -332,8 +333,32 @@ write_global_declarations (void)
 
 /* Called to perform language-specific initialization of CTX.  */
 void
-lhd_initialize_diagnostics (struct diagnostic_context *ctx ATTRIBUTE_UNUSED)
+lhd_initialize_diagnostics (diagnostic_context *ctx ATTRIBUTE_UNUSED)
 {
+}
+
+/* Called to perform language-specific options initialization.  */
+void
+lhd_init_options (unsigned int decoded_options_count ATTRIBUTE_UNUSED,
+		  struct cl_decoded_option *decoded_options ATTRIBUTE_UNUSED)
+{
+}
+
+/* By default, always complain about options for the wrong language.  */
+bool
+lhd_complain_wrong_lang_p (const struct cl_option *option ATTRIBUTE_UNUSED)
+{
+  return true;
+}
+
+/* By default, no language-specific options are valid.  */
+bool
+lhd_handle_option (size_t code ATTRIBUTE_UNUSED,
+		   const char *arg ATTRIBUTE_UNUSED,
+		   int value ATTRIBUTE_UNUSED, int kind ATTRIBUTE_UNUSED,
+		   const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED)
+{
+  return false;
 }
 
 /* The default function to print out name of current function that caused
@@ -345,7 +370,7 @@ lhd_print_error_function (diagnostic_context *context, const char *file,
   if (diagnostic_last_function_changed (context, diagnostic))
     {
       const char *old_prefix = context->printer->prefix;
-      tree abstract_origin = diagnostic->abstract_origin;
+      tree abstract_origin = diagnostic_abstract_origin (diagnostic);
       char *new_prefix = (file && abstract_origin == NULL)
 			 ? file_name_as_prefix (file) : NULL;
 
@@ -425,7 +450,7 @@ lhd_print_error_function (diagnostic_context *context, const char *file,
 		  pp_newline (context->printer);
 		  if (s.file != NULL)
 		    {
-		      if (flag_show_column)
+		      if (context->show_column)
 			pp_printf (context->printer,
 				   _("    inlined from %qs at %s:%d:%d"),
 				   identifier_to_locale (lang_hooks.decl_printable_name (fndecl, 2)),
@@ -604,6 +629,8 @@ lhd_begin_section (const char *name)
   /* Save the old section so we can restore it in lto_end_asm_section.  */
   gcc_assert (!saved_section);
   saved_section = in_section;
+  if (!saved_section)
+    saved_section = text_section;
 
   /* Create a new section and switch to it.  */
   section = get_section (name, SECTION_DEBUG, NULL);

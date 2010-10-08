@@ -28,6 +28,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "obstack.h"
 #include "errors.h"
+#include "read-md.h"
 #include "gensupport.h"
 
 /* Obstack to remember insns with.  */
@@ -195,7 +196,7 @@ gen_insn (int line_no, rtx insn)
   int len;
   int truth = maybe_eval_c_test (XSTR (insn, 2));
 
-  lt = strchr (name, '<'); 
+  lt = strchr (name, '<');
   if (lt && strchr (lt + 1, '>'))
     {
       message_with_line (line_no, "unresolved iterator");
@@ -203,7 +204,7 @@ gen_insn (int line_no, rtx insn)
       return;
     }
 
-  gt = strchr (name, '>'); 
+  gt = strchr (name, '>');
   if (lt || gt)
     {
       message_with_line (line_no,
@@ -261,7 +262,7 @@ main (int argc, char **argv)
      direct calls to their generators in C code.  */
   insn_elision = 0;
 
-  if (init_md_reader_args (argc, argv) != SUCCESS_EXIT_CODE)
+  if (!init_rtx_reader_args (argc, argv))
     return (FATAL_EXIT_CODE);
 
   puts ("/* Generated automatically by the program `genflags'");

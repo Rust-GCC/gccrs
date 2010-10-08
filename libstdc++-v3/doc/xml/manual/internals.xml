@@ -1,7 +1,8 @@
-<sect1 id="appendix.porting.internals" xreflabel="Portin Internals">
+<section xmlns="http://docbook.org/ns/docbook" version="5.0" 
+	 xml:id="appendix.porting.internals" xreflabel="Portin Internals">
 <?dbhtml filename="internals.html"?>
- 
-<sect1info>
+
+<info><title>Porting to New Hardware or Operating Systems</title>
   <keywordset>
     <keyword>
       ISO C++
@@ -10,9 +11,9 @@
       internals
     </keyword>
   </keywordset>
-</sect1info>
+</info>
 
-<title>Porting to New Hardware or Operating Systems</title>
+
 
 <para>
 </para>
@@ -45,8 +46,8 @@ a "host."  The comment at the top of <code>configure.ac</code> explains why.)
    </para>
 
 
-<sect2 id="internals.os">
-<title>Operating System</title>
+<section xml:id="internals.os"><info><title>Operating System</title></info>
+
 
 <para>If you are porting to a new operating system (as opposed to a new chip
 using an existing operating system), you will need to create a new
@@ -73,7 +74,7 @@ OS portion of the triplet (the default), then nothing needs to be changed.
 
    <para>The first file to create in this directory, should be called
 <code>os_defines.h</code>.  This file contains basic macro definitions
-that are required to allow the C++ library to work with your C library. 
+that are required to allow the C++ library to work with your C library.
    </para>
 
    <para>Several libstdc++ source files unconditionally define the macro
@@ -140,7 +141,7 @@ it must be 0 while bootstrapping the compiler/rebuilding the library.
 this:
    </para>
 
-<programlisting>     
+<programlisting>
 
 #ifndef _GLIBCXX_OS_DEFINES
 #define _GLIBCXX_OS_DEFINES
@@ -151,11 +152,11 @@ this:
    <para>We recommend copying an existing <code>os_defines.h</code> to use as a
 starting point.
    </para>
-</sect2>
+</section>
 
 
-<sect2 id="internals.cpu">
-<title>CPU</title>
+<section xml:id="internals.cpu"><info><title>CPU</title></info>
+
 
 <para>If you are porting to a new chip (as opposed to a new operating system
 running on an existing chip), you will need to create a new directory in the
@@ -183,11 +184,11 @@ example, <code>alpha</code>, <code>alphaev5</code>, and <code>alphaev6</code> al
 appropriate for your chip.
    </para>
 
-</sect2>
+</section>
 
 
-<sect2 id="internals.char_types">
-<title>Character Types</title>
+<section xml:id="internals.char_types"><info><title>Character Types</title></info>
+
 
 <para>The library requires that you provide three header files to implement
 character classification, analogous to that provided by the C libraries
@@ -207,7 +208,7 @@ masks.  You will have to peer at your own <code>&lt;ctype.h&gt;</code> to figure
 how to define the values required by this file.
    </para>
 
-   <para>The <code>ctype_base.h</code> header file does not need include guards. 
+   <para>The <code>ctype_base.h</code> header file does not need include guards.
 It should contain a single <code>struct</code> definition called
 <code>ctype_base</code>.  This <code>struct</code> should contain two type
 declarations, and one enumeration declaration, like this example, taken
@@ -219,20 +220,20 @@ from the IRIX configuration:
      {
        typedef unsigned int 	mask;
        typedef int* 		__to_type;
-     
+
        enum
        {
-         space = _ISspace,
-         print = _ISprint,
-         cntrl = _IScntrl,
-         upper = _ISupper,
-         lower = _ISlower,
-         alpha = _ISalpha,
-         digit = _ISdigit,
-         punct = _ISpunct,
-         xdigit = _ISxdigit,
-         alnum = _ISalnum,
-         graph = _ISgraph
+	 space = _ISspace,
+	 print = _ISprint,
+	 cntrl = _IScntrl,
+	 upper = _ISupper,
+	 lower = _ISlower,
+	 alpha = _ISalpha,
+	 digit = _ISdigit,
+	 punct = _ISpunct,
+	 xdigit = _ISxdigit,
+	 alnum = _ISalnum,
+	 graph = _ISgraph
        };
      };
 </programlisting>
@@ -262,14 +263,14 @@ constructor.  Here is the IRIX example:
 
 <programlisting>
 ctype&lt;char&gt;::ctype(const mask* __table = 0, bool __del = false,
-           size_t __refs = 0)
+	   size_t __refs = 0)
        : _Ctype_nois&lt;char&gt;(__refs), _M_del(__table != 0 &amp;&amp; __del),
-         _M_toupper(NULL),
-         _M_tolower(NULL),
-         _M_ctable(NULL),
-         _M_table(!__table
-                  ? (const mask*) (__libc_attr._ctype_tbl-&gt;_class + 1)
-                  : __table)
+	 _M_toupper(NULL),
+	 _M_tolower(NULL),
+	 _M_ctable(NULL),
+	 _M_table(!__table
+		  ? (const mask*) (__libc_attr._ctype_tbl-&gt;_class + 1)
+		  : __table)
        { }
 </programlisting>
 
@@ -291,7 +292,7 @@ lower-case, and vice versa.  Here are the IRIX versions:
      char
      ctype&lt;char&gt;::do_toupper(char __c) const
      { return _toupper(__c); }
-     
+
      char
      ctype&lt;char&gt;::do_tolower(char __c) const
      { return _tolower(__c); }
@@ -313,21 +314,21 @@ machinery to do that on your system:
      ctype&lt;char&gt;::do_toupper(char* __low, const char* __high) const
      {
        while (__low &lt; __high)
-         {
-           *__low = do_toupper(*__low);
-           ++__low;
-         }
+	 {
+	   *__low = do_toupper(*__low);
+	   ++__low;
+	 }
        return __high;
      }
-     
+
      const char*
      ctype&lt;char&gt;::do_tolower(char* __low, const char* __high) const
      {
        while (__low &lt; __high)
-         {
-           *__low = do_tolower(*__low);
-           ++__low;
-         }
+	 {
+	   *__low = do_tolower(*__low);
+	   ++__low;
+	 }
        return __high;
      }
 </programlisting>
@@ -352,7 +353,7 @@ properties; they are analogous to the functions like <code>isalpha</code> and
      { return (_M_table)[(unsigned char)(__c)] &amp; __m; }
 </programlisting>
 
-<para>The <code>_M_table</code> is the table passed in above, in the constructor. 
+<para>The <code>_M_table</code> is the table passed in above, in the constructor.
 This is the table that contains the bitmasks for each character.  The
 implementation here should work on all systems.
 </para>
@@ -366,7 +367,7 @@ implementation here should work on all systems.
      is(const char* __low, const char* __high, mask* __vec) const throw()
      {
        while (__low &lt; __high)
-         *__vec++ = (_M_table)[(unsigned char)(*__low++)];
+	 *__vec++ = (_M_table)[(unsigned char)(*__low++)];
        return __high;
      }
 </programlisting>
@@ -385,25 +386,25 @@ from <code>__low</code> up until <code>__high</code> into the vector given by
      scan_is(mask __m, const char* __low, const char* __high) const throw()
      {
        while (__low &lt; __high &amp;&amp; !this-&gt;is(__m, *__low))
-         ++__low;
+	 ++__low;
        return __low;
      }
-     
+
      const char*
      ctype&lt;char&gt;::
      scan_not(mask __m, const char* __low, const char* __high) const throw()
      {
        while (__low &lt; __high &amp;&amp; this-&gt;is(__m, *__low))
-         ++__low;
+	 ++__low;
        return __low;
      }
 </programlisting>
 
-</sect2>
+</section>
 
 
-<sect2 id="internals.thread_safety">
-<title>Thread Safety</title>
+<section xml:id="internals.thread_safety"><info><title>Thread Safety</title></info>
+
 
 <para>The C++ library string functionality requires a couple of atomic
 operations to provide thread-safety.  If you don't take any special
@@ -454,7 +455,7 @@ type, and two functions.
 typedef long _Atomic_word;
 </programlisting>
 
-<para>This type must be a signed integral type supporting atomic operations. 
+<para>This type must be a signed integral type supporting atomic operations.
 If you're using the OS approach, use the same type used by your system's
 primitives.  Otherwise, use the type for which your CPU provides atomic
 primitives.
@@ -473,7 +474,7 @@ must be equivalent to those provided here, but using atomic operations:
        *__mem += __val;
        return __result;
      }
-     
+
      static inline void
      __attribute__ ((__unused__))
      __atomic_add (_Atomic_word* __mem, int __val)
@@ -482,35 +483,35 @@ must be equivalent to those provided here, but using atomic operations:
      }
 </programlisting>
 
-</sect2>
+</section>
 
 
-<sect2 id="internals.numeric_limits">
-<title>Numeric Limits</title>
+<section xml:id="internals.numeric_limits"><info><title>Numeric Limits</title></info>
+
 
 <para>The C++ library requires information about the fundamental data types,
-such as the minimum and maximum representable values of each type. 
+such as the minimum and maximum representable values of each type.
 You can define each of these values individually, but it is usually
 easiest just to indicate how many bits are used in each of the data
 types and let the library do the rest.  For information about the
 macros to define, see the top of <code>include/bits/std_limits.h</code>.
 </para>
 
-   <para>If you need to define any macros, you can do so in <code>os_defines.h</code>. 
+   <para>If you need to define any macros, you can do so in <code>os_defines.h</code>.
 However, if all operating systems for your CPU are likely to use the
 same values, you can provide a CPU-specific file instead so that you
-do not have to provide the same definitions for each operating system. 
+do not have to provide the same definitions for each operating system.
 To take that approach, create a new file called <code>cpu_limits.h</code> in
 your CPU configuration directory (see <link linkend="internals.cpu">CPU</link>).
    </para>
 
-</sect2>
+</section>
 
 
-<sect2 id="internals.libtool">
-<title>Libtool</title>
+<section xml:id="internals.libtool"><info><title>Libtool</title></info>
 
-<para>The C++ library is compiled, archived and linked with libtool. 
+
+<para>The C++ library is compiled, archived and linked with libtool.
 Explaining the full workings of libtool is beyond the scope of this
 document, but there are a few, particular bits that are necessary for
 porting.
@@ -543,6 +544,6 @@ operating system.
    </para>
 
 
-</sect2>
+</section>
 
-</sect1>
+</section>

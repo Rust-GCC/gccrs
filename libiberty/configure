@@ -1904,8 +1904,10 @@ $as_echo "$ac_res" >&6; }
 ac_fn_c_check_decl ()
 {
   as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether $2 is declared" >&5
-$as_echo_n "checking whether $2 is declared... " >&6; }
+  as_decl_name=`echo $2|sed 's/ *(.*//'`
+  as_decl_use=`echo $2|sed -e 's/(/((/' -e 's/)/) 0&/' -e 's/,/) 0& (/g'`
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether $as_decl_name is declared" >&5
+$as_echo_n "checking whether $as_decl_name is declared... " >&6; }
 if { as_var=$3; eval "test \"\${$as_var+set}\" = set"; }; then :
   $as_echo_n "(cached) " >&6
 else
@@ -1915,8 +1917,12 @@ $4
 int
 main ()
 {
-#ifndef $2
-  (void) $2;
+#ifndef $as_decl_name
+#ifdef __cplusplus
+  (void) $as_decl_use;
+#else
+  (void) $as_decl_name;
+#endif
 #endif
 
   ;
@@ -4860,6 +4866,7 @@ if [ "${shared}" = "yes" ]; then
 			  * ) PICFLAG=-fPIC ;;
 			esac ;;
     s390*-*-*)		PICFLAG=-fpic ;;
+    sh*-*-*)		PICFLAG=-fPIC ;;
   esac
 fi
 
@@ -5281,15 +5288,22 @@ checkfuncs="$checkfuncs getsysinfo table sysctl wait3 wait4 __fsetlocking"
 # These are neither executed nor required, but they help keep
 # autoheader happy without adding a bunch of text to acconfig.h.
 if test "x" = "y"; then
-  for ac_func in asprintf atexit basename bcmp bcopy bsearch bzero calloc clock \
-  getcwd getpagesize gettimeofday index insque mkstemps memchr memcmp memcpy \
-  memmem memmove mempcpy memset putenv random rename rindex sigsetmask \
-  strcasecmp setenv stpcpy stpncpy strchr strdup strncasecmp strndup strrchr strstr \
-  strtod strtol strtoul strverscmp tmpnam vasprintf vfprintf vprintf \
-  vsprintf waitpid getrusage on_exit psignal strerror strsignal \
-  sysconf times sbrk gettimeofday ffs snprintf vsnprintf \
-  pstat_getstatic pstat_getdynamic sysmp getsysinfo table sysctl wait3 wait4 \
-  realpath canonicalize_file_name __fsetlocking
+  for ac_func in asprintf atexit \
+    basename bcmp bcopy bsearch bzero \
+    calloc canonicalize_file_name clock \
+    ffs __fsetlocking \
+    getcwd getpagesize getrusage getsysinfo gettimeofday \
+    index insque \
+    memchr memcmp memcpy memmem memmove memset mkstemps \
+    on_exit \
+    psignal pstat_getdynamic pstat_getstatic putenv \
+    random realpath rename rindex \
+    sbrk setenv sigsetmask snprintf stpcpy stpncpy strcasecmp strchr strdup \
+     strerror strncasecmp strndup strrchr strsignal strstr strtod strtol \
+     strtoul strverscmp sysconf sysctl sysmp \
+    table times tmpnam \
+    vasprintf vfprintf vprintf vsprintf \
+    wait3 wait4 waitpid
 do :
   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
@@ -5302,8 +5316,8 @@ _ACEOF
 fi
 done
 
-  ac_fn_c_check_decl "$LINENO" "basename" "ac_cv_have_decl_basename" "$ac_includes_default"
-if test "x$ac_cv_have_decl_basename" = x""yes; then :
+  ac_fn_c_check_decl "$LINENO" "basename(char *)" "ac_cv_have_decl_basename_char_p_" "$ac_includes_default"
+if test "x$ac_cv_have_decl_basename_char_p_" = x""yes; then :
   ac_have_decl=1
 else
   ac_have_decl=0
@@ -6341,8 +6355,8 @@ _ACEOF
 fi
 done
 
-  ac_fn_c_check_decl "$LINENO" "basename" "ac_cv_have_decl_basename" "$ac_includes_default"
-if test "x$ac_cv_have_decl_basename" = x""yes; then :
+  ac_fn_c_check_decl "$LINENO" "basename(char *)" "ac_cv_have_decl_basename_char_p_" "$ac_includes_default"
+if test "x$ac_cv_have_decl_basename_char_p_" = x""yes; then :
   ac_have_decl=1
 else
   ac_have_decl=0
@@ -6525,10 +6539,10 @@ fi
 
 # Figure out which version of pexecute to use.
 case "${host}" in
-     *-*-mingw* | *-*-winnt*)	pexecute=./pex-win32.o  ;;
-     *-*-msdosdjgpp*)		pexecute=./pex-djgpp.o  ;;
-     *-*-msdos*)		pexecute=./pex-msdos.o  ;;
-     *)				pexecute=./pex-unix.o   ;;
+     *-*-mingw* | *-*-winnt*)	pexecute=pex-win32  ;;
+     *-*-msdosdjgpp*)		pexecute=pex-djgpp  ;;
+     *-*-msdos*)		pexecute=pex-msdos  ;;
+     *)				pexecute=pex-unix   ;;
 esac
 
 

@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, for the pdp-11
    Copyright (C) 1994, 1995, 1996, 1998, 1999, 2000, 2001, 2002, 2004, 2005,
-   2006, 2007, 2008 Free Software Foundation, Inc.
+   2006, 2007, 2008, 2010 Free Software Foundation, Inc.
    Contributed by Michael K. Gschwind (mike@vlsivie.tuwien.ac.at).
 
 This file is part of GCC.
@@ -290,7 +290,7 @@ enum reg_class { NO_REGS, MUL_REGS, GENERAL_REGS, LOAD_FPU_REGS, NO_LOAD_FPU_REG
 #define N_REG_CLASSES (int) LIM_REG_CLASSES
 
 /* have to allow this till cmpsi/tstsi are fixed in a better way !! */
-#define SMALL_REGISTER_CLASSES 1
+#define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
 
 /* Since GENERAL_REGS is the same class as ALL_REGS,
    don't give it a different class number; just make it an alias.  */
@@ -435,45 +435,12 @@ extern int current_first_parm_offset;
 */
 #define FIRST_PARM_OFFSET(FNDECL) 4
 
-/* Value is 1 if returning from a function call automatically
-   pops the arguments described by the number-of-args field in the call.
-   FUNDECL is the declaration node of the function (as a tree),
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.  */
-
-#define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE) 0
-
 /* Define how to find the value returned by a function.
    VALTYPE is the data type of the value (as a tree).
    If the precise function being called is known, FUNC is its FUNCTION_DECL;
    otherwise, FUNC is 0.  */
 #define BASE_RETURN_VALUE_REG(MODE) \
  ((MODE) == DFmode ? 8 : 0) 
-
-/* On the pdp11 the value is found in R0 (or ac0??? 
-not without FPU!!!! ) */
-
-#define FUNCTION_VALUE(VALTYPE, FUNC)  \
-  gen_rtx_REG (TYPE_MODE (VALTYPE), BASE_RETURN_VALUE_REG(TYPE_MODE(VALTYPE)))
-
-/* and the called function leaves it in the first register.
-   Difference only on machines with register windows.  */
-
-#define FUNCTION_OUTGOING_VALUE(VALTYPE, FUNC)  \
-  gen_rtx_REG (TYPE_MODE (VALTYPE), BASE_RETURN_VALUE_REG(TYPE_MODE(VALTYPE)))
-
-/* Define how to find the value returned by a library function
-   assuming the value has mode MODE.  */
-
-#define LIBCALL_VALUE(MODE)  gen_rtx_REG (MODE, BASE_RETURN_VALUE_REG(MODE))
-
-/* 1 if N is a possible register number for a function value
-   as seen by the caller.
-   On the pdp, the first "output" reg is the only register thus used. 
-
-maybe ac0 ? - as option someday! */
-
-#define FUNCTION_VALUE_REGNO_P(N) (((N) == 0) || (TARGET_AC0 && (N) == 8))
 
 /* 1 if N is a possible register number for function argument passing.
    - not used on pdp */
@@ -797,10 +764,9 @@ extern int may_call_alloca;
 
 /* cost of moving one register class to another */
 #define REGISTER_MOVE_COST(MODE, CLASS1, CLASS2) \
-  register_move_cost (CLASS1, CLASS2)
+  pdp11_register_move_cost (CLASS1, CLASS2)
 
 /* Tell emit-rtl.c how to initialize special values on a per-function base.  */
-extern int optimize;
 extern struct rtx_def *cc0_reg_rtx;
 
 #define CC_STATUS_MDEP rtx
@@ -981,28 +947,6 @@ extern struct rtx_def *cc0_reg_rtx;
 
 #define TRAMPOLINE_SIZE 8
 #define TRAMPOLINE_ALIGNMENT 16
-
-/* Some machines may desire to change what optimizations are
-   performed for various optimization levels.   This macro, if
-   defined, is executed once just after the optimization level is
-   determined and before the remainder of the command options have
-   been parsed.  Values set in this macro are used as the default
-   values for the other command line options.
-
-   LEVEL is the optimization level specified; 2 if -O2 is
-   specified, 1 if -O is specified, and 0 if neither is specified.  */
-
-#define OPTIMIZATION_OPTIONS(LEVEL,SIZE)				\
-{									\
-  flag_finite_math_only		= 0;					\
-  flag_trapping_math		= 0;					\
-  flag_signaling_nans		= 0;					\
-  if (LEVEL >= 3)							\
-    {									\
-      flag_omit_frame_pointer		= 1;				\
-      /* flag_unroll_loops			= 1; */			\
-    }									\
-}
 
 /* there is no point in avoiding branches on a pdp, 
    since branches are really cheap - I just want to find out

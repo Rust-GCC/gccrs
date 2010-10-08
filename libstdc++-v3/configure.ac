@@ -12,7 +12,7 @@ AC_CONFIG_HEADER(config.h)
 ### am handles this now?  ORIGINAL_LD_FOR_MULTILIBS=$LD
 
 # For libtool versioning info, format is CURRENT:REVISION:AGE
-libtool_VERSION=6:14:0
+libtool_VERSION=6:15:0
 AC_SUBST(libtool_VERSION)
 
 # Find the rest of the source tree framework.
@@ -72,40 +72,21 @@ fi
 #  foreign:  we don't follow the normal rules for GNU packages (no COPYING
 #            file in the top srcdir, etc, etc), so stop complaining.
 #  no-dependencies:  turns off auto dependency generation (just for now)
+#  no-dist:  we don't want 'dist' and related rules.
 #  -Wall:  turns on all automake warnings...
 #  -Wno-portability:  ...except this one, since GNU make is now required.
-AM_INIT_AUTOMAKE([1.9.3 no-define foreign no-dependencies -Wall -Wno-portability -Wno-override])
+AM_INIT_AUTOMAKE([1.9.3 no-define foreign no-dependencies no-dist -Wall -Wno-portability -Wno-override])
 AH_TEMPLATE(PACKAGE, [Name of package])
 AH_TEMPLATE(VERSION, [Version number of package])
 
-# We're almost certainly being configured before anything else which uses
-# C++, so all of our AC_PROG_* discoveries will be cached.  It's vital that
-# we not cache the value of CXX that we "discover" here, because it's set
-# to something unique for us and libjava.  Other target libraries need to
-# find CXX for themselves.  We yank the rug out from under the normal AC_*
-# process by sneakily renaming the cache variable.  This also lets us debug
-# the value of "our" CXX in postmortems.
-#
-# We must also force CXX to /not/ be a precious variable, otherwise the
-# wrong (non-multilib-adjusted) value will be used in multilibs.  This
-# little trick also affects CPPFLAGS, CXXFLAGS, and LDFLAGS.  And as a side
-# effect, CXXFLAGS is no longer automagically subst'd, so we have to do
-# that ourselves.  Un-preciousing AC_PROG_CC also affects CC and CFLAGS.
-#
 # -fno-builtin must be present here so that a non-conflicting form of
 # std::exit can be guessed by AC_PROG_CXX, and used in later tests.
 
-m4_define([ac_cv_prog_CXX],[glibcxx_cv_prog_CXX])
-m4_rename([_AC_ARG_VAR_PRECIOUS],[glibcxx_PRECIOUS])
-m4_define([_AC_ARG_VAR_PRECIOUS],[])
 save_CXXFLAGS="$CXXFLAGS"
 CXXFLAGS="$CXXFLAGS -fno-builtin"
 AC_PROG_CC
 AC_PROG_CXX
 CXXFLAGS="$save_CXXFLAGS"
-m4_rename_force([glibcxx_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
-AC_SUBST(CFLAGS)
-AC_SUBST(CXXFLAGS)
 
 # Runs configure.host, and assorted other critical bits.  Sets
 # up critical shell variables.
@@ -117,6 +98,9 @@ fi
 AM_PROG_LIBTOOL
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
+
+# Eliminate -lstdc++ addition to postdeps for cross compiles.
+postdeps_CXX=`echo " $postdeps_CXX " | sed 's, -lstdc++ ,,g'`
 
 # Possibly disable most of the library.
 ## TODO: Consider skipping unncessary tests altogether in this case, rather
@@ -169,8 +153,8 @@ GLIBCXX_CHECK_WRITEV
 # For C99 support to TR1.
 GLIBCXX_CHECK_C99_TR1
 
-# For common values of EOF, SEEK_CUR, SEEK_END.
-GLIBCXX_CHECK_STDIO_MACROS
+# For the EOF, SEEK_CUR, and SEEK_END integer constants.
+GLIBCXX_COMPUTE_STDIO_INTEGER_CONSTANTS
 
 # For gettimeofday support.
 GLIBCXX_CHECK_GETTIMEOFDAY
@@ -185,8 +169,8 @@ GLIBCXX_CHECK_GTHREADS
 AC_LC_MESSAGES
 
 # Check for available headers.
-AC_CHECK_HEADERS([endian.h float.h fp.h ieeefp.h inttypes.h locale.h \
-machine/endian.h machine/param.h nan.h stdint.h stdlib.h string.h \
+AC_CHECK_HEADERS([endian.h execinfo.h float.h fp.h ieeefp.h inttypes.h \
+locale.h machine/endian.h machine/param.h nan.h stdint.h stdlib.h string.h \
 strings.h sys/ipc.h sys/isa_defs.h sys/machine.h sys/param.h \
 sys/resource.h sys/sem.h sys/stat.h sys/time.h sys/types.h unistd.h \
 wchar.h wctype.h])

@@ -1,0 +1,18 @@
+2010-03-05  Tobias Grosser  <grosser@fim.uni-passau.de>
+
+	* testsuite/libgomp.graphite/force-parallel-1.c: Adjust.
+	* testsuite/libgomp.graphite/force-parallel-2.c: Adjust.
+
+2010-02-07  Sebastian Pop  <sebastian.pop@amd.com>
+
+	* testsuite/libgomp.graphite/force-parallel-5.c: Un-XFAILed.
+	* testsuite/libgomp.graphite/pr41118.c: Renamed from pr4118.
+
+2009-10-09  Sebastian Pop  <sebastian.pop@amd.com>
+
+	* testsuite/libgomp.graphite/graphite.exp (PARALLEL_CFLAGS): Add
+	-fno-loop-block.
+
+2009-09-16  Alexander Monakov  <amonakov@ispras.ru>
+
+	* testsuite/libgomp.graphite/bounds.c: New.

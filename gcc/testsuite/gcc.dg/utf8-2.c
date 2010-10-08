@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-require-effective-target wchar } */
 /* { dg-options "-std=gnu99" } */
 
 #include <wchar.h>

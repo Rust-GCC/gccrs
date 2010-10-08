@@ -556,6 +556,7 @@ LIBOBJS
 asm_hidden_op
 extra_parts
 tmake_file
+set_use_emutls
 set_have_cc_tls
 vis_hide
 fixed_point
@@ -3633,11 +3634,12 @@ $as_echo "$libgcc_cv_dfp" >&6; }
 decimal_float=$libgcc_cv_dfp
 
 
+
 # Check whether --enable-decimal-float was given.
 if test "${enable_decimal_float+set}" = set; then :
   enableval=$enable_decimal_float;
   case $enable_decimal_float in
-    yes | no | bid | dpd) ;;
+    yes | no | bid | dpd) default_decimal_float=$enable_decimal_float ;;
     *) as_fn_error "'$enable_decimal_float' is an invalid value for --enable-decimal-float.
 Valid choices are 'yes', 'bid', 'dpd', and 'no'." "$LINENO" 5 ;;
   esac
@@ -3645,10 +3647,14 @@ Valid choices are 'yes', 'bid', 'dpd', and 'no'." "$LINENO" 5 ;;
 else
 
   case $host in
-    powerpc*-*-linux* | i?86*-*-linux* | x86_64*-*-linux*)
+    powerpc*-*-linux* | i?86*-*-linux* | x86_64*-*-linux* | s390*-*-linux* | \
+    i?86*-*-mingw* | x86_64*-*-mingw* | \
+    i?86*-*-cygwin*)
       enable_decimal_float=yes
       ;;
     *)
+      { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: decimal float is not supported for this target, ignored" >&5
+$as_echo "$as_me: WARNING: decimal float is not supported for this target, ignored" >&2;}
       enable_decimal_float=no
       ;;
   esac
@@ -3657,16 +3663,26 @@ fi
 
 
 # x86's use BID format instead of DPD
-if test x$enable_decimal_float = xyes; then
-  case $host in
-    i?86*-*-linux* | x86_64*-*-linux*)
-      enable_decimal_float=bid
-      ;;
-    *)
-      enable_decimal_float=dpd
-      ;;
-  esac
-fi
+case x$enable_decimal_float in
+  xyes)
+    case $host in
+      i?86*-*-* | x86_64*-*-*)
+	enable_decimal_float=bid
+	;;
+      *)
+	enable_decimal_float=dpd
+	;;
+    esac
+    default_decimal_float=$enable_decimal_float
+    ;;
+  xno)
+    # ENABLE_DECIMAL_FLOAT is set to 0. But we have to have proper
+    # dependency on libdecnumber.
+    default_decimal_float=dpd
+    ;;
+esac
+
+
 
 
 # Check for fixed-point support.
@@ -3690,6 +3706,30 @@ fi
 $as_echo "$libgcc_cv_fixed_point" >&6; }
 fixed_point=$libgcc_cv_fixed_point
 
+
+# Check for assembler CFI support.
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether assembler supports CFI directives" >&5
+$as_echo_n "checking whether assembler supports CFI directives... " >&6; }
+if test "${libgcc_cv_cfi+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+asm("\n\
+	.text\n\
+	.cfi_startproc\n\
+	.cfi_personality 0, symbol\n\
+	.cfi_endproc");
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  libgcc_cv_cfi=yes
+else
+  libgcc_cv_cfi=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $libgcc_cv_cfi" >&5
+$as_echo "$libgcc_cv_cfi" >&6; }
 
 # Check 32bit or 64bit for x86.
 case ${host} in
@@ -3808,6 +3848,42 @@ $as_echo "$gcc_cv_have_cc_tls" >&6; }
 set_have_cc_tls=
 if test "$enable_tls $gcc_cv_have_cc_tls" = "yes yes"; then
   set_have_cc_tls="-DHAVE_CC_TLS"
+fi
+
+
+# See if we have emulated thread-local storage.
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether the thread-local storage support is from emutls" >&5
+$as_echo_n "checking whether the thread-local storage support is from emutls... " >&6; }
+if test "${gcc_cv_use_emutls+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+
+    gcc_cv_use_emutls=no
+    echo '__thread int a; int b; int main() { return a = b; }' > conftest.c
+    if { ac_try='${CC-cc} -Werror -S -o conftest.s conftest.c 1>&5'
+  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; }; }; then
+      if grep __emutls_get_address conftest.s > /dev/null; then
+	gcc_cv_use_emutls=yes
+      fi
+    fi
+    rm -f conftest.*
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_use_emutls" >&5
+$as_echo "$gcc_cv_use_emutls" >&6; }
+  if test "$gcc_cv_use_emutls" = "yes" ; then
+
+$as_echo "#define USE_EMUTLS 1" >>confdefs.h
+
+  fi
+set_use_emutls=
+if test "$enable_tls $gcc_cv_use_emutls" = "yes yes"; then
+  set_use_emutls="-DUSE_EMUTLS"
 fi
 
 

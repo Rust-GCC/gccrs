@@ -30,6 +30,8 @@ extern void abort (void);
 # define PIC_REG  "ebx"
 #elif defined(__ia64__)
 /* PIC register is r1, but is used even without -fpic.  */
+#elif defined(__lm32__)
+/* No pic register.  */
 #elif defined(__M32R__)
 /* No pic register.  */
 #elif defined(__m68k__)
@@ -43,6 +45,8 @@ extern void abort (void);
 #elif defined(__MMIX__)
 /* No pic register.  */
 #elif defined(__mn10300__)
+/* No pic register.  */
+#elif defined(__moxie__)
 /* No pic register.  */
 #elif defined(__hppa__)
 /* PIC register is %r27 or %r19, but is used even without -fpic.  */

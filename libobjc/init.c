@@ -24,7 +24,15 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
-#include "objc/runtime.h"
+#include "objc-private/common.h"
+#include "objc-private/error.h"
+#include "objc/objc.h"
+#include "objc/objc-api.h"
+#include "objc/thr.h"
+#include "objc-private/hash.h"
+#include "objc-private/objc-list.h" 
+#include "objc-private/runtime.h"
+#include "objc-private/objc-sync.h" /* For __objc_sync_init() */
 
 /* The version number of this runtime.  This must match the number 
    defined in gcc (objc-act.c).  */
@@ -543,6 +551,7 @@ __objc_exec_class (Module_t module)
       __objc_load_methods = objc_hash_new (128, 
 					   (hash_func_type)objc_hash_ptr,
 					   objc_compare_ptrs);
+      __objc_sync_init ();
       previous_constructors = 1;
     }
 
@@ -818,17 +827,8 @@ init_check_module_version (Module_t module)
 {
   if ((module->version != OBJC_VERSION) || (module->size != sizeof (Module)))
     {
-      int code;
-
-      if (module->version > OBJC_VERSION)
-	code = OBJC_ERR_OBJC_VERSION;
-      else if (module->version < OBJC_VERSION)
-	code = OBJC_ERR_GCC_VERSION;
-      else
-	code = OBJC_ERR_MODULE_SIZE;
-
-      objc_error (nil, code, "Module %s version %d doesn't match runtime %d\n",
-		  module->name, (int)module->version, OBJC_VERSION);
+      _objc_abort ("Module %s version %d doesn't match runtime %d\n",
+		   module->name, (int)module->version, OBJC_VERSION);
     }
 }
 
@@ -870,11 +870,10 @@ __objc_init_protocols (struct objc_protocol_list *protos)
 	}
       else if (protos->list[i]->class_pointer != proto_class)
 	{
-	  objc_error (nil, OBJC_ERR_PROTOCOL_VERSION,
-		     "Version %d doesn't match runtime protocol version %d\n",
-		     (int) ((char *) protos->list[i]->class_pointer
-			    - (char *) 0),
-		     PROTOCOL_VERSION);
+	  _objc_abort ("Version %d doesn't match runtime protocol version %d\n",
+		       (int) ((char *) protos->list[i]->class_pointer
+			      - (char *) 0),
+		       PROTOCOL_VERSION);
 	}
     }
 

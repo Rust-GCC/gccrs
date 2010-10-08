@@ -1,5 +1,6 @@
 /* GCC core type declarations.
-   Copyright (C) 2002, 2004, 2007, 2008, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2004, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -46,6 +47,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 struct bitmap_head_def;
 typedef struct bitmap_head_def *bitmap;
 typedef const struct bitmap_head_def *const_bitmap;
+struct simple_bitmap_def;
+typedef struct simple_bitmap_def *sbitmap;
+typedef const struct simple_bitmap_def *const_sbitmap;
 struct rtx_def;
 typedef struct rtx_def *rtx;
 typedef const struct rtx_def *const_rtx;
@@ -60,14 +64,17 @@ typedef const union tree_node *const_tree;
 typedef const union gimple_statement_d *const_gimple;
 union section;
 typedef union section section;
+struct gcc_options;
 struct cl_target_option;
 struct cl_optimization;
+struct cl_option;
+struct cl_decoded_option;
+struct cl_option_handlers;
+struct diagnostic_context;
+typedef struct diagnostic_context diagnostic_context;
 struct gimple_seq_d;
 typedef struct gimple_seq_d *gimple_seq;
 typedef const struct gimple_seq_d *const_gimple_seq;
-struct gimple_seq_node_d;
-typedef struct gimple_seq_node_d *gimple_seq_node;
-typedef const struct gimple_seq_node_d *const_gimple_seq_node;
 
 /* Address space number for named address space support.  */
 typedef unsigned char addr_space_t;
@@ -110,6 +117,20 @@ typedef const struct edge_def *const_edge;
 struct basic_block_def;
 typedef struct basic_block_def *basic_block;
 typedef const struct basic_block_def *const_basic_block;
+
+#define obstack_chunk_alloc	((void *(*) (long)) xmalloc)
+#define obstack_chunk_free	((void (*) (void *)) free)
+#define OBSTACK_CHUNK_SIZE	0
+#define gcc_obstack_init(OBSTACK)			\
+  _obstack_begin ((OBSTACK), OBSTACK_CHUNK_SIZE, 0,	\
+		  obstack_chunk_alloc,			\
+		  obstack_chunk_free)
+
+/* enum reg_class is target specific, so it should not appear in
+   target-independent code or interfaces, like the target hook declarations
+   in target.h.  */
+typedef int reg_class_t;
+
 #else
 
 struct _dont_use_rtx_here_;

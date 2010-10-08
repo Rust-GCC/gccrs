@@ -1,7 +1,7 @@
 /* Operating system specific defines to be used when targeting GCC for
    hosting on Windows32, using a Unix style C library and tools.
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
-   2007, 2008, 2009 Free Software Foundation, Inc.
+   2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -83,11 +83,43 @@ along with GCC; see the file COPYING3.  If not see
   %{!mno-cygwin:-lcygwin} \
   %{mno-cygwin:%{mthreads:-lmingwthrd} -lmingw32} \
   %{mwindows:-lgdi32 -lcomdlg32} \
-  -luser32 -lkernel32 -ladvapi32 -lshell32"
+  -ladvapi32 -lshell32 -luser32 -lkernel32"
+
+/* To implement C++ function replacement we always wrap the cxx
+   malloc-like operators.  See N2800 #17.6.4.6 [replacement.functions] */
+#define CXX_WRAP_SPEC_LIST " \
+  --wrap _Znwj \
+  --wrap _Znaj \
+  --wrap _ZdlPv \
+  --wrap _ZdaPv \
+  --wrap _ZnwjRKSt9nothrow_t \
+  --wrap _ZnajRKSt9nothrow_t \
+  --wrap _ZdlPvRKSt9nothrow_t \
+  --wrap _ZdaPvRKSt9nothrow_t \
+"
+
+#if defined (USE_CYGWIN_LIBSTDCXX_WRAPPERS)
+
+#if USE_CYGWIN_LIBSTDCXX_WRAPPERS
+/* Default on, only explict -mno disables.  */
+#define CXX_WRAP_SPEC_OPT "!mno-use-libstdc-wrappers"
+#else
+/* Default off, only explict -m enables.  */
+#define CXX_WRAP_SPEC_OPT "muse-libstdc-wrappers"
+#endif
+
+#define CXX_WRAP_SPEC "%{!mno-cygwin:%{" CXX_WRAP_SPEC_OPT ":" CXX_WRAP_SPEC_LIST "}}"
+
+#else /* !defined (USE_CYGWIN_LIBSTDCXX_WRAPPERS)  */
+
+#define CXX_WRAP_SPEC ""
+
+#endif /* ?defined (USE_CYGWIN_LIBSTDCXX_WRAPPERS) */
 
 #define LINK_SPEC "\
   %{mwindows:--subsystem windows} \
   %{mconsole:--subsystem console} \
+  " CXX_WRAP_SPEC " \
   %{shared: %{mdll: %eshared and mdll are not compatible}} \
   %{shared: --shared} %{mdll:--dll} \
   %{static:-Bstatic} %{!static:-Bdynamic} \
@@ -220,12 +252,13 @@ char *cvt_to_mingw[] =
 #undef GEN_CVT_ARRAY
 #endif /*GEN_CVT_ARRAY*/
 
-void mingw_scan (int, const char * const *, const char **);
+void mingw_scan (unsigned int, const struct cl_decoded_option *,
+		 const char **);
 #if 1
 #define GCC_DRIVER_HOST_INITIALIZATION \
 do \
 { \
-  mingw_scan(argc, (const char * const *) argv, &spec_machine); \
+  mingw_scan (decoded_options_count, decoded_options, &spec_machine);	\
   } \
 while (0)
 #else
@@ -245,7 +278,7 @@ do \
   add_prefix (&startfile_prefixes,\
 	      concat (standard_startfile_prefix, "w32api", NULL),\
 	      "GCC", PREFIX_PRIORITY_LAST, 0, NULL);\
-  mingw_scan(argc, (const char * const *) argv, &spec_machine); \
+  mingw_scan (decoded_options_count, decoded_options, &spec_machine);	\
   } \
 while (0)
 #endif
@@ -269,5 +302,5 @@ while (0)
 #define LIBGCC_SONAME "cyggcc_s" LIBGCC_EH_EXTN "-1.dll"
 
 /* We should find a way to not have to update this manually.  */
-#define LIBGCJ_SONAME "cyggcj" /*LIBGCC_EH_EXTN*/ "-11.dll"
+#define LIBGCJ_SONAME "cyggcj" /*LIBGCC_EH_EXTN*/ "-12.dll"
 

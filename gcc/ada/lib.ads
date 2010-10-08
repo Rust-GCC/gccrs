@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -38,6 +38,21 @@ with Table;
 with Types; use Types;
 
 package Lib is
+
+   type Compiler_State_Type is (Parsing, Analyzing);
+   Compiler_State : Compiler_State_Type;
+   --  Indicates current state of compilation. This is used to implement the
+   --  function In_Extended_Main_Source_Unit.
+
+   Parsing_Main_Extended_Source : Boolean := False;
+   --  Set True if we are currently parsing a file that is part of the main
+   --  extended source (the main unit, its spec, or one of its subunits). This
+   --  flag to implement In_Extended_Main_Source_Unit.
+
+   Analysing_Subunit_Of_Main : Boolean := False;
+   --  Set to True when analyzing a subunit of the main source. When True, if
+   --  the subunit is preprocessed and -gnateG is specified, then the
+   --  preprocessed file (.prep) is written.
 
    --------------------------------------------
    -- General Approach to Library Management --
@@ -574,6 +589,10 @@ package Lib is
    --  This procedure is called to register the string from a pragma
    --  Linker_Option. The argument is the Id of the string to register.
 
+   procedure Store_Note (N : Node_Id);
+   --  This procedure is called to register a pragma N for which a notes
+   --  entry is required.
+
    procedure Initialize;
    --  Initialize internal tables
 
@@ -732,6 +751,21 @@ private
      Table_Initial        => Alloc.Linker_Option_Lines_Initial,
      Table_Increment      => Alloc.Linker_Option_Lines_Increment,
      Table_Name           => "Linker_Option_Lines");
+
+   --  The following table stores references to pragmas that generate Notes
+
+   type Notes_Entry is record
+      Pragma_Node : Node_Id;
+      Unit        : Unit_Number_Type;
+   end record;
+
+   package Notes is new Table.Table (
+     Table_Component_Type => Notes_Entry,
+     Table_Index_Type     => Integer,
+     Table_Low_Bound      => 1,
+     Table_Initial        => Alloc.Notes_Initial,
+     Table_Increment      => Alloc.Notes_Increment,
+     Table_Name           => "Notes");
 
    --  The following table records the compilation switches used to compile
    --  the main unit. The table includes only switches. It excludes -o

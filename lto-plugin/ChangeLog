@@ -1,3 +1,126 @@
+2010-08-05  Andi Kleen  <ak@linux.intel.com>
+
+	* lto-plugin.c: Include <hashtab.h>
+	(sym_aux): Add next_conflict field to save conflict chains.
+	(plugin_file_info): Add conflicts symtab.
+	(parse_table_entry): Initialize aux->next_conflict.
+	(process_symtab): Increment found.
+	(dump_symtab): Add.
+	(finish_conflict_resolution): Add.
+	(free_symtab): Add.
+	(write_resolution): Remove symbols loop and move into
+	dump_symtab. Call dump_symtab for main symbol and conflicts table.
+	Call free_symtab to free conflicts table.
+	(SWAP): Add.
+	(eq_sym): Add.
+	(hash_sym): Add.
+	(symbol_strength): Add.
+	(resolve_conflicts): Add.
+	(claim_file_handler): Add n variable. Check return value of
+	process_symtab. Call resolve_conflicts.
+
+2010-07-27  Andi Kleen <ak@linux.intel.com>
+
+	* lto-plugin.c (translate): Remove debug fprintf.
+
+2010-07-23  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/45042
+	* lto-plugin.c (translate): Cast to unsigned long.
+
+2010-07-23   Andi Kleen <ak@linux.intel.com>
+
+	PR lto/44992
+	* lto-plugin.c (sym_aux): Add.
+	(plugin_symtab): Remove slots. Add aux and id.
+	(parse_table_entry): Change to use aux instead of slots.
+	(LTO_SECTION_PREFIX): Add.
+	(translate): Improve buffer allocation. Change to append
+	symbols to existing out buffer.
+	(get_section): Remove.
+	(process_symtab): Add.
+	(free_2): Free symtab->aux.
+	(write_resolution): Handle aux instead of slots.
+	Print sub id to resolution file.
+	(claim_file_handler): Clear lto_file. Replace get_symtab/translate
+	calls with call to process_symtab.
+
+2010-07-22  Richard Guenther  <rguenther@suse.de>
+
+	* Makefile.am: New copy_lto_plugin rule to install the plugin
+	into ../gcc.
+	* Makefile.in: Regenerated.
+
+2010-05-21  Richard Guenther  <rguenther@suse.de>
+
+	* lto-plugin.c (write_resolution): Do not assert syms is non-NULL.
+
+2010-05-07  Richard Guenther <rguenther@suse.de>
+
+	* lto-plugin.c (free_2): Do not free resolution_file.
+	(write_resolution): Check that we were passed a resolution file.
+	(all_symbols_read_handler): Adjust.
+	(cleanup_handler): Do not remove the resolution file.
+	(process_option): Handle -fresolution=.
+
+2010-05-04  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR other/43620
+	* configure.ac (AM_INIT_AUTOMAKE): Add no-dist.
+	* Makefile.in: Regenerate.
+
+2010-04-23  Richard Guenther  <rguenther@suse.de>
+
+	PR lto/41550
+	* lto-plugin.c (parse_table_entry): Use xstrdup and xrealloc.
+	(translate): Likewise.
+	(all_symbols_read_handler): Likewise.
+	(claim_file_handler): Likewise.
+	(process_option): Likewise.
+	(add_output_files): Likewise.  Remove filename length limit.
+
+2010-04-02  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+
+2010-03-16  Dmitry Gorbachev  <d.g.gorbachev@gmail.com>
+
+	PR lto/43336
+	* lto-plugin.c (cleanup_handler): Delete temporary output files.
+
+2010-01-11  Richard Guenther  <rguenther@suse.de>
+
+	PR lto/41569
+	* Makefile.am: Disable dependencies.
+	* Makefile.in: Regenerated.
+
+2010-01-03  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR lto/42520
+	* lto-plugin.c (exec_lto_wrapper): Output lto-wrapper command
+	if -v is passed.
+
+2009-12-05  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/42306
+	* configure: Regenerated.
+	* Makefile.in: Likewise.
+
+2009-11-19  Rafael Avila de Espindola  <espindola@google.com>
+
+	PR bootstrap/42096
+	* lto-plugin.c (claim_file_handler): Print offsets in hex.
+
+2009-11-12  Rafael Avila de Espindola  <espindola@google.com>
+
+	* lto-plugin.c (write_resolution): Assume resolution_file is set.
+	Print the symbol name.
+	(all_symbols_read_handler): Create a resolution file.
+	Pass it to gcc.
+	(cleanup_handler): Remove the resolution file.
+	(process_option): Drop the -resolution option.
+
 2009-11-05  Rafael Avila de Espindola  <espindola@google.com>
 
 	* lto-plugin.c (temp_obj_dir_name): Remove.

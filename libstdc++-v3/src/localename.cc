@@ -137,7 +137,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	  }
       }
     else
-      __throw_runtime_error(__N("locale::locale NULL not valid"));
+      __throw_runtime_error(__N("locale::locale null not valid"));
   }
 
   locale::locale(const locale& __base, const char* __s, category __cat)
@@ -163,7 +163,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
     __try 
       { _M_impl->_M_replace_categories(__add._M_impl, __cat); }
-    __catch (...) 
+    __catch(...) 
       { 
 	_M_impl->_M_remove_reference(); 
 	__throw_exception_again;

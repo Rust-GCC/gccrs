@@ -1,5 +1,5 @@
 ! { dg-do run }
-! { dg-options "-O2 -fdump-tree-original" }
+! { dg-options "-fdump-tree-original" }
 !
 ! Check some basic functionality of allocatable components, including that they
 ! are nullified when created and automatically deallocated when
@@ -139,6 +139,6 @@ contains
     end subroutine check_alloc2
 
 end program alloc
-! { dg-final { scan-tree-dump-times "builtin_free" 21 "original" } }
+! { dg-final { scan-tree-dump-times "builtin_free" 18 "original" } }
 ! { dg-final { cleanup-tree-dump "original" } }
 ! { dg-final { cleanup-modules "alloc_m" } }

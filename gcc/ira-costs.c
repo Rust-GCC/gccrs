@@ -33,6 +33,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "addresses.h"
 #include "insn-config.h"
 #include "recog.h"
+#include "reload.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "target.h"
 #include "params.h"
@@ -66,31 +68,24 @@ struct costs
   int cost[1];
 };
 
-/* Initialized once.  It is a maximal possible size of the allocated
-   struct costs.  */
-static int max_struct_costs_size;
-
-/* Allocated and initialized once, and used to initialize cost values
-   for each insn.  */
-static struct costs *init_cost;
-
-/* Allocated once, and used for temporary purposes.  */
-static struct costs *temp_costs;
-
-/* Allocated once, and used for the cost calculation.  */
-static struct costs *op_costs[MAX_RECOG_OPERANDS];
-static struct costs *this_op_costs[MAX_RECOG_OPERANDS];
+#define max_struct_costs_size \
+  (this_target_ira_int->x_max_struct_costs_size)
+#define init_cost \
+  (this_target_ira_int->x_init_cost)
+#define temp_costs \
+  (this_target_ira_int->x_temp_costs)
+#define op_costs \
+  (this_target_ira_int->x_op_costs)
+#define this_op_costs \
+  (this_target_ira_int->x_this_op_costs)
+#define cost_classes \
+  (this_target_ira_int->x_cost_classes)
 
 /* Costs of each class for each allocno or pseudo.  */
 static struct costs *costs;
 
 /* Accumulated costs of each class for each allocno.  */
 static struct costs *total_allocno_costs;
-
-/* Classes used for cost calculation.  They may be different on
-   different iterations of the cost calculations or in different
-   optimization modes.  */
-static enum reg_class *cost_classes;
 
 /* The size of the previous array.  */
 static int cost_classes_num;
@@ -123,6 +118,10 @@ static enum reg_class *pref_buffer;
 /* Record cover register class of each allocno with the same regno.  */
 static enum reg_class *regno_cover_class;
 
+/* Record cost gains for not allocating a register with an invariant
+   equivalence.  */
+static int *regno_equiv_gains;
+
 /* Execution frequency of the current insn.  */
 static int frequency;
 
@@ -151,7 +150,8 @@ copy_cost (rtx x, enum machine_mode mode, enum reg_class rclass, bool to_p,
      copy it.  */
   sri.prev_sri = prev_sri;
   sri.extra_cost = 0;
-  secondary_class = targetm.secondary_reload (to_p, x, rclass, mode, &sri);
+  secondary_class
+    = (enum reg_class) targetm.secondary_reload (to_p, x, rclass, mode, &sri);
 
   if (secondary_class != NO_REGS)
     {
@@ -203,8 +203,7 @@ copy_cost (rtx x, enum machine_mode mode, enum reg_class rclass, bool to_p,
 static void
 record_reg_classes (int n_alts, int n_ops, rtx *ops,
 		    enum machine_mode *modes, const char **constraints,
-		    rtx insn, struct costs **op_costs,
-		    enum reg_class *pref)
+		    rtx insn, enum reg_class *pref)
 {
   int alt;
   int i, j, k;
@@ -223,6 +222,14 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
       enum reg_class rclass;
       int alt_fail = 0;
       int alt_cost = 0, op_cost_add;
+
+      if (!recog_data.alternative_enabled_p[alt])
+	{
+	  for (i = 0; i < recog_data.n_operands; i++)
+	    constraints[i] = skip_alternative (constraints[i]);
+
+	  continue;
+	}
 
       for (i = 0; i < n_ops; i++)
 	{
@@ -367,7 +374,7 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 		  continue;
 		}
 	    }
-	  
+
 	  /* Scan all the constraint letters.  See if the operand
 	     matches any of the constraints.  Collect the valid
 	     register classes and see if this operand accepts
@@ -651,7 +658,7 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
       {
 	ira_allocno_t a;
 	rtx op = ops[i];
-	
+
 	if (! REG_P (op) || REGNO (op) < FIRST_PSEUDO_REGISTER)
 	  continue;
 	a = ira_curr_regno_allocno_map [REGNO (op)];
@@ -703,7 +710,7 @@ record_reg_classes (int n_alts, int n_ops, rtx *ops,
 			  if (! TEST_HARD_REG_BIT (reg_class_contents[rclass],
 						   regno + nr))
 			    break;
-			
+
 			if (nr == (unsigned) hard_regno_nregs[regno][mode])
 			  op_costs[i]->cost[k] = -frequency;
 		      }
@@ -930,7 +937,7 @@ record_address_regs (enum machine_mode mode, rtx x, int context,
 
 /* Calculate the costs of insn operands.  */
 static void
-record_operand_costs (rtx insn, struct costs **op_costs, enum reg_class *pref)
+record_operand_costs (rtx insn, enum reg_class *pref)
 {
   const char *constraints[MAX_RECOG_OPERANDS];
   enum machine_mode modes[MAX_RECOG_OPERANDS];
@@ -983,11 +990,11 @@ record_operand_costs (rtx insn, struct costs **op_costs, enum reg_class *pref)
 	xconstraints[i+1] = constraints[i];
 	record_reg_classes (recog_data.n_alternatives, recog_data.n_operands,
 			    recog_data.operand, modes,
-			    xconstraints, insn, op_costs, pref);
+			    xconstraints, insn, pref);
       }
   record_reg_classes (recog_data.n_alternatives, recog_data.n_operands,
 		      recog_data.operand, modes,
-		      constraints, insn, op_costs, pref);
+		      constraints, insn, pref);
 }
 
 
@@ -1032,7 +1039,7 @@ scan_one_insn (rtx insn)
 			   0, MEM, SCRATCH, frequency * 2);
     }
 
-  record_operand_costs (insn, op_costs, pref);
+  record_operand_costs (insn, pref);
 
   /* Now add the cost for each operand to the total costs for its
      allocno.  */
@@ -1180,7 +1187,7 @@ find_costs_and_classes (FILE *dump_file)
     {
       ira_allocno_t a;
       ira_allocno_iterator ai;
-      
+
       pref = pref_buffer;
       FOR_EACH_ALLOCNO (a, ai)
 	pref[ALLOCNO_NUM (a)] = reg_preferred_class (ALLOCNO_REGNO (a));
@@ -1255,6 +1262,7 @@ find_costs_and_classes (FILE *dump_file)
 #ifdef FORBIDDEN_INC_DEC_CLASSES
 	  int inc_dec_p = false;
 #endif
+	  int equiv_savings = regno_equiv_gains[i];
 
 	  if (! allocno_p)
 	    {
@@ -1303,6 +1311,15 @@ find_costs_and_classes (FILE *dump_file)
 #endif
 		}
 	    }
+	  if (equiv_savings < 0)
+	    temp_costs->mem_cost = -equiv_savings;
+	  else if (equiv_savings > 0)
+	    {
+	      temp_costs->mem_cost = 0;
+	      for (k = 0; k < cost_classes_num; k++)
+		temp_costs->cost[k] += equiv_savings;
+	    }
+
 	  best_cost = (1 << (HOST_BITS_PER_INT - 2)) - 1;
 	  best = ALL_REGS;
 	  alt_class = NO_REGS;
@@ -1375,7 +1392,7 @@ find_costs_and_classes (FILE *dump_file)
 	      if (regno_cover_class[i] == NO_REGS)
 		best = NO_REGS;
 	      else
-		{	      
+		{
 		  /* Finding best class which is subset of the common
 		     class.  */
 		  best_cost = (1 << (HOST_BITS_PER_INT - 2)) - 1;
@@ -1435,7 +1452,7 @@ find_costs_and_classes (FILE *dump_file)
 	      pref[a_num] = best;
 	    }
 	}
-      
+
       if (internal_flag_ira_verbose > 4 && dump_file)
 	{
 	  if (allocno_p)
@@ -1534,7 +1551,6 @@ setup_allocno_cover_class_and_costs (void)
   int i, j, n, regno, num;
   int *reg_costs;
   enum reg_class cover_class, rclass;
-  enum machine_mode mode;
   ira_allocno_t a;
   ira_allocno_iterator ai;
 
@@ -1542,7 +1558,6 @@ setup_allocno_cover_class_and_costs (void)
   FOR_EACH_ALLOCNO (a, ai)
     {
       i = ALLOCNO_NUM (a);
-      mode = ALLOCNO_MODE (a);
       cover_class = regno_cover_class[ALLOCNO_REGNO (a)];
       ira_assert (pref[i] == NO_REGS || cover_class != NO_REGS);
       ALLOCNO_MEMORY_COST (a) = COSTS (costs, i)->mem_cost;
@@ -1674,6 +1689,8 @@ init_costs (void)
   regno_cover_class
     = (enum reg_class *) ira_allocate (sizeof (enum reg_class)
 				       * max_reg_num ());
+  regno_equiv_gains = (int *) ira_allocate (sizeof (int) * max_reg_num ());
+  memset (regno_equiv_gains, 0, sizeof (int) * max_reg_num ());
 }
 
 /* Common finalization function for ira_costs and
@@ -1681,6 +1698,7 @@ init_costs (void)
 static void
 finish_costs (void)
 {
+  ira_free (regno_equiv_gains);
   ira_free (regno_cover_class);
   ira_free (pref_buffer);
   ira_free (costs);
@@ -1696,6 +1714,7 @@ ira_costs (void)
   init_costs ();
   total_allocno_costs = (struct costs *) ira_allocate (max_struct_costs_size
 						       * ira_allocnos_num);
+  calculate_elim_costs_all_insns ();
   find_costs_and_classes (ira_dump_file);
   setup_allocno_cover_class_and_costs ();
   finish_costs ();
@@ -1767,5 +1786,45 @@ ira_tune_allocno_costs_and_cover_classes (void)
 	}
       if (min_cost != INT_MAX)
 	ALLOCNO_COVER_CLASS_COST (a) = min_cost;
+
+      /* Some targets allow pseudos to be allocated to unaligned
+         sequences of hard registers.  However, selecting an unaligned
+         sequence can unnecessarily restrict later allocations.  So
+         increase the cost of unaligned hard regs to encourage the use
+         of aligned hard regs.  */
+      {
+	int nregs, index;
+
+	if ((nregs = ira_reg_class_nregs[cover_class][ALLOCNO_MODE (a)]) > 1)
+	  {
+	    ira_allocate_and_set_costs
+	      (&ALLOCNO_HARD_REG_COSTS (a), cover_class,
+	       ALLOCNO_COVER_CLASS_COST (a));
+	    reg_costs = ALLOCNO_HARD_REG_COSTS (a);
+	    for (j = n - 1; j >= 0; j--)
+	      {
+		if (j % nregs != 0)
+		  {
+		    regno = ira_non_ordered_class_hard_regs[cover_class][j];
+		    index = ira_class_hard_reg_index[cover_class][regno];
+		    ira_assert (index != -1);
+		    reg_costs[index] += ALLOCNO_FREQ (a);
+		  }
+	      }
+	  }
+      }
     }
+}
+
+/* Add COST to the estimated gain for eliminating REGNO with its
+   equivalence.  If COST is zero, record that no such elimination is
+   possible.  */
+
+void
+ira_adjust_equiv_reg_cost (unsigned regno, int cost)
+{
+  if (cost == 0)
+    regno_equiv_gains[regno] = 0;
+  else
+    regno_equiv_gains[regno] += cost;
 }

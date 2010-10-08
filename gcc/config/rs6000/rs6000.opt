@@ -1,6 +1,7 @@
 ; Options for the rs6000 port of the compiler
 ;
-; Copyright (C) 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+; Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010 Free Software
+; Foundation, Inc.
 ; Contributed by Aldy Hernandez <aldy@quesejoda.com>.
 ;
 ; This file is part of GCC.
@@ -115,6 +116,14 @@ mpopcntd
 Target Report Mask(POPCNTD)
 Use PowerPC V2.06 popcntd instruction
 
+mfriz
+Target Report Var(TARGET_FRIZ) Init(-1)
+Under -ffast-math, generate a FRIZ instruction for (double)(long long) conversions
+
+mveclibabi=
+Target RejectNegative Joined Var(rs6000_veclibabi_name)
+Vector library ABI to use
+
 mvsx
 Target Report Mask(VSX)
 Use vector/scalar (VSX) instructions
@@ -179,7 +188,7 @@ msched-epilog
 Target Undocumented Var(TARGET_SCHED_PROLOG) Init(1)
 
 msched-prolog
-Target Report Var(TARGET_SCHED_PROLOG) VarExists
+Target Report Var(TARGET_SCHED_PROLOG)
 Schedule the start and end of the procedure
 
 maix-struct-return
@@ -187,7 +196,7 @@ Target Report RejectNegative Var(aix_struct_return)
 Return all structures in memory (AIX default)
 
 msvr4-struct-return
-Target Report RejectNegative Var(aix_struct_return,0) VarExists
+Target Report RejectNegative Var(aix_struct_return,0)
 Return small structures in registers (SVR4 default)
 
 mxl-compat
@@ -195,8 +204,16 @@ Target Report Var(TARGET_XL_COMPAT)
 Conform more closely to IBM XLC semantics
 
 mrecip
-Target Report Var(TARGET_RECIP)
-Generate software reciprocal sqrt for better throughput
+Target Report
+Generate software reciprocal divide and square root for better throughput.
+
+mrecip=
+Target Report RejectNegative Joined
+Generate software reciprocal divide and square root for better throughput.
+
+mrecip-precision
+Target Report Mask(RECIP_PRECISION)
+Assume that the reciprocal estimate instructions provide more accuracy.
 
 mno-fp-in-toc
 Target Report RejectNegative Var(TARGET_NO_FP_IN_TOC)
@@ -211,7 +228,7 @@ Target RejectNegative Var(TARGET_NO_SUM_IN_TOC)
 Do not place symbol+offset constants in TOC
 
 msum-in-toc
-Target RejectNegative Var(TARGET_NO_SUM_IN_TOC,0) VarExists
+Target RejectNegative Var(TARGET_NO_SUM_IN_TOC,0)
 Place symbol+offset constants in TOC
 
 ;  Output only one TOC entry per module.  Normally linking fails if
@@ -236,6 +253,10 @@ Generate VRSAVE instructions when generating AltiVec code
 mvrsave=
 Target RejectNegative Joined
 -mvrsave=yes/no	Deprecated option.  Use -mvrsave/-mno-vrsave instead
+
+mblock-move-inline-limit=
+Target Report Var(rs6000_block_move_inline_limit) Init(0) RejectNegative Joined UInteger
+Specify how many bytes should be moved inline before calling out to memcpy/memmove
 
 misel
 Target Report Mask(ISEL)

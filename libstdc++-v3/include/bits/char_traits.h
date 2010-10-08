@@ -1,7 +1,7 @@
 // Character Traits for use by standard string and iostream -*- C++ -*-
 
 // Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007, 2008, 2009
+// 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -42,13 +42,6 @@
 #include <bits/postypes.h>      // For streampos
 #include <cwchar>               // For WEOF, wmemmove, wmemset, etc.
 
-#ifndef _GLIBCXX_STDIO_MACROS
-# include <cstdio>              // For EOF
-# define _CHAR_TRAITS_EOF EOF
-#else
-# define _CHAR_TRAITS_EOF (-1)
-#endif
-
 _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 
   /**
@@ -83,7 +76,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
    *  namespace __gnu_cxx may be.
    *
    *  See http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt05ch13s03.html
-   *  for advice on how to make use of this class for "unusual" character
+   *  for advice on how to make use of this class for @a unusual character
    *  types. Also, check out include/ext/pod_char_traits.h.  
    */
   template<typename _CharT>
@@ -139,7 +132,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 
       static int_type
       eof()
-      { return static_cast<int_type>(_CHAR_TRAITS_EOF); }
+      { return static_cast<int_type>(_GLIBCXX_STDIO_EOF); }
 
       static int_type
       not_eof(const int_type& __c)
@@ -224,7 +217,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    *  appropriate definition by specializing __gnu_cxx::char_traits.
    *
    *  See http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt05ch13s03.html
-   *  for advice on how to make use of this class for "unusual" character
+   *  for advice on how to make use of this class for @a unusual character
    *  types. Also, check out include/ext/pod_char_traits.h.
   */
   template<class _CharT>
@@ -294,7 +287,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       static int_type
       eof()
-      { return static_cast<int_type>(_CHAR_TRAITS_EOF); }
+      { return static_cast<int_type>(_GLIBCXX_STDIO_EOF); }
 
       static int_type
       not_eof(const int_type& __c)
@@ -569,7 +562,5 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 _GLIBCXX_END_NAMESPACE
 
 #endif 
-
-#undef _CHAR_TRAITS_EOF
 
 #endif // _CHAR_TRAITS_H

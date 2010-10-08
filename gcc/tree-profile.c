@@ -1,6 +1,6 @@
 /* Calculate branch probabilities, and basic block execution counts.
    Copyright (C) 1990, 1991, 1992, 1993, 1994, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2010
    Free Software Foundation, Inc.
    Contributed by James E. Wilson, UC Berkeley/Cygnus Support;
    based on some ideas from Dain Samples of UC Berkeley.
@@ -30,12 +30,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "rtl.h"
 #include "flags.h"
-#include "output.h"
 #include "regs.h"
-#include "expr.h"
 #include "function.h"
+#include "basic-block.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "coverage.h"
 #include "tree.h"
@@ -44,7 +43,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "timevar.h"
 #include "value-prof.h"
-#include "ggc.h"
 #include "cgraph.h"
 
 static GTY(()) tree gcov_type_node;
@@ -73,27 +71,29 @@ tree_init_ic_make_global_vars (void)
   tree  gcov_type_ptr;
 
   ptr_void = build_pointer_type (void_type_node);
-  
-  ic_void_ptr_var 
-    = build_decl (UNKNOWN_LOCATION, VAR_DECL, 
-		  get_identifier ("__gcov_indirect_call_callee"), 
+
+  ic_void_ptr_var
+    = build_decl (UNKNOWN_LOCATION, VAR_DECL,
+		  get_identifier ("__gcov_indirect_call_callee"),
 		  ptr_void);
   TREE_STATIC (ic_void_ptr_var) = 1;
   TREE_PUBLIC (ic_void_ptr_var) = 0;
   DECL_ARTIFICIAL (ic_void_ptr_var) = 1;
   DECL_INITIAL (ic_void_ptr_var) = NULL;
-  assemble_variable (ic_void_ptr_var, 0, 0, 0);
+  varpool_finalize_decl (ic_void_ptr_var);
+  varpool_mark_needed_node (varpool_node (ic_void_ptr_var));
 
   gcov_type_ptr = build_pointer_type (get_gcov_type ());
-  ic_gcov_type_ptr_var 
-    = build_decl (UNKNOWN_LOCATION, VAR_DECL, 
-		  get_identifier ("__gcov_indirect_call_counters"), 
+  ic_gcov_type_ptr_var
+    = build_decl (UNKNOWN_LOCATION, VAR_DECL,
+		  get_identifier ("__gcov_indirect_call_counters"),
 		  gcov_type_ptr);
   TREE_STATIC (ic_gcov_type_ptr_var) = 1;
   TREE_PUBLIC (ic_gcov_type_ptr_var) = 0;
   DECL_ARTIFICIAL (ic_gcov_type_ptr_var) = 1;
   DECL_INITIAL (ic_gcov_type_ptr_var) = NULL;
-  assemble_variable (ic_gcov_type_ptr_var, 0, 0, 0);
+  varpool_finalize_decl (ic_gcov_type_ptr_var);
+  varpool_mark_needed_node (varpool_node (ic_gcov_type_ptr_var));
 }
 
 static void
@@ -120,6 +120,10 @@ tree_init_edge_profiler (void)
       tree_interval_profiler_fn
 	      = build_fn_decl ("__gcov_interval_profiler",
 				     interval_profiler_fn_type);
+      TREE_NOTHROW (tree_interval_profiler_fn) = 1;
+      DECL_ATTRIBUTES (tree_interval_profiler_fn)
+	= tree_cons (get_identifier ("leaf"), NULL,
+		     DECL_ATTRIBUTES (tree_interval_profiler_fn));
 
       /* void (*) (gcov_type *, gcov_type)  */
       pow2_profiler_fn_type
@@ -128,6 +132,10 @@ tree_init_edge_profiler (void)
 					  NULL_TREE);
       tree_pow2_profiler_fn = build_fn_decl ("__gcov_pow2_profiler",
 						   pow2_profiler_fn_type);
+      TREE_NOTHROW (tree_pow2_profiler_fn) = 1;
+      DECL_ATTRIBUTES (tree_pow2_profiler_fn)
+	= tree_cons (get_identifier ("leaf"), NULL,
+		     DECL_ATTRIBUTES (tree_pow2_profiler_fn));
 
       /* void (*) (gcov_type *, gcov_type)  */
       one_value_profiler_fn_type
@@ -137,9 +145,13 @@ tree_init_edge_profiler (void)
       tree_one_value_profiler_fn
 	      = build_fn_decl ("__gcov_one_value_profiler",
 				     one_value_profiler_fn_type);
+      TREE_NOTHROW (tree_one_value_profiler_fn) = 1;
+      DECL_ATTRIBUTES (tree_one_value_profiler_fn)
+	= tree_cons (get_identifier ("leaf"), NULL,
+		     DECL_ATTRIBUTES (tree_one_value_profiler_fn));
 
       tree_init_ic_make_global_vars ();
-      
+
       /* void (*) (gcov_type *, gcov_type, void *, void *)  */
       ic_profiler_fn_type
 	       = build_function_type_list (void_type_node,
@@ -149,6 +161,11 @@ tree_init_edge_profiler (void)
       tree_indirect_call_profiler_fn
 	      = build_fn_decl ("__gcov_indirect_call_profiler",
 				     ic_profiler_fn_type);
+      TREE_NOTHROW (tree_indirect_call_profiler_fn) = 1;
+      DECL_ATTRIBUTES (tree_indirect_call_profiler_fn)
+	= tree_cons (get_identifier ("leaf"), NULL,
+		     DECL_ATTRIBUTES (tree_indirect_call_profiler_fn));
+
       /* void (*) (gcov_type *, gcov_type)  */
       average_profiler_fn_type
 	      = build_function_type_list (void_type_node,
@@ -156,28 +173,31 @@ tree_init_edge_profiler (void)
       tree_average_profiler_fn
 	      = build_fn_decl ("__gcov_average_profiler",
 				     average_profiler_fn_type);
+      TREE_NOTHROW (tree_average_profiler_fn) = 1;
+      DECL_ATTRIBUTES (tree_average_profiler_fn)
+	= tree_cons (get_identifier ("leaf"), NULL,
+		     DECL_ATTRIBUTES (tree_average_profiler_fn));
       tree_ior_profiler_fn
 	      = build_fn_decl ("__gcov_ior_profiler",
 				     average_profiler_fn_type);
+      TREE_NOTHROW (tree_ior_profiler_fn) = 1;
+      DECL_ATTRIBUTES (tree_ior_profiler_fn)
+	= tree_cons (get_identifier ("leaf"), NULL,
+		     DECL_ATTRIBUTES (tree_ior_profiler_fn));
+
+      /* LTO streamer needs assembler names.  Because we create these decls
+         late, we need to initialize them by hand.  */
+      DECL_ASSEMBLER_NAME (tree_interval_profiler_fn);
+      DECL_ASSEMBLER_NAME (tree_pow2_profiler_fn);
+      DECL_ASSEMBLER_NAME (tree_one_value_profiler_fn);
+      DECL_ASSEMBLER_NAME (tree_indirect_call_profiler_fn);
+      DECL_ASSEMBLER_NAME (tree_average_profiler_fn);
+      DECL_ASSEMBLER_NAME (tree_ior_profiler_fn);
     }
 }
 
-/* New call was added, make goto call edges if neccesary.  */
-
-static void
-add_abnormal_goto_call_edges (gimple_stmt_iterator gsi)
-{
-  gimple stmt = gsi_stmt (gsi);
-
-  if (!stmt_can_make_abnormal_goto (stmt))
-    return;
-  if (!gsi_end_p (gsi))
-    split_block (gimple_bb (stmt), stmt);
-  make_abnormal_goto_edges (gimple_bb (stmt), true);
-}
-
-/* Output instructions as GIMPLE trees to increment the edge 
-   execution count, and insert them on E.  We rely on 
+/* Output instructions as GIMPLE trees to increment the edge
+   execution count, and insert them on E.  We rely on
    gsi_insert_on_edge to preserve the order.  */
 
 static void
@@ -189,13 +209,15 @@ tree_gen_edge_profiler (int edgeno, edge e)
   /* We share one temporary variable declaration per function.  This
      gets re-set in tree_profiling.  */
   if (gcov_type_tmp_var == NULL_TREE)
-    gcov_type_tmp_var = create_tmp_var (gcov_type_node, "PROF_edge_counter");
+    gcov_type_tmp_var = create_tmp_reg (gcov_type_node, "PROF_edge_counter");
   ref = tree_coverage_counter_ref (GCOV_COUNTER_ARCS, edgeno);
   one = build_int_cst (gcov_type_node, 1);
   stmt1 = gimple_build_assign (gcov_type_tmp_var, ref);
+  gimple_assign_set_lhs (stmt1, make_ssa_name (gcov_type_tmp_var, stmt1));
   stmt2 = gimple_build_assign_with_ops (PLUS_EXPR, gcov_type_tmp_var,
-					gcov_type_tmp_var, one);
-  stmt3 = gimple_build_assign (unshare_expr (ref), gcov_type_tmp_var);
+					gimple_assign_lhs (stmt1), one);
+  gimple_assign_set_lhs (stmt2, make_ssa_name (gcov_type_tmp_var, stmt2));
+  stmt3 = gimple_build_assign (unshare_expr (ref), gimple_assign_lhs (stmt2));
   gsi_insert_on_edge (e, stmt1);
   gsi_insert_on_edge (e, stmt2);
   gsi_insert_on_edge (e, stmt3);
@@ -214,8 +236,8 @@ prepare_instrumented_value (gimple_stmt_iterator *gsi, histogram_value value)
 				   true, NULL_TREE, true, GSI_SAME_STMT);
 }
 
-/* Output instructions as GIMPLE trees to increment the interval histogram 
-   counter.  VALUE is the expression whose value is profiled.  TAG is the 
+/* Output instructions as GIMPLE trees to increment the interval histogram
+   counter.  VALUE is the expression whose value is profiled.  TAG is the
    tag of the section for counters, BASE is offset of the counter position.  */
 
 static void
@@ -230,7 +252,7 @@ tree_gen_interval_profiler (histogram_value value, unsigned tag, unsigned base)
 				   value->hdata.intvl.int_start);
   tree steps = build_int_cst_type (unsigned_type_node,
 				   value->hdata.intvl.steps);
-  
+
   ref_ptr = force_gimple_operand_gsi (&gsi,
 				      build_addr (ref, current_function_decl),
 				      true, NULL_TREE, true, GSI_SAME_STMT);
@@ -238,11 +260,10 @@ tree_gen_interval_profiler (histogram_value value, unsigned tag, unsigned base)
   call = gimple_build_call (tree_interval_profiler_fn, 4,
 			    ref_ptr, val, start, steps);
   gsi_insert_before (&gsi, call, GSI_NEW_STMT);
-  add_abnormal_goto_call_edges (gsi);
 }
 
-/* Output instructions as GIMPLE trees to increment the power of two histogram 
-   counter.  VALUE is the expression whose value is profiled.  TAG is the tag 
+/* Output instructions as GIMPLE trees to increment the power of two histogram
+   counter.  VALUE is the expression whose value is profiled.  TAG is the tag
    of the section for counters, BASE is offset of the counter position.  */
 
 static void
@@ -253,13 +274,12 @@ tree_gen_pow2_profiler (histogram_value value, unsigned tag, unsigned base)
   tree ref_ptr = tree_coverage_counter_addr (tag, base);
   gimple call;
   tree val;
-  
+
   ref_ptr = force_gimple_operand_gsi (&gsi, ref_ptr,
 				      true, NULL_TREE, true, GSI_SAME_STMT);
   val = prepare_instrumented_value (&gsi, value);
   call = gimple_build_call (tree_pow2_profiler_fn, 2, ref_ptr, val);
   gsi_insert_before (&gsi, call, GSI_NEW_STMT);
-  add_abnormal_goto_call_edges (gsi);
 }
 
 /* Output instructions as GIMPLE trees for code to find the most common value.
@@ -274,18 +294,17 @@ tree_gen_one_value_profiler (histogram_value value, unsigned tag, unsigned base)
   tree ref_ptr = tree_coverage_counter_addr (tag, base);
   gimple call;
   tree val;
-  
+
   ref_ptr = force_gimple_operand_gsi (&gsi, ref_ptr,
 				      true, NULL_TREE, true, GSI_SAME_STMT);
   val = prepare_instrumented_value (&gsi, value);
   call = gimple_build_call (tree_one_value_profiler_fn, 2, ref_ptr, val);
   gsi_insert_before (&gsi, call, GSI_NEW_STMT);
-  add_abnormal_goto_call_edges (gsi);
 }
 
 
 /* Output instructions as GIMPLE trees for code to find the most
-   common called function in indirect call.  
+   common called function in indirect call.
    VALUE is the call expression whose indirect callee is profiled.
    TAG is the tag of the section for counters, BASE is offset of the
    counter position.  */
@@ -303,15 +322,16 @@ tree_gen_ic_profiler (histogram_value value, unsigned tag, unsigned base)
 				      true, NULL_TREE, true, GSI_SAME_STMT);
 
   /* Insert code:
-    
-    __gcov_indirect_call_counters = get_relevant_counter_ptr (); 
+
+    __gcov_indirect_call_counters = get_relevant_counter_ptr ();
     __gcov_indirect_call_callee = (void *) indirect call argument;
    */
 
-  tmp1 = create_tmp_var (ptr_void, "PROF");
+  tmp1 = create_tmp_reg (ptr_void, "PROF");
   stmt1 = gimple_build_assign (ic_gcov_type_ptr_var, ref_ptr);
   stmt2 = gimple_build_assign (tmp1, unshare_expr (value->hvalue.value));
-  stmt3 = gimple_build_assign (ic_void_ptr_var, tmp1);
+  gimple_assign_set_lhs (stmt2, make_ssa_name (tmp1, stmt2));
+  stmt3 = gimple_build_assign (ic_void_ptr_var, gimple_assign_lhs (stmt2));
 
   gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
   gsi_insert_before (&gsi, stmt2, GSI_SAME_STMT);
@@ -329,51 +349,41 @@ tree_gen_ic_func_profiler (void)
 {
   struct cgraph_node * c_node = cgraph_node (current_function_decl);
   gimple_stmt_iterator gsi;
-  edge e;
-  basic_block bb;
-  edge_iterator ei;
   gimple stmt1, stmt2;
-  tree tree_uid, cur_func;
+  tree tree_uid, cur_func, counter_ptr, ptr_var, void0;
 
-  if (!c_node->needed)
+  if (cgraph_only_called_directly_p (c_node))
     return;
-  
+
   tree_init_edge_profiler ();
-  
-  FOR_EACH_EDGE (e, ei, ENTRY_BLOCK_PTR->succs)
-    {
-      tree void0;
 
-      bb = split_edge (e);
-      gsi = gsi_start_bb (bb);
+  gsi = gsi_after_labels (single_succ (ENTRY_BLOCK_PTR));
 
-      cur_func = force_gimple_operand_gsi (&gsi,
-					   build_addr (current_function_decl, 
-						       current_function_decl),
-					   true, NULL_TREE,
-					   true, GSI_SAME_STMT);
-      tree_uid = build_int_cst (gcov_type_node, c_node->pid);
-      stmt1 = gimple_build_call (tree_indirect_call_profiler_fn, 4,
-				 ic_gcov_type_ptr_var,
-				 tree_uid,
-				 cur_func,
-				 ic_void_ptr_var);
-      gsi_insert_after (&gsi, stmt1, GSI_NEW_STMT);
-      gcc_assert (EDGE_COUNT (bb->succs) == 1);
-      bb = split_edge (EDGE_I (bb->succs, 0));
-      add_abnormal_goto_call_edges (gsi);
+  cur_func = force_gimple_operand_gsi (&gsi,
+				       build_addr (current_function_decl,
+						   current_function_decl),
+				       true, NULL_TREE,
+				       true, GSI_SAME_STMT);
+  counter_ptr = force_gimple_operand_gsi (&gsi, ic_gcov_type_ptr_var,
+					  true, NULL_TREE, true,
+					  GSI_SAME_STMT);
+  ptr_var = force_gimple_operand_gsi (&gsi, ic_void_ptr_var,
+				      true, NULL_TREE, true,
+				      GSI_SAME_STMT);
+  tree_uid = build_int_cst (gcov_type_node, c_node->pid);
+  stmt1 = gimple_build_call (tree_indirect_call_profiler_fn, 4,
+			     counter_ptr, tree_uid, cur_func, ptr_var);
+  gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
 
-      gsi = gsi_start_bb (bb);
-      /* Set __gcov_indirect_call_callee to 0,
-         so that calls from other modules won't get misattributed
-	 to the last caller of the current callee. */
-      void0 = build_int_cst (build_pointer_type (void_type_node), 0);
-      stmt2 = gimple_build_assign (ic_void_ptr_var, void0);
-      gsi_insert_after (&gsi, stmt2, GSI_NEW_STMT);
-    }
+  /* Set __gcov_indirect_call_callee to 0,
+     so that calls from other modules won't get misattributed
+     to the last caller of the current callee. */
+  void0 = build_int_cst (build_pointer_type (void_type_node), 0);
+  stmt2 = gimple_build_assign (ic_void_ptr_var, void0);
+  gsi_insert_before (&gsi, stmt2, GSI_SAME_STMT);
 }
 
-/* Output instructions as GIMPLE trees for code to find the most common value 
+/* Output instructions as GIMPLE trees for code to find the most common value
    of a difference between two evaluations of an expression.
    VALUE is the expression whose value is profiled.  TAG is the tag of the
    section for counters, BASE is offset of the counter position.  */
@@ -390,8 +400,8 @@ tree_gen_const_delta_profiler (histogram_value value ATTRIBUTE_UNUSED,
   gcc_unreachable ();
 }
 
-/* Output instructions as GIMPLE trees to increment the average histogram 
-   counter.  VALUE is the expression whose value is profiled.  TAG is the 
+/* Output instructions as GIMPLE trees to increment the average histogram
+   counter.  VALUE is the expression whose value is profiled.  TAG is the
    tag of the section for counters, BASE is offset of the counter position.  */
 
 static void
@@ -402,18 +412,17 @@ tree_gen_average_profiler (histogram_value value, unsigned tag, unsigned base)
   tree ref_ptr = tree_coverage_counter_addr (tag, base);
   gimple call;
   tree val;
-  
+
   ref_ptr = force_gimple_operand_gsi (&gsi, ref_ptr,
 				      true, NULL_TREE,
 				      true, GSI_SAME_STMT);
   val = prepare_instrumented_value (&gsi, value);
   call = gimple_build_call (tree_average_profiler_fn, 2, ref_ptr, val);
   gsi_insert_before (&gsi, call, GSI_NEW_STMT);
-  add_abnormal_goto_call_edges (gsi);
 }
 
-/* Output instructions as GIMPLE trees to increment the ior histogram 
-   counter.  VALUE is the expression whose value is profiled.  TAG is the 
+/* Output instructions as GIMPLE trees to increment the ior histogram
+   counter.  VALUE is the expression whose value is profiled.  TAG is the
    tag of the section for counters, BASE is offset of the counter position.  */
 
 static void
@@ -424,82 +433,158 @@ tree_gen_ior_profiler (histogram_value value, unsigned tag, unsigned base)
   tree ref_ptr = tree_coverage_counter_addr (tag, base);
   gimple call;
   tree val;
-  
+
   ref_ptr = force_gimple_operand_gsi (&gsi, ref_ptr,
 				      true, NULL_TREE, true, GSI_SAME_STMT);
   val = prepare_instrumented_value (&gsi, value);
   call = gimple_build_call (tree_ior_profiler_fn, 2, ref_ptr, val);
   gsi_insert_before (&gsi, call, GSI_NEW_STMT);
-  add_abnormal_goto_call_edges (gsi);
 }
 
-/* Return 1 if tree-based profiling is in effect, else 0.
-   If it is, set up hooks for tree-based profiling.
-   Gate for pass_tree_profile.  */
-
-static bool
-do_tree_profiling (void)
-{
-  if (profile_arc_flag || flag_test_coverage || flag_branch_probabilities)
-    {
-      tree_register_profile_hooks ();
-      gimple_register_value_prof_hooks ();
-      return true;
-    }
-  return false;
-}
+/* Profile all functions in the callgraph.  */
 
 static unsigned int
 tree_profiling (void)
 {
+  struct cgraph_node *node;
+
   /* Don't profile functions produced at destruction time, particularly
      the gcov datastructure initializer.  Don't profile if it has been
      already instrumented either (when OpenMP expansion creates
      child function from already instrumented body).  */
-  if (cgraph_state == CGRAPH_STATE_FINISHED
-      || cfun->after_tree_profile)
+  if (cgraph_state == CGRAPH_STATE_FINISHED)
     return 0;
 
-  /* Re-set global shared temporary variable for edge-counters.  */
-  gcov_type_tmp_var = NULL_TREE;
+  tree_register_profile_hooks ();
+  gimple_register_value_prof_hooks ();
 
-  branch_prob ();
+  for (node = cgraph_nodes; node; node = node->next)
+    {
+      if (!node->analyzed
+	  || !gimple_has_body_p (node->decl)
+	  || !(!node->clone_of || node->decl != node->clone_of->decl))
+	continue;
 
-  if (! flag_branch_probabilities 
-      && flag_profile_values)
-    tree_gen_ic_func_profiler ();
+      /* Don't profile functions produced for builtin stuff.  */
+      if (DECL_SOURCE_LOCATION (node->decl) == BUILTINS_LOCATION
+	  || DECL_STRUCT_FUNCTION (node->decl)->after_tree_profile)
+	continue;
 
-  if (flag_branch_probabilities
-      && flag_profile_values
-      && flag_value_profile_transformations)
-    value_profile_transformations ();
-  /* The above could hose dominator info.  Currently there is
-     none coming in, this is a safety valve.  It should be
-     easy to adjust it, if and when there is some.  */
-  free_dominance_info (CDI_DOMINATORS);
-  free_dominance_info (CDI_POST_DOMINATORS);
-  cfun->after_tree_profile = 1;
+      push_cfun (DECL_STRUCT_FUNCTION (node->decl));
+      current_function_decl = node->decl;
+
+      /* Re-set global shared temporary variable for edge-counters.  */
+      gcov_type_tmp_var = NULL_TREE;
+
+      branch_prob ();
+
+      if (! flag_branch_probabilities
+	  && flag_profile_values)
+	tree_gen_ic_func_profiler ();
+
+      if (flag_branch_probabilities
+	  && flag_profile_values
+	  && flag_value_profile_transformations)
+	value_profile_transformations ();
+
+      /* The above could hose dominator info.  Currently there is
+	 none coming in, this is a safety valve.  It should be
+	 easy to adjust it, if and when there is some.  */
+      free_dominance_info (CDI_DOMINATORS);
+      free_dominance_info (CDI_POST_DOMINATORS);
+
+      current_function_decl = NULL;
+      pop_cfun ();
+    }
+
+  /* Drop pure/const flags from instrumented functions.  */
+  for (node = cgraph_nodes; node; node = node->next)
+    {
+      if (!node->analyzed
+	  || !gimple_has_body_p (node->decl)
+	  || !(!node->clone_of || node->decl != node->clone_of->decl))
+	continue;
+
+      /* Don't profile functions produced for builtin stuff.  */
+      if (DECL_SOURCE_LOCATION (node->decl) == BUILTINS_LOCATION
+	  || DECL_STRUCT_FUNCTION (node->decl)->after_tree_profile)
+	continue;
+
+      cgraph_set_readonly_flag (node, false);
+      cgraph_set_pure_flag (node, false);
+      cgraph_set_looping_const_or_pure_flag (node, false);
+    }
+
+  /* Update call statements and rebuild the cgraph.  */
+  for (node = cgraph_nodes; node; node = node->next)
+    {
+      basic_block bb;
+
+      if (!node->analyzed
+	  || !gimple_has_body_p (node->decl)
+	  || !(!node->clone_of || node->decl != node->clone_of->decl))
+	continue;
+
+      /* Don't profile functions produced for builtin stuff.  */
+      if (DECL_SOURCE_LOCATION (node->decl) == BUILTINS_LOCATION
+	  || DECL_STRUCT_FUNCTION (node->decl)->after_tree_profile)
+	continue;
+
+      push_cfun (DECL_STRUCT_FUNCTION (node->decl));
+      current_function_decl = node->decl;
+
+      FOR_EACH_BB (bb)
+	{
+	  gimple_stmt_iterator gsi;
+	  for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
+	    {
+	      gimple stmt = gsi_stmt (gsi);
+	      if (is_gimple_call (stmt))
+		update_stmt (stmt);
+	    }
+	}
+
+      cfun->after_tree_profile = 1;
+      update_ssa (TODO_update_ssa);
+
+      rebuild_cgraph_edges ();
+
+      current_function_decl = NULL;
+      pop_cfun ();
+    }
+
   return 0;
 }
 
-struct gimple_opt_pass pass_tree_profile = 
+/* When profile instrumentation, use or test coverage shall be performed.  */
+
+static bool
+gate_tree_profile_ipa (void)
+{
+  return (!in_lto_p
+	  && (flag_branch_probabilities || flag_test_coverage
+	      || profile_arc_flag));
+}
+
+struct simple_ipa_opt_pass pass_ipa_tree_profile =
 {
  {
-  GIMPLE_PASS,
-  "tree_profile",			/* name */
-  do_tree_profiling,			/* gate */
-  tree_profiling,			/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_BRANCH_PROB,			/* tv_id */
-  PROP_gimple_leh | PROP_cfg,		/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_verify_stmts | TODO_dump_func	/* todo_flags_finish */
+  SIMPLE_IPA_PASS,
+  "tree_profile_ipa",                  /* name */
+  gate_tree_profile_ipa,               /* gate */
+  tree_profiling,                      /* execute */
+  NULL,                                /* sub */
+  NULL,                                /* next */
+  0,                                   /* static_pass_number */
+  TV_IPA_PROFILE,                      /* tv_id */
+  0,                                   /* properties_required */
+  0,                                   /* properties_provided */
+  0,                                   /* properties_destroyed */
+  0,                                   /* todo_flags_start */
+  TODO_dump_func                       /* todo_flags_finish */
  }
 };
+
 
 struct profile_hooks tree_profile_hooks =
 {

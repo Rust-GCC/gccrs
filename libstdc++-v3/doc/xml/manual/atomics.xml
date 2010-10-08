@@ -1,0 +1,57 @@
+<chapter xmlns="http://docbook.org/ns/docbook" version="5.0" 
+	 xml:id="std.atomics" xreflabel="Atomics">
+<?dbhtml filename="atomics.html"?>
+
+<info><title>
+  Atomics
+  <indexterm><primary>Atomics</primary></indexterm>
+</title>
+  <keywordset>
+    <keyword>
+      ISO C++
+    </keyword>
+    <keyword>
+      library
+    </keyword>
+    <keyword>
+      atomic
+    </keyword>
+  </keywordset>
+</info>
+
+
+
+<para>
+  Facilities for atomic operations.
+</para>
+
+<!-- Sect1 01 : API -->
+<section xml:id="std.atomics.api"><info><title>API Reference</title></info>
+  
+
+  <para>
+    All items are declared in the standard header
+    file <filename>atomic</filename>.
+  </para>
+
+  <para>
+    Set of typedefs that map <type>int</type> to
+    <classname>atomic_int</classname>, and so on for all builtin
+    integral types. Global enumeration <type>memory_order</type> to
+    control memory ordering. Also includes
+    <classname>atomic</classname>, a class template with member
+    functions such as <function>load</function> and
+    <function>store</function> that is instantiable such that
+    <classname>atomic_int</classname> is the base class of
+    <classname>atomic&lt;int&gt;</classname>.
+  </para>
+
+  <para>
+    Full API details.
+  </para>
+
+  <!-- Doxygen XML: api/group__atomics.xml -->
+
+</section>
+
+</chapter>

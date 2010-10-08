@@ -1,6 +1,7 @@
 /* Definitions of target machine for GNU compiler for Renesas / SuperH SH.
    Copyright (C) 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
-   2003, 2004, 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Steve Chamberlain (sac@cygnus.com).
    Improved by Jim Wilson (wilson@cygnus.com).
 
@@ -97,8 +98,15 @@ do { \
 		  ? "__LITTLE_ENDIAN__" : "__BIG_ENDIAN__"); \
 } while (0)
 
-/* We can not debug without a frame pointer.  */
-/* #define CAN_DEBUG_WITHOUT_FP */
+#define CAN_DEBUG_WITHOUT_FP 
+
+/* Value should be nonzero if functions must have frame pointers.
+   Zero means the frame pointer need not be set up (and parms may be accessed
+   via the stack pointer) in functions that seem suitable.  */
+
+#ifndef SUBTARGET_FRAME_POINTER_REQUIRED
+#define SUBTARGET_FRAME_POINTER_REQUIRED 0
+#endif
 
 #define CONDITIONAL_REGISTER_USAGE do					\
 {									\
@@ -462,8 +470,6 @@ do { \
 
 #define DRIVER_SELF_SPECS "%{m2a:%{ml:%eSH2a does not support little-endian}}"
 
-#define OPTIMIZATION_OPTIONS(LEVEL,SIZE) sh_optimization_options (LEVEL, SIZE)
-
 #define ASSEMBLER_DIALECT assembler_dialect
 
 extern int assembler_dialect;
@@ -496,10 +502,6 @@ extern enum sh_divide_strategy_e sh_div_strategy;
 #endif
 
 #define SUBTARGET_OVERRIDE_OPTIONS (void) 0
-
-extern const char *sh_fixed_range_str;
-
-#define OVERRIDE_OPTIONS sh_override_options ()
 
 
 /* Target machine storage layout.  */
@@ -1201,11 +1203,12 @@ extern enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
   FPUL_REGS, LIM_REG_CLASSES						     \
 }
 
-/* When defined, the compiler allows registers explicitly used in the
-   rtl to be used as spill registers but prevents the compiler from
-   extending the lifetime of these registers.  */
-
-#define SMALL_REGISTER_CLASSES (! TARGET_SHMEDIA)
+/* When this hook returns true for MODE, the compiler allows
+   registers explicitly used in the rtl to be used as spill registers
+   but prevents the compiler from extending the lifetime of these
+   registers.  */
+#define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P \
+  sh_small_register_classes_for_mode_p
 
 /* The order in which register should be allocated.  */
 /* Sometimes FP0_REGS becomes the preferred class of a floating point pseudo,
@@ -1414,17 +1417,6 @@ extern enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
 /* Offset of first parameter from the argument pointer register value.  */
 #define FIRST_PARM_OFFSET(FNDECL)  0
 
-/* Value is the number of byte of arguments automatically
-   popped when returning from a subroutine call.
-   FUNDECL is the declaration node of the function (as a tree),
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.
-   SIZE is the number of bytes of arguments passed on the stack.
-
-   On the SH, the caller does not pop any of its arguments that were passed
-   on the stack.  */
-#define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE)  0
-
 /* Value is the number of bytes of arguments automatically popped when
    calling a subroutine.
    CUM is the accumulated argument list.
@@ -1452,38 +1444,6 @@ extern enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
 		    || GET_MODE_CLASS (MODE) == MODE_COMPLEX_FLOAT)\
    ? FIRST_FP_PARM_REG					\
    : FIRST_PARM_REG)
-
-/* Define how to find the value returned by a function.
-   VALTYPE is the data type of the value (as a tree).
-   If the precise function being called is known, FUNC is its FUNCTION_DECL;
-   otherwise, FUNC is 0.
-   For the SH, this is like LIBCALL_VALUE, except that we must change the
-   mode like PROMOTE_MODE does.
-   ??? PROMOTE_MODE is ignored for non-scalar types.  The set of types
-   tested here has to be kept in sync with the one in explow.c:promote_mode.  */
-
-#define FUNCTION_VALUE(VALTYPE, FUNC)					\
-  gen_rtx_REG (								\
-	   ((GET_MODE_CLASS (TYPE_MODE (VALTYPE)) == MODE_INT		\
-	     && GET_MODE_SIZE (TYPE_MODE (VALTYPE)) < 4                 \
-	     && (TREE_CODE (VALTYPE) == INTEGER_TYPE			\
-		 || TREE_CODE (VALTYPE) == ENUMERAL_TYPE		\
-		 || TREE_CODE (VALTYPE) == BOOLEAN_TYPE			\
-		 || TREE_CODE (VALTYPE) == REAL_TYPE			\
-		 || TREE_CODE (VALTYPE) == OFFSET_TYPE))		\
-             && sh_promote_prototypes (FUNC)				\
-	    ? (TARGET_SHMEDIA64 ? DImode : SImode) : TYPE_MODE (VALTYPE)), \
-	   BASE_RETURN_VALUE_REG (TYPE_MODE (VALTYPE)))
-
-/* Define how to find the value returned by a library function
-   assuming the value has mode MODE.  */
-#define LIBCALL_VALUE(MODE) \
-  gen_rtx_REG ((MODE), BASE_RETURN_VALUE_REG (MODE));
-
-/* 1 if N is a possible register number for a function value.  */
-#define FUNCTION_VALUE_REGNO_P(REGNO) \
-  ((REGNO) == FIRST_RET_REG || (TARGET_SH2E && (REGNO) == FIRST_FP_RET_REG) \
-   || (TARGET_SHMEDIA_FPU && (REGNO) == FIRST_FP_RET_REG))
 
 /* 1 if N is a possible register number for function argument passing.  */
 /* ??? There are some callers that pass REGNO as int, and others that pass
@@ -1657,17 +1617,12 @@ struct sh_args {
 #define INIT_CUMULATIVE_LIBCALL_ARGS(CUM, MODE, LIBNAME) \
   sh_init_cumulative_args (& (CUM), NULL_TREE, (LIBNAME), NULL_TREE, 0, (MODE))
 
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)	\
-	sh_function_arg_advance (&(CUM), (MODE), (TYPE), (NAMED))
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED)	\
-	sh_function_arg (&(CUM), (MODE), (TYPE), (NAMED))
-
 /* Return boolean indicating arg of mode MODE will be passed in a reg.
    This macro is only used in this file.  */
 
 #define PASS_IN_REG_P(CUM, MODE, TYPE) \
   (((TYPE) == 0 \
-    || (! TREE_ADDRESSABLE ((tree)(TYPE)) \
+    || (! TREE_ADDRESSABLE ((TYPE)) \
 	&& (! (TARGET_HITACHI || (CUM).renesas_abi) \
 	    || ! (AGGREGATE_TYPE_P (TYPE) \
 		  || (!TARGET_FPU_ANY \
@@ -2040,84 +1995,13 @@ struct sh_args {
 
 /* A C compound statement that attempts to replace X, which is an address
    that needs reloading, with a valid memory address for an operand of
-   mode MODE.  WIN is a C statement label elsewhere in the code.
-
-   Like for LEGITIMIZE_ADDRESS, for the SH we try to get a normal form
-   of the address.  That will allow inheritance of the address reloads.  */
+   mode MODE.  WIN is a C statement label elsewhere in the code.  */
 
 #define LEGITIMIZE_RELOAD_ADDRESS(X,MODE,OPNUM,TYPE,IND_LEVELS,WIN)	\
-{									\
-  if (GET_CODE (X) == PLUS						\
-      && (GET_MODE_SIZE (MODE) == 4 || GET_MODE_SIZE (MODE) == 8)	\
-      && CONST_INT_P (XEXP (X, 1))					\
-      && BASE_REGISTER_RTX_P (XEXP (X, 0))				\
-      && ! TARGET_SHMEDIA						\
-      && ! (TARGET_SH4 && (MODE) == DFmode)				\
-      && ! ((MODE) == PSImode && (TYPE) == RELOAD_FOR_INPUT_ADDRESS)	\
-      && (ALLOW_INDEXED_ADDRESS						\
-	  || XEXP ((X), 0) == stack_pointer_rtx				\
-	  || XEXP ((X), 0) == hard_frame_pointer_rtx))			\
-    {									\
-      rtx index_rtx = XEXP (X, 1);					\
-      HOST_WIDE_INT offset = INTVAL (index_rtx), offset_base;		\
-      rtx sum;								\
-									\
-      if (TARGET_SH2A && (MODE) == DFmode && (offset & 0x7))		\
-	{								\
-	  push_reload (X, NULL_RTX, &X, NULL,				\
-		       BASE_REG_CLASS, Pmode, VOIDmode, 0, 0, (OPNUM),	\
-		       (TYPE));						\
-	  goto WIN;							\
-	}								\
-      if (TARGET_SH2E && MODE == SFmode)				\
-	{								\
-	  X = copy_rtx (X);						\
-	  push_reload (X, NULL_RTX, &X, NULL,				\
-		       BASE_REG_CLASS, Pmode, VOIDmode, 0, 0, (OPNUM),	\
-		       (TYPE));						\
-	  goto WIN;							\
-	}								\
-      /* Instead of offset_base 128..131 use 124..127, so that		\
-	 simple add suffices.  */					\
-      if (offset > 127)							\
-	{								\
-	  offset_base = ((offset + 4) & ~60) - 4;			\
-	}								\
-      else								\
-	offset_base = offset & ~60;					\
-      /* Sometimes the normal form does not suit DImode.  We		\
-	 could avoid that by using smaller ranges, but that		\
-	 would give less optimized code when SImode is			\
-	 prevalent.  */							\
-      if (GET_MODE_SIZE (MODE) + offset - offset_base <= 64)		\
-	{								\
-	  sum = gen_rtx_PLUS (Pmode, XEXP (X, 0),			\
-			 GEN_INT (offset_base));			\
-	  X = gen_rtx_PLUS (Pmode, sum, GEN_INT (offset - offset_base));\
-	  push_reload (sum, NULL_RTX, &XEXP (X, 0), NULL,		\
-		       BASE_REG_CLASS, Pmode, VOIDmode, 0, 0, (OPNUM),	\
-		       (TYPE));						\
-	  goto WIN;							\
-	}								\
-    }									\
-  /* We must re-recognize what we created before.  */			\
-  else if (GET_CODE (X) == PLUS						\
-	   && (GET_MODE_SIZE (MODE) == 4 || GET_MODE_SIZE (MODE) == 8)	\
-	   && GET_CODE (XEXP (X, 0)) == PLUS				\
-	   && CONST_INT_P (XEXP (XEXP (X, 0), 1))			\
-	   && BASE_REGISTER_RTX_P (XEXP (XEXP (X, 0), 0))		\
-	   && CONST_INT_P (XEXP (X, 1))					\
-	   && ! TARGET_SHMEDIA						\
-	   && ! (TARGET_SH2E && MODE == SFmode))			\
-    {									\
-      /* Because this address is so complex, we know it must have	\
-	 been created by LEGITIMIZE_RELOAD_ADDRESS before; thus,	\
-	 it is already unshared, and needs no further unsharing.  */	\
-      push_reload (XEXP ((X), 0), NULL_RTX, &XEXP ((X), 0), NULL,	\
-		   BASE_REG_CLASS, Pmode, VOIDmode, 0, 0, (OPNUM), (TYPE));\
+  do {									\
+    if (sh_legitimize_reload_address (&(X), (MODE), (OPNUM), (TYPE)))	\
       goto WIN;								\
-    }									\
-}
+  } while (0)
 
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */
@@ -2281,9 +2165,6 @@ struct sh_args {
 #define REGCLASS_HAS_FP_REG(CLASS) \
   ((CLASS) == FP0_REGS || (CLASS) == FP_REGS \
    || (CLASS) == DF_REGS || (CLASS) == DF_HI_REGS)
-
-#define REGISTER_MOVE_COST(MODE, SRCCLASS, DSTCLASS) \
-  sh_register_move_cost ((MODE), (SRCCLASS), (DSTCLASS))
 
 /* ??? Perhaps make MEMORY_MOVE_COST depend on compiler option?  This
    would be so that people with slow memory systems could generate
@@ -2533,20 +2414,6 @@ struct sh_args {
 #define FINAL_PRESCAN_INSN(INSN, OPVEC, NOPERANDS) \
   final_prescan_insn ((INSN), (OPVEC), (NOPERANDS))
 
-/* Print operand X (an rtx) in assembler syntax to file FILE.
-   CODE is a letter or dot (`z' in `%z0') or 0 if no letter was specified.
-   For `%' followed by punctuation, CODE is the punctuation and X is null.  */
-
-#define PRINT_OPERAND(STREAM, X, CODE)  print_operand ((STREAM), (X), (CODE))
-
-/* Print a memory address as an operand to reference that memory location.  */
-
-#define PRINT_OPERAND_ADDRESS(STREAM,X)  print_operand_address ((STREAM), (X))
-
-#define PRINT_OPERAND_PUNCT_VALID_P(CHAR) \
-  ((CHAR) == '.' || (CHAR) == '#' || (CHAR) == '@' || (CHAR) == ','	\
-   || (CHAR) == '$' || (CHAR) == '\'' || (CHAR) == '>')
-
 /* Recognize machine-specific patterns that may appear within
    constants.  Used for PIC-specific UNSPECs.  */
 #define OUTPUT_ADDR_CONST_EXTRA(STREAM, X, FAIL) \
@@ -2677,8 +2544,6 @@ enum processor_type {
 #define sh_cpu_attr ((enum attr_cpu)sh_cpu)
 extern enum processor_type sh_cpu;
 
-extern int optimize; /* needed for gen_casesi.  */
-
 enum mdep_reorg_phase_e
 {
   SH_BEFORE_MDEP_REORG,
@@ -2733,11 +2598,9 @@ extern int current_function_interrupt;
 
 #define SIDI_OFF (TARGET_LITTLE_ENDIAN ? 0 : 4)
 
-/* ??? Define ACCUMULATE_OUTGOING_ARGS?  This is more efficient than pushing
-   and popping arguments.  However, we do have push/pop instructions, and
-   rather limited offsets (4 bits) in load/store instructions, so it isn't
-   clear if this would give better code.  If implemented, should check for
-   compatibility problems.  */
+/* Better to allocate once the maximum space for outgoing args in the
+   prologue rather than duplicate around each call.  */
+#define ACCUMULATE_OUTGOING_ARGS TARGET_ACCUMULATE_OUTGOING_ARGS
 
 #define SH_DYNAMIC_SHIFT_COST \
   (TARGET_HARD_SH4 ? 1 : TARGET_SH3 ? (TARGET_SMALLCODE ? 1 : 2) : 20)

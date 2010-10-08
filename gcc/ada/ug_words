@@ -24,8 +24,6 @@ gnatfind        ^ GNAT FIND
 Gnatfind        ^ GNAT FIND
 gnatkr          ^ GNAT KRUNCH
 Gnatkr          ^ GNAT KRUNCH
-gnatlbr         ^ GNAT LIBRARY
-Gnatlbr         ^ GNAT LIBRARY
 gnatlink        ^ GNAT LINK
 Gnatlink        ^ GNAT LINK
 gnatls          ^ GNAT LIST
@@ -85,6 +83,7 @@ gcc -c          ^ GNAT COMPILE
 -gnatN          ^ /INLINE=FULL
 -gnato          ^ /CHECKS=OVERFLOW
 -gnatp          ^ /CHECKS=SUPPRESS_ALL
+-gnat-p         ^ /CHECKS=UNSUPPRESS_ALL
 -gnatP          ^ /POLLING
 -gnatR          ^ /REPRESENTATION_INFO
 -gnatR0         ^ /REPRESENTATION_INFO=NONE
@@ -139,6 +138,8 @@ gcc -c          ^ GNAT COMPILE
 -gnatwG         ^ /WARNINGS=NOUNRECOGNIZED_PRAGMAS
 -gnatwh         ^ /WARNINGS=HIDING
 -gnatwH         ^ /WARNINGS=NOHIDING
+-gnatw.h        ^ /WARNINGS=AVOIDGAPS
+-gnatw.H        ^ /WARNINGS=NOAVOIDGAPS
 -gnatwi         ^ /WARNINGS=IMPLEMENTATION
 -gnatwI         ^ /WARNINGS=NOIMPLEMENTATION
 -gnatwj         ^ /WARNINGS=OBSOLESCENT
@@ -160,6 +161,8 @@ gcc -c          ^ GNAT COMPILE
 -gnatwP         ^ /WARNINGS=NOINEFFECTIVE_INLINE
 -gnatw.p        ^ /WARNINGS=PARAMETER_ORDER
 -gnatw.P        ^ /WARNINGS=NO_PARAMETER_ORDER
+-gnatw.h        ^ /WARNINGS=OVERRIDING_SIZE
+-gnatw.H        ^ /WARNINGS=NOOVERRIDING_SIZE
 -gnatwq         ^ /WARNINGS=MISSING_PARENS
 -gnatwQ         ^ /WARNINGS=NOMISSING_PARENS
 -gnatwr         ^ /WARNINGS=REDUNDANT
@@ -169,6 +172,8 @@ gcc -c          ^ GNAT COMPILE
 -gnatwT         ^ /WARNINGS=NODELETED_CODE
 -gnatwu         ^ /WARNINGS=UNUSED
 -gnatwU         ^ /WARNINGS=NOUNUSED
+-gnatw.u        ^ /WARNINGS=UNORDERED_ENUMERATIONS
+-gnatw.U        ^ /WARNINGS=NOUNORDERED_ENUMERATIONS
 -gnatwv         ^ /WARNINGS=VARIABLES_UNINITIALIZED
 -gnatwV         ^ /WARNINGS=NOVARIABLES_UNINITIALIZED
 -gnatww         ^ /WARNINGS=LOWBOUND_ASSUMED
@@ -217,3 +222,5 @@ stderr          ^ SYS$ERROR
 -O1             ^ /OPTIMIZE=SOME
 -O2             ^ /OPTIMIZE=ALL
 -O3             ^ /OPTIMIZE=INLINING
+-H32            ^ /32_MALLOC
+-H64            ^ /64_MALLOC

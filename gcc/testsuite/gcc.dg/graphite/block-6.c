@@ -1,23 +1,52 @@
-#define N 10000
-void foo (int);
-int test ()
+/* { dg-require-effective-target size32plus } */
+
+#define DEBUG 0
+#if DEBUG
+#include <stdio.h>
+#endif
+
+#define N 200
+int a[N][N];
+
+static int __attribute__((noinline))
+foo (void)
 {
-  int a[N][N];
-  unsigned i, j;
+  int i, j;
+  int res = 0;
 
-  for (i = 0; i < N; i++) 
-    for (j = 0; j < N; j++)
-	a[i][j] = i*j;
+  /* Interchange is not legal for loops 0 and 1.  */
+  for (i = 1; i < N; i++)
+    for (j = 1; j < N - 1; j++)
+      a[i][j] = a[i-1][j+1] * a[i-1][j+1] / 2;
 
-  for (i = 1; i < N; i++) 
-    for (j = 1; j < (N-1) ; j++)
-	a[i][j] = a[i-1][j+1] * a[i-1][j+1]/2;
+  for (i = 0; i < N; i++)
+    res += a[i][i];
 
-  for (i = 0; i < N; i++) 
-    for (j = 0; j < N; j++)
-      foo (a[i][j]); 
+  return res;
 }
 
-/* Interchange is not legal for loops 0 and 1 of SCoP 2.  */
-/* { dg-final { scan-tree-dump-times "Interchange not valid for loops 0 and 1:" 1 "graphite" { xfail *-*-* } } } */
+extern void abort ();
+
+int
+main (void)
+{
+  int i, j, res;
+
+  for (i = 0; i < N; i++)
+    for (j = 0; j < N; j++)
+      a[i][j] = i + j;
+
+  res = foo ();
+
+#if DEBUG
+  fprintf (stderr, "res = %d \n", res);
+#endif
+
+  if (res != 204007516)
+    abort ();
+
+  return 0;
+}
+
+/* { dg-final { scan-tree-dump-times "will be loop blocked" 0 "graphite" } } */
 /* { dg-final { cleanup-tree-dump "graphite" } } */

@@ -12,11 +12,11 @@
 @c man begin COPYRIGHT
 Copyright @copyright{} 1987, 1989, 1991, 1992, 1993, 1994, 1995, 1996,
 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
-2008, 2009
+2008, 2009, 2010
 Free Software Foundation, Inc.
 
 Permission is granted to copy, distribute and/or modify this document
-under the terms of the GNU Free Documentation License, Version 1.2 or
+under the terms of the GNU Free Documentation License, Version 1.3 or
 any later version published by the Free Software Foundation.  A copy of
 the license is included in the
 @c man end
@@ -215,7 +215,8 @@ Standard C@.  In its default mode, the GNU C preprocessor does not do a
 few things required by the standard.  These are features which are
 rarely, if ever, used, and may cause surprising changes to the meaning
 of a program which does not expect them.  To get strict ISO Standard C,
-you should use the @option{-std=c89} or @option{-std=c99} options, depending
+you should use the @option{-std=c90}, @option{-std=c99} or
+@option{-std=c1x} options, depending
 on which version of the standard you want.  To get all the mandatory
 diagnostics, you must also use @option{-pedantic}.  @xref{Invocation}.
 
@@ -2064,7 +2065,7 @@ are defined.  If they are defined, their value is 1.
 
 @item __GNUC_GNU_INLINE__
 GCC defines this macro if functions declared @code{inline} will be
-handled in GCC's traditional gnu89 mode.  Object files will contain
+handled in GCC's traditional gnu90 mode.  Object files will contain
 externally visible definitions of all functions declared @code{inline}
 without @code{extern} or @code{static}.  They will not contain any
 definitions of any functions declared @code{extern inline}.
@@ -2077,10 +2078,10 @@ inline}.  They will not contain definitions of any functions declared
 @code{inline} without @code{extern}.
 
 If this macro is defined, GCC supports the @code{gnu_inline} function
-attribute as a way to always get the gnu89 behavior.  Support for
+attribute as a way to always get the gnu90 behavior.  Support for
 this and @code{__GNUC_GNU_INLINE__} was added in GCC 4.1.3.  If
 neither macro is defined, an older version of GCC is being used:
-@code{inline} functions will be compiled in gnu89 mode, and the
+@code{inline} functions will be compiled in gnu90 mode, and the
 @code{gnu_inline} function attribute will not be recognized.
 
 @item __CHAR_UNSIGNED__
@@ -3540,6 +3541,8 @@ its own.
 This manual documents the pragmas which are meaningful to the
 preprocessor itself.  Other pragmas are meaningful to the C or C++
 compilers.  They are documented in the GCC manual.
+
+GCC plugins may provide their own pragmas.
 
 @ftable @code
 @item #pragma GCC dependency

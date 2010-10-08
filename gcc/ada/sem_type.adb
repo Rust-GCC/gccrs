@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -362,7 +362,6 @@ package body Sem_Type is
       --  performed, given that the operator was visible in the generic.
 
       if Ekind (E) = E_Operator then
-
          if Present (Opnd_Type) then
             Vis_Type := Opnd_Type;
          else
@@ -481,10 +480,8 @@ package body Sem_Type is
          then
             Add_Entry (Entity (N), Etype (N));
 
-         elsif (Nkind (N) = N_Function_Call
-                 or else Nkind (N) = N_Procedure_Call_Statement)
-           and then (Nkind (Name (N)) = N_Operator_Symbol
-                      or else Is_Entity_Name (Name (N)))
+         elsif Nkind_In (N, N_Function_Call, N_Procedure_Call_Statement)
+           and then Is_Entity_Name (Name (N))
          then
             Add_Entry (Entity (Name (N)), Etype (N));
 
@@ -803,8 +800,8 @@ package body Sem_Type is
       then
          return True;
 
-      --  The context may be class wide, and a class-wide type is
-      --  compatible with any member of the class.
+      --  The context may be class wide, and a class-wide type is compatible
+      --  with any member of the class.
 
       elsif Is_Class_Wide_Type (T1)
         and then Is_Ancestor (Root_Type (T1), T2)
@@ -878,10 +875,13 @@ package body Sem_Type is
             return False;
          end;
 
-      --  In a dispatching call the actual may be class-wide
+         --  In a dispatching call the actual may be class-wide, the formal
+         --  may be its specific type, or that of a descendent of it.
 
       elsif Is_Class_Wide_Type (T2)
-        and then Base_Type (Root_Type (T2)) = Base_Type (T1)
+        and then
+          (Class_Wide_Type (T1) = T2
+             or else Base_Type (Root_Type (T2)) = Base_Type (T1))
       then
          return True;
 
@@ -901,7 +901,7 @@ package body Sem_Type is
       --  An aggregate is compatible with an array or record type
 
       elsif T2 = Any_Composite
-        and then Ekind (T1) in E_Array_Type .. E_Record_Subtype
+        and then Is_Aggregate_Type (T1)
       then
          return True;
 
@@ -997,9 +997,7 @@ package body Sem_Type is
       --  imposed by context.
 
       elsif Ekind (T2) = E_Access_Attribute_Type
-        and then (Ekind (BT1) = E_General_Access_Type
-                    or else
-                  Ekind (BT1) = E_Access_Type)
+        and then Ekind_In (BT1, E_General_Access_Type, E_Access_Type)
         and then Covers (Designated_Type (T1), Designated_Type (T2))
       then
          --  If the target type is a RACW type while the source is an access
@@ -1625,9 +1623,7 @@ package body Sem_Type is
                   Arg1 := Left_Opnd  (N);
                   Arg2 := Right_Opnd (N);
 
-               elsif Is_Entity_Name (N)
-                 or else Nkind (N) = N_Operator_Symbol
-               then
+               elsif Is_Entity_Name (N) then
                   Arg1 := First_Entity (Entity (N));
                   Arg2 := Next_Entity (Arg1);
 
@@ -1677,9 +1673,8 @@ package body Sem_Type is
       elsif Nkind (Parent (N)) = N_Object_Renaming_Declaration
         and then Present (Access_Definition (Parent (N)))
       then
-         if Ekind (It1.Typ) = E_Anonymous_Access_Type
-              or else
-            Ekind (It1.Typ) = E_Anonymous_Access_Subprogram_Type
+         if Ekind_In (It1.Typ, E_Anonymous_Access_Type,
+                               E_Anonymous_Access_Subprogram_Type)
          then
             if Ekind (It2.Typ) = Ekind (It1.Typ) then
 
@@ -1691,9 +1686,8 @@ package body Sem_Type is
                return It1;
             end if;
 
-         elsif Ekind (It2.Typ) = E_Anonymous_Access_Type
-                 or else
-               Ekind (It2.Typ) = E_Anonymous_Access_Subprogram_Type
+         elsif Ekind_In (It2.Typ, E_Anonymous_Access_Type,
+                                  E_Anonymous_Access_Subprogram_Type)
          then
             return It2;
 
@@ -1871,6 +1865,7 @@ package body Sem_Type is
             then
                declare
                   Opnd : Node_Id;
+
                begin
                   if Nkind (N) = N_Function_Call then
                      Opnd := First_Actual (N);
@@ -1880,8 +1875,8 @@ package body Sem_Type is
 
                   if Ekind (Etype (Opnd)) = E_Anonymous_Access_Type
                     and then
-                     List_Containing (Parent (Designated_Type (Etype (Opnd))))
-                       = List_Containing (Unit_Declaration_Node (User_Subp))
+                      In_Same_List (Parent (Designated_Type (Etype (Opnd))),
+                                    Unit_Declaration_Node (User_Subp))
                   then
                      if It2.Nam = Predef_Subp then
                         return It1;
@@ -2559,9 +2554,9 @@ package body Sem_Type is
       BT1 := Base_Type (T1);
       BT2 := Base_Type (T2);
 
-      --  Handle underlying view of records with unknown discriminants
-      --  using the original entity that motivated the construction of
-      --  this underlying record view (see Build_Derived_Private_Type).
+      --  Handle underlying view of records with unknown discriminants using
+      --  the original entity that motivated the construction of this
+      --  underlying record view (see Build_Derived_Private_Type).
 
       if Is_Underlying_Record_View (BT1) then
          BT1 := Underlying_Record_View (BT1);
@@ -2574,9 +2569,17 @@ package body Sem_Type is
       if BT1 = BT2 then
          return True;
 
+      --  The predicate must look past privacy
+
       elsif Is_Private_Type (T1)
         and then Present (Full_View (T1))
         and then BT2 = Base_Type (Full_View (T1))
+      then
+         return True;
+
+      elsif Is_Private_Type (T2)
+        and then Present (Full_View (T2))
+        and then BT1 = Base_Type (Full_View (T2))
       then
          return True;
 
@@ -2603,7 +2606,22 @@ package body Sem_Type is
                return True;
 
             elsif Etype (Par) /= Par then
-               Par := Etype (Par);
+
+               --  If this is a private type and its parent is an interface
+               --  then use the parent of the full view (which is a type that
+               --  implements such interface)
+
+               if Is_Private_Type (Par)
+                 and then Is_Interface (Etype (Par))
+                 and then Present (Full_View (Par))
+               then
+                  Par := Etype (Full_View (Par));
+               else
+                  Par := Etype (Par);
+               end if;
+
+            --  For all other cases return False, not an Ancestor
+
             else
                return False;
             end if;
@@ -2649,6 +2667,18 @@ package body Sem_Type is
            and then not In_Instance;
       end if;
    end Is_Invisible_Operator;
+
+   --------------------
+   --  Is_Progenitor --
+   --------------------
+
+   function Is_Progenitor
+     (Iface : Entity_Id;
+      Typ   : Entity_Id) return Boolean
+   is
+   begin
+      return Implements_Interface (Typ, Iface, Exclude_Parents => True);
+   end Is_Progenitor;
 
    -------------------
    -- Is_Subtype_Of --
@@ -3029,12 +3059,12 @@ package body Sem_Type is
          return T1;
 
       elsif T2 = Any_Composite
-        and then Ekind (T1) in E_Array_Type .. E_Record_Subtype
+        and then Is_Aggregate_Type (T1)
       then
          return T1;
 
       elsif T1 = Any_Composite
-        and then Ekind (T2) in E_Array_Type .. E_Record_Subtype
+        and then Is_Aggregate_Type (T2)
       then
          return T2;
 
@@ -3191,7 +3221,7 @@ package body Sem_Type is
       Write_Str (" Index: ");
       Write_Int (Int (Interp_Map.Table (Map_Ptr).Index));
       Write_Str (" Next:  ");
-      Write_Int (Int (Interp_Map.Table (Map_Ptr).Next));
+      Write_Int (Interp_Map.Table (Map_Ptr).Next);
       Write_Eol;
    end Write_Interp_Ref;
 

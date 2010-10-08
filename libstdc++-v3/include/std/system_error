@@ -1,6 +1,6 @@
 // <system_error> -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,7 +32,7 @@
 #pragma GCC system_header
 
 #ifndef __GXX_EXPERIMENTAL_CXX0X__
-# include <c++0x_warning.h>
+# include <bits/c++0x_warning.h>
 #else
 
 #include <bits/c++config.h>
@@ -103,10 +103,13 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   inline error_category::error_category() = default;
 
   // DR 890.
-  _GLIBCXX_CONST const error_category& system_category() throw ();
-  _GLIBCXX_CONST const error_category& generic_category() throw ();
+  _GLIBCXX_CONST const error_category& system_category() throw();
+  _GLIBCXX_CONST const error_category& generic_category() throw();
 
   error_code make_error_code(errc);
+
+  template<typename _Tp>
+    struct hash;
 
   /// error_code
   // Implementation-specific error identification
@@ -159,6 +162,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
     // DR 804.
   private:
+    friend class hash<error_code>;
+
     int            		_M_value;
     const error_category* 	_M_cat;
   };
@@ -306,26 +311,29 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   public:
     system_error(error_code __ec = error_code())
-    : runtime_error(""), _M_code(__ec) { }
+    : runtime_error(__ec.message()), _M_code(__ec) { }
 
     system_error(error_code __ec, const string& __what)
-    : runtime_error(__what), _M_code(__ec) { }
-    
+    : runtime_error(__what + ": " + __ec.message()), _M_code(__ec) { }
+
     /*
      * TODO: Add const char* ctors to all exceptions.
      *
      * system_error(error_code __ec, const char* __what)
-     * : runtime_error(__what), _M_code(__ec) { }
+     * : runtime_error(__what + (": " + __ec.message())), _M_code(__ec) { }
      *
      * system_error(int __v, const error_category& __ecat, const char* __what)
-     * : runtime_error(__what), _M_code(error_code(__v, __ecat)) { }
+     * : runtime_error(__what + (": " + __ec.message())),
+     *   _M_code(error_code(__v, __ecat)) { }
      */
 
     system_error(int __v, const error_category& __ecat)
-    : runtime_error(""), _M_code(error_code(__v, __ecat)) { }
+    : runtime_error(error_code(__v, __ecat).message()),
+      _M_code(__v, __ecat) { }
 
     system_error(int __v, const error_category& __ecat, const string& __what)
-    : runtime_error(__what), _M_code(error_code(__v, __ecat)) { }
+    : runtime_error(__what + ": " + error_code(__v, __ecat).message()),
+      _M_code(__v, __ecat) { }
 
     virtual ~system_error() throw();
 
@@ -335,7 +343,30 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
 _GLIBCXX_END_NAMESPACE
 
+#ifndef _GLIBCXX_COMPATIBILITY_CXX0X
+
+#include <bits/functional_hash.h>
+
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
+  // DR 1182.
+  /// std::hash specialization for error_code.
+  template<>
+    struct hash<error_code>
+    : public __hash_base<size_t, error_code>
+    {
+      size_t
+      operator()(const error_code& __e) const
+      {
+	const size_t __tmp = std::_Hash_impl::hash(__e._M_value);
+	return std::_Hash_impl::__hash_combine(__e._M_cat, __tmp);
+      }
+    };
+
+_GLIBCXX_END_NAMESPACE
+
+#endif // _GLIBCXX_COMPATIBILITY_CXX0X
+
 #endif // __GXX_EXPERIMENTAL_CXX0X__
 
 #endif // _GLIBCXX_SYSTEM_ERROR
-

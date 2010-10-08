@@ -24,21 +24,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "rtl.h"
-#include "varray.h"
 #include "gimple.h"
 #include "tree-iterator.h"
 #include "tree-inline.h"
-#include "diagnostic.h"
-#include "langhooks.h"
-#include "langhooks-def.h"
 #include "tree-flow.h"
-#include "timevar.h"
-#include "except.h"
-#include "hashtab.h"
 #include "flags.h"
 #include "function.h"
-#include "expr.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "tree-pass.h"
 
@@ -202,7 +194,7 @@ lower_function_body (void)
   return 0;
 }
 
-struct gimple_opt_pass pass_lower_cf = 
+struct gimple_opt_pass pass_lower_cf =
 {
  {
   GIMPLE_PASS,
@@ -249,7 +241,7 @@ gimple_check_call_args (gimple stmt)
     {
       for (i = 0, p = DECL_ARGUMENTS (fndecl);
 	   i < nargs;
-	   i++, p = TREE_CHAIN (p))
+	   i++, p = DECL_CHAIN (p))
 	{
 	  /* We cannot distinguish a varargs function from the case
 	     of excess parameters, still deferring the inlining decision
@@ -309,7 +301,7 @@ static void
 lower_omp_directive (gimple_stmt_iterator *gsi, struct lower_data *data)
 {
   gimple stmt;
-  
+
   stmt = gsi_stmt (*gsi);
 
   lower_sequence (gimple_omp_body (stmt), data);
@@ -616,7 +608,7 @@ block_may_fallthru (const_tree block)
     {
     case GOTO_EXPR:
     case RETURN_EXPR:
-      /* Easy cases.  If the last statement of the block implies 
+      /* Easy cases.  If the last statement of the block implies
 	 control transfer, then we can't fall through.  */
       return false;
 
@@ -659,7 +651,7 @@ block_may_fallthru (const_tree block)
     case CALL_EXPR:
       /* Functions that do not return do not fall through.  */
       return (call_expr_flags (stmt) & ECF_NORETURN) == 0;
-    
+
     case CLEANUP_POINT_EXPR:
       return block_may_fallthru (TREE_OPERAND (stmt, 0));
 
@@ -686,7 +678,7 @@ gimple_stmt_may_fallthru (gimple stmt)
     case GIMPLE_GOTO:
     case GIMPLE_RETURN:
     case GIMPLE_RESX:
-      /* Easy cases.  If the last statement of the seq implies 
+      /* Easy cases.  If the last statement of the seq implies
 	 control transfer, then we can't fall through.  */
       return false;
 
@@ -902,7 +894,7 @@ record_vars_into (tree vars, tree fn)
   if (fn != current_function_decl)
     push_cfun (DECL_STRUCT_FUNCTION (fn));
 
-  for (; vars; vars = TREE_CHAIN (vars))
+  for (; vars; vars = DECL_CHAIN (vars))
     {
       tree var = vars;
 
@@ -916,8 +908,7 @@ record_vars_into (tree vars, tree fn)
 	continue;
 
       /* Record the variable.  */
-      cfun->local_decls = tree_cons (NULL_TREE, var,
-					     cfun->local_decls);
+      add_local_decl (cfun, var);
     }
 
   if (fn != current_function_decl)

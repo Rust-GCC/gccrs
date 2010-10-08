@@ -1,3 +1,190 @@
+2010-09-02  Joseph Myers  <joseph@codesourcery.com>
+
+	* exgettext: Handle {} in operand of MissingArgError.  Handle
+	Warn.
+
+2010-07-27  Joseph Myers  <joseph@codesourcery.com>
+
+	* exgettext: Also extract MissingArgError texts from .opt files.
+
+2010-06-29  Joern Rennecke  <joern.rennecke@embecosm.com>
+
+	PR other/44034
+	* EXCLUDES: Add genhooks.c.
+
+2010-05-01  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2010-04-26  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2010-04-20  Joseph Myers  <joseph@codesourcery.com>
+
+	* es.po: Update.
+
+2010-04-19  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2010-04-16  Joseph Myers  <joseph@codesourcery.com>
+
+	* be.po, da.po, de.po, el.po, es.po, fi.po, fr.po, id.po, ja.po,
+	nl.po, ru.po, sr.po, sv.po, tr.po, zh_CN.po, zh_TW.po: Update.
+
+2010-04-06  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.pot: Regenerate.
+
+2010-03-26  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.pot: Regenerate.
+
+2010-03-09  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2010-03-01  Shujing Zhao  <pearly.zhao@oracle.com>
+
+	* exgettext: Handle the functions that end with _n.
+
+2010-02-24  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2010-02-21  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2010-02-14  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2010-02-07  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2010-02-07  Joseph Myers  <joseph@codesourcery.com>
+
+	* es.po: Update.
+
+2010-02-05  Joseph Myers  <joseph@codesourcery.com>
+
+	* be.po, da.po, de.po, el.po, es.po, fi.po, fr.po, id.po, ja.po,
+	nl.po, ru.po, sr.po, sv.po, tr.po, zh_CN.po, zh_TW.po: Update.
+
+2010-02-04  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.pot: Regenerate.
+
+2010-02-01  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2010-01-24  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2010-01-22  Shujing Zhao  <pearly.zhao@oracle.com>
+
+	* exgettext: Handle the functions and the macro definitions that the
+	arguments are broken into more than one line.
+
+2010-01-20  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2010-01-18  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2010-01-17  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2010-01-14  Shujing Zhao  <pearly.zhao@oracle.com>
+
+	PR translation/39521
+	* exgettext: Extracted all specs %n strings and the %e strings that %e
+	is at the start of a line.
+
+2010-01-11  Joseph Myers  <joseph@codesourcery.com>
+
+	* fi.po: Update.
+
+2010-01-11  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2010-01-11  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.pot: Regenerate.
+
+2010-01-11  Joseph Myers  <joseph@codesourcery.com>
+	    Shujing Zhao  <pearly.zhao@oracle.com>
+	    
+	PR translation/42467
+	* exgettext: Keep the text before tab character in the option help
+	string at *.opt file.
+
+2010-01-10  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2010-01-04  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2009-12-29  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2009-12-27  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2009-12-20  Joseph Myers  <joseph@codesourcery.com>
+
+	* sv.po: Update.
+
+2009-12-18  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2009-12-16  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2009-12-14  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2009-12-13  Joseph Myers  <joseph@codesourcery.com>
+
+	* fi.po, sv.po: Update.
+
+2009-12-11  Joseph Myers  <joseph@codesourcery.com>
+
+	* es.po: Update.
+
+2009-12-10  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_CN.po: Update.
+
+2009-12-04  Joseph Myers  <joseph@codesourcery.com>
+
+	* be.po, da.po, de.po, el.po, es.po, fi.po, fr.po, id.po, ja.po,
+	nl.po, ru.po, sr.po, sv.po, tr.po, zh_CN.po, zh_TW.po: Update.
+
+2009-12-03  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.pot: Regenerate.
+
+2009-12-02  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.pot: Regenerate.
+
 2009-11-10  Joseph Myers  <joseph@codesourcery.com>
 
 	* id.po: Update.

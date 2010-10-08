@@ -277,12 +277,10 @@ gjdoc_resources = $(gnu_classpath_tools_gjdoc_jar_CSS) $(gnu_classpath_tools_gjd
 	$(gnu_classpath_tools_gjdoc_jar_XHTML) $(gnu_classpath_tools_gjdoc_jar_XSLS)
 
 if !CREATE_GJDOC
-GJDOC_EX = -path '*gnu/classpath/tools/gjdoc' -prune -o \
-	-path '*gnu/classpath/tools/doclets' -prune -o \
-	-path '*gnu/classpath/tools/taglets' -prune -o \
-	-path '*com/sun/javadoc' -prune -o \
-	-path '*com/sun/tools/doclets' -prune -o \
-	-path '*com/sun/tools/javadoc' -prune -o
+GJDOC_EX = -name gjdoc -prune -o \
+	-name doclets -prune -o \
+	-name taglets -prune -o \
+	-name javadoc -prune -o
 endif
 
 # The zip files with classes we want to produce.
@@ -373,6 +371,9 @@ endif
 ## BEGIN GCJ LOCAL
 	cp -pR $(srcdir)/asm .
 	cp -pR $(srcdir)/classes .
+	if [ -d asm/.svn ]; then \
+	  find asm classes -depth -type d -name .svn -exec rm -rf \{\} \;; \
+	fi
 ## END GCJ LOCAL
 if CREATE_GJDOC
 ## Copy over gjdoc resource files.
@@ -385,11 +386,11 @@ if CREATE_GJDOC
 endif
 
 if WITH_JAR
-CREATE_TOOLS_ZIP=$(JAR) cf ../$(TOOLS_ZIP) `find . -name .svn -prune -o -type f -print`
-UPDATE_TOOLS_ZIP=$(JAR) uf ../$(TOOLS_ZIP) `find . -name .svn -prune -o -type f -print`
+CREATE_TOOLS_ZIP=$(JAR) cf ../$(TOOLS_ZIP) .
+UPDATE_TOOLS_ZIP=$(JAR) uf ../$(TOOLS_ZIP) .
 else
-CREATE_TOOLS_ZIP=$(ZIP) -r ../$(TOOLS_ZIP) `find . -name .svn -prune -o -type f -print`
-UPDATE_TOOLS_ZIP=$(ZIP) -u -r ../$(TOOLS_ZIP) `find . -name .svn -prune -o -type f -print`
+CREATE_TOOLS_ZIP=$(ZIP) -r ../$(TOOLS_ZIP) .
+UPDATE_TOOLS_ZIP=$(ZIP) -u -r ../$(TOOLS_ZIP) .
 endif
 
 ## First add classpath tools stuff.

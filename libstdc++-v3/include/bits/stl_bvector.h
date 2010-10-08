@@ -1,6 +1,6 @@
 // vector<bool> specialization -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -475,6 +475,10 @@ template<typename _Alloc>
   {
     typedef _Bvector_base<_Alloc>			 _Base;
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+    template<typename> friend class hash;
+#endif
+
   public:
     typedef bool                                         value_type;
     typedef size_t                                       size_type;
@@ -524,7 +528,7 @@ template<typename _Alloc>
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
     vector(vector&& __x)
-    : _Base(std::forward<_Base>(__x)) { }
+    : _Base(std::move(__x)) { }
 
     vector(initializer_list<bool> __l,
 	   const allocator_type& __a = allocator_type())
@@ -565,6 +569,7 @@ template<typename _Alloc>
     vector&
     operator=(vector&& __x)
     {
+      // NB: DR 1204.
       // NB: DR 675.
       this->clear();
       this->swap(__x); 
@@ -600,7 +605,7 @@ template<typename _Alloc>
     assign(initializer_list<bool> __l)
     { this->assign(__l.begin(), __l.end()); }
 #endif
-    
+
     iterator
     begin()
     { return this->_M_impl._M_start; }
@@ -824,6 +829,12 @@ template<typename _Alloc>
         insert(end(), __new_size - size(), __x);
     }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+    void
+    shrink_to_fit()
+    { std::__shrink_to_fit<vector>::_S_do_it(*this); }
+#endif
+
     void
     flip()
     {
@@ -1016,5 +1027,25 @@ template<typename _Alloc>
   };
 
 _GLIBCXX_END_NESTED_NAMESPACE
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+
+#include <bits/functional_hash.h>
+
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
+  // DR 1182.
+  /// std::hash specialization for vector<bool>.
+  template<typename _Alloc>
+    struct hash<_GLIBCXX_STD_D::vector<bool, _Alloc>>
+    : public __hash_base<size_t, _GLIBCXX_STD_D::vector<bool, _Alloc>>
+    {
+      size_t
+      operator()(const _GLIBCXX_STD_D::vector<bool, _Alloc>& __b) const;
+    };
+
+_GLIBCXX_END_NAMESPACE
+
+#endif // __GXX_EXPERIMENTAL_CXX0X__
 
 #endif

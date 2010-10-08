@@ -1,6 +1,6 @@
 /* Control flow graph manipulation code for GNU compiler.
    Copyright (C) 1987, 1988, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -57,6 +57,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "output.h"
 #include "function.h"
 #include "except.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "tm_p.h"
 #include "obstack.h"
@@ -84,17 +85,17 @@ void
 init_flow (struct function *the_fun)
 {
   if (!the_fun->cfg)
-    the_fun->cfg = GGC_CNEW (struct control_flow_graph);
+    the_fun->cfg = ggc_alloc_cleared_control_flow_graph ();
   n_edges_for_function (the_fun) = 0;
   ENTRY_BLOCK_PTR_FOR_FUNCTION (the_fun)
-    = GGC_CNEW (struct basic_block_def);
+    = ggc_alloc_cleared_basic_block_def ();
   ENTRY_BLOCK_PTR_FOR_FUNCTION (the_fun)->index = ENTRY_BLOCK;
   EXIT_BLOCK_PTR_FOR_FUNCTION (the_fun)
-    = GGC_CNEW (struct basic_block_def);
+    = ggc_alloc_cleared_basic_block_def ();
   EXIT_BLOCK_PTR_FOR_FUNCTION (the_fun)->index = EXIT_BLOCK;
-  ENTRY_BLOCK_PTR_FOR_FUNCTION (the_fun)->next_bb 
+  ENTRY_BLOCK_PTR_FOR_FUNCTION (the_fun)->next_bb
     = EXIT_BLOCK_PTR_FOR_FUNCTION (the_fun);
-  EXIT_BLOCK_PTR_FOR_FUNCTION (the_fun)->prev_bb 
+  EXIT_BLOCK_PTR_FOR_FUNCTION (the_fun)->prev_bb
     = ENTRY_BLOCK_PTR_FOR_FUNCTION (the_fun);
 }
 
@@ -139,7 +140,7 @@ basic_block
 alloc_block (void)
 {
   basic_block bb;
-  bb = GGC_CNEW (struct basic_block_def);
+  bb = ggc_alloc_cleared_basic_block_def ();
   return bb;
 }
 
@@ -171,13 +172,13 @@ compact_blocks (void)
 
   SET_BASIC_BLOCK (ENTRY_BLOCK, ENTRY_BLOCK_PTR);
   SET_BASIC_BLOCK (EXIT_BLOCK, EXIT_BLOCK_PTR);
-  
+
   if (df)
     df_compact_blocks ();
-  else 
+  else
     {
       basic_block bb;
-      
+
       i = NUM_FIXED_BLOCKS;
       FOR_EACH_BB (bb)
 	{
@@ -277,7 +278,7 @@ edge
 unchecked_make_edge (basic_block src, basic_block dst, int flags)
 {
   edge e;
-  e = GGC_CNEW (struct edge_def);
+  e = ggc_alloc_cleared_edge_def ();
   n_edges++;
 
   e->src = src;
@@ -433,7 +434,7 @@ clear_bb_flags (void)
   basic_block bb;
 
   FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, NULL, next_bb)
-    bb->flags = (BB_PARTITION (bb)  
+    bb->flags = (BB_PARTITION (bb)
 		 | (bb->flags & (BB_DISABLE_SCHEDULE + BB_RTL + BB_NON_LOCAL_GOTO_TARGET)));
 }
 
@@ -514,7 +515,7 @@ dump_regset (regset r, FILE *outf)
    stream.  This function is designed to be used from within the
    debugger.  */
 
-void
+DEBUG_FUNCTION void
 debug_regset (regset r)
 {
   dump_regset (r, stderr);
@@ -544,7 +545,7 @@ dump_bb_info (basic_block bb, bool header, bool footer, int flags,
       fprintf (file, HOST_WIDEST_INT_PRINT_DEC, bb->count);
       fprintf (file, ", freq %i", bb->frequency);
       /* Both maybe_hot_bb_p & probably_never_executed_bb_p functions
-	 crash without cfun. */ 
+	 crash without cfun. */
       if (cfun && maybe_hot_bb_p (bb))
 	fputs (", maybe hot", file);
       if (cfun && probably_never_executed_bb_p (bb))
@@ -584,7 +585,7 @@ dump_bb_info (basic_block bb, bool header, bool footer, int flags,
 
 /* Dump the register info to FILE.  */
 
-void 
+void
 dump_reg_info (FILE *file)
 {
   unsigned int i, max = max_reg_num ();
@@ -598,14 +599,14 @@ dump_reg_info (FILE *file)
   for (i = FIRST_PSEUDO_REGISTER; i < max; i++)
     {
       enum reg_class rclass, altclass;
-      
+
       if (regstat_n_sets_and_refs)
 	fprintf (file, "\nRegister %d used %d times across %d insns",
 		 i, REG_N_REFS (i), REG_LIVE_LENGTH (i));
       else if (df)
 	fprintf (file, "\nRegister %d used %d times across %d insns",
 		 i, DF_REG_USE_COUNT (i) + DF_REG_DEF_COUNT (i), REG_LIVE_LENGTH (i));
-      
+
       if (REG_BASIC_BLOCK (i) >= NUM_FIXED_BLOCKS)
 	fprintf (file, " in block %d", REG_BASIC_BLOCK (i));
       if (regstat_n_sets_and_refs)
@@ -627,7 +628,7 @@ dump_reg_info (FILE *file)
       if (regno_reg_rtx[i] != NULL
 	  && PSEUDO_REGNO_BYTES (i) != UNITS_PER_WORD)
 	fprintf (file, "; %d bytes", PSEUDO_REGNO_BYTES (i));
-      
+
       rclass = reg_preferred_class (i);
       altclass = reg_alternate_class (i);
       if (rclass != GENERAL_REGS || altclass != ALL_REGS)
@@ -641,7 +642,7 @@ dump_reg_info (FILE *file)
 		     reg_class_names[(int) rclass],
 		     reg_class_names[(int) altclass]);
 	}
-      
+
       if (regno_reg_rtx[i] != NULL && REG_POINTER (regno_reg_rtx[i]))
 	fputs ("; pointer", file);
       fputs (".\n", file);
@@ -668,7 +669,7 @@ dump_flow_info (FILE *file, int flags)
   putc ('\n', file);
 }
 
-void
+DEBUG_FUNCTION void
 debug_flow_info (void)
 {
   dump_flow_info (stderr, TDF_DETAILS);
@@ -734,7 +735,7 @@ static void *first_edge_aux_obj = 0;
 /* Allocate a memory block of SIZE as BB->aux.  The obstack must
    be first initialized by alloc_aux_for_blocks.  */
 
-inline void
+static void
 alloc_aux_for_block (basic_block bb, int size)
 {
   /* Verify that aux field is clear.  */
@@ -765,7 +766,7 @@ alloc_aux_for_blocks (int size)
     {
       basic_block bb;
 
-      FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, NULL, next_bb)
+      FOR_ALL_BB (bb)
 	alloc_aux_for_block (bb, size);
     }
 }
@@ -777,7 +778,7 @@ clear_aux_for_blocks (void)
 {
   basic_block bb;
 
-  FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, NULL, next_bb)
+  FOR_ALL_BB (bb)
     bb->aux = NULL;
 }
 
@@ -797,7 +798,7 @@ free_aux_for_blocks (void)
 /* Allocate a memory edge of SIZE as BB->aux.  The obstack must
    be first initialized by alloc_aux_for_edges.  */
 
-inline void
+static void
 alloc_aux_for_edge (edge e, int size)
 {
   /* Verify that aux field is clear.  */
@@ -868,13 +869,13 @@ free_aux_for_edges (void)
   clear_aux_for_edges ();
 }
 
-void
+DEBUG_FUNCTION void
 debug_bb (basic_block bb)
 {
   dump_bb (bb, stderr, 0);
 }
 
-basic_block
+DEBUG_FUNCTION basic_block
 debug_bb_n (int n)
 {
   basic_block bb = BASIC_BLOCK (n);

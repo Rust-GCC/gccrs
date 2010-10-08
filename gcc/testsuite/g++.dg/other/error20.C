@@ -1,8 +1,8 @@
 // PR c++/34275
 // { dg-do compile }
 
-struct A
-{		// { dg-message "candidates" }
+struct A			// { dg-message "operator=" }
+{
   virtual A foo ();
 };
 

@@ -1,5 +1,5 @@
 /* Dead store elimination
-   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -24,11 +24,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "ggc.h"
 #include "tree.h"
-#include "rtl.h"
 #include "tm_p.h"
 #include "basic-block.h"
 #include "timevar.h"
-#include "diagnostic.h"
+#include "gimple-pretty-print.h"
 #include "tree-flow.h"
 #include "tree-pass.h"
 #include "tree-dump.h"
@@ -45,7 +44,7 @@ along with GCC; see the file COPYING3.  If not see
    In our SSA + virtual operand world we use immediate uses of virtual
    operands to detect dead stores.  If a store's virtual definition
    is used precisely once by a later store to the same location which
-   post dominates the first store, then the first store is dead. 
+   post dominates the first store, then the first store is dead.
 
    The single use of the store's virtual definition ensures that
    there are no intervening aliased loads and the requirement that
@@ -56,7 +55,7 @@ along with GCC; see the file COPYING3.  If not see
    It may help to think of this as first moving the earlier store to
    the point immediately before the later store.  Again, the single
    use of the virtual definition and the post-dominance relationship
-   ensure that such movement would be safe.  Clearly if there are 
+   ensure that such movement would be safe.  Clearly if there are
    back to back stores, then the second is redundant.
 
    Reviewing section 10.7.2 in Morgan's "Building an Optimizing Compiler"
@@ -77,7 +76,7 @@ struct dse_global_data
 };
 
 /* We allocate a bitmap-per-block for stores which are encountered
-   during the scan of that block.  This allows us to restore the 
+   during the scan of that block.  This allows us to restore the
    global bitmap of stores when we finish processing a block.  */
 struct dse_block_local_data
 {
@@ -161,7 +160,7 @@ dse_possible_dead_store_p (gimple stmt, gimple *use_stmt)
   temp = stmt;
   do
     {
-      gimple prev, use_stmt;
+      gimple use_stmt;
       imm_use_iterator ui;
       bool fail = false;
       tree defvar;
@@ -175,28 +174,33 @@ dse_possible_dead_store_p (gimple stmt, gimple *use_stmt)
 	defvar = PHI_RESULT (temp);
       else
 	defvar = gimple_vdef (temp);
-      prev = temp;
       temp = NULL;
       FOR_EACH_IMM_USE_STMT (use_stmt, ui, defvar)
 	{
 	  cnt++;
 
+	  /* If we ever reach our DSE candidate stmt again fail.  We
+	     cannot handle dead stores in loops.  */
+	  if (use_stmt == stmt)
+	    {
+	      fail = true;
+	      BREAK_FROM_IMM_USE_STMT (ui);
+	    }
 	  /* In simple cases we can look through PHI nodes, but we
 	     have to be careful with loops and with memory references
 	     containing operands that are also operands of PHI nodes.
 	     See gcc.c-torture/execute/20051110-*.c.  */
-	  if (gimple_code (use_stmt) == GIMPLE_PHI)
+	  else if (gimple_code (use_stmt) == GIMPLE_PHI)
 	    {
 	      if (temp
-		  /* We can look through PHIs to post-dominated regions
-		     without worrying if the use not also dominates prev
-		     (in which case it would be a loop PHI with the use
-		     in a latch block).  */
-		  || gimple_bb (prev) == gimple_bb (use_stmt)
-		  || !dominated_by_p (CDI_POST_DOMINATORS,
-				      gimple_bb (prev), gimple_bb (use_stmt))
+		  /* Make sure we are not in a loop latch block.  */
+		  || gimple_bb (stmt) == gimple_bb (use_stmt)
 		  || dominated_by_p (CDI_DOMINATORS,
-				     gimple_bb (prev), gimple_bb (use_stmt)))
+				     gimple_bb (stmt), gimple_bb (use_stmt))
+		  /* We can look through PHIs to regions post-dominating
+		     the DSE candidate stmt.  */
+		  || !dominated_by_p (CDI_POST_DOMINATORS,
+				      gimple_bb (stmt), gimple_bb (use_stmt)))
 		{
 		  fail = true;
 		  BREAK_FROM_IMM_USE_STMT (ui);
@@ -441,7 +445,7 @@ gate_dse (void)
   return flag_tree_dse != 0;
 }
 
-struct gimple_opt_pass pass_dse = 
+struct gimple_opt_pass pass_dse =
 {
  {
   GIMPLE_PASS,

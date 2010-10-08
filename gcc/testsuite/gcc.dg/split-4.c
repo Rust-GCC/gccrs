@@ -15,7 +15,10 @@ static void use_buffer (char *buf, size_t) __attribute__ ((noinline));
 static void
 use_buffer (char *buf, size_t c)
 {
-  memset (buf, '\0', c);
+  size_t i;
+
+  for (i = 0; i < c; ++i)
+    buf[i] = (char) i;
 }
 
 /* Each recursive call uses 10 * i bytes.  We call it 1000 times,

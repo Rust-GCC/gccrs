@@ -1,6 +1,6 @@
 /* Prototypes for exported functions defined in picochip.c
 
-   Copyright (C) 2000, 2001, 2008 Free Software Foundation, Inc.
+   Copyright (C) 2000, 2001, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by picoChip Designs Ltd. (http://www.picochip.com)
    Maintained by Daniel Towner (daniel.towner@picochip.com) and
    Hariharan Sandanagobalane (hariharan@picochip.com).
@@ -46,6 +46,8 @@ extern const char *picochip_output_get_array (int alternative,
 extern const char *picochip_output_testport_array (int alternative,
 						   rtx operands[]);
 
+extern int picochip_expand_movmemhi (rtx *operands);
+
 extern rtx gen_SImode_mem(rtx opnd1,rtx opnd2);
 extern bool ok_to_peephole_stw(rtx opnd0, rtx opnd1, rtx opnd2, rtx opnd3);
 extern bool ok_to_peephole_ldw(rtx opnd0, rtx opnd1, rtx opnd2, rtx opnd3);
@@ -73,9 +75,9 @@ extern int picochip_symbol_offset (rtx operand);
 
 extern int picochip_get_function_arg_boundary (enum machine_mode mode);
 
-extern enum reg_class picochip_secondary_reload(bool in_p,
+extern reg_class_t picochip_secondary_reload(bool in_p,
                                  rtx x,
-                                 enum reg_class cla,
+                                 reg_class_t cla,
                                  enum machine_mode mode,
                                  secondary_reload_info *sri);
 
@@ -89,7 +91,6 @@ extern void picochip_expand_epilogue (int is_sibling_call);
 
 extern void picochip_final_prescan_insn (rtx insn, rtx * operand, int num_operands);
 extern const char *picochip_asm_output_opcode (FILE * f, const char *ptr);
-extern void picochip_override_options (void);
 
 extern int picochip_check_conditional_copy (rtx * operands);
 
@@ -98,6 +99,10 @@ extern rtx picochip_struct_value_rtx(tree fntype ATTRIBUTE_UNUSED,
                               int incoming ATTRIBUTE_UNUSED);
 
 #endif /* RTX_CODE inside TREE_CODE */
+
+extern int picochip_legitimize_reload_address (rtx *x, enum machine_mode mode,
+                                        int opnum, int type, int ind_levels);
+
 
 void picochip_output_ascii (FILE * file, const char *str, int length);
 
@@ -131,8 +136,10 @@ extern int picochip_flag_schedule_insns2;
 
 extern void picochip_asm_output_anchor (rtx symbol);
 
+extern enum unwind_info_type picochip_except_unwind_info (void);
+
 /* Instruction set capability flags.  These are initialised to the
-   appropriate values by picochip_override_options, once the user has
+   appropriate values by picochip_option_override, once the user has
    selected a CPU type. */
 extern bool picochip_has_mul_unit;
 extern bool picochip_has_mac_unit;

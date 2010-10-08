@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -26,6 +26,7 @@
 with ALI;      use ALI;
 with Debug;
 with Fname;
+with Hostparm;
 with Osint;    use Osint;
 with Output;   use Output;
 with Opt;      use Opt;
@@ -33,13 +34,13 @@ with Prj.Ext;
 with Prj.Util;
 with Snames;   use Snames;
 with Table;
+with Tempdir;
 
 with Ada.Command_Line;  use Ada.Command_Line;
 
+with GNAT.Case_Util;            use GNAT.Case_Util;
 with GNAT.Directory_Operations; use GNAT.Directory_Operations;
-
-with System.Case_Util; use System.Case_Util;
-with System.HTable;
+with GNAT.HTable;
 
 package body Makeutl is
 
@@ -58,7 +59,7 @@ package body Makeutl is
 
    function Hash (Key : Mark_Key) return Mark_Num;
 
-   package Marks is new System.HTable.Simple_HTable
+   package Marks is new GNAT.HTable.Simple_HTable
      (Header_Num => Mark_Num,
       Element    => Boolean,
       No_Element => False,
@@ -157,6 +158,47 @@ package body Makeutl is
       end if;
    end Add_Linker_Option;
 
+   -------------------------
+   -- Base_Name_Index_For --
+   -------------------------
+
+   function Base_Name_Index_For
+     (Main            : String;
+      Main_Index      : Int;
+      Index_Separator : Character) return File_Name_Type
+   is
+      Result : File_Name_Type;
+
+   begin
+      Name_Len := 0;
+      Add_Str_To_Name_Buffer (Base_Name (Main));
+
+      --  Remove the extension, if any, that is the last part of the base name
+      --  starting with a dot and following some characters.
+
+      for J in reverse 2 .. Name_Len loop
+         if Name_Buffer (J) = '.' then
+            Name_Len := J - 1;
+            exit;
+         end if;
+      end loop;
+
+      --  Add the index info, if index is different from 0
+
+      if Main_Index > 0 then
+         Add_Char_To_Name_Buffer (Index_Separator);
+
+         declare
+            Img : constant String := Main_Index'Img;
+         begin
+            Add_Str_To_Name_Buffer (Img (2 .. Img'Last));
+         end;
+      end if;
+
+      Result := Name_Find;
+      return Result;
+   end Base_Name_Index_For;
+
    ------------------------------
    -- Check_Source_Info_In_ALI --
    ------------------------------
@@ -231,7 +273,7 @@ package body Makeutl is
                   if not Fname.Is_Internal_File_Name (SD.Sfile)
                     or else
                       (Check_Readonly_Files
-                        and then Find_File (SD.Sfile, Osint.Source) = No_File)
+                        and then Full_Source_Name (SD.Sfile) = No_File)
                   then
                      if Verbose_Mode then
                         Write_Line
@@ -252,6 +294,183 @@ package body Makeutl is
 
       return True;
    end Check_Source_Info_In_ALI;
+
+   --------------------------------
+   -- Create_Binder_Mapping_File --
+   --------------------------------
+
+   function Create_Binder_Mapping_File return Path_Name_Type is
+      Mapping_Path : Path_Name_Type := No_Path;
+
+      Mapping_FD : File_Descriptor := Invalid_FD;
+      --  A File Descriptor for an eventual mapping file
+
+      ALI_Unit : Unit_Name_Type := No_Unit_Name;
+      --  The unit name of an ALI file
+
+      ALI_Name : File_Name_Type := No_File;
+      --  The file name of the ALI file
+
+      ALI_Project : Project_Id := No_Project;
+      --  The project of the ALI file
+
+      Bytes : Integer;
+      OK    : Boolean := False;
+      Unit  : Unit_Index;
+
+      Status : Boolean;
+      --  For call to Close
+
+   begin
+      Tempdir.Create_Temp_File (Mapping_FD, Mapping_Path);
+      Record_Temp_File (Project_Tree, Mapping_Path);
+
+      if Mapping_FD /= Invalid_FD then
+         OK := True;
+
+         --  Traverse all units
+
+         Unit := Units_Htable.Get_First (Project_Tree.Units_HT);
+         while Unit /= No_Unit_Index loop
+            if Unit.Name /= No_Name then
+
+               --  If there is a body, put it in the mapping
+
+               if Unit.File_Names (Impl) /= No_Source
+                 and then Unit.File_Names (Impl).Project /= No_Project
+               then
+                  Get_Name_String (Unit.Name);
+                  Add_Str_To_Name_Buffer ("%b");
+                  ALI_Unit := Name_Find;
+                  ALI_Name :=
+                    Lib_File_Name (Unit.File_Names (Impl).Display_File);
+                  ALI_Project := Unit.File_Names (Impl).Project;
+
+                  --  Otherwise, if there is a spec, put it in the mapping
+
+               elsif Unit.File_Names (Spec) /= No_Source
+                 and then Unit.File_Names (Spec).Project /= No_Project
+               then
+                  Get_Name_String (Unit.Name);
+                  Add_Str_To_Name_Buffer ("%s");
+                  ALI_Unit := Name_Find;
+                  ALI_Name :=
+                    Lib_File_Name (Unit.File_Names (Spec).Display_File);
+                  ALI_Project := Unit.File_Names (Spec).Project;
+
+               else
+                  ALI_Name := No_File;
+               end if;
+
+               --  If we have something to put in the mapping then do it now.
+               --  However, if the project is extended, we don't put anything
+               --  in the mapping file, since we don't know where the ALI file
+               --  is: it might be in the extended project object directory as
+               --  well as in the extending project object directory.
+
+               if ALI_Name /= No_File
+                 and then ALI_Project.Extended_By = No_Project
+                 and then ALI_Project.Extends = No_Project
+               then
+                  --  First check if the ALI file exists. If it does not, do
+                  --  not put the unit in the mapping file.
+
+                  declare
+                     ALI : constant String := Get_Name_String (ALI_Name);
+
+                  begin
+                     --  For library projects, use the library ALI directory,
+                     --  for other projects, use the object directory.
+
+                     if ALI_Project.Library then
+                        Get_Name_String
+                          (ALI_Project.Library_ALI_Dir.Display_Name);
+                     else
+                        Get_Name_String
+                          (ALI_Project.Object_Directory.Display_Name);
+                     end if;
+
+                     if not
+                       Is_Directory_Separator (Name_Buffer (Name_Len))
+                     then
+                        Add_Char_To_Name_Buffer (Directory_Separator);
+                     end if;
+
+                     Add_Str_To_Name_Buffer (ALI);
+                     Add_Char_To_Name_Buffer (ASCII.LF);
+
+                     declare
+                        ALI_Path_Name : constant String :=
+                          Name_Buffer (1 .. Name_Len);
+
+                     begin
+                        if Is_Regular_File
+                             (ALI_Path_Name (1 .. ALI_Path_Name'Last - 1))
+                        then
+                           --  First line is the unit name
+
+                           Get_Name_String (ALI_Unit);
+                           Add_Char_To_Name_Buffer (ASCII.LF);
+                           Bytes :=
+                             Write
+                               (Mapping_FD,
+                                Name_Buffer (1)'Address,
+                                Name_Len);
+                           OK := Bytes = Name_Len;
+
+                           exit when not OK;
+
+                           --  Second line it the ALI file name
+
+                           Get_Name_String (ALI_Name);
+                           Add_Char_To_Name_Buffer (ASCII.LF);
+                           Bytes :=
+                             Write
+                               (Mapping_FD,
+                                Name_Buffer (1)'Address,
+                                Name_Len);
+                           OK := (Bytes = Name_Len);
+
+                           exit when not OK;
+
+                           --  Third line it the ALI path name
+
+                           Bytes :=
+                             Write
+                               (Mapping_FD,
+                                ALI_Path_Name (1)'Address,
+                                ALI_Path_Name'Length);
+                           OK := (Bytes = ALI_Path_Name'Length);
+
+                           --  If OK is False, it means we were unable to
+                           --  write a line. No point in continuing with the
+                           --  other units.
+
+                           exit when not OK;
+                        end if;
+                     end;
+                  end;
+               end if;
+            end if;
+
+            Unit := Units_Htable.Get_Next (Project_Tree.Units_HT);
+         end loop;
+
+         Close (Mapping_FD, Status);
+
+         OK := OK and Status;
+      end if;
+
+      --  If the creation of the mapping file was successful, we add the switch
+      --  to the arguments of gnatbind.
+
+      if OK then
+         return Mapping_Path;
+
+      else
+         return No_Path;
+      end if;
+   end Create_Binder_Mapping_File;
 
    -----------------
    -- Create_Name --
@@ -329,14 +548,20 @@ package body Makeutl is
          end if;
 
          return Normalize_Pathname
-           (Exec (Exec'First .. Path_Last - 4),
-            Resolve_Links => Opt.Follow_Links_For_Dirs)
+                  (Exec (Exec'First .. Path_Last - 4),
+                   Resolve_Links => Opt.Follow_Links_For_Dirs)
            & Directory_Separator;
       end Get_Install_Dir;
 
    --  Beginning of Executable_Prefix_Path
 
    begin
+      --  For VMS, the path returned is always /gnu/
+
+      if Hostparm.OpenVMS then
+         return "/gnu/";
+      end if;
+
       --  First determine if a path prefix was placed in front of the
       --  executable name.
 
@@ -599,6 +824,7 @@ package body Makeutl is
 
       type File_And_Loc is record
          File_Name : File_Name_Type;
+         Index     : Int := 0;
          Location  : Source_Ptr := No_Location;
       end record;
 
@@ -623,7 +849,7 @@ package body Makeutl is
          Name_Len := 0;
          Add_Str_To_Name_Buffer (Name);
          Names.Increment_Last;
-         Names.Table (Names.Last) := (Name_Find, No_Location);
+         Names.Table (Names.Last) := (Name_Find, 0, No_Location);
       end Add_Main;
 
       ------------
@@ -635,6 +861,19 @@ package body Makeutl is
          Names.Set_Last (0);
          Mains.Reset;
       end Delete;
+
+      ---------------
+      -- Get_Index --
+      ---------------
+
+      function Get_Index return Int is
+      begin
+         if Current in Names.First .. Names.Last then
+            return Names.Table (Current).Index;
+         else
+            return 0;
+         end if;
+      end Get_Index;
 
       ------------------
       -- Get_Location --
@@ -680,6 +919,17 @@ package body Makeutl is
       begin
          Current := 0;
       end Reset;
+
+      ---------------
+      -- Set_Index --
+      ---------------
+
+      procedure Set_Index (Index : Int) is
+      begin
+         if Names.Last > 0 then
+            Names.Table (Names.Last).Index := Index;
+         end if;
+      end Set_Index;
 
       ------------------
       -- Set_Location --

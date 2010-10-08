@@ -1,5 +1,6 @@
 @c Copyright (C) 1988,1989,1992,1993,1994,1995,1996,1997,1998,1999,2000,
-@c 2001,2002,2003,2004,2005,2006,2007,2008,2009 Free Software Foundation, Inc.
+@c 2001,2002,2003,2004,2005,2006,2007,2008,2009, 2010
+@c Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -55,7 +56,7 @@ Scott Bambrough for help porting the Java compiler.
 Wolfgang Bangerth for processing tons of bug reports.
 
 @item
-Jon Beniston for his Microsoft Windows port of Java.
+Jon Beniston for his Microsoft Windows port of Java and port to Lattice Mico32.
 
 @item
 Daniel Berlin for better DWARF2 support, faster/better optimizations,
@@ -79,7 +80,7 @@ Janne Blomqvist for contributions to GNU Fortran.
 Segher Boessenkool for various fixes.
 
 @item
-Hans-J. Boehm for his @uref{http://www.hpl.hp.com/personal/Hans_Boehm/gc/,,
+Hans-J. Boehm for his @uref{http://www.hpl.hp.com/@/personal/@/Hans_Boehm/@/gc/,,
 garbage collector}, IA-64 libffi port, and other Java work.
 
 @item
@@ -238,6 +239,9 @@ architecture, libio maintenance, and early math work.
 Zdenek Dvorak for a new loop unroller and various fixes.
 
 @item
+Michael Eager for his work on the Xilinx MicroBlaze port.
+
+@item
 Richard Earnshaw for his ongoing work with the ARM@.
 
 @item
@@ -324,6 +328,10 @@ Stu Grossman for gdb hacking, allowing GCJ developers to debug Java code.
 
 @item
 Michael K. Gschwind contributed the port to the PDP-11.
+
+@item
+Richard Guenther for his ongoing middle-end contributions and bug fixes
+and for release management.
 
 @item
 Ron Guilmette implemented the @command{protoize} and @command{unprotoize}
@@ -691,7 +699,8 @@ Melissa O'Neill for various NeXT fixes.
 @item
 Rainer Orth for random MIPS work, including improvements to GCC's o32
 ABI support, improvements to dejagnu's MIPS support, Java configuration
-clean-ups and porting work, etc.
+clean-ups and porting work, and maintaining the IRIX, Solaris 2, and
+Tru64 UNIX ports.
 
 @item
 Hartmut Penner for work on the s390 port.
@@ -813,6 +822,9 @@ Andreas Schwab for his work on the m68k port.
 
 @item
 Lars Segerlund for work on GNU Fortran.
+
+@item
+Dodji Seketeli for numerous C++ bug fixes and debug info improvements.
 
 @item
 Joel Sherrill for his direction via the steering committee, RTEMS

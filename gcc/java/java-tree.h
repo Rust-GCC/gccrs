@@ -1,7 +1,7 @@
 /* Definitions for parsing and type checking for the GNU compiler for
    the Java(TM) language.
    Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007, 2008 Free Software Foundation, Inc.
+   2005, 2006, 2007, 2008, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -102,10 +102,6 @@ struct JCF;
 #define output_class \
   java_global_trees[JTI_OUTPUT_CLASS]
 
-/* List of all class DECLs seen so far.  */
-#define all_class_list \
-  java_global_trees[JTI_ALL_CLASS_LIST]
-
 /* List of virtual decls referred to by this translation unit, used to
    generate virtual method offset symbol table.  */
 
@@ -116,64 +112,11 @@ struct JCF;
 /* The virtual offset symbol table. Used by the runtime to fill out
    the otable. */
 
-extern int flag_filelist_file;
-
-/* When nonzero, permit the use of the assert keyword.  */
-
-extern int flag_assert;
-
-/* When nonzero, assume all native functions are implemented with
-   JNI, not CNI.  */
-
-extern int flag_jni;
-
-/* When nonzero, always check for a non gcj generated classes archive.  */
-
-extern int flag_force_classes_archive_check;
-
 /* Resource name.  */
 extern const char *resource_name;
 
 /* Turned to 1 if -Wall was encountered. See lang.c for their meanings.  */
 extern int flag_wall;
-extern int flag_redundant;
-
-/* When nonzero, warn when source file is newer than matching class
-   file.  */
-extern int flag_newer;
-
-/* When nonzero, call a library routine to do integer divisions. */
-extern int flag_use_divide_subroutine;
-
-/* When nonzero, use atomic builtins. */
-extern int flag_use_atomic_builtins;
-
-/* When nonzero, generate code for the Boehm GC.  */
-extern int flag_use_boehm_gc;
-
-/* When nonzero, assume the runtime uses a hash table to map an
-   object to its synchronization structure.  */
-extern int flag_hash_synchronization;
-
-/* When nonzero, generate checks for references to NULL.  */
-extern int flag_check_references;
-
-/* Used through STATIC_CLASS_INIT_OPT_P to check whether static
-   initialization optimization should be performed.  */
-extern int flag_optimize_sci;
-
-/* Generate instances of Class at runtime.  */
-extern int flag_indirect_classes;
-
-/* When nonzero, use offset tables for virtual method calls
-   in order to improve binary compatibility. */
-extern int flag_indirect_dispatch;
-
-/* When zero, don't generate runtime array store checks. */
-extern int flag_store_check;
-
-/* When nonzero, generate only a limited set of class meta-data. */
-extern int flag_reduced_reflection;
 
 /* The Java .class file that provides main_class;  the main input file. */
 extern GTY(()) struct JCF * current_jcf;
@@ -370,9 +313,6 @@ enum java_tree_index
   JTI_MAIN_CLASS,
   JTI_CURRENT_CLASS,
   JTI_OUTPUT_CLASS,
-  JTI_ALL_CLASS_LIST,
-
-  JTI_PREDEF_FILENAMES,
 
   JTI_MAX
 };
@@ -630,9 +570,6 @@ extern GTY(()) tree java_global_trees[JTI_MAX];
 #define nativecode_ptr_array_type_node \
   java_global_trees[JTI_NATIVECODE_PTR_ARRAY_TYPE_NODE]
 
-#define predef_filenames \
-  java_global_trees[JTI_PREDEF_FILENAMES]
-
 #define nativecode_ptr_type_node ptr_type_node
 
 /* The decl for "_Jv_ResolvePoolEntry".  */
@@ -760,11 +697,12 @@ union GTY((desc ("TREE_CODE (&%h.generic) == IDENTIFIER_NODE"),
     (DECL_LANG_SPECIFIC (NODE)->u.v.vtable)
 
 /* Create a DECL_LANG_SPECIFIC if necessary. */
-#define MAYBE_CREATE_VAR_LANG_DECL_SPECIFIC(T)			\
-  if (DECL_LANG_SPECIFIC (T) == NULL)				\
-    {								\
-      DECL_LANG_SPECIFIC ((T)) = GGC_CNEW (struct lang_decl);	\
-      DECL_LANG_SPECIFIC (T)->desc = LANG_DECL_VAR;		\
+#define MAYBE_CREATE_VAR_LANG_DECL_SPECIFIC(T)                       \
+  if (DECL_LANG_SPECIFIC (T) == NULL)                                \
+    {                                                                \
+      DECL_LANG_SPECIFIC ((T))                                       \
+        = ggc_alloc_cleared_lang_decl (sizeof (struct lang_decl));   \
+      DECL_LANG_SPECIFIC (T)->desc = LANG_DECL_VAR;                  \
     }
 
 /* A ConstantExpression, after folding and name resolution. */
@@ -786,7 +724,7 @@ struct GTY(()) lang_decl_func {
   int max_stack;
   int arg_slot_count;
   source_location last_line;	/* End line number for a function decl */
-  tree throws_list;		/* Exception specified by `throws' */
+  VEC(tree,gc) *throws_list;	/* Exception specified by `throws' */
   tree exc_obj;			/* Decl holding the exception object.  */
 
   /* Class initialization test variables  */
@@ -850,7 +788,7 @@ typedef struct GTY(()) type_assertion {
 
 extern tree java_treetreehash_find (htab_t, tree);
 extern tree * java_treetreehash_new (htab_t, tree);
-extern htab_t java_treetreehash_create (size_t size, int ggc);
+extern htab_t java_treetreehash_create (size_t size);
 
 /* DECL_LANG_SPECIFIC for VAR_DECL, PARM_DECL and sometimes FIELD_DECL
    (access methods on outer class fields) and final fields. */
@@ -871,7 +809,7 @@ struct GTY(()) lang_decl_var {
 
 enum lang_decl_desc {LANG_DECL_FUNC, LANG_DECL_VAR};
 
-struct GTY(()) lang_decl {
+struct GTY((variable_size)) lang_decl {
   enum lang_decl_desc desc;
   union lang_decl_u
     {
@@ -889,7 +827,7 @@ struct GTY(()) lang_decl {
 #define MAYBE_CREATE_TYPE_TYPE_LANG_SPECIFIC(T) \
   if (TYPE_LANG_SPECIFIC ((T)) == NULL)		\
      TYPE_LANG_SPECIFIC ((T))			\
-     = GGC_CNEW (struct lang_type);
+       = ggc_alloc_cleared_lang_type (sizeof (struct lang_type));
 
 #define TYPE_DUMMY(T)		(TYPE_LANG_SPECIFIC(T)->dummy_class)
 
@@ -926,31 +864,42 @@ struct GTY(()) lang_decl {
 #define TYPE_REFLECTION_DATASIZE(T)					\
 				(TYPE_LANG_SPECIFIC (T)->reflection_datasize)
 
-struct GTY(()) lang_type {
+typedef struct GTY(()) method_entry_d {
+  tree method;
+  tree special;
+} method_entry;
+
+DEF_VEC_O(method_entry);
+DEF_VEC_ALLOC_O(method_entry,gc);
+
+/* FIXME: the variable_size annotation here is needed because these types are
+   variable-sized in some other frontends.  Due to gengtype deficiency the GTY
+   options of such types have to agree across all frontends. */
+struct GTY((variable_size)) lang_type {
   tree signature;
   struct JCF *jcf;
   struct CPool *cpool;
   tree cpool_data_ref;		/* Cached */
   tree package_list;		/* List of package names, progressive */
 
-  tree otable_methods;          /* List of static decls referred to by this
-				   class.  */
+  VEC(method_entry,gc) *otable_methods; /* List of static decls referred
+					   to by this class.  */
   tree otable_decl;		/* The static address table.  */
   tree otable_syms_decl;
 
-  tree atable_methods;          /* List of static decls referred to by this
-				   class.  */
+  VEC(method_entry,gc) *atable_methods; /* List of abstract methods
+					   referred to by this class.  */
   tree atable_decl;		/* The static address table.  */
   tree atable_syms_decl;
 
-  tree itable_methods;          /* List of interfaces methods referred
-				   to by this class.  */
+  VEC(method_entry,gc) *itable_methods; /* List of interface methods
+					   referred to by this class.  */
   tree itable_decl;		/* The interfaces table.  */
   tree itable_syms_decl;
 
   tree ctable_decl;             /* The table of classes for the runtime
 				   type matcher.  */
-  tree catch_classes;
+  VEC(constructor_elt,gc) *catch_classes;
 
   htab_t GTY ((param_is (struct treetreehash_entry))) type_to_runtime_map;   
                                 /* The mapping of classes to exception region
@@ -1067,14 +1016,14 @@ extern void initialize_builtins (void);
 
 extern tree lookup_name (tree);
 extern bool special_method_p (tree);
-extern void maybe_rewrite_invocation (tree *, tree *, tree *, tree *);
-extern tree build_known_method_ref (tree, tree, tree, tree, tree, tree);
+extern void maybe_rewrite_invocation (tree *, VEC(tree,gc) **, tree *, tree *);
+extern tree build_known_method_ref (tree, tree, tree, tree, VEC(tree,gc) *, tree);
 extern tree build_class_init (tree, tree);
 extern int attach_init_test_initialization_flags (void **, void *);
 extern tree build_invokevirtual (tree, tree, tree);
 extern tree build_invokeinterface (tree, tree);
 extern tree build_jni_stub (tree);
-extern tree invoke_build_dtable (int, tree);
+extern tree invoke_build_dtable (int, VEC(tree,gc) *);
 extern tree build_field_ref (tree, tree, tree);
 extern tree java_modify_addr_for_volatile (tree);
 extern void pushdecl_force_head (tree);
@@ -1113,7 +1062,8 @@ extern void make_class_data (tree);
 extern int alloc_name_constant (int, tree);
 extern int alloc_constant_fieldref (tree, tree);
 extern void emit_register_classes (tree *);
-extern tree emit_symbol_table (tree, tree, tree, tree, tree, int);
+extern tree emit_symbol_table (tree, tree, VEC(method_entry,gc) *,
+			       tree, tree, int);
 extern void lang_init_source (int);
 extern void write_classfile (tree);
 extern char *print_int_node (tree);
@@ -1216,7 +1166,7 @@ extern void register_exception_range(struct eh_range *, int, int);
 extern void finish_method (tree);
 extern void java_expand_body (tree);
 
-extern int get_symbol_table_index (tree, tree, tree *);
+extern int get_symbol_table_index (tree, tree, VEC(method_entry,gc) **);
 
 extern tree make_catch_class_record (tree, tree);
 extern tree emit_catch_table (tree);
@@ -1230,6 +1180,10 @@ extern void java_read_sourcefilenames (const char *fsource_filename);
 extern void rewrite_reflection_indexes (void *);
 
 int cxx_keyword_p (const char *name, int length);
+
+extern GTY(()) VEC(tree,gc) *pending_static_fields;
+
+extern void java_write_globals (void);   
 
 #define DECL_FINAL(DECL) DECL_LANG_FLAG_3 (DECL)
 
@@ -1454,57 +1408,61 @@ extern tree *type_map;
   if (TYPE_FIELDS (RTYPE) == NULL_TREE)	\
     TYPE_FIELDS (RTYPE) = _field; 	\
   else					\
-    TREE_CHAIN(FIELD) = _field;		\
+    DECL_CHAIN(FIELD) = _field;		\
   DECL_CONTEXT (_field) = (RTYPE);	\
   DECL_ARTIFICIAL (_field) = 1;		\
   FIELD = _field; }
 
 #define FINISH_RECORD(RTYPE) layout_type (RTYPE)
 
-/* Start building a RECORD_TYPE constructor with a given TYPE in CONS. */
-#define START_RECORD_CONSTRUCTOR(CONS, CTYPE) \
+/* Start building a RECORD_TYPE constructor's elements in V.  The
+   constructor will have type CTYPE.  */
+#define START_RECORD_CONSTRUCTOR(V, CTYPE) \
   do \
     { \
-      CONS = build_constructor ((CTYPE), VEC_alloc (constructor_elt, gc, 0)); \
-      CONSTRUCTOR_APPEND_ELT (CONSTRUCTOR_ELTS (CONS), TYPE_FIELDS (CTYPE), \
-			      NULL); \
+      V = VEC_alloc (constructor_elt, gc, 0); \
+      CONSTRUCTOR_APPEND_ELT (V, TYPE_FIELDS (CTYPE), NULL); \
     } \
   while (0)
 
-/* Append a field initializer to CONS for the dummy field for the inherited
+/* Append a field initializer to V for the dummy field for the inherited
    fields.  The dummy field has the given VALUE, and the same type as the
    super-class.   Must be specified before calls to PUSH_FIELD_VALUE. */
-#define PUSH_SUPER_VALUE(CONS, VALUE) \
+#define PUSH_SUPER_VALUE(V, VALUE) \
   do \
     { \
-      constructor_elt *_elt___ = VEC_last (constructor_elt, \
-					   CONSTRUCTOR_ELTS (CONS)); \
-      tree _next___ = TREE_CHAIN (_elt___->index); \
+      constructor_elt *_elt___ = VEC_last (constructor_elt, V); \
+      tree _next___ = DECL_CHAIN (_elt___->index); \
       gcc_assert (!DECL_NAME (_elt___->index)); \
       _elt___->value = VALUE; \
-      CONSTRUCTOR_APPEND_ELT (CONSTRUCTOR_ELTS (CONS), _next___, NULL); \
+      CONSTRUCTOR_APPEND_ELT (V, _next___, NULL); \
     } \
   while (0)
 
-/* Append a field initializer to CONS for a field with the given VALUE.
+/* Append a field initializer to V for a field with the given VALUE.
    NAME is a char* string used for error checking;
    the initializer must be specified in order. */
-#define PUSH_FIELD_VALUE(CONS, NAME, VALUE) 				\
+#define PUSH_FIELD_VALUE(V, NAME, VALUE) 				\
   do \
     { \
-      constructor_elt *_elt___ = VEC_last (constructor_elt, \
-					   CONSTRUCTOR_ELTS (CONS)); \
-      tree _next___ = TREE_CHAIN (_elt___->index); \
+      constructor_elt *_elt___ = VEC_last (constructor_elt, V); \
+      tree _next___ = DECL_CHAIN (_elt___->index); \
       gcc_assert (strcmp (IDENTIFIER_POINTER (DECL_NAME (_elt___->index)), \
 			  NAME) == 0); \
       _elt___->value = VALUE; \
-      CONSTRUCTOR_APPEND_ELT (CONSTRUCTOR_ELTS (CONS), _next___, NULL); \
+      CONSTRUCTOR_APPEND_ELT (V, _next___, NULL); \
     } \
   while (0)
 
-/* Finish creating a record CONSTRUCTOR CONS. */
-#define FINISH_RECORD_CONSTRUCTOR(CONS) \
-  VEC_pop (constructor_elt, CONSTRUCTOR_ELTS (CONS))
+/* Finish creating a record CONSTRUCTOR CONS with type CTYPE and elements V.  */
+#define FINISH_RECORD_CONSTRUCTOR(CONS, V, CTYPE)        \
+  do \
+    { \
+      VEC_pop (constructor_elt, V); \
+      CONS = build_constructor (CTYPE, V); \
+      TREE_CONSTANT (CONS) = 0; \
+    } \
+  while (0)
 
 #define BLOCK_EXPR_DECLS(NODE)  BLOCK_VARS(NODE)
 #define BLOCK_EXPR_BODY(NODE)   BLOCK_SUBBLOCKS(NODE)

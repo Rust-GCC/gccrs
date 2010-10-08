@@ -1,6 +1,6 @@
 // random number generation (out of line) -*- C++ -*-
 
-// Copyright (C) 2009 Free Software Foundation, Inc.
+// Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,6 +27,9 @@
  *  This is an internal header file, included by other library headers.
  *  You should not attempt to use it directly.
  */
+
+#ifndef _GLIBCXX_TR1_RANDOM_TCC
+#define _GLIBCXX_TR1_RANDOM_TCC 1
 
 namespace std
 {
@@ -1060,7 +1063,7 @@ namespace tr1
    * is defined.
    *
    * Reference:
-   * Devroye, L. "Non-Uniform Random Variates Generation." Springer-Verlag,
+   * Devroye, L. Non-Uniform Random Variates Generation. Springer-Verlag,
    * New York, 1986, Ch. X, Sects. 3.3 & 3.4 (+ Errata!).
    */
   template<typename _IntType, typename _RealType>
@@ -1285,7 +1288,7 @@ namespace tr1
    * is defined.
    *
    * Reference:
-   * Devroye, L. "Non-Uniform Random Variates Generation." Springer-Verlag,
+   * Devroye, L. Non-Uniform Random Variates Generation. Springer-Verlag,
    * New York, 1986, Ch. X, Sect. 4 (+ Errata!).
    */
   template<typename _IntType, typename _RealType>
@@ -1514,7 +1517,7 @@ namespace tr1
   /**
    * Polar method due to Marsaglia.
    *
-   * Devroye, L. "Non-Uniform Random Variates Generation." Springer-Verlag,
+   * Devroye, L. Non-Uniform Random Variates Generation. Springer-Verlag,
    * New York, 1986, Ch. V, Sect. 4.4.
    */
   template<typename _RealType>
@@ -1618,14 +1621,14 @@ namespace tr1
    * alpha < 1.
    *
    * References:
-   * Cheng, R. C. "The Generation of Gamma Random Variables with Non-integral
-   * Shape Parameter." Applied Statistics, 26, 71-75, 1977.
+   * Cheng, R. C. The Generation of Gamma Random Variables with Non-integral
+   * Shape Parameter. Applied Statistics, 26, 71-75, 1977.
    *
-   * Vaduva, I. "Computer Generation of Gamma Gandom Variables by Rejection
-   * and Composition Procedures." Math. Operationsforschung and Statistik,
+   * Vaduva, I. Computer Generation of Gamma Gandom Variables by Rejection
+   * and Composition Procedures. Math. Operationsforschung and Statistik,
    * Series in Statistics, 8, 545-576, 1977.
    *
-   * Devroye, L. "Non-Uniform Random Variates Generation." Springer-Verlag,
+   * Devroye, L. Non-Uniform Random Variates Generation. Springer-Verlag,
    * New York, 1986, Ch. IX, Sect. 3.4 (+ Errata!).
    */
   template<typename _RealType>
@@ -1708,3 +1711,5 @@ namespace tr1
     }
 }
 }
+
+#endif

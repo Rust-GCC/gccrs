@@ -1,6 +1,6 @@
 /* Definitions for C parsing and type checking.
    Copyright (C) 1987, 1993, 1994, 1995, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -22,8 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_C_TREE_H
 #define GCC_C_TREE_H
 
-#include "c-common.h"
-#include "toplev.h"
+#include "c-family/c-common.h"
 #include "diagnostic.h"
 
 /* struct lang_identifier is private to c-decl.c, but langhooks.c needs to
@@ -160,6 +159,9 @@ enum c_typespec_kind {
 struct c_typespec {
   /* What kind of type specifier this is.  */
   enum c_typespec_kind kind;
+  /* Whether the expression has operands suitable for use in constant
+     expressions.  */
+  bool expr_const_operands;
   /* The specifier itself.  */
   tree spec;
   /* An expression to be evaluated before the type specifier, in the
@@ -171,9 +173,6 @@ struct c_typespec {
      expression itself (as opposed to the array sizes) forms no part
      of the type and so needs to be recorded separately.  */
   tree expr;
-  /* Whether the expression has operands suitable for use in constant
-     expressions.  */
-  bool expr_const_operands;
 };
 
 /* A storage class specifier.  */
@@ -196,6 +195,7 @@ enum c_typespec_keyword {
   cts_char,
   cts_int,
   cts_float,
+  cts_int128,
   cts_double,
   cts_dfloat32,
   cts_dfloat64,
@@ -220,11 +220,11 @@ struct c_declspecs {
      NULL; attributes (possibly from multiple lists) will be passed
      separately.  */
   tree attrs;
-  /* Any type specifier keyword used such as "int", not reflecting
-     modifiers such as "short", or cts_none if none.  */
-  enum c_typespec_keyword typespec_word;
   /* The storage class specifier, or csc_none if none.  */
   enum c_storage_class storage_class;
+  /* Any type specifier keyword used such as "int", not reflecting
+     modifiers such as "short", or cts_none if none.  */
+  ENUM_BITFIELD (c_typespec_keyword) typespec_word : 8;
   /* Whether any expressions in typeof specifiers may appear in
      constant expressions.  */
   BOOL_BITFIELD expr_const_operands : 1;
@@ -252,7 +252,7 @@ struct c_declspecs {
   BOOL_BITFIELD deprecated_p : 1;
   /* Whether the type defaulted to "int" because there were no type
      specifiers.  */
-  BOOL_BITFIELD default_int_p;
+  BOOL_BITFIELD default_int_p : 1;
   /* Whether "long" was specified.  */
   BOOL_BITFIELD long_p : 1;
   /* Whether "long" was specified more than once.  */
@@ -295,22 +295,32 @@ enum c_declarator_kind {
   cdk_attrs
 };
 
+typedef struct GTY(()) c_arg_tag_d {
+  /* The argument name.  */
+  tree id;
+  /* The type of the argument.  */
+  tree type;
+} c_arg_tag;
+
+DEF_VEC_O(c_arg_tag);
+DEF_VEC_ALLOC_O(c_arg_tag,gc);
+
 /* Information about the parameters in a function declarator.  */
 struct c_arg_info {
   /* A list of parameter decls.  */
   tree parms;
   /* A list of structure, union and enum tags defined.  */
-  tree tags;
+  VEC(c_arg_tag,gc) *tags;
   /* A list of argument types to go in the FUNCTION_TYPE.  */
   tree types;
   /* A list of non-parameter decls (notably enumeration constants)
      defined with the parameters.  */
   tree others;
-  /* A list of VLA sizes from the parameters.  In a function
+  /* A VEC of VLA sizes from the parameters.  In a function
      definition, these are used to ensure that side-effects in sizes
      of arrays converted to pointers (such as a parameter int i[n++])
      take place; otherwise, they are ignored.  */
-  tree pending_sizes;
+  VEC(tree,gc) *pending_sizes;
   /* True when these arguments had [*].  */
   BOOL_BITFIELD had_vla_unspec : 1;
 };
@@ -319,9 +329,9 @@ struct c_arg_info {
 struct c_declarator {
   /* The kind of declarator.  */
   enum c_declarator_kind kind;
+  location_t id_loc; /* Currently only set for cdk_id, cdk_array. */
   /* Except for cdk_id, the contained declarator.  For cdk_id, NULL.  */
   struct c_declarator *declarator;
-  location_t id_loc; /* Currently only set for cdk_id, cdk_array. */
   union {
     /* For identifiers, an IDENTIFIER_NODE or NULL_TREE if an abstract
        declarator.  */
@@ -417,8 +427,9 @@ extern int quals_from_declspecs (const struct c_declspecs *);
 extern struct c_declarator *build_array_declarator (location_t, tree,
     						    struct c_declspecs *,
 						    bool, bool);
-extern tree build_enumerator (location_t, struct c_enum_contents *, tree, tree);
-extern tree check_for_loop_decls (location_t);
+extern tree build_enumerator (location_t, location_t, struct c_enum_contents *,
+			      tree, tree);
+extern tree check_for_loop_decls (location_t, bool);
 extern void mark_forward_parm_decls (void);
 extern void declare_parm_level (void);
 extern void undeclared_variable (location_t, tree);
@@ -434,6 +445,7 @@ extern tree finish_enum (tree, tree, tree);
 extern void finish_function (void);
 extern tree finish_struct (location_t, tree, tree, tree,
 			   struct c_struct_parse_info *);
+extern struct c_arg_info *build_arg_info (void);
 extern struct c_arg_info *get_parm_info (bool);
 extern tree grokfield (location_t, struct c_declarator *,
 		       struct c_declspecs *, tree, tree *);
@@ -489,11 +501,6 @@ extern bool c_warn_unused_global_decl (const_tree);
 extern void c_initialize_diagnostics (diagnostic_context *);
 extern bool c_vla_unspec_p (tree x, tree fn);
 
-#define c_build_type_variant(TYPE, CONST_P, VOLATILE_P)		  \
-  c_build_qualified_type ((TYPE),				  \
-			  ((CONST_P) ? TYPE_QUAL_CONST : 0) |	  \
-			  ((VOLATILE_P) ? TYPE_QUAL_VOLATILE : 0))
-
 /* in c-typeck.c */
 extern bool in_late_binary_op;
 extern int in_alignof;
@@ -506,12 +513,16 @@ extern tree c_objc_common_truthvalue_conversion (location_t, tree);
 extern tree require_complete_type (tree);
 extern int same_translation_unit_p (const_tree, const_tree);
 extern int comptypes (tree, tree);
+extern int comptypes_check_different_types (tree, tree, bool *);
 extern bool c_vla_type_p (const_tree);
 extern bool c_mark_addressable (tree);
 extern void c_incomplete_type_error (const_tree, const_tree);
 extern tree c_type_promotes_to (tree);
 extern struct c_expr default_function_array_conversion (location_t,
-    							struct c_expr);
+							struct c_expr);
+extern struct c_expr default_function_array_read_conversion (location_t,
+							     struct c_expr);
+extern void mark_exp_read (tree);
 extern tree composite_type (tree, tree);
 extern tree build_component_ref (location_t, tree, tree);
 extern tree build_array_ref (location_t, tree, tree);
@@ -521,7 +532,7 @@ extern struct c_expr c_expr_sizeof_expr (location_t, struct c_expr);
 extern struct c_expr c_expr_sizeof_type (location_t, struct c_type_name *);
 extern struct c_expr parser_build_unary_op (location_t, enum tree_code,
     					    struct c_expr);
-extern struct c_expr parser_build_binary_op (location_t, 
+extern struct c_expr parser_build_binary_op (location_t,
     					     enum tree_code, struct c_expr,
 					     struct c_expr);
 extern tree build_conditional_expr (location_t, tree, bool, tree, tree,
@@ -536,11 +547,11 @@ extern void maybe_warn_string_init (tree, struct c_expr);
 extern void start_init (tree, tree, int);
 extern void finish_init (void);
 extern void really_start_incremental_init (tree);
-extern void push_init_level (int);
-extern struct c_expr pop_init_level (int);
-extern void set_init_index (tree, tree);
-extern void set_init_label (tree);
-extern void process_init_element (struct c_expr, bool);
+extern void push_init_level (int, struct obstack *);
+extern struct c_expr pop_init_level (int, struct obstack *);
+extern void set_init_index (tree, tree, struct obstack *);
+extern void set_init_label (tree, struct obstack *);
+extern void process_init_element (struct c_expr, bool, struct obstack *);
 extern tree build_compound_literal (location_t, tree, tree, bool);
 extern void check_compound_literal_type (location_t, struct c_type_name *);
 extern tree c_start_case (location_t, location_t, tree);
@@ -596,20 +607,8 @@ extern bool c_override_global_bindings_to_false;
 extern void c_finish_incomplete_decl (tree);
 extern void c_write_global_declarations (void);
 
-/* In order for the format checking to accept the C frontend
-   diagnostic framework extensions, you must include this file before
-   toplev.h, not after.  */
-#if GCC_VERSION >= 4001
-#define ATTRIBUTE_GCC_CDIAG(m, n) __attribute__ ((__format__ (GCC_DIAG_STYLE, m ,n))) ATTRIBUTE_NONNULL(m)
-#else
-#define ATTRIBUTE_GCC_CDIAG(m, n) ATTRIBUTE_NONNULL(m)
-#endif
-
-extern void pedwarn_c90 (location_t, int opt, const char *, ...) ATTRIBUTE_GCC_CDIAG(3,4);
-extern void pedwarn_c99 (location_t, int opt, const char *, ...) ATTRIBUTE_GCC_CDIAG(3,4);
-
-extern bool c_cpp_error (cpp_reader *, int, location_t, unsigned int,
-			 const char *, va_list *)
-     ATTRIBUTE_GCC_CDIAG(5,0);
+/* In c-errors.c */
+extern void pedwarn_c90 (location_t, int opt, const char *, ...) ATTRIBUTE_GCC_DIAG(3,4);
+extern void pedwarn_c99 (location_t, int opt, const char *, ...) ATTRIBUTE_GCC_DIAG(3,4);
 
 #endif /* ! GCC_C_TREE_H */

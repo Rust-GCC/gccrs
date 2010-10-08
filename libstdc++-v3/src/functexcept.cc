@@ -29,6 +29,7 @@
 #include <ios>
 #include <system_error>
 #include <future>
+#include <functional>
 
 #ifdef _GLIBCXX_USE_NLS
 # include <libintl.h>
@@ -102,8 +103,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   void
   __throw_future_error(int __i)
-  { throw future_error(future_errc(__i)); }
+  { throw future_error(make_error_code(future_errc(__i))); }
 
+  void
+  __throw_bad_function_call()
+  { throw bad_function_call(); }
 #else
   void
   __throw_bad_exception(void)
@@ -167,6 +171,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   void
   __throw_future_error(int)
+  { std::abort(); }
+
+  void
+  __throw_bad_function_call()
   { std::abort(); }
 
 #endif //__EXCEPTIONS

@@ -28,7 +28,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "expr.h"
 #include "params.h"
 #include "input.h"
-#include "varray.h"
 #include "hashtab.h"
 #include "basic-block.h"
 #include "tree-flow.h"
@@ -50,48 +49,6 @@ static VEC(lto_out_decl_state_ptr, heap) *decl_state_stack;
    generate the decl directory later. */
 
 VEC(lto_out_decl_state_ptr, heap) *lto_function_decl_states;
-
-/* Bitmap indexed by DECL_UID to indicate if a function needs to be
-   forced extern inline. */
-static bitmap forced_extern_inline;
-
-/* Initialize states for determining which function decls to be ouput
-   as extern inline, regardless of the decls' own attributes.  */
-
-void
-lto_new_extern_inline_states (void)
-{
-  forced_extern_inline = lto_bitmap_alloc ();
-}
-
-/* Releasing resources use for states to determine which function decls
-   to be ouput as extern inline */
-
-void
-lto_delete_extern_inline_states (void)
-{
-  lto_bitmap_free (forced_extern_inline);
-  forced_extern_inline = NULL;
-}
-
-/* Force all the functions in DECLS to be output as extern inline.
-   DECLS is a bitmap indexed by DECL_UID. */
- 
-void
-lto_force_functions_extern_inline (bitmap decls)
-{
-  bitmap_ior_into (forced_extern_inline, decls);
-}
-
-/* Return true if FN_DECL is a function which should be emitted as
-   extern inline.  */
-
-bool
-lto_forced_extern_inline_p (tree fn_decl)
-{
-  return bitmap_bit_p (forced_extern_inline, DECL_UID (fn_decl));
-}
-
 /* Returns a hash code for P.  */
 
 hashval_t
@@ -345,7 +302,7 @@ lto_output_uleb128_stream (struct lto_output_stream *obs,
   while (work != 0);
 }
 
-/* Identical to output_uleb128_stream above except using unsigned 
+/* Identical to output_uleb128_stream above except using unsigned
    HOST_WIDEST_INT type.  For efficiency on host where unsigned HOST_WIDEST_INT
    is not native, we only use this if we know that HOST_WIDE_INT is not wide
    enough.  */
@@ -448,7 +405,7 @@ lto_output_field_decl_index (struct lto_out_decl_state *decl_state,
 /* Output a function DECL to OBS.  */
 
 void
-lto_output_fn_decl_index (struct lto_out_decl_state *decl_state, 
+lto_output_fn_decl_index (struct lto_out_decl_state *decl_state,
 			  struct lto_output_stream * obs, tree decl)
 {
   unsigned int index;
@@ -529,7 +486,7 @@ lto_destroy_simple_output_block (struct lto_simple_output_block *ob)
   struct lto_simple_header header;
   struct lto_output_stream *header_stream;
 
-  section_name = lto_get_section_name (ob->section_type, NULL);
+  section_name = lto_get_section_name (ob->section_type, NULL, NULL);
   lto_begin_section (section_name, !flag_wpa);
   free (section_name);
 
@@ -539,9 +496,9 @@ lto_destroy_simple_output_block (struct lto_simple_output_block *ob)
   header.lto_header.major_version = LTO_major_version;
   header.lto_header.minor_version = LTO_minor_version;
   header.lto_header.section_type = LTO_section_cgraph;
-  
+
   header.compressed_size = 0;
-  
+
   header.main_size = ob->main_stream->total_size;
 
   header_stream = XCNEW (struct lto_output_stream);
@@ -584,8 +541,6 @@ lto_new_out_decl_state (void)
 	}
       lto_init_tree_ref_encoder (&state->streams[i], hash_fn, eq_fn);
     }
-
-  state->cgraph_node_encoder = lto_cgraph_encoder_new ();
 
   return state;
 }

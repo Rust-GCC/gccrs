@@ -43,6 +43,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "output.h"
 #include "function.h"
 #include "except.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "recog.h"
 #include "expr.h"
@@ -66,7 +67,7 @@ along with GCC; see the file COPYING3.  If not see
 static sreal real_zero, real_one, real_almost_one, real_br_prob_base,
 	     real_inv_br_prob_base, real_one_half, real_bb_freq_max;
 
-/* Random guesstimation given names.  
+/* Random guesstimation given names.
    PROV_VERY_UNLIKELY should be small enough so basic block predicted
    by it gets bellow HOT_BB_FREQUENCY_FRANCTION.  */
 #define PROB_VERY_UNLIKELY	(REG_BR_PROB_BASE / 2000 - 1)
@@ -77,7 +78,6 @@ static sreal real_zero, real_one, real_almost_one, real_br_prob_base,
 static void combine_predictions_for_insn (rtx, basic_block);
 static void dump_prediction (FILE *, enum br_predictor, int, basic_block, int);
 static void predict_paths_leading_to (basic_block, enum br_predictor, enum prediction);
-static void compute_function_frequency (void);
 static void choose_function_section (void);
 static bool can_predict_insn_p (const_rtx);
 
@@ -114,15 +114,19 @@ static const struct predictor_info predictor_info[]= {
 static inline bool
 maybe_hot_frequency_p (int freq)
 {
+  struct cgraph_node *node = cgraph_node (current_function_decl);
   if (!profile_info || !flag_branch_probabilities)
     {
-      if (cfun->function_frequency == FUNCTION_FREQUENCY_UNLIKELY_EXECUTED)
+      if (node->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED)
         return false;
-      if (cfun->function_frequency == FUNCTION_FREQUENCY_HOT)
+      if (node->frequency == NODE_FREQUENCY_HOT)
         return true;
     }
   if (profile_status == PROFILE_ABSENT)
     return true;
+  if (node->frequency == NODE_FREQUENCY_EXECUTED_ONCE
+      && freq <= (ENTRY_BLOCK_PTR->frequency * 2 / 3))
+    return false;
   if (freq < BB_FREQ_MAX / PARAM_VALUE (HOT_BB_FREQUENCY_FRACTION))
     return false;
   return true;
@@ -162,11 +166,19 @@ cgraph_maybe_hot_edge_p (struct cgraph_edge *edge)
       && (edge->count
 	  <= profile_info->sum_max / PARAM_VALUE (HOT_BB_COUNT_FRACTION)))
     return false;
-  if (lookup_attribute ("cold", DECL_ATTRIBUTES (edge->callee->decl))
-      || lookup_attribute ("cold", DECL_ATTRIBUTES (edge->caller->decl)))
+  if (edge->caller->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED
+      || edge->callee->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED)
     return false;
-  if (lookup_attribute ("hot", DECL_ATTRIBUTES (edge->caller->decl)))
+  if (edge->caller->frequency > NODE_FREQUENCY_UNLIKELY_EXECUTED
+      && edge->callee->frequency <= NODE_FREQUENCY_EXECUTED_ONCE)
+    return false;
+  if (optimize_size)
+    return false;
+  if (edge->caller->frequency == NODE_FREQUENCY_HOT)
     return true;
+  if (edge->caller->frequency == NODE_FREQUENCY_EXECUTED_ONCE
+      && edge->frequency < CGRAPH_FREQ_BASE * 3 / 2)
+    return false;
   if (flag_guess_branch_prob
       && edge->frequency <= (CGRAPH_FREQ_BASE
       			     / PARAM_VALUE (HOT_BB_FREQUENCY_FRACTION)))
@@ -192,7 +204,7 @@ probably_never_executed_bb_p (const_basic_block bb)
   if (profile_info && flag_branch_probabilities)
     return ((bb->count + profile_info->runs / 2) / profile_info->runs) == 0;
   if ((!profile_info || !flag_branch_probabilities)
-      && cfun->function_frequency == FUNCTION_FREQUENCY_UNLIKELY_EXECUTED)
+      && cgraph_node (current_function_decl)->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED)
     return true;
   return false;
 }
@@ -203,8 +215,9 @@ bool
 optimize_function_for_size_p (struct function *fun)
 {
   return (optimize_size
-	  || (fun && (fun->function_frequency
-		      == FUNCTION_FREQUENCY_UNLIKELY_EXECUTED)));
+	  || (fun && fun->decl
+	      && (cgraph_node (fun->decl)->frequency
+		  == NODE_FREQUENCY_UNLIKELY_EXECUTED)));
 }
 
 /* Return true when current function should always be optimized for speed.  */
@@ -387,7 +400,7 @@ gimple_predicted_by_p (const_basic_block bb, enum br_predictor predictor)
 
   if (!preds)
     return false;
-  
+
   for (i = (struct edge_prediction *) *preds; i; i = i->ep_next)
     if (i->ep_predictor == predictor)
       return true;
@@ -395,7 +408,7 @@ gimple_predicted_by_p (const_basic_block bb, enum br_predictor predictor)
 }
 
 /* Return true when the probability of edge is reliable.
-  
+
    The profile guessing code is good at predicting branch outcome (ie.
    taken/not taken), that is predicted right slightly over 75% of time.
    It is however notoriously poor on predicting the probability itself.
@@ -505,7 +518,7 @@ void
 remove_predictions_associated_with_edge (edge e)
 {
   void **preds;
-  
+
   if (!bb_predictions)
     return;
 
@@ -788,7 +801,7 @@ combine_predictions_for_bb (basic_block bb)
 	  first = e;
       }
 
-  /* When there is no successor or only one choice, prediction is easy. 
+  /* When there is no successor or only one choice, prediction is easy.
 
      We are lazy for now and predict only basic blocks with two outgoing
      edges.  It is possible to predict generic case too, but we have to
@@ -837,7 +850,7 @@ combine_predictions_for_bb (basic_block bb)
 		   if (pred2->ep_edge != first)
 		     probability2 = REG_BR_PROB_BASE - probability2;
 
-		   if ((probability < REG_BR_PROB_BASE / 2) != 
+		   if ((probability < REG_BR_PROB_BASE / 2) !=
 		       (probability2 < REG_BR_PROB_BASE / 2))
 		     break;
 
@@ -929,7 +942,7 @@ predict_loops (void)
       exits = get_loop_exit_edges (loop);
       n_exits = VEC_length (edge, exits);
 
-      for (j = 0; VEC_iterate (edge, exits, j, ex); j++)
+      FOR_EACH_VEC_ELT (edge, exits, j, ex)
 	{
 	  tree niter = NULL;
 	  HOST_WIDE_INT nitercst;
@@ -1022,7 +1035,7 @@ predict_loops (void)
 		 EDGE_PROBABILITY_RELIABLE from trusting the branch prediction
 		 as this was causing regression in perl benchmark containing such
 		 a wide loop.  */
-	        
+
 	      int probability = ((REG_BR_PROB_BASE
 		                  - predictor_info [(int) PRED_LOOP_EXIT].hitrate)
 				 / n_exits);
@@ -1034,7 +1047,7 @@ predict_loops (void)
 		  predict_edge (e, PRED_LOOP_EXIT, probability);
 	    }
 	}
-      
+
       /* Free basic blocks from get_loop_body.  */
       free (bbs);
     }
@@ -1167,9 +1180,8 @@ expr_expected_value_1 (tree type, tree op0, enum tree_code code, tree op1, bitma
       def = SSA_NAME_DEF_STMT (op0);
 
       /* If we were already here, break the infinite cycle.  */
-      if (bitmap_bit_p (visited, SSA_NAME_VERSION (op0)))
+      if (!bitmap_set_bit (visited, SSA_NAME_VERSION (op0)))
 	return NULL;
-      bitmap_set_bit (visited, SSA_NAME_VERSION (op0));
 
       if (gimple_code (def) == GIMPLE_PHI)
 	{
@@ -1263,10 +1275,10 @@ expr_expected_value_1 (tree type, tree op0, enum tree_code code, tree op1, bitma
   return NULL;
 }
 
-/* Return constant EXPR will likely have at execution time, NULL if unknown. 
+/* Return constant EXPR will likely have at execution time, NULL if unknown.
    The function is used by builtin_expect branch predictor so the evidence
    must come from this construct and additional possible constant folding.
-  
+
    We may want to implement more involved value guess (such as value range
    propagation based prediction), but such tricks shall go to new
    implementation.  */
@@ -1774,8 +1786,33 @@ predict_paths_for_bb (basic_block cur, basic_block bb,
     if (e->src->index >= NUM_FIXED_BLOCKS
 	&& !dominated_by_p (CDI_POST_DOMINATORS, e->src, bb))
     {
+      edge e2;
+      edge_iterator ei2;
+      bool found = false;
+
+      /* Ignore abnormals, we predict them as not taken anyway.  */
+      if (e->flags & (EDGE_EH | EDGE_FAKE | EDGE_ABNORMAL))
+	continue;
       gcc_assert (bb == cur || dominated_by_p (CDI_POST_DOMINATORS, cur, bb));
-      predict_edge_def (e, pred, taken);
+
+      /* See if there is how many edge from e->src that is not abnormal
+	 and does not lead to BB.  */
+      FOR_EACH_EDGE (e2, ei2, e->src->succs)
+	if (e2 != e
+	    && !(e2->flags & (EDGE_EH | EDGE_FAKE | EDGE_ABNORMAL))
+	    && !dominated_by_p (CDI_POST_DOMINATORS, e2->dest, bb))
+	  {
+	    found = true;
+	    break;
+	  }
+
+      /* If there is non-abnormal path leaving e->src, predict edge
+	 using predictor.  Otherwise we need to look for paths
+	 leading to e->src.  */
+      if (found)
+        predict_edge_def (e, pred, taken);
+      else
+	predict_paths_for_bb (e->src, e->src, pred, taken);
     }
   for (son = first_dom_son (CDI_POST_DOMINATORS, cur);
        son;
@@ -1843,9 +1880,6 @@ propagate_freq (basic_block head, bitmap tovisit)
       edge_iterator ei;
       int count = 0;
 
-       /* The outermost "loop" includes the exit block, which we can not
-	  look up via BASIC_BLOCK.  Detect this and use EXIT_BLOCK_PTR
-	  directly.  Do the same for the entry block.  */
       bb = BASIC_BLOCK (i);
 
       FOR_EACH_EDGE (e, ei, bb->preds)
@@ -1860,6 +1894,9 @@ propagate_freq (basic_block head, bitmap tovisit)
 		     e->src->index, bb->index);
 	}
       BLOCK_INFO (bb)->npredecessors = count;
+      /* When function never returns, we will never process exit block.  */
+      if (!count && bb == EXIT_BLOCK_PTR)
+	bb->count = bb->frequency = 0;
     }
 
   memcpy (&BLOCK_INFO (head)->frequency, &real_one, sizeof (real_one));
@@ -1932,11 +1969,11 @@ propagate_freq (basic_block head, bitmap tovisit)
       if (e)
 	{
 	  sreal tmp;
-	    
+
 	  /* EDGE_INFO (e)->back_edge_prob
 	     = ((e->probability * BLOCK_INFO (bb)->frequency)
 	     / REG_BR_PROB_BASE); */
-	    
+
 	  sreal_init (&tmp, e->probability, 0);
 	  sreal_mul (&tmp, &tmp, &BLOCK_INFO (bb)->frequency);
 	  sreal_mul (&EDGE_INFO (e)->back_edge_prob,
@@ -1955,7 +1992,7 @@ propagate_freq (basic_block head, bitmap tovisit)
 		  nextbb = e->dest;
 		else
 		  BLOCK_INFO (last)->next = e->dest;
-		
+
 		last = e->dest;
 	      }
 	  }
@@ -2021,7 +2058,7 @@ counts_to_freqs (void)
   gcov_type count_max, true_count_max = 0;
   basic_block bb;
 
-  FOR_EACH_BB (bb)
+  FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, NULL, next_bb)
     true_count_max = MAX (bb->count, true_count_max);
 
   count_max = MAX (true_count_max, 1);
@@ -2145,31 +2182,40 @@ estimate_bb_frequencies (void)
 }
 
 /* Decide whether function is hot, cold or unlikely executed.  */
-static void
+void
 compute_function_frequency (void)
 {
   basic_block bb;
+  struct cgraph_node *node = cgraph_node (current_function_decl);
 
   if (!profile_info || !flag_branch_probabilities)
     {
+      int flags = flags_from_decl_or_type (current_function_decl);
       if (lookup_attribute ("cold", DECL_ATTRIBUTES (current_function_decl))
 	  != NULL)
-        cfun->function_frequency = FUNCTION_FREQUENCY_UNLIKELY_EXECUTED;
+        node->frequency = NODE_FREQUENCY_UNLIKELY_EXECUTED;
       else if (lookup_attribute ("hot", DECL_ATTRIBUTES (current_function_decl))
 	       != NULL)
-        cfun->function_frequency = FUNCTION_FREQUENCY_HOT;
+        node->frequency = NODE_FREQUENCY_HOT;
+      else if (flags & ECF_NORETURN)
+        node->frequency = NODE_FREQUENCY_EXECUTED_ONCE;
+      else if (MAIN_NAME_P (DECL_NAME (current_function_decl)))
+        node->frequency = NODE_FREQUENCY_EXECUTED_ONCE;
+      else if (DECL_STATIC_CONSTRUCTOR (current_function_decl)
+	       || DECL_STATIC_DESTRUCTOR (current_function_decl))
+        node->frequency = NODE_FREQUENCY_EXECUTED_ONCE;
       return;
     }
-  cfun->function_frequency = FUNCTION_FREQUENCY_UNLIKELY_EXECUTED;
+  node->frequency = NODE_FREQUENCY_UNLIKELY_EXECUTED;
   FOR_EACH_BB (bb)
     {
       if (maybe_hot_bb_p (bb))
 	{
-	  cfun->function_frequency = FUNCTION_FREQUENCY_HOT;
+	  node->frequency = NODE_FREQUENCY_HOT;
 	  return;
 	}
       if (!probably_never_executed_bb_p (bb))
-	cfun->function_frequency = FUNCTION_FREQUENCY_NORMAL;
+	node->frequency = NODE_FREQUENCY_NORMAL;
     }
 }
 
@@ -2177,6 +2223,7 @@ compute_function_frequency (void)
 static void
 choose_function_section (void)
 {
+  struct cgraph_node *node = cgraph_node (current_function_decl);
   if (DECL_SECTION_NAME (current_function_decl)
       || !targetm.have_named_sections
       /* Theoretically we can split the gnu.linkonce text section too,
@@ -2192,10 +2239,10 @@ choose_function_section (void)
   if (flag_reorder_blocks_and_partition)
     return;
 
-  if (cfun->function_frequency == FUNCTION_FREQUENCY_HOT)
+  if (node->frequency == NODE_FREQUENCY_HOT)
     DECL_SECTION_NAME (current_function_decl) =
       build_string (strlen (HOT_TEXT_SECTION_NAME), HOT_TEXT_SECTION_NAME);
-  if (cfun->function_frequency == FUNCTION_FREQUENCY_UNLIKELY_EXECUTED)
+  if (node->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED)
     DECL_SECTION_NAME (current_function_decl) =
       build_string (strlen (UNLIKELY_EXECUTED_TEXT_SECTION_NAME),
 		    UNLIKELY_EXECUTED_TEXT_SECTION_NAME);
@@ -2223,7 +2270,7 @@ predictor_name (enum br_predictor predictor)
   return predictor_info[predictor].name;
 }
 
-struct gimple_opt_pass pass_profile = 
+struct gimple_opt_pass pass_profile =
 {
  {
   GIMPLE_PASS,
@@ -2242,7 +2289,7 @@ struct gimple_opt_pass pass_profile =
  }
 };
 
-struct gimple_opt_pass pass_strip_predict_hints = 
+struct gimple_opt_pass pass_strip_predict_hints =
 {
  {
   GIMPLE_PASS,
@@ -2260,3 +2307,27 @@ struct gimple_opt_pass pass_strip_predict_hints =
   TODO_ggc_collect | TODO_verify_ssa			/* todo_flags_finish */
  }
 };
+
+/* Rebuild function frequencies.  Passes are in general expected to
+   maintain profile by hand, however in some cases this is not possible:
+   for example when inlining several functions with loops freuqencies might run
+   out of scale and thus needs to be recomputed.  */
+
+void
+rebuild_frequencies (void)
+{
+  if (profile_status == PROFILE_GUESSED)
+    {
+      loop_optimizer_init (0);
+      add_noreturn_fake_exit_edges ();
+      mark_irreducible_loops ();
+      connect_infinite_loops_to_exit ();
+      estimate_bb_frequencies ();
+      remove_fake_exit_edges ();
+      loop_optimizer_finalize ();
+    }
+  else if (profile_status == PROFILE_READ)
+    counts_to_freqs ();
+  else
+    gcc_unreachable ();
+}

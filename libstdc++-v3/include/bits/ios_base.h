@@ -1,7 +1,7 @@
 // Iostreams base classes -*- C++ -*-
 
 // Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007, 2008, 2009
+// 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -41,15 +41,6 @@
 #include <ext/atomicity.h>
 #include <bits/localefwd.h>
 #include <bits/locale_classes.h>
-
-#ifndef _GLIBCXX_STDIO_MACROS
-# include <cstdio>   // For SEEK_CUR, SEEK_END
-# define _IOS_BASE_SEEK_CUR SEEK_CUR
-# define _IOS_BASE_SEEK_END SEEK_END
-#else
-# define _IOS_BASE_SEEK_CUR 1
-# define _IOS_BASE_SEEK_END 2
-#endif
 
 _GLIBCXX_BEGIN_NAMESPACE(std)
 
@@ -189,8 +180,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   enum _Ios_Seekdir 
     { 
       _S_beg = 0,
-      _S_cur = _IOS_BASE_SEEK_CUR,
-      _S_end = _IOS_BASE_SEEK_END,
+      _S_cur = _GLIBCXX_STDIO_SEEK_CUR,
+      _S_end = _GLIBCXX_STDIO_SEEK_END,
       _S_ios_seekdir_end = 1L << 16 
     };
 
@@ -238,7 +229,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     /**
      *  @brief This is a bitmask type.
      *
-     *  @c "_Ios_Fmtflags" is implementation-defined, but it is valid to
+     *  @c @a _Ios_Fmtflags is implementation-defined, but it is valid to
      *  perform bitwise operations on these values and expect the Right
      *  Thing to happen.  Defined objects of type fmtflags are:
      *  - boolalpha
@@ -327,7 +318,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     /**
      *  @brief This is a bitmask type.
      *
-     *  @c "_Ios_Iostate" is implementation-defined, but it is valid to
+     *  @c @a _Ios_Iostate is implementation-defined, but it is valid to
      *  perform bitwise operations on these values and expect the Right
      *  Thing to happen.  Defined objects of type iostate are:
      *  - badbit
@@ -356,7 +347,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     /**
      *  @brief This is a bitmask type.
      *
-     *  @c "_Ios_Openmode" is implementation-defined, but it is valid to
+     *  @c @a _Ios_Openmode is implementation-defined, but it is valid to
      *  perform bitwise operations on these values and expect the Right
      *  Thing to happen.  Defined objects of type openmode are:
      *  - app
@@ -392,7 +383,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     /**
      *  @brief This is an enumerated type.
      *
-     *  @c "_Ios_Seekdir" is implementation-defined.  Defined values
+     *  @c @a _Ios_Seekdir is implementation-defined.  Defined values
      *  of type seekdir are:
      *  - beg
      *  - cur, equivalent to @c SEEK_CUR in the C standard library.
@@ -457,16 +448,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     register_callback(event_callback __fn, int __index);
 
   protected:
-    //@{
-    /**
-     *  ios_base data members (doc me)
-    */
     streamsize		_M_precision;
     streamsize		_M_width;
     fmtflags		_M_flags;
     iostate		_M_exception;
     iostate		_M_streambuf_state;
-    //@}
 
     // 27.4.2.6  Members for callbacks
     // 27.4.2.6  ios_base callbacks
@@ -488,7 +474,16 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       // 0 => OK to delete.
       int
       _M_remove_reference() 
-      { return __gnu_cxx::__exchange_and_add_dispatch(&_M_refcount, -1); }
+      {
+        // Be race-detector-friendly.  For more info see bits/c++config.
+        _GLIBCXX_SYNCHRONIZATION_HAPPENS_BEFORE(&_M_refcount);
+        int __res = __gnu_cxx::__exchange_and_add_dispatch(&_M_refcount, -1);
+        if (__res == 0)
+          {
+            _GLIBCXX_SYNCHRONIZATION_HAPPENS_AFTER(&_M_refcount);
+          }
+        return __res;
+      }
     };
 
      _Callback_list*	_M_callbacks;
@@ -526,7 +521,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     locale		_M_ios_locale;
 
     void
-    _M_init() throw ();
+    _M_init() throw();
 
   public:
 
@@ -618,7 +613,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
      *  @brief  Flags access.
      *  @return  The precision to generate on certain output operations.
      *
-     *  Be careful if you try to give a definition of "precision" here; see
+     *  Be careful if you try to give a definition of @a precision here; see
      *  DR 189.
     */
     streamsize
@@ -642,7 +637,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
      *  @brief  Flags access.
      *  @return  The minimum field width to generate on output operations.
      *
-     *  "Minimum field width" refers to the number of characters.
+     *  <em>Minimum field width</em> refers to the number of characters.
     */
     streamsize
     width() const
@@ -685,7 +680,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
      *  with imbue_event.
     */
     locale
-    imbue(const locale& __loc) throw ();
+    imbue(const locale& __loc) throw();
 
     /**
      *  @brief  Locale access
@@ -975,8 +970,4 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
 _GLIBCXX_END_NAMESPACE
 
-#undef _IOS_BASE_SEEK_CUR
-#undef _IOS_BASE_SEEK_END
-
 #endif /* _IOS_BASE_H */
-

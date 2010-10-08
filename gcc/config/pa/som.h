@@ -118,7 +118,7 @@ do {								\
 		 fputs (",PRIV_LEV=3", FILE);				\
 	       }							\
 	     for (parm = DECL_ARGUMENTS (DECL), i = 0; parm && i < 4;	\
-		  parm = TREE_CHAIN (parm))				\
+		  parm = DECL_CHAIN (parm))				\
 	       {							\
 		 if (TYPE_MODE (DECL_ARG_TYPE (parm)) == SFmode		\
 		     && ! TARGET_SOFT_FLOAT)				\
@@ -157,9 +157,7 @@ do {								\
 		   }							\
 	       }							\
 	     /* anonymous args */					\
-	     if (TYPE_ARG_TYPES (tree_type) != 0			\
-		 && (TREE_VALUE (tree_last (TYPE_ARG_TYPES (tree_type)))\
-		     != void_type_node))				\
+	     if (stdarg_p (tree_type))					\
 	       {							\
 		 for (; i < 4; i++)					\
 		   fprintf (FILE, ",ARGW%d=GR", i);			\

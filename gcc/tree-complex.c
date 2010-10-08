@@ -1,19 +1,19 @@
 /* Lower complex number operations to scalar operations.
-   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
-   
+
 GCC is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
 Free Software Foundation; either version 3, or (at your option) any
 later version.
-   
+
 GCC is distributed in the hope that it will be useful, but WITHOUT
 ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
-   
+
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
@@ -23,15 +23,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "rtl.h"
-#include "real.h"
 #include "flags.h"
 #include "tree-flow.h"
 #include "gimple.h"
 #include "tree-iterator.h"
 #include "tree-pass.h"
 #include "tree-ssa-propagate.h"
-#include "diagnostic.h"
 
 
 /* For each complex ssa name, a lattice value.  We're interested in finding
@@ -66,7 +63,7 @@ static VEC(tree, heap) *complex_ssa_name_components;
 
 /* Lookup UID in the complex_variable_components hashtable and return the
    associated tree.  */
-static tree 
+static tree
 cvc_lookup (unsigned int uid)
 {
   struct int_tree_map *h, in;
@@ -74,12 +71,12 @@ cvc_lookup (unsigned int uid)
   h = (struct int_tree_map *) htab_find_with_hash (complex_variable_components, &in, uid);
   return h ? h->to : NULL;
 }
- 
+
 /* Insert the pair UID, TO into the complex_variable_components hashtable.  */
 
-static void 
+static void
 cvc_insert (unsigned int uid, tree to)
-{ 
+{
   struct int_tree_map *h;
   void **loc;
 
@@ -177,7 +174,7 @@ init_parameter_lattice_values (void)
 {
   tree parm, ssa_name;
 
-  for (parm = DECL_ARGUMENTS (cfun->decl); parm ; parm = TREE_CHAIN (parm))
+  for (parm = DECL_ARGUMENTS (cfun->decl); parm ; parm = DECL_CHAIN (parm))
     if (is_complex_reg (parm)
 	&& var_ann (parm) != NULL
 	&& (ssa_name = gimple_default_def (cfun, parm)) != NULL_TREE)
@@ -215,7 +212,7 @@ init_dont_simulate_again (void)
 	  stmt = gsi_stmt (gsi);
 	  op0 = op1 = NULL_TREE;
 
-	  /* Most control-altering statements must be initially 
+	  /* Most control-altering statements must be initially
 	     simulated, else we won't cover the entire cfg.  */
 	  sim_again_p = stmt_ends_bb_p (stmt);
 
@@ -434,11 +431,9 @@ create_one_component_var (tree type, tree orig, const char *prefix,
   if (DECL_NAME (orig) && !DECL_IGNORED_P (orig))
     {
       const char *name = IDENTIFIER_POINTER (DECL_NAME (orig));
-      tree inner_type;
 
       DECL_NAME (r) = get_identifier (ACONCAT ((name, suffix, NULL)));
 
-      inner_type = TREE_TYPE (TREE_TYPE (orig));
       SET_DECL_DEBUG_EXPR (r, build1 (code, type, orig));
       DECL_DEBUG_EXPR_IS_FROM (r) = 1;
       DECL_IGNORED_P (r) = 0;
@@ -571,7 +566,7 @@ set_component_ssa_name (tree ssa_name, bool imag_p, tree value)
      a new ssa name.  */
   else
     comp = get_component_ssa_name (ssa_name, imag_p);
-  
+
   /* Do all the work to assign VALUE to COMP.  */
   list = NULL;
   value = force_gimple_operand (value, &list, false, NULL);
@@ -601,10 +596,10 @@ extract_component (gimple_stmt_iterator *gsi, tree t, bool imagpart_p,
     case VAR_DECL:
     case RESULT_DECL:
     case PARM_DECL:
-    case INDIRECT_REF:
     case COMPONENT_REF:
     case ARRAY_REF:
     case VIEW_CONVERT_EXPR:
+    case MEM_REF:
       {
 	tree inner_type = TREE_TYPE (TREE_TYPE (t));
 
@@ -667,12 +662,16 @@ static void
 update_complex_assignment (gimple_stmt_iterator *gsi, tree r, tree i)
 {
   gimple_stmt_iterator orig_si = *gsi;
+  gimple stmt;
 
   if (gimple_in_ssa_p (cfun))
     update_complex_components (gsi, gsi_stmt (*gsi), r, i);
 
   gimple_assign_set_rhs_with_ops (&orig_si, COMPLEX_EXPR, r, i);
-  update_stmt (gsi_stmt (orig_si));
+  stmt = gsi_stmt (orig_si);
+  update_stmt (stmt);
+  if (maybe_clean_eh_stmt (stmt))
+    gimple_purge_dead_eh_edges (gimple_bb (stmt));
 }
 
 
@@ -685,7 +684,7 @@ update_parameter_components (void)
   edge entry_edge = single_succ_edge (ENTRY_BLOCK_PTR);
   tree parm;
 
-  for (parm = DECL_ARGUMENTS (cfun->decl); parm ; parm = TREE_CHAIN (parm))
+  for (parm = DECL_ARGUMENTS (cfun->decl); parm ; parm = DECL_CHAIN (parm))
     {
       tree type = TREE_TYPE (parm);
       tree ssa_name, r, i;
@@ -1066,7 +1065,7 @@ expand_complex_multiplication (gimple_stmt_iterator *gsi, tree inner_type,
 }
 
 /* Keep this algorithm in sync with fold-const.c:const_binop().
-   
+
    Expand complex division to scalars, straightforward algorithm.
 	a / b = ((ar*br + ai*bi)/t) + i((ai*br - ar*bi)/t)
 	    t = br*br + bi*bi
@@ -1544,7 +1543,7 @@ expand_complex_operations_1 (gimple_stmt_iterator *gsi)
     case RDIV_EXPR:
       expand_complex_division (gsi, inner_type, ar, ai, br, bi, code, al, bl);
       break;
-      
+
     case NEGATE_EXPR:
       expand_complex_negation (gsi, inner_type, ar, ai);
       break;
@@ -1612,7 +1611,7 @@ tree_lower_complex (void)
   return 0;
 }
 
-struct gimple_opt_pass pass_lower_complex = 
+struct gimple_opt_pass pass_lower_complex =
 {
  {
   GIMPLE_PASS,
@@ -1624,7 +1623,7 @@ struct gimple_opt_pass pass_lower_complex =
   0,					/* static_pass_number */
   TV_NONE,				/* tv_id */
   PROP_ssa,				/* properties_required */
-  0,					/* properties_provided */
+  PROP_gimple_lcx,			/* properties_provided */
   0,                       		/* properties_destroyed */
   0,					/* todo_flags_start */
   TODO_dump_func
@@ -1635,50 +1634,32 @@ struct gimple_opt_pass pass_lower_complex =
 };
 
 
-/* Entry point for complex operation lowering without optimization.  */
-
-static unsigned int
-tree_lower_complex_O0 (void)
-{
-  int old_last_basic_block = last_basic_block;
-  gimple_stmt_iterator gsi;
-  basic_block bb;
-
-  FOR_EACH_BB (bb)
-    {
-      if (bb->index >= old_last_basic_block)
-	continue;
-
-      for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
-	expand_complex_operations_1 (&gsi);
-    }
-  return 0;
-}
-
 static bool
 gate_no_optimization (void)
 {
   /* With errors, normal optimization passes are not run.  If we don't
      lower complex operations at all, rtl expansion will abort.  */
-  return optimize == 0 || sorrycount || errorcount;
+  return !(cfun->curr_properties & PROP_gimple_lcx);
 }
 
-struct gimple_opt_pass pass_lower_complex_O0 = 
+struct gimple_opt_pass pass_lower_complex_O0 =
 {
  {
   GIMPLE_PASS,
   "cplxlower0",				/* name */
   gate_no_optimization,			/* gate */
-  tree_lower_complex_O0,		/* execute */
+  tree_lower_complex,			/* execute */
   NULL,					/* sub */
   NULL,					/* next */
   0,					/* static_pass_number */
   TV_NONE,				/* tv_id */
   PROP_cfg,				/* properties_required */
-  0,					/* properties_provided */
+  PROP_gimple_lcx,			/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func | TODO_ggc_collect
-    | TODO_verify_stmts,		/* todo_flags_finish */
+  TODO_dump_func
+    | TODO_ggc_collect
+    | TODO_update_ssa
+    | TODO_verify_stmts	 		/* todo_flags_finish */
  }
 };

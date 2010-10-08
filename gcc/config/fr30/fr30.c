@@ -28,7 +28,6 @@
 #include "rtl.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "insn-attr.h"
@@ -40,6 +39,7 @@
 #include "obstack.h"
 #include "except.h"
 #include "function.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "tm_p.h"
 #include "target.h"
@@ -844,9 +844,8 @@ fr30_move_double (rtx * operands)
       else if (src_code == MEM)
 	{
 	  rtx addr = XEXP (src, 0);
-	  int dregno = REGNO (dest);
-	  rtx dest0 = operand_subword (dest, 0, TRUE, mode);;
-	  rtx dest1 = operand_subword (dest, 1, TRUE, mode);;
+	  rtx dest0 = operand_subword (dest, 0, TRUE, mode);
+	  rtx dest1 = operand_subword (dest, 1, TRUE, mode);
 	  rtx new_mem;
 	  
 	  gcc_assert (GET_CODE (addr) == REG);

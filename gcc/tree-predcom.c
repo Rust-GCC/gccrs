@@ -1,18 +1,19 @@
 /* Predictive commoning.
-   Copyright (C) 2005, 2007, 2008, 2009 Free Software Foundation, Inc.
-   
+   Copyright (C) 2005, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
+
 This file is part of GCC.
-   
+
 GCC is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
 Free Software Foundation; either version 3, or (at your option) any
 later version.
-   
+
 GCC is distributed in the hope that it will be useful, but WITHOUT
 ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
-   
+
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
@@ -29,7 +30,7 @@ along with GCC; see the file COPYING3.  If not see
    and if needed, we could also take register pressure into account.
 
    Let us demonstrate what is done on an example:
-   
+
    for (i = 0; i < 100; i++)
      {
        a[i+2] = a[i] + a[i+1];
@@ -63,7 +64,7 @@ along with GCC; see the file COPYING3.  If not see
       making the further transformations simpler.  Also, the shorter chains
       need the same number of registers, but may require lower unrolling
       factor in order to get rid of the copies on the loop latch.
-      
+
       In our example, we get the following chains (the chain for c is invalid).
 
       a[i]{read,+0}, a[i+1]{read,-1}, a[i+2]{write,-2}
@@ -76,7 +77,7 @@ along with GCC; see the file COPYING3.  If not see
       with the smallest positive distance to the read.  Then, we remove
       the references that are not used in any of these chains, discard the
       empty groups, and propagate all the links so that they point to the
-      single root reference of the chain (adjusting their distance 
+      single root reference of the chain (adjusting their distance
       appropriately).  Some extra care needs to be taken for references with
       step 0.  In our example (the numbers indicate the distance of the
       reuse),
@@ -132,7 +133,7 @@ along with GCC; see the file COPYING3.  If not see
       times.  The stores to RN (R0) in the copies of the loop body are
       periodically replaced with R0, R1, ... (R1, R2, ...), so that they can
       be coalesced and the copies can be eliminated.
-      
+
       TODO -- copy propagation and other optimizations may change the live
       ranges of the temporary registers and prevent them from being coalesced;
       this may increase the register pressure.
@@ -197,7 +198,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-scalar-evolution.h"
 #include "tree-chrec.h"
 #include "params.h"
-#include "diagnostic.h"
+#include "tree-pretty-print.h"
+#include "gimple-pretty-print.h"
 #include "tree-pass.h"
 #include "tree-affine.h"
 #include "tree-inline.h"
@@ -206,7 +208,7 @@ along with GCC; see the file COPYING3.  If not see
    references.  */
 
 #define MAX_DISTANCE (target_avail_regs < 16 ? 4 : 8)
-   
+
 /* Data references (or phi nodes that carry data reference values across
    loop iterations).  */
 
@@ -418,7 +420,7 @@ dump_chain (FILE *file, chain_p chain)
   if (chain->vars)
     {
       fprintf (file, "  vars");
-      for (i = 0; VEC_iterate (tree, chain->vars, i, var); i++)
+      FOR_EACH_VEC_ELT (tree, chain->vars, i, var)
 	{
 	  fprintf (file, " ");
 	  print_generic_expr (file, var, TDF_SLIM);
@@ -429,7 +431,7 @@ dump_chain (FILE *file, chain_p chain)
   if (chain->inits)
     {
       fprintf (file, "  inits");
-      for (i = 0; VEC_iterate (tree, chain->inits, i, var); i++)
+      FOR_EACH_VEC_ELT (tree, chain->inits, i, var)
 	{
 	  fprintf (file, " ");
 	  print_generic_expr (file, var, TDF_SLIM);
@@ -438,7 +440,7 @@ dump_chain (FILE *file, chain_p chain)
     }
 
   fprintf (file, "  references:\n");
-  for (i = 0; VEC_iterate (dref, chain->refs, i, a); i++)
+  FOR_EACH_VEC_ELT (dref, chain->refs, i, a)
     dump_dref (file, a);
 
   fprintf (file, "\n");
@@ -453,7 +455,7 @@ dump_chains (FILE *file, VEC (chain_p, heap) *chains)
   chain_p chain;
   unsigned i;
 
-  for (i = 0; VEC_iterate (chain_p, chains, i, chain); i++)
+  FOR_EACH_VEC_ELT (chain_p, chains, i, chain)
     dump_chain (file, chain);
 }
 
@@ -468,7 +470,7 @@ dump_component (FILE *file, struct component *comp)
 
   fprintf (file, "Component%s:\n",
 	   comp->comp_step == RS_INVARIANT ? " (invariant)" : "");
-  for (i = 0; VEC_iterate (dref, comp->refs, i, a); i++)
+  FOR_EACH_VEC_ELT (dref, comp->refs, i, a)
     dump_dref (file, a);
   fprintf (file, "\n");
 }
@@ -496,7 +498,7 @@ release_chain (chain_p chain)
   if (chain == NULL)
     return;
 
-  for (i = 0; VEC_iterate (dref, chain->refs, i, ref); i++)
+  FOR_EACH_VEC_ELT (dref, chain->refs, i, ref)
     free (ref);
 
   VEC_free (dref, heap, chain->refs);
@@ -514,7 +516,7 @@ release_chains (VEC (chain_p, heap) *chains)
   unsigned i;
   chain_p chain;
 
-  for (i = 0; VEC_iterate (chain_p, chains, i, chain); i++)
+  FOR_EACH_VEC_ELT (chain_p, chains, i, chain)
     release_chain (chain);
   VEC_free (chain_p, heap, chains);
 }
@@ -680,7 +682,7 @@ last_always_executed_block (struct loop *loop)
   edge ex;
   basic_block last = loop->latch;
 
-  for (i = 0; VEC_iterate (edge, exits, i, ex); i++)
+  FOR_EACH_VEC_ELT (edge, exits, i, ex)
     last = nearest_common_dominator (CDI_DOMINATORS, last, ex->src);
   VEC_free (edge, heap, exits);
 
@@ -704,8 +706,8 @@ split_data_refs_to_components (struct loop *loop,
   struct component *comp_list = NULL, *comp;
   dref dataref;
   basic_block last_always_executed = last_always_executed_block (loop);
- 
-  for (i = 0; VEC_iterate (data_reference_p, datarefs, i, dr); i++)
+
+  FOR_EACH_VEC_ELT (data_reference_p, datarefs, i, dr)
     {
       if (!DR_REF (dr))
 	{
@@ -722,7 +724,7 @@ split_data_refs_to_components (struct loop *loop,
   comp_father[n] = n;
   comp_size[n] = 1;
 
-  for (i = 0; VEC_iterate (data_reference_p, datarefs, i, dr); i++)
+  FOR_EACH_VEC_ELT (data_reference_p, datarefs, i, dr)
     {
       enum ref_step_type dummy;
 
@@ -733,7 +735,7 @@ split_data_refs_to_components (struct loop *loop,
 	}
     }
 
-  for (i = 0; VEC_iterate (ddr_p, depends, i, ddr); i++)
+  FOR_EACH_VEC_ELT (ddr_p, depends, i, ddr)
     {
       double_int dummy_off;
 
@@ -754,13 +756,13 @@ split_data_refs_to_components (struct loop *loop,
 	  && (ia == bad || ib == bad
 	      || !determine_offset (dra, drb, &dummy_off)))
 	continue;
-	  
+
       merge_comps (comp_father, comp_size, ia, ib);
     }
 
   comps = XCNEWVEC (struct component *, n);
   bad = component_of (comp_father, n);
-  for (i = 0; VEC_iterate (data_reference_p, datarefs, i, dr); i++)
+  FOR_EACH_VEC_ELT (data_reference_p, datarefs, i, dr)
     {
       ia = (unsigned) (size_t) dr->aux;
       ca = component_of (comp_father, ia);
@@ -808,7 +810,7 @@ end:
 /* Returns true if the component COMP satisfies the conditions
    described in 2) at the beginning of this file.  LOOP is the current
    loop.  */
-      
+
 static bool
 suitable_component_p (struct loop *loop, struct component *comp)
 {
@@ -817,7 +819,7 @@ suitable_component_p (struct loop *loop, struct component *comp)
   basic_block ba, bp = loop->header;
   bool ok, has_write = false;
 
-  for (i = 0; VEC_iterate (dref, comp->refs, i, a); i++)
+  FOR_EACH_VEC_ELT (dref, comp->refs, i, a)
     {
       ba = gimple_bb (a->stmt);
 
@@ -827,7 +829,7 @@ suitable_component_p (struct loop *loop, struct component *comp)
       gcc_assert (dominated_by_p (CDI_DOMINATORS, ba, bp));
       bp = ba;
 
-      if (!DR_IS_READ (a->ref))
+      if (DR_IS_WRITE (a->ref))
 	has_write = true;
     }
 
@@ -859,7 +861,7 @@ suitable_component_p (struct loop *loop, struct component *comp)
 
   return true;
 }
-      
+
 /* Check the conditions on references inside each of components COMPS,
    and remove the unsuitable components from the list.  The new list
    of components is returned.  The conditions are described in 2) at
@@ -881,7 +883,7 @@ filter_suitable_components (struct loop *loop, struct component *comps)
 	  unsigned i;
 
 	  *comp = act->next;
-	  for (i = 0; VEC_iterate (dref, act->refs, i, ref); i++)
+	  FOR_EACH_VEC_ELT (dref, act->refs, i, ref)
 	    free (ref);
 	  release_component (act);
 	}
@@ -923,7 +925,7 @@ add_ref_to_chain (chain_p chain, dref ref)
   double_int dist;
 
   gcc_assert (double_int_scmp (root->offset, ref->offset) <= 0);
-  dist = double_int_add (ref->offset, double_int_neg (root->offset));
+  dist = double_int_sub (ref->offset, root->offset);
   if (double_int_ucmp (uhwi_to_double_int (MAX_DISTANCE), dist) <= 0)
     {
       free (ref);
@@ -961,7 +963,7 @@ make_invariant_chain (struct component *comp)
 
   chain->all_always_accessed = true;
 
-  for (i = 0; VEC_iterate (dref, comp->refs, i, ref); i++)
+  FOR_EACH_VEC_ELT (dref, comp->refs, i, ref)
     {
       VEC_safe_push (dref, heap, chain->refs, ref);
       chain->all_always_accessed &= ref->always_accessed;
@@ -1133,7 +1135,7 @@ insert_looparound_copy (chain_p chain, dref ref, gimple phi)
   nw->distance = ref->distance + 1;
   nw->always_accessed = 1;
 
-  for (i = 0; VEC_iterate (dref, chain->refs, i, aref); i++)
+  FOR_EACH_VEC_ELT (dref, chain->refs, i, aref)
     if (aref->distance >= nw->distance)
       break;
   VEC_safe_insert (dref, heap, chain->refs, i, nw);
@@ -1157,7 +1159,7 @@ add_looparound_copies (struct loop *loop, chain_p chain)
   dref ref, root = get_chain_root (chain);
   gimple phi;
 
-  for (i = 0; VEC_iterate (dref, chain->refs, i, ref); i++)
+  FOR_EACH_VEC_ELT (dref, chain->refs, i, ref)
     {
       phi = find_looparound_phi (loop, ref, root);
       if (!phi)
@@ -1180,6 +1182,7 @@ determine_roots_comp (struct loop *loop,
   unsigned i;
   dref a;
   chain_p chain = NULL;
+  double_int last_ofs = double_int_zero;
 
   /* Invariants are handled specially.  */
   if (comp->comp_step == RS_INVARIANT)
@@ -1192,15 +1195,21 @@ determine_roots_comp (struct loop *loop,
   qsort (VEC_address (dref, comp->refs), VEC_length (dref, comp->refs),
 	 sizeof (dref), order_drefs);
 
-  for (i = 0; VEC_iterate (dref, comp->refs, i, a); i++)
+  FOR_EACH_VEC_ELT (dref, comp->refs, i, a)
     {
-      if (!chain || !DR_IS_READ (a->ref))
+      if (!chain || DR_IS_WRITE (a->ref)
+	  || double_int_ucmp (uhwi_to_double_int (MAX_DISTANCE),
+			      double_int_sub (a->offset, last_ofs)) <= 0)
 	{
 	  if (nontrivial_chain_p (chain))
-	    VEC_safe_push (chain_p, heap, *chains, chain);
+	    {
+	      add_looparound_copies (loop, chain);
+	      VEC_safe_push (chain_p, heap, *chains, chain);
+	    }
 	  else
 	    release_chain (chain);
 	  chain = make_rooted_chain (a);
+	  last_ofs = a->offset;
 	  continue;
 	}
 
@@ -1255,7 +1264,7 @@ replace_ref_with (gimple stmt, tree new_tree, bool set, bool in_lhs)
       gsi_insert_before (&bsi, new_stmt, GSI_NEW_STMT);
       return;
     }
-      
+
   /* Since the reference is of gimple_reg type, it should only
      appear as lhs or rhs of modify statement.  */
   gcc_assert (is_gimple_assign (stmt));
@@ -1275,7 +1284,7 @@ replace_ref_with (gimple stmt, tree new_tree, bool set, bool in_lhs)
   if (in_lhs)
     {
       /* We have statement
-	 
+
 	 OLD = VAL
 
 	 If OLD is a memory reference, then VAL is gimple_val, and we transform
@@ -1284,7 +1293,7 @@ replace_ref_with (gimple stmt, tree new_tree, bool set, bool in_lhs)
 	 OLD = VAL
 	 NEW = VAL
 
-	 Otherwise, we are replacing a combination chain, 
+	 Otherwise, we are replacing a combination chain,
 	 VAL is the expression that performs the combination, and OLD is an
 	 SSA name.  In this case, we transform the assignment to
 
@@ -1335,12 +1344,13 @@ ref_at_iteration (struct loop *loop, tree ref, int iter)
       if (!op0)
 	return NULL_TREE;
     }
-  else if (!INDIRECT_REF_P (ref))
+  else if (!INDIRECT_REF_P (ref)
+	   && TREE_CODE (ref) != MEM_REF)
     return unshare_expr (ref);
 
-  if (TREE_CODE (ref) == INDIRECT_REF)
+  if (TREE_CODE (ref) == MEM_REF)
     {
-      ret = build1 (INDIRECT_REF, TREE_TYPE (ref), NULL_TREE);
+      ret = unshare_expr (ref);
       idx = TREE_OPERAND (ref, 0);
       idx_p = &TREE_OPERAND (ret, 0);
     }
@@ -1449,13 +1459,9 @@ static tree
 predcom_tmp_var (tree ref, unsigned i, bitmap tmp_vars)
 {
   tree type = TREE_TYPE (ref);
-  tree var = create_tmp_var (type, get_lsm_tmp_name (ref, i));
-
   /* We never access the components of the temporary variable in predictive
      commoning.  */
-  if (TREE_CODE (type) == COMPLEX_TYPE
-      || TREE_CODE (type) == VECTOR_TYPE)
-    DECL_GIMPLE_REG_P (var) = 1;
+  tree var = create_tmp_reg (type, get_lsm_tmp_name (ref, i));
 
   add_referenced_var (var);
   bitmap_set_bit (tmp_vars, DECL_UID (var));
@@ -1496,8 +1502,8 @@ initialize_root_vars (struct loop *loop, chain_p chain, bitmap tmp_vars)
     }
   if (reuse_first)
     VEC_quick_push (tree, chain->vars, VEC_index (tree, chain->vars, 0));
-  
-  for (i = 0; VEC_iterate (tree, chain->vars, i, var); i++)
+
+  FOR_EACH_VEC_ELT (tree, chain->vars, i, var)
     VEC_replace (tree, chain->vars, i, make_ssa_name (var, NULL));
 
   for (i = 0; i < n; i++)
@@ -1561,12 +1567,12 @@ initialize_root_vars_lm (struct loop *loop, dref root, bool written,
   VEC_quick_push (tree, *vars, var);
   if (written)
     VEC_quick_push (tree, *vars, VEC_index (tree, *vars, 0));
-  
-  for (i = 0; VEC_iterate (tree, *vars, i, var); i++)
+
+  FOR_EACH_VEC_ELT (tree, *vars, i, var)
     VEC_replace (tree, *vars, i, make_ssa_name (var, NULL));
 
   var = VEC_index (tree, *vars, 0);
-      
+
   init = force_gimple_operand (init, &stmts, written, NULL_TREE);
   if (stmts)
     gsi_insert_seq_on_edge_immediate (entry, stmts);
@@ -1601,10 +1607,10 @@ execute_load_motion (struct loop *loop, chain_p chain, bitmap tmp_vars)
 
   gcc_assert (chain->type == CT_INVARIANT);
   gcc_assert (!chain->combined);
-  for (i = 0; VEC_iterate (dref, chain->refs, i, a); i++)
-    if (!DR_IS_READ (a->ref))
+  FOR_EACH_VEC_ELT (dref, chain->refs, i, a)
+    if (DR_IS_WRITE (a->ref))
       n_writes++;
-  
+
   /* If there are no reads in the loop, there is nothing to do.  */
   if (n_writes == VEC_length (dref, chain->refs))
     return;
@@ -1613,12 +1619,12 @@ execute_load_motion (struct loop *loop, chain_p chain, bitmap tmp_vars)
 			   &vars, chain->inits, tmp_vars);
 
   ridx = 0;
-  for (i = 0; VEC_iterate (dref, chain->refs, i, a); i++)
+  FOR_EACH_VEC_ELT (dref, chain->refs, i, a)
     {
       bool is_read = DR_IS_READ (a->ref);
       mark_virtual_ops_for_renaming (a->stmt);
 
-      if (!DR_IS_READ (a->ref))
+      if (DR_IS_WRITE (a->ref))
 	{
 	  n_writes--;
 	  if (n_writes)
@@ -1630,7 +1636,7 @@ execute_load_motion (struct loop *loop, chain_p chain, bitmap tmp_vars)
 	  else
 	    ridx = 1;
 	}
-	  
+
       replace_ref_with (a->stmt, VEC_index (tree, vars, ridx),
 			!is_read, !is_read);
     }
@@ -1700,7 +1706,7 @@ remove_stmt (gimple stmt)
   while (1)
     {
       gimple_stmt_iterator bsi;
-    
+
       bsi = gsi_for_stmt (stmt);
 
       name = gimple_assign_lhs (stmt);
@@ -1768,7 +1774,7 @@ determine_unroll_factor (VEC (chain_p, heap) *chains)
   unsigned factor = 1, af, nfactor, i;
   unsigned max = PARAM_VALUE (PARAM_MAX_UNROLL_TIMES);
 
-  for (i = 0; VEC_iterate (chain_p, chains, i, chain); i++)
+  FOR_EACH_VEC_ELT (chain_p, chains, i, chain)
     {
       if (chain->type == CT_INVARIANT || chain->combined)
 	continue;
@@ -1797,14 +1803,14 @@ execute_pred_commoning (struct loop *loop, VEC (chain_p, heap) *chains,
   chain_p chain;
   unsigned i;
 
-  for (i = 0; VEC_iterate (chain_p, chains, i, chain); i++)
+  FOR_EACH_VEC_ELT (chain_p, chains, i, chain)
     {
       if (chain->type == CT_INVARIANT)
 	execute_load_motion (loop, chain, tmp_vars);
       else
 	execute_pred_commoning_chain (loop, chain, tmp_vars);
     }
-  
+
   update_ssa (TODO_update_ssa_only_virtuals);
 }
 
@@ -1818,8 +1824,8 @@ replace_phis_by_defined_names (VEC (chain_p, heap) *chains)
   dref a;
   unsigned i, j;
 
-  for (i = 0; VEC_iterate (chain_p, chains, i, chain); i++)
-    for (j = 0; VEC_iterate (dref, chain->refs, j, a); j++)
+  FOR_EACH_VEC_ELT (chain_p, chains, i, chain)
+    FOR_EACH_VEC_ELT (dref, chain->refs, j, a)
       {
 	if (gimple_code (a->stmt) == GIMPLE_PHI)
 	  {
@@ -1839,8 +1845,8 @@ replace_names_by_phis (VEC (chain_p, heap) *chains)
   dref a;
   unsigned i, j;
 
-  for (i = 0; VEC_iterate (chain_p, chains, i, chain); i++)
-    for (j = 0; VEC_iterate (dref, chain->refs, j, a); j++)
+  FOR_EACH_VEC_ELT (chain_p, chains, i, chain)
+    FOR_EACH_VEC_ELT (dref, chain->refs, j, a)
       if (a->stmt == NULL)
 	{
 	  a->stmt = SSA_NAME_DEF_STMT (a->name_defined_by_phi);
@@ -1879,7 +1885,6 @@ base_names_in_chain_on (struct loop *loop, tree name, tree var)
 {
   gimple stmt, phi;
   imm_use_iterator iter;
-  edge e;
 
   SSA_NAME_VAR (name) = var;
 
@@ -1897,11 +1902,6 @@ base_names_in_chain_on (struct loop *loop, tree name, tree var)
 	}
       if (!phi)
 	return;
-
-      if (gimple_bb (phi) == loop->header)
-	e = loop_latch_edge (loop);
-      else
-	e = single_pred_edge (gimple_bb (stmt));
 
       name = PHI_RESULT (phi);
       SSA_NAME_VAR (name) = var;
@@ -2204,12 +2204,12 @@ reassociate_to_the_same_stmt (tree name1, tree name2)
 
   /* Insert the new statement combining NAME1 and NAME2 before S1, and
      combine it with the rhs of S1.  */
-  var = create_tmp_var (type, "predreastmp");
+  var = create_tmp_reg (type, "predreastmp");
   add_referenced_var (var);
   new_name = make_ssa_name (var, NULL);
   new_stmt = gimple_build_assign_with_ops (code, new_name, name1, name2);
 
-  var = create_tmp_var (type, "predreastmp");
+  var = create_tmp_reg (type, "predreastmp");
   add_referenced_var (var);
   tmp_name = make_ssa_name (var, NULL);
 
@@ -2267,7 +2267,7 @@ combine_chains (chain_p ch1, chain_p ch2)
   tree rslt_type = NULL_TREE;
 
   if (ch1 == ch2)
-    return false;
+    return NULL;
   if (ch1->length != ch2->length)
     return NULL;
 
@@ -2335,7 +2335,7 @@ try_combine_chains (VEC (chain_p, heap) **chains)
   chain_p ch1, ch2, cch;
   VEC (chain_p, heap) *worklist = NULL;
 
-  for (i = 0; VEC_iterate (chain_p, *chains, i, ch1); i++)
+  FOR_EACH_VEC_ELT (chain_p, *chains, i, ch1)
     if (chain_can_be_combined_p (ch1))
       VEC_safe_push (chain_p, heap, worklist, ch1);
 
@@ -2345,7 +2345,7 @@ try_combine_chains (VEC (chain_p, heap) **chains)
       if (!chain_can_be_combined_p (ch1))
 	continue;
 
-      for (j = 0; VEC_iterate (chain_p, *chains, j, ch2); j++)
+      FOR_EACH_VEC_ELT (chain_p, *chains, j, ch2)
 	{
 	  if (!chain_can_be_combined_p (ch2))
 	    continue;
@@ -2382,7 +2382,7 @@ prepare_initializers_chain (struct loop *loop, chain_p chain)
 
   /* If we have replaced some looparound phi nodes, use their initializers
      instead of creating our own.  */
-  for (i = 0; VEC_iterate (dref, chain->refs, i, laref); i++)
+  FOR_EACH_VEC_ELT (dref, chain->refs, i, laref)
     {
       if (gimple_code (laref->stmt) != GIMPLE_PHI)
 	continue;
@@ -2400,7 +2400,7 @@ prepare_initializers_chain (struct loop *loop, chain_p chain)
       init = ref_at_iteration (loop, DR_REF (dr), (int) i - n);
       if (!init)
 	return false;
-      
+
       if (!chain->all_always_accessed && tree_could_trap_p (init))
 	return false;
 
@@ -2522,7 +2522,7 @@ tree_predictive_commoning_loop (struct loop *loop)
 
       dta.chains = chains;
       dta.tmp_vars = tmp_vars;
-      
+
       update_ssa (TODO_update_ssa_only_virtuals);
 
       /* Cfg manipulations performed in tree_transform_and_unroll_loop before

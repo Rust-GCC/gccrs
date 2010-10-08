@@ -1,3 +1,51 @@
+2010-10-04  Andi Kleen <ak@linux.intel.com>
+
+	* Make-lang.in (cc1objplus-dummy, cc1objplus): Add + to build rule.
+
+2010-09-28  Richard Henderson  <rth@redhat.com>
+
+	* objcp-lang.c: Include "target.h".
+	(objcxx_eh_personality): Use targetm.except_unwind_info.
+	* Make-lang.in (objcp-lang.o): Update deps.
+
+2010-09-21  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	PR objc/25965	
+	* objcp-decl.c (objcp_finish_struct): Call
+	objc_get_interface_ivars() and check for duplicate ivars.
+
+2010-06-28  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* objcp-lang.c: Do not include except.h.
+	* Make-lang.in: Update dependencies.
+
+2010-06-25  Joseph Myers  <joseph@codesourcery.com>
+
+	* lang-specs.h: Remove +e handling.
+
+2010-06-08  Laurynas Biveinis  <laurynas.biveinis@gmail.com>
+
+	* objcp-decl.h (ALLOC_OBJC_TYPE_LANG_SPECIFIC): Use typed GC
+	allocation.
+
+2010-06-05  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* objcp-lang.c: Update include path for moved files.
+	* config-lang.in: Update paths in gtfiles for files in c-family/.
+
+2010-05-25  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* objcp-decl.c: Do not include tm.h, rtl.h, expr.h, c-common.h,
+	flags.h, input.h, except.h, output.h, toplev.h, cpplib.h, debug.h,
+	and target.h.
+	* objcp-lang.c: Do not include tm.h, toplev.h, diagnostics.h,
+	and debug.h.  Explain why except.h has to be included.
+	* Make-lang.in: Update dependencies.
+
+2010-04-30  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* objcp-decl.c: Do not include varray.h.
+
 2009-09-22  Richard Guenther  <rguenther@suse.de>
 
 	PR objc++/41430

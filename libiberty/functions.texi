@@ -1,9 +1,9 @@
 @c Automatically generated from *.c and others (the comments before
 @c each entry tell you which file and where in that file).  DO NOT EDIT!
 @c Edit the *.c files, configure with --enable-maintainer-mode,
-@c and let gather-docs build you a new copy.
+@c run 'make stamp-functions' and gather-docs will build a new copy.
 
-@c safe-ctype.c:25
+@c splay-tree.c:277
 @defvr Extension HOST_CHARSET
 This macro indicates the basic character set and encoding used by the
 host: more precisely, the encoding used for character constants in
@@ -24,6 +24,25 @@ The host character set is some variant of EBCDIC.  (Only one of the
 nineteen EBCDIC varying characters is tested; exercise caution.)
 @end ftable
 @end defvr
+@deftypefn Supplemental splay_tree splay_tree_new_with_typed_alloc
+(splay_tree_compare_fn @var{compare_fn},
+splay_tree_delete_key_fn @var{delete_key_fn},
+splay_tree_delete_value_fn @var{delete_value_fn},
+splay_tree_allocate_fn @var{tree_allocate_fn},
+splay_tree_allocate_fn @var{node_allocate_fn},
+splay_tree_deallocate_fn @var{deallocate_fn},
+void * @var{allocate_data})
+
+This function creates a splay tree that uses two different allocators
+@var{tree_allocate_fn} and @var{node_allocate_fn} to use for allocating the
+tree itself and its nodes respectively.  This is useful when variables of
+different types need to be allocated with different allocators.
+
+The splay tree will use @var{compare_fn} to compare nodes,
+@var{delete_key_fn} to deallocate keys, and @var{delete_value_fn} to
+deallocate values.
+
+@end deftypefn
 
 @c alloca.c:26
 @deftypefn Replacement void* alloca (size_t @var{size})
@@ -104,7 +123,7 @@ is respectively less than, matching, or greater than the array member.
 
 @end deftypefn
 
-@c argv.c:124
+@c argv.c:142
 @deftypefn Extension char** buildargv (char *@var{sp})
 
 Given a pointer to a string, parse the string extracting fields
@@ -145,7 +164,7 @@ Uses @code{malloc} to allocate storage for @var{nelem} objects of
 
 @end deftypefn
 
-@c choose-temp.c:42
+@c choose-temp.c:46
 @deftypefn Extension char* choose_temp_base (void)
 
 Return a prefix for temporary file names or @code{NULL} if unable to
@@ -198,6 +217,19 @@ protocol for the @samp{qCRC} command.  In order to get the same
 results as gdb for a block of data, you must pass the first CRC
 parameter as @code{0xffffffff}.
 
+This CRC can be specified as:
+
+  Width  : 32
+  Poly   : 0x04c11db7
+  Init   : parameter, typically 0xffffffff
+  RefIn  : false
+  RefOut : false
+  XorOut : 0
+
+This differs from the "standard" CRC-32 algorithm in that the values
+are not reflected, and there is no final XOR value.  These differences
+make it easy to compose the values of multiple blocks.
+
 @end deftypefn
 
 @c argv.c:52
@@ -229,7 +261,7 @@ symbolic name or message.
 
 @end deftypefn
 
-@c argv.c:348
+@c argv.c:361
 @deftypefn Extension void expandargv (int *@var{argcp}, char ***@var{argvp})
 
 The @var{argcp} and @code{argvp} arguments are pointers to the usual
@@ -464,6 +496,24 @@ systems.
 
 @end deftypefn
 
+@c hashtab.c:336
+@deftypefn Supplemental htab_t htab_create_typed_alloc (size_t @var{size},
+htab_hash @var{hash_f}, htab_eq @var{eq_f}, htab_del @var{del_f},
+htab_alloc @var{alloc_tab_f}, htab_alloc @var{alloc_f},
+htab_free @var{free_f})
+
+This function creates a hash table that uses two different allocators
+@var{alloc_tab_f} and @var{alloc_f} to use for allocating the table itself
+and its entries respectively.  This is useful when variables of different
+types need to be allocated with different allocators.
+
+The created hash table is slightly larger than @var{size} and it is
+initially empty (all the hash table entries are @code{HTAB_EMPTY_ENTRY}).
+The function returns the created hash table, or @code{NULL} if memory
+allocation fails.
+
+@end deftypefn
+
 @c index.c:5
 @deftypefn Supplemental char* index (char *@var{s}, int @var{c})
 
@@ -617,7 +667,7 @@ relative prefix can be found, return @code{NULL}.
 
 @end deftypefn
 
-@c make-temp-file.c:163
+@c make-temp-file.c:168
 @deftypefn Replacement char* make_temp_file (const char *@var{suffix})
 
 Return a temporary file name (as a string) or @code{NULL} if unable to
@@ -1502,7 +1552,7 @@ does the return value.  The third argument is unused in @libib{}.
 
 @end deftypefn
 
-@c argv.c:293
+@c argv.c:306
 @deftypefn Extension int writeargv (const char **@var{argv}, FILE *@var{file})
 
 Write each member of ARGV, handling all necessary quoting, to the file

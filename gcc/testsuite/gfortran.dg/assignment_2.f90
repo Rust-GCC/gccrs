@@ -38,12 +38,13 @@ end module m2
 
 MODULE m3
           INTERFACE ASSIGNMENT(=)
-             module procedure s ! { dg-error "must not redefine an INTRINSIC type" }
+             module procedure s
           END Interface
 contains
-             SUBROUTINE s(a,b)
+             SUBROUTINE s(a,b) ! { dg-error "must not redefine an INTRINSIC type" }
                  REAL,INTENT(OUT),VOLATILE :: a(1,*)
                  REAL,INTENT(IN) :: b(:,:)
              END SUBROUTINE
 end module m3
 
+! { dg-final { cleanup-modules "m1 m2 m3" } }

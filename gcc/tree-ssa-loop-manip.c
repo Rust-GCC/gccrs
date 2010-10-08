@@ -1,18 +1,19 @@
 /* High-level loop manipulation functions.
-   Copyright (C) 2004, 2005, 2006, 2007, 2008 Free Software Foundation, Inc.
-   
+   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2010
+   Free Software Foundation, Inc.
+
 This file is part of GCC.
-   
+
 GCC is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
 Free Software Foundation; either version 3, or (at your option) any
 later version.
-   
+
 GCC is distributed in the hope that it will be useful, but WITHOUT
 ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
-   
+
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
@@ -22,12 +23,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "rtl.h"
 #include "tm_p.h"
-#include "hard-reg-set.h"
 #include "basic-block.h"
 #include "output.h"
-#include "diagnostic.h"
 #include "tree-flow.h"
 #include "tree-dump.h"
 #include "timevar.h"
@@ -43,7 +41,7 @@ along with GCC; see the file COPYING3.  If not see
    It is expected that neither BASE nor STEP are shared with other expressions
    (unless the sharing rules allow this).  Use VAR as a base var_decl for it
    (if NULL, a new temporary will be created).  The increment will occur at
-   INCR_POS (after it if AFTER is true, before it otherwise).  INCR_POS and 
+   INCR_POS (after it if AFTER is true, before it otherwise).  INCR_POS and
    AFTER can be computed using standard_iv_increment_position.  The ssa versions
    of the variable before and after increment will be stored in VAR_BEFORE and
    VAR_AFTER (unless they are NULL).  */
@@ -302,11 +300,11 @@ find_uses_to_rename_bb (basic_block bb, bitmap *use_blocks, bitmap need_phis)
     for (bsi = gsi_start_phis (e->dest); !gsi_end_p (bsi); gsi_next (&bsi))
       find_uses_to_rename_use (bb, PHI_ARG_DEF_FROM_EDGE (gsi_stmt (bsi), e),
 			       use_blocks, need_phis);
- 
+
   for (bsi = gsi_start_bb (bb); !gsi_end_p (bsi); gsi_next (&bsi))
     find_uses_to_rename_stmt (gsi_stmt (bsi), use_blocks, need_phis);
 }
-     
+
 /* Marks names that are used outside of the loop they are defined in
    for rewrite.  Records the set of blocks in that the ssa
    names are defined to USE_BLOCKS.  If CHANGED_BBS is not NULL,
@@ -360,7 +358,7 @@ find_uses_to_rename (bitmap changed_bbs, bitmap *use_blocks, bitmap need_phis)
       Looking from the outer loop with the normal SSA form, the first use of k
       is not well-behaved, while the second one is an induction variable with
       base 99 and step 1.
-      
+
       If CHANGED_BBS is not NULL, we look for uses outside loops only in
       the basic blocks in this set.
 
@@ -414,7 +412,7 @@ check_loop_closed_ssa_use (basic_block bb, tree use)
 {
   gimple def;
   basic_block def_bb;
-  
+
   if (TREE_CODE (use) != SSA_NAME || !is_gimple_reg (use))
     return;
 
@@ -439,10 +437,11 @@ check_loop_closed_ssa_stmt (basic_block bb, gimple stmt)
     check_loop_closed_ssa_use (bb, var);
 }
 
-/* Checks that invariants of the loop closed ssa form are preserved.  */
+/* Checks that invariants of the loop closed ssa form are preserved.
+   Call verify_ssa when VERIFY_SSA_P is true.  */
 
-void
-verify_loop_closed_ssa (void)
+DEBUG_FUNCTION void
+verify_loop_closed_ssa (bool verify_ssa_p)
 {
   basic_block bb;
   gimple_stmt_iterator bsi;
@@ -453,7 +452,8 @@ verify_loop_closed_ssa (void)
   if (number_of_loops () <= 1)
     return;
 
-  verify_ssa (false);
+  if (verify_ssa_p)
+    verify_ssa (false);
 
   FOR_EACH_BB (bb)
     {
@@ -615,7 +615,7 @@ gimple_duplicate_loop_to_header_edge (struct loop *loop, edge e,
 
 #ifdef ENABLE_CHECKING
   if (loops_state_satisfies_p (LOOP_CLOSED_SSA))
-    verify_loop_closed_ssa ();
+    verify_loop_closed_ssa (true);
 #endif
 
   first_new_block = last_basic_block;
@@ -818,7 +818,7 @@ scale_dominated_blocks_in_loop (struct loop *loop, basic_block bb,
 
    If N is number of iterations of the loop and MAY_BE_ZERO is the condition
    under that loop exits in the first iteration even if N != 0,
-   
+
    while (1)
      {
        x = phi (init, next);
@@ -831,7 +831,7 @@ scale_dominated_blocks_in_loop (struct loop *loop, basic_block bb,
 
    becomes (with possibly the exit conditions formulated a bit differently,
    avoiding the need to create a new iv):
-   
+
    if (MAY_BE_ZERO || N < FACTOR)
      goto rest;
 
@@ -847,7 +847,7 @@ scale_dominated_blocks_in_loop (struct loop *loop, basic_block bb,
        pre;
        post;
        N -= FACTOR;
-       
+
      } while (N >= FACTOR);
 
    rest:
@@ -862,7 +862,7 @@ scale_dominated_blocks_in_loop (struct loop *loop, basic_block bb,
          break;
        post;
      }
- 
+
    Before the loop is unrolled, TRANSFORM is called for it (only for the
    unrolled loop, but not for its versioned copy).  DATA is passed to
    TRANSFORM.  */
@@ -1045,7 +1045,7 @@ tree_transform_and_unroll_loop (struct loop *loop, unsigned factor,
   free (wont_exit);
   gcc_assert (ok);
 
-  for (i = 0; VEC_iterate (edge, to_remove, i, e); i++)
+  FOR_EACH_VEC_ELT (edge, to_remove, i, e)
     {
       ok = remove_path (e);
       gcc_assert (ok);
@@ -1081,7 +1081,7 @@ tree_transform_and_unroll_loop (struct loop *loop, unsigned factor,
 
   /* Finally create the new counter for number of iterations and add the new
      exit instruction.  */
-  bsi = gsi_last_bb (exit_bb);
+  bsi = gsi_last_nondebug_bb (exit_bb);
   exit_if = gsi_stmt (bsi);
   create_iv (exit_base, exit_step, NULL_TREE, loop,
 	     &bsi, false, &ctr_before, &ctr_after);
@@ -1094,7 +1094,7 @@ tree_transform_and_unroll_loop (struct loop *loop, unsigned factor,
   verify_flow_info ();
   verify_dominators (CDI_DOMINATORS);
   verify_loop_structure ();
-  verify_loop_closed_ssa ();
+  verify_loop_closed_ssa (true);
 #endif
 }
 
@@ -1181,11 +1181,13 @@ rewrite_all_phi_nodes_with_iv (loop_p loop, tree main_iv)
    compared with *NIT.  When the IV type precision has to be larger
    than *NIT type precision, *NIT is converted to the larger type, the
    conversion code is inserted before the loop, and *NIT is updated to
-   the new definition.  The induction variable is incremented in the
-   loop latch.  Return the induction variable that was created.  */
+   the new definition.  When BUMP_IN_LATCH is true, the induction
+   variable is incremented in the loop latch, otherwise it is
+   incremented in the loop header.  Return the induction variable that
+   was created.  */
 
 tree
-canonicalize_loop_ivs (struct loop *loop, tree *nit)
+canonicalize_loop_ivs (struct loop *loop, tree *nit, bool bump_in_latch)
 {
   unsigned precision = TYPE_PRECISION (TREE_TYPE (*nit));
   unsigned original_precision = precision;
@@ -1215,9 +1217,9 @@ canonicalize_loop_ivs (struct loop *loop, tree *nit)
 	gsi_insert_seq_on_edge_immediate (loop_preheader_edge (loop), stmts);
     }
 
-  gsi = gsi_last_bb (loop->latch);
+  gsi = gsi_last_nondebug_bb (bump_in_latch ? loop->latch : loop->header);
   create_iv (build_int_cst_type (type, 0), build_int_cst (type, 1), NULL_TREE,
-	     loop, &gsi, true, &var_before, NULL);
+	     loop, &gsi, bump_in_latch, &var_before, NULL);
 
   rewrite_all_phi_nodes_with_iv (loop, var_before);
 

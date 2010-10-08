@@ -1,6 +1,6 @@
 // Debugging string implementation -*- C++ -*-
 
-// Copyright (C) 2003, 2005, 2006, 2009
+// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -36,6 +36,7 @@
 
 namespace __gnu_debug
 {
+  /// Class std::basic_string with safety/checking/debug instrumentation.
   template<typename _CharT, typename _Traits = std::char_traits<_CharT>,
             typename _Allocator = std::allocator<_CharT> >
     class basic_string
@@ -106,12 +107,19 @@ namespace __gnu_debug
 
     template<typename _InputIterator>
       basic_string(_InputIterator __begin, _InputIterator __end,
-		     const _Allocator& __a = _Allocator())
-      : _Base(__gnu_debug::__check_valid_range(__begin, __end), __end, __a)
+		   const _Allocator& __a = _Allocator())
+      : _Base(__gnu_debug::__base(__gnu_debug::__check_valid_range(__begin,
+								   __end)),
+	      __gnu_debug::__base(__end), __a)
       { }
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
-    basic_string(initializer_list<_CharT> __l, const _Alloc& __a = _Alloc())
+    basic_string(basic_string&& __str)
+    : _Base(std::move(__str))
+    { }
+
+    basic_string(std::initializer_list<_CharT> __l,
+		 const _Allocator& __a = _Allocator())
     : _Base(__l, __a)
     { }
 #endif // __GXX_EXPERIMENTAL_CXX0X__
@@ -145,7 +153,15 @@ namespace __gnu_debug
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
     basic_string&
-    operator=(initializer_list<_CharT> __l)
+    operator=(basic_string&& __str)
+    {
+      *static_cast<_Base*>(this) = std::move(__str);
+      this->_M_invalidate_all();
+      return *this;
+    }
+
+    basic_string&
+    operator=(std::initializer_list<_CharT> __l)
     {
       *static_cast<_Base*>(this) = __l;
       this->_M_invalidate_all();
@@ -202,6 +218,10 @@ namespace __gnu_debug
     resize(size_type __n)
     { this->resize(__n, _CharT()); }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+    using _Base::shrink_to_fit;
+#endif
+
     using _Base::capacity;
     using _Base::reserve;
 
@@ -244,6 +264,11 @@ namespace __gnu_debug
 
     using _Base::at;
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+    using _Base::front;
+    using _Base::back;
+#endif
+
     // 21.3.5 modifiers:
     basic_string&
     operator+=(const basic_string& __str)
@@ -272,7 +297,7 @@ namespace __gnu_debug
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
     basic_string&
-    operator+=(initializer_list<_CharT> __l)
+    operator+=(std::initializer_list<_CharT> __l)
     {
       _M_base() += __l;
       this->_M_invalidate_all();
@@ -327,7 +352,8 @@ namespace __gnu_debug
       append(_InputIterator __first, _InputIterator __last)
       {
 	__glibcxx_check_valid_range(__first, __last);
-	_Base::append(__first, __last);
+	_Base::append(__gnu_debug::__base(__first),
+		      __gnu_debug::__base(__last));
 	this->_M_invalidate_all();
 	return *this;
       }
@@ -348,6 +374,16 @@ namespace __gnu_debug
       this->_M_invalidate_all();
       return *this;
     }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+    basic_string&
+    assign(basic_string&& __x)
+    {
+      _Base::assign(std::move(__x));
+      this->_M_invalidate_all();
+      return *this;
+    }
+#endif // __GXX_EXPERIMENTAL_CXX0X__
 
     basic_string&
     assign(const basic_string& __str, size_type __pos, size_type __n)
@@ -388,14 +424,15 @@ namespace __gnu_debug
       assign(_InputIterator __first, _InputIterator __last)
       {
 	__glibcxx_check_valid_range(__first, __last);
-	_Base::assign(__first, __last);
+	_Base::assign(__gnu_debug::__base(__first),
+		      __gnu_debug::__base(__last));
 	this->_M_invalidate_all();
 	return *this;
       }
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
     basic_string&
-    assign(initializer_list<_CharT> __l)
+    assign(std::initializer_list<_CharT> __l)
     {
       _Base::assign(__l);
       this->_M_invalidate_all();
@@ -468,13 +505,14 @@ namespace __gnu_debug
       insert(iterator __p, _InputIterator __first, _InputIterator __last)
       {
 	__glibcxx_check_insert_range(__p, __first, __last);
-	_Base::insert(__p.base(), __first, __last);
+	_Base::insert(__p.base(), __gnu_debug::__base(__first),
+				  __gnu_debug::__base(__last));
 	this->_M_invalidate_all();
       }
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
     void
-    insert(iterator __p, initializer_list<_CharT> __l)
+    insert(iterator __p, std::initializer_list<_CharT> __l)
     {
       _Base::insert(__p, __l);
       this->_M_invalidate_all();
@@ -606,7 +644,7 @@ namespace __gnu_debug
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       basic_string& replace(iterator __i1, iterator __i2,
-			    initializer_list<_CharT> __l)
+			    std::initializer_list<_CharT> __l)
       {
 	__glibcxx_check_erase_range(__i1, __i2);
 	_Base::replace(__i1.base(), __i2.base(), __l);

@@ -1,10 +1,10 @@
 /* Common declarations for all of libgfortran.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>, and
    Andy Vaught <andy@xena.eas.asu.edu>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -28,6 +28,15 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifndef LIBGFOR_H
 #define LIBGFOR_H
 
+/* Ensure that ANSI conform stdio is used. This needs to be set before
+   any system header file is included.  */
+#if defined __MINGW32__
+#  define _POSIX 1
+#  define gfc_printf gnu_printf
+#else
+#  define gfc_printf __printf__
+#endif
+
 /* config.h MUST be first because it can affect system headers.  */
 #include "config.h"
 
@@ -36,6 +45,19 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include <stddef.h>
 #include <float.h>
 #include <stdarg.h>
+
+#ifdef __MINGW32__
+extern float __strtof (const char *, char **);
+#define gfc_strtof __strtof
+extern double __strtod (const char *, char **);
+#define gfc_strtod __strtod
+extern long double __strtold (const char *, char **);
+#define gfc_strtold __strtold
+#else
+#define gfc_strtof strtof
+#define gfc_strtod strtod
+#define gfc_strtold strtold
+#endif
 
 #if HAVE_COMPLEX_H
 # include <complex.h>
@@ -56,7 +78,12 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #if HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+
+#ifdef __MINGW32__
+typedef off64_t gfc_offset;
+#else
 typedef off_t gfc_offset;
+#endif
 
 #ifndef NULL
 #define NULL (void *) 0
@@ -194,42 +221,24 @@ extern int __mingw_snprintf (char *, size_t, const char *, ...)
 #define offsetof(TYPE, MEMBER)  ((size_t) &((TYPE *) 0)->MEMBER)
 #endif
 
-/* The isfinite macro is only available with C99, but some non-C99
-   systems still provide fpclassify, and there is a `finite' function
-   in BSD.
+/* The C99 classification macros isfinite, isinf, isnan, isnormal
+   and signbit are broken or inconsistent on quite a few targets.
+   So, we use GCC's builtins instead.
 
-   Also, isfinite is broken on Cygwin.
+   Another advantage for GCC's builtins for these type-generic macros
+   is that it handles floating-point types that the system headers
+   may not support (like __float128).  */
 
-   When isfinite is not available, try to use one of the
-   alternatives, or bail out.  */
-
-#if defined(HAVE_BROKEN_ISFINITE) || defined(__CYGWIN__)
-#undef isfinite
-#endif
-
-#if defined(HAVE_BROKEN_ISNAN)
 #undef isnan
-#endif
-
-#if defined(HAVE_BROKEN_FPCLASSIFY)
-#undef fpclassify
-#endif
-
-#if !defined(isfinite)
-#if !defined(fpclassify)
-#define isfinite(x) ((x) - (x) == 0)
-#else
-#define isfinite(x) (fpclassify(x) != FP_NAN && fpclassify(x) != FP_INFINITE)
-#endif /* !defined(fpclassify) */
-#endif /* !defined(isfinite)  */
-
-#if !defined(isnan)
-#if !defined(fpclassify)
-#define isnan(x) ((x) != (x))
-#else
-#define isnan(x) (fpclassify(x) == FP_NAN)
-#endif /* !defined(fpclassify) */
-#endif /* !defined(isfinite)  */
+#define isnan(x) __builtin_isnan(x)
+#undef isfinite
+#define isfinite(x) __builtin_isfinite(x)
+#undef isinf
+#define isinf(x) __builtin_isinf(x)
+#undef isnormal
+#define isnormal(x) __builtin_isnormal(x)
+#undef signbit
+#define signbit(x) __builtin_signbit(x)
 
 /* TODO: find the C99 version of these an move into above ifdef.  */
 #define REALPART(z) (__real__(z))
@@ -559,7 +568,7 @@ st_option;
    that were given (-std=, -pedantic) we should issue an error, a warning
    or nothing.  */
 typedef enum
-{ SILENT, WARNING, ERROR }
+{ NOTIFICATION_SILENT, NOTIFICATION_WARNING, NOTIFICATION_ERROR }
 notification;
 
 /* This is returned by notify_std and several io functions.  */
@@ -674,6 +683,8 @@ internal_proto(show_backtrace);
 
 #if defined(HAVE_GFC_REAL_16)
 #define GFC_LARGEST_BUF (sizeof (GFC_REAL_16))
+#elif defined(HAVE_GFC_INTEGER_16)
+#define GFC_LARGEST_BUF (sizeof (GFC_INTEGER_LARGEST))
 #elif defined(HAVE_GFC_REAL_10)
 #define GFC_LARGEST_BUF (sizeof (GFC_REAL_10))
 #else
@@ -698,15 +709,15 @@ extern void show_locus (st_parameter_common *);
 internal_proto(show_locus);
 
 extern void runtime_error (const char *, ...)
-     __attribute__ ((noreturn, format (printf, 1, 2)));
+     __attribute__ ((noreturn, format (gfc_printf, 1, 2)));
 iexport_proto(runtime_error);
 
 extern void runtime_error_at (const char *, const char *, ...)
-     __attribute__ ((noreturn, format (printf, 2, 3)));
+     __attribute__ ((noreturn, format (gfc_printf, 2, 3)));
 iexport_proto(runtime_error_at);
 
 extern void runtime_warning_at (const char *, const char *, ...)
-     __attribute__ ((format (printf, 2, 3)));
+     __attribute__ ((format (gfc_printf, 2, 3)));
 iexport_proto(runtime_warning_at);
 
 extern void internal_error (st_parameter_common *, const char *)
@@ -737,9 +748,6 @@ internal_proto(set_fpu);
 
 extern void *get_mem (size_t) __attribute__ ((malloc));
 internal_proto(get_mem);
-
-extern void free_mem (void *);
-internal_proto(free_mem);
 
 extern void *internal_malloc_size (size_t) __attribute__ ((malloc));
 internal_proto(internal_malloc_size);
@@ -790,7 +798,7 @@ extern int unit_to_fd (int);
 internal_proto(unit_to_fd);
 
 extern int st_printf (const char *, ...)
-  __attribute__ ((format (printf, 1, 2)));
+  __attribute__ ((format (gfc_printf, 1, 2)));
 internal_proto(st_printf);
 
 extern int st_vprintf (const char *, va_list);
@@ -801,8 +809,9 @@ internal_proto(filename_from_unit);
 
 /* stop.c */
 
-extern void stop_numeric (GFC_INTEGER_4) __attribute__ ((noreturn));
-iexport_proto(stop_numeric);
+extern void stop_string (const char *, GFC_INTEGER_4)
+  __attribute__ ((noreturn));
+export_proto(stop_string);
 
 /* reshape_packed.c */
 

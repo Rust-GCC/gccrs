@@ -52,10 +52,10 @@ typedef struct param_info
 
   /* Minimum acceptable value.  */
   int min_value;
-  
+
   /* Maximum acceptable value, if greater than minimum  */
   int max_value;
-  
+
   /* A short description of the option.  */
   const char *const help;
 } param_info;
@@ -64,6 +64,9 @@ typedef struct param_info
    values.  */
 
 extern param_info *compiler_params;
+
+/* Returns the number of entries in the table, for the use by plugins.  */
+extern size_t get_num_compiler_params (void);
 
 /* Add the N PARAMS to the current list of compiler parameters.  */
 
@@ -122,6 +125,12 @@ typedef enum compiler_param
   PARAM_VALUE (PARAM_GCSE_AFTER_RELOAD_PARTIAL_FRACTION)
 #define GCSE_AFTER_RELOAD_CRITICAL_FRACTION \
   PARAM_VALUE (PARAM_GCSE_AFTER_RELOAD_CRITICAL_FRACTION)
+#define GCSE_COST_DISTANCE_RATIO \
+  PARAM_VALUE (PARAM_GCSE_COST_DISTANCE_RATIO)
+#define GCSE_UNRESTRICTED_COST \
+  PARAM_VALUE (PARAM_GCSE_UNRESTRICTED_COST)
+#define MAX_HOIST_DEPTH \
+  PARAM_VALUE (PARAM_MAX_HOIST_DEPTH)
 #define MAX_UNROLLED_INSNS \
   PARAM_VALUE (PARAM_MAX_UNROLLED_INSNS)
 #define MAX_SMS_LOOP_NUMBER \

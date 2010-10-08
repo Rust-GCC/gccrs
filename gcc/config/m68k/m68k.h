@@ -1,6 +1,6 @@
 /* Definitions of target machine for GCC for Motorola 680x0/ColdFire.
    Copyright (C) 1987, 1988, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -274,8 +274,6 @@ along with GCC; see the file COPYING3.  If not see
 #define TUNE_MAC	((m68k_tune_flags & FL_CF_MAC) != 0)
 #define TUNE_EMAC	((m68k_tune_flags & FL_CF_EMAC) != 0)
 
-#define OVERRIDE_OPTIONS   override_options()
-
 /* These are meant to be redefined in the host dependent files */
 #define SUBTARGET_OVERRIDE_OPTIONS
 
@@ -533,21 +531,6 @@ extern enum reg_class regno_reg_class[];
 #define PUSH_ROUNDING(BYTES) (TARGET_COLDFIRE ? BYTES : ((BYTES) + 1) & ~1)
 
 #define FIRST_PARM_OFFSET(FNDECL) 8
-
-/* On the 68000, the RTS insn cannot pop anything.
-   On the 68010, the RTD insn may be used to pop them if the number
-     of args is fixed, but if the number is variable then the caller
-     must pop them all.  RTD can't be used for library calls now
-     because the library is compiled with the Unix compiler.
-   Use of RTD is a selectable option, since it is incompatible with
-   standard Unix calling sequences.  If the option is not selected,
-   the caller must always pop the args.  */
-#define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE)   \
-  ((TARGET_RTD && (!(FUNDECL) || TREE_CODE (FUNDECL) != IDENTIFIER_NODE)	\
-    && (TYPE_ARG_TYPES (FUNTYPE) == 0				\
-	|| (TREE_VALUE (tree_last (TYPE_ARG_TYPES (FUNTYPE)))	\
-	    == void_type_node)))				\
-   ? (SIZE) : 0)
 
 /* On the m68k the return value defaults to D0.  */
 #define FUNCTION_VALUE(VALTYPE, FUNC)  \

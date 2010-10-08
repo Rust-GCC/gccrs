@@ -20,7 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-/* stdio.h must precede rtl.h for FFS.  */
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
@@ -30,11 +29,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "regs.h"
 #include "basic-block.h"
 #include "flags.h"
-#include "real.h"
 #include "insn-config.h"
 #include "recog.h"
 #include "function.h"
 #include "expr.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "output.h"
 #include "ggc.h"
@@ -686,7 +685,7 @@ approx_reg_cost_1 (rtx *xp, void *data)
 	{
 	  if (regno < FIRST_PSEUDO_REGISTER)
 	    {
-	      if (SMALL_REGISTER_CLASSES)
+	      if (targetm.small_register_classes_for_mode_p (GET_MODE (x)))
 		return 1;
 	      *cost_p += 2;
 	    }
@@ -2237,7 +2236,7 @@ hash_rtx_string (const char *ps)
   return hash;
 }
 
-/* Same as hash_rtx, but call CB on each rtx if it is not NULL.  
+/* Same as hash_rtx, but call CB on each rtx if it is not NULL.
    When the callback returns true, we continue with the new rtx.  */
 
 unsigned
@@ -2260,7 +2259,7 @@ hash_rtx_cb (const_rtx x, enum machine_mode mode,
     return hash;
 
   /* Invoke the callback first.  */
-  if (cb != NULL 
+  if (cb != NULL
       && ((*cb) (x, mode, &newx, &newmode)))
     {
       hash += hash_rtx_cb (newx, newmode, do_not_record_p,
@@ -2287,7 +2286,7 @@ hash_rtx_cb (const_rtx x, enum machine_mode mode,
 
 	       On all machines, we can't record any global registers.
 	       Nor should we record any register that is in a small
-	       class, as defined by CLASS_LIKELY_SPILLED_P.  */
+	       class, as defined by TARGET_CLASS_LIKELY_SPILLED_P.  */
 	    bool record;
 
 	    if (regno >= FIRST_PSEUDO_REGISTER)
@@ -2304,9 +2303,9 @@ hash_rtx_cb (const_rtx x, enum machine_mode mode,
 	      record = true;
 	    else if (GET_MODE_CLASS (GET_MODE (x)) == MODE_CC)
 	      record = true;
-	    else if (SMALL_REGISTER_CLASSES)
+	    else if (targetm.small_register_classes_for_mode_p (GET_MODE (x)))
 	      record = false;
-	    else if (CLASS_LIKELY_SPILLED_P (REGNO_REG_CLASS (regno)))
+	    else if (targetm.class_likely_spilled_p (REGNO_REG_CLASS (regno)))
 	      record = false;
 	    else
 	      record = true;
@@ -2370,7 +2369,7 @@ hash_rtx_cb (const_rtx x, enum machine_mode mode,
 	  {
 	    elt = CONST_VECTOR_ELT (x, i);
 	    hash += hash_rtx_cb (elt, GET_MODE (elt),
-                                 do_not_record_p, hash_arg_in_memory_p, 
+                                 do_not_record_p, hash_arg_in_memory_p,
                                  have_reg_qty, cb);
 	  }
 
@@ -2516,7 +2515,7 @@ hash_rtx_cb (const_rtx x, enum machine_mode mode,
 	      x = XEXP (x, i);
 	      goto repeat;
 	    }
-          
+
 	  hash += hash_rtx_cb (XEXP (x, i), VOIDmode, do_not_record_p,
                                hash_arg_in_memory_p,
                                have_reg_qty, cb);
@@ -2671,25 +2670,15 @@ exp_equiv_p (const_rtx x, const_rtx y, int validate, bool for_gcse)
     case MEM:
       if (for_gcse)
 	{
+	  /* Can't merge two expressions in different alias sets, since we
+	     can decide that the expression is transparent in a block when
+	     it isn't, due to it being set with the different alias set.  */
+	  if (MEM_ALIAS_SET (x) != MEM_ALIAS_SET (y))
+	    return 0;
+
 	  /* A volatile mem should not be considered equivalent to any
 	     other.  */
 	  if (MEM_VOLATILE_P (x) || MEM_VOLATILE_P (y))
-	    return 0;
-
-	  /* Can't merge two expressions in different alias sets, since we
-	     can decide that the expression is transparent in a block when
-	     it isn't, due to it being set with the different alias set.
-
-	     Also, can't merge two expressions with different MEM_ATTRS.
-	     They could e.g. be two different entities allocated into the
-	     same space on the stack (see e.g. PR25130).  In that case, the
-	     MEM addresses can be the same, even though the two MEMs are
-	     absolutely not equivalent.  
-   
-	     But because really all MEM attributes should be the same for
-	     equivalent MEMs, we just use the invariant that MEMs that have
-	     the same attributes share the same mem_attrs data structure.  */
-	  if (MEM_ATTRS (x) != MEM_ATTRS (y))
 	    return 0;
 	}
       break;
@@ -3427,7 +3416,7 @@ fold_rtx (rtx x, rtx insn)
 		     constant through simplifications.  */
 		  p = lookup (folded_arg0, SAFE_HASH (folded_arg0, mode_arg0),
 			      mode_arg0);
-		  
+
 		  if (p != NULL)
 		    {
 		      cheapest_simplification = x;
@@ -4436,6 +4425,7 @@ cse_insn (rtx insn)
 
   for (i = 0; i < n_sets; i++)
     {
+      bool repeat = false;
       rtx src, dest;
       rtx src_folded;
       struct table_elt *elt = 0, *p;
@@ -5025,8 +5015,79 @@ cse_insn (rtx insn)
 	      dest = canon_rtx (SET_DEST (sets[i].rtl));
 
 	      if (!MEM_P (src) || !MEM_P (dest)
-		  || !nonoverlapping_memrefs_p (src, dest))
+		  || !nonoverlapping_memrefs_p (src, dest, false))
 		break;
+	    }
+
+	  /* Try to optimize
+	     (set (reg:M N) (const_int A))
+	     (set (reg:M2 O) (const_int B))
+	     (set (zero_extract:M2 (reg:M N) (const_int C) (const_int D))
+		  (reg:M2 O)).  */
+	  if (GET_CODE (SET_DEST (sets[i].rtl)) == ZERO_EXTRACT
+	      && CONST_INT_P (trial)
+	      && CONST_INT_P (XEXP (SET_DEST (sets[i].rtl), 1))
+	      && CONST_INT_P (XEXP (SET_DEST (sets[i].rtl), 2))
+	      && REG_P (XEXP (SET_DEST (sets[i].rtl), 0))
+	      && (GET_MODE_BITSIZE (GET_MODE (SET_DEST (sets[i].rtl)))
+		  >= INTVAL (XEXP (SET_DEST (sets[i].rtl), 1)))
+	      && ((unsigned) INTVAL (XEXP (SET_DEST (sets[i].rtl), 1))
+		  + (unsigned) INTVAL (XEXP (SET_DEST (sets[i].rtl), 2))
+		  <= HOST_BITS_PER_WIDE_INT))
+	    {
+	      rtx dest_reg = XEXP (SET_DEST (sets[i].rtl), 0);
+	      rtx width = XEXP (SET_DEST (sets[i].rtl), 1);
+	      rtx pos = XEXP (SET_DEST (sets[i].rtl), 2);
+	      unsigned int dest_hash = HASH (dest_reg, GET_MODE (dest_reg));
+	      struct table_elt *dest_elt
+		= lookup (dest_reg, dest_hash, GET_MODE (dest_reg));
+	      rtx dest_cst = NULL;
+
+	      if (dest_elt)
+		for (p = dest_elt->first_same_value; p; p = p->next_same_value)
+		  if (p->is_const && CONST_INT_P (p->exp))
+		    {
+		      dest_cst = p->exp;
+		      break;
+		    }
+	      if (dest_cst)
+		{
+		  HOST_WIDE_INT val = INTVAL (dest_cst);
+		  HOST_WIDE_INT mask;
+		  unsigned int shift;
+		  if (BITS_BIG_ENDIAN)
+		    shift = GET_MODE_BITSIZE (GET_MODE (dest_reg))
+			    - INTVAL (pos) - INTVAL (width);
+		  else
+		    shift = INTVAL (pos);
+		  if (INTVAL (width) == HOST_BITS_PER_WIDE_INT)
+		    mask = ~(HOST_WIDE_INT) 0;
+		  else
+		    mask = ((HOST_WIDE_INT) 1 << INTVAL (width)) - 1;
+		  val &= ~(mask << shift);
+		  val |= (INTVAL (trial) & mask) << shift;
+		  val = trunc_int_for_mode (val, GET_MODE (dest_reg));
+		  validate_unshare_change (insn, &SET_DEST (sets[i].rtl),
+					   dest_reg, 1);
+		  validate_unshare_change (insn, &SET_SRC (sets[i].rtl),
+					   GEN_INT (val), 1);
+		  if (apply_change_group ())
+		    {
+		      rtx note = find_reg_note (insn, REG_EQUAL, NULL_RTX);
+		      if (note)
+			{
+			  remove_note (insn, note);
+			  df_notes_rescan (insn);
+			}
+		      src_eqv = NULL_RTX;
+		      src_eqv_elt = NULL;
+		      src_eqv_volatile = 0;
+		      src_eqv_in_memory = 0;
+		      src_eqv_hash = 0;
+		      repeat = true;
+		      break;
+		    }
+		}
 	    }
 
 	  /* We don't normally have an insn matching (set (pc) (pc)), so
@@ -5102,6 +5163,13 @@ cse_insn (rtx insn)
 	      src_folded_cost = constant_pool_entries_cost;
 	      src_folded_regcost = constant_pool_entries_regcost;
 	    }
+	}
+
+      /* If we changed the insn too much, handle this set from scratch.  */
+      if (repeat)
+	{
+	  i--;
+	  continue;
 	}
 
       src = SET_SRC (sets[i].rtl);
@@ -6001,7 +6069,7 @@ cse_process_notes (rtx x, rtx object, bool *changed)
    describe the path.
    It is filled with a queue of basic blocks, starting with FIRST_BB
    and following a trace through the CFG.
-  
+
    If all paths starting at FIRST_BB have been followed, or no new path
    starting at FIRST_BB can be constructed, this function returns FALSE.
    Otherwise, DATA->path is filled and the function returns TRUE indicating
@@ -6017,7 +6085,7 @@ cse_find_path (basic_block first_bb, struct cse_basic_block_data *data,
   basic_block bb;
   edge e;
   int path_size;
- 
+
   SET_BIT (cse_visited_basic_blocks, first_bb->index);
 
   /* See if there is a previous path.  */
@@ -6178,7 +6246,7 @@ cse_prescan_path (struct cse_basic_block_data *data)
   int path_entry;
 
   /* Scan to end of each basic block in the path.  */
-  for (path_entry = 0; path_entry < path_size; path_entry++) 
+  for (path_entry = 0; path_entry < path_size; path_entry++)
     {
       basic_block bb;
       rtx insn;
@@ -6238,9 +6306,9 @@ cse_extended_basic_block (struct cse_basic_block_data *ebb_data)
 	    }
 	}
 
+      optimize_this_for_speed_p = optimize_bb_for_speed_p (bb);
       FOR_BB_INSNS (bb, insn)
 	{
-	  optimize_this_for_speed_p = optimize_bb_for_speed_p (bb);
 	  /* If we have processed 1,000 insns, flush the hash table to
 	     avoid extreme quadratic behavior.  We must not include NOTEs
 	     in the count since there may be more of them when generating
@@ -6311,7 +6379,7 @@ cse_extended_basic_block (struct cse_basic_block_data *ebb_data)
       /* With non-call exceptions, we are not always able to update
 	 the CFG properly inside cse_insn.  So clean up possibly
 	 redundant EH edges here.  */
-      if (flag_non_call_exceptions && have_eh_succ_edges (bb))
+      if (cfun->can_throw_non_call_exceptions && have_eh_succ_edges (bb))
 	cse_cfg_altered |= purge_dead_edges (bb);
 
       /* If we changed a conditional jump, we may have terminated
@@ -6784,7 +6852,7 @@ cse_change_cc_mode (rtx *loc, void *data)
       && GET_MODE (*loc) != GET_MODE (args->newreg))
     {
       validate_change (args->insn, loc, args->newreg, 1);
-      
+
       return -1;
     }
   return 0;
@@ -6804,10 +6872,10 @@ cse_change_cc_mode_insn (rtx insn, rtx newreg)
 
   args.insn = insn;
   args.newreg = newreg;
-  
+
   for_each_rtx (&PATTERN (insn), cse_change_cc_mode, &args);
   for_each_rtx (&REG_NOTES (insn), cse_change_cc_mode, &args);
-  
+
   /* If the following assertion was triggered, there is most probably
      something wrong with the cc_modes_compatible back end function.
      CC modes only can be considered compatible if the insn - with the mode
@@ -6926,7 +6994,7 @@ cse_cc_succs (basic_block bb, basic_block orig_bb, rtx cc_reg, rtx cc_src,
 				       XEXP (SET_SRC (set), 0))
 		       && rtx_equal_p (XEXP (cc_src, 1),
 				       XEXP (SET_SRC (set), 1)))
-			   
+
 		{
 		  comp_mode = targetm.cc_modes_compatible (mode, set_mode);
 		  if (comp_mode != VOIDmode
@@ -7183,8 +7251,8 @@ struct rtl_opt_pass pass_cse =
  {
   RTL_PASS,
   "cse1",                               /* name */
-  gate_handle_cse,                      /* gate */   
-  rest_of_handle_cse,			/* execute */       
+  gate_handle_cse,                      /* gate */
+  rest_of_handle_cse,			/* execute */
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */
@@ -7246,8 +7314,8 @@ struct rtl_opt_pass pass_cse2 =
  {
   RTL_PASS,
   "cse2",                               /* name */
-  gate_handle_cse2,                     /* gate */   
-  rest_of_handle_cse2,			/* execute */       
+  gate_handle_cse2,                     /* gate */
+  rest_of_handle_cse2,			/* execute */
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */
@@ -7307,8 +7375,8 @@ struct rtl_opt_pass pass_cse_after_global_opts =
  {
   RTL_PASS,
   "cse_local",                          /* name */
-  gate_handle_cse_after_global_opts,    /* gate */   
-  rest_of_handle_cse_after_global_opts, /* execute */       
+  gate_handle_cse_after_global_opts,    /* gate */
+  rest_of_handle_cse_after_global_opts, /* execute */
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */

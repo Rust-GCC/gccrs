@@ -3,7 +3,8 @@
 
 /* { dg-do assemble } */
 /* { dg-require-effective-target arm_neon_ok } */
-/* { dg-options "-save-temps -O0 -mfpu=neon -mfloat-abi=softfp" } */
+/* { dg-options "-save-temps -O0" } */
+/* { dg-add-options arm_neon } */
 
 #include "arm_neon.h"
 
@@ -15,5 +16,4 @@ void test_vget_lowu64 (void)
   out_uint64x1_t = vget_low_u64 (arg0_uint64x2_t);
 }
 
-/* { dg-final { scan-assembler "vmov\[ 	\]+\[dD\]\[0-9\]+, \[dD\]\[0-9\]+!?\(\[ 	\]+@\[a-zA-Z0-9 \]+\)?\n" } } */
 /* { dg-final { cleanup-saved-temps } } */

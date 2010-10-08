@@ -1,6 +1,6 @@
 // Functions used by iterators -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -61,6 +61,7 @@
 #define _STL_ITERATOR_BASE_FUNCS_H 1
 
 #pragma GCC system_header
+
 #include <bits/concept_check.h>
 
 _GLIBCXX_BEGIN_NAMESPACE(std)
@@ -154,7 +155,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   /**
    *  @brief A generalization of pointer arithmetic.
    *  @param  i  An input iterator.
-   *  @param  n  The "delta" by which to change @p i.
+   *  @param  n  The @a delta by which to change @p i.
    *  @return  Nothing.
    *
    *  This increments @p i by @p n.  For bidirectional and random access
@@ -173,6 +174,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     }
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
+
   template<typename _ForwardIterator>
     inline _ForwardIterator
     next(_ForwardIterator __x, typename
@@ -183,14 +185,15 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     }
 
   template<typename _BidirectionalIterator>
-    inline _BidirectionalIterator 
+    inline _BidirectionalIterator
     prev(_BidirectionalIterator __x, typename
 	 iterator_traits<_BidirectionalIterator>::difference_type __n = 1) 
     {
       std::advance(__x, -__n);
       return __x;
     }
-#endif
+
+#endif // __GXX_EXPERIMENTAL_CXX0X__
 
 _GLIBCXX_END_NAMESPACE
 

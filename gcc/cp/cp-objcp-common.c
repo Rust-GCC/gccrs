@@ -1,5 +1,5 @@
 /* Some code common to C++ and ObjC++ front ends.
-   Copyright (C) 2004, 2007, 2008, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Ziemowit Laski  <zlaski@apple.com>
 
 This file is part of GCC.
@@ -24,7 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "tree.h"
 #include "cp-tree.h"
-#include "c-common.h"
+#include "c-family/c-common.h"
 #include "toplev.h"
 #include "langhooks.h"
 #include "langhooks-def.h"
@@ -69,49 +69,6 @@ cxx_warn_unused_global_decl (const_tree decl)
   return true;
 }
 
-/* Langhook for expr_size: Tell the back end that the value of an expression
-   of non-POD class type does not include any tail padding; a derived class
-   might have allocated something there.  */
-
-tree
-cp_expr_size (const_tree exp)
-{
-  tree type = TREE_TYPE (exp);
-
-  if (CLASS_TYPE_P (type))
-    {
-      /* The back end should not be interested in the size of an expression
-	 of a type with both of these set; all copies of such types must go
-	 through a constructor or assignment op.  */
-      if (!TYPE_HAS_COMPLEX_INIT_REF (type)
-	  || !TYPE_HAS_COMPLEX_ASSIGN_REF (type)
-	  /* But storing a CONSTRUCTOR isn't a copy.  */
-	  || TREE_CODE (exp) == CONSTRUCTOR
-	  /* And, the gimplifier will sometimes make a copy of
-	     an aggregate.  In particular, for a case like:
-
-		struct S { S(); };
-		struct X { int a; S s; };
-		X x = { 0 };
-
-	     the gimplifier will create a temporary with
-	     static storage duration, perform static
-	     initialization of the temporary, and then copy
-	     the result.  Since the "s" subobject is never
-	     constructed, this is a valid transformation.  */
-	  || CP_AGGREGATE_TYPE_P (type))
-	/* This would be wrong for a type with virtual bases.  */
-	return (is_really_empty_class (type)
-		? size_zero_node
-		: CLASSTYPE_SIZE_UNIT (type));
-      else
-	return NULL_TREE;
-    }
-  else
-    /* Use the default code.  */
-    return tree_expr_size (exp);
-}
-
 /* Langhook for tree_size: determine size of our 'x' and 'c' nodes.  */
 size_t
 cp_tree_size (enum tree_code code)
@@ -139,6 +96,8 @@ cp_tree_size (enum tree_code code)
       return sizeof (struct tree_trait_expr);
 
     case LAMBDA_EXPR:           return sizeof (struct tree_lambda_expr);
+
+    case TEMPLATE_INFO:         return sizeof (struct tree_template_info);
 
     default:
       gcc_unreachable ();
@@ -170,8 +129,13 @@ cp_var_mod_type_p (tree type, tree fn)
 void
 cxx_initialize_diagnostics (diagnostic_context *context)
 {
-  pretty_printer *base = context->printer;
-  cxx_pretty_printer *pp = XNEW (cxx_pretty_printer);
+  pretty_printer *base;
+  cxx_pretty_printer *pp;
+
+  c_common_initialize_diagnostics (context);
+
+  base = context->printer;
+  pp = XNEW (cxx_pretty_printer);
   memcpy (pp_base (pp), base, sizeof (pretty_printer));
   pp_cxx_pretty_printer_init (pp);
   context->printer = (pretty_printer *) pp;
@@ -218,7 +182,7 @@ has_c_linkage (const_tree decl)
   return DECL_EXTERN_C_P (decl);
 }
 
-static GTY ((if_marked ("tree_map_marked_p"), param_is (struct tree_map)))
+static GTY ((if_marked ("tree_decl_map_marked_p"), param_is (struct tree_decl_map)))
      htab_t shadowed_var_for_decl;
 
 /* Lookup a shadowed var for FROM, and return it if we find one.  */
@@ -226,11 +190,11 @@ static GTY ((if_marked ("tree_map_marked_p"), param_is (struct tree_map)))
 tree
 decl_shadowed_for_var_lookup (tree from)
 {
-  struct tree_map *h, in;
+  struct tree_decl_map *h, in;
   in.base.from = from;
 
-  h = (struct tree_map *) htab_find_with_hash (shadowed_var_for_decl, &in,
-					       htab_hash_pointer (from));
+  h = (struct tree_decl_map *)
+      htab_find_with_hash (shadowed_var_for_decl, &in, DECL_UID (from));
   if (h)
     return h->to;
   return NULL_TREE;
@@ -241,22 +205,22 @@ decl_shadowed_for_var_lookup (tree from)
 void
 decl_shadowed_for_var_insert (tree from, tree to)
 {
-  struct tree_map *h;
+  struct tree_decl_map *h;
   void **loc;
 
-  h = GGC_NEW (struct tree_map);
-  h->hash = htab_hash_pointer (from);
+  h = ggc_alloc_tree_decl_map ();
   h->base.from = from;
   h->to = to;
-  loc = htab_find_slot_with_hash (shadowed_var_for_decl, h, h->hash, INSERT);
-  *(struct tree_map **) loc = h;
+  loc = htab_find_slot_with_hash (shadowed_var_for_decl, h, DECL_UID (from),
+				  INSERT);
+  *(struct tree_decl_map **) loc = h;
 }
 
 void
 init_shadowed_var_for_decl (void)
 {
-  shadowed_var_for_decl = htab_create_ggc (512, tree_map_hash,
-					   tree_map_eq, 0);
+  shadowed_var_for_decl = htab_create_ggc (512, tree_decl_map_hash,
+					   tree_decl_map_eq, 0);
 }
 
 

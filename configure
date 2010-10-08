@@ -656,11 +656,9 @@ CFLAGS_FOR_BUILD
 CC_FOR_BUILD
 AS_FOR_BUILD
 AR_FOR_BUILD
-target_configargs
+target_configdirs
 configdirs
-host_configargs
 build_configdirs
-build_configargs
 INSTALL_GDB_TK
 GDB_TK
 CONFIGURE_GDB_TK
@@ -668,6 +666,9 @@ build_tooldir
 tooldir
 GCC_SHLIB_SUBDIR
 RPATH_ENVVAR
+target_configargs
+host_configargs
+build_configargs
 BUILD_CONFIG
 CXXFLAGS_FOR_TARGET
 CFLAGS_FOR_TARGET
@@ -684,8 +685,8 @@ clooginc
 clooglibs
 pplinc
 ppllibs
-poststage1_libs
 poststage1_ldflags
+poststage1_libs
 stage1_libs
 stage1_ldflags
 extra_mpc_mpfr_configure_flags
@@ -797,8 +798,8 @@ with_gmp_lib
 with_host_libstdcxx
 with_stage1_ldflags
 with_stage1_libs
-with_boot_ldflags
 with_boot_libs
+with_boot_ldflags
 with_ppl
 with_ppl_include
 with_ppl_lib
@@ -835,6 +836,9 @@ CXX
 CXXFLAGS
 CCC
 CPP
+build_configargs
+host_configargs
+target_configargs
 AR
 AS
 DLLTOOL
@@ -1484,7 +1488,7 @@ Optional Features:
   --disable-option-checking  ignore unrecognized --enable/--with options
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
-  --enable-gold           use gold instead of ld
+  --enable-gold[=ARG]     build gold [ARG={both}[/{gold,ld}]]
   --enable-libada         build libada directory
   --enable-libssp         build libssp directory
   --enable-build-with-cxx build with C++ compiler instead of C compiler
@@ -1533,8 +1537,8 @@ Optional Packages:
                           when linking with PPL
   --with-stage1-ldflags=FLAGS Linker flags for stage1
   -with-stage1-libs=LIBS      Libraries for stage1
-  --with-boot-ldflags=FLAGS Linker flags for stage2 and later
   --with-boot-libs=LIBS     Libraries for stage2 and later
+  --with-boot-ldflags=FLAGS Linker flags for stage2 and later
   --with-ppl=PATH         Specify prefix directory for the installed PPL package
                           Equivalent to --with-ppl-include=PATH/include
                           plus --with-ppl-lib=PATH/lib
@@ -1570,6 +1574,12 @@ Some influential environment variables:
   CXX         C++ compiler command
   CXXFLAGS    C++ compiler flags
   CPP         C preprocessor
+  build_configargs
+              additional configure arguments for build directories
+  host_configargs
+              additional configure arguments for host directories
+  target_configargs
+              additional configure arguments for target directories
   AR          AR for the host
   AS          AS for the host
   DLLTOOL     DLLTOOL for the host
@@ -2897,14 +2907,14 @@ build_tools="build-texinfo build-byacc build-flex build-bison build-m4 build-fix
 
 # these libraries are used by various programs built for the host environment
 #
-host_libs="intl mmalloc libiberty opcodes bfd readline tcl tk itcl libgui zlib libcpp libdecnumber gmp mpfr mpc ppl cloog libiconv"
+host_libs="intl mmalloc libiberty opcodes bfd readline tcl tk itcl libgui zlib libcpp libdecnumber gmp mpfr mpc ppl cloog libelf libiconv"
 
 # these tools are built for the host environment
 # Note, the powerpc-eabi build depends on sim occurring before gdb in order to
 # know that we are building the simulator.
 # binutils, gas and ld appear in that order because it makes sense to run
 # "make check" in that particular order.
-# If --enable-gold is used, "gold" will replace "ld".
+# If --enable-gold is used, "gold" may replace "ld".
 host_tools="texinfo byacc flex bison binutils gas ld fixincludes gcc cgen sid sim gdb make patch prms send-pr gprof etc expect dejagnu ash bash bzip2 m4 autoconf automake libtool diff rcs fileutils shellutils time textutils wdiff find uudecode hello tar gzip indent recode release sed utils guile perl gawk findutils gettext zip fastjar gnattools"
 
 # libgcj represents the runtime libraries only used by gcj.
@@ -3073,6 +3083,11 @@ case ${with_newlib} in
 esac
 
 # Handle --enable-gold.
+#   --enable-gold		Build only gold
+#   --disable-gold [default]	Build only ld
+#   --enable-gold=both		Build both gold and ld, ld is default
+#   --enable-gold=both/ld	Same
+#   --enable-gold=both/gold	Build both gold and ld, gold is default, ld is renamed ld.bfd
 
 # Check whether --enable-gold was given.
 if test "${enable_gold+set}" = set; then :
@@ -3081,31 +3096,46 @@ else
   ENABLE_GOLD=no
 fi
 
-if test "${ENABLE_GOLD}" = "yes"; then
-  # Check for ELF target.
-  is_elf=no
-  case "${target}" in
-    *-*-elf* | *-*-sysv4* | *-*-unixware* | *-*-eabi* | hppa*64*-*-hpux* \
-    | *-*-linux* | frv-*-uclinux* | *-*-irix5* | *-*-irix6* \
-    | *-*-netbsd* | *-*-openbsd* | *-*-freebsd* | *-*-solaris2* | *-*-nto*)
+  case "${ENABLE_GOLD}" in
+  yes|both|both/gold|both/ld)
+    # Check for ELF target.
+    is_elf=no
+    case "${target}" in
+      *-*-elf* | *-*-sysv4* | *-*-unixware* | *-*-eabi* | hppa*64*-*-hpux* \
+      | *-*-linux* | frv-*-uclinux* | *-*-irix5* | *-*-irix6* \
+      | *-*-netbsd* | *-*-openbsd* | *-*-freebsd* | *-*-solaris2* | *-*-nto*)
+        case "${target}" in
+          *-*-linux*aout* | *-*-linux*oldld*)
+            ;;
+          *)
+            is_elf=yes
+            ;;
+        esac
+    esac
+
+    if test "$is_elf" = "yes"; then
+      # Check for target supported by gold.
       case "${target}" in
-        *-*-linux*aout* | *-*-linux*oldld*)
-          ;;
-        *)
-          is_elf=yes
+        i?86-*-* | x86_64-*-* | sparc*-*-* | powerpc*-*-* | arm*-*-*)
+	  case "${ENABLE_GOLD}" in
+	  both*)
+            configdirs="$configdirs gold"
+	    ;;
+	  *)
+            configdirs=`echo " ${configdirs} " | sed -e 's/ ld / gold /'`
+	    ;;
+	  esac
+	  ENABLE_GOLD=yes
           ;;
       esac
+    fi
+    ;;
+  no)
+    ;;
+  *)
+    as_fn_error "invalid --enable-gold argument" "$LINENO" 5
+    ;;
   esac
-
-  if test "$is_elf" = "yes"; then
-    # Check for target supported by gold.
-    case "${target}" in
-      i?86-*-* | x86_64-*-* | sparc*-*-* | powerpc*-*-* | arm*-*-*)
-        configdirs="`echo " ${configdirs} " | sed -e 's/ ld / gold /'`"
-        ;;
-    esac
-  fi
-fi
 
 # Configure extra directories which are host specific
 
@@ -3265,6 +3295,7 @@ case "${target}" in
     case "${target}" in
       i*86-*-*) ;;
       alpha*-*-*) ;;
+      x86_64-*-*) ;;
       *)
 	noconfigdirs="$noconfigdirs ${libgcj}"
 	;;
@@ -3294,6 +3325,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs target-newlib target-libiberty target-libgloss ${libgcj} target-libmudflap"
     ;;
   *-*-rtems*)
+    skipdirs="${skipdirs} target-libiberty"
     noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
     ;;
     # The tpf target doesn't support gdb yet.
@@ -3313,7 +3345,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs gas ld fileutils target-newlib target-libgloss"
     ;;
   alpha*-*-*vms*)
-    noconfigdirs="$noconfigdirs gdb ld target-newlib target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs gdb target-newlib target-libgloss ${libgcj}"
     ;;
   alpha*-*-linux*)
     # newlib is not 64 bit ready
@@ -3632,7 +3664,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs ld binutils gprof target-libgloss ${libgcj}"
     ;;
   microblaze*)
-    noconfigdirs="$noconfigdirs gprof ${libgcj}"
+    noconfigdirs="$noconfigdirs gprof target-libssp ${libgcj}"
     ;;
   mips*-sde-elf*)
     skipdirs="$skipdirs target-libiberty"
@@ -3706,16 +3738,13 @@ case "${target}" in
     ;;
   sparc-*-solaris* | sparc64-*-solaris* | sparcv9-*-solaris*)
     ;;
+  tic6x-*-*)
+    noconfigdirs="$noconfigdirs gdb sim ${libgcj}"
+    ;;
   v810-*-*)
     noconfigdirs="$noconfigdirs bfd binutils gas gcc gdb ld target-libstdc++-v3 opcodes target-libgloss ${libgcj}"
     ;;
-  v850-*-*)
-    noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
-    ;;
-  v850e-*-*)
-    noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
-    ;;
-  v850ea-*-*)
+  v850*-*-*)
     noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
     ;;
   vax-*-vms)
@@ -5289,13 +5318,40 @@ else
 fi
 
 
+# Used for setting $lt_cv_objdir
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for objdir" >&5
+$as_echo_n "checking for objdir... " >&6; }
+if test "${lt_cv_objdir+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  rm -f .libs 2>/dev/null
+mkdir .libs 2>/dev/null
+if test -d .libs; then
+  lt_cv_objdir=.libs
+else
+  # MS-DOS does not allow filenames that begin with a dot.
+  lt_cv_objdir=_libs
+fi
+rmdir .libs 2>/dev/null
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $lt_cv_objdir" >&5
+$as_echo "$lt_cv_objdir" >&6; }
+objdir=$lt_cv_objdir
+
+
+
+
+
+cat >>confdefs.h <<_ACEOF
+#define LT_OBJDIR "$lt_cv_objdir/"
+_ACEOF
+
+
+
 # Check for GMP, MPFR and MPC
-gmplibs="-lmpfr -lgmp"
+gmplibs="-lmpc -lmpfr -lgmp"
 gmpinc=
 have_gmp=no
-mpclibs=-lmpc
-mpcinc=
-have_mpc=no
 
 # Specify a location for mpc
 # check for this first so it ends up on the link line before mpfr.
@@ -5319,23 +5375,23 @@ fi
 
 
 if test "x$with_mpc" != x; then
-  mpclibs="-L$with_mpc/lib -lmpc"
-  mpcinc="-I$with_mpc/include $mpcinc"
+  gmplibs="-L$with_mpc/lib $gmplibs"
+  gmpinc="-I$with_mpc/include $gmpinc"
 fi
 if test "x$with_mpc_include" != x; then
-  mpcinc="-I$with_mpc_include $mpcinc"
+  gmpinc="-I$with_mpc_include $gmpinc"
 fi
 if test "x$with_mpc_lib" != x; then
-  mpclibs="-L$with_mpc_lib -lmpc"
+  gmplibs="-L$with_mpc_lib $gmplibs"
 fi
 if test "x$with_mpc$with_mpc_include$with_mpc_lib" = x && test -d ${srcdir}/mpc; then
-  mpclibs='-L$$r/$(HOST_SUBDIR)/mpc/src/.libs -L$$r/$(HOST_SUBDIR)/mpc/src/_libs -lmpc'
-  mpcinc='-I$$s/mpc/src '"$mpcinc"
+  gmplibs='-L$$r/$(HOST_SUBDIR)/mpc/src/'"$lt_cv_objdir $gmplibs"
+  gmpinc='-I$$s/mpc/src '"$gmpinc"
   # Do not test the mpc version.  Assume that it is sufficient, since
   # it is in the source tree, and the library has not been built yet
   # but it would be included on the link line in the version check below
   # hence making the test fail.
-  have_mpc=yes
+  have_gmp=yes
 fi
 
 # Specify a location for mpfr
@@ -5369,18 +5425,18 @@ fi
 
 if test "x$with_mpfr" != x; then
   gmplibs="-L$with_mpfr/lib $gmplibs"
-  gmpinc="-I$with_mpfr/include"
+  gmpinc="-I$with_mpfr/include $gmpinc"
 fi
 if test "x$with_mpfr_include" != x; then
-  gmpinc="-I$with_mpfr_include"
+  gmpinc="-I$with_mpfr_include $gmpinc"
 fi
 if test "x$with_mpfr_lib" != x; then
   gmplibs="-L$with_mpfr_lib $gmplibs"
 fi
 if test "x$with_mpfr$with_mpfr_include$with_mpfr_lib" = x && test -d ${srcdir}/mpfr; then
-  gmplibs='-L$$r/$(HOST_SUBDIR)/mpfr/.libs -L$$r/$(HOST_SUBDIR)/mpfr/_libs '"$gmplibs"
+  gmplibs='-L$$r/$(HOST_SUBDIR)/mpfr/'"$lt_cv_objdir $gmplibs"
   gmpinc='-I$$r/$(HOST_SUBDIR)/mpfr -I$$s/mpfr '"$gmpinc"
-  extra_mpc_mpfr_configure_flags='--with-mpfr-include=$$s/mpfr'
+  extra_mpc_mpfr_configure_flags='--with-mpfr-include=$$s/mpfr --with-mpfr-lib=$$r/$(HOST_SUBDIR)/mpfr/'"$lt_cv_objdir"
   # Do not test the mpfr version.  Assume that it is sufficient, since
   # it is in the source tree, and the library has not been built yet
   # but it would be included on the link line in the version check below
@@ -5428,10 +5484,10 @@ if test "x$with_gmp_lib" != x; then
   gmplibs="-L$with_gmp_lib $gmplibs"
 fi
 if test "x$with_gmp$with_gmp_include$with_gmp_lib" = x && test -d ${srcdir}/gmp; then
-  gmplibs='-L$$r/$(HOST_SUBDIR)/gmp/.libs -L$$r/$(HOST_SUBDIR)/gmp/_libs '"$gmplibs"
+  gmplibs='-L$$r/$(HOST_SUBDIR)/gmp/'"$lt_cv_objdir $gmplibs"
   gmpinc='-I$$r/$(HOST_SUBDIR)/gmp -I$$s/gmp '"$gmpinc"
-  extra_mpfr_configure_flags='--with-gmp-build=$$r/$(HOST_SUBDIR)/gmp'
-  extra_mpc_gmp_configure_flags='--with-gmp-include=$$r/$(HOST_SUBDIR)/gmp'
+  extra_mpfr_configure_flags='--with-gmp-include=$$r/$(HOST_SUBDIR)/gmp --with-gmp-lib=$$r/$(HOST_SUBDIR)/gmp/'"$lt_cv_objdir"
+  extra_mpc_gmp_configure_flags='--with-gmp-include=$$r/$(HOST_SUBDIR)/gmp --with-gmp-lib=$$r/$(HOST_SUBDIR)/gmp/'"$lt_cv_objdir"
   # Do not test the gmp version.  Assume that it is sufficient, since
   # it is in the source tree, and the library has not been built yet
   # but it would be included on the link line in the version check below
@@ -5443,9 +5499,9 @@ if test -d ${srcdir}/gcc && test "x$have_gmp" = xno; then
   have_gmp=yes
   saved_CFLAGS="$CFLAGS"
   CFLAGS="$CFLAGS $gmpinc"
-  # Check GMP actually works
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for correct version of gmp.h" >&5
-$as_echo_n "checking for correct version of gmp.h... " >&6; }
+  # Check for the recommended and required versions of GMP.
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for the correct version of gmp.h" >&5
+$as_echo_n "checking for the correct version of gmp.h... " >&6; }
 
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
@@ -5454,7 +5510,27 @@ int
 main ()
 {
 
-  #if __GNU_MP_VERSION < 4 || (__GNU_MP_VERSION == 4 && __GNU_MP_VERSION_MINOR < 2)
+  #define GCC_GMP_VERSION_NUM(a,b,c) (((a) << 16L) | ((b) << 8) | (c))
+  #define GCC_GMP_VERSION GCC_GMP_VERSION_NUM(__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL)
+  #if GCC_GMP_VERSION < GCC_GMP_VERSION_NUM(4,2,0)
+  choke me
+  #endif
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <gmp.h>
+int
+main ()
+{
+
+  #define GCC_GMP_VERSION_NUM(a,b,c) (((a) << 16L) | ((b) << 8) | (c))
+  #define GCC_GMP_VERSION GCC_GMP_VERSION_NUM(__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL)
+  #if GCC_GMP_VERSION < GCC_GMP_VERSION_NUM(4,3,2)
   choke me
   #endif
 
@@ -5466,6 +5542,11 @@ if ac_fn_c_try_compile "$LINENO"; then :
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
 else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: buggy but acceptable" >&5
+$as_echo "buggy but acceptable" >&6; }
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }; have_gmp=no
 fi
@@ -5473,8 +5554,9 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
   # If we have GMP, check the MPFR version.
   if test x"$have_gmp" = xyes; then
-        { $as_echo "$as_me:${as_lineno-$LINENO}: checking for correct version of mpfr.h" >&5
-$as_echo_n "checking for correct version of mpfr.h... " >&6; }
+    # Check for the recommended and required versions of MPFR.
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for the correct version of mpfr.h" >&5
+$as_echo_n "checking for the correct version of mpfr.h... " >&6; }
     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #include <gmp.h>
@@ -5500,7 +5582,7 @@ int
 main ()
 {
 
-    #if MPFR_VERSION < MPFR_VERSION_NUM(2,3,2)
+    #if MPFR_VERSION < MPFR_VERSION_NUM(2,4,2)
     choke me
     #endif
 
@@ -5524,8 +5606,8 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
   fi
 
   # Check for the MPC header version.
-  if test x"$have_mpc" != xyes ; then
-    CFLAGS="$CFLAGS $mpcinc"
+  if test x"$have_gmp" = xyes ; then
+    # Check for the recommended and required versions of MPC.
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for the correct version of mpc.h" >&5
 $as_echo_n "checking for the correct version of mpc.h... " >&6; }
     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -5535,7 +5617,23 @@ int
 main ()
 {
 
-    #if MPC_VERSION < MPC_VERSION_NUM (0,7,0)
+    #if MPC_VERSION < MPC_VERSION_NUM(0,8,0)
+    choke me
+    #endif
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <mpc.h>
+int
+main ()
+{
+
+    #if MPC_VERSION < MPC_VERSION_NUM(0,8,1)
     choke me
     #endif
 
@@ -5545,10 +5643,15 @@ main ()
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }; have_mpc=maybe
+$as_echo "yes" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: buggy but acceptable" >&5
+$as_echo "buggy but acceptable" >&6; }
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }; have_mpc=no; mpclibs= ; mpcinc=
+$as_echo "no" >&6; }; have_gmp=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
   fi
@@ -5557,24 +5660,32 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
   if test x"$have_gmp" = xyes; then
     saved_LIBS="$LIBS"
     LIBS="$LIBS $gmplibs"
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for the correct version of the gmp/mpfr libraries" >&5
-$as_echo_n "checking for the correct version of the gmp/mpfr libraries... " >&6; }
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for the correct version of the gmp/mpfr/mpc libraries" >&5
+$as_echo_n "checking for the correct version of the gmp/mpfr/mpc libraries... " >&6; }
     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
-#include <gmp.h>
-    #include <mpfr.h>
+#include <mpc.h>
 int
 main ()
 {
 
     mpfr_t n;
     mpfr_t x;
+    mpc_t c;
     int t;
     mpfr_init (n);
     mpfr_init (x);
     mpfr_atan2 (n, n, x, GMP_RNDN);
     mpfr_erfc (n, x, GMP_RNDN);
     mpfr_subnormalize (x, t, GMP_RNDN);
+    mpfr_clear(n);
+    mpfr_clear(x);
+    mpc_init2 (c, 53);
+    mpc_set_ui_ui (c, 1, 1, MPC_RNDNN);
+    mpc_cosh (c, c, MPC_RNDNN);
+    mpc_pow (c, c, c, MPC_RNDNN);
+    mpc_acosh (c, c, MPC_RNDNN);
+    mpc_clear (c);
 
   ;
   return 0;
@@ -5592,73 +5703,22 @@ rm -f core conftest.err conftest.$ac_objext \
     LIBS="$saved_LIBS"
   fi
 
-  if test x"$have_mpc" = xmaybe; then
-    saved_LIBS="$LIBS"
-    LIBS="$LIBS $mpclibs $gmplibs"
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for the correct version of the mpc library" >&5
-$as_echo_n "checking for the correct version of the mpc library... " >&6; }
-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <mpc.h>
-int
-main ()
-{
-
-    mpc_t n;
-    mpc_init2 (n, 53);
-    mpc_set_ui_ui (n, 1, 1, MPC_RNDNN);
-    mpc_sin (n, n, MPC_RNDNN);
-    mpc_cos (n, n, MPC_RNDNN);
-    mpc_tan (n, n, MPC_RNDNN);
-    mpc_sinh (n, n, MPC_RNDNN);
-    mpc_cosh (n, n, MPC_RNDNN);
-    mpc_tanh (n, n, MPC_RNDNN);
-    mpc_exp (n, n, MPC_RNDNN);
-    mpc_log (n, n, MPC_RNDNN);
-    mpc_sqrt (n, n, MPC_RNDNN);
-    mpc_proj (n, n, MPC_RNDNN);
-    mpc_neg (n, n, MPC_RNDNN);
-    mpc_sqr (n, n, MPC_RNDNN);
-    mpc_pow (n, n, n, MPC_RNDNN);
-    mpc_clear (n);
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }; have_mpc=yes
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }; have_mpc=no; mpclibs= ; mpcinc=
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-    LIBS="$saved_LIBS"
-  fi
-
   CFLAGS="$saved_CFLAGS"
 
+# The library versions listed in the error message below should match
+# the HARD-minimums enforced above.
   if test x$have_gmp != xyes; then
-    as_fn_error "Building GCC requires GMP 4.2+ and MPFR 2.3.2+.
-Try the --with-gmp and/or --with-mpfr options to specify their locations.
-Copies of these libraries' source code can be found at their respective
-hosting sites as well as at ftp://gcc.gnu.org/pub/gcc/infrastructure/.
-See also http://gcc.gnu.org/install/prerequisites.html for additional info.
-If you obtained GMP and/or MPFR from a vendor distribution package, make
-sure that you have installed both the libraries and the header files.
-They may be located in separate packages." "$LINENO" 5
+    as_fn_error "Building GCC requires GMP 4.2+, MPFR 2.3.1+ and MPC 0.8.0+.
+Try the --with-gmp, --with-mpfr and/or --with-mpc options to specify
+their locations.  Source code for these libraries can be found at
+their respective hosting sites as well as at
+ftp://gcc.gnu.org/pub/gcc/infrastructure/.  See also
+http://gcc.gnu.org/install/prerequisites.html for additional info.  If
+you obtained GMP, MPFR and/or MPC from a vendor distribution package,
+make sure that you have installed both the libraries and the header
+files.  They may be located in separate packages." "$LINENO" 5
   fi
 fi
-
-if test x$have_mpc != xyes ; then
-  mpcinc=
-  mpclibs=
-fi
-
-gmpinc="$mpcinc $gmpinc"
-gmplibs="$mpclibs $gmplibs"
 
 # Flags needed for both GMP, MPFR and/or MPC.
 
@@ -5711,25 +5771,6 @@ fi
 
 
 
-# Linker flags to use for stage2 and later builds.
-
-# Check whether --with-boot-ldflags was given.
-if test "${with_boot_ldflags+set}" = set; then :
-  withval=$with_boot_ldflags; if test "$withval" = "no" -o "$withval" = "yes"; then
-   poststage1_ldflags=
- else
-   poststage1_ldflags=$withval
- fi
-else
-  if test "$ENABLE_BUILD_WITH_CXX" = "yes"; then
-   poststage1_ldflags=-static-libstdc++
- else
-   poststage1_ldflags=
- fi
-fi
-
-
-
 # Libraries to use for stage2 and later builds.  This defaults to the
 # argument passed to --with-host-libstdcxx.
 
@@ -5746,9 +5787,28 @@ fi
 
 
 
+# Linker flags to use for stage2 and later builds.
+
+# Check whether --with-boot-ldflags was given.
+if test "${with_boot_ldflags+set}" = set; then :
+  withval=$with_boot_ldflags; if test "$withval" = "no" -o "$withval" = "yes"; then
+   poststage1_ldflags=
+ else
+   poststage1_ldflags=$withval
+ fi
+else
+  poststage1_ldflags=
+ # With --enable-build-with-cxx, default to linking libstdc++ and
+ # libgcc statically.  But if the user explicitly specified the
+ # libraries to use, trust that they are doing what they want.
+ if test "$ENABLE_BUILD_WITH_CXX" = "yes" -a "$poststage1_libs" = ""; then
+   poststage1_ldflags="-static-libstdc++ -static-libgcc"
+ fi
+fi
+
+
+
 # Check for PPL
-ppl_major_version=0
-ppl_minor_version=10
 ppllibs=" -lppl_c -lppl -lgmpxx"
 pplinc=
 
@@ -5756,8 +5816,6 @@ pplinc=
 # Check whether --with-ppl was given.
 if test "${with_ppl+set}" = set; then :
   withval=$with_ppl;
-else
-  with_ppl=yes
 fi
 
 
@@ -5777,7 +5835,7 @@ case $with_ppl in
   no)
     ppllibs=
     ;;
-  yes)
+  "" | yes)
     ;;
   *)
     ppllibs="-L$with_ppl/lib -lppl_c -lppl -lgmpxx"
@@ -5791,8 +5849,9 @@ if test "x$with_ppl_lib" != x; then
   ppllibs="-L$with_ppl_lib -lppl_c -lppl -lgmpxx"
 fi
 if test "x$with_ppl$with_ppl_include$with_ppl_lib" = x && test -d ${srcdir}/ppl; then
-  ppllibs='-L$$r/$(HOST_SUBDIR)/ppl/.libs -L$$r/$(HOST_SUBDIR)/ppl/_libs -lppl_c -lppl -lgmpxx '
-  pplinc='-I$$r/$(HOST_SUBDIR)/ppl/include -I$$s/ppl/include '
+  ppllibs='-L$$r/$(HOST_SUBDIR)/ppl/interfaces/C/'"$lt_cv_objdir"' -L$$r/$(HOST_SUBDIR)/ppl/src/'"$lt_cv_objdir"' -lppl_c -lppl -lgmpxx '
+  pplinc='-I$$r/$(HOST_SUBDIR)/ppl/src -I$$r/$(HOST_SUBDIR)/ppl/interfaces/C '
+  enable_ppl_version_check=no
 fi
 
 # Check whether --enable-ppl-version-check was given.
@@ -5806,8 +5865,8 @@ fi
 if test "x$with_ppl" != "xno" -a "${ENABLE_PPL_CHECK}" = "yes"; then
   saved_CFLAGS="$CFLAGS"
   CFLAGS="$CFLAGS $pplinc $gmpinc"
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for version $ppl_major_version.$ppl_minor_version of PPL" >&5
-$as_echo_n "checking for version $ppl_major_version.$ppl_minor_version of PPL... " >&6; }
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for version 0.10 (or later revision) of PPL" >&5
+$as_echo_n "checking for version 0.10 (or later revision) of PPL... " >&6; }
   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #include "ppl_c.h"
@@ -5815,7 +5874,7 @@ int
 main ()
 {
 
-  #if PPL_VERSION_MAJOR != $ppl_major_version || PPL_VERSION_MINOR != $ppl_minor_version
+  #if PPL_VERSION_MAJOR != 0 || PPL_VERSION_MINOR < 10
   choke me
   #endif
 
@@ -5847,8 +5906,6 @@ clooginc=" -DCLOOG_PPL_BACKEND "
 # Check whether --with-cloog was given.
 if test "${with_cloog+set}" = set; then :
   withval=$with_cloog;
-else
-  with_cloog=yes
 fi
 
 
@@ -5873,7 +5930,7 @@ case $with_cloog in
     clooglibs=
     clooginc=
     ;;
-  yes)
+  "" | yes)
     ;;
   *)
     clooglibs="-L$with_cloog/lib -lcloog"
@@ -5887,8 +5944,9 @@ if test "x$with_cloog_lib" != x; then
   clooglibs="-L$with_cloog_lib -lcloog"
 fi
 if test "x$with_cloog$with_cloog_include$with_cloog_lib" = x && test -d ${srcdir}/cloog; then
-  clooglibs='-L$$r/$(HOST_SUBDIR)/cloog/.libs -L$$r/$(HOST_SUBDIR)/cloog/_libs -lcloog '
+  clooglibs='-L$$r/$(HOST_SUBDIR)/cloog/'"$lt_cv_objdir"' -lcloog '
   clooginc='-I$$r/$(HOST_SUBDIR)/cloog/include -I$$s/cloog/include -DCLOOG_PPL_BACKEND '
+  enable_cloog_version_check=no
 fi
 
 # Check whether --enable-cloog-version-check was given.
@@ -5902,8 +5960,8 @@ fi
 if test "x$with_cloog" != "xno" -a "${ENABLE_CLOOG_CHECK}" = "yes"; then
   saved_CFLAGS="$CFLAGS"
   CFLAGS="$CFLAGS $clooginc $gmpinc $pplinc"
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for correct version of CLooG" >&5
-$as_echo_n "checking for correct version of CLooG... " >&6; }
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for version 0.15.5 (or later revision) of CLooG" >&5
+$as_echo_n "checking for version 0.15.5 (or later revision) of CLooG... " >&6; }
   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #include "cloog/cloog.h"
@@ -5911,7 +5969,23 @@ int
 main ()
 {
 
-  #if CLOOG_VERSION_MAJOR != 0 || CLOOG_VERSION_MINOR != 15
+  #if CLOOG_VERSION_MAJOR != 0 || CLOOG_VERSION_MINOR != 15 || CLOOG_VERSION_REVISION < 5
+  choke me
+  #endif
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include "cloog/cloog.h"
+int
+main ()
+{
+
+  #if CLOOG_VERSION_MAJOR != 0 || CLOOG_VERSION_MINOR != 15 || CLOOG_VERSION_REVISION < 9
   choke me
   #endif
 
@@ -5922,6 +5996,11 @@ _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: buggy but acceptable" >&5
+$as_echo "buggy but acceptable" >&6; }
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }; clooglibs= ; clooginc=
@@ -5943,66 +6022,8 @@ else
 fi
 
 
-if test x"$enable_lto" = x"yes" ; then
-  # Make sure that libelf.h and gelf.h are available.
 
-# Check whether --with-libelf was given.
-if test "${with_libelf+set}" = set; then :
-  withval=$with_libelf;
-fi
-
-
-
-# Check whether --with-libelf_include was given.
-if test "${with_libelf_include+set}" = set; then :
-  withval=$with_libelf_include;
-fi
-
-
-
-# Check whether --with-libelf_lib was given.
-if test "${with_libelf_lib+set}" = set; then :
-  withval=$with_libelf_lib;
-fi
-
-
-  saved_CFLAGS="$CFLAGS"
-  saved_CPPFLAGS="$CPPFLAGS"
-  saved_LIBS="$LIBS"
-
-  case $with_libelf in
-    "")
-      libelflibs="-lelf"
-      libelfinc="-I/usr/include/libelf"
-      ;;
-    *)
-      libelflibs="-L$with_libelf/lib -lelf"
-      libelfinc="-I$with_libelf/include -I$with_libelf/include/libelf"
-      LIBS="$libelflibs $LIBS"
-      ;;
-  esac
-
-  if test "x$with_libelf_include" != x; then
-    libelfinc="-I$with_libelf_include"
-  fi
-
-  if test "x$with_libelf_lib" != x; then
-    libelflibs="-L$with_libelf_lib -lelf"
-    LIBS="$libelflibs $LIBS"
-  fi
-
-  if test "x$with_libelf$with_libelf_include$with_libelf_lib" = x \
-     && test -d ${srcdir}/libelf; then
-    libelflibs='-L$$r/$(HOST_SUBDIR)/libelf/.libs -L$$r/$(HOST_SUBDIR)/libelf/_libs -lelf '
-    libelfinc='-I$$r/$(HOST_SUBDIR)/libelf/include -I$$s/libelf/include'
-    LIBS="$libelflibs $LIBS"
-  fi
-
-  CFLAGS="$CFLAGS $libelfinc"
-  CPPFLAGS="$CPPFLAGS $libelfinc"
-  LIBS="$LIBS $libelflibs"
-
-  ac_ext=c
+ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
@@ -6400,7 +6421,83 @@ fi
 done
 
 
-for ac_header in libelf.h
+
+
+
+target_elf=no
+case $target in
+  *-darwin* | *-aix* | *-cygwin* | *-mingw* | *-aout* | *-*coff* | \
+  *-msdosdjgpp* | *-netware* | *-vms* | *-wince* | *-*-pe* | \
+  alpha*-dec-osf* | *-interix* | hppa[12]*-*-hpux*)
+    target_elf=no
+    ;;
+  *)
+    target_elf=yes
+    ;;
+esac
+
+if test $target_elf = yes; then :
+  if test x"$enable_lto" = x"yes" ; then
+  # Make sure that libelf.h and gelf.h are available.
+
+# Check whether --with-libelf was given.
+if test "${with_libelf+set}" = set; then :
+  withval=$with_libelf;
+fi
+
+
+
+# Check whether --with-libelf_include was given.
+if test "${with_libelf_include+set}" = set; then :
+  withval=$with_libelf_include;
+fi
+
+
+
+# Check whether --with-libelf_lib was given.
+if test "${with_libelf_lib+set}" = set; then :
+  withval=$with_libelf_lib;
+fi
+
+
+  saved_CFLAGS="$CFLAGS"
+  saved_CPPFLAGS="$CPPFLAGS"
+  saved_LIBS="$LIBS"
+
+  case $with_libelf in
+    "")
+      libelflibs="-lelf"
+      libelfinc="-I/usr/include/libelf"
+      ;;
+    *)
+      libelflibs="-L$with_libelf/lib -lelf"
+      libelfinc="-I$with_libelf/include -I$with_libelf/include/libelf"
+      LIBS="$libelflibs $LIBS"
+      ;;
+  esac
+
+  if test "x$with_libelf_include" != x; then
+    libelfinc="-I$with_libelf_include"
+  fi
+
+  if test "x$with_libelf_lib" != x; then
+    libelflibs="-L$with_libelf_lib -lelf"
+    LIBS="$libelflibs $LIBS"
+  fi
+
+  if test "x$with_libelf$with_libelf_include$with_libelf_lib" = x \
+     && test -d ${srcdir}/libelf; then
+    libelflibs='-L$$r/$(HOST_SUBDIR)/libelf/lib -lelf '
+    libelfinc='-D__LIBELF_INTERNAL__ -I$$r/$(HOST_SUBDIR)/libelf/lib -I$$s/libelf/lib'
+    LIBS="$libelflibs $LIBS"
+
+ else
+
+  CFLAGS="$CFLAGS $libelfinc"
+  CPPFLAGS="$CPPFLAGS $libelfinc"
+  LIBS="$LIBS $libelflibs"
+
+  for ac_header in libelf.h
 do :
   ac_fn_c_check_header_mongrel "$LINENO" "libelf.h" "ac_cv_header_libelf_h" "$ac_includes_default"
 if test "x$ac_cv_header_libelf_h" = x""yes; then :
@@ -6492,7 +6589,6 @@ main ()
       elf_nextscn (0, 0);
       elf_strptr (0, 0, 0);
       elf_getident (0, 0);
-      elf_getshdrstrndx (0, 0);
       elf_begin (0, 0, 0);
       elf_ndxscn (0);
       elf_end (0);
@@ -6512,6 +6608,61 @@ fi
 rm -f core conftest.err conftest.$ac_objext \
     conftest$ac_exeext conftest.$ac_ext
 
+    # Check for elf_getshdrstrndx or elf_getshstrndx.  The latter's flavor
+    # is determined in gcc/configure.ac.
+    if test x"$enable_lto" = x"yes" ; then
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for elf_getshdrstrndx" >&5
+$as_echo_n "checking for elf_getshdrstrndx... " >&6; }
+      cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <libelf.h>
+int
+main ()
+{
+
+	elf_getshdrstrndx (0, 0);
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; };
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; };
+	 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for elf_getshstrndx" >&5
+$as_echo_n "checking for elf_getshstrndx... " >&6; }
+         cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <libelf.h>
+int
+main ()
+{
+
+	   elf_getshstrndx (0, 0);
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; };
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }; enable_lto=no; libelflibs= ; libelfinc=
+
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+    fi
+
     # If we couldn't enable LTO and the user forced it, emit an error.
     if test x"$enable_lto" = x"no" \
        && test x"$default_enable_lto" != x"yes" ; then
@@ -6525,10 +6676,36 @@ to specify its location." "$LINENO" 5
   CPPFLAGS="$saved_CPPFLAGS"
   LIBS="$saved_LIBS"
 
+ fi
+
   # Flags needed for libelf.
 
 
 fi
+else
+  if test x"$default_enable_lto" = x"yes" ; then
+    case $target in
+      *-apple-darwin*) ;;
+      # On other non-ELF platforms, LTO must be explicitly enabled.
+      *) enable_lto=no ;;
+    esac
+  else
+  # Apart from ELF platforms, only Windows and Darwin support LTO so far.
+  # It would also be nice to check the binutils support, but we don't
+  # have gcc_GAS_CHECK_FEATURE available here.  For now, we'll just
+  # warn during gcc/ subconfigure; unless you're bootstrapping with
+  # -flto it won't be needed until after installation anyway.
+    case $target in
+      *-cygwin*|*-mingw* | *-apple-darwin*) ;;
+      *) if test x"$enable_lto" = x"yes"; then
+	as_fn_error "LTO support is not enabled for this target." "$LINENO" 5
+        fi
+      ;;
+    esac
+  fi
+  default_enable_lto=no
+fi
+
 
 
 # By default, C is the only stage 1 language.
@@ -6637,7 +6814,8 @@ if test -d ${srcdir}/gcc; then
           exit 1
         fi
 
-	if test "$language" = "c++" -a "$ENABLE_BUILD_WITH_CXX" = "yes"; then
+	if test "$language" = "c++" \
+	   && test "$ENABLE_BUILD_WITH_CXX" = "yes"; then
 	  boot_language=yes
 	fi
 
@@ -7248,8 +7426,8 @@ case "${target}" in
     extra_arflags_for_target=" -X32_64"
     extra_nmflags_for_target=" -B -X32_64"
     ;;
-  *-*-darwin*)
-    # ranlib from Darwin requires the -c flag to look at common symbols.
+  *-*-darwin[3-9]*)
+    # ranlib before Darwin10 requires the -c flag to look at common symbols.
     extra_ranlibflags_for_target=" -c"
     ;;
   mips*-*-pe | sh*-*-pe | *arm-wince-pe)
@@ -7400,6 +7578,11 @@ fi
 target_configdirs=`echo "${target_configdirs}" | sed -e 's/target-//g'`
 build_configdirs=`echo "${build_configdirs}" | sed -e 's/build-//g'`
 
+# If we are building libgomp, bootstrap it.
+if echo " ${target_configdirs} " | grep " libgomp " > /dev/null 2>&1 ; then
+  bootstrap_target_libs=${bootstrap_target_libs}target-libgomp,
+fi
+
 # Determine whether gdb needs tk/tcl or not.
 # Use 'maybe' since enable_gdbtk might be true even if tk isn't available
 # and in that case we want gdb to be built without tk.  Ugh!
@@ -7537,7 +7720,7 @@ else
        mv conftest.o conftest.o.g0 &&
        ${CC} -c -g conftest.c &&
        mv conftest.o conftest.o.g &&
-       ${srcdir}/contrib/compare-debug conftest.o.g0 conftest.o.g; then
+       ${srcdir}/contrib/compare-debug conftest.o.g0 conftest.o.g > /dev/null 2>&1; then
       :
     else
       BUILD_CONFIG=
@@ -7764,10 +7947,15 @@ if test "$silent" = yes; then
 fi
 baseargs="$baseargs --disable-option-checking"
 
+# Record and document user additions to sub configure arguments.
+
+
+
+
 # For the build-side libraries, we just need to pretend we're native,
 # and not use the same cache file.  Multilibs are neither needed nor
 # desired.
-build_configargs="--cache-file=../config.cache ${baseargs}"
+build_configargs="$build_configargs --cache-file=../config.cache ${baseargs}"
 
 # For host modules, accept cache file option, or specification as blank.
 case "${cache_file}" in
@@ -7781,9 +7969,9 @@ esac
 
 # Host dirs don't like to share a cache file either, horribly enough.
 # This seems to be due to autoconf 2.5x stupidity.
-host_configargs="--cache-file=./config.cache ${extra_host_args} ${baseargs}"
+host_configargs="$host_configargs --cache-file=./config.cache ${extra_host_args} ${baseargs}"
 
-target_configargs=${baseargs}
+target_configargs="$target_configargs ${baseargs}"
 
 # Passing a --with-cross-host argument lets the target libraries know
 # whether they are being built with a cross-compiler or being built
@@ -7953,6 +8141,7 @@ done
 
 
 # Host module lists & subconfigure args.
+
 
 
 
@@ -9365,7 +9554,7 @@ fi
 done
 
 if test -z "$ac_cv_prog_RANLIB" ; then
-  RANLIB=":"
+  RANLIB="true"
 fi
 
 
@@ -9501,7 +9690,7 @@ fi
 done
 
 if test -z "$ac_cv_prog_STRIP" ; then
-  STRIP=":"
+  STRIP="true"
 fi
 
 
@@ -14500,6 +14689,9 @@ compare_exclusions="gcc/cc*-checksum\$(objext) | gcc/ada/*tools/*"
 case "$target" in
   hppa*64*-*-hpux*) ;;
   hppa*-*-hpux*) compare_exclusions="gcc/cc*-checksum\$(objext) | */libgcc/lib2funcs* | gcc/ada/*tools/*" ;;
+esac
+case " $configdirs " in
+*" ppl "*) compare_exclusions="$compare_exclusions | ppl/src/ppl-config.o" ;;
 esac
 
 

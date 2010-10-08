@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2001-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,11 @@
 --  switches that are recognized. In addition, package Debug documents
 --  the otherwise undocumented debug switches that are also recognized.
 
+pragma Warnings (Off);
+--  This package is used also by gnatcoll
 with System.OS_Lib; use System.OS_Lib;
+pragma Warnings (On);
+
 with Prj.Tree;
 
 package Switch.M is
@@ -43,8 +47,9 @@ package Switch.M is
    --  consists of one small letter causes a fatal error exit and control does
    --  not return. For all other not recognized switches, Success is set to
    --  False, so that the switch may be passed to the compiler.
+   --
    --  Project_Node_Tree is used to store tree-specific parameters like the
-   --  project path
+   --  project path.
 
    procedure Normalize_Compiler_Switches
      (Switch_Chars : String;

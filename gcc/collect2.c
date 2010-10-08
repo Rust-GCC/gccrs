@@ -1,7 +1,7 @@
 /* Collect static initialization info into data structures that can be
    traversed by C++ initialization and finalization routines.
    Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Chris Smith (csmith@convex.com).
    Heavily modified by Michael Meissner (meissner@cygnus.com),
@@ -34,6 +34,10 @@ along with GCC; see the file COPYING3.  If not see
 #if ! defined( SIGCHLD ) && defined( SIGCLD )
 #  define SIGCHLD SIGCLD
 #endif
+
+/* TARGET_64BIT may be defined to use driver specific functionality. */
+#undef TARGET_64BIT
+#define TARGET_64BIT TARGET_64BIT_DEFAULT
 
 #ifndef LIBRARY_PATH_ENV
 #define LIBRARY_PATH_ENV "LIBRARY_PATH"
@@ -174,7 +178,7 @@ struct head
   int number;
 };
 
-int vflag;				/* true if -v */
+bool vflag;				/* true if -v or --version */ 
 static int rflag;			/* true if -r */
 static int strip_flag;			/* true if -s */
 static const char *demangle_flag;
@@ -193,7 +197,8 @@ enum lto_mode_d {
 /* Current LTO mode.  */
 static enum lto_mode_d lto_mode = LTO_MODE_NONE;
 
-int debug;				/* true if -debug */
+bool debug;				/* true if -debug */
+bool helpflag;			/* true if --help */
 
 static int shared_obj;			/* true if -shared */
 
@@ -349,7 +354,7 @@ typedef enum {
 enum scanfilter_masks {
   SCAN_NOTHING = 0,
 
-  SCAN_CTOR = 1 << SYM_CTOR, 
+  SCAN_CTOR = 1 << SYM_CTOR,
   SCAN_DTOR = 1 << SYM_DTOR,
   SCAN_INIT = 1 << SYM_INIT,
   SCAN_FINI = 1 << SYM_FINI,
@@ -427,6 +432,17 @@ notice (const char *cmsgid, ...)
 
   va_start (ap, cmsgid);
   vfprintf (stderr, _(cmsgid), ap);
+  va_end (ap);
+}
+
+/* Notify user of a non-error, without translating the format string.  */
+void
+notice_translated (const char *cmsgid, ...)
+{
+  va_list ap;
+
+  va_start (ap, cmsgid);
+  vfprintf (stderr, cmsgid, ap);
   va_end (ap);
 }
 
@@ -924,66 +940,35 @@ maybe_run_lto_and_relink (char **lto_ld_argv, char **object_lst,
 
   if (lto_objects.first)
     {
-      const char *opts;
       char **lto_c_argv;
       const char **lto_c_ptr;
-      const char *cp;
-      const char **p, **q, **r;
-      const char **lto_o_ptr;
+      char **p;
+      char **lto_o_ptr;
       struct lto_object *list;
       char *lto_wrapper = getenv ("COLLECT_LTO_WRAPPER");
       struct pex_obj *pex;
       const char *prog = "lto-wrapper";
+      int lto_ld_argv_size = 0;
+      char **out_lto_ld_argv;
+      int out_lto_ld_argv_size;
+      size_t num_files;
 
       if (!lto_wrapper)
 	fatal ("COLLECT_LTO_WRAPPER must be set.");
 
+      num_lto_c_args++;
+
       /* There is at least one object file containing LTO info,
-         so we need to run the LTO back end and relink.  */
+         so we need to run the LTO back end and relink.
 
-      /* Get compiler options passed down from the parent `gcc' command.
-         These must be passed to the LTO back end.  */
-      opts = getenv ("COLLECT_GCC_OPTIONS");
-
-      /* Increment the argument count by the number of inherited options.
-         Some arguments may be filtered out later.  Again, an upper bound
-         suffices.  */
-
-      cp = opts;
-
-      while (cp && *cp)
-        {
-          extract_string (&cp);
-          num_lto_c_args++;
-        }
-      obstack_free (&temporary_obstack, temporary_firstobj);
-
-      if (debug)
-	num_lto_c_args++;
-
-      /* Increment the argument count by the number of initial
-	 arguments added below.  */
-      num_lto_c_args += 9;
+	 To do so we build updated ld arguments with first
+	 LTO object replaced by all partitions and other LTO
+	 objects removed.  */
 
       lto_c_argv = (char **) xcalloc (sizeof (char *), num_lto_c_args);
       lto_c_ptr = CONST_CAST2 (const char **, char **, lto_c_argv);
 
       *lto_c_ptr++ = lto_wrapper;
-      *lto_c_ptr++ = c_file_name;
-
-      cp = opts;
-
-      while (cp && *cp)
-        {
-          const char *s = extract_string (&cp);
-
-	  /* Pass the option or argument to the wrapper.  */
-	  *lto_c_ptr++ = xstrdup (s);
-        }
-      obstack_free (&temporary_obstack, temporary_firstobj);
-
-      if (debug)
-	*lto_c_ptr++ = xstrdup ("-debug");
 
       /* Add LTO objects to the wrapper command line.  */
       for (list = lto_objects.first; list; list = list->next)
@@ -991,16 +976,12 @@ maybe_run_lto_and_relink (char **lto_ld_argv, char **object_lst,
 
       *lto_c_ptr = NULL;
 
-      /* Save intermediate WPA files in lto1 if debug.  */
-      if (debug)
-	putenv (xstrdup ("WPA_SAVE_LTRANS=1"));
-
       /* Run the LTO back end.  */
       pex = collect_execute (prog, lto_c_argv, NULL, NULL, PEX_SEARCH);
       {
 	int c;
 	FILE *stream;
-	size_t i, num_files;
+	size_t i;
 	char *start, *end;
 
 	stream = pex_read_output (pex, 0);
@@ -1034,55 +1015,50 @@ maybe_run_lto_and_relink (char **lto_ld_argv, char **object_lst,
       do_wait (prog, pex);
       pex = NULL;
 
+      /* Compute memory needed for new LD arguments.  At most number of original arguemtns
+	 plus number of partitions.  */
+      for (lto_ld_argv_size = 0; lto_ld_argv[lto_ld_argv_size]; lto_ld_argv_size++)
+	;
+      out_lto_ld_argv = XCNEWVEC(char *, num_files + lto_ld_argv_size + 1);
+      out_lto_ld_argv_size = 0;
+
       /* After running the LTO back end, we will relink, substituting
 	 the LTO output for the object files that we submitted to the
 	 LTO. Here, we modify the linker command line for the relink.  */
-      p = CONST_CAST2 (const char **, char **, lto_ld_argv);
-      lto_o_ptr = CONST_CAST2 (const char **, char **, lto_o_files);
 
+      /* Copy all arguments until we find first LTO file.  */
+      p = lto_ld_argv;
       while (*p != NULL)
         {
           for (list = lto_objects.first; list; list = list->next)
-            {
-              if (*p == list->name) /* Note test for pointer equality!  */
-                {
-                  /* Excise argument from linker command line.  */
-                  if (*lto_o_ptr)
-                    {
-                      /* Replace first argument with LTO output file.  */
-                      *p++ = *lto_o_ptr++;
-                    }
-                  else
-                    {
-                      /* Move following arguments one position earlier,
-                         overwriting the current argument.  */
-                      q = p;
-                      r = p + 1;
-                      while (*r != NULL)
-                        *q++ = *r++;
-                      *q = NULL;
-                    }
-
-                  /* No need to continue searching the LTO object list.  */
-                  break;
-                }
-            }
-
-          /* If we didn't find a match, move on to the next argument.
-             Otherwise, P has been set to the correct argument position
-             at which to continue.  */
-          if (!list) ++p;
+            if (*p == list->name) /* Note test for pointer equality!  */
+	      break;
+	  if (list)
+	    break;
+	  out_lto_ld_argv[out_lto_ld_argv_size++] = *p++;
         }
 
-      /* The code above assumes we will never have more lto output files than
-	 input files.  Otherwise, we need to resize lto_ld_argv.  Check this
-	 assumption.  */
-      if (*lto_o_ptr)
-	fatal ("too many lto output files");
+      /* Now insert all LTO partitions.  */
+      lto_o_ptr = lto_o_files;
+      while (*lto_o_ptr)
+	out_lto_ld_argv[out_lto_ld_argv_size++] = *lto_o_ptr++;
+
+      /* ... and copy the rest.  */
+      while (*p != NULL)
+        {
+          for (list = lto_objects.first; list; list = list->next)
+            if (*p == list->name) /* Note test for pointer equality!  */
+	      break;
+	  if (!list)
+	    out_lto_ld_argv[out_lto_ld_argv_size++] = *p;
+	  p++;
+        }
+      out_lto_ld_argv[out_lto_ld_argv_size++] = 0;
 
       /* Run the linker again, this time replacing the object files
          optimized by the LTO with the temporary file generated by the LTO.  */
-      fork_execute ("ld", lto_ld_argv);
+      fork_execute ("ld", out_lto_ld_argv);
+      free (lto_ld_argv);
 
       maybe_unlink_list (lto_o_files);
     }
@@ -1157,7 +1133,7 @@ main (int argc, char **argv)
   char **ld1_argv;
   const char **ld1;
   bool use_plugin = false;
-  
+
   /* The kinds of symbols we will have to consider when scanning the
      outcome of a first pass link.  This is ALL to start with, then might
      be adjusted before getting to the first pass link per se, typically on
@@ -1173,6 +1149,8 @@ main (int argc, char **argv)
   int first_file;
   int num_c_args;
   char **old_argv;
+
+  bool use_verbose = false;
 
   old_argv = argv;
   expandargv (&argc, &argv);
@@ -1226,14 +1204,21 @@ main (int argc, char **argv)
     for (i = 1; argv[i] != NULL; i ++)
       {
 	if (! strcmp (argv[i], "-debug"))
-	  debug = 1;
+	  debug = true;
         else if (! strcmp (argv[i], "-flto") && ! use_plugin)
-          lto_mode = LTO_MODE_LTO;
-        else if (! strcmp (argv[i], "-fwhopr") && ! use_plugin)
-          lto_mode = LTO_MODE_WHOPR;
+	  {
+	    use_verbose = true;
+	    lto_mode = LTO_MODE_LTO;
+	  }
+        else if (! strncmp (argv[i], "-fwhopr", 7) && ! use_plugin)
+	  {
+	    use_verbose = true;
+	    lto_mode = LTO_MODE_WHOPR;
+	  }
         else if (! strcmp (argv[i], "-plugin"))
 	  {
 	    use_plugin = true;
+	    use_verbose = true;
 	    lto_mode = LTO_MODE_NONE;
 	  }
 #ifdef COLLECT_EXPORT_LIST
@@ -1446,6 +1431,11 @@ main (int argc, char **argv)
 	      *c_ptr++ = xstrdup (q);
 	    }
 	}
+      if (use_verbose && *q == '-' && q[1] == 'v' && q[2] == 0)
+	{
+	  /* Turn on trace in collect2 if needed.  */
+	  vflag = true;
+	}
     }
   obstack_free (&temporary_obstack, temporary_firstobj);
   *c_ptr++ = "-fno-profile-arcs";
@@ -1495,7 +1485,8 @@ main (int argc, char **argv)
 	      break;
 
             case 'f':
-	      if (strcmp (arg, "-flto") == 0 || strcmp (arg, "-fwhopr") == 0)
+	      if (strcmp (arg, "-flto") == 0
+		  || strncmp (arg, "-fwhopr", 7) == 0)
 		{
 #ifdef ENABLE_LTO
 		  /* Do not pass LTO flag to the linker. */
@@ -1547,12 +1538,7 @@ main (int argc, char **argv)
 	    case 'o':
 	      if (arg[2] == '\0')
 		output_file = *ld1++ = *ld2++ = *++argv;
-	      else if (1
-#ifdef SWITCHES_NEED_SPACES
-		       && ! strchr (SWITCHES_NEED_SPACES, arg[1])
-#endif
-		       )
-
+	      else
 		output_file = &arg[2];
 	      break;
 
@@ -1574,7 +1560,7 @@ main (int argc, char **argv)
 
 	    case 'v':
 	      if (arg[2] == '\0')
-		vflag = 1;
+		vflag = true;
 	      break;
 
 	    case '-':
@@ -1605,6 +1591,10 @@ main (int argc, char **argv)
 		}
 	      else if (strncmp (arg, "--sysroot=", 10) == 0)
 		target_system_root = arg + 10;
+	      else if (strcmp (arg, "--version") == 0)
+		vflag = true;
+	      else if (strcmp (arg, "--help") == 0)
+		helpflag = true;
 	      break;
 	    }
 	}
@@ -1653,25 +1643,28 @@ main (int argc, char **argv)
      would otherwise reference them all, hence drag all the corresponding
      objects even if nothing else is referenced.  */
   {
-    const char **export_object_lst 
+    const char **export_object_lst
       = CONST_CAST2 (const char **, char **, object_lst);
-    
+
     struct id *list = libs.first;
 
     /* Compute the filter to use from the current one, do scan, then adjust
        the "current" filter to remove what we just included here.  This will
        control whether we need a first pass link later on or not, and what
        will remain to be scanned there.  */
-    
-    scanfilter this_filter
-      = shared_obj ? ld1_filter : (ld1_filter & ~SCAN_DWEH);
-    
+
+    scanfilter this_filter = ld1_filter;
+#if HAVE_AS_REF
+    if (!shared_obj)
+      this_filter &= ~SCAN_DWEH;
+#endif
+
     while (export_object_lst < object)
       scan_prog_file (*export_object_lst++, PASS_OBJ, this_filter);
-    
+
     for (; list; list = list->next)
       scan_prog_file (list->name, PASS_FIRST, this_filter);
-    
+
     ld1_filter = ld1_filter & ~this_filter;
   }
 
@@ -1701,6 +1694,20 @@ main (int argc, char **argv)
       TARGET_VERSION;
 #endif
       fprintf (stderr, "\n");
+    }
+
+  if (helpflag)
+    {
+      fprintf (stderr, "Usage: collect2 [options]\n");
+      fprintf (stderr, " Wrap linker and generate constructor code if needed.\n");
+      fprintf (stderr, " Options:\n");
+      fprintf (stderr, "  -debug          Enable debug output\n");
+      fprintf (stderr, "  --help          Display this information\n");
+      fprintf (stderr, "  -v, --version   Display this program's version number\n");
+      fprintf (stderr, "Overview: http://gcc.gnu.org/onlinedocs/gccint/Collect2.html\n");
+      fprintf (stderr, "Report bugs: %s\n", bug_report_url);
+
+      collect_exit (0);
     }
 
   if (debug)
@@ -1744,9 +1751,9 @@ main (int argc, char **argv)
 
   /* Load the program, searching all libraries and attempting to provide
      undefined symbols from repository information.
-     
+
      If -r or they will be run via some other method, do not build the
-     constructor or destructor list, just return now.  */  
+     constructor or destructor list, just return now.  */
   {
     bool early_exit
       = rflag || (! DO_COLLECT_EXPORT_LIST && ! do_collecting);
@@ -1759,10 +1766,10 @@ main (int argc, char **argv)
        objects and libraries has performed above.  In the !shared_obj case, we
        expect the relevant tables to be dragged together with their associated
        functions from precise cross reference insertions by the compiler.  */
-       
+
     if (early_exit || ld1_filter != SCAN_NOTHING)
       do_tlink (ld1_argv, object_lst);
-    
+
     if (early_exit)
       {
 #ifdef COLLECT_EXPORT_LIST
@@ -1770,7 +1777,7 @@ main (int argc, char **argv)
 	if (export_file != 0 && export_file[0])
 	  maybe_unlink (export_file);
 #endif
-	if (lto_mode)
+	if (lto_mode != LTO_MODE_NONE)
 	  maybe_run_lto_and_relink (ld1_argv, object_lst, object, false);
 
 	maybe_unlink (c_file);
@@ -1792,9 +1799,18 @@ main (int argc, char **argv)
 
   if (debug)
     {
-      notice ("%d constructor(s) found\n", constructors.number);
-      notice ("%d destructor(s)  found\n", destructors.number);
-      notice ("%d frame table(s) found\n", frame_tables.number);
+      notice_translated (ngettext ("%d constructor found\n",
+                                   "%d constructors found\n",
+                                   constructors.number),
+                         constructors.number);
+      notice_translated (ngettext ("%d destructor found\n",
+                                   "%d destructors found\n",
+                                   destructors.number),
+                         destructors.number);
+      notice_translated (ngettext("%d frame table found\n",
+                                  "%d frame tables found\n",
+                                  frame_tables.number),
+                         frame_tables.number);
     }
 
   /* If the scan exposed nothing of special interest, there's no need to
@@ -2507,23 +2523,41 @@ write_aix_file (FILE *stream, struct id *list)
 
 #ifdef OBJECT_FORMAT_NONE
 
-/* Check to make sure the file is an ELF file.  LTO objects must
-   be in ELF format.  */
+/* Check to make sure the file is an LTO object file.  */
 
 static bool
-is_elf (const char *prog_name)
+maybe_lto_object_file (const char *prog_name)
 {
   FILE *f;
-  char buf[4];
-  static char magic[4] = { 0x7f, 'E', 'L', 'F' };
+  unsigned char buf[4];
+  int i;
 
-  f = fopen (prog_name, "r");
+  static unsigned char elfmagic[4] = { 0x7f, 'E', 'L', 'F' };
+  static unsigned char coffmagic[2] = { 0x4c, 0x01 };
+  static unsigned char coffmagic_x64[2] = { 0x64, 0x86 };
+  static unsigned char machomagic[4][4] = {
+    { 0xcf, 0xfa, 0xed, 0xfe },
+    { 0xce, 0xfa, 0xed, 0xfe },
+    { 0xfe, 0xed, 0xfa, 0xcf },
+    { 0xfe, 0xed, 0xfa, 0xce }
+  };
+
+  f = fopen (prog_name, "rb");
   if (f == NULL)
     return false;
   if (fread (buf, sizeof (buf), 1, f) != 1)
     buf[0] = 0;
   fclose (f);
-  return memcmp (buf, magic, sizeof (magic)) == 0;
+
+  if (memcmp (buf, elfmagic, sizeof (elfmagic)) == 0
+      || memcmp (buf, coffmagic, sizeof (coffmagic)) == 0
+      || memcmp (buf, coffmagic_x64, sizeof (coffmagic_x64)) == 0)
+    return true;
+  for (i = 0; i < 4; i++)
+    if (memcmp (buf, machomagic[i], sizeof (machomagic[i])) == 0)
+      return true;
+
+  return false;
 }
 
 /* Generic version to scan the name list of the loaded program for
@@ -2550,10 +2584,10 @@ scan_prog_file (const char *prog_name, scanpass which_pass,
   if (which_pass == PASS_SECOND)
     return;
 
-  /* LTO objects must be in ELF format.  This check prevents
+  /* LTO objects must be in a known format.  This check prevents
      us from accepting an archive containing LTO objects, which
      gcc cannnot currently handle.  */
-  if (which_pass == PASS_LTOINFO && !is_elf (prog_name))
+  if (which_pass == PASS_LTOINFO && !maybe_lto_object_file (prog_name))
     return;
 
   /* If we do not have an `nm', complain.  */
@@ -2633,9 +2667,9 @@ scan_prog_file (const char *prog_name, scanpass which_pass,
           /* Look for the LTO info marker symbol, and add filename to
              the LTO objects list if found.  */
           for (p = buf; (ch = *p) != '\0' && ch != '\n'; p++)
-            if (ch == ' '
-		&& (strncmp (p +1 , "gnu_lto_v1", 10) == 0)
-		&& ISSPACE( p[11]))
+            if (ch == ' '  && p[1] == '_' && p[2] == '_'
+		&& (strncmp (p + (p[3] == '_' ? 2 : 1), "__gnu_lto_v1", 12) == 0)
+		&& ISSPACE (p[p[3] == '_' ? 14 : 13]))
               {
                 add_lto_object (&lto_objects, prog_name);
 
@@ -2849,7 +2883,7 @@ scan_libraries (const char *prog_name)
   /* Now iterate through the library list adding their symbols to
      the list.  */
   for (list = libraries.first; list; list = list->next)
-    scan_prog_file (list->name, PASS_LIB);
+    scan_prog_file (list->name, PASS_LIB, SCAN_ALL);
 }
 
 #endif /* LDD_SUFFIX */

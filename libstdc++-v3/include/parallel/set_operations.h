@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -103,11 +103,11 @@ namespace __gnu_parallel
       }
 
       _DifferenceType
-      __count(_IIter __a, _IIter __b, _IIter __c, _IIter d) const
+      __count(_IIter __a, _IIter __b, _IIter __c, _IIter __d) const
       {
 	_DifferenceType __counter = 0;
 
-	while (__a != __b && __c != d)
+	while (__a != __b && __c != __d)
           {
             if (_M_comp(*__a, *__c))
               {
@@ -126,12 +126,12 @@ namespace __gnu_parallel
               }
           }
 
-	return __counter + (__b - __a) + (d - __c);
+	return __counter + (__b - __a) + (__d - __c);
       }
 
       _OutputIterator
-      __first_empty(_IIter __c, _IIter d, _OutputIterator __out) const
-      { return std::copy(__c, d, __out); }
+      __first_empty(_IIter __c, _IIter __d, _OutputIterator __out) const
+      { return std::copy(__c, __d, __out); }
 
       _OutputIterator
       __second_empty(_IIter __a, _IIter __b, _OutputIterator __out) const
@@ -153,10 +153,10 @@ namespace __gnu_parallel
       _Compare _M_comp;
 
       _OutputIterator
-      _M_invoke(_IIter __a, _IIter __b, _IIter __c, _IIter d,
+      _M_invoke(_IIter __a, _IIter __b, _IIter __c, _IIter __d,
 		_OutputIterator __r) const
       {
-	while (__a != __b && __c != d)
+	while (__a != __b && __c != __d)
           {
             if (_M_comp(*__a, *__c))
               {
@@ -177,11 +177,11 @@ namespace __gnu_parallel
 
       _DifferenceType
       __count(_IIter __a, _IIter __b,
-	      _IIter __c, _IIter d) const
+	      _IIter __c, _IIter __d) const
       {
 	_DifferenceType __counter = 0;
 
-	while (__a != __b && __c != d)
+	while (__a != __b && __c != __d)
           {
             if (_M_comp(*__a, *__c))
               {
@@ -345,11 +345,11 @@ namespace __gnu_parallel
 
   template<typename _IIter,
            typename _OutputIterator,
-           typename Operation>
+           typename _Operation>
     _OutputIterator
     __parallel_set_operation(_IIter __begin1, _IIter __end1,
 			     _IIter __begin2, _IIter __end2,
-			     _OutputIterator __result, Operation __op)
+			     _OutputIterator __result, _Operation __op)
     {
       _GLIBCXX_CALL((__end1 - __begin1) + (__end2 - __begin2))
 

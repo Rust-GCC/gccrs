@@ -1,4 +1,4 @@
-@c Copyright (c) 2008, 2009 Free Software Foundation, Inc.
+@c Copyright (c) 2008, 2009, 2010 Free Software Foundation, Inc.
 @c Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
@@ -212,23 +212,17 @@ common fields are placed in @code{gimple_statement_with_ops_base} which
 is then inherited from the other two tuples.
 
 
-@multitable {@code{addresses_taken}}	{56 + 8 * @code{num_ops} bytes}
+@multitable {@code{def_ops}}	{48 + 8 * @code{num_ops} bytes}
 @item	@code{gsbase}		@tab 256	
-@item	@code{addresses_taken}	@tab 64	
 @item	@code{def_ops}		@tab 64	
 @item	@code{use_ops}		@tab 64	
 @item	@code{op}		@tab @code{num_ops} * 64	
-@item	Total size		@tab 56 + 8 * @code{num_ops} bytes
+@item	Total size		@tab 48 + 8 * @code{num_ops} bytes
 @end multitable
 
 @itemize @bullet
 @item @code{gsbase}
 Inherited from @code{struct gimple_statement_base}.
-
-@item @code{addresses_taken}
-Bitmap holding the UIDs of all the @code{VAR_DECL}s whose addresses are
-taken by this statement. For example, a statement of the form
-@code{p = &b} will have the UID for symbol @code{b} in this set.
 
 @item @code{def_ops}
 Array of pointers into the operand array indicating all the slots that
@@ -254,18 +248,17 @@ vector (@code{gimple_statement_with_memory_ops_base} and
 @code{gimple_statement_with_memory_ops}).
 
 
-@multitable {@code{addresses_taken}}	{88 + 8 * @code{num_ops} bytes}
-@item Field				@tab Size (bits)
-@item @code{gsbase}			@tab 256
-@item @code{addresses_taken}		@tab 64
-@item @code{def_ops}			@tab 64
-@item @code{use_ops}			@tab 64
-@item @code{vdef_ops}			@tab 64
-@item @code{vuse_ops}			@tab 64
-@item @code{stores}			@tab 64	
-@item @code{loads}			@tab 64	
-@item @code{op}				@tab @code{num_ops} * 64	
-@item Total size			@tab 88 + 8 * @code{num_ops} bytes
+@multitable {@code{vdef_ops}}	{80 + 8 * @code{num_ops} bytes}
+@item Field			@tab Size (bits)
+@item @code{gsbase}		@tab 256
+@item @code{def_ops}		@tab 64
+@item @code{use_ops}		@tab 64
+@item @code{vdef_ops}		@tab 64
+@item @code{vuse_ops}		@tab 64
+@item @code{stores}		@tab 64	
+@item @code{loads}		@tab 64	
+@item @code{op}			@tab @code{num_ops} * 64	
+@item Total size		@tab 80 + 8 * @code{num_ops} bytes
 @end multitable
 
 @itemize @bullet
@@ -340,6 +333,7 @@ The following table briefly describes the GIMPLE instruction set.
 @item @code{GIMPLE_CALL}		@tab x			@tab x
 @item @code{GIMPLE_CATCH}		@tab x			@tab
 @item @code{GIMPLE_COND}		@tab x			@tab x
+@item @code{GIMPLE_DEBUG}		@tab x			@tab x
 @item @code{GIMPLE_EH_FILTER}		@tab x			@tab
 @item @code{GIMPLE_GOTO}		@tab x			@tab x
 @item @code{GIMPLE_LABEL}		@tab x			@tab x
@@ -459,8 +453,8 @@ becomes
 
 The same rule holds for arguments to a @code{GIMPLE_CALL}.
 
-The target of an assignment is usually a variable, but can also be an
-@code{INDIRECT_REF} or a compound lvalue as described below.
+The target of an assignment is usually a variable, but can also be a
+@code{MEM_REF} or a compound lvalue as described below.
 
 @menu
 * Compound Expressions::
@@ -553,6 +547,9 @@ gimple_rhs_class}
 @item @code{GIMPLE_INVALID_RHS}
 The tree cannot be used as a GIMPLE operand.
 
+@item @code{GIMPLE_TERNARY_RHS}
+The tree is a valid GIMPLE ternary operation.
+
 @item @code{GIMPLE_BINARY_RHS}
 The tree is a valid GIMPLE binary operation.
 
@@ -574,10 +571,11 @@ from @code{c = a op b ? x : y}.  Something similar occurs with
 expressions should be flattened into the operand vector.
 @end itemize
 
-For tree nodes in the categories @code{GIMPLE_BINARY_RHS} and
-@code{GIMPLE_UNARY_RHS}, they cannot be stored inside tuples directly.
-They first need to be flattened and separated into individual
-components.  For instance, given the GENERIC expression
+For tree nodes in the categories @code{GIMPLE_TERNARY_RHS},
+@code{GIMPLE_BINARY_RHS} and @code{GIMPLE_UNARY_RHS}, they cannot be
+stored inside tuples directly.  They first need to be flattened and
+separated into individual components.  For instance, given the GENERIC
+expression
 
 @smallexample
 a = b + c
@@ -667,6 +665,11 @@ Return true if t is a valid expression to use as the function
 called by a @code{GIMPLE_CALL}.
 @end deftypefn
 
+@deftypefn {GIMPLE function} is_gimple_mem_ref_addr (tree t)
+Return true if t is a valid expression to use as first operand
+of a @code{MEM_REF} expression.
+@end deftypefn
+
 @deftypefn {GIMPLE function} is_gimple_constant (tree t)
 Return true if t is a valid gimple constant.
 @end deftypefn
@@ -679,8 +682,19 @@ the address of a function local variable).
 @end deftypefn
 
 @deftypefn {GIMPLE function} is_gimple_min_invariant_address (tree t)
+Return true if t is an @code{ADDR_EXPR} that does not change once a
+function is running.
+@end deftypefn
+
+@deftypefn {GIMPLE function} is_gimple_ip_invariant (tree t)
+Return true if t is an interprocedural invariant.  This means that t
+is a valid invariant in all functions (e.g. it can be an address of a
+global variable but not of a local one).
+@end deftypefn
+
+@deftypefn {GIMPLE function} is_gimple_ip_invariant_address (tree t)
 Return true if t is an @code{ADDR_EXPR} that does not change once the
-program is running.
+program is running (and which is valid in all functions).
 @end deftypefn
 
 
@@ -894,6 +908,7 @@ Return a deep copy of statement @code{STMT}.
 * @code{GIMPLE_CALL}::
 * @code{GIMPLE_CATCH}::
 * @code{GIMPLE_COND}::
+* @code{GIMPLE_DEBUG}::
 * @code{GIMPLE_EH_FILTER}::
 * @code{GIMPLE_LABEL}::
 * @code{GIMPLE_NOP}::
@@ -1069,7 +1084,16 @@ Return the second operand on the @code{RHS} of assignment statement @code{G}.
 Return the address of the second operand on the @code{RHS} of assignment
 statement @code{G}.
 @end deftypefn
+
+@deftypefn {GIMPLE function} tree gimple_assign_rhs3 (gimple g)
+Return the third operand on the @code{RHS} of assignment statement @code{G}.
+@end deftypefn
  
+@deftypefn {GIMPLE function} tree *gimple_assign_rhs3_ptr (gimple g)
+Return the address of the third operand on the @code{RHS} of assignment
+statement @code{G}.
+@end deftypefn
+
 @deftypefn {GIMPLE function} void gimple_assign_set_lhs (gimple g, tree lhs)
 Set @code{LHS} to be the @code{LHS} operand of assignment statement @code{G}.
 @end deftypefn
@@ -1079,17 +1103,13 @@ Set @code{RHS} to be the first operand on the @code{RHS} of assignment
 statement @code{G}.
 @end deftypefn
  
-@deftypefn {GIMPLE function} tree gimple_assign_rhs2 (gimple g)
-Return the second operand on the @code{RHS} of assignment statement @code{G}.
-@end deftypefn
- 
-@deftypefn {GIMPLE function} tree *gimple_assign_rhs2_ptr (gimple g)
-Return a pointer to the second operand on the @code{RHS} of assignment
+@deftypefn {GIMPLE function} void gimple_assign_set_rhs2 (gimple g, tree rhs)
+Set @code{RHS} to be the second operand on the @code{RHS} of assignment
 statement @code{G}.
 @end deftypefn
  
-@deftypefn {GIMPLE function} void gimple_assign_set_rhs2 (gimple g, tree rhs)
-Set @code{RHS} to be the second operand on the @code{RHS} of assignment
+@deftypefn {GIMPLE function} void gimple_assign_set_rhs3 (gimple g, tree rhs)
+Set @code{RHS} to be the third operand on the @code{RHS} of assignment
 statement @code{G}.
 @end deftypefn
  
@@ -1377,6 +1397,83 @@ Set the conditional @code{COND_STMT} to be of the form 'if (1 == 0)'.
 
 @deftypefn {GIMPLE function} void gimple_cond_make_true (gimple g)
 Set the conditional @code{COND_STMT} to be of the form 'if (1 == 1)'. 
+@end deftypefn
+
+@node @code{GIMPLE_DEBUG}
+@subsection @code{GIMPLE_DEBUG}
+@cindex @code{GIMPLE_DEBUG}
+@cindex @code{GIMPLE_DEBUG_BIND}
+
+@deftypefn {GIMPLE function} gimple gimple_build_debug_bind (tree var, tree value, gimple stmt)
+Build a @code{GIMPLE_DEBUG} statement with @code{GIMPLE_DEBUG_BIND} of
+@code{subcode}.  The effect of this statement is to tell debug
+information generation machinery that the value of user variable
+@code{var} is given by @code{value} at that point, and to remain with
+that value until @code{var} runs out of scope, a
+dynamically-subsequent debug bind statement overrides the binding, or
+conflicting values reach a control flow merge point.  Even if
+components of the @code{value} expression change afterwards, the
+variable is supposed to retain the same value, though not necessarily
+the same location.
+
+It is expected that @code{var} be most often a tree for automatic user
+variables (@code{VAR_DECL} or @code{PARM_DECL}) that satisfy the
+requirements for gimple registers, but it may also be a tree for a
+scalarized component of a user variable (@code{ARRAY_REF},
+@code{COMPONENT_REF}), or a debug temporary (@code{DEBUG_EXPR_DECL}).
+
+As for @code{value}, it can be an arbitrary tree expression, but it is
+recommended that it be in a suitable form for a gimple assignment
+@code{RHS}.  It is not expected that user variables that could appear
+as @code{var} ever appear in @code{value}, because in the latter we'd
+have their @code{SSA_NAME}s instead, but even if they were not in SSA
+form, user variables appearing in @code{value} are to be regarded as
+part of the executable code space, whereas those in @code{var} are to
+be regarded as part of the source code space.  There is no way to
+refer to the value bound to a user variable within a @code{value}
+expression.
+
+If @code{value} is @code{GIMPLE_DEBUG_BIND_NOVALUE}, debug information
+generation machinery is informed that the variable @code{var} is
+unbound, i.e., that its value is indeterminate, which sometimes means
+it is really unavailable, and other times that the compiler could not
+keep track of it.
+
+Block and location information for the newly-created stmt are
+taken from @code{stmt}, if given.
+@end deftypefn
+
+@deftypefn {GIMPLE function} tree gimple_debug_bind_get_var (gimple stmt)
+Return the user variable @var{var} that is bound at @code{stmt}.
+@end deftypefn
+
+@deftypefn {GIMPLE function} tree gimple_debug_bind_get_value (gimple stmt)
+Return the value expression that is bound to a user variable at
+@code{stmt}.
+@end deftypefn
+
+@deftypefn {GIMPLE function} tree *gimple_debug_bind_get_value_ptr (gimple stmt)
+Return a pointer to the value expression that is bound to a user
+variable at @code{stmt}.
+@end deftypefn
+
+@deftypefn {GIMPLE function} void gimple_debug_bind_set_var (gimple stmt, tree var)
+Modify the user variable bound at @code{stmt} to @var{var}.
+@end deftypefn
+
+@deftypefn {GIMPLE function} void gimple_debug_bind_set_value (gimple stmt, tree var)
+Modify the value bound to the user variable bound at @code{stmt} to
+@var{value}.
+@end deftypefn
+
+@deftypefn {GIMPLE function} void gimple_debug_bind_reset_value (gimple stmt)
+Modify the value bound to the user variable bound at @code{stmt} so
+that the variable becomes unbound.
+@end deftypefn
+
+@deftypefn {GIMPLE function} bool gimple_debug_bind_has_value_p (gimple stmt)
+Return @code{TRUE} if @code{stmt} binds a user variable to a value,
+and @code{FALSE} if it unbinds the variable.
 @end deftypefn
 
 @node @code{GIMPLE_EH_FILTER}

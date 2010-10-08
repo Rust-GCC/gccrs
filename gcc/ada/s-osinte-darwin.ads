@@ -199,14 +199,6 @@ package System.OS_Interface is
    function To_Timespec (D : Duration) return timespec;
    pragma Inline (To_Timespec);
 
-   type struct_timeval is private;
-
-   function To_Duration (TV : struct_timeval) return Duration;
-   pragma Inline (To_Duration);
-
-   function To_Timeval (D : Duration) return struct_timeval;
-   pragma Inline (To_Timeval);
-
    -------------------------
    -- Priority Scheduling --
    -------------------------
@@ -302,7 +294,7 @@ package System.OS_Interface is
    function Get_Page_Size return size_t;
    function Get_Page_Size return System.Address;
    pragma Import (C, Get_Page_Size, "getpagesize");
-   --  Returns the size of a page, or 0 if this is not relevant on this target
+   --  Returns the size of a page
 
    PROT_NONE  : constant := 0;
    PROT_READ  : constant := 1;
@@ -527,12 +519,6 @@ private
 
    type clockid_t is new int;
    CLOCK_REALTIME : constant clockid_t := 0;
-
-   type struct_timeval is record
-      tv_sec  : time_t;
-      tv_usec : int32_t;
-   end record;
-   pragma Convention (C, struct_timeval);
 
    --
    --  Darwin specific signal implementation

@@ -1,6 +1,6 @@
 // auto_ptr implementation -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,8 +27,8 @@
  *  You should not attempt to use it directly.
  */
 
-#ifndef _STL_AUTO_PTR_H
-#define _STL_AUTO_PTR_H 1
+#ifndef _BACKWARD_AUTO_PTR_H
+#define _BACKWARD_AUTO_PTR_H 1
 
 #include <bits/c++config.h>
 #include <debug/debug.h>
@@ -171,8 +171,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @brief  Smart pointer dereferencing.
        *
        *  If this %auto_ptr no longer owns anything, then this
-       *  operation will crash.  (For a smart pointer, "no longer owns
-       *  anything" is the same as being a null pointer, and you know
+       *  operation will crash.  (For a smart pointer, <em>no longer owns
+       *  anything</em> is the same as being a null pointer, and you know
        *  what happens when you dereference one of those...)
        */
       element_type&
@@ -289,4 +289,4 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
 _GLIBCXX_END_NAMESPACE
 
-#endif /* _STL_AUTO_PTR_H */
+#endif /* _BACKWARD_AUTO_PTR_H */

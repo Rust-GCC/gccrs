@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler.  
    Vitesse IQ2000 processors
-   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
    This file is part of GCC.
@@ -20,10 +20,6 @@
    <http://www.gnu.org/licenses/>.  */
 
 /* Driver configuration.  */
-
-#undef  SWITCH_TAKES_ARG
-#define SWITCH_TAKES_ARG(CHAR)						\
-  (DEFAULT_SWITCH_TAKES_ARG (CHAR) || (CHAR) == 'G')
 
 /* The svr4.h LIB_SPEC with -leval and --*group tacked on */
 #undef  LIB_SPEC
@@ -72,8 +68,6 @@
 #ifndef TARGET_VERSION
 #define TARGET_VERSION TARGET_VERSION_INTERNAL (stderr)
 #endif
-
-#define OVERRIDE_OPTIONS override_options ()
 
 #define CAN_DEBUG_WITHOUT_FP
 
@@ -247,8 +241,6 @@ enum reg_class
 	 ? (GR_REGS)						\
 	 : (CLASS))))
 
-#define SMALL_REGISTER_CLASSES 0
-
 #define CLASS_MAX_NREGS(CLASS, MODE)    \
   ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
 
@@ -367,8 +359,6 @@ enum reg_class
 
 #define OUTGOING_REG_PARM_STACK_SPACE(FNTYPE) 1
 
-#define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE) 0
-
 
 /* Function Arguments in Registers.  */
 
@@ -422,20 +412,9 @@ typedef struct iq2000_args
   (((N) >= GP_ARG_FIRST && (N) <= GP_ARG_LAST))			
 
 
-/* How Scalar Function Values are Returned.  */
-
-#define FUNCTION_VALUE(VALTYPE, FUNC)	iq2000_function_value (VALTYPE, FUNC)
-
-#define LIBCALL_VALUE(MODE)				\
-  gen_rtx_REG (((GET_MODE_CLASS (MODE) != MODE_INT	\
-		 || GET_MODE_SIZE (MODE) >= 4)		\
-		? (MODE)				\
-		: SImode),				\
-	       GP_RETURN)
-
 /* On the IQ2000, R2 and R3 are the only register thus used.  */
 
-#define FUNCTION_VALUE_REGNO_P(N) ((N) == GP_RETURN)
+#define FUNCTION_VALUE_REGNO_P(N) iq2000_function_value_regno_p (N)
 
 
 /* How Large Values are Returned.  */
@@ -583,13 +562,6 @@ typedef struct iq2000_args
 
 #define FINAL_PRESCAN_INSN(INSN, OPVEC, NOPERANDS)			\
   final_prescan_insn (INSN, OPVEC, NOPERANDS)
-
-/* See iq2000.c for the IQ2000 specific codes.  */
-#define PRINT_OPERAND(FILE, X, CODE) print_operand (FILE, X, CODE)
-
-#define PRINT_OPERAND_PUNCT_VALID_P(CODE) iq2000_print_operand_punct[CODE]
-
-#define PRINT_OPERAND_ADDRESS(FILE, ADDR) print_operand_address (FILE, ADDR)
 
 #define DBR_OUTPUT_SEQEND(STREAM)					\
 do									\
@@ -933,9 +905,6 @@ enum processor_type
 #define SDATA_SECTION_ASM_OP	"\t.sdata"	/* Small data.  */
 
 
-/* List of all IQ2000 punctuation characters used by print_operand.  */
-extern char iq2000_print_operand_punct[256];
-
 /* The target cpu for optimization and scheduling.  */
 extern enum processor_type iq2000_tune;
 

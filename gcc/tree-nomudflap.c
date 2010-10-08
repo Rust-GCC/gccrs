@@ -27,14 +27,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tree-inline.h"
 #include "gimple.h"
-#include "diagnostic.h"
 #include "hashtab.h"
 #include "output.h"
-#include "varray.h"
 #include "langhooks.h"
 #include "tree-mudflap.h"
 #include "tree-pass.h"
 #include "ggc.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 
 
@@ -89,7 +88,7 @@ gate_mudflap (void)
   return flag_mudflap != 0;
 }
 
-struct gimple_opt_pass pass_mudflap_1 = 
+struct gimple_opt_pass pass_mudflap_1 =
 {
  {
   GIMPLE_PASS,
@@ -108,7 +107,7 @@ struct gimple_opt_pass pass_mudflap_1 =
  }
 };
 
-struct gimple_opt_pass pass_mudflap_2 = 
+struct gimple_opt_pass pass_mudflap_2 =
 {
  {
   GIMPLE_PASS,

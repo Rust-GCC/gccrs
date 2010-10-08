@@ -1,7 +1,7 @@
 /* Instruction scheduling pass.  This file contains definitions used
    internally in the scheduler.
    Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   2001, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -448,7 +448,7 @@ struct deps_reg
 };
 
 /* Describe state of dependencies used during sched_analyze phase.  */
-struct deps
+struct deps_desc
 {
   /* The *_insns and *_mems are paired lists.  Each pending memory operation
      will have a pointer to the MEM rtx on one list and a pointer to the
@@ -541,12 +541,12 @@ struct deps
   /* Shows the last value of reg_pending_barrier associated with the insn.  */
   enum reg_pending_barrier_mode last_reg_pending_barrier;
 
-  /* True when this context should be treated as a readonly by 
+  /* True when this context should be treated as a readonly by
      the analysis.  */
   BOOL_BITFIELD readonly : 1;
 };
 
-typedef struct deps *deps_t;
+typedef struct deps_desc *deps_t;
 
 /* This structure holds some state of the current scheduling pass, and
    contains some function pointers that abstract out some of the non-generic
@@ -563,7 +563,7 @@ struct haifa_sched_info
   int (*can_schedule_ready_p) (rtx);
   /* Return nonzero if there are more insns that should be scheduled.  */
   int (*schedule_more_p) (void);
-  /* Called after an insn has all its hard dependencies resolved. 
+  /* Called after an insn has all its hard dependencies resolved.
      Adjusts status of instruction (which is passed through second parameter)
      to indicate if instruction should be moved to the ready list or the
      queue, or if it should silently discard it (until next resolved
@@ -602,7 +602,7 @@ struct haifa_sched_info
   /* Hooks to support speculative scheduling.  */
 
   /* Called to notify frontend that instruction is being added (second
-     parameter == 0) or removed (second parameter == 1).  */     
+     parameter == 0) or removed (second parameter == 1).  */
   void (*add_remove_insn) (rtx, int);
 
   /* Called to notify frontend that instruction is being scheduled.
@@ -767,7 +767,7 @@ struct _haifa_insn_data
   /* INTER_TICK is used to adjust INSN_TICKs of instructions from the
      subsequent blocks in a region.  */
   int inter_tick;
-  
+
   /* See comment on QUEUE_INDEX macro in haifa-sched.c.  */
   int queue_index;
 
@@ -787,7 +787,7 @@ struct _haifa_insn_data
   ds_t todo_spec;
 
   /* What speculations were already applied.  */
-  ds_t done_spec; 
+  ds_t done_spec;
 
   /* What speculations are checked by this instruction.  */
   ds_t check_spec;
@@ -1011,7 +1011,7 @@ enum SPEC_TYPES_OFFSETS {
    Therefore, it can appear only in TODO_SPEC field of an instruction.  */
 #define HARD_DEP (DEP_ANTI << 1)
 
-/* This represents the results of calling sched-deps.c functions, 
+/* This represents the results of calling sched-deps.c functions,
    which modify dependencies.  */
 enum DEPS_ADJUST_RESULT {
   /* No dependence needed (e.g. producer == consumer).  */
@@ -1024,7 +1024,7 @@ enum DEPS_ADJUST_RESULT {
   DEP_CREATED
 };
 
-/* Represents the bits that can be set in the flags field of the 
+/* Represents the bits that can be set in the flags field of the
    sched_info structure.  */
 enum SCHED_FLAGS {
   /* If set, generate links between instruction as DEPS_LIST.
@@ -1198,13 +1198,14 @@ extern struct sched_deps_info_def *sched_deps_info;
 extern bool sched_insns_conditions_mutex_p (const_rtx, const_rtx);
 extern bool sched_insn_is_legitimate_for_speculation_p (const_rtx, ds_t);
 extern void add_dependence (rtx, rtx, enum reg_note);
-extern void sched_analyze (struct deps *, rtx, rtx);
-extern void init_deps (struct deps *);
-extern void free_deps (struct deps *);
+extern void sched_analyze (struct deps_desc *, rtx, rtx);
+extern void init_deps (struct deps_desc *, bool);
+extern void init_deps_reg_last (struct deps_desc *);
+extern void free_deps (struct deps_desc *);
 extern void init_deps_global (void);
 extern void finish_deps_global (void);
-extern void deps_analyze_insn (struct deps *, rtx);
-extern void remove_from_deps (struct deps *, rtx);
+extern void deps_analyze_insn (struct deps_desc *, rtx);
+extern void remove_from_deps (struct deps_desc *, rtx);
 
 extern dw_t get_dep_weak_1 (ds_t, ds_t);
 extern dw_t get_dep_weak (ds_t, ds_t);
@@ -1226,7 +1227,7 @@ extern void haifa_note_reg_use (int);
 
 extern void maybe_extend_reg_info_p (void);
 
-extern void deps_start_bb (struct deps *, rtx);
+extern void deps_start_bb (struct deps_desc *, rtx);
 extern enum reg_note ds_to_dt (ds_t);
 
 extern bool deps_pools_are_empty_p (void);
@@ -1268,6 +1269,8 @@ extern void add_block (basic_block, basic_block);
 extern rtx bb_note (basic_block);
 extern void concat_note_lists (rtx, rtx *);
 extern rtx sched_emit_insn (rtx);
+extern rtx get_ready_element (int);
+extern int number_in_ready (void);
 
 
 /* Types and functions in sched-rgn.c.  */
@@ -1294,6 +1297,11 @@ extern region *rgn_table;
 extern int *rgn_bb_table;
 extern int *block_to_bb;
 extern int *containing_rgn;
+
+/* Often used short-hand in the scheduler.  The rest of the compiler uses
+   BLOCK_FOR_INSN(INSN) and an indirect reference to get the basic block
+   number ("index").  For historical reasons, the scheduler does not.  */
+#define BLOCK_NUM(INSN)	      (BLOCK_FOR_INSN (INSN)->index + 0)
 
 #define RGN_NR_BLOCKS(rgn) (rgn_table[rgn].rgn_nr_blocks)
 #define RGN_BLOCKS(rgn) (rgn_table[rgn].rgn_blocks)
@@ -1328,10 +1336,10 @@ extern void compute_priorities (void);
 extern void increase_insn_priority (rtx, int);
 extern void debug_rgn_dependencies (int);
 extern void debug_dependencies (rtx, rtx);
-extern void free_rgn_deps (void);          
+extern void free_rgn_deps (void);
 extern int contributes_to_priority (rtx, rtx);
 extern void extend_rgns (int *, int *, sbitmap, int *);
-extern void deps_join (struct deps *, struct deps *);
+extern void deps_join (struct deps_desc *, struct deps_desc *);
 
 extern void rgn_setup_common_sched_info (void);
 extern void rgn_setup_sched_infos (void);
@@ -1471,6 +1479,13 @@ sd_iterator_next (sd_iterator_def *it_ptr)
        sd_iterator_cond (&(ITER), &(DEP));			\
        sd_iterator_next (&(ITER)))
 
+#define IS_DISPATCH_ON 1
+#define IS_CMP 2
+#define DISPATCH_VIOLATION 3
+#define FITS_DISPATCH_WINDOW 4
+#define DISPATCH_INIT 5
+#define ADD_TO_DISPATCH_WINDOW 6
+
 extern int sd_lists_size (const_rtx, sd_list_types_def);
 extern bool sd_lists_empty_p (const_rtx, sd_list_types_def);
 extern void sd_init_insn (rtx);
@@ -1485,7 +1500,7 @@ extern void sd_debug_lists (rtx, sd_list_types_def);
 
 #endif /* INSN_SCHEDULING */
 
-/* Functions in sched-vis.c.  These must be outside INSN_SCHEDULING as 
+/* Functions in sched-vis.c.  These must be outside INSN_SCHEDULING as
    sched-vis.c is compiled always.  */
 extern void print_insn (char *, const_rtx, int);
 extern void print_pattern (char *, const_rtx, int);

@@ -95,7 +95,7 @@ AC_DEFUN([GLIBCXX_CONFIGURE], [
   ## (Right now, this only matters for enable_wchar_t, but nothing prevents
   ## other macros from doing the same.  This should be automated.)  -pme
 
-  # Check for uClibc since Linux platforms use different configuration
+  # Check for C library flavor since Linux platforms use different configuration
   # directories depending on the C library in use.
   AC_EGREP_CPP([_using_uclibc], [
   #include <stdio.h>
@@ -103,6 +103,13 @@ AC_DEFUN([GLIBCXX_CONFIGURE], [
     _using_uclibc
   #endif
   ], uclibc=yes, uclibc=no)
+
+  AC_EGREP_CPP([_using_bionic], [
+  #include <stdio.h>
+  #if __BIONIC__
+    _using_bionic
+  #endif
+  ], bionic=yes, bionic=no)
 
   # Find platform-specific directories containing configuration info.
   # Also possibly modify flags used elsewhere, as needed by the platform.
@@ -769,8 +776,8 @@ dnl See docs/html/17_intro/configury.html#enable for documentation.
 dnl
 m4_define([GLIBCXX_ENABLE],[dnl
 m4_define([_g_switch],[--enable-$1])dnl
-m4_define([_g_help],[AC_HELP_STRING(_g_switch$3,[$4 @<:@default=$2@:>@])])dnl
- AC_ARG_ENABLE($1,_g_help,
+m4_define([_g_help],[AC_HELP_STRING([_g_switch$3],[$4 @<:@default=$2@:>@])])dnl
+ AC_ARG_ENABLE([$1],m4_dquote(_g_help),
   m4_bmatch([$5],
    [^permit ],
      [[
@@ -1065,7 +1072,7 @@ dnl
 AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 
   AC_MSG_CHECKING([for clock_gettime, nanosleep and sched_yield])
-  GLIBCXX_ENABLE(libstdcxx-time,$1,[=KIND],
+  GLIBCXX_ENABLE(libstdcxx-time,$1,[[[=KIND]]],
     [use KIND for check type],
     [permit yes|no|rt])
 
@@ -1075,8 +1082,9 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
   ac_save_LIBS="$LIBS"
 
-  ac_has_clock_monotonic=no;
-  ac_has_clock_realtime=no;
+  ac_has_clock_monotonic=no
+  ac_has_clock_realtime=no
+  AC_MSG_RESULT($enable_libstdcxx_time)
 
   if test x"$enable_libstdcxx_time" != x"no"; then
 
@@ -1611,26 +1619,33 @@ AC_DEFUN([GLIBCXX_CHECK_RANDOM_TR1], [
 ])
 
 dnl
-dnl Check whether EOF, SEEK_CUR, and SEEK_END have the most common values:
-dnl in that case including <cstdio> in some C++ headers can be avoided.
+dnl Compute the EOF, SEEK_CUR, and SEEK_END integer constants.
 dnl
-AC_DEFUN([GLIBCXX_CHECK_STDIO_MACROS], [
+AC_DEFUN([GLIBCXX_COMPUTE_STDIO_INTEGER_CONSTANTS], [
 
-  AC_MSG_CHECKING([for EOF == -1, SEEK_CUR == 1, SEEK_END == 2])
-  AC_CACHE_VAL(glibcxx_cv_stdio_macros, [
-  AC_TRY_COMPILE([#include <stdio.h>],
-                 [#if ((EOF != -1) || (SEEK_CUR != 1) || (SEEK_END != 2))
-	            unusual values...
-	          #endif
-	         ], [glibcxx_cv_stdio_macros=yes],
-		    [glibcxx_cv_stdio_macros=no])
+  AC_CACHE_CHECK([for the value of EOF], glibcxx_cv_stdio_eof, [
+  AC_COMPUTE_INT([glibcxx_cv_stdio_eof], [[EOF]],
+                 [#include <stdio.h>],
+                 [AC_MSG_ERROR([computing EOF failed])])
   ])
-  AC_MSG_RESULT($glibcxx_cv_stdio_macros)
-  if test x"$glibcxx_cv_stdio_macros" = x"yes"; then
-    AC_DEFINE(_GLIBCXX_STDIO_MACROS, 1,
-              [Define if EOF == -1, SEEK_CUR == 1, SEEK_END == 2.])
-  fi
+  AC_DEFINE_UNQUOTED(_GLIBCXX_STDIO_EOF, $glibcxx_cv_stdio_eof,
+                     [Define to the value of the EOF integer constant.])
 
+  AC_CACHE_CHECK([for the value of SEEK_CUR], glibcxx_cv_stdio_seek_cur, [
+  AC_COMPUTE_INT([glibcxx_cv_stdio_seek_cur], [[SEEK_CUR]],
+                 [#include <stdio.h>],
+                 [AC_MSG_ERROR([computing SEEK_CUR failed])])
+  ])
+  AC_DEFINE_UNQUOTED(_GLIBCXX_STDIO_SEEK_CUR, $glibcxx_cv_stdio_seek_cur,
+                     [Define to the value of the SEEK_CUR integer constant.])
+
+  AC_CACHE_CHECK([for the value of SEEK_END], glibcxx_cv_stdio_seek_end, [
+  AC_COMPUTE_INT([glibcxx_cv_stdio_seek_end], [[SEEK_END]],
+                 [#include <stdio.h>],
+                 [AC_MSG_ERROR([computing SEEK_END failed])])
+  ])
+  AC_DEFINE_UNQUOTED(_GLIBCXX_STDIO_SEEK_END, $glibcxx_cv_stdio_seek_end,
+                     [Define to the value of the SEEK_END integer constant.])
 ])
 
 dnl
@@ -1669,7 +1684,7 @@ dnl  +  Usage:  GLIBCXX_ENABLE_CHEADERS[(DEFAULT)]
 dnl       Where DEFAULT is either 'c' or 'c_std' or 'c_global'.
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_CHEADERS], [
-  GLIBCXX_ENABLE(cheaders,$1,[=KIND],
+  GLIBCXX_ENABLE(cheaders,$1,[[[=KIND]]],
     [construct "C" headers for g++], [permit c|c_std|c_global])
   AC_MSG_NOTICE("C" header strategy set to $enable_cheaders)
 
@@ -1680,16 +1695,11 @@ AC_DEFUN([GLIBCXX_ENABLE_CHEADERS], [
      c_compatibility=yes
   fi
 
-  if test $enable_cheaders = c_global || test $enable_cheaders = c_std; then
-     c_extra=yes
-  fi
-
   AC_SUBST(C_INCLUDE_DIR)
   GLIBCXX_CONDITIONAL(GLIBCXX_C_HEADERS_C, test $enable_cheaders = c)
   GLIBCXX_CONDITIONAL(GLIBCXX_C_HEADERS_C_STD, test $enable_cheaders = c_std)
   GLIBCXX_CONDITIONAL(GLIBCXX_C_HEADERS_C_GLOBAL, test $enable_cheaders = c_global)
   GLIBCXX_CONDITIONAL(GLIBCXX_C_HEADERS_COMPATIBILITY, test $c_compatibility = yes)
-  GLIBCXX_CONDITIONAL(GLIBCXX_C_HEADERS_EXTRA, test $c_extra = yes)
 ])
 
 
@@ -1700,7 +1710,7 @@ dnl
 dnl Default is generic.
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
-  GLIBCXX_ENABLE(clocale,auto,[@<:@=MODEL@:>@],
+  GLIBCXX_ENABLE(clocale,auto,[[[=MODEL]]],
     [use MODEL for target locale package],
     [permit generic|gnu|ieee_1003.1-2001|yes|no|auto])
 
@@ -1739,40 +1749,10 @@ AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
   if test $enable_clocale_flag = gnu; then
     AC_EGREP_CPP([_GLIBCXX_ok], [
     #include <features.h>
-    #if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 2)
+    #if (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 3)) && !defined(__UCLIBC__)
       _GLIBCXX_ok
     #endif
     ], enable_clocale_flag=gnu, enable_clocale_flag=generic)
-
-    if test $enable_clocale = auto; then
-      # Test for bugs early in glibc-2.2.x series
-      AC_TRY_RUN([
-      #define _GNU_SOURCE 1
-      #include <locale.h>
-      #include <string.h>
-      #if __GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ > 2)
-      extern __typeof(newlocale) __newlocale;
-      extern __typeof(duplocale) __duplocale;
-      extern __typeof(strcoll_l) __strcoll_l;
-      #endif
-      int main()
-      {
-	const char __one[] = "Äuglein Augmen";
-        const char __two[] = "Äuglein";
-       	int i;
-        int j;
-        __locale_t        loc;
-        __locale_t        loc_dup;
-        loc = __newlocale(1 << LC_ALL, "de_DE", 0);
-        loc_dup = __duplocale(loc);
-        i = __strcoll_l(__one, __two, loc);
-        j = __strcoll_l(__one, __two, loc_dup);
-        return 0;
-      }
-      ],
-      [enable_clocale_flag=gnu],[enable_clocale_flag=generic],
-      [enable_clocale_flag=generic])
-    fi
 
     # Set it to scream when it hurts.
     ac_save_CFLAGS="$CFLAGS"	
@@ -1935,7 +1915,7 @@ dnl Default is new.
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_ALLOCATOR], [
   AC_MSG_CHECKING([for std::allocator base class])
-  GLIBCXX_ENABLE(libstdcxx-allocator,auto,[=KIND],
+  GLIBCXX_ENABLE(libstdcxx-allocator,auto,[[[=KIND]]],
     [use KIND for target std::allocator base],
     [permit new|malloc|mt|bitmap|pool|yes|no|auto])
 
@@ -2023,10 +2003,10 @@ AC_DEFUN([GLIBCXX_ENABLE_PARALLEL], [
 
   # See if configured libgomp/omp.h exists. (libgomp may be in
   # noconfigdirs but not explicitly disabled.)
-  if test -f $glibcxx_builddir/../libgomp/omp.h; then
+  if echo " ${TARGET_CONFIGDIRS} " | grep " libgomp " > /dev/null 2>&1 ; then
     enable_parallel=yes;
   else
-    AC_MSG_NOTICE([$glibcxx_builddir/../libgomp/omp.h not found])
+    AC_MSG_NOTICE([target-libgomp not built])
   fi
 
   AC_MSG_CHECKING([for parallel mode support])
@@ -2042,7 +2022,7 @@ dnl Default is stdio.
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_CSTDIO], [
   AC_MSG_CHECKING([for underlying I/O to use])
-  GLIBCXX_ENABLE(cstdio,stdio,[=PACKAGE],
+  GLIBCXX_ENABLE(cstdio,stdio,[[[=PACKAGE]]],
     [use target-specific I/O package], [permit stdio])
 
   # Now that libio has been removed, you can have any color you want as long
@@ -2438,8 +2418,7 @@ dnl is intended to be an all-or-nothing switch, so all the atomic operations
 dnl that are used should be checked.
 dnl
 dnl Note:
-dnl libgomp and libgfortran do this with a link test, instead of an asm test.
-dnl see: CHECK_SYNC_FETCH_AND_ADD
+dnl libgomp and libgfortran use a link test, see CHECK_SYNC_FETCH_AND_ADD.
 dnl
 dnl Defines:
 dnl  _GLIBCXX_ATOMIC_BUILTINS_1 
@@ -2451,12 +2430,122 @@ AC_DEFUN([GLIBCXX_ENABLE_ATOMIC_BUILTINS], [
   AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
   old_CXXFLAGS="$CXXFLAGS"
-  
+
+  # Do link tests if possible, instead asm tests, limited to some platforms
+  # see discussion in PR target/40134, PR libstdc++/40133 and the thread
+  # starting at http://gcc.gnu.org/ml/gcc-patches/2009-07/msg00322.html
+  atomic_builtins_link_tests=no
+  if test x$gcc_no_link != xyes; then
+    # Can do link tests. Limit to some tested platforms
+    case "$host" in
+      *-*-linux* | *-*-uclinux* | *-*-kfreebsd*-gnu | *-*-gnu*)
+	atomic_builtins_link_tests=yes
+        ;;
+    esac
+  fi
+
+  if test x$atomic_builtins_link_tests = xyes; then
+
+  # Do link tests.
+
+  CXXFLAGS="$CXXFLAGS -fno-exceptions"
+
+  AC_MSG_CHECKING([for atomic builtins for bool])
+  AC_CACHE_VAL(glibcxx_cv_atomic_bool, [
+    AC_TRY_LINK(
+      [ ],
+      [typedef bool atomic_type;
+       atomic_type c1;
+       atomic_type c2;
+       const atomic_type c3(0);
+       __sync_fetch_and_add(&c1, c2);
+       __sync_val_compare_and_swap(&c1, c3, c2);
+       __sync_lock_test_and_set(&c1, c3);
+       __sync_lock_release(&c1);
+       __sync_synchronize();],
+      [glibcxx_cv_atomic_bool=yes],
+      [glibcxx_cv_atomic_bool=no])
+  ])    
+  if test $glibcxx_cv_atomic_bool = yes; then
+    AC_DEFINE(_GLIBCXX_ATOMIC_BUILTINS_1, 1,
+      [Define if builtin atomic operations for bool are supported on this host.])
+  fi
+  AC_MSG_RESULT($glibcxx_cv_atomic_bool)
+
+  AC_MSG_CHECKING([for atomic builtins for short])
+  AC_CACHE_VAL(glibcxx_cv_atomic_short, [
+    AC_TRY_LINK(
+      [ ],
+      [typedef short atomic_type;
+       atomic_type c1;
+       atomic_type c2;
+       const atomic_type c3(0);
+       __sync_fetch_and_add(&c1, c2);
+       __sync_val_compare_and_swap(&c1, c3, c2);
+       __sync_lock_test_and_set(&c1, c3);
+       __sync_lock_release(&c1);
+       __sync_synchronize();],
+      [glibcxx_cv_atomic_short=yes],
+      [glibcxx_cv_atomic_short=no])
+  ])    
+  if test $glibcxx_cv_atomic_short = yes; then
+    AC_DEFINE(_GLIBCXX_ATOMIC_BUILTINS_2, 1,
+      [Define if builtin atomic operations for short are supported on this host.])
+  fi
+  AC_MSG_RESULT($glibcxx_cv_atomic_short)
+
+  AC_MSG_CHECKING([for atomic builtins for int])
+  AC_CACHE_VAL(glibcxx_cv_atomic_int, [
+    AC_TRY_LINK(
+      [ ],
+      [typedef int atomic_type;
+       atomic_type c1;
+       atomic_type c2;
+       const atomic_type c3(0);
+       __sync_fetch_and_add(&c1, c2);
+       __sync_val_compare_and_swap(&c1, c3, c2);
+       __sync_lock_test_and_set(&c1, c3);
+       __sync_lock_release(&c1);
+       __sync_synchronize();],
+      [glibcxx_cv_atomic_int=yes],
+      [glibcxx_cv_atomic_int=no])
+  ])    
+  if test $glibcxx_cv_atomic_int = yes; then
+    AC_DEFINE(_GLIBCXX_ATOMIC_BUILTINS_4, 1,
+      [Define if builtin atomic operations for int are supported on this host.])
+  fi
+  AC_MSG_RESULT($glibcxx_cv_atomic_int)
+
+  AC_MSG_CHECKING([for atomic builtins for long long])
+  AC_CACHE_VAL(glibcxx_cv_atomic_long_long, [
+    AC_TRY_LINK(
+      [ ],
+      [typedef long long atomic_type;
+       atomic_type c1;
+       atomic_type c2;
+       const atomic_type c3(0);
+       __sync_fetch_and_add(&c1, c2);
+       __sync_val_compare_and_swap(&c1, c3, c2);
+       __sync_lock_test_and_set(&c1, c3);
+       __sync_lock_release(&c1);
+       __sync_synchronize();],
+      [glibcxx_cv_atomic_long_long=yes],
+      [glibcxx_cv_atomic_long_long=no])
+  ])    
+  if test $glibcxx_cv_atomic_long_long = yes; then
+    AC_DEFINE(_GLIBCXX_ATOMIC_BUILTINS_8, 1,
+      [Define if builtin atomic operations for long long are supported on this host.])
+  fi
+  AC_MSG_RESULT($glibcxx_cv_atomic_long_long)
+
+  else
+
+  # Do asm tests.
+
   # Compile unoptimized.
   CXXFLAGS='-O0 -S'
 
-  # Fake what AC_TRY_COMPILE does, without linking as this is
-  # unnecessary for a builtins test.
+  # Fake what AC_TRY_COMPILE does.
 
     cat > conftest.$ac_ext << EOF
 [#]line __oline__ "configure"
@@ -2478,14 +2567,14 @@ EOF
     AC_MSG_CHECKING([for atomic builtins for bool])
     if AC_TRY_EVAL(ac_compile); then
       if grep __sync_ conftest.s >/dev/null 2>&1 ; then
-        enable_atomic_builtinsb=no
+        glibcxx_cv_atomic_bool=no
       else
       AC_DEFINE(_GLIBCXX_ATOMIC_BUILTINS_1, 1,
       [Define if builtin atomic operations for bool are supported on this host.])
-        enable_atomic_builtinsb=yes
+        glibcxx_cv_atomic_bool=yes
       fi
     fi
-    AC_MSG_RESULT($enable_atomic_builtinsb)
+    AC_MSG_RESULT($glibcxx_cv_atomic_bool)
     rm -f conftest*
 
     cat > conftest.$ac_ext << EOF
@@ -2508,14 +2597,14 @@ EOF
     AC_MSG_CHECKING([for atomic builtins for short])
     if AC_TRY_EVAL(ac_compile); then
       if grep __sync_ conftest.s >/dev/null 2>&1 ; then
-        enable_atomic_builtinss=no
+        glibcxx_cv_atomic_short=no
       else
       AC_DEFINE(_GLIBCXX_ATOMIC_BUILTINS_2, 1,
       [Define if builtin atomic operations for short are supported on this host.])
-        enable_atomic_builtinss=yes
+        glibcxx_cv_atomic_short=yes
       fi
     fi
-    AC_MSG_RESULT($enable_atomic_builtinss)
+    AC_MSG_RESULT($glibcxx_cv_atomic_short)
     rm -f conftest*
 
     cat > conftest.$ac_ext << EOF
@@ -2539,14 +2628,14 @@ EOF
     AC_MSG_CHECKING([for atomic builtins for int])
     if AC_TRY_EVAL(ac_compile); then
       if grep __sync_ conftest.s >/dev/null 2>&1 ; then
-        enable_atomic_builtinsi=no
+        glibcxx_cv_atomic_int=no
       else
       AC_DEFINE(_GLIBCXX_ATOMIC_BUILTINS_4, 1,
         [Define if builtin atomic operations for int are supported on this host.])
-        enable_atomic_builtinsi=yes
+        glibcxx_cv_atomic_int=yes
       fi
     fi
-    AC_MSG_RESULT($enable_atomic_builtinsi)
+    AC_MSG_RESULT($glibcxx_cv_atomic_int)
     rm -f conftest*
 
     cat > conftest.$ac_ext << EOF
@@ -2569,22 +2658,23 @@ EOF
     AC_MSG_CHECKING([for atomic builtins for long long])
     if AC_TRY_EVAL(ac_compile); then
       if grep __sync_ conftest.s >/dev/null 2>&1 ; then
-        enable_atomic_builtinsll=no
+        glibcxx_cv_atomic_long_long=no
       else
       AC_DEFINE(_GLIBCXX_ATOMIC_BUILTINS_8, 1,
       [Define if builtin atomic operations for long long are supported on this host.])
-        enable_atomic_builtinsll=yes
+        glibcxx_cv_atomic_long_long=yes
       fi
     fi
-    AC_MSG_RESULT($enable_atomic_builtinsll)
+    AC_MSG_RESULT($glibcxx_cv_atomic_long_long)
     rm -f conftest*
 
+  fi
 
   CXXFLAGS="$old_CXXFLAGS"
   AC_LANG_RESTORE
 
   # Set atomicity_dir to builtins if either of above tests pass.
-  if test $enable_atomic_builtinsi = yes || test $enable_atomic_builtinsb = yes ; then
+  if test $glibcxx_cv_atomic_int = yes || test $glibcxx_cv_atomic_bool = yes ; then
     atomicity_dir=cpu/generic/atomicity_builtins
   fi
 
@@ -2722,13 +2812,16 @@ dnl       'no' disables versioning.
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_SYMVERS], [
 
-GLIBCXX_ENABLE(symvers,$1,[=STYLE],
+GLIBCXX_ENABLE(symvers,$1,[[[=STYLE]]],
   [enables symbol versioning of the shared library],
-  [permit yes|no|gnu|gnu-versioned-namespace|darwin|darwin-export])
+  [permit yes|no|gnu|gnu-versioned-namespace|darwin|darwin-export|sun])
 
 # If we never went through the GLIBCXX_CHECK_LINKER_FEATURES macro, then we
 # don't know enough about $LD to do tricks...
 AC_REQUIRE([GLIBCXX_CHECK_LINKER_FEATURES])
+# Sun style symbol versions needs GNU c++filt for make_sunver.pl to work
+# with extern "C++" in version scripts.
+AC_REQUIRE([GCC_PROG_GNU_CXXFILT])
 
 # Turn a 'yes' into a suitable default.
 if test x$enable_symvers = xyes ; then
@@ -2737,7 +2830,7 @@ if test x$enable_symvers = xyes ; then
   else
     if test $with_gnu_ld = yes ; then
       case ${target_os} in
-        cygwin* | pe | mingw32* | hpux*)
+        hpux*)
           enable_symvers=no ;;
         *)
           enable_symvers=gnu ;;
@@ -2746,6 +2839,20 @@ if test x$enable_symvers = xyes ; then
       case ${target_os} in
         darwin*)
 	  enable_symvers=darwin ;;
+	# Sun symbol versioning exists since Solaris 2.5.
+	solaris2.[[5-9]]* | solaris2.1[[0-9]]*)
+	  # make_sunver.pl needs GNU c++filt to support extern "C++" in
+	  # version scripts, so disable symbol versioning if none can be
+	  # found.
+	  if test -z "$ac_cv_path_CXXFILT"; then
+	    AC_MSG_WARN([=== You have requested Sun symbol versioning, but])
+	    AC_MSG_WARN([=== no GNU c++filt could  be found.])
+	    AC_MSG_WARN([=== Symbol versioning will be disabled.])
+	    enable_symvers=no
+	  else
+	    enable_symvers=sun
+	  fi
+	  ;;
         *)
           enable_symvers=no ;;
       esac
@@ -2758,8 +2865,26 @@ if test x$enable_symvers = xdarwin-export ; then
     enable_symvers=darwin
 fi
 
+# Check if 'sun' was requested on non-Solaris 2 platforms.
+if test x$enable_symvers = xsun ; then
+  case ${target_os} in
+    solaris2*)
+      # All fine.
+      ;;
+    *)
+      # Unlikely to work.
+      AC_MSG_WARN([=== You have requested Sun symbol versioning, but])
+      AC_MSG_WARN([=== you are not targetting Solaris 2.])
+      AC_MSG_WARN([=== Symbol versioning will be disabled.])
+      enable_symvers=no
+      ;;
+  esac
+fi
+
 # Check to see if 'gnu' can win.
-if test $enable_symvers = gnu || test $enable_symvers = gnu-versioned-namespace; then
+if test $enable_symvers = gnu || 
+  test $enable_symvers = gnu-versioned-namespace || 
+  test $enable_symvers = sun; then
   # Check to see if libgcc_s exists, indicating that shared libgcc is possible.
   AC_MSG_CHECKING([for shared libgcc])
   ac_save_CFLAGS="$CFLAGS"
@@ -2795,6 +2920,8 @@ changequote([,])dnl
       AC_MSG_WARN([=== you are not building a shared libgcc_s.])
       AC_MSG_WARN([=== Symbol versioning will be disabled.])
       enable_symvers=no
+  elif test $with_gnu_ld != yes && test $enable_symvers = sun; then
+    : All interesting versions of Sun ld support sun style symbol versioning.
   elif test $with_gnu_ld != yes ; then
     # just fail for now
     AC_MSG_WARN([=== You have requested GNU symbol versioning, but])
@@ -2834,6 +2961,11 @@ case $enable_symvers in
     AC_DEFINE(_GLIBCXX_SYMVER_DARWIN, 1, 
               [Define to use darwin versioning in the shared library.])
     ;;
+  sun)
+    SYMVER_FILE=config/abi/pre/gnu.ver
+    AC_DEFINE(_GLIBCXX_SYMVER_SUN, 1, 
+              [Define to use Sun versioning in the shared library.])
+    ;;
 esac
 
 if test x$enable_symvers != xno ; then
@@ -2857,7 +2989,23 @@ GLIBCXX_CONDITIONAL(ENABLE_SYMVERS, test $enable_symvers != no)
 GLIBCXX_CONDITIONAL(ENABLE_SYMVERS_GNU, test $enable_symvers = gnu)
 GLIBCXX_CONDITIONAL(ENABLE_SYMVERS_GNU_NAMESPACE, test $enable_symvers = gnu-versioned-namespace)
 GLIBCXX_CONDITIONAL(ENABLE_SYMVERS_DARWIN, test $enable_symvers = darwin)
+GLIBCXX_CONDITIONAL(ENABLE_SYMVERS_SUN, test $enable_symvers = sun)
 AC_MSG_NOTICE(versioning on shared library symbols is $enable_symvers)
+
+if test $enable_symvers != no ; then
+   case ${target_os} in
+     # The Solaris 2 runtime linker doesn't support the GNU extension of
+     # binding the same symbol to different versions
+     solaris2*)
+       symvers_renaming=no  ;;
+     # Other platforms with GNU symbol versioning (GNU/Linux, more?) do.
+     *)
+       AC_DEFINE(HAVE_SYMVER_SYMBOL_RENAMING_RUNTIME_SUPPORT, 1,
+         [Define to 1 if the target runtime linker supports binding the same symbol to different versions.])
+       symvers_renaming=yes  ;;
+    esac
+fi
+GLIBCXX_CONDITIONAL(ENABLE_SYMVERS_SOL2, test $symvers_renaming = no)
 
 # Now, set up compatibility support, if any.
 # In addition, need this to deal with std::size_t mangling in
@@ -2995,5 +3143,6 @@ AC_DEFUN([AC_LC_MESSAGES], [
 ])
 
 # Macros from the top-level gcc directory.
+m4_include([../config/gc++filt.m4])
 m4_include([../config/tls.m4])
 

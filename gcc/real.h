@@ -1,6 +1,7 @@
 /* Definitions of floating-point access for GNU compiler.
    Copyright (C) 1989, 1991, 1994, 1996, 1997, 1998, 1999,
-   2000, 2002, 2003, 2004, 2005, 2007, 2008 Free Software Foundation, Inc.
+   2000, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -21,22 +22,6 @@
 #ifndef GCC_REAL_H
 #define GCC_REAL_H
 
-#ifndef GENERATOR_FILE
-#include <gmp.h>
-#include <mpfr.h>
-#ifdef HAVE_mpc
-#include <mpc.h>
-# ifdef HAVE_mpc
-extern tree do_mpc_arg2 (tree, tree, tree, int, int (*)(mpc_ptr, mpc_srcptr, mpc_srcptr, mpc_rnd_t));
-# endif
-# if MPC_VERSION >= MPC_VERSION_NUM(0,6,1)
-#  define HAVE_mpc_pow
-# endif
-# if MPC_VERSION >= MPC_VERSION_NUM(0,7,1)
-#  define HAVE_mpc_arc
-# endif
-#endif
-#endif
 #include "machmode.h"
 
 /* An expanded form of the represented number.  */
@@ -209,6 +194,31 @@ extern const struct real_format *
   (FLOAT_MODE_P (MODE) \
    && FLOAT_MODE_FORMAT (MODE)->has_sign_dependent_rounding)
 
+/* True if the given mode has a NaN representation and the treatment of
+   NaN operands is important.  Certain optimizations, such as folding
+   x * 0 into 0, are not correct for NaN operands, and are normally
+   disabled for modes with NaNs.  The user can ask for them to be
+   done anyway using the -funsafe-math-optimizations switch.  */
+#define HONOR_NANS(MODE) \
+  (MODE_HAS_NANS (MODE) && !flag_finite_math_only)
+
+/* Like HONOR_NANs, but true if we honor signaling NaNs (or sNaNs).  */
+#define HONOR_SNANS(MODE) (flag_signaling_nans && HONOR_NANS (MODE))
+
+/* As for HONOR_NANS, but true if the mode can represent infinity and
+   the treatment of infinite values is important.  */
+#define HONOR_INFINITIES(MODE) \
+  (MODE_HAS_INFINITIES (MODE) && !flag_finite_math_only)
+
+/* Like HONOR_NANS, but true if the given mode distinguishes between
+   positive and negative zero, and the sign of zero is important.  */
+#define HONOR_SIGNED_ZEROS(MODE) \
+  (MODE_HAS_SIGNED_ZEROS (MODE) && flag_signed_zeros)
+
+/* Like HONOR_NANS, but true if given mode supports sign-dependent rounding,
+   and the rounding mode is important.  */
+#define HONOR_SIGN_DEPENDENT_ROUNDING(MODE) \
+  (MODE_HAS_SIGN_DEPENDENT_ROUNDING (MODE) && flag_rounding_math)
 
 /* Declare functions in real.c.  */
 
@@ -378,14 +388,8 @@ extern REAL_VALUE_TYPE real_value_truncate (enum machine_mode,
 #define REAL_VALUE_TO_INT(plow, phigh, r) \
   real_to_integer2 (plow, phigh, &(r))
 
-extern REAL_VALUE_TYPE real_arithmetic2 (int, const REAL_VALUE_TYPE *,
-					 const REAL_VALUE_TYPE *);
-
-#define REAL_VALUE_NEGATE(X) \
-  real_arithmetic2 (NEGATE_EXPR, &(X), NULL)
-
-#define REAL_VALUE_ABS(X) \
-  real_arithmetic2 (ABS_EXPR, &(X), NULL)
+extern REAL_VALUE_TYPE real_value_negate (const REAL_VALUE_TYPE *);
+extern REAL_VALUE_TYPE real_value_abs (const REAL_VALUE_TYPE *);
 
 extern int significand_size (enum machine_mode);
 
@@ -479,14 +483,6 @@ extern void real_round (REAL_VALUE_TYPE *, enum machine_mode,
 
 /* Set the sign of R to the sign of X.  */
 extern void real_copysign (REAL_VALUE_TYPE *, const REAL_VALUE_TYPE *);
-
-#ifndef GENERATOR_FILE
-/* Convert between MPFR and REAL_VALUE_TYPE.  The caller is
-   responsible for initializing and clearing the MPFR parameter.  */
-
-extern void real_from_mpfr (REAL_VALUE_TYPE *, mpfr_srcptr, tree, mp_rnd_t);
-extern void mpfr_from_real (mpfr_ptr, const REAL_VALUE_TYPE *, mp_rnd_t);
-#endif
 
 /* Check whether the real constant value given is an integer.  */
 extern bool real_isinteger (const REAL_VALUE_TYPE *c, enum machine_mode mode);

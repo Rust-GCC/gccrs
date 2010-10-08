@@ -18,7 +18,6 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-
 // NB: This file is for testing type_traits with NO OTHER INCLUDES.
 
 #include <type_traits>
@@ -29,9 +28,14 @@ namespace std
   typedef int& test_type2;
   typedef double test_type3;
   typedef float test_type4;
-  
+  typedef void test_type5;
+  typedef const void test_type6;  
+
   template struct common_type<test_type1>;
   template struct common_type<test_type1, test_type2>;
   template struct common_type<test_type1, test_type2, test_type3>;
   template struct common_type<test_type1, test_type2, test_type3, test_type4>;
+
+  template struct common_type<test_type5>;
+  template struct common_type<test_type5, test_type6>;
 }

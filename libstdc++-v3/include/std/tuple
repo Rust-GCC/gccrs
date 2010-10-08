@@ -1,6 +1,6 @@
 // <tuple> -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,7 +32,7 @@
 #pragma GCC system_header
 
 #ifndef __GXX_EXPERIMENTAL_CXX0X__
-# include <c++0x_warning.h>
+# include <bits/c++0x_warning.h>
 #else
 
 #include <utility>
@@ -160,8 +160,7 @@ namespace std
 	: _Inherited(std::forward<_UTail>(__tail)...),
 	  _Base(std::forward<_UHead>(__head)) { }
 
-      _Tuple_impl(const _Tuple_impl& __in)
-      : _Inherited(__in._M_tail()), _Base(__in._M_head()) { }
+      _Tuple_impl(const _Tuple_impl&) = default;
 
       _Tuple_impl(_Tuple_impl&& __in)
       : _Inherited(std::move(__in._M_tail())),
@@ -233,31 +232,30 @@ namespace std
       tuple(const _Elements&... __elements)
       : _Inherited(__elements...) { }
 
-      template<typename... _UElements>
+      template<typename... _UElements, typename = typename
+	       std::enable_if<sizeof...(_UElements)
+			      == sizeof...(_Elements)>::type>
         explicit
         tuple(_UElements&&... __elements)
 	: _Inherited(std::forward<_UElements>(__elements)...) {	}
 
-      tuple(const tuple& __in)
-      : _Inherited(static_cast<const _Inherited&>(__in)) { }
+      tuple(const tuple&) = default;
 
       tuple(tuple&& __in)
       : _Inherited(static_cast<_Inherited&&>(__in)) { }
 
-      template<typename... _UElements>
+      template<typename... _UElements, typename = typename
+	       std::enable_if<sizeof...(_UElements)
+			      == sizeof...(_Elements)>::type>
         tuple(const tuple<_UElements...>& __in)
-	: _Inherited(static_cast<const _Tuple_impl<0, _UElements...>&>(__in))
-	{ }
+        : _Inherited(static_cast<const _Tuple_impl<0, _UElements...>&>(__in))
+        { }
 
-      template<typename... _UElements>
+      template<typename... _UElements, typename = typename
+	       std::enable_if<sizeof...(_UElements)
+			      == sizeof...(_Elements)>::type>
         tuple(tuple<_UElements...>&& __in)
-	: _Inherited(static_cast<_Tuple_impl<0, _UElements...>&&>(__in)) { }
-
-      // XXX http://gcc.gnu.org/ml/libstdc++/2008-02/msg00047.html
-      template<typename... _UElements>
-        tuple(tuple<_UElements...>& __in)
-	: _Inherited(static_cast<const _Tuple_impl<0, _UElements...>&>(__in))
-	{ }
+        : _Inherited(static_cast<_Tuple_impl<0, _UElements...>&&>(__in)) { }
 
       tuple&
       operator=(const tuple& __in)
@@ -273,7 +271,9 @@ namespace std
 	return *this;
       }
 
-      template<typename... _UElements>
+      template<typename... _UElements, typename = typename
+	       std::enable_if<sizeof...(_UElements)
+			      == sizeof...(_Elements)>::type>
         tuple&
         operator=(const tuple<_UElements...>& __in)
         {
@@ -281,7 +281,9 @@ namespace std
 	  return *this;
 	}
 
-      template<typename... _UElements>
+      template<typename... _UElements, typename = typename
+	       std::enable_if<sizeof...(_UElements)
+			      == sizeof...(_Elements)>::type>
         tuple&
         operator=(tuple<_UElements...>&& __in)
         {
@@ -293,7 +295,6 @@ namespace std
       swap(tuple& __in)
       { _Inherited::_M_swap_impl(__in); }
     };
-
 
   template<>  
     class tuple<>
@@ -321,8 +322,7 @@ namespace std
         tuple(_U1&& __a1, _U2&& __a2)
 	: _Inherited(std::forward<_U1>(__a1), std::forward<_U2>(__a2)) { }
 
-      tuple(const tuple& __in)
-      : _Inherited(static_cast<const _Inherited&>(__in)) { }
+      tuple(const tuple&) = default;
 
       tuple(tuple&& __in)
       : _Inherited(static_cast<_Inherited&&>(__in)) { }
@@ -341,7 +341,8 @@ namespace std
 
       template<typename _U1, typename _U2>
         tuple(pair<_U1, _U2>&& __in)
-	: _Inherited(std::move(__in.first), std::move(__in.second)) { }
+	: _Inherited(std::forward<_U1>(__in.first),
+		     std::forward<_U2>(__in.second)) { }
 
       tuple&
       operator=(const tuple& __in)
@@ -386,8 +387,8 @@ namespace std
         tuple&
         operator=(pair<_U1, _U2>&& __in)
         {
-	  this->_M_head() = std::move(__in.first);
-	  this->_M_tail()._M_head() = std::move(__in.second);
+	  this->_M_head() = std::forward<_U1>(__in.first);
+	  this->_M_tail()._M_head() = std::forward<_U2>(__in.second);
 	  return *this;
 	}
 
@@ -398,6 +399,74 @@ namespace std
 	swap(this->_M_head(), __in._M_head());
 	swap(this->_M_tail()._M_head(), __in._M_tail()._M_head());	
       }
+    };
+
+  /// tuple (1-element).
+  template<typename _T1>
+    class tuple<_T1> : public _Tuple_impl<0, _T1>
+    {
+      typedef _Tuple_impl<0, _T1> _Inherited;
+
+    public:
+      tuple()
+      : _Inherited() { }
+
+      explicit
+      tuple(const _T1& __a1)
+      : _Inherited(__a1) { }
+
+      template<typename _U1, typename = typename
+	       std::enable_if<std::is_convertible<_U1, _T1>::value>::type>
+        explicit
+        tuple(_U1&& __a1)
+	: _Inherited(std::forward<_U1>(__a1)) { }
+
+      tuple(const tuple&) = default;
+
+      tuple(tuple&& __in)
+      : _Inherited(static_cast<_Inherited&&>(__in)) { }
+
+      template<typename _U1>
+        tuple(const tuple<_U1>& __in)
+        : _Inherited(static_cast<const _Tuple_impl<0, _U1>&>(__in)) { }
+
+      template<typename _U1>
+        tuple(tuple<_U1>&& __in)
+	: _Inherited(static_cast<_Tuple_impl<0, _U1>&&>(__in)) { }
+
+      tuple&
+      operator=(const tuple& __in)
+      {
+	static_cast<_Inherited&>(*this) = __in;
+	return *this;
+      }
+
+      tuple&
+      operator=(tuple&& __in)
+      {
+	static_cast<_Inherited&>(*this) = std::move(__in);
+	return *this;
+      }
+
+      template<typename _U1>
+        tuple&
+        operator=(const tuple<_U1>& __in)
+        {
+	  static_cast<_Inherited&>(*this) = __in;
+	  return *this;
+	}
+
+      template<typename _U1>
+        tuple&
+        operator=(tuple<_U1>&& __in)
+        {
+	  static_cast<_Inherited&>(*this) = std::move(__in);
+	  return *this;
+	}
+
+      void
+      swap(tuple& __in)
+      { _Inherited::_M_swap_impl(__in); }
     };
 
 
@@ -550,6 +619,11 @@ namespace std
       return __result_type(std::forward<_Elements>(__args)...);
     }
 
+  template<typename... _Elements>
+    inline tuple<_Elements&&...>
+    forward_as_tuple(_Elements&&... __args)
+    { return tuple<_Elements&&...>(std::forward<_Elements>(__args)...); }
+
   template<std::size_t...> struct __index_holder { };    
 
   template<std::size_t __i, typename _IdxHolder, typename... _Elements>
@@ -668,16 +742,55 @@ namespace std
   struct _Swallow_assign
   {
     template<class _Tp>
-      _Swallow_assign&
-      operator=(const _Tp&)
+      const _Swallow_assign&
+      operator=(const _Tp&) const
       { return *this; }
   };
 
-  // TODO: Put this in some kind of shared file.
-  namespace
-  {
-    _Swallow_assign ignore;
-  }; // anonymous namespace
+  const _Swallow_assign ignore{};
+
+  /**
+   * Stores a tuple of indices. Used by bind() to extract the elements
+   * in a tuple. 
+   */
+  template<int... _Indexes>
+    struct _Index_tuple
+    {
+      typedef _Index_tuple<_Indexes..., sizeof...(_Indexes)> __next;
+    };
+
+  /// Builds an _Index_tuple<0, 1, 2, ..., _Num-1>.
+  template<std::size_t _Num>
+    struct _Build_index_tuple
+    {
+      typedef typename _Build_index_tuple<_Num-1>::__type::__next __type;
+    };
+
+  template<>
+    struct _Build_index_tuple<0>
+    {
+      typedef _Index_tuple<> __type;
+    };
+
+  // See stl_pair.h...
+  template<class _T1, class _T2>
+    template<typename _Tp, typename... _Args>
+      inline _Tp
+      pair<_T1, _T2>::
+      __cons(tuple<_Args...>&& __tuple)
+      {
+	typedef typename _Build_index_tuple<sizeof...(_Args)>::__type
+	  _Indexes;
+	return __do_cons<_Tp>(std::move(__tuple), _Indexes());
+      }
+
+  template<class _T1, class _T2>
+    template<typename _Tp, typename... _Args, int... _Indexes>
+      inline _Tp
+      pair<_T1, _T2>::
+      __do_cons(tuple<_Args...>&& __tuple,
+		const _Index_tuple<_Indexes...>&)
+      { return _Tp(std::forward<_Args>(get<_Indexes>(__tuple))...); }
 }
 
 #endif // __GXX_EXPERIMENTAL_CXX0X__

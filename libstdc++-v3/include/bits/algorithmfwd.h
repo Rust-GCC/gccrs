@@ -1,6 +1,6 @@
 // <algorithm> declarations  -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -111,6 +111,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     set_intersection
     set_symmetric_difference
     set_union
+    shuffle (C++0x)
     sort
     sort_heap
     stable_partition
@@ -133,22 +134,22 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    */
 
   /**
-   * @defgroup mutating_algorithms Mutating Algorithms
+   * @defgroup mutating_algorithms Mutating
    * @ingroup algorithms
    */
 
   /**
-   * @defgroup non_mutating_algorithms Non-Mutating Algorithms
+   * @defgroup non_mutating_algorithms Non-Mutating
    * @ingroup algorithms
    */
 
   /**
-   * @defgroup sorting_algorithms Sorting Algorithms
+   * @defgroup sorting_algorithms Sorting
    * @ingroup algorithms
    */
 
   /**
-   * @defgroup set_algorithms Set Operation Algorithms
+   * @defgroup set_algorithms Set Operation
    * @ingroup sorting_algorithms
    *
    * These algorithms are common set operations performed on sequences
@@ -157,7 +158,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    */
 
   /**
-   * @defgroup binary_search_algorithms Binary Search Algorithms
+   * @defgroup binary_search_algorithms Binary Search
    * @ingroup sorting_algorithms
    *
    * These algorithms are variations of a classic binary search, and
@@ -235,13 +236,6 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   template<typename _FIter, typename _Tp>
     void 
     fill(_FIter, _FIter, const _Tp&);
-
-/*
-  XXX NB: return type different from ISO C++.
-  template<typename _OIter, typename _Size, typename _Tp>
-    void 
-    fill_n(_OIter, _Size, const _Tp&);
-*/
 
   template<typename _OIter, typename _Size, typename _Tp>
     _OIter
@@ -524,6 +518,12 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   // set_symmetric_difference
   // set_union
 
+#if defined(__GXX_EXPERIMENTAL_CXX0X__) && defined(_GLIBCXX_USE_C99_STDINT_TR1)
+  template<typename _RAIter, typename _UGenerator>
+    void
+    shuffle(_RAIter, _RAIter, _UGenerator&&);
+#endif
+
   template<typename _RAIter>
     void 
     sort_heap(_RAIter, _RAIter);
@@ -620,13 +620,6 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
     void 
     generate(_FIter, _FIter, _Generator);
 
-/*
-  XXX NB: return type different from ISO C++.
-  template<typename _OIter, typename _Size, typename _Tp>
-    void
-    generate_n(_OIter, _Size, _Generator);
-*/
-
   template<typename _OIter, typename _Size, typename _Generator>
     _OIter
     generate_n(_OIter, _Size, _Generator);
@@ -698,7 +691,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
 
   template<typename _RAIter, typename _Generator>
     void 
-    random_shuffle(_RAIter, _RAIter, _Generator&);
+    random_shuffle(_RAIter, _RAIter,
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+		   _Generator&&);
+#else
+		   _Generator&);
+#endif
 
   template<typename _FIter, typename _Tp>
     void 

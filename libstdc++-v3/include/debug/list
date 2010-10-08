@@ -1,6 +1,6 @@
 // Debugging list implementation -*- C++ -*-
 
-// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -31,7 +31,6 @@
 #define _GLIBCXX_DEBUG_LIST 1
 
 #include <list>
-#include <bits/stl_algo.h>
 #include <debug/safe_sequence.h>
 #include <debug/safe_iterator.h>
 
@@ -39,6 +38,7 @@ namespace std
 {
 namespace __debug
 {
+  /// Class std::list with safety/checking/debug instrumentation.
   template<typename _Tp, typename _Allocator = std::allocator<_Tp> >
     class list
     : public _GLIBCXX_STD_D::list<_Tp, _Allocator>,
@@ -67,17 +67,31 @@ namespace __debug
       typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
       // 23.2.2.1 construct/copy/destroy:
-      explicit list(const _Allocator& __a = _Allocator())
+      explicit
+      list(const _Allocator& __a = _Allocator())
       : _Base(__a) { }
 
-      explicit list(size_type __n, const _Tp& __value = _Tp(),
-		    const _Allocator& __a = _Allocator())
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      explicit
+      list(size_type __n)
+      : _Base(__n) { }
+
+      list(size_type __n, const _Tp& __value,
+	   const _Allocator& __a = _Allocator())
       : _Base(__n, __value, __a) { }
+#else
+      explicit
+      list(size_type __n, const _Tp& __value = _Tp(),
+	   const _Allocator& __a = _Allocator())
+      : _Base(__n, __value, __a) { }
+#endif
 
       template<class _InputIterator>
       list(_InputIterator __first, _InputIterator __last,
 	   const _Allocator& __a = _Allocator())
-      : _Base(__gnu_debug::__check_valid_range(__first, __last), __last, __a)
+      : _Base(__gnu_debug::__base(__gnu_debug::__check_valid_range(__first,
+								   __last)),
+              __gnu_debug::__base(__last), __a)
       { }
 
 
@@ -89,7 +103,7 @@ namespace __debug
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       list(list&& __x)
-      : _Base(std::forward<list>(__x)), _Safe_base()
+      : _Base(std::move(__x)), _Safe_base()
       { this->_M_swap(__x); }
 
       list(initializer_list<value_type> __l,
@@ -111,10 +125,11 @@ namespace __debug
       list&
       operator=(list&& __x)
       {
-        // NB: DR 675.
+	// NB: DR 1204.
+	// NB: DR 675.
 	clear();
 	swap(__x);
-	return *this;
+      	return *this;
       }
 
       list&
@@ -138,7 +153,8 @@ namespace __debug
         assign(_InputIterator __first, _InputIterator __last)
         {
 	  __glibcxx_check_valid_range(__first, __last);
-	  _Base::assign(__first, __last);
+	  _Base::assign(__gnu_debug::__base(__first),
+			__gnu_debug::__base(__last));
 	  this->_M_invalidate_all();
 	}
 
@@ -207,6 +223,63 @@ namespace __debug
       using _Base::size;
       using _Base::max_size;
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      void
+      resize(size_type __sz)
+      {
+	this->_M_detach_singular();
+
+	// if __sz < size(), invalidate all iterators in [begin+__sz, end())
+	iterator __victim = begin();
+	iterator __end = end();
+	for (size_type __i = __sz; __victim != __end && __i > 0; --__i)
+	  ++__victim;
+
+	while (__victim != __end)
+	  {
+	    iterator __real_victim = __victim++;
+	    __real_victim._M_invalidate();
+	  }
+
+	__try
+	  {
+	    _Base::resize(__sz);
+	  }
+	__catch(...)
+	  {
+	    this->_M_revalidate_singular();
+	    __throw_exception_again;
+	  }
+      }
+
+      void
+      resize(size_type __sz, const _Tp& __c)
+      {
+	this->_M_detach_singular();
+
+	// if __sz < size(), invalidate all iterators in [begin+__sz, end())
+	iterator __victim = begin();
+	iterator __end = end();
+	for (size_type __i = __sz; __victim != __end && __i > 0; --__i)
+	  ++__victim;
+
+	while (__victim != __end)
+	  {
+	    iterator __real_victim = __victim++;
+	    __real_victim._M_invalidate();
+	  }
+
+	__try
+	  {
+	    _Base::resize(__sz, __c);
+	  }
+	__catch(...)
+	  {
+	    this->_M_revalidate_singular();
+	    __throw_exception_again;
+	  }
+      }
+#else
       void
       resize(size_type __sz, _Tp __c = _Tp())
       {
@@ -234,6 +307,7 @@ namespace __debug
 	    __throw_exception_again;
 	  }
       }
+#endif
 
       // element access:
       reference
@@ -340,7 +414,8 @@ namespace __debug
 	       _InputIterator __last)
         {
 	  __glibcxx_check_insert_range(__position, __first, __last);
-	  _Base::insert(__position.base(), __first, __last);
+	  _Base::insert(__position.base(), __gnu_debug::__base(__first),
+					   __gnu_debug::__base(__last));
 	}
 
       iterator
@@ -394,6 +469,12 @@ namespace __debug
 	this->splice(__position, _GLIBCXX_MOVE(__x), __x.begin(), __x.end());
       }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      void
+      splice(iterator __position, list& __x)
+      { splice(__position, std::move(__x)); }
+#endif
+
       void
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       splice(iterator __position, list&& __x, iterator __i)
@@ -419,6 +500,12 @@ namespace __debug
 	_Base::splice(__position.base(), _GLIBCXX_MOVE(__x._M_base()),
 		      __i.base());
       }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      void
+      splice(iterator __position, list& __x, iterator __i)
+      { splice(__position, std::move(__x), __i); }
+#endif
 
       void
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
@@ -455,6 +542,12 @@ namespace __debug
 	_Base::splice(__position.base(), _GLIBCXX_MOVE(__x._M_base()),
 		      __first.base(), __last.base());
       }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      void
+      splice(iterator __position, list& __x, iterator __first, iterator __last)
+      { splice(__position, std::move(__x), __first, __last); }
+#endif
 
       void
       remove(const _Tp& __value)
@@ -540,6 +633,12 @@ namespace __debug
 	  }
       }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      void
+      merge(list& __x)
+      { merge(std::move(__x)); }
+#endif
+
       template<class _Compare>
         void
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
@@ -564,6 +663,13 @@ namespace __debug
 	      _Base::merge(_GLIBCXX_MOVE(__x._M_base()), __comp);
 	    }
 	}
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      template<typename _Compare>
+        void
+        merge(list& __x, _Compare __comp)
+        { merge(std::move(__x), __comp); }
+#endif
 
       void
       sort() { _Base::sort(); }

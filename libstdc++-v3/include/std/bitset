@@ -1,6 +1,6 @@
 // <bitset> -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -45,7 +45,6 @@
 
 #pragma GCC system_header
 
-#include <cstddef>     // For size_t
 #include <string>
 #include <bits/functexcept.h>   // For invalid_argument, out_of_range,
                                 // overflow_error
@@ -54,8 +53,8 @@
 
 #define _GLIBCXX_BITSET_BITS_PER_WORD  (__CHAR_BIT__ * sizeof(unsigned long))
 #define _GLIBCXX_BITSET_WORDS(__n) \
- ((__n) < 1 ? 0 : ((__n) + _GLIBCXX_BITSET_BITS_PER_WORD - 1) \
-                  / _GLIBCXX_BITSET_BITS_PER_WORD)
+  ((__n) / _GLIBCXX_BITSET_BITS_PER_WORD + \
+   ((__n) % _GLIBCXX_BITSET_BITS_PER_WORD == 0 ? 0 : 1))
 
 _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
@@ -76,10 +75,18 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       _Base_bitset()
       { _M_do_reset(); }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      _Base_bitset(unsigned long long __val)
+#else
       _Base_bitset(unsigned long __val)
+#endif
       {
 	_M_do_reset();
 	_M_w[0] = __val;
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+	if (sizeof(unsigned long long) > sizeof(unsigned long))
+	  _M_w[1] = __val >> _GLIBCXX_BITSET_BITS_PER_WORD;
+#endif
       }
 
       static size_t
@@ -105,6 +112,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       _WordT
       _M_getword(size_t __pos) const
       { return _M_w[_S_whichword(__pos)]; }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      const _WordT*
+      _M_getdata() const
+      { return _M_w; }
+#endif
 
       _WordT&
       _M_hiword()
@@ -199,6 +212,11 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       unsigned long
       _M_do_to_ulong() const;
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      unsigned long long
+      _M_do_to_ullong() const;
+#endif
+
       // find first "on" bit
       size_t
       _M_do_find_first(size_t __not_found) const;
@@ -272,6 +290,23 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       return _M_w[0];
     }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  template<size_t _Nw>
+    unsigned long long
+    _Base_bitset<_Nw>::_M_do_to_ullong() const
+    {
+      const bool __dw = sizeof(unsigned long long) > sizeof(unsigned long);
+      for (size_t __i = 1 + __dw; __i < _Nw; ++__i)
+	if (_M_w[__i])
+	  __throw_overflow_error(__N("_Base_bitset::_M_do_to_ullong"));
+
+      if (__dw)
+	return _M_w[0] + (static_cast<unsigned long long>(_M_w[1])
+			  << _GLIBCXX_BITSET_BITS_PER_WORD);
+      return _M_w[0];
+    }
+#endif
+
   template<size_t _Nw>
     size_t
     _Base_bitset<_Nw>::_M_do_find_first(size_t __not_found) const
@@ -337,7 +372,11 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       : _M_w(0)
       { }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      _Base_bitset(unsigned long long __val)
+#else
       _Base_bitset(unsigned long __val)
+#endif
       : _M_w(__val)
       { }
 
@@ -364,6 +403,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       _WordT
       _M_getword(size_t) const
       { return _M_w; }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      const _WordT*
+      _M_getdata() const
+      { return &_M_w; }
+#endif
 
       _WordT&
       _M_hiword()
@@ -425,6 +470,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       _M_do_to_ulong() const
       { return _M_w; }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      unsigned long long
+      _M_do_to_ullong() const
+      { return _M_w; }
+#endif
+
       size_t
       _M_do_find_first(size_t __not_found) const
       {
@@ -463,7 +514,11 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       _Base_bitset()
       { }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      _Base_bitset(unsigned long long)
+#else
       _Base_bitset(unsigned long)
+#endif
       { }
 
       static size_t
@@ -555,6 +610,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       _M_do_to_ulong() const
       { return 0; }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      unsigned long long
+      _M_do_to_ullong() const
+      { return 0; }
+#endif
+
       // Normally "not found" is the size, but that could also be
       // misinterpreted as an index in this corner case.  Oh well.
       size_t
@@ -596,16 +657,17 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
    *  the high-order bits in the highest word.)  It is a class invariant
    *  that those unused bits are always zero.
    *
-   *  If you think of %bitset as "a simple array of bits," be aware that
-   *  your mental picture is reversed:  a %bitset behaves the same way as
-   *  bits in integers do, with the bit at index 0 in the "least significant
-   *  / right-hand" position, and the bit at index Nb-1 in the "most
-   *  significant / left-hand" position.  Thus, unlike other containers, a
-   *  %bitset's index "counts from right to left," to put it very loosely.
+   *  If you think of %bitset as <em>a simple array of bits</em>, be
+   *  aware that your mental picture is reversed: a %bitset behaves
+   *  the same way as bits in integers do, with the bit at index 0 in
+   *  the <em>least significant / right-hand</em> position, and the bit at
+   *  index Nb-1 in the <em>most significant / left-hand</em> position.
+   *  Thus, unlike other containers, a %bitset's index <em>counts from
+   *  right to left</em>, to put it very loosely.
    *
    *  This behavior is preserved when translating to and from strings.  For
    *  example, the first line of the following program probably prints
-   *  "b('a') is 0001100001" on a modern ASCII system.
+   *  <em>b(&apos;a&apos;) is 0001100001</em> on a modern ASCII system.
    *
    *  @code
    *     #include <bitset>
@@ -657,6 +719,10 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	    _S_do_sanitize(this->_M_hiword());
 	}
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      template<typename> friend class hash;
+#endif
+
     public:
       /**
        *  This encapsulates the concept of a single bit.  An instance of this
@@ -667,8 +733,8 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  to and from bool are automatic and should be transparent.  Overloaded
        *  operators help to preserve the illusion.
        *
-       *  (On a typical system, this "bit %reference" is 64 times the size of
-       *  an actual bit.  Ha.)
+       *  (On a typical system, this <em>bit %reference</em> is 64
+       *  times the size of an actual bit.  Ha.)
        */
       class reference
       {
@@ -737,18 +803,22 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       { }
 
       /// Initial bits bitwise-copied from a single word (others set to zero).
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      bitset(unsigned long long __val)
+#else
       bitset(unsigned long __val)
+#endif
       : _Base(__val)
       { _M_do_sanitize(); }
 
       /**
        *  @brief  Use a subset of a string.
-       *  @param  s  A string of '0' and '1' characters.
+       *  @param  s  A string of @a 0 and @a 1 characters.
        *  @param  position  Index of the first character in @a s to use;
        *                    defaults to zero.
        *  @throw  std::out_of_range  If @a pos is bigger the size of @a s.
        *  @throw  std::invalid_argument  If a character appears in the string
-       *                                 which is neither '0' nor '1'.
+       *                                 which is neither @a 0 nor @a 1.
        */
       template<class _CharT, class _Traits, class _Alloc>
 	explicit
@@ -766,12 +836,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Use a subset of a string.
-       *  @param  s  A string of '0' and '1' characters.
+       *  @param  s  A string of @a 0 and @a 1 characters.
        *  @param  position  Index of the first character in @a s to use.
        *  @param  n    The number of characters to copy.
        *  @throw  std::out_of_range  If @a pos is bigger the size of @a s.
        *  @throw  std::invalid_argument  If a character appears in the string
-       *                                 which is neither '0' nor '1'.
+       *                                 which is neither @a 0 nor @a 1.
        */
       template<class _CharT, class _Traits, class _Alloc>
 	bitset(const std::basic_string<_CharT, _Traits, _Alloc>& __s,
@@ -797,6 +867,26 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 				     "not valid"));
 	  _M_copy_from_string(__s, __position, __n, __zero, __one);
 	}
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      /**
+       *  @brief  Construct from a string.
+       *  @param  str  A string of @a 0 and @a 1 characters.
+       *  @throw  std::invalid_argument  If a character appears in the string
+       *                                 which is neither @a 0 nor @a 1.
+       */
+      explicit
+      bitset(const char* __str)
+      : _Base()
+      {
+	if (!__str)
+	  __throw_logic_error(__N("bitset::bitset(const char*)"));
+
+	const size_t __len = __builtin_strlen(__str);
+	_M_copy_from_ptr<char, std::char_traits<char>>(__str, __len, 0,
+						       __len, '0', '1');
+      }
+#endif
 
       // 23.3.5.2 bitset operations:
       //@{
@@ -989,7 +1079,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       /**
        *  @brief  Array-indexing support.
        *  @param  position  Index into the %bitset.
-       *  @return  A bool for a 'const %bitset'.  For non-const bitsets, an
+       *  @return  A bool for a <em>const %bitset</em>.  For non-const bitsets, an
        *           instance of the reference proxy class.
        *  @note  These operators do no range checking and throw no exceptions,
        *         as required by DR 11 to the standard.
@@ -1018,6 +1108,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       unsigned long
       to_ulong() const
       { return this->_M_do_to_ulong(); }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      unsigned long long
+      to_ullong() const
+      { return this->_M_do_to_ullong(); }
+#endif
 
       /**
        *  @brief Returns a character interpretation of the %bitset.
@@ -1297,7 +1393,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
    *  @brief Global I/O operators for bitsets.
    *
    *  Direct I/O between streams and bitsets is supported.  Output is
-   *  straightforward.  Input will skip whitespace, only accept '0' and '1'
+   *  straightforward.  Input will skip whitespace, only accept @a 0 and @a 1
    *  characters, and will only extract as many digits as the %bitset will
    *  hold.
   */
@@ -1388,6 +1484,39 @@ _GLIBCXX_END_NESTED_NAMESPACE
 
 #undef _GLIBCXX_BITSET_WORDS
 #undef _GLIBCXX_BITSET_BITS_PER_WORD
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+
+#include <bits/functional_hash.h>
+
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
+  // DR 1182.
+  /// std::hash specialization for bitset.
+  template<size_t _Nb>
+    struct hash<_GLIBCXX_STD_D::bitset<_Nb>>
+    : public __hash_base<size_t, _GLIBCXX_STD_D::bitset<_Nb>>
+    {
+      size_t
+      operator()(const _GLIBCXX_STD_D::bitset<_Nb>& __b) const
+      {
+	const size_t __clength = (_Nb + __CHAR_BIT__ - 1) / __CHAR_BIT__;
+	return std::_Hash_impl::hash(__b._M_getdata(), __clength);
+      }
+    };
+
+  template<>
+    struct hash<_GLIBCXX_STD_D::bitset<0>>
+    : public __hash_base<size_t, _GLIBCXX_STD_D::bitset<0>>
+    {
+      size_t
+      operator()(const _GLIBCXX_STD_D::bitset<0>&) const
+      { return 0; }
+    };
+
+_GLIBCXX_END_NAMESPACE
+
+#endif // __GXX_EXPERIMENTAL_CXX0X__
 
 #ifdef _GLIBCXX_DEBUG
 # include <debug/bitset>

@@ -1,6 +1,6 @@
-// std::hash definitions -*- C++ -*-
+// std::tr1::hash definitions -*- C++ -*-
 
-// Copyright (C) 2007, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,15 +22,37 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include <cstddef>
 #include <string>
-#include <cmath>
 #include <tr1/functional>
 
 namespace std
 {
   namespace tr1 
   {
-#include "hash.cc"
+#include "hash-long-double-aux.cc"
+
+#ifndef _GLIBCXX_LONG_DOUBLE_COMPAT_IMPL
+  template<>
+    size_t
+    hash<string>::operator()(string __s) const
+    { return _Fnv_hash::hash(__s.data(), __s.length()); }
+
+  template<>
+    size_t
+    hash<const string&>::operator()(const string& __s) const
+    { return _Fnv_hash::hash(__s.data(), __s.length()); }
+
+#ifdef _GLIBCXX_USE_WCHAR_T
+  template<>
+    size_t
+    hash<wstring>::operator()(wstring __s) const
+    { return _Fnv_hash::hash(__s.data(), __s.length() * sizeof(wchar_t)); }
+
+  template<>
+    size_t
+    hash<const wstring&>::operator()(const wstring& __s) const
+    { return _Fnv_hash::hash(__s.data(), __s.length() * sizeof(wchar_t)); }
+#endif
+#endif
   }
 }

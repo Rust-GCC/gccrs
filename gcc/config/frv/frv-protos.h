@@ -1,5 +1,5 @@
 /* Frv prototypes.
-   Copyright (C) 1999, 2000, 2001, 2003, 2004, 2005, 2007, 2008, 2009
+   Copyright (C) 1999, 2000, 2001, 2003, 2004, 2005, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Red Hat, Inc.
 
@@ -38,8 +38,6 @@ extern frv_cpu_t frv_cpu_type;			/* value of -mcpu= */
 /* Define functions defined in frv.c */
 extern void frv_expand_prologue			(void);
 extern void frv_expand_epilogue			(bool);
-extern void frv_override_options		(void);
-extern void frv_optimization_options		(int, int);
 extern void frv_conditional_register_usage	(void);
 extern frv_stack_t *frv_stack_info		(void);
 extern void frv_debug_stack			(frv_stack_t *);
@@ -73,8 +71,6 @@ extern rtx frv_index_memory			(rtx, enum machine_mode, int);
 extern const char *frv_asm_output_opcode
 				 	(FILE *, const char *);
 extern void frv_final_prescan_insn	(rtx, rtx *, int);
-extern void frv_print_operand		(FILE *, rtx, int);
-extern void frv_print_operand_address	(FILE *, rtx);
 extern void frv_emit_move		(enum machine_mode, rtx, rtx);
 extern int frv_emit_movsi		(rtx, rtx);
 extern const char *output_move_single	(rtx *, rtx);
@@ -104,7 +100,6 @@ extern int frv_trampoline_size		(void);
 extern enum reg_class frv_secondary_reload_class
 					(enum reg_class,
 					 enum machine_mode, rtx);
-extern int frv_class_likely_spilled_p	(enum reg_class rclass);
 extern int frv_hard_regno_mode_ok	(int, enum machine_mode);
 extern int frv_hard_regno_nregs		(int, enum machine_mode);
 extern int frv_class_max_nregs		(enum reg_class rclass,
@@ -114,7 +109,6 @@ extern enum machine_mode frv_select_cc_mode (enum rtx_code, rtx, rtx);
 #endif	/* RTX_CODE */
 
 extern int direct_return_p		(void);
-extern int frv_register_move_cost	(enum reg_class, enum reg_class);
 extern int frv_issue_rate		(void);
 extern int frv_acc_group		(rtx);
 

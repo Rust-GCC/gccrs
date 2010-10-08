@@ -1,9 +1,15 @@
-int
+#define DEBUG 0
+#if DEBUG
+#include <stdio.h>
+#endif
+
+int B[4];
+int A[4][4][4][4];
+
+static int __attribute__((noinline))
 foo (void)
 {
   int i, j, k, l;
-  int B[4];
-  int A[4][4][4][4];
 
   for (l = 0; l < 4; l++)
     {
@@ -37,9 +43,43 @@ foo (void)
 	}
     }
 
-  return A[0][1][0][2];
+  return A[0][1][0][2] + A[0][3][0][3] + A[0][2][0][2] + A[0][1][0][1] + A[3][3][0][2];
 }
 
-/* This should not be interchanged.  */
-/* { dg-final { scan-tree-dump-times "will be interchanged" 0 "graphite" } } */ 
+extern void abort ();
+
+int
+main (void)
+{
+  int i, j, k, l, res;
+
+  for (i = 0; i < 4; i++)
+    B[i] = 2;
+
+  for (i = 0; i < 4; i++)
+    for (j = 0; j < 4; j++)
+      for (k = 0; k < 4; k++)
+	for (l = 0; l < 4; l++)
+	  A[i][j][k][l] = i + j + k + l;
+
+  res = foo ();
+
+#if DEBUG
+  for (i = 0; i < 4; i++)
+    for (j = 0; j < 4; j++)
+      for (k = 0; k < 4; k++)
+	for (l = 0; l < 4; l++)
+	  fprintf (stderr, "A[%d][%d][%d][%d] = %d \n", i, j, k, l, A[i][j][k][l]);
+
+  fprintf (stderr, "res = %d \n", res);
+#endif
+
+  if (res != 424)
+    abort ();
+
+  return 0;
+}
+
+/* Loops K and L should be interchanged.  */
+/* { dg-final { scan-tree-dump-times "will be interchanged" 1 "graphite" { xfail *-*-* } } } */
 /* { dg-final { cleanup-tree-dump "graphite" } } */

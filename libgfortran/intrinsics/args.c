@@ -1,6 +1,7 @@
 /* Implementation of the GETARG and IARGC g77, and
    corresponding F2003, intrinsics. 
-   Copyright (C) 2004, 2005, 2007, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2005, 2007, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Bud Davis and Janne Blomqvist.
 
 This file is part of the GNU Fortran 95 runtime library (libgfortran).
@@ -147,11 +148,9 @@ get_command_argument_i4 (GFC_INTEGER_4 *number, char *value,
   if (value != NULL && stat_flag != GFC_GC_FAILURE)
     {
       if (arglen > value_len)
-       {
-	 arglen = value_len;
 	 stat_flag = GFC_GC_VALUE_TOO_SHORT;
-       }
-      memcpy (value, argv[*number], arglen);
+
+      memcpy (value, argv[*number], arglen <= value_len ? arglen : value_len);
     }
 
   if (length != NULL)

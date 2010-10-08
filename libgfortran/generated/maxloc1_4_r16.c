@@ -1,8 +1,8 @@
 /* Implementation of the MAXLOC intrinsic
-   Copyright 2002, 2007, 2009 Free Software Foundation, Inc.
+   Copyright 2002, 2007, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
@@ -174,6 +174,7 @@ maxloc1_4_r16 (gfc_array_i4 * const restrict retarray,
 		    result = (GFC_INTEGER_4)n + 1;
 		  }
 	      }
+	    
 	    *dest = result;
 	  }
       }
@@ -439,7 +440,6 @@ smaxloc1_4_r16 (gfc_array_i4 * const restrict retarray,
 {
   index_type count[GFC_MAX_DIMENSIONS];
   index_type extent[GFC_MAX_DIMENSIONS];
-  index_type sstride[GFC_MAX_DIMENSIONS];
   index_type dstride[GFC_MAX_DIMENSIONS];
   GFC_INTEGER_4 * restrict dest;
   index_type rank;
@@ -458,7 +458,6 @@ smaxloc1_4_r16 (gfc_array_i4 * const restrict retarray,
 
   for (n = 0; n < dim; n++)
     {
-      sstride[n] = GFC_DESCRIPTOR_STRIDE(array,n);
       extent[n] = GFC_DESCRIPTOR_EXTENT(array,n);
 
       if (extent[n] <= 0)
@@ -467,7 +466,6 @@ smaxloc1_4_r16 (gfc_array_i4 * const restrict retarray,
 
   for (n = dim; n < rank; n++)
     {
-      sstride[n] = GFC_DESCRIPTOR_STRIDE(array,n + 1);
       extent[n] =
 	GFC_DESCRIPTOR_EXTENT(array,n + 1);
 

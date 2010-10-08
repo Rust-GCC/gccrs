@@ -1,5 +1,5 @@
 /* Common block and equivalence list handling
-   Copyright (C) 2000, 2003, 2004, 2005, 2006, 2007, 2008
+   Copyright (C) 2000, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Canqun Yang <canqun@nudt.edu.cn>
 
@@ -96,11 +96,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "target.h"
-#include "tree.h"
-#include "toplev.h"
 #include "tm.h"
-#include "rtl.h"
+#include "tree.h"
+#include "toplev.h"	/* For exact_log2.  */
+#include "output.h"	/* For decl_default_tls_model.  */
 #include "gfortran.h"
 #include "trans.h"
 #include "trans-types.h"
@@ -399,8 +398,11 @@ build_common_decl (gfc_common_head *com, tree union_type, bool is_init)
 	  if (strcmp (com->name, BLANK_COMMON_NAME))
 	    gfc_warning ("Named COMMON block '%s' at %L shall be of the "
 			 "same size", com->name, &com->where);
+	  DECL_SIZE (decl) = TYPE_SIZE (union_type);
 	  DECL_SIZE_UNIT (decl) = size;
+	  DECL_MODE (decl) = TYPE_MODE (union_type);
 	  TREE_TYPE (decl) = union_type;
+	  layout_decl (decl, 0);
 	}
      }
 
@@ -430,7 +432,7 @@ build_common_decl (gfc_common_head *com, tree union_type, bool is_init)
 	     what C will do.  */
 	  tree field = NULL_TREE;
 	  field = TYPE_FIELDS (TREE_TYPE (decl));
-	  if (TREE_CHAIN (field) == NULL_TREE)
+	  if (DECL_CHAIN (field) == NULL_TREE)
 	    DECL_ALIGN (decl) = TYPE_ALIGN (TREE_TYPE (field));
 	}
       DECL_USER_ALIGN (decl) = 0;
@@ -606,7 +608,7 @@ create_common (gfc_common_head *com, segment_info *head, bool saw_equiv)
     {
       is_init = true;
       *field_link = field;
-      field_link = &TREE_CHAIN (field);
+      field_link = &DECL_CHAIN (field);
     }
 
   for (s = head; s; s = s->next)
@@ -615,7 +617,7 @@ create_common (gfc_common_head *com, segment_info *head, bool saw_equiv)
 
       /* Link the field into the type.  */
       *field_link = s->field;
-      field_link = &TREE_CHAIN (s->field);
+      field_link = &DECL_CHAIN (s->field);
 
       /* Has initial value.  */
       if (s->sym->value)
@@ -636,7 +638,6 @@ create_common (gfc_common_head *com, segment_info *head, bool saw_equiv)
   if (is_init)
     {
       tree ctor, tmp;
-      HOST_WIDE_INT offset = 0;
       VEC(constructor_elt,gc) *v = NULL;
 
       if (field != NULL_TREE && field_init != NULL_TREE)
@@ -648,11 +649,12 @@ create_common (gfc_common_head *com, segment_info *head, bool saw_equiv)
 	      {
 		/* Add the initializer for this field.  */
 		tmp = gfc_conv_initializer (s->sym->value, &s->sym->ts,
-		    TREE_TYPE (s->field), s->sym->attr.dimension,
-		    s->sym->attr.pointer || s->sym->attr.allocatable);
+					    TREE_TYPE (s->field),
+					    s->sym->attr.dimension,
+					    s->sym->attr.pointer
+					    || s->sym->attr.allocatable, false);
 
 		CONSTRUCTOR_APPEND_ELT (v, s->field, tmp);
-		offset = s->offset + s->length;
 	      }
 	  }
 
@@ -701,8 +703,9 @@ create_common (gfc_common_head *com, segment_info *head, bool saw_equiv)
 	gfc_add_decl_to_function (var_decl);
 
       SET_DECL_VALUE_EXPR (var_decl,
-			   fold_build3 (COMPONENT_REF, TREE_TYPE (s->field),
-					decl, s->field, NULL_TREE));
+			   fold_build3_loc (input_location, COMPONENT_REF,
+					    TREE_TYPE (s->field),
+					    decl, s->field, NULL_TREE));
       DECL_HAS_VALUE_EXPR_P (var_decl) = 1;
       GFC_DECL_COMMON_OR_EQUIV (var_decl) = 1;
 

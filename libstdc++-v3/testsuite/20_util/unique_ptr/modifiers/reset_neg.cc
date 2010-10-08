@@ -1,7 +1,7 @@
 // { dg-do compile }
 // { dg-options "-std=gnu++0x" }
 
-// Copyright (C) 2008, 2009 Free Software Foundation
+// Copyright (C) 2008, 2009, 2010 Free Software Foundation
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,8 +32,7 @@ struct B : A
 void test01()
 {
   std::unique_ptr<B[]> up;
-  up.reset(new A[3]);
+  up.reset(new A[3]);		// { dg-error "deleted" }
 }
 
-// { dg-error "used here" "" { target *-*-* } 35 } 
-// { dg-error "deleted function" "" { target *-*-* } 348 }
+// { dg-prune-output "include" }

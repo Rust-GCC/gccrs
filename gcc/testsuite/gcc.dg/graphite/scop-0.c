@@ -5,7 +5,7 @@ int toto()
 {
   /* Scop 1. */
   int i, j, k;
-  int a[100][100];
+  int a[201][100];
   int b[100];
   int N = foo ();
 
@@ -17,6 +17,6 @@ int toto()
   /* End scop 1. */
 }
 
-/* { dg-final { scan-tree-dump-times "number of SCoPs: 1" 1 "graphite"} } */ 
+/* { dg-final { scan-tree-dump-times "number of SCoPs: 1" 1 "graphite"} } */
 /* { dg-final { cleanup-tree-dump "graphite" } } */
 

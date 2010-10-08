@@ -9,10 +9,12 @@
 #include "rtl.h"
 #include "tree.h"
 #include "function.h"
-#include "c-pragma.h"
+#include "c-family/c-pragma.h"
 #include "cpplib.h"
 #include "tree-pass.h"
 #include "intl.h"
+#include "toplev.h"
+#include "diagnostic.h"
 
 int plugin_is_GPL_compatible;
 

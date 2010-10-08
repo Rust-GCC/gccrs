@@ -35,8 +35,6 @@ extern void   v850_init_expanders           (void);
 #ifdef RTX_CODE
 extern int    v850_output_addr_const_extra  (FILE *, rtx);
 extern rtx    v850_return_addr              (int);
-extern void   print_operand                 (FILE *, rtx, int );
-extern void   print_operand_address         (FILE *, rtx);
 extern const char *output_move_single       (rtx *);
 extern void   notice_update_cc              (rtx, rtx);
 extern char * construct_save_jarl           (rtx);
@@ -45,11 +43,13 @@ extern char * construct_restore_jr          (rtx);
 extern char * construct_dispose_instruction (rtx);
 extern char * construct_prepare_instruction (rtx);
 extern int    ep_memory_operand             (rtx, Mmode, int);
-#ifdef TREE_CODE
-extern rtx    function_arg                  (CUMULATIVE_ARGS *, Mmode, tree, int);
+extern int    v850_float_z_comparison_operator (rtx, Mmode);
+extern int    v850_float_nz_comparison_operator (rtx, Mmode);
+extern rtx    v850_gen_compare              (enum rtx_code, Mmode, rtx, rtx);
+extern Mmode  v850_gen_float_compare (enum rtx_code, Mmode, rtx, rtx);
+extern Mmode  v850_select_cc_mode (RTX_CODE, rtx, rtx);
 #endif
-#endif
-#endif /* TREE_CODE */
+#endif /* RTX_CODE */
 
 #ifdef TREE_CODE
 extern int    v850_interrupt_function_p     (tree);

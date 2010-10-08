@@ -6,7 +6,7 @@
 --                                                                          --
 --                                   S p e c                                --
 --                                                                          --
---            Copyright (C) 2008-2009, Free Software Foundation, Inc.       --
+--            Copyright (C) 2008-2010, Free Software Foundation, Inc.       --
 --                                                                          --
 -- GNARL is free software;  you can redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -39,6 +39,8 @@ package System.VxWorks.Ext is
    subtype SEM_ID is Long_Integer;
    --  typedef struct semaphore *SEM_ID;
 
+   type sigset_t is mod 2 ** Long_Long_Integer'Size;
+
    type t_id is new Long_Integer;
    subtype int is Interfaces.C.int;
 
@@ -58,6 +60,9 @@ package System.VxWorks.Ext is
       Handler   : Interrupt_Handler;
       Parameter : System.Address := System.Null_Address) return int;
    pragma Import (C, Interrupt_Connect, "intConnect");
+
+   function Interrupt_Context return int;
+   pragma Import (C, Interrupt_Context, "intContext");
 
    function Interrupt_Number_To_Vector
      (intNum : int) return Interrupt_Vector;

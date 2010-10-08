@@ -1,6 +1,6 @@
 // { dg-options "-std=gnu++0x" }
 
-// Copyright (C) 2007, 2009
+// Copyright (C) 2007, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -20,7 +20,6 @@
 
 #include <string>
 #include <system_error>
-#include <cstring>
 #include <testsuite_hooks.h>
 
 // test copy ctors, assignment operators, and persistence of member string data
@@ -32,6 +31,9 @@ void allocate_on_stack(void)
   __extension__ char array[num];
   for (size_t i = 0; i < num; i++) 
     array[i]=0;
+  // Suppress unused warnings.
+  for (size_t i = 0; i < num; i++) 
+    array[i]=array[i];
 }
 
 void test04()
@@ -49,7 +51,7 @@ void test04()
     obj1 = obj2;
   }
   allocate_on_stack();
-  VERIFY( std::strcmp(strlit1, obj1.what()) == 0 ); 
+  VERIFY( std::string(obj1.what()).find(strlit1) != std::string::npos ); 
 
   // block 02
   {
@@ -58,7 +60,7 @@ void test04()
     obj1 = obj3;
   }
   allocate_on_stack();     
-  VERIFY( std::strcmp(strlit2, obj1.what()) == 0 ); 
+  VERIFY( std::string(obj1.what()).find(strlit2) != std::string::npos ); 
 }
 
 int main(void)

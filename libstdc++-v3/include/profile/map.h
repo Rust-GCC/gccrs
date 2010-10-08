@@ -1,6 +1,6 @@
 // Profiling map implementation -*- C++ -*-
 
-// Copyright (C) 2009 Free Software Foundation, Inc.
+// Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -41,7 +41,7 @@ namespace std
 {
 namespace __profile
 {
-  /** @brief Map wrapper with performance instrumentation.  */
+  /// Class std::map wrapper with performance instrumentation.
   template<typename _Key, typename _Tp, typename _Compare = std::less<_Key>,
 	   typename _Allocator = std::allocator<std::pair<const _Key, _Tp> > >
     class map
@@ -71,33 +71,30 @@ namespace __profile
       using _Base::value_compare;
 
       // 23.3.1.1 construct/copy/destroy:
-      explicit map(const _Compare& __comp = _Compare(),
-		   const _Allocator& __a = _Allocator())
-      : _Base(__comp, __a) {
-          __profcxx_map_to_unordered_map_construct(this);
-      }
+      explicit
+      map(const _Compare& __comp = _Compare(),
+	  const _Allocator& __a = _Allocator())
+      : _Base(__comp, __a)
+      { __profcxx_map_to_unordered_map_construct(this); }
 
       template<typename _InputIterator>
         map(_InputIterator __first, _InputIterator __last,
 	    const _Compare& __comp = _Compare(),
 	    const _Allocator& __a = _Allocator())
-	: _Base(__first, __last, __comp, __a) {
-          __profcxx_map_to_unordered_map_construct(this);
-        }
+	: _Base(__first, __last, __comp, __a)
+        { __profcxx_map_to_unordered_map_construct(this); }
 
       map(const map& __x)
-      : _Base(__x) {
-          __profcxx_map_to_unordered_map_construct(this);
-      }
+      : _Base(__x)
+      { __profcxx_map_to_unordered_map_construct(this); }
 
       map(const _Base& __x)
-      : _Base(__x) {
-          __profcxx_map_to_unordered_map_construct(this);
-      }
+      : _Base(__x)
+      { __profcxx_map_to_unordered_map_construct(this); }
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       map(map&& __x)
-      : _Base(std::forward<map>(__x))
+      : _Base(std::move(__x))
       { }
 
       map(initializer_list<value_type> __l,
@@ -106,9 +103,8 @@ namespace __profile
       : _Base(__l, __c, __a) { }
 #endif
 
-      ~map() {
-          __profcxx_map_to_unordered_map_destruct(this);
-      }
+      ~map()
+      { __profcxx_map_to_unordered_map_destruct(this); }
 
       map&
       operator=(const map& __x)
@@ -121,7 +117,8 @@ namespace __profile
       map&
       operator=(map&& __x)
       {
-        // NB: DR 675.
+	// NB: DR 1204.
+	// NB: DR 675.
 	this->clear();
 	this->swap(__x);
 	return *this;
@@ -307,6 +304,17 @@ namespace __profile
 	}
       }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      iterator
+      erase(iterator __first, iterator __last)
+      {
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 151. can't currently clear() empty container
+	while (__first != __last)
+	  this->erase(__first++);
+	return __last;
+      }
+#else
       void
       erase(iterator __first, iterator __last)
       {
@@ -315,6 +323,7 @@ namespace __profile
 	while (__first != __last)
 	  this->erase(__first++);
       }
+#endif
 
       void
 

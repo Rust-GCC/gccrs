@@ -1,6 +1,6 @@
 /* Tree-dumping functionality for intermediate representation.
-   Copyright (C) 1999, 2000, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
-   Free Software Foundation, Inc.
+   Copyright (C) 1999, 2000, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
+   2010 Free Software Foundation, Inc.
    Written by Mark Mitchell <mark@codesourcery.com>
 
 This file is part of GCC.
@@ -25,14 +25,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "tree.h"
 #include "splay-tree.h"
-#include "diagnostic.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "tree-dump.h"
 #include "tree-pass.h"
 #include "langhooks.h"
 #include "tree-iterator.h"
-#include "real.h"
-#include "fixed-value.h"
 
 static unsigned int queue (dump_info_p, const_tree, int);
 static void dump_index (dump_info_p, unsigned int);
@@ -372,8 +370,8 @@ dequeue_and_dump (dump_info_p di)
       if (CODE_CONTAINS_STRUCT (TREE_CODE (t), TS_DECL_COMMON)
 	  && DECL_ARTIFICIAL (t))
 	dump_string_field (di, "note", "artificial");
-      if (TREE_CHAIN (t) && !dump_flag (di, TDF_SLIM, NULL))
-	dump_child ("chan", TREE_CHAIN (t));
+      if (DECL_CHAIN (t) && !dump_flag (di, TDF_SLIM, NULL))
+	dump_child ("chain", DECL_CHAIN (t));
     }
   else if (code_class == tcc_type)
     {
@@ -574,8 +572,6 @@ dequeue_and_dump (dump_info_p di)
     case TRUTH_NOT_EXPR:
     case ADDR_EXPR:
     case INDIRECT_REF:
-    case ALIGN_INDIRECT_REF:
-    case MISALIGNED_INDIRECT_REF:
     case CLEANUP_POINT_EXPR:
     case SAVE_EXPR:
     case REALPART_EXPR:
@@ -783,7 +779,8 @@ static struct dump_file_info dump_files[TDI_end] =
   {".gimple", "tree-gimple", NULL, TDF_TREE, 0, 4},
   {".nested", "tree-nested", NULL, TDF_TREE, 0, 5},
   {".vcg", "tree-vcg", NULL, TDF_TREE, 0, 6},
-#define FIRST_AUTO_NUMBERED_DUMP 7
+  {".ads", "ada-spec", NULL, 0, 0, 7},
+#define FIRST_AUTO_NUMBERED_DUMP 8
 
   {NULL, "tree-all", NULL, TDF_TREE, 0, 0},
   {NULL, "rtl-all", NULL, TDF_RTL, 0, 0},
@@ -821,9 +818,12 @@ static const struct dump_option_value_info dump_options[] =
   {"memsyms", TDF_MEMSYMS},
   {"verbose", TDF_VERBOSE},
   {"eh", TDF_EH},
-  {"all", ~(TDF_RAW | TDF_SLIM | TDF_LINENO | TDF_TREE | TDF_RTL | TDF_IPA 
+  {"alias", TDF_ALIAS},
+  {"nouid", TDF_NOUID},
+  {"enumerate_locals", TDF_ENUMERATE_LOCALS},
+  {"all", ~(TDF_RAW | TDF_SLIM | TDF_LINENO | TDF_TREE | TDF_RTL | TDF_IPA
 	    | TDF_STMTADDR | TDF_GRAPH | TDF_DIAGNOSTIC | TDF_VERBOSE
-	    | TDF_RHS_ONLY)},
+	    | TDF_RHS_ONLY | TDF_NOUID | TDF_ENUMERATE_LOCALS)},
   {NULL, 0}
 };
 
@@ -926,7 +926,7 @@ dump_begin (int phase, int *flag_ptr)
   dfi = get_dump_file_info (phase);
   stream = fopen (name, dfi->state < 0 ? "w" : "a");
   if (!stream)
-    error ("could not open dump file %qs: %s", name, strerror (errno));
+    error ("could not open dump file %qs: %m", name);
   else
     dfi->state = 1;
   free (name);
@@ -1025,7 +1025,7 @@ dump_switch_p_1 (const char *arg, struct dump_file_info *dfi, bool doglob)
   const char *option_value;
   const char *ptr;
   int flags;
-  
+
   if (doglob && !dfi->glob)
     return 0;
 
@@ -1092,7 +1092,7 @@ dump_switch_p (const char *arg)
 
   for (i = 0; i < extra_dump_files_in_use; i++)
     any |= dump_switch_p_1 (arg, &extra_dump_files[i], false);
-  
+
   if (!any)
     for (i = 0; i < extra_dump_files_in_use; i++)
       any |= dump_switch_p_1 (arg, &extra_dump_files[i], true);

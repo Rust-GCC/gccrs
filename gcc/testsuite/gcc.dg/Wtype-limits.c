@@ -1,6 +1,6 @@
 /* { dg-do compile } */
-/* { dg-excess-errors "short=int" { target { avr-*-* } } }  */
 /* { dg-options "-Wtype-limits" } */
+
 
 
 void a (unsigned char x)

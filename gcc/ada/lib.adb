@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -701,11 +701,10 @@ package body Lib is
       Mloc : constant Source_Ptr := Sloc (Cunit (Main_Unit));
 
    begin
-      --  If Mloc is not set, it means we are still parsing the main unit,
-      --  so everything so far is in the extended main source unit.
+      --  If parsing, then use the global flag to indicate result
 
-      if Mloc = No_Location then
-         return True;
+      if Compiler_State = Parsing then
+         return Parsing_Main_Extended_Source;
 
       --  Special value cases
 
@@ -741,11 +740,10 @@ package body Lib is
       Mloc : constant Source_Ptr := Sloc (Cunit (Main_Unit));
 
    begin
-      --  If Mloc is not set, it means we are still parsing the main unit,
-      --  so everything so far is in the extended main source unit.
+      --  If parsing, then use the global flag to indicate result
 
-      if Mloc = No_Location then
-         return True;
+      if Compiler_State = Parsing then
+         return Parsing_Main_Extended_Source;
 
       --  Special value cases
 
@@ -858,6 +856,7 @@ package body Lib is
    procedure Initialize is
    begin
       Linker_Option_Lines.Init;
+      Notes.Init;
       Load_Stack.Init;
       Units.Init;
       Compilation_Switches.Init;
@@ -984,10 +983,17 @@ package body Lib is
 
    procedure Store_Linker_Option_String (S : String_Id) is
    begin
-      Linker_Option_Lines.Increment_Last;
-      Linker_Option_Lines.Table (Linker_Option_Lines.Last) :=
-        (Option => S, Unit => Current_Sem_Unit);
+      Linker_Option_Lines.Append ((Option => S, Unit => Current_Sem_Unit));
    end Store_Linker_Option_String;
+
+   ----------------
+   -- Store_Note --
+   ----------------
+
+   procedure Store_Note (N : Node_Id) is
+   begin
+      Notes.Append ((Pragma_Node => N, Unit => Current_Sem_Unit));
+   end Store_Note;
 
    -------------------------------
    -- Synchronize_Serial_Number --

@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler.
    Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
-   2009
+   2009, 2010
    Free Software Foundation, Inc.
    Contributed by James E. Wilson <wilson@cygnus.com> and
 		  David Mosberger <davidm@hpl.hp.com>.
@@ -29,7 +29,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "output.h"
@@ -43,6 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "ggc.h"
 #include "basic-block.h"
 #include "libfuncs.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "sched-int.h"
 #include "timevar.h"
@@ -60,6 +60,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "dbgcnt.h"
 #include "tm-constrs.h"
 #include "sel-sched.h"
+#include "reload.h"
 
 /* This is used for communication between ASM_OUTPUT_LABEL and
    ASM_OUTPUT_LABELREF.  */
@@ -200,6 +201,8 @@ static rtx gen_movdi_x (rtx, rtx, rtx);
 static rtx gen_fr_spill_x (rtx, rtx, rtx);
 static rtx gen_fr_restore_x (rtx, rtx, rtx);
 
+static void ia64_option_override (void);
+static void ia64_option_optimization (int, int);
 static bool ia64_can_eliminate (const int, const int);
 static enum machine_mode hfa_element_mode (const_tree, bool);
 static void ia64_setup_incoming_varargs (CUMULATIVE_ARGS *, enum machine_mode,
@@ -208,6 +211,13 @@ static int ia64_arg_partial_bytes (CUMULATIVE_ARGS *, enum machine_mode,
 				   tree, bool);
 static bool ia64_function_ok_for_sibcall (tree, tree);
 static bool ia64_return_in_memory (const_tree, const_tree);
+static rtx ia64_function_value (const_tree, const_tree, bool);
+static rtx ia64_libcall_value (enum machine_mode, const_rtx);
+static bool ia64_function_value_regno_p (const unsigned int);
+static int ia64_register_move_cost (enum machine_mode, reg_class_t,
+                                    reg_class_t);
+static int ia64_memory_move_cost (enum machine_mode mode, reg_class_t,
+				  bool);
 static bool ia64_rtx_costs (rtx, int, int, int *, bool);
 static int ia64_unspec_may_trap_p (const_rtx, unsigned);
 static void fix_range (const char *);
@@ -220,7 +230,6 @@ static void emit_predicate_relation_info (void);
 static void ia64_reorg (void);
 static bool ia64_in_small_data_p (const_tree);
 static void process_epilogue (FILE *, rtx, bool, bool);
-static int process_set (FILE *, rtx, rtx, bool, bool);
 
 static bool ia64_assemble_integer (rtx, unsigned int, int);
 static void ia64_output_function_prologue (FILE *, HOST_WIDE_INT);
@@ -237,6 +246,13 @@ static int ia64_dfa_sched_reorder (FILE *, int, rtx *, int *, int, int);
 static int ia64_sched_reorder (FILE *, int, rtx *, int *, int);
 static int ia64_sched_reorder2 (FILE *, int, rtx *, int *, int);
 static int ia64_variable_issue (FILE *, int, rtx, int);
+
+static void ia64_asm_unwind_emit (FILE *, rtx);
+static void ia64_asm_emit_except_personality (rtx);
+static void ia64_asm_init_sections (void);
+
+static enum unwind_info_type ia64_debug_unwind_info (void);
+static enum unwind_info_type ia64_except_unwind_info (void);
 
 static struct bundle_state *get_free_bundle_state (void);
 static void free_bundle_state (struct bundle_state *);
@@ -304,6 +320,9 @@ static enum machine_mode ia64_promote_function_mode (const_tree,
 						     int);
 static void ia64_trampoline_init (rtx, tree, rtx);
 static void ia64_override_options_after_change (void);
+
+static void ia64_dwarf_handle_frame_unspec (const char *, rtx, int);
+static tree ia64_builtin_decl (unsigned, bool);
 
 /* Table of valid machine attributes.  */
 static const struct attribute_spec ia64_attribute_table[] =
@@ -329,6 +348,9 @@ static const struct attribute_spec ia64_attribute_table[] =
 #undef TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN ia64_expand_builtin
 
+#undef TARGET_BUILTIN_DECL
+#define TARGET_BUILTIN_DECL ia64_builtin_decl
+
 #undef TARGET_ASM_BYTE_OP
 #define TARGET_ASM_BYTE_OP "\tdata1\t"
 #undef TARGET_ASM_ALIGNED_HI_OP
@@ -345,6 +367,11 @@ static const struct attribute_spec ia64_attribute_table[] =
 #define TARGET_ASM_UNALIGNED_DI_OP "\tdata8.ua\t"
 #undef TARGET_ASM_INTEGER
 #define TARGET_ASM_INTEGER ia64_assemble_integer
+
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE ia64_option_override
+#undef TARGET_OPTION_OPTIMIZATION
+#define TARGET_OPTION_OPTIMIZATION ia64_option_optimization
 
 #undef TARGET_ASM_FUNCTION_PROLOGUE
 #define TARGET_ASM_FUNCTION_PROLOGUE ia64_output_function_prologue
@@ -452,6 +479,10 @@ static const struct attribute_spec ia64_attribute_table[] =
 #undef TARGET_ASM_GLOBALIZE_DECL_NAME
 #define TARGET_ASM_GLOBALIZE_DECL_NAME ia64_globalize_decl_name
 
+#undef TARGET_REGISTER_MOVE_COST
+#define TARGET_REGISTER_MOVE_COST ia64_register_move_cost
+#undef TARGET_MEMORY_MOVE_COST
+#define TARGET_MEMORY_MOVE_COST ia64_memory_move_cost
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS ia64_rtx_costs
 #undef TARGET_ADDRESS_COST
@@ -483,6 +514,13 @@ static const struct attribute_spec ia64_attribute_table[] =
 #define TARGET_PROMOTE_PROTOTYPES hook_bool_tree_true
 #endif
 
+#undef TARGET_FUNCTION_VALUE
+#define TARGET_FUNCTION_VALUE ia64_function_value
+#undef TARGET_LIBCALL_VALUE
+#define TARGET_LIBCALL_VALUE ia64_libcall_value
+#undef TARGET_FUNCTION_VALUE_REGNO_P
+#define TARGET_FUNCTION_VALUE_REGNO_P ia64_function_value_regno_p
+
 #undef TARGET_STRUCT_VALUE_RTX
 #define TARGET_STRUCT_VALUE_RTX ia64_struct_value_rtx
 #undef TARGET_RETURN_IN_MEMORY
@@ -497,8 +535,19 @@ static const struct attribute_spec ia64_attribute_table[] =
 #undef TARGET_GIMPLIFY_VA_ARG_EXPR
 #define TARGET_GIMPLIFY_VA_ARG_EXPR ia64_gimplify_va_arg
 
-#undef TARGET_UNWIND_EMIT
-#define TARGET_UNWIND_EMIT process_for_unwind_directive
+#undef TARGET_DWARF_HANDLE_FRAME_UNSPEC
+#define TARGET_DWARF_HANDLE_FRAME_UNSPEC  ia64_dwarf_handle_frame_unspec
+#undef TARGET_ASM_UNWIND_EMIT
+#define TARGET_ASM_UNWIND_EMIT ia64_asm_unwind_emit
+#undef TARGET_ASM_EMIT_EXCEPT_PERSONALITY
+#define TARGET_ASM_EMIT_EXCEPT_PERSONALITY  ia64_asm_emit_except_personality
+#undef TARGET_ASM_INIT_SECTIONS
+#define TARGET_ASM_INIT_SECTIONS  ia64_asm_init_sections
+
+#undef TARGET_DEBUG_UNWIND_INFO
+#define TARGET_DEBUG_UNWIND_INFO  ia64_debug_unwind_info
+#undef TARGET_EXCEPT_UNWIND_INFO
+#define TARGET_EXCEPT_UNWIND_INFO  ia64_except_unwind_info
 
 #undef TARGET_SCALAR_MODE_SUPPORTED_P
 #define TARGET_SCALAR_MODE_SUPPORTED_P ia64_scalar_mode_supported_p
@@ -536,6 +585,9 @@ static const struct attribute_spec ia64_attribute_table[] =
 
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT ia64_trampoline_init
+
+#undef TARGET_INVALID_WITHIN_DOLOOP
+#define TARGET_INVALID_WITHIN_DOLOOP hook_constcharptr_const_rtx_null
 
 #undef TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE
 #define TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE ia64_override_options_after_change
@@ -1733,25 +1785,18 @@ ia64_expand_vecint_compare (enum rtx_code code, enum machine_mode mode,
 	  {
 	    rtx t1, t2, mask;
 
-	    /* Perform a parallel modulo subtraction.  */
-	    t1 = gen_reg_rtx (V2SImode);
-	    emit_insn (gen_subv2si3 (t1, op0, op1));
-
-	    /* Extract the original sign bit of op0.  */
-	    mask = GEN_INT (-0x80000000);
+	    /* Subtract (-(INT MAX) - 1) from both operands to make
+	       them signed.  */
+	    mask = GEN_INT (0x80000000);
 	    mask = gen_rtx_CONST_VECTOR (V2SImode, gen_rtvec (2, mask, mask));
-	    mask = force_reg (V2SImode, mask);
-	    t2 = gen_reg_rtx (V2SImode);
-	    emit_insn (gen_andv2si3 (t2, op0, mask));
-
-	    /* XOR it back into the result of the subtraction.  This results
-	       in the sign bit set iff we saw unsigned underflow.  */
-	    x = gen_reg_rtx (V2SImode);
-	    emit_insn (gen_xorv2si3 (x, t1, t2));
-
+	    mask = force_reg (mode, mask);
+	    t1 = gen_reg_rtx (mode);
+	    emit_insn (gen_subv2si3 (t1, op0, mask));
+	    t2 = gen_reg_rtx (mode);
+	    emit_insn (gen_subv2si3 (t2, op1, mask));
+	    op0 = t1;
+	    op1 = t2;
 	    code = GT;
-	    op0 = x;
-	    op1 = CONST0_RTX (mode);
 	  }
 	  break;
 
@@ -2287,7 +2332,7 @@ ia64_file_start (void)
 {
   /* Variable tracking should be run after all optimizations which change order
      of insns.  It also needs a valid CFG.  This can't be done in
-     ia64_override_options, because flag_var_tracking is finalized after
+     ia64_option_override, because flag_var_tracking is finalized after
      that.  */
   ia64_flag_var_tracking = flag_var_tracking;
   flag_var_tracking = 0;
@@ -3005,7 +3050,7 @@ do_spill (rtx (*move_fn) (rtx, rtx, rtx), rtx reg, HOST_WIDE_INT cfa_off,
 	  off = current_frame_info.total_size - cfa_off;
 	}
 
-      add_reg_note (insn, REG_FRAME_RELATED_EXPR,
+      add_reg_note (insn, REG_CFA_OFFSET,
 		    gen_rtx_SET (VOIDmode,
 				 gen_rtx_MEM (GET_MODE (reg),
 					      plus_constant (base, off)),
@@ -3077,6 +3122,9 @@ ia64_expand_prologue (void)
 
   ia64_compute_frame_size (get_frame_size ());
   last_scratch_gr_reg = 15;
+
+  if (flag_stack_usage)
+    current_function_static_stack_size = current_frame_info.total_size;
 
   if (dump_file) 
     {
@@ -3186,6 +3234,10 @@ ia64_expand_prologue (void)
     {
       insn = emit_move_insn (hard_frame_pointer_rtx, stack_pointer_rtx);
       RTX_FRAME_RELATED_P (insn) = 1;
+
+      /* Force the unwind info to recognize this as defining a new CFA,
+	 rather than some temp register setup.  */
+      add_reg_note (insn, REG_CFA_ADJUST_CFA, NULL_RTX);
     }
 
   if (current_frame_info.total_size != 0)
@@ -3208,13 +3260,12 @@ ia64_expand_prologue (void)
       if (! frame_pointer_needed)
 	{
 	  RTX_FRAME_RELATED_P (insn) = 1;
-	  if (GET_CODE (offset) != CONST_INT)
-	    add_reg_note (insn, REG_FRAME_RELATED_EXPR,
-			  gen_rtx_SET (VOIDmode,
-				       stack_pointer_rtx,
-				       gen_rtx_PLUS (DImode,
-						     stack_pointer_rtx,
-						     frame_size_rtx)));
+	  add_reg_note (insn, REG_CFA_ADJUST_CFA,
+			gen_rtx_SET (VOIDmode,
+				     stack_pointer_rtx,
+				     gen_rtx_PLUS (DImode,
+						   stack_pointer_rtx,
+						   frame_size_rtx)));
 	}
 
       /* ??? At this point we must generate a magic insn that appears to
@@ -3242,7 +3293,11 @@ ia64_expand_prologue (void)
 
       reg = gen_rtx_REG (DImode, AR_UNAT_REGNUM);
       insn = emit_move_insn (ar_unat_save_reg, reg);
-      RTX_FRAME_RELATED_P (insn) = (current_frame_info.r[reg_save_ar_unat] != 0);
+      if (current_frame_info.r[reg_save_ar_unat])
+	{
+	  RTX_FRAME_RELATED_P (insn) = 1;
+	  add_reg_note (insn, REG_CFA_REGISTER, NULL_RTX);
+	}
 
       /* Even if we're not going to generate an epilogue, we still
 	 need to save the register so that EH works.  */
@@ -3281,8 +3336,7 @@ ia64_expand_prologue (void)
 	  /* ??? Denote pr spill/fill by a DImode move that modifies all
 	     64 hard registers.  */
 	  RTX_FRAME_RELATED_P (insn) = 1;
-	  add_reg_note (insn, REG_FRAME_RELATED_EXPR,
-			gen_rtx_SET (VOIDmode, alt_reg, reg));
+	  add_reg_note (insn, REG_CFA_REGISTER, NULL_RTX);
 
 	  /* Even if we're not going to generate an epilogue, we still
 	     need to save the register so that EH works.  */
@@ -3328,6 +3382,7 @@ ia64_expand_prologue (void)
 	  reg_emitted (reg_save_ar_lc);
 	  insn = emit_move_insn (alt_reg, reg);
 	  RTX_FRAME_RELATED_P (insn) = 1;
+	  add_reg_note (insn, REG_CFA_REGISTER, NULL_RTX);
 
 	  /* Even if we're not going to generate an epilogue, we still
 	     need to save the register so that EH works.  */
@@ -3354,6 +3409,7 @@ ia64_expand_prologue (void)
           reg_emitted (reg_save_b0);
 	  insn = emit_move_insn (alt_reg, reg);
 	  RTX_FRAME_RELATED_P (insn) = 1;
+	  add_reg_note (insn, REG_CFA_REGISTER, NULL_RTX);
 
 	  /* Even if we're not going to generate an epilogue, we still
 	     need to save the register so that EH works.  */
@@ -3416,6 +3472,29 @@ ia64_expand_prologue (void)
   gcc_assert (cfa_off == current_frame_info.spill_cfa_off);
 
   finish_spill_pointers ();
+}
+
+/* Output the textual info surrounding the prologue.  */
+
+void
+ia64_start_function (FILE *file, const char *fnname,
+		     tree decl ATTRIBUTE_UNUSED)
+{
+#if VMS_DEBUGGING_INFO
+  if (vms_debug_main
+      && strncmp (vms_debug_main, fnname, strlen (vms_debug_main)) == 0)
+    {
+      targetm.asm_out.globalize_label (asm_out_file, VMS_DEBUG_MAIN_POINTER);
+      ASM_OUTPUT_DEF (asm_out_file, VMS_DEBUG_MAIN_POINTER, fnname);
+      dwarf2out_vms_debug_main_pointer ();
+      vms_debug_main = 0;
+    }
+#endif
+
+  fputs ("\t.proc ", file);
+  assemble_name (file, fnname);
+  fputc ('\n', file);
+  ASM_OUTPUT_LABEL (file, fnname);
 }
 
 /* Called after register allocation to add any instructions needed for the
@@ -3621,6 +3700,7 @@ ia64_expand_epilogue (int sibcall_p)
     {
       insn = emit_move_insn (stack_pointer_rtx, hard_frame_pointer_rtx);
       RTX_FRAME_RELATED_P (insn) = 1;
+      add_reg_note (insn, REG_CFA_ADJUST_CFA, NULL);
     }
   else if (current_frame_info.total_size)
     {
@@ -3640,13 +3720,12 @@ ia64_expand_epilogue (int sibcall_p)
 				    offset));
 
       RTX_FRAME_RELATED_P (insn) = 1;
-      if (GET_CODE (offset) != CONST_INT)
-	add_reg_note (insn, REG_FRAME_RELATED_EXPR,
-		      gen_rtx_SET (VOIDmode,
-				   stack_pointer_rtx,
-				   gen_rtx_PLUS (DImode,
-						 stack_pointer_rtx,
-						 frame_size_rtx)));
+      add_reg_note (insn, REG_CFA_ADJUST_CFA,
+		    gen_rtx_SET (VOIDmode,
+				 stack_pointer_rtx,
+				 gen_rtx_PLUS (DImode,
+					       stack_pointer_rtx,
+					       frame_size_rtx)));
     }
 
   if (cfun->machine->ia64_eh_epilogue_bsp)
@@ -3657,11 +3736,12 @@ ia64_expand_epilogue (int sibcall_p)
   else
     {
       int fp = GR_REG (2);
-      /* We need a throw away register here, r0 and r1 are reserved, so r2 is the
-	 first available call clobbered register.  If there was a frame_pointer
-	 register, we may have swapped the names of r2 and HARD_FRAME_POINTER_REGNUM,
-	 so we have to make sure we're using the string "r2" when emitting
-	 the register name for the assembler.  */
+      /* We need a throw away register here, r0 and r1 are reserved,
+	 so r2 is the first available call clobbered register.  If
+	 there was a frame_pointer register, we may have swapped the
+	 names of r2 and HARD_FRAME_POINTER_REGNUM, so we have to make
+	 sure we're using the string "r2" when emitting the register
+	 name for the assembler.  */
       if (current_frame_info.r[reg_fp] 
           && current_frame_info.r[reg_fp] == GR_REG (2))
 	fp = HARD_FRAME_POINTER_REGNUM;
@@ -3835,7 +3915,7 @@ ia64_output_function_prologue (FILE *file, HOST_WIDE_INT size ATTRIBUTE_UNUSED)
 	     current_frame_info.n_output_regs,
 	     current_frame_info.n_rotate_regs);
 
-  if (!flag_unwind_tables && (!flag_exceptions || USING_SJLJ_EXCEPTIONS))
+  if (ia64_except_unwind_info () != UI_TARGET)
     return;
 
   /* Emit the .prologue directive.  */
@@ -3893,7 +3973,7 @@ ia64_output_function_prologue (FILE *file, HOST_WIDE_INT size ATTRIBUTE_UNUSED)
 static void
 ia64_output_function_end_prologue (FILE *file)
 {
-  if (!flag_unwind_tables && (!flag_exceptions || USING_SJLJ_EXCEPTIONS))
+  if (ia64_except_unwind_info () != UI_TARGET)
     return;
 
   fputs ("\t.body\n", file);
@@ -4118,7 +4198,7 @@ hfa_element_mode (const_tree type, bool nested)
     case RECORD_TYPE:
     case UNION_TYPE:
     case QUAL_UNION_TYPE:
-      for (t = TYPE_FIELDS (type); t; t = TREE_CHAIN (t))
+      for (t = TYPE_FIELDS (type); t; t = DECL_CHAIN (t))
 	{
 	  if (TREE_CODE (t) != FIELD_DECL)
 	    continue;
@@ -4642,13 +4722,20 @@ ia64_return_in_memory (const_tree valtype, const_tree fntype ATTRIBUTE_UNUSED)
 
 /* Return rtx for register that holds the function return value.  */
 
-rtx
-ia64_function_value (const_tree valtype, const_tree func)
+static rtx
+ia64_function_value (const_tree valtype,
+		     const_tree fn_decl_or_type,
+		     bool outgoing ATTRIBUTE_UNUSED)
 {
   enum machine_mode mode;
   enum machine_mode hfa_mode;
   int unsignedp;
+  const_tree func = fn_decl_or_type;
 
+  if (fn_decl_or_type
+      && !DECL_P (fn_decl_or_type))
+    func = NULL;
+  
   mode = TYPE_MODE (valtype);
   hfa_mode = hfa_element_mode (valtype, 0);
 
@@ -4724,6 +4811,28 @@ ia64_function_value (const_tree valtype, const_tree func)
 
       return gen_rtx_REG (mode, GR_RET_FIRST);
     }
+}
+
+/* Worker function for TARGET_LIBCALL_VALUE.  */
+
+static rtx
+ia64_libcall_value (enum machine_mode mode,
+		    const_rtx fun ATTRIBUTE_UNUSED)
+{
+  return gen_rtx_REG (mode,
+		      (((GET_MODE_CLASS (mode) == MODE_FLOAT
+			 || GET_MODE_CLASS (mode) == MODE_COMPLEX_FLOAT)
+			&& (mode) != TFmode)
+		       ? FR_RET_FIRST : GR_RET_FIRST));
+}
+
+/* Worker function for FUNCTION_VALUE_REGNO_P.  */
+
+static bool
+ia64_function_value_regno_p (const unsigned int regno)
+{
+  return ((regno >= GR_RET_FIRST && regno <= GR_RET_LAST)
+          || (regno >= FR_RET_FIRST && regno <= FR_RET_LAST));
 }
 
 /* This is called from dwarf2out.c via TARGET_ASM_OUTPUT_DWARF_DTPREL.
@@ -5145,10 +5254,13 @@ ia64_rtx_costs (rtx x, int code, int outer_code, int *total,
 /* Calculate the cost of moving data from a register in class FROM to
    one in class TO, using MODE.  */
 
-int
-ia64_register_move_cost (enum machine_mode mode, enum reg_class from,
-			 enum reg_class to)
+static int
+ia64_register_move_cost (enum machine_mode mode, reg_class_t from_i,
+			 reg_class_t to_i)
 {
+  enum reg_class from = (enum reg_class) from_i;
+  enum reg_class to = (enum reg_class) to_i;
+
   /* ADDL_REGS is the same as GR_REGS for movement purposes.  */
   if (to == ADDL_REGS)
     to = GR_REGS;
@@ -5165,12 +5277,12 @@ ia64_register_move_cost (enum machine_mode mode, enum reg_class from,
 
   /* Moving from FR<->GR in XFmode must be more expensive than 2,
      so that we get secondary memory reloads.  Between FR_REGS,
-     we have to make this at least as expensive as MEMORY_MOVE_COST
+     we have to make this at least as expensive as memory_move_cost
      to avoid spectacularly poor register class preferencing.  */
   if (mode == XFmode || mode == RFmode)
     {
       if (to != GR_REGS || from != GR_REGS)
-        return MEMORY_MOVE_COST (mode, to, 0);
+        return memory_move_cost (mode, to, false);
       else
 	return 3;
     }
@@ -5183,20 +5295,20 @@ ia64_register_move_cost (enum machine_mode mode, enum reg_class from,
 	return 3;
       /* Moving between PR and anything but GR is impossible.  */
       if (from != GR_REGS)
-	return MEMORY_MOVE_COST (mode, to, 0);
+	return memory_move_cost (mode, to, false);
       break;
 
     case BR_REGS:
       /* Moving between BR and anything but GR is impossible.  */
       if (from != GR_REGS && from != GR_AND_BR_REGS)
-	return MEMORY_MOVE_COST (mode, to, 0);
+	return memory_move_cost (mode, to, false);
       break;
 
     case AR_I_REGS:
     case AR_M_REGS:
       /* Moving between AR and anything but GR is impossible.  */
       if (from != GR_REGS)
-	return MEMORY_MOVE_COST (mode, to, 0);
+	return memory_move_cost (mode, to, false);
       break;
 
     case GR_REGS:
@@ -5212,6 +5324,23 @@ ia64_register_move_cost (enum machine_mode mode, enum reg_class from,
     }
 
   return 2;
+}
+
+/* Calculate the cost of moving data of MODE from a register to or from
+   memory.  */
+
+static int
+ia64_memory_move_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
+		       reg_class_t rclass,
+		       bool in ATTRIBUTE_UNUSED)
+{
+  if (rclass == GENERAL_REGS
+      || rclass == FR_REGS
+      || rclass == FP_REGS
+      || rclass == GR_AND_FR_REGS)
+    return 4;
+  else
+    return 10;
 }
 
 /* Implement PREFERRED_RELOAD_CLASS.  Place additional restrictions on RCLASS
@@ -5435,8 +5564,6 @@ fix_range (const char *const_str)
 static bool
 ia64_handle_option (size_t code, const char *arg, int value)
 {
-  static bool warned_itanium1_deprecated;
-
   switch (code)
     {
     case OPT_mfixed_range_:
@@ -5457,9 +5584,6 @@ ia64_handle_option (size_t code, const char *arg, int value)
 	  }
 	const processor_alias_table[] =
 	  {
-	    {"itanium", PROCESSOR_ITANIUM},
-	    {"itanium1", PROCESSOR_ITANIUM},
-	    {"merced", PROCESSOR_ITANIUM},
 	    {"itanium2", PROCESSOR_ITANIUM2},
 	    {"mckinley", PROCESSOR_ITANIUM2},
 	  };
@@ -5470,16 +5594,6 @@ ia64_handle_option (size_t code, const char *arg, int value)
 	  if (!strcmp (arg, processor_alias_table[i].name))
 	    {
 	      ia64_tune = processor_alias_table[i].processor;
-	      if (ia64_tune == PROCESSOR_ITANIUM
-		  && ! warned_itanium1_deprecated)
-		{
-		  inform (0,
-			  "value %<%s%> for -mtune= switch is deprecated",
-			  arg);
-		  inform (0, "GCC 4.4 is the last release with "
-			  "Itanium1 tuning support");
-		  warned_itanium1_deprecated = true;
-		}
 	      break;
 	    }
 	if (i == pta_size)
@@ -5492,10 +5606,10 @@ ia64_handle_option (size_t code, const char *arg, int value)
     }
 }
 
-/* Implement OVERRIDE_OPTIONS.  */
+/* Implement TARGET_OPTION_OVERRIDE.  */
 
-void
-ia64_override_options (void)
+static void
+ia64_option_override (void)
 {
   if (TARGET_AUTO_PIC)
     target_flags |= MASK_CONST_GP;
@@ -5508,7 +5622,9 @@ ia64_override_options (void)
     flag_ira_loop_pressure = 1;
 
 
-  ia64_section_threshold = g_switch_set ? g_switch_value : IA64_DEFAULT_GVALUE;
+  ia64_section_threshold = (global_options_set.x_g_switch_value
+			    ? g_switch_value
+			    : IA64_DEFAULT_GVALUE);
 
   init_machine_status = ia64_init_machine_status;
 
@@ -5531,7 +5647,8 @@ ia64_override_options_after_change (void)
   flag_schedule_insns_after_reload = 0;
 
   if (optimize >= 3
-      && ! sel_sched_switch_set)
+      && !global_options_set.x_flag_selective_scheduling
+      && !global_options_set.x_flag_selective_scheduling2)
     {
       flag_selective_scheduling2 = 1;
       flag_sel_sched_pipelining = 1;
@@ -5560,7 +5677,7 @@ void ia64_init_expanders (void)
 static struct machine_function *
 ia64_init_machine_status (void)
 {
-  return GGC_CNEW (struct machine_function);
+  return ggc_alloc_cleared_machine_function ();
 }
 
 static enum attr_itanium_class ia64_safe_itanium_class (rtx);
@@ -6619,17 +6736,6 @@ static int stop_before_p = 0;
 
 static int clocks_length;
 
-/* The following array element values are cycles on which the
-   corresponding insn will be issued.  The array is used only for
-   Itanium1.  */
-
-static int *clocks;
-
-/* The following array element values are numbers of cycles should be
-   added to improve insn scheduling for MM_insns for Itanium1.  */
-
-static int *add_cycles;
-
 /* The following variable value is number of data speculations in progress.  */
 static int pending_data_specs = 0;
 
@@ -7003,8 +7109,6 @@ ia64_sched_reorder2 (FILE *dump ATTRIBUTE_UNUSED,
 		     int sched_verbose ATTRIBUTE_UNUSED, rtx *ready,
 		     int *pn_ready, int clock_var)
 {
-  if (ia64_tune == PROCESSOR_ITANIUM && reload_completed && last_scheduled_insn)
-    clocks [INSN_UID (last_scheduled_insn)] = clock_var;
   return ia64_dfa_sched_reorder (dump, sched_verbose, ready, pn_ready,
 				 clock_var, 1);
 }
@@ -7110,8 +7214,6 @@ static int
 ia64_dfa_new_cycle (FILE *dump, int verbose, rtx insn, int last_clock,
 		    int clock, int *sort_p)
 {
-  int setup_clocks_p = FALSE;
-
   gcc_assert (insn && INSN_P (insn));
 
   if (DEBUG_INSN_P (insn))
@@ -7153,8 +7255,6 @@ ia64_dfa_new_cycle (FILE *dump, int verbose, rtx insn, int last_clock,
 	    *sort_p = 0;
 	  return 1;
 	}
-      else if (reload_completed)
-	setup_clocks_p = TRUE;
 
       if (last_scheduled_insn)
 	{
@@ -7170,40 +7270,6 @@ ia64_dfa_new_cycle (FILE *dump, int verbose, rtx insn, int last_clock,
 	    }
 	}
     }
-  else if (reload_completed)
-    setup_clocks_p = TRUE;
-
-  if (setup_clocks_p && ia64_tune == PROCESSOR_ITANIUM
-      && GET_CODE (PATTERN (insn)) != ASM_INPUT
-      && asm_noperands (PATTERN (insn)) < 0)
-    {
-      enum attr_itanium_class c = ia64_safe_itanium_class (insn);
-
-      if (c != ITANIUM_CLASS_MMMUL && c != ITANIUM_CLASS_MMSHF)
-	{
-	  sd_iterator_def sd_it;
-	  dep_t dep;
-	  int d = -1;
-
-	  FOR_EACH_DEP (insn, SD_LIST_BACK, sd_it, dep)
-	    if (DEP_TYPE (dep) == REG_DEP_TRUE)
-	      {
-		enum attr_itanium_class dep_class;
-		rtx dep_insn = DEP_PRO (dep);
-
-		dep_class = ia64_safe_itanium_class (dep_insn);
-		if ((dep_class == ITANIUM_CLASS_MMMUL
-		     || dep_class == ITANIUM_CLASS_MMSHF)
-		    && last_clock - clocks [INSN_UID (dep_insn)] < 4
-		    && (d < 0
-			|| last_clock - clocks [INSN_UID (dep_insn)] < d))
-		  d = last_clock - clocks [INSN_UID (dep_insn)];
-	      }
-	  if (d >= 0)
-	    add_cycles [INSN_UID (insn)] = 3 - d;
-	}
-    }
-
   return 0;
 }
 
@@ -7215,17 +7281,7 @@ ia64_h_i_d_extended (void)
   if (stops_p != NULL) 
     {
       int new_clocks_length = get_max_uid () * 3 / 2;
-      
       stops_p = (char *) xrecalloc (stops_p, new_clocks_length, clocks_length, 1);
-      
-      if (ia64_tune == PROCESSOR_ITANIUM)
-	{
-	  clocks = (int *) xrecalloc (clocks, new_clocks_length, clocks_length,
-				      sizeof (int));
-	  add_cycles = (int *) xrecalloc (add_cycles, new_clocks_length,
-					  clocks_length, sizeof (int));
-	}
-      
       clocks_length = new_clocks_length;
     }
 }
@@ -8512,7 +8568,7 @@ ia64_add_bundle_selector_before (int template0, rtx insn)
   ia64_emit_insn_before (b, insn);
 #if NR_BUNDLES == 10
   if ((template0 == 4 || template0 == 5)
-      && (flag_unwind_tables || (flag_exceptions && !USING_SJLJ_EXCEPTIONS)))
+      && ia64_except_unwind_info () == UI_TARGET)
     {
       int i;
       rtx note = NULL_RTX;
@@ -8582,9 +8638,7 @@ ia64_add_bundle_selector_before (int template0, rtx insn)
    automaton state for each insn in chosen bundle states.
 
    So the algorithm makes two (forward and backward) passes through
-   EBB.  There is an additional forward pass through EBB for Itanium1
-   processor.  This pass inserts more nops to make dependency between
-   a producer insn and MMMUL/MMSHF at least 4 cycles long.  */
+   EBB.  */
 
 static void
 bundling (FILE *dump, int verbose, rtx prev_head_insn, rtx tail)
@@ -8683,14 +8737,7 @@ bundling (FILE *dump, int verbose, rtx prev_head_insn, rtx tail)
 	       || (GET_MODE (next_insn) == TImode
 		   && INSN_CODE (insn) != CODE_FOR_insn_group_barrier));
 	  if (type == TYPE_F || type == TYPE_B || type == TYPE_L
-	      || type == TYPE_S
-	      /* We need to insert 2 nops for cases like M_MII.  To
-		 guarantee issuing all insns on the same cycle for
-		 Itanium 1, we need to issue 2 nops after the first M
-		 insn (MnnMII where n is a nop insn).  */
-	      || ((type == TYPE_M || type == TYPE_A)
-		  && ia64_tune == PROCESSOR_ITANIUM
-		  && !bundle_end_p && pos == 1))
+	      || type == TYPE_S)
 	    issue_nops_and_insn (curr_state, 2, insn, bundle_end_p,
 				 only_bundle_end_p);
 	  issue_nops_and_insn (curr_state, 1, insn, bundle_end_p,
@@ -8726,9 +8773,7 @@ bundling (FILE *dump, int verbose, rtx prev_head_insn, rtx tail)
 	       curr_state->before_nops_num, curr_state->after_nops_num,
 	       curr_state->accumulated_insns_num, curr_state->branch_deviation,
 	       curr_state->middle_bundle_stops,
-	       (ia64_tune == PROCESSOR_ITANIUM
-		? ((struct DFA_chip *) curr_state->dfa_state)->oneb_automaton_state
-		: ((struct DFA_chip *) curr_state->dfa_state)->twob_automaton_state),
+	       ((struct DFA_chip *) curr_state->dfa_state)->twob_automaton_state,
 	       INSN_UID (insn));
 	  }
     }
@@ -8791,9 +8836,7 @@ bundling (FILE *dump, int verbose, rtx prev_head_insn, rtx tail)
 	     curr_state->before_nops_num, curr_state->after_nops_num,
 	     curr_state->accumulated_insns_num, curr_state->branch_deviation,
 	     curr_state->middle_bundle_stops,
-	     (ia64_tune == PROCESSOR_ITANIUM
-	      ? ((struct DFA_chip *) curr_state->dfa_state)->oneb_automaton_state
-	      : ((struct DFA_chip *) curr_state->dfa_state)->twob_automaton_state),
+	     ((struct DFA_chip *) curr_state->dfa_state)->twob_automaton_state,
 	     INSN_UID (insn));
 	}
       /* Find the position in the current bundle window.  The window can
@@ -8892,103 +8935,6 @@ bundling (FILE *dump, int verbose, rtx prev_head_insn, rtx tail)
 	    }
 	}
     }
-  if (ia64_tune == PROCESSOR_ITANIUM)
-    /* Insert additional cycles for MM-insns (MMMUL and MMSHF).
-       Itanium1 has a strange design, if the distance between an insn
-       and dependent MM-insn is less 4 then we have a 6 additional
-       cycles stall.  So we make the distance equal to 4 cycles if it
-       is less.  */
-    for (insn = get_next_important_insn (NEXT_INSN (prev_head_insn), tail);
-	 insn != NULL_RTX;
-	 insn = next_insn)
-      {
-	gcc_assert (INSN_P (insn)
-		    && ia64_safe_itanium_class (insn) != ITANIUM_CLASS_IGNORE
-		    && GET_CODE (PATTERN (insn)) != USE
-		    && GET_CODE (PATTERN (insn)) != CLOBBER);
-	next_insn = get_next_important_insn (NEXT_INSN (insn), tail);
-	if (INSN_UID (insn) < clocks_length && add_cycles [INSN_UID (insn)])
-	  /* We found a MM-insn which needs additional cycles.  */
-	  {
-	    rtx last;
-	    int i, j, n;
-	    int pred_stop_p;
-
-	    /* Now we are searching for a template of the bundle in
-	       which the MM-insn is placed and the position of the
-	       insn in the bundle (0, 1, 2).  Also we are searching
-	       for that there is a stop before the insn.  */
-	    last = prev_active_insn (insn);
-	    pred_stop_p = recog_memoized (last) == CODE_FOR_insn_group_barrier;
-	    if (pred_stop_p)
-	      last = prev_active_insn (last);
-	    n = 0;
-	    for (;; last = prev_active_insn (last))
-	      if (recog_memoized (last) == CODE_FOR_bundle_selector)
-		{
-		  template0 = XINT (XVECEXP (PATTERN (last), 0, 0), 0);
-		  if (template0 == 9)
-		    /* The insn is in MLX bundle.  Change the template
-		       onto MFI because we will add nops before the
-		       insn.  It simplifies subsequent code a lot.  */
-		    PATTERN (last)
-		      = gen_bundle_selector (const2_rtx); /* -> MFI */
-		  break;
-		}
-	      else if (recog_memoized (last) != CODE_FOR_insn_group_barrier
-		       && (ia64_safe_itanium_class (last)
-			   != ITANIUM_CLASS_IGNORE))
-		n++;
-	    /* Some check of correctness: the stop is not at the
-	       bundle start, there are no more 3 insns in the bundle,
-	       and the MM-insn is not at the start of bundle with
-	       template MLX.  */
-	    gcc_assert ((!pred_stop_p || n)
-			&& n <= 2
-			&& (template0 != 9 || !n));
-	    /* Put nops after the insn in the bundle.  */
-	    for (j = 3 - n; j > 0; j --)
-	      ia64_emit_insn_before (gen_nop (), insn);
-	    /* It takes into account that we will add more N nops
-	       before the insn lately -- please see code below.  */
-	    add_cycles [INSN_UID (insn)]--;
-	    if (!pred_stop_p || add_cycles [INSN_UID (insn)])
-	      ia64_emit_insn_before (gen_insn_group_barrier (GEN_INT (3)),
-				     insn);
-	    if (pred_stop_p)
-	      add_cycles [INSN_UID (insn)]--;
-	    for (i = add_cycles [INSN_UID (insn)]; i > 0; i--)
-	      {
-		/* Insert "MII;" template.  */
-		ia64_emit_insn_before (gen_bundle_selector (const0_rtx),
-				       insn);
-		ia64_emit_insn_before (gen_nop (), insn);
-		ia64_emit_insn_before (gen_nop (), insn);
-		if (i > 1)
-		  {
-		    /* To decrease code size, we use "MI;I;"
-		       template.  */
-		    ia64_emit_insn_before
-		      (gen_insn_group_barrier (GEN_INT (3)), insn);
-		    i--;
-		  }
-		ia64_emit_insn_before (gen_nop (), insn);
-		ia64_emit_insn_before (gen_insn_group_barrier (GEN_INT (3)),
-				       insn);
-	      }
-	    /* Put the MM-insn in the same slot of a bundle with the
-	       same template as the original one.  */
-	    ia64_add_bundle_selector_before (template0, insn);
-	    /* To put the insn in the same slot, add necessary number
-	       of nops.  */
-	    for (j = n; j > 0; j --)
-	      ia64_emit_insn_before (gen_nop (), insn);
-	    /* Put the stop if the original bundle had it.  */
-	    if (pred_stop_p)
-	      ia64_emit_insn_before (gen_insn_group_barrier (GEN_INT (3)),
-				     insn);
-	  }
-      }
 
 #ifdef ENABLE_CHECKING
   {
@@ -9078,7 +9024,6 @@ final_emit_insn_group_barriers (FILE *dump ATTRIBUTE_UNUSED)
   rtx insn;
   int need_barrier_p = 0;
   int seen_good_insn = 0;
-  rtx prev_insn = NULL_RTX;
 
   init_insn_group_barriers ();
 
@@ -9101,7 +9046,6 @@ final_emit_insn_group_barriers (FILE *dump ATTRIBUTE_UNUSED)
 	  init_insn_group_barriers ();
 	  seen_good_insn = 0;
 	  need_barrier_p = 0;
-	  prev_insn = NULL_RTX;
 	}
       else if (NONDEBUG_INSN_P (insn))
 	{
@@ -9110,7 +9054,6 @@ final_emit_insn_group_barriers (FILE *dump ATTRIBUTE_UNUSED)
 	      init_insn_group_barriers ();
 	      seen_good_insn = 0;
 	      need_barrier_p = 0;
-	      prev_insn = NULL_RTX;
 	    }
 	  else if (need_barrier_p || group_barrier_needed (insn)
 		   || (mflag_sched_stop_bits_after_every_cycle
@@ -9157,14 +9100,10 @@ final_emit_insn_group_barriers (FILE *dump ATTRIBUTE_UNUSED)
 	      if (recog_memoized (insn) >= 0
 		  && important_for_bundling_p (insn))
 		seen_good_insn = 1;
-	      prev_insn = NULL_RTX;
 	    }
 	  else if (recog_memoized (insn) >= 0
 		   && important_for_bundling_p (insn))
-	    {
-	      prev_insn = insn;
-	      seen_good_insn = 1;
-	    }
+	    seen_good_insn = 1;
 	  need_barrier_p = (GET_CODE (insn) == CALL_INSN
 			    || GET_CODE (PATTERN (insn)) == ASM_INPUT
 			    || asm_noperands (PATTERN (insn)) >= 0);
@@ -9383,11 +9322,7 @@ ia64_reorg (void)
       recog_memoized (ia64_nop);
       clocks_length = get_max_uid () + 1;
       stops_p = XCNEWVEC (char, clocks_length);
-      if (ia64_tune == PROCESSOR_ITANIUM)
-	{
-	  clocks = XCNEWVEC (int, clocks_length);
-	  add_cycles = XCNEWVEC (int, clocks_length);
-	}
+
       if (ia64_tune == PROCESSOR_ITANIUM2)
 	{
 	  pos_1 = get_cpu_unit_code ("2_1");
@@ -9459,11 +9394,6 @@ ia64_reorg (void)
       /* We cannot reuse this one because it has been corrupted by the
 	 evil glat.  */
       finish_bundle_states ();
-      if (ia64_tune == PROCESSOR_ITANIUM)
-	{
-	  free (add_cycles);
-	  free (clocks);
-	}
       free (stops_p);
       stops_p = NULL;
       emit_insn_group_barriers (dump_file);
@@ -9479,7 +9409,7 @@ ia64_reorg (void)
   /* A call must not be the last instruction in a function, so that the
      return address is still within the function, so that unwinding works
      properly.  Note that IA-64 differs from dwarf2 on this point.  */
-  if (flag_unwind_tables || (flag_exceptions && !USING_SJLJ_EXCEPTIONS))
+  if (ia64_except_unwind_info () == UI_TARGET)
     {
       rtx insn;
       int saw_stop = 0;
@@ -9682,6 +9612,17 @@ ia64_dwarf2out_def_steady_cfa (rtx insn, bool frame)
      + ARG_POINTER_CFA_OFFSET (current_function_decl));
 }
 
+/* All we need to do here is avoid a crash in the generic dwarf2
+   processing.  The real CFA definition is set up above.  */
+
+static void
+ia64_dwarf_handle_frame_unspec (const char * ARG_UNUSED (label),
+				rtx ARG_UNUSED (pattern),
+				int index)
+{
+  gcc_assert (index == UNSPECV_ALLOC);
+}
+
 /* The generic dwarf2 frame debug info generator does not define a
    separate region for the very end of the epilogue, so refrain from
    doing so in the IA64-specific code as well.  */
@@ -9711,22 +9652,264 @@ process_epilogue (FILE *asm_out_file, rtx insn, bool unwind, bool frame)
 		       STACK_POINTER_REGNUM, INCOMING_FRAME_SP_OFFSET);
 }
 
-/* This function processes a SET pattern looking for specific patterns
-   which result in emitting an assembly directive required for unwinding.  */
+/* This function processes a SET pattern for REG_CFA_ADJUST_CFA.  */
 
-static int
-process_set (FILE *asm_out_file, rtx pat, rtx insn, bool unwind, bool frame)
+static void
+process_cfa_adjust_cfa (FILE *asm_out_file, rtx pat, rtx insn,
+			bool unwind, bool frame)
 {
-  rtx src = SET_SRC (pat);
   rtx dest = SET_DEST (pat);
-  int src_regno, dest_regno;
+  rtx src = SET_SRC (pat);
+
+  if (dest == stack_pointer_rtx)
+    {
+      if (GET_CODE (src) == PLUS)
+	{
+	  rtx op0 = XEXP (src, 0);
+	  rtx op1 = XEXP (src, 1);
+	  
+	  gcc_assert (op0 == dest && GET_CODE (op1) == CONST_INT);
+	  
+	  if (INTVAL (op1) < 0)
+	    {
+	      gcc_assert (!frame_pointer_needed);
+	      if (unwind)
+		fprintf (asm_out_file,
+			 "\t.fframe "HOST_WIDE_INT_PRINT_DEC"\n",
+			 -INTVAL (op1));
+	      ia64_dwarf2out_def_steady_cfa (insn, frame);
+	    }
+	  else
+	    process_epilogue (asm_out_file, insn, unwind, frame);
+	}
+      else
+	{
+	  gcc_assert (src == hard_frame_pointer_rtx);
+	  process_epilogue (asm_out_file, insn, unwind, frame);
+	}
+    }
+  else if (dest == hard_frame_pointer_rtx)
+    {
+      gcc_assert (src == stack_pointer_rtx);
+      gcc_assert (frame_pointer_needed);
+
+      if (unwind)
+	fprintf (asm_out_file, "\t.vframe r%d\n",
+		 ia64_dbx_register_number (REGNO (dest)));
+      ia64_dwarf2out_def_steady_cfa (insn, frame);
+    }
+  else
+    gcc_unreachable ();
+}
+
+/* This function processes a SET pattern for REG_CFA_REGISTER.  */
+
+static void
+process_cfa_register (FILE *asm_out_file, rtx pat, bool unwind)
+{
+  rtx dest = SET_DEST (pat);
+  rtx src = SET_SRC (pat);
+
+  int dest_regno = REGNO (dest);
+  int src_regno = REGNO (src);
+
+  switch (src_regno)
+    {
+    case BR_REG (0):
+      /* Saving return address pointer.  */
+      gcc_assert (dest_regno == current_frame_info.r[reg_save_b0]);
+      if (unwind)
+	fprintf (asm_out_file, "\t.save rp, r%d\n",
+		 ia64_dbx_register_number (dest_regno));
+      break;
+
+    case PR_REG (0):
+      gcc_assert (dest_regno == current_frame_info.r[reg_save_pr]);
+      if (unwind)
+	fprintf (asm_out_file, "\t.save pr, r%d\n",
+		 ia64_dbx_register_number (dest_regno));
+      break;
+
+    case AR_UNAT_REGNUM:
+      gcc_assert (dest_regno == current_frame_info.r[reg_save_ar_unat]);
+      if (unwind)
+	fprintf (asm_out_file, "\t.save ar.unat, r%d\n",
+		 ia64_dbx_register_number (dest_regno));
+      break;
+
+    case AR_LC_REGNUM:
+      gcc_assert (dest_regno == current_frame_info.r[reg_save_ar_lc]);
+      if (unwind)
+	fprintf (asm_out_file, "\t.save ar.lc, r%d\n",
+		 ia64_dbx_register_number (dest_regno));
+      break;
+
+    default:
+      /* Everything else should indicate being stored to memory.  */
+      gcc_unreachable ();
+    }
+}
+
+/* This function processes a SET pattern for REG_CFA_OFFSET.  */
+
+static void
+process_cfa_offset (FILE *asm_out_file, rtx pat, bool unwind)
+{
+  rtx dest = SET_DEST (pat);
+  rtx src = SET_SRC (pat);
+  int src_regno = REGNO (src);
+  const char *saveop;
+  HOST_WIDE_INT off;
+  rtx base;
+
+  gcc_assert (MEM_P (dest));
+  if (GET_CODE (XEXP (dest, 0)) == REG)
+    {
+      base = XEXP (dest, 0);
+      off = 0;
+    }
+  else
+    {
+      gcc_assert (GET_CODE (XEXP (dest, 0)) == PLUS
+		  && GET_CODE (XEXP (XEXP (dest, 0), 1)) == CONST_INT);
+      base = XEXP (XEXP (dest, 0), 0);
+      off = INTVAL (XEXP (XEXP (dest, 0), 1));
+    }
+
+  if (base == hard_frame_pointer_rtx)
+    {
+      saveop = ".savepsp";
+      off = - off;
+    }
+  else
+    {
+      gcc_assert (base == stack_pointer_rtx);
+      saveop = ".savesp";
+    }
+
+  src_regno = REGNO (src);
+  switch (src_regno)
+    {
+    case BR_REG (0):
+      gcc_assert (!current_frame_info.r[reg_save_b0]);
+      if (unwind)
+	fprintf (asm_out_file, "\t%s rp, " HOST_WIDE_INT_PRINT_DEC "\n",
+		 saveop, off);
+      break;
+
+    case PR_REG (0):
+      gcc_assert (!current_frame_info.r[reg_save_pr]);
+      if (unwind)
+	fprintf (asm_out_file, "\t%s pr, " HOST_WIDE_INT_PRINT_DEC "\n",
+		 saveop, off);
+      break;
+
+    case AR_LC_REGNUM:
+      gcc_assert (!current_frame_info.r[reg_save_ar_lc]);
+      if (unwind)
+	fprintf (asm_out_file, "\t%s ar.lc, " HOST_WIDE_INT_PRINT_DEC "\n",
+		 saveop, off);
+      break;
+
+    case AR_PFS_REGNUM:
+      gcc_assert (!current_frame_info.r[reg_save_ar_pfs]);
+      if (unwind)
+	fprintf (asm_out_file, "\t%s ar.pfs, " HOST_WIDE_INT_PRINT_DEC "\n",
+		 saveop, off);
+      break;
+
+    case AR_UNAT_REGNUM:
+      gcc_assert (!current_frame_info.r[reg_save_ar_unat]);
+      if (unwind)
+	fprintf (asm_out_file, "\t%s ar.unat, " HOST_WIDE_INT_PRINT_DEC "\n",
+		 saveop, off);
+      break;
+
+    case GR_REG (4):
+    case GR_REG (5):
+    case GR_REG (6):
+    case GR_REG (7):
+      if (unwind)
+	fprintf (asm_out_file, "\t.save.g 0x%x\n",
+		 1 << (src_regno - GR_REG (4)));
+      break;
+
+    case BR_REG (1):
+    case BR_REG (2):
+    case BR_REG (3):
+    case BR_REG (4):
+    case BR_REG (5):
+      if (unwind)
+	fprintf (asm_out_file, "\t.save.b 0x%x\n",
+		 1 << (src_regno - BR_REG (1)));
+      break;
+
+    case FR_REG (2):
+    case FR_REG (3):
+    case FR_REG (4):
+    case FR_REG (5):
+      if (unwind)
+	fprintf (asm_out_file, "\t.save.f 0x%x\n",
+		 1 << (src_regno - FR_REG (2)));
+      break;
+
+    case FR_REG (16): case FR_REG (17): case FR_REG (18): case FR_REG (19):
+    case FR_REG (20): case FR_REG (21): case FR_REG (22): case FR_REG (23):
+    case FR_REG (24): case FR_REG (25): case FR_REG (26): case FR_REG (27):
+    case FR_REG (28): case FR_REG (29): case FR_REG (30): case FR_REG (31):
+      if (unwind)
+	fprintf (asm_out_file, "\t.save.gf 0x0, 0x%x\n",
+		 1 << (src_regno - FR_REG (12)));
+      break;
+
+    default:
+      /* ??? For some reason we mark other general registers, even those
+	 we can't represent in the unwind info.  Ignore them.  */
+      break;
+    }
+}
+
+/* This function looks at a single insn and emits any directives
+   required to unwind this insn.  */
+
+static void
+ia64_asm_unwind_emit (FILE *asm_out_file, rtx insn)
+{
+  bool unwind = ia64_except_unwind_info () == UI_TARGET;
+  bool frame = dwarf2out_do_frame ();
+  rtx note, pat;
+  bool handled_one;
+
+  if (!unwind && !frame)
+    return;
+
+  if (NOTE_INSN_BASIC_BLOCK_P (insn))
+    {
+      last_block = NOTE_BASIC_BLOCK (insn)->next_bb == EXIT_BLOCK_PTR;
+
+      /* Restore unwind state from immediately before the epilogue.  */
+      if (need_copy_state)
+	{
+	  if (unwind)
+	    {
+	      fprintf (asm_out_file, "\t.body\n");
+	      fprintf (asm_out_file, "\t.copy_state %d\n",
+		       cfun->machine->state_num);
+	    }
+	  if (IA64_CHANGE_CFA_IN_EPILOGUE)
+	    ia64_dwarf2out_def_steady_cfa (insn, frame);
+	  need_copy_state = false;
+	}
+    }
+
+  if (GET_CODE (insn) == NOTE || ! RTX_FRAME_RELATED_P (insn))
+    return;
 
   /* Look for the ALLOC insn.  */
-  if (GET_CODE (src) == UNSPEC_VOLATILE
-      && XINT (src, 1) == UNSPECV_ALLOC
-      && GET_CODE (dest) == REG)
+  if (INSN_CODE (insn) == CODE_FOR_alloc)
     {
-      dest_regno = REGNO (dest);
+      rtx dest = SET_DEST (XVECEXP (PATTERN (insn), 0, 0));
+      int dest_regno = REGNO (dest);
 
       /* If this is the final destination for ar.pfs, then this must
 	 be the alloc in the prologue.  */
@@ -9750,268 +9933,100 @@ process_set (FILE *asm_out_file, rtx pat, rtx insn, bool unwind, bool frame)
 	  if (unwind)
 	    fprintf (asm_out_file, "\t.prologue\n");
 	}
-      return 1;
+      return;
     }
 
-  /* Look for SP = ....  */
-  if (GET_CODE (dest) == REG && REGNO (dest) == STACK_POINTER_REGNUM)
-    {
-      if (GET_CODE (src) == PLUS)
-        {
-	  rtx op0 = XEXP (src, 0);
-	  rtx op1 = XEXP (src, 1);
-	  
-	  gcc_assert (op0 == dest && GET_CODE (op1) == CONST_INT);
-	  
-	  if (INTVAL (op1) < 0)
-	    {
-	      gcc_assert (!frame_pointer_needed);
-	      if (unwind)
-		fprintf (asm_out_file, "\t.fframe "HOST_WIDE_INT_PRINT_DEC"\n",
-			 -INTVAL (op1));
-	      ia64_dwarf2out_def_steady_cfa (insn, frame);
-	    }
-	  else
-	    process_epilogue (asm_out_file, insn, unwind, frame);
-	}
-      else
-	{
-	  gcc_assert (GET_CODE (src) == REG
-		      && REGNO (src) == HARD_FRAME_POINTER_REGNUM);
-	  process_epilogue (asm_out_file, insn, unwind, frame);
-	}
+  handled_one = false;
+  for (note = REG_NOTES (insn); note; note = XEXP (note, 1))
+    switch (REG_NOTE_KIND (note))
+      {
+      case REG_CFA_ADJUST_CFA:
+	pat = XEXP (note, 0);
+	if (pat == NULL)
+	  pat = PATTERN (insn);
+	process_cfa_adjust_cfa (asm_out_file, pat, insn, unwind, frame);
+	handled_one = true;
+	break;
 
-      return 1;
-    }
+      case REG_CFA_OFFSET:
+	pat = XEXP (note, 0);
+	if (pat == NULL)
+	  pat = PATTERN (insn);
+	process_cfa_offset (asm_out_file, pat, unwind);
+	handled_one = true;
+	break;
 
-  /* Register move we need to look at.  */
-  if (GET_CODE (dest) == REG && GET_CODE (src) == REG)
-    {
-      src_regno = REGNO (src);
-      dest_regno = REGNO (dest);
+      case REG_CFA_REGISTER:
+	pat = XEXP (note, 0);
+	if (pat == NULL)
+	  pat = PATTERN (insn);
+	process_cfa_register (asm_out_file, pat, unwind);
+	handled_one = true;
+	break;
 
-      switch (src_regno)
-	{
-	case BR_REG (0):
-	  /* Saving return address pointer.  */
-	  gcc_assert (dest_regno == current_frame_info.r[reg_save_b0]);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t.save rp, r%d\n",
-		     ia64_dbx_register_number (dest_regno));
-	  return 1;
+      case REG_FRAME_RELATED_EXPR:
+      case REG_CFA_DEF_CFA:
+      case REG_CFA_EXPRESSION:
+      case REG_CFA_RESTORE:
+      case REG_CFA_SET_VDRAP:
+	/* Not used in the ia64 port.  */
+	gcc_unreachable ();
 
-	case PR_REG (0):
-	  gcc_assert (dest_regno == current_frame_info.r[reg_save_pr]);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t.save pr, r%d\n",
-		     ia64_dbx_register_number (dest_regno));
-	  return 1;
+      default:
+	/* Not a frame-related note.  */
+	break;
+      }
 
-	case AR_UNAT_REGNUM:
-	  gcc_assert (dest_regno == current_frame_info.r[reg_save_ar_unat]);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t.save ar.unat, r%d\n",
-		     ia64_dbx_register_number (dest_regno));
-	  return 1;
-
-	case AR_LC_REGNUM:
-	  gcc_assert (dest_regno == current_frame_info.r[reg_save_ar_lc]);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t.save ar.lc, r%d\n",
-		     ia64_dbx_register_number (dest_regno));
-	  return 1;
-
-	case STACK_POINTER_REGNUM:
-	  gcc_assert (dest_regno == HARD_FRAME_POINTER_REGNUM
-		      && frame_pointer_needed);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t.vframe r%d\n",
-		     ia64_dbx_register_number (dest_regno));
-	  ia64_dwarf2out_def_steady_cfa (insn, frame);
-	  return 1;
-
-	default:
-	  /* Everything else should indicate being stored to memory.  */
-	  gcc_unreachable ();
-	}
-    }
-
-  /* Memory store we need to look at.  */
-  if (GET_CODE (dest) == MEM && GET_CODE (src) == REG)
-    {
-      long off;
-      rtx base;
-      const char *saveop;
-
-      if (GET_CODE (XEXP (dest, 0)) == REG)
-	{
-	  base = XEXP (dest, 0);
-	  off = 0;
-	}
-      else
-	{
-	  gcc_assert (GET_CODE (XEXP (dest, 0)) == PLUS
-		      && GET_CODE (XEXP (XEXP (dest, 0), 1)) == CONST_INT);
-	  base = XEXP (XEXP (dest, 0), 0);
-	  off = INTVAL (XEXP (XEXP (dest, 0), 1));
-	}
-
-      if (base == hard_frame_pointer_rtx)
-	{
-	  saveop = ".savepsp";
-	  off = - off;
-	}
-      else
-	{
-	  gcc_assert (base == stack_pointer_rtx);
-	  saveop = ".savesp";
-	}
-
-      src_regno = REGNO (src);
-      switch (src_regno)
-	{
-	case BR_REG (0):
-	  gcc_assert (!current_frame_info.r[reg_save_b0]);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t%s rp, %ld\n", saveop, off);
-	  return 1;
-
-	case PR_REG (0):
-	  gcc_assert (!current_frame_info.r[reg_save_pr]);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t%s pr, %ld\n", saveop, off);
-	  return 1;
-
-	case AR_LC_REGNUM:
-	  gcc_assert (!current_frame_info.r[reg_save_ar_lc]);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t%s ar.lc, %ld\n", saveop, off);
-	  return 1;
-
-	case AR_PFS_REGNUM:
-	  gcc_assert (!current_frame_info.r[reg_save_ar_pfs]);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t%s ar.pfs, %ld\n", saveop, off);
-	  return 1;
-
-	case AR_UNAT_REGNUM:
-	  gcc_assert (!current_frame_info.r[reg_save_ar_unat]);
-	  if (unwind)
-	    fprintf (asm_out_file, "\t%s ar.unat, %ld\n", saveop, off);
-	  return 1;
-
-	case GR_REG (4):
-	case GR_REG (5):
-	case GR_REG (6):
-	case GR_REG (7):
-	  if (unwind)
-	    fprintf (asm_out_file, "\t.save.g 0x%x\n",
-		     1 << (src_regno - GR_REG (4)));
-	  return 1;
-
-	case BR_REG (1):
-	case BR_REG (2):
-	case BR_REG (3):
-	case BR_REG (4):
-	case BR_REG (5):
-	  if (unwind)
-	    fprintf (asm_out_file, "\t.save.b 0x%x\n",
-		     1 << (src_regno - BR_REG (1)));
-	  return 1;
-
-	case FR_REG (2):
-	case FR_REG (3):
-	case FR_REG (4):
-	case FR_REG (5):
-	  if (unwind)
-	    fprintf (asm_out_file, "\t.save.f 0x%x\n",
-		     1 << (src_regno - FR_REG (2)));
-	  return 1;
-
-	case FR_REG (16): case FR_REG (17): case FR_REG (18): case FR_REG (19):
-	case FR_REG (20): case FR_REG (21): case FR_REG (22): case FR_REG (23):
-	case FR_REG (24): case FR_REG (25): case FR_REG (26): case FR_REG (27):
-	case FR_REG (28): case FR_REG (29): case FR_REG (30): case FR_REG (31):
-	  if (unwind)
-	    fprintf (asm_out_file, "\t.save.gf 0x0, 0x%x\n",
-		     1 << (src_regno - FR_REG (12)));
-	  return 1;
-
-	default:
-	  return 0;
-	}
-    }
-
-  return 0;
+  /* All REG_FRAME_RELATED_P insns, besides ALLOC, are marked with the
+     explicit action to take.  No guessing required.  */
+  gcc_assert (handled_one);
 }
 
+/* Implement TARGET_ASM_EMIT_EXCEPT_PERSONALITY.  */
 
-/* This function looks at a single insn and emits any directives
-   required to unwind this insn.  */
-void
-process_for_unwind_directive (FILE *asm_out_file, rtx insn)
+static void
+ia64_asm_emit_except_personality (rtx personality)
 {
-  bool unwind = (flag_unwind_tables
-		 || (flag_exceptions && !USING_SJLJ_EXCEPTIONS));
-  bool frame = dwarf2out_do_frame ();
-
-  if (unwind || frame)
-    {
-      rtx pat;
-
-      if (NOTE_INSN_BASIC_BLOCK_P (insn))
-	{
-	  last_block = NOTE_BASIC_BLOCK (insn)->next_bb == EXIT_BLOCK_PTR;
-
-	  /* Restore unwind state from immediately before the epilogue.  */
-	  if (need_copy_state)
-	    {
-	      if (unwind)
-		{
-		  fprintf (asm_out_file, "\t.body\n");
-		  fprintf (asm_out_file, "\t.copy_state %d\n",
-			   cfun->machine->state_num);
-		}
-	      if (IA64_CHANGE_CFA_IN_EPILOGUE)
-		ia64_dwarf2out_def_steady_cfa (insn, frame);
-	      need_copy_state = false;
-	    }
-	}
-
-      if (GET_CODE (insn) == NOTE || ! RTX_FRAME_RELATED_P (insn))
-	return;
-
-      pat = find_reg_note (insn, REG_FRAME_RELATED_EXPR, NULL_RTX);
-      if (pat)
-	pat = XEXP (pat, 0);
-      else
-	pat = PATTERN (insn);
-
-      switch (GET_CODE (pat))
-        {
-	case SET:
-	  process_set (asm_out_file, pat, insn, unwind, frame);
-	  break;
-
-	case PARALLEL:
-	  {
-	    int par_index;
-	    int limit = XVECLEN (pat, 0);
-	    for (par_index = 0; par_index < limit; par_index++)
-	      {
-		rtx x = XVECEXP (pat, 0, par_index);
-		if (GET_CODE (x) == SET)
-		  process_set (asm_out_file, x, insn, unwind, frame);
-	      }
-	    break;
-	  }
-
-	default:
-	  gcc_unreachable ();
-	}
-    }
+  fputs ("\t.personality\t", asm_out_file);
+  output_addr_const (asm_out_file, personality);
+  fputc ('\n', asm_out_file);
 }
 
+/* Implement TARGET_ASM_INITIALIZE_SECTIONS.  */
+
+static void
+ia64_asm_init_sections (void)
+{
+  exception_section = get_unnamed_section (0, output_section_asm_op,
+					   "\t.handlerdata");
+}
+
+/* Implement TARGET_DEBUG_UNWIND_INFO.  */
+
+static enum unwind_info_type
+ia64_debug_unwind_info (void)
+{
+  return UI_TARGET;
+}
+
+/* Implement TARGET_EXCEPT_UNWIND_INFO.  */
+
+static enum unwind_info_type
+ia64_except_unwind_info (void)
+{
+  /* Honor the --enable-sjlj-exceptions configure switch.  */
+#ifdef CONFIG_UNWIND_EXCEPTIONS
+  if (CONFIG_UNWIND_EXCEPTIONS)
+    return UI_SJLJ;
+#endif
+
+  /* For simplicity elsewhere in this file, indicate that all unwind
+     info is disabled if we're not emitting unwind tables.  */
+  if (!flag_exceptions && !flag_unwind_tables)
+    return UI_NONE;
+
+  return UI_TARGET;
+}
 
 enum ia64_builtins
 {
@@ -10020,14 +10035,18 @@ enum ia64_builtins
   IA64_BUILTIN_FABSQ,
   IA64_BUILTIN_FLUSHRS,
   IA64_BUILTIN_INFQ,
-  IA64_BUILTIN_HUGE_VALQ
+  IA64_BUILTIN_HUGE_VALQ,
+  IA64_BUILTIN_max
 };
+
+static GTY(()) tree ia64_builtins[(int) IA64_BUILTIN_max];
 
 void
 ia64_init_builtins (void)
 {
   tree fpreg_type;
   tree float80_type;
+  tree decl;
 
   /* The __fpreg type.  */
   fpreg_type = make_node (REAL_TYPE);
@@ -10044,7 +10063,7 @@ ia64_init_builtins (void)
   /* The __float128 type.  */
   if (!TARGET_HPUX)
     {
-      tree ftype, decl;
+      tree ftype;
       tree float128_type = make_node (REAL_TYPE);
 
       TYPE_PRECISION (float128_type) = 128;
@@ -10053,13 +10072,15 @@ ia64_init_builtins (void)
 
       /* TFmode support builtins.  */
       ftype = build_function_type (float128_type, void_list_node);
-      add_builtin_function ("__builtin_infq", ftype,
-			    IA64_BUILTIN_INFQ, BUILT_IN_MD,
-			    NULL, NULL_TREE);
+      decl = add_builtin_function ("__builtin_infq", ftype,
+				   IA64_BUILTIN_INFQ, BUILT_IN_MD,
+				   NULL, NULL_TREE);
+      ia64_builtins[IA64_BUILTIN_INFQ] = decl;
 
-      add_builtin_function ("__builtin_huge_valq", ftype,
-			    IA64_BUILTIN_HUGE_VALQ, BUILT_IN_MD,
-			    NULL, NULL_TREE);
+      decl = add_builtin_function ("__builtin_huge_valq", ftype,
+				   IA64_BUILTIN_HUGE_VALQ, BUILT_IN_MD,
+				   NULL, NULL_TREE);
+      ia64_builtins[IA64_BUILTIN_HUGE_VALQ] = decl;
 
       ftype = build_function_type_list (float128_type,
 					float128_type,
@@ -10068,6 +10089,7 @@ ia64_init_builtins (void)
 				   IA64_BUILTIN_FABSQ, BUILT_IN_MD,
 				   "__fabstf2", NULL_TREE);
       TREE_READONLY (decl) = 1;
+      ia64_builtins[IA64_BUILTIN_FABSQ] = decl;
 
       ftype = build_function_type_list (float128_type,
 					float128_type,
@@ -10077,6 +10099,7 @@ ia64_init_builtins (void)
 				   IA64_BUILTIN_COPYSIGNQ, BUILT_IN_MD,
 				   "__copysigntf3", NULL_TREE);
       TREE_READONLY (decl) = 1;
+      ia64_builtins[IA64_BUILTIN_COPYSIGNQ] = decl;
     }
   else
     /* Under HPUX, this is a synonym for "long double".  */
@@ -10094,13 +10117,15 @@ ia64_init_builtins (void)
   add_builtin_function ((name), (type), (code), BUILT_IN_MD,	\
 		       NULL, NULL_TREE)
 
-  def_builtin ("__builtin_ia64_bsp",
+  decl = def_builtin ("__builtin_ia64_bsp",
 	       build_function_type (ptr_type_node, void_list_node),
 	       IA64_BUILTIN_BSP);
+  ia64_builtins[IA64_BUILTIN_BSP] = decl;
 
-  def_builtin ("__builtin_ia64_flushrs",
+  decl = def_builtin ("__builtin_ia64_flushrs",
 	       build_function_type (void_type_node, void_list_node),
 	       IA64_BUILTIN_FLUSHRS);
+  ia64_builtins[IA64_BUILTIN_FLUSHRS] = decl;
 
 #undef def_builtin
 
@@ -10168,6 +10193,17 @@ ia64_expand_builtin (tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
     }
 
   return NULL_RTX;
+}
+
+/* Return the ia64 builtin for CODE.  */
+
+static tree
+ia64_builtin_decl (unsigned code, bool initialize_p ATTRIBUTE_UNUSED)
+{
+  if (code >= IA64_BUILTIN_max)
+    return error_mark_node;
+
+  return ia64_builtins[code];
 }
 
 /* For the HP-UX IA64 aggregate parameters are passed stored in the
@@ -10796,10 +10832,14 @@ ia64_invalid_binary_op (int op ATTRIBUTE_UNUSED, const_tree type1, const_tree ty
 }
 
 /* Implement overriding of the optimization options.  */
-void
-ia64_optimization_options (int level ATTRIBUTE_UNUSED,
-                           int size ATTRIBUTE_UNUSED)
+static void
+ia64_option_optimization (int level ATTRIBUTE_UNUSED,
+			  int size ATTRIBUTE_UNUSED)
 {
+#ifdef SUBTARGET_OPTIMIZATION_OPTIONS
+  SUBTARGET_OPTIMIZATION_OPTIONS;
+#endif
+
   /* Let the scheduler form additional regions.  */
   set_param_value ("max-sched-extend-regions-iters", 2);
 

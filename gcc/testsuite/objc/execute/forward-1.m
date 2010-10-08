@@ -2,19 +2,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <objc/Object.h>
+
+#import "../../objc-obj-c++-shared/Object1.h"
+#import "../../objc-obj-c++-shared/next-mapping.h"
 #include <objc/objc-api.h>
 
 #define VALUETOUSE 1234567890
-
-#ifdef __NEXT_RUNTIME__
-/* Does not run with the next runtime. */
-int main(void)
-{
-  return 0;
-}
-
-#else
 
 id forwarder, receiver;
 
@@ -62,7 +55,11 @@ id forwarder, receiver;
     receiver = theReceiver;
     return self;
 }
+#ifdef __NEXT_RUNTIME__
+- forward: (SEL)theSel: (marg_list)theArgFrame
+#else
 -(retval_t) forward: (SEL)theSel: (arglist_t)theArgFrame
+#endif
 {
   /* If we have a reciever try to perform on that object */
     if (receiver)
@@ -81,5 +78,3 @@ int main()
     [forwarder display];
     exit(0);
 }
-
-#endif

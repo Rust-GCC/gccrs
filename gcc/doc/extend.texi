@@ -1,5 +1,5 @@
 @c Copyright (C) 1988, 1989, 1992, 1993, 1994, 1996, 1998, 1999, 2000, 2001,
-@c 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+@c 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 @c Free Software Foundation, Inc.
 
 @c This is part of the GCC manual.
@@ -21,8 +21,8 @@ These extensions are available in C and Objective-C@.  Most of them are
 also available in C++.  @xref{C++ Extensions,,Extensions to the
 C++ Language}, for extensions that apply @emph{only} to C++.
 
-Some features that are in ISO C99 but not C89 or C++ are also, as
-extensions, accepted by GCC in C89 mode and in C++.
+Some features that are in ISO C99 but not C90 or C++ are also, as
+extensions, accepted by GCC in C90 mode and in C++.
 
 @menu
 * Statement Exprs::     Putting statements and declarations inside expressions.
@@ -33,6 +33,7 @@ extensions, accepted by GCC in C89 mode and in C++.
 * Typeof::              @code{typeof}: referring to the type of an expression.
 * Conditionals::        Omitting the middle operand of a @samp{?:} expression.
 * Long Long::           Double-word integers---@code{long long int}.
+* __int128::			128-bit integers---@code{__int128}.
 * Complex::             Data types for complex numbers.
 * Floating Types::      Additional Floating Types.
 * Half-Precision::      Half-Precision Floating Point.
@@ -65,6 +66,7 @@ extensions, accepted by GCC in C89 mode and in C++.
 * Type Attributes::     Specifying attributes of types.
 * Alignment::           Inquiring about the alignment of a type or variable.
 * Inline::              Defining inline functions (as fast as macros).
+* Volatiles::           What constitutes an access to a volatile object.
 * Extended Asm::        Assembler instructions with C expressions as operands.
                         (With them you can define ``built-in'' functions.)
 * Constraints::         Constraints for asm operands
@@ -566,7 +568,7 @@ the containing function.  You should specify, for @var{result}, a value
 returned by @code{__builtin_apply}.
 @end deftypefn
 
-@deftypefn {Built-in Function} __builtin_va_arg_pack ()
+@deftypefn {Built-in Function} {} __builtin_va_arg_pack ()
 This built-in function represents all anonymous arguments of an inline
 function.  It can be used only in inline functions which will be always
 inlined, never compiled as a separate function, such as those using
@@ -592,7 +594,7 @@ myprintf (FILE *f, const char *format, ...)
 @end smallexample
 @end deftypefn
 
-@deftypefn {Built-in Function} __builtin_va_arg_pack_len ()
+@deftypefn {Built-in Function} {size_t} __builtin_va_arg_pack_len ()
 This built-in function returns the number of anonymous arguments of
 an inline function.  It can be used only in inline functions which
 will be always inlined, never compiled as a separate function, such
@@ -794,8 +796,8 @@ This example is perfectly equivalent to
 x ? x : y
 @end smallexample
 
-@cindex side effect in ?:
-@cindex ?: side effect
+@cindex side effect in @code{?:}
+@cindex @code{?:} side effect
 @noindent
 In this simple case, the ability to omit the middle operand is not
 especially useful.  When it becomes useful is when the first operand does,
@@ -803,6 +805,17 @@ or may (if it is a macro argument), contain a side effect.  Then repeating
 the operand in the middle would perform the side effect twice.  Omitting
 the middle operand uses the value already computed without the undesirable
 effects of recomputing it.
+
+@node __int128
+@section 128-bits integers
+@cindex @code{__int128} data types
+
+As an extension the integer scalar type @code{__int128} is supported for
+targets having an integer mode wide enough to hold 128-bit.
+Simply write @code{__int128} for a signed 128-bit integer, or
+@code{unsigned __int128} for an unsigned 128-bit integer.  There is no
+support in GCC to express an integer constant of type @code{__int128}
+for targets having @code{long long} integer with less then 128 bit width.
 
 @node Long Long
 @section Double-Word Integers
@@ -813,7 +826,7 @@ effects of recomputing it.
 @cindex @code{ULL} integer suffix
 
 ISO C99 supports data types for integers that are at least 64 bits wide,
-and as an extension GCC supports them in C89 mode and in C++.
+and as an extension GCC supports them in C90 mode and in C++.
 Simply write @code{long long int} for a signed integer, or
 @code{unsigned long long int} for an unsigned integer.  To make an
 integer constant of type @code{long long int}, add the suffix @samp{LL}
@@ -843,7 +856,7 @@ Likewise, if the function expects @code{long long int} and you pass
 @cindex @code{__complex__} keyword
 
 ISO C99 supports complex floating data types, and as an extension GCC
-supports them in C89 mode and in C++, and supports complex integer data
+supports them in C90 mode and in C++, and supports complex integer data
 types which are not part of ISO C99.  You can declare complex types
 using the keyword @code{_Complex}.  As an extension, the older GNU
 keyword @code{__complex__} is also supported.
@@ -1032,7 +1045,7 @@ are supported by the DWARF2 debug information format.
 ISO C99 supports floating-point numbers written not only in the usual
 decimal notation, such as @code{1.55e1}, but also numbers such as
 @code{0x1.fp3} written in hexadecimal format.  As a GNU extension, GCC
-supports this in C89 mode (except in some cases when strictly
+supports this in C90 mode (except in some cases when strictly
 conforming) and in C++.  In that format the
 @samp{0x} hex introducer and the @samp{p} or @samp{P} exponent field are
 mandatory.  The exponent is a decimal number that indicates the power of
@@ -1345,7 +1358,7 @@ member of type @code{char}.
 @cindex VLAs
 
 Variable-length automatic arrays are allowed in ISO C99, and as an
-extension GCC accepts them in C89 mode and in C++.  (However, GCC's
+extension GCC accepts them in C90 mode and in C++.  (However, GCC's
 implementation of variable-length arrays does not yet conform in detail
 to the ISO C99 standard.)  These arrays are
 declared like any other automatic arrays, but with a length that is not
@@ -1511,9 +1524,9 @@ In ISO C99, arrays that are not lvalues still decay to pointers, and
 may be subscripted, although they may not be modified or used after
 the next sequence point and the unary @samp{&} operator may not be
 applied to them.  As an extension, GCC allows such arrays to be
-subscripted in C89 mode, though otherwise they do not decay to
+subscripted in C90 mode, though otherwise they do not decay to
 pointers outside C99 mode.  For example,
-this is valid in GNU C though not valid in C89:
+this is valid in GNU C though not valid in C90:
 
 @smallexample
 @group
@@ -1576,7 +1589,7 @@ ISO C99 supports compound literals.  A compound literal looks like
 a cast containing an initializer.  Its value is an object of the
 type specified in the cast, containing the elements specified in
 the initializer; it is an lvalue.  As an extension, GCC supports
-compound literals in C89 mode and in C++.
+compound literals in C90 mode and in C++.
 
 Usually, the specified type is a structure.  Assume that
 @code{struct foo} and @code{structure} are declared as shown:
@@ -1646,13 +1659,13 @@ static int z[] = @{1, 0, 0@};
 @cindex case labels in initializers
 @cindex designated initializers
 
-Standard C89 requires the elements of an initializer to appear in a fixed
+Standard C90 requires the elements of an initializer to appear in a fixed
 order, the same as the order of the elements in the array or structure
 being initialized.
 
 In ISO C99 you can give the elements in any order, specifying the array
 indices or structure field names they apply to, and GNU C allows this as
-an extension in C89 mode as well.  This extension is not
+an extension in C90 mode as well.  This extension is not
 implemented in GNU C++.
 
 To specify an array index, write
@@ -1869,7 +1882,7 @@ hack ((union foo) x);
 
 ISO C99 and ISO C++ allow declarations and code to be freely mixed
 within compound statements.  As an extension, GCC also allows this in
-C89 mode.  For example, you could do:
+C90 mode.  For example, you could do:
 
 @smallexample
 int i;
@@ -1899,6 +1912,7 @@ the enclosing block.
 @cindex functions that do not pop the argument stack on the 386
 @cindex functions that have different compilation options on the 386
 @cindex functions that have different optimization options
+@cindex functions that are dynamically resolved
 
 In GNU C, you declare certain things about functions called in your program
 which help the compiler optimize function calls and check your code more
@@ -1912,15 +1926,18 @@ attributes are currently defined for functions on all targets:
 @code{returns_twice}, @code{noinline}, @code{noclone},
 @code{always_inline}, @code{flatten}, @code{pure}, @code{const},
 @code{nothrow}, @code{sentinel}, @code{format}, @code{format_arg},
-@code{no_instrument_function}, @code{section}, @code{constructor},
+@code{no_instrument_function}, @code{no_split_stack},
+@code{section}, @code{constructor},
 @code{destructor}, @code{used}, @code{unused}, @code{deprecated},
-@code{weak}, @code{malloc}, @code{alias}, @code{warn_unused_result},
-@code{nonnull}, @code{gnu_inline}, @code{externally_visible},
-@code{hot}, @code{cold}, @code{artificial}, @code{error} and
-@code{warning}.  Several other attributes are defined for functions on
-particular target systems.  Other attributes, including @code{section}
-are supported for variables declarations (@pxref{Variable Attributes})
-and for types (@pxref{Type Attributes}).
+@code{weak}, @code{malloc}, @code{alias}, @code{ifunc},
+@code{warn_unused_result}, @code{nonnull}, @code{gnu_inline},
+@code{externally_visible}, @code{hot}, @code{cold}, @code{artificial},
+@code{error} and @code{warning}.  Several other attributes are defined
+for functions on particular target systems.  Other attributes,
+including @code{section} are supported for variables declarations
+(@pxref{Variable Attributes}) and for types (@pxref{Type Attributes}).
+
+GCC plugins may provide their own attributes.
 
 You may also specify attributes with @samp{__} preceding and following
 each keyword.  This allows you to use them in header files without
@@ -2004,7 +2021,7 @@ if no optimization level was specified.
 @cindex @code{gnu_inline} function attribute
 This attribute should be used with a function which is also declared
 with the @code{inline} keyword.  It directs GCC to treat the function
-as if it were defined in gnu89 mode even when compiling in C99 or
+as if it were defined in gnu90 mode even when compiling in C99 or
 gnu99 mode.
 
 If the function is declared @code{extern}, then this definition of the
@@ -2282,7 +2299,7 @@ attribute is present.
 @cindex @code{externally_visible} attribute.
 This attribute, attached to a global variable or function, nullifies
 the effect of the @option{-fwhole-program} command-line option, so the
-object remains visible outside the current compilation unit.
+object remains visible outside the current compilation unit. If @option{-fwhole-program} is used together with @option{-flto} and @command{gold} is used as the linker plugin, @code{externally_visible} attributes are automatically added to functions (not variable yet due to a current @command{gold} issue) that are accessed outside of LTO objects according to resolution file produced by @command{gold}.  For other linkers that cannot generate resolution file, explicit @code{externally_visible} attributes are still necessary.
 
 @item far
 @cindex functions which handle memory bank switching
@@ -2320,6 +2337,18 @@ the second argument (if of integral type) in the register EDX@.  Subsequent
 and other typed arguments are passed on the stack.  The called function will
 pop the arguments off the stack.  If the number of arguments is variable all
 arguments are pushed on the stack.
+
+@item thiscall
+@cindex functions that pop the argument stack on the 386
+On the Intel 386, the @code{thiscall} attribute causes the compiler to
+pass the first argument (if of integral type) in the register ECX.
+Subsequent and other typed arguments are passed on the stack. The called
+function will pop the arguments off the stack.
+If the number of arguments is variable all arguments are pushed on the
+stack.
+The @code{thiscall} attribute is intended for C++ non-static member functions.
+As gcc extension this calling convention can be used for C-functions
+and for static member methods.
 
 @item format (@var{archetype}, @var{string-index}, @var{first-to-check})
 @cindex @code{format} function attribute
@@ -2505,8 +2534,8 @@ interrupt handler.  The compiler will generate function entry and exit
 sequences suitable for use in an interrupt handler when this attribute
 is present.
 
-Note, interrupt handlers for the Blackfin, H8/300, H8/300H, H8S, and
-SH processors can be specified via the @code{interrupt_handler} attribute.
+Note, interrupt handlers for the Blackfin, H8/300, H8/300H, H8S, MicroBlaze,
+and SH processors can be specified via the @code{interrupt_handler} attribute.
 
 Note, on the AVR, interrupts will be enabled inside the function.
 
@@ -2548,15 +2577,60 @@ void __attribute__ ((interrupt, use_shadow_register_set)) v1 ();
 void __attribute__ ((interrupt, keep_interrupts_masked)) v2 ();
 void __attribute__ ((interrupt, use_debug_exception_return)) v3 ();
 void __attribute__ ((interrupt, use_shadow_register_set,
-		     keep_interrupts_masked)) v4 ();
+                     keep_interrupts_masked)) v4 ();
 void __attribute__ ((interrupt, use_shadow_register_set,
-		     use_debug_exception_return)) v5 ();
+                     use_debug_exception_return)) v5 ();
 void __attribute__ ((interrupt, keep_interrupts_masked,
-		     use_debug_exception_return)) v6 ();
+                     use_debug_exception_return)) v6 ();
 void __attribute__ ((interrupt, use_shadow_register_set,
-		     keep_interrupts_masked,
-		     use_debug_exception_return)) v7 ();
+                     keep_interrupts_masked,
+                     use_debug_exception_return)) v7 ();
 @end smallexample
+
+@item ifunc ("@var{resolver}")
+@cindex @code{ifunc} attribute
+The @code{ifunc} attribute is used to mark a function as an indirect
+function using the STT_GNU_IFUNC symbol type extension to the ELF
+standard.  This allows the resolution of the symbol value to be
+determined dynamically at load time, and an optimized version of the
+routine can be selected for the particular processor or other system
+characteristics determined then.  To use this attribute, first define
+the implementation functions available, and a resolver function that
+returns a pointer to the selected implementation function.  The
+implementation functions' declarations must match the API of the
+function being implemented, the resolver's declaration is be a
+function returning pointer to void function returning void:
+
+@smallexample
+void *my_memcpy (void *dst, const void *src, size_t len)
+@{
+  @dots{}
+@}
+
+static void (*resolve_memcpy (void)) (void)
+@{
+  return my_memcpy; // we'll just always select this routine
+@}
+@end smallexample
+
+The exported header file declaring the function the user calls would
+contain:
+
+@smallexample
+extern void *memcpy (void *, const void *, size_t);
+@end smallexample
+
+allowing the user to call this as a regular function, unaware of the
+implementation.  Finally, the indirect function needs to be defined in
+the same translation unit as the resolver function:
+
+@smallexample
+void *memcpy (void *, const void *, size_t)
+     __attribute__ ((ifunc ("resolve_memcpy")));
+@end smallexample
+
+Indirect functions cannot be weak, and require a recent binutils (at
+least version 2.20.1), and GNU C library (at least version 2.11.1).
 
 @item interrupt_handler
 @cindex interrupt handler functions on the Blackfin, m68k, H8/300 and SH processors
@@ -2598,11 +2672,36 @@ SRAM. The function will be put into a specific section named
 @code{.l1.text}. With @option{-mfdpic}, callers of such functions will use
 an inlined PLT.
 
+@item leaf
+@cindex @code{leaf} function attribute
+Calls to external functions with this attribute must return to the current
+compilation unit only by return or by exception handling. In particular, leaf
+functions are not allowed to call callback function passed to it from current
+compilation unit or directly call functions exported by the unit or longjmp
+into the unit.  Still leaf function might call functions from other complation
+units and thus they are not neccesarily leaf in the sense that they contains no
+function calls at all.
+
+The attribute is intended for library functions to improve dataflow analysis.
+Compiler takes the hint that any data not escaping current compilation unit can
+not be used or modified by the leaf function.  For example, function @code{sin}
+is leaf, function @code{qsort} is not.
+
+Note that the leaf functions might invoke signals and signal handlers might be
+defined in the current compilation unit and use static variables. Only
+compliant way to write such a signal handler is to declare such variables
+@code{volatile}.
+
+The attribute has no effect on functions defined within current compilation
+unit.  This is to allow easy merging of multiple compilation units into one,
+for example, by using the link time optimization.  For this reason the
+attribute is not allowed on types to annotate indirect calls.
+
 @item long_call/short_call
 @cindex indirect calls on ARM
 This attribute specifies how a particular function is called on
 ARM@.  Both attributes override the @option{-mlong-calls} (@pxref{ARM Options})
-command line switch and @code{#pragma long_calls} settings.  The
+command-line switch and @code{#pragma long_calls} settings.  The
 @code{long_call} attribute indicates that the function might be far
 away from the call site and require a different (more expensive)
 calling sequence.   The @code{short_call} attribute always places
@@ -2704,19 +2803,20 @@ attribute tells the compiler to use the Microsoft ABI, while the
 GNU/Linux and other systems.  The default is to use the Microsoft ABI
 when targeting Windows.  On all other systems, the default is the AMD ABI.
 
-Note, This feature is currently sorried out for Windows targets trying to
+Note, the @code{ms_abi} attribute for Windows targets currently requires
+the @option{-maccumulate-outgoing-args} option.
 
 @item ms_hook_prologue
 @cindex @code{ms_hook_prologue} attribute
 
-On 32 bit i[34567]86-*-* targets, you can use this function attribute to make
-gcc generate the "hot-patching" function prologue used in Win32 API
-functions in Microsoft Windows XP Service Pack 2 and newer. This requires
-support for the swap suffix in the assembler. (GNU Binutils 2.19.51 or later)
+On 32 bit i[34567]86-*-* targets and 64 bit x86_64-*-* targets, you can use
+this function attribute to make gcc generate the "hot-patching" function
+prologue used in Win32 API functions in Microsoft Windows XP Service Pack 2
+and newer.
 
 @item naked
 @cindex function without a prologue/epilogue code
-Use this attribute on the ARM, AVR, IP2K, RX and SPU ports to indicate that
+Use this attribute on the ARM, AVR, MCORE, RX and SPU ports to indicate that
 the specified function does not need prologue/epilogue sequences generated by
 the compiler.  It is up to the programmer to provide these sequences. The 
 only statements that can be safely included in naked functions are 
@@ -2756,6 +2856,14 @@ attribute is present.
 If @option{-finstrument-functions} is given, profiling function calls will
 be generated at entry and exit of most user-compiled functions.
 Functions with this attribute will not be so instrumented.
+
+@item no_split_stack
+@cindex @code{no_split_stack} function attribute
+@opindex fsplit-stack
+If @option{-fsplit-stack} is given, functions will have a small
+prologue which decides whether to split the stack.  Functions with the
+@code{no_split_stack} attribute will not have that prologue, and thus
+may run with only a small amount of stack space available.
 
 @item noinline
 @cindex @code{noinline} function attribute
@@ -3025,6 +3133,14 @@ to be marked with the @code{noreturn} attribute.
 Use this attribute on the Blackfin, H8/300, H8/300H, and H8S to indicate that
 all registers except the stack pointer should be saved in the prologue
 regardless of whether they are used or not.
+
+@item save_volatiles
+@cindex save volatile registers on the MicroBlaze
+Use this attribute on the MicroBlaze to indicate that the function is
+an interrupt handler.  All volatile registers (in addition to non-volatile 
+registers) will be saved in the function prologue.  If the function is a leaf 
+function, only volatiles used by the function are saved.  A normal function 
+return is generated instead of a return from interrupt.  
 
 @item section ("@var{section-name}")
 @cindex @code{section} function attribute
@@ -3488,7 +3604,7 @@ static int x() __attribute__ ((alias ("y")));
 
 A weak reference is an alias that does not by itself require a
 definition to be given for the target symbol.  If the target symbol is
-only referenced through weak references, then the becomes a @code{weak}
+only referenced through weak references, then it becomes a @code{weak}
 undefined symbol.  If it is directly referenced, however, then such
 strong references prevail, and a definition will be required for the
 symbol, not necessarily in the same translation unit.
@@ -3826,7 +3942,7 @@ extension is irrelevant.
 
 @node C++ Comments
 @section C++ Style Comments
-@cindex //
+@cindex @code{//}
 @cindex C++ comments
 @cindex comments, C++ style
 
@@ -3835,7 +3951,7 @@ continue until the end of the line.  Many other C implementations allow
 such comments, and they are included in the 1999 C standard.  However,
 C++ style comments are not recognized if you specify an @option{-std}
 option specifying a version of ISO C before C99, or @option{-ansi}
-(equivalent to @option{-std=c89}).
+(equivalent to @option{-std=c90}).
 
 @node Dollar Signs
 @section Dollar Signs in Identifier Names
@@ -4151,7 +4267,7 @@ The @code{shared} attribute is only available on Microsoft Windows@.
 @cindex @code{tls_model} attribute
 The @code{tls_model} attribute sets thread-local storage model
 (@pxref{Thread-Local}) of a particular @code{__thread} variable,
-overriding @option{-ftls-model=} command line switch on a per-variable
+overriding @option{-ftls-model=} command-line switch on a per-variable
 basis.
 The @var{tls_model} argument should be one of @code{global-dynamic},
 @code{local-dynamic}, @code{initial-exec} or @code{local-exec}.
@@ -4233,8 +4349,8 @@ Three attributes are currently defined for the Blackfin.
 
 @table @code
 @item l1_data
-@item l1_data_A
-@item l1_data_B
+@itemx l1_data_A
+@itemx l1_data_B
 @cindex @code{l1_data} variable attribute
 @cindex @code{l1_data_A} variable attribute
 @cindex @code{l1_data_B} variable attribute
@@ -4306,7 +4422,7 @@ allows modules to make no assumptions about where variables might be
 stored.
 
 @item io
-@item io (@var{addr})
+@itemx io (@var{addr})
 Variables with the @code{io} attribute are used to address
 memory-mapped peripherals.  If an address is specified, the variable
 is assigned that address, else it is not assigned an address (it is
@@ -4317,7 +4433,7 @@ int timer_count __attribute__((io(0x123)));
 @end example
 
 @item cb
-@item cb (@var{addr})
+@itemx cb (@var{addr})
 Variables with the @code{cb} attribute are used to access the control
 bus, using special instructions.  @code{addr} indicates the control bus
 address.  Example:
@@ -4921,8 +5037,10 @@ into their callers with the option @option{-finline-functions}.
 GCC implements three different semantics of declaring a function
 inline.  One is available with @option{-std=gnu89} or
 @option{-fgnu89-inline} or when @code{gnu_inline} attribute is present
-on all inline declarations, another when @option{-std=c99} or
-@option{-std=gnu99} (without @option{-fgnu89-inline}), and the third
+on all inline declarations, another when
+@option{-std=c99}, @option{-std=c1x},
+@option{-std=gnu99} or @option{-std=gnu1x}
+(without @option{-fgnu89-inline}), and the third
 is used when compiling C++.
 
 To declare a function inline, use the @code{inline} keyword in its
@@ -4932,11 +5050,11 @@ declaration, like this:
 static inline int
 inc (int *a)
 @{
-  (*a)++;
+  return (*a)++;
 @}
 @end smallexample
 
-If you are writing a header file to be included in ISO C89 programs, write
+If you are writing a header file to be included in ISO C90 programs, write
 @code{__inline__} instead of @code{inline}.  @xref{Alternate Keywords}.
 
 The three types of inlining behave similarly in two important cases:
@@ -4950,7 +5068,7 @@ extern int inc (int *a);
 inline int
 inc (int *a)
 @{
-  (*a)++;
+  return (*a)++;
 @}
 @end smallexample
 
@@ -4999,7 +5117,7 @@ the @samp{always_inline} attribute for the function, like this:
 inline void foo (const char) __attribute__((always_inline));
 @end smallexample
 
-The remainder of this section is specific to GNU C89 inlining.
+The remainder of this section is specific to GNU C90 inlining.
 
 @cindex non-static inline function
 When an inline function is not @code{static}, then the compiler must assume
@@ -5022,6 +5140,88 @@ definition (lacking @code{inline} and @code{extern}) in a library file.
 The definition in the header file will cause most calls to the function
 to be inlined.  If any uses of the function remain, they will refer to
 the single copy in the library.
+
+@node Volatiles
+@section When is a Volatile Object Accessed?
+@cindex accessing volatiles
+@cindex volatile read
+@cindex volatile write
+@cindex volatile access
+
+C has the concept of volatile objects.  These are normally accessed by
+pointers and used for accessing hardware or inter-thread
+communication.  The standard encourage compilers to refrain from
+optimizations concerning accesses to volatile objects, but leaves it
+implementation defined as to what constitutes a volatile access.  The
+minimum requirement is that at a sequence point all previous accesses
+to volatile objects have stabilized and no subsequent accesses have
+occurred.  Thus an implementation is free to reorder and combine
+volatile accesses which occur between sequence points, but cannot do
+so for accesses across a sequence point.  The use of volatiles does
+not allow you to violate the restriction on updating objects multiple
+times between two sequence points.
+
+Accesses to non-volatile objects are not ordered with respect to
+volatile accesses.  You cannot use a volatile object as a memory
+barrier to order a sequence of writes to non-volatile memory.  For
+instance:
+
+@smallexample
+int *ptr = @var{something};
+volatile int vobj;
+*ptr = @var{something};
+vobj = 1;
+@end smallexample
+
+Unless @var{*ptr} and @var{vobj} can be aliased, it is not guaranteed
+that the write to @var{*ptr} will have occurred by the time the update
+of @var{vobj} has happened.  If you need this guarantee, you must use
+a stronger memory barrier such as:
+
+@smallexample
+int *ptr = @var{something};
+volatile int vobj;
+*ptr = @var{something};
+asm volatile ("" : : : "memory");
+vobj = 1;
+@end smallexample
+
+A scalar volatile object is read, when it is accessed in a void context:
+
+@smallexample
+volatile int *src = @var{somevalue};
+*src;
+@end smallexample
+
+Such expressions are rvalues, and GCC implements this as a
+read of the volatile object being pointed to.
+
+Assignments are also expressions and have an rvalue.  However when
+assigning to a scalar volatile, the volatile object is not reread,
+regardless of whether the assignment expression's rvalue is used or
+not.  If the assignment's rvalue is used, the value is that assigned
+to the volatile object.  For instance, there is no read of @var{vobj}
+in all the following cases:
+
+@smallexample
+int obj;
+volatile int vobj;
+vobj = @var{something};
+obj = vobj = @var{something};
+obj ? vobj = @var{onething} : vobj = @var{anotherthing};
+obj = (@var{something}, vobj = @var{anotherthing});
+@end smallexample
+
+If you need to read the volatile object after an assignment has
+occurred, you must use a separate expression with an intervening
+sequence point.
+
+As bitfields are not individually addressable, volatile bitfields may
+be implicitly read when written to, or when adjacent bitfields are
+accessed.  Bitfield operations may be optimized such that adjacent
+bitfields are only partially accessed, if they straddle a storage unit
+boundary.  For these reasons it is unwise to use volatile bitfields to
+access hardware.
 
 @node Extended Asm
 @section Assembler Instructions with C Expression Operands
@@ -5432,9 +5632,9 @@ void doit(void)
   int i = 0;
   asm goto ("mfsr %%r1, 123; jmp %%r1;"
             ".pushsection doit_table;"
-	    ".long %l0, %l1, %l2, %l3;"
-	    ".popsection"
-	    : : : "r1" : label1, label2, label3, label4);
+            ".long %l0, %l1, %l2, %l3;"
+            ".popsection"
+            : : : "r1" : label1, label2, label3, label4);
   __builtin_unreachable ();
 
  label1:
@@ -5853,10 +6053,12 @@ a general-purpose header file that should be usable by all programs,
 including ISO C programs.  The keywords @code{asm}, @code{typeof} and
 @code{inline} are not available in programs compiled with
 @option{-ansi} or @option{-std} (although @code{inline} can be used in a
-program compiled with @option{-std=c99}).  The ISO C99 keyword
+program compiled with @option{-std=c99} or @option{-std=c1x}).  The
+ISO C99 keyword
 @code{restrict} is only available when @option{-std=gnu99} (which will
 eventually be the default) or @option{-std=c99} (or the equivalent
-@option{-std=iso9899:1999}) is used.
+@option{-std=iso9899:1999}), or an option for a later standard
+version, is used.
 
 The way to solve these problems is to put @samp{__} at the beginning and
 end of each problematical keyword.  For example, use @code{__asm__}
@@ -6054,7 +6256,7 @@ purposes.
 
 On some targets, the instruction set contains SIMD vector instructions that
 operate on multiple values contained in one large register at the same time.
-For example, on the i386 the MMX, 3Dnow! and SSE extensions can be used
+For example, on the i386 the MMX, 3DNow!@: and SSE extensions can be used
 this way.
 
 The first step in using these extensions is to provide the necessary data
@@ -6842,8 +7044,8 @@ be emitted.
 
 @opindex ansi
 @opindex std
-Outside strict ISO C mode (@option{-ansi}, @option{-std=c89} or
-@option{-std=c99}), the functions
+Outside strict ISO C mode (@option{-ansi}, @option{-std=c90},
+@option{-std=c99} or @option{-std=c1x}), the functions
 @code{_exit}, @code{alloca}, @code{bcmp}, @code{bzero},
 @code{dcgettext}, @code{dgettext}, @code{dremf}, @code{dreml},
 @code{drem}, @code{exp10f}, @code{exp10l}, @code{exp10}, @code{ffsll},
@@ -6865,7 +7067,7 @@ Outside strict ISO C mode (@option{-ansi}, @option{-std=c89} or
 @code{yn}
 may be handled as built-in functions.
 All these functions have corresponding versions
-prefixed with @code{__builtin_}, which may be used even in strict C89
+prefixed with @code{__builtin_}, which may be used even in strict C90
 mode.
 
 The ISO C99 functions
@@ -6909,7 +7111,7 @@ The ISO C99 functions
 @code{tgamma}, @code{truncf}, @code{truncl}, @code{trunc},
 @code{vfscanf}, @code{vscanf}, @code{vsnprintf} and @code{vsscanf}
 are handled as built-in functions
-except in strict ISO C90 mode (@option{-ansi} or @option{-std=c89}).
+except in strict ISO C90 mode (@option{-ansi} or @option{-std=c90}).
 
 There are also built-in versions of the ISO C99 functions
 @code{acosf}, @code{acosl}, @code{asinf}, @code{asinl}, @code{atan2f},
@@ -6931,7 +7133,7 @@ The ISO C94 functions
 @code{iswspace}, @code{iswupper}, @code{iswxdigit}, @code{towlower} and
 @code{towupper}
 are handled as built-in functions
-except in strict ISO C90 mode (@option{-ansi} or @option{-std=c89}).
+except in strict ISO C90 mode (@option{-ansi} or @option{-std=c90}).
 
 The ISO C90 functions
 @code{abort}, @code{abs}, @code{acos}, @code{asin}, @code{atan2},
@@ -7023,7 +7225,7 @@ depending on the arguments' types.  For example:
 You can use the built-in function @code{__builtin_choose_expr} to
 evaluate code depending on the value of a constant expression.  This
 built-in function returns @var{exp1} if @var{const_exp}, which is an
-integer constant expression, is nonzero.  Otherwise it returns 0.
+integer constant expression, is nonzero.  Otherwise it returns @var{exp2}.
 
 This built-in function is analogous to the @samp{? :} operator in C,
 except that the expression returned has its type unaltered by promotion
@@ -8199,7 +8401,7 @@ The following machine modes are available for use with MMX built-in functions
 vector of eight 8-bit integers.  Some of the built-in functions operate on
 MMX registers as a whole 64-bit entity, these use @code{V1DI} as their mode.
 
-If 3Dnow extensions are enabled, @code{V2SF} is used as a mode for a vector
+If 3DNow!@: extensions are enabled, @code{V2SF} is used as a mode for a vector
 of two 32-bit floating point values.
 
 If SSE extensions are enabled, @code{V4SF} is used for a vector of four 32-bit
@@ -8926,6 +9128,31 @@ used.
 @item v2di __builtin_ia32_pclmulqdq128 (v2di, v2di, const int)
 Generates the @code{pclmulqdq} machine instruction.
 @end table
+
+The following built-in function is available when @option{-mfsgsbase} is
+used.  All of them generate the machine instruction that is part of the
+name.
+
+@smallexample
+unsigned int __builtin_ia32_rdfsbase32 (void)
+unsigned long long __builtin_ia32_rdfsbase64 (void)
+unsigned int __builtin_ia32_rdgsbase32 (void)
+unsigned long long __builtin_ia32_rdgsbase64 (void)
+void _writefsbase_u32 (unsigned int)
+void _writefsbase_u64 (unsigned long long)
+void _writegsbase_u32 (unsigned int)
+void _writegsbase_u64 (unsigned long long)
+@end smallexample
+
+The following built-in function is available when @option{-mrdrnd} is
+used.  All of them generate the machine instruction that is part of the
+name.
+
+@smallexample
+unsigned short __builtin_ia32_rdrand16 (void)
+unsigned int __builtin_ia32_rdrand32 (void)
+unsigned long long __builtin_ia32_rdrand64 (void)
+@end smallexample
 
 The following built-in functions are available when @option{-msse4a} is used.
 All of them generate the machine instruction that is part of the name.
@@ -10963,6 +11190,10 @@ vector unsigned char vec_vrlb (vector unsigned char,
 
 vector float vec_round (vector float);
 
+vector float vec_recip (vector float, vector float);
+
+vector float vec_rsqrt (vector float);
+
 vector float vec_rsqrte (vector float);
 
 vector float vec_sel (vector float, vector float, vector bool int);
@@ -11891,8 +12122,10 @@ vector double vec_or (vector bool long, vector double);
 vector double vec_perm (vector double,
                         vector double,
                         vector unsigned char);
-vector float vec_rint (vector float);
 vector double vec_rint (vector double);
+vector double vec_recip (vector double, vector double);
+vector double vec_rsqrt (vector double);
+vector double vec_rsqrte (vector double);
 vector double vec_sel (vector double, vector double, vector bool long);
 vector double vec_sel (vector double, vector double, vector unsigned long);
 vector double vec_sub (vector double, vector double);
@@ -11933,9 +12166,19 @@ GCC provides a few other builtins on Powerpc to access certain instructions:
 float __builtin_recipdivf (float, float);
 float __builtin_rsqrtf (float);
 double __builtin_recipdiv (double, double);
+double __builtin_rsqrt (double);
 long __builtin_bpermd (long, long);
 int __builtin_bswap16 (int);
 @end smallexample
+
+The @code{vec_rsqrt}, @code{__builtin_rsqrt}, and
+@code{__builtin_rsqrtf} functions generate multiple instructions to
+implement the reciprocal sqrt functionality using reciprocal sqrt
+estimate instructions.
+
+The @code{__builtin_recipdiv}, and @code{__builtin_recipdivf}
+functions generate multiple instructions to implement division using
+the reciprocal estimate instructions.
 
 @node RX Built-in Functions
 @subsection RX Built-in Functions
@@ -12169,7 +12412,7 @@ bit-fields.  See the Solaris man page for @code{cmn_err} for more information.
 @node Pragmas
 @section Pragmas Accepted by GCC
 @cindex pragmas
-@cindex #pragma
+@cindex @code{#pragma}
 
 GCC supports several types of pragmas, primarily in order to compile
 code originally written for other compilers.  Note that in general
@@ -12219,14 +12462,29 @@ subsequent functions.
 @subsection M32C Pragmas
 
 @table @code
-@item memregs @var{number}
+@item GCC memregs @var{number}
 @cindex pragma, memregs
-Overrides the command line option @code{-memregs=} for the current
+Overrides the command-line option @code{-memregs=} for the current
 file.  Use with care!  This pragma must be before any function in the
 file, and mixing different memregs values in different objects may
 make them incompatible.  This pragma is useful when a
 performance-critical function uses a memreg for temporary values,
 as it may allow you to reduce the number of memregs used.
+
+@item ADDRESS @var{name} @var{address}
+@cindex pragma, address
+For any declared symbols matching @var{name}, this does three things
+to that symbol: it forces the symbol to be located at the given
+address (a number), it forces the symbol to be volatile, and it
+changes the symbol's scope to be static.  This pragma exists for
+compatibility with other compilers, but note that the common
+@code{1234H} numeric syntax is not supported (use @code{0x1234}
+instead).  Example:
+
+@example
+#pragma ADDRESS port3 0x103
+char port3;
+@end example
 
 @end table
 
@@ -12397,7 +12655,7 @@ adding a call to the @code{.init} section.
 
 For compatibility with the Solaris and Tru64 UNIX system headers, GCC
 supports two @code{#pragma} directives which change the name used in
-assembly for a given declaration.  @code{#pragma_extern_prefix} is only 
+assembly for a given declaration.  @code{#pragma extern_prefix} is only 
 available on platforms whose system headers need it. To get this effect 
 on all platforms supported by GCC, use the asm labels extension (@pxref{Asm
 Labels}).
@@ -12465,7 +12723,7 @@ to be a small power of two and specifies the new alignment in bytes.
 @enumerate
 @item @code{#pragma pack(@var{n})} simply sets the new alignment.
 @item @code{#pragma pack()} sets the alignment to the one that was in
-effect when compilation started (see also command line option
+effect when compilation started (see also command-line option
 @option{-fpack-struct[=<n>]} @pxref{Code Gen Options}).
 @item @code{#pragma pack(push[,@var{n}])} pushes the current alignment
 setting on an internal stack and then optionally sets the new alignment.
@@ -12534,7 +12792,7 @@ are controllable and which option controls them.
 @var{kind} is @samp{error} to treat this diagnostic as an error,
 @samp{warning} to treat it like a warning (even if @option{-Werror} is
 in effect), or @samp{ignored} if the diagnostic is to be ignored.
-@var{option} is a double quoted string which matches the command line
+@var{option} is a double quoted string which matches the command-line
 option.
 
 @example
@@ -12543,15 +12801,30 @@ option.
 #pragma GCC diagnostic ignored "-Wformat"
 @end example
 
-Note that these pragmas override any command line options.  Also,
-while it is syntactically valid to put these pragmas anywhere in your
-sources, the only supported location for them is before any data or
-functions are defined.  Doing otherwise may result in unpredictable
-results depending on how the optimizer manages your sources.  If the
-same option is listed multiple times, the last one specified is the
-one that is in effect.  This pragma is not intended to be a general
-purpose replacement for command line options, but for implementing
-strict control over project policies.
+Note that these pragmas override any command-line options.  GCC keeps
+track of the location of each pragma, and issues diagnostics according
+to the state as of that point in the source file.  Thus, pragmas occurring
+after a line do not affect diagnostics caused by that line.
+
+@item #pragma GCC diagnostic push
+@itemx #pragma GCC diagnostic pop
+
+Causes GCC to remember the state of the diagnostics as of each
+@code{push}, and restore to that point at each @code{pop}.  If a
+@code{pop} has no matching @code{push}, the command line options are
+restored.
+
+@example
+#pragma GCC diagnostic error "-Wuninitialized"
+  foo(a);			/* error is given for this one */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+  foo(b);			/* no diagnostic for this one */
+#pragma GCC diagnostic pop
+  foo(c);			/* error is given for this one */
+#pragma GCC diagnostic pop
+  foo(d);			/* depends on command line options */
+@end example
 
 @end table
 
@@ -12705,10 +12978,11 @@ versions earlier than 4.4.
 
 @node Unnamed Fields
 @section Unnamed struct/union fields within structs/unions
-@cindex struct
-@cindex union
+@cindex @code{struct}
+@cindex @code{union}
 
-For compatibility with other compilers, GCC allows you to define
+As permitted by ISO C1X and for compatibility with other compilers,
+GCC allows you to define
 a structure or union that contains, as fields, structures and unions
 without names.  For example:
 
@@ -12741,17 +13015,17 @@ struct @{
 @end smallexample
 
 It is ambiguous which @code{a} is being referred to with @samp{foo.a}.
-Such constructs are not supported and must be avoided.  In the future,
-such constructs may be detected and treated as compilation errors.
+The compiler gives errors for such constructs.
 
 @opindex fms-extensions
 Unless @option{-fms-extensions} is used, the unnamed field must be a
 structure or union definition without a tag (for example, @samp{struct
-@{ int a; @};}).  If @option{-fms-extensions} is used, the field may
+@{ int a; @};}), or a @code{typedef} name for such a structure or
+union.  If @option{-fms-extensions} is used, the field may
 also be a definition with a tag such as @samp{struct foo @{ int a;
 @};}, a reference to a previously defined structure or union such as
 @samp{struct foo;}, or a reference to a @code{typedef} name for a
-previously defined structure or union type.
+previously defined structure or union type with a tag.
 
 @opindex fplan9-extensions
 The option @option{-fplan9-extensions} enables
@@ -12766,7 +13040,7 @@ extern void f1 (struct s1 *);
 void f2 (struct s2 *p) @{ f1 (p); @}
 @end smallexample
 
-in the call to @code{f1} inside @code{f2}, the pointer @code{p} is
+In the call to @code{f1} inside @code{f2}, the pointer @code{p} is
 converted into a pointer to the anonymous field.
 
 Second, when the type of an anonymous field is a @code{typedef} for a
@@ -12779,11 +13053,13 @@ struct s2 @{ s1; @};
 s1 f1 (struct s2 *p) @{ return p->s1; @}
 @end smallexample
 
+These usages are only permitted when they are not ambiguous.
+
 @node Thread-Local
 @section Thread-Local Storage
 @cindex Thread-Local Storage
 @cindex @acronym{TLS}
-@cindex __thread
+@cindex @code{__thread}
 
 Thread-local storage (@acronym{TLS}) is a mechanism by which variables
 are allocated such that there is one instance of the variable per extant
@@ -13075,7 +13351,7 @@ test specifically for GNU C++ (@pxref{Common Predefined Macros,,
 Predefined Macros,cpp,The GNU C Preprocessor}).
 
 @menu
-* Volatiles::           What constitutes an access to a volatile object.
+* C++ Volatiles::       What constitutes an access to a volatile object.
 * Restricted Pointers:: C99 restricted pointers and references.
 * Vague Linkage::       Where G++ puts inlines, vtables and such.
 * C++ Interface::       You can use a single C++ header file for both
@@ -13092,50 +13368,40 @@ Predefined Macros,cpp,The GNU C Preprocessor}).
 * Backwards Compatibility:: Compatibilities with earlier definitions of C++.
 @end menu
 
-@node Volatiles
-@section When is a Volatile Object Accessed?
+@node C++ Volatiles
+@section When is a Volatile C++ Object Accessed?
 @cindex accessing volatiles
 @cindex volatile read
 @cindex volatile write
 @cindex volatile access
 
-Both the C and C++ standard have the concept of volatile objects.  These
-are normally accessed by pointers and used for accessing hardware.  The
-standards encourage compilers to refrain from optimizations concerning
-accesses to volatile objects.  The C standard leaves it implementation
-defined  as to what constitutes a volatile access.  The C++ standard omits
-to specify this, except to say that C++ should behave in a similar manner
-to C with respect to volatiles, where possible.  The minimum either
-standard specifies is that at a sequence point all previous accesses to
-volatile objects have stabilized and no subsequent accesses have
-occurred.  Thus an implementation is free to reorder and combine
-volatile accesses which occur between sequence points, but cannot do so
-for accesses across a sequence point.  The use of volatiles does not
-allow you to violate the restriction on updating objects multiple times
-within a sequence point.
+The C++ standard differs from the C standard in its treatment of
+volatile objects.  It fails to specify what constitutes a volatile
+access, except to say that C++ should behave in a similar manner to C
+with respect to volatiles, where possible.  However, the different
+lvalueness of expressions between C and C++ complicate the behaviour.
+G++ behaves the same as GCC for volatile access, @xref{C
+Extensions,,Volatiles}, for a description of GCC's behaviour.
 
-@xref{Qualifiers implementation, , Volatile qualifier and the C compiler}.
-
-The behavior differs slightly between C and C++ in the non-obvious cases:
+The C and C++ language specifications differ when an object is
+accessed in a void context:
 
 @smallexample
 volatile int *src = @var{somevalue};
 *src;
 @end smallexample
 
-With C, such expressions are rvalues, and GCC interprets this either as a
-read of the volatile object being pointed to or only as request to evaluate
-the side-effects.  The C++ standard specifies that such expressions do not
-undergo lvalue to rvalue conversion, and that the type of the dereferenced
-object may be incomplete.  The C++ standard does not specify explicitly
-that it is this lvalue to rvalue conversion which may be responsible for
-causing an access.  However, there is reason to believe that it is,
-because otherwise certain simple expressions become undefined.  However,
-because it would surprise most programmers, G++ treats dereferencing a
-pointer to volatile object of complete type when the value is unused as
-GCC would do for an equivalent type in C@.  When the object has incomplete
-type, G++ issues a warning; if you wish to force an error, you must
-force a conversion to rvalue with, for instance, a static cast.
+The C++ standard specifies that such expressions do not undergo lvalue
+to rvalue conversion, and that the type of the dereferenced object may
+be incomplete.  The C++ standard does not specify explicitly that it
+is lvalue to rvalue conversion which is responsible for causing an
+access.  There is reason to believe that it is, because otherwise
+certain simple expressions become undefined.  However, because it
+would surprise most programmers, G++ treats dereferencing a pointer to
+volatile object of complete type as GCC would do for an equivalent
+type in C@.  When the object has incomplete type, G++ issues a
+warning; if you wish to force an error, you must force a conversion to
+rvalue with, for instance, a static cast.
 
 When using a reference to volatile, G++ does not treat equivalent
 expressions as accesses to volatiles, but instead issues a warning that
@@ -13144,6 +13410,18 @@ becomes difficult to determine where volatile access occur, and not
 possible to ignore the return value from functions returning volatile
 references.  Again, if you wish to force a read, cast the reference to
 an rvalue.
+
+G++ implements the same behaviour as GCC does when assigning to a
+volatile object -- there is no reread of the assigned-to object, the
+assigned rvalue is reused.  Note that in C++ assignment expressions
+are lvalues, and if used as an lvalue, the volatile object will be
+referred to.  For instance, @var{vref} will refer to @var{vobj}, as
+expected, in the following example:
+
+@smallexample
+volatile int vobj;
+volatile int &vref = vobj = @var{something};
+@end smallexample
 
 @node Restricted Pointers
 @section Restricting Pointer Aliasing
@@ -13234,15 +13512,15 @@ vtable will still be emitted in every translation unit which defines it.
 Make sure that any inline virtuals are declared inline in the class
 body, even if they are not defined there.
 
-@item type_info objects
-@cindex type_info
+@item @code{type_info} objects
+@cindex @code{type_info}
 @cindex RTTI
 C++ requires information about types to be written out in order to
 implement @samp{dynamic_cast}, @samp{typeid} and exception handling.
-For polymorphic classes (classes with virtual functions), the type_info
+For polymorphic classes (classes with virtual functions), the @samp{type_info}
 object is written out along with the vtable so that @samp{dynamic_cast}
 can determine the dynamic type of a class object at runtime.  For all
-other types, we write out the type_info object when it is used: when
+other types, we write out the @samp{type_info} object when it is used: when
 applying @samp{typeid} to an expression, throwing an object, or
 referring to a type in a catch clause or exception specification.
 
@@ -13562,7 +13840,7 @@ Some attributes only make sense for C++ programs.
 
 @table @code
 @item init_priority (@var{priority})
-@cindex init_priority attribute
+@cindex @code{init_priority} attribute
 
 
 In Standard C++, objects defined at namespace scope are guaranteed to be
@@ -13587,7 +13865,7 @@ Note that the particular values of @var{priority} do not matter; only their
 relative ordering.
 
 @item java_interface
-@cindex java_interface attribute
+@cindex @code{java_interface} attribute
 
 This type attribute informs C++ that the class is a Java interface.  It may
 only be applied to classes declared within an @code{extern "Java"} block.

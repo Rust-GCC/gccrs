@@ -1,18 +1,18 @@
 /* Array prefetching.
-   Copyright (C) 2005, 2007, 2008 Free Software Foundation, Inc.
-   
+   Copyright (C) 2005, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+
 This file is part of GCC.
-   
+
 GCC is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
 Free Software Foundation; either version 3, or (at your option) any
 later version.
-   
+
 GCC is distributed in the hope that it will be useful, but WITHOUT
 ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
-   
+
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
@@ -22,30 +22,31 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "rtl.h"
 #include "tm_p.h"
-#include "hard-reg-set.h"
 #include "basic-block.h"
 #include "output.h"
-#include "diagnostic.h"
+#include "tree-pretty-print.h"
 #include "tree-flow.h"
 #include "tree-dump.h"
 #include "timevar.h"
 #include "cfgloop.h"
-#include "varray.h"
-#include "expr.h"
 #include "tree-pass.h"
-#include "ggc.h"
 #include "insn-config.h"
 #include "recog.h"
 #include "hashtab.h"
 #include "tree-chrec.h"
 #include "tree-scalar-evolution.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "params.h"
 #include "langhooks.h"
 #include "tree-inline.h"
 #include "tree-data-ref.h"
+
+
+/* FIXME: Needed for optabs, but this should all be moved to a TBD interface
+   between the GIMPLE and RTL worlds.  */
+#include "expr.h"
 #include "optabs.h"
 
 /* This pass inserts prefetch instructions to optimize cache usage during
@@ -79,7 +80,7 @@ along with GCC; see the file COPYING3.  If not see
        (2) has PREFETCH_MOD 64
        (3) has PREFETCH_MOD 4
        (4) has PREFETCH_MOD 1.  We do not set PREFETCH_BEFORE here, since
-           the cache line accessed by (4) is the same with probability only
+           the cache line accessed by (5) is the same with probability only
 	   7/32.
        (5) has PREFETCH_MOD 1 as well.
 
@@ -99,33 +100,43 @@ along with GCC; see the file COPYING3.  If not see
       while still within this bound (starting with those with lowest
       prefetch_mod, since they are responsible for most of the cache
       misses).
-      
+
    5) We unroll and peel loops so that we are able to satisfy PREFETCH_MOD
       and PREFETCH_BEFORE requirements (within some bounds), and to avoid
       prefetching nonaccessed memory.
       TODO -- actually implement peeling.
-      
+
    6) We actually emit the prefetch instructions.  ??? Perhaps emit the
       prefetch instructions with guards in cases where 5) was not sufficient
       to satisfy the constraints?
 
-   The function is_loop_prefetching_profitable() implements a cost model
-   to determine if prefetching is profitable for a given loop. The cost
-   model has two heuristcs:
-   1. A heuristic that determines whether the given loop has enough CPU
-      ops that can be overlapped with cache missing memory ops.
-      If not, the loop won't benefit from prefetching. This is implemented 
-      by requirung the ratio between the instruction count and the mem ref 
-      count to be above a certain minimum.
-   2. A heuristic that disables prefetching in a loop with an unknown trip
-      count if the prefetching cost is above a certain limit. The relative 
-      prefetching cost is estimated by taking the ratio between the
-      prefetch count and the total intruction count (this models the I-cache
-      cost).
+   A cost model is implemented to determine whether or not prefetching is
+   profitable for a given loop.  The cost model has three heuristics:
+
+   1. Function trip_count_to_ahead_ratio_too_small_p implements a
+      heuristic that determines whether or not the loop has too few
+      iterations (compared to ahead).  Prefetching is not likely to be
+      beneficial if the trip count to ahead ratio is below a certain
+      minimum.
+
+   2. Function mem_ref_count_reasonable_p implements a heuristic that
+      determines whether the given loop has enough CPU ops that can be
+      overlapped with cache missing memory ops.  If not, the loop
+      won't benefit from prefetching.  In the implementation,
+      prefetching is not considered beneficial if the ratio between
+      the instruction count and the mem ref count is below a certain
+      minimum.
+
+   3. Function insn_to_prefetch_ratio_too_small_p implements a
+      heuristic that disables prefetching in a loop if the prefetching
+      cost is above a certain limit.  The relative prefetching cost is
+      estimated by taking the ratio between the prefetch count and the
+      total intruction count (this models the I-cache cost).
+
    The limits used in these heuristics are defined as parameters with
-   reasonable default values. Machine-specific default values will be 
+   reasonable default values. Machine-specific default values will be
    added later.
- 
+
    Some other TODO:
       -- write and use more general reuse analysis (that could be also used
 	 in other cache aimed loop optimizations)
@@ -200,12 +211,24 @@ along with GCC; see the file COPYING3.  If not see
 #define FENCE_FOLLOWING_MOVNT NULL_TREE
 #endif
 
+/* It is not profitable to prefetch when the trip count is not at
+   least TRIP_COUNT_TO_AHEAD_RATIO times the prefetch ahead distance.
+   For example, in a loop with a prefetch ahead distance of 10,
+   supposing that TRIP_COUNT_TO_AHEAD_RATIO is equal to 4, it is
+   profitable to prefetch when the trip count is greater or equal to
+   40.  In that case, 30 out of the 40 iterations will benefit from
+   prefetching.  */
+
+#ifndef TRIP_COUNT_TO_AHEAD_RATIO
+#define TRIP_COUNT_TO_AHEAD_RATIO 4
+#endif
+
 /* The group of references between that reuse may occur.  */
 
 struct mem_ref_group
 {
   tree base;			/* Base of the reference.  */
-  HOST_WIDE_INT step;		/* Step of the reference.  */
+  tree step;			/* Step of the reference.  */
   struct mem_ref *refs;		/* References in the group.  */
   struct mem_ref_group *next;	/* Next group of references.  */
 };
@@ -213,6 +236,25 @@ struct mem_ref_group
 /* Assigned to PREFETCH_BEFORE when all iterations are to be prefetched.  */
 
 #define PREFETCH_ALL		(~(unsigned HOST_WIDE_INT) 0)
+
+/* Do not generate a prefetch if the unroll factor is significantly less
+   than what is required by the prefetch.  This is to avoid redundant
+   prefetches.  For example, when prefetch_mod is 16 and unroll_factor is
+   2, prefetching requires unrolling the loop 16 times, but
+   the loop is actually unrolled twice.  In this case (ratio = 8),
+   prefetching is not likely to be beneficial.  */
+
+#ifndef PREFETCH_MOD_TO_UNROLL_FACTOR_RATIO
+#define PREFETCH_MOD_TO_UNROLL_FACTOR_RATIO 4
+#endif
+
+/* Some of the prefetch computations have quadratic complexity.  We want to
+   avoid huge compile times and, therefore, want to limit the amount of
+   memory references per loop where we consider prefetching.  */
+
+#ifndef PREFETCH_MAX_MEM_REFS_PER_LOOP
+#define PREFETCH_MAX_MEM_REFS_PER_LOOP 200
+#endif
 
 /* The memory reference.  */
 
@@ -249,7 +291,10 @@ dump_mem_ref (FILE *file, struct mem_ref *ref)
   fprintf (file, "  group %p (base ", (void *) ref->group);
   print_generic_expr (file, ref->group->base, TDF_SLIM);
   fprintf (file, ", step ");
-  fprintf (file, HOST_WIDE_INT_PRINT_DEC, ref->group->step);
+  if (cst_and_fits_in_hwi (ref->group->step))
+    fprintf (file, HOST_WIDE_INT_PRINT_DEC, int_cst_value (ref->group->step));
+  else
+    print_generic_expr (file, ref->group->step, TDF_TREE);
   fprintf (file, ")\n");
 
   fprintf (file, "  delta ");
@@ -265,19 +310,20 @@ dump_mem_ref (FILE *file, struct mem_ref *ref)
    exist.  */
 
 static struct mem_ref_group *
-find_or_create_group (struct mem_ref_group **groups, tree base,
-		      HOST_WIDE_INT step)
+find_or_create_group (struct mem_ref_group **groups, tree base, tree step)
 {
   struct mem_ref_group *group;
 
   for (; *groups; groups = &(*groups)->next)
     {
-      if ((*groups)->step == step
+      if (operand_equal_p ((*groups)->step, step, 0)
 	  && operand_equal_p ((*groups)->base, base, 0))
 	return *groups;
 
-      /* Keep the list of groups sorted by decreasing step.  */
-      if ((*groups)->step < step)
+      /* If step is an integer constant, keep the list of groups sorted
+         by decreasing step.  */
+        if (cst_and_fits_in_hwi ((*groups)->step) && cst_and_fits_in_hwi (step)
+            && int_cst_value ((*groups)->step) < int_cst_value (step))
 	break;
     }
 
@@ -362,7 +408,7 @@ struct ar_data
 {
   struct loop *loop;			/* Loop of the reference.  */
   gimple stmt;				/* Statement of the reference.  */
-  HOST_WIDE_INT *step;			/* Step of the memory reference.  */
+  tree *step;				/* Step of the memory reference.  */
   HOST_WIDE_INT *delta;			/* Offset of the memory reference.  */
 };
 
@@ -374,22 +420,14 @@ idx_analyze_ref (tree base, tree *index, void *data)
 {
   struct ar_data *ar_data = (struct ar_data *) data;
   tree ibase, step, stepsize;
-  HOST_WIDE_INT istep, idelta = 0, imult = 1;
+  HOST_WIDE_INT idelta = 0, imult = 1;
   affine_iv iv;
 
-  if (TREE_CODE (base) == MISALIGNED_INDIRECT_REF
-      || TREE_CODE (base) == ALIGN_INDIRECT_REF)
-    return false;
-
   if (!simple_iv (ar_data->loop, loop_containing_stmt (ar_data->stmt),
-		  *index, &iv, false))
+		  *index, &iv, true))
     return false;
   ibase = iv.base;
   step = iv.step;
-
-  if (!cst_and_fits_in_hwi (step))
-    return false;
-  istep = int_cst_value (step);
 
   if (TREE_CODE (ibase) == POINTER_PLUS_EXPR
       && cst_and_fits_in_hwi (TREE_OPERAND (ibase, 1)))
@@ -409,12 +447,18 @@ idx_analyze_ref (tree base, tree *index, void *data)
       if (!cst_and_fits_in_hwi (stepsize))
 	return false;
       imult = int_cst_value (stepsize);
-
-      istep *= imult;
+      step = fold_build2 (MULT_EXPR, sizetype,
+			  fold_convert (sizetype, step),
+			  fold_convert (sizetype, stepsize));
       idelta *= imult;
     }
 
-  *ar_data->step += istep;
+  if (*ar_data->step == NULL_TREE)
+    *ar_data->step = step;
+  else
+    *ar_data->step = fold_build2 (PLUS_EXPR, sizetype,
+				  fold_convert (sizetype, *ar_data->step),
+				  fold_convert (sizetype, step));
   *ar_data->delta += idelta;
   *index = ibase;
 
@@ -428,7 +472,7 @@ idx_analyze_ref (tree base, tree *index, void *data)
 
 static bool
 analyze_ref (struct loop *loop, tree *ref_p, tree *base,
-	     HOST_WIDE_INT *step, HOST_WIDE_INT *delta,
+	     tree *step, HOST_WIDE_INT *delta,
 	     gimple stmt)
 {
   struct ar_data ar_data;
@@ -436,13 +480,21 @@ analyze_ref (struct loop *loop, tree *ref_p, tree *base,
   HOST_WIDE_INT bit_offset;
   tree ref = *ref_p;
 
-  *step = 0;
+  *step = NULL_TREE;
   *delta = 0;
 
-  /* First strip off the component references.  Ignore bitfields.  */
-  if (TREE_CODE (ref) == COMPONENT_REF
-      && DECL_NONADDRESSABLE_P (TREE_OPERAND (ref, 1)))
-    ref = TREE_OPERAND (ref, 0);
+  /* First strip off the component references.  Ignore bitfields.
+     Also strip off the real and imagine parts of a complex, so that
+     they can have the same base.  */
+  if (TREE_CODE (ref) == REALPART_EXPR
+      || TREE_CODE (ref) == IMAGPART_EXPR
+      || (TREE_CODE (ref) == COMPONENT_REF
+          && DECL_NONADDRESSABLE_P (TREE_OPERAND (ref, 1))))
+    {
+      if (TREE_CODE (ref) == IMAGPART_EXPR)
+        *delta += int_size_in_bytes (TREE_TYPE (ref));
+      ref = TREE_OPERAND (ref, 0);
+    }
 
   *ref_p = ref;
 
@@ -451,7 +503,7 @@ analyze_ref (struct loop *loop, tree *ref_p, tree *base,
       off = DECL_FIELD_BIT_OFFSET (TREE_OPERAND (ref, 1));
       bit_offset = TREE_INT_CST_LOW (off);
       gcc_assert (bit_offset % BITS_PER_UNIT == 0);
-      
+
       *delta += bit_offset / BITS_PER_UNIT;
     }
 
@@ -471,14 +523,25 @@ static bool
 gather_memory_references_ref (struct loop *loop, struct mem_ref_group **refs,
 			      tree ref, bool write_p, gimple stmt)
 {
-  tree base;
-  HOST_WIDE_INT step, delta;
+  tree base, step;
+  HOST_WIDE_INT delta;
   struct mem_ref_group *agrp;
 
   if (get_base_address (ref) == NULL)
     return false;
 
   if (!analyze_ref (loop, &ref, &base, &step, &delta, stmt))
+    return false;
+  /* If analyze_ref fails the default is a NULL_TREE.  We can stop here.  */
+  if (step == NULL_TREE)
+    return false;
+
+  /* Stop if the address of BASE could not be taken.  */
+  if (may_be_nonaddressable_p (base))
+    return false;
+
+  /* Limit non-constant step prefetching only to the innermost loops.  */
+  if (!cst_and_fits_in_hwi (step) && loop->inner != NULL)
     return false;
 
   /* Now we know that REF = &BASE + STEP * iter + DELTA, where DELTA and STEP
@@ -554,8 +617,16 @@ gather_memory_references (struct loop *loop, bool *no_other_refs, unsigned *ref_
 static void
 prune_ref_by_self_reuse (struct mem_ref *ref)
 {
-  HOST_WIDE_INT step = ref->group->step;
-  bool backward = step < 0;
+  HOST_WIDE_INT step;
+  bool backward;
+
+  /* If the step size is non constant, we cannot calculate prefetch_mod.  */
+  if (!cst_and_fits_in_hwi (ref->group->step))
+    return;
+
+  step = int_cst_value (ref->group->step);
+
+  backward = step < 0;
 
   if (step == 0)
     {
@@ -593,26 +664,33 @@ ddown (HOST_WIDE_INT x, unsigned HOST_WIDE_INT by)
     return (x + by - 1) / by;
 }
 
-/* Given a CACHE_LINE_SIZE and two inductive memory references 
-   with a common STEP greater than CACHE_LINE_SIZE and an address 
-   difference DELTA, compute the probability that they will fall 
-   in different cache lines.  DISTINCT_ITERS is the number of 
-   distinct iterations after which the pattern repeats itself.  
+/* Given a CACHE_LINE_SIZE and two inductive memory references
+   with a common STEP greater than CACHE_LINE_SIZE and an address
+   difference DELTA, compute the probability that they will fall
+   in different cache lines.  Return true if the computed miss rate
+   is not greater than the ACCEPTABLE_MISS_RATE.  DISTINCT_ITERS is the
+   number of distinct iterations after which the pattern repeats itself.
    ALIGN_UNIT is the unit of alignment in bytes.  */
 
-static int
-compute_miss_rate (unsigned HOST_WIDE_INT cache_line_size, 
+static bool
+is_miss_rate_acceptable (unsigned HOST_WIDE_INT cache_line_size,
 		   HOST_WIDE_INT step, HOST_WIDE_INT delta,
 		   unsigned HOST_WIDE_INT distinct_iters,
 		   int align_unit)
 {
   unsigned align, iter;
-  int total_positions, miss_positions, miss_rate;
+  int total_positions, miss_positions, max_allowed_miss_positions;
   int address1, address2, cache_line1, cache_line2;
 
-  total_positions = 0;
+  /* It always misses if delta is greater than or equal to the cache
+     line size.  */
+  if (delta >= (HOST_WIDE_INT) cache_line_size)
+    return false;
+
   miss_positions = 0;
-  
+  total_positions = (cache_line_size / align_unit) * distinct_iters;
+  max_allowed_miss_positions = (ACCEPTABLE_MISS_RATE * total_positions) / 1000;
+
   /* Iterate through all possible alignments of the first
      memory reference within its cache line.  */
   for (align = 0; align < cache_line_size; align += align_unit)
@@ -624,12 +702,14 @@ compute_miss_rate (unsigned HOST_WIDE_INT cache_line_size,
 	address2 = address1 + delta;
 	cache_line1 = address1 / cache_line_size;
 	cache_line2 = address2 / cache_line_size;
-	total_positions += 1;
 	if (cache_line1 != cache_line2)
-	  miss_positions += 1;
+	  {
+	    miss_positions += 1;
+            if (miss_positions > max_allowed_miss_positions)
+	      return false;
+          }
       }
-  miss_rate = 1000 * miss_positions / total_positions;
-  return miss_rate;
+  return true;
 }
 
 /* Prune the prefetch candidate REF using the reuse with BY.
@@ -639,17 +719,26 @@ static void
 prune_ref_by_group_reuse (struct mem_ref *ref, struct mem_ref *by,
 			  bool by_is_before)
 {
-  HOST_WIDE_INT step = ref->group->step;
-  bool backward = step < 0;
+  HOST_WIDE_INT step;
+  bool backward;
   HOST_WIDE_INT delta_r = ref->delta, delta_b = by->delta;
   HOST_WIDE_INT delta = delta_b - delta_r;
   HOST_WIDE_INT hit_from;
   unsigned HOST_WIDE_INT prefetch_before, prefetch_block;
-  int miss_rate;
   HOST_WIDE_INT reduced_step;
   unsigned HOST_WIDE_INT reduced_prefetch_block;
   tree ref_type;
   int align_unit;
+
+  /* If the step is non constant we cannot calculate prefetch_before.  */
+  if (!cst_and_fits_in_hwi (ref->group->step)) {
+    return;
+  }
+
+  step = int_cst_value (ref->group->step);
+
+  backward = step < 0;
+
 
   if (delta == 0)
     {
@@ -657,7 +746,7 @@ prune_ref_by_group_reuse (struct mem_ref *ref, struct mem_ref *by,
 	 former.  */
       if (by_is_before)
 	ref->prefetch_before = 0;
-      
+
       return;
     }
 
@@ -705,17 +794,20 @@ prune_ref_by_group_reuse (struct mem_ref *ref, struct mem_ref *by,
       hit_from = ddown (delta_b, PREFETCH_BLOCK) * PREFETCH_BLOCK;
       prefetch_before = (hit_from - delta_r + step - 1) / step;
 
+      /* Do not reduce prefetch_before if we meet beyond cache size.  */
+      if (prefetch_before > (unsigned) abs (L2_CACHE_SIZE_BYTES / step))
+        prefetch_before = PREFETCH_ALL;
       if (prefetch_before < ref->prefetch_before)
 	ref->prefetch_before = prefetch_before;
 
       return;
     }
 
-  /* A more complicated case with step > prefetch_block.  First reduce 
+  /* A more complicated case with step > prefetch_block.  First reduce
      the ratio between the step and the cache line size to its simplest
-     terms.  The resulting denominator will then represent the number of 
-     distinct iterations after which each address will go back to its 
-     initial location within the cache line.  This computation assumes 
+     terms.  The resulting denominator will then represent the number of
+     distinct iterations after which each address will go back to its
+     initial location within the cache line.  This computation assumes
      that PREFETCH_BLOCK is a power of two.  */
   prefetch_block = PREFETCH_BLOCK;
   reduced_prefetch_block = prefetch_block;
@@ -731,10 +823,12 @@ prune_ref_by_group_reuse (struct mem_ref *ref, struct mem_ref *by,
   delta %= step;
   ref_type = TREE_TYPE (ref->mem);
   align_unit = TYPE_ALIGN (ref_type) / 8;
-  miss_rate = compute_miss_rate(prefetch_block, step, delta, 
-				reduced_prefetch_block, align_unit);
-  if (miss_rate <= ACCEPTABLE_MISS_RATE)
+  if (is_miss_rate_acceptable (prefetch_block, step, delta,
+			       reduced_prefetch_block, align_unit))
     {
+      /* Do not reduce prefetch_before if we meet beyond cache size.  */
+      if (prefetch_before > L2_CACHE_SIZE_BYTES / PREFETCH_BLOCK)
+        prefetch_before = PREFETCH_ALL;
       if (prefetch_before < ref->prefetch_before)
 	ref->prefetch_before = prefetch_before;
 
@@ -744,9 +838,8 @@ prune_ref_by_group_reuse (struct mem_ref *ref, struct mem_ref *by,
   /* Try also the following iteration.  */
   prefetch_before++;
   delta = step - delta;
-  miss_rate = compute_miss_rate(prefetch_block, step, delta, 
-				reduced_prefetch_block, align_unit);
-  if (miss_rate <= ACCEPTABLE_MISS_RATE) 
+  if (is_miss_rate_acceptable (prefetch_block, step, delta,
+			       reduced_prefetch_block, align_unit))
     {
       if (prefetch_before < ref->prefetch_before)
 	ref->prefetch_before = prefetch_before;
@@ -849,11 +942,20 @@ should_issue_prefetch_p (struct mem_ref *ref)
   /* For now do not issue prefetches for only first few of the
      iterations.  */
   if (ref->prefetch_before != PREFETCH_ALL)
-    return false;
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+        fprintf (dump_file, "Ignoring %p due to prefetch_before\n",
+		 (void *) ref);
+      return false;
+    }
 
   /* Do not prefetch nontemporal stores.  */
   if (ref->storent_p)
-    return false;
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+        fprintf (dump_file, "Ignoring nontemporal store %p\n", (void *) ref);
+      return false;
+    }
 
   return true;
 }
@@ -895,6 +997,12 @@ schedule_prefetches (struct mem_ref_group *groups, unsigned unroll_factor,
 	if (!should_issue_prefetch_p (ref))
 	  continue;
 
+        /* The loop is far from being sufficiently unrolled for this
+           prefetch.  Do not generate prefetch to avoid many redudant
+           prefetches.  */
+        if (ref->prefetch_mod / unroll_factor > PREFETCH_MOD_TO_UNROLL_FACTOR_RATIO)
+          continue;
+
 	/* If we need to prefetch the reference each PREFETCH_MOD iterations,
 	   and we unroll the loop UNROLL_FACTOR times, we need to insert
 	   ceil (UNROLL_FACTOR / PREFETCH_MOD) instructions in each
@@ -919,18 +1027,40 @@ schedule_prefetches (struct mem_ref_group *groups, unsigned unroll_factor,
   return any;
 }
 
-/* Estimate the number of prefetches in the given GROUPS.  */
+/* Return TRUE if no prefetch is going to be generated in the given
+   GROUPS.  */
 
-static int
-estimate_prefetch_count (struct mem_ref_group *groups)
+static bool
+nothing_to_prefetch_p (struct mem_ref_group *groups)
 {
   struct mem_ref *ref;
+
+  for (; groups; groups = groups->next)
+    for (ref = groups->refs; ref; ref = ref->next)
+      if (should_issue_prefetch_p (ref))
+	return false;
+
+  return true;
+}
+
+/* Estimate the number of prefetches in the given GROUPS.
+   UNROLL_FACTOR is the factor by which LOOP was unrolled.  */
+
+static int
+estimate_prefetch_count (struct mem_ref_group *groups, unsigned unroll_factor)
+{
+  struct mem_ref *ref;
+  unsigned n_prefetches;
   int prefetch_count = 0;
 
   for (; groups; groups = groups->next)
     for (ref = groups->refs; ref; ref = ref->next)
       if (should_issue_prefetch_p (ref))
-	  prefetch_count++;
+	{
+	  n_prefetches = ((unroll_factor + ref->prefetch_mod - 1)
+			  / ref->prefetch_mod);
+	  prefetch_count += n_prefetches;
+	}
 
   return prefetch_count;
 }
@@ -943,7 +1073,7 @@ static void
 issue_prefetch_ref (struct mem_ref *ref, unsigned unroll_factor, unsigned ahead)
 {
   HOST_WIDE_INT delta;
-  tree addr, addr_base, write_p, local;
+  tree addr, addr_base, write_p, local, forward;
   gimple prefetch;
   gimple_stmt_iterator bsi;
   unsigned n_prefetches, ap;
@@ -962,17 +1092,32 @@ issue_prefetch_ref (struct mem_ref *ref, unsigned unroll_factor, unsigned ahead)
   addr_base = force_gimple_operand_gsi (&bsi, unshare_expr (addr_base),
 					true, NULL, true, GSI_SAME_STMT);
   write_p = ref->write_p ? integer_one_node : integer_zero_node;
-  local = build_int_cst (integer_type_node, nontemporal ? 0 : 3);
+  local = nontemporal ? integer_zero_node : integer_three_node;
 
   for (ap = 0; ap < n_prefetches; ap++)
     {
-      /* Determine the address to prefetch.  */
-      delta = (ahead + ap * ref->prefetch_mod) * ref->group->step;
-      addr = fold_build2 (POINTER_PLUS_EXPR, ptr_type_node,
-			  addr_base, size_int (delta));
-      addr = force_gimple_operand_gsi (&bsi, unshare_expr (addr), true, NULL,
-				       true, GSI_SAME_STMT);
-
+      if (cst_and_fits_in_hwi (ref->group->step))
+        {
+          /* Determine the address to prefetch.  */
+          delta = (ahead + ap * ref->prefetch_mod) *
+		   int_cst_value (ref->group->step);
+          addr = fold_build2 (POINTER_PLUS_EXPR, ptr_type_node,
+                              addr_base, size_int (delta));
+          addr = force_gimple_operand_gsi (&bsi, unshare_expr (addr), true, NULL,
+                                           true, GSI_SAME_STMT);
+        }
+      else
+        {
+          /* The step size is non-constant but loop-invariant.  We use the
+             heuristic to simply prefetch ahead iterations ahead.  */
+          forward = fold_build2 (MULT_EXPR, sizetype,
+                                 fold_convert (sizetype, ref->group->step),
+                                 fold_convert (sizetype, size_int (ahead)));
+          addr = fold_build2 (POINTER_PLUS_EXPR, ptr_type_node, addr_base,
+			      forward);
+          addr = force_gimple_operand_gsi (&bsi, unshare_expr (addr), true,
+					   NULL, true, GSI_SAME_STMT);
+      }
       /* Create the prefetch instruction.  */
       prefetch = gimple_build_call (built_in_decls[BUILT_IN_PREFETCH],
 				    3, addr, write_p, local);
@@ -1018,7 +1163,7 @@ nontemporal_store_p (struct mem_ref *ref)
   if (mode == BLKmode)
     return false;
 
-  code = optab_handler (storent_optab, mode)->insn_code;
+  code = optab_handler (storent_optab, mode);
   return code != CODE_FOR_nothing;
 }
 
@@ -1052,7 +1197,7 @@ emit_mfence_after_loop (struct loop *loop)
   gimple_stmt_iterator bsi;
   unsigned i;
 
-  for (i = 0; VEC_iterate (edge, exits, i, exit); i++)
+  FOR_EACH_VEC_ELT (edge, exits, i, exit)
     {
       call = gimple_build_call (FENCE_FOLLOWING_MOVNT, 0);
 
@@ -1089,7 +1234,7 @@ may_use_storent_in_loop_p (struct loop *loop)
       unsigned i;
       edge exit;
 
-      for (i = 0; VEC_iterate (edge, exits, i, exit); i++)
+      FOR_EACH_VEC_ELT (edge, exits, i, exit)
 	if ((exit->flags & EDGE_ABNORMAL)
 	    && exit->dest == EXIT_BLOCK_PTR)
 	  ret = false;
@@ -1308,13 +1453,13 @@ self_reuse_distance (data_reference_p dr, unsigned *loop_sizes, unsigned n,
   strides = XCNEWVEC (HOST_WIDE_INT, n);
   access_fns = DR_ACCESS_FNS (dr);
 
-  for (i = 0; VEC_iterate (tree, access_fns, i, access_fn); i++)
+  FOR_EACH_VEC_ELT (tree, access_fns, i, access_fn)
     {
       /* Keep track of the reference corresponding to the subscript, so that we
 	 know its stride.  */
       while (handled_component_p (ref) && TREE_CODE (ref) != ARRAY_REF)
 	ref = TREE_OPERAND (ref, 0);
-      
+
       if (TREE_CODE (ref) == ARRAY_REF)
 	{
 	  stride = TYPE_SIZE_UNIT (TREE_TYPE (ref));
@@ -1430,7 +1575,7 @@ determine_loop_nest_reuse (struct loop *loop, struct mem_ref_group *refs,
 	  no_other_refs = false;
       }
 
-  for (i = 0; VEC_iterate (data_reference_p, datarefs, i, dr); i++)
+  FOR_EACH_VEC_ELT (data_reference_p, datarefs, i, dr)
     {
       dist = self_reuse_distance (dr, loop_data_size, n, loop);
       ref = (struct mem_ref *) dr->aux;
@@ -1443,7 +1588,7 @@ determine_loop_nest_reuse (struct loop *loop, struct mem_ref_group *refs,
 
   compute_all_dependences (datarefs, &dependences, vloops, true);
 
-  for (i = 0; VEC_iterate (ddr_p, dependences, i, dep); i++)
+  FOR_EACH_VEC_ELT (ddr_p, dependences, i, dep)
     {
       if (DDR_ARE_DEPENDENT (dep) == chrec_known)
 	continue;
@@ -1457,7 +1602,7 @@ determine_loop_nest_reuse (struct loop *loop, struct mem_ref_group *refs,
 	  /* If the dependence cannot be analyzed, assume that there might be
 	     a reuse.  */
 	  dist = 0;
-      
+
 	  ref->independent_p = false;
 	  refb->independent_p = false;
 	}
@@ -1522,68 +1667,109 @@ determine_loop_nest_reuse (struct loop *loop, struct mem_ref_group *refs,
     }
 }
 
-/* Do a cost-benefit analysis to determine if prefetching is profitable
-   for the current loop given the following parameters:
+/* Determine whether or not the trip count to ahead ratio is too small based
+   on prefitablility consideration.
    AHEAD: the iteration ahead distance,
-   EST_NITER: the estimated trip count,  
-   NINSNS: estimated number of instructions in the loop,
-   PREFETCH_COUNT: an estimate of the number of prefetches
-   MEM_REF_COUNT: total number of memory references in the loop.  */
+   EST_NITER: the estimated trip count.  */
 
-static bool 
-is_loop_prefetching_profitable (unsigned ahead, HOST_WIDE_INT est_niter, 
-				unsigned ninsns, unsigned prefetch_count, 
-				unsigned mem_ref_count)
+static bool
+trip_count_to_ahead_ratio_too_small_p (unsigned ahead, HOST_WIDE_INT est_niter)
 {
-  int insn_to_mem_ratio, insn_to_prefetch_ratio;
-
-  if (mem_ref_count == 0)
-    return false;
-
-  /* Prefetching improves performance by overlapping cache missing 
-     memory accesses with CPU operations.  If the loop does not have 
-     enough CPU operations to overlap with memory operations, prefetching 
-     won't give a significant benefit.  One approximate way of checking 
-     this is to require the ratio of instructions to memory references to 
-     be above a certain limit.  This approximation works well in practice.
-     TODO: Implement a more precise computation by estimating the time
-     for each CPU or memory op in the loop. Time estimates for memory ops
-     should account for cache misses.  */
-  insn_to_mem_ratio = ninsns / mem_ref_count;  
-
-  if (insn_to_mem_ratio < PREFETCH_MIN_INSN_TO_MEM_RATIO)
-    return false;
-
-  /* Profitability of prefetching is highly dependent on the trip count.
-     For a given AHEAD distance, the first AHEAD iterations do not benefit 
-     from prefetching, and the last AHEAD iterations execute useless 
-     prefetches.  So, if the trip count is not large enough relative to AHEAD,
-     prefetching may cause serious performance degradation.  To avoid this
-     problem when the trip count is not known at compile time, we 
-     conservatively skip loops with high prefetching costs.  For now, only
-     the I-cache cost is considered.  The relative I-cache cost is estimated 
-     by taking the ratio between the number of prefetches and the total
-     number of instructions.  Since we are using integer arithmetic, we
-     compute the reciprocal of this ratio.  
-     TODO: Account for loop unrolling, which may reduce the costs of
-     shorter stride prefetches.  Note that not accounting for loop 
-     unrolling over-estimates the cost and hence gives more conservative
-     results.  */
+  /* Assume trip count to ahead ratio is big enough if the trip count could not
+     be estimated at compile time.  */
   if (est_niter < 0)
-    {
-      insn_to_prefetch_ratio = ninsns / prefetch_count;      
-      return insn_to_prefetch_ratio >= MIN_INSN_TO_PREFETCH_RATIO;
-    }
-       
-  if (est_niter <= (HOST_WIDE_INT) ahead)
+    return false;
+
+  if (est_niter < (HOST_WIDE_INT) (TRIP_COUNT_TO_AHEAD_RATIO * ahead))
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file,
 		 "Not prefetching -- loop estimated to roll only %d times\n",
 		 (int) est_niter);
+      return true;
+    }
+
+  return false;
+}
+
+/* Determine whether or not the number of memory references in the loop is
+   reasonable based on the profitablity and compilation time considerations.
+   NINSNS: estimated number of instructions in the loop,
+   MEM_REF_COUNT: total number of memory references in the loop.  */
+
+static bool
+mem_ref_count_reasonable_p (unsigned ninsns, unsigned mem_ref_count)
+{
+  int insn_to_mem_ratio;
+
+  if (mem_ref_count == 0)
+    return false;
+
+  /* Miss rate computation (is_miss_rate_acceptable) and dependence analysis
+     (compute_all_dependences) have high costs based on quadratic complexity.
+     To avoid huge compilation time, we give up prefetching if mem_ref_count
+     is too large.  */
+  if (mem_ref_count > PREFETCH_MAX_MEM_REFS_PER_LOOP)
+    return false;
+
+  /* Prefetching improves performance by overlapping cache missing
+     memory accesses with CPU operations.  If the loop does not have
+     enough CPU operations to overlap with memory operations, prefetching
+     won't give a significant benefit.  One approximate way of checking
+     this is to require the ratio of instructions to memory references to
+     be above a certain limit.  This approximation works well in practice.
+     TODO: Implement a more precise computation by estimating the time
+     for each CPU or memory op in the loop. Time estimates for memory ops
+     should account for cache misses.  */
+  insn_to_mem_ratio = ninsns / mem_ref_count;
+
+  if (insn_to_mem_ratio < PREFETCH_MIN_INSN_TO_MEM_RATIO)
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+        fprintf (dump_file,
+		 "Not prefetching -- instruction to memory reference ratio (%d) too small\n",
+		 insn_to_mem_ratio);
       return false;
     }
+
   return true;
+}
+
+/* Determine whether or not the instruction to prefetch ratio in the loop is
+   too small based on the profitablity consideration.
+   NINSNS: estimated number of instructions in the loop,
+   PREFETCH_COUNT: an estimate of the number of prefetches,
+   UNROLL_FACTOR:  the factor to unroll the loop if prefetching.  */
+
+static bool
+insn_to_prefetch_ratio_too_small_p (unsigned ninsns, unsigned prefetch_count,
+                                     unsigned unroll_factor)
+{
+  int insn_to_prefetch_ratio;
+
+  /* Prefetching most likely causes performance degradation when the instruction
+     to prefetch ratio is too small.  Too many prefetch instructions in a loop
+     may reduce the I-cache performance.
+     (unroll_factor * ninsns) is used to estimate the number of instructions in
+     the unrolled loop.  This implementation is a bit simplistic -- the number
+     of issued prefetch instructions is also affected by unrolling.  So,
+     prefetch_mod and the unroll factor should be taken into account when
+     determining prefetch_count.  Also, the number of insns of the unrolled
+     loop will usually be significantly smaller than the number of insns of the
+     original loop * unroll_factor (at least the induction variable increases
+     and the exit branches will get eliminated), so it might be better to use
+     tree_estimate_loop_size + estimated_unrolled_size.  */
+  insn_to_prefetch_ratio = (unroll_factor * ninsns) / prefetch_count;
+  if (insn_to_prefetch_ratio < MIN_INSN_TO_PREFETCH_RATIO)
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+        fprintf (dump_file,
+		 "Not prefetching -- instruction to prefetch ratio (%d) too small\n",
+		 insn_to_prefetch_ratio);
+      return true;
+    }
+
+  return false;
 }
 
 
@@ -1608,38 +1794,59 @@ loop_prefetch_arrays (struct loop *loop)
       return false;
     }
 
+  /* FIXME: the time should be weighted by the probabilities of the blocks in
+     the loop body.  */
+  time = tree_num_loop_insns (loop, &eni_time_weights);
+  if (time == 0)
+    return false;
+
+  ahead = (PREFETCH_LATENCY + time - 1) / time;
+  est_niter = estimated_loop_iterations_int (loop, false);
+
+  /* Prefetching is not likely to be profitable if the trip count to ahead
+     ratio is too small.  */
+  if (trip_count_to_ahead_ratio_too_small_p (ahead, est_niter))
+    return false;
+
+  ninsns = tree_num_loop_insns (loop, &eni_size_weights);
+
   /* Step 1: gather the memory references.  */
   refs = gather_memory_references (loop, &no_other_refs, &mem_ref_count);
+
+  /* Give up prefetching if the number of memory references in the
+     loop is not reasonable based on profitablity and compilation time
+     considerations.  */
+  if (!mem_ref_count_reasonable_p (ninsns, mem_ref_count))
+    goto fail;
 
   /* Step 2: estimate the reuse effects.  */
   prune_by_reuse (refs);
 
-  prefetch_count = estimate_prefetch_count (refs);
-  if (prefetch_count == 0)
+  if (nothing_to_prefetch_p (refs))
     goto fail;
 
   determine_loop_nest_reuse (loop, refs, no_other_refs);
 
-  /* Step 3: determine the ahead and unroll factor.  */
-
-  /* FIXME: the time should be weighted by the probabilities of the blocks in
-     the loop body.  */
-  time = tree_num_loop_insns (loop, &eni_time_weights);
-  ahead = (PREFETCH_LATENCY + time - 1) / time;
-  est_niter = estimated_loop_iterations_int (loop, false);  
-
-  ninsns = tree_num_loop_insns (loop, &eni_size_weights);
+  /* Step 3: determine unroll factor.  */
   unroll_factor = determine_unroll_factor (loop, refs, ninsns, &desc,
 					   est_niter);
-  if (dump_file && (dump_flags & TDF_DETAILS))
-    fprintf (dump_file, "Ahead %d, unroll factor %d, trip count " 
-	     HOST_WIDE_INT_PRINT_DEC "\n"
-	     "insn count %d, mem ref count %d, prefetch count %d\n", 
-	     ahead, unroll_factor, est_niter, 
-	     ninsns, mem_ref_count, prefetch_count);    
 
-  if (!is_loop_prefetching_profitable (ahead, est_niter, ninsns, 
-				       prefetch_count, mem_ref_count))
+  /* Estimate prefetch count for the unrolled loop.  */
+  prefetch_count = estimate_prefetch_count (refs, unroll_factor);
+  if (prefetch_count == 0)
+    goto fail;
+
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    fprintf (dump_file, "Ahead %d, unroll factor %d, trip count "
+	     HOST_WIDE_INT_PRINT_DEC "\n"
+	     "insn count %d, mem ref count %d, prefetch count %d\n",
+	     ahead, unroll_factor, est_niter,
+	     ninsns, mem_ref_count, prefetch_count);
+
+  /* Prefetching is not likely to be profitable if the instruction to prefetch
+     ratio is too small.  */
+  if (insn_to_prefetch_ratio_too_small_p (ninsns, prefetch_count,
+					  unroll_factor))
     goto fail;
 
   mark_nontemporal_stores (loop, refs);
@@ -1693,10 +1900,10 @@ tree_ssa_prefetch_arrays (void)
       fprintf (dump_file, "    L1 cache size: %d lines, %d kB\n",
 	       L1_CACHE_SIZE_BYTES / L1_CACHE_LINE_SIZE, L1_CACHE_SIZE);
       fprintf (dump_file, "    L1 cache line size: %d\n", L1_CACHE_LINE_SIZE);
-      fprintf (dump_file, "    L2 cache size: %d kB\n", L2_CACHE_SIZE);      
-      fprintf (dump_file, "    min insn-to-prefetch ratio: %d \n", 
+      fprintf (dump_file, "    L2 cache size: %d kB\n", L2_CACHE_SIZE);
+      fprintf (dump_file, "    min insn-to-prefetch ratio: %d \n",
 	       MIN_INSN_TO_PREFETCH_RATIO);
-      fprintf (dump_file, "    min insn-to-mem ratio: %d \n", 
+      fprintf (dump_file, "    min insn-to-mem ratio: %d \n",
 	       PREFETCH_MIN_INSN_TO_MEM_RATIO);
       fprintf (dump_file, "\n");
     }
@@ -1705,10 +1912,8 @@ tree_ssa_prefetch_arrays (void)
 
   if (!built_in_decls[BUILT_IN_PREFETCH])
     {
-      tree type = build_function_type (void_type_node,
-				       tree_cons (NULL_TREE,
-						  const_ptr_type_node,
-						  NULL_TREE));
+      tree type = build_function_type_list (void_type_node,
+					    const_ptr_type_node, NULL_TREE);
       tree decl = add_builtin_function ("__builtin_prefetch", type,
 					BUILT_IN_PREFETCH, BUILT_IN_NORMAL,
 					NULL, NULL_TREE);

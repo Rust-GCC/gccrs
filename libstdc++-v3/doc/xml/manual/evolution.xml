@@ -1,7 +1,8 @@
-<sect1 id="appendix.porting.api" xreflabel="api">
+<section xmlns="http://docbook.org/ns/docbook" version="5.0" 
+	 xml:id="appendix.porting.api" xreflabel="api">
 <?dbhtml filename="api.html"?>
- 
-<sect1info>
+
+<info><title>API Evolution and Deprecation History</title>
   <keywordset>
     <keyword>ISO C++</keyword>
     <keyword>api</keyword>
@@ -9,16 +10,16 @@
     <keyword>deprecation</keyword>
     <keyword>history</keyword>
   </keywordset>
-</sect1info>
+</info>
 
-<title>API Evolution and Deprecation History</title>
+
 
 <para>
 A list of user-visible changes, in chronological order
 </para>
 
-<sect2 id="api.rel_300">
-<title><constant>3.0</constant></title>
+<section xml:id="api.rel_300"><info><title><constant>3.0</constant></title></info>
+
 
   <para>
 Extensions moved to <filename class="directory">include/ext</filename>.
@@ -39,10 +40,10 @@ deactivates the warning.)
 
 
 
-</sect2>
+</section>
 
-<sect2 id="api.rel_310">
-<title><constant>3.1</constant></title>
+<section xml:id="api.rel_310"><info><title><constant>3.1</constant></title></info>
+
   <para>
   </para>
 
@@ -65,10 +66,10 @@ Extensions to tree data structures added in <filename class="headerfile">ext/rb_
 Removal of <filename class="headerfile">ext/tree</filename>, moved to <filename class="headerfile">backward/tree.h</filename>.
 </para>
 
-</sect2>
+</section>
 
-<sect2 id="api.rel_320">
-<title><constant>3.2</constant></title>
+<section xml:id="api.rel_320"><info><title><constant>3.2</constant></title></info>
+
   <para>
   </para>
 <para>Symbol versioning introduced for shared library.</para>
@@ -80,25 +81,25 @@ Removal of <filename class="headerfile">ext/tree</filename>, moved to <filename 
    <para> For GCC releases from 2.95 through the 3.1 series, defining
    <literal>__USE_MALLOC</literal> on the gcc command line would change the
    default allocation strategy to instead use <code> malloc</code> and
-   <function>free</function>. (This same functionality is now spelled <literal>_GLIBCXX_FORCE_NEW</literal>, see 
-   <link linkend="manual.intro.using.macros">this page</link> 
+   <function>free</function>. (This same functionality is now spelled <literal>_GLIBCXX_FORCE_NEW</literal>, see
+   <link linkend="manual.intro.using.macros">this page</link>
    for details.
-   </para> 
+   </para>
 
 
 <para>Error handling in iostreams cleaned up, made consistent. </para>
 
 
-</sect2>
+</section>
 
-<sect2 id="api.rel_330">
-<title><constant>3.3</constant></title>
+<section xml:id="api.rel_330"><info><title><constant>3.3</constant></title></info>
+
   <para>
   </para>
-</sect2>
+</section>
 
-<sect2 id="api.rel_340">
-<title><constant>3.4</constant></title>
+<section xml:id="api.rel_340"><info><title><constant>3.4</constant></title></info>
+
   <para>
   </para>
 <para>
@@ -161,13 +162,14 @@ _Alloc_traits</code> have been removed.
    underlying allocator was not user-configurable.
    </para>
 
-<table frame='all'>
+<table frame="all">
 <title>Extension Allocators</title>
-<tgroup cols='4' align='left' colsep='1' rowsep='1'>
-<colspec colname='c1'></colspec>
-<colspec colname='c2'></colspec>
-<colspec colname='c3'></colspec>
-<colspec colname='c4'></colspec>
+
+<tgroup cols="4" align="left" colsep="1" rowsep="1">
+<colspec colname="c1"/>
+<colspec colname="c2"/>
+<colspec colname="c3"/>
+<colspec colname="c4"/>
 
   <thead>
     <row>
@@ -225,12 +227,13 @@ _Alloc_traits</code> have been removed.
    the first released version of GCC that included the extension allocator.
    </para>
 
-<table frame='all'>
+<table frame="all">
 <title>Extension Allocators Continued</title>
-<tgroup cols='3' align='left' colsep='1' rowsep='1'>
-<colspec colname='c1'></colspec>
-<colspec colname='c2'></colspec>
-<colspec colname='c3'></colspec>
+
+<tgroup cols="3" align="left" colsep="1" rowsep="1">
+<colspec colname="c1"/>
+<colspec colname="c2"/>
+<colspec colname="c3"/>
 
 <thead>
   <row>
@@ -277,10 +280,10 @@ Extension <filename class="headerfile">ext/demangle.h</filename> added.
 </para>
 
 
-</sect2>
+</section>
 
-<sect2 id="api.rel_400">
-<title><constant>4.0</constant></title>
+<section xml:id="api.rel_400"><info><title><constant>4.0</constant></title></info>
+
   <para>
   </para>
 <para>
@@ -300,10 +303,10 @@ Removal of <filename class="headerfile">ext/demangle.h</filename>.
 </para>
 
 
-</sect2>
+</section>
 
-<sect2 id="api.rel_410">
-<title><constant>4.1</constant></title>
+<section xml:id="api.rel_410"><info><title><constant>4.1</constant></title></info>
+
   <para>
   </para>
 
@@ -324,10 +327,10 @@ types, namespace <code>pb_assoc</code>.
 <para> Extension for policy-based <code>basic_string</code> first added: <code>__gnu_cxx::__versa_string</code> in <filename class="headerfile">ext/vstring.h</filename>.
 </para>
 
-</sect2>
+</section>
 
-<sect2 id="api.rel_420">
-<title><constant>4.2</constant></title>
+<section xml:id="api.rel_420"><info><title><constant>4.2</constant></title></info>
+
   <para>
   </para>
 
@@ -360,10 +363,10 @@ __gnu_cxx::__debug</code>.</para>
 and <filename class="headerfile">ext/throw_allocator.h</filename>.
 </para>
 
-</sect2>
+</section>
 
-<sect2 id="api.rel_430">
-<title><constant>4.3</constant></title>
+<section xml:id="api.rel_430"><info><title><constant>4.3</constant></title></info>
+
   <para>
   </para>
 
@@ -372,7 +375,8 @@ and <filename class="headerfile">ext/throw_allocator.h</filename>.
 C++0X features first appear.
 </para>
 
-<para>TR1 <filename class="headerfile">regex</filename> and <filename class="headerfile">cmath</filename>'s mathematical special function added.</para>
+<para>TR1 <filename class="headerfile">regex</filename> and <filename class="headerfile">cmath</filename>'s mathematical special function added.
+</para>
 
 <para>
 Backward include edit.
@@ -430,7 +434,7 @@ Parallel mode first appears.
 </para>
 
 <para>Variadic template implementations of items in <filename class="headerfile">tuple</filename> and
-    <filename class="headerfile">functional</filename>. 
+    <filename class="headerfile">functional</filename>.
 </para>
 
 <para>Default <code>what</code> implementations give more elaborate
@@ -440,13 +444,188 @@ Parallel mode first appears.
 </para>
 
 <para>
-PCH binary files no longer installed. Instead, the source files are installed. 
+PCH binary files no longer installed. Instead, the source files are installed.
 </para>
 
 <para>
 Namespace pb_ds moved to __gnu_pb_ds.
 </para>
 
-</sect2>
+</section>
 
-</sect1>
+
+<section xml:id="api.rel_440"><info><title><constant>4.4</constant></title></info>
+
+  <para>
+  </para>
+
+<para>
+C++0X features.
+</para>
+
+<itemizedlist>
+<listitem>
+  <para>
+    Added.
+  </para>
+  <para>
+    <filename class="headerfile">atomic</filename>,
+    <filename class="headerfile">chrono</filename>,
+    <filename class="headerfile">condition_variable</filename>,
+    <filename class="headerfile">forward_list</filename>,
+    <filename class="headerfile">initializer_list</filename>,
+    <filename class="headerfile">mutex</filename>,
+    <filename class="headerfile">ratio</filename>,
+    <filename class="headerfile">thread</filename>
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    Updated and improved.
+  </para>
+  <para>
+    <filename class="headerfile">algorithm</filename>,
+    <filename class="headerfile">system_error</filename>,
+    <filename class="headerfile">type_traits</filename>
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    Use of the GNU extension namespace association converted to inline namespaces.
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    Preliminary support for <classname>initializer_list</classname>
+    and defaulted and deleted constructors in container classes.
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    <classname>unique_ptr</classname>.
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    Support for new character types <type>char16_t</type>
+    and <type>char32_t</type> added
+    to <classname>char_traits</classname>, <classname>basic_string</classname>, <classname>numeric_limits</classname>,
+    and assorted compile-time type traits.
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    Support for string conversions <function>to_string</function>
+    and <function>to_wstring</function>.
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    Member functions taking string arguments were added to iostreams
+    including <classname>basic_filebuf</classname>, <classname>basic_ofstream</classname>,
+    and <classname>basic_ifstream</classname>.
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    Exception propagation support,
+    including <classname>exception_ptr</classname>, <function>current_exception</function>, <function>copy_exception</function>,
+    and <function>rethrow_exception</function>.
+  </para>
+</listitem>
+</itemizedlist>
+
+
+  <para>
+Uglification of <literal>try</literal> to <literal>__try</literal>
+and <literal>catch</literal> to <literal>__catch</literal>.
+  </para>
+
+  <para>
+Audit of internal mutex usage, conversion to functions returning static
+local mutex.
+  </para>
+
+<para> Extensions
+added: <filename class="headerfile">ext/pointer.h</filename>
+and <filename class="headerfile">ext/extptr_allocator.h</filename>. Support
+for non-standard pointer types has been added
+to <classname>vector</classname>
+and <classname>forward_list</classname>.
+</para>
+</section>
+
+<section xml:id="api.rel_450"><info><title><constant>4.5</constant></title></info>
+
+  <para>
+  </para>
+
+<para>
+C++0X features.
+</para>
+
+<itemizedlist>
+<listitem>
+  <para>
+    Added.
+  </para>
+  <para>
+    <filename class="headerfile">functional</filename>,
+    <filename class="headerfile">future</filename>,
+    <filename class="headerfile">random</filename>
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    Updated and improved.
+  </para>
+  <para>
+    <filename class="headerfile">atomic</filename>,
+    <filename class="headerfile">system_error</filename>,
+    <filename class="headerfile">type_traits</filename>
+  </para>
+</listitem>
+
+<listitem>
+  <para>
+    Add support for explicit operators and standard layout types.
+  </para>
+</listitem>
+</itemizedlist>
+
+<para>
+Profile mode first appears.
+</para>
+
+<para>
+Support for decimal floating-point arithmetic, including <classname>decimal32</classname>, <classname>decimal64</classname>, and <classname>decimal128</classname>.
+</para>
+
+<para>
+Python pretty-printers are added for use with appropriately-advanced versions of <command>gdb</command>.
+</para>
+
+<para>
+Audit for application of function attributes notrow, const, pure, and noreturn.
+</para>
+
+<para>
+The default behavior for comparing typeinfo names changed, so
+in <filename class="headerfile">typeinfo</filename>, <literal>__GXX_MERGED_TYPEINFO_NAMES</literal>
+now defaults to zero.
+</para>
+
+<para> Extensions modified: <filename class="headerfile">ext/throw_allocator.h</filename>.
+</para>
+</section>
+
+</section>

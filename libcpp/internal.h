@@ -1,6 +1,6 @@
 /* Part of CPP library.
    Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007,
-   2008, 2009 Free Software Foundation, Inc.
+   2008, 2009, 2010 Free Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -240,7 +240,8 @@ struct _cpp_line_note
 
   /* Type of note.  The 9 'from' trigraph characters represent those
      trigraphs, '\\' an escaped newline, ' ' an escaped newline with
-     intervening space, and anything else is invalid.  */
+     intervening space, 0 represents a note that has already been handled,
+     and anything else is invalid.  */
   unsigned int type;
 };
 
@@ -303,6 +304,26 @@ struct cpp_buffer
   /* Descriptor for converting from the input character set to the
      source character set.  */
   struct cset_converter input_cset_desc;
+};
+
+/* The list of saved macros by push_macro pragma.  */
+struct def_pragma_macro {
+  /* Chain element to previous saved macro.  */
+  struct def_pragma_macro *next;
+  /* Name of the macro.  */
+  char *name;
+  /* The stored macro content.  */
+  unsigned char *definition;
+
+  /* Definition line number.  */
+  source_location line;
+  /* If macro defined in system header.  */
+  unsigned int syshdr   : 1;
+  /* Nonzero if it has been expanded or had its existence tested.  */
+  unsigned int used     : 1;
+
+  /* Mark if we save an undefined macro.  */
+  unsigned int is_undef : 1;
 };
 
 /* A cpp_reader encapsulates the "state" of a pre-processor run.
@@ -475,6 +496,9 @@ struct cpp_reader
 
   /* Table of comments, when state.save_comments is true.  */
   cpp_comment_table comments;
+
+  /* List of saved macros by push_macro.  */
+  struct def_pragma_macro *pushed_macros;
 };
 
 /* Character classes.  Based on the more primitive macros in safe-ctype.h.
@@ -512,8 +536,8 @@ cpp_in_system_header (cpp_reader *pfile)
 {
   return pfile->buffer ? pfile->buffer->sysp : 0;
 }
-#define CPP_PEDANTIC(PF) CPP_OPTION (PF, pedantic)
-#define CPP_WTRADITIONAL(PF) CPP_OPTION (PF, warn_traditional)
+#define CPP_PEDANTIC(PF) CPP_OPTION (PF, cpp_pedantic)
+#define CPP_WTRADITIONAL(PF) CPP_OPTION (PF, cpp_warn_traditional)
 
 static inline int cpp_in_primary_file (cpp_reader *);
 static inline int
@@ -575,6 +599,7 @@ extern const cpp_token *_cpp_lex_token (cpp_reader *);
 extern cpp_token *_cpp_lex_direct (cpp_reader *);
 extern int _cpp_equiv_tokens (const cpp_token *, const cpp_token *);
 extern void _cpp_init_tokenrun (tokenrun *, unsigned int);
+extern cpp_hashnode *_cpp_lex_identifier (cpp_reader *, const char *);
 
 /* In init.c.  */
 extern void _cpp_maybe_push_include_file (cpp_reader *);

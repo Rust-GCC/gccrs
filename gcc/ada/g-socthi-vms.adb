@@ -292,7 +292,7 @@ package body GNAT.Sockets.Thin is
    function C_Recvmsg
      (S     : C.int;
       Msg   : System.Address;
-      Flags : C.int) return ssize_t
+      Flags : C.int) return System.CRTL.ssize_t
    is
       Res : C.int;
 
@@ -314,7 +314,7 @@ package body GNAT.Sockets.Thin is
 
       GNAT_Msg := Msghdr (VMS_Msg);
 
-      return ssize_t (Res);
+      return System.CRTL.ssize_t (Res);
    end C_Recvmsg;
 
    ---------------
@@ -324,7 +324,7 @@ package body GNAT.Sockets.Thin is
    function C_Sendmsg
      (S     : C.int;
       Msg   : System.Address;
-      Flags : C.int) return ssize_t
+      Flags : C.int) return System.CRTL.ssize_t
    is
       Res : C.int;
 
@@ -346,7 +346,7 @@ package body GNAT.Sockets.Thin is
 
       GNAT_Msg := Msghdr (VMS_Msg);
 
-      return ssize_t (Res);
+      return System.CRTL.ssize_t (Res);
    end C_Sendmsg;
 
    --------------
@@ -473,19 +473,6 @@ package body GNAT.Sockets.Thin is
 
    function Socket_Error_Message
      (Errno : Integer) return C.Strings.chars_ptr
-   is
-      use type Interfaces.C.Strings.chars_ptr;
-
-      C_Msg : C.Strings.chars_ptr;
-
-   begin
-      C_Msg := C_Strerror (C.int (Errno));
-
-      if C_Msg = C.Strings.Null_Ptr then
-         return Unknown_System_Error;
-      else
-         return C_Msg;
-      end if;
-   end Socket_Error_Message;
+   is separate;
 
 end GNAT.Sockets.Thin;

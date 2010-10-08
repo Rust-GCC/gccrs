@@ -1,12 +1,13 @@
 /* { dg-do compile } */
-/* { dg-options "-O0 -Werror-implicit-function-declaration -march=k8 -m3dnow -mavx -mxop -msse4a -maes -mpclmul" } */
+/* { dg-options "-O0 -Werror-implicit-function-declaration -march=k8 -m3dnow -mavx -mxop -msse4a -maes -mpclmul -mpopcnt -mabm -mlwp -mfsgsbase -mrdrnd -mf16c" } */
 
 #include <mm_malloc.h>
 
 /* Test that the intrinsics compile without optimization.  All of them are
-   defined as inline functions in {,x,e,p,t,s,w,a}mmintrin.h, xopintrin.h  and mm3dnow.h
-   that reference the proper builtin functions.  Defining away "extern" and
-   "__inline" results in all of them being compiled as proper functions.  */
+   defined as inline functions in {,x,e,p,t,s,w,a}mmintrin.h, xopintrin.h,
+   lwpintrin.h and mm3dnow.h that reference the proper builtin functions.
+   Defining away "extern" and "__inline" results in all of them being compiled
+   as proper functions.  */
 
 #define extern
 #define __inline
@@ -88,6 +89,9 @@ test_2 (_mm256_insert_epi64, __m256i, __m256i, long long, 1)
 #endif
 test_1 (_mm256_round_pd, __m256d, __m256d, 1)
 test_1 (_mm256_round_ps, __m256, __m256, 1)
+test_1 (_cvtss_sh, unsigned short, float, 1)
+test_1 (_mm_cvtps_ph, __m128i, __m128, 1)
+test_1 (_mm256_cvtps_ph, __m128i, __m256, 1)
 
 /* wmmintrin.h */
 test_1 (_mm_aeskeygenassist_si128, __m128i, __m128i, 1)
@@ -161,4 +165,15 @@ test_1 ( _mm_roti_epi8, __m128i, __m128i, 1)
 test_1 ( _mm_roti_epi16, __m128i, __m128i, 1)
 test_1 ( _mm_roti_epi32, __m128i, __m128i, 1)
 test_1 ( _mm_roti_epi64, __m128i, __m128i, 1)
+test_3 (_mm_permute2_pd, __m128d, __m128d, __m128d, __m128d, 1)
+test_3 (_mm256_permute2_pd, __m256d, __m256d, __m256d, __m256d, 1)
+test_3 (_mm_permute2_ps, __m128, __m128, __m128, __m128, 1)
+test_3 (_mm256_permute2_ps, __m256, __m256, __m256, __m256, 1)
 
+/* lwpintrin.h */
+test_2 ( __lwpval32, void, unsigned int, unsigned int, 1)
+test_2 ( __lwpins32, unsigned char, unsigned int, unsigned int, 1)
+#ifdef __x86_64__
+test_2 ( __lwpval64, void, unsigned long long, unsigned int, 1)
+test_2 ( __lwpins64, unsigned char, unsigned long long, unsigned int, 1)
+#endif

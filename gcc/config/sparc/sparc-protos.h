@@ -1,5 +1,5 @@
 /* Prototypes of target machine for SPARC.
-   Copyright (C) 1999, 2000, 2003, 2004, 2005, 2007, 2008, 2009
+   Copyright (C) 1999, 2000, 2003, 2004, 2005, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com).
    64-bit SPARC-V9 support by Michael Tiemann, Jim Wilson, and Doug Evans,
@@ -25,7 +25,6 @@ along with GCC; see the file COPYING3.  If not see
 #define __SPARC_PROTOS_H__
 
 #ifdef TREE_CODE
-extern struct rtx_def *function_value (const_tree, enum machine_mode, int);
 extern void function_arg_advance (CUMULATIVE_ARGS *,
 				  enum machine_mode, tree, int);
 extern struct rtx_def *function_arg (const CUMULATIVE_ARGS *,
@@ -64,13 +63,11 @@ extern void emit_tfmode_cvt (enum rtx_code, rtx *);
 extern bool legitimate_constant_p (rtx);
 extern bool constant_address_p (rtx);
 extern bool legitimate_pic_operand_p (rtx);
-extern rtx legitimize_pic_address (rtx, enum machine_mode, rtx);
-extern rtx legitimize_tls_address (rtx);
+extern rtx sparc_legitimize_reload_address (rtx, enum machine_mode, int, int,
+					    int, int *win);
 extern void sparc_emit_call_insn (rtx, rtx);
 extern void sparc_defer_case_vector (rtx, rtx, int);
 extern bool sparc_expand_move (enum machine_mode, rtx *);
-extern void sparc_emit_set_const32 (rtx, rtx);
-extern void sparc_emit_set_const64 (rtx, rtx);
 extern void sparc_emit_set_symbolic_const64 (rtx, rtx, rtx);
 extern int sparc_splitdi_legitimate (rtx, rtx);
 extern int sparc_absnegfloat_split_legitimate (rtx, rtx);
@@ -80,6 +77,7 @@ extern const char *output_return (rtx);
 extern const char *output_sibcall (rtx, rtx);
 extern const char *output_v8plus_shift (rtx *, rtx, const char *);
 extern const char *output_v9branch (rtx, rtx, int, int, int, int, rtx);
+extern const char *output_probe_stack_range (rtx, rtx);
 extern bool emit_scc_insn (rtx []);
 extern void emit_conditional_branch_insn (rtx []);
 extern void print_operand (FILE *, rtx, int);
@@ -97,7 +95,6 @@ extern int emit_move_sequence (rtx, enum machine_mode);
 extern int fp_sethi_p (rtx);
 extern int fp_mov_p (rtx);
 extern int fp_high_losum_p (rtx);
-extern bool sparc_tls_referenced_p (rtx);
 extern int mem_min_alignment (rtx, int);
 extern int pic_address_needs_scratch (rtx);
 extern int reg_unused_after (rtx, rtx);

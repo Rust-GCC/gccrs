@@ -1,7 +1,8 @@
 // -*- C++ -*-
 // typelist for the C++ library testsuite. 
 //
-// Copyright (C) 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010
+// Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -44,7 +45,7 @@
 #include <tr1/unordered_set>
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
-#include <cstdatomic>
+#include <atomic>
 #include <type_traits>
 #endif
 
@@ -426,12 +427,12 @@ namespace __gnu_test
 	{
 	  void __constraint()
 	  {
-	    _Tp a;
-	    _Tp b;
 	    a |= b; // set
 	    a &= ~b; // clear
 	    a ^= b;
 	  }
+	  _Tp a;
+	  _Tp b;
 	};
 
 	void (_Concept::*__x)() __attribute__((unused))
@@ -622,7 +623,7 @@ namespace __gnu_test
 	struct _Concept
 	{
 	  void __constraint()
-	  { _Ttype __v = {__a}; }
+	  { _Ttype __v __attribute__((unused)) = {__a}; }
 	  
 	  _Tvalue __a;
 	};

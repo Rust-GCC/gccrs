@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                    Copyright (C) 2007-2008, AdaCore                      --
+--                    Copyright (C) 2007-2009, AdaCore                      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -37,7 +37,9 @@ with Ada.Streams;                use Ada.Streams;
 with Ada;                        use Ada;
 with Ada.Unchecked_Deallocation;
 
-with System.CRTL; use System, System.CRTL;
+with System;               use System;
+with System.Communication; use System.Communication;
+with System.CRTL;          use System.CRTL;
 
 with GNAT.OS_Lib; use GNAT.OS_Lib;
 
@@ -156,8 +158,8 @@ package body GNAT.Serial_Communications is
       Buffer : out Stream_Element_Array;
       Last   : out Stream_Element_Offset)
    is
-      Len : constant int := Buffer'Length;
-      Res : int;
+      Len : constant size_t := Buffer'Length;
+      Res : ssize_t;
 
    begin
       if Port.H = null then
@@ -167,11 +169,10 @@ package body GNAT.Serial_Communications is
       Res := read (Integer (Port.H.all), Buffer'Address, Len);
 
       if Res = -1 then
-         Last := 0;
          Raise_Error ("read failed");
-      else
-         Last := Buffer'First + Stream_Element_Offset (Res) - 1;
       end if;
+
+      Last := Last_Index (Buffer'First, size_t (Res));
    end Read;
 
    ---------
@@ -210,7 +211,10 @@ package body GNAT.Serial_Communications is
       pragma Import (C, tcflush, "tcflush");
 
       Current : termios;
-      Res     : int;
+
+      Res : int;
+      pragma Warnings (Off, Res);
+      --  Warnings off, since we don't always test the result
 
    begin
       if Port.H = null then
@@ -245,11 +249,7 @@ package body GNAT.Serial_Communications is
 
       --  Block
 
-      if Block then
-         Res := fcntl (int (Port.H.all), F_SETFL, 0);
-      else
-         Res := fcntl (int (Port.H.all), F_SETFL, FNDELAY);
-      end if;
+      Res := fcntl (int (Port.H.all), F_SETFL, (if Block then 0 else FNDELAY));
 
       if Res = -1 then
          Raise_Error ("set: fcntl failed");
@@ -264,8 +264,8 @@ package body GNAT.Serial_Communications is
      (Port   : in out Serial_Port;
       Buffer : Stream_Element_Array)
    is
-      Len : constant int := Buffer'Length;
-      Res : int;
+      Len : constant size_t := Buffer'Length;
+      Res : ssize_t;
 
    begin
       if Port.H = null then
@@ -273,11 +273,12 @@ package body GNAT.Serial_Communications is
       end if;
 
       Res := write (int (Port.H.all), Buffer'Address, Len);
-      pragma Assert (Res = Len);
 
       if Res = -1 then
          Raise_Error ("write failed");
       end if;
+
+      pragma Assert (size_t (Res) = Len);
    end Write;
 
    -----------

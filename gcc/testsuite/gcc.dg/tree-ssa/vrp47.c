@@ -1,7 +1,11 @@
 /* Skip on MIPS, where LOGICAL_OP_NON_SHORT_CIRCUIT inhibits the setcc
    optimizations that expose the VRP opportunity.  */
-/* { dg-do compile { target { ! mips*-*-* } } } */
+/* Skip on S/390 and avr.  Lower values in BRANCH_COST lead to two conditional
+   jumps when evaluating an && condition.  VRP is not able to optimize
+   this.  */
+/* { dg-do compile { target { ! "mips*-*-* s390*-*-*  avr-*-*" } } } */
 /* { dg-options "-O2 -fdump-tree-vrp -fdump-tree-dom" } */
+/* { dg-options "-O2 -fdump-tree-vrp -fdump-tree-dom -march=i586" { target { i?86-*-* && ilp32 } } } */
 
 int h(int x, int y)
 {

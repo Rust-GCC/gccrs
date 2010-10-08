@@ -209,6 +209,7 @@ case "${host_os}" in
     ;;
   cygwin*)
     os_include_dir="os/newlib"
+    OPT_LDFLAGS="${OPT_LDFLAGS} -no-undefined -bindir \$(bindir)"
     ;;
   darwin | darwin[1-7] | darwin[1-7].*)
     # On Darwin, performance is improved if libstdc++ is single-module.
@@ -230,6 +231,7 @@ case "${host_os}" in
     ;;
   *djgpp*)      # leading * picks up "msdosdjgpp"
     os_include_dir="os/djgpp"
+    error_constants_dir="os/djgpp"
     ;;
   freebsd*)
     os_include_dir="os/bsd/freebsd"
@@ -237,18 +239,14 @@ case "${host_os}" in
   gnu* | linux* | kfreebsd*-gnu | knetbsd*-gnu)
     if [ "$uclibc" = "yes" ]; then
       os_include_dir="os/uclibc"
+    elif [ "$bionic" = "yes" ]; then
+      os_include_dir="os/bionic"
     else
       os_include_dir="os/gnu-linux"
     fi
     ;;
   hpux*)
     os_include_dir="os/hpux"
-    ;;
-  irix[1-6] | irix[1-5].* | irix6.[0-4]*)
-    # This is known to work on at least IRIX 5.2 and 6.3.
-    os_include_dir="os/irix/irix5.2"
-    atomicity_dir=os/irix
-    atomic_word_dir=os/irix
     ;;
   irix6.5*)
     os_include_dir="os/irix/irix6.5"
@@ -258,6 +256,7 @@ case "${host_os}" in
   mingw32*)
     os_include_dir="os/mingw32"
     error_constants_dir="os/mingw32"
+    OPT_LDFLAGS="${OPT_LDFLAGS} -no-undefined -bindir \$(bindir)"
     ;;
   netbsd*)
     os_include_dir="os/bsd/netbsd"
@@ -272,7 +271,7 @@ case "${host_os}" in
     echo "Please specify the full version of Solaris, ie. solaris2.9 " 1>&2
     exit 1
     ;;
-  solaris2.[789] | solaris2.1[0-9])
+  solaris2.[89] | solaris2.1[0-9])
     os_include_dir="os/solaris/solaris2.7"
     ;;
   tpf)
@@ -323,5 +322,11 @@ case "${host}" in
     ;;
   powerpc*-*-darwin*)
     port_specific_symbol_files="\$(srcdir)/../config/os/bsd/darwin/ppc-extra.ver"
+    ;;
+  *-*-solaris2.[89])
+    abi_baseline_pair=solaris2.8
+    ;;
+  *-*-solaris2.1[0-9])
+    abi_baseline_pair=solaris2.10
     ;;
 esac

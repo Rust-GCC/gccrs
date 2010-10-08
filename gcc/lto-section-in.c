@@ -1,6 +1,6 @@
 /* Input functions for reading LTO sections.
 
-   Copyright 2009 Free Software Foundation, Inc.
+   Copyright 2009, 2010 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
 
 This file is part of GCC.
@@ -29,20 +29,20 @@ along with GCC; see the file COPYING3.  If not see
 #include "flags.h"
 #include "params.h"
 #include "input.h"
-#include "varray.h"
 #include "hashtab.h"
 #include "basic-block.h"
 #include "tree-flow.h"
 #include "cgraph.h"
 #include "function.h"
 #include "ggc.h"
-#include "diagnostic.h"
+#include "diagnostic-core.h"
 #include "except.h"
 #include "vec.h"
 #include "timevar.h"
 #include "output.h"
 #include "lto-streamer.h"
 #include "lto-compress.h"
+#include "ggc.h"
 
 /* Section names.  These must correspond to the values of
    enum lto_section_type.  */
@@ -50,16 +50,19 @@ const char *lto_section_name[LTO_N_SECTION_TYPES] =
 {
   "decls",
   "function_body",
-  "static_initializer",
+  "statics",
   "cgraph",
-  "ipa_pure_const",
-  "ipa_reference",
+  "vars",
+  "refs",
+  "jmpfuncs",
+  "pureconst",
+  "reference",
   "symtab",
-  "wpa_fixup",
-  "opts"
+  "opts",
+  "cgraphopt"
 };
 
-unsigned char 
+unsigned char
 lto_input_1_unsigned (struct lto_input_block *ib)
 {
   if (ib->p >= ib->len)
@@ -72,7 +75,7 @@ lto_input_1_unsigned (struct lto_input_block *ib)
 
 /* Read an ULEB128 Number of IB.  */
 
-unsigned HOST_WIDE_INT 
+unsigned HOST_WIDE_INT
 lto_input_uleb128 (struct lto_input_block *ib)
 {
   unsigned HOST_WIDE_INT result = 0;
@@ -92,7 +95,7 @@ lto_input_uleb128 (struct lto_input_block *ib)
 /* HOST_WIDEST_INT version of lto_input_uleb128.  IB is as in
    lto_input_uleb128.  */
 
-unsigned HOST_WIDEST_INT 
+unsigned HOST_WIDEST_INT
 lto_input_widest_uint_uleb128 (struct lto_input_block *ib)
 {
   unsigned HOST_WIDEST_INT result = 0;
@@ -111,7 +114,7 @@ lto_input_widest_uint_uleb128 (struct lto_input_block *ib)
 
 /* Read an SLEB128 Number of IB.  */
 
-HOST_WIDE_INT 
+HOST_WIDE_INT
 lto_input_sleb128 (struct lto_input_block *ib)
 {
   HOST_WIDE_INT result = 0;
@@ -137,7 +140,7 @@ lto_input_sleb128 (struct lto_input_block *ib)
 /* Hooks so that the ipa passes can call into the lto front end to get
    sections.  */
 
-static struct lto_file_decl_data ** file_decl_data; 
+static struct lto_file_decl_data ** file_decl_data;
 static lto_get_section_data_f* get_section_f;
 static lto_free_section_data_f* free_section_f;
 
@@ -146,8 +149,8 @@ static lto_free_section_data_f* free_section_f;
    used by the ipa passes to get the data that they will
    deserialize.  */
 
-void 
-lto_set_in_hooks (struct lto_file_decl_data ** data, 
+void
+lto_set_in_hooks (struct lto_file_decl_data ** data,
 		  lto_get_section_data_f* get_f,
 		  lto_free_section_data_f* free_f)
 {
@@ -206,9 +209,9 @@ struct lto_data_header
    returned.  */
 
 const char *
-lto_get_section_data (struct lto_file_decl_data *file_data, 
+lto_get_section_data (struct lto_file_decl_data *file_data,
 		      enum lto_section_type section_type,
-		      const char *name, 
+		      const char *name,
 		      size_t *len)
 {
   const char *data = (get_section_f) (file_data, section_type, name, len);
@@ -233,9 +236,9 @@ lto_get_section_data (struct lto_file_decl_data *file_data,
   header = (struct lto_data_header *) xmalloc (header_length);
   header->data = data;
   header->len = *len;
-  
+
   buffer.data = (char *) header;
-  buffer.length = header_length; 
+  buffer.length = header_length;
 
   stream = lto_start_uncompression (lto_append_data, &buffer);
   lto_uncompress_block (stream, data, *len);
@@ -250,8 +253,8 @@ lto_get_section_data (struct lto_file_decl_data *file_data,
    parameters are the same as above.  DATA is the data to be freed and
    LEN is the length of that data.  */
 
-void 
-lto_free_section_data (struct lto_file_decl_data *file_data, 
+void
+lto_free_section_data (struct lto_file_decl_data *file_data,
 		       enum lto_section_type section_type,
 		       const char *name,
 		       const char *data,
@@ -285,16 +288,16 @@ lto_free_section_data (struct lto_file_decl_data *file_data,
    used to free the section.  Return NULL if the section is not present.  */
 
 struct lto_input_block *
-lto_create_simple_input_block (struct lto_file_decl_data *file_data, 
+lto_create_simple_input_block (struct lto_file_decl_data *file_data,
 			       enum lto_section_type section_type,
 			       const char **datar, size_t *len)
 {
   const char *data = lto_get_section_data (file_data, section_type, NULL, len);
-  const struct lto_simple_header * header 
+  const struct lto_simple_header * header
     = (const struct lto_simple_header *) data;
 
   struct lto_input_block* ib_main;
-  int32_t main_offset = sizeof (struct lto_simple_header); 
+  int32_t main_offset = sizeof (struct lto_simple_header);
 
   if (!data)
     return NULL;
@@ -316,7 +319,7 @@ lto_create_simple_input_block (struct lto_file_decl_data *file_data,
    that call.  */
 
 void
-lto_destroy_simple_input_block (struct lto_file_decl_data *file_data, 
+lto_destroy_simple_input_block (struct lto_file_decl_data *file_data,
 				enum lto_section_type section_type,
 				struct lto_input_block *ib,
 				const char *data, size_t len)
@@ -430,11 +433,7 @@ lto_get_decl_name_mapping (struct lto_file_decl_data *decl_data,
 struct lto_in_decl_state *
 lto_new_in_decl_state (void)
 {
-  struct lto_in_decl_state *state;
-
-  state = ((struct lto_in_decl_state *) xmalloc (sizeof (*state)));
-  memset (state, 0, sizeof (*state));
-  return state;
+  return ggc_alloc_cleared_lto_in_decl_state ();
 }
 
 /* Delete STATE and its components. */
@@ -446,8 +445,8 @@ lto_delete_in_decl_state (struct lto_in_decl_state *state)
 
   for (i = 0; i < LTO_N_DECL_STREAMS; i++)
     if (state->streams[i].trees)
-      free (state->streams[i].trees);
-  free (state);
+      ggc_free (state->streams[i].trees);
+  ggc_free (state);
 }
 
 /* Hashtable helpers. lto_in_decl_states are hash by their function decls. */

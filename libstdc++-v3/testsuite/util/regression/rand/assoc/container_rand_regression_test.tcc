@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2005, 2006, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -45,7 +45,7 @@ container_rand_regression_test(unsigned long seed, size_t n, size_t m,
 			       double mp, bool disp) 
 : m_seed((seed == 0) ? twister_rand_gen::get_time_determined_seed() : seed),
   m_n(n), m_m(m), m_tp(tp), m_ip(ip), m_ep(ep), m_cp(cp), m_mp(mp),
-  m_disp(disp), m_p_c(NULL)
+  m_disp(disp), m_p_c(0)
 { }
 
 PB_DS_CLASS_T_DEC
@@ -66,12 +66,12 @@ default_constructor()
     {
       m_p_c = new Cntnr;
     }
-  catch(__gnu_cxx::forced_exception_error&)
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
     }
 
-  if (m_p_c != NULL)
+  if (m_p_c)
     PB_DS_COND_COMPARE(*m_p_c, m_native_c);
   return done;
 }
@@ -98,7 +98,7 @@ copy_constructor()
 {
   PB_DS_TRACE("copy_constructor");
   bool done = true;
-  Cntnr* p_c = NULL;
+  Cntnr* p_c = 0;
   m_alloc.set_probability(m_tp);
   typename alloc_t::group_adjustor adjust(m_p_c->size());
 
@@ -107,7 +107,7 @@ copy_constructor()
       p_c = new Cntnr(*m_p_c);
       std::swap(p_c, m_p_c);
     }
-  catch(__gnu_cxx::forced_exception_error& )
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -124,7 +124,7 @@ assignment_operator()
 {
   PB_DS_TRACE("assignment operator");
   bool done = true;
-  Cntnr* p_c = NULL;
+  Cntnr* p_c = 0;
   m_alloc.set_probability(m_tp);
   typename alloc_t::group_adjustor adjust(m_p_c->size());
 
@@ -134,7 +134,7 @@ assignment_operator()
       * p_c =* m_p_c;
       std::swap(p_c, m_p_c);
     }
-  catch(__gnu_cxx::forced_exception_error& )
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -159,7 +159,7 @@ PB_DS_CLASS_C_DEC::
 it_constructor_imp(__gnu_pbds::cc_hash_tag)
 {
   bool done = true;
-  Cntnr* p_c = NULL;
+  Cntnr* p_c = 0;
   m_alloc.set_probability(m_tp);
   typename alloc_t::group_adjustor adjust(m_p_c->size());
 
@@ -210,7 +210,7 @@ it_constructor_imp(__gnu_pbds::cc_hash_tag)
         };
       std::swap(p_c, m_p_c);
     }
-  catch (__gnu_cxx::forced_exception_error&)
+  catch (__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -226,7 +226,7 @@ PB_DS_CLASS_C_DEC::
 it_constructor_imp(__gnu_pbds::gp_hash_tag)
 {
   bool done = true;
-  Cntnr* p_c = NULL;
+  Cntnr* p_c = 0;
   m_alloc.set_probability(m_tp);
   typename alloc_t::group_adjustor adjust(m_p_c->size());
 
@@ -293,7 +293,7 @@ it_constructor_imp(__gnu_pbds::gp_hash_tag)
         };
       std::swap(p_c, m_p_c);
     }
-  catch (__gnu_cxx::forced_exception_error&)
+  catch (__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -309,7 +309,7 @@ PB_DS_CLASS_C_DEC::
 it_constructor_imp(__gnu_pbds::tree_tag)
 {
   bool done = true;
-  Cntnr* p_c = NULL;
+  Cntnr* p_c = 0;
   m_alloc.set_probability(m_tp);
   typename alloc_t::group_adjustor adjust(m_p_c->size());
 
@@ -329,7 +329,7 @@ it_constructor_imp(__gnu_pbds::tree_tag)
         };
       std::swap(p_c, m_p_c);
     }
-  catch (__gnu_cxx::forced_exception_error&)
+  catch (__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -345,7 +345,7 @@ PB_DS_CLASS_C_DEC::
 it_constructor_imp(__gnu_pbds::list_update_tag)
 {
   bool done = true;
-  Cntnr* p_c = NULL;
+  Cntnr* p_c = 0;
   m_alloc.set_probability(m_tp);
   typename alloc_t::group_adjustor adjust(m_p_c->size());
 
@@ -354,7 +354,7 @@ it_constructor_imp(__gnu_pbds::list_update_tag)
       p_c = new Cntnr(m_p_c->begin(), m_p_c->end());
       std::swap(p_c, m_p_c);
     }
-  catch (__gnu_cxx::forced_exception_error&)
+  catch (__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -370,7 +370,7 @@ PB_DS_CLASS_C_DEC::
 it_constructor_imp(__gnu_pbds::pat_trie_tag)
 {
   bool done = true;
-  Cntnr* p_c = NULL;
+  Cntnr* p_c = 0;
   m_alloc.set_probability(m_tp);
   typename alloc_t::group_adjustor adjust(m_p_c->size());
 
@@ -392,7 +392,7 @@ it_constructor_imp(__gnu_pbds::pat_trie_tag)
 
       std::swap(p_c, m_p_c);
     }
-  catch (__gnu_cxx::forced_exception_error&)
+  catch (__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -869,7 +869,7 @@ PB_DS_CLASS_C_DEC::
 operator()()
 {
   typedef xml_result_set_regression_formatter formatter_type;
-  formatter_type* p_fmt = NULL;
+  formatter_type* p_fmt = 0;
 
   if (m_disp)
     p_fmt = new formatter_type(string_form<Cntnr>::name(),
@@ -1088,7 +1088,7 @@ insert()
 	}
       m_native_c.insert(test_traits::native_value(v));
     }
-  catch(__gnu_cxx::forced_exception_error&)
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -1139,7 +1139,7 @@ subscript_imp(__gnu_pbds::detail::false_type)
       m_native_c[test_traits::native_value(v).first] =
 	test_traits::native_value(v).second;
     }
-  catch(__gnu_cxx::forced_exception_error& )
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -1164,7 +1164,7 @@ subscript_imp(__gnu_pbds::detail::true_type)
       (*m_p_c)[v] = __gnu_pbds::null_mapped_type();
       m_native_c.insert(test_traits::native_value(v));
     }
-  catch(__gnu_cxx::forced_exception_error& )
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
     }
@@ -1213,7 +1213,7 @@ erase()
       PB_DS_THROW_IF_FAILED(m_p_c->find(k) == m_p_c->end(), "", 
 			    m_p_c, &m_native_c);
     }
-  catch(__gnu_cxx::forced_exception_error& )
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
 
@@ -1251,7 +1251,7 @@ erase_if()
       PB_DS_THROW_IF_FAILED(ersd == native_ersd,
 			    ersd << " " << native_ersd, m_p_c, &m_native_c);
     }
-  catch(__gnu_cxx::forced_exception_error&)
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
       PB_DS_THROW_IF_FAILED(container_traits::erase_can_throw, 
@@ -1329,7 +1329,7 @@ erase_it_imp(__gnu_pbds::detail::true_type)
       if (range_guarantee)
 	PB_DS_THROW_IF_FAILED(next_ers_it == next_it, "", m_p_c, &m_native_c);
     }
-  catch(__gnu_cxx::forced_exception_error& )
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
       PB_DS_THROW_IF_FAILED(container_traits::erase_can_throw, container_traits::erase_can_throw, m_p_c, &m_native_c);
@@ -1392,7 +1392,7 @@ erase_rev_it_imp(__gnu_pbds::detail::true_type)
       if (native_it != m_native_c.end())
 	m_native_c.erase(native_it);
     }
-  catch(__gnu_cxx::forced_exception_error& )
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;      
       PB_DS_THROW_IF_FAILED(container_traits::erase_can_throw, 
@@ -1591,30 +1591,30 @@ policy_access(__gnu_pbds::basic_hash_tag)
 {
   {
     typename Cntnr::hash_fn& r_t = m_p_c->get_hash_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
   {
     const typename Cntnr::hash_fn& r_t =((const Cntnr& )*m_p_c).get_hash_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
 
   {
     typename Cntnr::eq_fn& r_t = m_p_c->get_eq_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
   {
     const typename Cntnr::eq_fn& r_t =((const Cntnr& )*m_p_c).get_eq_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
 
   {
     typename Cntnr::resize_policy& r_t = m_p_c->get_resize_policy();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
   {
     const typename Cntnr::resize_policy& r_t =((const Cntnr& )*m_p_c).get_resize_policy();
 
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
 }
 
@@ -1627,12 +1627,12 @@ policy_access(__gnu_pbds::cc_hash_tag)
 
   {
     typename Cntnr::comb_hash_fn& r_t = m_p_c->get_comb_hash_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
   {
     const typename Cntnr::comb_hash_fn& r_t =((const Cntnr& )*m_p_c).get_comb_hash_fn();
 
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
 }
 
@@ -1645,21 +1645,21 @@ policy_access(__gnu_pbds::gp_hash_tag)
 
   {
     typename Cntnr::comb_probe_fn& r_t = m_p_c->get_comb_probe_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
   {
     const typename Cntnr::comb_probe_fn& r_t =((const Cntnr& )*m_p_c).get_comb_probe_fn();
 
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
 
   {
     typename Cntnr::probe_fn& r_t = m_p_c->get_probe_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
   {
     const typename Cntnr::probe_fn& r_t =((const Cntnr& )*m_p_c).get_probe_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
 }
 
@@ -1670,12 +1670,12 @@ policy_access(__gnu_pbds::tree_tag)
 {
   {
     typename Cntnr::cmp_fn& r_t = m_p_c->get_cmp_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
 
   {
     const typename Cntnr::cmp_fn& r_t =((const Cntnr& )*m_p_c).get_cmp_fn();
-    assert(&r_t != NULL);
+    assert(&r_t);
   }
 }
 
@@ -1691,7 +1691,7 @@ PB_DS_CLASS_C_DEC::
 policy_access(__gnu_pbds::pat_trie_tag)
 {
   typename Cntnr::e_access_traits& r_t = m_p_c->get_e_access_traits();
-  assert(&r_t != NULL);
+  assert(&r_t);
 }
 
 
@@ -1763,7 +1763,7 @@ split_join_imp(__gnu_pbds::detail::true_type)
       PB_DS_THROW_IF_FAILED(rhs.empty(), rhs.size(), m_p_c, &m_native_c);
       m_p_c->swap(lhs);
     }
-  catch(__gnu_cxx::forced_exception_error& )
+  catch(__gnu_cxx::forced_error&)
     {
       done = false;
       PB_DS_THROW_IF_FAILED(container_traits::split_join_can_throw, 

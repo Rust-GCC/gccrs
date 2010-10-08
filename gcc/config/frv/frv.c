@@ -1,5 +1,5 @@
 /* Copyright (C) 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2007,
-   2008, 2009  Free Software Foundation, Inc.
+   2008, 2009, 2010  Free Software Foundation, Inc.
    Contributed by Red Hat, Inc.
 
 This file is part of GCC.
@@ -26,7 +26,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "insn-flags.h"
@@ -40,6 +39,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "except.h"
 #include "function.h"
 #include "optabs.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "basic-block.h"
 #include "tm_p.h"
@@ -264,10 +264,15 @@ frv_cpu_t frv_cpu_type = CPU_TYPE;	/* value of -mcpu= */
 /* Forward references */
 
 static bool frv_handle_option			(size_t, const char *, int);
+static void frv_option_override			(void);
+static void frv_option_optimization		(int, int);
 static bool frv_legitimate_address_p		(enum machine_mode, rtx, bool);
 static int frv_default_flags_for_cpu		(void);
 static int frv_string_begins_with		(const_tree, const char *);
 static FRV_INLINE bool frv_small_data_reloc_p	(rtx, int);
+static void frv_print_operand			(FILE *, rtx, int);
+static void frv_print_operand_address		(FILE *, rtx);
+static bool frv_print_operand_punct_valid_p	(unsigned char code);
 static void frv_print_operand_memory_reference_reg
 						(FILE *, rtx);
 static void frv_print_operand_memory_reference	(FILE *, rtx, int);
@@ -368,6 +373,10 @@ static void frv_setup_incoming_varargs		(CUMULATIVE_ARGS *,
 static rtx frv_expand_builtin_saveregs		(void);
 static void frv_expand_builtin_va_start		(tree, rtx);
 static bool frv_rtx_costs			(rtx, int, int, int*, bool);
+static int frv_register_move_cost		(enum machine_mode,
+						 reg_class_t, reg_class_t);
+static int frv_memory_move_cost			(enum machine_mode,
+						 reg_class_t, bool);
 static void frv_asm_out_constructor		(rtx, int);
 static void frv_asm_out_destructor		(rtx, int);
 static bool frv_function_symbol_referenced_p	(rtx);
@@ -382,12 +391,13 @@ static int frv_arg_partial_bytes (CUMULATIVE_ARGS *, enum machine_mode,
 				  tree, bool);
 static void frv_output_dwarf_dtprel		(FILE *, int, rtx)
   ATTRIBUTE_UNUSED;
-static bool frv_secondary_reload                (bool, rtx, enum reg_class,
+static reg_class_t frv_secondary_reload		(bool, rtx, reg_class_t,
 						 enum machine_mode,
 						 secondary_reload_info *);
 static bool frv_frame_pointer_required		(void);
 static bool frv_can_eliminate			(const int, const int);
 static void frv_trampoline_init			(rtx, tree, rtx);
+static bool frv_class_likely_spilled_p 		(reg_class_t);
 
 /* Allow us to easily change the default for -malloc-cc.  */
 #ifndef DEFAULT_NO_ALLOC_CC
@@ -397,6 +407,12 @@ static void frv_trampoline_init			(rtx, tree, rtx);
 #endif
 
 /* Initialize the GCC target structure.  */
+#undef TARGET_PRINT_OPERAND
+#define TARGET_PRINT_OPERAND frv_print_operand
+#undef TARGET_PRINT_OPERAND_ADDRESS
+#define TARGET_PRINT_OPERAND_ADDRESS frv_print_operand_address
+#undef TARGET_PRINT_OPERAND_PUNCT_VALID_P
+#define TARGET_PRINT_OPERAND_PUNCT_VALID_P frv_print_operand_punct_valid_p
 #undef  TARGET_ASM_FUNCTION_PROLOGUE
 #define TARGET_ASM_FUNCTION_PROLOGUE frv_function_prologue
 #undef  TARGET_ASM_FUNCTION_EPILOGUE
@@ -414,6 +430,10 @@ static void frv_trampoline_init			(rtx, tree, rtx);
    | MASK_NESTED_CE)
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION frv_handle_option
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE frv_option_override
+#undef TARGET_OPTION_OPTIMIZATION
+#define TARGET_OPTION_OPTIMIZATION frv_option_optimization
 #undef TARGET_INIT_BUILTINS
 #define TARGET_INIT_BUILTINS frv_init_builtins
 #undef TARGET_EXPAND_BUILTIN
@@ -422,6 +442,10 @@ static void frv_trampoline_init			(rtx, tree, rtx);
 #define TARGET_INIT_LIBFUNCS frv_init_libfuncs
 #undef TARGET_IN_SMALL_DATA_P
 #define TARGET_IN_SMALL_DATA_P frv_in_small_data_p
+#undef TARGET_REGISTER_MOVE_COST
+#define TARGET_REGISTER_MOVE_COST frv_register_move_cost
+#undef TARGET_MEMORY_MOVE_COST
+#define TARGET_MEMORY_MOVE_COST frv_memory_move_cost
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS frv_rtx_costs
 #undef TARGET_ASM_CONSTRUCTOR
@@ -471,6 +495,9 @@ static void frv_trampoline_init			(rtx, tree, rtx);
 #undef TARGET_ASM_OUTPUT_DWARF_DTPREL
 #define TARGET_ASM_OUTPUT_DWARF_DTPREL frv_output_dwarf_dtprel
 #endif
+
+#undef TARGET_CLASS_LIKELY_SPILLED_P
+#define TARGET_CLASS_LIKELY_SPILLED_P frv_class_likely_spilled_p
 
 #undef  TARGET_SECONDARY_RELOAD
 #define TARGET_SECONDARY_RELOAD frv_secondary_reload
@@ -545,7 +572,7 @@ frv_const_unspec_p (rtx x, struct frv_unspec *unspec)
 
 	  if (frv_small_data_reloc_p (unspec->symbol, unspec->reloc)
 	      && unspec->offset > 0
-	      && (unsigned HOST_WIDE_INT) unspec->offset < g_switch_value)
+	      && unspec->offset < g_switch_value)
 	    return true;
 	}
     }
@@ -580,7 +607,7 @@ frv_cannot_force_const_mem (rtx x ATTRIBUTE_UNUSED)
 /* Implement TARGET_HANDLE_OPTION.  */
 
 static bool
-frv_handle_option (size_t code, const char *arg, int value ATTRIBUTE_UNUSED)
+frv_handle_option (size_t code, const char *arg, int value)
 {
   switch (code)
     {
@@ -643,17 +670,10 @@ frv_default_flags_for_cpu (void)
     }
 }
 
-/* Sometimes certain combinations of command options do not make
-   sense on a particular target machine.  You can define a macro
-   `OVERRIDE_OPTIONS' to take account of this.  This macro, if
-   defined, is executed once just after all the command options have
-   been parsed.
+/* Implement TARGET_OPTION_OVERRIDE.  */
 
-   Don't use this macro to turn on various extra optimizations for
-   `-O'.  That is what `OPTIMIZATION_OPTIONS' is for.  */
-
-void
-frv_override_options (void)
+static void
+frv_option_override (void)
 {
   int regno;
   unsigned int i;
@@ -667,9 +687,8 @@ frv_override_options (void)
       if (!flag_pic)		/* -fPIC */
 	flag_pic = 2;
 
-      if (! g_switch_set)	/* -G0 */
+      if (!global_options_set.x_g_switch_value)	/* -G0 */
 	{
-	  g_switch_set = 1;
 	  g_switch_value = 0;
 	}
     }
@@ -761,7 +780,7 @@ frv_override_options (void)
     }
 
   /* Check for small data option */
-  if (!g_switch_set)
+  if (!global_options_set.x_g_switch_value && !TARGET_LIBPIC)
     g_switch_value = SDATA_DEFAULT_SIZE;
 
   /* A C expression which defines the machine-dependent operand
@@ -828,29 +847,12 @@ frv_override_options (void)
 }
 
 
-/* Some machines may desire to change what optimizations are performed for
-   various optimization levels.  This macro, if defined, is executed once just
-   after the optimization level is determined and before the remainder of the
-   command options have been parsed.  Values set in this macro are used as the
-   default values for the other command line options.
+/* Implement TARGET_OPTION_OPTIMIZATION.
 
-   LEVEL is the optimization level specified; 2 if `-O2' is specified, 1 if
-   `-O' is specified, and 0 if neither is specified.
-
-   SIZE is nonzero if `-Os' is specified, 0 otherwise.
-
-   You should not use this macro to change options that are not
-   machine-specific.  These should uniformly selected by the same optimization
-   level on all supported machines.  Use this macro to enable machine-specific
-   optimizations.
-
-   *Do not examine `write_symbols' in this macro!* The debugging options are
-   *not supposed to alter the generated code.  */
-
-/* On the FRV, possibly disable VLIW packing which is done by the 2nd
+   On the FRV, possibly disable VLIW packing which is done by the 2nd
    scheduling pass at the current time.  */
-void
-frv_optimization_options (int level, int size ATTRIBUTE_UNUSED)
+static void
+frv_option_optimization (int level, int size ATTRIBUTE_UNUSED)
 {
   if (level >= 2)
     {
@@ -1173,7 +1175,7 @@ frv_stack_info (void)
       /* Find the last argument, and see if it is __builtin_va_alist.  */
       for (cur_arg = DECL_ARGUMENTS (fndecl); cur_arg != (tree)0; cur_arg = next_arg)
 	{
-	  next_arg = TREE_CHAIN (cur_arg);
+	  next_arg = DECL_CHAIN (cur_arg);
 	  if (next_arg == (tree)0)
 	    {
 	      if (DECL_NAME (cur_arg)
@@ -2563,7 +2565,7 @@ frv_index_memory (rtx memref, enum machine_mode mode, int index)
 
 
 /* Print a memory address as an operand to reference that memory location.  */
-void
+static void
 frv_print_operand_address (FILE * stream, rtx x)
 {
   if (GET_CODE (x) == MEM)
@@ -2796,9 +2798,9 @@ comparison_string (enum rtx_code code, rtx op0)
 /* Print an operand to an assembler instruction.
 
    `%' followed by a letter and a digit says to output an operand in an
-   alternate fashion.  Four letters have standard, built-in meanings described
-   below.  The machine description macro `PRINT_OPERAND' can define additional
-   letters with nonstandard meanings.
+   alternate fashion.  Four letters have standard, built-in meanings
+   described below.  The hook `TARGET_PRINT_OPERAND' can define
+   additional letters with nonstandard meanings.
 
    `%cDIGIT' can be used to substitute an operand that is a constant value
    without the syntax that normally indicates an immediate operand.
@@ -2819,13 +2821,14 @@ comparison_string (enum rtx_code code, rtx op0)
    than once in a single template that generates multiple assembler
    instructions.
 
-   `%' followed by a punctuation character specifies a substitution that does
-   not use an operand.  Only one case is standard: `%%' outputs a `%' into the
-   assembler code.  Other nonstandard cases can be defined in the
-   `PRINT_OPERAND' macro.  You must also define which punctuation characters
-   are valid with the `PRINT_OPERAND_PUNCT_VALID_P' macro.  */
+   `%' followed by a punctuation character specifies a substitution that
+   does not use an operand.  Only one case is standard: `%%' outputs a
+   `%' into the assembler code.  Other nonstandard cases can be defined
+   in the `TARGET_PRINT_OPERAND' hook.  You must also define which
+   punctuation characters are valid with the
+   `TARGET_PRINT_OPERAND_PUNCT_VALID_P' hook.  */
 
-void
+static void
 frv_print_operand (FILE * file, rtx x, int code)
 {
   struct frv_unspec unspec;
@@ -3116,6 +3119,13 @@ frv_print_operand (FILE * file, rtx x, int code)
   return;
 }
 
+static bool
+frv_print_operand_punct_valid_p (unsigned char code)
+{
+  return (code == '.' || code == '#' || code == '@' || code == '~'
+	  || code == '*' || code == '&');
+}
+
 
 /* A C statement (sans semicolon) for initializing the variable CUM for the
    state at the beginning of the argument list.  The variable has type
@@ -3375,11 +3385,11 @@ frv_regno_ok_for_base_p (int regno, int strict_p)
    legitimate addresses.  Normally you would simply recognize any `const' as
    legitimate.
 
-   Usually `PRINT_OPERAND_ADDRESS' is not prepared to handle constant sums that
-   are not marked with `const'.  It assumes that a naked `plus' indicates
-   indexing.  If so, then you *must* reject such naked constant sums as
-   illegitimate addresses, so that none of them will be given to
-   `PRINT_OPERAND_ADDRESS'.  */
+   Usually `TARGET_PRINT_OPERAND_ADDRESS' is not prepared to handle
+   constant sums that are not marked with `const'.  It assumes that a
+   naked `plus' indicates indexing.  If so, then you *must* reject such
+   naked constant sums as illegitimate addresses, so that none of them
+   will be given to `TARGET_PRINT_OPERAND_ADDRESS'.  */
 
 int
 frv_legitimate_address_p_1 (enum machine_mode mode,
@@ -4051,7 +4061,7 @@ frv_emit_movsi (rtx dest, rtx src)
 	  || (GET_CODE (src) == REG
 	      && IN_RANGE_P (REGNO (src),
 			     FIRST_VIRTUAL_REGISTER,
-			     LAST_VIRTUAL_REGISTER))))
+			     LAST_VIRTUAL_POINTER_REGISTER))))
     {
       emit_insn (gen_rtx_SET (VOIDmode, dest, copy_to_mode_reg (SImode, src)));
       return TRUE;
@@ -6476,12 +6486,13 @@ frv_secondary_reload_class (enum reg_class rclass,
    called from init_reg_autoinc() in regclass.c - before the reload optabs
    have been initialised.  */
    
-static bool
-frv_secondary_reload (bool in_p, rtx x, enum reg_class reload_class,
+static reg_class_t
+frv_secondary_reload (bool in_p, rtx x, reg_class_t reload_class_i,
 		      enum machine_mode reload_mode,
 		      secondary_reload_info * sri)
 {
   enum reg_class rclass = NO_REGS;
+  enum reg_class reload_class = (enum reg_class) reload_class_i;
 
   if (sri->prev_sri && sri->prev_sri->t_icode != CODE_FOR_nothing)
     {
@@ -6493,8 +6504,9 @@ frv_secondary_reload (bool in_p, rtx x, enum reg_class reload_class,
 
   if (rclass != NO_REGS)
     {
-      enum insn_code icode = (in_p ? reload_in_optab[(int) reload_mode]
-			      : reload_out_optab[(int) reload_mode]);
+      enum insn_code icode
+	= direct_optab_handler (in_p ? reload_in_optab : reload_out_optab,
+				reload_mode);
       if (icode == 0)
 	{
 	  /* This happens when then the reload_[in|out]_optabs have
@@ -6509,23 +6521,10 @@ frv_secondary_reload (bool in_p, rtx x, enum reg_class reload_class,
 
 }
 
-/* A C expression whose value is nonzero if pseudos that have been assigned to
-   registers of class RCLASS would likely be spilled because registers of RCLASS
-   are needed for spill registers.
+/* Worker function for TARGET_CLASS_LIKELY_SPILLED_P.  */
 
-   The default value of this macro returns 1 if RCLASS has exactly one register
-   and zero otherwise.  On most machines, this default should be used.  Only
-   define this macro to some other expression if pseudo allocated by
-   `local-alloc.c' end up in memory because their hard registers were needed
-   for spill registers.  If this macro returns nonzero for those classes, those
-   pseudos will only be allocated by `global.c', which knows how to reallocate
-   the pseudo to another register.  If there would not be another register
-   available for reallocation, you should not change the definition of this
-   macro since the only effect of such a definition would be to slow down
-   register allocation.  */
-
-int
-frv_class_likely_spilled_p (enum reg_class rclass)
+static bool
+frv_class_likely_spilled_p (reg_class_t rclass)
 {
   switch (rclass)
     {
@@ -6550,10 +6549,10 @@ frv_class_likely_spilled_p (enum reg_class rclass)
     case EVEN_ACC_REGS:
     case ACC_REGS:
     case ACCG_REGS:
-      return TRUE;
+      return true;
     }
 
-  return FALSE;
+  return false;
 }
 
 
@@ -6615,7 +6614,7 @@ frv_adjust_field_align (tree field, int computed)
       tree prev = NULL_TREE;
       tree cur;
 
-      for (cur = TYPE_FIELDS (parent); cur && cur != field; cur = TREE_CHAIN (cur))
+      for (cur = TYPE_FIELDS (parent); cur && cur != field; cur = DECL_CHAIN (cur))
 	{
 	  if (TREE_CODE (cur) != FIELD_DECL)
 	    continue;
@@ -6893,28 +6892,16 @@ frv_select_cc_mode (enum rtx_code code, rtx x, rtx y)
     }
 }
 
-/* A C expression for the cost of moving data from a register in class FROM to
-   one in class TO.  The classes are expressed using the enumeration values
-   such as `GENERAL_REGS'.  A value of 4 is the default; other values are
-   interpreted relative to that.
 
-   It is not required that the cost always equal 2 when FROM is the same as TO;
-   on some machines it is expensive to move between registers if they are not
-   general registers.
-
-   If reload sees an insn consisting of a single `set' between two hard
-   registers, and if `REGISTER_MOVE_COST' applied to their classes returns a
-   value of 2, reload does not check to ensure that the constraints of the insn
-   are met.  Setting a cost of other than 2 will allow reload to verify that
-   the constraints are met.  You should do this if the `movM' pattern's
-   constraints do not allow such copying.  */
+/* Worker function for TARGET_REGISTER_MOVE_COST.  */
 
 #define HIGH_COST 40
 #define MEDIUM_COST 3
 #define LOW_COST 1
 
-int
-frv_register_move_cost (enum reg_class from, enum reg_class to)
+static int
+frv_register_move_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
+			reg_class_t from, reg_class_t to)
 {
   switch (from)
     {
@@ -6997,6 +6984,17 @@ frv_register_move_cost (enum reg_class from, enum reg_class to)
 
   return HIGH_COST;
 }
+
+/* Worker function for TARGET_MEMORY_MOVE_COST.  */
+
+static int
+frv_memory_move_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
+                      reg_class_t rclass ATTRIBUTE_UNUSED,
+                      bool in ATTRIBUTE_UNUSED)
+{
+  return 4;
+}
+
 
 /* Implementation of TARGET_ASM_INTEGER.  In the FRV case we need to
    use ".picptr" to generate safe relocations for PIC code.  We also
@@ -7055,7 +7053,7 @@ frv_assemble_integer (rtx value, unsigned int size, int aligned_p)
 static struct machine_function *
 frv_init_machine_status (void)
 {
-  return GGC_CNEW (struct machine_function);
+  return ggc_alloc_cleared_machine_function ();
 }
 
 /* Implement TARGET_SCHED_ISSUE_RATE.  */
@@ -9566,7 +9564,7 @@ frv_in_small_data_p (const_tree decl)
     }
 
   size = int_size_in_bytes (TREE_TYPE (decl));
-  if (size > 0 && (unsigned HOST_WIDE_INT) size <= g_switch_value)
+  if (size > 0 && size <= g_switch_value)
     return true;
 
   return false;

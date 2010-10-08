@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -59,13 +59,6 @@ package Errout is
    --  have fully expanded some items, due to high integrity violations (i.e.
    --  the use of constructs not permitted by the library in use, or improper
    --  constructs in No_Run_Time mode).
-
-   type Compiler_State_Type is (Parsing, Analyzing);
-   Compiler_State : Compiler_State_Type;
-   --  Indicates current state of compilation. This is put in the Errout spec
-   --  because it affects the action of the error message handling. In
-   --  particular, an attempt is made by Errout to suppress cascaded error
-   --  messages in Parsing mode, but not in the other modes.
 
    Current_Error_Source_File : Source_File_Index
      renames Err_Vars.Current_Error_Source_File;
@@ -376,6 +369,15 @@ package Errout is
    Gname5 : aliased constant String := "gnat05";
    Vname5 : aliased constant String := "05";
 
+   Gname6 : aliased constant String := "gnat2005";
+   Vname6 : aliased constant String := "2005";
+
+   Gname7 : aliased constant String := "gnat12";
+   Vname7 : aliased constant String := "12";
+
+   Gname8 : aliased constant String := "gnat2012";
+   Vname8 : aliased constant String := "2012";
+
    type Cstring_Ptr is access constant String;
 
    Gnames : array (Nat range <>) of Cstring_Ptr :=
@@ -383,14 +385,20 @@ package Errout is
                Gname2'Access,
                Gname3'Access,
                Gname4'Access,
-               Gname5'Access);
+               Gname5'Access,
+               Gname6'Access,
+               Gname7'Access,
+               Gname8'Access);
 
    Vnames : array (Nat range <>) of Cstring_Ptr :=
               (Vname1'Access,
                Vname2'Access,
                Vname3'Access,
                Vname4'Access,
-               Vname5'Access);
+               Vname5'Access,
+               Vname6'Access,
+               Vname7'Access,
+               Vname8'Access);
 
    -----------------------------------------------------
    -- Global Values Used for Error Message Insertions --
@@ -600,13 +608,6 @@ package Errout is
    --  Any message marked with this -- CODEFIX comment should not be modified
    --  without appropriate coordination. If new messages are added which may
    --  be susceptible to automatic codefix action, they are marked using:
-
-   --     Error_Msg -- CODEFIX???
-   --       (parameters)
-
-   --  And subsequently either the appropriate code is added to codefix and the
-   --  ??? are removed, or it is determined that this is not an appropriate
-   --  case for codefix action, and the comment is removed.
 
    ------------------------------
    -- Error Output Subprograms --

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for MMIX.
-   Copyright (C) 2000, 2001, 2002, 2004, 2005, 2007, 2008, 2009
+   Copyright (C) 2000, 2001, 2002, 2004, 2005, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Hans-Peter Nilsson (hp@bitrange.com)
 
@@ -140,29 +140,12 @@ struct GTY(()) machine_function
     }								\
   while (0)
 
-extern int target_flags;
-
 #define TARGET_DEFAULT \
  (MASK_BRANCH_PREDICT | MASK_BASE_ADDRESSES | MASK_USE_RETURN_INSN)
 
 /* Unfortunately, this must not reference anything in "mmix.c".  */
 #define TARGET_VERSION \
   fprintf (stderr, " (MMIX)")
-
-#define OVERRIDE_OPTIONS mmix_override_options ()
-
-#define OPTIMIZATION_OPTIONS(LEVEL, SIZE)	\
-  do						\
-    {						\
-      if (LEVEL >= 1)				\
-	flag_regmove = TRUE;			\
-      						\
-      if (SIZE || LEVEL > 1)			\
-	{					\
-	  flag_omit_frame_pointer = TRUE;	\
-	}					\
-    }						\
-  while (0)
 
 /* This one will have to wait a little bit; right now we can't debug
    neither with or without a frame-pointer.  */
@@ -586,8 +569,6 @@ enum reg_class
 
 #define ACCUMULATE_OUTGOING_ARGS 1
 
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACKSIZE) 0
-
 
 /* Node: Register Arguments */
 #define FUNCTION_ARG(CUM, MODE, TYPE, NAMED)	\
@@ -611,22 +592,6 @@ typedef struct { int regs; int lib; } CUMULATIVE_ARGS;
 
 #define FUNCTION_ARG_REGNO_P(REGNO)		\
  mmix_function_arg_regno_p (REGNO, 0)
-
-
-/* Node: Register Arguments */
-
-#define FUNCTION_VALUE(VALTYPE, FUNC)  \
- gen_rtx_REG (TYPE_MODE (VALTYPE), MMIX_RETURN_VALUE_REGNUM)
-
-/* This needs to take care of the register hole for complex return values.  */
-#define FUNCTION_OUTGOING_VALUE(VALTYPE, FUNC)  \
- mmix_function_outgoing_value (VALTYPE, FUNC)
-
-#define LIBCALL_VALUE(MODE) \
- gen_rtx_REG (MODE, MMIX_RETURN_VALUE_REGNUM)
-
-#define FUNCTION_VALUE_REGNO_P(REGNO) \
- mmix_function_value_regno_p (REGNO)
 
 
 /* Node: Caller Saves */
@@ -743,9 +708,6 @@ typedef struct { int regs; int lib; } CUMULATIVE_ARGS;
 /* These aren't currently functional.  We just keep them as markers.  */
 #define ASM_APP_ON "%APP\n"
 #define ASM_APP_OFF "%NO_APP\n"
-
-#define ASM_OUTPUT_SOURCE_FILENAME(STREAM, NAME) \
- mmix_asm_output_source_filename (STREAM, NAME)
 
 #define OUTPUT_QUOTED_STRING(STREAM, STRING) \
  mmix_output_quoted_string (STREAM, STRING, strlen (STRING))

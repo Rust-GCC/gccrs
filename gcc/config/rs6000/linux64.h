@@ -1,7 +1,7 @@
 /* Definitions of target machine for GNU compiler,
    for 64 bit PowerPC linux.
    Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
-   2009  Free Software Foundation, Inc.
+   2009, 2010  Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -61,6 +61,18 @@ extern int dot_symbols;
 #define DOT_SYMBOLS dot_symbols
 #endif
 
+#define TARGET_PROFILE_KERNEL profile_kernel
+
+#define TARGET_USES_LINUX64_OPT 1
+#ifdef HAVE_LD_LARGE_TOC
+extern enum rs6000_cmodel cmodel;
+#undef TARGET_CMODEL
+#define TARGET_CMODEL cmodel
+#define SET_CMODEL(opt) cmodel = opt
+#else
+#define SET_CMODEL(opt) do {} while (0)
+#endif
+
 #undef  PROCESSOR_DEFAULT
 #define PROCESSOR_DEFAULT PROCESSOR_POWER6
 #undef  PROCESSOR_DEFAULT64
@@ -112,6 +124,23 @@ extern int dot_symbols;
 	      target_flags |= MASK_POWERPC64;			\
 	      error ("-m64 requires a PowerPC64 cpu");		\
 	    }							\
+	  if ((target_flags_explicit & MASK_MINIMAL_TOC) != 0)	\
+	    {							\
+	      if (rs6000_explicit_options.cmodel		\
+		  && cmodel != CMODEL_SMALL)			\
+		error ("-mcmodel incompatible with other toc options"); \
+	      SET_CMODEL (CMODEL_SMALL);			\
+	    }							\
+	  else							\
+	    {							\
+	      if (!rs6000_explicit_options.cmodel)		\
+		SET_CMODEL (CMODEL_MEDIUM);			\
+	      if (cmodel != CMODEL_SMALL)			\
+		{						\
+		  TARGET_NO_FP_IN_TOC = 0;			\
+		  TARGET_NO_SUM_IN_TOC = 0;			\
+		}						\
+	    }							\
 	}							\
       else							\
 	{							\
@@ -119,8 +148,13 @@ extern int dot_symbols;
 	    error (INVALID_32BIT, "32");			\
 	  if (TARGET_PROFILE_KERNEL)				\
 	    {							\
-	      SET_PROFILE_KERNEL (0);				\
+	      TARGET_PROFILE_KERNEL = 0;			\
 	      error (INVALID_32BIT, "profile-kernel");		\
+	    }							\
+	  if (rs6000_explicit_options.cmodel)			\
+	    {							\
+	      SET_CMODEL (CMODEL_SMALL);			\
+	      error (INVALID_32BIT, "cmodel");			\
 	    }							\
 	}							\
     }								\
@@ -128,10 +162,10 @@ extern int dot_symbols;
 
 #ifdef	RS6000_BI_ARCH
 
-#undef	OVERRIDE_OPTIONS
-#define	OVERRIDE_OPTIONS \
-  rs6000_override_options (((TARGET_DEFAULT ^ target_flags) & MASK_64BIT) \
-			   ? (char *) 0 : TARGET_CPU_DEFAULT)
+#undef	OPTION_TARGET_CPU_DEFAULT
+#define	OPTION_TARGET_CPU_DEFAULT \
+  (((TARGET_DEFAULT ^ target_flags) & MASK_64BIT) \
+   ? (char *) 0 : TARGET_CPU_DEFAULT)
 
 #endif
 
@@ -271,14 +305,6 @@ extern int dot_symbols;
 #define BLOCK_REG_PADDING(MODE, TYPE, FIRST) \
   (!(FIRST) ? upward : FUNCTION_ARG_PADDING (MODE, TYPE))
 
-/* __throw will restore its own return address to be the same as the
-   return address of the function that the throw is being made to.
-   This is unfortunate, because we want to check the original
-   return address to see if we need to restore the TOC.
-   So we have to squirrel it away with this.  */
-#define SETUP_FRAME_ADDRESSES() \
-  do { if (TARGET_64BIT) rs6000_aix_emit_builtin_unwind_init (); } while (0)
-
 /* Override svr4.h  */
 #undef MD_EXEC_PREFIX
 #undef MD_STARTFILE_PREFIX
@@ -286,6 +312,8 @@ extern int dot_symbols;
 /* Linux doesn't support saving and restoring 64-bit regs in a 32-bit
    process.  */
 #define OS_MISSING_POWERPC64 !TARGET_64BIT
+
+#define OPTION_GLIBC  (linux_libc == LIBC_GLIBC)
 
 /* glibc has float and long double forms of math functions.  */
 #undef  TARGET_C99_FUNCTIONS
@@ -350,10 +378,12 @@ extern int dot_symbols;
 #define GLIBC_DYNAMIC_LINKER64 "/lib64/ld64.so.1"
 #define UCLIBC_DYNAMIC_LINKER32 "/lib/ld-uClibc.so.0"
 #define UCLIBC_DYNAMIC_LINKER64 "/lib/ld64-uClibc.so.0"
-#if UCLIBC_DEFAULT
-#define CHOOSE_DYNAMIC_LINKER(G, U) "%{mglibc:%{muclibc:%e-mglibc and -muclibc used together}" G ";:" U "}"
+#if DEFAULT_LIBC == LIBC_UCLIBC
+#define CHOOSE_DYNAMIC_LINKER(G, U) "%{mglibc:" G ";:" U "}"
+#elif DEFAULT_LIBC == LIBC_GLIBC
+#define CHOOSE_DYNAMIC_LINKER(G, U) "%{muclibc:" U ";:" G "}"
 #else
-#define CHOOSE_DYNAMIC_LINKER(G, U) "%{muclibc:%{mglibc:%e-mglibc and -muclibc used together}" U ";:" G "}"
+#error "Unsupported DEFAULT_LIBC"
 #endif
 #define LINUX_DYNAMIC_LINKER32 \
   CHOOSE_DYNAMIC_LINKER (GLIBC_DYNAMIC_LINKER32, UCLIBC_DYNAMIC_LINKER32)
@@ -535,3 +565,9 @@ extern int dot_symbols;
 #ifdef TARGET_DEFAULT_LONG_DOUBLE_128
 #define RS6000_DEFAULT_LONG_DOUBLE_SIZE 128
 #endif
+
+/* Static stack checking is supported by means of probes.  */
+#define STACK_CHECK_STATIC_BUILTIN 1
+
+/* The default value isn't sufficient in 64-bit mode.  */
+#define STACK_CHECK_PROTECT (TARGET_64BIT ? 16 * 1024 : 12 * 1024)

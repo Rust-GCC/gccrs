@@ -1,7 +1,7 @@
 /* Definitions of target machine for GNU compiler,
    for Motorola M*CORE Processor.
    Copyright (C) 1993, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007,
-   2008, 2009 Free Software Foundation, Inc.
+   2008, 2009, 2010 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -85,36 +85,6 @@ extern char * mcore_current_function_name;
 /* The MCore ABI says that bitfields are unsigned by default.  */
 #define CC1_SPEC "-funsigned-bitfields"
 
-/* What options are we going to default to specific settings when
-   -O* happens; the user can subsequently override these settings.
-  
-   Omitting the frame pointer is a very good idea on the MCore.
-   Scheduling isn't worth anything on the current MCore implementation.  */
-#define OPTIMIZATION_OPTIONS(LEVEL,SIZE)	\
-{						\
-  if (LEVEL)					\
-    {						\
-      flag_no_function_cse = 1;			\
-      flag_omit_frame_pointer = 1;		\
-						\
-      if (LEVEL >= 2)				\
-        {					\
-          flag_caller_saves = 0;		\
-          flag_schedule_insns = 0;		\
-          flag_schedule_insns_after_reload = 0;	\
-        }					\
-    }						\
-  if (SIZE)					\
-    {						\
-      target_flags &= ~MASK_HARDLIT;		\
-    }						\
-}
-
-/* What options are we going to force to specific settings,
-   regardless of what the user thought he wanted.
-   We also use this for some post-processing of options.  */
-#define OVERRIDE_OPTIONS  mcore_override_options ()
-
 /* Target machine storage Layout.  */
 
 #define PROMOTE_MODE(MODE,UNSIGNEDP,TYPE)  	\
@@ -164,7 +134,6 @@ extern char * mcore_current_function_name;
 #define STACK_BOUNDARY  (TARGET_8ALIGN ? 64 : 32)
 
 /* Largest increment in UNITS we allow the stack to grow in a single operation.  */
-extern int mcore_stack_increment;
 #define STACK_UNITS_MAXSTEP  4096
 
 /* Allocation boundary (in *bits*) for the code of a function.  */
@@ -406,10 +375,11 @@ enum reg_class
 extern const enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
 #define REGNO_REG_CLASS(REGNO) regno_reg_class[REGNO]
 
-/* When defined, the compiler allows registers explicitly used in the
-   rtl to be used as spill registers but prevents the compiler from
-   extending the lifetime of these registers.  */
-#define SMALL_REGISTER_CLASSES 1
+/* When this hook returns true for MODE, the compiler allows
+   registers explicitly used in the rtl to be used as spill registers
+   but prevents the compiler from extending the lifetime of these
+   registers.  */
+#define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
  
 /* The class value for index registers, and the one for base regs.  */
 #define INDEX_REG_CLASS  NO_REGS
@@ -538,16 +508,6 @@ extern const enum reg_class reg_class_from_letter[];
 
 /* Offset of first parameter from the argument pointer register value.  */
 #define FIRST_PARM_OFFSET(FNDECL)  0
-
-/* Value is the number of byte of arguments automatically
-   popped when returning from a subroutine call.
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.
-   SIZE is the number of bytes of arguments passed on the stack.
-
-   On the MCore, the callee does not pop any of its arguments that were passed
-   on the stack.  */
-#define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE) 0
 
 /* Define how to find the value returned by a function.
    VALTYPE is the data type of the value (as a tree).
@@ -958,16 +918,5 @@ extern long mcore_current_compilation_timestamp;
       fprintf ((FILE), ",%d,%d\n", (int)(SIZE), (ALIGN) / BITS_PER_UNIT);\
     }									\
   while (0)
-
-/* Print operand X (an rtx) in assembler syntax to file FILE.
-   CODE is a letter or dot (`z' in `%z0') or 0 if no letter was specified.
-   For `%' followed by punctuation, CODE is the punctuation and X is null.  */
-#define PRINT_OPERAND(STREAM, X, CODE)  mcore_print_operand (STREAM, X, CODE)
-
-/* Print a memory address as an operand to reference that memory location.  */
-#define PRINT_OPERAND_ADDRESS(STREAM,X)  mcore_print_operand_address (STREAM, X)
-
-#define PRINT_OPERAND_PUNCT_VALID_P(CHAR) \
-  ((CHAR)=='.' || (CHAR) == '#' || (CHAR) == '*' || (CHAR) == '^' || (CHAR) == '!')
 
 #endif /* ! GCC_MCORE_H */

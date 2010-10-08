@@ -1,6 +1,7 @@
-<sect1 id="manual.localization.locales.locale" xreflabel="Locale">
- 
-<sect1info>
+<section xmlns="http://docbook.org/ns/docbook" version="5.0" 
+	 xml:id="std.localization.locales.locale" xreflabel="Locale">
+
+<info><title>locale</title>
   <keywordset>
     <keyword>
       ISO C++
@@ -9,9 +10,9 @@
       locale
     </keyword>
   </keywordset>
-</sect1info>
+</info>
 
-<title>locale</title>
+
 
 <para>
 Describes the basic locale object, including nested
@@ -19,8 +20,8 @@ classes id, facet, and the reference-counted implementation object,
 class _Impl.
 </para>
 
-<sect2 id="locales.locale.req">
-<title>Requirements</title>
+<section xml:id="locales.locale.req"><info><title>Requirements</title></info>
+
 
 <para>
 Class locale is non-templatized and has two distinct types nested
@@ -38,8 +39,8 @@ class facet
 
 <para>
 Facets actually implement locale functionality. For instance, a facet
-called numpunct is the data objects that can be used to query for the
-thousands separator is in the German locale.
+called numpunct is the data object that can be used to query for the
+thousands separator in the locale.
 </para>
 
 <para>
@@ -87,10 +88,10 @@ class id
 <para>
 Provides an index for looking up specific facets.
 </para>
-</sect2>
+</section>
 
-<sect2 id="locales.locale.design">
-<title>Design</title>
+<section xml:id="locales.locale.design"><info><title>Design</title></info>
+
 
 <para>
 The major design challenge is fitting an object-orientated and
@@ -103,18 +104,18 @@ Because C and earlier versions of POSIX fall down so completely,
 portability is an issue.
 </para>
 
-</sect2>
+</section>
 
-<sect2 id="locales.locale.impl">
-<title>Implementation</title>
+<section xml:id="locales.locale.impl"><info><title>Implementation</title></info>
 
-  <sect3 id="locale.impl.c">
-    <title>Interacting with &quot;C&quot; locales</title>
+
+  <section xml:id="locale.impl.c"><info><title>Interacting with "C" locales</title></info>
+    
 
 <itemizedlist>
    <listitem>
-     <para> 
-       <code>`locale -a`</code> displays available locales. 
+     <para>
+       <code>`locale -a`</code> displays available locales.
      </para>
 <blockquote>
 <programlisting>
@@ -419,9 +420,9 @@ zh_TW.utf8
 </programlisting>
 </blockquote>
 </listitem>
-   
+
    <listitem>
-     <para> 
+     <para>
        <code>`locale`</code> displays environmental variables that
        impact how locale("") will be deduced.
      </para>
@@ -467,186 +468,151 @@ global locale" (emphasis Paolo), that is:
   practice, the set of LC_ALL, LANG, etc. variable of the shell.
 </para>
 
-  </sect3>
-</sect2>
+  </section>
+</section>
 
-<sect2 id="locales.locale.future">
-<title>Future</title>
+<section xml:id="locales.locale.future"><info><title>Future</title></info>
+
 
 <itemizedlist>
    <listitem>
      <para>
        Locale initialization: at what point does _S_classic, _S_global
        get initialized? Can named locales assume this initialization
-       has already taken place? 
+       has already taken place?
      </para>
      </listitem>
 
    <listitem>
-     <para> 
+     <para>
        Document how named locales error check when filling data
        members. I.e., a fr_FR locale that doesn't have
        numpunct::truename(): does it use "true"? Or is it a blank
-       string? What's the convention? 
+       string? What's the convention?
    </para>
    </listitem>
 
    <listitem>
-     <para> 
+     <para>
        Explain how locale aliasing happens. When does "de_DE" use "de"
        information? What is the rule for locales composed of just an
        ISO language code (say, "de") and locales with both an ISO
-       language code and ISO country code (say, "de_DE"). 
+       language code and ISO country code (say, "de_DE").
      </para>
    </listitem>
 
    <listitem>
-     <para> 
+     <para>
        What should non-required facet instantiations do?  If the
        generic implementation is provided, then how to end-users
-       provide specializations? 
+       provide specializations?
    </para>
    </listitem>
 </itemizedlist>
-</sect2>
+</section>
 
-<bibliography id="locales.locale.biblio">
-<title>Bibliography</title>
+<bibliography xml:id="locales.locale.biblio"><info><title>Bibliography</title></info>
+
 
   <biblioentry>
-    <title>
+    <citetitle>
       The GNU C Library
-    </title>
-
-    <author>
-      <surname>McGrath</surname>
-      <firstname>Roland</firstname>
-    </author>
-    <author>
-      <surname>Drepper</surname>
-      <firstname>Ulrich</firstname>
-    </author>
-
+    </citetitle>
+    <author><personname><surname>McGrath</surname><firstname>Roland</firstname></personname></author>
+    <author><personname><surname>Drepper</surname><firstname>Ulrich</firstname></personname></author>
     <copyright>
       <year>2007</year>
       <holder>FSF</holder>
     </copyright>
-    <pagenums>Chapters 6 Character Set Handling and 7 Locales and Internationalization</pagenums>
-
-  </biblioentry> 
+    <pagenums>
+      Chapters 6 Character Set Handling and 7 Locales and
+      Internationalization
+    </pagenums>
+  </biblioentry>
 
   <biblioentry>
-    <title>
+    <citetitle>
       Correspondence
-    </title>
-
-    <author>
-      <surname>Drepper</surname>
-      <firstname>Ulrich</firstname>
-    </author>
-
+    </citetitle>
+    <author><personname><surname>Drepper</surname><firstname>Ulrich</firstname></personname></author>
     <copyright>
       <year>2002</year>
-      <holder></holder>
+      <holder/>
     </copyright>
-  </biblioentry> 
+  </biblioentry>
 
   <biblioentry>
-    <title>
+    <citetitle>
       ISO/IEC 14882:1998 Programming languages - C++
-    </title>
-
+    </citetitle>
     <copyright>
       <year>1998</year>
       <holder>ISO</holder>
     </copyright>
-  </biblioentry> 
+  </biblioentry>
 
   <biblioentry>
-    <title>
+    <citetitle>
       ISO/IEC 9899:1999 Programming languages - C
-    </title>
-
+    </citetitle>
     <copyright>
       <year>1999</year>
       <holder>ISO</holder>
     </copyright>
-  </biblioentry> 
+  </biblioentry>
 
   <biblioentry>
-    <title>
-      The Open Group Base Specifications, Issue 6 (IEEE Std. 1003.1-2004)
-    </title>
-
-    <copyright>
-      <year>1999</year>
-      <holder>
-      The Open Group/The Institute of Electrical and Electronics Engineers, Inc.</holder>
-    </copyright>
-
-    <biblioid>
-      <ulink url="http://www.unix.org/version3/ieee_std.html">
-      </ulink>
+    <biblioid xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.opengroup.org/austin" class="uri">
     </biblioid>
-
-  </biblioentry> 
+    <citetitle>
+      System Interface Definitions, Issue 7 (IEEE Std. 1003.1-2008)
+    </citetitle>
+    <copyright>
+      <year>2008</year>
+      <holder>
+	The Open Group/The Institute of Electrical and Electronics
+	Engineers, Inc.
+      </holder>
+    </copyright>
+  </biblioentry>
 
   <biblioentry>
-    <title>
+    <citetitle>
       The C++ Programming Language, Special Edition
-    </title>
-    
-    <author>
-      <surname>Stroustrup</surname>
-      <firstname>Bjarne</firstname>
-    </author>
-
+    </citetitle>
+    <author><personname><surname>Stroustrup</surname><firstname>Bjarne</firstname></personname></author>
     <copyright>
       <year>2000</year>
       <holder>Addison Wesley, Inc.</holder>
     </copyright>
     <pagenums>Appendix D</pagenums>
-
     <publisher>
       <publishername>
 	Addison Wesley
       </publishername>
     </publisher>
-
-  </biblioentry> 
-
+  </biblioentry>
 
   <biblioentry>
-    <title>
+    <citetitle>
       Standard C++ IOStreams and Locales
-    </title>
+    </citetitle>
     <subtitle>
       Advanced Programmer's Guide and Reference
     </subtitle>
-    
-    <author>
-      <surname>Langer</surname>
-      <firstname>Angelika</firstname>
-    </author>
-
-    <author>
-      <surname>Kreft</surname>
-      <firstname>Klaus</firstname>
-    </author>
-
+    <author><personname><surname>Langer</surname><firstname>Angelika</firstname></personname></author>
+    <author><personname><surname>Kreft</surname><firstname>Klaus</firstname></personname></author>
     <copyright>
       <year>2000</year>
       <holder>Addison Wesley Longman, Inc.</holder>
     </copyright>
-
     <publisher>
       <publishername>
 	Addison Wesley Longman
       </publishername>
     </publisher>
-
-  </biblioentry> 
+  </biblioentry>
 
 </bibliography>
 
-</sect1>
+</section>

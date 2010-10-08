@@ -28,7 +28,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "obstack.h"
 #include "hard-reg-set.h"
 #include "basic-block.h"
-#include "real.h"
 #include "insn-attr.h"
 #include "sched-int.h"
 #include "tree-pass.h"
@@ -764,7 +763,7 @@ dump_insn_slim (FILE *f, rtx x)
 }
 
 /* Emit a slim dump of X (an insn) to stderr.  */
-void
+DEBUG_FUNCTION void
 debug_insn_slim (rtx x)
 {
   dump_insn_slim (stderr, x);
@@ -779,7 +778,7 @@ print_rtl_slim_with_bb (FILE *f, rtx first, int flags)
   print_rtl_slim (f, first, NULL, -1, flags);
 }
 
-/* Same as above, but stop at LAST or when COUNT == 0.  
+/* Same as above, but stop at LAST or when COUNT == 0.
    If COUNT < 0 it will stop only at LAST or NULL rtx.  */
 void
 print_rtl_slim (FILE *f, rtx first, rtx last, int count, int flags)
@@ -788,8 +787,8 @@ print_rtl_slim (FILE *f, rtx first, rtx last, int count, int flags)
   rtx insn, tail;
 
   tail = last ? NEXT_INSN (last) : NULL_RTX;
-  for (insn = first; 
-       (insn != NULL) && (insn != tail) && (count != 0); 
+  for (insn = first;
+       (insn != NULL) && (insn != tail) && (count != 0);
        insn = NEXT_INSN (insn))
     {
       if ((flags & TDF_BLOCKS)
@@ -815,13 +814,13 @@ print_rtl_slim (FILE *f, rtx first, rtx last, int count, int flags)
     }
 }
 
-void 
+DEBUG_FUNCTION void
 debug_bb_slim (struct basic_block_def *bb)
 {
   print_rtl_slim (stderr, BB_HEAD (bb), BB_END (bb), -1, 32);
 }
 
-void
+DEBUG_FUNCTION void
 debug_bb_n_slim (int n)
 {
   struct basic_block_def *bb = BASIC_BLOCK (n);

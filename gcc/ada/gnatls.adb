@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -40,7 +40,6 @@ with Rident;      use Rident;
 with Sdefault;
 with Snames;
 with Switch;      use Switch;
-with Targparm;    use Targparm;
 with Types;       use Types;
 
 with GNAT.Case_Util; use GNAT.Case_Util;
@@ -1363,13 +1362,11 @@ procedure Gnatls is
 
                declare
                   Src_Path_Name : constant String_Ptr :=
-                                    String_Ptr
-                                      (Get_RTS_Search_Dir
-                                        (Argv (7 .. Argv'Last), Include));
+                                    Get_RTS_Search_Dir
+                                      (Argv (7 .. Argv'Last), Include);
                   Lib_Path_Name : constant String_Ptr :=
-                                    String_Ptr
-                                      (Get_RTS_Search_Dir
-                                        (Argv (7 .. Argv'Last), Objects));
+                                    Get_RTS_Search_Dir
+                                      (Argv (7 .. Argv'Last), Objects);
 
                begin
                   if Src_Path_Name /= null
@@ -1525,7 +1522,6 @@ procedure Gnatls is
 begin
    --  Initialize standard packages
 
-   Namet.Initialize;
    Csets.Initialize;
    Snames.Initialize;
 
@@ -1574,8 +1570,6 @@ begin
    Osint.Add_Default_Search_Dirs;
 
    if Verbose_Mode then
-      Targparm.Get_Target_Parameters;
-
       Write_Eol;
       Display_Version ("GNATLS", "1997");
       Write_Eol;

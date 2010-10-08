@@ -1,5 +1,5 @@
 /* Target Definitions for moxie.
-   Copyright (C) 2008, 2009  Free Software Foundation, Inc.
+   Copyright (C) 2008, 2009, 2010  Free Software Foundation, Inc.
    Contributed by Anthony Green.
 
    This file is part of GCC.
@@ -268,18 +268,6 @@ enum reg_class
 
 /* How Scalar Function Values Are Returned */
 
-/* These macros are deprecated, but we still need them for now since
-   the version of gcc we're using doesn't fully support
-   TARGET_FUNCTION_VALUE.  */
-#define FUNCTION_VALUE(VALTYPE, FUNC) \
-  moxie_function_value (VALTYPE, FUNC, 0)
-#define FUNCTION_OUTGOING_VALUE(VALTYPE, FUNC) \
-  moxie_function_value (VALTYPE, FUNC, 1)
-
-/* A C expression to create an RTX representing the place where a
-   library function returns a value of mode MODE.  */
-#define LIBCALL_VALUE(MODE) gen_rtx_REG (MODE, 2)
-
 /* STACK AND CALLING */
 
 /* Define this macro if pushing a word onto the stack moves the stack
@@ -314,8 +302,6 @@ enum reg_class
    used by the epilogue or the return pattern.  The stack and frame
    pointer registers are already assumed to be used as needed.  */
 #define EPILOGUE_USES(R) (R == MOXIE_R5)
-
-#define OVERRIDE_OPTIONS moxie_override_options ()
 
 /* Storage Layout */
 
@@ -386,10 +372,10 @@ enum reg_class
 #define FUNCTION_PROFILER(FILE,LABELNO) (abort (), 0)
 
 /* Trampolines for Nested Functions.  */
-#define TRAMPOLINE_SIZE (2 + 6 + 6 + 2 + 6)
+#define TRAMPOLINE_SIZE (2 + 6 + 6 + 2 + 2 + 6)
 
 /* Alignment required for trampolines, in bits.  */
-#define TRAMPOLINE_ALIGNMENT 16
+#define TRAMPOLINE_ALIGNMENT 32
 
 /* An alias for the machine mode for pointers.  */
 #define Pmode         SImode
@@ -429,10 +415,6 @@ enum reg_class
    register in which function arguments are sometimes passed.  */
 #define FUNCTION_ARG_REGNO_P(r) (r >= MOXIE_R0 && r <= MOXIE_R5)
 
-/* A C expression that is nonzero if REGNO is the number of a hard
-   register in which the values of called function may come back.  */
-#define FUNCTION_VALUE_REGNO_P(r) (r == MOXIE_R0)
-
 /* A macro whose definition is the name of the class to which a valid
    base register must belong.  A base register is one used in an
    address which is the register value plus a displacement.  */
@@ -468,8 +450,6 @@ enum reg_class
 
 /* All load operations zero extend.  */
 #define LOAD_EXTEND_OP(MEM) ZERO_EXTEND
-
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACK_SIZE) 0
 
 /* A C expression that is nonzero if X is a legitimate constant for
    an immediate operand on the target machine.  */

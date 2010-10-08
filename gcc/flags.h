@@ -1,6 +1,6 @@
 /* Compilation switch flag definitions for GCC.
    Copyright (C) 1987, 1988, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2002,
-   2003, 2004, 2005, 2006, 2007, 2008, 2009
+   2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -24,7 +24,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "coretypes.h"
 #include "options.h"
-#include "real.h"
 
 enum debug_info_type
 {
@@ -79,6 +78,11 @@ extern void set_struct_debug_option (const char *value);
    debugging information.  */
 extern bool use_gnu_debug_info_extensions;
 
+/* Run the second compilation of -fcompare-debug.  Not defined using
+   Var in common.opt because this is used in Ada code and so must be
+   an actual variable not a macro.  */
+extern int flag_compare_debug;
+
 /* Enumerate visibility settings.  This is deliberately ordered from most
    to least visibility.  */
 #ifndef SYMBOL_VISIBILITY_DEFINED
@@ -104,18 +108,10 @@ struct visibility_flags
 /* Global visibility options.  */
 extern struct visibility_flags visibility_options;
 
-/* Nonzero means do optimizations.  -opt.  */
-
-extern int optimize;
-
-/* Nonzero means optimize for size.  -Os.  */
-
-extern int optimize_size;
-
 /* True if this is the LTO front end (lto1).  This is used to disable
    gimple generation and lowering passes that are normally run on the
    output of a front end.  These passes must be bypassed for lto since
-   they have already been done before the gimple was written.  */ 
+   they have already been done before the gimple was written.  */
 
 extern bool in_lto_p;
 
@@ -123,9 +119,9 @@ extern bool in_lto_p;
 
 extern int flag_generate_lto;
 
-/* Used to set the level of -Wstrict-aliasing, when no level is specified.  
+/* Used to set the level of -Wstrict-aliasing, when no level is specified.
    The external way to set the default level is to use
-   -Wstrict-aliasing=level.  
+   -Wstrict-aliasing=level.
    ONOFF is assumed to take value 1 when -Wstrict-aliasing is specified,
    and 0 otherwise.  After calling this function, wstrict_aliasing will be
    set to the default value of -Wstrict_aliasing=level.  */
@@ -152,19 +148,6 @@ extern int flag_print_asm_name;
 
 /* Now the symbols that are set with `-f' switches.  */
 
-/* Nonzero means `char' should be signed.  */
-
-extern int flag_signed_char;
-
-/* Nonzero means give an enum type only as many bytes as it needs.  A value
-   of 2 means it has not yet been initialized.  */
-
-extern int flag_short_enums;
-
-/* Nonzero for -fpcc-struct-return: return values the same way PCC does.  */
-
-extern int flag_pcc_struct_return;
-
 /* 0 means straightforward implementation of complex divide acceptable.
    1 means wide ranges of inputs must work for complex divide.
    2 means C99-like requirements for complex multiply and divide.  */
@@ -179,10 +162,9 @@ extern int rtl_dump_and_exit;
 
 extern int flag_gen_aux_info;
 
-/* Nonzero means suppress output of instruction numbers and line number
-   notes in debugging dumps.  */
+/* True if printing into -fdump-final-insns= dump.  */
 
-extern int flag_dump_unnumbered;
+extern bool final_insns_dump_p;
 
 /* Nonzero means change certain warnings into errors.
    Usually these are warnings about failure to conform to some standard.  */
@@ -232,8 +214,6 @@ enum ira_region
 
 extern enum ira_region flag_ira_region;
 
-extern unsigned int flag_ira_verbose;
-
 /* The options for excess precision.  */
 enum excess_precision
 {
@@ -245,38 +225,56 @@ enum excess_precision
 /* The excess precision specified on the command line, or defaulted by
    the front end.  */
 extern enum excess_precision flag_excess_precision_cmdline;
-
-/* The excess precision currently in effect.  */
-extern enum excess_precision flag_excess_precision;
-
 
 /* Other basic status info about current function.  */
+
+/* Target-dependent global state.  */
+struct target_flag_state {
+  /* Values of the -falign-* flags: how much to align labels in code.
+     0 means `use default', 1 means `don't align'.
+     For each variable, there is an _log variant which is the power
+     of two not less than the variable, for .align output.  */
+  int x_align_loops_log;
+  int x_align_loops_max_skip;
+  int x_align_jumps_log;
+  int x_align_jumps_max_skip;
+  int x_align_labels_log;
+  int x_align_labels_max_skip;
+  int x_align_functions_log;
+
+  /* The excess precision currently in effect.  */
+  enum excess_precision x_flag_excess_precision;
+};
+
+extern struct target_flag_state default_target_flag_state;
+#if SWITCHABLE_TARGET
+extern struct target_flag_state *this_target_flag_state;
+#else
+#define this_target_flag_state (&default_target_flag_state)
+#endif
+
+#define align_loops_log \
+  (this_target_flag_state->x_align_loops_log)
+#define align_loops_max_skip \
+  (this_target_flag_state->x_align_loops_max_skip)
+#define align_jumps_log \
+  (this_target_flag_state->x_align_jumps_log)
+#define align_jumps_max_skip \
+  (this_target_flag_state->x_align_jumps_max_skip)
+#define align_labels_log \
+  (this_target_flag_state->x_align_labels_log)
+#define align_labels_max_skip \
+  (this_target_flag_state->x_align_labels_max_skip)
+#define align_functions_log \
+  (this_target_flag_state->x_align_functions_log)
+#define flag_excess_precision \
+  (this_target_flag_state->x_flag_excess_precision)
 
 /* Nonzero if subexpressions must be evaluated from left-to-right.  */
 extern int flag_evaluation_order;
 
-/* Value of the -G xx switch, and whether it was passed or not.  */
-extern unsigned HOST_WIDE_INT g_switch_value;
-extern bool g_switch_set;
-
-/* Same for selective scheduling.  */
-extern bool sel_sched_switch_set;
-
 /* Whether to run the warn_unused_result attribute pass.  */
 extern bool flag_warn_unused_result;
-
-/* Values of the -falign-* flags: how much to align labels in code. 
-   0 means `use default', 1 means `don't align'.  
-   For each variable, there is an _log variant which is the power
-   of two not less than the variable, for .align output.  */
-
-extern int align_loops_log;
-extern int align_loops_max_skip;
-extern int align_jumps_log;
-extern int align_jumps_max_skip;
-extern int align_labels_log;
-extern int align_labels_max_skip;
-extern int align_functions_log;
 
 /* Nonzero if we dump in VCG format, not plain text.  */
 extern int dump_for_graph;
@@ -288,21 +286,6 @@ enum graph_dump_types
   vcg
 };
 extern enum graph_dump_types graph_dump_format;
-
-/* Nonzero means to collect statistics which might be expensive
-   and to print them when we are done.  */
-extern int flag_detailed_statistics;
-
-/* Nonzero means that we defer emitting functions until they are actually
-   used.  */
-extern int flag_remove_unreachable_functions;
-
-/* Nonzero if we should track variables.  */
-extern int flag_var_tracking;
-
-/* True if flag_speculative_prefetching was set by user.  Used to suppress
-   warning message in case flag was set by -fprofile-{generate,use}.  */
-extern bool flag_speculative_prefetching_set;
 
 /* Type of stack check.  */
 enum stack_check_type
@@ -334,32 +317,6 @@ extern enum stack_check_type flag_stack_check;
 /* Return whether the function should be excluded from
    instrumentation.  */
 extern bool flag_instrument_functions_exclude_p (tree fndecl);
-
-/* True if the given mode has a NaN representation and the treatment of
-   NaN operands is important.  Certain optimizations, such as folding
-   x * 0 into 0, are not correct for NaN operands, and are normally
-   disabled for modes with NaNs.  The user can ask for them to be
-   done anyway using the -funsafe-math-optimizations switch.  */
-#define HONOR_NANS(MODE) \
-  (MODE_HAS_NANS (MODE) && !flag_finite_math_only)
-
-/* Like HONOR_NANs, but true if we honor signaling NaNs (or sNaNs).  */
-#define HONOR_SNANS(MODE) (flag_signaling_nans && HONOR_NANS (MODE))
-
-/* As for HONOR_NANS, but true if the mode can represent infinity and
-   the treatment of infinite values is important.  */
-#define HONOR_INFINITIES(MODE) \
-  (MODE_HAS_INFINITIES (MODE) && !flag_finite_math_only)
-
-/* Like HONOR_NANS, but true if the given mode distinguishes between
-   positive and negative zero, and the sign of zero is important.  */
-#define HONOR_SIGNED_ZEROS(MODE) \
-  (MODE_HAS_SIGNED_ZEROS (MODE) && flag_signed_zeros)
-
-/* Like HONOR_NANS, but true if given mode supports sign-dependent rounding,
-   and the rounding mode is important.  */
-#define HONOR_SIGN_DEPENDENT_ROUNDING(MODE) \
-  (MODE_HAS_SIGN_DEPENDENT_ROUNDING (MODE) && flag_rounding_math)
 
 /* True if overflow wraps around for the given integral type.  That
    is, TYPE_MAX + 1 == TYPE_MIN.  */

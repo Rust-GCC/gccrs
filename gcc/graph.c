@@ -30,8 +30,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "hard-reg-set.h"
 #include "obstack.h"
 #include "basic-block.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
 #include "graph.h"
+#include "emit-rtl.h"
 
 static const char *const graph_ext[] =
 {

@@ -7,7 +7,7 @@
 --                                  S p e c                                 --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---          Copyright (C) 1995-2008, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -227,19 +227,6 @@ package System.OS_Interface is
 
    function To_Timespec (D : Duration) return timespec;
    pragma Inline (To_Timespec);
-
-   type struct_timeval is private;
-
-   function To_Duration (TV : struct_timeval) return Duration;
-   pragma Inline (To_Duration);
-
-   function To_Timeval (D : Duration) return struct_timeval;
-   pragma Inline (To_Timeval);
-
-   function gettimeofday
-     (tv : access struct_timeval;
-      tz : System.Address := System.Null_Address) return int;
-   pragma Import (C, gettimeofday, "gettimeofday");
 
    function sysconf (name : int) return long;
    pragma Import (C, sysconf);
@@ -530,12 +517,6 @@ private
       tv_nsec : long;
    end record;
    pragma Convention (C, timespec);
-
-   type struct_timeval is record
-      tv_sec  : time_t;
-      tv_usec : time_t;
-   end record;
-   pragma Convention (C, struct_timeval);
 
    type pthread_attr_t is record
       detachstate   : int;

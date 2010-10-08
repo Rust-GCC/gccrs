@@ -27,19 +27,19 @@ along with GCC; see the file COPYING3.  If not see
 
 
 
-/* Used to create the variable mapping when we go out of SSA form.  
+/* Used to create the variable mapping when we go out of SSA form.
 
    Mapping from an ssa_name to a partition number is maintained, as well as
    partition number to back to ssa_name. A partition can also be represented
-   by a non-ssa_name variable.  This allows ssa_names and their partition to 
+   by a non-ssa_name variable.  This allows ssa_names and their partition to
    be coalesced with live on entry compiler variables, as well as eventually
-   having real compiler variables assigned to each partition as part of the 
-   final stage of going of of ssa.  
+   having real compiler variables assigned to each partition as part of the
+   final stage of going of of ssa.
 
    Non-ssa_names maintain their partition index in the variable annotation.
 
    This data structure also supports "views", which work on a subset of all
-   partitions.  This allows the coalescer to decide what partitions are 
+   partitions.  This allows the coalescer to decide what partitions are
    interesting to it, and only work with those partitions.  Whenever the view
    is changed, the partition numbers change, but none of the partition groupings
    change. (ie, it is truly a view since it doesn't change anything)
@@ -104,9 +104,9 @@ num_var_partitions (var_map map)
 }
 
 
-/* Given partition index I from MAP, return the variable which represents that 
+/* Given partition index I from MAP, return the variable which represents that
    partition.  */
- 
+
 static inline tree
 partition_to_var (var_map map, int i)
 {
@@ -119,10 +119,10 @@ partition_to_var (var_map map, int i)
 }
 
 
-/* Given ssa_name VERSION, if it has a partition in MAP,  return the var it 
+/* Given ssa_name VERSION, if it has a partition in MAP,  return the var it
    is associated with.  Otherwise return NULL.  */
 
-static inline tree 
+static inline tree
 version_to_var (var_map map, int version)
 {
   int part;
@@ -131,12 +131,12 @@ version_to_var (var_map map, int version)
     part = map->partition_to_view[part];
   if (part == NO_PARTITION)
     return NULL_TREE;
-  
+
   return partition_to_var (map, part);
 }
- 
 
-/* Given VAR, return the partition number in MAP which contains it.  
+
+/* Given VAR, return the partition number in MAP which contains it.
    NO_PARTITION is returned if it's not in any partition.  */
 
 static inline int
@@ -144,7 +144,6 @@ var_to_partition (var_map map, tree var)
 {
   int part;
 
-  gcc_assert (TREE_CODE (var) == SSA_NAME);
   part = partition_find (map->var_partition, SSA_NAME_VERSION (var));
   if (map->partition_to_view)
     part = map->partition_to_view[part];
@@ -172,8 +171,8 @@ var_to_partition_to_var (var_map map, tree var)
 static inline int
 basevar_index (var_map map, int partition)
 {
-  gcc_assert (partition >= 0 
-	      && partition <= (int) num_var_partitions (map));
+  gcc_checking_assert (partition >= 0
+	      	       && partition <= (int) num_var_partitions (map));
   return map->partition_to_base_index[partition];
 }
 
@@ -188,11 +187,11 @@ num_basevars (var_map map)
 
 
 
-/* This routine registers a partition for SSA_VAR with MAP.  Any unregistered 
-   partitions may be filtered out by a view later.  */ 
+/* This routine registers a partition for SSA_VAR with MAP.  Any unregistered
+   partitions may be filtered out by a view later.  */
 
 static inline void
-register_ssa_partition (var_map map ATTRIBUTE_UNUSED, 
+register_ssa_partition (var_map map ATTRIBUTE_UNUSED,
 			tree ssa_var ATTRIBUTE_UNUSED)
 {
 #if defined ENABLE_CHECKING
@@ -201,22 +200,22 @@ register_ssa_partition (var_map map ATTRIBUTE_UNUSED,
 }
 
 
-/*  ---------------- live on entry/exit info ------------------------------  
+/*  ---------------- live on entry/exit info ------------------------------
 
     This structure is used to represent live range information on SSA based
     trees. A partition map must be provided, and based on the active partitions,
     live-on-entry information and live-on-exit information can be calculated.
-    As well, partitions are marked as to whether they are global (live 
+    As well, partitions are marked as to whether they are global (live
     outside the basic block they are defined in).
 
-    The live-on-entry information is per block.  It provide a bitmap for 
-    each block which has a bit set for each partition that is live on entry to 
+    The live-on-entry information is per block.  It provide a bitmap for
+    each block which has a bit set for each partition that is live on entry to
     that block.
 
     The live-on-exit information is per block.  It provides a bitmap for each
     block indicating which partitions are live on exit from the block.
 
-    For the purposes of this implementation, we treat the elements of a PHI 
+    For the purposes of this implementation, we treat the elements of a PHI
     as follows:
 
        Uses in a PHI are considered LIVE-ON-EXIT to the block from which they
@@ -225,9 +224,9 @@ register_ssa_partition (var_map map ATTRIBUTE_UNUSED,
 
        The Def of a PHI node is *not* considered live on entry to the block.
        It is considered to be "define early" in the block. Picture it as each
-       block having a stmt (or block-preheader) before the first real stmt in 
+       block having a stmt (or block-preheader) before the first real stmt in
        the block which defines all the variables that are defined by PHIs.
-   
+
     -----------------------------------------------------------------------  */
 
 
@@ -271,20 +270,20 @@ extern void dump_live_info (FILE *, tree_live_info_p, int);
 static inline int
 partition_is_global (tree_live_info_p live, int p)
 {
-  gcc_assert (live->global);
+  gcc_checking_assert (live->global);
   return bitmap_bit_p (live->global, p);
 }
 
 
-/* Return the bitmap from LIVE representing the live on entry blocks for 
+/* Return the bitmap from LIVE representing the live on entry blocks for
    partition P.  */
 
 static inline bitmap
 live_on_entry (tree_live_info_p live, basic_block bb)
 {
-  gcc_assert (live->livein);
-  gcc_assert (bb != ENTRY_BLOCK_PTR);
-  gcc_assert (bb != EXIT_BLOCK_PTR);
+  gcc_checking_assert (live->livein
+		       && bb != ENTRY_BLOCK_PTR
+		       && bb != EXIT_BLOCK_PTR);
 
   return live->livein[bb->index];
 }
@@ -296,9 +295,9 @@ live_on_entry (tree_live_info_p live, basic_block bb)
 static inline bitmap
 live_on_exit (tree_live_info_p live, basic_block bb)
 {
-  gcc_assert (live->liveout);
-  gcc_assert (bb != ENTRY_BLOCK_PTR);
-  gcc_assert (bb != EXIT_BLOCK_PTR);
+  gcc_checking_assert (live->liveout
+		       && bb != ENTRY_BLOCK_PTR
+		       && bb != EXIT_BLOCK_PTR);
 
   return live->liveout[bb->index];
 }
@@ -306,7 +305,7 @@ live_on_exit (tree_live_info_p live, basic_block bb)
 
 /* Return the partition map which the information in LIVE utilizes.  */
 
-static inline var_map 
+static inline var_map
 live_var_map (tree_live_info_p live)
 {
   return live->map;
@@ -316,11 +315,10 @@ live_var_map (tree_live_info_p live)
 /* Merge the live on entry information in LIVE for partitions P1 and P2. Place
    the result into P1.  Clear P2.  */
 
-static inline void 
+static inline void
 live_merge_and_clear (tree_live_info_p live, int p1, int p2)
 {
-  gcc_assert (live->livein[p1]);
-  gcc_assert (live->livein[p2]);
+  gcc_checking_assert (live->livein[p1] && live->livein[p2]);
   bitmap_ior_into (live->livein[p1], live->livein[p2]);
   bitmap_zero (live->livein[p2]);
 }
@@ -328,7 +326,7 @@ live_merge_and_clear (tree_live_info_p live, int p1, int p2)
 
 /* Mark partition P as live on entry to basic block BB in LIVE.  */
 
-static inline void 
+static inline void
 make_live_on_entry (tree_live_info_p live, basic_block bb , int p)
 {
   bitmap_set_bit (live->livein[bb->index], p);

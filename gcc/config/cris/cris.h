@@ -1,6 +1,6 @@
 /* Definitions for GCC.  Part of the machine description for CRIS.
    Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008,
-   2009 Free Software Foundation, Inc.
+   2009, 2010 Free Software Foundation, Inc.
    Contributed by Axis Communications.  Written by Hans-Peter Nilsson.
 
 This file is part of GCC.
@@ -280,9 +280,6 @@ extern int cris_cpu_version;
     }						\
   while (0)
 
-/* This needs to be at least 32 bits.  */
-extern int target_flags;
-
 /* Previously controlled by target_flags.  */
 #define TARGET_ELF 1
 
@@ -327,17 +324,6 @@ extern int target_flags;
 #define TARGET_V32 (cris_cpu_version >= CRIS_CPU_V32)
 
 #define CRIS_SUBTARGET_HANDLE_OPTION(x, y, z)
-
-#define OVERRIDE_OPTIONS cris_override_options ()
-
-#define OPTIMIZATION_OPTIONS(OPTIMIZE, SIZE)	\
-  do						\
-    {						\
-      if ((OPTIMIZE) >= 2 || (SIZE))		\
-	flag_omit_frame_pointer = 1;		\
-    }						\
-  while (0)
-
 
 /* Node: Storage Layout */
 
@@ -859,8 +845,6 @@ enum reg_class
 
 #define ACCUMULATE_OUTGOING_ARGS 1
 
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACKSIZE) 0
-
 
 /* Node: Register Arguments */
 
@@ -1089,14 +1073,6 @@ struct cum_args {int regs;};
 
 /* Node: Costs */
 
-#define REGISTER_MOVE_COST(MODE, FROM, TO)	\
-  cris_register_move_cost (MODE, FROM, TO)
-
-/* This isn't strictly correct for v0..3 in buswidth-8bit mode, but
-   should suffice.  */
-#define MEMORY_MOVE_COST(M, CLASS, IN) \
- (((M) == QImode) ? 4 : ((M) == HImode) ? 4 : 6)
-
 /* Regardless of the presence of delay slots, the default value of 1 for
    BRANCH_COST is the best in the range (1, 2, 3), tested with gcc-2.7.2
    with testcases ipps and gcc, giving smallest and fastest code.  */
@@ -1252,16 +1228,6 @@ enum cris_pic_symbol_type
 
 #define ADDITIONAL_REGISTER_NAMES \
  {{"r14", 14}, {"r15", 15}, {"pc", 15}}
-
-#define PRINT_OPERAND(FILE, X, CODE)		\
- cris_print_operand (FILE, X, CODE)
-
-/* For delay-slot handling.  */
-#define PRINT_OPERAND_PUNCT_VALID_P(CODE)	\
- ((CODE) == '#' || (CODE) == '!' || (CODE) == ':')
-
-#define PRINT_OPERAND_ADDRESS(FILE, ADDR)	\
-   cris_print_operand_address (FILE, ADDR)
 
 /* Output an empty line to illustrate the presence of the delay slot.  */
 #define DBR_OUTPUT_SEQEND(FILE) \

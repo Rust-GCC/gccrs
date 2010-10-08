@@ -1,6 +1,7 @@
 /* Common subexpression elimination for GNU compiler.
-   Copyright (C) 1987, 1988, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2003, 2004, 2005, 2006, 2007, 2008 Free Software Foundation, Inc.
+   Copyright (C) 1987, 1988, 1989, 1992, 1993, 1994, 1995, 1996, 1997,
+   1998, 1999, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,7 +22,10 @@ along with GCC; see the file COPYING3.  If not see
 /* Describe a value.  */
 typedef struct GTY(()) cselib_val_struct {
   /* The hash value.  */
-  unsigned int value;
+  unsigned int hash;
+
+  /* A unique id assigned to values.  */
+  int uid;
 
   /* A VALUE rtx that points back to this structure.  */
   rtx val_rtx;
@@ -62,12 +66,19 @@ struct cselib_set
   cselib_val *dest_addr_elt;
 };
 
+enum cselib_record_what
+{
+  CSELIB_RECORD_MEMORY = 1,
+  CSELIB_PRESERVE_CONSTANTS = 2
+};
+
 extern void (*cselib_discard_hook) (cselib_val *);
 extern void (*cselib_record_sets_hook) (rtx insn, struct cselib_set *sets,
 					int n_sets);
 
 extern cselib_val *cselib_lookup (rtx, enum machine_mode, int);
-extern void cselib_init (bool record_memory);
+extern cselib_val *cselib_lookup_from_insn (rtx, enum machine_mode, int, rtx);
+extern void cselib_init (int);
 extern void cselib_clear_table (void);
 extern void cselib_finish (void);
 extern void cselib_process_insn (rtx);
@@ -77,14 +88,17 @@ extern int references_value_p (const_rtx, int);
 extern rtx cselib_expand_value_rtx (rtx, bitmap, int);
 typedef rtx (*cselib_expand_callback)(rtx, bitmap, int, void *);
 extern rtx cselib_expand_value_rtx_cb (rtx, bitmap, int,
-				       cselib_expand_callback, void*);
+				       cselib_expand_callback, void *);
+extern bool cselib_dummy_expand_value_rtx_cb (rtx, bitmap, int,
+					      cselib_expand_callback, void *);
 extern rtx cselib_subst_to_values (rtx);
 extern void cselib_invalidate_rtx (rtx);
 
-extern void cselib_reset_table_with_next_value (unsigned int);
-extern unsigned int cselib_get_next_unknown_value (void);
+extern void cselib_reset_table (unsigned int);
+extern unsigned int cselib_get_next_uid (void);
 extern void cselib_preserve_value (cselib_val *);
 extern bool cselib_preserved_value_p (cselib_val *);
-extern void cselib_preserve_only_values (bool);
+extern void cselib_preserve_only_values (void);
+extern void cselib_preserve_cfa_base_value (cselib_val *, unsigned int);
 
 extern void dump_cselib_table (FILE *);

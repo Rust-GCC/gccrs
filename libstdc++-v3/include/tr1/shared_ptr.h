@@ -1,6 +1,6 @@
 // <tr1/shared_ptr.h> -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -72,7 +72,13 @@ namespace tr1
       
       virtual void*
       _M_get_deleter(const std::type_info& __ti)
-      { return __ti == typeid(_Deleter) ? &_M_del : 0; }
+      {
+#ifdef __GXX_RTTI
+        return __ti == typeid(_Deleter) ? &_M_del : 0;
+#else
+        return 0;
+#endif
+      }
       
     private:
       _Sp_counted_base_impl(const _Sp_counted_base_impl&);
@@ -361,7 +367,7 @@ namespace tr1
 	: _M_ptr(__p), _M_refcount(__p)
         {
 	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
-	  // __glibcxx_function_requires(_CompleteConcept<_Tp1*>)
+	  typedef int _IsComplete[sizeof(_Tp1)];
 	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
 	}
 
@@ -398,9 +404,9 @@ namespace tr1
         explicit
         __shared_ptr(std::auto_ptr<_Tp1>& __r)
 	: _M_ptr(__r.get()), _M_refcount()
-        {
+        { // TODO requries delete __r.release() well-formed
 	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
-	  // TODO requires _Tp1 is complete, delete __r.release() well-formed
+	  typedef int _IsComplete[sizeof(_Tp1)];
 	  _Tp1* __tmp = __r.get();
 	  _M_refcount = __shared_count<_Lp>(__r);
 	  __enable_shared_from_this_helper(_M_refcount, __tmp, __tmp);
@@ -595,7 +601,13 @@ namespace tr1
   template<typename _Del, typename _Tp, _Lock_policy _Lp>
     inline _Del*
     get_deleter(const __shared_ptr<_Tp, _Lp>& __p)
-    { return static_cast<_Del*>(__p._M_get_deleter(typeid(_Del))); }
+    {
+#ifdef __GXX_RTTI
+      return static_cast<_Del*>(__p._M_get_deleter(typeid(_Del)));
+#else
+      return 0;
+#endif
+    }
 
 
   template<typename _Tp, _Lock_policy _Lp>

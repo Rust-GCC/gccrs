@@ -34,21 +34,21 @@ dosum (const char *file)
   FILE *f;
   unsigned char result[16];
   int i;
-  
+
   f = fopen (file, "rb");
   if (!f)
     {
       fprintf (stderr, "opening %s: %s\n", file, xstrerror (errno));
       exit (1);
     }
-  
+
   /* Some executable formats have timestamps in the first 16 bytes, yuck.  */
   if (fseek (f, 16, SEEK_SET) != 0)
      {
       fprintf (stderr, "seeking in %s: %s\n", file, xstrerror (errno));
       exit (1);
     }
-  
+
   if (md5_stream (f, result) != 0
       || fclose (f) != 0)
      {
@@ -60,7 +60,7 @@ dosum (const char *file)
   puts ("#include \"system.h\"");
   fputs ("EXPORTED_CONST unsigned char executable_checksum[16] = { ", stdout);
   for (i = 0; i < 16; i++)
-    printf ("%#02x%s", result[i], i == 15 ? " };\n" : ", ");
+    printf ("0x%02x%s", result[i], i == 15 ? " };\n" : ", ");
 }
 
 int

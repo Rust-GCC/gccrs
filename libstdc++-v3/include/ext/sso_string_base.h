@@ -106,7 +106,11 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       template<typename _Integer>
         void
         _M_construct_aux(_Integer __beg, _Integer __end, std::__true_type)
-	{ _M_construct(static_cast<size_type>(__beg), __end); }
+	{ _M_construct_aux_2(static_cast<size_type>(__beg), __end); }
+
+      void
+      _M_construct_aux_2(size_type __req, _CharT __c)
+      { _M_construct(__req, __c); }
 
       template<typename _InIterator>
         void
@@ -430,7 +434,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	// NB: Not required, but considered best practice.
 	if (__is_null_pointer(__beg) && __beg != __end)
 	  std::__throw_logic_error(__N("__sso_string_base::"
-				       "_M_construct NULL not valid"));
+				       "_M_construct null not valid"));
 
 	size_type __dnew = static_cast<size_type>(std::distance(__beg, __end));
 

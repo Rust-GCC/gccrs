@@ -2,10 +2,13 @@
    with any system <inttypes.h> header.  */
 /* { dg-do compile { target inttypes_types } } */
 /* { dg-options "-std=iso9899:1999 -pedantic-errors" } */
-/* { dg-options "-std=gnu99 -pedantic-errors -DNO_FAST_TYPES" { target *-*-solaris2.[789]* } } */
+/* { dg-options "-std=gnu99 -pedantic-errors -DNO_FAST_TYPES" { target *-*-solaris2.[89]* } } */
+/* { dg-options "-std=gnu99 -pedantic-errors -DNO_LEAST_TYPES -DNO_FAST_TYPES -DNO_MAX_TYPES" { target alpha*-dec-osf5* } } */
 
 #include <inttypes.h>
+#ifndef SIGNAL_SUPPRESS
 #include <signal.h>
+#endif
 
 #define CHECK_TYPES(TYPE1, TYPE2) \
   do { TYPE1 a; TYPE2 *b = &a; TYPE2 c; TYPE1 *d = &c; } while (0)
@@ -37,6 +40,7 @@ check_types (void)
 #ifdef __UINT64_TYPE__
   CHECK_TYPES(__UINT64_TYPE__, uint64_t);
 #endif
+#ifndef NO_LEAST_TYPES
   CHECK_TYPES(__INT_LEAST8_TYPE__, int_least8_t);
   CHECK_TYPES(__INT_LEAST16_TYPE__, int_least16_t);
   CHECK_TYPES(__INT_LEAST32_TYPE__, int_least32_t);
@@ -45,6 +49,7 @@ check_types (void)
   CHECK_TYPES(__UINT_LEAST16_TYPE__, uint_least16_t);
   CHECK_TYPES(__UINT_LEAST32_TYPE__, uint_least32_t);
   CHECK_TYPES(__UINT_LEAST64_TYPE__, uint_least64_t);
+#endif
 #ifndef NO_FAST_TYPES
   CHECK_TYPES(__INT_FAST8_TYPE__, int_fast8_t);
   CHECK_TYPES(__INT_FAST16_TYPE__, int_fast16_t);
@@ -61,7 +66,11 @@ check_types (void)
 #ifdef __UINTPTR_TYPE__
   CHECK_TYPES(__UINTPTR_TYPE__, uintptr_t);
 #endif
+#ifndef NO_MAX_TYPES
   CHECK_TYPES(__INTMAX_TYPE__, intmax_t);
   CHECK_TYPES(__UINTMAX_TYPE__, uintmax_t);
+#endif
+#ifndef SIGNAL_SUPPRESS
   CHECK_TYPES(__SIG_ATOMIC_TYPE__, sig_atomic_t);
+#endif
 }

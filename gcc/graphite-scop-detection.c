@@ -1,5 +1,5 @@
 /* Detection of Static Control Parts (SCoP) for Graphite.
-   Copyright (C) 2009 Free Software Foundation, Inc.
+   Copyright (C) 2009, 2010 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <sebastian.pop@amd.com> and
    Tobias Grosser <grosser@fim.uni-passau.de>.
 
@@ -44,7 +44,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "sese.h"
 
 #ifdef HAVE_cloog
-#include "cloog/cloog.h"
 #include "ppl_c.h"
 #include "graphite-ppl.h"
 #include "graphite.h"
@@ -149,7 +148,7 @@ move_sd_regions (VEC (sd_region, heap) **source,
   sd_region *s;
   int i;
 
-  for (i = 0; VEC_iterate (sd_region, *source, i, s); i++)
+  FOR_EACH_VEC_ELT (sd_region, *source, i, s)
     VEC_safe_push (sd_region, heap, *target, s);
 
   VEC_free (sd_region, heap, *source);
@@ -168,9 +167,11 @@ graphite_can_represent_init (tree e)
 
     case MULT_EXPR:
       if (chrec_contains_symbols (TREE_OPERAND (e, 0)))
-	return host_integerp (TREE_OPERAND (e, 1), 0);
+	return graphite_can_represent_init (TREE_OPERAND (e, 0))
+	  && host_integerp (TREE_OPERAND (e, 1), 0);
       else
-	return host_integerp (TREE_OPERAND (e, 0), 0);
+	return graphite_can_represent_init (TREE_OPERAND (e, 1))
+	  && host_integerp (TREE_OPERAND (e, 0), 0);
 
     case PLUS_EXPR:
     case POINTER_PLUS_EXPR:
@@ -201,32 +202,48 @@ graphite_can_represent_init (tree e)
 
    1 i + 20 j + (-2) m + 25
 
-   Something like "i * n" or "n * m" is not allowed.
-
-   OUTERMOST_LOOP defines the outermost loop that can variate.  */
+   Something like "i * n" or "n * m" is not allowed.  */
 
 static bool
-graphite_can_represent_scev (tree scev, int outermost_loop)
+graphite_can_represent_scev (tree scev)
 {
   if (chrec_contains_undetermined (scev))
     return false;
 
-  if (TREE_CODE (scev) == POLYNOMIAL_CHREC
+  switch (TREE_CODE (scev))
+    {
+    case PLUS_EXPR:
+    case MINUS_EXPR:
+      return graphite_can_represent_scev (TREE_OPERAND (scev, 0))
+	&& graphite_can_represent_scev (TREE_OPERAND (scev, 1));
 
+    case MULT_EXPR:
+      return !CONVERT_EXPR_CODE_P (TREE_CODE (TREE_OPERAND (scev, 0)))
+	&& !CONVERT_EXPR_CODE_P (TREE_CODE (TREE_OPERAND (scev, 1)))
+	&& !(chrec_contains_symbols (TREE_OPERAND (scev, 0))
+	     && chrec_contains_symbols (TREE_OPERAND (scev, 1)))
+	&& graphite_can_represent_init (scev)
+	&& graphite_can_represent_scev (TREE_OPERAND (scev, 0))
+	&& graphite_can_represent_scev (TREE_OPERAND (scev, 1));
+
+    case POLYNOMIAL_CHREC:
       /* Check for constant strides.  With a non constant stride of
-	 'n' we would have a value of 'iv * n'.  */
-      && (!evolution_function_right_is_integer_cst (scev)
+	 'n' we would have a value of 'iv * n'.  Also check that the
+	 initial value can represented: for example 'n * m' cannot be
+	 represented.  */
+      if (!evolution_function_right_is_integer_cst (scev)
+	  || !graphite_can_represent_init (scev))
+	return false;
 
-	  /* Check the initial value: 'n * m' cannot be represented.  */
-	  || !graphite_can_represent_init (scev)))
-    return false;
+    default:
+      break;
+    }
 
   /* Only affine functions can be represented.  */
   if (!scev_is_linear_expression (scev))
     return false;
 
-  return evolution_function_is_invariant_p (scev, outermost_loop)
-    || evolution_function_is_affine_multivariate_p (scev, outermost_loop);
+  return true;
 }
 
 
@@ -234,42 +251,18 @@ graphite_can_represent_scev (tree scev, int outermost_loop)
 
    This means an expression can be represented, if it is linear with
    respect to the loops and the strides are non parametric.
-   LOOP is the place where the expr will be evaluated and OUTERMOST_LOOP
-   defindes the outermost loop that can variate.  SCOP_ENTRY defines the
+   LOOP is the place where the expr will be evaluated.  SCOP_ENTRY defines the
    entry of the region we analyse.  */
 
 static bool
 graphite_can_represent_expr (basic_block scop_entry, loop_p loop,
-			     loop_p outermost_loop, tree expr)
+			     tree expr)
 {
   tree scev = analyze_scalar_evolution (loop, expr);
 
   scev = instantiate_scev (scop_entry, loop, scev);
 
-  return graphite_can_represent_scev (scev, outermost_loop->num);
-}
-
-/* Return false if the tree_code of the operand OP or any of its operands
-   is component_ref.  */
-
-static bool
-exclude_component_ref (tree op)
-{
-  int i;
-  int len;
-
-  if (!op)
-    return true;
-
-  if (TREE_CODE (op) == COMPONENT_REF)
-    return false;
-
-  len = TREE_OPERAND_LENGTH (op);
-  for (i = 0; i < len; ++i)
-    if (!exclude_component_ref (TREE_OPERAND (op, i)))
-      return false;
-
-  return true;
+  return graphite_can_represent_scev (scev);
 }
 
 /* Return true if the data references of STMT can be represented by
@@ -282,14 +275,13 @@ stmt_has_simple_data_refs_p (loop_p outermost_loop, gimple stmt)
   unsigned i;
   int j;
   bool res = true;
-  int loop = outermost_loop->num;
   VEC (data_reference_p, heap) *drs = VEC_alloc (data_reference_p, heap, 5);
 
   graphite_find_data_references_in_stmt (outermost_loop, stmt, &drs);
 
-  for (j = 0; VEC_iterate (data_reference_p, drs, j, dr); j++)
+  FOR_EACH_VEC_ELT (data_reference_p, drs, j, dr)
     for (i = 0; i < DR_NUM_DIMENSIONS (dr); i++)
-      if (!graphite_can_represent_scev (DR_ACCESS_FN (dr, i), loop))
+      if (!graphite_can_represent_scev (DR_ACCESS_FN (dr, i)))
 	{
 	  res = false;
 	  goto done;
@@ -298,55 +290,6 @@ stmt_has_simple_data_refs_p (loop_p outermost_loop, gimple stmt)
  done:
   free_data_refs (drs);
   return res;
-}
-
-/* Return true if we can create an affine data-ref for OP in STMT
-   in regards to OUTERMOST_LOOP.  */
-
-static bool
-stmt_simple_memref_p (loop_p outermost_loop, gimple stmt, tree op)
-{
-  data_reference_p dr;
-  unsigned int i;
-  VEC(tree,heap) *fns;
-  tree t;
-  bool res = true;
-
-  dr = create_data_ref (outermost_loop, op, stmt, true);
-  fns = DR_ACCESS_FNS (dr);
-
-  for (i = 0; VEC_iterate (tree, fns, i, t); i++)
-    if (!graphite_can_represent_scev (t, outermost_loop->num))
-      {
-	res = false;
-	break;
-      }
-
-  free_data_ref (dr);
-  return res;
-}
-
-/* Return true if the operand OP used in STMT is simple in regards to
-   OUTERMOST_LOOP.  */
-
-static bool
-is_simple_operand (loop_p outermost_loop, gimple stmt, tree op)
-{
-  /* It is not a simple operand when it is a declaration,  */
-  if (DECL_P (op))
-      return false;
-
-  /* or a structure,  */
-  if (AGGREGATE_TYPE_P (TREE_TYPE (op)))
-      return false;
-
-  /* or a memory access that cannot be analyzed by the data reference
-     analysis.  */
-  if (handled_component_p (op) || INDIRECT_REF_P (op))
-    if (!stmt_simple_memref_p (outermost_loop, stmt, op))
-      return false;
-
-  return exclude_component_ref (op);
 }
 
 /* Return true only when STMT is simple enough for being handled by
@@ -371,6 +314,9 @@ stmt_simple_for_scop_p (basic_block scop_entry, loop_p outermost_loop,
 	  && !(gimple_call_flags (stmt) & (ECF_CONST | ECF_PURE)))
       || (gimple_code (stmt) == GIMPLE_ASM))
     return false;
+
+  if (is_gimple_debug (stmt))
+    return true;
 
   if (!stmt_has_simple_data_refs_p (outermost_loop, stmt))
     return false;
@@ -399,8 +345,7 @@ stmt_simple_for_scop_p (basic_block scop_entry, loop_p outermost_loop,
           return false;
 
 	FOR_EACH_SSA_TREE_OPERAND (op, stmt, op_iter, SSA_OP_ALL_USES)
-	  if (!graphite_can_represent_expr (scop_entry, loop, outermost_loop,
-					    op)
+	  if (!graphite_can_represent_expr (scop_entry, loop, op)
 	      /* We can not handle REAL_TYPE. Failed for pr39260.  */
 	      || TREE_CODE (TREE_TYPE (op)) == REAL_TYPE)
 	    return false;
@@ -409,48 +354,8 @@ stmt_simple_for_scop_p (basic_block scop_entry, loop_p outermost_loop,
       }
 
     case GIMPLE_ASSIGN:
-      {
-	enum tree_code code = gimple_assign_rhs_code (stmt);
-
-	switch (get_gimple_rhs_class (code))
-	  {
-	  case GIMPLE_UNARY_RHS:
-	  case GIMPLE_SINGLE_RHS:
-	    return (is_simple_operand (outermost_loop, stmt,
-				       gimple_assign_lhs (stmt))
-		    && is_simple_operand (outermost_loop, stmt,
-					  gimple_assign_rhs1 (stmt)));
-
-	  case GIMPLE_BINARY_RHS:
-	    return (is_simple_operand (outermost_loop, stmt,
-				       gimple_assign_lhs (stmt))
-		    && is_simple_operand (outermost_loop, stmt,
-					  gimple_assign_rhs1 (stmt))
-		    && is_simple_operand (outermost_loop, stmt,
-					  gimple_assign_rhs2 (stmt)));
-
-	  case GIMPLE_INVALID_RHS:
-	  default:
-	    gcc_unreachable ();
-	  }
-      }
-
     case GIMPLE_CALL:
-      {
-	size_t i;
-	size_t n = gimple_call_num_args (stmt);
-	tree lhs = gimple_call_lhs (stmt);
-
-	if (lhs && !is_simple_operand (outermost_loop, stmt, lhs))
-	  return false;
-
-	for (i = 0; i < n; i++)
-	  if (!is_simple_operand (outermost_loop, stmt,
-				  gimple_call_arg (stmt, i)))
-	    return false;
-
-	return true;
-      }
+      return true;
 
     default:
       /* These nodes cut a new scope.  */
@@ -478,13 +383,12 @@ harmful_stmt_in_bb (basic_block scop_entry, loop_p outer_loop, basic_block bb)
   return NULL;
 }
 
-/* Return true when it is not possible to represent LOOP in the
-   polyhedral representation.  This is evaluated taking SCOP_ENTRY and
+/* Return true if LOOP can be represented in the polyhedral
+   representation.  This is evaluated taking SCOP_ENTRY and
    OUTERMOST_LOOP in mind.  */
 
 static bool
-graphite_can_represent_loop (basic_block scop_entry, loop_p outermost_loop,
-			     loop_p loop)
+graphite_can_represent_loop (basic_block scop_entry, loop_p loop)
 {
   tree niter = number_of_latch_executions (loop);
 
@@ -493,7 +397,7 @@ graphite_can_represent_loop (basic_block scop_entry, loop_p outermost_loop,
     return false;
 
   /* Number of iterations not affine.  */
-  if (!graphite_can_represent_expr (scop_entry, loop, outermost_loop, niter))
+  if (!graphite_can_represent_expr (scop_entry, loop, niter))
     return false;
 
   return true;
@@ -566,7 +470,7 @@ scopdet_basic_block_info (basic_block bb, loop_p outermost_loop,
 
 	sinfo = build_scops_1 (bb, outermost_loop, &regions, loop);
 
-	if (!graphite_can_represent_loop (entry_block, outermost_loop, loop))
+	if (!graphite_can_represent_loop (entry_block, loop))
 	  result.difficult = true;
 
 	result.difficult |= sinfo.difficult;
@@ -641,7 +545,7 @@ scopdet_basic_block_info (basic_block bb, loop_p outermost_loop,
 		  - The exit destinations are dominated by another bb inside
 		    the loop.
 		  - The loop dominates bbs, that are not exit destinations.  */
-        for (i = 0; VEC_iterate (edge, exits, i, e); i++)
+        FOR_EACH_VEC_ELT (edge, exits, i, e)
           if (e->src->loop_father == loop
 	      && dominated_by_p (CDI_DOMINATORS, e->dest, e->src))
 	    {
@@ -679,11 +583,11 @@ scopdet_basic_block_info (basic_block bb, loop_p outermost_loop,
 
 	/* First check the successors of BB, and check if it is
 	   possible to join the different branches.  */
-	for (i = 0; VEC_iterate (edge, bb->succs, i, e); i++)
+	FOR_EACH_VEC_ELT (edge, bb->succs, i, e)
 	  {
 	    /* Ignore loop exits.  They will be handled after the loop
 	       body.  */
-	    if (is_loop_exit (loop, e->dest))
+	    if (loop_exits_to_bb_p (loop, e->dest))
 	      {
 		result.exits = true;
 		continue;
@@ -765,7 +669,7 @@ scopdet_basic_block_info (basic_block bb, loop_p outermost_loop,
 	/* Scan remaining bbs dominated by BB.  */
 	dominated = get_dominated_by (CDI_DOMINATORS, bb);
 
-	for (i = 0; VEC_iterate (basic_block, dominated, i, dom_bb); i++)
+	FOR_EACH_VEC_ELT (basic_block, dominated, i, dom_bb)
 	  {
 	    /* Ignore loop exits: they will be handled after the loop body.  */
 	    if (loop_depth (find_common_loop (loop, dom_bb->loop_father))
@@ -1023,9 +927,6 @@ create_single_exit_edge (sd_region *region)
   edge forwarder = NULL;
   basic_block exit;
 
-  if (find_single_exit_edge (region))
-    return;
-
   /* We create a forwarder bb (5) for all edges leaving this region
      (3->5, 4->5).  All other edges leading to the same bb, are moved
      to a new bb (6).  If these edges where part of another region (2->5)
@@ -1082,7 +983,7 @@ unmark_exit_edges (VEC (sd_region, heap) *regions)
   edge e;
   edge_iterator ei;
 
-  for (i = 0; VEC_iterate (sd_region, regions, i, s); i++)
+  FOR_EACH_VEC_ELT (sd_region, regions, i, s)
     FOR_EACH_EDGE (e, ei, s->exit->preds)
       e->aux = NULL;
 }
@@ -1099,7 +1000,7 @@ mark_exit_edges (VEC (sd_region, heap) *regions)
   edge e;
   edge_iterator ei;
 
-  for (i = 0; VEC_iterate (sd_region, regions, i, s); i++)
+  FOR_EACH_VEC_ELT (sd_region, regions, i, s)
     FOR_EACH_EDGE (e, ei, s->exit->preds)
       if (bb_in_sd_region (e->src, s))
 	e->aux = s;
@@ -1113,13 +1014,16 @@ create_sese_edges (VEC (sd_region, heap) *regions)
   int i;
   sd_region *s;
 
-  for (i = 0; VEC_iterate (sd_region, regions, i, s); i++)
+  FOR_EACH_VEC_ELT (sd_region, regions, i, s)
     create_single_entry_edge (s);
 
   mark_exit_edges (regions);
 
-  for (i = 0; VEC_iterate (sd_region, regions, i, s); i++)
-    create_single_exit_edge (s);
+  FOR_EACH_VEC_ELT (sd_region, regions, i, s)
+    /* Don't handle multiple edges exiting the function.  */
+    if (!find_single_exit_edge (s)
+	&& s->exit != EXIT_BLOCK_PTR)
+      create_single_exit_edge (s);
 
   unmark_exit_edges (regions);
 
@@ -1141,11 +1045,16 @@ build_graphite_scops (VEC (sd_region, heap) *regions,
   int i;
   sd_region *s;
 
-  for (i = 0; VEC_iterate (sd_region, regions, i, s); i++)
+  FOR_EACH_VEC_ELT (sd_region, regions, i, s)
     {
       edge entry = find_single_entry_edge (s);
       edge exit = find_single_exit_edge (s);
-      scop_p scop = new_scop (new_sese (entry, exit));
+      scop_p scop;
+
+      if (!exit)
+	continue;
+
+      scop = new_scop (new_sese (entry, exit));
       VEC_safe_push (scop_p, heap, *scops, scop);
 
       /* Are there overlapping SCoPs?  */
@@ -1154,7 +1063,7 @@ build_graphite_scops (VEC (sd_region, heap) *regions,
 	  int j;
 	  sd_region *s2;
 
-	  for (j = 0; VEC_iterate (sd_region, regions, j, s2); j++)
+	  FOR_EACH_VEC_ELT (sd_region, regions, j, s2)
 	    if (s != s2)
 	      gcc_assert (!bb_in_sd_region (s->entry, s2));
 	}
@@ -1243,26 +1152,8 @@ print_graphite_statistics (FILE* file, VEC (scop_p, heap) *scops)
   int i;
   scop_p scop;
 
-  for (i = 0; VEC_iterate (scop_p, scops, i, scop); i++)
+  FOR_EACH_VEC_ELT (scop_p, scops, i, scop)
     print_graphite_scop_statistics (file, scop);
-}
-
-/* Version of free_scops special cased for limit_scops.  */
-
-static void
-free_scops_1 (VEC (scop_p, heap) **scops)
-{
-  int i;
-  scop_p scop;
-
-  for (i = 0; VEC_iterate (scop_p, *scops, i, scop); i++)
-    {
-      sese region = SCOP_REGION (scop);
-      free (SESE_PARAMS_NAMES (region));
-      SESE_PARAMS_NAMES (region) = 0;
-    }
-
-  free_scops (*scops);
 }
 
 /* We limit all SCoPs to SCoPs, that are completely surrounded by a loop.
@@ -1293,15 +1184,14 @@ limit_scops (VEC (scop_p, heap) **scops)
   int i;
   scop_p scop;
 
-  for (i = 0; VEC_iterate (scop_p, *scops, i, scop); i++)
+  FOR_EACH_VEC_ELT (scop_p, *scops, i, scop)
     {
       int j;
       loop_p loop;
       sese region = SCOP_REGION (scop);
-      build_scop_bbs (scop);
       build_sese_loop_nests (region);
 
-      for (j = 0; VEC_iterate (loop_p, SESE_LOOP_NEST (region), j, loop); j++)
+      FOR_EACH_VEC_ELT (loop_p, SESE_LOOP_NEST (region), j, loop)
         if (!loop_in_sese_p (loop_outer (loop), region)
 	    && single_exit (loop))
           {
@@ -1319,7 +1209,7 @@ limit_scops (VEC (scop_p, heap) **scops)
 	  }
     }
 
-  free_scops_1 (scops);
+  free_scops (*scops);
   *scops = VEC_alloc (scop_p, heap, 3);
 
   create_sese_edges (regions);
@@ -1405,7 +1295,7 @@ canonicalize_loop_closed_ssa_form (void)
   loop_p loop;
 
 #ifdef ENABLE_CHECKING
-  verify_loop_closed_ssa ();
+  verify_loop_closed_ssa (true);
 #endif
 
   FOR_EACH_LOOP (li, loop, 0)
@@ -1415,7 +1305,7 @@ canonicalize_loop_closed_ssa_form (void)
   update_ssa (TODO_update_ssa);
 
 #ifdef ENABLE_CHECKING
-  verify_loop_closed_ssa ();
+  verify_loop_closed_ssa (true);
 #endif
 }
 
@@ -1430,7 +1320,7 @@ build_scops (VEC (scop_p, heap) **scops)
 
   canonicalize_loop_closed_ssa_form ();
   build_scops_1 (single_succ (ENTRY_BLOCK_PTR), ENTRY_BLOCK_PTR->loop_father,
-			      &regions, loop);
+		 &regions, loop);
   create_sese_edges (regions);
   build_graphite_scops (regions, scops);
 
@@ -1483,7 +1373,7 @@ dot_all_scops_1 (FILE *file, VEC (scop_p, heap) *scops)
       fprintf (file, "CELLSPACING=\"0\">\n");
 
       /* Select color for SCoP.  */
-      for (i = 0; VEC_iterate (scop_p, scops, i, scop); i++)
+      FOR_EACH_VEC_ELT (scop_p, scops, i, scop)
 	{
 	  sese region = SCOP_REGION (scop);
 	  if (bb_in_sese_p (bb, region)
@@ -1592,7 +1482,7 @@ dot_all_scops_1 (FILE *file, VEC (scop_p, heap) *scops)
 
 /* Display all SCoPs using dotty.  */
 
-void
+DEBUG_FUNCTION void
 dot_all_scops (VEC (scop_p, heap) *scops)
 {
   /* When debugging, enable the following code.  This cannot be used
@@ -1605,7 +1495,7 @@ dot_all_scops (VEC (scop_p, heap) *scops)
   dot_all_scops_1 (stream, scops);
   fclose (stream);
 
-  x = system ("dotty /tmp/allscops.dot");
+  x = system ("dotty /tmp/allscops.dot &");
 #else
   dot_all_scops_1 (stderr, scops);
 #endif
@@ -1613,7 +1503,7 @@ dot_all_scops (VEC (scop_p, heap) *scops)
 
 /* Display all SCoPs using dotty.  */
 
-void
+DEBUG_FUNCTION void
 dot_scop (scop_p scop)
 {
   VEC (scop_p, heap) *scops = NULL;
@@ -1631,7 +1521,7 @@ dot_scop (scop_p scop)
 
     dot_all_scops_1 (stream, scops);
     fclose (stream);
-    x = system ("dotty /tmp/allscops.dot");
+    x = system ("dotty /tmp/allscops.dot &");
   }
 #else
   dot_all_scops_1 (stderr, scops);

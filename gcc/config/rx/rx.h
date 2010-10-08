@@ -1,5 +1,5 @@
 /* GCC backend definitions for the Renesas RX processor.
-   Copyright (C) 2008, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Red Hat.
 
    This file is part of GCC.
@@ -34,10 +34,10 @@
       else					\
 	builtin_define ("__RX_LITTLE_ENDIAN__");\
       						\
-      if (TARGET_32BIT_DOUBLES)			\
-	builtin_define ("__RX_32BIT_DOUBLES__");\
-      else					\
+      if (TARGET_64BIT_DOUBLES)			\
 	builtin_define ("__RX_64BIT_DOUBLES__");\
+      else					\
+	builtin_define ("__RX_32BIT_DOUBLES__");\
       						\
       if (ALLOW_RX_FPU_INSNS)			\
 	builtin_define ("__RX_FPU_INSNS__");	\
@@ -52,13 +52,16 @@
 enum rx_cpu_types
 {
   RX600,
-  RX610
+  RX610,
+  RX200
 };
 
 extern enum rx_cpu_types  rx_cpu_type;
 
 #undef  CC1_SPEC
-#define CC1_SPEC "%{mas100-syntax:%{gdwarf*:%e-mas100-syntax is incompatible with -gdwarf}}"
+#define CC1_SPEC "\
+  %{mas100-syntax:%{gdwarf*:%e-mas100-syntax is incompatible with -gdwarf}} \
+  %{mcpu=rx200:%{fpu:%erx200 cpu does not have FPU hardware}}"
 
 #undef  STARTFILE_SPEC
 #define STARTFILE_SPEC "%{pg:gcrt0.o%s}%{!pg:crt0.o%s} crtbegin.o%s"
@@ -69,8 +72,8 @@ extern enum rx_cpu_types  rx_cpu_type;
 #undef  ASM_SPEC
 #define ASM_SPEC "\
 %{mbig-endian-data:-mbig-endian-data} \
-%{m32bit-doubles:-m32bit-doubles} \
-%{!m32bit-doubles:-m64bit-doubles} \
+%{m64bit-doubles:-m64bit-doubles} \
+%{!m64bit-doubles:-m32bit-doubles} \
 %{msmall-data-limit*:-msmall-data-limit} \
 %{mrelax:-relax} \
 "
@@ -106,7 +109,7 @@ extern enum rx_cpu_types  rx_cpu_type;
 #define LONG_LONG_TYPE_SIZE		64
 
 #define FLOAT_TYPE_SIZE 		32
-#define DOUBLE_TYPE_SIZE 		(TARGET_32BIT_DOUBLES ? 32 : 64)
+#define DOUBLE_TYPE_SIZE 		(TARGET_64BIT_DOUBLES ? 64 : 32)
 #define LONG_DOUBLE_TYPE_SIZE		DOUBLE_TYPE_SIZE
 
 #ifdef __RX_32BIT_DOUBLES__
@@ -139,6 +142,8 @@ extern enum rx_cpu_types  rx_cpu_type;
 #define POINTER_SIZE			32
 #undef  SIZE_TYPE
 #define SIZE_TYPE			"long unsigned int"
+#undef  PTRDIFF_TYPE
+#define PTRDIFF_TYPE			"long int"
 #define POINTERS_EXTEND_UNSIGNED	1
 #define FUNCTION_MODE 			QImode
 #define CASE_VECTOR_MODE		Pmode
@@ -149,7 +154,6 @@ extern enum rx_cpu_types  rx_cpu_type;
 #define MOVE_MAX 			4
 #define STARTING_FRAME_OFFSET		0
 
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, SIZE) 0
 #define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC)   1
 
 #define LEGITIMATE_CONSTANT_P(X) 	rx_is_legitimate_constant (X)
@@ -203,7 +207,7 @@ enum reg_class
 #define BASE_REG_CLASS  		GR_REGS
 #define INDEX_REG_CLASS			GR_REGS
 
-#define FIRST_PSEUDO_REGISTER 		16
+#define FIRST_PSEUDO_REGISTER 		17
 
 #define REGNO_REG_CLASS(REGNO)          ((REGNO) < FIRST_PSEUDO_REGISTER \
 					 ? GR_REGS : NO_REGS)
@@ -215,6 +219,7 @@ enum reg_class
 #define STATIC_CHAIN_REGNUM 		8
 #define TRAMPOLINE_TEMP_REGNUM		9
 #define STRUCT_VAL_REGNUM		15
+#define CC_REGNUM                       16
 
 /* This is the register which is used to hold the address of the start
    of the small data area, if that feature is being used.  Note - this
@@ -241,12 +246,12 @@ enum reg_class
 
 #define FIXED_REGISTERS					\
 {							\
-  1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0	\
+  1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1	\
 }
 
 #define CALL_USED_REGISTERS				\
 {							\
-  1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1	\
+  1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1	\
 }
 
 #define CONDITIONAL_REGISTER_USAGE			\
@@ -316,11 +321,6 @@ typedef unsigned int CUMULATIVE_ARGS;
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
   (CUM) = 0
 
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-  rx_function_arg (& CUM, MODE, TYPE, NAMED)
-
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)	\
-  (CUM) += rx_function_arg_size (MODE, TYPE)
 
 #define TRAMPOLINE_SIZE 	(! TARGET_BIG_ENDIAN_DATA ? 14 : 20)
 #define TRAMPOLINE_ALIGNMENT 	32
@@ -347,7 +347,7 @@ typedef unsigned int CUMULATIVE_ARGS;
 #define REGISTER_NAMES						\
   {								\
     "r0",  "r1",  "r2",   "r3",   "r4",   "r5",   "r6",   "r7",	\
-    "r8",  "r9",  "r10",  "r11",  "r12",  "r13",  "r14",  "r15" \
+      "r8",  "r9",  "r10",  "r11",  "r12",  "r13",  "r14",  "r15", "cc"	\
   };
 
 #define ADDITIONAL_REGISTER_NAMES	\
@@ -605,14 +605,6 @@ typedef unsigned int CUMULATIVE_ARGS;
    they contain are always computed between two same-section symbols.  */
 #define JUMP_TABLES_IN_TEXT_SECTION	(flag_pic)
 
-#define PRINT_OPERAND(FILE, X, CODE)		\
-  rx_print_operand (FILE, X, CODE)
-#define PRINT_OPERAND_ADDRESS(FILE, ADDR)	\
-  rx_print_operand_address (FILE, ADDR)
-
-#define CC_NO_CARRY			0400
-#define NOTICE_UPDATE_CC(EXP, INSN)	rx_notice_update_cc (EXP, INSN)
-
 extern int rx_float_compare_mode;
 
 /* This is a version of REG_P that also returns TRUE for SUBREGs.  */
@@ -636,24 +628,24 @@ extern int rx_float_compare_mode;
 #define ARG_POINTER_CFA_OFFSET(FNDECL)		4
 #define FRAME_POINTER_CFA_OFFSET(FNDECL)	4
 
-extern int rx_enable_fpu;
+/* Translate -nofpu into -mnofpu so that it gets passed from gcc to cc1.  */
+#define TARGET_OPTION_TRANSLATE_TABLE \
+  {"-nofpu", "-mnofpu" }
 
-/* For some unknown reason LTO compression is not working, at
-   least on my local system.  So set the default compression
-   level to none, for now.
-
-   For an explanation of rx_flag_no_fpu see rx_handle_option().  */
-#define OVERRIDE_OPTIONS			\
-  do						\
-    {						\
-      if (flag_lto_compression_level == -1)	\
-        flag_lto_compression_level = 0;		\
-						\
-      if (rx_enable_fpu == 1)			\
-	set_fast_math_flags (true);		\
-    }						\
-  while (0)
+#define TARGET_USE_FPU		(! TARGET_NO_USE_FPU)
 
 /* This macro is used to decide when RX FPU instructions can be used.  */
-#define ALLOW_RX_FPU_INSNS	((rx_enable_fpu != -1) \
-				 && flag_unsafe_math_optimizations)
+#define ALLOW_RX_FPU_INSNS	(TARGET_USE_FPU)
+
+#define BRANCH_COST(SPEED,PREDICT)       1
+#define REGISTER_MOVE_COST(MODE,FROM,TO) 2
+
+#define SELECT_CC_MODE(OP,X,Y)						\
+  (GET_MODE_CLASS (GET_MODE (X)) == MODE_FLOAT ? CC_ZSmode :		\
+    (GET_CODE (X) == PLUS || GET_CODE (X) == MINUS ? CC_ZSCmode :	\
+    (GET_CODE (X) == ABS ? CC_ZSOmode :					\
+    (GET_CODE (X) == AND || GET_CODE (X) == NOT || GET_CODE (X) == IOR	\
+     || GET_CODE (X) == XOR || GET_CODE (X) == ROTATE			\
+     || GET_CODE (X) == ROTATERT || GET_CODE (X) == ASHIFTRT		\
+     || GET_CODE (X) == LSHIFTRT || GET_CODE (X) == ASHIFT ? CC_ZSmode : \
+     CCmode))))

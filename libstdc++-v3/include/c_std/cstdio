@@ -1,7 +1,7 @@
 // -*- C++ -*- forwarding header.
 
 // Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2009  Free Software Foundation, Inc.
+// 2009, 2010  Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,7 +25,7 @@
 
 /** @file include/cstdio
  *  This is a Standard C++ Library file.  You should @c #include this file
- *  in your programs, rather than any of the "*.h" implementation files.
+ *  in your programs, rather than any of the @a *.h implementation files.
  *
  *  This is the C++ version of the Standard C Library header @c stdio.h,
  *  and its contents are (mostly) the same as that header, but are all
@@ -43,8 +43,6 @@
 #pragma GCC system_header
 
 #include <bits/c++config.h>
-#include <cstddef>
-
 #include <stdio.h>
 
 // Get rid of those macros defined in <stdio.h> in lieu of real functions.
@@ -151,15 +149,16 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 
 #if _GLIBCXX_USE_C99_CHECK || _GLIBCXX_USE_C99_DYNAMIC
   extern "C" int
-  (snprintf)(char * restrict, size_t, const char * restrict, ...) throw ();
-  extern "C" int
-  (vfscanf)(FILE * restrict, const char * restrict, __gnuc_va_list);
-  extern "C" int (vscanf)(const char * restrict, __gnuc_va_list);
-  extern "C" int
-  (vsnprintf)(char * restrict, size_t, const char * restrict, __gnuc_va_list)
+  (snprintf)(char * __restrict, std::size_t, const char * __restrict, ...)
   throw ();
   extern "C" int
-  (vsscanf)(const char * restrict, const char * restrict, __gnuc_va_list)
+  (vfscanf)(FILE * __restrict, const char * __restrict, __gnuc_va_list);
+  extern "C" int (vscanf)(const char * __restrict, __gnuc_va_list);
+  extern "C" int
+  (vsnprintf)(char * __restrict, std::size_t, const char * __restrict,
+	      __gnuc_va_list) throw ();
+  extern "C" int
+  (vsscanf)(const char * __restrict, const char * __restrict, __gnuc_va_list)
   throw ();
 #endif
 

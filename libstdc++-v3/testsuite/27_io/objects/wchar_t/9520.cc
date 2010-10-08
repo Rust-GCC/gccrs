@@ -1,4 +1,4 @@
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "de_DE.ISO-8859-15@euro" }
 
 // 2003-04-30  Petur Runolfsson <peturr02@ru.is>
 
@@ -38,7 +38,7 @@ void test01()
   locale loc (locale("de_DE.ISO-8859-15@euro"));
   locale::global(loc); // Set locale for stdin
 
-  freopen(name, "r", stdin);
+  VERIFY( freopen(name, "r", stdin) );
 
   wcin.imbue(loc);
 

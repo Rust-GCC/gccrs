@@ -1,6 +1,6 @@
 // Debugging map implementation -*- C++ -*-
 
-// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2009
+// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -38,6 +38,7 @@ namespace std
 {
 namespace __debug
 {
+  /// Class std::map with safety/checking/debug instrumentation.
   template<typename _Key, typename _Tp, typename _Compare = std::less<_Key>,
 	   typename _Allocator = std::allocator<std::pair<const _Key, _Tp> > >
     class map
@@ -80,7 +81,9 @@ namespace __debug
         map(_InputIterator __first, _InputIterator __last,
 	    const _Compare& __comp = _Compare(),
 	    const _Allocator& __a = _Allocator())
-	: _Base(__gnu_debug::__check_valid_range(__first, __last), __last,
+	: _Base(__gnu_debug::__base(__gnu_debug::__check_valid_range(__first,
+								     __last)),
+		__gnu_debug::__base(__last),
 		__comp, __a), _Safe_base() { }
 
       map(const map& __x)
@@ -91,7 +94,7 @@ namespace __debug
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       map(map&& __x)
-      : _Base(std::forward<map>(__x)), _Safe_base()
+      : _Base(std::move(__x)), _Safe_base()
       { this->_M_swap(__x); }
 
       map(initializer_list<value_type> __l,
@@ -114,7 +117,8 @@ namespace __debug
       map&
       operator=(map&& __x)
       {
-        // NB: DR 675.
+	// NB: DR 1204.
+	// NB: DR 675.
 	clear();
 	swap(__x);
 	return *this;
@@ -224,9 +228,19 @@ namespace __debug
         insert(_InputIterator __first, _InputIterator __last)
         {
 	  __glibcxx_check_valid_range(__first, __last);
-	  _Base::insert(__first, __last);
+	  _Base::insert(__gnu_debug::__base(__first),
+			__gnu_debug::__base(__last));
 	}
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      iterator
+      erase(iterator __position)
+      {
+	__glibcxx_check_erase(__position);
+	__position._M_invalidate();
+	return iterator(_Base::erase(__position.base()), this);
+      }
+#else
       void
       erase(iterator __position)
       {
@@ -234,6 +248,7 @@ namespace __debug
 	__position._M_invalidate();
 	_Base::erase(__position.base());
       }
+#endif
 
       size_type
       erase(const key_type& __x)
@@ -249,6 +264,18 @@ namespace __debug
 	}
       }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      iterator
+      erase(iterator __first, iterator __last)
+      {
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 151. can't currently clear() empty container
+	__glibcxx_check_erase_range(__first, __last);
+	while (__first != __last)
+	  this->erase(__first++);
+	return __last;
+      }
+#else
       void
       erase(iterator __first, iterator __last)
       {
@@ -258,6 +285,7 @@ namespace __debug
 	while (__first != __last)
 	  this->erase(__first++);
       }
+#endif
 
       void
       swap(map& __x)

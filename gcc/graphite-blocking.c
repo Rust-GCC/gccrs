@@ -46,7 +46,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 
 #ifdef HAVE_cloog
-#include "cloog/cloog.h"
 #include "ppl_c.h"
 #include "sese.h"
 #include "graphite-ppl.h"
@@ -173,75 +172,123 @@ pbb_strip_mine_time_depth (poly_bb_p pbb, int time_depth, int stride)
   return true;
 }
 
-/* Returns true when strip mining with STRIDE of the loop around PBB
-   at scattering time TIME_DEPTH is profitable.  */
+/* Returns true when strip mining with STRIDE of the loop LST is
+   profitable.  */
 
 static bool
-pbb_strip_mine_profitable_p (poly_bb_p pbb,
-			     graphite_dim_t time_depth,
-			     int stride)
+lst_strip_mine_profitable_p (lst_p lst, int stride)
 {
-  Value niter, strip_stride;
+  mpz_t niter, strip_stride;
   bool res;
 
-  value_init (strip_stride);
-  value_init (niter);
-  value_set_si (strip_stride, stride);
-  pbb_number_of_iterations_at_time (pbb, time_depth, niter);
-  res = value_gt (niter, strip_stride);
-  value_clear (strip_stride);
-  value_clear (niter);
+  gcc_assert (LST_LOOP_P (lst));
+  mpz_init (strip_stride);
+  mpz_init (niter);
+
+  mpz_set_si (strip_stride, stride);
+  lst_niter_for_loop (lst, niter);
+  res = (mpz_cmp (niter, strip_stride) > 0);
+
+  mpz_clear (strip_stride);
+  mpz_clear (niter);
+  return res;
+}
+
+/* Strip-mines all the loops of LST that are considered profitable to
+   strip-mine.  Return true if it did strip-mined some loops.  */
+
+static bool
+lst_do_strip_mine_loop (lst_p lst, int depth)
+{
+  int i;
+  lst_p l;
+  int stride = PARAM_VALUE (PARAM_LOOP_BLOCK_TILE_SIZE);
+  poly_bb_p pbb;
+
+  if (!lst)
+    return false;
+
+  if (LST_LOOP_P (lst))
+    {
+      bool res = false;
+
+      FOR_EACH_VEC_ELT (lst_p, LST_SEQ (lst), i, l)
+	res |= lst_do_strip_mine_loop (l, depth);
+
+      return res;
+    }
+
+  pbb = LST_PBB (lst);
+  return pbb_strip_mine_time_depth (pbb, psct_dynamic_dim (pbb, depth),
+				    stride);
+}
+
+/* Strip-mines all the loops of LST that are considered profitable to
+   strip-mine.  Return true if it did strip-mined some loops.  */
+
+static bool
+lst_do_strip_mine (lst_p lst)
+{
+  int i;
+  lst_p l;
+  bool res = false;
+  int stride = PARAM_VALUE (PARAM_LOOP_BLOCK_TILE_SIZE);
+  int depth;
+
+  if (!lst
+      || !LST_LOOP_P (lst))
+    return false;
+
+  FOR_EACH_VEC_ELT (lst_p, LST_SEQ (lst), i, l)
+    res |= lst_do_strip_mine (l);
+
+  depth = lst_depth (lst);
+  if (depth >= 0
+      && lst_strip_mine_profitable_p (lst, stride))
+    {
+      res |= lst_do_strip_mine_loop (lst, lst_depth (lst));
+      lst_add_loop_under_loop (lst);
+    }
 
   return res;
 }
 
-/* Strip mines all the loops around PBB.  Nothing profitable in all this:
-   this is just a driver function.  */
-
-static bool
-pbb_do_strip_mine (poly_bb_p pbb)
-{
-  graphite_dim_t s_dim;
-  int stride = 64;
-  bool transform_done = false;
-
-  for (s_dim = 0; s_dim < pbb_nb_dynamic_scattering_transform (pbb); s_dim++)
-    if (pbb_strip_mine_profitable_p (pbb, psct_dynamic_dim (pbb, s_dim),
-                                     stride))
-      {
-	ppl_dimension_type d = psct_dynamic_dim (pbb, s_dim);
-	transform_done |= pbb_strip_mine_time_depth (pbb, d, stride);
-	s_dim++;
-      }
-
-  return transform_done;
-}
-
-/* Strip mines all the loops in SCOP.  Nothing profitable in all this:
-   this is just a driver function.  */
+/* Strip mines all the loops in SCOP.  Returns true when some loops
+   have been strip-mined.  */
 
 bool
 scop_do_strip_mine (scop_p scop)
 {
-  poly_bb_p pbb;
-  int i;
-  bool transform_done = false;
+  return lst_do_strip_mine (SCOP_TRANSFORMED_SCHEDULE (scop));
+}
+
+/* Loop blocks all the loops in SCOP.  Returns true when we manage to
+   block some loops.  */
+
+bool
+scop_do_block (scop_p scop)
+{
+  bool strip_mined = false;
+  bool interchanged = false;
 
   store_scattering (scop);
 
-  for (i = 0; VEC_iterate (poly_bb_p, SCOP_BBS (scop), i, pbb); i++)
-    transform_done |= pbb_do_strip_mine (pbb);
+  strip_mined = lst_do_strip_mine (SCOP_TRANSFORMED_SCHEDULE (scop));
+  interchanged = scop_do_interchange (scop);
 
-  if (!transform_done)
-    return false;
-
-  if (!graphite_legal_transform (scop))
+  /* If we don't interchange loops, the strip mine alone will not be
+     profitable, and the transform is not a loop blocking: so revert
+     the transform.  */
+  if (!interchanged)
     {
       restore_scattering (scop);
       return false;
     }
+  else if (strip_mined && interchanged
+	   && dump_file && (dump_flags & TDF_DETAILS))
+    fprintf (dump_file, "SCoP will be loop blocked.\n");
 
-  return true;
+  return strip_mined || interchanged;
 }
 
 #endif

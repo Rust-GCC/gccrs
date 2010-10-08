@@ -6,7 +6,7 @@
 --                                                                          --
 --                             T e m p l a t e                              --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -34,7 +34,7 @@ with Namet; use Namet;
 package Snames is
 
 --  This package contains definitions of standard names (i.e. entries in the
---  Names table) that are used throughout the GNAT compiler). It also contains
+--  Names table) that are used throughout the GNAT compiler. It also contains
 --  the definitions of some enumeration types whose definitions are tied to
 --  the order of these preset names.
 
@@ -334,6 +334,8 @@ package Snames is
    Name_Ada_95                         : constant Name_Id := N + $; -- GNAT
    Name_Ada_05                         : constant Name_Id := N + $; -- GNAT
    Name_Ada_2005                       : constant Name_Id := N + $; -- GNAT
+   Name_Ada_12                         : constant Name_Id := N + $; -- GNAT
+   Name_Ada_2012                       : constant Name_Id := N + $; -- GNAT
    Name_Assertion_Policy               : constant Name_Id := N + $; -- Ada 05
    Name_Assume_No_Invalid_Values       : constant Name_Id := N + $; -- GNAT
    Name_C_Pass_By_Copy                 : constant Name_Id := N + $; -- GNAT
@@ -383,6 +385,8 @@ package Snames is
    Name_Restrictions                   : constant Name_Id := N + $;
    Name_Restriction_Warnings           : constant Name_Id := N + $; -- GNAT
    Name_Reviewable                     : constant Name_Id := N + $;
+   Name_Short_Circuit_And_Or           : constant Name_Id := N + $; -- GNAT
+   Name_Short_Descriptors              : constant Name_Id := N + $; -- GNAT
    Name_Source_File_Name               : constant Name_Id := N + $; -- GNAT
    Name_Source_File_Name_Project       : constant Name_Id := N + $; -- GNAT
    Name_Style_Checks                   : constant Name_Id := N + $; -- GNAT
@@ -427,6 +431,7 @@ package Snames is
    Name_CPP_Virtual                    : constant Name_Id := N + $; -- GNAT
    Name_CPP_Vtable                     : constant Name_Id := N + $; -- GNAT
    Name_Debug                          : constant Name_Id := N + $; -- GNAT
+   Name_Dimension                      : constant Name_Id := N + $; -- GNAT
    Name_Elaborate                      : constant Name_Id := N + $; -- Ada 83
    Name_Elaborate_All                  : constant Name_Id := N + $;
    Name_Elaborate_Body                 : constant Name_Id := N + $;
@@ -479,6 +484,7 @@ package Snames is
    Name_No_Return                      : constant Name_Id := N + $; -- Ada 05
    Name_Obsolescent                    : constant Name_Id := N + $; -- GNAT
    Name_Optimize                       : constant Name_Id := N + $;
+   Name_Ordered                        : constant Name_Id := N + $; -- GNAT
    Name_Pack                           : constant Name_Id := N + $;
    Name_Page                           : constant Name_Id := N + $;
    Name_Passive                        : constant Name_Id := N + $; -- GNAT
@@ -1033,10 +1039,12 @@ package Snames is
    Name_Compiler                         : constant Name_Id := N + $;
    Name_Compiler_Command                 : constant Name_Id := N + $; --  GPR
    Name_Config_Body_File_Name            : constant Name_Id := N + $;
+   Name_Config_Body_File_Name_Index      : constant Name_Id := N + $;
    Name_Config_Body_File_Name_Pattern    : constant Name_Id := N + $;
    Name_Config_File_Switches             : constant Name_Id := N + $;
    Name_Config_File_Unique               : constant Name_Id := N + $;
    Name_Config_Spec_File_Name            : constant Name_Id := N + $;
+   Name_Config_Spec_File_Name_Index      : constant Name_Id := N + $;
    Name_Config_Spec_File_Name_Pattern    : constant Name_Id := N + $;
    Name_Configuration                    : constant Name_Id := N + $;
    Name_Cross_Reference                  : constant Name_Id := N + $;
@@ -1069,7 +1077,9 @@ package Snames is
    Name_Include_Path_File                : constant Name_Id := N + $;
    Name_Inherit_Source_Path              : constant Name_Id := N + $;
    Name_Languages                        : constant Name_Id := N + $;
+   Name_Leading_Library_Options          : constant Name_Id := N + $;
    Name_Leading_Required_Switches        : constant Name_Id := N + $;
+   Name_Leading_Switches                 : constant Name_Id := N + $;
    Name_Library                          : constant Name_Id := N + $;
    Name_Library_Ali_Dir                  : constant Name_Id := N + $;
    Name_Library_Auto_Init                : constant Name_Id := N + $;
@@ -1077,6 +1087,7 @@ package Snames is
    Name_Library_Builder                  : constant Name_Id := N + $;
    Name_Library_Dir                      : constant Name_Id := N + $;
    Name_Library_GCC                      : constant Name_Id := N + $;
+   Name_Library_Install_Name_Option      : constant Name_Id := N + $;
    Name_Library_Interface                : constant Name_Id := N + $;
    Name_Library_Kind                     : constant Name_Id := N + $;
    Name_Library_Name                     : constant Name_Id := N + $;
@@ -1103,6 +1114,8 @@ package Snames is
    Name_Mapping_Body_Suffix              : constant Name_Id := N + $;
    Name_Max_Command_Line_Length          : constant Name_Id := N + $;
    Name_Metrics                          : constant Name_Id := N + $;
+   Name_Multi_Unit_Object_Separator      : constant Name_Id := N + $;
+   Name_Multi_Unit_Switches              : constant Name_Id := N + $;
    Name_Naming                           : constant Name_Id := N + $;
    Name_None                             : constant Name_Id := N + $;
    Name_Object_File_Suffix               : constant Name_Id := N + $;
@@ -1120,11 +1133,14 @@ package Snames is
    Name_Prefix                           : constant Name_Id := N + $;
    Name_Project                          : constant Name_Id := N + $;
    Name_Project_Dir                      : constant Name_Id := N + $;
+   Name_Project_Files                    : constant Name_Id := N + $;
+   Name_Project_Path                     : constant Name_Id := N + $;
    Name_Response_File_Format             : constant Name_Id := N + $;
    Name_Response_File_Switches           : constant Name_Id := N + $;
    Name_Roots                            : constant Name_Id := N + $; --  GPR
    Name_Required_Switches                : constant Name_Id := N + $;
    Name_Run_Path_Option                  : constant Name_Id := N + $;
+   Name_Run_Path_Origin                  : constant Name_Id := N + $;
    Name_Separate_Run_Path_Options        : constant Name_Id := N + $;
    Name_Shared_Library_Minimum_Switches  : constant Name_Id := N + $;
    Name_Shared_Library_Prefix            : constant Name_Id := N + $;
@@ -1408,6 +1424,8 @@ package Snames is
       Pragma_Ada_95,
       Pragma_Ada_05,
       Pragma_Ada_2005,
+      Pragma_Ada_12,
+      Pragma_Ada_2012,
       Pragma_Assertion_Policy,
       Pragma_Assume_No_Invalid_Values,
       Pragma_C_Pass_By_Copy,
@@ -1450,6 +1468,8 @@ package Snames is
       Pragma_Restrictions,
       Pragma_Restriction_Warnings,
       Pragma_Reviewable,
+      Pragma_Short_Circuit_And_Or,
+      Pragma_Short_Descriptors,
       Pragma_Source_File_Name,
       Pragma_Source_File_Name_Project,
       Pragma_Style_Checks,
@@ -1486,6 +1506,7 @@ package Snames is
       Pragma_CPP_Virtual,
       Pragma_CPP_Vtable,
       Pragma_Debug,
+      Pragma_Dimension,
       Pragma_Elaborate,
       Pragma_Elaborate_All,
       Pragma_Elaborate_Body,
@@ -1531,6 +1552,7 @@ package Snames is
       Pragma_No_Return,
       Pragma_Obsolescent,
       Pragma_Optimize,
+      Pragma_Ordered,
       Pragma_Pack,
       Pragma_Page,
       Pragma_Passive,
@@ -1680,9 +1702,10 @@ package Snames is
    --  call this function with a name that is not the name of a attribute.
 
    function Get_Convention_Id (N : Name_Id) return Convention_Id;
-   --  Returns Id of language convention corresponding to given name. It is an
-   --  to call this function with a name that is not the name of a convention,
-   --  or one previously given in a call to Record_Convention_Identifier.
+   --  Returns Id of language convention corresponding to given name. It is
+   --  an error to call this function with a name that is not the name of a
+   --  convention, or one that has been previously recorded using a call to
+   --  Record_Convention_Identifier.
 
    function Get_Convention_Name (C : Convention_Id) return Name_Id;
    --  Returns the name of language convention corresponding to given

@@ -1,6 +1,6 @@
 // std::hash definitions -*- C++ -*-
 
-// Copyright (C) 2007, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,25 +22,13 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-#include <cstddef>
-#include <string>
-#include <cmath>
-#include <functional>
-#include <system_error>
-
 #ifndef __GXX_EXPERIMENTAL_CXX0X__
 # error "hash_c++0x.cc must be compiled with -std=gnu++0x"
 #endif
 
+#include <bits/functional_hash.h>
+
 namespace std
 {
-#include "hash.cc"
-
-  template<>
-    size_t
-    hash<error_code>::operator()(error_code __e) const
-    { 
-      const char* __p = reinterpret_cast<const char*>(&__e);
-      return _Fnv_hash<>::hash(__p, sizeof(__e));
-    }
+#include "hash-long-double-aux.cc"
 }

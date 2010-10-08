@@ -1,7 +1,7 @@
 /* Definitions of target machine for GNU compiler.
    Renesas H8/300 (generic)
    Copyright (C) 1992, 1993, 1994, 1995, 1996, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009
+   2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Steve Chamberlain (sac@cygnus.com),
    Jim Wilson (wilson@cygnus.com), and Doug Evans (dje@cygnus.com).
@@ -82,16 +82,6 @@ extern const char * const *h8_reg_names;
 
 #define LIB_SPEC "%{mrelax:-relax} %{g:-lg} %{!p:%{!pg:-lc}}%{p:-lc_p}%{pg:-lc_p}"
 
-#define OPTIMIZATION_OPTIONS(LEVEL, SIZE)				 \
-  do									 \
-    {									 \
-      /* Basic block reordering is only beneficial on targets with cache \
-	 and/or variable-cycle branches where (cycle count taken !=	 \
-	 cycle count not taken).  */					 \
-      flag_reorder_blocks = 0;						 \
-    }									 \
-  while (0)
-
 /* Print subsidiary information on the compiler version in use.  */
 
 #define TARGET_VERSION fprintf (stderr, " (Renesas H8/300)");
@@ -128,15 +118,6 @@ extern const char * const *h8_reg_names;
 #define TARGET_NORMAL_MODE 0
 #endif
 #endif /* !IN_LIBGCC2 */
-
-/* Do things that must be done once at start up.  */
-
-#define OVERRIDE_OPTIONS			\
-  do						\
-    {						\
-      h8300_init_once ();			\
-    }						\
-  while (0)
 
 /* Default target_flags if no switches specified.  */
 
@@ -536,17 +517,6 @@ enum reg_class {
 
 #define FIRST_PARM_OFFSET(FNDECL) 0
 
-/* Value is the number of bytes of arguments automatically
-   popped when returning from a subroutine call.
-   FUNDECL is the declaration node of the function (as a tree),
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.
-   SIZE is the number of bytes of arguments passed on the stack.
-
-   On the H8 the return does not pop anything.  */
-
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, SIZE) 0
-
 /* Definitions for register eliminations.
 
    This is an array of structures.  Each structure initializes one pair
@@ -608,11 +578,11 @@ enum reg_class {
 
 #define FUNCTION_ARG_REGNO_P(N) (TARGET_QUICKCALL ? N < 3 : 0)
 
-/* When defined, the compiler allows registers explicitly used in the
-   rtl to be used as spill registers but prevents the compiler from
-   extending the lifetime of these registers.  */
-
-#define SMALL_REGISTER_CLASSES 1
+/* When this hook returns true for MODE, the compiler allows
+   registers explicitly used in the rtl to be used as spill registers
+   but prevents the compiler from extending the lifetime of these
+   registers.  */
+#define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
 
 /* Define a data type for recording info about an argument list
    during the scan of that argument list.  This data type should
@@ -801,15 +771,12 @@ struct cum_arg
 	   || SYMBOL_REF_FLAG (XEXP (XEXP (XEXP (OP, 0), 0), 0))))	\
    || (GET_CODE (OP) == MEM						\
        && h8300_eightbit_constant_address_p (XEXP (OP, 0)))		\
-   || (GET_CODE (OP) == MEM && TARGET_H8300S				\
+   || (GET_CODE (OP) == MEM && (TARGET_H8300S || TARGET_H8300SX)	\
        && GET_CODE (XEXP (OP, 0)) == CONST_INT))
 
 /* Multi-letter constraints starting with W are to be used for
    operands that require a memory operand, i.e,. that are never used
-   along with register constraints (see EXTRA_MEMORY_CONSTRAINTS).
-   For operands that require a memory operand (or not) but that always
-   accept a register, a multi-letter constraint starting with Y should
-   be used instead.  */
+   along with register constraints (see EXTRA_MEMORY_CONSTRAINTS).  */
 
 #define OK_FOR_WU(OP)					\
   (GET_CODE (OP) == MEM && OK_FOR_U (OP))
@@ -822,15 +789,25 @@ struct cum_arg
   ((STR)[1] == 'U' ? 2					\
    : 0)
 
-/* We don't have any constraint starting with Y yet, but before
-   someone uses it for a one-letter constraint and we're left without
-   any upper-case constraints left, we reserve it for extensions
-   here.  */
-#define OK_FOR_Y(OP, STR)				\
-  (0)
+/* Multi-letter constraints starting with Y are to be used for operands
+   that are constant immediates and have single 1 or 0 in their binary
+   representation.  */
+
+#define OK_FOR_Y2(OP)                                   \
+  ((GET_CODE (OP) == CONST_INT) && (exact_log2 (INTVAL (OP) & 0xff) != -1))
+
+#define OK_FOR_Y0(OP)                                   \
+  ((GET_CODE (OP) == CONST_INT) && (exact_log2 (~INTVAL (OP) & 0xff) != -1))
+
+#define OK_FOR_Y(OP, STR)                               \
+  ((STR)[1] == '2' ? OK_FOR_Y2 (OP)                     \
+   : (STR)[1] == '0' ? OK_FOR_Y0 (OP)	\
+   : 0)
 
 #define CONSTRAINT_LEN_FOR_Y(STR)			\
-  (0)
+  ((STR)[1] == '2' ? 2                                  \
+   : (STR)[1] == '0' ? 2		\
+   : 0)
 
 #define OK_FOR_Z(OP)					\
   (TARGET_H8300SX					\

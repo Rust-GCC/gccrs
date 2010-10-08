@@ -122,6 +122,13 @@ package body GNAT.Registry is
       cbData      : DWORD) return LONG;
    pragma Import (Stdcall, RegSetValueEx, "RegSetValueExA");
 
+   function RegEnumKey
+     (Key         : HKEY;
+      dwIndex     : DWORD;
+      lpName      : Address;
+      cchName     : DWORD) return LONG;
+   pragma Import (Stdcall, RegEnumKey, "RegEnumKeyA");
+
    ---------------------
    -- Local Constants --
    ---------------------
@@ -230,6 +237,89 @@ package body GNAT.Registry is
       Result := RegDeleteValue (From_Key, C_Sub_Key (C_Sub_Key'First)'Address);
       Check_Result (Result, "Delete_Value " & Sub_Key);
    end Delete_Value;
+
+   -------------------
+   -- For_Every_Key --
+   -------------------
+
+   procedure For_Every_Key
+     (From_Key  : HKEY;
+      Recursive : Boolean := False)
+   is
+      procedure Recursive_For_Every_Key
+        (From_Key  : HKEY;
+         Recursive : Boolean := False;
+         Quit      : in out Boolean);
+
+      -----------------------------
+      -- Recursive_For_Every_Key --
+      -----------------------------
+
+      procedure Recursive_For_Every_Key
+        (From_Key : HKEY;
+         Recursive : Boolean := False;
+         Quit      : in out Boolean)
+      is
+         use type LONG;
+         use type ULONG;
+
+         Index  : ULONG := 0;
+         Result : LONG;
+
+         Sub_Key : Interfaces.C.char_array (1 .. Max_Key_Size);
+         pragma Warnings (Off, Sub_Key);
+
+         Size_Sub_Key : aliased ULONG;
+         Sub_Hkey     : HKEY;
+
+         function Current_Name return String;
+
+         ------------------
+         -- Current_Name --
+         ------------------
+
+         function Current_Name return String is
+         begin
+            return Interfaces.C.To_Ada (Sub_Key);
+         end Current_Name;
+
+      --  Start of processing for Recursive_For_Every_Key
+
+      begin
+         loop
+            Size_Sub_Key := Sub_Key'Length;
+
+            Result :=
+              RegEnumKey
+                (From_Key, Index, Sub_Key (1)'Address, Size_Sub_Key);
+
+            exit when not (Result = ERROR_SUCCESS);
+
+            Sub_Hkey := Open_Key (From_Key, Interfaces.C.To_Ada (Sub_Key));
+
+            Action (Natural (Index) + 1, Sub_Hkey, Current_Name, Quit);
+
+            if not Quit and then Recursive then
+               Recursive_For_Every_Key (Sub_Hkey, True, Quit);
+            end if;
+
+            Close_Key (Sub_Hkey);
+
+            exit when Quit;
+
+            Index := Index + 1;
+         end loop;
+      end Recursive_For_Every_Key;
+
+      --  Local Variables
+
+      Quit : Boolean := False;
+
+   --  Start of processing for For_Every_Key
+
+   begin
+      Recursive_For_Every_Key (From_Key, Recursive, Quit);
+   end For_Every_Key;
 
    -------------------------
    -- For_Every_Key_Value --
@@ -394,7 +484,8 @@ package body GNAT.Registry is
 
       if Type_Value = REG_EXPAND_SZ and then Expand then
          return Directory_Operations.Expand_Path
-           (Value (1 .. Integer (Size_Value - 1)), Directory_Operations.DOS);
+           (Value (1 .. Integer (Size_Value - 1)),
+            Directory_Operations.DOS);
       else
          return Value (1 .. Integer (Size_Value - 1));
       end if;
@@ -417,11 +508,7 @@ package body GNAT.Registry is
       Result     : LONG;
 
    begin
-      if Expand then
-         Value_Type := REG_EXPAND_SZ;
-      else
-         Value_Type := REG_SZ;
-      end if;
+      Value_Type := (if Expand then REG_EXPAND_SZ else REG_SZ);
 
       Result :=
         RegSetValueEx

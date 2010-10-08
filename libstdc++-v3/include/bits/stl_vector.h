@@ -1,6 +1,6 @@
 // Vector implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -106,6 +106,14 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       _Vector_base(const allocator_type& __a)
       : _M_impl(__a) { }
+
+      _Vector_base(size_t __n)
+      : _M_impl()
+      {
+	this->_M_impl._M_start = this->_M_allocate(__n);
+	this->_M_impl._M_finish = this->_M_impl._M_start;
+	this->_M_impl._M_end_of_storage = this->_M_impl._M_start + __n;
+      }
 
       _Vector_base(size_t __n, const allocator_type& __a)
       : _M_impl(__a)
@@ -215,6 +223,32 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       vector(const allocator_type& __a)
       : _Base(__a) { }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      /**
+       *  @brief  Creates a %vector with default constructed elements.
+       *  @param  n  The number of elements to initially create.
+       *
+       *  This constructor fills the %vector with @a n default
+       *  constructed elements.
+       */
+      explicit
+      vector(size_type __n)
+      : _Base(__n)
+      { _M_default_initialize(__n); }
+
+      /**
+       *  @brief  Creates a %vector with copies of an exemplar element.
+       *  @param  n  The number of elements to initially create.
+       *  @param  value  An element to copy.
+       *  @param  a  An allocator.
+       *
+       *  This constructor fills the %vector with @a n copies of @a value.
+       */
+      vector(size_type __n, const value_type& __value,
+	     const allocator_type& __a = allocator_type())
+      : _Base(__n, __a)
+      { _M_fill_initialize(__n, __value); }
+#else
       /**
        *  @brief  Creates a %vector with copies of an exemplar element.
        *  @param  n  The number of elements to initially create.
@@ -228,6 +262,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	     const allocator_type& __a = allocator_type())
       : _Base(__n, __a)
       { _M_fill_initialize(__n, __value); }
+#endif
 
       /**
        *  @brief  %Vector copy constructor.
@@ -255,7 +290,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  The contents of @a x are a valid, but unspecified %vector.
        */
       vector(vector&& __x)
-      : _Base(std::forward<_Base>(__x)) { }
+      : _Base(std::move(__x)) { }
 
       /**
        *  @brief  Builds a %vector from an initializer list.
@@ -335,9 +370,10 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       vector&
       operator=(vector&& __x)
       {
+	// NB: DR 1204.
 	// NB: DR 675.
 	this->clear();
-	this->swap(__x); 
+	this->swap(__x);
 	return *this;
       }
 
@@ -537,6 +573,45 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       max_size() const
       { return _M_get_Tp_allocator().max_size(); }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      /**
+       *  @brief  Resizes the %vector to the specified number of elements.
+       *  @param  new_size  Number of elements the %vector should contain.
+       *
+       *  This function will %resize the %vector to the specified
+       *  number of elements.  If the number is smaller than the
+       *  %vector's current size the %vector is truncated, otherwise
+       *  default constructed elements are appended.
+       */
+      void
+      resize(size_type __new_size)
+      {
+	if (__new_size > size())
+	  _M_default_append(__new_size - size());
+	else if (__new_size < size())
+	  _M_erase_at_end(this->_M_impl._M_start + __new_size);
+      }
+
+      /**
+       *  @brief  Resizes the %vector to the specified number of elements.
+       *  @param  new_size  Number of elements the %vector should contain.
+       *  @param  x  Data with which new elements should be populated.
+       *
+       *  This function will %resize the %vector to the specified
+       *  number of elements.  If the number is smaller than the
+       *  %vector's current size the %vector is truncated, otherwise
+       *  the %vector is extended and new elements are populated with
+       *  given data.
+       */
+      void
+      resize(size_type __new_size, const value_type& __x)
+      {
+	if (__new_size > size())
+	  insert(end(), __new_size - size(), __x);
+	else if (__new_size < size())
+	  _M_erase_at_end(this->_M_impl._M_start + __new_size);
+      }
+#else
       /**
        *  @brief  Resizes the %vector to the specified number of elements.
        *  @param  new_size  Number of elements the %vector should contain.
@@ -551,11 +626,19 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       void
       resize(size_type __new_size, value_type __x = value_type())
       {
-	if (__new_size < size())
-	  _M_erase_at_end(this->_M_impl._M_start + __new_size);
-	else
+	if (__new_size > size())
 	  insert(end(), __new_size - size(), __x);
+	else if (__new_size < size())
+	  _M_erase_at_end(this->_M_impl._M_start + __new_size);
       }
+#endif
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      /**  A non-binding request to reduce capacity() to size().  */
+      void
+      shrink_to_fit()
+      { std::__shrink_to_fit<vector>::_S_do_it(*this); }
+#endif
 
       /**
        *  Returns the total number of elements that the %vector can
@@ -710,13 +793,21 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *   Returns a pointer such that [data(), data() + size()) is a valid
        *   range.  For a non-empty %vector, data() == &front().
        */
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      _Tp*
+#else
       pointer
+#endif
       data()
-      { return pointer(this->_M_impl._M_start); }
+      { return std::__addressof(front()); }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      const _Tp*
+#else
       const_pointer
+#endif
       data() const
-      { return const_pointer(this->_M_impl._M_start); }
+      { return std::__addressof(front()); }
 
       // [23.2.4.3] modifiers
       /**
@@ -1033,6 +1124,16 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	this->_M_impl._M_finish = this->_M_impl._M_end_of_storage;
       }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      // Called by the vector(n) constructor.
+      void
+      _M_default_initialize(size_type __n)
+      {
+	std::__uninitialized_default_n_a(this->_M_impl._M_start, __n, 
+					 _M_get_Tp_allocator());
+	this->_M_impl._M_finish = this->_M_impl._M_end_of_storage;
+      }
+#endif
 
       // Internal assign functions follow.  The *_aux functions do the actual
       // assignment work for the range versions.
@@ -1114,6 +1215,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       // the same thing.
       void
       _M_fill_insert(iterator __pos, size_type __n, const value_type& __x);
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      // Called by resize(n).
+      void
+      _M_default_append(size_type __n);
+#endif
 
       // Called by insert(p,x)
 #ifndef __GXX_EXPERIMENTAL_CXX0X__

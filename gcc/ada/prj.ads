@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2001-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -31,6 +31,7 @@
 
 with Casing; use Casing;
 with Namet;  use Namet;
+with Osint;
 with Scans;  use Scans;
 with Types;  use Types;
 
@@ -160,7 +161,7 @@ package Prj is
       end case;
    end record;
    --  Values for variables and array elements. Default is True if the
-   --  current value is the default one for the variable
+   --  current value is the default one for the variable.
 
    Nil_Variable_Value : constant Variable_Value;
    --  Value of a non existing variable or array element
@@ -278,8 +279,8 @@ package Prj is
    function Hash (Name : Name_Id)        return Header_Num;
    function Hash (Name : File_Name_Type) return Header_Num;
    function Hash (Name : Path_Name_Type) return Header_Num;
-   function Hash (Project : Project_Id) return Header_Num;
-   --  Used for computing hash values for names put into above hash table
+   function Hash (Project : Project_Id)  return Header_Num;
+   --  Used for computing hash values for names put into hash tables
 
    type Language_Kind is (File_Based, Unit_Based);
    --  Type for the kind of language. All languages are file based, except Ada
@@ -291,17 +292,16 @@ package Prj is
 
    Makefile_Dependency_Suffix : constant String := ".d";
    ALI_Dependency_Suffix      : constant String := ".ali";
-
    Switches_Dependency_Suffix : constant String := ".cswi";
 
-   Binder_Exchange_Suffix     : constant String := ".bexch";
+   Binder_Exchange_Suffix : constant String := ".bexch";
    --  Suffix for binder exchange files
 
-   Library_Exchange_Suffix     : constant String := ".lexch";
+   Library_Exchange_Suffix : constant String := ".lexch";
    --  Suffix for library exchange files
 
    type Name_List_Index is new Nat;
-   No_Name_List            : constant Name_List_Index := 0;
+   No_Name_List : constant Name_List_Index := 0;
 
    type Name_Node is record
       Name : Name_Id         := No_Name;
@@ -315,6 +315,11 @@ package Prj is
       Table_Initial        => 10,
       Table_Increment      => 100);
    --  The table for lists of names
+
+   function Length
+     (Table : Name_List_Table.Instance;
+      List  : Name_List_Index) return Natural;
+   --  Return the number of elements in specified list
 
    type Number_List_Index is new Nat;
    No_Number_List : constant Number_List_Index := 0;
@@ -340,6 +345,8 @@ package Prj is
       Hash       => Hash,
       Equal      => "=");
    --  A hash table to store the mapping files that are not used
+
+   --  The following record ???
 
    type Lang_Naming_Data is record
       Dot_Replacement : File_Name_Type := No_File;
@@ -396,9 +403,10 @@ package Prj is
    type Path_Syntax_Kind is
      (Canonical,
       --  Unix style
-
       Host);
       --  Host specific syntax, for example on VMS (the default)
+
+   --  The following record describes the configuration of a language
 
    type Language_Config is record
       Kind : Language_Kind := File_Based;
@@ -409,10 +417,10 @@ package Prj is
       --  The naming data for the languages (prefixes, etc.)
 
       Include_Compatible_Languages : Name_List_Index := No_Name_List;
-      --  The list of languages that are "include compatible" with this
-      --  language. A language B (for example "C") is "include compatible" with
-      --  a language A (for example "C++") if it is expected that sources of
-      --  language A may "include" header files from language B.
+      --  List of languages that are "include compatible" with this language. A
+      --  language B (for example "C") is "include compatible" with a language
+      --  A (for example "C++") if it is expected that sources of language A
+      --  may "include" header files from language B.
 
       Compiler_Driver : File_Name_Type := No_File;
       --  The name of the executable for the compiler of the language
@@ -428,14 +436,21 @@ package Prj is
       --  The list of final switches that are required as a minimum to invoke
       --  the compiler driver.
 
-      Path_Syntax                  : Path_Syntax_Kind := Host;
+      Multi_Unit_Switches : Name_List_Index := No_Name_List;
+      --  The switch(es) to indicate the index of a unit in a multi-source file
+
+      Multi_Unit_Object_Separator : Character := ' ';
+      --  The string separating the base name of a source from the index of the
+      --  unit in a multi-source file, in the object file name.
+
+      Path_Syntax : Path_Syntax_Kind := Host;
       --  Value may be Canonical (Unix style) or Host (host syntax, for example
       --  on VMS for DEC C).
 
-      Object_File_Suffix                 : Name_Id := No_Name;
+      Object_File_Suffix : Name_Id := No_Name;
       --  Optional alternate object file suffix
 
-      Object_File_Switches               : Name_List_Index := No_Name_List;
+      Object_File_Switches : Name_List_Index := No_Name_List;
       --  Optional object file switches. When this is defined, the switches
       --  are used to specify the object file. The object file name is appended
       --  to the last switch in the list. Example: ("-o", "").
@@ -445,48 +460,47 @@ package Prj is
       --  shared libraries. Specified in the configuration. When not specified,
       --  there is no need for such switch.
 
-      Object_Generated             : Boolean := True;
+      Object_Generated : Boolean := True;
       --  False in no object file is generated
 
-      Objects_Linked               : Boolean := True;
+      Objects_Linked : Boolean := True;
       --  False if object files are not use to link executables and build
       --  libraries.
 
-      Runtime_Library_Dir        : Name_Id := No_Name;
+      Runtime_Library_Dir : Name_Id := No_Name;
       --  Path name of the runtime library directory, if any
 
-      Runtime_Source_Dir        : Name_Id := No_Name;
+      Runtime_Source_Dir : Name_Id := No_Name;
       --  Path name of the runtime source directory, if any
 
-      Mapping_File_Switches  : Name_List_Index := No_Name_List;
+      Mapping_File_Switches : Name_List_Index := No_Name_List;
       --  The option(s) to provide a mapping file to the compiler. Specified in
       --  the configuration. When value is No_Name_List, there is no mapping
       --  file.
 
-      Mapping_Spec_Suffix        : File_Name_Type       := No_File;
+      Mapping_Spec_Suffix : File_Name_Type := No_File;
       --  Placeholder representing the spec suffix in a mapping file
 
-      Mapping_Body_Suffix        : File_Name_Type       := No_File;
+      Mapping_Body_Suffix : File_Name_Type := No_File;
       --  Placeholder representing the body suffix in a mapping file
 
-      Config_File_Switches       : Name_List_Index      := No_Name_List;
+      Config_File_Switches : Name_List_Index := No_Name_List;
       --  The option(s) to provide a config file to the compiler. Specified in
-      --  the configuration. When value is No_Name_List, there is no config
-      --  file.
+      --  the configuration. If value is No_Name_List there is no config file.
 
-      Dependency_Kind            : Dependency_File_Kind := None;
+      Dependency_Kind : Dependency_File_Kind := None;
       --  The kind of dependency to be checked: none, Makefile fragment or
       --  ALI file (for Ada).
 
-      Dependency_Option          : Name_List_Index      := No_Name_List;
+      Dependency_Option : Name_List_Index := No_Name_List;
       --  The option(s) to be used to create the dependency file. When value is
       --  No_Name_List, there is not such option(s).
 
-      Compute_Dependency         : Name_List_Index      := No_Name_List;
+      Compute_Dependency : Name_List_Index := No_Name_List;
       --  Hold the value of attribute Dependency_Driver, if declared for the
       --  language.
 
-      Include_Option             : Name_List_Index      := No_Name_List;
+      Include_Option : Name_List_Index := No_Name_List;
       --  Hold the value of attribute Include_Switches, if declared for the
       --  language.
 
@@ -506,47 +520,54 @@ package Prj is
       --  Name of environment variable declared by attribute Objects_Path_File
       --  for the language.
 
-      Config_Body                : Name_Id         := No_Name;
+      Config_Body : Name_Id := No_Name;
       --  The template for a pragma Source_File_Name(_Project) for a specific
       --  file name of a body.
 
-      Config_Spec           : Name_Id         := No_Name;
+      Config_Body_Index : Name_Id := No_Name;
       --  The template for a pragma Source_File_Name(_Project) for a specific
-      --  file name of a spec.
+      --  file name of a body in a multi-source file.
 
-      Config_Body_Pattern   : Name_Id         := No_Name;
+      Config_Body_Pattern : Name_Id := No_Name;
       --  The template for a pragma Source_File_Name(_Project) for a naming
       --  body pattern.
 
-      Config_Spec_Pattern   : Name_Id         := No_Name;
+      Config_Spec : Name_Id := No_Name;
+      --  The template for a pragma Source_File_Name(_Project) for a specific
+      --  file name of a spec.
+
+      Config_Spec_Index : Name_Id := No_Name;
+      --  The template for a pragma Source_File_Name(_Project) for a specific
+      --  file name of a spec in a multi-source file.
+
+      Config_Spec_Pattern : Name_Id := No_Name;
       --  The template for a pragma Source_File_Name(_Project) for a naming
       --  spec pattern.
 
-      Config_File_Unique         : Boolean         := False;
+      Config_File_Unique : Boolean := False;
       --  Indicate if the config file specified to the compiler needs to be
       --  unique. If it is unique, then all config files are concatenated into
       --  a temp config file.
 
-      Binder_Driver              : File_Name_Type  := No_File;
+      Binder_Driver : File_Name_Type := No_File;
       --  The name of the binder driver for the language, if any
 
-      Binder_Driver_Path         : Path_Name_Type  := No_Path;
+      Binder_Driver_Path : Path_Name_Type := No_Path;
       --  The path name of the binder driver
 
-      Binder_Required_Switches   : Name_List_Index      := No_Name_List;
+      Binder_Required_Switches : Name_List_Index := No_Name_List;
       --  Hold the value of attribute Binder'Required_Switches for the language
 
-      Binder_Prefix              : Name_Id         := No_Name;
+      Binder_Prefix : Name_Id := No_Name;
       --  Hold the value of attribute Binder'Prefix for the language
 
-      Toolchain_Version          : Name_Id         := No_Name;
+      Toolchain_Version : Name_Id := No_Name;
       --  Hold the value of attribute Toolchain_Version for the language
 
-      Toolchain_Description      : Name_Id         := No_Name;
+      Toolchain_Description : Name_Id := No_Name;
       --  Hold the value of attribute Toolchain_Description for the language
 
    end record;
-   --  Record describing the configuration of a language
 
    No_Language_Config : constant Language_Config :=
                           (Kind                         => File_Based,
@@ -556,6 +577,8 @@ package Prj is
                            Compiler_Driver_Path         => null,
                            Compiler_Leading_Required_Switches  => No_Name_List,
                            Compiler_Trailing_Required_Switches => No_Name_List,
+                           Multi_Unit_Switches          => No_Name_List,
+                           Multi_Unit_Object_Separator  => ' ',
                            Path_Syntax                  => Canonical,
                            Object_File_Suffix           => No_Name,
                            Object_File_Switches         => No_Name_List,
@@ -577,8 +600,10 @@ package Prj is
                            Objects_Path                 => No_Name,
                            Objects_Path_File            => No_Name,
                            Config_Body                  => No_Name,
-                           Config_Spec                  => No_Name,
+                           Config_Body_Index            => No_Name,
                            Config_Body_Pattern          => No_Name,
+                           Config_Spec                  => No_Name,
+                           Config_Spec_Index            => No_Name,
                            Config_Spec_Pattern          => No_Name,
                            Config_File_Unique           => False,
                            Binder_Driver                => No_File,
@@ -587,6 +612,8 @@ package Prj is
                            Binder_Prefix                => No_Name,
                            Toolchain_Version            => No_Name,
                            Toolchain_Description        => No_Name);
+
+   --  The following record ???
 
    type Language_Data is record
       Name          : Name_Id         := No_Name;
@@ -636,109 +663,115 @@ package Prj is
    --  Structure to define source data
 
    type Source_Data is record
-      Project                : Project_Id          := No_Project;
+      Project : Project_Id := No_Project;
       --  Project of the source
 
-      Source_Dir_Rank        : Natural             := 0;
+      Location : Source_Ptr := No_Location;
+      --  Location in the project file of the declaration of the source in
+      --  package Naming.
+
+      Source_Dir_Rank : Natural := 0;
       --  The rank of the source directory in list declared with attribute
       --  Source_Dirs. Two source files with the same name cannot appears in
       --  different directory with the same rank. That can happen when the
       --  recursive notation <dir>/** is used in attribute Source_Dirs.
 
-      Language               : Language_Ptr        := No_Language_Index;
+      Language : Language_Ptr := No_Language_Index;
       --  Index of the language. This is an index into
       --  Project_Tree.Languages_Data.
 
-      In_Interfaces          : Boolean             := True;
+      In_Interfaces : Boolean := True;
       --  False when the source is not included in interfaces, when attribute
       --  Interfaces is declared.
 
-      Declared_In_Interfaces : Boolean             := False;
+      Declared_In_Interfaces : Boolean := False;
       --  True when source is declared in attribute Interfaces
 
-      Alternate_Languages    : Language_List       := null;
+      Alternate_Languages : Language_List := null;
       --  List of languages a header file may also be, in addition of language
       --  Language_Name.
 
-      Kind                   : Source_Kind         := Spec;
+      Kind : Source_Kind := Spec;
       --  Kind of the source: spec, body or subunit
 
-      Unit                   : Unit_Index          := No_Unit_Index;
+      Unit : Unit_Index := No_Unit_Index;
       --  Name of the unit, if language is unit based. This is only set for
       --  those files that are part of the compilation set (for instance a
       --  file in an extended project that is overridden will not have this
       --  field set).
 
-      Index                  : Int                 := 0;
+      Index : Int := 0;
       --  Index of the source in a multi unit source file (the same Source_Data
       --  is duplicated several times when there are several units in the same
       --  file). Index is 0 if there is either no unit or a single one, and
       --  starts at 1 when there are multiple units
 
-      Locally_Removed        : Boolean             := False;
+      Locally_Removed : Boolean := False;
       --  True if the source has been "excluded"
 
-      Replaced_By            : Source_Id           := No_Source;
+      Replaced_By : Source_Id := No_Source;
+      --  Missing comment ???
 
-      File                   : File_Name_Type      := No_File;
+      File : File_Name_Type := No_File;
       --  Canonical file name of the source
 
-      Display_File           : File_Name_Type      := No_File;
+      Display_File : File_Name_Type := No_File;
       --  File name of the source, for display purposes
 
-      Path                   : Path_Information    := No_Path_Information;
+      Path : Path_Information := No_Path_Information;
       --  Path name of the source
 
-      Source_TS              : Time_Stamp_Type     := Empty_Time_Stamp;
+      Source_TS : Time_Stamp_Type := Empty_Time_Stamp;
       --  Time stamp of the source file
 
-      Object_Project         : Project_Id          := No_Project;
+      Object_Project : Project_Id := No_Project;
       --  Project where the object file is. This might be different from
       --  Project when using extending project files.
 
-      Object                 : File_Name_Type      := No_File;
+      Object : File_Name_Type := No_File;
       --  File name of the object file
 
-      Current_Object_Path    : Path_Name_Type      := No_Path;
+      Current_Object_Path : Path_Name_Type := No_Path;
       --  Object path of an existing object file
 
-      Object_Path            : Path_Name_Type      := No_Path;
+      Object_Path : Path_Name_Type := No_Path;
       --  Object path of the real object file
 
-      Object_TS              : Time_Stamp_Type     := Empty_Time_Stamp;
+      Object_TS : Time_Stamp_Type := Empty_Time_Stamp;
       --  Object file time stamp
 
-      Dep_Name               : File_Name_Type      := No_File;
+      Dep_Name : File_Name_Type := No_File;
       --  Dependency file simple name
 
-      Current_Dep_Path       : Path_Name_Type      := No_Path;
+      Current_Dep_Path : Path_Name_Type := No_Path;
       --  Path name of an existing dependency file
 
-      Dep_Path               : Path_Name_Type      := No_Path;
+      Dep_Path : Path_Name_Type := No_Path;
       --  Path name of the real dependency file
 
-      Dep_TS                 : Time_Stamp_Type     := Empty_Time_Stamp;
+      Dep_TS : aliased Osint.File_Attributes := Osint.Unknown_Attributes;
       --  Dependency file time stamp
 
-      Switches               : File_Name_Type      := No_File;
+      Switches : File_Name_Type := No_File;
       --  File name of the switches file. For all languages, this is a file
       --  that ends with the .cswi extension.
 
-      Switches_Path          : Path_Name_Type      := No_Path;
+      Switches_Path : Path_Name_Type := No_Path;
       --  Path name of the switches file
 
-      Switches_TS            : Time_Stamp_Type     := Empty_Time_Stamp;
+      Switches_TS : Time_Stamp_Type := Empty_Time_Stamp;
       --  Switches file time stamp
 
-      Naming_Exception       : Boolean             := False;
+      Naming_Exception : Boolean := False;
       --  True if the source has an exceptional name
 
-      Next_In_Lang           : Source_Id           := No_Source;
+      Next_In_Lang : Source_Id := No_Source;
       --  Link to another source of the same language in the same project
    end record;
 
    No_Source_Data : constant Source_Data :=
                       (Project                => No_Project,
+                       Location               => No_Location,
                        Source_Dir_Rank        => 0,
                        Language               => No_Language_Index,
                        In_Interfaces          => True,
@@ -761,7 +794,7 @@ package Prj is
                        Dep_Name               => No_File,
                        Current_Dep_Path       => No_Path,
                        Dep_Path               => No_Path,
-                       Dep_TS                 => Empty_Time_Stamp,
+                       Dep_TS                 => Osint.Unknown_Attributes,
                        Switches               => No_File,
                        Switches_Path          => No_Path,
                        Switches_TS            => Empty_Time_Stamp,
@@ -786,6 +819,7 @@ package Prj is
       Equal      => "=");
 
    type Verbosity is (Default, Medium, High);
+   pragma Ordered (Verbosity);
    --  Verbosity when parsing GNAT Project Files
    --    Default is default (very quiet, if no errors).
    --    Medium is more verbose.
@@ -839,9 +873,10 @@ package Prj is
    --  If Only_If_Ada is True, then No_Name will be returned when the project
    --  doesn't Ada sources.
 
-   procedure Compute_All_Imported_Projects (Project : Project_Id);
-   --  Compute, the list of the projects imported directly or indirectly by
-   --  project Project. The result is stored in Project.All_Imported_Projects
+   procedure Compute_All_Imported_Projects (Tree : Project_Tree_Ref);
+   --  For all projects in the tree, compute the list of the projects imported
+   --  directly or indirectly by project Project. The result is stored in
+   --  Project.All_Imported_Projects for each project
 
    function Ultimate_Extending_Project_Of
      (Proj : Project_Id) return Project_Id;
@@ -865,121 +900,134 @@ package Prj is
      (None,
       GNU,
       Object_List,
-      Option_List);
+      Option_List,
+      GCC,
+      GCC_GNU,
+      GCC_Object_List,
+      GCC_Option_List);
    --  The format of the different response files
 
    type Project_Configuration is record
-      Target                        : Name_Id         := No_Name;
+      Target : Name_Id := No_Name;
       --  The target of the configuration, when specified
 
-      Run_Path_Option               : Name_List_Index := No_Name_List;
+      Run_Path_Option : Name_List_Index := No_Name_List;
       --  The option to use when linking to specify the path where to look for
       --  libraries.
 
-      Separate_Run_Path_Options     : Boolean := False;
+      Run_Path_Origin : Name_Id := No_Name;
+      --  Specify the string (such as "$ORIGIN") to indicate paths relative to
+      --  the directory of the executable in the run path option.
+
+      Library_Install_Name_Option : Name_Id := No_Name;
+      --  When this is not an empty list, this option, followed by the single
+      --  name of the shared library file is used when linking a shared
+      --  library.
+
+      Separate_Run_Path_Options : Boolean := False;
       --  True if each directory needs to be specified in a separate run path
       --  option.
 
-      Executable_Suffix             : Name_Id         := No_Name;
+      Executable_Suffix : Name_Id := No_Name;
       --  The suffix of executables, when specified in the configuration or in
       --  package Builder of the main project. When this is not specified, the
       --  executable suffix is the default for the platform.
 
       --  Linking
 
-      Linker                        : Path_Name_Type  := No_Path;
+      Linker : Path_Name_Type := No_Path;
       --  Path name of the linker driver. Specified in the configuration or in
       --  the package Builder of the main project.
 
-      Map_File_Option               : Name_Id := No_Name;
+      Map_File_Option : Name_Id := No_Name;
       --  Option to use when invoking the linker to build a map file
 
-      Minimum_Linker_Options        : Name_List_Index := No_Name_List;
+      Trailing_Linker_Required_Switches : Name_List_Index := No_Name_List;
       --  The minimum options for the linker driver. Specified in the
       --  configuration.
 
-      Linker_Executable_Option      : Name_List_Index := No_Name_List;
+      Linker_Executable_Option : Name_List_Index := No_Name_List;
       --  The option(s) to indicate the name of the executable in the linker
       --  command. Specified in the configuration. When not specified, default
       --  to -o <executable name>.
 
-      Linker_Lib_Dir_Option         : Name_Id         := No_Name;
+      Linker_Lib_Dir_Option : Name_Id := No_Name;
       --  The option to specify where to find a library for linking. Specified
       --  in the configuration. When not specified, defaults to "-L".
 
-      Linker_Lib_Name_Option        : Name_Id         := No_Name;
+      Linker_Lib_Name_Option : Name_Id := No_Name;
       --  The option to specify the name of a library for linking. Specified in
       --  the configuration. When not specified, defaults to "-l".
 
-      Max_Command_Line_Length       : Natural         := 0;
+      Max_Command_Line_Length : Natural := 0;
       --  When positive and when Resp_File_Format (see below) is not None,
       --  if the command line for the invocation of the linker would be greater
       --  than this value, a response file is used to invoke the linker.
 
-      Resp_File_Format              : Response_File_Format := None;
+      Resp_File_Format : Response_File_Format := None;
       --  The format of a response file, when linking with a response file is
       --  supported.
 
-      Resp_File_Options             : Name_List_Index := No_Name_List;
+      Resp_File_Options : Name_List_Index := No_Name_List;
       --  The switches, if any, that precede the path name of the response
       --  file in the invocation of the linker.
 
       --  Libraries
 
-      Library_Builder               : Path_Name_Type  := No_Path;
+      Library_Builder : Path_Name_Type  := No_Path;
       --  The executable to build library (specified in the configuration)
 
-      Lib_Support                   : Library_Support := None;
+      Lib_Support : Library_Support := None;
       --  The level of library support. Specified in the configuration. Support
       --  is none, static libraries only or both static and shared libraries.
 
-      Archive_Builder               : Name_List_Index := No_Name_List;
+      Archive_Builder : Name_List_Index := No_Name_List;
       --  The name of the executable to build archives, with the minimum
       --  switches. Specified in the configuration.
 
       Archive_Builder_Append_Option : Name_List_Index := No_Name_List;
       --  The options to append object files to an archive
 
-      Archive_Indexer               : Name_List_Index := No_Name_List;
+      Archive_Indexer : Name_List_Index := No_Name_List;
       --  The name of the executable to index archives, with the minimum
       --  switches. Specified in the configuration.
 
-      Archive_Suffix                : File_Name_Type  := No_File;
+      Archive_Suffix : File_Name_Type := No_File;
       --  The suffix of archives. Specified in the configuration. When not
       --  specified, defaults to ".a".
 
-      Lib_Partial_Linker            : Name_List_Index := No_Name_List;
+      Lib_Partial_Linker : Name_List_Index := No_Name_List;
 
       --  Shared libraries
 
-      Shared_Lib_Driver             : File_Name_Type  := No_File;
+      Shared_Lib_Driver : File_Name_Type := No_File;
       --  The driver to link shared libraries. Set with attribute Library_GCC.
       --  Default to gcc.
 
-      Shared_Lib_Prefix             : File_Name_Type  := No_File;
+      Shared_Lib_Prefix : File_Name_Type := No_File;
       --  Part of a shared library file name that precedes the name of the
       --  library. Specified in the configuration. When not specified, defaults
       --  to "lib".
 
-      Shared_Lib_Suffix             : File_Name_Type  := No_File;
+      Shared_Lib_Suffix : File_Name_Type := No_File;
       --  Suffix of shared libraries, after the library name in the shared
       --  library name. Specified in the configuration. When not specified,
       --  default to ".so".
 
-      Shared_Lib_Min_Options        : Name_List_Index := No_Name_List;
+      Shared_Lib_Min_Options : Name_List_Index := No_Name_List;
       --  The minimum options to use when building a shared library
 
-      Lib_Version_Options           : Name_List_Index := No_Name_List;
+      Lib_Version_Options : Name_List_Index := No_Name_List;
       --  The options to use to specify a library version
 
-      Symbolic_Link_Supported       : Boolean         := False;
+      Symbolic_Link_Supported : Boolean := False;
       --  True if the platform supports symbolic link files
 
-      Lib_Maj_Min_Id_Supported      : Boolean         := False;
+      Lib_Maj_Min_Id_Supported : Boolean := False;
       --  True if platform supports library major and minor options, such as
       --  libname.so -> libname.so.2 -> libname.so.2.4
 
-      Auto_Init_Supported           : Boolean         := False;
+      Auto_Init_Supported : Boolean := False;
       --  True if automatic initialisation is supported for shared stand-alone
       --  libraries.
    end record;
@@ -987,11 +1035,14 @@ package Prj is
    Default_Project_Config : constant Project_Configuration :=
                               (Target                        => No_Name,
                                Run_Path_Option               => No_Name_List,
+                               Run_Path_Origin               => No_Name,
+                               Library_Install_Name_Option   => No_Name,
                                Separate_Run_Path_Options     => False,
                                Executable_Suffix             => No_Name,
                                Linker                        => No_Path,
                                Map_File_Option               => No_Name,
-                               Minimum_Linker_Options        => No_Name_List,
+                               Trailing_Linker_Required_Switches =>
+                                 No_Name_List,
                                Linker_Executable_Option      => No_Name_List,
                                Linker_Lib_Dir_Option         => No_Name,
                                Linker_Lib_Name_Option        => No_Name,
@@ -1159,21 +1210,13 @@ package Prj is
       --  The sources for all languages including Ada are accessible through
       --  the Source_Iterator type
 
-      Interfaces_Defined      : Boolean := False;
+      Interfaces_Defined : Boolean := False;
       --  True if attribute Interfaces is declared for the project or any
       --  project it extends.
 
-      Include_Path : String_Access := null;
-      --  The search source path for the project. Used as the value for an
-      --  environment variable, specified by attribute Include_Path
-      --  (<language>). The names of the environment variables are in component
-      --  Include_Path of the records Language_Config.
-
       Include_Path_File : Path_Name_Type := No_Path;
-      --  The path name of the of the source search directory file
-
-      Include_Data_Set : Boolean := False;
-      --  Set True when Imported_Directories_Switches or Include_Path are set
+      --  The path name of the of the source search directory file.
+      --  This is only used by gnatmake
 
       Source_Dirs : String_List_Id := Nil_String;
       --  The list of all the source directories
@@ -1186,13 +1229,12 @@ package Prj is
       --  use this field directly outside of the project manager, use
       --  Prj.Env.Ada_Include_Path instead.
 
+      Has_Multi_Unit_Sources : Boolean := False;
+      --  Whether there is at least one source file containing multiple units
+
       -------------------
       -- Miscellaneous --
       -------------------
-
-      Imported_Directories_Switches : Argument_List_Access := null;
-      --  List of the source search switches (-I<source dir>) to be used
-      --  when compiling.
 
       Ada_Objects_Path : String_Access := null;
       --  The cached value of ADA_OBJECTS_PATH for this project file. Do not
@@ -1305,13 +1347,19 @@ package Prj is
          Packages          : Package_Table.Instance;
          Projects          : Project_List;
 
-         Units_HT          : Units_Htable.Instance;
+         Units_HT : Units_Htable.Instance;
          --  Unit name to Unit_Index (and from there so Source_Id)
 
-         Source_Paths_HT   : Source_Paths_Htable.Instance;
+         Source_Paths_HT : Source_Paths_Htable.Instance;
          --  Full path to Source_Id
 
-         Private_Part      : Private_Project_Tree_Data;
+         Source_Info_File_Name : String_Access := null;
+         --  The name of the source info file, if specified by the builder
+
+         Source_Info_File_Exists : Boolean := False;
+         --  True when a source info file has been successfully read
+
+         Private_Part : Private_Project_Tree_Data;
       end record;
    --  Data for a project tree
 
@@ -1368,6 +1416,14 @@ package Prj is
       Object_File_Suffix : Name_Id := No_Name) return File_Name_Type;
    --  Returns the object file name corresponding to a source file name
 
+   function Object_Name
+     (Source_File_Name   : File_Name_Type;
+      Source_Index       : Int;
+      Index_Separator    : Character;
+      Object_File_Suffix : Name_Id := No_Name) return File_Name_Type;
+   --  Returns the object file name corresponding to a unit in a multi-source
+   --  file.
+
    function Dependency_Name
      (Source_File_Name : File_Name_Type;
       Dependency       : Dependency_File_Kind) return File_Name_Type;
@@ -1408,11 +1464,13 @@ package Prj is
    function Create_Flags
      (Report_Error               : Error_Handler;
       When_No_Sources            : Error_Warning;
-      Require_Sources_Other_Lang : Boolean := True;
-      Allow_Duplicate_Basenames  : Boolean := True;
-      Compiler_Driver_Mandatory  : Boolean := False;
-      Error_On_Unknown_Language  : Boolean := True;
-      Require_Obj_Dirs           : Error_Warning := Error)
+      Require_Sources_Other_Lang : Boolean       := True;
+      Allow_Duplicate_Basenames  : Boolean       := True;
+      Compiler_Driver_Mandatory  : Boolean       := False;
+      Error_On_Unknown_Language  : Boolean       := True;
+      Require_Obj_Dirs           : Error_Warning := Error;
+      Allow_Invalid_External     : Error_Warning := Error;
+      Missing_Source_Files       : Error_Warning := Error)
       return Processing_Flags;
    --  Function used to create Processing_Flags structure
    --
@@ -1441,6 +1499,15 @@ package Prj is
    --  If Require_Obj_Dirs is true, then all object directories must exist
    --  (possibly after they have been created automatically if the appropriate
    --  switches were specified), or an error is raised.
+   --
+   --  If Allow_Invalid_External is Silent, then no error is reported when an
+   --  invalid value is used for an external variable (and it doesn't match its
+   --  type). Instead, the first possible value is used.
+   --
+   --  Missing_Source_Files indicates whether it is an error or a warning that
+   --  a source file mentioned in the Source_Files attributes is not actually
+   --  found in the source directories. This also impacts errors for missing
+   --  source directories.
 
    Gprbuild_Flags : constant Processing_Flags;
    Gprclean_Flags : constant Processing_Flags;
@@ -1470,6 +1537,10 @@ package Prj is
    --  another program running on the same machine has recreated it.
    --  Does nothing if Debug.Debug_Flag_N is set
 
+   Virtual_Prefix : constant String := "v$";
+   --  The prefix for virtual extending projects. Because of the '$', which is
+   --  normally forbidden for project names, there cannot be any name clash.
+
 private
 
    All_Packages : constant String_List_Access := null;
@@ -1483,10 +1554,6 @@ private
                            Kind     => Undefined,
                            Location => No_Location,
                            Default  => False);
-
-   Virtual_Prefix : constant String := "v$";
-   --  The prefix for virtual extending projects. Because of the '$', which is
-   --  normally forbidden for project names, there cannot be any name clash.
 
    type Source_Iterator is record
       In_Tree : Project_Tree_Ref;
@@ -1549,6 +1616,8 @@ private
       Compiler_Driver_Mandatory  : Boolean;
       Error_On_Unknown_Language  : Boolean;
       Require_Obj_Dirs           : Error_Warning;
+      Allow_Invalid_External     : Error_Warning;
+      Missing_Source_Files       : Error_Warning;
    end record;
 
    Gprbuild_Flags : constant Processing_Flags :=
@@ -1558,7 +1627,9 @@ private
       Allow_Duplicate_Basenames  => False,
       Compiler_Driver_Mandatory  => True,
       Error_On_Unknown_Language  => True,
-      Require_Obj_Dirs           => Error);
+      Require_Obj_Dirs           => Error,
+      Allow_Invalid_External     => Error,
+      Missing_Source_Files       => Error);
 
    Gprclean_Flags : constant Processing_Flags :=
      (Report_Error               => null,
@@ -1567,7 +1638,9 @@ private
       Allow_Duplicate_Basenames  => False,
       Compiler_Driver_Mandatory  => True,
       Error_On_Unknown_Language  => True,
-      Require_Obj_Dirs           => Warning);
+      Require_Obj_Dirs           => Warning,
+      Allow_Invalid_External     => Error,
+      Missing_Source_Files       => Error);
 
    Gnatmake_Flags : constant Processing_Flags :=
      (Report_Error               => null,
@@ -1576,6 +1649,8 @@ private
       Allow_Duplicate_Basenames  => False,
       Compiler_Driver_Mandatory  => False,
       Error_On_Unknown_Language  => False,
-      Require_Obj_Dirs           => Error);
+      Require_Obj_Dirs           => Error,
+      Allow_Invalid_External     => Error,
+      Missing_Source_Files       => Error);
 
 end Prj;

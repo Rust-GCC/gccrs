@@ -1,5 +1,5 @@
 # Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
-# 2008 Free Software Foundation, Inc.
+# 2008, 2010 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -213,6 +213,7 @@ GCC_3.3.1 {
 %inherit GCC_3.3.2 GCC_3.3.1
 GCC_3.3.2 {
 }
+
 %inherit GCC_3.3.4 GCC_3.3.2
 GCC_3.3.4 {
   __unorddf2
@@ -1905,7 +1906,13 @@ GCC_4.4.0 {
   __sync_synchronize
 }
 
-%inherit GCC_4.6.0 GCC_4.4.0
+%inherit GCC_4.5.0 GCC_4.4.0
+GCC_4.5.0 {
+  __unordxf2
+  __unordtf2
+}
+
+%inherit GCC_4.6.0 GCC_4.5.0
 GCC_4.6.0 {
   __morestack_segments
   __morestack_current_segment

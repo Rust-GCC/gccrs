@@ -1,4 +1,4 @@
-/* Copyright (C) 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+/* Copyright (C) 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -20,17 +20,11 @@
 #include "tm.h"
 #include "cpplib.h"
 #include "tree.h"
-#include "c-tree.h"
-#include "c-pragma.h"
-#include "function.h"
-#include "rtl.h"
-#include "expr.h"
+#include "c-family/c-common.h"
+#include "c-family/c-pragma.h"
 #include "tm_p.h"
 #include "langhooks.h"
-#include "insn-config.h"
-#include "insn-codes.h"
-#include "recog.h"
-#include "optabs.h"
+#include "target.h"
 
 
 /* Keep the vector keywords handy for fast comparisons.  */
@@ -101,7 +95,7 @@ spu_resolve_overloaded_builtin (location_t loc, tree fndecl, void *passed_args)
 			  || POINTER_TYPE_P (t))
   VEC(tree,gc) *fnargs = (VEC(tree,gc) *) passed_args;
   unsigned int nargs = VEC_length (tree, fnargs);
-  int new_fcode, fcode = DECL_FUNCTION_CODE (fndecl) - END_BUILTINS;
+  int new_fcode, fcode = DECL_FUNCTION_CODE (fndecl);
   struct spu_builtin_description *desc;
   tree match = NULL_TREE;
 
@@ -118,7 +112,7 @@ spu_resolve_overloaded_builtin (location_t loc, tree fndecl, void *passed_args)
   for (new_fcode = fcode + 1; spu_builtins[new_fcode].type == B_INTERNAL;
        new_fcode++)
     {
-      tree decl = spu_builtins[new_fcode].fndecl;
+      tree decl = targetm.builtin_decl (new_fcode, true);
       tree params = TYPE_ARG_TYPES (TREE_TYPE (decl));
       tree param;
       bool all_scalar;
@@ -162,8 +156,7 @@ spu_resolve_overloaded_builtin (location_t loc, tree fndecl, void *passed_args)
 	  if ((!SCALAR_TYPE_P (param_type)
 	       || !SCALAR_TYPE_P (arg_type)
 	       || (all_scalar && p == 0))
-	      && !comptypes (TYPE_MAIN_VARIANT (param_type),
-			     TYPE_MAIN_VARIANT (arg_type)))
+	      && !lang_hooks.types_compatible_p (param_type, arg_type))
 	    break;
 	}
       if (param == void_list_node)

@@ -18,8 +18,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-
-#include <cstdatomic>
+#include <atomic>
 
 void test01()
 {
@@ -27,7 +26,6 @@ void test01()
   typedef std::atomic_address test_type;
   test_type t1;
   test_type t2;
-  t1 = t2;
+  t1 = t2;			// { dg-error "ambiguous" }
 }
-// { dg-error "used here" "" { target *-*-* } 30 } 
-// { dg-excess-errors "deleted function" } 
+// { dg-prune-output "include" }

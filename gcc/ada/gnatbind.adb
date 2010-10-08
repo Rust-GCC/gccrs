@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,6 +45,7 @@ with Rident;   use Rident;
 with Snames;
 with Switch;   use Switch;
 with Switch.B; use Switch.B;
+with Table;
 with Targparm; use Targparm;
 with Types;    use Types;
 
@@ -80,6 +81,16 @@ procedure Gnatbind is
    L_Switch_Seen : Boolean := False;
 
    Mapping_File : String_Ptr := null;
+
+   package Closure_Sources is new Table.Table
+     (Table_Component_Type => File_Name_Type,
+      Table_Index_Type     => Natural,
+      Table_Low_Bound      => 1,
+      Table_Initial        => 10,
+      Table_Increment      => 100,
+      Table_Name           => "Gnatbind.Closure_Sources");
+   --  Table to record the sources in the closure, to avoid duplications. Used
+   --  only with switch -R.
 
    function Gnatbind_Supports_Auto_Init return Boolean;
    --  Indicates if automatic initialization of elaboration procedure
@@ -572,13 +583,11 @@ begin
    Osint.Add_Default_Search_Dirs;
 
    --  Carry out package initializations. These are initializations which
-   --  might logically be performed at elaboration time, but Namet at least
-   --  can't be done that way (because it is used in the Compiler), and we
-   --  decide to be consistent. Like elaboration, the order in which these
-   --  calls are made is in some cases important.
+   --  might logically be performed at elaboration time, and we decide to be
+   --  consistent. Like elaboration, the order in which these calls are made
+   --  is in some cases important.
 
    Csets.Initialize;
-   Namet.Initialize;
    Snames.Initialize;
 
    --  Acquire target parameters
@@ -671,11 +680,12 @@ begin
 
          begin
             Id := Scan_ALI
-                    (F             => Main_Lib_File,
-                     T             => Text,
-                     Ignore_ED     => False,
-                     Err           => False,
-                     Ignore_Errors => Debug_Flag_I);
+                    (F                => Main_Lib_File,
+                     T                => Text,
+                     Ignore_ED        => False,
+                     Err              => False,
+                     Ignore_Errors    => Debug_Flag_I,
+                     Directly_Scanned => True);
          end;
 
          Free (Text);
@@ -726,16 +736,38 @@ begin
          Free (Text);
       end if;
 
-      --  Acquire all information in ALI files that have been read in
+      --  Load ALIs for all dependent units
 
       for Index in ALIs.First .. ALIs.Last loop
-         Read_ALI (Index);
+         Read_Withed_ALIs (Index);
       end loop;
 
       --  Quit if some file needs compiling
 
       if No_Object_Specified then
          raise Unrecoverable_Error;
+      end if;
+
+      --  Output list of ALI files in closure
+
+      if Output_ALI_List then
+         if ALI_List_Filename /= null then
+            Set_List_File (ALI_List_Filename.all);
+         end if;
+
+         for Index in ALIs.First .. ALIs.Last loop
+            declare
+               Full_Afile : constant File_Name_Type :=
+                              Find_File (ALIs.Table (Index).Afile, Library);
+            begin
+               Write_Name (Full_Afile);
+               Write_Eol;
+            end;
+         end loop;
+
+         if ALI_List_Filename /= null then
+            Close_List_File;
+         end if;
       end if;
 
       --  Build source file table from the ALI files we have read in
@@ -757,8 +789,20 @@ begin
         and then ALIs.Table (ALIs.First).Main_Program = None
         and then not No_Main_Subprogram
       then
-         Error_Msg_File_1 := Main_Lib_File;
-         Error_Msg ("{ does not contain a unit that can be a main program");
+         Get_Name_String
+           (Units.Table (ALIs.Table (ALIs.First).First_Unit).Uname);
+
+         declare
+            Unit_Name : String := Name_Buffer (1 .. Name_Len - 2);
+         begin
+            To_Mixed (Unit_Name);
+            Get_Name_String (ALIs.Table (ALIs.First).Sfile);
+            Add_Str_To_Name_Buffer (":1: ");
+            Add_Str_To_Name_Buffer (Unit_Name);
+            Add_Str_To_Name_Buffer (" cannot be used as a main program");
+            Write_Line (Name_Buffer (1 .. Name_Len));
+            Errors_Detected := Errors_Detected + 1;
+         end;
       end if;
 
       --  Perform consistency and correctness checks
@@ -814,55 +858,90 @@ begin
             --  sources) if -R was used.
 
             if List_Closure then
-               if not Zero_Formatting then
-                  Write_Eol;
-                  Write_Str ("REFERENCED SOURCES");
-                  Write_Eol;
-               end if;
+               List_Closure_Display : declare
+                  Source : File_Name_Type;
 
-               for J in reverse Elab_Order.First .. Elab_Order.Last loop
+                  function Put_In_Sources (S : File_Name_Type) return Boolean;
+                  --  Check if S is already in table Sources and put in Sources
+                  --  if it is not. Return False if the source is already in
+                  --  Sources, and True if it is added.
 
-                  --  Do not include the sources of the runtime
+                  --------------------
+                  -- Put_In_Sources --
+                  --------------------
 
-                  if not Is_Internal_File_Name
-                           (Units.Table (Elab_Order.Table (J)).Sfile)
-                  then
-                     if not Zero_Formatting then
-                        Write_Str ("   ");
-                     end if;
+                  function Put_In_Sources (S : File_Name_Type)
+                                           return Boolean
+                  is
+                  begin
+                     for J in 1 .. Closure_Sources.Last loop
+                        if Closure_Sources.Table (J) = S then
+                           return False;
+                        end if;
+                     end loop;
 
-                     Write_Str
-                       (Get_Name_String
-                          (Units.Table (Elab_Order.Table (J)).Sfile));
+                     Closure_Sources.Append (S);
+                     return True;
+                  end Put_In_Sources;
+
+               --  Start of processing for List_Closure_Display
+
+               begin
+                  Closure_Sources.Init;
+
+                  if not Zero_Formatting then
+                     Write_Eol;
+                     Write_Str ("REFERENCED SOURCES");
                      Write_Eol;
                   end if;
-               end loop;
 
-               --  Subunits do not appear in the elaboration table because they
-               --  are subsumed by their parent units, but we need to list them
-               --  for other tools. For now they are listed after other files,
-               --  rather than right after their parent, since there is no easy
-               --  link between the elaboration table and the ALIs table ???
-               --  Note also that subunits may appear repeatedly in the list,
-               --  if the parent unit appears in the context of several units
-               --  in the closure.
+                  for J in reverse Elab_Order.First .. Elab_Order.Last loop
+                     Source := Units.Table (Elab_Order.Table (J)).Sfile;
 
-               for J in Sdep.First .. Sdep.Last loop
-                  if Sdep.Table (J).Subunit_Name /= No_Name
-                    and then not Is_Internal_File_Name (Sdep.Table (J).Sfile)
-                  then
-                     if not Zero_Formatting then
-                        Write_Str ("   ");
+                     --  Do not include the sources of the runtime and do not
+                     --  include the same source several times.
+
+                     if Put_In_Sources (Source)
+                       and then not Is_Internal_File_Name (Source)
+                     then
+                        if not Zero_Formatting then
+                           Write_Str ("   ");
+                        end if;
+
+                        Write_Str (Get_Name_String (Source));
+                        Write_Eol;
                      end if;
+                  end loop;
 
-                     Write_Str (Get_Name_String (Sdep.Table (J).Sfile));
+                  --  Subunits do not appear in the elaboration table because
+                  --  they are subsumed by their parent units, but we need to
+                  --  list them for other tools. For now they are listed after
+                  --  other files, rather than right after their parent, since
+                  --  there is no easy link between the elaboration table and
+                  --  the ALIs table ??? As subunits may appear repeatedly in
+                  --  the list, if the parent unit appears in the context of
+                  --  several units in the closure, duplicates are suppressed.
+
+                  for J in Sdep.First .. Sdep.Last loop
+                     Source := Sdep.Table (J).Sfile;
+
+                     if Sdep.Table (J).Subunit_Name /= No_Name
+                       and then Put_In_Sources (Source)
+                       and then not Is_Internal_File_Name (Source)
+                     then
+                        if not Zero_Formatting then
+                           Write_Str ("   ");
+                        end if;
+
+                        Write_Str (Get_Name_String (Source));
+                        Write_Eol;
+                     end if;
+                  end loop;
+
+                  if not Zero_Formatting then
                      Write_Eol;
                   end if;
-               end loop;
-
-               if not Zero_Formatting then
-                  Write_Eol;
-               end if;
+               end List_Closure_Display;
             end if;
          end if;
       end if;

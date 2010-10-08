@@ -247,6 +247,7 @@ DEFTREECODE (STATIC_CAST_EXPR, "static_cast_expr", tcc_unary, 1)
 DEFTREECODE (DYNAMIC_CAST_EXPR, "dynamic_cast_expr", tcc_unary, 1)
 DEFTREECODE (DOTSTAR_EXPR, "dotstar_expr", tcc_expression, 2)
 DEFTREECODE (TYPEID_EXPR, "typeid_expr", tcc_expression, 1)
+DEFTREECODE (NOEXCEPT_EXPR, "noexcept_expr", tcc_unary, 1)
 
 /* A placeholder for an expression that is not type-dependent, but
    does occur in a template.  When an expression that is not
@@ -291,6 +292,11 @@ DEFTREECODE (IF_STMT, "if_stmt", tcc_statement, 3)
 /* Used to represent a `for' statement. The operands are
    FOR_INIT_STMT, FOR_COND, FOR_EXPR, and FOR_BODY, respectively.  */
 DEFTREECODE (FOR_STMT, "for_stmt", tcc_statement, 4)
+
+/* Used to represent a range-based `for' statement. The operands are
+   RANGE_FOR_DECL, RANGE_FOR_EXPR, RANGE_FOR_BODY, respectively.  Only used
+   in templates.  */
+DEFTREECODE (RANGE_FOR_STMT, "range_for_stmt", tcc_statement, 3)
 
 /* Used to represent a 'while' statement. The operands are WHILE_COND
    and WHILE_BODY, respectively.  */
@@ -438,6 +444,16 @@ DEFTREECODE (LAMBDA_EXPR, "lambda_expr", tcc_exceptional, 0)
    DECLTYPE_FOR_LAMBDA_CAPTURE is set if we want lambda capture semantics.
    DECLTYPE_FOR_LAMBDA_RETURN is set if we want lambda return deduction.  */
 DEFTREECODE (DECLTYPE_TYPE, "decltype_type", tcc_type, 0)
+
+/* Used to represent the template information stored by template
+   specializations.
+   The accessors are:
+   TI_TEMPLATE the template declaration associated to the specialization
+   TI_ARGS the arguments of the template specialization
+   TI_TYPEDEFS_NEEDING_ACCESS_CHECKING the vector of typedefs used in
+   the pattern of the template for which access check is needed at template
+   instantiation time.  */
+DEFTREECODE (TEMPLATE_INFO, "template_info", tcc_exceptional, 0)
 
 /*
 Local variables:

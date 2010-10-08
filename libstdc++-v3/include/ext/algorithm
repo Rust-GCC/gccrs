@@ -1,6 +1,6 @@
 // Algorithm extensions -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -123,8 +123,8 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       __glibcxx_function_requires(_OutputIteratorConcept<_OutputIterator,
 	    typename iterator_traits<_InputIterator>::value_type>)
 
-      return __copy_n(__first, __count, __result,
-		      std::__iterator_category(__first));
+      return __gnu_cxx::__copy_n(__first, __count, __result,
+				 std::__iterator_category(__first));
     }
 
   template<typename _InputIterator1, typename _InputIterator2>
@@ -189,8 +189,9 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
    *  @return   An int, as with @c memcmp.
    *
    *  The return value will be less than zero if the first range is
-   *  "lexigraphically less than" the second, greater than zero if the second
-   *  range is "lexigraphically less than" the first, and zero otherwise.
+   *  <em>lexigraphically less than</em> the second, greater than zero
+   *  if the second range is <em>lexigraphically less than</em> the
+   *  first, and zero otherwise.
    *  This is an SGI extension.
    *  @ingroup SGIextensions
   */
@@ -517,6 +518,74 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	if (__comp(*__next, *__first))
 	  return false;
       return true;
+    }
+
+  /**
+   *  @brief Find the median of three values.
+   *  @param  a  A value.
+   *  @param  b  A value.
+   *  @param  c  A value.
+   *  @return One of @p a, @p b or @p c.
+   *
+   *  If @c {l,m,n} is some convolution of @p {a,b,c} such that @c l<=m<=n
+   *  then the value returned will be @c m.
+   *  This is an SGI extension.
+   *  @ingroup SGIextensions
+  */
+  template<typename _Tp>
+    const _Tp&
+    __median(const _Tp& __a, const _Tp& __b, const _Tp& __c)
+    {
+      // concept requirements
+      __glibcxx_function_requires(_LessThanComparableConcept<_Tp>)
+      if (__a < __b)
+	if (__b < __c)
+	  return __b;
+	else if (__a < __c)
+	  return __c;
+	else
+	  return __a;
+      else if (__a < __c)
+	return __a;
+      else if (__b < __c)
+	return __c;
+      else
+	return __b;
+    }
+
+  /**
+   *  @brief Find the median of three values using a predicate for comparison.
+   *  @param  a     A value.
+   *  @param  b     A value.
+   *  @param  c     A value.
+   *  @param  comp  A binary predicate.
+   *  @return One of @p a, @p b or @p c.
+   *
+   *  If @c {l,m,n} is some convolution of @p {a,b,c} such that @p comp(l,m)
+   *  and @p comp(m,n) are both true then the value returned will be @c m.
+   *  This is an SGI extension.
+   *  @ingroup SGIextensions
+  */
+  template<typename _Tp, typename _Compare>
+    const _Tp&
+    __median(const _Tp& __a, const _Tp& __b, const _Tp& __c, _Compare __comp)
+    {
+      // concept requirements
+      __glibcxx_function_requires(_BinaryFunctionConcept<_Compare, bool,
+				                         _Tp, _Tp>)
+      if (__comp(__a, __b))
+	if (__comp(__b, __c))
+	  return __b;
+	else if (__comp(__a, __c))
+	  return __c;
+	else
+	  return __a;
+      else if (__comp(__a, __c))
+	return __a;
+      else if (__comp(__b, __c))
+	return __c;
+      else
+	return __b;
     }
 
 _GLIBCXX_END_NAMESPACE

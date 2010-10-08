@@ -1,5 +1,6 @@
 /* Definitions of target machine for GNU compiler, for MMIX.
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
+   2010
    Free Software Foundation, Inc.
    Contributed by Hans-Peter Nilsson (hp@bitrange.com)
 
@@ -29,10 +30,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "hashtab.h"
 #include "insn-config.h"
 #include "output.h"
+#include "basic-block.h"
 #include "flags.h"
 #include "tree.h"
 #include "function.h"
 #include "expr.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "recog.h"
 #include "ggc.h"
@@ -42,7 +45,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "integrate.h"
 #include "target.h"
 #include "target-def.h"
-#include "real.h"
 
 /* First some local helper definitions.  */
 #define MMIX_FIRST_GLOBAL_REGNUM 32
@@ -111,6 +113,9 @@ rtx mmix_compare_op1;
 /* Intermediate for insn output.  */
 static int mmix_output_destination_register;
 
+static void mmix_option_override (void);
+static void mmix_option_optimization (int, int);
+static void mmix_asm_output_source_filename (FILE *, const char *);
 static void mmix_output_shiftvalue_op_from_str
   (FILE *, const char *, HOST_WIDEST_INT);
 static void mmix_output_shifted_value (FILE *, HOST_WIDEST_INT);
@@ -138,6 +143,9 @@ static rtx mmix_struct_value_rtx (tree, int);
 static enum machine_mode mmix_promote_function_mode (const_tree,
 						     enum machine_mode,
 	                                             int *, const_tree, int);
+static rtx mmix_function_value (const_tree, const_tree, bool);
+static rtx mmix_libcall_value (enum machine_mode, const_rtx);
+static bool mmix_function_value_regno_p (const unsigned int);
 static bool mmix_pass_by_reference (CUMULATIVE_ARGS *,
 				    enum machine_mode, const_tree, bool);
 static bool mmix_frame_pointer_required (void);
@@ -184,6 +192,8 @@ static void mmix_trampoline_init (rtx, tree, rtx);
 #define TARGET_ASM_FILE_START_FILE_DIRECTIVE true
 #undef TARGET_ASM_FILE_END
 #define TARGET_ASM_FILE_END mmix_file_end
+#undef TARGET_ASM_OUTPUT_SOURCE_FILENAME
+#define TARGET_ASM_OUTPUT_SOURCE_FILENAME mmix_asm_output_source_filename
 
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS mmix_rtx_costs
@@ -196,6 +206,12 @@ static void mmix_trampoline_init (rtx, tree, rtx);
 #undef TARGET_PROMOTE_FUNCTION_MODE
 #define TARGET_PROMOTE_FUNCTION_MODE mmix_promote_function_mode
 
+#undef TARGET_FUNCTION_VALUE
+#define TARGET_FUNCTION_VALUE mmix_function_value
+#undef TARGET_LIBCALL_VALUE
+#define TARGET_LIBCALL_VALUE mmix_libcall_value
+#undef TARGET_FUNCTION_VALUE_REGNO_P
+#define TARGET_FUNCTION_VALUE_REGNO_P mmix_function_value_regno_p
 
 #undef TARGET_STRUCT_VALUE_RTX
 #define TARGET_STRUCT_VALUE_RTX mmix_struct_value_rtx
@@ -219,15 +235,20 @@ static void mmix_trampoline_init (rtx, tree, rtx);
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT mmix_trampoline_init
 
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE mmix_option_override
+#undef TARGET_OPTION_OPTIMIZATION
+#define TARGET_OPTION_OPTIMIZATION mmix_option_optimization
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 /* Functions that are expansions for target macros.
    See Target Macros in `Using and Porting GCC'.  */
 
-/* OVERRIDE_OPTIONS.  */
+/* TARGET_OPTION_OVERRIDE.  */
 
-void
-mmix_override_options (void)
+static void
+mmix_option_override (void)
 {
   /* Should we err or should we warn?  Hmm.  At least we must neutralize
      it.  For example the wrong kind of case-tables will be generated with
@@ -239,6 +260,18 @@ mmix_override_options (void)
       warning (0, "-f%s not supported: ignored", (flag_pic > 1) ? "PIC" : "pic");
       flag_pic = 0;
     }
+}
+
+/* TARGET_OPTION_OPTIMIZATION.  */
+
+static void
+mmix_option_optimization (int level, int size)
+{
+  if (level >= 1)
+    flag_regmove = 1;
+
+  if (size || level > 1)
+    flag_omit_frame_pointer = 1;
 }
 
 /* INIT_EXPANDERS.  */
@@ -254,7 +287,7 @@ mmix_init_expanders (void)
 static struct machine_function *
 mmix_init_machine_status (void)
 {
-  return GGC_CNEW (struct machine_function);
+  return ggc_alloc_cleared_machine_function ();
 }
 
 /* DATA_ALIGNMENT.
@@ -654,10 +687,12 @@ mmix_function_arg_regno_p (int regno, int incoming)
     && regno < first_arg_regnum + MMIX_MAX_ARGS_IN_REGS;
 }
 
-/* FUNCTION_OUTGOING_VALUE.  */
+/* Implements TARGET_FUNCTION_VALUE.  */
 
-rtx
-mmix_function_outgoing_value (const_tree valtype, const_tree func ATTRIBUTE_UNUSED)
+static rtx
+mmix_function_value (const_tree valtype,
+		     const_tree func ATTRIBUTE_UNUSED,
+		     bool outgoing)
 {
   enum machine_mode mode = TYPE_MODE (valtype);
   enum machine_mode cmode;
@@ -666,6 +701,9 @@ mmix_function_outgoing_value (const_tree valtype, const_tree func ATTRIBUTE_UNUS
   int i;
   int nregs;
 
+  if (!outgoing)
+    return gen_rtx_REG (mode, MMIX_RETURN_VALUE_REGNUM);
+  
   /* Return values that fit in a register need no special handling.
      There's no register hole when parameters are passed in global
      registers.  */
@@ -717,10 +755,19 @@ mmix_function_outgoing_value (const_tree valtype, const_tree func ATTRIBUTE_UNUS
   return gen_rtx_PARALLEL (VOIDmode, gen_rtvec_v (nregs, vec));
 }
 
-/* FUNCTION_VALUE_REGNO_P.  */
+/* Implements TARGET_LIBCALL_VALUE.  */
 
-int
-mmix_function_value_regno_p (int regno)
+static rtx
+mmix_libcall_value (enum machine_mode mode,
+		    const_rtx fun ATTRIBUTE_UNUSED)
+{
+  return gen_rtx_REG (mode, MMIX_RETURN_VALUE_REGNUM);
+}
+
+/* Implements TARGET_FUNCTION_VALUE_REGNO_P.  */
+
+static bool
+mmix_function_value_regno_p (const unsigned int regno)
 {
   return regno == MMIX_RETURN_VALUE_REGNUM;
 }
@@ -1220,9 +1267,9 @@ mmix_file_end (void)
   switch_to_section (data_section);
 }
 
-/* ASM_OUTPUT_SOURCE_FILENAME.  */
+/* TARGET_ASM_OUTPUT_SOURCE_FILENAME.  */
 
-void
+static void
 mmix_asm_output_source_filename (FILE *stream, const char *name)
 {
   fprintf (stream, "# 1 ");

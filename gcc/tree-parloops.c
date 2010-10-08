@@ -1,5 +1,6 @@
 /* Loop autoparallelization.
-   Copyright (C) 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Sebastian Pop <pop@cri.ensmp.fr> and
    Zdenek Dvorak <dvorakz@suse.cz>.
 
@@ -24,12 +25,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "rtl.h"
 #include "tree-flow.h"
 #include "cfgloop.h"
-#include "ggc.h"
 #include "tree-data-ref.h"
-#include "diagnostic.h"
+#include "tree-pretty-print.h"
+#include "gimple-pretty-print.h"
 #include "tree-pass.h"
 #include "tree-scalar-evolution.h"
 #include "hashtab.h"
@@ -42,7 +42,7 @@ along with GCC; see the file COPYING3.  If not see
    conditions regarding profitability and correctness are satisfied), we
    add GIMPLE_OMP_PARALLEL and GIMPLE_OMP_FOR codes and let omp expansion
    machinery do its job.
-   
+
    The most of the complexity is in bringing the code into shape expected
    by the omp expanders:
    -- for GIMPLE_OMP_FOR, ensuring that the loop has only one induction
@@ -61,12 +61,12 @@ along with GCC; see the file COPYING3.  If not see
    -- handling of common scalar dependence patterns (accumulation, ...)
    -- handling of non-innermost loops  */
 
-/*  
+/*
   Reduction handling:
-  currently we use vect_is_simple_reduction() to detect reduction patterns.
+  currently we use vect_force_simple_reduction() to detect reduction patterns.
   The code transformation will be introduced by an example.
-  
-    
+
+
 parloop
 {
   int sum=1;
@@ -108,8 +108,8 @@ parloop
   # Storing the initial value given by the user.  #
 
   .paral_data_store.32.sum.27 = 1;
- 
-  #pragma omp parallel num_threads(4) 
+
+  #pragma omp parallel num_threads(4)
 
   #pragma omp for schedule(static)
 
@@ -126,23 +126,23 @@ parloop
   # Adding this reduction phi is done at create_phi_for_local_result() #
   # sum.27_56 = PHI <sum.27_11, 0>
   GIMPLE_OMP_RETURN
-  
-  # Creating the atomic operation is done at 
+
+  # Creating the atomic operation is done at
   create_call_for_reduction_1()  #
 
   #pragma omp atomic_load
   D.1839_59 = *&.paral_data_load.33_51->reduction.23;
   D.1840_60 = sum.27_56 + D.1839_59;
   #pragma omp atomic_store (D.1840_60);
-  
+
   GIMPLE_OMP_RETURN
-  
+
  # collecting the result after the join of the threads is done at
   create_loads_for_reductions().
   The value computed by the threads is loaded from the
   shared struct.  #
 
- 
+
   .paral_data_load.33_52 = &.paral_data_store.32;
   sum_37 =  .paral_data_load.33_52->sum.27;
   sum_43 = D.1795_41 + sum_37;
@@ -161,19 +161,19 @@ parloop
    thread.  */
 #define MIN_PER_THREAD 100
 
-/* Element of the hashtable, representing a 
+/* Element of the hashtable, representing a
    reduction in the current loop.  */
 struct reduction_info
 {
   gimple reduc_stmt;		/* reduction statement.  */
   gimple reduc_phi;		/* The phi node defining the reduction.  */
   enum tree_code reduction_code;/* code for the reduction operation.  */
-  gimple keep_res;		/* The PHI_RESULT of this phi is the resulting value 
+  gimple keep_res;		/* The PHI_RESULT of this phi is the resulting value
 				   of the reduction variable when existing the loop. */
   tree initial_value;		/* The initial value of the reduction var before entering the loop.  */
   tree field;			/*  the name of the field in the parloop data structure intended for reduction.  */
   tree init;			/* reduction initialization value.  */
-  gimple new_phi;		/* (helper field) Newly created phi node whose result 
+  gimple new_phi;		/* (helper field) Newly created phi node whose result
 				   will be passed to the atomic operation.  Represents
 				   the local result each thread computed for the reduction
 				   operation.  */
@@ -247,7 +247,7 @@ name_to_copy_elt_hash (const void *aa)
    in parallel).  */
 
 static bool
-loop_parallel_p (struct loop *loop)
+loop_parallel_p (struct loop *loop, struct obstack * parloop_obstack)
 {
   VEC (ddr_p, heap) * dependence_relations;
   VEC (data_reference_p, heap) *datarefs;
@@ -259,7 +259,7 @@ loop_parallel_p (struct loop *loop)
     fprintf (dump_file, "Considering loop %d\n", loop->num);
     if (!loop->inner)
       fprintf (dump_file, "loop is innermost\n");
-    else 
+    else
       fprintf (dump_file, "loop NOT innermost\n");
    }
 
@@ -272,7 +272,7 @@ loop_parallel_p (struct loop *loop)
   if (dump_file && (dump_flags & TDF_DETAILS))
     dump_data_dependence_relations (dump_file, dependence_relations);
 
-  trans = lambda_trans_matrix_new (1, 1);
+  trans = lambda_trans_matrix_new (1, 1, parloop_obstack);
   LTM_MATRIX (trans)[0][0] = -1;
 
   if (lambda_transform_legal_p (trans, 1, dependence_relations))
@@ -357,7 +357,7 @@ take_address_of (tree obj, tree type, edge entry, htab_t decl_address)
 
   if (var_p != &obj)
     {
-      *var_p = build1 (INDIRECT_REF, TREE_TYPE (*var_p), name);
+      *var_p = build_simple_mem_ref (name);
       name = force_gimple_operand (build_addr (obj, current_function_decl),
 				   &stmts, true, NULL_TREE);
       if (!gimple_seq_empty_p (stmts))
@@ -376,7 +376,7 @@ take_address_of (tree obj, tree type, edge entry, htab_t decl_address)
 }
 
 /* Callback for htab_traverse.  Create the initialization statement
-   for reduction described in SLOT, and place it at the preheader of 
+   for reduction described in SLOT, and place it at the preheader of
    the loop described in DATA.  */
 
 static int
@@ -389,10 +389,10 @@ initialize_reductions (void **slot, void *data)
   struct reduction_info *const reduc = (struct reduction_info *) *slot;
   struct loop *loop = (struct loop *) data;
 
-  /* Create initialization in preheader: 
+  /* Create initialization in preheader:
      reduction_variable = initialization value of reduction.  */
 
-  /* In the phi node at the header, replace the argument coming 
+  /* In the phi node at the header, replace the argument coming
      from the preheader with the reduction initialization value.  */
 
   /* Create a new variable to initialize the reduction.  */
@@ -408,12 +408,12 @@ initialize_reductions (void **slot, void *data)
   init = omp_reduction_init (c, TREE_TYPE (bvar));
   reduc->init = init;
 
-  /* Replace the argument representing the initialization value 
-     with the initialization value for the reduction (neutral 
-     element for the particular operation, e.g. 0 for PLUS_EXPR, 
-     1 for MULT_EXPR, etc).  
-     Keep the old value in a new variable "reduction_initial", 
-     that will be taken in consideration after the parallel 
+  /* Replace the argument representing the initialization value
+     with the initialization value for the reduction (neutral
+     element for the particular operation, e.g. 0 for PLUS_EXPR,
+     1 for MULT_EXPR, etc).
+     Keep the old value in a new variable "reduction_initial",
+     that will be taken in consideration after the parallel
      computing is done.  */
 
   e = loop_preheader_edge (loop);
@@ -456,7 +456,7 @@ eliminate_local_variables_1 (tree *tp, int *walk_subtrees, void *data)
       type = TREE_TYPE (t);
       addr_type = build_pointer_type (type);
       addr = take_address_of (t, addr_type, dta->entry, dta->decl_address);
-      *tp = build1 (INDIRECT_REF, TREE_TYPE (*tp), addr);
+      *tp = build_simple_mem_ref (addr);
 
       dta->changed = true;
       return NULL_TREE;
@@ -526,10 +526,10 @@ eliminate_local_variables_stmt (edge entry, gimple stmt,
 
 /* Eliminates the references to local variables from the single entry
    single exit region between the ENTRY and EXIT edges.
-  
+
    This includes:
-   1) Taking address of a local variable -- these are moved out of the 
-   region (and temporary variable is created to hold the address if 
+   1) Taking address of a local variable -- these are moved out of the
+   region (and temporary variable is created to hold the address if
    necessary).
 
    2) Dereferencing a local variable -- these are replaced with indirect
@@ -549,7 +549,7 @@ eliminate_local_variables (edge entry, edge exit)
 
   gather_blocks_in_sese_region (entry_bb, exit_bb, &body);
 
-  for (i = 0; VEC_iterate (basic_block, body, i, bb); i++)
+  FOR_EACH_VEC_ELT (basic_block, body, i, bb)
     if (bb != entry_bb && bb != exit_bb)
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	eliminate_local_variables_stmt (entry, gsi_stmt (gsi),
@@ -589,7 +589,7 @@ expr_invariant_in_region_p (edge entry, edge exit, tree expr)
 /* If COPY_NAME_P is true, creates and returns a duplicate of NAME.
    The copies are stored to NAME_COPIES, if NAME was already duplicated,
    its duplicate stored in NAME_COPIES is returned.
-   
+
    Regardless of COPY_NAME_P, the decl used as a base of the ssa name is also
    duplicated, storing the copies in DECL_COPIES.  */
 
@@ -757,7 +757,7 @@ separate_decls_in_region_debug_bind (gimple stmt,
 static int
 add_field_for_reduction (void **slot, void *data)
 {
-  
+
   struct reduction_info *const red = (struct reduction_info *) *slot;
   tree const type = (tree) data;
   tree var = SSA_NAME_VAR (gimple_assign_lhs (red->reduc_stmt));
@@ -772,7 +772,7 @@ add_field_for_reduction (void **slot, void *data)
 }
 
 /* Callback for htab_traverse.  Adds a field corresponding to a ssa name
-   described in SLOT. The type is passed in DATA.  */ 
+   described in SLOT. The type is passed in DATA.  */
 
 static int
 add_field_for_name (void **slot, void *data)
@@ -790,12 +790,12 @@ add_field_for_name (void **slot, void *data)
   return 1;
 }
 
-/* Callback for htab_traverse.  A local result is the intermediate result 
-   computed by a single 
+/* Callback for htab_traverse.  A local result is the intermediate result
+   computed by a single
    thread, or the initial value in case no iteration was executed.
-   This function creates a phi node reflecting these values.  
-   The phi's result will be stored in NEW_PHI field of the 
-   reduction's data structure.  */ 
+   This function creates a phi node reflecting these values.
+   The phi's result will be stored in NEW_PHI field of the
+   reduction's data structure.  */
 
 static int
 create_phi_for_local_result (void **slot, void *data)
@@ -808,16 +808,16 @@ create_phi_for_local_result (void **slot, void *data)
   tree local_res;
   source_location locus;
 
-  /* STORE_BB is the block where the phi 
-     should be stored.  It is the destination of the loop exit.  
+  /* STORE_BB is the block where the phi
+     should be stored.  It is the destination of the loop exit.
      (Find the fallthru edge from GIMPLE_OMP_CONTINUE).  */
   store_bb = FALLTHRU_EDGE (loop->latch)->dest;
 
   /* STORE_BB has two predecessors.  One coming from  the loop
      (the reduction's result is computed at the loop),
-     and another coming from a block preceding the loop, 
-     when no iterations 
-     are executed (the initial value should be taken).  */ 
+     and another coming from a block preceding the loop,
+     when no iterations
+     are executed (the initial value should be taken).  */
   if (EDGE_PRED (store_bb, 0) == FALLTHRU_EDGE (loop->latch))
     e = EDGE_PRED (store_bb, 1);
   else
@@ -846,7 +846,7 @@ struct clsn_data
 };
 
 /* Callback for htab_traverse.  Create an atomic instruction for the
-   reduction described in SLOT.  
+   reduction described in SLOT.
    DATA annotates the place in memory the atomic operation relates to,
    and the basic block it needs to be generated in.  */
 
@@ -857,18 +857,16 @@ create_call_for_reduction_1 (void **slot, void *data)
   struct clsn_data *const clsn_data = (struct clsn_data *) data;
   gimple_stmt_iterator gsi;
   tree type = TREE_TYPE (PHI_RESULT (reduc->reduc_phi));
-  tree struct_type = TREE_TYPE (TREE_TYPE (clsn_data->load));
   tree load_struct;
   basic_block bb;
   basic_block new_bb;
   edge e;
-  tree t, addr, addr_type, ref, x;
+  tree t, addr, ref, x;
   tree tmp_load, name;
   gimple load;
 
-  load_struct = fold_build1 (INDIRECT_REF, struct_type, clsn_data->load);
+  load_struct = build_simple_mem_ref (clsn_data->load);
   t = build3 (COMPONENT_REF, type, load_struct, reduc->field, NULL_TREE);
-  addr_type = build_pointer_type (type);
 
   addr = build_addr (t, current_function_decl);
 
@@ -901,12 +899,12 @@ create_call_for_reduction_1 (void **slot, void *data)
   return 1;
 }
 
-/* Create the atomic operation at the join point of the threads.  
-   REDUCTION_LIST describes the reductions in the LOOP.  
-   LD_ST_DATA describes the shared data structure where 
+/* Create the atomic operation at the join point of the threads.
+   REDUCTION_LIST describes the reductions in the LOOP.
+   LD_ST_DATA describes the shared data structure where
    shared data is stored in and loaded from.  */
 static void
-create_call_for_reduction (struct loop *loop, htab_t reduction_list, 
+create_call_for_reduction (struct loop *loop, htab_t reduction_list,
 			   struct clsn_data *ld_st_data)
 {
   htab_traverse (reduction_list, create_phi_for_local_result, loop);
@@ -926,13 +924,12 @@ create_loads_for_reductions (void **slot, void *data)
   gimple stmt;
   gimple_stmt_iterator gsi;
   tree type = TREE_TYPE (gimple_assign_lhs (red->reduc_stmt));
-  tree struct_type = TREE_TYPE (TREE_TYPE (clsn_data->load));
   tree load_struct;
   tree name;
   tree x;
 
   gsi = gsi_after_labels (clsn_data->load_bb);
-  load_struct = fold_build1 (INDIRECT_REF, struct_type, clsn_data->load);
+  load_struct = build_simple_mem_ref (clsn_data->load);
   load_struct = build3 (COMPONENT_REF, type, load_struct, red->field,
 			NULL_TREE);
 
@@ -953,11 +950,11 @@ create_loads_for_reductions (void **slot, void *data)
   gcc_unreachable ();
 }
 
-/* Load the reduction result that was stored in LD_ST_DATA.  
+/* Load the reduction result that was stored in LD_ST_DATA.
    REDUCTION_LIST describes the list of reductions that the
    loads should be generated for.  */
 static void
-create_final_loads_for_reduction (htab_t reduction_list, 
+create_final_loads_for_reduction (htab_t reduction_list,
 				  struct clsn_data *ld_st_data)
 {
   gimple_stmt_iterator gsi;
@@ -978,8 +975,8 @@ create_final_loads_for_reduction (htab_t reduction_list,
 /* Callback for htab_traverse.  Store the neutral value for the
   particular reduction's operation, e.g. 0 for PLUS_EXPR,
   1 for MULT_EXPR, etc. into the reduction field.
-  The reduction is specified in SLOT. The store information is 
-  passed in DATA.  */  
+  The reduction is specified in SLOT. The store information is
+  passed in DATA.  */
 
 static int
 create_stores_for_reduction (void **slot, void *data)
@@ -1013,7 +1010,6 @@ create_loads_and_stores_for_name (void **slot, void *data)
   gimple stmt;
   gimple_stmt_iterator gsi;
   tree type = TREE_TYPE (elt->new_name);
-  tree struct_type = TREE_TYPE (TREE_TYPE (clsn_data->load));
   tree load_struct;
 
   gsi = gsi_last_bb (clsn_data->store_bb);
@@ -1023,7 +1019,7 @@ create_loads_and_stores_for_name (void **slot, void *data)
   gsi_insert_after (&gsi, stmt, GSI_NEW_STMT);
 
   gsi = gsi_last_bb (clsn_data->load_bb);
-  load_struct = fold_build1 (INDIRECT_REF, struct_type, clsn_data->load);
+  load_struct = build_simple_mem_ref (clsn_data->load);
   t = build3 (COMPONENT_REF, type, load_struct, elt->field, NULL_TREE);
   stmt = gimple_build_assign (elt->new_name, t);
   SSA_NAME_DEF_STMT (elt->new_name) = stmt;
@@ -1035,7 +1031,7 @@ create_loads_and_stores_for_name (void **slot, void *data)
 /* Moves all the variables used in LOOP and defined outside of it (including
    the initial values of loop phi nodes, and *PER_THREAD if it is a ssa
    name) to a structure created for this purpose.  The code
- 
+
    while (1)
      {
        use (a);
@@ -1061,14 +1057,14 @@ create_loads_and_stores_for_name (void **slot, void *data)
    pointer `new' is intentionally not initialized (the loop will be split to a
    separate function later, and `new' will be initialized from its arguments).
    LD_ST_DATA holds information about the shared data structure used to pass
-   information among the threads.  It is initialized here, and 
-   gen_parallel_loop will pass it to create_call_for_reduction that 
-   needs this information.  REDUCTION_LIST describes the reductions 
+   information among the threads.  It is initialized here, and
+   gen_parallel_loop will pass it to create_call_for_reduction that
+   needs this information.  REDUCTION_LIST describes the reductions
    in LOOP.  */
 
 static void
 separate_decls_in_region (edge entry, edge exit, htab_t reduction_list,
-			  tree *arg_struct, tree *new_arg_struct, 
+			  tree *arg_struct, tree *new_arg_struct,
 			  struct clsn_data *ld_st_data)
 
 {
@@ -1091,9 +1087,9 @@ separate_decls_in_region (edge entry, edge exit, htab_t reduction_list,
   entry = single_succ_edge (entry_bb);
   gather_blocks_in_sese_region (entry_bb, exit_bb, &body);
 
-  for (i = 0; VEC_iterate (basic_block, body, i, bb); i++)
+  FOR_EACH_VEC_ELT (basic_block, body, i, bb)
     {
-      if (bb != entry_bb && bb != exit_bb) 
+      if (bb != entry_bb && bb != exit_bb)
 	{
 	  for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	    separate_decls_in_region_stmt (entry, exit, gsi_stmt (gsi),
@@ -1119,7 +1115,7 @@ separate_decls_in_region (edge entry, edge exit, htab_t reduction_list,
      and discard those for which we know there's nothing we can
      do.  */
   if (has_debug_stmt)
-    for (i = 0; VEC_iterate (basic_block, body, i, bb); i++)
+    FOR_EACH_VEC_ELT (basic_block, body, i, bb)
       if (bb != entry_bb && bb != exit_bb)
 	{
 	  for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi);)
@@ -1143,7 +1139,7 @@ separate_decls_in_region (edge entry, edge exit, htab_t reduction_list,
 
   VEC_free (basic_block, heap, body);
 
-  if (htab_elements (name_copies) == 0 && htab_elements (reduction_list) == 0) 
+  if (htab_elements (name_copies) == 0 && htab_elements (reduction_list) == 0)
     {
       /* It may happen that there is nothing to copy (if there are only
          loop carried and external variables in the loop).  */
@@ -1167,7 +1163,7 @@ separate_decls_in_region (edge entry, edge exit, htab_t reduction_list,
                          type);
 	}
       layout_type (type);
- 
+
       /* Create the loads and stores.  */
       *arg_struct = create_tmp_var (type, ".paral_data_store");
       add_referenced_var (*arg_struct);
@@ -1188,7 +1184,7 @@ separate_decls_in_region (edge entry, edge exit, htab_t reduction_list,
       if (reduction_list && htab_elements (reduction_list) > 0)
 	{
 	  htab_traverse (reduction_list, create_stores_for_reduction,
-                        ld_st_data); 
+                        ld_st_data);
 	  clsn_data.load = make_ssa_name (nvar, NULL);
 	  clsn_data.load_bb = exit->dest;
 	  clsn_data.store = ld_st_data->store;
@@ -1279,12 +1275,12 @@ create_loop_fn (void)
    duplicates the part of the last iteration that gets disabled to the
    exit of the loop.  NIT is the number of iterations of the loop
    (used to initialize the variables in the duplicated part).
- 
+
    TODO: the common case is that latch of the loop is empty and immediately
    follows the loop exit.  In this case, it would be better not to copy the
    body of the loop, but only move the entry of the loop directly before the
    exit check and increase the number of iterations of the loop by one.
-   This may need some additional preconditioning in case NIT = ~0.  
+   This may need some additional preconditioning in case NIT = ~0.
    REDUCTION_LIST describes the reductions in LOOP.  */
 
 static void
@@ -1330,7 +1326,6 @@ transform_to_exit_first_loop (struct loop *loop, htab_t reduction_list, tree nit
 
   for (n = 0; bbs[n] != loop->latch; n++)
     continue;
-  n--;
   nbbs = XNEWVEC (basic_block, n);
   ok = gimple_duplicate_sese_tail (single_succ_edge (loop->header), exit,
 				   bbs + 1, n, nbbs);
@@ -1339,7 +1334,7 @@ transform_to_exit_first_loop (struct loop *loop, htab_t reduction_list, tree nit
   ex_bb = nbbs[0];
   free (nbbs);
 
-  /* Other than reductions, the only gimple reg that should be copied 
+  /* Other than reductions, the only gimple reg that should be copied
      out of the loop is the control variable.  */
 
   control_name = NULL_TREE;
@@ -1354,13 +1349,13 @@ transform_to_exit_first_loop (struct loop *loop, htab_t reduction_list, tree nit
 	}
 
       /* Check if it is a part of reduction.  If it is,
-         keep the phi at the reduction's keep_res field.  The  
-         PHI_RESULT of this phi is the resulting value of the reduction 
+         keep the phi at the reduction's keep_res field.  The
+         PHI_RESULT of this phi is the resulting value of the reduction
          variable when exiting the loop.  */
 
       exit = single_dom_exit (loop);
 
-      if (htab_elements (reduction_list) > 0) 
+      if (htab_elements (reduction_list) > 0)
 	{
 	  struct reduction_info *red;
 
@@ -1380,10 +1375,10 @@ transform_to_exit_first_loop (struct loop *loop, htab_t reduction_list, tree nit
     }
   gcc_assert (control_name != NULL_TREE);
 
-  /* Initialize the control variable to number of iterations 
+  /* Initialize the control variable to number of iterations
      according to the rhs of the exit condition.  */
   gsi = gsi_after_labels (ex_bb);
-  cond_nit = last_stmt (exit->src); 
+  cond_nit = last_stmt (exit->src);
   nit_1 =  gimple_cond_rhs (cond_nit);
   nit_1 = force_gimple_operand_gsi (&gsi,
 				  fold_convert (TREE_TYPE (control_name), nit_1),
@@ -1405,7 +1400,7 @@ create_parallel_loop (struct loop *loop, tree loop_fn, tree data,
 {
   gimple_stmt_iterator gsi;
   basic_block bb, paral_bb, for_bb, ex_bb;
-  tree t, param, res;
+  tree t, param;
   gimple stmt, for_stmt, phi, cond_stmt;
   tree cvar, cvar_init, initvar, cvar_next, cvar_base, type;
   edge exit, nexit, guard, end, e;
@@ -1474,11 +1469,10 @@ create_parallel_loop (struct loop *loop, tree loop_fn, tree data,
       source_location locus;
       tree def;
       phi = gsi_stmt (gsi);
-      res = PHI_RESULT (phi);
       stmt = SSA_NAME_DEF_STMT (PHI_ARG_DEF_FROM_EDGE (phi, exit));
 
       def = PHI_ARG_DEF_FROM_EDGE (stmt, loop_preheader_edge (loop));
-      locus = gimple_phi_arg_location_from_edge (stmt, 
+      locus = gimple_phi_arg_location_from_edge (stmt,
 						 loop_preheader_edge (loop));
       add_phi_arg (phi, def, guard, locus);
 
@@ -1531,7 +1525,6 @@ static void
 gen_parallel_loop (struct loop *loop, htab_t reduction_list,
 		   unsigned n_threads, struct tree_niter_desc *niter)
 {
-  struct loop *nloop;
   loop_iterator li;
   tree many_iterations_cond, type, nit;
   tree arg_struct, new_arg_struct;
@@ -1624,19 +1617,19 @@ gen_parallel_loop (struct loop *loop, htab_t reduction_list,
 
   /* We assume that the loop usually iterates a lot.  */
   prob = 4 * REG_BR_PROB_BASE / 5;
-  nloop = loop_version (loop, many_iterations_cond, NULL,
-			prob, prob, REG_BR_PROB_BASE - prob, true);
+  loop_version (loop, many_iterations_cond, NULL,
+		prob, prob, REG_BR_PROB_BASE - prob, true);
   update_ssa (TODO_update_ssa);
   free_original_copy_tables ();
 
   /* Base all the induction variables in LOOP on a single control one.  */
-  canonicalize_loop_ivs (loop, &nit);
+  canonicalize_loop_ivs (loop, &nit, true);
 
   /* Ensure that the exit condition is the first statement in the loop.  */
   transform_to_exit_first_loop (loop, reduction_list, nit);
 
   /* Generate initializations for reductions.  */
-  if (htab_elements (reduction_list) > 0)  
+  if (htab_elements (reduction_list) > 0)
     htab_traverse (reduction_list, initialize_reductions, loop);
 
   /* Eliminate the references to local variables from the loop.  */
@@ -1647,13 +1640,13 @@ gen_parallel_loop (struct loop *loop, htab_t reduction_list,
   eliminate_local_variables (entry, exit);
   /* In the old loop, move all variables non-local to the loop to a structure
      and back, and create separate decls for the variables used in loop.  */
-  separate_decls_in_region (entry, exit, reduction_list, &arg_struct, 
+  separate_decls_in_region (entry, exit, reduction_list, &arg_struct,
 			    &new_arg_struct, &clsn_data);
 
   /* Create the parallel constructs.  */
   parallel_head = create_parallel_loop (loop, create_loop_fn (), arg_struct,
 					new_arg_struct, n_threads);
-  if (htab_elements (reduction_list) > 0)   
+  if (htab_elements (reduction_list) > 0)
     create_call_for_reduction (loop, reduction_list, &clsn_data);
 
   scev_reset ();
@@ -1706,7 +1699,7 @@ build_new_reduction (htab_t reduction_list, gimple reduc_stmt, gimple phi)
   struct reduction_info *new_reduction;
 
   gcc_assert (reduc_stmt);
-  
+
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
       fprintf (dump_file,
@@ -1714,9 +1707,9 @@ build_new_reduction (htab_t reduction_list, gimple reduc_stmt, gimple phi)
       print_gimple_stmt (dump_file, reduc_stmt, 0, 0);
       fprintf (dump_file, "\n");
     }
-  
+
   new_reduction = XCNEW (struct reduction_info);
-  
+
   new_reduction->reduc_stmt = reduc_stmt;
   new_reduction->reduc_phi = phi;
   new_reduction->reduction_code = gimple_assign_rhs_code (reduc_stmt);
@@ -1748,7 +1741,9 @@ gather_scalar_reductions (loop_p loop, htab_t reduction_list)
       if (!simple_iv (loop, loop, res, &iv, true)
 	&& simple_loop_info)
 	{
-           gimple reduc_stmt = vect_is_simple_reduction (simple_loop_info, phi, true, &double_reduc);
+           gimple reduc_stmt = vect_force_simple_reduction (simple_loop_info,
+							    phi, true,
+							    &double_reduc);
 	   if (reduc_stmt && !double_reduc)
               build_new_reduction (reduction_list, reduc_stmt, phi);
         }
@@ -1791,7 +1786,7 @@ try_create_reduction_list (loop_p loop, htab_t reduction_list)
 
   gather_scalar_reductions (loop, reduction_list);
 
-	
+
   for (gsi = gsi_start_phis (exit->dest); !gsi_end_p (gsi); gsi_next (&gsi))
     {
       gimple phi = gsi_stmt (gsi);
@@ -1887,11 +1882,17 @@ parallelize_loops (void)
   struct tree_niter_desc niter_desc;
   loop_iterator li;
   htab_t reduction_list;
+  struct obstack parloop_obstack;
+  HOST_WIDE_INT estimated;
+  LOC loop_loc;
 
   /* Do not parallelize loops in the functions created by parallelization.  */
   if (parallelized_function_p (cfun->decl))
     return false;
+  if (cfun->has_nonlocal_label)
+    return false;
 
+  gcc_obstack_init (&parloop_obstack);
   reduction_list = htab_create (10, reduction_info_hash,
 				     reduction_info_eq, free);
   init_stmt_vec_info_vec ();
@@ -1907,7 +1908,7 @@ parallelize_loops (void)
 	else
 	  fprintf (dump_file, "loop %d is innermost\n",loop->num);
       }
-      
+
       /* If we use autopar in graphite pass, we use its marked dependency
       checking results.  */
       if (flag_loop_parallelize_all && !loop->can_be_parallel)
@@ -1919,66 +1920,69 @@ parallelize_loops (void)
 
       if (!single_dom_exit (loop))
       {
-       
+
         if (dump_file && (dump_flags & TDF_DETAILS))
 	  fprintf (dump_file, "loop is !single_dom_exit\n");
-		
+
 	continue;
       }
 
       if (/* And of course, the loop must be parallelizable.  */
 	  !can_duplicate_loop_p (loop)
 	  || loop_has_blocks_with_irreducible_flag (loop)
+	  || (loop_preheader_edge (loop)->src->flags & BB_IRREDUCIBLE_LOOP)
 	  /* FIXME: the check for vector phi nodes could be removed.  */
 	  || loop_has_vector_phi_nodes (loop))
 	continue;
-
+      estimated = estimated_loop_iterations_int (loop, false);
       /* FIXME: Bypass this check as graphite doesn't update the
       count and frequency correctly now.  */
       if (!flag_loop_parallelize_all
-	  && ((estimated_loop_iterations_int (loop, false)
-	       <= (HOST_WIDE_INT) n_threads * MIN_PER_THREAD)
+	  && ((estimated !=-1 
+	     && estimated <= (HOST_WIDE_INT) n_threads * MIN_PER_THREAD)
 	      /* Do not bother with loops in cold areas.  */
 	      || optimize_loop_nest_for_size_p (loop)))
 	continue;
- 
+
       if (!try_get_loop_niter (loop, &niter_desc))
 	continue;
 
       if (!try_create_reduction_list (loop, reduction_list))
 	continue;
 
-      if (!flag_loop_parallelize_all && !loop_parallel_p (loop))
+      if (!flag_loop_parallelize_all
+	  && !loop_parallel_p (loop, &parloop_obstack))
 	continue;
 
       changed = true;
       if (dump_file && (dump_flags & TDF_DETAILS))
       {
-        fprintf (dump_file, "parallelizing ");
 	if (loop->inner)
-	  fprintf (dump_file, "outer loop\n");
+	  fprintf (dump_file, "parallelizing outer loop %d\n",loop->header->index);
 	else
-	  fprintf (dump_file, "inner loop\n");
-      } 
-      gen_parallel_loop (loop, reduction_list, 
+	  fprintf (dump_file, "parallelizing inner loop %d\n",loop->header->index);
+	loop_loc = find_loop_location (loop);
+	if (loop_loc != UNKNOWN_LOC)
+	  fprintf (dump_file, "\nloop at %s:%d: ",
+		   LOC_FILE (loop_loc), LOC_LINE (loop_loc));
+      }
+      gen_parallel_loop (loop, reduction_list,
 			 n_threads, &niter_desc);
       verify_flow_info ();
       verify_dominators (CDI_DOMINATORS);
       verify_loop_structure ();
-      verify_loop_closed_ssa ();
+      verify_loop_closed_ssa (true);
     }
 
   free_stmt_vec_info_vec ();
   htab_delete (reduction_list);
+  obstack_free (&parloop_obstack, NULL);
 
   /* Parallelization will cause new function calls to be inserted through
-     which local variables will escape.  Reset the points-to solutions
-     for ESCAPED and CALLUSED.  */
+     which local variables will escape.  Reset the points-to solution
+     for ESCAPED.  */
   if (changed)
-    {
-      pt_solution_reset (&cfun->gimple_df->escaped);
-      pt_solution_reset (&cfun->gimple_df->callused);
-    }
+    pt_solution_reset (&cfun->gimple_df->escaped);
 
   return changed;
 }

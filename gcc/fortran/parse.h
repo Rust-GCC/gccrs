@@ -1,5 +1,5 @@
 /* Parser header
-   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008
+   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Steven Bosscher
 
@@ -23,16 +23,14 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GFC_PARSE_H
 #define GFC_PARSE_H
 
-#include "gfortran.h"
-
 /* Enum for what the compiler is currently doing.  */
 typedef enum
 {
   COMP_NONE, COMP_PROGRAM, COMP_MODULE, COMP_SUBROUTINE, COMP_FUNCTION,
   COMP_BLOCK_DATA, COMP_INTERFACE, COMP_DERIVED, COMP_DERIVED_CONTAINS,
-  COMP_BLOCK, COMP_IF,
+  COMP_BLOCK, COMP_ASSOCIATE, COMP_IF,
   COMP_DO, COMP_SELECT, COMP_FORALL, COMP_WHERE, COMP_CONTAINS, COMP_ENUM,
-  COMP_SELECT_TYPE, COMP_OMP_STRUCTURED_BLOCK
+  COMP_SELECT_TYPE, COMP_OMP_STRUCTURED_BLOCK, COMP_CRITICAL
 }
 gfc_compile_state;
 
@@ -44,6 +42,7 @@ typedef struct gfc_state_data
   gfc_symbol *sym;              /* Block name associated with this level */
   gfc_symtree *do_variable;     /* For DO blocks the iterator variable.  */
 
+  struct gfc_code *construct;
   struct gfc_code *head, *tail;
   struct gfc_state_data *previous;
 
@@ -70,5 +69,4 @@ match gfc_match_enumerator_def (void);
 void gfc_free_enum_history (void);
 extern bool gfc_matching_function;
 match gfc_match_prefix (gfc_typespec *);
-gfc_namespace* gfc_build_block_ns (gfc_namespace *);
 #endif  /* GFC_PARSE_H  */

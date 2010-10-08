@@ -1,5 +1,5 @@
 /* Definitions of target machine GNU compiler. IA64-VMS version.
-   Copyright (C) 2003-2009 Free Software Foundation, Inc.
+   Copyright (C) 2003-2010 Free Software Foundation, Inc.
    Contributed by Douglas B Rupp (rupp@gnat.com).
 
 This file is part of GCC.
@@ -72,13 +72,13 @@ along with GCC; see the file COPYING3.  If not see
 /* Turn on VMS specific Dwarf2 features.  */
 #define VMS_DEBUGGING_INFO 1
 
-#define ASM_OUTPUT_DWARF_DELTA_UNITS(FILE,SIZE,LABEL1,LABEL2,UNITS) \
-do {                                \
-  fprintf (FILE, "\tdata4.ua\t ("); \
-  assemble_name (FILE, LABEL1);     \
-  fprintf (FILE, "-");              \
-  assemble_name (FILE, LABEL2);     \
-  fprintf (FILE, ")/16*3");         \
+#define ASM_OUTPUT_DWARF_VMS_DELTA(FILE,SIZE,LABEL1,LABEL2) \
+do {                                          \
+  fprintf (FILE, "\tdata4.ua\t@slotcount(");  \
+  assemble_name (FILE, LABEL1);               \
+  fprintf (FILE, "-");                        \
+  assemble_name (FILE, LABEL2);               \
+  fprintf (FILE, ")");                        \
 } while (0)
 
 #undef STARTFILE_SPEC
@@ -183,11 +183,10 @@ typedef struct crtl_name_spec
 	  }                                                                \
     } while (0)
 
-#undef OPTIMIZATION_OPTIONS
-#define OPTIMIZATION_OPTIONS(LEVEL,SIZE)                   \
+#undef SUBTARGET_OPTIMIZATION_OPTIONS
+#define SUBTARGET_OPTIMIZATION_OPTIONS                     \
   do {                                                     \
        flag_merge_constants = 0;                           \
-       ia64_optimization_options ((LEVEL), (SIZE));        \
   } while (0)
 
 /* Define this to be nonzero if static stack checking is supported.  */

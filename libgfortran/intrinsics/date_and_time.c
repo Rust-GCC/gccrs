@@ -1,8 +1,9 @@
 /* Implementation of the DATE_AND_TIME intrinsic.
-   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Steven Bosscher.
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
@@ -55,6 +56,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    thread-local storage so they are threadsafe.  */
 
 #ifndef HAVE_LOCALTIME_R
+/* If _POSIX is defined localtime_r gets defined by mingw-w64 headers.  */
+#ifdef localtime_r
+#undef localtime_r
+#endif
+
 static struct tm *
 localtime_r (const time_t * timep, struct tm * result)
 {
@@ -64,6 +70,11 @@ localtime_r (const time_t * timep, struct tm * result)
 #endif
 
 #ifndef HAVE_GMTIME_R
+/* If _POSIX is defined gmtime_r gets defined by mingw-w64 headers.  */
+#ifdef gmtime_r
+#undef gmtime_r
+#endif
+
 static struct tm *
 gmtime_r (const time_t * timep, struct tm * result)
 {
@@ -82,29 +93,25 @@ gmtime_r (const time_t * timep, struct tm * result)
 
    Arguments:
 
-   DATE (optional) shall be scalar and of type default character, and
-   shall be of length at least 8 in order to contain the complete
-   value. It is an INTENT(OUT) argument. Its leftmost 8 characters
-   are assigned a value of the form CCYYMMDD, where CC is the century,
-   YY the year within the century, MM the month within the year, and
-   DD the day within the month. If there is no date available, they
-   are assigned blanks.
+   DATE (optional) shall be scalar and of type default character.
+   It is an INTENT(OUT) argument.  It is assigned a value of the
+   form CCYYMMDD, where CC is the century, YY the year within the
+   century, MM the month within the year, and DD the day within the
+   month.  If there is no date available, they are assigned blanks.
 
-   TIME (optional) shall be scalar and of type default character, and
-   shall be of length at least 10 in order to contain the complete
-   value. It is an INTENT(OUT) argument. Its leftmost 10 characters
-   are assigned a value of the form hhmmss.sss, where hh is the hour
-   of the day, mm is the minutes of the hour, and ss.sss is the
-   seconds and milliseconds of the minute. If there is no clock
-   available, they are assigned blanks.
+   TIME (optional) shall be scalar and of type default character.
+   It is an INTENT(OUT) argument. It is assigned a value of the
+   form hhmmss.sss, where hh is the hour of the day, mm is the
+   minutes of the hour, and ss.sss is the seconds and milliseconds
+   of the minute.  If there is no clock available, they are assigned
+   blanks.
 
-   ZONE (optional) shall be scalar and of type default character, and
-   shall be of length at least 5 in order to contain the complete
-   value. It is an INTENT(OUT) argument. Its leftmost 5 characters
-   are assigned a value of the form [+-]hhmm, where hh and mm are the
-   time difference with respect to Coordinated Universal Time (UTC) in
-   hours and parts of an hour expressed in minutes, respectively. If
-   there is no clock available, they are assigned blanks.
+   ZONE (optional) shall be scalar and of type default character.
+   It is an INTENT(OUT) argument.  It is assigned a value of the
+   form [+-]hhmm, where hh and mm are the time difference with
+   respect to Coordinated Universal Time (UTC) in hours and parts
+   of an hour expressed in minutes, respectively.  If there is no
+   clock available, they are assigned blanks.
 
    VALUES (optional) shall be of type default integer and of rank
    one. It is an INTENT(OUT) argument. Its size shall be at least
@@ -269,8 +276,12 @@ date_and_time (char *__date, char *__time, char *__zone,
       delta = GFC_DESCRIPTOR_STRIDE(__values,0);
       if (delta == 0)
 	delta = 1;
+      
+      if (unlikely (len < VALUES_SIZE))
+	  runtime_error ("Incorrect extent in VALUE argument to"
+			 " DATE_AND_TIME intrinsic: is %ld, should"
+			 " be >=%ld", (long int) len, (long int) VALUES_SIZE);
 
-      assert (len >= VALUES_SIZE);
       /* Cope with different type kinds.  */
       if (elt_size == 4)
         {
@@ -296,22 +307,13 @@ date_and_time (char *__date, char *__time, char *__zone,
     }
 
   if (__zone)
-    {
-      assert (__zone_len >= ZONE_LEN);
-      fstrcpy (__zone, ZONE_LEN, zone, ZONE_LEN);
-    }
+    fstrcpy (__zone, __zone_len, zone, ZONE_LEN);
 
   if (__time)
-    {
-      assert (__time_len >= TIME_LEN);
-      fstrcpy (__time, TIME_LEN, timec, TIME_LEN);
-    }
+    fstrcpy (__time, __time_len, timec, TIME_LEN);
 
   if (__date)
-    {
-      assert (__date_len >= DATE_LEN);
-      fstrcpy (__date, DATE_LEN, date, DATE_LEN);
-    }
+    fstrcpy (__date, __date_len, date, DATE_LEN);
 }
 
 
@@ -355,7 +357,7 @@ secnds (GFC_REAL_4 *x)
 
   date_and_time (NULL, NULL, NULL, avalues, 0, 0, 0);
 
-  free_mem (avalues);
+  free (avalues);
 
   temp1 = 3600.0 * (GFC_REAL_4)values[4] +
 	    60.0 * (GFC_REAL_4)values[5] +

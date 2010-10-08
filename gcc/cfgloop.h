@@ -27,6 +27,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "vecprim.h"
 #include "double-int.h"
 
+#include "bitmap.h"
+#include "sbitmap.h"
+
 /* Structure to hold decision about unrolling/peeling.  */
 enum lpt_dec
 {
@@ -58,7 +61,7 @@ struct GTY ((chain_next ("%h.next"))) nb_iter_bound {
      b) it is consistent with the result of number_of_iterations_exit.  */
   double_int bound;
 
-  /* True if the statement will cause the loop to be leaved the (at most) 
+  /* True if the statement will cause the loop to be leaved the (at most)
      BOUND + 1-st time it is executed, that is, all the statements after it
      are executed at most BOUND times.  */
   bool is_exit;
@@ -131,11 +134,13 @@ struct GTY ((chain_next ("%h.next"))) loop {
   /* Auxiliary info specific to a pass.  */
   PTR GTY ((skip (""))) aux;
 
-  /* The number of times the latch of the loop is executed.
-     This is an INTEGER_CST or an expression containing symbolic
-     names.  Don't access this field directly:
-     number_of_latch_executions computes and caches the computed
-     information in this field.  */
+  /* The number of times the latch of the loop is executed.  This can be an
+     INTEGER_CST, or a symbolic expression representing the number of
+     iterations like "N - 1", or a COND_EXPR containing the runtime
+     conditions under which the number of iterations is non zero.
+
+     Don't access this field directly: number_of_latch_executions
+     computes and caches the computed information in this field.  */
   tree nb_iterations;
 
   /* An integer guaranteed to bound the number of iterations of the loop
@@ -148,6 +153,9 @@ struct GTY ((chain_next ("%h.next"))) loop {
   bool any_upper_bound;
   bool any_estimate;
 
+  /* True if the loop can be parallel.  */
+  bool can_be_parallel;
+
   /* An integer estimation of the number of iterations.  Estimate_state
      describes what is the state of the estimation.  */
   enum loop_estimation estimate_state;
@@ -157,9 +165,6 @@ struct GTY ((chain_next ("%h.next"))) loop {
 
   /* Head of the cyclic list of the exits of the loop.  */
   struct loop_exit *exits;
-
-  /* True if the loop can be parallel.  */
-  bool can_be_parallel;
 };
 
 /* Flags for state of loop structure.  */
@@ -227,7 +232,8 @@ extern int num_loop_insns (const struct loop *);
 extern int average_num_loop_insns (const struct loop *);
 extern unsigned get_loop_level (const struct loop *);
 extern bool loop_exit_edge_p (const struct loop *, const_edge);
-extern bool is_loop_exit (struct loop *, basic_block);
+extern bool loop_exits_to_bb_p (struct loop *, basic_block);
+extern bool loop_exits_from_bb_p (struct loop *, basic_block);
 extern void mark_loop_exit_edges (void);
 
 /* Loops & cfg manipulation.  */
@@ -236,7 +242,7 @@ extern unsigned get_loop_body_with_size (const struct loop *, basic_block *,
 					 unsigned);
 extern basic_block *get_loop_body_in_dom_order (const struct loop *);
 extern basic_block *get_loop_body_in_bfs_order (const struct loop *);
-extern basic_block *get_loop_body_in_custom_order (const struct loop *, 
+extern basic_block *get_loop_body_in_custom_order (const struct loop *,
 			       int (*) (const void *, const void *));
 
 extern VEC (edge, heap) *get_loop_exit_edges (const struct loop *);
@@ -270,7 +276,7 @@ gcov_type expected_loop_iterations_unbounded (const struct loop *);
 extern unsigned expected_loop_iterations (const struct loop *);
 extern rtx doloop_condition_get (rtx);
 
-void estimate_numbers_of_iterations_loop (struct loop *);
+void estimate_numbers_of_iterations_loop (struct loop *, bool);
 HOST_WIDE_INT estimated_loop_iterations_int (struct loop *, bool);
 bool estimated_loop_iterations (struct loop *, bool, double_int *);
 
@@ -289,7 +295,7 @@ extern struct loop *create_empty_loop_on_edge (edge, tree, tree, tree, tree,
 					       tree *, tree *, struct loop *);
 extern struct loop * duplicate_loop (struct loop *, struct loop *);
 extern void duplicate_subloops (struct loop *, struct loop *);
-extern bool duplicate_loop_to_header_edge (struct loop *, edge, 
+extern bool duplicate_loop_to_header_edge (struct loop *, edge,
 					   unsigned, sbitmap, edge,
  					   VEC (edge, heap) **, int);
 extern struct loop *loopify (edge, edge,
@@ -616,15 +622,45 @@ fel_init (loop_iterator *li, loop_p *loop, unsigned flags)
   }
 
 /* The properties of the target.  */
+struct target_cfgloop {
+  /* Number of available registers.  */
+  unsigned x_target_avail_regs;
 
-extern unsigned target_avail_regs;
-extern unsigned target_res_regs;
-extern unsigned target_reg_cost [2];
-extern unsigned target_spill_cost [2];
+  /* Number of available registers that are call-clobbered.  */
+  unsigned x_target_clobbered_regs;
+
+  /* Number of registers reserved for temporary expressions.  */
+  unsigned x_target_res_regs;
+
+  /* The cost for register when there still is some reserve, but we are
+     approaching the number of available registers.  */
+  unsigned x_target_reg_cost[2];
+
+  /* The cost for register when we need to spill.  */
+  unsigned x_target_spill_cost[2];
+};
+
+extern struct target_cfgloop default_target_cfgloop;
+#if SWITCHABLE_TARGET
+extern struct target_cfgloop *this_target_cfgloop;
+#else
+#define this_target_cfgloop (&default_target_cfgloop)
+#endif
+
+#define target_avail_regs \
+  (this_target_cfgloop->x_target_avail_regs)
+#define target_clobbered_regs \
+  (this_target_cfgloop->x_target_clobbered_regs)
+#define target_res_regs \
+  (this_target_cfgloop->x_target_res_regs)
+#define target_reg_cost \
+  (this_target_cfgloop->x_target_reg_cost)
+#define target_spill_cost \
+  (this_target_cfgloop->x_target_spill_cost)
 
 /* Register pressure estimation for induction variable optimizations & loop
    invariant motion.  */
-extern unsigned estimate_reg_pressure_cost (unsigned, unsigned, bool);
+extern unsigned estimate_reg_pressure_cost (unsigned, unsigned, bool, bool);
 extern void init_set_costs (void);
 
 /* Loop optimizer initialization.  */

@@ -1,3 +1,91 @@
+2010-06-27  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* po.m4 (AM_PO_SUBDIRS): Fix unportable shell quoting.
+
+2010-09-10  Jonathan Yong  <jon_y@users.sourceforge.net>
+
+	* dfp.m4: Enable decimal float for i?86 cygwin
+	and mingw, and for x86_64 mingw.
+
+2010-09-06  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR target/45524
+	* dfp.m4: Don't set enable_decimal_float to dpd if DFP is
+	disabled.  Set default_decimal_float.
+
+2010-09-06  Andreas Schwab  <schwab@redhat.com>
+
+	* dfp.m4: Quote argument of AC_MSG_WARN.
+
+2010-09-03  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
+
+	* dfp.m4: New file.
+
+2010-09-01  Andi Kleen	<ak@linux.intel.com>
+
+	* bootstrap-lto.mk (STAGE2_CFLAGS, STAGE3_CFLAGS): Change
+	to -fwhopr=jobserver -fuse-linker-plugin -frandom-seed=1.
+
+2010-08-21  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR target/45084
+	* stdint.m4 (GCC_HEADER_STDINT): Use m4 quotes for arguments
+	of AC_MSG_ERROR.
+
+2010-07-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gc++filt.m4: New file.
+
+2010-06-20  Alexandre Oliva  <aoliva@redhat.com>
+
+	* bootstrap-lto.mk: New.
+
+2010-06-10  Paolo Bonzini  <bonzini@gnu.org>
+
+	* override.m4: Remove obsolete (<2.64) definitions.
+
+2010-06-09  Iain Sandoe  <iains@gcc.gnu.org>
+
+	PR bootstrap/43170
+	* tls.m4 (GCC_CHECK_TLS): Add volatile qualifier to the test 
+	references.  Move the main () test reference ahead of 
+	pthread_create().  Add a comment to explain the requirements
+	of the test.
+
+2010-06-03  Joern Rennecke <joern.rennecke@embecosm.com>
+	    Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR bootstrap/42798
+	* override.m4 (_AC_CHECK_DECL_BODY, _AC_CHECK_DECLS): Import
+	definitions from git Autoconf.
+
+2010-04-13  Steve Ellcey  <sje@cup.hp.com>
+
+	* elf.m4: Add hppa[12]*-*-hpux* to list of non-elf platforms.
+
+2010-03-23  Kai Tietz  <kai.tietz@onevision.com>
+
+	* mh-mingw: Revert accidentally checking r156315.
+
+2010-01-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* stdint.m4 (GCC_HEADER_STDINT): Don't typedef uint8_t etc. if
+	corresponding macros already exist.
+
+2010-01-02  Richard Guenther  <rguenther@suse.de>
+
+	PR lto/41529
+	* elf.m4: New file.
+
+2009-11-30  Joseph Myers  <joseph@codesourcery.com>
+
+	* largefile.m4 (ACX_LARGEFILE): Require AC_CANONICAL_HOST and
+	AC_CANONICAL_TARGET.
+
+2009-11-24  Joel Brobecker  <brobecker@adacore.com>
+
+	* zlib.m4: New file.
+
 2009-11-09  Jan Kratochvil  <jan.kratochvil@redhat.com>
 
 	* largefile.m4 (ACX_LARGEFILE): Call AC_PLUGINS.

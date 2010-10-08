@@ -1,5 +1,5 @@
 /* Post reload partially redundant load elimination
-   Copyright (C) 2004, 2005, 2006, 2007, 2008
+   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -22,6 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 
 #include "rtl.h"
@@ -30,7 +31,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "regs.h"
 #include "hard-reg-set.h"
 #include "flags.h"
-#include "real.h"
 #include "insn-config.h"
 #include "recog.h"
 #include "basic-block.h"
@@ -310,7 +310,7 @@ expr_equiv_p (const void *exp1p, const void *exp2p)
   const struct expr *const exp1 = (const struct expr *) exp1p;
   const struct expr *const exp2 = (const struct expr *) exp2p;
   int equiv_p = exp_equiv_p (exp1->expr, exp2->expr, 0, true);
-  
+
   gcc_assert (!equiv_p || exp1->hash == exp2->hash);
   return equiv_p;
 }
@@ -349,7 +349,7 @@ insert_expr_in_table (rtx x, rtx insn)
 
   slot = (struct expr **) htab_find_slot_with_hash (expr_table, cur_expr,
 						    hash, INSERT);
-  
+
   if (! (*slot))
     /* The expression isn't found, so insert it.  */
     *slot = cur_expr;
@@ -363,7 +363,8 @@ insert_expr_in_table (rtx x, rtx insn)
 
   /* Search for another occurrence in the same basic block.  */
   avail_occr = cur_expr->avail_occr;
-  while (avail_occr && BLOCK_NUM (avail_occr->insn) != BLOCK_NUM (insn))
+  while (avail_occr
+	 && BLOCK_FOR_INSN (avail_occr->insn) != BLOCK_FOR_INSN (insn))
     {
       /* If an occurrence isn't found, save a pointer to the end of
 	 the list.  */
@@ -1002,7 +1003,7 @@ eliminate_partially_redundant_load (basic_block bb, rtx insn,
 	  avail_insn = a_occr->insn;
 	  avail_reg = get_avail_load_store_reg (avail_insn);
 	  gcc_assert (avail_reg);
-	  
+
 	  /* Make sure we can generate a move from register avail_reg to
 	     dest.  */
 	  extract_insn (gen_move_insn (copy_rtx (dest),
@@ -1065,9 +1066,9 @@ eliminate_partially_redundant_load (basic_block bb, rtx insn,
 
   if (/* No load can be replaced by copy.  */
       npred_ok == 0
-      /* Prevent exploding the code.  */ 
+      /* Prevent exploding the code.  */
       || (optimize_bb_for_size_p (bb) && npred_ok > 1)
-      /* If we don't have profile information we cannot tell if splitting 
+      /* If we don't have profile information we cannot tell if splitting
          a critical edge is profitable or not so don't do it.  */
       || ((! profile_info || ! flag_branch_probabilities
 	   || targetm.cannot_modify_jumps_p ())
@@ -1200,7 +1201,7 @@ eliminate_partially_redundant_loads (void)
 		  /* Are the operands unchanged since the start of the
 		     block?  */
 		  && oprs_unchanged_p (src, insn, false)
-		  && !(flag_non_call_exceptions && may_trap_p (src))
+		  && !(cfun->can_throw_non_call_exceptions && may_trap_p (src))
 		  && !side_effects_p (src)
 		  /* Is the expression recorded?  */
 		  && (expr = lookup_expr_in_table (src)) != NULL)
@@ -1295,7 +1296,7 @@ gcse_after_reload_main (rtx f ATTRIBUTE_UNUSED)
 	  fprintf (dump_file, "\n\n");
 	}
     }
-    
+
   /* We are finished with alias.  */
   end_alias_analysis ();
 

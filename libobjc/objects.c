@@ -22,10 +22,12 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
-
+#include "objc-private/common.h"
+#include <string.h> /* For memset */
 #include "tconfig.h"         /* include defs of bzero for target */
 #include "objc/objc.h"
-#include "objc/runtime.h"		/* the kitchen sink */
+#include "objc/objc-api.h"
+#include "objc-private/runtime.h"		/* the kitchen sink */
 
 #if OBJC_WITH_GC
 # include <gc.h>

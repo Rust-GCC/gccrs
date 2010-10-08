@@ -1,5 +1,5 @@
 // Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 
-// 2009
+// 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -208,9 +208,25 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   locale::locale() throw() : _M_impl(0)
   { 
     _S_initialize();
-    __gnu_cxx::__scoped_lock sentry(get_locale_mutex());
-    _S_global->_M_add_reference();
+
+    // Checked locking to optimize the common case where _S_global
+    // still points to _S_classic (locale::_S_initialize_once()):
+    // - If they are the same, just increment the reference count and
+    //   we are done.  This effectively constructs a C locale object
+    //   identical to the static c_locale.
+    // - Otherwise, _S_global can and may be destroyed due to
+    //   locale::global() call on another thread, in which case we
+    //   fall back to lock protected access to both _S_global and
+    //   its reference count.
     _M_impl = _S_global;
+    if (_M_impl == _S_classic)
+      _M_impl->_M_add_reference();
+    else
+      {
+        __gnu_cxx::__scoped_lock sentry(get_locale_mutex());
+        _S_global->_M_add_reference();
+        _M_impl = _S_global;
+      }
   }
 
   locale
@@ -244,7 +260,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   }
 
   void
-  locale::_S_initialize_once()
+  locale::_S_initialize_once() throw()
   {
     // 2 references.
     // One reference for _S_classic, one for _S_global

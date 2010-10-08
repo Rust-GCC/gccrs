@@ -125,6 +125,9 @@ proc g++_link_flags { paths } {
       }
       if [file exists "${gccpath}/libstdc++-v3/src/.libs/libstdc++.a"] {
           append flags " -L${gccpath}/libstdc++-v3/src/.libs "
+          # Some targets use libstdc++.a%s in their specs, so they need a
+          # -B option for uninstalled testing.
+          append flags " -B${gccpath}/libstdc++-v3/src/.libs "
           append ld_library_path ":${gccpath}/libstdc++-v3/src/.libs"
       }
       # Look for libstdc++.${shlib_ext}.
@@ -192,6 +195,13 @@ proc g++_init { args } {
     # We set LC_ALL and LANG to C so that we get the same error messages as expected.
     setenv LC_ALL C
     setenv LANG C
+
+    # Many hosts now default to a non-ASCII C locale, however, so
+    # they can set a charset encoding here if they need.
+    if { [ishost "*-*-cygwin*"] } {
+      setenv LC_ALL C.ASCII
+      setenv LANG C.ASCII
+    }
 
     if ![info exists GXX_UNDER_TEST] then {
 	if [info exists TOOL_EXECUTABLE] {

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -71,6 +71,7 @@ with Ada.Command_Line;          use Ada.Command_Line;
 
 with GNAT.Directory_Operations; use GNAT.Directory_Operations;
 with GNAT.Dynamic_HTables;      use GNAT.Dynamic_HTables;
+with GNAT.HTable;
 with GNAT.Case_Util;            use GNAT.Case_Util;
 with GNAT.OS_Lib;               use GNAT.OS_Lib;
 
@@ -135,49 +136,6 @@ package body Make is
    --  complex, for example in main.1.ada, the termination in this name is
    --  ".1.ada" and in main_.ada the termination is "_.ada".
 
-   -------------------------------------
-   -- Queue (Q) Manipulation Routines --
-   -------------------------------------
-
-   --  The Q is used in Compile_Sources below. Its implementation uses the GNAT
-   --  generic package Table (basically an extensible array). Q_Front points to
-   --  the first valid element in the Q, whereas Q.First is the first element
-   --  ever enqueued, while Q.Last - 1 is the last element in the Q.
-   --
-   --        +---+--------------+---+---+---+-----------+---+--------
-   --    Q   |   |  ........    |   |   |   | .......   |   |
-   --        +---+--------------+---+---+---+-----------+---+--------
-   --          ^                  ^                       ^
-   --       Q.First             Q_Front               Q.Last-1
-   --
-   --  The elements comprised between Q.First and Q_Front-1 are the elements
-   --  that have been enqueued and then dequeued, while the elements between
-   --  Q_Front and Q.Last-1 are the elements currently in the Q. When the Q
-   --  is initialized Q_Front = Q.First = Q.Last. After Compile_Sources has
-   --  terminated its execution, Q_Front = Q.Last and the elements contained
-   --  between Q.First and Q.Last-1 are those that were explored and thus
-   --  marked by Compile_Sources. Whenever the Q is reinitialized, the elements
-   --  between Q.First and Q.Last-1 are unmarked.
-
-   procedure Init_Q;
-   --  Must be called to (re)initialize the Q
-
-   procedure Insert_Q
-     (Source_File : File_Name_Type;
-      Source_Unit : Unit_Name_Type := No_Unit_Name;
-      Index       : Int            := 0);
-   --  Inserts Source_File at the end of Q. Provide Source_Unit when possible
-   --  for external use (gnatdist). Provide index for multi-unit sources.
-
-   function Empty_Q return Boolean;
-   --  Returns True if Q is empty
-
-   procedure Extract_From_Q
-     (Source_File  : out File_Name_Type;
-      Source_Unit  : out Unit_Name_Type;
-      Source_Index : out Int);
-   --  Extracts the first element from the Q
-
    procedure Insert_Project_Sources
      (The_Project  : Project_Id;
       All_Projects : Boolean;
@@ -190,17 +148,19 @@ package body Make is
    --  including, if The_Project is an extending project, sources inherited
    --  from projects being extended.
 
-   First_Q_Initialization : Boolean := True;
-   --  Will be set to false after Init_Q has been called once
-
-   Q_Front : Natural;
-   --  Points to the first valid element in the Q
-
    Unique_Compile : Boolean := False;
    --  Set to True if -u or -U or a project file with no main is used
 
    Unique_Compile_All_Projects : Boolean := False;
    --  Set to True if -U is used
+
+   Must_Compile : Boolean := False;
+   --  True if gnatmake is invoked with -f -u and one or several mains on the
+   --  command line.
+
+   Main_On_Command_Line : Boolean := False;
+   --  True if gnatmake is invoked with one or several mains on the command
+   --  line.
 
    RTS_Specified : String_Access := null;
    --  Used to detect multiple --RTS= switches
@@ -208,24 +168,55 @@ package body Make is
    N_M_Switch : Natural := 0;
    --  Used to count -mxxx switches that can affect multilib
 
-   type Q_Record is record
-      File  : File_Name_Type;
-      Unit  : Unit_Name_Type;
-      Index : Int;
-   end record;
-   --  File is the name of the file to compile. Unit is for gnatdist
-   --  use in order to easily get the unit name of a file to compile
-   --  when its name is krunched or declared in gnat.adc. Index, when not 0,
-   --  is the index of the unit in a multi-unit source.
+   package Queue is
+      ---------------------------------
+      -- Queue Manipulation Routines --
+      ---------------------------------
 
-   package Q is new Table.Table (
-     Table_Component_Type => Q_Record,
-     Table_Index_Type     => Natural,
-     Table_Low_Bound      => 0,
-     Table_Initial        => 4000,
-     Table_Increment      => 100,
-     Table_Name           => "Make.Q");
-   --  This is the actual Q
+      procedure Initialize (Queue_Per_Obj_Dir : Boolean);
+      --  Initialize the queue
+
+      function Is_Empty return Boolean;
+      --  Returns True if the queue is empty
+
+      function Is_Virtually_Empty return Boolean;
+      --  Returns True if the queue is empty or if all object directories are
+      --  busy.
+
+      procedure Insert
+        (Source_File_Name : File_Name_Type;
+         Project          : Project_Id;
+         Source_Unit      : Unit_Name_Type := No_Unit_Name;
+         Index            : Int            := 0);
+      --  Insert source in the queue
+
+      procedure Extract
+        (Source_File_Name  : out File_Name_Type;
+         Source_Unit       : out Unit_Name_Type;
+         Source_Index      : out Int);
+      --  Get the first source that can be compiled from the queue. If no
+      --  source may be compiled, return No_File/No_Source.
+
+      function Size return Natural;
+      --  Return the total size of the queue, including the sources already
+      --  extracted.
+
+      function Processed return Natural;
+      --  Return the number of source in the queue that have aready been
+      --  processed.
+
+      procedure Set_Obj_Dir_Busy (Obj_Dir : Path_Name_Type);
+      --  Indicate that this object directory is busy, so that when
+      --  One_Compilation_Per_Obj_Dir is True no other compilation occurs in
+      --  this object directory.
+
+      procedure Set_Obj_Dir_Free (Obj_Dir : Path_Name_Type);
+      --  Indicate that there is no compilation for this object directory
+
+      function Element (Rank : Positive) return File_Name_Type;
+      --  Get the file name for element of index Rank in the queue
+
+   end Queue;
 
    --  The 3 following packages are used to store gcc, gnatbind and gnatlink
    --  switches found in the project files.
@@ -361,6 +352,9 @@ package body Make is
    --  The object directory of the project for the last compilation. Avoid
    --  calling Change_Dir if the current working directory is already this
    --  directory.
+
+   Map_File : String_Access := null;
+   --  Value of switch --create-map-file
 
    --  Packages of project files where unknown attributes are errors
 
@@ -1387,7 +1381,7 @@ package body Make is
 
       if Project_Of_Current_Object_Directory /= Project then
          Project_Of_Current_Object_Directory := Project;
-         Object_Directory := Project.Object_Directory.Name;
+         Object_Directory := Project.Object_Directory.Display_Name;
 
          --  Set the working directory to the object directory of the actual
          --  project.
@@ -1409,7 +1403,7 @@ package body Make is
       when Directory_Error =>
          Make_Failed ("unable to change to object directory """ &
                       Path_Or_File_Name
-                        (Project.Object_Directory.Name) &
+                        (Project.Object_Directory.Display_Name) &
                       """ of project " &
                       Get_Name_String (Project.Display_Name));
    end Change_To_Object_Directory;
@@ -1664,6 +1658,32 @@ package body Make is
             return;
          end if;
 
+         --  When compiling with -gnatc, don't take ALI file into account if
+         --  it has not been generated for the current source, for example if
+         --  it has been generated for the spec, but we are compiling the body.
+
+         if Operating_Mode = Check_Semantics then
+            declare
+               File_Name : constant String := Get_Name_String (Source_File);
+               OK        : Boolean := False;
+
+            begin
+               for U in ALIs.Table (ALI).First_Unit ..
+                 ALIs.Table (ALI).Last_Unit
+               loop
+                  OK := Get_Name_String (Units.Table (U).Sfile) = File_Name;
+                  exit when OK;
+               end loop;
+
+               if not OK then
+                  Verbose_Msg
+                    (Full_Lib_File, "not generated for the same source");
+                  ALI := No_ALI_Id;
+                  return;
+               end if;
+            end;
+         end if;
+
          --  Check for matching compiler switches if needed
 
          if Check_Switches then
@@ -1784,6 +1804,13 @@ package body Make is
          Set_Source_Table (ALI);
 
          Modified_Source := Time_Stamp_Mismatch (ALI, Read_Only);
+
+         --  To avoid using too much memory when switch -m is used, free the
+         --  memory allocated for the source file when computing the checksum.
+
+         if Minimal_Recompilation then
+            Sinput.P.Clear_Source_File_Table;
+         end if;
 
          if Modified_Source /= No_File then
             ALI := No_ALI_Id;
@@ -2236,12 +2263,14 @@ package body Make is
             if Arguments_Project = No_Project then
                Add_Arguments (The_Saved_Gcc_Switches.all);
 
-            elsif not Arguments_Project.Externally_Built then
+            elsif not Arguments_Project.Externally_Built
+              or else Must_Compile
+            then
                --  We get the project directory for the relative path
                --  switches and arguments.
 
-               Arguments_Project := Ultimate_Extending_Project_Of
-                 (Arguments_Project);
+               Arguments_Project :=
+                 Ultimate_Extending_Project_Of (Arguments_Project);
 
                --  If building a dynamic or relocatable library, compile with
                --  PIC option, if it exists.
@@ -2251,7 +2280,6 @@ package body Make is
                then
                   declare
                      PIC : constant String := MLib.Tgt.PIC_Option;
-
                   begin
                      if PIC /= "" then
                         Add_Arguments ((1 => new String'(PIC)));
@@ -2309,7 +2337,7 @@ package body Make is
                            New_Args : Argument_List (1 .. Number);
                            Last_New : Natural := 0;
                            Dir_Path : constant String := Get_Name_String
-                             (Arguments_Project.Directory.Name);
+                             (Arguments_Project.Directory.Display_Name);
 
                         begin
                            Current := Switches.Values;
@@ -2352,7 +2380,8 @@ package body Make is
                                             (Name_Buffer (1 .. Name_Len)));
                         Dir_Path : constant String :=
                                      Get_Name_String
-                                       (Arguments_Project.Directory.Name);
+                                      (Arguments_Project.
+                                       Directory.Display_Name);
 
                      begin
                         Test_If_Relative_Path
@@ -2432,7 +2461,7 @@ package body Make is
       --  Info on the mapping file
 
       Need_To_Check_Standard_Library : Boolean :=
-                                         Check_Readonly_Files
+                                         (Check_Readonly_Files or Must_Compile)
                                            and not Unique_Compile;
 
       procedure Add_Process
@@ -2453,14 +2482,12 @@ package body Make is
       procedure Await_Compile
         (Data  : out Compilation_Data;
          OK    : out Boolean);
-      --  Awaits that an outstanding compilation process terminates. When
-      --  it does set Data to the information registered for the corresponding
-      --  call to Add_Process.
-      --  Note that this time stamp can be used to check whether the
-      --  compilation did generate an object file. OK is set to True if the
-      --  compilation succeeded.
-      --  Data could be No_Compilation_Data if there was no compilation to wait
-      --  for.
+      --  Awaits that an outstanding compilation process terminates. When it
+      --  does set Data to the information registered for the corresponding
+      --  call to Add_Process. Note that this time stamp can be used to check
+      --  whether the compilation did generate an object file. OK is set to
+      --  True if the compilation succeeded. Data could be No_Compilation_Data
+      --  if there was no compilation to wait for.
 
       function Bad_Compilation_Count return Natural;
       --  Returns the number of compilation failures
@@ -2474,9 +2501,9 @@ package body Make is
          Source_Index     : Int;
          Pid              : out Process_Id;
          Process_Created  : out Boolean);
-      --  Collect arguments from project file (if any) and compile.
-      --  If no compilation was attempted, Processed_Created is set to False,
-      --  and the value of Pid is unknown.
+      --  Collect arguments from project file (if any) and compile. If no
+      --  compilation was attempted, Processed_Created is set to False, and the
+      --  value of Pid is unknown.
 
       function Compile
         (Project      : Project_Id;
@@ -2489,8 +2516,13 @@ package body Make is
       --  library file name. Process_Id of the process spawned to execute the
       --  compilation.
 
+      type ALI_Project is record
+         ALI      : ALI_Id;
+         Project : Project_Id;
+      end record;
+
       package Good_ALI is new Table.Table (
-        Table_Component_Type => ALI_Id,
+        Table_Component_Type => ALI_Project,
         Table_Index_Type     => Natural,
         Table_Low_Bound      => 1,
         Table_Initial        => 50,
@@ -2505,7 +2537,7 @@ package body Make is
       --  Get a mapping file name. If there is one to be reused, reuse it.
       --  Otherwise, create a new mapping file.
 
-      function Get_Next_Good_ALI return ALI_Id;
+      function Get_Next_Good_ALI return ALI_Project;
       --  Returns the next good ALI_Id record
 
       procedure Record_Failure
@@ -2516,7 +2548,7 @@ package body Make is
       --  If Found is False then the compilation of File failed because we
       --  could not find it. Records also Unit when possible.
 
-      procedure Record_Good_ALI (A : ALI_Id);
+      procedure Record_Good_ALI (A : ALI_Id; Project : Project_Id);
       --  Records in the previous set the Id of an ALI file
 
       function Must_Exit_Because_Of_Error return Boolean;
@@ -2572,6 +2604,10 @@ package body Make is
             Project          => Arguments_Project);
 
          Outstanding_Compiles := OC1;
+
+         if Arguments_Project /= No_Project then
+            Queue.Set_Obj_Dir_Busy (Arguments_Project.Object_Directory.Name);
+         end if;
       end Add_Process;
 
       --------------------
@@ -2579,18 +2615,18 @@ package body Make is
       -------------------
 
       procedure Await_Compile
-        (Data  : out Compilation_Data;
-         OK    : out Boolean)
+        (Data : out Compilation_Data;
+         OK   : out Boolean)
       is
-         Pid     : Process_Id;
-         Project : Project_Id;
+         Pid       : Process_Id;
+         Project   : Project_Id;
          Comp_Data : Project_Compilation_Access;
 
       begin
          pragma Assert (Outstanding_Compiles > 0);
 
-         Data  := No_Compilation_Data;
-         OK    := False;
+         Data := No_Compilation_Data;
+         OK   := False;
 
          --  The loop here is a work-around for a problem on VMS; in some
          --  circumstances (shared library and several executables, for
@@ -2610,17 +2646,22 @@ package body Make is
                   Data    := Running_Compile (J);
                   Project := Running_Compile (J).Project;
 
+                  if Project /= No_Project then
+                     Queue.Set_Obj_Dir_Free (Project.Object_Directory.Name);
+                  end if;
+
                   --  If a mapping file was used by this compilation, get its
                   --  file name for reuse by a subsequent compilation.
 
                   if Running_Compile (J).Mapping_File /= No_Mapping_File then
-                     Comp_Data := Project_Compilation_Htable.Get
-                       (Project_Compilation, Project);
+                     Comp_Data :=
+                       Project_Compilation_Htable.Get
+                         (Project_Compilation, Project);
                      Comp_Data.Last_Free_Indices :=
                        Comp_Data.Last_Free_Indices + 1;
                      Comp_Data.Free_Mapping_File_Indices
                        (Comp_Data.Last_Free_Indices) :=
-                       Running_Compile (J).Mapping_File;
+                         Running_Compile (J).Mapping_File;
                   end if;
 
                   --  To actually remove this Pid and related info from
@@ -2629,7 +2670,6 @@ package body Make is
 
                   if J = Outstanding_Compiles then
                      null;
-
                   else
                      Running_Compile (J) :=
                        Running_Compile (Outstanding_Compiles);
@@ -2642,6 +2682,8 @@ package body Make is
 
             --  This child process was not one of our compilation processes;
             --  just ignore it for now.
+
+            --  Why is this commented out code sitting here???
 
             --  raise Program_Error;
          end loop;
@@ -2678,8 +2720,7 @@ package body Make is
                --  library only if we can find it.
 
                if RTS_Switch then
-                  Add_It :=
-                    Find_File (Sfile, Osint.Source) /= No_File;
+                  Add_It := Full_Source_Name (Sfile) /= No_File;
                end if;
 
                if Add_It then
@@ -2689,7 +2730,7 @@ package body Make is
                      end if;
 
                   else
-                     Insert_Q (Sfile, Index => 0);
+                     Queue.Insert (Sfile, Project => No_Project, Index => 0);
                      Mark (Sfile, Index => 0);
                   end if;
                end if;
@@ -2720,11 +2761,14 @@ package body Make is
          --  check for an eventual library project, and use the full path.
 
          if Arguments_Project /= No_Project then
-            if not Arguments_Project.Externally_Built then
+            if not Arguments_Project.Externally_Built
+              or else Must_Compile
+            then
                Prj.Env.Set_Ada_Paths
                  (Arguments_Project,
                   Project_Tree,
-                  Including_Libraries => True);
+                  Including_Libraries => True,
+                  Include_Path        => Use_Include_Path_File);
 
                if not Unique_Compile
                  and then MLib.Tgt.Support_For_Libraries /= Prj.None
@@ -2735,7 +2779,7 @@ package body Make is
 
                   begin
                      if Prj.Library
-                       and then not Prj.Externally_Built
+                       and then (not Prj.Externally_Built or else Must_Compile)
                        and then not Prj.Need_To_Build_Lib
                      then
                         --  Add to the Q all sources of the project that have
@@ -2887,7 +2931,7 @@ package body Make is
 
          begin
             if Is_Predefined_File_Name (Fname, False) then
-               if Check_Readonly_Files then
+               if Check_Readonly_Files or else Must_Compile then
                   Comp_Args (Comp_Args'First + 2 .. Comp_Last + 1) :=
                     Comp_Args (Comp_Args'First + 1 .. Comp_Last);
                   Comp_Last := Comp_Last + 1;
@@ -2995,16 +3039,19 @@ package body Make is
       -------------------------------
 
       procedure Fill_Queue_From_ALI_Files is
+         ALI_P        : ALI_Project;
          ALI          : ALI_Id;
          Source_Index : Int;
          Sfile        : File_Name_Type;
          Uname        : Unit_Name_Type;
          Unit_Name    : Name_Id;
          Uid          : Prj.Unit_Index;
+
       begin
          while Good_ALI_Present loop
-            ALI          := Get_Next_Good_ALI;
-            Source_Index := Unit_Index_Of (ALIs.Table (ALI).Afile);
+            ALI_P        := Get_Next_Good_ALI;
+            ALI          := ALI_P.ALI;
+            Source_Index := Unit_Index_Of (ALIs.Table (ALI_P.ALI).Afile);
 
             --  If we are processing the library file corresponding to the
             --  main source file check if this source can be a main unit.
@@ -3015,24 +3062,23 @@ package body Make is
                Main_Unit := ALIs.Table (ALI).Main_Program /= None;
             end if;
 
-            --  The following adds the standard library (s-stalib) to the
-            --  list of files to be handled by gnatmake: this file and any
-            --  files it depends on are always included in every bind,
-            --  even if they are not in the explicit dependency list.
-            --  Of course, it is not added if Suppress_Standard_Library
-            --  is True.
+            --  The following adds the standard library (s-stalib) to the list
+            --  of files to be handled by gnatmake: this file and any files it
+            --  depends on are always included in every bind, even if they are
+            --  not in the explicit dependency list. Of course, it is not added
+            --  if Suppress_Standard_Library is True.
 
-            --  However, to avoid annoying output about s-stalib.ali being
-            --  read only, when "-v" is used, we add the standard library
-            --  only when "-a" is used.
+            --  However, to avoid annoying output about s-stalib.ali being read
+            --  only, when "-v" is used, we add the standard library only when
+            --  "-a" is used.
 
             if Need_To_Check_Standard_Library then
                Check_Standard_Library;
             end if;
 
-            --  Now insert in the Q the unmarked source files (i.e. those
-            --  which have never been inserted in the Q and hence never
-            --  considered). Only do that if Unique_Compile is False.
+            --  Now insert in the Q the unmarked source files (i.e. those which
+            --  have never been inserted in the Q and hence never considered).
+            --  Only do that if Unique_Compile is False.
 
             if not Unique_Compile then
                for J in
@@ -3044,9 +3090,8 @@ package body Make is
                      Sfile := Withs.Table (K).Sfile;
                      Uname := Withs.Table (K).Uname;
 
-                     --  If project files are used, find the proper source
-                     --  to compile, in case Sfile is the spec, but there
-                     --  is a body.
+                     --  If project files are used, find the proper source to
+                     --  compile in case Sfile is the spec but there is a body.
 
                      if Main_Project /= No_Project then
                         Get_Name_String (Uname);
@@ -3086,14 +3131,17 @@ package body Make is
                         if Is_Marked (Sfile, Source_Index) then
                            Debug_Msg ("Skipping marked file:", Sfile);
 
-                        elsif not Check_Readonly_Files
+                        elsif not (Check_Readonly_Files or Must_Compile)
                           and then Is_Internal_File_Name (Sfile, False)
                         then
                            Debug_Msg ("Skipping internal file:", Sfile);
 
                         else
-                           Insert_Q
-                             (Sfile, Withs.Table (K).Uname, Source_Index);
+                           Queue.Insert
+                             (Sfile,
+                              ALI_P.Project,
+                              Withs.Table (K).Uname,
+                              Source_Index);
                            Mark (Sfile, Source_Index);
                         end if;
                      end if;
@@ -3139,14 +3187,14 @@ package body Make is
       -- Get_Next_Good_ALI --
       -----------------------
 
-      function Get_Next_Good_ALI return ALI_Id is
-         ALI : ALI_Id;
+      function Get_Next_Good_ALI return ALI_Project is
+         ALIP : ALI_Project;
 
       begin
          pragma Assert (Good_ALI_Present);
-         ALI := Good_ALI.Table (Good_ALI.Last);
+         ALIP := Good_ALI.Table (Good_ALI.Last);
          Good_ALI.Decrement_Last;
-         return ALI;
+         return ALIP;
       end Get_Next_Good_ALI;
 
       ----------------------
@@ -3163,8 +3211,9 @@ package body Make is
       --------------------------------
 
       function Must_Exit_Because_Of_Error return Boolean is
-         Data        : Compilation_Data;
-         Success     : Boolean;
+         Data    : Compilation_Data;
+         Success : Boolean;
+
       begin
          if Bad_Compilation_Count > 0 and then not Keep_Going then
             while Outstanding_Compiles > 0 loop
@@ -3199,10 +3248,10 @@ package body Make is
       -- Record_Good_ALI --
       ---------------------
 
-      procedure Record_Good_ALI (A : ALI_Id) is
+      procedure Record_Good_ALI (A : ALI_Id; Project : Project_Id) is
       begin
          Good_ALI.Increment_Last;
-         Good_ALI.Table (Good_ALI.Last) := A;
+         Good_ALI.Table (Good_ALI.Last) := (A, Project);
       end Record_Good_ALI;
 
       -------------------------------
@@ -3212,34 +3261,36 @@ package body Make is
       function Start_Compile_If_Possible
         (Args : Argument_List) return Boolean
       is
-         In_Lib_Dir       : Boolean;
-         Need_To_Compile  : Boolean;
-         Pid              : Process_Id;
-         Process_Created  : Boolean;
+         In_Lib_Dir      : Boolean;
+         Need_To_Compile : Boolean;
+         Pid             : Process_Id;
+         Process_Created : Boolean;
 
          Source_File      : File_Name_Type;
          Full_Source_File : File_Name_Type;
          Source_File_Attr : aliased File_Attributes;
          --  The full name of the source file and its attributes (size, ...)
 
-         Source_Unit      : Unit_Name_Type;
-         Source_Index     : Int;
+         Source_Unit  : Unit_Name_Type;
+         Source_Index : Int;
          --  Index of the current unit in the current source file
 
-         Lib_File         : File_Name_Type;
-         Full_Lib_File    : File_Name_Type;
-         Lib_File_Attr    : aliased File_Attributes;
-         Read_Only        : Boolean := False;
-         ALI              : ALI_Id;
+         Lib_File      : File_Name_Type;
+         Full_Lib_File : File_Name_Type;
+         Lib_File_Attr : aliased File_Attributes;
+         Read_Only     : Boolean := False;
+         ALI           : ALI_Id;
          --  The ALI file and its attributes (size, stamp, ...)
 
-         Obj_File         : File_Name_Type;
-         Obj_Stamp        : Time_Stamp_Type;
+         Obj_File  : File_Name_Type;
+         Obj_Stamp : Time_Stamp_Type;
          --  The object file
 
       begin
-         if not Empty_Q and then Outstanding_Compiles < Max_Process then
-            Extract_From_Q (Source_File, Source_Unit, Source_Index);
+         if not Queue.Is_Virtually_Empty and then
+            Outstanding_Compiles < Max_Process
+         then
+            Queue.Extract (Source_File, Source_Unit, Source_Index);
 
             Osint.Full_Source_Name
               (Source_File,
@@ -3247,27 +3298,33 @@ package body Make is
                Attr      => Source_File_Attr'Access);
 
             Lib_File := Osint.Lib_File_Name (Source_File, Source_Index);
+
+            --  ??? This call could be avoided when using projects, since we
+            --  know where the ALI file is supposed to be. That would avoid
+            --  searches in the object directories, including in the runtime
+            --  dir. However, that would require getting access to the
+            --  Source_Id.
+
             Osint.Full_Lib_File_Name
               (Lib_File,
                Lib_File => Full_Lib_File,
                Attr     => Lib_File_Attr);
 
-            --  If this source has already been compiled, the executable is
-            --  obsolete.
+            --  If source has already been compiled, executable is obsolete
 
             if Is_In_Obsoleted (Source_File) then
                Executable_Obsolete := True;
             end if;
 
             In_Lib_Dir := Full_Lib_File /= No_File
-              and then In_Ada_Lib_Dir (Full_Lib_File);
+                          and then In_Ada_Lib_Dir (Full_Lib_File);
 
             --  Since the following requires a system call, we precompute it
             --  when needed.
 
             if not In_Lib_Dir then
                if Full_Lib_File /= No_File
-                 and then not Check_Readonly_Files
+                 and then not (Check_Readonly_Files or else Must_Compile)
                then
                   Get_Name_String (Full_Lib_File);
                   Name_Buffer (Name_Len + 1) := ASCII.NUL;
@@ -3309,7 +3366,7 @@ package body Make is
                --  Source and library files can be located but are internal
                --  files.
 
-            elsif not Check_Readonly_Files
+            elsif not (Check_Readonly_Files or else Must_Compile)
               and then Full_Lib_File /= No_File
               and then Is_Internal_File_Name (Source_File, False)
             then
@@ -3337,6 +3394,7 @@ package body Make is
 
                if Arguments_Project = No_Project
                  or else not Arguments_Project.Externally_Built
+                 or else Must_Compile
                then
                   --  Don't waste any time if we have to recompile anyway
 
@@ -3359,24 +3417,25 @@ package body Make is
                   end if;
 
                   if not Need_To_Compile then
-                     --  The ALI file is up-to-date. Record its Id
 
-                     Record_Good_ALI (ALI);
+                     --  The ALI file is up-to-date; record its Id
+
+                     Record_Good_ALI (ALI, Arguments_Project);
 
                      --  Record the time stamp of the most recent object
                      --  file as long as no (re)compilations are needed.
 
                      if First_Compiled_File = No_File
                        and then (Most_Recent_Obj_File = No_File
-                                 or else Obj_Stamp > Most_Recent_Obj_Stamp)
+                                  or else Obj_Stamp > Most_Recent_Obj_Stamp)
                      then
                         Most_Recent_Obj_File  := Obj_File;
                         Most_Recent_Obj_Stamp := Obj_Stamp;
                      end if;
 
                   else
-                     --  Check that switch -x has been used if a source
-                     --  outside of project files need to be compiled.
+                     --  Check that switch -x has been used if a source outside
+                     --  of project files need to be compiled.
 
                      if Main_Project /= No_Project
                        and then Arguments_Project = No_Project
@@ -3396,6 +3455,7 @@ package body Make is
                         Most_Recent_Obj_File := No_File;
 
                         if Do_Not_Execute then
+
                            --  Exit the main loop
 
                            return True;
@@ -3404,15 +3464,17 @@ package body Make is
 
                      --  Compute where the ALI file must be generated in
                      --  In_Place_Mode (this does not require to know the
-                     --  location of the object directory)
+                     --  location of the object directory).
 
                      if In_Place_Mode then
                         if Full_Lib_File = No_File then
+
                            --  If the library file was not found, then save
                            --  the library file near the source file.
 
-                           Lib_File := Osint.Lib_File_Name
-                             (Full_Source_File, Source_Index);
+                           Lib_File :=
+                             Osint.Lib_File_Name
+                               (Full_Source_File, Source_Index);
                            Full_Lib_File := Lib_File;
 
                         else
@@ -3423,9 +3485,9 @@ package body Make is
                         end if;
                      end if;
 
-                     --  Start the compilation and record it. We can do
-                     --  this because there is at least one free process.
-                     --  This might change the current directory
+                     --  Start the compilation and record it. We can do this
+                     --  because there is at least one free process. This might
+                     --  change the current directory.
 
                      Collect_Arguments_And_Compile
                        (Full_Source_File => Full_Source_File,
@@ -3441,6 +3503,7 @@ package body Make is
                      --  being the same to find the resulting ALI file.
 
                      if not In_Place_Mode then
+
                         --  Compute the expected location of the ALI file. This
                         --  can be from several places:
                         --    -i => in place mode. In such a case,
@@ -3456,16 +3519,18 @@ package body Make is
                            Add_Str_To_Name_Buffer (Object_Directory_Path.all);
                            Add_Str_To_Name_Buffer (Get_Name_String (Lib_File));
                            Full_Lib_File := Name_Find;
+
                         else
                            if Project_Of_Current_Object_Directory /=
                              No_Project
                            then
                               Get_Name_String
                                 (Project_Of_Current_Object_Directory
-                                 .Object_Directory.Name);
+                                 .Object_Directory.Display_Name);
                               Add_Str_To_Name_Buffer
                                 (Get_Name_String (Lib_File));
                               Full_Lib_File := Name_Find;
+
                            else
                               Full_Lib_File := Lib_File;
                            end if;
@@ -3475,21 +3540,20 @@ package body Make is
 
                      Lib_File_Attr := Unknown_Attributes;
 
-                     --  Make sure we could successfully start
-                     --  the Compilation.
+                     --  Make sure we could successfully start the compilation
 
                      if Process_Created then
                         if Pid = Invalid_Pid then
                            Record_Failure (Full_Source_File, Source_Unit);
                         else
                            Add_Process
-                             (Pid              => Pid,
-                              Sfile            => Full_Source_File,
-                              Afile            => Lib_File,
-                              Uname            => Source_Unit,
-                              Mfile            => Mfile,
-                              Full_Lib_File    => Full_Lib_File,
-                              Lib_File_Attr    => Lib_File_Attr);
+                             (Pid           => Pid,
+                              Sfile         => Full_Source_File,
+                              Afile         => Lib_File,
+                              Uname         => Source_Unit,
+                              Mfile         => Mfile,
+                              Full_Lib_File => Full_Lib_File,
+                              Lib_File_Attr => Lib_File_Attr);
                         end if;
                      end if;
                   end if;
@@ -3504,16 +3568,16 @@ package body Make is
       -----------------------------
 
       procedure Wait_For_Available_Slot is
-         Compilation_OK   : Boolean;
-         Text             : Text_Buffer_Ptr;
-         ALI              : ALI_Id;
-         Data             : Compilation_Data;
+         Compilation_OK : Boolean;
+         Text           : Text_Buffer_Ptr;
+         ALI            : ALI_Id;
+         Data           : Compilation_Data;
 
       begin
          if Outstanding_Compiles = Max_Process
-           or else (Empty_Q
-                    and then not Good_ALI_Present
-                    and then Outstanding_Compiles > 0)
+           or else (Queue.Is_Virtually_Empty
+                     and then not Good_ALI_Present
+                     and then Outstanding_Compiles > 0)
          then
             Await_Compile (Data, Compilation_OK);
 
@@ -3536,26 +3600,28 @@ package body Make is
 
                   Check_Object_Consistency :=
                     Check_Object_Consistency
-                    and Compilation_OK
-                    and (Output_Is_Object or Do_Bind_Step);
+                      and Compilation_OK
+                      and (Output_Is_Object or Do_Bind_Step);
 
-                  Text := Read_Library_Info_From_Full
-                    (Data.Full_Lib_File, Data.Lib_File_Attr'Access);
+                  Text :=
+                    Read_Library_Info_From_Full
+                      (Data.Full_Lib_File, Data.Lib_File_Attr'Access);
 
                   --  Restore Check_Object_Consistency to its initial value
 
                   Check_Object_Consistency := Saved_Object_Consistency;
                end;
 
-               --  If an ALI file was generated by this compilation, scan
-               --  the ALI file and record it.
+               --  If an ALI file was generated by this compilation, scan the
+               --  ALI file and record it.
 
                --  If the scan fails, a previous ali file is inconsistent with
                --  the unit just compiled.
 
                if Text /= null then
-                  ALI := Scan_ALI
-                    (Data.Lib_File, Text, Ignore_ED => False, Err => True);
+                  ALI :=
+                    Scan_ALI
+                      (Data.Lib_File, Text, Ignore_ED => False, Err => True);
 
                   if ALI = No_ALI_Id then
 
@@ -3570,7 +3636,7 @@ package body Make is
                      end if;
 
                   else
-                     Record_Good_ALI (ALI);
+                     Record_Good_ALI (ALI, Data.Project);
                   end if;
 
                   Free (Text);
@@ -3606,21 +3672,17 @@ package body Make is
 
       Good_ALI.Init;
 
-      if First_Q_Initialization then
-         Init_Q;
-      end if;
-
       if Initialize_ALI_Data then
          Initialize_ALI;
          Initialize_ALI_Source;
       end if;
 
       --  The following two flags affect the behavior of ALI.Set_Source_Table.
-      --  We set Check_Source_Files to True to ensure that source file
-      --  time stamps are checked, and we set All_Sources to False to
-      --  avoid checking the presence of the source files listed in the
-      --  source dependency section of an ali file (which would be a mistake
-      --  since the ali file may be obsolete).
+      --  We set Check_Source_Files to True to ensure that source file time
+      --  stamps are checked, and we set All_Sources to False to avoid checking
+      --  the presence of the source files listed in the source dependency
+      --  section of an ali file (which would be a mistake since the ali file
+      --  may be obsolete).
 
       Check_Source_Files := True;
       All_Sources        := False;
@@ -3629,7 +3691,7 @@ package body Make is
       --  compilations if -jnnn is used.
 
       if not Is_Marked (Main_Source, Main_Index) then
-         Insert_Q (Main_Source, Index => Main_Index);
+         Queue.Insert (Main_Source, Main_Project, Index => Main_Index);
          Mark (Main_Source, Main_Index);
       end if;
 
@@ -3641,7 +3703,8 @@ package body Make is
       --  Keep looping until there is no more work to do (the Q is empty)
       --  and all the outstanding compilations have terminated.
 
-      Make_Loop : while not Empty_Q or else Outstanding_Compiles > 0 loop
+      Make_Loop :
+      while not Queue.Is_Empty or else Outstanding_Compiles > 0 loop
          exit Make_Loop when Must_Exit_Because_Of_Error;
          exit Make_Loop when Start_Compile_If_Possible (Args);
 
@@ -3654,11 +3717,11 @@ package body Make is
 
          if Display_Compilation_Progress then
             Write_Str ("completed ");
-            Write_Int (Int (Q_Front));
+            Write_Int (Int (Queue.Processed));
             Write_Str (" out of ");
-            Write_Int (Int (Q.Last));
+            Write_Int (Int (Queue.Size));
             Write_Str (" (");
-            Write_Int (Int ((Q_Front * 100) / (Q.Last - Q.First)));
+            Write_Int (Int ((Queue.Processed * 100) / Queue.Size));
             Write_Str ("%)...");
             Write_Eol;
          end if;
@@ -4019,29 +4082,6 @@ package body Make is
       Display_Executed_Programs := Display;
    end Display_Commands;
 
-   -------------
-   -- Empty_Q --
-   -------------
-
-   function Empty_Q return Boolean is
-   begin
-      if Debug.Debug_Flag_P then
-         Write_Str ("   Q := [");
-
-         for J in Q_Front .. Q.Last - 1 loop
-            Write_Str (" ");
-            Write_Name (Q.Table (J).File);
-            Write_Eol;
-            Write_Str ("         ");
-         end loop;
-
-         Write_Str ("]");
-         Write_Eol;
-      end if;
-
-      return Q_Front >= Q.Last;
-   end Empty_Q;
-
    --------------------------
    -- Enter_Into_Obsoleted --
    --------------------------
@@ -4072,39 +4112,6 @@ package body Make is
       Debug_Msg ("New entry in Obsoleted table:", F2);
       Obsoleted.Set (F2, True);
    end Enter_Into_Obsoleted;
-
-   --------------------
-   -- Extract_From_Q --
-   --------------------
-
-   procedure Extract_From_Q
-     (Source_File  : out File_Name_Type;
-      Source_Unit  : out Unit_Name_Type;
-      Source_Index : out Int)
-   is
-      File  : constant File_Name_Type := Q.Table (Q_Front).File;
-      Unit  : constant Unit_Name_Type := Q.Table (Q_Front).Unit;
-      Index : constant Int            := Q.Table (Q_Front).Index;
-
-   begin
-      if Debug.Debug_Flag_Q then
-         Write_Str ("   Q := Q - [ ");
-         Write_Name (File);
-
-         if Index /= 0 then
-            Write_Str (", ");
-            Write_Int (Index);
-         end if;
-
-         Write_Str (" ]");
-         Write_Eol;
-      end if;
-
-      Q_Front := Q_Front + 1;
-      Source_File  := File;
-      Source_Unit  := Unit;
-      Source_Index := Index;
-   end Extract_From_Q;
 
    --------------
    -- Gnatmake --
@@ -4154,10 +4161,6 @@ package body Make is
       procedure Check_Mains;
       --  Check that the main subprograms do exist and that they all
       --  belong to the same project file.
-
-      procedure Create_Binder_Mapping_File
-        (Args : in out Argument_List; Last_Arg : in out Natural);
-      --  Create a binder mapping file and add the necessary switch
 
       -----------------
       -- Check_Mains --
@@ -4301,186 +4304,6 @@ package body Make is
          end loop;
       end Check_Mains;
 
-      --------------------------------
-      -- Create_Binder_Mapping_File --
-      --------------------------------
-
-      procedure Create_Binder_Mapping_File
-        (Args : in out Argument_List; Last_Arg : in out Natural)
-      is
-         Mapping_FD : File_Descriptor := Invalid_FD;
-         --  A File Descriptor for an eventual mapping file
-
-         ALI_Unit : Unit_Name_Type := No_Unit_Name;
-         --  The unit name of an ALI file
-
-         ALI_Name : File_Name_Type := No_File;
-         --  The file name of the ALI file
-
-         ALI_Project : Project_Id := No_Project;
-         --  The project of the ALI file
-
-         Bytes : Integer;
-         OK    : Boolean := True;
-         Unit  : Unit_Index;
-
-         Status : Boolean;
-         --  For call to Close
-
-      begin
-         Tempdir.Create_Temp_File (Mapping_FD, Mapping_Path);
-         Record_Temp_File (Project_Tree, Mapping_Path);
-
-         if Mapping_FD /= Invalid_FD then
-
-            --  Traverse all units
-
-            Unit := Units_Htable.Get_First (Project_Tree.Units_HT);
-
-            while Unit /= No_Unit_Index loop
-               if Unit.Name /= No_Name then
-
-                  --  If there is a body, put it in the mapping
-
-                  if Unit.File_Names (Impl) /= No_Source
-                    and then Unit.File_Names (Impl).Project /=
-                    No_Project
-                  then
-                     Get_Name_String (Unit.Name);
-                     Add_Str_To_Name_Buffer ("%b");
-                     ALI_Unit := Name_Find;
-                     ALI_Name :=
-                       Lib_File_Name
-                         (Unit.File_Names (Impl).Display_File);
-                     ALI_Project := Unit.File_Names (Impl).Project;
-
-                     --  Otherwise, if there is a spec, put it in the mapping
-
-                  elsif Unit.File_Names (Spec) /= No_Source
-                    and then Unit.File_Names (Spec).Project /=
-                    No_Project
-                  then
-                     Get_Name_String (Unit.Name);
-                     Add_Str_To_Name_Buffer ("%s");
-                     ALI_Unit := Name_Find;
-                     ALI_Name :=
-                       Lib_File_Name
-                         (Unit.File_Names (Spec).Display_File);
-                     ALI_Project := Unit.File_Names (Spec).Project;
-
-                  else
-                     ALI_Name := No_File;
-                  end if;
-
-                  --  If we have something to put in the mapping then do it
-                  --  now. However, if the project is extended, we don't put
-                  --  anything in the mapping file, because we don't know where
-                  --  the ALI file is: it might be in the extended project
-                  --  object directory as well as in the extending project
-                  --  object directory.
-
-                  if ALI_Name /= No_File
-                    and then ALI_Project.Extended_By = No_Project
-                    and then ALI_Project.Extends = No_Project
-                  then
-                     --  First check if the ALI file exists. If it does not,
-                     --  do not put the unit in the mapping file.
-
-                     declare
-                        ALI : constant String := Get_Name_String (ALI_Name);
-
-                     begin
-                        --  For library projects, use the library directory,
-                        --  for other projects, use the object directory.
-
-                        if ALI_Project.Library then
-                           Get_Name_String (ALI_Project.Library_Dir.Name);
-                        else
-                           Get_Name_String
-                             (ALI_Project.Object_Directory.Name);
-                        end if;
-
-                        if not
-                          Is_Directory_Separator (Name_Buffer (Name_Len))
-                        then
-                           Add_Char_To_Name_Buffer (Directory_Separator);
-                        end if;
-
-                        Add_Str_To_Name_Buffer (ALI);
-                        Add_Char_To_Name_Buffer (ASCII.LF);
-
-                        declare
-                           ALI_Path_Name : constant String :=
-                                             Name_Buffer (1 .. Name_Len);
-
-                        begin
-                           if Is_Regular_File
-                                (ALI_Path_Name (1 .. ALI_Path_Name'Last - 1))
-                           then
-                              --  First line is the unit name
-
-                              Get_Name_String (ALI_Unit);
-                              Add_Char_To_Name_Buffer (ASCII.LF);
-                              Bytes :=
-                                Write
-                                  (Mapping_FD,
-                                   Name_Buffer (1)'Address,
-                                   Name_Len);
-                              OK := Bytes = Name_Len;
-
-                              exit when not OK;
-
-                              --  Second line it the ALI file name
-
-                              Get_Name_String (ALI_Name);
-                              Add_Char_To_Name_Buffer (ASCII.LF);
-                              Bytes :=
-                                Write
-                                  (Mapping_FD,
-                                   Name_Buffer (1)'Address,
-                                   Name_Len);
-                              OK := (Bytes = Name_Len);
-
-                              exit when not OK;
-
-                              --  Third line it the ALI path name
-
-                              Bytes :=
-                                Write
-                                  (Mapping_FD,
-                                   ALI_Path_Name (1)'Address,
-                                   ALI_Path_Name'Length);
-                              OK := (Bytes = ALI_Path_Name'Length);
-
-                              --  If OK is False, it means we were unable to
-                              --  write a line. No point in continuing with the
-                              --  other units.
-
-                              exit when not OK;
-                           end if;
-                        end;
-                     end;
-                  end if;
-               end if;
-
-               Unit := Units_Htable.Get_Next (Project_Tree.Units_HT);
-            end loop;
-
-            Close (Mapping_FD, Status);
-
-            OK := OK and Status;
-
-            --  If the creation of the mapping file was successful, we add the
-            --  switch to the arguments of gnatbind.
-
-            if OK then
-               Last_Arg := Last_Arg + 1;
-               Args (Last_Arg) :=
-                 new String'("-F=" & Get_Name_String (Mapping_Path));
-            end if;
-         end if;
-      end Create_Binder_Mapping_File;
-
    --  Start of processing for Gnatmake
 
    --  This body is very long, should be broken down???
@@ -4543,10 +4366,10 @@ package body Make is
 
             Add_Switch ("-n", Binder, And_Save => True);
 
-            for J in Q.First .. Q.Last - 1 loop
+            for J in 1 .. Queue.Size loop
                Add_Switch
                  (Get_Name_String
-                    (Lib_File_Name (Q.Table (J).File)),
+                    (Lib_File_Name (Queue.Element (J))),
                   Binder, And_Save => True);
             end loop;
          end if;
@@ -4576,9 +4399,9 @@ package body Make is
             end if;
 
          --  If no mains have been specified on the command line, and we are
-         --  using a project file, we either find the main(s) in attribute
-         --  Main of the main project, or we put all the sources of the project
-         --  file as mains.
+         --  using a project file, we either find the main(s) in attribute Main
+         --  of the main project, or we put all the sources of the project file
+         --  as mains.
 
          else
             if Main_Index /= 0 then
@@ -4626,19 +4449,18 @@ package body Make is
                   end if;
 
                else
-                  --  The attribute Main is not an empty list.
-                  --  Put all the main subprograms in the list as if they were
-                  --  specified on the command line. However, if attribute
-                  --  Languages includes a language other than Ada, only
-                  --  include the Ada mains; if there is no Ada main, compile
-                  --  all the sources of the project.
+                  --  The attribute Main is not an empty list. Put all the main
+                  --  subprograms in the list as if they were specified on the
+                  --  command line. However, if attribute Languages includes a
+                  --  language other than Ada, only include the Ada mains; if
+                  --  there is no Ada main, compile all sources of the project.
 
                   declare
                      Languages : constant Variable_Value :=
                                    Prj.Util.Value_Of
-                                    (Name_Languages,
-                                     Main_Project.Decl.Attributes,
-                                     Project_Tree);
+                                     (Name_Languages,
+                                      Main_Project.Decl.Attributes,
+                                      Project_Tree);
 
                      Current : String_List_Id;
                      Element : String_Element;
@@ -4652,7 +4474,6 @@ package body Make is
 
                      if not Languages.Default then
                         Current := Languages.Values;
-
                         Look_For_Foreign :
                         while Current /= Nil_String loop
                            Element := Project_Tree.String_Elements.
@@ -4673,29 +4494,41 @@ package body Make is
                      --  language, all the Ada mains.
 
                      while Value /= Prj.Nil_String loop
-                        Get_Name_String
-                          (Project_Tree.String_Elements.Table (Value).Value);
-
                         --  To know if a main is an Ada main, get its project.
                         --  It should be the project specified on the command
                         --  line.
 
-                        if (not Foreign_Language) or else
-                            Prj.Env.Project_Of
-                              (Name_Buffer (1 .. Name_Len),
-                               Main_Project,
-                               Project_Tree) =
-                             Main_Project
-                        then
-                           At_Least_One_Main := True;
-                           Osint.Add_File
-                             (Get_Name_String
-                                (Project_Tree.String_Elements.Table
-                                   (Value).Value),
-                              Index =>
-                                Project_Tree.String_Elements.Table
-                                  (Value).Index);
-                        end if;
+                        Get_Name_String
+                          (Project_Tree.String_Elements.Table (Value).Value);
+
+                        declare
+                           Main_Name : constant String :=
+                              Get_Name_String
+                               (Project_Tree.String_Elements.Table
+                                    (Value).Value);
+                           Proj : constant Project_Id :=
+                             Prj.Env.Project_Of
+                              (Main_Name, Main_Project, Project_Tree);
+                        begin
+
+                           if Proj = Main_Project then
+
+                              At_Least_One_Main := True;
+                              Osint.Add_File
+                                (Get_Name_String
+                                   (Project_Tree.String_Elements.Table
+                                      (Value).Value),
+                                 Index =>
+                                   Project_Tree.String_Elements.Table
+                                     (Value).Index);
+
+                           elsif not Foreign_Language then
+                              Make_Failed
+                                ("""" & Main_Name &
+                                 """ is not a source of project " &
+                                 Get_Name_String (Main_Project.Display_Name));
+                           end if;
+                        end;
 
                         Value := Project_Tree.String_Elements.Table
                                    (Value).Next;
@@ -4719,13 +4552,6 @@ package body Make is
       if Verbose_Mode then
          Write_Eol;
          Display_Version ("GNATMAKE", "1995");
-      end if;
-
-      if Main_Project /= No_Project
-        and then Main_Project.Externally_Built
-      then
-         Make_Failed
-           ("nothing to do for a main project that is externally built");
       end if;
 
       if Osint.Number_Of_Files = 0 then
@@ -5164,6 +4990,25 @@ package body Make is
          end;
       end if;
 
+      --  The combination of -f -u and one or several mains on the command line
+      --  implies -a.
+
+      if Force_Compilations
+        and then Unique_Compile
+        and then not Unique_Compile_All_Projects
+        and then Main_On_Command_Line
+      then
+         Must_Compile := True;
+      end if;
+
+      if Main_Project /= No_Project
+        and then not Must_Compile
+        and then Main_Project.Externally_Built
+      then
+         Make_Failed
+           ("nothing to do for a main project that is externally built");
+      end if;
+
       --  Get the target parameters, which are only needed for a couple of
       --  cases in gnatmake. Protect against an exception, such as the case of
       --  system.ads missing from the library, and fail gracefully.
@@ -5270,7 +5115,8 @@ package body Make is
 
                begin
                   if not Is_Absolute_Path (Exec_File_Name) then
-                     Get_Name_String (Main_Project.Exec_Directory.Name);
+                     Get_Name_String
+                       (Main_Project.Exec_Directory.Display_Name);
 
                      if not
                        Is_Directory_Separator (Name_Buffer (Name_Len))
@@ -5295,7 +5141,7 @@ package body Make is
 
          declare
             Dir_Path : constant String :=
-                         Get_Name_String (Main_Project.Directory.Name);
+                         Get_Name_String (Main_Project.Directory.Display_Name);
          begin
             for J in 1 .. Binder_Switches.Last loop
                Test_If_Relative_Path
@@ -5553,6 +5399,10 @@ package body Make is
                   Args (J) := Gcc_Switches.Table (J);
                end loop;
 
+               Queue.Initialize
+                       (Main_Project /= No_Project and then
+                        One_Compilation_Per_Obj_Dir);
+
                --  Now we invoke Compile_Sources for the current main
 
                Compile_Sources
@@ -5576,10 +5426,6 @@ package body Make is
                   Write_Str ("End of compilation");
                   Write_Eol;
                end if;
-
-               --  Make sure the queue will be reinitialized for the next round
-
-               First_Q_Initialization := True;
 
                Total_Compilation_Failures :=
                  Total_Compilation_Failures + Compilation_Failures;
@@ -6016,12 +5862,19 @@ package body Make is
                   --  and all the object directories in ADA_OBJECTS_PATH,
                   --  except those of library projects.
 
-                  Prj.Env.Set_Ada_Paths (Main_Project, Project_Tree, False);
+                  Prj.Env.Set_Ada_Paths
+                    (Main_Project, Project_Tree, Use_Include_Path_File);
 
                   --  If switch -C was specified, create a binder mapping file
 
                   if Create_Mapping_File then
-                     Create_Binder_Mapping_File (Args, Last_Arg);
+                     Mapping_Path := Create_Binder_Mapping_File;
+
+                     if Mapping_Path /= No_Path then
+                        Last_Arg := Last_Arg + 1;
+                        Args (Last_Arg) :=
+                          new String'("-F=" & Get_Name_String (Mapping_Path));
+                     end if;
                   end if;
 
                end if;
@@ -6033,7 +5886,7 @@ package body Make is
                exception
                   when others =>
 
-                     --  Delete the temporary mapping file, if one was created.
+                     --  Delete the temporary mapping file if one was created
 
                      if Mapping_Path /= No_Path then
                         Delete_Temporary_File (Project_Tree, Mapping_Path);
@@ -6044,7 +5897,7 @@ package body Make is
                      raise;
                end;
 
-               --  If -dn was not specified, delete the temporary mapping file,
+               --  If -dn was not specified, delete the temporary mapping file
                --  if one was created.
 
                if Mapping_Path /= No_Path then
@@ -6243,7 +6096,11 @@ package body Make is
 
                   --  Put the object directories in ADA_OBJECTS_PATH
 
-                  Prj.Env.Set_Ada_Paths (Main_Project, Project_Tree, False);
+                  Prj.Env.Set_Ada_Paths
+                    (Main_Project,
+                     Project_Tree,
+                     Including_Libraries => False,
+                     Include_Path        => False);
 
                   --  Check for attributes Linker'Linker_Options in projects
                   --  other than the main project
@@ -6259,6 +6116,15 @@ package body Make is
                           Linker_Options (Option);
                      end loop;
                   end;
+               end if;
+
+               --  Add switch -M to gnatlink if buider switch --create-map-file
+               --  has been specified.
+
+               if Map_File /= null then
+                  Linker_Switches.Increment_Last;
+                  Linker_Switches.Table (Linker_Switches.Last) :=
+                    new String'("-M" & Map_File.all);
                end if;
 
                declare
@@ -6476,7 +6342,7 @@ package body Make is
                   declare
                      Dir_Path : constant String :=
                                   Get_Name_String
-                                    (Main_Project.Directory.Name);
+                                    (Main_Project.Directory.Display_Name);
 
                   begin
                      for
@@ -6641,17 +6507,6 @@ package body Make is
       File_Index := Data.Last_Mapping_File_Names;
    end Init_Mapping_File;
 
-   ------------
-   -- Init_Q --
-   ------------
-
-   procedure Init_Q is
-   begin
-      First_Q_Initialization := False;
-      Q_Front := Q.First;
-      Q.Set_Last (Q.First);
-   end Init_Q;
-
    ----------------
    -- Initialize --
    ----------------
@@ -6678,7 +6533,7 @@ package body Make is
 
       Check_Object_Consistency := True;
 
-      --  Package initializations. The order of calls is important here
+      --  Package initializations (the order of calls is important here)
 
       Output.Set_Standard_Error;
 
@@ -6687,8 +6542,6 @@ package body Make is
       Linker_Switches.Init;
 
       Csets.Initialize;
-      Namet.Initialize;
-
       Snames.Initialize;
 
       Prj.Initialize (Project_Tree);
@@ -6871,24 +6724,15 @@ package body Make is
 
          --  We add the source directories and the object directories to the
          --  search paths.
+         --  ??? Why do we need these search directories, we already know the
+         --  locations from parsing the project, except for the runtime which
+         --  has its own directories anyway
 
          Add_Source_Directories (Main_Project, Project_Tree);
          Add_Object_Directories (Main_Project);
 
          Recursive_Compute_Depth (Main_Project);
-
-         --  For each project compute the list of the projects it imports
-         --  directly or indirectly.
-
-         declare
-            Proj : Project_List;
-         begin
-            Proj := Project_Tree.Projects;
-            while Proj /= null loop
-               Compute_All_Imported_Projects (Proj.Project);
-               Proj := Proj.Next;
-            end loop;
-         end;
+         Compute_All_Imported_Projects (Project_Tree);
 
       else
 
@@ -6933,6 +6777,7 @@ package body Make is
       Unit     : Unit_Index;
       Sfile    : File_Name_Type;
       Index    : Int;
+      Project  : Project_Id;
 
       Extending : constant Boolean := The_Project.Extends /= No_Project;
 
@@ -6974,8 +6819,9 @@ package body Make is
 
       Unit := Units_Htable.Get_First (Project_Tree.Units_HT);
       while Unit /= null loop
-         Sfile := No_File;
-         Index := 0;
+         Sfile   := No_File;
+         Index   := 0;
+         Project := No_Project;
 
          --  If there is a source for the body, and the body has not been
          --  locally removed.
@@ -6986,6 +6832,7 @@ package body Make is
             --  And it is a source for the specified project
 
             if Check_Project (Unit.File_Names (Impl).Project) then
+               Project := Unit.File_Names (Impl).Project;
 
                --  If we don't have a spec, we cannot consider the source
                --  if it is a subunit.
@@ -7008,7 +6855,7 @@ package body Make is
                   begin
                      Src_Ind := Sinput.P.Load_Project_File
                                   (Get_Name_String
-                                     (Unit.File_Names (Impl).Path.Name));
+                                   (Unit.File_Names (Impl).Path.Display_Name));
 
                      --  If it is a subunit, discard it
 
@@ -7036,38 +6883,36 @@ package body Make is
 
             Sfile := Unit.File_Names (Spec).Display_File;
             Index := Unit.File_Names (Spec).Index;
+            Project := Unit.File_Names (Spec).Project;
          end if;
 
-         --  If Put_In_Q is True, we insert into the Q
+         --  For the first source inserted into the Q, we need to initialize
+         --  the Q, but not for the subsequent sources.
 
-         if Put_In_Q then
+         Queue.Initialize
+                 (Main_Project /= No_Project and then
+                  One_Compilation_Per_Obj_Dir);
 
-            --  For the first source inserted into the Q, we need to initialize
-            --  the Q, but not for the subsequent sources.
+         --  And of course, only insert in the Q if the source is not marked
 
-            if First_Q_Initialization then
-               Init_Q;
+         if Sfile /= No_File and then not Is_Marked (Sfile, Index) then
+            if Verbose_Mode then
+               Write_Str ("Adding """);
+               Write_Str (Get_Name_String (Sfile));
+               Write_Line (""" to the queue");
             end if;
 
-            --  And of course, only insert in the Q if the source is not marked
+            Queue.Insert (Sfile, Project, Index => Index);
+            Mark (Sfile, Index);
+         end if;
 
-            if Sfile /= No_File and then not Is_Marked (Sfile, Index) then
-               if Verbose_Mode then
-                  Write_Str ("Adding """);
-                  Write_Str (Get_Name_String (Sfile));
-                  Write_Line (""" to the queue");
-               end if;
-
-               Insert_Q (Sfile, Index => Index);
-               Mark (Sfile, Index);
-            end if;
-
-         elsif Sfile /= No_File then
+         if not Put_In_Q and then Sfile /= No_File then
 
             --  If Put_In_Q is False, we add the source as if it were specified
             --  on the command line, and we set Put_In_Q to True, so that the
-            --  following sources will be put directly in the queue. This will
-            --  allow parallel compilation processes if -jx switch is used.
+            --  following sources will only be put in the queue. The source is
+            --  aready in the Q, but we need at least one fake main to call
+            --  Compile_Sources.
 
             if Verbose_Mode then
                Write_Str ("Adding """);
@@ -7077,48 +6922,11 @@ package body Make is
 
             Osint.Add_File (Get_Name_String (Sfile), Index);
             Put_In_Q := True;
-
-            --  As we may look into the Q later, ensure the Q has been
-            --  initialized to avoid errors.
-
-            if First_Q_Initialization then
-               Init_Q;
-            end if;
          end if;
 
          Unit := Units_Htable.Get_Next (Project_Tree.Units_HT);
       end loop;
    end Insert_Project_Sources;
-
-   --------------
-   -- Insert_Q --
-   --------------
-
-   procedure Insert_Q
-     (Source_File : File_Name_Type;
-      Source_Unit : Unit_Name_Type := No_Unit_Name;
-      Index       : Int            := 0)
-   is
-   begin
-      if Debug.Debug_Flag_Q then
-         Write_Str ("   Q := Q + [ ");
-         Write_Name (Source_File);
-
-         if Index /= 0 then
-            Write_Str (", ");
-            Write_Int (Index);
-         end if;
-
-         Write_Str (" ] ");
-         Write_Eol;
-      end if;
-
-      Q.Table (Q.Last) :=
-        (File  => Source_File,
-         Unit  => Source_Unit,
-         Index => Index);
-      Q.Increment_Last;
-   end Insert_Q;
 
    ---------------------
    -- Is_In_Obsoleted --
@@ -7532,6 +7340,290 @@ package body Make is
         (Project_Node_Tree, "--RTS=" & Line (1 .. N_Read), And_Save => True);
    end Process_Multilib;
 
+   -----------
+   -- Queue --
+   -----------
+
+   package body Queue is
+
+      type Q_Record is record
+         File      : File_Name_Type;
+         Unit      : Unit_Name_Type;
+         Index     : Int;
+         Project   : Project_Id;
+         Processed : Boolean;
+      end record;
+      --  File is the name of the file to compile. Unit is for gnatdist use in
+      --  order to easily get the unit name of a file to compile when its name
+      --  is krunched or declared in gnat.adc. Index, when not 0, is the index
+      --  of the unit in a multi-unit source.
+
+      package Q is new Table.Table
+        (Table_Component_Type => Q_Record,
+         Table_Index_Type     => Positive,
+         Table_Low_Bound      => 1,
+         Table_Initial        => 4000,
+         Table_Increment      => 100,
+         Table_Name           => "Make.Queue.Q");
+      --  This is the actual Q
+
+      package Busy_Obj_Dirs is new GNAT.HTable.Simple_HTable
+        (Header_Num => Prj.Header_Num,
+         Element    => Boolean,
+         No_Element => False,
+         Key        => Path_Name_Type,
+         Hash       => Hash,
+         Equal      => "=");
+
+      Q_First : Natural := 1;
+      --  Points to the first valid element in the queue
+
+      Q_Processed           : Natural := 0;
+      One_Queue_Per_Obj_Dir : Boolean := False;
+      Q_Initialized         : Boolean := False;
+
+      -------------
+      -- Element --
+      -------------
+
+      function Element (Rank : Positive) return File_Name_Type is
+      begin
+         if Rank <= Q.Last then
+            return Q.Table (Rank).File;
+         else
+            return No_File;
+         end if;
+      end Element;
+
+      -------------
+      -- Extract --
+      -------------
+
+      --  This body needs commenting ???
+
+      procedure Extract
+        (Source_File_Name : out File_Name_Type;
+         Source_Unit      : out Unit_Name_Type;
+         Source_Index     : out Int)
+      is
+         Found : Boolean := False;
+
+      begin
+         if One_Queue_Per_Obj_Dir then
+            for J in Q_First .. Q.Last loop
+               if not Q.Table (J).Processed
+                 and then (Q.Table (J).Project = No_Project
+                            or else not
+                              Busy_Obj_Dirs.Get
+                                (Q.Table (J).Project.Object_Directory.Name))
+               then
+                  Found := True;
+                  Source_File_Name := Q.Table (J).File;
+                  Source_Unit      := Q.Table (J).Unit;
+                  Source_Index     := Q.Table (J).Index;
+                  Q.Table (J).Processed := True;
+
+                  if J = Q_First then
+                     while Q_First <= Q.Last
+                       and then Q.Table (Q_First).Processed
+                     loop
+                        Q_First := Q_First + 1;
+                     end loop;
+                  end if;
+
+                  exit;
+               end if;
+            end loop;
+
+         elsif Q_First <= Q.Last then
+            Source_File_Name := Q.Table (Q_First).File;
+            Source_Unit      := Q.Table (Q_First).Unit;
+            Source_Index     := Q.Table (Q_First).Index;
+            Q.Table (Q_First).Processed := True;
+            Q_First := Q_First + 1;
+            Found := True;
+         end if;
+
+         if Found then
+            Q_Processed := Q_Processed + 1;
+         else
+            Source_File_Name := No_File;
+            Source_Unit      := No_Unit_Name;
+            Source_Index     := 0;
+         end if;
+
+         if Found and then Debug.Debug_Flag_Q then
+            Write_Str ("   Q := Q - [ ");
+            Write_Name (Source_File_Name);
+
+            if Source_Index /= 0 then
+               Write_Str (", ");
+               Write_Int (Source_Index);
+            end if;
+
+            Write_Str (" ]");
+            Write_Eol;
+
+            Write_Str ("   Q_First =");
+            Write_Int (Int (Q_First));
+            Write_Eol;
+
+            Write_Str ("   Q.Last =");
+            Write_Int (Int (Q.Last));
+            Write_Eol;
+         end if;
+      end Extract;
+
+      ----------------
+      -- Initialize --
+      ----------------
+
+      procedure Initialize (Queue_Per_Obj_Dir : Boolean) is
+      begin
+         if not Q_Initialized then
+            One_Queue_Per_Obj_Dir := Queue_Per_Obj_Dir;
+            Q.Init;
+            Q_Initialized := True;
+            Q_Processed   := 0;
+            Q_First       := 1;
+         end if;
+      end Initialize;
+
+      ------------
+      -- Insert --
+      ------------
+
+      --  This body needs commenting ???
+
+      procedure Insert
+        (Source_File_Name : File_Name_Type;
+         Project          : Project_Id;
+         Source_Unit      : Unit_Name_Type := No_Unit_Name;
+         Index            : Int            := 0)
+      is
+      begin
+         Q.Append
+           ((File      => Source_File_Name,
+             Project   => Project,
+             Unit      => Source_Unit,
+             Index     => Index,
+             Processed => False));
+
+         if Debug.Debug_Flag_Q then
+            Write_Str ("   Q := Q + [ ");
+            Write_Name (Source_File_Name);
+
+            if Index /= 0 then
+               Write_Str (", ");
+               Write_Int (Index);
+            end if;
+
+            Write_Str (" ] ");
+            Write_Eol;
+
+            Write_Str ("   Q_First =");
+            Write_Int (Int (Q_First));
+            Write_Eol;
+
+            Write_Str ("   Q.Last =");
+            Write_Int (Int (Q.Last));
+            Write_Eol;
+         end if;
+      end Insert;
+
+      --------------
+      -- Is_Empty --
+      --------------
+
+      function Is_Empty return Boolean is
+      begin
+         if Debug.Debug_Flag_P then
+            Write_Str ("   Q := [");
+
+            for J in Q_First .. Q.Last loop
+               if not Q.Table (J).Processed then
+                  Write_Str (" ");
+                  Write_Name (Q.Table (J).File);
+                  Write_Eol;
+                  Write_Str ("         ");
+               end if;
+            end loop;
+
+            Write_Str ("]");
+            Write_Eol;
+         end if;
+
+         return Q_First > Q.Last;
+      end Is_Empty;
+
+      ------------------------
+      -- Is_Virtually_Empty --
+      ------------------------
+
+      function Is_Virtually_Empty return Boolean is
+      begin
+         if One_Queue_Per_Obj_Dir then
+            for J in Q_First .. Q.Last loop
+               if not Q.Table (J).Processed
+                 and then
+                   (Q.Table (J).Project = No_Project
+                     or else not
+                       Busy_Obj_Dirs.Get
+                         (Q.Table (J).Project.Object_Directory.Name))
+               then
+                  return False;
+               end if;
+            end loop;
+
+            return True;
+
+         else
+            return Is_Empty;
+         end if;
+      end Is_Virtually_Empty;
+
+      ---------------
+      -- Processed --
+      ---------------
+
+      function Processed return Natural is
+      begin
+         return Q_Processed;
+      end Processed;
+
+      ----------------------
+      -- Set_Obj_Dir_Busy --
+      ----------------------
+
+      procedure Set_Obj_Dir_Busy (Obj_Dir : Path_Name_Type) is
+      begin
+         if One_Queue_Per_Obj_Dir then
+            Busy_Obj_Dirs.Set (Obj_Dir, True);
+         end if;
+      end Set_Obj_Dir_Busy;
+
+      ----------------------
+      -- Set_Obj_Dir_Free --
+      ----------------------
+
+      procedure Set_Obj_Dir_Free (Obj_Dir : Path_Name_Type) is
+      begin
+         if One_Queue_Per_Obj_Dir then
+            Busy_Obj_Dirs.Set (Obj_Dir, False);
+         end if;
+      end Set_Obj_Dir_Free;
+
+      ----------
+      -- Size --
+      ----------
+
+      function Size return Natural is
+      begin
+         return Q.Last;
+      end Size;
+
+   end Queue;
+
    -----------------------------
    -- Recursive_Compute_Depth --
    -----------------------------
@@ -7698,6 +7790,7 @@ package body Make is
 
             declare
                Norm : constant String := Normalize_Pathname (Argv);
+
             begin
                if Norm (Norm'Last) = Directory_Separator then
                   Object_Directory_Path := new String'(Norm);
@@ -7895,11 +7988,30 @@ package body Make is
                end;
             end if;
 
+         elsif Argv'Length > Source_Info_Option'Length and then
+           Argv (1 .. Source_Info_Option'Length) = Source_Info_Option
+         then
+            Project_Tree.Source_Info_File_Name :=
+              new String'(Argv (Source_Info_Option'Length + 1 .. Argv'Last));
+
          elsif Argv'Length >= 8 and then
            Argv (1 .. 8) = "--param="
          then
             Add_Switch (Argv, Compiler, And_Save => And_Save);
             Add_Switch (Argv, Linker,   And_Save => And_Save);
+
+         elsif Argv = Create_Map_File_Switch then
+            Map_File := new String'("");
+
+         elsif Argv'Length > Create_Map_File_Switch'Length + 1
+           and then
+             Argv (1 .. Create_Map_File_Switch'Length) = Create_Map_File_Switch
+           and then
+             Argv (Create_Map_File_Switch'Length + 1) = '='
+         then
+            Map_File :=
+              new String'
+                (Argv (Create_Map_File_Switch'Length + 2 .. Argv'Last));
 
          else
             Scan_Make_Switches (Project_Node_Tree, Argv, Success);
@@ -7992,12 +8104,12 @@ package body Make is
          elsif Argv (2) = 'L' then
             Add_Switch (Argv, Linker, And_Save => And_Save);
 
-         --  For -gxxxxx, -pg, -mxxx, -fxxx: give the switch to both the
+         --  For -gxxx, -pg, -mxxx, -fxxx, -Oxxx, pass the switch to both the
          --  compiler and the linker (except for -gnatxxx which is only for the
          --  compiler). Some of the -mxxx (for example -m64) and -fxxx (for
          --  example -ftest-coverage for gcov) need to be used when compiling
          --  the binder generated files, and using all these gcc switches for
-         --  the binder generated files should not be a problem.
+         --  them should not be a problem. Pass -Oxxx to the linker for LTO.
 
          elsif
            (Argv (2) = 'g' and then (Argv'Last < 5
@@ -8005,6 +8117,7 @@ package body Make is
              or else Argv (2 .. Argv'Last) = "pg"
              or else (Argv (2) = 'm' and then Argv'Last > 2)
              or else (Argv (2) = 'f' and then Argv'Last > 2)
+             or else (Argv (2) = 'O' and then Argv'Last > 2)
          then
             Add_Switch (Argv, Compiler, And_Save => And_Save);
             Add_Switch (Argv, Linker,   And_Save => And_Save);
@@ -8172,13 +8285,11 @@ package body Make is
 
          elsif Argv (2 .. Argv'Last) = "nostdlib" then
 
-            --  Don't pass -nostdlib to gnatlink, it will disable
-            --  linking with all standard library files.
+            --  Pass -nstdlib to gnatbind and gnatlink
 
             No_Stdlib := True;
-
-            Add_Switch (Argv, Compiler, And_Save => And_Save);
             Add_Switch (Argv, Binder, And_Save => And_Save);
+            Add_Switch (Argv, Linker, And_Save => And_Save);
 
          elsif Argv (2 .. Argv'Last) = "nostdinc" then
 
@@ -8204,6 +8315,10 @@ package body Make is
       --  If not a switch it must be a file name
 
       else
+         if And_Save then
+            Main_On_Command_Line := True;
+         end if;
+
          Add_File (Argv);
          Mains.Add_Main (Argv);
       end if;
@@ -8246,10 +8361,11 @@ package body Make is
 
       Switches :=
         Prj.Util.Value_Of
-          (Index     => Name_Id (Source_File),
-           Src_Index => Source_Index,
-           In_Array  => Switches_Array,
-           In_Tree   => Project_Tree);
+          (Index           => Name_Id (Source_File),
+           Src_Index       => Source_Index,
+           In_Array        => Switches_Array,
+           In_Tree         => Project_Tree,
+           Allow_Wildcards => True);
 
       --  Check also without the suffix
 
@@ -8291,10 +8407,11 @@ package body Make is
                Add_Str_To_Name_Buffer (Name (1 .. Last));
                Switches :=
                  Prj.Util.Value_Of
-                   (Index     => Name_Find,
-                    Src_Index => 0,
-                    In_Array  => Switches_Array,
-                    In_Tree   => Project_Tree);
+                   (Index           => Name_Find,
+                    Src_Index       => 0,
+                    In_Array        => Switches_Array,
+                    In_Tree         => Project_Tree,
+                    Allow_Wildcards => True);
 
                if Switches = Nil_Variable_Value and then Allow_ALI then
                   Last := Source_File_Name'Length;

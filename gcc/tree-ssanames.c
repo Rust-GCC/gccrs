@@ -3,17 +3,17 @@
    Free Software Foundation, Inc.
 
 This file is part of GCC.
-                                                                               
+
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 3, or (at your option)
 any later version.
-                                                                               
+
 GCC is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
-                                                                               
+
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
@@ -23,14 +23,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "varray.h"
-#include "ggc.h"
 #include "tree-flow.h"
 #include "tree-pass.h"
 
 /* Rewriting a function into SSA form can create a huge number of SSA_NAMEs,
    many of which may be thrown away shortly after their creation if jumps
-   were threaded through PHI nodes.  
+   were threaded through PHI nodes.
 
    While our garbage collection mechanisms will handle this situation, it
    is extremely wasteful to create nodes and throw them away, especially
@@ -44,7 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 
    Right now we maintain our free list on a per-function basis.  It may
    or may not make sense to maintain the free list for the duration of
-   a compilation unit. 
+   a compilation unit.
 
    External code should rely solely upon HIGHEST_SSA_VERSION and the
    externally defined functions.  External code should not know about
@@ -166,7 +164,7 @@ make_ssa_name_fn (struct function *fn, tree var, gimple stmt)
 
 
 /* We no longer need the SSA_NAME expression VAR, release it so that
-   it may be reused. 
+   it may be reused.
 
    Note it is assumed that no calls to make_ssa_name will be made
    until all uses of the ssa name are released and that the only
@@ -195,7 +193,7 @@ release_ssa_name (tree var)
   /* release_ssa_name can be called multiple times on a single SSA_NAME.
      However, it should only end up on our free list one time.   We
      keep a status bit in the SSA_NAME node itself to indicate it has
-     been put on the free list. 
+     been put on the free list.
 
      Note that once on the freelist you can not reference the SSA_NAME's
      defining statement.  */
@@ -242,20 +240,29 @@ release_ssa_name (tree var)
     }
 }
 
-/* Creates a duplicate of a ssa name NAME defined in statement STMT.  */
 
-tree
-duplicate_ssa_name (tree name, gimple stmt)
+/* Return the alias information associated with pointer T.  It creates a
+   new instance if none existed.  */
+
+struct ptr_info_def *
+get_ptr_info (tree t)
 {
-  tree new_name = make_ssa_name (SSA_NAME_VAR (name), stmt);
-  struct ptr_info_def *old_ptr_info = SSA_NAME_PTR_INFO (name);
+  struct ptr_info_def *pi;
 
-  if (old_ptr_info)
-    duplicate_ssa_name_ptr_info (new_name, old_ptr_info);
+  gcc_assert (POINTER_TYPE_P (TREE_TYPE (t)));
 
-  return new_name;
+  pi = SSA_NAME_PTR_INFO (t);
+  if (pi == NULL)
+    {
+      pi = ggc_alloc_cleared_ptr_info_def ();
+      pt_solution_reset (&pi->pt);
+      pi->align = 1;
+      pi->misalign = 0;
+      SSA_NAME_PTR_INFO (t) = pi;
+    }
+
+  return pi;
 }
-
 
 /* Creates a duplicate of the ptr_info_def at PTR_INFO for use by
    the SSA name NAME.  */
@@ -271,10 +278,25 @@ duplicate_ssa_name_ptr_info (tree name, struct ptr_info_def *ptr_info)
   if (!ptr_info)
     return;
 
-  new_ptr_info = GGC_NEW (struct ptr_info_def);
+  new_ptr_info = ggc_alloc_ptr_info_def ();
   *new_ptr_info = *ptr_info;
 
   SSA_NAME_PTR_INFO (name) = new_ptr_info;
+}
+
+
+/* Creates a duplicate of a ssa name NAME tobe defined by statement STMT.  */
+
+tree
+duplicate_ssa_name (tree name, gimple stmt)
+{
+  tree new_name = make_ssa_name (SSA_NAME_VAR (name), stmt);
+  struct ptr_info_def *old_ptr_info = SSA_NAME_PTR_INFO (name);
+
+  if (old_ptr_info)
+    duplicate_ssa_name_ptr_info (new_name, old_ptr_info);
+
+  return new_name;
 }
 
 
@@ -316,8 +338,8 @@ release_dead_ssa_names (void)
   int n = 0;
   referenced_var_iterator rvi;
 
-  /* Current defs point to various dead SSA names that in turn points to dead
-     statements so bunch of dead memory is held from releasing.  */
+  /* Current defs point to various dead SSA names that in turn point to
+     eventually dead variables so a bunch of memory is held live.  */
   FOR_EACH_REFERENCED_VAR (t, rvi)
     set_current_def (t, NULL);
   /* Now release the freelist.  */
@@ -334,12 +356,10 @@ release_dead_ssa_names (void)
     }
   FREE_SSANAMES (cfun) = NULL;
 
-  /* Cgraph edges has been invalidated and point to dead statement.  We need to
-     remove them now and will rebuild it before next IPA pass.  */
-  cgraph_node_remove_callees (cgraph_node (current_function_decl));
-
+  statistics_counter_event (cfun, "SSA names released", n);
   if (dump_file)
-    fprintf (dump_file, "Released %i names, %.2f%%\n", n, n * 100.0 / num_ssa_names);
+    fprintf (dump_file, "Released %i names, %.2f%%\n",
+	     n, n * 100.0 / num_ssa_names);
   return 0;
 }
 

@@ -3,17 +3,17 @@
    Free Software Foundation, Inc.
 
 This file is part of GCC.
-   
+
 GCC is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
 Free Software Foundation; either version 3, or (at your option) any
 later version.
-   
+
 GCC is distributed in the hope that it will be useful, but WITHOUT
 ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
-   
+
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
@@ -23,12 +23,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tree.h"
 #include "tm.h"
-#include "rtl.h"
-#include "expr.h"
-#include "insn-codes.h"
-#include "diagnostic.h"
-#include "optabs.h"
-#include "machmode.h"
 #include "langhooks.h"
 #include "tree-flow.h"
 #include "gimple.h"
@@ -37,6 +31,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "flags.h"
 #include "ggc.h"
 
+/* Need to include rtl.h, expr.h, etc. for optabs.  */
+#include "expr.h"
+#include "optabs.h"
 
 /* Build a constant of type TYPE, made of VALUE's bits replicated
    every TYPE_SIZE (INNER_TYPE) bits to fit TYPE's precision.  */
@@ -371,7 +368,7 @@ type_for_widest_vector_mode (enum machine_mode inner_mode, optab op, int satp)
   for (; mode != VOIDmode; mode = GET_MODE_WIDER_MODE (mode))
     if (GET_MODE_INNER (mode) == inner_mode
         && GET_MODE_NUNITS (mode) > best_nunits
-	&& optab_handler (op, mode)->insn_code != CODE_FOR_nothing)
+	&& optab_handler (op, mode) != CODE_FOR_nothing)
       best_mode = mode, best_nunits = GET_MODE_NUNITS (mode);
 
   if (best_mode == VOIDmode)
@@ -417,12 +414,12 @@ expand_vector_operations_1 (gimple_stmt_iterator *gsi)
   if (TREE_CODE (type) != VECTOR_TYPE)
     return;
 
-  if (code == NOP_EXPR 
+  if (code == NOP_EXPR
       || code == FLOAT_EXPR
       || code == FIX_TRUNC_EXPR
       || code == VIEW_CONVERT_EXPR)
     return;
-  
+
   gcc_assert (code != CONVERT_EXPR);
 
   /* The signedness is determined from input argument.  */
@@ -432,8 +429,8 @@ expand_vector_operations_1 (gimple_stmt_iterator *gsi)
 
   /* Choose between vector shift/rotate by vector and vector shift/rotate by
      scalar */
-  if (code == LSHIFT_EXPR 
-      || code == RSHIFT_EXPR 
+  if (code == LSHIFT_EXPR
+      || code == RSHIFT_EXPR
       || code == LROTATE_EXPR
       || code == RROTATE_EXPR)
     {
@@ -446,15 +443,14 @@ expand_vector_operations_1 (gimple_stmt_iterator *gsi)
 	     have a vector/vector shift */
 	  op = optab_for_tree_code (code, type, optab_scalar);
 	  if (!op
-	      || (op->handlers[(int) TYPE_MODE (type)].insn_code
-		  == CODE_FOR_nothing))
+	      || optab_handler (op, TYPE_MODE (type)) == CODE_FOR_nothing)
 	    op = optab_for_tree_code (code, type, optab_vector);
 	}
     }
   else
     op = optab_for_tree_code (code, type, optab_default);
 
-  /* For widening/narrowing vector operations, the relevant type is of the 
+  /* For widening/narrowing vector operations, the relevant type is of the
      arguments, not the widened result.  VEC_UNPACK_FLOAT_*_EXPR is
      calculated in the same way above.  */
   if (code == WIDEN_SUM_EXPR
@@ -501,7 +497,7 @@ expand_vector_operations_1 (gimple_stmt_iterator *gsi)
 	   || GET_MODE_CLASS (compute_mode) == MODE_VECTOR_ACCUM
 	   || GET_MODE_CLASS (compute_mode) == MODE_VECTOR_UACCUM)
           && op != NULL
-	  && optab_handler (op, compute_mode)->insn_code != CODE_FOR_nothing)
+	  && optab_handler (op, compute_mode) != CODE_FOR_nothing)
 	return;
       else
 	/* There is no operation in hardware, so fall back to scalars.  */
@@ -548,7 +544,7 @@ expand_vector_operations (void)
   return 0;
 }
 
-struct gimple_opt_pass pass_lower_vector = 
+struct gimple_opt_pass pass_lower_vector =
 {
  {
   GIMPLE_PASS,
@@ -568,7 +564,7 @@ struct gimple_opt_pass pass_lower_vector =
  }
 };
 
-struct gimple_opt_pass pass_lower_vector_ssa = 
+struct gimple_opt_pass pass_lower_vector_ssa =
 {
  {
   GIMPLE_PASS,

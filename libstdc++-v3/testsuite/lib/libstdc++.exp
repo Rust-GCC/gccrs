@@ -1,6 +1,6 @@
 # libstdc++ "tool init file" for DejaGNU
 
-# Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+# Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 # Free Software Foundation, Inc.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -91,14 +91,24 @@ proc libstdc++_init { testfile } {
     global target_triplet
     global flags_file
     global tool_timeout
+    global DEFAULT_CXXFLAGS
+    global STATIC_LIBCXXFLAGS
 
     # We set LC_ALL and LANG to C so that we get the same error
     # messages as expected.
     setenv LC_ALL C
     setenv LANG C
 
+    # Many hosts now default to a non-ASCII C locale, however, so
+    # they can set a charset encoding here if they need.
+    if { [ishost "*-*-cygwin*"] } {
+      setenv LC_ALL C.ASCII
+      setenv LANG C.ASCII
+    }
+
     set blddir [lookfor_file [get_multilibs] libstdc++-v3]
     set flags_file "${blddir}/scripts/testsuite_flags"
+    set shlib_ext [get_shlib_extension]
     v3track flags_file 2
 
     # If a test doesn't have special options, use DEFAULT_CXXFLAGS.
@@ -107,7 +117,7 @@ proc libstdc++_init { testfile } {
     #   2) might need to be negated 
     # In particular, some tests have to be run without precompiled
     # headers, or without assertions.
-    global DEFAULT_CXXFLAGS
+
     if ![info exists DEFAULT_CXXFLAGS] then {
 	set DEFAULT_CXXFLAGS ""
 	# Host specific goo here.
@@ -138,7 +148,7 @@ proc libstdc++_init { testfile } {
 
     # Locate libgomp. This is only required for parallel mode.
     set v3-libgomp 0
-    set libgompdir [lookfor_file $blddir/../libgomp .libs/libgomp.so]
+    set libgompdir [lookfor_file $blddir/../libgomp .libs/libgomp.$shlib_ext]
     if {$libgompdir != ""} {
 	set v3-libgomp 1
         set libgompdir [file dirname $libgompdir]
@@ -149,7 +159,7 @@ proc libstdc++_init { testfile } {
 
     # Locate libstdc++ shared library. (ie libstdc++.so.)
     set v3-sharedlib 0
-    set sharedlibdir [lookfor_file $blddir src/.libs/libstdc++.so]
+    set sharedlibdir [lookfor_file $blddir src/.libs/libstdc++.$shlib_ext]
     if {$sharedlibdir != ""} {
 	if { [string match "*-*-linux*" $target_triplet] && [isnative] } {
 	    set v3-sharedlib 1
@@ -157,6 +167,15 @@ proc libstdc++_init { testfile } {
 	} 
     }
     v3track v3-sharedlib 3
+
+    set STATIC_LIBCXXFLAGS ""
+    set staticlibdir [lookfor_file $blddir src/.libs/libstdc++.a]
+    if {$staticlibdir != ""} {
+	set staticlibdir [file dirname $staticlibdir]
+	# Some targets use libstdc++.a%s in their specs, so they need a
+	# -B option for uninstalled testing.
+	set STATIC_LIBCXXFLAGS " -B${staticlibdir} "
+    }
 
     # Compute what needs to be added to the existing LD_LIBRARY_PATH.
     if {$gccdir != ""} {
@@ -355,7 +374,6 @@ proc libstdc++-dg-test { prog do_what extra_tool_flags } {
     # There is a libstdc++_compile made for us by default (via the tool-
     # and-target file), but the defaults are lacking in goodness.
     set comp_output [$select_compile "$prog" "$output_file" "$compile_type" $options];
-    set comp_output [ prune_g++_output $comp_output ];
 
     return [list $comp_output $output_file]
 }
@@ -367,13 +385,16 @@ if { [info procs saved-dg-test] == [list] } {
     rename dg-test saved-dg-test
 
     proc dg-test { args } {
+	global additional_prunes
 	global errorInfo
 
 	if { [ catch { eval saved-dg-test $args } errmsg ] } {
 	    set saved_info $errorInfo
+	    set additional_prunes ""
 	    unset_timeout_vars
 	    error $errmsg $saved_info
 	}
+	set additional_prunes ""
 	unset_timeout_vars
     }
 }
@@ -396,6 +417,7 @@ proc v3_target_compile { source dest type options } {
     global cxxflags
     global cxxldflags
     global includes
+    global STATIC_LIBCXXFLAGS
 
     if { [target_info needs_status_wrapper] != "" && [info exists gluefile] } {
         lappend options "libs=${gluefile}"
@@ -405,6 +427,7 @@ proc v3_target_compile { source dest type options } {
     set cxx_final $cxx
     set cxxlibglossflags  [libgloss_link_flags]
     set cxx_final [concat $cxx_final $cxxlibglossflags]
+    set cxx_final [concat $cxx_final $STATIC_LIBCXXFLAGS]
     set cxx_final [concat $cxx_final $cxxflags]
     set cxx_final [concat $cxx_final $includes]
 
@@ -436,6 +459,7 @@ proc v3_target_compile_as_c { source dest type options } {
     global blddir
     global cc
     global cxxflags
+    global STATIC_LIBCXXFLAGS
 
     if { [target_info needs_status_wrapper] != "" && [info exists gluefile] } {
         lappend options "libs=${gluefile}"
@@ -446,6 +470,7 @@ proc v3_target_compile_as_c { source dest type options } {
     set cc_final $cc
     set cxxlibglossflags [libgloss_link_flags]
     set cc_final [concat $cc_final $cxxlibglossflags]
+    set cc_final [concat $cc_final $STATIC_LIBCXXFLAGS]
     set cc_final [concat $cc_final $cxxflags]
     set cc_final [concat $cc_final $includes]
     regsub -all {\s[-]nostdinc[+][+]} $cc_final "" cc_final
@@ -805,96 +830,60 @@ proc check_v3_target_time { } {
     return $et_time_saved
 }
 
-proc check_v3_target_namedlocale { } {
-    global et_namedlocale_saved
-    global et_namedlocale_target_name
+proc check_v3_target_namedlocale { args } {
+    global et_namedlocale
     global tool	
 
-    if { ![info exists et_namedlocale_target_name] } {
-	set et_namedlocale_target_name ""
+    set et_namedlocale 0
+
+    # Set up, compile, and execute a C++ test program that tries to use
+    # the required named locale.
+    set exe nlocale[pid].x
+
+    if ![file exists ./$exe] {
+      set src nlocale[pid].cc
+
+      set f [open $src "w"]
+      puts $f "#include <locale>"
+      puts $f "#include <cstdio>"
+      puts $f "using namespace std;"	
+      puts $f "int main (int argc, char** argv)"
+      puts $f "{"
+      puts $f "  try"	
+      puts $f "  {"
+      puts $f "    locale(*(argv + 1));"
+      puts $f "    return 0;"
+      puts $f "  }"
+      puts $f "  catch(...)"
+      puts $f "  {"
+      puts $f "    printf(\"locale '%s' not supported\\n\", *(argv + 1));"
+      puts $f "    return 1;"
+      puts $f "  }"	
+      puts $f "}"
+      close $f
+
+      set lines [v3_target_compile $src $exe executable ""]
+      file delete $src
+
+      if ![string match "" $lines] {
+        verbose "check_v3_target_namedlocale: compilation failed" 2
+        return $et_namedlocale
+      }
+      # else No error message, compilation succeeded.
     }
+	
+    set result [${tool}_load "./$exe" "$args" ""]
+    set status [lindex $result 0]
 
-    # If the target has changed since we set the cached value, clear it.
-    set current_target [current_target_name]
-    if { $current_target != $et_namedlocale_target_name } {
-	verbose "check_v3_target_namedlocale: `$et_namedlocale_target_name'" 2
-	set et_namedlocale_target_name $current_target
-	if [info exists et_namedlocale_saved] {
-	    verbose "check_v3_target_namedlocale: removing cached result" 2
-	    unset et_namedlocale_saved
-	}
+    verbose "check_v3_target_namedlocale <$args>: status is <$status>" 2
+
+    if { $status == "pass" } {
+      set et_namedlocale 1
     }
-
-    if [info exists et_namedlocale_saved] {
-	verbose "check_v3_target_namedlocale: using cached result" 2
-    } else {
-	set et_namedlocale_saved 0
-
-	# Set up, compile, and execute a C++ test program that tries to use
-	# all the required named locales.
-	set src nlocale[pid].cc
-	set exe nlocale[pid].x
-
-	set f [open $src "w"]
-	puts $f "#include <locale>"
-	puts $f "using namespace std;"	
-	puts $f "int main ()"
-	puts $f "{"
-	puts $f "  try"	
-	puts $f "  {" 
-	puts $f "     locale(\"\");"
-	puts $f "     locale(\"de_DE\");"
-	puts $f "     locale(\"de_DE.ISO-8859-15@euro\");"
-	puts $f "     locale(\"de_DE@euro\");"
-	puts $f "     locale(\"en_HK\");"
-	puts $f "     locale(\"en_PH\");"
-	puts $f "     locale(\"en_US\");"
-	puts $f "     locale(\"en_US.ISO-8859-1\");"
-	puts $f "     locale(\"en_US.ISO-8859-15\");"
-	puts $f "     locale(\"en_US.UTF-8\");"
-	puts $f "     locale(\"es_ES\");"
-	puts $f "     locale(\"es_MX\");"
-	puts $f "     locale(\"fr_FR\");"
-	puts $f "     locale(\"fr_FR@euro\");"
-	puts $f "     locale(\"is_IS\");"
-	puts $f "     locale(\"is_IS.UTF-8\");"
-	puts $f "     locale(\"it_IT\");"
-	puts $f "     locale(\"ja_JP.eucjp\");"
-	puts $f "     locale(\"se_NO.UTF-8\");"
-	puts $f "     locale(\"ta_IN\");"
-	puts $f "     locale(\"zh_TW\");"
-	puts $f "     return 0;"
-	puts $f "  }"
-	puts $f "  catch(...)"
-	puts $f "  {"
-	puts $f "     return 1;"
-	puts $f "  }"	
-	puts $f "}"
-	close $f
-
-	set lines [v3_target_compile $src $exe executable ""]
-	file delete $src
-
-	if [string match "" $lines] {
-	    # No error message, compilation succeeded.
-	    set result [${tool}_load "./$exe" "" ""]
-	    set status [lindex $result 0]
-	    remote_file build delete $exe
-
-	    verbose "check_v3_target_namedlocale: status is <$status>" 2
-
-	    if { $status == "pass" } {
-		set et_namedlocale_saved 1
-	    }
-	} else {
-	    verbose "check_v3_target_namedlocale: compilation failed" 2
-	}
-    }
-    return $et_namedlocale_saved
+    return $et_namedlocale
 }
 
 proc check_v3_target_debug_mode { } {
-    global cxxflags
     global et_debug_mode
     global tool	
 
@@ -919,21 +908,20 @@ proc check_v3_target_debug_mode { } {
 	set et_debug_mode 0
 
 	# Set up and compile a C++ test program that depends
-	# on debug mode working.
+	# on debug mode activated.
 	set src debug_mode[pid].cc
 	set exe debug_mode[pid].exe
 
 	set f [open $src "w"]
 	puts $f "#include <string>"
-	puts $f "using namespace std;"	
+	puts $f "#ifndef _GLIBCXX_DEBUG"
+	puts $f "#  error No debug mode"
+	puts $f "#endif"
 	puts $f "int main()"
 	puts $f "{ return 0; }"
 	close $f
 
-	set cxxflags_saved $cxxflags
-	set cxxflags "$cxxflags -Werror -O0 -D_GLIBCXX_DEBUG"
 	set lines [v3_target_compile $src $exe executable ""]
-	set cxxflags $cxxflags_saved
 	file delete $src
 
 	if [string match "" $lines] {
@@ -1444,3 +1432,5 @@ proc check_v3_target_binary_io { } {
     verbose "check_v3_target_binary_io: $et_binary_io" 2
     return $et_binary_io
 }
+
+set additional_prunes ""

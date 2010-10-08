@@ -1,6 +1,6 @@
 /* Target definitions for GCC for Intel 80386 running Solaris 2
    Copyright (C) 1993, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
-   2004, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2004, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Fred Fish (fnf@cygnus.com).
 
 This file is part of GCC.
@@ -72,7 +72,7 @@ along with GCC; see the file COPYING3.  If not see
 #define LOCAL_LABEL_PREFIX "."
 
 /* The 32-bit Solaris assembler does not support .quad.  Do not use it.  */
-#ifndef TARGET_BI_ARCH
+#ifndef HAVE_AS_IX86_QUAD
 #undef ASM_QUAD
 #endif
 
@@ -91,6 +91,47 @@ along with GCC; see the file COPYING3.  If not see
       }							\
   } while (0)
 
+/* Follow Sun requirements for TLS code sequences and use Sun assembler TLS
+   syntax.  */
+#undef TARGET_SUN_TLS
+#define TARGET_SUN_TLS 1
+
+/* The Sun assembler uses .tcomm for TLS common sections.  */
+#define TLS_COMMON_ASM_OP ".tcomm"
+
+/* Similar to the Sun assembler on SPARC, the native assembler requires
+   TLS objects to be declared as @tls_obj (not @tls_object).  Unlike SPARC,
+   gas doesn't understand this variant.  */
+#ifndef USE_GAS
+#undef  ASM_DECLARE_OBJECT_NAME
+#define ASM_DECLARE_OBJECT_NAME(FILE, NAME, DECL)		\
+  do								\
+    {								\
+      HOST_WIDE_INT size;					\
+								\
+      if (targetm.have_tls && DECL_THREAD_LOCAL_P (DECL))	\
+	ASM_OUTPUT_TYPE_DIRECTIVE (FILE, NAME, "tls_obj");	\
+      else							\
+	ASM_OUTPUT_TYPE_DIRECTIVE (FILE, NAME, "object");	\
+								\
+      size_directive_output = 0;				\
+      if (!flag_inhibit_size_directive				\
+	  && (DECL) && DECL_SIZE (DECL))			\
+	{							\
+	  size_directive_output = 1;				\
+	  size = int_size_in_bytes (TREE_TYPE (DECL));		\
+	  ASM_OUTPUT_SIZE_DIRECTIVE (FILE, NAME, size);		\
+	}							\
+								\
+      ASM_OUTPUT_LABEL (FILE, NAME);				\
+    }								\
+  while (0)
+#endif
+
+/* The Solaris assembler cannot grok .stabd directives.  */
+#undef NO_DBX_BNSYM_ENSYM
+#define NO_DBX_BNSYM_ENSYM 1
+
 /* Solaris-specific #pragmas are implemented on top of attributes.  Hook in
    the bits from config/sol2.c.  */
 #define SUBTARGET_INSERT_ATTRIBUTES solaris_insert_attributes
@@ -99,12 +140,22 @@ along with GCC; see the file COPYING3.  If not see
 /* Register the Solaris-specific #pragma directives.  */
 #define REGISTER_SUBTARGET_PRAGMAS() solaris_register_pragmas ()
 
+/* Undo i386/sysv4.h version.  */
+#undef SUBTARGET_RETURN_IN_MEMORY
+
+/* Augment i386/unix.h version to return 8-byte vectors in memory, matching
+   Sun Studio compilers until version 12, the only ones supported on
+   Solaris 8 and 9.  */
+#undef TARGET_SUBTARGET_DEFAULT
+#define TARGET_SUBTARGET_DEFAULT \
+	(MASK_80387 | MASK_IEEE_FP | MASK_FLOAT_RETURNS | MASK_VECT8_RETURNS)
+
 /* Output a simple call for .init/.fini.  */
 #define ASM_OUTPUT_CALL(FILE, FN)				\
   do								\
     {								\
       fprintf (FILE, "\tcall\t");				\
-      print_operand (FILE, XEXP (DECL_RTL (FN), 0), 'P');	\
+      ix86_print_operand (FILE, XEXP (DECL_RTL (FN), 0), 'P');	\
       fprintf (FILE, "\n");					\
     }								\
   while (0)
@@ -113,10 +164,19 @@ along with GCC; see the file COPYING3.  If not see
 #undef X86_FILE_START_VERSION_DIRECTIVE
 #define X86_FILE_START_VERSION_DIRECTIVE false
 
+/* Static stack checking is supported by means of probes.  */
+#define STACK_CHECK_STATIC_BUILTIN 1
+
 /* Only recent versions of Solaris 11 ld properly support hidden .gnu.linkonce
    sections, so don't use them.  */
 #ifndef TARGET_GNU_LD
 #define USE_HIDDEN_LINKONCE 0
 #endif
+
+/* Put all *tf routines in libgcc.  */
+#undef LIBGCC2_HAS_TF_MODE
+#define LIBGCC2_HAS_TF_MODE 1
+#define LIBGCC2_TF_CEXT q
+#define TF_SIZE 113
 
 #define MD_UNWIND_SUPPORT "config/i386/sol2-unwind.h"

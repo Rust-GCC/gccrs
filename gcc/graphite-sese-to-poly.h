@@ -1,5 +1,5 @@
 /* Conversion of SESE regions to Polyhedra.
-   Copyright (C) 2009 Free Software Foundation, Inc.
+   Copyright (C) 2009, 2010 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <sebastian.pop@amd.com>.
 
 This file is part of GCC.
@@ -21,7 +21,17 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_GRAPHITE_SESE_TO_POLY_H
 #define GCC_GRAPHITE_SESE_TO_POLY_H
 
-bool build_poly_scop (scop_p);
-void check_poly_representation (scop_p);
+typedef struct base_alias_pair base_alias_pair;
+struct base_alias_pair
+{
+  int base_obj_set;
+  int *alias_set;
+};
+
+void build_poly_scop (scop_p);
+void rewrite_commutative_reductions_out_of_ssa (sese, sbitmap);
+void rewrite_reductions_out_of_ssa (scop_p);
+void rewrite_cross_bb_scalar_deps_out_of_ssa (scop_p);
+void build_scop_bbs (scop_p, sbitmap);
 
 #endif

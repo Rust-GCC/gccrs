@@ -1,6 +1,6 @@
 /* Subroutines used for MIPS code generation.
    Copyright (C) 1989, 1990, 1991, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by A. Lichnewsky, lich@inria.inria.fr.
    Changes by Michael Meissner, meissner@osf.org.
@@ -31,7 +31,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "insn-attr.h"
@@ -59,6 +58,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "bitmap.h"
 #include "diagnostic.h"
+#include "target-globals.h"
 
 /* True if X is an UNSPEC wrapper around a SYMBOL_REF or LABEL_REF.  */
 #define UNSPEC_ADDRESS_P(X)					\
@@ -474,6 +474,23 @@ struct mips16e_save_restore_info {
   HOST_WIDE_INT size;
 };
 
+/* Costs of various operations on the different architectures.  */
+
+struct mips_rtx_cost_data
+{
+  unsigned short fp_add;
+  unsigned short fp_mult_sf;
+  unsigned short fp_mult_df;
+  unsigned short fp_div_sf;
+  unsigned short fp_div_df;
+  unsigned short int_mult_si;
+  unsigned short int_mult_di;
+  unsigned short int_div_si;
+  unsigned short int_div_di;
+  unsigned short branch_cost;
+  unsigned short memory_latency;
+};
+
 /* Global variables for machine-dependent things.  */
 
 /* The -G setting, or the configuration's default small-data limit if
@@ -505,11 +522,11 @@ struct mips_asm_switch mips_noat = { "at", 0 };
 static bool mips_branch_likely;
 
 /* The current instruction-set architecture.  */
-enum processor_type mips_arch;
+enum processor mips_arch;
 const struct mips_cpu_info *mips_arch_info;
 
 /* The processor that we should tune the code for.  */
-enum processor_type mips_tune;
+enum processor mips_tune;
 const struct mips_cpu_info *mips_tune_info;
 
 /* The ISA level associated with mips_arch.  */
@@ -522,7 +539,7 @@ static const struct mips_cpu_info *mips_isa_option_info;
 int mips_abi = MIPS_ABI_DEFAULT;
 
 /* Which cost information to use.  */
-const struct mips_rtx_cost_data *mips_cost;
+static const struct mips_rtx_cost_data *mips_cost;
 
 /* The ambient target flags, excluding MASK_MIPS16.  */
 static int mips_base_target_flags;
@@ -549,7 +566,7 @@ bool mips_hard_regno_mode_ok[(int) MAX_MACHINE_MODE][FIRST_PSEUDO_REGISTER];
 
 /* Index C is true if character C is a valid PRINT_OPERAND punctation
    character.  */
-bool mips_print_operand_punct[256];
+static bool mips_print_operand_punct[256];
 
 static GTY (()) int mips_output_filename_first_time = 1;
 
@@ -568,6 +585,9 @@ static const char *mips_lo_relocs[NUM_SYMBOL_TYPES];
 
 /* Likewise for HIGHs.  */
 static const char *mips_hi_relocs[NUM_SYMBOL_TYPES];
+
+/* Target state for MIPS16.  */
+struct target_globals *mips16_globals;
 
 /* Index R is the smallest register class that contains register R.  */
 const enum reg_class mips_regno_to_class[FIRST_PSEUDO_REGISTER] = {
@@ -798,7 +818,8 @@ static const struct mips_rtx_cost_data mips_rtx_cost_optimize_size = {
 };
 
 /* Costs to use when optimizing for speed, indexed by processor.  */
-static const struct mips_rtx_cost_data mips_rtx_cost_data[PROCESSOR_MAX] = {
+static const struct mips_rtx_cost_data
+  mips_rtx_cost_data[NUM_PROCESSOR_VALUES] = {
   { /* R3000 */
     COSTS_N_INSNS (2),            /* fp_add */
     COSTS_N_INSNS (4),            /* fp_mult_sf */
@@ -1163,6 +1184,8 @@ static const struct mips_rtx_cost_data mips_rtx_cost_data[PROCESSOR_MAX] = {
 };
 
 static rtx mips_find_pic_call_symbol (rtx, rtx);
+static int mips_register_move_cost (enum machine_mode, reg_class_t,
+				    reg_class_t);
 
 /* This hash table keeps track of implicit "mips16" and "nomips16" attributes
    for -mflip_mips16.  It maps decl names onto a boolean mode setting.  */
@@ -1218,7 +1241,7 @@ mflip_mips16_use_mips16_p (tree decl)
   if (!entry)
     {
       mips16_flipper = !mips16_flipper;
-      entry = GGC_NEW (struct mflip_mips16_entry);
+      entry = ggc_alloc_mflip_mips16_entry ();
       entry->name = name;
       entry->mips16_p = mips16_flipper ? !mips_base_mips16 : mips_base_mips16;
       *slot = entry;
@@ -3998,9 +4021,7 @@ mips_multi_write (void)
   struct mips_multi_member *member;
   unsigned int i;
 
-  for (i = 0;
-       VEC_iterate (mips_multi_member, mips_multi_members, i, member);
-       i++)
+  FOR_EACH_VEC_ELT (mips_multi_member, mips_multi_members, i, member)
     if (member->is_label_p)
       fprintf (asm_out_file, "%s\n", member->format);
     else
@@ -4680,7 +4701,7 @@ mips_init_cumulative_args (CUMULATIVE_ARGS *cum, tree fntype)
 
 static void
 mips_get_arg_info (struct mips_arg_info *info, const CUMULATIVE_ARGS *cum,
-		   enum machine_mode mode, tree type, int named)
+		   enum machine_mode mode, const_tree type, bool named)
 {
   bool doubleword_aligned_p;
   unsigned int num_bytes, num_words, max_regs;
@@ -4813,11 +4834,11 @@ mips_strict_argument_naming (CUMULATIVE_ARGS *ca ATTRIBUTE_UNUSED)
   return !TARGET_OLDABI;
 }
 
-/* Implement FUNCTION_ARG.  */
+/* Implement TARGET_FUNCTION_ARG.  */
 
-rtx
-mips_function_arg (const CUMULATIVE_ARGS *cum, enum machine_mode mode,
-		   tree type, int named)
+static rtx
+mips_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+		   const_tree type, bool named)
 {
   struct mips_arg_info info;
 
@@ -4853,7 +4874,7 @@ mips_function_arg (const CUMULATIVE_ARGS *cum, enum machine_mode mode,
       tree field;
 
       /* First check to see if there is any such field.  */
-      for (field = TYPE_FIELDS (type); field; field = TREE_CHAIN (field))
+      for (field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
 	if (TREE_CODE (field) == FIELD_DECL
 	    && SCALAR_FLOAT_TYPE_P (TREE_TYPE (field))
 	    && TYPE_PRECISION (TREE_TYPE (field)) == BITS_PER_WORD
@@ -4880,7 +4901,7 @@ mips_function_arg (const CUMULATIVE_ARGS *cum, enum machine_mode mode,
 	    {
 	      rtx reg;
 
-	      for (; field; field = TREE_CHAIN (field))
+	      for (; field; field = DECL_CHAIN (field))
 		if (TREE_CODE (field) == FIELD_DECL
 		    && int_bit_position (field) >= bitpos)
 		  break;
@@ -4939,11 +4960,11 @@ mips_function_arg (const CUMULATIVE_ARGS *cum, enum machine_mode mode,
   return gen_rtx_REG (mode, mips_arg_regno (&info, TARGET_HARD_FLOAT));
 }
 
-/* Implement FUNCTION_ARG_ADVANCE.  */
+/* Implement TARGET_FUNCTION_ARG_ADVANCE.  */
 
-void
+static void
 mips_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
-			   tree type, int named)
+			   const_tree type, bool named)
 {
   struct mips_arg_info info;
 
@@ -4992,7 +5013,7 @@ mips_arg_partial_bytes (CUMULATIVE_ARGS *cum,
    to STACK_BOUNDARY bits if the type requires it.  */
 
 int
-mips_function_arg_boundary (enum machine_mode mode, tree type)
+mips_function_arg_boundary (enum machine_mode mode, const_tree type)
 {
   unsigned int alignment;
 
@@ -5118,7 +5139,7 @@ mips_fpr_return_fields (const_tree valtype, tree *fields)
     return 0;
 
   i = 0;
-  for (field = TYPE_FIELDS (valtype); field != 0; field = TREE_CHAIN (field))
+  for (field = TYPE_FIELDS (valtype); field != 0; field = DECL_CHAIN (field))
     {
       if (TREE_CODE (field) != FIELD_DECL)
 	continue;
@@ -5325,7 +5346,7 @@ mips_setup_incoming_varargs (CUMULATIVE_ARGS *cum, enum machine_mode mode,
      argument.  Advance a local copy of CUM past the last "real" named
      argument, to find out how many registers are left over.  */
   local_cum = *cum;
-  FUNCTION_ARG_ADVANCE (local_cum, mode, type, true);
+  mips_function_arg_advance (&local_cum, mode, type, true);
 
   /* Found out how many registers we need to save.  */
   gp_saved = MAX_ARGS_IN_REGISTERS - local_cum.num_gprs;
@@ -5440,16 +5461,16 @@ mips_build_builtin_va_list (void)
       DECL_FIELD_CONTEXT (f_res) = record;
 
       TYPE_FIELDS (record) = f_ovfl;
-      TREE_CHAIN (f_ovfl) = f_gtop;
-      TREE_CHAIN (f_gtop) = f_ftop;
-      TREE_CHAIN (f_ftop) = f_goff;
-      TREE_CHAIN (f_goff) = f_foff;
-      TREE_CHAIN (f_foff) = f_res;
+      DECL_CHAIN (f_ovfl) = f_gtop;
+      DECL_CHAIN (f_gtop) = f_ftop;
+      DECL_CHAIN (f_ftop) = f_goff;
+      DECL_CHAIN (f_goff) = f_foff;
+      DECL_CHAIN (f_foff) = f_res;
 
       layout_type (record);
       return record;
     }
-  else if (TARGET_IRIX && TARGET_IRIX6)
+  else if (TARGET_IRIX6)
     /* On IRIX 6, this type is 'char *'.  */
     return build_pointer_type (char_type_node);
   else
@@ -5479,10 +5500,10 @@ mips_va_start (tree valist, rtx nextarg)
 	= (MAX_ARGS_IN_REGISTERS - cum->num_fprs) * UNITS_PER_FPREG;
 
       f_ovfl = TYPE_FIELDS (va_list_type_node);
-      f_gtop = TREE_CHAIN (f_ovfl);
-      f_ftop = TREE_CHAIN (f_gtop);
-      f_goff = TREE_CHAIN (f_ftop);
-      f_foff = TREE_CHAIN (f_goff);
+      f_gtop = DECL_CHAIN (f_ovfl);
+      f_ftop = DECL_CHAIN (f_gtop);
+      f_goff = DECL_CHAIN (f_ftop);
+      f_foff = DECL_CHAIN (f_goff);
 
       ovfl = build3 (COMPONENT_REF, TREE_TYPE (f_ovfl), valist, f_ovfl,
 		     NULL_TREE);
@@ -5564,10 +5585,10 @@ mips_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
       tree t, u;
 
       f_ovfl = TYPE_FIELDS (va_list_type_node);
-      f_gtop = TREE_CHAIN (f_ovfl);
-      f_ftop = TREE_CHAIN (f_gtop);
-      f_goff = TREE_CHAIN (f_ftop);
-      f_foff = TREE_CHAIN (f_goff);
+      f_gtop = DECL_CHAIN (f_ovfl);
+      f_ftop = DECL_CHAIN (f_gtop);
+      f_goff = DECL_CHAIN (f_ftop);
+      f_foff = DECL_CHAIN (f_goff);
 
       /* Let:
 
@@ -5852,7 +5873,7 @@ mips16_local_alias (rtx func)
       SYMBOL_REF_FLAGS (local) = SYMBOL_REF_FLAGS (func) | SYMBOL_FLAG_LOCAL;
 
       /* Create a new structure to represent the mapping.  */
-      alias = GGC_NEW (struct mips16_local_alias);
+      alias = ggc_alloc_mips16_local_alias ();
       alias->func = func;
       alias->local = local;
       *slot = alias;
@@ -6314,24 +6335,37 @@ mips16_build_call_stub (rtx retval, rtx *fn_ptr, rtx args_size, int fp_code)
 	  switch (GET_MODE (retval))
 	    {
 	    case SCmode:
-	      mips_output_32bit_xfer ('f', GP_RETURN + 1,
-				      FP_REG_FIRST + MAX_FPRS_PER_FMT);
-	      /* Fall though.  */
-	    case SFmode:
-	      mips_output_32bit_xfer ('f', GP_RETURN, FP_REG_FIRST);
+	      mips_output_32bit_xfer ('f', GP_RETURN + TARGET_BIG_ENDIAN,
+				      TARGET_BIG_ENDIAN
+				      ? FP_REG_FIRST + MAX_FPRS_PER_FMT
+				      : FP_REG_FIRST);
+	      mips_output_32bit_xfer ('f', GP_RETURN + TARGET_LITTLE_ENDIAN,
+				      TARGET_LITTLE_ENDIAN
+				      ? FP_REG_FIRST + MAX_FPRS_PER_FMT
+				      : FP_REG_FIRST);
 	      if (GET_MODE (retval) == SCmode && TARGET_64BIT)
 		{
 		  /* On 64-bit targets, complex floats are returned in
 		     a single GPR, such that "sd" on a suitably-aligned
 		     target would store the value correctly.  */
 		  fprintf (asm_out_file, "\tdsll\t%s,%s,32\n",
+			   reg_names[GP_RETURN + TARGET_BIG_ENDIAN],
+			   reg_names[GP_RETURN + TARGET_BIG_ENDIAN]);
+		  fprintf (asm_out_file, "\tdsll\t%s,%s,32\n",
 			   reg_names[GP_RETURN + TARGET_LITTLE_ENDIAN],
 			   reg_names[GP_RETURN + TARGET_LITTLE_ENDIAN]);
+		  fprintf (asm_out_file, "\tdsrl\t%s,%s,32\n",
+			   reg_names[GP_RETURN + TARGET_BIG_ENDIAN],
+			   reg_names[GP_RETURN + TARGET_BIG_ENDIAN]);
 		  fprintf (asm_out_file, "\tor\t%s,%s,%s\n",
 			   reg_names[GP_RETURN],
 			   reg_names[GP_RETURN],
 			   reg_names[GP_RETURN + 1]);
 		}
+	      break;
+
+	    case SFmode:
+	      mips_output_32bit_xfer ('f', GP_RETURN, FP_REG_FIRST);
 	      break;
 
 	    case DCmode:
@@ -7447,7 +7481,15 @@ mips_print_float_branch_condition (FILE *file, enum rtx_code code, int letter)
     }
 }
 
-/* Implement the PRINT_OPERAND macro.  The MIPS-specific operand codes are:
+/* Implement TARGET_PRINT_OPERAND_PUNCT_VALID_P.  */
+
+static bool
+mips_print_operand_punct_valid_p (unsigned char code)
+{
+  return mips_print_operand_punct[code];
+}
+
+/* Implement TARGET_PRINT_OPERAND.  The MIPS-specific operand codes are:
 
    'X'	Print CONST_INT OP in hexadecimal format.
    'x'	Print the low 16 bits of CONST_INT OP in hexadecimal format.
@@ -7471,12 +7513,12 @@ mips_print_float_branch_condition (FILE *file, enum rtx_code code, int letter)
    'M'	Print high-order register in a double-word register operand.
    'z'	Print $0 if OP is zero, otherwise print OP normally.  */
 
-void
+static void
 mips_print_operand (FILE *file, rtx op, int letter)
 {
   enum rtx_code code;
 
-  if (PRINT_OPERAND_PUNCT_VALID_P (letter))
+  if (mips_print_operand_punct_valid_p (letter))
     {
       mips_print_operand_punctuation (file, letter);
       return;
@@ -7618,9 +7660,9 @@ mips_print_operand (FILE *file, rtx op, int letter)
     }
 }
 
-/* Output address operand X to FILE.  */
+/* Implement TARGET_PRINT_OPERAND_ADDRESS.  */
 
-void
+static void
 mips_print_operand_address (FILE *file, rtx x)
 {
   struct mips_address_info addr;
@@ -7731,7 +7773,7 @@ mips_in_small_data_p (const_tree decl)
 
   /* We don't yet generate small-data references for -mabicalls
      or VxWorks RTP code.  See the related -G handling in
-     mips_override_options.  */
+     mips_option_override.  */
   if (TARGET_ABICALLS || TARGET_VXWORKS_RTP)
     return false;
 
@@ -7864,25 +7906,12 @@ mips_output_external (FILE *file, tree decl, const char *name)
 	  fprintf (file, ", " HOST_WIDE_INT_PRINT_DEC "\n",
 		   int_size_in_bytes (TREE_TYPE (decl)));
 	}
-      else if (TARGET_IRIX
-	       && mips_abi == ABI_32
-	       && TREE_CODE (decl) == FUNCTION_DECL)
-	{
-	  /* In IRIX 5 or IRIX 6 for the O32 ABI, we must output a
-	     `.global name .text' directive for every used but
-	     undefined function.  If we don't, the linker may perform
-	     an optimization (skipping over the insns that set $gp)
-	     when it is unsafe.  */
-	  fputs ("\t.globl ", file);
-	  assemble_name (file, name);
-	  fputs (" .text\n", file);
-	}
     }
 }
 
-/* Implement ASM_OUTPUT_SOURCE_FILENAME.  */
+/* Implement TARGET_ASM_OUTPUT_SOURCE_FILENAME.  */
 
-void
+static void
 mips_output_filename (FILE *stream, const char *name)
 {
   /* If we are emitting DWARF-2, let dwarf2out handle the ".file"
@@ -8166,7 +8195,7 @@ mips_file_start (void)
   /* Generate a special section to describe the ABI switches used to
      produce the resultant binary.  This is unnecessary on IRIX and
      causes unwanted warnings from the native linker.  */
-  if (!TARGET_IRIX)
+  if (!TARGET_IRIX6)
     {
       /* Record the ABI itself.  Modern versions of binutils encode
 	 this information in the ELF header flags, but GDB needs the
@@ -8185,10 +8214,27 @@ mips_file_start (void)
 		 "\t.previous\n", TARGET_LONG64 ? 64 : 32);
 
 #ifdef HAVE_AS_GNU_ATTRIBUTE
-      fprintf (asm_out_file, "\t.gnu_attribute 4, %d\n",
-	       (TARGET_HARD_FLOAT_ABI
-		? (TARGET_DOUBLE_FLOAT
-		   ? ((!TARGET_64BIT && TARGET_FLOAT64) ? 4 : 1) : 2) : 3));
+      {
+	int attr;
+
+	/* No floating-point operations, -mno-float.  */
+	if (TARGET_NO_FLOAT)
+	  attr = 0;
+	/* Soft-float code, -msoft-float.  */
+	else if (!TARGET_HARD_FLOAT_ABI)
+	  attr = 3;
+	/* Single-float code, -msingle-float.  */
+	else if (!TARGET_DOUBLE_FLOAT)
+	  attr = 2;
+	/* 64-bit FP registers on a 32-bit target, -mips32r2 -mfp64.  */
+	else if (!TARGET_64BIT && TARGET_FLOAT64)
+	  attr = 4;
+	/* Regular FP code, FP regs same size as GP regs, -mdouble-float.  */
+	else
+	  attr = 1;
+
+	fprintf (asm_out_file, "\t.gnu_attribute 4, %d\n", attr);
+      }
 #endif
     }
 
@@ -9811,10 +9857,6 @@ mips_output_function_prologue (FILE *file, HOST_WIDE_INT size ATTRIBUTE_UNUSED)
   fnname = XSTR (XEXP (DECL_RTL (current_function_decl), 0), 0);
   mips_start_function_definition (fnname, TARGET_MIPS16);
 
-  /* Stop mips_file_end from treating this function as external.  */
-  if (TARGET_IRIX && mips_abi == ABI_32)
-    TREE_ASM_WRITTEN (DECL_NAME (cfun->decl)) = 1;
-
   /* Output MIPS-specific frame information.  */
   if (!flag_inhibit_size_directive)
     {
@@ -10035,6 +10077,9 @@ mips_expand_prologue (void)
 
   frame = &cfun->machine->frame;
   size = frame->total_size;
+
+  if (flag_stack_usage)
+    current_function_static_stack_size = size;
 
   /* Save the registers.  Allocate up to MIPS_MAX_FIRST_STACK_STEP
      bytes beforehand; this is enough to cover the register save area
@@ -10718,6 +10763,15 @@ mips_cannot_change_mode_class (enum machine_mode from ATTRIBUTE_UNUSED,
   return reg_classes_intersect_p (FP_REGS, rclass);
 }
 
+/* Implement target hook small_register_classes_for_mode_p.  */
+
+static bool
+mips_small_register_classes_for_mode_p (enum machine_mode mode
+					ATTRIBUTE_UNUSED)
+{
+  return TARGET_MIPS16;
+}
+
 /* Return true if moves in mode MODE can use the FPU's mov.fmt instruction.  */
 
 static bool
@@ -10775,8 +10829,8 @@ mips_preferred_reload_class (rtx x, enum reg_class rclass)
 /* RCLASS is a class involved in a REGISTER_MOVE_COST calculation.
    Return a "canonical" class to represent it in later calculations.  */
 
-static enum reg_class
-mips_canonicalize_move_class (enum reg_class rclass)
+static reg_class_t
+mips_canonicalize_move_class (reg_class_t rclass)
 {
   /* All moves involving accumulator registers have the same cost.  */
   if (reg_class_subset_p (rclass, ACC_REGS))
@@ -10798,7 +10852,7 @@ mips_canonicalize_move_class (enum reg_class rclass)
 
 static int
 mips_move_to_gpr_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
-		       enum reg_class from)
+		       reg_class_t from)
 {
   switch (from)
     {
@@ -10834,7 +10888,7 @@ mips_move_to_gpr_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
    other classes handled by this function.  */
 
 static int
-mips_move_from_gpr_cost (enum machine_mode mode, enum reg_class to)
+mips_move_from_gpr_cost (enum machine_mode mode, reg_class_t to)
 {
   switch (to)
     {
@@ -10866,15 +10920,15 @@ mips_move_from_gpr_cost (enum machine_mode mode, enum reg_class to)
     }
 }
 
-/* Implement REGISTER_MOVE_COST.  Return 0 for classes that are the
+/* Implement TARGET_REGISTER_MOVE_COST.  Return 0 for classes that are the
    maximum of the move costs for subclasses; regclass will work out
    the maximum for us.  */
 
-int
+static int
 mips_register_move_cost (enum machine_mode mode,
-			 enum reg_class from, enum reg_class to)
+			 reg_class_t from, reg_class_t to)
 {
-  enum reg_class dregs;
+  reg_class_t dregs;
   int cost1, cost2;
 
   from = mips_canonicalize_move_class (from);
@@ -10910,16 +10964,25 @@ mips_register_move_cost (enum machine_mode mode,
   return 0;
 }
 
+/* Implement TARGET_MEMORY_MOVE_COST.  */
+
+static int
+mips_memory_move_cost (enum machine_mode mode, reg_class_t rclass, bool in)
+{
+  return (mips_cost->memory_latency
+	  + memory_move_secondary_cost (mode, rclass, in));
+} 
+
 /* Implement TARGET_IRA_COVER_CLASSES.  */
 
-static const enum reg_class *
+static const reg_class_t *
 mips_ira_cover_classes (void)
 {
-  static const enum reg_class acc_classes[] = {
+  static const reg_class_t acc_classes[] = {
     GR_AND_ACC_REGS, FP_REGS, COP0_REGS, COP2_REGS, COP3_REGS,
     ST_REGS, LIM_REG_CLASSES
   };
-  static const enum reg_class no_acc_classes[] = {
+  static const reg_class_t no_acc_classes[] = {
     GR_REGS, FP_REGS, COP0_REGS, COP2_REGS, COP3_REGS,
     ST_REGS, LIM_REG_CLASSES
   };
@@ -11077,6 +11140,14 @@ mips_scalar_mode_supported_p (enum machine_mode mode)
   return default_scalar_mode_supported_p (mode);
 }
 
+/* Implement TARGET_VECTORIZE_UNITS_PER_SIMD_WORD.  */
+
+static unsigned int
+mips_units_per_simd_word (enum machine_mode mode ATTRIBUTE_UNUSED)
+{
+  return TARGET_PAIRED_SINGLE_FLOAT ? 8 : UNITS_PER_WORD;
+}
+
 /* Implement TARGET_INIT_LIBFUNCS.  */
 
 #include "config/gofast.h"
@@ -11808,10 +11879,17 @@ mips_output_division (const char *division, rtx *operands)
 	  s = "bnez\t%2,1f\n\tbreak\t7\n1:";
 	}
       else if (GENERATE_DIVIDE_TRAPS)
-        {
-	  output_asm_insn (s, operands);
-	  s = "teq\t%2,%.,7";
-        }
+	{
+	  /* Avoid long replay penalty on load miss by putting the trap before
+	     the divide.  */
+	  if (TUNE_74K)
+	    output_asm_insn ("teq\t%2,%.,7", operands);
+	  else
+	    {
+	      output_asm_insn (s, operands);
+	      s = "teq\t%2,%.,7";
+	    }
+	}
       else
 	{
 	  output_asm_insn ("%(bne\t%2,%.,1f", operands);
@@ -12643,6 +12721,13 @@ AVAIL_NON_MIPS16 (cache, TARGET_CACHE_BUILTIN)
 #define CODE_FOR_loongson_pminub CODE_FOR_uminv8qi3
 #define CODE_FOR_loongson_pmulhuh CODE_FOR_umulv4hi3_highpart
 #define CODE_FOR_loongson_pmulhh CODE_FOR_smulv4hi3_highpart
+#define CODE_FOR_loongson_pmullh CODE_FOR_mulv4hi3
+#define CODE_FOR_loongson_psllh CODE_FOR_ashlv4hi3
+#define CODE_FOR_loongson_psllw CODE_FOR_ashlv2si3
+#define CODE_FOR_loongson_psrlh CODE_FOR_lshrv4hi3
+#define CODE_FOR_loongson_psrlw CODE_FOR_lshrv2si3
+#define CODE_FOR_loongson_psrah CODE_FOR_ashrv4hi3
+#define CODE_FOR_loongson_psraw CODE_FOR_ashrv2si3
 #define CODE_FOR_loongson_psubw CODE_FOR_subv2si3
 #define CODE_FOR_loongson_psubh CODE_FOR_subv4hi3
 #define CODE_FOR_loongson_psubb CODE_FOR_subv8qi3
@@ -12940,6 +13025,10 @@ static const struct mips_builtin_description mips_builtins[] = {
   DIRECT_NO_TARGET_BUILTIN (cache, MIPS_VOID_FTYPE_SI_CVPOINTER, cache)
 };
 
+/* Index I is the function declaration for mips_builtins[I], or null if the
+   function isn't defined on this target.  */
+static GTY(()) tree mips_builtin_decls[ARRAY_SIZE (mips_builtins)];
+
 /* MODE is a vector mode whose elements have type TYPE.  Return the type
    of the vector itself.  */
 
@@ -13056,10 +13145,21 @@ mips_init_builtins (void)
     {
       d = &mips_builtins[i];
       if (d->avail ())
-	add_builtin_function (d->name,
-			      mips_build_function_type (d->function_type),
-			      i, BUILT_IN_MD, NULL, NULL);
+	mips_builtin_decls[i]
+	  = add_builtin_function (d->name,
+				  mips_build_function_type (d->function_type),
+				  i, BUILT_IN_MD, NULL, NULL);
     }
+}
+
+/* Implement TARGET_BUILTIN_DECL.  */
+
+static tree
+mips_builtin_decl (unsigned int code, bool initialize_p ATTRIBUTE_UNUSED)
+{
+  if (code >= ARRAY_SIZE (mips_builtins))
+    return error_mark_node;
+  return mips_builtin_decls[code];
 }
 
 /* Take argument ARGNO from EXP's argument list and convert it into a
@@ -14007,23 +14107,35 @@ r10k_insert_cache_barriers (void)
 }
 
 /* If INSN is a call, return the underlying CALL expr.  Return NULL_RTX
-   otherwise.  */
+   otherwise.  If INSN has two call rtx, then store the second one in
+   SECOND_CALL.  */
 
 static rtx
-mips_call_expr_from_insn (rtx insn)
+mips_call_expr_from_insn (rtx insn, rtx *second_call)
 {
   rtx x;
+  rtx x2;
 
   if (!CALL_P (insn))
     return NULL_RTX;
 
   x = PATTERN (insn);
   if (GET_CODE (x) == PARALLEL)
-    x = XVECEXP (x, 0, 0);
+    {
+      /* Calls returning complex values have two CALL rtx.  Look for the second
+	 one here, and return it via the SECOND_CALL arg.  */
+      x2 = XVECEXP (x, 0, 1);
+      if (GET_CODE (x2) == SET)
+	x2 = XEXP (x2, 1);
+      if (GET_CODE (x2) == CALL)
+	*second_call = x2;
+
+      x = XVECEXP (x, 0, 0);
+    }
   if (GET_CODE (x) == SET)
     x = XEXP (x, 1);
-
   gcc_assert (GET_CODE (x) == CALL);
+
   return x;
 }
 
@@ -14155,9 +14267,10 @@ mips_annotate_pic_calls (void)
   FOR_EACH_BB (bb)
     FOR_BB_INSNS (bb, insn)
     {
-      rtx call, reg, symbol;
+      rtx call, reg, symbol, second_call;
 
-      call = mips_call_expr_from_insn (insn);
+      second_call = 0;
+      call = mips_call_expr_from_insn (insn, &second_call);
       if (!call)
 	continue;
       gcc_assert (MEM_P (XEXP (call, 0)));
@@ -14167,7 +14280,11 @@ mips_annotate_pic_calls (void)
 
       symbol = mips_find_pic_call_symbol (insn, reg);
       if (symbol)
-	mips_annotate_pic_call_expr (call, symbol);
+	{
+	  mips_annotate_pic_call_expr (call, symbol);
+	  if (second_call)
+	    mips_annotate_pic_call_expr (second_call, symbol);
+	}
     }
 }
 
@@ -15159,9 +15276,15 @@ mips_set_mips16_mode (int mips16_p)
   /* (Re)initialize MIPS target internals for new ISA.  */
   mips_init_relocs ();
 
-  if (was_mips16_p >= 0 || was_mips16_pch_p >= 0)
-    /* Reinitialize target-dependent state.  */
-    target_reinit ();
+  if (mips16_p)
+    {
+      if (!mips16_globals)
+	mips16_globals = save_target_globals ();
+      else
+	restore_target_globals (mips16_globals);
+    }
+  else
+    restore_target_globals (&default_target_globals);
 
   was_mips16_p = mips16_p;
   was_mips16_pch_p = mips16_p;
@@ -15181,8 +15304,7 @@ mips_set_current_function (tree fndecl)
 static struct machine_function *
 mips_init_machine_status (void)
 {
-  return ((struct machine_function *)
-	  ggc_alloc_cleared (sizeof (struct machine_function)));
+  return ggc_alloc_cleared_machine_function ();
 }
 
 /* Return the processor associated with the given ISA level, or null
@@ -15316,7 +15438,7 @@ mips_set_tune (const struct mips_cpu_info *info)
 /* Implement TARGET_HANDLE_OPTION.  */
 
 static bool
-mips_handle_option (size_t code, const char *arg, int value ATTRIBUTE_UNUSED)
+mips_handle_option (size_t code, const char *arg, int value)
 {
   switch (code)
     {
@@ -15374,10 +15496,10 @@ mips_handle_option (size_t code, const char *arg, int value ATTRIBUTE_UNUSED)
     }
 }
 
-/* Implement OVERRIDE_OPTIONS.  */
+/* Implement TARGET_OPTION_OVERRIDE.  */
 
-void
-mips_override_options (void)
+static void
+mips_option_override (void)
 {
   int i, start, regno, mode;
 
@@ -15389,8 +15511,18 @@ mips_override_options (void)
   SUBTARGET_OVERRIDE_OPTIONS;
 #endif
 
+  /* -mno-float overrides -mhard-float and -msoft-float.  */
+  if (TARGET_NO_FLOAT)
+    {
+      target_flags |= MASK_SOFT_FLOAT_ABI;
+      target_flags_explicit |= MASK_SOFT_FLOAT_ABI;
+    }
+
+  if (TARGET_FLIP_MIPS16)
+    TARGET_INTERLINK_MIPS16 = 1;
+
   /* Set the small data limit.  */
-  mips_small_data_threshold = (g_switch_set
+  mips_small_data_threshold = (global_options_set.x_g_switch_value
 			       ? g_switch_value
 			       : MIPS_DEFAULT_GVALUE);
 
@@ -15982,6 +16114,39 @@ mips_final_postscan_insn (FILE *file ATTRIBUTE_UNUSED, rtx insn,
   if (mips_need_noat_wrapper_p (insn, opvec, noperands))
     mips_pop_asm_switch (&mips_noat);
 }
+
+/* Return the function that is used to expand the <u>mulsidi3 pattern.
+   EXT_CODE is the code of the extension used.  Return NULL if widening
+   multiplication shouldn't be used.  */
+
+mulsidi3_gen_fn
+mips_mulsidi3_gen_fn (enum rtx_code ext_code)
+{
+  bool signed_p;
+
+  signed_p = ext_code == SIGN_EXTEND;
+  if (TARGET_64BIT)
+    {
+      /* Don't use widening multiplication with MULT when we have DMUL.  Even
+	 with the extension of its input operands DMUL is faster.  Note that
+	 the extension is not needed for signed multiplication.  In order to
+	 ensure that we always remove the redundant sign-extension in this
+	 case we still expand mulsidi3 for DMUL.  */
+      if (ISA_HAS_DMUL3)
+	return signed_p ? gen_mulsidi3_64bit_dmul : NULL;
+      if (TARGET_FIX_R4000)
+	return NULL;
+      return signed_p ? gen_mulsidi3_64bit : gen_umulsidi3_64bit;
+    }
+  else
+    {
+      if (TARGET_FIX_R4000)
+	return signed_p ? gen_mulsidi3_32bit_r4000 : gen_umulsidi3_32bit_r4000;
+      if (ISA_HAS_DSPR2)
+	return signed_p ? gen_mips_mult : gen_mips_multu;
+      return signed_p ? gen_mulsidi3_32bit : gen_umulsidi3_32bit;
+    }
+}
 
 /* Return the size in bytes of the trampoline code, padded to
    TRAMPOLINE_ALIGNMENT bits.  The static chain pointer and target
@@ -16197,6 +16362,20 @@ void mips_function_profiler (FILE *file)
     fprintf (file, "\tmove\t%s,%s\n", reg_names[STATIC_CHAIN_REGNUM],
 	     reg_names[2]);
 }
+
+/* Implement TARGET_SHIFT_TRUNCATION_MASK.  We want to keep the default
+   behaviour of TARGET_SHIFT_TRUNCATION_MASK for non-vector modes even
+   when TARGET_LOONGSON_2EF is true.  */
+
+static unsigned HOST_WIDE_INT
+mips_shift_truncation_mask (enum machine_mode mode)
+{
+  if (TARGET_LOONGSON_2EF && VECTOR_MODE_P (mode))
+    return 0;
+
+  return GET_MODE_BITSIZE (mode) - 1;
+}
+
 
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
@@ -16205,6 +16384,9 @@ void mips_function_profiler (FILE *file)
 #define TARGET_ASM_ALIGNED_SI_OP "\t.word\t"
 #undef TARGET_ASM_ALIGNED_DI_OP
 #define TARGET_ASM_ALIGNED_DI_OP "\t.dword\t"
+
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE mips_option_override
 
 #undef TARGET_LEGITIMIZE_ADDRESS
 #define TARGET_LEGITIMIZE_ADDRESS mips_legitimize_address
@@ -16237,6 +16419,9 @@ void mips_function_profiler (FILE *file)
 #undef TARGET_SCHED_FIRST_CYCLE_MULTIPASS_DFA_LOOKAHEAD
 #define TARGET_SCHED_FIRST_CYCLE_MULTIPASS_DFA_LOOKAHEAD \
   mips_multipass_dfa_lookahead
+#undef TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P
+#define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P \
+  mips_small_register_classes_for_mode_p
 
 #undef TARGET_DEFAULT_TARGET_FLAGS
 #define TARGET_DEFAULT_TARGET_FLAGS		\
@@ -16261,6 +16446,10 @@ void mips_function_profiler (FILE *file)
 
 #undef TARGET_VALID_POINTER_MODE
 #define TARGET_VALID_POINTER_MODE mips_valid_pointer_mode
+#undef TARGET_REGISTER_MOVE_COST
+#define TARGET_REGISTER_MOVE_COST mips_register_move_cost
+#undef TARGET_MEMORY_MOVE_COST
+#define TARGET_MEMORY_MOVE_COST mips_memory_move_cost
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS mips_rtx_costs
 #undef TARGET_ADDRESS_COST
@@ -16302,6 +16491,13 @@ void mips_function_profiler (FILE *file)
 #undef TARGET_ASM_CAN_OUTPUT_MI_THUNK
 #define TARGET_ASM_CAN_OUTPUT_MI_THUNK hook_bool_const_tree_hwi_hwi_const_tree_true
 
+#undef TARGET_PRINT_OPERAND
+#define TARGET_PRINT_OPERAND mips_print_operand
+#undef TARGET_PRINT_OPERAND_ADDRESS
+#define TARGET_PRINT_OPERAND_ADDRESS mips_print_operand_address
+#undef TARGET_PRINT_OPERAND_PUNCT_VALID_P
+#define TARGET_PRINT_OPERAND_PUNCT_VALID_P mips_print_operand_punct_valid_p
+
 #undef TARGET_SETUP_INCOMING_VARARGS
 #define TARGET_SETUP_INCOMING_VARARGS mips_setup_incoming_varargs
 #undef TARGET_STRICT_ARGUMENT_NAMING
@@ -16314,6 +16510,10 @@ void mips_function_profiler (FILE *file)
 #define TARGET_CALLEE_COPIES mips_callee_copies
 #undef TARGET_ARG_PARTIAL_BYTES
 #define TARGET_ARG_PARTIAL_BYTES mips_arg_partial_bytes
+#undef TARGET_FUNCTION_ARG
+#define TARGET_FUNCTION_ARG mips_function_arg
+#undef TARGET_FUNCTION_ARG_ADVANCE
+#define TARGET_FUNCTION_ARG_ADVANCE mips_function_arg_advance
 
 #undef TARGET_MODE_REP_EXTENDED
 #define TARGET_MODE_REP_EXTENDED mips_mode_rep_extended
@@ -16324,8 +16524,13 @@ void mips_function_profiler (FILE *file)
 #undef TARGET_SCALAR_MODE_SUPPORTED_P
 #define TARGET_SCALAR_MODE_SUPPORTED_P mips_scalar_mode_supported_p
 
+#undef TARGET_VECTORIZE_UNITS_PER_SIMD_WORD
+#define TARGET_VECTORIZE_UNITS_PER_SIMD_WORD mips_units_per_simd_word
+
 #undef TARGET_INIT_BUILTINS
 #define TARGET_INIT_BUILTINS mips_init_builtins
+#undef TARGET_BUILTIN_DECL
+#define TARGET_BUILTIN_DECL mips_builtin_decl
 #undef TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN mips_expand_builtin
 
@@ -16380,6 +16585,12 @@ void mips_function_profiler (FILE *file)
 
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT mips_trampoline_init
+
+#undef TARGET_ASM_OUTPUT_SOURCE_FILENAME
+#define TARGET_ASM_OUTPUT_SOURCE_FILENAME mips_output_filename
+
+#undef TARGET_SHIFT_TRUNCATION_MASK
+#define TARGET_SHIFT_TRUNCATION_MASK mips_shift_truncation_mask
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

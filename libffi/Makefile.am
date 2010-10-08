@@ -8,6 +8,7 @@ SUBDIRS = include testsuite man
 EXTRA_DIST = LICENSE ChangeLog.v1 ChangeLog.libgcj configure.host \
 	src/alpha/ffi.c src/alpha/osf.S src/alpha/ffitarget.h \
 	src/arm/ffi.c src/arm/sysv.S src/arm/ffitarget.h \
+	src/avr32/ffi.c src/avr32/sysv.S src/avr32/ffitarget.h \
 	src/cris/ffi.c src/cris/sysv.S src/cris/ffitarget.h \
 	src/ia64/ffi.c src/ia64/ffitarget.h src/ia64/ia64_flags.h \
 	src/ia64/unix.S \
@@ -64,6 +65,7 @@ AM_MAKEFLAGS = \
 	"exec_prefix=$(exec_prefix)" \
 	"infodir=$(infodir)" \
 	"libdir=$(libdir)" \
+	"mandir=$(mandir)" \
 	"prefix=$(prefix)" \
 	"AR=$(AR)" \
 	"AS=$(AS)" \
@@ -132,6 +134,9 @@ endif
 if ARM
 nodist_libffi_la_SOURCES += src/arm/sysv.S src/arm/ffi.c
 endif
+if AVR32
+nodist_libffi_la_SOURCES += src/avr32/sysv.S src/avr32/ffi.c
+endif
 if LIBFFI_CRIS
 nodist_libffi_la_SOURCES += src/cris/sysv.S src/cris/ffi.c
 endif
@@ -164,7 +169,7 @@ AM_CFLAGS = -Wall -g -fexceptions
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
 
-libffi_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` $(LTLDFLAGS)
+libffi_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` $(LTLDFLAGS) $(AM_LTLDFLAGS)
 
 AM_CPPFLAGS = -I. -I$(top_srcdir)/include -Iinclude -I$(top_srcdir)/src
 AM_CCASFLAGS = $(AM_CPPFLAGS)

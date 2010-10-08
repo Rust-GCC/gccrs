@@ -30,6 +30,8 @@
 /* We use glibc _mcount for profiling.  */
 #define NO_PROFILE_COUNTERS 1
 
+#define OPTION_GLIBC  (linux_libc == LIBC_GLIBC)
+
 /* glibc has float and long double forms of math functions.  */
 #undef  TARGET_C99_FUNCTIONS
 #define TARGET_C99_FUNCTIONS (OPTION_GLIBC)
@@ -128,3 +130,6 @@
 #ifdef TARGET_DEFAULT_LONG_DOUBLE_128
 #define RS6000_DEFAULT_LONG_DOUBLE_SIZE 128
 #endif
+
+/* Static stack checking is supported by means of probes.  */
+#define STACK_CHECK_STATIC_BUILTIN 1

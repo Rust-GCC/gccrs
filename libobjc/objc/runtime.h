@@ -1,17 +1,18 @@
-/* GNU Objective C Runtime internal declarations
-   Copyright (C) 1993, 1995, 1996, 1997, 2002, 2004, 2009 Free Software Foundation, Inc.
-   Contributed by Kresten Krab Thorup
+/* GNU Objective-C Runtime API.
+   Copyright (C) 2010 Free Software Foundation, Inc.
+   Contributed by Nicola Pero <nicola.pero@meta-innovation.com>
 
 This file is part of GCC.
 
-GCC is free software; you can redistribute it and/or modify it under the
-terms of the GNU General Public License as published by the Free Software
-Foundation; either version 3, or (at your option) any later version.
+GCC is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation; either version 3, or (at your option) any
+later version.
 
-GCC is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details.
+GCC is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+License for more details.
 
 Under Section 7 of GPL version 3, you are granted additional
 permissions described in the GCC Runtime Library Exception, version
@@ -22,75 +23,66 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
-
 #ifndef __objc_runtime_INCLUDE_GNU
 #define __objc_runtime_INCLUDE_GNU
 
-#include <stdarg.h>		/* for varargs and va_list's */
+#include "objc.h"
 
-#include <stdio.h>
-#include <ctype.h>
+/* The following is temporary, until all code from objc-api.h has been
+   moved into this file and objc-api.h will include runtime.h.  */
+#include "objc-api.h"
 
-#include <stddef.h>		/* so noone else will get system versions */
-#include <assert.h>
+/* 'objc_enumerationMutation()' is called when a collection is
+   mutated while being "fast enumerated".  That is a hard error, and
+   objc_enumerationMutation is called to deal with it.  'collection'
+   is the collection object that was mutated during an enumeration.
 
-#include "objc.h"		/* core data types */
-#include "objc-api.h"		/* runtime api functions */
+   objc_enumerationMutation() will invoke the mutation handler if any
+   is set.  Then, it will abort the program.
 
-#include "thr.h"		/* thread and mutex support */
+   Compatibility note: the Apple runtime will not abort the program
+   after calling the mutation handler.
+ */
+objc_EXPORT void objc_enumerationMutation (id collection);
 
-#include "hash.h"		/* hash structures */
-#include "objc-list.h"		/* linear lists */
+/* 'objc_set_enumeration_mutation_handler' can be used to set a
+   function that will be called (instead of aborting) when a fast
+   enumeration is mutated during enumeration.  The handler will be
+   called with the 'collection' being mutated as the only argument and
+   it should not return; it should either exit the program, or could
+   throw an exception.  The recommended implementation is to throw an
+   exception - the user can then use exception handlers to deal with
+   it.
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
+   This function is not thread safe (other threads may be trying to
+   invoke the enumeration mutation handler while you are changing it!)
+   and should be called during during the program initialization
+   before threads are started.  It is mostly reserved for "Foundation"
+   libraries; in the case of GNUstep, GNUstep Base may be using this
+   function to improve the standard enumeration mutation handling.
+   You probably shouldn't use this function unless you are writing
+   your own Foundation library.
+*/
+objc_EXPORT void objc_set_enumeration_mutation_handler (void (*handler)(id));
 
-extern void __objc_add_class_to_hash(Class);   /* (objc-class.c) */
-extern void __objc_init_selector_tables(void); /* (objc-sel.c) */
-extern void __objc_init_class_tables(void);    /* (objc-class.c) */
-extern void __objc_init_dispatch_tables(void); /* (objc-dispatch.c) */
-extern void __objc_install_premature_dtable(Class); /* (objc-dispatch.c) */
-extern void __objc_resolve_class_links(void);  /* (objc-class.c) */
-extern void __objc_register_selectors_from_class(Class); /* (objc-sel.c) */
-extern void __objc_register_selectors_from_list (MethodList_t); /* (selector.c) */
-extern void __objc_update_dispatch_table_for_class (Class);/* (objc-msg.c) */
+/* This structure (used during fast enumeration) is automatically
+   defined by the compiler (it is as if this definition was always
+   included in all Objective-C files).  Note that it is usually
+   defined again with the name of NSFastEnumeration by "Foundation"
+   libraries such as GNUstep Base.  And if NSFastEnumeration is
+   defined, the compiler will use it instead of
+   __objcFastEnumerationState when doing fast enumeration.
+*/
+/*
+struct __objcFastEnumerationState
+{
+  unsigned long state;
+  id            *itemsPtr;
+  unsigned long *mutationsPtr;
+  unsigned long extra[5];
+};
+*/
+/* For compatibility with the Apple/NeXT runtime.  */
+#define objc_setEnumerationMutationHandler objc_set_enumeration_mutation_handler
 
-extern int  __objc_init_thread_system(void);    /* thread.c */
-extern int  __objc_fini_thread_system(void);    /* thread.c */
-extern void __objc_print_dtable_stats(void);    /* sendmsg.c */
-
-extern void class_add_method_list(Class, MethodList_t);
-
-/* Registering instance methods as class methods for root classes */
-extern void __objc_register_instance_methods_to_class(Class);
-extern Method_t search_for_method_in_list(MethodList_t list, SEL op);
-
-/* True when class links has been resolved */     
-extern BOOL __objc_class_links_resolved;
-
-/* Number of selectors stored in each of the selector  tables */
-extern unsigned int __objc_selector_max_index;
-
-/* Mutex locking __objc_selector_max_index and its arrays. */
-extern objc_mutex_t __objc_runtime_mutex;
-
-/* Number of threads which are alive. */
-extern int __objc_runtime_threads_alive;
-
-#ifdef DEBUG
-#define DEBUG_PRINTF(format, args...) printf (format, ## args)
-#else
-#define DEBUG_PRINTF(format, args...)
-#endif 
-
-BOOL __objc_responds_to (id object, SEL sel); /* for internal use only! */
-SEL  __sel_register_typed_name (const char*, const char*, 
-				struct objc_selector*, BOOL is_const);
-extern void __objc_generate_gc_type_description (Class);
-
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
-#endif /* not __objc_runtime_INCLUDE_GNU */
+#endif

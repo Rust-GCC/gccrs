@@ -1,6 +1,6 @@
 // random number generation -*- C++ -*-
 
-// Copyright (C) 2009 Free Software Foundation, Inc.
+// Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,6 +28,9 @@
  *  You should not attempt to use it directly.
  */
 
+#ifndef _RANDOM_H
+#define _RANDOM_H 1
+
 #include <vector>
 
 namespace std
@@ -35,7 +38,9 @@ namespace std
   // [26.4] Random number generation
 
   /**
-   * @addtogroup std_random Random Number Generation
+   * @defgroup random Random Number Generation
+   * @ingroup numerics
+   *
    * A facility for generating random numbers on selected distributions.
    * @{
    */
@@ -49,8 +54,6 @@ namespace std
 	   typename _UniformRandomNumberGenerator>
     _RealType
     generate_canonical(_UniformRandomNumberGenerator& __g);
-
-  class seed_seq;
 
   /*
    * Implementation-space details.
@@ -116,8 +119,8 @@ namespace std
   } // namespace __detail
 
   /**
-   * @addtogroup std_random_generators Random Number Generators
-   * @ingroup std_random
+   * @addtogroup random_generators Random Number Generators
+   * @ingroup random
    *
    * These classes define objects which provide random or pseudorandom
    * numbers, either from a discrete or a continuous interval.  The
@@ -139,8 +142,11 @@ namespace std
   /**
    * @brief A model of a linear congruential random number generator.
    *
-   * A random number generator that produces pseudorandom numbers using the
-   * linear function @f$x_{i+1}\leftarrow(ax_{i} + c) \bmod m @f$.
+   * A random number generator that produces pseudorandom numbers via
+   * linear function:
+   * @f[
+   *     x_{i+1}\leftarrow(ax_{i} + c) \bmod m 
+   * @f]
    *
    * The template parameter @p _UIntType must be an unsigned integral type
    * large enough to store values up to (__m-1). If the template parameter
@@ -148,7 +154,7 @@ namespace std
    * std::numeric_limits<_UIntType>::max() plus 1. Otherwise, the template
    * parameters @p __a and @p __c must be less than @p __m.
    *
-   * The size of the state is @f$ 1 @f$.
+   * The size of the state is @f$1@f$.
    */
   template<typename _UIntType, _UIntType __a, _UIntType __c, _UIntType __m>
     class linear_congruential_engine
@@ -179,7 +185,7 @@ namespace std
        */
       explicit
       linear_congruential_engine(result_type __s = default_seed)
-      { this->seed(__s); }
+      { seed(__s); }
 
       /**
        * @brief Constructs a %linear_congruential_engine random number
@@ -187,9 +193,12 @@ namespace std
        *
        * @param __q the seed sequence.
        */
-      explicit
-      linear_congruential_engine(seed_seq& __q)
-      { this->seed(__q); }
+      template<typename _Sseq, typename = typename
+	std::enable_if<!std::is_same<_Sseq, linear_congruential_engine>::value>
+	       ::type>
+        explicit
+        linear_congruential_engine(_Sseq& __q)
+        { seed(__q); }
 
       /**
        * @brief Reseeds the %linear_congruential_engine random number generator
@@ -207,8 +216,9 @@ namespace std
        *
        * @param __q the seed sequence.
        */
-      void
-      seed(seed_seq& __q);
+      template<typename _Sseq>
+        typename std::enable_if<std::is_class<_Sseq>::value>::type
+        seed(_Sseq& __q);
 
       /**
        * @brief Gets the smallest possible value in the output range.
@@ -261,7 +271,8 @@ namespace std
        * @param __rhs Another linear congruential random number generator
        *              object.
        *
-       * @returns true if the two objects are equal, false otherwise.
+       * @returns true if the infinite sequences of generated values
+       *          would be equal, false otherwise.
        */
       friend bool
       operator==(const linear_congruential_engine& __lhs,
@@ -306,6 +317,25 @@ namespace std
     private:
       _UIntType _M_x;
     };
+
+  /**
+   * @brief Compares two linear congruential random number generator
+   * objects of the same type for inequality.
+   *
+   * @param __lhs A linear congruential random number generator object.
+   * @param __rhs Another linear congruential random number generator
+   *              object.
+   *
+   * @returns true if the infinite sequences of generated values
+   *          would be different, false otherwise.
+   */
+  template<typename _UIntType, _UIntType __a, _UIntType __c, _UIntType __m>
+    inline bool
+    operator!=(const std::linear_congruential_engine<_UIntType, __a,
+	       __c, __m>& __lhs,
+	       const std::linear_congruential_engine<_UIntType, __a,
+	       __c, __m>& __rhs)
+    { return !(__lhs == __rhs); }
 
 
   /**
@@ -398,15 +428,19 @@ namespace std
        *
        * @param __q the seed sequence.
        */
-      explicit
-      mersenne_twister_engine(seed_seq& __q)
-      { seed(__q); }
+      template<typename _Sseq, typename = typename
+        std::enable_if<!std::is_same<_Sseq, mersenne_twister_engine>::value>
+	       ::type>
+        explicit
+        mersenne_twister_engine(_Sseq& __q)
+        { seed(__q); }
 
       void
       seed(result_type __sd = default_seed);
 
-      void
-      seed(seed_seq& __q);
+      template<typename _Sseq>
+	typename std::enable_if<std::is_class<_Sseq>::value>::type
+        seed(_Sseq& __q);
 
       /**
        * @brief Gets the smallest possible value in the output range.
@@ -450,7 +484,8 @@ namespace std
        * @param __rhs Another % mersenne_twister_engine random number
        *              generator object.
        *
-       * @returns true if the two objects are equal, false otherwise.
+       * @returns true if the infinite sequences of generated values
+       *          would be equal, false otherwise.
        */
       friend bool
       operator==(const mersenne_twister_engine& __lhs,
@@ -515,17 +550,44 @@ namespace std
     };
 
   /**
+   * @brief Compares two % mersenne_twister_engine random number generator
+   *        objects of the same type for inequality.
+   *
+   * @param __lhs A % mersenne_twister_engine random number generator
+   *              object.
+   * @param __rhs Another % mersenne_twister_engine random number
+   *              generator object.
+   *
+   * @returns true if the infinite sequences of generated values
+   *          would be different, false otherwise.
+   */
+  template<typename _UIntType, size_t __w,
+	   size_t __n, size_t __m, size_t __r,
+	   _UIntType __a, size_t __u, _UIntType __d, size_t __s,
+	   _UIntType __b, size_t __t,
+	   _UIntType __c, size_t __l, _UIntType __f>
+    inline bool
+    operator!=(const std::mersenne_twister_engine<_UIntType, __w, __n, __m,
+	       __r, __a, __u, __d, __s, __b, __t, __c, __l, __f>& __lhs,
+	       const std::mersenne_twister_engine<_UIntType, __w, __n, __m,
+	       __r, __a, __u, __d, __s, __b, __t, __c, __l, __f>& __rhs)
+    { return !(__lhs == __rhs); }
+
+
+  /**
    * @brief The Marsaglia-Zaman generator.
    *
    * This is a model of a Generalized Fibonacci discrete random number
    * generator, sometimes referred to as the SWC generator.
    *
    * A discrete random number generator that produces pseudorandom
-   * numbers using @f$x_{i}\leftarrow(x_{i - s} - x_{i - r} -
-   * carry_{i-1}) \bmod m @f$.
+   * numbers using:
+   * @f[
+   *     x_{i}\leftarrow(x_{i - s} - x_{i - r} - carry_{i-1}) \bmod m 
+   * @f]
    *
-   * The size of the state is @f$ r @f$
-   * and the maximum period of the generator is @f$ m^r - m^s - 1 @f$.
+   * The size of the state is @f$r@f$
+   * and the maximum period of the generator is @f$(m^r - m^s - 1)@f$.
    *
    * @var _M_x     The state of the generator.  This is a ring buffer.
    * @var _M_carry The carry.
@@ -557,7 +619,7 @@ namespace std
        */
       explicit
       subtract_with_carry_engine(result_type __sd = default_seed)
-      { this->seed(__sd); }
+      { seed(__sd); }
 
       /**
        * @brief Constructs a %subtract_with_carry_engine random number engine
@@ -565,12 +627,15 @@ namespace std
        *
        * @param __q the seed sequence.
        */
-      explicit
-      subtract_with_carry_engine(seed_seq& __q)
-      { this->seed(__q); }
+      template<typename _Sseq, typename = typename
+        std::enable_if<!std::is_same<_Sseq, subtract_with_carry_engine>::value>
+	       ::type>
+        explicit
+        subtract_with_carry_engine(_Sseq& __q)
+        { seed(__q); }
 
       /**
-       * @brief Seeds the initial state @f$ x_0 @f$ of the random number
+       * @brief Seeds the initial state @f$x_0@f$ of the random number
        *        generator.
        *
        * N1688[4.19] modifies this as follows.  If @p __value == 0,
@@ -585,11 +650,12 @@ namespace std
       seed(result_type __sd = default_seed);
 
       /**
-       * @brief Seeds the initial state @f$ x_0 @f$ of the
+       * @brief Seeds the initial state @f$x_0@f$ of the
        * % subtract_with_carry_engine random number generator.
        */
-      void
-      seed(seed_seq& __q);
+      template<typename _Sseq>
+	typename std::enable_if<std::is_class<_Sseq>::value>::type
+        seed(_Sseq& __q);
 
       /**
        * @brief Gets the inclusive minimum value of the range of random
@@ -638,8 +704,9 @@ namespace std
        * @param __rhs Another % subtract_with_carry_engine random number
        *              generator object.
        *
-       * @returns true if the two objects are equal, false otherwise.
-       */
+       * @returns true if the infinite sequences of generated values
+       *          would be equal, false otherwise.
+      */
       friend bool
       operator==(const subtract_with_carry_engine& __lhs,
 		 const subtract_with_carry_engine& __rhs)
@@ -670,7 +737,8 @@ namespace std
        *        @p __is.
        *
        * @param __is An input stream.
-       * @param __x  A % subtract_with_carry_engine random number generator engine.
+       * @param __x  A % subtract_with_carry_engine random number generator
+       *             engine.
        *
        * @returns The input stream with the state of @p __x extracted or in
        * an error state.
@@ -687,6 +755,27 @@ namespace std
       _UIntType  _M_carry;
       size_t     _M_p;
     };
+
+  /**
+   * @brief Compares two % subtract_with_carry_engine random number
+   *        generator objects of the same type for inequality.
+   *
+   * @param __lhs A % subtract_with_carry_engine random number generator
+   *              object.
+   * @param __rhs Another % subtract_with_carry_engine random number
+   *              generator object.
+   *
+   * @returns true if the infinite sequences of generated values
+   *          would be different, false otherwise.
+   */
+  template<typename _UIntType, size_t __w, size_t __s, size_t __r>
+    inline bool
+    operator!=(const std::subtract_with_carry_engine<_UIntType, __w,
+	       __s, __r>& __lhs,
+	       const std::subtract_with_carry_engine<_UIntType, __w,
+	       __s, __r>& __rhs)
+    { return !(__lhs == __rhs); }
+
 
   /**
    * Produces random numbers from some base engine by discarding blocks of
@@ -751,10 +840,14 @@ namespace std
        *
        * @param __q A seed sequence.
        */
-      explicit
-      discard_block_engine(seed_seq& __q)
-      : _M_b(__q), _M_n(0)
-      { }
+      template<typename _Sseq, typename = typename
+	std::enable_if<!std::is_same<_Sseq, discard_block_engine>::value
+		       && !std::is_same<_Sseq, _RandomNumberEngine>::value>
+	       ::type>
+        explicit
+        discard_block_engine(_Sseq& __q)
+	: _M_b(__q), _M_n(0)
+        { }
 
       /**
        * @brief Reseeds the %discard_block_engine object with the default
@@ -783,12 +876,13 @@ namespace std
        *        sequence.
        * @param __q A seed generator function.
        */
-      void
-      seed(seed_seq& __q)
-      {
-        _M_b.seed(__q);
-        _M_n = 0;
-      }
+      template<typename _Sseq>
+        void
+        seed(_Sseq& __q)
+        {
+	  _M_b.seed(__q);
+	  _M_n = 0;
+	}
 
       /**
        * @brief Gets a const reference to the underlying generator engine
@@ -842,12 +936,13 @@ namespace std
        * @param __rhs Another %discard_block_engine random number generator
        *              object.
        *
-       * @returns true if the two objects are equal, false otherwise.
+       * @returns true if the infinite sequences of generated values
+       *          would be equal, false otherwise.
        */
       friend bool
       operator==(const discard_block_engine& __lhs,
 		 const discard_block_engine& __rhs)
-      { return (__lhs._M_b == __rhs._M_b) && (__lhs._M_n == __rhs._M_n); }
+      { return __lhs._M_b == __rhs._M_b && __lhs._M_n == __rhs._M_n; }
 
       /**
        * @brief Inserts the current state of a %discard_block_engine random
@@ -889,6 +984,26 @@ namespace std
       _RandomNumberEngine _M_b;
       size_t _M_n;
     };
+
+  /**
+   * @brief Compares two %discard_block_engine random number generator
+   *        objects of the same type for inequality.
+   *
+   * @param __lhs A %discard_block_engine random number generator object.
+   * @param __rhs Another %discard_block_engine random number generator
+   *              object.
+   *
+   * @returns true if the infinite sequences of generated values
+   *          would be different, false otherwise.
+   */
+  template<typename _RandomNumberEngine, size_t __p, size_t __r>
+    inline bool
+    operator!=(const std::discard_block_engine<_RandomNumberEngine, __p,
+	       __r>& __lhs,
+	       const std::discard_block_engine<_RandomNumberEngine, __p,
+	       __r>& __rhs)
+    { return !(__lhs == __rhs); }
+
 
   /**
    * Produces random numbers by combining random numbers from some base
@@ -949,10 +1064,14 @@ namespace std
        *
        * @param __q A seed sequence.
        */
-      explicit
-      independent_bits_engine(seed_seq& __q)
-      : _M_b(__q)
-      { }
+      template<typename _Sseq, typename = typename
+	std::enable_if<!std::is_same<_Sseq, independent_bits_engine>::value
+		       && !std::is_same<_Sseq, _RandomNumberEngine>::value>
+               ::type>
+        explicit
+        independent_bits_engine(_Sseq& __q)
+        : _M_b(__q)
+        { }
 
       /**
        * @brief Reseeds the %independent_bits_engine object with the default
@@ -975,9 +1094,10 @@ namespace std
        *        seed sequence.
        * @param __q A seed generator function.
        */
-      void
-      seed(seed_seq& __q)
-      { _M_b.seed(__q); }
+      template<typename _Sseq>
+        void
+        seed(_Sseq& __q)
+        { _M_b.seed(__q); }
 
       /**
        * @brief Gets a const reference to the underlying generator engine
@@ -1032,7 +1152,8 @@ namespace std
        * @param __rhs Another %independent_bits_engine random number generator
        *              object.
        *
-       * @returns true if the two objects are equal, false otherwise.
+       * @returns true if the infinite sequences of generated values
+       *          would be equal, false otherwise.
        */
       friend bool
       operator==(const independent_bits_engine& __lhs,
@@ -1066,6 +1187,26 @@ namespace std
     };
 
   /**
+   * @brief Compares two %independent_bits_engine random number generator
+   * objects of the same type for inequality.
+   *
+   * @param __lhs A %independent_bits_engine random number generator
+   *              object.
+   * @param __rhs Another %independent_bits_engine random number generator
+   *              object.
+   *
+   * @returns true if the infinite sequences of generated values
+   *          would be different, false otherwise.
+   */
+  template<typename _RandomNumberEngine, size_t __w, typename _UIntType>
+    inline bool
+    operator!=(const std::independent_bits_engine<_RandomNumberEngine, __w,
+	       _UIntType>& __lhs,
+	       const std::independent_bits_engine<_RandomNumberEngine, __w,
+	       _UIntType>& __rhs)
+    { return !(__lhs == __rhs); }
+
+  /**
    * @brief Inserts the current state of a %independent_bits_engine random
    *        number generator engine @p __x into the output stream @p __os.
    *
@@ -1085,6 +1226,7 @@ namespace std
       __os << __x.base();
       return __os;
     }
+
 
   /**
    * @brief Produces random numbers by combining random numbers from some
@@ -1150,10 +1292,14 @@ namespace std
        *
        * @param __q A seed sequence.
        */
-      explicit
-      shuffle_order_engine(seed_seq& __q)
-      : _M_b(__q)
-      { _M_initialize(); }
+      template<typename _Sseq, typename = typename
+	std::enable_if<!std::is_same<_Sseq, shuffle_order_engine>::value
+		       && !std::is_same<_Sseq, _RandomNumberEngine>::value>
+	       ::type>
+        explicit
+        shuffle_order_engine(_Sseq& __q)
+        : _M_b(__q)
+        { _M_initialize(); }
 
       /**
        * @brief Reseeds the %shuffle_order_engine object with the default seed
@@ -1182,12 +1328,13 @@ namespace std
        *        sequence.
        * @param __q A seed generator function.
        */
-      void
-      seed(seed_seq& __q)
-      {
-        _M_b.seed(__q);
-        _M_initialize();
-      }
+      template<typename _Sseq>
+        void
+        seed(_Sseq& __q)
+        {
+	  _M_b.seed(__q);
+	  _M_initialize();
+	}
 
       /**
        * Gets a const reference to the underlying generator engine object.
@@ -1240,8 +1387,9 @@ namespace std
        * @param __rhs Another %shuffle_order_engine random number generator
        *              object.
        *
-       * @returns true if the two objects are equal, false otherwise.
-       */
+       * @returns true if the infinite sequences of generated values
+       *          would be equal, false otherwise.
+      */
       friend bool
       operator==(const shuffle_order_engine& __lhs,
 		 const shuffle_order_engine& __rhs)
@@ -1296,13 +1444,33 @@ namespace std
     };
 
   /**
+   * Compares two %shuffle_order_engine random number generator objects
+   * of the same type for inequality.
+   *
+   * @param __lhs A %shuffle_order_engine random number generator object.
+   * @param __rhs Another %shuffle_order_engine random number generator
+   *              object.
+   *
+   * @returns true if the infinite sequences of generated values
+   *          would be different, false otherwise.
+   */
+  template<typename _RandomNumberEngine, size_t __k>
+    inline bool
+    operator!=(const std::shuffle_order_engine<_RandomNumberEngine,
+	       __k>& __lhs,
+	       const std::shuffle_order_engine<_RandomNumberEngine,
+	       __k>& __rhs)
+    { return !(__lhs == __rhs); }
+
+
+  /**
    * The classic Minimum Standard rand0 of Lewis, Goodman, and Miller.
    */
   typedef linear_congruential_engine<uint_fast32_t, 16807UL, 0UL, 2147483647UL>
   minstd_rand0;
 
   /**
-   * An alternative LCR (Lehmer Generator function) .
+   * An alternative LCR (Lehmer Generator function).
    */
   typedef linear_congruential_engine<uint_fast32_t, 48271UL, 0UL, 2147483647UL>
   minstd_rand;
@@ -1311,8 +1479,8 @@ namespace std
    * The classic Mersenne Twister.
    *
    * Reference:
-   * M. Matsumoto and T. Nishimura, "Mersenne Twister: A 623-Dimensionally
-   * Equidistributed Uniform Pseudo-Random Number Generator", ACM Transactions
+   * M. Matsumoto and T. Nishimura, Mersenne Twister: A 623-Dimensionally
+   * Equidistributed Uniform Pseudo-Random Number Generator, ACM Transactions
    * on Modeling and Computer Simulation, Vol. 8, No. 1, January 1998, pp 3-30.
    */
   typedef mersenne_twister_engine<
@@ -1335,9 +1503,6 @@ namespace std
     0xfff7eee000000000ULL, 43,
     6364136223846793005ULL> mt19937_64;
 
-  /**
-   * .
-   */
   typedef subtract_with_carry_engine<uint_fast32_t, 24, 10, 24>
     ranlux24_base;
 
@@ -1348,14 +1513,8 @@ namespace std
 
   typedef discard_block_engine<ranlux48_base, 389, 11> ranlux48;
 
-  /**
-   * .
-   */
   typedef shuffle_order_engine<minstd_rand0, 256> knuth_b;
 
-  /**
-   * .
-   */
   typedef minstd_rand0 default_random_engine;
 
   /**
@@ -1449,17 +1608,17 @@ namespace std
 #endif
   };
 
-  /* @} */ // group std_random_generators
+  /* @} */ // group random_generators
 
   /**
-   * @addtogroup std_random_distributions Random Number Distributions
-   * @ingroup std_random
+   * @addtogroup random_distributions Random Number Distributions
+   * @ingroup random
    * @{
    */
 
   /**
-   * @addtogroup std_random_distributions_uniform Uniform Distributions
-   * @ingroup std_random_distributions
+   * @addtogroup random_distributions_uniform Uniform
+   * @ingroup random_distributions
    * @{
    */
 
@@ -1498,6 +1657,10 @@ namespace std
 	b() const
 	{ return _M_b; }
 
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_a == __p2._M_a && __p1._M_b == __p2._M_b; }
+
       private:
 	_IntType _M_a;
 	_IntType _M_b;
@@ -1535,20 +1698,6 @@ namespace std
       { return _M_param.b(); }
 
       /**
-       * @brief Returns the inclusive lower bound of the distribution range.
-       */
-      result_type
-      min() const
-      { return this->a(); }
-
-      /**
-       * @brief Returns the inclusive upper bound of the distribution range.
-       */
-      result_type
-      max() const
-      { return this->b(); }
-
-      /**
        * @brief Returns the parameter set of the distribution.
        */
       param_type
@@ -1564,19 +1713,27 @@ namespace std
       { _M_param = __param; }
 
       /**
-       * Gets a uniformly distributed random number in the range
-       * @f$(min, max)@f$.
+       * @brief Returns the inclusive lower bound of the distribution range.
+       */
+      result_type
+      min() const
+      { return this->a(); }
+
+      /**
+       * @brief Returns the inclusive upper bound of the distribution range.
+       */
+      result_type
+      max() const
+      { return this->b(); }
+
+      /**
+       * @brief Generating functions.
        */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
         { return this->operator()(__urng, this->param()); }
 
-      /**
-       * Gets a uniform random number in the range @f$[0, n)@f$.
-       *
-       * This function is aimed at use with std::random_shuffle.
-       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng,
@@ -1584,6 +1741,26 @@ namespace std
 
       param_type _M_param;
     };
+
+  /**
+   * @brief Return true if two uniform integer distributions have
+   *        the same parameters.
+   */
+  template<typename _IntType>
+    inline bool
+    operator==(const std::uniform_int_distribution<_IntType>& __d1,
+	       const std::uniform_int_distribution<_IntType>& __d2)
+    { return __d1.param() == __d2.param(); }
+
+  /**
+   * @brief Return true if two uniform integer distributions have
+   *        different parameters.
+   */
+  template<typename _IntType>
+    inline bool
+    operator!=(const std::uniform_int_distribution<_IntType>& __d1,
+	       const std::uniform_int_distribution<_IntType>& __d2)
+    { return !(__d1 == __d2); }
 
   /**
    * @brief Inserts a %uniform_int_distribution random number
@@ -1652,6 +1829,10 @@ namespace std
 	b() const
 	{ return _M_b; }
 
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_a == __p2._M_a && __p1._M_b == __p2._M_b; }
+
       private:
 	_RealType _M_a;
 	_RealType _M_b;
@@ -1692,20 +1873,6 @@ namespace std
       { return _M_param.b(); }
 
       /**
-       * @brief Returns the inclusive lower bound of the distribution range.
-       */
-      result_type
-      min() const
-      { return this->a(); }
-
-      /**
-       * @brief Returns the inclusive upper bound of the distribution range.
-       */
-      result_type
-      max() const
-      { return this->b(); }
-
-      /**
        * @brief Returns the parameter set of the distribution.
        */
       param_type
@@ -1720,6 +1887,23 @@ namespace std
       param(const param_type& __param)
       { _M_param = __param; }
 
+      /**
+       * @brief Returns the inclusive lower bound of the distribution range.
+       */
+      result_type
+      min() const
+      { return this->a(); }
+
+      /**
+       * @brief Returns the inclusive upper bound of the distribution range.
+       */
+      result_type
+      max() const
+      { return this->b(); }
+
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -1738,6 +1922,26 @@ namespace std
     private:
       param_type _M_param;
     };
+
+  /**
+   * @brief Return true if two uniform real distributions have
+   *        the same parameters.
+   */
+  template<typename _IntType>
+    inline bool
+    operator==(const std::uniform_real_distribution<_IntType>& __d1,
+	       const std::uniform_real_distribution<_IntType>& __d2)
+    { return __d1.param() == __d2.param(); }
+
+  /**
+   * @brief Return true if two uniform real distributions have
+   *        different parameters.
+   */
+  template<typename _IntType>
+    inline bool
+    operator!=(const std::uniform_real_distribution<_IntType>& __d1,
+	       const std::uniform_real_distribution<_IntType>& __d2)
+    { return !(__d1 == __d2); }
 
   /**
    * @brief Inserts a %uniform_real_distribution random number
@@ -1768,11 +1972,11 @@ namespace std
     operator>>(std::basic_istream<_CharT, _Traits>&,
 	       std::uniform_real_distribution<_RealType>&);
 
-  /* @} */ // group std_random_distributions_uniform
+  /* @} */ // group random_distributions_uniform
 
   /**
-   * @addtogroup std_random_distributions_normal Normal Distributions
-   * @ingroup std_random_distributions
+   * @addtogroup random_distributions_normal Normal
+   * @ingroup random_distributions
    * @{
    */
 
@@ -1780,8 +1984,10 @@ namespace std
    * @brief A normal continuous distribution for random numbers.
    *
    * The formula for the normal probability density function is
-   * @f$ p(x|\mu,\sigma) = \frac{1}{\sigma \sqrt{2 \pi}}
-   *            e^{- \frac{{x - \mu}^ {2}}{2 \sigma ^ {2}} } @f$.
+   * @f[
+   *     p(x|\mu,\sigma) = \frac{1}{\sigma \sqrt{2 \pi}}
+   *            e^{- \frac{{x - \mu}^ {2}}{2 \sigma ^ {2}} } 
+   * @f]
    */
   template<typename _RealType = double>
     class normal_distribution
@@ -1813,6 +2019,11 @@ namespace std
 	stddev() const
 	{ return _M_stddev; }
 
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return (__p1._M_mean == __p2._M_mean
+		  && __p1._M_stddev == __p2._M_stddev); }
+
       private:
 	_RealType _M_mean;
 	_RealType _M_stddev;
@@ -1820,7 +2031,7 @@ namespace std
 
     public:
       /**
-       * Constructs a normal distribution with parameters @f$ mean @f$ and
+       * Constructs a normal distribution with parameters @f$mean@f$ and
        * standard deviation.
        */
       explicit
@@ -1884,6 +2095,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -1893,6 +2107,16 @@ namespace std
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng,
 		   const param_type& __p);
+
+      /**
+       * @brief Return true if two normal distributions have
+       *        the same parameters and the sequences that would
+       *        be generated are equal.
+       */
+      template<typename _RealType1>
+	friend bool
+        operator==(const std::normal_distribution<_RealType1>& __d1,
+		   const std::normal_distribution<_RealType1>& __d2);
 
       /**
        * @brief Inserts a %normal_distribution random number distribution
@@ -1930,13 +2154,24 @@ namespace std
       bool        _M_saved_available;
     };
 
+  /**
+   * @brief Return true if two normal distributions are different.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::normal_distribution<_RealType>& __d1,
+	       const std::normal_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
+
 
   /**
    * @brief A lognormal_distribution random number distribution.
    *
    * The formula for the normal probability mass function is
-   * @f$ p(x|m,s) = \frac{1}{sx\sqrt{2\pi}}
-   *             \exp{-\frac{(\ln{x} - m)^2}{2s^2}} @f$
+   * @f[
+   *     p(x|m,s) = \frac{1}{sx\sqrt{2\pi}}
+   *                \exp{-\frac{(\ln{x} - m)^2}{2s^2}} 
+   * @f]
    */
   template<typename _RealType = double>
     class lognormal_distribution
@@ -1965,6 +2200,10 @@ namespace std
 	_RealType
 	s() const
 	{ return _M_s; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_m == __p2._M_m && __p1._M_s == __p2._M_s; }
 
       private:
 	_RealType _M_m;
@@ -2029,6 +2268,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -2039,6 +2281,18 @@ namespace std
 	operator()(_UniformRandomNumberGenerator& __urng,
 		   const param_type& __p)
         { return std::exp(__p.s() * _M_nd(__urng) + __p.m()); }
+
+      /**
+       * @brief Return true if two lognormal distributions have
+       *        the same parameters and the sequences that would
+       *        be generated are equal.
+       */
+      template<typename _RealType1>
+        friend bool
+        operator==(const std::lognormal_distribution<_RealType1>& __d1,
+		   const std::lognormal_distribution<_RealType1>& __d2)
+        { return (__d1.param() == __d2.param()
+		  && __d1._M_nd == __d2._M_nd); }
 
       /**
        * @brief Inserts a %lognormal_distribution random number distribution
@@ -2076,13 +2330,24 @@ namespace std
       std::normal_distribution<result_type> _M_nd;
     };
 
-  
+  /**
+   * @brief Return true if two lognormal distributions are different.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::lognormal_distribution<_RealType>& __d1,
+	       const std::lognormal_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
+
+
   /**
    * @brief A gamma continuous distribution for random numbers.
    *
-   * The formula for the gamma probability density function is
-   * @f$ p(x|\alpha,\beta) = \frac{1}{\beta\Gamma(\alpha)}
-   *                         (x/\beta)^{\alpha - 1} e^{-x/\beta} @f$.
+   * The formula for the gamma probability density function is:
+   * @f[
+   *     p(x|\alpha,\beta) = \frac{1}{\beta\Gamma(\alpha)}
+   *                         (x/\beta)^{\alpha - 1} e^{-x/\beta} 
+   * @f]
    */
   template<typename _RealType = double>
     class gamma_distribution
@@ -2116,6 +2381,11 @@ namespace std
 	beta() const
 	{ return _M_beta; }
 
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return (__p1._M_alpha == __p2._M_alpha
+		  && __p1._M_beta == __p2._M_beta); }
+
       private:
 	void
 	_M_initialize();
@@ -2129,7 +2399,7 @@ namespace std
     public:
       /**
        * @brief Constructs a gamma distribution with parameters
-       * @f$ \alpha @f$ and @f$ \beta @f$.
+       * @f$\alpha@f$ and @f$\beta@f$.
        */
       explicit
       gamma_distribution(_RealType __alpha_val = _RealType(1),
@@ -2150,14 +2420,14 @@ namespace std
       { _M_nd.reset(); }
 
       /**
-       * @brief Returns the @f$ \alpha @f$ of the distribution.
+       * @brief Returns the @f$\alpha@f$ of the distribution.
        */
       _RealType
       alpha() const
       { return _M_param.alpha(); }
 
       /**
-       * @brief Returns the @f$ \beta @f$ of the distribution.
+       * @brief Returns the @f$\beta@f$ of the distribution.
        */
       _RealType
       beta() const
@@ -2192,6 +2462,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -2201,6 +2474,18 @@ namespace std
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng,
 		   const param_type& __p);
+
+      /**
+       * @brief Return true if two gamma distributions have the same
+       *        parameters and the sequences that would be generated
+       *        are equal.
+       */
+      template<typename _RealType1>
+        friend bool
+        operator==(const std::gamma_distribution<_RealType1>& __d1,
+		   const std::gamma_distribution<_RealType1>& __d2)
+        { return (__d1.param() == __d2.param()
+		  && __d1._M_nd == __d2._M_nd); }
 
       /**
        * @brief Inserts a %gamma_distribution random number distribution
@@ -2237,12 +2522,21 @@ namespace std
       std::normal_distribution<result_type> _M_nd;
     };
 
+  /**
+   * @brief Return true if two gamma distributions are different.
+   */
+   template<typename _RealType>
+    inline bool
+     operator!=(const std::gamma_distribution<_RealType>& __d1,
+		const std::gamma_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
+
 
   /**
    * @brief A chi_squared_distribution random number distribution.
    *
    * The formula for the normal probability mass function is
-   * @f$ p(x|n) = \frac{x^{(n/2) - 1}e^{-x/2}}{\Gamma(n/2) 2^{n/2}} @f$
+   * @f$p(x|n) = \frac{x^{(n/2) - 1}e^{-x/2}}{\Gamma(n/2) 2^{n/2}}@f$
    */
   template<typename _RealType = double>
     class chi_squared_distribution
@@ -2266,6 +2560,10 @@ namespace std
 	_RealType
 	n() const
 	{ return _M_n; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_n == __p2._M_n; }
 
       private:
 	_RealType _M_n;
@@ -2324,6 +2622,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -2338,6 +2639,17 @@ namespace std
 	    param_type;
 	  return 2 * _M_gd(__urng, param_type(__p.n() / 2));
 	}
+
+      /**
+       * @brief Return true if two Chi-squared distributions have
+       *        the same parameters and the sequences that would be
+       *        generated are equal.
+       */
+      template<typename _RealType1>
+        friend bool
+        operator==(const std::chi_squared_distribution<_RealType1>& __d1,
+		   const std::chi_squared_distribution<_RealType1>& __d2)
+        { return __d1.param() == __d2.param() && __d1._M_gd == __d2._M_gd; }
 
       /**
        * @brief Inserts a %chi_squared_distribution random number distribution
@@ -2375,12 +2687,21 @@ namespace std
       std::gamma_distribution<result_type> _M_gd;
     };
 
+  /**
+   * @brief Return true if two Chi-squared distributions are different.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::chi_squared_distribution<_RealType>& __d1,
+	       const std::chi_squared_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
+
 
   /**
    * @brief A cauchy_distribution random number distribution.
    *
    * The formula for the normal probability mass function is
-   * @f$ p(x|a,b) = (\pi b (1 + (\frac{x-a}{b})^2))^{-1} @f$
+   * @f$p(x|a,b) = (\pi b (1 + (\frac{x-a}{b})^2))^{-1}@f$
    */
   template<typename _RealType = double>
     class cauchy_distribution
@@ -2409,6 +2730,10 @@ namespace std
 	_RealType
 	b() const
 	{ return _M_b; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_a == __p2._M_a && __p1._M_b == __p2._M_b; }
 
       private:
 	_RealType _M_a;
@@ -2473,6 +2798,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -2486,6 +2814,26 @@ namespace std
     private:
       param_type _M_param;
     };
+
+  /**
+   * @brief Return true if two Cauchy distributions have
+   *        the same parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator==(const std::cauchy_distribution<_RealType>& __d1,
+	       const std::cauchy_distribution<_RealType>& __d2)
+    { return __d1.param() == __d2.param(); }
+
+  /**
+   * @brief Return true if two Cauchy distributions have
+   *        different parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::cauchy_distribution<_RealType>& __d1,
+	       const std::cauchy_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
 
   /**
    * @brief Inserts a %cauchy_distribution random number distribution
@@ -2522,9 +2870,11 @@ namespace std
    * @brief A fisher_f_distribution random number distribution.
    *
    * The formula for the normal probability mass function is
-   * @f$ p(x|m,n) = \frac{\Gamma((m+n)/2)}{\Gamma(m/2)\Gamma(n/2)}
+   * @f[
+   *     p(x|m,n) = \frac{\Gamma((m+n)/2)}{\Gamma(m/2)\Gamma(n/2)}
    *                (\frac{m}{n})^{m/2} x^{(m/2)-1}
-   *                (1 + \frac{mx}{n})^{-(m+n)/2} @f$
+   *                (1 + \frac{mx}{n})^{-(m+n)/2} 
+   * @f]
    */
   template<typename _RealType = double>
     class fisher_f_distribution
@@ -2553,6 +2903,10 @@ namespace std
 	_RealType
 	n() const
 	{ return _M_n; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_m == __p2._M_m && __p1._M_n == __p2._M_n; }
 
       private:
 	_RealType _M_m;
@@ -2620,6 +2974,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -2635,6 +2992,19 @@ namespace std
 	  return ((_M_gd_x(__urng, param_type(__p.m() / 2)) * n())
 		  / (_M_gd_y(__urng, param_type(__p.n() / 2)) * m()));
 	}
+
+      /**
+       * @brief Return true if two Fisher f distributions have
+       *        the same parameters and the sequences that would
+       *        be generated are equal.
+       */
+      template<typename _RealType1>
+        friend bool
+        operator==(const std::fisher_f_distribution<_RealType1>& __d1,
+		   const std::fisher_f_distribution<_RealType1>& __d2)
+        { return (__d1.param() == __d2.param()
+		  && __d1._M_gd_x == __d2._M_gd_x
+		  && __d1._M_gd_y == __d2._M_gd_y); }
 
       /**
        * @brief Inserts a %fisher_f_distribution random number distribution
@@ -2672,13 +3042,23 @@ namespace std
       std::gamma_distribution<result_type> _M_gd_x, _M_gd_y;
     };
 
+  /**
+   * @brief Return true if two Fisher f distributions are diferent.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::fisher_f_distribution<_RealType>& __d1,
+	       const std::fisher_f_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
 
   /**
    * @brief A student_t_distribution random number distribution.
    *
-   * The formula for the normal probability mass function is
-   * @f$ p(x|n) = \frac{1}{\sqrt(n\pi)} \frac{\Gamma((n+1)/2)}{\Gamma(n/2)}
-   *              (1 + \frac{x^2}{n}) ^{-(n+1)/2} @f$
+   * The formula for the normal probability mass function is:
+   * @f[
+   *     p(x|n) = \frac{1}{\sqrt(n\pi)} \frac{\Gamma((n+1)/2)}{\Gamma(n/2)}
+   *              (1 + \frac{x^2}{n}) ^{-(n+1)/2} 
+   * @f]
    */
   template<typename _RealType = double>
     class student_t_distribution
@@ -2702,6 +3082,10 @@ namespace std
 	_RealType
 	n() const
 	{ return _M_n; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_n == __p2._M_n; }
 
       private:
 	_RealType _M_n;
@@ -2763,6 +3147,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
         operator()(_UniformRandomNumberGenerator& __urng)
@@ -2779,6 +3166,18 @@ namespace std
 	  const result_type __g = _M_gd(__urng, param_type(__p.n() / 2, 2));
 	  return _M_nd(__urng) * std::sqrt(__p.n() / __g);
         }
+
+      /**
+       * @brief Return true if two Student t distributions have
+       *        the same parameters and the sequences that would
+       *        be generated are equal.
+       */
+      template<typename _RealType1>
+        friend bool
+        operator==(const std::student_t_distribution<_RealType1>& __d1,
+		   const std::student_t_distribution<_RealType1>& __d2)
+        { return (__d1.param() == __d2.param()
+		  && __d1._M_nd == __d2._M_nd && __d1._M_gd == __d2._M_gd); }
 
       /**
        * @brief Inserts a %student_t_distribution random number distribution
@@ -2817,19 +3216,29 @@ namespace std
       std::gamma_distribution<result_type> _M_gd;
     };
 
-  /* @} */ // group std_random_distributions_normal
+  /**
+   * @brief Return true if two Student t distributions are different.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::student_t_distribution<_RealType>& __d1,
+	       const std::student_t_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
+
+
+  /* @} */ // group random_distributions_normal
 
   /**
-   * @addtogroup std_random_distributions_bernoulli Bernoulli Distributions
-   * @ingroup std_random_distributions
+   * @addtogroup random_distributions_bernoulli Bernoulli
+   * @ingroup random_distributions
    * @{
    */
 
   /**
    * @brief A Bernoulli random number distribution.
    *
-   * Generates a sequence of true and false values with likelihood @f$ p @f$
-   * that true will come up and @f$ (1 - p) @f$ that false will appear.
+   * Generates a sequence of true and false values with likelihood @f$p@f$
+   * that true will come up and @f$(1 - p)@f$ that false will appear.
    */
   class bernoulli_distribution
   {
@@ -2852,6 +3261,10 @@ namespace std
       p() const
       { return _M_p; }
 
+      friend bool
+      operator==(const param_type& __p1, const param_type& __p2)
+      { return __p1._M_p == __p2._M_p; }
+
     private:
       double _M_p;
     };
@@ -2861,7 +3274,7 @@ namespace std
      * @brief Constructs a Bernoulli distribution with likelihood @p p.
      *
      * @param __p  [IN]  The likelihood of a true result being returned.
-     *                   Must be in the interval @f$ [0, 1] @f$.
+     *                   Must be in the interval @f$[0, 1]@f$.
      */
     explicit
     bernoulli_distribution(double __p = 0.5)
@@ -2918,7 +3331,7 @@ namespace std
     { return std::numeric_limits<result_type>::max(); }
 
     /**
-     * @brief Returns the next value in the Bernoullian sequence.
+     * @brief Generating functions.
      */
     template<typename _UniformRandomNumberGenerator>
       result_type
@@ -2941,6 +3354,24 @@ namespace std
   private:
     param_type _M_param;
   };
+
+  /**
+   * @brief Return true if two Bernoulli distributions have
+   *        the same parameters.
+   */
+  inline bool
+  operator==(const std::bernoulli_distribution& __d1,
+	     const std::bernoulli_distribution& __d2)
+  { return __d1.param() == __d2.param(); }
+
+  /**
+   * @brief Return true if two Bernoulli distributions have
+   *        different parameters.
+   */
+  inline bool
+  operator!=(const std::bernoulli_distribution& __d1,
+	     const std::bernoulli_distribution& __d2)
+  { return !(__d1 == __d2); }
 
   /**
    * @brief Inserts a %bernoulli_distribution random number distribution
@@ -2982,8 +3413,8 @@ namespace std
    * @brief A discrete binomial random number distribution.
    *
    * The formula for the binomial probability density function is
-   * @f$ p(i|t,p) = \binom{n}{i} p^i (1 - p)^{t - i} @f$ where @f$ t @f$
-   * and @f$ p @f$ are the parameters of the distribution.
+   * @f$p(i|t,p) = \binom{n}{i} p^i (1 - p)^{t - i}@f$ where @f$t@f$
+   * and @f$p@f$ are the parameters of the distribution.
    */
   template<typename _IntType = int>
     class binomial_distribution
@@ -3017,6 +3448,10 @@ namespace std
 	double
 	p() const
 	{ return _M_p; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_t == __p2._M_t && __p1._M_p == __p2._M_p; }
 
       private:
 	void
@@ -3095,6 +3530,9 @@ namespace std
       max() const
       { return _M_param.t(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -3104,6 +3542,21 @@ namespace std
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng,
 		   const param_type& __p);
+
+      /**
+       * @brief Return true if two binomial distributions have
+       *        the same parameters and the sequences that would
+       *        be generated are equal.
+       */
+      template<typename _IntType1>
+	friend bool
+        operator==(const std::binomial_distribution<_IntType1>& __d1,
+		   const std::binomial_distribution<_IntType1>& __d2)
+#ifdef _GLIBCXX_USE_C99_MATH_TR1
+	{ return __d1.param() == __d2.param() && __d1._M_nd == __d2._M_nd; }
+#else
+        { return __d1.param() == __d2.param(); }
+#endif
 
       /**
        * @brief Inserts a %binomial_distribution random number distribution
@@ -3148,12 +3601,21 @@ namespace std
       std::normal_distribution<double> _M_nd;
     };
 
+  /**
+   * @brief Return true if two binomial distributions are different.
+   */
+  template<typename _IntType>
+    inline bool
+    operator!=(const std::binomial_distribution<_IntType>& __d1,
+	       const std::binomial_distribution<_IntType>& __d2)
+    { return !(__d1 == __d2); }
+
 
   /**
    * @brief A discrete geometric random number distribution.
    *
    * The formula for the geometric probability density function is
-   * @f$ p(i|p) = (1 - p)p^{i-1} @f$ where @f$ p @f$ is the parameter of the
+   * @f$p(i|p) = (1 - p)p^{i-1}@f$ where @f$p@f$ is the parameter of the
    * distribution.
    */
   template<typename _IntType = int>
@@ -3183,6 +3645,10 @@ namespace std
 	double
 	p() const
 	{ return _M_p; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_p == __p2._M_p; }
 
       private:
 	void
@@ -3249,6 +3715,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -3262,6 +3731,26 @@ namespace std
     private:
       param_type _M_param;
     };
+
+  /**
+   * @brief Return true if two geometric distributions have
+   *        the same parameters.
+   */
+  template<typename _IntType>
+    inline bool
+    operator==(const std::geometric_distribution<_IntType>& __d1,
+	       const std::geometric_distribution<_IntType>& __d2)
+    { return __d1.param() == __d2.param(); }
+
+  /**
+   * @brief Return true if two geometric distributions have
+   *        different parameters.
+   */
+  template<typename _IntType>
+    inline bool
+    operator!=(const std::geometric_distribution<_IntType>& __d1,
+	       const std::geometric_distribution<_IntType>& __d2)
+    { return !(__d1 == __d2); }
 
   /**
    * @brief Inserts a %geometric_distribution random number distribution
@@ -3299,8 +3788,8 @@ namespace std
    * @brief A negative_binomial_distribution random number distribution.
    *
    * The formula for the negative binomial probability mass function is
-   * @f$ p(i) = \binom{n}{i} p^i (1 - p)^{t - i} @f$ where @f$ t @f$
-   * and @f$ p @f$ are the parameters of the distribution.
+   * @f$p(i) = \binom{n}{i} p^i (1 - p)^{t - i}@f$ where @f$t@f$
+   * and @f$p@f$ are the parameters of the distribution.
    */
   template<typename _IntType = int>
     class negative_binomial_distribution
@@ -3329,6 +3818,10 @@ namespace std
 	p() const
 	{ return _M_p; }
 
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_k == __p2._M_k && __p1._M_p == __p2._M_p; }
+
       private:
 	_IntType _M_k;
 	double _M_p;
@@ -3352,14 +3845,14 @@ namespace std
       { _M_gd.reset(); }
 
       /**
-       * @brief Return the @f$ k @f$ parameter of the distribution.
+       * @brief Return the @f$k@f$ parameter of the distribution.
        */
       _IntType
       k() const
       { return _M_param.k(); }
 
       /**
-       * @brief Return the @f$ p @f$ parameter of the distribution.
+       * @brief Return the @f$p@f$ parameter of the distribution.
        */
       double
       p() const
@@ -3394,6 +3887,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
         operator()(_UniformRandomNumberGenerator& __urng);
@@ -3402,6 +3898,17 @@ namespace std
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng,
 		   const param_type& __p);
+
+      /**
+       * @brief Return true if two negative binomial distributions have
+       *        the same parameters and the sequences that would be
+       *        generated are equal.
+       */
+      template<typename _IntType1>
+        friend bool
+        operator==(const std::negative_binomial_distribution<_IntType1>& __d1,
+		   const std::negative_binomial_distribution<_IntType1>& __d2)
+        { return __d1.param() == __d2.param() && __d1._M_gd == __d2._M_gd; }
 
       /**
        * @brief Inserts a %negative_binomial_distribution random
@@ -3440,11 +3947,21 @@ namespace std
       std::gamma_distribution<double> _M_gd;
     };
 
-  /* @} */ // group std_random_distributions_bernoulli
+  /**
+   * @brief Return true if two negative binomial distributions are different.
+   */
+  template<typename _IntType>
+    inline bool
+    operator!=(const std::negative_binomial_distribution<_IntType>& __d1,
+	       const std::negative_binomial_distribution<_IntType>& __d2)
+    { return !(__d1 == __d2); }
+
+
+  /* @} */ // group random_distributions_bernoulli
 
   /**
-   * @addtogroup std_random_distributions_poisson Poisson Distributions
-   * @ingroup std_random_distributions
+   * @addtogroup random_distributions_poisson Poisson
+   * @ingroup random_distributions
    * @{
    */
 
@@ -3452,7 +3969,7 @@ namespace std
    * @brief A discrete Poisson random number distribution.
    *
    * The formula for the Poisson probability density function is
-   * @f$ p(i|\mu) = \frac{\mu^i}{i!} e^{-\mu} @f$ where @f$ \mu @f$ is the
+   * @f$p(i|\mu) = \frac{\mu^i}{i!} e^{-\mu}@f$ where @f$\mu@f$ is the
    * parameter of the distribution.
    */
   template<typename _IntType = int>
@@ -3481,6 +3998,10 @@ namespace std
 	double
 	mean() const
 	{ return _M_mean; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_mean == __p2._M_mean; }
 
       private:
 	// Hosts either log(mean) or the threshold of the simple method.
@@ -3549,6 +4070,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -3558,6 +4082,21 @@ namespace std
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng,
 		   const param_type& __p);
+
+       /**
+	* @brief Return true if two Poisson distributions have the same
+	*        parameters and the sequences that would be generated
+	*        are equal.
+	*/
+      template<typename _IntType1>
+        friend bool
+        operator==(const std::poisson_distribution<_IntType1>& __d1,
+		   const std::poisson_distribution<_IntType1>& __d2)
+#ifdef _GLIBCXX_USE_C99_MATH_TR1
+        { return __d1.param() == __d2.param() && __d1._M_nd == __d2._M_nd; }
+#else
+        { return __d1.param() == __d2.param(); }
+#endif
 
       /**
        * @brief Inserts a %poisson_distribution random number distribution
@@ -3597,18 +4136,28 @@ namespace std
     };
 
   /**
+   * @brief Return true if two Poisson distributions are different.
+   */
+  template<typename _IntType>
+    inline bool
+    operator!=(const std::poisson_distribution<_IntType>& __d1,
+	       const std::poisson_distribution<_IntType>& __d2)
+    { return !(__d1 == __d2); }
+
+
+  /**
    * @brief An exponential continuous distribution for random numbers.
    *
    * The formula for the exponential probability density function is
-   * @f$ p(x|\lambda) = \lambda e^{-\lambda x} @f$.
+   * @f$p(x|\lambda) = \lambda e^{-\lambda x}@f$.
    *
    * <table border=1 cellpadding=10 cellspacing=0>
    * <caption align=top>Distribution Statistics</caption>
-   * <tr><td>Mean</td><td>@f$ \frac{1}{\lambda} @f$</td></tr>
-   * <tr><td>Median</td><td>@f$ \frac{\ln 2}{\lambda} @f$</td></tr>
-   * <tr><td>Mode</td><td>@f$ zero @f$</td></tr>
+   * <tr><td>Mean</td><td>@f$\frac{1}{\lambda}@f$</td></tr>
+   * <tr><td>Median</td><td>@f$\frac{\ln 2}{\lambda}@f$</td></tr>
+   * <tr><td>Mode</td><td>@f$zero@f$</td></tr>
    * <tr><td>Range</td><td>@f$[0, \infty]@f$</td></tr>
-   * <tr><td>Standard Deviation</td><td>@f$ \frac{1}{\lambda} @f$</td></tr>
+   * <tr><td>Standard Deviation</td><td>@f$\frac{1}{\lambda}@f$</td></tr>
    * </table>
    */
   template<typename _RealType = double>
@@ -3636,6 +4185,10 @@ namespace std
 	lambda() const
 	{ return _M_lambda; }
 
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_lambda == __p2._M_lambda; }
+
       private:
 	_RealType _M_lambda;
       };
@@ -3643,7 +4196,7 @@ namespace std
     public:
       /**
        * @brief Constructs an exponential distribution with inverse scale
-       *        parameter @f$ \lambda @f$.
+       *        parameter @f$\lambda@f$.
        */
       explicit
       exponential_distribution(const result_type& __lambda = result_type(1))
@@ -3699,6 +4252,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -3717,6 +4273,26 @@ namespace std
     private:
       param_type _M_param;
     };
+
+  /**
+   * @brief Return true if two exponential distributions have the same
+   *        parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator==(const std::exponential_distribution<_RealType>& __d1,
+	       const std::exponential_distribution<_RealType>& __d2)
+    { return __d1.param() == __d2.param(); }
+
+  /**
+   * @brief Return true if two exponential distributions have different
+   *        parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::exponential_distribution<_RealType>& __d1,
+	       const std::exponential_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
 
   /**
    * @brief Inserts a %exponential_distribution random number distribution
@@ -3752,9 +4328,11 @@ namespace std
   /**
    * @brief A weibull_distribution random number distribution.
    *
-   * The formula for the normal probability density function is
-   * @f$ p(x|\alpha,\beta) = \frac{a}{b} (frac{x}{b})^{a-1}
-   *                         \exp{(-(frac{x}{b})^a)} @f$.
+   * The formula for the normal probability density function is:
+   * @f[
+   *     p(x|\alpha,\beta) = \frac{\alpha}{\beta} (\frac{x}{\beta})^{\alpha-1}
+   *                         \exp{(-(\frac{x}{\beta})^\alpha)} 
+   * @f]
    */
   template<typename _RealType = double>
     class weibull_distribution
@@ -3784,6 +4362,10 @@ namespace std
 	b() const
 	{ return _M_b; }
 
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_a == __p2._M_a && __p1._M_b == __p2._M_b; }
+
       private:
 	_RealType _M_a;
 	_RealType _M_b;
@@ -3808,14 +4390,14 @@ namespace std
       { }
 
       /**
-       * @brief Return the @f$ a @f$ parameter of the distribution.
+       * @brief Return the @f$a@f$ parameter of the distribution.
        */
       _RealType
       a() const
       { return _M_param.a(); }
 
       /**
-       * @brief Return the @f$ b @f$ parameter of the distribution.
+       * @brief Return the @f$b@f$ parameter of the distribution.
        */
       _RealType
       b() const
@@ -3850,6 +4432,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -3863,6 +4448,26 @@ namespace std
     private:
       param_type _M_param;
     };
+
+   /**
+    * @brief Return true if two Weibull distributions have the same
+    *        parameters.
+    */
+  template<typename _RealType>
+    inline bool
+    operator==(const std::weibull_distribution<_RealType>& __d1,
+	       const std::weibull_distribution<_RealType>& __d2)
+    { return __d1.param() == __d2.param(); }
+
+   /**
+    * @brief Return true if two Weibull distributions have different
+    *        parameters.
+    */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::weibull_distribution<_RealType>& __d1,
+	       const std::weibull_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
 
   /**
    * @brief Inserts a %weibull_distribution random number distribution
@@ -3899,8 +4504,10 @@ namespace std
    * @brief A extreme_value_distribution random number distribution.
    *
    * The formula for the normal probability mass function is
-   * @f$ p(x|a,b) = \frac{1}{b}
-   *                \exp( \frac{a-x}{b} - \exp(\frac{a-x}{b})) @f$
+   * @f[
+   *     p(x|a,b) = \frac{1}{b}
+   *                \exp( \frac{a-x}{b} - \exp(\frac{a-x}{b})) 
+   * @f]
    */
   template<typename _RealType = double>
     class extreme_value_distribution
@@ -3930,6 +4537,10 @@ namespace std
 	b() const
 	{ return _M_b; }
 
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_a == __p2._M_a && __p1._M_b == __p2._M_b; }
+
       private:
 	_RealType _M_a;
 	_RealType _M_b;
@@ -3954,14 +4565,14 @@ namespace std
       { }
 
       /**
-       * @brief Return the @f$ a @f$ parameter of the distribution.
+       * @brief Return the @f$a@f$ parameter of the distribution.
        */
       _RealType
       a() const
       { return _M_param.a(); }
 
       /**
-       * @brief Return the @f$ b @f$ parameter of the distribution.
+       * @brief Return the @f$b@f$ parameter of the distribution.
        */
       _RealType
       b() const
@@ -3996,6 +4607,9 @@ namespace std
       max() const
       { return std::numeric_limits<result_type>::max(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -4009,6 +4623,26 @@ namespace std
     private:
       param_type _M_param;
     };
+
+  /**
+    * @brief Return true if two extreme value distributions have the same
+    *        parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator==(const std::extreme_value_distribution<_RealType>& __d1,
+	       const std::extreme_value_distribution<_RealType>& __d2)
+    { return __d1.param() == __d2.param(); }
+
+  /**
+    * @brief Return true if two extreme value distributions have different
+    *        parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::extreme_value_distribution<_RealType>& __d1,
+	       const std::extreme_value_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
 
   /**
    * @brief Inserts a %extreme_value_distribution random number distribution
@@ -4083,6 +4717,10 @@ namespace std
 	std::vector<double>
 	probabilities() const
 	{ return _M_prob; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_prob == __p2._M_prob; }
 
       private:
 	void
@@ -4160,6 +4798,9 @@ namespace std
       max() const
       { return this->_M_param._M_prob.size() - 1; }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -4204,6 +4845,26 @@ namespace std
     private:
       param_type _M_param;
     };
+
+  /**
+    * @brief Return true if two discrete distributions have the same
+    *        parameters.
+    */
+  template<typename _IntType>
+    inline bool
+    operator==(const std::discrete_distribution<_IntType>& __d1,
+	       const std::discrete_distribution<_IntType>& __d2)
+    { return __d1.param() == __d2.param(); }
+
+  /**
+    * @brief Return true if two discrete distributions have different
+    *        parameters.
+    */
+  template<typename _IntType>
+    inline bool
+    operator!=(const std::discrete_distribution<_IntType>& __d1,
+	       const std::discrete_distribution<_IntType>& __d2)
+    { return !(__d1 == __d2); }
 
 
   /**
@@ -4250,6 +4911,10 @@ namespace std
 	std::vector<double>
 	densities() const
 	{ return _M_den; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return __p1._M_int == __p2._M_int && __p1._M_den == __p2._M_den; }
 
       private:
 	void
@@ -4340,6 +5005,9 @@ namespace std
       max() const
       { return this->_M_param._M_int.back(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -4386,6 +5054,26 @@ namespace std
       param_type _M_param;
     };
 
+  /**
+    * @brief Return true if two piecewise constant distributions have the
+    *        same parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator==(const std::piecewise_constant_distribution<_RealType>& __d1,
+	       const std::piecewise_constant_distribution<_RealType>& __d2)
+    { return __d1.param() == __d2.param(); }
+
+  /**
+    * @brief Return true if two piecewise constant distributions have 
+    *        different parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::piecewise_constant_distribution<_RealType>& __d1,
+	       const std::piecewise_constant_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
+
 
   /**
    * @brief A piecewise_linear_distribution random number distribution.
@@ -4431,6 +5119,11 @@ namespace std
 	std::vector<double>
 	densities() const
 	{ return _M_den; }
+
+	friend bool
+	operator==(const param_type& __p1, const param_type& __p2)
+	{ return (__p1._M_int == __p2._M_int
+		  && __p1._M_den == __p2._M_den); }
 
       private:
 	void
@@ -4523,6 +5216,9 @@ namespace std
       max() const
       { return this->_M_param._M_int.back(); }
 
+      /**
+       * @brief Generating functions.
+       */
       template<typename _UniformRandomNumberGenerator>
 	result_type
 	operator()(_UniformRandomNumberGenerator& __urng)
@@ -4569,14 +5265,34 @@ namespace std
       param_type _M_param;
     };
 
-
-  /* @} */ // group std_random_distributions_poisson
-
-  /* @} */ // group std_random_distributions
+  /**
+    * @brief Return true if two piecewise linear distributions have the
+    *        same parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator==(const std::piecewise_linear_distribution<_RealType>& __d1,
+	       const std::piecewise_linear_distribution<_RealType>& __d2)
+    { return __d1.param() == __d2.param(); }
 
   /**
-   * @addtogroup std_random_utilities Random Number Utilities
-   * @ingroup std_random
+    * @brief Return true if two piecewise linear distributions have
+    *        different parameters.
+   */
+  template<typename _RealType>
+    inline bool
+    operator!=(const std::piecewise_linear_distribution<_RealType>& __d1,
+	       const std::piecewise_linear_distribution<_RealType>& __d2)
+    { return !(__d1 == __d2); }
+
+
+  /* @} */ // group random_distributions_poisson
+
+  /* @} */ // group random_distributions
+
+  /**
+   * @addtogroup random_utilities Random Number Utilities
+   * @ingroup random
    * @{
    */
 
@@ -4621,9 +5337,9 @@ namespace std
     std::vector<result_type> _M_v;
   };
 
-  /* @} */ // group std_random_utilities
+  /* @} */ // group random_utilities
 
-  /* @} */ // group std_random
-
+  /* @} */ // group random
 }
 
+#endif

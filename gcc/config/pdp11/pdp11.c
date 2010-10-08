@@ -1,6 +1,6 @@
 /* Subroutines for gcc2 for pdp11.
    Copyright (C) 1994, 1995, 1996, 1997, 1998, 1999, 2001, 2004, 2005,
-   2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Michael K. Gschwind (mike@vlsivie.tuwien.ac.at).
 
 This file is part of GCC.
@@ -26,7 +26,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "function.h"
@@ -36,6 +35,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "recog.h"
 #include "tree.h"
 #include "expr.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "tm_p.h"
 #include "target.h"
@@ -145,6 +145,7 @@ decode_pdp11_d (const struct real_format *fmt ATTRIBUTE_UNUSED,
 /* rtx cc0_reg_rtx; - no longer needed? */
 
 static bool pdp11_handle_option (size_t, const char *, int);
+static void pdp11_option_optimization (int, int);
 static rtx find_addr_reg (rtx); 
 static const char *singlemove_string (rtx *);
 static bool pdp11_assemble_integer (rtx, unsigned int, int);
@@ -152,6 +153,9 @@ static void pdp11_output_function_prologue (FILE *, HOST_WIDE_INT);
 static void pdp11_output_function_epilogue (FILE *, HOST_WIDE_INT);
 static bool pdp11_rtx_costs (rtx, int, int, int *, bool);
 static bool pdp11_return_in_memory (const_tree, const_tree);
+static rtx pdp11_function_value (const_tree, const_tree, bool);
+static rtx pdp11_libcall_value (enum machine_mode, const_rtx);
+static bool pdp11_function_value_regno_p (const unsigned int);
 static void pdp11_trampoline_init (rtx, tree, rtx);
 
 /* Initialize the GCC target structure.  */
@@ -179,12 +183,21 @@ static void pdp11_trampoline_init (rtx, tree, rtx);
   (MASK_FPU | MASK_45 | MASK_ABSHI_BUILTIN | TARGET_UNIX_ASM_DEFAULT)
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION pdp11_handle_option
+#undef TARGET_OPTION_OPTIMIZATION
+#define TARGET_OPTION_OPTIMIZATION pdp11_option_optimization
 
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS pdp11_rtx_costs
 
 #undef TARGET_RETURN_IN_MEMORY
 #define TARGET_RETURN_IN_MEMORY pdp11_return_in_memory
+
+#undef TARGET_FUNCTION_VALUE
+#define TARGET_FUNCTION_VALUE pdp11_function_value
+#undef TARGET_LIBCALL_VALUE
+#define TARGET_LIBCALL_VALUE pdp11_libcall_value
+#undef TARGET_FUNCTION_VALUE_REGNO_P
+#define TARGET_FUNCTION_VALUE_REGNO_P pdp11_function_value_regno_p
 
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT pdp11_trampoline_init
@@ -205,6 +218,21 @@ pdp11_handle_option (size_t code, const char *arg ATTRIBUTE_UNUSED,
 
     default:
       return true;
+    }
+}
+
+/* Implement TARGET_OPTION_OPTIMIZATION.  */
+
+static void
+pdp11_option_optimization (int level, int size ATTRIBUTE_UNUSED)
+{
+  flag_finite_math_only = 0;
+  flag_trapping_math = 0;
+  flag_signaling_nans = 0;
+  if (level >= 3)
+    {
+      flag_omit_frame_pointer = 1;
+      /* flag_unroll_loops = 1; */
     }
 }
 
@@ -1060,7 +1088,7 @@ static const int move_costs[N_REG_CLASSES][N_REG_CLASSES] =
    -- as we do here with 22 -- or not ? */
 
 int 
-register_move_cost(enum reg_class c1, enum reg_class c2)
+pdp11_register_move_cost (enum reg_class c1, enum reg_class c2)
 {
     return move_costs[(int)c1][(int)c2];
 }
@@ -1743,6 +1771,40 @@ pdp11_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
      libraries for non-floating point....  */
   return (TYPE_MODE (type) == DImode
 	  || (TYPE_MODE (type) == DFmode && ! TARGET_AC0));
+}
+
+/* Worker function for TARGET_FUNCTION_VALUE.
+
+   On the pdp11 the value is found in R0 (or ac0??? not without FPU!!!! )  */
+
+static rtx
+pdp11_function_value (const_tree valtype, 
+ 		      const_tree fntype_or_decl ATTRIBUTE_UNUSED,
+ 		      bool outgoing ATTRIBUTE_UNUSED)
+{
+  return gen_rtx_REG (TYPE_MODE (valtype),
+		      BASE_RETURN_VALUE_REG(TYPE_MODE(valtype)));
+}
+
+/* Worker function for TARGET_LIBCALL_VALUE.  */
+
+static rtx
+pdp11_libcall_value (enum machine_mode mode,
+                     const_rtx fun ATTRIBUTE_UNUSED)
+{
+  return  gen_rtx_REG (mode, BASE_RETURN_VALUE_REG(mode));
+}
+
+/* Worker function for TARGET_FUNCTION_VALUE_REGNO_P.
+
+   On the pdp, the first "output" reg is the only register thus used.
+
+   maybe ac0 ? - as option someday!  */
+
+static bool
+pdp11_function_value_regno_p (const unsigned int regno)
+{
+  return (regno == 0) || (TARGET_AC0 && (regno == 8));
 }
 
 /* Worker function for TARGET_TRAMPOLINE_INIT.

@@ -1,7 +1,8 @@
 /* PR target/36710 */
 
-/* { dg-do run { target *-*-linux* *-*-darwin* } } */
+/* { dg-do run } */
 /* { dg-options "-Os -msse2" } */
+/* { dg-require-effective-target sse2 } */
 
 #include "sse2-check.h"
 

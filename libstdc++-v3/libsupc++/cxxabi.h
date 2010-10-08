@@ -1,6 +1,6 @@
 // new abi support -*- C++ -*-
   
-// Copyright (C) 2000, 2002, 2003, 2004, 2006, 2007, 2009
+// Copyright (C) 2000, 2002, 2003, 2004, 2006, 2007, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of GCC.
@@ -42,6 +42,8 @@
 #ifndef _CXXABI_H
 #define _CXXABI_H 1
 
+#pragma GCC system_header
+
 #pragma GCC visibility push(default)
 
 #include <stddef.h>
@@ -51,7 +53,7 @@
 #ifdef __cplusplus
 #define _GLIBCXX_NOTHROW throw() 
 #else
-#define _GLIBCXX_NOTHROW __attribute__((nothrow))
+#define _GLIBCXX_NOTHROW __attribute__((__nothrow__))
 #endif
 
 #ifdef __cplusplus
@@ -66,55 +68,55 @@ namespace __cxxabiv1
   // Allocate array.
   void* 
   __cxa_vec_new(size_t __element_count, size_t __element_size, 
-		size_t __padding_size, __cxa_cdtor_type constructor,
-		__cxa_cdtor_type destructor);
+		size_t __padding_size, __cxa_cdtor_type __constructor,
+		__cxa_cdtor_type __destructor);
 
   void*
   __cxa_vec_new2(size_t __element_count, size_t __element_size,
-		 size_t __padding_size, __cxa_cdtor_type constructor,
-		 __cxa_cdtor_type destructor, void *(*__alloc) (size_t), 
+		 size_t __padding_size, __cxa_cdtor_type __constructor,
+		 __cxa_cdtor_type __destructor, void *(*__alloc) (size_t), 
 		 void (*__dealloc) (void*));
 
   void*
   __cxa_vec_new3(size_t __element_count, size_t __element_size,
-		 size_t __padding_size, __cxa_cdtor_type constructor,
-		 __cxa_cdtor_type destructor, void *(*__alloc) (size_t), 
+		 size_t __padding_size, __cxa_cdtor_type __constructor,
+		 __cxa_cdtor_type __destructor, void *(*__alloc) (size_t), 
 		 void (*__dealloc) (void*, size_t));
 
   // Construct array.
   __cxa_vec_ctor_return_type
   __cxa_vec_ctor(void* __array_address, size_t __element_count,
-		 size_t __element_size, __cxa_cdtor_type constructor,
-		 __cxa_cdtor_type destructor);
+		 size_t __element_size, __cxa_cdtor_type __constructor,
+		 __cxa_cdtor_type __destructor);
 
   __cxa_vec_ctor_return_type
-  __cxa_vec_cctor(void* dest_array, void* src_array, size_t element_count, 
-		  size_t element_size, 
-		  __cxa_cdtor_return_type (*constructor) (void*, void*), 
-		  __cxa_cdtor_type destructor);
+  __cxa_vec_cctor(void* __dest_array, void* __src_array,
+		  size_t __element_count, size_t __element_size, 
+		  __cxa_cdtor_return_type (*__constructor) (void*, void*), 
+		  __cxa_cdtor_type __destructor);
  
   // Destruct array.
   void 
   __cxa_vec_dtor(void* __array_address, size_t __element_count,
-		 size_t __element_size, __cxa_cdtor_type destructor);
+		 size_t __element_size, __cxa_cdtor_type __destructor);
   
   void 
-  __cxa_vec_cleanup(void* __array_address, size_t __element_count,
-		    size_t __s, __cxa_cdtor_type destructor) _GLIBCXX_NOTHROW;
+  __cxa_vec_cleanup(void* __array_address, size_t __element_count, size_t __s,
+		    __cxa_cdtor_type __destructor) _GLIBCXX_NOTHROW;
   
   // Destruct and release array.
   void 
   __cxa_vec_delete(void* __array_address, size_t __element_size,
-		   size_t __padding_size, __cxa_cdtor_type destructor);
+		   size_t __padding_size, __cxa_cdtor_type __destructor);
 
   void 
   __cxa_vec_delete2(void* __array_address, size_t __element_size,
-		    size_t __padding_size, __cxa_cdtor_type destructor,
+		    size_t __padding_size, __cxa_cdtor_type __destructor,
 		    void (*__dealloc) (void*));
                   
   void 
   __cxa_vec_delete3(void* __array_address, size_t __element_size,
-		    size_t __padding_size, __cxa_cdtor_type destructor,
+		    size_t __padding_size, __cxa_cdtor_type __destructor,
 		    void (*__dealloc) (void*, size_t));
 
   int 
@@ -164,7 +166,7 @@ namespace __cxxabiv1
    *
    *  @param __status @a *__status is set to one of the following values:
    *   0: The demangling operation succeeded.
-   *  -1: A memory allocation failiure occurred.
+   *  -1: A memory allocation failure occurred.
    *  -2: @a mangled_name is not a valid name under the C++ ABI mangling rules.
    *  -3: One of the arguments is invalid.
    *

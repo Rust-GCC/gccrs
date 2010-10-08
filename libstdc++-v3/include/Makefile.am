@@ -1,6 +1,6 @@
 #o# Makefile for the include subdirectory of the GNU C++ Standard library.
 ##
-## Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+## Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 ## Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
@@ -29,8 +29,8 @@ std_builddir = .
 std_headers = \
 	${std_srcdir}/algorithm \
 	${std_srcdir}/array \
+	${std_srcdir}/atomic \
 	${std_srcdir}/bitset \
-	${std_srcdir}/c++0x_warning.h \
 	${std_srcdir}/chrono \
 	${std_srcdir}/complex \
 	${std_srcdir}/condition_variable \
@@ -66,6 +66,7 @@ std_headers = \
 	${std_srcdir}/system_error \
 	${std_srcdir}/thread \
 	${std_srcdir}/tuple \
+	${std_srcdir}/typeindex \
 	${std_srcdir}/type_traits \
 	${std_srcdir}/unordered_map \
 	${std_srcdir}/unordered_set \
@@ -78,6 +79,7 @@ bits_builddir = ./bits
 bits_headers = \
         ${bits_srcdir}/algorithmfwd.h \
 	${bits_srcdir}/allocator.h \
+	${bits_srcdir}/atomic_base.h \
 	${bits_srcdir}/atomicfwd_c.h \
 	${bits_srcdir}/atomicfwd_cxx.h \
 	${bits_srcdir}/atomic_0.h \
@@ -87,6 +89,7 @@ bits_headers = \
 	${bits_srcdir}/basic_string.h \
 	${bits_srcdir}/basic_string.tcc \
 	${bits_srcdir}/boost_concept_check.h \
+	${bits_srcdir}/c++0x_warning.h \
 	${bits_srcdir}/char_traits.h \
 	${bits_srcdir}/codecvt.h \
 	${bits_srcdir}/concept_check.h \
@@ -100,6 +103,7 @@ bits_headers = \
 	${bits_srcdir}/gslice.h \
 	${bits_srcdir}/gslice_array.h \
 	${bits_srcdir}/hashtable.h \
+	${bits_srcdir}/hashtable_policy.h \
 	${bits_srcdir}/indirect_array.h \
 	${bits_srcdir}/ios_base.h \
 	${bits_srcdir}/istream.tcc \
@@ -118,6 +122,16 @@ bits_headers = \
 	${bits_srcdir}/postypes.h \
 	${bits_srcdir}/random.h \
 	${bits_srcdir}/random.tcc \
+	${bits_srcdir}/range_access.h \
+	${bits_srcdir}/regex.h \
+	${bits_srcdir}/regex_compiler.h \
+	${bits_srcdir}/regex_constants.h \
+	${bits_srcdir}/regex_cursor.h \
+	${bits_srcdir}/regex_error.h \
+	${bits_srcdir}/regex_grep_matcher.h \
+	${bits_srcdir}/regex_grep_matcher.tcc \
+	${bits_srcdir}/regex_nfa.h \
+	${bits_srcdir}/regex_nfa.tcc \
 	${bits_srcdir}/stream_iterator.h \
 	${bits_srcdir}/streambuf_iterator.h \
 	${bits_srcdir}/shared_ptr.h \
@@ -152,6 +166,8 @@ bits_headers = \
 	${bits_srcdir}/streambuf.tcc \
 	${bits_srcdir}/stringfwd.h \
 	${bits_srcdir}/unique_ptr.h \
+	${bits_srcdir}/unordered_map.h \
+	${bits_srcdir}/unordered_set.h \
 	${bits_srcdir}/valarray_array.h \
 	${bits_srcdir}/valarray_array.tcc \
 	${bits_srcdir}/valarray_before.h \
@@ -564,6 +580,7 @@ tr1_headers = \
 	${tr1_srcdir}/gamma.tcc \
 	${tr1_srcdir}/hypergeometric.tcc \
 	${tr1_srcdir}/hashtable.h \
+	${tr1_srcdir}/hashtable_policy.h \
 	${tr1_srcdir}/inttypes.h \
 	${tr1_srcdir}/limits.h \
 	${tr1_srcdir}/math.h \
@@ -587,8 +604,10 @@ tr1_headers = \
 	${tr1_srcdir}/tgmath.h \
 	${tr1_srcdir}/tuple \
 	${tr1_srcdir}/type_traits \
-	${tr1_srcdir}/unordered_set \
 	${tr1_srcdir}/unordered_map \
+	${tr1_srcdir}/unordered_map.h \
+	${tr1_srcdir}/unordered_set \
+	${tr1_srcdir}/unordered_set.h \
 	${tr1_srcdir}/utility \
 	${tr1_srcdir}/wchar.h \
 	${tr1_srcdir}/wctype.h
@@ -609,14 +628,8 @@ tr1_impl_headers = \
 	${tr1_impl_srcdir}/cstdlib \
 	${tr1_impl_srcdir}/cwchar \
 	${tr1_impl_srcdir}/cwctype \
-	${tr1_impl_srcdir}/functional \
-	${tr1_impl_srcdir}/functional_hash.h \
-	${tr1_impl_srcdir}/hashtable \
-	${tr1_impl_srcdir}/hashtable_policy.h \
 	${tr1_impl_srcdir}/regex \
 	${tr1_impl_srcdir}/type_traits \
-	${tr1_impl_srcdir}/unordered_map \
-	${tr1_impl_srcdir}/unordered_set \
 	${tr1_impl_srcdir}/utility
 
 decimal_srcdir = ${glibcxx_srcdir}/include/decimal
@@ -643,7 +656,6 @@ c_base_headers = \
 	${c_base_srcdir}/csetjmp \
 	${c_base_srcdir}/csignal \
 	${c_base_srcdir}/cstdarg \
-	${c_base_srcdir}/cstdatomic \
 	${c_base_srcdir}/cstdbool \
 	${c_base_srcdir}/cstddef \
 	${c_base_srcdir}/cstdint \
@@ -707,6 +719,7 @@ debug_headers = \
 	${debug_srcdir}/debug.h \
 	${debug_srcdir}/deque \
 	${debug_srcdir}/formatter.h \
+	${debug_srcdir}/forward_list \
 	${debug_srcdir}/functions.h \
 	${debug_srcdir}/list \
 	${debug_srcdir}/map \
@@ -794,11 +807,12 @@ profile_headers = \
 	${profile_srcdir}/multiset.h \
 	${profile_srcdir}/set \
 	${profile_srcdir}/set.h \
-	${profile_srcdir}/hashtable.h
+	${profile_srcdir}/iterator_tracker.h
 profile_impl_srcdir = ${glibcxx_srcdir}/include/profile/impl
 profile_impl_builddir = ./profile/impl
 profile_impl_headers = \
 	${profile_impl_srcdir}/profiler.h \
+	${profile_impl_srcdir}/profiler_algos.h \
 	${profile_impl_srcdir}/profiler_container_size.h \
 	${profile_impl_srcdir}/profiler_hash_func.h \
 	${profile_impl_srcdir}/profiler_hashtable_size.h \
@@ -807,17 +821,12 @@ profile_impl_headers = \
 	${profile_impl_srcdir}/profiler_state.h \
 	${profile_impl_srcdir}/profiler_trace.h \
 	${profile_impl_srcdir}/profiler_vector_size.h \
-	${profile_impl_srcdir}/profiler_vector_to_list.h
+	${profile_impl_srcdir}/profiler_vector_to_list.h \
+	${profile_impl_srcdir}/profiler_list_to_vector.h \
+	${profile_impl_srcdir}/profiler_list_to_slist.h
 
-# Some of the different "C" header models need extra files.
 # Some "C" header schemes require the "C" compatibility headers.
 # For --enable-cheaders=c_std
-if GLIBCXX_C_HEADERS_EXTRA
-c_base_headers_extra = ${c_base_srcdir}/cmath.tcc
-else
-c_base_headers_extra =
-endif
-
 if GLIBCXX_C_HEADERS_COMPATIBILITY
 c_compatibility_headers_extra = ${c_compatibility_headers}
 else
@@ -890,7 +899,7 @@ pch_output_dirs = \
 	${pch1_output_builddir} ${pch2_output_builddir} ${pch3_output_builddir}
 pch_output_anchors = \
 	${pch1_output_anchor} ${pch2_output_anchor} ${pch3_output_anchor}
-PCHFLAGS=-x c++-header $(CXXFLAGS)
+PCHFLAGS=-x c++-header -nostdinc++ $(CXXFLAGS)
 if GLIBCXX_BUILD_PCH
 pch_build = ${pch_output}
 else
@@ -900,10 +909,10 @@ endif
 # List of all timestamp files.  By keeping only one copy of this list, both
 # CLEANFILES and all-local are kept up-to-date.
 allstamped = \
-	stamp-std stamp-bits stamp-c_base stamp-c_base_extra \
-	stamp-c_compatibility  stamp-backward stamp-ext stamp-pb \
-	stamp-tr1 stamp-tr1-impl stamp-decimal stamp-debug \
-	stamp-parallel stamp-profile stamp-profile-impl stamp-host 
+	stamp-std stamp-bits stamp-c_base stamp-c_compatibility \
+	stamp-backward stamp-ext stamp-pb stamp-tr1 stamp-tr1-impl \
+	stamp-decimal stamp-debug stamp-parallel stamp-profile \
+	stamp-profile-impl stamp-host 
 
 # List of all files that are created by explicit building, editing, or
 # catenation.

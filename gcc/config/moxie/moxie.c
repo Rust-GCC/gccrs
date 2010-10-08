@@ -1,5 +1,5 @@
 /* Target Code for moxie
-   Copyright (C) 2008, 2009  Free Software Foundation
+   Copyright (C) 2008, 2009, 2010  Free Software Foundation
    Contributed by Anthony Green.
 
    This file is part of GCC.
@@ -25,7 +25,6 @@
 #include "rtl.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "insn-flags.h"
@@ -34,6 +33,7 @@
 #include "flags.h"
 #include "recog.h"
 #include "reload.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "obstack.h"
 #include "tree.h"
@@ -71,12 +71,33 @@ moxie_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
 
    We always return values in register $r0 for moxie.  */
 
-rtx
+static rtx
 moxie_function_value (const_tree valtype, 
 		      const_tree fntype_or_decl ATTRIBUTE_UNUSED,
 		      bool outgoing ATTRIBUTE_UNUSED)
 {
   return gen_rtx_REG (TYPE_MODE (valtype), MOXIE_R0);
+}
+
+/* Define how to find the value returned by a library function.
+
+   We always return values in register $r0 for moxie.  */
+
+static rtx
+moxie_libcall_value (enum machine_mode mode,
+                     const_rtx fun ATTRIBUTE_UNUSED)
+{
+  return gen_rtx_REG (mode, MOXIE_R0);
+}
+
+/* Handle TARGET_FUNCTION_VALUE_REGNO_P.
+
+   We always return values in register $r0 for moxie.  */
+
+static bool
+moxie_function_value_regno_p (const unsigned int regno)
+{
+  return (regno == MOXIE_R0);
 }
 
 /* Emit an error message when we're in an asm, and a fatal error for
@@ -206,14 +227,14 @@ struct GTY(()) machine_function
 static struct machine_function *
 moxie_init_machine_status (void)
 {
-  return GGC_CNEW (struct machine_function);
+  return ggc_alloc_cleared_machine_function ();
 }
 
 
-/* The OVERRIDE_OPTIONS worker.
+/* The TARGET_OPTION_OVERRIDE worker.
    All this curently does is set init_machine_status.  */
-void
-moxie_override_options (void)
+static void
+moxie_option_override (void)
 {
   /* Set the per-function-data initializer.  */
   init_machine_status = moxie_init_machine_status;
@@ -483,6 +504,7 @@ moxie_asm_trampoline_template (FILE *f)
   fprintf (f, "\tldi.l $r0, 0x0\n");
   fprintf (f, "\tsto.l 0x8($fp), $r0\n");
   fprintf (f, "\tpop   $sp, $r0\n");
+  fprintf (f, "\tnop\n");
   fprintf (f, "\tjmpa  0x0\n");
 }
 
@@ -498,7 +520,7 @@ moxie_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 
   mem = adjust_address (m_tramp, SImode, 4);
   emit_move_insn (mem, chain_value);
-  mem = adjust_address (m_tramp, SImode, 18);
+  mem = adjust_address (m_tramp, SImode, 20);
   emit_move_insn (mem, fnaddr);
 }
 
@@ -530,6 +552,10 @@ moxie_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
    node node representing a data type.  */
 #undef TARGET_FUNCTION_VALUE
 #define TARGET_FUNCTION_VALUE moxie_function_value
+#undef TARGET_LIBCALL_VALUE
+#define TARGET_LIBCALL_VALUE moxie_libcall_value
+#undef TARGET_FUNCTION_VALUE_REGNO_P
+#define TARGET_FUNCTION_VALUE_REGNO_P moxie_function_value_regno_p
 
 #undef TARGET_FRAME_POINTER_REQUIRED
 #define TARGET_FRAME_POINTER_REQUIRED hook_bool_void_true
@@ -540,6 +566,9 @@ moxie_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 #define TARGET_ASM_TRAMPOLINE_TEMPLATE moxie_asm_trampoline_template
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT moxie_trampoline_init
+
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE moxie_option_override
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

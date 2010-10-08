@@ -60,9 +60,10 @@ target_alias=${target_alias-$host_alias}
 #              we can do about that; they come from AC_INIT).
 #  foreign:  we don't follow the normal rules for GNU packages (no COPYING
 #            file in the top srcdir, etc, etc), so stop complaining.
+#  no-dist:  we don't want 'dist' and related rules.
 #  -Wall:  turns on all automake warnings...
 #  -Wno-portability:  ...except this one, since GNU make is required.
-AM_INIT_AUTOMAKE([1.9.6 no-define foreign -Wall -Wno-portability])
+AM_INIT_AUTOMAKE([1.9.6 no-define foreign no-dist -Wall -Wno-portability])
 
 AM_MAINTAINER_MODE
 AM_ENABLE_MULTILIB(, ..)
@@ -137,17 +138,34 @@ AC_SUBST(CFLAGS)
 
 # Check for symbol versioning (copied from libssp).
 AC_MSG_CHECKING([whether symbol versioning is supported])
+save_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS -fPIC -shared -Wl,--version-script,./conftest.map"
 cat > conftest.map <<EOF
 FOO_1.0 {
   global: *foo*; bar; local: *;
 };
 EOF
-save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS -fPIC -shared -Wl,--version-script,./conftest.map"
-AC_TRY_LINK([int foo;],[],[gfortran_use_symver=yes],[gfortran_use_symver=no])
+AC_TRY_LINK([int foo;],[],[gfortran_use_symver=gnu],[gfortran_use_symver=no])
+if test x$gfortran_use_symver = xno; then
+  case "$target_os" in
+    solaris2*)
+      LDFLAGS="$save_LDFLAGS"
+      LDFLAGS="$LDFLAGS -fPIC -shared -Wl,-M,./conftest.map"
+      # Sun ld cannot handle wildcards and treats all entries as undefined.
+      cat > conftest.map <<EOF
+FOO_1.0 {
+  global: foo; local: *;
+};
+EOF
+      AC_TRY_LINK([int foo;],[],[gfortran_use_symver=sun],[gfortran_use_symver=no])
+      ;;
+  esac
+fi
 LDFLAGS="$save_LDFLAGS"
 AC_MSG_RESULT($gfortran_use_symver)
-AM_CONDITIONAL(LIBGFOR_USE_SYMVER, [test "x$gfortran_use_symver" = xyes])
+AM_CONDITIONAL(LIBGFOR_USE_SYMVER, [test "x$gfortran_use_symver" != xno])
+AM_CONDITIONAL(LIBGFOR_USE_SYMVER_GNU, [test "x$gfortran_use_symver" = xgnu])
+AM_CONDITIONAL(LIBGFOR_USE_SYMVER_SUN, [test "x$gfortran_use_symver" = xsun])
 
 # Figure out whether the compiler supports "-ffunction-sections -fdata-sections",
 # similarly to how libstdc++ does it
@@ -431,15 +449,6 @@ AC_CHECK_LIB([m],[catanl],[AC_DEFINE([HAVE_CATANL],[1],[libm includes catanl])])
 
 # On AIX, clog is present in libm as __clog
 AC_CHECK_LIB([m],[__clog],[AC_DEFINE([HAVE_CLOG],[1],[libm includes clog])])
-
-# Check for a isfinite macro that works on long doubles.
-LIBGFOR_CHECK_FOR_BROKEN_ISFINITE
-
-# Check for a isnan macro that works on long doubles.
-LIBGFOR_CHECK_FOR_BROKEN_ISNAN
-
-# Check for a fpclassify macro that works on long doubles.
-LIBGFOR_CHECK_FOR_BROKEN_FPCLASSIFY
 
 # Check whether the system has a working stat()
 LIBGFOR_CHECK_WORKING_STAT

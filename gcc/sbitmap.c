@@ -21,25 +21,32 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "rtl.h"
-#include "flags.h"
-#include "hard-reg-set.h"
-#include "obstack.h"
+#include "sbitmap.h"
+
+#ifdef IN_GCC
+/* FIXME: sbitmap is just a data structure, but we define dataflow functions
+   here also.  This is conditional on IN_GCC (see second #ifdef IN_GCC
+   further down).
+   For now, also only conditionally include basic-block.h, but we should
+   find a better place for the dataflow functions.  Perhaps cfganal.c?  */
 #include "basic-block.h"
+#endif
 
 #if GCC_VERSION >= 3400
-#if HOST_BITS_PER_WIDEST_FAST_INT == HOST_BITS_PER_LONG
-#define do_popcount(x) __builtin_popcountl(x)
-#elif HOST_BITS_PER_WIDEST_FAST_INT == HOST_BITS_PER_LONGLONG
-#define do_popcount(x) __builtin_popcountll(x)
-#else
-#error "internal error: sbitmap.h and hwint.h are inconsistent"
-#endif
+#  if HOST_BITS_PER_WIDEST_FAST_INT == HOST_BITS_PER_LONG
+#    define do_popcount(x) __builtin_popcountl(x)
+#  elif HOST_BITS_PER_WIDEST_FAST_INT == HOST_BITS_PER_LONGLONG
+#    define do_popcount(x) __builtin_popcountll(x)
+#  else
+#    error "internal error: sbitmap.h and hwint.h are inconsistent"
+#  endif
 #else
 static unsigned long sbitmap_elt_popcount (SBITMAP_ELT_TYPE);
-#define do_popcount(x) sbitmap_elt_popcount((x))
+#  define do_popcount(x) sbitmap_elt_popcount((x))
 #endif
+
+typedef SBITMAP_ELT_TYPE *sbitmap_ptr;
+typedef const SBITMAP_ELT_TYPE *const_sbitmap_ptr;
 
 /* This macro controls debugging that is as expensive as the
    operations it verifies.  */
@@ -55,7 +62,7 @@ sbitmap_verify_popcount (const_sbitmap a)
 {
   unsigned ix;
   unsigned int lastword;
-  
+
   if (!a->popcount)
     return;
 
@@ -91,7 +98,7 @@ sbitmap_alloc (unsigned int n_elms)
 sbitmap
 sbitmap_alloc_with_popcount (unsigned int n_elms)
 {
-  sbitmap const bmap = sbitmap_alloc (n_elms);  
+  sbitmap const bmap = sbitmap_alloc (n_elms);
   bmap->popcount = XNEWVEC (unsigned char, bmap->size);
   return bmap;
 }
@@ -121,7 +128,7 @@ sbitmap_resize (sbitmap bmap, unsigned int n_elms, int def)
     {
       if (def)
 	{
-	  memset (bmap->elms + bmap->size, -1, 
+	  memset (bmap->elms + bmap->size, -1,
 		  bytes - SBITMAP_SIZE_BYTES (bmap));
 
 	  /* Set the new bits if the original last element.  */
@@ -138,13 +145,13 @@ sbitmap_resize (sbitmap bmap, unsigned int n_elms, int def)
 	}
       else
 	{
-	  memset (bmap->elms + bmap->size, 0, 
+	  memset (bmap->elms + bmap->size, 0,
 		  bytes - SBITMAP_SIZE_BYTES (bmap));
 	  if (bmap->popcount)
 	    memset (bmap->popcount + bmap->size, 0,
-		    (size * sizeof (unsigned char)) 
+		    (size * sizeof (unsigned char))
 		    - (bmap->size * sizeof (unsigned char)));
-		    
+
 	}
     }
   else if (n_elms < bmap->n_bits)
@@ -247,7 +254,7 @@ sbitmap_copy (sbitmap dst, const_sbitmap src)
 void
 sbitmap_copy_n (sbitmap dst, const_sbitmap src, unsigned int n)
 {
-  memcpy (dst->elms, src->elms, sizeof (SBITMAP_ELT_TYPE) * n);  
+  memcpy (dst->elms, src->elms, sizeof (SBITMAP_ELT_TYPE) * n);
   if (dst->popcount)
     memcpy (dst->popcount, src->popcount, sizeof (unsigned char) * n);
 }
@@ -275,7 +282,7 @@ sbitmap_empty_p (const_sbitmap bmap)
 /* Return false if any of the N bits are set in MAP starting at
    START.  */
 
-bool 
+bool
 sbitmap_range_empty_p (const_sbitmap bmap, unsigned int start, unsigned int n)
 {
   unsigned int i = start / SBITMAP_ELT_BITS;
@@ -295,7 +302,7 @@ sbitmap_range_empty_p (const_sbitmap bmap, unsigned int start, unsigned int n)
       return (elm == 0);
     }
 
-  if (elm) 
+  if (elm)
     return false;
 
   n -= SBITMAP_ELT_BITS - shift;
@@ -316,7 +323,7 @@ sbitmap_range_empty_p (const_sbitmap bmap, unsigned int start, unsigned int n)
       elm = bmap->elms[i];
       elm &= ((1 << n) - 1);
       return (elm == 0);
-    }  
+    }
 
   return true;
 }
@@ -350,7 +357,7 @@ sbitmap_ones (sbitmap bmap)
       bmap->elms[bmap->size - 1]
 	= (SBITMAP_ELT_TYPE)-1 >> (SBITMAP_ELT_BITS - last_bit);
       if (bmap->popcount)
-	bmap->popcount[bmap->size - 1] 
+	bmap->popcount[bmap->size - 1]
 	  = do_popcount (bmap->elms[bmap->size - 1]);
     }
 }
@@ -392,7 +399,7 @@ sbitmap_union_of_diff_cg (sbitmap dst, const_sbitmap a, const_sbitmap b, const_s
   SBITMAP_ELT_TYPE changed = 0;
 
   gcc_assert (!dst->popcount);
-  
+
   for (i = 0; i < n; i++)
     {
       const SBITMAP_ELT_TYPE tmp = *ap++ | (*bp++ & ~*cp++);
@@ -429,7 +436,7 @@ sbitmap_not (sbitmap dst, const_sbitmap src)
   const_sbitmap_ptr srcp = src->elms;
   unsigned int last_bit;
 
-  gcc_assert (!dst->popcount);  
+  gcc_assert (!dst->popcount);
 
   for (i = 0; i < n; i++)
     *dstp++ = ~*srcp++;
@@ -531,7 +538,7 @@ sbitmap_a_and_b (sbitmap dst, const_sbitmap a, const_sbitmap b)
 	  if (wordchanged)
 	    *popcountp = do_popcount (tmp);
 	  popcountp++;
-	}      
+	}
       *dstp++ = tmp;
     }
 #ifdef BITMAP_DEBUGGING
@@ -551,7 +558,7 @@ sbitmap_a_xor_b_cg (sbitmap dst, const_sbitmap a, const_sbitmap b)
   const_sbitmap_ptr ap = a->elms;
   const_sbitmap_ptr bp = b->elms;
   SBITMAP_ELT_TYPE changed = 0;
-  
+
   gcc_assert (!dst->popcount);
 
   for (i = 0; i < n; i++)
@@ -583,7 +590,7 @@ sbitmap_a_xor_b (sbitmap dst, const_sbitmap a, const_sbitmap b)
 	  if (wordchanged)
 	    *popcountp = do_popcount (tmp);
 	  popcountp++;
-	} 
+	}
       *dstp++ = tmp;
     }
 #ifdef BITMAP_DEBUGGING
@@ -635,7 +642,7 @@ sbitmap_a_or_b (sbitmap dst, const_sbitmap a, const_sbitmap b)
 	  if (wordchanged)
 	    *popcountp = do_popcount (tmp);
 	  popcountp++;
-	} 
+	}
       *dstp++ = tmp;
     }
 #ifdef BITMAP_DEBUGGING
@@ -738,6 +745,14 @@ sbitmap_a_and_b_or_c (sbitmap dst, const_sbitmap a, const_sbitmap b, const_sbitm
 }
 
 #ifdef IN_GCC
+/* FIXME: depends on basic-block.h, see comment at start of this file.
+
+   Ironically, the comments before the functions below suggest they do
+   dataflow using the "new flow graph structures", but that's the *old*
+   new data structures.  The functions receive basic block numbers and
+   use BASIC_BLOCK(idx) to get the basic block.  They should receive
+   the basic block directly,  *sigh*.  */
+
 /* Set the bitmap DST to the intersection of SRC of successors of
    block number BB, using the new flow graph structures.  */
 
@@ -756,7 +771,7 @@ sbitmap_intersection_of_succs (sbitmap dst, sbitmap *src, int bb)
       e = EDGE_SUCC (b, ix);
       if (e->dest == EXIT_BLOCK_PTR)
 	continue;
-      
+
       sbitmap_copy (dst, src[e->dest->index]);
       break;
     }
@@ -996,7 +1011,7 @@ dump_sbitmap_file (FILE *file, const_sbitmap bmap)
   fprintf (file, "}\n");
 }
 
-void
+DEBUG_FUNCTION void
 debug_sbitmap (const_sbitmap bmap)
 {
   dump_sbitmap_file (stderr, bmap);
@@ -1061,7 +1076,7 @@ sbitmap_popcount (const_sbitmap a, unsigned long maxbit)
 
   if (maxbit == 0)
     return 0;
-  
+
   if (maxbit >= a->n_bits)
     maxbit = a->n_bits;
 

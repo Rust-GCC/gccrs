@@ -1,21 +1,21 @@
 /* Conditional constant propagation pass for the GNU compiler.
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
-   Free Software Foundation, Inc.
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
+   2010 Free Software Foundation, Inc.
    Adapted from original RTL SSA-CCP by Daniel Berlin <dberlin@dberlin.org>
    Adapted to GIMPLE trees by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
-   
+
 GCC is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
 Free Software Foundation; either version 3, or (at your option) any
 later version.
-   
+
 GCC is distributed in the hope that it will be useful, but WITHOUT
 ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
-   
+
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
@@ -63,7 +63,7 @@ along with GCC; see the file COPYING3.  If not see
       mark the outgoing edges as executable or not executable
       depending on the predicate's value.  This is then used when
       visiting PHI nodes to know when a PHI argument can be ignored.
-      
+
 
    2- In ccp_visit_phi_node, if all the PHI arguments evaluate to the
       same constant C, then the LHS of the PHI is set to C.  This
@@ -99,81 +99,6 @@ along with GCC; see the file COPYING3.  If not see
    array CONST_VAL[i].VALUE.  That is fed into substitute_and_fold for
    final substitution and folding.
 
-
-   Constant propagation in stores and loads (STORE-CCP)
-   ----------------------------------------------------
-
-   While CCP has all the logic to propagate constants in GIMPLE
-   registers, it is missing the ability to associate constants with
-   stores and loads (i.e., pointer dereferences, structures and
-   global/aliased variables).  We don't keep loads and stores in
-   SSA, but we do build a factored use-def web for them (in the
-   virtual operands).
-
-   For instance, consider the following code fragment:
-
-	  struct A a;
-	  const int B = 42;
-
-	  void foo (int i)
-	  {
-	    if (i > 10)
-	      a.a = 42;
-	    else
-	      {
-		a.b = 21;
-		a.a = a.b + 21;
-	      }
-
-	    if (a.a != B)
-	      never_executed ();
-	  }
-
-   We should be able to deduce that the predicate 'a.a != B' is always
-   false.  To achieve this, we associate constant values to the SSA
-   names in the VDEF operands for each store.  Additionally,
-   since we also glob partial loads/stores with the base symbol, we
-   also keep track of the memory reference where the constant value
-   was stored (in the MEM_REF field of PROP_VALUE_T).  For instance,
-
-        # a_5 = VDEF <a_4>
-        a.a = 2;
-
-        # VUSE <a_5>
-        x_3 = a.b;
-
-   In the example above, CCP will associate value '2' with 'a_5', but
-   it would be wrong to replace the load from 'a.b' with '2', because
-   '2' had been stored into a.a.
-
-   Note that the initial value of virtual operands is VARYING, not
-   UNDEFINED.  Consider, for instance global variables:
-
-   	int A;
-
-   	foo (int i)
-  	{
-	  if (i_3 > 10)
-	    A_4 = 3;
-          # A_5 = PHI (A_4, A_2);
-
-	  # VUSE <A_5>
-	  A.0_6 = A;
-
-	  return A.0_6;
-	}
-
-   The value of A_2 cannot be assumed to be UNDEFINED, as it may have
-   been defined outside of foo.  If we were to assume it UNDEFINED, we
-   would erroneously optimize the above into 'return 3;'.
-
-   Though STORE-CCP is not too expensive, it does have to do more work
-   than regular CCP, so it is only enabled at -O2.  Both regular CCP
-   and STORE-CCP use the exact same algorithm.  The only distinction
-   is that when doing STORE-CCP, the boolean variable DO_STORE_CCP is
-   set to true.  This affects the evaluation of statements and PHI
-   nodes.
-
    References:
 
      Constant propagation with conditional branches,
@@ -191,14 +116,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "tree.h"
 #include "flags.h"
-#include "rtl.h"
 #include "tm_p.h"
-#include "ggc.h"
 #include "basic-block.h"
 #include "output.h"
-#include "expr.h"
 #include "function.h"
-#include "diagnostic.h"
+#include "tree-pretty-print.h"
+#include "gimple-pretty-print.h"
 #include "timevar.h"
 #include "tree-dump.h"
 #include "tree-flow.h"
@@ -207,6 +130,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "value-prof.h"
 #include "langhooks.h"
 #include "target.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "dbgcnt.h"
 
@@ -220,6 +144,20 @@ typedef enum
   VARYING
 } ccp_lattice_t;
 
+struct prop_value_d {
+    /* Lattice value.  */
+    ccp_lattice_t lattice_val;
+
+    /* Propagated value.  */
+    tree value;
+
+    /* Mask that applies to the propagated value during CCP.  For
+       X with a CONSTANT lattice value X & ~mask == value & ~mask.  */
+    double_int mask;
+};
+
+typedef struct prop_value_d prop_value_t;
+
 /* Array of propagated constant values.  After propagation,
    CONST_VAL[I].VALUE holds the constant value for SSA_NAME(I).  If
    the constant is held in an SSA name representing a memory store
@@ -230,6 +168,9 @@ static prop_value_t *const_val;
 
 static void canonicalize_float_value (prop_value_t *);
 static bool ccp_fold_stmt (gimple_stmt_iterator *);
+static tree fold_ctor_reference (tree type, tree ctor,
+				 unsigned HOST_WIDE_INT offset,
+				 unsigned HOST_WIDE_INT size);
 
 /* Dump constant propagation value VAL to file OUTF prefixed by PREFIX.  */
 
@@ -249,7 +190,18 @@ dump_lattice_value (FILE *outf, const char *prefix, prop_value_t val)
       break;
     case CONSTANT:
       fprintf (outf, "%sCONSTANT ", prefix);
-      print_generic_expr (outf, val.value, dump_flags);
+      if (TREE_CODE (val.value) != INTEGER_CST
+	  || double_int_zero_p (val.mask))
+	print_generic_expr (outf, val.value, dump_flags);
+      else
+	{
+	  double_int cval = double_int_and_not (tree_to_double_int (val.value),
+						val.mask);
+	  fprintf (outf, "%sCONSTANT " HOST_WIDE_INT_PRINT_DOUBLE_HEX,
+		   prefix, cval.high, cval.low);
+	  fprintf (outf, " (" HOST_WIDE_INT_PRINT_DOUBLE_HEX ")",
+		   val.mask.high, val.mask.low);
+	}
       break;
     default:
       gcc_unreachable ();
@@ -261,57 +213,13 @@ dump_lattice_value (FILE *outf, const char *prefix, prop_value_t val)
 
 void debug_lattice_value (prop_value_t val);
 
-void
+DEBUG_FUNCTION void
 debug_lattice_value (prop_value_t val)
 {
   dump_lattice_value (stderr, "", val);
   fprintf (stderr, "\n");
 }
 
-
-
-/* If SYM is a constant variable with known value, return the value.
-   NULL_TREE is returned otherwise.  */
-
-tree
-get_symbol_constant_value (tree sym)
-{
-  if (TREE_STATIC (sym)
-      && (TREE_READONLY (sym)
-	  || TREE_CODE (sym) == CONST_DECL))
-    {
-      tree val = DECL_INITIAL (sym);
-      if (val)
-	{
-	  STRIP_USELESS_TYPE_CONVERSION (val);
-	  if (is_gimple_min_invariant (val))
-	    {
-	      if (TREE_CODE (val) == ADDR_EXPR)
-		{
-		  tree base = get_base_address (TREE_OPERAND (val, 0));
-		  if (base && TREE_CODE (base) == VAR_DECL)
-		    {
-		      TREE_ADDRESSABLE (base) = 1;
-		      if (gimple_referenced_vars (cfun))
-			add_referenced_var (base);
-		    }
-		}
-	      return val;
-	    }
-	}
-      /* Variables declared 'const' without an initializer
-	 have zero as the initializer if they may not be
-	 overridden at link or run time.  */
-      if (!val
-	  && !DECL_EXTERNAL (sym)
-	  && targetm.binds_local_p (sym)
-          && (INTEGRAL_TYPE_P (TREE_TYPE (sym))
-	       || SCALAR_FLOAT_TYPE_P (TREE_TYPE (sym))))
-	return fold_convert (TREE_TYPE (sym), integer_zero_node);
-    }
-
-  return NULL_TREE;
-}
 
 /* Compute a default value for variable VAR and store it in the
    CONST_VAL array.  The following rules are used to get default
@@ -335,7 +243,7 @@ static prop_value_t
 get_default_value (tree var)
 {
   tree sym = SSA_NAME_VAR (var);
-  prop_value_t val = { UNINITIALIZED, NULL_TREE };
+  prop_value_t val = { UNINITIALIZED, NULL_TREE, { 0, 0 } };
   gimple stmt;
 
   stmt = SSA_NAME_DEF_STMT (var);
@@ -346,10 +254,14 @@ get_default_value (tree var)
 	 before being initialized.  If VAR is a local variable, we
 	 can assume initially that it is UNDEFINED, otherwise we must
 	 consider it VARYING.  */
-      if (is_gimple_reg (sym) && TREE_CODE (sym) != PARM_DECL)
+      if (is_gimple_reg (sym)
+	  && TREE_CODE (sym) == VAR_DECL)
 	val.lattice_val = UNDEFINED;
       else
-	val.lattice_val = VARYING;
+	{
+	  val.lattice_val = VARYING;
+	  val.mask = double_int_minus_one;
+	}
     }
   else if (is_gimple_assign (stmt)
 	   /* Value-returning GIMPLE_CALL statements assign to
@@ -375,6 +287,7 @@ get_default_value (tree var)
     {
       /* Otherwise, VAR will never take on a constant value.  */
       val.lattice_val = VARYING;
+      val.mask = double_int_minus_one;
     }
 
   return val;
@@ -400,6 +313,27 @@ get_value (tree var)
   return val;
 }
 
+/* Return the constant tree value associated with VAR.  */
+
+static inline tree
+get_constant_value (tree var)
+{
+  prop_value_t *val;
+  if (TREE_CODE (var) != SSA_NAME)
+    {
+      if (is_gimple_min_invariant (var))
+        return var;
+      return NULL_TREE;
+    }
+  val = get_value (var);
+  if (val
+      && val->lattice_val == CONSTANT
+      && (TREE_CODE (val->value) != INTEGER_CST
+	  || double_int_zero_p (val->mask)))
+    return val->value;
+  return NULL_TREE;
+}
+
 /* Sets the value associated with VAR to VARYING.  */
 
 static inline void
@@ -409,6 +343,7 @@ set_value_varying (tree var)
 
   val->lattice_val = VARYING;
   val->value = NULL_TREE;
+  val->mask = double_int_minus_one;
 }
 
 /* For float types, modify the value of VAL to make ccp work correctly
@@ -458,27 +393,81 @@ canonicalize_float_value (prop_value_t *val)
     }
 }
 
+/* Return whether the lattice transition is valid.  */
+
+static bool
+valid_lattice_transition (prop_value_t old_val, prop_value_t new_val)
+{
+  /* Lattice transitions must always be monotonically increasing in
+     value.  */
+  if (old_val.lattice_val < new_val.lattice_val)
+    return true;
+
+  if (old_val.lattice_val != new_val.lattice_val)
+    return false;
+
+  if (!old_val.value && !new_val.value)
+    return true;
+
+  /* Now both lattice values are CONSTANT.  */
+
+  /* Allow transitioning from &x to &x & ~3.  */
+  if (TREE_CODE (old_val.value) != INTEGER_CST
+      && TREE_CODE (new_val.value) == INTEGER_CST)
+    return true;
+
+  /* Bit-lattices have to agree in the still valid bits.  */
+  if (TREE_CODE (old_val.value) == INTEGER_CST
+      && TREE_CODE (new_val.value) == INTEGER_CST)
+    return double_int_equal_p
+		(double_int_and_not (tree_to_double_int (old_val.value),
+				     new_val.mask),
+		 double_int_and_not (tree_to_double_int (new_val.value),
+				     new_val.mask));
+
+  /* Otherwise constant values have to agree.  */
+  return operand_equal_p (old_val.value, new_val.value, 0);
+}
+
 /* Set the value for variable VAR to NEW_VAL.  Return true if the new
    value is different from VAR's previous value.  */
 
 static bool
 set_lattice_value (tree var, prop_value_t new_val)
 {
-  prop_value_t *old_val = get_value (var);
+  /* We can deal with old UNINITIALIZED values just fine here.  */
+  prop_value_t *old_val = &const_val[SSA_NAME_VERSION (var)];
 
   canonicalize_float_value (&new_val);
 
-  /* Lattice transitions must always be monotonically increasing in
-     value.  If *OLD_VAL and NEW_VAL are the same, return false to
-     inform the caller that this was a non-transition.  */
-
-  gcc_assert (old_val->lattice_val < new_val.lattice_val
-              || (old_val->lattice_val == new_val.lattice_val
-		  && ((!old_val->value && !new_val.value)
-		      || operand_equal_p (old_val->value, new_val.value, 0))));
-
-  if (old_val->lattice_val != new_val.lattice_val)
+  /* We have to be careful to not go up the bitwise lattice
+     represented by the mask.
+     ???  This doesn't seem to be the best place to enforce this.  */
+  if (new_val.lattice_val == CONSTANT
+      && old_val->lattice_val == CONSTANT
+      && TREE_CODE (new_val.value) == INTEGER_CST
+      && TREE_CODE (old_val->value) == INTEGER_CST)
     {
+      double_int diff;
+      diff = double_int_xor (tree_to_double_int (new_val.value),
+			     tree_to_double_int (old_val->value));
+      new_val.mask = double_int_ior (new_val.mask,
+				     double_int_ior (old_val->mask, diff));
+    }
+
+  gcc_assert (valid_lattice_transition (*old_val, new_val));
+
+  /* If *OLD_VAL and NEW_VAL are the same, return false to inform the
+     caller that this was a non-transition.  */
+  if (old_val->lattice_val != new_val.lattice_val
+      || (new_val.lattice_val == CONSTANT
+	  && TREE_CODE (new_val.value) == INTEGER_CST
+	  && (TREE_CODE (old_val->value) != INTEGER_CST
+	      || !double_int_equal_p (new_val.mask, old_val->mask))))
+    {
+      /* ???  We would like to delay creation of INTEGER_CSTs from
+	 partially constants here.  */
+
       if (dump_file && (dump_flags & TDF_DETAILS))
 	{
 	  dump_lattice_value (dump_file, "Lattice value changed to ", new_val);
@@ -487,13 +476,145 @@ set_lattice_value (tree var, prop_value_t new_val)
 
       *old_val = new_val;
 
-      gcc_assert (new_val.lattice_val != UNDEFINED);
+      gcc_assert (new_val.lattice_val != UNINITIALIZED);
       return true;
     }
 
   return false;
 }
 
+static prop_value_t get_value_for_expr (tree, bool);
+static prop_value_t bit_value_binop (enum tree_code, tree, tree, tree);
+static void bit_value_binop_1 (enum tree_code, tree, double_int *, double_int *,
+			       tree, double_int, double_int,
+			       tree, double_int, double_int);
+
+/* Return a double_int that can be used for bitwise simplifications
+   from VAL.  */
+
+static double_int
+value_to_double_int (prop_value_t val)
+{
+  if (val.value
+      && TREE_CODE (val.value) == INTEGER_CST)
+    return tree_to_double_int (val.value);
+  else
+    return double_int_zero;
+}
+
+/* Return the value for the address expression EXPR based on alignment
+   information.  */
+
+static prop_value_t
+get_value_from_alignment (tree expr)
+{
+  prop_value_t val;
+  HOST_WIDE_INT bitsize, bitpos;
+  tree base, offset;
+  enum machine_mode mode;
+  int align;
+
+  gcc_assert (TREE_CODE (expr) == ADDR_EXPR);
+
+  base = get_inner_reference (TREE_OPERAND (expr, 0),
+			      &bitsize, &bitpos, &offset,
+			      &mode, &align, &align, false);
+  if (TREE_CODE (base) == MEM_REF)
+    val = bit_value_binop (PLUS_EXPR, TREE_TYPE (expr),
+			   TREE_OPERAND (base, 0), TREE_OPERAND (base, 1));
+  else if (base
+	   && ((align = get_object_alignment (base, BIGGEST_ALIGNMENT))
+		> BITS_PER_UNIT))
+    {
+      val.lattice_val = CONSTANT;
+      /* We assume pointers are zero-extended.  */
+      val.mask = double_int_and_not
+	           (double_int_mask (TYPE_PRECISION (TREE_TYPE (expr))),
+		    uhwi_to_double_int (align / BITS_PER_UNIT - 1));
+      val.value = build_int_cst (TREE_TYPE (expr), 0);
+    }
+  else
+    {
+      val.lattice_val = VARYING;
+      val.mask = double_int_minus_one;
+      val.value = NULL_TREE;
+    }
+  if (bitpos != 0)
+    {
+      double_int value, mask;
+      bit_value_binop_1 (PLUS_EXPR, TREE_TYPE (expr), &value, &mask,
+			 TREE_TYPE (expr), value_to_double_int (val), val.mask,
+			 TREE_TYPE (expr),
+			 shwi_to_double_int (bitpos / BITS_PER_UNIT),
+			 double_int_zero);
+      val.lattice_val = double_int_minus_one_p (mask) ? VARYING : CONSTANT;
+      val.mask = mask;
+      if (val.lattice_val == CONSTANT)
+	val.value = double_int_to_tree (TREE_TYPE (expr), value);
+      else
+	val.value = NULL_TREE;
+    }
+  /* ???  We should handle i * 4 and more complex expressions from
+     the offset, possibly by just expanding get_value_for_expr.  */
+  if (offset != NULL_TREE)
+    {
+      double_int value, mask;
+      prop_value_t oval = get_value_for_expr (offset, true);
+      bit_value_binop_1 (PLUS_EXPR, TREE_TYPE (expr), &value, &mask,
+			 TREE_TYPE (expr), value_to_double_int (val), val.mask,
+			 TREE_TYPE (expr), value_to_double_int (oval),
+			 oval.mask);
+      val.mask = mask;
+      if (double_int_minus_one_p (mask))
+	{
+	  val.lattice_val = VARYING;
+	  val.value = NULL_TREE;
+	}
+      else
+	{
+	  val.lattice_val = CONSTANT;
+	  val.value = double_int_to_tree (TREE_TYPE (expr), value);
+	}
+    }
+
+  return val;
+}
+
+/* Return the value for the tree operand EXPR.  If FOR_BITS_P is true
+   return constant bits extracted from alignment information for
+   invariant addresses.  */
+
+static prop_value_t
+get_value_for_expr (tree expr, bool for_bits_p)
+{
+  prop_value_t val;
+
+  if (TREE_CODE (expr) == SSA_NAME)
+    {
+      val = *get_value (expr);
+      if (for_bits_p
+	  && val.lattice_val == CONSTANT
+	  && TREE_CODE (val.value) == ADDR_EXPR)
+	val = get_value_from_alignment (val.value);
+    }
+  else if (is_gimple_min_invariant (expr)
+	   && (!for_bits_p || TREE_CODE (expr) != ADDR_EXPR))
+    {
+      val.lattice_val = CONSTANT;
+      val.value = expr;
+      val.mask = double_int_zero;
+      canonicalize_float_value (&val);
+    }
+  else if (TREE_CODE (expr) == ADDR_EXPR)
+    val = get_value_from_alignment (expr);
+  else
+    {
+      val.lattice_val = VARYING;
+      val.mask = double_int_minus_one;
+      val.value = NULL_TREE;
+    }
+  return val;
+}
 
 /* Return the likely CCP lattice value for STMT.
 
@@ -557,6 +678,9 @@ likely_value (gimple stmt)
       if (is_gimple_min_invariant (op))
 	has_constant_operand = true;
     }
+
+  if (has_constant_operand)
+    all_undefined_operands = false;
 
   /* If the operation combines operands like COMPLEX_EXPR make sure to
      not mark the result UNDEFINED if only one part of the result is
@@ -707,6 +831,7 @@ do_dbg_cnt (void)
       if (!dbg_cnt (ccp))
         {
           const_val[i].lattice_val = VARYING;
+	  const_val[i].mask = double_int_minus_one;
           const_val[i].value = NULL_TREE;
         }
     }
@@ -714,7 +839,7 @@ do_dbg_cnt (void)
 
 
 /* Do final substitution of propagated values, cleanup the flowgraph and
-   free allocated storage.  
+   free allocated storage.
 
    Return TRUE when something was optimized.  */
 
@@ -722,10 +847,43 @@ static bool
 ccp_finalize (void)
 {
   bool something_changed;
+  unsigned i;
 
   do_dbg_cnt ();
+
+  /* Derive alignment and misalignment information from partially
+     constant pointers in the lattice.  */
+  for (i = 1; i < num_ssa_names; ++i)
+    {
+      tree name = ssa_name (i);
+      prop_value_t *val;
+      struct ptr_info_def *pi;
+      unsigned int tem, align;
+
+      if (!name
+	  || !POINTER_TYPE_P (TREE_TYPE (name)))
+	continue;
+
+      val = get_value (name);
+      if (val->lattice_val != CONSTANT
+	  || TREE_CODE (val->value) != INTEGER_CST)
+	continue;
+
+      /* Trailing constant bits specify the alignment, trailing value
+	 bits the misalignment.  */
+      tem = val->mask.low;
+      align = (tem & -tem);
+      if (align == 1)
+	continue;
+
+      pi = get_ptr_info (name);
+      pi->align = align;
+      pi->misalign = TREE_INT_CST_LOW (val->value) & (align - 1);
+    }
+
   /* Perform substitutions based on the known constant values.  */
-  something_changed = substitute_and_fold (const_val, ccp_fold_stmt);
+  something_changed = substitute_and_fold (get_constant_value,
+					   ccp_fold_stmt, true);
 
   free (const_val);
   const_val = NULL;
@@ -761,7 +919,29 @@ ccp_lattice_meet (prop_value_t *val1, prop_value_t *val2)
     {
       /* any M VARYING = VARYING.  */
       val1->lattice_val = VARYING;
+      val1->mask = double_int_minus_one;
       val1->value = NULL_TREE;
+    }
+  else if (val1->lattice_val == CONSTANT
+	   && val2->lattice_val == CONSTANT
+	   && TREE_CODE (val1->value) == INTEGER_CST
+	   && TREE_CODE (val2->value) == INTEGER_CST)
+    {
+      /* Ci M Cj = Ci		if (i == j)
+	 Ci M Cj = VARYING	if (i != j)
+
+         For INTEGER_CSTs mask unequal bits.  If no equal bits remain,
+	 drop to varying.  */
+      val1->mask
+	  = double_int_ior (double_int_ior (val1->mask,
+					    val2->mask),
+			    double_int_xor (tree_to_double_int (val1->value),
+					    tree_to_double_int (val2->value)));
+      if (double_int_minus_one_p (val1->mask))
+	{
+	  val1->lattice_val = VARYING;
+	  val1->value = NULL_TREE;
+	}
     }
   else if (val1->lattice_val == CONSTANT
 	   && val2->lattice_val == CONSTANT
@@ -770,15 +950,27 @@ ccp_lattice_meet (prop_value_t *val1, prop_value_t *val2)
       /* Ci M Cj = Ci		if (i == j)
 	 Ci M Cj = VARYING	if (i != j)
 
-         If these two values come from memory stores, make sure that
-	 they come from the same memory reference.  */
-      val1->lattice_val = CONSTANT;
-      val1->value = val1->value;
+         VAL1 already contains the value we want for equivalent values.  */
+    }
+  else if (val1->lattice_val == CONSTANT
+	   && val2->lattice_val == CONSTANT
+	   && (TREE_CODE (val1->value) == ADDR_EXPR
+	       || TREE_CODE (val2->value) == ADDR_EXPR))
+    {
+      /* When not equal addresses are involved try meeting for
+	 alignment.  */
+      prop_value_t tem = *val2;
+      if (TREE_CODE (val1->value) == ADDR_EXPR)
+	*val1 = get_value_for_expr (val1->value, true);
+      if (TREE_CODE (val2->value) == ADDR_EXPR)
+	tem = get_value_for_expr (val2->value, true);
+      ccp_lattice_meet (val1, &tem);
     }
   else
     {
       /* Any other combination is VARYING.  */
       val1->lattice_val = VARYING;
+      val1->mask = double_int_minus_one;
       val1->value = NULL_TREE;
     }
 }
@@ -839,15 +1031,7 @@ ccp_visit_phi_node (gimple phi)
       if (e->flags & EDGE_EXECUTABLE)
 	{
 	  tree arg = gimple_phi_arg (phi, i)->def;
-	  prop_value_t arg_val;
-
-	  if (is_gimple_min_invariant (arg))
-	    {
-	      arg_val.lattice_val = CONSTANT;
-	      arg_val.value = arg;
-	    }
-	  else
-	    arg_val = *(get_value (arg));
+	  prop_value_t arg_val = get_value_for_expr (arg, false);
 
 	  ccp_lattice_meet (&new_val, &arg_val);
 
@@ -882,34 +1066,18 @@ ccp_visit_phi_node (gimple phi)
     return SSA_PROP_NOT_INTERESTING;
 }
 
-/* Return true if we may propagate the address expression ADDR into the 
-   dereference DEREF and cancel them.  */
+/* Return the constant value for OP or OP otherwise.  */
 
-bool
-may_propagate_address_into_dereference (tree addr, tree deref)
+static tree
+valueize_op (tree op)
 {
-  gcc_assert (INDIRECT_REF_P (deref)
-	      && TREE_CODE (addr) == ADDR_EXPR);
-
-  /* Don't propagate if ADDR's operand has incomplete type.  */
-  if (!COMPLETE_TYPE_P (TREE_TYPE (TREE_OPERAND (addr, 0))))
-    return false;
-
-  /* If the address is invariant then we do not need to preserve restrict
-     qualifications.  But we do need to preserve volatile qualifiers until
-     we can annotate the folded dereference itself properly.  */
-  if (is_gimple_min_invariant (addr)
-      && (!TREE_THIS_VOLATILE (deref)
-	  || TYPE_VOLATILE (TREE_TYPE (addr))))
-    return useless_type_conversion_p (TREE_TYPE (deref),
-				      TREE_TYPE (TREE_OPERAND (addr, 0)));
-
-  /* Else both the address substitution and the folding must result in
-     a valid useless type conversion sequence.  */
-  return (useless_type_conversion_p (TREE_TYPE (TREE_OPERAND (deref, 0)),
-				     TREE_TYPE (addr))
-	  && useless_type_conversion_p (TREE_TYPE (deref),
-					TREE_TYPE (TREE_OPERAND (addr, 0))));
+  if (TREE_CODE (op) == SSA_NAME)
+    {
+      tree tem = get_constant_value (op);
+      if (tem)
+	return tem;
+    }
+  return op;
 }
 
 /* CCP specific front-end to the non-destructive constant folding
@@ -942,7 +1110,7 @@ ccp_fold (gimple stmt)
                 {
                   /* If the RHS is an SSA_NAME, return its known constant value,
                      if any.  */
-                  return get_value (rhs)->value;
+                  return get_constant_value (rhs);
                 }
 	      /* Handle propagating invariant addresses into address operations.
 		 The folding we do here matches that in tree-ssa-forwprop.c.  */
@@ -952,20 +1120,22 @@ ccp_fold (gimple stmt)
 		  base = &TREE_OPERAND (rhs, 0);
 		  while (handled_component_p (*base))
 		    base = &TREE_OPERAND (*base, 0);
-		  if (TREE_CODE (*base) == INDIRECT_REF
+		  if (TREE_CODE (*base) == MEM_REF
 		      && TREE_CODE (TREE_OPERAND (*base, 0)) == SSA_NAME)
 		    {
-		      prop_value_t *val = get_value (TREE_OPERAND (*base, 0));
-		      if (val->lattice_val == CONSTANT
-			  && TREE_CODE (val->value) == ADDR_EXPR
-			  && may_propagate_address_into_dereference
-			       (val->value, *base))
+		      tree val = get_constant_value (TREE_OPERAND (*base, 0));
+		      if (val
+			  && TREE_CODE (val) == ADDR_EXPR)
 			{
+			  tree ret, save = *base;
+			  tree new_base;
+			  new_base = fold_build2 (MEM_REF, TREE_TYPE (*base),
+						  unshare_expr (val),
+						  TREE_OPERAND (*base, 1));
 			  /* We need to return a new tree, not modify the IL
 			     or share parts of it.  So play some tricks to
 			     avoid manually building it.  */
-			  tree ret, save = *base;
-			  *base = TREE_OPERAND (val->value, 0);
+			  *base = new_base;
 			  ret = unshare_expr (rhs);
 			  recompute_tree_invariant_for_addr_expr (ret);
 			  *base = save;
@@ -984,9 +1154,7 @@ ccp_fold (gimple stmt)
 		  list = NULL_TREE;
 		  FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (rhs), i, val)
 		    {
-		      if (TREE_CODE (val) == SSA_NAME
-			  && get_value (val)->lattice_val == CONSTANT)
-			val = get_value (val)->value;
+		      val = valueize_op (val);
 		      if (TREE_CODE (val) == INTEGER_CST
 			  || TREE_CODE (val) == REAL_CST
 			  || TREE_CODE (val) == FIXED_CST)
@@ -1005,21 +1173,25 @@ ccp_fold (gimple stmt)
 		       || TREE_CODE (rhs) == IMAGPART_EXPR)
 		      && TREE_CODE (TREE_OPERAND (rhs, 0)) == SSA_NAME)
 		    {
-		      prop_value_t *val = get_value (TREE_OPERAND (rhs, 0));
-		      if (val->lattice_val == CONSTANT)
+		      tree val = get_constant_value (TREE_OPERAND (rhs, 0));
+		      if (val)
 			return fold_unary_loc (EXPR_LOCATION (rhs),
-					   TREE_CODE (rhs),
-					   TREE_TYPE (rhs), val->value);
+					       TREE_CODE (rhs),
+					       TREE_TYPE (rhs), val);
 		    }
-		  else if (TREE_CODE (rhs) == INDIRECT_REF
+		  else if (TREE_CODE (rhs) == MEM_REF
 			   && TREE_CODE (TREE_OPERAND (rhs, 0)) == SSA_NAME)
 		    {
-		      prop_value_t *val = get_value (TREE_OPERAND (rhs, 0));
-		      if (val->lattice_val == CONSTANT
-			  && TREE_CODE (val->value) == ADDR_EXPR
-			  && useless_type_conversion_p (TREE_TYPE (rhs),
-							TREE_TYPE (TREE_TYPE (val->value))))
-			rhs = TREE_OPERAND (val->value, 0);
+		      tree val = get_constant_value (TREE_OPERAND (rhs, 0));
+		      if (val
+			  && TREE_CODE (val) == ADDR_EXPR)
+			{
+			  tree tem = fold_build2 (MEM_REF, TREE_TYPE (rhs),
+						  unshare_expr (val),
+						  TREE_OPERAND (rhs, 1));
+			  if (tem)
+			    rhs = tem;
+			}
 		    }
 		  return fold_const_aggregate_ref (rhs);
 		}
@@ -1027,22 +1199,14 @@ ccp_fold (gimple stmt)
                 return get_symbol_constant_value (rhs);
               return rhs;
             }
-            
+
           case GIMPLE_UNARY_RHS:
             {
               /* Handle unary operators that can appear in GIMPLE form.
                  Note that we know the single operand must be a constant,
                  so this should almost always return a simplified RHS.  */
               tree lhs = gimple_assign_lhs (stmt);
-              tree op0 = gimple_assign_rhs1 (stmt);
-
-              /* Simplify the operand down to a constant.  */
-              if (TREE_CODE (op0) == SSA_NAME)
-                {
-                  prop_value_t *val = get_value (op0);
-                  if (val->lattice_val == CONSTANT)
-                    op0 = get_value (op0)->value;
-                }
+              tree op0 = valueize_op (gimple_assign_rhs1 (stmt));
 
 	      /* Conversions are useless for CCP purposes if they are
 		 value-preserving.  Thus the restrictions that
@@ -1051,16 +1215,10 @@ ccp_fold (gimple stmt)
 		 allowed places.  */
 	      if (CONVERT_EXPR_CODE_P (subcode)
 		  && POINTER_TYPE_P (TREE_TYPE (lhs))
-		  && POINTER_TYPE_P (TREE_TYPE (op0))
-		  /* Do not allow differences in volatile qualification
-		     as this might get us confused as to whether a
-		     propagation destination statement is volatile
-		     or not.  See PR36988.  */
-		  && (TYPE_VOLATILE (TREE_TYPE (TREE_TYPE (lhs)))
-		      == TYPE_VOLATILE (TREE_TYPE (TREE_TYPE (op0)))))
+		  && POINTER_TYPE_P (TREE_TYPE (op0)))
 		{
 		  tree tem;
-		  /* Still try to generate a constant of correct type.  */
+		  /* Try to re-construct array references on-the-fly.  */
 		  if (!useless_type_conversion_p (TREE_TYPE (lhs),
 						  TREE_TYPE (op0))
 		      && ((tem = maybe_fold_offset_to_address
@@ -1071,7 +1229,7 @@ ccp_fold (gimple stmt)
 		  return op0;
 		}
 
-              return 
+              return
 		fold_unary_ignore_overflow_loc (loc, subcode,
 						gimple_expr_type (stmt), op0);
             }
@@ -1079,37 +1237,35 @@ ccp_fold (gimple stmt)
           case GIMPLE_BINARY_RHS:
             {
               /* Handle binary operators that can appear in GIMPLE form.  */
-              tree op0 = gimple_assign_rhs1 (stmt);
-              tree op1 = gimple_assign_rhs2 (stmt);
+              tree op0 = valueize_op (gimple_assign_rhs1 (stmt));
+              tree op1 = valueize_op (gimple_assign_rhs2 (stmt));
 
-              /* Simplify the operands down to constants when appropriate.  */
-              if (TREE_CODE (op0) == SSA_NAME)
-                {
-                  prop_value_t *val = get_value (op0);
-                  if (val->lattice_val == CONSTANT)
-                    op0 = val->value;
-                }
-
-              if (TREE_CODE (op1) == SSA_NAME)
-                {
-                  prop_value_t *val = get_value (op1);
-                  if (val->lattice_val == CONSTANT)
-                    op1 = val->value;
-                }
-
-	      /* Fold &foo + CST into an invariant reference if possible.  */
+	      /* Translate &x + CST into an invariant form suitable for
+	         further propagation.  */
 	      if (gimple_assign_rhs_code (stmt) == POINTER_PLUS_EXPR
 		  && TREE_CODE (op0) == ADDR_EXPR
 		  && TREE_CODE (op1) == INTEGER_CST)
 		{
-		  tree tem = maybe_fold_offset_to_address
-		    (loc, op0, op1, TREE_TYPE (op0));
-		  if (tem != NULL_TREE)
-		    return tem;
+		  tree off = fold_convert (ptr_type_node, op1);
+		  return build_fold_addr_expr
+			   (fold_build2 (MEM_REF,
+					 TREE_TYPE (TREE_TYPE (op0)),
+					 unshare_expr (op0), off));
 		}
 
               return fold_binary_loc (loc, subcode,
-				  gimple_expr_type (stmt), op0, op1);
+				      gimple_expr_type (stmt), op0, op1);
+            }
+
+          case GIMPLE_TERNARY_RHS:
+            {
+              /* Handle ternary operators that can appear in GIMPLE form.  */
+              tree op0 = valueize_op (gimple_assign_rhs1 (stmt));
+              tree op1 = valueize_op (gimple_assign_rhs2 (stmt));
+              tree op2 = valueize_op (gimple_assign_rhs3 (stmt));
+
+              return fold_ternary_loc (loc, subcode,
+				       gimple_expr_type (stmt), op0, op1, op2);
             }
 
           default:
@@ -1120,15 +1276,7 @@ ccp_fold (gimple stmt)
 
     case GIMPLE_CALL:
       {
-	tree fn = gimple_call_fn (stmt);
-	prop_value_t *val;
-
-	if (TREE_CODE (fn) == SSA_NAME)
-	  {
-	    val = get_value (fn);
-	    if (val->lattice_val == CONSTANT)
-	      fn = val->value;
-	  }
+	tree fn = valueize_op (gimple_call_fn (stmt));
 	if (TREE_CODE (fn) == ADDR_EXPR
 	    && TREE_CODE (TREE_OPERAND (fn, 0)) == FUNCTION_DECL
 	    && DECL_BUILT_IN (TREE_OPERAND (fn, 0)))
@@ -1137,15 +1285,7 @@ ccp_fold (gimple stmt)
 	    tree call, retval;
 	    unsigned i;
 	    for (i = 0; i < gimple_call_num_args (stmt); ++i)
-	      {
-		args[i] = gimple_call_arg (stmt, i);
-		if (TREE_CODE (args[i]) == SSA_NAME)
-		  {
-		    val = get_value (args[i]);
-		    if (val->lattice_val == CONSTANT)
-		      args[i] = val->value;
-		  }
-	      }
+	      args[i] = valueize_op (gimple_call_arg (stmt, i));
 	    call = build_call_array_loc (loc,
 					 gimple_call_return_type (stmt),
 					 fn, gimple_call_num_args (stmt), args);
@@ -1161,40 +1301,16 @@ ccp_fold (gimple stmt)
     case GIMPLE_COND:
       {
         /* Handle comparison operators that can appear in GIMPLE form.  */
-        tree op0 = gimple_cond_lhs (stmt);
-        tree op1 = gimple_cond_rhs (stmt);
+        tree op0 = valueize_op (gimple_cond_lhs (stmt));
+        tree op1 = valueize_op (gimple_cond_rhs (stmt));
         enum tree_code code = gimple_cond_code (stmt);
-
-        /* Simplify the operands down to constants when appropriate.  */
-        if (TREE_CODE (op0) == SSA_NAME)
-          {
-            prop_value_t *val = get_value (op0);
-            if (val->lattice_val == CONSTANT)
-              op0 = val->value;
-          }
-
-        if (TREE_CODE (op1) == SSA_NAME)
-          {
-            prop_value_t *val = get_value (op1);
-            if (val->lattice_val == CONSTANT)
-              op1 = val->value;
-          }
-
         return fold_binary_loc (loc, code, boolean_type_node, op0, op1);
       }
 
     case GIMPLE_SWITCH:
       {
-        tree rhs = gimple_switch_index (stmt);
-
-        if (TREE_CODE (rhs) == SSA_NAME)
-          {
-            /* If the RHS is an SSA_NAME, return its known constant value,
-               if any.  */
-            return get_value (rhs)->value;
-          }
-
-        return rhs;
+	/* Return the constant switch index.  */
+        return valueize_op (gimple_switch_index (stmt));
       }
 
     default:
@@ -1202,6 +1318,286 @@ ccp_fold (gimple stmt)
     }
 }
 
+/* See if we can find constructor defining value of BASE.
+   When we know the consructor with constant offset (such as
+   base is array[40] and we do know constructor of array), then
+   BIT_OFFSET is adjusted accordingly.
+
+   As a special case, return error_mark_node when constructor
+   is not explicitly available, but it is known to be zero
+   such as 'static const int a;'.  */
+static tree
+get_base_constructor (tree base, HOST_WIDE_INT *bit_offset)
+{
+  HOST_WIDE_INT bit_offset2, size, max_size;
+  if (TREE_CODE (base) == MEM_REF)
+    {
+      if (!integer_zerop (TREE_OPERAND (base, 1)))
+	{
+	  if (!host_integerp (TREE_OPERAND (base, 1), 0))
+	    return NULL_TREE;
+	  *bit_offset += (mem_ref_offset (base).low
+			  * BITS_PER_UNIT);
+	}
+
+      base = get_constant_value (TREE_OPERAND (base, 0));
+      if (!base || TREE_CODE (base) != ADDR_EXPR)
+        return NULL_TREE;
+      base = TREE_OPERAND (base, 0);
+    }
+
+  /* Get a CONSTRUCTOR.  If BASE is a VAR_DECL, get its
+     DECL_INITIAL.  If BASE is a nested reference into another
+     ARRAY_REF or COMPONENT_REF, make a recursive call to resolve
+     the inner reference.  */
+  switch (TREE_CODE (base))
+    {
+    case VAR_DECL:
+      if (!const_value_known_p (base))
+	return NULL_TREE;
+
+      /* Fallthru.  */
+    case CONST_DECL:
+      if (!DECL_INITIAL (base)
+	  && (TREE_STATIC (base) || DECL_EXTERNAL (base)))
+        return error_mark_node;
+      return DECL_INITIAL (base);
+      
+      break;
+
+    case ARRAY_REF:
+    case COMPONENT_REF:
+      base = get_ref_base_and_extent (base, &bit_offset2, &size, &max_size);
+      if (max_size == -1 || size != max_size)
+	return NULL_TREE;
+      *bit_offset +=  bit_offset2;
+      return get_base_constructor (base, bit_offset);
+      break;
+
+    case STRING_CST:
+    case CONSTRUCTOR:
+      return base;
+      break;
+
+    default:
+      return NULL_TREE;
+    }
+}
+
+/* CTOR is STRING_CST.  Fold reference of type TYPE and size SIZE
+   to the memory at bit OFFSET.  
+
+   We do only simple job of folding byte accesses.  */
+
+static tree
+fold_string_cst_ctor_reference (tree type, tree ctor, unsigned HOST_WIDE_INT offset,
+				unsigned HOST_WIDE_INT size)
+{
+  if (INTEGRAL_TYPE_P (type)
+      && (TYPE_MODE (type)
+	  == TYPE_MODE (TREE_TYPE (TREE_TYPE (ctor))))
+      && (GET_MODE_CLASS (TYPE_MODE (TREE_TYPE (TREE_TYPE (ctor))))
+	  == MODE_INT)
+      && GET_MODE_SIZE (TYPE_MODE (TREE_TYPE (TREE_TYPE (ctor)))) == 1
+      && size == BITS_PER_UNIT
+      && !(offset % BITS_PER_UNIT))
+    {
+      offset /= BITS_PER_UNIT;
+      if (offset < (unsigned HOST_WIDE_INT) TREE_STRING_LENGTH (ctor))
+	return build_int_cst_type (type, (TREE_STRING_POINTER (ctor)
+				   [offset]));
+      /* Folding
+	 const char a[20]="hello";
+	 return a[10];
+
+	 might lead to offset greater than string length.  In this case we
+	 know value is either initialized to 0 or out of bounds.  Return 0
+	 in both cases.  */
+      return build_zero_cst (type);
+    }
+  return NULL_TREE;
+}
+
+/* CTOR is CONSTRUCTOR of an array type.  Fold reference of type TYPE and size
+   SIZE to the memory at bit OFFSET.  */
+
+static tree
+fold_array_ctor_reference (tree type, tree ctor,
+			   unsigned HOST_WIDE_INT offset,
+			   unsigned HOST_WIDE_INT size)
+{
+  unsigned HOST_WIDE_INT cnt;
+  tree cfield, cval;
+  double_int low_bound, elt_size;
+  double_int index, max_index;
+  double_int access_index;
+  tree domain_type = TYPE_DOMAIN (TREE_TYPE (ctor));
+  HOST_WIDE_INT inner_offset;
+
+  /* Compute low bound and elt size.  */
+  if (domain_type && TYPE_MIN_VALUE (domain_type))
+    {
+      /* Static constructors for variably sized objects makes no sense.  */
+      gcc_assert (TREE_CODE (TYPE_MIN_VALUE (domain_type)) == INTEGER_CST);
+      low_bound = tree_to_double_int (TYPE_MIN_VALUE (domain_type));
+    }
+  else
+    low_bound = double_int_zero;
+  /* Static constructors for variably sized objects makes no sense.  */
+  gcc_assert (TREE_CODE(TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (ctor))))
+	      == INTEGER_CST);
+  elt_size =
+    tree_to_double_int (TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (ctor))));
+
+
+  /* We can handle only constantly sized accesses that are known to not
+     be larger than size of array element.  */
+  if (!TYPE_SIZE_UNIT (type)
+      || TREE_CODE (TYPE_SIZE_UNIT (type)) != INTEGER_CST
+      || double_int_cmp (elt_size,
+			 tree_to_double_int (TYPE_SIZE_UNIT (type)), 0) < 0)
+    return NULL_TREE;
+
+  /* Compute the array index we look for.  */
+  access_index = double_int_udiv (uhwi_to_double_int (offset / BITS_PER_UNIT),
+				  elt_size, TRUNC_DIV_EXPR);
+  access_index = double_int_add (access_index, low_bound);
+
+  /* And offset within the access.  */
+  inner_offset = offset % (double_int_to_uhwi (elt_size) * BITS_PER_UNIT);
+
+  /* See if the array field is large enough to span whole access.  We do not
+     care to fold accesses spanning multiple array indexes.  */
+  if (inner_offset + size > double_int_to_uhwi (elt_size) * BITS_PER_UNIT)
+    return NULL_TREE;
+
+  index = double_int_sub (low_bound, double_int_one);
+  FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (ctor), cnt, cfield, cval)
+    {
+      /* Array constructor might explicitely set index, or specify range
+	 or leave index NULL meaning that it is next index after previous
+	 one.  */
+      if (cfield)
+	{
+	  if (TREE_CODE (cfield) == INTEGER_CST)
+	    max_index = index = tree_to_double_int (cfield);
+	  else
+	    {
+	      gcc_assert (TREE_CODE (cfield) == RANGE_EXPR);
+	      index = tree_to_double_int (TREE_OPERAND (cfield, 0));
+	      max_index = tree_to_double_int (TREE_OPERAND (cfield, 1));
+	    }
+	}
+      else
+	max_index = index = double_int_add (index, double_int_one);
+
+      /* Do we have match?  */
+      if (double_int_cmp (access_index, index, 1) >= 0
+	  && double_int_cmp (access_index, max_index, 1) <= 0)
+	return fold_ctor_reference (type, cval, inner_offset, size);
+    }
+  /* When memory is not explicitely mentioned in constructor,
+     it is 0 (or out of range).  */
+  return build_zero_cst (type);
+}
+
+/* CTOR is CONSTRUCTOR of an aggregate or vector.
+   Fold reference of type TYPE and size SIZE to the memory at bit OFFSET.  */
+
+static tree
+fold_nonarray_ctor_reference (tree type, tree ctor,
+			      unsigned HOST_WIDE_INT offset,
+			      unsigned HOST_WIDE_INT size)
+{
+  unsigned HOST_WIDE_INT cnt;
+  tree cfield, cval;
+
+  FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (ctor), cnt, cfield,
+			    cval)
+    {
+      tree byte_offset = DECL_FIELD_OFFSET (cfield);
+      tree field_offset = DECL_FIELD_BIT_OFFSET (cfield);
+      tree field_size = DECL_SIZE (cfield);
+      double_int bitoffset;
+      double_int byte_offset_cst = tree_to_double_int (byte_offset);
+      double_int bits_per_unit_cst = uhwi_to_double_int (BITS_PER_UNIT);
+      double_int bitoffset_end;
+
+      /* Variable sized objects in static constructors makes no sense.  */
+      gcc_assert (TREE_CODE (field_offset) == INTEGER_CST
+		  && TREE_CODE (byte_offset) == INTEGER_CST
+		  && TREE_CODE (field_size) == INTEGER_CST);
+
+      /* Compute bit offset of the field.  */
+      bitoffset = double_int_add (tree_to_double_int (field_offset),
+				  double_int_mul (byte_offset_cst,
+						  bits_per_unit_cst));
+      /* Compute bit offset where the field ends.  */
+      bitoffset_end = double_int_add (bitoffset,
+				      tree_to_double_int (field_size));
+
+      /* Is OFFSET in the range (BITOFFSET, BITOFFSET_END)? */
+      if (double_int_cmp (uhwi_to_double_int (offset), bitoffset, 0) >= 0
+	  && double_int_cmp (uhwi_to_double_int (offset),
+			     bitoffset_end, 0) < 0)
+	{
+	  double_int access_end = double_int_add (uhwi_to_double_int (offset),
+						  uhwi_to_double_int (size));
+	  double_int inner_offset = double_int_sub (uhwi_to_double_int (offset),
+						    bitoffset);
+	  /* We do have overlap.  Now see if field is large enough to
+	     cover the access.  Give up for accesses spanning multiple
+	     fields.  */
+	  if (double_int_cmp (access_end, bitoffset_end, 0) > 0)
+	    return NULL_TREE;
+	  return fold_ctor_reference (type, cval,
+				      double_int_to_uhwi (inner_offset), size);
+	}
+    }
+  /* When memory is not explicitely mentioned in constructor, it is 0.  */
+  return build_zero_cst (type);
+}
+
+/* CTOR is value initializing memory, fold reference of type TYPE and size SIZE
+   to the memory at bit OFFSET.  */
+
+static tree
+fold_ctor_reference (tree type, tree ctor, unsigned HOST_WIDE_INT offset,
+		     unsigned HOST_WIDE_INT size)
+{
+  tree ret;
+
+  /* We found the field with exact match.  */
+  if (useless_type_conversion_p (type, TREE_TYPE (ctor))
+      && !offset)
+    return canonicalize_constructor_val (ctor);
+
+  /* We are at the end of walk, see if we can view convert the
+     result.  */
+  if (!AGGREGATE_TYPE_P (TREE_TYPE (ctor)) && !offset
+      /* VIEW_CONVERT_EXPR is defined only for matching sizes.  */
+      && operand_equal_p (TYPE_SIZE (type),
+			  TYPE_SIZE (TREE_TYPE (ctor)), 0))
+    {
+      ret = canonicalize_constructor_val (ctor);
+      ret = fold_unary (VIEW_CONVERT_EXPR, type, ret);
+      if (ret)
+	STRIP_NOPS (ret);
+      return ret;
+    }
+  if (TREE_CODE (ctor) == STRING_CST)
+    return fold_string_cst_ctor_reference (type, ctor, offset, size);
+  if (TREE_CODE (ctor) == CONSTRUCTOR)
+    {
+
+      if (TREE_CODE (TREE_TYPE (ctor)) == ARRAY_TYPE)
+	return fold_array_ctor_reference (type, ctor, offset, size);
+      else
+	return fold_nonarray_ctor_reference (type, ctor, offset, size);
+    }
+
+  return NULL_TREE;
+}
 
 /* Return the tree representing the element referenced by T if T is an
    ARRAY_REF or COMPONENT_REF into constant aggregates.  Return
@@ -1210,152 +1606,83 @@ ccp_fold (gimple stmt)
 tree
 fold_const_aggregate_ref (tree t)
 {
-  prop_value_t *value;
-  tree base, ctor, idx, field;
-  unsigned HOST_WIDE_INT cnt;
-  tree cfield, cval;
+  tree ctor, idx, base;
+  HOST_WIDE_INT offset, size, max_size;
+  tree tem;
 
   if (TREE_CODE_CLASS (TREE_CODE (t)) == tcc_declaration)
     return get_symbol_constant_value (t);
 
+  tem = fold_read_from_constant_string (t);
+  if (tem)
+    return tem;
+
   switch (TREE_CODE (t))
     {
     case ARRAY_REF:
-      /* Get a CONSTRUCTOR.  If BASE is a VAR_DECL, get its
-	 DECL_INITIAL.  If BASE is a nested reference into another
-	 ARRAY_REF or COMPONENT_REF, make a recursive call to resolve
-	 the inner reference.  */
-      base = TREE_OPERAND (t, 0);
-      switch (TREE_CODE (base))
+    case ARRAY_RANGE_REF:
+      /* Constant indexes are handled well by get_base_constructor.
+	 Only special case variable offsets.
+	 FIXME: This code can't handle nested references with variable indexes
+	 (they will be handled only by iteration of ccp).  Perhaps we can bring
+	 get_ref_base_and_extent here and make it use get_constant_value.  */
+      if (TREE_CODE (TREE_OPERAND (t, 1)) == SSA_NAME
+	  && (idx = get_constant_value (TREE_OPERAND (t, 1)))
+	  && host_integerp (idx, 0))
 	{
-	case VAR_DECL:
-	  if (!TREE_READONLY (base)
-	      || TREE_CODE (TREE_TYPE (base)) != ARRAY_TYPE
-	      || !targetm.binds_local_p (base))
-	    return NULL_TREE;
+	  tree low_bound, unit_size;
 
-	  ctor = DECL_INITIAL (base);
-	  break;
+	  /* If the resulting bit-offset is constant, track it.  */
+	  if ((low_bound = array_ref_low_bound (t),
+	       host_integerp (low_bound, 0))
+	      && (unit_size = array_ref_element_size (t),
+		  host_integerp (unit_size, 1)))
+	    {
+	      offset = TREE_INT_CST_LOW (idx);
+	      offset -= TREE_INT_CST_LOW (low_bound);
+	      offset *= TREE_INT_CST_LOW (unit_size);
+	      offset *= BITS_PER_UNIT;
 
-	case ARRAY_REF:
-	case COMPONENT_REF:
-	  ctor = fold_const_aggregate_ref (base);
-	  break;
-
-	case STRING_CST:
-	case CONSTRUCTOR:
-	  ctor = base;
-	  break;
-
-	default:
-	  return NULL_TREE;
+	      base = TREE_OPERAND (t, 0);
+	      ctor = get_base_constructor (base, &offset);
+	      /* Empty constructor.  Always fold to 0. */
+	      if (ctor == error_mark_node)
+		return build_zero_cst (TREE_TYPE (t));
+	      /* Out of bound array access.  Value is undefined, but don't fold. */
+	      if (offset < 0)
+		return NULL_TREE;
+	      /* We can not determine ctor.  */
+	      if (!ctor)
+		return NULL_TREE;
+	      return fold_ctor_reference (TREE_TYPE (t), ctor, offset,
+					  TREE_INT_CST_LOW (unit_size)
+					  * BITS_PER_UNIT);
+	    }
 	}
-
-      if (ctor == NULL_TREE
-	  || (TREE_CODE (ctor) != CONSTRUCTOR
-	      && TREE_CODE (ctor) != STRING_CST)
-	  || !TREE_STATIC (ctor))
-	return NULL_TREE;
-
-      /* Get the index.  If we have an SSA_NAME, try to resolve it
-	 with the current lattice value for the SSA_NAME.  */
-      idx = TREE_OPERAND (t, 1);
-      switch (TREE_CODE (idx))
-	{
-	case SSA_NAME:
-	  if ((value = get_value (idx))
-	      && value->lattice_val == CONSTANT
-	      && TREE_CODE (value->value) == INTEGER_CST)
-	    idx = value->value;
-	  else
-	    return NULL_TREE;
-	  break;
-
-	case INTEGER_CST:
-	  break;
-
-	default:
-	  return NULL_TREE;
-	}
-
-      /* Fold read from constant string.  */
-      if (TREE_CODE (ctor) == STRING_CST)
-	{
-	  if ((TYPE_MODE (TREE_TYPE (t))
-	       == TYPE_MODE (TREE_TYPE (TREE_TYPE (ctor))))
-	      && (GET_MODE_CLASS (TYPE_MODE (TREE_TYPE (TREE_TYPE (ctor))))
-	          == MODE_INT)
-	      && GET_MODE_SIZE (TYPE_MODE (TREE_TYPE (TREE_TYPE (ctor)))) == 1
-	      && compare_tree_int (idx, TREE_STRING_LENGTH (ctor)) < 0)
-	    return build_int_cst_type (TREE_TYPE (t),
-				       (TREE_STRING_POINTER (ctor)
-					[TREE_INT_CST_LOW (idx)]));
-	  return NULL_TREE;
-	}
-
-      /* Whoo-hoo!  I'll fold ya baby.  Yeah!  */
-      FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (ctor), cnt, cfield, cval)
-	if (tree_int_cst_equal (cfield, idx))
-	  {
-	    STRIP_USELESS_TYPE_CONVERSION (cval);
-	    if (TREE_CODE (cval) == ADDR_EXPR)
-	      {
-		tree base = get_base_address (TREE_OPERAND (cval, 0));
-		if (base && TREE_CODE (base) == VAR_DECL)
-		  add_referenced_var (base);
-	      }
-	    return cval;
-	  }
-      break;
-
+      /* Fallthru.  */
+	
     case COMPONENT_REF:
-      /* Get a CONSTRUCTOR.  If BASE is a VAR_DECL, get its
-	 DECL_INITIAL.  If BASE is a nested reference into another
-	 ARRAY_REF or COMPONENT_REF, make a recursive call to resolve
-	 the inner reference.  */
-      base = TREE_OPERAND (t, 0);
-      switch (TREE_CODE (base))
-	{
-	case VAR_DECL:
-	  if (!TREE_READONLY (base)
-	      || TREE_CODE (TREE_TYPE (base)) != RECORD_TYPE
-	      || !targetm.binds_local_p (base))
-	    return NULL_TREE;
+    case BIT_FIELD_REF:
+    case TARGET_MEM_REF:
+    case MEM_REF:
+      base = get_ref_base_and_extent (t, &offset, &size, &max_size);
+      ctor = get_base_constructor (base, &offset);
 
-	  ctor = DECL_INITIAL (base);
-	  break;
-
-	case ARRAY_REF:
-	case COMPONENT_REF:
-	  ctor = fold_const_aggregate_ref (base);
-	  break;
-
-	default:
-	  return NULL_TREE;
-	}
-
-      if (ctor == NULL_TREE
-	  || TREE_CODE (ctor) != CONSTRUCTOR
-	  || !TREE_STATIC (ctor))
+      /* Empty constructor.  Always fold to 0. */
+      if (ctor == error_mark_node)
+	return build_zero_cst (TREE_TYPE (t));
+      /* We do not know precise address.  */
+      if (max_size == -1 || max_size != size)
+	return NULL_TREE;
+      /* We can not determine ctor.  */
+      if (!ctor)
 	return NULL_TREE;
 
-      field = TREE_OPERAND (t, 1);
+      /* Out of bound array access.  Value is undefined, but don't fold. */
+      if (offset < 0)
+	return NULL_TREE;
 
-      FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (ctor), cnt, cfield, cval)
-	if (cfield == field
-	    /* FIXME: Handle bit-fields.  */
-	    && ! DECL_BIT_FIELD (cfield))
-	  {
-	    STRIP_USELESS_TYPE_CONVERSION (cval);
-	    if (TREE_CODE (cval) == ADDR_EXPR)
-	      {
-		tree base = get_base_address (TREE_OPERAND (cval, 0));
-		if (base && TREE_CODE (base) == VAR_DECL)
-		  add_referenced_var (base);
-	      }
-	    return cval;
-	  }
-      break;
+      return fold_ctor_reference (TREE_TYPE (t), ctor, offset, size);
 
     case REALPART_EXPR:
     case IMAGPART_EXPR:
@@ -1367,24 +1694,352 @@ fold_const_aggregate_ref (tree t)
 	break;
       }
 
-    case INDIRECT_REF:
-      {
-	tree base = TREE_OPERAND (t, 0);
-	if (TREE_CODE (base) == SSA_NAME
-	    && (value = get_value (base))
-	    && value->lattice_val == CONSTANT
-	    && TREE_CODE (value->value) == ADDR_EXPR
-	    && useless_type_conversion_p (TREE_TYPE (t),
-					  TREE_TYPE (TREE_TYPE (value->value))))
-	  return fold_const_aggregate_ref (TREE_OPERAND (value->value, 0));
-	break;
-      }
-
     default:
       break;
     }
 
   return NULL_TREE;
+}
+
+/* Apply the operation CODE in type TYPE to the value, mask pair
+   RVAL and RMASK representing a value of type RTYPE and set
+   the value, mask pair *VAL and *MASK to the result.  */
+
+static void
+bit_value_unop_1 (enum tree_code code, tree type,
+		  double_int *val, double_int *mask,
+		  tree rtype, double_int rval, double_int rmask)
+{
+  switch (code)
+    {
+    case BIT_NOT_EXPR:
+      *mask = rmask;
+      *val = double_int_not (rval);
+      break;
+
+    case NEGATE_EXPR:
+      {
+	double_int temv, temm;
+	/* Return ~rval + 1.  */
+	bit_value_unop_1 (BIT_NOT_EXPR, type, &temv, &temm, type, rval, rmask);
+	bit_value_binop_1 (PLUS_EXPR, type, val, mask,
+			 type, temv, temm,
+			 type, double_int_one, double_int_zero);
+	break;
+      }
+
+    CASE_CONVERT:
+      {
+	bool uns;
+
+	/* First extend mask and value according to the original type.  */
+	uns = (TREE_CODE (rtype) == INTEGER_TYPE && TYPE_IS_SIZETYPE (rtype)
+	       ? 0 : TYPE_UNSIGNED (rtype));
+	*mask = double_int_ext (rmask, TYPE_PRECISION (rtype), uns);
+	*val = double_int_ext (rval, TYPE_PRECISION (rtype), uns);
+
+	/* Then extend mask and value according to the target type.  */
+	uns = (TREE_CODE (type) == INTEGER_TYPE && TYPE_IS_SIZETYPE (type)
+	       ? 0 : TYPE_UNSIGNED (type));
+	*mask = double_int_ext (*mask, TYPE_PRECISION (type), uns);
+	*val = double_int_ext (*val, TYPE_PRECISION (type), uns);
+	break;
+      }
+
+    default:
+      *mask = double_int_minus_one;
+      break;
+    }
+}
+
+/* Apply the operation CODE in type TYPE to the value, mask pairs
+   R1VAL, R1MASK and R2VAL, R2MASK representing a values of type R1TYPE
+   and R2TYPE and set the value, mask pair *VAL and *MASK to the result.  */
+
+static void
+bit_value_binop_1 (enum tree_code code, tree type,
+		   double_int *val, double_int *mask,
+		   tree r1type, double_int r1val, double_int r1mask,
+		   tree r2type, double_int r2val, double_int r2mask)
+{
+  bool uns = (TREE_CODE (type) == INTEGER_TYPE
+	      && TYPE_IS_SIZETYPE (type) ? 0 : TYPE_UNSIGNED (type));
+  /* Assume we'll get a constant result.  Use an initial varying value,
+     we fall back to varying in the end if necessary.  */
+  *mask = double_int_minus_one;
+  switch (code)
+    {
+    case BIT_AND_EXPR:
+      /* The mask is constant where there is a known not
+	 set bit, (m1 | m2) & ((v1 | m1) & (v2 | m2)) */
+      *mask = double_int_and (double_int_ior (r1mask, r2mask),
+			      double_int_and (double_int_ior (r1val, r1mask),
+					      double_int_ior (r2val, r2mask)));
+      *val = double_int_and (r1val, r2val);
+      break;
+
+    case BIT_IOR_EXPR:
+      /* The mask is constant where there is a known
+	 set bit, (m1 | m2) & ~((v1 & ~m1) | (v2 & ~m2)).  */
+      *mask = double_int_and_not
+	  	(double_int_ior (r1mask, r2mask),
+		 double_int_ior (double_int_and_not (r1val, r1mask),
+				 double_int_and_not (r2val, r2mask)));
+      *val = double_int_ior (r1val, r2val);
+      break;
+
+    case BIT_XOR_EXPR:
+      /* m1 | m2  */
+      *mask = double_int_ior (r1mask, r2mask);
+      *val = double_int_xor (r1val, r2val);
+      break;
+
+    case LROTATE_EXPR:
+    case RROTATE_EXPR:
+      if (double_int_zero_p (r2mask))
+	{
+	  HOST_WIDE_INT shift = r2val.low;
+	  if (code == RROTATE_EXPR)
+	    shift = -shift;
+	  *mask = double_int_lrotate (r1mask, shift, TYPE_PRECISION (type));
+	  *val = double_int_lrotate (r1val, shift, TYPE_PRECISION (type));
+	}
+      break;
+
+    case LSHIFT_EXPR:
+    case RSHIFT_EXPR:
+      /* ???  We can handle partially known shift counts if we know
+	 its sign.  That way we can tell that (x << (y | 8)) & 255
+	 is zero.  */
+      if (double_int_zero_p (r2mask))
+	{
+	  HOST_WIDE_INT shift = r2val.low;
+	  if (code == RSHIFT_EXPR)
+	    shift = -shift;
+	  /* We need to know if we are doing a left or a right shift
+	     to properly shift in zeros for left shift and unsigned
+	     right shifts and the sign bit for signed right shifts.
+	     For signed right shifts we shift in varying in case
+	     the sign bit was varying.  */
+	  if (shift > 0)
+	    {
+	      *mask = double_int_lshift (r1mask, shift,
+					 TYPE_PRECISION (type), false);
+	      *val = double_int_lshift (r1val, shift,
+					TYPE_PRECISION (type), false);
+	    }
+	  else if (shift < 0)
+	    {
+	      shift = -shift;
+	      *mask = double_int_rshift (r1mask, shift,
+					 TYPE_PRECISION (type), !uns);
+	      *val = double_int_rshift (r1val, shift,
+					TYPE_PRECISION (type), !uns);
+	    }
+	  else
+	    {
+	      *mask = r1mask;
+	      *val = r1val;
+	    }
+	}
+      break;
+
+    case PLUS_EXPR:
+    case POINTER_PLUS_EXPR:
+      {
+	double_int lo, hi;
+	/* Do the addition with unknown bits set to zero, to give carry-ins of
+	   zero wherever possible.  */
+	lo = double_int_add (double_int_and_not (r1val, r1mask),
+			     double_int_and_not (r2val, r2mask));
+	lo = double_int_ext (lo, TYPE_PRECISION (type), uns);
+	/* Do the addition with unknown bits set to one, to give carry-ins of
+	   one wherever possible.  */
+	hi = double_int_add (double_int_ior (r1val, r1mask),
+			     double_int_ior (r2val, r2mask));
+	hi = double_int_ext (hi, TYPE_PRECISION (type), uns);
+	/* Each bit in the result is known if (a) the corresponding bits in
+	   both inputs are known, and (b) the carry-in to that bit position
+	   is known.  We can check condition (b) by seeing if we got the same
+	   result with minimised carries as with maximised carries.  */
+	*mask = double_int_ior (double_int_ior (r1mask, r2mask),
+				double_int_xor (lo, hi));
+	*mask = double_int_ext (*mask, TYPE_PRECISION (type), uns);
+	/* It shouldn't matter whether we choose lo or hi here.  */
+	*val = lo;
+	break;
+      }
+
+    case MINUS_EXPR:
+      {
+	double_int temv, temm;
+	bit_value_unop_1 (NEGATE_EXPR, r2type, &temv, &temm,
+			  r2type, r2val, r2mask);
+	bit_value_binop_1 (PLUS_EXPR, type, val, mask,
+			   r1type, r1val, r1mask,
+			   r2type, temv, temm);
+	break;
+      }
+
+    case MULT_EXPR:
+      {
+	/* Just track trailing zeros in both operands and transfer
+	   them to the other.  */
+	int r1tz = double_int_ctz (double_int_ior (r1val, r1mask));
+	int r2tz = double_int_ctz (double_int_ior (r2val, r2mask));
+	if (r1tz + r2tz >= HOST_BITS_PER_DOUBLE_INT)
+	  {
+	    *mask = double_int_zero;
+	    *val = double_int_zero;
+	  }
+	else if (r1tz + r2tz > 0)
+	  {
+	    *mask = double_int_not (double_int_mask (r1tz + r2tz));
+	    *mask = double_int_ext (*mask, TYPE_PRECISION (type), uns);
+	    *val = double_int_zero;
+	  }
+	break;
+      }
+
+    case EQ_EXPR:
+    case NE_EXPR:
+      {
+	double_int m = double_int_ior (r1mask, r2mask);
+	if (!double_int_equal_p (double_int_and_not (r1val, m),
+				 double_int_and_not (r2val, m)))
+	  {
+	    *mask = double_int_zero;
+	    *val = ((code == EQ_EXPR) ? double_int_zero : double_int_one);
+	  }
+	else
+	  {
+	    /* We know the result of a comparison is always one or zero.  */
+	    *mask = double_int_one;
+	    *val = double_int_zero;
+	  }
+	break;
+      }
+
+    case GE_EXPR:
+    case GT_EXPR:
+      {
+	double_int tem = r1val;
+	r1val = r2val;
+	r2val = tem;
+	tem = r1mask;
+	r1mask = r2mask;
+	r2mask = tem;
+	code = swap_tree_comparison (code);
+      }
+      /* Fallthru.  */
+    case LT_EXPR:
+    case LE_EXPR:
+      {
+	int minmax, maxmin;
+	/* If the most significant bits are not known we know nothing.  */
+	if (double_int_negative_p (r1mask) || double_int_negative_p (r2mask))
+	  break;
+
+	/* If we know the most significant bits we know the values
+	   value ranges by means of treating varying bits as zero
+	   or one.  Do a cross comparison of the max/min pairs.  */
+	maxmin = double_int_cmp (double_int_ior (r1val, r1mask),
+				 double_int_and_not (r2val, r2mask), uns);
+	minmax = double_int_cmp (double_int_and_not (r1val, r1mask),
+				 double_int_ior (r2val, r2mask), uns);
+	if (maxmin < 0)  /* r1 is less than r2.  */
+	  {
+	    *mask = double_int_zero;
+	    *val = double_int_one;
+	  }
+	else if (minmax > 0)  /* r1 is not less or equal to r2.  */
+	  {
+	    *mask = double_int_zero;
+	    *val = double_int_zero;
+	  }
+	else if (maxmin == minmax)  /* r1 and r2 are equal.  */
+	  {
+	    /* This probably should never happen as we'd have
+	       folded the thing during fully constant value folding.  */
+	    *mask = double_int_zero;
+	    *val = (code == LE_EXPR ? double_int_one :  double_int_zero);
+	  }
+	else
+	  {
+	    /* We know the result of a comparison is always one or zero.  */
+	    *mask = double_int_one;
+	    *val = double_int_zero;
+	  }
+	break;
+      }
+
+    default:;
+    }
+}
+
+/* Return the propagation value when applying the operation CODE to
+   the value RHS yielding type TYPE.  */
+
+static prop_value_t
+bit_value_unop (enum tree_code code, tree type, tree rhs)
+{
+  prop_value_t rval = get_value_for_expr (rhs, true);
+  double_int value, mask;
+  prop_value_t val;
+  gcc_assert ((rval.lattice_val == CONSTANT
+	       && TREE_CODE (rval.value) == INTEGER_CST)
+	      || double_int_minus_one_p (rval.mask));
+  bit_value_unop_1 (code, type, &value, &mask,
+		    TREE_TYPE (rhs), value_to_double_int (rval), rval.mask);
+  if (!double_int_minus_one_p (mask))
+    {
+      val.lattice_val = CONSTANT;
+      val.mask = mask;
+      /* ???  Delay building trees here.  */
+      val.value = double_int_to_tree (type, value);
+    }
+  else
+    {
+      val.lattice_val = VARYING;
+      val.value = NULL_TREE;
+      val.mask = double_int_minus_one;
+    }
+  return val;
+}
+
+/* Return the propagation value when applying the operation CODE to
+   the values RHS1 and RHS2 yielding type TYPE.  */
+
+static prop_value_t
+bit_value_binop (enum tree_code code, tree type, tree rhs1, tree rhs2)
+{
+  prop_value_t r1val = get_value_for_expr (rhs1, true);
+  prop_value_t r2val = get_value_for_expr (rhs2, true);
+  double_int value, mask;
+  prop_value_t val;
+  gcc_assert ((r1val.lattice_val == CONSTANT
+	       && TREE_CODE (r1val.value) == INTEGER_CST)
+	      || double_int_minus_one_p (r1val.mask));
+  gcc_assert ((r2val.lattice_val == CONSTANT
+	       && TREE_CODE (r2val.value) == INTEGER_CST)
+	      || double_int_minus_one_p (r2val.mask));
+  bit_value_binop_1 (code, type, &value, &mask,
+		     TREE_TYPE (rhs1), value_to_double_int (r1val), r1val.mask,
+		     TREE_TYPE (rhs2), value_to_double_int (r2val), r2val.mask);
+  if (!double_int_minus_one_p (mask))
+    {
+      val.lattice_val = CONSTANT;
+      val.mask = mask;
+      /* ???  Delay building trees here.  */
+      val.value = double_int_to_tree (type, value);
+    }
+  else
+    {
+      val.lattice_val = VARYING;
+      val.value = NULL_TREE;
+      val.mask = double_int_minus_one;
+    }
+  return val;
 }
 
 /* Evaluate statement STMT.
@@ -1396,41 +2051,7 @@ evaluate_stmt (gimple stmt)
   prop_value_t val;
   tree simplified = NULL_TREE;
   ccp_lattice_t likelyvalue = likely_value (stmt);
-  bool is_constant;
-
-  fold_defer_overflow_warnings ();
-
-  /* If the statement is likely to have a CONSTANT result, then try
-     to fold the statement to determine the constant value.  */
-  /* FIXME.  This is the only place that we call ccp_fold.
-     Since likely_value never returns CONSTANT for calls, we will
-     not attempt to fold them, including builtins that may profit.  */
-  if (likelyvalue == CONSTANT)
-    simplified = ccp_fold (stmt);
-  /* If the statement is likely to have a VARYING result, then do not
-     bother folding the statement.  */
-  else if (likelyvalue == VARYING)
-    {
-      enum gimple_code code = gimple_code (stmt);
-      if (code == GIMPLE_ASSIGN)
-        {
-          enum tree_code subcode = gimple_assign_rhs_code (stmt);
-          
-          /* Other cases cannot satisfy is_gimple_min_invariant
-             without folding.  */
-          if (get_gimple_rhs_class (subcode) == GIMPLE_SINGLE_RHS)
-            simplified = gimple_assign_rhs1 (stmt);
-        }
-      else if (code == GIMPLE_SWITCH)
-        simplified = gimple_switch_index (stmt);
-      else
-	/* These cannot satisfy is_gimple_min_invariant without folding.  */
-	gcc_assert (code == GIMPLE_CALL || code == GIMPLE_COND);
-    }
-
-  is_constant = simplified && is_gimple_min_invariant (simplified);
-
-  fold_undefer_overflow_warnings (is_constant, stmt, 0);
+  bool is_constant = false;
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -1451,21 +2072,151 @@ evaluate_stmt (gimple stmt)
       fprintf (dump_file, "\n");
     }
 
-  if (is_constant)
+  /* If the statement is likely to have a CONSTANT result, then try
+     to fold the statement to determine the constant value.  */
+  /* FIXME.  This is the only place that we call ccp_fold.
+     Since likely_value never returns CONSTANT for calls, we will
+     not attempt to fold them, including builtins that may profit.  */
+  if (likelyvalue == CONSTANT)
     {
-      /* The statement produced a constant value.  */
-      val.lattice_val = CONSTANT;
-      val.value = simplified;
+      fold_defer_overflow_warnings ();
+      simplified = ccp_fold (stmt);
+      is_constant = simplified && is_gimple_min_invariant (simplified);
+      fold_undefer_overflow_warnings (is_constant, stmt, 0);
+      if (is_constant)
+	{
+	  /* The statement produced a constant value.  */
+	  val.lattice_val = CONSTANT;
+	  val.value = simplified;
+	  val.mask = double_int_zero;
+	}
     }
-  else
+  /* If the statement is likely to have a VARYING result, then do not
+     bother folding the statement.  */
+  else if (likelyvalue == VARYING)
+    {
+      enum gimple_code code = gimple_code (stmt);
+      if (code == GIMPLE_ASSIGN)
+        {
+          enum tree_code subcode = gimple_assign_rhs_code (stmt);
+
+          /* Other cases cannot satisfy is_gimple_min_invariant
+             without folding.  */
+          if (get_gimple_rhs_class (subcode) == GIMPLE_SINGLE_RHS)
+            simplified = gimple_assign_rhs1 (stmt);
+        }
+      else if (code == GIMPLE_SWITCH)
+        simplified = gimple_switch_index (stmt);
+      else
+	/* These cannot satisfy is_gimple_min_invariant without folding.  */
+	gcc_assert (code == GIMPLE_CALL || code == GIMPLE_COND);
+      is_constant = simplified && is_gimple_min_invariant (simplified);
+      if (is_constant)
+	{
+	  /* The statement produced a constant value.  */
+	  val.lattice_val = CONSTANT;
+	  val.value = simplified;
+	  val.mask = double_int_zero;
+	}
+    }
+
+  /* Resort to simplification for bitwise tracking.  */
+  if (flag_tree_bit_ccp
+      && likelyvalue == CONSTANT
+      && !is_constant)
+    {
+      enum gimple_code code = gimple_code (stmt);
+      tree fndecl;
+      val.lattice_val = VARYING;
+      val.value = NULL_TREE;
+      val.mask = double_int_minus_one;
+      if (code == GIMPLE_ASSIGN)
+	{
+	  enum tree_code subcode = gimple_assign_rhs_code (stmt);
+	  tree rhs1 = gimple_assign_rhs1 (stmt);
+	  switch (get_gimple_rhs_class (subcode))
+	    {
+	    case GIMPLE_SINGLE_RHS:
+	      if (INTEGRAL_TYPE_P (TREE_TYPE (rhs1))
+		  || POINTER_TYPE_P (TREE_TYPE (rhs1)))
+		val = get_value_for_expr (rhs1, true);
+	      break;
+
+	    case GIMPLE_UNARY_RHS:
+	      if ((INTEGRAL_TYPE_P (TREE_TYPE (rhs1))
+		   || POINTER_TYPE_P (TREE_TYPE (rhs1)))
+		  && (INTEGRAL_TYPE_P (gimple_expr_type (stmt))
+		      || POINTER_TYPE_P (gimple_expr_type (stmt))))
+		val = bit_value_unop (subcode, gimple_expr_type (stmt), rhs1);
+	      break;
+
+	    case GIMPLE_BINARY_RHS:
+	      if (INTEGRAL_TYPE_P (TREE_TYPE (rhs1))
+		  || POINTER_TYPE_P (TREE_TYPE (rhs1)))
+		{
+		  tree rhs2 = gimple_assign_rhs2 (stmt);
+		  val = bit_value_binop (subcode,
+					 TREE_TYPE (rhs1), rhs1, rhs2);
+		}
+	      break;
+
+	    default:;
+	    }
+	}
+      else if (code == GIMPLE_COND)
+	{
+	  enum tree_code code = gimple_cond_code (stmt);
+	  tree rhs1 = gimple_cond_lhs (stmt);
+	  tree rhs2 = gimple_cond_rhs (stmt);
+	  if (INTEGRAL_TYPE_P (TREE_TYPE (rhs1))
+	      || POINTER_TYPE_P (TREE_TYPE (rhs1)))
+	    val = bit_value_binop (code, TREE_TYPE (rhs1), rhs1, rhs2);
+	}
+      else if (code == GIMPLE_CALL
+	       && (fndecl = gimple_call_fndecl (stmt))
+	       && DECL_BUILT_IN_CLASS (fndecl) == BUILT_IN_NORMAL)
+	{
+	  switch (DECL_FUNCTION_CODE (fndecl))
+	    {
+	    case BUILT_IN_MALLOC:
+	    case BUILT_IN_REALLOC:
+	    case BUILT_IN_CALLOC:
+	      val.lattice_val = CONSTANT;
+	      val.value = build_int_cst (TREE_TYPE (gimple_get_lhs (stmt)), 0);
+	      val.mask = shwi_to_double_int
+		  	   (~(((HOST_WIDE_INT) MALLOC_ABI_ALIGNMENT)
+			      / BITS_PER_UNIT - 1));
+	      break;
+
+	    case BUILT_IN_ALLOCA:
+	      val.lattice_val = CONSTANT;
+	      val.value = build_int_cst (TREE_TYPE (gimple_get_lhs (stmt)), 0);
+	      val.mask = shwi_to_double_int
+		  	   (~(((HOST_WIDE_INT) BIGGEST_ALIGNMENT)
+			      / BITS_PER_UNIT - 1));
+	      break;
+
+	    default:;
+	    }
+	}
+      is_constant = (val.lattice_val == CONSTANT);
+    }
+
+  if (!is_constant)
     {
       /* The statement produced a nonconstant value.  If the statement
 	 had UNDEFINED operands, then the result of the statement
 	 should be UNDEFINED.  Otherwise, the statement is VARYING.  */
       if (likelyvalue == UNDEFINED)
-	val.lattice_val = likelyvalue;
+	{
+	  val.lattice_val = likelyvalue;
+	  val.mask = double_int_zero;
+	}
       else
-	val.lattice_val = VARYING;
+	{
+	  val.lattice_val = VARYING;
+	  val.mask = double_int_minus_one;
+	}
 
       val.value = NULL_TREE;
     }
@@ -1480,25 +2231,120 @@ static bool
 ccp_fold_stmt (gimple_stmt_iterator *gsi)
 {
   gimple stmt = gsi_stmt (*gsi);
-  prop_value_t val;
 
-  if (gimple_code (stmt) != GIMPLE_COND)
-    return false;
+  switch (gimple_code (stmt))
+    {
+    case GIMPLE_COND:
+      {
+	prop_value_t val;
+	/* Statement evaluation will handle type mismatches in constants
+	   more gracefully than the final propagation.  This allows us to
+	   fold more conditionals here.  */
+	val = evaluate_stmt (stmt);
+	if (val.lattice_val != CONSTANT
+	    || !double_int_zero_p (val.mask))
+	  return false;
 
-  /* Statement evaluation will handle type mismatches in constants
-     more gracefully than the final propagation.  This allows us to
-     fold more conditionals here.  */
-  val = evaluate_stmt (stmt);
-  if (val.lattice_val != CONSTANT
-      || TREE_CODE (val.value) != INTEGER_CST)
-    return false;
+	if (dump_file)
+	  {
+	    fprintf (dump_file, "Folding predicate ");
+	    print_gimple_expr (dump_file, stmt, 0, 0);
+	    fprintf (dump_file, " to ");
+	    print_generic_expr (dump_file, val.value, 0);
+	    fprintf (dump_file, "\n");
+	  }
 
-  if (integer_zerop (val.value))
-    gimple_cond_make_false (stmt);
-  else 
-    gimple_cond_make_true (stmt);
+	if (integer_zerop (val.value))
+	  gimple_cond_make_false (stmt);
+	else
+	  gimple_cond_make_true (stmt);
 
-  return true;
+	return true;
+      }
+
+    case GIMPLE_CALL:
+      {
+	tree lhs = gimple_call_lhs (stmt);
+	tree val;
+	tree argt;
+	bool changed = false;
+	unsigned i;
+
+	/* If the call was folded into a constant make sure it goes
+	   away even if we cannot propagate into all uses because of
+	   type issues.  */
+	if (lhs
+	    && TREE_CODE (lhs) == SSA_NAME
+	    && (val = get_constant_value (lhs)))
+	  {
+	    tree new_rhs = unshare_expr (val);
+	    bool res;
+	    if (!useless_type_conversion_p (TREE_TYPE (lhs),
+					    TREE_TYPE (new_rhs)))
+	      new_rhs = fold_convert (TREE_TYPE (lhs), new_rhs);
+	    res = update_call_from_tree (gsi, new_rhs);
+	    gcc_assert (res);
+	    return true;
+	  }
+
+	/* Propagate into the call arguments.  Compared to replace_uses_in
+	   this can use the argument slot types for type verification
+	   instead of the current argument type.  We also can safely
+	   drop qualifiers here as we are dealing with constants anyway.  */
+	argt = TYPE_ARG_TYPES (TREE_TYPE (TREE_TYPE (gimple_call_fn (stmt))));
+	for (i = 0; i < gimple_call_num_args (stmt) && argt;
+	     ++i, argt = TREE_CHAIN (argt))
+	  {
+	    tree arg = gimple_call_arg (stmt, i);
+	    if (TREE_CODE (arg) == SSA_NAME
+		&& (val = get_constant_value (arg))
+		&& useless_type_conversion_p
+		     (TYPE_MAIN_VARIANT (TREE_VALUE (argt)),
+		      TYPE_MAIN_VARIANT (TREE_TYPE (val))))
+	      {
+		gimple_call_set_arg (stmt, i, unshare_expr (val));
+		changed = true;
+	      }
+	  }
+	if (TREE_CODE (gimple_call_fn (stmt)) == OBJ_TYPE_REF)
+	  {
+	    tree expr = OBJ_TYPE_REF_EXPR (gimple_call_fn (stmt));
+	    expr = valueize_op (expr);
+	    if (TREE_CODE (expr) == ADDR_EXPR
+	        && TREE_CODE (TREE_OPERAND (expr, 0)) == FUNCTION_DECL)
+	     {
+	       gimple_call_set_fn (stmt, expr);
+	       changed = true;
+	     }
+	  }
+
+	return changed;
+      }
+
+    case GIMPLE_ASSIGN:
+      {
+	tree lhs = gimple_assign_lhs (stmt);
+	tree val;
+
+	/* If we have a load that turned out to be constant replace it
+	   as we cannot propagate into all uses in all cases.  */
+	if (gimple_assign_single_p (stmt)
+	    && TREE_CODE (lhs) == SSA_NAME
+	    && (val = get_constant_value (lhs)))
+	  {
+	    tree rhs = unshare_expr (val);
+	    if (!useless_type_conversion_p (TREE_TYPE (lhs), TREE_TYPE (rhs)))
+	      rhs = fold_build1 (VIEW_CONVERT_EXPR, TREE_TYPE (lhs), rhs);
+	    gimple_assign_set_rhs_from_tree (gsi, rhs);
+	    return true;
+	  }
+
+	return false;
+      }
+
+    default:
+      return false;
+    }
 }
 
 /* Visit the assignment statement STMT.  Set the value of its LHS to the
@@ -1519,19 +2365,10 @@ visit_assignment (gimple stmt, tree *output_p)
   gcc_assert (gimple_code (stmt) != GIMPLE_CALL
               || gimple_call_lhs (stmt) != NULL_TREE);
 
-  if (gimple_assign_copy_p (stmt))
-    {
-      tree rhs = gimple_assign_rhs1 (stmt);
-
-      if  (TREE_CODE (rhs) == SSA_NAME)
-        {
-          /* For a simple copy operation, we copy the lattice values.  */
-          prop_value_t *nval = get_value (rhs);
-          val = *nval;
-        }
-      else
-        val = evaluate_stmt (stmt);
-    }
+  if (gimple_assign_single_p (stmt)
+      && gimple_assign_rhs_code (stmt) == SSA_NAME)
+    /* For a simple copy operation, we copy the lattice values.  */
+    val = *get_value (gimple_assign_rhs1 (stmt));
   else
     /* Evaluate the statement, which could be
        either a GIMPLE_ASSIGN or a GIMPLE_CALL.  */
@@ -1570,12 +2407,15 @@ visit_cond_stmt (gimple stmt, edge *taken_edge_p)
 
   block = gimple_bb (stmt);
   val = evaluate_stmt (stmt);
+  if (val.lattice_val != CONSTANT
+      || !double_int_zero_p (val.mask))
+    return SSA_PROP_VARYING;
 
   /* Find which edge out of the conditional block will be taken and add it
      to the worklist.  If no single edge can be determined statically,
      return SSA_PROP_VARYING to feed all the outgoing edges to the
      propagation engine.  */
-  *taken_edge_p = val.value ? find_taken_edge (block, val.value) : 0;
+  *taken_edge_p = find_taken_edge (block, val.value);
   if (*taken_edge_p)
     return SSA_PROP_INTERESTING;
   else
@@ -1587,7 +2427,7 @@ visit_cond_stmt (gimple stmt, edge *taken_edge_p)
    its evaluation changes the lattice value of its output, return
    SSA_PROP_INTERESTING and set *OUTPUT_P to the SSA_NAME holding the
    output value.
-   
+
    If STMT is a conditional branch and we can determine its truth
    value, set *TAKEN_EDGE_P accordingly.  If STMT produces a varying
    value, return SSA_PROP_VARYING.  */
@@ -1640,7 +2480,7 @@ ccp_visit_stmt (gimple stmt, edge *taken_edge_p, tree *output_p)
      Mark them VARYING.  */
   FOR_EACH_SSA_TREE_OPERAND (def, stmt, iter, SSA_OP_ALL_DEFS)
     {
-      prop_value_t v = { VARYING, NULL_TREE };
+      prop_value_t v = { VARYING, NULL_TREE, { -1, (HOST_WIDE_INT) -1 } };
       set_lattice_value (def, v);
     }
 
@@ -1669,7 +2509,7 @@ gate_ccp (void)
 }
 
 
-struct gimple_opt_pass pass_ccp = 
+struct gimple_opt_pass pass_ccp =
 {
  {
   GIMPLE_PASS,
@@ -1690,1400 +2530,6 @@ struct gimple_opt_pass pass_ccp =
 };
 
 
-/* A subroutine of fold_stmt.  Attempts to fold *(A+O) to A[X].
-   BASE is an array type.  OFFSET is a byte displacement.  ORIG_TYPE
-   is the desired result type.
-
-   LOC is the location of the original expression.  */
-
-static tree
-maybe_fold_offset_to_array_ref (location_t loc, tree base, tree offset,
-				tree orig_type,
-				bool allow_negative_idx)
-{
-  tree min_idx, idx, idx_type, elt_offset = integer_zero_node;
-  tree array_type, elt_type, elt_size;
-  tree domain_type;
-
-  /* If BASE is an ARRAY_REF, we can pick up another offset (this time
-     measured in units of the size of elements type) from that ARRAY_REF).
-     We can't do anything if either is variable.
-
-     The case we handle here is *(&A[N]+O).  */
-  if (TREE_CODE (base) == ARRAY_REF)
-    {
-      tree low_bound = array_ref_low_bound (base);
-
-      elt_offset = TREE_OPERAND (base, 1);
-      if (TREE_CODE (low_bound) != INTEGER_CST
-	  || TREE_CODE (elt_offset) != INTEGER_CST)
-	return NULL_TREE;
-
-      elt_offset = int_const_binop (MINUS_EXPR, elt_offset, low_bound, 0);
-      base = TREE_OPERAND (base, 0);
-    }
-
-  /* Ignore stupid user tricks of indexing non-array variables.  */
-  array_type = TREE_TYPE (base);
-  if (TREE_CODE (array_type) != ARRAY_TYPE)
-    return NULL_TREE;
-  elt_type = TREE_TYPE (array_type);
-  if (!useless_type_conversion_p (orig_type, elt_type))
-    return NULL_TREE;
-
-  /* Use signed size type for intermediate computation on the index.  */
-  idx_type = signed_type_for (size_type_node);
-
-  /* If OFFSET and ELT_OFFSET are zero, we don't care about the size of the
-     element type (so we can use the alignment if it's not constant).
-     Otherwise, compute the offset as an index by using a division.  If the
-     division isn't exact, then don't do anything.  */
-  elt_size = TYPE_SIZE_UNIT (elt_type);
-  if (!elt_size)
-    return NULL;
-  if (integer_zerop (offset))
-    {
-      if (TREE_CODE (elt_size) != INTEGER_CST)
-	elt_size = size_int (TYPE_ALIGN (elt_type));
-
-      idx = build_int_cst (idx_type, 0);
-    }
-  else
-    {
-      unsigned HOST_WIDE_INT lquo, lrem;
-      HOST_WIDE_INT hquo, hrem;
-      double_int soffset;
-
-      /* The final array offset should be signed, so we need
-	 to sign-extend the (possibly pointer) offset here
-	 and use signed division.  */
-      soffset = double_int_sext (tree_to_double_int (offset),
-				 TYPE_PRECISION (TREE_TYPE (offset)));
-      if (TREE_CODE (elt_size) != INTEGER_CST
-	  || div_and_round_double (TRUNC_DIV_EXPR, 0,
-				   soffset.low, soffset.high,
-				   TREE_INT_CST_LOW (elt_size),
-				   TREE_INT_CST_HIGH (elt_size),
-				   &lquo, &hquo, &lrem, &hrem)
-	  || lrem || hrem)
-	return NULL_TREE;
-
-      idx = build_int_cst_wide (idx_type, lquo, hquo);
-    }
-
-  /* Assume the low bound is zero.  If there is a domain type, get the
-     low bound, if any, convert the index into that type, and add the
-     low bound.  */
-  min_idx = build_int_cst (idx_type, 0);
-  domain_type = TYPE_DOMAIN (array_type);
-  if (domain_type)
-    {
-      idx_type = domain_type;
-      if (TYPE_MIN_VALUE (idx_type))
-	min_idx = TYPE_MIN_VALUE (idx_type);
-      else
-	min_idx = fold_convert (idx_type, min_idx);
-
-      if (TREE_CODE (min_idx) != INTEGER_CST)
-	return NULL_TREE;
-
-      elt_offset = fold_convert (idx_type, elt_offset);
-    }
-
-  if (!integer_zerop (min_idx))
-    idx = int_const_binop (PLUS_EXPR, idx, min_idx, 0);
-  if (!integer_zerop (elt_offset))
-    idx = int_const_binop (PLUS_EXPR, idx, elt_offset, 0);
-
-  /* Make sure to possibly truncate late after offsetting.  */
-  idx = fold_convert (idx_type, idx);
-
-  /* We don't want to construct access past array bounds. For example
-       char *(c[4]);
-       c[3][2];
-     should not be simplified into (*c)[14] or tree-vrp will
-     give false warnings.  The same is true for
-       struct A { long x; char d[0]; } *a;
-       (char *)a - 4;
-     which should be not folded to &a->d[-8].  */
-  if (domain_type
-      && TYPE_MAX_VALUE (domain_type) 
-      && TREE_CODE (TYPE_MAX_VALUE (domain_type)) == INTEGER_CST)
-    {
-      tree up_bound = TYPE_MAX_VALUE (domain_type);
-
-      if (tree_int_cst_lt (up_bound, idx)
-	  /* Accesses after the end of arrays of size 0 (gcc
-	     extension) and 1 are likely intentional ("struct
-	     hack").  */
-	  && compare_tree_int (up_bound, 1) > 0)
-	return NULL_TREE;
-    }
-  if (domain_type
-      && TYPE_MIN_VALUE (domain_type))
-    {
-      if (!allow_negative_idx
-	  && TREE_CODE (TYPE_MIN_VALUE (domain_type)) == INTEGER_CST
-	  && tree_int_cst_lt (idx, TYPE_MIN_VALUE (domain_type)))
-	return NULL_TREE;
-    }
-  else if (!allow_negative_idx
-	   && compare_tree_int (idx, 0) < 0)
-    return NULL_TREE;
-
-  {
-    tree t = build4 (ARRAY_REF, elt_type, base, idx, NULL_TREE, NULL_TREE);
-    SET_EXPR_LOCATION (t, loc);
-    return t;
-  }
-}
-
-
-/* Attempt to fold *(S+O) to S.X.
-   BASE is a record type.  OFFSET is a byte displacement.  ORIG_TYPE
-   is the desired result type.
-
-   LOC is the location of the original expression.  */
-
-static tree
-maybe_fold_offset_to_component_ref (location_t loc, tree record_type,
-				    tree base, tree offset, tree orig_type)
-{
-  tree f, t, field_type, tail_array_field, field_offset;
-  tree ret;
-  tree new_base;
-
-  if (TREE_CODE (record_type) != RECORD_TYPE
-      && TREE_CODE (record_type) != UNION_TYPE
-      && TREE_CODE (record_type) != QUAL_UNION_TYPE)
-    return NULL_TREE;
-
-  /* Short-circuit silly cases.  */
-  if (useless_type_conversion_p (record_type, orig_type))
-    return NULL_TREE;
-
-  tail_array_field = NULL_TREE;
-  for (f = TYPE_FIELDS (record_type); f ; f = TREE_CHAIN (f))
-    {
-      int cmp;
-
-      if (TREE_CODE (f) != FIELD_DECL)
-	continue;
-      if (DECL_BIT_FIELD (f))
-	continue;
-
-      if (!DECL_FIELD_OFFSET (f))
-	continue;
-      field_offset = byte_position (f);
-      if (TREE_CODE (field_offset) != INTEGER_CST)
-	continue;
-
-      /* ??? Java creates "interesting" fields for representing base classes.
-	 They have no name, and have no context.  With no context, we get into
-	 trouble with nonoverlapping_component_refs_p.  Skip them.  */
-      if (!DECL_FIELD_CONTEXT (f))
-	continue;
-
-      /* The previous array field isn't at the end.  */
-      tail_array_field = NULL_TREE;
-
-      /* Check to see if this offset overlaps with the field.  */
-      cmp = tree_int_cst_compare (field_offset, offset);
-      if (cmp > 0)
-	continue;
-
-      field_type = TREE_TYPE (f);
-
-      /* Here we exactly match the offset being checked.  If the types match,
-	 then we can return that field.  */
-      if (cmp == 0
-	  && useless_type_conversion_p (orig_type, field_type))
-	{
-	  t = build3 (COMPONENT_REF, field_type, base, f, NULL_TREE);
-	  return t;
-	}
-      
-      /* Don't care about offsets into the middle of scalars.  */
-      if (!AGGREGATE_TYPE_P (field_type))
-	continue;
-
-      /* Check for array at the end of the struct.  This is often
-	 used as for flexible array members.  We should be able to
-	 turn this into an array access anyway.  */
-      if (TREE_CODE (field_type) == ARRAY_TYPE)
-	tail_array_field = f;
-
-      /* Check the end of the field against the offset.  */
-      if (!DECL_SIZE_UNIT (f)
-	  || TREE_CODE (DECL_SIZE_UNIT (f)) != INTEGER_CST)
-	continue;
-      t = int_const_binop (MINUS_EXPR, offset, field_offset, 1);
-      if (!tree_int_cst_lt (t, DECL_SIZE_UNIT (f)))
-	continue;
-
-      /* If we matched, then set offset to the displacement into
-	 this field.  */
-      new_base = build3 (COMPONENT_REF, field_type, base, f, NULL_TREE);
-      SET_EXPR_LOCATION (new_base, loc);
-
-      /* Recurse to possibly find the match.  */
-      ret = maybe_fold_offset_to_array_ref (loc, new_base, t, orig_type,
-					    f == TYPE_FIELDS (record_type));
-      if (ret)
-	return ret;
-      ret = maybe_fold_offset_to_component_ref (loc, field_type, new_base, t,
-						orig_type);
-      if (ret)
-	return ret;
-    }
-
-  if (!tail_array_field)
-    return NULL_TREE;
-
-  f = tail_array_field;
-  field_type = TREE_TYPE (f);
-  offset = int_const_binop (MINUS_EXPR, offset, byte_position (f), 1);
-
-  /* If we get here, we've got an aggregate field, and a possibly 
-     nonzero offset into them.  Recurse and hope for a valid match.  */
-  base = build3 (COMPONENT_REF, field_type, base, f, NULL_TREE);
-  SET_EXPR_LOCATION (base, loc);
-
-  t = maybe_fold_offset_to_array_ref (loc, base, offset, orig_type,
-				      f == TYPE_FIELDS (record_type));
-  if (t)
-    return t;
-  return maybe_fold_offset_to_component_ref (loc, field_type, base, offset,
-					     orig_type);
-}
-
-/* Attempt to express (ORIG_TYPE)BASE+OFFSET as BASE->field_of_orig_type
-   or BASE[index] or by combination of those.
-
-   LOC is the location of original expression.
-
-   Before attempting the conversion strip off existing ADDR_EXPRs and
-   handled component refs.  */
-
-tree
-maybe_fold_offset_to_reference (location_t loc, tree base, tree offset,
-				tree orig_type)
-{
-  tree ret;
-  tree type;
-
-  STRIP_NOPS (base);
-  if (TREE_CODE (base) != ADDR_EXPR)
-    return NULL_TREE;
-
-  base = TREE_OPERAND (base, 0);
-
-  /* Handle case where existing COMPONENT_REF pick e.g. wrong field of union,
-     so it needs to be removed and new COMPONENT_REF constructed.
-     The wrong COMPONENT_REF are often constructed by folding the
-     (type *)&object within the expression (type *)&object+offset  */
-  if (handled_component_p (base))
-    {
-      HOST_WIDE_INT sub_offset, size, maxsize;
-      tree newbase;
-      newbase = get_ref_base_and_extent (base, &sub_offset,
-					 &size, &maxsize);
-      gcc_assert (newbase);
-      if (size == maxsize
-	  && size != -1
-	  && !(sub_offset & (BITS_PER_UNIT - 1)))
-	{
-	  base = newbase;
-	  if (sub_offset)
-	    offset = int_const_binop (PLUS_EXPR, offset,
-				      build_int_cst (TREE_TYPE (offset),
-						     sub_offset / BITS_PER_UNIT), 1);
-	}
-    }
-  if (useless_type_conversion_p (orig_type, TREE_TYPE (base))
-      && integer_zerop (offset))
-    return base;
-  type = TREE_TYPE (base);
-
-  ret = maybe_fold_offset_to_component_ref (loc, type, base, offset, orig_type);
-  if (!ret)
-    ret = maybe_fold_offset_to_array_ref (loc, base, offset, orig_type, true);
-
-  return ret;
-}
-
-/* Attempt to express (ORIG_TYPE)&BASE+OFFSET as &BASE->field_of_orig_type
-   or &BASE[index] or by combination of those.
-
-   LOC is the location of the original expression.
-
-   Before attempting the conversion strip off existing component refs.  */
-
-tree
-maybe_fold_offset_to_address (location_t loc, tree addr, tree offset,
-			      tree orig_type)
-{
-  tree t;
-
-  gcc_assert (POINTER_TYPE_P (TREE_TYPE (addr))
-	      && POINTER_TYPE_P (orig_type));
-
-  t = maybe_fold_offset_to_reference (loc, addr, offset,
-				      TREE_TYPE (orig_type));
-  if (t != NULL_TREE)
-    {
-      tree orig = addr;
-      tree ptr_type;
-
-      /* For __builtin_object_size to function correctly we need to
-         make sure not to fold address arithmetic so that we change
-	 reference from one array to another.  This would happen for
-	 example for
-
-	   struct X { char s1[10]; char s2[10] } s;
-	   char *foo (void) { return &s.s2[-4]; }
-
-	 where we need to avoid generating &s.s1[6].  As the C and
-	 C++ frontends create different initial trees
-	 (char *) &s.s1 + -4  vs.  &s.s1[-4]  we have to do some
-	 sophisticated comparisons here.  Note that checking for the
-	 condition after the fact is easier than trying to avoid doing
-	 the folding.  */
-      STRIP_NOPS (orig);
-      if (TREE_CODE (orig) == ADDR_EXPR)
-	orig = TREE_OPERAND (orig, 0);
-      if ((TREE_CODE (orig) == ARRAY_REF
-	   || (TREE_CODE (orig) == COMPONENT_REF
-	       && TREE_CODE (TREE_TYPE (TREE_OPERAND (orig, 1))) == ARRAY_TYPE))
-	  && (TREE_CODE (t) == ARRAY_REF
-	      || TREE_CODE (t) == COMPONENT_REF)
-	  && !operand_equal_p (TREE_CODE (orig) == ARRAY_REF
-			       ? TREE_OPERAND (orig, 0) : orig,
-			       TREE_CODE (t) == ARRAY_REF
-			       ? TREE_OPERAND (t, 0) : t, 0))
-	return NULL_TREE;
-
-      ptr_type = build_pointer_type (TREE_TYPE (t));
-      if (!useless_type_conversion_p (orig_type, ptr_type))
-	return NULL_TREE;
-      return build_fold_addr_expr_with_type_loc (loc, t, ptr_type);
-    }
-
-  return NULL_TREE;
-}
-
-/* A subroutine of fold_stmt.  Attempt to simplify *(BASE+OFFSET).
-   Return the simplified expression, or NULL if nothing could be done.  */
-
-static tree
-maybe_fold_stmt_indirect (tree expr, tree base, tree offset)
-{
-  tree t;
-  bool volatile_p = TREE_THIS_VOLATILE (expr);
-  location_t loc = EXPR_LOCATION (expr);
-
-  /* We may well have constructed a double-nested PLUS_EXPR via multiple
-     substitutions.  Fold that down to one.  Remove NON_LVALUE_EXPRs that
-     are sometimes added.  */
-  base = fold (base);
-  STRIP_TYPE_NOPS (base);
-  TREE_OPERAND (expr, 0) = base;
-
-  /* One possibility is that the address reduces to a string constant.  */
-  t = fold_read_from_constant_string (expr);
-  if (t)
-    return t;
-
-  /* Add in any offset from a POINTER_PLUS_EXPR.  */
-  if (TREE_CODE (base) == POINTER_PLUS_EXPR)
-    {
-      tree offset2;
-
-      offset2 = TREE_OPERAND (base, 1);
-      if (TREE_CODE (offset2) != INTEGER_CST)
-	return NULL_TREE;
-      base = TREE_OPERAND (base, 0);
-
-      offset = fold_convert (sizetype,
-			     int_const_binop (PLUS_EXPR, offset, offset2, 1));
-    }
-
-  if (TREE_CODE (base) == ADDR_EXPR)
-    {
-      tree base_addr = base;
-
-      /* Strip the ADDR_EXPR.  */
-      base = TREE_OPERAND (base, 0);
-
-      /* Fold away CONST_DECL to its value, if the type is scalar.  */
-      if (TREE_CODE (base) == CONST_DECL
-	  && is_gimple_min_invariant (DECL_INITIAL (base)))
-	return DECL_INITIAL (base);
-
-      /* Try folding *(&B+O) to B.X.  */
-      t = maybe_fold_offset_to_reference (loc, base_addr, offset,
-					  TREE_TYPE (expr));
-      if (t)
-	{
-	  /* Preserve volatileness of the original expression.
-	     We can end up with a plain decl here which is shared
-	     and we shouldn't mess with its flags.  */
-	  if (!SSA_VAR_P (t))
-	    TREE_THIS_VOLATILE (t) = volatile_p;
-	  return t;
-	}
-    }
-  else
-    {
-      /* We can get here for out-of-range string constant accesses, 
-	 such as "_"[3].  Bail out of the entire substitution search
-	 and arrange for the entire statement to be replaced by a
-	 call to __builtin_trap.  In all likelihood this will all be
-	 constant-folded away, but in the meantime we can't leave with
-	 something that get_expr_operands can't understand.  */
-
-      t = base;
-      STRIP_NOPS (t);
-      if (TREE_CODE (t) == ADDR_EXPR
-	  && TREE_CODE (TREE_OPERAND (t, 0)) == STRING_CST)
-	{
-	  /* FIXME: Except that this causes problems elsewhere with dead
-	     code not being deleted, and we die in the rtl expanders 
-	     because we failed to remove some ssa_name.  In the meantime,
-	     just return zero.  */
-	  /* FIXME2: This condition should be signaled by
-	     fold_read_from_constant_string directly, rather than 
-	     re-checking for it here.  */
-	  return integer_zero_node;
-	}
-
-      /* Try folding *(B+O) to B->X.  Still an improvement.  */
-      if (POINTER_TYPE_P (TREE_TYPE (base)))
-	{
-          t = maybe_fold_offset_to_reference (loc, base, offset,
-				              TREE_TYPE (expr));
-	  if (t)
-	    return t;
-	}
-    }
-
-  /* Otherwise we had an offset that we could not simplify.  */
-  return NULL_TREE;
-}
-
-
-/* A quaint feature extant in our address arithmetic is that there
-   can be hidden type changes here.  The type of the result need
-   not be the same as the type of the input pointer.
-
-   What we're after here is an expression of the form
-	(T *)(&array + const)
-   where array is OP0, const is OP1, RES_TYPE is T and
-   the cast doesn't actually exist, but is implicit in the
-   type of the POINTER_PLUS_EXPR.  We'd like to turn this into
-	&array[x]
-   which may be able to propagate further.  */
-
-tree
-maybe_fold_stmt_addition (location_t loc, tree res_type, tree op0, tree op1)
-{
-  tree ptd_type;
-  tree t;
-
-  /* The first operand should be an ADDR_EXPR.  */
-  if (TREE_CODE (op0) != ADDR_EXPR)
-    return NULL_TREE;
-  op0 = TREE_OPERAND (op0, 0);
-
-  /* It had better be a constant.  */
-  if (TREE_CODE (op1) != INTEGER_CST)
-    {
-      /* Or op0 should now be A[0] and the non-constant offset defined
-	 via a multiplication by the array element size.  */
-      if (TREE_CODE (op0) == ARRAY_REF
-	  && integer_zerop (TREE_OPERAND (op0, 1))
-	  && TREE_CODE (op1) == SSA_NAME
-	  && host_integerp (TYPE_SIZE_UNIT (TREE_TYPE (op0)), 1))
-	{
-	  gimple offset_def = SSA_NAME_DEF_STMT (op1);
-	  if (!is_gimple_assign (offset_def))
-	    return NULL_TREE;
-
-	  if (gimple_assign_rhs_code (offset_def) == MULT_EXPR
-	      && TREE_CODE (gimple_assign_rhs2 (offset_def)) == INTEGER_CST
-	      && tree_int_cst_equal (gimple_assign_rhs2 (offset_def),
-				     TYPE_SIZE_UNIT (TREE_TYPE (op0))))
-	    return build_fold_addr_expr
-			  (build4 (ARRAY_REF, TREE_TYPE (op0),
-				   TREE_OPERAND (op0, 0),
-				   gimple_assign_rhs1 (offset_def),
-				   TREE_OPERAND (op0, 2),
-				   TREE_OPERAND (op0, 3)));
-	  else if (integer_onep (TYPE_SIZE_UNIT (TREE_TYPE (op0)))
-		   && gimple_assign_rhs_code (offset_def) != MULT_EXPR)
-	    return build_fold_addr_expr
-			  (build4 (ARRAY_REF, TREE_TYPE (op0),
-				   TREE_OPERAND (op0, 0),
-				   op1,
-				   TREE_OPERAND (op0, 2),
-				   TREE_OPERAND (op0, 3)));
-	}
-      return NULL_TREE;
-    }
-
-  /* If the first operand is an ARRAY_REF, expand it so that we can fold
-     the offset into it.  */
-  while (TREE_CODE (op0) == ARRAY_REF)
-    {
-      tree array_obj = TREE_OPERAND (op0, 0);
-      tree array_idx = TREE_OPERAND (op0, 1);
-      tree elt_type = TREE_TYPE (op0);
-      tree elt_size = TYPE_SIZE_UNIT (elt_type);
-      tree min_idx;
-
-      if (TREE_CODE (array_idx) != INTEGER_CST)
-	break;
-      if (TREE_CODE (elt_size) != INTEGER_CST)
-	break;
-
-      /* Un-bias the index by the min index of the array type.  */
-      min_idx = TYPE_DOMAIN (TREE_TYPE (array_obj));
-      if (min_idx)
-	{
-	  min_idx = TYPE_MIN_VALUE (min_idx);
-	  if (min_idx)
-	    {
-	      if (TREE_CODE (min_idx) != INTEGER_CST)
-		break;
-
-	      array_idx = fold_convert (TREE_TYPE (min_idx), array_idx);
-	      if (!integer_zerop (min_idx))
-		array_idx = int_const_binop (MINUS_EXPR, array_idx,
-					     min_idx, 0);
-	    }
-	}
-
-      /* Convert the index to a byte offset.  */
-      array_idx = fold_convert (sizetype, array_idx);
-      array_idx = int_const_binop (MULT_EXPR, array_idx, elt_size, 0);
-
-      /* Update the operands for the next round, or for folding.  */
-      op1 = int_const_binop (PLUS_EXPR,
-			     array_idx, op1, 0);
-      op0 = array_obj;
-    }
-
-  ptd_type = TREE_TYPE (res_type);
-  /* If we want a pointer to void, reconstruct the reference from the
-     array element type.  A pointer to that can be trivially converted
-     to void *.  This happens as we fold (void *)(ptr p+ off).  */
-  if (VOID_TYPE_P (ptd_type)
-      && TREE_CODE (TREE_TYPE (op0)) == ARRAY_TYPE)
-    ptd_type = TREE_TYPE (TREE_TYPE (op0));
-
-  /* At which point we can try some of the same things as for indirects.  */
-  t = maybe_fold_offset_to_array_ref (loc, op0, op1, ptd_type, true);
-  if (!t)
-    t = maybe_fold_offset_to_component_ref (loc, TREE_TYPE (op0), op0, op1,
-					    ptd_type);
-  if (t)
-    {
-      t = build1 (ADDR_EXPR, res_type, t);
-      SET_EXPR_LOCATION (t, loc);
-    }
-
-  return t;
-}
-
-/* Subroutine of fold_stmt.  We perform several simplifications of the
-   memory reference tree EXPR and make sure to re-gimplify them properly
-   after propagation of constant addresses.  IS_LHS is true if the
-   reference is supposed to be an lvalue.  */
-
-static tree
-maybe_fold_reference (tree expr, bool is_lhs)
-{
-  tree *t = &expr;
-
-  if (TREE_CODE (expr) == ARRAY_REF
-      && !is_lhs)
-    {
-      tree tem = fold_read_from_constant_string (expr);
-      if (tem)
-	return tem;
-    }
-
-  /* ???  We might want to open-code the relevant remaining cases
-     to avoid using the generic fold.  */
-  if (handled_component_p (*t)
-      && CONSTANT_CLASS_P (TREE_OPERAND (*t, 0)))
-    {
-      tree tem = fold (*t);
-      if (tem != *t)
-	return tem;
-    }
-
-  while (handled_component_p (*t))
-    t = &TREE_OPERAND (*t, 0);
-
-  if (TREE_CODE (*t) == INDIRECT_REF)
-    {
-      tree tem = maybe_fold_stmt_indirect (*t, TREE_OPERAND (*t, 0),
-					   integer_zero_node);
-      /* Avoid folding *"abc" = 5 into 'a' = 5.  */
-      if (is_lhs && tem && CONSTANT_CLASS_P (tem))
-	tem = NULL_TREE;
-      if (!tem
-	  && TREE_CODE (TREE_OPERAND (*t, 0)) == ADDR_EXPR)
-	/* If we had a good reason for propagating the address here,
-	   make sure we end up with valid gimple.  See PR34989.  */
-	tem = TREE_OPERAND (TREE_OPERAND (*t, 0), 0);
-
-      if (tem)
-	{
-	  *t = tem;
-	  tem = maybe_fold_reference (expr, is_lhs);
-	  if (tem)
-	    return tem;
-	  return expr;
-	}
-    }
-  else if (!is_lhs
-	   && DECL_P (*t))
-    {
-      tree tem = get_symbol_constant_value (*t);
-      if (tem)
-	{
-	  *t = tem;
-	  tem = maybe_fold_reference (expr, is_lhs);
-	  if (tem)
-	    return tem;
-	  return expr;
-	}
-    }
-
-  return NULL_TREE;
-}
-
-
-/* Return the string length, maximum string length or maximum value of
-   ARG in LENGTH.
-   If ARG is an SSA name variable, follow its use-def chains.  If LENGTH
-   is not NULL and, for TYPE == 0, its value is not equal to the length
-   we determine or if we are unable to determine the length or value,
-   return false.  VISITED is a bitmap of visited variables.
-   TYPE is 0 if string length should be returned, 1 for maximum string
-   length and 2 for maximum value ARG can have.  */
-
-static bool
-get_maxval_strlen (tree arg, tree *length, bitmap visited, int type)
-{
-  tree var, val;
-  gimple def_stmt;
-  
-  if (TREE_CODE (arg) != SSA_NAME)
-    {
-      if (TREE_CODE (arg) == COND_EXPR)
-        return get_maxval_strlen (COND_EXPR_THEN (arg), length, visited, type)
-               && get_maxval_strlen (COND_EXPR_ELSE (arg), length, visited, type);
-      /* We can end up with &(*iftmp_1)[0] here as well, so handle it.  */
-      else if (TREE_CODE (arg) == ADDR_EXPR
-	       && TREE_CODE (TREE_OPERAND (arg, 0)) == ARRAY_REF
-	       && integer_zerop (TREE_OPERAND (TREE_OPERAND (arg, 0), 1)))
-	{
-	  tree aop0 = TREE_OPERAND (TREE_OPERAND (arg, 0), 0);
-	  if (TREE_CODE (aop0) == INDIRECT_REF
-	      && TREE_CODE (TREE_OPERAND (aop0, 0)) == SSA_NAME)
-	    return get_maxval_strlen (TREE_OPERAND (aop0, 0),
-				      length, visited, type);
-	}
-
-      if (type == 2)
-	{
-	  val = arg;
-	  if (TREE_CODE (val) != INTEGER_CST
-	      || tree_int_cst_sgn (val) < 0)
-	    return false;
-	}
-      else
-	val = c_strlen (arg, 1);
-      if (!val)
-	return false;
-
-      if (*length)
-	{
-	  if (type > 0)
-	    {
-	      if (TREE_CODE (*length) != INTEGER_CST
-		  || TREE_CODE (val) != INTEGER_CST)
-		return false;
-
-	      if (tree_int_cst_lt (*length, val))
-		*length = val;
-	      return true;
-	    }
-	  else if (simple_cst_equal (val, *length) != 1)
-	    return false;
-	}
-
-      *length = val;
-      return true;
-    }
-
-  /* If we were already here, break the infinite cycle.  */
-  if (bitmap_bit_p (visited, SSA_NAME_VERSION (arg)))
-    return true;
-  bitmap_set_bit (visited, SSA_NAME_VERSION (arg));
-
-  var = arg;
-  def_stmt = SSA_NAME_DEF_STMT (var);
-
-  switch (gimple_code (def_stmt))
-    {
-      case GIMPLE_ASSIGN:
-        /* The RHS of the statement defining VAR must either have a
-           constant length or come from another SSA_NAME with a constant
-           length.  */
-        if (gimple_assign_single_p (def_stmt)
-            || gimple_assign_unary_nop_p (def_stmt))
-          {
-            tree rhs = gimple_assign_rhs1 (def_stmt);
-            return get_maxval_strlen (rhs, length, visited, type);
-          }
-        return false;
-
-      case GIMPLE_PHI:
-	{
-	  /* All the arguments of the PHI node must have the same constant
-	     length.  */
-	  unsigned i;
-
-	  for (i = 0; i < gimple_phi_num_args (def_stmt); i++)
-          {
-            tree arg = gimple_phi_arg (def_stmt, i)->def;
-
-            /* If this PHI has itself as an argument, we cannot
-               determine the string length of this argument.  However,
-               if we can find a constant string length for the other
-               PHI args then we can still be sure that this is a
-               constant string length.  So be optimistic and just
-               continue with the next argument.  */
-            if (arg == gimple_phi_result (def_stmt))
-              continue;
-
-            if (!get_maxval_strlen (arg, length, visited, type))
-              return false;
-          }
-        }
-        return true;        
-
-      default:
-        return false;
-    }
-}
-
-
-/* Fold builtin call in statement STMT.  Returns a simplified tree.
-   We may return a non-constant expression, including another call
-   to a different function and with different arguments, e.g.,
-   substituting memcpy for strcpy when the string length is known.
-   Note that some builtins expand into inline code that may not
-   be valid in GIMPLE.  Callers must take care.  */
-
-static tree
-ccp_fold_builtin (gimple stmt)
-{
-  tree result, val[3];
-  tree callee, a;
-  int arg_idx, type;
-  bitmap visited;
-  bool ignore;
-  int nargs;
-  location_t loc = gimple_location (stmt);
-
-  gcc_assert (is_gimple_call (stmt));
-
-  ignore = (gimple_call_lhs (stmt) == NULL);
-
-  /* First try the generic builtin folder.  If that succeeds, return the
-     result directly.  */
-  result = fold_call_stmt (stmt, ignore);
-  if (result)
-    {
-      if (ignore)
-	STRIP_NOPS (result);
-      return result;
-    }
-
-  /* Ignore MD builtins.  */
-  callee = gimple_call_fndecl (stmt);
-  if (DECL_BUILT_IN_CLASS (callee) == BUILT_IN_MD)
-    return NULL_TREE;
-
-  /* If the builtin could not be folded, and it has no argument list,
-     we're done.  */
-  nargs = gimple_call_num_args (stmt);
-  if (nargs == 0)
-    return NULL_TREE;
-
-  /* Limit the work only for builtins we know how to simplify.  */
-  switch (DECL_FUNCTION_CODE (callee))
-    {
-    case BUILT_IN_STRLEN:
-    case BUILT_IN_FPUTS:
-    case BUILT_IN_FPUTS_UNLOCKED:
-      arg_idx = 0;
-      type = 0;
-      break;
-    case BUILT_IN_STRCPY:
-    case BUILT_IN_STRNCPY:
-      arg_idx = 1;
-      type = 0;
-      break;
-    case BUILT_IN_MEMCPY_CHK:
-    case BUILT_IN_MEMPCPY_CHK:
-    case BUILT_IN_MEMMOVE_CHK:
-    case BUILT_IN_MEMSET_CHK:
-    case BUILT_IN_STRNCPY_CHK:
-      arg_idx = 2;
-      type = 2;
-      break;
-    case BUILT_IN_STRCPY_CHK:
-    case BUILT_IN_STPCPY_CHK:
-      arg_idx = 1;
-      type = 1;
-      break;
-    case BUILT_IN_SNPRINTF_CHK:
-    case BUILT_IN_VSNPRINTF_CHK:
-      arg_idx = 1;
-      type = 2;
-      break;
-    default:
-      return NULL_TREE;
-    }
-
-  if (arg_idx >= nargs)
-    return NULL_TREE;
-
-  /* Try to use the dataflow information gathered by the CCP process.  */
-  visited = BITMAP_ALLOC (NULL);
-  bitmap_clear (visited);
-
-  memset (val, 0, sizeof (val));
-  a = gimple_call_arg (stmt, arg_idx);
-  if (!get_maxval_strlen (a, &val[arg_idx], visited, type))
-    val[arg_idx] = NULL_TREE;
-
-  BITMAP_FREE (visited);
-
-  result = NULL_TREE;
-  switch (DECL_FUNCTION_CODE (callee))
-    {
-    case BUILT_IN_STRLEN:
-      if (val[0] && nargs == 1)
-	{
-	  tree new_val =
-              fold_convert (TREE_TYPE (gimple_call_lhs (stmt)), val[0]);
-
-	  /* If the result is not a valid gimple value, or not a cast
-	     of a valid gimple value, then we can not use the result.  */
-	  if (is_gimple_val (new_val)
-	      || (is_gimple_cast (new_val)
-		  && is_gimple_val (TREE_OPERAND (new_val, 0))))
-	    return new_val;
-	}
-      break;
-
-    case BUILT_IN_STRCPY:
-      if (val[1] && is_gimple_val (val[1]) && nargs == 2)
-	result = fold_builtin_strcpy (loc, callee,
-                                      gimple_call_arg (stmt, 0),
-                                      gimple_call_arg (stmt, 1),
-				      val[1]);
-      break;
-
-    case BUILT_IN_STRNCPY:
-      if (val[1] && is_gimple_val (val[1]) && nargs == 3)
-	result = fold_builtin_strncpy (loc, callee,
-                                       gimple_call_arg (stmt, 0),
-                                       gimple_call_arg (stmt, 1),
-                                       gimple_call_arg (stmt, 2),
-				       val[1]);
-      break;
-
-    case BUILT_IN_FPUTS:
-      if (nargs == 2)
-	result = fold_builtin_fputs (loc, gimple_call_arg (stmt, 0),
-				     gimple_call_arg (stmt, 1),
-				     ignore, false, val[0]);
-      break;
-
-    case BUILT_IN_FPUTS_UNLOCKED:
-      if (nargs == 2)
-	result = fold_builtin_fputs (loc, gimple_call_arg (stmt, 0),
-				     gimple_call_arg (stmt, 1),
-				     ignore, true, val[0]);
-      break;
-
-    case BUILT_IN_MEMCPY_CHK:
-    case BUILT_IN_MEMPCPY_CHK:
-    case BUILT_IN_MEMMOVE_CHK:
-    case BUILT_IN_MEMSET_CHK:
-      if (val[2] && is_gimple_val (val[2]) && nargs == 4)
-	result = fold_builtin_memory_chk (loc, callee,
-                                          gimple_call_arg (stmt, 0),
-                                          gimple_call_arg (stmt, 1),
-                                          gimple_call_arg (stmt, 2),
-                                          gimple_call_arg (stmt, 3),
-					  val[2], ignore,
-					  DECL_FUNCTION_CODE (callee));
-      break;
-
-    case BUILT_IN_STRCPY_CHK:
-    case BUILT_IN_STPCPY_CHK:
-      if (val[1] && is_gimple_val (val[1]) && nargs == 3)
-	result = fold_builtin_stxcpy_chk (loc, callee,
-                                          gimple_call_arg (stmt, 0),
-                                          gimple_call_arg (stmt, 1),
-                                          gimple_call_arg (stmt, 2),
-					  val[1], ignore,
-					  DECL_FUNCTION_CODE (callee));
-      break;
-
-    case BUILT_IN_STRNCPY_CHK:
-      if (val[2] && is_gimple_val (val[2]) && nargs == 4)
-	result = fold_builtin_strncpy_chk (loc, gimple_call_arg (stmt, 0),
-                                           gimple_call_arg (stmt, 1),
-                                           gimple_call_arg (stmt, 2),
-                                           gimple_call_arg (stmt, 3),
-					   val[2]);
-      break;
-
-    case BUILT_IN_SNPRINTF_CHK:
-    case BUILT_IN_VSNPRINTF_CHK:
-      if (val[1] && is_gimple_val (val[1]))
-	result = gimple_fold_builtin_snprintf_chk (stmt, val[1],
-                                                   DECL_FUNCTION_CODE (callee));
-      break;
-
-    default:
-      gcc_unreachable ();
-    }
-
-  if (result && ignore)
-    result = fold_ignored_result (result);
-  return result;
-}
-
-/* Attempt to fold an assignment statement pointed-to by SI.  Returns a
-   replacement rhs for the statement or NULL_TREE if no simplification
-   could be made.  It is assumed that the operands have been previously
-   folded.  */
-
-static tree
-fold_gimple_assign (gimple_stmt_iterator *si)
-{
-  gimple stmt = gsi_stmt (*si);
-  enum tree_code subcode = gimple_assign_rhs_code (stmt);
-  location_t loc = gimple_location (stmt);
-
-  tree result = NULL_TREE;
-
-  switch (get_gimple_rhs_class (subcode))
-    {
-    case GIMPLE_SINGLE_RHS:
-      {
-        tree rhs = gimple_assign_rhs1 (stmt);
-
-        /* Try to fold a conditional expression.  */
-        if (TREE_CODE (rhs) == COND_EXPR)
-          {
-	    tree op0 = COND_EXPR_COND (rhs);
-	    tree tem;
-	    bool set = false;
-	    location_t cond_loc = EXPR_LOCATION (rhs);
-
-	    if (COMPARISON_CLASS_P (op0))
-	      {
-		fold_defer_overflow_warnings ();
-		tem = fold_binary_loc (cond_loc,
-				   TREE_CODE (op0), TREE_TYPE (op0),
-				   TREE_OPERAND (op0, 0),
-				   TREE_OPERAND (op0, 1));
-		/* This is actually a conditional expression, not a GIMPLE
-		   conditional statement, however, the valid_gimple_rhs_p
-		   test still applies.  */
-		set = (tem && is_gimple_condexpr (tem)
-		       && valid_gimple_rhs_p (tem));
-		fold_undefer_overflow_warnings (set, stmt, 0);
-	      }
-	    else if (is_gimple_min_invariant (op0))
-	      {
-		tem = op0;
-		set = true;
-	      }
-	    else
-	      return NULL_TREE;
-
-	    if (set)
-	      result = fold_build3_loc (cond_loc, COND_EXPR, TREE_TYPE (rhs), tem,
-				    COND_EXPR_THEN (rhs), COND_EXPR_ELSE (rhs));
-          }
-
-	else if (TREE_CODE (rhs) == TARGET_MEM_REF)
-	  return maybe_fold_tmr (rhs);
-
-	else if (REFERENCE_CLASS_P (rhs))
-	  return maybe_fold_reference (rhs, false);
-
-	else if (TREE_CODE (rhs) == ADDR_EXPR)
-	  {
-	    tree tem = maybe_fold_reference (TREE_OPERAND (rhs, 0), true);
-	    if (tem)
-	      result = fold_convert (TREE_TYPE (rhs),
-				     build_fold_addr_expr_loc (loc, tem));
-	  }
-
-	else if (TREE_CODE (rhs) == CONSTRUCTOR
-		 && TREE_CODE (TREE_TYPE (rhs)) == VECTOR_TYPE
-		 && (CONSTRUCTOR_NELTS (rhs)
-		     == TYPE_VECTOR_SUBPARTS (TREE_TYPE (rhs))))
-	  {
-	    /* Fold a constant vector CONSTRUCTOR to VECTOR_CST.  */
-	    unsigned i;
-	    tree val;
-
-	    FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (rhs), i, val)
-	      if (TREE_CODE (val) != INTEGER_CST
-		  && TREE_CODE (val) != REAL_CST
-		  && TREE_CODE (val) != FIXED_CST)
-		return NULL_TREE;
-
-	    return build_vector_from_ctor (TREE_TYPE (rhs),
-					   CONSTRUCTOR_ELTS (rhs));
-	  }
-
-	else if (DECL_P (rhs))
-	  return get_symbol_constant_value (rhs);
-
-        /* If we couldn't fold the RHS, hand over to the generic
-           fold routines.  */
-        if (result == NULL_TREE)
-          result = fold (rhs);
-
-        /* Strip away useless type conversions.  Both the NON_LVALUE_EXPR
-           that may have been added by fold, and "useless" type 
-           conversions that might now be apparent due to propagation.  */
-        STRIP_USELESS_TYPE_CONVERSION (result);
-
-        if (result != rhs && valid_gimple_rhs_p (result))
-	  return result;
-
-	return NULL_TREE;
-      }
-      break;
-
-    case GIMPLE_UNARY_RHS:
-      {
-	tree rhs = gimple_assign_rhs1 (stmt);
-
-	result = fold_unary_loc (loc, subcode, gimple_expr_type (stmt), rhs);
-	if (result)
-	  {
-	    /* If the operation was a conversion do _not_ mark a
-	       resulting constant with TREE_OVERFLOW if the original
-	       constant was not.  These conversions have implementation
-	       defined behavior and retaining the TREE_OVERFLOW flag
-	       here would confuse later passes such as VRP.  */
-	    if (CONVERT_EXPR_CODE_P (subcode)
-		&& TREE_CODE (result) == INTEGER_CST
-		&& TREE_CODE (rhs) == INTEGER_CST)
-	      TREE_OVERFLOW (result) = TREE_OVERFLOW (rhs);
-
-	    STRIP_USELESS_TYPE_CONVERSION (result);
-	    if (valid_gimple_rhs_p (result))
-	      return result;
-	  }
-	else if (CONVERT_EXPR_CODE_P (subcode)
-		 && POINTER_TYPE_P (gimple_expr_type (stmt))
-		 && POINTER_TYPE_P (TREE_TYPE (gimple_assign_rhs1 (stmt))))
-	  {
-	    tree type = gimple_expr_type (stmt);
-	    tree t = maybe_fold_offset_to_address (loc,
-						   gimple_assign_rhs1 (stmt),
-						   integer_zero_node, type);
-	    if (t)
-	      return t;
-	  }
-      }
-      break;
-
-    case GIMPLE_BINARY_RHS:
-      /* Try to fold pointer addition.  */
-      if (gimple_assign_rhs_code (stmt) == POINTER_PLUS_EXPR)
-	{
-	  tree type = TREE_TYPE (gimple_assign_rhs1 (stmt));
-	  if (TREE_CODE (TREE_TYPE (type)) == ARRAY_TYPE)
-	    {
-	      type = build_pointer_type (TREE_TYPE (TREE_TYPE (type)));
-	      if (!useless_type_conversion_p
-		    (TREE_TYPE (gimple_assign_lhs (stmt)), type))
-		type = TREE_TYPE (gimple_assign_rhs1 (stmt));
-	    }
-	  result = maybe_fold_stmt_addition (gimple_location (stmt),
-					     type,
-					     gimple_assign_rhs1 (stmt),
-					     gimple_assign_rhs2 (stmt));
-	}
-
-      if (!result)
-        result = fold_binary_loc (loc, subcode,
-                              TREE_TYPE (gimple_assign_lhs (stmt)),
-                              gimple_assign_rhs1 (stmt),
-                              gimple_assign_rhs2 (stmt));
-
-      if (result)
-        {
-          STRIP_USELESS_TYPE_CONVERSION (result);
-          if (valid_gimple_rhs_p (result))
-	    return result;
-
-	  /* Fold might have produced non-GIMPLE, so if we trust it blindly
-	     we lose canonicalization opportunities.  Do not go again
-	     through fold here though, or the same non-GIMPLE will be
-	     produced.  */
-          if (commutative_tree_code (subcode)
-              && tree_swap_operands_p (gimple_assign_rhs1 (stmt),
-                                       gimple_assign_rhs2 (stmt), false))
-            return build2 (subcode, TREE_TYPE (gimple_assign_lhs (stmt)),
-                           gimple_assign_rhs2 (stmt),
-                           gimple_assign_rhs1 (stmt));
-        }
-      break;
-
-    case GIMPLE_INVALID_RHS:
-      gcc_unreachable ();
-    }
-
-  return NULL_TREE;
-}
-
-/* Attempt to fold a conditional statement. Return true if any changes were
-   made. We only attempt to fold the condition expression, and do not perform
-   any transformation that would require alteration of the cfg.  It is
-   assumed that the operands have been previously folded.  */
-
-static bool
-fold_gimple_cond (gimple stmt)
-{
-  tree result = fold_binary_loc (gimple_location (stmt),
-			     gimple_cond_code (stmt),
-                             boolean_type_node,
-                             gimple_cond_lhs (stmt),
-                             gimple_cond_rhs (stmt));
-
-  if (result)
-    {
-      STRIP_USELESS_TYPE_CONVERSION (result);
-      if (is_gimple_condexpr (result) && valid_gimple_rhs_p (result))
-        {
-          gimple_cond_set_condition_from_tree (stmt, result);
-          return true;
-        }
-    }
-
-  return false;
-}
-
-static void gimplify_and_update_call_from_tree (gimple_stmt_iterator *, tree);
-
-/* Attempt to fold a call statement referenced by the statement iterator GSI.
-   The statement may be replaced by another statement, e.g., if the call
-   simplifies to a constant value. Return true if any changes were made.
-   It is assumed that the operands have been previously folded.  */
-
-static bool
-fold_gimple_call (gimple_stmt_iterator *gsi)
-{
-  gimple stmt = gsi_stmt (*gsi);
-
-  tree callee = gimple_call_fndecl (stmt);
-
-  /* Check for builtins that CCP can handle using information not
-     available in the generic fold routines.  */
-  if (callee && DECL_BUILT_IN (callee))
-    {
-      tree result = ccp_fold_builtin (stmt);
-
-      if (result)
-	{
-          if (!update_call_from_tree (gsi, result))
-	    gimplify_and_update_call_from_tree (gsi, result);
-	  return true;
-	}
-    }
-  else
-    {
-      /* Check for resolvable OBJ_TYPE_REF.  The only sorts we can resolve
-         here are when we've propagated the address of a decl into the
-         object slot.  */
-      /* ??? Should perhaps do this in fold proper.  However, doing it
-         there requires that we create a new CALL_EXPR, and that requires
-         copying EH region info to the new node.  Easier to just do it
-         here where we can just smash the call operand.  */
-      /* ??? Is there a good reason not to do this in fold_stmt_inplace?  */
-      callee = gimple_call_fn (stmt);
-      if (TREE_CODE (callee) == OBJ_TYPE_REF
-          && lang_hooks.fold_obj_type_ref
-          && TREE_CODE (OBJ_TYPE_REF_OBJECT (callee)) == ADDR_EXPR
-          && DECL_P (TREE_OPERAND
-                     (OBJ_TYPE_REF_OBJECT (callee), 0)))
-        {
-          tree t;
-
-          /* ??? Caution: Broken ADDR_EXPR semantics means that
-             looking at the type of the operand of the addr_expr
-             can yield an array type.  See silly exception in
-             check_pointer_types_r.  */
-          t = TREE_TYPE (TREE_TYPE (OBJ_TYPE_REF_OBJECT (callee)));
-          t = lang_hooks.fold_obj_type_ref (callee, t);
-          if (t)
-            {
-              gimple_call_set_fn (stmt, t);
-              return true;
-            }
-        }
-    }
-
-  return false;
-}
-
-/* Worker for both fold_stmt and fold_stmt_inplace.  The INPLACE argument
-   distinguishes both cases.  */
-
-static bool
-fold_stmt_1 (gimple_stmt_iterator *gsi, bool inplace)
-{
-  bool changed = false;
-  gimple stmt = gsi_stmt (*gsi);
-  unsigned i;
-
-  /* Fold the main computation performed by the statement.  */
-  switch (gimple_code (stmt))
-    {
-    case GIMPLE_ASSIGN:
-      {
-	unsigned old_num_ops = gimple_num_ops (stmt);
-	tree new_rhs = fold_gimple_assign (gsi);
-	if (new_rhs != NULL_TREE
-	    && (!inplace
-		|| get_gimple_rhs_num_ops (TREE_CODE (new_rhs)) < old_num_ops))
-	  {
-	    gimple_assign_set_rhs_from_tree (gsi, new_rhs);
-	    changed = true;
-	  }
-	break;
-      }
-
-    case GIMPLE_COND:
-      changed |= fold_gimple_cond (stmt);
-      break;
-
-    case GIMPLE_CALL:
-      /* Fold *& in call arguments.  */
-      for (i = 0; i < gimple_call_num_args (stmt); ++i)
-	if (REFERENCE_CLASS_P (gimple_call_arg (stmt, i)))
-	  {
-	    tree tmp = maybe_fold_reference (gimple_call_arg (stmt, i), false);
-	    if (tmp)
-	      {
-		gimple_call_set_arg (stmt, i, tmp);
-		changed = true;
-	      }
-	  }
-      /* The entire statement may be replaced in this case.  */
-      if (!inplace)
-	changed |= fold_gimple_call (gsi);
-      break;
-
-    case GIMPLE_ASM:
-      /* Fold *& in asm operands.  */
-      for (i = 0; i < gimple_asm_noutputs (stmt); ++i)
-	{
-	  tree link = gimple_asm_output_op (stmt, i);
-	  tree op = TREE_VALUE (link);
-	  if (REFERENCE_CLASS_P (op)
-	      && (op = maybe_fold_reference (op, true)) != NULL_TREE)
-	    {
-	      TREE_VALUE (link) = op;
-	      changed = true;
-	    }
-	}
-      for (i = 0; i < gimple_asm_ninputs (stmt); ++i)
-	{
-	  tree link = gimple_asm_input_op (stmt, i);
-	  tree op = TREE_VALUE (link);
-	  if (REFERENCE_CLASS_P (op)
-	      && (op = maybe_fold_reference (op, false)) != NULL_TREE)
-	    {
-	      TREE_VALUE (link) = op;
-	      changed = true;
-	    }
-	}
-      break;
-
-    default:;
-    }
-
-  stmt = gsi_stmt (*gsi);
-
-  /* Fold *& on the lhs.  */
-  if (gimple_has_lhs (stmt))
-    {
-      tree lhs = gimple_get_lhs (stmt);
-      if (lhs && REFERENCE_CLASS_P (lhs))
-	{
-	  tree new_lhs = maybe_fold_reference (lhs, true);
-	  if (new_lhs)
-	    {
-	      gimple_set_lhs (stmt, new_lhs);
-	      changed = true;
-	    }
-	}
-    }
-
-  return changed;
-}
-
-/* Fold the statement pointed to by GSI.  In some cases, this function may
-   replace the whole statement with a new one.  Returns true iff folding
-   makes any changes.
-   The statement pointed to by GSI should be in valid gimple form but may
-   be in unfolded state as resulting from for example constant propagation
-   which can produce *&x = 0.  */
-
-bool
-fold_stmt (gimple_stmt_iterator *gsi)
-{
-  return fold_stmt_1 (gsi, false);
-}
-
-/* Perform the minimal folding on statement STMT.  Only operations like
-   *&x created by constant propagation are handled.  The statement cannot
-   be replaced with a new one.  Return true if the statement was
-   changed, false otherwise.
-   The statement STMT should be in valid gimple form but may
-   be in unfolded state as resulting from for example constant propagation
-   which can produce *&x = 0.  */
-
-bool
-fold_stmt_inplace (gimple stmt)
-{
-  gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
-  bool changed = fold_stmt_1 (&gsi, true);
-  gcc_assert (gsi_stmt (gsi) == stmt);
-  return changed;
-}
 
 /* Try to optimize out __builtin_stack_restore.  Optimize it out
    if there is another __builtin_stack_restore in the same basic
@@ -3115,7 +2561,10 @@ optimize_stack_restore (gimple_stmt_iterator i)
 	continue;
 
       callee = gimple_call_fndecl (stmt);
-      if (!callee || DECL_BUILT_IN_CLASS (callee) != BUILT_IN_NORMAL)
+      if (!callee
+	  || DECL_BUILT_IN_CLASS (callee) != BUILT_IN_NORMAL
+	  /* All regular builtins are ok, just obviously not alloca.  */
+	  || DECL_FUNCTION_CODE (callee) == BUILT_IN_ALLOCA)
 	return NULL_TREE;
 
       if (DECL_FUNCTION_CODE (callee) == BUILT_IN_STACK_RESTORE)
@@ -3205,7 +2654,7 @@ optimize_stdarg_builtin (gimple call)
 	  || TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (lhs)))
 	     != TYPE_MAIN_VARIANT (cfun_va_list))
 	return NULL_TREE;
-      
+
       lhs = build_fold_indirect_ref_loc (loc, lhs);
       rhs = build_call_expr_loc (loc, built_in_decls[BUILT_IN_NEXT_ARG],
                              1, integer_zero_node);
@@ -3243,70 +2692,6 @@ optimize_stdarg_builtin (gimple call)
     }
 }
 
-/* Convert EXPR into a GIMPLE value suitable for substitution on the
-   RHS of an assignment.  Insert the necessary statements before
-   iterator *SI_P.  The statement at *SI_P, which must be a GIMPLE_CALL
-   is replaced.  If the call is expected to produces a result, then it
-   is replaced by an assignment of the new RHS to the result variable.
-   If the result is to be ignored, then the call is replaced by a
-   GIMPLE_NOP.  */
-
-static void
-gimplify_and_update_call_from_tree (gimple_stmt_iterator *si_p, tree expr)
-{
-  tree lhs;
-  tree tmp = NULL_TREE;  /* Silence warning.  */
-  gimple stmt, new_stmt;
-  gimple_stmt_iterator i;
-  gimple_seq stmts = gimple_seq_alloc();
-  struct gimplify_ctx gctx;
-
-  stmt = gsi_stmt (*si_p);
-
-  gcc_assert (is_gimple_call (stmt));
-
-  lhs = gimple_call_lhs (stmt);
-
-  push_gimplify_context (&gctx);
-
-  if (lhs == NULL_TREE)
-    gimplify_and_add (expr, &stmts);
-  else 
-    tmp = get_initialized_tmp_var (expr, &stmts, NULL);
-
-  pop_gimplify_context (NULL);
-
-  if (gimple_has_location (stmt))
-    annotate_all_with_location (stmts, gimple_location (stmt));
-
-  /* The replacement can expose previously unreferenced variables.  */
-  for (i = gsi_start (stmts); !gsi_end_p (i); gsi_next (&i))
-  {
-    new_stmt = gsi_stmt (i);
-    find_new_referenced_vars (new_stmt);
-    gsi_insert_before (si_p, new_stmt, GSI_NEW_STMT);
-    mark_symbols_for_renaming (new_stmt);
-    gsi_next (si_p);
-  }
-
-  if (lhs == NULL_TREE)
-    {
-      new_stmt = gimple_build_nop ();
-      unlink_stmt_vdef (stmt);
-      release_defs (stmt);
-    }
-  else
-    {
-      new_stmt = gimple_build_assign (lhs, tmp);
-      gimple_set_vuse (new_stmt, gimple_vuse (stmt));
-      gimple_set_vdef (new_stmt, gimple_vdef (stmt));
-      move_ssa_defining_stmt_for_defs (new_stmt, stmt);
-    }
-
-  gimple_set_location (new_stmt, gimple_location (stmt));
-  gsi_replace (si_p, new_stmt, false);
-}
-
 /* A simple pass that attempts to fold all builtin functions.  This pass
    is run after we've propagated as many constants as we can.  */
 
@@ -3316,7 +2701,7 @@ execute_fold_all_builtins (void)
   bool cfg_changed = false;
   basic_block bb;
   unsigned int todoflags = 0;
-  
+
   FOR_EACH_BB (bb)
     {
       gimple_stmt_iterator i;
@@ -3341,7 +2726,7 @@ execute_fold_all_builtins (void)
 	    }
 	  fcode = DECL_FUNCTION_CODE (callee);
 
-	  result = ccp_fold_builtin (stmt);
+	  result = gimple_fold_builtin (stmt);
 
 	  if (result)
 	    gimple_remove_stmt_histograms (cfun, stmt);
@@ -3418,16 +2803,16 @@ execute_fold_all_builtins (void)
 	    gsi_next (&i);
 	}
     }
-  
+
   /* Delete unreachable blocks.  */
   if (cfg_changed)
     todoflags |= TODO_cleanup_cfg;
-  
+
   return todoflags;
 }
 
 
-struct gimple_opt_pass pass_fold_builtins = 
+struct gimple_opt_pass pass_fold_builtins =
 {
  {
   GIMPLE_PASS,

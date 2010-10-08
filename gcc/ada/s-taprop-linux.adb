@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---         Copyright (C) 1992-2009, Free Software Foundation, Inc.          --
+--         Copyright (C) 1992-2010, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -426,15 +426,12 @@ package body System.Task_Primitives.Operations is
    begin
       pragma Assert (Self_ID = Self);
 
-      if Single_Lock then
-         Result :=
-           pthread_cond_wait
-             (Self_ID.Common.LL.CV'Access, Single_RTS_Lock'Access);
-      else
-         Result :=
-           pthread_cond_wait
-             (Self_ID.Common.LL.CV'Access, Self_ID.Common.LL.L'Access);
-      end if;
+      Result :=
+        pthread_cond_wait
+          (cond  => Self_ID.Common.LL.CV'Access,
+           mutex => (if Single_Lock
+                     then Single_RTS_Lock'Access
+                     else Self_ID.Common.LL.L'Access));
 
       --  EINTR is not considered a failure
 
@@ -469,11 +466,10 @@ package body System.Task_Primitives.Operations is
       Timedout := True;
       Yielded := False;
 
-      if Mode = Relative then
-         Abs_Time := Duration'Min (Time, Max_Sensible_Delay) + Check_Time;
-      else
-         Abs_Time := Duration'Min (Check_Time + Max_Sensible_Delay, Time);
-      end if;
+      Abs_Time :=
+        (if Mode = Relative
+         then Duration'Min (Time, Max_Sensible_Delay) + Check_Time
+         else Duration'Min (Check_Time + Max_Sensible_Delay, Time));
 
       if Abs_Time > Check_Time then
          Request := To_Timespec (Abs_Time);
@@ -481,20 +477,13 @@ package body System.Task_Primitives.Operations is
          loop
             exit when Self_ID.Pending_ATC_Level < Self_ID.ATC_Nesting_Level;
 
-            if Single_Lock then
-               Result :=
-                 pthread_cond_timedwait
-                   (Self_ID.Common.LL.CV'Access,
-                    Single_RTS_Lock'Access,
-                    Request'Access);
-
-            else
-               Result :=
-                 pthread_cond_timedwait
-                   (Self_ID.Common.LL.CV'Access,
-                    Self_ID.Common.LL.L'Access,
-                    Request'Access);
-            end if;
+            Result :=
+              pthread_cond_timedwait
+                (cond    => Self_ID.Common.LL.CV'Access,
+                 mutex   => (if Single_Lock
+                             then Single_RTS_Lock'Access
+                             else Self_ID.Common.LL.L'Access),
+                 abstime => Request'Access);
 
             Check_Time := Monotonic_Clock;
             exit when Abs_Time <= Check_Time or else Check_Time < Base_Time;
@@ -539,11 +528,10 @@ package body System.Task_Primitives.Operations is
 
       Write_Lock (Self_ID);
 
-      if Mode = Relative then
-         Abs_Time := Time + Check_Time;
-      else
-         Abs_Time := Duration'Min (Check_Time + Max_Sensible_Delay, Time);
-      end if;
+      Abs_Time :=
+        (if Mode = Relative
+         then Time + Check_Time
+         else Duration'Min (Check_Time + Max_Sensible_Delay, Time));
 
       if Abs_Time > Check_Time then
          Request := To_Timespec (Abs_Time);
@@ -552,17 +540,13 @@ package body System.Task_Primitives.Operations is
          loop
             exit when Self_ID.Pending_ATC_Level < Self_ID.ATC_Nesting_Level;
 
-            if Single_Lock then
-               Result := pthread_cond_timedwait
-                           (Self_ID.Common.LL.CV'Access,
-                            Single_RTS_Lock'Access,
-                            Request'Access);
-            else
-               Result := pthread_cond_timedwait
-                           (Self_ID.Common.LL.CV'Access,
-                            Self_ID.Common.LL.L'Access,
-                            Request'Access);
-            end if;
+            Result :=
+              pthread_cond_timedwait
+                (cond    => Self_ID.Common.LL.CV'Access,
+                 mutex   => (if Single_Lock
+                             then Single_RTS_Lock'Access
+                             else Self_ID.Common.LL.L'Access),
+                 abstime => Request'Access);
 
             Check_Time := Monotonic_Clock;
             exit when Abs_Time <= Check_Time or else Check_Time < Base_Time;
@@ -589,12 +573,32 @@ package body System.Task_Primitives.Operations is
    ---------------------
 
    function Monotonic_Clock return Duration is
-      TV     : aliased struct_timeval;
-      Result : Interfaces.C.int;
+      use Interfaces;
+
+      type timeval is array (1 .. 2) of C.long;
+
+      procedure timeval_to_duration
+        (T    : not null access timeval;
+         sec  : not null access C.long;
+         usec : not null access C.long);
+      pragma Import (C, timeval_to_duration, "__gnat_timeval_to_duration");
+
+      Micro  : constant := 10**6;
+      sec    : aliased C.long;
+      usec   : aliased C.long;
+      TV     : aliased timeval;
+      Result : int;
+
+      function gettimeofday
+        (Tv : access timeval;
+         Tz : System.Address := System.Null_Address) return int;
+      pragma Import (C, gettimeofday, "gettimeofday");
+
    begin
       Result := gettimeofday (TV'Access, System.Null_Address);
       pragma Assert (Result = 0);
-      return To_Duration (TV);
+      timeval_to_duration (TV'Access, sec'Access, usec'Access);
+      return Duration (sec) + Duration (usec) / Micro;
    end Monotonic_Clock;
 
    -------------------
@@ -713,7 +717,9 @@ package body System.Task_Primitives.Operations is
 
       Specific.Set (Self_ID);
 
-      if Use_Alternate_Stack then
+      if Use_Alternate_Stack
+        and then Self_ID.Common.Task_Alternate_Stack /= Null_Address
+      then
          declare
             Stack  : aliased stack_t;
             Result : Interfaces.C.int;
@@ -1084,6 +1090,7 @@ package body System.Task_Primitives.Operations is
          SSL.Abort_Undefer.all;
 
          raise Program_Error;
+
       else
          --  Suspend the task if the state is False. Otherwise, the task
          --  continues its execution, and the state of the suspension object
@@ -1098,8 +1105,7 @@ package body System.Task_Primitives.Operations is
                --  Loop in case pthread_cond_wait returns earlier than expected
                --  (e.g. in case of EINTR caused by a signal). This should not
                --  happen with the current Linux implementation of pthread, but
-               --  POSIX does not guarantee it, so this may change in the
-               --  future.
+               --  POSIX does not guarantee it so this may change in future.
 
                Result := pthread_cond_wait (S.CV'Access, S.L'Access);
                pragma Assert (Result = 0 or else Result = EINTR);

@@ -38,11 +38,12 @@ int docalling (int (String::* f)(int delim) const)
 
 int main (int argc, char *argv[])
 {
-  int i;
-  i = docalling (&String::funcOne);
+  int i = 0;
+  while (i < 1000)
+    i += docalling (&String::funcOne);
   non_existent ("done", i);
   return 0;
 }
 
-/* { dg-final { scan-ipa-dump "String::funcOne\[^\\n\]*inline copy in main"  "inline"  } } */
+/* { dg-final { scan-ipa-dump "String::funcOne\[^\\n\]*inline copy in int main"  "inline"  } } */
 /* { dg-final { cleanup-ipa-dump "inline" } } */

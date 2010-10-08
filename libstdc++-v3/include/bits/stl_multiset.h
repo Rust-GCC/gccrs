@@ -1,6 +1,6 @@
 // Multiset implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -190,7 +190,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  The contents of @a x are a valid, but unspecified %multiset.
        */
       multiset(multiset&& __x)
-      : _M_t(std::forward<_Rep_type>(__x._M_t)) { }
+      : _M_t(std::move(__x._M_t)) { }
 
       /**
        *  @brief  Builds a %multiset from an initializer_list.
@@ -234,9 +234,10 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       multiset&
       operator=(multiset&& __x)
       {
+	// NB: DR 1204.
 	// NB: DR 675.
 	this->clear();
-	this->swap(__x); 
+	this->swap(__x);
 	return *this;
       }
 
@@ -411,7 +412,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  cause no gains in efficiency.
        *
        *  See http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt07ch17.html
-       *  for more on "hinting".
+       *  for more on @a hinting.
        *
        *  Insertion requires logarithmic time (if the hint is not taken).
        */
@@ -420,7 +421,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       { return _M_t._M_insert_equal_(__position, __x); }
 
       /**
-       *  @brief A template function that attempts to insert a range of elements.
+       *  @brief A template function that tries to insert a range of elements.
        *  @param  first  Iterator pointing to the start of the range to be
        *                 inserted.
        *  @param  last  Iterator pointing to the end of the range.

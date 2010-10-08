@@ -1,22 +1,20 @@
 // { dg-do compile }
-// { dg-options "-pedantic -pedantic-errors" }
+
 typedef int FIC(int) const;
 typedef int FI(int);
 
 FIC f; // { dg-error "qualified" }
-// { dg-error "ignoring" "ignoring" { target *-*-* } 6 }
 struct S {
   FIC f; // OK
 
-  const FI g; // { dg-error "qualifier" }
+  const FI g;
 
   int h(int) const;
 
 };
 FIC S::*pm = &S::f;
-const FI S::*pm2 = &S::f; // { dg-error "qualifier" }
-// { dg-error "cannot convert" "cannot convert" { target *-*-* } 17 }
-const FIC S::*pm3 = &S::f; // { dg-error "qualifier" }
+const FI S::*pm2 = &S::f; // { dg-error "cannot convert" }
+const FIC S::*pm3 = &S::f;
 
 int S::f(int) const
 {

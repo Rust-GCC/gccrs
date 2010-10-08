@@ -62,27 +62,30 @@ host_modules= { module= gawk; };
 host_modules= { module= gettext; };
 host_modules= { module= gmp; lib_path=.libs; bootstrap=true;
 		extra_configure_flags='--disable-shared';
-		no_install= true; 
+		no_install= true;
+		// none-*-* disables asm optimizations, bootstrap-testing
+		// the compiler more thoroughly.
 	        host="none-${host_vendor}-${host_os}";
-		target="none-${host_vendor}-${host_os}"; };
+		// gmp's configure will complain if given anything
+		// different from host for target.
+	        target="none-${host_vendor}-${host_os}"; };
 host_modules= { module= mpfr; lib_path=.libs; bootstrap=true;
 		extra_configure_flags='--disable-shared @extra_mpfr_configure_flags@';
-		no_install= true; 
-	        host="none-${host_vendor}-${host_os}";
-		target="none-${host_vendor}-${host_os}"; };
+		no_install= true; };
 host_modules= { module= mpc; lib_path=.libs; bootstrap=true;
 		extra_configure_flags='--disable-shared @extra_mpc_gmp_configure_flags@ @extra_mpc_mpfr_configure_flags@';
 		no_install= true; };
-host_modules= { module= ppl; lib_path=.libs; bootstrap=true;
+host_modules= { module= ppl; lib_path=src/.libs; bootstrap=true;
 		extra_configure_flags='--disable-shared --with-libgmp-prefix=$$r/$(HOST_SUBDIR)/gmp/ --with-libgmpxx-prefix=$$r/$(HOST_SUBDIR)/gmp/';
-		no_install= true; 
-	        host="none-${host_vendor}-${host_os}";
-		target="none-${host_vendor}-${host_os}"; };
+		no_install= true; };
 host_modules= { module= cloog; lib_path=.libs; bootstrap=true;
-		extra_configure_flags='--disable-shared --with-gmp-library=$$r/$(HOST_SUBDIR)/gmp/.libs --with-gmp-include=$$r/$(HOST_SUBDIR)/gmp --with-ppl=$$r/$(HOST_SUBDIR)/ppl/ --with-bits=gmp';
-		no_install= true; 
-	        host="none-${host_vendor}-${host_os}";
-		target="none-${host_vendor}-${host_os}"; };
+		extra_configure_flags='--disable-shared --with-gmp-library=$$r/$(HOST_SUBDIR)/gmp/.libs --with-gmp-include=$$r/$(HOST_SUBDIR)/gmp --with-bits=gmp --with-ppl';
+		extra_exports='CPPFLAGS="${CPPFLAGS} ${HOST_PPLINC}"; export CPPFLAGS; LDFLAGS="$$LDFLAGS ${HOST_PPLLIBS}"; export LDFLAGS; ';
+		extra_make_flags='CPPFLAGS="${CPPFLAGS} ${HOST_PPLINC}" LDFLAGS="$$LDFLAGS"';
+		no_install= true; };
+host_modules= { module= libelf; lib_path=.libs; bootstrap=true;
+		extra_configure_flags='--disable-shared';
+		no_install= true; };
 host_modules= { module= gnuserv; };
 host_modules= { module= gold; bootstrap=true; };
 host_modules= { module= gprof; };
@@ -172,7 +175,7 @@ target_modules = { module= boehm-gc; };
 target_modules = { module= qthreads; };
 target_modules = { module= rda; };
 target_modules = { module= libada; };
-target_modules = { module= libgomp; lib_path=.libs; };
+target_modules = { module= libgomp; bootstrap= true; lib_path=.libs; };
 
 // These are (some of) the make targets to be done in each subdirectory.
 // Not all; these are the ones which don't have special options.
@@ -322,6 +325,7 @@ dependencies = { module=configure-gcc; on=all-binutils; };
 dependencies = { module=configure-gcc; on=all-gas; };
 dependencies = { module=configure-gcc; on=all-ld; };
 dependencies = { module=configure-gcc; on=all-gold; };
+dependencies = { module=configure-gcc; on=all-libelf; };
 dependencies = { module=all-gcc; on=all-libiberty; hard=true; };
 dependencies = { module=all-gcc; on=all-gmp; };
 dependencies = { module=all-gcc; on=all-intl; };
@@ -340,6 +344,10 @@ dependencies = { module=all-gcc; on=all-libcpp; hard=true; };
 dependencies = { module=all-gcc; on=all-libdecnumber; hard=true; };
 dependencies = { module=all-gcc; on=all-libiberty; };
 dependencies = { module=all-gcc; on=all-fixincludes; };
+dependencies = { module=info-gcc; on=all-build-libiberty; };
+dependencies = { module=dvi-gcc; on=all-build-libiberty; };
+dependencies = { module=pdf-gcc; on=all-build-libiberty; };
+dependencies = { module=html-gcc; on=all-build-libiberty; };
 dependencies = { module=install-gcc ; on=install-fixincludes; };
 
 dependencies = { module=configure-libcpp; on=configure-libiberty; hard=true; };
@@ -351,7 +359,7 @@ dependencies = { module=all-fixincludes; on=all-libiberty; };
 
 dependencies = { module=all-gnattools; on=all-target-libada; };
 
-dependencies = { module=all-lto-plugin; on=all-libiberty; };
+dependencies = { module=all-lto-plugin; on=all-gcc; };
 
 dependencies = { module=configure-mpfr; on=all-gmp; };
 dependencies = { module=configure-mpc; on=all-mpfr; };
@@ -424,6 +432,7 @@ dependencies = { module=all-ld; on=all-build-bison; };
 dependencies = { module=all-ld; on=all-build-byacc; };
 dependencies = { module=all-ld; on=all-build-flex; };
 dependencies = { module=all-ld; on=all-intl; };
+dependencies = { module=install-ld; on=install-gold; };
 dependencies = { module=configure-gold; on=configure-intl; };
 dependencies = { module=all-gold; on=all-libiberty; };
 dependencies = { module=all-gold; on=all-intl; };
@@ -549,6 +558,10 @@ dependencies = { module=all-target-libobjc; on=all-target-libiberty; };
 dependencies = { module=all-target-libobjc; on=all-target-boehm-gc; };
 dependencies = { module=all-target-libstdc++-v3; on=all-target-libiberty; };
 dependencies = { module=configure-target-libstdc++-v3; on=configure-target-libgomp; };
+// parallel_list.o and parallel_settings.o depend on omp.h, which is
+// generated by the libgomp configure.  Unfortunately, due to the use of
+//  recursive make, we can't be that specific.
+dependencies = { module=all-target-libstdc++-v3; on=configure-target-libgomp; };
 
 // Target modules in the 'src' repository.
 lang_env_dependencies = { module=examples; };

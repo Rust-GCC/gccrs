@@ -25,15 +25,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "tree.h"
 #include "cp-tree.h"
-#include "c-common.h"
-#include "toplev.h"
+#include "c-family/c-common.h"
 #include "objc-act.h"
 #include "langhooks.h"
 #include "langhooks-def.h"
-#include "diagnostic.h"
-#include "debug.h"
+#include "target.h"
 #include "cp-objcp-common.h"
-#include "except.h"
 
 enum c_language_kind c_language = clk_objcxx;
 static void objcxx_init_ts (void);
@@ -151,7 +148,7 @@ objcxx_eh_personality (void)
 {
   if (!objcp_eh_personality_decl)
     objcp_eh_personality_decl
-	= build_personality_function (USING_SJLJ_EXCEPTIONS
+	= build_personality_function (targetm.except_unwind_info () == UI_SJLJ
 				      ? "__gxx_personality_sj0"
 				      : "__gxx_personality_v0");
 

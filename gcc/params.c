@@ -24,6 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "params.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 
 /* An array containing the compiler parameters and their current
@@ -32,7 +33,6 @@ along with GCC; see the file COPYING3.  If not see
 param_info *compiler_params;
 
 /* The number of entries in the table.  */
-
 static size_t num_compiler_params;
 
 /* Add the N PARAMS to the current list of compiler parameters.  */
@@ -84,4 +84,13 @@ set_param_value (const char *name, int value)
 
   /* If we didn't find this parameter, issue an error message.  */
   error ("invalid parameter %qs", name);
+}
+
+/* Return the current value of num_compiler_params, for the benefit of
+   plugins that use parameters as features.  */
+
+size_t
+get_num_compiler_params (void)
+{
+  return num_compiler_params;
 }

@@ -78,16 +78,16 @@ typedef struct lambda_body_vector_s
 #define LBV_SIZE(T) ((T)->size)
 #define LBV_DENOMINATOR(T) ((T)->denominator)
 
-/* Piecewise linear expression.  
+/* Piecewise linear expression.
    This structure represents a linear expression with terms for the invariants
-   and induction variables of a loop. 
+   and induction variables of a loop.
    COEFFICIENTS is a vector of coefficients for the induction variables, one
    per loop in the loop nest.
    CONSTANT is the constant portion of the linear expression
    INVARIANT_COEFFICIENTS is a vector of coefficients for the loop invariants,
    one per invariant.
    DENOMINATOR is the denominator for all of the coefficients and constants in
-   the expression.  
+   the expression.
    The linear expressions can be linked together using the NEXT field, in
    order to represent MAX or MIN of a group of linear expressions.  */
 typedef struct lambda_linear_expression_s
@@ -131,7 +131,7 @@ typedef struct lambda_loop_s
 #define LL_LINEAR_OFFSET(T) ((T)->linear_offset)
 #define LL_STEP(T)   ((T)->step)
 
-/* Loop nest structure.  
+/* Loop nest structure.
    The loop nest structure consists of a set of loop structures (defined
    above) in LOOPS, along with an integer representing the DEPTH of the loop,
    and an integer representing the number of INVARIANTS in the loop.  Both of
@@ -156,11 +156,9 @@ struct loop;
 bool perfect_nest_p (struct loop *);
 void print_lambda_loopnest (FILE *, lambda_loopnest, char);
 
-#define lambda_loop_new() (lambda_loop) ggc_alloc_cleared (sizeof (struct lambda_loop_s))
-
 void print_lambda_loop (FILE *, lambda_loop, int, int, char);
 
-lambda_matrix lambda_matrix_new (int, int);
+lambda_matrix lambda_matrix_new (int, int, struct obstack *);
 
 void lambda_matrix_id (lambda_matrix, int);
 bool lambda_matrix_id_p (lambda_matrix, int);
@@ -182,24 +180,25 @@ void lambda_matrix_col_exchange (lambda_matrix, int, int, int);
 void lambda_matrix_col_add (lambda_matrix, int, int, int, int);
 void lambda_matrix_col_negate (lambda_matrix, int, int);
 void lambda_matrix_col_mc (lambda_matrix, int, int, int);
-int lambda_matrix_inverse (lambda_matrix, lambda_matrix, int);
+int lambda_matrix_inverse (lambda_matrix, lambda_matrix, int, struct obstack *);
 void lambda_matrix_hermite (lambda_matrix, int, lambda_matrix, lambda_matrix);
 void lambda_matrix_left_hermite (lambda_matrix, int, int, lambda_matrix, lambda_matrix);
 void lambda_matrix_right_hermite (lambda_matrix, int, int, lambda_matrix, lambda_matrix);
 int lambda_matrix_first_nz_vec (lambda_matrix, int, int, int);
-void lambda_matrix_project_to_null (lambda_matrix, int, int, int, 
+void lambda_matrix_project_to_null (lambda_matrix, int, int, int,
 				    lambda_vector);
 void print_lambda_matrix (FILE *, lambda_matrix, int, int);
 
-lambda_trans_matrix lambda_trans_matrix_new (int, int);
+lambda_trans_matrix lambda_trans_matrix_new (int, int, struct obstack *);
 bool lambda_trans_matrix_nonsingular_p (lambda_trans_matrix);
 bool lambda_trans_matrix_fullrank_p (lambda_trans_matrix);
 int lambda_trans_matrix_rank (lambda_trans_matrix);
 lambda_trans_matrix lambda_trans_matrix_basis (lambda_trans_matrix);
 lambda_trans_matrix lambda_trans_matrix_padding (lambda_trans_matrix);
-lambda_trans_matrix lambda_trans_matrix_inverse (lambda_trans_matrix);
+lambda_trans_matrix lambda_trans_matrix_inverse (lambda_trans_matrix,
+						 struct obstack *);
 void print_lambda_trans_matrix (FILE *, lambda_trans_matrix);
-void lambda_matrix_vector_mult (lambda_matrix, int, int, lambda_vector, 
+void lambda_matrix_vector_mult (lambda_matrix, int, int, lambda_vector,
 				lambda_vector);
 bool lambda_trans_matrix_id_p (lambda_trans_matrix);
 
@@ -239,7 +238,7 @@ static inline void print_lambda_vector (FILE *, lambda_vector, int);
 static inline lambda_vector
 lambda_vector_new (int size)
 {
-  return GGC_CNEWVEC (int, size);
+  return (lambda_vector) ggc_alloc_cleared_atomic (sizeof (int) * size);
 }
 
 
@@ -262,7 +261,7 @@ lambda_vector_mult_const (lambda_vector vec1, lambda_vector vec2,
 
 /* Negate vector VEC1 with length SIZE and store it in VEC2.  */
 
-static inline void 
+static inline void
 lambda_vector_negate (lambda_vector vec1, lambda_vector vec2,
 		      int size)
 {
@@ -303,7 +302,7 @@ lambda_vector_copy (lambda_vector vec1, lambda_vector vec2,
 
 /* Return true if vector VEC1 of length SIZE is the zero vector.  */
 
-static inline bool 
+static inline bool
 lambda_vector_zerop (lambda_vector vec1, int size)
 {
   int i;
@@ -322,7 +321,7 @@ lambda_vector_clear (lambda_vector vec1, int size)
 }
 
 /* Return true if two vectors are equal.  */
- 
+
 static inline bool
 lambda_vector_equal (lambda_vector vec1, lambda_vector vec2, int size)
 {
@@ -370,7 +369,7 @@ lambda_vector_first_nz (lambda_vector vec1, int n, int start)
 /* Multiply a vector by a matrix.  */
 
 static inline void
-lambda_vector_matrix_mult (lambda_vector vect, int m, lambda_matrix mat, 
+lambda_vector_matrix_mult (lambda_vector vect, int m, lambda_matrix mat,
 			   int n, lambda_vector dest)
 {
   int i, j;
@@ -382,7 +381,7 @@ lambda_vector_matrix_mult (lambda_vector vect, int m, lambda_matrix mat,
 
 /* Compare two vectors returning an integer less than, equal to, or
    greater than zero if the first argument is considered to be respectively
-   less than, equal to, or greater than the second.  
+   less than, equal to, or greater than the second.
    We use the lexicographic order.  */
 
 static inline int
@@ -423,7 +422,7 @@ print_lambda_vector (FILE * outfile, lambda_vector vector, int n)
 /* Compute the greatest common divisor of two numbers using
    Euclid's algorithm.  */
 
-static inline int 
+static inline int
 gcd (int a, int b)
 {
   int x, y, z;
@@ -462,7 +461,7 @@ lambda_vector_gcd (lambda_vector vector, int size)
    other words, when the first nonzero element is positive.  */
 
 static inline bool
-lambda_vector_lexico_pos (lambda_vector v, 
+lambda_vector_lexico_pos (lambda_vector v,
 			  unsigned n)
 {
   unsigned i;

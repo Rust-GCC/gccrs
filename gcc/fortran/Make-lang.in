@@ -1,7 +1,7 @@
 # -*- makefile -*-
 # Top level makefile fragment for GNU gfortran, the GNU Fortran 95 compiler.
-# Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 Free Software
-# Foundation, Inc.
+# Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+# Free Software Foundation, Inc.
 # Contributed by Paul Brook <paul@nowt.org
 # and Steven Bosscher <s.bosscher@student.tudelft.nl>
 
@@ -26,7 +26,7 @@
 #
 # foo.all.cross, foo.start.encap, foo.rest.encap,
 # foo.install-common, foo.install-man, foo.install-info, foo.install-pdf,
-# foo.info, foo.dvi, foo.pdf, foo.html, foo.uninstall,
+# foo.install-html, foo.info, foo.dvi, foo.pdf, foo.html, foo.uninstall,
 # foo.mostlyclean, foo.clean, foo.distclean,
 # foo.maintainer-clean, foo.stage1, foo.stage2, foo.stage3, foo.stage4
 #
@@ -53,20 +53,20 @@ fortran-warn = $(STRICT_WARN)
 # from the parse tree to GENERIC
 
 F95_PARSER_OBJS = fortran/arith.o fortran/array.o fortran/bbt.o \
-    fortran/check.o fortran/cpp.o fortran/data.o fortran/decl.o \
-    fortran/dump-parse-tree.o fortran/error.o fortran/expr.o \
-    fortran/interface.o fortran/intrinsic.o fortran/io.o fortran/iresolve.o \
-    fortran/match.o fortran/matchexp.o fortran/misc.o fortran/module.o \
-    fortran/openmp.o fortran/options.o fortran/parse.o fortran/primary.o \
-    fortran/resolve.o fortran/scanner.o fortran/simplify.o fortran/st.o \
-    fortran/symbol.o fortran/target-memory.o
+    fortran/check.o fortran/class.o fortran/constructor.o fortran/cpp.o \
+    fortran/data.o fortran/decl.o fortran/dump-parse-tree.o fortran/error.o \
+    fortran/expr.o fortran/interface.o fortran/intrinsic.o fortran/io.o \
+    fortran/iresolve.o fortran/match.o fortran/matchexp.o fortran/misc.o \
+    fortran/module.o fortran/openmp.o fortran/options.o fortran/parse.o \
+    fortran/primary.o fortran/resolve.o fortran/scanner.o fortran/simplify.o \
+    fortran/st.o fortran/symbol.o fortran/target-memory.o
 
 F95_OBJS = $(F95_PARSER_OBJS) $(FORTRAN_TARGET_OBJS) \
     fortran/convert.o fortran/dependency.o fortran/f95-lang.o \
     fortran/trans.o fortran/trans-array.o fortran/trans-common.o \
     fortran/trans-const.o fortran/trans-decl.o fortran/trans-expr.o \
     fortran/trans-intrinsic.o fortran/trans-io.o fortran/trans-openmp.o \
-    fortran/trans-stmt.o fortran/trans-types.o
+    fortran/trans-stmt.o fortran/trans-types.o fortran/frontend-passes.o
 
 fortran_OBJS = $(F95_OBJS) gfortranspec.o
 
@@ -78,7 +78,7 @@ fortran: f951$(exeext)
 .PHONY: fortran
 
 gfortranspec.o: $(srcdir)/fortran/gfortranspec.c $(SYSTEM_H) $(TM_H) $(GCC_H) \
-	$(CONFIG_H) coretypes.h intl.h
+	$(CONFIG_H) coretypes.h intl.h opts.h
 	(SHLIB_LINK='$(SHLIB_LINK)'; \
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(DRIVER_DEFINES) \
 		$(INCLUDES) $(srcdir)/fortran/gfortranspec.c)
@@ -86,7 +86,7 @@ gfortranspec.o: $(srcdir)/fortran/gfortranspec.c $(SYSTEM_H) $(TM_H) $(GCC_H) \
 # Create the compiler driver gfortran.
 GFORTRAN_D_OBJS = $(GCC_OBJS) gfortranspec.o version.o prefix.o intl.o
 gfortran$(exeext): $(GFORTRAN_D_OBJS) $(EXTRA_GCC_OBJS) $(LIBDEPS)
-	$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
+	+$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
 	  $(GFORTRAN_D_OBJS) $(EXTRA_GCC_OBJS) $(LIBS)
 
 # Create a version of the gfortran driver which calls the cross-compiler.
@@ -97,7 +97,7 @@ gfortran-cross$(exeext): gfortran$(exeext)
 # The compiler itself is called f951.
 f951$(exeext): $(F95_OBJS) \
 		$(BACKEND) $(LIBDEPS) attribs.o
-	$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
+	+$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
 		$(F95_OBJS) $(BACKEND) $(LIBS) attribs.o $(BACKENDLIBS)
 
 gt-fortran-trans.h    : s-gtype; @true
@@ -118,7 +118,27 @@ fortran.tags: force
 
 fortran.info: doc/gfortran.info doc/gfc-internals.info
 fortran.dvi: doc/gfortran.dvi doc/gfc-internals.dvi
-fortran.html: $(build_htmldir)/gfortran/index.html
+
+F95_HTMLFILES = $(build_htmldir)/gfortran
+
+fortran.html: $(F95_HTMLFILES)/index.html
+
+fortran.install-html: $(F95_HTMLFILES)
+	@$(NORMAL_INSTALL)
+	test -z "$(htmldir)" || $(mkinstalldirs) "$(DESTDIR)$(htmldir)"
+	@list='$(F95_HTMLFILES)'; for p in $$list; do \
+	  if test -f "$$p" || test -d "$$p"; then d=""; else d="$(srcdir)/"; fi; \
+	  f=$(html__strip_dir) \
+	  if test -d "$$d$$p"; then \
+	    echo " $(mkinstalldirs) '$(DESTDIR)$(htmldir)/$$f'"; \
+	    $(mkinstalldirs) "$(DESTDIR)$(htmldir)/$$f" || exit 1; \
+	    echo " $(INSTALL_DATA) '$$d$$p'/* '$(DESTDIR)$(htmldir)/$$f'"; \
+	    $(INSTALL_DATA) "$$d$$p"/* "$(DESTDIR)$(htmldir)/$$f"; \
+	  else \
+	    echo " $(INSTALL_DATA) '$$d$$p' '$(DESTDIR)$(htmldir)/$$f'"; \
+	    $(INSTALL_DATA) "$$d$$p" "$(DESTDIR)$(htmldir)/$$f"; \
+	  fi; \
+	done
 
 F95_PDFFILES = doc/gfortran.pdf
 
@@ -300,7 +320,7 @@ fortran.stagefeedback: stageprofile-start
 # TODO: Add dependencies on the backend/tree header files
 
 $(F95_PARSER_OBJS): fortran/gfortran.h fortran/libgfortran.h \
-		fortran/intrinsic.h fortran/match.h \
+		fortran/intrinsic.h fortran/match.h fortran/constructor.h \
 		fortran/parse.h fortran/arith.h fortran/target-memory.h \
 		$(CONFIG_H) $(SYSTEM_H) $(TM_H) $(TM_P_H) coretypes.h \
 		$(RTL_H) $(TREE_H) $(TREE_DUMP_H) $(GGC_H) $(EXPR_H) \
@@ -316,16 +336,17 @@ GFORTRAN_TRANS_DEPS = fortran/gfortran.h fortran/libgfortran.h \
 fortran/f95-lang.o: $(GFORTRAN_TRANS_DEPS) fortran/mathbuiltins.def \
   gt-fortran-f95-lang.h gtype-fortran.h $(CGRAPH_H) $(TARGET_H) fortran/cpp.h \
   $(BUILTINS_DEF) fortran/types.def \
-  libfuncs.h expr.h except.h
+  libfuncs.h expr.h
 fortran/scanner.o: toplev.h fortran/cpp.h
 fortran/convert.o: $(GFORTRAN_TRANS_DEPS)
+fortran/frontend-passes.o: $(GFORTRAN_TRANS_DEPS)
 fortran/trans.o: $(GFORTRAN_TRANS_DEPS) tree-iterator.h
 fortran/trans-decl.o: $(GFORTRAN_TRANS_DEPS) gt-fortran-trans-decl.h \
   $(CGRAPH_H) $(TARGET_H) $(FUNCTION_H) $(FLAGS_H) $(RTL_H) $(GIMPLE_H) \
   $(TREE_DUMP_H) debug.h pointer-set.h
 fortran/trans-types.o: $(GFORTRAN_TRANS_DEPS) gt-fortran-trans-types.h \
   $(REAL_H) toplev.h $(TARGET_H) $(FLAGS_H) dwarf2out.h
-fortran/trans-const.o: $(GFORTRAN_TRANS_DEPS)
+fortran/trans-const.o: $(GFORTRAN_TRANS_DEPS) realmpfr.h
 fortran/trans-expr.o: $(GFORTRAN_TRANS_DEPS) fortran/dependency.h
 fortran/trans-stmt.o: $(GFORTRAN_TRANS_DEPS) fortran/dependency.h
 fortran/trans-openmp.o: $(GFORTRAN_TRANS_DEPS)
@@ -339,6 +360,6 @@ fortran/trans-common.o: $(GFORTRAN_TRANS_DEPS) $(TARGET_H) $(RTL_H)
 fortran/resolve.o: fortran/dependency.h fortran/data.h fortran/target-memory.h
 fortran/data.o: fortran/data.h
 fortran/options.o: $(PARAMS_H) $(TARGET_H) fortran/cpp.h
-fortran/cpp.o: fortran/cpp.c $(BASEVER) incpath.h incpath.o
+fortran/cpp.o: fortran/cpp.c incpath.h incpath.o cppbuiltin.h
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) \
-		-DBASEVER=$(BASEVER_s) $< $(OUTPUT_OPTION)
+		$< $(OUTPUT_OPTION)

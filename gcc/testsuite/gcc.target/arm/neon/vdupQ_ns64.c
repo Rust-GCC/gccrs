@@ -3,7 +3,8 @@
 
 /* { dg-do assemble } */
 /* { dg-require-effective-target arm_neon_ok } */
-/* { dg-options "-save-temps -O0 -mfpu=neon -mfloat-abi=softfp" } */
+/* { dg-options "-save-temps -O0" } */
+/* { dg-add-options arm_neon } */
 
 #include "arm_neon.h"
 
@@ -15,6 +16,4 @@ void test_vdupQ_ns64 (void)
   out_int64x2_t = vdupq_n_s64 (arg0_int64_t);
 }
 
-/* { dg-final { scan-assembler "vmov\[ 	\]+\[dD\]\[0-9\]+, \[rR\]\[0-9\]+, \[rR\]\[0-9\]+!?\(\[ 	\]+@\[a-zA-Z0-9 \]+\)?\n" } } */
-/* { dg-final { scan-assembler "vmov\[ 	\]+\[dD\]\[0-9\]+, \[rR\]\[0-9\]+, \[rR\]\[0-9\]+!?\(\[ 	\]+@\[a-zA-Z0-9 \]+\)?\n" } } */
 /* { dg-final { cleanup-saved-temps } } */

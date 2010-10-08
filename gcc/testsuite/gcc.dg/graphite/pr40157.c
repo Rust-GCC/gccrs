@@ -1,4 +1,5 @@
-/* { dg-options "-O2 -fgraphite-identity" } */
+/* { dg-require-effective-target int32plus } */
+/* { dg-options "-O2 -fgraphite-identity -floop-block" } */
 
 int buffer[256*256];
 int main(void)

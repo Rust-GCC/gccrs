@@ -1,9 +1,10 @@
 // { dg-do run { target *-*-freebsd* *-*-netbsd* *-*-linux* *-*-solaris* *-*-cygwin *-*-darwin* alpha*-*-osf* mips-sgi-irix6* } }
 // { dg-options "-pthread" { target *-*-freebsd* *-*-netbsd* *-*-linux* alpha*-*-osf* mips-sgi-irix6* } }
 // { dg-options "-pthreads" { target *-*-solaris* } }
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "en_US" }
+// { dg-require-namedlocale "fr_FR" }
 
-// Copyright (C) 2004, 2005, 2007, 2009 Free Software Foundation
+// Copyright (C) 2004, 2005, 2007, 2009, 2010 Free Software Foundation
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -59,10 +60,10 @@ main()
   pthread_t tid[max_thread_count];
   
   for (int i = 0; i < max_thread_count; i++)
-    pthread_create (&tid[i], NULL, thread_main, 0);
+    pthread_create (&tid[i], 0, thread_main, 0);
   
   for (int i = 0; i < max_thread_count; i++)
-    pthread_join (tid[i], NULL);
+    pthread_join (tid[i], 0);
 
   return 0;
 }

@@ -1,6 +1,6 @@
 // cxxabi.h subset for inclusion by other library headers -*- C++ -*-
   
-// Copyright (C) 2007, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -23,8 +23,14 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+/** @file cxxabi-forced.h
+ *  The header provides an interface to the C++ ABI.
+ */
+
 #ifndef _CXXABI_FORCED_H
 #define _CXXABI_FORCED_H 1
+
+#pragma GCC system_header
 
 #pragma GCC visibility push(default)
 
@@ -41,7 +47,9 @@ namespace __cxxabiv1
   class __forced_unwind
   {
     virtual ~__forced_unwind() throw();
-    virtual void __pure_dummy() = 0; // prevent catch by value
+
+    // Prevent catch by value.
+    virtual void __pure_dummy() = 0; 
   };
 }
 #endif // __cplusplus

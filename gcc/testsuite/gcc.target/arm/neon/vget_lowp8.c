@@ -3,13 +3,14 @@
 
 /* { dg-do assemble } */
 /* { dg-require-effective-target arm_neon_ok } */
-/* { dg-options "-save-temps -O0 -mfpu=neon -mfloat-abi=softfp" } */
+/* { dg-options "-save-temps -O0" } */
+/* { dg-add-options arm_neon } */
 
 #include "arm_neon.h"
 
 void test_vget_lowp8 (void)
 {
-  poly8x8_t out_poly8x8_t;
+  register poly8x8_t out_poly8x8_t asm ("d18");
   poly8x16_t arg0_poly8x16_t;
 
   out_poly8x8_t = vget_low_p8 (arg0_poly8x16_t);

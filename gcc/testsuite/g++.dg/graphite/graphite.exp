@@ -23,23 +23,46 @@ if ![check_effective_target_fgraphite] {
   return
 }
 
+# Remove VALUE from LIST_VARIABLE.
+proc lremove {list_variable value} {
+    upvar 1 $list_variable var
+    set idx [lsearch -exact $var $value]
+    set var [lreplace $var $idx $idx]
+}
+
 # The default action for a test is 'compile'.  Save current default.
 global dg-do-what-default
 set save-dg-do-what-default ${dg-do-what-default}
-set dg-do-what-default compile
-
-# If a testcase doesn't have special options, use these.
-global DEFAULT_CFLAGS
-if ![info exists DEFAULT_CFLAGS] then {
-    set DEFAULT_CFLAGS " -ansi -pedantic-errors"
-}
 
 # Initialize `dg'.
 dg-init
 
-# Main loop.
-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.C]] \
-	"" $DEFAULT_CFLAGS
+set wait_to_run_files [lsort [glob -nocomplain $srcdir/$subdir/*.C ] ]
+set scop_files        [lsort [glob -nocomplain $srcdir/$subdir/scop-*.C ] ]
+set id_files          [lsort [glob -nocomplain $srcdir/$subdir/id-*.C ] ]
+set run_id_files      [lsort [glob -nocomplain $srcdir/$subdir/run-id-*.C ] ]
+set interchange_files [lsort [glob -nocomplain $srcdir/$subdir/interchange-*.C ] ]
+set block_files       [lsort [glob -nocomplain $srcdir/$subdir/block-*.C ] ]
+
+# Tests to be compiled.
+set dg-do-what-default compile
+dg-runtest $scop_files        "" "-O2 -fgraphite -fdump-tree-graphite-all"
+dg-runtest $id_files          "" "-O2 -fgraphite-identity -ffast-math"
+
+# Tests to be run.
+set dg-do-what-default run
+dg-runtest $run_id_files      "" "-O2 -fgraphite-identity"
+dg-runtest $interchange_files "" "-O2 -floop-interchange -fno-loop-block -fno-loop-strip-mine -ffast-math -fdump-tree-graphite-all"
+dg-runtest $block_files       "" "-O2 -floop-block -fno-loop-strip-mine -fno-loop-interchange -ffast-math -fdump-tree-graphite-all"
+
+# The default action for the rest of the files is 'compile'.
+set dg-do-what-default compile
+foreach f $scop_files        {lremove wait_to_run_files $f}
+foreach f $id_files          {lremove wait_to_run_files $f}
+foreach f $run_id_files      {lremove wait_to_run_files $f}
+foreach f $interchange_files {lremove wait_to_run_files $f}
+foreach f $block_files       {lremove wait_to_run_files $f}
+dg-runtest $wait_to_run_files "" "-ansi -pedantic-errors"
 
 # Clean up.
 set dg-do-what-default ${save-dg-do-what-default}

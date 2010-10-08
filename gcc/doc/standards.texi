@@ -1,5 +1,5 @@
-@c Copyright (C) 2000, 2001, 2002, 2004, 2006, 2007, 2008 Free Software Foundation,
-@c Inc.
+@c Copyright (C) 2000, 2001, 2002, 2004, 2006, 2007, 2008, 2010
+@c Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -33,6 +33,8 @@ with some exceptions, and possibly with some extensions.
 @cindex C99
 @cindex ISO C9X
 @cindex C9X
+@cindex ISO C1X
+@cindex C1X
 @cindex Technical Corrigenda
 @cindex TC1
 @cindex Technical Corrigendum 1
@@ -63,7 +65,7 @@ This standard, in both its forms, is commonly known as @dfn{C89}, or
 occasionally as @dfn{C90}, from the dates of ratification.  The ANSI
 standard, but not the ISO standard, also came with a Rationale
 document.  To select this standard in GCC, use one of the options
-@option{-ansi}, @option{-std=c89} or @option{-std=iso9899:1990}; to obtain
+@option{-ansi}, @option{-std=c90} or @option{-std=iso9899:1990}; to obtain
 all the diagnostics required by the standard, you should also specify
 @option{-pedantic} (or @option{-pedantic-errors} if you want them to be
 errors rather than warnings).  @xref{C Dialect Options,,Options
@@ -93,18 +95,23 @@ Errors in the 1999 ISO C standard were corrected in three Technical
 Corrigenda published in 2001, 2004 and 2007.  GCC does not support the
 uncorrected version.
 
+A fourth version of the C standard, known as @dfn{C1X}, is under
+development; GCC has limited preliminary support for parts of this
+standard, enabled with @option{-std=c1x}.
+
 By default, GCC provides some extensions to the C language that on
 rare occasions conflict with the C standard.  @xref{C
 Extensions,,Extensions to the C Language Family}.  Use of the
 @option{-std} options listed above will disable these extensions where
 they conflict with the C standard version selected.  You may also
 select an extended version of the C language explicitly with
-@option{-std=gnu89} (for C89 with GNU extensions) or @option{-std=gnu99}
-(for C99 with GNU extensions).  The default, if no C language dialect
-options are given, is @option{-std=gnu89}; this will change to
+@option{-std=gnu90} (for C90 with GNU extensions), @option{-std=gnu99}
+(for C99 with GNU extensions) or @option{-std=gnu1x} (for C1X with GNU
+extensions).  The default, if no C language dialect
+options are given, is @option{-std=gnu90}; this will change to
 @option{-std=gnu99} in some future release when the C99 support is
 complete.  Some features that are part of the C99 standard are
-accepted as extensions in C89 mode.
+accepted as extensions in C90 mode.
 
 The ISO C standard defines (in clause 4) two classes of conforming
 implementation.  A @dfn{conforming hosted implementation} supports the
@@ -181,9 +188,9 @@ changes to the C++ language, some of which have been implemented in an
 experimental C++0x mode in GCC@. The C++0x mode in GCC tracks the draft
 working paper for the C++0x standard; the latest working paper is
 available on the ISO C++ committee's web site at
-@uref{http://www.open-std.org/jtc1/sc22/wg21/}. For information
+@uref{http://www.open-std.org/@/jtc1/@/sc22/@/wg21/}. For information
 regarding the C++0x features available in the experimental C++0x mode,
-see @uref{http://gcc.gnu.org/gcc-4.3/cxx0x_status.html}. To select this
+see @uref{http://gcc.gnu.org/projects/@/cxx0x.html}. To select this
 standard in GCC, use the option @option{-std=c++0x}; to obtain all the
 diagnostics required by the standard, you should also specify
 @option{-pedantic} (or @option{-pedantic-errors} if you want them to be
@@ -201,23 +208,53 @@ no C++ language dialect options are given, is @option{-std=gnu++98}.
 @cindex Objective-C
 @cindex Objective-C++
 
-There is no formal written standard for Objective-C or Objective-C++@.  The most
-authoritative manual is ``Object-Oriented Programming and the
-Objective-C Language'', available at a number of web sites:
+GCC supports ``traditional'' Objective-C (also known as ``Objective-C
+1.0''), and contains support for the Objective-C exception and
+synchronization syntax.  At the time of writing, it has no support for
+``Objective-C 2.0'' language extensions.  GCC supports Objective-C++
+and features available in Objective-C are also available in
+Objective-C++@.
 
+GCC by default uses the GNU Objective-C runtime library, which is part
+of GCC and is not the same as the Apple/NeXT Objective-C runtime
+library used on Apple systems.  There are a number of differences
+documented in this manual.  The options @option{-fgnu-runtime} and
+@option{-fnext-runtime} allow you to switch between producing output
+that works with the GNU Objective-C runtime library and output that
+works with the Apple/NeXT Objective-C runtime library.
+
+There is no formal written standard for Objective-C or Objective-C++@.
+The authoritative manual on traditional Objective-C (1.0) is
+``Object-Oriented Programming and the Objective-C Language'',
+available at a number of web sites:
 @itemize
 @item
-@uref{http://developer.apple.com/mac/library/documentation/Cocoa/Conceptual/ObjectiveC/}
-is a recent (and periodically updated) version;
+@uref{http://www.gnustep.org/@/resources/@/documentation/@/ObjectivCBook.pdf}
+is the original NeXTstep document;
 @item
 @uref{http://objc.toodarkpark.net}
-is an older example;
+is the same document in another format;
 @item
-@uref{http://www.gnustep.org}
-and
-@uref{http://gcc.gnu.org/readings.html}
-have additional useful information.
+@uref{http://developer.apple.com/@/mac/@/library/@/documentation/@/Cocoa/@/Conceptual/@/ObjectiveC/}
+has an updated version but make sure you search for ``Object Oriented Programming and the Objective-C Programming Language 1.0'',
+not documentation on the newer ``Objective-C 2.0'' language
 @end itemize
+
+The Objective-C exception and synchronization syntax (that is, the
+keywords @@try, @@throw, @@catch, @@finally and @@synchronized) is
+fully supported by GCC and is enabled with the option
+@option{-fobjc-exceptions}.  The syntax is briefly documented in this
+manual and in the Objective-C 2.0 manuals from Apple.
+
+At the time of writing, GCC supports no Objective-C 2.0 features.  The
+authoritative manual on Objective-C 2.0 is available from Apple:
+@itemize
+@item
+@uref{http://developer.apple.com/@/mac/@/library/@/documentation/@/Cocoa/@/Conceptual/@/ObjectiveC/}
+@end itemize
+
+For more information concerning the history of Objective-C that is
+available online, see @uref{http://gcc.gnu.org/readings.html}
 
 @xref{Top, GNAT Reference Manual, About This Guide, gnat_rm,
 GNAT Reference Manual}, for information on standard

@@ -1,8 +1,9 @@
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "is_IS" }
+// { dg-require-namedlocale "en_US" }
 
 // 2004-02-09  Petur Runolfsson  <peturr02@ru.is>
 
-// Copyright (C) 2004, 2005, 2009 Free Software Foundation
+// Copyright (C) 2004, 2005, 2009, 2010 Free Software Foundation
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -39,7 +40,7 @@ void test01()
   if (loc.name() != "*")
     {
       locale::global(loc);
-      VERIFY( loc.name() == setlocale(LC_ALL, NULL) );
+      VERIFY( loc.name() == setlocale(LC_ALL, 0) );
     }
 }
 

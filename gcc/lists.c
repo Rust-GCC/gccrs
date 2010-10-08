@@ -23,6 +23,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "rtl.h"
 #include "ggc.h"
@@ -51,12 +52,12 @@ free_list (rtx *listp, rtx *unused_listp)
 
   gcc_assert (unused_listp != &unused_insn_list
 	      || GET_CODE (prev_link) == INSN_LIST);
-  
+
   while (link)
     {
       gcc_assert (unused_listp != &unused_insn_list
 		  || GET_CODE (prev_link) == INSN_LIST);
-  
+
       prev_link = link;
       link = XEXP (link, 1);
     }

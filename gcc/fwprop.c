@@ -1,5 +1,6 @@
 /* RTL-based forward propagation pass for GNU compiler.
-   Copyright (C) 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Paolo Bonzini and Steven Bosscher.
 
 This file is part of GCC.
@@ -22,12 +23,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 
 #include "timevar.h"
 #include "rtl.h"
 #include "tm_p.h"
-#include "emit-rtl.h"
 #include "insn-config.h"
 #include "recog.h"
 #include "flags.h"
@@ -39,6 +40,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "tree-pass.h"
 #include "domwalk.h"
+#include "emit-rtl.h"
 
 
 /* This pass does simple forward propagation and simplification when an
@@ -118,10 +120,16 @@ static int num_changes;
 
 DEF_VEC_P(df_ref);
 DEF_VEC_ALLOC_P(df_ref,heap);
-VEC(df_ref,heap) *use_def_ref;
-VEC(df_ref,heap) *reg_defs;
-VEC(df_ref,heap) *reg_defs_stack;
+static VEC(df_ref,heap) *use_def_ref;
+static VEC(df_ref,heap) *reg_defs;
+static VEC(df_ref,heap) *reg_defs_stack;
 
+/* The MD bitmaps are trimmed to include only live registers to cut
+   memory usage on testcases like insn-recog.c.  Track live registers
+   in the basic block and do not perform forward propagation if the
+   destination is a dead pseudo occurring in a note.  */
+static bitmap local_md;
+static bitmap local_lr;
 
 /* Return the only def in USE's use-def chain, or NULL if there is
    more than one def in the chain.  */
@@ -143,7 +151,7 @@ get_def_for_use (df_ref use)
 	(DF_REF_PARTIAL | DF_REF_CONDITIONAL | DF_REF_MAY_CLOBBER)
 
 static void
-process_defs (bitmap local_md, df_ref *def_rec, int top_flag)
+process_defs (df_ref *def_rec, int top_flag)
 {
   df_ref def;
   while ((def = *def_rec++) != NULL)
@@ -188,7 +196,7 @@ process_defs (bitmap local_md, df_ref *def_rec, int top_flag)
    is an artificial use vector.  */
 
 static void
-process_uses (bitmap local_md, df_ref *use_rec, int top_flag)
+process_uses (df_ref *use_rec, int top_flag)
 {
   df_ref use;
   while ((use = *use_rec++) != NULL)
@@ -196,7 +204,8 @@ process_uses (bitmap local_md, df_ref *use_rec, int top_flag)
       {
         unsigned int uregno = DF_REF_REGNO (use);
         if (VEC_index (df_ref, reg_defs, uregno)
-	    && !bitmap_bit_p (local_md, uregno))
+	    && !bitmap_bit_p (local_md, uregno)
+	    && bitmap_bit_p (local_lr, uregno))
 	  VEC_replace (df_ref, use_def_ref, DF_REF_ID (use),
 		       VEC_index (df_ref, reg_defs, uregno));
       }
@@ -204,32 +213,39 @@ process_uses (bitmap local_md, df_ref *use_rec, int top_flag)
 
 
 static void
-single_def_use_enter_block (struct dom_walk_data *walk_data, basic_block bb)
+single_def_use_enter_block (struct dom_walk_data *walk_data ATTRIBUTE_UNUSED,
+			    basic_block bb)
 {
-  bitmap local_md = (bitmap) walk_data->global_data;
   int bb_index = bb->index;
-  struct df_md_bb_info *bb_info = df_md_get_bb_info (bb_index);
+  struct df_md_bb_info *md_bb_info = df_md_get_bb_info (bb_index);
+  struct df_lr_bb_info *lr_bb_info = df_lr_get_bb_info (bb_index);
   rtx insn;
 
-  bitmap_copy (local_md, bb_info->in);
+  bitmap_copy (local_md, &md_bb_info->in);
+  bitmap_copy (local_lr, &lr_bb_info->in);
 
   /* Push a marker for the leave_block callback.  */
   VEC_safe_push (df_ref, heap, reg_defs_stack, NULL);
 
-  process_uses (local_md, df_get_artificial_uses (bb_index), DF_REF_AT_TOP);
-  process_defs (local_md, df_get_artificial_defs (bb_index), DF_REF_AT_TOP);
+  process_uses (df_get_artificial_uses (bb_index), DF_REF_AT_TOP);
+  process_defs (df_get_artificial_defs (bb_index), DF_REF_AT_TOP);
+
+  /* We don't call df_simulate_initialize_forwards, as it may overestimate
+     the live registers if there are unused artificial defs.  We prefer
+     liveness to be underestimated.  */
 
   FOR_BB_INSNS (bb, insn)
     if (INSN_P (insn))
       {
         unsigned int uid = INSN_UID (insn);
-        process_uses (local_md, DF_INSN_UID_USES (uid), 0);
-        process_uses (local_md, DF_INSN_UID_EQ_USES (uid), 0);
-        process_defs (local_md, DF_INSN_UID_DEFS (uid), 0);
+        process_uses (DF_INSN_UID_USES (uid), 0);
+        process_uses (DF_INSN_UID_EQ_USES (uid), 0);
+        process_defs (DF_INSN_UID_DEFS (uid), 0);
+	df_simulate_one_insn_forwards (bb, insn, local_lr);
       }
 
-  process_uses (local_md, df_get_artificial_uses (bb_index), 0);
-  process_defs (local_md, df_get_artificial_defs (bb_index), 0);
+  process_uses (df_get_artificial_uses (bb_index), 0);
+  process_defs (df_get_artificial_defs (bb_index), 0);
 }
 
 /* Pop the definitions created in this basic block when leaving its
@@ -260,12 +276,12 @@ static void
 build_single_def_use_links (void)
 {
   struct dom_walk_data walk_data;
-  bitmap local_md;
 
   /* We use the multiple definitions problem to compute our restricted
      use-def chains.  */
   df_set_flags (DF_EQ_NOTES);
   df_md_add_problem ();
+  df_note_add_problem ();
   df_analyze ();
   df_maybe_reorganize_use_refs (DF_REF_ORDER_BY_INSN_WITH_NOTES);
 
@@ -277,6 +293,7 @@ build_single_def_use_links (void)
 
   reg_defs_stack = VEC_alloc (df_ref, heap, n_basic_blocks * 10);
   local_md = BITMAP_ALLOC (NULL);
+  local_lr = BITMAP_ALLOC (NULL);
 
   /* Walk the dominator tree looking for single reaching definitions
      dominating the uses.  This is similar to how SSA form is built.  */
@@ -284,12 +301,12 @@ build_single_def_use_links (void)
   walk_data.initialize_block_local_data = NULL;
   walk_data.before_dom_children = single_def_use_enter_block;
   walk_data.after_dom_children = single_def_use_leave_block;
-  walk_data.global_data = local_md;
 
   init_walk_dominator_tree (&walk_data);
   walk_dominator_tree (&walk_data, ENTRY_BLOCK_PTR);
   fini_walk_dominator_tree (&walk_data);
 
+  BITMAP_FREE (local_lr);
   BITMAP_FREE (local_md);
   VEC_free (df_ref, heap, reg_defs);
   VEC_free (df_ref, heap, reg_defs_stack);
@@ -806,17 +823,23 @@ all_uses_available_at (rtx def_insn, rtx target_insn)
     }
   else
     {
+      rtx def_reg = REG_P (SET_DEST (def_set)) ? SET_DEST (def_set) : NULL_RTX;
+
       /* Look at all the uses of DEF_INSN, and see if they are not
 	 killed between DEF_INSN and TARGET_INSN.  */
       for (use_rec = DF_INSN_INFO_USES (insn_info); *use_rec; use_rec++)
 	{
 	  df_ref use = *use_rec;
+	  if (def_reg && rtx_equal_p (DF_REF_REG (use), def_reg))
+	    return false;
 	  if (use_killed_between (use, def_insn, target_insn))
 	    return false;
 	}
       for (use_rec = DF_INSN_INFO_EQ_USES (insn_info); *use_rec; use_rec++)
 	{
 	  df_ref use = *use_rec;
+	  if (def_reg && rtx_equal_p (DF_REF_REG (use), def_reg))
+	    return false;
 	  if (use_killed_between (use, def_insn, target_insn))
 	    return false;
 	}
@@ -885,28 +908,17 @@ update_df (rtx insn, rtx *loc, df_ref *use_rec, enum df_ref_type type,
     {
       df_ref use = *use_rec;
       df_ref orig_use = use, new_use;
-      int width = -1;
-      int offset = -1;
-      enum machine_mode mode = VOIDmode;
       rtx *new_loc = find_occurrence (loc, DF_REF_REG (orig_use));
       use_rec++;
 
       if (!new_loc)
 	continue;
 
-      if (DF_REF_FLAGS_IS_SET (orig_use, DF_REF_SIGN_EXTRACT | DF_REF_ZERO_EXTRACT))
-	{
-	  width = DF_REF_EXTRACT_WIDTH (orig_use);
-	  offset = DF_REF_EXTRACT_OFFSET (orig_use);
-	  mode = DF_REF_EXTRACT_MODE (orig_use);
-	}
-
       /* Add a new insn use.  Use the original type, because it says if the
          use was within a MEM.  */
       new_use = df_ref_create (DF_REF_REG (orig_use), new_loc,
 			       insn, BLOCK_FOR_INSN (insn),
-			       type, DF_REF_FLAGS (orig_use) | new_flags, 
-			       width, offset, mode);
+			       type, DF_REF_FLAGS (orig_use) | new_flags);
 
       /* Set up the use-def chain.  */
       gcc_assert (DF_REF_ID (new_use) == (int) VEC_length (df_ref, use_def_ref));
@@ -1027,7 +1039,7 @@ free_load_extend (rtx src, rtx insn)
 {
   rtx reg;
   df_ref *use_vec;
-  df_ref use, def;
+  df_ref use = 0, def;
 
   reg = XEXP (src, 0);
 #ifdef LOAD_EXTEND_OP
@@ -1282,10 +1294,11 @@ forward_propagate_and_simplify (df_ref use, rtx def_insn, rtx def_set)
 	loc = &SET_SRC (use_set);
 
       /* Do not replace an existing REG_EQUAL note if the insn is not
-	 recognized.  Either we're already replacing in the note, or
-	 we'll separately try plugging the definition in the note and
-	 simplifying.  */
-      set_reg_equal = (note == NULL_RTX);
+	 recognized.  Either we're already replacing in the note, or we'll
+	 separately try plugging the definition in the note and simplifying.
+	 And only install a REQ_EQUAL note when the destination is a REG,
+	 as the note would be invalid otherwise.  */
+      set_reg_equal = (note == NULL_RTX && REG_P (SET_DEST (use_set)));
     }
 
   if (GET_MODE (*loc) == VOIDmode)
@@ -1385,9 +1398,7 @@ fwprop_done (void)
     fprintf (dump_file,
 	     "\nNumber of successful forward propagations: %d\n\n",
 	     num_changes);
-  df_remove_problem (df_chain);
 }
-
 
 
 /* Main entry point.  */

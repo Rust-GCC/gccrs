@@ -1,5 +1,5 @@
 /* Definitions of Tensilica's Xtensa target machine for GNU compiler.
-   Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Bob Wilson (bwilson@tensilica.com) at Tensilica.
 
@@ -21,9 +21,6 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Get Xtensa configuration settings */
 #include "xtensa-config.h"
-
-/* Standard GCC variables that we reference.  */
-extern int optimize;
 
 /* External variables defined in xtensa.c.  */
 
@@ -73,20 +70,6 @@ extern unsigned xtensa_current_frame_size;
 #ifndef HAVE_AS_TLS
 #define HAVE_AS_TLS 0
 #endif
-
-#define OVERRIDE_OPTIONS override_options ()
-
-/* Reordering blocks for Xtensa is not a good idea unless the compiler
-   understands the range of conditional branches.  Currently all branch
-   relaxation for Xtensa is handled in the assembler, so GCC cannot do a
-   good job of reordering blocks.  Do not enable reordering unless it is
-   explicitly requested.  */
-#define OPTIMIZATION_OPTIONS(LEVEL, SIZE)				\
-  do									\
-    {									\
-      flag_reorder_blocks = 0;						\
-    }									\
-  while (0)
 
 
 /* Target CPU builtins.  */
@@ -286,7 +269,7 @@ extern unsigned xtensa_current_frame_size;
    incoming argument in a2 is live throughout the function and
    local-alloc decides to use a2, then the incoming argument must
    either be spilled or copied to another register.  To get around
-   this, we define ORDER_REGS_FOR_LOCAL_ALLOC to redefine
+   this, we define ADJUST_REG_ALLOC_ORDER to redefine
    reg_alloc_order for leaf functions such that lowest numbered
    registers are used first with the exception that the incoming
    argument registers are not used until after other register choices
@@ -300,7 +283,7 @@ extern unsigned xtensa_current_frame_size;
   35, \
 }
 
-#define ORDER_REGS_FOR_LOCAL_ALLOC order_regs_for_local_alloc ()
+#define ADJUST_REG_ALLOC_ORDER order_regs_for_local_alloc ()
 
 /* For Xtensa, the only point of this is to prevent GCC from otherwise
    giving preference to call-used registers.  To minimize window
@@ -477,10 +460,10 @@ extern const enum reg_class xtensa_regno_to_class[FIRST_PSEUDO_REGISTER];
 #define BASE_REG_CLASS AR_REGS
 #define INDEX_REG_CLASS NO_REGS
 
-/* SMALL_REGISTER_CLASSES is required for Xtensa, because all of the
-   16 AR registers may be explicitly used in the RTL, as either
-   incoming or outgoing arguments.  */
-#define SMALL_REGISTER_CLASSES 1
+/* The small_register_classes_for_mode_p hook must always return true for
+   Xtrnase, because all of the 16 AR registers may be explicitly used in
+   the RTL, as either incoming or outgoing arguments.  */
+#define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
 
 #define PREFERRED_RELOAD_CLASS(X, CLASS)				\
   xtensa_preferred_reload_class (X, CLASS, 0)
@@ -546,9 +529,6 @@ extern const enum reg_class xtensa_regno_to_class[FIRST_PSEUDO_REGISTER];
 /* Align stack frames on 128 bits for Xtensa.  This is necessary for
    128-bit datatypes defined in TIE (e.g., for Vectra).  */
 #define STACK_BOUNDARY 128
-
-/* Functions do not pop arguments off the stack.  */
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, SIZE) 0
 
 /* Use a fixed register window size of 8.  */
 #define WINDOW_SIZE 8
@@ -620,18 +600,6 @@ typedef struct xtensa_args
 
 #define INIT_CUMULATIVE_INCOMING_ARGS(CUM, FNTYPE, LIBNAME)		\
   init_cumulative_args (&CUM, 1)
-
-/* Update the data in CUM to advance over an argument
-   of mode MODE and data type TYPE.
-   (TYPE is null for libcalls where that information may not be available.)  */
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)			\
-  function_arg_advance (&CUM, MODE, TYPE)
-
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-  function_arg (&CUM, MODE, TYPE, FALSE)
-
-#define FUNCTION_INCOMING_ARG(CUM, MODE, TYPE, NAMED) \
-  function_arg (&CUM, MODE, TYPE, TRUE)
 
 #define FUNCTION_ARG_BOUNDARY function_arg_boundary
 

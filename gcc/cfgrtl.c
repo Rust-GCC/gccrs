@@ -1,6 +1,6 @@
 /* Control flow graph manipulation code for GNU compiler.
    Copyright (C) 1987, 1988, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -42,7 +42,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "rtl.h"
 #include "hard-reg-set.h"
 #include "basic-block.h"
 #include "regs.h"
@@ -50,7 +49,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "output.h"
 #include "function.h"
 #include "except.h"
-#include "toplev.h"
+#include "rtl-error.h"
 #include "tm_p.h"
 #include "obstack.h"
 #include "insn-attr.h"
@@ -422,7 +421,10 @@ rest_of_pass_free_cfg (void)
   /* The resource.c machinery uses DF but the CFG isn't guaranteed to be
      valid at that point so it would be too late to call df_analyze.  */
   if (optimize > 0 && flag_delayed_branch)
-    df_analyze ();
+    {
+      df_note_add_problem ();
+      df_analyze ();
+    }
 #endif
 
   free_bb_for_insn ();
@@ -470,7 +472,7 @@ emit_insn_at_entry (rtx insn)
 }
 
 /* Update BLOCK_FOR_INSN of insns between BEGIN and END
-   (or BARRIER if found) and notify df of the bb change. 
+   (or BARRIER if found) and notify df of the bb change.
    The insn chain range is inclusive
    (i.e. both BEGIN and END will be updated. */
 
@@ -994,6 +996,9 @@ patch_jump_insn (rtx insn, rtx old_label, basic_block new_bb)
 	      && !find_reg_note (insn, REG_LABEL_TARGET, new_label))
 	    add_reg_note (insn, REG_LABEL_TARGET, new_label);
 	}
+      while ((note = find_reg_note (insn, REG_LABEL_OPERAND, old_label))
+	     != NULL_RTX)
+	XEXP (note, 0) = new_label;
     }
   else
     {
@@ -1256,7 +1261,7 @@ force_nonfallthru_and_redirect (edge e, basic_block target)
   if (abnormal_edge_flags)
     make_edge (src, target, abnormal_edge_flags);
 
-  df_mark_solutions_dirty (); 
+  df_mark_solutions_dirty ();
   return new_bb;
 }
 
@@ -1407,7 +1412,22 @@ rtl_split_edge (edge edge_in)
       gcc_assert (redirected);
     }
   else
-    redirect_edge_succ (edge_in, bb);
+    {
+      if (edge_in->src != ENTRY_BLOCK_PTR)
+	{
+	  /* For asm goto even splitting of fallthru edge might
+	     need insn patching, as other labels might point to the
+	     old label.  */
+	  rtx last = BB_END (edge_in->src);
+	  if (last
+	      && JUMP_P (last)
+	      && edge_in->dest != EXIT_BLOCK_PTR
+	      && extract_asm_operands (PATTERN (last)) != NULL_RTX
+	      && patch_jump_insn (last, before, bb))
+	    df_set_bb_dirty (edge_in->src);
+	}
+      redirect_edge_succ (edge_in, bb);
+    }
 
   return bb;
 }
@@ -1504,24 +1524,11 @@ commit_one_edge_insertion (edge e)
 	      && targetm.have_named_sections
 	      && e->src != ENTRY_BLOCK_PTR
 	      && BB_PARTITION (e->src) == BB_COLD_PARTITION
-	      && !(e->flags & EDGE_CROSSING))
-	    {
-	      rtx bb_note, cur_insn;
-
-	      bb_note = NULL_RTX;
-	      for (cur_insn = BB_HEAD (bb); cur_insn != NEXT_INSN (BB_END (bb));
-		   cur_insn = NEXT_INSN (cur_insn))
-		if (NOTE_INSN_BASIC_BLOCK_P (cur_insn))
-		  {
-		    bb_note = cur_insn;
-		    break;
-		  }
-
-	      if (JUMP_P (BB_END (bb))
-		  && !any_condjump_p (BB_END (bb))
-		  && (single_succ_edge (bb)->flags & EDGE_CROSSING))
-		add_reg_note (BB_END (bb), REG_CROSSING_JUMP, NULL_RTX);
-	    }
+	      && !(e->flags & EDGE_CROSSING)
+	      && JUMP_P (after)
+	      && !any_condjump_p (after)
+	      && (single_succ_edge (bb)->flags & EDGE_CROSSING))
+	    add_reg_note (after, REG_CROSSING_JUMP, NULL_RTX);
 	}
     }
 
@@ -1625,7 +1632,7 @@ rtl_dump_bb (basic_block bb, FILE *outf, int indent, int flags ATTRIBUTE_UNUSED)
   s_indent = (char *) alloca ((size_t) indent + 1);
   memset (s_indent, ' ', (size_t) indent);
   s_indent[indent] = '\0';
-  
+
   if (df)
     {
       df_dump_top (bb, outf);
@@ -1692,7 +1699,7 @@ print_rtl_with_bb (FILE *outf, const_rtx rtx_first)
 	    {
 	      edge e;
 	      edge_iterator ei;
-	      
+
 	      fprintf (outf, ";; Start of basic block (");
 	      FOR_EACH_EDGE (e, ei, bb->preds)
 		fprintf (outf, " %d", e->src->index);
@@ -3038,7 +3045,7 @@ rtl_lv_add_condition_to_bb (basic_block first_head ,
   op0 = force_operand (op0, NULL_RTX);
   op1 = force_operand (op1, NULL_RTX);
   do_compare_rtx_and_jump (op0, op1, comp, 0,
-			   mode, NULL_RTX, NULL_RTX, label);
+			   mode, NULL_RTX, NULL_RTX, label, -1);
   jump = get_last_insn ();
   JUMP_LABEL (jump) = label;
   LABEL_NUSES (label)++;
@@ -3075,7 +3082,7 @@ void
 init_rtl_bb_info (basic_block bb)
 {
   gcc_assert (!bb->il.rtl);
-  bb->il.rtl = GGC_CNEW (struct rtl_bb_info);
+  bb->il.rtl = ggc_alloc_cleared_rtl_bb_info ();
 }
 
 
@@ -3136,10 +3143,10 @@ insert_insn_end_bb_new (rtx pat, basic_block bb)
            && (!single_succ_p (bb)
                || single_succ_edge (bb)->flags & EDGE_ABNORMAL))
     {
-      /* Keeping in mind SMALL_REGISTER_CLASSES and parameters in registers,
-         we search backward and place the instructions before the first
-         parameter is loaded.  Do this for everyone for consistency and a
-         presumption that we'll get better code elsewhere as well.  */
+      /* Keeping in mind targets with small register classes and parameters
+         in registers, we search backward and place the instructions before
+	 the first parameter is loaded.  Do this for everyone for consistency
+	 and a presumption that we'll get better code elsewhere as well.  */
 
       /* Since different machines initialize their parameter registers
          in different orders, assume nothing.  Collect the set of all

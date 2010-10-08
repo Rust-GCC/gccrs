@@ -1,6 +1,6 @@
 /* Simple garbage collection for the GNU compiler.
-   Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
-   Free Software Foundation, Inc.
+   Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
+   2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -26,12 +26,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "hashtab.h"
 #include "ggc.h"
+#include "ggc-internal.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "params.h"
 #include "hosthooks.h"
 #include "hosthooks-def.h"
 #include "plugin.h"
 #include "vec.h"
+#include "timevar.h"
 
 #ifdef HAVE_SYS_RESOURCE_H
 # include <sys/resource.h>
@@ -41,7 +44,7 @@ along with GCC; see the file COPYING3.  If not see
 # include <sys/mman.h>
 # ifdef HAVE_MINCORE
 /* This is on Solaris.  */
-#  include <sys/types.h> 
+#  include <sys/types.h>
 # endif
 #endif
 
@@ -69,7 +72,6 @@ static int compare_ptr_data (const void *, const void *);
 static void relocate_ptrs (void *, void *);
 static void write_pch_globals (const struct ggc_root_tab * const *tab,
 			       struct traversal_state *state);
-static double ggc_rlimit_bound (double);
 
 /* Maintain global roots that are preserved during GC.  */
 
@@ -101,7 +103,7 @@ static VEC(const_ggc_root_tab_t, heap) *extra_root_vec;
 /* Dynamically register a new GGC root table RT. This is useful for
    plugins. */
 
-void 
+void
 ggc_register_root_tab (const struct ggc_root_tab* rt)
 {
   if (rt)
@@ -145,14 +147,25 @@ ggc_scan_cache_tab (const_ggc_cache_tab_t ctp)
       }
 }
 
+/* Mark all the roots in the table RT.  */
+
+static void
+ggc_mark_root_tab (const_ggc_root_tab_t rt)
+{
+  size_t i;
+
+  for ( ; rt->base != NULL; rt++)
+    for (i = 0; i < rt->nelt; i++)
+      (*rt->cb) (*(void **) ((char *)rt->base + rt->stride * i));
+}
+
 /* Iterate through all registered roots and mark each element.  */
 
 void
 ggc_mark_roots (void)
 {
   const struct ggc_root_tab *const *rt;
-  const struct ggc_root_tab *rti;
-  const_ggc_root_tab_t rtp;
+  const_ggc_root_tab_t rtp, rti;
   const struct ggc_cache_tab *const *ct;
   const_ggc_cache_tab_t ctp;
   size_t i;
@@ -162,16 +175,10 @@ ggc_mark_roots (void)
       memset (rti->base, 0, rti->stride);
 
   for (rt = gt_ggc_rtab; *rt; rt++)
-    for (rti = *rt; rti->base != NULL; rti++)
-      for (i = 0; i < rti->nelt; i++)
-	(*rti->cb) (*(void **)((char *)rti->base + rti->stride * i));
+    ggc_mark_root_tab (*rt);
 
-  for (i = 0; VEC_iterate (const_ggc_root_tab_t, extra_root_vec, i, rtp); i++)
-    {
-      for (rti = rtp; rti->base != NULL; rti++)
-        for (i = 0; i < rti->nelt; i++)
-          (*rti->cb) (*(void **) ((char *)rti->base + rti->stride * i));
-    }
+  FOR_EACH_VEC_ELT (const_ggc_root_tab_t, extra_root_vec, i, rtp)
+    ggc_mark_root_tab (rtp);
 
   if (ggc_protect_identifiers)
     ggc_mark_stringpool ();
@@ -181,7 +188,7 @@ ggc_mark_roots (void)
   for (ct = gt_ggc_cache_rtab; *ct; ct++)
     ggc_scan_cache_tab (*ct);
 
-  for (i = 0; VEC_iterate (const_ggc_cache_tab_t, extra_cache_vec, i, ctp); i++)
+  FOR_EACH_VEC_ELT (const_ggc_cache_tab_t, extra_cache_vec, i, ctp)
     ggc_scan_cache_tab (ctp);
 
   if (! ggc_protect_identifiers)
@@ -193,9 +200,9 @@ ggc_mark_roots (void)
 
 /* Allocate a block of memory, then clear it.  */
 void *
-ggc_alloc_cleared_stat (size_t size MEM_STAT_DECL)
+ggc_internal_cleared_alloc_stat (size_t size MEM_STAT_DECL)
 {
-  void *buf = ggc_alloc_stat (size PASS_MEM_STAT);
+  void *buf = ggc_internal_alloc_stat (size PASS_MEM_STAT);
   memset (buf, 0, size);
   return buf;
 }
@@ -208,7 +215,7 @@ ggc_realloc_stat (void *x, size_t size MEM_STAT_DECL)
   size_t old_size;
 
   if (x == NULL)
-    return ggc_alloc_stat (size PASS_MEM_STAT);
+    return ggc_internal_alloc_stat (size PASS_MEM_STAT);
 
   old_size = ggc_get_size (x);
 
@@ -230,7 +237,7 @@ ggc_realloc_stat (void *x, size_t size MEM_STAT_DECL)
       return x;
     }
 
-  r = ggc_alloc_stat (size PASS_MEM_STAT);
+  r = ggc_internal_alloc_stat (size PASS_MEM_STAT);
 
   /* Since ggc_get_size returns the size of the pool, not the size of the
      individually allocated object, we'd access parts of the old object
@@ -246,19 +253,30 @@ ggc_realloc_stat (void *x, size_t size MEM_STAT_DECL)
   return r;
 }
 
-/* Like ggc_alloc_cleared, but performs a multiplication.  */
 void *
-ggc_calloc (size_t s1, size_t s2)
+ggc_cleared_alloc_htab_ignore_args (size_t c ATTRIBUTE_UNUSED,
+				    size_t n ATTRIBUTE_UNUSED)
 {
-  return ggc_alloc_cleared (s1 * s2);
+  gcc_assert (c * n == sizeof (struct htab));
+  return ggc_alloc_cleared_htab ();
+}
+
+/* TODO: once we actually use type information in GGC, create a new tag
+   gt_gcc_ptr_array and use it for pointer arrays.  */
+void *
+ggc_cleared_alloc_ptr_array_two_args (size_t c, size_t n)
+{
+  gcc_assert (sizeof (PTR *) == n);
+  return ggc_internal_cleared_vec_alloc (sizeof (PTR *), c);
 }
 
 /* These are for splay_tree_new_ggc.  */
 void *
-ggc_splay_alloc (int sz, void *nl)
+ggc_splay_alloc (enum gt_types_enum obj_type ATTRIBUTE_UNUSED, int sz,
+		 void *nl)
 {
   gcc_assert (!nl);
-  return ggc_alloc (sz);
+  return ggc_internal_alloc (sz);
 }
 
 void
@@ -501,6 +519,7 @@ gt_pch_save (FILE *f)
 
   gt_pch_save_stringpool ();
 
+  timevar_push (TV_PCH_PTR_REALLOC);
   saving_htab = htab_create (50000, saving_htab_hash, saving_htab_eq, free);
 
   for (rt = gt_ggc_rtab; *rt; rt++)
@@ -515,7 +534,7 @@ gt_pch_save (FILE *f)
 
   /* Prepare the objects for writing, determine addresses and such.  */
   state.f = f;
-  state.d = init_ggc_pch();
+  state.d = init_ggc_pch ();
   state.count = 0;
   htab_traverse (saving_htab, call_count, &state);
 
@@ -523,17 +542,22 @@ gt_pch_save (FILE *f)
 
   /* Try to arrange things so that no relocation is necessary, but
      don't try very hard.  On most platforms, this will always work,
-     and on the rest it's a lot of work to do better.  
+     and on the rest it's a lot of work to do better.
      (The extra work goes in HOST_HOOKS_GT_PCH_GET_ADDRESS and
      HOST_HOOKS_GT_PCH_USE_ADDRESS.)  */
   mmi.preferred_base = host_hooks.gt_pch_get_address (mmi.size, fileno (f));
-      
+
   ggc_pch_this_base (state.d, mmi.preferred_base);
 
   state.ptrs = XNEWVEC (struct ptr_data *, state.count);
   state.ptrs_i = 0;
+
   htab_traverse (saving_htab, call_alloc, &state);
+  timevar_pop (TV_PCH_PTR_REALLOC);
+
+  timevar_push (TV_PCH_PTR_SORT);
   qsort (state.ptrs, state.count, sizeof (*state.ptrs), compare_ptr_data);
+  timevar_pop (TV_PCH_PTR_SORT);
 
   /* Write out all the scalar variables.  */
   for (rt = gt_pch_scalar_rtab; *rt; rt++)
@@ -710,7 +734,7 @@ mmap_gt_pch_get_address (size_t size, int fd)
 }
 
 /* Default version of HOST_HOOKS_GT_PCH_USE_ADDRESS when mmap is present.
-   Map SIZE bytes of FD+OFFSET at BASE.  Return 1 if we succeeded at 
+   Map SIZE bytes of FD+OFFSET at BASE.  Return 1 if we succeeded at
    mapping the data at BASE, -1 if we couldn't.
 
    This version assumes that the kernel honors the START operand of mmap
@@ -734,6 +758,8 @@ mmap_gt_pch_use_address (void *base, size_t size, int fd, size_t offset)
   return addr == base ? 1 : -1;
 }
 #endif /* HAVE_MMAP_FILE */
+
+#if !defined ENABLE_GC_CHECKING && !defined ENABLE_GC_ALWAYS_COLLECT
 
 /* Modify the bound based on rlimits.  */
 static double
@@ -769,7 +795,7 @@ ggc_rlimit_bound (double limit)
 }
 
 /* Heuristic to set a default for GGC_MIN_EXPAND.  */
-int
+static int
 ggc_min_expand_heuristic (void)
 {
   double min_expand = physmem_total();
@@ -788,7 +814,7 @@ ggc_min_expand_heuristic (void)
 }
 
 /* Heuristic to set a default for GGC_MIN_HEAPSIZE.  */
-int
+static int
 ggc_min_heapsize_heuristic (void)
 {
   double phys_kbytes = physmem_total();
@@ -802,7 +828,7 @@ ggc_min_heapsize_heuristic (void)
   phys_kbytes /= 8;
 
 #if defined(HAVE_GETRLIMIT) && defined (RLIMIT_RSS)
-  /* Try not to overrun the RSS limit while doing garbage collection.  
+  /* Try not to overrun the RSS limit while doing garbage collection.
      The RSS limit is only advisory, so no margin is subtracted.  */
  {
    struct rlimit rlim;
@@ -817,7 +843,7 @@ ggc_min_heapsize_heuristic (void)
      the limit, whichever is larger.  If GCC does hit the data limit,
      compilation will fail, so this tries to be conservative.  */
   limit_kbytes = MAX (0, limit_kbytes - MAX (limit_kbytes / 4, 20 * 1024));
-  limit_kbytes = (limit_kbytes * 100) / (110 + ggc_min_expand_heuristic());
+  limit_kbytes = (limit_kbytes * 100) / (110 + ggc_min_expand_heuristic ());
   phys_kbytes = MIN (phys_kbytes, limit_kbytes);
 
   phys_kbytes = MAX (phys_kbytes, 4 * 1024);
@@ -825,13 +851,14 @@ ggc_min_heapsize_heuristic (void)
 
   return phys_kbytes;
 }
+#endif
 
 void
 init_ggc_heuristics (void)
 {
 #if !defined ENABLE_GC_CHECKING && !defined ENABLE_GC_ALWAYS_COLLECT
-  set_param_value ("ggc-min-expand", ggc_min_expand_heuristic());
-  set_param_value ("ggc-min-heapsize", ggc_min_heapsize_heuristic());
+  set_param_value ("ggc-min-expand", ggc_min_expand_heuristic ());
+  set_param_value ("ggc-min-heapsize", ggc_min_heapsize_heuristic ());
 #endif
 }
 
@@ -973,7 +1000,13 @@ ggc_free_overhead (void *ptr)
 {
   PTR *slot = htab_find_slot_with_hash (ptr_hash, ptr, htab_hash_pointer (ptr),
 					NO_INSERT);
-  struct ptr_hash_entry *p = (struct ptr_hash_entry *) *slot;
+  struct ptr_hash_entry *p;
+  /* The pointer might be not found if a PCH read happened between allocation
+     and ggc_free () call.  FIXME: account memory properly in the presence of
+     PCH. */
+  if (!slot)
+      return;
+  p = (struct ptr_hash_entry *) *slot;
   p->loc->freed += p->size;
   htab_clear_slot (ptr_hash, slot);
   free (p);

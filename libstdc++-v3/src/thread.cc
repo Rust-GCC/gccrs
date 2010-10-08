@@ -1,6 +1,6 @@
 // thread -*- C++ -*-
 
-// Copyright (C) 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -58,7 +58,7 @@ namespace std
     int __e = EINVAL;
 
     if (_M_id != id())
-      __e = __gthread_join(_M_id._M_thread, NULL);
+      __e = __gthread_join(_M_id._M_thread, 0);
 
     if (__e)
       __throw_system_error(__e);
@@ -83,6 +83,9 @@ namespace std
   void
   thread::_M_start_thread(__shared_base_type __b)
   {
+    if (!__gthread_active_p())
+      __throw_system_error(int(errc::operation_not_permitted));
+
     __b->_M_this_ptr = __b;
     int __e = __gthread_create(&_M_id._M_thread,
 			       &execute_native_thread_routine, __b.get());

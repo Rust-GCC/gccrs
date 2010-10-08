@@ -1,5 +1,6 @@
 ! { dg-do compile }
 ! { dg-options "-O2 -ftree-loop-linear -fdump-tree-ltrans-all" }
+! { dg-options "-O2 -ftree-loop-linear -fdump-tree-ltrans-all -march=i486" { target { i?86-*-* && ilp32 } } }
 
 Program FOO
   IMPLICIT INTEGER	(I-N)
@@ -26,5 +27,5 @@ Program FOO
 end Program FOO
 
 ! Please do not XFAIL.
-! { dg-final { scan-tree-dump-times "transformed loop" 1 "ltrans"} }
+! { dg-final { scan-tree-dump-times "transformed loop" 1 "ltrans" } }
 ! { dg-final { cleanup-tree-dump "ltrans" } }

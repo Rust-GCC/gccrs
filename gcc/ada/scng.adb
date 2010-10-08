@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -37,9 +37,12 @@ with Uintp;    use Uintp;
 with Urealp;   use Urealp;
 with Widechar; use Widechar;
 
+pragma Warnings (Off);
+--  This package is used also by gnatcoll
 with System.CRC32;
 with System.UTF_32;  use System.UTF_32;
 with System.WCh_Con; use System.WCh_Con;
+pragma Warnings (On);
 
 package body Scng is
 
@@ -325,7 +328,8 @@ package body Scng is
            and then Source (Scan_Ptr + 2) = C
          then
             Scan_Ptr := Scan_Ptr + 1;
-            Error_Msg_S ("no space allowed here");
+            Error_Msg_S -- CODEFIX
+              ("no space allowed here");
             Scan_Ptr := Scan_Ptr + 2;
             return True;
 
@@ -380,16 +384,14 @@ package body Scng is
                Error_Msg_S -- CODEFIX
                  ("two consecutive underlines not permitted");
             else
-               Error_Msg_S -- CODEFIX???
-                 ("underline cannot follow punctuation character");
+               Error_Msg_S ("underline cannot follow punctuation character");
             end if;
 
          else
             if Source (Scan_Ptr - 1) = '_' then
-               Error_Msg_S -- CODEFIX???
-                 ("punctuation character cannot follow underline");
+               Error_Msg_S ("punctuation character cannot follow underline");
             else
-               Error_Msg_S -- CODEFIX???
+               Error_Msg_S
                  ("two consecutive punctuation characters not permitted");
             end if;
          end if;
@@ -514,6 +516,7 @@ package body Scng is
          Base := 10;
          UI_Base := Uint_10;
          UI_Int_Value := Uint_0;
+         Based_Literal_Uses_Colon := False;
          Scale := 0;
          Scan_Integer;
          Point_Scanned := False;
@@ -566,20 +569,13 @@ package body Scng is
                          or else
                        Source (Scan_Ptr + 1) in 'a' .. 'z'))
          then
-            if C = ':' then
-               Obsolescent_Check (Scan_Ptr);
-
-               if Warn_On_Obsolescent_Feature then
-                  Error_Msg_S
-                    ("use of "":"" is an obsolescent feature (RM J.2(3))?");
-                  Error_Msg_S
-                    ("\use ""'#"" instead?");
-               end if;
-            end if;
-
             Accumulate_Checksum (C);
             Base_Char := C;
             UI_Base := UI_Int_Value;
+
+            if Base_Char = ':' then
+               Based_Literal_Uses_Colon := True;
+            end if;
 
             if UI_Base < 2 or else UI_Base > 16 then
                Error_Msg_SC ("base not 2-16");
@@ -658,9 +654,11 @@ package body Scng is
 
                elsif not Identifier_Char (C) then
                   if Base_Char = '#' then
-                     Error_Msg_S ("missing '#");
+                     Error_Msg_S -- CODEFIX
+                       ("missing '#");
                   else
-                     Error_Msg_S ("missing ':");
+                     Error_Msg_S -- CODEFIX
+                       ("missing ':");
                   end if;
 
                   exit;
@@ -750,7 +748,6 @@ package body Scng is
          end if;
 
          Accumulate_Token_Checksum;
-
          return;
       end Nlit;
 
@@ -785,12 +782,12 @@ package body Scng is
 
          procedure Set_String;
          --  Procedure used to distinguish between string and operator symbol.
-         --  On entry the string has been scanned out, and its characters
-         --  start at Token_Ptr and end one character before Scan_Ptr. On exit
-         --  Token is set to Tok_String_Literal or Tok_Operator_Symbol as
-         --  appropriate, and Token_Node is appropriately initialized. In
-         --  addition, in the operator symbol case, Token_Name is
-         --  appropriately set.
+         --  On entry the string has been scanned out, and its characters start
+         --  at Token_Ptr and end one character before Scan_Ptr. On exit Token
+         --  is set to Tok_String_Literal/Tok_Operator_Symbol as appropriate,
+         --  and Token_Node is appropriately initialized. In addition, in the
+         --  operator symbol case, Token_Name is appropriately set, and the
+         --  flags [Wide_]Wide_Character_Found are set appropriately.
 
          ---------------------------
          -- Error_Bad_String_Char --
@@ -875,7 +872,7 @@ package body Scng is
                end if;
             end if;
 
-            Error_Msg_S --  CODEFIX
+            Error_Msg_S -- CODEFIX
               ("missing string quote");
          end Error_Unterminated_String;
 
@@ -1016,7 +1013,10 @@ package body Scng is
 
          Delimiter := Source (Scan_Ptr);
          Accumulate_Checksum (Delimiter);
+
          Start_String;
+         Wide_Character_Found      := False;
+         Wide_Wide_Character_Found := False;
          Scan_Ptr := Scan_Ptr + 1;
 
          --  Loop to scan out characters of string literal
@@ -1096,7 +1096,11 @@ package body Scng is
             Store_String_Char (Code);
 
             if not In_Character_Range (Code) then
-               Wide_Character_Found := True;
+               if In_Wide_Character_Range (Code) then
+                  Wide_Character_Found := True;
+               else
+                  Wide_Wide_Character_Found := True;
+               end if;
             end if;
          end loop;
 
@@ -1208,7 +1212,8 @@ package body Scng is
             Accumulate_Checksum ('&');
 
             if Source (Scan_Ptr + 1) = '&' then
-               Error_Msg_S ("'&'& should be `AND THEN`");
+               Error_Msg_S -- CODEFIX
+                 ("'&'& should be `AND THEN`");
                Scan_Ptr := Scan_Ptr + 2;
                Token := Tok_And;
                return;
@@ -1256,7 +1261,8 @@ package body Scng is
               and then Source (Scan_Ptr + 2) /= '-'
             then
                Token := Tok_Colon_Equal;
-               Error_Msg (":- should be :=", Scan_Ptr);
+               Error_Msg -- CODEFIX
+                 (":- should be :=", Scan_Ptr);
                Scan_Ptr := Scan_Ptr + 2;
                return;
 
@@ -1360,7 +1366,8 @@ package body Scng is
                return;
 
             elsif Source (Scan_Ptr + 1) = '=' then
-               Error_Msg_S ("== should be =");
+               Error_Msg_S -- CODEFIX
+                 ("== should be =");
                Scan_Ptr := Scan_Ptr + 1;
             end if;
 
@@ -1566,25 +1573,9 @@ package body Scng is
             end if;
          end Minus_Case;
 
-         --  Double quote starting a string literal
+         --  Double quote or percent starting a string literal
 
-         when '"' =>
-            Slit;
-            Post_Scan;
-            return;
-
-         --  Percent starting a string literal
-
-         when '%' =>
-            Obsolescent_Check (Token_Ptr);
-
-            if Warn_On_Obsolescent_Feature then
-               Error_Msg_S
-                 ("use of ""'%"" is an obsolescent feature (RM J.2(4))?");
-               Error_Msg_S
-                 ("\use """""" instead?");
-            end if;
-
+         when '"' | '%' =>
             Slit;
             Post_Scan;
             return;
@@ -1662,13 +1653,13 @@ package body Scng is
                   elsif Ada_Version >= Ada_05
                     and then Is_UTF_32_Non_Graphic (UTF_32 (Code))
                   then
-                     Error_Msg
+                     Error_Msg -- CODEFIX????
                        ("(Ada 2005) non-graphic character not permitted " &
                         "in character literal", Wptr);
                   end if;
 
                   if Source (Scan_Ptr) /= ''' then
-                     Error_Msg_S ("missing apostrophe");
+                        Error_Msg_S ("missing apostrophe");
                   else
                      Scan_Ptr := Scan_Ptr + 1;
                   end if;
@@ -1782,7 +1773,8 @@ package body Scng is
             --  Special check for || to give nice message
 
             if Source (Scan_Ptr + 1) = '|' then
-               Error_Msg_S ("""'|'|"" should be `OR ELSE`");
+               Error_Msg_S -- CODEFIX
+                 ("""'|'|"" should be `OR ELSE`");
                Scan_Ptr := Scan_Ptr + 2;
                Token := Tok_Or;
                return;
@@ -1795,6 +1787,7 @@ package body Scng is
                   Style.Check_Vertical_Bar;
                end if;
 
+               Post_Scan;
                return;
             end if;
          end Vertical_Bar_Case;
@@ -1803,17 +1796,10 @@ package body Scng is
 
          when '!' => Exclamation_Case : begin
             Accumulate_Checksum ('!');
-            Obsolescent_Check (Token_Ptr);
-
-            if Warn_On_Obsolescent_Feature then
-               Error_Msg_S
-                 ("use of ""'!"" is an obsolescent feature (RM J.2(2))?");
-               Error_Msg_S
-                 ("\use ""'|"" instead?");
-            end if;
 
             if Source (Scan_Ptr + 1) = '=' then
-               Error_Msg_S ("'!= should be /=");
+               Error_Msg_S -- CODEFIX
+                 ("'!= should be /=");
                Scan_Ptr := Scan_Ptr + 2;
                Token := Tok_Not_Equal;
                return;
@@ -1821,6 +1807,7 @@ package body Scng is
             else
                Scan_Ptr := Scan_Ptr + 1;
                Token := Tok_Vertical_Bar;
+               Post_Scan;
                return;
             end if;
          end Exclamation_Case;
@@ -2061,8 +2048,7 @@ package body Scng is
             --  Punctuation is an error (at start of identifier)
 
             elsif Is_UTF_32_Punctuation (Cat) then
-               Error_Msg
-                 ("identifier cannot start with punctuation", Wptr);
+               Error_Msg ("identifier cannot start with punctuation", Wptr);
                Scan_Ptr := Wptr;
                Name_Len := 0;
                Underline_Found := False;
@@ -2071,8 +2057,7 @@ package body Scng is
             --  Mark character is an error (at start of identifier)
 
             elsif Is_UTF_32_Mark (Cat) then
-               Error_Msg
-                 ("identifier cannot start with mark character", Wptr);
+               Error_Msg ("identifier cannot start with mark character", Wptr);
                Scan_Ptr := Wptr;
                Name_Len := 0;
                Underline_Found := False;

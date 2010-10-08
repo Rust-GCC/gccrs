@@ -1,5 +1,6 @@
 /* Language independent return value optimizations
-   Copyright (C) 2004, 2005, 2007, 2008, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2005, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,16 +23,17 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "rtl.h"
 #include "function.h"
 #include "basic-block.h"
-#include "expr.h"
-#include "diagnostic.h"
+#include "tree-pretty-print.h"
 #include "tree-flow.h"
 #include "timevar.h"
 #include "tree-dump.h"
 #include "tree-pass.h"
 #include "langhooks.h"
+#include "flags.h"	/* For "optimize" in gate_pass_return_slot.
+			   FIXME: That should be up to the pass manager,
+			   but pass_nrv is not in pass_all_optimizations.  */
 
 /* This file implements return value optimizations for functions which
    return aggregate types.
@@ -44,7 +46,7 @@ along with GCC; see the file COPYING3.  If not see
    That copy can often be avoided by directly constructing the return value
    into the final destination mandated by the target's ABI.
 
-   This is basically a generic equivalent to the C++ front-end's 
+   This is basically a generic equivalent to the C++ front-end's
    Named Return Value optimization.  */
 
 struct nrv_data
@@ -104,7 +106,7 @@ finalize_nrv_r (tree *tp, int *walk_subtrees, void *data)
    ever encounter languages which prevent this kind of optimization,
    then we could either have the languages register the optimization or
    we could change the gating function to check the current language.  */
-   
+
 static unsigned int
 tree_nrv (void)
 {
@@ -127,6 +129,12 @@ tree_nrv (void)
 
   /* If the front end already did something like this, don't do it here.  */
   if (DECL_NAME (result))
+    return 0;
+
+  /* If the result has its address taken then it might be modified
+     by means not detected in the following loop.  Bail out in this
+     case.  */
+  if (TREE_ADDRESSABLE (result))
     return 0;
 
   /* Look through each block for assignments to the RESULT_DECL.  */
@@ -178,13 +186,13 @@ tree_nrv (void)
 		  || TREE_ADDRESSABLE (found)
 		  || DECL_ALIGN (found) > DECL_ALIGN (result)
 		  || !useless_type_conversion_p (result_type,
-					        TREE_TYPE (found)))
+						 TREE_TYPE (found)))
 		return 0;
 	    }
 	  else if (gimple_has_lhs (stmt))
 	    {
 	      tree addr = get_base_address (gimple_get_lhs (stmt));
-	       /* If there's any MODIFY of component of RESULT, 
+	       /* If there's any MODIFY of component of RESULT,
 		  then bail out.  */
 	      if (addr && addr == result)
 		return 0;
@@ -218,7 +226,7 @@ tree_nrv (void)
       DECL_ABSTRACT_ORIGIN (result) = DECL_ABSTRACT_ORIGIN (found);
     }
 
-  TREE_ADDRESSABLE (result) = TREE_ADDRESSABLE (found);
+  TREE_ADDRESSABLE (result) |= TREE_ADDRESSABLE (found);
 
   /* Now walk through the function changing all references to VAR to be
      RESULT.  */
@@ -251,6 +259,9 @@ tree_nrv (void)
 	}
     }
 
+  SET_DECL_VALUE_EXPR (found, result);
+  DECL_HAS_VALUE_EXPR_P (found) = 1;
+
   /* FOUND is no longer used.  Ensure it gets removed.  */
   var_ann (found)->used = 0;
   return 0;
@@ -262,7 +273,7 @@ gate_pass_return_slot (void)
   return optimize > 0;
 }
 
-struct gimple_opt_pass pass_nrv = 
+struct gimple_opt_pass pass_nrv =
 {
  {
   GIMPLE_PASS,
@@ -285,23 +296,22 @@ struct gimple_opt_pass pass_nrv =
    optimization, where DEST is expected to be the LHS of a modify
    expression where the RHS is a function returning an aggregate.
 
-   We search for a base VAR_DECL and look to see if it is call clobbered.
-   Note that we could do better, for example, by
-   attempting to doing points-to analysis on INDIRECT_REFs.  */
+   DEST is available if it is not clobbered or used by the call.  */
 
 static bool
-dest_safe_for_nrv_p (tree dest)
+dest_safe_for_nrv_p (gimple call)
 {
-  while (handled_component_p (dest))
-    dest = TREE_OPERAND (dest, 0);
+  tree dest = gimple_call_lhs (call);
 
-  if (! SSA_VAR_P (dest))
+  dest = get_base_address (dest);
+  if (! dest)
     return false;
 
   if (TREE_CODE (dest) == SSA_NAME)
-    dest = SSA_NAME_VAR (dest);
+    return true;
 
-  if (is_call_used (dest))
+  if (call_may_clobber_ref_p (call, dest)
+      || ref_maybe_used_by_stmt_p (call, dest))
     return false;
 
   return true;
@@ -336,12 +346,11 @@ execute_return_slot_opt (void)
 	      && gimple_call_lhs (stmt)
 	      && !gimple_call_return_slot_opt_p (stmt)
 	      && aggregate_value_p (TREE_TYPE (gimple_call_lhs (stmt)),
-				    gimple_call_fndecl (stmt))
-	     )
+				    gimple_call_fndecl (stmt)))
 	    {
 	      /* Check if the location being assigned to is
-	         call-clobbered.  */
-	      slot_opt_p = dest_safe_for_nrv_p (gimple_call_lhs (stmt));
+	         clobbered by the call.  */
+	      slot_opt_p = dest_safe_for_nrv_p (stmt);
 	      gimple_call_set_return_slot_opt (stmt, slot_opt_p);
 	    }
 	}
@@ -349,7 +358,7 @@ execute_return_slot_opt (void)
   return 0;
 }
 
-struct gimple_opt_pass pass_return_slot = 
+struct gimple_opt_pass pass_return_slot =
 {
  {
   GIMPLE_PASS,

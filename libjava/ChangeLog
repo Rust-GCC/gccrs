@@ -1,423 +1,258 @@
-2009-11-02  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+2010-09-27  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
 
-	PR bootstrap/38867
-	* configure.ac (expanded_prefix): New variable, set to the
-	default prefix if none was passed on the command line.
+	* libjava/Makefile.in: Regenerate.
+	* libjava/gcj/Makefile.in: Regenerate.
+	* libjava/include/Makefile.in: Regenerate.
+	* libjava/testsuite/Makefile.in: Regenerate.
+
+2010-09-21  Jack Howarth <howarth@bromo.med.uc.edu>
+
+	* libjava/configure.ac: Set LIBMATHSPEC to -lm except on darwin.
+	* libjava/libgcj.spec.in: Use LIBMATHSPEC.
+	* libjava/configure: Regenerate.
+
+2010-08-27  Dmitrijs Ledkovs  <dmitrij.ledkov@ubuntu.com>
+	    Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR libgcj/40868
+	* configure.ac: Add GCC_FOR_ECJX variable.  Ensure
+	GCJ_FOR_ECJX is always set.
+	* Makefile.am [!NATIVE] (ecjx.$(OBJEXT)): New rule.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* gcj/Makefile.in: Regenerate.
+	* include/Makefile.in: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
+2010-08-18  Jack Howarth <howarth@bromo.med.uc.edu>
+
+	* libjava/configure.ac (THREADLIBS): Don't set on Darwin.
+	(THREADSPEC): Likwise.
+	* libjava/configure: Regenerate.
+	* libjava/Makefile.am: Define LIBJAVA_LDFLAGS_LIBMATH as
+	-lm only if USING_DARWIN_CRT undefined.
+	(libgcj_tools_la_LIBADD): Replace '-lm' with $(LIBJAVA_LDFLAGS_LIBMATH).
+	* libjava/Makefile.in: Regenerate.
+
+2010-08-17  Iain Sandoe  <iains@gcc.gnu.org>
+
+	* include/posix.h: Make substitution of 
+	_darwin10_Unwind_FindEnclosingFunction conditional on 
+	OSX >= 10.6 (Darwin10).
+	
+2010-08-12  Tom Tromey  <tromey@redhat.com>
+
+	* gnu/java/security/jce/prng/natVMSecureRandomWin32.cc
+	(natGenerateSeed): Add missing "::".
+
+2010-07-23  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (*-*-solaris2.8): Use alternate thread library.
+	Add libthread.
+	(*-*-solaris2.9): Use libthread.
 	* configure: Regenerate.
 
-2009-10-22  Matthias Klose  <doko@ubuntu.com>
+2010-07-15  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
-	* configure.ac: Rename --enable-plugin to --enable-browser-plugin,
-	pass --{en,dis}able-plugin to the classpath configure.
+	* include/sparc-signal.h: Renamed to ...
+	* include/solaris-signal.h: ... this.
+	* configure.ac: Use it on any *-*-solaris2* target.
+	* configure: Regenerate.
+	* configure.host (i?86-*-solaris2*): Set can_unwind_signal=yes.
+	* Makefile.am (prims.lo): Add -fno-omit-frame-pointer to AM_CXXFLAGS.
+	* Makefile.in: Regenerate.
+
+2010-07-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (ANONVERSCRIPT): Handle sun style.
+	Define ANONVERSCRIPT_GNU, ANONVERSCRIPT_SUN automake conditionals.
 	* configure: Regenerate.
 
-2009-09-30  Dave Korn  <dave.korn.cygwin@gmail.com>
+	* Makefile.am [ANONVERSCRIPT]: Protect GNU section with
+	ANONVERSCRIPT_GNU.
+	Introduce per-library $(lib)_la_version_arg, $(lib)_la_version_dep
+	variables.
+	[ANONVERSCRIPT_GNU] (version_arg): Default ld arg for version map.
+	(version_dep): Likewise for dependency.
+	Use them to set the per-library variables.
+	[!ANONVERSCRIPT]: Provide them vor the unversioned case.
+	[ANONVERSCRIPT_SUN]: Handle Sun symbol versioning.
+	(libgcj_la_DEPENDENCIES): Unconditionally use
+	$(libgcj_la_version_dep).
+	(libgcj_la_LINK): Add $(libgcj_la_version_arg).
+	(libgcj_noncore_la_DEPENDENCIES): Unconditionally use
+	$(libgcj_la_version_dep).
+	(libgcj_tools_la_LIBADD): Move -lm ...
+	(libgcj_tools_la_LDFLAGS): ... here.
+	(libgcj_tools_la_DEPENDENCIES): Add
+	$(libgcj_tools_la_version_dep).
+	(libgcj_tools_la_LINK): Add $(libgcj_tools_la_version_arg).
+	(lib_gnu_awt_xlib_la_DEPENDENCIES): Add
+	$(lib_gnu_awt_xlib_la_version_dep).
+	(lib_gnu_awt_xlib_la_LINK): Add
+	$(lib_gnu_awt_xlib_la_version_arg).
+	(libgcj_bc_la_DEPENDENCIES): Add $(libgcj_bc_la_version_dep).
+	(libgcj_bc_la_LINK): $(libgcj_bc_la_version_arg).
+	[ANONVERSCRIPT && ANONVERSCRIPT_SUN] (%.ver-sun): New pattern rule.
+	* Makefile.in: Regenerate.
 
-	* configure.host (libgcj_sublib_ltflags): New variable.
-	* configure.ac (LIBGCJ_SUBLIB_LTFLAGS): AC_SUBST variable for
-	the above in makefiles.
+	* libgcj.ver: Reformat.
+
+2010-06-10  Peter O'Gorman  <peter@pogma.com>
+
+	* configure.ac: Set SYSTEMSPEC so that -allow_stack_execute is not
+	passed to the linker for -dynamiclib or -bundle on darwin.
+	* configure: Regenerate. 
+
+2010-06-09  Iain Sandoe  <iains@gcc.gnu.org>
+
+	PR bootstrap/43170
 	* configure: Regenerate.
 
-	* Makefile.am (libgcj_la_LDFLAGS_NOUNDEF): Rename from this ...
-	(LIBJAVA_LDFLAGS_NOUNDEF): ... to this, initialise from
-	LIBGCJ_SUBLIB_LTFLAGS (only when building sublibs), and ...
-	(libgij_la_LDFLAGS, libgcj_tools_la_LDFLAGS, libjvm_la_LDFLAGS,
-	lib_gnu_awt_xlib_la_LDFLAGS, libgcj_bc_la_LDFLAGS): ... use it in
-	all these places to replace hard-coded -no-undefined and -bindir
-	flags, as well as ...
-	(libgcj_la_LDFLAGS): ... updating existing reference here.
-	* Makefile.in: Regenerate.
-	* include/Makefile.in: Likewise.
-	* testsuite/Makefile.in: Likewise.
-	* gcj/Makefile.in: Likewise.
+2010-06-03  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
 
-2009-09-27  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
-
-	PR libgcj/38298
-	* Makefile.am (libgcj_tools_la_LIBADD): Add '-lm'.
-	* Makefile.in: Regenerate.
-
-2009-09-22  Dave Korn  <dave.korn.cygwin@gmail.com>
-
-	* configure.host (enable_libgcj_sublibs_default): New variable,
-	set for Cygwin and MinGW.
-	* configure.ac (--enable-libgcj-sublibs): New command-line switch.
-	(BUILD_SUBLIBS): New AM_CONDITIONAL relating to it.
-	(libgcj_spec_lgcj_override): New variable, define if building sublibs.
-	(libgcj_spec_lgcj_bc_override): Likewise for when USE_LIBGCJ_BC.
-	(LIBGCJ_SPEC_LGCJ): New variable to abstract "-lgcj" from specs.
-	(LIBGCJ_SPEC_LGCJ_BC): Likewise for when USE_LIBGCJ_BC.
-	(LIBGCJ_SPEC): Use them.
 	* configure: Regenerate.
-	* Makefile.am (LOWER_PACKAGE_FILES_LO): New variable.
-	(ALL_PACKAGE_SOURCE_FILES_LO): Likewise.
-	(NONCORE_PACKAGE_SOURCE_FILES_LO): Likewise.
-	(CORE_PACKAGE_SOURCE_FILES_LO): Likewise.
-	(toolexeclib_LTLIBRARIES): Add libgcj-noncore.la if building sublibs.
-	(libgcj_noncore_la_LIBADD_SUBOBJECTS): New variable.
-	(libgcj_la_LIBADD_SUBOBJECTS): Likewise.
-	(libgcj_la_LDFLAGS_NOUNDEF): Likewise.
-	(libgij_la_LDFLAGS): Add DLL-related options.
-	(libgcj_la_LDFLAGS): Use libgcj_la_LDFLAGS_NOUNDEF and
-	libgcj_la_LIBADD_SUBOBJECTS.
-	(libgcj_la_DEPENDENCIES): Adjust to match.
-	(libgcj_noncore_la_SOURCES, libgcj_noncore_la_LDFLAGS,
-	libgcj_noncore_la_LIBADD, libgcj_noncore_la_DEPENDENCIES,
-	libgcj_noncore_la_LINK): New automake variables for sublibrary.
-	(libgcj_tools_la_LDFLAGS): Add DLL-related flags.
-	(libgcj_tools_la_LIBADD): New variable.
-	(libjvm_la_LDFLAGS): Add DLL-related flags.
-	(lib_gnu_awt_xlib_la_LDFLAGS): Likewise.
-	(libgcj_bc_la_LDFLAGS): Likewise.
-	(libgij_la_DEPENDENCIES): Add dependency on libgcj-noncore.la when
-	building sublibs.
-	(libgcj_tools_la_DEPENDENCIES, libjvm_la_DEPENDENCIES,
-	lib_gnu_awt_xlib_la_DEPENDENCIES, jv_convert_DEPENDENCIES,
-	gcj_dbtool_DEPENDENCIES, gc_analyze_DEPENDENCIES, ecjx_DEPENDENCIES):
-	Likewise.
+
+2010-06-03  Matthias Klose  <doko@ubuntu.com>
+
+	* libtool-version: Bump soversion.
+
+2010-05-29  Mike Stump  <mikestump@comcast.net>
+
+	* configure.ac: Add multilib support for gmp.  Proper -I and -L
+	flags for gmp are added.
+
+2010-05-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac: Redirect grep stdout, stderr to /dev/null instead
+	of grep -q.
+	Use -- instead of grep -e.
+	* configure: Regenerate.
+
+2010-05-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libgcj/44216
+	* configure.ac (libgcj_cv_exidx): Enable AC_LANG_WERROR.
+	Save and restore werror flag.
+	* configure: Regenerate.
+
+2010-05-04  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR other/43620
+	* configure.ac (AM_INIT_AUTOMAKE): Add no-dist.
 	* Makefile.in: Regenerate.
-	* sysdep/i386/backtrace.h (MAIN_FUNC): New #define for main function,
-	set appropriately for Cygwin on that platform or to "main" elsewhere.
-	(fallback_backtrace): Use it to limit stack unwind.
+	* gcj/Makefile.in: Regenerate.
+	* include/Makefile.in: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
 
-2009-09-16  Jonathan Yong  <jon_y@users.sourceforge.net>
+2010-05-03  Jack Howarth <howarth@bromo.med.uc.edu>
 
-	* gnu/java/security/jce/prng/natVMSecureRandomWin32.cc: Correct
-	UnsupportedOperationException namespace. 
+	PR 43839
+	* testsuite/Makefile.am: Override automake for site.exp creation
+	and add entry to set libiconv.
+	* testsuite/Makefile.in: Regenerate.
+	* testsuite/libjava.jni/jni.exp (gcj_jni_get_cxxflags_invocation):
+	Add new global variable libiconv to handle alternative libiconv
+	locations.
 
-2009-09-16  Andrew Haley  <aph@redhat.com>
+2010-04-19  Andrew Haley  <aph@redhat.com>
 
-	* libgcj_bc.c (__data_start, data_start, _end): Add dummy usage.
+	PR libgcj/40860
+	* configure.ac: Handle --no-merge-exidx-entries.
 
-2009-09-11  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+2010-04-07  Jakub Jelinek  <jakub@redhat.com>
 
-	* Makefile.am (libgij_la_LINK, libjvm_la_LINK): New.
-	* Makefile.in: Regenerate.
+	* exception.cc (_Jv_Throw): Avoid set but not used warning.
+	* include/java-assert.h (JvAssertMessage, JvAssert): Use argument in
+	sizeof to avoid set but not used warnings.
 
-2009-09-08  Alexandre Oliva  <aoliva@redhat.com>
+2010-04-07  Jason Merrill  <jason@redhat.com>
 
-	* configure: Rebuilt with modified libtool.m4.
+	* gnu/gcj/runtime/natSharedLibLoader.cc (findCore): Move
+	declaration of _Jv_create_core out of the function.
 
-2009-08-24  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
-
-	* configure.ac (AC_PREREQ): Bump to 2.64.
-
-2009-08-22  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
-
-	* HACKING: Use aclocal-1.11 and autoconf-2.64 in example.
-	* Makefile.am (install-html, install-pdf): Remove.
-	* Makefile.in: Regenerate.
+2010-04-02  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
 
 	* Makefile.in: Regenerate.
 	* aclocal.m4: Regenerate.
 	* configure: Regenerate.
 	* gcj/Makefile.in: Regenerate.
 	* include/Makefile.in: Regenerate.
-	* include/config.h.in: Regenerate.
 	* testsuite/Makefile.in: Regenerate.
 
-	* Makefile.am (libgcj_la_LINK, libgcj_tools_la_LINK)
-	(lib_gnu_awt_xlib_la_LINK, libgcj_bc_la_LINK, jv_convert_LINK)
-	(gcj_dbtool_LINK, gc_analyze_LINK, gij_LINK, ecjx_LINK)
-	(gappletviewer_LINK, gjarsigner_LINK, gkeytool_LINK)
-	(gjar_LINK, gjavah_LINK, gcjh_LINK, gnative2ascii_LINK)
-	(gorbd_LINK, grmid_LINK, gserialver_LINK, gtnameserv_LINK)
-	(grmic_LINK, grmiregistry_LINK, gjdoc_LINK): Add $(gjdoc_LDFLAGS).
-	(GCJLINK, LIBLINK, CXXLINK): Add $(LIBTOOLFLAGS).
+2010-03-21  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	PR target/42811
+	* configure.ac (DLLTOOL): Call AC_CHECK_TOOL.
+	(libgcj_sublib_core_extra_deps): New host-dependent configure var.
+	(LIBGCJ_SUBLIB_CORE_EXTRA_DEPS): AC_SUBST it.
+	* configure.host (libgcj_sublib_core_extra_deps): Define
+	appropriately on Cygwin and MinGW.
+	(libgcj_sublib_core_extra_deps): Add libgcj-noncore-dummy import
+	stub library on Cygwin and MinGW.
+	* Makefile.am (LIBJAVA_CORE_EXTRA): Import AC_SUBST'd
+	LIBGCJ_SUBLIB_CORE_EXTRA_DEPS if building sublibs, else define empty.
+	(libgcj_la_DEPENDENCIES): Use it.
+	(DLL_VERSION): New makefile macro.
+	(libgcj-noncore-dummy.dll.a): New build rule for dummy import stub
+	library.
+	(libgcj_noncore_la_LIBADD): Trim superfluous convenience libs.
+	(AM_MAKEFLAGS): Add DLLTOOL recursive propagation.
+	* libgcj-noncore-dummy.def: New file.
+	* Makefile.in: Regenerate.
+	* include/Makefile.in: Likewise.
+	* testsuite/Makefile.in: Likewise.
+	* configure: Likewise.
+	* gcj/Makefile.in: Likewise.
+
+2010-03-21  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	PR target/42811 (prerequisite)
+	* jvmti.cc (_Jv_GetJVMTIEnv): Avoid use of uninitialised memory.
+
+2010-03-13  Matthias Klose  <doko@ubuntu.com>
+
+	PR libgcj/42676
+	* Regenerate .h files for anonymous inner classes.
+
+2010-03-01  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.host (mips-sgi-irix6*): Don't set libgcj_interpreter.
+
+2010-02-24  Andrew Haley  <aph@redhat.com>
+
+	PR java/40816
+	* include/jni_md.h: jboolean is an unsigned type.
+
+2010-02-02  Jack Howarth  <howarth@bromo.med.uc.edu>
+
+	PR java/41991
+	* include/posix.h: Redefine _Unwind_FindEnclosingFunction.
+
+2010-01-26  Andrew Haley  <aph@redhat.com>
+
+	* java/lang/natClass.cc (registerClosure): Make sure closures is
+	non NULL.
+
+2010-01-19  Matthias Klose  <doko@ubuntu.com>
+
+	* Regenerate .class files.
+	* classpath/lib/java/security/VMSecureRandom*.class: Remove.
+
+2010-01-16  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.am (write_entries_to_file): Use \012 instead of \n
+	with tr.
+	* scripts/makemake.tcl: Likewise.
+	* sources.am: Regenerate.
 	* Makefile.in: Regenerate.
 
-2009-08-17  Andrew Haley  <aph@redhat.com>
-
-	* Makefile.am (libgcj_bc_la_LIBADD): Delete.
-	* libgcj.spec.in: (LIBGCJ_BC_SPEC): New spec.
-	* configure.ac (LIBGCJ_BC_SPEC): New spec.
-
-2009-08-17  Andrew Haley  <aph@redhat.com>
-
-	* Makefile.in,
-	include/Makefile.in,
-	testsuite/Makefile.in,
-	gcj/Makefile.in: Regenerate.
-
-2009-08-14  Kai Tietz  <kai.tietz@onevision.com>
-
-	* gnu/java/security/jce/prng/natVMSecureRandomWin32.cc: Add include of
-	java/lang/UnsupportedOperationException.h file.
-
-2009-08-12  Andrew Haley  <aph@redhat.com>
-
-	* sysdep/arm/locks.h: Use atomic builtins For Linux EABI.
-	* configure.ac: Add ATOMICSPEC.
-	* libgcj.spec.in: Likewise.
-	* configure.host (arm*-linux*): Add -Wno-abi to cxxflags.
-	(testsuite/libjava.jvmti/jvmti-interp.exp): Likewise.
-	(testsuite/libjava.jvmti/jvmti.exp): Likewise.
-	(testsuite/libjava.jni/jni.exp): Likewise.
-	Set ATOMICSPEC.
-	Set LDFLAGS to work around libtool feature.
-	
-2009-07-30  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
-
-	* configure.ac (_AC_ARG_VAR_PRECIOUS): Use m4_rename_force.
-
-2009-07-28  David Daney  <ddaney@caviumnetworks.com>
-
-	* gnu/gcj/util/natGCInfo.cc (nomem_handler): Use oomDumpName as
-	dump file name base.
-
-2009-07-27  Andrew John Hughes  <ahughes@redhat.com>
-
-	PR libgcj/40616
-	* java/io/PrintStream.class: Regenerated.
-	* java/io/PrintStream.h: Updated.
-	* java/io/PrintStream.java:
-	(PrintStream(File)): Ported from GNU Classpath
-	version.
-	(PrintStream(File, String)): Likewise.
-	(PrintStream(String)): Likewise.
-	(PrintStream(String, String)): Likewise.
-	
-2009-07-24  Kai Tietz  <kai.tietz@onevision.com>
-
-	* gnu/java/security/jce/prng/natVMSecureRandomWin32.cc: New Win32
-	specific implementation.
-
-2009-07-23  Matthias Klose  <doko@ubuntu.com>
-
-	* contrib/aotcompile.py.in: Use hashlib instead of md5 if available.
-
-2009-07-17  Joseph Myers  <joseph@codesourcery.com>
-
-	PR other/40784
-	* configure: Regenerate.
-
-2009-07-16  Joseph Myers  <joseph@codesourcery.com>
-
-	* configure: Regenerate.
-
-2009-07-11  Richard Sandiford  <rdsandiford@googlemail.com>
-
-	PR testsuite/40699
-	PR testsuite/40707
-	PR testsuite/40709
-	* testsuite/lib/libjava.exp: Revert 2009-06-30 commit.
-
-2009-06-30  Richard Sandiford  <r.sandiford@uk.ibm.com>
-
-	* testsuite/lib/libjava.exp (libjava_init): Just add
-	find_libgcc_s to libjava_libgcc_s_path, rather than every
-	libgcc multilib directory.
-	(libjava_arguments): Explain why we add "." to ld_library_path.
-	(gcj_invoke, exec_gij, libjava_invoke): Use add_path.
-
-2009-06-22  Matthias Klose  <doko@ubuntu.com>
-
-	* libtool-version: Bump soversion.
-
-2009-05-12  Alexandre Oliva  <aoliva@redhat.com>
-
-	* configure.ac: Insert libgcjdir in the GCJ passed in the
-	environment, rather than overriding completely.
-	* configure: Rebuilt.
-
-2009-04-28  Dave Korn  <dave.korn.cygwin@gmail.com>
-
-	* testsuite/libjava.jvmti/jvmti-interp.exp
-	(gcj_jni_compile_c_to_so):  Fix so extension to '.dll' on win32.
-	* testsuite/lib/libjava.exp (libjava_init):  Likewise.
-	* testsuite/libjava.jni/jni.exp
-	(gcj_jni_compile_c_to_so):  Likewise.
-	(gcj_jni_test_one):  Likewise.
-
-2009-04-28  Andrew Haley  <aph@redhat.com>
-
-	PR libgcj/39899
-	* Makefile.am (libgcj_tools_la_LDFLAGS): Add
-	-fno-bootstrap-classes to libgcj_tools_la_GCJFLAGS.
-	* Makefile.in: Regenerate.
-
-2009-04-28  Dave Korn  <dave.korn.cygwin@gmail.com>
-
-	* interpret.cc (DEBUG):  Rename this ...
-	(__GCJ_DEBUG):  ... to this throughout.
-	* configure.ac:  Likewise.
-	* interpret-run.cc:  Likewise.
-	* prims.cc:  Likewise.
-	* gnu/classpath/natConfiguration.cc:  Likewise.
-	* include/java-assert.h:  Likewise.
-	* java/io/natVMObjectInputStream.cc:  Likewise.
-
-	* configure:  Regenerate.
-	* include/config.h.in:  Regenerate.
-
-2009-04-28  Dave Korn  <dave.korn.cygwin@gmail.com>
-
-	* java/lang/natVMClassLoader.cc
-	(java::lang::VMClassLoader::defineClass):  Fix assert.
-
-2009-04-26  Matthias Klose <doko@ubuntu.com>
-
-	* contrib/aot-compile.in: Print diagnostics for malformed or invalid
-	class files.
-	* contrib/generate-cacerts.pl.in: New.
-	* configure.ac (AC_CONFIG_FILES): Add generate-cacerts.pl.
-
-2009-04-24  Matthias Klose  <doko@ubuntu.com>
-
-	* configure.ac: Create missing directory gnu/java/security/jce/prng.
-	* configure: Regenerate.
-
-2009-04-23  Matthias Klose  <doko@ubuntu.com>
-
-	* Makefile.am (install-data-local): Fix symlinks to header files.
-	* Makefile.in: Regenerate.
-
-2009-04-23  Dave Korn  <dave.korn.cygwin@gmail.com>
-
-	* gnu/classpath/jdwp/natVMVirtualMachine.cc (handle_single_step):  Use
-	casted pointer in debugging assert.
-	(jdwpBreakpointCB):  Likewise.
-
-2009-04-09  Jack Howarth  <howarth@bromo.med.uc.edu>
-
-	* configure.host: Restore match for darwin9 or later.
-	* configure.ac: Likewise.
-	* configure: Regenerate.
-
-2009-03-11  Andrew Haley  <aph@redhat.com>
-
-	* java/lang/natClassLoader.cc (_Jv_RegisterClassHookDefault): Clear
-	INTERPRETED access modifier.
-
-2009-03-11  Tom Tromey  <tromey@redhat.com>
-
-	* link.cc (_Jv_Linker::find_field): Pass the field_type to
-	_Jv_CheckOrCreateLoadingConstraint, not the class that is
-	requesting the field.
-
-2009-03-03  Andrew John Hughes  <ahughes@redhat.com>
-
-	* Makefile.am:
-	Remove dangling src.zip and javac symlinks.
-	Fix java.security symlink to use toolexeclibdir
-	as classpath/resource/Makefile.am does.
-	* Makefile.in,
-	* configure: Regenerated.
-	* configure.ac: Drop hard-coded prefix,
-	thus removing sdk_dir and making jre_dir="jre".
-	Map x86_64 to amd64 as used by OpenJDK.
-	* gcj/Makefile.in,
-	* include/Makefile.in,
-	* testsuite/Makefile.in: Regenerated.
-	
-2009-03-01  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
-
-	* configure: Regenerate.
-
-2009-02-13  Andrew John Hughes  <ahughes@redhat.com>
-
-	Import GNU Classpath (classpath-0_98-release).
-
-	* Makefile.am: Add natVMSecureRandom.cc.
-	* Makefile.in: Regenerated.
-	* classpath/ChangeLog,
-	* classpath/Makefile.am: Merged.
-	* classpath/Makefile.in: Regenerated.
-	* classpath/NEWS: Merged.
-	* classpath/config.guess,
-	* classpath/config.sub,
-	* classpath/configure: Regenerated.
-	* classpath/configure.ac: Merged.
-	* classpath/gnu/java/awt/peer/gtk/CairoGraphics2D.java,
-	* classpath/gnu/java/security/jce/prng/SecureRandomAdapter.java,
-	* classpath/gnu/javax/crypto/jce/prng/ARCFourRandomSpi.java,
-	* classpath/gnu/javax/crypto/jce/prng/CSPRNGSpi.java,
-	* classpath/gnu/javax/crypto/jce/prng/FortunaImpl.java,
-	* classpath/gnu/javax/crypto/jce/prng/ICMRandomSpi.java,
-	* classpath/gnu/javax/crypto/jce/prng/UMacRandomSpi.java,
-	* classpath/gnu/javax/crypto/prng/ICMGenerator.java,
-	* classpath/gnu/xml/stream/XMLParser.java,
-	* classpath/java/security/SecureRandom.java,
-	* classpath/native/jni/native-lib/cpproc.c,
-	* classpath/native/plugin/gcjwebplugin.cc,
-	* classpath/tools/gnu/classpath/tools/gjdoc/Main.java: Merged.
-	* configure: Regenerated.
-	* configure.ac: Add symlink for natVMSecureRandomPosix.cc to natVMSecureRandom.cc
-	* gnu/classpath/Configuration.java: Change version to 0.98.
-	* gnu/java/security/jce/prng/SecureRandomAdapter.h: Regenerated.
-	* gnu/java/security/jce/prng/VMSecureRandom.h: Generated.
-	* gnu/java/security/jce/prng/VMSecureRandom.java: Added native implementation.
-	* gnu/java/security/jce/prng/natVMSecureRandomPosix.cc: Wrapper around /dev/random.
-	* gnu/javax/crypto/jce/prng/CSPRNGSpi.h,
-	* gnu/javax/crypto/jce/prng/FortunaImpl.h,
-	* java/security/SecureRandom.h: Regenerated.
-	* java/security/VMSecureRandom$Spinner.h,
-	* java/security/VMSecureRandom.h,
-	* java/security/VMSecureRandom.java: Removed.
-	* sources.am: Move VMSecureRandom to gnu.java.security.jce.prng.
-
-2009-02-10  Mark Mitchell  <mark@codesourcery.com>
-
-	* Makefile.am (AM_MAKEFLAGS): Pass down datadir.
-	* Makefile.in: Regenerated.
-
-2009-02-09  Mark Mitchell  <mark@codesourcery.com>
-
-	* addr2name.awk: Remove.
-	* Makefile.am (bin_SCRIPTS): Remove addr2name.awk.
-	* Makefile.in: Regenerated.
-
-	* configure.ac: Define enable_sjlj_exceptions
-	appropriately under the ARM EH ABI.
-	* configure: Regenerated.
-
-	* Makefile.am (LTLDFLAGS): Define.
-	(GCJLINK): Use it.
-	(LIBLINK): Likewise.
-	* Makefile.in: Regenerated.
-
-2009-02-03  Jakub Jelinek  <jakub@redhat.com>
+2010-01-09  Jakub Jelinek  <jakub@redhat.com>
 
 	* gnu/gcj/convert/Convert.java (version): Update copyright notice
 	dates.
 	* gnu/gcj/tools/gcj_dbtool/Main.java (main): Likewise.
 
-2009-01-26  Jakub Jelinek  <jakub@redhat.com>
+2010-01-06  Matthias Klose  <doko@ubuntu.com>
 
-	PR libgcj/38872
-	* gcj/javaprims.h (_Jv_CreateJavaVM): Change to extern "C" symbol.
-	* libjgc_bc.c (_Jv_GetStringChars): Remove.
-
-2009-01-12  Andrew Haley  <aph@redhat.com>
-
-	* sun/misc/natUnsafe.cc (spinlock contructor): Call sched_yield().
-
-2009-01-11  Matthias Klose  <doko@ubuntu.com>
-
-	* Makefile.am (ecjx_LDADD): Add $(extra_ldflags).
-	* Makefile.in: Regenerate.
-
-2009-01-06  Andrew John Hughes  <gnu_andrew@member.fsf.org>
-
-	Import GNU Classpath (libgcj-snapshot-20090102).
-
-	* libjava/classpath/lib/java/text/RuleBasedCollator$CollationSorter.class,
-	* libjava/classpath/lib/java/text/MessageFormat$MessageFormatElement.class,
-	* libjava/classpath/lib/java/text/MessageFormat.class,
-	* libjava/classpath/lib/java/text/SimpleDateFormat.class,
-	* libjava/classpath/lib/java/text/NumberFormat.class,
-	* libjava/classpath/lib/java/text/RuleBasedCollator$CollationElement.class,
-	* libjava/classpath/lib/java/text/MessageFormat$Field.class,
-	* libjava/classpath/lib/java/text/RuleBasedCollator.class,
-	* libjava/classpath/lib/java/text/NumberFormat$Field.class,
-	* libjava/classpath/lib/gnu/xml/transform/Bindings.class,
-	* libjava/classpath/lib/gnu/java/locale/LocaleData.class,
-	* libjava/classpath/lib/gnu/java/awt/peer/gtk/FreetypeGlyphVector.class,
-	* libjava/classpath/lib/gnu/javax/crypto/jce/key/SecretKeyGeneratorImpl.class,
-	* libjava/gnu/java/awt/peer/gtk/FreetypeGlyphVector.h,
-	* libjava/java/text/MessageFormat.h,
-	* libjava/java/text/RuleBasedCollator$CollationSorter.h,
-	* libjava/java/text/RuleBasedCollator.h,
-	* libjava/java/text/SimpleDateFormat.h:
-	Regenerated.
-
+	* Regenerate .class files with updated ecj.jar (based on 3.5.1).

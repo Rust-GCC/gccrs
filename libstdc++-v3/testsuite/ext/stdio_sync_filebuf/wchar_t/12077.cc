@@ -1,4 +1,4 @@
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "is_IS.UTF-8" }
 
 // Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009 Free Software Foundation
 //
@@ -64,7 +64,7 @@ void test01()
   fputs(str, file);
   fclose(file);
   
-  freopen(name, "r", stdin);
+  VERIFY( freopen(name, "r", stdin) );
   
   streamsize n = wcin.rdbuf()->in_avail();
   while (n--)

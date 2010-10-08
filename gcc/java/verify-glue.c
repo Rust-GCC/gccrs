@@ -27,13 +27,13 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "tree.h"
 #include "parse.h"
 
 #include "verify.h"
 #include "java-tree.h"
 #include "java-except.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 
 void *
@@ -365,7 +365,7 @@ vfy_class_has_field (vfy_jclass klass, vfy_string name,
       if (DECL_NAME (field) == name
 	  && build_java_signature (TREE_TYPE (field)) == signature)
 	return true;
-      field = TREE_CHAIN (field);
+      field = DECL_CHAIN (field);
     }
   return false;
 }

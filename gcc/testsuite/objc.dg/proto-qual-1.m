@@ -1,9 +1,10 @@
 /* Check that protocol qualifiers are compiled and encoded properly.  */
 /* Author: Ziemowit Laski <zlaski@apple.com>  */
-/* { dg-options "-lobjc" } */
+/* { dg-options "" } */
 /* { dg-do run } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
-#include <objc/Protocol.h>
+#include "../objc-obj-c++-shared/Protocol1.h"
 #ifndef __NEXT_RUNTIME__
 #include <objc/objc-api.h>
 #endif
@@ -43,10 +44,20 @@ static void scan_initial(const char *pattern) {
 
 int main(void) {
   meth = [proto descriptionForInstanceMethod: @selector(address:with:)];
+#ifndef __NEXT_RUNTIME__
   scan_initial("O@%u@%u:%uRN@%uo^^S%u");
+#else
+  /* The NEXT runtime tries to be compatible with gcc-3.3  */
+  scan_initial("O@%u@%u:%uNR@%uo^^S%u");
+#endif
   CHECK_IF(offs3 == offs2 + aligned_sizeof(id) && totsize == offs3 + aligned_sizeof(unsigned));
   meth = [proto descriptionForClassMethod: @selector(retainArgument:with:)];
+#ifndef __NEXT_RUNTIME__
   scan_initial("Vv%u@%u:%uoO@%un^*%u");
+#else
+  /* The NEXT runtime tries to be compatible with gcc-3.3  */
+  scan_initial("Vv%u@%u:%uOo@%un^*%u");
+#endif
   CHECK_IF(offs3 == offs2 + aligned_sizeof(id) && totsize == offs3 + aligned_sizeof(char **));
   return 0;
 }

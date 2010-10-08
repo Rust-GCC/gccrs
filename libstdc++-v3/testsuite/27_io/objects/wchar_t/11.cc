@@ -1,4 +1,4 @@
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "se_NO.UTF-8" }
 
 // 2003-05-01  Petur Runolfsson  <peturr02@ru.is>
 
@@ -90,7 +90,7 @@ void test11()
   };
   size_t i_size = wcslen(i_lit);
 
-  freopen(name, "w", stdout);
+  VERIFY( freopen(name, "w", stdout) );
   
   wcout.write(i_lit, i_size);
   wcout.flush();

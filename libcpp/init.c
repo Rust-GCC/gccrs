@@ -1,7 +1,7 @@
 /* CPP Library.
    Copyright (C) 1986, 1987, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
    1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008,
-   2009 Free Software Foundation, Inc.
+   2009, 2010 Free Software Foundation, Inc.
    Contributed by Per Bothner, 1994-95.
    Based on CCCP program by Paul Rubin, June 1986
    Adapted to ANSI C, Richard Stallman, Jan 1987
@@ -84,9 +84,11 @@ static const struct lang_flags lang_defaults[] =
 { /*              c99 c++ xnum xid std  //   digr ulit */
   /* GNUC89   */  { 0,  0,  1,   0,  0,   1,   1,   0 },
   /* GNUC99   */  { 1,  0,  1,   0,  0,   1,   1,   1 },
+  /* GNUC1X   */  { 1,  0,  1,   0,  0,   1,   1,   1 },
   /* STDC89   */  { 0,  0,  0,   0,  1,   0,   0,   0 },
   /* STDC94   */  { 0,  0,  0,   0,  1,   0,   1,   0 },
   /* STDC99   */  { 1,  0,  1,   0,  1,   1,   1,   0 },
+  /* STDC1X   */  { 1,  0,  1,   0,  1,   1,   1,   0 },
   /* GNUCXX   */  { 0,  1,  1,   0,  0,   1,   1,   0 },
   /* CXX98    */  { 0,  1,  1,   0,  1,   1,   1,   0 },
   /* GNUCXX0X */  { 1,  1,  1,   0,  0,   1,   1,   1 },
@@ -154,13 +156,12 @@ cpp_create_reader (enum c_lang lang, hash_table *table,
   CPP_OPTION (pfile, warn_multichar) = 1;
   CPP_OPTION (pfile, discard_comments) = 1;
   CPP_OPTION (pfile, discard_comments_in_macro_exp) = 1;
-  CPP_OPTION (pfile, show_column) = 1;
   CPP_OPTION (pfile, tabstop) = 8;
   CPP_OPTION (pfile, operator_names) = 1;
   CPP_OPTION (pfile, warn_trigraphs) = 2;
   CPP_OPTION (pfile, warn_endif_labels) = 1;
-  CPP_OPTION (pfile, warn_deprecated) = 1;
-  CPP_OPTION (pfile, warn_long_long) = 0;
+  CPP_OPTION (pfile, cpp_warn_deprecated) = 1;
+  CPP_OPTION (pfile, cpp_warn_long_long) = 0;
   CPP_OPTION (pfile, dollars_in_ident) = 1;
   CPP_OPTION (pfile, warn_dollars) = 1;
   CPP_OPTION (pfile, warn_variadic_macros) = 1;
@@ -216,6 +217,9 @@ cpp_create_reader (enum c_lang lang, hash_table *table,
   pfile->a_buff = _cpp_get_buff (pfile, 0);
   pfile->u_buff = _cpp_get_buff (pfile, 0);
 
+  /* Initialize table for push_macro/pop_macro.  */
+  pfile->pushed_macros = 0;
+
   /* The expression parser stack.  */
   _cpp_expand_op_stack (pfile);
 
@@ -245,6 +249,7 @@ void
 cpp_destroy (cpp_reader *pfile)
 {
   cpp_context *context, *contextn;
+  struct def_pragma_macro *pmacro;
   tokenrun *run, *runn;
   int i;
 
@@ -296,6 +301,17 @@ cpp_destroy (cpp_reader *pfile)
 
       free (pfile->comments.entries);
     }
+  if (pfile->pushed_macros)
+    {
+      do
+	{
+	  pmacro = pfile->pushed_macros;
+	  pfile->pushed_macros = pmacro->next;
+	  free (pmacro->name);
+	  free (pmacro);
+	}
+      while (pfile->pushed_macros);
+    }
 
   free (pfile);
 }
@@ -307,7 +323,7 @@ cpp_destroy (cpp_reader *pfile)
    "builtin" macros: these are handled by builtin_macro() in
    macro.c.  Builtin is somewhat of a misnomer -- the property of
    interest is that these macros require special code to compute their
-   expansions.  The value is a "builtin_type" enumerator.
+   expansions.  The value is a "cpp_builtin_type" enumerator.
 
    operator_array holds the C++ named operators.  These are keywords
    which act as aliases for punctuators.  In C++, they cannot be
@@ -442,6 +458,9 @@ cpp_init_builtins (cpp_reader *pfile, int hosted)
     _cpp_define_builtin (pfile, "__ASSEMBLER__ 1");
   else if (CPP_OPTION (pfile, lang) == CLK_STDC94)
     _cpp_define_builtin (pfile, "__STDC_VERSION__ 199409L");
+  else if (CPP_OPTION (pfile, lang) == CLK_STDC1X
+	   || CPP_OPTION (pfile, lang) == CLK_GNUC1X)
+    _cpp_define_builtin (pfile, "__STDC_VERSION__ 201000L");
   else if (CPP_OPTION (pfile, c99))
     _cpp_define_builtin (pfile, "__STDC_VERSION__ 199901L");
 
@@ -580,9 +599,9 @@ read_original_filename (cpp_reader *pfile)
       pfile->state.in_directive = 0;
 
       /* If it's a #line directive, handle it.  */
-      if (token1->type == CPP_NUMBER)
+      if (token1->type == CPP_NUMBER
+	  && _cpp_handle_directive (pfile, token->flags & PREV_WHITE))
 	{
-	  _cpp_handle_directive (pfile, token->flags & PREV_WHITE);
 	  read_original_directory (pfile);
 	  return;
 	}
@@ -679,7 +698,7 @@ post_options (cpp_reader *pfile)
 {
   /* -Wtraditional is not useful in C++ mode.  */
   if (CPP_OPTION (pfile, cplusplus))
-    CPP_OPTION (pfile, warn_traditional) = 0;
+    CPP_OPTION (pfile, cpp_warn_traditional) = 0;
 
   /* Permanently disable macro expansion if we are rescanning
      preprocessed text.  Read preprocesed source in ISO mode.  */
@@ -697,8 +716,6 @@ post_options (cpp_reader *pfile)
     {
       CPP_OPTION (pfile, cplusplus_comments) = 0;
 
-      /* Traditional CPP does not accurately track column information.  */
-      CPP_OPTION (pfile, show_column) = 0;
       CPP_OPTION (pfile, trigraphs) = 0;
       CPP_OPTION (pfile, warn_trigraphs) = 0;
     }

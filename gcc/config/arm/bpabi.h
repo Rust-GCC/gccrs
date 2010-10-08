@@ -26,7 +26,8 @@
 #define TARGET_BPABI (TARGET_AAPCS_BASED)
 
 /* BPABI targets use EABI frame unwinding tables.  */
-#define TARGET_UNWIND_INFO 1
+#undef ARM_UNWIND_INFO
+#define ARM_UNWIND_INFO 1
 
 /* Section 4.1 of the AAPCS requires the use of VFP format.  */
 #undef  FPUTYPE_DEFAULT
@@ -53,7 +54,7 @@
 
 #define TARGET_FIX_V4BX_SPEC " %{mcpu=arm8|mcpu=arm810|mcpu=strongarm*|march=armv4:--fix-v4bx}"
 
-#define BE8_LINK_SPEC " %{mbig-endian:%{march=armv7-a|mcpu=cortex-a8|mcpu=cortex-a9:%{!r:--be8}}}"
+#define BE8_LINK_SPEC " %{mbig-endian:%{march=armv7-a|mcpu=cortex-a5|mcpu=cortex-a8|mcpu=cortex-a9|mcpu=cortex-a15:%{!r:--be8}}}"
 
 /* Tell the assembler to build BPABI binaries.  */
 #undef  SUBTARGET_EXTRA_ASM_SPEC

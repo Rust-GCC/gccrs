@@ -1,7 +1,7 @@
 /* CPP Library. (Directive handling.)
    Copyright (C) 1986, 1987, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
    1999, 2000, 2001, 2002, 2003, 2004, 2005,
-   2007, 2008, 2009 Free Software Foundation, Inc.
+   2007, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Per Bothner, 1994-95.
    Based on CCCP program by Paul Rubin, June 1986
    Adapted to ANSI C, Richard Stallman, Jan 1987
@@ -104,7 +104,7 @@ static const char *parse_include (cpp_reader *, int *, const cpp_token ***,
 static void push_conditional (cpp_reader *, int, int, const cpp_hashnode *);
 static unsigned int read_flag (cpp_reader *, unsigned int);
 static bool strtolinenum (const uchar *, size_t, linenum_type *, bool *);
-static void do_diagnostic (cpp_reader *, int, int);
+static void do_diagnostic (cpp_reader *, int, int, int);
 static cpp_hashnode *lex_macro_node (cpp_reader *, bool);
 static int undefine_macros (cpp_reader *, cpp_hashnode *, void *);
 static void do_include_common (cpp_reader *, enum include_type);
@@ -126,6 +126,9 @@ static int parse_answer (cpp_reader *, struct answer **, int, source_location);
 static cpp_hashnode *parse_assertion (cpp_reader *, struct answer **, int);
 static struct answer ** find_answer (cpp_hashnode *, const struct answer *);
 static void handle_assertion (cpp_reader *, const char *, int);
+static void do_pragma_push_macro (cpp_reader *);
+static void do_pragma_pop_macro (cpp_reader *);
+static void cpp_pop_definition (cpp_reader *, struct def_pragma_macro *);
 
 /* This is the table of directive handlers.  It is ordered by
    frequency of occurrence; the numbers at the end are directive
@@ -352,9 +355,9 @@ directive_diagnostics (cpp_reader *pfile, const directive *dir, int indented)
 	cpp_error (pfile, CPP_DL_PEDWARN, "#%s is a GCC extension", dir->name);
       else if (((dir->flags & DEPRECATED) != 0
 		|| (dir == &dtable[T_IMPORT] && !CPP_OPTION (pfile, objc)))
-	       && CPP_OPTION (pfile, warn_deprecated))
-	cpp_error (pfile, CPP_DL_WARNING, "#%s is a deprecated GCC extension",
-		   dir->name);
+	       && CPP_OPTION (pfile, cpp_warn_deprecated))
+	cpp_warning (pfile, CPP_W_DEPRECATED,
+                     "#%s is a deprecated GCC extension", dir->name);
     }
 
   /* Traditionally, a directive is ignored unless its # is in
@@ -366,16 +369,16 @@ directive_diagnostics (cpp_reader *pfile, const directive *dir, int indented)
   if (CPP_WTRADITIONAL (pfile))
     {
       if (dir == &dtable[T_ELIF])
-	cpp_error (pfile, CPP_DL_WARNING,
-		   "suggest not using #elif in traditional C");
+	cpp_warning (pfile, CPP_W_TRADITIONAL,
+		     "suggest not using #elif in traditional C");
       else if (indented && dir->origin == KANDR)
-	cpp_error (pfile, CPP_DL_WARNING,
-		   "traditional C ignores #%s with the # indented",
-		   dir->name);
+	cpp_warning (pfile, CPP_W_TRADITIONAL,
+		     "traditional C ignores #%s with the # indented",
+		     dir->name);
       else if (!indented && dir->origin != KANDR)
-	cpp_error (pfile, CPP_DL_WARNING,
-		   "suggest hiding #%s from traditional C with an indented #",
-		   dir->name);
+	cpp_warning (pfile, CPP_W_TRADITIONAL,
+		     "suggest hiding #%s from traditional C with an indented #",
+		     dir->name);
     }
 }
 
@@ -398,7 +401,7 @@ _cpp_handle_directive (cpp_reader *pfile, int indented)
 
   if (was_parsing_args)
     {
-      if (CPP_OPTION (pfile, pedantic))
+      if (CPP_OPTION (pfile, cpp_pedantic))
 	cpp_error (pfile, CPP_DL_PEDWARN,
 	     "embedding a directive within macro arguments is not portable");
       pfile->state.parsing_args = 0;
@@ -1043,7 +1046,7 @@ _cpp_do_file_change (cpp_reader *pfile, enum lc_reason reason,
 /* Report a warning or error detected by the program we are
    processing.  Use the directive's tokens in the error message.  */
 static void
-do_diagnostic (cpp_reader *pfile, int code, int print_dir)
+do_diagnostic (cpp_reader *pfile, int code, int reason, int print_dir)
 {
   const unsigned char *dir_name;
   unsigned char *line;
@@ -1057,21 +1060,26 @@ do_diagnostic (cpp_reader *pfile, int code, int print_dir)
   line = cpp_output_line_to_string (pfile, dir_name);
   pfile->state.prevent_expansion--;
 
-  cpp_error_with_line (pfile, code, src_loc, 0, "%s", line);
+  if (code == CPP_DL_WARNING_SYSHDR && reason)
+    cpp_warning_with_line_syshdr (pfile, reason, src_loc, 0, "%s", line);
+  else if (code == CPP_DL_WARNING && reason)
+    cpp_warning_with_line (pfile, reason, src_loc, 0, "%s", line);
+  else
+    cpp_error_with_line (pfile, code, src_loc, 0, "%s", line);
   free (line);
 }
 
 static void
 do_error (cpp_reader *pfile)
 {
-  do_diagnostic (pfile, CPP_DL_ERROR, 1);
+  do_diagnostic (pfile, CPP_DL_ERROR, 0, 1);
 }
 
 static void
 do_warning (cpp_reader *pfile)
 {
   /* We want #warning diagnostics to be emitted in system headers too.  */
-  do_diagnostic (pfile, CPP_DL_WARNING_SYSHDR, 1);
+  do_diagnostic (pfile, CPP_DL_WARNING_SYSHDR, CPP_W_WARNING_DIRECTIVE, 1);
 }
 
 /* Report program identification.  */
@@ -1244,6 +1252,8 @@ _cpp_init_internal_pragmas (cpp_reader *pfile)
 {
   /* Pragmas in the global namespace.  */
   register_pragma_internal (pfile, 0, "once", do_pragma_once);
+  register_pragma_internal (pfile, 0, "push_macro", do_pragma_push_macro);
+  register_pragma_internal (pfile, 0, "pop_macro", do_pragma_pop_macro);
 
   /* New GCC-specific pragmas should be put in the GCC namespace.  */
   register_pragma_internal (pfile, "GCC", "poison", do_pragma_poison);
@@ -1423,6 +1433,116 @@ do_pragma_once (cpp_reader *pfile)
   _cpp_mark_file_once_only (pfile, pfile->buffer->file);
 }
 
+/* Handle #pragma push_macro(STRING).  */
+static void
+do_pragma_push_macro (cpp_reader *pfile)
+{
+  cpp_hashnode *node;
+  size_t defnlen;
+  const uchar *defn = NULL;
+  char *macroname, *dest;
+  const char *limit, *src;
+  const cpp_token *txt;
+  struct def_pragma_macro *c;
+
+  txt = get__Pragma_string (pfile);
+  if (!txt)
+    {
+      source_location src_loc = pfile->cur_token[-1].src_loc;
+      cpp_error_with_line (pfile, CPP_DL_ERROR, src_loc, 0,
+		 "invalid #pragma push_macro directive");
+      check_eol (pfile, false);
+      skip_rest_of_line (pfile);
+      return;
+    }
+  dest = macroname = (char *) alloca (txt->val.str.len + 2);
+  src = (const char *) (txt->val.str.text + 1 + (txt->val.str.text[0] == 'L'));
+  limit = (const char *) (txt->val.str.text + txt->val.str.len - 1);
+  while (src < limit)
+    {
+      /* We know there is a character following the backslash.  */
+      if (*src == '\\' && (src[1] == '\\' || src[1] == '"'))
+	src++;
+      *dest++ = *src++;
+    }
+  *dest = 0;
+  check_eol (pfile, false);
+  skip_rest_of_line (pfile);
+  c = XNEW (struct def_pragma_macro);
+  memset (c, 0, sizeof (struct def_pragma_macro));
+  c->name = XNEWVAR (char, strlen (macroname) + 1);
+  strcpy (c->name, macroname);
+  c->next = pfile->pushed_macros;
+  node = _cpp_lex_identifier (pfile, c->name);
+  if (node->type == NT_VOID)
+    c->is_undef = 1;
+  else
+    {
+      defn = cpp_macro_definition (pfile, node);
+      defnlen = ustrlen (defn);
+      c->definition = XNEWVEC (uchar, defnlen + 2);
+      c->definition[defnlen] = '\n';
+      c->definition[defnlen + 1] = 0;
+      c->line = node->value.macro->line;
+      c->syshdr = node->value.macro->syshdr;
+      c->used = node->value.macro->used;
+      memcpy (c->definition, defn, defnlen);
+    }
+
+  pfile->pushed_macros = c;
+}
+
+/* Handle #pragma pop_macro(STRING).  */
+static void
+do_pragma_pop_macro (cpp_reader *pfile)
+{
+  char *macroname, *dest;
+  const char *limit, *src;
+  const cpp_token *txt;
+  struct def_pragma_macro *l = NULL, *c = pfile->pushed_macros;
+  txt = get__Pragma_string (pfile);
+  if (!txt)
+    {
+      source_location src_loc = pfile->cur_token[-1].src_loc;
+      cpp_error_with_line (pfile, CPP_DL_ERROR, src_loc, 0,
+		 "invalid #pragma pop_macro directive");
+      check_eol (pfile, false);
+      skip_rest_of_line (pfile);
+      return;
+    }
+  dest = macroname = (char *) alloca (txt->val.str.len + 2);
+  src = (const char *) (txt->val.str.text + 1 + (txt->val.str.text[0] == 'L'));
+  limit = (const char *) (txt->val.str.text + txt->val.str.len - 1);
+  while (src < limit)
+    {
+      /* We know there is a character following the backslash.  */
+      if (*src == '\\' && (src[1] == '\\' || src[1] == '"'))
+	src++;
+      *dest++ = *src++;
+    }
+  *dest = 0;
+  check_eol (pfile, false);
+  skip_rest_of_line (pfile);
+
+  while (c != NULL)
+    {
+      if (!strcmp (c->name, macroname))
+	{
+	  if (!l)
+	    pfile->pushed_macros = c->next;
+	  else
+	    l->next = c->next;
+	  cpp_pop_definition (pfile, c);
+	  free (c->definition);
+	  free (c->name);
+	  free (c);
+	  break;
+	}
+      l = c;
+      c = c->next;
+    }
+}
+
 /* Handle #pragma GCC poison, to poison one or more identifiers so
    that the lexer produces a hard error for each subsequent usage.  */
 static void
@@ -1501,7 +1621,7 @@ do_pragma_dependency (cpp_reader *pfile)
       if (cpp_get_token (pfile)->type != CPP_EOF)
 	{
 	  _cpp_backup_tokens (pfile, 1);
-	  do_diagnostic (pfile, CPP_DL_WARNING, 0);
+	  do_diagnostic (pfile, CPP_DL_WARNING, 0, 0);
 	}
     }
 
@@ -1705,6 +1825,9 @@ do_ifdef (cpp_reader *pfile)
 	      node->flags |= NODE_USED;
 	      if (node->type == NT_MACRO)
 		{
+		  if ((node->flags & NODE_BUILTIN)
+		      && pfile->cb.user_builtin_macro)
+		    pfile->cb.user_builtin_macro (pfile, node);
 		  if (pfile->cb.used_define)
 		    pfile->cb.used_define (pfile, pfile->directive_line, node);
 		}
@@ -1714,6 +1837,8 @@ do_ifdef (cpp_reader *pfile)
 		    pfile->cb.used_undef (pfile, pfile->directive_line, node);
 		}
 	    }
+	  if (pfile->cb.used)
+	    pfile->cb.used (pfile, pfile->directive_line, node);
 	  check_eol (pfile, false);
 	}
     }
@@ -1741,6 +1866,9 @@ do_ifndef (cpp_reader *pfile)
 	      node->flags |= NODE_USED;
 	      if (node->type == NT_MACRO)
 		{
+		  if ((node->flags & NODE_BUILTIN)
+		      && pfile->cb.user_builtin_macro)
+		    pfile->cb.user_builtin_macro (pfile, node);
 		  if (pfile->cb.used_define)
 		    pfile->cb.used_define (pfile, pfile->directive_line, node);
 		}
@@ -1750,6 +1878,8 @@ do_ifndef (cpp_reader *pfile)
 		    pfile->cb.used_undef (pfile, pfile->directive_line, node);
 		}
 	    }
+	  if (pfile->cb.used)
+	    pfile->cb.used (pfile, pfile->directive_line, node);
 	  check_eol (pfile, false);
 	}
     }
@@ -2225,40 +2355,12 @@ cpp_undef (cpp_reader *pfile, const char *macro)
   run_directive (pfile, T_UNDEF, buf, len);
 }
 
-/* Like lex_macro_node, but read the input from STR.  */
-static cpp_hashnode *
-lex_macro_node_from_str (cpp_reader *pfile, const char *str)
+/* Replace a previous definition DEF of the macro STR.  If DEF is NULL,
+   or first element is zero, then the macro should be undefined.  */
+static void
+cpp_pop_definition (cpp_reader *pfile, struct def_pragma_macro *c)
 {
-  size_t len = strlen (str);
-  uchar *buf = (uchar *) alloca (len + 1);
-  cpp_hashnode *node;
-
-  memcpy (buf, str, len);
-  buf[len] = '\n';
-  cpp_push_buffer (pfile, buf, len, true);
-  node = lex_macro_node (pfile, true);
-  _cpp_pop_buffer (pfile);
-
-  return node;
-}
-
-/* If STR is a defined macro, return its definition node, else return NULL.  */
-cpp_macro *
-cpp_push_definition (cpp_reader *pfile, const char *str)
-{
-  cpp_hashnode *node = lex_macro_node_from_str (pfile, str);
-  if (node && node->type == NT_MACRO)
-    return node->value.macro;
-  else
-    return NULL;
-}
-
-/* Replace a previous definition DFN of the macro STR.  If DFN is NULL,
-   then the macro should be undefined.  */
-void
-cpp_pop_definition (cpp_reader *pfile, const char *str, cpp_macro *dfn)
-{
-  cpp_hashnode *node = lex_macro_node_from_str (pfile, str);
+  cpp_hashnode *node = _cpp_lex_identifier (pfile, c->name);
   if (node == NULL)
     return;
 
@@ -2275,16 +2377,35 @@ cpp_pop_definition (cpp_reader *pfile, const char *str, cpp_macro *dfn)
   if (node->type != NT_VOID)
     _cpp_free_definition (node);
 
-  if (dfn)
-    {
-      node->type = NT_MACRO;
-      node->value.macro = dfn;
-      if (! ustrncmp (NODE_NAME (node), DSC ("__STDC_")))
-	node->flags |= NODE_WARN;
+  if (c->is_undef)
+    return;
+  {
+    size_t namelen;
+    const uchar *dn;
+    cpp_hashnode *h = NULL;
+    cpp_buffer *nbuf;
 
-      if (pfile->cb.define)
-	pfile->cb.define (pfile, pfile->directive_line, node);
-    }
+    namelen = ustrcspn (c->definition, "( \n");
+    h = cpp_lookup (pfile, c->definition, namelen);
+    dn = c->definition + namelen;
+
+    h->type = NT_VOID;
+    h->flags &= ~(NODE_POISONED|NODE_BUILTIN|NODE_DISABLED|NODE_USED);
+    nbuf = cpp_push_buffer (pfile, dn, ustrchr (dn, '\n') - dn, true);
+    if (nbuf != NULL)
+      {
+	_cpp_clean_line (pfile);
+	nbuf->sysp = 1;
+	if (!_cpp_create_definition (pfile, h))
+	  abort ();
+	_cpp_pop_buffer (pfile);
+      }
+    else
+      abort ();
+    h->value.macro->line = c->line;
+    h->value.macro->syshdr = c->syshdr;
+    h->value.macro->used = c->used;
+  }
 }
 
 /* Process the string STR as if it appeared as the body of a #assert.  */

@@ -1,7 +1,7 @@
 /* Subroutines for insn-output.c for Windows NT.
    Contributed by Douglas Rupp (drupp@cs.washington.edu)
    Copyright (C) 1995, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -30,11 +30,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "flags.h"
 #include "tm_p.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "hashtab.h"
 #include "langhooks.h"
 #include "ggc.h"
 #include "target.h"
+#include "lto-streamer.h"
 
 /* i386/PE specific attribute support.
 
@@ -320,6 +322,14 @@ i386_pe_binds_local_p (const_tree exp)
       && DECL_DLLIMPORT_P (exp))
     return false;
 
+  /* Or a weak one, now that they are supported.  */
+  if ((TREE_CODE (exp) == VAR_DECL || TREE_CODE (exp) == FUNCTION_DECL)
+      && DECL_WEAK (exp))
+    /* But x64 gets confused and attempts to use unsupported GOTPCREL
+       relocations if we tell it the truth, so we still return true in
+       that case until the deeper problem can be fixed.  */
+    return (TARGET_64BIT && DEFAULT_ABI == MS_ABI);
+
   return true;
 }
 
@@ -465,6 +475,12 @@ i386_pe_asm_named_section (const char *name, unsigned int flags,
         *f++ = 's';
     }
 
+  /* LTO sections need 1-byte alignment to avoid confusing the
+     zlib decompression algorithm with trailing zero pad bytes.  */
+  if (strncmp (name, LTO_SECTION_NAME_PREFIX,
+			strlen (LTO_SECTION_NAME_PREFIX)) == 0)
+    *f++ = '0';
+
   *f = '\0';
 
   fprintf (asm_out_file, "\t.section\t%s,\"%s\"\n", name, flagchars);
@@ -484,6 +500,8 @@ i386_pe_asm_named_section (const char *name, unsigned int flags,
 	       (discard  ? "discard" : "same_size"));
     }
 }
+
+/* Beware, DECL may be NULL if compile_file() is emitting the LTO marker.  */
 
 void
 i386_pe_asm_output_aligned_decl_common (FILE *stream, tree decl,
@@ -559,7 +577,7 @@ i386_pe_record_external_function (tree decl, const char *name)
 {
   struct extern_list *p;
 
-  p = (struct extern_list *) ggc_alloc (sizeof *p);
+  p = ggc_alloc_extern_list ();
   p->next = extern_head;
   p->decl = decl;
   p->name = name;
@@ -581,13 +599,17 @@ static GTY(()) struct export_list *export_head;
    these, so that we can output the export list at the end of the
    assembly.  We used to output these export symbols in each function,
    but that causes problems with GNU ld when the sections are
-   linkonce.  */
+   linkonce.  Beware, DECL may be NULL if compile_file() is emitting
+   the LTO marker.  */
 
 void
 i386_pe_maybe_record_exported_symbol (tree decl, const char *name, int is_data)
 {
   rtx symbol;
   struct export_list *p;
+
+  if (!decl)
+    return;
 
   symbol = XEXP (DECL_RTL (decl), 0);
   gcc_assert (GET_CODE (symbol) == SYMBOL_REF);
@@ -596,12 +618,70 @@ i386_pe_maybe_record_exported_symbol (tree decl, const char *name, int is_data)
 
   gcc_assert (TREE_PUBLIC (decl));
 
-  p = (struct export_list *) ggc_alloc (sizeof *p);
+  p = ggc_alloc_export_list ();
   p->next = export_head;
   p->name = name;
   p->is_data = is_data;
   export_head = p;
 }
+
+#ifdef CXX_WRAP_SPEC_LIST
+
+/*  Hash table equality helper function.  */
+
+static int
+wrapper_strcmp (const void *x, const void *y)
+{
+  return !strcmp ((const char *) x, (const char *) y);
+}
+
+/* Search for a function named TARGET in the list of library wrappers
+   we are using, returning a pointer to it if found or NULL if not.
+   This function might be called on quite a few symbols, and we only
+   have the list of names of wrapped functions available to us as a
+   spec string, so first time round we lazily initialise a hash table
+   to make things quicker.  */
+
+static const char *
+i386_find_on_wrapper_list (const char *target)
+{
+  static char first_time = 1;
+  static htab_t wrappers;
+
+  if (first_time)
+    {
+      /* Beware that this is not a complicated parser, it assumes
+         that any sequence of non-whitespace beginning with an
+	 underscore is one of the wrapped symbols.  For now that's
+	 adequate to distinguish symbols from spec substitutions
+	 and command-line options.  */
+      static char wrapper_list_buffer[] = CXX_WRAP_SPEC_LIST;
+      char *bufptr;
+      /* Breaks up the char array into separated strings
+         strings and enter them into the hash table.  */
+      wrappers = htab_create_alloc (8, htab_hash_string, wrapper_strcmp,
+	0, xcalloc, free);
+      for (bufptr = wrapper_list_buffer; *bufptr; ++bufptr)
+	{
+	  char *found = NULL;
+	  if (ISSPACE (*bufptr))
+	    continue;
+	  if (*bufptr == '_')
+	    found = bufptr;
+	  while (*bufptr && !ISSPACE (*bufptr))
+	    ++bufptr;
+	  if (*bufptr)
+	    *bufptr = 0;
+	  if (found)
+	    *htab_find_slot (wrappers, found, INSERT) = found;
+	}
+      first_time = 0;
+    }
+
+  return (const char *) htab_find (wrappers, target);
+}
+
+#endif /* CXX_WRAP_SPEC_LIST */
 
 /* This is called at the end of assembly.  For each external function
    which has not been defined, we output a declaration now.  We also
@@ -611,8 +691,6 @@ void
 i386_pe_file_end (void)
 {
   struct extern_list *p;
-
-  ix86_file_end ();
 
   for (p = extern_head; p != NULL; p = p->next)
     {
@@ -624,6 +702,15 @@ i386_pe_file_end (void)
       if (! TREE_ASM_WRITTEN (decl)
 	  && TREE_SYMBOL_REFERENCED (DECL_ASSEMBLER_NAME (decl)))
 	{
+#ifdef CXX_WRAP_SPEC_LIST
+	  /* To ensure the DLL that provides the corresponding real
+	     functions is still loaded at runtime, we must reference
+	     the real function so that an (unused) import is created.  */
+	  const char *realsym = i386_find_on_wrapper_list (p->name);
+	  if (realsym)
+	    i386_pe_declare_function_type (asm_out_file,
+		concat ("__real_", realsym, NULL), TREE_PUBLIC (decl));
+#endif /* CXX_WRAP_SPEC_LIST */
 	  TREE_ASM_WRITTEN (decl) = 1;
 	  i386_pe_declare_function_type (asm_out_file, p->name,
 					 TREE_PUBLIC (decl));
@@ -636,7 +723,7 @@ i386_pe_file_end (void)
       drectve_section ();
       for (q = export_head; q != NULL; q = q->next)
 	{
-	  fprintf (asm_out_file, "\t.ascii \" -export:%s%s\"\n",
+	  fprintf (asm_out_file, "\t.ascii \" -export:\\\"%s\\\"%s\"\n",
 		   default_strip_name_encoding (q->name),
 		   (q->is_data ? ",data" : ""));
 	}

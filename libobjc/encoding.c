@@ -27,6 +27,12 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 /* FIXME: This file has no business including tm.h.  */
 
+/* FIXME: This file contains functions that will abort the entire
+   program if they fail.  Is that really needed ?
+*/
+
+#include "objc-private/common.h"
+#include "objc-private/error.h"
 #include "tconfig.h"
 #include "coretypes.h"
 #include "tm.h"
@@ -105,13 +111,24 @@ static int __attribute__ ((__unused__)) not_target_flags = 0;
 #undef ALTIVEC_VECTOR_MODE
 #define ALTIVEC_VECTOR_MODE(MODE) (0)
 
+/* Furthermore, some (powerpc) targets also use TARGET_ALIGN_NATURAL
+ in their alignment macros. Currently[4.5/6], rs6000.h points this
+ to a static variable, initialized by target overrides. This is reset
+ in linux64.h but not in darwin64.h.  The macro is not used by *86*.  */
+
+#if __MACH__ && __LP64__
+# undef TARGET_ALIGN_NATURAL
+# define TARGET_ALIGN_NATURAL 1
+#endif
 
 /*  FIXME: while this file has no business including tm.h, this
     definitely has no business defining this macro but it
     is only way around without really rewritting this file,
-    should look after the branch of 3.4 to fix this.  */
+    should look after the branch of 3.4 to fix this.
+    FIXME1: It's also out of date, darwin no longer has the same alignment
+    'special' as aix - this is probably the origin of the m32 breakage.  */
 #define rs6000_special_round_type_align(STRUCT, COMPUTED, SPECIFIED)	\
-  ({ const char *_fields = TYPE_FIELDS (STRUCT);				\
+  ({ const char *_fields = TYPE_FIELDS (STRUCT);			\
   ((_fields != 0							\
     && TYPE_MODE (strip_array_types (TREE_TYPE (_fields))) == DFmode)	\
    ? MAX (MAX (COMPUTED, SPECIFIED), 64)				\
@@ -131,6 +148,8 @@ objc_sizeof_type (const char *type)
   /* Skip the variable name if any */
   if (*type == '"')
     {
+      /* FIXME: How do we know we won't read beyond the end of the
+	 string.  Here and in the rest of the file!  */
       for (type++; *type++ != '"';)
 	/* do nothing */;
     }
@@ -200,6 +219,10 @@ objc_sizeof_type (const char *type)
     return sizeof (double);
     break;
 
+  case _C_LNG_DBL:
+    return sizeof (long double);
+    break;
+
   case _C_VOID:
     return sizeof (void);
     break;
@@ -216,6 +239,19 @@ objc_sizeof_type (const char *type)
       while (isdigit ((unsigned char)*++type))
 	;
       return len * objc_aligned_size (type);
+    }
+    break;
+
+  case _C_VECTOR:
+    {
+      /* Skip the '!'.  */
+      type++;
+      /* Skip the '['.  */
+      type++;
+
+      /* The size in bytes is the following number.  */
+      int size = atoi (type);
+      return size;
     }
     break;
 
@@ -301,11 +337,18 @@ objc_sizeof_type (const char *type)
 	    case _C_DBL:
 	      return sizeof (_Complex double);
 	      break;
+
+	    case _C_LNG_DBL:
+	      return sizeof (_Complex long double);
+	      break;
 	    
 	    default:
 	      {
-		objc_error (nil, OBJC_ERR_BAD_TYPE, "unknown complex type %s\n",
-			    type);
+		/* FIXME: Is this so bad that we have to abort the
+		   entire program ?  (it applies to all the other
+		   _objc_abort calls in this file).
+		*/
+		_objc_abort ("unknown complex type %s\n", type);
 		return 0;
 	      }
 	}
@@ -313,7 +356,7 @@ objc_sizeof_type (const char *type)
 
   default:
     {
-      objc_error (nil, OBJC_ERR_BAD_TYPE, "unknown type %s\n", type);
+      _objc_abort ("unknown type %s\n", type);
       return 0;
     }
   }
@@ -398,6 +441,10 @@ objc_alignof_type (const char *type)
     return __alignof__ (double);
     break;
 
+  case _C_LNG_DBL:
+    return __alignof__ (long double);
+    break;
+
   case _C_PTR:
   case _C_ATOM:
   case _C_CHARPTR:
@@ -409,6 +456,23 @@ objc_alignof_type (const char *type)
       /* do nothing */;
     return objc_alignof_type (type);
 
+  case _C_VECTOR:
+    {   
+      /* Skip the '!'.  */
+      type++;
+      /* Skip the '['.  */
+      type++;
+      
+      /* Skip the size.  */
+      while (isdigit ((unsigned char)*type))
+	type++;
+      
+      /* Skip the ','.  */
+      type++;
+      
+      /* The alignment in bytes is the following number.  */
+      return atoi (type);
+    }
   case _C_STRUCT_B:
   case _C_UNION_B:
     {
@@ -476,11 +540,14 @@ objc_alignof_type (const char *type)
 	    case _C_DBL:
 	      return __alignof__ (_Complex double);
 	      break;
+
+	    case _C_LNG_DBL:
+	      return __alignof__ (_Complex long double);
+	      break;
 	    
 	    default:
 	      {
-		objc_error (nil, OBJC_ERR_BAD_TYPE, "unknown complex type %s\n",
-			    type);
+		_objc_abort ("unknown complex type %s\n", type);
 		return 0;
 	      }
 	}
@@ -488,7 +555,7 @@ objc_alignof_type (const char *type)
 
   default:
     {
-      objc_error (nil, OBJC_ERR_BAD_TYPE, "unknown type %s\n", type);
+      _objc_abort ("unknown type %s\n", type);
       return 0;
     }
   }
@@ -544,7 +611,7 @@ objc_promoted_size (const char *type)
   occurring in method prototype encodings.
 */
 
-inline const char *
+const char *
 objc_skip_type_qualifiers (const char *type)
 {
   while (*type == _C_CONST
@@ -612,6 +679,7 @@ objc_skip_typespec (const char *type)
   case _C_ULNG_LNG:
   case _C_FLT:
   case _C_DBL:
+  case _C_LNG_DBL:
   case _C_VOID:
   case _C_UNDEF:
     return ++type;
@@ -623,7 +691,6 @@ objc_skip_typespec (const char *type)
 
   case _C_ARY_B:
     /* skip digits, typespec and closing ']' */
-
     while (isdigit ((unsigned char)*++type))
       ;
     type = objc_skip_typespec (type);
@@ -631,7 +698,31 @@ objc_skip_typespec (const char *type)
       return ++type;
     else
       {
-	objc_error (nil, OBJC_ERR_BAD_TYPE, "bad array type %s\n", type);
+	_objc_abort ("bad array type %s\n", type);
+	return 0;
+      }
+
+  case _C_VECTOR:
+    /* Skip '!' */
+    type++;
+    /* Skip '[' */
+    type++;
+    /* Skip digits (size) */
+    while (isdigit ((unsigned char)*type))
+      type++;
+    /* Skip ',' */
+    type++;
+    /* Skip digits (alignment) */
+    while (isdigit ((unsigned char)*type))
+      type++;
+    /* Skip typespec.  */
+    type = objc_skip_typespec (type);
+    /* Skip closing ']'.  */
+    if (*type == _C_ARY_E)
+      return ++type;
+    else
+      {
+	_objc_abort ("bad vector type %s\n", type);
 	return 0;
       }
 
@@ -672,7 +763,7 @@ objc_skip_typespec (const char *type)
 
   default:
     {
-      objc_error (nil, OBJC_ERR_BAD_TYPE, "unknown type %s\n", type);
+      _objc_abort ("unknown type %s\n", type);
       return 0;
     }
   }
@@ -681,8 +772,10 @@ objc_skip_typespec (const char *type)
 /*
   Skip an offset as part of a method encoding.  This is prepended by a
   '+' if the argument is passed in registers.
+
+  FIXME: The compiler never generates '+'.
 */
-inline const char *
+const char *
 objc_skip_offset (const char *type)
 {
   if (*type == '+')
@@ -864,15 +957,14 @@ objc_get_type_qualifiers (const char *type)
   the presence of bitfields inside the structure. */
 void
 objc_layout_structure (const char *type,
-                           struct objc_struct_layout *layout)
+		       struct objc_struct_layout *layout)
 {
   const char *ntype;
 
   if (*type != _C_UNION_B && *type != _C_STRUCT_B)
     {
-      objc_error (nil, OBJC_ERR_BAD_TYPE,
-                 "record (or union) type expected in objc_layout_structure, got %s\n",
-                 type);
+      _objc_abort ("record (or union) type expected in objc_layout_structure, got %s\n",
+		   type);
     }
 
   type ++;
@@ -904,7 +996,7 @@ objc_layout_structure_next_member (struct objc_struct_layout *layout)
 
   /* The following are used only if the field is a bitfield */
   register const char *bfld_type = 0;
-  register int bfld_type_size, bfld_type_align = 0, bfld_field_size = 0;
+  register int bfld_type_align = 0, bfld_field_size = 0;
 
   /* The current type without the type qualifiers */
   const char *type;
@@ -927,7 +1019,6 @@ objc_layout_structure_next_member (struct objc_struct_layout *layout)
              bfld_type++)
           /* do nothing */;
 
-        bfld_type_size = objc_sizeof_type (bfld_type) * BITS_PER_UNIT;
         bfld_type_align = objc_alignof_type (bfld_type) * BITS_PER_UNIT;
         bfld_field_size = atoi (objc_skip_typespec (bfld_type));
         layout->record_size += bfld_field_size;
@@ -958,11 +1049,11 @@ objc_layout_structure_next_member (struct objc_struct_layout *layout)
            bfld_type++)
         /* do nothing */;
 
-      bfld_type_size = objc_sizeof_type (bfld_type) * BITS_PER_UNIT;
       bfld_type_align = objc_alignof_type (bfld_type) * BITS_PER_UNIT;
       bfld_field_size = atoi (objc_skip_typespec (bfld_type));
     }
 
+  /* The following won't work for vectors.  */
 #ifdef BIGGEST_FIELD_ALIGNMENT
   desired_align = MIN (desired_align, BIGGEST_FIELD_ALIGNMENT);
 #endif

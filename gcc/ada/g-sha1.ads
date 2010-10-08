@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 2002-2006, AdaCore                     --
+--           Copyright (C) 2009, Free Software Foundation, Inc.             --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -16,8 +16,8 @@
 -- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
 -- for  more details.  You should have  received  a copy of the GNU General --
 -- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- to  the Free Software Foundation,  59 Temple Place - Suite 330,  Boston, --
+-- MA 02111-1307, USA.                                                      --
 --                                                                          --
 -- As a special exception,  if other files  instantiate  generics from this --
 -- unit, or you link  this unit with other files  to produce an executable, --
@@ -31,86 +31,21 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This package implements the US Secure Hash Algorithm 1 (SHA1) as described
---  in RFC 3174. The complete text of RFC 3174 can be found at:
+--  This package implaments the SHA-1 secure hash function as decsribed in
+--  FIPS PUB 180-3. The complete text of FIPS PUB 180-3 can be found at:
+--    http://csrc.nist.gov/publications/fips/fips180-3/fips180-3_final.pdf
 
---          http://www.ietf.org/rfc/rfc3174.txt
+--  See the declaration of GNAT.Secure_Hashes.H in g-sechas.ads for complete
+--  documentation.
 
---  Note: the code for this unit is derived from GNAT.MD5
+with GNAT.Secure_Hashes.SHA1;
+with System;
 
-with Ada.Streams;
-with Interfaces;
-
-package GNAT.SHA1 is
-
-   type Context is private;
-   --  This type holds the five-word (20 byte) buffer H, as described in
-   --  RFC 3174 (6.1). Its initial value is Initial_Context below.
-
-   Initial_Context : constant Context;
-   --  Initial value of a Context object. May be used to reinitialize
-   --  a Context value by simple assignment of this value to the object.
-
-   procedure Update
-     (C     : in out Context;
-      Input : String);
-   procedure Wide_Update
-     (C     : in out Context;
-      Input : Wide_String);
-   procedure Update
-     (C     : in out Context;
-      Input : Ada.Streams.Stream_Element_Array);
-   --  Modify the Context C. If C has the initial value Initial_Context,
-   --  then, after a call to one of these procedures, Digest (C) will return
-   --  the Message-Digest of Input.
-   --
-   --  These procedures may be called successively with the same context and
-   --  different inputs, and these several successive calls will produce
-   --  the same final context as a call with the concatenation of the inputs.
-
-   subtype Message_Digest is String (1 .. 40);
-   --  The string type returned by function Digest
-
-   function Digest (C : Context) return Message_Digest;
-   --  Extracts the Message-Digest from a context. This function should be
-   --  used after one or several calls to Update.
-
-   function Digest      (S : String)      return Message_Digest;
-   function Wide_Digest (W : Wide_String) return Message_Digest;
-   function Digest
-     (A : Ada.Streams.Stream_Element_Array) return Message_Digest;
-   --  These functions are equivalent to the corresponding Update (or
-   --  Wide_Update) on a default initialized Context, followed by Digest
-   --  on the resulting Context.
-
-private
-
-   --  Magic numbers
-
-   Initial_H0 : constant := 16#67452301#;
-   Initial_H1 : constant := 16#EFCDAB89#;
-   Initial_H2 : constant := 16#98BADCFE#;
-   Initial_H3 : constant := 16#10325476#;
-   Initial_H4 : constant := 16#C3D2E1F0#;
-
-   type H_Type is array (0 .. 4) of Interfaces.Unsigned_32;
-
-   Initial_H : constant H_Type :=
-                (0 => Initial_H0,
-                 1 => Initial_H1,
-                 2 => Initial_H2,
-                 3 => Initial_H3,
-                 4 => Initial_H4);
-
-   type Context is record
-      H      : H_Type := Initial_H;
-      Buffer : String (1 .. 64)  := (others => ASCII.NUL);
-      Last   : Natural := 0;
-      Length : Natural := 0;
-   end record;
-
-   Initial_Context : constant Context :=
-     (H => Initial_H,
-      Buffer => (others => ASCII.NUL), Last => 0, Length => 0);
-
-end GNAT.SHA1;
+package GNAT.SHA1 is new GNAT.Secure_Hashes.H
+  (Block_Words    => GNAT.Secure_Hashes.SHA1.Block_Words,
+   State_Words    => 5,
+   Hash_Words     => 5,
+   Hash_Bit_Order => System.High_Order_First,
+   Hash_State     => GNAT.Secure_Hashes.SHA1.Hash_State,
+   Initial_State  => GNAT.Secure_Hashes.SHA1.Initial_State,
+   Transform      => GNAT.Secure_Hashes.SHA1.Transform);

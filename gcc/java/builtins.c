@@ -1,5 +1,5 @@
 /* Built-in and inline functions for gcj
-   Copyright (C) 2001, 2003, 2004, 2005, 2006, 2007, 2009
+   Copyright (C) 2001, 2003, 2004, 2005, 2006, 2007, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -24,6 +24,9 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 
 /* Written by Tom Tromey <tromey@redhat.com>.  */
 
+/* FIXME: Still need to include rtl.h here (see below).  */
+#undef IN_GCC_FRONTEND
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -34,7 +37,9 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "langhooks.h"
 #include "java-tree.h"
 #include <stdarg.h>
-#include "convert.h"
+
+/* FIXME: All these headers are necessary for sync_compare_and_swap.
+   Front ends should never have to look at that.  */
 #include "rtl.h"
 #include "insn-codes.h"
 #include "expr.h"
@@ -318,11 +323,13 @@ compareAndSwapInt_builtin (tree method_return_type ATTRIBUTE_UNUSED,
 			   tree orig_call)
 {
   enum machine_mode mode = TYPE_MODE (int_type_node);
-  if (sync_compare_and_swap[mode] != CODE_FOR_nothing
+  if (direct_optab_handler (sync_compare_and_swap_optab, mode)
+      != CODE_FOR_nothing
       || flag_use_atomic_builtins)
     {
       tree addr, stmt;
       UNMARSHAL5 (orig_call);
+      (void) value_type; /* Avoid set but not used warning.  */
 
       addr = build_addr_sum (int_type_node, obj_arg, offset_arg);
       stmt = build_call_expr (built_in_decls[BUILT_IN_BOOL_COMPARE_AND_SWAP_4],
@@ -338,7 +345,8 @@ compareAndSwapLong_builtin (tree method_return_type ATTRIBUTE_UNUSED,
 			    tree orig_call)
 {
   enum machine_mode mode = TYPE_MODE (long_type_node);
-  if (sync_compare_and_swap[mode] != CODE_FOR_nothing
+  if (direct_optab_handler (sync_compare_and_swap_optab, mode)
+      != CODE_FOR_nothing
       || (GET_MODE_SIZE (mode) <= GET_MODE_SIZE (word_mode)
 	  && flag_use_atomic_builtins))
     /* We don't trust flag_use_atomic_builtins for multi-word
@@ -347,6 +355,7 @@ compareAndSwapLong_builtin (tree method_return_type ATTRIBUTE_UNUSED,
     {
       tree addr, stmt;
       UNMARSHAL5 (orig_call);
+      (void) value_type; /* Avoid set but not used warning.  */
 
       addr = build_addr_sum (long_type_node, obj_arg, offset_arg);
       stmt = build_call_expr (built_in_decls[BUILT_IN_BOOL_COMPARE_AND_SWAP_8],
@@ -361,7 +370,8 @@ compareAndSwapObject_builtin (tree method_return_type ATTRIBUTE_UNUSED,
 			      tree orig_call)
 {
   enum machine_mode mode = TYPE_MODE (ptr_type_node);
-  if (sync_compare_and_swap[mode] != CODE_FOR_nothing
+  if (direct_optab_handler (sync_compare_and_swap_optab, mode)
+      != CODE_FOR_nothing
       || flag_use_atomic_builtins)
   {
     tree addr, stmt;
@@ -410,7 +420,8 @@ getVolatile_builtin (tree method_return_type ATTRIBUTE_UNUSED,
 {
   tree addr, stmt, modify_stmt, tmp;
   UNMARSHAL3 (orig_call);
-  
+  (void) this_arg; /* Avoid set but not used warning.  */
+
   addr = build_addr_sum (method_return_type, obj_arg, offset_arg);
   addr 
     = fold_convert (build_pointer_type (build_type_variant 
@@ -440,7 +451,8 @@ VMSupportsCS8_builtin (tree method_return_type,
 {
   enum machine_mode mode = TYPE_MODE (long_type_node);
   gcc_assert (method_return_type == boolean_type_node);
-  if (sync_compare_and_swap[mode] != CODE_FOR_nothing)
+  if (direct_optab_handler (sync_compare_and_swap_optab, mode)
+      != CODE_FOR_nothing)
     return boolean_true_node;
   else
     return boolean_false_node;
@@ -484,7 +496,7 @@ void
 initialize_builtins (void)
 {
   tree double_ftype_double, double_ftype_double_double;
-  tree float_ftype_float, float_ftype_float_float;
+  tree float_ftype_float_float;
   tree boolean_ftype_boolean_boolean;
   tree t;
   int i;
@@ -501,7 +513,6 @@ initialize_builtins (void)
   void_list_node = end_params_node;
 
   t = tree_cons (NULL_TREE, float_type_node, end_params_node);
-  float_ftype_float = build_function_type (float_type_node, t);
   t = tree_cons (NULL_TREE, float_type_node, t);
   float_ftype_float_float = build_function_type (float_type_node, t);
 

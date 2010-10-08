@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *                     Copyright (C) 2000-2009, AdaCore                     *
+ *                     Copyright (C) 2000-2010, AdaCore                     *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -303,7 +303,14 @@ struct layout
 #define IS_BAD_PTR(ptr) 0
 #endif
 
+/* Starting with GCC 4.6, -fomit-frame-pointer is turned on by default for
+   32-bit x86/Linux as well and DWARF 2 unwind tables are emitted instead.
+   See the x86-64 case below for the drawbacks with this approach.  */
+#if defined (linux) && (__GNUC__ * 10 + __GNUC_MINOR__ > 45)
+#define USE_GCC_UNWINDER
+#else
 #define USE_GENERIC_UNWINDER
+#endif
 
 struct layout
 {
@@ -435,7 +442,7 @@ __gnat_backtrace (void **array,
 {
   struct layout *current;
   void *top_frame;
-  void *top_stack;
+  void *top_stack ATTRIBUTE_UNUSED;
   int cnt = 0;
 
   if (FORCE_CALL)
@@ -486,8 +493,8 @@ __gnat_backtrace (void **array,
 
 #else
 
-/* No target specific implementation and neither USE_GCC_UNWINDER not
-   USE_GCC_UNWINDER defined.  */
+/* No target specific implementation and neither USE_GCC_UNWINDER nor
+   USE_GENERIC_UNWINDER defined.  */
 
 /*------------------------------*
  *-- The dummy implementation --*

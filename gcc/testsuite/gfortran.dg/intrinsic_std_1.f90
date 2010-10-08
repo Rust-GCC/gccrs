@@ -1,5 +1,9 @@
 ! { dg-do compile }
-! { dg-options "-std=f95 -Wintrinsics-std -fdump-tree-original" }
+! { dg-options "-std=f95 -Wintrinsics-std" }
+
+!
+! See intrinsic_std_6.f90 for the dump check.
+!
 
 ! PR fortran/33141
 ! Check for the expected behaviour when an intrinsic function/subroutine is
@@ -20,7 +24,7 @@ SUBROUTINE no_implicit
   ! ASINH is an intrinsic of F2008
   ! The warning should be issued in the declaration above where it is declared
   ! EXTERNAL.
-  WRITE (*,*) ASINH (1.) ! { dg-bogus "Fortran 2008" }
+  WRITE (*,*) ASINH (1.) ! { dg-warning "Fortran 2008" }
 END SUBROUTINE no_implicit
 
 SUBROUTINE implicit_type
@@ -32,8 +36,8 @@ END SUBROUTINE implicit_type
 
 SUBROUTINE specification_expression
   CHARACTER(KIND=selected_char_kind("ascii")) :: x
-! { dg-error "specification function" "" { target "*-*-*" } 34 }
-! { dg-warning "Fortran 2003" "" { target "*-*-*" } 34 }
+! { dg-error "must be an intrinsic function" "" { target "*-*-*" } 38 }
+! { dg-warning "Fortran 2003" "" { target "*-*-*" } 38 }
 END SUBROUTINE specification_expression
 
 SUBROUTINE intrinsic_decl
@@ -41,9 +45,3 @@ SUBROUTINE intrinsic_decl
   INTRINSIC :: atanh ! { dg-error "Fortran 2008" }
   INTRINSIC :: abort ! { dg-error "extension" }
 END SUBROUTINE intrinsic_decl
-
-! Scan that really external functions are called.
-! { dg-final { scan-tree-dump " abort " "original" } }
-! { dg-final { scan-tree-dump " asinh " "original" } }
-! { dg-final { scan-tree-dump " acosh " "original" } }
-! { dg-final { cleanup-tree-dump "original" } }

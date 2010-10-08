@@ -44,6 +44,7 @@ along with this program; see the file COPYING3.  If not see
 #include <sys/wait.h>
 #include <stdbool.h>
 #include <libiberty.h>
+#include <hashtab.h>
 
 /* The presence of gelf.h is checked by the toplevel configure script.  */
 #include <gelf.h>
@@ -55,11 +56,19 @@ along with this program; see the file COPYING3.  If not see
    must keep SYMS until all_symbols_read is called to give the linker time to
    copy the symbol information. */
 
+struct sym_aux
+{
+  uint32_t slot;
+  unsigned id;
+  unsigned next_conflict;
+};
+
 struct plugin_symtab
 {
   int nsyms;
-  uint32_t *slots;
+  struct sym_aux *aux;
   struct ld_plugin_symbol *syms;
+  unsigned id;
 };
 
 /* All that we have to remember about a file. */
@@ -69,6 +78,7 @@ struct plugin_file_info
   char *name;
   void *handle;
   struct plugin_symtab symtab;
+  struct plugin_symtab conflicts;
 };
 
 
@@ -120,7 +130,8 @@ check (bool gate, enum ld_plugin_level level, const char *text)
    Returns the address of the next entry. */
 
 static char *
-parse_table_entry (char *p, struct ld_plugin_symbol *entry, uint32_t *slot)
+parse_table_entry (char *p, struct ld_plugin_symbol *entry, 
+		   struct sym_aux *aux)
 {
   unsigned char t;
   enum ld_plugin_symbol_kind translate_kind[] =
@@ -140,7 +151,7 @@ parse_table_entry (char *p, struct ld_plugin_symbol *entry, uint32_t *slot)
       LDPV_HIDDEN
     };
 
-  entry->name = strdup (p);
+  entry->name = xstrdup (p);
   while (*p)
     p++;
   p++;
@@ -155,7 +166,7 @@ parse_table_entry (char *p, struct ld_plugin_symbol *entry, uint32_t *slot)
   if (strlen (entry->comdat_key) == 0)
     entry->comdat_key = NULL;
   else
-    entry->comdat_key = strdup (entry->comdat_key);
+    entry->comdat_key = xstrdup (entry->comdat_key);
 
   t = *p;
   check (t <= 4, LDPL_FATAL, "invalid symbol kind found");
@@ -170,24 +181,60 @@ parse_table_entry (char *p, struct ld_plugin_symbol *entry, uint32_t *slot)
   entry->size = *(uint64_t *) p;
   p += 8;
 
-  *slot = *(uint32_t *) p;
+  aux->slot = *(uint32_t *) p;
   p += 4;
 
   entry->resolution = LDPR_UNKNOWN;
 
+  aux->next_conflict = -1;
+
   return p;
 }
 
-/* Return the section in ELF that is named NAME. */
+#define LTO_SECTION_PREFIX ".gnu.lto_.symtab"
 
-static Elf_Scn *
-get_section (Elf *elf, const char *name)
+/* Translate the IL symbol table SYMTAB. Append the slots and symbols to OUT. */
+
+static void
+translate (Elf_Data *symtab, struct plugin_symtab *out)
 {
+  struct sym_aux *aux;
+  char *data = symtab->d_buf;
+  char *end = data + symtab->d_size;
+  struct ld_plugin_symbol *syms = NULL;
+  int n, len;
+
+  /* This overestimates the output buffer sizes, but at least 
+     the algorithm is O(1) now. */
+
+  len = (end - data)/8 + out->nsyms + 1;
+  syms = xrealloc (out->syms, len * sizeof (struct ld_plugin_symbol));
+  aux = xrealloc (out->aux, len * sizeof (struct sym_aux));
+  
+  for (n = out->nsyms; data < end; n++) 
+    { 
+      aux[n].id = out->id; 
+      data = parse_table_entry (data, &syms[n], &aux[n]);
+    }
+
+  assert(n < len);
+
+  out->nsyms = n;
+  out->syms = syms;
+  out->aux = aux;
+}
+
+/* Process all lto symtabs of file ELF. */
+
+static int
+process_symtab (Elf *elf, struct plugin_symtab *out)
+{
+  int found = 0;
   Elf_Scn *section = 0;
   GElf_Ehdr header;
   GElf_Ehdr *t = gelf_getehdr (elf, &header);
   if (t == NULL)
-    return NULL;
+    return 0;
   assert (t == &header);
 
   while ((section = elf_nextscn(elf, section)) != 0)
@@ -198,51 +245,16 @@ get_section (Elf *elf, const char *name)
       assert (tshdr == &shdr);
       t = elf_strptr (elf, header.e_shstrndx, shdr.sh_name);
       assert (t != NULL);
-      if (strcmp (t, name) == 0)
-	return section;
+      if (strncmp (t, LTO_SECTION_PREFIX, strlen (LTO_SECTION_PREFIX)) == 0) 
+	{
+	  char *s = strrchr (t, '.');
+	  if (s)
+	      sscanf (s, ".%x", &out->id);
+	  translate (elf_getdata (section, NULL), out);
+	  found++;
+	}
     }
-  return NULL;
-}
-
-/* Returns the IL symbol table of file ELF. */
-
-static Elf_Data *
-get_symtab (Elf *elf)
-{
-  Elf_Data *data = 0;
-  Elf_Scn *section = get_section (elf, ".gnu.lto_.symtab");
-  if (!section)
-    return NULL;
-
-  data = elf_getdata (section, data);
-  assert (data);
-  return data;
-}
-
-/* Translate the IL symbol table SYMTAB. Write the slots and symbols in OUT. */
-
-static void
-translate (Elf_Data *symtab, struct plugin_symtab *out)
-{
-  uint32_t *slots = NULL;
-  char *data = symtab->d_buf;
-  char *end = data + symtab->d_size;
-  struct ld_plugin_symbol *syms = NULL;
-  int n = 0;
-
-  while (data < end)
-    {
-      n++;
-      syms = realloc (syms, n * sizeof (struct ld_plugin_symbol));
-      check (syms, LDPL_FATAL, "could not allocate memory");
-      slots = realloc (slots, n * sizeof (uint32_t));
-      check (slots, LDPL_FATAL, "could not allocate memory");
-      data = parse_table_entry (data, &syms[n - 1], &slots[n - 1]);
-    }
-
-  out->nsyms = n;
-  out->syms = syms;
-  out->slots = slots;
+  return found;
 }
 
 /* Free all memory that is no longer needed after writing the symbol
@@ -279,7 +291,7 @@ free_2 (void)
     {
       struct plugin_file_info *info = &claimed_files[i];
       struct plugin_symtab *symtab = &info->symtab;
-      free (symtab->slots);
+      free (symtab->aux);
       free (info->name);
     }
 
@@ -294,12 +306,82 @@ free_2 (void)
   if (arguments_file_name)
     free (arguments_file_name);
   arguments_file_name = NULL;
+}
 
-  if (resolution_file)
+/* Dump SYMTAB to resolution file F. */
+
+static void
+dump_symtab (FILE *f, struct plugin_symtab *symtab)
+{
+  unsigned j;
+
+  for (j = 0; j < symtab->nsyms; j++)
     {
-      free (resolution_file);
-      resolution_file = NULL;
+      uint32_t slot = symtab->aux[j].slot;
+      unsigned int resolution = symtab->syms[j].resolution;
+      
+      assert (resolution != LDPR_UNKNOWN);
+
+      fprintf (f, "%d %x %s %s\n", slot, symtab->aux[j].id,
+	       lto_resolution_str[resolution], 
+	       symtab->syms[j].name);
     }
+}
+
+/* Finish the conflicts' resolution information after the linker resolved
+   the original symbols */
+
+static void
+finish_conflict_resolution (struct plugin_symtab *symtab, 
+			   struct plugin_symtab *conflicts)
+{
+  int i, j;
+
+  if (conflicts->nsyms == 0)
+    return;
+
+  for (i = 0; i < symtab->nsyms; i++)
+    { 
+      int resolution;
+
+      if (symtab->aux[i].next_conflict == -1)
+	continue;
+
+      switch (symtab->syms[i].def) 
+	{
+	case LDPK_DEF:
+	case LDPK_COMMON: /* ??? */
+	  resolution = LDPR_RESOLVED_IR; 
+	  break;
+	case LDPK_WEAKDEF:
+	  resolution = LDPR_PREEMPTED_IR;
+	  break;
+	case LDPK_UNDEF:
+	case LDPK_WEAKUNDEF:
+	  resolution = symtab->syms[i].resolution;
+	  break;
+	default:
+	  assert (0);
+	}
+
+      assert (resolution != LDPR_UNKNOWN);
+
+      for (j = symtab->aux[i].next_conflict; 
+	   j != -1; 
+	   j = conflicts->aux[j].next_conflict)
+	conflicts->syms[j].resolution = resolution;
+    }
+}
+
+/* Free symbol table SYMTAB. */
+
+static void
+free_symtab (struct plugin_symtab *symtab)
+{
+  free (symtab->syms);
+  symtab->syms = NULL;
+  free (symtab->aux);
+  symtab->aux = NULL;
 }
 
 /*  Writes the relocations to disk. */
@@ -310,9 +392,7 @@ write_resolution (void)
   unsigned int i;
   FILE *f;
 
-  if (!resolution_file)
-    return;
-
+  check (resolution_file, LDPL_FATAL, "resolution file not specified");
   f = fopen (resolution_file, "w");
   check (f, LDPL_FATAL, "could not open file");
 
@@ -323,18 +403,17 @@ write_resolution (void)
       struct plugin_file_info *info = &claimed_files[i];
       struct plugin_symtab *symtab = &info->symtab;
       struct ld_plugin_symbol *syms = symtab->syms;
-      unsigned j;
 
-      assert (syms);
       get_symbols (info->handle, symtab->nsyms, syms);
 
-      fprintf (f, "%s %d\n", info->name, info->symtab.nsyms);
+      finish_conflict_resolution (symtab, &info->conflicts);
 
-      for (j = 0; j < info->symtab.nsyms; j++)
+      fprintf (f, "%s %d\n", info->name, symtab->nsyms + info->conflicts.nsyms);
+      dump_symtab (f, symtab);
+      if (info->conflicts.nsyms)
 	{
-	  uint32_t slot = symtab->slots[j];
-	  unsigned int resolution = syms[j].resolution;
-	  fprintf (f, "%d %s\n", slot, lto_resolution_str[resolution]);
+	  dump_symtab (f, &info->conflicts);
+	  free_symtab (&info->conflicts);
 	}
     }
   fclose (f);
@@ -346,22 +425,29 @@ write_resolution (void)
 static void
 add_output_files (FILE *f)
 {
-  char fname[1000]; /* FIXME: Remove this restriction. */
-
   for (;;)
     {
+      const unsigned piece = 32;
+      char *buf, *s = xmalloc (piece);
       size_t len;
-      char *s = fgets (fname, sizeof (fname), f);
-      if (!s)
-	break;
 
+      buf = s;
+cont:
+      if (!fgets (buf, piece, f))
+	break;
       len = strlen (s);
-      check (s[len - 1] == '\n', LDPL_FATAL, "file name too long");
+      if (s[len - 1] != '\n')
+	{
+	  s = xrealloc (s, len + piece);
+	  buf = s + len;
+	  goto cont;
+	}
       s[len - 1] = '\0';
 
       num_output_files++;
-      output_files = realloc (output_files, num_output_files * sizeof (char *));
-      output_files[num_output_files - 1] = strdup (s);
+      output_files
+	= xrealloc (output_files, num_output_files * sizeof (char *));
+      output_files[num_output_files - 1] = s;
       add_input_file (output_files[num_output_files - 1]);
     }
 }
@@ -372,7 +458,7 @@ add_output_files (FILE *f)
 static void
 exec_lto_wrapper (char *argv[])
 {
-  int t;
+  int t, i;
   int status;
   char *at_args;
   FILE *args;
@@ -397,13 +483,24 @@ exec_lto_wrapper (char *argv[])
   at_args = concat ("@", arguments_file_name, NULL);
   check (at_args, LDPL_FATAL, "could not allocate");
 
+  for (i = 1; argv[i]; i++)
+    {
+      char *a = argv[i];
+      if (a[0] == '-' && a[1] == 'v' && a[2] == '\0')
+	{
+	  for (i = 0; argv[i]; i++)
+	    fprintf (stderr, "%s ", argv[i]);
+	  fprintf (stderr, "\n");
+	  break;
+	}
+    }
+
   new_argv[0] = argv[0];
   new_argv[1] = at_args;
   new_argv[2] = NULL;
 
   if (debug)
     {
-      int i;
       for (i = 0; new_argv[i]; i++)
 	fprintf (stderr, "%s ", new_argv[i]);
       fprintf (stderr, "\n");
@@ -464,7 +561,7 @@ all_symbols_read_handler (void)
       return LDPS_OK;
     }
 
-  lto_argv = (char **) calloc (sizeof (char *), num_lto_args);
+  lto_argv = (char **) xcalloc (sizeof (char *), num_lto_args);
   lto_arg_ptr = (const char **) lto_argv;
   assert (lto_wrapper_argv);
 
@@ -511,6 +608,7 @@ all_symbols_read_handler (void)
 static enum ld_plugin_status
 cleanup_handler (void)
 {
+  unsigned int i;
   int t;
 
   if (debug)
@@ -522,8 +620,138 @@ cleanup_handler (void)
       check (t == 0, LDPL_FATAL, "could not unlink arguments file");
     }
 
+  for (i = 0; i < num_output_files; i++)
+    {
+      t = unlink (output_files[i]);
+      check (t == 0, LDPL_FATAL, "could not unlink output file");
+    }
+
   free_2 ();
   return LDPS_OK;
+}
+
+#define SWAP(type, a, b) \
+  do { type tmp_; tmp_ = (a); (a) = (b); (b) = tmp_; } while(0)
+
+/* Compare two hash table entries */
+
+static int eq_sym (const void *a, const void *b)
+{
+  const struct ld_plugin_symbol *as = (const struct ld_plugin_symbol *)a;
+  const struct ld_plugin_symbol *bs = (const struct ld_plugin_symbol *)b;
+
+  return !strcmp (as->name, bs->name);
+}
+
+/* Hash a symbol */
+
+static hashval_t hash_sym (const void *a)
+{
+  const struct ld_plugin_symbol *as = (const struct ld_plugin_symbol *)a;
+
+  return htab_hash_string (as->name);
+}
+
+/* Determine how strong a symbol is */
+
+static int symbol_strength (struct ld_plugin_symbol *s)
+{
+  switch (s->def) 
+    { 
+    case LDPK_UNDEF:
+    case LDPK_WEAKUNDEF:
+      return 0;
+    case LDPK_WEAKDEF:
+      return 1;
+    default:
+      return 2;
+    }
+}
+
+/* In the ld -r case we can get dups in the LTO symbol tables, where
+   the same symbol can have different resolutions (e.g. undefined and defined).
+
+   We have to keep that in the LTO symbol tables, but the dups confuse
+   gold and then finally gcc by supplying incorrect resolutions.
+
+   Problem is that the main gold symbol table doesn't know about subids
+   and does not distingush the same symbols in different states.
+
+   So we drop duplicates from the linker visible symbol table
+   and keep them in a private table. Then later do own symbol
+   resolution for the duplicated based on the results for the
+   originals.
+
+   Then when writing out the resolution file readd the dropped symbols.
+   
+   XXX how to handle common? */
+
+static void
+resolve_conflicts (struct plugin_symtab *t, struct plugin_symtab *conflicts)
+{
+  htab_t symtab = htab_create (t->nsyms, hash_sym, eq_sym, NULL);
+  int i;
+  int out;
+  int outlen;
+
+  outlen = t->nsyms;
+  conflicts->syms = xmalloc (sizeof (struct ld_plugin_symbol) * outlen);
+  conflicts->aux = xmalloc (sizeof (struct sym_aux) * outlen);
+
+  /* Move all duplicate symbols into the auxillary conflicts table. */
+  out = 0;
+  for (i = 0; i < t->nsyms; i++) 
+    {
+      struct ld_plugin_symbol *s = &t->syms[i];
+      struct sym_aux *aux = &t->aux[i];
+      void **slot;
+
+      slot = htab_find_slot (symtab, s, INSERT);
+      if (*slot != NULL)
+	{
+	  int cnf;
+	  struct ld_plugin_symbol *orig = (struct ld_plugin_symbol *)*slot;
+	  struct sym_aux *orig_aux = &t->aux[orig - t->syms];
+
+	  /* Always let the linker resolve the strongest symbol */
+	  if (symbol_strength (orig) < symbol_strength (s)) 
+	    {
+	      SWAP (struct ld_plugin_symbol, *orig, *s);
+	      SWAP (uint32_t, orig_aux->slot, aux->slot);
+	      SWAP (unsigned, orig_aux->id, aux->id);
+	      /* Don't swap conflict chain pointer */
+	    } 
+
+	  /* Move current symbol into the conflicts table */
+	  cnf = conflicts->nsyms++;
+	  conflicts->syms[cnf] = *s;
+	  conflicts->aux[cnf] = *aux;
+	  aux = &conflicts->aux[cnf];
+
+	  /* Update conflicts chain of the original symbol */
+	  aux->next_conflict = orig_aux->next_conflict;
+	  orig_aux->next_conflict = cnf;
+
+	  continue;
+	}
+
+      /* Remove previous duplicates in the main table */
+      if (out < i)
+	{
+	  t->syms[out] = *s;
+	  t->aux[out] = *aux;
+	}
+
+      /* Put original into the hash table */
+      *slot = &t->syms[out];
+      out++;
+    }
+
+  assert (conflicts->nsyms <= outlen);
+  assert (conflicts->nsyms + out == t->nsyms);
+  
+  t->nsyms = out;
+  htab_delete (symtab);
 }
 
 /* Callback used by gold to check if the plugin will claim FILE. Writes
@@ -535,7 +763,9 @@ claim_file_handler (const struct ld_plugin_input_file *file, int *claimed)
   enum ld_plugin_status status;
   Elf *elf;
   struct plugin_file_info lto_file;
-  Elf_Data *symtab;
+  int n;
+
+  memset (&lto_file, 0, sizeof (struct plugin_file_info));
 
   if (file->offset != 0)
     {
@@ -543,7 +773,7 @@ claim_file_handler (const struct ld_plugin_input_file *file, int *claimed)
       Elf *archive;
       off_t offset;
       /* We pass the offset of the actual file, not the archive header. */
-      int t = asprintf (&objname, "%s@%" PRId64, file->name,
+      int t = asprintf (&objname, "%s@0x%" PRIx64, file->name,
                         (int64_t) file->offset);
       check (t >= 0, LDPL_FATAL, "asprintf failed");
       lto_file.name = objname;
@@ -565,7 +795,7 @@ claim_file_handler (const struct ld_plugin_input_file *file, int *claimed)
     }
   else
     {
-      lto_file.name = strdup (file->name);
+      lto_file.name = xstrdup (file->name);
       elf = elf_begin (file->fd, ELF_C_READ, NULL);
     }
   lto_file.handle = file->handle;
@@ -575,11 +805,12 @@ claim_file_handler (const struct ld_plugin_input_file *file, int *claimed)
   if (!elf)
     goto err;
 
-  symtab = get_symtab (elf);
-  if (!symtab)
+  n = process_symtab (elf, &lto_file.symtab);
+  if (n == 0)
     goto err;
 
-  translate (symtab, &lto_file.symtab);
+  if (n > 1)
+    resolve_conflicts (&lto_file.symtab, &lto_file.conflicts);
 
   status = add_symbols (file->handle, lto_file.symtab.nsyms,
 			lto_file.symtab.syms);
@@ -588,8 +819,8 @@ claim_file_handler (const struct ld_plugin_input_file *file, int *claimed)
   *claimed = 1;
   num_claimed_files++;
   claimed_files =
-    realloc (claimed_files,
-	     num_claimed_files * sizeof (struct plugin_file_info));
+    xrealloc (claimed_files,
+	      num_claimed_files * sizeof (struct plugin_file_info));
   claimed_files[num_claimed_files - 1] = lto_file;
 
   goto cleanup;
@@ -613,25 +844,24 @@ process_option (const char *option)
     debug = 1;
   else if (strcmp (option, "-nop") == 0)
     nop = 1;
-  else if (!strncmp (option, "-resolution=", strlen("-resolution=")))
-    {
-      resolution_file = strdup (option + strlen("-resolution="));
-    }
   else if (!strncmp (option, "-pass-through=", strlen("-pass-through=")))
     {
       num_pass_through_items++;
-      pass_through_items = realloc (pass_through_items,
-                                    num_pass_through_items * sizeof (char *));
+      pass_through_items = xrealloc (pass_through_items,
+				     num_pass_through_items * sizeof (char *));
       pass_through_items[num_pass_through_items - 1] =
-          strdup (option + strlen ("-pass-through="));
+          xstrdup (option + strlen ("-pass-through="));
     }
   else
     {
       int size;
+      char *opt = xstrdup (option);
       lto_wrapper_num_args += 1;
       size = lto_wrapper_num_args * sizeof (char *);
-      lto_wrapper_argv = (char **) realloc (lto_wrapper_argv, size);
-      lto_wrapper_argv[lto_wrapper_num_args - 1] = strdup(option);
+      lto_wrapper_argv = (char **) xrealloc (lto_wrapper_argv, size);
+      lto_wrapper_argv[lto_wrapper_num_args - 1] = opt;
+      if (strncmp (option, "-fresolution=", sizeof ("-fresolution=") - 1) == 0)
+	resolution_file = opt + sizeof ("-fresolution=") - 1;
     }
 }
 

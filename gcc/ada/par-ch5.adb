@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -34,7 +34,6 @@ package body Ch5 is
 
    function P_Case_Statement                     return Node_Id;
    function P_Case_Statement_Alternative         return Node_Id;
-   function P_Condition                          return Node_Id;
    function P_Exit_Statement                     return Node_Id;
    function P_Goto_Statement                     return Node_Id;
    function P_If_Statement                       return Node_Id;
@@ -191,9 +190,57 @@ package body Ch5 is
       -----------------------------
 
       procedure Test_Statement_Required is
+         function All_Pragmas return Boolean;
+         --  Return True if statement list is all pragmas
+
+         -----------------
+         -- All_Pragmas --
+         -----------------
+
+         function All_Pragmas return Boolean is
+            S : Node_Id;
+         begin
+            S := First (Statement_List);
+            while Present (S) loop
+               if Nkind (S) /= N_Pragma then
+                  return False;
+               else
+                  Next (S);
+               end if;
+            end loop;
+
+            return True;
+         end All_Pragmas;
+
+      --  Start of processing for Test_Statement_Required
+
       begin
          if Statement_Required then
-            Error_Msg_BC ("statement expected");
+
+            --  Check no statement required after label in Ada 2012, and that
+            --  it is OK to have nothing but pragmas in a statement sequence.
+
+            if Ada_Version >= Ada_2012
+              and then not Is_Empty_List (Statement_List)
+              and then (Nkind (Last (Statement_List)) = N_Label
+                          or else All_Pragmas)
+            then
+               declare
+                  Null_Stm : constant Node_Id :=
+                               Make_Null_Statement (Token_Ptr);
+               begin
+                  Set_Comes_From_Source (Null_Stm, False);
+                  Append_To (Statement_List, Null_Stm);
+               end;
+
+            --  All pragmas is OK on
+
+            --  If not Ada 2012, or not special case above, give error message
+
+            else
+               Error_Msg_BC -- CODEFIX
+                 ("statement expected");
+            end if;
          end if;
       end Test_Statement_Required;
 
@@ -333,10 +380,10 @@ package body Ch5 is
                when Tok_Exception =>
                   Test_Statement_Required;
 
-                  --  If Extm not set and the exception is not to the left
-                  --  of the expected column of the end for this sequence, then
-                  --  we assume it belongs to the current sequence, even though
-                  --  it is not permitted.
+                  --  If Extm not set and the exception is not to the left of
+                  --  the expected column of the end for this sequence, then we
+                  --  assume it belongs to the current sequence, even though it
+                  --  is not permitted.
 
                   if not SS_Flags.Extm and then
                      Start_Column >= Scope.Table (Scope.Last).Ecol
@@ -349,7 +396,7 @@ package body Ch5 is
 
                   --  Always return, in the case where we scanned out handlers
                   --  that we did not expect, Parse_Exception_Handlers returned
-                  --  with Token being either end or EOF, so we are OK
+                  --  with Token being either end or EOF, so we are OK.
 
                   exit;
 
@@ -357,8 +404,8 @@ package body Ch5 is
 
                when Tok_Or =>
 
-                  --  Terminate if Ortm set or if the or is to the left
-                  --  of the expected column of the end for this sequence
+                  --  Terminate if Ortm set or if the or is to the left of the
+                  --  expected column of the end for this sequence.
 
                   if SS_Flags.Ortm
                      or else Start_Column < Scope.Table (Scope.Last).Ecol
@@ -384,9 +431,9 @@ package body Ch5 is
 
                   exit when SS_Flags.Tatm and then Token = Tok_Abort;
 
-                  --  Otherwise we treat THEN as some kind of mess where we
-                  --  did not see the associated IF, but we pick up assuming
-                  --  it had been there!
+                  --  Otherwise we treat THEN as some kind of mess where we did
+                  --  not see the associated IF, but we pick up assuming it had
+                  --  been there!
 
                   Restore_Scan_State (Scan_State); -- to THEN
                   Append_To (Statement_List, P_If_Statement);
@@ -396,8 +443,8 @@ package body Ch5 is
 
                when Tok_When | Tok_Others =>
 
-                  --  Terminate if Whtm set or if the WHEN is to the left
-                  --  of the expected column of the end for this sequence
+                  --  Terminate if Whtm set or if the WHEN is to the left of
+                  --  the expected column of the end for this sequence.
 
                   if SS_Flags.Whtm
                      or else Start_Column < Scope.Table (Scope.Last).Ecol
@@ -607,7 +654,8 @@ package body Ch5 is
                                    or else
                                  Nkind (Name_Node) = N_Selected_Component)
                      then
-                        Error_Msg_SC ("""/"" should be "".""");
+                        Error_Msg_SC -- CODEFIX
+                          ("""/"" should be "".""");
                         Statement_Required := False;
                         raise Error_Resync;
 
@@ -857,7 +905,8 @@ package body Ch5 is
                      Junk_Declaration;
 
                   else
-                     Error_Msg_BC ("statement expected");
+                     Error_Msg_BC -- CODEFIX
+                       ("statement expected");
                      raise Error_Resync;
                   end if;
             end case;
@@ -1172,7 +1221,8 @@ package body Ch5 is
          --  of WHEN expression =>
 
          if Token = Tok_Arrow then
-            Error_Msg_SC ("THEN expected");
+            Error_Msg_SC -- CODEFIX
+              ("THEN expected");
             Scan; -- past the arrow
             Pop_Scope_Stack; -- remove unneeded entry
             raise Error_Resync;
@@ -1208,7 +1258,8 @@ package body Ch5 is
             Scan; -- past ELSE
 
             if Else_Should_Be_Elsif then
-               Error_Msg_SP ("ELSE should be ELSIF");
+               Error_Msg_SP -- CODEFIX
+                 ("ELSE should be ELSIF");
                Add_Elsif_Part;
 
             else
@@ -1258,7 +1309,8 @@ package body Ch5 is
 
       if Token = Tok_Colon_Equal then
          while Token = Tok_Colon_Equal loop
-            Error_Msg_SC (""":="" should be ""=""");
+            Error_Msg_SC -- CODEFIX
+              (""":="" should be ""=""");
             Scan; -- past junk :=
             Discard_Junk_Node (P_Expression_No_Right_Paren);
          end loop;
@@ -2196,7 +2248,8 @@ package body Ch5 is
       --  What we are interested in is whether it was a case of a bad IS.
 
       if Scope.Table (Scope.Last + 1).Etyp = E_Bad_Is then
-         Error_Msg ("|IS should be "";""", Scope.Table (Scope.Last + 1).S_Is);
+         Error_Msg -- CODEFIX
+           ("|IS should be "";""", Scope.Table (Scope.Last + 1).S_Is);
          Set_Bad_Is_Detected (Parent, True);
       end if;
 
@@ -2225,7 +2278,8 @@ package body Ch5 is
       TF_Then;
 
       while Token = Tok_Then loop
-         Error_Msg_SC ("redundant THEN");
+         Error_Msg_SC -- CODEFIX
+           ("redundant THEN");
          TF_Then;
       end loop;
 

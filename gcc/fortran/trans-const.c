@@ -1,6 +1,6 @@
 /* Translation of constants
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008 Free Software
-   Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -25,9 +25,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
-#include "ggc.h"
-#include "toplev.h"
-#include "real.h"
+#include "realmpfr.h"
+#include "diagnostic-core.h"	/* For fatal_error.  */
 #include "double-int.h"
 #include "gfortran.h"
 #include "trans.h"
@@ -236,6 +235,26 @@ gfc_conv_mpfr_to_tree (mpfr_t f, int kind, int is_snan)
   return build_real (type, real);
 }
 
+/* Returns a real constant that is +Infinity if the target
+   supports infinities for this floating-point mode, and
+   +HUGE_VAL otherwise (the largest representable number).  */
+
+tree
+gfc_build_inf_or_huge (tree type, int kind)
+{
+  if (HONOR_INFINITIES (TYPE_MODE (type)))
+    {
+      REAL_VALUE_TYPE real;
+      real_inf (&real);
+      return build_real (type, real);
+    }
+  else
+    {
+      int k = gfc_validate_kind (BT_REAL, kind, false);
+      return gfc_conv_mpfr_to_tree (gfc_real_kinds[k].huge, kind, 0);
+    }
+}
+
 /* Converts a backend tree into a real constant.  */
 
 void
@@ -267,29 +286,29 @@ gfc_conv_constant_to_tree (gfc_expr * expr)
     {
     case BT_INTEGER:
       if (expr->representation.string)
-	return fold_build1 (VIEW_CONVERT_EXPR,
-			    gfc_get_int_type (expr->ts.kind),
-			    gfc_build_string_const (expr->representation.length,
-						    expr->representation.string));
+	return fold_build1_loc (input_location, VIEW_CONVERT_EXPR,
+			 gfc_get_int_type (expr->ts.kind),
+			 gfc_build_string_const (expr->representation.length,
+						 expr->representation.string));
       else
 	return gfc_conv_mpz_to_tree (expr->value.integer, expr->ts.kind);
 
     case BT_REAL:
       if (expr->representation.string)
-	return fold_build1 (VIEW_CONVERT_EXPR,
-			    gfc_get_real_type (expr->ts.kind),
-			    gfc_build_string_const (expr->representation.length,
-						    expr->representation.string));
+	return fold_build1_loc (input_location, VIEW_CONVERT_EXPR,
+			 gfc_get_real_type (expr->ts.kind),
+			 gfc_build_string_const (expr->representation.length,
+						 expr->representation.string));
       else
 	return gfc_conv_mpfr_to_tree (expr->value.real, expr->ts.kind, expr->is_snan);
 
     case BT_LOGICAL:
       if (expr->representation.string)
 	{
-	  tree tmp = fold_build1 (VIEW_CONVERT_EXPR,
-				  gfc_get_int_type (expr->ts.kind),
-				  gfc_build_string_const (expr->representation.length,
-							  expr->representation.string));
+	  tree tmp = fold_build1_loc (input_location, VIEW_CONVERT_EXPR,
+			gfc_get_int_type (expr->ts.kind),
+			gfc_build_string_const (expr->representation.length,
+						expr->representation.string));
 	  if (!integer_zerop (tmp) && !integer_onep (tmp))
 	    gfc_warning ("Assigning value other than 0 or 1 to LOGICAL"
 			 " has undefined result at %L", &expr->where);
@@ -301,10 +320,10 @@ gfc_conv_constant_to_tree (gfc_expr * expr)
 
     case BT_COMPLEX:
       if (expr->representation.string)
-	return fold_build1 (VIEW_CONVERT_EXPR,
-			    gfc_get_complex_type (expr->ts.kind),
-			    gfc_build_string_const (expr->representation.length,
-						    expr->representation.string));
+	return fold_build1_loc (input_location, VIEW_CONVERT_EXPR,
+			 gfc_get_complex_type (expr->ts.kind),
+			 gfc_build_string_const (expr->representation.length,
+						 expr->representation.string));
       else
 	{
 	  tree real = gfc_conv_mpfr_to_tree (mpc_realref (expr->value.complex),
@@ -340,7 +359,7 @@ void
 gfc_conv_constant (gfc_se * se, gfc_expr * expr)
 {
   /* We may be receiving an expression for C_NULL_PTR or C_NULL_FUNPTR.  If
-     so, they expr_type will not yet be an EXPR_CONSTANT.  We need to make
+     so, the expr_type will not yet be an EXPR_CONSTANT.  We need to make
      it so here.  */
   if (expr->ts.type == BT_DERIVED && expr->ts.u.derived
       && expr->ts.u.derived->attr.is_iso_c)
@@ -349,11 +368,17 @@ gfc_conv_constant (gfc_se * se, gfc_expr * expr)
           || expr->symtree->n.sym->intmod_sym_id == ISOCBINDING_NULL_FUNPTR)
         {
           /* Create a new EXPR_CONSTANT expression for our local uses.  */
-          expr = gfc_int_expr (0);
+          expr = gfc_get_int_expr (gfc_default_integer_kind, NULL, 0);
         }
     }
 
-  gcc_assert (expr->expr_type == EXPR_CONSTANT);
+  if (expr->expr_type != EXPR_CONSTANT)
+    {
+      gfc_expr *e = gfc_get_int_expr (gfc_default_integer_kind, NULL, 0);
+      gfc_error ("non-constant initialization expression at %L", &expr->where);
+      se->expr = gfc_conv_constant_to_tree (e);
+      return;
+    }
 
   if (se->ss != NULL)
     {

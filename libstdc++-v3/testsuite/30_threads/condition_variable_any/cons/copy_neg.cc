@@ -3,7 +3,7 @@
 // { dg-require-cstdint "" }
 // { dg-require-gthreads "" }
 
-// Copyright (C) 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,8 +27,7 @@ void test01()
 {
   // copy
   std::condition_variable_any c1;
-  std::condition_variable_any c2(c1);
+  std::condition_variable_any c2(c1); // { dg-error "deleted" }
 }
 
-// { dg-error "used here" "" { target *-*-* } 30 }
-// { dg-error "deleted function" "" { target *-*-* } 174 }
+// { dg-prune-output "include" }

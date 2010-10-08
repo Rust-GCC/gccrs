@@ -1,6 +1,7 @@
 /* toplev.h - Various declarations for functions found in toplev.c
-   Copyright (C) 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2007, 2008,
-   2009 Free Software Foundation, Inc.
+   Copyright (C) 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2006, 2007,
+   2008, 2009, 2010
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -28,51 +29,12 @@ along with GCC; see the file COPYING3.  If not see
 #define skip_leading_substring(whole,  part) \
    (strncmp (whole, part, strlen (part)) ? NULL : whole + strlen (part))
 
+/* Decoded options, and number of such options.  */
+extern struct cl_decoded_option *save_decoded_options;
+extern unsigned int save_decoded_options_count;
+
 extern int toplev_main (int, char **);
-extern int read_integral_parameter (const char *, const char *, const int);
 extern void strip_off_ending (char *, int);
-extern const char *trim_filename (const char *);
-extern void _fatal_insn_not_found (const_rtx, const char *, int, const char *)
-     ATTRIBUTE_NORETURN;
-extern void _fatal_insn (const char *, const_rtx, const char *, int, const char *)
-     ATTRIBUTE_NORETURN;
-
-#define fatal_insn(msgid, insn) \
-	_fatal_insn (msgid, insn, __FILE__, __LINE__, __FUNCTION__)
-#define fatal_insn_not_found(insn) \
-	_fatal_insn_not_found (insn, __FILE__, __LINE__, __FUNCTION__)
-
-/* If we haven't already defined a frontend specific diagnostics
-   style, use the generic one.  */
-#ifndef GCC_DIAG_STYLE
-#define GCC_DIAG_STYLE __gcc_tdiag__
-#endif
-/* None of these functions are suitable for ATTRIBUTE_PRINTF, because
-   each language front end can extend them with its own set of format
-   specifiers.  We must use custom format checks.  */
-#if (ENABLE_CHECKING && GCC_VERSION >= 4001) || GCC_VERSION == BUILDING_GCC_VERSION
-#define ATTRIBUTE_GCC_DIAG(m, n) __attribute__ ((__format__ (GCC_DIAG_STYLE, m, n))) ATTRIBUTE_NONNULL(m)
-#else
-#define ATTRIBUTE_GCC_DIAG(m, n) ATTRIBUTE_NONNULL(m)
-#endif
-extern void internal_error (const char *, ...) ATTRIBUTE_GCC_DIAG(1,2)
-     ATTRIBUTE_NORETURN;
-/* Pass one of the OPT_W* from options.h as the first parameter.  */
-extern bool warning (int, const char *, ...) ATTRIBUTE_GCC_DIAG(2,3);
-extern bool warning_at (location_t, int, const char *, ...)
-    ATTRIBUTE_GCC_DIAG(3,4);
-extern void error (const char *, ...) ATTRIBUTE_GCC_DIAG(1,2);
-extern void error_at (location_t, const char *, ...) ATTRIBUTE_GCC_DIAG(2,3);
-extern void fatal_error (const char *, ...) ATTRIBUTE_GCC_DIAG(1,2)
-     ATTRIBUTE_NORETURN;
-/* Pass one of the OPT_W* from options.h as the second parameter.  */
-extern bool pedwarn (location_t, int, const char *, ...) 
-     ATTRIBUTE_GCC_DIAG(3,4);
-extern bool permerror (location_t, const char *, ...) ATTRIBUTE_GCC_DIAG(2,3);
-extern void sorry (const char *, ...) ATTRIBUTE_GCC_DIAG(1,2);
-extern void inform (location_t, const char *, ...) ATTRIBUTE_GCC_DIAG(2,3);
-extern void verbatim (const char *, ...) ATTRIBUTE_GCC_DIAG(1,2);
-
 extern void rest_of_decl_compilation (tree, int, int);
 extern void rest_of_type_compilation (tree, int);
 extern void tree_rest_of_compilation (tree);
@@ -80,23 +42,18 @@ extern void init_optimization_passes (void);
 extern void finish_optimization_passes (void);
 extern bool enable_rtl_dump_file (void);
 
+/* In except.c.  Initialize exception handling.  This is used by the Ada
+   and LTO front ends to initialize EH "on demand".  See lto-streamer-in.c
+   and ada/gcc-interface/misc.c.  */
+extern void init_eh (void);
+
 extern void announce_function (tree);
 
-extern void error_for_asm (const_rtx, const char *, ...) ATTRIBUTE_GCC_DIAG(2,3);
-extern void warning_for_asm (const_rtx, const char *, ...) ATTRIBUTE_GCC_DIAG(2,3);
 extern void warn_deprecated_use (tree, tree);
 extern bool parse_optimize_options (tree, bool);
 
 #ifdef BUFSIZ
 extern void output_quoted_string	(FILE *, const char *);
-extern void output_file_directive	(FILE *, const char *);
-#endif
-
-#ifdef BUFSIZ
-  /* N.B. Unlike all the others, fnotice is just gettext+fprintf, and
-     therefore it can have ATTRIBUTE_PRINTF.  */
-extern void fnotice			(FILE *, const char *, ...)
-     ATTRIBUTE_PRINTF_2;
 #endif
 
 extern void wrapup_global_declaration_1 (tree);
@@ -114,8 +71,11 @@ extern void target_reinit (void);
 /* A unique local time stamp, might be zero if none is available.  */
 extern unsigned local_tick;
 
-extern const char *progname;
+/* Top-level source file.  */
+extern const char *main_input_filename;
+
 extern const char *dump_base_name;
+extern const char *dump_dir_name;
 extern const char *aux_base_name;
 extern const char *aux_info_file_name;
 extern const char *profile_data_prefix;
@@ -128,25 +88,7 @@ extern bool exit_after_options;
 extern bool user_defined_section_attribute;
 
 /* See toplev.c.  */
-extern int flag_crossjumping;
-extern int flag_if_conversion;
-extern int flag_if_conversion2;
-extern int flag_keep_static_consts;
-extern int flag_peel_loops;
 extern int flag_rerun_cse_after_global_opts;
-extern int flag_rerun_cse_after_loop;
-extern int flag_thread_jumps;
-extern int flag_tracer;
-extern int flag_unroll_loops;
-extern int flag_unroll_all_loops;
-extern int flag_unswitch_loops;
-extern int flag_cprop_registers;
-extern int time_report;
-extern int flag_ira_loop_pressure;
-extern int flag_ira_coalesce;
-extern int flag_ira_move_spills;
-extern int flag_ira_share_save_slots;
-extern int flag_ira_share_spill_slots;
 
 /* Things to do with target switches.  */
 extern void print_version (FILE *, const char *);
@@ -173,6 +115,10 @@ extern bool fast_math_flags_struct_set_p (struct cl_optimization *);
 /* Inline versions of the above for speed.  */
 #if GCC_VERSION < 3004
 
+extern int clz_hwi (unsigned HOST_WIDE_INT x);
+extern int ctz_hwi (unsigned HOST_WIDE_INT x);
+extern int ffs_hwi (unsigned HOST_WIDE_INT x);
+
 /* Return log2, or -1 if not exact.  */
 extern int exact_log2                  (unsigned HOST_WIDE_INT);
 
@@ -181,27 +127,57 @@ extern int floor_log2                  (unsigned HOST_WIDE_INT);
 
 #else /* GCC_VERSION >= 3004 */
 
+/* For convenience, define 0 -> word_size.  */
+static inline int
+clz_hwi (unsigned HOST_WIDE_INT x)
+{
+  if (x == 0)
+    return HOST_BITS_PER_WIDE_INT;
 # if HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONG
-#  define CLZ_HWI __builtin_clzl
-#  define CTZ_HWI __builtin_ctzl
+  return __builtin_clzl (x);
 # elif HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONGLONG
-#  define CLZ_HWI __builtin_clzll
-#  define CTZ_HWI __builtin_ctzll
+  return __builtin_clzll (x);
 # else
-#  define CLZ_HWI __builtin_clz
-#  define CTZ_HWI __builtin_ctz
+  return __builtin_clz (x);
 # endif
+}
+
+static inline int
+ctz_hwi (unsigned HOST_WIDE_INT x)
+{
+  if (x == 0)
+    return HOST_BITS_PER_WIDE_INT;
+# if HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONG
+  return __builtin_ctzl (x);
+# elif HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONGLONG
+  return __builtin_ctzll (x);
+# else
+  return __builtin_ctz (x);
+# endif
+}
+
+static inline int
+ffs_hwi (unsigned HOST_WIDE_INT x)
+{
+# if HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONG
+  return __builtin_ffsl (x);
+# elif HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONGLONG
+  return __builtin_ffsll (x);
+# else
+  return __builtin_ffs (x);
+# endif
+}
 
 static inline int
 floor_log2 (unsigned HOST_WIDE_INT x)
 {
-  return x ? HOST_BITS_PER_WIDE_INT - 1 - (int) CLZ_HWI (x) : -1;
+  return HOST_BITS_PER_WIDE_INT - 1 - clz_hwi (x);
 }
 
 static inline int
 exact_log2 (unsigned HOST_WIDE_INT x)
 {
-  return x == (x & -x) && x ? (int) CTZ_HWI (x) : -1;
+  return x == (x & -x) && x ? ctz_hwi (x) : -1;
 }
 
 #endif /* GCC_VERSION >= 3004 */

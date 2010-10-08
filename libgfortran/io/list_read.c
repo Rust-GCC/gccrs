@@ -1,10 +1,10 @@
-/* Copyright (C) 2002, 2003, 2004, 2005, 2007, 2008, 2009
+/* Copyright (C) 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Andy Vaught
    Namelist input contributed by Paul Thomas
    F2003 I/O support contributed by Jerry DeLisle
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -110,7 +110,7 @@ free_saved (st_parameter_dt *dtp)
   if (dtp->u.p.saved_string == NULL)
     return;
 
-  free_mem (dtp->u.p.saved_string);
+  free (dtp->u.p.saved_string);
 
   dtp->u.p.saved_string = NULL;
   dtp->u.p.saved_used = 0;
@@ -128,7 +128,7 @@ free_line (st_parameter_dt *dtp)
   if (dtp->u.p.line_buffer == NULL)
     return;
 
-  free_mem (dtp->u.p.line_buffer);
+  free (dtp->u.p.line_buffer);
   dtp->u.p.line_buffer = NULL;
 }
 
@@ -1199,6 +1199,18 @@ parse_real (st_parameter_dt *dtp, void *buffer, int length)
       push_char (dtp, 'n');
       push_char (dtp, 'a');
       push_char (dtp, 'n');
+      
+      /* Match "NAN(alphanum)".  */
+      if (c == '(')
+	{
+	  for ( ; c != ')'; c = next_char (dtp))
+	    if (is_separator (c))
+	      goto bad;
+
+	  c = next_char (dtp);
+	  if (is_separator (c))
+	    unget_char (dtp, c);
+	}
       goto done;
     }
 
@@ -1576,6 +1588,20 @@ read_real (st_parameter_dt *dtp, void * dest, int length)
 	goto unwind;
       c = next_char (dtp);
       l_push_char (dtp, c);
+
+      /* Match NAN(alphanum).  */
+      if (c == '(')
+	{
+	  for (c = next_char (dtp); c != ')'; c = next_char (dtp))
+	    if (is_separator (c))
+	      goto unwind;
+	    else
+	      l_push_char (dtp, c);
+
+	  l_push_char (dtp, ')');
+	  c = next_char (dtp);
+	  l_push_char (dtp, c);
+	}
     }
 
   if (!is_separator (c))
@@ -1732,9 +1758,6 @@ list_formatted_read_scalar (st_parameter_dt *dtp, volatile bt type, void *p,
 	  goto set_value;
 	}
 	
-      if (dtp->u.p.input_complete)
-	goto cleanup;
-
       if (dtp->u.p.input_complete)
 	goto cleanup;
 
@@ -2080,7 +2103,7 @@ nml_parse_qualifier (st_parameter_dt *dtp, descriptor_dimension *ad,
 		  /*  If -std=f95/2003 or an array section is specified,
 		      do not allow excess data to be processed.  */
                   if (is_array_section == 1
-		      || compile_options.allow_std < GFC_STD_GNU)
+		      || !(compile_options.allow_std & GFC_STD_GNU))
 		    ls[dim].end = ls[dim].start;
 		  else
 		    dtp->u.p.expanded_read = 1;
@@ -2093,6 +2116,14 @@ nml_parse_qualifier (st_parameter_dt *dtp, descriptor_dimension *ad,
 	      break;
 	    }
 	}
+
+      if (is_array_section == 1 && dtp->u.p.expanded_read == 1)
+     	{
+	  int i;
+	  dtp->u.p.expanded_read = 0;
+	  for (i = 0; i < dim; i++)
+	    ls[i].end = ls[i].start;
+      	}
 
       /* Check the values of the triplet indices.  */
       if ((ls[dim].start > (ssize_t) GFC_DIMENSION_UBOUND(ad[dim]))
@@ -2170,7 +2201,7 @@ nml_touch_nodes (namelist_info * nl)
       else
 	break;
     }
-  free_mem (ext_name);
+  free (ext_name);
   return;
 }
 
@@ -2435,18 +2466,18 @@ nml_read_obj (st_parameter_dt *dtp, namelist_info * nl, index_type offset,
 				  pprev_nl, nml_err_msg, nml_err_msg_size,
 				  clow, chigh) == FAILURE)
 		  {
-		    free_mem (obj_name);
+		    free (obj_name);
 		    return FAILURE;
 		  }
 
 		if (dtp->u.p.input_complete)
 		  {
-		    free_mem (obj_name);
+		    free (obj_name);
 		    return SUCCESS;
 		  }
 	      }
 
-	    free_mem (obj_name);
+	    free (obj_name);
 	    goto incr_idx;
 
           default:
@@ -2566,7 +2597,7 @@ nml_get_obj_data (st_parameter_dt *dtp, namelist_info **pprev_nl,
   namelist_info * first_nl = NULL;
   namelist_info * root_nl = NULL;
   int dim, parsed_rank;
-  int component_flag;
+  int component_flag, qualifier_flag;
   index_type clow, chigh;
   int non_zero_rank_count;
 
@@ -2615,11 +2646,12 @@ nml_get_obj_data (st_parameter_dt *dtp, namelist_info **pprev_nl,
       break;
     }
 
-  /* Untouch all nodes of the namelist and reset the flag that is set for
+  /* Untouch all nodes of the namelist and reset the flags that are set for
      derived type components.  */
 
   nml_untouch_nodes (dtp);
   component_flag = 0;
+  qualifier_flag = 0;
   non_zero_rank_count = 0;
 
   /* Get the object name - should '!' and '\n' be permitted separators?  */
@@ -2701,9 +2733,10 @@ get_name:
 		    " for namelist variable %s", nl->var_name);
 	  goto nml_err_ret;
 	}
-
       if (parsed_rank > 0)
 	non_zero_rank_count++;
+
+      qualifier_flag = 1;
 
       c = next_char (dtp);
       unget_char (dtp, c);
@@ -2724,11 +2757,13 @@ get_name:
 	  goto nml_err_ret;
 	}
 
-      if (!component_flag)
+      if (*pprev_nl == NULL || !component_flag)
 	first_nl = nl;
 
       root_nl = nl;
+
       component_flag = 1;
+
       c = next_char (dtp);
       goto get_name;
     }
@@ -2768,15 +2803,6 @@ get_name:
       c = next_char (dtp);
       unget_char (dtp, c);
     }
-
-  /* If a derived type touch its components and restore the root
-     namelist_info if we have parsed a qualified derived type
-     component.  */
-
-  if (nl->type == GFC_DTYPE_DERIVED)
-    nml_touch_nodes (nl);
-  if (component_flag && nl->var_rank > 0 && nl->next)
-    nl = first_nl;
 
   /* Make sure no extraneous qualifiers are there.  */
 
@@ -2822,10 +2848,24 @@ get_name:
 		nl->var_name);
       goto nml_err_ret;
     }
+  /* If a derived type, touch its components and restore the root
+     namelist_info if we have parsed a qualified derived type
+     component.  */
 
-  if (first_nl != NULL && first_nl->var_rank > 0)
-    nl = first_nl;
-  
+  if (nl->type == GFC_DTYPE_DERIVED)
+    nml_touch_nodes (nl);
+
+  if (first_nl)
+    {
+      if (first_nl->var_rank == 0)
+	{
+	  if (component_flag && qualifier_flag)
+	    nl = first_nl;
+	}
+      else
+	nl = first_nl;
+    }
+
   if (nml_read_obj (dtp, nl, 0, pprev_nl, nml_err_msg, nml_err_msg_size,
 		    clow, chigh) == FAILURE)
     goto nml_err_ret;
@@ -2920,21 +2960,11 @@ find_nml_name:
       if (nml_get_obj_data (dtp, &prev_nl, nml_err_msg, sizeof nml_err_msg)
 			    == FAILURE)
 	{
-	  gfc_unit *u;
-
 	  if (dtp->u.p.current_unit->unit_number != options.stdin_unit)
 	    goto nml_err_ret;
-
-	  u = find_unit (options.stderr_unit);
-	  st_printf ("%s\n", nml_err_msg);
-	  if (u != NULL)
-	    {
-	      sflush (u->s);
-	      unlock_unit (u);
-	    }
+	  generate_error (&dtp->common, LIBERROR_READ_VALUE, nml_err_msg);
         }
-
-   }
+    }
 
   dtp->u.p.eof_jump = NULL;
   free_saved (dtp);

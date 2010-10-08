@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -63,6 +63,7 @@ package body Ch4 is
 
    function P_Aggregate_Or_Paren_Expr                 return Node_Id;
    function P_Allocator                               return Node_Id;
+   function P_Case_Expression_Alternative             return Node_Id;
    function P_Record_Or_Array_Component_Association   return Node_Id;
    function P_Factor                                  return Node_Id;
    function P_Primary                                 return Node_Id;
@@ -436,7 +437,7 @@ package body Ch4 is
                elsif Token = Tok_Access then
                   Attr_Name := Name_Access;
 
-               elsif Token = Tok_Mod and then Ada_Version = Ada_05 then
+               elsif Token = Tok_Mod and then Ada_Version >= Ada_95 then
                   Attr_Name := Name_Mod;
 
                elsif Apostrophe_Should_Be_Semicolon then
@@ -565,8 +566,7 @@ package body Ch4 is
 
          elsif Token = Tok_Range then
             if Expr_Form /= EF_Simple_Name then
-               Error_Msg_SC -- CODEFIX???
-                 ("subtype mark must precede RANGE");
+               Error_Msg_SC ("subtype mark must precede RANGE");
                raise Error_Resync;
             end if;
 
@@ -1153,6 +1153,33 @@ package body Ch4 is
       Lparen_Sloc    : Source_Ptr;
       Scan_State     : Saved_Scan_State;
 
+      procedure Box_Error;
+      --  Called if <> is encountered as positional aggregate element. Issues
+      --  error message and sets Expr_Node to Error.
+
+      ---------------
+      -- Box_Error --
+      ---------------
+
+      procedure Box_Error is
+      begin
+         if Ada_Version < Ada_2005 then
+            Error_Msg_SC ("box in aggregate is an Ada 2005 extension");
+         end if;
+
+         --  Ada 2005 (AI-287): The box notation is allowed only with named
+         --  notation because positional notation might be error prone. For
+         --  example, in "(X, <>, Y, <>)", there is no type associated with
+         --  the boxes, so you might not be leaving out the components you
+         --  thought you were leaving out.
+
+         Error_Msg_SC ("(Ada 2005) box only allowed with named notation");
+         Scan; -- past box
+         Expr_Node := Error;
+      end Box_Error;
+
+   --  Start of processsing for P_Aggregate_Or_Paren_Expr
+
    begin
       Lparen_Sloc := Token_Ptr;
       T_Left_Paren;
@@ -1161,6 +1188,13 @@ package body Ch4 is
 
       if Token = Tok_If then
          Expr_Node := P_Conditional_Expression;
+         T_Right_Paren;
+         return Expr_Node;
+
+      --  Case expression case
+
+      elsif Token = Tok_Case then
+         Expr_Node := P_Case_Expression;
          T_Right_Paren;
          return Expr_Node;
 
@@ -1189,26 +1223,17 @@ package body Ch4 is
             end if;
          end if;
 
-         --  Ada 2005 (AI-287): The box notation is allowed only with named
-         --  notation because positional notation might be error prone. For
-         --  example, in "(X, <>, Y, <>)", there is no type associated with
-         --  the boxes, so you might not be leaving out the components you
-         --  thought you were leaving out.
+         --  Scan expression, handling box appearing as positional argument
 
-         if Ada_Version >= Ada_05 and then Token = Tok_Box then
-            Error_Msg_SC ("(Ada 2005) box notation only allowed with "
-                          & "named notation");
-            Scan; --  past BOX
-            Aggregate_Node := New_Node (N_Aggregate, Lparen_Sloc);
-            return Aggregate_Node;
+         if Token = Tok_Box then
+            Box_Error;
+         else
+            Expr_Node := P_Expression_Or_Range_Attribute_If_OK;
          end if;
-
-         Expr_Node := P_Expression_Or_Range_Attribute_If_OK;
 
          --  Extension aggregate case
 
          if Token = Tok_With then
-
             if Nkind (Expr_Node) = N_Attribute_Reference
               and then Attribute_Name (Expr_Node) = Name_Range
             then
@@ -1309,8 +1334,7 @@ package body Ch4 is
                              "extension aggregate");
             raise Error_Resync;
 
-         --  A range attribute can only appear as part of a discrete choice
-         --  list.
+         --  Range attribute can only appear as part of a discrete choice list
 
          elsif Nkind (Expr_Node) = N_Attribute_Reference
            and then Attribute_Name (Expr_Node) = Name_Range
@@ -1332,7 +1356,7 @@ package body Ch4 is
            or else Token = Tok_Semicolon
          then
             if Present (Assoc_List) then
-               Error_Msg_BC
+               Error_Msg_BC -- CODEFIX
                   ("""='>"" expected (positional association cannot follow " &
                    "named association)");
             end if;
@@ -1379,11 +1403,17 @@ package body Ch4 is
             exit;
          end if;
 
+         --  Deal with misused box
+
+         if Token = Tok_Box then
+            Box_Error;
+
          --  Otherwise initiate for reentry to top of loop by scanning an
          --  initial expression, unless the first token is OTHERS.
 
-         if Token = Tok_Others then
+         elsif Token = Tok_Others then
             Expr_Node := Empty;
+
          else
             Save_Scan_State (Scan_State); -- at start of expression
             Expr_Node := P_Expression_Or_Range_Attribute_If_OK;
@@ -1570,12 +1600,14 @@ package body Ch4 is
    end P_Expression;
 
    --  This function is identical to the normal P_Expression, except that it
-   --  also permits the appearence of a conditional expression without the
-   --  usual surrounding parentheses.
+   --  also permits the appearence of a case of conditional expression without
+   --  the usual surrounding parentheses.
 
    function P_Expression_If_OK return Node_Id is
    begin
-      if Token = Tok_If then
+      if Token = Tok_Case then
+         return P_Case_Expression;
+      elsif Token = Tok_If then
          return P_Conditional_Expression;
       else
          return P_Expression;
@@ -1672,11 +1704,13 @@ package body Ch4 is
       end if;
    end P_Expression_Or_Range_Attribute;
 
-   --  Version that allows a non-parenthesized conditional expression
+   --  Version that allows a non-parenthesized case or conditional expression
 
    function P_Expression_Or_Range_Attribute_If_OK return Node_Id is
    begin
-      if Token = Tok_If then
+      if Token = Tok_Case then
+         return P_Case_Expression;
+      elsif Token = Tok_If then
          return P_Conditional_Expression;
       else
          return P_Expression_Or_Range_Attribute;
@@ -2339,12 +2373,37 @@ package body Ch4 is
                   return Error;
 
                --  If this looks like a conditional expression, then treat it
-               --  that way with an error messasge.
+               --  that way with an error message.
 
-               elsif Extensions_Allowed then
+               elsif Ada_Version >= Ada_12 then
                   Error_Msg_SC
                     ("conditional expression must be parenthesized");
                   return P_Conditional_Expression;
+
+               --  Otherwise treat as misused identifier
+
+               else
+                  return P_Identifier;
+               end if;
+
+            --  Deal with CASE (possible unparenthesized case expression)
+
+            when Tok_Case =>
+
+               --  If this looks like a real case, defined as a CASE appearing
+               --  the start of a new line, then we consider we have a missing
+               --  operand.
+
+               if Token_Is_At_Start_Of_Line then
+                  Error_Msg_AP ("missing operand");
+                  return Error;
+
+               --  If this looks like a case expression, then treat it that way
+               --  with an error message.
+
+               elsif Ada_Version >= Ada_12 then
+                  Error_Msg_SC ("case expression must be parenthesized");
+                  return P_Case_Expression;
 
                --  Otherwise treat as misused identifier
 
@@ -2360,7 +2419,8 @@ package body Ch4 is
                   return P_Identifier;
 
                elsif Prev_Token = Tok_Comma then
-                  Error_Msg_SP ("|extra "","" ignored");
+                  Error_Msg_SP -- CODEFIX
+                    ("|extra "","" ignored");
                   raise Error_Resync;
 
                else
@@ -2458,7 +2518,8 @@ package body Ch4 is
 
    begin
       if Token = Tok_Box then
-         Error_Msg_SC ("|""'<'>"" should be ""/=""");
+         Error_Msg_SC -- CODEFIX
+           ("|""'<'>"" should be ""/=""");
       end if;
 
       Op_Kind := Relop_Node (Token);
@@ -2620,6 +2681,94 @@ package body Ch4 is
       return Alloc_Node;
    end P_Allocator;
 
+   -----------------------
+   -- P_Case_Expression --
+   -----------------------
+
+   function P_Case_Expression return Node_Id is
+      Loc        : constant Source_Ptr := Token_Ptr;
+      Case_Node  : Node_Id;
+      Save_State : Saved_Scan_State;
+
+   begin
+      if Ada_Version < Ada_12 then
+         Error_Msg_SC ("|case expression is an Ada 2012 feature");
+         Error_Msg_SC ("\|unit must be compiled with -gnat2012 switch");
+      end if;
+
+      Scan; -- past CASE
+      Case_Node :=
+        Make_Case_Expression (Loc,
+          Expression   => P_Expression_No_Right_Paren,
+          Alternatives => New_List);
+      T_Is;
+
+      --  We now have scanned out CASE expression IS, scan alternatives
+
+      loop
+         T_When;
+         Append_To (Alternatives (Case_Node), P_Case_Expression_Alternative);
+
+         --  Missing comma if WHEN (more alternatives present)
+
+         if Token = Tok_When then
+            T_Comma;
+
+         --  If comma/WHEN, skip comma and we have another alternative
+
+         elsif Token = Tok_Comma then
+            Save_Scan_State (Save_State);
+            Scan; -- past comma
+
+            if Token /= Tok_When then
+               Restore_Scan_State (Save_State);
+               exit;
+            end if;
+
+         --  If no comma or WHEN, definitely done
+
+         else
+            exit;
+         end if;
+      end loop;
+
+      --  If we have an END CASE, diagnose as not needed
+
+      if Token = Tok_End then
+         Error_Msg_SC ("`END CASE` not allowed at end of case expression");
+         Scan; -- past END
+
+         if Token = Tok_Case then
+            Scan; -- past CASE;
+         end if;
+      end if;
+
+      --  Return the Case_Expression node
+
+      return Case_Node;
+   end P_Case_Expression;
+
+   -----------------------------------
+   -- P_Case_Expression_Alternative --
+   -----------------------------------
+
+   --  CASE_STATEMENT_ALTERNATIVE ::=
+   --    when DISCRETE_CHOICE_LIST =>
+   --      EXPRESSION
+
+   --  The caller has checked that and scanned past the initial WHEN token
+   --  Error recovery: can raise Error_Resync
+
+   function P_Case_Expression_Alternative return Node_Id is
+      Case_Alt_Node : Node_Id;
+   begin
+      Case_Alt_Node := New_Node (N_Case_Expression_Alternative, Token_Ptr);
+      Set_Discrete_Choices (Case_Alt_Node, P_Discrete_Choice_List);
+      TF_Arrow;
+      Set_Expression (Case_Alt_Node, P_Expression);
+      return Case_Alt_Node;
+   end P_Case_Expression_Alternative;
+
    ------------------------------
    -- P_Conditional_Expression --
    ------------------------------
@@ -2633,13 +2782,13 @@ package body Ch4 is
    begin
       Inside_Conditional_Expression := Inside_Conditional_Expression + 1;
 
-      if Token = Tok_If and then not Extensions_Allowed then
-         Error_Msg_SC ("|conditional expression is an Ada extension");
-         Error_Msg_SC ("\|use -gnatX switch to compile this unit");
+      if Token = Tok_If and then Ada_Version < Ada_12 then
+         Error_Msg_SC ("|conditional expression is an Ada 2012 feature");
+         Error_Msg_SC ("\|unit must be compiled with -gnat2012 switch");
       end if;
 
       Scan; -- past IF or ELSIF
-      Append_To (Exprs, P_Expression_No_Right_Paren);
+      Append_To (Exprs, P_Condition);
       TF_Then;
       Append_To (Exprs, P_Expression);
 
@@ -2652,7 +2801,8 @@ package body Ch4 is
          Scan; -- past semicolon
 
          if Token = Tok_Else or else Token = Tok_Elsif then
-            Error_Msg_SP ("|extra "";"" ignored");
+            Error_Msg_SP -- CODEFIX
+              ("|extra "";"" ignored");
 
          else
             Restore_Scan_State (State);
@@ -2709,15 +2859,15 @@ package body Ch4 is
    procedure P_Membership_Test (N : Node_Id) is
       Alt : constant Node_Id :=
               P_Range_Or_Subtype_Mark
-                (Allow_Simple_Expression => Extensions_Allowed);
+                (Allow_Simple_Expression => (Ada_Version >= Ada_12));
 
    begin
       --  Set case
 
       if Token = Tok_Vertical_Bar then
-         if not Extensions_Allowed then
-            Error_Msg_SC ("set notation is a language extension");
-            Error_Msg_SC ("\|use -gnatX switch to compile this unit");
+         if Ada_Version < Ada_12 then
+            Error_Msg_SC ("set notation is an Ada 2012 feature");
+            Error_Msg_SC ("\|unit must be compiled with -gnat2012 switch");
          end if;
 
          Set_Alternatives (N, New_List (Alt));

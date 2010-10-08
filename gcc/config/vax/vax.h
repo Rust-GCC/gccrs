@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler.  VAX version.
    Copyright (C) 1987, 1988, 1991, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -71,8 +71,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef TARGET_DEFAULT
 #define TARGET_DEFAULT (MASK_UNIX_ASM)
 #endif
-
-#define OVERRIDE_OPTIONS override_options ()
 
 
 /* Target machine storage layout */
@@ -304,18 +302,6 @@ enum reg_class { NO_REGS, ALL_REGS, LIM_REG_CLASSES };
 
 /* Offset of first parameter from the argument pointer register value.  */
 #define FIRST_PARM_OFFSET(FNDECL) 4
-
-/* Value is the number of bytes of arguments automatically
-   popped when returning from a subroutine call.
-   FUNDECL is the declaration node of the function (as a tree),
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.
-   SIZE is the number of bytes of arguments passed on the stack.
-
-   On the VAX, the RET insn pops a maximum of 255 args for any function.  */
-
-#define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE)	\
-  ((SIZE) > 255 * 4 ? 0 : (SIZE))
 
 /* Define how to find the value returned by a function.
    VALTYPE is the data type of the value (as a tree).

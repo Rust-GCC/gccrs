@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, Argonaut ARC cpu.
    Copyright (C) 1994, 1995, 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005,
-   2007, 2008, 2009 Free Software Foundation, Inc.
+   2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -82,24 +82,9 @@ extern int arc_cpu_type;
 /* Check if CPU is an extension and set `arc_cpu_type' and `arc_mangle_cpu'
    appropriately.  The result should be nonzero if the cpu is recognized,
    otherwise zero.  This is intended to be redefined in a cover file.
-   This is used by arc_init.  */
+   This is used by arc_handle_option.  */
 #define ARC_EXTENSION_CPU(cpu) 0
 
-/* Sometimes certain combinations of command options do not make
-   sense on a particular target machine.  You can define a macro
-   `OVERRIDE_OPTIONS' to take account of this.  This macro, if
-   defined, is executed once just after all the command options have
-   been parsed.
-
-   Don't use this macro to turn on various extra optimizations for
-   `-O'.  That is what `OPTIMIZATION_OPTIONS' is for.  */
-
-
-#define OVERRIDE_OPTIONS \
-do {				\
-  /* These need to be done at start up.  It's convenient to do them here.  */ \
-  arc_init ();			\
-} while (0)
 
 /* Target machine storage layout.  */
 
@@ -529,14 +514,6 @@ extern enum reg_class arc_regno_reg_class[FIRST_PSEUDO_REGISTER];
    onto the stack for each call; instead, the function prologue should
    increase the stack frame size by this amount.  */
 #define ACCUMULATE_OUTGOING_ARGS 1
-
-/* Value is the number of bytes of arguments automatically
-   popped when returning from a subroutine call.
-   FUNDECL is the declaration node of the function (as a tree),
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.
-   SIZE is the number of bytes of arguments passed on the stack.  */
-#define RETURN_POPS_ARGS(DECL, FUNTYPE, SIZE) 0
 
 /* Define a data type for recording info about an argument list
    during the scan of that argument list.  This data type should

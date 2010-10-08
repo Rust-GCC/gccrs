@@ -1,3 +1,382 @@
+2010-10-06  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Implemented fast enumeration for Objective-C.
+	* Makefile.in (C_SOURCE_FILES): Added objc-foreach.c.
+	(OBJC_H): Added runtime.h
+	* objc-foreach.c: New file.
+	* objc/runtime.h: New file.
+	
+2010-09-30  Kai Tietz  <kai.tietz@onevision.com>
+
+	* objc/deprecated/struct_objc_class.h: Add padding
+	to avoid warning with -Wpadded.
+
+2010-09-26  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* encoding.c (objc_sizeof_type): Added support for vector type and
+	for double long types.	
+	(objc_alignof_type): Same change.
+	(objc_skip_typespec): Same change.
+	* objc/encoding.h (_C_GCINVISIBLE): Use '|' for _C_GCINVISIBLE
+	instead of '!' since '!' is already used for _C_VECTOR.
+	* objc/objc-api.h (_C_LNG_DBL): Added.
+	
+2010-09-26  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* libobjc_entry.c: File removed.
+
+2010-09-26  Kai Tietz  <kai.tietz@onevision.com>
+
+	* sendmsg.c (objc_msg_lookup): Remove inline.
+	(objc_get_uninstalled_dtable): Likewise.
+	* encoding.c (objc_skip_type_qualifiers): Likewise.
+	(objc_skip_offset): Likewise.
+	* archive.c (__objc_write_object): Likewise
+	(__objc_write_class):
+	(__objc_write_selector):
+	(objc_read_char):
+	(objc_read_unsigned_char):
+	(objc_read_short):
+	(objc_read_unsigned_short):
+	(objc_read_int):
+	(objc_read_long):
+	(__objc_read_nbyte_uint):
+	(objc_read_unsigned_int):
+	(objc_read_unsigned_long):
+	* objc/objc-decls.h (obc_EXPORT): Remove dllexport for DLL_EXPORT case.
+	(objc_EXPORT): Likewise.
+	* objc/message.h (objc-decls.h): Add include.
+	* objc/objc-api.h: Mark API by objc_EXPORT.
+	* libobjc.def (__objc_responds_to): Removed.
+
+2010-09-18  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* hash.c: Include objc-private/hash.h instead of objc/hash.h.
+
+	* objc/sarray.h: Moved into objc/deprecated/sarray.h;
+	objc/sarray.h replaced with a placeholder including the file from
+	the deprecated/ directory.
+	* objc-private/sarray.h: New file (private copy of sarray.h).
+	* hash.c: Include <assert.h> instead of "assert.h"
+	* sarray.c: Include <assert.h> instead of "assert.h".  Include
+	objc-private/sarray.h instead of objc/sarray.h.
+	* selector.c: Include objc-private/sarray.h instead of
+	objc/sarray.h.
+	* sendmsg.c: Include <assert.h>.  Include objc-private/sarray.h
+	instead of objc/sarray.h.
+	* Makefile.in (OBJC_DEPRECATED_H): Added sarray.h.	
+
+2010-09-17  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-private/objc-list.h (list_remove_elem): Unused function
+	removed.  (list_nth): Unused function removed.  (list_find):
+	Unused function removed.  (list_lenght): Unused function removed.
+	
+2010-09-17  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/hash.h: Moved into objc/deprecated/hash.h; objc/hash.h
+	replaced with a placeholder including the file from the
+	deprecated/ directory.
+	* objc/objc-api.h: Updated includes.
+	* objc/typedstream.h: Updated includes.
+	* objc-private/hash.h: New file (private copy of hash.h).
+	* objc/objc-list.h: Moved into objc/deprecated/objc-list.h;
+	objc/objc-list.h replaced with a placeholder including the file
+	from the deprecated/ directory.
+	* objc-private/objc-list.h: New file (private copy of objc-list.h).
+	* init.c: Include objc-private/hash.h and objc-private/objc-list.h
+	instead of objc/hash.h and objc/objc-list.h.
+	* selector.c: Same change.
+	* class.c: Added include <string.h>, which used to be implicitly included
+	when hash.h was included.
+	* exception.c: Same change.
+	* objects.c: Same change.
+	* sarray.c: Same change.
+	* sendmsg.c: Same change.
+	* Makefile.in (OBJC_DEPRECATED_H): Added hash.h and objc-list.h.
+
+2010-09-14  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Implemented objc_sync_enter() and objc_sync_exit(), which are
+	required by @synchronized() to work.
+	* objc-sync.c: New file.
+	* objc/objc-sync.h: New file.
+	* objc-private/objc-sync.h: New file.
+	* init.c (__objc_exec_class): Call __objc_sync_init() during the
+	Objective-C runtime startup.
+	* Makefile.in: Added objc-sync.c and objc-sync.h.
+	* configure.ac: Added GCC_CHECK_TLS.
+	* acinclude.m4: Include ../config/enable.m4 and ../config/tls.m4.
+	* configure: Regenerated.
+	* config.h.in: Regenerated.
+	
+2010-09-12  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* Makefile.in (%_gc.lo): New pattern rules to build the
+	garbage-collected version of the library.  Removed rules for
+	specific files that are no longer needed.  Standardized all rules.
+	(C_SOURCE_FILES, OBJC_SOURCE_FILES): New variables.
+	(OBJS, OBJS_GC): Compute these from C_SOURCE_FILES and
+	OBJC_SOURCE_FILES.
+	(INCLUDES): Removed the unused include -I$(srcdir)/objc.
+
+2010-09-12  Nicola Pero  <nicola.pero@meta-innovation.com>
+	
+	* memory.c (objc_calloc): Fixed call to GC_malloc when building
+	with Garbage Colletion.
+	
+2010-09-12  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* memory.c: Do not include objc-private/runtime.h.
+
+2010-09-12  Nicola Pero  <nicola.pero@meta-innovation.com>
+	
+	* objc/deprecated/objc_malloc.h: New file.
+	* objc/deprecated/objc_valloc.h: New file.
+	* objc/objc-api.h: Include the files instead of defining
+	objc_valloc, _objc_malloc() and similar.
+	* Makefile.in (OBJC_DEPRECATED_H): Added objc_valloc.h and
+	objc_malloc.h.
+	* memory.c: Removed the extra layer of indirection of _objc_malloc
+	and similar.
+	(objc_calloc): Use GC_malloc in the garbage-collected
+	implementation as GC_malloc returns memory that is already freed.
+	(objc_valloc): Deprecated.	
+	
+2010-09-12  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/deprecated/objc_error.h: New file.
+	* objc/objc-api.h: Include deprecated/objc_error.h instead of
+	defining objc_error and related.
+	* error.c: New file.  Added _objc_abort function which replaces
+	objc_error.  No change in functionality as they both print an
+	error and abort.
+	* misc.c: File removed.  Code moved into memory.c and error.c.
+	* memory.c: New file.
+	* objc-private/error.h: New file.
+	* archive.c: Include objc-private/error.h and use _objc_abort
+	instead of objc_error everywhere.
+	* class.c: Same change.
+	* encoding.c: Same change.
+	* init.c: Same change, and simplified init_check_module_version.
+	* memory.c: Same change.
+	* sendmsg.c:  Same change.
+	* thr.c: Same change.
+	* Makefile.in (OBJ_DEPRECATED_H): Added objc_error.h.
+	(OBJ_H): Reordered list.
+	(OBJS): Removed misc.lo, added memory.lo and error.lo.
+	(OBJS_GC): Removed misc_gc.lo, added memory_gc.lo and error_gc.lo.
+	(misc_gc.lo): Rule removed.
+	(error_gc.lo): Rule added.
+	(memory_gc.lo): Rule added.
+	
+2010-09-12  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/objc.h (__GNU_LIBOBJC__): New #define providing an easy way
+	to check the API version.  Added some comments.
+
+	* objc-private/common.h: New file.
+	* NXConstStr.m: Include objc-private/common.h.
+	* Object.m: Same change.
+	* Protocol.m: Same change.
+	* archive.c: Same change.
+	* class.c: Same change.
+	* encoding.c: Same change.
+	* exception.c: Same change.
+	* gc.c: Same change.
+	* hash.c: Same change.
+	* init.c: Same change.
+	* libobjc_entry.c: Same change.
+	* linking.m: Same change.
+	* misc.c: Same change (and added a comment).
+	* nil_method.c: Same change.
+	* objects.c: Same change.
+	* sarray.c: Same change.
+	* selector.c: Same change.
+	* sendmsg.c: Same change.
+	* thr.c: Same change.
+
+2010-09-11  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/objc-api.h: Removed obsolete #ifdef for NeXTSTEP.
+
+2010-09-11  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* archive.c: Removed not needed includes.
+	* class.c: Same change.
+	* hash.c: Same change.
+	* misc.c: Same change.
+	* nil_method.c: Same change.
+	* objects.c: Same change.
+	* sarray.c: Same change.
+	* sendmsg.c: Same change.
+	* thr.c: Same change.
+
+2010-09-11  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/runtime.h: Moved to objc-private/runtime.h.  Do not include
+	all the objc/*.h files.
+	* objc-private/runtime.h: New file.
+	* archive.c: Include objc-private/runtime.h (and required objc/*.h
+	files) instead of objc/runtime.h.
+	* class.c: Same change.
+	* hash.c: Same change.
+	* init.c: Same change.
+	* misc.c: Same change.
+	* nil_method.c: Same change.
+	* objects.c: Same change.
+	* sarray.c: Same change.
+	* selector.c: Same change.
+	* sendmsg.c: Same change.
+	* thr.c: Same change.
+	
+2010-09-11  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/deprecated/struct_objc_selector.h: New file.  Definition of
+	'struct objc_selector' and 'sel_eq' moved here.
+	* objc/deprecated/struct_objc_protocol.h: New file.  Definition of
+	'struct objc_procotol' moved here.
+	* objc/deprecated/struct_objc_class.h: New file.  Definition of
+	'struct objc_class' moved here.
+	* objc/deprecated/MetaClass.h: New file.  Definition of MetClass
+	moved here.
+	* objc/deprecated/STR.h: New file.  Definition of STR moved here.	
+	* objc/message.h: New file.  Definitions for relval_t, apply_t,
+	arglist, arglist_t and objc_msg_lookup were moved here.
+	* objc/objc.h: Include the above files instead of defining the
+	corresponding structs, types and functions here.  Added new opaque
+	definitions for SEL and Class.  Use Class and not 'struct
+	objc_class *' in the definition of 'struct objc_object'.
+	Commented all types defined in the file.  Removed special
+	definition of BOOL as 'int' on __vxworks; use 'unsigned char'
+	there as well.
+	* objc/deprecated/objc-unexpected-exception.h: Renamed to
+	objc_unexpected_exception.h.
+	* objc/objc-api.h: Updated include of
+	objc-unexpetected-exception.h
+	* objc/objc-exception.h: Updated comments.
+	* Makefile.in (OBJC_H, OBJC_DEPRECATED_H): Added the new header
+	files.  Reindented list of files.
+	
+2010-09-10  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/objc-api.h (objc_trace): Unused variable removed.
+
+2010-09-10  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/deprecated: New directory.
+	* objc/deprecated/README: New file.
+	* objc/README: New file.
+	* objc/typedstream.h: Moved into objc/deprecated/typedstream.h;
+	objc/typedstream.h replaced with a placeholder including the file
+	from the deprecated/ directory.
+	* objc/deprecated/objc-unexpected-exception.h: New file with the
+	definition of _objc_unexpected_exception.	
+	* objc/objc-api.h: Include deprecated/objc-unexcepted-exception.h
+	instead of defining _objc_unexpected_exception.
+	* objc/deprecated/Object.h: New file with the deprecated Object
+	methods in a 'Deprecated' category.
+	* objc/Object.h Include deprecated/Object.h instead of defining
+	the deprecated methods.
+	* Object.m: Moved deprecated methods into 'Deprecated' category.
+	* objc-private: New directory.
+	* objc-private/README: New file.
+	* Makefile.in (OBJC_DEPRECATED_H): New variable.
+	(install-headers): Create installation directory for
+	OBJC_DEPRECATED_H headers, and install them.
+
+2010-09-10  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/objc-exception.h: Fixed include of objc.h.
+	
+2010-09-08  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/objc-exception.h: New file.
+	* exception.c (objc_set_uncaught_exception_handler): Implemented.
+	(objc_set_exception_matcher): Implemented.
+	(objc_exception_throw): Use the uncaught exception handler if set.
+	(PERSONALITY_FUNCTION): Use the exception matcher instead of the
+	hardcoded isKindOf.
+	(isKindOf): Renamed to is_kind_of_exception_matcher.  Tidied code
+	up.  Removed segmentation fault when value is 'nil'.
+	* objc/objc-api.h (_objc_unexpected_exception): Mark as
+	deprecated.
+	* Makefile.in (exception.lo, exception_gc.lo): Use
+	-Wno-deprecated-declarations when compiling.
+	(OBJC_H): Added objc-exception.h
+
+2010-09-08  Nicola Pero  <nicola@nicola.brainstorm.co.uk>
+
+	* objc/typedstream.h: Deprecate all functions in the file.  This
+	file is obsolete.
+	* objc/Object.h ([+streamVersion:], [-read:], [-write:],
+	[-awake]): Documented that these methods are deprecated.  Added a
+	brief description of the Object class and its relationship to the
+	NSObject class.
+	* Makefile.in: Compile archive.c and Object.m with
+	-Wno-deprecated-declarations.
+
+2010-09-08  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Removed obsolete intermediate threading layer.
+	* thr.c: Use __gthread_objc_xxx functions directly instead of
+	__objc_thread_xxx ones.
+	* objc/thr.h: Removed prototypes of no longer existing
+	__objc_thread_xxx functions.
+	* Makefile.in: Removed thr-objc.lo.
+	* thr-dce.c: File removed.
+	* thr-decosf1.c: File removed.
+	* thr-irix.c: File removed.
+	* thr-mach.c: File removed.
+	* thr-objc.c: File removed.
+	* thr-os2.c: File removed.
+	* thr-posix.c: File removed.
+	* thr-pthreads.c: File removed.
+	* thr-rtems.c: File removed.
+	* thr-single.c: File removed.
+	* thr-solaris.c: File removed.
+	* thr-vxworks.c: File removed.
+	* thr-win32.c: File removed.
+	* README.threads: File removed.
+	* THREADS.MACH: File removed.
+	* THREADS: Updated.
+
+2010-09-07  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* Object.m (MAX_CLASS_NAME_LEN): Unused define removed.
+
+2010-09-06  Iain Sandoe  <iains@gcc.gnu.org>
+
+	* encoding.c: Add TARGET_ALIGN_NATURAL definition for m64 powerpc darwin.
+	Add a comment as to why, update FIXME comments.
+
+2010-09-06  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* makefile.dos: Obsolete file removed.
+	
+2010-04-02  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* aclocal.m4: Regenerate.
+
+2010-03-23  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	PR libobjc/30445
+	* configure.ac (extra_ldflags_libobjc): Define appropriately for
+	Cygwin and MinGW hosts.
+	* Makefile.am (libobjc_s.a): Remove dead pre-libtool target.
+	(libobjc.dll): Likewise.
+	* configure: Regenerate.
+
+2009-12-05  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure: Regenerate.
+
+2009-11-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* sarray.c (sarray_free): Use old_buckets variable.
+	* encoding.c (objc_layout_structure_next_member): Remove unused
+	bfld_type_size variable.
+
 2009-08-24  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
 
 	* configure.ac (AC_PREREQ): Bump to 2.64.

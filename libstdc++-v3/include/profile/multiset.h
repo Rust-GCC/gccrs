@@ -1,6 +1,6 @@
 // Profiling multiset implementation -*- C++ -*-
 
-// Copyright (C) 2009 Free Software Foundation, Inc.
+// Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -35,7 +35,7 @@ namespace std
 {
 namespace __profile
 {
-  /** @brief Multiset wrapper with performance instrumentation.  */
+  /// Class std::multiset wrapper with performance instrumentation.
   template<typename _Key, typename _Compare = std::less<_Key>,
 	   typename _Allocator = std::allocator<_Key> >
     class multiset
@@ -82,7 +82,7 @@ namespace __profile
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       multiset(multiset&& __x)
-      : _Base(std::forward<multiset>(__x))
+      : _Base(std::move(__x))
       { }
 
       multiset(initializer_list<value_type> __l,
@@ -104,7 +104,8 @@ namespace __profile
       multiset&
       operator=(multiset&& __x)
       {
-        // NB: DR 675.
+	// NB: DR 1204.
+	// NB: DR 675.
 	this->clear();
 	this->swap(__x);
 	return *this;
@@ -204,15 +205,11 @@ namespace __profile
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       iterator
       erase(iterator __position)
-      {
-        return _Base::erase(__position);
-      }
+      { return _Base::erase(__position); }
 #else
       void
       erase(iterator __position)
-      {
-	_Base::erase(__position);
-      }
+      { _Base::erase(__position); }
 #endif
 
       size_type
@@ -229,14 +226,26 @@ namespace __profile
 	return __count;
       }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      iterator
+      erase(iterator __first, iterator __last)
+      {
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 151. can't currently clear() empty container
+	while (__first != __last)
+	  this->erase(__first++);
+	return __last;
+      }
+#else
       void
       erase(iterator __first, iterator __last)
       {
 	// _GLIBCXX_RESOLVE_LIB_DEFECTS
 	// 151. can't currently clear() empty container
 	while (__first != __last)
-	this->erase(__first++);
+	  this->erase(__first++);
       }
+#endif
 
       void
       swap(multiset& __x)

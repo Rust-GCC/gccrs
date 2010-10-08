@@ -1,0 +1,16 @@
+! { dg-options "-O2 -fgraphite-identity " }
+
+MODULE MAIN1
+ REAL , ALLOCATABLE :: HRVALD(:)
+END MODULE MAIN1
+
+SUBROUTINE VOLCALC()
+ USE MAIN1
+ INTEGER :: ITYP
+ LOGICAL :: WETSCIM
+
+ DO ITYP = 1 , 100
+    IF ( WETSCIM ) HRVALD(ITYP) = 0.0
+ ENDDO
+END SUBROUTINE VOLCALC
+! { dg-final { cleanup-modules "main1" } }

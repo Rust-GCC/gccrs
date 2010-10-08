@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -30,7 +30,6 @@ with Errout;   use Errout;
 with Exp_Ch9;  use Exp_Ch9;
 with Elists;   use Elists;
 with Freeze;   use Freeze;
-with Itypes;   use Itypes;
 with Lib.Xref; use Lib.Xref;
 with Namet;    use Namet;
 with Nlists;   use Nlists;
@@ -166,73 +165,6 @@ package body Sem_Ch9 is
       E         : Entity_Id;
       Kind      : Entity_Kind;
       Task_Nam  : Entity_Id;
-
-      -----------------------
-      -- Actual_Index_Type --
-      -----------------------
-
-      function Actual_Index_Type (E : Entity_Id) return Entity_Id;
-      --  If the bounds of an entry family depend on task discriminants, create
-      --  a new index type where a discriminant is replaced by the local
-      --  variable that renames it in the task body.
-
-      -----------------------
-      -- Actual_Index_Type --
-      -----------------------
-
-      function Actual_Index_Type (E : Entity_Id) return Entity_Id is
-         Typ   : constant Entity_Id := Entry_Index_Type (E);
-         Lo    : constant Node_Id   := Type_Low_Bound  (Typ);
-         Hi    : constant Node_Id   := Type_High_Bound (Typ);
-         New_T : Entity_Id;
-
-         function Actual_Discriminant_Ref (Bound : Node_Id) return Node_Id;
-         --  If bound is discriminant reference, replace with corresponding
-         --  local variable of the same name.
-
-         -----------------------------
-         -- Actual_Discriminant_Ref --
-         -----------------------------
-
-         function Actual_Discriminant_Ref (Bound : Node_Id) return Node_Id is
-            Typ : constant Entity_Id := Etype (Bound);
-            Ref : Node_Id;
-         begin
-            if not Is_Entity_Name (Bound)
-              or else Ekind (Entity (Bound)) /= E_Discriminant
-            then
-               return Bound;
-            else
-               Ref := Make_Identifier (Sloc (N), Chars (Entity (Bound)));
-               Analyze (Ref);
-               Resolve (Ref, Typ);
-               return Ref;
-            end if;
-         end Actual_Discriminant_Ref;
-
-      --  Start of processing for Actual_Index_Type
-
-      begin
-         if not Has_Discriminants (Task_Nam)
-           or else (not Is_Entity_Name (Lo)
-                     and then not Is_Entity_Name (Hi))
-         then
-            return Entry_Index_Type (E);
-         else
-            New_T := Create_Itype (Ekind (Typ), N);
-            Set_Etype        (New_T, Base_Type (Typ));
-            Set_Size_Info    (New_T, Typ);
-            Set_RM_Size      (New_T, RM_Size (Typ));
-            Set_Scalar_Range (New_T,
-              Make_Range (Sloc (N),
-                Low_Bound  => Actual_Discriminant_Ref (Lo),
-                High_Bound => Actual_Discriminant_Ref (Hi)));
-
-            return New_T;
-         end if;
-      end Actual_Index_Type;
-
-   --  Start of processing for Analyze_Accept_Statement
 
    begin
       Tasking_Used := True;
@@ -370,7 +302,7 @@ package body Sem_Ch9 is
             Error_Msg_N ("missing entry index in accept for entry family", N);
          else
             Analyze_And_Resolve (Index, Entry_Index_Type (E));
-            Apply_Range_Check (Index, Actual_Index_Type (E));
+            Apply_Range_Check (Index, Entry_Index_Type (E));
          end if;
 
       elsif Present (Index) then
@@ -991,9 +923,7 @@ package body Sem_Ch9 is
    procedure Analyze_Entry_Index_Specification (N : Node_Id) is
       Iden    : constant Node_Id   := Defining_Identifier (N);
       Def     : constant Node_Id   := Discrete_Subtype_Definition (N);
-      Loop_Id : constant Entity_Id :=
-                  Make_Defining_Identifier (Sloc (N),
-                    Chars => New_Internal_Name ('L'));
+      Loop_Id : constant Entity_Id := Make_Temporary (Sloc (N), 'L');
 
    begin
       Tasking_Used := True;
@@ -1174,9 +1104,7 @@ package body Sem_Ch9 is
 
       E := First_Entity (Current_Scope);
       while Present (E) loop
-         if Ekind (E) = E_Function
-           or else Ekind (E) = E_Procedure
-         then
+         if Ekind_In (E, E_Function, E_Procedure) then
             Set_Convention (E, Convention_Protected);
 
          elsif Is_Task_Type (Etype (E))
@@ -1248,17 +1176,28 @@ package body Sem_Ch9 is
 
       Set_Is_Constrained (T, not Has_Discriminants (T));
 
-      --  Perform minimal expansion of protected type while inside a generic.
-      --  The corresponding record is needed for various semantic checks.
-
-      if Ada_Version >= Ada_05
-        and then Inside_A_Generic
-      then
-         Insert_After_And_Analyze (N,
-           Build_Corresponding_Record (N, T, Sloc (T)));
-      end if;
-
       Analyze (Protected_Definition (N));
+
+      --  In the case where the protected type is declared at a nested level
+      --  and the No_Local_Protected_Objects restriction applies, issue a
+      --  warning that objects of the type will violate the restriction.
+
+      if Restriction_Check_Required (No_Local_Protected_Objects)
+        and then not Is_Library_Level_Entity (T)
+        and then Comes_From_Source (T)
+      then
+         Error_Msg_Sloc := Restrictions_Loc (No_Local_Protected_Objects);
+
+         if Error_Msg_Sloc = No_Location then
+            Error_Msg_N
+              ("objects of this type will violate " &
+               "`No_Local_Protected_Objects`?", N);
+         else
+            Error_Msg_N
+              ("objects of this type will violate " &
+               "`No_Local_Protected_Objects`?#", N);
+         end if;
+      end if;
 
       --  Protected types with entries are controlled (because of the
       --  Protection component if nothing else), same for any protected type
@@ -1343,9 +1282,7 @@ package body Sem_Ch9 is
          Enclosing := Scope_Stack.Table (J).Entity;
          exit when Is_Entry (Enclosing);
 
-         if Ekind (Enclosing) /= E_Block
-           and then Ekind (Enclosing) /= E_Loop
-         then
+         if not Ekind_In (Enclosing, E_Block, E_Loop) then
             Error_Msg_N ("requeue must appear within accept or entry body", N);
             return;
          end if;
@@ -1576,10 +1513,7 @@ package body Sem_Ch9 is
                   --  perform an unconditional goto so that any further
                   --  references will not occur anyway.
 
-                  if Ekind (Ent) = E_Out_Parameter
-                       or else
-                     Ekind (Ent) = E_In_Out_Parameter
-                  then
+                  if Ekind_In (Ent, E_Out_Parameter, E_In_Out_Parameter) then
                      Set_Never_Set_In_Source (Ent, False);
                      Set_Is_True_Constant    (Ent, False);
                   end if;
@@ -2053,21 +1987,27 @@ package body Sem_Ch9 is
 
       Set_Is_Constrained (T, not Has_Discriminants (T));
 
-      --  Perform minimal expansion of the task type while inside a generic
-      --  context. The corresponding record is needed for various semantic
-      --  checks.
-
-      if Inside_A_Generic then
-         Insert_After_And_Analyze (N,
-           Build_Corresponding_Record (N, T, Sloc (T)));
-      end if;
-
       if Present (Task_Definition (N)) then
          Analyze_Task_Definition (Task_Definition (N));
       end if;
 
-      if not Is_Library_Level_Entity (T) then
-         Check_Restriction (No_Task_Hierarchy, N);
+      --  In the case where the task type is declared at a nested level and the
+      --  No_Task_Hierarchy restriction applies, issue a warning that objects
+      --  of the type will violate the restriction.
+
+      if Restriction_Check_Required (No_Task_Hierarchy)
+        and then not Is_Library_Level_Entity (T)
+        and then Comes_From_Source (T)
+      then
+         Error_Msg_Sloc := Restrictions_Loc (No_Task_Hierarchy);
+
+         if Error_Msg_Sloc = No_Location then
+            Error_Msg_N
+              ("objects of this type will violate `No_Task_Hierarchy`?", N);
+         else
+            Error_Msg_N
+              ("objects of this type will violate `No_Task_Hierarchy`?#", N);
+         end if;
       end if;
 
       End_Scope;
@@ -2253,18 +2193,10 @@ package body Sem_Ch9 is
                   --  Entry family with non-static bounds
 
                   else
-                     --  If restriction is set, then this is an error
+                     --  Record an unknown count restriction, and if the
+                     --  restriction is active, post a message or warning.
 
-                     if Restrictions.Set (R) then
-                        Error_Msg_N
-                          ("static subtype required by Restriction pragma",
-                           DSD);
-
-                     --  Otherwise we record an unknown count restriction
-
-                     else
-                        Check_Restriction (R, D);
-                     end if;
+                     Check_Restriction (R, D);
                   end if;
                end;
             end if;
@@ -2433,15 +2365,17 @@ package body Sem_Ch9 is
                Iface := Find_Hidden_Interface (Priv_T_Ifaces, Full_T_Ifaces);
 
                if Present (Iface) then
-                  Error_Msg_NE ("interface & not implemented by full type " &
-                                "(RM-2005 7.3 (7.3/2))", Priv_T, Iface);
+                  Error_Msg_NE
+                    ("interface & not implemented by full type " &
+                     "(RM-2005 7.3 (7.3/2))", Priv_T, Iface);
                end if;
 
                Iface := Find_Hidden_Interface (Full_T_Ifaces, Priv_T_Ifaces);
 
                if Present (Iface) then
-                  Error_Msg_NE ("interface & not implemented by partial " &
-                                "view (RM-2005 7.3 (7.3/2))", T, Iface);
+                  Error_Msg_NE
+                    ("interface & not implemented by partial " &
+                     "view (RM-2005 7.3 (7.3/2))", T, Iface);
                end if;
             end if;
          end if;

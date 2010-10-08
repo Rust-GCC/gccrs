@@ -1,5 +1,6 @@
 /* Target macros for the FRV port of GCC.
-   Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009
+   Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009,
+   2010
    Free Software Foundation, Inc.
    Contributed by Red Hat Inc.
 
@@ -326,37 +327,6 @@
           fprintf (stderr, " (68k, MIT syntax)");
         #endif  */
 #define TARGET_VERSION fprintf (stderr, _(" (frv)"))
-
-/* Sometimes certain combinations of command options do not make sense on a
-   particular target machine.  You can define a macro `OVERRIDE_OPTIONS' to
-   take account of this.  This macro, if defined, is executed once just after
-   all the command options have been parsed.
-
-   Don't use this macro to turn on various extra optimizations for `-O'.  That
-   is what `OPTIMIZATION_OPTIONS' is for.  */
-
-#define OVERRIDE_OPTIONS frv_override_options ()
-
-/* Some machines may desire to change what optimizations are performed for
-   various optimization levels.  This macro, if defined, is executed once just
-   after the optimization level is determined and before the remainder of the
-   command options have been parsed.  Values set in this macro are used as the
-   default values for the other command line options.
-
-   LEVEL is the optimization level specified; 2 if `-O2' is specified, 1 if
-   `-O' is specified, and 0 if neither is specified.
-
-   SIZE is nonzero if `-Os' is specified, 0 otherwise.
-
-   You should not use this macro to change options that are not
-   machine-specific.  These should uniformly selected by the same optimization
-   level on all supported machines.  Use this macro to enable machine-specific
-   optimizations.
-
-   *Do not examine `write_symbols' in this macro!* The debugging options are
-   *not supposed to alter the generated code.  */
-#define OPTIMIZATION_OPTIONS(LEVEL,SIZE) frv_optimization_options (LEVEL, SIZE)
-
 
 /* Define this macro if debugging can be performed even without a frame
    pointer.  If this macro is defined, GCC will turn on the
@@ -1257,22 +1227,6 @@ extern enum reg_class reg_class_from_letter[];
 #define SECONDARY_OUTPUT_RELOAD_CLASS(CLASS, MODE, X) \
   frv_secondary_reload_class (CLASS, MODE, X)
 
-/* A C expression whose value is nonzero if pseudos that have been assigned to
-   registers of class CLASS would likely be spilled because registers of CLASS
-   are needed for spill registers.
-
-   The default value of this macro returns 1 if CLASS has exactly one register
-   and zero otherwise.  On most machines, this default should be used.  Only
-   define this macro to some other expression if pseudo allocated by
-   `local-alloc.c' end up in memory because their hard registers were needed
-   for spill registers.  If this macro returns nonzero for those classes, those
-   pseudos will only be allocated by `global.c', which knows how to reallocate
-   the pseudo to another register.  If there would not be another register
-   available for reallocation, you should not change the definition of this
-   macro since the only effect of such a definition would be to slow down
-   register allocation.  */
-#define CLASS_LIKELY_SPILLED_P(CLASS) frv_class_likely_spilled_p (CLASS)
-
 /* A C expression for the maximum number of consecutive registers of
    class CLASS needed to hold a value of mode MODE.
 
@@ -1613,41 +1567,6 @@ typedef struct frv_stack {
    Defining both `PUSH_ROUNDING' and `ACCUMULATE_OUTGOING_ARGS' is not
    proper.  */
 #define ACCUMULATE_OUTGOING_ARGS 1
-
-/* A C expression that should indicate the number of bytes of its own arguments
-   that a function pops on returning, or 0 if the function pops no arguments
-   and the caller must therefore pop them all after the function returns.
-
-   FUNDECL is a C variable whose value is a tree node that describes the
-   function in question.  Normally it is a node of type `FUNCTION_DECL' that
-   describes the declaration of the function.  From this it is possible to
-   obtain the DECL_ATTRIBUTES of the function.
-
-   FUNTYPE is a C variable whose value is a tree node that describes the
-   function in question.  Normally it is a node of type `FUNCTION_TYPE' that
-   describes the data type of the function.  From this it is possible to obtain
-   the data types of the value and arguments (if known).
-
-   When a call to a library function is being considered, FUNTYPE will contain
-   an identifier node for the library function.  Thus, if you need to
-   distinguish among various library functions, you can do so by their names.
-   Note that "library function" in this context means a function used to
-   perform arithmetic, whose name is known specially in the compiler and was
-   not mentioned in the C code being compiled.
-
-   STACK-SIZE is the number of bytes of arguments passed on the stack.  If a
-   variable number of bytes is passed, it is zero, and argument popping will
-   always be the responsibility of the calling function.
-
-   On the VAX, all functions always pop their arguments, so the definition of
-   this macro is STACK-SIZE.  On the 68000, using the standard calling
-   convention, no functions pop their arguments, so the value of the macro is
-   always 0 in this case.  But an alternative calling convention is available
-   in which functions that take a fixed number of arguments pop them but other
-   functions (such as `printf') pop nothing (the caller pops all).  When this
-   convention is in use, FUNTYPE is examined to determine whether a function
-   takes a fixed number of arguments.  */
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACK_SIZE) 0
 
 
 /* The number of register assigned to holding function arguments.  */
@@ -1996,31 +1915,6 @@ __asm__("\n"								\
 
 /* Describing Relative Costs of Operations.  */
 
-/* A C expression for the cost of moving data from a register in class FROM to
-   one in class TO.  The classes are expressed using the enumeration values
-   such as `GENERAL_REGS'.  A value of 4 is the default; other values are
-   interpreted relative to that.
-
-   It is not required that the cost always equal 2 when FROM is the same as TO;
-   on some machines it is expensive to move between registers if they are not
-   general registers.
-
-   If reload sees an insn consisting of a single `set' between two hard
-   registers, and if `REGISTER_MOVE_COST' applied to their classes returns a
-   value of 2, reload does not check to ensure that the constraints of the insn
-   are met.  Setting a cost of other than 2 will allow reload to verify that
-   the constraints are met.  You should do this if the `movM' pattern's
-   constraints do not allow such copying.  */
-#define REGISTER_MOVE_COST(MODE, FROM, TO) frv_register_move_cost (FROM, TO)
-
-/* A C expression for the cost of moving data of mode M between a register and
-   memory.  A value of 2 is the default; this cost is relative to those in
-   `REGISTER_MOVE_COST'.
-
-   If moving between registers and memory is more expensive than between two
-   registers, you should define this macro to express the relative cost.  */
-#define MEMORY_MOVE_COST(M,C,I) 4
-
 /* A C expression for the cost of a branch instruction.  A value of 1 is the
    default; other values are interpreted relative to that.  */
 #define BRANCH_COST(speed_p, predictable_p) frv_branch_cost_int
@@ -2175,7 +2069,7 @@ extern int size_directive_output;
 #undef ASM_OUTPUT_ALIGNED_DECL_LOCAL
 #define ASM_OUTPUT_ALIGNED_DECL_LOCAL(STREAM, DECL, NAME, SIZE, ALIGN)	\
 do {                                                                   	\
-  if ((SIZE) > 0 && (SIZE) <= g_switch_value)				\
+  if ((SIZE) > 0 && (SIZE) <= (unsigned HOST_WIDE_INT) g_switch_value)	\
     switch_to_section (get_named_section (NULL, ".sbss", 0));           \
   else                                                                 	\
     switch_to_section (bss_section);                                  	\
@@ -2324,52 +2218,6 @@ do {									\
 
 #define FINAL_PRESCAN_INSN(INSN, OPVEC, NOPERANDS)\
   frv_final_prescan_insn (INSN, OPVEC, NOPERANDS)
-
-
-/* A C compound statement to output to stdio stream STREAM the assembler syntax
-   for an instruction operand X.  X is an RTL expression.
-
-   CODE is a value that can be used to specify one of several ways of printing
-   the operand.  It is used when identical operands must be printed differently
-   depending on the context.  CODE comes from the `%' specification that was
-   used to request printing of the operand.  If the specification was just
-   `%DIGIT' then CODE is 0; if the specification was `%LTR DIGIT' then CODE is
-   the ASCII code for LTR.
-
-   If X is a register, this macro should print the register's name.  The names
-   can be found in an array `reg_names' whose type is `char *[]'.  `reg_names'
-   is initialized from `REGISTER_NAMES'.
-
-   When the machine description has a specification `%PUNCT' (a `%' followed by
-   a punctuation character), this macro is called with a null pointer for X and
-   the punctuation character for CODE.  */
-#define PRINT_OPERAND(STREAM, X, CODE) frv_print_operand (STREAM, X, CODE)
-
-/* A C expression which evaluates to true if CODE is a valid punctuation
-   character for use in the `PRINT_OPERAND' macro.  If
-   `PRINT_OPERAND_PUNCT_VALID_P' is not defined, it means that no punctuation
-   characters (except for the standard one, `%') are used in this way.  */
-/* . == gr0
-   # == hint operand -- always zero for now
-   @ == small data base register (gr16)
-   ~ == pic register (gr17)
-   * == temporary integer CCR register (cr3)
-   & == temporary integer ICC register (icc3)  */
-#define PRINT_OPERAND_PUNCT_VALID_P(CODE)				\
-((CODE) == '.' || (CODE) == '#' || (CODE) == '@' || (CODE) == '~'	\
- || (CODE) == '*' || (CODE) == '&')
-
-/* A C compound statement to output to stdio stream STREAM the assembler syntax
-   for an instruction operand that is a memory reference whose address is X.  X
-   is an RTL expression.
-
-   On some machines, the syntax for a symbolic address depends on the section
-   that the address refers to.  On these machines, define the macro
-   `ENCODE_SECTION_INFO' to store the information into the `symbol_ref', and
-   then check for it here.
-
-   This declaration must be present.  */
-#define PRINT_OPERAND_ADDRESS(STREAM, X) frv_print_operand_address (STREAM, X)
 
 /* If defined, C string expressions to be used for the `%R', `%L', `%U', and
    `%I' options of `asm_fprintf' (see `final.c').  These are useful when a

@@ -3,7 +3,7 @@
 // { dg-require-cstdint "" }
 // { dg-require-gthreads "" }
 
-// Copyright (C) 2009 Free Software Foundation, Inc.
+// Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,9 +27,7 @@ void test01()
   // copy
   typedef std::thread test_type;
   test_type t1;
-  test_type t2(t1); // XXX this is failing for the wrong reason
+  test_type t2(t1);		// { dg-error "deleted" }
 }
 
-// { dg-error "here" "" { target *-*-* } 30 }
-// { dg-error "deleted function" "" { target *-*-* } 122 }
-// { dg-excess-errors "In file included from" }
+// { dg-prune-output "include" }

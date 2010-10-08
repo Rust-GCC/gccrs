@@ -1,5 +1,5 @@
 /* This file contains the definitions for the tree structure
-   enumeration used in GCC.  
+   enumeration used in GCC.
 
 Copyright (C) 2005, 2007, 2008 Free Software Foundation, Inc.
 
@@ -19,12 +19,12 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/* The format of this file is 
+/* The format of this file is
 
    DEFTREESTRUCT(enumeration value, printable name).
 
    Each enumeration value should correspond with a single member of
-   union tree_node.  
+   union tree_node.
 
    These enumerator values are used in order to distinguish members of
    union tree_node for garbage collection purposes, as well as
@@ -52,6 +52,7 @@ DEFTREESTRUCT(TS_RESULT_DECL, "result decl")
 DEFTREESTRUCT(TS_CONST_DECL, "const decl")
 DEFTREESTRUCT(TS_TYPE_DECL, "label decl")
 DEFTREESTRUCT(TS_FUNCTION_DECL, "function decl")
+DEFTREESTRUCT(TS_TRANSLATION_UNIT_DECL, "translation-unit decl")
 DEFTREESTRUCT(TS_TYPE, "type")
 DEFTREESTRUCT(TS_LIST, "list")
 DEFTREESTRUCT(TS_VEC, "vec")

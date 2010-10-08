@@ -1,6 +1,6 @@
 // Static data members of -*- C++ -*- numeric_limits classes
 
-// Copyright (C) 1999, 2001, 2002, 2005, 2006, 2009
+// Copyright (C) 1999, 2001, 2002, 2005, 2006, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -37,6 +37,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool __numeric_limits_base::is_specialized;
   const int  __numeric_limits_base::digits;
   const int  __numeric_limits_base::digits10;
+  const int  __numeric_limits_base::max_digits10;
   const bool __numeric_limits_base::is_signed;
   const bool __numeric_limits_base::is_integer;
   const bool __numeric_limits_base::is_exact;
@@ -61,6 +62,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<bool>::is_specialized;
   const int  numeric_limits<bool>::digits;
   const int  numeric_limits<bool>::digits10;
+  const int  numeric_limits<bool>::max_digits10;
   const bool numeric_limits<bool>::is_signed;
   const bool numeric_limits<bool>::is_integer;
   const bool numeric_limits<bool>::is_exact;
@@ -85,6 +87,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<char>::is_specialized;
   const int  numeric_limits<char>::digits;
   const int  numeric_limits<char>::digits10;
+  const int  numeric_limits<char>::max_digits10;
   const bool numeric_limits<char>::is_signed;
   const bool numeric_limits<char>::is_integer;
   const bool numeric_limits<char>::is_exact;
@@ -109,6 +112,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<signed char>::is_specialized;
   const int  numeric_limits<signed char>::digits;
   const int  numeric_limits<signed char>::digits10;
+  const int  numeric_limits<signed char>::max_digits10;
   const bool numeric_limits<signed char>::is_signed;
   const bool numeric_limits<signed char>::is_integer;
   const bool numeric_limits<signed char>::is_exact;
@@ -133,6 +137,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<unsigned char>::is_specialized;
   const int  numeric_limits<unsigned char>::digits;
   const int  numeric_limits<unsigned char>::digits10;
+  const int  numeric_limits<unsigned char>::max_digits10;
   const bool numeric_limits<unsigned char>::is_signed;
   const bool numeric_limits<unsigned char>::is_integer;
   const bool numeric_limits<unsigned char>::is_exact;
@@ -159,6 +164,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<wchar_t>::is_specialized;
   const int  numeric_limits<wchar_t>::digits;
   const int  numeric_limits<wchar_t>::digits10;
+  const int  numeric_limits<wchar_t>::max_digits10;
   const bool numeric_limits<wchar_t>::is_signed;
   const bool numeric_limits<wchar_t>::is_integer;
   const bool numeric_limits<wchar_t>::is_exact;
@@ -184,6 +190,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<short>::is_specialized;
   const int  numeric_limits<short>::digits;
   const int  numeric_limits<short>::digits10;
+  const int  numeric_limits<short>::max_digits10;
   const bool numeric_limits<short>::is_signed;
   const bool numeric_limits<short>::is_integer;
   const bool numeric_limits<short>::is_exact;
@@ -208,6 +215,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<unsigned short>::is_specialized;
   const int  numeric_limits<unsigned short>::digits;
   const int  numeric_limits<unsigned short>::digits10;
+  const int  numeric_limits<unsigned short>::max_digits10;
   const bool numeric_limits<unsigned short>::is_signed;
   const bool numeric_limits<unsigned short>::is_integer;
   const bool numeric_limits<unsigned short>::is_exact;
@@ -232,6 +240,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<int>::is_specialized;
   const int  numeric_limits<int>::digits;
   const int  numeric_limits<int>::digits10;
+  const int  numeric_limits<int>::max_digits10;
   const bool numeric_limits<int>::is_signed;
   const bool numeric_limits<int>::is_integer;
   const bool numeric_limits<int>::is_exact;
@@ -256,6 +265,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<unsigned int>::is_specialized;
   const int  numeric_limits<unsigned int>::digits;
   const int  numeric_limits<unsigned int>::digits10;
+  const int  numeric_limits<unsigned int>::max_digits10;
   const bool numeric_limits<unsigned int>::is_signed;
   const bool numeric_limits<unsigned int>::is_integer;
   const bool numeric_limits<unsigned int>::is_exact;
@@ -280,6 +290,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<long>::is_specialized;
   const int  numeric_limits<long>::digits;
   const int  numeric_limits<long>::digits10;
+  const int  numeric_limits<long>::max_digits10;
   const bool numeric_limits<long>::is_signed;
   const bool numeric_limits<long>::is_integer;
   const bool numeric_limits<long>::is_exact;
@@ -304,6 +315,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<unsigned long>::is_specialized;
   const int  numeric_limits<unsigned long>::digits;
   const int  numeric_limits<unsigned long>::digits10;
+  const int  numeric_limits<unsigned long>::max_digits10;
   const bool numeric_limits<unsigned long>::is_signed;
   const bool numeric_limits<unsigned long>::is_integer;
   const bool numeric_limits<unsigned long>::is_exact;
@@ -328,6 +340,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<long long>::is_specialized;
   const int  numeric_limits<long long>::digits;
   const int  numeric_limits<long long>::digits10;
+  const int  numeric_limits<long long>::max_digits10;
   const bool numeric_limits<long long>::is_signed;
   const bool numeric_limits<long long>::is_integer;
   const bool numeric_limits<long long>::is_exact;
@@ -351,6 +364,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<unsigned long long>::is_specialized;
   const int  numeric_limits<unsigned long long>::digits;
   const int  numeric_limits<unsigned long long>::digits10;
+  const int  numeric_limits<unsigned long long>::max_digits10;
   const bool numeric_limits<unsigned long long>::is_signed;
   const bool numeric_limits<unsigned long long>::is_integer;
   const bool numeric_limits<unsigned long long>::is_exact;
@@ -375,6 +389,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<float>::is_specialized;
   const int  numeric_limits<float>::digits;
   const int  numeric_limits<float>::digits10;
+  const int  numeric_limits<float>::max_digits10;
   const bool numeric_limits<float>::is_signed;
   const bool numeric_limits<float>::is_integer;
   const bool numeric_limits<float>::is_exact;
@@ -399,6 +414,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<double>::is_specialized;
   const int  numeric_limits<double>::digits;
   const int  numeric_limits<double>::digits10;
+  const int  numeric_limits<double>::max_digits10;
   const bool numeric_limits<double>::is_signed;
   const bool numeric_limits<double>::is_integer;
   const bool numeric_limits<double>::is_exact;
@@ -423,6 +439,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<long double>::is_specialized;
   const int  numeric_limits<long double>::digits;
   const int  numeric_limits<long double>::digits10;
+  const int  numeric_limits<long double>::max_digits10;
   const bool numeric_limits<long double>::is_signed;
   const bool numeric_limits<long double>::is_integer;
   const bool numeric_limits<long double>::is_exact;
@@ -442,6 +459,56 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   const bool numeric_limits<long double>::traps;
   const bool numeric_limits<long double>::tinyness_before;
   const float_round_style numeric_limits<long double>::round_style;
+
+  // char16_t
+  const bool numeric_limits<char16_t>::is_specialized;
+  const int  numeric_limits<char16_t>::digits;
+  const int  numeric_limits<char16_t>::digits10;
+  const int  numeric_limits<char16_t>::max_digits10;
+  const bool numeric_limits<char16_t>::is_signed;
+  const bool numeric_limits<char16_t>::is_integer;
+  const bool numeric_limits<char16_t>::is_exact;
+  const int  numeric_limits<char16_t>::radix;
+  const int  numeric_limits<char16_t>::min_exponent;
+  const int  numeric_limits<char16_t>::min_exponent10;
+  const int  numeric_limits<char16_t>::max_exponent;
+  const int  numeric_limits<char16_t>::max_exponent10;
+  const bool numeric_limits<char16_t>::has_infinity;
+  const bool numeric_limits<char16_t>::has_quiet_NaN;
+  const bool numeric_limits<char16_t>::has_signaling_NaN;
+  const float_denorm_style numeric_limits<char16_t>::has_denorm;
+  const bool numeric_limits<char16_t>::has_denorm_loss;
+  const bool numeric_limits<char16_t>::is_iec559;
+  const bool numeric_limits<char16_t>::is_bounded;
+  const bool numeric_limits<char16_t>::is_modulo;
+  const bool numeric_limits<char16_t>::traps;
+  const bool numeric_limits<char16_t>::tinyness_before;
+  const float_round_style numeric_limits<char16_t>::round_style;
+
+  // char32_t
+  const bool numeric_limits<char32_t>::is_specialized;
+  const int  numeric_limits<char32_t>::digits;
+  const int  numeric_limits<char32_t>::digits10;
+  const int  numeric_limits<char32_t>::max_digits10;
+  const bool numeric_limits<char32_t>::is_signed;
+  const bool numeric_limits<char32_t>::is_integer;
+  const bool numeric_limits<char32_t>::is_exact;
+  const int  numeric_limits<char32_t>::radix;
+  const int  numeric_limits<char32_t>::min_exponent;
+  const int  numeric_limits<char32_t>::min_exponent10;
+  const int  numeric_limits<char32_t>::max_exponent;
+  const int  numeric_limits<char32_t>::max_exponent10;
+  const bool numeric_limits<char32_t>::has_infinity;
+  const bool numeric_limits<char32_t>::has_quiet_NaN;
+  const bool numeric_limits<char32_t>::has_signaling_NaN;
+  const float_denorm_style numeric_limits<char32_t>::has_denorm;
+  const bool numeric_limits<char32_t>::has_denorm_loss;
+  const bool numeric_limits<char32_t>::is_iec559;
+  const bool numeric_limits<char32_t>::is_bounded;
+  const bool numeric_limits<char32_t>::is_modulo;
+  const bool numeric_limits<char32_t>::traps;
+  const bool numeric_limits<char32_t>::tinyness_before;
+  const float_round_style numeric_limits<char32_t>::round_style;
 
 _GLIBCXX_END_NAMESPACE
 

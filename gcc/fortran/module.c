@@ -1,6 +1,7 @@
 /* Handle modules, which amounts to loading and saving symbols and
    their attendant structures.
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
+   2009, 2010
    Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
@@ -72,12 +73,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "match.h"
 #include "parse.h" /* FIXME */
 #include "md5.h"
+#include "constructor.h"
+#include "cpp.h"
 
 #define MODULE_EXTENSION ".mod"
 
 /* Don't put any single quote (') in MOD_VERSION, 
    if yout want it to be recognized.  */
-#define MOD_VERSION "3"
+#define MOD_VERSION "6"
 
 
 /* Structure that describes a position within a module file.  */
@@ -741,8 +744,7 @@ static int
 number_use_names (const char *name, bool interface)
 {
   int i = 0;
-  const char *c;
-  c = find_use_name_n (name, &i, interface);
+  find_use_name_n (name, &i, interface);
   return i;
 }
 
@@ -1298,7 +1300,7 @@ static void
 write_char (char out)
 {
   if (putc (out, module_fp) == EOF)
-    gfc_fatal_error ("Error writing modules file: %s", strerror (errno));
+    gfc_fatal_error ("Error writing modules file: %s", xstrerror (errno));
 
   /* Add this to our MD5.  */
   md5_process_bytes (&out, sizeof (out), &ctx);
@@ -1672,14 +1674,18 @@ typedef enum
   AB_CRAY_POINTER, AB_CRAY_POINTEE, AB_THREADPRIVATE, AB_ALLOC_COMP,
   AB_POINTER_COMP, AB_PRIVATE_COMP, AB_VALUE, AB_VOLATILE, AB_PROTECTED,
   AB_IS_BIND_C, AB_IS_C_INTEROP, AB_IS_ISO_C, AB_ABSTRACT, AB_ZERO_COMP,
-  AB_EXTENSION, AB_IS_CLASS, AB_PROCEDURE, AB_PROC_POINTER
+  AB_IS_CLASS, AB_PROCEDURE, AB_PROC_POINTER, AB_ASYNCHRONOUS, AB_CODIMENSION,
+  AB_COARRAY_COMP, AB_VTYPE, AB_VTAB, AB_CONTIGUOUS, AB_CLASS_POINTER
 }
 ab_attribute;
 
 static const mstring attr_bits[] =
 {
     minit ("ALLOCATABLE", AB_ALLOCATABLE),
+    minit ("ASYNCHRONOUS", AB_ASYNCHRONOUS),
     minit ("DIMENSION", AB_DIMENSION),
+    minit ("CODIMENSION", AB_CODIMENSION),
+    minit ("CONTIGUOUS", AB_CONTIGUOUS),
     minit ("EXTERNAL", AB_EXTERNAL),
     minit ("INTRINSIC", AB_INTRINSIC),
     minit ("OPTIONAL", AB_OPTIONAL),
@@ -1707,15 +1713,18 @@ static const mstring attr_bits[] =
     minit ("IS_ISO_C", AB_IS_ISO_C),
     minit ("VALUE", AB_VALUE),
     minit ("ALLOC_COMP", AB_ALLOC_COMP),
+    minit ("COARRAY_COMP", AB_COARRAY_COMP),
     minit ("POINTER_COMP", AB_POINTER_COMP),
     minit ("PRIVATE_COMP", AB_PRIVATE_COMP),
     minit ("ZERO_COMP", AB_ZERO_COMP),
     minit ("PROTECTED", AB_PROTECTED),
     minit ("ABSTRACT", AB_ABSTRACT),
-    minit ("EXTENSION", AB_EXTENSION),
     minit ("IS_CLASS", AB_IS_CLASS),
     minit ("PROCEDURE", AB_PROCEDURE),
     minit ("PROC_POINTER", AB_PROC_POINTER),
+    minit ("VTYPE", AB_VTYPE),
+    minit ("VTAB", AB_VTAB),
+    minit ("CLASS_POINTER", AB_CLASS_POINTER),
     minit (NULL, -1)
 };
 
@@ -1772,7 +1781,7 @@ static void
 mio_symbol_attribute (symbol_attribute *attr)
 {
   atom_type t;
-  unsigned ext_attr;
+  unsigned ext_attr,extension_level;
 
   mio_lparen ();
 
@@ -1781,16 +1790,27 @@ mio_symbol_attribute (symbol_attribute *attr)
   attr->proc = MIO_NAME (procedure_type) (attr->proc, procedures);
   attr->if_source = MIO_NAME (ifsrc) (attr->if_source, ifsrc_types);
   attr->save = MIO_NAME (save_state) (attr->save, save_status);
+  
   ext_attr = attr->ext_attr;
   mio_integer ((int *) &ext_attr);
   attr->ext_attr = ext_attr;
+
+  extension_level = attr->extension;
+  mio_integer ((int *) &extension_level);
+  attr->extension = extension_level;
 
   if (iomode == IO_OUTPUT)
     {
       if (attr->allocatable)
 	MIO_NAME (ab_attribute) (AB_ALLOCATABLE, attr_bits);
+      if (attr->asynchronous)
+	MIO_NAME (ab_attribute) (AB_ASYNCHRONOUS, attr_bits);
       if (attr->dimension)
 	MIO_NAME (ab_attribute) (AB_DIMENSION, attr_bits);
+      if (attr->codimension)
+	MIO_NAME (ab_attribute) (AB_CODIMENSION, attr_bits);
+      if (attr->contiguous)
+	MIO_NAME (ab_attribute) (AB_CONTIGUOUS, attr_bits);
       if (attr->external)
 	MIO_NAME (ab_attribute) (AB_EXTERNAL, attr_bits);
       if (attr->intrinsic)
@@ -1799,6 +1819,8 @@ mio_symbol_attribute (symbol_attribute *attr)
 	MIO_NAME (ab_attribute) (AB_OPTIONAL, attr_bits);
       if (attr->pointer)
 	MIO_NAME (ab_attribute) (AB_POINTER, attr_bits);
+      if (attr->class_pointer)
+	MIO_NAME (ab_attribute) (AB_CLASS_POINTER, attr_bits);
       if (attr->is_protected)
 	MIO_NAME (ab_attribute) (AB_PROTECTED, attr_bits);
       if (attr->value)
@@ -1857,16 +1879,20 @@ mio_symbol_attribute (symbol_attribute *attr)
 	MIO_NAME (ab_attribute) (AB_POINTER_COMP, attr_bits);
       if (attr->private_comp)
 	MIO_NAME (ab_attribute) (AB_PRIVATE_COMP, attr_bits);
+      if (attr->coarray_comp)
+	MIO_NAME (ab_attribute) (AB_COARRAY_COMP, attr_bits);
       if (attr->zero_comp)
 	MIO_NAME (ab_attribute) (AB_ZERO_COMP, attr_bits);
-      if (attr->extension)
-	MIO_NAME (ab_attribute) (AB_EXTENSION, attr_bits);
       if (attr->is_class)
 	MIO_NAME (ab_attribute) (AB_IS_CLASS, attr_bits);
       if (attr->procedure)
 	MIO_NAME (ab_attribute) (AB_PROCEDURE, attr_bits);
       if (attr->proc_pointer)
 	MIO_NAME (ab_attribute) (AB_PROC_POINTER, attr_bits);
+      if (attr->vtype)
+	MIO_NAME (ab_attribute) (AB_VTYPE, attr_bits);
+      if (attr->vtab)
+	MIO_NAME (ab_attribute) (AB_VTAB, attr_bits);
 
       mio_rparen ();
 
@@ -1886,8 +1912,17 @@ mio_symbol_attribute (symbol_attribute *attr)
 	    case AB_ALLOCATABLE:
 	      attr->allocatable = 1;
 	      break;
+	    case AB_ASYNCHRONOUS:
+	      attr->asynchronous = 1;
+	      break;
 	    case AB_DIMENSION:
 	      attr->dimension = 1;
+	      break;
+	    case AB_CODIMENSION:
+	      attr->codimension = 1;
+	      break;
+	    case AB_CONTIGUOUS:
+	      attr->contiguous = 1;
 	      break;
 	    case AB_EXTERNAL:
 	      attr->external = 1;
@@ -1900,6 +1935,9 @@ mio_symbol_attribute (symbol_attribute *attr)
 	      break;
 	    case AB_POINTER:
 	      attr->pointer = 1;
+	      break;
+	    case AB_CLASS_POINTER:
+	      attr->class_pointer = 1;
 	      break;
 	    case AB_PROTECTED:
 	      attr->is_protected = 1;
@@ -1976,6 +2014,9 @@ mio_symbol_attribute (symbol_attribute *attr)
 	    case AB_ALLOC_COMP:
 	      attr->alloc_comp = 1;
 	      break;
+	    case AB_COARRAY_COMP:
+	      attr->coarray_comp = 1;
+	      break;
 	    case AB_POINTER_COMP:
 	      attr->pointer_comp = 1;
 	      break;
@@ -1985,9 +2026,6 @@ mio_symbol_attribute (symbol_attribute *attr)
 	    case AB_ZERO_COMP:
 	      attr->zero_comp = 1;
 	      break;
-	    case AB_EXTENSION:
-	      attr->extension = 1;
-	      break;
 	    case AB_IS_CLASS:
 	      attr->is_class = 1;
 	      break;
@@ -1996,6 +2034,12 @@ mio_symbol_attribute (symbol_attribute *attr)
 	      break;
 	    case AB_PROC_POINTER:
 	      attr->proc_pointer = 1;
+	      break;
+	    case AB_VTYPE:
+	      attr->vtype = 1;
+	      break;
+	    case AB_VTAB:
+	      attr->vtab = 1;
 	      break;
 	    }
 	}
@@ -2126,9 +2170,10 @@ mio_array_spec (gfc_array_spec **asp)
     }
 
   mio_integer (&as->rank);
+  mio_integer (&as->corank);
   as->type = MIO_NAME (array_type) (as->type, array_spec_types);
 
-  for (i = 0; i < as->rank; i++)
+  for (i = 0; i < as->rank + as->corank; i++)
     {
       mio_expr (&as->lower[i]);
       mio_expr (&as->upper[i]);
@@ -2298,7 +2343,7 @@ static void mio_formal_arglist (gfc_formal_arglist **formal);
 static void mio_typebound_proc (gfc_typebound_proc** proc);
 
 static void
-mio_component (gfc_component *c)
+mio_component (gfc_component *c, int vtype)
 {
   pointer_info *p;
   int n;
@@ -2328,7 +2373,8 @@ mio_component (gfc_component *c)
   mio_symbol_attribute (&c->attr);
   c->attr.access = MIO_NAME (gfc_access) (c->attr.access, access_types); 
 
-  mio_expr (&c->initializer);
+  if (!vtype)
+    mio_expr (&c->initializer);
 
   if (c->attr.proc_pointer)
     {
@@ -2363,7 +2409,7 @@ mio_component (gfc_component *c)
 
 
 static void
-mio_component_list (gfc_component **cp)
+mio_component_list (gfc_component **cp, int vtype)
 {
   gfc_component *c, *tail;
 
@@ -2372,7 +2418,7 @@ mio_component_list (gfc_component **cp)
   if (iomode == IO_OUTPUT)
     {
       for (c = *cp; c; c = c->next)
-	mio_component (c);
+	mio_component (c, vtype);
     }
   else
     {
@@ -2385,7 +2431,7 @@ mio_component_list (gfc_component **cp)
 	    break;
 
 	  c = gfc_get_component ();
-	  mio_component (c);
+	  mio_component (c, vtype);
 
 	  if (tail == NULL)
 	    *cp = c;
@@ -2609,15 +2655,15 @@ done:
 
 
 static void
-mio_constructor (gfc_constructor **cp)
+mio_constructor (gfc_constructor_base *cp)
 {
-  gfc_constructor *c, *tail;
+  gfc_constructor *c;
 
   mio_lparen ();
 
   if (iomode == IO_OUTPUT)
     {
-      for (c = *cp; c; c = c->next)
+      for (c = gfc_constructor_first (*cp); c; c = gfc_constructor_next (c))
 	{
 	  mio_lparen ();
 	  mio_expr (&c->expr);
@@ -2627,19 +2673,9 @@ mio_constructor (gfc_constructor **cp)
     }
   else
     {
-      *cp = NULL;
-      tail = NULL;
-
       while (peek_atom () != ATOM_RPAREN)
 	{
-	  c = gfc_get_constructor ();
-
-	  if (tail == NULL)
-	    *cp = c;
-	  else
-	    tail->next = c;
-
-	  tail = c;
+	  c = gfc_constructor_append_expr (cp, NULL, NULL);
 
 	  mio_lparen ();
 	  mio_expr (&c->expr);
@@ -2922,12 +2958,27 @@ fix_mio_expr (gfc_expr *e)
     }
   else if (e->expr_type == EXPR_FUNCTION && e->value.function.name)
     {
+      gfc_symbol *sym;
+
       /* In some circumstances, a function used in an initialization
 	 expression, in one use associated module, can fail to be
 	 coupled to its symtree when used in a specification
 	 expression in another module.  */
       fname = e->value.function.esym ? e->value.function.esym->name
 				     : e->value.function.isym->name;
+      e->symtree = gfc_find_symtree (gfc_current_ns->sym_root, fname);
+
+      if (e->symtree)
+	return;
+
+      /* This is probably a reference to a private procedure from another
+	 module.  To prevent a segfault, make a generic with no specific
+	 instances.  If this module is used, without the required
+	 specific coming from somewhere, the appropriate error message
+	 is issued.  */
+      gfc_get_symbol (fname, gfc_current_ns, &sym);
+      sym->attr.flavor = FL_PROCEDURE;
+      sym->attr.generic = 1;
       e->symtree = gfc_find_symtree (gfc_current_ns->sym_root, fname);
     }
 }
@@ -3286,7 +3337,7 @@ mio_typebound_proc (gfc_typebound_proc** proc)
 
   if (iomode == IO_INPUT)
     {
-      *proc = gfc_get_typebound_proc ();
+      *proc = gfc_get_typebound_proc (NULL);
       (*proc)->where = gfc_current_locus;
     }
   gcc_assert (*proc);
@@ -3469,7 +3520,7 @@ mio_f2k_derived (gfc_namespace *f2k)
   else
     while (peek_atom () != ATOM_RPAREN)
       {
-	gfc_intrinsic_op op;
+	gfc_intrinsic_op op = GFC_INTRINSIC_BEGIN; /* Silence GCC.  */
 
 	mio_lparen ();
 	mio_intrinsic_op (&op);
@@ -3547,7 +3598,7 @@ mio_symbol (gfc_symbol *sym)
   /* Note that components are always saved, even if they are supposed
      to be private.  Component access is checked during searching.  */
 
-  mio_component_list (&sym->components);
+  mio_component_list (&sym->components, sym->attr.vtype);
 
   if (sym->components != NULL)
     sym->component_access
@@ -3575,7 +3626,7 @@ mio_symbol (gfc_symbol *sym)
   mio_integer (&(sym->intmod_sym_id));
 
   if (sym->attr.flavor == FL_DERIVED)
-    mio_integer (&(sym->vindex));
+    mio_integer (&(sym->hash_value));
 
   mio_rparen ();
 }
@@ -3746,8 +3797,9 @@ load_generic_interfaces (void)
   const char *p;
   char name[GFC_MAX_SYMBOL_LEN + 1], module[GFC_MAX_SYMBOL_LEN + 1];
   gfc_symbol *sym;
-  gfc_interface *generic = NULL;
+  gfc_interface *generic = NULL, *gen = NULL;
   int n, i, renamed;
+  bool ambiguous_set = false;
 
   mio_lparen ();
 
@@ -3832,9 +3884,13 @@ load_generic_interfaces (void)
 	      sym = st->n.sym;
 
 	      if (st && !sym->attr.generic
+		     && !st->ambiguous
 		     && sym->module
 		     && strcmp(module, sym->module))
-		st->ambiguous = 1;
+		{
+		  ambiguous_set = true;
+		  st->ambiguous = 1;
+		}
 	    }
 
 	  sym->attr.use_only = only_flag;
@@ -3850,6 +3906,26 @@ load_generic_interfaces (void)
 	      sym->generic = generic;
 	      sym->attr.generic_copy = 1;
 	    }
+
+	  /* If a procedure that is not generic has generic interfaces
+	     that include itself, it is generic! We need to take care
+	     to retain symbols ambiguous that were already so.  */
+	  if (sym->attr.use_assoc
+		&& !sym->attr.generic
+		&& sym->attr.flavor == FL_PROCEDURE)
+	    {
+	      for (gen = generic; gen; gen = gen->next)
+		{
+		  if (gen->sym == sym)
+		    {
+		      sym->attr.generic = 1;
+		      if (ambiguous_set)
+		        st->ambiguous = 0;
+		      break;
+		    }
+		}
+	    }
+
 	}
     }
 
@@ -3977,7 +4053,7 @@ load_equiv (void)
 static void
 load_derived_extensions (void)
 {
-  int symbol, nuse, j;
+  int symbol, j;
   gfc_symbol *derived;
   gfc_symbol *dt;
   gfc_symtree *st;
@@ -4013,7 +4089,6 @@ load_derived_extensions (void)
 	  mio_internal_string (module);
 
           /* Only use one use name to find the symbol.  */
-	  nuse = number_use_names (name, false);
 	  j = 1;
 	  p = find_use_name_n (name, &j, false);
 	  if (p)
@@ -4150,6 +4225,9 @@ check_for_ambiguous (gfc_symbol *st_sym, pointer_info *info)
 
   rsym = info->u.rsym.sym;
   if (st_sym == rsym)
+    return false;
+
+  if (st_sym->attr.vtab || st_sym->attr.vtype)
     return false;
 
   /* If the existing symbol is generic from a different module and
@@ -4291,6 +4369,11 @@ read_module (void)
 	  p = find_use_name_n (name, &j, false);
 
 	  if (p == NULL && strcmp (name, module_name) == 0)
+	    p = name;
+
+	  /* Exception: Always import vtabs & vtypes.  */
+	  if (p == NULL && (strncmp (name, "vtab$", 5) == 0
+			    || strncmp (name, "vtype$", 6) == 0))
 	    p = name;
 
 	  /* Skip symtree nodes not in an ONLY clause, unless there
@@ -4452,8 +4535,6 @@ read_module (void)
 		 "in module '%s'", gfc_op2string (u->op), &u->where,
 		 module_name);
     }
-
-  gfc_check_interfaces (gfc_current_ns);
 
   /* Now we should be in a position to fill f2k_derived with derived type
      extensions, since everything has been loaded.  */
@@ -4673,6 +4754,10 @@ write_equiv (void)
 static void
 write_dt_extensions (gfc_symtree *st)
 {
+  if (!gfc_check_access (st->n.sym->attr.access,
+			 st->n.sym->ns->default_access))
+    return;
+
   mio_lparen ();
   mio_pool_string (&st->n.sym->name);
   if (st->n.sym->module != NULL)
@@ -5054,11 +5139,14 @@ gfc_dump_module (const char *name, int dump_flag)
       return;
     }
 
+  if (gfc_cpp_makedep ())
+    gfc_cpp_add_target (filename);
+
   /* Write the module to the temporary file.  */
   module_fp = fopen (filename_tmp, "w");
   if (module_fp == NULL)
     gfc_fatal_error ("Can't open module file '%s' for writing at %C: %s",
-		     filename_tmp, strerror (errno));
+		     filename_tmp, xstrerror (errno));
 
   /* Write the header, including space reserved for the MD5 sum.  */
   now = time (NULL);
@@ -5096,7 +5184,7 @@ gfc_dump_module (const char *name, int dump_flag)
 
   if (fclose (module_fp))
     gfc_fatal_error ("Error writing module file '%s' for writing: %s",
-		     filename_tmp, strerror (errno));
+		     filename_tmp, xstrerror (errno));
 
   /* Read the MD5 from the header of the old module file and compare.  */
   if (read_md5_from_module_file (filename, md5_old) != 0
@@ -5105,64 +5193,49 @@ gfc_dump_module (const char *name, int dump_flag)
       /* Module file have changed, replace the old one.  */
       if (unlink (filename) && errno != ENOENT)
 	gfc_fatal_error ("Can't delete module file '%s': %s", filename,
-			 strerror (errno));
+			 xstrerror (errno));
       if (rename (filename_tmp, filename))
 	gfc_fatal_error ("Can't rename module file '%s' to '%s': %s",
-			 filename_tmp, filename, strerror (errno));
+			 filename_tmp, filename, xstrerror (errno));
     }
   else
     {
       if (unlink (filename_tmp))
 	gfc_fatal_error ("Can't delete temporary module file '%s': %s",
-			 filename_tmp, strerror (errno));
+			 filename_tmp, xstrerror (errno));
     }
 }
 
 
 static void
-sort_iso_c_rename_list (void)
+create_intrinsic_function (const char *name, gfc_isym_id id,
+			   const char *modname, intmod_id module)
 {
-  gfc_use_rename *tmp_list = NULL;
-  gfc_use_rename *curr;
-  gfc_use_rename *kinds_used[ISOCBINDING_NUMBER] = {NULL};
-  int c_kind;
-  int i;
+  gfc_intrinsic_sym *isym;
+  gfc_symtree *tmp_symtree;
+  gfc_symbol *sym;
 
-  for (curr = gfc_rename_list; curr; curr = curr->next)
+  tmp_symtree = gfc_find_symtree (gfc_current_ns->sym_root, name);
+  if (tmp_symtree)
     {
-      c_kind = get_c_kind (curr->use_name, c_interop_kinds_table);
-      if (c_kind == ISOCBINDING_INVALID || c_kind == ISOCBINDING_LAST)
-	{
-	  gfc_error ("Symbol '%s' referenced at %L does not exist in "
-		     "intrinsic module ISO_C_BINDING.", curr->use_name,
-		     &curr->where);
-	}
-      else
-	/* Put it in the list.  */
-	kinds_used[c_kind] = curr;
+      if (strcmp (modname, tmp_symtree->n.sym->module) == 0)
+        return;
+      gfc_error ("Symbol '%s' already declared", name);
     }
 
-  /* Make a new (sorted) rename list.  */
-  i = 0;
-  while (i < ISOCBINDING_NUMBER && kinds_used[i] == NULL)
-    i++;
+  gfc_get_sym_tree (name, gfc_current_ns, &tmp_symtree, false);
+  sym = tmp_symtree->n.sym;
 
-  if (i < ISOCBINDING_NUMBER)
-    {
-      tmp_list = kinds_used[i];
+  isym = gfc_intrinsic_function_by_id (id);
+  gcc_assert (isym);
 
-      i++;
-      curr = tmp_list;
-      for (; i < ISOCBINDING_NUMBER; i++)
-	if (kinds_used[i] != NULL)
-	  {
-	    curr->next = kinds_used[i];
-	    curr = curr->next;
-	    curr->next = NULL;
-	  }
-    }
+  sym->attr.flavor = FL_PROCEDURE;
+  sym->attr.intrinsic = 1;
 
-  gfc_rename_list = tmp_list;
+  sym->module = gfc_get_string (modname);
+  sym->attr.use_assoc = 1;
+  sym->from_intmod = module;
+  sym->intmod_sym_id = id;
 }
 
 
@@ -5179,7 +5252,6 @@ import_iso_c_binding_module (void)
   const char *iso_c_module_name = "__iso_c_binding";
   gfc_use_rename *u;
   int i;
-  char *local_name;
 
   /* Look only in the current namespace.  */
   mod_symtree = gfc_find_symtree (gfc_current_ns->sym_root, iso_c_module_name);
@@ -5204,57 +5276,63 @@ import_iso_c_binding_module (void)
 
   /* Generate the symbols for the named constants representing
      the kinds for intrinsic data types.  */
-  if (only_flag)
+  for (i = 0; i < ISOCBINDING_NUMBER; i++)
     {
-      /* Sort the rename list because there are dependencies between types
-	 and procedures (e.g., c_loc needs c_ptr).  */
-      sort_iso_c_rename_list ();
-      
+      bool found = false;
       for (u = gfc_rename_list; u; u = u->next)
-	{
-	  i = get_c_kind (u->use_name, c_interop_kinds_table);
-
-	  if (i == ISOCBINDING_INVALID || i == ISOCBINDING_LAST)
-	    {
-	      gfc_error ("Symbol '%s' referenced at %L does not exist in "
-			 "intrinsic module ISO_C_BINDING.", u->use_name,
-			 &u->where);
-	      continue;
-	    }
-	  
-	  generate_isocbinding_symbol (iso_c_module_name,
-				       (iso_c_binding_symbol) i,
-				       u->local_name);
-	}
-    }
-  else
-    {
-      for (i = 0; i < ISOCBINDING_NUMBER; i++)
-	{
-	  local_name = NULL;
-	  for (u = gfc_rename_list; u; u = u->next)
-	    {
-	      if (strcmp (c_interop_kinds_table[i].name, u->use_name) == 0)
-		{
-		  local_name = u->local_name;
-		  u->found = 1;
+	if (strcmp (c_interop_kinds_table[i].name, u->use_name) == 0)
+	  {
+	    u->found = 1;
+	    found = true;
+	    switch (i)
+	      {
+#define NAMED_FUNCTION(a,b,c,d) \
+	        case a: \
+		  create_intrinsic_function (u->local_name[0] ? u->local_name \
+							      : u->use_name, \
+					     (gfc_isym_id) c, \
+                                             iso_c_module_name, \
+                                             INTMOD_ISO_C_BINDING); \
 		  break;
-		}
-	    }
-	  generate_isocbinding_symbol (iso_c_module_name,
-				       (iso_c_binding_symbol) i,
-				       local_name);
-	}
+#include "iso-c-binding.def"
+#undef NAMED_FUNCTION
 
-      for (u = gfc_rename_list; u; u = u->next)
-	{
-	  if (u->found)
-	    continue;
+		default:
+		  generate_isocbinding_symbol (iso_c_module_name,
+					       (iso_c_binding_symbol) i,
+					       u->local_name[0] ? u->local_name
+								: u->use_name);
+	      }
+	  }
 
-	  gfc_error ("Symbol '%s' referenced at %L not found in intrinsic "
-		     "module ISO_C_BINDING", u->use_name, &u->where);
-	}
-    }
+      if (!found && !only_flag)
+	switch (i)
+	  {
+#define NAMED_FUNCTION(a,b,c,d) \
+	    case a: \
+	      if ((gfc_option.allow_std & d) == 0) \
+		continue; \
+	      create_intrinsic_function (b, (gfc_isym_id) c, \
+					 iso_c_module_name, \
+					 INTMOD_ISO_C_BINDING); \
+		  break;
+#include "iso-c-binding.def"
+#undef NAMED_FUNCTION
+
+	    default:
+	      generate_isocbinding_symbol (iso_c_module_name,
+					   (iso_c_binding_symbol) i, NULL);
+	  }
+   }
+
+   for (u = gfc_rename_list; u; u = u->next)
+     {
+      if (u->found)
+	continue;
+
+      gfc_error ("Symbol '%s' referenced at %L not found in intrinsic "
+		 "module ISO_C_BINDING", u->use_name, &u->where);
+     }
 }
 
 
@@ -5283,11 +5361,54 @@ create_int_parameter (const char *name, int value, const char *modname,
   sym->attr.flavor = FL_PARAMETER;
   sym->ts.type = BT_INTEGER;
   sym->ts.kind = gfc_default_integer_kind;
-  sym->value = gfc_int_expr (value);
+  sym->value = gfc_get_int_expr (gfc_default_integer_kind, NULL, value);
   sym->attr.use_assoc = 1;
   sym->from_intmod = module;
   sym->intmod_sym_id = id;
 }
+
+
+/* Value is already contained by the array constructor, but not
+   yet the shape.  */
+
+static void
+create_int_parameter_array (const char *name, int size, gfc_expr *value,
+			    const char *modname, intmod_id module, int id)
+{
+  gfc_symtree *tmp_symtree;
+  gfc_symbol *sym;
+
+  tmp_symtree = gfc_find_symtree (gfc_current_ns->sym_root, name);
+  if (tmp_symtree != NULL)
+    {
+      if (strcmp (modname, tmp_symtree->n.sym->module) == 0)
+	return;
+      else
+	gfc_error ("Symbol '%s' already declared", name);
+    }
+
+  gfc_get_sym_tree (name, gfc_current_ns, &tmp_symtree, false);
+  sym = tmp_symtree->n.sym;
+
+  sym->module = gfc_get_string (modname);
+  sym->attr.flavor = FL_PARAMETER;
+  sym->ts.type = BT_INTEGER;
+  sym->ts.kind = gfc_default_integer_kind;
+  sym->attr.use_assoc = 1;
+  sym->from_intmod = module;
+  sym->intmod_sym_id = id;
+  sym->attr.dimension = 1;
+  sym->as = gfc_get_array_spec ();
+  sym->as->rank = 1;
+  sym->as->type = AS_EXPLICIT;
+  sym->as->lower[0] = gfc_get_int_expr (gfc_default_integer_kind, NULL, 1);
+  sym->as->upper[0] = gfc_get_int_expr (gfc_default_integer_kind, NULL, size); 
+
+  sym->value = value;
+  sym->value->shape = gfc_get_shape (1);
+  mpz_init_set_ui (sym->value->shape[0], size);
+}
+
 
 
 /* USE the ISO_FORTRAN_ENV intrinsic module.  */
@@ -5296,16 +5417,22 @@ static void
 use_iso_fortran_env_module (void)
 {
   static char mod[] = "iso_fortran_env";
-  const char *local_name;
   gfc_use_rename *u;
   gfc_symbol *mod_sym;
   gfc_symtree *mod_symtree;
-  int i;
+  gfc_expr *expr;
+  int i, j;
 
   intmod_sym symbol[] = {
 #define NAMED_INTCST(a,b,c,d) { a, b, 0, d },
 #include "iso-fortran-env.def"
 #undef NAMED_INTCST
+#define NAMED_KINDARRAY(a,b,c,d) { a, b, 0, d },
+#include "iso-fortran-env.def"
+#undef NAMED_KINDARRAY
+#define NAMED_FUNCTION(a,b,c,d) { a, b, c, d },
+#include "iso-fortran-env.def"
+#undef NAMED_FUNCTION
     { ISOFORTRANENV_INVALID, NULL, -1234, 0 } };
 
   i = 0;
@@ -5332,48 +5459,81 @@ use_iso_fortran_env_module (void)
 		 "non-intrinsic module name used previously", mod);
 
   /* Generate the symbols for the module integer named constants.  */
-  if (only_flag)
-    for (u = gfc_rename_list; u; u = u->next)
-      {
-	for (i = 0; symbol[i].name; i++)
-	  if (strcmp (symbol[i].name, u->use_name) == 0)
-	    break;
 
-	if (symbol[i].name == NULL)
-	  {
-	    gfc_error ("Symbol '%s' referenced at %L does not exist in "
-		       "intrinsic module ISO_FORTRAN_ENV", u->use_name,
-		       &u->where);
-	    continue;
-	  }
-
-	if ((gfc_option.flag_default_integer || gfc_option.flag_default_real)
-	    && symbol[i].id == ISOFORTRANENV_NUMERIC_STORAGE_SIZE)
-	  gfc_warning_now ("Use of the NUMERIC_STORAGE_SIZE named constant "
-			   "from intrinsic module ISO_FORTRAN_ENV at %L is "
-			   "incompatible with option %s", &u->where,
-			   gfc_option.flag_default_integer
-			     ? "-fdefault-integer-8" : "-fdefault-real-8");
-
-	create_int_parameter (u->local_name[0] ? u->local_name
-					       : symbol[i].name,
-			      symbol[i].value, mod, INTMOD_ISO_FORTRAN_ENV,
-			      symbol[i].id);
-      }
-  else
+  for (i = 0; symbol[i].name; i++)
     {
-      for (i = 0; symbol[i].name; i++)
+      bool found = false;
+      for (u = gfc_rename_list; u; u = u->next)
 	{
-	  local_name = NULL;
-	  for (u = gfc_rename_list; u; u = u->next)
+	  if (strcmp (symbol[i].name, u->use_name) == 0)
 	    {
-	      if (strcmp (symbol[i].name, u->use_name) == 0)
+	      found = true;
+	      u->found = 1;
+
+	      if (gfc_notify_std (symbol[i].standard, "The symbol '%s', "
+				  "referrenced at %C, is not in the selected "
+				  "standard", symbol[i].name) == FAILURE)
+	        continue;
+
+	      if ((gfc_option.flag_default_integer || gfc_option.flag_default_real)
+		  && symbol[i].id == ISOFORTRANENV_NUMERIC_STORAGE_SIZE)
+		gfc_warning_now ("Use of the NUMERIC_STORAGE_SIZE named "
+				 "constant from intrinsic module "
+				 "ISO_FORTRAN_ENV at %C is incompatible with "
+				 "option %s",
+				 gfc_option.flag_default_integer
+				   ? "-fdefault-integer-8"
+				   : "-fdefault-real-8");
+	      switch (symbol[i].id)
 		{
-		  local_name = u->local_name;
-		  u->found = 1;
+#define NAMED_INTCST(a,b,c,d) \
+		case a:
+#include "iso-fortran-env.def"
+#undef NAMED_INTCST
+		  create_int_parameter (u->local_name[0] ? u->local_name
+							 : u->use_name,
+					symbol[i].value, mod,
+					INTMOD_ISO_FORTRAN_ENV, symbol[i].id);
 		  break;
+
+#define NAMED_KINDARRAY(a,b,KINDS,d) \
+		case a:\
+		  expr = gfc_get_array_expr (BT_INTEGER, \
+					     gfc_default_integer_kind,\
+					     NULL); \
+		  for (j = 0; KINDS[j].kind != 0; j++) \
+		    gfc_constructor_append_expr (&expr->value.constructor, \
+			gfc_get_int_expr (gfc_default_integer_kind, NULL, \
+					  KINDS[j].kind), NULL); \
+		  create_int_parameter_array (u->local_name[0] ? u->local_name \
+							 : u->use_name, \
+					      j, expr, mod, \
+					      INTMOD_ISO_FORTRAN_ENV, \
+					      symbol[i].id); \
+		  break;
+#include "iso-fortran-env.def"
+#undef NAMED_KINDARRAY
+
+#define NAMED_FUNCTION(a,b,c,d) \
+		case a:
+#include "iso-fortran-env.def"
+#undef NAMED_FUNCTION
+		  create_intrinsic_function (u->local_name[0] ? u->local_name
+							      : u->use_name,
+					     (gfc_isym_id) symbol[i].value, mod,
+					     INTMOD_ISO_FORTRAN_ENV);
+		  break;
+
+		default:
+		  gcc_unreachable ();
 		}
 	    }
+	}
+
+      if (!found && !only_flag)
+	{
+	  if ((gfc_option.allow_std & symbol[i].standard) == 0)
+	    continue;
 
 	  if ((gfc_option.flag_default_integer || gfc_option.flag_default_real)
 	      && symbol[i].id == ISOFORTRANENV_NUMERIC_STORAGE_SIZE)
@@ -5383,19 +5543,52 @@ use_iso_fortran_env_module (void)
 			     gfc_option.flag_default_integer
 				? "-fdefault-integer-8" : "-fdefault-real-8");
 
-	  create_int_parameter (local_name ? local_name : symbol[i].name,
-				symbol[i].value, mod, INTMOD_ISO_FORTRAN_ENV,
-				symbol[i].id);
+	  switch (symbol[i].id)
+	    {
+#define NAMED_INTCST(a,b,c,d) \
+	    case a:
+#include "iso-fortran-env.def"
+#undef NAMED_INTCST
+	      create_int_parameter (symbol[i].name, symbol[i].value, mod,
+				    INTMOD_ISO_FORTRAN_ENV, symbol[i].id);
+	      break;
+
+#define NAMED_KINDARRAY(a,b,KINDS,d) \
+	    case a:\
+	      expr = gfc_get_array_expr (BT_INTEGER, gfc_default_integer_kind, \
+					 NULL); \
+	      for (j = 0; KINDS[j].kind != 0; j++) \
+		gfc_constructor_append_expr (&expr->value.constructor, \
+                      gfc_get_int_expr (gfc_default_integer_kind, NULL, \
+                                        KINDS[j].kind), NULL); \
+            create_int_parameter_array (symbol[i].name, j, expr, mod, \
+                                        INTMOD_ISO_FORTRAN_ENV, symbol[i].id);\
+            break;
+#include "iso-fortran-env.def"
+#undef NAMED_KINDARRAY
+
+#define NAMED_FUNCTION(a,b,c,d) \
+		case a:
+#include "iso-fortran-env.def"
+#undef NAMED_FUNCTION
+		  create_intrinsic_function (symbol[i].name,
+					     (gfc_isym_id) symbol[i].value, mod,
+					     INTMOD_ISO_FORTRAN_ENV);
+		  break;
+
+	  default:
+	    gcc_unreachable ();
+	  }
 	}
+    }
 
-      for (u = gfc_rename_list; u; u = u->next)
-	{
-	  if (u->found)
-	    continue;
+  for (u = gfc_rename_list; u; u = u->next)
+    {
+      if (u->found)
+	continue;
 
-	  gfc_error ("Symbol '%s' referenced at %L not found in intrinsic "
+      gfc_error ("Symbol '%s' referenced at %L not found in intrinsic "
 		     "module ISO_FORTRAN_ENV", u->use_name, &u->where);
-	}
     }
 }
 
@@ -5451,7 +5644,7 @@ gfc_use_module (void)
 
   if (module_fp == NULL)
     gfc_fatal_error ("Can't open module file '%s' for reading at %C: %s",
-		     filename, strerror (errno));
+		     filename, xstrerror (errno));
 
   /* Check that we haven't already USEd an intrinsic module with the
      same name.  */
@@ -5490,10 +5683,12 @@ gfc_use_module (void)
 
 	  if (strcmp (atom_string, MOD_VERSION))
 	    {
-	      gfc_fatal_error ("Wrong module version '%s' (expected '"
-			       MOD_VERSION "') for file '%s' opened"
-			       " at %C", atom_string, filename);
+	      gfc_fatal_error ("Wrong module version '%s' (expected '%s') "
+			       "for file '%s' opened at %C", atom_string,
+			       MOD_VERSION, filename);
 	    }
+
+	  gfc_free (atom_string);
 	}
 
       if (c == '\n')

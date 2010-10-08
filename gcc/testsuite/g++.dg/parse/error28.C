@@ -2,8 +2,8 @@
 // PR c++/21908
 
 struct virt { virt () {} virt (int i) {} };
-struct der : public virtual virt { // { dg-message "34:der::der" }
-  der (int i) : virt(i) {} // { dg-message "3:candidates are: der" }
+struct der : public virtual virt { // { dg-message "8:der::der" }
+  der (int i) : virt(i) {} // { dg-message "3:der::der" }
 };
 struct top : public der { 
   top () {} // { dg-bogus "der\\(const" }

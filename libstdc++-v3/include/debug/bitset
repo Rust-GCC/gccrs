@@ -1,6 +1,6 @@
 // Debugging bitset implementation -*- C++ -*-
 
-// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -38,6 +38,7 @@ namespace std
 {
 namespace __debug
 {
+  /// Class std::bitset with additional safety/checking/debug instrumentation.
   template<size_t _Nb>
     class bitset
     : public _GLIBCXX_STD_D::bitset<_Nb>, 
@@ -119,7 +120,12 @@ namespace __debug
       // 23.3.5.1 constructors:
       bitset() : _Base() { }
 
-      bitset(unsigned long __val) : _Base(__val) { }
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      bitset(unsigned long long __val)
+#else
+      bitset(unsigned long __val)
+#endif
+      : _Base(__val) { }
 
       template<typename _CharT, typename _Traits, typename _Alloc>
         explicit
@@ -142,6 +148,11 @@ namespace __debug
 	: _Base(__str, __pos, __n, __zero, __one) { }
 
       bitset(const _Base& __x) : _Base(__x), _Safe_base() { }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      explicit
+      bitset(const char* __str) : _Base(__str) { }
+#endif
 
       // 23.3.5.2 bitset operations:
       bitset<_Nb>&
@@ -245,6 +256,9 @@ namespace __debug
       }
 
       using _Base::to_ulong;
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      using _Base::to_ullong;
+#endif
 
       template <typename _CharT, typename _Traits, typename _Alloc>
         std::basic_string<_CharT, _Traits, _Alloc>
@@ -363,7 +377,22 @@ namespace __debug
     operator<<(std::basic_ostream<_CharT, _Traits>& __os,
 	       const bitset<_Nb>& __x)
     { return __os << __x._M_base(); }
+
 } // namespace __debug
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  // DR 1182.
+  /// std::hash specialization for bitset.
+  template<size_t _Nb>
+    struct hash<__debug::bitset<_Nb>>
+    : public __hash_base<size_t, __debug::bitset<_Nb>>
+    {
+      size_t
+      operator()(const __debug::bitset<_Nb>& __b) const
+      { return std::hash<_GLIBCXX_STD_D::bitset<_Nb>>()(__b._M_base()); }
+    };
+#endif
+
 } // namespace std
 
 #endif

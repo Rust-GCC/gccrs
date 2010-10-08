@@ -1,6 +1,6 @@
 /* Target definitions for Darwin (Mac OS X) systems.
    Copyright (C) 1989, 1990, 1991, 1992, 1993, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007, 2008, 2009
+   2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Apple Computer Inc.
 
@@ -236,6 +236,7 @@ extern GTY(()) int darwin_ms_struct;
    !strcmp (STR, "sectobjectsymbols") ? 2 :     \
    !strcmp (STR, "segcreate") ? 3 :             \
    !strcmp (STR, "dylinker_install_name") ? 1 : \
+   !strcmp (STR, "iframework") ? 1 : \
    0)
 
 #define SUBTARGET_C_COMMON_OVERRIDE_OPTIONS do {                        \
@@ -266,19 +267,28 @@ extern GTY(()) int darwin_ms_struct;
    instead of LINK_COMMAND_SPEC.  The command spec is better for
    specifying the handling of options understood by generic Unix
    linkers, and for positional arguments like libraries.  */
-#define LINK_COMMAND_SPEC "\
-%{!fdump=*:%{!fsyntax-only:%{!c:%{!M:%{!MM:%{!E:%{!S:\
+
+#define LINK_COMMAND_SPEC_A \
+   "%{!fdump=*:%{!fsyntax-only:%{!c:%{!M:%{!MM:%{!E:%{!S:\
     %(linker) %l %X %{d} %{s} %{t} %{Z} %{u*} \
     %{A} %{e*} %{m} %{r} %{x} \
     %{o*}%{!o:-o a.out} \
     %{!A:%{!nostdlib:%{!nostartfiles:%S}}} \
-    %{L*} %{fopenmp:%:include(libgomp.spec)%(link_gomp)}   \
-    %(link_libgcc) %o %{fprofile-arcs|fprofile-generate*|coverage:-lgcov} \
-    %{!nostdlib:%{!nodefaultlibs:%(link_ssp) %G %L}} \
-    %{!A:%{!nostdlib:%{!nostartfiles:%E}}} %{T*} %{F*} }}}}}}}\n\
-%{!fdump=*:%{!fsyntax-only:%{!c:%{!M:%{!MM:%{!E:%{!S:\
+    %{L*} %(link_libgcc) %o %{fprofile-arcs|fprofile-generate*|coverage:-lgcov} \
+    %{flto} %{fwhopr} \
+    %{fopenmp|ftree-parallelize-loops=*: \
+      %{static|static-libgcc|static-libstdc++|static-libgfortran: libgomp.a%s; : -lgomp } } \
+    %{!nostdlib:%{!nodefaultlibs: %(link_ssp) %G %L }} \
+    %{!A:%{!nostdlib:%{!nostartfiles:%E}}} %{T*} %{F*} }}}}}}}\n"
+
+#define DSYMUTIL "dsymutil"
+
+#define DSYMUTIL_SPEC \
+   "%{!fdump=*:%{!fsyntax-only:%{!c:%{!M:%{!MM:%{!E:%{!S:\
     %{.c|.cc|.C|.cpp|.cp|.c++|.cxx|.CPP|.m|.mm: \
-    %{gdwarf-2:%{!gstabs*:%{!g0: dsymutil %{o*:%*}%{!o:a.out}}}}}}}}}}}}"
+    %{gdwarf-2:%{!gstabs*:%{!g0: " DSYMUTIL " %{o*:%*}%{!o:a.out}}}}}}}}}}}}"
+
+#define LINK_COMMAND_SPEC LINK_COMMAND_SPEC_A DSYMUTIL_SPEC
 
 #ifdef TARGET_SYSTEM_ROOT
 #define LINK_SYSROOT_SPEC \
@@ -293,8 +303,15 @@ extern GTY(()) int darwin_ms_struct;
    so put a * after their names so all of them get passed.  */
 #define LINK_SPEC  \
   "%{static}%{!static:-dynamic} \
-   %{fgnu-runtime:%:replace-outfile(-lobjc -lobjc-gnu)}\
-   %{static|static-libgfortran:%:replace-outfile(-lgfortran libgfortran.a%s)}\
+   %:remove-outfile(-ldl) \
+   %:remove-outfile(-lm) \
+   %:remove-outfile(-lpthread) \
+   %{fgnu-runtime: %{static|static-libgcc: \
+                     %:replace-outfile(-lobjc libobjc-gnu.a%s); \
+                    :%:replace-outfile(-lobjc -lobjc-gnu ) } }\
+   %{static|static-libgcc|static-libgfortran:%:replace-outfile(-lgfortran libgfortran.a%s)}\
+   %{static|static-libgcc|static-libstdc++|static-libgfortran:%:replace-outfile(-lgomp libgomp.a%s)}\
+   %{static|static-libgcc|static-libstdc++:%:replace-outfile(-lstdc++ libstdc++.a%s)}\
    %{!Zdynamiclib: \
      %{Zforce_cpusubtype_ALL:-arch %(darwin_arch) -force_cpusubtype_ALL} \
      %{!Zforce_cpusubtype_ALL:-arch %(darwin_subarch)} \
@@ -392,11 +409,15 @@ extern GTY(()) int darwin_ms_struct;
    "%{static-libgcc|static: -lgcc_eh -lgcc;				   \
       shared-libgcc|fexceptions|fgnu-runtime:				   \
        %:version-compare(!> 10.5 mmacosx-version-min= -lgcc_s.10.4)	   \
-       %:version-compare(>= 10.5 mmacosx-version-min= -lgcc_s.10.5)	   \
-       -lgcc;								   \
+       %:version-compare(>< 10.5 10.6 mmacosx-version-min= -lgcc_s.10.5)   \
+       %:version-compare(!> 10.5 mmacosx-version-min= -lgcc_ext.10.4)	   \
+       %:version-compare(>= 10.5 mmacosx-version-min= -lgcc_ext.10.5)	   \
+       -lgcc ;								   \
       :%:version-compare(>< 10.3.9 10.5 mmacosx-version-min= -lgcc_s.10.4) \
-       %:version-compare(>= 10.5 mmacosx-version-min= -lgcc_s.10.5)	   \
-       -lgcc}"
+       %:version-compare(>< 10.5 10.6 mmacosx-version-min= -lgcc_s.10.5)   \
+       %:version-compare(!> 10.5 mmacosx-version-min= -lgcc_ext.10.4)	   \
+       %:version-compare(>= 10.5 mmacosx-version-min= -lgcc_ext.10.5)	   \
+       -lgcc }"
 
 /* We specify crt0.o as -lcrt0.o so that ld will search the library path.
 
@@ -461,6 +482,8 @@ extern GTY(()) int darwin_ms_struct;
 #define DEBUG_STR_SECTION	"__DWARF,__debug_str,regular,debug"
 #define DEBUG_RANGES_SECTION	"__DWARF,__debug_ranges,regular,debug"
 
+#define TARGET_WANT_DEBUG_PUB_SECTIONS true
+
 /* When generating stabs debugging, use N_BINCL entries.  */
 
 #define DBX_USE_BINCL
@@ -493,8 +516,7 @@ extern GTY(()) int darwin_ms_struct;
       targetm.asm_out.globalize_label (FILE, NAME);			\
     if (DECL_EXTERNAL (DECL))						\
       fputs ("\t.weak_reference ", FILE);				\
-    else if (! lookup_attribute ("weak", DECL_ATTRIBUTES (DECL))	\
-	&& lookup_attribute ("weak_import", DECL_ATTRIBUTES (DECL)))	\
+    else if (lookup_attribute ("weak_import", DECL_ATTRIBUTES (DECL)))	\
       break;								\
     else if (TREE_PUBLIC (DECL))					\
       fputs ("\t.weak_definition ", FILE);				\
@@ -573,6 +595,16 @@ extern GTY(()) int darwin_ms_struct;
 #undef  TARGET_ASM_FILE_END
 #define TARGET_ASM_FILE_END darwin_file_end
 
+/* Because Mach-O relocations have a counter from 1 to 255 for the
+   section number they apply to, it is necessary to output all
+   normal sections before the LTO sections, to make sure that the
+   sections that may have relocations always have a section number
+   smaller than 255.  */
+#undef  TARGET_ASM_LTO_START
+#define TARGET_ASM_LTO_START darwin_asm_lto_start
+#undef  TARGET_ASM_LTO_END
+#define TARGET_ASM_LTO_END darwin_asm_lto_end
+
 #define ASM_OUTPUT_SKIP(FILE,SIZE)  \
   fprintf (FILE, "\t.space "HOST_WIDE_INT_PRINT_UNSIGNED"\n", SIZE)
 
@@ -630,20 +662,18 @@ extern GTY(()) int darwin_ms_struct;
 	 && (!DECL_COMMON (DECL) || !TREE_PUBLIC (DECL)))		\
         || DECL_INITIAL (DECL))						\
       (* targetm.encode_section_info) (DECL, DECL_RTL (DECL), false);	\
-    ASM_OUTPUT_LABEL (FILE, xname);					\
+    ASM_OUTPUT_FUNCTION_LABEL (FILE, xname, DECL);			\
   } while (0)
 
-#define ASM_DECLARE_CONSTANT_NAME(FILE, NAME, EXP, SIZE)	\
-  do {								\
-    ASM_OUTPUT_LABEL (FILE, NAME);				\
-    /* Darwin doesn't support zero-size objects, so give them a	\
-       byte.  */						\
-    if ((SIZE) == 0)						\
-      assemble_zeros (1);					\
-  } while (0)
+#undef TARGET_ASM_DECLARE_CONSTANT_NAME
+#define TARGET_ASM_DECLARE_CONSTANT_NAME darwin_asm_declare_constant_name
 
 /* Wrap new method names in quotes so the assembler doesn't gag.
-   Make Objective-C internal symbols local.  */
+   Make Objective-C internal symbols local and in doing this, we need 
+   to accommodate the name mangling done by c++ on file scope locals.  */
+
+
+int darwin_label_is_anonymous_local_objc_name (const char *name);
 
 #undef	ASM_OUTPUT_LABELREF
 #define ASM_OUTPUT_LABELREF(FILE,NAME)					     \
@@ -669,7 +699,7 @@ extern GTY(()) int darwin_ms_struct;
 	 }								     \
        else if (xname[0] == '+' || xname[0] == '-')			     \
          fprintf (FILE, "\"%s\"", xname);				     \
-       else if (!strncmp (xname, "_OBJC_", 6))				     \
+       else if (darwin_label_is_anonymous_local_objc_name (xname))				     \
          fprintf (FILE, "L%s", xname);					     \
        else if (!strncmp (xname, ".objc_class_name_", 17))		     \
 	 fprintf (FILE, "%s", xname);					     \
@@ -702,7 +732,7 @@ extern GTY(()) int darwin_ms_struct;
 #define ASM_OUTPUT_ALIGNED_DECL_LOCAL(FILE, DECL, NAME, SIZE, ALIGN)	\
   do {									\
     unsigned HOST_WIDE_INT _new_size = SIZE;				\
-    fputs (".lcomm ", (FILE));						\
+    fputs ("\t.lcomm ", (FILE));						\
     assemble_name ((FILE), (NAME));					\
     if (_new_size == 0) _new_size = 1;					\
     fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", _new_size,	\
@@ -770,7 +800,7 @@ extern GTY(()) section * darwin_sections[NUM_DARWIN_SECTIONS];
        } while (0)
 
 /* Globalizing directive for a label.  */
-#define GLOBAL_ASM_OP ".globl "
+#define GLOBAL_ASM_OP "\t.globl "
 #define TARGET_ASM_GLOBALIZE_LABEL darwin_globalize_label
 
 /* Emit an assembler directive to set visibility for a symbol.  Used
@@ -1022,16 +1052,15 @@ __enable_execute_stack (void *addr)                                     \
 /* For Apple KEXTs, we make the constructors return this to match gcc
    2.95.  */
 #define TARGET_CXX_CDTOR_RETURNS_THIS (darwin_kextabi_p)
-extern int flag_mkernel;
-extern int flag_apple_kext;
 #define TARGET_KEXTABI flag_apple_kext
 
 #define TARGET_HAS_TARGETCM 1
 
 #ifndef CROSS_DIRECTORY_STRUCTURE
-extern void darwin_default_min_version (int * argc, char *** argv);
+extern void darwin_default_min_version (unsigned int *decoded_options_count,
+					struct cl_decoded_option **decoded_options);
 #define GCC_DRIVER_HOST_INITIALIZATION \
-  darwin_default_min_version (&argc, &argv)
+  darwin_default_min_version (&decoded_options_count, &decoded_options)
 #endif /* CROSS_DIRECTORY_STRUCTURE */
 
 /* The Apple assembler and linker do not support constructor priorities.  */

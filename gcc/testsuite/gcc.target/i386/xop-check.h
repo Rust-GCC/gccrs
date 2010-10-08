@@ -1,8 +1,16 @@
 #include <stdlib.h>
 
 #include "cpuid.h"
+#include "m256-check.h"
 
 static void xop_test (void);
+
+static void
+__attribute__ ((noinline))
+do_test (void)
+{
+  xop_test ();
+}
 
 int
 main ()
@@ -14,7 +22,7 @@ main ()
 
   /* Run XOP test only if host has XOP support.  */
   if (ecx & bit_XOP)
-    xop_test ();
+    do_test ();
 
   exit (0);
 }

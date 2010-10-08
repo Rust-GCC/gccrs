@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -151,7 +151,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (list is busy)";
+           "attempt to tamper with cursors (list is busy)";
       end if;
 
       while Container.Length > 1 loop
@@ -227,7 +227,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (list is busy)";
+           "attempt to tamper with cursors (list is busy)";
       end if;
 
       for Index in 1 .. Count loop
@@ -277,7 +277,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (list is busy)";
+           "attempt to tamper with cursors (list is busy)";
       end if;
 
       for I in 1 .. Count loop
@@ -315,7 +315,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (list is busy)";
+           "attempt to tamper with cursors (list is busy)";
       end if;
 
       for I in 1 .. Count loop
@@ -464,12 +464,12 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
          if Target.Busy > 0 then
             raise Program_Error with
-              "attempt to tamper with elements of Target (list is busy)";
+              "attempt to tamper with cursors of Target (list is busy)";
          end if;
 
          if Source.Busy > 0 then
             raise Program_Error with
-              "attempt to tamper with elements of Source (list is busy)";
+              "attempt to tamper with cursors of Source (list is busy)";
          end if;
 
          LI := First (Target);
@@ -583,7 +583,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
          if Container.Busy > 0 then
             raise Program_Error with
-              "attempt to tamper with elements (list is busy)";
+              "attempt to tamper with cursors (list is busy)";
          end if;
 
          Sort (Front => null, Back => null);
@@ -621,7 +621,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
       if Before.Container /= null then
          if Before.Container /= Container'Unrestricted_Access then
             raise Program_Error with
-              "attempt to tamper with elements (list is busy)";
+              "Before cursor designates wrong list";
          end if;
 
          pragma Assert (Vet (Before), "bad cursor in Insert");
@@ -638,7 +638,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (list is busy)";
+           "attempt to tamper with cursors (list is busy)";
       end if;
 
       New_Node := new Node_Type'(New_Item, null, null);
@@ -693,7 +693,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (list is busy)";
+           "attempt to tamper with cursors (list is busy)";
       end if;
 
       New_Node := new Node_Type;
@@ -844,7 +844,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Source.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements of Source (list is busy)";
+           "attempt to tamper with cursors of Source (list is busy)";
       end if;
 
       Clear (Target);
@@ -1048,7 +1048,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Lock > 0 then
          raise Program_Error with
-           "attempt to tamper with cursors (list is locked)";
+           "attempt to tamper with elements (list is locked)";
       end if;
 
       pragma Assert (Vet (Position), "bad cursor in Replace_Element");
@@ -1116,7 +1116,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (list is busy)";
+           "attempt to tamper with cursors (list is busy)";
       end if;
 
       Container.First := J;
@@ -1243,12 +1243,12 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Target.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements of Target (list is busy)";
+           "attempt to tamper with cursors of Target (list is busy)";
       end if;
 
       if Source.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements of Source (list is busy)";
+           "attempt to tamper with cursors of Source (list is busy)";
       end if;
 
       if Target.Length = 0 then
@@ -1328,7 +1328,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (list is busy)";
+           "attempt to tamper with cursors (list is busy)";
       end if;
 
       if Before.Node = null then
@@ -1432,12 +1432,12 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Target.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements of Target (list is busy)";
+           "attempt to tamper with cursors of Target (list is busy)";
       end if;
 
       if Source.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements of Source (list is busy)";
+           "attempt to tamper with cursors of Source (list is busy)";
       end if;
 
       if Position.Node = Source.First then
@@ -1536,7 +1536,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Lock > 0 then
          raise Program_Error with
-           "attempt to tamper with cursors (list is locked)";
+           "attempt to tamper with elements (list is locked)";
       end if;
 
       pragma Assert (Vet (I), "bad I cursor in Swap");
@@ -1585,7 +1585,7 @@ package body Ada.Containers.Doubly_Linked_Lists is
 
       if Container.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (list is busy)";
+           "attempt to tamper with cursors (list is busy)";
       end if;
 
       pragma Assert (Vet (I), "bad I cursor in Swap_Links");
@@ -1711,11 +1711,17 @@ package body Ada.Containers.Doubly_Linked_Lists is
             return False;
          end if;
 
+         --  If we get here, we know that this disjunction is true:
+         --  Position.Node.Prev /= null or else Position.Node = L.First
+
          if Position.Node.Next = null
            and then Position.Node /= L.Last
          then
             return False;
          end if;
+
+         --  If we get here, we know that this disjunction is true:
+         --  Position.Node.Next /= null or else Position.Node = L.Last
 
          if L.Length = 1 then
             return L.First = L.Last;
@@ -1761,21 +1767,21 @@ package body Ada.Containers.Doubly_Linked_Lists is
             return False;
          end if;
 
-         if Position.Node = L.First then
+         if Position.Node = L.First then  -- eliminates ealier disjunct
             return True;
          end if;
 
-         if Position.Node = L.Last then
+         --  If we get here, we know, per disjunctive syllogism (modus
+         --  tollendo ponens), that this predicate is true:
+         --  Position.Node.Prev /= null
+
+         if Position.Node = L.Last then  -- eliminates earlier disjunct
             return True;
          end if;
 
-         if Position.Node.Next = null then
-            return False;
-         end if;
-
-         if Position.Node.Prev = null then
-            return False;
-         end if;
+         --  If we get here, we know, per disjunctive syllogism (modus
+         --  tollendo ponens), that this predicate is true:
+         --  Position.Node.Next /= null
 
          if Position.Node.Next.Prev /= Position.Node then
             return False;

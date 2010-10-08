@@ -1,5 +1,6 @@
 /* Routines for discovering and unpropagating edge equivalences.
-   Copyright (C) 2005, 2007, 2008 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2007, 2008, 2010
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,19 +24,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "tree.h"
 #include "flags.h"
-#include "rtl.h"
 #include "tm_p.h"
-#include "ggc.h"
 #include "basic-block.h"
 #include "output.h"
-#include "expr.h"
 #include "function.h"
-#include "diagnostic.h"
 #include "timevar.h"
 #include "tree-dump.h"
 #include "tree-flow.h"
 #include "domwalk.h"
-#include "real.h"
 #include "tree-pass.h"
 #include "tree-ssa-propagate.h"
 #include "langhooks.h"
@@ -53,7 +49,7 @@ struct edge_equivalency
    in the CFG.
 
    When complete, each edge that creates an equivalency will have an
-   EDGE_EQUIVALENCY structure hanging off the edge's AUX field. 
+   EDGE_EQUIVALENCY structure hanging off the edge's AUX field.
    The caller is responsible for freeing the AUX fields.  */
 
 static void
@@ -157,7 +153,7 @@ associate_equivalences_with_edges (void)
 		  equivalency->rhs = op1;
 		  if (code == EQ_EXPR)
 		    true_edge->aux = equivalency;
-		  else 
+		  else
 		    false_edge->aux = equivalency;
 
 		}
@@ -358,7 +354,7 @@ record_equiv (tree value, tree equivalence)
      free (equiv_hash_elt);
 
   equiv_hash_elt = (struct equiv_hash_elt *) *slot;
-  
+
   VEC_safe_push (tree, heap, equiv_hash_elt->equivalences, equivalence);
 }
 
@@ -456,7 +452,7 @@ uncprop_into_successor_phis (basic_block bb)
 
       /* If there are no PHI nodes in this destination, then there is
 	 no sense in recording any equivalences.  */
-      if (!phis)
+      if (gimple_seq_empty_p (phis))
 	continue;
 
       /* Record any equivalency associated with E.  */
@@ -585,7 +581,7 @@ gate_uncprop (void)
   return flag_tree_dom != 0;
 }
 
-struct gimple_opt_pass pass_uncprop = 
+struct gimple_opt_pass pass_uncprop =
 {
  {
   GIMPLE_PASS,

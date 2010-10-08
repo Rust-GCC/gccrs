@@ -41,5 +41,7 @@ extern void estimate_bb_frequencies (void);
 extern const char *predictor_name (enum br_predictor);
 extern tree build_predict_expr (enum br_predictor, enum prediction);
 extern void tree_estimate_probability (void);
+extern void compute_function_frequency (void);
+extern void rebuild_frequencies (void);
 
 #endif  /* GCC_PREDICT_H */

@@ -1,6 +1,6 @@
 // List implementation (out of line) -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -73,7 +73,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
 	  _M_get_Node_allocator().destroy(__tmp);
 #else
-	  _M_get_Tp_allocator().destroy(&__tmp->_M_data);
+	  _M_get_Tp_allocator().destroy(std::__addressof(__tmp->_M_data));
 #endif
 	  _M_put_node(__tmp);
 	}
@@ -87,7 +87,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       emplace(iterator __position, _Args&&... __args)
       {
 	_Node* __tmp = _M_create_node(std::forward<_Args>(__args)...);
-	__tmp->hook(__position._M_node);
+	__tmp->_M_hook(__position._M_node);
 	return iterator(__tmp);
       }
 #endif
@@ -98,7 +98,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
     insert(iterator __position, const value_type& __x)
     {
       _Node* __tmp = _M_create_node(__x);
-      __tmp->hook(__position._M_node);
+      __tmp->_M_hook(__position._M_node);
       return iterator(__tmp);
     }
 
@@ -112,6 +112,56 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       return __ret;
     }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  template<typename _Tp, typename _Alloc>
+    void
+    list<_Tp, _Alloc>::
+    _M_default_append(size_type __n)
+    {
+      size_type __i = 0;
+      __try
+	{
+	  for (; __i < __n; ++__i)
+	    emplace_back();
+	}
+      __catch(...)
+	{
+	  for (; __i; --__i)
+	    pop_back();
+	  __throw_exception_again;
+	}
+    }
+
+  template<typename _Tp, typename _Alloc>
+    void
+    list<_Tp, _Alloc>::
+    resize(size_type __new_size)
+    {
+      iterator __i = begin();
+      size_type __len = 0;
+      for (; __i != end() && __len < __new_size; ++__i, ++__len)
+        ;
+      if (__len == __new_size)
+        erase(__i, end());
+      else                          // __i == end()
+	_M_default_append(__new_size - __len);
+    }
+
+  template<typename _Tp, typename _Alloc>
+    void
+    list<_Tp, _Alloc>::
+    resize(size_type __new_size, const value_type& __x)
+    {
+      iterator __i = begin();
+      size_type __len = 0;
+      for (; __i != end() && __len < __new_size; ++__i, ++__len)
+        ;
+      if (__len == __new_size)
+        erase(__i, end());
+      else                          // __i == end()
+        insert(end(), __new_size - __len, __x);
+    }
+#else
   template<typename _Tp, typename _Alloc>
     void
     list<_Tp, _Alloc>::
@@ -126,6 +176,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       else                          // __i == end()
         insert(end(), __new_size - __len, __x);
     }
+#endif
 
   template<typename _Tp, typename _Alloc>
     list<_Tp, _Alloc>&
@@ -198,7 +249,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
 	      // 526. Is it undefined if a function in the standard changes
 	      // in parameters?
-	      if (&*__first != &__value)
+	      if (std::__addressof(*__first) != std::__addressof(__value))
 		_M_erase(__first);
 	      else
 		__extra = __first;

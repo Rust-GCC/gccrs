@@ -1,6 +1,6 @@
 /* Definitions for Intel 386 running Linux-based GNU systems with ELF format.
    Copyright (C) 1994, 1995, 1996, 1997, 1998, 1999, 2001, 2002, 2004, 2005,
-   2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Eric Youngdale.
    Modified for stabs-in-ELF by H.J. Lu.
 
@@ -202,13 +202,15 @@ along with GCC; see the file COPYING3.  If not see
 #define LIBGCC2_TF_CEXT q
 #define TF_SIZE 113
 
-#undef NEED_INDICATE_EXEC_STACK
-#define NEED_INDICATE_EXEC_STACK 1
+#define TARGET_ASM_FILE_END file_end_indicate_exec_stack
 
 #define MD_UNWIND_SUPPORT "config/i386/linux-unwind.h"
 
 /* The stack pointer needs to be moved while checking the stack.  */
 #define STACK_CHECK_MOVING_SP 1
+
+/* Static stack checking is supported by means of probes.  */
+#define STACK_CHECK_STATIC_BUILTIN 1
 
 /* This macro may be overridden in i386/k*bsd-gnu.h.  */
 #define REG_NAME(reg) reg
@@ -216,8 +218,8 @@ along with GCC; see the file COPYING3.  If not see
 #ifdef TARGET_LIBC_PROVIDES_SSP
 /* i386 glibc provides __stack_chk_guard in %gs:0x14.  */
 #define TARGET_THREAD_SSP_OFFSET	0x14
-#endif
 
 /* We steal the last transactional memory word.  */
 #define TARGET_CAN_SPLIT_STACK
 #define TARGET_THREAD_SPLIT_STACK_OFFSET 0x30
+#endif

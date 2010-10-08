@@ -106,7 +106,7 @@ x86_64_fallback_frame_state (struct _Unwind_Context *context,
    signal-turned-exceptions for them.  There's also no configure-run for
    the target, so we can't check on (e.g.) HAVE_SYS_UCONTEXT_H.  Using the
    target libc version macro should be enough.  */
-#if !(__GLIBC__ == 2 && __GLIBC_MINOR__ == 0)
+#if defined __GLIBC__ && !(__GLIBC__ == 2 && __GLIBC_MINOR__ == 0)
 
 #include <signal.h>
 #include <sys/ucontext.h>
@@ -172,6 +172,25 @@ x86_fallback_frame_state (struct _Unwind_Context *context,
   fs->signal_frame = 1;
   return _URC_NO_REASON;
 }
+
+#define MD_FROB_UPDATE_CONTEXT x86_frob_update_context
+
+/* Fix up for kernels that have vDSO, but don't have S flag in it.  */
+
+static void
+x86_frob_update_context (struct _Unwind_Context *context,
+			 _Unwind_FrameState *fs ATTRIBUTE_UNUSED)
+{
+  unsigned char *pc = context->ra;
+
+  /* movl $__NR_rt_sigreturn,%eax ; {int $0x80 | syscall}  */
+  if (*(unsigned char *)(pc+0) == 0xb8
+      && *(unsigned int *)(pc+1) == 173
+      && (*(unsigned short *)(pc+5) == 0x80cd
+	  || *(unsigned short *)(pc+5) == 0x050f))
+    _Unwind_SetSignalFrame (context, 1);
+}
+
 #endif /* not glibc 2.0 */
 #endif /* ifdef __x86_64__  */
 #endif /* ifdef inhibit_libc  */

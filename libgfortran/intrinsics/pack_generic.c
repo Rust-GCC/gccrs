@@ -87,7 +87,6 @@ pack_internal (gfc_array_char *ret, const gfc_array_char *array,
 
   index_type count[GFC_MAX_DIMENSIONS];
   index_type extent[GFC_MAX_DIMENSIONS];
-  int zero_sized;
   index_type n;
   index_type dim;
   index_type nelem;
@@ -117,13 +116,10 @@ pack_internal (gfc_array_char *ret, const gfc_array_char *array,
   else
     runtime_error ("Funny sized logical array");
 
-  zero_sized = 0;
   for (n = 0; n < dim; n++)
     {
       count[n] = 0;
       extent[n] = GFC_DESCRIPTOR_EXTENT(array,n);
-      if (extent[n] <= 0)
-       zero_sized = 1;
       sstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(array,n);
       mstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(mask,n);
     }
@@ -277,14 +273,12 @@ pack (gfc_array_char *ret, const gfc_array_char *array,
 
     case GFC_DTYPE_LOGICAL_4:
     case GFC_DTYPE_INTEGER_4:
-
       pack_i4 ((gfc_array_i4 *) ret, (gfc_array_i4 *) array,
 	       (gfc_array_l1 *) mask, (gfc_array_i4 *) vector);
       return;
 
     case GFC_DTYPE_LOGICAL_8:
     case GFC_DTYPE_INTEGER_8:
-
       pack_i8 ((gfc_array_i8 *) ret, (gfc_array_i8 *) array,
 	       (gfc_array_l1 *) mask, (gfc_array_i8 *) vector);
       return;
@@ -292,11 +286,11 @@ pack (gfc_array_char *ret, const gfc_array_char *array,
 #ifdef HAVE_GFC_INTEGER_16
     case GFC_DTYPE_LOGICAL_16:
     case GFC_DTYPE_INTEGER_16:
-
       pack_i16 ((gfc_array_i16 *) ret, (gfc_array_i16 *) array,
 		(gfc_array_l1 *) mask, (gfc_array_i16 *) vector);
       return;
 #endif
+
     case GFC_DTYPE_REAL_4:
       pack_r4 ((gfc_array_r4 *) ret, (gfc_array_r4 *) array,
 	       (gfc_array_l1 *) mask, (gfc_array_r4 *) vector);
@@ -320,6 +314,7 @@ pack (gfc_array_char *ret, const gfc_array_char *array,
 		(gfc_array_l1 *) mask, (gfc_array_r16 *) vector);
       return;
 #endif
+
     case GFC_DTYPE_COMPLEX_4:
       pack_c4 ((gfc_array_c4 *) ret, (gfc_array_c4 *) array,
 	       (gfc_array_l1 *) mask, (gfc_array_c4 *) vector);
@@ -350,7 +345,7 @@ pack (gfc_array_char *ret, const gfc_array_char *array,
 
     case GFC_DTYPE_DERIVED_2:
       if (GFC_UNALIGNED_2(ret->data) || GFC_UNALIGNED_2(array->data)
-	  || GFC_UNALIGNED_2(vector->data))
+	  || (vector && GFC_UNALIGNED_2(vector->data)))
 	break;
       else
 	{
@@ -361,7 +356,7 @@ pack (gfc_array_char *ret, const gfc_array_char *array,
 
     case GFC_DTYPE_DERIVED_4:
       if (GFC_UNALIGNED_4(ret->data) || GFC_UNALIGNED_4(array->data)
-	  || GFC_UNALIGNED_4(vector->data))
+	  || (vector && GFC_UNALIGNED_4(vector->data)))
 	break;
       else
 	{
@@ -372,18 +367,19 @@ pack (gfc_array_char *ret, const gfc_array_char *array,
 
     case GFC_DTYPE_DERIVED_8:
       if (GFC_UNALIGNED_8(ret->data) || GFC_UNALIGNED_8(array->data)
-	  || GFC_UNALIGNED_8(vector->data))
+	  || (vector && GFC_UNALIGNED_8(vector->data)))
 	break;
       else
 	{
 	  pack_i8 ((gfc_array_i8 *) ret, (gfc_array_i8 *) array,
 		   (gfc_array_l1 *) mask, (gfc_array_i8 *) vector);
+	  return;
 	}
 
 #ifdef HAVE_GFC_INTEGER_16
     case GFC_DTYPE_DERIVED_16:
       if (GFC_UNALIGNED_16(ret->data) || GFC_UNALIGNED_16(array->data)
-	  || GFC_UNALIGNED_16(vector->data))
+	  || (vector && GFC_UNALIGNED_16(vector->data)))
 	break;
       else
 	{

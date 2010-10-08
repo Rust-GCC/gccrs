@@ -1,3 +1,463 @@
+2010-10-06  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Implemented fast enumeration for Objective-C.
+	* objc-act.c (build_fast_enumeration_state_template): New.
+	(TAG_ENUMERATION_MUTATION): New.
+	(TAG_FAST_ENUMERATION_STATE): New.
+	(synth_module_prologue): Call build_fast_enumeration_state_template() and set up
+	objc_enumeration_mutation_decl.
+	(objc_create_temporary_var): Allow providing a name to temporary
+	variables.
+	(objc_build_exc_ptr): Updated calls to
+	objc_create_temporary_var().
+	(next_sjlj_build_try_catch_finally): Same change.
+	(objc_finish_foreach_loop): New.
+	* objc-act.h: Added OCTI_FAST_ENUM_STATE_TEMP,
+	OCTI_ENUM_MUTATION_DECL, objc_fast_enumeration_state_template,
+	objc_enumeration_mutation_decl.
+
+	Merge from 'apple/trunk' branch on FSF servers.
+
+	2006-04-12 Fariborz Jahanian <fjahanian@apple.com>
+
+        Radar 4507230
+	* objc-act.c (objc_type_valid_for_messaging): New routine to check
+	for valid objc object types.
+	(objc_finish_foreach_loop): Check for invalid objc objects in
+	foreach header.
+	
+2010-10-05  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from 'apple/trunk' branch on FSF servers.
+
+	2005-10-17  Fariborz Jahanian <fjahanian@apple.com>
+
+        Radar 4290840
+	* objc-act.c (objc_start_method_definition): Check for
+	error_mark_node for the selector name and make a quick exit.
+	
+2010-10-04  Andi Kleen <ak@linux.intel.com>
+
+	* Make-lang.in (cc1obj-dummy, cc1obj): Add + to build rule.
+
+2010-09-30  Iain Sandoe  <iains@gcc.gnu.org>
+
+	merge from FSF 'apple/trunk' branch.
+	2006-01-30  Fariborz Jahanian <fjahanian@apple.com>
+
+       Radar 4386773
+       * objc/objc-act.c (objc_set_method_opt): New function.
+       (objc_start_protocol, objc_finish_interface): Reset
+       objc_method_optional_flag flag.
+       (objc_add_method_declaration): Pass on the new
+       flag to objc_add_method.
+       (objc_add_method): Add optional methods to new chain in
+       the protocol class.
+       * objc/objc-act.h (CLASS_OPTIONAL_CLS_METHODS,
+       CLASS_OPTIONAL_NST_METHODS): New macros accessing a protocol
+       class's optional method chains.
+	
+2010-09-30  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from 'apple/trunk' branch on FSF servers.
+
+	2005-10-04  Fariborz Jahanian <fjahanian@apple.com>
+
+	Radar 4278236
+	* objc-act.c (objc_declare_class): Pick the right
+	type tree.
+
+2010-09-29  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from 'apple/trunk' branch on FSF servers.
+
+	2005-10-04  Fariborz Jahanian <fjahanian@apple.com>
+
+	Radar 4281748
+	* objc-act.c (objc_check_global_decl): New
+
+2010-09-29  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_is_reserved_word): Removed.
+
+2010-09-28  Iain Sandoe  <iains@gcc.gnu.org>
+	
+	* objc-act.c (objc_add_method_declaration): Handle and ignore 
+	attributes.
+	(objc_start_method_definition): Likewise.
+	(objc_generate_cxx_ctor_or_dtor): Pass NULL attributes to ctor/dtor.
+	(objc_build_keyword_decl): Handle and ignore attributes.
+
+2010-09-28  Richard Henderson  <rth@redhat.com>
+
+	* objc-act.c (objc_eh_personality): Use targetm.except_unwind_info.
+
+2010-09-28  Iain Sandoe  <iains@gcc.gnu.org>
+
+	* objc-act.c (objc_start_class_interface): Handle and ignore attributes.
+	(objc_start_category_interface): Likewise.
+	(objc_start_protocol): Likewise.
+
+2010-09-28  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from 'apple/trunk' branch on FSF servers.
+
+	2005-08-23  Stuart Hastings <stuart@apple.com>
+	            Ziemowit Laski  <zlaski@apple.com>
+
+	Radar 4209854
+	* objc-act.c (objc_decay_parm_type): New function.
+	(get_arg_type_list): Decay types for all named arguments.
+	(objc_push_parm): Rebuild the PARM_DECL if its type has
+	been decayed.	
+
+2010-09-28  Nicola Pero  <nicola@nicola.brainstorm.co.uk>
+
+	* objc-act.c (encode_type): Fixed encoding enums with the next
+	runtime.
+
+2010-09-28  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from 'apple/trunk' branch on FSF servers.
+
+	2005-07-18  Ziemowit Laski  <zlaski@apple.com>
+
+	Radar 4175534
+	* objc-act.c (objc_compare_types): A new silent comparison
+	mode (-4), differing from regular comparison (-3) in that
+	'false' is returned instead of issuing warnings.
+	
+2010-09-28  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (encode_type): Do not add 'r' with the next runtime.
+	(encode_aggregate_within): Reorganized code to be more readable.
+	(encode_aggregate_fields): Updated second argument to be 'bool'
+	instead of 'int'.
+
+2010-09-27  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	PR objc/45763
+	PR objc/25450
+	PR objc/25464
+	* objc-act.c: Improved comments for encoding functions.
+	(encode_aggregate_within): For the GNU runtime, rewritten some
+	obsfuscated code to clarify the various cases.
+	(encode_aggregate): Function removed.
+	(encode_array): Generate an error if asked to encode an incomplete
+	array as part of generating instance variables.  Else, when
+	encoding an incomplete array inside a structure, encode it as an
+	array of zero size.
+	(encode_pointer): For the GNU runtime, fixed encoding 'BOOL *' as
+	'^c' instead of '*'.
+	(encode_gnu_bitfield): Encode enumerated types exactly in the same
+	type as integer types instead of using a hardcoded 'i'.  If asked
+	to encode a non-integer type as a bitfield, do not abort
+	compilation immediately; instead generate an error, then skip the
+	type.
+	(encode_type): Use a 'switch' instead of a sequence of 'if's.
+	Added a 'default' clause that gets executed if the type can not be
+	matched, and that encodes it as '?' (unknown) and produces a
+	warning.  For the GNU runtime, encode enumerated types exactly in
+	the same way as integer types instead of using a hardcoded 'i'.
+	Encode long double as 'D'.  Encode 128-bit integers as 'T' or 't'.
+	Encode C++ reference types as pointers.  Call encode_vector to
+	encode vectors.
+	(encode_vector): New function.
+	
+2010-09-27  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from 'apple/trunk' branch on FSF servers.  I modified the
+	changes to be used only when compiling for the NeXT runtime.
+
+	2005-10-10  Fariborz Jahanian <fjahanian@apple.com>
+
+        Radar 4301047
+
+	* objc-act.c (encode_type): Remove the hack.
+	
+	2005-07-20  Ziemowit Laski  <zlaski@apple.com>
+
+	Radar 4136935
+	* objc-act.c (pointee_is_readonly): New function.
+	(encode_pointer, encode_aggregate_within, encode_type):
+	Attempt to emulate GCC 3.3 when generating type encodings.
+
+2010-09-27  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from 'apple/trunk' branch on FSF servers.
+
+	2005-12-15  Fariborz Jahanian <fjahanian@apple.com>
+
+	Radar 4229905
+	* objc-act.c (objc_have_common_types): New function.
+	
+	2005-06-22  Ziemowit Laski  <zlaski@apple.com>
+
+	Radar 4154928
+	* objc-act.c (objc_common_type): New function.
+	
+2010-09-27  Richard Guenther  <rguenther@suse.de>
+
+	* objc-act.c (objc_get_class_reference): Use CP_TYPE_CONTEXT.
+	(objc_is_global_reference_p): Use DECL_FILE_SCOPE_P.
+
+2010-09-26  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c: Removed historical, obsolete comment at the top of
+	the file.
+
+2010-09-21  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	PR objc/23710
+	* objc-act.c (objc_start_method_definition): Do not abort upon a
+	'method definition not in @implementation context' error.  Return
+	'false' instead.
+
+2010-09-21  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	PR objc/25965
+	* objc-act.c (objc_get_interface_ivars): New function.
+	(objc_collecting_ivars): New variable.
+	(continue_class): Set and reset objc_collecting_ivars for context.
+	
+2010-09-15  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from 'apple/trunk' branch on FSF servers.
+
+	2006-03-09 Fariborz Jahanian <fjahanian@apple.com>
+
+        Radar 4457381
+	* objc/objc-act.c (objc_finish_message_expr): Look for message in
+	@class's protocol list.
+
+	2006-02-07  Fariborz Jahanian <fjahanian@apple.com>
+
+	Radar 4219590
+	* objc/objc-act.c (objc_start_method_definition): Initialize
+	break/continue labels.
+
+	2005-08-22  Ziemowit Laski  <zlaski@apple.com>
+
+	Radar 4174166
+	* objc-act.c (objc_compare_types): Compare function
+	pointers; indicate success if the right-hand side has
+	a return type that is covariant, and the argument types
+	contravariant, with those of the left side.
+
+	2005-08-22  Ziemowit Laski  <zlaski@apple.com>
+
+	Radar 4216500
+	* objc-act.c (objc_get_protocol_qualified_type): When looking
+	at a typedef, retrieve the precise type it describes (rather
+	than merely looking up a class by name).
+	
+2010-09-10  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/objc-act.c (objc_begin_try_stmt): Generate an error if
+	-fobjc-exceptions was not used.  (objc_build_throw_stmt): Same
+	change.
+
+2010-07-15  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* objc-act.c: Carefully replace TREE_CHAIN with DECL_CHAIN.
+
+2010-07-10  Iain Sandoe  <iains@gcc.gnu.org>
+
+	PR objc/44140
+	* objc-act.c: build_objc_string_decl() remove declaration.
+	(finish_var_decl): Remove forcing of var output and marking
+	as "Used". 
+	(init_def_list): Use integer_zero_node. 
+	(init_objc_symtab): Use integer_zero_node, make the short
+	integer type specific on relevant nodes.
+	(generate_objc_symtab_decl): Remove call to 
+	forward_declare_categories().  Use null_pointer_node where
+	appropriate.  
+	(build_module_descriptor): Comment and mark this item as 
+	DECL_PRESERVE_P. 
+	(generate_static_references): Use gcc_unreachable instead of
+	abort (). 
+	(diagnose_missing_method): New.
+	(build_next_selector_translation_table): New.
+	(build_gnu_selector_translation_table): New.
+	(add_objc_string): Merge code from build_objc_string_decl...
+	... and delete build_objc_string_decl().
+	(generate_dispatch_table): Make integer types explicit.
+	(generate_category): Pass implent and arrange for the data
+	to be extracted within the routine.  Do not start new vars, 
+	but finish the ones collcted during parsing.
+	(generate_shared_structures): Likewise.
+	(finish_objc):  Reorder code so that we finish variables before
+	referencing them.  Save the global data before calling meta-data
+	creation routines, and pass the current reference to the two 
+	main routines.  Only call generate_objc_image_info () for the 
+	NeXT runtime.
+	(generate_classref_translation_entry): Comment on and make this
+	item DECL_PRESERVE_P.
+	(handle_class_ref): Use varpool interfaces, comment on and make
+	this item DECL_PRESERVE_P.
+	(handle_impent): Likewise.
+	(generate_objc_image_info): Only generate when the content is 
+	non-zero.  Make integer types explict.
+
+2010-07-03  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR objc/24867
+	* objc-act.c (build_sized_array_type): New function.
+	(add_objc_string): Use it.
+	(generate_protocol_list): Likewise.
+	(generate_objc_image_info): Likewise.
+	(add_field_decl): New function.
+	(objc_build_struct): Use a VEC rather than building a TREE_LIST.
+	(generate_struct_by_value_array): Use add_field_decl.
+	(build_objc_symtab_template): Likewise.
+	(build_module_descriptor): Likewise.
+	(build_objc_exception_stuff): Likewise.
+	(build_protocol_template): Likewise.
+	(build_method_prototype_list_template): Likewise.
+	(build_method_prototype_template): Likewise.
+	(build_category_template): Likewise.
+	(build_selector_template): Likewise.
+	(build_class_template): Likewise.
+	(build_super_template): Likewise.
+	(build_ivar_template): Likewise.
+	(build_ivar_list_template): Likewise.
+	(build_method_list_template): Likewise.
+	(build_method_template): Likewise.
+
+2010-06-28  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* objc-act.c: Do not include except.h.
+
+2010-06-08  Laurynas Biveinis  <laurynas.biveinis@gmail.com>
+
+	* objc-act.h (ALLOC_OBJC_TYPE_LANG_SPECIFIC): Use typed GC
+	allocation.
+
+	* objc-act.c (objc_volatilize_decl): Likewise.
+	(objc_build_string_object): Likewise.
+	(hash_init): Likewise.
+	(hash_enter): Likewise.
+	(hash_add_attr): Likewise.
+	(add_class): Likewise.
+	(start_class): Likewise.
+
+2010-06-05  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* objc-act.c: Update include path for moved files.
+	* objc-lang.c: Likewise.
+	* config-lang.in: Update paths in gtfiles for files in c-family/.
+
+2010-06-01  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* objc-act.c (build_next_objc_exception_stuff): Give setjmp a
+	varargs type instead of a zero-argument type.
+
+2010-05-30  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* objc-act.c (synth_module_prologue): Use build_function_type_list
+	instead of build_function_type.
+	(build_module_initializer_routine): Likewise.
+	(build_next_objc_exception_stuff): Likewise.
+	(build_objc_exception_stuff): Likewise.
+
+2010-05-27  Joseph Myers  <joseph@codesourcery.com>
+
+	* objc-act.c: Include diagnostic-core.h instead of diagnostic.h.
+	* Make-lang.in (objc/objc-act.o): Update dependencies.
+
+2010-05-25  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* objc-act.h: Do not include gimple.h.
+	* objc-act.c: Do not include rtl.h, expr.h, libfuncs.h, and tm_p.h.
+	Include gimple.h.  Explain why except.h has to be included.
+	* objc-lang.c: Do not include diagnostics.h.
+	* Make-lang.in: Update dependencies.
+
+2010-05-25  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* objc-act.c (objc_build_constructor): Adjust OBJCPLUS impedance
+	mismatch code for VECs.
+
+2010-05-25  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* objc-act.c (objc_build_constructor): Take a VEC instead of a tree.
+	Use build_constructor instead of build_constructor_from_list.
+	(objc_build_string_object): Build a VEC argument for
+	objc_build_constructor.
+	(init_def_list): Likewise.
+	(init_objc_symtab): Likewise.
+	(init_module_descriptor): Likewise.
+	(generate_static_references): Likewise.
+	(build_selector_translation_table): Likewise.
+	(build_descriptor_table_initializer): Likewise.
+	(generate_descriptor_table): Likewise.
+	(build_protocol_initializer): Likewise.
+	(build_ivar_list_initializer): Likewise.
+	(generate_ivars_list): Likewise.
+	(build_dispatch_table_initializer): Likewise.
+	(generate_dispatch_table): Likewise.
+	(generate_protocol_list): Likewise.
+	(build_category_initializer): Likewise.
+	(build_shared_structure_initializer): Likewise.
+	(generate_objc_image_info): Likewise.
+
+2010-04-30  Iain Sandoe  <iains@gcc.gnu.org>
+
+	PR objc++/32052
+	* objc-act.c (encode_aggregate_within): Encode structure tags
+	with template args for ObjC++.
+
+2010-04-30  Steven Bosscher  <steven@gcc.gnu.org>
+
+	* objc-act.c: Do not include varray.h.
+
+2010-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/18624
+	* objc-act.c (finish_var_decl, objc_begin_catch_clause,
+	really_start_method, get_super_receiver, handle_class_ref): Set
+	DECL_READ_P in addition to TREE_USED.
+
+2010-04-07  Iain Sandoe <iains@gcc.gnu.org>
+
+	PR objc/35996
+	* objc-act.c (objc_init): Warn that -fobjc-gc is ignored for
+	-fgnu-runtime and set flag_objc_gc to zero.
+
+2010-04-07  Iain Sandoe <iains@gcc.gnu.org>
+
+	PR objc++/23716
+	* objc-act.c (build_module_initializer_routine): Make the argument
+	to objc_start_function NULL_TREE when compiling ObjC++.
+
+2010-02-18  Iain Sandoe <iain.sandoe@sandoe-acoustics.co.uk>
+	    Mike Stump  <mikestump@comcast.net>
+
+	PR objc/43061
+	* objc-act.c (finish_var_decl): Set the generated symbols as "used".
+
+2009-12-17  Shujing Zhao  <pearly.zhao@oracle.com>
+
+	* objc-act.c (objc_substitute_decl, build_ivar_reference,
+	get_super_receiver): Update build_indirect_ref calls.
+
+2009-11-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* objc-act.c (generate_shared_structures): Remove unused sc_spec and
+	decl_specs variables.
+	(objc_build_message_expr): Remove unused loc variable.
+	(objc_finish_message_expr): Remove unused saved_rtype variable.
+	(encode_field_decl): Remove unused type variable.
+
+	PR obj-c++/42156
+	* objc-act.c (objc_build_struct): INIT_TYPE_OBJC_INFO for
+	type variants that don't have it initialized yet.
+
+2009-09-14  Jan Hubicka  <jh@suse.cz>
+
+	* objc-act.c (objc_add_static_instance): Do not set DECL_COMMON.
+
 2009-09-14  Richard Henderson  <rth@redhat.com>
 
 	* objc-act.c (objc_init_exceptions): Don't call

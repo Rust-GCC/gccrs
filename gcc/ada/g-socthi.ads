@@ -43,6 +43,7 @@ with GNAT.OS_Lib;
 with GNAT.Sockets.Thin_Common;
 
 with System;
+with System.CRTL;
 
 package GNAT.Sockets.Thin is
 
@@ -54,10 +55,7 @@ package GNAT.Sockets.Thin is
 
    package C renames Interfaces.C;
 
-   use type C.size_t;
-   type ssize_t is range -(2 ** (C.size_t'Size - 1))
-     .. +(2 ** (C.size_t'Size - 1) - 1);
-   --  Signed type of the same size as size_t
+   use type System.CRTL.ssize_t;
 
    function Socket_Errno return Integer renames GNAT.OS_Lib.Errno;
    --  Returns last socket error number
@@ -148,7 +146,7 @@ package GNAT.Sockets.Thin is
    function C_Recvmsg
      (S     : C.int;
       Msg   : System.Address;
-      Flags : C.int) return ssize_t;
+      Flags : C.int) return System.CRTL.ssize_t;
 
    function C_Select
      (Nfds      : C.int;
@@ -160,7 +158,7 @@ package GNAT.Sockets.Thin is
    function C_Sendmsg
      (S     : C.int;
       Msg   : System.Address;
-      Flags : C.int) return ssize_t;
+      Flags : C.int) return System.CRTL.ssize_t;
 
    function C_Sendto
      (S     : C.int;
@@ -185,9 +183,6 @@ package GNAT.Sockets.Thin is
      (Domain   : C.int;
       Typ      : C.int;
       Protocol : C.int) return C.int;
-
-   function C_Strerror
-     (Errnum : C.int) return C.Strings.chars_ptr;
 
    function C_System
      (Command : System.Address) return C.int;
@@ -257,7 +252,6 @@ private
    pragma Import (C, C_Select, "select");
    pragma Import (C, C_Setsockopt, "setsockopt");
    pragma Import (C, C_Shutdown, "shutdown");
-   pragma Import (C, C_Strerror, "strerror");
    pragma Import (C, C_System, "system");
 
    pragma Import (C, Nonreentrant_Gethostbyname, "gethostbyname");

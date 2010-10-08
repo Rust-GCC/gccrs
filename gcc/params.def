@@ -1,5 +1,5 @@
 /* params.def - Run-time parameters.
-   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Written by Mark Mitchell <mark@codesourcery.com>.
 
@@ -24,7 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 
      - The enumeral corresponding to this parameter.
 
-     - The name that can be used to set this parameter using the 
+     - The name that can be used to set this parameter using the
        command-line option `--param <name>=<value>'.
 
      - A help string explaining how the parameter is used.
@@ -39,8 +39,8 @@ along with GCC; see the file COPYING3.  If not see
    Be sure to add an entry to invoke.texi summarizing the parameter.  */
 
 /* The threshold ratio between current and hottest structure counts.
-   We say that if the ratio of the current structure count, 
-   calculated by profiling, to the hottest structure count 
+   We say that if the ratio of the current structure count,
+   calculated by profiling, to the hottest structure count
    in the program is less than this parameter, then structure
    reorganization is not applied. The default is 10%.  */
 DEFPARAM (PARAM_STRUCT_REORG_COLD_STRUCT_RATIO,
@@ -52,7 +52,7 @@ DEFPARAM (PARAM_STRUCT_REORG_COLD_STRUCT_RATIO,
    threshold (in percent), then it is considered well predictable. */
 DEFPARAM (PARAM_PREDICTABLE_BRANCH_OUTCOME,
 	  "predictable-branch-outcome",
-	  "Maximal esitmated outcome of branch considered predictable",
+	  "Maximal estimated outcome of branch considered predictable",
 	  2, 0, 50)
 
 /* The single function inlining limit. This is the maximum size
@@ -64,7 +64,7 @@ DEFPARAM (PARAM_PREDICTABLE_BRANCH_OUTCOME,
    definition for C++) are affected by this.
    There are more restrictions to inlining: If inlined functions
    call other functions, the already inlined instructions are
-   counted and once the recursive inline limit (see 
+   counted and once the recursive inline limit (see
    "max-inline-insns" parameter) is exceeded, the acceptable size
    gets decreased.  */
 DEFPARAM (PARAM_MAX_INLINE_INSNS_SINGLE,
@@ -78,11 +78,11 @@ DEFPARAM (PARAM_MAX_INLINE_INSNS_SINGLE,
    that is applied to functions marked inlined (or defined in the
    class declaration in C++) given by the "max-inline-insns-single"
    parameter.
-   The default value is 90.  */
+   The default value is 40.  */
 DEFPARAM (PARAM_MAX_INLINE_INSNS_AUTO,
 	  "max-inline-insns-auto",
 	  "The maximum number of instructions when automatically inlining",
-	  50, 0, 0)
+	  40, 0, 0)
 
 DEFPARAM (PARAM_MAX_INLINE_INSNS_RECURSIVE,
 	  "max-inline-insns-recursive",
@@ -117,13 +117,19 @@ DEFPARAM (PARAM_EARLY_INLINER_MAX_ITERATIONS,
 	  "The maximum number of nested indirect inlining performed by early inliner",
 	  10, 0, 0)
 
+/* Limit on probability of entry BB.  */
+DEFPARAM (PARAM_PARTIAL_INLINING_ENTRY_PROBABILITY,
+	  "partial-inlining-entry-probability",
+	  "Maximum probability of the entry BB of split region (in percent relative to entry BB of the function) to make partial inlining happen",
+	  70, 0, 0)
+
 /* Limit the number of expansions created by the variable expansion
    optimization to avoid register pressure.  */
 DEFPARAM (PARAM_MAX_VARIABLE_EXPANSIONS,
 	  "max-variable-expansions-in-unroller",
 	  "If -fvariable-expansion-in-unroller is used, the maximum number of times that an individual variable will be expanded during loop unrolling",
           1, 0, 0)
-     
+
 /* Limit loop autovectorization to loops with large enough iteration count.  */
 DEFPARAM (PARAM_MIN_VECT_LOOP_BOUND,
 	  "min-vect-loop-bound",
@@ -152,10 +158,10 @@ DEFPARAM(PARAM_MAX_DELAY_SLOT_LIVE_SEARCH,
 	 "The maximum number of instructions to consider to find accurate live register information",
 	 333, 0, 0)
 
-/* This parameter limits the number of branch elements that the 
+/* This parameter limits the number of branch elements that the
    scheduler will track anti-dependencies through without resetting
-   the tracking mechanism.  Large functions with few calls or barriers 
-   can generate lists containing many 1000's of dependencies.  Generally 
+   the tracking mechanism.  Large functions with few calls or barriers
+   can generate lists containing many 1000's of dependencies.  Generally
    the compiler either uses all available memory, or runs for far too long.  */
 DEFPARAM(PARAM_MAX_PENDING_LIST_LENGTH,
 	 "max-pending-list-length",
@@ -176,15 +182,15 @@ DEFPARAM(PARAM_LARGE_UNIT_INSNS,
 	 10000, 0, 0)
 DEFPARAM(PARAM_INLINE_UNIT_GROWTH,
 	 "inline-unit-growth",
-	 "how much can given compilation unit grow because of the inlining (in percent)",
+	 "How much can given compilation unit grow because of the inlining (in percent)",
 	 30, 0, 0)
 DEFPARAM(PARAM_IPCP_UNIT_GROWTH,
 	 "ipcp-unit-growth",
-	 "how much can given compilation unit grow because of the interprocedural constant propagation (in percent)",
+	 "How much can given compilation unit grow because of the interprocedural constant propagation (in percent)",
 	 10, 0, 0)
 DEFPARAM(PARAM_EARLY_INLINING_INSNS,
 	 "early-inlining-insns",
-	 "maximal estimated growth of function body caused by early inlining of single call",
+	 "Maximal estimated growth of function body caused by early inlining of single call",
 	 8, 0, 0)
 DEFPARAM(PARAM_LARGE_STACK_FRAME,
 	 "large-stack-frame",
@@ -219,9 +225,32 @@ DEFPARAM(PARAM_GCSE_AFTER_RELOAD_CRITICAL_FRACTION,
 	"gcse-after-reload-critical-fraction",
 	"The threshold ratio of critical edges execution count that permit performing redundancy elimination after reload",
         10, 0, 0)
+
+/* GCSE will use GCSE_COST_DISTANCE_RATION as a scaling factor
+   to calculate maximum distance for which an expression is allowed to move
+   from its rtx_cost.  */
+DEFPARAM(PARAM_GCSE_COST_DISTANCE_RATIO,
+	 "gcse-cost-distance-ratio",
+	 "Scaling factor in calculation of maximum distance an expression can be moved by GCSE optimizations",
+	 10, 0, 0)
+/* GCSE won't restrict distance for which an expression with rtx_cost greater
+   than COSTS_N_INSN(GCSE_UNRESTRICTED_COST) is allowed to move.  */
+DEFPARAM(PARAM_GCSE_UNRESTRICTED_COST,
+	 "gcse-unrestricted-cost",
+	 "Cost at which GCSE optimizations will not constraint the distance an expression can travel",
+	 3, 0, 0)
+
+/* How deep from a given basic block the dominator tree should be searched
+   for expressions to hoist to the block.  The value of 0 will avoid limiting
+   the search.  */
+DEFPARAM(PARAM_MAX_HOIST_DEPTH,
+	 "max-hoist-depth",
+	 "Maximum depth of search in the dominator tree for expressions to hoist",
+	 30, 0, 0)
+
 /* This parameter limits the number of insns in a loop that will be unrolled,
    and by how much the loop is unrolled.
-   
+
    This limit should be at most half of the peeling limits:  loop unroller
    decides to not unroll loops that iterate fewer than 2*number of allowed
    unrollings and thus we would have loops that are neither peeled or unrolled
@@ -266,6 +295,11 @@ DEFPARAM(PARAM_MAX_ONCE_PEELED_INSNS,
 	"max-once-peeled-insns",
 	"The maximum number of insns of a peeled loop that rolls only once",
 	400, 0, 0)
+/* The maximum depth of a loop nest we completely peel.  */
+DEFPARAM(PARAM_MAX_UNROLL_ITERATIONS,
+	 "max-completely-peel-loop-nest-depth",
+	 "The maximum depth of a loop nest we completely peel",
+	 8, 0, 0)
 
 /* The maximum number of insns of an unswitched loop.  */
 DEFPARAM(PARAM_MAX_UNSWITCH_INSNS,
@@ -329,7 +363,7 @@ DEFPARAM (PARAM_ALIGN_LOOP_ITERATIONS,
    For functions containing one loop with large known number of iterations
    and other loops having unbounded loops we would end up predicting all
    the other loops cold that is not usually the case.  So we need to artificially
-   flatten the profile.  
+   flatten the profile.
 
    We need to cut the maximal predicted iterations to large enough iterations
    so the loop appears important, but safely within HOT_BB_COUNT_FRACTION
@@ -433,7 +467,7 @@ DEFPARAM(PARAM_IV_ALWAYS_PRUNE_CAND_SET_BOUND,
 DEFPARAM(PARAM_SCEV_MAX_EXPR_SIZE,
  	 "scev-max-expr-size",
 	 "Bound on size of expressions used in the scalar evolutions analyzer",
-	 20, 0, 0)
+	 100, 0, 0)
 
 DEFPARAM(PARAM_OMEGA_MAX_VARS,
  	 "omega-max-vars",
@@ -592,7 +626,7 @@ DEFPARAM (PARAM_INTEGER_SHARE_LIMIT,
 
    PARAM_MIN_VIRTUAL_MAPPINGS specifies the minimum number of virtual
    mappings that should be registered to trigger the heuristic.
-   
+
    PARAM_VIRTUAL_MAPPINGS_TO_SYMS_RATIO specifies the ratio between
    mappings and symbols.  If the number of virtual mappings is
    PARAM_VIRTUAL_MAPPINGS_TO_SYMS_RATIO bigger than the number of
@@ -632,7 +666,7 @@ DEFPARAM (PARAM_MAX_JUMP_THREAD_DUPLICATION_STMTS,
 	  15, 0, 0)
 
 /* This is the maximum number of fields a variable may have before the pointer analysis machinery
-   will stop trying to treat it in a field-sensitive manner.  
+   will stop trying to treat it in a field-sensitive manner.
    There are programs out there with thousands of fields per structure, and handling them
    field-sensitively is not worth the cost.  */
 DEFPARAM (PARAM_MAX_FIELDS_FOR_FIELD_SENSITIVE,
@@ -711,12 +745,12 @@ DEFPARAM (PARAM_SCCVN_MAX_SCC_SIZE,
 
 DEFPARAM (PARAM_IRA_MAX_LOOPS_NUM,
 	  "ira-max-loops-num",
-	  "max loops number for regional RA",
+	  "Max loops number for regional RA",
 	  100, 0, 0)
 
 DEFPARAM (PARAM_IRA_MAX_CONFLICT_TABLE_SIZE,
 	  "ira-max-conflict-table-size",
-	  "max size of conflict table in MB",
+	  "Max size of conflict table in MB",
 	  1000, 0, 0)
 
 DEFPARAM (PARAM_IRA_LOOP_RESERVED_REGS,
@@ -733,11 +767,32 @@ DEFPARAM (PARAM_SWITCH_CONVERSION_BRANCH_RATIO,
 	  "a switch conversion to take place",
 	  8, 1, 0)
 
+/* Size of tiles when doing loop blocking.  */
+
+DEFPARAM (PARAM_LOOP_BLOCK_TILE_SIZE,
+	  "loop-block-tile-size",
+	  "size of tiles for loop blocking",
+	  51, 0, 0)
+
+/* Maximal number of parameters that we allow in a SCoP.  */
+
+DEFPARAM (PARAM_GRAPHITE_MAX_NB_SCOP_PARAMS,
+	  "graphite-max-nb-scop-params",
+	  "maximum number of parameters in a SCoP",
+	  10, 0, 0)
+
+/* Maximal number of basic blocks in the functions analyzed by Graphite.  */
+
+DEFPARAM (PARAM_GRAPHITE_MAX_BBS_PER_FUNCTION,
+	  "graphite-max-bbs-per-function",
+	  "maximum number of basic blocks per function to be analyzed by Graphite",
+	  100, 0, 0)
+
 /* Avoid doing loop invariant motion on very large loops.  */
 
 DEFPARAM (PARAM_LOOP_INVARIANT_MAX_BBS_IN_LOOP,
 	  "loop-invariant-max-bbs-in-loop",
-	  "max basic blocks number in loop for loop invariant motion",
+	  "Max basic blocks number in loop for loop invariant motion",
 	  10000, 0, 0)
 
 /* Avoid SLP vectorization of large basic blocks.  */
@@ -748,14 +803,21 @@ DEFPARAM (PARAM_SLP_MAX_INSNS_IN_BB,
 
 DEFPARAM (PARAM_MIN_INSN_TO_PREFETCH_RATIO,
 	  "min-insn-to-prefetch-ratio",
-	  "min. ratio of insns to prefetches to enable prefetching for "
+	  "Min. ratio of insns to prefetches to enable prefetching for "
           "a loop with an unknown trip count",
 	  10, 0, 0)
 
 DEFPARAM (PARAM_PREFETCH_MIN_INSN_TO_MEM_RATIO,
 	  "prefetch-min-insn-to-mem-ratio",
-	  "min. ratio of insns to mem ops to enable prefetching in a loop",
+	  "Min. ratio of insns to mem ops to enable prefetching in a loop",
 	  3, 0, 0)
+
+/* Set maximum hash table size for var tracking.  */
+
+DEFPARAM (PARAM_MAX_VARTRACK_SIZE,
+	  "max-vartrack-size",
+	  "Max. size of var tracking hash tables",
+	  50000000, 0, 0)
 
 /* Set minimum insn uid for non-debug insns.  */
 
@@ -766,10 +828,27 @@ DEFPARAM (PARAM_MIN_NONDEBUG_INSN_UID,
 
 DEFPARAM (PARAM_IPA_SRA_PTR_GROWTH_FACTOR,
 	  "ipa-sra-ptr-growth-factor",
-	  "maximum allowed growth of size of new parameters ipa-sra replaces "
+	  "Maximum allowed growth of size of new parameters ipa-sra replaces "
 	  "a pointer to an aggregate with",
 	  2, 0, 0)
 
+DEFPARAM (PARAM_DEVIRT_TYPE_LIST_SIZE,
+	  "devirt-type-list-size",
+	  "Maximum size of a type list associated with each parameter for "
+	  "devirtualization",
+	  8, 0, 0)
+
+/* WHOPR partitioning configuration.  */
+
+DEFPARAM (PARAM_LTO_PARTITIONS,
+	  "lto-partitions",
+	  "Number of paritions program should be split to",
+	  32, 0, 0)
+
+DEFPARAM (MIN_PARTITION_SIZE,
+	  "lto-min-partition",
+	  "Size of minimal paritition for WHOPR (in estimated instructions)",
+	  1000, 0, 0)
 /*
 Local variables:
 mode:c

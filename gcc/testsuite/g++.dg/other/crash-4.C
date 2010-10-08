@@ -7,15 +7,15 @@
 // NOTE: This test assumes packed structure layout differs from unpacked
 //       structure layout.  This isn't true, e.g., with the default
 //       arm-none-elf options.
-// { dg-options "-mstructure-size-boundary=8" { target arm-*-* } }
+// { dg-options "-mstructure-size-boundary=8" { target arm*-*-* } }
 
 struct a
 {
   int m;
   a(const a&);
 };
-struct b
-{ // { dg-error "cannot bind packed field" "" { target { ! default_packed } } }
+struct b // { dg-error "cannot bind packed field" "" { target { ! default_packed } } }
+{
   char c;
   a aa __attribute__((packed)); // { dg-warning "attribute ignored" "" { target default_packed } }
 };

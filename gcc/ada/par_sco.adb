@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---             Copyright (C) 2009, Free Software Foundation, Inc.           --
+--          Copyright (C) 2009-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -35,6 +35,7 @@ with Put_SCOs;
 with SCOs;     use SCOs;
 with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
+with Snames;   use Snames;
 with Table;
 
 with GNAT.HTable;      use GNAT.HTable;
@@ -62,13 +63,14 @@ package body Par_SCO is
      Table_Increment      => 200,
      Table_Name           => "SCO_Unit_Number_Entry");
 
-   --------------------------
-   -- Condition Hash Table --
-   --------------------------
+   ---------------------------------
+   -- Condition/Pragma Hash Table --
+   ---------------------------------
 
    --  We need to be able to get to conditions quickly for handling the calls
-   --  to Set_SCO_Condition efficiently. For this purpose we identify the
-   --  conditions in the table by their starting sloc, and use the following
+   --  to Set_SCO_Condition efficiently, and similarly to get to pragmas to
+   --  handle calls to Set_SCO_Pragma_Enabled. For this purpose we identify the
+   --  conditions and pragmas in the table by their starting sloc, and use this
    --  hash table to map from these starting sloc values to SCO_Table indexes.
 
    type Header_Num is new Integer range 0 .. 996;
@@ -80,7 +82,7 @@ package body Par_SCO is
    function Equal (F1, F2 : Source_Ptr) return Boolean;
    --  Function to test two keys for equality
 
-   package Condition_Hash_Table is new Simple_HTable
+   package Condition_Pragma_Hash_Table is new Simple_HTable
      (Header_Num, Int, 0, Source_Ptr, Hash, Equal);
    --  The actual hash table
 
@@ -95,15 +97,17 @@ package body Par_SCO is
 
    function Is_Logical_Operator (N : Node_Id) return Boolean;
    --  N is the node for a subexpression. This procedure just tests N to see
-   --  if it is a logical operator (including short circuit conditions) and
-   --  returns True if so, False otherwise, it does no other processing.
+   --  if it is a logical operator (including short circuit conditions, but
+   --  excluding OR and AND) and returns True if so, False otherwise, it does
+   --  no other processing.
 
    procedure Process_Decisions (N : Node_Id; T : Character);
    --  If N is Empty, has no effect. Otherwise scans the tree for the node N,
-   --  to output any decisions it contains. T is one of IEWX (for context of
-   --  expresion: if/while/when-exit/expression). If T is other than X, then
-   --  the node is always a decision a decision is always present (at the very
-   --  least a simple decision is present at the top level).
+   --  to output any decisions it contains. T is one of IEPWX (for context of
+   --  expresion: if/exit when/pragma/while/expression). If T is other than X,
+   --  the node N is the conditional expression involved, and a decision is
+   --  always present (at the very least a simple decision is present at the
+   --  top level).
 
    procedure Process_Decisions (L : List_Id; T : Character);
    --  Calls above procedure for each element of the list L
@@ -117,11 +121,13 @@ package body Par_SCO is
    --  Append an entry to SCO_Table with fields set as per arguments
 
    procedure Traverse_Declarations_Or_Statements  (L : List_Id);
+   procedure Traverse_Generic_Instantiation       (N : Node_Id);
    procedure Traverse_Generic_Package_Declaration (N : Node_Id);
    procedure Traverse_Handled_Statement_Sequence  (N : Node_Id);
    procedure Traverse_Package_Body                (N : Node_Id);
    procedure Traverse_Package_Declaration         (N : Node_Id);
    procedure Traverse_Subprogram_Body             (N : Node_Id);
+   procedure Traverse_Subprogram_Declaration      (N : Node_Id);
    --  Traverse the corresponding construct, generating SCO table entries
 
    procedure Write_SCOs_To_ALI_File is new Put_SCOs;
@@ -297,10 +303,7 @@ package body Par_SCO is
 
    function Is_Logical_Operator (N : Node_Id) return Boolean is
    begin
-      return Nkind_In (N, N_Op_And,
-                          N_Op_Or,
-                          N_Op_Xor,
-                          N_Op_Not,
+      return Nkind_In (N, N_Op_Not,
                           N_And_Then,
                           N_Or_Else);
    end Is_Logical_Operator;
@@ -327,6 +330,17 @@ package body Par_SCO is
 
    procedure Process_Decisions (N : Node_Id; T : Character) is
 
+      Mark : Nat;
+      --  This is used to mark the location of a decision sequence in the SCO
+      --  table. We use it for backing out a simple decision in an expression
+      --  context that contains only NOT operators.
+
+      X_Not_Decision : Boolean;
+      --  This flag keeps track of whether a decision sequence in the SCO table
+      --  contains only NOT operators, and is for an expression context (T=X).
+      --  The flag will be set False if T is other than X, or if an operator
+      --  other than NOT is in the sequence.
+
       function Process_Node (N : Node_Id) return Traverse_Result;
       --  Processes one node in the traversal, looking for logical operators,
       --  and if one is found, outputs the appropriate table entries.
@@ -340,13 +354,15 @@ package body Par_SCO is
       --  Process_Decision_Operand, because we can't get decisions mixed up in
       --  the global table. Call has no effect if N is Empty.
 
-      procedure Output_Element (N : Node_Id; T : Character);
+      procedure Output_Element (N : Node_Id);
       --  Node N is an operand of a logical operator that is not itself a
       --  logical operator, or it is a simple decision. This routine outputs
-      --  the table entry for the element, with C1 set to T (' ' for one of
-      --  the elements of a complex decision, or 'I'/'W'/'E' for a simple
-      --  decision (from an IF, WHILE, or EXIT WHEN). Last is set to False,
-      --  and an entry is made in the condition hash table.
+      --  the table entry for the element, with C1 set to ' '. Last is set
+      --  False, and an entry is made in the condition hash table.
+
+      procedure Output_Header (T : Character);
+      --  Outputs a decision header node. T is I/W/E/P for IF/WHILE/EXIT WHEN/
+      --  PRAGMA, and 'X' for the expression case.
 
       procedure Process_Decision_Operand (N : Node_Id);
       --  This is called on node N, the top level node of a decision, or on one
@@ -376,16 +392,19 @@ package body Par_SCO is
             else
                L := Left_Opnd (N);
 
-               if Nkind (N) = N_Op_Xor then
-                  C := '^';
-               elsif Nkind_In (N, N_Op_Or, N_Or_Else) then
+               if Nkind_In (N, N_Op_Or, N_Or_Else) then
                   C := '|';
                else
                   C := '&';
                end if;
             end if;
 
-            Set_Table_Entry (C, ' ', No_Location, No_Location, False);
+            Set_Table_Entry
+              (C1   => C,
+               C2   => ' ',
+               From => Sloc (N),
+               To   => No_Location,
+               Last => False);
 
             Output_Decision_Operand (L);
             Output_Decision_Operand (Right_Opnd (N));
@@ -393,7 +412,7 @@ package body Par_SCO is
          --  Not a logical operator
 
          else
-            Output_Element (N, ' ');
+            Output_Element (N);
          end if;
       end Output_Decision_Operand;
 
@@ -401,14 +420,82 @@ package body Par_SCO is
       -- Output_Element --
       --------------------
 
-      procedure Output_Element (N : Node_Id; T : Character) is
+      procedure Output_Element (N : Node_Id) is
          FSloc : Source_Ptr;
          LSloc : Source_Ptr;
       begin
          Sloc_Range (N, FSloc, LSloc);
-         Set_Table_Entry (T, 'c', FSloc, LSloc, False);
-         Condition_Hash_Table.Set (FSloc, SCO_Table.Last);
+         Set_Table_Entry
+           (C1   => ' ',
+            C2   => 'c',
+            From => FSloc,
+            To   => LSloc,
+            Last => False);
+         Condition_Pragma_Hash_Table.Set (FSloc, SCO_Table.Last);
       end Output_Element;
+
+      -------------------
+      -- Output_Header --
+      -------------------
+
+      procedure Output_Header (T : Character) is
+      begin
+         case T is
+            when 'I' | 'E' | 'W' =>
+
+               --  For IF, EXIT, WHILE, the token SLOC can be found from
+               --  the SLOC of the parent of the expression.
+
+               Set_Table_Entry
+                 (C1   => T,
+                  C2   => ' ',
+                  From => Sloc (Parent (N)),
+                  To   => No_Location,
+                  Last => False);
+
+            when 'P' =>
+
+               --  For PRAGMA, we must get the location from the pragma node.
+               --  Argument N is the pragma argument, and we have to go up two
+               --  levels (through the pragma argument association) to get to
+               --  the pragma node itself.
+
+               declare
+                  Loc : constant Source_Ptr := Sloc (Parent (Parent (N)));
+
+               begin
+                  Set_Table_Entry
+                    (C1   => 'P',
+                     C2   => 'd',
+                     From => Loc,
+                     To   => No_Location,
+                     Last => False);
+
+                  --  For pragmas we also must make an entry in the hash table
+                  --  for later access by Set_SCO_Pragma_Enabled. We set the
+                  --  pragma as disabled above, the call will change C2 to 'e'
+                  --  to enable the pragma header entry.
+
+                  Condition_Pragma_Hash_Table.Set (Loc, SCO_Table.Last);
+               end;
+
+            when 'X' =>
+
+               --  For an expression, no Sloc
+
+               Set_Table_Entry
+                 (C1   => 'X',
+                  C2   => ' ',
+                  From => No_Location,
+                  To   => No_Location,
+                  Last => False);
+
+            --  No other possibilities
+
+            when others =>
+               raise Program_Error;
+         end case;
+      end Output_Header;
 
       ------------------------------
       -- Process_Decision_Operand --
@@ -419,6 +506,7 @@ package body Par_SCO is
          if Is_Logical_Operator (N) then
             if Nkind (N) /= N_Op_Not then
                Process_Decision_Operand (Left_Opnd (N));
+               X_Not_Decision := False;
             end if;
 
             Process_Decision_Operand (Right_Opnd (N));
@@ -436,16 +524,12 @@ package body Par_SCO is
       begin
          case Nkind (N) is
 
-               --  Logical operators and short circuit forms, output table
-               --  entries and then process operands recursively to deal with
-               --  nested conditions.
+               --  Logical operators, output table entries and then process
+               --  operands recursively to deal with nested conditions.
 
-            when N_And_Then                    |
-                 N_Or_Else                     |
-                 N_Op_And                      |
-                 N_Op_Or                       |
-                 N_Op_Xor                      |
-                 N_Op_Not                      =>
+            when N_And_Then |
+                 N_Or_Else  |
+                 N_Op_Not   =>
 
                declare
                   T : Character;
@@ -462,15 +546,26 @@ package body Par_SCO is
 
                   --  Output header for sequence
 
-                  Set_Table_Entry (T, ' ', No_Location, No_Location, False);
+                  X_Not_Decision := T = 'X' and then Nkind (N) = N_Op_Not;
+                  Mark := SCO_Table.Last;
+                  Output_Header (T);
 
                   --  Output the decision
 
                   Output_Decision_Operand (N);
 
-                  --  Change Last in last table entry to True to mark end
+                  --  If the decision was in an expression context (T = 'X')
+                  --  and contained only NOT operators, then we don't output
+                  --  it, so delete it.
 
-                  SCO_Table.Table (SCO_Table.Last).Last := True;
+                  if X_Not_Decision then
+                     SCO_Table.Set_Last (Mark);
+
+                  --  Otherwise, set Last in last table entry to mark end
+
+                  else
+                     SCO_Table.Table (SCO_Table.Last).Last := True;
+                  end if;
 
                   --  Process any embedded decisions
 
@@ -478,9 +573,14 @@ package body Par_SCO is
                   return Skip;
                end;
 
+            --  Case expression
+
+            when N_Case_Expression =>
+               return OK; -- ???
+
             --  Conditional expression, processed like an if statement
 
-            when N_Conditional_Expression      =>
+            when N_Conditional_Expression =>
                declare
                   Cond : constant Node_Id := First (Expressions (N));
                   Thnx : constant Node_Id := Next (Cond);
@@ -512,11 +612,12 @@ package body Par_SCO is
       --  See if we have simple decision at outer level and if so then
       --  generate the decision entry for this simple decision. A simple
       --  decision is a boolean expression (which is not a logical operator
-      --  or short circuit form) appearing as the operand of an IF, WHILE
-      --  or EXIT WHEN construct.
+      --  or short circuit form) appearing as the operand of an IF, WHILE,
+      --  EXIT WHEN, or special PRAGMA construct.
 
       if T /= 'X' and then not Is_Logical_Operator (N) then
-         Output_Element (N, T);
+         Output_Header (T);
+         Output_Element (N);
 
          --  Change Last in last table entry to True to mark end of
          --  sequence, which is this case is only one element long.
@@ -675,6 +776,9 @@ package body Par_SCO is
       if Nkind (Lu) = N_Subprogram_Body then
          Traverse_Subprogram_Body (Lu);
 
+      elsif Nkind (Lu) = N_Subprogram_Declaration then
+         Traverse_Subprogram_Declaration (Lu);
+
       elsif Nkind (Lu) = N_Package_Declaration then
          Traverse_Package_Declaration (Lu);
 
@@ -684,12 +788,14 @@ package body Par_SCO is
       elsif Nkind (Lu) = N_Generic_Package_Declaration then
          Traverse_Generic_Package_Declaration (Lu);
 
-      --  For anything else, the only issue is default expressions for
-      --  parameters, where we have to worry about possible embedded decisions
-      --  but nothing else.
+      elsif Nkind (Lu) in N_Generic_Instantiation then
+         Traverse_Generic_Instantiation (Lu);
+
+      --  All other cases of compilation units (e.g. renamings), generate
+      --  no SCO information.
 
       else
-         Process_Decisions (Lu, 'X');
+         null;
       end if;
 
       --  Make entry for new unit in unit tables, we will fill in the file
@@ -708,13 +814,47 @@ package body Par_SCO is
    -- Set_SCO_Condition --
    -----------------------
 
-   procedure Set_SCO_Condition (First_Loc : Source_Ptr; Typ : Character) is
-      Index : constant Nat := Condition_Hash_Table.Get (First_Loc);
+   procedure Set_SCO_Condition (Cond : Node_Id; Val : Boolean) is
+      Orig  : constant Node_Id := Original_Node (Cond);
+      Index : Nat;
+      Start : Source_Ptr;
+      Dummy : Source_Ptr;
+
+      Constant_Condition_Code : constant array (Boolean) of Character :=
+                                  (False => 'f', True => 't');
    begin
+      Sloc_Range (Orig, Start, Dummy);
+      Index := Condition_Pragma_Hash_Table.Get (Start);
+
+      --  The test here for zero is to deal with possible previous errors
+
       if Index /= 0 then
-         SCO_Table.Table (Index).C2 := Typ;
+         pragma Assert (SCO_Table.Table (Index).C1 = ' ');
+         SCO_Table.Table (Index).C2 := Constant_Condition_Code (Val);
       end if;
    end Set_SCO_Condition;
+
+   ----------------------------
+   -- Set_SCO_Pragma_Enabled --
+   ----------------------------
+
+   procedure Set_SCO_Pragma_Enabled (Loc : Source_Ptr) is
+      Index : Nat;
+
+   begin
+      --  Note: the reason we use the Sloc value as the key is that in the
+      --  generic case, the call to this procedure is made on a copy of the
+      --  original node, so we can't use the Node_Id value.
+
+      Index := Condition_Pragma_Hash_Table.Get (Loc);
+
+      --  The test here for zero is to deal with possible previous errors
+
+      if Index /= 0 then
+         pragma Assert (SCO_Table.Table (Index).C1 = 'P');
+         SCO_Table.Table (Index).C2 := 'e';
+      end if;
+   end Set_SCO_Pragma_Enabled;
 
    ---------------------
    -- Set_Table_Entry --
@@ -760,16 +900,87 @@ package body Par_SCO is
    -- Traverse_Declarations_Or_Statements --
    -----------------------------------------
 
+   --  Tables used by Traverse_Declarations_Or_Statements for temporarily
+   --  holding statement and decision entries. These are declared globally
+   --  since they are shared by recursive calls to this procedure.
+
+   type SC_Entry is record
+      From : Source_Ptr;
+      To   : Source_Ptr;
+      Typ  : Character;
+   end record;
+   --  Used to store a single entry in the following table, From:To represents
+   --  the range of entries in the CS line entry, and typ is the type, with
+   --  space meaning that no type letter will accompany the entry.
+
+   package SC is new Table.Table (
+     Table_Component_Type => SC_Entry,
+     Table_Index_Type     => Nat,
+     Table_Low_Bound      => 1,
+     Table_Initial        => 1000,
+     Table_Increment      => 200,
+     Table_Name           => "SCO_SC");
+      --  Used to store statement components for a CS entry to be output
+      --  as a result of the call to this procedure. SC.Last is the last
+      --  entry stored, so the current statement sequence is represented
+      --  by SC_Array (SC_First .. SC.Last), where SC_First is saved on
+      --  entry to each recursive call to the routine.
+      --
+      --  Extend_Statement_Sequence adds an entry to this array, and then
+      --  Set_Statement_Entry clears the entries starting with SC_First,
+      --  copying these entries to the main SCO output table. The reason that
+      --  we do the temporary caching of results in this array is that we want
+      --  the SCO table entries for a given CS line to be contiguous, and the
+      --  processing may output intermediate entries such as decision entries.
+
+   type SD_Entry is record
+      Nod : Node_Id;
+      Lst : List_Id;
+      Typ : Character;
+   end record;
+   --  Used to store a single entry in the following table. Nod is the node to
+   --  be searched for decisions for the case of Process_Decisions_Defer with a
+   --  node argument (with Lst set to No_List. Lst is the list to be searched
+   --  for decisions for the case of Process_Decisions_Defer with a List
+   --  argument (in which case Nod is set to Empty).
+
+   package SD is new Table.Table (
+     Table_Component_Type => SD_Entry,
+     Table_Index_Type     => Nat,
+     Table_Low_Bound      => 1,
+     Table_Initial        => 1000,
+     Table_Increment      => 200,
+     Table_Name           => "SCO_SD");
+   --  Used to store possible decision information. Instead of calling the
+   --  Process_Decisions procedures directly, we call Process_Decisions_Defer,
+   --  which simply stores the arguments in this table. Then when we clear
+   --  out a statement sequence using Set_Statement_Entry, after generating
+   --  the CS lines for the statements, the entries in this table result in
+   --  calls to Process_Decision. The reason for doing things this way is to
+   --  ensure that decisions are output after the CS line for the statements
+   --  in which the decisions occur.
+
    procedure Traverse_Declarations_Or_Statements (L : List_Id) is
       N     : Node_Id;
-      Start : Source_Ptr;
       Dummy : Source_Ptr;
-      Stop  : Source_Ptr;
-      From  : Source_Ptr;
-      To    : Source_Ptr;
 
-      Term  : Boolean;
-      --  Set False if current entity terminates statement list
+      SC_First : constant Nat := SC.Last + 1;
+      SD_First : constant Nat := SD.Last + 1;
+      --  Record first entries used in SC/SD at this recursive level
+
+      procedure Extend_Statement_Sequence (N : Node_Id; Typ : Character);
+      --  Extend the current statement sequence to encompass the node N. Typ
+      --  is the letter that identifies the type of statement/declaration that
+      --  is being added to the sequence.
+
+      procedure Extend_Statement_Sequence
+        (From : Node_Id;
+         To   : Node_Id;
+         Typ  : Character);
+      --  This version extends the current statement sequence with an entry
+      --  that starts with the first token of From, and ends with the last
+      --  token of To. It is used for example in a CASE statement to cover
+      --  the range from the CASE token to the last token of the expression.
 
       procedure Set_Statement_Entry;
       --  If Start is No_Location, does nothing, otherwise outputs a SCO_Table
@@ -778,32 +989,124 @@ package body Par_SCO is
       --  called when we find a statement or declaration that generates its
       --  own table entry, so that we must end the current statement sequence.
 
+      procedure Process_Decisions_Defer (N : Node_Id; T : Character);
+      pragma Inline (Process_Decisions_Defer);
+      --  This routine is logically the same as Process_Decisions, except that
+      --  the arguments are saved in the SD table, for later processing when
+      --  Set_Statement_Entry is called, which goes through the saved entries
+      --  making the corresponding calls to Process_Decision.
+
+      procedure Process_Decisions_Defer (L : List_Id; T : Character);
+      pragma Inline (Process_Decisions_Defer);
+      --  Same case for list arguments, deferred call to Process_Decisions
+
       -------------------------
       -- Set_Statement_Entry --
       -------------------------
 
       procedure Set_Statement_Entry is
-      begin
-         Term := True;
+         C1      : Character;
+         SC_Last : constant Int := SC.Last;
+         SD_Last : constant Int := SD.Last;
 
-         if Start /= No_Location then
-            Set_Table_Entry ('S', ' ', Start, Stop, False);
-            Start := No_Location;
-            Stop  := No_Location;
-         end if;
+      begin
+         --  Output statement entries from saved entries in SC table
+
+         for J in SC_First .. SC_Last loop
+            if J = SC_First then
+               C1 := 'S';
+            else
+               C1 := 's';
+            end if;
+
+            declare
+               SCE : SC_Entry renames SC.Table (J);
+            begin
+               Set_Table_Entry
+                 (C1   => C1,
+                  C2   => SCE.Typ,
+                  From => SCE.From,
+                  To   => SCE.To,
+                  Last => (J = SC_Last));
+            end;
+         end loop;
+
+         --  Clear out used section of SC table
+
+         SC.Set_Last (SC_First - 1);
+
+         --  Output any embedded decisions
+
+         for J in SD_First .. SD_Last loop
+            declare
+               SDE : SD_Entry renames SD.Table (J);
+            begin
+               if Present (SDE.Nod) then
+                  Process_Decisions (SDE.Nod, SDE.Typ);
+               else
+                  Process_Decisions (SDE.Lst, SDE.Typ);
+               end if;
+            end;
+         end loop;
+
+         --  Clear out used section of SD table
+
+         SD.Set_Last (SD_First - 1);
       end Set_Statement_Entry;
+
+      -------------------------------
+      -- Extend_Statement_Sequence --
+      -------------------------------
+
+      procedure Extend_Statement_Sequence (N : Node_Id; Typ : Character) is
+         F : Source_Ptr;
+         T : Source_Ptr;
+      begin
+         Sloc_Range (N, F, T);
+         SC.Append ((F, T, Typ));
+      end Extend_Statement_Sequence;
+
+      procedure Extend_Statement_Sequence
+        (From : Node_Id;
+         To   : Node_Id;
+         Typ  : Character)
+      is
+         F : Source_Ptr;
+         T : Source_Ptr;
+      begin
+         Sloc_Range (From, F, Dummy);
+         Sloc_Range (To, Dummy, T);
+         SC.Append ((F, T, Typ));
+      end Extend_Statement_Sequence;
+
+      -----------------------------
+      -- Process_Decisions_Defer --
+      -----------------------------
+
+      procedure Process_Decisions_Defer (N : Node_Id; T : Character) is
+      begin
+         SD.Append ((N, No_List, T));
+      end Process_Decisions_Defer;
+
+      procedure Process_Decisions_Defer (L : List_Id; T : Character) is
+      begin
+         SD.Append ((Empty, L, T));
+      end Process_Decisions_Defer;
 
    --  Start of processing for Traverse_Declarations_Or_Statements
 
    begin
       if Is_Non_Empty_List (L) then
-         N := First (L);
-         Start := No_Location;
 
          --  Loop through statements or declarations
 
+         N := First (L);
          while Present (N) loop
-            Term := False;
+
+            --  Initialize or extend current statement sequence. Note that for
+            --  special cases such as IF and Case statements we will modify
+            --  the range to exclude internal statements that should not be
+            --  counted as part of the current statement sequence.
 
             case Nkind (N) is
 
@@ -828,17 +1131,18 @@ package body Par_SCO is
                --  Subprogram declaration
 
                when N_Subprogram_Declaration =>
-                  Set_Statement_Entry;
-                  Process_Decisions
+                  Process_Decisions_Defer
                     (Parameter_Specifications (Specification (N)), 'X');
+                  Set_Statement_Entry;
 
                --  Generic subprogram declaration
 
                when N_Generic_Subprogram_Declaration =>
-                  Set_Statement_Entry;
-                  Process_Decisions (Generic_Formal_Declarations (N), 'X');
-                  Process_Decisions
+                  Process_Decisions_Defer
+                    (Generic_Formal_Declarations (N), 'X');
+                  Process_Decisions_Defer
                     (Parameter_Specifications (Specification (N)), 'X');
+                  Set_Statement_Entry;
 
                --  Subprogram_Body
 
@@ -846,23 +1150,24 @@ package body Par_SCO is
                   Set_Statement_Entry;
                   Traverse_Subprogram_Body (N);
 
-               --  Exit statement
+               --  Exit statement, which is an exit statement in the SCO sense,
+               --  so it is included in the current statement sequence, but
+               --  then it terminates this sequence. We also have to process
+               --  any decisions in the exit statement expression.
 
                when N_Exit_Statement =>
+                  Extend_Statement_Sequence (N, ' ');
+                  Process_Decisions_Defer (Condition (N), 'E');
                   Set_Statement_Entry;
-                  Process_Decisions (Condition (N), 'E');
 
-                  --  This is an exit point
-
-                  Sloc_Range (N, From, To);
-                  Set_Table_Entry ('T', ' ', From, To, False);
-
-               --  Label (breaks statement sequence)
+               --  Label, which breaks the current statement sequence, but the
+               --  label itself is not included in the next statement sequence,
+               --  since it generates no code.
 
                when N_Label =>
                   Set_Statement_Entry;
 
-               --  Block statement
+               --  Block statement, which breaks the current statement sequence
 
                when N_Block_Statement =>
                   Set_Statement_Entry;
@@ -870,19 +1175,38 @@ package body Par_SCO is
                   Traverse_Handled_Statement_Sequence
                     (Handled_Statement_Sequence (N));
 
-               --  If statement
+               --  If statement, which breaks the current statement sequence,
+               --  but we include the condition in the current sequence.
 
                when N_If_Statement =>
+                  Extend_Statement_Sequence (N, Condition (N), 'I');
+                  Process_Decisions_Defer (Condition (N), 'I');
                   Set_Statement_Entry;
-                  Process_Decisions (Condition (N), 'I');
+
+                  --  Now we traverse the statements in the THEN part
+
                   Traverse_Declarations_Or_Statements (Then_Statements (N));
+
+                  --  Loop through ELSIF parts if present
 
                   if Present (Elsif_Parts (N)) then
                      declare
                         Elif : Node_Id := First (Elsif_Parts (N));
+
                      begin
                         while Present (Elif) loop
-                           Process_Decisions (Condition (Elif), 'I');
+
+                           --  We generate a statement sequence for the
+                           --  construct "ELSIF condition", so that we have
+                           --  a statement for the resulting decisions.
+
+                           Extend_Statement_Sequence
+                             (Elif, Condition (Elif), 'I');
+                           Process_Decisions_Defer (Condition (Elif), 'I');
+                           Set_Statement_Entry;
+
+                           --  Traverse the statements in the ELSIF
+
                            Traverse_Declarations_Or_Statements
                              (Then_Statements (Elif));
                            Next (Elif);
@@ -890,79 +1214,189 @@ package body Par_SCO is
                      end;
                   end if;
 
+                  --  Finally traverse the ELSE statements if present
+
                   Traverse_Declarations_Or_Statements (Else_Statements (N));
 
-                  --  Unconditional exit points
+               --  Case statement, which breaks the current statement sequence,
+               --  but we include the expression in the current sequence.
+
+               when N_Case_Statement =>
+                  Extend_Statement_Sequence (N, Expression (N), 'C');
+                  Process_Decisions_Defer (Expression (N), 'X');
+                  Set_Statement_Entry;
+
+                  --  Process case branches
+
+                  declare
+                     Alt : Node_Id;
+                  begin
+                     Alt := First (Alternatives (N));
+                     while Present (Alt) loop
+                        Traverse_Declarations_Or_Statements (Statements (Alt));
+                        Next (Alt);
+                     end loop;
+                  end;
+
+               --  Unconditional exit points, which are included in the current
+               --  statement sequence, but then terminate it
 
                when N_Requeue_Statement |
                     N_Goto_Statement    |
                     N_Raise_Statement   =>
+                  Extend_Statement_Sequence (N, ' ');
                   Set_Statement_Entry;
-                  Sloc_Range (N, From, To);
-                  Set_Table_Entry ('T', ' ', From, To, False);
 
-               --  Simple return statement
+               --  Simple return statement. which is an exit point, but we
+               --  have to process the return expression for decisions.
 
                when N_Simple_Return_Statement =>
+                  Extend_Statement_Sequence (N, ' ');
+                  Process_Decisions_Defer (Expression (N), 'X');
                   Set_Statement_Entry;
-
-                  --  Process possible return expression
-
-                  Process_Decisions (Expression (N), 'X');
-
-                  --  Return is an exit point
-
-                  Sloc_Range (N, From, To);
-                  Set_Table_Entry ('T', ' ', From, To, False);
 
                --  Extended return statement
 
                when N_Extended_Return_Statement =>
+                  Extend_Statement_Sequence
+                    (N, Last (Return_Object_Declarations (N)), 'R');
+                  Process_Decisions_Defer
+                    (Return_Object_Declarations (N), 'X');
                   Set_Statement_Entry;
-                  Traverse_Declarations_Or_Statements
-                    (Return_Object_Declarations (N));
+
                   Traverse_Handled_Statement_Sequence
                     (Handled_Statement_Sequence (N));
 
-                  --  Return is an exit point
-
-                  Sloc_Range (N, From, To);
-                  Set_Table_Entry ('T', ' ', From, To, False);
-
-               --  Loop
+               --  Loop ends the current statement sequence, but we include
+               --  the iteration scheme if present in the current sequence.
+               --  But the body of the loop starts a new sequence, since it
+               --  may not be executed as part of the current sequence.
 
                when N_Loop_Statement =>
+                  if Present (Iteration_Scheme (N)) then
 
-                  --  Even if not a while loop, we want a new statement seq
+                     --  If iteration scheme present, extend the current
+                     --  statement sequence to include the iteration scheme
+                     --  and process any decisions it contains.
+
+                     declare
+                        ISC : constant Node_Id := Iteration_Scheme (N);
+
+                     begin
+                        --  While statement
+
+                        if Present (Condition (ISC)) then
+                           Extend_Statement_Sequence (N, ISC, 'W');
+                           Process_Decisions_Defer (Condition (ISC), 'W');
+
+                        --  For statement
+
+                        else
+                           Extend_Statement_Sequence (N, ISC, 'F');
+                           Process_Decisions_Defer
+                             (Loop_Parameter_Specification (ISC), 'X');
+                        end if;
+                     end;
+                  end if;
 
                   Set_Statement_Entry;
-
-                  if Present (Iteration_Scheme (N)) then
-                     Process_Decisions
-                       (Condition (Iteration_Scheme (N)), 'W');
-                  end if;
-
                   Traverse_Declarations_Or_Statements (Statements (N));
 
-               --  All other cases
+               --  Pragma
+
+               when N_Pragma =>
+                  Extend_Statement_Sequence (N, 'P');
+
+                  --  Processing depends on the kind of pragma
+
+                  case Pragma_Name (N) is
+                     when Name_Assert        |
+                          Name_Check         |
+                          Name_Precondition  |
+                          Name_Postcondition =>
+
+                        --  For Assert/Check/Precondition/Postcondition, we
+                        --  must generate a P entry for the decision. Note that
+                        --  this is done unconditionally at this stage. Output
+                        --  for disabled pragmas is suppressed later on, when
+                        --  we output the decision line in Put_SCOs.
+
+                        declare
+                           Nam : constant Name_Id :=
+                                   Chars (Pragma_Identifier (N));
+                           Arg : Node_Id :=
+                                   First (Pragma_Argument_Associations (N));
+
+                        begin
+                           if Nam = Name_Check then
+                              Next (Arg);
+                           end if;
+
+                           Process_Decisions_Defer (Expression (Arg), 'P');
+                        end;
+
+                     --  For all other pragmas, we generate decision entries
+                     --  for any embedded expressions.
+
+                     when others =>
+                        Process_Decisions_Defer (N, 'X');
+                  end case;
+
+               --  Object declaration. Ignored if Prev_Ids is set, since the
+               --  parser generates multiple instances of the whole declaration
+               --  if there is more than one identifier declared, and we only
+               --  want one entry in the SCO's, so we take the first, for which
+               --  Prev_Ids is False.
+
+               when N_Object_Declaration =>
+                  if not Prev_Ids (N) then
+                     Extend_Statement_Sequence (N, 'o');
+
+                     if Has_Decision (N) then
+                        Process_Decisions_Defer (N, 'X');
+                     end if;
+                  end if;
+
+               --  All other cases, which extend the current statement sequence
+               --  but do not terminate it, even if they have nested decisions.
 
                when others =>
+
+                  --  Determine required type character code
+
+                  declare
+                     Typ : Character;
+
+                  begin
+                     case Nkind (N) is
+                        when N_Full_Type_Declaration         |
+                             N_Incomplete_Type_Declaration   |
+                             N_Private_Type_Declaration      |
+                             N_Private_Extension_Declaration =>
+                           Typ := 't';
+
+                        when N_Subtype_Declaration           =>
+                           Typ := 's';
+
+                        when N_Renaming_Declaration          =>
+                           Typ := 'r';
+
+                        when N_Generic_Instantiation         =>
+                           Typ := 'i';
+
+                        when others                          =>
+                           Typ := ' ';
+                     end case;
+
+                     Extend_Statement_Sequence (N, Typ);
+                  end;
+
+                  --  Process any embedded decisions
+
                   if Has_Decision (N) then
-                     Set_Statement_Entry;
-                     Process_Decisions (N, 'X');
+                     Process_Decisions_Defer (N, 'X');
                   end if;
             end case;
-
-            --  If that element did not terminate the current sequence of
-            --  statements, then establish or extend this sequence.
-
-            if not Term then
-               if Start = No_Location then
-                  Sloc_Range (N, Start, Stop);
-               else
-                  Sloc_Range (N, Dummy, Stop);
-               end if;
-            end if;
 
             Next (N);
          end loop;
@@ -970,6 +1404,30 @@ package body Par_SCO is
          Set_Statement_Entry;
       end if;
    end Traverse_Declarations_Or_Statements;
+
+   ------------------------------------
+   -- Traverse_Generic_Instantiation --
+   ------------------------------------
+
+   procedure Traverse_Generic_Instantiation (N : Node_Id) is
+      First : Source_Ptr;
+      Last  : Source_Ptr;
+
+   begin
+      --  First we need a statement entry to cover the instantiation
+
+      Sloc_Range (N, First, Last);
+      Set_Table_Entry
+        (C1   => 'S',
+         C2   => ' ',
+         From => First,
+         To   => Last,
+         Last => True);
+
+      --  Now output any embedded decisions
+
+      Process_Decisions (N, 'X');
+   end Traverse_Generic_Instantiation;
 
    ------------------------------------------
    -- Traverse_Generic_Package_Declaration --
@@ -989,7 +1447,11 @@ package body Par_SCO is
       Handler : Node_Id;
 
    begin
-      if Present (N) then
+      --  For package bodies without a statement part, the parser adds an empty
+      --  one, to normalize the representation. The null statement therein,
+      --  which does not come from source, does not get a SCO.
+
+      if Present (N) and then Comes_From_Source (N) then
          Traverse_Declarations_Or_Statements (Statements (N));
 
          if Present (Exception_Handlers (N)) then
@@ -1032,5 +1494,17 @@ package body Par_SCO is
       Traverse_Declarations_Or_Statements (Declarations (N));
       Traverse_Handled_Statement_Sequence (Handled_Statement_Sequence (N));
    end Traverse_Subprogram_Body;
+
+   -------------------------------------
+   -- Traverse_Subprogram_Declaration --
+   -------------------------------------
+
+   procedure Traverse_Subprogram_Declaration (N : Node_Id) is
+      ADN : constant Node_Id := Aux_Decls_Node (Parent (N));
+   begin
+      Traverse_Declarations_Or_Statements (Config_Pragmas (ADN));
+      Traverse_Declarations_Or_Statements (Declarations   (ADN));
+      Traverse_Declarations_Or_Statements (Pragmas_After  (ADN));
+   end Traverse_Subprogram_Declaration;
 
 end Par_SCO;

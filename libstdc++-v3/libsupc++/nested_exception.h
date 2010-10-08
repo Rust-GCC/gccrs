@@ -1,6 +1,6 @@
 // Nested Exception support header (nested_exception class) for -*- C++ -*-
 
-// Copyright (C) 2009 Free Software Foundation, Inc.
+// Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,7 +33,7 @@
 #pragma GCC visibility push(default)
 
 #ifndef __GXX_EXPERIMENTAL_CXX0X__
-# include <c++0x_warning.h>
+# include <bits/c++0x_warning.h>
 #else
 
 #include <bits/c++config.h>
@@ -63,7 +63,7 @@ namespace std
 
     nested_exception& operator=(const nested_exception&) = default;
 
-    virtual ~nested_exception() = default;
+    inline virtual ~nested_exception();
 
     void
     rethrow_nested() const __attribute__ ((__noreturn__))
@@ -73,6 +73,8 @@ namespace std
     nested_ptr() const
     { return _M_ptr; }
   };
+
+  inline nested_exception::~nested_exception() = default;
 
   template<typename _Except>
     struct _Nested_exception : public _Except, public nested_exception

@@ -18,7 +18,8 @@
 #   libgcj_cflags	Special CFLAGS to use when building
 #   libgcj_cxxflags	Special CXXFLAGS to use when building
 #   libgcj_javaflags	Special JAVAFLAGS to use when building
-#   libgcj_sublib_ltflags  Special Libtool flags to use when building.
+#   libgcj_sublib_ltflags  Special Libtool flags to use when building sublibs
+#   libgcj_sublib_core_extra_deps  Extra dependencies to add to core sublib
 #   libgcj_interpreter  If the bytecode interpreter supports this platform.
 #   enable_java_net_default  If java.net native code should be enabled by
 #                            default.
@@ -43,6 +44,7 @@ libgcj_cflags=
 libgcj_cxxflags=
 libgcj_javaflags=
 libgcj_sublib_ltflags=
+libgcj_sublib_core_extra_deps=
 libgcj_interpreter=
 enable_java_net_default=yes
 enable_hash_synchronization_default=no
@@ -282,8 +284,6 @@ EOF
 	;;
   mips-sgi-irix6* )
 	sysdeps_dir=mips
-	# disable interpreter, no closure support for N32 and N64 ABIs
-	libgcj_interpreter=no
 	;;
   arm*-linux* )
 	slow_pthread_self=no
@@ -318,6 +318,9 @@ EOF
 	DIVIDESPEC=-fuse-divide-subroutine
 	CHECKREFSPEC=-fcheck-references
 	;;
+  i?86-*-solaris2*)
+	can_unwind_signal=yes
+	;;
   *-*-freebsd*)
 	slow_pthread_self=
 	;;
@@ -340,6 +343,10 @@ EOF
 	can_unwind_signal=yes
 	DIVIDESPEC=-fuse-divide-subroutine
 	;;
+  sparc*-sun-solaris2.*)
+	slow_pthread_self=
+	can_unwind_signal=yes
+	;;
 esac
 
 case "${host}" in
@@ -349,7 +356,9 @@ case "${host}" in
   	BACKTRACESPEC=
 	# Win32 DLLs are limited to 64k exported symbols each.
 	enable_libgcj_sublibs_default=yes
-	libgcj_sublib_ltflags='-no-undefined -bindir $(bindir)'
+	libgcj_sublib_ltflags='-no-undefined -bindir $(bindir) \
+	    -Wl,-u,__ZN3org4ietf4jgss10GSSManagerC1Ev,-L..,-lgcj-noncore-dummy'
+	libgcj_sublib_core_extra_deps=libgcj-noncore-dummy.dll.a
   ;;
 esac
 

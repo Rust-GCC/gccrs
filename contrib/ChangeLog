@@ -1,3 +1,84 @@
+2010-08-22  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* texi2pod.pl: Replace @@ before @{ and @}, for @samp{@@}.
+	Also escape characters with grave accents, to be fixed ...
+	(unmunge): ... here.
+	(postprocess): Also handle @/ and @acronym{...}.
+
+2010-07-02  Sebastian Pop  <sebastian.pop@amd.com>
+
+	* check_GNU_style.sh: Do not print warning messages when there are
+	no occurences.
+
+2010-09-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc_update: Handle hg, too.
+
+2010-07-08  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* make_sunver.pl: Remove extra whitespace in regexp.
+
+2010-07-02  Sebastian Pop  <sebastian.pop@amd.com>
+
+	* check_GNU_style.sh: New.
+
+2010-07-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* make_sunver.pl: New file.
+
+2010-07-02  Iain Sandoe  <iains@gcc.gnu.org>
+
+       * compare-debug (Darwin): Remove '-x' flag from ld-based object
+       stripping.  Add a comment as to why we do it this way.
+
+2010-06-20  Alexandre Oliva  <aoliva@redhat.com>
+
+	* compare-debug: Drop LTO sections.
+
+2010-06-15  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* gcc_update: Support updating a git clone.
+
+2010-06-04  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* test_summary: Don't use diff -u.
+	Adapt egrep regex.
+
+2010-06-02  Andrew Haley  <aph@redhat.com>
+
+	* download_prerequisites: New script.
+
+2010-05-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* dg-extract-results.sh: Redirect grep output to /dev/null instead
+	of grep -q.
+
+2010-04-22  Basile Starynkevitch  <basile@starynkevitch.net>
+
+	* gcc_update: Sets the locale to C.
+
+2010-04-06  Joseph Myers  <joseph@codesourcery.com>
+
+	* gennews (files): Add files for GCC 4.5.
+
+2010-03-22  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	Fix *.log tests output containing "===".
+	* dg-extract-results.sh (/\===/): Rename to ...
+	(/^\t\t=== .* ===$/): ... this pattern.
+
+2010-03-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* dg-extract-results.sh: Fix result order to match sequential case.
+
+2010-01-16  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* check_warning_flags.sh: Use \012 instead of \n with tr.
+
+2010-01-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* dg-extract-results.sh: Don't use tail -n.
+
 2009-10-03  H.J. Lu  <hongjiu.lu@intel.com>
 	    Richard Guenther  <rguenther@suse.de>
 

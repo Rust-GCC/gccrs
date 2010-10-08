@@ -6,7 +6,7 @@
 --                                                                          --
 --                               B o d y                                    --
 --                                                                          --
---          Copyright (C) 1998-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1998-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -226,9 +226,16 @@ package body System.Tasking.Protected_Objects.Entries is
          raise Program_Error;
       end if;
 
-      Initialization.Defer_Abort (Self_ID);
+      --  If a PO is created from a controlled operation, abort is already
+      --  deferred at this point, so we need to use Defer_Abort_Nestable. In
+      --  some cases, the following assertion can help to spot inconsistencies,
+      --  outside the above scenario involving controlled types.
+
+      --  pragma Assert (Self_Id.Deferral_Level = 0);
+
+      Initialization.Defer_Abort_Nestable (Self_ID);
       Initialize_Lock (Init_Priority, Object.L'Access);
-      Initialization.Undefer_Abort (Self_ID);
+      Initialization.Undefer_Abort_Nestable (Self_ID);
 
       Object.Ceiling          := System.Any_Priority (Init_Priority);
       Object.New_Ceiling      := System.Any_Priority (Init_Priority);

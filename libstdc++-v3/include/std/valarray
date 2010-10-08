@@ -1,7 +1,7 @@
 // The template and inlines for the -*- C++ -*- valarray class.
 
 // Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007, 2008, 2009
+// 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -36,7 +36,6 @@
 #pragma GCC system_header
 
 #include <bits/c++config.h>
-#include <cstddef>
 #include <cmath>
 #include <algorithm>
 #include <debug/debug.h>
@@ -1107,6 +1106,48 @@ _DEFINE_BINARY_OPERATOR(<=, __less_equal)
 _DEFINE_BINARY_OPERATOR(>=, __greater_equal)
 
 #undef _DEFINE_BINARY_OPERATOR
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  /**
+   *  @brief  Return an iterator pointing to the first element of
+   *          the valarray.
+   *  @param  va  valarray.
+   */
+  template<class _Tp>
+    inline _Tp*
+    begin(valarray<_Tp>& __va)
+    { return std::__addressof(__va[0]); }
+
+  /**
+   *  @brief  Return an iterator pointing to the first element of
+   *          the const valarray.
+   *  @param  va  valarray.
+   */
+  template<class _Tp>
+    inline const _Tp*
+    begin(const valarray<_Tp>& __va)
+    { return std::__addressof(__va[0]); }
+
+  /**
+   *  @brief  Return an iterator pointing to one past the last element of
+   *          the valarray.
+   *  @param  va  valarray.
+   */
+  template<class _Tp>
+    inline _Tp*
+    end(valarray<_Tp>& __va)
+    { return std::__addressof(__va[0]) + __va.size(); }
+
+  /**
+   *  @brief  Return an iterator pointing to one past the last element of
+   *          the const valarray.
+   *  @param  va  valarray.
+   */
+  template<class _Tp>
+    inline const _Tp*
+    end(const valarray<_Tp>& __va)
+    { return std::__addressof(__va[0]) + __va.size(); }
+#endif // __GXX_EXPERIMENTAL_CXX0X__
 
   // @} group numeric_arrays
 

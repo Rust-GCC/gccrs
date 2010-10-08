@@ -1,6 +1,6 @@
 /* Convert function calls to rtl insns, for GNU C compiler.
    Copyright (C) 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -32,7 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "libfuncs.h"
 #include "function.h"
 #include "regs.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
 #include "output.h"
 #include "tm_p.h"
 #include "timevar.h"
@@ -175,7 +175,8 @@ prepare_call_address (tree fndecl, rtx funexp, rtx static_chain_value,
   if (GET_CODE (funexp) != SYMBOL_REF)
     /* If we are using registers for parameters, force the
        function address into a register now.  */
-    funexp = ((SMALL_REGISTER_CLASSES && reg_parm_seen)
+    funexp = ((reg_parm_seen
+	       && targetm.small_register_classes_for_mode_p (FUNCTION_MODE))
 	      ? force_not_mem (memory_address (FUNCTION_MODE, funexp))
 	      : memory_address (FUNCTION_MODE, funexp));
   else if (! sibcallp)
@@ -207,13 +208,15 @@ prepare_call_address (tree fndecl, rtx funexp, rtx static_chain_value,
    The CALL_INSN is the first insn generated.
 
    FNDECL is the declaration node of the function.  This is given to the
-   macro RETURN_POPS_ARGS to determine whether this function pops its own args.
+   hook TARGET_RETURN_POPS_ARGS to determine whether this function pops
+   its own args.
 
-   FUNTYPE is the data type of the function.  This is given to the macro
-   RETURN_POPS_ARGS to determine whether this function pops its own args.
-   We used to allow an identifier for library functions, but that doesn't
-   work when the return type is an aggregate type and the calling convention
-   says that the pointer to this aggregate is to be popped by the callee.
+   FUNTYPE is the data type of the function.  This is given to the hook
+   TARGET_RETURN_POPS_ARGS to determine whether this function pops its
+   own args.  We used to allow an identifier for library functions, but
+   that doesn't work when the return type is an aggregate type and the
+   calling convention says that the pointer to this aggregate is to be
+   popped by the callee.
 
    STACK_SIZE is the number of bytes of arguments on the stack,
    ROUNDED_STACK_SIZE is that number rounded up to
@@ -225,7 +228,7 @@ prepare_call_address (tree fndecl, rtx funexp, rtx static_chain_value,
    It is zero if this call doesn't want a structure value.
 
    NEXT_ARG_REG is the rtx that results from executing
-     FUNCTION_ARG (args_so_far, VOIDmode, void_type_node, 1)
+     targetm.calls.function_arg (&args_so_far, VOIDmode, void_type_node, true)
    just after all the args have had their registers assigned.
    This could be whatever you like, but normally it is the first
    arg-register beyond those used for args in this call,
@@ -255,11 +258,8 @@ emit_call_1 (rtx funexp, tree fntree ATTRIBUTE_UNUSED, tree fndecl ATTRIBUTE_UNU
   rtx rounded_stack_size_rtx = GEN_INT (rounded_stack_size);
   rtx call_insn;
   int already_popped = 0;
-  HOST_WIDE_INT n_popped = RETURN_POPS_ARGS (fndecl, funtype, stack_size);
-#if defined (HAVE_call) && defined (HAVE_call_value)
-  rtx struct_value_size_rtx;
-  struct_value_size_rtx = GEN_INT (struct_value_size);
-#endif
+  HOST_WIDE_INT n_popped
+    = targetm.calls.return_pops_args (fndecl, funtype, stack_size);
 
 #ifdef CALL_POPS_ARGS
   n_popped += CALL_POPS_ARGS (* args_so_far);
@@ -341,7 +341,7 @@ emit_call_1 (rtx funexp, tree fntree ATTRIBUTE_UNUSED, tree fndecl ATTRIBUTE_UNU
       else
 	emit_call_insn (GEN_SIBCALL (gen_rtx_MEM (FUNCTION_MODE, funexp),
 				     rounded_stack_size_rtx, next_arg_reg,
-				     struct_value_size_rtx));
+				     GEN_INT (struct_value_size)));
     }
   else
 #endif
@@ -357,7 +357,7 @@ emit_call_1 (rtx funexp, tree fntree ATTRIBUTE_UNUSED, tree fndecl ATTRIBUTE_UNU
       else
 	emit_call_insn (GEN_CALL (gen_rtx_MEM (FUNCTION_MODE, funexp),
 				  rounded_stack_size_rtx, next_arg_reg,
-				  struct_value_size_rtx));
+				  GEN_INT (struct_value_size)));
     }
   else
 #endif
@@ -601,7 +601,7 @@ flags_from_decl_or_type (const_tree exp)
 	flags |= ECF_RETURNS_TWICE;
 
       /* Process the pure and const attributes.  */
-      if (TREE_READONLY (exp) && ! TREE_THIS_VOLATILE (exp))
+      if (TREE_READONLY (exp))
 	flags |= ECF_CONST;
       if (DECL_PURE_P (exp))
 	flags |= ECF_PURE;
@@ -610,17 +610,23 @@ flags_from_decl_or_type (const_tree exp)
 
       if (DECL_IS_NOVOPS (exp))
 	flags |= ECF_NOVOPS;
+      if (lookup_attribute ("leaf", DECL_ATTRIBUTES (exp)))
+	flags |= ECF_LEAF;
 
       if (TREE_NOTHROW (exp))
 	flags |= ECF_NOTHROW;
 
       flags = special_function_p (exp, flags);
     }
-  else if (TYPE_P (exp) && TYPE_READONLY (exp) && ! TREE_THIS_VOLATILE (exp))
+  else if (TYPE_P (exp) && TYPE_READONLY (exp))
     flags |= ECF_CONST;
 
   if (TREE_THIS_VOLATILE (exp))
-    flags |= ECF_NORETURN;
+    {
+      flags |= ECF_NORETURN;
+      if (flags & (ECF_CONST|ECF_PURE))
+	flags |= ECF_LOOPING_CONST_OR_PURE;
+    }
 
   return flags;
 }
@@ -715,7 +721,8 @@ precompute_register_parameters (int num_actuals, struct arg_data *args,
 		 && args[i].mode != BLKmode
 		 && rtx_cost (args[i].value, SET, optimize_insn_for_speed_p ())
 		    > COSTS_N_INSNS (1)
-		 && ((SMALL_REGISTER_CLASSES && *reg_parm_seen)
+		 && ((*reg_parm_seen
+		      && targetm.small_register_classes_for_mode_p (args[i].mode))
 		     || optimize))
 	  args[i].value = copy_to_mode_reg (args[i].mode, args[i].value);
       }
@@ -903,7 +910,7 @@ store_unaligned_arguments_into_pseudos (struct arg_data *args, int num_actuals)
 }
 
 /* Fill in ARGS_SIZE and ARGS array based on the parameters found in
-   CALL_EXPR EXP.  
+   CALL_EXPR EXP.
 
    NUM_ACTUALS is the total number of parameters.
 
@@ -1014,11 +1021,12 @@ initialize_argument_information (int num_actuals ATTRIBUTE_UNUSED,
       if (type == error_mark_node || !COMPLETE_TYPE_P (type))
 	args[i].tree_value = integer_zero_node, type = integer_type_node;
 
-      /* If TYPE is a transparent union, pass things the way we would
-	 pass the first field of the union.  We have already verified that
-	 the modes are the same.  */
-      if (TREE_CODE (type) == UNION_TYPE && TYPE_TRANSPARENT_UNION (type))
-	type = TREE_TYPE (TYPE_FIELDS (type));
+      /* If TYPE is a transparent union or record, pass things the way
+	 we would pass the first field of the union or record.  We have
+	 already verified that the modes are the same.  */
+      if ((TREE_CODE (type) == UNION_TYPE || TREE_CODE (type) == RECORD_TYPE)
+	   && TYPE_TRANSPARENT_AGGR (type))
+	type = TREE_TYPE (first_field (type));
 
       /* Decide where to pass this arg.
 
@@ -1089,9 +1097,13 @@ initialize_argument_information (int num_actuals ATTRIBUTE_UNUSED,
 		      pending_stack_adjust = 0;
 		    }
 
+		  /* We can pass TRUE as the 4th argument because we just
+		     saved the stack pointer and will restore it right after
+		     the call.  */
 		  copy = gen_rtx_MEM (BLKmode,
 				      allocate_dynamic_stack_space
-				      (size_rtx, NULL_RTX, TYPE_ALIGN (type)));
+				      (size_rtx, NULL_RTX,
+				       TYPE_ALIGN (type), TRUE));
 		  set_mem_attributes (copy, type, 1);
 		}
 	      else
@@ -1125,17 +1137,18 @@ initialize_argument_information (int num_actuals ATTRIBUTE_UNUSED,
       args[i].unsignedp = unsignedp;
       args[i].mode = mode;
 
-      args[i].reg = FUNCTION_ARG (*args_so_far, mode, type,
-				  argpos < n_named_args);
-#ifdef FUNCTION_INCOMING_ARG
+      args[i].reg = targetm.calls.function_arg (args_so_far, mode, type,
+						argpos < n_named_args);
+
       /* If this is a sibling call and the machine has register windows, the
 	 register window has to be unwinded before calling the routine, so
 	 arguments have to go into the incoming registers.  */
-      args[i].tail_call_reg = FUNCTION_INCOMING_ARG (*args_so_far, mode, type,
-						     argpos < n_named_args);
-#else
-      args[i].tail_call_reg = args[i].reg;
-#endif
+      if (targetm.calls.function_incoming_arg != targetm.calls.function_arg)
+	args[i].tail_call_reg
+	  = targetm.calls.function_incoming_arg (args_so_far, mode, type,
+						 argpos < n_named_args);
+      else
+	args[i].tail_call_reg = args[i].reg;
 
       if (args[i].reg)
 	args[i].partial
@@ -1190,8 +1203,8 @@ initialize_argument_information (int num_actuals ATTRIBUTE_UNUSED,
       /* Increment ARGS_SO_FAR, which has info about which arg-registers
 	 have been used, etc.  */
 
-      FUNCTION_ARG_ADVANCE (*args_so_far, TYPE_MODE (type), type,
-			    argpos < n_named_args);
+      targetm.calls.function_arg_advance (args_so_far, TYPE_MODE (type),
+					  type, argpos < n_named_args);
     }
 }
 
@@ -1343,7 +1356,7 @@ precompute_arguments (int num_actuals, struct arg_data *args)
    compute and return the final value for MUST_PREALLOCATE.  */
 
 static int
-finalize_must_preallocate (int must_preallocate, int num_actuals, 
+finalize_must_preallocate (int must_preallocate, int num_actuals,
 			   struct arg_data *args, struct args_size *args_size)
 {
   /* See if we have or want to preallocate stack space.
@@ -1669,10 +1682,12 @@ load_register_parameters (struct arg_data *args, int num_actuals,
 	    {
 	      rtx mem = validize_mem (args[i].value);
 
-	      /* Check for overlap with already clobbered argument area.  */
+	      /* Check for overlap with already clobbered argument area,
+	         providing that this has non-zero size.  */
 	      if (is_sibcall
-		  && mem_overlaps_already_clobbered_arg_p (XEXP (args[i].value, 0),
-							   size))
+		  && (size == 0
+		      || mem_overlaps_already_clobbered_arg_p 
+					   (XEXP (args[i].value, 0), size)))
 		*sibcall_failure = 1;
 
 	      /* Handle a BLKmode that needs shifting.  */
@@ -1887,7 +1902,7 @@ avoid_likely_spilled_reg (rtx x)
 
   if (REG_P (x)
       && HARD_REGISTER_P (x)
-      && CLASS_LIKELY_SPILLED_P (REGNO_REG_CLASS (REGNO (x))))
+      && targetm.class_likely_spilled_p (REGNO_REG_CLASS (REGNO (x))))
     {
       /* Make sure that we generate a REG rather than a CONCAT.
 	 Moves into CONCATs can need nontrivial instructions,
@@ -2092,7 +2107,7 @@ expand_call (tree exp, rtx target, int ignore)
   /* Set up a place to return a structure.  */
 
   /* Cater to broken compilers.  */
-  if (aggregate_value_p (exp, (!fndecl ? fntype : fndecl)))
+  if (aggregate_value_p (exp, fntype))
     {
       /* This call returns a big structure.  */
       flags &= ~(ECF_CONST | ECF_PURE | ECF_LOOPING_CONST_OR_PURE);
@@ -2324,10 +2339,10 @@ expand_call (tree exp, rtx target, int ignore)
 			       - crtl->args.pretend_args_size)
       /* If the callee pops its own arguments, then it must pop exactly
 	 the same number of arguments as the current function.  */
-      || (RETURN_POPS_ARGS (fndecl, funtype, args_size.constant)
-	  != RETURN_POPS_ARGS (current_function_decl,
-			       TREE_TYPE (current_function_decl),
-			       crtl->args.size))
+      || (targetm.calls.return_pops_args (fndecl, funtype, args_size.constant)
+	  != targetm.calls.return_pops_args (current_function_decl,
+					     TREE_TYPE (current_function_decl),
+					     crtl->args.size))
       || !lang_hooks.decls.ok_for_sibcall (fndecl))
     try_tail_call = 0;
 
@@ -2483,6 +2498,8 @@ expand_call (tree exp, rtx target, int ignore)
 	      stack_arg_under_construction = 0;
 	    }
 	  argblock = push_block (ARGS_SIZE_RTX (adjusted_args_size), 0, 0);
+	  if (flag_stack_usage)
+	    current_function_has_unbounded_dynamic_stack_size = 1;
 	}
       else
 	{
@@ -2644,8 +2661,11 @@ expand_call (tree exp, rtx target, int ignore)
 		  stack_usage_map = stack_usage_map_buf;
 		  highest_outgoing_arg_in_use = 0;
 		}
+	      /* We can pass TRUE as the 4th argument because we just
+		 saved the stack pointer and will restore it right after
+		 the call.  */
 	      allocate_dynamic_stack_space (push_size, NULL_RTX,
-					    BITS_PER_UNIT);
+					    BITS_PER_UNIT, TRUE);
 	    }
 
 	  /* If argument evaluation might modify the stack pointer,
@@ -2684,6 +2704,19 @@ expand_call (tree exp, rtx target, int ignore)
       /* Now that the stack is properly aligned, pops can't safely
 	 be deferred during the evaluation of the arguments.  */
       NO_DEFER_POP;
+
+      /* Record the maximum pushed stack space size.  We need to delay
+	 doing it this far to take into account the optimization done
+	 by combine_pending_stack_adjustment_and_call.  */
+      if (flag_stack_usage
+	  && !ACCUMULATE_OUTGOING_ARGS
+	  && pass
+	  && adjusted_args_size.var == 0)
+	{
+	  int pushed = adjusted_args_size.constant + pending_stack_adjust;
+	  if (pushed > current_function_pushed_stack_size)
+	    current_function_pushed_stack_size = pushed;
+	}
 
       funexp = rtx_for_function_call (fndecl, addr);
 
@@ -2826,14 +2859,15 @@ expand_call (tree exp, rtx target, int ignore)
 
       /* Set up next argument register.  For sibling calls on machines
 	 with register windows this should be the incoming register.  */
-#ifdef FUNCTION_INCOMING_ARG
       if (pass == 0)
-	next_arg_reg = FUNCTION_INCOMING_ARG (args_so_far, VOIDmode,
-					      void_type_node, 1);
+	next_arg_reg = targetm.calls.function_incoming_arg (&args_so_far,
+							    VOIDmode,
+							    void_type_node,
+							    true);
       else
-#endif
-	next_arg_reg = FUNCTION_ARG (args_so_far, VOIDmode,
-				     void_type_node, 1);
+	next_arg_reg = targetm.calls.function_arg (&args_so_far,
+						   VOIDmode, void_type_node,
+						   true);
 
       /* All arguments and registers used for the call must be set up by
 	 now!  */
@@ -3420,7 +3454,8 @@ emit_library_call_value_1 (int retval, rtx orgfun, rtx value,
       argvec[count].mode = Pmode;
       argvec[count].partial = 0;
 
-      argvec[count].reg = FUNCTION_ARG (args_so_far, Pmode, NULL_TREE, 1);
+      argvec[count].reg = targetm.calls.function_arg (&args_so_far,
+						      Pmode, NULL_TREE, true);
       gcc_assert (targetm.calls.arg_partial_bytes (&args_so_far, Pmode,
 						   NULL_TREE, 1) == 0);
 
@@ -3436,7 +3471,7 @@ emit_library_call_value_1 (int retval, rtx orgfun, rtx value,
 	  || reg_parm_stack_space > 0)
 	args_size.constant += argvec[count].locate.size.constant;
 
-      FUNCTION_ARG_ADVANCE (args_so_far, Pmode, (tree) 0, 1);
+      targetm.calls.function_arg_advance (&args_so_far, Pmode, (tree) 0, true);
 
       count++;
     }
@@ -3495,7 +3530,8 @@ emit_library_call_value_1 (int retval, rtx orgfun, rtx value,
       argvec[count].value = val;
       argvec[count].mode = mode;
 
-      argvec[count].reg = FUNCTION_ARG (args_so_far, mode, NULL_TREE, 1);
+      argvec[count].reg = targetm.calls.function_arg (&args_so_far, mode,
+						      NULL_TREE, true);
 
       argvec[count].partial
 	= targetm.calls.arg_partial_bytes (&args_so_far, mode, NULL_TREE, 1);
@@ -3515,7 +3551,7 @@ emit_library_call_value_1 (int retval, rtx orgfun, rtx value,
 	  || reg_parm_stack_space > 0)
 	args_size.constant += argvec[count].locate.size.constant;
 
-      FUNCTION_ARG_ADVANCE (args_so_far, mode, (tree) 0, 1);
+      targetm.calls.function_arg_advance (&args_so_far, mode, (tree) 0, true);
     }
 
   /* If this machine requires an external definition for library
@@ -3538,6 +3574,13 @@ emit_library_call_value_1 (int retval, rtx orgfun, rtx value,
 
   if (args_size.constant > crtl->outgoing_args_size)
     crtl->outgoing_args_size = args_size.constant;
+
+  if (flag_stack_usage && !ACCUMULATE_OUTGOING_ARGS)
+    {
+      int pushed = args_size.constant + pending_stack_adjust;
+      if (pushed > current_function_pushed_stack_size)
+	current_function_pushed_stack_size = pushed;
+    }
 
   if (ACCUMULATE_OUTGOING_ARGS)
     {
@@ -3824,7 +3867,8 @@ emit_library_call_value_1 (int retval, rtx orgfun, rtx value,
 	       build_function_type (tfom, NULL_TREE),
 	       original_args_size.constant, args_size.constant,
 	       struct_value_size,
-	       FUNCTION_ARG (args_so_far, VOIDmode, void_type_node, 1),
+	       targetm.calls.function_arg (&args_so_far,
+					   VOIDmode, void_type_node, true),
 	       valreg,
 	       old_inhibit_defer_pop + 1, call_fusage, flags, & args_so_far);
 

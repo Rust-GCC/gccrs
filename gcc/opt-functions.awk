@@ -1,4 +1,5 @@
-#  Copyright (C) 2003, 2004, 2007, 2008 Free Software Foundation, Inc.
+#  Copyright (C) 2003, 2004, 2007, 2008, 2009, 2010
+#  Free Software Foundation, Inc.
 #  Contributed by Kelley Cook, June 2004.
 #  Original code from Neil Booth, May 2003.
 #
@@ -77,6 +78,10 @@ function switch_flags (flags)
 	result = result \
 	  test_flag("Common", flags, " | CL_COMMON") \
 	  test_flag("Target", flags, " | CL_TARGET") \
+	  test_flag("Driver", flags, " | CL_DRIVER") \
+	  test_flag("RejectDriver", flags, " | CL_REJECT_DRIVER") \
+	  test_flag("NoDriverArg", flags, " | CL_NO_DRIVER_ARG") \
+	  test_flag("SeparateAlias", flags, " | CL_SEPARATE_ALIAS") \
 	  test_flag("Save", flags, " | CL_SAVE") \
 	  test_flag("Joined", flags, " | CL_JOINED") \
 	  test_flag("JoinedOrMissing", flags, " | CL_JOINED | CL_MISSING_OK") \
@@ -110,12 +115,14 @@ function global_state_p(flags)
 # associated with it.
 function needs_state_p(flags)
 {
-	return flag_set_p("Target", flags)
+	return (flag_set_p("Target", flags) \
+		&& !flag_set_p("Alias.*", flags) \
+		&& !flag_set_p("Ignore", flags))
 }
 
-# If FLAGS describes an option that needs a static state variable,
-# return the name of that variable, otherwise return "".  NAME is
-# the name of the option.
+# If FLAGS describes an option that needs state without a public
+# variable name, return the name of that field, minus the initial
+# "x_", otherwise return "".  NAME is the name of the option.
 function static_var(name, flags)
 {
 	if (global_state_p(flags) || !needs_state_p(flags))
@@ -127,7 +134,7 @@ function static_var(name, flags)
 # Return the type of variable that should be associated with the given flags.
 function var_type(flags)
 {
-	if (!flag_set_p("Joined.*", flags))
+	if (!flag_set_p("Joined.*", flags) && !flag_set_p("Separate", flags))
 		return "int "
 	else if (flag_set_p("UInteger", flags))
 		return "int "
@@ -136,17 +143,17 @@ function var_type(flags)
 }
 
 # Return the type of variable that should be associated with the given flags
-# for use within a structure.  Simple variables are changed to unsigned char
+# for use within a structure.  Simple variables are changed to signed char
 # type instead of int to save space.
 function var_type_struct(flags)
 {
 	if (flag_set_p("UInteger", flags))
 		return "int "
-	else if (!flag_set_p("Joined.*", flags)) {
+	else if (!flag_set_p("Joined.*", flags) && !flag_set_p("Separate", flags)) {
 		if (flag_set_p(".*Mask.*", flags))
 			return "int "
 		else
-			return "unsigned char "
+			return "signed char "
 	}
 	else
 		return "const char *"
@@ -186,10 +193,25 @@ function var_ref(name, flags)
 {
 	name = var_name(flags) static_var(name, flags)
 	if (name != "")
-		return "&" name
+		return "offsetof (struct gcc_options, x_" name ")"
 	if (opt_args("Mask", flags) != "")
-		return "&target_flags"
+		return "offsetof (struct gcc_options, x_target_flags)"
 	if (opt_args("InverseMask", flags) != "")
-		return "&target_flags"
-	return "0"
+		return "offsetof (struct gcc_options, x_target_flags)"
+	return "-1"
+}
+
+# Given the option called NAME return a sanitized version of its name.
+function opt_sanitized_name(name)
+{
+	if (name == "gdwarf+")
+		name = "gdwarfplus"
+	gsub ("[^A-Za-z0-9]", "_", name)
+	return name
+}
+
+# Given the option called NAME return the appropriate enum for it.
+function opt_enum(name)
+{
+	return "OPT_" opt_sanitized_name(name)
 }

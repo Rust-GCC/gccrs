@@ -1,6 +1,6 @@
 /* Definitions of target machine GNU compiler.  IA-64 version.
    Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
-   2009 Free Software Foundation, Inc.
+   2009, 2010 Free Software Foundation, Inc.
    Contributed by James E. Wilson <wilson@cygnus.com> and
    		  David Mosberger <davidm@hpl.hp.com>.
 
@@ -52,6 +52,9 @@ do {						\
 #define CC1_SPEC "%(cc1_cpu) "
 
 #define ASM_EXTRA_SPEC ""
+
+#define SWITCH_TAKES_ARG(CHAR)						\
+  (DEFAULT_SWITCH_TAKES_ARG (CHAR) || (CHAR) == 'G')
 
 /* Variables which are this size or smaller are put in the sdata/sbss
    sections.  */
@@ -115,21 +118,6 @@ enum processor_type
 };
 
 extern enum processor_type ia64_tune;
-
-/* Sometimes certain combinations of command options do not make sense on a
-   particular target machine.  You can define a macro `OVERRIDE_OPTIONS' to
-   take account of this.  This macro, if defined, is executed once just after
-   all the command options have been parsed.  */
-
-#define OVERRIDE_OPTIONS ia64_override_options ()
-
-/* Some machines may desire to change what optimizations are performed for
-   various optimization levels.  This macro, if defined, is executed once just
-   after the optimization level is determined and before the remainder of the
-   command options have been parsed.  Values set in this macro are used as the
-   default values for the other command line options.  */
-
-/* #define OPTIMIZATION_OPTIONS(LEVEL,SIZE) */
 
 /* Driver configuration */
 
@@ -416,7 +404,7 @@ while (0)
   /* Branch registers.  */				\
   0, 0, 0, 0, 0, 0, 0, 0,				\
   /*FP CCV UNAT PFS LC EC */				\
-     1,  1,   1,  1, 0, 1				\
+     1,  1,   1,  1, 1, 1				\
  }
 
 /* Like `FIXED_REGISTERS' but has 1 for each register that is clobbered
@@ -451,7 +439,7 @@ while (0)
   /* Branch registers.  */				\
   1, 0, 0, 0, 0, 0, 1, 1,				\
   /*FP CCV UNAT PFS LC EC */				\
-     1,  1,   1,  1, 0, 1				\
+     1,  1,   1,  1, 1, 1				\
 }
 
 /* Like `CALL_USED_REGISTERS' but used to overcome a historical
@@ -650,7 +638,7 @@ while (0)
 #define HARD_REGNO_NREGS(REGNO, MODE)					\
   ((REGNO) == PR_REG (0) && (MODE) == DImode ? 64			\
    : PR_REGNO_P (REGNO) && (MODE) == BImode ? 2				\
-   : PR_REGNO_P (REGNO) && (MODE) == CCImode ? 1			\
+   : (PR_REGNO_P (REGNO) || GR_REGNO_P (REGNO)) && (MODE) == CCImode ? 1\
    : FR_REGNO_P (REGNO) && (MODE) == XFmode ? 1				\
    : FR_REGNO_P (REGNO) && (MODE) == RFmode ? 1				\
    : FR_REGNO_P (REGNO) && (MODE) == XCmode ? 2				\
@@ -668,7 +656,7 @@ while (0)
    : PR_REGNO_P (REGNO) ?					\
      (MODE) == BImode || GET_MODE_CLASS (MODE) == MODE_CC	\
    : GR_REGNO_P (REGNO) ?					\
-     (MODE) != CCImode && (MODE) != XFmode && (MODE) != XCmode && (MODE) != RFmode \
+     (MODE) != XFmode && (MODE) != XCmode && (MODE) != RFmode	\
    : AR_REGNO_P (REGNO) ? (MODE) == DImode			\
    : BR_REGNO_P (REGNO) ? (MODE) == DImode			\
    : 0)
@@ -1042,12 +1030,6 @@ enum reg_class
 
 #define ACCUMULATE_OUTGOING_ARGS 1
 
-/* A C expression that should indicate the number of bytes of its own arguments
-   that a function pops on returning, or 0 if the function pops no arguments
-   and the caller must therefore pop them all after the function returns.  */
-
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACK_SIZE) 0
-
 
 /* Function Arguments in Registers */
 
@@ -1146,31 +1128,6 @@ do {									\
 #define FUNCTION_ARG_REGNO_P(REGNO) \
 (((REGNO) >= AR_ARG_FIRST && (REGNO) < (AR_ARG_FIRST + MAX_ARGUMENT_SLOTS)) \
  || ((REGNO) >= FR_ARG_FIRST && (REGNO) < (FR_ARG_FIRST + MAX_ARGUMENT_SLOTS)))
-
-/* How Scalar Function Values are Returned */
-
-/* A C expression to create an RTX representing the place where a function
-   returns a value of data type VALTYPE.  */
-
-#define FUNCTION_VALUE(VALTYPE, FUNC) \
-  ia64_function_value (VALTYPE, FUNC)
-
-/* A C expression to create an RTX representing the place where a library
-   function returns a value of mode MODE.  */
-
-#define LIBCALL_VALUE(MODE) \
-  gen_rtx_REG (MODE,							\
-	       (((GET_MODE_CLASS (MODE) == MODE_FLOAT			\
-		 || GET_MODE_CLASS (MODE) == MODE_COMPLEX_FLOAT) &&	\
-		      (MODE) != TFmode)	\
-		? FR_RET_FIRST : GR_RET_FIRST))
-
-/* A C expression that is nonzero if REGNO is the number of a hard register in
-   which the values of called function may come back.  */
-
-#define FUNCTION_VALUE_REGNO_P(REGNO)				\
-  (((REGNO) >= GR_RET_FIRST && (REGNO) <= GR_RET_LAST)		\
-   || ((REGNO) >= FR_RET_FIRST && (REGNO) <= FR_RET_LAST))
 
 
 /* How Large Values are Returned */
@@ -1335,17 +1292,6 @@ do {									\
 
 /* Describing Relative Costs of Operations */
 
-/* A C expression for the cost of moving data from a register in class FROM to
-   one in class TO, using MODE.  */
-
-#define REGISTER_MOVE_COST  ia64_register_move_cost
-
-/* A C expression for the cost of moving data of mode M between a
-   register and memory.  */
-#define MEMORY_MOVE_COST(MODE,CLASS,IN) \
-  ((CLASS) == GENERAL_REGS || (CLASS) == FR_REGS || (CLASS) == FP_REGS \
-   || (CLASS) == GR_AND_FR_REGS ? 4 : 10)
-
 /* A C expression for the cost of a branch instruction.  A value of 1 is the
    default; other values are interpreted relative to that.  Used by the
    if-conversion code as max instruction count.  */
@@ -1405,7 +1351,7 @@ do {									\
 /* Define this macro if the register defined by `PIC_OFFSET_TABLE_REGNUM' is
    clobbered by calls.  */
 
-#define PIC_OFFSET_TABLE_REG_CALL_CLOBBERED
+#define PIC_OFFSET_TABLE_REG_CALL_CLOBBERED 1
 
 
 /* The Overall Framework of an Assembler File.  */
@@ -1785,12 +1731,6 @@ do {									\
 
 #define DWARF2_DEBUGGING_INFO 1
 
-/* We do not want call-frame info to be output, since debuggers are
-   supposed to use the target unwind info.  Leave this undefined it
-   TARGET_UNWIND_INFO might ever be false.  */
-
-#define DWARF2_FRAME_INFO 0
-
 #define DWARF2_ASM_LINE_DEBUG_INFO (TARGET_DWARF2_ASM)
 
 /* Use tags for debug info labels, so that they don't break instruction
@@ -1903,8 +1843,6 @@ do {									\
 
 extern int ia64_final_schedule;
 
-#define TARGET_UNWIND_INFO	1
-
 #define TARGET_UNWIND_TABLES_DEFAULT true
 
 #define EH_RETURN_DATA_REGNO(N) ((N) < 4 ? (N) + 15 : INVALID_REGNUM)
@@ -1942,9 +1880,5 @@ struct GTY(()) machine_function
 
 /* Switch on code for querying unit reservations.  */
 #define CPU_UNITS_QUERY 1
-
-/* Define this to change the optimizations performed by default.  */
-#define OPTIMIZATION_OPTIONS(LEVEL, SIZE) \
-  ia64_optimization_options ((LEVEL), (SIZE))
 
 /* End of ia64.h */

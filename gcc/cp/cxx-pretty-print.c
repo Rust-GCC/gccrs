@@ -1,6 +1,6 @@
 /* Implementation of subroutines for the GNU C++ pretty-printer.
    Copyright (C) 2003, 2004, 2005, 2007, 2008,
-   2009 Free Software Foundation, Inc.
+   2009, 2010 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
@@ -23,10 +23,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "real.h"
 #include "intl.h"
-#include "cxx-pretty-print.h"
 #include "cp-tree.h"
+#include "cxx-pretty-print.h"
+#include "tree-pretty-print.h"
 #include "toplev.h"
 
 /* Translate if being used for diagnostics, but not for dump files or
@@ -203,7 +203,8 @@ pp_cxx_unqualified_id (cxx_pretty_printer *pp, tree t)
       if (CLASS_TYPE_P (t) && CLASSTYPE_USE_TEMPLATE (t))
 	{
 	  pp_cxx_begin_template_argument_list (pp);
-	  pp_cxx_template_argument_list (pp, CLASSTYPE_TI_ARGS (t));
+	  pp_cxx_template_argument_list (pp, INNERMOST_TEMPLATE_ARGS
+                                                 (CLASSTYPE_TI_ARGS (t)));
 	  pp_cxx_end_template_argument_list (pp);
 	}
       break;
@@ -259,7 +260,7 @@ pp_cxx_template_keyword_if_needed (cxx_pretty_printer *pp, tree scope, tree t)
 static void
 pp_cxx_nested_name_specifier (cxx_pretty_printer *pp, tree t)
 {
-  if (t != NULL && t != pp->enclosing_scope)
+  if (!SCOPE_FILE_SCOPE_P (t) && t != pp->enclosing_scope)
     {
       tree scope = TYPE_P (t) ? TYPE_CONTEXT (t) : DECL_CONTEXT (t);
       pp_cxx_nested_name_specifier (pp, scope);
@@ -337,6 +338,14 @@ pp_cxx_constant (cxx_pretty_printer *pp, tree t)
 	  pp_cxx_right_paren (pp);
       }
       break;
+
+    case INTEGER_CST:
+      if (NULLPTR_TYPE_P (TREE_TYPE (t)))
+	{
+	  pp_string (pp, "nullptr");
+	  break;
+	}
+      /* else fall through.  */
 
     default:
       pp_c_constant (pp_c_base (pp), t);
@@ -782,6 +791,14 @@ pp_cxx_unary_expression (cxx_pretty_printer *pp, tree t)
 	pp_unary_expression (pp, TREE_OPERAND (t, 0));
       break;
 
+    case NOEXCEPT_EXPR:
+      pp_cxx_ws_string (pp, "noexcept");
+      pp_cxx_whitespace (pp);
+      pp_cxx_left_paren (pp);
+      pp_cxx_expression (pp, TREE_OPERAND (t, 0));
+      pp_cxx_right_paren (pp);
+      break;
+
     case UNARY_PLUS_EXPR:
       pp_plus (pp);
       pp_cxx_cast_expression (pp, TREE_OPERAND (t, 0));
@@ -1052,6 +1069,7 @@ pp_cxx_expression (cxx_pretty_printer *pp, tree t)
 
     case SIZEOF_EXPR:
     case ALIGNOF_EXPR:
+    case NOEXCEPT_EXPR:
       pp_cxx_unary_expression (pp, t);
       break;
 
@@ -1090,6 +1108,10 @@ pp_cxx_expression (cxx_pretty_printer *pp, tree t)
     case EXPR_PACK_EXPANSION:
       pp_cxx_expression (pp, PACK_EXPANSION_PATTERN (t));
       pp_cxx_ws_string (pp, "...");
+      break;
+
+    case TEMPLATE_ID_EXPR:
+      pp_cxx_template_id (pp, t);
       break;
 
     case NONTYPE_ARGUMENT_PACK:
@@ -1163,16 +1185,6 @@ pp_cxx_decl_specifier_seq (cxx_pretty_printer *pp, tree t)
     case TYPE_DECL:
       pp_cxx_ws_string (pp, "typedef");
       pp_cxx_decl_specifier_seq (pp, TREE_TYPE (t));
-      break;
-
-    case RECORD_TYPE:
-      if (TYPE_PTRMEMFUNC_P (t))
-	{
-	  tree pfm = TYPE_PTRMEMFUNC_FN_TYPE (t);
-	  pp_cxx_decl_specifier_seq (pp, TREE_TYPE (TREE_TYPE (pfm)));
-	  pp_cxx_whitespace (pp);
-	  pp_cxx_ptr_operator (pp, t);
-	}
       break;
 
     case FUNCTION_DECL:
@@ -1269,6 +1281,17 @@ pp_cxx_type_specifier_seq (cxx_pretty_printer *pp, tree t)
       pp_cxx_expression (pp, DECLTYPE_TYPE_EXPR (t));
       pp_cxx_right_paren (pp);
       break;
+
+    case RECORD_TYPE:
+      if (TYPE_PTRMEMFUNC_P (t))
+	{
+	  tree pfm = TYPE_PTRMEMFUNC_FN_TYPE (t);
+	  pp_cxx_decl_specifier_seq (pp, TREE_TYPE (TREE_TYPE (pfm)));
+	  pp_cxx_whitespace (pp);
+	  pp_cxx_ptr_operator (pp, t);
+	  break;
+	}
+      /* else fall through */
 
     default:
       if (!(TREE_CODE (t) == FUNCTION_DECL && DECL_CONSTRUCTOR_P (t)))
@@ -1404,8 +1427,17 @@ pp_cxx_exception_specification (cxx_pretty_printer *pp, tree t)
   tree ex_spec = TYPE_RAISES_EXCEPTIONS (t);
   bool need_comma = false;
 
-  if (!TYPE_NOTHROW_P (t) && ex_spec == NULL)
+  if (ex_spec == NULL)
     return;
+  if (TREE_PURPOSE (ex_spec))
+    {
+      pp_cxx_ws_string (pp, "noexcept");
+      pp_cxx_whitespace (pp);
+      pp_cxx_left_paren (pp);
+      pp_cxx_expression (pp, TREE_PURPOSE (ex_spec));
+      pp_cxx_right_paren (pp);
+      return;
+    }
   pp_cxx_ws_string (pp, "throw");
   pp_cxx_left_paren (pp);
   for (; ex_spec && TREE_VALUE (ex_spec); ex_spec = TREE_CHAIN (ex_spec))
@@ -1882,6 +1914,23 @@ pp_cxx_statement (cxx_pretty_printer *pp, tree t)
       pp_cxx_whitespace (pp);
       if (FOR_EXPR (t))
 	pp_cxx_expression (pp, FOR_EXPR (t));
+      pp_cxx_right_paren (pp);
+      pp_newline_and_indent (pp, 3);
+      pp_cxx_statement (pp, FOR_BODY (t));
+      pp_indentation (pp) -= 3;
+      pp_needs_newline (pp) = true;
+      break;
+
+    case RANGE_FOR_STMT:
+      pp_cxx_ws_string (pp, "for");
+      pp_space (pp);
+      pp_cxx_left_paren (pp);
+      pp_cxx_statement (pp, RANGE_FOR_DECL (t));
+      pp_space (pp);
+      pp_needs_newline (pp) = false;
+      pp_colon (pp);
+      pp_space (pp);
+      pp_cxx_statement (pp, RANGE_FOR_EXPR (t));
       pp_cxx_right_paren (pp);
       pp_newline_and_indent (pp, 3);
       pp_cxx_statement (pp, FOR_BODY (t));

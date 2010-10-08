@@ -1,5 +1,5 @@
 /* Code sinking for trees
-   Copyright (C) 2001, 2002, 2003, 2004, 2007, 2008, 2009
+   Copyright (C) 2001, 2002, 2003, 2004, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dan@dberlin.org>
 
@@ -23,10 +23,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "ggc.h"
 #include "tree.h"
 #include "basic-block.h"
-#include "diagnostic.h"
+#include "gimple-pretty-print.h"
 #include "tree-inline.h"
 #include "tree-flow.h"
 #include "gimple.h"
@@ -35,7 +34,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "fibheap.h"
 #include "hashtab.h"
 #include "tree-iterator.h"
-#include "real.h"
 #include "alloc-pool.h"
 #include "tree-pass.h"
 #include "flags.h"
@@ -53,7 +51,7 @@ along with GCC; see the file COPYING3.  If not see
    else
      y = *q;
 
-   
+
    should become
    sinktemp = p;
    p = p + 1;
@@ -65,16 +63,16 @@ along with GCC; see the file COPYING3.  If not see
      y = *q
    }
    Store copy propagation will take care of the store elimination above.
-     
+
 
    2. Sinking using Partial Dead Code Elimination.  */
 
 
 static struct
-{  
+{
   /* The number of statements sunk down the flowgraph by code sinking.  */
   int sunk;
-  
+
 } sink_stats;
 
 
@@ -192,8 +190,12 @@ is_hidden_global_store (gimple stmt)
 	    return true;
 
 	}
-      else if (INDIRECT_REF_P (lhs))
+      else if (INDIRECT_REF_P (lhs)
+	       || TREE_CODE (lhs) == MEM_REF
+	       || TREE_CODE (lhs) == TARGET_MEM_REF)
 	return ptr_deref_may_alias_global_p (TREE_OPERAND (lhs, 0));
+      else if (CONSTANT_CLASS_P (lhs))
+	return true;
       else
 	gcc_unreachable ();
     }
@@ -205,7 +207,7 @@ is_hidden_global_store (gimple stmt)
 
 static basic_block
 nearest_common_dominator_of_uses (gimple stmt, bool *debug_stmts)
-{  
+{
   bitmap blocks = BITMAP_ALLOC (NULL);
   basic_block commondom;
   unsigned int j;
@@ -250,13 +252,13 @@ nearest_common_dominator_of_uses (gimple stmt, bool *debug_stmts)
     }
   commondom = BASIC_BLOCK (bitmap_first_set_bit (blocks));
   EXECUTE_IF_SET_IN_BITMAP (blocks, 0, j, bi)
-    commondom = nearest_common_dominator (CDI_DOMINATORS, commondom, 
+    commondom = nearest_common_dominator (CDI_DOMINATORS, commondom,
 					  BASIC_BLOCK (j));
   BITMAP_FREE (blocks);
   return commondom;
 }
 
-/* Given a statement (STMT) and the basic block it is currently in (FROMBB), 
+/* Given a statement (STMT) and the basic block it is currently in (FROMBB),
    determine the location to sink the statement to, if any.
    Returns true if there is such location; in that case, TOGSI points to the
    statement before that STMT should be moved.  */
@@ -273,7 +275,6 @@ statement_sink_location (gimple stmt, basic_block frombb,
   def_operand_p def_p;
   ssa_op_iter iter;
   imm_use_iterator imm_iter;
-  enum tree_code code;
 
   FOR_EACH_SSA_TREE_OPERAND (def, stmt, iter, SSA_OP_ALL_DEFS)
     {
@@ -297,19 +298,19 @@ statement_sink_location (gimple stmt, basic_block frombb,
 
   /* There are a few classes of things we can't or don't move, some because we
      don't have code to handle it, some because it's not profitable and some
-     because it's not legal. 
-  
+     because it's not legal.
+
      We can't sink things that may be global stores, at least not without
      calculating a lot more information, because we may cause it to no longer
      be seen by an external routine that needs it depending on where it gets
-     moved to.  
-      
+     moved to.
+
      We don't want to sink loads from memory.
 
      We can't sink statements that end basic blocks without splitting the
      incoming edge for the sink location to place it there.
 
-     We can't sink statements that have volatile operands.  
+     We can't sink statements that have volatile operands.
 
      We don't want to sink dead code, so anything with 0 immediate uses is not
      sunk.
@@ -320,7 +321,6 @@ statement_sink_location (gimple stmt, basic_block frombb,
      to use specific hard registers.
 
   */
-  code = gimple_assign_rhs_code (stmt);
   if (stmt_ends_bb_p (stmt)
       || gimple_has_side_effects (stmt)
       || is_hidden_global_store (stmt)
@@ -329,7 +329,7 @@ statement_sink_location (gimple stmt, basic_block frombb,
       || (cfun->has_local_explicit_reg_vars
 	  && TYPE_MODE (TREE_TYPE (gimple_assign_lhs (stmt))) == BLKmode))
     return false;
-  
+
   FOR_EACH_SSA_DEF_OPERAND (def_p, stmt, iter, SSA_OP_ALL_DEFS)
     {
       tree def = DEF_FROM_PTR (def_p);
@@ -337,14 +337,14 @@ statement_sink_location (gimple stmt, basic_block frombb,
 	  || SSA_NAME_OCCURS_IN_ABNORMAL_PHI (def))
 	return false;
     }
-    
+
   FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_ALL_USES)
     {
       tree use = USE_FROM_PTR (use_p);
       if (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (use))
 	return false;
     }
-  
+
   /* If all the immediate uses are not in the same place, find the nearest
      common dominator of all the immediate uses.  For PHI nodes, we have to
      find the nearest common dominator of all of the predecessor blocks, since
@@ -354,16 +354,16 @@ statement_sink_location (gimple stmt, basic_block frombb,
       bool debug_stmts = false;
       basic_block commondom = nearest_common_dominator_of_uses (stmt,
 								&debug_stmts);
-     
+
       if (commondom == frombb)
 	return false;
 
       /* Our common dominator has to be dominated by frombb in order to be a
 	 trivially safe place to put this statement, since it has multiple
-	 uses.  */     
+	 uses.  */
       if (!dominated_by_p (CDI_DOMINATORS, commondom, frombb))
 	return false;
-      
+
       /* It doesn't make sense to move to a dominator that post-dominates
 	 frombb, because it means we've just moved it into a path that always
 	 executes if frombb executes, instead of reducing the number of
@@ -417,16 +417,22 @@ statement_sink_location (gimple stmt, basic_block frombb,
 
   /* This will happen when you have
      a_3 = PHI <a_13, a_26>
-       
-     a_26 = VDEF <a_3> 
 
-     If the use is a phi, and is in the same bb as the def, 
+     a_26 = VDEF <a_3>
+
+     If the use is a phi, and is in the same bb as the def,
      we can't sink it.  */
 
   if (gimple_bb (use) == frombb)
     return false;
   if (sinkbb == frombb || sinkbb->loop_depth > frombb->loop_depth
       || sinkbb->loop_father != frombb->loop_father)
+    return false;
+
+  /* If the latch block is empty, don't make it non-empty by sinking
+     something into it.  */
+  if (sinkbb == frombb->loop_father->latch
+      && empty_block_p (sinkbb))
     return false;
 
   /* Move the expression to a post dominator can't reduce the number of
@@ -449,7 +455,7 @@ sink_code_in_bb (basic_block bb)
   edge_iterator ei;
   edge e;
   bool last = true;
-  
+
   /* If this block doesn't dominate anything, there can't be any place to sink
      the statements to.  */
   if (first_dom_son (CDI_DOMINATORS, bb) == NULL)
@@ -462,7 +468,7 @@ sink_code_in_bb (basic_block bb)
 
   for (gsi = gsi_last_bb (bb); !gsi_end_p (gsi);)
     {
-      gimple stmt = gsi_stmt (gsi);	
+      gimple stmt = gsi_stmt (gsi);
       gimple_stmt_iterator togsi;
 
       if (!statement_sink_location (stmt, bb, &togsi))
@@ -471,7 +477,7 @@ sink_code_in_bb (basic_block bb)
 	    gsi_prev (&gsi);
 	  last = false;
 	  continue;
-	}      
+	}
       if (dump_file)
 	{
 	  fprintf (dump_file, "Sinking ");
@@ -479,7 +485,7 @@ sink_code_in_bb (basic_block bb)
 	  fprintf (dump_file, " from bb %d to bb %d\n",
 		   bb->index, (gsi_bb (togsi))->index);
 	}
-      
+
       /* If this is the end of the basic block, we need to insert at the end
          of the basic block.  */
       if (gsi_end_p (togsi))
@@ -503,7 +509,7 @@ sink_code_in_bb (basic_block bb)
       last = false;
       if (!gsi_end_p (gsi))
 	gsi_prev (&gsi);
-      
+
     }
  earlyout:
   for (son = first_dom_son (CDI_POST_DOMINATORS, bb);
@@ -512,7 +518,7 @@ sink_code_in_bb (basic_block bb)
     {
       sink_code_in_bb (son);
     }
-}  
+}
 
 /* Perform code sinking.
    This moves code down the flowgraph when we know it would be
@@ -520,7 +526,7 @@ sink_code_in_bb (basic_block bb)
    executions of the statement.
 
    IE given
-   
+
    a_1 = b + c;
    if (<something>)
    {
@@ -559,7 +565,7 @@ execute_sink_code (void)
   memset (&sink_stats, 0, sizeof (sink_stats));
   calculate_dominance_info (CDI_DOMINATORS);
   calculate_dominance_info (CDI_POST_DOMINATORS);
-  sink_code_in_bb (EXIT_BLOCK_PTR); 
+  sink_code_in_bb (EXIT_BLOCK_PTR);
   statistics_counter_event (cfun, "Sunk statements", sink_stats.sunk);
   free_dominance_info (CDI_POST_DOMINATORS);
   remove_fake_exit_edges ();
@@ -597,7 +603,7 @@ struct gimple_opt_pass pass_sink_code =
   0,					/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_update_ssa 
+  TODO_update_ssa
     | TODO_dump_func
     | TODO_ggc_collect
     | TODO_verify_ssa			/* todo_flags_finish */

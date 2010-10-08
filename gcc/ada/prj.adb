@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,9 +23,6 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Ada.Characters.Handling; use Ada.Characters.Handling;
-with Ada.Unchecked_Deallocation;
-
 with Debug;
 with Osint;    use Osint;
 with Output;   use Output;
@@ -34,10 +31,12 @@ with Prj.Err;  use Prj.Err;
 with Snames;   use Snames;
 with Uintp;    use Uintp;
 
-with GNAT.Directory_Operations; use GNAT.Directory_Operations;
+with Ada.Characters.Handling;    use Ada.Characters.Handling;
+with Ada.Unchecked_Deallocation;
 
-with System.Case_Util; use System.Case_Util;
-with System.HTable;
+with GNAT.Case_Util;            use GNAT.Case_Util;
+with GNAT.Directory_Operations; use GNAT.Directory_Operations;
+with GNAT.HTable;
 
 package body Prj is
 
@@ -48,8 +47,6 @@ package body Prj is
    --  Initial size for extensible buffer used in Add_To_Buffer
 
    The_Empty_String : Name_Id := No_Name;
-
-   subtype Known_Casing is Casing_Type range All_Upper_Case .. Mixed_Case;
 
    type Cst_String_Access is access constant String;
 
@@ -86,8 +83,6 @@ package body Prj is
                       Libgnarl_Needed                => Unknown,
                       Symbol_Data                    => No_Symbols,
                       Interfaces_Defined             => False,
-                      Include_Path                   => null,
-                      Include_Data_Set               => False,
                       Source_Dirs                    => Nil_String,
                       Source_Dir_Ranks               => No_Number_List,
                       Object_Directory               => No_Path_Information,
@@ -98,18 +93,18 @@ package body Prj is
                       Languages                      => No_Language_Index,
                       Decl                           => No_Declarations,
                       Imported_Projects              => null,
+                      Include_Path_File              => No_Path,
                       All_Imported_Projects          => null,
                       Ada_Include_Path               => null,
-                      Imported_Directories_Switches  => null,
                       Ada_Objects_Path               => null,
                       Objects_Path                   => null,
-                      Include_Path_File              => No_Path,
                       Objects_Path_File_With_Libs    => No_Path,
                       Objects_Path_File_Without_Libs => No_Path,
                       Config_File_Name               => No_Path,
                       Config_File_Temp               => False,
                       Config_Checked                 => False,
                       Need_To_Build_Lib              => False,
+                      Has_Multi_Unit_Sources         => False,
                       Depth                          => 0,
                       Unkept_Comments                => False);
 
@@ -252,16 +247,10 @@ package body Prj is
             return No_File;
 
          when Makefile =>
-            return
-              File_Name_Type
-                (Extend_Name
-                   (Source_File_Name, Makefile_Dependency_Suffix));
+            return Extend_Name (Source_File_Name, Makefile_Dependency_Suffix);
 
          when ALI_File =>
-            return
-              File_Name_Type
-                (Extend_Name
-                   (Source_File_Name, ALI_Dependency_Suffix));
+            return Extend_Name (Source_File_Name, ALI_Dependency_Suffix);
       end case;
    end Dependency_Name;
 
@@ -570,7 +559,7 @@ package body Prj is
    -- Hash --
    ----------
 
-   function Hash is new System.HTable.Hash (Header_Num => Header_Num);
+   function Hash is new GNAT.HTable.Hash (Header_Num => Header_Num);
    --  Used in implementation of other functions Hash below
 
    function Hash (Name : File_Name_Type) return Header_Num is
@@ -682,6 +671,39 @@ package body Prj is
       end if;
    end Object_Name;
 
+   function Object_Name
+     (Source_File_Name   : File_Name_Type;
+      Source_Index       : Int;
+      Index_Separator    : Character;
+      Object_File_Suffix : Name_Id := No_Name) return File_Name_Type
+   is
+      Index_Img : constant String := Source_Index'Img;
+      Last      : Natural;
+
+   begin
+      Get_Name_String (Source_File_Name);
+
+      Last := Name_Len;
+      while Last > 1 and then Name_Buffer (Last) /= '.' loop
+         Last := Last - 1;
+      end loop;
+
+      if Last > 1 then
+         Name_Len := Last - 1;
+      end if;
+
+      Add_Char_To_Name_Buffer (Index_Separator);
+      Add_Str_To_Name_Buffer (Index_Img (2 .. Index_Img'Last));
+
+      if Object_File_Suffix = No_Name then
+         Add_Str_To_Name_Buffer (Object_Suffix);
+      else
+         Add_Str_To_Name_Buffer (Get_Name_String (Object_File_Suffix));
+      end if;
+
+      return Name_Find;
+   end Object_Name;
+
    ----------------------
    -- Record_Temp_File --
    ----------------------
@@ -704,7 +726,6 @@ package body Prj is
 
    begin
       if Project /= null then
-         Free (Project.Include_Path);
          Free (Project.Ada_Include_Path);
          Free (Project.Objects_Path);
          Free (Project.Ada_Objects_Path);
@@ -994,11 +1015,11 @@ package body Prj is
 
          if Project.Library then
             if Project.Object_Directory = No_Path_Information
-              or else Contains_ALI_Files (Project.Library_ALI_Dir.Name)
+              or else Contains_ALI_Files (Project.Library_ALI_Dir.Display_Name)
             then
-               return Project.Library_ALI_Dir.Name;
+               return Project.Library_ALI_Dir.Display_Name;
             else
-               return Project.Object_Directory.Name;
+               return Project.Object_Directory.Display_Name;
             end if;
 
             --  For a non-library project, add object directory if it is not a
@@ -1024,7 +1045,7 @@ package body Prj is
                end loop;
 
                if Add_Object_Dir then
-                  return Project.Object_Directory.Name;
+                  return Project.Object_Directory.Display_Name;
                end if;
             end;
          end if;
@@ -1055,7 +1076,8 @@ package body Prj is
    -- Compute_All_Imported_Projects --
    -----------------------------------
 
-   procedure Compute_All_Imported_Projects (Project : Project_Id) is
+   procedure Compute_All_Imported_Projects (Tree : Project_Tree_Ref) is
+      Project : Project_Id;
 
       procedure Recursive_Add (Prj : Project_Id; Dummy : in out Boolean);
       --  Recursively add the projects imported by project Project, but not
@@ -1103,10 +1125,16 @@ package body Prj is
         new For_Every_Project_Imported (Boolean, Recursive_Add);
 
       Dummy : Boolean := False;
+      List  : Project_List;
 
    begin
-      Free_List (Project.All_Imported_Projects, Free_Project => False);
-      For_All_Projects (Project, Dummy);
+      List := Tree.Projects;
+      while List /= null loop
+         Project := List.Project;
+         Free_List (Project.All_Imported_Projects, Free_Project => False);
+         For_All_Projects (Project, Dummy);
+         List := List.Next;
+      end loop;
    end Compute_All_Imported_Projects;
 
    -------------------
@@ -1117,7 +1145,10 @@ package body Prj is
    begin
       return Source.Language.Config.Compiler_Driver /= No_File
         and then Length_Of_Name (Source.Language.Config.Compiler_Driver) /= 0
-        and then not Source.Locally_Removed;
+        and then not Source.Locally_Removed
+        and then (Source.Language.Config.Kind /= File_Based
+                    or else
+                  Source.Kind /= Spec);
    end Is_Compilable;
 
    ------------------------------
@@ -1189,11 +1220,13 @@ package body Prj is
    function Create_Flags
      (Report_Error               : Error_Handler;
       When_No_Sources            : Error_Warning;
-      Require_Sources_Other_Lang : Boolean := True;
-      Allow_Duplicate_Basenames  : Boolean := True;
-      Compiler_Driver_Mandatory  : Boolean := False;
-      Error_On_Unknown_Language  : Boolean := True;
-      Require_Obj_Dirs           : Error_Warning := Error)
+      Require_Sources_Other_Lang : Boolean       := True;
+      Allow_Duplicate_Basenames  : Boolean       := True;
+      Compiler_Driver_Mandatory  : Boolean       := False;
+      Error_On_Unknown_Language  : Boolean       := True;
+      Require_Obj_Dirs           : Error_Warning := Error;
+      Allow_Invalid_External     : Error_Warning := Error;
+      Missing_Source_Files       : Error_Warning := Error)
       return Processing_Flags
    is
    begin
@@ -1204,8 +1237,31 @@ package body Prj is
          Allow_Duplicate_Basenames  => Allow_Duplicate_Basenames,
          Error_On_Unknown_Language  => Error_On_Unknown_Language,
          Compiler_Driver_Mandatory  => Compiler_Driver_Mandatory,
-         Require_Obj_Dirs           => Require_Obj_Dirs);
+         Require_Obj_Dirs           => Require_Obj_Dirs,
+         Allow_Invalid_External     => Allow_Invalid_External,
+         Missing_Source_Files       => Missing_Source_Files);
    end Create_Flags;
+
+   ------------
+   -- Length --
+   ------------
+
+   function Length
+     (Table : Name_List_Table.Instance;
+      List  : Name_List_Index) return Natural
+   is
+      Count : Natural := 0;
+      Tmp   : Name_List_Index;
+
+   begin
+      Tmp := List;
+      while Tmp /= No_Name_List loop
+         Count := Count + 1;
+         Tmp := Table.Table (Tmp).Next;
+      end loop;
+
+      return Count;
+   end Length;
 
 begin
    --  Make sure that the standard config and user project file extensions are

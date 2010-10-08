@@ -87,12 +87,13 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
   classes from the table - and the difficult thing with lock-free data
   structures is freeing data when is removed from the structures.  */
 
-#include "objc/runtime.h"            /* the kitchen sink */
-#include "objc/sarray.h"
-
+#include "objc-private/common.h"
+#include "objc-private/error.h"
 #include "objc/objc.h"
 #include "objc/objc-api.h"
 #include "objc/thr.h"
+#include "objc-private/runtime.h"            /* the kitchen sink */
+#include <string.h> /* For memset */
 
 /* We use a table which maps a class name to the corresponding class
  * pointer.  The first part of this file defines this table, and
@@ -501,8 +502,9 @@ objc_get_class (const char *name)
   if (class)
     return class;
   
-  objc_error (nil, OBJC_ERR_BAD_CLASS, 
-              "objc runtime: cannot find class %s\n", name);
+  /* FIXME: Should we abort the program here ?  */
+  _objc_abort ("objc runtime: cannot find class %s\n", name);
+
   return 0;
 }
 

@@ -1,7 +1,7 @@
 // -*- C++ -*-
 // Exception testing utils for the C++ library testsuite. 
 //
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -103,6 +103,14 @@ namespace __gnu_test
   operator<(const NonDefaultConstructible&, const NonDefaultConstructible&)
   { return false; }
 
+  // For 23 unordered_* requirements.
+  struct NonDefaultConstructible_hash
+  {
+    std::size_t
+    operator()(NonDefaultConstructible) const
+    { return 1; }
+  };
+
   // For 26 numeric algorithms requirements, need addable,
   // subtractable, multiplicable.
   inline NonDefaultConstructible
@@ -142,5 +150,48 @@ namespace __gnu_test
       { return result_type(2); }
     };
 
+  // For std::addressof, etc.
+  struct OverloadedAddressAux { };
+  
+  struct OverloadedAddress
+  {
+    OverloadedAddressAux
+    operator&() const { return OverloadedAddressAux(); }
+  };
+
+  inline bool
+  operator<(const OverloadedAddress&, const OverloadedAddress&)
+  { return false; }
+
+  inline bool
+  operator==(const OverloadedAddress&, const OverloadedAddress&)
+  { return false; }
+
+  struct OverloadedAddress_hash
+  {
+    std::size_t
+    operator()(const OverloadedAddress&) const
+    { return 1; }
+  };
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  struct NonCopyConstructible
+  {
+    NonCopyConstructible() : num(-1) { }
+
+    NonCopyConstructible(NonCopyConstructible&& other)
+    : num(other.num)
+    { other.num = 0; }
+
+    NonCopyConstructible(const NonCopyConstructible&) = delete;
+
+    operator int() { return num; }
+
+  private:
+    int num;
+  };
+#endif
+
 }
+
 #endif

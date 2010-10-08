@@ -217,6 +217,7 @@ if [[ "${shared}" = "yes" ]]; then
 			  * ) PICFLAG=-fPIC ;;
 			esac ;;
     s390*-*-*)		PICFLAG=-fpic ;;
+    sh*-*-*)		PICFLAG=-fPIC ;;
   esac
 fi
 AC_SUBST(PICFLAG)
@@ -362,16 +363,23 @@ checkfuncs="$checkfuncs getsysinfo table sysctl wait3 wait4 __fsetlocking"
 # These are neither executed nor required, but they help keep
 # autoheader happy without adding a bunch of text to acconfig.h.
 if test "x" = "y"; then
-  AC_CHECK_FUNCS(asprintf atexit basename bcmp bcopy bsearch bzero calloc clock \
-  getcwd getpagesize gettimeofday index insque mkstemps memchr memcmp memcpy \
-  memmem memmove mempcpy memset putenv random rename rindex sigsetmask \
-  strcasecmp setenv stpcpy stpncpy strchr strdup strncasecmp strndup strrchr strstr \
-  strtod strtol strtoul strverscmp tmpnam vasprintf vfprintf vprintf \
-  vsprintf waitpid getrusage on_exit psignal strerror strsignal \
-  sysconf times sbrk gettimeofday ffs snprintf vsnprintf \
-  pstat_getstatic pstat_getdynamic sysmp getsysinfo table sysctl wait3 wait4 \
-  realpath canonicalize_file_name __fsetlocking)
-  AC_CHECK_DECLS([basename, ffs, asprintf, vasprintf, snprintf, vsnprintf])
+  AC_CHECK_FUNCS(asprintf atexit \
+    basename bcmp bcopy bsearch bzero \
+    calloc canonicalize_file_name clock \
+    ffs __fsetlocking \
+    getcwd getpagesize getrusage getsysinfo gettimeofday \
+    index insque \
+    memchr memcmp memcpy memmem memmove memset mkstemps \
+    on_exit \
+    psignal pstat_getdynamic pstat_getstatic putenv \
+    random realpath rename rindex \
+    sbrk setenv sigsetmask snprintf stpcpy stpncpy strcasecmp strchr strdup \
+     strerror strncasecmp strndup strrchr strsignal strstr strtod strtol \
+     strtoul strverscmp sysconf sysctl sysmp \
+    table times tmpnam \
+    vasprintf vfprintf vprintf vsprintf \
+    wait3 wait4 waitpid)
+  AC_CHECK_DECLS([basename(char *), ffs, asprintf, vasprintf, snprintf, vsnprintf])
   AC_DEFINE(HAVE_SYS_ERRLIST, 1, [Define if you have the sys_errlist variable.])
   AC_DEFINE(HAVE_SYS_NERR,    1, [Define if you have the sys_nerr variable.])
   AC_DEFINE(HAVE_SYS_SIGLIST, 1, [Define if you have the sys_siglist variable.])
@@ -655,7 +663,7 @@ if test -z "${setobjs}"; then
     [AC_MSG_RESULT([no])])
 
   AC_CHECK_FUNCS($checkfuncs)
-  AC_CHECK_DECLS([basename, ffs, asprintf, vasprintf, snprintf, vsnprintf])
+  AC_CHECK_DECLS([basename(char *), ffs, asprintf, vasprintf, snprintf, vsnprintf])
   AC_CHECK_DECLS([calloc, getenv, getopt, malloc, realloc, sbrk])
   AC_CHECK_DECLS([strverscmp])
   libiberty_NEED_DECLARATION(canonicalize_file_name)
@@ -663,10 +671,10 @@ fi
 
 # Figure out which version of pexecute to use.
 case "${host}" in
-     *-*-mingw* | *-*-winnt*)	pexecute=./pex-win32.o  ;;
-     *-*-msdosdjgpp*)		pexecute=./pex-djgpp.o  ;;
-     *-*-msdos*)		pexecute=./pex-msdos.o  ;;
-     *)				pexecute=./pex-unix.o   ;;
+     *-*-mingw* | *-*-winnt*)	pexecute=pex-win32  ;;
+     *-*-msdosdjgpp*)		pexecute=pex-djgpp  ;;
+     *-*-msdos*)		pexecute=pex-msdos  ;;
+     *)				pexecute=pex-unix   ;;
 esac
 AC_SUBST(pexecute)
 

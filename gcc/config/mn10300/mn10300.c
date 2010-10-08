@@ -1,6 +1,6 @@
 /* Subroutines for insn-output.c for Matsushita MN10300 series
    Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Jeff Law (law@cygnus.com).
 
 This file is part of GCC.
@@ -27,7 +27,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "output.h"
@@ -39,6 +38,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "optabs.h"
 #include "function.h"
 #include "obstack.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "tm_p.h"
 #include "target.h"
@@ -69,6 +69,7 @@ enum processor_type mn10300_processor = PROCESSOR_DEFAULT;
 
 
 static bool mn10300_handle_option (size_t, const char *, int);
+static void mn10300_option_override (void);
 static bool mn10300_legitimate_address_p (enum machine_mode, rtx, bool);
 static int mn10300_address_cost_1 (rtx, int *);
 static int mn10300_address_cost (rtx, bool);
@@ -88,8 +89,13 @@ static void mn10300_asm_trampoline_template (FILE *);
 static void mn10300_trampoline_init (rtx, tree, rtx);
 static rtx mn10300_function_value (const_tree, const_tree, bool);
 static rtx mn10300_libcall_value (enum machine_mode, const_rtx);
+static void mn10300_asm_output_mi_thunk (FILE *, tree, HOST_WIDE_INT, HOST_WIDE_INT, tree);
+static bool mn10300_can_output_mi_thunk (const_tree, HOST_WIDE_INT, HOST_WIDE_INT, const_tree);
 
 /* Initialize the GCC target structure.  */
+#undef  TARGET_EXCEPT_UNWIND_INFO
+#define TARGET_EXCEPT_UNWIND_INFO sjlj_except_unwind_info
+
 #undef TARGET_ASM_ALIGNED_HI_OP
 #define TARGET_ASM_ALIGNED_HI_OP "\t.hword\t"
 
@@ -110,6 +116,8 @@ static rtx mn10300_libcall_value (enum machine_mode, const_rtx);
 #define TARGET_DEFAULT_TARGET_FLAGS MASK_MULT_BUG | MASK_PTR_A0D0
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION mn10300_handle_option
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE mn10300_option_override
 
 #undef  TARGET_ENCODE_SECTION_INFO
 #define TARGET_ENCODE_SECTION_INFO mn10300_encode_section_info
@@ -146,6 +154,11 @@ static rtx mn10300_libcall_value (enum machine_mode, const_rtx);
 #undef TARGET_LIBCALL_VALUE
 #define TARGET_LIBCALL_VALUE mn10300_libcall_value
 
+#undef  TARGET_ASM_OUTPUT_MI_THUNK
+#define TARGET_ASM_OUTPUT_MI_THUNK      mn10300_asm_output_mi_thunk
+#undef  TARGET_ASM_CAN_OUTPUT_MI_THUNK
+#define TARGET_ASM_CAN_OUTPUT_MI_THUNK  mn10300_can_output_mi_thunk
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 /* Implement TARGET_HANDLE_OPTION.  */
@@ -170,13 +183,19 @@ mn10300_handle_option (size_t code,
     }
 }
 
-/* Implement OVERRIDE_OPTIONS.  */
+/* Implement TARGET_OPTION_OVERRIDE.  */
 
-void
-mn10300_override_options (void)
+static void
+mn10300_option_override (void)
 {
   if (TARGET_AM33)
     target_flags &= ~MASK_MULT_BUG;
+
+  /* FIXME: The combine stack adjustments pass is breaking
+     cc0-setter/cc0-user relationship by inserting a jump
+     instruction.  This should be investigated, but for now
+     just disable the pass.  */
+  flag_combine_stack_adjustments = 0;
 }
 
 static void
@@ -651,6 +670,13 @@ mn10300_get_live_callee_saved_regs (void)
   return mask;
 }
 
+static rtx
+F (rtx r)
+{
+  RTX_FRAME_RELATED_P (r) = 1;
+  return r;
+}
+
 /* Generate an instruction that pushes several registers onto the stack.
    Register K will be saved if bit K in MASK is set.  The function does
    nothing if MASK is zero.
@@ -692,11 +718,11 @@ mn10300_gen_multiple_store (int mask)
 
       /* Create the instruction that updates the stack pointer.  */
       XVECEXP (par, 0, 0)
-	= gen_rtx_SET (SImode,
-		       stack_pointer_rtx,
-		       gen_rtx_PLUS (SImode,
-				     stack_pointer_rtx,
-				     GEN_INT (-count * 4)));
+	= F (gen_rtx_SET (SImode,
+			  stack_pointer_rtx,
+			  gen_rtx_PLUS (SImode,
+					stack_pointer_rtx,
+					GEN_INT (-count * 4))));
 
       /* Create each store.  */
       pari = 1;
@@ -707,14 +733,13 @@ mn10300_gen_multiple_store (int mask)
 					stack_pointer_rtx,
 					GEN_INT (-pari * 4));
 	    XVECEXP(par, 0, pari)
-	      = gen_rtx_SET (VOIDmode,
-			     gen_rtx_MEM (SImode, address),
-			     gen_rtx_REG (SImode, i));
+	      = F (gen_rtx_SET (VOIDmode,
+				gen_rtx_MEM (SImode, address),
+				gen_rtx_REG (SImode, i)));
 	    pari += 1;
 	  }
 
-      par = emit_insn (par);
-      RTX_FRAME_RELATED_P (par) = 1;
+      F (emit_insn (par));
     }
 }
 
@@ -741,7 +766,6 @@ expand_prologue (void)
 	     save_a0_no_merge } strategy;
       unsigned int strategy_size = (unsigned)-1, this_strategy_size;
       rtx reg;
-      rtx insn;
 
       /* We have several different strategies to save FP registers.
 	 We can store them using SP offsets, which is beneficial if
@@ -881,25 +905,25 @@ expand_prologue (void)
 	{
 	case save_sp_no_merge:
 	case save_a0_no_merge:
-	  emit_insn (gen_addsi3 (stack_pointer_rtx,
-				 stack_pointer_rtx,
-				 GEN_INT (-4 * num_regs_to_save)));
+	  F (emit_insn (gen_addsi3 (stack_pointer_rtx,
+				    stack_pointer_rtx,
+				    GEN_INT (-4 * num_regs_to_save))));
 	  xsize = 0;
 	  break;
 
 	case save_sp_partial_merge:
-	  emit_insn (gen_addsi3 (stack_pointer_rtx,
-				 stack_pointer_rtx,
-				 GEN_INT (-128)));
+	  F (emit_insn (gen_addsi3 (stack_pointer_rtx,
+				    stack_pointer_rtx,
+				    GEN_INT (-128))));
 	  xsize = 128 - 4 * num_regs_to_save;
 	  size -= xsize;
 	  break;
 
 	case save_sp_merge:
 	case save_a0_merge:
-	  emit_insn (gen_addsi3 (stack_pointer_rtx,
-				 stack_pointer_rtx,
-				 GEN_INT (-(size + 4 * num_regs_to_save))));
+	  F (emit_insn (gen_addsi3 (stack_pointer_rtx,
+				    stack_pointer_rtx,
+				    GEN_INT (-(size + 4 * num_regs_to_save)))));
 	  /* We'll have to adjust FP register saves according to the
 	     frame size.  */
 	  xsize = size;
@@ -924,9 +948,9 @@ expand_prologue (void)
 	case save_a0_merge:
 	case save_a0_no_merge:
 	  reg = gen_rtx_REG (SImode, FIRST_ADDRESS_REGNUM);
-	  emit_insn (gen_movsi (reg, stack_pointer_rtx));
+	  F (emit_insn (gen_movsi (reg, stack_pointer_rtx)));
 	  if (xsize)
-	    emit_insn (gen_addsi3 (reg, reg, GEN_INT (xsize)));
+	    F (emit_insn (gen_addsi3 (reg, reg, GEN_INT (xsize))));
 	  reg = gen_rtx_POST_INC (SImode, reg);
 	  break;
 
@@ -957,22 +981,21 @@ expand_prologue (void)
 		xsize += 4;
 	      }
 
-	    insn = emit_insn (gen_movsi (gen_rtx_MEM (SImode, addr),
-					 gen_rtx_REG (SImode, i)));
-
-	    RTX_FRAME_RELATED_P (insn) = 1;
+	    F (emit_insn (gen_movsf (gen_rtx_MEM (SFmode, addr),
+				     gen_rtx_REG (SFmode, i))));
 	  }
     }
 
   /* Now put the frame pointer into the frame pointer register.  */
   if (frame_pointer_needed)
-    emit_move_insn (frame_pointer_rtx, stack_pointer_rtx);
+    F (emit_move_insn (frame_pointer_rtx, stack_pointer_rtx));
 
   /* Allocate stack for this frame.  */
   if (size)
-    emit_insn (gen_addsi3 (stack_pointer_rtx,
-			   stack_pointer_rtx,
-			   GEN_INT (-size)));
+    F (emit_insn (gen_addsi3 (stack_pointer_rtx,
+			      stack_pointer_rtx,
+			      GEN_INT (-size))));
+
   if (flag_pic && df_regs_ever_live_p (PIC_OFFSET_TABLE_REGNUM))
     emit_insn (gen_GOTaddr2picreg ());
 }
@@ -1159,8 +1182,8 @@ expand_epilogue (void)
 
 	    size += 4;
 
-	    emit_insn (gen_movsi (gen_rtx_REG (SImode, i),
-				  gen_rtx_MEM (SImode, addr)));
+	    emit_insn (gen_movsf (gen_rtx_REG (SFmode, i),
+				  gen_rtx_MEM (SFmode, addr)));
 	  }
 
       /* If we were using the restore_a1 strategy and the number of
@@ -1251,8 +1274,8 @@ notice_update_cc (rtx body, rtx insn)
       /* The insn is a compare instruction.  */
       CC_STATUS_INIT;
       cc_status.value1 = SET_SRC (body);
-      if (GET_CODE (cc_status.value1) == COMPARE
-	  && GET_MODE (XEXP (cc_status.value1, 0)) == SFmode)
+      if (GET_CODE (SET_SRC (body)) == COMPARE
+	  && GET_MODE (XEXP (SET_SRC (body), 0)) == SFmode)
 	cc_status.mdep.fpCC = 1;
       break;
 
@@ -1486,9 +1509,7 @@ mn10300_builtin_saveregs (void)
 {
   rtx offset, mem;
   tree fntype = TREE_TYPE (current_function_decl);
-  int argadj = ((!(TYPE_ARG_TYPES (fntype) != 0
-                   && (TREE_VALUE (tree_last (TYPE_ARG_TYPES (fntype)))
-                       != void_type_node)))
+  int argadj = ((!stdarg_p (fntype))
                 ? UNITS_PER_WORD : 0);
   alias_set_type set = get_varargs_alias_set ();
 
@@ -1536,13 +1557,13 @@ mn10300_pass_by_reference (CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED,
 }
 
 /* Return an RTX to represent where a value with mode MODE will be returned
-   from a function.  If the result is 0, the argument is pushed.  */
+   from a function.  If the result is NULL_RTX, the argument is pushed.  */
 
 rtx
 function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
 	      tree type, int named ATTRIBUTE_UNUSED)
 {
-  rtx result = 0;
+  rtx result = NULL_RTX;
   int size, align;
 
   /* We only support using 2 data registers as argument registers.  */
@@ -1562,24 +1583,24 @@ function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
   /* Don't pass this arg via a register if all the argument registers
      are used up.  */
   if (cum->nbytes > nregs * UNITS_PER_WORD)
-    return 0;
+    return result;
 
   /* Don't pass this arg via a register if it would be split between
      registers and memory.  */
   if (type == NULL_TREE
       && cum->nbytes + size > nregs * UNITS_PER_WORD)
-    return 0;
+    return result;
 
   switch (cum->nbytes / UNITS_PER_WORD)
     {
     case 0:
-      result = gen_rtx_REG (mode, 0);
+      result = gen_rtx_REG (mode, FIRST_ARGUMENT_REGNUM);
       break;
     case 1:
-      result = gen_rtx_REG (mode, 1);
+      result = gen_rtx_REG (mode, FIRST_ARGUMENT_REGNUM + 1);
       break;
     default:
-      result = 0;
+      break;
     }
 
   return result;
@@ -2130,7 +2151,7 @@ mn10300_rtx_costs (rtx x, int code, int outer_code, int *total, bool speed ATTRI
 bool
 mn10300_wide_const_load_uses_clr (rtx operands[2])
 {
-  long val[2];
+  long val[2] = {0, 0};
 
   if (GET_CODE (operands[0]) != REG
       || REGNO_REG_CLASS (REGNO (operands[0])) != DATA_REGS)
@@ -2230,4 +2251,62 @@ mn10300_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
   emit_move_insn (mem, chain_value);
   mem = adjust_address (m_tramp, SImode, 0x18);
   emit_move_insn (mem, fnaddr);
+}
+
+/* Output the assembler code for a C++ thunk function.
+   THUNK_DECL is the declaration for the thunk function itself, FUNCTION
+   is the decl for the target function.  DELTA is an immediate constant
+   offset to be added to the THIS parameter.  If VCALL_OFFSET is nonzero
+   the word at the adjusted address *(*THIS' + VCALL_OFFSET) should be
+   additionally added to THIS.  Finally jump to the entry point of
+   FUNCTION.  */
+
+static void
+mn10300_asm_output_mi_thunk (FILE *        file,
+			     tree          thunk_fndecl ATTRIBUTE_UNUSED,
+			     HOST_WIDE_INT delta,
+			     HOST_WIDE_INT vcall_offset,
+			     tree          function)
+{
+  const char * _this;
+
+  /* Get the register holding the THIS parameter.  Handle the case
+     where there is a hidden first argument for a returned structure.  */
+  if (aggregate_value_p (TREE_TYPE (TREE_TYPE (function)), function))
+    _this = reg_names [FIRST_ARGUMENT_REGNUM + 1];
+  else
+    _this = reg_names [FIRST_ARGUMENT_REGNUM];
+
+  fprintf (file, "\t%s Thunk Entry Point:\n", ASM_COMMENT_START);
+
+  if (delta)
+    fprintf (file, "\tadd %d, %s\n", (int) delta, _this);
+
+  if (vcall_offset)
+    {
+      const char * scratch = reg_names [FIRST_ADDRESS_REGNUM + 1];
+
+      fprintf (file, "\tmov %s, %s\n", _this, scratch);
+      fprintf (file, "\tmov (%s), %s\n", scratch, scratch);
+      fprintf (file, "\tadd %d, %s\n", (int) vcall_offset, scratch);
+      fprintf (file, "\tmov (%s), %s\n", scratch, scratch);
+      fprintf (file, "\tadd %s, %s\n", scratch, _this);
+    }
+
+  fputs ("\tjmp ", file);
+  assemble_name (file, XSTR (XEXP (DECL_RTL (function), 0), 0));
+  putc ('\n', file);
+}
+
+/* Return true if mn10300_output_mi_thunk would be able to output the
+   assembler code for the thunk function specified by the arguments
+   it is passed, and false otherwise.  */
+
+static bool
+mn10300_can_output_mi_thunk (const_tree    thunk_fndecl ATTRIBUTE_UNUSED,
+			     HOST_WIDE_INT delta        ATTRIBUTE_UNUSED,
+			     HOST_WIDE_INT vcall_offset ATTRIBUTE_UNUSED,
+			     const_tree    function     ATTRIBUTE_UNUSED)
+{
+  return true;
 }

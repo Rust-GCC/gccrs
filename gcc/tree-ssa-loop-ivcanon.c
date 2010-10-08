@@ -1,24 +1,25 @@
 /* Induction variable canonicalization.
-   Copyright (C) 2004, 2005, 2007, 2008 Free Software Foundation, Inc.
-   
+   Copyright (C) 2004, 2005, 2007, 2008, 2010
+   Free Software Foundation, Inc.
+
 This file is part of GCC.
-   
+
 GCC is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
 Free Software Foundation; either version 3, or (at your option) any
 later version.
-   
+
 GCC is distributed in the hope that it will be useful, but WITHOUT
 ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
-   
+
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* This pass detects the loops that iterate a constant number of times,
-   adds a canonical induction variable (step -1, tested against 0) 
+   adds a canonical induction variable (step -1, tested against 0)
    and replaces the exit test.  This enables the less powerful rtl
    level analysis to use this information.
 
@@ -37,17 +38,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "rtl.h"
 #include "tm_p.h"
-#include "hard-reg-set.h"
 #include "basic-block.h"
-#include "output.h"
-#include "diagnostic.h"
+#include "tree-pretty-print.h"
+#include "gimple-pretty-print.h"
 #include "tree-flow.h"
 #include "tree-dump.h"
 #include "cfgloop.h"
 #include "tree-pass.h"
-#include "ggc.h"
 #include "tree-chrec.h"
 #include "tree-scalar-evolution.h"
 #include "params.h"
@@ -155,7 +153,7 @@ constant_after_peeling (tree op, gimple stmt, struct loop *loop)
 
   if (is_gimple_min_invariant (op))
     return true;
-  
+
   /* We can still fold accesses to constant arrays when index is known.  */
   if (TREE_CODE (op) != SSA_NAME)
     {
@@ -164,12 +162,8 @@ constant_after_peeling (tree op, gimple stmt, struct loop *loop)
       /* First make fast look if we see constant array inside.  */
       while (handled_component_p (base))
 	base = TREE_OPERAND (base, 0);
-      if ((DECL_P (base)
-      	   && TREE_STATIC (base)
-	   && TREE_READONLY (base)
-           && (DECL_INITIAL (base)
-	       || (!DECL_EXTERNAL (base)
-		   && targetm.binds_local_p (base))))
+      if ((DECL_P (base) == VAR_DECL
+	   && const_value_known_p (base))
 	  || CONSTANT_CLASS_P (base))
 	{
 	  /* If so, see if we understand all the indices.  */
@@ -291,7 +285,7 @@ tree_estimate_loop_size (struct loop *loop, edge exit, struct loop_size *size)
     fprintf (dump_file, "size: %i-%i, last_iteration: %i-%i\n", size->overall,
     	     size->eliminated_by_peeling, size->last_iteration,
 	     size->last_iteration_eliminated_by_peeling);
-  
+
   free (body);
 }
 
@@ -323,7 +317,7 @@ estimated_unrolled_size (struct loop_size *size,
 }
 
 /* Tries to unroll LOOP completely, i.e. NITER times.
-   UL determines which loops we are allowed to unroll. 
+   UL determines which loops we are allowed to unroll.
    EXIT is the exit of the loop that should be eliminated.  */
 
 static bool
@@ -405,7 +399,7 @@ try_unroll_loop_completely (struct loop *loop,
 	  return false;
 	}
 
-      for (i = 0; VEC_iterate (edge, to_remove, i, e); i++)
+      FOR_EACH_VEC_ELT (edge, to_remove, i, e)
 	{
 	  bool ok = remove_path (e);
 	  gcc_assert (ok);
@@ -431,9 +425,9 @@ try_unroll_loop_completely (struct loop *loop,
 }
 
 /* Adds a canonical induction variable to LOOP if suitable.
-   CREATE_IV is true if we may create a new iv.  UL determines 
+   CREATE_IV is true if we may create a new iv.  UL determines
    which loops we are allowed to completely unroll.  If TRY_EVAL is true, we try
-   to determine the number of iterations of a loop by direct evaluation. 
+   to determine the number of iterations of a loop by direct evaluation.
    Returns true if cfg is changed.  */
 
 static bool
@@ -494,7 +488,7 @@ canonicalize_induction_variables (void)
   loop_iterator li;
   struct loop *loop;
   bool changed = false;
-  
+
   FOR_EACH_LOOP (li, loop, 0)
     {
       changed |= canonicalize_loop_induction_variables (loop,
@@ -522,6 +516,7 @@ tree_unroll_loops_completely (bool may_increase_size, bool unroll_outer)
   struct loop *loop;
   bool changed;
   enum unroll_level ul;
+  int iteration = 0;
 
   do
     {
@@ -554,7 +549,8 @@ tree_unroll_loops_completely (bool may_increase_size, bool unroll_outer)
 	  scev_reset ();
 	}
     }
-  while (changed);
+  while (changed
+	 && ++iteration <= PARAM_VALUE (PARAM_MAX_UNROLL_ITERATIONS));
 
   return 0;
 }

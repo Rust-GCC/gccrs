@@ -1,6 +1,6 @@
 // MT-optimized allocator -*- C++ -*-
 
-// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -154,11 +154,11 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 
     explicit 
     __pool_base() 
-    : _M_options(_Tune()), _M_binmap(NULL), _M_init(false) { }
+    : _M_options(_Tune()), _M_binmap(0), _M_init(false) { }
 
     explicit 
     __pool_base(const _Tune& __options)
-    : _M_options(__options), _M_binmap(NULL), _M_init(false) { }
+    : _M_options(__options), _M_binmap(0), _M_init(false) { }
 
   private:
     explicit 
@@ -235,10 +235,10 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       { }
 
       explicit __pool() 
-      : _M_bin(NULL), _M_bin_size(1) { }
+      : _M_bin(0), _M_bin_size(1) { }
 
       explicit __pool(const __pool_base::_Tune& __tune) 
-      : __pool_base(__tune), _M_bin(NULL), _M_bin_size(1) { }
+      : __pool_base(__tune), _M_bin(0), _M_bin_size(1) { }
 
     private:
       // An "array" of bin_records each of which represents a specific
@@ -358,12 +358,12 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       _M_get_thread_id();
 
       explicit __pool() 
-      : _M_bin(NULL), _M_bin_size(1), _M_thread_freelist(NULL) 
+      : _M_bin(0), _M_bin_size(1), _M_thread_freelist(0) 
       { }
 
       explicit __pool(const __pool_base::_Tune& __tune) 
-      : __pool_base(__tune), _M_bin(NULL), _M_bin_size(1), 
-      _M_thread_freelist(NULL) 
+      : __pool_base(__tune), _M_bin(0), _M_bin_size(1), 
+	_M_thread_freelist(0) 
       { }
 
     private:
@@ -576,11 +576,11 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 
       pointer
       address(reference __x) const
-      { return &__x; }
+      { return std::__addressof(__x); }
 
       const_pointer
       address(const_reference __x) const
-      { return &__x; }
+      { return std::__addressof(__x); }
 
       size_type
       max_size() const throw() 
@@ -612,9 +612,9 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
   /**
    *  @brief  This is a fixed size (power of 2) allocator which - when
    *  compiled with thread support - will maintain one freelist per
-   *  size per thread plus a "global" one. Steps are taken to limit
+   *  size per thread plus a @a global one. Steps are taken to limit
    *  the per thread freelist sizes (by returning excess back to
-   *  the "global" list).
+   *  the @a global list).
    *  @ingroup allocators
    *
    *  Further details:

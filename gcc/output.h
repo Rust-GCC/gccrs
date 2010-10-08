@@ -1,7 +1,8 @@
 /* Declarations for insn-output.c.  These functions are defined in recog.c,
    final.c, and varasm.c.
    Copyright (C) 1987, 1991, 1994, 1997, 1998, 1999, 2000, 2001, 2002,
-   2003, 2004, 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -76,6 +77,9 @@ extern rtx final_scan_insn (rtx, FILE *, int, int, int *);
 /* Replace a SUBREG with a REG or a MEM, based on the thing it is a
    subreg of.  */
 extern rtx alter_subreg (rtx *);
+
+/* Print an operand using machine-dependent assembler syntax.  */
+extern void output_operand (rtx, int);
 
 /* Report inconsistency between the assembler template and the operands.
    In an `asm', it's the user's fault; otherwise, the compiler's fault.  */
@@ -161,8 +165,8 @@ extern void merge_weak (tree, tree);
 /* Emit any pending weak declarations.  */
 extern void weak_finish (void);
 
-/* Emit any pending emutls declarations and initializations.  */
-extern void emutls_finish (void);
+/* Return the default TLS model for a given variable.  */
+extern enum tls_model decl_default_tls_model (const_tree);
 
 /* Decode an `asm' spec for a declaration as a register name.
    Return the register number, or -1 if nothing specified,
@@ -224,7 +228,7 @@ extern void assemble_string (const char *, int);
 extern void assemble_external_libcall (rtx);
 
 /* Assemble a label named NAME.  */
-extern void assemble_label (const char *);
+extern void assemble_label (FILE *, const char *);
 
 /* Output to FILE (an assembly file) a reference to NAME.  If NAME
    starts with a *, the rest of NAME is output verbatim.  Otherwise
@@ -472,10 +476,7 @@ enum section_category
 
   SECCAT_BSS,
   SECCAT_SBSS,
-  SECCAT_TBSS,
-
-  SECCAT_EMUTLS_VAR,
-  SECCAT_EMUTLS_TMPL
+  SECCAT_TBSS
 };
 
 /* Information that is provided by all instances of the section type.  */
@@ -588,6 +589,9 @@ extern bool unlikely_text_section_p (section *);
 extern void switch_to_section (section *);
 extern void output_section_asm_op (const void *);
 
+extern void default_asm_output_source_filename (FILE *, const char *);
+extern void output_file_directive (FILE *, const char *);
+
 extern unsigned int default_section_type_flags (tree, const char *, int);
 
 extern bool have_global_bss_p (void);
@@ -624,6 +628,8 @@ extern void default_globalize_decl_name (FILE *, tree);
 extern void default_emit_unwind_label (FILE *, tree, int, int);
 extern void default_emit_except_table_label (FILE *);
 extern void default_internal_label (FILE *, const char *, unsigned long);
+extern void default_asm_declare_constant_name (FILE *, const char *,
+					       const_tree, HOST_WIDE_INT);
 extern void default_file_start (void);
 extern void file_end_indicate_exec_stack (void);
 extern void file_end_indicate_split_stack (void);
@@ -633,6 +639,9 @@ extern void default_elf_asm_output_external (FILE *file, tree,
 extern int maybe_assemble_visibility (tree);
 
 extern int default_address_cost (rtx, bool);
+
+/* Output stack usage information.  */
+extern void output_stack_usage (void);
 
 /* dbxout helper functions */
 #if defined DBX_DEBUGGING_INFO || defined XCOFF_DEBUGGING_INFO

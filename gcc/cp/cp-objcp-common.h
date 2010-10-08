@@ -1,5 +1,6 @@
 /* Language hooks common to C++ and ObjC++ front ends.
-   Copyright (C) 2004, 2005, 2007, 2008, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2005, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Ziemowit Laski  <zlaski@apple.com>
 
 This file is part of GCC.
@@ -40,6 +41,10 @@ extern bool cp_function_decl_explicit_p (tree decl);
 #define LANG_HOOKS_FINISH cxx_finish
 #undef LANG_HOOKS_CLEAR_BINDING_STACK
 #define LANG_HOOKS_CLEAR_BINDING_STACK pop_everything
+#undef LANG_HOOKS_OPTION_LANG_MASK
+#define LANG_HOOKS_OPTION_LANG_MASK c_common_option_lang_mask
+#undef LANG_HOOKS_COMPLAIN_WRONG_LANG_P
+#define LANG_HOOKS_COMPLAIN_WRONG_LANG_P c_common_complain_wrong_lang_p
 #undef LANG_HOOKS_INIT_OPTIONS
 #define LANG_HOOKS_INIT_OPTIONS c_common_init_options
 #undef LANG_HOOKS_INITIALIZE_DIAGNOSTICS
@@ -48,8 +53,6 @@ extern bool cp_function_decl_explicit_p (tree decl);
 #define LANG_HOOKS_HANDLE_OPTION c_common_handle_option
 #undef LANG_HOOKS_HANDLE_FILENAME
 #define LANG_HOOKS_HANDLE_FILENAME c_common_handle_filename
-#undef LANG_HOOKS_MISSING_ARGUMENT
-#define LANG_HOOKS_MISSING_ARGUMENT c_common_missing_argument
 #undef LANG_HOOKS_POST_OPTIONS
 #define LANG_HOOKS_POST_OPTIONS c_common_post_options
 #undef LANG_HOOKS_GET_ALIAS_SET
@@ -104,8 +107,6 @@ extern bool cp_function_decl_explicit_p (tree decl);
 
 #undef LANG_HOOKS_CALLGRAPH_ANALYZE_EXPR
 #define LANG_HOOKS_CALLGRAPH_ANALYZE_EXPR cxx_callgraph_analyze_expr
-#undef LANG_HOOKS_CALLGRAPH_EMIT_ASSOCIATED_THUNKS
-#define LANG_HOOKS_CALLGRAPH_EMIT_ASSOCIATED_THUNKS emit_associated_thunks
 
 #undef LANG_HOOKS_MAKE_TYPE
 #define LANG_HOOKS_MAKE_TYPE cxx_make_type
@@ -144,5 +145,8 @@ extern bool cp_function_decl_explicit_p (tree decl);
 
 #undef LANG_HOOKS_EH_USE_CXA_END_CLEANUP
 #define LANG_HOOKS_EH_USE_CXA_END_CLEANUP true
+
+#undef LANG_HOOKS_EH_PROTECT_CLEANUP_ACTIONS
+#define LANG_HOOKS_EH_PROTECT_CLEANUP_ACTIONS cp_protect_cleanup_actions
 
 #endif /* GCC_CP_OBJCP_COMMON */

@@ -27,11 +27,11 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "jcf.h"
 #include "tree.h"
 #include "java-tree.h"
 #include "obstack.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 
 static void append_unicode_mangled_name (const char *, int);

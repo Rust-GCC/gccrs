@@ -1,6 +1,6 @@
 // Multimap implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -177,7 +177,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  The contents of @a x are a valid, but unspecified %multimap.
        */
       multimap(multimap&& __x)
-      : _M_t(std::forward<_Rep_type>(__x._M_t)) { }
+      : _M_t(std::move(__x._M_t)) { }
 
       /**
        *  @brief  Builds a %multimap from an initializer_list.
@@ -262,9 +262,10 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       multimap&
       operator=(multimap&& __x)
       {
+	// NB: DR 1204.
 	// NB: DR 675.
 	this->clear();
-	this->swap(__x); 
+	this->swap(__x);
 	return *this;
       }
 
@@ -452,7 +453,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  improve the performance of the insertion process.  A bad hint would
        *  cause no gains in efficiency.
        *
-       *  For more on "hinting," see:
+       *  For more on @a hinting, see:
        *  http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt07ch17.html
        *
        *  Insertion requires logarithmic time (if the hint is not taken).

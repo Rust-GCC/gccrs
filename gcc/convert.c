@@ -1,6 +1,6 @@
 /* Utility routines for data type conversion for GCC.
    Copyright (C) 1987, 1988, 1991, 1992, 1993, 1994, 1995, 1997, 1998,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -30,10 +30,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "flags.h"
 #include "convert.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "langhooks.h"
-#include "real.h"
-#include "fixed-value.h"
 
 /* Convert EXPR to some pointer or reference type TYPE.
    EXPR must be pointer, reference, integer, enumeral, or literal zero;
@@ -48,7 +47,8 @@ convert_to_pointer (tree type, tree expr)
 
   /* Propagate overflow to the NULL pointer.  */
   if (integer_zerop (expr))
-    return force_fit_type_double (type, 0, 0, 0, TREE_OVERFLOW (expr));
+    return force_fit_type_double (type, double_int_zero, 0,
+				  TREE_OVERFLOW (expr));
 
   switch (TREE_CODE (TREE_TYPE (expr)))
     {
@@ -434,7 +434,7 @@ convert_to_integer (tree type, tree expr)
       tree s_intype = TREE_TYPE (s_expr);
       const enum built_in_function fcode = builtin_mathfn_code (s_expr);
       tree fn = 0;
-      
+
       switch (fcode)
         {
 	CASE_FLT_FN (BUILT_IN_CEIL):
@@ -494,7 +494,7 @@ convert_to_integer (tree type, tree expr)
 	default:
 	  break;
 	}
-      
+
       if (fn)
         {
 	  tree newexpr = build_call_expr (fn, 1, CALL_EXPR_ARG (s_expr, 0));
@@ -515,7 +515,7 @@ convert_to_integer (tree type, tree expr)
       tree s_intype = TREE_TYPE (s_expr);
       const enum built_in_function fcode = builtin_mathfn_code (s_expr);
       tree fn = 0;
-       
+
       switch (fcode)
 	{
 	CASE_FLT_FN (BUILT_IN_LOGB):
@@ -673,6 +673,31 @@ convert_to_integer (tree type, tree expr)
 	    }
 	  break;
 
+	case TRUNC_DIV_EXPR:
+	  {
+	    tree arg0 = get_unwidened (TREE_OPERAND (expr, 0), type);
+	    tree arg1 = get_unwidened (TREE_OPERAND (expr, 1), type);
+
+	    /* Don't distribute unless the output precision is at least as big
+	       as the actual inputs and it has the same signedness.  */
+	    if (outprec >= TYPE_PRECISION (TREE_TYPE (arg0))
+		&& outprec >= TYPE_PRECISION (TREE_TYPE (arg1))
+		/* If signedness of arg0 and arg1 don't match,
+		   we can't necessarily find a type to compare them in.  */
+		&& (TYPE_UNSIGNED (TREE_TYPE (arg0))
+		    == TYPE_UNSIGNED (TREE_TYPE (arg1)))
+		/* Do not change the sign of the division.  */
+		&& (TYPE_UNSIGNED (TREE_TYPE (expr))
+		    == TYPE_UNSIGNED (TREE_TYPE (arg0)))
+		/* Either require unsigned division or a division by
+		   a constant that is not -1.  */
+		&& (TYPE_UNSIGNED (TREE_TYPE (arg0))
+		    || (TREE_CODE (arg1) == INTEGER_CST
+			&& !integer_all_onesp (arg1))))
+	      goto trunc1;
+	    break;
+	  }
+
 	case MAX_EXPR:
 	case MIN_EXPR:
 	case MULT_EXPR:
@@ -744,13 +769,19 @@ convert_to_integer (tree type, tree expr)
 			|| ex_form == LSHIFT_EXPR
 			/* If we have !flag_wrapv, and either ARG0 or
 			   ARG1 is of a signed type, we have to do
-			   PLUS_EXPR or MINUS_EXPR in an unsigned
-			   type.  Otherwise, we would introduce
+			   PLUS_EXPR, MINUS_EXPR or MULT_EXPR in an unsigned
+			   type in case the operation in outprec precision
+			   could overflow.  Otherwise, we would introduce
 			   signed-overflow undefinedness.  */
 			|| ((!TYPE_OVERFLOW_WRAPS (TREE_TYPE (arg0))
 			     || !TYPE_OVERFLOW_WRAPS (TREE_TYPE (arg1)))
+			    && ((TYPE_PRECISION (TREE_TYPE (arg0)) * 2u
+				 > outprec)
+				|| (TYPE_PRECISION (TREE_TYPE (arg1)) * 2u
+				    > outprec))
 			    && (ex_form == PLUS_EXPR
-				|| ex_form == MINUS_EXPR)))
+				|| ex_form == MINUS_EXPR
+				|| ex_form == MULT_EXPR)))
 		      typex = unsigned_type_for (typex);
 		    else
 		      typex = signed_type_for (typex);
@@ -768,14 +799,7 @@ convert_to_integer (tree type, tree expr)
 	  /* This is not correct for ABS_EXPR,
 	     since we must test the sign before truncation.  */
 	  {
-	    tree typex;
-
-	    /* Don't do unsigned arithmetic where signed was wanted,
-	       or vice versa.  */
-	    if (TYPE_UNSIGNED (TREE_TYPE (expr)))
-	      typex = unsigned_type_for (type);
-	    else
-	      typex = signed_type_for (type);
+	    tree typex = unsigned_type_for (type);
 	    return convert (type,
 			    fold_build1 (ex_form, typex,
 					 convert (typex,

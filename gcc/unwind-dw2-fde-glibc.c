@@ -33,7 +33,7 @@
 #include "tconfig.h"
 #include "tsystem.h"
 #ifndef inhibit_libc
-#include <link.h>
+#include <elf.h>		/* Get DT_CONFIG.  */
 #endif
 #include "coretypes.h"
 #include "tm.h"
@@ -58,6 +58,8 @@
 #endif
 
 #if defined(USE_PT_GNU_EH_FRAME)
+
+#include <link.h>
 
 #ifndef __RELOC_POINTER
 # define __RELOC_POINTER(ptr, base) ((ptr) + (base))
@@ -204,13 +206,13 @@ _Unwind_IteratePhdrCallback (struct dl_phdr_info *info, size_t size, void *ptr)
 		    }
 		  goto found;
 		}
-		  
+
 	      last_cache_entry = cache_entry;
 	      /* Exit early if we found an unused entry.  */
 	      if ((cache_entry->pc_low | cache_entry->pc_high) == 0)
 		break;
 	      if (cache_entry->link != NULL)
-		prev_cache_entry = cache_entry;		  
+		prev_cache_entry = cache_entry;
 	    }
 	}
       else
@@ -236,7 +238,7 @@ _Unwind_IteratePhdrCallback (struct dl_phdr_info *info, size_t size, void *ptr)
   if (size < offsetof (struct dl_phdr_info, dlpi_phnum)
 	     + sizeof (info->dlpi_phnum))
     return -1;
- 
+
   /* See if PC falls into one of the loaded segments.  Find the eh_frame
      segment at the same time.  */
   for (n = info->dlpi_phnum; --n >= 0; phdr++)
@@ -257,7 +259,7 @@ _Unwind_IteratePhdrCallback (struct dl_phdr_info *info, size_t size, void *ptr)
       else if (phdr->p_type == PT_DYNAMIC)
 	p_dynamic = phdr;
     }
-  
+
   if (!match)
     return 0;
 
@@ -397,7 +399,7 @@ _Unwind_IteratePhdrCallback (struct dl_phdr_info *info, size_t size, void *ptr)
     {
       _Unwind_Ptr func;
       unsigned int encoding = get_fde_encoding (data->ret);
-      
+
       read_encoded_value_with_base (encoding,
 				    base_from_cb_data (encoding, data),
 				    data->ret->pc_begin, &func);

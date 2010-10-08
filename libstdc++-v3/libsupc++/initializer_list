@@ -1,6 +1,6 @@
 // std::initializer_list support -*- C++ -*-
 
-// Copyright (C) 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -30,11 +30,13 @@
 #ifndef _INITIALIZER_LIST
 #define _INITIALIZER_LIST
 
+#pragma GCC system_header
+
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
 
 #pragma GCC visibility push(default)
 
-#include <cstddef>
+#include <bits/c++config.h>
 
 namespace std
 {
@@ -59,7 +61,7 @@ namespace std
       : _M_array(__a), _M_len(__l) { }
 
     public:
-      initializer_list() : _M_array(NULL), _M_len(0) { }
+      initializer_list() : _M_array(0), _M_len(0) { }
 
       // Number of elements.
       size_type
@@ -73,6 +75,26 @@ namespace std
       const_iterator
       end() const { return begin() + size(); }
   };
+
+  /**
+   *  @brief  Return an iterator pointing to the first element of
+   *          the initilizer_list.
+   *  @param  il  Initializer list.
+   */
+  template<class _Tp>
+    inline const _Tp*
+    begin(initializer_list<_Tp> __ils)
+    { return __ils.begin(); }
+
+  /**
+   *  @brief  Return an iterator pointing to one past the last element
+   *          of the initilizer_list.
+   *  @param  il  Initializer list.
+   */
+  template<class _Tp>
+    inline const _Tp*
+    end(initializer_list<_Tp> __ils)
+    { return __ils.end(); }
 }
 
 #pragma GCC visibility pop

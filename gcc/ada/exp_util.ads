@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -444,6 +444,11 @@ package Exp_Util is
    --  Determine whether a record type has anonymous access discriminants with
    --  a controlled designated type.
 
+   function Has_Following_Address_Clause (D : Node_Id) return Boolean;
+   --  D is the node for an object declaration. This function searches the
+   --  current declarative part to look for an address clause for the object
+   --  being declared, and returns True if one is found.
+
    function Homonym_Number (Subp : Entity_Id) return Nat;
    --  Here subp is the entity for a subprogram. This routine returns the
    --  homonym number used to disambiguate overloaded subprograms in the same
@@ -569,6 +574,13 @@ package Exp_Util is
    --  temporaries that interfere with stack checking mechanism. Note that the
    --  caller has to check whether stack checking is actually enabled in order
    --  to guide the expansion (typically of a function call).
+
+   function Needs_Constant_Address
+     (Decl : Node_Id;
+      Typ  : Entity_Id) return Boolean;
+   --  Check whether the expression in an address clause is restricted to
+   --  consist of constants, when the object has a non-trivial initialization
+   --  or is controlled.
 
    function Non_Limited_Designated_Type (T : Entity_Id) return Entity_Id;
    --  An anonymous access type may designate a limited view. Check whether

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -56,9 +56,12 @@ package body Opt is
       External_Name_Exp_Casing_Config       := External_Name_Exp_Casing;
       External_Name_Imp_Casing_Config       := External_Name_Imp_Casing;
       Fast_Math_Config                      := Fast_Math;
+      Init_Or_Norm_Scalars_Config           := Init_Or_Norm_Scalars;
+      Initialize_Scalars_Config             := Initialize_Scalars;
       Optimize_Alignment_Config             := Optimize_Alignment;
       Persistent_BSS_Mode_Config            := Persistent_BSS_Mode;
       Polling_Required_Config               := Polling_Required;
+      Short_Descriptors_Config              := Short_Descriptors;
       Use_VADS_Size_Config                  := Use_VADS_Size;
 
       --  Reset the indication that Optimize_Alignment was set locally, since
@@ -86,10 +89,13 @@ package body Opt is
       External_Name_Exp_Casing       := Save.External_Name_Exp_Casing;
       External_Name_Imp_Casing       := Save.External_Name_Imp_Casing;
       Fast_Math                      := Save.Fast_Math;
+      Init_Or_Norm_Scalars           := Save.Init_Or_Norm_Scalars;
+      Initialize_Scalars             := Save.Initialize_Scalars;
       Optimize_Alignment             := Save.Optimize_Alignment;
       Optimize_Alignment_Local       := Save.Optimize_Alignment_Local;
       Persistent_BSS_Mode            := Save.Persistent_BSS_Mode;
       Polling_Required               := Save.Polling_Required;
+      Short_Descriptors              := Save.Short_Descriptors;
       Use_VADS_Size                  := Save.Use_VADS_Size;
    end Restore_Opt_Config_Switches;
 
@@ -111,10 +117,13 @@ package body Opt is
       Save.External_Name_Exp_Casing       := External_Name_Exp_Casing;
       Save.External_Name_Imp_Casing       := External_Name_Imp_Casing;
       Save.Fast_Math                      := Fast_Math;
+      Save.Init_Or_Norm_Scalars           := Init_Or_Norm_Scalars;
+      Save.Initialize_Scalars             := Initialize_Scalars;
       Save.Optimize_Alignment             := Optimize_Alignment;
       Save.Optimize_Alignment_Local       := Optimize_Alignment_Local;
       Save.Persistent_BSS_Mode            := Persistent_BSS_Mode;
       Save.Polling_Required               := Polling_Required;
+      Save.Short_Descriptors              := Short_Descriptors;
       Save.Use_VADS_Size                  := Use_VADS_Size;
    end Save_Opt_Config_Switches;
 
@@ -175,6 +184,8 @@ package body Opt is
          External_Name_Exp_Casing    := External_Name_Exp_Casing_Config;
          External_Name_Imp_Casing    := External_Name_Imp_Casing_Config;
          Fast_Math                   := Fast_Math_Config;
+         Init_Or_Norm_Scalars        := Init_Or_Norm_Scalars_Config;
+         Initialize_Scalars          := Initialize_Scalars_Config;
          Optimize_Alignment          := Optimize_Alignment_Config;
          Optimize_Alignment_Local    := False;
          Persistent_BSS_Mode         := Persistent_BSS_Mode_Config;
@@ -185,6 +196,7 @@ package body Opt is
       Fast_Math                      := Fast_Math_Config;
       Optimize_Alignment             := Optimize_Alignment_Config;
       Polling_Required               := Polling_Required_Config;
+      Short_Descriptors              := Short_Descriptors_Config;
    end Set_Opt_Config_Switches;
 
    ---------------

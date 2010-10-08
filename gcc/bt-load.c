@@ -34,7 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "function.h"
 #include "except.h"
 #include "tm_p.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
 #include "tree-pass.h"
 #include "recog.h"
 #include "df.h"
@@ -1417,7 +1417,7 @@ migrate_btr_defs (enum reg_class btr_class, int allow_callee_save)
   CLEAR_HARD_REG_SET (all_btrs);
   for (first_btr = -1, reg = 0; reg < FIRST_PSEUDO_REGISTER; reg++)
     if (TEST_HARD_REG_BIT (reg_class_contents[(int) btr_class], reg)
-	&& (allow_callee_save || call_used_regs[reg] 
+	&& (allow_callee_save || call_used_regs[reg]
 	    || df_regs_ever_live_p (reg)))
       {
 	SET_HARD_REG_BIT (all_btrs, reg);
@@ -1458,7 +1458,8 @@ migrate_btr_defs (enum reg_class btr_class, int allow_callee_save)
 static void
 branch_target_load_optimize (bool after_prologue_epilogue_gen)
 {
-  enum reg_class klass = targetm.branch_target_register_class ();
+  enum reg_class klass
+    = (enum reg_class) targetm.branch_target_register_class ();
   if (klass != NO_REGS)
     {
       /* Initialize issue_rate.  */

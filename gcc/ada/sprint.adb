@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -35,6 +35,7 @@ with Nlists;   use Nlists;
 with Opt;      use Opt;
 with Output;   use Output;
 with Rtsfind;  use Rtsfind;
+with Sem_Eval; use Sem_Eval;
 with Sem_Util; use Sem_Util;
 with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
@@ -402,7 +403,8 @@ package body Sprint is
    procedure pg (Arg : Union_Id) is
    begin
       Dump_Generated_Only := True;
-      Dump_Original_Only := False;
+      Dump_Original_Only  := False;
+      Dump_Freeze_Null    := True;
       Current_Source_File := No_Source_File;
 
       if Arg in List_Range then
@@ -526,7 +528,7 @@ package body Sprint is
          Write_Eol;
       end Underline;
 
-   --  Start of processing for Tree_Dump
+   --  Start of processing for Source_Dump
 
    begin
       Dump_Generated_Only := Debug_Flag_G or
@@ -1082,6 +1084,32 @@ package body Sprint is
 
             Write_Char (';');
 
+         when N_Case_Expression =>
+            declare
+               Alt : Node_Id;
+
+            begin
+               Write_Str_With_Col_Check_Sloc ("(case ");
+               Sprint_Node (Expression (Node));
+               Write_Str_With_Col_Check (" is");
+
+               Alt := First (Alternatives (Node));
+               loop
+                  Sprint_Node (Alt);
+                  Next (Alt);
+                  exit when No (Alt);
+                  Write_Char (',');
+               end loop;
+
+               Write_Char (')');
+            end;
+
+         when N_Case_Expression_Alternative =>
+            Write_Str_With_Col_Check (" when ");
+            Sprint_Bar_List (Discrete_Choices (Node));
+            Write_Str (" => ");
+            Sprint_Node (Expression (Node));
+
          when N_Case_Statement =>
             Write_Indent_Str_Sloc ("case ");
             Sprint_Node (Expression (Node));
@@ -1223,14 +1251,20 @@ package body Sprint is
             declare
                Condition : constant Node_Id := First (Expressions (Node));
                Then_Expr : constant Node_Id := Next (Condition);
-               Else_Expr : constant Node_Id := Next (Then_Expr);
+
             begin
                Write_Str_With_Col_Check_Sloc ("(if ");
                Sprint_Node (Condition);
                Write_Str_With_Col_Check (" then ");
-               Sprint_Node (Then_Expr);
-               Write_Str_With_Col_Check (" else ");
-               Sprint_Node (Else_Expr);
+
+               --  Defense against junk here!
+
+               if Present (Then_Expr) then
+                  Sprint_Node (Then_Expr);
+                  Write_Str_With_Col_Check (" else ");
+                  Sprint_Node (Next (Then_Expr));
+               end if;
+
                Write_Char (')');
             end;
 
@@ -1298,7 +1332,7 @@ package body Sprint is
                Write_Str_With_Col_Check ("abstract ");
             end if;
 
-            Write_Str_With_Col_Check_Sloc ("new ");
+            Write_Str_With_Col_Check ("new ");
 
             --  Ada 2005 (AI-231)
 
@@ -1506,6 +1540,19 @@ package body Sprint is
             Sprint_Node (Prefix (Node));
             Write_Char_Sloc ('.');
             Write_Str_Sloc ("all");
+
+         when N_Expression_With_Actions =>
+            Indent_Begin;
+            Write_Indent_Str_Sloc ("do ");
+            Indent_Begin;
+            Sprint_Node_List (Actions (Node));
+            Indent_End;
+            Write_Indent;
+            Write_Str_With_Col_Check_Sloc ("in ");
+            Sprint_Node (Expression (Node));
+            Write_Str_With_Col_Check (" end");
+            Indent_End;
+            Write_Indent;
 
          when N_Extended_Return_Statement =>
             Write_Indent_Str_Sloc ("return ");
@@ -2642,17 +2689,14 @@ package body Sprint is
          --  Doc of this extended syntax belongs in sinfo.ads and/or
          --  sprint.ads ???
 
-         when N_SCIL_Dispatch_Table_Object_Init =>
-            Write_Indent_Str ("[N_SCIL_Dispatch_Table_Object_Init]");
-
          when N_SCIL_Dispatch_Table_Tag_Init =>
             Write_Indent_Str ("[N_SCIL_Dispatch_Table_Tag_Init]");
 
          when N_SCIL_Dispatching_Call =>
             Write_Indent_Str ("[N_SCIL_Dispatching_Node]");
 
-         when N_SCIL_Tag_Init =>
-            Write_Indent_Str ("[N_SCIL_Dispatch_Table_Tag_Init]");
+         when N_SCIL_Membership_Test =>
+            Write_Indent_Str ("[N_SCIL_Membership_Test]");
 
          when N_Simple_Return_Statement =>
             if Present (Expression (Node)) then
@@ -2741,7 +2785,13 @@ package body Sprint is
             end if;
 
             Write_Indent;
-            Sprint_Node_Sloc (Specification (Node));
+
+            if Present (Corresponding_Spec (Node)) then
+               Sprint_Node_Sloc (Parent (Corresponding_Spec (Node)));
+            else
+               Sprint_Node_Sloc (Specification (Node));
+            end if;
+
             Write_Str (" is");
 
             Sprint_Indented_List (Declarations (Node));
@@ -3423,11 +3473,13 @@ package body Sprint is
          end if;
 
       --  Case of selector of an expanded name where the expanded name
-      --  has an associated entity, output this entity.
+      --  has an associated entity, output this entity. Check that the
+      --  entity or associated node is of the right kind, see above.
 
       elsif Nkind (Parent (N)) = N_Expanded_Name
         and then Selector_Name (Parent (N)) = N
-        and then Present (Entity (Parent (N)))
+        and then Present (Entity_Or_Associated_Node (Parent (N)))
+        and then Nkind (Entity (Parent (N))) in N_Entity
       then
          Write_Id (Entity (Parent (N)));
 
@@ -3714,12 +3766,15 @@ package body Sprint is
 
                   when Access_Kind =>
                      Write_Header (Ekind (Typ) = E_Access_Type);
+
+                     if Can_Never_Be_Null (Typ) then
+                        Write_Str ("not null ");
+                     end if;
+
                      Write_Str ("access ");
 
                      if Is_Access_Constant (Typ) then
                         Write_Str ("constant ");
-                     elsif Can_Never_Be_Null (Typ) then
-                        Write_Str ("not null ");
                      end if;
 
                      Write_Id (Directly_Designated_Type (Typ));
@@ -3961,7 +4016,7 @@ package body Sprint is
                   when E_String_Literal_Subtype =>
                      declare
                         LB  : constant Uint :=
-                                Intval (String_Literal_Low_Bound (Typ));
+                                Expr_Value (String_Literal_Low_Bound (Typ));
                         Len : constant Uint :=
                                 String_Literal_Length (Typ);
                      begin
@@ -4318,12 +4373,10 @@ package body Sprint is
    procedure Write_Ureal_With_Col_Check_Sloc (U : Ureal) is
       D : constant Uint := Denominator (U);
       N : constant Uint := Numerator (U);
-
    begin
-      Col_Check
-        (UI_Decimal_Digits_Hi (D) + UI_Decimal_Digits_Hi (N) + 4);
+      Col_Check (UI_Decimal_Digits_Hi (D) + UI_Decimal_Digits_Hi (N) + 4);
       Set_Debug_Sloc;
-      UR_Write (U);
+      UR_Write (U, Brackets => True);
    end Write_Ureal_With_Col_Check_Sloc;
 
 end Sprint;

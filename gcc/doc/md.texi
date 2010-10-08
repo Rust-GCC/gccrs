@@ -1052,6 +1052,10 @@ an operand may be in a register, and which kinds of register; whether the
 operand can be a memory reference, and which kinds of address; whether the
 operand may be an immediate constant, and which possible values it may
 have.  Constraints can also require two operands to match.
+Side-effects aren't allowed in operands of inline @code{asm}, unless
+@samp{<} or @samp{>} constraints are used, because there is no guarantee
+that the side-effects will happen exactly once in an instruction that can update
+the addressing register.
 
 @ifset INTERNALS
 @menu
@@ -1129,12 +1133,21 @@ would fit the @samp{m} constraint but not the @samp{o} constraint.
 @cindex @samp{<} in constraint
 @item @samp{<}
 A memory operand with autodecrement addressing (either predecrement or
-postdecrement) is allowed.
+postdecrement) is allowed.  In inline @code{asm} this constraint is only
+allowed if the operand is used exactly once in an instruction that can
+handle the side-effects.  Not using an operand with @samp{<} in constraint
+string in the inline @code{asm} pattern at all or using it in multiple
+instructions isn't valid, because the side-effects wouldn't be performed
+or would be performed more than once.  Furthermore, on some targets
+the operand with @samp{<} in constraint string must be accompanied by
+special instruction suffixes like @code{%U0} instruction suffix on PowerPC
+or @code{%P0} on IA-64.
 
 @cindex @samp{>} in constraint
 @item @samp{>}
 A memory operand with autoincrement addressing (either preincrement or
-postincrement) is allowed.
+postincrement) is allowed.  In inline @code{asm} the same restrictions
+as for @samp{<} apply.
 
 @cindex @samp{r} in constraint
 @cindex registers in constraints
@@ -1949,7 +1962,7 @@ Any VSX register
 @samp{CR} register (condition register)
 
 @item z
-@samp{FPMEM} stack memory for FPR-GPR transfers
+@samp{XER[CA]} carry bit (part of the XER register)
 
 @item I
 Signed 16-bit constant
@@ -1985,31 +1998,33 @@ Integer/Floating point constant that can be loaded into a register using
 three instructions
 
 @item m
-Memory operand.  Note that on PowerPC targets, @code{m} can include
-addresses that update the base register.  It is therefore only safe
-to use @samp{m} in an @code{asm} statement if that @code{asm} statement
+Memory operand.  
+Normally, @code{m} does not allow addresses that update the base register.
+If @samp{<} or @samp{>} constraint is also used, they are allowed and
+therefore on PowerPC targets in that case it is only safe
+to use @samp{m<>} in an @code{asm} statement if that @code{asm} statement
 accesses the operand exactly once.  The @code{asm} statement must also
 use @samp{%U@var{<opno>}} as a placeholder for the ``update'' flag in the
 corresponding load or store instruction.  For example:
 
 @smallexample
-asm ("st%U0 %1,%0" : "=m" (mem) : "r" (val));
+asm ("st%U0 %1,%0" : "=m<>" (mem) : "r" (val));
 @end smallexample
 
 is correct but:
 
 @smallexample
-asm ("st %1,%0" : "=m" (mem) : "r" (val));
+asm ("st %1,%0" : "=m<>" (mem) : "r" (val));
 @end smallexample
 
-is not.  Use @code{es} rather than @code{m} if you don't want the
-base register to be updated.
+is not.
 
 @item es
 A ``stable'' memory operand; that is, one which does not include any
-automodification of the base register.  Unlike @samp{m}, this constraint
-can be used in @code{asm} statements that might access the operand
-several times, or that might not access it at all.
+automodification of the base register.  This used to be useful when
+@samp{m} allowed automodification of the base register, but as those are now only
+allowed when @samp{<} or @samp{>} is used, @samp{es} is basically the same
+as @samp{m} without @samp{<} and @samp{>}.
 
 @item Q
 Memory operand that is an offset from a register (it is usually better
@@ -2181,10 +2196,9 @@ Application register residing in I-unit
 Floating-point register
 
 @item m
-Memory operand.
-Remember that @samp{m} allows postincrement and postdecrement which
+Memory operand.  If used together with @samp{<} or @samp{>},
+the operand can have postincrement and postdecrement which
 require printing with @samp{%Pn} on IA-64.
-Use @samp{S} to disallow postincrement and postdecrement.
 
 @item G
 Floating-point constant 0.0 or 1.0
@@ -2220,7 +2234,9 @@ Non-volatile memory for floating-point loads and stores
 Integer constant in the range 1 to 4 for @code{shladd} instruction
 
 @item S
-Memory operand except postincrement and postdecrement
+Memory operand except postincrement and postdecrement.  This is
+now roughly the same as @samp{m} when not used together with @samp{<}
+or @samp{>}.
 @end table
 
 @item FRV---@file{config/frv/frv.h}
@@ -2661,7 +2677,15 @@ A register indirect address without offset.
 @item Z
 Symbolic references to the control bus.
 
+@end table
 
+@item MicroBlaze---@file{config/microblaze/constraints.md}
+@table @code
+@item d
+A general register (@code{r0} to @code{r31}).
+
+@item z
+A status register (@code{rmsr}, @code{$fcc1} to @code{$fcc7}).
 
 @end table
 
@@ -3750,7 +3774,8 @@ it is unsafe to call @code{gen_reg_rtx} to allocate a new pseudo.
 The constraints on a @samp{mov@var{m}} must permit moving any hard
 register to any other hard register provided that
 @code{HARD_REGNO_MODE_OK} permits mode @var{m} in both registers and
-@code{REGISTER_MOVE_COST} applied to their classes returns a value of 2.
+@code{TARGET_REGISTER_MOVE_COST} applied to their classes returns a value
+of 2.
 
 It is obligatory to support floating point @samp{mov@var{m}}
 instructions into and out of any registers that can hold fixed point
@@ -4353,19 +4378,19 @@ point mode @var{n} as a signed number according to the current
 rounding mode and store in operand 0 (which has mode @var{n}).
 
 @cindex @code{lround@var{m}@var{n}2}
-@item @samp{lround@var{m}2}
+@item @samp{lround@var{m}@var{n}2}
 Convert operand 1 (valid for floating point mode @var{m}) to fixed
 point mode @var{n} as a signed number rounding to nearest and away
 from zero and store in operand 0 (which has mode @var{n}).
 
 @cindex @code{lfloor@var{m}@var{n}2}
-@item @samp{lfloor@var{m}2}
+@item @samp{lfloor@var{m}@var{n}2}
 Convert operand 1 (valid for floating point mode @var{m}) to fixed
 point mode @var{n} as a signed number rounding down and store in
 operand 0 (which has mode @var{n}).
 
 @cindex @code{lceil@var{m}@var{n}2}
-@item @samp{lceil@var{m}2}
+@item @samp{lceil@var{m}@var{n}2}
 Convert operand 1 (valid for floating point mode @var{m}) to fixed
 point mode @var{n} as a signed number rounding up and store in
 operand 0 (which has mode @var{n}).
@@ -4544,19 +4569,19 @@ operand 2 is the character to search for (normally zero),
 and operand 3 is a constant describing the known alignment
 of the beginning of the string.
 
-@cindex @code{float@var{mn}2} instruction pattern
+@cindex @code{float@var{m}@var{n}2} instruction pattern
 @item @samp{float@var{m}@var{n}2}
 Convert signed integer operand 1 (valid for fixed point mode @var{m}) to
 floating point mode @var{n} and store in operand 0 (which has mode
 @var{n}).
 
-@cindex @code{floatuns@var{mn}2} instruction pattern
+@cindex @code{floatuns@var{m}@var{n}2} instruction pattern
 @item @samp{floatuns@var{m}@var{n}2}
 Convert unsigned integer operand 1 (valid for fixed point mode @var{m})
 to floating point mode @var{n} and store in operand 0 (which has mode
 @var{n}).
 
-@cindex @code{fix@var{mn}2} instruction pattern
+@cindex @code{fix@var{m}@var{n}2} instruction pattern
 @item @samp{fix@var{m}@var{n}2}
 Convert operand 1 (valid for floating point mode @var{m}) to fixed
 point mode @var{n} as a signed number and store in operand 0 (which
@@ -4566,7 +4591,7 @@ the value of operand 1 is an integer.
 If the machine description defines this pattern, it also needs to
 define the @code{ftrunc} pattern.
 
-@cindex @code{fixuns@var{mn}2} instruction pattern
+@cindex @code{fixuns@var{m}@var{n}2} instruction pattern
 @item @samp{fixuns@var{m}@var{n}2}
 Convert operand 1 (valid for floating point mode @var{m}) to fixed
 point mode @var{n} as an unsigned number and store in operand 0 (which
@@ -4579,35 +4604,35 @@ Convert operand 1 (valid for floating point mode @var{m}) to an
 integer value, still represented in floating point mode @var{m}, and
 store it in operand 0 (valid for floating point mode @var{m}).
 
-@cindex @code{fix_trunc@var{mn}2} instruction pattern
+@cindex @code{fix_trunc@var{m}@var{n}2} instruction pattern
 @item @samp{fix_trunc@var{m}@var{n}2}
 Like @samp{fix@var{m}@var{n}2} but works for any floating point value
 of mode @var{m} by converting the value to an integer.
 
-@cindex @code{fixuns_trunc@var{mn}2} instruction pattern
+@cindex @code{fixuns_trunc@var{m}@var{n}2} instruction pattern
 @item @samp{fixuns_trunc@var{m}@var{n}2}
 Like @samp{fixuns@var{m}@var{n}2} but works for any floating point
 value of mode @var{m} by converting the value to an integer.
 
-@cindex @code{trunc@var{mn}2} instruction pattern
+@cindex @code{trunc@var{m}@var{n}2} instruction pattern
 @item @samp{trunc@var{m}@var{n}2}
 Truncate operand 1 (valid for mode @var{m}) to mode @var{n} and
 store in operand 0 (which has mode @var{n}).  Both modes must be fixed
 point or both floating point.
 
-@cindex @code{extend@var{mn}2} instruction pattern
+@cindex @code{extend@var{m}@var{n}2} instruction pattern
 @item @samp{extend@var{m}@var{n}2}
 Sign-extend operand 1 (valid for mode @var{m}) to mode @var{n} and
 store in operand 0 (which has mode @var{n}).  Both modes must be fixed
 point or both floating point.
 
-@cindex @code{zero_extend@var{mn}2} instruction pattern
+@cindex @code{zero_extend@var{m}@var{n}2} instruction pattern
 @item @samp{zero_extend@var{m}@var{n}2}
 Zero-extend operand 1 (valid for mode @var{m}) to mode @var{n} and
 store in operand 0 (which has mode @var{n}).  Both modes must be fixed
 point.
 
-@cindex @code{fract@var{mn}2} instruction pattern
+@cindex @code{fract@var{m}@var{n}2} instruction pattern
 @item @samp{fract@var{m}@var{n}2}
 Convert operand 1 of mode @var{m} to mode @var{n} and store in
 operand 0 (which has mode @var{n}).  Mode @var{m} and mode @var{n}
@@ -4616,7 +4641,7 @@ fixed-point to signed integer, floating-point to fixed-point,
 or fixed-point to floating-point.
 When overflows or underflows happen, the results are undefined.
 
-@cindex @code{satfract@var{mn}2} instruction pattern
+@cindex @code{satfract@var{m}@var{n}2} instruction pattern
 @item @samp{satfract@var{m}@var{n}2}
 Convert operand 1 of mode @var{m} to mode @var{n} and store in
 operand 0 (which has mode @var{n}).  Mode @var{m} and mode @var{n}
@@ -4625,7 +4650,7 @@ or floating-point to fixed-point.
 When overflows or underflows happen, the instruction saturates the
 results to the maximum or the minimum.
 
-@cindex @code{fractuns@var{mn}2} instruction pattern
+@cindex @code{fractuns@var{m}@var{n}2} instruction pattern
 @item @samp{fractuns@var{m}@var{n}2}
 Convert operand 1 of mode @var{m} to mode @var{n} and store in
 operand 0 (which has mode @var{n}).  Mode @var{m} and mode @var{n}
@@ -4633,7 +4658,7 @@ could be unsigned integer to fixed-point, or
 fixed-point to unsigned integer.
 When overflows or underflows happen, the results are undefined.
 
-@cindex @code{satfractuns@var{mn}2} instruction pattern
+@cindex @code{satfractuns@var{m}@var{n}2} instruction pattern
 @item @samp{satfractuns@var{m}@var{n}2}
 Convert unsigned integer operand 1 of mode @var{m} to fixed-point mode
 @var{n} and store in operand 0 (which has mode @var{n}).
@@ -4705,20 +4730,28 @@ else must be negative.  Otherwise the instruction is not suitable and
 you should omit it from the machine description.  You describe to the
 compiler exactly which value is stored by defining the macro
 @code{STORE_FLAG_VALUE} (@pxref{Misc}).  If a description cannot be
-found that can be used for all the @samp{s@var{cond}} patterns, you
-should omit those operations from the machine description.
+found that can be used for all the possible comparison operators, you
+should pick one and use a @code{define_expand} to map all results
+onto the one you chose.
 
-These operations may fail, but should do so only in relatively
-uncommon cases; if they would fail for common cases involving
-integer comparisons, it is best to omit these patterns.
+These operations may @code{FAIL}, but should do so only in relatively
+uncommon cases; if they would @code{FAIL} for common cases involving
+integer comparisons, it is best to restrict the predicates to not
+allow these operands.  Likewise if a given comparison operator will
+always fail, independent of the operands (for floating-point modes, the
+@code{ordered_comparison_operator} predicate is often useful in this case).
 
-If these operations are omitted, the compiler will usually generate code
-that copies the constant one to the target and branches around an
-assignment of zero to the target.  If this code is more efficient than
-the potential instructions used for the @samp{cstore@var{mode}4} pattern
-followed by those required to convert the result into a 1 or a zero in
-@code{SImode}, you should omit the @samp{cstore@var{mode}4} operations from
-the machine description.
+If this pattern is omitted, the compiler will generate a conditional
+branch---for example, it may copy a constant one to the target and branching
+around an assignment of zero to the target---or a libcall.  If the predicate
+for operand 1 only rejects some operators, it will also try reordering the
+operands and/or inverting the result value (e.g.@: by an exclusive OR).
+These possibilities could be cheaper or equivalent to the instructions
+used for the @samp{cstore@var{mode}4} pattern followed by those required
+to convert a positive result from @code{STORE_FLAG_VALUE} to 1; in this
+case, you can and should make operand 1's predicate reject some operators
+in the @samp{cstore@var{mode}4} pattern, or remove the pattern altogether
+from the machine description.
 
 @cindex @code{cbranch@var{mode}4} instruction pattern
 @item @samp{cbranch@var{mode}4}
@@ -5035,21 +5068,20 @@ operations in addition to updating the stack pointer.
 
 @cindex @code{check_stack} instruction pattern
 @item @samp{check_stack}
-If stack checking cannot be done on your system by probing the stack with
-a load or store instruction (@pxref{Stack Checking}), define this pattern
-to perform the needed check and signal an error if the stack has overflowed.
-The single operand is the address in the stack furthest from the current
-stack pointer that you need to validate.  Normally, on machines where this
-pattern is needed, you would obtain the stack limit from a global or
-thread-specific variable or register.
+If stack checking (@pxref{Stack Checking}) cannot be done on your system by
+probing the stack, define this pattern to perform the needed check and signal
+an error if the stack has overflowed.  The single operand is the address in
+the stack farthest from the current stack pointer that you need to validate.
+Normally, on platforms where this pattern is needed, you would obtain the
+stack limit from a global or thread-specific variable or register.
 
 @cindex @code{probe_stack} instruction pattern
 @item @samp{probe_stack}
-If stack checking can be done on your system by probing the stack but doing
-it with a load or store instruction is not optimal (@pxref{Stack Checking}),
-define this pattern to do the probing differently and signal an error if
-the stack has overflowed.  The single operand is the memory location in the
-stack that needs to be probed.
+If stack checking (@pxref{Stack Checking}) can be done on your system by
+probing the stack but doing it with a ``store zero'' instruction is not valid
+or optimal, define this pattern to do the probing differently and signal an
+error if the stack has overflowed.  The single operand is the memory reference
+in the stack that needs to be probed.
 
 @cindex @code{nonlocal_goto} instruction pattern
 @item @samp{nonlocal_goto}
@@ -5190,7 +5222,7 @@ A typical @code{ctrap} pattern looks like
 (define_insn "ctrapsi4"
   [(trap_if (match_operator 0 "trap_operator"
              [(match_operand 1 "register_operand")
-	      (match_operand 2 "immediate_operand")])
+              (match_operand 2 "immediate_operand")])
             (match_operand 3 "const_int_operand" "i"))]
   ""
   "@dots{}")
@@ -6693,9 +6725,46 @@ distances. @xref{Insn Lengths}.
 The @code{enabled} attribute can be defined to prevent certain
 alternatives of an insn definition from being used during code
 generation. @xref{Disable Insn Alternatives}.
-
 @end table
 
+@findex define_enum_attr
+@anchor{define_enum_attr}
+Another way of defining an attribute is to use:
+
+@smallexample
+(define_enum_attr "@var{attr}" "@var{enum}" @var{default})
+@end smallexample
+
+This works in just the same way as @code{define_attr}, except that
+the list of values is taken from a separate enumeration called
+@var{enum} (@pxref{define_enum}).  This form allows you to use
+the same list of values for several attributes without having to
+repeat the list each time.  For example:
+
+@smallexample
+(define_enum "processor" [
+  model_a
+  model_b
+  @dots{}
+])
+(define_enum_attr "arch" "processor"
+  (const (symbol_ref "target_arch")))
+(define_enum_attr "tune" "processor"
+  (const (symbol_ref "target_tune")))
+@end smallexample
+
+defines the same attributes as:
+
+@smallexample
+(define_attr "arch" "model_a,model_b,@dots{}"
+  (const (symbol_ref "target_arch")))
+(define_attr "tune" "model_a,model_b,@dots{}"
+  (const (symbol_ref "target_tune")))
+@end smallexample
+
+but without duplicating the processor list.  The second example defines two
+separate C enums (@code{attr_arch} and @code{attr_tune}) whereas the first
+defines a single C enum (@code{processor}).
 @end ifset
 @ifset INTERNALS
 @node Expressions
@@ -7895,6 +7964,124 @@ You could write:
 
 The constants that are defined with a define_constant are also output
 in the insn-codes.h header file as #defines.
+
+@cindex enumerations
+@findex define_c_enum
+You can also use the machine description file to define enumerations.
+Like the constants defined by @code{define_constant}, these enumerations
+are visible to both the machine description file and the main C code.
+
+The syntax is as follows:
+
+@smallexample
+(define_c_enum "@var{name}" [
+  @var{value0}
+  @var{value1}
+  @dots{}
+  @var{valuen}
+])
+@end smallexample
+
+This definition causes the equivalent of the following C code to appear
+in @file{insn-constants.h}:
+
+@smallexample
+enum @var{name} @{
+  @var{value0} = 0,
+  @var{value1} = 1,
+  @dots{}
+  @var{valuen} = @var{n}
+@};
+#define NUM_@var{cname}_VALUES (@var{n} + 1)
+@end smallexample
+
+where @var{cname} is the capitalized form of @var{name}.
+It also makes each @var{valuei} available in the machine description
+file, just as if it had been declared with:
+
+@smallexample
+(define_constants [(@var{valuei} @var{i})])
+@end smallexample
+
+Each @var{valuei} is usually an upper-case identifier and usually
+begins with @var{cname}.
+
+You can split the enumeration definition into as many statements as
+you like.  The above example is directly equivalent to:
+
+@smallexample
+(define_c_enum "@var{name}" [@var{value0}])
+(define_c_enum "@var{name}" [@var{value1}])
+@dots{}
+(define_c_enum "@var{name}" [@var{valuen}])
+@end smallexample
+
+Splitting the enumeration helps to improve the modularity of each
+individual @code{.md} file.  For example, if a port defines its
+synchronization instructions in a separate @file{sync.md} file,
+it is convenient to define all synchronization-specific enumeration
+values in @file{sync.md} rather than in the main @file{.md} file.
+
+Some enumeration names have special significance to GCC:
+
+@table @code
+@item unspecv
+@findex unspec_volatile
+If an enumeration called @code{unspecv} is defined, GCC will use it
+when printing out @code{unspec_volatile} expressions.  For example:
+
+@smallexample
+(define_c_enum "unspecv" [
+  UNSPECV_BLOCKAGE
+])
+@end smallexample
+
+causes GCC to print @samp{(unspec_volatile @dots{} 0)} as:
+
+@smallexample
+(unspec_volatile ... UNSPECV_BLOCKAGE)
+@end smallexample
+
+@item unspec
+@findex unspec
+If an enumeration called @code{unspec} is defined, GCC will use
+it when printing out @code{unspec} expressions.  GCC will also use
+it when printing out @code{unspec_volatile} expressions unless an
+@code{unspecv} enumeration is also defined.  You can therefore
+decide whether to keep separate enumerations for volatile and
+non-volatile expressions or whether to use the same enumeration
+for both.
+@end table
+
+@findex define_enum
+@anchor{define_enum}
+Another way of defining an enumeration is to use @code{define_enum}:
+
+@smallexample
+(define_enum "@var{name}" [
+  @var{value0}
+  @var{value1}
+  @dots{}
+  @var{valuen}
+])
+@end smallexample
+
+This directive implies:
+
+@smallexample
+(define_c_enum "@var{name}" [
+  @var{cname}_@var{cvalue0}
+  @var{cname}_@var{cvalue1}
+  @dots{}
+  @var{cname}_@var{cvaluen}
+])
+@end smallexample
+
+@findex define_enum_attr
+where @var{cvaluei} is the capitalized form of @var{valuei}.
+However, unlike @code{define_c_enum}, the enumerations defined
+by @code{define_enum} can be used in attribute specifications
+(@pxref{define_enum_attr}).
 @end ifset
 @ifset INTERNALS
 @node Iterators

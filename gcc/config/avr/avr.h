@@ -1,7 +1,8 @@
 /* Definitions of target machine for GNU compiler,
    for ATMEL AVR at90s8515, ATmega103/103L, ATmega603/603L microcontrollers.
    Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 
-   2008, 2009 Free Software Foundation, Inc.
+   2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Denis Chertykov (chertykov@gmail.com)
 
 This file is part of GCC.
@@ -97,6 +98,8 @@ struct mcu_type_s {
   const char *const library_name; 
 };
 
+/* Preprocessor macros to define depending on MCU type.  */
+extern const char *avr_extra_arch_macro;
 extern const struct base_arch_s *avr_current_arch;
 extern const struct mcu_type_s *avr_current_device;
 extern const struct mcu_type_s avr_mcu_types[];
@@ -120,8 +123,6 @@ extern GTY(()) section *progmem_section;
 #define AVR_3_BYTE_PC (AVR_HAVE_EIJMP_EICALL)
 
 #define TARGET_VERSION fprintf (stderr, " (GNU assembler syntax)");
-
-#define OVERRIDE_OPTIONS avr_override_options ()
 
 #define CAN_DEBUG_WITHOUT_FP
 
@@ -229,7 +230,7 @@ extern GTY(()) section *progmem_section;
     32,33,34,35					\
     }
 
-#define ORDER_REGS_FOR_LOCAL_ALLOC order_regs_for_local_alloc ()
+#define ADJUST_REG_ALLOC_ORDER order_regs_for_local_alloc ()
 
 
 #define HARD_REGNO_NREGS(REGNO, MODE) ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
@@ -330,9 +331,7 @@ enum reg_class {
 
 #define PREFERRED_RELOAD_CLASS(X, CLASS) preferred_reload_class(X,CLASS)
 
-#define SMALL_REGISTER_CLASSES 1
-
-#define CLASS_LIKELY_SPILLED_P(c) class_likely_spilled_p(c)
+#define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
 
 #define CLASS_MAX_NREGS(CLASS, MODE)   class_max_nregs (CLASS, MODE)
 
@@ -367,14 +366,11 @@ enum reg_class {
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)			\
   OFFSET = avr_initial_elimination_offset (FROM, TO)
 
-#define RETURN_ADDR_RTX(count, x) \
-  gen_rtx_MEM (Pmode, memory_address (Pmode, plus_constant (tem, 1)))
+#define RETURN_ADDR_RTX(count, tem) avr_return_addr_rtx (count, tem)
 
 /* Don't use Push rounding. expr.c: emit_single_push_insn is broken 
    for POST_DEC targets (PR27386).  */
 /*#define PUSH_ROUNDING(NPUSHED) (NPUSHED)*/
-
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACK_SIZE) 0
 
 #define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) (function_arg (&(CUM), MODE, TYPE, NAMED))
 
@@ -412,16 +408,6 @@ extern int avr_reg_order[];
   (REGNO (X) >= FIRST_PSEUDO_REGISTER || REG_OK_FOR_BASE_STRICT_P(X))
 
 #define REG_OK_FOR_BASE_STRICT_P(X) REGNO_OK_FOR_BASE_P (REGNO (X))
-
-#ifdef REG_OK_STRICT
-#  define REG_OK_FOR_BASE_P(X) REG_OK_FOR_BASE_STRICT_P (X)
-#else
-#  define REG_OK_FOR_BASE_P(X) REG_OK_FOR_BASE_NOSTRICT_P (X)
-#endif
-
-#define REG_OK_FOR_INDEX_P(X) 0
-
-#define XEXP_(X,Y) (X)
 
 /* LEGITIMIZE_RELOAD_ADDRESS will allow register R26/27 to be used, where it
    is no worse than normal base pointers R28/29 and R30/31. For example:
@@ -704,6 +690,9 @@ fprintf (STREAM, "\t.skip %lu,0\n", (unsigned long)(N))
           fprintf (STREAM, "\t.p2align\t%d\n", POWER);	\
   } while (0)
 
+#define ASM_OUTPUT_EXTERNAL(FILE, DECL, NAME) \
+  default_elf_asm_output_external (FILE, DECL, NAME)
+
 #define CASE_VECTOR_MODE HImode
 
 #undef WORD_REGISTER_OPERATIONS
@@ -787,7 +776,7 @@ mmcu=*:-mmcu=%*}"
 #define LIB_SPEC \
   "%{!mmcu=at90s1*:%{!mmcu=attiny11:%{!mmcu=attiny12:%{!mmcu=attiny15:%{!mmcu=attiny28: -lc }}}}}"
 
-#define LIBSTDCXX "-lgcc"
+#define LIBSTDCXX "gcc"
 /* No libstdc++ for now.  Empty string doesn't work.  */
 
 #define LIBGCC_SPEC \
@@ -799,9 +788,6 @@ mmcu=*:-mmcu=%*}"
 
 /* This is the default without any -mmcu=* option (AT90S*).  */
 #define MULTILIB_DEFAULTS { "mmcu=avr2" }
-
-/* This is undefined macro for collect2 disabling */
-#define LINKER_NAME "ld"
 
 #define TEST_HARD_REG_CLASS(CLASS, REGNO) \
   TEST_HARD_REG_BIT (reg_class_contents[ (int) (CLASS)], REGNO)
@@ -857,4 +843,7 @@ struct GTY(()) machine_function
   /* 'true' - if current function is a 'main' function 
      as specified by the "OS_main" attribute.  */
   int is_OS_main;
+  
+  /* Current function stack size.  */
+  int stack_usage;
 };

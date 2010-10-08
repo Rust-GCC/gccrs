@@ -1,5 +1,5 @@
 /* LTO routines for ELF object files.
-   Copyright 2009 Free Software Foundation, Inc.
+   Copyright 2009, 2010 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -21,6 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include <gelf.h>
 #include "lto.h"
@@ -29,12 +30,36 @@ along with GCC; see the file COPYING3.  If not see
 #include "ggc.h"
 #include "lto-streamer.h"
 
+/* Cater to hosts with half-backed <elf.h> file like HP-UX.  */
+#ifndef EM_SPARC
+# define EM_SPARC 2
+#endif
+
+#ifndef EM_SPARC32PLUS
+# define EM_SPARC32PLUS 18
+#endif
+
+#ifndef ELFOSABI_NONE
+# define ELFOSABI_NONE 0
+#endif
+#ifndef ELFOSABI_LINUX
+# define ELFOSABI_LINUX 3
+#endif
+
+
+/* Handle opening elf files on hosts, such as Windows, that may use 
+   text file handling that will break binary access.  */
+#ifndef O_BINARY
+# define O_BINARY 0
+#endif
+
 
 /* Initialize FILE, an LTO file object for FILENAME.  */
 static void
-lto_file_init (lto_file *file, const char *filename)
+lto_file_init (lto_file *file, const char *filename, off_t offset)
 {
   file->filename = filename;
+  file->offset = offset;
 }
 
 /* An ELF file.  */
@@ -133,45 +158,27 @@ lto_elf_free_shdr (Elf64_Shdr *shdr)
     free (shdr);
 }
 
-
-/* Returns a hash code for P.  */
-
-static hashval_t
-hash_name (const void *p)
-{
-  const struct lto_section_slot *ds = (const struct lto_section_slot *) p;
-  return (hashval_t) htab_hash_string (ds->name);
-}
-
-
-/* Returns nonzero if P1 and P2 are equal.  */
-
-static int
-eq_name (const void *p1, const void *p2)
-{
-  const struct lto_section_slot *s1 =
-    (const struct lto_section_slot *) p1;
-  const struct lto_section_slot *s2 =
-    (const struct lto_section_slot *) p2;
-
-  return strcmp (s1->name, s2->name) == 0;
-}
-
-
 /* Build a hash table whose key is the section names and whose data is
    the start and size of each section in the .o file.  */
 
 htab_t
-lto_elf_build_section_table (lto_file *lto_file) 
+lto_obj_build_section_table (lto_file *lto_file) 
 {
   lto_elf_file *elf_file = (lto_elf_file *)lto_file;
   htab_t section_hash_table;
   Elf_Scn *section;
   size_t base_offset;
 
-  section_hash_table = htab_create (37, hash_name, eq_name, free);
+  section_hash_table = lto_obj_create_section_hash_table ();
 
   base_offset = elf_getbase (elf_file->elf);
+  /* We are reasonably sure that elf_getbase does not fail at this
+     point.  So assume that we run into the incompatibility with
+     the FreeBSD libelf implementation that has a non-working
+     elf_getbase for non-archive members in which case the offset
+     should be zero.  */
+  if (base_offset == (size_t)-1)
+    base_offset = 0;
   for (section = elf_getscn (elf_file->elf, 0);
        section;
        section = elf_nextscn (elf_file->elf, section)) 
@@ -305,7 +312,7 @@ lto_elf_begin_section_with_type (const char *name, size_t type)
 /* Begin a new ELF section named NAME in the current output file.  */
 
 void
-lto_elf_begin_section (const char *name)
+lto_obj_begin_section (const char *name)
 {
   lto_elf_begin_section_with_type (name, SHT_PROGBITS);
 }
@@ -316,7 +323,7 @@ lto_elf_begin_section (const char *name)
    been written.  */
 
 void
-lto_elf_append_data (const void *data, size_t len, void *block)
+lto_obj_append_data (const void *data, size_t len, void *block)
 {
   lto_elf_file *file;
   Elf_Data *elf_data;
@@ -353,7 +360,7 @@ lto_elf_append_data (const void *data, size_t len, void *block)
    and sets the current output file's scn member to NULL.  */
 
 void
-lto_elf_end_section (void)
+lto_obj_end_section (void)
 {
   lto_elf_file *file;
 
@@ -363,6 +370,41 @@ lto_elf_end_section (void)
   gcc_assert (file->scn);
 
   file->scn = NULL;
+}
+
+
+/* Return true if ELF_MACHINE is compatible with the cached value of the
+   architecture and possibly update the latter.  Return false otherwise.
+
+   Note: if you want to add more EM_* cases, you'll need to provide the
+   corresponding definitions at the beginning of the file.  */
+
+static bool
+is_compatible_architecture (Elf64_Half elf_machine)
+{
+  if (cached_file_attrs.elf_machine == elf_machine)
+    return true;
+
+  switch (cached_file_attrs.elf_machine)
+    {
+    case EM_SPARC:
+      if (elf_machine == EM_SPARC32PLUS)
+	{
+	  cached_file_attrs.elf_machine = elf_machine;
+	  return true;
+	}
+      break;
+
+    case EM_SPARC32PLUS:
+      if (elf_machine == EM_SPARC)
+	return true;
+      break;
+
+    default:
+      break;
+    }
+
+  return false;
 }
 
 
@@ -390,8 +432,7 @@ validate_ehdr##BITS (lto_elf_file *elf_file)			\
 								\
   if (!cached_file_attrs.initialized)				\
     cached_file_attrs.elf_machine = elf_header->e_machine;	\
-								\
-  if (cached_file_attrs.elf_machine != elf_header->e_machine)	\
+  else if (!is_compatible_architecture (elf_header->e_machine))	\
     {								\
       error ("inconsistent file architecture detected");	\
       return false;						\
@@ -403,6 +444,22 @@ validate_ehdr##BITS (lto_elf_file *elf_file)			\
 DEFINE_VALIDATE_EHDR (32)
 DEFINE_VALIDATE_EHDR (64)
 
+
+#ifndef HAVE_ELF_GETSHDRSTRNDX
+/* elf_getshdrstrndx replacement for systems that lack it, but provide
+   either the gABI conformant or Solaris 2 variant of elf_getshstrndx
+   instead.  */
+
+static int
+elf_getshdrstrndx (Elf *elf, size_t *dst)
+{
+#ifdef HAVE_ELF_GETSHSTRNDX_GABI
+  return elf_getshstrndx (elf, dst);
+#else
+  return elf_getshstrndx (elf, dst) ? 0 : -1;
+#endif
+}
+#endif
 
 /* Validate's ELF_FILE's executable header and, if cached_file_attrs is
    uninitialized, caches the results.  Also records the section header string
@@ -422,7 +479,6 @@ validate_file (lto_elf_file *elf_file)
       error ("could not read ELF identification information: %s",
 	      elf_errmsg (0));
       return false;
-	     
     }
 
   if (!cached_file_attrs.initialized)
@@ -445,10 +501,31 @@ validate_file (lto_elf_file *elf_file)
       memcpy (cached_file_attrs.elf_ident, elf_ident,
 	      sizeof cached_file_attrs.elf_ident);
     }
+  else
+    {
+      char elf_ident_buf[EI_NIDENT];
 
-  if (memcmp (elf_ident, cached_file_attrs.elf_ident,
-	      sizeof cached_file_attrs.elf_ident))
-    return false;
+      memcpy (elf_ident_buf, elf_ident, sizeof elf_ident_buf);
+
+      if (elf_ident_buf[EI_OSABI] != cached_file_attrs.elf_ident[EI_OSABI])
+	{
+	  /* Allow mixing ELFOSABI_NONE with ELFOSABI_LINUX, with the result
+	     ELFOSABI_LINUX.  */
+	  if (elf_ident_buf[EI_OSABI] == ELFOSABI_NONE
+	      && cached_file_attrs.elf_ident[EI_OSABI] == ELFOSABI_LINUX)
+	    elf_ident_buf[EI_OSABI] = cached_file_attrs.elf_ident[EI_OSABI];
+	  else if (elf_ident_buf[EI_OSABI] == ELFOSABI_LINUX
+		   && cached_file_attrs.elf_ident[EI_OSABI] == ELFOSABI_NONE)
+	    cached_file_attrs.elf_ident[EI_OSABI] = elf_ident_buf[EI_OSABI];
+	}
+
+      if (memcmp (elf_ident_buf, cached_file_attrs.elf_ident,
+		  sizeof cached_file_attrs.elf_ident))
+	{
+	  error ("incompatible ELF identification");
+	  return false;
+	}
+    }
 
   /* Check that the input file is a relocatable object file with the correct
      architecture.  */
@@ -537,43 +614,48 @@ init_ehdr (lto_elf_file *elf_file)
    Returns the opened file.  */
 
 lto_file *
-lto_elf_file_open (const char *filename, bool writable)
+lto_obj_file_open (const char *filename, bool writable)
 {
   lto_elf_file *elf_file;
-  lto_file *result;
+  lto_file *result = NULL;
   off_t offset;
+  long loffset;
+  off_t header_offset;
   const char *offset_p;
   char *fname;
+  int consumed;
 
-  offset_p = strchr (filename, '@');
-  if (!offset_p)
+  offset_p = strrchr (filename, '@');
+  if (offset_p
+      && offset_p != filename
+      && sscanf (offset_p, "@%li%n", &loffset, &consumed) >= 1
+      && strlen (offset_p) == (unsigned int)consumed)
     {
-      fname = xstrdup (filename);
-      offset = 0;
-    }
-  else
-    {
-      int64_t t;
       fname = (char *) xmalloc (offset_p - filename + 1);
       memcpy (fname, filename, offset_p - filename);
       fname[offset_p - filename] = '\0';
-      offset_p++;
-      sscanf(offset_p, "%" PRId64 , &t);
-      offset = t;
+      offset = (off_t)loffset;
       /* elf_rand expects the offset to point to the ar header, not the
          object itself. Subtract the size of the ar header (60 bytes).
          We don't uses sizeof (struct ar_hd) to avoid including ar.h */
-      offset -= 60;
+      header_offset = offset - 60;
+    }
+  else
+    {
+      fname = xstrdup (filename);
+      offset = 0;
+      header_offset = 0;
     }
 
   /* Set up.  */
   elf_file = XCNEW (lto_elf_file);
   result = (lto_file *) elf_file;
-  lto_file_init (result, fname);
+  lto_file_init (result, fname, offset);
   elf_file->fd = -1;
 
   /* Open the file.  */
-  elf_file->fd = open (fname, writable ? O_WRONLY|O_CREAT : O_RDONLY, 0666);
+  elf_file->fd = open (fname, writable ? O_WRONLY|O_CREAT|O_BINARY 
+				       : O_RDONLY|O_BINARY, 0666);
   if (elf_file->fd == -1)
     {
       error ("could not open file %s", fname);
@@ -592,15 +674,15 @@ lto_elf_file_open (const char *filename, bool writable)
 			     NULL);
   if (!elf_file->elf)
     {
-      error ("could not open ELF file: %s", elf_errmsg (0));
+      error ("could not open %s as an ELF file: %s", fname, elf_errmsg (0));
       goto fail;
     }
 
   if (offset != 0)
     {
       Elf *e;
-      off_t t = elf_rand (elf_file->elf, offset);
-      if (t != offset)
+      off_t t = elf_rand (elf_file->elf, header_offset);
+      if (t != header_offset)
         {
           error ("could not seek in archive");
           goto fail;
@@ -631,7 +713,8 @@ lto_elf_file_open (const char *filename, bool writable)
   return result;
 
  fail:
-  lto_elf_file_close (result);
+  if (result)
+    lto_obj_file_close (result);
   return NULL;
 }
 
@@ -641,7 +724,7 @@ lto_elf_file_open (const char *filename, bool writable)
    any cached data buffers are freed.  */
 
 void
-lto_elf_file_close (lto_file *file)
+lto_obj_file_close (lto_file *file)
 {
   lto_elf_file *elf_file = (lto_elf_file *) file;
   struct lto_char_ptr_base *cur, *tmp;
@@ -677,7 +760,7 @@ lto_elf_file_close (lto_file *file)
       if (gelf_update_ehdr (elf_file->elf, ehdr_p) == 0)
 	fatal_error ("gelf_update_ehdr() failed: %s", elf_errmsg (-1));
       lto_write_stream (elf_file->shstrtab_stream);
-      lto_elf_end_section ();
+      lto_obj_end_section ();
 
       lto_set_current_out_file (old_file);
       free (elf_file->shstrtab_stream);

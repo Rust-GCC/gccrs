@@ -1,6 +1,6 @@
 /* Switch Conversion converts variable initializations based on switch
    statements to initializations from a static array.
-   Copyright (C) 2006, 2008 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Martin Jambor <jamborm@suse.cz>
 
 This file is part of GCC.
@@ -93,9 +93,10 @@ eight) times the number of the actual switch branches. */
 #include "output.h"
 #include "input.h"
 #include "tree-pass.h"
-#include "diagnostic.h"
+#include "gimple-pretty-print.h"
 #include "tree-dump.h"
 #include "timevar.h"
+#include "langhooks.h"
 
 /* The main structure of the pass.  */
 struct switch_conv_info
@@ -443,7 +444,7 @@ build_constructors (gimple swtch)
 	  tree low = CASE_LOW (cs);
 	  pos = CASE_LOW (cs);
 
-	  do 
+	  do
 	    {
 	      constructor_elt *elt;
 
@@ -473,7 +474,7 @@ constructor_contains_same_values_p (VEC (constructor_elt, gc) *vec)
   for (i = 0; i < len; i++)
     {
       constructor_elt *elt = VEC_index (constructor_elt, vec, i);
-      
+
       if (!prev)
 	prev = elt->value;
       else if (!operand_equal_p (elt->value, prev, OEP_ONLY_CONST))
@@ -517,6 +518,7 @@ build_one_array (gimple swtch, int num, tree arr_index_type, gimple phi,
       array_type = build_array_type (value_type, arr_index_type);
       ctor = build_constructor (array_type, info.constructors[num]);
       TREE_CONSTANT (ctor) = true;
+      TREE_STATIC (ctor) = true;
 
       decl = build_decl (loc, VAR_DECL, NULL_TREE, array_type);
       TREE_STATIC (decl) = 1;
@@ -525,6 +527,7 @@ build_one_array (gimple swtch, int num, tree arr_index_type, gimple phi,
       DECL_NAME (decl) = create_tmp_var_name ("CSWTCH");
       DECL_ARTIFICIAL (decl) = 1;
       TREE_CONSTANT (decl) = 1;
+      TREE_READONLY (decl) = 1;
       add_referenced_var (decl);
       varpool_mark_needed_node (varpool_node (decl));
       varpool_finalize_decl (decl);
@@ -693,9 +696,11 @@ gen_inbound_check (gimple swtch)
 
   /* Make sure we do not generate arithmetics in a subrange.  */
   if (TREE_TYPE (TREE_TYPE (info.index_expr)))
-    utype = unsigned_type_for (TREE_TYPE (TREE_TYPE (info.index_expr)));
+    utype = lang_hooks.types.type_for_mode
+      (TYPE_MODE (TREE_TYPE (TREE_TYPE (info.index_expr))), 1);
   else
-    utype = unsigned_type_for (TREE_TYPE (info.index_expr));
+    utype = lang_hooks.types.type_for_mode
+      (TYPE_MODE (TREE_TYPE (info.index_expr)), 1);
 
   /* (end of) block 0 */
   gsi = gsi_for_stmt (info.arr_ref_first);

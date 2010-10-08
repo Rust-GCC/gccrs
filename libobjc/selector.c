@@ -22,9 +22,14 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
-
-#include "objc/runtime.h"
-#include "objc/sarray.h"
+#include "objc-private/common.h"
+#include "objc/objc.h"
+#include "objc/objc-api.h"
+#include "objc/thr.h"
+#include "objc-private/hash.h"
+#include "objc-private/objc-list.h" 
+#include "objc-private/runtime.h"
+#include "objc-private/sarray.h"
 #include "objc/encoding.h"
 
 /* Initial selector hash table size. Value doesn't matter much */

@@ -33,6 +33,8 @@ static int comp_hashnodes (const void *, const void *);
 static int collect_ht_nodes (cpp_reader *, cpp_hashnode *, void *);
 static int write_defs (cpp_reader *, cpp_hashnode *, void *);
 static int save_macros (cpp_reader *, cpp_hashnode *, void *);
+static int _cpp_save_pushed_macros (cpp_reader *, FILE *);
+static int _cpp_restore_pushed_macros (cpp_reader *, FILE *);
 
 /* This structure represents a macro definition on disk.  */
 struct macrodef_struct
@@ -56,7 +58,9 @@ write_macdef (cpp_reader *pfile, cpp_hashnode *hn, void *file_p)
 	return 1;
 
     case NT_MACRO:
-      if ((hn->flags & NODE_BUILTIN))
+      if ((hn->flags & NODE_BUILTIN)
+	  && (!pfile->cb.user_builtin_macro
+	      || !pfile->cb.user_builtin_macro (pfile, hn)))
 	return 1;
 
       {
@@ -378,7 +382,127 @@ cpp_write_pch_state (cpp_reader *r, FILE *f)
       return -1;
     }
 
+  /* Write saved macros.  */
+  if (! _cpp_save_pushed_macros (r, f))
+    {
+      cpp_errno (r, CPP_DL_ERROR, "while writing precompiled header");
+      return -1;
+    }
+
   return 0;
+}
+
+static int
+_cpp_restore_pushed_macros (cpp_reader *r, FILE *f)
+{
+  size_t count_saved = 0;
+  size_t i;
+  struct def_pragma_macro *p;
+  size_t nlen;
+  uchar *defn;
+  size_t defnlen;
+
+  if (fread (&count_saved, sizeof (count_saved), 1, f) != 1)
+    return 0;
+  if (! count_saved)
+    return 1;
+  for (i = 0; i < count_saved; i++)
+    {
+      if (fread (&nlen, sizeof (nlen), 1, f) != 1)
+	return 0;
+      p = XNEW (struct def_pragma_macro);
+      memset (p, 0, sizeof (struct def_pragma_macro));
+      p->name = XNEWVAR (char, nlen + 1);
+      p->name[nlen] = 0;
+      if (fread (p->name, nlen, 1, f) != 1)
+	return 0;
+      if (fread (&defnlen, sizeof (defnlen), 1, f) != 1)
+	return 0;
+      if (defnlen == 0)
+        p->is_undef = 1;
+      else
+        {
+	  defn = XNEWVEC (uchar, defnlen + 1);
+	  defn[defnlen] = 0;
+
+	  if (fread (defn, defnlen, 1, f) != 1)
+	    return 0;
+
+	  p->definition = defn;
+	  if (fread (&(p->line), sizeof (source_location), 1, f) != 1)
+	    return 0;
+	  defnlen = 0;
+	  if (fread (&defnlen, sizeof (defnlen), 1, f) != 1)
+	    return 0;
+	  p->syshdr = ((defnlen & 1) != 0 ? 1 : 0);
+	  p->used =  ((defnlen & 2) != 0 ? 1 : 0);
+	}
+
+      p->next = r->pushed_macros;
+      r->pushed_macros = p;
+    }
+  return 1;
+}
+
+static int
+_cpp_save_pushed_macros (cpp_reader *r, FILE *f)
+{
+  size_t count_saved = 0;
+  size_t i;
+  struct def_pragma_macro *p,**pp;
+  size_t defnlen;
+
+  /* Get count. */
+  p = r->pushed_macros;
+  while (p != NULL)
+    {
+      count_saved++;
+      p = p->next;
+    }
+  if (fwrite (&count_saved, sizeof (count_saved), 1, f) != 1)
+    return 0;
+  if (!count_saved)
+    return 1;
+
+  pp = (struct def_pragma_macro **) alloca (sizeof (struct def_pragma_macro *)
+					    * count_saved);
+  /* Store them in reverse order.  */
+  p = r->pushed_macros;
+  i = count_saved;
+  while (p != NULL)
+    {
+      --i;
+      pp[i] = p;
+      p = p->next;
+    }
+  for (i = 0; i < count_saved; i++)
+    {
+      defnlen = strlen (pp[i]->name);
+      if (fwrite (&defnlen, sizeof (size_t), 1, f) != 1
+	  || fwrite (pp[i]->name, defnlen, 1, f) != 1)
+	return 0;
+      if (pp[i]->is_undef)
+	{
+	  defnlen = 0;
+	  if (fwrite (&defnlen, sizeof (size_t), 1, f) != 1)
+	    return 0;
+	}
+      else
+        {
+	  defnlen = ustrlen (pp[i]->definition);
+	  if (fwrite (&defnlen, sizeof (size_t), 1, f) != 1
+	      || fwrite (pp[i]->definition, defnlen, 1, f) != 1)
+	    return 0;
+	  if (fwrite (&(pp[i]->line), sizeof (source_location), 1, f) != 1)
+	    return 0;
+	  defnlen = 0;
+	  defnlen |= (pp[i]->syshdr != 0 ? 1 : 0);
+	  defnlen |= (pp[i]->used != 0 ? 2 : 0);
+	  if (fwrite (&defnlen, sizeof (defnlen), 1, f) != 1)
+	    return 0;
+	}
+    }
+  return 1;
 }
 
 
@@ -480,9 +604,9 @@ cpp_valid_state (cpp_reader *r, const char *name, int fd)
 	  || h->flags & NODE_POISONED)
 	{
 	  if (CPP_OPTION (r, warn_invalid_pch))
-	    cpp_error (r, CPP_DL_WARNING_SYSHDR,
-		       "%s: not used because `%.*s' is poisoned",
-		       name, m.name_length, namebuf);
+	    cpp_warning_syshdr (r, CPP_W_INVALID_PCH,
+		                "%s: not used because `%.*s' is poisoned",
+		                name, m.name_length, namebuf);
 	  goto fail;
 	}
 
@@ -502,9 +626,9 @@ cpp_valid_state (cpp_reader *r, const char *name, int fd)
 	    continue;
 
 	  if (CPP_OPTION (r, warn_invalid_pch))
-	    cpp_error (r, CPP_DL_WARNING_SYSHDR,
-		       "%s: not used because `%.*s' not defined",
-		       name, m.name_length, namebuf);
+	    cpp_warning_syshdr (r, CPP_W_INVALID_PCH,
+		                "%s: not used because `%.*s' not defined",
+		                name, m.name_length, namebuf);
 	  goto fail;
 	}
 
@@ -514,7 +638,7 @@ cpp_valid_state (cpp_reader *r, const char *name, int fd)
 	  || memcmp (namebuf, newdefn, m.definition_length) != 0)
 	{
 	  if (CPP_OPTION (r, warn_invalid_pch))
-	    cpp_error (r, CPP_DL_WARNING_SYSHDR,
+	    cpp_warning_syshdr (r, CPP_W_INVALID_PCH,
 	       "%s: not used because `%.*s' defined as `%s' not `%.*s'",
 		       name, m.name_length, namebuf, newdefn + m.name_length,
 		       m.definition_length - m.name_length,
@@ -555,9 +679,9 @@ cpp_valid_state (cpp_reader *r, const char *name, int fd)
       else
 	{
 	  if (CPP_OPTION (r, warn_invalid_pch))
-	    cpp_error (r, CPP_DL_WARNING_SYSHDR,
-		       "%s: not used because `%s' is defined",
-		       name, first);
+	    cpp_warning_syshdr (r, CPP_W_INVALID_PCH,
+		                "%s: not used because `%s' is defined",
+		                name, first);
 	  goto fail;
 	}
     }
@@ -575,9 +699,9 @@ cpp_valid_state (cpp_reader *r, const char *name, int fd)
   if (counter && r->counter)
     {
       if (CPP_OPTION (r, warn_invalid_pch))
-	cpp_error (r, CPP_DL_WARNING_SYSHDR,
-		   "%s: not used because `__COUNTER__' is invalid",
-		   name);
+	cpp_warning_syshdr (r, CPP_W_INVALID_PCH,
+		            "%s: not used because `__COUNTER__' is invalid",
+		            name);
 	goto fail;
     }
 
@@ -626,6 +750,12 @@ static int
 save_macros (cpp_reader *r, cpp_hashnode *h, void *data_p)
 {
   struct save_macro_data *data = (struct save_macro_data *)data_p;
+
+  if ((h->flags & NODE_BUILTIN)
+      && h->type == NT_MACRO
+      && r->cb.user_builtin_macro)
+    r->cb.user_builtin_macro (r, h);
+
   if (h->type != NT_VOID
       && (h->flags & NODE_BUILTIN) == 0)
     {
@@ -752,6 +882,9 @@ cpp_read_state (cpp_reader *r, const char *name, FILE *f,
   if (!r->counter)
     r->counter = counter;
 
+  /* Read pushed macros. */
+  if (! _cpp_restore_pushed_macros (r, f))
+    goto error;
   return 0;
 
  error:

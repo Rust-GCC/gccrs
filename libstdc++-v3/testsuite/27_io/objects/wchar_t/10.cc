@@ -1,4 +1,4 @@
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "se_NO.UTF-8" }
 
 // 2003-05-01  Petur Runolfsson  <peturr02@ru.is>
 
@@ -95,7 +95,7 @@ void test10()
   VERIFY( n == e_size );
   fclose(file);
 
-  freopen(name, "r", stdin);
+  VERIFY( freopen(name, "r", stdin) );
   
   wchar_t* wbuf = new wchar_t[i_size + 10];
   wcin.read(wbuf, i_size + 10);

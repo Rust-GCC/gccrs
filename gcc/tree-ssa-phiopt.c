@@ -24,12 +24,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "ggc.h"
 #include "tree.h"
-#include "rtl.h"
 #include "flags.h"
 #include "tm_p.h"
 #include "basic-block.h"
 #include "timevar.h"
-#include "diagnostic.h"
 #include "tree-flow.h"
 #include "tree-pass.h"
 #include "tree-dump.h"
@@ -207,7 +205,7 @@ tree_ssa_phiopt_worker (bool do_store_elim)
   bb_order = blocks_in_phiopt_order ();
   n = n_basic_blocks - NUM_FIXED_BLOCKS;
 
-  for (i = 0; i < n; i++) 
+  for (i = 0; i < n; i++)
     {
       gimple cond_stmt, phi;
       basic_block bb1, bb2;
@@ -307,7 +305,7 @@ tree_ssa_phiopt_worker (bool do_store_elim)
     }
 
   free (bb_order);
-  
+
   if (do_store_elim)
     pointer_set_destroy (nontrap);
   /* If the CFG has changed, we should cleanup the CFG.  */
@@ -332,12 +330,12 @@ blocks_in_phiopt_order (void)
 {
   basic_block x, y;
   basic_block *order = XNEWVEC (basic_block, n_basic_blocks);
-  unsigned n = n_basic_blocks - NUM_FIXED_BLOCKS; 
+  unsigned n = n_basic_blocks - NUM_FIXED_BLOCKS;
   unsigned np, i;
-  sbitmap visited = sbitmap_alloc (last_basic_block); 
+  sbitmap visited = sbitmap_alloc (last_basic_block);
 
-#define MARK_VISITED(BB) (SET_BIT (visited, (BB)->index)) 
-#define VISITED_P(BB) (TEST_BIT (visited, (BB)->index)) 
+#define MARK_VISITED(BB) (SET_BIT (visited, (BB)->index))
+#define VISITED_P(BB) (TEST_BIT (visited, (BB)->index))
 
   sbitmap_zero (visited);
 
@@ -696,7 +694,7 @@ minmax_replacement (basic_block cond_bb, basic_block middle_bb,
 	  && operand_equal_for_phi_arg_p (arg_false, larger))
 	{
 	  /* Case
-	 
+
 	     if (smaller < larger)
 	     rslt = smaller;
 	     else
@@ -905,7 +903,7 @@ abs_replacement (basic_block cond_bb, basic_block middle_bb,
      optimize.  */
   if (assign == NULL)
     return false;
-      
+
   /* If we got here, then we have found the only executable statement
      in OTHER_BLOCK.  If it is anything other than arg = -arg1 or
      arg1 = -arg0, then we can not optimize.  */
@@ -918,7 +916,7 @@ abs_replacement (basic_block cond_bb, basic_block middle_bb,
     return false;
 
   rhs = gimple_assign_rhs1 (assign);
-              
+
   /* The assignment has to be arg0 = -arg1 or arg1 = -arg0.  */
   if (!(lhs == arg0 && rhs == arg1)
       && !(lhs == arg1 && rhs == arg0))
@@ -996,10 +994,10 @@ abs_replacement (basic_block cond_bb, basic_block middle_bb,
 
 /* Auxiliary functions to determine the set of memory accesses which
    can't trap because they are preceded by accesses to the same memory
-   portion.  We do that for INDIRECT_REFs, so we only need to track
+   portion.  We do that for MEM_REFs, so we only need to track
    the SSA_NAME of the pointer indirectly referenced.  The algorithm
    simply is a walk over all instructions in dominator order.  When
-   we see an INDIRECT_REF we determine if we've already seen a same
+   we see an MEM_REF we determine if we've already seen a same
    ref anywhere up to the root of the dominator tree.  If we do the
    current access can't trap.  If we don't see any dominating access
    the current access might trap, but might also make later accesses
@@ -1013,7 +1011,7 @@ abs_replacement (basic_block cond_bb, basic_block middle_bb,
    trap even if a store doesn't (write-only memory).  This probably is
    overly conservative.  */
 
-/* A hash-table of SSA_NAMEs, and in which basic block an INDIRECT_REF
+/* A hash-table of SSA_NAMEs, and in which basic block an MEM_REF
    through it was seen, which would constitute a no-trap region for
    same accesses.  */
 struct name_to_bb
@@ -1026,7 +1024,7 @@ struct name_to_bb
 /* The hash table for remembering what we've seen.  */
 static htab_t seen_ssa_names;
 
-/* The set of INDIRECT_REFs which can't trap.  */
+/* The set of MEM_REFs which can't trap.  */
 static struct pointer_set_t *nontrap_set;
 
 /* The hash function, based on the pointer to the pointer SSA_NAME.  */
@@ -1049,7 +1047,7 @@ name_to_bb_eq (const void *p1, const void *p2)
 }
 
 /* We see the expression EXP in basic block BB.  If it's an interesting
-   expression (an INDIRECT_REF through an SSA_NAME) possibly insert the
+   expression (an MEM_REF through an SSA_NAME) possibly insert the
    expression into the set NONTRAP or the hash table of seen expressions.
    STORE is true if this expression is on the LHS, otherwise it's on
    the RHS.  */
@@ -1057,7 +1055,7 @@ static void
 add_or_mark_expr (basic_block bb, tree exp,
 		  struct pointer_set_t *nontrap, bool store)
 {
-  if (INDIRECT_REF_P (exp)
+  if (TREE_CODE (exp) == MEM_REF
       && TREE_CODE (TREE_OPERAND (exp, 0)) == SSA_NAME)
     {
       tree name = TREE_OPERAND (exp, 0);
@@ -1066,7 +1064,7 @@ add_or_mark_expr (basic_block bb, tree exp,
       struct name_to_bb *n2bb;
       basic_block found_bb = 0;
 
-      /* Try to find the last seen INDIRECT_REF through the same
+      /* Try to find the last seen MEM_REF through the same
          SSA_NAME, which can trap.  */
       map.ssa_name = name;
       map.bb = 0;
@@ -1076,7 +1074,7 @@ add_or_mark_expr (basic_block bb, tree exp,
       if (n2bb)
         found_bb = n2bb->bb;
 
-      /* If we've found a trapping INDIRECT_REF, _and_ it dominates EXP
+      /* If we've found a trapping MEM_REF, _and_ it dominates EXP
          (it's in a basic block on the path from us to the dominator root)
 	 then we can't trap.  */
       if (found_bb && found_bb->aux == (void *)1)
@@ -1137,7 +1135,7 @@ nt_fini_block (struct dom_walk_data *data ATTRIBUTE_UNUSED, basic_block bb)
 /* This is the entry point of gathering non trapping memory accesses.
    It will do a dominator walk over the whole function, and it will
    make use of the bb->aux pointers.  It returns a set of trees
-   (the INDIRECT_REFs itself) which can't trap.  */
+   (the MEM_REFs itself) which can't trap.  */
 static struct pointer_set_t *
 get_non_trapping (void)
 {
@@ -1202,7 +1200,8 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
   locus = gimple_location (assign);
   lhs = gimple_assign_lhs (assign);
   rhs = gimple_assign_rhs1 (assign);
-  if (!INDIRECT_REF_P (lhs))
+  if (TREE_CODE (lhs) != MEM_REF
+      || TREE_CODE (TREE_OPERAND (lhs, 0)) != SSA_NAME)
     return false;
 
   /* RHS is either a single SSA_NAME or a constant. */
@@ -1226,11 +1225,8 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
         of the memory touched by the store, if we need to.  */
   if (!condstoretemp || TREE_TYPE (lhs) != TREE_TYPE (condstoretemp))
     {
-      condstoretemp = create_tmp_var (TREE_TYPE (lhs), "cstore");
+      condstoretemp = create_tmp_reg (TREE_TYPE (lhs), "cstore");
       get_var_ann (condstoretemp);
-      if (TREE_CODE (TREE_TYPE (lhs)) == COMPLEX_TYPE
-          || TREE_CODE (TREE_TYPE (lhs)) == VECTOR_TYPE)
-	DECL_GIMPLE_REG_P (condstoretemp) = 1;
     }
   add_referenced_var (condstoretemp);
 

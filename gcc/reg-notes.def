@@ -1,5 +1,6 @@
 /* Register note definitions.
-   Copyright (C) 2004, 2005, 2006, 2007, 2008 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -147,18 +148,22 @@ REG_NOTE (CFA_OFFSET)
    or the pattern should be simple reg-reg move.  */
 REG_NOTE (CFA_REGISTER)
 
+/* Attached to insns that are RTX_FRAME_RELATED_P, but are too complex
+   for FRAME_RELATED_EXPR intuition.  This is a save to memory, i.e. will
+   result in a DW_CFA_expression.  The pattern or the insn should be a
+   store of a register to an arbitrary (non-validated) memory address.  */
+REG_NOTE (CFA_EXPRESSION)
+
 /* Attached to insns that are RTX_FRAME_RELATED_P, with the information
    that this is a restore operation, i.e. will result in DW_CFA_restore
    or the like.  Either the attached rtx, or the destination of the insn's
    first pattern is the register to be restored.  */
 REG_NOTE (CFA_RESTORE)
 
-/* Temporarily set the CFA for just one insn.  This saves the old
-   state, sets the CFA, and then restores the state after the insn.
-   The pattern for this note is the new CFA value.  This is used by
-   the split stack code to support unwinding through the call into the
-   split stack routine.  */
-REG_NOTE (CFA_TEMPORARY)
+/* Attached to insn that is RTX_FRAME_RELATED_P, marks insn that sets
+   vDRAP from DRAP.  If vDRAP is a register, vdrap_reg is initalized
+   to the argument, if it is a MEM, it is ignored.  */
+REG_NOTE (CFA_SET_VDRAP)
 
 /* Indicates that REG holds the exception context for the function.
    This context is shared by inline functions, so the code to acquire

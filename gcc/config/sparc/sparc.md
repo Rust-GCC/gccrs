@@ -1,6 +1,6 @@
 ;; Machine description for SPARC chip for GCC
 ;;  Copyright (C) 1987, 1988, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-;;  1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+;;  1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 ;;  Free Software Foundation, Inc.
 ;;  Contributed by Michael Tiemann (tiemann@cygnus.com)
 ;;  64-bit SPARC-V9 support by Michael Tiemann, Jim Wilson, and Doug Evans,
@@ -38,6 +38,7 @@
    (UNSPEC_EMB_TEXTHI		14)
    (UNSPEC_EMB_TEXTULO		15)
    (UNSPEC_EMB_SETHM		18)
+   (UNSPEC_MOVE_GOTDATA		19)
 
    (UNSPEC_MEMBAR		20)
 
@@ -74,6 +75,7 @@
    (UNSPECV_CAS			8)
    (UNSPECV_SWAP		9)
    (UNSPECV_LDSTUB		10)
+   (UNSPECV_PROBE_STACK_RANGE	11)
   ])
 
 
@@ -1224,13 +1226,40 @@
         (lo_sum:SI (match_operand:SI 1 "register_operand" "r")
                    (unspec:SI [(match_operand:SI 2 "immediate_operand" "in")] UNSPEC_MOVE_PIC)))]
   "flag_pic"
-  "or\t%1, %%lo(%a2), %0")
+{
+#ifdef HAVE_AS_SPARC_GOTDATA_OP
+  return "xor\t%1, %%gdop_lox10(%a2), %0";
+#else
+  return "or\t%1, %%lo(%a2), %0";
+#endif
+})
 
 (define_insn "movsi_high_pic"
   [(set (match_operand:SI 0 "register_operand" "=r")
         (high:SI (unspec:SI [(match_operand 1 "" "")] UNSPEC_MOVE_PIC)))]
   "flag_pic && check_pic (1)"
-  "sethi\t%%hi(%a1), %0")
+{
+#ifdef HAVE_AS_SPARC_GOTDATA_OP
+  return "sethi\t%%gdop_hix22(%a1), %0";
+#else
+  return "sethi\t%%hi(%a1), %0";
+#endif
+})
+
+(define_insn "movsi_pic_gotdata_op"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+        (unspec:SI [(match_operand:SI 1 "register_operand" "r")
+	            (match_operand:SI 2 "register_operand" "r")
+		    (match_operand 3 "symbolic_operand" "")] UNSPEC_MOVE_GOTDATA))]
+  "flag_pic && check_pic (1)"
+{
+#ifdef HAVE_AS_SPARC_GOTDATA_OP
+  return "ld\t[%1 + %2], %0, %%gdop(%a3)";
+#else
+  return "ld\t[%1 + %2], %0";
+#endif
+}
+  [(set_attr "type" "load")])
 
 (define_expand "movsi_pic_label_ref"
   [(set (match_dup 3) (high:SI
@@ -1430,13 +1459,40 @@
         (lo_sum:DI (match_operand:DI 1 "register_operand" "r")
                    (unspec:DI [(match_operand:DI 2 "immediate_operand" "in")] UNSPEC_MOVE_PIC)))]
   "TARGET_ARCH64 && flag_pic"
-  "or\t%1, %%lo(%a2), %0")
+{
+#ifdef HAVE_AS_SPARC_GOTDATA_OP
+  return "xor\t%1, %%gdop_lox10(%a2), %0";
+#else
+  return "or\t%1, %%lo(%a2), %0";
+#endif
+})
 
 (define_insn "movdi_high_pic"
   [(set (match_operand:DI 0 "register_operand" "=r")
         (high:DI (unspec:DI [(match_operand 1 "" "")] UNSPEC_MOVE_PIC)))]
   "TARGET_ARCH64 && flag_pic && check_pic (1)"
-  "sethi\t%%hi(%a1), %0")
+{
+#ifdef HAVE_AS_SPARC_GOTDATA_OP
+  return "sethi\t%%gdop_hix22(%a1), %0";
+#else
+  return "sethi\t%%hi(%a1), %0";
+#endif
+})
+
+(define_insn "movdi_pic_gotdata_op"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+        (unspec:DI [(match_operand:DI 1 "register_operand" "r")
+	            (match_operand:DI 2 "register_operand" "r")
+		    (match_operand 3 "symbolic_operand" "")] UNSPEC_MOVE_GOTDATA))]
+  "TARGET_ARCH64 && flag_pic && check_pic (1)"
+{
+#ifdef HAVE_AS_SPARC_GOTDATA_OP
+  return "ldx\t[%1 + %2], %0, %%gdop(%a3)";
+#else
+  return "ldx\t[%1 + %2], %0";
+#endif
+}
+  [(set_attr "type" "load")])
 
 (define_insn "*sethi_di_medlow_embmedany_pic"
   [(set (match_operand:DI 0 "register_operand" "=r")
@@ -6284,6 +6340,15 @@
   operands[0]
     = adjust_address (operands[0], GET_MODE (operands[0]), SPARC_STACK_BIAS);
 })
+
+(define_insn "probe_stack_range<P:mode>"
+  [(set (match_operand:P 0 "register_operand" "=r")
+	(unspec_volatile:P [(match_operand:P 1 "register_operand" "0")
+			    (match_operand:P 2 "register_operand" "r")]
+			    UNSPECV_PROBE_STACK_RANGE))]
+  ""
+  "* return output_probe_stack_range (operands[0], operands[2]);"
+  [(set_attr "type" "multi")])
 
 ;; Prepare to return any type including a structure value.
 

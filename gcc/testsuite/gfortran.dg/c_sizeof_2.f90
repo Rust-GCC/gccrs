@@ -1,8 +1,9 @@
 ! { dg-do compile }
-! { dg-options "-std=f2003 -Wall" }
+! { dg-options "-std=f2003 -Wall -Wno-conversion" }
 ! Support F2008's c_sizeof()
 !
-integer(4) :: i
-i = c_sizeof(i) ! { dg-warning "Fortran 2008" }
+USE ISO_C_BINDING, only: C_SIZE_T, c_sizeof ! { dg-error "new in Fortran 2008" }
+integer(C_SIZE_T) :: i
+i = c_sizeof(i)           
 end
 

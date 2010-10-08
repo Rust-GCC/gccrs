@@ -19,6 +19,8 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+%option noinput
+
 %{
 #include "bconfig.h"
 #include "system.h"
@@ -28,7 +30,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "gengtype.h"
 
-#define YY_NO_INPUT
 #define YY_DECL int yylex (const char **yylval)
 #define yyterminate() return EOF_TOKEN
 
@@ -48,7 +49,7 @@ update_lineno (const char *l, size_t len)
 ID	[[:alpha:]_][[:alnum:]_]*
 WS	[[:space:]]+
 HWS	[ \t\r\v\f]*
-IWORD	short|long|(un)?signed|char|int|HOST_WIDE_INT|HOST_WIDEST_INT|bool|size_t|BOOL_BITFIELD|CPPCHAR_SIGNED_T|ino_t|dev_t
+IWORD	short|long|(un)?signed|char|int|HOST_WIDE_INT|HOST_WIDEST_INT|bool|size_t|BOOL_BITFIELD|CPPCHAR_SIGNED_T|ino_t|dev_t|HARD_REG_SET
 ITYPE	{IWORD}({WS}{IWORD})*
 EOID	[^[:alnum:]_]
 

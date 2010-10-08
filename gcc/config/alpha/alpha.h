@@ -96,6 +96,9 @@ along with GCC; see the file COPYING3.  If not see
   while (0)
 #endif
 
+#define SWITCH_TAKES_ARG(CHAR)						\
+  (DEFAULT_SWITCH_TAKES_ARG (CHAR) || (CHAR) == 'G')
+
 #define WORD_SWITCH_TAKES_ARG(STR)		\
  (!strcmp (STR, "rpath") || DEFAULT_WORD_SWITCH_TAKES_ARG(STR))
 
@@ -140,8 +143,6 @@ enum alpha_fp_trap_mode
   ALPHA_FPTM_SU,	/* Software completion, w/underflow traps */
   ALPHA_FPTM_SUI	/* Software completion, w/underflow & inexact traps */
 };
-
-extern int target_flags;
 
 extern enum alpha_trap_precision alpha_tp;
 extern enum alpha_fp_rounding_mode alpha_fprm;
@@ -208,17 +209,6 @@ extern enum alpha_fp_trap_mode alpha_fptm;
 #define OPTION_DEFAULT_SPECS \
   {"cpu", "%{!mcpu=*:-mcpu=%(VALUE)}" }, \
   {"tune", "%{!mtune=*:-mtune=%(VALUE)}" }
-
-/* Sometimes certain combinations of command options do not make sense
-   on a particular target machine.  You can define a macro
-   `OVERRIDE_OPTIONS' to take account of this.  This macro, if
-   defined, is executed once just after all the command options have
-   been parsed.
-
-   On the Alpha, it is used to translate target-option strings into
-   numeric values.  */
-
-#define OVERRIDE_OPTIONS override_options ()
 
 
 /* Define this macro to change register usage conditional on target flags.
@@ -703,15 +693,6 @@ extern int alpha_memory_latency;
    in a register.  */
 /* #define REG_PARM_STACK_SPACE */
 
-/* Value is the number of bytes of arguments automatically
-   popped when returning from a subroutine call.
-   FUNDECL is the declaration node of the function (as a tree),
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.
-   SIZE is the number of bytes of arguments passed on the stack.  */
-
-#define RETURN_POPS_ARGS(FUNDECL,FUNTYPE,SIZE) 0
-
 /* Define how to find the value returned by a function.
    VALTYPE is the data type of the value (as a tree).
    If the precise function being called is known, FUNC is its FUNCTION_DECL;
@@ -933,7 +914,7 @@ extern int alpha_memory_latency;
 #define NONSTRICT_REG_OK_FP_BASE_P(X)		\
   (REGNO (X) == 31 || REGNO (X) == 63		\
    || (REGNO (X) >= FIRST_PSEUDO_REGISTER	\
-       && REGNO (X) < LAST_VIRTUAL_REGISTER))
+       && REGNO (X) < LAST_VIRTUAL_POINTER_REGISTER))
 
 /* Nonzero if X is a hard reg that can be used as a base reg.  */
 #define STRICT_REG_OK_FOR_BASE_P(X) REGNO_OK_FOR_BASE_P (REGNO (X))

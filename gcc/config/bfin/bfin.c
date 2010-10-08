@@ -1,5 +1,6 @@
 /* The Blackfin code generation auxiliary output file.
-   Copyright (C) 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Analog Devices.
 
    This file is part of GCC.
@@ -25,7 +26,6 @@
 #include "rtl.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "insn-codes.h"
 #include "conditions.h"
@@ -40,6 +40,7 @@
 #include "target.h"
 #include "target-def.h"
 #include "expr.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "recog.h"
 #include "optabs.h"
@@ -357,7 +358,7 @@ output_file_start (void)
 
   /* Variable tracking should be run after all optimizations which change order
      of insns.  It also needs a valid CFG.  This can't be done in
-     override_options, because flag_var_tracking is finalized after
+     bfin_option_override, because flag_var_tracking is finalized after
      that.  */
   bfin_flag_var_tracking = flag_var_tracking;
   flag_var_tracking = 0;
@@ -2458,8 +2459,8 @@ bfin_memory_move_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
    RCLASS requires an extra scratch register.  Return the class needed for the
    scratch register.  */
 
-static enum reg_class
-bfin_secondary_reload (bool in_p, rtx x, enum reg_class rclass,
+static reg_class_t
+bfin_secondary_reload (bool in_p, rtx x, reg_class_t rclass_i,
 		       enum machine_mode mode, secondary_reload_info *sri)
 {
   /* If we have HImode or QImode, we can only use DREGS as secondary registers;
@@ -2467,6 +2468,7 @@ bfin_secondary_reload (bool in_p, rtx x, enum reg_class rclass,
   enum reg_class default_class = GET_MODE_SIZE (mode) >= 4 ? DPREGS : DREGS;
   enum reg_class x_class = NO_REGS;
   enum rtx_code code = GET_CODE (x);
+  enum reg_class rclass = (enum reg_class) rclass_i;
 
   if (code == SUBREG)
     x = SUBREG_REG (x), code = GET_CODE (x);
@@ -2540,6 +2542,29 @@ bfin_secondary_reload (bool in_p, rtx x, enum reg_class rclass,
       return default_class;
 
   return NO_REGS;
+}
+
+/* Implement TARGET_CLASS_LIKELY_SPILLED_P.  */
+
+static bool
+bfin_class_likely_spilled_p (reg_class_t rclass)
+{
+  switch (rclass)
+    {
+      case PREGS_CLOBBERED:
+      case PROLOGUE_REGS:
+      case P0REGS:
+      case D0REGS:
+      case D1REGS:
+      case D2REGS:
+      case CCREGS:
+        return true;
+
+      default:
+        break;
+    }
+
+  return false;
 }
 
 /* Implement TARGET_HANDLE_OPTION.  */
@@ -2634,17 +2659,13 @@ bfin_handle_option (size_t code, const char *arg, int value)
 static struct machine_function *
 bfin_init_machine_status (void)
 {
-  struct machine_function *f;
-
-  f = GGC_CNEW (struct machine_function);
-
-  return f;
+  return ggc_alloc_cleared_machine_function ();
 }
 
-/* Implement the macro OVERRIDE_OPTIONS.  */
+/* Implement the TARGET_OPTION_OVERRIDE hook.  */
 
-void
-override_options (void)
+static void
+bfin_option_override (void)
 {
   /* If processor type is not specified, enable all workarounds.  */
   if (bfin_cpu_type == BFIN_CPU_UNKNOWN)
@@ -3797,12 +3818,12 @@ bfin_dump_loops (loop_info loops)
       fprintf (dump_file, "{head:%d, depth:%d}", loop->head->index, loop->depth);
 
       fprintf (dump_file, " blocks: [ ");
-      for (ix = 0; VEC_iterate (basic_block, loop->blocks, ix, b); ix++)
+      FOR_EACH_VEC_ELT (basic_block, loop->blocks, ix, b)
 	fprintf (dump_file, "%d ", b->index);
       fprintf (dump_file, "] ");
 
       fprintf (dump_file, " inner loops: [ ");
-      for (ix = 0; VEC_iterate (loop_info, loop->loops, ix, i); ix++)
+      FOR_EACH_VEC_ELT (loop_info, loop->loops, ix, i)
 	fprintf (dump_file, "%d ", i->loop_no);
       fprintf (dump_file, "]\n");
     }
@@ -3828,7 +3849,7 @@ bfin_scan_loop (loop_info loop, rtx reg, rtx loop_end)
   unsigned ix;
   basic_block bb;
 
-  for (ix = 0; VEC_iterate (basic_block, loop->blocks, ix, bb); ix++)
+  FOR_EACH_VEC_ELT (basic_block, loop->blocks, ix, bb)
     {
       rtx insn;
 
@@ -3904,7 +3925,7 @@ bfin_optimize_loop (loop_info loop)
   /* Every loop contains in its list of inner loops every loop nested inside
      it, even if there are intermediate loops.  This works because we're doing
      a depth-first search here and never visit a loop more than once.  */
-  for (ix = 0; VEC_iterate (loop_info, loop->loops, ix, inner); ix++)
+  FOR_EACH_VEC_ELT (loop_info, loop->loops, ix, inner)
     {
       bfin_optimize_loop (inner);
 
@@ -4054,7 +4075,7 @@ bfin_optimize_loop (loop_info loop)
   reg_lb0 = gen_rtx_REG (SImode, REG_LB0);
   reg_lb1 = gen_rtx_REG (SImode, REG_LB1);
 
-  for (ix = 0; VEC_iterate (basic_block, loop->blocks, ix, bb); ix++)
+  FOR_EACH_VEC_ELT (basic_block, loop->blocks, ix, bb)
     {
       rtx insn;
 
@@ -4400,14 +4421,13 @@ bfin_discover_loop (loop_info loop, basic_block tail_bb, rtx tail_insn)
 	  break;
 	}
 
-      if (bitmap_bit_p (loop->block_bitmap, bb->index))
+      if (!bitmap_set_bit (loop->block_bitmap, bb->index))
 	continue;
 
       /* We've not seen this block before.  Add it to the loop's
 	 list and then add each successor to the work list.  */
 
       VEC_safe_push (basic_block, heap, loop->blocks, bb);
-      bitmap_set_bit (loop->block_bitmap, bb->index);
 
       if (bb != tail_bb)
 	{
@@ -4436,7 +4456,7 @@ bfin_discover_loop (loop_info loop, basic_block tail_bb, rtx tail_insn)
   if (!loop->bad)
     {
       int pass, retry;
-      for (dwork = 0; VEC_iterate (basic_block, loop->blocks, dwork, bb); dwork++)
+      FOR_EACH_VEC_ELT (basic_block, loop->blocks, dwork, bb)
 	{
 	  edge e;
 	  edge_iterator ei;
@@ -5499,7 +5519,11 @@ bfin_reorg (void)
       add_sched_insns_for_speculation ();
 
       timevar_push (TV_SCHED2);
-      schedule_insns ();
+      if (flag_selective_scheduling2
+	  && !maybe_skip_selective_scheduling ())
+        run_selective_scheduling ();
+      else
+	schedule_insns ();
       timevar_pop (TV_SCHED2);
 
       /* Examine the schedule and insert nops as necessary for 64-bit parallel
@@ -6625,11 +6649,17 @@ bfin_expand_builtin (tree exp, rtx target ATTRIBUTE_UNUSED,
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION bfin_handle_option
 
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE bfin_option_override
+
 #undef TARGET_DEFAULT_TARGET_FLAGS
 #define TARGET_DEFAULT_TARGET_FLAGS TARGET_DEFAULT
 
 #undef TARGET_SECONDARY_RELOAD
 #define TARGET_SECONDARY_RELOAD bfin_secondary_reload
+
+#undef TARGET_CLASS_LIKELY_SPILLED_P
+#define TARGET_CLASS_LIKELY_SPILLED_P bfin_class_likely_spilled_p
 
 #undef TARGET_DELEGITIMIZE_ADDRESS
 #define TARGET_DELEGITIMIZE_ADDRESS bfin_delegitimize_address

@@ -32,6 +32,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "collect2.h"
 #include "libiberty.h"
 
+/* TARGET_64BIT may be defined to use driver specific functionality. */
+#undef TARGET_64BIT
+#define TARGET_64BIT TARGET_64BIT_DEFAULT
+
 #define MAX_ITERATIONS 17
 
 /* Defined in the automatically-generated underscore.c.  */
@@ -729,7 +733,7 @@ scan_linker_output (const char *fname)
       if (sym && sym->tweaked)
 	{
 	  error ("'%s' was assigned to '%s', but was not defined "
-		 "during recompilation, or vice versa", 
+		 "during recompilation, or vice versa",
 		 sym->key, sym->file->key);
 	  fclose (stream);
 	  return 0;

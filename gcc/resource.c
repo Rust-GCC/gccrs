@@ -1,6 +1,6 @@
 /* Definitions for computing resource usage of specific insns.
    Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
-   2009 Free Software Foundation, Inc.
+   2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,6 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "rtl.h"
 #include "tm_p.h"
@@ -334,7 +335,7 @@ mark_referenced_resources (rtx x, struct resources *res,
 	  if (frame_pointer_needed)
 	    {
 	      SET_HARD_REG_BIT (res->regs, FRAME_POINTER_REGNUM);
-#if FRAME_POINTER_REGNUM != HARD_FRAME_POINTER_REGNUM
+#if !HARD_FRAME_POINTER_IS_FRAME_POINTER
 	      SET_HARD_REG_BIT (res->regs, HARD_FRAME_POINTER_REGNUM);
 #endif
 	    }
@@ -957,7 +958,7 @@ mark_target_live_regs (rtx insns, rtx target, struct resources *res)
 
       /* Get starting and ending insn, handling the case where each might
 	 be a SEQUENCE.  */
-      start_insn = (b == ENTRY_BLOCK_PTR->next_bb->index ? 
+      start_insn = (b == ENTRY_BLOCK_PTR->next_bb->index ?
 		    insns : BB_HEAD (BASIC_BLOCK (b)));
       stop_insn = target;
 
@@ -1147,7 +1148,7 @@ init_resource_info (rtx epilogue_insn)
   if (frame_pointer_needed)
     {
       SET_HARD_REG_BIT (end_of_function_needs.regs, FRAME_POINTER_REGNUM);
-#if HARD_FRAME_POINTER_REGNUM != FRAME_POINTER_REGNUM
+#if !HARD_FRAME_POINTER_IS_FRAME_POINTER
       SET_HARD_REG_BIT (end_of_function_needs.regs, HARD_FRAME_POINTER_REGNUM);
 #endif
       if (! EXIT_IGNORE_STACK

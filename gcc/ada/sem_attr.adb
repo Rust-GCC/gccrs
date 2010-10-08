@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -136,6 +136,7 @@ package body Sem_Attr is
 
    Attribute_05 : constant Attribute_Class_Array := Attribute_Class_Array'(
       Attribute_Machine_Rounding  |
+      Attribute_Mod               |
       Attribute_Priority          |
       Attribute_Stream_Size       |
       Attribute_Wide_Wide_Width   => True,
@@ -583,6 +584,10 @@ package body Sem_Attr is
 
             Check_For_Eliminated_Subprogram (P, Entity (P));
 
+            --  Check for obsolescent subprogram reference
+
+            Check_Obsolescent_2005_Entity (Entity (P), P);
+
             --  Build the appropriate subprogram type
 
             Build_Access_Subprogram_Type (P);
@@ -690,6 +695,12 @@ package body Sem_Attr is
                   then
                      Error_Msg_N
                        ("current instance attribute must appear alone", N);
+                  end if;
+
+                  if Is_CPP_Class (Root_Type (Typ)) then
+                     Error_Msg_N
+                       ("?current instance unsupported for derivations of "
+                        & "'C'P'P types", N);
                   end if;
 
                --  OK if we are in initialization procedure for the type
@@ -2384,8 +2395,8 @@ package body Sem_Attr is
            and then Base_Type (Typ) = Typ
            and then Warn_On_Redundant_Constructs
          then
-               Error_Msg_NE
-                 ("?redundant attribute, & is its own base type", N, Typ);
+            Error_Msg_NE -- CODEFIX
+              ("?redundant attribute, & is its own base type", N, Typ);
          end if;
 
          Set_Etype (N, Base_Type (Entity (P)));
@@ -2534,6 +2545,25 @@ package body Sem_Attr is
          Check_E0;
          Find_Type (N);
 
+         --  Applying Class to untagged incomplete type is obsolescent in Ada
+         --  2005. Note that we can't test Is_Tagged_Type here on P_Type, since
+         --  this flag gets set by Find_Type in this situation.
+
+         if Restriction_Check_Required (No_Obsolescent_Features)
+           and then Ada_Version >= Ada_2005
+           and then Ekind (P_Type) = E_Incomplete_Type
+         then
+            declare
+               DN : constant Node_Id := Declaration_Node (P_Type);
+            begin
+               if Nkind (DN) = N_Incomplete_Type_Declaration
+                 and then not Tagged_Present (DN)
+               then
+                  Check_Restriction (No_Obsolescent_Features, P);
+               end if;
+            end;
+         end if;
+
       ------------------
       -- Code_Address --
       ------------------
@@ -2611,7 +2641,7 @@ package body Sem_Attr is
          --  Case from RM J.4(2) of constrained applied to private type
 
          if Is_Entity_Name (P) and then Is_Type (Entity (P)) then
-            Check_Restriction (No_Obsolescent_Features, N);
+            Check_Restriction (No_Obsolescent_Features, P);
 
             if Warn_On_Obsolescent_Feature then
                Error_Msg_N
@@ -2775,10 +2805,8 @@ package body Sem_Attr is
                exit;
 
             elsif Ekind (Scope (Ent)) in Task_Kind
-              and then Ekind (S) /= E_Loop
-              and then Ekind (S) /= E_Block
-              and then Ekind (S) /= E_Entry
-              and then Ekind (S) /= E_Entry_Family
+              and then
+                not Ekind_In (S, E_Loop, E_Block, E_Entry, E_Entry_Family)
             then
                Error_Attr ("Attribute % cannot appear in inner unit", N);
 
@@ -3546,13 +3574,9 @@ package body Sem_Attr is
          ----------------------
 
          procedure Must_Be_Imported (Proc_Ent : Entity_Id) is
-            Pent : Entity_Id := Proc_Ent;
+            Pent : constant Entity_Id := Ultimate_Alias (Proc_Ent);
 
          begin
-            while Present (Alias (Pent)) loop
-               Pent := Alias (Pent);
-            end loop;
-
             --  Ignore check if procedure not frozen yet (we will get
             --  another chance when the default parameter is reanalyzed)
 
@@ -3654,6 +3678,7 @@ package body Sem_Attr is
             function Process (N : Node_Id) return Traverse_Result is
             begin
                if Is_Entity_Name (N)
+                 and then Present (Entity (N))
                  and then not Is_Formal (Entity (N))
                  and then Enclosing_Subprogram (Entity (N)) = Subp
                then
@@ -4200,6 +4225,10 @@ package body Sem_Attr is
 
          if Is_Task_Type (P_Type) then
             Set_Etype (N, Universal_Integer);
+
+            --  Use with tasks is an obsolescent feature
+
+            Check_Restriction (No_Obsolescent_Features, P);
 
          elsif Is_Access_Type (P_Type) then
             if Ekind (P_Type) = E_Access_Subprogram_Type then
@@ -4809,9 +4838,11 @@ package body Sem_Attr is
       --  processing, since otherwise gigi might see an attribute which it is
       --  unprepared to deal with.
 
-      function Aft_Value return Nat;
-      --  Computes Aft value for current attribute prefix (used by Aft itself
-      --  and also by Width for computing the Width of a fixed point type).
+      procedure Check_Concurrent_Discriminant (Bound : Node_Id);
+      --  If Bound is a reference to a discriminant of a task or protected type
+      --  occurring within the object's body, rewrite attribute reference into
+      --  a reference to the corresponding discriminal. Use for the expansion
+      --  of checks against bounds of entry family index subtypes.
 
       procedure Check_Expressions;
       --  In case where the attribute is not foldable, the expressions, if
@@ -4878,24 +4909,33 @@ package body Sem_Attr is
       --  Verify that the prefix of a potentially static array attribute
       --  satisfies the conditions of 4.9 (14).
 
-      ---------------
-      -- Aft_Value --
-      ---------------
+      -----------------------------------
+      -- Check_Concurrent_Discriminant --
+      -----------------------------------
 
-      function Aft_Value return Nat is
-         Result    : Nat;
-         Delta_Val : Ureal;
+      procedure Check_Concurrent_Discriminant (Bound : Node_Id) is
+         Tsk : Entity_Id;
+         --  The concurrent (task or protected) type
 
       begin
-         Result := 1;
-         Delta_Val := Delta_Value (P_Type);
-         while Delta_Val < Ureal_Tenth loop
-            Delta_Val := Delta_Val * Ureal_10;
-            Result := Result + 1;
-         end loop;
+         if Nkind (Bound) = N_Identifier
+           and then Ekind (Entity (Bound)) = E_Discriminant
+           and then Is_Concurrent_Record_Type (Scope (Entity (Bound)))
+         then
+            Tsk := Corresponding_Concurrent_Type (Scope (Entity (Bound)));
 
-         return Result;
-      end Aft_Value;
+            if In_Open_Scopes (Tsk) and then Has_Completion (Tsk) then
+
+               --  Find discriminant of original concurrent type, and use
+               --  its current discriminal, which is the renaming within
+               --  the task/protected body.
+
+               Rewrite (N,
+                 New_Occurrence_Of
+                   (Find_Body_Discriminal (Entity (Bound)), Loc));
+            end if;
+         end if;
+      end Check_Concurrent_Discriminant;
 
       -----------------------
       -- Check_Expressions --
@@ -5626,10 +5666,10 @@ package body Sem_Attr is
             while Present (N) loop
                Static := Static and then Is_Static_Subtype (Etype (N));
 
-               --  If however the index type is generic, attributes cannot
-               --  be folded.
+               --  If however the index type is generic, or derived from
+               --  one, attributes cannot be folded.
 
-               if Is_Generic_Type (Etype (N))
+               if Is_Generic_Type (Root_Type (Etype (N)))
                  and then Id /= Attribute_Component_Size
                then
                   return;
@@ -5756,7 +5796,7 @@ package body Sem_Attr is
       ---------
 
       when Attribute_Aft =>
-         Fold_Uint (N, UI_From_Int (Aft_Value), True);
+         Fold_Uint (N, Aft_Value (P_Type), True);
 
       ---------------
       -- Alignment --
@@ -5984,6 +6024,9 @@ package body Sem_Attr is
             else
                Fold_Uint  (N, Expr_Value (Lo_Bound), Static);
             end if;
+
+         else
+            Check_Concurrent_Discriminant (Lo_Bound);
          end if;
       end First_Attr;
 
@@ -6172,6 +6215,9 @@ package body Sem_Attr is
             else
                Fold_Uint  (N, Expr_Value (Hi_Bound), Static);
             end if;
+
+         else
+            Check_Concurrent_Discriminant (Hi_Bound);
          end if;
       end Last;
 
@@ -6192,13 +6238,13 @@ package body Sem_Attr is
          Ind : Node_Id;
 
       begin
-         --  In the case of a generic index type, the bounds may appear static
-         --  but the computation is not meaningful in this case, and may
-         --  generate a spurious warning.
+         --  If any index type is a formal type, or derived from one, the
+         --  bounds are not static. Treating them as static can produce
+         --  spurious warnings or improper constant folding.
 
          Ind := First_Index (P_Type);
          while Present (Ind) loop
-            if Is_Generic_Type (Etype (Ind)) then
+            if Is_Generic_Type (Root_Type (Etype (Ind))) then
                return;
             end if;
 
@@ -6346,7 +6392,7 @@ package body Sem_Attr is
       --  Note: for the folding case, it is fine to treat Machine_Rounding
       --  exactly the same way as Rounding, since this is one of the allowed
       --  behaviors, and performance is not an issue here. It might be a bit
-      --  better to give the same result as it would give at run-time, even
+      --  better to give the same result as it would give at run time, even
       --  though the non-determinism is certainly permitted.
 
       when Attribute_Machine_Rounding =>
@@ -7328,7 +7374,8 @@ package body Sem_Attr is
                   --  For fixed-point type width is Fore + 1 + Aft (RM 3.5(34))
 
                   Fold_Uint
-                    (N, UI_From_Int (Fore_Value + 1 + Aft_Value), True);
+                    (N, UI_From_Int (Fore_Value + 1) + Aft_Value (P_Type),
+                     True);
                end if;
 
             --  Discrete types
@@ -7645,8 +7692,7 @@ package body Sem_Attr is
          --  know will fail, so generate an appropriate warning.
 
          if In_Instance_Body then
-            Error_Msg_F
-              ("?non-local pointer cannot point to local object", P);
+            Error_Msg_F ("?non-local pointer cannot point to local object", P);
             Error_Msg_F
               ("\?Program_Error will be raised at run time", P);
             Rewrite (N,
@@ -7656,8 +7702,7 @@ package body Sem_Attr is
             return;
 
          else
-            Error_Msg_F
-              ("non-local pointer cannot point to local object", P);
+            Error_Msg_F ("non-local pointer cannot point to local object", P);
 
             --  Check for case where we have a missing access definition
 
@@ -7813,11 +7858,9 @@ package body Sem_Attr is
                --  also be accessibility checks on those, this is where the
                --  checks can eventually be centralized ???
 
-               if Ekind (Btyp) = E_Access_Subprogram_Type
-                    or else
-                  Ekind (Btyp) = E_Anonymous_Access_Subprogram_Type
-                    or else
-                  Ekind (Btyp) = E_Anonymous_Access_Protected_Subprogram_Type
+               if Ekind_In (Btyp, E_Access_Subprogram_Type,
+                                  E_Anonymous_Access_Subprogram_Type,
+                                  E_Anonymous_Access_Protected_Subprogram_Type)
                then
                   --  Deal with convention mismatch
 
@@ -7906,7 +7949,14 @@ package body Sem_Attr is
                   --  when within an instance, because any violations will have
                   --  been caught by the compilation of the generic unit.
 
+                  --  Note that we relax this check in CodePeer mode for
+                  --  compatibility with legacy code.
+
+                  --  This seems an odd decision??? Why should codepeer mode
+                  --  have a different notion of legality from the compiler???
+
                   elsif Attr_Id = Attribute_Access
+                    and then not CodePeer_Mode
                     and then not In_Instance
                     and then Present (Enclosing_Generic_Unit (Entity (P)))
                     and then Present (Enclosing_Generic_Body (N))
@@ -7923,9 +7973,9 @@ package body Sem_Attr is
                      --  The attribute type's ultimate ancestor must be
                      --  declared within the same generic unit as the
                      --  subprogram is declared. The error message is
-                     --  specialized to say "ancestor" for the case where
-                     --  the access type is not its own ancestor, since
-                     --  saying simply "access type" would be very confusing.
+                     --  specialized to say "ancestor" for the case where the
+                     --  access type is not its own ancestor, since saying
+                     --  simply "access type" would be very confusing.
 
                      if Enclosing_Generic_Unit (Entity (P)) /=
                           Enclosing_Generic_Unit (Root_Type (Btyp))
@@ -8244,9 +8294,8 @@ package body Sem_Attr is
                end if;
             end if;
 
-            if Ekind (Btyp) = E_Access_Protected_Subprogram_Type
-                 or else
-               Ekind (Btyp) = E_Anonymous_Access_Protected_Subprogram_Type
+            if Ekind_In (Btyp, E_Access_Protected_Subprogram_Type,
+                               E_Anonymous_Access_Protected_Subprogram_Type)
             then
                if Is_Entity_Name (P)
                  and then not Is_Protected_Type (Scope (Entity (P)))
@@ -8268,9 +8317,8 @@ package body Sem_Attr is
                   return;
                end if;
 
-            elsif (Ekind (Btyp) = E_Access_Subprogram_Type
-                     or else
-                   Ekind (Btyp) = E_Anonymous_Access_Subprogram_Type)
+            elsif Ekind_In (Btyp, E_Access_Subprogram_Type,
+                                  E_Anonymous_Access_Subprogram_Type)
               and then Ekind (Etype (N)) = E_Access_Protected_Subprogram_Type
             then
                Error_Msg_F ("context requires a non-protected subprogram", P);

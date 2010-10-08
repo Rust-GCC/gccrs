@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -47,6 +47,7 @@ with Prepcomp;
 with Restrict; use Restrict;
 with Rident;   use Rident;
 with Rtsfind;  use Rtsfind;
+with Snames;   use Snames;
 with Sprint;
 with Scn;      use Scn;
 with Sem;      use Sem;
@@ -59,6 +60,7 @@ with Sem_Warn; use Sem_Warn;
 with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
 with Sinput.L; use Sinput.L;
+with SCIL_LL;  use SCIL_LL;
 with Targparm; use Targparm;
 with Tbuild;   use Tbuild;
 with Types;    use Types;
@@ -88,6 +90,10 @@ begin
    Sem_Warn.Initialize;
    Prep.Initialize;
 
+   if Generate_SCIL then
+      SCIL_LL.Initialize;
+   end if;
+
    --  Create package Standard
 
    CStand.Create_Standard;
@@ -110,12 +116,17 @@ begin
       Prepcomp.Check_Symbols;
    end if;
 
+   --  We set Parsing_Main_Extended_Source true here to cover processing of all
+   --  the configuration pragma files, as well as the main source unit itself.
+
+   Parsing_Main_Extended_Source := True;
+
    --  Now that the preprocessing situation is established, we are able to
    --  load the main source (this is no longer done by Lib.Load.Initialize).
 
    Lib.Load.Load_Main_Source;
 
-   --  Return immediately if the main source could not be parsed
+   --  Return immediately if the main source could not be found
 
    if Sinput.Main_Source_File = No_Source_File then
       return;
@@ -155,7 +166,6 @@ begin
          if Source_gnat_adc /= No_Source_File then
             Initialize_Scanner (No_Unit, Source_gnat_adc);
             Config_Pragmas := Par (Configuration_Pragmas => True);
-
          else
             Config_Pragmas := Empty_List;
          end if;
@@ -224,9 +234,9 @@ begin
       Optimize_Alignment := 'T';
    end if;
 
-   --  We have now processed the command line switches, and the gnat.adc
-   --  file, so this is the point at which we want to capture the values
-   --  of the configuration switches (see Opt for further details).
+   --  We have now processed the command line switches, and the configuration
+   --  pragma files, so this is the point at which we want to capture the
+   --  values of the configuration switches (see Opt for further details).
 
    Opt.Register_Opt_Config_Switches;
 
@@ -247,6 +257,7 @@ begin
    --  semantics in any case).
 
    Discard_List (Par (Configuration_Pragmas => False));
+   Parsing_Main_Extended_Source := False;
 
    --  The main unit is now loaded, and subunits of it can be loaded,
    --  without reporting spurious loading circularities.
@@ -284,7 +295,7 @@ begin
    --  explicit switch turning off Warn_On_Non_Local_Exception, then turn on
    --  this warning by default if we have encountered an exception handler.
 
-   if Restriction_Active (No_Exception_Propagation)
+   if Restriction_Check_Required (No_Exception_Propagation)
      and then not No_Warn_On_Non_Local_Exception
      and then Exception_Handler_Encountered
    then
@@ -380,6 +391,29 @@ begin
    --  of -gnatD, where it rewrites all source locations in the tree.
 
    Sprint.Source_Dump;
+
+   --  Check again for configuration pragmas that appear in the context of
+   --  the main unit. These pragmas only affect the main unit, and the
+   --  corresponding flag is reset after each call to Semantics, but they
+   --  may affect the generated ali for the unit, and therefore the flag
+   --  must be set properly after compilation. Currently we only check for
+   --  Initialize_Scalars, but others should be checked: as well???
+
+   declare
+      Item  : Node_Id;
+
+   begin
+      Item := First (Context_Items (Cunit (Main_Unit)));
+      while Present (Item) loop
+         if Nkind (Item) = N_Pragma
+           and then Pragma_Name (Item) = Name_Initialize_Scalars
+         then
+            Initialize_Scalars := True;
+         end if;
+
+         Next (Item);
+      end loop;
+   end;
 
    --  If a mapping file has been specified by a -gnatem switch, update
    --  it if there has been some sources that were not in the mappings.

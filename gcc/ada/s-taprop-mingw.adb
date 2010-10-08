@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -312,18 +312,17 @@ package body System.Task_Primitives.Operations is
       Unlock (L, Global_Lock => True);
 
       --  No problem if we are interrupted here: if the condition is signaled,
-      --  WaitForSingleObject will simply not block
+      --  WaitForSingleObject will simply not block.
 
       if Rel_Time <= 0.0 then
          Timed_Out := True;
          Wait_Result := 0;
 
       else
-         if Rel_Time >= Duration (Time_Out_Max) / 1000 then
-            Time_Out := Time_Out_Max;
-         else
-            Time_Out := DWORD (Rel_Time * 1000);
-         end if;
+         Time_Out :=
+           (if Rel_Time >= Duration (Time_Out_Max) / 1000
+            then Time_Out_Max
+            else DWORD (Rel_Time * 1000));
 
          Wait_Result := WaitForSingleObject (HANDLE (Cond.all), Time_Out);
 
@@ -919,6 +918,15 @@ package body System.Task_Primitives.Operations is
 
       T.Common.LL.Thread := hTask;
 
+      --  Note: it would be useful to initialize Thread_Id right away to avoid
+      --  a race condition in gdb where Thread_ID may not have the right value
+      --  yet, but GetThreadId is a Vista specific API, not available under XP:
+      --  T.Common.LL.Thread_Id := GetThreadId (hTask); so instead we set the
+      --  field to 0 to avoid having a random value. Thread_Id is initialized
+      --  in Enter_Task anyway.
+
+      T.Common.LL.Thread_Id := 0;
+
       --  Step 3: set its priority (child has inherited priority from parent)
 
       Set_Priority (T, Priority);
@@ -928,8 +936,8 @@ package body System.Task_Primitives.Operations is
         or else Get_Policy (Priority) = 'F'
       then
          --  Here we need Annex D semantics so we disable the NT priority
-         --  boost. A priority boost is temporarily given by the system to a
-         --  thread when it is taken out of a wait state.
+         --  boost. A priority boost is temporarily given by the system to
+         --  a thread when it is taken out of a wait state.
 
          SetThreadPriorityBoost (hTask, DisablePriorityBoost => Win32.TRUE);
       end if;
@@ -943,7 +951,7 @@ package body System.Task_Primitives.Operations is
          end if;
       end if;
 
-      --  Step 5: Now, start it for good:
+      --  Step 5: Now, start it for good
 
       Result := ResumeThread (hTask);
       pragma Assert (Result = 1);
@@ -1123,6 +1131,7 @@ package body System.Task_Primitives.Operations is
 
    procedure Finalize (S : in out Suspension_Object) is
       Result : BOOL;
+
    begin
       --  Destroy internal mutex
 
@@ -1201,6 +1210,7 @@ package body System.Task_Primitives.Operations is
    procedure Suspend_Until_True (S : in out Suspension_Object) is
       Result      : DWORD;
       Result_Bool : BOOL;
+
    begin
       SSL.Abort_Defer.all;
 

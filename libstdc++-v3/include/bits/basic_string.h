@@ -1,7 +1,7 @@
 // Components for manipulating sequences of characters -*- C++ -*-
 
 // Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007, 2008, 2009
+// 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -48,13 +48,14 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    *  @class basic_string basic_string.h <string>
    *  @brief  Managing sequences of characters and character-like objects.
    *
+   *  @ingroup strings
    *  @ingroup sequences
    *
    *  Meets the requirements of a <a href="tables.html#65">container</a>, a
    *  <a href="tables.html#66">reversible container</a>, and a
    *  <a href="tables.html#67">sequence</a>.  Of the
    *  <a href="tables.html#68">optional sequence requirements</a>, only
-   *  @c push_back, @c at, and array access are supported.
+   *  @c push_back, @c at, and @c %array access are supported.
    *
    *  @doctodo
    *
@@ -78,20 +79,20 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    *
    *  This approach has the enormous advantage that a string object
    *  requires only one allocation.  All the ugliness is confined
-   *  within a single pair of inline functions, which each compile to
-   *  a single "add" instruction: _Rep::_M_data(), and
+   *  within a single %pair of inline functions, which each compile to
+   *  a single @a add instruction: _Rep::_M_data(), and
    *  string::_M_rep(); and the allocation function which gets a
    *  block of raw bytes and with room enough and constructs a _Rep
    *  object at the front.
    *
-   *  The reason you want _M_data pointing to the character array and
+   *  The reason you want _M_data pointing to the character %array and
    *  not the _Rep is so that the debugger can see the string
    *  contents. (Probably we should add a non-inline member to get
    *  the _Rep for the debugger to use, so users can check the actual
    *  string length.)
    *
    *  Note that the _Rep object is a POD so that you can have a
-   *  static "empty string" _Rep object already "constructed" before
+   *  static <em>empty string</em> _Rep object already @a constructed before
    *  static constructors have run.  The reference-count encoding is
    *  chosen so that a 0 indicates one reference, so you never try to
    *  destroy the empty-string _Rep object.
@@ -231,9 +232,16 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 #ifndef _GLIBCXX_FULLY_DYNAMIC_STRING
 	  if (__builtin_expect(this != &_S_empty_rep(), false))
 #endif
-	    if (__gnu_cxx::__exchange_and_add_dispatch(&this->_M_refcount,
-						       -1) <= 0)
-	      _M_destroy(__a);
+	    {
+	      // Be race-detector-friendly.  For more info see bits/c++config.
+	      _GLIBCXX_SYNCHRONIZATION_HAPPENS_BEFORE(&this->_M_refcount);
+	      if (__gnu_cxx::__exchange_and_add_dispatch(&this->_M_refcount,
+							 -1) <= 0)
+		{
+		  _GLIBCXX_SYNCHRONIZATION_HAPPENS_AFTER(&this->_M_refcount);
+		  _M_destroy(__a);
+		}
+	    }
 	}  // XXX MT
 
 	void
@@ -419,8 +427,12 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       /**
        *  @brief  Default constructor creates an empty string.
        */
-      inline
-      basic_string();
+      basic_string()
+#ifndef _GLIBCXX_FULLY_DYNAMIC_STRING
+      : _M_dataplus(_S_empty_rep()._M_refdata(), _Alloc()) { }
+#else
+      : _M_dataplus(_S_construct(size_type(), _CharT(), _Alloc()), _Alloc()){ }
+#endif
 
       /**
        *  @brief  Construct an empty string using allocator @a a.
@@ -453,13 +465,13 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 		   size_type __n, const _Alloc& __a);
 
       /**
-       *  @brief  Construct string initialized by a character array.
-       *  @param  s  Source character array.
+       *  @brief  Construct string initialized by a character %array.
+       *  @param  s  Source character %array.
        *  @param  n  Number of characters to copy.
        *  @param  a  Allocator to use (default is default allocator).
        *
-       *  NB: @a s must have at least @a n characters, '\\0' has no special
-       *  meaning.
+       *  NB: @a s must have at least @a n characters, &apos;\\0&apos;
+       *  has no special meaning.
        */
       basic_string(const _CharT* __s, size_type __n,
 		   const _Alloc& __a = _Alloc());
@@ -479,7 +491,24 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       /**
-       *  @brief  Construct string from an initializer list.
+       *  @brief  Move construct string.
+       *  @param  str  Source string.
+       *
+       *  The newly-created string contains the exact contents of @a str.
+       *  @a str is a valid, but unspecified string.
+       **/
+      basic_string(basic_string&& __str)
+      : _M_dataplus(__str._M_dataplus)
+      {
+#ifndef _GLIBCXX_FULLY_DYNAMIC_STRING	
+	__str._M_data(_S_empty_rep()._M_refdata());
+#else
+	__str._M_data(_S_construct(size_type(), _CharT(), get_allocator()));
+#endif
+      }
+
+      /**
+       *  @brief  Construct string from an initializer %list.
        *  @param  l  std::initializer_list of characters.
        *  @param  a  Allocator to use (default is default allocator).
        */
@@ -534,7 +563,22 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       /**
-       *  @brief  Set value to string constructed from initializer list.
+       *  @brief  Move assign the value of @a str to this string.
+       *  @param  str  Source string.
+       *
+       *  The contents of @a str are moved into this string (without copying).
+       *  @a str is a valid, but unspecified string.
+       **/
+      basic_string&
+      operator=(basic_string&& __str)
+      {
+	// NB: DR 1204.
+	this->swap(__str);
+	return *this;
+      }
+
+      /**
+       *  @brief  Set value to string constructed from initializer %list.
        *  @param  l  std::initializer_list.
        */
       basic_string&
@@ -670,7 +714,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       length() const
       { return _M_rep()->_M_length; }
 
-      /// Returns the size() of the largest possible %string.
+      ///  Returns the size() of the largest possible %string.
       size_type
       max_size() const
       { return _Rep::_S_max_size; }
@@ -683,7 +727,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  This function will %resize the %string to the specified
        *  number of characters.  If the number is smaller than the
        *  %string's current size the %string is truncated, otherwise
-       *  the %string is extended and new elements are set to @a c.
+       *  the %string is extended and new elements are %set to @a c.
        */
       void
       resize(size_type __n, _CharT __c);
@@ -701,6 +745,18 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       void
       resize(size_type __n)
       { this->resize(__n, _CharT()); }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      ///  A non-binding request to reduce capacity() to size().
+      void
+      shrink_to_fit()
+      {
+	__try
+	  { reserve(0); }
+	__catch(...)
+	  { }
+      }
+#endif
 
       /**
        *  Returns the total number of characters that the %string can hold
@@ -738,7 +794,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       { _M_mutate(0, this->size(), 0); }
 
       /**
-       *  Returns true if the %string is empty.  Equivalent to *this == "".
+       *  Returns true if the %string is empty.  Equivalent to 
+       *  <code>*this == ""</code>.
        */
       bool
       empty() const
@@ -800,6 +857,40 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	  __throw_out_of_range(__N("basic_string::at"));
 	return _M_data()[__n];
       }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      /**
+       *  Returns a read/write reference to the data at the first
+       *  element of the %string.
+       */
+      reference
+      front()
+      { return operator[](0); }
+
+      /**
+       *  Returns a read-only (constant) reference to the data at the first
+       *  element of the %string.
+       */
+      const_reference
+      front() const
+      { return operator[](0); }
+
+      /**
+       *  Returns a read/write reference to the data at the last
+       *  element of the %string.
+       */
+      reference
+      back()
+      { return operator[](this->size() - 1); }
+
+      /**
+       *  Returns a read-only (constant) reference to the data at the
+       *  last element of the %string.
+       */
+      const_reference
+      back() const
+      { return operator[](this->size() - 1); }
+#endif
 
       /**
        *  @brief  Provides access to the data contained in the %string.
@@ -963,6 +1054,23 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        */
       basic_string&
       assign(const basic_string& __str);
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      /**
+       *  @brief  Set value to contents of another string.
+       *  @param  str  Source string to use.
+       *  @return  Reference to this string.
+       *
+       *  This function sets this string to the exact contents of @a str.
+       *  @a str is a valid, but unspecified string.
+       */
+      basic_string&
+      assign(basic_string&& __str)
+      {
+	this->swap(__str);
+	return *this;
+      }
+#endif // __GXX_EXPERIMENTAL_CXX0X__
 
       /**
        *  @brief  Set value to a substring of a string.
@@ -1348,10 +1456,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @throw  std::length_error  If new length exceeds @c max_size().
        *
        *  Removes the characters in the range [pos,pos + n1) from this string.
-       *  In place, the first @a n characters of @a s are inserted.  If @a
-       *  pos is beyond end of string, out_of_range is thrown.  If the length
-       *  of result exceeds max_size(), length_error is thrown.  The value of
-       *  the string doesn't change if an error is thrown.
+       *  In place, the characters of @a s are inserted.  If @a pos is beyond
+       *  end of string, out_of_range is thrown.  If the length of result
+       *  exceeds max_size(), length_error is thrown.  The value of the string
+       *  doesn't change if an error is thrown.
       */
       basic_string&
       replace(size_type __pos, size_type __n1, const _CharT* __s)
@@ -1588,7 +1696,12 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
         static _CharT*
         _S_construct_aux(_Integer __beg, _Integer __end,
 			 const _Alloc& __a, __true_type)
-        { return _S_construct(static_cast<size_type>(__beg), __end, __a); }
+        { return _S_construct_aux_2(static_cast<size_type>(__beg),
+				    __end, __a); }
+
+      static _CharT*
+      _S_construct_aux_2(size_type __req, _CharT __c, const _Alloc& __a)
+      { return _S_construct(__req, __c, __a); }
 
       template<class _InIterator>
         static _CharT*
@@ -1625,7 +1738,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @throw  std::out_of_range  If pos > size().
        *
        *  Copies up to @a n characters starting at @a pos into the C string @a
-       *  s.  If @a pos is greater than size(), out_of_range is thrown.
+       *  s.  If @a pos is %greater than size(), out_of_range is thrown.
       */
       size_type
       copy(_CharT* __s, size_type __n, size_type __pos = 0) const;
@@ -2153,10 +2266,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       compare(size_type __pos, size_type __n1, const _CharT* __s) const;
 
       /**
-       *  @brief  Compare substring against a character array.
+       *  @brief  Compare substring against a character %array.
        *  @param pos1  Index of first character of substring.
        *  @param n1  Number of characters in substring.
-       *  @param s  character array to compare against.
+       *  @param s  character %array to compare against.
        *  @param n2  Number of characters of s.
        *  @return  Integer < 0, 0, or > 0.
        *
@@ -2171,22 +2284,13 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  result of the comparison is nonzero returns it, otherwise the shorter
        *  one is ordered first.
        *
-       *  NB: s must have at least n2 characters, '\\0' has no special
-       *  meaning.
+       *  NB: s must have at least n2 characters, &apos;\\0&apos; has
+       *  no special meaning.
       */
       int
       compare(size_type __pos, size_type __n1, const _CharT* __s,
 	      size_type __n2) const;
   };
-
-  template<typename _CharT, typename _Traits, typename _Alloc>
-    inline basic_string<_CharT, _Traits, _Alloc>::
-    basic_string()
-#ifndef _GLIBCXX_FULLY_DYNAMIC_STRING
-    : _M_dataplus(_S_empty_rep()._M_refdata(), _Alloc()) { }
-#else
-    : _M_dataplus(_S_construct(size_type(), _CharT(), _Alloc()), _Alloc()) { }
-#endif
 
   // operator+
   /**
@@ -2566,11 +2670,12 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    *  @param str  Buffer to store into.
    *  @return  Reference to the input stream.
    *
-   *  Stores characters from is into @a str until '\n' is found, the end of
-   *  the stream is encountered, or str.max_size() is reached.  If is.width()
-   *  is non-zero, that is the limit on the number of characters stored into
-   *  @a str.  Any previous contents of @a str are erased.  If end of line was
-   *  encountered, it is extracted but not stored into @a str.
+   *  Stores characters from is into @a str until &apos;\n&apos; is
+   *  found, the end of the stream is encountered, or str.max_size()
+   *  is reached.  If is.width() is non-zero, that is the limit on the
+   *  number of characters stored into @a str.  Any previous contents
+   *  of @a str are erased.  If end of line was encountered, it is
+   *  extracted but not stored into @a str.
    */
   template<typename _CharT, typename _Traits, typename _Alloc>
     inline basic_istream<_CharT, _Traits>&
@@ -2639,6 +2744,30 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   { return __gnu_cxx::__stoa(&std::strtold, "stold", __str.c_str(), __idx); }
 
   // NB: (v)snprintf vs sprintf.
+
+  // DR 1261.
+  inline string
+  to_string(int __val)
+  { return __gnu_cxx::__to_xstring<string>(&std::vsnprintf, 4 * sizeof(int),
+					   "%d", __val); }
+
+  inline string
+  to_string(unsigned __val)
+  { return __gnu_cxx::__to_xstring<string>(&std::vsnprintf,
+					   4 * sizeof(unsigned),
+					   "%u", __val); }
+
+  inline string
+  to_string(long __val)
+  { return __gnu_cxx::__to_xstring<string>(&std::vsnprintf, 4 * sizeof(long),
+					   "%ld", __val); }
+
+  inline string
+  to_string(unsigned long __val)
+  { return __gnu_cxx::__to_xstring<string>(&std::vsnprintf,
+					   4 * sizeof(unsigned long),
+					   "%lu", __val); }
+
   inline string
   to_string(long long __val)
   { return __gnu_cxx::__to_xstring<string>(&std::vsnprintf,
@@ -2650,6 +2779,24 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   { return __gnu_cxx::__to_xstring<string>(&std::vsnprintf,
 					   4 * sizeof(unsigned long long),
 					   "%llu", __val); }
+
+  inline string
+  to_string(float __val)
+  {
+    const int __n = 
+      __gnu_cxx::__numeric_traits<float>::__max_exponent10 + 20;
+    return __gnu_cxx::__to_xstring<string>(&std::vsnprintf, __n,
+					   "%f", __val);
+  }
+
+  inline string
+  to_string(double __val)
+  {
+    const int __n = 
+      __gnu_cxx::__numeric_traits<double>::__max_exponent10 + 20;
+    return __gnu_cxx::__to_xstring<string>(&std::vsnprintf, __n,
+					   "%f", __val);
+  }
 
   inline string
   to_string(long double __val)
@@ -2699,6 +2846,29 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   stold(const wstring& __str, size_t* __idx = 0)
   { return __gnu_cxx::__stoa(&std::wcstold, "stold", __str.c_str(), __idx); }
 
+  // DR 1261.
+  inline wstring
+  to_wstring(int __val)
+  { return __gnu_cxx::__to_xstring<wstring>(&std::vswprintf, 4 * sizeof(int),
+					    L"%d", __val); }
+
+  inline wstring
+  to_wstring(unsigned __val)
+  { return __gnu_cxx::__to_xstring<wstring>(&std::vswprintf,
+					    4 * sizeof(unsigned),
+					    L"%u", __val); }
+
+  inline wstring
+  to_wstring(long __val)
+  { return __gnu_cxx::__to_xstring<wstring>(&std::vswprintf, 4 * sizeof(long),
+					    L"%ld", __val); }
+
+  inline wstring
+  to_wstring(unsigned long __val)
+  { return __gnu_cxx::__to_xstring<wstring>(&std::vswprintf,
+					    4 * sizeof(unsigned long),
+					    L"%lu", __val); }
+
   inline wstring
   to_wstring(long long __val)
   { return __gnu_cxx::__to_xstring<wstring>(&std::vswprintf,
@@ -2712,6 +2882,24 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 					    L"%llu", __val); }
 
   inline wstring
+  to_wstring(float __val)
+  {
+    const int __n =
+      __gnu_cxx::__numeric_traits<float>::__max_exponent10 + 20;
+    return __gnu_cxx::__to_xstring<wstring>(&std::vswprintf, __n,
+					    L"%f", __val);
+  }
+
+  inline wstring
+  to_wstring(double __val)
+  {
+    const int __n =
+      __gnu_cxx::__numeric_traits<double>::__max_exponent10 + 20;
+    return __gnu_cxx::__to_xstring<wstring>(&std::vswprintf, __n,
+					    L"%f", __val);
+  }
+
+  inline wstring
   to_wstring(long double __val)
   {
     const int __n =
@@ -2723,6 +2911,67 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
 _GLIBCXX_END_NAMESPACE
 
+#endif /* __GXX_EXPERIMENTAL_CXX0X__ && _GLIBCXX_USE_C99 ... */
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+
+#include <bits/functional_hash.h>
+
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
+  // DR 1182.
+
+#ifndef _GLIBCXX_COMPATIBILITY_CXX0X
+  /// std::hash specialization for string.
+  template<>
+    struct hash<string>
+    : public __hash_base<size_t, string>
+    {
+      size_t
+      operator()(const string& __s) const
+      { return std::_Hash_impl::hash(__s.data(), __s.length()); }
+    };
+
+#ifdef _GLIBCXX_USE_WCHAR_T
+  /// std::hash specialization for wstring.
+  template<>
+    struct hash<wstring>
+    : public __hash_base<size_t, wstring>
+    {
+      size_t
+      operator()(const wstring& __s) const
+      { return std::_Hash_impl::hash(__s.data(),
+                                     __s.length() * sizeof(wchar_t)); }
+    };
 #endif
+#endif /* _GLIBCXX_COMPATIBILITY_CXX0X */
+
+#ifdef _GLIBCXX_USE_C99_STDINT_TR1
+  /// std::hash specialization for u16string.
+  template<>
+    struct hash<u16string>
+    : public __hash_base<size_t, u16string>
+    {
+      size_t
+      operator()(const u16string& __s) const
+      { return std::_Hash_impl::hash(__s.data(),
+                                     __s.length() * sizeof(char16_t)); }
+    };
+
+  /// std::hash specialization for u32string.
+  template<>
+    struct hash<u32string>
+    : public __hash_base<size_t, u32string>
+    {
+      size_t
+      operator()(const u32string& __s) const
+      { return std::_Hash_impl::hash(__s.data(),
+                                     __s.length() * sizeof(char32_t)); }
+    };
+#endif
+
+_GLIBCXX_END_NAMESPACE
+
+#endif /* __GXX_EXPERIMENTAL_CXX0X__ */
 
 #endif /* _BASIC_STRING_H */

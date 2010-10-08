@@ -1,6 +1,7 @@
 // Reference-counted versatile string base -*- C++ -*-
 
-// Copyright (C) 2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010
+// Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -57,7 +58,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
    *  This approach has the enormous advantage that a string object
    *  requires only one allocation.  All the ugliness is confined
    *  within a single pair of inline functions, which each compile to
-   *  a single "add" instruction: _Rep::_M_refdata(), and
+   *  a single @a add instruction: _Rep::_M_refdata(), and
    *  __rc_string_base::_M_rep(); and the allocation function which gets a
    *  block of raw bytes and with room enough and constructs a _Rep
    *  object at the front.
@@ -69,7 +70,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
    *  string length.)
    *
    *  Note that the _Rep object is a POD so that you can have a
-   *  static "empty string" _Rep object already "constructed" before
+   *  static <em>empty string</em> _Rep object already @a constructed before
    *  static constructors have run.  The reference-count encoding is
    *  chosen so that a 0 indicates one reference, so you never try to
    *  destroy the empty-string _Rep object.
@@ -198,9 +199,16 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       void
       _M_dispose()
       {
+	// Be race-detector-friendly.  For more info see bits/c++config.
+	_GLIBCXX_SYNCHRONIZATION_HAPPENS_BEFORE(&_M_rep()->_M_info.
+						_M_refcount);
 	if (__exchange_and_add_dispatch(&_M_rep()->_M_info._M_refcount,
 					-1) <= 0)
-	  _M_rep()->_M_destroy(_M_get_allocator());
+	  {
+	    _GLIBCXX_SYNCHRONIZATION_HAPPENS_AFTER(&_M_rep()->_M_info.
+						   _M_refcount);
+	    _M_rep()->_M_destroy(_M_get_allocator());
+	  }
       }  // XXX MT
 
       bool
@@ -231,7 +239,12 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
         static _CharT*
         _S_construct_aux(_Integer __beg, _Integer __end,
 			 const _Alloc& __a, std::__true_type)
-	{ return _S_construct(static_cast<size_type>(__beg), __end, __a); }
+	{ return _S_construct_aux_2(static_cast<size_type>(__beg),
+				    __end, __a); }
+
+      static _CharT*
+      _S_construct_aux_2(size_type __req, _CharT __c, const _Alloc& __a)
+      { return _S_construct(__req, __c, __a); }
 
       template<typename _InIterator>
         static _CharT*
@@ -302,7 +315,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       __rc_string_base(__rc_string_base&& __rcs)
-      : _M_dataplus(__rcs._M_get_allocator(), __rcs._M_data())
+      : _M_dataplus(__rcs._M_dataplus)
       { __rcs._M_data(_S_empty_rep._M_refcopy()); }
 #endif
 
@@ -548,7 +561,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	// NB: Not required, but considered best practice.
 	if (__is_null_pointer(__beg) && __beg != __end)
 	  std::__throw_logic_error(__N("__rc_string_base::"
-				       "_S_construct NULL not valid"));
+				       "_S_construct null not valid"));
 
 	const size_type __dnew = static_cast<size_type>(std::distance(__beg,
 								      __end));

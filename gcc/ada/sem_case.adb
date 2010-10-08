@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -239,8 +239,9 @@ package body Sem_Case is
                     " alternatives must cover base type", Expr, Expr);
 
             else
-               Error_Msg_N ("subtype of expression is not static," &
-                " alternatives must cover base type!", Expr);
+               Error_Msg_N
+                 ("subtype of expression is not static,"
+                  & " alternatives must cover base type!", Expr);
             end if;
 
          --  Otherwise the expression is not static, even if the bounds of the
@@ -249,8 +250,8 @@ package body Sem_Case is
 
          elsif not Is_Entity_Name (Expr) then
             Error_Msg_N
-              ("subtype of expression is not static, " &
-                "alternatives must cover base type!", Expr);
+              ("subtype of expression is not static, "
+               & "alternatives must cover base type!", Expr);
          end if;
       end Explain_Non_Static_Bound;
 

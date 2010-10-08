@@ -1,6 +1,6 @@
 // Profiling unordered_set/unordered_multiset implementation -*- C++ -*-
 
-// Copyright (C) 2009 Free Software Foundation, Inc.
+// Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -34,15 +34,12 @@
 #ifndef _GLIBCXX_PROFILE_UNORDERED_SET
 #define _GLIBCXX_PROFILE_UNORDERED_SET 1
 
-#include <profile/base.h>
-
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-# include <unordered_set>
+#ifndef __GXX_EXPERIMENTAL_CXX0X__
+# include <bits/c++0x_warning.h>
 #else
-# include <c++0x_warning.h>
-#endif
+# include <unordered_set>
 
-#include <initializer_list>
+#include <profile/base.h>
 
 #define _GLIBCXX_BASE unordered_set<_Key, _Hash, _Pred, _Alloc>
 #define _GLIBCXX_STD_BASE _GLIBCXX_STD_PR::_GLIBCXX_BASE
@@ -71,7 +68,6 @@ namespace __profile
       typedef typename _Base::difference_type difference_type;
       typedef typename _Base::reference       reference;
       typedef typename _Base::const_reference const_reference;
-      typedef typename _Base::insert_return_type insert_return_type;
 
       typedef typename _Base::iterator iterator;
       typedef typename _Base::const_iterator const_iterator;
@@ -89,10 +85,10 @@ namespace __profile
 
       template<typename _InputIterator>
         unordered_set(_InputIterator __f, _InputIterator __l,
-              size_type __n = 10,
-              const hasher& __hf = hasher(),
-              const key_equal& __eql = key_equal(),
-              const allocator_type& __a = allocator_type())
+		      size_type __n = 0,
+		      const hasher& __hf = hasher(),
+		      const key_equal& __eql = key_equal(),
+		      const allocator_type& __a = allocator_type())
       : _Base(__f, __l, __n, __hf, __eql, __a)
       {
         __profcxx_hashtable_construct(this, _Base::bucket_count());
@@ -107,14 +103,14 @@ namespace __profile
       }
 
       unordered_set(unordered_set&& __x)
-      : _Base(std::forward<_Base>(__x)) 
+      : _Base(std::move(__x)) 
       { 
         __profcxx_hashtable_construct(this, _Base::bucket_count());
         __profcxx_hashtable_construct2(this);
       }
 
       unordered_set(initializer_list<value_type> __l,
-		    size_type __n = 10,
+		    size_type __n = 0,
 		    const hasher& __hf = hasher(),
 		    const key_equal& __eql = key_equal(),
 		    const allocator_type& __a = allocator_type())
@@ -130,7 +126,8 @@ namespace __profile
       unordered_set&
       operator=(unordered_set&& __x)
       {
-        // NB: DR 675.
+	// NB: DR 1204.
+	// NB: DR 675.
 	this->clear();
 	this->swap(__x);
 	return *this;
@@ -165,6 +162,7 @@ namespace __profile
         _M_profile_destruct();
         _Base::clear();
       }
+
       void
       insert(std::initializer_list<value_type> __l)
       { 
@@ -172,39 +170,33 @@ namespace __profile
         _Base::insert(__l); 
         _M_profile_resize(__old_size,  _Base::bucket_count()); 
       }
-      insert_return_type insert(const value_type& __obj)
+
+      std::pair<iterator, bool>
+      insert(const value_type& __obj)
       {
         size_type __old_size =  _Base::bucket_count();
-        insert_return_type __res = _Base::insert(__obj);
+        std::pair<iterator, bool> __res = _Base::insert(__obj);
         _M_profile_resize(__old_size,  _Base::bucket_count()); 
         return __res;
       }
-      iterator
-      insert(iterator __iter, const value_type& __v)
-      { 
-        size_type __old_size = _Base::bucket_count(); 
-        iterator res = _Base::insert(__iter, __v);
-        _M_profile_resize(__old_size,  _Base::bucket_count()); 
-        return res;
-      }
 
-      const_iterator
+      iterator
       insert(const_iterator __iter, const value_type& __v)
       { 
         size_type __old_size = _Base::bucket_count(); 
-        const_iterator res =_Base::insert(__iter, __v);
-        _M_profile_resize(__old_size,  _Base::bucket_count()); 
-        return res;
+        iterator __res = _Base::insert(__iter, __v);
+        _M_profile_resize(__old_size, _Base::bucket_count()); 
+        return __res;
       }
 
       template<typename _InputIter>
-      void
-      insert(_InputIter __first, _InputIter __last)
-      {
-        size_type __old_size = _Base::bucket_count(); 
-        _Base::insert(__first, __last);
-        _M_profile_resize(__old_size,  _Base::bucket_count()); 
-      }
+        void
+        insert(_InputIter __first, _InputIter __last)
+        {
+	  size_type __old_size = _Base::bucket_count(); 
+	  _Base::insert(__first, __last);
+	  _M_profile_resize(__old_size,  _Base::bucket_count()); 
+	}
 
       void
       insert(const value_type* __first, const value_type* __last)
@@ -220,6 +212,7 @@ namespace __profile
         _Base::rehash(__n);
         _M_profile_resize(__old_size,  _Base::bucket_count()); 
       }
+
     private:
       _Base&
       _M_base()       { return *this; }
@@ -227,38 +220,56 @@ namespace __profile
       const _Base&
       _M_base() const { return *this; }
 
-      void _M_profile_resize(size_type __old_size, size_type __new_size)
+      void
+      _M_profile_resize(size_type __old_size, size_type __new_size)
       {
         if (__old_size != __new_size)
-        {
-          __profcxx_hashtable_resize(this, __old_size, __new_size);
-        }
+	  __profcxx_hashtable_resize(this, __old_size, __new_size);
       }
-      void _M_profile_destruct()
+
+      void
+      _M_profile_destruct()
       {
         size_type __hops = 0, __lc = 0, __chain = 0;
-        for (iterator it = _M_base().begin(); it != _M_base().end(); it++)
+        for (iterator __it = _M_base().begin(); __it != _M_base().end();
+	     ++__it)
         {
-          while (it._M_cur_node->_M_next) {
-             __chain++;
-             it++;
-          }
-          if (__chain) {
-            __chain++;
-            __lc = __lc > __chain ? __lc : __chain;
-            __hops += __chain * (__chain - 1) / 2;
-            __chain = 0;
-          }
+          while (__it._M_cur_node->_M_next)
+	    {
+	      ++__chain;
+	      ++__it;
+	    }
+
+          if (__chain)
+	    {
+	      ++__chain;
+	      __lc = __lc > __chain ? __lc : __chain;
+	      __hops += __chain * (__chain - 1) / 2;
+	      __chain = 0;
+	    }
         }
         __profcxx_hashtable_destruct2(this, __lc,  _Base::size(), __hops);
       }
 
    };
+
   template<typename _Value, typename _Hash, typename _Pred, typename _Alloc>
     inline void
     swap(unordered_set<_Value, _Hash, _Pred, _Alloc>& __x,
-     unordered_set<_Value, _Hash, _Pred, _Alloc>& __y)
+	 unordered_set<_Value, _Hash, _Pred, _Alloc>& __y)
     { __x.swap(__y); }
+
+  template<typename _Value, typename _Hash, typename _Pred, typename _Alloc>
+    inline bool
+    operator==(const unordered_set<_Value, _Hash, _Pred, _Alloc>& __x,
+	       const unordered_set<_Value, _Hash, _Pred, _Alloc>& __y)
+    { return __x._M_equal(__y); }
+
+  template<typename _Value, typename _Hash, typename _Pred, typename _Alloc>
+    inline bool
+    operator!=(const unordered_set<_Value, _Hash, _Pred, _Alloc>& __x,
+	       const unordered_set<_Value, _Hash, _Pred, _Alloc>& __y)
+    { return !(__x == __y); }
 
 #undef _GLIBCXX_BASE
 #undef _GLIBCXX_STD_BASE
@@ -285,16 +296,15 @@ namespace __profile
       typedef typename _Base::difference_type difference_type;
       typedef typename _Base::reference       reference;
       typedef typename _Base::const_reference const_reference;
-      typedef typename _Base::insert_return_type insert_return_type;
 
       typedef typename _Base::iterator iterator;
       typedef typename _Base::const_iterator const_iterator;
 
       explicit
       unordered_multiset(size_type __n = 10,
-		    const hasher& __hf = hasher(),
-		    const key_equal& __eql = key_equal(),
-		    const allocator_type& __a = allocator_type())
+			 const hasher& __hf = hasher(),
+			 const key_equal& __eql = key_equal(),
+			 const allocator_type& __a = allocator_type())
       : _Base(__n, __hf, __eql, __a)
       {
         __profcxx_hashtable_construct(this, _Base::bucket_count());
@@ -302,10 +312,10 @@ namespace __profile
 
       template<typename _InputIterator>
         unordered_multiset(_InputIterator __f, _InputIterator __l,
-              size_type __n = 10,
-              const hasher& __hf = hasher(),
-              const key_equal& __eql = key_equal(),
-              const allocator_type& __a = allocator_type())
+			   size_type __n = 0,
+			   const hasher& __hf = hasher(),
+			   const key_equal& __eql = key_equal(),
+			   const allocator_type& __a = allocator_type())
       : _Base(__f, __l, __n, __hf, __eql, __a)
       {
         __profcxx_hashtable_construct(this, _Base::bucket_count());
@@ -318,13 +328,13 @@ namespace __profile
       }
 
       unordered_multiset(unordered_multiset&& __x)
-      : _Base(std::forward<_Base>(__x))
+      : _Base(std::move(__x))
       {
         __profcxx_hashtable_construct(this, _Base::bucket_count());
       }
 
       unordered_multiset(initializer_list<value_type> __l,
-			 size_type __n = 10,
+			 size_type __n = 0,
 			 const hasher& __hf = hasher(),
 			 const key_equal& __eql = key_equal(),
 			 const allocator_type& __a = allocator_type())
@@ -340,7 +350,8 @@ namespace __profile
       unordered_multiset&
       operator=(unordered_multiset&& __x)
       {
-        // NB: DR 675.
+	// NB: DR 1204.
+	// NB: DR 675.
 	this->clear();
 	this->swap(__x);
 	return *this;
@@ -375,6 +386,7 @@ namespace __profile
         _M_profile_destruct();
         _Base::clear();
       }
+
       void
       insert(std::initializer_list<value_type> __l)
       { 
@@ -382,39 +394,33 @@ namespace __profile
         _Base::insert(__l); 
         _M_profile_resize(__old_size,  _Base::bucket_count()); 
       }
-      insert_return_type insert(const value_type& __obj)
+
+      iterator
+      insert(const value_type& __obj)
       {
         size_type __old_size =  _Base::bucket_count();
-        insert_return_type __res = _Base::insert(__obj);
+        iterator __res = _Base::insert(__obj);
         _M_profile_resize(__old_size,  _Base::bucket_count()); 
         return __res;
       }
-      iterator
-      insert(iterator __iter, const value_type& __v)
-      { 
-        size_type __old_size = _Base::bucket_count(); 
-        iterator res = _Base::insert(__iter, __v);
-        _M_profile_resize(__old_size,  _Base::bucket_count()); 
-        return res;
-      }
 
-      const_iterator
+      iterator
       insert(const_iterator __iter, const value_type& __v)
       { 
         size_type __old_size = _Base::bucket_count(); 
-        const_iterator res =_Base::insert(__iter, __v);
-        _M_profile_resize(__old_size,  _Base::bucket_count()); 
-        return res;
+        iterator __res = _Base::insert(__iter, __v);
+        _M_profile_resize(__old_size, _Base::bucket_count()); 
+        return __res;
       }
 
       template<typename _InputIter>
-      void
-      insert(_InputIter __first, _InputIter __last)
-      {
-        size_type __old_size = _Base::bucket_count(); 
-        _Base::insert(__first, __last);
-        _M_profile_resize(__old_size,  _Base::bucket_count()); 
-      }
+        void
+        insert(_InputIter __first, _InputIter __last)
+        {
+	  size_type __old_size = _Base::bucket_count(); 
+	  _Base::insert(__first, __last);
+	  _M_profile_resize(__old_size,  _Base::bucket_count()); 
+	}
 
       void
       insert(const value_type* __first, const value_type* __last)
@@ -430,6 +436,7 @@ namespace __profile
         _Base::rehash(__n);
         _M_profile_resize(__old_size,  _Base::bucket_count()); 
       }
+
     private:
       _Base&
       _M_base()       { return *this; }
@@ -437,44 +444,63 @@ namespace __profile
       const _Base&
       _M_base() const { return *this; }
 
-      void _M_profile_resize(size_type __old_size, size_type __new_size)
+      void
+      _M_profile_resize(size_type __old_size, size_type __new_size)
       {
         if (__old_size != __new_size)
-        {
           __profcxx_hashtable_resize(this, __old_size, __new_size);
-        }
       }
 
-      void _M_profile_destruct()
+      void
+      _M_profile_destruct()
       {
         size_type __hops = 0, __lc = 0, __chain = 0;
-        for (iterator it = _M_base().begin(); it != _M_base().end(); it++)
+        for (iterator __it = _M_base().begin(); __it != _M_base().end();
+	     ++__it)
         {
-          while (it._M_cur_node->_M_next) {
-             __chain++;
-             it++;
-          }
-          if (__chain) {
-            __chain++;
-            __lc = __lc > __chain ? __lc : __chain;
-            __hops += __chain * (__chain - 1) / 2;
-            __chain = 0;
-          }
+          while (__it._M_cur_node->_M_next)
+	    {
+             ++__chain;
+             ++__it;
+	    }
+
+          if (__chain)
+	    {
+	      ++__chain;
+	      __lc = __lc > __chain ? __lc : __chain;
+	      __hops += __chain * (__chain - 1) / 2;
+	      __chain = 0;
+	    }
         }
         __profcxx_hashtable_destruct2(this, __lc,  _Base::size(), __hops);
       }
 
    };
+
   template<typename _Value, typename _Hash, typename _Pred, typename _Alloc>
     inline void
     swap(unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __x,
-     unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __y)
+	 unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __y)
     { __x.swap(__y); }
+
+  template<typename _Value, typename _Hash, typename _Pred, typename _Alloc>
+    inline bool
+    operator==(const unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __x,
+	       const unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __y)
+    { return __x._M_equal(__y); }
+
+  template<typename _Value, typename _Hash, typename _Pred, typename _Alloc>
+    inline bool
+    operator!=(const unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __x,
+	       const unordered_multiset<_Value, _Hash, _Pred, _Alloc>& __y)
+    { return !(__x == __y); }
 
 } // namespace __profile
 } // namespace std
 
 #undef _GLIBCXX_BASE
 #undef _GLIBCXX_STD_BASE
+
+#endif // __GXX_EXPERIMENTAL_CXX0X__
 
 #endif

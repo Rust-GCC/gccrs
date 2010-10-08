@@ -1,5 +1,5 @@
 /* Subroutines for the C front end on the POWER and PowerPC architectures.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
    Contributed by Zack Weinberg <zack@codesourcery.com>
@@ -27,9 +27,9 @@
 #include "tm.h"
 #include "cpplib.h"
 #include "tree.h"
-#include "c-common.h"
-#include "c-pragma.h"
-#include "c-tree.h"
+#include "c-family/c-common.h"
+#include "c-family/c-pragma.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "tm_p.h"
 #include "target.h"
@@ -363,6 +363,16 @@ rs6000_cpu_cpp_builtins (cpp_reader *pfile)
       builtin_define ("__builtin_vsx_xvnmsubasp=__builtin_vsx_xvnmsubsp");
       builtin_define ("__builtin_vsx_xvnmsubmsp=__builtin_vsx_xvnmsubsp");
     }
+  if (RS6000_RECIP_HAVE_RE_P (DFmode))
+    builtin_define ("__RECIP__");
+  if (RS6000_RECIP_HAVE_RE_P (SFmode))
+    builtin_define ("__RECIPF__");
+  if (RS6000_RECIP_HAVE_RSQRTE_P (DFmode))
+    builtin_define ("__RSQRTE__");
+  if (RS6000_RECIP_HAVE_RSQRTE_P (SFmode))
+    builtin_define ("__RSQRTEF__");
+  if (TARGET_RECIP_PRECISION)
+    builtin_define ("__RECIP_PRECISION__");
 
   /* Tell users they can use __builtin_bswap{16,64}.  */
   builtin_define ("__HAVE_BSWAP__");
@@ -480,10 +490,22 @@ const struct altivec_builtin_types altivec_overloaded_builtins[] = {
     RS6000_BTI_void, RS6000_BTI_bool_V16QI, 0, 0 },
   { ALTIVEC_BUILTIN_VEC_RE, ALTIVEC_BUILTIN_VREFP,
     RS6000_BTI_V4SF, RS6000_BTI_V4SF, 0, 0 },
+  { ALTIVEC_BUILTIN_VEC_RE, VSX_BUILTIN_XVREDP,
+    RS6000_BTI_V2DF, RS6000_BTI_V2DF, 0, 0 },
   { ALTIVEC_BUILTIN_VEC_ROUND, ALTIVEC_BUILTIN_VRFIN,
     RS6000_BTI_V4SF, RS6000_BTI_V4SF, 0, 0 },
+  { ALTIVEC_BUILTIN_VEC_RECIP, ALTIVEC_BUILTIN_VRECIPFP,
+    RS6000_BTI_V4SF, RS6000_BTI_V4SF, RS6000_BTI_V4SF, 0 },
+  { ALTIVEC_BUILTIN_VEC_RECIP, VSX_BUILTIN_RECIP_V2DF,
+    RS6000_BTI_V2DF, RS6000_BTI_V2DF, RS6000_BTI_V2DF, 0 },
+  { ALTIVEC_BUILTIN_VEC_RSQRT, ALTIVEC_BUILTIN_VRSQRTFP,
+    RS6000_BTI_V4SF, RS6000_BTI_V4SF, 0, 0 },
+  { ALTIVEC_BUILTIN_VEC_RSQRT, VSX_BUILTIN_VEC_RSQRT_V2DF,
+    RS6000_BTI_V2DF, RS6000_BTI_V2DF, 0, 0 },
   { ALTIVEC_BUILTIN_VEC_RSQRTE, ALTIVEC_BUILTIN_VRSQRTEFP,
     RS6000_BTI_V4SF, RS6000_BTI_V4SF, 0, 0 },
+  { ALTIVEC_BUILTIN_VEC_RSQRTE, VSX_BUILTIN_XVRSQRTEDP,
+    RS6000_BTI_V2DF, RS6000_BTI_V2DF, 0, 0 },
   { ALTIVEC_BUILTIN_VEC_TRUNC, ALTIVEC_BUILTIN_VRFIZ,
     RS6000_BTI_V4SF, RS6000_BTI_V4SF, 0, 0 },
   { ALTIVEC_BUILTIN_VEC_TRUNC, VSX_BUILTIN_XVRDPIZ,
@@ -1372,6 +1394,10 @@ const struct altivec_builtin_types altivec_overloaded_builtins[] = {
     RS6000_BTI_V4SI, RS6000_BTI_V4SI, RS6000_BTI_V4SI, 0 },
   { ALTIVEC_BUILTIN_VEC_MERGEH, ALTIVEC_BUILTIN_VMRGHW,
     RS6000_BTI_unsigned_V4SI, RS6000_BTI_unsigned_V4SI, RS6000_BTI_unsigned_V4SI, 0 },
+  { ALTIVEC_BUILTIN_VEC_MERGEH, VSX_BUILTIN_VEC_MERGEH_V2DF,
+    RS6000_BTI_V2DF, RS6000_BTI_V2DF, RS6000_BTI_V2DF, 0 },
+  { ALTIVEC_BUILTIN_VEC_MERGEH, VSX_BUILTIN_VEC_MERGEH_V2DI,
+    RS6000_BTI_V2DI, RS6000_BTI_V2DI, RS6000_BTI_V2DI, 0 },
   { ALTIVEC_BUILTIN_VEC_VMRGHW, ALTIVEC_BUILTIN_VMRGHW,
     RS6000_BTI_V4SF, RS6000_BTI_V4SF, RS6000_BTI_V4SF, 0 },
   { ALTIVEC_BUILTIN_VEC_VMRGHW, ALTIVEC_BUILTIN_VMRGHW,
@@ -1416,6 +1442,10 @@ const struct altivec_builtin_types altivec_overloaded_builtins[] = {
     RS6000_BTI_V4SI, RS6000_BTI_V4SI, RS6000_BTI_V4SI, 0 },
   { ALTIVEC_BUILTIN_VEC_MERGEL, ALTIVEC_BUILTIN_VMRGLW,
     RS6000_BTI_unsigned_V4SI, RS6000_BTI_unsigned_V4SI, RS6000_BTI_unsigned_V4SI, 0 },
+  { ALTIVEC_BUILTIN_VEC_MERGEL, VSX_BUILTIN_VEC_MERGEL_V2DF,
+    RS6000_BTI_V2DF, RS6000_BTI_V2DF, RS6000_BTI_V2DF, 0 },
+  { ALTIVEC_BUILTIN_VEC_MERGEL, VSX_BUILTIN_VEC_MERGEL_V2DI,
+    RS6000_BTI_V2DI, RS6000_BTI_V2DI, RS6000_BTI_V2DI, 0 },
   { ALTIVEC_BUILTIN_VEC_VMRGLW, ALTIVEC_BUILTIN_VMRGLW,
     RS6000_BTI_V4SF, RS6000_BTI_V4SF, RS6000_BTI_V4SF, 0 },
   { ALTIVEC_BUILTIN_VEC_VMRGLW, ALTIVEC_BUILTIN_VMRGLW,
@@ -3365,7 +3395,7 @@ altivec_resolve_overloaded_builtin (location_t loc, tree fndecl,
       stmt = build_unary_op (loc, ADDR_EXPR, stmt, 0);
       stmt = convert (innerptrtype, stmt);
       stmt = build_binary_op (loc, PLUS_EXPR, stmt, arg2, 1);
-      stmt = build_indirect_ref (loc, stmt, NULL);
+      stmt = build_indirect_ref (loc, stmt, RO_NULL);
 
       return stmt;
     }
@@ -3444,7 +3474,7 @@ altivec_resolve_overloaded_builtin (location_t loc, tree fndecl,
       stmt = build_unary_op (loc, ADDR_EXPR, stmt, 0);
       stmt = convert (innerptrtype, stmt);
       stmt = build_binary_op (loc, PLUS_EXPR, stmt, arg2, 1);
-      stmt = build_indirect_ref (loc, stmt, NULL);
+      stmt = build_indirect_ref (loc, stmt, RO_NULL);
       stmt = build2 (MODIFY_EXPR, TREE_TYPE (stmt), stmt,
 		     convert (TREE_TYPE (stmt), arg0));
       stmt = build2 (COMPOUND_EXPR, arg1_type, stmt, decl);

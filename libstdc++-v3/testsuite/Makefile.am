@@ -1,6 +1,6 @@
 ## Makefile for the testsuite subdirectory of the GNU C++ Standard library.
 ##
-## Copyright (C) 2001, 2002, 2003, 2005, 2007, 2009
+## Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 ## Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
@@ -69,8 +69,10 @@ site.exp: Makefile
 
 extract_symvers = $(glibcxx_srcdir)/scripts/extract_symvers
 
+baseline_subdir := $(shell $(CXX) --print-multi-dir)
+
 baseline_symbols:
-	-@(output=${baseline_file}; \
+	-@(output=${baseline_dir}/${baseline_subdir}/baseline_symbols.txt; \
 	  if test ! -f $${output}; then \
 	    echo "Baseline file doesn't exist."; \
 	    echo "Try 'make new-abi-baseline' to create it."; \
@@ -78,8 +80,8 @@ baseline_symbols:
 	  fi; true)
 
 new-abi-baseline:
-	-@$(mkinstalldirs) ${baseline_dir}
-	-@(output=${baseline_file}; \
+	-@$(mkinstalldirs) ${baseline_dir}/${baseline_subdir}
+	-@(output=${baseline_dir}/${baseline_subdir}/baseline_symbols.txt; \
 	  if test -f $${output}; then \
 	    output=$${output}.new; \
 	    t=`echo $${output} | sed 's=.*config/abi/=='`; \
@@ -103,6 +105,8 @@ $(check_DEJAGNU_normal_targets): check-DEJAGNUnormal%: normal%/site.exp
 
 # Run the testsuite in normal mode.
 check-DEJAGNU $(check_DEJAGNU_normal_targets): check-DEJAGNU%: site.exp
+	AR="$(AR)"; export AR; \
+	RANLIB="$(RANLIB)"; export RANLIB; \
 	if [ -z "$*$(filter-out --target_board=%, $(RUNTESTFLAGS))" ] \
 	    && [ "$(filter -j, $(MFLAGS))" = "-j" ]; then \
 	  $(MAKE) $(AM_MAKEFLAGS) check-DEJAGNUnormal0 check-DEJAGNUnormal1 \
@@ -136,7 +140,7 @@ check-DEJAGNU $(check_DEJAGNU_normal_targets): check-DEJAGNU%: site.exp
 			$(RUNTESTFLAGS) abi.exp; \
 	    else echo "WARNING: could not find \`runtest'" 1>&2; :;\
 	    fi; \
-	    dirs="`cd $$srcdir; echo [013-9][0-9]_*/* [abep]*/*`";; \
+	    dirs="`cd $$srcdir; echo [013-9][0-9]_*/* [ab]* de* [ep]*/*`";; \
 	  normal1) \
 	    dirs="`cd $$srcdir; echo 2[0-2]_*/*`";; \
 	  normal2) \
@@ -186,6 +190,8 @@ check-performance: testsuite_files_performance ${performance_script}
 	-@(chmod + ${check_performance_script}; \
 	  ${check_performance_script} ${glibcxx_srcdir} ${glibcxx_builddir})
 
+# Runs the testsuite in debug mode.
+debug_flags = "unix/-D_GLIBCXX_DEBUG"
 
 # Runs the testsuite in parallel mode.
 libgomp_dir=${glibcxx_builddir}/../libgomp
@@ -198,6 +204,15 @@ parallel_flags="unix/-D_GLIBCXX_PARALLEL/-fopenmp"
 
 # Runs the testsuite in profile mode.
 profile_flags = "unix/-D_GLIBCXX_PROFILE"
+
+check-debug: site.exp
+	outputdir=debug; export outputdir; \
+	if test ! -d $${outputdir}; then \
+	  mkdir $${outputdir}; \
+	fi; \
+	srcdir=`$(am__cd) $(srcdir) && pwd`; export srcdir; \
+	EXPECT=$(EXPECT); export EXPECT; \
+	$(MAKE) RUNTESTFLAGS="$(RUNTESTFLAGS) conformance.exp --outdir $${outputdir} --objdir $${outputdir} --target_board=$(debug_flags)" check-DEJAGNU;
 
 check-parallel: site.exp
 	-@(if test ! -d $${libgomp_dir}; then \
@@ -236,4 +251,4 @@ CLEANFILES = *.txt *.tst *.exe core* filebuf_* tmp* ostream_* *.log *.sum \
 
 # To remove directories.
 clean-local:
-	rm -rf parallel profile
+	rm -rf debug parallel profile

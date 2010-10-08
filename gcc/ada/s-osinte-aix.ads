@@ -7,7 +7,7 @@
 --                                  S p e c                                 --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---          Copyright (C) 1995-2008, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -206,7 +206,6 @@ package System.OS_Interface is
    function clock_gettime
      (clock_id : clockid_t;
       tp       : access timespec) return int;
-   --  AIX threads don't have clock_gettime, so use gettimeofday() instead
 
    function To_Duration (TS : timespec) return Duration;
    pragma Inline (To_Duration);
@@ -220,16 +219,6 @@ package System.OS_Interface is
    end record;
    pragma Convention (C, struct_timezone);
    type struct_timezone_ptr is access all struct_timezone;
-
-   type struct_timeval is private;
-   --  This is needed on systems that do not have clock_gettime() but do have
-   --  gettimeofday().
-
-   function To_Duration (TV : struct_timeval) return Duration;
-   pragma Inline (To_Duration);
-
-   function To_Timeval (D : Duration) return struct_timeval;
-   pragma Inline (To_Timeval);
 
    -------------------------
    -- Priority Scheduling --
@@ -321,7 +310,7 @@ package System.OS_Interface is
    function Get_Page_Size return size_t;
    function Get_Page_Size return Address;
    pragma Import (C, Get_Page_Size, "getpagesize");
-   --  Returns the size of a page, or 0 if this is not relevant on this target
+   --  Returns the size of a page
 
    PROT_NONE  : constant := 0;
    PROT_READ  : constant := 1;
@@ -553,12 +542,6 @@ private
 
    type clockid_t is new int;
    CLOCK_REALTIME : constant clockid_t := 0;
-
-   type struct_timeval is record
-      tv_sec  : long;
-      tv_usec : long;
-   end record;
-   pragma Convention (C, struct_timeval);
 
    type pthread_attr_t is new System.Address;
    pragma Convention (C, pthread_attr_t);

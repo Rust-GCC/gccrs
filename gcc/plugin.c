@@ -1,5 +1,5 @@
 /* Support for GCC plugin mechanism.
-   Copyright (C) 2009 Free Software Foundation, Inc.
+   Copyright (C) 2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,6 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 
 #include "coretypes.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "tree.h"
 #include "tree-pass.h"
@@ -44,25 +45,30 @@ along with GCC; see the file COPYING3.  If not see
 #include "plugin-version.h"
 #endif
 
+#define GCC_PLUGIN_STRINGIFY0(X) #X
+#define GCC_PLUGIN_STRINGIFY1(X) GCC_PLUGIN_STRINGIFY0 (X)
+
 /* Event names as strings.  Keep in sync with enum plugin_event.  */
-const char *plugin_event_name[] =
+static const char *plugin_event_name_init[] =
 {
-  "PLUGIN_PASS_MANAGER_SETUP",
-  "PLUGIN_FINISH_TYPE",
-  "PLUGIN_FINISH_UNIT",
-  "PLUGIN_CXX_CP_PRE_GENERICIZE",
-  "PLUGIN_FINISH",
-  "PLUGIN_INFO",
-  "PLUGIN_GGC_START",
-  "PLUGIN_GGC_MARKING",
-  "PLUGIN_GGC_END",
-  "PLUGIN_REGISTER_GGC_ROOTS",
-  "PLUGIN_REGISTER_GGC_CACHES",
-  "PLUGIN_ATTRIBUTES",
-  "PLUGIN_START_UNIT",
-  "PLUGIN_PRAGMAS",
-  "PLUGIN_EVENT_LAST"
+# define DEFEVENT(NAME) GCC_PLUGIN_STRINGIFY1 (NAME),
+# include "plugin.def"
+# undef DEFEVENT
 };
+
+/* A printf format large enough for the largest event above.  */
+#define FMT_FOR_PLUGIN_EVENT "%-32s"
+
+const char **plugin_event_name = plugin_event_name_init;
+
+/* A hash table to map event names to the position of the names in the
+   plugin_event_name table.  */
+static htab_t event_tab;
+
+/* Keep track of the limit of allocated events and space ready for
+   allocating events.  */
+static int event_last = PLUGIN_EVENT_FIRST_DYNAMIC;
+static int event_horizon = PLUGIN_EVENT_FIRST_DYNAMIC;
 
 /* Hash table for the plugin_name_args objects created during command-line
    parsing.  */
@@ -78,8 +84,11 @@ struct callback_info
 };
 
 /* An array of lists of 'callback_info' objects indexed by the event id.  */
-static struct callback_info *plugin_callbacks[PLUGIN_EVENT_LAST] = { NULL };
+static struct callback_info *plugin_callbacks_init[PLUGIN_EVENT_FIRST_DYNAMIC];
+static struct callback_info **plugin_callbacks = plugin_callbacks_init;
 
+/* For invoke_plugin_callbacks(), see plugin.h.  */
+bool flag_plugin_added = false;
 
 #ifdef ENABLE_PLUGIN
 /* Each plugin should define an initialization function with exactly
@@ -118,18 +127,45 @@ get_plugin_base_name (const char *full_name)
 }
 
 
-/* Create a plugin_name_args object for the give plugin and insert it to
-   the hash table. This function is called when -fplugin=/path/to/NAME.so
-   option is processed.  */
+/* Create a plugin_name_args object for the given plugin and insert it
+   to the hash table. This function is called when
+   -fplugin=/path/to/NAME.so or -fplugin=NAME option is processed.  */
 
 void
 add_new_plugin (const char* plugin_name)
 {
   struct plugin_name_args *plugin;
   void **slot;
-  char *base_name = get_plugin_base_name (plugin_name);
+  char *base_name;
+  bool name_is_short;
+  const char *pc;
 
-  /* If this is the first -fplugin= option we encounter, create 
+  flag_plugin_added = true;
+
+  /* Replace short names by their full path when relevant.  */
+  name_is_short  = !IS_ABSOLUTE_PATH (plugin_name);
+  for (pc = plugin_name; name_is_short && *pc; pc++)
+    if (*pc == '.' || IS_DIR_SEPARATOR (*pc))
+      name_is_short = false;
+
+  if (name_is_short)
+    {
+      base_name = CONST_CAST (char*, plugin_name);
+      /* FIXME: the ".so" suffix is currently builtin, since plugins
+	 only work on ELF host systems like e.g. Linux or Solaris.
+	 When plugins shall be available on non ELF systems such as
+	 Windows or MacOS, this code has to be greatly improved.  */
+      plugin_name = concat (default_plugin_dir_name (), "/",
+			    plugin_name, ".so", NULL);
+      if (access (plugin_name, R_OK))
+	fatal_error
+	  ("inacessible plugin file %s expanded from short plugin name %s: %m",
+	   plugin_name, base_name);
+    }
+  else
+    base_name = get_plugin_base_name (plugin_name);
+
+  /* If this is the first -fplugin= option we encounter, create
      'plugin_name_args_tab' hash table.  */
   if (!plugin_name_args_tab)
     plugin_name_args_tab = htab_create (10, htab_hash_string, htab_str_eq,
@@ -287,6 +323,71 @@ register_plugin_info (const char* name, struct plugin_info *info)
   plugin->help = info->help;
 }
 
+/* Helper function for the event hash table that compares the name of an
+   existing entry (E1) with the given string (S2).  */
+
+static int
+htab_event_eq (const void *e1, const void *s2)
+{
+  const char *s1= *(const char * const *) e1;
+  return !strcmp (s1, (const char *) s2);
+}
+
+/* Look up the event id for NAME.  If the name is not found, return -1
+   if INSERT is NO_INSERT.  */
+
+int
+get_named_event_id (const char *name, enum insert_option insert)
+{
+  void **slot;
+
+  if (!event_tab)
+    {
+      int i;
+
+      event_tab = htab_create (150, htab_hash_string, htab_event_eq, NULL);
+      for (i = 0; i < event_last; i++)
+	{
+	  slot = htab_find_slot (event_tab, plugin_event_name[i], INSERT);
+	  gcc_assert (*slot == HTAB_EMPTY_ENTRY);
+	  *slot = &plugin_event_name[i];
+	}
+    }
+  slot = htab_find_slot (event_tab, name, insert);
+  if (slot == NULL)
+    return -1;
+  if (*slot != HTAB_EMPTY_ENTRY)
+    return (const char **) *slot - &plugin_event_name[0];
+
+  if (event_last >= event_horizon)
+    {
+      event_horizon = event_last * 2;
+      if (plugin_event_name == plugin_event_name_init)
+	{
+	  plugin_event_name = XNEWVEC (const char *, event_horizon);
+	  memcpy (plugin_event_name, plugin_event_name_init,
+		  sizeof plugin_event_name_init);
+	  plugin_callbacks = XNEWVEC (struct callback_info *, event_horizon);
+	  memcpy (plugin_callbacks, plugin_callbacks_init,
+		  sizeof plugin_callbacks_init);
+	}
+      else
+	{
+	  plugin_event_name
+	    = XRESIZEVEC (const char *, plugin_event_name, event_horizon);
+	  plugin_callbacks = XRESIZEVEC (struct callback_info *,
+					 plugin_callbacks, event_horizon);
+	}
+      /* All the pointers in the hash table will need to be updated.  */
+      htab_delete (event_tab);
+      event_tab = NULL;
+    }
+  else
+    *slot = &plugin_event_name[event_last];
+  plugin_event_name[event_last] = name;
+  return event_last++;
+}
+
 /* Called from the plugin's initialization code. Register a single callback.
    This function can be called multiple times.
 
@@ -297,7 +398,7 @@ register_plugin_info (const char* name, struct plugin_info *info)
 
 void
 register_callback (const char *plugin_name,
-                   enum plugin_event event,
+		   int event,
                    plugin_callback_func callback,
                    void *user_data)
 {
@@ -319,16 +420,34 @@ register_callback (const char *plugin_name,
 	gcc_assert (!callback);
         ggc_register_cache_tab ((const struct ggc_cache_tab*) user_data);
 	break;
+      case PLUGIN_EVENT_FIRST_DYNAMIC:
+      default:
+	if (event < PLUGIN_EVENT_FIRST_DYNAMIC || event >= event_last)
+	  {
+	    error ("Unknown callback event registered by plugin %s",
+		   plugin_name);
+	    return;
+	  }
+      /* Fall through.  */
       case PLUGIN_FINISH_TYPE:
       case PLUGIN_START_UNIT:
       case PLUGIN_FINISH_UNIT:
-      case PLUGIN_CXX_CP_PRE_GENERICIZE:
+      case PLUGIN_PRE_GENERICIZE:
       case PLUGIN_GGC_START:
       case PLUGIN_GGC_MARKING:
       case PLUGIN_GGC_END:
       case PLUGIN_ATTRIBUTES:
       case PLUGIN_PRAGMAS:
       case PLUGIN_FINISH:
+      case PLUGIN_ALL_PASSES_START:
+      case PLUGIN_ALL_PASSES_END:
+      case PLUGIN_ALL_IPA_PASSES_START:
+      case PLUGIN_ALL_IPA_PASSES_END:
+      case PLUGIN_OVERRIDE_GATE:
+      case PLUGIN_PASS_EXECUTION:
+      case PLUGIN_EARLY_GIMPLE_PASSES_START:
+      case PLUGIN_EARLY_GIMPLE_PASSES_END:
+      case PLUGIN_NEW_PASS:
         {
           struct callback_info *new_callback;
           if (!callback)
@@ -345,55 +464,86 @@ register_callback (const char *plugin_name,
           plugin_callbacks[event] = new_callback;
         }
         break;
-      case PLUGIN_EVENT_LAST:
-      default:
-        error ("Unknown callback event registered by plugin %s",
-               plugin_name);
     }
 }
 
-
-/* Called from inside GCC.  Invoke all plug-in callbacks registered with
-   the specified event.
-
-   EVENT    - the event identifier
-   GCC_DATA - event-specific data provided by the compiler  */
-
-void
-invoke_plugin_callbacks (enum plugin_event event, void *gcc_data)
+/* Remove a callback for EVENT which has been registered with for a plugin
+   PLUGIN_NAME.  Return PLUGEVT_SUCCESS if a matching callback was
+   found & removed, PLUGEVT_NO_CALLBACK if the event does not have a matching
+   callback, and PLUGEVT_NO_SUCH_EVENT if EVENT is invalid.  */
+int
+unregister_callback (const char *plugin_name, int event)
 {
+  struct callback_info *callback, **cbp;
+
+  if (event >= event_last)
+    return PLUGEVT_NO_SUCH_EVENT;
+
+  for (cbp = &plugin_callbacks[event]; (callback = *cbp); cbp = &callback->next)
+    if (strcmp (callback->plugin_name, plugin_name) == 0)
+      {
+	*cbp = callback->next;
+	return PLUGEVT_SUCCESS;
+      }
+  return PLUGEVT_NO_CALLBACK;
+}
+
+/* Invoke all plugin callbacks registered with the specified event,
+   called from invoke_plugin_callbacks().  */
+
+int
+invoke_plugin_callbacks_full (int event, void *gcc_data)
+{
+  int retval = PLUGEVT_SUCCESS;
+
   timevar_push (TV_PLUGIN_RUN);
 
   switch (event)
     {
+      case PLUGIN_EVENT_FIRST_DYNAMIC:
+      default:
+	gcc_assert (event >= PLUGIN_EVENT_FIRST_DYNAMIC);
+	gcc_assert (event < event_last);
+      /* Fall through.  */
       case PLUGIN_FINISH_TYPE:
       case PLUGIN_START_UNIT:
       case PLUGIN_FINISH_UNIT:
-      case PLUGIN_CXX_CP_PRE_GENERICIZE:
+      case PLUGIN_PRE_GENERICIZE:
       case PLUGIN_ATTRIBUTES:
       case PLUGIN_PRAGMAS:
       case PLUGIN_FINISH:
       case PLUGIN_GGC_START:
       case PLUGIN_GGC_MARKING:
       case PLUGIN_GGC_END:
+      case PLUGIN_ALL_PASSES_START:
+      case PLUGIN_ALL_PASSES_END:
+      case PLUGIN_ALL_IPA_PASSES_START:
+      case PLUGIN_ALL_IPA_PASSES_END:
+      case PLUGIN_OVERRIDE_GATE:
+      case PLUGIN_PASS_EXECUTION:
+      case PLUGIN_EARLY_GIMPLE_PASSES_START:
+      case PLUGIN_EARLY_GIMPLE_PASSES_END:
+      case PLUGIN_NEW_PASS:
         {
           /* Iterate over every callback registered with this event and
              call it.  */
           struct callback_info *callback = plugin_callbacks[event];
+
+	  if (!callback)
+	    retval = PLUGEVT_NO_CALLBACK;
           for ( ; callback; callback = callback->next)
             (*callback->func) (gcc_data, callback->user_data);
         }
         break;
 
       case PLUGIN_PASS_MANAGER_SETUP:
-      case PLUGIN_EVENT_LAST:
       case PLUGIN_REGISTER_GGC_ROOTS:
       case PLUGIN_REGISTER_GGC_CACHES:
-      default:
         gcc_assert (false);
     }
 
   timevar_pop (TV_PLUGIN_RUN);
+  return retval;
 }
 
 #ifdef ENABLE_PLUGIN
@@ -490,7 +640,7 @@ initialize_plugins (void)
     return;
 
   timevar_push (TV_PLUGIN_INIT);
- 
+
 #ifdef ENABLE_PLUGIN
   /* Traverse and initialize each plugin specified in the command-line.  */
   htab_traverse_noresize (plugin_name_args_tab, init_one_plugin, NULL);
@@ -618,7 +768,7 @@ plugins_active_p (void)
 {
   int event;
 
-  for (event = PLUGIN_PASS_MANAGER_SETUP; event < PLUGIN_EVENT_LAST; event++)
+  for (event = PLUGIN_PASS_MANAGER_SETUP; event < event_last; event++)
     if (plugin_callbacks[event])
       return true;
 
@@ -629,7 +779,7 @@ plugins_active_p (void)
 /* Dump to FILE the names and associated events for all the active
    plugins.  */
 
-void
+DEBUG_FUNCTION void
 dump_active_plugins (FILE *file)
 {
   int event;
@@ -637,28 +787,54 @@ dump_active_plugins (FILE *file)
   if (!plugins_active_p ())
     return;
 
-  fprintf (stderr, "Event\t\t\tPlugins\n");
-  for (event = PLUGIN_PASS_MANAGER_SETUP; event < PLUGIN_EVENT_LAST; event++)
+  fprintf (file, FMT_FOR_PLUGIN_EVENT " | %s\n", _("Event"), _("Plugins"));
+  for (event = PLUGIN_PASS_MANAGER_SETUP; event < event_last; event++)
     if (plugin_callbacks[event])
       {
 	struct callback_info *ci;
 
-	fprintf (file, "%s\t", plugin_event_name[event]);
+	fprintf (file, FMT_FOR_PLUGIN_EVENT " |", plugin_event_name[event]);
 
 	for (ci = plugin_callbacks[event]; ci; ci = ci->next)
-	  fprintf (file, "%s ", ci->plugin_name);
+	  fprintf (file, " %s", ci->plugin_name);
 
-	fprintf (file, "\n");
+	putc('\n', file);
       }
 }
 
 
 /* Dump active plugins to stderr.  */
 
-void
+DEBUG_FUNCTION void
 debug_active_plugins (void)
 {
   dump_active_plugins (stderr);
+}
+
+/* Give a warning if plugins are present, before an ICE message asking
+   to submit a bug report.  */
+
+void
+warn_if_plugins (void)
+{
+  if (plugins_active_p ())
+    {
+      fnotice (stderr, "*** WARNING *** there are active plugins, do not report"
+	       " this as a bug unless you can reproduce it without enabling"
+	       " any plugins.\n");
+      dump_active_plugins (stderr);
+    }
+
+}
+
+/* Likewise, as a callback from the diagnostics code.  */
+
+void
+plugins_internal_error_function (diagnostic_context *context ATTRIBUTE_UNUSED,
+				 const char *msgid ATTRIBUTE_UNUSED,
+				 va_list *ap ATTRIBUTE_UNUSED)
+{
+  warn_if_plugins ();
 }
 
 /* The default version check. Compares every field in VERSION. */
@@ -682,4 +858,27 @@ plugin_default_version_check (struct plugin_gcc_version *gcc_version,
 	      plugin_version->configuration_arguments))
     return false;
   return true;
+}
+
+
+/* Return the current value of event_last, so that plugins which provide
+   additional functionality for events for the benefit of high-level plugins
+   know how many valid entries plugin_event_name holds.  */
+
+int
+get_event_last (void)
+{
+  return event_last;
+}
+
+
+/* Retrieve the default plugin directory.  The gcc driver should have passed
+   it as -iplugindir <dir> to the cc1 program, and it is queriable thru the
+   -print-file-name=plugin option to gcc.  */
+const char*
+default_plugin_dir_name (void)
+{
+  if (!plugindir_string)
+    fatal_error ("-iplugindir <dir> option not passed from the gcc driver");
+  return plugindir_string;
 }

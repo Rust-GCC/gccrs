@@ -1,6 +1,6 @@
 /* Subroutines for insn-output.c for VAX.
    Copyright (C) 1987, 1994, 1995, 1997, 1998, 1999, 2000, 2001, 2002,
-   2004, 2005, 2006, 2007, 2008, 2009
+   2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -28,7 +28,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "regs.h"
 #include "hard-reg-set.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "function.h"
@@ -39,6 +38,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "optabs.h"
 #include "flags.h"
 #include "debug.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
 #include "tm-preds.h"
 #include "tm-constrs.h"
@@ -46,6 +46,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "target-def.h"
 
+static void vax_option_override (void);
 static bool vax_legitimate_address_p (enum machine_mode, rtx, bool);
 static void vax_output_function_prologue (FILE *, HOST_WIDE_INT);
 static void vax_file_start (void);
@@ -59,6 +60,7 @@ static rtx vax_struct_value_rtx (tree, int);
 static rtx vax_builtin_setjmp_frame_value (void);
 static void vax_asm_trampoline_template (FILE *);
 static void vax_trampoline_init (rtx, tree, rtx);
+static int vax_return_pops_args (tree, tree, int);
 
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
@@ -107,17 +109,26 @@ static void vax_trampoline_init (rtx, tree, rtx);
 #define TARGET_ASM_TRAMPOLINE_TEMPLATE vax_asm_trampoline_template
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT vax_trampoline_init
+#undef TARGET_RETURN_POPS_ARGS
+#define TARGET_RETURN_POPS_ARGS vax_return_pops_args
+
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE vax_option_override
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 /* Set global variables as needed for the options enabled.  */
 
-void
-override_options (void)
+static void
+vax_option_override (void)
 {
   /* We're VAX floating point, not IEEE floating point.  */
   if (TARGET_G_FLOAT)
     REAL_MODE_FORMAT (DFmode) = &vax_g_format;
+
+#ifdef SUBTARGET_OVERRIDE_OPTIONS
+  SUBTARGET_OVERRIDE_OPTIONS;
+#endif
 }
 
 /* Generate the assembly code for function entry.  FILE is a stdio
@@ -2069,3 +2080,18 @@ vax_trampoline_init (rtx m_tramp, tree fndecl, rtx cxt)
   emit_insn (gen_sync_istream ());
 }
 
+/* Value is the number of bytes of arguments automatically
+   popped when returning from a subroutine call.
+   FUNDECL is the declaration node of the function (as a tree),
+   FUNTYPE is the data type of the function (as a tree),
+   or for a library call it is an identifier node for the subroutine name.
+   SIZE is the number of bytes of arguments passed on the stack.
+
+   On the VAX, the RET insn pops a maximum of 255 args for any function.  */
+
+static int
+vax_return_pops_args (tree fundecl ATTRIBUTE_UNUSED,
+		      tree funtype ATTRIBUTE_UNUSED, int size)
+{
+  return size > 255 * 4 ? 0 : size;
+}

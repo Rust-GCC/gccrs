@@ -1,5 +1,5 @@
 /* IO Code translation/library interface
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Paul Brook
 
@@ -24,10 +24,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
-#include "gimple.h"
 #include "ggc.h"
-#include "toplev.h"
-#include "real.h"
+#include "diagnostic-core.h"	/* For internal_error.  */
 #include "gfortran.h"
 #include "trans.h"
 #include "trans-stmt.h"
@@ -158,6 +156,7 @@ gfc_build_st_parameter (enum ioparam_type ptype, tree *types)
   char name[64];
   size_t len;
   tree t = make_node (RECORD_TYPE);
+  tree *chain = NULL;
 
   len = strlen (st_parameter[ptype].name);
   gcc_assert (len <= sizeof (name) - sizeof ("__st_parameter_"));
@@ -177,33 +176,31 @@ gfc_build_st_parameter (enum ioparam_type ptype, tree *types)
 	case IOPARM_type_parray:
 	case IOPARM_type_pchar:
 	case IOPARM_type_pad:
-	  p->field = gfc_add_field_to_struct (&TYPE_FIELDS (t), t,
-					      get_identifier (p->name),
-					      types[p->type]);
+	  p->field = gfc_add_field_to_struct (t, get_identifier (p->name),
+					      types[p->type], &chain);
 	  break;
 	case IOPARM_type_char1:
-	  p->field = gfc_add_field_to_struct (&TYPE_FIELDS (t), t,
-					      get_identifier (p->name),
-					      pchar_type_node);
+	  p->field = gfc_add_field_to_struct (t, get_identifier (p->name),
+					      pchar_type_node, &chain);
 	  /* FALLTHROUGH */
 	case IOPARM_type_char2:
 	  len = strlen (p->name);
 	  gcc_assert (len <= sizeof (name) - sizeof ("_len"));
 	  memcpy (name, p->name, len);
 	  memcpy (name + len, "_len", sizeof ("_len"));
-	  p->field_len = gfc_add_field_to_struct (&TYPE_FIELDS (t), t,
-						  get_identifier (name),
-						  gfc_charlen_type_node);
+	  p->field_len = gfc_add_field_to_struct (t, get_identifier (name),
+						  gfc_charlen_type_node,
+						  &chain);
 	  if (p->type == IOPARM_type_char2)
-	    p->field = gfc_add_field_to_struct (&TYPE_FIELDS (t), t,
-						get_identifier (p->name),
-						pchar_type_node);
+	    p->field = gfc_add_field_to_struct (t, get_identifier (p->name),
+						pchar_type_node, &chain);
 	  break;
 	case IOPARM_type_common:
 	  p->field
-	    = gfc_add_field_to_struct (&TYPE_FIELDS (t), t,
+	    = gfc_add_field_to_struct (t,
 				       get_identifier (p->name),
-				       st_parameter[IOPARM_ptype_common].type);
+				       st_parameter[IOPARM_ptype_common].type,
+				       &chain);
 	  break;
 	case IOPARM_type_num:
 	  gcc_unreachable ();
@@ -306,132 +303,117 @@ gfc_build_io_library_fndecls (void)
   for (ptype = IOPARM_ptype_common; ptype < IOPARM_ptype_num; ptype++)
     gfc_build_st_parameter ((enum ioparam_type) ptype, types);
 
-  /* Define the transfer functions.  */
+  /* Define the transfer functions.
+     TODO: Split them between READ and WRITE to allow further
+     optimizations, e.g. by using aliases?  */
 
   dt_parm_type = build_pointer_type (st_parameter[IOPARM_ptype_dt].type);
 
-  iocall[IOCALL_X_INTEGER] =
-    gfc_build_library_function_decl (get_identifier
-				     (PREFIX("transfer_integer")),
-				     void_type_node, 3, dt_parm_type,
-				     pvoid_type_node, gfc_int4_type_node);
+  iocall[IOCALL_X_INTEGER] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("transfer_integer")), ".wW",
+	void_type_node, 3, dt_parm_type, pvoid_type_node, gfc_int4_type_node);
 
-  iocall[IOCALL_X_LOGICAL] =
-    gfc_build_library_function_decl (get_identifier
-				     (PREFIX("transfer_logical")),
-				     void_type_node, 3, dt_parm_type,
-				     pvoid_type_node, gfc_int4_type_node);
+  iocall[IOCALL_X_LOGICAL] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("transfer_logical")), ".wW",
+	void_type_node, 3, dt_parm_type, pvoid_type_node, gfc_int4_type_node);
 
-  iocall[IOCALL_X_CHARACTER] =
-    gfc_build_library_function_decl (get_identifier
-				     (PREFIX("transfer_character")),
-				     void_type_node, 3, dt_parm_type,
-				     pvoid_type_node, gfc_int4_type_node);
+  iocall[IOCALL_X_CHARACTER] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("transfer_character")), ".wW",
+	void_type_node, 3, dt_parm_type, pvoid_type_node, gfc_int4_type_node);
 
-  iocall[IOCALL_X_CHARACTER_WIDE] =
-    gfc_build_library_function_decl (get_identifier
-				     (PREFIX("transfer_character_wide")),
-				     void_type_node, 4, dt_parm_type,
-				     pvoid_type_node, gfc_charlen_type_node,
-				     gfc_int4_type_node);
+  iocall[IOCALL_X_CHARACTER_WIDE] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("transfer_character_wide")), ".wW",
+	void_type_node, 4, dt_parm_type, pvoid_type_node,
+	gfc_charlen_type_node, gfc_int4_type_node);
 
-  iocall[IOCALL_X_REAL] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("transfer_real")),
-				     void_type_node, 3, dt_parm_type,
-				     pvoid_type_node, gfc_int4_type_node);
+  iocall[IOCALL_X_REAL] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("transfer_real")), ".wW",
+	void_type_node, 3, dt_parm_type, pvoid_type_node, gfc_int4_type_node);
 
-  iocall[IOCALL_X_COMPLEX] =
-    gfc_build_library_function_decl (get_identifier
-				     (PREFIX("transfer_complex")),
-				     void_type_node, 3, dt_parm_type,
-				     pvoid_type_node, gfc_int4_type_node);
+  iocall[IOCALL_X_COMPLEX] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("transfer_complex")), ".wW",
+	void_type_node, 3, dt_parm_type, pvoid_type_node, gfc_int4_type_node);
 
-  iocall[IOCALL_X_ARRAY] =
-    gfc_build_library_function_decl (get_identifier
-				     (PREFIX("transfer_array")),
-				     void_type_node, 4, dt_parm_type,
-				     pvoid_type_node, integer_type_node,
-				     gfc_charlen_type_node);
+  iocall[IOCALL_X_ARRAY] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("transfer_array")), ".wW",
+	void_type_node, 4, dt_parm_type, pvoid_type_node,
+	integer_type_node, gfc_charlen_type_node);
 
   /* Library entry points */
 
-  iocall[IOCALL_READ] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_read")),
-				     void_type_node, 1, dt_parm_type);
+  iocall[IOCALL_READ] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_read")), ".w",
+	void_type_node, 1, dt_parm_type);
 
-  iocall[IOCALL_WRITE] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_write")),
-				     void_type_node, 1, dt_parm_type);
+  iocall[IOCALL_WRITE] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_write")), ".w",
+	void_type_node, 1, dt_parm_type);
 
   parm_type = build_pointer_type (st_parameter[IOPARM_ptype_open].type);
-  iocall[IOCALL_OPEN] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_open")),
-				     void_type_node, 1, parm_type);
-
+  iocall[IOCALL_OPEN] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_open")), ".w",
+	void_type_node, 1, parm_type);
 
   parm_type = build_pointer_type (st_parameter[IOPARM_ptype_close].type);
-  iocall[IOCALL_CLOSE] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_close")),
-				     void_type_node, 1, parm_type);
+  iocall[IOCALL_CLOSE] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_close")), ".w",
+	void_type_node, 1, parm_type);
 
   parm_type = build_pointer_type (st_parameter[IOPARM_ptype_inquire].type);
-  iocall[IOCALL_INQUIRE] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_inquire")),
-				     gfc_int4_type_node, 1, parm_type);
+  iocall[IOCALL_INQUIRE] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_inquire")), ".w",
+	void_type_node, 1, parm_type);
 
-  iocall[IOCALL_IOLENGTH] =
-    gfc_build_library_function_decl(get_identifier (PREFIX("st_iolength")),
-				    void_type_node, 1, dt_parm_type);
+  iocall[IOCALL_IOLENGTH] = gfc_build_library_function_decl_with_spec(
+	get_identifier (PREFIX("st_iolength")), ".w",
+	void_type_node, 1, dt_parm_type);
 
+  /* TODO: Change when asynchronous I/O is implemented.  */
   parm_type = build_pointer_type (st_parameter[IOPARM_ptype_wait].type);
-  iocall[IOCALL_WAIT] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_wait")),
-				     gfc_int4_type_node, 1, parm_type);
+  iocall[IOCALL_WAIT] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_wait")), ".X",
+	void_type_node, 1, parm_type);
 
   parm_type = build_pointer_type (st_parameter[IOPARM_ptype_filepos].type);
-  iocall[IOCALL_REWIND] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_rewind")),
-				     gfc_int4_type_node, 1, parm_type);
+  iocall[IOCALL_REWIND] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_rewind")), ".w",
+	void_type_node, 1, parm_type);
 
-  iocall[IOCALL_BACKSPACE] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_backspace")),
-				     gfc_int4_type_node, 1, parm_type);
+  iocall[IOCALL_BACKSPACE] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_backspace")), ".w",
+	void_type_node, 1, parm_type);
 
-  iocall[IOCALL_ENDFILE] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_endfile")),
-				     gfc_int4_type_node, 1, parm_type);
+  iocall[IOCALL_ENDFILE] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_endfile")), ".w",
+	void_type_node, 1, parm_type);
 
-  iocall[IOCALL_FLUSH] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_flush")),
-				     gfc_int4_type_node, 1, parm_type);
+  iocall[IOCALL_FLUSH] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_flush")), ".w",
+	void_type_node, 1, parm_type);
 
   /* Library helpers */
 
-  iocall[IOCALL_READ_DONE] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_read_done")),
-				     gfc_int4_type_node, 1, dt_parm_type);
+  iocall[IOCALL_READ_DONE] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_read_done")), ".w",
+	void_type_node, 1, dt_parm_type);
 
-  iocall[IOCALL_WRITE_DONE] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_write_done")),
-				     gfc_int4_type_node, 1, dt_parm_type);
+  iocall[IOCALL_WRITE_DONE] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_write_done")), ".w",
+	void_type_node, 1, dt_parm_type);
 
-  iocall[IOCALL_IOLENGTH_DONE] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_iolength_done")),
-				     gfc_int4_type_node, 1, dt_parm_type);
+  iocall[IOCALL_IOLENGTH_DONE] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_iolength_done")), ".w",
+	void_type_node, 1, dt_parm_type);
 
+  iocall[IOCALL_SET_NML_VAL] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_set_nml_var")), ".w.R",
+	void_type_node, 6, dt_parm_type, pvoid_type_node, pvoid_type_node,
+	void_type_node, gfc_charlen_type_node, gfc_int4_type_node);
 
-  iocall[IOCALL_SET_NML_VAL] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_set_nml_var")),
-				     void_type_node, 6, dt_parm_type,
-				     pvoid_type_node, pvoid_type_node,
-				     gfc_int4_type_node, gfc_charlen_type_node,
-				     gfc_int4_type_node);
-
-  iocall[IOCALL_SET_NML_VAL_DIM] =
-    gfc_build_library_function_decl (get_identifier (PREFIX("st_set_nml_var_dim")),
-				     void_type_node, 5, dt_parm_type,
-				     gfc_int4_type_node, gfc_array_index_type,
-				     gfc_array_index_type, gfc_array_index_type);
+  iocall[IOCALL_SET_NML_VAL_DIM] = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("st_set_nml_var_dim")), ".w",
+	void_type_node, 5, dt_parm_type, gfc_int4_type_node,
+	gfc_array_index_type, gfc_array_index_type, gfc_array_index_type);
 }
 
 
@@ -446,10 +428,11 @@ set_parameter_const (stmtblock_t *block, tree var, enum iofield type,
   gfc_st_parameter_field *p = &st_parameter_field[type];
 
   if (p->param_type == IOPARM_ptype_common)
-    var = fold_build3 (COMPONENT_REF, st_parameter[IOPARM_ptype_common].type,
-		       var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
-  tmp = fold_build3 (COMPONENT_REF, TREE_TYPE (p->field), var, p->field,
-		     NULL_TREE);
+    var = fold_build3_loc (input_location, COMPONENT_REF,
+			   st_parameter[IOPARM_ptype_common].type,
+			   var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
+  tmp = fold_build3_loc (input_location, COMPONENT_REF, TREE_TYPE (p->field),
+			 var, p->field, NULL_TREE);
   gfc_add_modify (block, tmp, build_int_cst (TREE_TYPE (p->field), val));
   return p->mask;
 }
@@ -482,16 +465,18 @@ set_parameter_value (stmtblock_t *block, tree var, enum iofield type,
       /* UNIT numbers should be greater than the min.  */
       i = gfc_validate_kind (BT_INTEGER, 4, false);
       val = gfc_conv_mpz_to_tree (gfc_integer_kinds[i].pedantic_min_int, 4);
-      cond = fold_build2 (LT_EXPR, boolean_type_node, se.expr,
-			  fold_convert (TREE_TYPE (se.expr), val));
+      cond = fold_build2_loc (input_location, LT_EXPR, boolean_type_node,
+			      se.expr,
+			      fold_convert (TREE_TYPE (se.expr), val));
       gfc_trans_io_runtime_check (cond, var, LIBERROR_BAD_UNIT,
 			       "Unit number in I/O statement too small",
 			       &se.pre);
     
       /* UNIT numbers should be less than the max.  */
       val = gfc_conv_mpz_to_tree (gfc_integer_kinds[i].huge, 4);
-      cond = fold_build2 (GT_EXPR, boolean_type_node, se.expr,
-			  fold_convert (TREE_TYPE (se.expr), val));
+      cond = fold_build2_loc (input_location, GT_EXPR, boolean_type_node,
+			      se.expr,
+			      fold_convert (TREE_TYPE (se.expr), val));
       gfc_trans_io_runtime_check (cond, var, LIBERROR_BAD_UNIT,
 			       "Unit number in I/O statement too large",
 			       &se.pre);
@@ -502,10 +487,12 @@ set_parameter_value (stmtblock_t *block, tree var, enum iofield type,
   gfc_add_block_to_block (block, &se.pre);
 
   if (p->param_type == IOPARM_ptype_common)
-    var = fold_build3 (COMPONENT_REF, st_parameter[IOPARM_ptype_common].type,
-		       var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
+    var = fold_build3_loc (input_location, COMPONENT_REF,
+			   st_parameter[IOPARM_ptype_common].type,
+			   var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
 
-  tmp = fold_build3 (COMPONENT_REF, dest_type, var, p->field, NULL_TREE);
+  tmp = fold_build3_loc (input_location, COMPONENT_REF, dest_type, var,
+			 p->field, NULL_TREE);
   gfc_add_modify (block, tmp, se.expr);
   return p->mask;
 }
@@ -560,10 +547,11 @@ set_parameter_ref (stmtblock_t *block, stmtblock_t *postblock,
      }
 
   if (p->param_type == IOPARM_ptype_common)
-    var = fold_build3 (COMPONENT_REF, st_parameter[IOPARM_ptype_common].type,
-		       var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
-  tmp = fold_build3 (COMPONENT_REF, TREE_TYPE (p->field),
-		     var, p->field, NULL_TREE);
+    var = fold_build3_loc (input_location, COMPONENT_REF,
+			   st_parameter[IOPARM_ptype_common].type,
+			   var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
+  tmp = fold_build3_loc (input_location, COMPONENT_REF, TREE_TYPE (p->field),
+			 var, p->field, NULL_TREE);
   gfc_add_modify (block, tmp, addr);
   return p->mask;
 }
@@ -601,26 +589,31 @@ gfc_convert_array_to_string (gfc_se * se, gfc_expr * e)
 	{
 	  gcc_assert (GFC_DESCRIPTOR_TYPE_P (type));
 	  size = gfc_conv_array_stride (array, rank);
-	  tmp = fold_build2 (MINUS_EXPR, gfc_array_index_type,
-			     gfc_conv_array_ubound (array, rank),
-			     gfc_conv_array_lbound (array, rank));
-	  tmp = fold_build2 (PLUS_EXPR, gfc_array_index_type, tmp,
-			     gfc_index_one_node);
-	  size = fold_build2 (MULT_EXPR, gfc_array_index_type, tmp, size);
+	  tmp = fold_build2_loc (input_location, MINUS_EXPR,
+				 gfc_array_index_type,
+				 gfc_conv_array_ubound (array, rank),
+				 gfc_conv_array_lbound (array, rank));
+	  tmp = fold_build2_loc (input_location, PLUS_EXPR,
+				 gfc_array_index_type, tmp,
+				 gfc_index_one_node);
+	  size = fold_build2_loc (input_location, MULT_EXPR,
+				  gfc_array_index_type, tmp, size);
 	}
       gcc_assert (size);
 
-      size = fold_build2 (MINUS_EXPR, gfc_array_index_type, size,
-			  TREE_OPERAND (se->expr, 1));
+      size = fold_build2_loc (input_location, MINUS_EXPR,
+			      gfc_array_index_type, size,
+			      TREE_OPERAND (se->expr, 1));
       se->expr = gfc_build_addr_expr (NULL_TREE, se->expr);
       tmp = TYPE_SIZE_UNIT (gfc_get_element_type (type));
-      size = fold_build2 (MULT_EXPR, gfc_array_index_type, size,
-			  fold_convert (gfc_array_index_type, tmp));
+      size = fold_build2_loc (input_location, MULT_EXPR,
+			      gfc_array_index_type, size,
+			      fold_convert (gfc_array_index_type, tmp));
       se->string_length = fold_convert (gfc_charlen_type_node, size);
       return;
     }
 
-  gfc_conv_array_parameter (se, e, gfc_walk_expr (e), 1, NULL, NULL, &size);
+  gfc_conv_array_parameter (se, e, gfc_walk_expr (e), true, NULL, NULL, &size);
   se->string_length = fold_convert (gfc_charlen_type_node, size);
 }
 
@@ -641,12 +634,14 @@ set_string (stmtblock_t * block, stmtblock_t * postblock, tree var,
   gfc_init_se (&se, NULL);
 
   if (p->param_type == IOPARM_ptype_common)
-    var = fold_build3 (COMPONENT_REF, st_parameter[IOPARM_ptype_common].type,
-		       var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
-  io = fold_build3 (COMPONENT_REF, TREE_TYPE (p->field),
+    var = fold_build3_loc (input_location, COMPONENT_REF,
+			   st_parameter[IOPARM_ptype_common].type,
+			   var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
+  io = fold_build3_loc (input_location, COMPONENT_REF, TREE_TYPE (p->field),
 		    var, p->field, NULL_TREE);
-  len = fold_build3 (COMPONENT_REF, TREE_TYPE (p->field_len),
-		     var, p->field_len, NULL_TREE);
+  len = fold_build3_loc (input_location, COMPONENT_REF,
+			 TREE_TYPE (p->field_len),
+			 var, p->field_len, NULL_TREE);
 
   /* Integer variable assigned a format label.  */
   if (e->ts.type == BT_INTEGER
@@ -658,8 +653,8 @@ set_string (stmtblock_t * block, stmtblock_t * postblock, tree var,
 
       gfc_conv_label_variable (&se, e);
       tmp = GFC_DECL_STRING_LEN (se.expr);
-      cond = fold_build2 (LT_EXPR, boolean_type_node,
-			  tmp, build_int_cst (TREE_TYPE (tmp), 0));
+      cond = fold_build2_loc (input_location, LT_EXPR, boolean_type_node,
+			      tmp, build_int_cst (TREE_TYPE (tmp), 0));
 
       asprintf(&msg, "Label assigned to variable '%s' (%%ld) is not a format "
 	       "label", e->symtree->name);
@@ -712,13 +707,13 @@ set_internal_unit (stmtblock_t * block, stmtblock_t * post_block,
 
   p = &st_parameter_field[IOPARM_dt_internal_unit];
   mask = p->mask;
-  io = fold_build3 (COMPONENT_REF, TREE_TYPE (p->field),
-		    var, p->field, NULL_TREE);
-  len = fold_build3 (COMPONENT_REF, TREE_TYPE (p->field_len),
-		     var, p->field_len,	NULL_TREE);
+  io = fold_build3_loc (input_location, COMPONENT_REF, TREE_TYPE (p->field),
+			var, p->field, NULL_TREE);
+  len = fold_build3_loc (input_location, COMPONENT_REF, TREE_TYPE (p->field_len),
+			 var, p->field_len,	NULL_TREE);
   p = &st_parameter_field[IOPARM_dt_internal_unit_desc];
-  desc = fold_build3 (COMPONENT_REF, TREE_TYPE (p->field),
-		      var, p->field, NULL_TREE);
+  desc = fold_build3_loc (input_location, COMPONENT_REF, TREE_TYPE (p->field),
+			  var, p->field, NULL_TREE);
 
   gcc_assert (e->ts.type == BT_CHARACTER);
 
@@ -741,7 +736,7 @@ set_internal_unit (stmtblock_t * block, stmtblock_t * post_block,
 	  /* Use a temporary for components of arrays of derived types
 	     or substring array references.  */
 	  gfc_conv_subref_array_arg (&se, e, 0,
-		last_dt == READ ? INTENT_IN : INTENT_OUT);
+		last_dt == READ ? INTENT_IN : INTENT_OUT, false);
 	  tmp = build_fold_indirect_ref_loc (input_location,
 					 se.expr);
 	  se.expr = gfc_build_addr_expr (pchar_type_node, tmp);
@@ -827,13 +822,14 @@ io_result (stmtblock_t * block, tree var, gfc_st_label * err_label,
 
   tmp = gfc_finish_block (&body);
 
-  var = fold_build3 (COMPONENT_REF, st_parameter[IOPARM_ptype_common].type,
-		     var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
-  rc = fold_build3 (COMPONENT_REF, TREE_TYPE (p->field),
-		    var, p->field, NULL_TREE);
-  rc = fold_build2 (BIT_AND_EXPR, TREE_TYPE (rc),
-		    rc, build_int_cst (TREE_TYPE (rc),
-				       IOPARM_common_libreturn_mask));
+  var = fold_build3_loc (input_location, COMPONENT_REF,
+			 st_parameter[IOPARM_ptype_common].type,
+			 var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
+  rc = fold_build3_loc (input_location, COMPONENT_REF, TREE_TYPE (p->field),
+			var, p->field, NULL_TREE);
+  rc = fold_build2_loc (input_location, BIT_AND_EXPR, TREE_TYPE (rc),
+			rc, build_int_cst (TREE_TYPE (rc),
+					   IOPARM_common_libreturn_mask));
 
   tmp = build3_v (SWITCH_EXPR, rc, tmp, NULL_TREE);
 
@@ -852,11 +848,12 @@ set_error_locus (stmtblock_t * block, tree var, locus * where)
   int line;
   gfc_st_parameter_field *p = &st_parameter_field[IOPARM_common_filename];
 
-  locus_file = fold_build3 (COMPONENT_REF,
-			    st_parameter[IOPARM_ptype_common].type,
-			    var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
-  locus_file = fold_build3 (COMPONENT_REF, TREE_TYPE (p->field),
-			    locus_file, p->field, NULL_TREE);
+  locus_file = fold_build3_loc (input_location, COMPONENT_REF,
+				st_parameter[IOPARM_ptype_common].type,
+				var, TYPE_FIELDS (TREE_TYPE (var)), NULL_TREE);
+  locus_file = fold_build3_loc (input_location, COMPONENT_REF,
+				TREE_TYPE (p->field), locus_file,
+				p->field, NULL_TREE);
   f = where->lb->file;
   str = gfc_build_cstring_const (f->filename);
 
@@ -1391,21 +1388,6 @@ gfc_trans_wait (gfc_code * code)
 
 }
 
-static gfc_expr *
-gfc_new_nml_name_expr (const char * name)
-{
-   gfc_expr * nml_name;
-
-   nml_name = gfc_get_expr();
-   nml_name->ref = NULL;
-   nml_name->expr_type = EXPR_CONSTANT;
-   nml_name->ts.kind = gfc_default_character_kind;
-   nml_name->ts.type = BT_CHARACTER;
-   nml_name->value.character.length = strlen(name);
-   nml_name->value.character.string = gfc_char_to_widechar (name);
-
-   return nml_name;
-}
 
 /* nml_full_name builds up the fully qualified name of a
    derived type component.  */
@@ -1481,8 +1463,8 @@ nml_get_addr_expr (gfc_symbol * sym, gfc_component * c,
      the derived type.  */
 
   if (TREE_CODE (decl) == FIELD_DECL)
-    tmp = fold_build3 (COMPONENT_REF, TREE_TYPE (tmp),
-		       base_addr, tmp, NULL_TREE);
+    tmp = fold_build3_loc (input_location, COMPONENT_REF, TREE_TYPE (tmp),
+			   base_addr, tmp, NULL_TREE);
 
   /* If we have a derived type component, a reference to the first
      element of the array is built.  This is done so that base_addr,
@@ -1687,7 +1669,8 @@ build_dt (tree function, gfc_code * code)
 	{
 	  mask |= set_internal_unit (&block, &post_iu_block,
 				     var, dt->io_unit);
-	  set_parameter_const (&block, var, IOPARM_common_unit, 0);
+	  set_parameter_const (&block, var, IOPARM_common_unit,
+			       dt->io_unit->ts.kind == 1 ? 0 : -1);
 	}
     }
   else
@@ -1776,7 +1759,9 @@ build_dt (tree function, gfc_code * code)
 	  if (dt->format_expr || dt->format_label)
 	    gfc_internal_error ("build_dt: format with namelist");
 
-	  nmlname = gfc_new_nml_name_expr (dt->namelist->name);
+          nmlname = gfc_get_character_expr (gfc_default_character_kind, NULL,
+					    dt->namelist->name,
+					    strlen (dt->namelist->name));
 
 	  mask |= set_string (&block, &post_block, var, IOPARM_dt_namelist_name,
 			      nmlname);
@@ -1790,7 +1775,7 @@ build_dt (tree function, gfc_code * code)
 
 	  for (nml = dt->namelist->namelist; nml; nml = nml->next)
 	    transfer_namelist_element (&block, nml->sym->name, nml->sym,
-				       NULL, NULL);
+				       NULL, NULL_TREE);
 	}
       else
 	set_parameter_const (&block, var, IOPARM_common_flags, mask);
@@ -1811,7 +1796,25 @@ build_dt (tree function, gfc_code * code)
   dt_parm = var;
   dt_post_end_block = &post_end_block;
 
-  gfc_add_expr_to_block (&block, gfc_trans_code (code->block->next));
+  /* Set implied do loop exit condition.  */
+  if (last_dt == READ || last_dt == WRITE)
+    {
+      gfc_st_parameter_field *p = &st_parameter_field[IOPARM_common_flags];
+
+      tmp = fold_build3_loc (input_location, COMPONENT_REF,
+			     st_parameter[IOPARM_ptype_common].type,
+			     dt_parm, TYPE_FIELDS (TREE_TYPE (dt_parm)),
+			     NULL_TREE);
+      tmp = fold_build3_loc (input_location, COMPONENT_REF,
+			     TREE_TYPE (p->field), tmp, p->field, NULL_TREE);
+      tmp = fold_build2_loc (input_location, BIT_AND_EXPR, TREE_TYPE (tmp),
+			     tmp, build_int_cst (TREE_TYPE (tmp),
+			     IOPARM_common_libreturn_mask));
+    }
+  else /* IOLENGTH */
+    tmp = NULL_TREE;
+
+  gfc_add_expr_to_block (&block, gfc_trans_code_cond (code->block->next, tmp));
 
   gfc_add_block_to_block (&block, &post_iu_block);
 
@@ -2211,7 +2214,7 @@ gfc_trans_transfer (gfc_code * code)
 	  if (seen_vector && last_dt == READ)
 	    {
 	      /* Create a temp, read to that and copy it back.  */
-	      gfc_conv_subref_array_arg (&se, expr, 0, INTENT_OUT);
+	      gfc_conv_subref_array_arg (&se, expr, 0, INTENT_OUT, false);
 	      tmp =  se.expr;
 	    }
 	  else

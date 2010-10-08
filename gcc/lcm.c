@@ -57,13 +57,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "regs.h"
 #include "hard-reg-set.h"
 #include "flags.h"
-#include "real.h"
 #include "insn-config.h"
 #include "recog.h"
 #include "basic-block.h"
 #include "output.h"
 #include "tm_p.h"
 #include "function.h"
+#include "sbitmap.h"
 
 /* We want target macros for the mode switching code to be able to refer
    to instruction attribute values.  */
@@ -483,7 +483,7 @@ compute_available (sbitmap *avloc, sbitmap *kill, sbitmap *avout,
   /* Allocate a worklist array/queue.  Entries are only added to the
      list if they were not already on the list.  So the size is
      bounded by the number of basic blocks.  */
-  qin = qout = worklist = 
+  qin = qout = worklist =
     XNEWVEC (basic_block, n_basic_blocks - NUM_FIXED_BLOCKS);
 
   /* We want a maximal solution.  */

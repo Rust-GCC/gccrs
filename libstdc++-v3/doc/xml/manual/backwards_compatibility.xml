@@ -1,7 +1,8 @@
-<sect1 id="manual.appendix.porting.backwards" xreflabel="backwards">
+<section xmlns="http://docbook.org/ns/docbook" version="5.0" 
+	 xml:id="manual.appendix.porting.backwards" xreflabel="backwards">
 <?dbhtml filename="backwards.html"?>
- 
-<sect1info>
+
+<info><title>Backwards Compatibility</title>
   <keywordset>
     <keyword>
       ISO C++
@@ -10,12 +11,12 @@
       backwards
     </keyword>
   </keywordset>
-</sect1info>
+</info>
 
-<title>Backwards Compatibility</title>
 
-<sect2 id="backwards.first">
-<title>First</title>
+
+<section xml:id="backwards.first"><info><title>First</title></info>
+
 
 <para>The first generation GNU C++ library was called libg++.  It was a
 separate GNU project, although reliably paired with GCC. Rumors imply
@@ -37,19 +38,19 @@ Committee couldn't include everything, and so a lot of those
 <quote>obvious</quote> classes didn't get included.
 </para>
 
-<para>Known Issues include many of the limitations of its immediate ancestor.</para> 
+<para>Known Issues include many of the limitations of its immediate ancestor.</para>
 
 <para>Portability notes and known implementation limitations are as follows.</para>
 
-<sect3>
-  <title>No <code>ios_base</code></title>
+<section><info><title>No <code>ios_base</code></title></info>
+  
 
 <para> At least some older implementations don't have <code>std::ios_base</code>, so you should use <code>std::ios::badbit</code>, <code>std::ios::failbit</code> and <code>std::ios::eofbit</code> and <code>std::ios::goodbit</code>.
 </para>
-</sect3>
+</section>
 
-<sect3>
-<title>No <code>cout</code> in <code>ostream.h</code>, no <code>cin</code> in <code>istream.h</code></title>
+<section><info><title>No <code>cout</code> in <code>ostream.h</code>, no <code>cin</code> in <code>istream.h</code></title></info>
+
 
 <para>
 	In earlier versions of the standard,
@@ -65,24 +66,24 @@ Committee couldn't include everything, and so a lot of those
 
 <para>This project is no longer maintained or supported, and the sources
 archived. For the desperate,
-the <ulink url="http://gcc.gnu.org/extensions.html">GCC extensions
-page</ulink> describes where to find the last libg++ source. The code is
+the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/extensions.html">GCC extensions
+page</link> describes where to find the last libg++ source. The code is
 considered replaced and rewritten.
 </para>
-</sect3>
-</sect2>
+</section>
+</section>
 
-<sect2 id="backwards.second">
-<title>Second</title>
+<section xml:id="backwards.second"><info><title>Second</title></info>
 
-<para> 
+
+<para>
   The second generation GNU C++ library was called libstdc++, or
   libstdc++-v2. It spans the time between libg++ and pre-ISO C++
   standardization and is usually associated with the following GCC
   releases: egcs 1.x, gcc 2.95, and gcc 2.96.
 </para>
 
-<para> 
+<para>
   The STL portions of this library are based on SGI/HP STL release 3.11.
 </para>
 
@@ -95,8 +96,8 @@ considered replaced and rewritten.
   Portability notes and known implementation limitations are as follows.
 </para>
 
-<sect3>
-  <title>Namespace <code>std::</code> not supported</title>
+<section><info><title>Namespace <code>std::</code> not supported</title></info>
+  
 
   <para>
     Some care is required to support C++ compiler and or library
@@ -108,8 +109,8 @@ considered replaced and rewritten.
     The following sections list some possible solutions to support compilers
     that cannot ignore <code>std::</code>-qualified names.
   </para>
-  
-  <para> 
+
+  <para>
     First, see if the compiler has a flag for this. Namespace
     back-portability-issues are generally not a problem for g++
     compilers that do not have libstdc++ in <code>std::</code>, as the
@@ -124,11 +125,11 @@ considered replaced and rewritten.
     Second, experiment with a variety of pre-processor tricks.
   </para>
 
-  <para> 
+  <para>
     By defining <code>std</code> as a macro, fully-qualified namespace
     calls become global. Volia.
   </para>
-	      
+
 <programlisting>
 #ifdef WICKEDLY_OLD_COMPILER
 # define std
@@ -169,8 +170,8 @@ AC_DEFUN([AC_CXX_NAMESPACE_STD], [
   ac_cv_cxx_have_std_namespace,
   [AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
-  AC_TRY_COMPILE([#include &lt;iostream&gt; 
-                  std::istream&amp; is = std::cin;],,
+  AC_TRY_COMPILE([#include &lt;iostream&gt;
+		  std::istream&amp; is = std::cin;],,
   ac_cv_cxx_have_std_namespace=yes, ac_cv_cxx_have_std_namespace=no)
   AC_LANG_RESTORE
   ])
@@ -179,16 +180,16 @@ AC_DEFUN([AC_CXX_NAMESPACE_STD], [
   fi
 ])
 </programlisting>
-</sect3>
+</section>
 
-<sect3>
-<title>Illegal iterator usage</title>
+<section><info><title>Illegal iterator usage</title></info>
+
 <para>
   The following illustrate implementation-allowed illegal iterator
   use, and then correct use.
 </para>
 
-<itemizedlist> 
+<itemizedlist>
   <listitem>
     <para>
       you cannot do <code>ostream::operator&lt;&lt;(iterator)</code>
@@ -205,19 +206,18 @@ AC_DEFUN([AC_CXX_NAMESPACE_STD], [
   <listitem>
     <para>
       <code>if (iterator)</code> won't work any more =&gt; use
-      <code>if (iterator != iterator_type())</code> 
+      <code>if (iterator != iterator_type())</code>
     </para>
   </listitem>
 </itemizedlist>
-</sect3>
+</section>
 
-<sect3>
-  <title><code>isspace</code> from <filename class="headerfile">cctype</filename> is a macro
-  </title>
+<section><info><title><code>isspace</code> from <filename class="headerfile">cctype</filename> is a macro
+  </title></info>
+  
 
-  <para> 
-    Glibc 2.0.x and 2.1.x define <filename
-    class="headerfile">ctype.h</filename> functionality as macros
+  <para>
+    Glibc 2.0.x and 2.1.x define <filename class="headerfile">ctype.h</filename> functionality as macros
     (isspace, isalpha etc.).
   </para>
 
@@ -227,27 +227,27 @@ AC_DEFUN([AC_CXX_NAMESPACE_STD], [
     names. For example:
   </para>
 
-<programlisting> 
-#include &lt;cctype&gt; 
-int main() { std::isspace('X'); } 
+<programlisting>
+#include &lt;cctype&gt;
+int main() { std::isspace('X'); }
 </programlisting>
 
 <para>
   Results in something like this:
 </para>
 
-<programlisting> 
-std:: (__ctype_b[(int) ( ( 'X' ) )] &amp; (unsigned short int) _ISspace ) ; 
+<programlisting>
+std:: (__ctype_b[(int) ( ( 'X' ) )] &amp; (unsigned short int) _ISspace ) ;
 </programlisting>
 
-<para> 
+<para>
   A solution is to modify a header-file so that the compiler tells
   <filename class="headerfile">ctype.h</filename> to define functions
   instead of macros:
 </para>
 
 <programlisting>
-// This keeps isalnum, et al from being propagated as macros. 
+// This keeps isalnum, et al from being propagated as macros.
 #if __linux__
 # define __NO_CTYPE 1
 #endif
@@ -259,17 +259,16 @@ std:: (__ctype_b[(int) ( ( 'X' ) )] &amp; (unsigned short int) _ISspace ) ;
 
 <para>
   Another problem arises if you put a <code>using namespace
-  std;</code> declaration at the top, and include <filename
-  class="headerfile">ctype.h</filename>. This will result in
+  std;</code> declaration at the top, and include <filename class="headerfile">ctype.h</filename>. This will result in
   ambiguities between the definitions in the global namespace
   (<filename class="headerfile">ctype.h</filename>) and the
   definitions in namespace <code>std::</code>
   (<code>&lt;cctype&gt;</code>).
 </para>
-</sect3>
+</section>
 
-<sect3>
-<title>No <code>vector::at</code>, <code>deque::at</code>, <code>string::at</code></title>
+<section><info><title>No <code>vector::at</code>, <code>deque::at</code>, <code>string::at</code></title></info>
+
 
 <para>
   One solution is to add an autoconf-test for this:
@@ -282,7 +281,7 @@ AC_TRY_COMPILE(
 #include &lt;vector&gt;
 #include &lt;deque&gt;
 #include &lt;string&gt;
-	
+
 using namespace std;
 ],
 [
@@ -303,14 +302,14 @@ AC_DEFINE(HAVE_CONTAINER_AT)],
   to check for <code>string::at</code> separately.
 </para>
 
-</sect3>
+</section>
 
-<sect3>
-<title>No <code>std::char_traits&lt;char&gt;::eof</code></title>
+<section><info><title>No <code>std::char_traits&lt;char&gt;::eof</code></title></info>
+
 
 <para>
   Use some kind of autoconf test, plus this:
-</para>      
+</para>
 
 <programlisting>
 #ifdef HAVE_CHAR_TRAITS
@@ -320,28 +319,28 @@ AC_DEFINE(HAVE_CONTAINER_AT)],
 #endif
 </programlisting>
 
-</sect3>
+</section>
 
-<sect3>
-<title>No <code>string::clear</code></title>
+<section><info><title>No <code>string::clear</code></title></info>
+
 
 <para>
   There are two functions for deleting the contents of a string:
   <code>clear</code> and <code>erase</code> (the latter returns the
   string).
 </para>
-      
+
 <programlisting>
-void 
+void
 clear() { _M_mutate(0, this-&gt;size(), 0); }
 </programlisting>
 
 <programlisting>
-basic_string&amp; 
+basic_string&amp;
 erase(size_type __pos = 0, size_type __n = npos)
-{ 
+{
   return this-&gt;replace(_M_check(__pos), _M_fold(__pos, __n),
-                          _M_data(), _M_data()); 
+			  _M_data(), _M_data());
 }
 </programlisting>
 
@@ -350,52 +349,51 @@ erase(size_type __pos = 0, size_type __n = npos)
   version, so you should use <code>erase</code> (which is probably
   faster than <code>operator=(charT*)</code>).
 </para>
-</sect3>
+</section>
 
-<sect3>
-<title>
+<section><info><title>
   Removal of <code>ostream::form</code> and <code>istream::scan</code>
   extensions
-</title>
+</title></info>
 
-<para> 
+
+<para>
   These are no longer supported. Please use stringstreams instead.
 </para>
-</sect3>
+</section>
 
-<sect3>
-<title>No <code>basic_stringbuf</code>, <code>basic_stringstream</code></title>
+<section><info><title>No <code>basic_stringbuf</code>, <code>basic_stringstream</code></title></info>
+
 
 <para>
   Although the ISO standard <code>i/ostringstream</code>-classes are
   provided, (<filename class="headerfile">sstream</filename>), for
   compatibility with older implementations the pre-ISO
-  <code>i/ostrstream</code> (<filename
-  class="headerfile">strstream</filename>) interface is also provided,
+  <code>i/ostrstream</code> (<filename class="headerfile">strstream</filename>) interface is also provided,
   with these caveats:
 </para>
 
 <itemizedlist>
   <listitem>
-    <para> 
+    <para>
       <code>strstream</code> is considered to be deprecated
     </para>
   </listitem>
   <listitem>
-    <para> 
+    <para>
       <code>strstream</code> is limited to <code>char</code>
     </para>
   </listitem>
   <listitem>
-    <para> 
+    <para>
       with <code>ostringstream</code> you don't have to take care of
-      terminating the string or freeing its memory 
+      terminating the string or freeing its memory
     </para>
   </listitem>
   <listitem>
-    <para> 
+    <para>
       <code>istringstream</code> can be re-filled (clear();
-      str(input);) 
+      str(input);)
     </para>
   </listitem>
 </itemizedlist>
@@ -403,7 +401,7 @@ erase(size_type __pos = 0, size_type __n = npos)
 <para>
   You can then use output-stringstreams like this:
 </para>
-       
+
 <programlisting>
 #ifdef HAVE_SSTREAM
 # include &lt;sstream&gt;
@@ -436,7 +434,7 @@ m_label.set_text(oss.str());
 <para>
       Input-stringstreams can be used similarly:
 </para>
-      
+
 <programlisting>
 std::string input;
 ...
@@ -447,12 +445,12 @@ std::istrstream iss(input.c_str());
 #endif
 
 int i;
-iss &gt;&gt; i; 
+iss &gt;&gt; i;
 </programlisting>
 
 <para> One (the only?) restriction is that an istrstream cannot be re-filled:
 </para>
-      
+
 <programlisting>
 std::istringstream iss(numerator);
 iss &gt;&gt; m_num;
@@ -461,11 +459,11 @@ iss.clear();
 iss.str(denominator);
 iss &gt;&gt; m_den;
 </programlisting>
- 
+
 <para>
 If you don't care about speed, you can put these conversions in
       a template-function:
-</para>      
+</para>
 <programlisting>
 template &lt;class X&gt;
 void fromString(const string&amp; input, X&amp; any)
@@ -483,35 +481,34 @@ any = temp;
 }
 </programlisting>
 
-<para> 
-  Another example of using stringstreams is in <link
-  linkend="strings.string.shrink">this howto</link>.
+<para>
+  Another example of using stringstreams is in <link linkend="strings.string.shrink">this howto</link>.
 </para>
 
 <para> There is additional information in the libstdc++-v2 info files, in
 particular <quote>info iostream</quote>.
 </para>
-</sect3>
+</section>
 
-<sect3>
-  <title>Little or no wide character support</title>
+<section><info><title>Little or no wide character support</title></info>
+  
   <para>
     Classes <classname>wstring</classname> and
     <classname>char_traits&lt;wchar_t&gt;</classname> are
     not supported.
   </para>
-</sect3>
+</section>
 
-<sect3>
-  <title>No templatized iostreams</title>
+<section><info><title>No templatized iostreams</title></info>
+  
   <para>
     Classes <classname>wfilebuf</classname> and
     <classname>wstringstream</classname> are not supported.
   </para>
-</sect3>
+</section>
 
-<sect3>
-<title>Thread safety issues</title>
+<section><info><title>Thread safety issues</title></info>
+
 
   <para>
     Earlier GCC releases had a somewhat different approach to
@@ -541,10 +538,9 @@ particular <quote>info iostream</quote>.
      written against per-CPU-architecture spinlocks and other parts
      against the gthr.h abstraction layer which is provided by gcc.  A
      minor problem that pops up every so often is different
-     interpretations of what &quot;thread-safe&quot; means for a
-     library (not a general program).  We currently use the <ulink
-     url="http://www.sgi.com/tech/stl/thread_safety.html">same
-     definition that SGI</ulink> uses for their STL subset.  However,
+     interpretations of what "thread-safe" means for a
+     library (not a general program).  We currently use the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/thread_safety.html">same
+     definition that SGI</link> uses for their STL subset.  However,
      the exception for read-only containers only applies to the STL
      components. This definition is widely-used and something similar
      will be used in the next version of the C++ standard library.
@@ -554,60 +550,59 @@ particular <quote>info iostream</quote>.
      Here is a small link farm to threads (no pun) in the mail
      archives that discuss the threading problem.  Each link is to the
      first relevant message in the thread; from there you can use
-     &quot;Thread Next&quot; to move down the thread.  This farm is in
+     "Thread Next" to move down the thread.  This farm is in
      latest-to-oldest order.
    </para>
 
       <itemizedlist>
-        <listitem>
+	<listitem>
 	  <para>
-	    Our threading expert Loren gives a breakdown of <ulink
-	    url="http://gcc.gnu.org/ml/libstdc++/2001-10/msg00024.html">the
-	    six situations involving threads</ulink> for the 3.0
+	    Our threading expert Loren gives a breakdown of <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/ml/libstdc++/2001-10/msg00024.html">the
+	    six situations involving threads</link> for the 3.0
 	    release series.
 	  </para>
       </listitem>
-        <listitem>
+	<listitem>
 	  <para>
-	    <ulink url="http://gcc.gnu.org/ml/libstdc++/2001-05/msg00384.html">
-        This message</ulink> inspired a recent updating of issues with
-        threading and the SGI STL library.  It also contains some
-        example POSIX-multithreaded STL code.
+	    <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/ml/libstdc++/2001-05/msg00384.html">
+	This message</link> inspired a recent updating of issues with
+	threading and the SGI STL library.  It also contains some
+	example POSIX-multithreaded STL code.
 	  </para>
 	</listitem>
       </itemizedlist>
 
-   <para> 
+   <para>
      (A large selection of links to older messages has been removed;
      many of the messages from 1999 were lost in a disk crash, and the
      few people with access to the backup tapes have been too swamped
      with work to restore them.  Many of the points have been
      superseded anyhow.)
    </para>
-</sect3>
+</section>
 
-</sect2>
+</section>
 
-<sect2 id="backwards.third">
-<title>Third</title>
+<section xml:id="backwards.third"><info><title>Third</title></info>
+
 
 <para> The third generation GNU C++ library is called libstdc++, or
 libstdc++-v3.
 </para>
 
       <para>The subset commonly known as the Standard Template Library
-         (chapters 23 through 25, mostly) is adapted from the final release
-         of the SGI STL (version 3.3), with extensive changes.
+	 (chapters 23 through 25, mostly) is adapted from the final release
+	 of the SGI STL (version 3.3), with extensive changes.
       </para>
 
       <para>A more formal description of the V3 goals can be found in the
-         official <link linkend="contrib.design_notes">design document</link>.
+	 official <link linkend="contrib.design_notes">design document</link>.
       </para>
 
 <para>Portability notes and known implementation limitations are as follows.</para>
 
-<sect3>
-<title>Pre-ISO headers moved to backwards or removed</title>
+<section><info><title>Pre-ISO headers moved to backwards or removed</title></info>
+
 
 <para> The pre-ISO C++ headers
       (<code>iostream.h</code>, <code>defalloc.h</code> etc.) are
@@ -621,8 +616,8 @@ libstdc++-v3.
    </para>
    <para>For those of you new to ISO C++ (welcome, time travelers!), no,
       that isn't a typo. Yes, the headers really have new names.
-      Marshall Cline's C++ FAQ Lite has a good explanation in <ulink url="http://www.parashift.com/c++-faq-lite/coding-standards.html#faq-27.4">item
-      [27.4]</ulink>.
+      Marshall Cline's C++ FAQ Lite has a good explanation in <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.parashift.com/c++-faq-lite/coding-standards.html#faq-27.4">item
+      [27.4]</link>.
    </para>
 
 <para> Some include adjustment may be required. What follows is an
@@ -637,7 +632,7 @@ AC_DEFUN([AC_HEADER_PRE_STDCXX], [
   [AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
   ac_save_CXXFLAGS="$CXXFLAGS"
-  CXXFLAGS="$CXXFLAGS -Wno-deprecated"	
+  CXXFLAGS="$CXXFLAGS -Wno-deprecated"
 
   # Omit defalloc.h, as compilation with newer compilers is problematic.
   AC_TRY_COMPILE([
@@ -691,16 +686,16 @@ directive <code>using namespace std;</code> can be put at the global
 scope. This should be enough to get this code compiling, assuming the
 other usage is correct.
 </para>
-</sect3>
+</section>
 
-<sect3>
-<title>Extension headers hash_map, hash_set moved to ext or backwards</title>
+<section><info><title>Extension headers hash_map, hash_set moved to ext or backwards</title></info>
+
 
       <para>At this time most of the features of the SGI STL extension have been
-         replaced by standardized libraries.
-         In particular, the unordered_map and unordered_set containers of TR1
-         are suitable replacement for the non-standard hash_map and hash_set
-         containers in the SGI STL. 
+	 replaced by standardized libraries.
+	 In particular, the unordered_map and unordered_set containers of TR1
+	 are suitable replacement for the non-standard hash_map and hash_set
+	 containers in the SGI STL.
       </para>
 <para> Header files <filename class="headerfile">hash_map</filename> and <filename class="headerfile">hash_set</filename> moved
 to <filename class="headerfile">ext/hash_map</filename> and  <filename class="headerfile">ext/hash_set</filename>,
@@ -711,33 +706,33 @@ and  <filename class="headerfile">unordered_set</filename> instead.
 </para>
 
       <para>The extensions are no longer in the global or <code>std</code>
-         namespaces, instead they are declared in the <code>__gnu_cxx</code>
-         namespace. For maximum portability, consider defining a namespace
-         alias to use to talk about extensions, e.g.:
+	 namespaces, instead they are declared in the <code>__gnu_cxx</code>
+	 namespace. For maximum portability, consider defining a namespace
+	 alias to use to talk about extensions, e.g.:
       </para>
       <programlisting>
       #ifdef __GNUC__
       #if __GNUC__ &lt; 3
-        #include &lt;hash_map.h&gt;
-        namespace extension { using ::hash_map; }; // inherit globals
+	#include &lt;hash_map.h&gt;
+	namespace extension { using ::hash_map; }; // inherit globals
       #else
-        #include &lt;backward/hash_map&gt;
-        #if __GNUC__ == 3 &amp;&amp; __GNUC_MINOR__ == 0
-          namespace extension = std;               // GCC 3.0
-        #else
-          namespace extension = ::__gnu_cxx;       // GCC 3.1 and later
-        #endif
+	#include &lt;backward/hash_map&gt;
+	#if __GNUC__ == 3 &amp;&amp; __GNUC_MINOR__ == 0
+	  namespace extension = std;               // GCC 3.0
+	#else
+	  namespace extension = ::__gnu_cxx;       // GCC 3.1 and later
+	#endif
       #endif
       #else      // ...  there are other compilers, right?
-        namespace extension = std;
+	namespace extension = std;
       #endif
 
-      extension::hash_map&lt;int,int&gt; my_map; 
+      extension::hash_map&lt;int,int&gt; my_map;
       </programlisting>
       <para>This is a bit cleaner than defining typedefs for all the
-         instantiations you might need.
+	 instantiations you might need.
       </para>
- 
+
 
 <para>The following autoconf tests check for working HP/SGI hash containers.
 </para>
@@ -750,7 +745,7 @@ AC_DEFUN([AC_HEADER_EXT_HASH_MAP], [
   [AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
   ac_save_CXXFLAGS="$CXXFLAGS"
-  CXXFLAGS="$CXXFLAGS -Werror"	
+  CXXFLAGS="$CXXFLAGS -Werror"
   AC_TRY_COMPILE([#include &lt;ext/hash_map&gt;], [using __gnu_cxx::hash_map;],
   ac_cv_cxx_ext_hash_map=yes, ac_cv_cxx_ext_hash_map=no)
   CXXFLAGS="$ac_save_CXXFLAGS"
@@ -770,7 +765,7 @@ AC_DEFUN([AC_HEADER_EXT_HASH_SET], [
   [AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
   ac_save_CXXFLAGS="$CXXFLAGS"
-  CXXFLAGS="$CXXFLAGS -Werror"	
+  CXXFLAGS="$CXXFLAGS -Werror"
   AC_TRY_COMPILE([#include &lt;ext/hash_set&gt;], [using __gnu_cxx::hash_set;],
   ac_cv_cxx_ext_hash_set=yes, ac_cv_cxx_ext_hash_set=no)
   CXXFLAGS="$ac_save_CXXFLAGS"
@@ -781,11 +776,11 @@ AC_DEFUN([AC_HEADER_EXT_HASH_SET], [
   fi
 ])
 </programlisting>
-</sect3>
+</section>
 
-<sect3>
-<title>No <code>ios::nocreate/ios::noreplace</code>.
-</title>
+<section><info><title>No <code>ios::nocreate/ios::noreplace</code>.
+</title></info>
+
 
 <para> The existence of <code>ios::nocreate</code> being used for
 input-streams has been confirmed, most probably because the author
@@ -800,18 +795,18 @@ decide whether you want to create/replace or not. To my knowledge,
 even older implementations support <code>app</code>, <code>ate</code>
 and <code>trunc</code> (except for <code>app</code> ?).
 </para>
-</sect3>
+</section>
 
-<sect3>
-<title>
+<section><info><title>
 No <code>stream::attach(int fd)</code>
-</title>
+</title></info>
+
 
 <para>
       Phil Edwards writes: It was considered and rejected for the ISO
       standard.  Not all environments use file descriptors.  Of those
       that do, not all of them use integers to represent them.
-    </para>  
+    </para>
 
 <para>
       For a portable solution (among systems which use
@@ -819,28 +814,28 @@ No <code>stream::attach(int fd)</code>
       <code>std::streambuf</code> (or
       <code>std::basic_streambuf&lt;..&gt;</code>) which opens a file
       given a descriptor, and then pass an instance of this to the
-      stream-constructor. 
+      stream-constructor.
     </para>
 
 <para>
       An extension is available that implements this.
       <filename class="headerfile">ext/stdio_filebuf.h</filename> contains a derived class called
-      <ulink url="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/a00063.html"><code>__gnu_cxx::stdio_filebuf</code></ulink>.
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/a00074.html"><code>__gnu_cxx::stdio_filebuf</code></link>.
       This class can be constructed from a C <code>FILE*</code> or a file
       descriptor, and provides the <code>fd()</code> function.
     </para>
 
 <para>
  For another example of this, refer to
-      <ulink url="http://www.josuttis.com/cppcode/fdstream.html">fdstream example</ulink> 
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.josuttis.com/cppcode/fdstream.html">fdstream example</link>
       by Nicolai Josuttis.
 </para>
-</sect3>
+</section>
 
-<sect3>
-<title>
+<section><info><title>
 Support for C++98 dialect.
-</title>
+</title></info>
+
 
 <para>Check for complete library coverage of the C++1998/2003 standard.
 </para>
@@ -911,12 +906,12 @@ AC_DEFUN([AC_HEADER_STDCXX_98], [
   fi
 ])
 </programlisting>
-</sect3>
+</section>
 
-<sect3>
-<title>
+<section><info><title>
 Support for C++TR1 dialect.
-</title>
+</title></info>
+
 
 <para>Check for library coverage of the TR1 standard.
 </para>
@@ -1002,13 +997,13 @@ AC_DEFUN([AC_HEADER_TR1_UNORDERED_SET], [
   fi
 ])
 </programlisting>
-</sect3>
+</section>
 
 
-<sect3>
-<title>
+<section><info><title>
 Support for C++0x dialect.
-</title>
+</title></info>
+
 
 <para>Check for baseline language coverage in the compiler for the C++0xstandard.
 </para>
@@ -1022,7 +1017,7 @@ AC_DEFUN([AC_COMPILE_STDCXX_0X], [
   AC_LANG_CPLUSPLUS
   AC_TRY_COMPILE([
   template &lt;typename T&gt;
-    struct check 
+    struct check
     {
       static_assert(sizeof(int) &lt;= sizeof(T), "not big enough");
     };
@@ -1044,10 +1039,10 @@ AC_DEFUN([AC_COMPILE_STDCXX_0X], [
   [AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
   ac_save_CXXFLAGS="$CXXFLAGS"
-  CXXFLAGS="$CXXFLAGS -std=c++0x"	
+  CXXFLAGS="$CXXFLAGS -std=c++0x"
   AC_TRY_COMPILE([
   template &lt;typename T&gt;
-    struct check 
+    struct check
     {
       static_assert(sizeof(int) &lt;= sizeof(T), "not big enough");
     };
@@ -1070,10 +1065,10 @@ AC_DEFUN([AC_COMPILE_STDCXX_0X], [
   [AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
   ac_save_CXXFLAGS="$CXXFLAGS"
-  CXXFLAGS="$CXXFLAGS -std=gnu++0x"	
+  CXXFLAGS="$CXXFLAGS -std=gnu++0x"
   AC_TRY_COMPILE([
   template &lt;typename T&gt;
-    struct check 
+    struct check
     {
       static_assert(sizeof(int) &lt;= sizeof(T), "not big enough");
     };
@@ -1091,8 +1086,8 @@ AC_DEFUN([AC_COMPILE_STDCXX_0X], [
   AC_LANG_RESTORE
   ])
 
-  if test "$ac_cv_cxx_compile_cxx0x_native" = yes || 
-     test "$ac_cv_cxx_compile_cxx0x_cxx" = yes || 
+  if test "$ac_cv_cxx_compile_cxx0x_native" = yes ||
+     test "$ac_cv_cxx_compile_cxx0x_cxx" = yes ||
      test "$ac_cv_cxx_compile_cxx0x_gxx" = yes; then
     AC_DEFINE(HAVE_STDCXX_0X,,[Define if g++ supports C++0x features. ])
   fi
@@ -1112,7 +1107,7 @@ AC_DEFUN([AC_HEADER_STDCXX_0X], [
   AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
   ac_save_CXXFLAGS="$CXXFLAGS"
-  CXXFLAGS="$CXXFLAGS -std=gnu++0x"	
+  CXXFLAGS="$CXXFLAGS -std=gnu++0x"
 
   AC_TRY_COMPILE([
     #include &lt;cassert&gt;
@@ -1202,7 +1197,7 @@ AC_DEFUN([AC_HEADER_UNORDERED_MAP], [
   AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
   ac_save_CXXFLAGS="$CXXFLAGS"
-  CXXFLAGS="$CXXFLAGS -std=gnu++0x"	
+  CXXFLAGS="$CXXFLAGS -std=gnu++0x"
   AC_TRY_COMPILE([#include &lt;unordered_map&gt;], [using std::unordered_map;],
   ac_cv_cxx_unordered_map=yes, ac_cv_cxx_unordered_map=no)
   CXXFLAGS="$ac_save_CXXFLAGS"
@@ -1223,7 +1218,7 @@ AC_DEFUN([AC_HEADER_UNORDERED_SET], [
   AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
   ac_save_CXXFLAGS="$CXXFLAGS"
-  CXXFLAGS="$CXXFLAGS -std=gnu++0x"	
+  CXXFLAGS="$CXXFLAGS -std=gnu++0x"
   AC_TRY_COMPILE([#include &lt;unordered_set&gt;], [using std::unordered_set;],
   ac_cv_cxx_unordered_set=yes, ac_cv_cxx_unordered_set=no)
   CXXFLAGS="$ac_save_CXXFLAGS"
@@ -1234,82 +1229,54 @@ AC_DEFUN([AC_HEADER_UNORDERED_SET], [
   fi
 ])
 </programlisting>
-</sect3>
+</section>
 
-<sect3>
-<title>
+<section><info><title>
   Container::iterator_type is not necessarily Container::value_type*
-</title>
+</title></info>
+
 
 <para>
   This is a change in behavior from the previous version. Now, most
   <type>iterator_type</type> typedefs in container classes are POD
   objects, not <type>value_type</type> pointers.
 </para>
-</sect3>
+</section>
 
-</sect2>
+</section>
 
-<bibliography id="backwards.biblio">
-<title>Bibliography</title>
+<bibliography xml:id="backwards.biblio"><info><title>Bibliography</title></info>
+
 
   <biblioentry>
-    <abbrev>
-      kegel41
-    </abbrev>
-
-    <title>
+    <biblioid xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.kegel.com/gcc/gcc4.html" class="uri">
+    </biblioid>
+    <citetitle>
       Migrating to GCC 4.1
-    </title>
+    </citetitle>
 
-    <author>
-      <firstname>Dan</firstname>
-      <surname>Kegel</surname>
-    </author>
-
-    <biblioid>
-      <ulink url="http://www.kegel.com/gcc/gcc4.html">
-      </ulink>
-    </biblioid>
-  </biblioentry> 
-
+    <author><personname><firstname>Dan</firstname><surname>Kegel</surname></personname></author>
+  </biblioentry>
 
   <biblioentry>
-    <abbrev>
-      kegel41
-    </abbrev>
-
-    <title>
+    <biblioid xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://lists.debian.org/debian-gcc/2006/03/msg00405.html" class="uri">
+    </biblioid>
+    <citetitle>
       Building the Whole Debian Archive with GCC 4.1: A Summary
-    </title>
+    </citetitle>
 
-    <author>
-      <firstname>Martin</firstname>
-      <surname>Michlmayr</surname>
-    </author>
-
-    <biblioid>
-      <ulink url="http://lists.debian.org/debian-gcc/2006/03/msg00405.html">
-      </ulink>
-    </biblioid>
-  </biblioentry> 
-
+    <author><personname><firstname>Martin</firstname><surname>Michlmayr</surname></personname></author>
+  </biblioentry>
 
   <biblioentry>
-    <abbrev>
-      lbl32
-    </abbrev>
-
-    <title>
-      Migration guide for GCC-3.2
-    </title>
-
-    <biblioid>
-      <ulink url="http://annwm.lbl.gov/~leggett/Atlas/gcc-3.2.html">
-      </ulink>
+    <biblioid xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://annwm.lbl.gov/~leggett/Atlas/gcc-3.2.html" class="uri">
     </biblioid>
-  </biblioentry> 
+    <citetitle>
+      Migration guide for GCC-3.2
+    </citetitle>
+
+  </biblioentry>
 
 </bibliography>
 
-</sect1>
+</section>

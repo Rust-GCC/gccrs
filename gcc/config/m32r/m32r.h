@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, Renesas M32R cpu.
    Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+   2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -302,47 +302,13 @@ extern enum m32r_sdata m32r_sdata;
 #define MULTILIB_DEFAULTS { "mmodel=small" SUBTARGET_MULTILIB_DEFAULTS }
 #endif
 
-/* Sometimes certain combinations of command options do not make
-   sense on a particular target machine.  You can define a macro
-   `OVERRIDE_OPTIONS' to take account of this.  This macro, if
-   defined, is executed once just after all the command options have
-   been parsed.
-
-   Don't use this macro to turn on various extra optimizations for
-   `-O'.  That is what `OPTIMIZATION_OPTIONS' is for.  */
-
 #ifndef SUBTARGET_OVERRIDE_OPTIONS
 #define SUBTARGET_OVERRIDE_OPTIONS
 #endif
 
-#define OVERRIDE_OPTIONS			\
-  do						\
-    {						\
-      /* These need to be done at start up.	\
-	 It's convenient to do them here.  */	\
-      m32r_init ();				\
-      SUBTARGET_OVERRIDE_OPTIONS		\
-    }						\
-  while (0)
-
 #ifndef SUBTARGET_OPTIMIZATION_OPTIONS
 #define SUBTARGET_OPTIMIZATION_OPTIONS
 #endif
-
-#define OPTIMIZATION_OPTIONS(LEVEL, SIZE)	\
-  do						\
-    {						\
-      if (LEVEL == 1)				\
-	flag_regmove = TRUE;			\
-      						\
-      if (SIZE)					\
-	{					\
-	  flag_omit_frame_pointer = TRUE;	\
-	}					\
-      						\
-      SUBTARGET_OPTIMIZATION_OPTIONS		\
-    }						\
-  while (0)
 
 /* Define this macro if debugging can be performed even without a
    frame pointer.  If this macro is defined, GCC will turn on the
@@ -823,14 +789,6 @@ extern enum reg_class m32r_regno_reg_class[FIRST_PSEUDO_REGISTER];
    increase the stack frame size by this amount.  */
 #define ACCUMULATE_OUTGOING_ARGS 1
 
-/* Value is the number of bytes of arguments automatically
-   popped when returning from a subroutine call.
-   FUNDECL is the declaration node of the function (as a tree),
-   FUNTYPE is the data type of the function (as a tree),
-   or for a library call it is an identifier node for the subroutine name.
-   SIZE is the number of bytes of arguments passed on the stack.  */
-#define RETURN_POPS_ARGS(DECL, FUNTYPE, SIZE) 0
-
 /* Define a data type for recording info about an argument list
    during the scan of that argument list.  This data type should
    hold all necessary information about the function itself
@@ -851,54 +809,6 @@ extern enum reg_class m32r_regno_reg_class[FIRST_PSEUDO_REGISTER];
 #define FUNCTION_ARG_REGNO_P(N) \
   ((unsigned) (N) < M32R_MAX_PARM_REGS)
 
-/* The ROUND_ADVANCE* macros are local to this file.  */
-/* Round SIZE up to a word boundary.  */
-#define ROUND_ADVANCE(SIZE) \
-  (((SIZE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
-
-/* Round arg MODE/TYPE up to the next word boundary.  */
-#define ROUND_ADVANCE_ARG(MODE, TYPE) \
-  ((MODE) == BLKmode				\
-   ? ROUND_ADVANCE ((unsigned int) int_size_in_bytes (TYPE))	\
-   : ROUND_ADVANCE ((unsigned int) GET_MODE_SIZE (MODE)))
-
-/* Round CUM up to the necessary point for argument MODE/TYPE.  */
-#define ROUND_ADVANCE_CUM(CUM, MODE, TYPE) (CUM)
-
-/* Return boolean indicating arg of type TYPE and mode MODE will be passed in
-   a reg.  This includes arguments that have to be passed by reference as the
-   pointer to them is passed in a reg if one is available (and that is what
-   we're given).
-   This macro is only used in this file.  */
-#define PASS_IN_REG_P(CUM, MODE, TYPE) \
-  (ROUND_ADVANCE_CUM ((CUM), (MODE), (TYPE)) < M32R_MAX_PARM_REGS)
-
-/* Determine where to put an argument to a function.
-   Value is zero to push the argument on the stack,
-   or a hard register in which to store the argument.
-
-   MODE is the argument's machine mode.
-   TYPE is the data type of the argument (as a tree).
-    This is null for libcalls where that information may
-    not be available.
-   CUM is a variable of type CUMULATIVE_ARGS which gives info about
-    the preceding args and about the function being called.
-   NAMED is nonzero if this argument is a named parameter
-    (otherwise it is an extra parameter matching an ellipsis).  */
-/* On the M32R the first M32R_MAX_PARM_REGS args are normally in registers
-   and the rest are pushed.  */
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-  (PASS_IN_REG_P ((CUM), (MODE), (TYPE))			\
-   ? gen_rtx_REG ((MODE), ROUND_ADVANCE_CUM ((CUM), (MODE), (TYPE)))	\
-   : 0)
-
-/* Update the data in CUM to advance over an argument
-   of mode MODE and data type TYPE.
-   (TYPE is null for libcalls where that information may not be available.)  */
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED) \
-  ((CUM) = (ROUND_ADVANCE_CUM ((CUM), (MODE), (TYPE)) \
-	  + ROUND_ADVANCE_ARG ((MODE), (TYPE))))
-
 /* If defined, a C expression that gives the alignment boundary, in bits,
    of an argument with the specified mode and type.  If it is not defined, 
    PARM_BOUNDARY is used for all arguments.  */
@@ -910,21 +820,6 @@ extern enum reg_class m32r_regno_reg_class[FIRST_PSEUDO_REGISTER];
 #endif
 
 /* Function results.  */
-
-/* Define how to find the value returned by a function.
-   VALTYPE is the data type of the value (as a tree).
-   If the precise function being called is known, FUNC is its FUNCTION_DECL;
-   otherwise, FUNC is 0.  */
-#define FUNCTION_VALUE(VALTYPE, FUNC) gen_rtx_REG (TYPE_MODE (VALTYPE), 0)
-
-/* Define how to find the value returned by a library function
-   assuming the value has mode MODE.  */
-#define LIBCALL_VALUE(MODE) gen_rtx_REG (MODE, 0)
-
-/* 1 if N is a possible register number for a function value
-   as seen by the caller.  */
-/* ??? What about r1 in DI/DF values.  */
-#define FUNCTION_VALUE_REGNO_P(N) ((N) == 0)
 
 /* Tell GCC to use TARGET_RETURN_IN_MEMORY.  */
 #define DEFAULT_PCC_STRUCT_RETURN 0
@@ -1119,16 +1014,6 @@ L2:     .word STATIC
 	goto ADDR;						\
     }								\
   while (0)
-
-/* Go to LABEL if ADDR (a legitimate address expression)
-   has an effect that depends on the machine mode it is used for.  */
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)		\
-  do								\
-    {						 		\
-      if (GET_CODE (ADDR) == LO_SUM)		 		\
-	goto LABEL;					 	\
-    }								\
-  while (0)
 
 /* Condition code usage.  */
 
@@ -1137,16 +1022,6 @@ L2:     .word STATIC
 #define REVERSIBLE_CC_MODE(MODE) 1 /*???*/
 
 /* Costs.  */
-
-/* Compute extra cost of moving data between one register class
-   and another.  */
-#define REGISTER_MOVE_COST(MODE, CLASS1, CLASS2) 2
-
-/* Compute the cost of moving data between registers and memory.  */
-/* Memory is 3 times as expensive as registers.
-   ??? Is that the right way to look at it?  */
-#define MEMORY_MOVE_COST(MODE,CLASS,IN_P) \
-(GET_MODE_SIZE (MODE) <= UNITS_PER_WORD ? 6 : 12)
 
 /* The cost of a branch insn.  */
 /* A value of 2 here causes GCC to avoid using branches in comparisons like
@@ -1274,24 +1149,6 @@ L2:     .word STATIC
   SUBTARGET_ADDITIONAL_REGISTER_NAMES	\
 }
 
-/* A C expression which evaluates to true if CODE is a valid
-   punctuation character for use in the `PRINT_OPERAND' macro.  */
-extern char m32r_punct_chars[256];
-#define PRINT_OPERAND_PUNCT_VALID_P(CHAR) \
-  m32r_punct_chars[(unsigned char) (CHAR)]
-
-/* Print operand X (an rtx) in assembler syntax to file FILE.
-   CODE is a letter or dot (`z' in `%z0') or 0 if no letter was specified.
-   For `%' followed by punctuation, CODE is the punctuation and X is null.  */
-#define PRINT_OPERAND(FILE, X, CODE) \
-  m32r_print_operand (FILE, X, CODE)
-
-/* A C compound statement to output to stdio stream STREAM the
-   assembler syntax for an instruction operand that is a memory
-   reference whose address is ADDR.  ADDR is an RTL expression.  */
-#define PRINT_OPERAND_ADDRESS(FILE, ADDR) \
-  m32r_print_operand_address (FILE, ADDR)
-
 /* If defined, C string expressions to be used for the `%R', `%L',
    `%U', and `%I' options of `asm_fprintf' (see `final.c').  These
    are useful when a single `md' file must support multiple assembler
@@ -1370,7 +1227,8 @@ extern char m32r_punct_chars[256];
   do									\
     {									\
       if (! TARGET_SDATA_NONE						\
-	  && (SIZE) > 0 && (SIZE) <= g_switch_value)			\
+	  && (SIZE) > 0							\
+	  && (SIZE) <= (unsigned HOST_WIDE_INT) g_switch_value)		\
 	fprintf ((FILE), "%s", SCOMMON_ASM_OP);				\
       else								\
 	fprintf ((FILE), "%s", COMMON_ASM_OP);				\
@@ -1383,7 +1241,8 @@ extern char m32r_punct_chars[256];
   do									\
     {									\
       if (! TARGET_SDATA_NONE						\
-          && (SIZE) > 0 && (SIZE) <= g_switch_value)			\
+          && (SIZE) > 0							\
+	  && (SIZE) <= (unsigned HOST_WIDE_INT) g_switch_value)		\
         switch_to_section (get_named_section (NULL, ".sbss", 0));	\
       else								\
         switch_to_section (bss_section);				\

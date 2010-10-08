@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *         Copyright (C) 1992-2009, Free Software Foundation, Inc.          *
+ *         Copyright (C) 1992-2010, Free Software Foundation, Inc.          *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -34,8 +34,10 @@
 
 #ifdef __vxworks
 #include "ioLib.h"
+#if ! defined (VTHREADS)
 #include "dosFsLib.h"
-#if ! defined ( __RTP__) && ! defined (VTHREADS)
+#endif
+#if ! defined (__RTP__) && (! defined (VTHREADS) || defined (__VXWORKSMILS__))
 # include "nfsLib.h"
 #endif
 #include "selectLib.h"
@@ -156,7 +158,7 @@ extern struct tm *localtime_r(const time_t *, struct tm *);
 
 */
 
-#if defined(WINNT) || defined (MSDOS) || defined (__EMX__)
+#if defined(WINNT)
 static const char *mode_read_text = "rt";
 static const char *mode_write_text = "wt";
 static const char *mode_append_text = "at";
@@ -343,7 +345,7 @@ __gnat_ttyname (int filedes)
 }
 #endif
 
-#if defined (linux) || defined (sun) || defined (sgi) || defined (__EMX__) \
+#if defined (linux) || defined (sun) || defined (sgi) \
   || (defined (__osf__) && ! defined (__alpha_vxworks)) || defined (WINNT) \
   || defined (__MACHTEN__) || defined (__hpux__) || defined (_AIX) \
   || (defined (__svr4__) && defined (i386)) || defined (__Lynx__) \
@@ -401,7 +403,7 @@ getc_immediate_common (FILE *stream,
                        int *avail,
                        int waiting)
 {
-#if defined (linux) || defined (sun) || defined (sgi) || defined (__EMX__) \
+#if defined (linux) || defined (sun) || defined (sgi) \
     || (defined (__osf__) && ! defined (__alpha_vxworks)) \
     || defined (__CYGWIN32__) || defined (__MACHTEN__) || defined (__hpux__) \
     || defined (_AIX) || (defined (__svr4__) && defined (i386)) \
@@ -422,7 +424,7 @@ getc_immediate_common (FILE *stream,
       /* Set RAW mode, with no echo */
       termios_rec.c_lflag = termios_rec.c_lflag & ~ICANON & ~ECHO;
 
-#if defined(linux) || defined (sun) || defined (sgi) || defined (__EMX__) \
+#if defined(linux) || defined (sun) || defined (sgi) \
     || defined (__osf__) || defined (__MACHTEN__) || defined (__hpux__) \
     || defined (_AIX) || (defined (__svr4__) && defined (i386)) \
     || defined (__Lynx__) || defined (__FreeBSD__) || defined (__OpenBSD__) \
@@ -431,17 +433,11 @@ getc_immediate_common (FILE *stream,
 
       /* If waiting (i.e. Get_Immediate (Char)), set MIN = 1 and wait for
          a character forever. This doesn't seem to effect Ctrl-Z or
-         Ctrl-C processing except on OS/2 where Ctrl-C won't work right
-         unless we do a read loop. Luckily we can delay a bit between
-         iterations. If not waiting (i.e. Get_Immediate (Char, Available)),
+         Ctrl-C processing.
+         If not waiting (i.e. Get_Immediate (Char, Available)),
          don't wait for anything but timeout immediately. */
-#ifdef __EMX__
-      termios_rec.c_cc[VMIN] = 0;
-      termios_rec.c_cc[VTIME] = waiting;
-#else
       termios_rec.c_cc[VMIN] = waiting;
       termios_rec.c_cc[VTIME] = 0;
-#endif
 #endif
       tcsetattr (fd, TCSANOW, &termios_rec);
 
@@ -718,7 +714,7 @@ long __gnat_invalid_tzoff = 259273;
 
 /* Definition of __gnat_localtime_r used by a-calend.adb */
 
-#if defined (__EMX__) || defined (__MINGW32__)
+#if defined (__MINGW32__)
 
 #ifdef CERT
 
@@ -741,7 +737,7 @@ extern void (*Unlock_Task) (void);
 
 #endif
 
-/* Reentrant localtime for Windows and OS/2. */
+/* Reentrant localtime for Windows. */
 
 extern void
 __gnat_localtime_tzoff (const time_t *, long *);
@@ -963,7 +959,7 @@ __gnat_get_task_options (void)
 
   /* Force VX_FP_TASK because it is almost always required */
   options |= VX_FP_TASK;
-#if defined (__SPE__)
+#if defined (__SPE__) && (! defined (__VXWORKSMILS__))
   options |= VX_SPE_TASK;
 #endif
 
@@ -985,8 +981,10 @@ __gnat_is_file_not_found_error (int errno_val) {
       /* In the case of VxWorks, we also have to take into account various
        * filesystem-specific variants of this error.
        */
+#if ! defined (VTHREADS)
       case S_dosFsLib_FILE_NOT_FOUND:
-#if ! defined (__RTP__) && ! defined (VTHREADS)
+#endif
+#if ! defined (__RTP__) && (! defined (VTHREADS) || defined (__VXWORKSMILS__))
       case S_nfsLib_NFSERR_NOENT:
 #endif
 #endif

@@ -5,7 +5,7 @@
 // { dg-require-cstdint "" }
 // { dg-require-gthreads "" }
 
-// Copyright (C) 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,13 +22,12 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-
 #include <chrono>
 #include <condition_variable>
 #include <system_error>
 #include <testsuite_hooks.h>
 
-int main()
+void test01()
 {
   bool test __attribute__((unused)) = true;
 
@@ -40,8 +39,8 @@ int main()
       std::unique_lock<std::mutex> l(m);
 
       auto then = std::chrono::system_clock::now();
-      bool result = c1.wait_for(l, ms);
-      VERIFY( !result );
+      std::cv_status result = c1.wait_for(l, ms);
+      VERIFY( result == std::cv_status::timeout );
       VERIFY( (std::chrono::system_clock::now() - then) >= ms );
       VERIFY( l.owns_lock() );
     }
@@ -53,6 +52,10 @@ int main()
     {
       VERIFY( false );
     }
+}
 
+int main()
+{
+  test01();
   return 0;
 }

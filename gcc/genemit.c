@@ -1,6 +1,6 @@
 /* Generate code from machine description to emit insns as rtl.
    Copyright (C) 1987, 1988, 1991, 1994, 1995, 1997, 1998, 1999, 2000, 2001,
-   2003, 2004, 2005, 2007, 2008 Free Software Foundation, Inc.
+   2003, 2004, 2005, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -25,6 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "rtl.h"
 #include "errors.h"
+#include "read-md.h"
 #include "gensupport.h"
 
 
@@ -398,7 +399,7 @@ gen_insn (rtx insn, int lineno)
   if (XSTR (insn, 0)[0] == 0 || XSTR (insn, 0)[0] == '*')
     return;
 
-  printf ("/* %s:%d */\n", read_rtx_filename, lineno);
+  printf ("/* %s:%d */\n", read_md_filename, lineno);
 
   /* Find out how many operands this function has.  */
   operands = max_operand_vec (insn, 1);
@@ -513,19 +514,20 @@ gen_expand (rtx expand)
 
       /* Output the special code to be executed before the sequence
 	 is generated.  */
-      print_rtx_ptr_loc (XSTR (expand, 3));
+      print_md_ptr_loc (XSTR (expand, 3));
       printf ("%s\n", XSTR (expand, 3));
 
       /* Output code to copy the arguments back out of `operands'
 	 (unless we aren't going to use them at all).  */
       if (XVEC (expand, 1) != 0)
 	{
-	  for (i = 0; i < operands; i++)
-	    printf ("    operand%d = operands[%d];\n", i, i);
-	  for (; i <= max_dup_opno; i++)
-	    printf ("    operand%d = operands[%d];\n", i, i);
-	  for (; i <= max_scratch_opno; i++)
-	    printf ("    operand%d = operands[%d];\n", i, i);
+	  for (i = 0;
+	       i < MAX (operands, MAX (max_scratch_opno, max_dup_opno) + 1);
+	       i++)
+	    {
+	      printf ("    operand%d = operands[%d];\n", i, i);
+	      printf ("    (void) operand%d;\n", i);
+	    }
 	}
       printf ("  }\n");
     }
@@ -641,13 +643,16 @@ gen_split (rtx split)
 
   if (XSTR (split, 3))
     {
-      print_rtx_ptr_loc (XSTR (split, 3));
+      print_md_ptr_loc (XSTR (split, 3));
       printf ("%s\n", XSTR (split, 3));
     }
 
   /* Output code to copy the arguments back out of `operands'  */
   for (i = 0; i < operands; i++)
-    printf ("  operand%d = operands[%d];\n", i, i);
+    {
+      printf ("  operand%d = operands[%d];\n", i, i);
+      printf ("  (void) operand%d;\n", i);
+    }
 
   /* Output code to construct the rtl for the instruction bodies.
      Use emit_insn to add them to the sequence being accumulated.
@@ -782,9 +787,7 @@ output_peephole2_scratches (rtx split)
 {
   int i;
   int insn_nr = 0;
-
-  printf ("  HARD_REG_SET _regs_allocated;\n");
-  printf ("  CLEAR_HARD_REG_SET (_regs_allocated);\n");
+  bool first = true;
 
   for (i = 0; i < XVECLEN (split, 0); i++)
     {
@@ -802,6 +805,13 @@ output_peephole2_scratches (rtx split)
 	      }
 	    else if (GET_CODE (XVECEXP (split, 0, j)) != MATCH_SCRATCH)
 	      cur_insn_nr++;
+
+	  if (first)
+	    {
+	      printf ("  HARD_REG_SET _regs_allocated;\n");
+	      printf ("  CLEAR_HARD_REG_SET (_regs_allocated);\n");
+	      first = false;
+	    }
 
 	  printf ("  if ((operands[%d] = peep2_find_free_register (%d, %d, \"%s\", %smode, &_regs_allocated)) == NULL_RTX)\n\
     return NULL;\n",
@@ -823,7 +833,7 @@ main (int argc, char **argv)
 
   progname = "genemit";
 
-  if (init_md_reader_args (argc, argv) != SUCCESS_EXIT_CODE)
+  if (!init_rtx_reader_args (argc, argv))
     return (FATAL_EXIT_CODE);
 
   /* Assign sequential codes to all entries in the machine description
@@ -844,7 +854,6 @@ from the machine description file `md'.  */\n\n");
   printf ("#include \"function.h\"\n");
   printf ("#include \"expr.h\"\n");
   printf ("#include \"optabs.h\"\n");
-  printf ("#include \"real.h\"\n");
   printf ("#include \"dfp.h\"\n");
   printf ("#include \"flags.h\"\n");
   printf ("#include \"output.h\"\n");
@@ -853,6 +862,7 @@ from the machine description file `md'.  */\n\n");
   printf ("#include \"recog.h\"\n");
   printf ("#include \"resource.h\"\n");
   printf ("#include \"reload.h\"\n");
+  printf ("#include \"diagnostic-core.h\"\n");
   printf ("#include \"toplev.h\"\n");
   printf ("#include \"regs.h\"\n");
   printf ("#include \"tm-constrs.h\"\n");
@@ -879,17 +889,17 @@ from the machine description file `md'.  */\n\n");
 	  break;
 
 	case DEFINE_EXPAND:
-	  printf ("/* %s:%d */\n", read_rtx_filename, line_no);
+	  printf ("/* %s:%d */\n", read_md_filename, line_no);
 	  gen_expand (desc);
 	  break;
 
 	case DEFINE_SPLIT:
-	  printf ("/* %s:%d */\n", read_rtx_filename, line_no);
+	  printf ("/* %s:%d */\n", read_md_filename, line_no);
 	  gen_split (desc);
 	  break;
 
 	case DEFINE_PEEPHOLE2:
-	  printf ("/* %s:%d */\n", read_rtx_filename, line_no);
+	  printf ("/* %s:%d */\n", read_md_filename, line_no);
 	  gen_split (desc);
 	  break;
 
