@@ -13,6 +13,7 @@
 
 extern "C"
 {
+#include "toplev.h"
 #include "tree.h"
 #include "gimple.h"
 #include "tree-iterator.h"
@@ -3075,6 +3076,7 @@ Gogo::build_type_descriptor_decl(const Type* type, tree descriptor_type_tree,
 					      TYPE_QUAL_CONST));
   TREE_READONLY(decl) = 1;
   TREE_CONSTANT(decl) = 1;
+  DECL_ARTIFICIAL (decl) = 1;
 
   // Store the new decl now.  This breaks a potential recursion in
   // which the length of an array calls the len function on another
