@@ -10,12 +10,14 @@
 
 extern "C"
 {
+#include "toplev.h"
 #include "intl.h"
 #include "tree.h"
 #include "gimple.h"
 #include "tree-iterator.h"
 #include "convert.h"
 #include "real.h"
+#include "realmpfr.h"
 #include "tm_p.h"
 }
 
@@ -131,7 +133,7 @@ Expression::do_traverse(Traverse*)
 void
 Expression::do_discarding_value()
 {
-  this->warn_unused_value();
+  this->warn_about_unused_value();
 }
 
 // This virtual function is called to export expressions.  This will
@@ -146,7 +148,7 @@ Expression::do_export(Export*) const
 // Warn that the value of the expression is not used.
 
 void
-Expression::warn_unused_value()
+Expression::warn_about_unused_value()
 {
   warning_at(this->location(), OPT_Wunused_value, "value computed is not used");
 }
@@ -5179,7 +5181,7 @@ Binary_expression::do_discarding_value()
   if (this->op_ == OPERATOR_OROR || this->op_ == OPERATOR_ANDAND)
     this->right_->discarding_value();
   else
-    this->warn_unused_value();
+    this->warn_about_unused_value();
 }
 
 // Get type.
@@ -9003,6 +9005,13 @@ Expression*
 Expression::make_array_index(Expression* array, Expression* start,
 			     Expression* end, source_location location)
 {
+  // Taking a slice of a composite literal requires moving the literal
+  // onto the heap.
+  if (end != NULL && array->is_composite_literal())
+    {
+      array = Expression::make_heap_composite(array, location);
+      array = Expression::make_unary(OPERATOR_MULT, array, location);
+    }
   return new Array_index_expression(array, start, end, location);
 }
 

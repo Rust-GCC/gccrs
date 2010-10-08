@@ -682,7 +682,7 @@ class Expression
 
   // For children to call to warn about an unused value.
   void
-  warn_unused_value();
+  warn_about_unused_value();
 
   // For children to call when they detect that they are in error.
   void
