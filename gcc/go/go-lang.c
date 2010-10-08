@@ -72,7 +72,7 @@ struct GTY(()) language_function
 static bool
 go_langhook_init (void)
 {
-  build_common_tree_nodes (false, false);
+  build_common_tree_nodes (false);
 
   /* The sizetype may be "unsigned long" or "unsigned long long".  */
   if (TYPE_MODE (long_unsigned_type_node) == ptr_mode)
@@ -100,11 +100,20 @@ go_langhook_init (void)
   return true;
 }
 
-/* Initialize before parsing options.  */
+/* The option mask.  */
 
 static unsigned int
-go_langhook_init_options (unsigned int argc ATTRIBUTE_UNUSED,
-			  const char** argv ATTRIBUTE_UNUSED)
+go_langhook_option_lang_mask (void)
+{
+  return CL_Go;
+}
+
+/* Initialize before parsing options.  */
+
+static void
+go_langhook_init_options (
+    unsigned int argc ATTRIBUTE_UNUSED,
+    struct cl_decoded_option *decoded_options ATTRIBUTE_UNUSED)
 {
   /* Go says that signed overflow is precisely defined.  */
   flag_wrapv = 1;
@@ -142,17 +151,20 @@ go_langhook_init_options (unsigned int argc ATTRIBUTE_UNUSED,
   flag_non_call_exceptions = 1;
   using_eh_for_cleanups ();
 
-  return CL_Go;
 }
 
 /* Handle Go specific options.  Return 0 if we didn't do anything.  */
 
-static int
-go_langhook_handle_option (size_t scode, const char *arg,
-			   int value ATTRIBUTE_UNUSED)
+static bool
+go_langhook_handle_option (
+    size_t scode,
+    const char *arg,
+    int value ATTRIBUTE_UNUSED,
+    int kind ATTRIBUTE_UNUSED,
+    const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED)
 {
   enum opt_code code = (enum opt_code) scode;
-  int ret = 1;
+  bool ret = true;
 
   switch (code)
     {
@@ -165,7 +177,7 @@ go_langhook_handle_option (size_t scode, const char *arg,
       break;
 
     case OPT_fgo_dump_:
-      ret = go_enable_dump (arg);
+      ret = go_enable_dump (arg) ? true : false;
       break;
 
     case OPT_fgo_prefix_:
@@ -280,7 +292,7 @@ go_langhook_eh_personality (void)
   static tree personality_decl;
   if (personality_decl == NULL_TREE)
     {
-      const char* name = (USING_SJLJ_EXCEPTIONS
+      const char* name = (targetm.except_unwind_info () == UI_SJLJ
 			  ? "__gccgo_personality_sj0"
 			  : "__gccgo_personality_v0");
       personality_decl = build_personality_function (name);
@@ -338,6 +350,7 @@ go_preserve_from_gc(tree t)
 
 #undef LANG_HOOKS_NAME
 #undef LANG_HOOKS_INIT
+#undef LANG_HOOKS_OPTION_LANG_MASK
 #undef LANG_HOOKS_INIT_OPTIONS
 #undef LANG_HOOKS_HANDLE_OPTION
 #undef LANG_HOOKS_POST_OPTIONS
@@ -354,6 +367,7 @@ go_preserve_from_gc(tree t)
 
 #define LANG_HOOKS_NAME			"GNU Go"
 #define LANG_HOOKS_INIT			go_langhook_init
+#define LANG_HOOKS_OPTION_LANG_MASK	go_langhook_option_lang_mask
 #define LANG_HOOKS_INIT_OPTIONS		go_langhook_init_options
 #define LANG_HOOKS_HANDLE_OPTION	go_langhook_handle_option
 #define LANG_HOOKS_POST_OPTIONS		go_langhook_post_options

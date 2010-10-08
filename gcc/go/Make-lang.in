@@ -28,7 +28,8 @@ go: go1$(exeext)
 
 .PHONY: go
 
-gospec.o: $(srcdir)/go/gospec.c $(SYSTEM_H) coretypes.h $(TM_H) $(GCC_H) $(CONFIG_H)
+gospec.o: $(srcdir)/go/gospec.c $(SYSTEM_H) coretypes.h $(TM_H) $(GCC_H) \
+    $(CONFIG_H) opts.h
 	(SHLIB_LINK='$(SHLIB_LINK)'; \
 	$(CC) -c $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(DRIVER_DEFINES) \
 		$(INCLUDES) $(srcdir)/go/gospec.c)
@@ -126,7 +127,7 @@ go.stagefeedback: stagefeedback-start
 	-mv go/*$(objext) stagefeedback/go
 
 GO_SYSTEM_H = go/go-system.h $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
-	toplev.h input.h
+	$(DIAGNOSTIC_CORE_H) $(INPUT_H)
 
 GO_C_H = go/go-c.h $(MACHMODE_H)
 GO_LEX_H = go/lex.h go/operator.h
@@ -145,19 +146,19 @@ go/dataflow.o: go/dataflow.cc $(GO_SYSTEM_H) $(GO_GOGO_H) $(GO_EXPRESSIONS_H) \
 go/export.o: go/export.cc $(GO_SYSTEM_H) $(srcdir)/../include/sha1.h \
 	$(MACHMODE_H) output.h $(TARGET_H) $(GO_GOGO_H) $(GO_TYPES_H) \
 	$(GO_STATEMENTS_H) go/export.h
-go/expressions.o: go/expressions.cc $(GO_SYSTEM_H) intl.h $(TREE_H) \
-	$(GIMPLE_H) tree-iterator.h convert.h $(REAL_H) $(TM_P_H) \
-	$(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) go/export.h $(GO_IMPORT_H) \
-	$(GO_STATEMENTS_H) $(GO_LEX_H) $(GO_EXPRESSIONS_H)
+go/expressions.o: go/expressions.cc $(GO_SYSTEM_H) $(TOPLEV_H) intl.h \
+	$(TREE_H) $(GIMPLE_H) tree-iterator.h convert.h $(REAL_H) realmpfr.h \
+	$(TM_P_H) $(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) go/export.h \
+	$(GO_IMPORT_H) $(GO_STATEMENTS_H) $(GO_LEX_H) $(GO_EXPRESSIONS_H)
 go/go.o: go/go.cc $(GO_SYSTEM_H) $(GO_C_H) $(GO_LEX_H) $(GO_PARSE_H) \
 	$(GO_GOGO_H)
 go/go-dump.o: go/go-dump.cc $(GO_SYSTEM_H) $(GO_C_H) go/go-dump.h
 go/go-lang.o: go/go-lang.c $(GO_SYSTEM_H) coretypes.h opts.h $(TREE_H) \
-	$(GIMPLE_H) $(GGC_H) toplev.h debug.h options.h $(FLAGS_H) convert.h \
-	langhooks.h langhooks-def.h $(EXCEPT_H) $(TARGET_H) $(DIAGNOSTIC_H) \
-	$(GO_C_H) gt-go-go-lang.h gtype-go.h
-go/gogo-tree.o: go/gogo-tree.cc $(GO_SYSTEM_H) $(TREE_H) $(GIMPLE_H) \
-	tree-iterator.h $(CGRAPH_H) langhooks.h convert.h output.h \
+	$(GIMPLE_H) $(GGC_H) $(TOPLEV_H) debug.h options.h $(FLAGS_H) \
+	convert.h langhooks.h $(LANGHOOKS_DEF_H) $(EXCEPT_H) $(TARGET_H) \
+	$(DIAGNOSTIC_H) $(GO_C_H) gt-go-go-lang.h gtype-go.h
+go/gogo-tree.o: go/gogo-tree.cc $(GO_SYSTEM_H) $(TOPLEV_H) $(TREE_H) \
+	$(GIMPLE_H) tree-iterator.h $(CGRAPH_H) langhooks.h convert.h output.h \
 	$(TM_P_H) $(DIAGNOSTIC_H) $(RTL_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) \
 	$(GO_STATEMENTS_H) $(GO_GOGO_H)
 go/gogo.o: go/gogo.cc $(GO_SYSTEM_H) go/go-dump.h $(GO_LEX_H) $(GO_TYPES_H) \
@@ -175,8 +176,8 @@ go/statements.o: go/statements.cc $(GO_SYSTEM_H) intl.h $(TREE_H) \
 	$(GIMPLE_H) convert.h tree-iterator.h $(TREE_FLOW_H) $(REAL_H) \
 	$(GO_C_H) $(GO_TYPES_H) $(GO_EXPRESSIONS_H) $(GO_GOGO_H) \
 	$(GO_STATEMENTS_H)
-go/types.o: go/types.cc $(GO_SYSTEM_H) intl.h $(TREE_H) $(GIMPLE_H) \
-	$(REAL_H) convert.h $(GO_C_H) $(GO_GOGO_H) go/operator.h \
+go/types.o: go/types.cc $(GO_SYSTEM_H) $(TOPLEV_H) intl.h $(TREE_H) \
+	$(GIMPLE_H) $(REAL_H) convert.h $(GO_C_H) $(GO_GOGO_H) go/operator.h \
 	$(GO_EXPRESSIONS_H) $(GO_STATEMENTS_H) go/export.h $(GO_IMPORT_H) \
 	$(GO_TYPES_H)
 go/unsafe.o: go/unsafe.cc $(GO_SYSTEM_H) $(GO_TYPES_H) $(GO_GOGO_H)

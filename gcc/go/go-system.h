@@ -37,7 +37,7 @@ extern "C"
 #include "coretypes.h"
 #include "tm.h"
 
-#include "toplev.h"
+#include "diagnostic-core.h"
 #include "input.h"
 
 } // End extern "C"
