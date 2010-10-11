@@ -2876,8 +2876,7 @@ struct gimple_opt_pass pass_refactor_eh =
 /* At the end of gimple optimization, we can lower RESX.  */
 
 static bool
-lower_resx (basic_block bb, gimple stmt, struct pointer_map_t *mnt_map,
-	    bool *any_removed)
+lower_resx (basic_block bb, gimple stmt, struct pointer_map_t *mnt_map)
 {
   int lp_nr;
   eh_region src_r, dst_r;
@@ -2910,31 +2909,7 @@ lower_resx (basic_block bb, gimple stmt, struct pointer_map_t *mnt_map,
       gsi_insert_before (&gsi, x, GSI_SAME_STMT);
 
       while (EDGE_COUNT (bb->succs) > 0)
-	{
-	  edge e = EDGE_SUCC (bb, 0);
-	  basic_block bbnext = e->dest;
-
-	  remove_edge (e);
-
-	  /* If we removed the last exception edge to the destination
-	     block, remove the landing pad.  */
-	  if (lp_nr >= 0)
-	    {
-	      edge_iterator ei;
-
-	      FOR_EACH_EDGE (e, ei, bbnext->preds)
-		if (e->flags & EDGE_EH)
-		  break;
-	      if (e == NULL)
-		{
-		  eh_landing_pad lp = get_eh_landing_pad_from_number (lp_nr);
-		  remove_eh_landing_pad (lp);
-		  if (EDGE_COUNT (bbnext->preds) == 0)
-		    *any_removed = true;
-		  ret = true;
-		}
-	    }
-	}
+	remove_edge (EDGE_SUCC (bb, 0));
     }
   else if (dst_r)
     {
@@ -3055,8 +3030,6 @@ execute_lower_resx (void)
   struct pointer_map_t *mnt_map;
   bool dominance_invalidated = false;
   bool any_rewritten = false;
-  bool any_removed = false;
-  unsigned int todo;
 
   mnt_map = pointer_map_create ();
 
@@ -3065,8 +3038,7 @@ execute_lower_resx (void)
       gimple last = last_stmt (bb);
       if (last && is_gimple_resx (last))
 	{
-	  dominance_invalidated |= lower_resx (bb, last, mnt_map,
-					       &any_removed);
+	  dominance_invalidated |= lower_resx (bb, last, mnt_map);
 	  any_rewritten = true;
 	}
     }
@@ -3079,12 +3051,7 @@ execute_lower_resx (void)
       free_dominance_info (CDI_POST_DOMINATORS);
     }
 
-  todo = 0;
-  if (any_removed)
-    todo |= TODO_cleanup_cfg;
-  if (any_rewritten)
-    todo |= TODO_update_ssa_only_virtuals;
-  return todo;
+  return any_rewritten ? TODO_update_ssa_only_virtuals : 0;
 }
 
 static bool
