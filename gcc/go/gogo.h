@@ -456,55 +456,11 @@ class Gogo
   tree
   map_descriptor_type();
 
-  // Return a tree for the type of a type descriptor.  This is
-  // __go_type_descriptor in libgo/runtime/go-type.h.
-  tree
-  type_descriptor_type_tree();
-
-  // Build a type descriptor for TYPE using RUNTIME_TYPE_KIND as the
-  // code.  NAME is the name of the type; it may be NULL.  PACKAGE is
-  // where the type is defined; it will be NULL for the current file.
-  // Store the DECL of the descriptor in *PDECL.
+  // Build a type descriptor for TYPE using INITIALIZER as the type
+  // descriptor.  This builds a new decl stored in *PDECL.
   void
-  type_descriptor_decl(int runtime_type_code, Type*, Named_type* name,
-		       tree* pdecl);
-
-  // Build a pointer type descriptor.
-  void
-  pointer_type_descriptor_decl(Pointer_type*, Named_type*, tree* pdecl);
-
-  // Build a function type descriptor.
-  void
-  function_type_descriptor_decl(Function_type*, Named_type*, tree* pdecl);
-
-  // Build a type descriptor for a struct.
-  void
-  struct_type_descriptor_decl(Struct_type*, Named_type*, tree* pdecl);
-
-  // Build a type descriptor for a fixed array.
-  void
-  array_type_descriptor_decl(Array_type*, Named_type*, tree* pdecl);
-
-  // Build a type descriptor for a slice.
-  void
-  slice_type_descriptor_decl(Array_type*, Named_type*, tree* pdecl);
-
-  // Build a type descriptor for a map.
-  void
-  map_type_descriptor_decl(Map_type*, Named_type*, tree* pdecl);
-
-  // Build a type descriptor for a channel.
-  void
-  channel_type_descriptor_decl(Channel_type*, Named_type*, tree* pdecl);
-
-  // Build a type descriptor for an interface.
-  void
-  interface_type_descriptor_decl(Interface_type*, Named_type*, tree* pdecl);
-
-  // Build a type descriptor for an undefined type.
-  void
-  undefined_type_descriptor_decl(Forward_declaration_type* forward,
-				 Named_type* name, tree* pdecl);
+  build_type_descriptor_decl(const Type*, Expression* initializer,
+			     tree* pdecl);
 
   // Build required interface method tables.
   void
@@ -629,27 +585,6 @@ class Gogo
   type_descriptor_decl_name(const Named_object* no,
 			    const Named_object* in_function);
 
-  // Return a constructor for one entry in a method table.
-  tree
-  type_method_table_entry(tree method_entry_tree,
-			  const std::string& method_name, const Method*);
-
-  // Return the method table for a type.
-  tree
-  type_method_table(tree method_type_tree, const Methods*,
-		    bool only_value_methods);
-
-  // Return the uncommon type information for a type descriptor.
-  tree
-  uncommon_type_information(tree uncommon_type_tree, Named_type* name,
-			    const Methods*, bool only_value_methods);
-
-  // Return a constructor for the basic type descriptor for TYPE.
-  tree
-  type_descriptor_constructor(int runtime_type_code, Type* type,
-			      Named_type* name, const Methods*,
-			      bool only_value_methods);
-
   // Where a type descriptor should be defined.
   enum Type_descriptor_location
     {
@@ -663,74 +598,7 @@ class Gogo
 
   // Return where the decl for TYPE should be defined.
   Type_descriptor_location
-  type_descriptor_location(const Type* type, Named_type*);
-
-  // Create a type descriptor decl.
-  bool
-  build_type_descriptor_decl(const Type*, tree, Named_type*, tree*);
-
-  // Finish building a type descriptor decl.
-  void
-  finish_type_descriptor_decl(tree*, const Type*, Named_type*, tree);
-
-  // Return the type of a pointer type descriptor.
-  tree
-  pointer_type_descriptor_type_tree();
-
-  // Return the type of a function type descriptor.
-  tree
-  function_type_descriptor_type_tree();
-
-  // Return a constructor for parameters or results of a function type
-  // in a type descriptor.
-  tree
-  function_type_params(tree, const Typed_identifier*,
-		       const Typed_identifier_list*);
-
-  // Return the type of a struct type descriptor.
-  tree
-  struct_type_descriptor_type_tree();
-
-  // A single struct field in a type descriptor.
-  tree
-  struct_type_field(tree, const Struct_field*, tree);
-
-  // Struct fields in a type descriptor.
-  tree
-  struct_type_fields(Struct_type*, tree);
-
-  // Return the type of an array type descriptor.
-  tree
-  array_type_descriptor_type_tree();
-
-  // Return the type of a slice type descriptor.
-  tree
-  slice_type_descriptor_type_tree();
-
-  // Return the type of an map type descriptor.
-  tree
-  map_type_descriptor_type_tree();
-
-  // Return the type of a channel type descriptor.
-  tree
-  channel_type_descriptor_type_tree();
-
-  // Return the type of an interface type descriptor.
-  tree
-  interface_type_descriptor_type_tree();
-
-  // Build a single method in an interface type descriptor.
-  tree
-  interface_type_method(tree, const Typed_identifier*);
-
-  // Build the methods in an interface type descriptor.
-  tree
-  interface_type_methods(const Interface_type*, tree);
-
-  // Return pointers to functions which compute a hash code for TYPE
-  // and which compare whether two objects of type TYPE are equal.
-  void
-  type_functions(const Type* type, tree* hash_fn, tree* equal_fn);
+  type_descriptor_location(const Type* type);
 
   // Return the type of a trampoline.
   static tree
@@ -2523,7 +2391,8 @@ class Translate_context
  public:
   Translate_context(Gogo* gogo, Named_object* function, Block* block,
 		    tree block_tree)
-    : gogo_(gogo), function_(function), block_(block), block_tree_(block_tree)
+    : gogo_(gogo), function_(function), block_(block), block_tree_(block_tree),
+      is_const_(false)
   { }
 
   // Accessors.
@@ -2544,6 +2413,15 @@ class Translate_context
   block_tree()
   { return this->block_tree_; }
 
+  bool
+  is_const()
+  { return this->is_const_; }
+
+  // Make a constant context.
+  void
+  set_is_const()
+  { this->is_const_ = true; }
+
  private:
   // The IR for the entire compilation unit.
   Gogo* gogo_;
@@ -2553,6 +2431,9 @@ class Translate_context
   Block *block_;
   // The BLOCK node for the current block.
   tree block_tree_;
+  // Whether this is being evaluated in a constant context.  This is
+  // used for type descriptor initializers.
+  bool is_const_;
 };
 
 // Runtime error codes.  These must match the values in

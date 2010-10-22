@@ -334,7 +334,7 @@ Expression::convert_type_to_interface(Translate_context* context,
   // Otherwise it is the interface method table for RHS_TYPE.
   tree first_field_value;
   if (lhs_is_empty)
-    first_field_value = rhs_type->type_descriptor(gogo);
+    first_field_value = rhs_type->type_descriptor_pointer(gogo);
   else
     {
       // Build the interface method table for this interface and this
@@ -489,7 +489,7 @@ Expression::convert_interface_to_interface(Translate_context* context,
   if (for_type_guard)
     {
       // A type assertion fails when converting a nil interface.
-      tree lhs_type_descriptor = lhs_type->type_descriptor(gogo);
+      tree lhs_type_descriptor = lhs_type->type_descriptor_pointer(gogo);
       static tree assert_interface_decl;
       tree call = Gogo::call_builtin(&assert_interface_decl,
 				     location,
@@ -519,7 +519,7 @@ Expression::convert_interface_to_interface(Translate_context* context,
       // type assertion converting nil will always succeed.
       gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__methods")
 		 == 0);
-      tree lhs_type_descriptor = lhs_type->type_descriptor(gogo);
+      tree lhs_type_descriptor = lhs_type->type_descriptor_pointer(gogo);
       static tree convert_interface_decl;
       tree call = Gogo::call_builtin(&convert_interface_decl,
 				     location,
@@ -571,7 +571,7 @@ Expression::convert_interface_to_type(Translate_context* context,
   // will panic with an appropriate runtime type error if the type is
   // not valid.
 
-  tree lhs_type_descriptor = lhs_type->type_descriptor(gogo);
+  tree lhs_type_descriptor = lhs_type->type_descriptor_pointer(gogo);
 
   if (!DECL_P(rhs_tree))
     rhs_tree = save_expr(rhs_tree);
@@ -580,7 +580,7 @@ Expression::convert_interface_to_type(Translate_context* context,
     Expression::get_interface_type_descriptor(context, rhs_type, rhs_tree,
 					      location);
 
-  tree rhs_inter_descriptor = rhs_type->type_descriptor(gogo);
+  tree rhs_inter_descriptor = rhs_type->type_descriptor_pointer(gogo);
 
   static tree check_interface_type_decl;
   tree call = Gogo::call_builtin(&check_interface_type_decl,
@@ -3886,6 +3886,7 @@ Unary_expression::do_get_tree(Translate_context* context)
       // at parse time.  Taking the address of a nonconstant
       // constructor will not do what the programmer expects.
       gcc_assert(TREE_CODE(expr) != CONSTRUCTOR || TREE_CONSTANT(expr));
+      gcc_assert(TREE_CODE(expr) != ADDR_EXPR);
 
       // Build a decl for a constant constructor.
       if (TREE_CODE(expr) == CONSTRUCTOR && TREE_CONSTANT(expr))
@@ -3897,6 +3898,7 @@ Unary_expression::do_get_tree(Translate_context* context)
 	  TREE_READONLY(decl) = 1;
 	  TREE_CONSTANT(decl) = 1;
 	  TREE_STATIC(decl) = 1;
+	  TREE_ADDRESSABLE(decl) = 1;
 	  DECL_ARTIFICIAL(decl) = 1;
 	  DECL_INITIAL(decl) = expr;
 	  rest_of_decl_compilation(decl, 1, 0);
@@ -10241,10 +10243,10 @@ Struct_construction_expression::do_export(Export* exp) const
 // Make a struct composite literal.  This used by the thunk code.
 
 Expression*
-Expression::make_struct_composite_literal(Struct_type* type,
-					  Expression_list* vals,
+Expression::make_struct_composite_literal(Type* type, Expression_list* vals,
 					  source_location location)
 {
+  gcc_assert(type->struct_type() != NULL);
   return new Struct_construction_expression(type, vals, location);
 }
 
@@ -10660,6 +10662,17 @@ Open_array_construction_expression::do_get_tree(Translate_context* context)
     return constructor;
   else
     return build2(COMPOUND_EXPR, type_tree, set, constructor);
+}
+
+// Make a slice composite literal.  This is used by the type
+// descriptor code.
+
+Expression*
+Expression::make_slice_composite_literal(Type* type, Expression_list* vals,
+					 source_location location)
+{
+  gcc_assert(type->is_open_array_type());
+  return new Open_array_construction_expression(type, vals, location);
 }
 
 // Construct a map.
@@ -11740,7 +11753,7 @@ class Type_descriptor_expression : public Expression
 
   tree
   do_get_tree(Translate_context* context)
-  { return this->type_->type_descriptor(context->gogo()); }
+  { return this->type_->type_descriptor_pointer(context->gogo()); }
 
  private:
   // The type for which this is the descriptor.
@@ -11753,6 +11766,182 @@ Expression*
 Expression::make_type_descriptor(Type* type, source_location location)
 {
   return new Type_descriptor_expression(type, location);
+}
+
+// An expression which evaluates to some characteristic of a type.
+// This is only used to initialize fields of a type descriptor.  Using
+// a new expression class is slightly inefficient but gives us a good
+// separation between the frontend and the middle-end with regard to
+// how types are laid out.
+
+class Type_info_expression : public Expression
+{
+ public:
+  Type_info_expression(Type* type, Type_info type_info)
+    : Expression(EXPRESSION_TYPE_INFO, BUILTINS_LOCATION),
+      type_(type), type_info_(type_info)
+  { }
+
+ protected:
+  Type*
+  do_type();
+
+  void
+  do_determine_type(const Type_context*)
+  { }
+
+  Expression*
+  do_copy()
+  { return this; }
+
+  tree
+  do_get_tree(Translate_context* context);
+
+ private:
+  // The type for which we are getting information.
+  Type* type_;
+  // What information we want.
+  Type_info type_info_;
+};
+
+// The type is chosen to match what the type descriptor struct
+// expects.
+
+Type*
+Type_info_expression::do_type()
+{
+  switch (this->type_info_)
+    {
+    case TYPE_INFO_SIZE:
+      return Type::lookup_integer_type("uintptr");
+    case TYPE_INFO_ALIGNMENT:
+    case TYPE_INFO_FIELD_ALIGNMENT:
+      return Type::lookup_integer_type("uint8");
+    default:
+      gcc_unreachable();
+    }
+}
+
+// Return type information in GENERIC.
+
+tree
+Type_info_expression::do_get_tree(Translate_context* context)
+{
+  tree type_tree = this->type_->get_tree(context->gogo());
+  if (type_tree == error_mark_node)
+    return error_mark_node;
+
+  tree val_type_tree = this->type()->get_tree(context->gogo());
+  gcc_assert(val_type_tree != error_mark_node);
+
+  if (this->type_info_ == TYPE_INFO_SIZE)
+    return fold_convert_loc(BUILTINS_LOCATION, val_type_tree,
+			    TYPE_SIZE_UNIT(type_tree));
+  else
+    {
+      unsigned HOST_WIDE_INT val;
+      if (this->type_info_ == TYPE_INFO_ALIGNMENT)
+	val = TYPE_ALIGN_UNIT(type_tree);
+      else
+	{
+	  gcc_assert(this->type_info_ == TYPE_INFO_FIELD_ALIGNMENT);
+	  val = TYPE_ALIGN(type_tree);
+#ifdef BIGGEST_FIELD_ALIGMENT
+	  if (val > BIGGEST_FIELD_ALIGNMENT)
+	    val = BIGGEST_FIELD_ALIGNMENT;
+#endif
+#ifdef ADJUST_FIELD_ALIGN
+	  {
+	    tree f = build_decl(UNKNOWN_LOCATION, FIELD_DECL, NULL, type_tree);
+	    val = ADJUST_FIELD_ALIGN(f, val);
+	  }
+#endif
+	  val /= BITS_PER_UNIT;
+	}
+
+      return build_int_cstu(val_type_tree, val);
+    }
+}
+
+// Make a type info expression.
+
+Expression*
+Expression::make_type_info(Type* type, Type_info type_info)
+{
+  return new Type_info_expression(type, type_info);
+}
+
+// An expression which evaluates to the offset of a field within a
+// struct.  This, like Type_info_expression, q.v., is only used to
+// initialize fields of a type descriptor.
+
+class Struct_field_offset_expression : public Expression
+{
+ public:
+  Struct_field_offset_expression(Struct_type* type, const Struct_field* field)
+    : Expression(EXPRESSION_STRUCT_FIELD_OFFSET, BUILTINS_LOCATION),
+      type_(type), field_(field)
+  { }
+
+ protected:
+  Type*
+  do_type()
+  { return Type::lookup_integer_type("uintptr"); }
+
+  void
+  do_determine_type(const Type_context*)
+  { }
+
+  Expression*
+  do_copy()
+  { return this; }
+
+  tree
+  do_get_tree(Translate_context* context);
+
+ private:
+  // The type of the struct.
+  Struct_type* type_;
+  // The field.
+  const Struct_field* field_;
+};
+
+// Return a struct field offset in GENERIC.
+
+tree
+Struct_field_offset_expression::do_get_tree(Translate_context* context)
+{
+  tree type_tree = this->type_->get_tree(context->gogo());
+  if (type_tree == error_mark_node)
+    return error_mark_node;
+
+  tree val_type_tree = this->type()->get_tree(context->gogo());
+  gcc_assert(val_type_tree != error_mark_node);
+
+  const Struct_field_list* fields = this->type_->fields();
+  tree struct_field_tree = TYPE_FIELDS(type_tree);
+  Struct_field_list::const_iterator p;
+  for (p = fields->begin();
+       p != fields->end();
+       ++p, struct_field_tree = TREE_CHAIN(struct_field_tree))
+    {
+      gcc_assert(struct_field_tree != NULL_TREE);
+      if (&*p == this->field_)
+	break;
+    }
+  gcc_assert(&*p == this->field_);
+
+  return fold_convert_loc(BUILTINS_LOCATION, val_type_tree,
+			  byte_position(struct_field_tree));
+}
+
+// Make an expression for a struct field offset.
+
+Expression*
+Expression::make_struct_field_offset(Struct_type* type,
+				     const Struct_field* field)
+{
+  return new Struct_field_offset_expression(type, field);
 }
 
 // An expression which evaluates to the address of an unnamed label.

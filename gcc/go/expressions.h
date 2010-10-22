@@ -19,6 +19,8 @@ class Type;
 struct Type_context;
 class Function_type;
 class Map_type;
+class Struct_type;
+class Struct_field;
 class Expression_list;
 class Var_expression;
 class Temporary_reference_expression;
@@ -89,6 +91,8 @@ class Expression
     EXPRESSION_RECEIVE,
     EXPRESSION_SEND,
     EXPRESSION_TYPE_DESCRIPTOR,
+    EXPRESSION_TYPE_INFO,
+    EXPRESSION_STRUCT_FIELD_OFFSET,
     EXPRESSION_LABEL_ADDR
   };
 
@@ -251,8 +255,11 @@ class Expression
 
   // Make a struct composite literal.
   static Expression*
-  make_struct_composite_literal(Struct_type*, Expression_list*,
-				source_location);
+  make_struct_composite_literal(Type*, Expression_list*, source_location);
+
+  // Make a slice composite literal.
+  static Expression*
+  make_slice_composite_literal(Type*, Expression_list*, source_location);
 
   // Take a composite literal and allocate it on the heap.
   static Expression*
@@ -270,6 +277,29 @@ class Expression
   // type.
   static Expression*
   make_type_descriptor(Type* type, source_location);
+
+  // Make an expression which evaluates to some characteristic of a
+  // type.  These are only used for type descriptors, so there is no
+  // location parameter.
+  enum Type_info
+    {
+      // The size of a value of the type.
+      TYPE_INFO_SIZE,
+      // The required alignment of a value of the type.
+      TYPE_INFO_ALIGNMENT,
+      // The required alignment of a value of the type when used as a
+      // field in a struct.
+      TYPE_INFO_FIELD_ALIGNMENT
+    };
+
+  static Expression*
+  make_type_info(Type* type, Type_info);
+
+  // Make an expression which evaluates to the offset of a field in a
+  // struct.  This is only used for type descriptors, so there is no
+  // location parameter.
+  static Expression*
+  make_struct_field_offset(Struct_type*, const Struct_field*);
 
   // Make an expression which evaluates to the address of an unnamed
   // label.

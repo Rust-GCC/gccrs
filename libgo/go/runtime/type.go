@@ -20,16 +20,17 @@ import "unsafe"
 // All types begin with a few common fields needed for
 // the interface runtime.
 type commonType struct {
-	Kind          uint8                                         // type kind
-	align         uint8                                         // alignment of variable with this type
-	fieldAlign    uint8                                         // alignment of struct field with this type
-	size          uintptr                                       // size in bytes
-	hash          uint32  					    // hash of type; avoids computation in hash tables
+	Kind       uint8   // type kind
+	align      uint8   // alignment of variable with this type
+	fieldAlign uint8   // alignment of struct field with this type
+	size       uintptr // size in bytes
+	hash       uint32  // hash of type; avoids computation in hash tables
 
-	hashfn        func(unsafe.Pointer, uintptr)                 // hash function
-	equalfn       func(unsafe.Pointer, unsafe.Pointer, uintptr) // equality function
-	string        *string                                       // string form; unnecessary  but undeniably useful
-	*uncommonType                                               // (relatively) uncommon fields
+	hashfn  func(unsafe.Pointer, uintptr) uintptr              // hash function
+	equalfn func(unsafe.Pointer, unsafe.Pointer, uintptr) bool // equality function
+
+	string        *string // string form; unnecessary  but undeniably useful
+	*uncommonType         // (relatively) uncommon fields
 }
 
 // Values for commonType.kind.

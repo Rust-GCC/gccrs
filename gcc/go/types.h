@@ -476,6 +476,9 @@ class Type
   make_interface_type(Typed_identifier_list* methods, source_location);
 
   static Type*
+  make_type_descriptor_type();
+
+  static Type*
   make_type_descriptor_ptr_type();
 
   static Named_type*
@@ -814,7 +817,7 @@ class Type
   // Build a type descriptor entry for this type.  Return a pointer to
   // it.
   tree
-  type_descriptor(Gogo* gogo);
+  type_descriptor_pointer(Gogo* gogo);
 
   // Return the type reflection string for this type.
   std::string
@@ -870,8 +873,8 @@ class Type
   do_make_expression_tree(Translate_context*, Expression_list*,
 			  source_location);
 
-  virtual void
-  do_type_descriptor_decl(Gogo* gogo, Named_type* name, tree* pdecl) = 0;
+  virtual Expression*
+  do_type_descriptor(Gogo*, Named_type* name) = 0;
 
   virtual void
   do_reflection(Gogo*, std::string*) const = 0;
@@ -900,12 +903,33 @@ class Type
   method_function(const Methods*, const std::string& name,
 		  bool* is_ambiguous);
 
-  // Build a type descriptor entry for TYPE, using NAME as the name of
-  // the type.  PACKAGE is the package where TYPE is defined, or NULL
-  // if defined in the package currently being compiled.  Store the
-  // decl in *PDECL.
-  void
-  named_type_descriptor(Gogo* gogo, Type* type, Named_type* name, tree* pdecl);
+  // Return a composite literal for the type descriptor entry for a
+  // type.
+  static Expression*
+  type_descriptor(Gogo*, Type*);
+
+  // Return a composite literal for the type descriptor entry for
+  // TYPE, using NAME as the name of the type.
+  static Expression*
+  named_type_descriptor(Gogo*, Type* type, Named_type* name);
+
+  // Return a composite literal for a plain type descriptor for this
+  // type with the given kind and name.
+  Expression*
+  plain_type_descriptor(Gogo*, int runtime_type_kind, Named_type* name);
+
+  // Build a composite literal for the basic type descriptor.
+  Expression*
+  type_descriptor_constructor(Gogo*, int runtime_type_kind, Named_type*,
+			      const Methods*, bool only_value_methods);
+
+  // Make a builtin struct type from a list of fields.
+  static Struct_type*
+  make_builtin_struct_type(int nfields, ...);
+
+  // Make a builtin named type.
+  static Named_type*
+  make_builtin_named_type(const char* name, Type* type);
 
   // For the benefit of child class reflection string generation.
   void
@@ -961,6 +985,26 @@ class Type
 	    ? static_cast<Type_class*>(this)
 	    : NULL);
   }
+
+  // Get the hash and equality functions for a type.
+  void
+  type_functions(const char** hash_fn, const char** equal_fn) const;
+
+  // Build a composite literal for the uncommon type information.
+  Expression*
+  uncommon_type_constructor(Gogo*, Type* uncommon_type,
+			    Named_type*, const Methods*,
+			    bool only_value_methods) const;
+
+  // Build a composite literal for the methods.
+  Expression*
+  methods_constructor(Gogo*, Type* methods_type, const Methods*,
+		      bool only_value_methods) const;
+
+  // Build a composite literal for one method.
+  Expression*
+  method_constructor(Gogo*, Type* method_type, const std::string& name,
+		     const Method*) const;
 
   static tree
   build_receive_return_type(tree type);
@@ -1236,8 +1280,8 @@ class Integer_type : public Type
   tree
   do_get_init_tree(Gogo*, tree, bool);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -1312,8 +1356,8 @@ class Float_type : public Type
   tree
   do_get_init_tree(Gogo*, tree, bool);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -1384,8 +1428,8 @@ class Complex_type : public Type
   tree
   do_get_init_tree(Gogo*, tree, bool);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -1440,8 +1484,8 @@ class String_type : public Type
   tree
   do_get_init_tree(Gogo* gogo, tree, bool);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -1553,8 +1597,8 @@ class Function_type : public Type
   tree
   do_get_init_tree(Gogo*, tree, bool);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -1566,6 +1610,13 @@ class Function_type : public Type
   do_export(Export*) const;
 
  private:
+  static Type*
+  make_function_type_descriptor_type();
+
+  Expression*
+  type_descriptor_params(Type*, const Typed_identifier*,
+			 const Typed_identifier_list*);
+
   // The receiver name and type.  This will be NULL for a normal
   // function, non-NULL for a method.
   Typed_identifier* receiver_;
@@ -1620,8 +1671,8 @@ class Pointer_type : public Type
   tree
   do_get_init_tree(Gogo*, tree, bool);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -1633,6 +1684,9 @@ class Pointer_type : public Type
   do_export(Export*) const;
 
  private:
+  static Type*
+  make_pointer_type_descriptor_type();
+
   // The type to which this type points.
   Type* to_type_;
 };
@@ -1875,8 +1929,8 @@ class Struct_type : public Type
   tree
   do_get_init_tree(Gogo*, tree, bool);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -1891,6 +1945,9 @@ class Struct_type : public Type
   Field_reference_expression*
   field_reference_depth(Expression* struct_expr, const std::string& name,
 			source_location, unsigned int* depth) const;
+
+  static Type*
+  make_struct_type_descriptor_type();
 
   // The fields of the struct.
   Struct_field_list* fields_;
@@ -1978,8 +2035,8 @@ class Array_type : public Type
   do_make_expression_tree(Translate_context*, Expression_list*,
 			  source_location);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -1996,6 +2053,18 @@ class Array_type : public Type
 
   tree
   get_length_tree(Gogo*);
+
+  Type*
+  make_array_type_descriptor_type();
+
+  Type*
+  make_slice_type_descriptor_type();
+
+  Expression*
+  array_type_descriptor(Gogo*, Named_type*);
+
+  Expression*
+  slice_type_descriptor(Gogo*, Named_type*);
 
   // A mapping from Type to tree, used to ensure that arrays of
   // identical types are identical.
@@ -2067,8 +2136,8 @@ class Map_type : public Type
   do_make_expression_tree(Translate_context*, Expression_list*,
 			  source_location);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -2080,6 +2149,9 @@ class Map_type : public Type
   do_export(Export*) const;
 
  private:
+  static Type*
+  make_map_type_descriptor_type();
+
   // The key type.
   Type* key_type_;
   // The value type.
@@ -2148,8 +2220,8 @@ class Channel_type : public Type
   do_make_expression_tree(Translate_context*, Expression_list*,
 			  source_location);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -2161,6 +2233,9 @@ class Channel_type : public Type
   do_export(Export*) const;
 
  private:
+  static Type*
+  make_chan_type_descriptor_type();
+
   // Whether this channel can send data.
   bool may_send_;
   // Whether this channel can receive data.
@@ -2254,8 +2329,8 @@ class Interface_type : public Type
   tree
   do_get_init_tree(Gogo* gogo, tree, bool);
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -2267,6 +2342,9 @@ class Interface_type : public Type
   do_export(Export*) const;
 
  private:
+  static Type*
+  make_interface_type_descriptor_type();
+
   // The list of methods associated with the interface.  This will be
   // NULL for the empty interface.
   Typed_identifier_list* methods_;
@@ -2464,8 +2542,8 @@ class Named_type : public Type
 			  source_location location)
   { return this->type_->make_expression_tree(context, args, location); }
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
@@ -2590,8 +2668,8 @@ class Forward_declaration_type : public Type
 			  source_location location)
   { return this->base()->make_expression_tree(context, args, location); }
 
-  void
-  do_type_descriptor_decl(Gogo*, Named_type*, tree*);
+  Expression*
+  do_type_descriptor(Gogo*, Named_type*);
 
   void
   do_reflection(Gogo*, std::string*) const;
