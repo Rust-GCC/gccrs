@@ -179,7 +179,8 @@ class Expression
 
   // Make a call expression.
   static Call_expression*
-  make_call(Expression* func, Expression_list* params, source_location);
+  make_call(Expression* func, Expression_list* args, bool is_varargs,
+	    source_location);
 
   // Make a reference to a specific result of a call expression which
   // returns a tuple.
@@ -1157,10 +1158,10 @@ class Binary_expression : public Expression
 class Call_expression : public Expression
 {
  public:
-  Call_expression(Expression* fn, Expression_list* args,
+  Call_expression(Expression* fn, Expression_list* args, bool is_varargs,
 		  source_location location)
     : Expression(EXPRESSION_CALL, location),
-      fn_(fn), args_(args), type_(NULL), tree_(NULL),
+      fn_(fn), args_(args), type_(NULL), tree_(NULL), is_varargs_(is_varargs),
       is_value_discarded_(false), varargs_are_lowered_(false),
       is_deferred_(false)
   { }
@@ -1230,7 +1231,7 @@ class Call_expression : public Expression
   do_copy()
   {
     return Expression::make_call(this->fn_->copy(), this->args_->copy(),
-				 this->location());
+				 this->is_varargs_, this->location());
   }
 
   bool
@@ -1277,6 +1278,8 @@ class Call_expression : public Expression
   Type* type_;
   // The tree for the call, used for a call which returns a tuple.
   tree tree_;
+  // True if the last argument is a varargs argument (f(a...)).
+  bool is_varargs_;
   // True if the value is being discarded.
   bool is_value_discarded_;
   // True if varargs have already been lowered.

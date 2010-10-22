@@ -7296,7 +7296,8 @@ Type::build_stub_methods(Gogo* gogo, const Type* type, const Methods* methods,
 	{
 	  stub = gogo->start_function(name, stub_type, false,
 				      fntype->location());
-	  Type::build_one_stub_method(gogo, m, buf, stub_params, location);
+	  Type::build_one_stub_method(gogo, m, buf, stub_params,
+				      fntype->is_varargs(), location);
 	  gogo->finish_function(fntype->location());
 	}
 
@@ -7312,6 +7313,7 @@ void
 Type::build_one_stub_method(Gogo* gogo, Method* method,
 			    const char* receiver_name,
 			    const Typed_identifier_list* params,
+			    bool is_varargs,
 			    source_location location)
 {
   Named_object* receiver_object = gogo->lookup(receiver_name, NULL);
@@ -7342,7 +7344,8 @@ Type::build_one_stub_method(Gogo* gogo, Method* method,
 
   Expression* func = method->bind_method(expr, location);
   gcc_assert(func != NULL);
-  Call_expression* call = Expression::make_call(func, arguments, location);
+  Call_expression* call = Expression::make_call(func, arguments, is_varargs,
+						location);
   size_t count = call->result_count();
   if (count == 0)
     gogo->add_statement(Statement::make_statement(call));

@@ -2698,18 +2698,25 @@ Parse::index(Expression* expr)
   return Expression::make_index(expr, start, end, location);
 }
 
-// Call = "(" [ ExpressionList [ "," ] ] ")" .
+// Call           = "(" [ ArgumentList [ "," ] ] ")" .
+// ArgumentList   = ExpressionList [ "..." ] .
 
 Expression*
 Parse::call(Expression* func)
 {
   gcc_assert(this->peek_token()->is_op(OPERATOR_LPAREN));
   Expression_list* args = NULL;
+  bool is_varargs = false;
   const Token* token = this->advance_token();
   if (!token->is_op(OPERATOR_RPAREN))
     {
       args = this->expression_list(NULL, false);
       token = this->peek_token();
+      if (token->is_op(OPERATOR_ELLIPSIS))
+	{
+	  is_varargs = true;
+	  token = this->advance_token();
+	}
     }
   if (token->is_op(OPERATOR_COMMA))
     token = this->advance_token();
@@ -2719,7 +2726,7 @@ Parse::call(Expression* func)
     this->advance_token();
   if (func->is_error_expression())
     return func;
-  return Expression::make_call(func, args, func->location());
+  return Expression::make_call(func, args, is_varargs, func->location());
 }
 
 // Return an expression for a single unqualified identifier.

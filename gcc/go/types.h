@@ -1042,7 +1042,8 @@ class Type
 
   static void
   build_one_stub_method(Gogo*, Method*, const char* receiver_name,
-			const Typed_identifier_list*, source_location);
+			const Typed_identifier_list*, bool is_varargs,
+			source_location);
 
   static Expression*
   apply_field_indexes(Expression*, const Method::Field_indexes*,

@@ -2074,7 +2074,7 @@ Build_recover_thunks::function(Named_object* orig_no)
     }
   args->push_back(this->can_recover_arg(location));
 
-  Expression* call = Expression::make_call(fn, args, location);
+  Expression* call = Expression::make_call(fn, args, false, location);
 
   Statement* s;
   if (orig_fntype->results() == NULL || orig_fntype->results()->empty())
@@ -2195,13 +2195,13 @@ Build_recover_thunks::can_recover_arg(source_location location)
   Expression_list *args = new Expression_list();
   args->push_back(zexpr);
 
-  Expression* call = Expression::make_call(fn, args, location);
+  Expression* call = Expression::make_call(fn, args, false, location);
 
   args = new Expression_list();
   args->push_back(call);
 
   fn = Expression::make_func_reference(can_recover, NULL, location);
-  return Expression::make_call(fn, args, location);
+  return Expression::make_call(fn, args, false, location);
 }
 
 // Build thunks for functions which call recover.  We build a new

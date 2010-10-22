@@ -934,7 +934,7 @@ Tuple_map_assignment_statement::do_lower(Gogo*, Block* enclosing)
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
   ref = Expression::make_temporary_reference(val_temp, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
-  Expression* call = Expression::make_call(func, params, loc);
+  Expression* call = Expression::make_call(func, params, false, loc);
 
   ref = Expression::make_temporary_reference(present_temp, loc);
   Statement* s = Statement::make_assignment(ref, call, loc);
@@ -1069,7 +1069,7 @@ Map_assignment_statement::do_lower(Gogo*, Block* enclosing)
   ref = Expression::make_temporary_reference(val_temp, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
   params->push_back(this->should_set_);
-  Expression* call = Expression::make_call(func, params, loc);
+  Expression* call = Expression::make_call(func, params, false, loc);
   Statement* s = Statement::make_statement(call);
   b->add_statement(s);
 
@@ -1192,7 +1192,7 @@ Tuple_receive_assignment_statement::do_lower(Gogo*, Block* enclosing)
   params->push_back(this->channel_);
   Expression* ref = Expression::make_temporary_reference(val_temp, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
-  Expression* call = Expression::make_call(func, params, loc);
+  Expression* call = Expression::make_call(func, params, false, loc);
   ref = Expression::make_temporary_reference(success_temp, loc);
   Statement* s = Statement::make_assignment(ref, call, loc);
   b->add_statement(s);
@@ -1363,7 +1363,7 @@ Tuple_type_guard_assignment_statement::lower_to_empty_interface(
   Expression* func = Expression::make_func_reference(fn, NULL, loc);
   Expression_list* params = new Expression_list();
   params->push_back(this->expr_);
-  return Expression::make_call(func, params, loc);
+  return Expression::make_call(func, params, false, loc);
 }
 
 // Lower a conversion to a non-empty interface type or a pointer type.
@@ -1396,7 +1396,7 @@ Tuple_type_guard_assignment_statement::lower_to_type(const char* fnname)
   Expression_list* params = new Expression_list();
   params->push_back(Expression::make_type_descriptor(this->type_, loc));
   params->push_back(this->expr_);
-  return Expression::make_call(func, params, loc);
+  return Expression::make_call(func, params, false, loc);
 }
 
 // Lower a conversion to a non-interface non-pointer type.
@@ -1438,7 +1438,7 @@ Tuple_type_guard_assignment_statement::lower_to_object_type(Block* b,
   params->push_back(this->expr_);
   Expression* ref = Expression::make_temporary_reference(val_temp, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
-  Expression* call = Expression::make_call(func, params, loc);
+  Expression* call = Expression::make_call(func, params, false, loc);
   Statement* s = Statement::make_assignment(this->ok_, call, loc);
   b->add_statement(s);
 
@@ -1886,7 +1886,7 @@ Thunk_statement::simplify_statement(Gogo* gogo, Block* block)
 						     location);
   Expression_list* params = new Expression_list();
   params->push_back(constructor);
-  Call_expression* call = Expression::make_call(func, params, location);
+  Call_expression* call = Expression::make_call(func, params, false, location);
 
   // Build the simple go or defer statement.
   Statement* s;
@@ -2080,7 +2080,7 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
 
       Expression* fn = Expression::make_func_reference(set_defer_retaddr,
 						       NULL, location);
-      Expression* call = Expression::make_call(fn, args, location);
+      Expression* call = Expression::make_call(fn, args, false, location);
 
       // This is a hack to prevent the middle-end from deleting the
       // label.
@@ -2163,7 +2163,8 @@ Thunk_statement::build_thunk(Gogo* gogo, const std::string& thunk_name,
       call_params->push_back(param);
     }
 
-  Expression* call = Expression::make_call(func_to_call, call_params, location);
+  Expression* call = Expression::make_call(func_to_call, call_params, false,
+					   location);
   // We need to lower in case this is a builtin function.
   call = call->lower(gogo, function, -1);
   if (may_call_recover)
@@ -3621,7 +3622,7 @@ Type_case_clauses::Type_case_clause::lower(Block* b,
 	  Expression* ref =
 	    Expression::make_temporary_reference(descriptor_temp, loc);
 	  params->push_back(ref);
-	  cond = Expression::make_call(func, params, loc);
+	  cond = Expression::make_call(func, params, false, loc);
 	}
 
       Unnamed_label* dest;
@@ -3834,7 +3835,7 @@ Type_switch_statement::do_lower(Gogo*, Block* enclosing)
       else
 	ref = Expression::make_var_reference(this->var_, loc);
       params->push_back(ref);
-      Expression* call = Expression::make_call(func, params, loc);
+      Expression* call = Expression::make_call(func, params, false, loc);
       Expression* lhs = Expression::make_temporary_reference(descriptor_temp,
 							     loc);
       Statement* s = Statement::make_assignment(lhs, call, loc);
@@ -4616,7 +4617,7 @@ For_range_statement::call_builtin(Gogo* gogo, const char* funcname,
   Expression* func = Expression::make_func_reference(no, NULL, loc);
   Expression_list* params = new Expression_list();
   params->push_back(arg);
-  return Expression::make_call(func, params, loc);
+  return Expression::make_call(func, params, false, loc);
 }
 
 // Lower a for range over an array or slice.
@@ -4830,7 +4831,7 @@ For_range_statement::lower_range_string(Gogo* gogo,
   Expression_list* params = new Expression_list();
   params->push_back(this->make_range_ref(range_object, range_temp, loc));
   params->push_back(Expression::make_temporary_reference(index_temp, loc));
-  Call_expression* call = Expression::make_call(func, params, loc);
+  Call_expression* call = Expression::make_call(func, params, false, loc);
 
   if (value_temp == NULL)
     {
@@ -4949,7 +4950,7 @@ For_range_statement::lower_range_map(Gogo* gogo,
   params->push_back(this->make_range_ref(range_object, range_temp, loc));
   Expression* ref = Expression::make_temporary_reference(hiter, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
-  Expression* call = Expression::make_call(func, params, loc);
+  Expression* call = Expression::make_call(func, params, false, loc);
   init->add_statement(Statement::make_statement(call));
 
   *pinit = init;
@@ -5006,7 +5007,7 @@ For_range_statement::lower_range_map(Gogo* gogo,
       ref = Expression::make_temporary_reference(value_temp, loc);
       params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
     }
-  call = Expression::make_call(func, params, loc);
+  call = Expression::make_call(func, params, false, loc);
   iter_init->add_statement(Statement::make_statement(call));
 
   *piter_init = iter_init;
@@ -5033,7 +5034,7 @@ For_range_statement::lower_range_map(Gogo* gogo,
   params = new Expression_list();
   ref = Expression::make_temporary_reference(hiter, loc);
   params->push_back(Expression::make_unary(OPERATOR_AND, ref, loc));
-  call = Expression::make_call(func, params, loc);
+  call = Expression::make_call(func, params, false, loc);
   post->add_statement(Statement::make_statement(call));
 
   *ppost = post;

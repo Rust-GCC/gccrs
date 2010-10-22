@@ -6174,7 +6174,7 @@ Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
 						 Expression* fn,
 						 Expression_list* args,
 						 source_location location)
-  : Call_expression(fn, args, location),
+  : Call_expression(fn, args, false, location),
     gogo_(gogo), code_(BUILTIN_INVALID)
 {
   Func_expression* fnexp = this->fn()->func_expression();
@@ -7772,8 +7772,10 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
       bool issued_error = false;
       if (pa != old_args->end()
 	  && pa + 1 == old_args->end()
-	  && this->is_compatible_varargs_argument(function, *pa, varargs_type,
-						  &issued_error))
+	  && (this->is_varargs_
+	      || this->is_compatible_varargs_argument(function, *pa,
+						      varargs_type,
+						      &issued_error)))
 	new_args->push_back(*pa);
       else if (pa == old_args->end())
 	push_empty_arg = true;
@@ -8350,10 +8352,10 @@ Call_expression::do_get_tree(Translate_context* context)
 // Make a call expression.
 
 Call_expression*
-Expression::make_call(Expression* fn, Expression_list* args,
+Expression::make_call(Expression* fn, Expression_list* args, bool is_varargs,
 		      source_location location)
 {
-  return new Call_expression(fn, args, location);
+  return new Call_expression(fn, args, is_varargs, location);
 }
 
 // A single result from a call which returns multiple results.
@@ -9727,7 +9729,9 @@ Selector_expression::lower_method_expression(Gogo* gogo)
 	}
     }
 
-  Call_expression* call = Expression::make_call(bm, args, location);
+  Call_expression* call = Expression::make_call(bm, args,
+						method_type->is_varargs(),
+						location);
 
   size_t count = call->result_count();
   Statement* s;
