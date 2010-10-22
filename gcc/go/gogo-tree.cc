@@ -2558,6 +2558,11 @@ Gogo::build_type_descriptor_decl(const Type* type, Expression* initializer,
 						name->in_function());
   tree id = get_identifier_from_string(decl_name);
   tree descriptor_type_tree = initializer->type()->get_tree(this);
+  if (descriptor_type_tree == error_mark_node)
+    {
+      *pdecl = error_mark_node;
+      return;
+    }
   tree decl = build_decl(name == NULL ? BUILTINS_LOCATION : name->location(),
 			 VAR_DECL, id,
 			 build_qualified_type(descriptor_type_tree,
