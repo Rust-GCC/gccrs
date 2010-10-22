@@ -7779,79 +7779,26 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
 	push_empty_arg = true;
       else
 	{
-	  Type* element_type;
-	  Struct_field_list* fields;
-	  if (varargs_type->interface_type() != NULL)
-	    {
-	      element_type = NULL;
-	      fields = new Struct_field_list();
-	    }
-	  else
-	    {
-	      element_type = varargs_type->array_type()->element_type();
-	      fields = NULL;
-	    }
-
+	  Type* element_type = varargs_type->array_type()->element_type();
 	  Expression_list* vals = new Expression_list;
 	  for (; pa != old_args->end(); ++pa, ++i)
 	    {
 	      // Check types here so that we get a better message.
 	      Type* patype = (*pa)->type();
 	      source_location paloc = (*pa)->location();
-	      if (element_type != NULL)
-		{
-		  if (!this->check_argument_type(i, element_type, patype,
-						 paloc, issued_error))
-		    continue;
-		}
-	      else
-		{
-		  if (patype->is_nil_type())
-		    {
-		      if (!issued_error)
-			error_at((*pa)->location(),
-				 "invalid use of %<nil%> for %<...%> argument");
-		      continue;
-		    }
-		  if (patype->is_abstract())
-		    patype = patype->make_non_abstract_type();
-		  fields->push_back(Struct_field(Typed_identifier("UNNAMED",
-								  patype,
-								  paloc)));
-		}
-
+	      if (!this->check_argument_type(i, element_type, patype,
+					     paloc, issued_error))
+		continue;
 	      vals->push_back(*pa);
 	    }
-
-	  Expression* val;
-	  if (element_type == NULL)
-	    {
-	      Type* ctype = Type::make_struct_type(fields, loc);
-	      val = Expression::make_struct_composite_literal(ctype, vals, loc);
-	    }
-	  else
-	    {
-	      Type* ctype = Type::make_array_type(element_type, NULL);
-	      val = Expression::make_slice_composite_literal(ctype, vals, loc);
-	    }
-
+	  Expression* val =
+	    Expression::make_slice_composite_literal(varargs_type, vals, loc);
 	  new_args->push_back(val);
 	}
     }
 
   if (push_empty_arg)
-    {
-      if (varargs_type->interface_type() == NULL)
-	new_args->push_back(Expression::make_nil(loc));
-      else
-	{
-	  Struct_field_list* fields = new Struct_field_list();
-	  Type* param_type = Type::make_struct_type(fields, loc);
-	  Expression* v = Expression::make_struct_composite_literal(param_type,
-								    NULL, loc);
-	  new_args->push_back(v);
-	}
-    }
+    new_args->push_back(Expression::make_nil(loc));
 
   // We can't return a new call expression here, because this one may
   // be referenced by Call_result expressions.  FIXME.
@@ -7931,31 +7878,18 @@ Call_expression::is_compatible_varargs_argument(Named_object* function,
   if (var_type == NULL)
     return false;
 
-  if (var_type->interface_type() != NULL)
-    {
-      // The argument is ... with no type.  We only match if the
-      // parameter is too.
-      if (param_type->interface_type() != NULL)
-	return true;
-      error_at(arg->location(), "... mismatch: passing ... as ...T");
-      *issued_error = true;
-      return false;
-    }
-  else
-    {
-      // The argument is ... T with a type.  We only match if the
-      // parameter is the same, with an identical type.
-      Array_type* var_at = var_type->array_type();
-      gcc_assert(var_at != NULL);
-      Array_type* param_at = param_type->array_type();
-      if (param_at != NULL
-	  && Type::are_identical(var_at->element_type(),
-				 param_at->element_type(), NULL))
-	return true;
-      error_at(arg->location(), "... mismatch: passing ...T as ...");
-      *issued_error = true;
-      return false;
-    }
+  // We only match if the parameter is the same, with an identical
+  // type.
+  Array_type* var_at = var_type->array_type();
+  gcc_assert(var_at != NULL);
+  Array_type* param_at = param_type->array_type();
+  if (param_at != NULL
+      && Type::are_identical(var_at->element_type(),
+			     param_at->element_type(), NULL))
+    return true;
+  error_at(arg->location(), "... mismatch: passing ...T as ...");
+  *issued_error = true;
+  return false;
 }
 
 // Get the function type.  Returns NULL if we don't know the type.  If

@@ -2663,8 +2663,7 @@ Function::export_func_with_type(Export* exp, const std::string& name,
 	  else
 	    {
 	      exp->write_c_string("...");
-	      if (p->type()->array_type() != NULL)
-		exp->write_type(p->type()->array_type()->element_type());
+	      exp->write_type(p->type()->array_type()->element_type());
 	    }
 	}
     }
@@ -2735,15 +2734,6 @@ Function::import_func(Import* imp, std::string* pname,
 	    {
 	      imp->advance(3);
 	      *is_varargs = true;
-	      if (imp->peek_char() == ')')
-		{
-		  Type* empty = Type::make_interface_type(NULL,
-							  imp->location());
-		  parameters->push_back(Typed_identifier(Import::import_marker,
-							 empty,
-							 imp->location()));
-		  break;
-		}
 	    }
 
 	  Type* ptype = imp->read_type();

@@ -894,7 +894,7 @@ Parse::parameter_list(bool* is_varargs)
   return ret;
 }
 
-// ParameterDecl  = [ IdentifierList ] ( Type | "..." [ Type ] ) .
+// ParameterDecl  = [ IdentifierList ] [ "..." ] Type .
 
 void
 Parse::parameter_decl(bool parameters_have_names,
@@ -916,8 +916,10 @@ Parse::parameter_decl(bool parameters_have_names,
 		this->error("invalid use of %<...%>");
 	      else
 		*is_varargs = true;
-	      if (this->advance_token()->is_op(OPERATOR_RPAREN))
-		type = Type::make_interface_type(NULL, location);
+	      this->advance_token();
+	      if (is_varargs == NULL
+		  && this->peek_token()->is_op(OPERATOR_RPAREN))
+		type = Type::make_error_type();
 	      else
 		{
 		  Type* element_type = this->type();
@@ -961,15 +963,9 @@ Parse::parameter_decl(bool parameters_have_names,
 	    this->error("%<...%> only permits one name");
 	  else
 	    *is_varargs = true;
-	  source_location location = this->location();
 	  this->advance_token();
-	  if (!this->type_may_start_here())
-	    type = Type::make_interface_type(NULL, location);
-	  else
-	    {
-	      Type* element_type = this->type();
-	      type = Type::make_array_type(element_type, NULL);
-	    }
+	  Type* element_type = this->type();
+	  type = Type::make_array_type(element_type, NULL);
 	}
       for (size_t i = orig_count; i < new_count; ++i)
 	til->set_type(i, type);

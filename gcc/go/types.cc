@@ -2716,9 +2716,8 @@ Function_type::do_reflection(Gogo* gogo, std::string* ret) const
 	  else
 	    {
 	      ret->append("...");
-	      if (p->type()->array_type() != NULL)
-		this->append_reflection(p->type()->array_type()->element_type(),
-					gogo, ret);
+	      this->append_reflection(p->type()->array_type()->element_type(),
+				      gogo, ret);
 	    }
 	}
     }
@@ -2813,8 +2812,7 @@ Function_type::do_export(Export* exp) const
 	  else
 	    {
 	      exp->write_c_string("...");
-	      if (p->type()->array_type() != NULL)
-		exp->write_type(p->type()->array_type()->element_type());
+	      exp->write_type(p->type()->array_type()->element_type());
 	    }
 	}
     }
@@ -2864,15 +2862,6 @@ Function_type::do_import(Import* imp)
 	    {
 	      imp->advance(3);
 	      is_varargs = true;
-	      if (imp->peek_char() == ')')
-		{
-		  Type* empty = Type::make_interface_type(NULL,
-							  imp->location());
-		  parameters->push_back(Typed_identifier(Import::import_marker,
-							 empty,
-							 imp->location()));
-		  break;
-		}
 	    }
 
 	  Type* ptype = imp->read_type();
@@ -6137,8 +6126,7 @@ Interface_type::do_export(Export* exp) const
 		    {
 		      exp->write_c_string("...");
 		      Type *pptype = pp->type();
-		      if (pptype->array_type() != NULL)
-			exp->write_type(pptype->array_type()->element_type());
+		      exp->write_type(pptype->array_type()->element_type());
 		    }
 		}
 	    }
@@ -6203,15 +6191,6 @@ Interface_type::do_import(Import* imp)
 		{
 		  imp->advance(3);
 		  is_varargs = true;
-		  if (imp->peek_char() == ')')
-		    {
-		      Type* empty = Type::make_interface_type(NULL,
-							      imp->location());
-		      Typed_identifier tid(Import::import_marker, empty,
-					   imp->location());
-		      parameters->push_back(tid);
-		      break;
-		    }
 		}
 
 	      Type* ptype = imp->read_type();
