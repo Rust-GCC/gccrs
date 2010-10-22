@@ -206,7 +206,7 @@ class Parse
   Expression* operand(bool may_be_sink);
   Expression* enclosing_var_reference(Named_object*, Named_object*,
 				      source_location);
-  Expression* composite_lit(Type*, source_location);
+  Expression* composite_lit(Type*, int depth, source_location);
   Expression* function_lit();
   Expression* create_closure(Named_object* function, Enclosing_vars*,
 			     source_location);

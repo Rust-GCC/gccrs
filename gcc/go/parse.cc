@@ -2314,19 +2314,25 @@ Parse::enclosing_var_reference(Named_object* in_function, Named_object* var,
   return e;
 }
 
-// CompositeLit  = LiteralType "{" [ ElementList ] "}" .
+// CompositeLit  = LiteralType LiteralValue .
 // LiteralType   = StructType | ArrayType | "[" "..." "]" ElementType |
 //                 SliceType | MapType | TypeName .
-// ElementList   = Element { "," Element } [ "," ] .
+// LiteralValue  = "{" [ ElementList [ "," ] ] "}" .
+// ElementList   = Element { "," Element } .
 // Element       = [ Key ":" ] Value .
 // Key           = Expression .
-// Value         = Expression .
+// Value         = Expression | LiteralValue .
 
-// We have already seen the type.  The case "[" "..." "]" ElementType
-// will be seen here as an array type whose length is "nil".
+// We have already seen the type if there is one, and we are now
+// looking at the LiteralValue.  The case "[" "..."  "]" ElementType
+// will be seen here as an array type whose length is "nil".  The
+// DEPTH parameter is non-zero if this is an embedded composite
+// literal and the type was omitted.  It gives the number of steps up
+// to the type which was provided.  E.g., in [][]int{{1}} it will be
+// 1.  In [][][]int{{{1}}} it will be 2.
 
 Expression*
-Parse::composite_lit(Type* type, source_location location)
+Parse::composite_lit(Type* type, int depth, source_location location)
 {
   gcc_assert(this->peek_token()->is_op(OPERATOR_LCURLY));
   this->advance_token();
@@ -2334,16 +2340,30 @@ Parse::composite_lit(Type* type, source_location location)
   if (this->peek_token()->is_op(OPERATOR_RCURLY))
     {
       this->advance_token();
-      return Expression::make_composite_literal(type, false, NULL, location);
+      return Expression::make_composite_literal(type, depth, false, NULL,
+						location);
     }
 
   bool has_keys = false;
   Expression_list* vals = new Expression_list;
   while (true)
     {
-      Expression* val = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
+      Expression* val;
+      bool is_type_omitted = false;
 
       const Token* token = this->peek_token();
+
+      if (!token->is_op(OPERATOR_LCURLY))
+	val = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
+      else
+	{
+	  // This must be a composite literal inside another composite
+	  // literal, with the type omitted for the inner one.
+	  val = this->composite_lit(type, depth + 1, token->location());
+	  is_type_omitted = true;
+	}
+
+      token = this->peek_token();
       if (!token->is_op(OPERATOR_COLON))
 	{
 	  if (has_keys)
@@ -2351,6 +2371,12 @@ Parse::composite_lit(Type* type, source_location location)
 	}
       else
 	{
+	  if (is_type_omitted && !val->is_error_expression())
+	    {
+	      this->error("unexpected %<:%>");
+	      val = Expression::make_error(this->location());
+	    }
+
 	  this->advance_token();
 
 	  if (!has_keys && !vals->empty())
@@ -2414,7 +2440,8 @@ Parse::composite_lit(Type* type, source_location location)
 	}
     }
 
-  return Expression::make_composite_literal(type, has_keys, vals, location);
+  return Expression::make_composite_literal(type, depth, has_keys, vals,
+					    location);
 }
 
 // FunctionLit = "func" Signature Block .
@@ -2540,7 +2567,7 @@ Parse::primary_expr(bool may_be_sink, bool may_be_composite_lit,
 	  if (is_parenthesized)
 	    error_at(start_loc,
 		     "cannot parenthesize type in composite literal");
-	  ret = this->composite_lit(ret->type(), ret->location());
+	  ret = this->composite_lit(ret->type(), 0, ret->location());
 	}
       else if (this->peek_token()->is_op(OPERATOR_LPAREN))
 	{

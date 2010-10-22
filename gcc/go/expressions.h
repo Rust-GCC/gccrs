@@ -248,9 +248,10 @@ class Expression
   static Expression*
   make_cast(Type*, Expression*, source_location);
 
-  // Make a composite literal.
+  // Make a composite literal.  The DEPTH parameter is how far down we
+  // are in a list of composite literals with omitted types.
   static Expression*
-  make_composite_literal(Type*, bool has_keys, Expression_list*,
+  make_composite_literal(Type*, int depth, bool has_keys, Expression_list*,
 			 source_location);
 
   // Make a struct composite literal.

@@ -2937,8 +2937,8 @@ Type_conversion_expression::do_lower(Gogo*, Named_object*, int)
 		    }
 		}
 
-	      return Expression::make_composite_literal(type, false, vals,
-							location);
+	      return Expression::make_slice_composite_literal(type, vals,
+							      location);
 	    }
 	}
     }
@@ -7823,14 +7823,19 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
 	      vals->push_back(*pa);
 	    }
 
-	  Type* ctype;
+	  Expression* val;
 	  if (element_type == NULL)
-	    ctype = Type::make_struct_type(fields, loc);
+	    {
+	      Type* ctype = Type::make_struct_type(fields, loc);
+	      val = Expression::make_struct_composite_literal(ctype, vals, loc);
+	    }
 	  else
-	    ctype = Type::make_array_type(element_type, NULL);
+	    {
+	      Type* ctype = Type::make_array_type(element_type, NULL);
+	      val = Expression::make_slice_composite_literal(ctype, vals, loc);
+	    }
 
-	  new_args->push_back(Expression::make_composite_literal(ctype, false,
-								 vals, loc));
+	  new_args->push_back(val);
 	}
     }
 
@@ -7842,9 +7847,9 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
 	{
 	  Struct_field_list* fields = new Struct_field_list();
 	  Type* param_type = Type::make_struct_type(fields, loc);
-	  new_args->push_back(Expression::make_composite_literal(param_type,
-								 false, NULL,
-								 loc));
+	  Expression* v = Expression::make_struct_composite_literal(param_type,
+								    NULL, loc);
+	  new_args->push_back(v);
 	}
     }
 
@@ -10962,10 +10967,10 @@ Map_construction_expression::do_export(Export* exp) const
 class Composite_literal_expression : public Parser_expression
 {
  public:
-  Composite_literal_expression(Type* type, bool has_keys,
+  Composite_literal_expression(Type* type, int depth, bool has_keys,
 			       Expression_list* vals, source_location location)
     : Parser_expression(EXPRESSION_COMPOSITE_LITERAL, location),
-      type_(type), vals_(vals), has_keys_(has_keys)
+      type_(type), depth_(depth), vals_(vals), has_keys_(has_keys)
   { }
 
  protected:
@@ -10978,7 +10983,8 @@ class Composite_literal_expression : public Parser_expression
   Expression*
   do_copy()
   {
-    return new Composite_literal_expression(this->type_, this->has_keys_,
+    return new Composite_literal_expression(this->type_, this->depth_,
+					    this->has_keys_,
 					    (this->vals_ == NULL
 					     ? NULL
 					     : this->vals_->copy()),
@@ -10987,19 +10993,22 @@ class Composite_literal_expression : public Parser_expression
 
  private:
   Expression*
-  lower_struct();
+  lower_struct(Type*);
 
   Expression*
-  lower_array();
+  lower_array(Type*);
 
   Expression*
-  make_array(Expression_list*);
+  make_array(Type*, Expression_list*);
 
   Expression*
-  lower_map();
+  lower_map(Type*);
 
   // The type of the composite literal.
   Type* type_;
+  // The depth within a list of composite literals within a composite
+  // literal, when the type is omitted.
+  int depth_;
   // The values to put in the composite literal.
   Expression_list* vals_;
   // If this is true, then VALS_ is a list of pairs: a key and a
@@ -11025,18 +11034,36 @@ Expression*
 Composite_literal_expression::do_lower(Gogo*, Named_object*, int)
 {
   Type* type = this->type_;
+
+  for (int depth = this->depth_; depth > 0; --depth)
+    {
+      if (type->array_type() != NULL)
+	type = type->array_type()->element_type();
+      else if (type->map_type() != NULL)
+	type = type->map_type()->val_type();
+      else
+	{
+	  if (!type->is_error_type())
+	    error_at(this->location(),
+		     ("may only omit types within composite literals "
+		      "of slice, array, or map type"));
+	  return Expression::make_error(this->location());
+	}
+    }
+
   if (type->is_error_type())
     return Expression::make_error(this->location());
   else if (type->struct_type() != NULL)
-    return this->lower_struct();
+    return this->lower_struct(type);
   else if (type->array_type() != NULL)
-    return this->lower_array();
+    return this->lower_array(type);
   else if (type->map_type() != NULL)
-    return this->lower_map();
+    return this->lower_map(type);
   else
     {
       error_at(this->location(),
-	       "expected struct, array, or map type for composite literal");
+	       ("expected struct, slice, array, or map type "
+		"for composite literal"));
       return Expression::make_error(this->location());
     }
 }
@@ -11044,13 +11071,12 @@ Composite_literal_expression::do_lower(Gogo*, Named_object*, int)
 // Lower a struct composite literal.
 
 Expression*
-Composite_literal_expression::lower_struct()
+Composite_literal_expression::lower_struct(Type* type)
 {
   source_location location = this->location();
-  Struct_type* st = this->type_->struct_type();
+  Struct_type* st = type->struct_type();
   if (this->vals_ == NULL || !this->has_keys_)
-    return new Struct_construction_expression(this->type_, this->vals_,
-					      location);
+    return new Struct_construction_expression(type, this->vals_, location);
 
   size_t field_count = st->field_count();
   std::vector<Expression*> vals(field_count);
@@ -11153,8 +11179,8 @@ Composite_literal_expression::lower_struct()
 	{
 	  error_at(name_expr->location(), "unknown field %qs in %qs",
 		   Gogo::unpack_hidden_name(name).c_str(),
-		   (this->type_->named_type() != NULL
-		    ? this->type_->named_type()->message_name().c_str()
+		   (type->named_type() != NULL
+		    ? type->named_type()->message_name().c_str()
 		    : "unnamed struct"));
 	  return Expression::make_error(location);
 	}
@@ -11163,8 +11189,8 @@ Composite_literal_expression::lower_struct()
 	  error_at(name_expr->location(),
 		   "duplicate value for field %qs in %qs",
 		   Gogo::unpack_hidden_name(name).c_str(),
-		   (this->type_->named_type() != NULL
-		    ? this->type_->named_type()->message_name().c_str()
+		   (type->named_type() != NULL
+		    ? type->named_type()->message_name().c_str()
 		    : "unnamed struct"));
 	  return Expression::make_error(location);
 	}
@@ -11177,17 +11203,17 @@ Composite_literal_expression::lower_struct()
   for (size_t i = 0; i < field_count; ++i)
     list->push_back(vals[i]);
 
-  return new Struct_construction_expression(this->type_, list, location);
+  return new Struct_construction_expression(type, list, location);
 }
 
 // Lower an array composite literal.
 
 Expression*
-Composite_literal_expression::lower_array()
+Composite_literal_expression::lower_array(Type* type)
 {
   source_location location = this->location();
   if (this->vals_ == NULL || !this->has_keys_)
-    return this->make_array(this->vals_);
+    return this->make_array(type, this->vals_);
 
   std::vector<Expression*> vals;
   vals.reserve(this->vals_->size());
@@ -11261,17 +11287,17 @@ Composite_literal_expression::lower_array()
   for (size_t i = 0; i < size; ++i)
     list->push_back(vals[i]);
 
-  return this->make_array(list);
+  return this->make_array(type, list);
 }
 
 // Actually build the array composite literal. This handles
 // [...]{...}.
 
 Expression*
-Composite_literal_expression::make_array(Expression_list* vals)
+Composite_literal_expression::make_array(Type* type, Expression_list* vals)
 {
   source_location location = this->location();
-  Array_type* at = this->type_->array_type();
+  Array_type* at = type->array_type();
   if (at->length() != NULL && at->length()->is_nil_expression())
     {
       size_t size = vals == NULL ? 0 : vals->size();
@@ -11280,18 +11306,18 @@ Composite_literal_expression::make_array(Expression_list* vals)
       Expression* elen = Expression::make_integer(&vlen, NULL, location);
       mpz_clear(vlen);
       at = Type::make_array_type(at->element_type(), elen);
-      this->type_ = at;
+      type = at;
     }
   if (at->length() != NULL)
-    return new Fixed_array_construction_expression(this->type_, vals, location);
+    return new Fixed_array_construction_expression(type, vals, location);
   else
-    return new Open_array_construction_expression(this->type_, vals, location);
+    return new Open_array_construction_expression(type, vals, location);
 }
 
 // Lower a map composite literal.
 
 Expression*
-Composite_literal_expression::lower_map()
+Composite_literal_expression::lower_map(Type* type)
 {
   source_location location = this->location();
   if (this->vals_ != NULL)
@@ -11316,17 +11342,18 @@ Composite_literal_expression::lower_map()
 	}
     }
 
-  return new Map_construction_expression(this->type_, this->vals_, location);
+  return new Map_construction_expression(type, this->vals_, location);
 }
 
 // Make a composite literal expression.
 
 Expression*
-Expression::make_composite_literal(Type* type, bool has_keys,
+Expression::make_composite_literal(Type* type, int depth, bool has_keys,
 				   Expression_list* vals,
 				   source_location location)
 {
-  return new Composite_literal_expression(type, has_keys, vals, location);
+  return new Composite_literal_expression(type, depth, has_keys, vals,
+					  location);
 }
 
 // Return whether this expression is a composite literal.
