@@ -183,7 +183,8 @@ static int noncall_uses_reg (rtx, rtx, rtx *);
 static rtx gen_block_redirect (rtx, int, int);
 static void sh_reorg (void);
 static void sh_option_override (void);
-static void sh_option_optimization (int, int);
+static void sh_option_init_struct (struct gcc_options *);
+static void sh_option_default_params (void);
 static void output_stack_adjust (int, rtx, int, HARD_REG_SET *, bool);
 static rtx frame_insn (rtx);
 static rtx push (int);
@@ -321,6 +322,23 @@ static const struct attribute_spec sh_attribute_table[] =
 #endif
   { NULL,                0, 0, false, false, false, NULL }
 };
+
+/* Set default optimization options.  */
+static const struct default_options sh_option_optimization_table[] =
+  {
+    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
+    { OPT_LEVELS_1_PLUS_SPEED_ONLY, OPT_mdiv_, "inv:minlat", 1 },
+    { OPT_LEVELS_SIZE, OPT_mdiv_, SH_DIV_STR_FOR_SIZE, 1 },
+    { OPT_LEVELS_0_ONLY, OPT_mdiv_, "", 1 },
+    { OPT_LEVELS_SIZE, OPT_mcbranchdi, NULL, 0 },
+    /* We can't meaningfully test TARGET_SHMEDIA here, because -m
+       options haven't been parsed yet, hence we'd read only the
+       default.  sh_target_reg_class will return NO_REGS if this is
+       not SHMEDIA, so it's OK to always set
+       flag_branch_target_load_optimize.  */
+    { OPT_LEVELS_2_PLUS, OPT_fbranch_target_load_optimize, NULL, 1 },
+    { OPT_LEVELS_NONE, 0, NULL, 0 }
+  };
 
 /* Initialize the GCC target structure.  */
 #undef TARGET_ATTRIBUTE_TABLE
@@ -340,8 +358,12 @@ static const struct attribute_spec sh_attribute_table[] =
 
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE sh_option_override
-#undef TARGET_OPTION_OPTIMIZATION
-#define TARGET_OPTION_OPTIMIZATION sh_option_optimization
+#undef TARGET_OPTION_OPTIMIZATION_TABLE
+#define TARGET_OPTION_OPTIMIZATION_TABLE sh_option_optimization_table
+#undef TARGET_OPTION_INIT_STRUCT
+#define TARGET_OPTION_INIT_STRUCT sh_option_init_struct
+#undef TARGET_OPTION_DEFAULT_PARAMS
+#define TARGET_OPTION_DEFAULT_PARAMS sh_option_default_params
 
 #undef TARGET_PRINT_OPERAND
 #define TARGET_PRINT_OPERAND sh_print_operand
@@ -696,43 +718,22 @@ sh_handle_option (size_t code, const char *arg ATTRIBUTE_UNUSED,
     }
 }
 
-/* Set default optimization options.  */
+/* Implement TARGET_OPTION_INIT_STRUCT.  */
 static void
-sh_option_optimization (int level, int size)
+sh_option_init_struct (struct gcc_options *opts)
 {
-  if (level)
-    {
-      if (!size)
-	sh_div_str = "inv:minlat";
-    }
-  if (size)
-    {
-      target_flags |= MASK_SMALLCODE;
-      sh_div_str = SH_DIV_STR_FOR_SIZE ;
-    }
-  else
-    TARGET_CBRANCHDI4 = 1;
-  /* We can't meaningfully test TARGET_SHMEDIA here, because -m options
-     haven't been parsed yet, hence we'd read only the default.
-     sh_target_reg_class will return NO_REGS if this is not SHMEDIA, so
-     it's OK to always set flag_branch_target_load_optimize.  */
-  if (level > 1)
-    {
-      flag_branch_target_load_optimize = 1;
-      if (!size)
-	target_flags |= MASK_SAVE_ALL_TARGET_REGS;
-    }
-  /* Likewise, we can't meaningfully test TARGET_SH2E / TARGET_IEEE
+  /* We can't meaningfully test TARGET_SH2E / TARGET_IEEE
      here, so leave it to TARGET_OPTION_OVERRIDE to set
-    flag_finite_math_only.  We set it to 2 here so we know if the user
-    explicitly requested this to be on or off.  */
-  flag_finite_math_only = 2;
-  /* If flag_schedule_insns is 1, we set it to 2 here so we know if
-     the user explicitly requested this to be on or off.  */
-  if (flag_schedule_insns > 0)
-    flag_schedule_insns = 2;
+     flag_finite_math_only.  We set it to 2 here so we know if the user
+     explicitly requested this to be on or off.  */
+  opts->x_flag_finite_math_only = 2;
+}
 
-  set_param_value ("simultaneous-prefetches", 2);
+/* Implement TARGET_OPTION_DEFAULT_PARAMS.  */
+static void
+sh_option_default_params (void)
+{
+  set_default_param_value (PARAM_SIMULTANEOUS_PREFETCHES, 2);
 }
 
 /* Implement TARGET_OPTION_OVERRIDE macro.  Validate and override 
@@ -743,6 +744,8 @@ sh_option_override (void)
   int regno;
 
   SUBTARGET_OVERRIDE_OPTIONS;
+  if (optimize > 1 && !optimize_size)
+    target_flags |= MASK_SAVE_ALL_TARGET_REGS;
   if (flag_finite_math_only == 2)
     flag_finite_math_only
       = !flag_signaling_nans && TARGET_SH2E && ! TARGET_IEEE;
@@ -915,11 +918,12 @@ sh_option_override (void)
          <http://gcc.gnu.org/ml/gcc-patches/2005-10/msg00816.html>.  */
       else if (flag_exceptions)
 	{
-	  if (flag_schedule_insns == 1)
+	  if (flag_schedule_insns && global_options_set.x_flag_schedule_insns)
 	    warning (0, "ignoring -fschedule-insns because of exception handling bug");
 	  flag_schedule_insns = 0;
 	}
-      else if (flag_schedule_insns == 2)
+      else if (flag_schedule_insns
+	       && !global_options_set.x_flag_schedule_insns)
 	flag_schedule_insns = 0;
     }
 
@@ -977,7 +981,7 @@ sh_option_override (void)
      SH2 .. SH5 : align to cache line start.  */
   if (align_functions == 0)
     align_functions
-      = TARGET_SMALLCODE ? FUNCTION_BOUNDARY/8 : (1 << CACHE_LOG);
+      = optimize_size ? FUNCTION_BOUNDARY/8 : (1 << CACHE_LOG);
   /* The linker relaxation code breaks when a function contains
      alignments that are larger than that at the start of a
      compilation unit.  */
@@ -1541,7 +1545,7 @@ expand_block_move (rtx *operands)
 	  emit_insn (gen_block_move_real_i4 (func_addr_rtx));
 	  return 1;
 	}
-      else if (! TARGET_SMALLCODE)
+      else if (! optimize_size)
 	{
 	  const char *entry_name;
 	  rtx func_addr_rtx = gen_reg_rtx (Pmode);
@@ -1580,7 +1584,7 @@ expand_block_move (rtx *operands)
 
   /* This is the same number of bytes as a memcpy call, but to a different
      less common function name, so this will occasionally use more space.  */
-  if (! TARGET_SMALLCODE)
+  if (! optimize_size)
     {
       rtx func_addr_rtx = gen_reg_rtx (Pmode);
       int final_switch, while_loop;
@@ -2961,21 +2965,21 @@ multcosts (rtx x ATTRIBUTE_UNUSED)
        Using a multiply first and splitting it later if it's a loss
        doesn't work because of different sign / zero extension semantics
        of multiplies vs. shifts.  */
-    return TARGET_SMALLCODE ? 2 : 3;
+    return optimize_size ? 2 : 3;
 
   if (TARGET_SH2)
     {
       /* We have a mul insn, so we can never take more than the mul and the
 	 read of the mac reg, but count more because of the latency and extra
 	 reg usage.  */
-      if (TARGET_SMALLCODE)
+      if (optimize_size)
 	return 2;
       return 3;
     }
 
   /* If we're aiming at small code, then just count the number of
      insns in a multiply call sequence.  */
-  if (TARGET_SMALLCODE)
+  if (optimize_size)
     return 5;
 
   /* Otherwise count all the insns in the routine we'd be calling too.  */
@@ -4646,7 +4650,7 @@ find_barrier (int num_mova, rtx mova, rtx from)
       /* For the SH1, we generate alignments even after jumps-around-jumps.  */
       else if (JUMP_P (from)
 	       && ! TARGET_SH2
-	       && ! TARGET_SMALLCODE)
+	       && ! optimize_size)
 	new_align = 4;
 
       /* There is a possibility that a bf is transformed into a bf/s by the
@@ -5244,13 +5248,13 @@ barrier_align (rtx barrier_or_label)
       pat = PATTERN (prev);
       /* If this is a very small table, we want to keep the alignment after
 	 the table to the minimum for proper code alignment.  */
-      return ((TARGET_SMALLCODE
+      return ((optimize_size
 	       || ((unsigned) XVECLEN (pat, 1) * GET_MODE_SIZE (GET_MODE (pat))
 		   <= (unsigned) 1 << (CACHE_LOG - 2)))
 	      ? 1 << TARGET_SHMEDIA : align_jumps_log);
     }
 
-  if (TARGET_SMALLCODE)
+  if (optimize_size)
     return 0;
 
   if (! TARGET_SH2 || ! optimize)
@@ -7793,7 +7797,7 @@ sh_build_builtin_va_list (void)
   DECL_FIELD_CONTEXT (f_next_fp_limit) = record;
   DECL_FIELD_CONTEXT (f_next_stack) = record;
 
-  TREE_CHAIN (record) = type_decl;
+  TYPE_STUB_DECL (record) = type_decl;
   TYPE_NAME (record) = type_decl;
   TYPE_FIELDS (record) = f_next_o;
   DECL_CHAIN (f_next_o) = f_next_o_limit;

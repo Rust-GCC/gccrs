@@ -588,10 +588,12 @@ rtl_merge_blocks (basic_block a, basic_block b)
   rtx b_head = BB_HEAD (b), b_end = BB_END (b), a_end = BB_END (a);
   rtx del_first = NULL_RTX, del_last = NULL_RTX;
   rtx b_debug_start = b_end, b_debug_end = b_end;
+  bool forwarder_p = (b->flags & BB_FORWARDER_BLOCK) != 0;
   int b_empty = 0;
 
   if (dump_file)
-    fprintf (dump_file, "merging block %d into block %d\n", b->index, a->index);
+    fprintf (dump_file, "Merging block %d into block %d...\n", b->index,
+	     a->index);
 
   while (DEBUG_INSN_P (b_end))
     b_end = PREV_INSN (b_debug_start = b_end);
@@ -680,6 +682,13 @@ rtl_merge_blocks (basic_block a, basic_block b)
 
   df_bb_delete (b->index);
   BB_END (a) = a_end;
+
+  /* If B was a forwarder block, propagate the locus on the edge.  */
+  if (forwarder_p && !EDGE_SUCC (b, 0)->goto_locus)
+    EDGE_SUCC (b, 0)->goto_locus = EDGE_SUCC (a, 0)->goto_locus;
+
+  if (dump_file)
+    fprintf (dump_file, "Merged blocks %d and %d.\n", a->index, b->index);
 }
 
 
@@ -1370,12 +1379,7 @@ rtl_split_edge (edge edge_in)
      Avoid existence of fallthru predecessors.  */
   if ((edge_in->flags & EDGE_FALLTHRU) == 0)
     {
-      edge e;
-      edge_iterator ei;
-
-      FOR_EACH_EDGE (e, ei, edge_in->dest->preds)
-	if (e->flags & EDGE_FALLTHRU)
-	  break;
+      edge e = find_fallthru_edge (edge_in->dest->preds);
 
       if (e)
 	force_nonfallthru (e);
@@ -2068,7 +2072,6 @@ rtl_verify_flow_info (void)
   FOR_EACH_BB_REVERSE (bb)
     {
       edge e;
-      edge_iterator ei;
       rtx head = BB_HEAD (bb);
       rtx end = BB_END (bb);
 
@@ -2122,9 +2125,7 @@ rtl_verify_flow_info (void)
 
       last_head = PREV_INSN (x);
 
-      FOR_EACH_EDGE (e, ei, bb->succs)
-	if (e->flags & EDGE_FALLTHRU)
-	  break;
+      e = find_fallthru_edge (bb->succs);
       if (!e)
 	{
 	  rtx insn;
@@ -2700,12 +2701,13 @@ cfg_layout_can_merge_blocks_p (basic_block a, basic_block b)
 static void
 cfg_layout_merge_blocks (basic_block a, basic_block b)
 {
-#ifdef ENABLE_CHECKING
-  gcc_assert (cfg_layout_can_merge_blocks_p (a, b));
-#endif
+  bool forwarder_p = (b->flags & BB_FORWARDER_BLOCK) != 0;
+
+  gcc_checking_assert (cfg_layout_can_merge_blocks_p (a, b));
 
   if (dump_file)
-    fprintf (dump_file, "merging block %d into block %d\n", b->index, a->index);
+    fprintf (dump_file, "Merging block %d into block %d...\n", b->index,
+			 a->index);
 
   /* If there was a CODE_LABEL beginning B, delete it.  */
   if (LABEL_P (BB_HEAD (b)))
@@ -2813,9 +2815,12 @@ cfg_layout_merge_blocks (basic_block a, basic_block b)
       b->il.rtl->footer = NULL;
     }
 
+  /* If B was a forwarder block, propagate the locus on the edge.  */
+  if (forwarder_p && !EDGE_SUCC (b, 0)->goto_locus)
+    EDGE_SUCC (b, 0)->goto_locus = EDGE_SUCC (a, 0)->goto_locus;
+
   if (dump_file)
-    fprintf (dump_file, "Merged blocks %d and %d.\n",
-	     a->index, b->index);
+    fprintf (dump_file, "Merged blocks %d and %d.\n", a->index, b->index);
 }
 
 /* Split edge E.  */

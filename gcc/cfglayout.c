@@ -828,10 +828,8 @@ fixup_reorder_chain (void)
 				       : label_for_bb (e_fall->dest)), 0))
 		    {
 		      e_fall->flags &= ~EDGE_FALLTHRU;
-#ifdef ENABLE_CHECKING
-		      gcc_assert (could_fall_through
-				  (e_taken->src, e_taken->dest));
-#endif
+		      gcc_checking_assert (could_fall_through
+					   (e_taken->src, e_taken->dest));
 		      e_taken->flags |= EDGE_FALLTHRU;
 		      update_br_prob_note (bb);
 		      e = e_fall, e_fall = e_taken, e_taken = e;
@@ -852,10 +850,8 @@ fixup_reorder_chain (void)
 				     : label_for_bb (e_fall->dest)), 0))
 		{
 		  e_fall->flags &= ~EDGE_FALLTHRU;
-#ifdef ENABLE_CHECKING
-		  gcc_assert (could_fall_through
-			      (e_taken->src, e_taken->dest));
-#endif
+		  gcc_checking_assert (could_fall_through
+				       (e_taken->src, e_taken->dest));
 		  e_taken->flags |= EDGE_FALLTHRU;
 		  update_br_prob_note (bb);
 		  continue;
@@ -927,12 +923,7 @@ fixup_reorder_chain (void)
   /* Annoying special case - jump around dead jumptables left in the code.  */
   FOR_EACH_BB (bb)
     {
-      edge e;
-      edge_iterator ei;
-
-      FOR_EACH_EDGE (e, ei, bb->succs)
-	if (e->flags & EDGE_FALLTHRU)
-	  break;
+      edge e = find_fallthru_edge (bb->succs);
 
       if (e && !can_fallthru (e->src, e->dest))
 	force_nonfallthru (e);
@@ -1019,7 +1010,6 @@ static void
 fixup_fallthru_exit_predecessor (void)
 {
   edge e;
-  edge_iterator ei;
   basic_block bb = NULL;
 
   /* This transformation is not valid before reload, because we might
@@ -1027,9 +1017,9 @@ fixup_fallthru_exit_predecessor (void)
      value.  */
   gcc_assert (reload_completed);
 
-  FOR_EACH_EDGE (e, ei, EXIT_BLOCK_PTR->preds)
-    if (e->flags & EDGE_FALLTHRU)
-      bb = e->src;
+  e = find_fallthru_edge (EXIT_BLOCK_PTR->preds);
+  if (e)
+    bb = e->src;
 
   if (bb && bb->aux)
     {

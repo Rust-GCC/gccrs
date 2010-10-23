@@ -43,6 +43,7 @@ with Ada.Unchecked_Deallocation;
 with Interfaces.C;
 with Interfaces.C.Strings;
 
+with System.Multiprocessors;
 with System.Tasking.Debug;
 with System.OS_Primitives;
 with System.Task_Info;
@@ -794,6 +795,9 @@ package body System.Task_Primitives.Operations is
       pragma Import (C, Init_Float, "__gnat_init_float");
       --  Properly initializes the FPU for x86 systems
 
+      procedure Get_Stack_Bounds (Base : Address; Limit : Address);
+      pragma Import (C, Get_Stack_Bounds, "__gnat_get_stack_bounds");
+      --  Get stack boundaries
    begin
       Specific.Set (Self_ID);
       Init_Float;
@@ -806,6 +810,10 @@ package body System.Task_Primitives.Operations is
       end if;
 
       Self_ID.Common.LL.Thread_Id := GetCurrentThreadId;
+
+      Get_Stack_Bounds
+        (Self_ID.Common.Compiler_Data.Pri_Stack_Info.Base'Address,
+         Self_ID.Common.Compiler_Data.Pri_Stack_Info.Limit'Address);
    end Enter_Task;
 
    --------------
@@ -883,6 +891,8 @@ package body System.Task_Primitives.Operations is
       Result         : DWORD;
       Entry_Point    : PTHREAD_START_ROUTINE;
 
+      use type System.Multiprocessors.CPU_Range;
+
    begin
       pTaskParameter := To_Address (T);
 
@@ -942,9 +952,18 @@ package body System.Task_Primitives.Operations is
          SetThreadPriorityBoost (hTask, DisablePriorityBoost => Win32.TRUE);
       end if;
 
-      --  Step 4: Handle Task_Info
+      --  Step 4: Handle pragma CPU and Task_Info
 
-      if T.Common.Task_Info /= null then
+      if T.Common.Base_CPU /= System.Multiprocessors.Not_A_Specific_CPU then
+
+         --  The CPU numbering in pragma CPU starts at 1 while the subprogram
+         --  to set the affinity starts at 0, therefore we must substract 1.
+
+         Result := SetThreadIdealProcessor
+           (hTask, ProcessorId (T.Common.Base_CPU) - 1);
+         pragma Assert (Result = 1);
+
+      elsif T.Common.Task_Info /= null then
          if T.Common.Task_Info.CPU /= Task_Info.Any_CPU then
             Result := SetThreadIdealProcessor (hTask, T.Common.Task_Info.CPU);
             pragma Assert (Result = 1);
@@ -1055,6 +1074,10 @@ package body System.Task_Primitives.Operations is
       Discard : BOOL;
       pragma Unreferenced (Discard);
 
+      Result : DWORD;
+
+      use type System.Multiprocessors.CPU_Range;
+
    begin
       Environment_Task_Id := Environment_Task;
       OS_Primitives.Initialize;
@@ -1085,6 +1108,21 @@ package body System.Task_Primitives.Operations is
       Environment_Task.Known_Tasks_Index := Known_Tasks'First;
 
       Enter_Task (Environment_Task);
+
+      --  pragma CPU for the environment task
+
+      if Environment_Task.Common.Base_CPU /=
+         System.Multiprocessors.Not_A_Specific_CPU
+      then
+         --  The CPU numbering in pragma CPU starts at 1 while the subprogram
+         --  to set the affinity starts at 0, therefore we must substract 1.
+
+         Result :=
+           SetThreadIdealProcessor
+             (Environment_Task.Common.LL.Thread,
+              ProcessorId (Environment_Task.Common.Base_CPU) - 1);
+         pragma Assert (Result = 1);
+      end if;
    end Initialize;
 
    ---------------------

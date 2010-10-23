@@ -706,6 +706,13 @@ package Prj is
       --  file). Index is 0 if there is either no unit or a single one, and
       --  starts at 1 when there are multiple units
 
+      Compilable : Yes_No_Unknown := Unknown;
+      --  Updated at the first call to Is_Compilable. Yes if source file is
+      --  compilable.
+
+      In_The_Queue : Boolean := False;
+      --  True if the source has been put in the queue
+
       Locally_Removed : Boolean := False;
       --  True if the source has been "excluded"
 
@@ -765,8 +772,15 @@ package Prj is
       Naming_Exception : Boolean := False;
       --  True if the source has an exceptional name
 
+      Duplicate_Unit : Boolean := False;
+      --  True when a duplicate unit has been reported for this source
+
       Next_In_Lang : Source_Id := No_Source;
       --  Link to another source of the same language in the same project
+
+      Next_With_File_Name : Source_Id := No_Source;
+      --  Link to another source with the same base file name
+
    end record;
 
    No_Source_Data : constant Source_Data :=
@@ -781,6 +795,8 @@ package Prj is
                        Unit                   => No_Unit_Index,
                        Index                  => 0,
                        Locally_Removed        => False,
+                       Compilable             => Unknown,
+                       In_The_Queue           => False,
                        Replaced_By            => No_Source,
                        File                   => No_File,
                        Display_File           => No_File,
@@ -799,7 +815,18 @@ package Prj is
                        Switches_Path          => No_Path,
                        Switches_TS            => Empty_Time_Stamp,
                        Naming_Exception       => False,
-                       Next_In_Lang           => No_Source);
+                       Duplicate_Unit         => False,
+                       Next_In_Lang           => No_Source,
+                       Next_With_File_Name    => No_Source);
+
+   package Source_Files_Htable is new Simple_HTable
+     (Header_Num => Header_Num,
+      Element    => Source_Id,
+      No_Element => No_Source,
+      Key        => File_Name_Type,
+      Hash       => Hash,
+      Equal      => "=");
+   --  Mapping of source file names to source ids
 
    package Source_Paths_Htable is new Simple_HTable
      (Header_Num => Header_Num,
@@ -1333,6 +1360,14 @@ package Prj is
    -- Project_Tree_Data --
    -----------------------
 
+   package Replaced_Source_HTable is new Simple_HTable
+     (Header_Num => Header_Num,
+      Element    => File_Name_Type,
+      No_Element => No_File,
+      Key        => File_Name_Type,
+      Hash       => Hash,
+      Equal      => "=");
+
    type Private_Project_Tree_Data is private;
    --  Data for a project tree that is used only by the Project Manager
 
@@ -1347,8 +1382,18 @@ package Prj is
          Packages          : Package_Table.Instance;
          Projects          : Project_List;
 
+         Replaced_Sources : Replaced_Source_HTable.Instance;
+         --  The list of sources that have been replaced by sources with
+         --  different file names.
+
+         Replaced_Source_Number : Natural := 0;
+         --  The number of entries in Replaced_Sources
+
          Units_HT : Units_Htable.Instance;
-         --  Unit name to Unit_Index (and from there so Source_Id)
+         --  Unit name to Unit_Index (and from there to Source_Id)
+
+         Source_Files_HT : Source_Files_Htable.Instance;
+         --  Base source file names to Source_Id list.
 
          Source_Paths_HT : Source_Paths_Htable.Instance;
          --  Full path to Source_Id
@@ -1396,13 +1441,17 @@ package Prj is
       Imported_First : Boolean := False);
    --  Call Action for each project imported directly or indirectly by project
    --  By, as well as extended projects.
+   --
    --  The order of processing depends on Imported_First:
-   --  If False, Action is called according to the order of importation: if A
-   --  imports B, directly or indirectly, Action will be called for A before
-   --  it is called for B. If two projects import each other directly or
-   --  indirectly (using at least one "limited with"), it is not specified
-   --  for which of these two projects Action will be called first.
-   --  The order is reversed if Imported_First is True.
+   --
+   --    If False, Action is called according to the order of importation: if A
+   --    imports B, directly or indirectly, Action will be called for A before
+   --    it is called for B. If two projects import each other directly or
+   --    indirectly (using at least one "limited with"), it is not specified
+   --    for which of these two projects Action will be called first.
+   --
+   --    The order is reversed if Imported_First is True
+   --
    --  With_State may be used by Action to choose a behavior or to report some
    --  global result.
 

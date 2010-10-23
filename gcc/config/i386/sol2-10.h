@@ -81,13 +81,8 @@ along with GCC; see the file COPYING3.  If not see
 #undef WINT_TYPE_SIZE
 #define WINT_TYPE_SIZE 32
 
-#define SUBTARGET_OVERRIDE_OPTIONS				\
-  do								\
-    {								\
-      if (flag_omit_frame_pointer == 2)				\
-	flag_omit_frame_pointer = 0;				\
-    }								\
-  while (0)
+#define USE_IX86_FRAME_POINTER 1
+#define USE_X86_64_FRAME_POINTER 1
 
 /* Override i386/sol2.h version: return 8-byte vectors in MMX registers if
    possible, matching Sun Studio 12 Update 1+ compilers and other x86
@@ -96,13 +91,8 @@ along with GCC; see the file COPYING3.  If not see
 #define TARGET_SUBTARGET_DEFAULT \
 	(MASK_80387 | MASK_IEEE_FP | MASK_FLOAT_RETURNS)
 
-#define SUBTARGET_OPTIMIZATION_OPTIONS			\
-  do							\
-    {							\
-      if (optimize >= 1)				\
-	target_flags |= MASK_OMIT_LEAF_FRAME_POINTER;	\
-    }							\
-  while (0)
+#define SUBTARGET_OPTIMIZATION_OPTIONS				\
+  { OPT_LEVELS_1_PLUS, OPT_momit_leaf_frame_pointer, NULL, 1 }
 
 #define MULTILIB_DEFAULTS { "m32" }
 

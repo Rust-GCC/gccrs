@@ -1660,7 +1660,11 @@ set_mem_attributes_minus_bitpos (rtx ref, tree t, int objectp,
 	  else
 	    MEM_NOTRAP_P (ref) = 1;
 	}
-      else
+      else if (TREE_CODE (base) == INDIRECT_REF
+	       || TREE_CODE (base) == MEM_REF
+	       || TREE_CODE (base) == TARGET_MEM_REF
+	       || TREE_CODE (base) == ARRAY_REF
+	       || TREE_CODE (base) == ARRAY_RANGE_REF)
 	MEM_NOTRAP_P (ref) = TREE_THIS_NOTRAP (base);
 
       base = get_base_address (base);
@@ -1835,10 +1839,8 @@ set_mem_attributes (rtx ref, tree t, int objectp)
 void
 set_mem_alias_set (rtx mem, alias_set_type set)
 {
-#ifdef ENABLE_CHECKING
   /* If the new and old alias sets don't conflict, something is wrong.  */
-  gcc_assert (alias_sets_conflict_p (set, MEM_ALIAS_SET (mem)));
-#endif
+  gcc_checking_assert (alias_sets_conflict_p (set, MEM_ALIAS_SET (mem)));
 
   MEM_ATTRS (mem) = get_mem_attrs (set, MEM_EXPR (mem), MEM_OFFSET (mem),
 				   MEM_SIZE (mem), MEM_ALIGN (mem),
@@ -2236,7 +2238,6 @@ get_spill_slot_decl (bool force_build_p)
   DECL_ARTIFICIAL (d) = 1;
   DECL_IGNORED_P (d) = 1;
   TREE_USED (d) = 1;
-  TREE_THIS_NOTRAP (d) = 1;
   spill_slot_decl = d;
 
   rd = gen_rtx_MEM (BLKmode, frame_pointer_rtx);

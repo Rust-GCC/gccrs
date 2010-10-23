@@ -237,10 +237,10 @@ package body Sem is
             Analyze_Formal_Object_Declaration (N);
 
          when N_Formal_Package_Declaration =>
-            Analyze_Formal_Package (N);
+            Analyze_Formal_Package_Declaration (N);
 
          when N_Formal_Subprogram_Declaration =>
-            Analyze_Formal_Subprogram (N);
+            Analyze_Formal_Subprogram_Declaration (N);
 
          when N_Formal_Type_Declaration =>
             Analyze_Formal_Type_Declaration (N);
@@ -252,7 +252,7 @@ package body Sem is
             Analyze_Freeze_Entity (N);
 
          when N_Full_Type_Declaration =>
-            Analyze_Type_Declaration (N);
+            Analyze_Full_Type_Declaration (N);
 
          when N_Function_Call =>
             Analyze_Function_Call (N);
@@ -301,6 +301,9 @@ package body Sem is
 
          when N_Integer_Literal =>
             Analyze_Integer_Literal (N);
+
+         when N_Iterator_Specification =>
+            Analyze_Iterator_Specification (N);
 
          when N_Itype_Reference =>
             Analyze_Itype_Reference (N);
@@ -437,6 +440,9 @@ package body Sem is
          when N_Parameter_Association =>
             Analyze_Parameter_Association (N);
 
+         when N_Parameterized_Expression =>
+            Analyze_Parameterized_Expression (N);
+
          when N_Pragma =>
             Analyze_Pragma (N);
 
@@ -462,10 +468,13 @@ package body Sem is
             Analyze_Protected_Definition (N);
 
          when N_Protected_Type_Declaration =>
-            Analyze_Protected_Type (N);
+            Analyze_Protected_Type_Declaration (N);
 
          when N_Qualified_Expression =>
             Analyze_Qualified_Expression (N);
+
+         when N_Quantified_Expression =>
+            Analyze_Quantified_Expression (N);
 
          when N_Raise_Statement =>
             Analyze_Raise_Statement (N);
@@ -502,10 +511,10 @@ package body Sem is
             Analyze_Selective_Accept (N);
 
          when N_Single_Protected_Declaration =>
-            Analyze_Single_Protected (N);
+            Analyze_Single_Protected_Declaration (N);
 
          when N_Single_Task_Declaration =>
-            Analyze_Single_Task (N);
+            Analyze_Single_Task_Declaration (N);
 
          when N_Slice =>
             Analyze_Slice (N);
@@ -547,7 +556,7 @@ package body Sem is
             Analyze_Task_Definition (N);
 
          when N_Task_Type_Declaration =>
-            Analyze_Task_Type (N);
+            Analyze_Task_Type_Declaration (N);
 
          when N_Terminate_Alternative =>
             Analyze_Terminate_Alternative (N);
@@ -633,6 +642,7 @@ package body Sem is
            N_Access_Function_Definition             |
            N_Access_Procedure_Definition            |
            N_Access_To_Object_Definition            |
+           N_Aspect_Specification                   |
            N_Case_Expression_Alternative            |
            N_Case_Statement_Alternative             |
            N_Compilation_Unit_Aux                   |

@@ -1,3 +1,26 @@
+2010-10-13  Richard Henderson  <rth@redhat.com>
+
+	* lang.c (java_eh_personality): Update call to
+	build_personality_function.
+
+2010-10-12  Joseph Myers  <joseph@codesourcery.com>
+
+	* Make-lang.in (java/lang.o): Use $(OPTIONS_H) instead of
+	options.h.
+
+2010-10-11  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* decl.c (java_init_decl_processing): Use build_function_type_list
+	instead of build_function_type.
+	* jcf-parse.c (java_emit_static_constructor): Likewise.
+	* builtins.c (initialize_builtins): Likewise.
+
+2010-10-08  Joseph Myers  <joseph@codesourcery.com>
+
+	* lang.c (java_init_options_struct): New.  Split out from
+	java_init_options.
+	(LANG_HOOKS_INIT_OPTIONS_STRUCT): Define.
+
 2010-10-04  Andi Kleen <ak@linux.intel.com>
 
 	* Make-lang.in (xgcj, jc1, jcf-dump, jvgenmain):

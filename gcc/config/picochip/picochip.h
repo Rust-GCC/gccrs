@@ -84,8 +84,6 @@ extern enum picochip_dfa_type picochip_schedule_type;
 #define TARGET_HAS_MAC_UNIT (picochip_has_mac_unit)
 #define TARGET_HAS_MULTIPLY (picochip_has_mac_unit || picochip_has_mul_unit)
 
-#define CAN_DEBUG_WITHOUT_FP 1
-
 #define TARGET_VERSION fprintf(stderr, "(picoChip)");
 
 /* Storage Layout */
@@ -355,8 +353,6 @@ extern const enum reg_class picochip_regno_reg_class[FIRST_PSEUDO_REGISTER];
 
 #define REGNO_OK_FOR_INDEX_P(REGNO) 0
 
-#define PREFERRED_RELOAD_CLASS(X, CLASS) CLASS
-
 #define CLASS_MAX_NREGS(CLASS, MODE) picochip_class_max_nregs(CLASS, MODE)
 
 
@@ -405,21 +401,8 @@ extern const enum reg_class picochip_regno_reg_class[FIRST_PSEUDO_REGISTER];
 /* Store the offset of the next argument. */
 #define CUMULATIVE_ARGS unsigned
 
-/* Decide how function arguments are handled. */
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-  picochip_function_arg (CUM, MODE, TYPE, NAMED)
-
-/* Incoming arguments are always the same as normal arguments, except
-   for a function which uses variadic arguments, in which case all
-   arguments are effectively passed on the stack. */
-#define FUNCTION_INCOMING_ARG(CUM, MODE, TYPE, NAMED) \
-  picochip_incoming_function_arg(CUM, MODE, TYPE, NAMED)
-
 #define INIT_CUMULATIVE_ARGS(CUM,FNTYPE,LIBNAME,INDIRECT,N_NAMED_ARGS) \
   ((CUM) = 0)
-
-#define FUNCTION_ARG_ADVANCE(CUM,MODE,TYPE,NAMED) \
-  (CUM) = picochip_arg_advance (CUM, MODE, TYPE, NAMED)
 
 /* Originally this used TYPE_ALIGN to determine the
    alignment.  Unfortunately, this fails in some cases, because the

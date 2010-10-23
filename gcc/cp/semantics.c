@@ -537,6 +537,7 @@ finish_goto_stmt (tree destination)
     TREE_USED (destination) = 1;
   else
     {
+      destination = mark_rvalue_use (destination);
       if (!processing_template_decl)
 	{
 	  destination = cp_convert (ptr_type_node, destination);
@@ -2391,6 +2392,7 @@ begin_class_definition (tree t, tree attributes)
   TYPE_BEING_DEFINED (t) = 1;
 
   cplus_decl_attributes (&t, attributes, (int) ATTR_FLAG_TYPE_IN_PLACE);
+  fixup_attribute_variants (t);
 
   if (flag_pack_struct)
     {

@@ -159,19 +159,11 @@ crtbegin.o%s"
 #define COPROC_SELECTION_TABLE \
 {"default", ISA_EXT1}
 /* end-coproc-selection-table */
-
-#define CAN_DEBUG_WITHOUT_FP
 
 
 #define BITS_BIG_ENDIAN 0
 #define BYTES_BIG_ENDIAN (TARGET_LITTLE_ENDIAN ? 0 : 1)
 #define WORDS_BIG_ENDIAN (TARGET_LITTLE_ENDIAN ? 0 : 1)
-
-#ifdef __LITTLE_ENDIAN__
-#define LIBGCC2_WORDS_BIG_ENDIAN 0
-#else
-#define LIBGCC2_WORDS_BIG_ENDIAN 1
-#endif
 
 #define UNITS_PER_WORD 4
 
@@ -499,14 +491,6 @@ extern unsigned int mep_selected_isa;
 
 
 
-/* The ABI is thus: Arguments are in $1, $2, $3, $4, stack.  Arguments
-   larger than 4 bytes are passed indirectly.  Return value in 0,
-   unless bigger than 4 bytes, then the caller passes a pointer as the
-   first arg.  For varargs, we copy $1..$4 to the stack.  */
-
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-	mep_function_arg (CUM, MODE, TYPE, NAMED)
-
 #define FUNCTION_ARG_CALLEE_COPIES(CUM, MODE, TYPE, NAMED) 1
 
 typedef struct
@@ -517,9 +501,6 @@ typedef struct
 
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, FNDECL, N_NAMED_ARGS) \
 	mep_init_cumulative_args (& (CUM), FNTYPE, LIBNAME, FNDECL)
-
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)		\
-	mep_arg_advance (& (CUM), MODE, TYPE, NAMED)
 
 #define FUNCTION_ARG_REGNO_P(REGNO) \
 	(((REGNO) >= 1 && (REGNO) <= 4) \

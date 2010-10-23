@@ -3,21 +3,21 @@
    2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Jeff Law (law@cygnus.com).
 
-This file is part of GCC.
+   This file is part of GCC.
 
-GCC is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 3, or (at your option)
-any later version.
+   GCC is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-GCC is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   GCC is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING3.  If not see
-<http://www.gnu.org/licenses/>.  */
+   You should have received a copy of the GNU General Public License
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
@@ -43,6 +43,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm_p.h"
 #include "target.h"
 #include "target-def.h"
+#include "df.h"
 
 /* This is used by GOTaddr2picreg to uniquely identify
    UNSPEC_INT_LABELs.  */
@@ -60,106 +61,23 @@ enum processor_type mn10300_processor = PROCESSOR_DEFAULT;
 /* The size of the callee register save area.  Right now we save everything
    on entry since it costs us nothing in code size.  It does cost us from a
    speed standpoint, so we want to optimize this sooner or later.  */
-#define REG_SAVE_BYTES (4 * df_regs_ever_live_p (2)	\
-			+ 4 * df_regs_ever_live_p (3)	\
-		        + 4 * df_regs_ever_live_p (6)	\
-			+ 4 * df_regs_ever_live_p (7)			\
-			+ 16 * (df_regs_ever_live_p (14) || df_regs_ever_live_p (15) \
-				|| df_regs_ever_live_p (16) || df_regs_ever_live_p (17)))
+#define REG_SAVE_BYTES (4 * df_regs_ever_live_p (2)		\
+			+ 4 * df_regs_ever_live_p (3)		\
+		        + 4 * df_regs_ever_live_p (6)		\
+			+ 4 * df_regs_ever_live_p (7)		\
+			+ 16 * (df_regs_ever_live_p (14)	\
+				|| df_regs_ever_live_p (15)	\
+				|| df_regs_ever_live_p (16)	\
+				|| df_regs_ever_live_p (17)))
 
-
-static bool mn10300_handle_option (size_t, const char *, int);
-static void mn10300_option_override (void);
-static bool mn10300_legitimate_address_p (enum machine_mode, rtx, bool);
-static int mn10300_address_cost_1 (rtx, int *);
 static int mn10300_address_cost (rtx, bool);
-static bool mn10300_rtx_costs (rtx, int, int, int *, bool);
-static void mn10300_file_start (void);
-static bool mn10300_return_in_memory (const_tree, const_tree);
-static rtx mn10300_builtin_saveregs (void);
-static void mn10300_va_start (tree, rtx);
-static rtx mn10300_legitimize_address (rtx, rtx, enum machine_mode);
-static bool mn10300_pass_by_reference (CUMULATIVE_ARGS *, enum machine_mode,
-				       const_tree, bool);
-static int mn10300_arg_partial_bytes (CUMULATIVE_ARGS *, enum machine_mode,
-				      tree, bool);
-static unsigned int mn10300_case_values_threshold (void);
-static void mn10300_encode_section_info (tree, rtx, int);
-static void mn10300_asm_trampoline_template (FILE *);
-static void mn10300_trampoline_init (rtx, tree, rtx);
-static rtx mn10300_function_value (const_tree, const_tree, bool);
-static rtx mn10300_libcall_value (enum machine_mode, const_rtx);
-static void mn10300_asm_output_mi_thunk (FILE *, tree, HOST_WIDE_INT, HOST_WIDE_INT, tree);
-static bool mn10300_can_output_mi_thunk (const_tree, HOST_WIDE_INT, HOST_WIDE_INT, const_tree);
-
-/* Initialize the GCC target structure.  */
-#undef  TARGET_EXCEPT_UNWIND_INFO
-#define TARGET_EXCEPT_UNWIND_INFO sjlj_except_unwind_info
 
-#undef TARGET_ASM_ALIGNED_HI_OP
-#define TARGET_ASM_ALIGNED_HI_OP "\t.hword\t"
-
-#undef TARGET_LEGITIMIZE_ADDRESS
-#define TARGET_LEGITIMIZE_ADDRESS mn10300_legitimize_address
-
-#undef TARGET_RTX_COSTS
-#define TARGET_RTX_COSTS mn10300_rtx_costs
-#undef TARGET_ADDRESS_COST
-#define TARGET_ADDRESS_COST mn10300_address_cost
-
-#undef TARGET_ASM_FILE_START
-#define TARGET_ASM_FILE_START mn10300_file_start
-#undef TARGET_ASM_FILE_START_FILE_DIRECTIVE
-#define TARGET_ASM_FILE_START_FILE_DIRECTIVE true
-
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS MASK_MULT_BUG | MASK_PTR_A0D0
-#undef TARGET_HANDLE_OPTION
-#define TARGET_HANDLE_OPTION mn10300_handle_option
-#undef TARGET_OPTION_OVERRIDE
-#define TARGET_OPTION_OVERRIDE mn10300_option_override
-
-#undef  TARGET_ENCODE_SECTION_INFO
-#define TARGET_ENCODE_SECTION_INFO mn10300_encode_section_info
-
-#undef TARGET_PROMOTE_PROTOTYPES
-#define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
-#undef TARGET_RETURN_IN_MEMORY
-#define TARGET_RETURN_IN_MEMORY mn10300_return_in_memory
-#undef TARGET_PASS_BY_REFERENCE
-#define TARGET_PASS_BY_REFERENCE mn10300_pass_by_reference
-#undef TARGET_CALLEE_COPIES
-#define TARGET_CALLEE_COPIES hook_bool_CUMULATIVE_ARGS_mode_tree_bool_true
-#undef TARGET_ARG_PARTIAL_BYTES
-#define TARGET_ARG_PARTIAL_BYTES mn10300_arg_partial_bytes
-
-#undef TARGET_EXPAND_BUILTIN_SAVEREGS
-#define TARGET_EXPAND_BUILTIN_SAVEREGS mn10300_builtin_saveregs
-#undef TARGET_EXPAND_BUILTIN_VA_START
-#define TARGET_EXPAND_BUILTIN_VA_START mn10300_va_start
-
-#undef TARGET_CASE_VALUES_THRESHOLD
-#define TARGET_CASE_VALUES_THRESHOLD mn10300_case_values_threshold
-
-#undef TARGET_LEGITIMATE_ADDRESS_P
-#define TARGET_LEGITIMATE_ADDRESS_P	mn10300_legitimate_address_p
-
-#undef TARGET_ASM_TRAMPOLINE_TEMPLATE
-#define TARGET_ASM_TRAMPOLINE_TEMPLATE mn10300_asm_trampoline_template
-#undef TARGET_TRAMPOLINE_INIT
-#define TARGET_TRAMPOLINE_INIT mn10300_trampoline_init
-
-#undef TARGET_FUNCTION_VALUE
-#define TARGET_FUNCTION_VALUE mn10300_function_value
-#undef TARGET_LIBCALL_VALUE
-#define TARGET_LIBCALL_VALUE mn10300_libcall_value
-
-#undef  TARGET_ASM_OUTPUT_MI_THUNK
-#define TARGET_ASM_OUTPUT_MI_THUNK      mn10300_asm_output_mi_thunk
-#undef  TARGET_ASM_CAN_OUTPUT_MI_THUNK
-#define TARGET_ASM_CAN_OUTPUT_MI_THUNK  mn10300_can_output_mi_thunk
-
-struct gcc_target targetm = TARGET_INITIALIZER;
+/* Implement TARGET_OPTION_OPTIMIZATION_TABLE.  */
+static const struct default_options mn10300_option_optimization_table[] =
+  {
+    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
+    { OPT_LEVELS_NONE, 0, NULL, 0 }
+  };
 
 /* Implement TARGET_HANDLE_OPTION.  */
 
@@ -190,12 +108,6 @@ mn10300_option_override (void)
 {
   if (TARGET_AM33)
     target_flags &= ~MASK_MULT_BUG;
-
-  /* FIXME: The combine stack adjustments pass is breaking
-     cc0-setter/cc0-user relationship by inserting a jump
-     instruction.  This should be investigated, but for now
-     just disable the pass.  */
-  flag_combine_stack_adjustments = 0;
 }
 
 static void
@@ -209,18 +121,17 @@ mn10300_file_start (void)
     fprintf (asm_out_file, "\t.am33\n");
 }
 
-
 /* Print operand X using operand code CODE to assembly language output file
    FILE.  */
 
 void
-print_operand (FILE *file, rtx x, int code)
+mn10300_print_operand (FILE *file, rtx x, int code)
 {
   switch (code)
     {
       case 'b':
       case 'B':
-	if (cc_status.mdep.fpCC)
+	if (GET_MODE (XEXP (x, 0)) == CC_FLOATmode)
 	  {
 	    switch (code == 'b' ? GET_CODE (x)
 		    : reverse_condition_maybe_unordered (GET_CODE (x)))
@@ -313,14 +224,14 @@ print_operand (FILE *file, rtx x, int code)
 	/* This is used for the operand to a call instruction;
 	   if it's a REG, enclose it in parens, else output
 	   the operand normally.  */
-	if (GET_CODE (x) == REG)
+	if (REG_P (x))
 	  {
 	    fputc ('(', file);
-	    print_operand (file, x, 0);
+	    mn10300_print_operand (file, x, 0);
 	    fputc (')', file);
 	  }
 	else
-	  print_operand (file, x, 0);
+	  mn10300_print_operand (file, x, 0);
 	break;
 
       case 'D':
@@ -378,8 +289,8 @@ print_operand (FILE *file, rtx x, int code)
 		      break;;
 		    case VOIDmode:
 		    case DImode:
-		      print_operand_address (file,
-					     GEN_INT (CONST_DOUBLE_LOW (x)));
+		      mn10300_print_operand_address (file,
+						     GEN_INT (CONST_DOUBLE_LOW (x)));
 		      break;
 		    default:
 		      break;
@@ -435,8 +346,8 @@ print_operand (FILE *file, rtx x, int code)
 		      gcc_unreachable ();
 		    case VOIDmode:
 		    case DImode:
-		      print_operand_address (file,
-					     GEN_INT (CONST_DOUBLE_HIGH (x)));
+		      mn10300_print_operand_address (file,
+						     GEN_INT (CONST_DOUBLE_HIGH (x)));
 		      break;
 		    default:
 		      break;
@@ -459,7 +370,7 @@ print_operand (FILE *file, rtx x, int code)
 
       case 'A':
 	fputc ('(', file);
-	if (GET_CODE (XEXP (x, 0)) == REG)
+	if (REG_P ((XEXP (x, 0))))
 	  output_address (gen_rtx_PLUS (SImode, XEXP (x, 0), const0_rtx));
 	else
 	  output_address (XEXP (x, 0));
@@ -481,7 +392,7 @@ print_operand (FILE *file, rtx x, int code)
 	 shift count as an error.  So we mask off the high bits
 	 of the immediate here.  */
       case 'S':
-	if (GET_CODE (x) == CONST_INT)
+	if (CONST_INT_P ((x)))
 	  {
 	    fprintf (file, "%d", (int)(INTVAL (x) & 0x1f));
 	    break;
@@ -527,7 +438,7 @@ print_operand (FILE *file, rtx x, int code)
 	  case LABEL_REF:
 	  case CODE_LABEL:
 	  case UNSPEC:
-	    print_operand_address (file, x);
+	    mn10300_print_operand_address (file, x);
 	    break;
 	  default:
 	    gcc_unreachable ();
@@ -539,16 +450,16 @@ print_operand (FILE *file, rtx x, int code)
 /* Output assembly language output for the address ADDR to FILE.  */
 
 void
-print_operand_address (FILE *file, rtx addr)
+mn10300_print_operand_address (FILE *file, rtx addr)
 {
   switch (GET_CODE (addr))
     {
     case POST_INC:
-      print_operand_address (file, XEXP (addr, 0));
+      mn10300_print_operand_address (file, XEXP (addr, 0));
       fputc ('+', file);
       break;
     case REG:
-      print_operand (file, addr, 0);
+      mn10300_print_operand (file, addr, 0);
       break;
     case PLUS:
       {
@@ -561,9 +472,9 @@ print_operand_address (FILE *file, rtx addr)
 	  base = XEXP (addr, 1), index = XEXP (addr, 0);
       	else
 	  gcc_unreachable ();
-	print_operand (file, index, 0);
+	mn10300_print_operand (file, index, 0);
 	fputc (',', file);
-	print_operand (file, base, 0);;
+	mn10300_print_operand (file, base, 0);;
 	break;
       }
     case SYMBOL_REF:
@@ -628,7 +539,7 @@ mn10300_print_reg_list (FILE *file, int mask)
 }
 
 int
-can_use_return_insn (void)
+mn10300_can_use_return_insn (void)
 {
   /* size includes the fixed stack space needed for function calls.  */
   int size = get_frame_size () + crtl->outgoing_args_size;
@@ -744,7 +655,7 @@ mn10300_gen_multiple_store (int mask)
 }
 
 void
-expand_prologue (void)
+mn10300_expand_prologue (void)
 {
   HOST_WIDE_INT size;
 
@@ -759,11 +670,14 @@ expand_prologue (void)
     {
       int num_regs_to_save = fp_regs_to_save (), i;
       HOST_WIDE_INT xsize;
-      enum { save_sp_merge,
-	     save_sp_no_merge,
-	     save_sp_partial_merge,
-	     save_a0_merge,
-	     save_a0_no_merge } strategy;
+      enum
+      {
+	save_sp_merge,
+	save_sp_no_merge,
+	save_sp_partial_merge,
+	save_a0_merge,
+	save_a0_no_merge
+      } strategy;
       unsigned int strategy_size = (unsigned)-1, this_strategy_size;
       rtx reg;
 
@@ -1001,14 +915,14 @@ expand_prologue (void)
 }
 
 void
-expand_epilogue (void)
+mn10300_expand_epilogue (void)
 {
   HOST_WIDE_INT size;
 
   /* SIZE includes the fixed stack space needed for function calls.  */
   size = get_frame_size () + crtl->outgoing_args_size;
   size += (crtl->outgoing_args_size ? 4 : 0);
-
+  
   if (TARGET_AM33_2 && fp_regs_to_save ())
     {
       int num_regs_to_save = fp_regs_to_save (), i;
@@ -1236,66 +1150,14 @@ expand_epilogue (void)
     emit_jump_insn (gen_return_internal ());
 }
 
-/* Update the condition code from the insn.  */
-
-void
-notice_update_cc (rtx body, rtx insn)
-{
-  switch (get_attr_cc (insn))
-    {
-    case CC_NONE:
-      /* Insn does not affect CC at all.  */
-      break;
-
-    case CC_NONE_0HIT:
-      /* Insn does not change CC, but the 0'th operand has been changed.  */
-      if (cc_status.value1 != 0
-	  && reg_overlap_mentioned_p (recog_data.operand[0], cc_status.value1))
-	cc_status.value1 = 0;
-      break;
-
-    case CC_SET_ZN:
-      /* Insn sets the Z,N flags of CC to recog_data.operand[0].
-	 V,C are unusable.  */
-      CC_STATUS_INIT;
-      cc_status.flags |= CC_NO_CARRY | CC_OVERFLOW_UNUSABLE;
-      cc_status.value1 = recog_data.operand[0];
-      break;
-
-    case CC_SET_ZNV:
-      /* Insn sets the Z,N,V flags of CC to recog_data.operand[0].
-	 C is unusable.  */
-      CC_STATUS_INIT;
-      cc_status.flags |= CC_NO_CARRY;
-      cc_status.value1 = recog_data.operand[0];
-      break;
-
-    case CC_COMPARE:
-      /* The insn is a compare instruction.  */
-      CC_STATUS_INIT;
-      cc_status.value1 = SET_SRC (body);
-      if (GET_CODE (SET_SRC (body)) == COMPARE
-	  && GET_MODE (XEXP (SET_SRC (body), 0)) == SFmode)
-	cc_status.mdep.fpCC = 1;
-      break;
-
-    case CC_CLOBBER:
-      /* Insn doesn't leave CC in a usable state.  */
-      CC_STATUS_INIT;
-      break;
-
-    default:
-      gcc_unreachable ();
-    }
-}
-
 /* Recognize the PARALLEL rtx generated by mn10300_gen_multiple_store().
    This function is for MATCH_PARALLEL and so assumes OP is known to be
    parallel.  If OP is a multiple store, return a mask indicating which
    registers it saves.  Return 0 otherwise.  */
 
 int
-store_multiple_operation (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
+mn10300_store_multiple_operation (rtx op,
+				  enum machine_mode mode ATTRIBUTE_UNUSED)
 {
   int count;
   int mask;
@@ -1310,7 +1172,7 @@ store_multiple_operation (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
   /* Check that first instruction has the form (set (sp) (plus A B)) */
   elt = XVECEXP (op, 0, 0);
   if (GET_CODE (elt) != SET
-      || GET_CODE (SET_DEST (elt)) != REG
+      || (! REG_P (SET_DEST (elt)))
       || REGNO (SET_DEST (elt)) != STACK_POINTER_REGNUM
       || GET_CODE (SET_SRC (elt)) != PLUS)
     return 0;
@@ -1320,9 +1182,9 @@ store_multiple_operation (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
      the stack.  We therefore expect the first instruction to create
      COUNT-1 stack slots.  */
   elt = SET_SRC (elt);
-  if (GET_CODE (XEXP (elt, 0)) != REG
+  if ((! REG_P (XEXP (elt, 0)))
       || REGNO (XEXP (elt, 0)) != STACK_POINTER_REGNUM
-      || GET_CODE (XEXP (elt, 1)) != CONST_INT
+      || (! CONST_INT_P (XEXP (elt, 1)))
       || INTVAL (XEXP (elt, 1)) != -(count - 1) * 4)
     return 0;
 
@@ -1340,8 +1202,8 @@ store_multiple_operation (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
       /* Check that element i is a (set (mem M) R) and that R is valid.  */
       elt = XVECEXP (op, 0, i);
       if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_DEST (elt)) != MEM
-	  || GET_CODE (SET_SRC (elt)) != REG
+	  || (! MEM_P (SET_DEST (elt)))
+	  || (! REG_P (SET_SRC (elt)))
 	  || REGNO (SET_SRC (elt)) >= last)
 	return 0;
 
@@ -1353,9 +1215,9 @@ store_multiple_operation (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
       /* Check that M has the form (plus (sp) (const_int -I*4)) */
       elt = XEXP (SET_DEST (elt), 0);
       if (GET_CODE (elt) != PLUS
-	  || GET_CODE (XEXP (elt, 0)) != REG
+	  || (! REG_P (XEXP (elt, 0)))
 	  || REGNO (XEXP (elt, 0)) != STACK_POINTER_REGNUM
-	  || GET_CODE (XEXP (elt, 1)) != CONST_INT
+	  || (! CONST_INT_P (XEXP (elt, 1)))
 	  || INTVAL (XEXP (elt, 1)) != -i * 4)
 	return 0;
     }
@@ -1372,6 +1234,7 @@ store_multiple_operation (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
    MODE into a register in register class RCLASS.
 
    We might be able to simplify this.  */
+
 enum reg_class
 mn10300_secondary_reload_class (enum reg_class rclass, enum machine_mode mode,
 				rtx in)
@@ -1387,8 +1250,8 @@ mn10300_secondary_reload_class (enum reg_class rclass, enum machine_mode mode,
   /* Memory loads less than a full word wide can't have an
      address or stack pointer destination.  They must use
      a data register as an intermediate register.  */
-  if ((GET_CODE (in) == MEM
-       || (GET_CODE (inner) == REG
+  if ((MEM_P ((in))
+       || (REG_P ((inner))
 	   && REGNO (inner) >= FIRST_PSEUDO_REGISTER))
       && (mode == QImode || mode == HImode)
       && (rclass == ADDRESS_REGS || rclass == SP_REGS
@@ -1413,27 +1276,22 @@ mn10300_secondary_reload_class (enum reg_class rclass, enum machine_mode mode,
 		  || XEXP (in, 1) == stack_pointer_rtx))))
     return ADDRESS_REGS;
 
-  if (GET_CODE (in) == PLUS
-      && (XEXP (in, 0) == stack_pointer_rtx
-	  || XEXP (in, 1) == stack_pointer_rtx))
-    return GENERAL_REGS;
-
   if (TARGET_AM33_2
       && rclass == FP_REGS)
     {
       /* We can't load directly into an FP register from a	
 	 constant address.  */
-      if (GET_CODE (in) == MEM
+      if (MEM_P ((in))
 	  && CONSTANT_ADDRESS_P (XEXP (in, 0)))
-	return (TARGET_AM33 ? DATA_OR_EXTENDED_REGS : DATA_REGS);
+	return DATA_OR_EXTENDED_REGS;
 
       /* Handle case were a pseudo may not get a hard register
 	 but has an equivalent memory location defined.  */
-      if (GET_CODE (inner) == REG
+      if (REG_P ((inner))
 	  && REGNO (inner) >= FIRST_PSEUDO_REGISTER
 	  && reg_equiv_mem [REGNO (inner)]
 	  && CONSTANT_ADDRESS_P (XEXP (reg_equiv_mem [REGNO (inner)], 0)))
-	return (TARGET_AM33 ? DATA_OR_EXTENDED_REGS : DATA_REGS);
+	return DATA_OR_EXTENDED_REGS;
     }
 
   /* Otherwise assume no secondary reloads are needed.  */
@@ -1441,7 +1299,7 @@ mn10300_secondary_reload_class (enum reg_class rclass, enum machine_mode mode,
 }
 
 int
-initial_offset (int from, int to)
+mn10300_initial_offset (int from, int to)
 {
   /* The difference between the argument pointer and the frame pointer
      is the size of the callee register save area.  */
@@ -1560,8 +1418,8 @@ mn10300_pass_by_reference (CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED,
    from a function.  If the result is NULL_RTX, the argument is pushed.  */
 
 rtx
-function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
-	      tree type, int named ATTRIBUTE_UNUSED)
+mn10300_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+		      tree type, int named ATTRIBUTE_UNUSED)
 {
   rtx result = NULL_RTX;
   int size, align;
@@ -1696,9 +1554,10 @@ mn10300_function_value_regno_p (const unsigned int regno)
  return (regno == FIRST_DATA_REGNUM || regno == FIRST_ADDRESS_REGNUM);
 }
 
-/* Output a tst insn.  */
+/* Output a compare insn.  */
+
 const char *
-output_tst (rtx operand, rtx insn)
+mn10300_output_cmp (rtx operand, rtx insn)
 {
   rtx temp;
   int past_call = 0;
@@ -1713,12 +1572,12 @@ output_tst (rtx operand, rtx insn)
       /* We allow the search to go through call insns.  We record
 	 the fact that we've past a CALL_INSN and reject matches which
 	 use call clobbered registers.  */
-      if (GET_CODE (temp) == CODE_LABEL
-	  || GET_CODE (temp) == JUMP_INSN
+      if (LABEL_P (temp)
+	  || JUMP_P (temp)
 	  || GET_CODE (temp) == BARRIER)
 	break;
 
-      if (GET_CODE (temp) == CALL_INSN)
+      if (CALL_P (temp))
 	past_call = 1;
 
       if (GET_CODE (temp) == NOTE)
@@ -1786,23 +1645,10 @@ output_tst (rtx operand, rtx insn)
   return "cmp 0,%0";
 }
 
-int
-impossible_plus_operand (rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
-{
-  if (GET_CODE (op) != PLUS)
-    return 0;
-
-  if (XEXP (op, 0) == stack_pointer_rtx
-      || XEXP (op, 1) == stack_pointer_rtx)
-    return 1;
-
-  return 0;
-}
-
 /* Similarly, but when using a zero_extract pattern for a btst where
    the source operand might end up in memory.  */
 int
-mask_ok_for_mem_btst (int len, int bit)
+mn10300_mask_ok_for_mem_btst (int len, int bit)
 {
   unsigned int mask = 0;
 
@@ -1823,8 +1669,10 @@ mask_ok_for_mem_btst (int len, int bit)
 /* Return 1 if X contains a symbolic expression.  We know these
    expressions will have one of a few well defined forms, so
    we need only check those forms.  */
+
 int
-symbolic_operand (register rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
+mn10300_symbolic_operand (rtx op,
+			  enum machine_mode mode ATTRIBUTE_UNUSED)
 {
   switch (GET_CODE (op))
     {
@@ -1835,7 +1683,7 @@ symbolic_operand (register rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
       op = XEXP (op, 0);
       return ((GET_CODE (XEXP (op, 0)) == SYMBOL_REF
                || GET_CODE (XEXP (op, 0)) == LABEL_REF)
-              && GET_CODE (XEXP (op, 1)) == CONST_INT);
+              && CONST_INT_P ((XEXP (op, 1))));
     default:
       return 0;
     }
@@ -1853,18 +1701,19 @@ symbolic_operand (register rtx op, enum machine_mode mode ATTRIBUTE_UNUSED)
 
    But on a few ports with segmented architectures and indexed addressing
    (mn10300, hppa) it is used to rewrite certain problematical addresses.  */
-rtx
+
+static rtx
 mn10300_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 			    enum machine_mode mode ATTRIBUTE_UNUSED)
 {
-  if (flag_pic && ! legitimate_pic_operand_p (x))
-    x = legitimize_pic_address (oldx, NULL_RTX);
+  if (flag_pic && ! mn10300_legitimate_pic_operand_p (x))
+    x = mn10300_legitimize_pic_address (oldx, NULL_RTX);
 
   /* Uh-oh.  We might have an address for x[n-100000].  This needs
      special handling to avoid creating an indexed memory address
      with x-100000 as the base.  */
   if (GET_CODE (x) == PLUS
-      && symbolic_operand (XEXP (x, 1), VOIDmode))
+      && mn10300_symbolic_operand (XEXP (x, 1), VOIDmode))
     {
       /* Ugly.  We modify things here so that the address offset specified
          by the index expression is computed first, then added to x to form
@@ -1883,7 +1732,8 @@ mn10300_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 	  regy1 = force_reg (Pmode, force_operand (XEXP (y, 0), 0));
 	  regy2 = force_reg (Pmode, force_operand (XEXP (y, 1), 0));
 	  regx1 = force_reg (Pmode,
-			     gen_rtx_fmt_ee (GET_CODE (y), Pmode, regx1, regy2));
+			     gen_rtx_fmt_ee (GET_CODE (y), Pmode, regx1,
+					     regy2));
 	  return force_reg (Pmode, gen_rtx_PLUS (Pmode, regx1, regy1));
 	}
     }
@@ -1892,8 +1742,9 @@ mn10300_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 
 /* Convert a non-PIC address in `orig' to a PIC address using @GOT or
    @GOTOFF in `reg'.  */
+
 rtx
-legitimize_pic_address (rtx orig, rtx reg)
+mn10300_legitimize_pic_address (rtx orig, rtx reg)
 {
   if (GET_CODE (orig) == LABEL_REF
       || (GET_CODE (orig) == SYMBOL_REF
@@ -1919,11 +1770,12 @@ legitimize_pic_address (rtx orig, rtx reg)
 
 /* Return zero if X references a SYMBOL_REF or LABEL_REF whose symbol
    isn't protected by a PIC unspec; nonzero otherwise.  */
+
 int
-legitimate_pic_operand_p (rtx x)
+mn10300_legitimate_pic_operand_p (rtx x)
 {
-  register const char *fmt;
-  register int i;
+  const char *fmt;
+  int i;
 
   if (GET_CODE (x) == SYMBOL_REF || GET_CODE (x) == LABEL_REF)
     return 0;
@@ -1941,13 +1793,14 @@ legitimate_pic_operand_p (rtx x)
     {
       if (fmt[i] == 'E')
 	{
-	  register int j;
+	  int j;
 
 	  for (j = XVECLEN (x, i) - 1; j >= 0; j--)
-	    if (! legitimate_pic_operand_p (XVECEXP (x, i, j)))
+	    if (! mn10300_legitimate_pic_operand_p (XVECEXP (x, i, j)))
 	      return 0;
 	}
-      else if (fmt[i] == 'e' && ! legitimate_pic_operand_p (XEXP (x, i)))
+      else if (fmt[i] == 'e'
+	       && ! mn10300_legitimate_pic_operand_p (XEXP (x, i)))
 	return 0;
     }
 
@@ -1968,11 +1821,11 @@ legitimate_pic_operand_p (rtx x)
    workaround and solution, see the comments in pa.c before the
    function record_unscaled_index_insn_codes.  */
 
-bool
+static bool
 mn10300_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 {
   if (CONSTANT_ADDRESS_P (x)
-      && (! flag_pic || legitimate_pic_operand_p (x)))
+      && (! flag_pic || mn10300_legitimate_pic_operand_p (x)))
     return TRUE;
 
   if (RTX_OK_FOR_BASE_P (x, strict))
@@ -2004,17 +1857,67 @@ mn10300_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 
       if (base != 0 && index != 0)
 	{
-	  if (GET_CODE (index) == CONST_INT)
+	  if (CONST_INT_P ((index)))
 	    return TRUE;
 	  if (GET_CODE (index) == CONST
 	      && GET_CODE (XEXP (index, 0)) != PLUS
 	      && (! flag_pic
- 		  || legitimate_pic_operand_p (index)))
+ 		  || (mn10300_legitimate_pic_operand_p (index)
+		      && GET_MODE_SIZE (mode) == 4)))
 	    return TRUE;
 	}
     }
 
   return FALSE;
+}
+
+/* Used by LEGITIMATE_CONSTANT_P().  Returns TRUE if X is a valid
+   constant.  Note that some "constants" aren't valid, such as TLS
+   symbols and unconverted GOT-based references, so we eliminate
+   those here.  */
+
+bool
+mn10300_legitimate_constant_p (rtx x)
+{
+  switch (GET_CODE (x))
+    {
+    case CONST:
+      x = XEXP (x, 0);
+
+      if (GET_CODE (x) == PLUS)
+	{
+	  if (! CONST_INT_P (XEXP (x, 1)))
+	    return false;
+	  x = XEXP (x, 0);
+	}
+
+      /* Only some unspecs are valid as "constants".  */
+      if (GET_CODE (x) == UNSPEC)
+	{
+	  rtx sym = XVECEXP (x, 0, 0);
+	  switch (XINT (x, 1))
+	    {
+	    case UNSPEC_INT_LABEL:
+	    case UNSPEC_PIC:
+	    case UNSPEC_GOT:
+	    case UNSPEC_GOTOFF:
+	    case UNSPEC_PLT:
+	      return true;
+	    default:
+	      return false;
+	    }
+	}
+
+      /* We must have drilled down to a symbol.  */
+      if (! mn10300_symbolic_operand (x, Pmode))
+	return false;
+      break;
+
+    default:
+      break;
+    }
+
+  return true;
 }
 
 static int
@@ -2091,7 +1994,8 @@ mn10300_address_cost (rtx x, bool speed ATTRIBUTE_UNUSED)
 }
 
 static bool
-mn10300_rtx_costs (rtx x, int code, int outer_code, int *total, bool speed ATTRIBUTE_UNUSED)
+mn10300_rtx_costs (rtx x, int code, int outer_code, int *total,
+		   bool speed ATTRIBUTE_UNUSED)
 {
   switch (code)
     {
@@ -2153,7 +2057,7 @@ mn10300_wide_const_load_uses_clr (rtx operands[2])
 {
   long val[2] = {0, 0};
 
-  if (GET_CODE (operands[0]) != REG
+  if (! REG_P (operands[0])
       || REGNO_REG_CLASS (REGNO (operands[0])) != DATA_REGS)
     return false;
 
@@ -2198,7 +2102,7 @@ mn10300_encode_section_info (tree decl, rtx rtl, int first ATTRIBUTE_UNUSED)
 {
   rtx symbol;
 
-  if (GET_CODE (rtl) != MEM)
+  if (! MEM_P (rtl))
     return;
   symbol = XEXP (rtl, 0);
   if (GET_CODE (symbol) != SYMBOL_REF)
@@ -2215,7 +2119,8 @@ mn10300_encode_section_info (tree decl, rtx rtl, int first ATTRIBUTE_UNUSED)
    were solely optimizing for space, but we keep it "reasonable" to avoid
    serious code efficiency lossage.  */
 
-unsigned int mn10300_case_values_threshold (void)
+static unsigned int
+mn10300_case_values_threshold (void)
 {
   return 6;
 }
@@ -2310,3 +2215,119 @@ mn10300_can_output_mi_thunk (const_tree    thunk_fndecl ATTRIBUTE_UNUSED,
 {
   return true;
 }
+
+bool
+mn10300_hard_regno_mode_ok (unsigned int regno, enum machine_mode mode)
+{
+  if (REGNO_REG_CLASS (regno) == FP_REGS
+      || REGNO_REG_CLASS (regno) == FP_ACC_REGS)
+    /* Do not store integer values in FP registers.  */
+    return GET_MODE_CLASS (mode) == MODE_FLOAT && ((regno & 1) == 0);
+  
+  if (((regno) & 1) == 0 || GET_MODE_SIZE (mode) == 4)
+    return true;
+
+  if (REGNO_REG_CLASS (regno) == DATA_REGS
+      || (TARGET_AM33 && REGNO_REG_CLASS (regno) == ADDRESS_REGS)
+      || REGNO_REG_CLASS (regno) == EXTENDED_REGS)
+    return GET_MODE_SIZE (mode) <= 4;
+  
+  return false;
+}
+
+bool
+mn10300_modes_tieable (enum machine_mode mode1, enum machine_mode mode2)
+{
+  if (GET_MODE_CLASS (mode1) == MODE_FLOAT
+      && GET_MODE_CLASS (mode2) != MODE_FLOAT)
+    return false;
+
+  if (GET_MODE_CLASS (mode2) == MODE_FLOAT
+      && GET_MODE_CLASS (mode1) != MODE_FLOAT)
+    return false;
+
+  if (TARGET_AM33
+      || mode1 == mode2
+      || (GET_MODE_SIZE (mode1) <= 4 && GET_MODE_SIZE (mode2) <= 4))
+    return true;
+
+  return false;
+}
+
+enum machine_mode
+mn10300_select_cc_mode (rtx x)
+{
+  return (GET_MODE_CLASS (GET_MODE (x)) == MODE_FLOAT) ? CC_FLOATmode : CCmode;
+}
+
+/* Initialize the GCC target structure.  */
+
+#undef  TARGET_EXCEPT_UNWIND_INFO
+#define TARGET_EXCEPT_UNWIND_INFO sjlj_except_unwind_info
+
+#undef  TARGET_ASM_ALIGNED_HI_OP
+#define TARGET_ASM_ALIGNED_HI_OP "\t.hword\t"
+
+#undef  TARGET_LEGITIMIZE_ADDRESS
+#define TARGET_LEGITIMIZE_ADDRESS mn10300_legitimize_address
+
+#undef  TARGET_RTX_COSTS
+#define TARGET_RTX_COSTS mn10300_rtx_costs
+#undef  TARGET_ADDRESS_COST
+#define TARGET_ADDRESS_COST mn10300_address_cost
+
+#undef  TARGET_ASM_FILE_START
+#define TARGET_ASM_FILE_START mn10300_file_start
+#undef  TARGET_ASM_FILE_START_FILE_DIRECTIVE
+#define TARGET_ASM_FILE_START_FILE_DIRECTIVE true
+
+#undef  TARGET_DEFAULT_TARGET_FLAGS
+#define TARGET_DEFAULT_TARGET_FLAGS MASK_MULT_BUG | MASK_PTR_A0D0
+#undef  TARGET_HANDLE_OPTION
+#define TARGET_HANDLE_OPTION mn10300_handle_option
+#undef  TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE mn10300_option_override
+#undef  TARGET_OPTION_OPTIMIZATION_TABLE
+#define TARGET_OPTION_OPTIMIZATION_TABLE mn10300_option_optimization_table
+
+#undef  TARGET_ENCODE_SECTION_INFO
+#define TARGET_ENCODE_SECTION_INFO mn10300_encode_section_info
+
+#undef  TARGET_PROMOTE_PROTOTYPES
+#define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
+#undef  TARGET_RETURN_IN_MEMORY
+#define TARGET_RETURN_IN_MEMORY mn10300_return_in_memory
+#undef  TARGET_PASS_BY_REFERENCE
+#define TARGET_PASS_BY_REFERENCE mn10300_pass_by_reference
+#undef  TARGET_CALLEE_COPIES
+#define TARGET_CALLEE_COPIES hook_bool_CUMULATIVE_ARGS_mode_tree_bool_true
+#undef  TARGET_ARG_PARTIAL_BYTES
+#define TARGET_ARG_PARTIAL_BYTES mn10300_arg_partial_bytes
+
+#undef  TARGET_EXPAND_BUILTIN_SAVEREGS
+#define TARGET_EXPAND_BUILTIN_SAVEREGS mn10300_builtin_saveregs
+#undef  TARGET_EXPAND_BUILTIN_VA_START
+#define TARGET_EXPAND_BUILTIN_VA_START mn10300_va_start
+
+#undef  TARGET_CASE_VALUES_THRESHOLD
+#define TARGET_CASE_VALUES_THRESHOLD mn10300_case_values_threshold
+
+#undef  TARGET_LEGITIMATE_ADDRESS_P
+#define TARGET_LEGITIMATE_ADDRESS_P	mn10300_legitimate_address_p
+
+#undef  TARGET_ASM_TRAMPOLINE_TEMPLATE
+#define TARGET_ASM_TRAMPOLINE_TEMPLATE mn10300_asm_trampoline_template
+#undef  TARGET_TRAMPOLINE_INIT
+#define TARGET_TRAMPOLINE_INIT mn10300_trampoline_init
+
+#undef  TARGET_FUNCTION_VALUE
+#define TARGET_FUNCTION_VALUE mn10300_function_value
+#undef  TARGET_LIBCALL_VALUE
+#define TARGET_LIBCALL_VALUE mn10300_libcall_value
+
+#undef  TARGET_ASM_OUTPUT_MI_THUNK
+#define TARGET_ASM_OUTPUT_MI_THUNK      mn10300_asm_output_mi_thunk
+#undef  TARGET_ASM_CAN_OUTPUT_MI_THUNK
+#define TARGET_ASM_CAN_OUTPUT_MI_THUNK  mn10300_can_output_mi_thunk
+
+struct gcc_target targetm = TARGET_INITIALIZER;

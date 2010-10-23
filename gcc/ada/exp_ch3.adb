@@ -230,7 +230,7 @@ package body Exp_Ch3 is
      (Typ     : Entity_Id;
       Eq_Name : Name_Id) return Node_Id;
    --  Build the body of a primitive equality operation for a tagged record
-   --  type, or in Ada2012 for any record type that has components with a
+   --  type, or in Ada 2012 for any record type that has components with a
    --  user-defined equality. Factored out of Predefined_Primitive_Bodies.
 
    function Make_Eq_Case
@@ -560,7 +560,7 @@ package body Exp_Ch3 is
 
       function Init_Component return List_Id;
       --  Create one statement to initialize one array component, designated
-      --  by a full set of indices.
+      --  by a full set of indexes.
 
       function Init_One_Dimension (N : Int) return List_Id;
       --  Create loop to initialize one dimension of the array. The single
@@ -1661,7 +1661,7 @@ package body Exp_Ch3 is
            and then Has_New_Controlled_Component (Enclos_Type)
            and then Has_Controlled_Component (Typ)
          then
-            if Is_Inherently_Limited_Type (Typ) then
+            if Is_Immutably_Limited_Type (Typ) then
                Controller_Typ := RTE (RE_Limited_Record_Controller);
             else
                Controller_Typ := RTE (RE_Record_Controller);
@@ -1930,7 +1930,7 @@ package body Exp_Ch3 is
 
          if Needs_Finalization (Typ)
            and then not (Nkind_In (Kind, N_Aggregate, N_Extension_Aggregate))
-           and then not Is_Inherently_Limited_Type (Typ)
+           and then not Is_Immutably_Limited_Type (Typ)
          then
             declare
                Ref : constant Node_Id :=
@@ -2459,7 +2459,7 @@ package body Exp_Ch3 is
                --  located at fixed positions (tags whose position depends on
                --  variable size components are initialized later ---see below)
 
-               if Ada_Version >= Ada_05
+               if Ada_Version >= Ada_2005
                  and then not Is_Interface (Rec_Type)
                  and then Has_Interfaces (Rec_Type)
                then
@@ -2514,7 +2514,7 @@ package body Exp_Ch3 is
                --  located at fixed positions (tags whose position depends on
                --  variable size components are initialized later ---see below)
 
-               if Ada_Version >= Ada_05
+               if Ada_Version >= Ada_2005
                  and then not Is_Interface (Rec_Type)
                  and then Has_Interfaces (Rec_Type)
                then
@@ -2583,7 +2583,7 @@ package body Exp_Ch3 is
             --  depend on discriminants is only safely read at runtime after
             --  the parent components have been initialized.
 
-            if Ada_Version >= Ada_05
+            if Ada_Version >= Ada_2005
               and then not Is_Interface (Rec_Type)
               and then Has_Interfaces (Rec_Type)
               and then Has_Discriminants (Etype (Rec_Type))
@@ -3540,7 +3540,7 @@ package body Exp_Ch3 is
       Stats : List_Id;
 
    begin
-      --  Build declarations for indices
+      --  Build declarations for indexes
 
       Decls := New_List;
 
@@ -3568,7 +3568,7 @@ package body Exp_Ch3 is
                Right_Opnd => New_Occurrence_Of (Left_Lo, Loc)),
           Then_Statements => New_List (Make_Simple_Return_Statement (Loc))));
 
-      --  Build initializations for indices
+      --  Build initializations for indexes
 
       declare
          F_Init : constant List_Id := New_List;
@@ -4322,7 +4322,7 @@ package body Exp_Ch3 is
             Expand_Access_Protected_Subprogram_Type (N);
          end if;
 
-      elsif Ada_Version >= Ada_05
+      elsif Ada_Version >= Ada_2005
         and then Is_Array_Type (Def_Id)
         and then Is_Access_Type (Component_Type (Def_Id))
         and then Ekind (Component_Type (Def_Id)) = E_Anonymous_Access_Type
@@ -4332,7 +4332,7 @@ package body Exp_Ch3 is
       elsif Has_Task (Def_Id) then
          Expand_Previous_Access_Type (Def_Id);
 
-      elsif Ada_Version >= Ada_05
+      elsif Ada_Version >= Ada_2005
         and then
          (Is_Record_Type (Def_Id)
            or else (Is_Array_Type (Def_Id)
@@ -4508,6 +4508,25 @@ package body Exp_Ch3 is
          return;
       end if;
 
+      --  Deal with predicate check before we start to do major rewriting.
+      --  it is OK to initialize and then check the initialized value, since
+      --  the object goes out of scope if we get a predicate failure.
+
+      --  We need a predicate check if the type has predicates, and if either
+      --  there is an initializing expression, or for default initialization
+      --  when we have at least one case of an explicit default initial value.
+
+      if not Suppress_Assignment_Checks (N)
+        and then Present (Predicate_Function (Typ))
+        and then
+          (Present (Expr)
+            or else
+              Is_Partially_Initialized_Type (Typ, Include_Null => False))
+      then
+         Insert_After (N,
+           Make_Predicate_Check (Typ, New_Occurrence_Of (Def_Id, Loc)));
+      end if;
+
       --  Force construction of dispatch tables of library level tagged types
 
       if Tagged_Type_Expansion
@@ -4569,6 +4588,19 @@ package body Exp_Ch3 is
       --  Default initialization required, and no expression present
 
       if No (Expr) then
+
+         --  For the default initialization case, if we have a private type
+         --  with invariants, and invariant checks are enabled, then insert an
+         --  invariant check after the object declaration. Note that it is OK
+         --  to clobber the object with an invalid value since if the exception
+         --  is raised, then the object will go out of scope.
+
+         if Has_Invariants (Typ)
+           and then Present (Invariant_Procedure (Typ))
+         then
+            Insert_After (N,
+              Make_Invariant_Call (New_Occurrence_Of (Def_Id, Loc)));
+         end if;
 
          --  Expand Initialize call for controlled objects. One may wonder why
          --  the Initialize Call is not done in the regular Init procedure
@@ -4770,7 +4802,7 @@ package body Exp_Ch3 is
          --  plan to expand the allowed forms of functions that are treated as
          --  build-in-place.
 
-         elsif Ada_Version >= Ada_05
+         elsif Ada_Version >= Ada_2005
            and then Is_Build_In_Place_Function_Call (Expr_Q)
          then
             Make_Build_In_Place_Call_In_Object_Declaration (N, Expr_Q);
@@ -4800,7 +4832,7 @@ package body Exp_Ch3 is
             --  creating the object (via allocator) and initializing it.
 
             if Is_Return_Object (Def_Id)
-              and then Is_Inherently_Limited_Type (Typ)
+              and then Is_Immutably_Limited_Type (Typ)
             then
                null;
 
@@ -4998,7 +5030,11 @@ package body Exp_Ch3 is
 
                   if Do_Range_Check (Expr) then
                      Set_Do_Range_Check (Expr, False);
-                     Generate_Range_Check (Expr, Typ, CE_Range_Check_Failed);
+
+                     if not Suppress_Assignment_Checks (N) then
+                        Generate_Range_Check
+                          (Expr, Typ, CE_Range_Check_Failed);
+                     end if;
                   end if;
                end if;
             end if;
@@ -5014,7 +5050,7 @@ package body Exp_Ch3 is
             --  renaming declaration.
 
             if Needs_Finalization (Typ)
-              and then not Is_Inherently_Limited_Type (Typ)
+              and then not Is_Immutably_Limited_Type (Typ)
               and then not Rewrite_As_Renaming
             then
                Insert_Actions_After (Init_After,
@@ -5176,8 +5212,9 @@ package body Exp_Ch3 is
             Set_Renamed_Object (Defining_Identifier (N), Expr_Q);
             Set_Analyzed (N);
          end if;
-
       end if;
+
+   --  Exception on library entity not available
 
    exception
       when RE_Not_Available =>
@@ -5291,7 +5328,7 @@ package body Exp_Ch3 is
          Loc := Sloc (First (Component_Items (Comp_List)));
       end if;
 
-      if Is_Inherently_Limited_Type (T) then
+      if Is_Immutably_Limited_Type (T) then
          Controller_Type := RTE (RE_Limited_Record_Controller);
       else
          Controller_Type := RTE (RE_Record_Controller);
@@ -5844,6 +5881,11 @@ package body Exp_Ch3 is
 
       Set_TSS (Typ, Fent);
       Set_Is_Pure (Fent);
+      --  The Pure flag will be reset is the current context is not pure.
+      --  For optimization purposes and constant-folding, indicate that the
+      --  Rep_To_Pos function can be considered free of side effects.
+
+      Set_Has_Pragma_Pure_Function (Fent);
 
       if not Debug_Generated_Code then
          Set_Debug_Info_Off (Fent);
@@ -5859,12 +5901,11 @@ package body Exp_Ch3 is
    -------------------------------
 
    procedure Expand_Freeze_Record_Type (N : Node_Id) is
-      Def_Id        : constant Node_Id := Entity (N);
-      Type_Decl     : constant Node_Id := Parent (Def_Id);
-      Comp          : Entity_Id;
-      Comp_Typ      : Entity_Id;
-      Has_Static_DT : Boolean := False;
-      Predef_List   : List_Id;
+      Def_Id      : constant Node_Id := Entity (N);
+      Type_Decl   : constant Node_Id := Parent (Def_Id);
+      Comp        : Entity_Id;
+      Comp_Typ    : Entity_Id;
+      Predef_List : List_Id;
 
       Flist : Entity_Id := Empty;
       --  Finalization list allocated for the case of a type with anonymous
@@ -5899,9 +5940,9 @@ package body Exp_Ch3 is
       elsif Is_Derived_Type (Def_Id)
         and then not Is_Tagged_Type (Def_Id)
 
-         --  If we have a derived Unchecked_Union, we do not inherit the
-         --  discriminant checking functions from the parent type since the
-         --  discriminants are non existent.
+        --  If we have a derived Unchecked_Union, we do not inherit the
+        --  discriminant checking functions from the parent type since the
+        --  discriminants are non existent.
 
         and then not Is_Unchecked_Union (Def_Id)
         and then Has_Discriminants (Def_Id)
@@ -5939,7 +5980,6 @@ package body Exp_Ch3 is
       --  declaration.
 
       Comp := First_Component (Def_Id);
-
       while Present (Comp) loop
          Comp_Typ := Etype (Comp);
 
@@ -5982,9 +6022,6 @@ package body Exp_Ch3 is
       --  just use it.
 
       if Is_Tagged_Type (Def_Id) then
-         Has_Static_DT :=
-           Static_Dispatch_Tables
-             and then Is_Library_Level_Tagged_Type (Def_Id);
 
          --  Add the _Tag component
 
@@ -6004,7 +6041,7 @@ package body Exp_Ch3 is
             Set_CPP_Constructors (Def_Id);
 
          else
-            if not Has_Static_DT then
+            if not Building_Static_DT (Def_Id) then
 
                --  Usually inherited primitives are not delayed but the first
                --  Ada extension of a CPP_Class is an exception since the
@@ -6014,14 +6051,14 @@ package body Exp_Ch3 is
                --  Similarly, if this is an inherited operation whose parent is
                --  not frozen yet, it is not in the DT of the parent, and we
                --  generate an explicit freeze node for the inherited operation
-               --  so that it is properly inserted in the DT of the current
-               --  type.
+               --  so it is properly inserted in the DT of the current type.
 
                declare
-                  Elmt : Elmt_Id := First_Elmt (Primitive_Operations (Def_Id));
+                  Elmt : Elmt_Id;
                   Subp : Entity_Id;
 
                begin
+                  Elmt := First_Elmt (Primitive_Operations (Def_Id));
                   while Present (Elmt) loop
                      Subp := Node (Elmt);
 
@@ -6057,6 +6094,14 @@ package body Exp_Ch3 is
             then
                null;
 
+            --  Do not add the spec of predefined primitives in case of
+            --  CIL and Java tagged types
+
+            elsif Convention (Def_Id) = Convention_CIL
+              or else Convention (Def_Id) = Convention_Java
+            then
+               null;
+
             --  Do not add the spec of the predefined primitives if we are
             --  compiling under restriction No_Dispatching_Calls
 
@@ -6072,7 +6117,7 @@ package body Exp_Ch3 is
             --  a function returns an extension aggregate that invokes the
             --  the parent function.
 
-            if Ada_Version >= Ada_05
+            if Ada_Version >= Ada_2005
               and then not Is_Abstract_Type (Def_Id)
               and then Is_Null_Extension (Def_Id)
             then
@@ -6087,7 +6132,7 @@ package body Exp_Ch3 is
             --  overridden. This is done to ensure that the dispatch table
             --  entry associated with such null primitives are properly filled.
 
-            if Ada_Version >= Ada_05
+            if Ada_Version >= Ada_2005
               and then Etype (Def_Id) /= Def_Id
               and then not Is_Abstract_Type (Def_Id)
               and then Has_Interfaces (Def_Id)
@@ -6096,7 +6141,11 @@ package body Exp_Ch3 is
             end if;
 
             Set_Is_Frozen (Def_Id);
-            Set_All_DT_Position (Def_Id);
+            if not Is_Derived_Type (Def_Id)
+              or else Is_Tagged_Type (Etype (Def_Id))
+            then
+               Set_All_DT_Position (Def_Id);
+            end if;
 
             --  Add the controlled component before the freezing actions
             --  referenced in those actions.
@@ -6116,7 +6165,7 @@ package body Exp_Ch3 is
                --  Dispatch tables of library level tagged types are built
                --  later (see Analyze_Declarations).
 
-               if not Has_Static_DT then
+               if not Building_Static_DT (Def_Id) then
                   Append_Freeze_Actions (Def_Id, Make_DT (Def_Id));
                end if;
             end if;
@@ -6137,8 +6186,8 @@ package body Exp_Ch3 is
                     (Rep, Access_Disp_Table       (Def_Id));
                   Set_Dispatch_Table_Wrappers
                     (Rep, Dispatch_Table_Wrappers (Def_Id));
-                  Set_Primitive_Operations
-                    (Rep, Primitive_Operations    (Def_Id));
+                  Set_Direct_Primitive_Operations
+                    (Rep, Direct_Primitive_Operations (Def_Id));
                end;
             end if;
 
@@ -6150,16 +6199,16 @@ package body Exp_Ch3 is
                if not Is_Limited_Type (Def_Id) then
                   Append_Freeze_Actions (Def_Id,
                     Freeze_Entity
-                      (Find_Prim_Op (Def_Id, Name_Adjust), Sloc (Def_Id)));
+                      (Find_Prim_Op (Def_Id, Name_Adjust), Def_Id));
                end if;
 
                Append_Freeze_Actions (Def_Id,
                  Freeze_Entity
-                   (Find_Prim_Op (Def_Id, Name_Initialize), Sloc (Def_Id)));
+                   (Find_Prim_Op (Def_Id, Name_Initialize), Def_Id));
 
                Append_Freeze_Actions (Def_Id,
                  Freeze_Entity
-                   (Find_Prim_Op (Def_Id, Name_Finalize), Sloc (Def_Id)));
+                   (Find_Prim_Op (Def_Id, Name_Finalize), Def_Id));
             end if;
 
             --  Freeze rest of primitive operations. There is no need to handle
@@ -6174,7 +6223,7 @@ package body Exp_Ch3 is
 
       --  In the non-tagged case, ever since Ada83 an equality function must
       --  be  provided for variant records that are not unchecked unions.
-      --  In Ada2012 the equality function composes, and thus must be built
+      --  In Ada 2012 the equality function composes, and thus must be built
       --  explicitly just as for tagged records.
 
       elsif Has_Discriminants (Def_Id)
@@ -6183,7 +6232,6 @@ package body Exp_Ch3 is
          declare
             Comps : constant Node_Id :=
                       Component_List (Type_Definition (Type_Decl));
-
          begin
             if Present (Comps)
               and then Present (Variant_Part (Comps))
@@ -6192,9 +6240,17 @@ package body Exp_Ch3 is
             end if;
          end;
 
-      elsif Ada_Version >= Ada_12
-        and then Comes_From_Source (Def_Id)
+      --  Otherwise create primitive equality operation (AI05-0123)
+
+      --  This is done unconditionally to ensure that tools can be linked
+      --  properly with user programs compiled with older language versions.
+      --  It might be worth including a switch to revert to a non-composable
+      --  equality for untagged records, even though no program depending on
+      --  non-composability has surfaced ???
+
+      elsif Comes_From_Source (Def_Id)
         and then Convention (Def_Id) = Convention_Ada
+        and then not Is_Limited_Type (Def_Id)
       then
          Build_Untagged_Equality (Def_Id);
       end if;
@@ -6251,11 +6307,10 @@ package body Exp_Ch3 is
       end if;
 
       --  For tagged type that are not interfaces, build bodies of primitive
-      --  operations. Note that we do this after building the record
-      --  initialization procedure, since the primitive operations may need
-      --  the initialization routine. There is no need to add predefined
-      --  primitives of interfaces because all their predefined primitives
-      --  are abstract.
+      --  operations. Note: do this after building the record initialization
+      --  procedure, since the primitive operations may need the initialization
+      --  routine. There is no need to add predefined primitives of interfaces
+      --  because all their predefined primitives are abstract.
 
       if Is_Tagged_Type (Def_Id)
         and then not Is_Interface (Def_Id)
@@ -6265,6 +6320,14 @@ package body Exp_Ch3 is
 
          if Is_CPP_Class (Root_Type (Def_Id))
            and then Convention (Def_Id) = Convention_CPP
+         then
+            null;
+
+         --  Do not add the body of predefined primitives in case of
+         --  CIL and Java tagged types.
+
+         elsif Convention (Def_Id) = Convention_CIL
+           or else Convention (Def_Id) = Convention_Java
          then
             null;
 
@@ -6340,8 +6403,7 @@ package body Exp_Ch3 is
                       N_Subprogram_Declaration
            and then not Is_Frozen (Stream_Op)
          then
-            Append_Freeze_Actions
-               (Typ, Freeze_Entity (Stream_Op, Sloc (N)));
+            Append_Freeze_Actions (Typ, Freeze_Entity (Stream_Op, N));
          end if;
       end loop;
    end Freeze_Stream_Operations;
@@ -8338,7 +8400,7 @@ package body Exp_Ch3 is
       --  disable their generation in this case. Disable the generation of
       --  these bodies if No_Dispatching_Calls, Ravenscar or ZFP is active.
 
-      if Ada_Version >= Ada_05
+      if Ada_Version >= Ada_2005
         and then Tagged_Type_Expansion
         and then not Restriction_Active (No_Dispatching_Calls)
         and then not Restriction_Active (No_Select_Statements)
@@ -8845,7 +8907,7 @@ package body Exp_Ch3 is
       --  disable their generation in this case. Disable the generation of
       --  these bodies if No_Dispatching_Calls, Ravenscar or ZFP is active.
 
-      if Ada_Version >= Ada_05
+      if Ada_Version >= Ada_2005
         and then Tagged_Type_Expansion
         and then not Is_Interface (Tag_Typ)
         and then
@@ -8977,7 +9039,6 @@ package body Exp_Ch3 is
    function Predefined_Primitive_Freeze
      (Tag_Typ : Entity_Id) return List_Id
    is
-      Loc     : constant Source_Ptr := Sloc (Tag_Typ);
       Res     : constant List_Id    := New_List;
       Prim    : Elmt_Id;
       Frnodes : List_Id;
@@ -8986,7 +9047,7 @@ package body Exp_Ch3 is
       Prim := First_Elmt (Primitive_Operations (Tag_Typ));
       while Present (Prim) loop
          if Is_Predefined_Dispatching_Operation (Node (Prim)) then
-            Frnodes := Freeze_Entity (Node (Prim), Loc);
+            Frnodes := Freeze_Entity (Node (Prim), Tag_Typ);
 
             if Present (Frnodes) then
                Append_List_To (Res, Frnodes);
@@ -9032,14 +9093,14 @@ package body Exp_Ch3 is
             Has_Predefined_Or_Specified_Stream_Attribute :=
               Has_Specified_Stream_Input (Typ)
                 or else
-                  (Ada_Version >= Ada_05
+                  (Ada_Version >= Ada_2005
                     and then Stream_Operation_OK (Typ, TSS_Stream_Read));
 
          elsif Operation = TSS_Stream_Output then
             Has_Predefined_Or_Specified_Stream_Attribute :=
               Has_Specified_Stream_Output (Typ)
                 or else
-                  (Ada_Version >= Ada_05
+                  (Ada_Version >= Ada_2005
                     and then Stream_Operation_OK (Typ, TSS_Stream_Write));
          end if;
 

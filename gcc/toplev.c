@@ -198,12 +198,6 @@ unsigned local_tick;
 
 /* -f flags.  */
 
-/* 0 means straightforward implementation of complex divide acceptable.
-   1 means wide ranges of inputs must work for complex divide.
-   2 means C99-like requirements for complex multiply and divide.  */
-
-int flag_complex_method = 1;
-
 /* Nonzero means we should be saving declaration info into a .X file.  */
 
 int flag_gen_aux_info = 0;
@@ -228,12 +222,6 @@ int flag_next_runtime = 0;
 /* Set to the default thread-local storage (tls) model to use.  */
 
 enum tls_model flag_tls_default = TLS_MODEL_GLOBAL_DYNAMIC;
-
-/* Set the default region and algorithm for the integrated register
-   allocator.  */
-
-enum ira_algorithm flag_ira_algorithm = IRA_ALGORITHM_CB;
-enum ira_region flag_ira_region = IRA_REGION_MIXED;
 
 /* Set the default for excess precision.  */
 
@@ -293,18 +281,15 @@ typedef struct
 }
 lang_independent_options;
 
-/* Nonzero if subexpressions must be evaluated from left-to-right.  */
-int flag_evaluation_order = 0;
-
 /* The user symbol prefix after having resolved same.  */
 const char *user_label_prefix;
 
 static const param_info lang_independent_params[] = {
 #define DEFPARAM(ENUM, OPTION, HELP, DEFAULT, MIN, MAX) \
-  { OPTION, DEFAULT, false, MIN, MAX, HELP },
+  { OPTION, DEFAULT, MIN, MAX, HELP },
 #include "params.def"
 #undef DEFPARAM
-  { NULL, 0, false, 0, 0, NULL }
+  { NULL, 0, 0, 0, NULL }
 };
 
 /* Output files for assembler code (real compiler output)
@@ -1661,8 +1646,10 @@ general_init (const char *argv0)
   /* Set a default printer.  Language specific initializations will
      override it later.  */
   pp_format_decoder (global_dc->printer) = &default_tree_printer;
-  global_dc->show_option_requested = flag_diagnostics_show_option;
-  global_dc->show_column = flag_show_column;
+  global_dc->show_option_requested
+    = global_options_init.x_flag_diagnostics_show_option;
+  global_dc->show_column
+    = global_options_init.x_flag_show_column;
   global_dc->internal_error = plugins_internal_error_function;
   global_dc->option_enabled = option_enabled;
   global_dc->option_state = &global_options;
@@ -1705,11 +1692,13 @@ general_init (const char *argv0)
 
   /* Register the language-independent parameters.  */
   add_params (lang_independent_params, LAST_PARAM);
+  targetm.target_option.default_params ();
 
   /* This must be done after add_params but before argument processing.  */
   init_ggc_heuristics();
   init_optimization_passes ();
   statistics_early_init ();
+  finish_params ();
 }
 
 /* Return true if the current target supports -fsection-anchors.  */
@@ -1833,11 +1822,7 @@ process_options (void)
   if (flag_unroll_all_loops)
     flag_unroll_loops = 1;
 
-  /* The loop unrolling code assumes that cse will be run after loop.
-     web and rename-registers also help when run after loop unrolling.  */
-  if (flag_rerun_cse_after_loop == AUTODETECT_VALUE)
-    flag_rerun_cse_after_loop = flag_unroll_loops || flag_peel_loops;
-
+  /* web and rename-registers help when run after loop unrolling.  */
   if (flag_web == AUTODETECT_VALUE)
     flag_web = flag_unroll_loops || flag_peel_loops;
 
@@ -2399,10 +2384,29 @@ toplev_main (int argc, char **argv)
   /* Initialization of GCC's environment, and diagnostics.  */
   general_init (argv[0]);
 
+  /* One-off initialization of options that does not need to be
+     repeated when options are added for particular functions.  */
+  init_options_once ();
+
+  /* Initialize global options structures; this must be repeated for
+     each structure used for parsing options.  */
+  init_options_struct (&global_options, &global_options_set);
+  lang_hooks.init_options_struct (&global_options);
+
+  /* Convert the options to an array.  */
+  decode_cmdline_options_to_array_default_mask (argc,
+						CONST_CAST2 (const char **,
+							     char **, argv),
+						&save_decoded_options,
+						&save_decoded_options_count);
+
+  /* Perform language-specific options initialization.  */
+  lang_hooks.init_options (save_decoded_options_count, save_decoded_options);
+
   /* Parse the options and do minimal processing; basically just
      enough to default flags appropriately.  */
-  decode_options (argc, CONST_CAST2 (const char **, char **, argv),
-		  &save_decoded_options, &save_decoded_options_count);
+  decode_options (&global_options, &global_options_set,
+		  save_decoded_options, save_decoded_options_count);
 
   init_local_tick ();
 

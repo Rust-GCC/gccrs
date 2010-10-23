@@ -23,6 +23,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
+with Aspects;  use Aspects;
 with Atree;    use Atree;
 with Casing;   use Casing;
 with Csets;    use Csets;
@@ -65,7 +66,7 @@ package body Sprint is
    --  Set True if the -gnatdo (dump original tree) flag is set
 
    Dump_Generated_Only : Boolean;
-   --  Set True if the -gnatG (dump generated tree) debug flag is set
+   --  Set True if the -gnatdG (dump generated tree) debug flag is set
    --  or for Print_Generated_Code (-gnatG) or Dump_Generated_Code (-gnatD).
 
    Dump_Freeze_Null : Boolean;
@@ -181,6 +182,12 @@ package body Sprint is
 
    procedure Sprint_And_List (List : List_Id);
    --  Print the given list with items separated by vertical "and"
+
+   procedure Sprint_Aspect_Specifications (Node : Node_Id);
+   --  Node is a declaration node that has aspect specifications (Has_Aspects
+   --  flag set True). It is called after outputting the terminating semicolon
+   --  for the related node. The effect is to remove the semicolon and print
+   --  the aspect specifications, followed by a terminating semicolon.
 
    procedure Sprint_Bar_List (List : List_Id);
    --  Print the given list with items separated by vertical bars
@@ -619,6 +626,45 @@ package body Sprint is
       end if;
    end Sprint_And_List;
 
+   ----------------------------------
+   -- Sprint_Aspect_Specifications --
+   ----------------------------------
+
+   procedure Sprint_Aspect_Specifications (Node : Node_Id) is
+      AS : constant List_Id := Aspect_Specifications (Node);
+      A  : Node_Id;
+
+   begin
+      Write_Erase_Char (';');
+      Indent := Indent + 2;
+      Write_Indent;
+      Write_Str ("with ");
+      Indent := Indent + 5;
+
+      A := First (AS);
+      loop
+         Sprint_Node (Identifier (A));
+
+         if Class_Present (A) then
+            Write_Str ("'Class");
+         end if;
+
+         if Present (Expression (A)) then
+            Write_Str (" => ");
+            Sprint_Node (Expression (A));
+         end if;
+
+         Next (A);
+
+         exit when No (A);
+         Write_Char (',');
+         Write_Indent;
+      end loop;
+
+      Indent := Indent - 7;
+      Write_Char (';');
+   end Sprint_Aspect_Specifications;
+
    ---------------------
    -- Sprint_Bar_List --
    ---------------------
@@ -801,7 +847,6 @@ package body Sprint is
       --  Select print circuit based on node kind
 
       case Nkind (Node) is
-
          when N_Abort_Statement =>
             Write_Indent_Str_Sloc ("abort ");
             Sprint_Comma_List (Names (Node));
@@ -999,12 +1044,8 @@ package body Sprint is
             Write_Str_Sloc (" and then ");
             Sprint_Right_Opnd (Node);
 
-         when N_At_Clause =>
-            Write_Indent_Str_Sloc ("for ");
-            Write_Id (Identifier (Node));
-            Write_Str_With_Col_Check (" use at ");
-            Sprint_Node (Expression (Node));
-            Write_Char (';');
+         when N_Aspect_Specification =>
+            raise Program_Error;
 
          when N_Assignment_Statement =>
             Write_Indent;
@@ -1025,6 +1066,13 @@ package body Sprint is
             Write_Indent_Str ("then ");
             Sprint_Node (Abortable_Part (Node));
             Write_Indent_Str ("end select;");
+
+         when N_At_Clause =>
+            Write_Indent_Str_Sloc ("for ");
+            Write_Id (Identifier (Node));
+            Write_Str_With_Col_Check (" use at ");
+            Sprint_Node (Expression (Node));
+            Write_Char (';');
 
          when N_Attribute_Definition_Clause =>
             Write_Indent_Str_Sloc ("for ");
@@ -1947,10 +1995,36 @@ package body Sprint is
                Sprint_Node (Condition (Node));
             else
                Write_Str_With_Col_Check_Sloc ("for ");
-               Sprint_Node (Loop_Parameter_Specification (Node));
+
+               if Present (Iterator_Specification (Node)) then
+                  Sprint_Node (Iterator_Specification (Node));
+               else
+                  Sprint_Node (Loop_Parameter_Specification (Node));
+               end if;
             end if;
 
             Write_Char (' ');
+
+         when N_Iterator_Specification =>
+            Set_Debug_Sloc;
+            Write_Id (Defining_Identifier (Node));
+
+            if Present (Subtype_Indication (Node)) then
+               Write_Str_With_Col_Check (" : ");
+               Sprint_Node (Subtype_Indication (Node));
+            end if;
+
+            if Of_Present (Node) then
+               Write_Str_With_Col_Check (" of ");
+            else
+               Write_Str_With_Col_Check (" in ");
+            end if;
+
+            if Reverse_Present (Node) then
+               Write_Str_With_Col_Check ("reverse ");
+            end if;
+
+            Sprint_Node (Name (Node));
 
          when N_Itype_Reference =>
             Write_Indent_Str_Sloc ("reference ");
@@ -2388,6 +2462,17 @@ package body Sprint is
                Write_Str (", ");
             end if;
 
+         when N_Parameterized_Expression =>
+            Write_Indent;
+            Sprint_Node_Sloc (Specification (Node));
+
+            Write_Str (" is");
+            Indent_Begin;
+            Write_Indent;
+            Sprint_Node (Expression (Node));
+            Write_Char (';');
+            Indent_End;
+
          when N_Pop_Constraint_Error_Label =>
             Write_Indent_Str ("%pop_constraint_error_label");
 
@@ -2396,6 +2481,48 @@ package body Sprint is
 
          when N_Pop_Storage_Error_Label =>
             Write_Indent_Str ("%pop_storage_error_label");
+
+         when N_Private_Extension_Declaration =>
+            Write_Indent_Str_Sloc ("type ");
+            Write_Id (Defining_Identifier (Node));
+
+            if Present (Discriminant_Specifications (Node)) then
+               Write_Discr_Specs (Node);
+            elsif Unknown_Discriminants_Present (Node) then
+               Write_Str_With_Col_Check ("(<>)");
+            end if;
+
+            Write_Str_With_Col_Check (" is new ");
+            Sprint_Node (Subtype_Indication (Node));
+
+            if Present (Interface_List (Node)) then
+               Write_Str_With_Col_Check (" and ");
+               Sprint_And_List (Interface_List (Node));
+            end if;
+
+            Write_Str_With_Col_Check (" with private;");
+
+         when N_Private_Type_Declaration =>
+            Write_Indent_Str_Sloc ("type ");
+            Write_Id (Defining_Identifier (Node));
+
+            if Present (Discriminant_Specifications (Node)) then
+               Write_Discr_Specs (Node);
+            elsif Unknown_Discriminants_Present (Node) then
+               Write_Str_With_Col_Check ("(<>)");
+            end if;
+
+            Write_Str (" is ");
+
+            if Tagged_Present (Node) then
+               Write_Str_With_Col_Check ("tagged ");
+            end if;
+
+            if Limited_Present (Node) then
+               Write_Str_With_Col_Check ("limited ");
+            end if;
+
+            Write_Str_With_Col_Check ("private;");
 
          when N_Push_Constraint_Error_Label =>
             Write_Indent_Str ("%push_constraint_error_label (");
@@ -2444,48 +2571,6 @@ package body Sprint is
             end if;
 
             Sprint_Node (Expression (Node));
-
-         when N_Private_Type_Declaration =>
-            Write_Indent_Str_Sloc ("type ");
-            Write_Id (Defining_Identifier (Node));
-
-            if Present (Discriminant_Specifications (Node)) then
-               Write_Discr_Specs (Node);
-            elsif Unknown_Discriminants_Present (Node) then
-               Write_Str_With_Col_Check ("(<>)");
-            end if;
-
-            Write_Str (" is ");
-
-            if Tagged_Present (Node) then
-               Write_Str_With_Col_Check ("tagged ");
-            end if;
-
-            if Limited_Present (Node) then
-               Write_Str_With_Col_Check ("limited ");
-            end if;
-
-            Write_Str_With_Col_Check ("private;");
-
-         when N_Private_Extension_Declaration =>
-            Write_Indent_Str_Sloc ("type ");
-            Write_Id (Defining_Identifier (Node));
-
-            if Present (Discriminant_Specifications (Node)) then
-               Write_Discr_Specs (Node);
-            elsif Unknown_Discriminants_Present (Node) then
-               Write_Str_With_Col_Check ("(<>)");
-            end if;
-
-            Write_Str_With_Col_Check (" is new ");
-            Sprint_Node (Subtype_Indication (Node));
-
-            if Present (Interface_List (Node)) then
-               Write_Str_With_Col_Check (" and ");
-               Sprint_And_List (Interface_List (Node));
-            end if;
-
-            Write_Str_With_Col_Check (" with private;");
 
          when N_Procedure_Call_Statement =>
             Write_Indent;
@@ -2566,6 +2651,19 @@ package body Sprint is
                Sprint_Node (Expression (Node));
                Write_Char (')');
             end if;
+
+         when N_Quantified_Expression =>
+            Write_Str (" for");
+
+            if All_Present (Node) then
+               Write_Str (" all ");
+            else
+               Write_Str (" some ");
+            end if;
+
+            Sprint_Node (Loop_Parameter_Specification (Node));
+            Write_Str (" => ");
+            Sprint_Node (Condition (Node));
 
          when N_Raise_Constraint_Error =>
 
@@ -2919,7 +3017,6 @@ package body Sprint is
 
          when N_Terminate_Alternative =>
             Sprint_Node_List (Pragmas_Before (Node));
-
             Write_Indent;
 
             if Present (Condition (Node)) then
@@ -3077,8 +3174,11 @@ package body Sprint is
                   Write_Char (';');
                end if;
             end if;
-
       end case;
+
+      if Has_Aspects (Node) then
+         Sprint_Aspect_Specifications (Node);
+      end if;
 
       if Nkind (Node) in N_Subexpr
         and then Do_Range_Check (Node)

@@ -1,3 +1,191 @@
+2010-10-18  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/45866
+	* include/std/ratio (ratio<>::type): Add.
+	(ratio_add<>::num, ratio_add<>::den,
+	ratio_subtract<>::num, ratio_subtract<>::den,
+	ratio_multiply<>::num, ratio_multiply<>::den,
+	ratio_divide<>::num, ratio_divide<>::den): Likewise.
+	* testsuite/20_util/ratio/operations/45866.cc: New.
+
+2010-10-17  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/forward_list.h (forward_list<>::erase_after): Return
+	an iterator.
+	(_M_erase_after): Return _Fwd_list_node_base*.
+	* include/bits/forward_list.tcc: Likewise.
+	* include/debug/forward_list: Likewise.
+	* testsuite/23_containers/forward_list/modifiers/3.cc: Update
+	and extend.
+	* testsuite/util/exception/safety.h (erase_base<forward_list<>>):
+	Adjust.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	assign_neg.cc: Adjust dg-error line number.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+
+2010-10-17  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/43554
+	* include/profile/forward_list: New file.
+	* include/std/forward_list: Include <profile/forward_list>.
+	* include/Makefile.am: Add.
+	* testsuite/23_containers/forward_list/capacity/1.cc: Adjust.
+	* include/Makefile.in: Regenerate.
+
+2010-10-15  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/functional (function<>::operator==, operator!=):
+	Remove, per LWG 1240.
+	* testsuite/20_util/function/cmp/cmp_neg.cc: Adjust dg-* directives.
+
+2010-10-13  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/45990
+	* include/bits/regex.h (regex_traits::isctype): DR 1337.
+
+2010-10-13  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/random.h (discrete_distribution<>::param_type::
+	param_type()): Default construct the vectors.
+	(discrete_distribution<>::param_type::probabilities): Adjust.
+	(discrete_distribution<>::probabilities): Likewise.
+	(discrete_distribution<>::max): Likewise.
+	(piecewise_constant_distribution<>::param_type::
+	param_type()): Default construct the vectors.
+	(piecewise_constant_distribution<>::param_type::intervals): Adjust.
+	(piecewise_constant_distribution<>::param_type::densities): Likewise.
+	(piecewise_constant_distribution<>::intervals): Likewise.
+	(piecewise_constant_distribution<>::densities): Likewise.
+	(piecewise_constant_distribution<>::min): Likewise.
+	(piecewise_constant_distribution<>::max): Likewise.
+	(piecewise_linear_distribution<>::param_type::
+	param_type()): Default construct the vectors.
+	(piecewise_linear_distribution<>::param_type::intervals): Adjust.
+	(piecewise_linear_distribution<>::param_type::densities): Likewise.
+	(piecewise_linear_distribution<>::intervals): Likewise.
+	(piecewise_linear_distribution<>::densities): Likewise.
+	(piecewise_linear_distribution<>::min): Likewise.
+	(piecewise_linear_distribution<>::max): Likewise.
+	* include/bits/random.tcc (discrete_distribution<>::param_type::
+	_M_initialize): Deal quickly with raw _M_prob equivalent to
+	a default constructed param_type, just clear the vector.
+	(discrete_distribution<>::operator()): Early return 0 for a
+	default constructed distribution.
+	(piecewise_constant_distribution<>::param_type::_M_initialize):
+	Likewise for _M_int and _M_den.
+	(piecewise_constant_distribution<>::operator()): Early return
+	for a default constructed distribution.
+	(piecewise_linear_distribution<>::param_type::_M_initialize):
+	Likewise.
+	(piecewise_linear_distribution<>::operator()): Early return
+	for a default constructed distribution.
+	* testsuite/26_numerics/random/discrete_distribution/operators/
+	call-default.cc: New.
+	* testsuite/26_numerics/random/piecewise_constant_distribution/
+	operators/call-default.cc: Likewise.
+
+2010-10-12  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/random.h (discrete_distribution<>::param_type):
+	Disable move operations.
+	(piecewise_constant_distribution<>::param_type): Likewise.
+	(piecewise_linear_distribution<>::param_type): Likewise.
+
+	* include/bits/random.h (discrete_distribution<>::param_type::
+	param_type()): Simplify, don't use _M_initialize.
+	(piecewise_constant_distribution<>::param_type::param_type()):
+	Likewise.
+	(piecewise_linear_distribution<>::param_type::param_type()):
+	Likewise.
+
+2010-10-12  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/random.tcc (piecewise_linear_distribution<>::
+	operator()): Don't crash when the dist is default-constructed.
+	* testsuite/26_numerics/random/piecewise_linear_distribution/
+	operators/call-default.cc: New.
+
+2010-10-11  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/23_containers/bitset/cons/2.cc: Tweak.
+
+2010-10-11  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/bitset (bitset<>::bitset(const _CharT*,
+	typename std::basic_string<>::size_type, _CharT, _CharT)):
+	Implement new proposed resolution for DR 1325.
+	* include/debug/bitset: Likewise.
+	* include/profile/bitset: Likewise.
+	* testsuite/23_containers/bitset/cons/dr1325-1.cc: New.
+	* testsuite/23_containers/bitset/cons/dr1325-2.cc: Likewise.
+
+2010-10-11  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/xml/api.xml: Add link to 4.5 generated docs.
+
+2010-10-08  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/future (_Result_alloc): Derive from _Alloc,
+	exploit the Empty Base Optimization.
+
+2010-10-08  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/45403
+	* python/libstdcxx/v6/printers.py: Check for lazy_string support.
+
+2010-10-08  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/future (uses_allocator<packaged_task<>,>): Add;
+	minor formatting tweaks.
+
+2010-10-08  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/future: Enable allocator support.
+	* testsuite/30_threads/packaged_task/cons/alloc.cc: Expect PASS.
+	* testsuite/30_threads/promise/cons/alloc.cc: Expect PASS.
+
+2010-10-08  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/45893
+	* include/std/functional (bind): Implement DR 817 and add support
+	for volatile-qualified call wrappers.
+	* include/std/mutex (call_once): Implement DR 891.
+	* include/std/thread (thread::thread): Implement DR 929.
+	* include/std/future: Optimise use of std::bind.
+	* testsuite/20_util/bind/cv_quals.cc: Test volatile-qualification.
+	* testsuite/20_util/bind/move.cc: New.
+
+2010-10-07  Hans-Peter Nilsson  <hp@axis.com>
+
+	PR libstdc++/45841
+	* testsuite/lib/libstdc++.exp (check_v3_target_fileio): Rewrite to
+	use an actual testsuite file and machinery, not ".".  Specifically
+	check that incorrectly seeking backwards from 0 yields an error,
+	and that reading, seeking backwards and reading again works.
+
+	* testsuite/libstdc++-dg/conformance.exp: Apply
+	check_v3_target_fileio as a gate for tests in
+	subdirectories matching the substring _filebuf.
+
+2010-10-07  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/locale_facets_nonio.tcc (time_get<>::
+	_M_extract_via_format): Tighten somewhat error checking.
+	* testsuite/22_locale/time_get/get_time/char/6.cc: New.
+	* testsuite/22_locale/time_get/get_time/wchar_t/6.cc: Likewise.
+
+2010-10-07  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/45924
+	* include/std/functional (_Bind_result::operator()): Do not expand
+	template parameter pack in forward call.
+	* testsuite/20_util/bind/45924.cc: New.
+
 2010-10-06  Paolo Carlini  <paolo.carlini@oracle.com>
 
 	* include/std/functional (struct _Weak_result_type_impl): Add

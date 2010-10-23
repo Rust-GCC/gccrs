@@ -1044,6 +1044,8 @@ gimplify_and_update_call_from_tree (gimple_stmt_iterator *si_p, tree expr)
 	  if (TREE_CODE (gimple_vdef (stmt)) == SSA_NAME)
 	    SSA_NAME_DEF_STMT (gimple_vdef (stmt)) = new_stmt;
 	}
+      else if (reaching_vuse == gimple_vuse (stmt))
+	unlink_stmt_vdef (stmt);
     }
 
   gimple_set_location (new_stmt, gimple_location (stmt));
@@ -1463,7 +1465,7 @@ tree
 gimple_fold_obj_type_ref_known_binfo (HOST_WIDE_INT token, tree known_binfo)
 {
   HOST_WIDE_INT i;
-  tree v, fndecl;
+  tree v, fndecl, delta;
 
   v = BINFO_VIRTUALS (known_binfo);
   i = 0;
@@ -1475,6 +1477,25 @@ gimple_fold_obj_type_ref_known_binfo (HOST_WIDE_INT token, tree known_binfo)
     }
 
   fndecl = TREE_VALUE (v);
+  delta = TREE_PURPOSE (v);
+  gcc_assert (host_integerp (delta, 0));
+
+  if (integer_nonzerop (delta))
+    {
+      struct cgraph_node *node = cgraph_get_node (fndecl);
+      HOST_WIDE_INT off = tree_low_cst (delta, 0);
+
+      if (!node)
+        return NULL;
+      for (node = node->same_body; node; node = node->next)
+        if (node->thunk.thunk_p && off == node->thunk.fixed_offset)
+          break;
+      if (node)
+        fndecl = node->decl;
+      else
+        return NULL;
+     }
+
   /* When cgraph node is missing and function is not public, we cannot
      devirtualize.  This can happen in WHOPR when the actual method
      ends up in other partition, because we found devirtualization
@@ -1505,9 +1526,9 @@ gimple_fold_obj_type_ref (tree ref, tree known_type)
   if (binfo)
     {
       HOST_WIDE_INT token = tree_low_cst (OBJ_TYPE_REF_TOKEN (ref), 1);
-      /* If there is no virtual methods fold this to an indirect call.  */
+      /* If there is no virtual methods leave the OBJ_TYPE_REF alone.  */
       if (!BINFO_VIRTUALS (binfo))
-	return OBJ_TYPE_REF_EXPR (ref);
+	return NULL_TREE;
       return gimple_fold_obj_type_ref_known_binfo (token, binfo);
     }
   else

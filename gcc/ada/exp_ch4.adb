@@ -37,6 +37,7 @@ with Exp_Ch7;  use Exp_Ch7;
 with Exp_Ch9;  use Exp_Ch9;
 with Exp_Disp; use Exp_Disp;
 with Exp_Fixd; use Exp_Fixd;
+with Exp_Intr; use Exp_Intr;
 with Exp_Pakd; use Exp_Pakd;
 with Exp_Tss;  use Exp_Tss;
 with Exp_Util; use Exp_Util;
@@ -515,7 +516,7 @@ package body Exp_Ch4 is
          --  Note: we skip the accessibility check for the VM case, since
          --  there does not seem to be any practical way of implementing it.
 
-         if Ada_Version >= Ada_05
+         if Ada_Version >= Ada_2005
            and then Tagged_Type_Expansion
            and then Is_Class_Wide_Type (DesigT)
            and then not Scope_Suppress (Accessibility_Check)
@@ -635,7 +636,7 @@ package body Exp_Ch4 is
          --  we plan to expand the allowed forms of functions that are treated
          --  as build-in-place.
 
-         if Ada_Version >= Ada_05
+         if Ada_Version >= Ada_2005
            and then Is_Build_In_Place_Function_Call (Exp)
          then
             Make_Build_In_Place_Call_In_Allocator (N, Exp);
@@ -947,7 +948,7 @@ package body Exp_Ch4 is
                --  want to Adjust.
 
                if not Aggr_In_Place
-                 and then not Is_Inherently_Limited_Type (T)
+                 and then not Is_Immutably_Limited_Type (T)
                then
                   Insert_Actions (N,
                     Make_Adjust_Call (
@@ -1085,7 +1086,7 @@ package body Exp_Ch4 is
          --  we plan to expand the allowed forms of functions that are treated
          --  as build-in-place.
 
-         if Ada_Version >= Ada_05
+         if Ada_Version >= Ada_2005
            and then Is_Build_In_Place_Function_Call (Exp)
          then
             Make_Build_In_Place_Call_In_Allocator (N, Exp);
@@ -1419,7 +1420,7 @@ package body Exp_Ch4 is
 
       function Component_Equality (Typ : Entity_Id) return Node_Id;
       --  Create one statement to compare corresponding components, designated
-      --  by a full set of indices.
+      --  by a full set of indexes.
 
       function Get_Arg_Type (N : Node_Id) return Entity_Id;
       --  Given one of the arguments, computes the appropriate type to be used
@@ -1441,7 +1442,7 @@ package body Exp_Ch4 is
       --       end loop;
       --    end;
       --
-      --  If both indices are constrained and identical, the procedure
+      --  If both indexes are constrained and identical, the procedure
       --  returns a simpler loop:
       --
       --      for An in A'Range (N) loop
@@ -1615,7 +1616,7 @@ package body Exp_Ch4 is
 
          if Need_Separate_Indexes then
 
-            --  Generate guard for loop, followed by increments of indices
+            --  Generate guard for loop, followed by increments of indexes
 
             Append_To (Stm_List,
                Make_Exit_Statement (Loc,
@@ -2181,7 +2182,7 @@ package body Exp_Ch4 is
                end if;
             end if;
 
-         elsif Ada_Version >= Ada_12 then
+         elsif Ada_Version >= Ada_2012 then
 
             --  if no TSS has been created for the type, check whether there is
             --  a primitive equality declared for it. If it is abstract replace
@@ -2193,7 +2194,14 @@ package body Exp_Ch4 is
             begin
                Prim := First_Elmt (Collect_Primitive_Operations (Full_Type));
                while Present (Prim) loop
-                  if Chars (Node (Prim)) = Name_Op_Eq then
+
+                  --  Locate primitive equality with the right signature
+
+                  if Chars (Node (Prim)) = Name_Op_Eq
+                    and then Etype (First_Formal (Node (Prim))) =
+                               Etype (Next_Formal (First_Formal (Node (Prim))))
+                    and then Etype (Node (Prim)) = Standard_Boolean
+                  then
                      if Is_Abstract_Subprogram (Node (Prim)) then
                         return
                           Make_Raise_Program_Error (Loc,
@@ -3344,7 +3352,7 @@ package body Exp_Ch4 is
 
          --    number-of-elements * component_type'Max_Size_In_Storage_Elements
 
-         --  which avoids this problem. All this is a big bogus, but it does
+         --  which avoids this problem. All this is a bit bogus, but it does
          --  mean we catch common cases of trying to allocate arrays that
          --  are too large, and which in the absence of a check results in
          --  undetected chaos ???
@@ -3665,15 +3673,6 @@ package body Exp_Ch4 is
                if Has_Task (T) then
                   if No (Master_Id (Base_Type (PtrT))) then
 
-                     --  If we have a non-library level task with restriction
-                     --  No_Task_Hierarchy set, then no point in expanding.
-
-                     if not Is_Library_Level_Entity (T)
-                       and then Restriction_Active (No_Task_Hierarchy)
-                     then
-                        return;
-                     end if;
-
                      --  The designated type was an incomplete type, and the
                      --  access type did not get expanded. Salvage it now.
 
@@ -3775,7 +3774,7 @@ package body Exp_Ch4 is
                      if not Is_Constrained (Typ)
                        and then Present (Discriminant_Default_Value
                                          (First_Discriminant (Typ)))
-                       and then (Ada_Version < Ada_05
+                       and then (Ada_Version < Ada_2005
                                   or else
                                     not Has_Constrained_Partial_View (Typ))
                      then
@@ -3792,7 +3791,7 @@ package body Exp_Ch4 is
                         --  anonymous access type make sure an accessibility
                         --  check is inserted if necessary (3.10.2(22.q/2))
 
-                        if Ada_Version >= Ada_05
+                        if Ada_Version >= Ada_2005
                           and then
                             Ekind (Etype (Nod)) = E_Anonymous_Access_Type
                         then
@@ -4319,14 +4318,17 @@ package body Exp_Ch4 is
 
    procedure Expand_N_In (N : Node_Id) is
       Loc    : constant Source_Ptr := Sloc (N);
-      Rtyp   : constant Entity_Id  := Etype (N);
+      Restyp : constant Entity_Id  := Etype (N);
       Lop    : constant Node_Id    := Left_Opnd (N);
       Rop    : constant Node_Id    := Right_Opnd (N);
       Static : constant Boolean    := Is_OK_Static_Expression (N);
 
+      Ltyp  : Entity_Id;
+      Rtyp  : Entity_Id;
+
       procedure Expand_Set_Membership;
-      --  For each disjunct we create a simple equality or membership test.
-      --  The whole membership is rewritten as a short-circuit disjunction.
+      --  For each choice we create a simple equality or membership test.
+      --  The whole membership is rewritten connecting these with OR ELSE.
 
       ---------------------------
       -- Expand_Set_Membership --
@@ -4350,23 +4352,24 @@ package body Exp_Ch4 is
             R    : constant Node_Id := Relocate_Node (Alt);
 
          begin
-            if Is_Entity_Name (Alt)
-              and then Is_Type (Entity (Alt))
+            if (Is_Entity_Name (Alt) and then Is_Type (Entity (Alt)))
+              or else Nkind (Alt) = N_Range
             then
                Cond :=
                  Make_In (Sloc (Alt),
                    Left_Opnd  => L,
                    Right_Opnd => R);
             else
-               Cond := Make_Op_Eq (Sloc (Alt),
-                 Left_Opnd  => L,
-                 Right_Opnd => R);
+               Cond :=
+                 Make_Op_Eq (Sloc (Alt),
+                   Left_Opnd  => L,
+                   Right_Opnd => R);
             end if;
 
             return Cond;
          end Make_Cond;
 
-      --  Start of proessing for Expand_N_In
+      --  Start of processing for Expand_N_In
 
       begin
          Alt := Last (Alternatives (N));
@@ -4400,7 +4403,7 @@ package body Exp_Ch4 is
              Prefix         => Relocate_Node (Lop),
              Attribute_Name => Name_Valid));
 
-         Analyze_And_Resolve (N, Rtyp);
+         Analyze_And_Resolve (N, Restyp);
 
          Error_Msg_N ("?explicit membership test may be optimized away", N);
          Error_Msg_N -- CODEFIX
@@ -4411,24 +4414,35 @@ package body Exp_Ch4 is
    --  Start of processing for Expand_N_In
 
    begin
+      --  If set membersip case, expand with separate procedure
+
       if Present (Alternatives (N)) then
          Remove_Side_Effects (Lop);
          Expand_Set_Membership;
          return;
       end if;
 
+      --  Not set membership, proceed with expansion
+
+      Ltyp := Etype (Left_Opnd  (N));
+      Rtyp := Etype (Right_Opnd (N));
+
       --  Check case of explicit test for an expression in range of its
       --  subtype. This is suspicious usage and we replace it with a 'Valid
       --  test and give a warning. For floating point types however, this is a
-      --  standard way to check for finite numbers, and using 'Valid vould
-      --  typically be a pessimization.
+      --  standard way to check for finite numbers, and using 'Valid would
+      --  typically be a pessimization. Also skip this test for predicated
+      --  types, since it is perfectly reasonable to check if a value meets
+      --  its predicate.
 
-      if Is_Scalar_Type (Etype (Lop))
-        and then not Is_Floating_Point_Type (Etype (Lop))
+      if Is_Scalar_Type (Ltyp)
+        and then not Is_Floating_Point_Type (Ltyp)
         and then Nkind (Rop) in N_Has_Entity
-        and then Etype (Lop) = Entity (Rop)
+        and then Ltyp = Entity (Rop)
         and then Comes_From_Source (N)
         and then VM_Target = No_VM
+        and then not (Is_Discrete_Type (Ltyp)
+                       and then Present (Predicate_Function (Ltyp)))
       then
          Substitute_Valid_Check;
          return;
@@ -4447,8 +4461,6 @@ package body Exp_Ch4 is
          declare
             Lo : constant Node_Id := Low_Bound (Rop);
             Hi : constant Node_Id := High_Bound (Rop);
-
-            Ltyp : constant Entity_Id := Etype (Lop);
 
             Lo_Orig : constant Node_Id := Original_Node (Lo);
             Hi_Orig : constant Node_Id := Original_Node (Hi);
@@ -4476,7 +4488,9 @@ package body Exp_Ch4 is
             --  the same as the type of the expression.
 
          begin
-            --  If test is explicit x'first .. x'last, replace by valid check
+            --  If test is explicit x'First .. x'Last, replace by valid check
+
+            --  Could use some individual comments for this complex test ???
 
             if Is_Scalar_Type (Ltyp)
               and then Nkind (Lo_Orig) = N_Attribute_Reference
@@ -4491,7 +4505,7 @@ package body Exp_Ch4 is
               and then VM_Target = No_VM
             then
                Substitute_Valid_Check;
-               return;
+               goto Leave;
             end if;
 
             --  If bounds of type are known at compile time, and the end points
@@ -4515,7 +4529,7 @@ package body Exp_Ch4 is
               and then not In_Instance
             then
                Substitute_Valid_Check;
-               return;
+               goto Leave;
             end if;
 
             --  If we have an explicit range, do a bit of optimization based on
@@ -4535,10 +4549,9 @@ package body Exp_Ch4 is
                end if;
 
                Rewrite (N, New_Reference_To (Standard_False, Loc));
-               Analyze_And_Resolve (N, Rtyp);
+               Analyze_And_Resolve (N, Restyp);
                Set_Is_Static_Expression (N, Static);
-
-               return;
+               goto Leave;
 
             --  If both checks are known to succeed, replace result by True,
             --  since we know we are in range.
@@ -4550,10 +4563,9 @@ package body Exp_Ch4 is
                end if;
 
                Rewrite (N, New_Reference_To (Standard_True, Loc));
-               Analyze_And_Resolve (N, Rtyp);
+               Analyze_And_Resolve (N, Restyp);
                Set_Is_Static_Expression (N, Static);
-
-               return;
+               goto Leave;
 
             --  If lower bound check succeeds and upper bound check is not
             --  known to succeed or fail, then replace the range check with
@@ -4569,9 +4581,8 @@ package body Exp_Ch4 is
                  Make_Op_Le (Loc,
                    Left_Opnd  => Lop,
                    Right_Opnd => High_Bound (Rop)));
-               Analyze_And_Resolve (N, Rtyp);
-
-               return;
+               Analyze_And_Resolve (N, Restyp);
+               goto Leave;
 
             --  If upper bound check succeeds and lower bound check is not
             --  known to succeed or fail, then replace the range check with
@@ -4587,9 +4598,8 @@ package body Exp_Ch4 is
                  Make_Op_Ge (Loc,
                    Left_Opnd  => Lop,
                    Right_Opnd => Low_Bound (Rop)));
-               Analyze_And_Resolve (N, Rtyp);
-
-               return;
+               Analyze_And_Resolve (N, Restyp);
+               goto Leave;
             end if;
 
             --  We couldn't optimize away the range check, but there is one
@@ -4630,7 +4640,7 @@ package body Exp_Ch4 is
 
          --  For all other cases of an explicit range, nothing to be done
 
-         return;
+         goto Leave;
 
       --  Here right operand is a subtype mark
 
@@ -4658,7 +4668,7 @@ package body Exp_Ch4 is
                if Tagged_Type_Expansion then
                   Tagged_Membership (N, SCIL_Node, New_N);
                   Rewrite (N, New_N);
-                  Analyze_And_Resolve (N, Rtyp);
+                  Analyze_And_Resolve (N, Restyp);
 
                   --  Update decoration of relocated node referenced by the
                   --  SCIL node.
@@ -4668,27 +4678,33 @@ package body Exp_Ch4 is
                   end if;
                end if;
 
-               return;
+               goto Leave;
 
-            --  If type is scalar type, rewrite as x in t'first .. t'last.
+            --  If type is scalar type, rewrite as x in t'First .. t'Last.
             --  This reason we do this is that the bounds may have the wrong
             --  type if they come from the original type definition. Also this
             --  way we get all the processing above for an explicit range.
 
-            elsif Is_Scalar_Type (Typ) then
-               Rewrite (Rop,
-                 Make_Range (Loc,
-                   Low_Bound =>
-                     Make_Attribute_Reference (Loc,
-                       Attribute_Name => Name_First,
-                       Prefix => New_Reference_To (Typ, Loc)),
+               --  Don't do this for predicated types, since in this case we
+               --  want to check the predicate!
 
-                   High_Bound =>
-                     Make_Attribute_Reference (Loc,
-                       Attribute_Name => Name_Last,
-                       Prefix => New_Reference_To (Typ, Loc))));
-               Analyze_And_Resolve (N, Rtyp);
-               return;
+            elsif Is_Scalar_Type (Typ) then
+               if No (Predicate_Function (Typ)) then
+                  Rewrite (Rop,
+                    Make_Range (Loc,
+                      Low_Bound =>
+                        Make_Attribute_Reference (Loc,
+                          Attribute_Name => Name_First,
+                          Prefix => New_Reference_To (Typ, Loc)),
+
+                      High_Bound =>
+                        Make_Attribute_Reference (Loc,
+                          Attribute_Name => Name_Last,
+                          Prefix => New_Reference_To (Typ, Loc))));
+                  Analyze_And_Resolve (N, Restyp);
+               end if;
+
+               goto Leave;
 
             --  Ada 2005 (AI-216): Program_Error is raised when evaluating
             --  a membership test if the subtype mark denotes a constrained
@@ -4707,7 +4723,7 @@ package body Exp_Ch4 is
                --  test as False.
 
                Rewrite (N, New_Occurrence_Of (Standard_False, Loc));
-               return;
+               goto Leave;
             end if;
 
             --  Here we have a non-scalar type
@@ -4718,7 +4734,7 @@ package body Exp_Ch4 is
 
             if not Is_Constrained (Typ) then
                Rewrite (N, New_Reference_To (Standard_True, Loc));
-               Analyze_And_Resolve (N, Rtyp);
+               Analyze_And_Resolve (N, Restyp);
 
             --  For the constrained array case, we have to check the subscripts
             --  for an exact match if the lengths are non-zero (the lengths
@@ -4786,7 +4802,7 @@ package body Exp_Ch4 is
                   end if;
 
                   Rewrite (N, Cond);
-                  Analyze_And_Resolve (N, Rtyp);
+                  Analyze_And_Resolve (N, Restyp);
                end Check_Subscripts;
 
             --  These are the cases where constraint checks may be required,
@@ -4817,10 +4833,43 @@ package body Exp_Ch4 is
                end if;
 
                Rewrite (N, Cond);
-               Analyze_And_Resolve (N, Rtyp);
+               Analyze_And_Resolve (N, Restyp);
             end if;
          end;
       end if;
+
+   --  At this point, we have done the processing required for the basic
+   --  membership test, but not yet dealt with the predicate.
+
+   <<Leave>>
+
+      --  If a predicate is present, then we do the predicate test, but we
+      --  most certainly want to omit this if we are within the predicate
+      --  function itself, since otherwise we have an infinite recursion!
+
+      declare
+         PFunc : constant Entity_Id := Predicate_Function (Rtyp);
+
+      begin
+         if Present (PFunc)
+           and then Current_Scope /= PFunc
+         then
+            Rewrite (N,
+              Make_And_Then (Loc,
+                Left_Opnd  => Relocate_Node (N),
+                Right_Opnd => Make_Predicate_Call (Rtyp, Lop)));
+
+            --  Analyze new expression, mark left operand as analyzed to
+            --  avoid infinite recursion adding predicate calls.
+
+            Set_Analyzed (Left_Opnd (N));
+            Analyze_And_Resolve (N, Standard_Boolean);
+
+            --  All done, skip attempt at compile time determination of result
+
+            return;
+         end if;
+      end;
    end Expand_N_In;
 
    --------------------------------
@@ -4862,7 +4911,7 @@ package body Exp_Ch4 is
       --  Ada 2005 (AI-318-02): If the prefix is a call to a build-in-place
       --  function, then additional actuals must be passed.
 
-      if Ada_Version >= Ada_05
+      if Ada_Version >= Ada_2005
         and then Is_Build_In_Place_Function_Call (P)
       then
          Make_Build_In_Place_Call_In_Anonymous_Context (P);
@@ -5186,6 +5235,10 @@ package body Exp_Ch4 is
             Set_Etype (N, Standard_Boolean);
             Adjust_Result_Type (N, Typ);
          end if;
+
+      elsif Is_Intrinsic_Subprogram (Entity (N)) then
+         Expand_Intrinsic_Call (N, Entity (N));
+
       end if;
    end Expand_N_Op_And;
 
@@ -7147,6 +7200,10 @@ package body Exp_Ch4 is
             Set_Etype (N, Standard_Boolean);
             Adjust_Result_Type (N, Typ);
          end if;
+
+      elsif Is_Intrinsic_Subprogram (Entity (N)) then
+         Expand_Intrinsic_Call (N, Entity (N));
+
       end if;
    end Expand_N_Op_Or;
 
@@ -7342,6 +7399,10 @@ package body Exp_Ch4 is
          Adjust_Condition (Right_Opnd (N));
          Set_Etype (N, Standard_Boolean);
          Adjust_Result_Type (N, Typ);
+
+      elsif Is_Intrinsic_Subprogram (Entity (N)) then
+         Expand_Intrinsic_Call (N, Entity (N));
+
       end if;
    end Expand_N_Op_Xor;
 
@@ -7379,6 +7440,106 @@ package body Exp_Ch4 is
       end if;
    end Expand_N_Qualified_Expression;
 
+   ------------------------------------
+   -- Expand_N_Quantified_Expression --
+   ------------------------------------
+
+   --  We expand:
+
+   --    for all X in range => Cond
+
+   --  into:
+
+   --        T := True;
+   --        for X in range loop
+   --           if not Cond then
+   --              T := False;
+   --              exit;
+   --           end if;
+   --        end loop;
+
+   --  Conversely, an existentially quantified expression:
+
+   --    for some X in range => Cond
+
+   --  becomes:
+
+   --        T := False;
+   --        for X in range loop
+   --           if Cond then
+   --              T := True;
+   --              exit;
+   --           end if;
+   --        end loop;
+
+   --  In both cases, the iteration may be over a container in which case it is
+   --  given by an iterator specification, not a loop parameter specification.
+
+   procedure Expand_N_Quantified_Expression (N : Node_Id) is
+      Loc          : constant Source_Ptr := Sloc (N);
+      Is_Universal : constant Boolean := All_Present (N);
+      Actions      : constant List_Id := New_List;
+      Tnn          : constant Entity_Id := Make_Temporary (Loc, 'T', N);
+      Cond         : Node_Id;
+      Decl         : Node_Id;
+      I_Scheme     : Node_Id;
+      Test         : Node_Id;
+
+   begin
+      Decl :=
+        Make_Object_Declaration (Loc,
+          Defining_Identifier => Tnn,
+          Object_Definition   => New_Occurrence_Of (Standard_Boolean, Loc),
+          Expression          =>
+            New_Occurrence_Of (Boolean_Literals (Is_Universal), Loc));
+      Append_To (Actions, Decl);
+
+      Cond := Relocate_Node (Condition (N));
+
+      if Is_Universal then
+         Cond := Make_Op_Not (Loc, Cond);
+      end if;
+
+      Test :=
+        Make_Implicit_If_Statement (N,
+          Condition       => Cond,
+          Then_Statements => New_List (
+            Make_Assignment_Statement (Loc,
+              Name       => New_Occurrence_Of (Tnn, Loc),
+              Expression =>
+                New_Occurrence_Of (Boolean_Literals (not Is_Universal), Loc)),
+            Make_Exit_Statement (Loc)));
+
+      if Present (Loop_Parameter_Specification (N)) then
+         I_Scheme :=
+           Make_Iteration_Scheme (Loc,
+              Loop_Parameter_Specification =>
+                Loop_Parameter_Specification (N));
+      else
+         I_Scheme :=
+           Make_Iteration_Scheme (Loc,
+             Iterator_Specification => Iterator_Specification (N));
+      end if;
+
+      Append_To (Actions,
+        Make_Loop_Statement (Loc,
+          Iteration_Scheme => I_Scheme,
+          Statements       => New_List (Test),
+          End_Label        => Empty));
+
+      --  The components of the scheme have already been analyzed, and the loop
+      --  parameter declaration has been processed.
+
+      Set_Analyzed (Iteration_Scheme (Last (Actions)));
+
+      Rewrite (N,
+        Make_Expression_With_Actions (Loc,
+          Expression => New_Occurrence_Of (Tnn, Loc),
+          Actions    => Actions));
+
+      Analyze_And_Resolve (N, Standard_Boolean);
+   end Expand_N_Quantified_Expression;
+
    ---------------------------------
    -- Expand_N_Selected_Component --
    ---------------------------------
@@ -7408,10 +7569,10 @@ package body Exp_Ch4 is
       function In_Left_Hand_Side (Comp : Node_Id) return Boolean is
       begin
          return (Nkind (Parent (Comp)) = N_Assignment_Statement
-                   and then Comp = Name (Parent (Comp)))
+                  and then Comp = Name (Parent (Comp)))
            or else (Present (Parent (Comp))
-                      and then Nkind (Parent (Comp)) in N_Subexpr
-                      and then In_Left_Hand_Side (Parent (Comp)));
+                     and then Nkind (Parent (Comp)) in N_Subexpr
+                     and then In_Left_Hand_Side (Parent (Comp)));
       end In_Left_Hand_Side;
 
    --  Start of processing for Expand_N_Selected_Component
@@ -7452,7 +7613,7 @@ package body Exp_Ch4 is
       --  Ada 2005 (AI-318-02): If the prefix is a call to a build-in-place
       --  function, then additional actuals must be passed.
 
-      if Ada_Version >= Ada_05
+      if Ada_Version >= Ada_2005
         and then Is_Build_In_Place_Function_Call (P)
       then
          Make_Build_In_Place_Call_In_Anonymous_Context (P);
@@ -7526,7 +7687,6 @@ package body Exp_Ch4 is
 
                Disc := First_Discriminant (Ptyp);
                Dcon := First_Elmt (Discriminant_Constraint (Ptyp));
-
                Discr_Loop : while Present (Dcon) loop
                   Dval := Node (Dcon);
 
@@ -7751,7 +7911,7 @@ package body Exp_Ch4 is
       --  Ada 2005 (AI-318-02): If the prefix is a call to a build-in-place
       --  function, then additional actuals must be passed.
 
-      if Ada_Version >= Ada_05
+      if Ada_Version >= Ada_2005
         and then Is_Build_In_Place_Function_Call (Pfx)
       then
          Make_Build_In_Place_Call_In_Anonymous_Context (Pfx);
@@ -8105,7 +8265,8 @@ package body Exp_Ch4 is
            Make_Object_Declaration (Loc,
              Defining_Identifier => Tnn,
              Object_Definition   => New_Occurrence_Of (Btyp, Loc),
-             Expression => Conv),
+             Constant_Present    => True,
+             Expression          => Conv),
 
            Make_Raise_Constraint_Error (Loc,
              Condition =>
@@ -8146,7 +8307,7 @@ package body Exp_Ch4 is
          end if;
 
          Rewrite (N, Relocate_Node (Operand));
-         return;
+         goto Done;
       end if;
 
       --  Nothing to do if this is the second argument of read. This is a
@@ -8157,7 +8318,35 @@ package body Exp_Ch4 is
         and then Attribute_Name (Parent (N)) = Name_Read
         and then Next (First (Expressions (Parent (N)))) = N
       then
-         return;
+         goto Done;
+      end if;
+
+      --  Check for case of converting to a type that has an invariant
+      --  associated with it. This required an invariant check. We convert
+
+      --    typ (expr)
+
+      --  into
+
+      --    do invariant_check (typ (expr)) in typ (expr);
+
+      --  using Duplicate_Subexpr to avoid multiple side effects
+
+      --  Note: the Comes_From_Source check, and then the resetting of this
+      --  flag prevents what would otherwise be an infinite recursion.
+
+      if Has_Invariants (Target_Type)
+        and then Present (Invariant_Procedure (Target_Type))
+        and then Comes_From_Source (N)
+      then
+         Set_Comes_From_Source (N, False);
+         Rewrite (N,
+           Make_Expression_With_Actions (Loc,
+             Actions    => New_List (
+               Make_Invariant_Call (Duplicate_Subexpr (N))),
+             Expression => Duplicate_Subexpr_No_Checks (N)));
+         Analyze_And_Resolve (N, Target_Type);
+         goto Done;
       end if;
 
       --  Here if we may need to expand conversion
@@ -8230,7 +8419,7 @@ package body Exp_Ch4 is
                 Expression   => Opnd));
 
             Analyze_And_Resolve (N, Target_Type);
-            return;
+            goto Done;
          end;
       end if;
 
@@ -8303,7 +8492,7 @@ package body Exp_Ch4 is
                       Type_Access_Level (Target_Type)
          then
             Raise_Accessibility_Error;
-            return;
+            goto Done;
          end if;
       end if;
 
@@ -8331,7 +8520,7 @@ package body Exp_Ch4 is
          --  Sem_Ch8, and the expansion can interfere with this error check.
 
          if Is_Access_Type (Target_Type) and then Is_Renamed_Object (N) then
-            return;
+            goto Done;
          end if;
 
          --  Otherwise, proceed with processing tagged conversion
@@ -8413,7 +8602,7 @@ package body Exp_Ch4 is
 
             if Is_Interface (Actual_Op_Typ) then
                Expand_Interface_Conversion (N, Is_Static => False);
-               return;
+               goto Done;
             end if;
 
             if not Tag_Checks_Suppressed (Actual_Targ_Typ) then
@@ -8606,7 +8795,6 @@ package body Exp_Ch4 is
       --  this case, see Handle_Changed_Representation.
 
       elsif Is_Array_Type (Target_Type) then
-
          if Is_Constrained (Target_Type) then
             Apply_Length_Check (Operand, Target_Type);
          else
@@ -8767,7 +8955,24 @@ package body Exp_Ch4 is
         and then (Vax_Float (Operand_Type) or else Vax_Float (Target_Type))
       then
          Expand_Vax_Conversion (N);
-         return;
+         goto Done;
+      end if;
+
+      --  Here at end of processing
+
+   <<Done>>
+      --  Apply predicate check if required. Note that we can't just call
+      --  Apply_Predicate_Check here, because the type looks right after
+      --  the conversion and it would omit the check. The Comes_From_Source
+      --  guard is necessary to prevent infinite recursions when we generate
+      --  internal conversions for the purpose of checking predicates.
+
+      if Present (Predicate_Function (Target_Type))
+        and then Target_Type /= Operand_Type
+        and then Comes_From_Source (N)
+      then
+         Insert_Action (N,
+           Make_Predicate_Check (Target_Type, Duplicate_Subexpr (N)));
       end if;
    end Expand_N_Type_Conversion;
 

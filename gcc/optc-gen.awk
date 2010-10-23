@@ -83,7 +83,7 @@ print "#endif /* GCC_DRIVER */"
 print ""
 
 have_save = 0;
-print "struct gcc_options global_options =\n{"
+print "const struct gcc_options global_options_init =\n{"
 for (i = 0; i < n_extra_vars; i++) {
 	var = extra_vars[i]
 	init = extra_vars[i]
@@ -138,13 +138,14 @@ for (i = 0; i < n_opts; i++) {
 }
 print "};"
 print ""
+print "struct gcc_options global_options;"
 print "struct gcc_options global_options_set;"
 print ""
 
 print "const char * const lang_names[] =\n{"
 for (i = 0; i < n_langs; i++) {
 	macros[i] = "CL_" langs[i]
-	gsub( "[^A-Za-z0-9_]", "X", macros[i] )
+	gsub( "[^" alnum "_]", "X", macros[i] )
 	s = substr("         ", length (macros[i]))
 	print "  " quote langs[i] quote ","
     }

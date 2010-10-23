@@ -216,6 +216,10 @@ static void mep_setup_incoming_varargs (CUMULATIVE_ARGS *, enum machine_mode,
 					tree, int *, int);
 static bool mep_pass_by_reference (CUMULATIVE_ARGS * cum, enum machine_mode,
 				   const_tree, bool);
+static rtx mep_function_arg (CUMULATIVE_ARGS *, enum machine_mode,
+			     const_tree, bool);
+static void mep_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode,
+				      const_tree, bool);
 static bool mep_vector_mode_supported_p (enum machine_mode);
 static bool mep_handle_option (size_t, const char *, int);
 static rtx  mep_allocate_initial_value (rtx);
@@ -291,16 +295,20 @@ mep_conditional_register_usage (void)
     global_regs[i] = 1;
 }
 
-static void
-mep_option_optimization (int level ATTRIBUTE_UNUSED, int size ATTRIBUTE_UNUSED)
-{
-  /* The first scheduling pass often increases register pressure and tends
-     to result in more spill code.  Only run it when specifically asked.  */
-  flag_schedule_insns = 0;
 
-  /* Using $fp doesn't gain us much, even when debugging is important.  */
-  flag_omit_frame_pointer = 1;
-}
+static const struct default_options mep_option_optimization_table[] =
+  {
+    /* The first scheduling pass often increases register pressure and
+       tends to result in more spill code.  Only run it when
+       specifically asked.  */
+    { OPT_LEVELS_ALL, OPT_fschedule_insns, NULL, 0 },
+
+    /* Using $fp doesn't gain us much, even when debugging is
+       important.  */
+    { OPT_LEVELS_ALL, OPT_fomit_frame_pointer, NULL, 1 },
+
+    { OPT_LEVELS_NONE, 0, NULL, 0 }
+  };
 
 static void
 mep_option_override (void)
@@ -3398,7 +3406,7 @@ mep_print_operand (FILE *file, rtx x, int code)
 			  (unsigned long) CONST_DOUBLE_HIGH(r));
 		  break;
 		case SYMBOL_REF:
-		  real_name = TARGET_STRIP_NAME_ENCODING (XSTR (r, 0));
+		  real_name = targetm.strip_name_encoding (XSTR (r, 0));
 		  assemble_name (file, real_name);
 		  break;
 		case LABEL_REF:
@@ -3717,23 +3725,29 @@ mep_init_cumulative_args (CUMULATIVE_ARGS *pcum, tree fntype,
     pcum->vliw = 0;
 }
 
-rtx
-mep_function_arg (CUMULATIVE_ARGS cum, enum machine_mode mode,
-		  tree type ATTRIBUTE_UNUSED, int named ATTRIBUTE_UNUSED)
+/* The ABI is thus: Arguments are in $1, $2, $3, $4, stack.  Arguments
+   larger than 4 bytes are passed indirectly.  Return value in 0,
+   unless bigger than 4 bytes, then the caller passes a pointer as the
+   first arg.  For varargs, we copy $1..$4 to the stack.  */
+
+static rtx
+mep_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+		  const_tree type ATTRIBUTE_UNUSED,
+		  bool named ATTRIBUTE_UNUSED)
 {
   /* VOIDmode is a signal for the backend to pass data to the call
      expander via the second operand to the call pattern.  We use
      this to determine whether to use "jsr" or "jsrv".  */
   if (mode == VOIDmode)
-    return GEN_INT (cum.vliw);
+    return GEN_INT (cum->vliw);
 
   /* If we havn't run out of argument registers, return the next.  */
-  if (cum.nregs < 4)
+  if (cum->nregs < 4)
     {
       if (type && TARGET_IVC2 && VECTOR_TYPE_P (type))
-	return gen_rtx_REG (mode, cum.nregs + 49);
+	return gen_rtx_REG (mode, cum->nregs + 49);
       else
-	return gen_rtx_REG (mode, cum.nregs + 1);
+	return gen_rtx_REG (mode, cum->nregs + 1);
     }
 
   /* Otherwise the argument goes on the stack.  */
@@ -3762,10 +3776,11 @@ mep_pass_by_reference (CUMULATIVE_ARGS * cum ATTRIBUTE_UNUSED,
   return true;
 }
 
-void
-mep_arg_advance (CUMULATIVE_ARGS *pcum,
-		 enum machine_mode mode ATTRIBUTE_UNUSED,
-		 tree type ATTRIBUTE_UNUSED, int named ATTRIBUTE_UNUSED)
+static void
+mep_function_arg_advance (CUMULATIVE_ARGS *pcum,
+			  enum machine_mode mode ATTRIBUTE_UNUSED,
+			  const_tree type ATTRIBUTE_UNUSED,
+			  bool named ATTRIBUTE_UNUSED)
 {
   pcum->nregs += 1;
 }
@@ -4823,7 +4838,7 @@ mep_output_aligned_common (FILE *stream, tree decl, const char *name,
 	      align /= 2;
 	      p2align ++;
 	    }
-	  name2 = TARGET_STRIP_NAME_ENCODING (name);
+	  name2 = targetm.strip_name_encoding (name);
 	  if (global)
 	    fprintf (stream, "\t.globl\t%s\n", name2);
 	  fprintf (stream, "\t.p2align %d\n", p2align);
@@ -7405,14 +7420,18 @@ mep_asm_init_sections (void)
 #define TARGET_SETUP_INCOMING_VARARGS	mep_setup_incoming_varargs
 #undef  TARGET_PASS_BY_REFERENCE
 #define TARGET_PASS_BY_REFERENCE        mep_pass_by_reference
+#undef  TARGET_FUNCTION_ARG
+#define TARGET_FUNCTION_ARG             mep_function_arg
+#undef  TARGET_FUNCTION_ARG_ADVANCE
+#define TARGET_FUNCTION_ARG_ADVANCE     mep_function_arg_advance
 #undef  TARGET_VECTOR_MODE_SUPPORTED_P
 #define TARGET_VECTOR_MODE_SUPPORTED_P	mep_vector_mode_supported_p
 #undef  TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION            mep_handle_option
 #undef  TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE		mep_option_override
-#undef  TARGET_OPTION_OPTIMIZATION
-#define TARGET_OPTION_OPTIMIZATION	mep_option_optimization
+#undef  TARGET_OPTION_OPTIMIZATION_TABLE
+#define TARGET_OPTION_OPTIMIZATION_TABLE	mep_option_optimization_table
 #undef  TARGET_DEFAULT_TARGET_FLAGS
 #define TARGET_DEFAULT_TARGET_FLAGS	TARGET_DEFAULT
 #undef  TARGET_ALLOCATE_INITIAL_VALUE

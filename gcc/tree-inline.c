@@ -858,6 +858,7 @@ remap_gimple_op_r (tree *tp, int *walk_subtrees, void *data)
 		  *tp = fold_build2 (MEM_REF, TREE_TYPE (*tp),
 				     ptr, TREE_OPERAND (*tp, 1));
 		  TREE_THIS_VOLATILE (*tp) = TREE_THIS_VOLATILE (old);
+		  TREE_THIS_NOTRAP (*tp) = TREE_THIS_NOTRAP (old);
 		}
 	      TREE_NO_WARNING (*tp) = TREE_NO_WARNING (old);
 	      *walk_subtrees = 0;
@@ -1087,6 +1088,8 @@ copy_tree_body_r (tree *tp, int *walk_subtrees, void *data)
 	              *tp = build1 (INDIRECT_REF, type, new_tree);
 		      TREE_THIS_VOLATILE (*tp) = TREE_THIS_VOLATILE (old);
 		      TREE_SIDE_EFFECTS (*tp) = TREE_SIDE_EFFECTS (old);
+		      TREE_READONLY (*tp) = TREE_READONLY (old);
+		      TREE_THIS_NOTRAP (*tp) = TREE_THIS_NOTRAP (old);
 		    }
 		}
 	      *walk_subtrees = 0;
@@ -4007,7 +4010,10 @@ expand_call_inline (basic_block bb, gimple stmt, copy_body_data *id)
     }
 
   if (purge_dead_abnormal_edges)
-    gimple_purge_dead_abnormal_call_edges (return_block);
+    {
+      gimple_purge_dead_eh_edges (return_block);
+      gimple_purge_dead_abnormal_call_edges (return_block);
+    }
 
   /* If the value of the new expression is ignored, that's OK.  We
      don't warn about this for CALL_EXPRs, so we shouldn't warn about

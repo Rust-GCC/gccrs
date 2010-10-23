@@ -68,15 +68,12 @@
 #ifndef TARGET_VERSION
 #define TARGET_VERSION TARGET_VERSION_INTERNAL (stderr)
 #endif
-
-#define CAN_DEBUG_WITHOUT_FP
 
 /* Storage Layout.  */
 
 #define BITS_BIG_ENDIAN 		0
 #define BYTES_BIG_ENDIAN 		1 
 #define WORDS_BIG_ENDIAN 		1
-#define LIBGCC2_WORDS_BIG_ENDIAN	1
 #define BITS_PER_WORD 			32
 #define MAX_BITS_PER_WORD 		64
 #define UNITS_PER_WORD 			4

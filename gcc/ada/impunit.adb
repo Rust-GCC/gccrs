@@ -177,10 +177,11 @@ package body Impunit is
       --  harmless (and useful) to make then available in Ada 95 mode, since
       --  they do not deal with Wide_Wide_Character.
 
+     "a-wichha",    -- Ada.Wide_Characters.Handling
      "a-stuten",    -- Ada.Strings.UTF_Encoding
      "a-suenco",    -- Ada.Strings.UTF_Encoding.Conversions
-     "a-suesen",    -- Ada.Strings.UTF_Encoding.String_Encoding
-     "a-suewse",    -- Ada.Strings.UTF_Encoding.Wide_String_Encoding
+     "a-suenst",    -- Ada.Strings.UTF_Encoding.Strings
+     "a-suewst",    -- Ada.Strings.UTF_Encoding.Wide_Strings
 
    ---------------------------
    -- GNAT Special IO Units --
@@ -393,6 +394,7 @@ package body Impunit is
      "a-disedf",    -- Ada.Dispatching.EDF
      "a-dispat",    -- Ada.Dispatching
      "a-envvar",    -- Ada.Environment_Variables
+     "a-etgrbu",    -- Ada.Execution_Time.Group_Budgets
      "a-exetim",    -- Ada.Execution_Time
      "a-extiti",    -- Ada.Execution_Time.Timers
      "a-izteio",    -- Ada.Integer_Wide_Wide_Text_IO
@@ -426,6 +428,7 @@ package body Impunit is
      "a-wwboio",    -- Ada.Wide_Text_IO.Wide_Bounded_IO
      "a-wwunio",    -- Ada.Wide_Text_IO.Wide_Unbounded_IO
      "a-zchara",    -- Ada.Wide_Wide_Characters
+     "a-zchhan",    -- Ada.Wide_Wide_Characters.Handling
      "a-ztcoio",    -- Ada.Wide_Wide_Text_IO.Complex_IO
      "a-ztedit",    -- Ada.Wide_Wide_Text_IO.Editing
      "a-zttest",    -- Ada.Wide_Wide_Text_IO.Text_Streams
@@ -472,7 +475,7 @@ package body Impunit is
       --  Note: strictly the following should be Ada 2012 units, but it seems
       --  harmless (and useful) to make then available in Ada 2005 mode.
 
-     "a-suezse",    -- Ada.Strings.UTF_Encoding.Wide_Wide_String_Encoding
+     "a-suezst",    -- Ada.Strings.UTF_Encoding.Wide_Wide_Strings
 
    ---------------------------
    -- GNAT Special IO Units --
@@ -494,6 +497,16 @@ package body Impunit is
 
      "g-zspche",    -- GNAT.Wide_Wide_Spelling_Checker
      "g-zstspl");   -- GNAT.Wide_Wide_String_Split
+
+   --------------------
+   -- Ada 2012 Units --
+   --------------------
+
+   --  The following units should be used only in Ada 2012 mode
+
+   Non_Imp_File_Names_12 : constant File_List := (
+     "s-multip",    -- System.Multiprocessors
+     "s-mudido");   -- System.Multiprocessors.Dispatching_Domains
 
    -----------------------
    -- Alternative Units --
@@ -594,11 +607,19 @@ package body Impunit is
          end if;
       end loop;
 
-      --  See if name is in 05 list
+      --  See if name is in 2005 list
 
       for J in Non_Imp_File_Names_05'Range loop
          if Name_Buffer (1 .. 8) = Non_Imp_File_Names_05 (J) then
-            return Ada_05_Unit;
+            return Ada_2005_Unit;
+         end if;
+      end loop;
+
+      --  See if name is in 2012 list
+
+      for J in Non_Imp_File_Names_12'Range loop
+         if Name_Buffer (1 .. 8) = Non_Imp_File_Names_12 (J) then
+            return Ada_2012_Unit;
          end if;
       end loop;
 

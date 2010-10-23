@@ -3068,7 +3068,9 @@ package body Sem_Warn is
             Elab_Warnings                       := True;
             Implementation_Unit_Warnings        := True;
             Ineffective_Inline_Warnings         := True;
+            List_Inherited_Aspects              := True;
             Warn_On_Ada_2005_Compatibility      := True;
+            Warn_On_Ada_2012_Compatibility      := True;
             Warn_On_All_Unread_Out_Parameters   := True;
             Warn_On_Assertion_Failure           := True;
             Warn_On_Assumed_Low_Bound           := True;
@@ -3111,6 +3113,12 @@ package body Sem_Warn is
 
          when 'I' =>
             Warn_On_Overlap                     := False;
+
+         when 'l' =>
+            List_Inherited_Aspects              := True;
+
+         when 'L' =>
+            List_Inherited_Aspects              := False;
 
          when 'm' =>
             Warn_On_Suspicious_Modulus_Value    := True;
@@ -3188,7 +3196,9 @@ package body Sem_Warn is
       Elab_Warnings                       := False;
       Implementation_Unit_Warnings        := False;
       Ineffective_Inline_Warnings         := True;
+      List_Inherited_Aspects              := False;
       Warn_On_Ada_2005_Compatibility      := True;
+      Warn_On_Ada_2012_Compatibility      := True;
       Warn_On_All_Unread_Out_Parameters   := False;
       Warn_On_Assertion_Failure           := True;
       Warn_On_Assumed_Low_Bound           := True;
@@ -3229,7 +3239,9 @@ package body Sem_Warn is
             Constant_Condition_Warnings         := True;
             Implementation_Unit_Warnings        := True;
             Ineffective_Inline_Warnings         := True;
+            List_Inherited_Aspects              := True;
             Warn_On_Ada_2005_Compatibility      := True;
+            Warn_On_Ada_2012_Compatibility      := True;
             Warn_On_Assertion_Failure           := True;
             Warn_On_Assumed_Low_Bound           := True;
             Warn_On_Bad_Fixed_Value             := True;
@@ -3258,7 +3270,9 @@ package body Sem_Warn is
             Elab_Warnings                       := False;
             Implementation_Unit_Warnings        := False;
             Ineffective_Inline_Warnings         := False;
+            List_Inherited_Aspects              := False;
             Warn_On_Ada_2005_Compatibility      := False;
+            Warn_On_Ada_2012_Compatibility      := False;
             Warn_On_All_Unread_Out_Parameters   := False;
             Warn_On_Assertion_Failure           := False;
             Warn_On_Assumed_Low_Bound           := False;
@@ -3424,9 +3438,11 @@ package body Sem_Warn is
 
          when 'y' =>
             Warn_On_Ada_2005_Compatibility      := True;
+            Warn_On_Ada_2012_Compatibility      := True;
 
          when 'Y' =>
             Warn_On_Ada_2005_Compatibility      := False;
+            Warn_On_Ada_2012_Compatibility      := False;
 
          when 'z' =>
             Warn_On_Unchecked_Conversion        := True;

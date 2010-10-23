@@ -273,6 +273,19 @@ c_common_complain_wrong_lang_p (const struct cl_option *option)
   return true;
 }
 
+/* Initialize options structure OPTS.  */
+void
+c_common_init_options_struct (struct gcc_options *opts)
+{
+  opts->x_flag_exceptions = c_dialect_cxx ();
+  opts->x_warn_pointer_arith = c_dialect_cxx ();
+  opts->x_warn_write_strings = c_dialect_cxx ();
+  opts->x_flag_warn_unused_result = true;
+
+  /* By default, C99-like requirements for complex multiply and divide.  */
+  opts->x_flag_complex_method = 2;
+}
+
 /* Common initialization before calling option handlers.  */
 void
 c_common_init_options (unsigned int decoded_options_count,
@@ -293,14 +306,6 @@ c_common_init_options (unsigned int decoded_options_count,
   /* Reset to avoid warnings on internal definitions.  We set it just
      before passing on command-line options to cpplib.  */
   cpp_opts->warn_dollars = 0;
-
-  flag_exceptions = c_dialect_cxx ();
-  warn_pointer_arith = c_dialect_cxx ();
-  warn_write_strings = c_dialect_cxx();
-  flag_warn_unused_result = true;
-
-  /* By default, C99-like requirements for complex multiply and divide.  */
-  flag_complex_method = 2;
 
   deferred_opts = XNEWVEC (struct deferred_opt, decoded_options_count);
 
@@ -1155,7 +1160,6 @@ c_common_parse_file (int set_yydebug)
       pch_init ();
       push_file_scope ();
       c_parse_file ();
-      finish_file ();
       pop_file_scope ();
       /* And end the main input file, if the debug writer wants it  */
       if (debug_hooks->start_end_main_source_file)

@@ -124,8 +124,6 @@ extern GTY(()) section *progmem_section;
 
 #define TARGET_VERSION fprintf (stderr, " (GNU assembler syntax)");
 
-#define CAN_DEBUG_WITHOUT_FP
-
 #define BITS_BIG_ENDIAN 0
 #define BYTES_BIG_ENDIAN 0
 #define WORDS_BIG_ENDIAN 0
@@ -329,8 +327,6 @@ enum reg_class {
 
 #define REGNO_OK_FOR_INDEX_P(NUM) 0
 
-#define PREFERRED_RELOAD_CLASS(X, CLASS) preferred_reload_class(X,CLASS)
-
 #define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
 
 #define CLASS_MAX_NREGS(CLASS, MODE)   class_max_nregs (CLASS, MODE)
@@ -372,8 +368,6 @@ enum reg_class {
    for POST_DEC targets (PR27386).  */
 /*#define PUSH_ROUNDING(NPUSHED) (NPUSHED)*/
 
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) (function_arg (&(CUM), MODE, TYPE, NAMED))
-
 typedef struct avr_args {
   int nregs;			/* # registers available for passing */
   int regno;			/* next available register number */
@@ -381,9 +375,6 @@ typedef struct avr_args {
 
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, FNDECL, N_NAMED_ARGS) \
   init_cumulative_args (&(CUM), FNTYPE, LIBNAME, FNDECL)
-
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)	\
-  (function_arg_advance (&CUM, MODE, TYPE, NAMED))
 
 #define FUNCTION_ARG_REGNO_P(r) function_arg_regno_p(r)
 

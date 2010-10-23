@@ -589,6 +589,10 @@ static const char *mips_hi_relocs[NUM_SYMBOL_TYPES];
 /* Target state for MIPS16.  */
 struct target_globals *mips16_globals;
 
+/* Cached value of can_issue_more. This is cached in mips_variable_issue hook
+   and returned from mips_sched_reorder2.  */
+static int cached_can_issue_more;
+
 /* Index R is the smallest register class that contains register R.  */
 const enum reg_class mips_regno_to_class[FIRST_PSEUDO_REGISTER] = {
   LEA_REGS,	LEA_REGS,	M16_REGS,	V1_REG,
@@ -11140,12 +11144,15 @@ mips_scalar_mode_supported_p (enum machine_mode mode)
   return default_scalar_mode_supported_p (mode);
 }
 
-/* Implement TARGET_VECTORIZE_UNITS_PER_SIMD_WORD.  */
+/* Implement TARGET_VECTORIZE_PREFERRED_SIMD_MODE.  */
 
-static unsigned int
-mips_units_per_simd_word (enum machine_mode mode ATTRIBUTE_UNUSED)
+static enum machine_mode
+mips_preferred_simd_mode (enum machine_mode mode ATTRIBUTE_UNUSED)
 {
-  return TARGET_PAIRED_SINGLE_FLOAT ? 8 : UNITS_PER_WORD;
+  if (TARGET_PAIRED_SINGLE_FLOAT
+      && mode == SFmode)
+    return V2SFmode;
+  return word_mode;
 }
 
 /* Implement TARGET_INIT_LIBFUNCS.  */
@@ -12433,11 +12440,11 @@ mips_sched_init (FILE *file ATTRIBUTE_UNUSED, int verbose ATTRIBUTE_UNUSED,
   mips_ls2.falu1_turn_p = true;
 }
 
-/* Implement TARGET_SCHED_REORDER and TARGET_SCHED_REORDER2.  */
+/* Subroutine used by TARGET_SCHED_REORDER and TARGET_SCHED_REORDER2.  */
 
-static int
-mips_sched_reorder (FILE *file ATTRIBUTE_UNUSED, int verbose ATTRIBUTE_UNUSED,
-		    rtx *ready, int *nreadyp, int cycle ATTRIBUTE_UNUSED)
+static void
+mips_sched_reorder_1 (FILE *file ATTRIBUTE_UNUSED, int verbose ATTRIBUTE_UNUSED,
+		      rtx *ready, int *nreadyp, int cycle ATTRIBUTE_UNUSED)
 {
   if (!reload_completed
       && TUNE_MACC_CHAINS
@@ -12452,8 +12459,26 @@ mips_sched_reorder (FILE *file ATTRIBUTE_UNUSED, int verbose ATTRIBUTE_UNUSED,
 
   if (TUNE_74K)
     mips_74k_agen_reorder (ready, *nreadyp);
+}
 
+/* Implement TARGET_SCHED_REORDER.  */
+
+static int
+mips_sched_reorder (FILE *file ATTRIBUTE_UNUSED, int verbose ATTRIBUTE_UNUSED,
+		    rtx *ready, int *nreadyp, int cycle ATTRIBUTE_UNUSED)
+{
+  mips_sched_reorder_1 (file, verbose, ready, nreadyp, cycle);
   return mips_issue_rate ();
+}
+
+/* Implement TARGET_SCHED_REORDER2.  */
+
+static int
+mips_sched_reorder2 (FILE *file ATTRIBUTE_UNUSED, int verbose ATTRIBUTE_UNUSED,
+		     rtx *ready, int *nreadyp, int cycle ATTRIBUTE_UNUSED)
+{
+  mips_sched_reorder_1 (file, verbose, ready, nreadyp, cycle);
+  return cached_can_issue_more;
 }
 
 /* Update round-robin counters for ALU1/2 and FALU1/2.  */
@@ -12513,6 +12538,7 @@ mips_variable_issue (FILE *file ATTRIBUTE_UNUSED, int verbose ATTRIBUTE_UNUSED,
 	      || recog_memoized (insn) < 0
 	      || get_attr_type (insn) != TYPE_MULTI);
 
+  cached_can_issue_more = more;
   return more;
 }
 
@@ -15438,7 +15464,7 @@ mips_set_tune (const struct mips_cpu_info *info)
 /* Implement TARGET_HANDLE_OPTION.  */
 
 static bool
-mips_handle_option (size_t code, const char *arg, int value)
+mips_handle_option (size_t code, const char *arg, int value ATTRIBUTE_UNUSED)
 {
   switch (code)
     {
@@ -15872,6 +15898,13 @@ mips_option_override (void)
      MIPS16 mode afterwards if need be.  */
   mips_set_mips16_mode (false);
 }
+
+/* Implement TARGET_OPTION_OPTIMIZATION_TABLE.  */
+static const struct default_options mips_option_optimization_table[] =
+  {
+    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
+    { OPT_LEVELS_NONE, 0, NULL, 0 }
+  };
 
 /* Swap the register information for registers I and I + 1, which
    currently have the wrong endianness.  Note that the registers'
@@ -16387,6 +16420,8 @@ mips_shift_truncation_mask (enum machine_mode mode)
 
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE mips_option_override
+#undef TARGET_OPTION_OPTIMIZATION_TABLE
+#define TARGET_OPTION_OPTIMIZATION_TABLE mips_option_optimization_table
 
 #undef TARGET_LEGITIMIZE_ADDRESS
 #define TARGET_LEGITIMIZE_ADDRESS mips_legitimize_address
@@ -16405,7 +16440,7 @@ mips_shift_truncation_mask (enum machine_mode mode)
 #undef TARGET_SCHED_REORDER
 #define TARGET_SCHED_REORDER mips_sched_reorder
 #undef TARGET_SCHED_REORDER2
-#define TARGET_SCHED_REORDER2 mips_sched_reorder
+#define TARGET_SCHED_REORDER2 mips_sched_reorder2
 #undef TARGET_SCHED_VARIABLE_ISSUE
 #define TARGET_SCHED_VARIABLE_ISSUE mips_variable_issue
 #undef TARGET_SCHED_ADJUST_COST
@@ -16524,8 +16559,8 @@ mips_shift_truncation_mask (enum machine_mode mode)
 #undef TARGET_SCALAR_MODE_SUPPORTED_P
 #define TARGET_SCALAR_MODE_SUPPORTED_P mips_scalar_mode_supported_p
 
-#undef TARGET_VECTORIZE_UNITS_PER_SIMD_WORD
-#define TARGET_VECTORIZE_UNITS_PER_SIMD_WORD mips_units_per_simd_word
+#undef TARGET_VECTORIZE_PREFERRED_SIMD_MODE
+#define TARGET_VECTORIZE_PREFERRED_SIMD_MODE mips_preferred_simd_mode
 
 #undef TARGET_INIT_BUILTINS
 #define TARGET_INIT_BUILTINS mips_init_builtins

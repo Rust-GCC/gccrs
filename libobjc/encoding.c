@@ -28,17 +28,18 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 /* FIXME: This file has no business including tm.h.  */
 
 /* FIXME: This file contains functions that will abort the entire
-   program if they fail.  Is that really needed ?
-*/
+   program if they fail.  Is that really needed ?  */
 
 #include "objc-private/common.h"
 #include "objc-private/error.h"
 #include "tconfig.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "objc/objc-api.h"
-#include "objc/encoding.h"
+#include "objc/runtime.h"
+#include "objc-private/module-abi-8.h" /* For struct objc_method */
 #include <stdlib.h>
+#include <ctype.h>
+#include <string.h>                    /* For memcpy.  */
 
 #undef  MAX
 #define MAX(X, Y)                    \
@@ -138,21 +139,33 @@ static int __attribute__ ((__unused__)) not_target_flags = 0;
 #define darwin_rs6000_special_round_type_align(S,C,S2) \
   rs6000_special_round_type_align(S,C,S2)
 
-/*
-  return the size of an object specified by type
-*/
 
-int
-objc_sizeof_type (const char *type)
+/* Skip a variable name, enclosed in quotes (").  */
+static inline
+const char *
+objc_skip_variable_name (const char *type)
 {
-  /* Skip the variable name if any */
+  /* Skip the variable name if any.  */
   if (*type == '"')
     {
       /* FIXME: How do we know we won't read beyond the end of the
 	 string.  Here and in the rest of the file!  */
-      for (type++; *type++ != '"';)
-	/* do nothing */;
+      /* Skip '"'.  */
+      type++;
+      /* Skip to the next '"'.  */
+      while (*type != '"')
+	type++;
+      /* Skip '"'.  */
+      type++;
     }
+
+  return type;
+}
+
+int
+objc_sizeof_type (const char *type)
+{
+  type = objc_skip_variable_name (type);
 
   switch (*type) {
   case _C_BOOL:
@@ -257,7 +270,8 @@ objc_sizeof_type (const char *type)
 
   case _C_BFLD:
     {
-      /* The new encoding of bitfields is: b 'position' 'type' 'size' */
+      /* The GNU encoding of bitfields is: b 'position' 'type'
+	 'size'.  */
       int position, size;
       int startByte, endByte;
 
@@ -362,20 +376,11 @@ objc_sizeof_type (const char *type)
   }
 }
 
-
-/*
-  Return the alignment of an object specified by type
-*/
-
 int
 objc_alignof_type (const char *type)
 {
-  /* Skip the variable name if any */
-  if (*type == '"')
-    {
-      for (type++; *type++ != '"';)
-	/* do nothing */;
-    }
+  type = objc_skip_variable_name (type);
+
   switch (*type) {
   case _C_BOOL:
     return __alignof__ (_Bool);
@@ -561,56 +566,31 @@ objc_alignof_type (const char *type)
   }
 }
 
-/*
-  The aligned size if the size rounded up to the nearest alignment.
-*/
-
 int
 objc_aligned_size (const char *type)
 {
   int size, align;
 
-  /* Skip the variable name */
-  if (*type == '"')
-    {
-      for (type++; *type++ != '"';)
-	/* do nothing */;
-    }
-
+  type = objc_skip_variable_name (type);
   size = objc_sizeof_type (type);
   align = objc_alignof_type (type);
 
   return ROUND (size, align);
 }
 
-/*
-  The size rounded up to the nearest integral of the wordsize, taken
-  to be the size of a void *.
-*/
-
 int
 objc_promoted_size (const char *type)
 {
   int size, wordsize;
 
-  /* Skip the variable name */
-  if (*type == '"')
-    {
-      for (type++; *type++ != '"';)
-	/* do nothing */;
-    }
-
+  type = objc_skip_variable_name (type);
   size = objc_sizeof_type (type);
   wordsize = sizeof (void *);
 
   return ROUND (size, wordsize);
 }
 
-/*
-  Skip type qualifiers.  These may eventually precede typespecs
-  occurring in method prototype encodings.
-*/
-
+inline
 const char *
 objc_skip_type_qualifiers (const char *type)
 {
@@ -628,22 +608,11 @@ objc_skip_type_qualifiers (const char *type)
   return type;
 }
 
-
-/*
-  Skip one typespec element.  If the typespec is prepended by type
-  qualifiers, these are skipped as well.
-*/
-
+inline
 const char *
 objc_skip_typespec (const char *type)
 {
-  /* Skip the variable name if any */
-  if (*type == '"')
-    {
-      for (type++; *type++ != '"';)
-	/* do nothing */;
-    }
-
+  type = objc_skip_variable_name (type);
   type = objc_skip_type_qualifiers (type);
 
   switch (*type) {
@@ -727,7 +696,8 @@ objc_skip_typespec (const char *type)
       }
 
   case _C_BFLD:
-    /* The new encoding of bitfields is: b 'position' 'type' 'size' */
+    /* The GNU encoding of bitfields is: b 'position' 'type'
+       'size'.  */
     while (isdigit ((unsigned char)*++type))
       ;	/* skip position */
     while (isdigit ((unsigned char)*++type))
@@ -769,25 +739,29 @@ objc_skip_typespec (const char *type)
   }
 }
 
-/*
-  Skip an offset as part of a method encoding.  This is prepended by a
-  '+' if the argument is passed in registers.
-
-  FIXME: The compiler never generates '+'.
-*/
+inline
 const char *
 objc_skip_offset (const char *type)
 {
+  /* The offset is prepended by a '+' if the argument is passed in
+     registers.  PS: The compiler stopped generating this '+' in
+     version 3.4.  */
   if (*type == '+')
     type++;
-  while (isdigit ((unsigned char) *++type))
-    ;
+
+  /* Some people claim that on some platforms, where the stack grows
+     backwards, the compiler generates negative offsets (??).  Skip a
+     '-' for such a negative offset.  */
+  if (*type == '-')
+    type++;
+
+  /* Skip the digits that represent the offset.  */
+  while (isdigit ((unsigned char) *type))
+    type++;
+
   return type;
 }
 
-/*
-  Skip an argument specification of a method encoding.
-*/
 const char *
 objc_skip_argspec (const char *type)
 {
@@ -796,30 +770,210 @@ objc_skip_argspec (const char *type)
   return type;
 }
 
-/*
-  Return the number of arguments that the method MTH expects.
-  Note that all methods need two implicit arguments `self' and
-  `_cmd'.
-*/
+char *
+method_copyReturnType (struct objc_method *method)
+{
+  if (method == NULL)
+    return 0;
+  else
+    {
+      char *returnValue;
+      size_t returnValueSize;
+
+      /* Determine returnValueSize.  */
+      {
+	/* Find the end of the first argument.  We want to return the
+	   first argument spec, plus 1 byte for the \0 at the end.  */
+	const char *type = method->method_types;
+	if (*type == '\0')
+	  return NULL;
+	type = objc_skip_argspec (type);
+	returnValueSize = type - method->method_types + 1;
+      }
+
+      /* Copy the first argument into returnValue.  */
+      returnValue = malloc (sizeof (char) * returnValueSize);
+      memcpy (returnValue, method->method_types, returnValueSize);
+      returnValue[returnValueSize - 1] = '\0';
+
+      return returnValue;
+    }
+}
+
+char *
+method_copyArgumentType (struct objc_method * method, unsigned int argumentNumber)
+{
+  if (method == NULL)
+    return 0;
+  else
+    {
+      char *returnValue;
+      const char *returnValueStart;
+      size_t returnValueSize;
+
+      /* Determine returnValueStart and returnValueSize.  */
+      {
+	const char *type = method->method_types;
+
+	/* Skip the first argument (return type).  */
+	type = objc_skip_argspec (type);
+
+	/* Now keep skipping arguments until we get to
+	   argumentNumber.  */
+	while (argumentNumber > 0)
+	  {
+	    /* We are supposed to skip an argument, but the string is
+	       finished.  This means we were asked for a non-existing
+	       argument.  */
+	    if (*type == '\0')
+	      return NULL;
+
+	    type = objc_skip_argspec (type);
+	    argumentNumber--;
+	  }
+
+	/* If the argument does not exist, return NULL.  */
+	if (*type == '\0')
+	  return NULL;
+
+	returnValueStart = type;
+	type = objc_skip_argspec (type);
+	returnValueSize = type - returnValueStart + 1;
+      }
+      
+      /* Copy the argument into returnValue.  */
+      returnValue = malloc (sizeof (char) * returnValueSize);
+      memcpy (returnValue, returnValueStart, returnValueSize);
+      returnValue[returnValueSize - 1] = '\0';
+
+      return returnValue;
+    }
+}
+
+void method_getReturnType (struct objc_method * method, char *returnValue, 
+			   size_t returnValueSize)
+{
+  if (returnValue == NULL  ||  returnValueSize == 0)
+    return;
+
+  /* Zero the string; we'll then write the argument type at the
+     beginning of it, if needed.  */
+  memset (returnValue, 0, returnValueSize);
+
+  if (method == NULL)
+    return;
+  else
+    {
+      size_t argumentTypeSize;
+
+      /* Determine argumentTypeSize.  */
+      {
+	/* Find the end of the first argument.  We want to return the
+	   first argument spec.  */
+	const char *type = method->method_types;
+	if (*type == '\0')
+	  return;
+	type = objc_skip_argspec (type);
+	argumentTypeSize = type - method->method_types;
+	if (argumentTypeSize > returnValueSize)
+	  argumentTypeSize = returnValueSize;
+      }
+      /* Copy the argument at the beginning of the string.  */
+      memcpy (returnValue, method->method_types, argumentTypeSize);
+    }
+}
+
+void method_getArgumentType (struct objc_method * method, unsigned int argumentNumber,
+			     char *returnValue, size_t returnValueSize)
+{
+  if (returnValue == NULL  ||  returnValueSize == 0)
+    return;
+
+  /* Zero the string; we'll then write the argument type at the
+     beginning of it, if needed.  */
+  memset (returnValue, 0, returnValueSize);
+
+  if (method == NULL)
+    return;
+  else
+    {
+      const char *returnValueStart;
+      size_t argumentTypeSize;
+
+      /* Determine returnValueStart and argumentTypeSize.  */
+      {
+	const char *type = method->method_types;
+
+	/* Skip the first argument (return type).  */
+	type = objc_skip_argspec (type);
+
+	/* Now keep skipping arguments until we get to
+	   argumentNumber.  */
+	while (argumentNumber > 0)
+	  {
+	    /* We are supposed to skip an argument, but the string is
+	       finished.  This means we were asked for a non-existing
+	       argument.  */
+	    if (*type == '\0')
+	      return;
+
+	    type = objc_skip_argspec (type);
+	    argumentNumber--;
+	  }
+
+	/* If the argument does not exist, it's game over.  */
+	if (*type == '\0')
+	  return;
+
+	returnValueStart = type;
+	type = objc_skip_argspec (type);
+	argumentTypeSize = type - returnValueStart;
+	if (argumentTypeSize > returnValueSize)
+	  argumentTypeSize = returnValueSize;
+      }
+      /* Copy the argument at the beginning of the string.  */
+      memcpy (returnValue, returnValueStart, argumentTypeSize);
+    }
+}
+
+unsigned int
+method_getNumberOfArguments (struct objc_method *method)
+{
+  if (method == NULL)
+    return 0;
+  else
+    {
+      unsigned int i = 0;
+      const char *type = method->method_types;
+      while (*type)
+	{
+	  type = objc_skip_argspec (type);
+	  i += 1;
+	}
+
+      if (i == 0)
+	{
+	  /* This could only happen if method_types is invalid; in
+	     that case, return 0.  */
+	  return 0;
+	}
+      else
+	{
+	  /* Remove the return type.  */
+	  return (i - 1);
+	}
+    }
+}
+
 int
 method_get_number_of_arguments (struct objc_method *mth)
 {
-  int i = 0;
-  const char *type = mth->method_types;
-  while (*type)
-    {
-      type = objc_skip_argspec (type);
-      i += 1;
-    }
-  return i - 1;
+  return method_getNumberOfArguments (mth);
 }
 
-/*
-  Return the size of the argument block needed on the stack to invoke
-  the method MTH.  This may be zero, if all arguments are passed in
-  registers.
-*/
-
+/* Return the size of the argument block needed on the stack to invoke
+   the method MTH.  This may be zero, if all arguments are passed in
+   registers.  */
 int
 method_get_sizeof_arguments (struct objc_method *mth)
 {
@@ -848,7 +1002,6 @@ method_get_sizeof_arguments (struct objc_method *mth)
       }
   }
 */
-
 char *
 method_get_next_argument (arglist_t argframe, const char **type)
 {
@@ -866,12 +1019,10 @@ method_get_next_argument (arglist_t argframe, const char **type)
     return argframe->arg_ptr + atoi (t);
 }
 
-/*
-  Return a pointer to the value of the first argument of the method
-  described in M with the given argumentframe ARGFRAME.  The type
-  is returned in TYPE.  type must be passed to successive calls of
-  method_get_next_argument.
-*/
+/* Return a pointer to the value of the first argument of the method
+   described in M with the given argumentframe ARGFRAME.  The type
+   is returned in TYPE.  type must be passed to successive calls of
+   method_get_next_argument.  */
 char *
 method_get_first_argument (struct objc_method *m,
 			   arglist_t argframe,
@@ -881,12 +1032,9 @@ method_get_first_argument (struct objc_method *m,
   return method_get_next_argument (argframe, type);
 }
 
-/*
-   Return a pointer to the ARGth argument of the method
+/* Return a pointer to the ARGth argument of the method
    M from the frame ARGFRAME.  The type of the argument
-   is returned in the value-result argument TYPE
-*/
-
+   is returned in the value-result argument TYPE.  */
 char *
 method_get_nth_argument (struct objc_method *m,
 			 arglist_t argframe, int arg,
@@ -918,20 +1066,19 @@ objc_get_type_qualifiers (const char *type)
   while (flag)
     switch (*type++)
       {
-      case _C_CONST:	res |= _F_CONST; break;
-      case _C_IN:	res |= _F_IN; break;
-      case _C_INOUT:	res |= _F_INOUT; break;
-      case _C_OUT:	res |= _F_OUT; break;
-      case _C_BYCOPY:	res |= _F_BYCOPY; break;
-      case _C_BYREF:  res |= _F_BYREF; break;
-      case _C_ONEWAY:	res |= _F_ONEWAY; break;
+      case _C_CONST:       res |= _F_CONST; break;
+      case _C_IN:          res |= _F_IN; break;
+      case _C_INOUT:       res |= _F_INOUT; break;
+      case _C_OUT:         res |= _F_OUT; break;
+      case _C_BYCOPY:      res |= _F_BYCOPY; break;
+      case _C_BYREF:       res |= _F_BYREF; break;
+      case _C_ONEWAY:      res |= _F_ONEWAY; break;
       case _C_GCINVISIBLE: res |= _F_GCINVISIBLE; break;
       default: flag = NO;
     }
 
   return res;
 }
-
 
 /* The following three functions can be used to determine how a
    structure is laid out by the compiler. For example:
@@ -954,7 +1101,7 @@ objc_get_type_qualifiers (const char *type)
   functions to compute the size and alignment of structures. The
   previous method of computing the size and alignment of a structure
   was not working on some architectures, particulary on AIX, and in
-  the presence of bitfields inside the structure. */
+  the presence of bitfields inside the structure.  */
 void
 objc_layout_structure (const char *type,
 		       struct objc_struct_layout *layout)
@@ -987,7 +1134,6 @@ objc_layout_structure (const char *type,
 
   layout->record_align = MAX (layout->record_align, STRUCTURE_SIZE_BOUNDARY);
 }
-
 
 BOOL
 objc_layout_structure_next_member (struct objc_struct_layout *layout)
@@ -1030,12 +1176,7 @@ objc_layout_structure_next_member (struct objc_struct_layout *layout)
     return NO;
 
   /* Skip the variable name if any */
-  if (*layout->type == '"')
-    {
-      for (layout->type++; *layout->type++ != '"';)
-        /* do nothing */;
-    }
-
+  layout->type = objc_skip_variable_name (layout->type);
   type = objc_skip_type_qualifiers (layout->type);
 
   if (*type != _C_BFLD)
@@ -1121,7 +1262,6 @@ objc_layout_structure_next_member (struct objc_struct_layout *layout)
   return YES;
 }
 
-
 void objc_layout_finish_structure (struct objc_struct_layout *layout,
                                    unsigned int *size,
                                    unsigned int *align)
@@ -1158,7 +1298,6 @@ void objc_layout_finish_structure (struct objc_struct_layout *layout,
   if (align)
     *align = layout->record_align / BITS_PER_UNIT;
 }
-
 
 void objc_layout_structure_get_info (struct objc_struct_layout *layout,
                                      unsigned int *offset,

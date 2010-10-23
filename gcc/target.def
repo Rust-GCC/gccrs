@@ -101,6 +101,38 @@ DEFHOOKPOD
 DEFHOOKPOD (aligned_op, "*", struct asm_int_op, TARGET_ASM_ALIGNED_INT_OP)
 DEFHOOKPOD (unaligned_op, "*", struct asm_int_op, TARGET_ASM_UNALIGNED_INT_OP)
 
+/* The maximum number of bytes to skip when applying
+   LABEL_ALIGN_AFTER_BARRIER.  */
+DEFHOOK
+(label_align_after_barrier_max_skip,
+ "",
+ int, (rtx label),
+ default_label_align_after_barrier_max_skip)
+
+/* The maximum number of bytes to skip when applying
+   LOOP_ALIGN.  */
+DEFHOOK
+(loop_align_max_skip,
+ "",
+ int, (rtx label),
+ default_loop_align_max_skip)
+
+/* The maximum number of bytes to skip when applying
+   LABEL_ALIGN.  */
+DEFHOOK
+(label_align_max_skip,
+ "",
+ int, (rtx label),
+ default_label_align_max_skip)
+
+/* The maximum number of bytes to skip when applying
+   JUMP_ALIGN.  */
+DEFHOOK
+(jump_align_max_skip,
+ "",
+ int, (rtx label),
+ default_jump_align_max_skip)
+
 /* Try to output the assembler code for an integer object whose
    value is given by X.  SIZE is the size of the object in bytes and
    ALIGNED_P indicates whether it is aligned.  Return true if
@@ -880,13 +912,23 @@ DEFHOOK
  (enum machine_mode mode, const_tree type, int misalignment, bool is_packed),
  default_builtin_support_vector_misalignment)
 
-/* Return units per SIMD word.  */
+/* Returns the preferred mode for SIMD operations for the specified
+   scalar mode.  */
 DEFHOOK
-(units_per_simd_word,
+(preferred_simd_mode,
+ "",
+ enum machine_mode,
+ (enum machine_mode mode),
+ default_preferred_simd_mode)
+
+/* Returns a mask of vector sizes to iterate over when auto-vectorizing
+   after processing the preferred one derived from preferred_simd_mode.  */
+DEFHOOK
+(autovectorize_vector_sizes,
  "",
  unsigned int,
- (enum machine_mode mode),
- default_units_per_simd_word)
+ (void),
+ default_autovectorize_vector_sizes)
 
 HOOK_VECTOR_END (vectorize)
 
@@ -918,13 +960,6 @@ DEFHOOK
  "",
  bool, (size_t code, const char *arg, int value),
  hook_bool_size_t_constcharptr_int_true)
-
-/* ??? Documenting this hook requires a GFDL license grant.  */
-DEFHOOK_UNDOC
-(handle_ofast,
- "Handle target-specific parts of specifying -Ofast.",
- void, (void),
- hook_void_void)
 
 /* Display extra, target specific information in response to a
    --target-help switch.  */
@@ -2023,6 +2058,24 @@ DEFHOOK
   secondary_reload_info *sri),
  default_secondary_reload)
 
+/* Given an rtx X being reloaded into a reg required to be in class CLASS,
+   return the class of reg to actually use.  */
+DEFHOOK
+(preferred_reload_class,
+ "",
+ reg_class_t,
+ (rtx x, reg_class_t rclass),
+ default_preferred_reload_class)
+
+/* Like TARGET_PREFERRED_RELOAD_CLASS, but for output reloads instead of
+   input reloads.  */
+DEFHOOK
+(preferred_output_reload_class,
+ "",
+ reg_class_t,
+ (rtx x, reg_class_t rclass),
+ default_preferred_output_reload_class)
+
 DEFHOOK
 (class_likely_spilled_p,
  "",
@@ -2324,11 +2377,23 @@ DEFHOOK
  hook_void_void)
 
 /* Set default optimizations for the target.  */
-DEFHOOK
-(optimization,
+DEFHOOKPOD
+(optimization_table,
  "",
- void, (int level, int size),
- hook_void_int_int)
+ const struct default_options *, empty_optimization_table)
+
+DEFHOOK
+(default_params,
+"Set target-dependent default values for @option{--param} settings, using\
+ calls to @code{set_default_param_value}.",
+ void, (void),
+ hook_void_void)
+
+DEFHOOK
+(init_struct,
+"Set target-dependent initial values of fields in @var{opts}.",
+ void, (struct gcc_options *opts),
+ hook_void_gcc_optionsp)
 
 /* Function to determine if one function can inline another function.  */
 #undef HOOK_PREFIX
@@ -2468,5 +2533,11 @@ DEFHOOK
  "",
  bool, (size_t code, const char *arg, int value),
  default_handle_c_option)
+
+DEFHOOK
+(objc_construct_string,
+ "Construct a constant string representation for @var{string}",
+ tree, (tree string),
+ NULL)
 
 HOOK_VECTOR_END (C90_EMPTY_HACK)

@@ -494,10 +494,6 @@ extern int arm_arch_hwdiv;
 #define TARGET_DEFAULT  (MASK_APCS_FRAME)
 #endif
 
-/* The frame pointer register used in gcc has nothing to do with debugging;
-   that is controlled by the APCS-FRAME option.  */
-#define CAN_DEBUG_WITHOUT_FP
-
 /* Nonzero if PIC code requires explicit qualifiers to generate
    PLT and GOT relocs rather than the assembler doing so implicitly.
    Subtargets can override these if required.  */
@@ -560,14 +556,6 @@ extern int arm_arch_hwdiv;
    This is always false, even when in big-endian mode.  */
 #define WORDS_BIG_ENDIAN  (BYTES_BIG_ENDIAN && ! TARGET_LITTLE_WORDS)
 
-/* LIBGCC2_WORDS_BIG_ENDIAN has to be a constant, so we define this based
-   on processor pre-defineds when compiling libgcc2.c.  */
-#if defined(__ARMEB__) && !defined(__ARMWEL__)
-#define LIBGCC2_WORDS_BIG_ENDIAN 1
-#else
-#define LIBGCC2_WORDS_BIG_ENDIAN 0
-#endif
-
 /* Define this if most significant word of doubles is the lowest numbered.
    The rules are different based on whether or not we use FPA-format,
    VFP-format or some other floating point co-processor's format doubles.  */
@@ -617,15 +605,21 @@ extern int arm_arch_hwdiv;
 /* Align definitions of arrays, unions and structures so that
    initializations and copies can be made more efficient.  This is not
    ABI-changing, so it only affects places where we can see the
-   definition.  */
-#define DATA_ALIGNMENT(EXP, ALIGN)					\
-  ((((ALIGN) < BITS_PER_WORD)                                           \
+   definition. Increasing the alignment tends to introduce padding,
+   so don't do this when optimizing for size/conserving stack space. */
+#define ARM_EXPAND_ALIGNMENT(COND, EXP, ALIGN)				\
+  (((COND) && ((ALIGN) < BITS_PER_WORD)					\
     && (TREE_CODE (EXP) == ARRAY_TYPE					\
 	|| TREE_CODE (EXP) == UNION_TYPE				\
 	|| TREE_CODE (EXP) == RECORD_TYPE)) ? BITS_PER_WORD : (ALIGN))
 
+/* Align global data. */
+#define DATA_ALIGNMENT(EXP, ALIGN)			\
+  ARM_EXPAND_ALIGNMENT(!optimize_size, EXP, ALIGN)
+
 /* Similarly, make sure that objects on the stack are sensibly aligned.  */
-#define LOCAL_ALIGNMENT(EXP, ALIGN) DATA_ALIGNMENT(EXP, ALIGN)
+#define LOCAL_ALIGNMENT(EXP, ALIGN)				\
+  ARM_EXPAND_ALIGNMENT(!flag_conserve_stack, EXP, ALIGN)
 
 /* Setting STRUCTURE_SIZE_BOUNDARY to 32 produces more efficient code, but the
    value set in previous versions of this toolchain was 8, which produces more
@@ -1245,8 +1239,8 @@ enum reg_class
   { 0x0000DF00, 0x00000000, 0x00000000, 0x00000000 }, /* HI_REGS */	\
   { 0x01000000, 0x00000000, 0x00000000, 0x00000000 }, /* CC_REG */	\
   { 0x00000000, 0x00000000, 0x00000000, 0x80000000 }, /* VFPCC_REG */	\
-  { 0x0200DFFF, 0x00000000, 0x00000000, 0x00000000 }, /* GENERAL_REGS */ \
-  { 0x0200FFFF, 0x00000000, 0x00000000, 0x00000000 }, /* CORE_REGS */	\
+  { 0x0000DFFF, 0x00000000, 0x00000000, 0x00000000 }, /* GENERAL_REGS */ \
+  { 0x0000FFFF, 0x00000000, 0x00000000, 0x00000000 }, /* CORE_REGS */	\
   { 0xFAFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x7FFFFFFF }  /* ALL_REGS */	\
 }
 

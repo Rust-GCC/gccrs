@@ -130,6 +130,7 @@ package Scans is
       Tok_Record,          -- RECORD       Eterm, Sterm
       Tok_Renames,         -- RENAMES      Eterm, Sterm
       Tok_Reverse,         -- REVERSE      Eterm, Sterm
+      Tok_Some,            -- SOME         Eterm, Sterm
       Tok_Tagged,          -- TAGGED       Eterm, Sterm
       Tok_Then,            -- THEN         Eterm, Sterm
 
@@ -192,7 +193,8 @@ package Scans is
       Tok_Project,
       Tok_Extends,
       Tok_External,
-      --  These three entries represent keywords for the project file language
+      Tok_External_As_List,
+      --  These four entries represent keywords for the project file language
       --  and can be returned only in the case of scanning project files.
 
       Tok_Comment,

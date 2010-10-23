@@ -139,9 +139,10 @@ extern tree choices_to_gnu (tree operand, Node_Id choices);
 /* Given GNAT_ENTITY, an object (constant, variable, parameter, exception)
    and GNU_TYPE, its corresponding GCC type, set Esize and Alignment to the
    size and alignment used by Gigi.  Prefer SIZE over TYPE_SIZE if non-null.
-   BY_REF is true if the object is used by reference.  */
+   BY_REF is true if the object is used by reference and BY_DOUBLE_REF is
+   true if the object is used by double reference.  */
 extern void annotate_object (Entity_Id gnat_entity, tree gnu_type, tree size,
-			     bool by_ref);
+			     bool by_ref, bool by_double_ref);
 
 /* Given a type T, a FIELD_DECL F, and a replacement value R, return a new
    type with all size expressions that contain F updated by replacing F
@@ -365,8 +366,20 @@ enum standard_datatypes
   ADT_all_others_decl,
   ADT_LAST};
 
+/* Define kind of exception information associated with raise statements.  */
+enum exception_info_kind
+{
+  /* Simple exception information: file:line.  */
+  exception_simple,
+  /* Range exception information: file:line + index, first, last.  */
+  exception_range,
+  /* Column exception information: file:line:column.  */
+  exception_column
+};
+
 extern GTY(()) tree gnat_std_decls[(int) ADT_LAST];
 extern GTY(()) tree gnat_raise_decls[(int) LAST_REASON_CODE + 1];
+extern GTY(()) tree gnat_raise_decls_ext[(int) LAST_REASON_CODE + 1];
 
 #define longest_float_type_node gnat_std_decls[(int) ADT_longest_float_type]
 #define except_type_node gnat_std_decls[(int) ADT_except_type]
@@ -507,9 +520,6 @@ extern void rest_of_record_type_compilation (tree record_type);
 
 /* Append PARALLEL_TYPE on the chain of parallel types for decl.  */
 extern void add_parallel_type (tree decl, tree parallel_type);
-
-/* Return the parallel type associated to a type, if any.  */
-extern tree get_parallel_type (tree type);
 
 /* Return a FUNCTION_TYPE node.  RETURN_TYPE is the type returned by the
    subprogram.  If it is VOID_TYPE, then we are dealing with a procedure,
@@ -791,6 +801,16 @@ extern tree build_call_0_expr (tree fundecl);
    KIND says which kind of exception this is for
     (N_Raise_{Constraint,Storage,Program}_Error).  */
 extern tree build_call_raise (int msg, Node_Id gnat_node, char kind);
+
+/* Similar to build_call_raise, for an index or range check exception as
+   determined by MSG, with extra information generated of the form
+   "INDEX out of range FIRST..LAST".  */
+extern tree build_call_raise_range (int msg, Node_Id gnat_node,
+				    tree index, tree first, tree last);
+
+/* Similar to build_call_raise, with extra information about the column
+   where the check failed.  */
+extern tree build_call_raise_column (int msg, Node_Id gnat_node);
 
 /* Return a CONSTRUCTOR of TYPE whose elements are V.  This is not the
    same as build_constructor in the language-independent tree.c.  */

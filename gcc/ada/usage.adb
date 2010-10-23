@@ -177,6 +177,11 @@ begin
    Write_Switch_Char ("eD?");
    Write_Line ("Define or redefine preprocessing symbol, e.g. -gnateDsym=val");
 
+   --  Line for -gnateE switch
+
+   Write_Switch_Char ("eE");
+   Write_Line ("Generate extra information in exception messages");
+
    --  Line for -gnatef switch
 
    Write_Switch_Char ("ef");
@@ -279,7 +284,7 @@ begin
    --  Line for -gnatn switch
 
    Write_Switch_Char ("n");
-   Write_Line ("Inlining of subprograms (apply pragma Inline across units)");
+   Write_Line ("Enable pragma Inline (both within and across units)");
 
    --  Line for -gnatN switch
 
@@ -438,6 +443,8 @@ begin
                                                   "elaboration pragma");
    Write_Line ("        L*   turn off warnings for missing " &
                                                   "elaboration pragma");
+   Write_Line ("        .l*  turn on info messages for inherited aspects");
+   Write_Line ("        .L   turn off info messages for inherited aspects");
    Write_Line ("        m+   turn on warnings for variable assigned " &
                                                   "but not read");
    Write_Line ("        M*   turn off warnings for variable assigned " &
@@ -598,7 +605,7 @@ begin
 
    Write_Switch_Char ("05");
 
-   if Ada_Version_Default = Ada_05 then
+   if Ada_Version_Default = Ada_2005 then
       Write_Line ("Ada 2005 mode (default)");
    else
       Write_Line ("Enforce Ada 2005 restrictions");
@@ -608,7 +615,7 @@ begin
 
    Write_Switch_Char ("12");
 
-   if Ada_Version_Default = Ada_12 then
+   if Ada_Version_Default = Ada_2012 then
       Write_Line ("Ada 2012 mode (default)");
    else
       Write_Line ("Allow Ada 2012 extensions");

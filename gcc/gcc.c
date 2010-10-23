@@ -859,17 +859,6 @@ struct user_specs
 static struct user_specs *user_specs_head, *user_specs_tail;
 
 
-#ifdef HAVE_TARGET_EXECUTABLE_SUFFIX
-/* This defines which switches stop a full compilation.  */
-#define DEFAULT_SWITCH_CURTAILS_COMPILATION(CHAR) \
-  ((CHAR) == 'c' || (CHAR) == 'S' || (CHAR) == 'E')
-
-#ifndef SWITCH_CURTAILS_COMPILATION
-#define SWITCH_CURTAILS_COMPILATION(CHAR) \
-  DEFAULT_SWITCH_CURTAILS_COMPILATION(CHAR)
-#endif
-#endif
-
 /* Record the mapping from file suffixes for compilation specs.  */
 
 struct compiler
@@ -6136,6 +6125,8 @@ main (int argc, char **argv)
   if (argv != old_argv)
     at_file_supplied = true;
 
+  global_options = global_options_init;
+
   decode_cmdline_options_to_array (argc, CONST_CAST2 (const char **, char **,
 						      argv),
 				   CL_DRIVER,
@@ -6828,10 +6819,10 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
 			  fuse_linker_plugin + strlen (fuse_linker_plugin), 0))
 	{
 	  linker_plugin_file_spec = find_a_file (&exec_prefixes,
-						 "liblto_plugin.so", R_OK,
+						 LTOPLUGINSONAME, R_OK,
 						 false);
 	  if (!linker_plugin_file_spec)
-	    fatal_error ("-fuse-linker-plugin, but liblto_plugin.so not found");
+	    fatal_error ("-fuse-linker-plugin, but " LTOPLUGINSONAME " not found");
 
 	  lto_libgcc_spec = find_a_file (&startfile_prefixes, "libgcc.a",
 					 R_OK, true);

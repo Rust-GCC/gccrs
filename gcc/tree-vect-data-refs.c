@@ -900,6 +900,19 @@ vect_compute_data_ref_alignment (struct data_reference *dr)
 	      || (TREE_CODE (base) == VAR_DECL
 		  && DECL_ALIGN (base) >= TYPE_ALIGN (vectype)));
 
+  /* If this is a backward running DR then first access in the larger
+     vectype actually is N-1 elements before the address in the DR.
+     Adjust misalign accordingly.  */
+  if (tree_int_cst_compare (DR_STEP (dr), size_zero_node) < 0)
+    {
+      tree offset = ssize_int (TYPE_VECTOR_SUBPARTS (vectype) - 1);
+      /* DR_STEP(dr) is the same as -TYPE_SIZE of the scalar type,
+	 otherwise we wouldn't be here.  */
+      offset = fold_build2 (MULT_EXPR, ssizetype, offset, DR_STEP (dr));
+      /* PLUS because DR_STEP was negative.  */
+      misalign = size_binop (PLUS_EXPR, misalign, offset);
+    }
+
   /* Modulo alignment.  */
   misalign = size_binop (FLOOR_MOD_EXPR, misalign, alignment);
 
@@ -1003,10 +1016,11 @@ vect_update_misalignment_for_peel (struct data_reference *dr,
   if (known_alignment_for_access_p (dr)
       && known_alignment_for_access_p (dr_peel))
     {
+      bool negative = tree_int_cst_compare (DR_STEP (dr), size_zero_node) < 0;
       int misal = DR_MISALIGNMENT (dr);
       tree vectype = STMT_VINFO_VECTYPE (stmt_info);
-      misal += npeel * dr_size;
-      misal %= GET_MODE_SIZE (TYPE_MODE (vectype));
+      misal += negative ? -npeel * dr_size : npeel * dr_size;
+      misal &= GET_MODE_SIZE (TYPE_MODE (vectype)) - 1;
       SET_DR_MISALIGNMENT (dr, misal);
       return;
     }
@@ -1490,6 +1504,8 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
           if (known_alignment_for_access_p (dr))
             {
               unsigned int npeel_tmp;
+	      bool negative = tree_int_cst_compare (DR_STEP (dr),
+						    size_zero_node) < 0;
 
               /* Save info about DR in the hash table.  */
               if (!LOOP_VINFO_PEELING_HTAB (loop_vinfo))
@@ -1501,7 +1517,8 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
               nelements = TYPE_VECTOR_SUBPARTS (vectype);
               mis = DR_MISALIGNMENT (dr) / GET_MODE_SIZE (TYPE_MODE (
                                                 TREE_TYPE (DR_REF (dr))));
-              npeel_tmp = (nelements - mis) % vf;
+              npeel_tmp = (negative
+			   ? (mis - nelements) : (nelements - mis)) & (vf - 1);
 
               /* For multiple types, it is possible that the bigger type access
                  will have more than one peeling option.  E.g., a loop with two
@@ -1694,6 +1711,8 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
 
       if (known_alignment_for_access_p (dr0))
         {
+	  bool negative = tree_int_cst_compare (DR_STEP (dr0),
+						size_zero_node) < 0;
           if (!npeel)
             {
               /* Since it's known at compile time, compute the number of
@@ -1703,7 +1722,7 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
                  count.  */
               mis = DR_MISALIGNMENT (dr0);
               mis /= GET_MODE_SIZE (TYPE_MODE (TREE_TYPE (DR_REF (dr0))));
-              npeel = nelements - mis;
+              npeel = (negative ? mis - nelements : nelements - mis) & (vf - 1);
             }
 
 	  /* For interleaved data access every iteration accesses all the
@@ -1932,6 +1951,13 @@ vect_find_same_alignment_drs (struct data_dependence_relation *ddr,
 
   /* Loop-based vectorization and known data dependence.  */
   if (DDR_NUM_DIST_VECTS (ddr) == 0)
+    return;
+
+  /* Data-dependence analysis reports a distance vector of zero
+     for data-references that overlap only in the first iteration
+     but have different sign step (see PR45764).
+     So as a sanity check require equal DR_STEP.  */
+  if (!operand_equal_p (DR_STEP (dra), DR_STEP (drb), 0))
     return;
 
   loop_depth = index_in_loop_nest (loop->num, DDR_LOOP_NEST (ddr));

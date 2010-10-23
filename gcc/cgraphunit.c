@@ -396,7 +396,6 @@ cgraph_mark_if_needed (tree decl)
     cgraph_mark_needed_node (node);
 }
 
-#ifdef ENABLE_CHECKING
 /* Return TRUE if NODE2 is equivalent to NODE or its clone.  */
 static bool
 clone_of_p (struct cgraph_node *node, struct cgraph_node *node2)
@@ -405,7 +404,6 @@ clone_of_p (struct cgraph_node *node, struct cgraph_node *node2)
     node2 = node2->clone_of;
   return node2 != NULL;
 }
-#endif
 
 /* Verify edge E count and frequency.  */
 
@@ -656,7 +654,6 @@ verify_cgraph_node (struct cgraph_node *node)
 				debug_tree (e->callee->decl);
 				error_found = true;
 			      }
-#ifdef ENABLE_CHECKING
 			    else if (!e->callee->global.inlined_to
 				     && decl
 				     && cgraph_get_node (decl)
@@ -671,7 +668,6 @@ verify_cgraph_node (struct cgraph_node *node)
 				debug_tree (decl);
 				error_found = true;
 			      }
-#endif
 			  }
 			else if (decl)
 			  {
@@ -2079,11 +2075,9 @@ static void
 cgraph_materialize_clone (struct cgraph_node *node)
 {
   bitmap_obstack_initialize (NULL);
-#ifdef ENABLE_CHECKING
   node->former_clone_of = node->clone_of->decl;
   if (node->clone_of->former_clone_of)
     node->former_clone_of = node->clone_of->former_clone_of;
-#endif
   /* Copy the OLD_VERSION_NODE function tree to the new version.  */
   tree_function_versioning (node->clone_of->decl, node->decl,
   			    node->clone.tree_map, true,
@@ -2156,6 +2150,7 @@ cgraph_redirect_edge_call_stmt_to_callee (struct cgraph_edge *e)
   if (e->callee->clone.combined_args_to_skip)
     {
       gimple_stmt_iterator gsi;
+      int lp_nr;
 
       new_stmt
 	= gimple_call_copy_skip_args (e->call_stmt,
@@ -2167,7 +2162,17 @@ cgraph_redirect_edge_call_stmt_to_callee (struct cgraph_edge *e)
 	SSA_NAME_DEF_STMT (gimple_vdef (new_stmt)) = new_stmt;
 
       gsi = gsi_for_stmt (e->call_stmt);
-      gsi_replace (&gsi, new_stmt, true);
+      gsi_replace (&gsi, new_stmt, false);
+      /* We need to defer cleaning EH info on the new statement to
+         fixup-cfg.  We may not have dominator information at this point
+	 and thus would end up with unreachable blocks and have no way
+	 to communicate that we need to run CFG cleanup then.  */
+      lp_nr = lookup_stmt_eh_lp (e->call_stmt);
+      if (lp_nr != 0)
+	{
+	  remove_stmt_from_eh_lp (e->call_stmt);
+	  add_stmt_to_eh_lp (new_stmt, lp_nr);
+	}
     }
   else
     {

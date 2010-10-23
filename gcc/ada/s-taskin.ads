@@ -42,6 +42,7 @@ with System.Task_Info;
 with System.Soft_Links;
 with System.Task_Primitives;
 with System.Stack_Usage;
+with System.Multiprocessors;
 
 package System.Tasking is
    pragma Preelaborate;
@@ -464,6 +465,11 @@ package System.Tasking is
       --
       --  Protection: Only written by Self, accessed by anyone
 
+      Base_CPU : System.Multiprocessors.CPU_Range;
+      --  Base CPU, only changed via dispatching domains package.
+      --
+      --  Protection: Self.L
+
       Current_Priority : System.Any_Priority;
       --  Active priority, except that the effects of protected object
       --  priority ceilings are not reflected. This only reflects explicit
@@ -694,9 +700,9 @@ package System.Tasking is
    Independent_Task_Level : constant Master_Level := 2;
    Library_Task_Level     : constant Master_Level := 3;
 
-   ------------------------------
-   -- Task size, priority info --
-   ------------------------------
+   -------------------
+   -- Priority info --
+   -------------------
 
    Unspecified_Priority : constant Integer := System.Priority'First - 1;
 
@@ -705,6 +711,13 @@ package System.Tasking is
 
    subtype Rendezvous_Priority is Integer
      range Priority_Not_Boosted .. System.Any_Priority'Last;
+
+   -------------------
+   -- Affinity info --
+   -------------------
+
+   Unspecified_CPU : constant := -1;
+   --  No affinity specified
 
    ------------------------------------
    -- Rendezvous related definitions --
@@ -857,7 +870,7 @@ package System.Tasking is
 
    type Direct_Index is range 0 .. Parameters.Default_Attribute_Count;
    subtype Direct_Index_Range is Direct_Index range 1 .. Direct_Index'Last;
-   --  Attributes with indices in this range are stored directly in the task
+   --  Attributes with indexes in this range are stored directly in the task
    --  control block. Such attributes must be Address-sized. Other attributes
    --  will be held in dynamically allocated records chained off of the task
    --  control block.
@@ -1091,6 +1104,7 @@ package System.Tasking is
       Parent           : Task_Id;
       Elaborated       : Access_Boolean;
       Base_Priority    : System.Any_Priority;
+      Base_CPU         : System.Multiprocessors.CPU_Range;
       Task_Info        : System.Task_Info.Task_Info_Type;
       Stack_Size       : System.Parameters.Size_Type;
       T                : Task_Id;

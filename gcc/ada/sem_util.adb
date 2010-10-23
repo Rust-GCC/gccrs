@@ -41,8 +41,6 @@ with Nlists;   use Nlists;
 with Output;   use Output;
 with Opt;      use Opt;
 with Rtsfind;  use Rtsfind;
-with Scans;    use Scans;
-with Scn;      use Scn;
 with Sem;      use Sem;
 with Sem_Aux;  use Sem_Aux;
 with Sem_Attr; use Sem_Attr;
@@ -245,6 +243,28 @@ package body Sem_Util is
       Analyze (N);
    end Add_Global_Declaration;
 
+   -----------------
+   -- Addressable --
+   -----------------
+
+   --  For now, just 8/16/32/64. but analyze later if AAMP is special???
+
+   function Addressable (V : Uint) return Boolean is
+   begin
+      return V = Uint_8  or else
+             V = Uint_16 or else
+             V = Uint_32 or else
+             V = Uint_64;
+   end Addressable;
+
+   function Addressable (V : Int) return Boolean is
+   begin
+      return V = 8  or else
+             V = 16 or else
+             V = 32 or else
+             V = 64;
+   end Addressable;
+
    -----------------------
    -- Alignment_In_Bits --
    -----------------------
@@ -308,6 +328,30 @@ package body Sem_Util is
          Set_Is_Static_Expression (N);
       end if;
    end Apply_Compile_Time_Constraint_Error;
+
+   --------------------------------
+   -- Bad_Predicated_Subtype_Use --
+   --------------------------------
+
+   procedure Bad_Predicated_Subtype_Use
+     (Msg : String;
+      N   : Node_Id;
+      Typ : Entity_Id)
+   is
+   begin
+      if Has_Predicates (Typ) then
+         if Is_Generic_Actual_Type (Typ) then
+            Error_Msg_FE (Msg & '?', N, Typ);
+            Error_Msg_F ("\Program_Error will be raised at run time?", N);
+            Insert_Action (N,
+              Make_Raise_Program_Error (Sloc (N),
+                Reason => PE_Bad_Predicated_Generic_Type));
+
+         else
+            Error_Msg_FE (Msg, N, Typ);
+         end if;
+      end if;
+   end Bad_Predicated_Subtype_Use;
 
    --------------------------
    -- Build_Actual_Subtype --
@@ -1657,6 +1701,44 @@ package body Sem_Util is
       end loop;
    end Collect_Interfaces_Info;
 
+   ---------------------
+   -- Collect_Parents --
+   ---------------------
+
+   procedure Collect_Parents
+     (T             : Entity_Id;
+      List          : out Elist_Id;
+      Use_Full_View : Boolean := True)
+   is
+      Current_Typ : Entity_Id := T;
+      Parent_Typ  : Entity_Id;
+
+   begin
+      List := New_Elmt_List;
+
+      --  No action if the if the type has no parents
+
+      if T = Etype (T) then
+         return;
+      end if;
+
+      loop
+         Parent_Typ := Etype (Current_Typ);
+
+         if Is_Private_Type (Parent_Typ)
+           and then Present (Full_View (Parent_Typ))
+           and then Use_Full_View
+         then
+            Parent_Typ := Full_View (Base_Type (Parent_Typ));
+         end if;
+
+         Append_Elmt (Parent_Typ, List);
+
+         exit when Parent_Typ = Current_Typ;
+         Current_Typ := Parent_Typ;
+      end loop;
+   end Collect_Parents;
+
    ----------------------------------
    -- Collect_Primitive_Operations --
    ----------------------------------
@@ -1670,6 +1752,27 @@ package body Sem_Util is
       Is_Prim        : Boolean;
       Formal_Derived : Boolean := False;
       Id             : Entity_Id;
+
+      function Match (E : Entity_Id) return Boolean;
+      --  True if E's base type is B_Type, or E is of an anonymous access type
+      --  and the base type of its designated type is B_Type.
+
+      -----------
+      -- Match --
+      -----------
+
+      function Match (E : Entity_Id) return Boolean is
+         Etyp : Entity_Id := Etype (E);
+
+      begin
+         if Ekind (Etyp) = E_Anonymous_Access_Type then
+            Etyp := Designated_Type (Etyp);
+         end if;
+
+         return Base_Type (Etyp) = B_Type;
+      end Match;
+
+   --  Start of processing for Collect_Primitive_Operations
 
    begin
       --  For tagged types, the primitive operations are collected as they
@@ -1739,19 +1842,13 @@ package body Sem_Util is
             then
                Is_Prim := False;
 
-               if Base_Type (Etype (Id)) = B_Type then
+               if Match (Id) then
                   Is_Prim := True;
+
                else
                   Formal := First_Formal (Id);
                   while Present (Formal) loop
-                     if Base_Type (Etype (Formal)) = B_Type then
-                        Is_Prim := True;
-                        exit;
-
-                     elsif Ekind (Etype (Formal)) = E_Anonymous_Access_Type
-                       and then Base_Type
-                         (Designated_Type (Etype (Formal))) = B_Type
-                     then
+                     if Match (Formal) then
                         Is_Prim := True;
                         exit;
                      end if;
@@ -2330,7 +2427,7 @@ package body Sem_Util is
               and then Denotes_Same_Object (Hi1, Hi2);
          end;
 
-         --  Literals will appear as indices. Isn't this where we should check
+         --  Literals will appear as indexes. Isn't this where we should check
          --  Known_At_Compile_Time at least if we are generating warnings ???
 
       elsif Nkind (A1) = N_Integer_Literal then
@@ -2692,6 +2789,12 @@ package body Sem_Util is
 
       elsif Ekind (Dynamic_Scope) = E_Task_Type then
          return Get_Task_Body_Procedure (Dynamic_Scope);
+
+      elsif Ekind (Dynamic_Scope) = E_Limited_Private_Type
+        and then Present (Full_View (Dynamic_Scope))
+        and then Ekind (Full_View (Dynamic_Scope)) = E_Task_Type
+      then
+         return Get_Task_Body_Procedure (Full_View (Dynamic_Scope));
 
       --  No body is generated if the protected operation is eliminated
 
@@ -3467,71 +3570,6 @@ package body Sem_Util is
          return N;
       end if;
    end First_Actual;
-
-   -------------------------
-   -- Full_Qualified_Name --
-   -------------------------
-
-   function Full_Qualified_Name (E : Entity_Id) return String_Id is
-      Res : String_Id;
-      pragma Warnings (Off, Res);
-
-      function Internal_Full_Qualified_Name (E : Entity_Id) return String_Id;
-      --  Compute recursively the qualified name without NUL at the end
-
-      ----------------------------------
-      -- Internal_Full_Qualified_Name --
-      ----------------------------------
-
-      function Internal_Full_Qualified_Name (E : Entity_Id) return String_Id is
-         Ent         : Entity_Id := E;
-         Parent_Name : String_Id := No_String;
-
-      begin
-         --  Deals properly with child units
-
-         if Nkind (Ent) = N_Defining_Program_Unit_Name then
-            Ent := Defining_Identifier (Ent);
-         end if;
-
-         --  Compute qualification recursively (only "Standard" has no scope)
-
-         if Present (Scope (Scope (Ent))) then
-            Parent_Name := Internal_Full_Qualified_Name (Scope (Ent));
-         end if;
-
-         --  Every entity should have a name except some expanded blocks
-         --  don't bother about those.
-
-         if Chars (Ent) = No_Name then
-            return Parent_Name;
-         end if;
-
-         --  Add a period between Name and qualification
-
-         if Parent_Name /= No_String then
-            Start_String (Parent_Name);
-            Store_String_Char (Get_Char_Code ('.'));
-
-         else
-            Start_String;
-         end if;
-
-         --  Generates the entity name in upper case
-
-         Get_Decoded_Name_String (Chars (Ent));
-         Set_All_Upper_Case;
-         Store_String_Chars (Name_Buffer (1 .. Name_Len));
-         return End_String;
-      end Internal_Full_Qualified_Name;
-
-   --  Start of processing for Full_Qualified_Name
-
-   begin
-      Res := Internal_Full_Qualified_Name (E);
-      Store_String_Char (Get_Char_Code (ASCII.NUL));
-      return End_String;
-   end Full_Qualified_Name;
 
    -----------------------
    -- Gather_Components --
@@ -5302,6 +5340,18 @@ package body Sem_Util is
       end if;
    end Has_Tagged_Component;
 
+   -------------------------
+   -- Implementation_Kind --
+   -------------------------
+
+   function Implementation_Kind (Subp : Entity_Id) return Name_Id is
+      Impl_Prag : constant Node_Id := Get_Rep_Pragma (Subp, Name_Implemented);
+   begin
+      pragma Assert (Present (Impl_Prag));
+      return
+        Chars (Expression (Last (Pragma_Argument_Associations (Impl_Prag))));
+   end Implementation_Kind;
+
    --------------------------
    -- Implements_Interface --
    --------------------------
@@ -5579,7 +5629,9 @@ package body Sem_Util is
    begin
       Save_Interps (N, New_Prefix);
 
-      Rewrite (N, Make_Explicit_Dereference (Sloc (N), Prefix => New_Prefix));
+      Rewrite (N,
+        Make_Explicit_Dereference (Sloc (Parent (N)),
+          Prefix => New_Prefix));
 
       Set_Etype (N, Designated_Type (Etype (New_Prefix)));
 
@@ -5610,6 +5662,7 @@ package body Sem_Util is
 
          if Is_Entity_Name (New_Prefix) then
             Ent := Entity (New_Prefix);
+            Pref := New_Prefix;
 
          --  For a retrieval of a subcomponent of some composite object,
          --  retrieve the ultimate entity if there is one.
@@ -5631,8 +5684,10 @@ package body Sem_Util is
             end if;
          end if;
 
+         --  Place the reference on the entity node
+
          if Present (Ent) then
-            Generate_Reference (Ent, New_Prefix);
+            Generate_Reference (Ent, Pref);
          end if;
       end if;
    end Insert_Explicit_Dereference;
@@ -5658,8 +5713,8 @@ package body Sem_Util is
 
            and then Comes_From_Source (Decl)
 
-            --  The constant is not completed. A full object declaration
-            --  or a pragma Import complete a deferred constant.
+            --  The constant is not completed. A full object declaration or a
+            --  pragma Import complete a deferred constant.
 
            and then not Has_Completion (Defining_Identifier (Decl))
          then
@@ -5672,18 +5727,6 @@ package body Sem_Util is
       end loop;
    end Inspect_Deferred_Constant_Completion;
 
-   -------------------
-   -- Is_AAMP_Float --
-   -------------------
-
-   function Is_AAMP_Float (E : Entity_Id) return Boolean is
-      pragma Assert (Is_Type (E));
-   begin
-      return AAMP_On_Target
-         and then Is_Floating_Point_Type (E)
-         and then E = Base_Type (E);
-   end Is_AAMP_Float;
-
    -----------------------------
    -- Is_Actual_Out_Parameter --
    -----------------------------
@@ -5693,8 +5736,7 @@ package body Sem_Util is
       Call   : Node_Id;
    begin
       Find_Actual (N, Formal, Call);
-      return Present (Formal)
-        and then Ekind (Formal) = E_Out_Parameter;
+      return Present (Formal) and then Ekind (Formal) = E_Out_Parameter;
    end Is_Actual_Out_Parameter;
 
    -------------------------
@@ -5866,9 +5908,7 @@ package body Sem_Util is
    begin
       --  Predicate is not relevant to subprograms
 
-      if Is_Entity_Name (N)
-        and then Is_Overloadable (Entity (N))
-      then
+      if Is_Entity_Name (N) and then Is_Overloadable (Entity (N)) then
          return False;
 
       elsif Is_Atomic (Etype (N))
@@ -6021,7 +6061,7 @@ package body Sem_Util is
    ----------------------------------------------
 
    function Is_Dependent_Component_Of_Mutable_Object
-     (Object : Node_Id) return   Boolean
+     (Object : Node_Id) return Boolean
    is
       P           : Node_Id;
       Prefix_Type : Entity_Id;
@@ -6061,10 +6101,9 @@ package body Sem_Util is
                   P_Aliased := True;
                end if;
 
-            --  A discriminant check on a selected component may be
-            --  expanded into a dereference when removing side-effects.
-            --  Recover the original node and its type, which may be
-            --  unconstrained.
+            --  A discriminant check on a selected component may be expanded
+            --  into a dereference when removing side-effects. Recover the
+            --  original node and its type, which may be unconstrained.
 
             elsif Nkind (P) = N_Explicit_Dereference
               and then not (Comes_From_Source (P))
@@ -6073,7 +6112,8 @@ package body Sem_Util is
                Prefix_Type := Etype (P);
 
             else
-               --  Check for prefix being an aliased component ???
+               --  Check for prefix being an aliased component???
+
                null;
 
             end if;
@@ -6089,14 +6129,14 @@ package body Sem_Util is
             --  (despite the fact that 3.10.2(26/2) and 8.5.1(5/2) are
             --  semantic rules -- these rules are acknowledged to need fixing).
 
-            if Ada_Version < Ada_05 then
+            if Ada_Version < Ada_2005 then
                if Is_Access_Type (Prefix_Type)
                  or else Nkind (P) = N_Explicit_Dereference
                then
                   return False;
                end if;
 
-            elsif Ada_Version >= Ada_05 then
+            elsif Ada_Version >= Ada_2005 then
                if Is_Access_Type (Prefix_Type) then
 
                   --  If the access type is pool-specific, and there is no
@@ -6122,8 +6162,8 @@ package body Sem_Util is
             Comp :=
               Original_Record_Component (Entity (Selector_Name (Object)));
 
-            --  As per AI-0017, the renaming is illegal in a generic body,
-            --  even if the subtype is indefinite.
+            --  As per AI-0017, the renaming is illegal in a generic body, even
+            --  if the subtype is indefinite.
 
             --  Ada 2005 (AI-363): In Ada 2005 an aliased object can be mutable
 
@@ -6136,7 +6176,7 @@ package body Sem_Util is
 
               and then (Is_Declared_Within_Variant (Comp)
                           or else Has_Discriminant_Dependent_Constraint (Comp))
-              and then (not P_Aliased or else Ada_Version >= Ada_05)
+              and then (not P_Aliased or else Ada_Version >= Ada_2005)
             then
                return True;
 
@@ -6748,19 +6788,24 @@ package body Sem_Util is
    -- Is_Partially_Initialized_Type --
    -----------------------------------
 
-   function Is_Partially_Initialized_Type (Typ : Entity_Id) return Boolean is
+   function Is_Partially_Initialized_Type
+     (Typ          : Entity_Id;
+      Include_Null : Boolean := True) return Boolean
+   is
    begin
       if Is_Scalar_Type (Typ) then
          return False;
 
       elsif Is_Access_Type (Typ) then
-         return True;
+         return Include_Null;
 
       elsif Is_Array_Type (Typ) then
 
          --  If component type is partially initialized, so is array type
 
-         if Is_Partially_Initialized_Type (Component_Type (Typ)) then
+         if Is_Partially_Initialized_Type
+              (Component_Type (Typ), Include_Null)
+         then
             return True;
 
          --  Otherwise we are only partially initialized if we are fully
@@ -6813,7 +6858,9 @@ package body Sem_Util is
                      --  If a component is of a type which is itself partially
                      --  initialized, then the enclosing record type is also.
 
-                     elsif Is_Partially_Initialized_Type (Etype (Ent)) then
+                     elsif Is_Partially_Initialized_Type
+                             (Etype (Ent), Include_Null)
+                     then
                         return True;
                      end if;
                   end if;
@@ -6852,7 +6899,7 @@ package body Sem_Util is
             if No (U) then
                return True;
             else
-               return Is_Partially_Initialized_Type (U);
+               return Is_Partially_Initialized_Type (U, Include_Null);
             end if;
          end;
 
@@ -6965,7 +7012,7 @@ package body Sem_Util is
       --  because they denote entities that are not necessarily visible.
       --  Neither of them can apply to a protected type.
 
-      return Ada_Version >= Ada_05
+      return Ada_Version >= Ada_2005
         and then Is_Entity_Name (N)
         and then Present (Entity (N))
         and then Is_Protected_Type (Entity (N))
@@ -7874,17 +7921,24 @@ package body Sem_Util is
          when N_Explicit_Dereference =>
             return False;
 
-         --  Function call arguments are never lvalues
+         --  Positional parameter for subprogram, entry, or accept call.
+         --  In older versions of Ada function call arguments are never
+         --  lvalues. In Ada2012 functions can have in-out parameters.
 
-         when N_Function_Call =>
-            return False;
-
-         --  Positional parameter for procedure, entry,  or accept call
-
-         when N_Procedure_Call_Statement |
+         when N_Function_Call            |
+              N_Procedure_Call_Statement |
               N_Entry_Call_Statement     |
               N_Accept_Statement
          =>
+            if Nkind (P) = N_Function_Call
+              and then Ada_Version < Ada_2012
+            then
+               return False;
+            end if;
+
+            --  The following mechanism is clumsy and fragile. A single
+            --  flag set in Resolve_Actuals would be preferable ???
+
             declare
                Proc : Entity_Id;
                Form : Entity_Id;
@@ -8050,7 +8104,7 @@ package body Sem_Util is
       Formal : Entity_Id;
 
    begin
-      if Ada_Version >= Ada_05
+      if Ada_Version >= Ada_2005
         and then Present (First_Formal (E))
       then
          Formal := Next_Formal (First_Formal (E));
@@ -9476,7 +9530,10 @@ package body Sem_Util is
                if Comes_From_Source (Exp)
                  or else Modification_Comes_From_Source
                then
-                  if Has_Pragma_Unmodified (Ent) then
+                  --  Give warning if pragma unmodified given and we are
+                  --  sure this is a modification.
+
+                  if Has_Pragma_Unmodified (Ent) and then Sure then
                      Error_Msg_NE ("?pragma Unmodified given for &!", N, Ent);
                   end if;
 
@@ -9681,7 +9738,7 @@ package body Sem_Util is
          --  version of the code causes regressions in several tests that are
          --  compiled with -gnat95. ???)
 
-         if Ada_Version < Ada_05 then
+         if Ada_Version < Ada_2005 then
             if Is_Entity_Name (Name (Obj)) then
                return Subprogram_Access_Level (Entity (Name (Obj)));
             else
@@ -9794,6 +9851,38 @@ package body Sem_Util is
          return Scope_Depth (Standard_Standard);
       end if;
    end Object_Access_Level;
+
+   --------------------------------------
+   -- Original_Corresponding_Operation --
+   --------------------------------------
+
+   function Original_Corresponding_Operation (S : Entity_Id) return Entity_Id
+   is
+      Typ : constant Entity_Id := Find_Dispatching_Type (S);
+
+   begin
+      --  If S is an inherited primitive S2 the original corresponding
+      --  operation of S is the original corresponding operation of S2
+
+      if Present (Alias (S))
+        and then Find_Dispatching_Type (Alias (S)) /= Typ
+      then
+         return Original_Corresponding_Operation (Alias (S));
+
+      --  If S overrides an inherted subprogram S2 the original corresponding
+      --  operation of S is the original corresponding operation of S2
+
+      elsif Is_Overriding_Operation (S)
+        and then Present (Overridden_Operation (S))
+      then
+         return Original_Corresponding_Operation (Overridden_Operation (S));
+
+      --  otherwise it is S itself
+
+      else
+         return S;
+      end if;
+   end Original_Corresponding_Operation;
 
    -----------------------
    -- Private_Component --
@@ -10098,45 +10187,6 @@ package body Sem_Util is
 
       Set_Sloc (Endl, Loc);
    end Process_End_Label;
-
-   ------------------
-   -- Real_Convert --
-   ------------------
-
-   --  We do the conversion to get the value of the real string by using
-   --  the scanner, see Sinput for details on use of the internal source
-   --  buffer for scanning internal strings.
-
-   function Real_Convert (S : String) return Node_Id is
-      Save_Src : constant Source_Buffer_Ptr := Source;
-      Negative : Boolean;
-
-   begin
-      Source := Internal_Source_Ptr;
-      Scan_Ptr := 1;
-
-      for J in S'Range loop
-         Source (Source_Ptr (J)) := S (J);
-      end loop;
-
-      Source (S'Length + 1) := EOF;
-
-      if Source (Scan_Ptr) = '-' then
-         Negative := True;
-         Scan_Ptr := Scan_Ptr + 1;
-      else
-         Negative := False;
-      end if;
-
-      Scan;
-
-      if Negative then
-         Set_Realval (Token_Node, UR_Negate (Realval (Token_Node)));
-      end if;
-
-      Source := Save_Src;
-      return Token_Node;
-   end Real_Convert;
 
    ------------------------------------
    -- References_Generic_Formal_Type --
@@ -11391,6 +11441,47 @@ package body Sem_Util is
          return Expr;
       end if;
    end Unqualify;
+
+   -----------------------
+   -- Visible_Ancestors --
+   -----------------------
+
+   function Visible_Ancestors (Typ : Entity_Id) return Elist_Id is
+      List_1 : Elist_Id;
+      List_2 : Elist_Id;
+      Elmt   : Elmt_Id;
+
+   begin
+      pragma Assert (Is_Record_Type (Typ)
+        and then Is_Tagged_Type (Typ));
+
+      --  Collect all the parents and progenitors of Typ. If the full-view of
+      --  private parents and progenitors is available then it is used to
+      --  generate the list of visible ancestors; otherwise their partial
+      --  view is added to the resulting list.
+
+      Collect_Parents
+        (T               => Typ,
+         List            => List_1,
+         Use_Full_View   => True);
+
+      Collect_Interfaces
+        (T               => Typ,
+         Ifaces_List     => List_2,
+         Exclude_Parents => True,
+         Use_Full_View   => True);
+
+      --  Join the two lists. Avoid duplications because an interface may
+      --  simultaneously be parent and progenitor of a type.
+
+      Elmt := First_Elmt (List_2);
+      while Present (Elmt) loop
+         Append_Unique_Elmt (Node (Elmt), List_1);
+         Next_Elmt (Elmt);
+      end loop;
+
+      return List_1;
+   end Visible_Ancestors;
 
    ----------------------
    -- Within_Init_Proc --

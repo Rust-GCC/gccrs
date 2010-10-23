@@ -54,9 +54,6 @@ do {								\
 
 #define TARGET_VERSION fputs (" (CRX/ELF)", stderr);
 
-/* Show we can debug even without a frame pointer.  */
-#define CAN_DEBUG_WITHOUT_FP
-
 /*****************************************************************************/
 /* STORAGE LAYOUT							     */
 /*****************************************************************************/
@@ -228,8 +225,6 @@ enum reg_class
    || (reg_renumber && (unsigned)reg_renumber[REGNO] < 16))
 
 #define REGNO_OK_FOR_INDEX_P(REGNO)	   REGNO_OK_FOR_BASE_P(REGNO)
-
-#define PREFERRED_RELOAD_CLASS(X,CLASS) CLASS
 
 #define SECONDARY_RELOAD_CLASS(CLASS, MODE, X) \
   crx_secondary_reload_class (CLASS, MODE, X)

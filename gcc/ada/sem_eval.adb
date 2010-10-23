@@ -2282,6 +2282,15 @@ package body Sem_Eval is
          return;
       end if;
 
+      --  Ignore if types involved have predicates
+
+      if Present (Predicate_Function (Etype (Left)))
+           or else
+         Present (Predicate_Function (Etype (Right)))
+      then
+         return;
+      end if;
+
       --  Case of right operand is a subtype name
 
       if Is_Entity_Name (Right) then
@@ -4548,6 +4557,8 @@ package body Sem_Eval is
       T2 : Entity_Id) return Boolean
    is
    begin
+      --  Scalar types
+
       if Is_Scalar_Type (T1) then
 
          --  Definitely compatible if we match
@@ -4570,9 +4581,9 @@ package body Sem_Eval is
          then
             return True;
 
-         --  Base types must match, but we don't check that (should
-         --  we???) but we do at least check that both types are
-         --  real, or both types are not real.
+         --  Base types must match, but we don't check that (should we???) but
+         --  we do at least check that both types are real, or both types are
+         --  not real.
 
          elsif Is_Real_Type (T1) /= Is_Real_Type (T2) then
             return False;
@@ -4606,10 +4617,16 @@ package body Sem_Eval is
             end;
          end if;
 
+      --  Access types
+
       elsif Is_Access_Type (T1) then
-         return not Is_Constrained (T2)
-           or else Subtypes_Statically_Match
-                     (Designated_Type (T1), Designated_Type (T2));
+         return (not Is_Constrained (T2)
+                  or else (Subtypes_Statically_Match
+                             (Designated_Type (T1), Designated_Type (T2))))
+           and then not (Can_Never_Be_Null (T2)
+                          and then not Can_Never_Be_Null (T1));
+
+      --  All other cases
 
       else
          return (Is_Composite_Type (T1) and then not Is_Constrained (T2))

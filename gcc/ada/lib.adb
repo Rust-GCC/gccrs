@@ -113,6 +113,11 @@ package body Lib is
       return Units.Table (U).Generate_Code;
    end Generate_Code;
 
+   function Has_Allocator (U : Unit_Number_Type) return Boolean is
+   begin
+      return Units.Table (U).Has_Allocator;
+   end Has_Allocator;
+
    function Has_RACW (U : Unit_Number_Type) return Boolean is
    begin
       return Units.Table (U).Has_RACW;
@@ -132,6 +137,11 @@ package body Lib is
    begin
       return Units.Table (U).Loading;
    end Loading;
+
+   function Main_CPU (U : Unit_Number_Type) return Int is
+   begin
+      return Units.Table (U).Main_CPU;
+   end Main_CPU;
 
    function Main_Priority (U : Unit_Number_Type) return Int is
    begin
@@ -198,6 +208,11 @@ package body Lib is
       Units.Table (U).Generate_Code := B;
    end Set_Generate_Code;
 
+   procedure Set_Has_Allocator (U : Unit_Number_Type; B : Boolean := True) is
+   begin
+      Units.Table (U).Has_Allocator := B;
+   end Set_Has_Allocator;
+
    procedure Set_Has_RACW (U : Unit_Number_Type; B : Boolean := True) is
    begin
       Units.Table (U).Has_RACW := B;
@@ -220,6 +235,11 @@ package body Lib is
    begin
       Units.Table (U).Loading := B;
    end Set_Loading;
+
+   procedure Set_Main_CPU (U : Unit_Number_Type; P : Int) is
+   begin
+      Units.Table (U).Main_CPU := P;
+   end Set_Main_CPU;
 
    procedure Set_Main_Priority (U : Unit_Number_Type; P : Int) is
    begin

@@ -1643,6 +1643,7 @@ vect_slp_analyze_bb (basic_block bb)
   int max_vf = MAX_VECTORIZATION_FACTOR;
   bool data_dependence_in_bb = false;
 
+  current_vector_size = 0;
 
   if (vect_print_dump_info (REPORT_DETAILS))
     fprintf (vect_dump, "===vect_slp_analyze_bb===\n");
@@ -1810,13 +1811,14 @@ vect_update_slp_costs_according_to_vf (loop_vec_info loop_vinfo)
 
 /* For constant and loop invariant defs of SLP_NODE this function returns
    (vector) defs (VEC_OPRNDS) that will be used in the vectorized stmts.
-   OP_NUM determines if we gather defs for operand 0 or operand 1 of the scalar
-   stmts. NUMBER_OF_VECTORS is the number of vector defs to create.  
+   OP_NUM determines if we gather defs for operand 0 or operand 1 of the RHS of
+   scalar stmts.  NUMBER_OF_VECTORS is the number of vector defs to create.
    REDUC_INDEX is the index of the reduction operand in the statements, unless
    it is -1.  */
 
 static void
-vect_get_constant_vectors (slp_tree slp_node, VEC(tree,heap) **vec_oprnds,
+vect_get_constant_vectors (tree op, slp_tree slp_node,
+                           VEC (tree, heap) **vec_oprnds,
 			   unsigned int op_num, unsigned int number_of_vectors,
                            int reduc_index)
 {
@@ -1828,17 +1830,17 @@ vect_get_constant_vectors (slp_tree slp_node, VEC(tree,heap) **vec_oprnds,
   tree t = NULL_TREE;
   int j, number_of_places_left_in_vector;
   tree vector_type;
-  tree op, vop;
+  tree vop;
   int group_size = VEC_length (gimple, stmts);
   unsigned int vec_num, i;
   int number_of_copies = 1;
   VEC (tree, heap) *voprnds = VEC_alloc (tree, heap, number_of_vectors);
   bool constant_p, is_store;
   tree neutral_op = NULL;
+  enum tree_code code = gimple_assign_rhs_code (stmt);
 
   if (STMT_VINFO_DEF_TYPE (stmt_vinfo) == vect_reduction_def)
     {
-      enum tree_code code = gimple_assign_rhs_code (stmt);
       if (reduc_index == -1)
         {
           VEC_free (tree, heap, *vec_oprnds);
@@ -1846,7 +1848,7 @@ vect_get_constant_vectors (slp_tree slp_node, VEC(tree,heap) **vec_oprnds,
         }
 
       op_num = reduc_index - 1;
-      op = gimple_op (stmt, op_num + 1);
+      op = gimple_op (stmt, reduc_index);
       /* For additional copies (see the explanation of NUMBER_OF_COPIES below)
          we need either neutral operands or the original operands.  See
          get_initial_def_for_reduction() for details.  */
@@ -1888,10 +1890,9 @@ vect_get_constant_vectors (slp_tree slp_node, VEC(tree,heap) **vec_oprnds,
       op = gimple_assign_rhs1 (stmt);
     }
   else
-    {
-      is_store = false;
-      op = gimple_op (stmt, op_num + 1);
-    }
+    is_store = false;
+
+  gcc_assert (op);
 
   if (CONSTANT_CLASS_P (op))
     constant_p = true;
@@ -1900,7 +1901,6 @@ vect_get_constant_vectors (slp_tree slp_node, VEC(tree,heap) **vec_oprnds,
 
   vector_type = get_vectype_for_scalar_type (TREE_TYPE (op));
   gcc_assert (vector_type);
-
   nunits = TYPE_VECTOR_SUBPARTS (vector_type);
 
   /* NUMBER_OF_COPIES is the number of times we need to use the same values in
@@ -2035,7 +2035,8 @@ vect_get_slp_vect_defs (slp_tree slp_node, VEC (tree,heap) **vec_oprnds)
    the right node. This is used when the second operand must remain scalar.  */
 
 void
-vect_get_slp_defs (slp_tree slp_node, VEC (tree,heap) **vec_oprnds0,
+vect_get_slp_defs (tree op0, tree op1, slp_tree slp_node,
+                   VEC (tree,heap) **vec_oprnds0,
                    VEC (tree,heap) **vec_oprnds1, int reduc_index)
 {
   gimple first_stmt;
@@ -2075,7 +2076,7 @@ vect_get_slp_defs (slp_tree slp_node, VEC (tree,heap) **vec_oprnds0,
     vect_get_slp_vect_defs (SLP_TREE_LEFT (slp_node), vec_oprnds0);
   else
     /* Build vectors from scalar defs.  */
-    vect_get_constant_vectors (slp_node, vec_oprnds0, 0, number_of_vects,
+    vect_get_constant_vectors (op0, slp_node, vec_oprnds0, 0, number_of_vects,
                                reduc_index);
 
   if (STMT_VINFO_DATA_REF (vinfo_for_stmt (first_stmt)))
@@ -2105,7 +2106,8 @@ vect_get_slp_defs (slp_tree slp_node, VEC (tree,heap) **vec_oprnds0,
     vect_get_slp_vect_defs (SLP_TREE_RIGHT (slp_node), vec_oprnds1);
   else
     /* Build vectors from scalar defs.  */
-    vect_get_constant_vectors (slp_node, vec_oprnds1, 1, number_of_vects, -1);
+    vect_get_constant_vectors (op1, slp_node, vec_oprnds1, 1, number_of_vects,
+                               -1);
 }
 
 

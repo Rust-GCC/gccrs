@@ -70,9 +70,12 @@ print ""
 print "#ifndef OPTIONS_H"
 print "#define OPTIONS_H"
 print ""
+print "#include \"flag-types.h\""
+print ""
 
 have_save = 0;
 
+print "#if !defined(IN_LIBGCC2) && !defined(IN_TARGET_LIBS) && !defined(IN_RTS)"
 print "#ifndef GENERATOR_FILE"
 print "struct gcc_options\n{"
 print "#endif"
@@ -125,8 +128,10 @@ for (i = 0; i < n_opts; i++) {
 print "#ifndef GENERATOR_FILE"
 print "};"
 print "extern struct gcc_options global_options;"
+print "extern const struct gcc_options global_options_init;"
 print "extern struct gcc_options global_options_set;"
 print "#define target_flags_explicit global_options_set.x_target_flags"
+print "#endif"
 print "#endif"
 print ""
 
@@ -205,13 +210,13 @@ n_target_int = 0;
 n_target_other = 0;
 
 for (i = 0; i < n_target_save; i++) {
-	if (target_save_decl[i] ~ "^((un)?signed +)?int +[_a-zA-Z0-9]+$")
+	if (target_save_decl[i] ~ "^((un)?signed +)?int +[_" alnum "]+$")
 		var_target_int[n_target_int++] = target_save_decl[i];
 
-	else if (target_save_decl[i] ~ "^((un)?signed +)?short +[_a-zA-Z0-9]+$")
+	else if (target_save_decl[i] ~ "^((un)?signed +)?short +[_" alnum "]+$")
 		var_target_short[n_target_short++] = target_save_decl[i];
 
-	else if (target_save_decl[i] ~ "^((un)?signed +)?char +[_a-zA-Z0-9]+$")
+	else if (target_save_decl[i] ~ "^((un)?signed +)?char +[_ " alnum "]+$")
 		var_target_char[n_target_char++] = target_save_decl[i];
 
 	else
@@ -349,7 +354,7 @@ print ""
 
 for (i = 0; i < n_langs; i++) {
 	macros[i] = "CL_" langs[i]
-	gsub( "[^A-Za-z0-9_]", "X", macros[i] )
+	gsub( "[^" alnum "_]", "X", macros[i] )
 	s = substr("            ", length (macros[i]))
 	print "#define " macros[i] s " (1 << " i ")"
     }

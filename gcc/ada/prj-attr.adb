@@ -81,6 +81,7 @@ package body Prj.Attr is
    "LVsource_dirs#" &
    "Lainherit_source_path#" &
    "LVexcluded_source_dirs#" &
+   "LVignore_source_sub_dirs#" &
 
    --  Source files
 
@@ -334,6 +335,7 @@ package body Prj.Attr is
    "SVvcs_kind#" &
    "SVvcs_file_check#" &
    "SVvcs_log_check#" &
+   "SVdocumentation_dir#" &
 
    --  package Stack
 

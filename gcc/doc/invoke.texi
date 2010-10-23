@@ -942,7 +942,7 @@ See S/390 and zSeries Options.
 -fno-stack-limit -fsplit-stack @gol
 -fleading-underscore  -ftls-model=@var{model} @gol
 -ftrapv  -fwrapv  -fbounds-check @gol
--fvisibility}
+-fvisibility -fstrict-volatile-bitfields}
 @end table
 
 @menu
@@ -17396,22 +17396,6 @@ instructing the linker to set the PE header subsystem type
 required for console applications.
 This is the default behavior for Cygwin and MinGW targets.
 
-@item -mcygwin
-@opindex mcygwin
-This option is available for Cygwin targets.  It specifies that
-the Cygwin internal interface is to be used for predefined
-preprocessor macros, C runtime libraries and related linker
-paths and options.  For Cygwin targets this is the default behavior.
-This option is deprecated and will be removed in a future release.
-
-@item -mno-cygwin
-@opindex mno-cygwin
-This option is available for Cygwin targets.  It specifies that
-the MinGW internal interface is to be used instead of Cygwin's, by
-setting MinGW-related predefined macros and linker paths and default
-library options.
-This option is deprecated and will be removed in a future release.
-
 @item -mdll
 @opindex mdll
 This option is available for Cygwin and MinGW targets.  It
@@ -18133,6 +18117,7 @@ An overview of these techniques, their benefits and how to use them
 is at @uref{http://gcc.gnu.org/@/wiki/@/Visibility}.
 
 @item -fstrict-volatile-bitfields
+@opindex fstrict-volatile-bitfields
 This option should be used if accesses to volatile bitfields (or other
 structure fields, although the compiler usually honors those types
 anyway) should use a single access in a mode of the same size as the

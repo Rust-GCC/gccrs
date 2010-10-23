@@ -1,6 +1,6 @@
 ;;- Machine description for the pdp11 for GNU C compiler
 ;; Copyright (C) 1994, 1995, 1997, 1998, 1999, 2000, 2001, 2004, 2005
-;; 2007, 2008 Free Software Foundation, Inc.
+;; 2007, 2008, 2010 Free Software Foundation, Inc.
 ;; Contributed by Michael K. Gschwind (mike@vlsivie.tuwien.ac.at).
 
 ;; This file is part of GCC.
@@ -19,10 +19,8 @@
 ;; along with GCC; see the file COPYING3.  If not see
 ;; <http://www.gnu.org/licenses/>.
 
-;; Match CONST_DOUBLE zero for tstd/tstf.
-(define_predicate "register_or_const0_operand"
-  (ior (match_operand 0 "register_operand")
-       (match_test "op == CONST0_RTX (GET_MODE (op))")))
+(include "predicates.md")
+(include "constraints.md")
 
 
 ;; HI is 16 bit
@@ -95,7 +93,7 @@
 {
   cc_status.flags = CC_IN_FPU;
   if (which_alternative == 0 || which_alternative == 2)
-    return \"{tstd|tstf} %0, %1\;cfcc\";
+    return \"{tstd|tstf} %0\;cfcc\";
   else
     return \"{cmpd|cmpf} %0, %1\;cfcc\";
 }"
@@ -187,7 +185,7 @@
 		       [(cc0) (const_int 0)])
 		      (label_ref (match_operand 3 "" ""))
 		      (pc)))]
-  ""
+  "TARGET_FPU"
   "")
 
 (define_expand "cbranchhi4"
@@ -306,12 +304,12 @@
 ;; do we have to supply all these moves? e.g. to 
 ;; NO_LOAD_FPU_REGs ? 
 (define_insn "movdf"
-  [(set (match_operand:DF 0 "general_operand" "=a,fR,a,Q,m")
-        (match_operand:DF 1 "general_operand" "fFR,a,Q,a,m"))]
-  ""
-  "* if (which_alternative ==0)
+  [(set (match_operand:DF 0 "general_operand" "=a,fR,a,Q,g")
+        (match_operand:DF 1 "general_operand" "fFR,a,Q,a,g"))]
+  "TARGET_FPU"
+  "* if (which_alternative ==0 || which_alternative == 2)
        return \"ldd %1, %0\";
-     else if (which_alternative == 1)
+     else if (which_alternative == 1 || which_alternative == 3)
        return \"std %1, %0\";
      else 
        return output_move_quad (operands); "
@@ -331,7 +329,7 @@
 (define_expand "movmemhi"
   [(parallel [(set (match_operand:BLK 0 "general_operand" "=g,g")
 		   (match_operand:BLK 1 "general_operand" "g,g"))
-	      (use (match_operand:HI 2 "arith_operand" "n,&mr"))
+	      (use (match_operand:HI 2 "general_operand" "n,&mr"))
 	      (use (match_operand:HI 3 "immediate_operand" "i,i"))
 	      (clobber (match_scratch:HI 4 "=&r,X"))
 	      (clobber (match_dup 5))
@@ -353,9 +351,9 @@
 
 
 (define_insn "" ; "movmemhi"
-  [(set (mem:BLK (match_operand:HI 0 "general_operand" "=r,r"))
-	(mem:BLK (match_operand:HI 1 "general_operand" "r,r")))
-   (use (match_operand:HI 2 "arith_operand" "n,&r"))
+  [(set (mem:BLK (match_operand 0 "pmode_register_operand" "+r,r"))
+	(mem:BLK (match_operand 1 "pmode_register_operand" "+r,r")))
+   (use (match_operand:HI 2 "general_operand" "+n,&r"))
    (use (match_operand:HI 3 "immediate_operand" "i,i"))
    (clobber (match_scratch:HI 4 "=&r,X"))
    (clobber (match_dup 0))
@@ -925,7 +923,7 @@
 (define_insn "xorsi3"
   [(set (match_operand:SI 0 "register_operand" "=r")
         (xor:SI (match_operand:SI 1 "register_operand" "%0")
-                (match_operand:SI 2 "arith_operand" "r")))]
+                (match_operand:SI 2 "register_operand" "r")))]
   "TARGET_40_PLUS"
   "*
 { /* Here we trust that operands don't overlap */
@@ -980,7 +978,7 @@
   [(set (match_operand:SI 0 "register_operand" "=r,r")
 	(ashift:SI (match_operand:SI 1 "register_operand" "0,0")
 		   (match_operand:HI 2 "general_operand" "rR,Qi")))]
-  "TARGET_45"
+  "TARGET_40_PLUS"
   "ashc %2,%0"
   [(set_attr "length" "1,2")])
 
@@ -1078,7 +1076,7 @@
 (define_insn "" 
   [(set (match_operand:QI 0 "general_operand" "=r,o")
 	(ashift:QI (match_operand:QI 1 "general_operand" "0,0")
-		   (match_operand:HI 2 "const_immediate_operand" "n,n")))]
+		   (match_operand:HI 2 "const_int_operand" "n,n")))]
   ""
   "*
 { /* allowing predec or post_inc is possible, but hairy! */
@@ -1109,7 +1107,7 @@
 (define_insn "" 
   [(set (match_operand:QI 0 "general_operand" "=r,o")
 	(ashiftrt:QI (match_operand:QI 1 "general_operand" "0,0")
-		     (match_operand:HI 2 "const_immediate_operand" "n,n")))]
+		     (match_operand:HI 2 "const_int_operand" "n,n")))]
   ""
   "*
 { /* allowing predec or post_inc is possible, but hairy! */
@@ -1141,7 +1139,7 @@
   [(set (match_operand:HI 0 "register_operand" "=r,r")
 	(ashift:HI (match_operand:HI 1 "register_operand" "0,0")
 		   (match_operand:HI 2 "general_operand" "rR,Qi")))]
-  ""
+  "TARGET_40_PLUS"
   "*
 {
   if (GET_CODE(operands[2]) == CONST_INT)
@@ -1171,7 +1169,7 @@
 ;;(define_insn "lshrsi3"
 ;;  [(set (match_operand:HI 0 "register_operand" "=r")
 ;;	(lshiftrt:HI (match_operand:HI 1 "register_operand" "0")
-;;		     (match_operand:HI 2 "arith_operand" "rI")))]
+;;		     (match_operand:HI 2 "general_operand" "rI")))]
 ;;  ""
 ;;  "srl %0,%2")
 
@@ -1369,7 +1367,7 @@
   [(set (match_operand:HI 0 "register_operand" "=d,d") ; multiply regs
 	(mult:HI (match_operand:HI 1 "register_operand" "%0,0")
 		 (match_operand:HI 2 "general_operand" "rR,Qi")))]
-  "TARGET_45"
+  "TARGET_40_PLUS"
   "mul %2, %0"
   [(set_attr "length" "1,2")])
 
@@ -1381,7 +1379,7 @@
 	(mult:SI (truncate:HI 
                   (match_dup 0))
 		 (match_operand:HI 2 "general_operand" "rR,Qi")))]
-  "TARGET_45"
+  "TARGET_40_PLUS"
   "operands[3] = gen_lowpart(HImode, operands[1]);")
 
 (define_insn ""
@@ -1389,7 +1387,7 @@
 	(mult:SI (truncate:HI 
                   (match_operand:SI 1 "register_operand" "%0,0"))
 		 (match_operand:HI 2 "general_operand" "rR,Qi")))]
-  "TARGET_45"
+  "TARGET_40_PLUS"
   "mul %2, %0"
   [(set_attr "length" "1,2")])
 
@@ -1398,7 +1396,7 @@
 ;	(mult:SI (truncate:HI 
 ;                  (match_operand:SI 1 "register_operand" "%0,0"))
 ;		 (match_operand:HI 2 "general_operand" "rR,Qi")))]
-;  "TARGET_45"
+;  "TARGET_40_PLUS"
 ;  "mul %2, %0"
 ;  [(set_attr "length" "1,2")])
 
@@ -1418,14 +1416,14 @@
 		(match_operand:HI 2 "general_operand" "g")))
    (set (match_operand:HI 0 "general_operand" "=r")
         (subreg:HI (match_dup 1) 0))]
-  "TARGET_45"
+  "TARGET_40_PLUS"
   "")
 
 (define_insn ""
   [(set (subreg:HI (match_operand:SI 0 "general_operand" "=r") 0)
 	(div:HI (match_operand:SI 1 "general_operand" "0")
 		(match_operand:HI 2 "general_operand" "g")))]
-  "TARGET_45"
+  "TARGET_40_PLUS"
   "div %2,%0"
   [(set_attr "length" "2")])
 
@@ -1435,14 +1433,14 @@
 		(match_operand:HI 2 "general_operand" "g")))
    (set (match_operand:HI 0 "general_operand" "=r")
         (subreg:HI (match_dup 1) 2))]
-  "TARGET_45"
+  "TARGET_40_PLUS"
   "")
 
 (define_insn ""
   [(set (subreg:HI (match_operand:SI 0 "general_operand" "=r") 2)
 	(mod:HI (match_operand:SI 1 "general_operand" "0")
 		(match_operand:HI 2 "general_operand" "g")))]
-  "TARGET_45"
+  "TARGET_40_PLUS"
   "div %2,%0"
   [(set_attr "length" "2")])
 
@@ -1457,7 +1455,7 @@
 ;        (subreg:HI (match_dup 1) 2))
 ;   (set (match_operand:HI 0 "general_operand" "=r")
 ;        (subreg:HI (match_dup 1) 0))]
-;  "TARGET_45"
+;  "TARGET_40_PLUS"
 ;  "")
 ;
 ;(define_insn ""
@@ -1467,7 +1465,7 @@
 ;   (set (subreg:HI (match_dup 0) 2)
 ;	           (mod:HI (match_dup 1)
 ;		           (match_dup 2)))]
-;  "TARGET_45"
+;  "TARGET_40_PLUS"
 ;  "div %2, %0")
 ;
    

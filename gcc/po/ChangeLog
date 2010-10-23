@@ -1,3 +1,23 @@
+2010-10-22  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.pot: Regenerate.
+
+2010-10-22  Joseph Myers  <joseph@codesourcery.com>
+
+	* EXCLUDES: Add read-md.c.
+
+2010-10-22  Joseph Myers  <joseph@codesourcery.com>
+
+	* exgettext: Only handle Warn when followed by '('.
+
+2010-10-13  Joseph Myers  <joseph@codesourcery.com>
+
+	* vi.po: Update.
+
+2010-10-07  Joseph Myers  <joseph@codesourcery.com>
+
+	* vi.po: New.
+
 2010-09-02  Joseph Myers  <joseph@codesourcery.com>
 
 	* exgettext: Handle {} in operand of MissingArgError.  Handle

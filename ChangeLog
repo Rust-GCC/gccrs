@@ -1,3 +1,39 @@
+2010-10-20  Ian Lance Taylor  <iant@google.com>
+
+	* Makefile.def (target_modules): Set lib_path to src/.libs for
+	libstdc++-v3 module.
+	* Makefile.tpl: Fix typo in TARGET_LIB_PATH comment.
+	* Makefile.in: Rebuild.
+
+2010-10-18  Laurynas Biveinis  <laurynas.biveinis@gmail.com>
+
+	* MAINTAINERS (Reviewers): Add myself for gengtype/GTY.
+	(Write After Approval): Remove myself.
+
+2010-10-15  Tristan Gingold  <gingold@adacore.com>
+
+	* MAINTAINERS (OS Port Maintainers): Add myself for VMS.
+
+2010-10-14  Douglas Rupp  <rupp@gnat.com>
+
+	* MAINTAINERS (OS Port Maintainers): Add myself for VMS.
+
+2010-10-07  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	* configure.ac (build_lto_plugin): New shell variable.
+	(--enable-lto): Turn on by default for all non-ELF platforms that
+	have had LTO support added so far.  Set build_lto_plugin appropriately
+	for both ELF and non-ELF.
+	(configdirs): Add lto-plugin or not based on build_lto_plugin.
+	* configure: Regenerate.
+
+2010-10-07  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	Sync from src:
+	* configure.ac (v850 support): Remove target-libgloss from
+	noconfigdirs.
+	* configure: Regenerate.
+
 2010-10-02  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
 
 	PR bootstrap/45326

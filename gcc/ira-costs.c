@@ -131,11 +131,11 @@ static int frequency;
    TO_P is FALSE) a register of class RCLASS in mode MODE.  X must not
    be a pseudo register.  */
 static int
-copy_cost (rtx x, enum machine_mode mode, enum reg_class rclass, bool to_p,
+copy_cost (rtx x, enum machine_mode mode, reg_class_t rclass, bool to_p,
 	   secondary_reload_info *prev_sri)
 {
   secondary_reload_info sri;
-  enum reg_class secondary_class = NO_REGS;
+  reg_class_t secondary_class = NO_REGS;
 
   /* If X is a SCRATCH, there is actually nothing to move since we are
      assuming optimal allocation.  */
@@ -143,21 +143,21 @@ copy_cost (rtx x, enum machine_mode mode, enum reg_class rclass, bool to_p,
     return 0;
 
   /* Get the class we will actually use for a reload.  */
-  rclass = PREFERRED_RELOAD_CLASS (x, rclass);
+  rclass = targetm.preferred_reload_class (x, rclass);
 
   /* If we need a secondary reload for an intermediate, the cost is
      that to load the input into the intermediate register, then to
      copy it.  */
   sri.prev_sri = prev_sri;
   sri.extra_cost = 0;
-  secondary_class
-    = (enum reg_class) targetm.secondary_reload (to_p, x, rclass, mode, &sri);
+  secondary_class = targetm.secondary_reload (to_p, x, rclass, mode, &sri);
 
   if (secondary_class != NO_REGS)
     {
       if (!move_cost[mode])
         init_move_cost (mode);
-      return (move_cost[mode][secondary_class][rclass] + sri.extra_cost
+      return (move_cost[mode][(int) secondary_class][(int) rclass]
+	      + sri.extra_cost
 	      + copy_cost (x, mode, secondary_class, to_p, &sri));
     }
 
@@ -165,12 +165,14 @@ copy_cost (rtx x, enum machine_mode mode, enum reg_class rclass, bool to_p,
      the cost to move between the register classes, and use 2 for
      everything else (constants).  */
   if (MEM_P (x) || rclass == NO_REGS)
-    return sri.extra_cost + ira_memory_move_cost[mode][rclass][to_p != 0];
+    return sri.extra_cost
+	   + ira_memory_move_cost[mode][(int) rclass][to_p != 0];
   else if (REG_P (x))
     {
       if (!move_cost[mode])
         init_move_cost (mode);
-      return (sri.extra_cost + move_cost[mode][REGNO_REG_CLASS (REGNO (x))][rclass]);
+      return (sri.extra_cost
+	      + move_cost[mode][REGNO_REG_CLASS (REGNO (x))][(int) rclass]);
     }
   else
     /* If this is a constant, we may eventually want to call rtx_cost
@@ -1787,15 +1789,14 @@ ira_tune_allocno_costs_and_cover_classes (void)
       if (min_cost != INT_MAX)
 	ALLOCNO_COVER_CLASS_COST (a) = min_cost;
 
-      /* Some targets allow pseudos to be allocated to unaligned
-         sequences of hard registers.  However, selecting an unaligned
-         sequence can unnecessarily restrict later allocations.  So
-         increase the cost of unaligned hard regs to encourage the use
-         of aligned hard regs.  */
+      /* Some targets allow pseudos to be allocated to unaligned sequences
+	 of hard registers.  However, selecting an unaligned sequence can
+	 unnecessarily restrict later allocations.  So increase the cost of
+	 unaligned hard regs to encourage the use of aligned hard regs.  */
       {
-	int nregs, index;
+	const int nregs = ira_reg_class_nregs[cover_class][ALLOCNO_MODE (a)];
 
-	if ((nregs = ira_reg_class_nregs[cover_class][ALLOCNO_MODE (a)]) > 1)
+	if (nregs > 1)
 	  {
 	    ira_allocate_and_set_costs
 	      (&ALLOCNO_HARD_REG_COSTS (a), cover_class,
@@ -1803,10 +1804,10 @@ ira_tune_allocno_costs_and_cover_classes (void)
 	    reg_costs = ALLOCNO_HARD_REG_COSTS (a);
 	    for (j = n - 1; j >= 0; j--)
 	      {
-		if (j % nregs != 0)
+		regno = ira_non_ordered_class_hard_regs[cover_class][j];
+		if ((regno % nregs) != 0)
 		  {
-		    regno = ira_non_ordered_class_hard_regs[cover_class][j];
-		    index = ira_class_hard_reg_index[cover_class][regno];
+		    int index = ira_class_hard_reg_index[cover_class][regno];
 		    ira_assert (index != -1);
 		    reg_costs[index] += ALLOCNO_FREQ (a);
 		  }

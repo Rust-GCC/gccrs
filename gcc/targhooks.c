@@ -979,10 +979,19 @@ default_builtin_support_vector_misalignment (enum machine_mode mode,
 /* By default, only attempt to parallelize bitwise operations, and
    possibly adds/subtracts using bit-twiddling.  */
 
-unsigned int
-default_units_per_simd_word (enum machine_mode mode ATTRIBUTE_UNUSED)
+enum machine_mode
+default_preferred_simd_mode (enum machine_mode mode ATTRIBUTE_UNUSED)
 {
-  return UNITS_PER_WORD;
+  return word_mode;
+}
+
+/* By default only the size derived from the preferred vector mode
+   is tried.  */
+
+unsigned int
+default_autovectorize_vector_sizes (void)
+{
+  return 0;
 }
 
 /* Determine whether or not a pointer mode is valid. Assume defaults
@@ -1221,16 +1230,38 @@ default_profile_before_prologue (void)
 #endif
 }
 
+/* The default implementation of TARGET_PREFERRED_RELOAD_CLASS.  */
+
+reg_class_t
+default_preferred_reload_class (rtx x ATTRIBUTE_UNUSED,
+			        reg_class_t rclass)
+{
+#ifdef PREFERRED_RELOAD_CLASS 
+  return (reg_class_t) PREFERRED_RELOAD_CLASS (x, (enum reg_class) rclass);
+#else
+  return rclass;
+#endif
+}
+
+/* The default implementation of TARGET_OUTPUT_PREFERRED_RELOAD_CLASS.  */
+
+reg_class_t
+default_preferred_output_reload_class (rtx x ATTRIBUTE_UNUSED,
+				       reg_class_t rclass)
+{
+#ifdef PREFERRED_OUTPUT_RELOAD_CLASS
+  return PREFERRED_OUTPUT_RELOAD_CLASS (x, (enum reg_class) rclass);
+#else
+  return rclass;
+#endif
+}
+
 /* The default implementation of TARGET_CLASS_LIKELY_SPILLED_P.  */
 
 bool
 default_class_likely_spilled_p (reg_class_t rclass)
 {
-#ifndef CLASS_LIKELY_SPILLED_P
   return (reg_class_size[(int) rclass] == 1);
-#else
-  return CLASS_LIKELY_SPILLED_P ((enum reg_class) rclass);
-#endif
 }
 
 /* Determine the debugging unwind mechanism for the target.  */
@@ -1301,5 +1332,10 @@ sjlj_except_unwind_info (void)
 {
   return UI_SJLJ;
 }
+
+const struct default_options empty_optimization_table[] =
+  {
+    { OPT_LEVELS_NONE, 0, NULL, 0 }
+  };
 
 #include "gt-targhooks.h"

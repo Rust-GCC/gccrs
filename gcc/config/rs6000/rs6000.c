@@ -1086,7 +1086,7 @@ static bool rs6000_builtin_support_vector_misalignment (enum
 							int, bool);
 static int rs6000_builtin_vectorization_cost (enum vect_cost_for_stmt,
                                               tree, int);
-static unsigned int rs6000_units_per_simd_word (enum machine_mode);
+static enum machine_mode rs6000_preferred_simd_mode (enum machine_mode);
 
 static void def_builtin (int, const char *, tree, int);
 static bool rs6000_vector_alignment_reachable (const_tree, bool);
@@ -1136,7 +1136,8 @@ static rtx altivec_expand_vec_set_builtin (tree);
 static rtx altivec_expand_vec_ext_builtin (tree, rtx);
 static int get_element_number (tree, tree);
 static void rs6000_option_override (void);
-static void rs6000_option_optimization (int, int);
+static void rs6000_option_init_struct (struct gcc_options *);
+static void rs6000_option_default_params (void);
 static bool rs6000_handle_option (size_t, const char *, int);
 static void rs6000_parse_tls_size_option (void);
 static void rs6000_parse_yes_no_option (const char *, const char *, int *);
@@ -1362,6 +1363,13 @@ static const struct attribute_spec rs6000_attribute_table[] =
 #endif
   { NULL,        0, 0, false, false, false, NULL }
 };
+
+/* Implement TARGET_OPTION_OPTIMIZATION_TABLE.  */
+static const struct default_options rs6000_option_optimization_table[] =
+  {
+    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
+    { OPT_LEVELS_NONE, 0, NULL, 0 }
+  };
 
 #ifndef MASK_STRICT_ALIGN
 #define MASK_STRICT_ALIGN 0
@@ -1492,9 +1500,9 @@ static const struct attribute_spec rs6000_attribute_table[] =
 #undef TARGET_VECTORIZE_BUILTIN_VECTORIZATION_COST
 #define TARGET_VECTORIZE_BUILTIN_VECTORIZATION_COST \
   rs6000_builtin_vectorization_cost
-#undef TARGET_VECTORIZE_UNITS_PER_SIMD_WORD
-#define TARGET_VECTORIZE_UNITS_PER_SIMD_WORD \
-  rs6000_units_per_simd_word
+#undef TARGET_VECTORIZE_PREFERRED_SIMD_MODE
+#define TARGET_VECTORIZE_PREFERRED_SIMD_MODE \
+  rs6000_preferred_simd_mode
 
 #undef TARGET_INIT_BUILTINS
 #define TARGET_INIT_BUILTINS rs6000_init_builtins
@@ -1601,8 +1609,14 @@ static const struct attribute_spec rs6000_attribute_table[] =
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE rs6000_option_override
 
-#undef TARGET_OPTION_OPTIMIZATION
-#define TARGET_OPTION_OPTIMIZATION rs6000_option_optimization
+#undef TARGET_OPTION_INIT_STRUCT
+#define TARGET_OPTION_INIT_STRUCT rs6000_option_init_struct
+
+#undef TARGET_OPTION_DEFAULT_PARAMS
+#define TARGET_OPTION_DEFAULT_PARAMS rs6000_option_default_params
+
+#undef TARGET_OPTION_OPTIMIZATION_TABLE
+#define TARGET_OPTION_OPTIMIZATION_TABLE rs6000_option_optimization_table
 
 #undef TARGET_VECTORIZE_BUILTIN_VECTORIZED_FUNCTION
 #define TARGET_VECTORIZE_BUILTIN_VECTORIZED_FUNCTION \
@@ -3154,15 +3168,20 @@ rs6000_option_override_internal (const char *default_cpu)
 	gcc_unreachable ();
       }
 
-  if (!PARAM_SET_P (PARAM_SIMULTANEOUS_PREFETCHES))
-    set_param_value ("simultaneous-prefetches",
-		     rs6000_cost->simultaneous_prefetches);
-  if (!PARAM_SET_P (PARAM_L1_CACHE_SIZE))
-    set_param_value ("l1-cache-size", rs6000_cost->l1_cache_size);
-  if (!PARAM_SET_P (PARAM_L1_CACHE_LINE_SIZE))
-    set_param_value ("l1-cache-line-size", rs6000_cost->cache_line_size);
-  if (!PARAM_SET_P (PARAM_L2_CACHE_SIZE))
-    set_param_value ("l2-cache-size", rs6000_cost->l2_cache_size);
+  maybe_set_param_value (PARAM_SIMULTANEOUS_PREFETCHES,
+			 rs6000_cost->simultaneous_prefetches,
+			 global_options.x_param_values,
+			 global_options_set.x_param_values);
+  maybe_set_param_value (PARAM_L1_CACHE_SIZE, rs6000_cost->l1_cache_size,
+			 global_options.x_param_values,
+			 global_options_set.x_param_values);
+  maybe_set_param_value (PARAM_L1_CACHE_LINE_SIZE,
+			 rs6000_cost->cache_line_size,
+			 global_options.x_param_values,
+			 global_options_set.x_param_values);
+  maybe_set_param_value (PARAM_L2_CACHE_SIZE, rs6000_cost->l2_cache_size,
+			 global_options.x_param_values,
+			 global_options_set.x_param_values);
 
   /* If using typedef char *va_list, signal that __builtin_va_start (&ap, 0)
      can be optimized to ap = __builtin_next_arg (0).  */
@@ -3595,16 +3614,46 @@ rs6000_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
     }
 }
 
-/* Implement targetm.vectorize.units_per_simd_word.  */
+/* Implement targetm.vectorize.preferred_simd_mode.  */
 
-static unsigned int
-rs6000_units_per_simd_word (enum machine_mode mode ATTRIBUTE_UNUSED)
+static enum machine_mode
+rs6000_preferred_simd_mode (enum machine_mode mode)
 {
-  return (TARGET_VSX ? UNITS_PER_VSX_WORD
-	  : (TARGET_ALTIVEC ? UNITS_PER_ALTIVEC_WORD
-	     : (TARGET_SPE ? UNITS_PER_SPE_WORD
-		: (TARGET_PAIRED_FLOAT ? UNITS_PER_PAIRED_WORD
-		   : UNITS_PER_WORD))));
+  if (TARGET_VSX)
+    switch (mode)
+      {
+      case DFmode:
+	return V2DFmode;
+      default:;
+      }
+  if (TARGET_ALTIVEC || TARGET_VSX)
+    switch (mode)
+      {
+      case SFmode:
+	return V4SFmode;
+      case DImode:
+	return V2DImode;
+      case SImode:
+	return V4SImode;
+      case HImode:
+	return V8HImode;
+      case QImode:
+	return V16QImode;
+      default:;
+      }
+  if (TARGET_SPE)
+    switch (mode)
+      {
+      case SFmode:
+	return V2SFmode;
+      case SImode:
+	return V2SImode;
+      default:;
+      }
+  if (TARGET_PAIRED_FLOAT
+      && mode == SFmode)
+    return V2SFmode;
+  return word_mode;
 }
 
 /* Handle generic options of the form -mfoo=yes/no.
@@ -3642,23 +3691,28 @@ rs6000_parse_tls_size_option (void)
     error ("bad value %qs for -mtls-size switch", rs6000_tls_size_string);
 }
 
+/* Implement TARGET_OPTION_INIT_STRUCT.  */
+
 static void
-rs6000_option_optimization (int level ATTRIBUTE_UNUSED,
-			    int size ATTRIBUTE_UNUSED)
+rs6000_option_init_struct (struct gcc_options *opts)
 {
   if (DEFAULT_ABI == ABI_DARWIN)
     /* The Darwin libraries never set errno, so we might as well
        avoid calling them when that's the only reason we would.  */
-    flag_errno_math = 0;
+    opts->x_flag_errno_math = 0;
 
+  /* Enable section anchors by default.  */
+  if (!TARGET_MACHO)
+    opts->x_flag_section_anchors = 1;
+}
+
+/* Implement TARGET_OPTION_DEFAULT_PARAMS.  */
+
+static void
+rs6000_option_default_params (void)
+{
   /* Double growth factor to counter reduced min jump length.  */
-  set_param_value ("max-grow-copy-bb-insns", 16);
-
-  /* Enable section anchors by default.
-     Skip section anchors for Objective C and Objective C++
-     until front-ends fixed.  */
-  if (!TARGET_MACHO && lang_hooks.name[4] != 'O')
-    flag_section_anchors = 2;
+  set_default_param_value (PARAM_MAX_GROW_COPY_BB_INSNS, 16);
 }
 
 static enum fpu_type_t
@@ -3894,6 +3948,22 @@ rs6000_builtin_vectorized_function (tree fndecl, tree type_out,
 	    return rs6000_builtin_decls[VSX_BUILTIN_XVRSPIM];
 	  if (VECTOR_UNIT_ALTIVEC_P (V4SFmode))
 	    return rs6000_builtin_decls[ALTIVEC_BUILTIN_VRFIM];
+	  break;
+	case BUILT_IN_FMA:
+	  if (VECTOR_UNIT_VSX_P (V2DFmode)
+	      && out_mode == DFmode && out_n == 2
+	      && in_mode == DFmode && in_n == 2)
+	    return rs6000_builtin_decls[VSX_BUILTIN_XVMADDDP];
+	  break;
+	case BUILT_IN_FMAF:
+	  if (VECTOR_UNIT_VSX_P (V4SFmode)
+	      && out_mode == SFmode && out_n == 4
+	      && in_mode == SFmode && in_n == 4)
+	    return rs6000_builtin_decls[VSX_BUILTIN_XVMADDSP];
+	  else if (VECTOR_UNIT_ALTIVEC_P (V4SFmode)
+	      && out_mode == SFmode && out_n == 4
+	      && in_mode == SFmode && in_n == 4)
+	    return rs6000_builtin_decls[ALTIVEC_BUILTIN_VMADDFP];
 	  break;
 	case BUILT_IN_TRUNC:
 	  if (VECTOR_UNIT_VSX_P (V2DFmode)
@@ -9155,7 +9225,7 @@ rs6000_build_builtin_va_list (void)
   DECL_FIELD_CONTEXT (f_ovf) = record;
   DECL_FIELD_CONTEXT (f_sav) = record;
 
-  TREE_CHAIN (record) = type_decl;
+  TYPE_STUB_DECL (record) = type_decl;
   TYPE_NAME (record) = type_decl;
   TYPE_FIELDS (record) = f_gpr;
   DECL_CHAIN (f_gpr) = f_fpr;
@@ -17122,7 +17192,13 @@ output_isel (rtx *operands)
 
   code = GET_CODE (operands[1]);
 
-  gcc_assert (!(code == GE || code == GEU || code == LE || code == LEU || code == NE));
+  if (code == GE || code == GEU || code == LE || code == LEU || code == NE)
+    {
+      gcc_assert (GET_CODE (operands[2]) == REG
+		  && GET_CODE (operands[3]) == REG);
+      PUT_CODE (operands[1], reverse_condition (code));
+      return "isel %0,%3,%2,%j1";
+    }
 
   return "isel %0,%2,%3,%j1";
 }
@@ -19624,7 +19700,12 @@ rs6000_make_savres_rtx (rs6000_stack_t *info,
 static bool
 rs6000_reg_live_or_pic_offset_p (int reg)
 {
-  return ((df_regs_ever_live_p (reg)
+  /* If the function calls eh_return, claim used all the registers that would
+     be checked for liveness otherwise.  This is required for the PIC offset
+     register with -mminimal-toc on AIX, as it is advertised as "fixed" for
+     register allocation purposes in this case.  */
+
+  return (((crtl->calls_eh_return || df_regs_ever_live_p (reg))
            && (!call_used_regs[reg]
                || (reg == RS6000_PIC_OFFSET_TABLE_REGNUM
                    && TARGET_TOC && TARGET_MINIMAL_TOC)))
@@ -20214,7 +20295,7 @@ rs6000_emit_prologue (void)
   /* In AIX ABI we need to make sure r2 is really saved.  */
   if (TARGET_AIX && crtl->calls_eh_return)
     {
-      rtx tmp_reg, tmp_reg_si, compare_result, toc_save_done, jump;
+      rtx tmp_reg, tmp_reg_si, hi, lo, compare_result, toc_save_done, jump;
       long toc_restore_insn;
 
       gcc_assert (frame_reg_rtx == frame_ptr_rtx
@@ -20232,15 +20313,13 @@ rs6000_emit_prologue (void)
 	 toc adjusting stub.  */
       emit_move_insn (tmp_reg_si, gen_rtx_MEM (SImode, tmp_reg));
       toc_restore_insn = TARGET_32BIT ? 0x80410014 : 0xE8410028;
-      toc_restore_insn = (toc_restore_insn ^ 0x80000000) - 0x80000000;
-      emit_insn (gen_xorsi3 (tmp_reg_si, tmp_reg_si,
-			     GEN_INT (toc_restore_insn & ~0xffff)));
+      hi = gen_int_mode (toc_restore_insn & ~0xffff, SImode);
+      emit_insn (gen_xorsi3 (tmp_reg_si, tmp_reg_si, hi));
       compare_result = gen_rtx_REG (CCUNSmode, CR0_REGNO);
       validate_condition_mode (EQ, CCUNSmode);
+      lo = gen_int_mode (toc_restore_insn & 0xffff, SImode);
       emit_insn (gen_rtx_SET (VOIDmode, compare_result,
-			      gen_rtx_COMPARE (CCUNSmode, tmp_reg_si,
-					       GEN_INT (toc_restore_insn
-							& 0xffff))));
+			      gen_rtx_COMPARE (CCUNSmode, tmp_reg_si, lo)));
       toc_save_done = gen_label_rtx ();
       jump = gen_rtx_IF_THEN_ELSE (VOIDmode,
 				   gen_rtx_EQ (VOIDmode, compare_result,
@@ -25696,7 +25775,7 @@ rs6000_rtx_costs (rtx x, int code, int outer_code, int *total,
 	  || (outer_code == COMPARE
 	      && (satisfies_constraint_I (x)
 		  || satisfies_constraint_K (x)))
-	  || (outer_code == EQ
+	  || ((outer_code == EQ || outer_code == NE)
 	      && (satisfies_constraint_I (x)
 		  || satisfies_constraint_K (x)
 		  || (mode == SImode

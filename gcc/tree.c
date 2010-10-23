@@ -1178,6 +1178,10 @@ build_int_cst_wide (tree type, unsigned HOST_WIDE_INT low, HOST_WIDE_INT hi)
 
   switch (TREE_CODE (type))
     {
+    case NULLPTR_TYPE:
+      gcc_assert (hi == 0 && low == 0);
+      /* Fallthru.  */
+
     case POINTER_TYPE:
     case REFERENCE_TYPE:
       /* Cache NULL pointer.  */
@@ -3186,6 +3190,10 @@ substitute_in_expr (tree exp, tree f, tree r)
       }
 
   TREE_READONLY (new_tree) |= TREE_READONLY (exp);
+
+  if (code == INDIRECT_REF || code == ARRAY_REF || code == ARRAY_RANGE_REF)
+    TREE_THIS_NOTRAP (new_tree) |= TREE_THIS_NOTRAP (exp);
+
   return new_tree;
 }
 
@@ -3353,6 +3361,10 @@ substitute_placeholder_in_expr (tree exp, tree obj)
       }
 
   TREE_READONLY (new_tree) |= TREE_READONLY (exp);
+
+  if (code == INDIRECT_REF || code == ARRAY_REF || code == ARRAY_RANGE_REF)
+    TREE_THIS_NOTRAP (new_tree) |= TREE_THIS_NOTRAP (exp);
+
   return new_tree;
 }
 
@@ -4443,29 +4455,6 @@ need_assembler_name_p (tree decl)
 }
 
 
-/* Remove all the non-variable decls from BLOCK.  LOCALS is the set of
-   variables in DECL_STRUCT_FUNCTION (FN)->local_decls.  Every decl
-   in BLOCK that is not in LOCALS is removed.  */
-
-static void
-free_lang_data_in_block (tree fn, tree block, struct pointer_set_t *locals)
-{
-  tree *tp, t;
-
-  tp = &BLOCK_VARS (block);
-  while (*tp)
-    {
-      if (!pointer_set_contains (locals, *tp))
-	*tp = TREE_CHAIN (*tp);
-      else
-	tp = &TREE_CHAIN (*tp);
-    }
-
-  for (t = BLOCK_SUBBLOCKS (block); t; t = BLOCK_CHAIN (t))
-    free_lang_data_in_block (fn, t, locals);
-}
-
-
 /* Reset all language specific information still present in symbol
    DECL.  */
 
@@ -4489,35 +4478,6 @@ free_lang_data_in_decl (tree decl)
   if (DECL_NAME (decl))
     TREE_TYPE (DECL_NAME (decl)) = NULL_TREE;
 
-  /* Ignore any intervening types, because we are going to clear their
-     TYPE_CONTEXT fields.  */
-  if (TREE_CODE (decl) != FIELD_DECL
-      && TREE_CODE (decl) != FUNCTION_DECL)
-    DECL_CONTEXT (decl) = decl_function_context (decl);
-
-  if (DECL_CONTEXT (decl)
-      && TREE_CODE (DECL_CONTEXT (decl)) == NAMESPACE_DECL)
-    DECL_CONTEXT (decl) = NULL_TREE;
-
- if (TREE_CODE (decl) == VAR_DECL)
-   {
-     tree context = DECL_CONTEXT (decl);
-
-     if (context)
-       {
-	 enum tree_code code = TREE_CODE (context);
-	 if (code == FUNCTION_DECL && DECL_ABSTRACT (context))
-	   {
-	     /* Do not clear the decl context here, that will promote
-	        all vars to global ones.  */
-	     DECL_INITIAL (decl) = NULL_TREE;
-	   }
-
-	 if (TREE_STATIC (decl))
-	   DECL_CONTEXT (decl) = NULL_TREE;
-       }
-   }
-
   free_lang_data_in_one_sizepos (&DECL_SIZE (decl));
   free_lang_data_in_one_sizepos (&DECL_SIZE_UNIT (decl));
   if (TREE_CODE (decl) == FIELD_DECL)
@@ -4533,8 +4493,6 @@ free_lang_data_in_decl (tree decl)
       if (gimple_has_body_p (decl))
 	{
 	  tree t;
-	  unsigned ix;
-	  struct pointer_set_t *locals;
 
 	  /* If DECL has a gimple body, then the context for its
 	     arguments must be DECL.  Otherwise, it doesn't really
@@ -4547,44 +4505,30 @@ free_lang_data_in_decl (tree decl)
 	     the PARM_DECL will be used in the function's body).  */
 	  for (t = DECL_ARGUMENTS (decl); t; t = TREE_CHAIN (t))
 	    DECL_CONTEXT (t) = decl;
-
-	  /* Collect all the symbols declared in DECL.  */
-	  locals = pointer_set_create ();
-	  FOR_EACH_LOCAL_DECL (DECL_STRUCT_FUNCTION (decl), ix, t)
-	    {
-	      pointer_set_insert (locals, t);
-
-	      /* All the local symbols should have DECL as their
-		 context.  */
-	      DECL_CONTEXT (t) = decl;
-	    }
-
-	  /* Get rid of any decl not in local_decls.  */
-	  free_lang_data_in_block (decl, DECL_INITIAL (decl), locals);
-
-	  pointer_set_destroy (locals);
 	}
 
       /* DECL_SAVED_TREE holds the GENERIC representation for DECL.
 	 At this point, it is not needed anymore.  */
       DECL_SAVED_TREE (decl) = NULL_TREE;
+
+      /* Clear the abstract origin if it refers to a method.  Otherwise
+         dwarf2out.c will ICE as we clear TYPE_METHODS and thus the
+	 origin will not be output correctly.  */
+      if (DECL_ABSTRACT_ORIGIN (decl)
+	  && DECL_CONTEXT (DECL_ABSTRACT_ORIGIN (decl))
+	  && RECORD_OR_UNION_TYPE_P
+	       (DECL_CONTEXT (DECL_ABSTRACT_ORIGIN (decl))))
+	DECL_ABSTRACT_ORIGIN (decl) = NULL_TREE;
     }
   else if (TREE_CODE (decl) == VAR_DECL)
     {
-      if (DECL_EXTERNAL (decl)
-	  && (!TREE_STATIC (decl) || !TREE_READONLY (decl)))
+      if ((DECL_EXTERNAL (decl)
+	   && (!TREE_STATIC (decl) || !TREE_READONLY (decl)))
+	  || (decl_function_context (decl) && !TREE_STATIC (decl)))
 	DECL_INITIAL (decl) = NULL_TREE;
     }
   else if (TREE_CODE (decl) == TYPE_DECL)
-    {
-      DECL_INITIAL (decl) = NULL_TREE;
-
-      /* DECL_CONTEXT is overloaded as DECL_FIELD_CONTEXT for
-	 FIELD_DECLs, which should be preserved.  Otherwise,
-	 we shouldn't be concerned with source-level lexical
-	 nesting beyond this point. */
-      DECL_CONTEXT (decl) = NULL_TREE;
-    }
+    DECL_INITIAL (decl) = NULL_TREE;
 }
 
 
@@ -5044,7 +4988,7 @@ free_lang_data_in_cgraph (void)
     find_decls_types (p->decl, &fld);
 
   /* Find decls and types in every varpool symbol.  */
-  for (v = varpool_nodes_queue; v; v = v->next_needed)
+  for (v = varpool_nodes; v; v = v->next)
     find_decls_types_in_var (v, &fld);
 
   /* Set the assembler name on every decl found.  We need to do this
@@ -10936,11 +10880,7 @@ tree
 lhd_gcc_personality (void)
 {
   if (!gcc_eh_personality_decl)
-    gcc_eh_personality_decl
-      = build_personality_function (targetm.except_unwind_info () == UI_SJLJ
-				    ? "__gcc_personality_sj0"
-				    : "__gcc_personality_v0");
-
+    gcc_eh_personality_decl = build_personality_function ("gcc");
   return gcc_eh_personality_decl;
 }
 
@@ -10952,9 +10892,6 @@ tree
 get_binfo_at_offset (tree binfo, HOST_WIDE_INT offset, tree expected_type)
 {
   tree type;
-
-  if (offset == 0)
-    return binfo;
 
   type = TREE_TYPE (binfo);
   while (offset > 0)

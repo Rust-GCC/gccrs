@@ -4,29 +4,28 @@
    2007, 2008, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Jeff Law (law@cygnus.com).
 
-This file is part of GCC.
+   This file is part of GCC.
 
-GCC is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 3, or (at your option)
-any later version.
+   GCC is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-GCC is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   GCC is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING3.  If not see
-<http://www.gnu.org/licenses/>.  */
-
+   You should have received a copy of the GNU General Public License
+   along with GCC; see the file COPYING3.  If not see
+   <http://www.gnu.org/licenses/>.  */
 
 #undef ASM_SPEC
 #undef LIB_SPEC
 #undef ENDFILE_SPEC
-#undef LINK_SPEC
+#undef  LINK_SPEC
 #define LINK_SPEC "%{mrelax:--relax}"
-#undef STARTFILE_SPEC
+#undef  STARTFILE_SPEC
 #define STARTFILE_SPEC "%{!mno-crt0:%{!shared:%{pg:gcrt0%O%s}%{!pg:%{p:mcrt0%O%s}%{!p:crt0%O%s}}}}"
 
 /* Names to predefine in the preprocessor for this target machine.  */
@@ -38,14 +37,21 @@ along with GCC; see the file COPYING3.  If not see
       builtin_define ("__MN10300__");		\
       builtin_assert ("cpu=mn10300");		\
       builtin_assert ("machine=mn10300");	\
+						\
+      if (TARGET_AM33_2)			\
+        { 					\
+          builtin_define ("__AM33__=2");	\
+          builtin_define ("__AM33_2__");	\
+        }					\
+      else if (TARGET_AM33)			\
+        builtin_define ("__AM33__=1");		\
     }						\
   while (0)
 
-#define CPP_SPEC "%{mam33:-D__AM33__} %{mam33-2:-D__AM33__=2 -D__AM33_2__}"
-
 extern GTY(()) int mn10300_unspec_int_label_counter;
 
-enum processor_type {
+enum processor_type
+{
   PROCESSOR_MN10300,
   PROCESSOR_AM33,
   PROCESSOR_AM33_2
@@ -99,7 +105,7 @@ extern enum processor_type mn10300_processor;
 #define BIGGEST_ALIGNMENT	32
 
 /* Alignment of field after `int : 0' in a structure.  */
-#define EMPTY_FIELD_BOUNDARY 32
+#define EMPTY_FIELD_BOUNDARY    32
 
 /* Define this if move instructions will actually fail to work
    when given unaligned data.  */
@@ -117,28 +123,32 @@ extern enum processor_type mn10300_processor;
    All registers that the compiler knows about must be given numbers,
    even those that are not normally considered general registers.  */
 
-#define FIRST_PSEUDO_REGISTER 51
+#define FIRST_PSEUDO_REGISTER 52
 
-/* Specify machine-specific register numbers.  */
-#define FIRST_DATA_REGNUM 0
-#define LAST_DATA_REGNUM 3
-#define FIRST_ADDRESS_REGNUM 4
-#define LAST_ADDRESS_REGNUM 8
+/* Specify machine-specific register numbers.  The commented out entries
+   are defined in mn10300.md.  */
+#define FIRST_DATA_REGNUM      0
+#define LAST_DATA_REGNUM       3
+#define FIRST_ADDRESS_REGNUM   4
+/* #define PIC_REG             6 */
+#define LAST_ADDRESS_REGNUM    8
+/* #define SP_REG              9 */
 #define FIRST_EXTENDED_REGNUM 10
-#define LAST_EXTENDED_REGNUM 17
-#define FIRST_FP_REGNUM 18
-#define LAST_FP_REGNUM 49
-#define MDR_REGNUM 50
-#define FIRST_ARGUMENT_REGNUM 0
+#define LAST_EXTENDED_REGNUM  17
+#define FIRST_FP_REGNUM       18
+#define LAST_FP_REGNUM        49
+#define MDR_REGNUM            50
+/* #define CC_REG             51 */
+#define FIRST_ARGUMENT_REGNUM  0
 
 /* Specify the registers used for certain standard purposes.
    The values of these macros are register numbers.  */
 
 /* Register to use for pushing function arguments.  */
-#define STACK_POINTER_REGNUM (LAST_ADDRESS_REGNUM+1)
+#define STACK_POINTER_REGNUM (LAST_ADDRESS_REGNUM + 1)
 
 /* Base register for access to local variables of the function.  */
-#define FRAME_POINTER_REGNUM (LAST_ADDRESS_REGNUM-1)
+#define FRAME_POINTER_REGNUM (LAST_ADDRESS_REGNUM - 1)
 
 /* Base register for access to arguments of the function.  This
    is a fake register and will be eliminated into either the frame
@@ -146,15 +156,15 @@ extern enum processor_type mn10300_processor;
 #define ARG_POINTER_REGNUM LAST_ADDRESS_REGNUM
 
 /* Register in which static-chain is passed to a function.  */
-#define STATIC_CHAIN_REGNUM (FIRST_ADDRESS_REGNUM+1)
+#define STATIC_CHAIN_REGNUM (FIRST_ADDRESS_REGNUM + 1)
 
 /* 1 for registers that have pervasive standard uses
    and are not available for the register allocator.  */
 
 #define FIXED_REGISTERS \
   { 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 \
-  , 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 \
-  , 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 \
+  , 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0	 \
+  , 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1 \
   }
 
 /* 1 for registers not available across function calls.
@@ -167,8 +177,8 @@ extern enum processor_type mn10300_processor;
 
 #define CALL_USED_REGISTERS \
   { 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0 \
-  , 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 \
-  , 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 \
+  , 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0	 \
+  , 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 \
   }
 
 /* Note: The definition of CALL_REALLY_USED_REGISTERS is not
@@ -181,7 +191,7 @@ extern enum processor_type mn10300_processor;
 #define REG_ALLOC_ORDER \
   { 0, 1, 4, 5, 2, 3, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 8, 9 \
   , 42, 43, 44, 45, 46, 47, 48, 49, 34, 35, 36, 37, 38, 39, 40, 41 \
-  , 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33 \
+  , 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 51 \
   }
 
 #define CONDITIONAL_REGISTER_USAGE \
@@ -197,8 +207,7 @@ extern enum processor_type mn10300_processor;
   if (!TARGET_AM33_2)				\
     {						\
       for (i = FIRST_FP_REGNUM;			\
-	   i <= LAST_FP_REGNUM; 		\
-           i++) 				\
+	   i <= LAST_FP_REGNUM; i++) 		\
 	fixed_regs[i] = call_used_regs[i] = 1;	\
     }						\
   if (flag_pic)					\
@@ -217,22 +226,15 @@ extern enum processor_type mn10300_processor;
 
 /* Value is 1 if hard register REGNO can hold a value of machine-mode
    MODE.  */
-
 #define HARD_REGNO_MODE_OK(REGNO, MODE) \
- ((REGNO_REG_CLASS (REGNO) == DATA_REGS \
-   || (TARGET_AM33 && REGNO_REG_CLASS (REGNO) == ADDRESS_REGS) \
-   || REGNO_REG_CLASS (REGNO) == EXTENDED_REGS) \
-  ? ((REGNO) & 1) == 0 || GET_MODE_SIZE (MODE) <= 4	\
-  : ((REGNO) & 1) == 0 || GET_MODE_SIZE (MODE) == 4)
+  mn10300_hard_regno_mode_ok ((REGNO), (MODE))
 
 /* Value is 1 if it is a good idea to tie two pseudo registers
    when one has mode MODE1 and one has mode MODE2.
    If HARD_REGNO_MODE_OK could produce different values for MODE1 and MODE2,
    for any hard reg, then this must be 0 for correct output.  */
 #define MODES_TIEABLE_P(MODE1, MODE2) \
-  (TARGET_AM33  \
-   || MODE1 == MODE2 \
-   || (GET_MODE_SIZE (MODE1) <= 4 && GET_MODE_SIZE (MODE2) <= 4))
+  mn10300_modes_tieable ((MODE1), (MODE2))
 
 /* 4 data, and effectively 3 address registers is small as far as I'm
    concerned.  */
@@ -258,12 +260,13 @@ extern enum processor_type mn10300_processor;
    For any two classes, it is very desirable that there be another
    class that represents their union.  */
 
-enum reg_class {
+enum reg_class
+{
   NO_REGS, DATA_REGS, ADDRESS_REGS, SP_REGS,
   DATA_OR_ADDRESS_REGS, SP_OR_ADDRESS_REGS,
   EXTENDED_REGS, DATA_OR_EXTENDED_REGS, ADDRESS_OR_EXTENDED_REGS,
   SP_OR_EXTENDED_REGS, SP_OR_ADDRESS_OR_EXTENDED_REGS,
-  FP_REGS, FP_ACC_REGS,
+  FP_REGS, FP_ACC_REGS, CC_REGS,
   GENERAL_REGS, ALL_REGS, LIM_REG_CLASSES
 };
 
@@ -271,35 +274,37 @@ enum reg_class {
 
 /* Give names of register classes as strings for dump file.  */
 
-#define REG_CLASS_NAMES \
-{ "NO_REGS", "DATA_REGS", "ADDRESS_REGS", \
-  "SP_REGS", "DATA_OR_ADDRESS_REGS", "SP_OR_ADDRESS_REGS", \
-  "EXTENDED_REGS", \
-  "DATA_OR_EXTENDED_REGS", "ADDRESS_OR_EXTENDED_REGS", \
-  "SP_OR_EXTENDED_REGS", "SP_OR_ADDRESS_OR_EXTENDED_REGS", \
-  "FP_REGS", "FP_ACC_REGS", \
-  "GENERAL_REGS", "ALL_REGS", "LIM_REGS" }
+#define REG_CLASS_NAMES						\
+{ "NO_REGS", "DATA_REGS", "ADDRESS_REGS",			\
+  "SP_REGS", "DATA_OR_ADDRESS_REGS", "SP_OR_ADDRESS_REGS",	\
+  "EXTENDED_REGS",						\
+  "DATA_OR_EXTENDED_REGS", "ADDRESS_OR_EXTENDED_REGS",		\
+  "SP_OR_EXTENDED_REGS", "SP_OR_ADDRESS_OR_EXTENDED_REGS",	\
+  "FP_REGS", "FP_ACC_REGS", "CC_REGS",				\
+  "GENERAL_REGS", "ALL_REGS", "LIM_REGS"			\
+}
 
 /* Define which registers fit in which classes.
    This is an initializer for a vector of HARD_REG_SET
    of length N_REG_CLASSES.  */
 
-#define REG_CLASS_CONTENTS  			\
-{  { 0,	0 },		/* No regs      */	\
- { 0x0000f, 0 },	/* DATA_REGS */		\
- { 0x001f0, 0 },	/* ADDRESS_REGS */	\
- { 0x00200, 0 },	/* SP_REGS */		\
- { 0x001ff, 0 },	/* DATA_OR_ADDRESS_REGS */\
- { 0x003f0, 0 },	/* SP_OR_ADDRESS_REGS */\
- { 0x3fc00, 0 },	/* EXTENDED_REGS */	\
- { 0x3fc0f, 0 },	/* DATA_OR_EXTENDED_REGS */	\
- { 0x3fdf0, 0 },	/* ADDRESS_OR_EXTENDED_REGS */	\
- { 0x3fe00, 0 },	/* SP_OR_EXTENDED_REGS */	\
- { 0x3fff0, 0 },	/* SP_OR_ADDRESS_OR_EXTENDED_REGS */	\
- { 0xfffc0000, 0x3ffff }, /* FP_REGS */		\
- { 0x03fc0000, 0 },	/* FP_ACC_REGS */	\
- { 0x3fdff, 0 }, 	/* GENERAL_REGS */	\
- { 0xffffffff, 0x7ffff } /* ALL_REGS 	*/	\
+#define REG_CLASS_CONTENTS					\
+{ { 0,	        0 },	  /* No regs      */			\
+  { 0x0000000f, 0 },	  /* DATA_REGS */			\
+  { 0x000001f0, 0 },	  /* ADDRESS_REGS */			\
+  { 0x00000200, 0 },	  /* SP_REGS */				\
+  { 0x000001ff, 0 },	  /* DATA_OR_ADDRESS_REGS */		\
+  { 0x000003f0, 0 },	  /* SP_OR_ADDRESS_REGS */		\
+  { 0x0003fc00, 0 },	  /* EXTENDED_REGS */			\
+  { 0x0003fc0f, 0 },	  /* DATA_OR_EXTENDED_REGS */		\
+  { 0x0003fdf0, 0 },	  /* ADDRESS_OR_EXTENDED_REGS */	\
+  { 0x0003fe00, 0 },	  /* SP_OR_EXTENDED_REGS */		\
+  { 0x0003fff0, 0 },	  /* SP_OR_ADDRESS_OR_EXTENDED_REGS */	\
+  { 0xfffc0000, 0x3ffff },/* FP_REGS */				\
+  { 0x03fc0000, 0 },	  /* FP_ACC_REGS */			\
+  { 0x00000000, 0x80000 },/* CC_REGS */				\
+  { 0x0003fdff, 0 }, 	  /* GENERAL_REGS */			\
+  { 0xffffffff, 0xfffff } /* ALL_REGS 	*/			\
 }
 
 /* The following macro defines cover classes for Integrated Register
@@ -310,9 +315,9 @@ enum reg_class {
    array of register classes with LIM_REG_CLASSES used as the end
    marker.  */
 
-#define IRA_COVER_CLASSES                                                    \
-{                                                                            \
-  GENERAL_REGS, FP_REGS, LIM_REG_CLASSES \
+#define IRA_COVER_CLASSES					\
+{								\
+  GENERAL_REGS, FP_REGS, LIM_REG_CLASSES			\
 }
 
 /* The same information, inverted:
@@ -320,12 +325,13 @@ enum reg_class {
    reg number REGNO.  This could be a conditional expression
    or could index an array.  */
 
-#define REGNO_REG_CLASS(REGNO) \
-  ((REGNO) <= LAST_DATA_REGNUM ? DATA_REGS : \
-   (REGNO) <= LAST_ADDRESS_REGNUM ? ADDRESS_REGS : \
-   (REGNO) == STACK_POINTER_REGNUM ? SP_REGS : \
+#define REGNO_REG_CLASS(REGNO)			     \
+  ((REGNO) <= LAST_DATA_REGNUM ? DATA_REGS :	     \
+   (REGNO) <= LAST_ADDRESS_REGNUM ? ADDRESS_REGS :   \
+   (REGNO) == STACK_POINTER_REGNUM ? SP_REGS :	     \
    (REGNO) <= LAST_EXTENDED_REGNUM ? EXTENDED_REGS : \
-   (REGNO) <= LAST_FP_REGNUM ? FP_REGS : \
+   (REGNO) <= LAST_FP_REGNUM ? FP_REGS :	     \
+   (REGNO) == CC_REG ? CC_REGS :		     \
    NO_REGS)
 
 /* The class value for index registers, and the one for base regs.  */
@@ -416,11 +422,11 @@ enum reg_class {
 #define PREFERRED_RELOAD_CLASS(X,CLASS)				\
   ((X) == stack_pointer_rtx && (CLASS) != SP_REGS		\
    ? ADDRESS_OR_EXTENDED_REGS					\
-   : (GET_CODE (X) == MEM					\
-      || (GET_CODE (X) == REG					\
+   : (MEM_P (X)							\
+      || (REG_P (X)						\
 	  && REGNO (X) >= FIRST_PSEUDO_REGISTER)		\
       || (GET_CODE (X) == SUBREG				\
-	  && GET_CODE (SUBREG_REG (X)) == REG			\
+	  && REG_P (SUBREG_REG (X))				\
 	  && REGNO (SUBREG_REG (X)) >= FIRST_PSEUDO_REGISTER)	\
       ? LIMIT_RELOAD_CLASS (GET_MODE (X), CLASS)		\
       : (CLASS)))
@@ -485,11 +491,7 @@ enum reg_class {
  { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM}}
 
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET) \
-  OFFSET = initial_offset (FROM, TO)
-
-/* We can debug without frame pointers on the mn10300, so eliminate
-   them whenever possible.  */
-#define CAN_DEBUG_WITHOUT_FP
+  OFFSET = mn10300_initial_offset (FROM, TO)
 
 /* We use d0/d1 for passing parameters, so allocate 8 bytes of space
    for a register flushback area.  */
@@ -517,7 +519,11 @@ enum reg_class {
    of arguments scanned so far.  */
 
 #define CUMULATIVE_ARGS struct cum_arg
-struct cum_arg {int nbytes; };
+
+struct cum_arg
+{
+  int nbytes;
+};
 
 /* Initialize a variable CUM of type CUMULATIVE_ARGS
    for a call to a function whose data type is FNTYPE.
@@ -551,7 +557,7 @@ struct cum_arg {int nbytes; };
     (otherwise it is an extra parameter matching an ellipsis).  */
 
 #define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-  function_arg (&CUM, MODE, TYPE, NAMED)
+  mn10300_function_arg (&(CUM), MODE, TYPE, NAMED)
 
 #define FUNCTION_VALUE_REGNO_P(N)  mn10300_function_value_regno_p (N)
 
@@ -611,12 +617,12 @@ struct cum_arg {int nbytes; };
 
 /* Nonzero if the constant value X is a legitimate general operand.
    It is given that X satisfies CONSTANT_P or is a CONST_DOUBLE.  */
-
-#define LEGITIMATE_CONSTANT_P(X) 1
+#define LEGITIMATE_CONSTANT_P(X) mn10300_legitimate_constant_p (X)
 
 /* Zero if this needs fixing up to become PIC.  */
 
-#define LEGITIMATE_PIC_OPERAND_P(X) (legitimate_pic_operand_p (X))
+#define LEGITIMATE_PIC_OPERAND_P(X) \
+  mn10300_legitimate_pic_operand_p (X)
 
 /* Register to hold the addressing base for
    position independent code access to data items.  */
@@ -675,20 +681,9 @@ struct cum_arg {int nbytes; };
       goto FAIL;							\
   while (0)
 
-/* Tell final.c how to eliminate redundant test instructions.  */
-
-/* Here we define machine-dependent flags and fields in cc_status
-   (see `conditions.h').  No extra ones are needed for the VAX.  */
-
-/* Store in cc_status the expressions
-   that the condition codes will describe
-   after execution of an instruction whose pattern is EXP.
-   Do not alter them if the instruction would not alter the cc's.  */
-
-#define CC_OVERFLOW_UNUSABLE 0x200
-#define CC_NO_CARRY CC_NO_OVERFLOW
-#define NOTICE_UPDATE_CC(EXP, INSN) notice_update_cc(EXP, INSN)
-
+#define SELECT_CC_MODE(OP, X, Y)  mn10300_select_cc_mode (X)
+#define REVERSIBLE_CC_MODE(MODE)  0
+
 #define REGISTER_MOVE_COST(MODE, CLASS1, CLASS2) \
   ((CLASS1 == CLASS2 && (CLASS1 == ADDRESS_REGS || CLASS1 == DATA_REGS)) ? 2 :\
    ((CLASS1 == ADDRESS_REGS || CLASS1 == DATA_REGS) && \
@@ -714,7 +709,7 @@ struct cum_arg {int nbytes; };
 
 #define TEXT_SECTION_ASM_OP "\t.section .text"
 #define DATA_SECTION_ASM_OP "\t.section .data"
-#define BSS_SECTION_ASM_OP "\t.section .bss"
+#define BSS_SECTION_ASM_OP  "\t.section .bss"
 
 #define ASM_COMMENT_START "#"
 
@@ -744,7 +739,7 @@ struct cum_arg {int nbytes; };
 /* This is how to output a reference to a user-level label named NAME.
    `assemble_name' uses this.  */
 
-#undef ASM_OUTPUT_LABELREF
+#undef  ASM_OUTPUT_LABELREF
 #define ASM_OUTPUT_LABELREF(FILE, NAME) \
   asm_fprintf (FILE, "%U%s", (*targetm.strip_name_encoding) (NAME))
 
@@ -753,47 +748,51 @@ struct cum_arg {int nbytes; };
 /* This is how we tell the assembler that two symbols have the same value.  */
 
 #define ASM_OUTPUT_DEF(FILE,NAME1,NAME2) \
-  do { assemble_name(FILE, NAME1); 	 \
-       fputs(" = ", FILE);		 \
-       assemble_name(FILE, NAME2);	 \
-       fputc('\n', FILE); } while (0)
-
+  do					 \
+    {					 \
+      assemble_name (FILE, NAME1);	 \
+      fputs (" = ", FILE);		 \
+      assemble_name (FILE, NAME2);	 \
+      fputc ('\n', FILE);		 \
+    }					 \
+  while (0)
 
 /* How to refer to registers in assembler output.
    This sequence is indexed by compiler's hard-register-number (see above).  */
 
-#define REGISTER_NAMES \
-{ "d0", "d1", "d2", "d3", "a0", "a1", "a2", "a3", "ap", "sp", \
-  "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7" \
-, "fs0", "fs1", "fs2", "fs3", "fs4", "fs5", "fs6", "fs7" \
-, "fs8", "fs9", "fs10", "fs11", "fs12", "fs13", "fs14", "fs15" \
-, "fs16", "fs17", "fs18", "fs19", "fs20", "fs21", "fs22", "fs23" \
-    , "fs24", "fs25", "fs26", "fs27", "fs28", "fs29", "fs30", "fs31", "mdr"	\
+#define REGISTER_NAMES							\
+{ "d0", "d1", "d2", "d3", "a0", "a1", "a2", "a3", "ap", "sp",		\
+  "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7"			\
+, "fs0", "fs1", "fs2", "fs3", "fs4", "fs5", "fs6", "fs7"		\
+, "fs8", "fs9", "fs10", "fs11", "fs12", "fs13", "fs14", "fs15"		\
+, "fs16", "fs17", "fs18", "fs19", "fs20", "fs21", "fs22", "fs23"	\
+, "fs24", "fs25", "fs26", "fs27", "fs28", "fs29", "fs30", "fs31"	\
+, "mdr", "EPSW"								\
 }
 
-#define ADDITIONAL_REGISTER_NAMES \
-{ {"r8",  4}, {"r9",  5}, {"r10", 6}, {"r11", 7}, \
-  {"r12", 0}, {"r13", 1}, {"r14", 2}, {"r15", 3}, \
-  {"e0", 10}, {"e1", 11}, {"e2", 12}, {"e3", 13}, \
-  {"e4", 14}, {"e5", 15}, {"e6", 16}, {"e7", 17} \
-, {"fd0", 18}, {"fd2", 20}, {"fd4", 22}, {"fd6", 24} \
-, {"fd8", 26}, {"fd10", 28}, {"fd12", 30}, {"fd14", 32} \
-, {"fd16", 34}, {"fd18", 36}, {"fd20", 38}, {"fd22", 40} \
-, {"fd24", 42}, {"fd26", 44}, {"fd28", 46}, {"fd30", 48} \
+#define ADDITIONAL_REGISTER_NAMES				\
+{ {"r8",  4}, {"r9",  5}, {"r10", 6}, {"r11", 7},		\
+  {"r12", 0}, {"r13", 1}, {"r14", 2}, {"r15", 3},		\
+  {"e0", 10}, {"e1", 11}, {"e2", 12}, {"e3", 13},		\
+  {"e4", 14}, {"e5", 15}, {"e6", 16}, {"e7", 17}		\
+, {"fd0", 18}, {"fd2", 20}, {"fd4", 22}, {"fd6", 24}		\
+, {"fd8", 26}, {"fd10", 28}, {"fd12", 30}, {"fd14", 32}		\
+, {"fd16", 34}, {"fd18", 36}, {"fd20", 38}, {"fd22", 40}	\
+, {"fd24", 42}, {"fd26", 44}, {"fd28", 46}, {"fd30", 48}	\
+, {"cc", CC_REG}						\
 }
 
 /* Print an instruction operand X on file FILE.
    look in mn10300.c for details */
 
-#define PRINT_OPERAND(FILE, X, CODE)  print_operand(FILE,X,CODE)
+#define PRINT_OPERAND(FILE, X, CODE) \
+  mn10300_print_operand (FILE, X, CODE)
 
 /* Print a memory operand whose address is X, on file FILE.
    This uses a function in output-vax.c.  */
 
-#define PRINT_OPERAND_ADDRESS(FILE, ADDR) print_operand_address (FILE, ADDR)
-
-#define ASM_OUTPUT_REG_PUSH(FILE,REGNO)
-#define ASM_OUTPUT_REG_POP(FILE,REGNO)
+#define PRINT_OPERAND_ADDRESS(FILE, ADDR) \
+  mn10300_print_operand_address (FILE, ADDR)
 
 /* This is how to output an element of a case-vector that is absolute.  */
 
@@ -835,12 +834,14 @@ struct cum_arg {int nbytes; };
 #define DEBUGGER_AUTO_OFFSET(X) \
   ((GET_CODE (X) == PLUS ? INTVAL (XEXP (X, 1)) : 0) \
     + (frame_pointer_needed \
-       ? 0 : -initial_offset (FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM)))
+       ? 0 : - mn10300_initial_offset (FRAME_POINTER_REGNUM, \
+				       STACK_POINTER_REGNUM)))
 
 #define DEBUGGER_ARG_OFFSET(OFFSET, X) \
   ((GET_CODE (X) == PLUS ? OFFSET : 0) \
     + (frame_pointer_needed \
-       ? 0 : -initial_offset (ARG_POINTER_REGNUM, STACK_POINTER_REGNUM)))
+       ? 0 : - mn10300_initial_offset (ARG_POINTER_REGNUM, \
+				       STACK_POINTER_REGNUM)))
 
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */
@@ -883,12 +884,3 @@ struct cum_arg {int nbytes; };
 
 #define FILE_ASM_OP "\t.file\n"
 
-typedef struct mn10300_cc_status_mdep
-  {
-    int fpCC;
-  }
-cc_status_mdep;
-
-#define CC_STATUS_MDEP cc_status_mdep
-
-#define CC_STATUS_MDEP_INIT (cc_status.mdep.fpCC = 0)

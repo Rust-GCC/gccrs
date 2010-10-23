@@ -2097,7 +2097,15 @@ static void cp_parser_objc_declaration
 static tree cp_parser_objc_statement
   (cp_parser *);
 static bool cp_parser_objc_valid_prefix_attributes
-  (cp_parser* parser, tree *attrib);
+  (cp_parser *, tree *);
+static void cp_parser_objc_at_property 
+  (cp_parser *) ;
+static void cp_parser_objc_at_synthesize_declaration 
+  (cp_parser *) ;
+static void cp_parser_objc_at_dynamic_declaration
+  (cp_parser *) ;
+static void cp_parser_objc_property_decl 
+  (cp_parser *) ;
 
 /* Utility Routines */
 
@@ -8765,8 +8773,10 @@ cp_convert_range_for (tree statement, tree range_decl, tree range_expr)
   TREE_USED (range_temp) = 1;
   DECL_ARTIFICIAL (range_temp) = 1;
   pushdecl (range_temp);
-  finish_expr_stmt (cp_build_modify_expr (range_temp, INIT_EXPR, range_expr,
-					  tf_warning_or_error));
+  cp_finish_decl (range_temp, range_expr,
+		  /*is_constant_init*/false, NULL_TREE,
+		  LOOKUP_ONLYCONVERTING);
+
   range_temp = convert_from_reference (range_temp);
 
   if (TREE_CODE (TREE_TYPE (range_temp)) == ARRAY_TYPE)
@@ -8816,16 +8826,18 @@ cp_convert_range_for (tree statement, tree range_decl, tree range_expr)
   TREE_USED (begin) = 1;
   DECL_ARTIFICIAL (begin) = 1;
   pushdecl (begin);
-  finish_expr_stmt (cp_build_modify_expr (begin, INIT_EXPR, begin_expr,
-					  tf_warning_or_error));
+  cp_finish_decl (begin, begin_expr,
+		  /*is_constant_init*/false, NULL_TREE,
+		  LOOKUP_ONLYCONVERTING);
+
   end = build_decl (input_location, VAR_DECL,
 		    get_identifier ("__for_end"), iter_type);
   TREE_USED (end) = 1;
   DECL_ARTIFICIAL (end) = 1;
   pushdecl (end);
-
-  finish_expr_stmt (cp_build_modify_expr (end, INIT_EXPR, end_expr,
-					  tf_warning_or_error));
+  cp_finish_decl (end, end_expr,
+		  /*is_constant_init*/false, NULL_TREE,
+		  LOOKUP_ONLYCONVERTING);
 
   finish_for_init_stmt (statement);
 
@@ -12749,7 +12761,7 @@ cp_parser_simple_type_specifier (cp_parser* parser,
       /* As a last-ditch effort, see if TYPE is an Objective-C type.
 	 If it is, then the '<'...'>' enclose protocol names rather than
 	 template arguments, and so everything is fine.  */
-      if (c_dialect_objc ()
+      if (c_dialect_objc () && !parser->scope
 	  && (objc_is_id (type) || objc_is_class_name (type)))
 	{
 	  tree protos = cp_parser_objc_protocol_refs_opt (parser);
@@ -21128,6 +21140,19 @@ cp_parser_objc_encode_expression (cp_parser* parser)
       return error_mark_node;
     }
 
+  /* This happens if we find @encode(T) (where T is a template
+     typename or something dependent on a template typename) when
+     parsing a template.  In that case, we can't compile it
+     immediately, but we rather create an AT_ENCODE_EXPR which will
+     need to be instantiated when the template is used.
+  */
+  if (dependent_type_p (type))
+    {
+      tree value = build_min (AT_ENCODE_EXPR, size_type_node, type);
+      TREE_READONLY (value) = 1;
+      return value;
+    }
+
   return objc_build_encode_expr (type);
 }
 
@@ -21253,18 +21278,29 @@ cp_parser_objc_selector_expression (cp_parser* parser)
 static tree
 cp_parser_objc_identifier_list (cp_parser* parser)
 {
-  tree list = build_tree_list (NULL_TREE, cp_parser_identifier (parser));
-  cp_token *sep = cp_lexer_peek_token (parser->lexer);
+  tree identifier;
+  tree list;
+  cp_token *sep;
+
+  identifier = cp_parser_identifier (parser);
+  if (identifier == error_mark_node)
+    return error_mark_node;      
+
+  list = build_tree_list (NULL_TREE, identifier);
+  sep = cp_lexer_peek_token (parser->lexer);
 
   while (sep->type == CPP_COMMA)
     {
       cp_lexer_consume_token (parser->lexer);  /* Eat ','.  */
-      list = chainon (list,
-		      build_tree_list (NULL_TREE,
-				       cp_parser_identifier (parser)));
+      identifier = cp_parser_identifier (parser);
+      if (identifier == error_mark_node)
+	return list;
+
+      list = chainon (list, build_tree_list (NULL_TREE,
+					     identifier));
       sep = cp_lexer_peek_token (parser->lexer);
     }
-
+  
   return list;
 }
 
@@ -21339,13 +21375,16 @@ cp_parser_objc_visibility_spec (cp_parser* parser)
   switch (vis->keyword)
     {
     case RID_AT_PRIVATE:
-      objc_set_visibility (2);
+      objc_set_visibility (OBJC_IVAR_VIS_PRIVATE);
       break;
     case RID_AT_PROTECTED:
-      objc_set_visibility (0);
+      objc_set_visibility (OBJC_IVAR_VIS_PROTECTED);
       break;
     case RID_AT_PUBLIC:
-      objc_set_visibility (1);
+      objc_set_visibility (OBJC_IVAR_VIS_PUBLIC);
+      break;
+    case RID_AT_PACKAGE:
+      objc_set_visibility (OBJC_IVAR_VIS_PACKAGE);
       break;
     default:
       return;
@@ -21355,15 +21394,16 @@ cp_parser_objc_visibility_spec (cp_parser* parser)
   cp_lexer_consume_token (parser->lexer);
 }
 
-/* Parse an Objective-C method type.  */
+/* Parse an Objective-C method type.  Return 'true' if it is a class
+   (+) method, and 'false' if it is an instance (-) method.  */
 
-static void
+static inline bool
 cp_parser_objc_method_type (cp_parser* parser)
 {
-  objc_set_method_type
-   (cp_lexer_consume_token (parser->lexer)->type == CPP_PLUS
-    ? PLUS_EXPR
-    : MINUS_EXPR);
+  if (cp_lexer_consume_token (parser->lexer)->type == CPP_PLUS)
+    return true;
+  else
+    return false;
 }
 
 /* Parse an Objective-C protocol qualifier.  */
@@ -21561,6 +21601,7 @@ cp_parser_objc_method_tail_params_opt (cp_parser* parser, bool *ellipsisp,
 	{
 	  cp_lexer_consume_token (parser->lexer);  /* Eat '...'.  */
 	  *ellipsisp = true;
+	  token = cp_lexer_peek_token (parser->lexer);
 	  break;
 	}
 
@@ -21627,6 +21668,8 @@ cp_parser_objc_interstitial_code (cp_parser* parser)
       cp_lexer_consume_token (parser->lexer);
       objc_set_method_opt (false);
     }
+  else if (token->keyword == RID_NAMESPACE)
+    cp_parser_namespace_definition (parser);
   /* Other stray characters must generate errors.  */
   else if (token->type == CPP_OPEN_BRACE || token->type == CPP_CLOSE_BRACE)
     {
@@ -21646,8 +21689,9 @@ cp_parser_objc_method_signature (cp_parser* parser, tree* attributes)
 {
   tree rettype, kwdparms, optparms;
   bool ellipsis = false;
+  bool is_class_method;
 
-  cp_parser_objc_method_type (parser);
+  is_class_method = cp_parser_objc_method_type (parser);
   rettype = cp_parser_objc_typename (parser);
   *attributes = NULL_TREE;
   kwdparms = cp_parser_objc_method_keyword_params (parser, attributes);
@@ -21657,7 +21701,7 @@ cp_parser_objc_method_signature (cp_parser* parser, tree* attributes)
   if (optparms == error_mark_node)
     return error_mark_node;
 
-  return objc_build_method_signature (rettype, kwdparms, optparms, ellipsis);
+  return objc_build_method_signature (is_class_method, rettype, kwdparms, optparms, ellipsis);
 }
 
 static bool
@@ -21692,6 +21736,11 @@ cp_parser_objc_method_prototype_list (cp_parser* parser)
       if (token->type == CPP_PLUS || token->type == CPP_MINUS)
 	{
 	  tree attributes, sig;
+	  bool is_class_method;
+	  if (token->type == CPP_PLUS)
+	    is_class_method = true;
+	  else
+	    is_class_method = false;
 	  sig = cp_parser_objc_method_signature (parser, &attributes);
 	  if (sig == error_mark_node)
 	    {
@@ -21699,9 +21748,11 @@ cp_parser_objc_method_prototype_list (cp_parser* parser)
 	      token = cp_lexer_peek_token (parser->lexer);
 	      continue;
 	    }
-	  objc_add_method_declaration (sig, attributes);
+	  objc_add_method_declaration (is_class_method, sig, attributes);
 	  cp_parser_consume_semicolon_at_end_of_statement (parser);
 	}
+      else if (token->keyword == RID_AT_PROPERTY)
+	cp_parser_objc_at_property (parser);
       else if (token->keyword == RID_ATTRIBUTE 
       	       && cp_parser_objc_method_maybe_bad_prefix_attributes(parser))
 	warning_at (cp_lexer_peek_token (parser->lexer)->location, 
@@ -21737,6 +21788,11 @@ cp_parser_objc_method_definition_list (cp_parser* parser)
 	{
 	  cp_token *ptk;
 	  tree sig, attribute;
+	  bool is_class_method;
+	  if (token->type == CPP_PLUS)
+	    is_class_method = true;
+	  else
+	    is_class_method = false;
 	  push_deferring_access_checks (dk_deferred);
 	  sig = cp_parser_objc_method_signature (parser, &attribute);
 	  if (sig == error_mark_node)
@@ -21745,7 +21801,7 @@ cp_parser_objc_method_definition_list (cp_parser* parser)
 	      token = cp_lexer_peek_token (parser->lexer);
 	      continue;
 	    }
-	  objc_start_method_definition (sig, attribute);
+	  objc_start_method_definition (is_class_method, sig, attribute);
 
 	  /* For historical reasons, we accept an optional semicolon.  */
 	  if (cp_lexer_next_token_is (parser->lexer, CPP_SEMICOLON))
@@ -21763,6 +21819,12 @@ cp_parser_objc_method_definition_list (cp_parser* parser)
 	      objc_finish_method_definition (meth);
 	    }
 	}
+      else if (token->keyword == RID_AT_PROPERTY)
+	cp_parser_objc_at_property (parser);
+      else if (token->keyword == RID_AT_SYNTHESIZE)
+	cp_parser_objc_at_synthesize_declaration (parser);
+      else if (token->keyword == RID_AT_DYNAMIC)
+	cp_parser_objc_at_dynamic_declaration (parser);
       else if (token->keyword == RID_ATTRIBUTE 
       	       && cp_parser_objc_method_maybe_bad_prefix_attributes(parser))
 	warning_at (token->location, OPT_Wattributes,
@@ -22255,6 +22317,245 @@ cp_parser_objc_valid_prefix_attributes (cp_parser* parser, tree *attrib)
   cp_lexer_rollback_tokens (parser->lexer);
   return false;  
 }
+
+/* This routine parses the propery declarations. */
+
+static void
+cp_parser_objc_property_decl (cp_parser *parser)
+{
+  int declares_class_or_enum;
+  cp_decl_specifier_seq declspecs;
+
+  cp_parser_decl_specifier_seq (parser,
+                                CP_PARSER_FLAGS_NONE,
+                                &declspecs,
+                                &declares_class_or_enum);
+  /* Keep going until we hit the `;' at the end of the declaration. */
+  while (cp_lexer_next_token_is_not (parser->lexer, CPP_SEMICOLON))
+    {
+      tree property;
+      cp_token *token;
+      cp_declarator *declarator
+	= cp_parser_declarator (parser, CP_PARSER_DECLARATOR_NAMED,
+				NULL, NULL, false);
+      property = grokdeclarator (declarator, &declspecs, NORMAL,0, NULL);
+      /* Recover from any kind of error in property declaration. */
+      if (property == error_mark_node || property == NULL_TREE)
+	return;
+
+      /* Add to property list. */
+      objc_add_property_variable (copy_node (property));
+      token = cp_lexer_peek_token (parser->lexer);
+      if (token->type == CPP_COMMA)
+	{
+	  cp_lexer_consume_token (parser->lexer);  /* Eat ','.  */
+	  continue;
+	}
+      else if (token->type == CPP_EOF)
+	break;
+    }
+  /* Eat ';' if present, or issue an error.  */
+  cp_parser_require (parser, CPP_SEMICOLON, RT_SEMICOLON);
+}
+
+/* ObjC @property. */
+/* Parse a comma-separated list of property attributes.  
+   The lexer does not recognize */
+
+static void 
+cp_parser_objc_property_attrlist (cp_parser *parser)
+{
+  cp_token *token;
+  /* Initialize to an empty list.  */
+  objc_set_property_attr (cp_lexer_peek_token (parser->lexer)->location,
+			  OBJC_PATTR_INIT, NULL_TREE);
+
+  /* The list is optional.  */
+  if (cp_lexer_next_token_is_not (parser->lexer, CPP_OPEN_PAREN))
+    return;
+
+  /* Eat the '('.  */
+  cp_lexer_consume_token (parser->lexer);
+
+  token = cp_lexer_peek_token (parser->lexer);
+  while (token->type != CPP_CLOSE_PAREN && token->type != CPP_EOF)
+    {
+      location_t loc = token->location;
+      tree node = cp_parser_identifier (parser);
+      if (node == ridpointers [(int) RID_READONLY])
+	objc_set_property_attr (loc, OBJC_PATTR_READONLY, NULL_TREE);
+      else if (node == ridpointers [(int) RID_GETTER]
+	       || node == ridpointers [(int) RID_SETTER]
+	       || node == ridpointers [(int) RID_IVAR])
+	{
+	  /* Do the getter/setter/ivar attribute. */
+	  token = cp_lexer_consume_token (parser->lexer);
+	  if (token->type == CPP_EQ)
+	    {
+	      tree attr_ident = cp_parser_identifier (parser);
+	      objc_property_attribute_kind pkind;
+	      if (node == ridpointers [(int) RID_GETTER])
+		pkind = OBJC_PATTR_GETTER;
+	      else if (node == ridpointers [(int) RID_SETTER])
+		{
+		  pkind = OBJC_PATTR_SETTER;
+		  /* Consume the ':' which must always follow the setter name. */
+		  if (cp_lexer_next_token_is (parser->lexer, CPP_COLON))
+		    cp_lexer_consume_token (parser->lexer); 
+		  else
+		    {
+		      error_at (token->location,
+				"setter name must be followed by %<:%>");
+		      break;
+		    }
+		}
+	      else 
+		pkind = OBJC_PATTR_IVAR;
+	      objc_set_property_attr (loc, pkind, attr_ident);	  
+	    }
+	  else
+	    {
+	      error_at (token->location,
+	      	"getter/setter/ivar attribute must be followed by %<=%>");
+	      break;
+	    }
+	}
+      else if (node == ridpointers [(int) RID_COPIES])
+	objc_set_property_attr (loc, OBJC_PATTR_COPIES, NULL_TREE);
+      else
+	{
+	  error_at (token->location,"unknown property attribute");
+	  break;
+	}
+      if (cp_lexer_next_token_is (parser->lexer, CPP_COMMA))
+	cp_lexer_consume_token (parser->lexer);
+      else if (cp_lexer_next_token_is_not (parser->lexer, CPP_CLOSE_PAREN))
+	warning_at (token->location, 0, 
+		    "property attributes should be separated by a %<,%>");
+      token = cp_lexer_peek_token (parser->lexer);	  
+    }
+
+  if (token->type != CPP_CLOSE_PAREN)
+    error_at (token->location,
+	      "syntax error in @property's attribute declaration");
+  else
+    /* Consume ')' */
+    cp_lexer_consume_token (parser->lexer);
+}
+
+/* This function parses a @property declaration inside an objective class
+   or its implementation. */
+
+static void 
+cp_parser_objc_at_property (cp_parser *parser)
+{
+  /* Consume @property */
+  cp_lexer_consume_token (parser->lexer);
+
+  /* Parse optional attributes list...  */
+  cp_parser_objc_property_attrlist (parser);
+  /* ... and the property declaration(s).  */
+  cp_parser_objc_property_decl (parser);
+}
+
+/* Parse an Objective-C++ @synthesize declaration.  The syntax is:
+
+   objc-synthesize-declaration:
+     @synthesize objc-synthesize-identifier-list ;
+
+   objc-synthesize-identifier-list:
+     objc-synthesize-identifier
+     objc-synthesize-identifier-list, objc-synthesize-identifier
+
+   objc-synthesize-identifier
+     identifier
+     identifier = identifier
+
+  For example:
+    @synthesize MyProperty;
+    @synthesize OneProperty, AnotherProperty=MyIvar, YetAnotherProperty;
+
+  PS: This function is identical to c_parser_objc_at_synthesize_declaration
+  for C.  Keep them in sync.
+*/
+static void 
+cp_parser_objc_at_synthesize_declaration (cp_parser *parser)
+{
+  tree list = NULL_TREE;
+  location_t loc;
+  loc = cp_lexer_peek_token (parser->lexer)->location;
+
+  cp_lexer_consume_token (parser->lexer);  /* Eat '@synthesize'.  */
+  while (true)
+    {
+      tree property, ivar;
+      property = cp_parser_identifier (parser);
+      if (property == error_mark_node)
+	{
+	  cp_parser_consume_semicolon_at_end_of_statement (parser);
+	  return;
+	}
+      if (cp_lexer_next_token_is (parser->lexer, CPP_EQ))
+	{
+	  cp_lexer_consume_token (parser->lexer);
+	  ivar = cp_parser_identifier (parser);
+	  if (ivar == error_mark_node)
+	    {
+	      cp_parser_consume_semicolon_at_end_of_statement (parser);
+	      return;
+	    }
+	}
+      else
+	ivar = NULL_TREE;
+      list = chainon (list, build_tree_list (ivar, property));
+      if (cp_lexer_next_token_is (parser->lexer, CPP_COMMA))
+	cp_lexer_consume_token (parser->lexer);
+      else
+	break;
+    }
+  cp_parser_consume_semicolon_at_end_of_statement (parser);
+  objc_add_synthesize_declaration (loc, list);
+}
+
+/* Parse an Objective-C++ @dynamic declaration.  The syntax is:
+
+   objc-dynamic-declaration:
+     @dynamic identifier-list ;
+
+   For example:
+     @dynamic MyProperty;
+     @dynamic MyProperty, AnotherProperty;
+
+  PS: This function is identical to c_parser_objc_at_dynamic_declaration
+  for C.  Keep them in sync.
+*/
+static void 
+cp_parser_objc_at_dynamic_declaration (cp_parser *parser)
+{
+  tree list = NULL_TREE;
+  location_t loc;
+  loc = cp_lexer_peek_token (parser->lexer)->location;
+
+  cp_lexer_consume_token (parser->lexer);  /* Eat '@dynamic'.  */
+  while (true)
+    {
+      tree property;
+      property = cp_parser_identifier (parser);
+      if (property == error_mark_node)
+	{
+	  cp_parser_consume_semicolon_at_end_of_statement (parser);
+	  return;
+	}
+      list = chainon (list, build_tree_list (NULL, property));
+      if (cp_lexer_next_token_is (parser->lexer, CPP_COMMA))
+	cp_lexer_consume_token (parser->lexer);
+      else
+	break;
+    }
+  cp_parser_consume_semicolon_at_end_of_statement (parser);
+  objc_add_dynamic_declaration (loc, list);
+}
+
 
 /* OpenMP 2.5 parsing routines.  */
 

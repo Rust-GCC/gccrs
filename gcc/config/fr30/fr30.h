@@ -1,7 +1,7 @@
 /*{{{  Comment.  */ 
 
 /* Definitions of FR30 target. 
-   Copyright (C) 1998, 1999, 2000, 2001, 2002, 2004, 2007, 2008, 2009
+   Copyright (C) 1998, 1999, 2000, 2001, 2002, 2004, 2007, 2008, 2009, 2010
    Free Software Foundation, Inc.
    Contributed by Cygnus Solutions.
 
@@ -49,8 +49,6 @@ along with GCC; see the file COPYING3.  If not see
    while (0)
 
 #define TARGET_VERSION fprintf (stderr, " (fr30)");
-
-#define CAN_DEBUG_WITHOUT_FP
 
 #undef  STARTFILE_SPEC
 #define STARTFILE_SPEC "crt0.o%s crti.o%s crtbegin.o%s"
@@ -383,24 +381,6 @@ enum reg_class
    The compiler will try both labelings, looking for one that is valid, and
    will reload one or both registers only if neither labeling works.  */
 #define REGNO_OK_FOR_INDEX_P(NUM) 1
-
-/* A C expression that places additional restrictions on the register class to
-   use when it is necessary to copy value X into a register in class CLASS.
-   The value is a register class; perhaps CLASS, or perhaps another, smaller
-   class.  On many machines, the following definition is safe:
-
-        #define PREFERRED_RELOAD_CLASS(X,CLASS) CLASS
-
-   Sometimes returning a more restrictive class makes better code.  For
-   example, on the 68000, when X is an integer constant that is in range for a
-   `moveq' instruction, the value of this macro is always `DATA_REGS' as long
-   as CLASS includes the data registers.  Requiring a data register guarantees
-   that a `moveq' will be used.
-
-   If X is a `const_double', by returning `NO_REGS' you can force X into a
-   memory constant.  This is useful on certain machines where immediate
-   floating values cannot be loaded into certain kinds of registers.  */
-#define PREFERRED_RELOAD_CLASS(X, CLASS) CLASS
 
 /* A C expression for the maximum number of consecutive registers of
    class CLASS needed to hold a value of mode MODE.

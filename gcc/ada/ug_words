@@ -59,6 +59,7 @@ gcc -c          ^ GNAT COMPILE
 -gnatDG         ^ /XDEBUG /EXPAND_SOURCEA
 -gnatD          ^ /XDEBUG
 -gnatec         ^ /CONFIGURATION_PRAGMAS_FILE
+-gnateE         ^ /EXTRA_EXCEPTION_INFORMATION
 -gnateD         ^ /SYMBOL_PREPROCESSING
 -gnatef         ^ /FULL_PATH_IN_BRIEF_MESSAGES
 -gnateG         ^ /GENERATE_PROCESSED_SOURCE
@@ -199,6 +200,9 @@ gcc -c          ^ GNAT COMPILE
 -gnat83         ^ /83
 -gnat95         ^ /95
 -gnat05         ^ /05
+-gnat2005       ^ /2005
+-gnat12         ^ /12
+-gnat2012       ^ /2012
 -gnatx          ^ /XREF=SUPPRESS
 -gnatX          ^ /EXTENSIONS_ALLOWED
 --RTS           ^ /RUNTIME_SYSTEM

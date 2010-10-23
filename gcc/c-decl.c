@@ -2961,7 +2961,8 @@ undeclared_variable (location_t loc, tree id)
     }
   else
     {
-      error_at (loc, "%qE undeclared (first use in this function)", id);
+      if (!objc_diagnose_private_ivar (id))
+        error_at (loc, "%qE undeclared (first use in this function)", id);
       if (!already)
 	{
           inform (loc, "each undeclared identifier is reported only"
@@ -9780,6 +9781,12 @@ c_write_global_declarations (void)
   /* We don't want to do this if generating a PCH.  */
   if (pch_file)
     return;
+
+  /* Do the Objective-C stuff.  This is where all the Objective-C
+     module stuff gets generated (symtab, class/protocol/selector
+     lists etc).  */
+  if (c_dialect_objc ())
+    objc_write_global_declarations ();
 
   /* Close the external scope.  */
   ext_block = pop_scope ();

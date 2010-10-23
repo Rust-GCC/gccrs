@@ -305,15 +305,6 @@ extern enum m32r_sdata m32r_sdata;
 #ifndef SUBTARGET_OVERRIDE_OPTIONS
 #define SUBTARGET_OVERRIDE_OPTIONS
 #endif
-
-#ifndef SUBTARGET_OPTIMIZATION_OPTIONS
-#define SUBTARGET_OPTIMIZATION_OPTIONS
-#endif
-
-/* Define this macro if debugging can be performed even without a
-   frame pointer.  If this macro is defined, GCC will turn on the
-   `-fomit-frame-pointer' option whenever `-O' is specified.  */
-#define CAN_DEBUG_WITHOUT_FP
 
 /* Target machine storage layout.  */
 
@@ -327,12 +318,6 @@ extern enum m32r_sdata m32r_sdata;
 /* Define this if most significant word of a multiword number is the lowest
    numbered.  */
 #define WORDS_BIG_ENDIAN (TARGET_LITTLE_ENDIAN == 0)
-
-/* Define this macro if WORDS_BIG_ENDIAN is not constant.  This must
-   be a constant value with the same meaning as WORDS_BIG_ENDIAN,
-   which will be used only when compiling libgcc2.c.  Typically the
-   value will be set based on preprocessor defines.  */
-/*#define LIBGCC2_WORDS_BIG_ENDIAN 1*/
 
 /* Width of a word, in units (bytes).  */
 #define UNITS_PER_WORD 4
@@ -652,12 +637,6 @@ extern enum reg_class m32r_regno_reg_class[FIRST_PSEUDO_REGISTER];
    : GPR_P (reg_renumber[REGNO]))
 
 #define REGNO_OK_FOR_INDEX_P(REGNO) REGNO_OK_FOR_BASE_P(REGNO)
-
-/* Given an rtx X being reloaded into a reg required to be
-   in class CLASS, return the class of reg to actually use.
-   In general this is just CLASS; but on some machines
-   in some cases it is preferable to use a more restrictive class.  */
-#define PREFERRED_RELOAD_CLASS(X,CLASS) (CLASS)
 
 /* Return the maximum number of consecutive registers
    needed to represent mode MODE in a register of class CLASS.  */

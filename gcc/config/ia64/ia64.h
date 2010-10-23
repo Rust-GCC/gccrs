@@ -148,12 +148,6 @@ extern enum processor_type ia64_tune;
 
 #define WORDS_BIG_ENDIAN (TARGET_BIG_ENDIAN != 0)
 
-#if defined(__BIG_ENDIAN__)
-#define LIBGCC2_WORDS_BIG_ENDIAN 1
-#else
-#define LIBGCC2_WORDS_BIG_ENDIAN 0
-#endif
-
 #define UNITS_PER_WORD 8
 
 #define POINTER_SIZE (TARGET_ILP32 ? 32 : 64)
@@ -849,14 +843,6 @@ enum reg_class
    This is needed for POST_MODIFY.  */
 #define REGNO_OK_FOR_INDEX_P(NUM) REGNO_OK_FOR_BASE_P (NUM)
 
-/* A C expression that places additional restrictions on the register class to
-   use when it is necessary to copy value X into a register in class CLASS.
-   The value is a register class; perhaps CLASS, or perhaps another, smaller
-   class.  */
-
-#define PREFERRED_RELOAD_CLASS(X, CLASS) \
-  ia64_preferred_reload_class (X, CLASS)
-
 /* You should define this macro to indicate to the reload phase that it may
    need to allocate at least one register for a reload in addition to the
    register to contain the data.  Specifically, if copying X to a register
@@ -1000,9 +986,6 @@ enum reg_class
 #define STATIC_CHAIN_REGNUM 15
 
 /* Eliminating the Frame Pointer and the Arg Pointer */
-
-/* Show we can debug even without a frame pointer.  */
-#define CAN_DEBUG_WITHOUT_FP
 
 /* If defined, this macro specifies a table of register pairs used to eliminate
    unneeded registers that point into the stack frame.  */

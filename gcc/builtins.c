@@ -106,6 +106,7 @@ static void expand_errno_check (tree, rtx);
 static rtx expand_builtin_mathfn (tree, rtx, rtx);
 static rtx expand_builtin_mathfn_2 (tree, rtx, rtx);
 static rtx expand_builtin_mathfn_3 (tree, rtx, rtx);
+static rtx expand_builtin_mathfn_ternary (tree, rtx, rtx);
 static rtx expand_builtin_interclass_mathfn (tree, rtx);
 static rtx expand_builtin_sincos (tree);
 static rtx expand_builtin_cexpi (tree, rtx);
@@ -132,7 +133,7 @@ static rtx expand_builtin_memset (tree, rtx, enum machine_mode);
 static rtx expand_builtin_memset_args (tree, tree, tree, rtx, enum machine_mode, tree);
 static rtx expand_builtin_bzero (tree);
 static rtx expand_builtin_strlen (tree, rtx, enum machine_mode);
-static rtx expand_builtin_alloca (tree, rtx, bool);
+static rtx expand_builtin_alloca (tree, bool);
 static rtx expand_builtin_unop (enum machine_mode, tree, rtx, rtx, optab);
 static rtx expand_builtin_frame_address (tree, tree);
 static tree stabilize_va_list_loc (location_t, tree, int);
@@ -1572,7 +1573,7 @@ expand_builtin_apply (rtx function, rtx arguments, rtx argsize)
      arguments to the outgoing arguments address.  We can pass TRUE
      as the 4th argument because we just saved the stack pointer
      and will restore it right after the call.  */
-  allocate_dynamic_stack_space (argsize, 0, BITS_PER_UNIT, TRUE);
+  allocate_dynamic_stack_space (argsize, 0, BIGGEST_ALIGNMENT, true);
 
   /* Set DRAP flag to true, even though allocate_dynamic_stack_space
      may have already set current_function_calls_alloca to true.
@@ -2176,6 +2177,79 @@ expand_builtin_mathfn_2 (tree exp, rtx target, rtx subtarget)
 
   if (errno_set)
     expand_errno_check (exp, target);
+
+  /* Output the entire sequence.  */
+  insns = get_insns ();
+  end_sequence ();
+  emit_insn (insns);
+
+  return target;
+}
+
+/* Expand a call to the builtin trinary math functions (fma).
+   Return NULL_RTX if a normal call should be emitted rather than expanding the
+   function in-line.  EXP is the expression that is a call to the builtin
+   function; if convenient, the result should be placed in TARGET.
+   SUBTARGET may be used as the target for computing one of EXP's
+   operands.  */
+
+static rtx
+expand_builtin_mathfn_ternary (tree exp, rtx target, rtx subtarget)
+{
+  optab builtin_optab;
+  rtx op0, op1, op2, insns;
+  tree fndecl = get_callee_fndecl (exp);
+  tree arg0, arg1, arg2;
+  enum machine_mode mode;
+
+  if (!validate_arglist (exp, REAL_TYPE, REAL_TYPE, REAL_TYPE, VOID_TYPE))
+    return NULL_RTX;
+
+  arg0 = CALL_EXPR_ARG (exp, 0);
+  arg1 = CALL_EXPR_ARG (exp, 1);
+  arg2 = CALL_EXPR_ARG (exp, 2);
+
+  switch (DECL_FUNCTION_CODE (fndecl))
+    {
+    CASE_FLT_FN (BUILT_IN_FMA):
+      builtin_optab = fma_optab; break;
+    default:
+      gcc_unreachable ();
+    }
+
+  /* Make a suitable register to place result in.  */
+  mode = TYPE_MODE (TREE_TYPE (exp));
+
+  /* Before working hard, check whether the instruction is available.  */
+  if (optab_handler (builtin_optab, mode) == CODE_FOR_nothing)
+    return NULL_RTX;
+
+  target = gen_reg_rtx (mode);
+
+  /* Always stabilize the argument list.  */
+  CALL_EXPR_ARG (exp, 0) = arg0 = builtin_save_expr (arg0);
+  CALL_EXPR_ARG (exp, 1) = arg1 = builtin_save_expr (arg1);
+  CALL_EXPR_ARG (exp, 2) = arg2 = builtin_save_expr (arg2);
+
+  op0 = expand_expr (arg0, subtarget, VOIDmode, EXPAND_NORMAL);
+  op1 = expand_normal (arg1);
+  op2 = expand_normal (arg2);
+
+  start_sequence ();
+
+  /* Compute into TARGET.
+     Set TARGET to wherever the result comes back.  */
+  target = expand_ternary_op (mode, builtin_optab, op0, op1, op2,
+			      target, 0);
+
+  /* If we were unable to expand via the builtin, stop the sequence
+     (without outputting the insns) and call to the library function
+     with the stabilized argument list.  */
+  if (target == 0)
+    {
+      end_sequence ();
+      return expand_call (exp, target, target == const0_rtx);
+    }
 
   /* Output the entire sequence.  */
   insns = get_insns ();
@@ -4931,12 +5005,11 @@ expand_builtin_frame_address (tree fndecl, tree exp)
 }
 
 /* Expand EXP, a call to the alloca builtin.  Return NULL_RTX if we
-   failed and the caller should emit a normal call, otherwise try to
-   get the result in TARGET, if convenient.  CANNOT_ACCUMULATE is the
-   same as for allocate_dynamic_stack_space.  */
+   failed and the caller should emit a normal call.  CANNOT_ACCUMULATE
+   is the same as for allocate_dynamic_stack_space.  */
 
 static rtx
-expand_builtin_alloca (tree exp, rtx target, bool cannot_accumulate)
+expand_builtin_alloca (tree exp, bool cannot_accumulate)
 {
   rtx op0;
   rtx result;
@@ -4952,7 +5025,7 @@ expand_builtin_alloca (tree exp, rtx target, bool cannot_accumulate)
   op0 = expand_normal (CALL_EXPR_ARG (exp, 0));
 
   /* Allocate the desired space.  */
-  result = allocate_dynamic_stack_space (op0, target, BITS_PER_UNIT,
+  result = allocate_dynamic_stack_space (op0, 0, BIGGEST_ALIGNMENT,
 					 cannot_accumulate);
   result = convert_memory_address (ptr_mode, result);
 
@@ -5829,6 +5902,12 @@ expand_builtin (tree exp, rtx target, rtx subtarget, enum machine_mode mode,
 	return target;
       break;
 
+    CASE_FLT_FN (BUILT_IN_FMA):
+      target = expand_builtin_mathfn_ternary (exp, target, subtarget);
+      if (target)
+	return target;
+      break;
+
     CASE_FLT_FN (BUILT_IN_ILOGB):
       if (! flag_unsafe_math_optimizations)
 	break;
@@ -5997,7 +6076,7 @@ expand_builtin (tree exp, rtx target, rtx subtarget, enum machine_mode mode,
     case BUILT_IN_ALLOCA:
       /* If the allocation stems from the declaration of a variable-sized
 	 object, it cannot accumulate.  */
-      target = expand_builtin_alloca (exp, target, ALLOCA_FOR_VAR_P (exp));
+      target = expand_builtin_alloca (exp, ALLOCA_FOR_VAR_P (exp));
       if (target)
 	return target;
       break;
@@ -10869,6 +10948,53 @@ fold_builtin_call_array (location_t loc, tree type,
   return build_call_array_loc (loc, type, fn, n, argarray);
 }
 
+/* Construct a new CALL_EXPR to FNDECL using the tail of the argument
+   list ARGS along with N new arguments in NEWARGS.  SKIP is the number
+   of arguments in ARGS to be omitted.  OLDNARGS is the number of
+   elements in ARGS.  */
+
+static tree
+rewrite_call_expr_valist (location_t loc, int oldnargs, tree *args,
+			  int skip, tree fndecl, int n, va_list newargs)
+{
+  int nargs = oldnargs - skip + n;
+  tree *buffer;
+
+  if (n > 0)
+    {
+      int i, j;
+
+      buffer = XALLOCAVEC (tree, nargs);
+      for (i = 0; i < n; i++)
+	buffer[i] = va_arg (newargs, tree);
+      for (j = skip; j < oldnargs; j++, i++)
+	buffer[i] = args[j];
+    }
+  else
+    buffer = args + skip;
+
+  return build_call_expr_loc_array (loc, fndecl, nargs, buffer);
+}
+
+/* Construct a new CALL_EXPR to FNDECL using the tail of the argument
+   list ARGS along with N new arguments specified as the "..."
+   parameters.  SKIP is the number of arguments in ARGS to be omitted.
+   OLDNARGS is the number of elements in ARGS.  */
+
+static tree
+rewrite_call_expr_array (location_t loc, int oldnargs, tree *args,
+			 int skip, tree fndecl, int n, ...)
+{
+  va_list ap;
+  tree t;
+
+  va_start (ap, n);
+  t = rewrite_call_expr_valist (loc, oldnargs, args, skip, fndecl, n, ap);
+  va_end (ap);
+
+  return t;
+}
+
 /* Construct a new CALL_EXPR using the tail of the argument list of EXP
    along with N new arguments specified as the "..." parameters.  SKIP
    is the number of arguments in EXP to be omitted.  This function is used
@@ -10877,29 +11003,15 @@ fold_builtin_call_array (location_t loc, tree type,
 static tree
 rewrite_call_expr (location_t loc, tree exp, int skip, tree fndecl, int n, ...)
 {
-  int oldnargs = call_expr_nargs (exp);
-  int nargs = oldnargs - skip + n;
-  tree fntype = TREE_TYPE (fndecl);
-  tree fn = build1 (ADDR_EXPR, build_pointer_type (fntype), fndecl);
-  tree *buffer;
+  va_list ap;
+  tree t;
 
-  if (n > 0)
-    {
-      int i, j;
-      va_list ap;
+  va_start (ap, n);
+  t = rewrite_call_expr_valist (loc, call_expr_nargs (exp),
+				CALL_EXPR_ARGP (exp), skip, fndecl, n, ap);
+  va_end (ap);
 
-      buffer = XALLOCAVEC (tree, nargs);
-      va_start (ap, n);
-      for (i = 0; i < n; i++)
-	buffer[i] = va_arg (ap, tree);
-      va_end (ap);
-      for (j = skip; j < oldnargs; j++, i++)
-	buffer[i] = CALL_EXPR_ARG (exp, j);
-    }
-  else
-    buffer = CALL_EXPR_ARGP (exp) + skip;
-
-  return fold (build_call_array_loc (loc, TREE_TYPE (exp), fn, nargs, buffer));
+  return t;
 }
 
 /* Validate a single argument ARG against a tree code CODE representing
@@ -12460,31 +12572,31 @@ fold_builtin_strncat_chk (location_t loc, tree fndecl,
   return build_call_expr_loc (loc, fn, 3, dest, src, len);
 }
 
-/* Fold a call EXP to __{,v}sprintf_chk.  Return NULL_TREE if
-   a normal call should be emitted rather than expanding the function
-   inline.  FCODE is either BUILT_IN_SPRINTF_CHK or BUILT_IN_VSPRINTF_CHK.  */
+/* Fold a call EXP to __{,v}sprintf_chk having NARGS passed as ARGS.
+   Return NULL_TREE if a normal call should be emitted rather than
+   expanding the function inline.  FCODE is either BUILT_IN_SPRINTF_CHK
+   or BUILT_IN_VSPRINTF_CHK.  */
 
 static tree
-fold_builtin_sprintf_chk (location_t loc, tree exp,
-			  enum built_in_function fcode)
+fold_builtin_sprintf_chk_1 (location_t loc, int nargs, tree *args,
+			    enum built_in_function fcode)
 {
   tree dest, size, len, fn, fmt, flag;
   const char *fmt_str;
-  int nargs = call_expr_nargs (exp);
 
   /* Verify the required arguments in the original call.  */
   if (nargs < 4)
     return NULL_TREE;
-  dest = CALL_EXPR_ARG (exp, 0);
+  dest = args[0];
   if (!validate_arg (dest, POINTER_TYPE))
     return NULL_TREE;
-  flag = CALL_EXPR_ARG (exp, 1);
+  flag = args[1];
   if (!validate_arg (flag, INTEGER_TYPE))
     return NULL_TREE;
-  size = CALL_EXPR_ARG (exp, 2);
+  size = args[2];
   if (!validate_arg (size, INTEGER_TYPE))
     return NULL_TREE;
-  fmt = CALL_EXPR_ARG (exp, 3);
+  fmt = args[3];
   if (!validate_arg (fmt, POINTER_TYPE))
     return NULL_TREE;
 
@@ -12515,7 +12627,7 @@ fold_builtin_sprintf_chk (location_t loc, tree exp,
 
 	  if (nargs == 5)
 	    {
-	      arg = CALL_EXPR_ARG (exp, 4);
+	      arg = args[4];
 	      if (validate_arg (arg, POINTER_TYPE))
 		{
 		  len = c_strlen (arg, 1);
@@ -12549,38 +12661,50 @@ fold_builtin_sprintf_chk (location_t loc, tree exp,
   if (!fn)
     return NULL_TREE;
 
-  return rewrite_call_expr (loc, exp, 4, fn, 2, dest, fmt);
+  return rewrite_call_expr_array (loc, nargs, args, 4, fn, 2, dest, fmt);
 }
 
-/* Fold a call EXP to {,v}snprintf.  Return NULL_TREE if
+/* Fold a call EXP to __{,v}sprintf_chk.  Return NULL_TREE if
    a normal call should be emitted rather than expanding the function
-   inline.  FCODE is either BUILT_IN_SNPRINTF_CHK or
+   inline.  FCODE is either BUILT_IN_SPRINTF_CHK or BUILT_IN_VSPRINTF_CHK.  */
+
+static tree
+fold_builtin_sprintf_chk (location_t loc, tree exp,
+			  enum built_in_function fcode)
+{
+  return fold_builtin_sprintf_chk_1 (loc, call_expr_nargs (exp),
+				     CALL_EXPR_ARGP (exp), fcode);
+}
+
+/* Fold a call EXP to {,v}snprintf having NARGS passed as ARGS.  Return
+   NULL_TREE if a normal call should be emitted rather than expanding
+   the function inline.  FCODE is either BUILT_IN_SNPRINTF_CHK or
    BUILT_IN_VSNPRINTF_CHK.  If MAXLEN is not NULL, it is maximum length
    passed as second argument.  */
 
-tree
-fold_builtin_snprintf_chk (location_t loc, tree exp, tree maxlen,
-			   enum built_in_function fcode)
+static tree
+fold_builtin_snprintf_chk_1 (location_t loc, int nargs, tree *args,
+			     tree maxlen, enum built_in_function fcode)
 {
   tree dest, size, len, fn, fmt, flag;
   const char *fmt_str;
 
   /* Verify the required arguments in the original call.  */
-  if (call_expr_nargs (exp) < 5)
+  if (nargs < 5)
     return NULL_TREE;
-  dest = CALL_EXPR_ARG (exp, 0);
+  dest = args[0];
   if (!validate_arg (dest, POINTER_TYPE))
     return NULL_TREE;
-  len = CALL_EXPR_ARG (exp, 1);
+  len = args[1];
   if (!validate_arg (len, INTEGER_TYPE))
     return NULL_TREE;
-  flag = CALL_EXPR_ARG (exp, 2);
+  flag = args[2];
   if (!validate_arg (flag, INTEGER_TYPE))
     return NULL_TREE;
-  size = CALL_EXPR_ARG (exp, 3);
+  size = args[3];
   if (!validate_arg (size, INTEGER_TYPE))
     return NULL_TREE;
-  fmt = CALL_EXPR_ARG (exp, 4);
+  fmt = args[4];
   if (!validate_arg (fmt, POINTER_TYPE))
     return NULL_TREE;
 
@@ -12626,7 +12750,21 @@ fold_builtin_snprintf_chk (location_t loc, tree exp, tree maxlen,
   if (!fn)
     return NULL_TREE;
 
-  return rewrite_call_expr (loc, exp, 5, fn, 3, dest, len, fmt);
+  return rewrite_call_expr_array (loc, nargs, args, 5, fn, 3, dest, len, fmt);
+}
+
+/* Fold a call EXP to {,v}snprintf.  Return NULL_TREE if
+   a normal call should be emitted rather than expanding the function
+   inline.  FCODE is either BUILT_IN_SNPRINTF_CHK or
+   BUILT_IN_VSNPRINTF_CHK.  If MAXLEN is not NULL, it is maximum length
+   passed as second argument.  */
+
+tree
+fold_builtin_snprintf_chk (location_t loc, tree exp, tree maxlen,
+			   enum built_in_function fcode)
+{
+  return fold_builtin_snprintf_chk_1 (loc, call_expr_nargs (exp),
+				      CALL_EXPR_ARGP (exp), maxlen, fcode);
 }
 
 /* Fold a call to the {,v}printf{,_unlocked} and __{,v}printf_chk builtins.
@@ -13482,43 +13620,6 @@ do_mpc_arg2 (tree arg0, tree arg1, tree type, int do_nonfinite,
   return result;
 }
 
-/* FIXME tuples.
-   The functions below provide an alternate interface for folding
-   builtin function calls presented as GIMPLE_CALL statements rather
-   than as CALL_EXPRs.  The folded result is still expressed as a
-   tree.  There is too much code duplication in the handling of
-   varargs functions, and a more intrusive re-factoring would permit
-   better sharing of code between the tree and statement-based
-   versions of these functions.  */
-
-/* Construct a new CALL_EXPR using the tail of the argument list of STMT
-   along with N new arguments specified as the "..." parameters.  SKIP
-   is the number of arguments in STMT to be omitted.  This function is used
-   to do varargs-to-varargs transformations.  */
-
-static tree
-gimple_rewrite_call_expr (gimple stmt, int skip, tree fndecl, int n, ...)
-{
-  int oldnargs = gimple_call_num_args (stmt);
-  int nargs = oldnargs - skip + n;
-  tree fntype = TREE_TYPE (fndecl);
-  tree fn = build1 (ADDR_EXPR, build_pointer_type (fntype), fndecl);
-  tree *buffer;
-  int i, j;
-  va_list ap;
-  location_t loc = gimple_location (stmt);
-
-  buffer = XALLOCAVEC (tree, nargs);
-  va_start (ap, n);
-  for (i = 0; i < n; i++)
-    buffer[i] = va_arg (ap, tree);
-  va_end (ap);
-  for (j = skip; j < oldnargs; j++, i++)
-    buffer[i] = gimple_call_arg (stmt, j);
-
-  return fold (build_call_array_loc (loc, TREE_TYPE (fntype), fn, nargs, buffer));
-}
-
 /* Fold a call STMT to __{,v}sprintf_chk.  Return NULL_TREE if
    a normal call should be emitted rather than expanding the function
    inline.  FCODE is either BUILT_IN_SPRINTF_CHK or BUILT_IN_VSPRINTF_CHK.  */
@@ -13526,88 +13627,12 @@ gimple_rewrite_call_expr (gimple stmt, int skip, tree fndecl, int n, ...)
 static tree
 gimple_fold_builtin_sprintf_chk (gimple stmt, enum built_in_function fcode)
 {
-  tree dest, size, len, fn, fmt, flag;
-  const char *fmt_str;
   int nargs = gimple_call_num_args (stmt);
 
-  /* Verify the required arguments in the original call.  */
-  if (nargs < 4)
-    return NULL_TREE;
-  dest = gimple_call_arg (stmt, 0);
-  if (!validate_arg (dest, POINTER_TYPE))
-    return NULL_TREE;
-  flag = gimple_call_arg (stmt, 1);
-  if (!validate_arg (flag, INTEGER_TYPE))
-    return NULL_TREE;
-  size = gimple_call_arg (stmt, 2);
-  if (!validate_arg (size, INTEGER_TYPE))
-    return NULL_TREE;
-  fmt = gimple_call_arg (stmt, 3);
-  if (!validate_arg (fmt, POINTER_TYPE))
-    return NULL_TREE;
-
-  if (! host_integerp (size, 1))
-    return NULL_TREE;
-
-  len = NULL_TREE;
-
-  if (!init_target_chars ())
-    return NULL_TREE;
-
-  /* Check whether the format is a literal string constant.  */
-  fmt_str = c_getstr (fmt);
-  if (fmt_str != NULL)
-    {
-      /* If the format doesn't contain % args or %%, we know the size.  */
-      if (strchr (fmt_str, target_percent) == 0)
-	{
-	  if (fcode != BUILT_IN_SPRINTF_CHK || nargs == 4)
-	    len = build_int_cstu (size_type_node, strlen (fmt_str));
-	}
-      /* If the format is "%s" and first ... argument is a string literal,
-	 we know the size too.  */
-      else if (fcode == BUILT_IN_SPRINTF_CHK
-	       && strcmp (fmt_str, target_percent_s) == 0)
-	{
-	  tree arg;
-
-	  if (nargs == 5)
-	    {
-	      arg = gimple_call_arg (stmt, 4);
-	      if (validate_arg (arg, POINTER_TYPE))
-		{
-		  len = c_strlen (arg, 1);
-		  if (! len || ! host_integerp (len, 1))
-		    len = NULL_TREE;
-		}
-	    }
-	}
-    }
-
-  if (! integer_all_onesp (size))
-    {
-      if (! len || ! tree_int_cst_lt (len, size))
-	return NULL_TREE;
-    }
-
-  /* Only convert __{,v}sprintf_chk to {,v}sprintf if flag is 0
-     or if format doesn't contain % chars or is "%s".  */
-  if (! integer_zerop (flag))
-    {
-      if (fmt_str == NULL)
-	return NULL_TREE;
-      if (strchr (fmt_str, target_percent) != NULL
-	  && strcmp (fmt_str, target_percent_s))
-	return NULL_TREE;
-    }
-
-  /* If __builtin_{,v}sprintf_chk is used, assume {,v}sprintf is available.  */
-  fn = built_in_decls[fcode == BUILT_IN_VSPRINTF_CHK
-		      ? BUILT_IN_VSPRINTF : BUILT_IN_SPRINTF];
-  if (!fn)
-    return NULL_TREE;
-
-  return gimple_rewrite_call_expr (stmt, 4, fn, 2, dest, fmt);
+  return fold_builtin_sprintf_chk_1 (gimple_location (stmt), nargs,
+				     (nargs > 0
+				      ? gimple_call_arg_ptr (stmt, 0)
+				      : &error_mark_node), fcode);
 }
 
 /* Fold a call STMT to {,v}snprintf.  Return NULL_TREE if
@@ -13620,71 +13645,12 @@ tree
 gimple_fold_builtin_snprintf_chk (gimple stmt, tree maxlen,
                                   enum built_in_function fcode)
 {
-  tree dest, size, len, fn, fmt, flag;
-  const char *fmt_str;
+  int nargs = gimple_call_num_args (stmt);
 
-  /* Verify the required arguments in the original call.  */
-  if (gimple_call_num_args (stmt) < 5)
-    return NULL_TREE;
-  dest = gimple_call_arg (stmt, 0);
-  if (!validate_arg (dest, POINTER_TYPE))
-    return NULL_TREE;
-  len = gimple_call_arg (stmt, 1);
-  if (!validate_arg (len, INTEGER_TYPE))
-    return NULL_TREE;
-  flag = gimple_call_arg (stmt, 2);
-  if (!validate_arg (flag, INTEGER_TYPE))
-    return NULL_TREE;
-  size = gimple_call_arg (stmt, 3);
-  if (!validate_arg (size, INTEGER_TYPE))
-    return NULL_TREE;
-  fmt = gimple_call_arg (stmt, 4);
-  if (!validate_arg (fmt, POINTER_TYPE))
-    return NULL_TREE;
-
-  if (! host_integerp (size, 1))
-    return NULL_TREE;
-
-  if (! integer_all_onesp (size))
-    {
-      if (! host_integerp (len, 1))
-	{
-	  /* If LEN is not constant, try MAXLEN too.
-	     For MAXLEN only allow optimizing into non-_ocs function
-	     if SIZE is >= MAXLEN, never convert to __ocs_fail ().  */
-	  if (maxlen == NULL_TREE || ! host_integerp (maxlen, 1))
-	    return NULL_TREE;
-	}
-      else
-	maxlen = len;
-
-      if (tree_int_cst_lt (size, maxlen))
-	return NULL_TREE;
-    }
-
-  if (!init_target_chars ())
-    return NULL_TREE;
-
-  /* Only convert __{,v}snprintf_chk to {,v}snprintf if flag is 0
-     or if format doesn't contain % chars or is "%s".  */
-  if (! integer_zerop (flag))
-    {
-      fmt_str = c_getstr (fmt);
-      if (fmt_str == NULL)
-	return NULL_TREE;
-      if (strchr (fmt_str, target_percent) != NULL
-	  && strcmp (fmt_str, target_percent_s))
-	return NULL_TREE;
-    }
-
-  /* If __builtin_{,v}snprintf_chk is used, assume {,v}snprintf is
-     available.  */
-  fn = built_in_decls[fcode == BUILT_IN_VSNPRINTF_CHK
-		      ? BUILT_IN_VSNPRINTF : BUILT_IN_SNPRINTF];
-  if (!fn)
-    return NULL_TREE;
-
-  return gimple_rewrite_call_expr (stmt, 5, fn, 3, dest, len, fmt);
+  return fold_builtin_snprintf_chk_1 (gimple_location (stmt), nargs,
+				      (nargs > 0
+				       ? gimple_call_arg_ptr (stmt, 0)
+				       : &error_mark_node), maxlen, fcode);
 }
 
 /* Builtins with folding operations that operate on "..." arguments
@@ -13740,26 +13706,20 @@ fold_call_stmt (gimple stmt, bool ignore)
       && !gimple_call_va_arg_pack_p (stmt))
     {
       int nargs = gimple_call_num_args (stmt);
+      tree *args = (nargs > 0
+		    ? gimple_call_arg_ptr (stmt, 0)
+		    : &error_mark_node);
 
       if (avoid_folding_inline_builtin (fndecl))
 	return NULL_TREE;
       if (DECL_BUILT_IN_CLASS (fndecl) == BUILT_IN_MD)
         {
-	  return targetm.fold_builtin (fndecl, nargs,
-				       (nargs > 0
-					? gimple_call_arg_ptr (stmt, 0)
-					: &error_mark_node), ignore);
+	  return targetm.fold_builtin (fndecl, nargs, args, ignore);
         }
       else
 	{
 	  if (nargs <= MAX_ARGS_TO_FOLD_BUILTIN)
-	    {
-              tree args[MAX_ARGS_TO_FOLD_BUILTIN];
-              int i;
-              for (i = 0; i < nargs; i++)
-                args[i] = gimple_call_arg (stmt, i);
-	      ret = fold_builtin_n (loc, fndecl, args, nargs, ignore);
-	    }
+	    ret = fold_builtin_n (loc, fndecl, args, nargs, ignore);
 	  if (!ret)
 	    ret = gimple_fold_builtin_varargs (fndecl, stmt, ignore);
 	  if (ret)
@@ -13949,4 +13909,3 @@ is_inexpensive_builtin (tree decl)
 
   return false;
 }
-

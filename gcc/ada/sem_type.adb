@@ -230,7 +230,7 @@ package body Sem_Type is
          --  Find out whether the new entry references interpretations that
          --  are abstract or disabled by abstract operators.
 
-         if Ada_Version >= Ada_05 then
+         if Ada_Version >= Ada_2005 then
             if Nkind (N) in N_Binary_Op then
                Abstr_Op := Binary_Op_Interp_Has_Abstract_Op (N, Name);
             elsif Nkind (N) = N_Function_Call then
@@ -755,6 +755,14 @@ package body Sem_Type is
          end if;
       end if;
 
+      --  First check for Standard_Void_Type, which is special. Subsequent
+      --  processing in this routine assumes T1 and T2 are bona fide types;
+      --  Standard_Void_Type is a special entity that has some, but not all,
+      --  properties of types.
+
+      if (T1 = Standard_Void_Type) /= (T2 = Standard_Void_Type) then
+         return False;
+
       --  Simplest case: same types are compatible, and types that have the
       --  same base type and are not generic actuals are compatible. Generic
       --  actuals  belong to their class but are not compatible with other
@@ -770,7 +778,7 @@ package body Sem_Type is
       --  the same actual, so that different subprograms end up with the same
       --  signature in the instance.
 
-      if T1 = T2 then
+      elsif T1 = T2 then
          return True;
 
       elsif BT1 = BT2
@@ -817,7 +825,7 @@ package body Sem_Type is
       --  Ada 2005 (AI-345): A class-wide abstract interface type covers a
       --  task_type or protected_type that implements the interface.
 
-      elsif Ada_Version >= Ada_05
+      elsif Ada_Version >= Ada_2005
         and then Is_Class_Wide_Type (T1)
         and then Is_Interface (Etype (T1))
         and then Is_Concurrent_Type (T2)
@@ -830,7 +838,7 @@ package body Sem_Type is
       --  Ada 2005 (AI-251): A class-wide abstract interface type T1 covers an
       --  object T2 implementing T1
 
-      elsif Ada_Version >= Ada_05
+      elsif Ada_Version >= Ada_2005
         and then Is_Class_Wide_Type (T1)
         and then Is_Interface (Etype (T1))
         and then Is_Tagged_Type (T2)
@@ -1151,7 +1159,7 @@ package body Sem_Type is
       --        package Instance is new G (Formal     => Actual,
       --                                   Formal_Obj => Actual_Obj);
 
-      elsif Ada_Version >= Ada_05
+      elsif Ada_Version >= Ada_2005
         and then Ekind (T1) = E_Anonymous_Access_Type
         and then Ekind (T2) = E_Anonymous_Access_Type
         and then Is_Generic_Type (Directly_Designated_Type (T1))
@@ -1297,7 +1305,7 @@ package body Sem_Type is
 
          begin
             if Nkind (N) not in N_Op
-              or else Ada_Version < Ada_05
+              or else Ada_Version < Ada_2005
               or else not Is_Overloaded (N)
               or else No (Universal_Interpretation (N))
             then
@@ -1533,15 +1541,26 @@ package body Sem_Type is
       It2  := It;
       Nam2 := It.Nam;
 
-      if Ada_Version < Ada_05 then
+      --  Check whether one of the entities is an Ada 2005/2012 and we are
+      --  operating in an earlier mode, in which case we discard the Ada
+      --  2005/2012 entity, so that we get proper Ada 95 overload resolution.
 
-         --  Check whether one of the entities is an Ada 2005 entity and we are
-         --  operating in an earlier mode, in which case we discard the Ada
-         --  2005 entity, so that we get proper Ada 95 overload resolution.
-
-         if Is_Ada_2005_Only (Nam1) then
+      if Ada_Version < Ada_2005 then
+         if Is_Ada_2005_Only (Nam1) or else Is_Ada_2012_Only (Nam1) then
             return It2;
-         elsif Is_Ada_2005_Only (Nam2) then
+         elsif Is_Ada_2005_Only (Nam2) or else Is_Ada_2012_Only (Nam1) then
+            return It1;
+         end if;
+      end if;
+
+      --  Check whether one of the entities is an Ada 2012 entity and we are
+      --  operating in Ada 2005 mode, in which case we discard the Ada 2012
+      --  entity, so that we get proper Ada 2005 overload resolution.
+
+      if Ada_Version = Ada_2005 then
+         if Is_Ada_2012_Only (Nam1) then
+            return It2;
+         elsif Is_Ada_2012_Only (Nam2) then
             return It1;
          end if;
       end if;
@@ -1860,7 +1879,7 @@ package body Sem_Type is
             elsif (Chars (Nam1) = Name_Op_Eq
                      or else
                    Chars (Nam1) = Name_Op_Ne)
-              and then Ada_Version >= Ada_05
+              and then Ada_Version >= Ada_2005
               and then Etype (User_Subp) = Standard_Boolean
             then
                declare
@@ -2006,7 +2025,7 @@ package body Sem_Type is
       --  P is convertible to "access Integer" by 4.6 (24.11-24.15), but there
       --  is no rule in 4.6 that allows "access Integer" to be converted to P.
 
-      elsif Ada_Version >= Ada_05
+      elsif Ada_Version >= Ada_2005
         and then
           (Ekind (Etype (L)) = E_Anonymous_Access_Type
              or else
@@ -2016,7 +2035,7 @@ package body Sem_Type is
       then
          return Etype (L);
 
-      elsif Ada_Version >= Ada_05
+      elsif Ada_Version >= Ada_2005
         and then
           (Ekind (Etype (R)) = E_Anonymous_Access_Type
             or else Ekind (Etype (R)) = E_Anonymous_Access_Subprogram_Type)

@@ -1,3 +1,52 @@
+2010-10-21  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/46007
+	* m4/shape.m4 (shape_'rtype_kind`):  Use variable for rank.
+	Allocate return array if unallocated.
+	* generated/shape_i4.c:  Regenerated.
+	* generated/shape_i8.c:  Regenerated.
+	* generated/shape_i16.c:  Regenerated.
+
+2010-10-20  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libgfortran/46079
+	* runtime/stop.c (stop_numeric_f08): New function.
+	(stop_numeric): Restore	to previous behavior.
+	* gfortran.map: Add symbol _gfortran_stop_numeric_f08.
+
+2010-10-18  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	* io/io.h: Remove definition of the BT enumerator.
+	* libgfortran.h: Replace GFC_DTYPE enumerator with BT.
+	* intrinsics/iso_c_generated_procs.c: Likewise
+	* intrinsics/date_and_time.c: Likewise.
+	* intrinsics/iso_c_binding.c: Likewise.
+	* io/list_read.c: Likewise.
+	* io/transfer.c: Likewise.
+	* io/write.c: Likewise.
+
+2010-10-16  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/20165
+	PR fortran/31593
+	PR fortran/43665
+	* gfortran.map:  Add _gfortran_transfer_array_write,
+	_gfortran_transfer_array_write, _gfortran_transfer_character_write,
+	_gfortran_transfer_character_wide_write,
+	_gfortran_transfer_complex_write,
+	_gfortran_transfer_integer_write,
+	_gfortran_transfer_logical_write and
+	_gfortran_transfer_real_write.
+	* io/transfer.c (transfer_integer_write):  Add prototype and
+	function body as call to the original function, without the
+	_write.
+	(transfer_real_write):  Likewise.
+	(transfer_logical_write):  Likewise.
+	(transfer_character_write):  Likewise.
+	(transfer_character_wide_write):  Likewise.
+	(transfer_complex_write):  Likewise.
+	(transfer_array_write):  Likewise.
+
 2010-09-22  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR libfortran/45710

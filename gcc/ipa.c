@@ -238,19 +238,14 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 #endif
   varpool_reset_queue ();
   for (node = cgraph_nodes; node; node = node->next)
-    if (!node->analyzed)
-      {
-        gcc_assert (!node->aux);
-	node->reachable = false;
-      }
-    else if ((!cgraph_can_remove_if_no_direct_calls_and_refs_p (node)
-	      /* Keep around virtual functions for possible devirtualization.  */
-	      || (!before_inlining_p
-		  && !node->global.inlined_to
-		  && DECL_VIRTUAL_P (node->decl)
-		  && (DECL_COMDAT (node->decl) || DECL_EXTERNAL (node->decl))))
-	     && ((!DECL_EXTERNAL (node->decl))
-		 || before_inlining_p))
+    if ((!cgraph_can_remove_if_no_direct_calls_and_refs_p (node)
+	 /* Keep around virtual functions for possible devirtualization.  */
+	 || (!before_inlining_p
+	     && !node->global.inlined_to
+	     && DECL_VIRTUAL_P (node->decl)
+	     && (DECL_COMDAT (node->decl) || DECL_EXTERNAL (node->decl))))
+	&& ((!DECL_EXTERNAL (node->decl))
+            || before_inlining_p))
       {
         gcc_assert (!node->global.inlined_to);
 	enqueue_cgraph_node (node, &first);
@@ -389,22 +384,31 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 	}
       if (!node->aux)
 	{
+	  struct cgraph_edge *e;
+	  bool found = false;
+	  int i;
+	  struct ipa_ref *ref;
+
           node->global.inlined_to = NULL;
 	  if (file)
 	    fprintf (file, " %s", cgraph_node_name (node));
-	  if (!node->analyzed || !DECL_EXTERNAL (node->decl) || before_inlining_p)
-	    cgraph_remove_node (node);
-	  else
+	  /* See if there is reachable caller.  */
+	  for (e = node->callers; e && !found; e = e->next_caller)
+	    if (e->caller->reachable)
+	      found = true;
+	  for (i = 0; (ipa_ref_list_refering_iterate (&node->ref_list, i, ref)
+		       && !found); i++)
+	    if (ref->refering_type == IPA_REF_CGRAPH
+		&& ipa_ref_refering_node (ref)->reachable)
+	      found = true;
+	    else if (ref->refering_type == IPA_REF_VARPOOL
+		     && ipa_ref_refering_varpool_node (ref)->needed)
+	      found = true;
+
+	  /* If so, we need to keep node in the callgraph.  */
+	  if (found || node->needed)
 	    {
-	      struct cgraph_edge *e;
-
-	      /* See if there is reachable caller.  */
-	      for (e = node->callers; e; e = e->next_caller)
-		if (e->caller->reachable)
-		  break;
-
-	      /* If so, we need to keep node in the callgraph.  */
-	      if (e || node->needed)
+	      if (node->analyzed)
 		{
 		  struct cgraph_node *clone;
 
@@ -424,10 +428,10 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 			node->clone_of->clones = node->next_sibling_clone;
 		      if (node->next_sibling_clone)
 			node->next_sibling_clone->prev_sibling_clone = node->prev_sibling_clone;
-#ifdef ENABLE_CHECKING
+    #ifdef ENABLE_CHECKING
 		      if (node->clone_of)
 			node->former_clone_of = node->clone_of->decl;
-#endif
+    #endif
 		      node->clone_of = NULL;
 		      node->next_sibling_clone = NULL;
 		      node->prev_sibling_clone = NULL;
@@ -435,13 +439,16 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 		  else
 		    gcc_assert (!clone->in_other_partition);
 		  node->analyzed = false;
+		  changed = true;
 		  cgraph_node_remove_callees (node);
 		  ipa_remove_all_references (&node->ref_list);
 		}
-	      else
-		cgraph_remove_node (node);
 	    }
-	  changed = true;
+	  else
+	    {
+	      cgraph_remove_node (node);
+	      changed = true;
+	    }
 	}
     }
   for (node = cgraph_nodes; node; node = node->next)
@@ -600,6 +607,11 @@ cgraph_externally_visible_p (struct cgraph_node *node, bool whole_program, bool 
   /* If linker counts on us, we must preserve the function.  */
   if (cgraph_used_from_object_file_p (node))
     return true;
+  if (DECL_PRESERVE_P (node->decl))
+    return true;
+  if (lookup_attribute ("externally_visible", DECL_ATTRIBUTES (node->decl)))
+    return true;
+
   /* When doing link time optimizations, hidden symbols become local.  */
   if (in_lto_p
       && (DECL_VISIBILITY (node->decl) == VISIBILITY_HIDDEN
@@ -631,11 +643,64 @@ cgraph_externally_visible_p (struct cgraph_node *node, bool whole_program, bool 
 	      return true;
 	}
     }
-  if (DECL_PRESERVE_P (node->decl))
-    return true;
+
   if (MAIN_NAME_P (DECL_NAME (node->decl)))
     return true;
-  if (lookup_attribute ("externally_visible", DECL_ATTRIBUTES (node->decl)))
+
+  return false;
+}
+
+/* Return true when variable VNODE should be considered externally visible.  */
+
+static bool
+varpool_externally_visible_p (struct varpool_node *vnode, bool aliased)
+{
+  if (!DECL_COMDAT (vnode->decl) && !TREE_PUBLIC (vnode->decl))
+    return false;
+
+  /* Do not even try to be smart about aliased nodes.  Until we properly
+     represent everything by same body alias, these are just evil.  */
+  if (aliased)
+    return true;
+
+  /* If linker counts on us, we must preserve the function.  */
+  if (varpool_used_from_object_file_p (vnode))
+    return true;
+
+  if (DECL_PRESERVE_P (vnode->decl))
+    return true;
+  if (lookup_attribute ("externally_visible",
+			DECL_ATTRIBUTES (vnode->decl)))
+    return true;
+
+  /* See if we have linker information about symbol not being used or
+     if we need to make guess based on the declaration.
+
+     Even if the linker clams the symbol is unused, never bring internal
+     symbols that are declared by user as used or externally visible.
+     This is needed for i.e. references from asm statements.   */
+  if (varpool_used_from_object_file_p (vnode))
+    return true;
+
+  /* When doing link time optimizations, hidden symbols become local.  */
+  if (in_lto_p
+      && (DECL_VISIBILITY (vnode->decl) == VISIBILITY_HIDDEN
+	  || DECL_VISIBILITY (vnode->decl) == VISIBILITY_INTERNAL)
+      /* Be sure that node is defined in IR file, not in other object
+	 file.  In that case we don't set used_from_other_object_file.  */
+      && vnode->finalized)
+    ;
+  else if (!flag_whole_program)
+    return true;
+
+  /* Do not attempt to privatize COMDATS by default.
+     This would break linking with C++ libraries sharing
+     inline definitions.
+
+     FIXME: We can do so for readonly vars with no address taken and
+     possibly also for vtables since no direct pointer comparsion is done.
+     It might be interesting to do so to reduce linking overhead.  */
+  if (DECL_COMDAT (vnode->decl) || DECL_WEAK (vnode->decl))
     return true;
   return false;
 }
@@ -791,27 +856,9 @@ function_and_variable_visibility (bool whole_program)
       if (!vnode->finalized)
         continue;
       if (vnode->needed
-	  && (DECL_COMDAT (vnode->decl) || TREE_PUBLIC (vnode->decl))
-	  && (((!whole_program
-	        /* We can privatize comdat readonly variables whose address is
-		   not taken, but doing so is not going to bring us
-		   optimization oppurtunities until we start reordering
-		   datastructures.  */
-		|| DECL_COMDAT (vnode->decl)
-		|| DECL_WEAK (vnode->decl))
-	       /* When doing linktime optimizations, all hidden symbols will
-		  become local.  */
-	       && (!in_lto_p
-		   || (DECL_VISIBILITY (vnode->decl) != VISIBILITY_HIDDEN
-		       && DECL_VISIBILITY (vnode->decl) != VISIBILITY_INTERNAL)
-		   /* We can get prevailing decision in other object file.
-		      In this case we do not sed used_from_object_file.  */
-		   || !vnode->finalized))
-	      || DECL_PRESERVE_P (vnode->decl)
-              || varpool_used_from_object_file_p (vnode)
-	      || pointer_set_contains (aliased_vnodes, vnode)
-	      || lookup_attribute ("externally_visible",
-				   DECL_ATTRIBUTES (vnode->decl))))
+	  && varpool_externally_visible_p
+	      (vnode, 
+	       pointer_set_contains (aliased_vnodes, vnode)))
 	vnode->externally_visible = true;
       else
         vnode->externally_visible = false;
@@ -1492,7 +1539,6 @@ build_cdtor (bool ctor_p, VEC (tree, heap) *cdtors)
 	  TREE_SIDE_EFFECTS (call) = 1;
 	  append_to_statement_list (call, &body);
 	}
-      while (i < len);
       gcc_assert (body != NULL_TREE);
       /* Generate a function to call all the function of like
 	 priority.  */
@@ -1563,20 +1609,14 @@ build_cdtor_fns (void)
   if (!VEC_empty (tree, static_ctors))
     {
       gcc_assert (!targetm.have_ctors_dtors || in_lto_p);
-      qsort (VEC_address (tree, static_ctors),
-	     VEC_length (tree, static_ctors),
-	     sizeof (tree),
-	     compare_ctor);
+      VEC_qsort (tree, static_ctors, compare_ctor);
       build_cdtor (/*ctor_p=*/true, static_ctors);
     }
 
   if (!VEC_empty (tree, static_dtors))
     {
       gcc_assert (!targetm.have_ctors_dtors || in_lto_p);
-      qsort (VEC_address (tree, static_dtors),
-	     VEC_length (tree, static_dtors),
-	     sizeof (tree),
-	     compare_dtor);
+      VEC_qsort (tree, static_dtors, compare_dtor);
       build_cdtor (/*ctor_p=*/false, static_dtors);
     }
 }

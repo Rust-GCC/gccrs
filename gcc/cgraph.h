@@ -227,11 +227,8 @@ struct GTY((chain_next ("%h.next"), chain_prev ("%h.previous"))) cgraph_node {
   /* For functions with many calls sites it holds map from call expression
      to the edge to speed up cgraph_edge function.  */
   htab_t GTY((param_is (struct cgraph_edge))) call_site_hash;
-#ifdef ENABLE_CHECKING
-  /* Declaration node used to be clone of.  Used for checking only. 
-     We must skip it or we get references from release checking GGC files. */
-  tree GTY ((skip)) former_clone_of;
-#endif
+  /* Declaration node used to be clone of. */
+  tree former_clone_of;
 
   PTR GTY ((skip)) aux;
 
@@ -301,6 +298,10 @@ struct GTY((chain_next ("%h.next"), chain_prev ("%h.previous"))) cgraph_node {
   /* How commonly executed the node is.  Initialized during branch
      probabilities pass.  */
   ENUM_BITFIELD (node_frequency) frequency : 2;
+  /* True when function can only be called at startup (from static ctor).  */
+  unsigned only_called_at_startup : 1;
+  /* True when function can only be called at startup (from static dtor).  */
+  unsigned only_called_at_exit : 1;
 };
 
 typedef struct cgraph_node *cgraph_node_ptr;

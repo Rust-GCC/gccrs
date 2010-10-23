@@ -972,7 +972,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 			save_gnu_tree (gnat_entity, gnu_decl, true);
 			saved = true;
 			annotate_object (gnat_entity, gnu_type, NULL_TREE,
-					 false);
+					 false, false);
 			break;
 		      }
 
@@ -1471,7 +1471,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	   type of the object and not on the object directly, and makes it
 	   possible to support all confirming representation clauses.  */
 	annotate_object (gnat_entity, TREE_TYPE (gnu_decl), gnu_object_size,
-			 used_by_ref);
+			 used_by_ref, false);
       }
       break;
 
@@ -1942,6 +1942,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	gnu_template_reference
 	  = build_unary_op (INDIRECT_REF, gnu_template_type, tem);
 	TREE_READONLY (gnu_template_reference) = 1;
+	TREE_THIS_NOTRAP (gnu_template_reference) = 1;
 
 	/* Now create the GCC type for each index and add the fields for that
 	   index to the template.  */
@@ -4149,6 +4150,11 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 		gnu_param = NULL_TREE;
 	      }
 
+	    /* The failure of this assertion will very likely come from an
+	       order of elaboration issue for the type of the parameter.  */
+	    gcc_assert (kind == E_Subprogram_Type
+			|| !TYPE_IS_DUMMY_P (gnu_param_type));
+
 	    if (gnu_param)
 	      {
 		/* If it's an exported subprogram, we build a parameter list
@@ -4246,7 +4252,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	  gnu_stub_param_list = nreverse (gnu_stub_param_list);
 	gnu_cico_list = nreverse (gnu_cico_list);
 
-	if (Ekind (gnat_entity) == E_Function)
+	if (kind == E_Function)
 	  Set_Mechanism (gnat_entity, return_unconstrained_p
 				      || return_by_direct_ref_p
 				      || return_by_invisi_ref_p
@@ -4396,8 +4402,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	   full view, whichever is present.  This is used in all the tests
 	   below.  */
 	Entity_Id full_view
-	  = (IN (Ekind (gnat_entity), Incomplete_Kind)
-	     && From_With_Type (gnat_entity))
+	  = (IN (kind, Incomplete_Kind) && From_With_Type (gnat_entity))
 	    ? Non_Limited_View (gnat_entity)
 	    : Present (Full_View (gnat_entity))
 	      ? Full_View (gnat_entity)
@@ -5282,7 +5287,8 @@ gnat_to_gnu_param (Entity_Id gnat_param, Mechanism_Type mech,
   bool in_param = (Ekind (gnat_param) == E_In_Parameter);
   /* The parameter can be indirectly modified if its address is taken.  */
   bool ro_param = in_param && !Address_Taken (gnat_param);
-  bool by_return = false, by_component_ptr = false, by_ref = false;
+  bool by_return = false, by_component_ptr = false;
+  bool by_ref = false, by_double_ref = false;
   tree gnu_param;
 
   /* Copy-return is used only for the first parameter of a valued procedure.
@@ -5399,6 +5405,19 @@ gnat_to_gnu_param (Entity_Id gnat_param, Mechanism_Type mech,
     {
       gnu_param_type = build_reference_type (gnu_param_type);
       by_ref = true;
+
+      /* In some ABIs, e.g. SPARC 32-bit, fat pointer types are themselves
+	 passed by reference.  Pass them by explicit reference, this will
+	 generate more debuggable code at -O0.  */
+      if (TYPE_IS_FAT_POINTER_P (gnu_param_type)
+	  && targetm.calls.pass_by_reference (NULL,
+					      TYPE_MODE (gnu_param_type),
+					      gnu_param_type,
+					      true))
+	{
+	   gnu_param_type = build_reference_type (gnu_param_type);
+	   by_double_ref = true;
+	}
     }
 
   /* Pass In Out or Out parameters using copy-in copy-out mechanism.  */
@@ -5441,6 +5460,7 @@ gnat_to_gnu_param (Entity_Id gnat_param, Mechanism_Type mech,
   gnu_param = create_param_decl (gnu_param_name, gnu_param_type,
 				 ro_param || by_ref || by_component_ptr);
   DECL_BY_REF_P (gnu_param) = by_ref;
+  DECL_BY_DOUBLE_REF_P (gnu_param) = by_double_ref;
   DECL_BY_COMPONENT_PTR_P (gnu_param) = by_component_ptr;
   DECL_BY_DESCRIPTOR_P (gnu_param) = (mech == By_Descriptor ||
                                       mech == By_Short_Descriptor);
@@ -7397,13 +7417,18 @@ annotate_value (tree gnu_size)
 /* Given GNAT_ENTITY, an object (constant, variable, parameter, exception)
    and GNU_TYPE, its corresponding GCC type, set Esize and Alignment to the
    size and alignment used by Gigi.  Prefer SIZE over TYPE_SIZE if non-null.
-   BY_REF is true if the object is used by reference.  */
+   BY_REF is true if the object is used by reference and BY_DOUBLE_REF is
+   true if the object is used by double reference.  */
 
 void
-annotate_object (Entity_Id gnat_entity, tree gnu_type, tree size, bool by_ref)
+annotate_object (Entity_Id gnat_entity, tree gnu_type, tree size, bool by_ref,
+		 bool by_double_ref)
 {
   if (by_ref)
     {
+      if (by_double_ref)
+	gnu_type = TREE_TYPE (gnu_type);
+
       if (TYPE_IS_FAT_POINTER_P (gnu_type))
 	gnu_type = TYPE_UNCONSTRAINED_ARRAY (gnu_type);
       else

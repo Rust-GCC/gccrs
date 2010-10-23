@@ -96,12 +96,6 @@ extern enum rx_cpu_types  rx_cpu_type;
 #define BYTES_BIG_ENDIAN 		TARGET_BIG_ENDIAN_DATA
 #define WORDS_BIG_ENDIAN 		TARGET_BIG_ENDIAN_DATA
 
-#ifdef __RX_BIG_ENDIAN__
-#define LIBGCC2_WORDS_BIG_ENDIAN	1
-#else
-#define LIBGCC2_WORDS_BIG_ENDIAN	0
-#endif
-
 #define UNITS_PER_WORD 			4
 
 #define INT_TYPE_SIZE			32
@@ -115,11 +109,9 @@ extern enum rx_cpu_types  rx_cpu_type;
 #ifdef __RX_32BIT_DOUBLES__
 #define LIBGCC2_HAS_DF_MODE		0
 #define LIBGCC2_LONG_DOUBLE_TYPE_SIZE   32
-#define LIBGCC2_DOUBLE_TYPE_SIZE	32
 #else
 #define LIBGCC2_HAS_DF_MODE		1
 #define LIBGCC2_LONG_DOUBLE_TYPE_SIZE   64
-#define LIBGCC2_DOUBLE_TYPE_SIZE	64
 #endif
 
 #define DEFAULT_SIGNED_CHAR		0
@@ -269,8 +261,6 @@ enum reg_class
 #define REG_ALLOC_ORDER						\
 {  7,  10,  11,  12,  13,  14,  4,  3,  2,  1, 9, 8, 6, 5, 15	\
 }
-
-#define PREFERRED_RELOAD_CLASS(X,CLASS)		CLASS
 
 #define REGNO_IN_RANGE(REGNO, MIN, MAX)		\
   (IN_RANGE ((REGNO), (MIN), (MAX)) 		\
@@ -613,8 +603,6 @@ extern int rx_float_compare_mode;
 /* Like REG_P except that this macro is true for SET expressions.  */
 #define SET_P(rtl)    (GET_CODE (rtl) == SET)
 
-#define CAN_DEBUG_WITHOUT_FP 1
-
 /* The AS100 assembler does not support .leb128 and .uleb128, but
    the compiler-build-time configure tests will have enabled their
    use because GAS supports them.  So default to generating STABS

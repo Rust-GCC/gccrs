@@ -39,6 +39,7 @@ package Sem_Ch6 is
    procedure Analyze_Function_Call                   (N : Node_Id);
    procedure Analyze_Operator_Symbol                 (N : Node_Id);
    procedure Analyze_Parameter_Association           (N : Node_Id);
+   procedure Analyze_Parameterized_Expression        (N : Node_Id);
    procedure Analyze_Procedure_Call                  (N : Node_Id);
    procedure Analyze_Simple_Return_Statement         (N : Node_Id);
    procedure Analyze_Subprogram_Declaration          (N : Node_Id);
@@ -188,6 +189,10 @@ package Sem_Ch6 is
    --  Returns true if both primitives have a matching name, they are type
    --  conformant, and Prim is defined in the scope of Tagged_Type. Special
    --  management is done for functions returning interfaces.
+
+   procedure List_Inherited_Pre_Post_Aspects (E : Entity_Id);
+   --  E is the entity for a subprogram or generic subprogram spec. This call
+   --  lists all inherited Pre/Post aspects if List_Inherited_Pre_Post is True.
 
    function Mode_Conformant (New_Id, Old_Id : Entity_Id) return Boolean;
    --  Determine whether two callable entities (subprograms, entries,

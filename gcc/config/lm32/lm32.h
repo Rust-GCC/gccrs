@@ -84,7 +84,6 @@
 #define BITS_BIG_ENDIAN 0
 #define BYTES_BIG_ENDIAN 1
 #define WORDS_BIG_ENDIAN 1
-#define LIBGCC2_WORDS_BIG_ENDIAN 1
 
 #define BITS_PER_UNIT 8
 #define BITS_PER_WORD 32
@@ -226,8 +225,6 @@ enum reg_class
     (G_REG_P (REGNO) || G_REG_P ((unsigned) reg_renumber[REGNO]))
 
 #define REGNO_OK_FOR_INDEX_P(REGNO) 0
-
-#define PREFERRED_RELOAD_CLASS(X,CLASS) (CLASS)
 
 /*----------------------------------------*/
 /* Stack Layout and Calling Conventions.  */
@@ -537,8 +534,6 @@ do {                                                            \
 /*-------------*/
 
 #define DBX_REGISTER_NUMBER(REGNO) (REGNO)
-
-#define CAN_DEBUG_WITHOUT_FP
 
 #define DEFAULT_GDB_EXTENSIONS 1
 

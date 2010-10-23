@@ -608,8 +608,27 @@ darwin_cpp_builtins (cpp_reader *pfile)
      to be defined and won't work if it isn't.  */
   builtin_define_with_value ("__APPLE_CC__", "1", false);
 
+  if (darwin_constant_cfstrings)
+    builtin_define ("__CONSTANT_CFSTRINGS__");
+
   builtin_define_with_value ("__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__",
 			     version_as_macro(), false);
+
+  /* Since we do not (at 4.6) support ObjC gc for the NeXT runtime, the
+     following will cause a syntax error if one tries to compile gc attributed
+     items.  However, without this, NeXT system headers cannot be parsed 
+     properly (on systems >= darwin 9).  */
+  if (flag_objc_gc)
+    {
+      builtin_define ("__strong=__attribute__((objc_gc(strong)))");
+      builtin_define ("__weak=__attribute__((objc_gc(weak)))");
+      builtin_define ("__OBJC_GC__");
+    }
+  else
+    {
+      builtin_define ("__strong=");
+      builtin_define ("__weak=");
+    }
 }
 
 /* Handle C family front-end options.  */
@@ -642,3 +661,20 @@ handle_c_option (size_t code,
 #define TARGET_HANDLE_C_OPTION handle_c_option
 
 struct gcc_targetcm targetcm = TARGETCM_INITIALIZER;
+
+/* Allow ObjC* access to CFStrings.  */
+tree
+darwin_objc_construct_string (tree str)
+{
+  if (!darwin_constant_cfstrings)
+    {
+    /* Even though we are not using CFStrings, place our literal
+       into the cfstring_htab hash table, so that the
+       darwin_constant_cfstring_p() function will see it.  */
+      darwin_enter_string_into_cfstring_table (str);
+      /* Fall back to NSConstantString.  */
+      return NULL_TREE;
+    }
+
+  return darwin_build_constant_cfstring (str);
+}

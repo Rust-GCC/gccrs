@@ -727,7 +727,7 @@ package body Layout is
          Size := (Dynamic, Expr_From_SO_Ref (Loc, Component_Size (E)));
       end if;
 
-      --  Loop through indices
+      --  Loop through indexes
 
       Indx := First_Index (E);
       while Present (Indx) loop
@@ -1059,7 +1059,7 @@ package body Layout is
          Size := (Dynamic, Expr_From_SO_Ref (Loc, Component_Size (E)));
       end if;
 
-      --  Loop to process array indices
+      --  Loop to process array indexes
 
       Indx := First_Index (E);
       while Present (Indx) loop
@@ -2568,14 +2568,9 @@ package body Layout is
                then
                   declare
                      S : constant Uint := Esize (CT);
-
                   begin
-                     if S = 8  or else
-                        S = 16 or else
-                        S = 32 or else
-                        S = 64
-                     then
-                        Set_Component_Size (E, Esize (CT));
+                     if Addressable (S) then
+                        Set_Component_Size (E, S);
                      end if;
                   end;
                end if;

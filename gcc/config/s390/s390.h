@@ -158,9 +158,6 @@ extern int s390_arch_flags;
 #define TARGET_VERSION fprintf (stderr, " (S/390)");
 #endif
 
-/* Frame pointer is not used for debugging.  */
-#define CAN_DEBUG_WITHOUT_FP
-
 /* Constants needed to control the TEST DATA CLASS (TDC) instruction.  */
 #define S390_TDC_POSITIVE_ZERO                     (1 << 11)
 #define S390_TDC_NEGATIVE_ZERO                     (1 << 10)
@@ -690,12 +687,6 @@ CUMULATIVE_ARGS;
 
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, NN, N_NAMED_ARGS) \
   ((CUM).gprs=0, (CUM).fprs=0)
-
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)                    \
-  s390_function_arg_advance (&CUM, MODE, TYPE, NAMED)
-
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED)   \
-  s390_function_arg (&CUM, MODE, TYPE, NAMED)
 
 /* Arguments can be placed in general registers 2 to 6, or in floating
    point registers 0 and 2 for 31 bit and fprs 0, 2, 4 and 6 for 64

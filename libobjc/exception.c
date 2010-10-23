@@ -25,7 +25,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "objc-private/common.h"
 #include <stdlib.h>
 #include "config.h"
-#include "objc/objc-api.h"
+#include "objc/runtime.h"
 #include "objc/objc-exception.h"
 #include "unwind.h"
 #include "unwind-pe.h"
@@ -57,7 +57,7 @@ is_kind_of_exception_matcher (Class catch_class, id exception)
       Class c;
 
       for (c = exception->class_pointer; c != Nil; 
-	   c = class_get_super_class (c))
+	   c = class_getSuperclass (c))
 	if (c == catch_class)
 	  return 1;
     }
@@ -69,7 +69,7 @@ static objc_exception_matcher
 __objc_exception_matcher = is_kind_of_exception_matcher;
 
 objc_exception_matcher
-objc_set_exception_matcher (objc_exception_matcher new_matcher)
+objc_setExceptionMatcher (objc_exception_matcher new_matcher)
 {
   objc_exception_matcher old_matcher = __objc_exception_matcher;
   __objc_exception_matcher = new_matcher;
@@ -81,8 +81,8 @@ static objc_uncaught_exception_handler
 __objc_uncaught_exception_handler = NULL;
 
 objc_uncaught_exception_handler
-objc_set_uncaught_exception_handler (objc_uncaught_exception_handler 
-				     new_handler)
+objc_setUncaughtExceptionHandler (objc_uncaught_exception_handler 
+				  new_handler)
 {
   objc_uncaught_exception_handler old_handler 
     = __objc_uncaught_exception_handler;
@@ -191,9 +191,11 @@ get_ttype_entry (struct lsda_header_info *info, _uleb128_t i)
   
   ptr = (_Unwind_Ptr) (info->TType - (i * 4));
   ptr = _Unwind_decode_target2 (ptr);
-  
+
+  /* NULL ptr means catch-all.  Note that if the class is not found,
+     this will abort the program.  */
   if (ptr)
-    return objc_get_class ((const char *) ptr);
+    return objc_getRequiredClass ((const char *) ptr);
   else
     return 0;
 }
@@ -209,9 +211,10 @@ get_ttype_entry (struct lsda_header_info *info, _Unwind_Word i)
   read_encoded_value_with_base (info->ttype_encoding, info->ttype_base,
 				info->TType - i, &ptr);
 
-  /* NULL ptr means catch-all.  */
+  /* NULL ptr means catch-all.  Note that if the class is not found,
+     this will abort the program.  */
   if (ptr)
-    return objc_get_class ((const char *) ptr);
+    return objc_getRequiredClass ((const char *) ptr);
   else
     return 0;
 }

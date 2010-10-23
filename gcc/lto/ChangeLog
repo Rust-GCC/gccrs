@@ -1,3 +1,42 @@
+2010-10-22  Richard Guenther  <rguenther@suse.de>
+
+	* lto.c (lto_fixup_type): Fixup TYPE_CANONICAL again, via
+	the new gimple_register_canonical_type.
+
+2010-10-20  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/45954
+	* config-lang.in (boot_language): Set to $enable_lto.
+
+2010-10-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR lto/45638
+	* Make-lang.in (check-lto): New dummy target.
+
+2010-10-14  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* lto-elf.c (SHN_XINDEX): Define if not already defined.
+
+2010-10-08  Joseph Myers  <joseph@codesourcery.com>
+
+	* lto-lang.c (lto_init_options): Change to
+	lto_init_options_struct.  Update parameters.
+	(LANG_HOOKS_INIT_OPTIONS): Don't define.
+	(LANG_HOOKS_INIT_OPTIONS_STRUCT): Define.
+
+2010-10-06  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (lto_balanced_map): Fix accounting of program size.
+
+2010-10-06  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (lto_balanced_map): Do not produce empty partitions.
+
+2010-10-06  Andi Kleen <ak@linux.intel.com>
+
+	* lto.c (lto_process_name): Add.
+	(lto_main): Call lto_process_name.
+
 2010-10-06  Jan Hubicka  <jh@suse.cz>
 
 	* lto.c (partition_cgraph_node_p, partition_varpool_node_p): Handle

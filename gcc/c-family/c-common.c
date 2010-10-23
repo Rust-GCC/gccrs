@@ -543,6 +543,10 @@ const struct c_common_resword c_common_reswords[] =
   { "synchronized",	RID_AT_SYNCHRONIZED,	D_OBJC },
   { "optional",		RID_AT_OPTIONAL,	D_OBJC },
   { "required",		RID_AT_REQUIRED,	D_OBJC },
+  { "property",		RID_AT_PROPERTY,	D_OBJC },
+  { "package",		RID_AT_PACKAGE,		D_OBJC },
+  { "synthesize",	RID_AT_SYNTHESIZE,	D_OBJC },
+  { "dynamic",		RID_AT_DYNAMIC,		D_OBJC },
   /* These are recognized only in protocol-qualifier context
      (see above) */
   { "bycopy",		RID_BYCOPY,		D_OBJC },
@@ -551,6 +555,12 @@ const struct c_common_resword c_common_reswords[] =
   { "inout",		RID_INOUT,		D_OBJC },
   { "oneway",		RID_ONEWAY,		D_OBJC },
   { "out",		RID_OUT,		D_OBJC },
+  /* These are recognized inside a property attribute list */
+  { "readonly",		RID_READONLY,		D_OBJC }, 
+  { "copies",		RID_COPIES,		D_OBJC },
+  { "getter",		RID_GETTER,		D_OBJC }, 
+  { "setter",		RID_SETTER,		D_OBJC }, 
+  { "ivar",		RID_IVAR,		D_OBJC }, 
 };
 
 const unsigned int num_c_common_reswords =
@@ -7189,7 +7199,8 @@ handle_deprecated_attribute (tree *node, tree name,
 	  || TREE_CODE (decl) == PARM_DECL
 	  || TREE_CODE (decl) == VAR_DECL
 	  || TREE_CODE (decl) == FUNCTION_DECL
-	  || TREE_CODE (decl) == FIELD_DECL)
+	  || TREE_CODE (decl) == FIELD_DECL
+	  || objc_method_decl (TREE_CODE (decl)))
 	TREE_DEPRECATED (decl) = 1;
       else
 	warn = 1;
@@ -7802,8 +7813,11 @@ parse_optimize_options (tree args, bool attr_p)
   saved_flag_strict_aliasing = flag_strict_aliasing;
 
   /* Now parse the options.  */
-  decode_options (opt_argc, opt_argv, &decoded_options,
-		  &decoded_options_count);
+  decode_cmdline_options_to_array_default_mask (opt_argc, opt_argv,
+						&decoded_options,
+						&decoded_options_count);
+  decode_options (&global_options, &global_options_set,
+		  decoded_options, decoded_options_count);
 
   targetm.override_options_after_change();
 
@@ -8688,6 +8702,18 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
   *ptype = type;
   return failure;
 }
+
+/* Like c_mark_addressable but don't check register qualifier.  */
+void 
+c_common_mark_addressable_vec (tree t)
+{   
+  while (handled_component_p (t))
+    t = TREE_OPERAND (t, 0);
+  if (TREE_CODE (t) != VAR_DECL && TREE_CODE (t) != PARM_DECL)
+    return;
+  TREE_ADDRESSABLE (t) = 1;
+}
+
 
 
 /* Used to help initialize the builtin-types.def table.  When a type of

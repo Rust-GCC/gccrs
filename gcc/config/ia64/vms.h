@@ -45,7 +45,7 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Need .debug_line info generated from gcc and gas.  */
 #undef TARGET_DEFAULT
-#define TARGET_DEFAULT (MASK_DWARF2_ASM | MASK_GNU_AS)
+#define TARGET_DEFAULT (MASK_DWARF2_ASM | MASK_GNU_AS | MASK_FUSED_MADD)
 
 #define VMS_DEBUG_MAIN_POINTER "TRANSFER$BREAK$GO"
 
@@ -184,10 +184,8 @@ typedef struct crtl_name_spec
     } while (0)
 
 #undef SUBTARGET_OPTIMIZATION_OPTIONS
-#define SUBTARGET_OPTIMIZATION_OPTIONS                     \
-  do {                                                     \
-       flag_merge_constants = 0;                           \
-  } while (0)
+#define SUBTARGET_OPTIMIZATION_OPTIONS			\
+  { OPT_LEVELS_ALL, OPT_fmerge_constants, NULL, 0 }
 
 /* Define this to be nonzero if static stack checking is supported.  */
 #define STACK_CHECK_STATIC_BUILTIN 1

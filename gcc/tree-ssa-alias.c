@@ -166,16 +166,30 @@ ptr_deref_may_alias_decl_p (tree ptr, tree decl)
 {
   struct ptr_info_def *pi;
 
-  gcc_assert ((TREE_CODE (ptr) == SSA_NAME
-	       || TREE_CODE (ptr) == ADDR_EXPR
-	       || TREE_CODE (ptr) == INTEGER_CST)
-	      && (TREE_CODE (decl) == VAR_DECL
-		  || TREE_CODE (decl) == PARM_DECL
-		  || TREE_CODE (decl) == RESULT_DECL));
+  /* Conversions are irrelevant for points-to information and
+     data-dependence analysis can feed us those.  */
+  STRIP_NOPS (ptr);
 
-  /* Non-aliased variables can not be pointed to.  */
-  if (!may_be_aliased (decl))
+  /* Anything we do not explicilty handle aliases.  */
+  if ((TREE_CODE (ptr) != SSA_NAME
+       && TREE_CODE (ptr) != ADDR_EXPR
+       && TREE_CODE (ptr) != POINTER_PLUS_EXPR)
+      || !POINTER_TYPE_P (TREE_TYPE (ptr))
+      || (TREE_CODE (decl) != VAR_DECL
+	  && TREE_CODE (decl) != PARM_DECL
+	  && TREE_CODE (decl) != RESULT_DECL))
     return false;
+
+  /* Disregard pointer offsetting.  */
+  if (TREE_CODE (ptr) == POINTER_PLUS_EXPR)
+    {
+      do
+	{
+	  ptr = TREE_OPERAND (ptr, 0);
+	}
+      while (TREE_CODE (ptr) == POINTER_PLUS_EXPR);
+      return ptr_deref_may_alias_decl_p (ptr, decl);
+    }
 
   /* ADDR_EXPR pointers either just offset another pointer or directly
      specify the pointed-to set.  */
@@ -196,10 +210,9 @@ ptr_deref_may_alias_decl_p (tree ptr, tree decl)
 	return true;
     }
 
-  /* We can end up with dereferencing constant pointers.
-     Just bail out in this case.  */
-  if (TREE_CODE (ptr) == INTEGER_CST)
-    return true;
+  /* Non-aliased variables can not be pointed to.  */
+  if (!may_be_aliased (decl))
+    return false;
 
   /* If we do not have useful points-to information for this pointer
      we cannot disambiguate anything else.  */
@@ -222,17 +235,46 @@ ptr_deref_may_alias_decl_p (tree ptr, tree decl)
    The caller is responsible for applying TBAA to see if accesses
    through PTR1 and PTR2 may conflict at all.  */
 
-static bool
+bool
 ptr_derefs_may_alias_p (tree ptr1, tree ptr2)
 {
   struct ptr_info_def *pi1, *pi2;
 
-  gcc_assert ((TREE_CODE (ptr1) == SSA_NAME
-	       || TREE_CODE (ptr1) == ADDR_EXPR
-	       || TREE_CODE (ptr1) == INTEGER_CST)
-	      && (TREE_CODE (ptr2) == SSA_NAME
-		  || TREE_CODE (ptr2) == ADDR_EXPR
-		  || TREE_CODE (ptr2) == INTEGER_CST));
+  /* Conversions are irrelevant for points-to information and
+     data-dependence analysis can feed us those.  */
+  STRIP_NOPS (ptr1);
+  STRIP_NOPS (ptr2);
+
+  /* Anything we do not explicilty handle aliases.  */
+  if ((TREE_CODE (ptr1) != SSA_NAME
+       && TREE_CODE (ptr1) != ADDR_EXPR
+       && TREE_CODE (ptr1) != POINTER_PLUS_EXPR)
+      || (TREE_CODE (ptr2) != SSA_NAME
+	  && TREE_CODE (ptr2) != ADDR_EXPR
+	  && TREE_CODE (ptr2) != POINTER_PLUS_EXPR)
+      || !POINTER_TYPE_P (TREE_TYPE (ptr1))
+      || !POINTER_TYPE_P (TREE_TYPE (ptr2)))
+    return true;
+
+  /* Disregard pointer offsetting.  */
+  if (TREE_CODE (ptr1) == POINTER_PLUS_EXPR)
+    {
+      do
+	{
+	  ptr1 = TREE_OPERAND (ptr1, 0);
+	}
+      while (TREE_CODE (ptr1) == POINTER_PLUS_EXPR);
+      return ptr_derefs_may_alias_p (ptr1, ptr2);
+    }
+  if (TREE_CODE (ptr2) == POINTER_PLUS_EXPR)
+    {
+      do
+	{
+	  ptr2 = TREE_OPERAND (ptr2, 0);
+	}
+      while (TREE_CODE (ptr2) == POINTER_PLUS_EXPR);
+      return ptr_derefs_may_alias_p (ptr1, ptr2);
+    }
 
   /* ADDR_EXPR pointers either just offset another pointer or directly
      specify the pointed-to set.  */
@@ -262,12 +304,6 @@ ptr_derefs_may_alias_p (tree ptr1, tree ptr2)
       else
 	return true;
     }
-
-  /* We can end up with dereferencing constant pointers.
-     Just bail out in this case.  */
-  if (TREE_CODE (ptr1) == INTEGER_CST
-      || TREE_CODE (ptr2) == INTEGER_CST)
-    return true;
 
   /* We may end up with two empty points-to solutions for two same pointers.
      In this case we still want to say both pointers alias, so shortcut
@@ -938,6 +974,7 @@ refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
   gcc_checking_assert ((!ref1->ref
 			|| TREE_CODE (ref1->ref) == SSA_NAME
 			|| DECL_P (ref1->ref)
+			|| TREE_CODE (ref1->ref) == STRING_CST
 			|| handled_component_p (ref1->ref)
 			|| INDIRECT_REF_P (ref1->ref)
 			|| TREE_CODE (ref1->ref) == MEM_REF
@@ -945,6 +982,7 @@ refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
 		       && (!ref2->ref
 			   || TREE_CODE (ref2->ref) == SSA_NAME
 			   || DECL_P (ref2->ref)
+			   || TREE_CODE (ref2->ref) == STRING_CST
 			   || handled_component_p (ref2->ref)
 			   || INDIRECT_REF_P (ref2->ref)
 			   || TREE_CODE (ref2->ref) == MEM_REF
@@ -965,6 +1003,8 @@ refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
       || TREE_CODE (base2) == SSA_NAME
       || TREE_CODE (base1) == CONST_DECL
       || TREE_CODE (base2) == CONST_DECL
+      || TREE_CODE (base1) == STRING_CST
+      || TREE_CODE (base2) == STRING_CST
       || is_gimple_min_invariant (base1)
       || is_gimple_min_invariant (base2))
     return false;
@@ -1520,6 +1560,45 @@ stmt_may_clobber_ref_p (gimple stmt, tree ref)
   ao_ref r;
   ao_ref_init (&r, ref);
   return stmt_may_clobber_ref_p_1 (stmt, &r);
+}
+
+/* If STMT kills the memory reference REF return true, otherwise
+   return false.  */
+
+static bool
+stmt_kills_ref_p_1 (gimple stmt, ao_ref *ref)
+{
+  if (gimple_has_lhs (stmt)
+      && TREE_CODE (gimple_get_lhs (stmt)) != SSA_NAME)
+    {
+      tree base, lhs = gimple_get_lhs (stmt);
+      HOST_WIDE_INT size, offset, max_size;
+      ao_ref_base (ref);
+      base = get_ref_base_and_extent (lhs, &offset, &size, &max_size);
+      /* We can get MEM[symbol: sZ, index: D.8862_1] here,
+	 so base == ref->base does not always hold.  */
+      if (base == ref->base)
+	{
+	  /* For a must-alias check we need to be able to constrain
+	     the accesses properly.  */
+	  if (size != -1 && size == max_size
+	      && ref->max_size != -1)
+	    {
+	      if (offset <= ref->offset
+		  && offset + size >= ref->offset + ref->max_size)
+		return true;
+	    }
+	}
+    }
+  return false;
+}
+
+bool
+stmt_kills_ref_p (gimple stmt, tree ref)
+{
+  ao_ref r;
+  ao_ref_init (&r, ref);
+  return stmt_kills_ref_p_1 (stmt, &r);
 }
 
 

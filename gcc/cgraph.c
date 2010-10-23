@@ -594,10 +594,9 @@ cgraph_add_thunk (tree alias, tree decl, bool this_adjusting,
   
   node = cgraph_same_body_alias_1 (alias, decl);
   gcc_assert (node);
-#ifdef ENABLE_CHECKING
-  gcc_assert (!virtual_offset
-  	      || tree_int_cst_equal (virtual_offset, size_int (virtual_value)));
-#endif
+  gcc_checking_assert (!virtual_offset
+		       || tree_int_cst_equal (virtual_offset,
+					      size_int (virtual_value)));
   node->thunk.fixed_offset = fixed_offset;
   node->thunk.this_adjusting = this_adjusting;
   node->thunk.virtual_value = virtual_value;
@@ -984,11 +983,9 @@ cgraph_create_edge_1 (struct cgraph_node *caller, struct cgraph_node *callee,
      have not been loaded yet.  */
   if (call_stmt)
     {
-#ifdef ENABLE_CHECKING
-      /* This is rather pricely check possibly trigerring construction of
-	 call stmt hashtable.  */
-      gcc_assert (!cgraph_edge (caller, call_stmt));
-#endif
+      /* This is a rather expensive check possibly trigerring
+	 construction of call stmt hashtable.  */
+      gcc_checking_assert (!cgraph_edge (caller, call_stmt));
 
       gcc_assert (is_gimple_call (call_stmt));
     }
@@ -1241,9 +1238,18 @@ cgraph_update_edges_for_call_stmt_node (struct cgraph_node *node,
 	{
 	  /* See if the edge is already there and has the correct callee.  It
 	     might be so because of indirect inlining has already updated
-	     it.  */
-	  if (new_call && e->callee && e->callee->decl == new_call)
-	    return;
+	     it.  We also might've cloned and redirected the edge.  */
+	  if (new_call && e->callee)
+	    {
+	      struct cgraph_node *callee = e->callee;
+	      while (callee)
+		{
+		  if (callee->decl == new_call
+		      || callee->former_clone_of == new_call)
+		    return;
+		  callee = callee->clone_of;
+		}
+	    }
 
 	  /* Otherwise remove edge and create new one; we can't simply redirect
 	     since function has changed, so inline plan and other information
@@ -1807,6 +1813,10 @@ dump_cgraph_node (FILE *f, struct cgraph_node *node)
     fprintf (f, " (inline copy in %s/%i)",
 	     cgraph_node_name (node->global.inlined_to),
 	     node->global.inlined_to->uid);
+  if (node->same_comdat_group)
+    fprintf (f, " (same comdat group as %s/%i)",
+	     cgraph_node_name (node->same_comdat_group),
+	     node->same_comdat_group->uid);
   if (node->clone_of)
     fprintf (f, " (clone of %s/%i)",
 	     cgraph_node_name (node->clone_of),
@@ -1867,6 +1877,10 @@ dump_cgraph_node (FILE *f, struct cgraph_node *node)
     fprintf (f, " redefined_extern_inline");
   if (TREE_ASM_WRITTEN (node->decl))
     fprintf (f, " asm_written");
+  if (node->only_called_at_startup)
+    fprintf (f, " only_called_at_startup");
+  if (node->only_called_at_exit)
+    fprintf (f, " only_called_at_exit");
 
   fprintf (f, "\n  called by: ");
   for (edge = node->callers; edge; edge = edge->next_caller)
@@ -2241,10 +2255,8 @@ cgraph_create_virtual_clone (struct cgraph_node *old_node,
   size_t i;
   struct ipa_replace_map *map;
 
-#ifdef ENABLE_CHECKING
   if (!flag_wpa)
-    gcc_assert  (tree_versionable_function_p (old_decl));
-#endif
+    gcc_checking_assert  (tree_versionable_function_p (old_decl));
 
   /* Make a new FUNCTION_DECL tree node */
   if (!args_to_skip)
@@ -2618,20 +2630,32 @@ bool
 cgraph_propagate_frequency (struct cgraph_node *node)
 {
   bool maybe_unlikely_executed = true, maybe_executed_once = true;
+  bool only_called_at_startup = true;
+  bool only_called_at_exit = true;
+  bool changed = false;
   struct cgraph_edge *edge;
+
   if (!node->local.local)
     return false;
   gcc_assert (node->analyzed);
-  if (node->frequency == NODE_FREQUENCY_HOT)
-    return false;
-  if (node->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED)
-    return false;
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "Processing frequency %s\n", cgraph_node_name (node));
+
   for (edge = node->callers;
-       edge && (maybe_unlikely_executed || maybe_executed_once);
+       edge && (maybe_unlikely_executed || maybe_executed_once
+	        || only_called_at_startup || only_called_at_exit);
        edge = edge->next_caller)
     {
+      if (edge->caller != node)
+	{
+          only_called_at_startup &= edge->caller->only_called_at_startup;
+	  /* It makes snese to put main() together with the static constructors.
+	     It will be executed for sure, but rest of functions called from
+	     main are definitly not at startup only.  */
+	  if (MAIN_NAME_P (DECL_NAME (edge->caller->decl)))
+	    only_called_at_startup = 0;
+          only_called_at_exit &= edge->caller->only_called_at_exit;
+	}
       if (!edge->frequency)
 	continue;
       switch (edge->caller->frequency)
@@ -2640,7 +2664,8 @@ cgraph_propagate_frequency (struct cgraph_node *node)
 	  break;
 	case NODE_FREQUENCY_EXECUTED_ONCE:
 	  if (dump_file && (dump_flags & TDF_DETAILS))
-	    fprintf (dump_file, "  Called by %s that is executed once\n", cgraph_node_name (node));
+	    fprintf (dump_file, "  Called by %s that is executed once\n",
+		     cgraph_node_name (node));
 	  maybe_unlikely_executed = false;
 	  if (edge->loop_nest)
 	    {
@@ -2652,27 +2677,52 @@ cgraph_propagate_frequency (struct cgraph_node *node)
 	case NODE_FREQUENCY_HOT:
 	case NODE_FREQUENCY_NORMAL:
 	  if (dump_file && (dump_flags & TDF_DETAILS))
-	    fprintf (dump_file, "  Called by %s that is normal or hot\n", cgraph_node_name (node));
+	    fprintf (dump_file, "  Called by %s that is normal or hot\n",
+		     cgraph_node_name (node));
 	  maybe_unlikely_executed = false;
 	  maybe_executed_once = false;
 	  break;
 	}
     }
-   if (maybe_unlikely_executed)
-     {
-       node->frequency = NODE_FREQUENCY_UNLIKELY_EXECUTED;
+  if ((only_called_at_startup && !only_called_at_exit)
+      && !node->only_called_at_startup)
+    {
+       node->only_called_at_startup = true;
        if (dump_file)
-         fprintf (dump_file, "Node %s promoted to unlikely executed.\n", cgraph_node_name (node));
-       return true;
-     }
-   if (maybe_executed_once && node->frequency != NODE_FREQUENCY_EXECUTED_ONCE)
-     {
-       node->frequency = NODE_FREQUENCY_EXECUTED_ONCE;
+         fprintf (dump_file, "Node %s promoted to only called at startup.\n",
+		  cgraph_node_name (node));
+       changed = true;
+    }
+  if ((only_called_at_exit && !only_called_at_startup)
+      && !node->only_called_at_exit)
+    {
+       node->only_called_at_exit = true;
        if (dump_file)
-         fprintf (dump_file, "Node %s promoted to executed once.\n", cgraph_node_name (node));
-       return true;
-     }
-   return false;
+         fprintf (dump_file, "Node %s promoted to only called at exit.\n",
+		  cgraph_node_name (node));
+       changed = true;
+    }
+  /* These come either from profile or user hints; never update them.  */
+  if (node->frequency == NODE_FREQUENCY_HOT
+      || node->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED)
+    return changed;
+  if (maybe_unlikely_executed)
+    {
+      node->frequency = NODE_FREQUENCY_UNLIKELY_EXECUTED;
+      if (dump_file)
+	fprintf (dump_file, "Node %s promoted to unlikely executed.\n",
+		 cgraph_node_name (node));
+      changed = true;
+    }
+  if (maybe_executed_once && node->frequency != NODE_FREQUENCY_EXECUTED_ONCE)
+    {
+      node->frequency = NODE_FREQUENCY_EXECUTED_ONCE;
+      if (dump_file)
+	fprintf (dump_file, "Node %s promoted to executed once.\n",
+		 cgraph_node_name (node));
+      changed = true;
+    }
+  return changed;
 }
 
 /* Return true when NODE can not return or throw and thus

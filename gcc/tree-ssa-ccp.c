@@ -1523,23 +1523,30 @@ fold_nonarray_ctor_reference (tree type, tree ctor,
       double_int bits_per_unit_cst = uhwi_to_double_int (BITS_PER_UNIT);
       double_int bitoffset_end;
 
-      /* Variable sized objects in static constructors makes no sense.  */
+      /* Variable sized objects in static constructors makes no sense,
+	 but field_size can be NULL for flexible array members.  */
       gcc_assert (TREE_CODE (field_offset) == INTEGER_CST
 		  && TREE_CODE (byte_offset) == INTEGER_CST
-		  && TREE_CODE (field_size) == INTEGER_CST);
+		  && (field_size != NULL_TREE
+		      ? TREE_CODE (field_size) == INTEGER_CST
+		      : TREE_CODE (TREE_TYPE (cfield)) == ARRAY_TYPE));
 
       /* Compute bit offset of the field.  */
       bitoffset = double_int_add (tree_to_double_int (field_offset),
 				  double_int_mul (byte_offset_cst,
 						  bits_per_unit_cst));
       /* Compute bit offset where the field ends.  */
-      bitoffset_end = double_int_add (bitoffset,
-				      tree_to_double_int (field_size));
+      if (field_size != NULL_TREE)
+	bitoffset_end = double_int_add (bitoffset,
+					tree_to_double_int (field_size));
+      else
+	bitoffset_end = double_int_zero;
 
       /* Is OFFSET in the range (BITOFFSET, BITOFFSET_END)? */
       if (double_int_cmp (uhwi_to_double_int (offset), bitoffset, 0) >= 0
-	  && double_int_cmp (uhwi_to_double_int (offset),
-			     bitoffset_end, 0) < 0)
+	  && (field_size == NULL_TREE
+	      || double_int_cmp (uhwi_to_double_int (offset),
+				 bitoffset_end, 0) < 0))
 	{
 	  double_int access_end = double_int_add (uhwi_to_double_int (offset),
 						  uhwi_to_double_int (size));
@@ -2267,6 +2274,7 @@ ccp_fold_stmt (gimple_stmt_iterator *gsi)
 	tree lhs = gimple_call_lhs (stmt);
 	tree val;
 	tree argt;
+	tree callee;
 	bool changed = false;
 	unsigned i;
 
@@ -2306,16 +2314,24 @@ ccp_fold_stmt (gimple_stmt_iterator *gsi)
 		changed = true;
 	      }
 	  }
-	if (TREE_CODE (gimple_call_fn (stmt)) == OBJ_TYPE_REF)
+
+	callee = gimple_call_fn (stmt);
+	if (TREE_CODE (callee) == OBJ_TYPE_REF
+	    && TREE_CODE (OBJ_TYPE_REF_EXPR (callee)) == SSA_NAME)
 	  {
-	    tree expr = OBJ_TYPE_REF_EXPR (gimple_call_fn (stmt));
-	    expr = valueize_op (expr);
-	    if (TREE_CODE (expr) == ADDR_EXPR
-	        && TREE_CODE (TREE_OPERAND (expr, 0)) == FUNCTION_DECL)
-	     {
-	       gimple_call_set_fn (stmt, expr);
-	       changed = true;
-	     }
+	    tree expr = OBJ_TYPE_REF_EXPR (callee);
+	    OBJ_TYPE_REF_EXPR (callee) = valueize_op (expr);
+	    if (TREE_CODE (OBJ_TYPE_REF_EXPR (callee)) == ADDR_EXPR)
+	      {
+		tree t;
+		t = gimple_fold_obj_type_ref (callee, NULL_TREE);
+		if (t)
+		  {
+		    gimple_call_set_fn (stmt, t);
+		    changed = true;
+		  }
+	      }
+	    OBJ_TYPE_REF_EXPR (callee) = expr;
 	  }
 
 	return changed;

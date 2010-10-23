@@ -1,3 +1,243 @@
+2010-10-22  Jason Merrill  <jason@redhat.com>
+
+	PR c++/46129
+	* pt.c (instantiate_class_template): Don't instantiate default
+	arguments.
+
+	PR c++/46103
+	* init.c (build_vec_init): Handle memberwise move.
+
+2010-10-21  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/46117
+	* call.c (add_function_candidate): Don't use TREE_VALUE on null
+	parmnode.
+
+2010-10-20  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* parser.c (cp_parser_objc_method_type): Mark inline.  Return a
+	bool instead of calling objc_set_method_type.
+	(cp_parser_objc_method_signature): Updated calls to
+	cp_parser_objc_method_type and to objc_build_method_signature.
+	(cp_parser_objc_method_prototype_list): Updated calls to
+	objc_add_method_declaration.  Use token->type to determine if it
+	is a class method or not.
+	(cp_parser_objc_method_definition_list): Same change.
+
+2010-10-20  Rodrigo Rivas Costa <rodrigorivascosta@gmail.com>
+
+	PR c++/46056
+	* parser.c (cp_convert_range_for): Call cp_finish_decl
+	instead of finish_expr_stmt.
+
+2010-10-20  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* cp-lang.c (finish_file): Removed.
+	* decl2.c (cp_write_global_declarations): Call
+	objc_write_global_declarations when compiling Objective-C++.
+
+2010-10-19  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/46046
+	* pt.c (add_to_template_args): Check extra_args for error_mark_node.
+	(coerce_template_parms): Likewise for args.
+
+2010-10-18  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Implemented parsing @synthesize and @dynamic for Objective-C++.
+	* parser.c (cp_parser_objc_method_definition_list): Recognize
+	RID_AT_SYNTHESIZE and RID_AT_DYNAMIC.
+	(cp_parser_objc_at_dynamic_declaration): New.
+	(cp_parser_objc_at_synthesize_declaration): New.
+
+2010-10-18  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* parser.c (cp_parser_objc_identifier_list): Check the return
+	value of cp_parser_identifier and react if it is error_mark_node.
+
+2010-10-18  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from apple/trunk branch on FSF servers.
+
+	2005-03-01 Fariborz Jahanian <fjahanian@apple.com>
+
+        Radar 4451818
+	* call.c (standard_conversion, implicit_conversion): Ignore
+	'volatile' attribute of artificially volatized type in objc when
+	evaluating various conversion weights.
+
+	2005-11-08  Fariborz Jahanian <fjahanian@apple.com>
+
+	Radar 4330422
+	* typeck.c (comp_ptr_ttypes_real): Remove the hack. un-volatize the
+	artiificially 'volatized' type before doing pointer comparison.
+
+2010-10-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/46015
+	* semantics.c (finish_goto_stmt): Call mark_rvalue_use on computed
+	goto destination.
+
+2010-10-17  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from apple/trunk branch on FSF servers.
+
+	2006-04-19 Fariborz Jahanian <fjahanian@apple.com>
+
+        Radar 4516785
+	* parser.c (cp_parser_simple_type_specifier): Don't lookup for
+	objc object types if type is scope qualified.
+
+2010-10-17  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from apple/trunk branch on FSF servers.
+
+	2006-03-27 Fariborz Jahanian <fjahanian@apple.com>
+
+        Radar 4133425
+	* lex.c (unqualified_name_lookup_error): Issue diagnostic
+	for private 'ivar' access.
+
+2010-10-17  Iain Sandoe  <iains@gcc.gnu.org>
+
+	* parser.c (cp_parser_objc_visibility_spec): Update to use visibility
+	enum, and handle @package.
+
+2010-10-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/45983
+	* tree.c (cp_build_qualified_type_real): Don't reuse a variant
+	with a different typedef variant of the element type.
+
+2010-10-14  Iain Sandoe  <iains@gcc.gnu.org>
+
+	merge from FSF apple 'trunk' branch.
+	2006 Fariborz Jahanian <fjahanian@apple.com>
+
+	Radars 4436866, 4505126, 4506903, 4517826
+	* typeck.c (finish_class_member_access_expr): Handle CLASS.property
+	syntax.
+	(cp_build_modify_expr): Likewise.
+	* parser.c (cp_parser_objc_method_prototype_list): Handle @property.
+	(cp_parser_objc_method_definition_list): Likewise.
+	(cp_parser_objc_property_decl): New.
+	(cp_parser_objc_property_attrlist): New.
+	(cp_parser_objc_at_property): New.
+
+2010-10-14  Richard Guenther  <rguenther@suse.de>
+
+	PR lto/44561
+	* cp-tree.h (NULLPTR_TYPE_P): Adjust.
+	* decl.c (cxx_init_decl_processing): Build a NULLPTR_TYPE node,
+	use build_int_cst.
+	* error.c (dump_type): Handle NULLPTR_TYPE.
+	(dump_type_prefix): Likewise.
+	(dump_type_suffix): Likewise.
+	* mangle.c (write_type): Likewise.
+	* name-lookup.c (arg_assoc_type): Likewise.
+	* rtti.c (typeinfo_in_lib_p): Likewise.
+	* pt.c (tsubst): Likewise.
+
+2010-10-13  Jason Merrill  <jason@redhat.com>
+
+	PR c++/45984
+	* class.c (fixup_attribute_variants): New fn.
+	* cp-tree.h: Declare it.
+	* pt.c (instantiate_class_template): Call it.
+	* semantics.c (begin_class_definition): Call it.
+
+2010-10-13  Richard Henderson  <rth@redhat.com>
+
+	* cp-lang.c (cp_eh_personality): Update call to
+	build_personality_function.
+	* except.c (choose_personality_routine): Update function comment.
+
+2010-10-13  Richard Guenther  <rguenther@suse.de>
+
+	* tree.c (cp_free_lang_data): Free DECL_NAMESPACE_USERS and
+	clear DECL_CHAIN of NAMESPACE_DECLs.
+
+2010-10-11  Martin Jambor  <mjambor@suse.cz>
+
+	PR c++/45562
+	* cp-tree.h (current_class_ref): Check that cp_function_chain is
+	non-NULL.
+	* call.c (build_cxx_call): Likewise.
+
+2010-10-10  Jason Merrill  <jason@redhat.com>
+
+	* pt.c (tsubst_default_argument): Handle DEFAULT_ARG.
+	(tsubst_default_arguments): Only do this once for cloned fns.
+	(tsubst): Use typedef_variant_p.  Handle LANG_TYPE.  Don't
+	handle expressions.
+	(tsubst_expr): Avoid calling tsubst_expr for non-expressions.
+	(tsubst_copy_and_build): Likewise.
+	(tsubst_initializer_list): Likewise.
+	(tsubst_copy): Change default to gcc_unreachable.  Handle
+	OVERLOAD and PTRMEM_CST.
+
+2010-10-10  Jason Merrill  <jason@redhat.com>
+
+	PR lto/45959
+	PR lto/45960
+	* pt.c (tsubst_copy) [INTEGER_CST]: Instantiate the type.
+
+2010-10-07  Andi Kleen  <ak@linux.intel.com>
+
+	* Make-lang.in (c++_OBJS): Remove dummy-checksum.o.
+	(cc1plus-dummy): Remove.
+	(cc1plus-checksum): Change to run checksum over object files
+        and options only.
+
+2010-10-08  Joseph Myers  <joseph@codesourcery.com>
+
+	* cp-objcp-common.h (LANG_HOOKS_INIT_OPTIONS_STRUCT): Define.
+
+2010-10-07  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* cp-tree.def: Changed type of AT_ENCODE_EXPR from tcc_unary to
+	tcc_expression.
+	* cxx-pretty-print.c (pp_cxx_unary_expression): Added case for
+	AT_ENCODE_EXPR.
+	* error.c (dump_expr): Added case for AT_ENCODE_EXPR.
+	* pt.c (tsubst_copy): Added case for AT_ENCODE_EXPR.
+	(value_dependent_expression_p): Added case for AT_ENCODE_EXPR.
+	(type_dependent_expression_p): Added case for AT_ENCODE_EXPR.
+	* parser.c (cp_parser_objc_encode_expression): Updated comment.
+
+2010-10-07  Nicola Pero  <nicola@nicola.brainstorm.co.uk>
+
+	Merge from apple/trunk branch on FSF servers.
+
+	2006-04-26  Fariborz Jahanian <fjahanian@apple.com>
+
+        Radar 4508851
+	* parser.c (cp_parser_objc_interstitial_code): Recognize
+	and parse RID_NAMESPACE keyword.
+
+2010-10-07  Iain Sandoe  <iains@gcc.gnu.org>
+
+	* parser.c (cp_parser_objc_method_tail_params_opt): Peek new token after
+	finding ellipsis, before checking for attributes.
+
+2010-10-06  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Merge from apple/trunk branch on FSF servers.
+	* cp-tree.def: Added AT_ENCODE_EXPR here instead of to the no
+	longer existing gcc/c-common.def.
+
+	2005-12-14  Fariborz Jahanian <fjahanian@apple.com>
+
+	Radar 4278774
+	* pt.c (tsubst_copy_and_build): Instantiate @endcode(T).
+	* parser.c (cp_parser_objc_encode_expression): Build a templatized
+	parse tree for @encode(T).
+
+	2005-12-14  Fariborz Jahanian <fjahanian@apple.com>
+
+	Radar 4278774
+	* c-common.def: Add new expression code AT_ENCODE_EXPR.
+
 2010-10-06  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR c++/45908
@@ -33,9 +273,9 @@
 	(cp_parser_objc_method_definition_list): Same change.
 
 2010-10-05  Nicola Pero  <nicola.pero@meta-innovation.com>
-	
+
 	Merge from apple/trunk branch on FSF servers:
-	
+
 	2005-10-17  Fariborz Jahanian <fjahanian@apple.com>
 
 	Radar 4290840
@@ -61,14 +301,14 @@
 	Radar 4093475
 	* parser.c (cp_parser_objc_interstitial_code): Catch stray
 	'{' and '}' tokens and issue appropriate errors.
-	
+
 	2005-08-02  Ziemowit Laski  <zlaski@apple.com>
 
 	Radar 4185810
 	(cp_parser_statement_seq_opt): In addition to '}' and
 	end-of-file, a statement sequence may also be terminated
 	by a stray '@end'.
-	
+
 2010-10-05  Joseph Myers  <joseph@codesourcery.com>
 
 	* cp-tree.h (cxx_print_error_function,
@@ -102,7 +342,7 @@
 	Radar 4386773
 	* cp/parser.c (cp_parser_objc_interstitial_code): For
 	@optional/@required set the optional/required flag.
-	
+
 2010-09-30  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	* parser.c (cp_lexer_get_preprocessor_token): Tidied up comments
@@ -145,11 +385,11 @@
 	(cp_build_addr_expr_1): Likewise.
 
 2010-09-28  Iain Sandoe  <iains@gcc.gnu.org>
-	
+
 	Partially merged from apple/trunk branch on FSF servers:
 	2006-04-26 Fariborz Jahanian <fjahanian@apple.com>
 	Radar 3803157 (method attributes)
-	
+
 	* parser.c (cp_parser_objc_method_keyword_params): Handle attributes.
 	(cp_parser_objc_method_tail_params_opt): Likewise.
 	(cp_parser_objc_method_signature): Likewise.
@@ -196,7 +436,7 @@
 2010-09-27  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	Merge from apple/trunk branch on FSF servers:
-	
+
 	2005-12-15  Fariborz Jahanian <fjahanian@apple.com>
 
 	Radar 4229905
@@ -208,7 +448,7 @@
 	Radar 4175534
 	* call.c (standard_conversion): Do not issue warnings when
 	comparing ObjC pointer types.
-	
+
 	2005-06-22  Ziemowit Laski  <zlaski@apple.com>
 
 	Radar 4154928
@@ -216,11 +456,12 @@
 	between any two ObjC pointer types.
 	* typeck.c (composite_pointer_type): Determine common type
 	for two ObjC pointer types.
-	
+
 2010-09-24  Jan Hubicka  <jh@suse.cz>
 
 	* decl.c (finish_function): Use decl_replaceable_p
-	* method.c (make_alias_for_thunk): Update call of cgraph_same_body_alias.
+	* method.c (make_alias_for_thunk): Update call of
+	cgraph_same_body_alias.
 
 2010-09-24  Jason Merrill  <jason@redhat.com>
 

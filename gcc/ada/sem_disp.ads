@@ -76,8 +76,9 @@ package Sem_Disp is
    --  and Empty if it is not dynamically tagged.
 
    function Find_Dispatching_Type (Subp : Entity_Id) return Entity_Id;
-   --  Check whether a subprogram is dispatching, and find the tagged
-   --  type of the controlling argument or arguments.
+   --  Check whether a subprogram is dispatching, and find the tagged type of
+   --  the controlling argument or arguments. Returns Empty if Subp is not a
+   --  dispatching operation.
 
    function Find_Primitive_Covering_Interface
      (Tagged_Type : Entity_Id;
@@ -92,6 +93,17 @@ package Sem_Disp is
    --  overriden when the primitive is covered (that is, return the entity
    --  whose alias attribute references the interface primitive). If none of
    --  these entities is found then return Empty.
+
+   type Subprogram_List is array (Nat range <>) of Entity_Id;
+   --  Type returned by Inherited_Subprograms function
+
+   function Inherited_Subprograms (S : Entity_Id) return Subprogram_List;
+   --  Given the spec of a subprogram, this function gathers any inherited
+   --  subprograms from direct inheritance or via interfaces. The list is
+   --  a list of entity id's of the specs of inherited subprograms. Returns
+   --  a null array if passed an Empty spec id. Note that the returned array
+   --  only includes subprograms and generic subprograms (and excludes any
+   --  other inherited entities, in particular enumeration literals).
 
    function Is_Dynamically_Tagged (N : Node_Id) return Boolean;
    --  Used to determine whether a call is dispatching, i.e. if is an

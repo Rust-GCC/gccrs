@@ -98,8 +98,6 @@ do { \
 		  ? "__LITTLE_ENDIAN__" : "__BIG_ENDIAN__"); \
 } while (0)
 
-#define CAN_DEBUG_WITHOUT_FP 
-
 /* Value should be nonzero if functions must have frame pointers.
    Zero means the frame pointer need not be set up (and parms may be accessed
    via the stack pointer) in functions that seem suitable.  */
@@ -518,14 +516,6 @@ extern enum sh_divide_strategy_e sh_div_strategy;
    numbered.  */
 #define WORDS_BIG_ENDIAN (TARGET_LITTLE_ENDIAN == 0)
 
-/* Define this to set the endianness to use in libgcc2.c, which can
-   not depend on target_flags.  */
-#if defined(__LITTLE_ENDIAN__)
-#define LIBGCC2_WORDS_BIG_ENDIAN 0
-#else
-#define LIBGCC2_WORDS_BIG_ENDIAN 1
-#endif
-
 #define MAX_BITS_PER_WORD 64
 
 /* Width in bits of an `int'.  We want just 32-bits, even if words are
@@ -623,7 +613,7 @@ extern enum sh_divide_strategy_e sh_div_strategy;
   barrier_align (LABEL_AFTER_BARRIER)
 
 #define LOOP_ALIGN(A_LABEL) \
-  ((! optimize || TARGET_HARD_SH4 || TARGET_SMALLCODE) \
+  ((! optimize || TARGET_HARD_SH4 || optimize_size) \
    ? 0 : sh_loop_align (A_LABEL))
 
 #define LABEL_ALIGN(A_LABEL) \
@@ -1781,7 +1771,7 @@ struct sh_args {
 
 /* Alignment required for a trampoline in bits .  */
 #define TRAMPOLINE_ALIGNMENT \
-  ((CACHE_LOG < 3 || (TARGET_SMALLCODE && ! TARGET_HARVARD)) ? 32 \
+  ((CACHE_LOG < 3 || (optimize_size && ! TARGET_HARVARD)) ? 32 \
    : TARGET_SHMEDIA ? 256 : 64)
 
 /* A C expression whose value is RTL representing the value of the return
@@ -1813,11 +1803,11 @@ struct sh_args {
 
 #define MOVE_BY_PIECES_P(SIZE, ALIGN) \
   (move_by_pieces_ninsns (SIZE, ALIGN, MOVE_MAX_PIECES + 1) \
-   < (TARGET_SMALLCODE ? 2 : ((ALIGN >= 32) ? 16 : 2)))
+   < (optimize_size ? 2 : ((ALIGN >= 32) ? 16 : 2)))
 
 #define STORE_BY_PIECES_P(SIZE, ALIGN) \
   (move_by_pieces_ninsns (SIZE, ALIGN, STORE_MAX_PIECES + 1) \
-   < (TARGET_SMALLCODE ? 2 : ((ALIGN >= 32) ? 16 : 2)))
+   < (optimize_size ? 2 : ((ALIGN >= 32) ? 16 : 2)))
 
 #define SET_BY_PIECES_P(SIZE, ALIGN) STORE_BY_PIECES_P(SIZE, ALIGN)
 
@@ -2027,12 +2017,6 @@ struct sh_args {
 /* Since the SH2e has only `float' support, it is desirable to make all
    floating point types equivalent to `float'.  */
 #define DOUBLE_TYPE_SIZE ((TARGET_SH2E && ! TARGET_SH4 && ! TARGET_SH2A_DOUBLE) ? 32 : 64)
-
-#if defined(__SH2E__) || defined(__SH3E__) || defined( __SH2A_SINGLE_ONLY__) || defined( __SH4_SINGLE_ONLY__)
-#define LIBGCC2_DOUBLE_TYPE_SIZE 32
-#else
-#define LIBGCC2_DOUBLE_TYPE_SIZE 64
-#endif
 
 /* 'char' is signed by default.  */
 #define DEFAULT_SIGNED_CHAR  1
@@ -2603,7 +2587,7 @@ extern int current_function_interrupt;
 #define ACCUMULATE_OUTGOING_ARGS TARGET_ACCUMULATE_OUTGOING_ARGS
 
 #define SH_DYNAMIC_SHIFT_COST \
-  (TARGET_HARD_SH4 ? 1 : TARGET_SH3 ? (TARGET_SMALLCODE ? 1 : 2) : 20)
+  (TARGET_HARD_SH4 ? 1 : TARGET_SH3 ? (optimize_size ? 1 : 2) : 20)
 
 
 #define NUM_MODES_FOR_MODE_SWITCHING { FP_MODE_NONE }

@@ -67,24 +67,47 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 extern void transfer_integer (st_parameter_dt *, void *, int);
 export_proto(transfer_integer);
 
+extern void transfer_integer_write (st_parameter_dt *, void *, int);
+export_proto(transfer_integer_write);
+
 extern void transfer_real (st_parameter_dt *, void *, int);
 export_proto(transfer_real);
+
+extern void transfer_real_write (st_parameter_dt *, void *, int);
+export_proto(transfer_real_write);
 
 extern void transfer_logical (st_parameter_dt *, void *, int);
 export_proto(transfer_logical);
 
+extern void transfer_logical_write (st_parameter_dt *, void *, int);
+export_proto(transfer_logical_write);
+
 extern void transfer_character (st_parameter_dt *, void *, int);
 export_proto(transfer_character);
+
+extern void transfer_character_write (st_parameter_dt *, void *, int);
+export_proto(transfer_character_write);
 
 extern void transfer_character_wide (st_parameter_dt *, void *, int, int);
 export_proto(transfer_character_wide);
 
+extern void transfer_character_wide_write (st_parameter_dt *,
+					   void *, int, int);
+export_proto(transfer_character_wide_write);
+
 extern void transfer_complex (st_parameter_dt *, void *, int);
 export_proto(transfer_complex);
+
+extern void transfer_complex_write (st_parameter_dt *, void *, int);
+export_proto(transfer_complex_write);
 
 extern void transfer_array (st_parameter_dt *, gfc_array_char *, int,
 			    gfc_charlen_type);
 export_proto(transfer_array);
+
+extern void transfer_array_write (st_parameter_dt *, gfc_array_char *, int,
+			    gfc_charlen_type);
+export_proto(transfer_array_write);
 
 static void us_read (st_parameter_dt *, int);
 static void us_write (st_parameter_dt *, int);
@@ -1847,6 +1870,11 @@ transfer_integer (st_parameter_dt *dtp, void *p, int kind)
   dtp->u.p.transfer (dtp, BT_INTEGER, p, kind, kind, 1);
 }
 
+void
+transfer_integer_write (st_parameter_dt *dtp, void *p, int kind)
+{
+  transfer_integer (dtp, p, kind);
+}
 
 void
 transfer_real (st_parameter_dt *dtp, void *p, int kind)
@@ -1858,6 +1886,11 @@ transfer_real (st_parameter_dt *dtp, void *p, int kind)
   dtp->u.p.transfer (dtp, BT_REAL, p, kind, size, 1);
 }
 
+void
+transfer_real_write (st_parameter_dt *dtp, void *p, int kind)
+{
+  transfer_real (dtp, p, kind);
+}
 
 void
 transfer_logical (st_parameter_dt *dtp, void *p, int kind)
@@ -1867,6 +1900,11 @@ transfer_logical (st_parameter_dt *dtp, void *p, int kind)
   dtp->u.p.transfer (dtp, BT_LOGICAL, p, kind, kind, 1);
 }
 
+void
+transfer_logical_write (st_parameter_dt *dtp, void *p, int kind)
+{
+  transfer_logical (dtp, p, kind);
+}
 
 void
 transfer_character (st_parameter_dt *dtp, void *p, int len)
@@ -1887,6 +1925,12 @@ transfer_character (st_parameter_dt *dtp, void *p, int len)
 }
 
 void
+transfer_character_write (st_parameter_dt *dtp, void *p, int len)
+{
+  transfer_character (dtp, p, len);
+}
+
+void
 transfer_character_wide (st_parameter_dt *dtp, void *p, int len, int kind)
 {
   static char *empty_string[0];
@@ -1904,6 +1948,11 @@ transfer_character_wide (st_parameter_dt *dtp, void *p, int len, int kind)
   dtp->u.p.transfer (dtp, BT_CHARACTER, p, kind, len, 1);
 }
 
+void
+transfer_character_wide_write (st_parameter_dt *dtp, void *p, int len, int kind)
+{
+  transfer_character_wide (dtp, p, len, kind);
+}
 
 void
 transfer_complex (st_parameter_dt *dtp, void *p, int kind)
@@ -1915,6 +1964,11 @@ transfer_complex (st_parameter_dt *dtp, void *p, int kind)
   dtp->u.p.transfer (dtp, BT_COMPLEX, p, kind, size, 1);
 }
 
+void
+transfer_complex_write (st_parameter_dt *dtp, void *p, int kind)
+{
+  transfer_complex (dtp, p, kind);
+}
 
 void
 transfer_array (st_parameter_dt *dtp, gfc_array_char *desc, int kind,
@@ -1923,7 +1977,7 @@ transfer_array (st_parameter_dt *dtp, gfc_array_char *desc, int kind,
   index_type count[GFC_MAX_DIMENSIONS];
   index_type extent[GFC_MAX_DIMENSIONS];
   index_type stride[GFC_MAX_DIMENSIONS];
-  index_type stride0, rank, size, type, n;
+  index_type stride0, rank, size, n;
   size_t tsize;
   char *data;
   bt iotype;
@@ -1931,39 +1985,8 @@ transfer_array (st_parameter_dt *dtp, gfc_array_char *desc, int kind,
   if ((dtp->common.flags & IOPARM_LIBRETURN_MASK) != IOPARM_LIBRETURN_OK)
     return;
 
-  type = GFC_DESCRIPTOR_TYPE (desc);
-  size = GFC_DESCRIPTOR_SIZE (desc);
-
-  /* FIXME: What a kludge: Array descriptors and the IO library use
-     different enums for types.  */
-  switch (type)
-    {
-    case GFC_DTYPE_UNKNOWN:
-      iotype = BT_NULL;  /* Is this correct?  */
-      break;
-    case GFC_DTYPE_INTEGER:
-      iotype = BT_INTEGER;
-      break;
-    case GFC_DTYPE_LOGICAL:
-      iotype = BT_LOGICAL;
-      break;
-    case GFC_DTYPE_REAL:
-      iotype = BT_REAL;
-      break;
-    case GFC_DTYPE_COMPLEX:
-      iotype = BT_COMPLEX;
-      break;
-    case GFC_DTYPE_CHARACTER:
-      iotype = BT_CHARACTER;
-      size = charlen;
-      break;
-    case GFC_DTYPE_DERIVED:
-      internal_error (&dtp->common,
-		"Derived type I/O should have been handled via the frontend.");
-      break;
-    default:
-      internal_error (&dtp->common, "transfer_array(): Bad type");
-    }
+  iotype = (bt) GFC_DESCRIPTOR_TYPE (desc);
+  size = iotype == BT_CHARACTER ? charlen : GFC_DESCRIPTOR_SIZE (desc);
 
   rank = GFC_DESCRIPTOR_RANK (desc);
   for (n = 0; n < rank; n++)
@@ -2020,6 +2043,12 @@ transfer_array (st_parameter_dt *dtp, gfc_array_char *desc, int kind,
     }
 }
 
+void
+transfer_array_write (st_parameter_dt *dtp, gfc_array_char *desc, int kind,
+		      gfc_charlen_type charlen)
+{
+  transfer_array (dtp, desc, kind, charlen);
+}
 
 /* Preposition a sequential unformatted file while reading.  */
 

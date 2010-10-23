@@ -64,20 +64,21 @@ package Opt is
    --  GNATBIND, GNATLINK
    --  Set True if binder file to be generated in Ada rather than C
 
-   type Ada_Version_Type is (Ada_83, Ada_95, Ada_05, Ada_12);
+   type Ada_Version_Type is (Ada_83, Ada_95, Ada_2005, Ada_2012);
    pragma Ordered (Ada_Version_Type);
    --  Versions of Ada for Ada_Version below. Note that these are ordered,
    --  so that tests like Ada_Version >= Ada_95 are legitimate and useful.
+   --  Think twice before using "="; Ada_Version >= Ada_2012 is more likely
+   --  what you want, because it will apply to future versions of the language.
 
-   Ada_2005 : Ada_Version_Type renames Ada_05;
-   Ada_2012 : Ada_Version_Type renames Ada_12;
-   --  Renamings with full names (preferred usage)
-
-   Ada_Version_Default : constant Ada_Version_Type := Ada_05;
+   Ada_Version_Default : constant Ada_Version_Type := Ada_2005;
    pragma Warnings (Off, Ada_Version_Default);
    --  GNAT
    --  Default Ada version if no switch given. The Warnings off is to kill
    --  constant condition warnings.
+   --
+   --  WARNING: some scripts rely on the format of this line of code. Any
+   --  change must be coordinated with the scripts requirements.
 
    Ada_Version : Ada_Version_Type := Ada_Version_Default;
    --  GNAT
@@ -94,7 +95,7 @@ package Opt is
    --  the rare cases (notably for pragmas Preelaborate_05 and Pure_05)
    --  where in the run-time we want the explicit version set.
 
-   Ada_Version_Runtime : Ada_Version_Type := Ada_12;
+   Ada_Version_Runtime : Ada_Version_Type := Ada_2012;
    --  GNAT
    --  Ada version used to compile the runtime. Used to set Ada_Version (but
    --  not Ada_Version_Explicit) when compiling predefined or internal units.
@@ -358,6 +359,16 @@ package Opt is
    --  default was set by the binder, and that the default should be the
    --  initial value of System.Secondary_Stack.Default_Secondary_Stack_Size.
 
+   Default_Pool : Node_Id := Empty;
+   --  GNAT
+   --  Used to record the storage pool name (or null literal) that is the
+   --  argument of an applicable pragma Default_Storage_Pool.
+   --    Empty:       No pragma Default_Storage_Pool applies.
+   --    N_Null node: "pragma Default_Storage_Pool (null);" applies.
+   --    otherwise:   "pragma Default_Storage_Pool (X);" applies, and
+   --                 this points to the name X.
+   --  Push_Scope and Pop_Scope in Sem_Ch8 save and restore this value.
+
    Detect_Blocking : Boolean := False;
    --  GNAT
    --  Set True to force the run time to raise Program_Error if calls to
@@ -443,10 +454,16 @@ package Opt is
    --  It is used to set Warn_On_Exception_Propagation True if the restriction
    --  No_Exception_Propagation is set.
 
+   Exception_Extra_Info : Boolean := False;
+   --  GNAT
+   --  True when switch -gnateE is used. When True, generate extra information
+   --  associated with exception messages (in particular range and index
+   --  checks).
+
    Exception_Locations_Suppressed : Boolean := False;
    --  GNAT
-   --  This flag is set True if a Suppress_Exception_Locations configuration
-   --  pragma is currently active.
+   --  Set to True if a Suppress_Exception_Locations configuration pragma is
+   --  currently active.
 
    type Exception_Mechanism_Type is
    --  Determines the handling of exceptions. See Exp_Ch11 for details
@@ -727,6 +744,11 @@ package Opt is
    --  GNATMAKE, GPRMAKE, GPRBUILD
    --  Set to True to skip compile and bind steps (except when Bind_Only is
    --  set to True).
+
+   List_Inherited_Aspects : Boolean := True;
+   --  GNAT
+   --  List inherited invariants, preconditions, and postconditions from
+   --  Invariant'Class, Pre'Class, and Post'Class aspects.
 
    List_Restrictions : Boolean := False;
    --  GNATBIND
@@ -1332,6 +1354,12 @@ package Opt is
    --  including warnings on Ada 2005 obsolescent features used in Ada 2005
    --  mode. Set False by -gnatwY.
 
+   Warn_On_Ada_2012_Compatibility : Boolean := True;
+   --  GNAT
+   --  Set to True to generate all warnings on Ada 2012 compatibility issues,
+   --  including warnings on Ada 2012 obsolescent features used in Ada 2012
+   --  mode. Set False by -gnatwY.
+
    Warn_On_Parameter_Order : Boolean := False;
    --  GNAT
    --  Set to True to generate warnings for cases where the argument list for
@@ -1573,6 +1601,11 @@ package Opt is
    --  mode, as possibly set by the command line switch -gnata and possibly
    --  modified by the use of the configuration pragma Debug_Policy.
 
+   Default_Pool_Config : Node_Id := Empty;
+   --  GNAT
+   --  Same as Default_Pool above, except this is only for Default_Storage_Pool
+   --  pragmas that are configuration pragmas.
+
    Dynamic_Elaboration_Checks_Config : Boolean := False;
    --  GNAT
    --  Set True for dynamic elaboration checking mode, as set by the -gnatE
@@ -1781,6 +1814,7 @@ private
       Assume_No_Invalid_Values       : Boolean;
       Check_Policy_List              : Node_Id;
       Debug_Pragmas_Enabled          : Boolean;
+      Default_Pool                   : Node_Id;
       Dynamic_Elaboration_Checks     : Boolean;
       Exception_Locations_Suppressed : Boolean;
       Extensions_Allowed             : Boolean;

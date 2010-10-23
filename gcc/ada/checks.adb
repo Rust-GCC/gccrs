@@ -997,10 +997,15 @@ package body Checks is
       Desig_Typ : Entity_Id;
 
    begin
+      --  No checks inside a generic (check the instantiations)
+
       if Inside_A_Generic then
          return;
+      end if;
 
-      elsif Is_Scalar_Type (Typ) then
+      --  Apply required constaint checks
+
+      if Is_Scalar_Type (Typ) then
          Apply_Scalar_Range_Check (N, Typ);
 
       elsif Is_Array_Type (Typ) then
@@ -1193,11 +1198,11 @@ package body Checks is
 
       if Present (Lhs)
         and then (Present (Param_Entity (Lhs))
-                   or else (Ada_Version < Ada_05
+                   or else (Ada_Version < Ada_2005
                              and then not Is_Constrained (T_Typ)
                              and then Is_Aliased_View (Lhs)
                              and then not Is_Aliased_Unconstrained_Component)
-                   or else (Ada_Version >= Ada_05
+                   or else (Ada_Version >= Ada_2005
                              and then not Is_Constrained (T_Typ)
                              and then Denotes_Explicit_Dereference (Lhs)
                              and then Nkind (Original_Node (Lhs)) /=
@@ -1216,7 +1221,7 @@ package body Checks is
       --  Ada 2005: nothing to do if the type is one for which there is a
       --  partial view that is constrained.
 
-      elsif Ada_Version >= Ada_05
+      elsif Ada_Version >= Ada_2005
         and then Has_Constrained_Partial_View (Base_Type (T_Typ))
       then
          return;
@@ -1559,8 +1564,8 @@ package body Checks is
       Truncate  : constant Boolean := Float_Truncate (Par);
       Max_Bound : constant Uint :=
                     UI_Expon
-                      (Machine_Radix (Expr_Type),
-                       Machine_Mantissa (Expr_Type) - 1) - 1;
+                      (Machine_Radix_Value (Expr_Type),
+                       Machine_Mantissa_Value (Expr_Type) - 1) - 1;
 
       --  Largest bound, so bound plus or minus half is a machine number of F
 
@@ -1747,6 +1752,18 @@ package body Checks is
       Apply_Selected_Length_Checks
         (Ck_Node, Target_Typ, Source_Typ, Do_Static => False);
    end Apply_Length_Check;
+
+   ---------------------------
+   -- Apply_Predicate_Check --
+   ---------------------------
+
+   procedure Apply_Predicate_Check (N : Node_Id; Typ : Entity_Id) is
+   begin
+      if Present (Predicate_Function (Typ)) then
+         Insert_Action (N,
+           Make_Predicate_Check (Typ, Duplicate_Subexpr (N)));
+      end if;
+   end Apply_Predicate_Check;
 
    -----------------------
    -- Apply_Range_Check --
@@ -3732,6 +3749,15 @@ package body Checks is
          return;
       end if;
 
+      --  Do not set range check flag if parent is assignment statement or
+      --  object declaration with Suppress_Assignment_Checks flag set
+
+      if Nkind_In (Parent (N), N_Assignment_Statement, N_Object_Declaration)
+        and then Suppress_Assignment_Checks (Parent (N))
+      then
+         return;
+      end if;
+
       --  Check for various cases where we should suppress the range check
 
       --  No check if range checks suppressed for type of node
@@ -5244,7 +5270,7 @@ package body Checks is
    ----------------------------------
 
    procedure Install_Null_Excluding_Check (N : Node_Id) is
-      Loc : constant Source_Ptr := Sloc (N);
+      Loc : constant Source_Ptr := Sloc (Parent (N));
       Typ : constant Entity_Id  := Etype (N);
 
       function Safe_To_Capture_In_Parameter_Value return Boolean;
