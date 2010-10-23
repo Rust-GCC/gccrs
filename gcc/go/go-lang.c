@@ -292,10 +292,7 @@ go_langhook_eh_personality (void)
   static tree personality_decl;
   if (personality_decl == NULL_TREE)
     {
-      const char* name = (targetm.except_unwind_info () == UI_SJLJ
-			  ? "__gccgo_personality_sj0"
-			  : "__gccgo_personality_v0");
-      personality_decl = build_personality_function (name);
+      personality_decl = build_personality_function ("gccgo");
       go_preserve_from_gc (personality_decl);
     }
   return personality_decl;
