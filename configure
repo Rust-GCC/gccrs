@@ -6763,9 +6763,11 @@ if test -d ${srcdir}/gcc; then
       # an apparent bug in bash 1.12 on linux.
       ${srcdir}/gcc/[*]/config-lang.in) ;;
       *)
-        # From the config-lang.in, get $language, $lang_requires
+        # From the config-lang.in, get $language, $lang_requires, and
+        # $lang_requires_boot_language.
         language=
         lang_requires=
+        lang_requires_boot_language=
         . ${lang_frag}
         for other in ${lang_requires} ; do
           case ,${enable_languages}, in
@@ -6776,6 +6778,22 @@ if test -d ${srcdir}/gcc; then
 	      enable_languages="${enable_languages},${other}"
 	      ;;
 	  esac
+        done
+	for other in ${lang_requires_boot_language} ; do
+	  if test "$other" != "c"; then
+	    case ,${enable_stage1_languages}, in
+	      *,$other,*) ;;
+	      *,all,*) ;;
+	      *)
+		case ,${enable_languages}, in
+		  *,$language,*)
+		    echo " '$other' language required by '$language' in stage 1; enabling" 1>&2
+		    enable_stage1_languages="$enable_stage1_languages,${other}"
+		    ;;
+		esac
+		;;
+	    esac
+          fi
         done
         ;;
     esac
@@ -6825,16 +6843,6 @@ if test -d ${srcdir}/gcc; then
 	   && test "$ENABLE_BUILD_WITH_CXX" = "yes"; then
 	  boot_language=yes
 	fi
-
-	# FIXME: A general mechanism for specifying the language of a
-	# frontend would be nice.
-	case ,${enable_languages}, in
-	  *,go,*)
-	    if test "$language" = "c++"; then
-	      boot_language=yes
-	    fi
-	    ;;
-	esac
 
         case ,${enable_languages}, in
           *,${language},*)

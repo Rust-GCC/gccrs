@@ -1,3 +1,10 @@
+2010-10-29  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Check for lang_requires_boot_language in
+	config-lang.in files.  Remove special purpose test adding c++ as a
+	boot language if Go is enabled.
+	* configure: Rebuild.
+
 2010-10-20  Ian Lance Taylor  <iant@google.com>
 
 	* Makefile.def (target_modules): Set lib_path to src/.libs for
