@@ -16,4 +16,8 @@ compilers="go1\$(exeext)"
 
 target_libs="target-libgo"
 
+# The Go frontend is written in C++, so we need to build the C++
+# compiler during stage 1.
+lang_requires_boot_language=c++
+
 gtfiles="\$(srcdir)/go/go-lang.c"
