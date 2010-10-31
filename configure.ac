@@ -1866,10 +1866,10 @@ if test -d ${srcdir}/gcc; then
       ${srcdir}/gcc/[[*]]/config-lang.in) ;;
       *)
         # From the config-lang.in, get $language, $lang_requires, and
-        # $lang_requires_boot_language.
+        # $lang_requires_boot_languages.
         language=
         lang_requires=
-        lang_requires_boot_language=
+        lang_requires_boot_languages=
         . ${lang_frag}
         for other in ${lang_requires} ; do
           case ,${enable_languages}, in
@@ -1881,7 +1881,7 @@ if test -d ${srcdir}/gcc; then
 	      ;;
 	  esac
         done
-	for other in ${lang_requires_boot_language} ; do
+	for other in ${lang_requires_boot_languages} ; do
 	  if test "$other" != "c"; then
 	    case ,${enable_stage1_languages}, in
 	      *,$other,*) ;;
