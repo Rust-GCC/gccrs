@@ -439,6 +439,7 @@ const struct c_common_resword c_common_reswords[] =
   { "__is_standard_layout", RID_IS_STD_LAYOUT, D_CXXONLY },
   { "__is_trivial",     RID_IS_TRIVIAL, D_CXXONLY },
   { "__is_union",	RID_IS_UNION,	D_CXXONLY },
+  { "__is_literal_type", RID_IS_LITERAL_TYPE, D_CXXONLY },
   { "__imag",		RID_IMAGPART,	0 },
   { "__imag__",		RID_IMAGPART,	0 },
   { "__inline",		RID_INLINE,	0 },
@@ -556,11 +557,14 @@ const struct c_common_resword c_common_reswords[] =
   { "oneway",		RID_ONEWAY,		D_OBJC },
   { "out",		RID_OUT,		D_OBJC },
   /* These are recognized inside a property attribute list */
-  { "readonly",		RID_READONLY,		D_OBJC }, 
-  { "copies",		RID_COPIES,		D_OBJC },
+  { "assign",	        RID_ASSIGN,		D_OBJC }, 
+  { "copy",	        RID_COPY,		D_OBJC }, 
   { "getter",		RID_GETTER,		D_OBJC }, 
+  { "nonatomic",	RID_NONATOMIC,		D_OBJC }, 
+  { "readonly",		RID_READONLY,		D_OBJC }, 
+  { "readwrite",	RID_READWRITE,		D_OBJC }, 
+  { "retain",	        RID_RETAIN,		D_OBJC }, 
   { "setter",		RID_SETTER,		D_OBJC }, 
-  { "ivar",		RID_IVAR,		D_OBJC }, 
 };
 
 const unsigned int num_c_common_reswords =
@@ -1859,8 +1863,7 @@ conversion_warning (tree type, tree expr)
   int i;
   const int expr_num_operands = TREE_OPERAND_LENGTH (expr);
   tree expr_type = TREE_TYPE (expr);
-  location_t loc = EXPR_HAS_LOCATION (expr)
-    ? EXPR_LOCATION (expr) : input_location;
+  location_t loc = EXPR_LOC_OR_HERE (expr);
 
   if (!warn_conversion && !warn_sign_conversion)
     return;
@@ -2293,8 +2296,7 @@ warn_for_collisions_1 (tree written, tree writer, struct tlist *list,
 	  && (!only_writes || list->writer))
 	{
 	  warned_ids = new_tlist (warned_ids, written, NULL_TREE);
-	  warning_at (EXPR_HAS_LOCATION (writer)
-		      ? EXPR_LOCATION (writer) : input_location,
+	  warning_at (EXPR_LOC_OR_HERE (writer),
 		      OPT_Wsequence_point, "operation on %qE may be undefined",
 		      list->expr);
 	}
@@ -2581,22 +2583,6 @@ check_case_value (tree value)
 {
   if (value == NULL_TREE)
     return value;
-
-  /* ??? Can we ever get nops here for a valid case value?  We
-     shouldn't for C.  */
-  STRIP_TYPE_NOPS (value);
-  /* In C++, the following is allowed:
-
-       const int i = 3;
-       switch (...) { case i: ... }
-
-     So, we try to reduce the VALUE to a constant that way.  */
-  if (c_dialect_cxx ())
-    {
-      value = decl_constant_value (value);
-      STRIP_TYPE_NOPS (value);
-      value = fold (value);
-    }
 
   if (TREE_CODE (value) == INTEGER_CST)
     /* Promote char or short to int.  */
@@ -5743,7 +5729,8 @@ handle_noreturn_attribute (tree *node, tree name, tree ARG_UNUSED (args),
   tree type = TREE_TYPE (*node);
 
   /* See FIXME comment in c_common_attribute_table.  */
-  if (TREE_CODE (*node) == FUNCTION_DECL)
+  if (TREE_CODE (*node) == FUNCTION_DECL
+      || objc_method_decl (TREE_CODE (*node)))
     TREE_THIS_VOLATILE (*node) = 1;
   else if (TREE_CODE (type) == POINTER_TYPE
 	   && TREE_CODE (TREE_TYPE (type)) == FUNCTION_TYPE)

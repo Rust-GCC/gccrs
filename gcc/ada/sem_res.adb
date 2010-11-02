@@ -819,8 +819,10 @@ package body Sem_Res is
 
          if Nkind_In (P, N_Or_Else,
                          N_And_Then,
-                         N_If_Statement,
-                         N_Case_Statement)
+                         N_Case_Expression,
+                         N_Case_Statement,
+                         N_Conditional_Expression,
+                         N_If_Statement)
          then
             return False;
 
@@ -2744,6 +2746,18 @@ package body Sem_Res is
             return;
          end if;
 
+         --  AI05-144-2: Check dangerous order dependence within an expression
+         --  that is not a subexpression. Exclude RHS of an assignment, because
+         --  both sides may have side-effects and the check must be performed
+         --  over the statement.
+
+         if Nkind (Parent (N)) not in N_Subexpr
+           and then Nkind (Parent (N)) /= N_Assignment_Statement
+           and then Nkind (Parent (N)) /= N_Procedure_Call_Statement
+         then
+            Check_Order_Dependence;
+         end if;
+
          --  The expression is definitely NOT overloaded at this point, so
          --  we reset the Is_Overloaded flag to avoid any confusion when
          --  reanalyzing the node.
@@ -3322,45 +3336,55 @@ package body Sem_Res is
                if Ekind (F) = E_In_Out_Parameter
                  and then Is_Array_Type (Etype (F))
                then
-                  if Has_Aliased_Components (Etype (Expression (A)))
-                    /= Has_Aliased_Components (Etype (F))
+                  --  In a view conversion, the conversion must be legal in
+                  --  both directions, and thus both component types must be
+                  --  aliased, or neither (4.6 (8)).
+
+                  --  The extra rule in 4.6 (24.9.2) seems unduly restrictive:
+                  --  the privacy requirement should not apply to generic
+                  --  types, and should be checked in an instance. ARG query
+                  --  is in order ???
+
+                  if Has_Aliased_Components (Etype (Expression (A))) /=
+                     Has_Aliased_Components (Etype (F))
                   then
-
-                     --  In a view conversion, the conversion must be legal in
-                     --  both directions, and thus both component types must be
-                     --  aliased, or neither (4.6 (8)).
-
-                     --  The additional rule 4.6 (24.9.2) seems unduly
-                     --  restrictive: the privacy requirement should not apply
-                     --  to generic types, and should be checked in an
-                     --  instance. ARG query is in order ???
-
                      Error_Msg_N
                        ("both component types in a view conversion must be"
                          & " aliased, or neither", A);
 
+                  --  Comment here??? what set of cases???
+
                   elsif
                      not Same_Ancestor (Etype (F), Etype (Expression (A)))
                   then
+                     --  Check view conv between unrelated by ref array types
+
                      if Is_By_Reference_Type (Etype (F))
                         or else Is_By_Reference_Type (Etype (Expression (A)))
                      then
                         Error_Msg_N
                           ("view conversion between unrelated by reference " &
                            "array types not allowed (\'A'I-00246)", A);
-                     else
+
+                     --  In Ada 2005 mode, check view conversion component
+                     --  type cannot be private, tagged, or volatile. Note
+                     --  that we only apply this to source conversions. The
+                     --  generated code can contain conversions which are
+                     --  not subject to this test, and we cannot extract the
+                     --  component type in such cases since it is not present.
+
+                     elsif Comes_From_Source (A)
+                       and then Ada_Version >= Ada_2005
+                     then
                         declare
                            Comp_Type : constant Entity_Id :=
                                          Component_Type
                                            (Etype (Expression (A)));
                         begin
-                           if Comes_From_Source (A)
-                             and then Ada_Version >= Ada_2005
-                             and then
-                               ((Is_Private_Type (Comp_Type)
-                                   and then not Is_Generic_Type (Comp_Type))
-                                 or else Is_Tagged_Type (Comp_Type)
-                                 or else Is_Volatile (Comp_Type))
+                           if (Is_Private_Type (Comp_Type)
+                                 and then not Is_Generic_Type (Comp_Type))
+                             or else Is_Tagged_Type (Comp_Type)
+                             or else Is_Volatile (Comp_Type)
                            then
                               Error_Msg_N
                                 ("component type of a view conversion cannot"
@@ -3373,8 +3397,10 @@ package body Sem_Res is
                   end if;
                end if;
 
+               --  Resolve expression if conversion is all OK
+
                if (Conversion_OK (A)
-                     or else Valid_Conversion (A, Etype (A), Expression (A)))
+                    or else Valid_Conversion (A, Etype (A), Expression (A)))
                  and then not Is_Ref_To_Bit_Packed_Array (Expression (A))
                then
                   Resolve (Expression (A));
@@ -3529,12 +3555,10 @@ package body Sem_Res is
             A_Typ := Etype (A);
             F_Typ := Etype (F);
 
-            --  Save actual for subsequent check on order dependence,
-            --  and indicate whether actual is modifiable. For AI05-0144
+            --  Save actual for subsequent check on order dependence, and
+            --  indicate whether actual is modifiable. For AI05-0144-2.
 
-            --  Save_Actual (A,
-            --    Ekind (F) /= E_In_Parameter or else Is_Access_Type (F_Typ));
-            --  Why is this code commented out ???
+            Save_Actual (A, Ekind (F) /= E_In_Parameter);
 
             --  For mode IN, if actual is an entity, and the type of the formal
             --  has warnings suppressed, then we reset Never_Set_In_Source for
@@ -5255,8 +5279,8 @@ package body Sem_Res is
            and then Check_Infinite_Recursion (N)
          then
             --  Here we detected and flagged an infinite recursion, so we do
-            --  not need to test the case below for further warnings. Also if
-            --  we now have a raise SE node, we are all done.
+            --  not need to test the case below for further warnings. Also we
+            --  are all done if we now have a raise SE node.
 
             if Nkind (N) = N_Raise_Storage_Error then
                return;
@@ -5959,12 +5983,6 @@ package body Sem_Res is
          if Is_Concurrent_Type (E)
            and then In_Open_Scopes (E)
          then
-            null;
-
-         --  Allow reference to type specifically marked as being OK in this
-         --  context (this is used for example for type names in invariants).
-
-         elsif OK_To_Reference (E) then
             null;
 
          --  Any other use is an eror
@@ -7791,9 +7809,13 @@ package body Sem_Res is
    procedure Resolve_Quantified_Expression (N : Node_Id; Typ : Entity_Id) is
    begin
       --  The loop structure is already resolved during its analysis, only the
-      --  resolution of the condition needs to be done.
+      --  resolution of the condition needs to be done. Expansion is disabled
+      --  so that checks and other generated code are inserted in the tree
+      --  after expression has been rewritten as a loop.
 
+      Expander_Mode_Save_And_Set (False);
       Resolve (Condition (N), Typ);
+      Expander_Mode_Restore;
    end Resolve_Quantified_Expression;
 
    -------------------
@@ -8228,11 +8250,8 @@ package body Sem_Res is
       R     : constant Node_Id   := Right_Opnd (N);
 
    begin
-      --  Why are the calls to Check_Order_Dependence commented out ???
       Resolve (L, B_Typ);
-      --  Check_Order_Dependence;   --  For AI05-0144
       Resolve (R, B_Typ);
-      --  Check_Order_Dependence;   --  For AI05-0144
 
       --  Check for issuing warning for always False assert/check, this happens
       --  when assertions are turned off, in which case the pragma Assert/Check
@@ -10082,7 +10101,7 @@ package body Sem_Res is
          --  this situation can arise in source code.
 
          elsif In_Instance or else In_Inlined_Body then
-               return True;
+            return True;
 
          --  Otherwise we need the conversion check
 

@@ -119,6 +119,8 @@ extern void ix86_expand_sse_unpack (rtx[], bool, bool);
 extern void ix86_expand_sse4_unpack (rtx[], bool, bool);
 extern bool ix86_expand_int_addcc (rtx[]);
 extern rtx ix86_expand_call (rtx, rtx, rtx, rtx, rtx, int);
+extern void ix86_split_call_vzeroupper (rtx, rtx);
+extern void ix86_split_call_pop_vzeroupper (rtx, rtx);
 extern void x86_initialize_trampoline (rtx, rtx, rtx);
 extern rtx ix86_zero_extend_to_Pmode (rtx);
 extern void ix86_split_long_move (rtx[]);
@@ -177,7 +179,7 @@ extern void ix86_expand_trunc (rtx, rtx);
 extern void ix86_expand_truncdf_32 (rtx, rtx);
 
 #ifdef TREE_CODE
-extern void init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, tree);
+extern void init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, tree, int);
 #endif	/* TREE_CODE  */
 
 #endif	/* RTX_CODE  */
@@ -225,7 +227,13 @@ extern void i386_pe_asm_output_aligned_decl_common (FILE *, tree,
 						    HOST_WIDE_INT,
 						    HOST_WIDE_INT);
 extern void i386_pe_file_end (void);
+extern void i386_pe_start_function (FILE *, const char *, tree);
+extern void i386_pe_end_function (FILE *, const char *, tree);
 extern tree i386_pe_mangle_decl_assembler_name (tree, tree);
+
+extern void i386_pe_seh_init (FILE *);
+extern void i386_pe_seh_end_prologue (FILE *);
+extern void i386_pe_seh_unwind_emit (FILE *, rtx);
 
 /* In winnt-cxx.c and winnt-stubs.c  */
 extern void i386_pe_adjust_class_at_definition (tree);
@@ -263,3 +271,23 @@ extern int asm_preferred_eh_data_format (int, int);
 #ifdef HAVE_ATTR_cpu
 extern enum attr_cpu ix86_schedule;
 #endif
+
+extern const char * ix86_output_call_insn (rtx insn, rtx call_op, int addr_op);
+
+#ifdef RTX_CODE
+/* Target data for multipass lookahead scheduling.
+   Currently used for Core 2/i7 tuning.  */
+struct ix86_first_cycle_multipass_data_
+{
+  /* The length (in bytes) of ifetch block in this solution.  */
+  int ifetch_block_len;
+  /* Number of instructions in ifetch block in this solution.  */
+  int ifetch_block_n_insns;
+  /* Bitmap to remember changes to ready_try for backtracking.  */
+  sbitmap ready_try_change;
+  /* Size of the bitmap.  */
+  int ready_try_change_size;
+};
+# define TARGET_SCHED_FIRST_CYCLE_MULTIPASS_DATA_T	\
+  struct ix86_first_cycle_multipass_data_
+#endif /* RTX_CODE */

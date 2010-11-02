@@ -57,8 +57,9 @@ cgraph_postorder (struct cgraph_node **order)
     for (node = cgraph_nodes; node; node = node->next)
       if (!node->aux
 	  && (pass
-	      || (!cgraph_only_called_directly_p (node)
-	  	  && !node->address_taken)))
+	      || (!node->address_taken
+		  && !node->global.inlined_to
+		  && !cgraph_only_called_directly_p (node))))
 	{
 	  node2 = node;
 	  if (!node->callers)
@@ -169,12 +170,11 @@ process_references (struct ipa_ref_list *list,
 	{
 	  struct cgraph_node *node = ipa_ref_node (ref);
 	  if (!node->reachable
+	      && node->analyzed
 	      && (!DECL_EXTERNAL (node->decl)
 	          || before_inlining_p))
-	    {
-	      node->reachable = true;
-	      enqueue_cgraph_node (node, first);
-	    }
+	    node->reachable = true;
+	  enqueue_cgraph_node (node, first);
 	}
       else
 	{
@@ -237,15 +237,22 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
     gcc_assert (!vnode->aux);
 #endif
   varpool_reset_queue ();
+  /* Mark functions whose bodies are obviously needed.
+     This is mostly when they can be referenced externally.  Inline clones
+     are special since their declarations are shared with master clone and thus
+     cgraph_can_remove_if_no_direct_calls_and_refs_p should not be called on them.  */
   for (node = cgraph_nodes; node; node = node->next)
-    if ((!cgraph_can_remove_if_no_direct_calls_and_refs_p (node)
-	 /* Keep around virtual functions for possible devirtualization.  */
-	 || (!before_inlining_p
-	     && !node->global.inlined_to
-	     && DECL_VIRTUAL_P (node->decl)
-	     && (DECL_COMDAT (node->decl) || DECL_EXTERNAL (node->decl))))
-	&& ((!DECL_EXTERNAL (node->decl))
-            || before_inlining_p))
+    if (node->analyzed && !node->global.inlined_to
+	&& (!cgraph_can_remove_if_no_direct_calls_and_refs_p (node)
+	    /* Keep around virtual functions for possible devirtualization.  */
+	    || (before_inlining_p
+		&& DECL_VIRTUAL_P (node->decl)
+		&& (DECL_COMDAT (node->decl) || DECL_EXTERNAL (node->decl)))
+	    /* Also external functions with address taken are better to stay
+	       for indirect inlining.  */
+	    || (before_inlining_p
+		&& DECL_EXTERNAL (node->decl)
+		&& node->address_taken)))
       {
         gcc_assert (!node->global.inlined_to);
 	enqueue_cgraph_node (node, &first);
@@ -256,6 +263,8 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
         gcc_assert (!node->aux);
 	node->reachable = false;
       }
+
+  /* Mark variables that are obviously needed.  */
   for (vnode = varpool_nodes; vnode; vnode = vnode->next)
     {
       vnode->next_needed = NULL;
@@ -294,15 +303,15 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 	  if (node->reachable)
 	    {
 	      for (e = node->callees; e; e = e->next_callee)
-		if (!e->callee->reachable
-		    && node->analyzed
-		    && (!e->inline_failed || !e->callee->analyzed
-			|| (!DECL_EXTERNAL (e->callee->decl))
-			|| before_inlining_p))
-		  {
+		{
+		  if (!e->callee->reachable
+		      && node->analyzed
+		      && (!e->inline_failed
+			  || !DECL_EXTERNAL (e->callee->decl)
+			  || before_inlining_p))
 		    e->callee->reachable = true;
-		    enqueue_cgraph_node (e->callee, &first);
-		  }
+		  enqueue_cgraph_node (e->callee, &first);
+		}
 	      process_references (&node->ref_list, &first, &first_varpool, before_inlining_p);
 	    }
 
@@ -406,7 +415,7 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 	      found = true;
 
 	  /* If so, we need to keep node in the callgraph.  */
-	  if (found || node->needed)
+	  if (found)
 	    {
 	      if (node->analyzed)
 		{
@@ -428,10 +437,10 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 			node->clone_of->clones = node->next_sibling_clone;
 		      if (node->next_sibling_clone)
 			node->next_sibling_clone->prev_sibling_clone = node->prev_sibling_clone;
-    #ifdef ENABLE_CHECKING
+#ifdef ENABLE_CHECKING
 		      if (node->clone_of)
 			node->former_clone_of = node->clone_of->decl;
-    #endif
+#endif
 		      node->clone_of = NULL;
 		      node->next_sibling_clone = NULL;
 		      node->prev_sibling_clone = NULL;
@@ -593,6 +602,7 @@ ipa_discover_readonly_nonaddressable_vars (void)
 static bool
 cgraph_externally_visible_p (struct cgraph_node *node, bool whole_program, bool aliased)
 {
+  struct cgraph_node *alias;
   if (!node->local.finalized)
     return false;
   if (!DECL_COMDAT (node->decl)
@@ -611,6 +621,18 @@ cgraph_externally_visible_p (struct cgraph_node *node, bool whole_program, bool 
     return true;
   if (lookup_attribute ("externally_visible", DECL_ATTRIBUTES (node->decl)))
     return true;
+
+  /* See if we have linker information about symbol not being used or
+     if we need to make guess based on the declaration.
+
+     Even if the linker clams the symbol is unused, never bring internal
+     symbols that are declared by user as used or externally visible.
+     This is needed for i.e. references from asm statements.   */
+  for (alias = node->same_body; alias; alias = alias->next)
+    if (alias->resolution != LDPR_PREVAILING_DEF_IRONLY)
+      break;
+  if (!alias && node->resolution == LDPR_PREVAILING_DEF_IRONLY)
+    return false;
 
   /* When doing link time optimizations, hidden symbols become local.  */
   if (in_lto_p
@@ -655,6 +677,7 @@ cgraph_externally_visible_p (struct cgraph_node *node, bool whole_program, bool 
 static bool
 varpool_externally_visible_p (struct varpool_node *vnode, bool aliased)
 {
+  struct varpool_node *alias;
   if (!DECL_COMDAT (vnode->decl) && !TREE_PUBLIC (vnode->decl))
     return false;
 
@@ -681,6 +704,11 @@ varpool_externally_visible_p (struct varpool_node *vnode, bool aliased)
      This is needed for i.e. references from asm statements.   */
   if (varpool_used_from_object_file_p (vnode))
     return true;
+  for (alias = vnode->extra_name; alias; alias = alias->next)
+    if (alias->resolution != LDPR_PREVAILING_DEF_IRONLY)
+      break;
+  if (!alias && vnode->resolution == LDPR_PREVAILING_DEF_IRONLY)
+    return false;
 
   /* When doing link time optimizations, hidden symbols become local.  */
   if (in_lto_p
@@ -771,6 +799,15 @@ function_and_variable_visibility (bool whole_program)
 
   for (node = cgraph_nodes; node; node = node->next)
     {
+      int flags = flags_from_decl_or_type (node->decl);
+      if (optimize
+	  && (flags & (ECF_CONST | ECF_PURE))
+	  && !(flags & ECF_LOOPING_CONST_OR_PURE))
+	{
+	  DECL_STATIC_CONSTRUCTOR (node->decl) = 0;
+	  DECL_STATIC_DESTRUCTOR (node->decl) = 0;
+	}
+
       /* C++ FE on lack of COMDAT support create local COMDAT functions
 	 (that ought to be shared but can not due to object format
 	 limitations).  It is neccesary to keep the flag to make rest of C++ FE

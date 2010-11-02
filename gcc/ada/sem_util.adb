@@ -101,12 +101,12 @@ package body Sem_Util is
    --  whether the corresponding formal is OUT or IN OUT. Each top-level call
    --  (procedure call, condition, assignment) examines all the actuals for a
    --  possible order dependence. The table is reset after each such check.
+   --  The actuals to be checked in a call to Check_Order_Dependence are at
+   --  positions 1 .. Last.
 
    type Actual_Name is record
       Act         : Node_Id;
       Is_Writable : Boolean;
-      --  Comments needed???
-
    end record;
 
    package Actuals_In_Call is new Table.Table (
@@ -1222,9 +1222,17 @@ package body Sem_Util is
       Act2 : Node_Id;
 
    begin
-      --  This could use comments ???
+      if Ada_Version < Ada_2012 then
+         return;
+      end if;
 
-      for J in 0 .. Actuals_In_Call.Last loop
+      --  Ada 2012 AI04-0144-2: Dangerous order dependence. Actuals in nested
+      --  calls within a construct have been collected. If one of them is
+      --  writable and overlaps with another one, evaluation of the enclosing
+      --  construct is nondeterministic. This is illegal in Ada 2012, but is
+      --  treated as a warning for now.
+
+      for J in 1 .. Actuals_In_Call.Last loop
          if Actuals_In_Call.Table (J).Is_Writable then
             Act1 := Actuals_In_Call.Table (J).Act;
 
@@ -1232,7 +1240,7 @@ package body Sem_Util is
                Act1 := Prefix (Act1);
             end if;
 
-            for K in 0 .. Actuals_In_Call.Last loop
+            for K in 1 .. Actuals_In_Call.Last loop
                if K /= J then
                   Act2 := Actuals_In_Call.Table (K).Act;
 
@@ -1248,14 +1256,18 @@ package body Sem_Util is
                      null;
 
                   elsif Denotes_Same_Object (Act1, Act2)
-                    and then False
+                    and then Parent (Act1) /= Parent (Act2)
                   then
-                     Error_Msg_N ("?,mighty suspicious!!!", Act1);
+                     Error_Msg_N
+                       ("result may differ if evaluated "
+                        & "after other actual in expression?", Act1);
                   end if;
                end if;
             end loop;
          end if;
       end loop;
+
+      --  Remove checked actuals from table
 
       Actuals_In_Call.Set_Last (0);
    end Check_Order_Dependence;
@@ -1266,6 +1278,7 @@ package body Sem_Util is
 
    procedure Check_Potentially_Blocking_Operation (N : Node_Id) is
       S : Entity_Id;
+
    begin
       --  N is one of the potentially blocking operations listed in 9.5.1(8).
       --  When pragma Detect_Blocking is active, the run time will raise
@@ -1282,7 +1295,6 @@ package body Sem_Util is
          if Is_Protected_Type (S) then
             Error_Msg_N
               ("potentially blocking operation in protected operation?", N);
-
             return;
          end if;
 
@@ -1878,7 +1890,7 @@ package body Sem_Util is
                   if Chars (Id) = Name_Op_Eq
                     and then Is_Dispatching_Operation (Id)
                     and then Present (Alias (Id))
-                    and then Is_Overriding_Operation (Alias (Id))
+                    and then Present (Overridden_Operation (Alias (Id)))
                     and then Base_Type (Etype (First_Entity (Id))) =
                                Base_Type (Etype (First_Entity (Alias (Id))))
                   then
@@ -2350,49 +2362,110 @@ package body Sem_Util is
    -------------------------
 
    function Denotes_Same_Object (A1, A2 : Node_Id) return Boolean is
+      Obj1 : Node_Id := A1;
+      Obj2 : Node_Id := A2;
+
+      procedure Check_Renaming (Obj : in out Node_Id);
+      --  If an object is a renaming, examine renamed object. If it is a
+      --  dereference of a variable, or an indexed expression with non-constant
+      --  indexes, no overlap check can be reported.
+
+      --------------------
+      -- Check_Renaming --
+      --------------------
+
+      procedure Check_Renaming (Obj : in out Node_Id) is
+      begin
+         if Is_Entity_Name (Obj)
+           and then Present (Renamed_Entity (Entity (Obj)))
+         then
+            Obj := Renamed_Entity (Entity (Obj));
+            if Nkind (Obj) = N_Explicit_Dereference
+              and then Is_Variable (Prefix (Obj))
+            then
+               Obj := Empty;
+
+            elsif Nkind (Obj) = N_Indexed_Component then
+               declare
+                  Indx : Node_Id;
+
+               begin
+                  Indx := First (Expressions (Obj));
+                  while Present (Indx) loop
+                     if not Is_OK_Static_Expression (Indx) then
+                        Obj := Empty;
+                        exit;
+                     end if;
+
+                     Next_Index (Indx);
+                  end loop;
+               end;
+            end if;
+         end if;
+      end Check_Renaming;
+
+   --  Start of processing for Denotes_Same_Object
+
    begin
+      Check_Renaming (Obj1);
+      Check_Renaming (Obj2);
+
+      if No (Obj1)
+        or else No (Obj2)
+      then
+         return False;
+      end if;
+
       --  If we have entity names, then must be same entity
 
-      if Is_Entity_Name (A1) then
-         if Is_Entity_Name (A2) then
-            return Entity (A1) = Entity (A2);
+      if Is_Entity_Name (Obj1) then
+         if Is_Entity_Name (Obj2) then
+            return Entity (Obj1) = Entity (Obj2);
          else
             return False;
          end if;
 
       --  No match if not same node kind
 
-      elsif Nkind (A1) /= Nkind (A2) then
+      elsif Nkind (Obj1) /= Nkind (Obj2) then
          return False;
 
       --  For selected components, must have same prefix and selector
 
-      elsif Nkind (A1) = N_Selected_Component then
-         return Denotes_Same_Object (Prefix (A1), Prefix (A2))
+      elsif Nkind (Obj1) = N_Selected_Component then
+         return Denotes_Same_Object (Prefix (Obj1), Prefix (Obj2))
            and then
-         Entity (Selector_Name (A1)) = Entity (Selector_Name (A2));
+         Entity (Selector_Name (Obj1)) = Entity (Selector_Name (Obj2));
 
       --  For explicit dereferences, prefixes must be same
 
-      elsif Nkind (A1) = N_Explicit_Dereference then
-         return Denotes_Same_Object (Prefix (A1), Prefix (A2));
+      elsif Nkind (Obj1) = N_Explicit_Dereference then
+         return Denotes_Same_Object (Prefix (Obj1), Prefix (Obj2));
 
       --  For indexed components, prefixes and all subscripts must be the same
 
-      elsif Nkind (A1) = N_Indexed_Component then
-         if Denotes_Same_Object (Prefix (A1), Prefix (A2)) then
+      elsif Nkind (Obj1) = N_Indexed_Component then
+         if Denotes_Same_Object (Prefix (Obj1), Prefix (Obj2)) then
             declare
                Indx1 : Node_Id;
                Indx2 : Node_Id;
 
             begin
-               Indx1 := First (Expressions (A1));
-               Indx2 := First (Expressions (A2));
+               Indx1 := First (Expressions (Obj1));
+               Indx2 := First (Expressions (Obj2));
                while Present (Indx1) loop
 
-                  --  Shouldn't we be checking that values are the same???
+                  --  Indexes must denote the same static value or same object
 
-                  if not Denotes_Same_Object (Indx1, Indx2) then
+                  if Is_OK_Static_Expression (Indx1) then
+                     if not Is_OK_Static_Expression (Indx2) then
+                        return False;
+
+                     elsif Expr_Value (Indx1) /= Expr_Value (Indx2) then
+                        return False;
+                     end if;
+
+                  elsif not Denotes_Same_Object (Indx1, Indx2) then
                      return False;
                   end if;
 
@@ -2408,20 +2481,18 @@ package body Sem_Util is
 
       --  For slices, prefixes must match and bounds must match
 
-      elsif Nkind (A1) = N_Slice
-        and then Denotes_Same_Object (Prefix (A1), Prefix (A2))
+      elsif Nkind (Obj1) = N_Slice
+        and then Denotes_Same_Object (Prefix (Obj1), Prefix (Obj2))
       then
          declare
             Lo1, Lo2, Hi1, Hi2 : Node_Id;
 
          begin
-            Get_Index_Bounds (Etype (A1), Lo1, Hi1);
-            Get_Index_Bounds (Etype (A2), Lo2, Hi2);
+            Get_Index_Bounds (Etype (Obj1), Lo1, Hi1);
+            Get_Index_Bounds (Etype (Obj2), Lo2, Hi2);
 
             --  Check whether bounds are statically identical. There is no
             --  attempt to detect partial overlap of slices.
-
-            --  What about an array and a slice of an array???
 
             return Denotes_Same_Object (Lo1, Lo2)
               and then Denotes_Same_Object (Hi1, Hi2);
@@ -2430,8 +2501,8 @@ package body Sem_Util is
          --  Literals will appear as indexes. Isn't this where we should check
          --  Known_At_Compile_Time at least if we are generating warnings ???
 
-      elsif Nkind (A1) = N_Integer_Literal then
-         return Intval (A1) = Intval (A2);
+      elsif Nkind (Obj1) = N_Integer_Literal then
+         return Intval (Obj1) = Intval (Obj2);
 
       else
          return False;
@@ -2974,9 +3045,9 @@ package body Sem_Util is
             Set_Scope (Def_Id, Current_Scope);
             return;
 
-         --  Analogous to privals, the discriminal generated for an entry
-         --  index parameter acts as a weak declaration. Perform minimal
-         --  decoration to avoid bogus errors.
+         --  Analogous to privals, the discriminal generated for an entry index
+         --  parameter acts as a weak declaration. Perform minimal decoration
+         --  to avoid bogus errors.
 
          elsif Is_Discriminal (Def_Id)
            and then Ekind (Discriminal_Link (Def_Id)) = E_Entry_Index_Parameter
@@ -2984,11 +3055,10 @@ package body Sem_Util is
             Set_Scope (Def_Id, Current_Scope);
             return;
 
-         --  In the body or private part of an instance, a type extension
-         --  may introduce a component with the same name as that of an
-         --  actual. The legality rule is not enforced, but the semantics
-         --  of the full type with two components of the same name are not
-         --  clear at this point ???
+         --  In the body or private part of an instance, a type extension may
+         --  introduce a component with the same name as that of an actual. The
+         --  legality rule is not enforced, but the semantics of the full type
+         --  with two components of same name are not clear at this point???
 
          elsif In_Instance_Not_Visible then
             null;
@@ -3002,9 +3072,9 @@ package body Sem_Util is
          then
             null;
 
-         --  Conversely, with front-end inlining we may compile the parent
-         --  body first, and a child unit subsequently. The context is now
-         --  the parent spec, and body entities are not visible.
+         --  Conversely, with front-end inlining we may compile the parent body
+         --  first, and a child unit subsequently. The context is now the
+         --  parent spec, and body entities are not visible.
 
          elsif Is_Child_Unit (Def_Id)
            and then Is_Package_Body_Entity (E)
@@ -3018,8 +3088,8 @@ package body Sem_Util is
             Error_Msg_Sloc := Sloc (E);
 
             --  If the previous declaration is an incomplete type declaration
-            --  this may be an attempt to complete it with a private type.
-            --  The following avoids confusing cascaded errors.
+            --  this may be an attempt to complete it with a private type. The
+            --  following avoids confusing cascaded errors.
 
             if Nkind (Parent (E)) = N_Incomplete_Type_Declaration
               and then Nkind (Parent (Def_Id)) = N_Private_Type_Declaration
@@ -3042,9 +3112,9 @@ package body Sem_Util is
                Error_Msg_N ("& conflicts with declaration#", E);
                return;
 
-            --  If the name of the unit appears in its own context clause,
-            --  a dummy package with the name has already been created, and
-            --  the error emitted. Try to continue quietly.
+            --  If the name of the unit appears in its own context clause, a
+            --  dummy package with the name has already been created, and the
+            --  error emitted. Try to continue quietly.
 
             elsif Error_Posted (E)
               and then Sloc (E) = No_Location
@@ -3073,9 +3143,9 @@ package body Sem_Util is
                Error_Msg_N ("\generic units cannot be overloaded", Def_Id);
             end if;
 
-            --  If entity is in standard, then we are in trouble, because
-            --  it means that we have a library package with a duplicated
-            --  name. That's hard to recover from, so abort!
+            --  If entity is in standard, then we are in trouble, because it
+            --  means that we have a library package with a duplicated name.
+            --  That's hard to recover from, so abort!
 
             if S = Standard_Standard then
                raise Unrecoverable_Error;
@@ -3089,17 +3159,17 @@ package body Sem_Util is
          end if;
       end if;
 
-      --  If we fall through, declaration is OK , or OK enough to continue
+      --  If we fall through, declaration is OK, at least OK enough to continue
 
-      --  If Def_Id is a discriminant or a record component we are in the
-      --  midst of inheriting components in a derived record definition.
-      --  Preserve their Ekind and Etype.
+      --  If Def_Id is a discriminant or a record component we are in the midst
+      --  of inheriting components in a derived record definition. Preserve
+      --  their Ekind and Etype.
 
       if Ekind_In (Def_Id, E_Discriminant, E_Component) then
          null;
 
-      --  If a type is already set, leave it alone (happens whey a type
-      --  declaration is reanalyzed following a call to the optimizer)
+      --  If a type is already set, leave it alone (happens when a type
+      --  declaration is reanalyzed following a call to the optimizer).
 
       elsif Present (Etype (Def_Id)) then
          null;
@@ -3156,8 +3226,8 @@ package body Sem_Util is
 
          and then In_Extended_Main_Source_Unit (Def_Id)
 
-         --  Finally, the hidden entity must be either immediately visible
-         --  or use visible (from a used package)
+         --  Finally, the hidden entity must be either immediately visible or
+         --  use visible (i.e. from a used package).
 
          and then
            (Is_Immediately_Visible (C)
@@ -5051,36 +5121,50 @@ package body Sem_Util is
 
             --  We are interested only in components and discriminants
 
-            if Ekind_In (Ent, E_Component, E_Discriminant) then
+            Exp := Empty;
 
-               --  Get default expression if any. If there is no declaration
-               --  node, it means we have an internal entity. The parent and
-               --  tag fields are examples of such entities. For these cases,
-               --  we just test the type of the entity.
+            case Ekind (Ent) is
+               when E_Component =>
 
-               if Present (Declaration_Node (Ent)) then
-                  Exp := Expression (Declaration_Node (Ent));
-               else
-                  Exp := Empty;
-               end if;
+                  --  Get default expression if any. If there is no declaration
+                  --  node, it means we have an internal entity. The parent and
+                  --  tag fields are examples of such entities. For such cases,
+                  --  we just test the type of the entity.
 
-               --  A component has PI if it has no default expression and the
-               --  component type has PI.
-
-               if No (Exp) then
-                  if not Has_Preelaborable_Initialization (Etype (Ent)) then
-                     Has_PE := False;
-                     exit;
+                  if Present (Declaration_Node (Ent)) then
+                     Exp := Expression (Declaration_Node (Ent));
                   end if;
 
-               --  Require the default expression to be preelaborable
+               when E_Discriminant =>
 
-               elsif not Is_Preelaborable_Expression (Exp) then
+                  --  Note: for a renamed discriminant, the Declaration_Node
+                  --  may point to the one from the ancestor, and have a
+                  --  different expression, so use the proper attribute to
+                  --  retrieve the expression from the derived constraint.
+
+                  Exp := Discriminant_Default_Value (Ent);
+
+               when others =>
+                  goto Check_Next_Entity;
+            end case;
+
+            --  A component has PI if it has no default expression and the
+            --  component type has PI.
+
+            if No (Exp) then
+               if not Has_Preelaborable_Initialization (Etype (Ent)) then
                   Has_PE := False;
                   exit;
                end if;
+
+            --  Require the default expression to be preelaborable
+
+            elsif not Is_Preelaborable_Expression (Exp) then
+               Has_PE := False;
+               exit;
             end if;
 
+         <<Check_Next_Entity>>
             Next_Entity (Ent);
          end loop;
       end Check_Components;
@@ -6789,22 +6873,22 @@ package body Sem_Util is
    -----------------------------------
 
    function Is_Partially_Initialized_Type
-     (Typ          : Entity_Id;
-      Include_Null : Boolean := True) return Boolean
+     (Typ              : Entity_Id;
+      Include_Implicit : Boolean := True) return Boolean
    is
    begin
       if Is_Scalar_Type (Typ) then
          return False;
 
       elsif Is_Access_Type (Typ) then
-         return Include_Null;
+         return Include_Implicit;
 
       elsif Is_Array_Type (Typ) then
 
          --  If component type is partially initialized, so is array type
 
          if Is_Partially_Initialized_Type
-              (Component_Type (Typ), Include_Null)
+              (Component_Type (Typ), Include_Implicit)
          then
             return True;
 
@@ -6818,9 +6902,10 @@ package body Sem_Util is
 
       elsif Is_Record_Type (Typ) then
 
-         --  A discriminated type is always partially initialized
+         --  A discriminated type is always partially initialized if in
+         --  all mode
 
-         if Has_Discriminants (Typ) then
+         if Has_Discriminants (Typ) and then Include_Implicit then
             return True;
 
          --  A tagged type is always partially initialized
@@ -6859,7 +6944,7 @@ package body Sem_Util is
                      --  initialized, then the enclosing record type is also.
 
                      elsif Is_Partially_Initialized_Type
-                             (Etype (Ent), Include_Null)
+                             (Etype (Ent), Include_Implicit)
                      then
                         return True;
                      end if;
@@ -6899,7 +6984,7 @@ package body Sem_Util is
             if No (U) then
                return True;
             else
-               return Is_Partially_Initialized_Type (U, Include_Null);
+               return Is_Partially_Initialized_Type (U, Include_Implicit);
             end if;
          end;
 
@@ -7923,7 +8008,7 @@ package body Sem_Util is
 
          --  Positional parameter for subprogram, entry, or accept call.
          --  In older versions of Ada function call arguments are never
-         --  lvalues. In Ada2012 functions can have in-out parameters.
+         --  lvalues. In Ada 2012 functions can have in-out parameters.
 
          when N_Function_Call            |
               N_Procedure_Call_Statement |
@@ -9563,6 +9648,29 @@ package body Sem_Util is
 
                if Modification_Comes_From_Source then
                   Generate_Reference (Ent, Exp, 'm');
+
+                  --  If the target of the assignment is the bound variable
+                  --  in an iterator, indicate that the corresponding array
+                  --  or container is also modified.
+
+                  if Ada_Version >= Ada_2012
+                    and then
+                      Nkind (Parent (Ent)) = N_Iterator_Specification
+                  then
+                     declare
+                        Domain : constant Node_Id := Name (Parent (Ent));
+
+                     begin
+                        --  TBD : in the full version of the construct, the
+                        --  domain of iteration can be given by an expression.
+
+                        if Is_Entity_Name (Domain) then
+                           Generate_Reference      (Entity (Domain), Exp, 'm');
+                           Set_Is_True_Constant    (Entity (Domain), False);
+                           Set_Never_Set_In_Source (Entity (Domain), False);
+                        end if;
+                     end;
+                  end if;
                end if;
 
                Check_Nested_Access (Ent);
@@ -9872,9 +9980,7 @@ package body Sem_Util is
       --  If S overrides an inherted subprogram S2 the original corresponding
       --  operation of S is the original corresponding operation of S2
 
-      elsif Is_Overriding_Operation (S)
-        and then Present (Overridden_Operation (S))
-      then
+      elsif Present (Overridden_Operation (S)) then
          return Original_Corresponding_Operation (Overridden_Operation (S));
 
       --  otherwise it is S itself
@@ -10696,7 +10802,10 @@ package body Sem_Util is
 
    procedure Save_Actual (N : Node_Id;  Writable : Boolean := False) is
    begin
-      if Is_Entity_Name (N)
+      if Ada_Version < Ada_2012 then
+         return;
+
+      elsif Is_Entity_Name (N)
         or else
           Nkind_In (N, N_Indexed_Component, N_Selected_Component, N_Slice)
         or else

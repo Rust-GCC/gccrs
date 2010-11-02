@@ -495,6 +495,11 @@ package body Switch.C is
 
                      Ptr := Max + 1;
 
+                  --  -gnateP (Treat pragma Pure/Preelaborate errs as warnings)
+
+                  when 'P' =>
+                     Treat_Categorization_Errors_As_Warnings := True;
+
                   --  -gnatez (final delimiter of explicit switches)
 
                   --  All switches that come after -gnatez have been added by
@@ -920,8 +925,8 @@ package body Switch.C is
 
             when 'X' =>
                Ptr := Ptr + 1;
-               Extensions_Allowed := True;
-               Ada_Version := Ada_Version_Type'Last;
+               Extensions_Allowed   := True;
+               Ada_Version          := Ada_Version_Type'Last;
                Ada_Version_Explicit := Ada_Version_Type'Last;
 
             --  Processing for y switch

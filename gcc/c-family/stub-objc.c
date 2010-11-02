@@ -324,25 +324,33 @@ objc_get_class_ivars (tree ARG_UNUSED (name))
 }
 
 void
-objc_set_property_attr (location_t ARG_UNUSED (loc),
-			objc_property_attribute_kind ARG_UNUSED (code),
-			tree ARG_UNUSED (identifier))
+objc_add_property_declaration (location_t ARG_UNUSED (location), 
+			       tree ARG_UNUSED (decl),
+			       bool ARG_UNUSED (parsed_property_readonly),
+			       bool ARG_UNUSED (parsed_property_readwrite),
+			       bool ARG_UNUSED (parsed_property_assign),
+			       bool ARG_UNUSED (parsed_property_retain),
+			       bool ARG_UNUSED (parsed_property_copy),
+			       bool ARG_UNUSED (parsed_property_nonatomic),
+			       tree ARG_UNUSED (parsed_property_getter_ident),
+			       tree ARG_UNUSED (parsed_property_setter_ident))
 {
 }
 
-void
-objc_add_property_variable (tree ARG_UNUSED (prop))
-{
-}
-
-tree
-objc_build_getter_call (tree ARG_UNUSED (datum), tree ARG_UNUSED (component))
+bool
+objc_is_property_ref (tree ARG_UNUSED (node))
 {
   return 0;
 }
 
 tree
-objc_build_setter_call (tree ARG_UNUSED (lhs), tree ARG_UNUSED (rhs))
+objc_maybe_build_component_ref (tree ARG_UNUSED (datum), tree ARG_UNUSED (component))
+{
+  return 0;
+}
+
+tree
+objc_maybe_build_modify_expr (tree ARG_UNUSED (lhs), tree ARG_UNUSED (rhs))
 {
   return 0;
 }
@@ -357,6 +365,13 @@ void
 objc_add_dynamic_declaration (location_t ARG_UNUSED (start_locus), 
 			      tree ARG_UNUSED (property_list))
 {
+}
+
+const char *
+objc_maybe_printable_name (tree ARG_UNUSED (decl), 
+			   int ARG_UNUSED (v))
+{
+  return NULL;
 }
 
 tree

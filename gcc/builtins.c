@@ -506,10 +506,7 @@ c_strlen (tree src, int only_value)
       && (only_value || !TREE_SIDE_EFFECTS (TREE_OPERAND (src, 0))))
     return c_strlen (TREE_OPERAND (src, 1), only_value);
 
-  if (EXPR_HAS_LOCATION (src))
-    loc = EXPR_LOCATION (src);
-  else
-    loc = input_location;
+  loc = EXPR_LOC_OR_HERE (src);
 
   src = string_constant (src, &offset_node);
   if (src == 0)
@@ -1334,7 +1331,7 @@ apply_args_size (void)
       for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
 	if (FUNCTION_ARG_REGNO_P (regno))
 	  {
-	    mode = reg_raw_mode[regno];
+	    mode = targetm.calls.get_raw_arg_mode (regno);
 
 	    gcc_assert (mode != VOIDmode);
 
@@ -1370,7 +1367,7 @@ apply_result_size (void)
       for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
 	if (targetm.calls.function_value_regno_p (regno))
 	  {
-	    mode = reg_raw_mode[regno];
+	    mode = targetm.calls.get_raw_result_mode (regno);
 
 	    gcc_assert (mode != VOIDmode);
 

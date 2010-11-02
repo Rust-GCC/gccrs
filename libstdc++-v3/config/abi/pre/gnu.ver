@@ -1187,7 +1187,18 @@ GLIBCXX_3.4.15 {
     # basic_filebuf::_M_get_ext_pos
     _ZNSt13basic_filebufI[cw]St11char_traitsI[cw]EE14_M_get_ext_pos*;
 
+    # targets using emutls
+    __emutls_v._ZSt11__once_call;
+    __emutls_v._ZSt15__once_callable;
+
 } GLIBCXX_3.4.14;
+
+GLIBCXX_3.4.16 {
+
+    # std::future_category is now a function
+    _ZSt15future_categoryv;
+
+} GLIBCXX_3.4.15;
 
 # Symbols in the support library (libsupc++) have their own tag.
 CXXABI_1.3 {

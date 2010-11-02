@@ -1334,7 +1334,10 @@ enum
   CP_PARSER_FLAGS_NO_USER_DEFINED_TYPES = 0x2,
   /* When parsing a type-specifier, do not try to parse a class-specifier
      or enum-specifier.  */
-  CP_PARSER_FLAGS_NO_TYPE_DEFINITIONS = 0x4
+  CP_PARSER_FLAGS_NO_TYPE_DEFINITIONS = 0x4,
+  /* When parsing a decl-specifier-seq, only allow type-specifier or
+     constexpr.  */
+  CP_PARSER_FLAGS_ONLY_TYPE_OR_CONSTEXPR = 0x8
 };
 
 /* This type is used for parameters and variables which hold
@@ -2098,13 +2101,13 @@ static tree cp_parser_objc_statement
   (cp_parser *);
 static bool cp_parser_objc_valid_prefix_attributes
   (cp_parser *, tree *);
-static void cp_parser_objc_at_property 
+static void cp_parser_objc_at_property_declaration 
   (cp_parser *) ;
 static void cp_parser_objc_at_synthesize_declaration 
   (cp_parser *) ;
 static void cp_parser_objc_at_dynamic_declaration
   (cp_parser *) ;
-static void cp_parser_objc_property_decl 
+static tree cp_parser_objc_struct_declaration
   (cp_parser *) ;
 
 /* Utility Routines */
@@ -2695,8 +2698,11 @@ cp_parser_diagnose_invalid_type_name (cp_parser *parser,
 	   template <typename T> struct B : public A<T> { X x; };
 
 	 The user should have said "typename A<T>::X".  */
-      if (processing_template_decl && current_class_type
-	  && TYPE_BINFO (current_class_type))
+      if (cxx_dialect < cxx0x && id == ridpointers[(int)RID_CONSTEXPR])
+	inform (location, "C++0x %<constexpr%> only available with "
+		"-std=c++0x or -std=gnu++0x");
+      else if (processing_template_decl && current_class_type
+	       && TYPE_BINFO (current_class_type))
 	{
 	  tree b;
 
@@ -3811,6 +3817,7 @@ cp_parser_primary_expression (cp_parser *parser,
 	case RID_IS_STD_LAYOUT:
 	case RID_IS_TRIVIAL:
 	case RID_IS_UNION:
+	case RID_IS_LITERAL_TYPE:
 	  return cp_parser_trait_expr (parser, token->keyword);
 
 	/* Objective-C++ expressions.  */
@@ -7169,7 +7176,8 @@ cp_parser_constant_expression (cp_parser* parser,
   saved_non_integral_constant_expression_p = parser->non_integral_constant_expression_p;
   /* We are now parsing a constant-expression.  */
   parser->integral_constant_expression_p = true;
-  parser->allow_non_integral_constant_expression_p = allow_non_constant_p;
+  parser->allow_non_integral_constant_expression_p
+    = (allow_non_constant_p || cxx_dialect >= cxx0x);
   parser->non_integral_constant_expression_p = false;
   /* Although the grammar says "conditional-expression", we parse an
      "assignment-expression", which also permits "throw-expression"
@@ -7188,7 +7196,8 @@ cp_parser_constant_expression (cp_parser* parser,
     = saved_allow_non_integral_constant_expression_p;
   if (allow_non_constant_p)
     *non_constant_p = parser->non_integral_constant_expression_p;
-  else if (parser->non_integral_constant_expression_p)
+  else if (parser->non_integral_constant_expression_p
+	   && cxx_dialect < cxx0x)
     expression = error_mark_node;
   parser->non_integral_constant_expression_p
     = saved_non_integral_constant_expression_p;
@@ -7361,6 +7370,9 @@ cp_parser_trait_expr (cp_parser* parser, enum rid keyword)
       break;
     case RID_IS_UNION:
       kind = CPTK_IS_UNION;
+      break;
+    case RID_IS_LITERAL_TYPE:
+      kind = CPTK_IS_LITERAL_TYPE;
       break;
     default:
       gcc_unreachable ();
@@ -8509,6 +8521,7 @@ cp_parser_condition (cp_parser* parser)
 {
   cp_decl_specifier_seq type_specifiers;
   const char *saved_message;
+  int declares_class_or_enum;
 
   /* Try the declaration first.  */
   cp_parser_parse_tentatively (parser);
@@ -8518,9 +8531,10 @@ cp_parser_condition (cp_parser* parser)
   parser->type_definition_forbidden_message
     = G_("types may not be defined in conditions");
   /* Parse the type-specifier-seq.  */
-  cp_parser_type_specifier_seq (parser, /*is_declaration==*/true,
-				/*is_trailing_return=*/false,
-				&type_specifiers);
+  cp_parser_decl_specifier_seq (parser,
+				CP_PARSER_FLAGS_ONLY_TYPE_OR_CONSTEXPR,
+				&type_specifiers,
+				&declares_class_or_enum);
   /* Restore the saved message.  */
   parser->type_definition_forbidden_message = saved_message;
   /* If all is well, we might be looking at a declaration.  */
@@ -9851,6 +9865,11 @@ cp_parser_decl_specifier_seq (cp_parser* parser,
 	  break;
 	}
 
+      if (found_decl_spec
+	  && (flags & CP_PARSER_FLAGS_ONLY_TYPE_OR_CONSTEXPR)
+	  && token->keyword != RID_CONSTEXPR)
+	error ("decl-specifier invalid in condition");
+
       /* Constructors are a special case.  The `S' in `S()' is not a
 	 decl-specifier; it is the beginning of the declarator.  */
       constructor_p
@@ -11026,6 +11045,13 @@ cp_parser_template_parameter_list (cp_parser* parser)
   tree parameter_list = NULL_TREE;
 
   begin_template_parm_list ();
+
+  /* The loop below parses the template parms.  We first need to know
+     the total number of template parms to be able to compute proper
+     canonical types of each dependent type. So after the loop, when
+     we know the total number of template parms,
+     end_template_parm_list computes the proper canonical types and
+     fixes up the dependent types accordingly.  */
   while (true)
     {
       tree parameter;
@@ -11044,11 +11070,11 @@ cp_parser_template_parameter_list (cp_parser* parser)
 						parm_loc,
 						parameter,
 						is_non_type,
-                                                is_parameter_pack);
+						is_parameter_pack,
+						0);
       else
        {
          tree err_parm = build_tree_list (parameter, parameter);
-         TREE_VALUE (err_parm) = error_mark_node;
          parameter_list = chainon (parameter_list, err_parm);
        }
 
@@ -12231,6 +12257,13 @@ cp_parser_explicit_instantiation (cp_parser* parser)
 						       decl_specifiers.type_location);
       if (declarator != cp_error_declarator)
 	{
+	  if (decl_specifiers.specs[(int)ds_inline])
+	    permerror (input_location, "explicit instantiation shall not use"
+		       " %<inline%> specifier");
+	  if (decl_specifiers.specs[(int)ds_constexpr])
+	    permerror (input_location, "explicit instantiation shall not use"
+		       " %<constexpr%> specifier");
+
 	  decl = grokdeclarator (declarator, &decl_specifiers,
 				 NORMAL, 0, &decl_specifiers.attributes);
 	  /* Turn access control back on for names used during
@@ -12920,17 +12953,17 @@ cp_parser_elaborated_type_specifier (cp_parser* parser,
       cp_lexer_consume_token (parser->lexer);
       /* Remember that it's an enumeration type.  */
       tag_type = enum_type;
-      /* Parse the optional `struct' or `class' key (for C++0x scoped
-         enums).  */
+      /* Issue a warning if the `struct' or `class' key (for C++0x scoped
+	 enums) is used here.  */
       if (cp_lexer_next_token_is_keyword (parser->lexer, RID_CLASS)
-          || cp_lexer_next_token_is_keyword (parser->lexer, RID_STRUCT))
-        {
-          if (cxx_dialect == cxx98)
-            maybe_warn_cpp0x (CPP0X_SCOPED_ENUMS);
-
-          /* Consume the `struct' or `class'.  */
-          cp_lexer_consume_token (parser->lexer);
-        }
+	  || cp_lexer_next_token_is_keyword (parser->lexer, RID_STRUCT))
+	{
+	    pedwarn (input_location, 0, "elaborated-type-specifier "
+		      "for a scoped enum must not use the %<%D%> keyword",
+		      cp_lexer_peek_token (parser->lexer)->u.value);
+	  /* Consume the `struct' or `class' and parse it anyway.  */
+	  cp_lexer_consume_token (parser->lexer);
+	}
       /* Parse the attributes.  */
       attributes = cp_parser_attributes_opt (parser);
     }
@@ -13220,7 +13253,11 @@ cp_parser_elaborated_type_specifier (cp_parser* parser,
 /* Parse an enum-specifier.
 
    enum-specifier:
-     enum-key identifier [opt] enum-base [opt] { enumerator-list [opt] }
+     enum-head { enumerator-list [opt] }
+
+   enum-head:
+     enum-key identifier [opt] enum-base [opt]
+     enum-key nested-name-specifier identifier enum-base [opt]
 
    enum-key:
      enum
@@ -13229,6 +13266,9 @@ cp_parser_elaborated_type_specifier (cp_parser* parser,
 
    enum-base:   [C++0x]
      : type-specifier-seq
+
+   opaque-enum-specifier:
+     enum-key identifier enum-base [opt] ;
 
    GNU Extensions:
      enum-key attributes[opt] identifier [opt] enum-base [opt] 
@@ -13241,11 +13281,18 @@ static tree
 cp_parser_enum_specifier (cp_parser* parser)
 {
   tree identifier;
-  tree type;
+  tree type = NULL_TREE;
+  tree prev_scope;
+  tree nested_name_specifier = NULL_TREE;
   tree attributes;
   bool scoped_enum_p = false;
   bool has_underlying_type = false;
+  bool nested_being_defined = false;
+  bool new_value_list = false;
+  bool is_new_type = false;
+  bool is_anonymous = false;
   tree underlying_type = NULL_TREE;
+  cp_token *type_start_token = NULL;
 
   /* Parse tentatively so that we can back up if we don't find a
      enum-specifier.  */
@@ -13262,7 +13309,7 @@ cp_parser_enum_specifier (cp_parser* parser)
   if (cp_lexer_next_token_is_keyword (parser->lexer, RID_CLASS)
       || cp_lexer_next_token_is_keyword (parser->lexer, RID_STRUCT))
     {
-      if (cxx_dialect == cxx98)
+      if (cxx_dialect < cxx0x)
         maybe_warn_cpp0x (CPP0X_SCOPED_ENUMS);
 
       /* Consume the `struct' or `class' token.  */
@@ -13273,10 +13320,65 @@ cp_parser_enum_specifier (cp_parser* parser)
 
   attributes = cp_parser_attributes_opt (parser);
 
-  if (cp_lexer_next_token_is (parser->lexer, CPP_NAME))
-    identifier = cp_parser_identifier (parser);
+  /* Clear the qualification.  */
+  parser->scope = NULL_TREE;
+  parser->qualifying_scope = NULL_TREE;
+  parser->object_scope = NULL_TREE;
+
+  /* Figure out in what scope the declaration is being placed.  */
+  prev_scope = current_scope ();
+
+  type_start_token = cp_lexer_peek_token (parser->lexer);
+
+  push_deferring_access_checks (dk_no_check);
+  nested_name_specifier
+      = cp_parser_nested_name_specifier_opt (parser,
+					     /*typename_keyword_p=*/true,
+					     /*check_dependency_p=*/false,
+					     /*type_p=*/false,
+					     /*is_declaration=*/false);
+
+  if (nested_name_specifier)
+    {
+      tree name;
+
+      identifier = cp_parser_identifier (parser);
+      name =  cp_parser_lookup_name (parser, identifier,
+				     enum_type,
+				     /*is_template=*/false,
+				     /*is_namespace=*/false,
+				     /*check_dependency=*/true,
+				     /*ambiguous_decls=*/NULL,
+				     input_location);
+      if (name)
+	{
+	  type = TREE_TYPE (name);
+	  if (TREE_CODE (type) == TYPENAME_TYPE)
+	    {
+	      /* Are template enums allowed in ISO? */
+	      if (template_parm_scope_p ())
+		pedwarn (type_start_token->location, OPT_pedantic,
+			 "%qD is an enumeration template", name);
+	      /* ignore a typename reference, for it will be solved by name
+	         in start_enum.  */
+	      type = NULL_TREE;
+	    }
+	}
+      else
+	error_at (type_start_token->location,
+		  "%qD is not an enumerator-name", identifier);
+    }
   else
-    identifier = make_anon_name ();
+    {
+      if (cp_lexer_next_token_is (parser->lexer, CPP_NAME))
+	identifier = cp_parser_identifier (parser);
+      else
+	{
+	  identifier = make_anon_name ();
+	  is_anonymous = true;
+	}
+    }
+  pop_deferring_access_checks ();
 
   /* Check for the `:' that denotes a specified underlying type in C++0x.
      Note that a ':' could also indicate a bitfield width, however.  */
@@ -13296,7 +13398,7 @@ cp_parser_enum_specifier (cp_parser* parser)
       if (!cp_parser_parse_definitely (parser))
 	return NULL_TREE;
 
-      if (cxx_dialect == cxx98)
+      if (cxx_dialect < cxx0x)
         maybe_warn_cpp0x (CPP0X_SCOPED_ENUMS);
 
       has_underlying_type = true;
@@ -13314,13 +13416,38 @@ cp_parser_enum_specifier (cp_parser* parser)
   /* Look for the `{' but don't consume it yet.  */
   if (!cp_lexer_next_token_is (parser->lexer, CPP_OPEN_BRACE))
     {
-      cp_parser_error (parser, "expected %<{%>");
-      if (has_underlying_type)
-	return NULL_TREE;
+      if (cxx_dialect < cxx0x || (!scoped_enum_p && !underlying_type))
+	{
+	  cp_parser_error (parser, "expected %<{%>");
+	  if (has_underlying_type)
+	    return NULL_TREE;
+	}
+      /* An opaque-enum-specifier must have a ';' here.  */
+      if ((scoped_enum_p || underlying_type)
+	  && cp_lexer_next_token_is_not (parser->lexer, CPP_SEMICOLON))
+	{
+	  cp_parser_error (parser, "expected %<;%> or %<{%>");
+	  if (has_underlying_type)
+	    return NULL_TREE;
+	}
     }
 
   if (!has_underlying_type && !cp_parser_parse_definitely (parser))
     return NULL_TREE;
+
+  if (nested_name_specifier)
+    {
+      if (CLASS_TYPE_P (nested_name_specifier))
+	{
+	  nested_being_defined = TYPE_BEING_DEFINED (nested_name_specifier);
+	  TYPE_BEING_DEFINED (nested_name_specifier) = 1;
+	  push_scope (nested_name_specifier);
+	}
+      else if (TREE_CODE (nested_name_specifier) == NAMESPACE_DECL)
+	{
+	  push_nested_namespace (nested_name_specifier);
+	}
+    }
 
   /* Issue an error message if type-definitions are forbidden here.  */
   if (!cp_parser_check_type_definition (parser))
@@ -13329,23 +13456,89 @@ cp_parser_enum_specifier (cp_parser* parser)
     /* Create the new type.  We do this before consuming the opening
        brace so the enum will be recorded as being on the line of its
        tag (or the 'enum' keyword, if there is no tag).  */
-    type = start_enum (identifier, underlying_type, scoped_enum_p);
-  
-  /* Consume the opening brace.  */
-  cp_lexer_consume_token (parser->lexer);
+    type = start_enum (identifier, type, underlying_type,
+		       scoped_enum_p, &is_new_type);
 
-  if (type == error_mark_node)
+  /* If the next token is not '{' it is an opaque-enum-specifier or an
+     elaborated-type-specifier.  */
+  if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_BRACE))
     {
-      cp_parser_skip_to_end_of_block_or_statement (parser);
-      return error_mark_node;
+      if (nested_name_specifier)
+	{
+	  /* The following catches invalid code such as:
+	     enum class S<int>::E { A, B, C }; */
+	  if (!processing_specialization
+	      && CLASS_TYPE_P (nested_name_specifier)
+	      && CLASSTYPE_USE_TEMPLATE (nested_name_specifier))
+	    error_at (type_start_token->location, "cannot add an enumerator "
+		      "list to a template instantiation");
+
+	  /* If that scope does not contain the scope in which the
+	     class was originally declared, the program is invalid.  */
+	  if (prev_scope && !is_ancestor (prev_scope, nested_name_specifier))
+	    {
+	      if (at_namespace_scope_p ())
+		error_at (type_start_token->location,
+			  "declaration of %qD in namespace %qD which does not "
+			  "enclose %qD",
+			  type, prev_scope, nested_name_specifier);
+	      else
+		error_at (type_start_token->location,
+			  "declaration of %qD in %qD which does not enclose %qD",
+			  type, prev_scope, nested_name_specifier);
+	      type = error_mark_node;
+	    }
+	}
+
+      if (scoped_enum_p)
+	begin_scope (sk_scoped_enum, type);
+
+      /* Consume the opening brace.  */
+      cp_lexer_consume_token (parser->lexer);
+
+      if (type == error_mark_node)
+	; /* Nothing to add */
+      else if (OPAQUE_ENUM_P (type)
+	       || (cxx_dialect > cxx98 && processing_specialization))
+	{
+	  new_value_list = true;
+	  SET_OPAQUE_ENUM_P (type, false);
+	  DECL_SOURCE_LOCATION (TYPE_NAME (type)) = type_start_token->location;
+	}
+      else
+	{
+	  error_at (type_start_token->location, "multiple definition of %q#T", type);
+	  error_at (DECL_SOURCE_LOCATION (TYPE_MAIN_DECL (type)),
+		    "previous definition here");
+	  type = error_mark_node;
+	}
+
+      if (type == error_mark_node)
+	cp_parser_skip_to_end_of_block_or_statement (parser);
+      /* If the next token is not '}', then there are some enumerators.  */
+      else if (cp_lexer_next_token_is_not (parser->lexer, CPP_CLOSE_BRACE))
+	cp_parser_enumerator_list (parser, type);
+
+      /* Consume the final '}'.  */
+      cp_parser_require (parser, CPP_CLOSE_BRACE, RT_CLOSE_BRACE);
+
+      if (scoped_enum_p)
+	finish_scope ();
     }
-
-  /* If the next token is not '}', then there are some enumerators.  */
-  if (cp_lexer_next_token_is_not (parser->lexer, CPP_CLOSE_BRACE))
-    cp_parser_enumerator_list (parser, type);
-
-  /* Consume the final '}'.  */
-  cp_parser_require (parser, CPP_CLOSE_BRACE, RT_CLOSE_BRACE);
+  else
+    {
+      /* If a ';' follows, then it is an opaque-enum-specifier
+	and additional restrictions apply.  */
+      if (cp_lexer_next_token_is (parser->lexer, CPP_SEMICOLON))
+	{
+	  if (is_anonymous)
+	    error_at (type_start_token->location,
+		      "opaque-enum-specifier without name");
+	  else if (nested_name_specifier)
+	    error_at (type_start_token->location,
+		      "opaque-enum-specifier must use a simple identifier");
+	}
+    }
 
   /* Look for trailing attributes to apply to this enumeration, and
      apply them if appropriate.  */
@@ -13359,8 +13552,26 @@ cp_parser_enum_specifier (cp_parser* parser)
     }
 
   /* Finish up the enumeration.  */
-  finish_enum (type);
+  if (type != error_mark_node)
+    {
+      if (new_value_list)
+	finish_enum_value_list (type);
+      if (is_new_type)
+	finish_enum (type);
+    }
 
+  if (nested_name_specifier)
+    {
+      if (CLASS_TYPE_P (nested_name_specifier))
+	{
+	  TYPE_BEING_DEFINED (nested_name_specifier) = nested_being_defined;
+	  pop_scope (nested_name_specifier);
+	}
+      else if (TREE_CODE (nested_name_specifier) == NAMESPACE_DECL)
+	{
+	  pop_nested_namespace (nested_name_specifier);
+	}
+    }
   return type;
 }
 
@@ -14773,8 +14984,8 @@ cp_parser_direct_declarator (cp_parser* parser,
 		= cp_parser_constant_expression (parser,
 						 /*allow_non_constant=*/true,
 						 &non_constant_p);
-	      if (!non_constant_p)
-		bounds = fold_non_dependent_expr (bounds);
+	      if (!non_constant_p || cxx_dialect >= cxx0x)
+		/* OK */;
 	      /* Normally, the array bound must be an integral constant
 		 expression.  However, as an extension, we allow VLAs
 		 in function scopes as long as they aren't part of a
@@ -16067,15 +16278,43 @@ cp_parser_function_body (cp_parser *parser)
 static bool
 cp_parser_ctor_initializer_opt_and_function_body (cp_parser *parser)
 {
-  tree body;
+  tree body, list;
   bool ctor_initializer_p;
+  const bool check_body_p =
+     DECL_CONSTRUCTOR_P (current_function_decl)
+     && DECL_DECLARED_CONSTEXPR_P (current_function_decl);
+  tree last = NULL;
 
   /* Begin the function body.  */
   body = begin_function_body ();
   /* Parse the optional ctor-initializer.  */
   ctor_initializer_p = cp_parser_ctor_initializer_opt (parser);
+
+  /* If we're parsing a constexpr constructor definition, we need
+     to check that the constructor body is indeed empty.  However,
+     before we get to cp_parser_function_body lot of junk has been
+     generated, so we can't just check that we have an empty block.
+     Rather we take a snapshot of the outermost block, and check whether
+     cp_parser_function_body changed its state.  */
+  if (check_body_p)
+    {
+      list = body;
+      if (TREE_CODE (list) == BIND_EXPR)
+	list = BIND_EXPR_BODY (list);
+      if (TREE_CODE (list) == STATEMENT_LIST
+	  && STATEMENT_LIST_TAIL (list) != NULL)
+	last = STATEMENT_LIST_TAIL (list)->stmt;
+    }
   /* Parse the function-body.  */
   cp_parser_function_body (parser);
+  if (check_body_p
+      && (TREE_CODE (list) != STATEMENT_LIST
+	  || (last == NULL && STATEMENT_LIST_TAIL (list) != NULL)
+	  || (last != NULL && last != STATEMENT_LIST_TAIL (list)->stmt)))
+    {
+      error ("constexpr constructor does not have empty body");
+      DECL_DECLARED_CONSTEXPR_P (current_function_decl) = false;
+    }
   /* Finish the function body.  */
   finish_function_body (body);
 
@@ -16178,7 +16417,15 @@ cp_parser_initializer_clause (cp_parser* parser, bool* non_constant_p)
 					/*allow_non_constant_p=*/true,
 					non_constant_p);
       if (!*non_constant_p)
-	initializer = fold_non_dependent_expr (initializer);
+	{
+	  /* We only want to fold if this is really a constant
+	     expression.  FIXME Actually, we don't want to fold here, but in
+	     cp_finish_decl.  */
+	  tree folded = fold_non_dependent_expr (initializer);
+	  folded = maybe_constant_value (folded);
+	  if (TREE_CONSTANT (folded))
+	    initializer = folded;
+	}
     }
   else
     initializer = cp_parser_braced_list (parser, non_constant_p);
@@ -21752,7 +21999,7 @@ cp_parser_objc_method_prototype_list (cp_parser* parser)
 	  cp_parser_consume_semicolon_at_end_of_statement (parser);
 	}
       else if (token->keyword == RID_AT_PROPERTY)
-	cp_parser_objc_at_property (parser);
+	cp_parser_objc_at_property_declaration (parser);
       else if (token->keyword == RID_ATTRIBUTE 
       	       && cp_parser_objc_method_maybe_bad_prefix_attributes(parser))
 	warning_at (cp_lexer_peek_token (parser->lexer)->location, 
@@ -21819,8 +22066,10 @@ cp_parser_objc_method_definition_list (cp_parser* parser)
 	      objc_finish_method_definition (meth);
 	    }
 	}
+      /* The following case will be removed once @synthesize is
+	 completely implemented.  */
       else if (token->keyword == RID_AT_PROPERTY)
-	cp_parser_objc_at_property (parser);
+	cp_parser_objc_at_property_declaration (parser);
       else if (token->keyword == RID_AT_SYNTHESIZE)
 	cp_parser_objc_at_synthesize_declaration (parser);
       else if (token->keyword == RID_AT_DYNAMIC)
@@ -21873,6 +22122,28 @@ cp_parser_objc_class_ivars (cp_parser* parser)
 				    CP_PARSER_FLAGS_OPTIONAL,
 				    &declspecs,
 				    &decl_class_or_enum_p);
+
+      /* auto, register, static, extern, mutable.  */
+      if (declspecs.storage_class != sc_none)
+	{
+	  cp_parser_error (parser, "invalid type for instance variable");	  
+	  declspecs.storage_class = sc_none;
+	}
+
+      /* __thread.  */
+      if (declspecs.specs[(int) ds_thread])
+	{
+	  cp_parser_error (parser, "invalid type for instance variable");
+	  declspecs.specs[(int) ds_thread] = 0;
+	}
+      
+      /* typedef.  */
+      if (declspecs.specs[(int) ds_typedef])
+	{
+	  cp_parser_error (parser, "invalid type for instance variable");
+	  declspecs.specs[(int) ds_typedef] = 0;
+	}
+
       prefix_attributes = declspecs.attributes;
       declspecs.attributes = NULL_TREE;
 
@@ -22318,144 +22589,283 @@ cp_parser_objc_valid_prefix_attributes (cp_parser* parser, tree *attrib)
   return false;  
 }
 
-/* This routine parses the propery declarations. */
+/* This routine is a minimal replacement for
+   c_parser_struct_declaration () used when parsing the list of
+   types/names or ObjC++ properties.  For example, when parsing the
+   code
 
-static void
-cp_parser_objc_property_decl (cp_parser *parser)
+   @property (readonly) int a, b, c;
+
+   this function is responsible for parsing "int a, int b, int c" and
+   returning the declarations as CHAIN of DECLs.
+
+   TODO: Share this code with cp_parser_objc_class_ivars.  It's very
+   similar parsing.  */
+static tree
+cp_parser_objc_struct_declaration (cp_parser *parser)
 {
-  int declares_class_or_enum;
+  tree decls = NULL_TREE;
   cp_decl_specifier_seq declspecs;
+  int decl_class_or_enum_p;
+  tree prefix_attributes;
 
   cp_parser_decl_specifier_seq (parser,
-                                CP_PARSER_FLAGS_NONE,
-                                &declspecs,
-                                &declares_class_or_enum);
+				CP_PARSER_FLAGS_NONE,
+				&declspecs,
+				&decl_class_or_enum_p);
+
+  if (declspecs.type == error_mark_node)
+    return error_mark_node;
+
+  /* auto, register, static, extern, mutable.  */
+  if (declspecs.storage_class != sc_none)
+    {
+      cp_parser_error (parser, "invalid type for property");
+      declspecs.storage_class = sc_none;
+    }
+  
+  /* __thread.  */
+  if (declspecs.specs[(int) ds_thread])
+    {
+      cp_parser_error (parser, "invalid type for property");
+      declspecs.specs[(int) ds_thread] = 0;
+    }
+  
+  /* typedef.  */
+  if (declspecs.specs[(int) ds_typedef])
+    {
+      cp_parser_error (parser, "invalid type for property");
+      declspecs.specs[(int) ds_typedef] = 0;
+    }
+
+  prefix_attributes = declspecs.attributes;
+  declspecs.attributes = NULL_TREE;
+
   /* Keep going until we hit the `;' at the end of the declaration. */
   while (cp_lexer_next_token_is_not (parser->lexer, CPP_SEMICOLON))
     {
-      tree property;
+      tree attributes, first_attribute, decl;
+      cp_declarator *declarator;
       cp_token *token;
-      cp_declarator *declarator
-	= cp_parser_declarator (parser, CP_PARSER_DECLARATOR_NAMED,
-				NULL, NULL, false);
-      property = grokdeclarator (declarator, &declspecs, NORMAL,0, NULL);
-      /* Recover from any kind of error in property declaration. */
-      if (property == error_mark_node || property == NULL_TREE)
-	return;
 
-      /* Add to property list. */
-      objc_add_property_variable (copy_node (property));
+      /* Parse the declarator.  */
+      declarator = cp_parser_declarator (parser, CP_PARSER_DECLARATOR_NAMED,
+					 NULL, NULL, false);
+
+      /* Look for attributes that apply to the ivar.  */
+      attributes = cp_parser_attributes_opt (parser);
+      /* Remember which attributes are prefix attributes and
+	 which are not.  */
+      first_attribute = attributes;
+      /* Combine the attributes.  */
+      attributes = chainon (prefix_attributes, attributes);
+      
+      decl = grokfield (declarator, &declspecs,
+			NULL_TREE, /*init_const_expr_p=*/false,
+			NULL_TREE, attributes);
+
+      if (decl == error_mark_node || decl == NULL_TREE)
+	return error_mark_node;
+      
+      /* Reset PREFIX_ATTRIBUTES.  */
+      while (attributes && TREE_CHAIN (attributes) != first_attribute)
+	attributes = TREE_CHAIN (attributes);
+      if (attributes)
+	TREE_CHAIN (attributes) = NULL_TREE;
+
+      DECL_CHAIN (decl) = decls;
+      decls = decl;
+
       token = cp_lexer_peek_token (parser->lexer);
       if (token->type == CPP_COMMA)
 	{
 	  cp_lexer_consume_token (parser->lexer);  /* Eat ','.  */
 	  continue;
 	}
-      else if (token->type == CPP_EOF)
+      else
 	break;
     }
-  /* Eat ';' if present, or issue an error.  */
-  cp_parser_require (parser, CPP_SEMICOLON, RT_SEMICOLON);
+  return decls;
 }
 
-/* ObjC @property. */
-/* Parse a comma-separated list of property attributes.  
-   The lexer does not recognize */
+/* Parse an Objective-C @property declaration.  The syntax is:
 
+   objc-property-declaration:
+     '@property' objc-property-attributes[opt] struct-declaration ;
+
+   objc-property-attributes:
+    '(' objc-property-attribute-list ')'
+
+   objc-property-attribute-list:
+     objc-property-attribute
+     objc-property-attribute-list, objc-property-attribute
+
+   objc-property-attribute
+     'getter' = identifier
+     'setter' = identifier
+     'readonly'
+     'readwrite'
+     'assign'
+     'retain'
+     'copy'
+     'nonatomic'
+
+  For example:
+    @property NSString *name;
+    @property (readonly) id object;
+    @property (retain, nonatomic, getter=getTheName) id name;
+    @property int a, b, c;
+
+   PS: This function is identical to
+   c_parser_objc_at_property_declaration for C.  Keep them in sync.  */
 static void 
-cp_parser_objc_property_attrlist (cp_parser *parser)
+cp_parser_objc_at_property_declaration (cp_parser *parser)
 {
-  cp_token *token;
-  /* Initialize to an empty list.  */
-  objc_set_property_attr (cp_lexer_peek_token (parser->lexer)->location,
-			  OBJC_PATTR_INIT, NULL_TREE);
+  /* The following variables hold the attributes of the properties as
+     parsed.  They are 'false' or 'NULL_TREE' if the attribute was not
+     seen.  When we see an attribute, we set them to 'true' (if they
+     are boolean properties) or to the identifier (if they have an
+     argument, ie, for getter and setter).  Note that here we only
+     parse the list of attributes, check the syntax and accumulate the
+     attributes that we find.  objc_add_property_declaration() will
+     then process the information.  */
+  bool property_assign = false;
+  bool property_copy = false;
+  tree property_getter_ident = NULL_TREE;
+  bool property_nonatomic = false;
+  bool property_readonly = false;
+  bool property_readwrite = false;
+  bool property_retain = false;
+  tree property_setter_ident = NULL_TREE;
 
-  /* The list is optional.  */
-  if (cp_lexer_next_token_is_not (parser->lexer, CPP_OPEN_PAREN))
-    return;
+  /* 'properties' is the list of properties that we read.  Usually a
+     single one, but maybe more (eg, in "@property int a, b, c;" there
+     are three).  */
+  tree properties;
+  location_t loc;
 
-  /* Eat the '('.  */
-  cp_lexer_consume_token (parser->lexer);
+  loc = cp_lexer_peek_token (parser->lexer)->location;
 
-  token = cp_lexer_peek_token (parser->lexer);
-  while (token->type != CPP_CLOSE_PAREN && token->type != CPP_EOF)
+  cp_lexer_consume_token (parser->lexer);  /* Eat '@property'.  */
+
+  /* Parse the optional attribute list...  */
+  if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_PAREN))
     {
-      location_t loc = token->location;
-      tree node = cp_parser_identifier (parser);
-      if (node == ridpointers [(int) RID_READONLY])
-	objc_set_property_attr (loc, OBJC_PATTR_READONLY, NULL_TREE);
-      else if (node == ridpointers [(int) RID_GETTER]
-	       || node == ridpointers [(int) RID_SETTER]
-	       || node == ridpointers [(int) RID_IVAR])
+      /* Eat the '('.  */
+      cp_lexer_consume_token (parser->lexer);
+
+      while (true)
 	{
-	  /* Do the getter/setter/ivar attribute. */
-	  token = cp_lexer_consume_token (parser->lexer);
-	  if (token->type == CPP_EQ)
+	  bool syntax_error = false;
+	  cp_token *token = cp_lexer_peek_token (parser->lexer);
+      	  enum rid keyword;
+
+	  if (token->type != CPP_NAME)
 	    {
-	      tree attr_ident = cp_parser_identifier (parser);
-	      objc_property_attribute_kind pkind;
-	      if (node == ridpointers [(int) RID_GETTER])
-		pkind = OBJC_PATTR_GETTER;
-	      else if (node == ridpointers [(int) RID_SETTER])
-		{
-		  pkind = OBJC_PATTR_SETTER;
-		  /* Consume the ':' which must always follow the setter name. */
-		  if (cp_lexer_next_token_is (parser->lexer, CPP_COLON))
-		    cp_lexer_consume_token (parser->lexer); 
-		  else
-		    {
-		      error_at (token->location,
-				"setter name must be followed by %<:%>");
-		      break;
-		    }
-		}
-	      else 
-		pkind = OBJC_PATTR_IVAR;
-	      objc_set_property_attr (loc, pkind, attr_ident);	  
-	    }
-	  else
-	    {
-	      error_at (token->location,
-	      	"getter/setter/ivar attribute must be followed by %<=%>");
+	      cp_parser_error (parser, "expected identifier");
 	      break;
 	    }
+	  keyword = C_RID_CODE (token->u.value);
+	  cp_lexer_consume_token (parser->lexer);
+	  switch (keyword)
+	    {
+	    case RID_ASSIGN:    property_assign = true;    break;
+	    case RID_COPY:      property_copy = true;      break;
+	    case RID_NONATOMIC: property_nonatomic = true; break;
+	    case RID_READONLY:  property_readonly = true;  break;
+	    case RID_READWRITE: property_readwrite = true; break;
+	    case RID_RETAIN:    property_retain = true;    break;
+
+	    case RID_GETTER:
+	    case RID_SETTER:
+	      if (cp_lexer_next_token_is_not (parser->lexer, CPP_EQ))
+		{
+		  cp_parser_error (parser,
+				   "getter/setter/ivar attribute must be followed by %<=%>");
+		  syntax_error = true;
+		  break;
+		}
+	      cp_lexer_consume_token (parser->lexer); /* eat the = */
+	      if (cp_lexer_next_token_is_not (parser->lexer, CPP_NAME))
+		{
+		  cp_parser_error (parser, "expected identifier");
+		  syntax_error = true;
+		  break;
+		}
+	      if (keyword == RID_SETTER)
+		{
+		  if (property_setter_ident != NULL_TREE)
+		    cp_parser_error (parser, "the %<setter%> attribute may only be specified once");
+		  else
+		    property_setter_ident = cp_lexer_peek_token (parser->lexer)->u.value;
+		  cp_lexer_consume_token (parser->lexer);
+		  if (cp_lexer_next_token_is_not (parser->lexer, CPP_COLON))
+		    cp_parser_error (parser, "setter name must terminate with %<:%>");
+		  else
+		    cp_lexer_consume_token (parser->lexer);
+		}
+	      else
+		{
+		  if (property_getter_ident != NULL_TREE)
+		    cp_parser_error (parser, "the %<getter%> attribute may only be specified once");
+		  else
+		    property_getter_ident = cp_lexer_peek_token (parser->lexer)->u.value;
+		  cp_lexer_consume_token (parser->lexer);
+		}
+	      break;
+	    default:
+	      cp_parser_error (parser, "unknown property attribute");
+	      syntax_error = true;
+	      break;
+	    }
+
+	  if (syntax_error)
+	    break;
+	  
+	  if (cp_lexer_next_token_is (parser->lexer, CPP_COMMA))
+	    cp_lexer_consume_token (parser->lexer);
+	  else
+	    break;
 	}
-      else if (node == ridpointers [(int) RID_COPIES])
-	objc_set_property_attr (loc, OBJC_PATTR_COPIES, NULL_TREE);
-      else
+
+      if (!cp_parser_require (parser, CPP_CLOSE_PAREN, RT_CLOSE_PAREN))
 	{
-	  error_at (token->location,"unknown property attribute");
-	  break;
+	  cp_parser_skip_to_closing_parenthesis (parser,
+						 /*recovering=*/true,
+						 /*or_comma=*/false,
+						 /*consume_paren=*/true);
 	}
-      if (cp_lexer_next_token_is (parser->lexer, CPP_COMMA))
-	cp_lexer_consume_token (parser->lexer);
-      else if (cp_lexer_next_token_is_not (parser->lexer, CPP_CLOSE_PAREN))
-	warning_at (token->location, 0, 
-		    "property attributes should be separated by a %<,%>");
-      token = cp_lexer_peek_token (parser->lexer);	  
     }
 
-  if (token->type != CPP_CLOSE_PAREN)
-    error_at (token->location,
-	      "syntax error in @property's attribute declaration");
-  else
-    /* Consume ')' */
-    cp_lexer_consume_token (parser->lexer);
-}
-
-/* This function parses a @property declaration inside an objective class
-   or its implementation. */
-
-static void 
-cp_parser_objc_at_property (cp_parser *parser)
-{
-  /* Consume @property */
-  cp_lexer_consume_token (parser->lexer);
-
-  /* Parse optional attributes list...  */
-  cp_parser_objc_property_attrlist (parser);
   /* ... and the property declaration(s).  */
-  cp_parser_objc_property_decl (parser);
+  properties = cp_parser_objc_struct_declaration (parser);
+
+  if (properties == error_mark_node)
+    {
+      cp_parser_skip_to_end_of_statement (parser);
+      /* If the next token is now a `;', consume it.  */
+      if (cp_lexer_next_token_is (parser->lexer, CPP_SEMICOLON))
+	cp_lexer_consume_token (parser->lexer);
+      return;
+    }
+
+  if (properties == NULL_TREE)
+    cp_parser_error (parser, "expected identifier");
+  else
+    {
+      /* Comma-separated properties are chained together in
+	 reverse order; add them one by one.  */
+      properties = nreverse (properties);
+      
+      for (; properties; properties = TREE_CHAIN (properties))
+	objc_add_property_declaration (loc, copy_node (properties),
+				       property_readonly, property_readwrite,
+				       property_assign, property_retain,
+				       property_copy, property_nonatomic,
+				       property_getter_ident, property_setter_ident);
+    }
+  
+  cp_parser_consume_semicolon_at_end_of_statement (parser);
 }
 
 /* Parse an Objective-C++ @synthesize declaration.  The syntax is:

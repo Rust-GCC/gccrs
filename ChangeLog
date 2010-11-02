@@ -1,9 +1,12 @@
-2010-10-29  Ian Lance Taylor  <iant@google.com>
+2010-11-02  Alan Modra  <amodra@gmail.com>
 
-	* configure.ac: Check for lang_requires_boot_language in
-	config-lang.in files.  Remove special purpose test adding c++ as a
-	boot language if Go is enabled.
-	* configure: Rebuild.
+	PR binutils/12110
+	* configure.ac: Error when source path contains spaces.
+	* configure: Regenerate.
+
+2010-10-23  James E. Wilson  <wilson@codesourcery.com>
+
+	* MAINTAINERS: Update my email address.
 
 2010-10-20  Ian Lance Taylor  <iant@google.com>
 

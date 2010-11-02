@@ -3244,7 +3244,17 @@
 		     (const_int 2)
 		     (const_int 3)])))]
   "TARGET_SSE"
-  "ix86_fixup_binary_operands (UNKNOWN, V4SFmode, operands);")
+{
+  rtx dst = ix86_fixup_binary_operands (UNKNOWN, V4SFmode, operands);
+  
+  emit_insn (gen_sse_movhlps (dst, operands[1], operands[2]));
+
+  /* Fix up the destination if needed.  */
+  if (dst != operands[0])
+    emit_move_insn (operands[0], dst);
+
+  DONE;
+})
 
 (define_insn "*avx_movhlps"
   [(set (match_operand:V4SF 0 "nonimmediate_operand"     "=x,x,m")
@@ -3294,7 +3304,17 @@
 		     (const_int 4)
 		     (const_int 5)])))]
   "TARGET_SSE"
-  "ix86_fixup_binary_operands (UNKNOWN, V4SFmode, operands);")
+{
+  rtx dst = ix86_fixup_binary_operands (UNKNOWN, V4SFmode, operands);
+  
+  emit_insn (gen_sse_movlhps (dst, operands[1], operands[2]));
+
+  /* Fix up the destination if needed.  */
+  if (dst != operands[0])
+    emit_move_insn (operands[0], dst);
+
+  DONE;
+})
 
 (define_insn "*avx_movlhps"
   [(set (match_operand:V4SF 0 "nonimmediate_operand"     "=x,x,o")
@@ -3701,7 +3721,17 @@
 	    (parallel [(const_int 0) (const_int 1)]))
 	  (match_operand:V2SF 2 "nonimmediate_operand" "")))]
   "TARGET_SSE"
-  "ix86_fixup_binary_operands (UNKNOWN, V4SFmode, operands);")
+{
+  rtx dst = ix86_fixup_binary_operands (UNKNOWN, V4SFmode, operands);
+  
+  emit_insn (gen_sse_loadhps (dst, operands[1], operands[2]));
+
+  /* Fix up the destination if needed.  */
+  if (dst != operands[0])
+    emit_move_insn (operands[0], dst);
+
+  DONE;
+})
 
 (define_insn "*avx_loadhps"
   [(set (match_operand:V4SF 0 "nonimmediate_operand" "=x,x,o")
@@ -3769,7 +3799,17 @@
 	    (match_operand:V4SF 1 "nonimmediate_operand" "")
 	    (parallel [(const_int 2) (const_int 3)]))))]
   "TARGET_SSE"
-  "ix86_fixup_binary_operands (UNKNOWN, V4SFmode, operands);")
+{
+  rtx dst = ix86_fixup_binary_operands (UNKNOWN, V4SFmode, operands);
+  
+  emit_insn (gen_sse_loadlps (dst, operands[1], operands[2]));
+
+  /* Fix up the destination if needed.  */
+  if (dst != operands[0])
+    emit_move_insn (operands[0], dst);
+
+  DONE;
+})
 
 (define_insn "*avx_loadlps"
   [(set (match_operand:V4SF 0 "nonimmediate_operand" "=x,x,m")
@@ -4898,7 +4938,17 @@
 	    (parallel [(const_int 0)]))
 	  (match_operand:DF 2 "nonimmediate_operand" "")))]
   "TARGET_SSE2"
-  "ix86_fixup_binary_operands (UNKNOWN, V2DFmode, operands);")
+{
+  rtx dst = ix86_fixup_binary_operands (UNKNOWN, V2DFmode, operands);
+  
+  emit_insn (gen_sse2_loadhpd (dst, operands[1], operands[2]));
+
+  /* Fix up the destination if needed.  */
+  if (dst != operands[0])
+    emit_move_insn (operands[0], dst);
+
+  DONE;
+})
 
 ;; Avoid combining registers from different units in a single alternative,
 ;; see comment above inline_secondary_memory_needed function in i386.c
@@ -4957,7 +5007,17 @@
 	    (match_operand:V2DF 1 "nonimmediate_operand" "")
 	    (parallel [(const_int 1)]))))]
   "TARGET_SSE2"
-  "ix86_fixup_binary_operands (UNKNOWN, V2DFmode, operands);")
+{
+  rtx dst = ix86_fixup_binary_operands (UNKNOWN, V2DFmode, operands);
+  
+  emit_insn (gen_sse2_loadlpd (dst, operands[1], operands[2]));
+
+  /* Fix up the destination if needed.  */
+  if (dst != operands[0])
+    emit_move_insn (operands[0], dst);
+
+  DONE;
+})
 
 ;; Avoid combining registers from different units in a single alternative,
 ;; see comment above inline_secondary_memory_needed function in i386.c
@@ -11508,29 +11568,11 @@
    (set_attr "prefix" "vex")
    (set_attr "mode" "OI")])
 
-;; vzeroupper clobbers the upper 128bits of AVX registers.
-(define_expand "avx_vzeroupper"
-  [(match_par_dup 0 [(const_int 0)])]
-  "TARGET_AVX"
-{
-  int nregs = TARGET_64BIT ? 16 : 8;
-  int regno;
-
-  operands[0] = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (nregs + 1));
-
-  XVECEXP (operands[0], 0, 0)
-    = gen_rtx_UNSPEC_VOLATILE (VOIDmode, gen_rtvec (1, const0_rtx),
-			       UNSPECV_VZEROUPPER);
-
-  for (regno = 0; regno < nregs; regno++)
-    XVECEXP (operands[0], 0, regno + 1)
-      = gen_rtx_CLOBBER (VOIDmode,
-			 gen_rtx_REG (V8SImode, SSE_REGNO (regno)));
-})
-
-(define_insn "*avx_vzeroupper"
-  [(match_parallel 0 "vzeroupper_operation"
-    [(unspec_volatile [(const_int 0)] UNSPECV_VZEROUPPER)])]
+;; Clear the upper 128bits of AVX registers, equivalent to a NOP
+;; if the upper 128bits are unused.
+(define_insn "avx_vzeroupper"
+  [(unspec_volatile [(match_operand 0 "const_int_operand" "")]
+		    UNSPECV_VZEROUPPER)]
   "TARGET_AVX"
   "vzeroupper"
   [(set_attr "type" "sse")

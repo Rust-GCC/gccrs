@@ -1099,11 +1099,7 @@ __gnat_stat_to_attr (int fd, char* name, struct file_attributes* attr)
        either case. */
     attr->file_length = statbuf.st_size;  /* all systems */
 
-#ifndef __MINGW32__
-  /* on Windows requires extra system call, see comment in
-     __gnat_file_exists_attr */
   attr->exists = !ret;
-#endif
 
 #if !defined (_WIN32) || defined (RTX)
   /* on Windows requires extra system call, see __gnat_is_readable_file_attr */
@@ -1112,8 +1108,6 @@ __gnat_stat_to_attr (int fd, char* name, struct file_attributes* attr)
   attr->executable = (!ret && (statbuf.st_mode & S_IXUSR));
 #endif
 
-#if !defined (_WIN32) || defined (RTX)
-  /* on Windows requires extra system call, see __gnat_file_time_name_attr */
   if (ret != 0) {
      attr->timestamp = (OS_Time)-1;
   } else {
@@ -1124,8 +1118,6 @@ __gnat_stat_to_attr (int fd, char* name, struct file_attributes* attr)
      attr->timestamp = (OS_Time)statbuf.st_mtime;
 #endif
   }
-#endif
-
 }
 
 /****************************************************************
@@ -1345,6 +1337,20 @@ win32_filetime (HANDLE h)
     return (time_t) (t_write.ull_time / 10000000ULL - w32_epoch_offset);
   return (time_t) 0;
 }
+
+/* As above but starting from a FILETIME.  */
+static void
+f2t (const FILETIME *ft, time_t *t)
+{
+  union
+  {
+    FILETIME ft_time;
+    unsigned long long ull_time;
+  } t_write;
+
+  t_write.ft_time = *ft;
+  *t = (time_t) (t_write.ull_time / 10000000ULL - w32_epoch_offset);
+}
 #endif
 
 /* Return a GNAT time stamp given a file name.  */
@@ -1354,18 +1360,14 @@ __gnat_file_time_name_attr (char* name, struct file_attributes* attr)
 {
    if (attr->timestamp == (OS_Time)-2) {
 #if defined (_WIN32) && !defined (RTX)
+      BOOL res;
+      WIN32_FILE_ATTRIBUTE_DATA fad;
       time_t ret = -1;
       TCHAR wname[GNAT_MAX_PATH_LEN];
       S2WSC (wname, name, GNAT_MAX_PATH_LEN);
 
-      HANDLE h = CreateFile
-        (wname, GENERIC_READ, FILE_SHARE_READ, 0,
-         OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-
-      if (h != INVALID_HANDLE_VALUE) {
-         ret = win32_filetime (h);
-         CloseHandle (h);
-      }
+      if (res = GetFileAttributesEx (wname, GetFileExInfoStandard, &fad))
+	f2t (&fad.ftLastWriteTime, &ret);
       attr->timestamp = (OS_Time) ret;
 #else
       __gnat_stat_to_attr (-1, name, attr);
@@ -1687,15 +1689,10 @@ int
 __gnat_stat (char *name, GNAT_STRUCT_STAT *statbuf)
 {
 #ifdef __MINGW32__
-  /* Under Windows the directory name for the stat function must not be
-     terminated by a directory separator except if just after a drive name
-     or with UNC path without directory (only the name of the shared
-     resource), for example: \\computer\share\  */
-
+  WIN32_FILE_ATTRIBUTE_DATA fad;
   TCHAR wname [GNAT_MAX_PATH_LEN + 2];
-  int name_len, k;
-  TCHAR last_char;
-  int dirsep_count = 0;
+  int name_len;
+  BOOL res;
 
   S2WSC (wname, name, GNAT_MAX_PATH_LEN + 2);
   name_len = _tcslen (wname);
@@ -1703,29 +1700,43 @@ __gnat_stat (char *name, GNAT_STRUCT_STAT *statbuf)
   if (name_len > GNAT_MAX_PATH_LEN)
     return -1;
 
-  last_char = wname[name_len - 1];
+  ZeroMemory (statbuf, sizeof(GNAT_STRUCT_STAT));
 
-  while (name_len > 1 && (last_char == _T('\\') || last_char == _T('/')))
-    {
-      wname[name_len - 1] = _T('\0');
-      name_len--;
-      last_char = wname[name_len - 1];
+  res = GetFileAttributesEx (wname, GetFileExInfoStandard, &fad);
+
+  if (res == FALSE)
+    switch (GetLastError()) {
+      case ERROR_ACCESS_DENIED:
+      case ERROR_SHARING_VIOLATION:
+      case ERROR_LOCK_VIOLATION:
+      case ERROR_SHARING_BUFFER_EXCEEDED:
+	return EACCES;
+      case ERROR_BUFFER_OVERFLOW:
+	return ENAMETOOLONG;
+      case ERROR_NOT_ENOUGH_MEMORY:
+	return ENOMEM;
+      default:
+	return ENOENT;
     }
 
-  /* Count back-slashes.  */
+  f2t (&fad.ftCreationTime, &statbuf->st_ctime);
+  f2t (&fad.ftLastWriteTime, &statbuf->st_mtime);
+  f2t (&fad.ftLastAccessTime, &statbuf->st_atime);
 
-  for (k=0; k<name_len; k++)
-    if (wname[k] == _T('\\') || wname[k] == _T('/'))
-      dirsep_count++;
+  statbuf->st_size = (off_t)fad.nFileSizeLow;
 
-  /* Only a drive letter followed by ':', we must add a directory separator
-     for the stat routine to work properly.  */
-  if ((name_len == 2 && wname[1] == _T(':'))
-      || (name_len > 3 && wname[0] == _T('\\') && wname[1] == _T('\\')
-	  && dirsep_count == 3))
-    _tcscat (wname, _T("\\"));
+  /* We do not have the S_IEXEC attribute, but this is not used on GNAT.  */
+  statbuf->st_mode = S_IREAD;
 
-  return _tstat (wname, (struct _stat *)statbuf);
+  if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+    statbuf->st_mode |= S_IFDIR;
+  else
+    statbuf->st_mode |= S_IFREG;
+
+  if (!(fad.dwFileAttributes & FILE_ATTRIBUTE_READONLY))
+    statbuf->st_mode |= S_IWRITE;
+
+  return 0;
 
 #else
   return GNAT_STAT (name, statbuf);
@@ -1740,16 +1751,7 @@ int
 __gnat_file_exists_attr (char* name, struct file_attributes* attr)
 {
    if (attr->exists == ATTR_UNSET) {
-#ifdef __MINGW32__
-      /*  On Windows do not use __gnat_stat() because of a bug in Microsoft
-         _stat() routine. When the system time-zone is set with a negative
-         offset the _stat() routine fails on specific files like CON:  */
-      TCHAR wname [GNAT_MAX_PATH_LEN + 2];
-      S2WSC (wname, name, GNAT_MAX_PATH_LEN + 2);
-      attr->exists = GetFileAttributes (wname) != INVALID_FILE_ATTRIBUTES;
-#else
       __gnat_stat_to_attr (-1, name, attr);
-#endif
    }
 
    return attr->exists;

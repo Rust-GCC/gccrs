@@ -95,6 +95,13 @@ int darwin_running_cxx;
 /* Section names.  */
 section * darwin_sections[NUM_DARWIN_SECTIONS];
 
+/* While we transition to using in-tests instead of ifdef'd code.  */
+#ifndef HAVE_lo_sum
+#define HAVE_lo_sum 0
+#define gen_macho_high(a,b) (a)
+#define gen_macho_low(a,b,c) (a)
+#endif
+
 /* True if we're setting __attribute__ ((ms_struct)).  */
 int darwin_ms_struct = false;
 
@@ -179,7 +186,7 @@ name_needs_quotes (const char *name)
 }
 
 /* Return true if SYM_REF can be used without an indirection.  */
-static int
+int
 machopic_symbol_defined_p (rtx sym_ref)
 {
   if (SYMBOL_REF_FLAGS (sym_ref) & MACHO_SYMBOL_FLAG_DEFINED)
@@ -319,12 +326,22 @@ machopic_output_function_base_name (FILE *file)
 
   /* If dynamic-no-pic is on, we should not get here.  */
   gcc_assert (!MACHO_DYNAMIC_NO_PIC_P);
-  current_name =
-    IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (current_function_decl));
-  if (function_base_func_name != current_name)
+  /* When we are generating _get_pc thunks within stubs, there is no current
+     function.  */
+  if (current_function_decl)
+    {
+      current_name =
+	IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (current_function_decl));
+      if (function_base_func_name != current_name)
+	{
+	  ++current_pic_label_num;
+	  function_base_func_name = current_name;
+	}
+    }
+  else
     {
       ++current_pic_label_num;
-      function_base_func_name = current_name;
+      function_base_func_name = "L_machopic_stub_dummy";
     }
   fprintf (file, "L%011d$pb", current_pic_label_num);
 }
@@ -514,24 +531,28 @@ machopic_indirect_data_reference (rtx orig, rtx reg)
 
       if (defined && MACHO_DYNAMIC_NO_PIC_P)
 	{
-#if defined (TARGET_TOC)
+	  if (DARWIN_PPC)
+	    {
 	  /* Create a new register for CSE opportunities.  */
 	  rtx hi_reg = (!can_create_pseudo_p () ? reg : gen_reg_rtx (Pmode));
  	  emit_insn (gen_macho_high (hi_reg, orig));
  	  emit_insn (gen_macho_low (reg, hi_reg, orig));
-#else
+	      return reg;
+ 	    }
+	  else if (DARWIN_X86)
+	    return orig;
+	  else
 	   /* some other cpu -- writeme!  */
 	   gcc_unreachable ();
-#endif
-	   return reg;
 	}
       else if (defined)
 	{
-#if defined (TARGET_TOC) || defined (HAVE_lo_sum)
-	  rtx offset = machopic_gen_offset (orig);
-#endif
+	  rtx offset = NULL;
+	  if (DARWIN_PPC || HAVE_lo_sum)
+	    offset = machopic_gen_offset (orig);
 
-#if defined (TARGET_TOC) /* i.e., PowerPC */
+	  if (DARWIN_PPC)
+	    {
 	  rtx hi_sum_reg = (!can_create_pseudo_p ()
 			    ? reg
 			    : gen_reg_rtx (Pmode));
@@ -546,8 +567,9 @@ machopic_indirect_data_reference (rtx orig, rtx reg)
 						  copy_rtx (offset))));
 
 	  orig = reg;
-#else
-#if defined (HAVE_lo_sum)
+	    }
+	  else if (HAVE_lo_sum)
+	    {
 	  gcc_assert (reg);
 
 	  emit_insn (gen_rtx_SET (VOIDmode, reg,
@@ -558,8 +580,7 @@ machopic_indirect_data_reference (rtx orig, rtx reg)
 	  emit_use (pic_offset_table_rtx);
 
 	  orig = gen_rtx_PLUS (Pmode, pic_offset_table_rtx, reg);
-#endif
-#endif
+	    }
 	  return orig;
 	}
 
@@ -572,24 +593,56 @@ machopic_indirect_data_reference (rtx orig, rtx reg)
       ptr_ref = gen_const_mem (Pmode, ptr_ref);
       machopic_define_symbol (ptr_ref);
 
+      if (DARWIN_X86 
+          && reg 
+          && MACHO_DYNAMIC_NO_PIC_P)
+	{
+	    emit_insn (gen_rtx_SET (Pmode, reg, ptr_ref));
+	    ptr_ref = reg;
+	}
+
       return ptr_ref;
     }
   else if (GET_CODE (orig) == CONST)
     {
-      rtx base, result;
-
-      /* legitimize both operands of the PLUS */
+      /* If "(const (plus ...", walk the PLUS and return that result.
+	 PLUS processing (below) will restore the "(const ..." if
+	 appropriate.  */
       if (GET_CODE (XEXP (orig, 0)) == PLUS)
-	{
-	  base = machopic_indirect_data_reference (XEXP (XEXP (orig, 0), 0),
-						   reg);
-	  orig = machopic_indirect_data_reference (XEXP (XEXP (orig, 0), 1),
-						   (base == reg ? 0 : reg));
-	}
-      else
+	return machopic_indirect_data_reference (XEXP (orig, 0), reg);
+      else 
 	return orig;
+    }
+  else if (GET_CODE (orig) == MEM)
+    {
+      XEXP (ptr_ref, 0) = 
+		machopic_indirect_data_reference (XEXP (orig, 0), reg);
+      return ptr_ref;
+    }
+  else if (GET_CODE (orig) == PLUS)
+    {
+      rtx base, result;
+      /* When the target is i386, this code prevents crashes due to the
+	compiler's ignorance on how to move the PIC base register to
+	other registers.  (The reload phase sometimes introduces such
+	insns.)  */
+      if (GET_CODE (XEXP (orig, 0)) == REG
+	   && REGNO (XEXP (orig, 0)) == PIC_OFFSET_TABLE_REGNUM
+	   /* Prevent the same register from being erroneously used
+	      as both the base and index registers.  */
+	   && (DARWIN_X86 && (GET_CODE (XEXP (orig, 1)) == CONST))
+	   && reg)
+	{
+	  emit_move_insn (reg, XEXP (orig, 0));
+	  XEXP (ptr_ref, 0) = reg;
+	  return ptr_ref;
+	}
 
-      if (MACHOPIC_PURE && GET_CODE (orig) == CONST_INT)
+      /* Legitimize both operands of the PLUS.  */
+      base = machopic_indirect_data_reference (XEXP (orig, 0), reg);
+      orig = machopic_indirect_data_reference (XEXP (orig, 1),
+					       (base == reg ? 0 : reg));
+      if (MACHOPIC_INDIRECT && (GET_CODE (orig) == CONST_INT))
 	result = plus_constant (base, INTVAL (orig));
       else
 	result = gen_rtx_PLUS (Pmode, base, orig);
@@ -608,26 +661,6 @@ machopic_indirect_data_reference (rtx orig, rtx reg)
 	}
 
       return result;
-
-    }
-  else if (GET_CODE (orig) == MEM)
-    XEXP (ptr_ref, 0) = machopic_indirect_data_reference (XEXP (orig, 0), reg);
-  /* When the target is i386, this code prevents crashes due to the
-     compiler's ignorance on how to move the PIC base register to
-     other registers.  (The reload phase sometimes introduces such
-     insns.)  */
-  else if (GET_CODE (orig) == PLUS
-	   && GET_CODE (XEXP (orig, 0)) == REG
-	   && REGNO (XEXP (orig, 0)) == PIC_OFFSET_TABLE_REGNUM
-#ifdef I386
-	   /* Prevent the same register from being erroneously used
-	      as both the base and index registers.  */
-	   && GET_CODE (XEXP (orig, 1)) == CONST
-#endif
-	   && reg)
-    {
-      emit_move_insn (reg, XEXP (orig, 0));
-      XEXP (ptr_ref, 0) = reg;
     }
   return ptr_ref;
 }
@@ -697,7 +730,7 @@ machopic_legitimize_pic_address (rtx orig, enum machine_mode mode, rtx reg)
 	      reg = gen_reg_rtx (Pmode);
 	    }
 
-#ifdef HAVE_lo_sum
+#if HAVE_lo_sum
 	  if (MACHO_DYNAMIC_NO_PIC_P
 	      && (GET_CODE (XEXP (orig, 0)) == SYMBOL_REF
 		  || GET_CODE (XEXP (orig, 0)) == LABEL_REF))
@@ -792,7 +825,7 @@ machopic_legitimize_pic_address (rtx orig, enum machine_mode mode, rtx reg)
       else
 	{
 
-#ifdef HAVE_lo_sum
+#if HAVE_lo_sum
 	  if (GET_CODE (orig) == SYMBOL_REF
 	      || GET_CODE (orig) == LABEL_REF)
 	    {
@@ -1459,6 +1492,11 @@ darwin_asm_lto_end (void)
   saved_asm_out_file = NULL;
 }
 
+static void
+darwin_asm_dwarf_section (const char *name, unsigned int flags, tree decl);
+
+/*  Called for the TARGET_ASM_NAMED_SECTION hook.  */
+
 void
 darwin_asm_named_section (const char *name,
 			  unsigned int flags,
@@ -1495,6 +1533,8 @@ darwin_asm_named_section (const char *name,
       gcc_assert (lto_section_names_offset > 0
 		  && lto_section_names_offset < ((unsigned) 1 << 31));
     }
+  else if (strncmp (name, "__DWARF,", 8) == 0)
+    darwin_asm_dwarf_section (name, flags, decl);
   else
     fprintf (asm_out_file, "\t.section %s\n", name);
 }
@@ -1675,6 +1715,73 @@ darwin_assemble_visibility (tree decl, int vis)
 	     "not supported in this configuration; ignored");
 }
 
+/* VEC Used by darwin_asm_dwarf_section.
+   Maybe a hash tab would be better here - but the intention is that this is
+   a very short list (fewer than 16 items) and each entry should (ideally, 
+   eventually) only be presented once.
+
+   A structure to hold a dwarf debug section used entry.  */
+
+typedef struct GTY(()) dwarf_sect_used_entry {
+  const char *name;
+  unsigned count;
+}
+dwarf_sect_used_entry;
+
+DEF_VEC_O(dwarf_sect_used_entry);
+DEF_VEC_ALLOC_O(dwarf_sect_used_entry, gc);
+
+/* A list of used __DWARF sections.  */
+static GTY (()) VEC (dwarf_sect_used_entry, gc) * dwarf_sect_names_table;
+
+/* This is called when we are asked to assemble a named section and the 
+   name begins with __DWARF,.  We keep a list of the section names (without
+   the __DWARF, prefix) and use this to emit our required start label on the
+   first switch to each section.  */
+
+static void
+darwin_asm_dwarf_section (const char *name, unsigned int flags,
+			  tree ARG_UNUSED (decl))
+{
+  unsigned i;
+  int namelen;
+  const char * sname;
+  dwarf_sect_used_entry *ref;
+  bool found = false;
+  gcc_assert ((flags & (SECTION_DEBUG | SECTION_NAMED))
+		    == (SECTION_DEBUG | SECTION_NAMED));
+  /* We know that the name starts with __DWARF,  */
+  sname = name + 8;
+  namelen = strchr (sname, ',') - sname;
+  gcc_assert (namelen);
+  if (dwarf_sect_names_table == NULL)
+    dwarf_sect_names_table = VEC_alloc (dwarf_sect_used_entry, gc, 16);
+  else
+    for (i = 0; 
+	 VEC_iterate (dwarf_sect_used_entry, dwarf_sect_names_table, i, ref);
+	 i++)
+      {
+	if (!ref)
+	  break;
+	if (!strcmp (ref->name, sname))
+	  {
+	    found = true;
+	    ref->count++;
+	    break;
+	  }
+      }
+
+  fprintf (asm_out_file, "\t.section %s\n", name);
+  if (!found)
+    {
+      dwarf_sect_used_entry e;
+      fprintf (asm_out_file, "Lsection%.*s:\n", namelen, sname);
+      e.count = 1;
+      e.name = xstrdup (sname);
+      VEC_safe_push (dwarf_sect_used_entry, gc, dwarf_sect_names_table, &e);
+    }
+}
+
 /* Output a difference of two labels that will be an assembly time
    constant if the two labels are local.  (.long lab1-lab2 will be
    very different if lab1 is at the boundary between two sections; it
@@ -1703,49 +1810,6 @@ darwin_asm_output_dwarf_delta (FILE *file, int size,
     fprintf (file, "\n\t%s L$set$%d", directive, darwin_dwarf_label_counter++);
 }
 
-/* Output labels for the start of the DWARF sections if necessary.
-   Initialize the stuff we need for LTO long section names support.  */
-void
-darwin_file_start (void)
-{
-  if (write_symbols == DWARF2_DEBUG)
-    {
-      static const char * const debugnames[] =
-	{
-	  DEBUG_FRAME_SECTION,
-	  DEBUG_INFO_SECTION,
-	  DEBUG_ABBREV_SECTION,
-	  DEBUG_ARANGES_SECTION,
-	  DEBUG_MACINFO_SECTION,
-	  DEBUG_LINE_SECTION,
-	  DEBUG_LOC_SECTION,
-	  DEBUG_PUBNAMES_SECTION,
-	  DEBUG_PUBTYPES_SECTION,
-	  DEBUG_STR_SECTION,
-	  DEBUG_RANGES_SECTION
-	};
-      size_t i;
-
-      for (i = 0; i < ARRAY_SIZE (debugnames); i++)
-	{
-	  int namelen;
-
-	  switch_to_section (get_section (debugnames[i], SECTION_DEBUG, NULL));
-
-	  gcc_assert (strncmp (debugnames[i], "__DWARF,", 8) == 0);
-	  gcc_assert (strchr (debugnames[i] + 8, ','));
-
-	  namelen = strchr (debugnames[i] + 8, ',') - (debugnames[i] + 8);
-	  fprintf (asm_out_file, "Lsection%.*s:\n", namelen, debugnames[i] + 8);
-	}
-    }
-
-  /* We fill this obstack with the complete section text for the lto section
-     names to write in darwin_file_end.  */
-  obstack_init (&lto_section_names_obstack);
-  lto_section_names_offset = 0;
-}
-
 /* Output an offset in a DWARF section on Darwin.  On Darwin, DWARF section
    offsets are not represented using relocs in .o files; either the
    section never leaves the .o file, or the linker or other tool is
@@ -1766,6 +1830,23 @@ darwin_asm_output_dwarf_offset (FILE *file, int size, const char * lab,
   sprintf (sname, "*Lsection%.*s", namelen, base->named.name + 8);
   darwin_asm_output_dwarf_delta (file, size, lab, sname);
 }
+
+/* Called from the within the TARGET_ASM_FILE_START for each target. 
+  Initialize the stuff we need for LTO long section names support.  */
+
+void
+darwin_file_start (void)
+{
+  /* We fill this obstack with the complete section text for the lto section
+     names to write in darwin_file_end.  */
+  obstack_init (&lto_section_names_obstack);
+  lto_section_names_offset = 0;
+}
+
+/* Called for the TARGET_ASM_FILE_END hook.
+   Emit the mach-o pic indirection data, the lto data and, finally a flag
+   to tell the linker that it can break the file object into sections and
+   move those around for efficiency.  */
 
 void
 darwin_file_end (void)
@@ -1914,6 +1995,18 @@ darwin_override_options (void)
       && debug_info_level >= DINFO_LEVEL_NORMAL
       && debug_hooks->var_location != do_nothing_debug_hooks.var_location)
     flag_var_tracking_uninit = 1;
+
+  if (MACHO_DYNAMIC_NO_PIC_P)
+    {
+      if (flag_pic)
+	warning (0, "-mdynamic-no-pic overrides -fpic or -fPIC");
+      flag_pic = 0;
+    }
+  else if (flag_pic == 1)
+    {
+      /* Darwin's -fpic is -fPIC.  */
+      flag_pic = 2;
+    }
 
   /* It is assumed that branch island stubs are needed for earlier systems.  */
   if (darwin_macosx_version_min

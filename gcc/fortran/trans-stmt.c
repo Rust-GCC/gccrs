@@ -4487,8 +4487,12 @@ gfc_trans_allocate (gfc_code * code)
 	  /* Initialization via SOURCE block
 	     (or static default initializer).  */
 	  gfc_expr *rhs = gfc_copy_expr (code->expr3);
-	  if (al->expr->ts.type == BT_CLASS)
+	  if (al->expr->ts.type == BT_CLASS && rhs->expr_type == EXPR_VARIABLE
+	      && rhs->ts.type != BT_CLASS)
+	    tmp = gfc_trans_assignment (expr, rhs, false, false);
+	  else if (al->expr->ts.type == BT_CLASS)
 	    {
+	      /* TODO: One needs to do a deep-copy for BT_CLASS; cf. PR 46174.  */
 	      gfc_se dst,src;
 	      if (rhs->ts.type == BT_CLASS)
 		gfc_add_component_ref (rhs, "$data");
@@ -4672,30 +4676,32 @@ gfc_trans_deallocate (gfc_code *code)
       se.descriptor_only = 1;
       gfc_conv_expr (&se, expr);
 
-      if (expr->ts.type == BT_DERIVED && expr->ts.u.derived->attr.alloc_comp)
-        {
-	  gfc_ref *ref;
-	  gfc_ref *last = NULL;
-	  for (ref = expr->ref; ref; ref = ref->next)
-	    if (ref->type == REF_COMPONENT)
-	      last = ref;
-
-	  /* Do not deallocate the components of a derived type
-	     ultimate pointer component.  */
-	  if (!(last && last->u.c.component->attr.pointer)
-		&& !(!last && expr->symtree->n.sym->attr.pointer))
-	    {
-	      tmp = gfc_deallocate_alloc_comp (expr->ts.u.derived, se.expr,
-					       expr->rank);
-	      gfc_add_expr_to_block (&se.pre, tmp);
-	    }
-	}
-
       if (expr->rank)
-	tmp = gfc_array_deallocate (se.expr, pstat, expr);
+	{
+	  if (expr->ts.type == BT_DERIVED && expr->ts.u.derived->attr.alloc_comp)
+	    {
+	      gfc_ref *ref;
+	      gfc_ref *last = NULL;
+	      for (ref = expr->ref; ref; ref = ref->next)
+		if (ref->type == REF_COMPONENT)
+		  last = ref;
+
+	      /* Do not deallocate the components of a derived type
+		ultimate pointer component.  */
+	      if (!(last && last->u.c.component->attr.pointer)
+		    && !(!last && expr->symtree->n.sym->attr.pointer))
+		{
+		  tmp = gfc_deallocate_alloc_comp (expr->ts.u.derived, se.expr,
+						  expr->rank);
+		  gfc_add_expr_to_block (&se.pre, tmp);
+		}
+	    }
+	  tmp = gfc_array_deallocate (se.expr, pstat, expr);
+	}
       else
 	{
-	  tmp = gfc_deallocate_with_status (se.expr, pstat, false, expr);
+	  tmp = gfc_deallocate_scalar_with_status (se.expr, pstat, false,
+						   expr, expr->ts);
 	  gfc_add_expr_to_block (&se.pre, tmp);
 
 	  tmp = fold_build2_loc (input_location, MODIFY_EXPR, void_type_node,

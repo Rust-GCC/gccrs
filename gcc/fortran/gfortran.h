@@ -885,7 +885,7 @@ typedef struct gfc_charlen
   struct gfc_charlen *next;
   bool length_from_typespec; /* Length from explicit array ctor typespec?  */
   tree backend_decl;
-  tree passed_length; /* Length argument explicitelly passed.  */
+  tree passed_length; /* Length argument explicitly passed.  */
 
   int resolved;
 }
@@ -910,7 +910,8 @@ typedef struct
   struct gfc_symbol *interface;	/* For PROCEDURE declarations.  */
   int is_c_interop;
   int is_iso_c;
-  bt f90_type; 
+  bt f90_type;
+  bool deferred;
 }
 gfc_typespec;
 
@@ -2178,7 +2179,8 @@ typedef struct
   int max_continue_fixed;
   int max_continue_free;
   int max_identifier_length;
-  int dump_parse_tree;
+  int dump_fortran_original;
+  int dump_fortran_optimized;
 
   int warn_aliasing;
   int warn_ampersand;

@@ -2920,6 +2920,7 @@ package body Sem_Prag is
 
          --  C_Pass_By_Copy is treated as a synonym for convention C (this is
          --  tested again below to set the critical flag).
+
          if Cname = Name_C_Pass_By_Copy then
             C := Convention_C;
 
@@ -3927,6 +3928,14 @@ package body Sem_Prag is
                then
                   null;
 
+               --  The pragma does not apply to primitives of interfaces
+
+               elsif Is_Dispatching_Operation (Def_Id)
+                 and then Present (Find_Dispatching_Type (Def_Id))
+                 and then Is_Interface (Find_Dispatching_Type (Def_Id))
+               then
+                  null;
+
                --  Verify that the homonym is in the same declarative part (not
                --  just the same scope).
 
@@ -4046,10 +4055,10 @@ package body Sem_Prag is
            and then C = Convention_CPP
          then
             --  Types treated as CPP classes are treated as limited, but we
-            --  don't require them to be declared this way. A warning is
-            --  issued to encourage the user to declare them as limited.
-            --  This is not an error, for compatibility reasons, because
-            --  these types have been supported this way for some time.
+            --  don't require them to be declared this way. A warning is issued
+            --  to encourage the user to declare them as limited. This is not
+            --  an error, for compatibility reasons, because these types have
+            --  been supported this way for some time.
 
             if not Is_Limited_Type (Def_Id) then
                Error_Msg_N
@@ -6023,9 +6032,7 @@ package body Sem_Prag is
             Expr := Get_Pragma_Arg (Arg1);
             Newa := New_List (
               Make_Pragma_Argument_Association (Loc,
-                Expression =>
-                  Make_Identifier (Loc,
-                    Chars => Name_Assertion)),
+                Expression => Make_Identifier (Loc, Name_Assertion)),
 
               Make_Pragma_Argument_Association (Sloc (Expr),
                 Expression => Expr));
@@ -6074,14 +6081,11 @@ package body Sem_Prag is
 
                 Pragma_Argument_Associations => New_List (
                   Make_Pragma_Argument_Association (Loc,
-                    Expression =>
-                      Make_Identifier (Loc,
-                        Chars => Name_Assertion)),
+                    Expression => Make_Identifier (Loc, Name_Assertion)),
 
                   Make_Pragma_Argument_Association (Loc,
                     Expression =>
-                      Make_Identifier (Sloc (Policy),
-                        Chars => Chars (Policy))))));
+                      Make_Identifier (Sloc (Policy), Chars (Policy))))));
 
             Set_Analyzed (N);
             Set_Next_Pragma (N, Opt.Check_Policy_List);
@@ -11219,9 +11223,7 @@ package body Sem_Prag is
                    Chars => Name_Check,
                    Pragma_Argument_Associations => New_List (
                      Make_Pragma_Argument_Association (Loc,
-                       Expression =>
-                         Make_Identifier (Loc,
-                           Chars => Name_Precondition)),
+                       Expression => Make_Identifier (Loc, Name_Precondition)),
 
                      Make_Pragma_Argument_Association (Sloc (Arg1),
                        Expression => Relocate_Node (Get_Pragma_Arg (Arg1))))));
@@ -14247,9 +14249,7 @@ package body Sem_Prag is
              Chars                        => Name_Suppress,
              Pragma_Argument_Associations => New_List (
                Make_Pragma_Argument_Association (Sloc (N),
-                 Expression =>
-                   Make_Identifier (Sloc (N),
-                     Chars => Name_All_Checks)))));
+                 Expression => Make_Identifier (Sloc (N), Name_All_Checks)))));
       end if;
 
       --  Nothing else to do at the current time!

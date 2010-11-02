@@ -665,7 +665,7 @@ proper position among the other output files.  */
     %{flto:%<fcompare-debug*} %{fwhopr*:%<fcompare-debug*} \
     %{flto} %{fwhopr*} %l " LINK_PIE_SPEC \
    "%X %{o*} %{A} %{d} %{e*} %{m} %{N} %{n} %{r}\
-    %{s} %{t} %{u*} %{x} %{z} %{Z} %{!A:%{!nostdlib:%{!nostartfiles:%S}}}\
+    %{s} %{t} %{u*} %{z} %{Z} %{!A:%{!nostdlib:%{!nostartfiles:%S}}}\
     %{static:} %{L*} %(mfwrap) %(link_libgcc) %o\
     %{fopenmp|ftree-parallelize-loops=*:%:include(libgomp.spec)%(link_gomp)}\
     %(mflib) " STACK_SPLIT_SPEC "\
@@ -2811,6 +2811,8 @@ static struct switchstr *switches_debug_check[2];
 
 static int n_switches_debug_check[2];
 
+static int n_switches_alloc_debug_check[2];
+
 static char *debug_check_temp_file[2];
 
 /* Language is one of three things:
@@ -3507,6 +3509,19 @@ driver_handle_option (struct gcc_options *opts,
   return true;
 }
 
+/* Put the driver's standard set of option handlers in *HANDLERS.  */
+
+static void
+set_option_handlers (struct cl_option_handlers *handlers)
+{
+  handlers->unknown_option_callback = driver_unknown_option_callback;
+  handlers->wrong_lang_callback = driver_wrong_lang_callback;
+  handlers->post_handling_callback = driver_post_handling_callback;
+  handlers->num_handlers = 1;
+  handlers->handlers[0].handler = driver_handle_option;
+  handlers->handlers[0].mask = CL_DRIVER;
+}
+
 /* Create the vector `switches' and its contents.
    Store its length in `n_switches'.  */
 
@@ -3731,12 +3746,7 @@ process_command (unsigned int decoded_options_count,
 
   last_language_n_infiles = -1;
 
-  handlers.unknown_option_callback = driver_unknown_option_callback;
-  handlers.wrong_lang_callback = driver_wrong_lang_callback;
-  handlers.post_handling_callback = driver_post_handling_callback;
-  handlers.num_handlers = 1;
-  handlers.handlers[0].handler = driver_handle_option;
-  handlers.handlers[0].mask = CL_DRIVER;
+  set_option_handlers (&handlers);
 
   for (j = 1; j < decoded_options_count; j++)
     {
@@ -4251,66 +4261,59 @@ do_self_spec (const char *spec)
 
   if (argbuf_index > 0)
     {
-      switches = XRESIZEVEC (struct switchstr, switches,
-			     n_switches + argbuf_index + 1);
+      const char **argbuf_copy;
+      struct cl_decoded_option *decoded_options;
+      struct cl_option_handlers handlers;
+      unsigned int decoded_options_count;
+      unsigned int j;
 
-      for (i = 0; i < argbuf_index; i++)
+      /* Create a copy of argbuf with a dummy argv[0] entry for
+	 decode_cmdline_options_to_array.  */
+      argbuf_copy = XNEWVEC (const char *, argbuf_index + 1);
+      argbuf_copy[0] = "";
+      memcpy (argbuf_copy + 1, argbuf, argbuf_index * sizeof (const char *));
+
+      decode_cmdline_options_to_array (argbuf_index + 1, argbuf_copy,
+				       CL_DRIVER, &decoded_options,
+				       &decoded_options_count);
+
+      set_option_handlers (&handlers);
+
+      for (j = 1; j < decoded_options_count; j++)
 	{
-	  struct switchstr *sw;
-	  const char *p = argbuf[i];
-	  int c = *p;
-
-	  /* Each switch should start with '-'.  */
-	  if (c != '-')
-	    fatal_error ("switch %qs does not start with %<-%>", argbuf[i]);
-
-	  p++;
-	  c = *p;
-
-	  sw = &switches[n_switches++];
-	  sw->part1 = p;
-	  sw->live_cond = 0;
-	  sw->validated = 0;
-	  sw->ordering = 0;
-
-	  /* Deal with option arguments in separate argv elements.  */
-	  if ((SWITCH_TAKES_ARG (c) > (p[1] != 0))
-	      || WORD_SWITCH_TAKES_ARG (p))
+	  switch (decoded_options[j].opt_index)
 	    {
-	      int j = 0;
-	      int n_args = WORD_SWITCH_TAKES_ARG (p);
+	    case OPT_SPECIAL_input_file:
+	      /* Specs should only generate options, not input
+		 files.  */
+	      if (strcmp (decoded_options[j].arg, "-") != 0)
+		fatal_error ("switch %qs does not start with %<-%>",
+			     decoded_options[j].arg);
+	      else
+		fatal_error ("spec-generated switch is just %<-%>");
+	      break;
 
-	      if (n_args == 0)
-		{
-		  /* Count only the option arguments in separate argv elements.  */
-		  n_args = SWITCH_TAKES_ARG (c) - (p[1] != 0);
-		}
-	      if (i + n_args >= argbuf_index)
-		fatal_error ("argument to %<-%s%> is missing", p);
-	      sw->args
-		= XNEWVEC (const char *, n_args + 1);
-	      while (j < n_args)
-		sw->args[j++] = argbuf[++i];
-	      /* Null-terminate the vector.  */
-	      sw->args[j] = 0;
-	    }
-	  else if (c == 'o')
-	    {
-	      /* On some systems, ld cannot handle "-o" without
-		 a space.  So split the option from its argument.  */
-	      char *part1 = XNEWVEC (char, 2);
-	      part1[0] = c;
-	      part1[1] = '\0';
+	    case OPT_fcompare_debug_second:
+	    case OPT_fcompare_debug:
+	    case OPT_fcompare_debug_:
+	    case OPT_o:
+	      /* Avoid duplicate processing of some options from
+		 compare-debug specs; just save them here.  */
+	      save_switch (decoded_options[j].canonical_option[0],
+			   (decoded_options[j].canonical_option_num_elements
+			    - 1),
+			   &decoded_options[j].canonical_option[1], false);
+	      break;
 
-	      sw->part1 = part1;
-	      sw->args = XNEWVEC (const char *, 2);
-	      sw->args[0] = xstrdup (p+1);
-	      sw->args[1] = 0;
+	    default:
+	      read_cmdline_option (&global_options, &global_options_set,
+				   decoded_options + j, CL_DRIVER, &handlers,
+				   global_dc);
+	      break;
 	    }
-	  else
-	    sw->args = 0;
 	}
 
+      alloc_switch ();
       switches[n_switches].part1 = 0;
     }
 }
@@ -6272,14 +6275,17 @@ main (int argc, char **argv)
       if (!compare_debug_second)
 	{
 	  n_switches_debug_check[1] = n_switches;
+	  n_switches_alloc_debug_check[1] = n_switches_alloc;
 	  switches_debug_check[1] = XDUPVEC (struct switchstr, switches,
-					     n_switches + 1);
+					     n_switches_alloc);
 
 	  do_self_spec ("%:compare-debug-self-opt()");
 	  n_switches_debug_check[0] = n_switches;
+	  n_switches_alloc_debug_check[0] = n_switches_alloc;
 	  switches_debug_check[0] = switches;
 
 	  n_switches = n_switches_debug_check[1];
+	  n_switches_alloc = n_switches_alloc_debug_check[1];
 	  switches = switches_debug_check[1];
 	}
 
@@ -6295,9 +6301,11 @@ main (int argc, char **argv)
       if (!compare_debug_second)
 	{
 	  n_switches_debug_check[1] = n_switches;
+	  n_switches_alloc_debug_check[1] = n_switches_alloc;
 	  switches_debug_check[1] = switches;
 	  compare_debug = -compare_debug;
 	  n_switches = n_switches_debug_check[0];
+	  n_switches_alloc = n_switches_debug_check[0];
 	  switches = switches_debug_check[0];
 	}
     }
@@ -6713,12 +6721,14 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
 
 		  compare_debug = -compare_debug;
 		  n_switches = n_switches_debug_check[1];
+		  n_switches_alloc = n_switches_alloc_debug_check[1];
 		  switches = switches_debug_check[1];
 
 		  value = do_spec (input_file_compiler->spec);
 
 		  compare_debug = -compare_debug;
 		  n_switches = n_switches_debug_check[0];
+		  n_switches_alloc = n_switches_alloc_debug_check[0];
 		  switches = switches_debug_check[0];
 
 		  if (value < 0)

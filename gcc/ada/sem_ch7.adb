@@ -1128,14 +1128,24 @@ package body Sem_Ch7 is
          Analyze_Declarations (Vis_Decls);
       end if;
 
-      --  Verify that incomplete types have received full declarations
+      --  Verify that incomplete types have received full declarations and
+      --  also build invariant procedures for any types with invariants.
 
       E := First_Entity (Id);
       while Present (E) loop
+
+         --  Check on incomplete types
+
          if Ekind (E) = E_Incomplete_Type
            and then No (Full_View (E))
          then
             Error_Msg_N ("no declaration in visible part for incomplete}", E);
+         end if;
+
+         --  Build invariant procedures
+
+         if Is_Type (E) and then Has_Invariants (E) then
+            Build_Invariant_Procedure (E, N);
          end if;
 
          Next_Entity (E);
@@ -1500,7 +1510,7 @@ package body Sem_Ch7 is
                  (Nkind (Parent (E)) = N_Private_Extension_Declaration
                    and then Is_Generic_Type (E)))
            and then In_Open_Scopes (Scope (Etype (E)))
-           and then E = Base_Type (E)
+           and then Is_Base_Type (E)
          then
             if Is_Tagged_Type (E) then
                Op_List := Primitive_Operations (E);
@@ -1527,8 +1537,15 @@ package body Sem_Ch7 is
 
                      Op_Elmt_2 := Next_Elmt (Op_Elmt);
                      while Present (Op_Elmt_2) loop
+
+                        --  Skip entities with attribute Interface_Alias since
+                        --  they are not overriding primitives (these entities
+                        --  link an interface primitive with their covering
+                        --  primitive)
+
                         if Chars (Node (Op_Elmt_2)) = Chars (Parent_Subp)
                           and then Type_Conformant (Prim_Op, Node (Op_Elmt_2))
+                          and then No (Interface_Alias (Node (Op_Elmt_2)))
                         then
                            --  The private inherited operation has been
                            --  overridden by an explicit subprogram: replace
@@ -1537,7 +1554,6 @@ package body Sem_Ch7 is
                            New_Op := Node (Op_Elmt_2);
                            Replace_Elmt (Op_Elmt, New_Op);
                            Remove_Elmt  (Op_List, Op_Elmt_2);
-                           Set_Is_Overriding_Operation (New_Op);
                            Set_Overridden_Operation (New_Op, Parent_Subp);
 
                            --  We don't need to inherit its dispatching slot.
@@ -2011,7 +2027,7 @@ package body Sem_Ch7 is
       ------------------------------
 
       procedure Preserve_Full_Attributes (Priv, Full : Entity_Id) is
-         Priv_Is_Base_Type : constant Boolean := Priv = Base_Type (Priv);
+         Priv_Is_Base_Type : constant Boolean := Is_Base_Type (Priv);
 
       begin
          Set_Size_Info (Priv, (Full));

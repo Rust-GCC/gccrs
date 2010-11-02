@@ -1,3 +1,72 @@
+2010-11-01  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Implemented format and noreturn attributes for Objective-C methods.
+	* c-common.c (handle_noreturn_attribute): Recognize 'noreturn'
+	attribute for Objective-C methods.
+
+2010-10-31  Jason Merrill  <jason@redhat.com>
+
+	* c-common.c (conversion_warning, warn_for_collisions_1): Use
+	EXPR_LOC_OR_HERE.
+
+2010-10-30  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Implemented Objective-C 2.0 @property, @synthesize and @dynamic.
+	* c-common.h (enum rid): Removed RID_COPIES and RID_IVAR.
+	(objc_add_property_declaration): Removed arguments for copies and
+	ivar.
+	(objc_build_getter_call): Renamed to
+	objc_maybe_build_component_ref.
+	(objc_build_setter_call): Renamed to objc_maybe_build_modify_expr.
+	(objc_is_property_ref): New.
+	* c-common.c (c_common_reswords): Removed copies and ivar.
+	* stub-objc.c (objc_add_property_declaration): Removed arguments
+	for copies and ivar.
+	(objc_build_getter_call): Renamed to
+	objc_maybe_build_component_ref.
+	(objc_build_setter_call): Renamed to objc_maybe_build_modify_expr.
+	(objc_is_property_ref): New.
+	
+2010-10-29  Arnaud Charlet  <charlet@adacore.com>
+	    Matthew Gingell  <gingell@adacore.com>
+
+	* c-ada-spec.c (separate_class_package): New function.
+	(pp_ada_tree_identifier): Prefix references to C++ classes with the
+	name of their enclosing package.
+	(print_ada_declaration): Use separate_class_package.
+
+2010-10-27  Jason Merrill  <jason@redhat.com>
+
+	* c-common.c (c_common_reswords): Add __is_literal_type.
+	* c-common.h (enum rid): Add RID_IS_LITERAL_TYPE.
+
+	* c-common.c (check_case_value): Remove special C++ code.
+
+2010-10-27  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* c-common.h (enum rid): Added RID_READWRITE, RID_ASSIGN,
+	RID_RETAIN, RID_COPY and RID_NONATOMIC.  Updated RID_FIRST_PATTR
+	and RID_LAST_PATTR.
+	(objc_add_property_declaration): Added additional arguments.
+	(objc_property_attribute_kind): Removed.
+	(objc_set_property_attr): Removed.
+	* c-common.c (c_common_reswords): Added readwrite, assign, retain,
+	copy and nonatomic.
+	* stub-objc.c (objc_add_property_declaration): Added additional
+	arguments.
+	(objc_set_property_attr): Removed.
+	
+2010-10-27  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* c-common.h (objc_add_property_variable): Renamed to
+	objc_add_property_declaration.  Added location argument.
+	* stub-objc.c (objc_add_property_variable): Same change.
+	
+2010-10-23  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* c-common.h (objc_maybe_printable_name): New.
+	* stub-objc.c (objc_maybe_printable_name): New.
+
 2010-10-22  Artjoms Sinkarovs <artyom.shinakroff@gmail.com>
 	Andrew Pinski <pinskia@gmail.com>
 

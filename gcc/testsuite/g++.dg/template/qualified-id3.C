@@ -2,8 +2,8 @@
 
 template <const int N> struct A { };
 template <class T> struct B {
-  static const int c;
-  typedef A<B<T>::c> C;		// { dg-error "non-constant" }
+  static const int c; // { dg-message "not initialized with a constant expression" }
+  typedef A<B<T>::c> C;		// { dg-error "constant expression" }
 };
 template <class T> const int B<T>::c = sizeof (T);
 

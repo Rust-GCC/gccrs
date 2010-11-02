@@ -506,7 +506,13 @@ package body Impunit is
 
    Non_Imp_File_Names_12 : constant File_List := (
      "s-multip",    -- System.Multiprocessors
-     "s-mudido");   -- System.Multiprocessors.Dispatching_Domains
+     "s-mudido",    -- System.Multiprocessors.Dispatching_Domains
+     "a-cobove",    -- Ada.Containers.Bounded_Vectors
+     "a-cbdlli",    -- Ada.Containers.Bounded_Doubly_Linked_Lists
+     "a-cborse",    -- Ada.Containers.Bounded_Ordered_Sets
+     "a-cborma",    -- Ada.Containers.Bounded_Ordered_Maps
+     "a-cbhase",    -- Ada.Containers.Bounded_Hashed_Sets
+     "a-cbhama");   -- Ada.Containers.Bounded_Hashed_Maps
 
    -----------------------
    -- Alternative Units --

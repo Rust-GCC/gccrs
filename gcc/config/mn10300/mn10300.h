@@ -38,7 +38,12 @@
       builtin_assert ("cpu=mn10300");		\
       builtin_assert ("machine=mn10300");	\
 						\
-      if (TARGET_AM33_2)			\
+      if (TARGET_AM34)				\
+        { 					\
+          builtin_define ("__AM33__=4");	\
+          builtin_define ("__AM34__");		\
+        }					\
+      else if (TARGET_AM33_2)			\
         { 					\
           builtin_define ("__AM33__=2");	\
           builtin_define ("__AM33_2__");	\
@@ -54,13 +59,16 @@ enum processor_type
 {
   PROCESSOR_MN10300,
   PROCESSOR_AM33,
-  PROCESSOR_AM33_2
+  PROCESSOR_AM33_2,
+  PROCESSOR_AM34
 };
 
 extern enum processor_type mn10300_processor;
+extern enum processor_type mn10300_tune_cpu;
 
 #define TARGET_AM33	(mn10300_processor >= PROCESSOR_AM33)
-#define TARGET_AM33_2	(mn10300_processor == PROCESSOR_AM33_2)
+#define TARGET_AM33_2	(mn10300_processor >= PROCESSOR_AM33_2)
+#define TARGET_AM34	(mn10300_processor >= PROCESSOR_AM34)
 
 #ifndef PROCESSOR_DEFAULT
 #define PROCESSOR_DEFAULT PROCESSOR_MN10300
@@ -274,7 +282,7 @@ enum reg_class
 
 /* Give names of register classes as strings for dump file.  */
 
-#define REG_CLASS_NAMES						\
+#define REG_CLASS_NAMES					   	\
 { "NO_REGS", "DATA_REGS", "ADDRESS_REGS",			\
   "SP_REGS", "DATA_OR_ADDRESS_REGS", "SP_OR_ADDRESS_REGS",	\
   "EXTENDED_REGS",						\
@@ -289,7 +297,7 @@ enum reg_class
    of length N_REG_CLASSES.  */
 
 #define REG_CLASS_CONTENTS					\
-{ { 0,	        0 },	  /* No regs      */			\
+{ { 0,	        0 },	  /* No regs */				\
   { 0x0000000f, 0 },	  /* DATA_REGS */			\
   { 0x000001f0, 0 },	  /* ADDRESS_REGS */			\
   { 0x00000200, 0 },	  /* SP_REGS */				\
@@ -304,7 +312,7 @@ enum reg_class
   { 0x03fc0000, 0 },	  /* FP_ACC_REGS */			\
   { 0x00000000, 0x80000 },/* CC_REGS */				\
   { 0x0003fdff, 0 }, 	  /* GENERAL_REGS */			\
-  { 0xffffffff, 0xfffff } /* ALL_REGS 	*/			\
+  { 0xffffffff, 0xfffff } /* ALL_REGS */			\
 }
 
 /* The following macro defines cover classes for Integrated Register
@@ -533,31 +541,6 @@ struct cum_arg
 
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
  ((CUM).nbytes = 0)
-
-/* Update the data in CUM to advance over an argument
-   of mode MODE and data type TYPE.
-   (TYPE is null for libcalls where that information may not be available.)  */
-
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)	\
- ((CUM).nbytes += ((MODE) != BLKmode			\
-	           ? (GET_MODE_SIZE (MODE) + 3) & ~3	\
-	           : (int_size_in_bytes (TYPE) + 3) & ~3))
-
-/* Define where to put the arguments to a function.
-   Value is zero to push the argument on the stack,
-   or a hard register in which to store the argument.
-
-   MODE is the argument's machine mode.
-   TYPE is the data type of the argument (as a tree).
-    This is null for libcalls where that information may
-    not be available.
-   CUM is a variable of type CUMULATIVE_ARGS which gives info about
-    the preceding args and about the function being called.
-   NAMED is nonzero if this argument is a named parameter
-    (otherwise it is an extra parameter matching an ellipsis).  */
-
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-  mn10300_function_arg (&(CUM), MODE, TYPE, NAMED)
 
 #define FUNCTION_VALUE_REGNO_P(N)  mn10300_function_value_regno_p (N)
 

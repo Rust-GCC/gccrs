@@ -68,12 +68,6 @@
 #undef  LIB_SPEC
 #define LIB_SPEC "%{!T*:-T sim.ld}"
 
-/* Add -G xx support.  */
-
-#undef  SWITCH_TAKES_ARG
-#define SWITCH_TAKES_ARG(CHAR) \
-(DEFAULT_SWITCH_TAKES_ARG (CHAR) || (CHAR) == 'G')
-
 #undef  CC1_SPEC
 #define CC1_SPEC "%{G*}"
 
@@ -276,16 +270,10 @@ enum reg_class
 /* The number of (integer) argument register available.  */
 #define LM32_NUM_ARG_REGS 8
 
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED)                            \
-  lm32_function_arg ((CUM), (MODE), (TYPE), (NAMED))
-
 #define CUMULATIVE_ARGS int
 
 #define INIT_CUMULATIVE_ARGS(CUM,FNTYPE,LIBNAME,INDIRECT,N_NAMED_ARGS)  \
   (CUM) = 0
-
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)                    \
-  (CUM) += LM32_NUM_REGS2 (MODE, TYPE)
 
 #define FUNCTION_ARG_REGNO_P(r)                                         \
   (((r) >= LM32_FIRST_ARG_REG) && ((r) <= LM32_NUM_ARG_REGS))

@@ -40,8 +40,8 @@
 
 #ifdef _GLIBCXX_USE_C99_STDINT_TR1
 
-namespace std
-{
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
   /**
    * @defgroup ratio Rational Arithmetic
    * @ingroup utilities
@@ -155,20 +155,20 @@ namespace std
 		    "out of range");
 
       // Note: sign(N) * abs(N) == N
-      static const intmax_t num =
+      static constexpr intmax_t num =
         _Num * __static_sign<_Den>::value / __static_gcd<_Num, _Den>::value;
 
-      static const intmax_t den =
+      static constexpr intmax_t den =
         __static_abs<_Den>::value / __static_gcd<_Num, _Den>::value;
 
       typedef ratio<num, den> type;
     };
 
   template<intmax_t _Num, intmax_t _Den>
-    const intmax_t ratio<_Num, _Den>::num;
+    constexpr intmax_t ratio<_Num, _Den>::num;
 
   template<intmax_t _Num, intmax_t _Den>
-    const intmax_t ratio<_Num, _Den>::den;
+    constexpr intmax_t ratio<_Num, _Den>::den;
 
   /// ratio_add
   template<typename _R1, typename _R2>
@@ -339,7 +339,7 @@ namespace std
   typedef ratio<      1000000000000000000, 1> exa;
 
   // @} group ratio
-}
+_GLIBCXX_END_NAMESPACE
 
 #endif //_GLIBCXX_USE_C99_STDINT_TR1
 

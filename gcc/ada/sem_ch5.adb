@@ -662,6 +662,7 @@ package body Sem_Ch5 is
       --  checks have been applied.
 
       Note_Possible_Modification (Lhs, Sure => True);
+      Check_Order_Dependence;
 
       --  ??? a real accessibility check is needed when ???
 
@@ -1537,8 +1538,11 @@ package body Sem_Ch5 is
                    Object_Definition   => New_Occurrence_Of (Typ, Loc),
                    Expression          => Relocate_Node (Original_Bound));
 
-               Insert_Before (Parent (N), Decl);
-               Analyze (Decl);
+               --  Insert declaration at proper place. If loop comes from an
+               --  enclosing quantified expression, the insertion point is
+               --  arbitrarily far up in the tree.
+
+               Insert_Action (Parent (N), Decl);
                Rewrite (Original_Bound, New_Occurrence_Of (Id, Loc));
                return Expression (Decl);
             end if;
@@ -1724,7 +1728,9 @@ package body Sem_Ch5 is
    --  Start of processing for Analyze_Iteration_Scheme
 
    begin
-      --  Why is following check needed ???
+      --  If this is a rewritten quantified expression, the iteration
+      --  scheme has been analyzed already. Do no repeat analysis because
+      --  the loop variable is already declared.
 
       if Analyzed (N) then
          return;
@@ -2007,6 +2013,8 @@ package body Sem_Ch5 is
          if Of_Present (N) then
             Set_Etype (Def_Id, Component_Type (Typ));
          else
+            Error_Msg_N
+              ("to iterate over the elements of an array, use OF", N);
             Set_Etype (Def_Id, Etype (First_Index (Typ)));
          end if;
 

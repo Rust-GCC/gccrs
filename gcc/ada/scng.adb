@@ -64,6 +64,22 @@ package body Scng is
 
    procedure Accumulate_Token_Checksum;
    pragma Inline (Accumulate_Token_Checksum);
+   --  Called after each numeric literal and identifier/keyword. For keywords,
+   --  the token used is Tok_Identifier. This allows to detect additional
+   --  spaces added in sources when using the builder switch -m.
+
+   procedure Accumulate_Token_Checksum_GNAT_6_3;
+   --  Used in place of Accumulate_Token_Checksum for GNAT versions 5.04 to
+   --  6.3, when Tok_Some was not included in Token_Type and the actual
+   --  Token_Type was used for keywords. This procedure is never used in the
+   --  compiler or gnatmake, only in gprbuild.
+
+   procedure Accumulate_Token_Checksum_GNAT_5_03;
+   --  Used in place of Accumulate_Token_Checksum for GNAT version 5.03, when
+   --  Tok_Interface, Tok_Some, Tok_Synchronized and Tok_Overriding were not
+   --  included in Token_Type and the actual Token_Type was used for keywords.
+   --  This procedure is never used in the compiler or gnatmake, only in
+   --  gprbuild.
 
    procedure Accumulate_Checksum (C : Character);
    pragma Inline (Accumulate_Checksum);
@@ -119,6 +135,127 @@ package body Scng is
         (System.CRC32.CRC32 (Checksum),
          Character'Val (Token_Type'Pos (Token)));
    end Accumulate_Token_Checksum;
+
+   ----------------------------------------
+   -- Accumulate_Token_Checksum_GNAT_6_3 --
+   ----------------------------------------
+
+   procedure Accumulate_Token_Checksum_GNAT_6_3 is
+   begin
+      --  Individual values of Token_Type are used, instead of subranges, so
+      --  that additions or suppressions of enumerated values in type
+      --  Token_Type are detected by the compiler.
+
+      case Token is
+         when Tok_Integer_Literal | Tok_Real_Literal | Tok_String_Literal |
+              Tok_Char_Literal | Tok_Operator_Symbol | Tok_Identifier |
+              Tok_Double_Asterisk | Tok_Ampersand | Tok_Minus | Tok_Plus |
+              Tok_Asterisk | Tok_Mod | Tok_Rem | Tok_Slash | Tok_New |
+              Tok_Abs | Tok_Others | Tok_Null | Tok_Dot | Tok_Apostrophe |
+              Tok_Left_Paren | Tok_Delta | Tok_Digits | Tok_Range |
+              Tok_Right_Paren | Tok_Comma | Tok_And | Tok_Or | Tok_Xor |
+              Tok_Less | Tok_Equal | Tok_Greater | Tok_Not_Equal |
+              Tok_Greater_Equal | Tok_Less_Equal | Tok_In | Tok_Not |
+              Tok_Box | Tok_Colon_Equal | Tok_Colon | Tok_Greater_Greater |
+              Tok_Abstract | Tok_Access | Tok_Aliased | Tok_All | Tok_Array |
+              Tok_At | Tok_Body | Tok_Constant | Tok_Do | Tok_Is |
+              Tok_Interface | Tok_Limited | Tok_Of | Tok_Out | Tok_Record |
+              Tok_Renames | Tok_Reverse =>
+
+            System.CRC32.Update
+              (System.CRC32.CRC32 (Checksum),
+               Character'Val (Token_Type'Pos (Token)));
+
+         when Tok_Some =>
+
+            System.CRC32.Update
+              (System.CRC32.CRC32 (Checksum),
+               Character'Val (Token_Type'Pos (Tok_Identifier)));
+
+         when Tok_Tagged | Tok_Then | Tok_Less_Less | Tok_Abort | Tok_Accept |
+              Tok_Case | Tok_Delay | Tok_Else | Tok_Elsif | Tok_End |
+              Tok_Exception | Tok_Exit | Tok_Goto | Tok_If | Tok_Pragma |
+              Tok_Raise | Tok_Requeue | Tok_Return | Tok_Select |
+              Tok_Terminate | Tok_Until | Tok_When | Tok_Begin | Tok_Declare |
+              Tok_For | Tok_Loop | Tok_While | Tok_Entry | Tok_Protected |
+              Tok_Task | Tok_Type | Tok_Subtype | Tok_Overriding |
+              Tok_Synchronized | Tok_Use | Tok_Function | Tok_Generic |
+              Tok_Package | Tok_Procedure | Tok_Private | Tok_With |
+              Tok_Separate | Tok_EOF | Tok_Semicolon | Tok_Arrow |
+              Tok_Vertical_Bar | Tok_Dot_Dot | Tok_Project | Tok_Extends |
+              Tok_External | Tok_External_As_List | Tok_Comment |
+              Tok_End_Of_Line | Tok_Special | No_Token =>
+
+            System.CRC32.Update
+              (System.CRC32.CRC32 (Checksum),
+               Character'Val (Token_Type'Pos (Token_Type'Pred (Token))));
+      end case;
+   end Accumulate_Token_Checksum_GNAT_6_3;
+
+   -----------------------------------------
+   -- Accumulate_Token_Checksum_GNAT_5_03 --
+   -----------------------------------------
+
+   procedure Accumulate_Token_Checksum_GNAT_5_03 is
+   begin
+      --  Individual values of Token_Type are used, instead of subranges, so
+      --  that additions or suppressions of enumerated values in type
+      --  Token_Type are detected by the compiler.
+
+      case Token is
+         when Tok_Integer_Literal | Tok_Real_Literal | Tok_String_Literal |
+              Tok_Char_Literal | Tok_Operator_Symbol | Tok_Identifier |
+              Tok_Double_Asterisk | Tok_Ampersand | Tok_Minus | Tok_Plus |
+              Tok_Asterisk | Tok_Mod | Tok_Rem | Tok_Slash | Tok_New |
+              Tok_Abs | Tok_Others | Tok_Null | Tok_Dot | Tok_Apostrophe |
+              Tok_Left_Paren | Tok_Delta | Tok_Digits | Tok_Range |
+              Tok_Right_Paren | Tok_Comma | Tok_And | Tok_Or | Tok_Xor |
+              Tok_Less | Tok_Equal | Tok_Greater | Tok_Not_Equal |
+              Tok_Greater_Equal | Tok_Less_Equal | Tok_In | Tok_Not |
+              Tok_Box | Tok_Colon_Equal | Tok_Colon | Tok_Greater_Greater |
+              Tok_Abstract | Tok_Access | Tok_Aliased | Tok_All | Tok_Array |
+              Tok_At | Tok_Body | Tok_Constant | Tok_Do | Tok_Is =>
+
+            System.CRC32.Update
+              (System.CRC32.CRC32 (Checksum),
+               Character'Val (Token_Type'Pos (Token)));
+
+         when Tok_Interface | Tok_Some | Tok_Overriding | Tok_Synchronized =>
+            System.CRC32.Update
+              (System.CRC32.CRC32 (Checksum),
+               Character'Val (Token_Type'Pos (Tok_Identifier)));
+
+         when Tok_Limited | Tok_Of | Tok_Out | Tok_Record |
+              Tok_Renames | Tok_Reverse =>
+
+            System.CRC32.Update
+              (System.CRC32.CRC32 (Checksum),
+               Character'Val (Token_Type'Pos (Token) - 1));
+
+         when Tok_Tagged | Tok_Then | Tok_Less_Less | Tok_Abort | Tok_Accept |
+              Tok_Case | Tok_Delay | Tok_Else | Tok_Elsif | Tok_End |
+              Tok_Exception | Tok_Exit | Tok_Goto | Tok_If | Tok_Pragma |
+              Tok_Raise | Tok_Requeue | Tok_Return | Tok_Select |
+              Tok_Terminate | Tok_Until | Tok_When | Tok_Begin | Tok_Declare |
+              Tok_For | Tok_Loop | Tok_While | Tok_Entry | Tok_Protected |
+              Tok_Task | Tok_Type | Tok_Subtype =>
+
+            System.CRC32.Update
+              (System.CRC32.CRC32 (Checksum),
+               Character'Val (Token_Type'Pos (Token) - 2));
+
+         when Tok_Use | Tok_Function | Tok_Generic |
+              Tok_Package | Tok_Procedure | Tok_Private | Tok_With |
+              Tok_Separate | Tok_EOF | Tok_Semicolon | Tok_Arrow |
+              Tok_Vertical_Bar | Tok_Dot_Dot | Tok_Project | Tok_Extends |
+              Tok_External | Tok_External_As_List | Tok_Comment |
+              Tok_End_Of_Line | Tok_Special | No_Token =>
+
+            System.CRC32.Update
+              (System.CRC32.CRC32 (Checksum),
+               Character'Val (Token_Type'Pos (Token) - 4));
+      end case;
+   end Accumulate_Token_Checksum_GNAT_5_03;
 
    ----------------------------
    -- Determine_Token_Casing --
@@ -755,7 +892,10 @@ package body Scng is
             end if;
          end if;
 
-         Accumulate_Token_Checksum;
+         if Checksum_Accumulate_Token_Checksum then
+            Accumulate_Token_Checksum;
+         end if;
+
          return;
       end Nlit;
 
@@ -2413,12 +2553,25 @@ package body Scng is
          --  checksum is independent of the Ada version.
 
          Token := Tok_Identifier;
-         Accumulate_Token_Checksum;
 
          --  Here is where we check if it was a keyword
 
          if Is_Keyword_Name (Token_Name) then
-            Token := Token_Type'Val (Get_Name_Table_Byte (Token_Name));
+            if Opt.Checksum_GNAT_6_3 then
+               Token := Token_Type'Val (Get_Name_Table_Byte (Token_Name));
+
+               if Checksum_Accumulate_Token_Checksum then
+                  if Checksum_GNAT_5_03 then
+                     Accumulate_Token_Checksum_GNAT_5_03;
+                  else
+                     Accumulate_Token_Checksum_GNAT_6_3;
+                  end if;
+               end if;
+
+            else
+               Accumulate_Token_Checksum;
+               Token := Token_Type'Val (Get_Name_Table_Byte (Token_Name));
+            end if;
 
             --  Keyword style checks
 
@@ -2475,6 +2628,10 @@ package body Scng is
          --  It is an identifier after all
 
          else
+            if Checksum_Accumulate_Token_Checksum then
+               Accumulate_Token_Checksum;
+            end if;
+
             Post_Scan;
             return;
          end if;

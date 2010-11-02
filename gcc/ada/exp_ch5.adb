@@ -1332,7 +1332,7 @@ package body Exp_Ch5 is
                else
                   Expr :=
                     Make_Selected_Component (Loc,
-                      Prefix => Duplicate_Subexpr (Rhs),
+                      Prefix        => Duplicate_Subexpr (Rhs),
                       Selector_Name =>
                         Make_Identifier (Loc, Chars (Name (VP))));
                end if;
@@ -1986,14 +1986,12 @@ package body Exp_Ch5 is
                                  Make_Selected_Component (Loc,
                                    Prefix        => Duplicate_Subexpr (Lhs),
                                    Selector_Name =>
-                                     Make_Identifier (Loc,
-                                       Chars => Name_uTag)),
+                                     Make_Identifier (Loc, Name_uTag)),
                                Right_Opnd =>
                                  Make_Selected_Component (Loc,
                                    Prefix        => Duplicate_Subexpr (Rhs),
                                    Selector_Name =>
-                                     Make_Identifier (Loc,
-                                       Chars => Name_uTag))),
+                                     Make_Identifier (Loc, Name_uTag))),
                          Reason => CE_Tag_Check_Failed));
                   end if;
 
@@ -2909,7 +2907,7 @@ package body Exp_Ch5 is
                       Right_Opnd => Make_Selected_Component (Loc,
                          Prefix        => New_Occurrence_Of (Pack, Loc),
                          Selector_Name =>
-                           Make_Identifier (Loc, Chars => Name_No_Element)));
+                           Make_Identifier (Loc, Name_No_Element)));
 
             if Of_Present (I_Spec) then
 
@@ -3001,7 +2999,7 @@ package body Exp_Ch5 is
       if No (Isc) then
          null;
 
-      --  Case of for loop (Loop_Parameter_Specfication present)
+      --  Case of for loop (Loop_Parameter_Specification present)
 
       --  Note: we do not have to worry about validity checking of the for loop
       --  range bounds here, since they were frozen with constant declarations
@@ -3215,26 +3213,20 @@ package body Exp_Ch5 is
       Stmts   : constant List_Id    := Statements (N);
 
    begin
-      --  Case of iteration over non-static predicate. In this case we
-      --  generate the sequence:
-
-      --     for J in Ltype'First .. Ltype'Last loop
-      --        if Ltype_Predicate_Function (J) then
-      --           body;
-      --        end if;
-      --     end loop;
+      --  Case of iteration over non-static predicate, should not be possible
+      --  since this is not allowed by the semantics and should have been
+      --  caught during analysis of the loop statement.
 
       if No (Stat) then
+         raise Program_Error;
 
-         --  The analyzer already expanded the First/Last, so all we have
-         --  to do is wrap the body within the predicate function test.
+      --  If the predicate list is empty, that corresponds to a predicate of
+      --  False, in which case the loop won't run at all, and we rewrite the
+      --  entire loop as a null statement.
 
-         Set_Statements (N, New_List (
-           Make_If_Statement (Loc,
-             Condition =>
-               Make_Predicate_Call (Ltype, New_Occurrence_Of (Loop_Id, Loc)),
-             Then_Statements => Stmts)));
-         Analyze (First (Statements (N)));
+      elsif Is_Empty_List (Stat) then
+         Rewrite (N, Make_Null_Statement (Loc));
+         Analyze (N);
 
       --  For expansion over a static predicate we generate the following
 
@@ -3757,7 +3749,7 @@ package body Exp_Ch5 is
                if Has_Controlled_Component (T) then
                   Prev_Ref :=
                     Make_Selected_Component (Loc,
-                      Prefix =>
+                      Prefix        =>
                         Make_Selected_Component (Loc,
                           Prefix => Duplicate_Subexpr_No_Checks (L),
                           Selector_Name =>
@@ -3901,7 +3893,7 @@ package body Exp_Ch5 is
               Make_Assignment_Statement (Loc,
                 Name =>
                   Make_Selected_Component (Loc,
-                    Prefix =>
+                    Prefix        =>
                       Unchecked_Convert_To (RTE (RE_Finalizable),
                         New_Copy_Tree (Ctrl_Ref)),
                     Selector_Name => Make_Identifier (Loc, Name_Prev)),
@@ -3911,7 +3903,7 @@ package body Exp_Ch5 is
               Make_Assignment_Statement (Loc,
                 Name =>
                   Make_Selected_Component (Loc,
-                    Prefix =>
+                    Prefix        =>
                       Unchecked_Convert_To (RTE (RE_Finalizable),
                         New_Copy_Tree (Ctrl_Ref)),
                     Selector_Name => Make_Identifier (Loc, Name_Next)),

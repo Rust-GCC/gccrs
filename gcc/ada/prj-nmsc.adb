@@ -54,7 +54,10 @@ package body Prj.Nmsc is
    --  location.
 
    type Name_Location is record
-      Name     : File_Name_Type;  --  ??? duplicates the key
+      Name     : File_Name_Type;
+      --  Key is duplicated, so that it is known when using functions Get_First
+      --  and Get_Next, as these functions only return an Element.
+
       Location : Source_Ptr;
       Source   : Source_Id := No_Source;
       Listed   : Boolean := False;
@@ -81,7 +84,10 @@ package body Prj.Nmsc is
    --  found on the disk.
 
    type Unit_Exception is record
-      Name : Name_Id;  --  ??? duplicates the key
+      Name : Name_Id;
+      --  Key is duplicated, so that it is known when using functions Get_First
+      --  and Get_Next, as these functions only return an Element.
+
       Spec : File_Name_Type;
       Impl : File_Name_Type;
    end record;
@@ -2398,6 +2404,48 @@ package body Prj.Nmsc is
 
                         Lang_Index.Config.Toolchain_Version :=
                           Element.Value.Value;
+
+                        --  For Ada, set proper checksum computation mode
+
+                        if Lang_Index.Name = Name_Ada then
+                           declare
+                              Vers : constant String :=
+                                       Get_Name_String (Element.Value.Value);
+                              pragma Assert (Vers'First = 1);
+
+                           begin
+                              --  Version 6.3 or earlier
+
+                              if Vers'Length >= 8
+                                and then Vers (1 .. 5) = "GNAT "
+                                and then Vers (7) = '.'
+                                and then
+                                  (Vers (6) < '6'
+                                    or else
+                                      (Vers (6) = '6' and then Vers (8) < '4'))
+                              then
+                                 Checksum_GNAT_6_3 := True;
+
+                                 --  Version 5.03 or earlier
+
+                                 if Vers (6) < '5'
+                                   or else (Vers (6) = '5'
+                                             and then Vers (Vers'Last) < '4')
+                                 then
+                                    Checksum_GNAT_5_03 := True;
+
+                                    --  Version 5.02 or earlier
+
+                                    if Vers (6) /= '5'
+                                      or else Vers (Vers'Last) < '3'
+                                    then
+                                       Checksum_Accumulate_Token_Checksum :=
+                                         False;
+                                    end if;
+                                 end if;
+                              end if;
+                           end;
+                        end if;
 
                      when Name_Runtime_Library_Dir =>
 

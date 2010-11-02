@@ -86,6 +86,7 @@ static void dump_scope (tree, int);
 static void dump_template_parms (tree, int, int);
 static int get_non_default_template_args_count (tree, int);
 static const char *function_category (tree);
+static void maybe_print_constexpr_context (diagnostic_context *);
 static void maybe_print_instantiation_context (diagnostic_context *);
 static void print_instantiation_full_context (diagnostic_context *);
 static void print_instantiation_partial_context (diagnostic_context *,
@@ -867,6 +868,9 @@ dump_simple_decl (tree t, tree type, int flags)
 {
   if (flags & TFF_DECL_SPECIFIERS)
     {
+      if (TREE_CODE (t) == VAR_DECL
+	  && DECL_DECLARED_CONSTEXPR_P (t))
+	pp_cxx_ws_string (cxx_pp, "constexpr");
       dump_type_prefix (type, flags & ~TFF_UNQUALIFIED_NAME);
       pp_maybe_space (cxx_pp);
     }
@@ -895,6 +899,18 @@ dump_decl (tree t, int flags)
 {
   if (t == NULL_TREE)
     return;
+
+  /* If doing Objective-C++, give Objective-C a chance to demangle
+     Objective-C method names.  */
+  if (c_dialect_objc ())
+    {
+      const char *demangled = objc_maybe_printable_name (t, flags);
+      if (demangled)
+	{
+	  pp_string (cxx_pp, demangled);
+	  return;
+	}
+    }
 
   switch (TREE_CODE (t))
     {
@@ -1294,12 +1310,16 @@ dump_function_decl (tree t, int flags)
   else if (TREE_CODE (fntype) == METHOD_TYPE)
     cname = TREE_TYPE (TREE_VALUE (parmtypes));
 
-  if (!(flags & TFF_DECL_SPECIFIERS))
-    /* OK */;
-  else if (DECL_STATIC_FUNCTION_P (t))
-    pp_cxx_ws_string (cxx_pp, "static");
-  else if (DECL_VIRTUAL_P (t))
-    pp_cxx_ws_string (cxx_pp, "virtual");
+  if (flags & TFF_DECL_SPECIFIERS)
+    {
+      if (DECL_STATIC_FUNCTION_P (t))
+	pp_cxx_ws_string (cxx_pp, "static");
+      else if (DECL_VIRTUAL_P (t))
+	pp_cxx_ws_string (cxx_pp, "virtual");
+
+      if (DECL_DECLARED_CONSTEXPR_P (STRIP_TEMPLATE (t)))
+	pp_cxx_ws_string (cxx_pp, "constexpr");
+    }
 
   /* Print the return type?  */
   if (show_return)
@@ -2616,6 +2636,7 @@ cp_diagnostic_starter (diagnostic_context *context,
   diagnostic_report_current_module (context);
   cp_print_error_function (context, diagnostic);
   maybe_print_instantiation_context (context);
+  maybe_print_constexpr_context (context);
   pp_base_set_prefix (context->printer, diagnostic_build_prefix (context,
 								 diagnostic));
 }
@@ -2934,6 +2955,31 @@ print_instantiation_context (void)
   print_instantiation_partial_context
     (global_dc, current_instantiation (), input_location);
   diagnostic_flush_buffer (global_dc);
+}
+
+/* Report what constexpr call(s) we're trying to expand, if any.  */
+
+void
+maybe_print_constexpr_context (diagnostic_context *context)
+{
+  VEC(tree,heap) *call_stack = cx_error_context ();
+  unsigned ix;
+  tree t;
+
+  FOR_EACH_VEC_ELT (tree, call_stack, ix, t)
+    {
+      expanded_location xloc = expand_location (EXPR_LOCATION (t));
+      const char *s = expr_as_string (t, 0);
+      if (context->show_column)
+	pp_verbatim (context->printer,
+		     _("%s:%d:%d:   in constexpr expansion of %qs"),
+		     xloc.file, xloc.line, xloc.column, s);
+      else
+	pp_verbatim (context->printer,
+		     _("%s:%d:   in constexpr expansion of %qs"),
+		     xloc.file, xloc.line, s);
+      pp_base_newline (context->printer);
+    }
 }
 
 /* Called from output_format -- during diagnostic message processing --

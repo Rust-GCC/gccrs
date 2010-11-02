@@ -82,7 +82,10 @@ enum rid
 
   /* ObjC ("PATTR" reserved words - they do not appear after a '@' 
      and are keywords only as property attributes)  */
-  RID_READONLY, RID_COPIES, RID_GETTER, RID_SETTER, RID_IVAR,
+  RID_GETTER, RID_SETTER,
+  RID_READONLY, RID_READWRITE,
+  RID_ASSIGN, RID_RETAIN, RID_COPY,
+  RID_NONATOMIC,
 
   /* C (reserved and imaginary types not implemented, so any use is a
      syntax error) */
@@ -134,7 +137,7 @@ enum rid
   RID_IS_EMPTY,                RID_IS_ENUM,
   RID_IS_POD,                  RID_IS_POLYMORPHIC,
   RID_IS_STD_LAYOUT,           RID_IS_TRIVIAL,
-  RID_IS_UNION,
+  RID_IS_UNION,                RID_IS_LITERAL_TYPE,
 
   /* C++0x */
   RID_CONSTEXPR, RID_DECLTYPE, RID_NOEXCEPT, RID_NULLPTR, RID_STATIC_ASSERT,
@@ -187,8 +190,8 @@ enum rid
   RID_LAST_AT = RID_AT_IMPLEMENTATION,
   RID_FIRST_PQ = RID_IN,
   RID_LAST_PQ = RID_ONEWAY,
-  RID_FIRST_PATTR = RID_READONLY,
-  RID_LAST_PATTR = RID_IVAR
+  RID_FIRST_PATTR = RID_GETTER,
+  RID_LAST_PATTR = RID_NONATOMIC
 };
 
 #define OBJC_IS_AT_KEYWORD(rid) \
@@ -430,16 +433,6 @@ extern c_language_kind c_language;
 
 #define c_dialect_cxx()		((c_language & clk_cxx) != 0)
 #define c_dialect_objc()	((c_language & clk_objc) != 0)
-
-/* ObjC Property Attribute types.  */
-typedef enum objc_property_attribute_kind {
-  OBJC_PATTR_INIT	= 0,
-  OBJC_PATTR_READONLY	= 1,
-  OBJC_PATTR_GETTER	= 2,
-  OBJC_PATTR_SETTER	= 3,
-  OBJC_PATTR_IVAR	= 4,
-  OBJC_PATTR_COPIES	= 5
-} objc_property_attribute_kind;
 
 /* ObjC ivar visibility types.  */
 typedef enum objc_ivar_visibility_kind {
@@ -1040,14 +1033,15 @@ extern tree objc_generate_static_init_call (tree);
 extern tree objc_generate_write_barrier (tree, enum tree_code, tree);
 extern void objc_set_method_opt (bool);
 extern void objc_finish_foreach_loop (location_t, tree, tree, tree, tree, tree);
-extern void objc_set_property_attr 
-  (location_t, objc_property_attribute_kind, tree);
 extern bool  objc_method_decl (enum tree_code);
-extern void objc_add_property_variable (tree);
-extern tree objc_build_getter_call (tree, tree);
-extern tree objc_build_setter_call (tree, tree);
+extern void objc_add_property_declaration (location_t, tree, bool, bool, bool, 
+					   bool, bool, bool, tree, tree);
+extern tree objc_maybe_build_component_ref (tree, tree);
+extern tree objc_maybe_build_modify_expr (tree, tree);
 extern void objc_add_synthesize_declaration (location_t, tree);
 extern void objc_add_dynamic_declaration (location_t, tree);
+extern const char * objc_maybe_printable_name (tree, int);
+extern bool objc_is_property_ref (tree);
 
 /* The following are provided by the C and C++ front-ends, and called by
    ObjC/ObjC++.  */

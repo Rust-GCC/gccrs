@@ -1,4 +1,4 @@
-#o# Makefile for the include subdirectory of the GNU C++ Standard library.
+## Makefile for the include subdirectory of the GNU C++ Standard library.
 ##
 ## Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
 ## Free Software Foundation, Inc.
@@ -80,8 +80,6 @@ bits_headers = \
         ${bits_srcdir}/algorithmfwd.h \
 	${bits_srcdir}/allocator.h \
 	${bits_srcdir}/atomic_base.h \
-	${bits_srcdir}/atomicfwd_c.h \
-	${bits_srcdir}/atomicfwd_cxx.h \
 	${bits_srcdir}/atomic_0.h \
 	${bits_srcdir}/atomic_2.h \
 	${bits_srcdir}/basic_ios.h \
@@ -612,26 +610,6 @@ tr1_headers = \
 	${tr1_srcdir}/wchar.h \
 	${tr1_srcdir}/wctype.h
 
-
-tr1_impl_srcdir = ${glibcxx_srcdir}/include/tr1_impl
-tr1_impl_builddir = ./tr1_impl
-tr1_impl_headers = \
-	${tr1_impl_srcdir}/array \
-	${tr1_impl_srcdir}/boost_sp_counted_base.h \
-	${tr1_impl_srcdir}/cctype \
-	${tr1_impl_srcdir}/cfenv \
-	${tr1_impl_srcdir}/cinttypes \
-	${tr1_impl_srcdir}/cmath \
-	${tr1_impl_srcdir}/complex \
-	${tr1_impl_srcdir}/cstdint \
-	${tr1_impl_srcdir}/cstdio \
-	${tr1_impl_srcdir}/cstdlib \
-	${tr1_impl_srcdir}/cwchar \
-	${tr1_impl_srcdir}/cwctype \
-	${tr1_impl_srcdir}/regex \
-	${tr1_impl_srcdir}/type_traits \
-	${tr1_impl_srcdir}/utility
-
 decimal_srcdir = ${glibcxx_srcdir}/include/decimal
 decimal_builddir = ./decimal
 decimal_headers = \
@@ -679,8 +657,7 @@ if GLIBCXX_C_HEADERS_C_GLOBAL
 c_compatibility_headers = \
 	${c_compatibility_srcdir}/complex.h \
 	${c_compatibility_srcdir}/fenv.h \
-	${c_compatibility_srcdir}/tgmath.h \
-	${c_compatibility_srcdir}/stdatomic.h
+	${c_compatibility_srcdir}/tgmath.h
 endif
 
 if GLIBCXX_C_HEADERS_C
@@ -911,9 +888,9 @@ endif
 # CLEANFILES and all-local are kept up-to-date.
 allstamped = \
 	stamp-std stamp-bits stamp-c_base stamp-c_compatibility \
-	stamp-backward stamp-ext stamp-pb stamp-tr1 stamp-tr1-impl \
-	stamp-decimal stamp-debug stamp-parallel stamp-profile \
-	stamp-profile-impl stamp-host 
+	stamp-backward stamp-ext stamp-pb stamp-tr1 stamp-decimal \
+	stamp-debug stamp-parallel stamp-profile stamp-profile-impl \
+	stamp-host 
 
 # List of all files that are created by explicit building, editing, or
 # catenation.
@@ -1021,11 +998,6 @@ stamp-tr1: ${tr1_headers}
 	@-mkdir -p ${tr1_builddir}
 	@-cd ${tr1_builddir} && $(LN_S) $? . 2>/dev/null
 	@$(STAMP) stamp-tr1
-
-stamp-tr1-impl: ${tr1_impl_headers}
-	@-mkdir -p ${tr1_impl_builddir}
-	@-cd ${tr1_impl_builddir} && $(LN_S) $? . 2>/dev/null
-	@$(STAMP) stamp-tr1-impl
 
 stamp-decimal: ${decimal_headers}
 	@-mkdir -p ${decimal_builddir}
@@ -1257,9 +1229,6 @@ install-headers:
 	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${tr1_builddir}
 	for file in ${tr1_headers}; do \
 	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${tr1_builddir}; done
-	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${tr1_impl_builddir}
-	for file in ${tr1_impl_headers}; do \
-	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${tr1_impl_builddir}; done
 	$(mkinstalldirs) $(DESTDIR)${gxx_include_dir}/${decimal_builddir}
 	for file in ${decimal_headers}; do \
 	  $(INSTALL_DATA) $${file} $(DESTDIR)${gxx_include_dir}/${decimal_builddir}; done
@@ -1306,11 +1275,10 @@ clean-local:
 # developer tries to create them via make in the include build
 # directory. (This is more of an example of how this kind of rule can
 # be made.)
-.PRECIOUS: $(std_headers) $(c_base_headers) $(tr1_headers) $(tr1_impl_headers)
+.PRECIOUS: $(std_headers) $(c_base_headers) $(tr1_headers)
 	   $(decimal_headers) $(ext_headers)
 $(std_headers): ; @:
 $(c_base_headers): ; @:
 $(tr1_headers): ; @:
-$(tr1_impl_headers): ; @:
 $(decimal_headers): ; @:
 $(ext_headers): ; @:

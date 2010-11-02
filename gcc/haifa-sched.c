@@ -199,10 +199,6 @@ struct common_sched_info_def *common_sched_info;
 /* The minimal value of the INSN_TICK of an instruction.  */
 #define MIN_TICK (-max_insn_queue_index)
 
-/* Issue points are used to distinguish between instructions in max_issue ().
-   For now, all instructions are equally good.  */
-#define ISSUE_POINTS(INSN) 1
-
 /* List of important notes we must keep around.  This is a pointer to the
    last element in the list.  */
 rtx note_list;
@@ -543,8 +539,6 @@ static void debug_ready_list (struct ready_list *);
    on the first cycle.  */
 static rtx ready_remove (struct ready_list *, int);
 static void ready_remove_insn (rtx);
-
-static int choose_ready (struct ready_list *, rtx *);
 
 static void fix_inter_tick (rtx, rtx);
 static int fix_tick_ready (rtx);
@@ -2394,6 +2388,12 @@ insn_finishes_cycle_p (rtx insn)
   return false;
 }
 
+/* Define type for target data used in multipass scheduling.  */
+#ifndef TARGET_SCHED_FIRST_CYCLE_MULTIPASS_DATA_T
+# define TARGET_SCHED_FIRST_CYCLE_MULTIPASS_DATA_T int
+#endif
+typedef TARGET_SCHED_FIRST_CYCLE_MULTIPASS_DATA_T first_cycle_multipass_data_t;
+
 /* The following structure describe an entry of the stack of choices.  */
 struct choice_entry
 {
@@ -2405,6 +2405,8 @@ struct choice_entry
   int n;
   /* State after issuing the insn.  */
   state_t state;
+  /* Target-specific data.  */
+  first_cycle_multipass_data_t target_data;
 };
 
 /* The following array is used to implement a stack of choices used in
@@ -2444,8 +2446,7 @@ static int cached_issue_rate = 0;
    insns is insns with the best rank (the first insn in READY).  To
    make this function tries different samples of ready insns.  READY
    is current queue `ready'.  Global array READY_TRY reflects what
-   insns are already issued in this try.  MAX_POINTS is the sum of points
-   of all instructions in READY.  The function stops immediately,
+   insns are already issued in this try.  The function stops immediately,
    if it reached the such a solution, that all instruction can be issued.
    INDEX will contain index of the best insn in READY.  The following
    function is used only for first cycle multipass scheduling.
@@ -2456,9 +2457,9 @@ static int cached_issue_rate = 0;
    CLOBBERs, etc must be filtered elsewhere.  */
 int
 max_issue (struct ready_list *ready, int privileged_n, state_t state,
-	   int *index)
+	   bool first_cycle_insn_p, int *index)
 {
-  int n, i, all, n_ready, best, delay, tries_num, max_points;
+  int n, i, all, n_ready, best, delay, tries_num;
   int more_issue;
   struct choice_entry *top;
   rtx insn;
@@ -2477,18 +2478,8 @@ max_issue (struct ready_list *ready, int privileged_n, state_t state,
     }
 
   /* Init max_points.  */
-  max_points = 0;
   more_issue = issue_rate - cycle_issued_insns;
   gcc_assert (more_issue >= 0);
-
-  for (i = 0; i < n_ready; i++)
-    if (!ready_try [i])
-      {
-	if (more_issue-- > 0)
-	  max_points += ISSUE_POINTS (ready_element (ready, i));
-	else
-	  break;
-      }
 
   /* The number of the issued insns in the best solution.  */
   best = 0;
@@ -2499,6 +2490,10 @@ max_issue (struct ready_list *ready, int privileged_n, state_t state,
   memcpy (top->state, state, dfa_state_size);
   top->rest = dfa_lookahead;
   top->n = 0;
+  if (targetm.sched.first_cycle_multipass_begin)
+    targetm.sched.first_cycle_multipass_begin (&top->target_data,
+					       ready_try, n_ready,
+					       first_cycle_insn_p);
 
   /* Count the number of the insns to search among.  */
   for (all = i = 0; i < n_ready; i++)
@@ -2513,11 +2508,16 @@ max_issue (struct ready_list *ready, int privileged_n, state_t state,
       if (/* If we've reached a dead end or searched enough of what we have
 	     been asked...  */
 	  top->rest == 0
-	  /* Or have nothing else to try.  */
-	  || i >= n_ready)
+	  /* or have nothing else to try...  */
+	  || i >= n_ready
+	  /* or should not issue more.  */
+	  || top->n >= more_issue)
 	{
 	  /* ??? (... || i == n_ready).  */
 	  gcc_assert (i <= n_ready);
+
+	  /* We should not issue more than issue_rate instructions.  */
+	  gcc_assert (top->n <= more_issue);
 
 	  if (top == choice_stack)
 	    break;
@@ -2541,7 +2541,7 @@ max_issue (struct ready_list *ready, int privileged_n, state_t state,
 		  /* This is the index of the insn issued first in this
 		     solution.  */
 		  *index = choice_stack [1].index;
-		  if (top->n == max_points || best == all)
+		  if (top->n == more_issue || best == all)
 		    break;
 		}
 	    }
@@ -2552,6 +2552,11 @@ max_issue (struct ready_list *ready, int privileged_n, state_t state,
 
 	  /* Backtrack.  */
 	  ready_try [i] = 0;
+
+	  if (targetm.sched.first_cycle_multipass_backtrack)
+	    targetm.sched.first_cycle_multipass_backtrack (&top->target_data,
+							   ready_try, n_ready);
+
 	  top--;
 	  memcpy (state, top->state, dfa_state_size);
 	}
@@ -2574,7 +2579,7 @@ max_issue (struct ready_list *ready, int privileged_n, state_t state,
 
 	      n = top->n;
 	      if (memcmp (top->state, state, dfa_state_size) != 0)
-		n += ISSUE_POINTS (insn);
+		n++;
 
 	      /* Advance to the next choice_entry.  */
 	      top++;
@@ -2583,8 +2588,15 @@ max_issue (struct ready_list *ready, int privileged_n, state_t state,
 	      top->index = i;
 	      top->n = n;
 	      memcpy (top->state, state, dfa_state_size);
-
 	      ready_try [i] = 1;
+
+	      if (targetm.sched.first_cycle_multipass_issue)
+		targetm.sched.first_cycle_multipass_issue (&top->target_data,
+							   ready_try, n_ready,
+							   insn,
+							   &((top - 1)
+							     ->target_data));
+
 	      i = -1;
 	    }
 	}
@@ -2592,6 +2604,11 @@ max_issue (struct ready_list *ready, int privileged_n, state_t state,
       /* Increase ready-list index.  */
       i++;
     }
+
+  if (targetm.sched.first_cycle_multipass_end)
+    targetm.sched.first_cycle_multipass_end (best != 0
+					     ? &choice_stack[1].target_data
+					     : NULL);
 
   /* Restore the original state of the DFA.  */
   memcpy (state, choice_stack->state, dfa_state_size);
@@ -2607,7 +2624,8 @@ max_issue (struct ready_list *ready, int privileged_n, state_t state,
    0 if INSN_PTR is set to point to the desirable insn,
    1 if choose_ready () should be restarted without advancing the cycle.  */
 static int
-choose_ready (struct ready_list *ready, rtx *insn_ptr)
+choose_ready (struct ready_list *ready, bool first_cycle_insn_p,
+	      rtx *insn_ptr)
 {
   int lookahead;
 
@@ -2736,7 +2754,7 @@ choose_ready (struct ready_list *ready, rtx *insn_ptr)
 		     (insn)));
 	  }
 
-      if (max_issue (ready, 1, curr_state, &index) == 0)
+      if (max_issue (ready, 1, curr_state, first_cycle_insn_p, &index) == 0)
 	{
 	  *insn_ptr = ready_remove_first (ready);
 	  if (sched_verbose >= 4)
@@ -2764,7 +2782,8 @@ choose_ready (struct ready_list *ready, rtx *insn_ptr)
 void
 schedule_block (basic_block *target_bb)
 {
-  int i, first_cycle_insn_p;
+  int i;
+  bool first_cycle_insn_p;
   int can_issue_more;
   state_t temp_state = NULL;  /* It is used for multipass scheduling.  */
   int sort_p, advance, start_clock_var;
@@ -2970,7 +2989,7 @@ schedule_block (basic_block *target_bb)
       else
 	can_issue_more = issue_rate;
 
-      first_cycle_insn_p = 1;
+      first_cycle_insn_p = true;
       cycle_issued_insns = 0;
       for (;;)
 	{
@@ -3013,7 +3032,7 @@ schedule_block (basic_block *target_bb)
 	      int res;
 
 	      insn = NULL_RTX;
-	      res = choose_ready (&ready, &insn);
+	      res = choose_ready (&ready, first_cycle_insn_p, &insn);
 
 	      if (res < 0)
 		/* Finish cycle.  */
@@ -3166,7 +3185,7 @@ schedule_block (basic_block *target_bb)
 	  if (advance != 0)
 	    break;
 
-	  first_cycle_insn_p = 0;
+	  first_cycle_insn_p = false;
 
 	  /* Sort the ready list based on priority.  This must be
 	     redone here, as schedule_insn may have readied additional
@@ -3962,7 +3981,13 @@ sched_extend_ready_list (int new_sched_ready_n_insns)
 			     new_sched_ready_n_insns + 1);
 
   for (; i <= new_sched_ready_n_insns; i++)
-    choice_stack[i].state = xmalloc (dfa_state_size);
+    {
+      choice_stack[i].state = xmalloc (dfa_state_size);
+
+      if (targetm.sched.first_cycle_multipass_init)
+	targetm.sched.first_cycle_multipass_init (&(choice_stack[i]
+						    .target_data));
+    }
 
   sched_ready_n_insns = new_sched_ready_n_insns;
 }
@@ -3981,7 +4006,13 @@ sched_finish_ready_list (void)
   ready_try = NULL;
 
   for (i = 0; i <= sched_ready_n_insns; i++)
-    free (choice_stack [i].state);
+    {
+      if (targetm.sched.first_cycle_multipass_fini)
+	targetm.sched.first_cycle_multipass_fini (&(choice_stack[i]
+						    .target_data));
+
+      free (choice_stack [i].state);
+    }
   free (choice_stack);
   choice_stack = NULL;
 

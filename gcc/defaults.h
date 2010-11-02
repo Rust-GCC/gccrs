@@ -32,33 +32,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define GET_ENVIRONMENT(VALUE, NAME) do { (VALUE) = getenv (NAME); } while (0)
 #endif
 
-/* This defines which switch letters take arguments.  */
-
-#define DEFAULT_SWITCH_TAKES_ARG(CHAR) \
-  ((CHAR) == 'D' || (CHAR) == 'U' || (CHAR) == 'o' \
-   || (CHAR) == 'e' || (CHAR) == 'T' || (CHAR) == 'u' \
-   || (CHAR) == 'I' || (CHAR) == 'J' || (CHAR) == 'm' \
-   || (CHAR) == 'x' || (CHAR) == 'L' || (CHAR) == 'A' \
-   || (CHAR) == 'B' || (CHAR) == 'd')
-
 /* This defines which multi-letter switches take arguments.  */
 
-#define DEFAULT_WORD_SWITCH_TAKES_ARG(STR)		\
- (!strcmp (STR, "Tdata") || !strcmp (STR, "Ttext")	\
-  || !strcmp (STR, "Tbss") || !strcmp (STR, "include")	\
-  || !strcmp (STR, "imacros") || !strcmp (STR, "aux-info") \
-  || !strcmp (STR, "idirafter") || !strcmp (STR, "iprefix") \
-  || !strcmp (STR, "iwithprefix") || !strcmp (STR, "iwithprefixbefore") \
-  || !strcmp (STR, "iquote") || !strcmp (STR, "isystem") \
-  || !strcmp (STR, "isysroot") || !strcmp (STR, "imultilib") \
-  || !strcmp (STR, "-param") || !strcmp (STR, "specs") \
-  || !strcmp (STR, "MF") || !strcmp (STR, "MT") || !strcmp (STR, "MQ") \
-  || !strcmp (STR, "fintrinsic-modules-path") \
-  || !strcmp (STR, "dumpbase") || !strcmp (STR, "dumpdir"))
-
-#ifndef SWITCH_TAKES_ARG
-#define SWITCH_TAKES_ARG(CHAR) DEFAULT_SWITCH_TAKES_ARG (CHAR)
-#endif
+#define DEFAULT_WORD_SWITCH_TAKES_ARG(STR)		0
 
 #ifndef WORD_SWITCH_TAKES_ARG
 #define WORD_SWITCH_TAKES_ARG(STR) DEFAULT_WORD_SWITCH_TAKES_ARG (STR)
@@ -813,16 +789,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define TARGET_DEFAULT_PACK_STRUCT 0
 #endif
 
-/* By default, the C++ compiler will use function addresses in the
-   vtable entries.  Setting this nonzero tells the compiler to use
-   function descriptors instead.  The value of this macro says how
-   many words wide the descriptor is (normally 2).  It is assumed
-   that the address of a function descriptor may be treated as a
-   pointer to a function.  */
-#ifndef TARGET_VTABLE_USES_DESCRIPTORS
-#define TARGET_VTABLE_USES_DESCRIPTORS 0
-#endif
-
 /* By default, the vtable entries are void pointers, the so the alignment
    is the same as pointer alignment.  The value of this macro specifies
    the alignment of the vtable entry in bits.  It should be defined only
@@ -1379,6 +1345,16 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    controllable by the user at some point.  */
 #ifndef STACK_CHECK_MAX_VAR_SIZE
 #define STACK_CHECK_MAX_VAR_SIZE (STACK_CHECK_MAX_FRAME_SIZE / 100)
+#endif
+
+/* By default, the C++ compiler will use function addresses in the
+   vtable entries.  Setting this nonzero tells the compiler to use
+   function descriptors instead.  The value of this macro says how
+   many words wide the descriptor is (normally 2).  It is assumed
+   that the address of a function descriptor may be treated as a
+   pointer to a function.  */
+#ifndef TARGET_VTABLE_USES_DESCRIPTORS
+#define TARGET_VTABLE_USES_DESCRIPTORS 0
 #endif
 
 #ifndef SWITCHABLE_TARGET

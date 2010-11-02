@@ -1504,12 +1504,12 @@ package body Exp_Ch4 is
 
          L :=
            Make_Indexed_Component (Loc,
-             Prefix => Make_Identifier (Loc, Chars (A)),
+             Prefix      => Make_Identifier (Loc, Chars (A)),
              Expressions => Index_List1);
 
          R :=
            Make_Indexed_Component (Loc,
-             Prefix => Make_Identifier (Loc, Chars (B)),
+             Prefix      => Make_Identifier (Loc, Chars (B)),
              Expressions => Index_List2);
 
          Test := Expand_Composite_Equality
@@ -2493,9 +2493,11 @@ package body Exp_Ch4 is
          Opnd_Typ := Etype (Opnd);
 
          --  The parent got messed up when we put the operands in a list,
-         --  so now put back the proper parent for the saved operand.
+         --  so now put back the proper parent for the saved operand, that
+         --  is to say the concatenation node, to make sure that each operand
+         --  is seen as a subexpression, e.g. if actions must be inserted.
 
-         Set_Parent (Opnd, Parent (Cnode));
+         Set_Parent (Opnd, Cnode);
 
          --  Set will be True when we have setup one entry in the array
 
@@ -3235,10 +3237,9 @@ package body Exp_Ch4 is
 
          Flist :=
            Make_Selected_Component (Loc,
-             Prefix =>
+             Prefix        =>
                New_Reference_To (Associated_Final_Chain (PtrT), Loc),
-             Selector_Name =>
-               Make_Identifier (Loc, Name_F));
+             Selector_Name => Make_Identifier (Loc, Name_F));
 
          Coext_Elmt := First_Elmt (Coextensions (N));
          while Present (Coext_Elmt) loop
@@ -4369,7 +4370,7 @@ package body Exp_Ch4 is
             return Cond;
          end Make_Cond;
 
-      --  Start of processing for Expand_N_In
+      --  Start of processing for Expand_Set_Membership
 
       begin
          Alt := Last (Alternatives (N));
@@ -5568,12 +5569,10 @@ package body Exp_Ch4 is
                then
                   --  Enclosing record is an Unchecked_Union, use formal A
 
-                  if Is_Unchecked_Union (Scope
-                       (Entity (Selector_Name (Lhs))))
+                  if Is_Unchecked_Union
+                       (Scope (Entity (Selector_Name (Lhs))))
                   then
-                     Lhs_Discr_Val :=
-                       Make_Identifier (Loc,
-                         Chars => Name_A);
+                     Lhs_Discr_Val := Make_Identifier (Loc, Name_A);
 
                   --  Enclosing record is of a non-Unchecked_Union type, it is
                   --  possible to reference the discriminant.
@@ -5612,9 +5611,7 @@ package body Exp_Ch4 is
                   if Is_Unchecked_Union
                        (Scope (Entity (Selector_Name (Rhs))))
                   then
-                     Rhs_Discr_Val :=
-                       Make_Identifier (Loc,
-                         Chars => Name_B);
+                     Rhs_Discr_Val := Make_Identifier (Loc, Name_B);
 
                   else
                      Rhs_Discr_Val :=
@@ -6985,8 +6982,8 @@ package body Exp_Ch4 is
          return;
       end if;
 
-      --  For the VMS "not" on signed integer types, use conversion to and
-      --  from a predefined modular type.
+      --  For the VMS "not" on signed integer types, use conversion to and from
+      --  a predefined modular type.
 
       if Is_VMS_Operator (Entity (N)) then
          declare
@@ -8044,7 +8041,8 @@ package body Exp_Ch4 is
                   while Present (Disc) loop
                      Append_To (Cons,
                        Make_Selected_Component (Loc,
-                         Prefix => Duplicate_Subexpr_Move_Checks (Operand),
+                         Prefix        =>
+                           Duplicate_Subexpr_Move_Checks (Operand),
                          Selector_Name =>
                            Make_Identifier (Loc, Chars (Disc))));
                      Next_Discriminant (Disc);
