@@ -13,7 +13,7 @@
 
 ALL_CXXFLAGS = $(filter-out -Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition -Wc++-compat, $(ALL_COMPILERFLAGS)) $(CXXFLAGS)
 .cc.o:
-	$(CXX) -c -I $(srcdir)/../elfcpp $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $< $(OUTPUT_OPTION)
+	$(CXX) -c $(ALL_CPPFLAGS) $(ALL_CXXFLAGS) $< $(OUTPUT_OPTION)
 
 # Build Go export info generator.
 INTERNAL_CFLAGS += -DGO_DEBUGGING_INFO
@@ -136,9 +136,6 @@ GO_TYPES_H = go/types.h
 GO_STATEMENTS_H = go/statements.h go/operator.h
 GO_EXPRESSIONS_H = go/expressions.h go/operator.h
 GO_IMPORT_H = go/import.h go/export.h
-
-ELFCPP_H = $(srcdir)/../elfcpp/elfcpp.h $(srcdir)/../elfcpp/elfcpp_swap.h \
-	$(srcdir)/../elfcpp/elfcpp_internal.h
 
 go/dataflow.o: go/dataflow.cc $(GO_SYSTEM_H) $(GO_GOGO_H) $(GO_EXPRESSIONS_H) \
 	$(GO_STATEMENTS_H) go/dataflow.h
