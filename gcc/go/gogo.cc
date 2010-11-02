@@ -320,6 +320,8 @@ Gogo::import_package(const std::string& filename,
   Package* package = imp.import(this, local_name, is_local_name_exported);
   this->imports_.insert(std::make_pair(filename, package));
   package->set_is_imported();
+
+  delete stream;
 }
 
 // Return whether we are at the global binding level.

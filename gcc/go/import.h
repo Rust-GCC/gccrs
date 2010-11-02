@@ -200,14 +200,9 @@ class Import
   static Stream*
   find_export_data(const std::string& filename, int fd, source_location);
 
-  static const int elf_magic_len = 4;
-
-  static bool
-  is_elf_magic(const char*);
-
   static Stream*
-  find_elf_export_data(const std::string& filename, int fd, off_t offset,
-		       source_location);
+  find_object_export_data(const std::string& filename, int fd,
+			  off_t offset, source_location);
 
   static const int archive_magic_len = 8;
 
@@ -286,6 +281,41 @@ class Stream_from_string : public Import::Stream
   // The string of data we are reading.
   std::string str_;
   // The current position within the string.
+  size_t pos_;
+};
+
+// Read import data from an allocated buffer.
+
+class Stream_from_buffer : public Import::Stream
+{
+ public:
+  Stream_from_buffer(char* buf, size_t length)
+    : buf_(buf), length_(length), pos_(0)
+  { }
+
+  ~Stream_from_buffer()
+  { delete[] this->buf_; }
+
+ protected:
+  bool
+  do_peek(size_t length, const char** bytes)
+  {
+    if (this->pos_ + length > this->length_)
+      return false;
+    *bytes = this->buf_ + this->pos_;
+    return true;
+  }
+
+  void
+  do_advance(size_t len)
+  { this->pos_ += len; }
+
+ private:
+  // The data we are reading.
+  char* buf_;
+  // The length of the buffer.
+  size_t length_;
+  // The current position within the buffer.
   size_t pos_;
 };
 

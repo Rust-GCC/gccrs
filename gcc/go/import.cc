@@ -15,6 +15,8 @@ extern "C"
 #include "filenames.h"
 }
 
+#include "simple-object.h"
+
 #include "go-c.h"
 #include "gogo.h"
 #include "types.h"
@@ -176,9 +178,13 @@ Import::Stream*
 Import::find_export_data(const std::string& filename, int fd,
 			 source_location location)
 {
-  const int len = MAX(Export::v1_magic_len,
-		      MAX(Import::elf_magic_len,
-			  Import::archive_magic_len));
+  // See if we can read this as an object file.
+  Import::Stream* stream = Import::find_object_export_data(filename, fd, 0,
+							   location);
+  if (stream != NULL)
+    return stream;
+
+  const int len = MAX(Export::v1_magic_len, Import::archive_magic_len);
 
   char buf[len];
   ssize_t c = read(fd, buf, len);
@@ -189,14 +195,61 @@ Import::find_export_data(const std::string& filename, int fd,
   if (memcmp(buf, Export::v1_magic, Export::v1_magic_len) == 0)
     return new Stream_from_file(fd);
 
-  // Check for export data in a section of an ELF file.
-  if (Import::is_elf_magic(buf))
-    return Import::find_elf_export_data(filename, fd, 0, location);
-
+  // See if we can read this as an archive.
   if (Import::is_archive_magic(buf))
     return Import::find_archive_export_data(filename, fd, location);
 
   return NULL;
+}
+
+// Look for export data in a simple_object.
+
+Import::Stream*
+Import::find_object_export_data(const std::string& filename,
+				int fd,
+				off_t offset,
+				source_location location)
+{
+  const char* errmsg;
+  int err;
+  simple_object_read* sobj = simple_object_start_read(fd, offset,
+						      "__GNU_GO",
+						      &errmsg, &err);
+  if (sobj == NULL)
+    return NULL;
+
+  off_t sec_offset;
+  off_t sec_length;
+  int found = simple_object_find_section(sobj, ".go_export", &sec_offset,
+					 &sec_length, &errmsg, &err);
+
+  simple_object_release_read(sobj);
+
+  if (!found)
+    return NULL;
+
+  if (lseek(fd, offset + sec_offset, SEEK_SET) < 0)
+    {
+      error_at(location, "lseek %s failed: %s", filename.c_str(),
+	       strerror(errno));
+      return NULL;
+    }
+
+  char* buf = new char[sec_length];
+  ssize_t c = read(fd, buf, sec_length);
+  if (c < 0)
+    {
+      error_at(location, "read %s failed: %s", filename.c_str(),
+	       strerror(errno));
+      return NULL;
+    }
+  if (c < sec_length)
+    {
+      error_at(location, "%s: short read", filename.c_str());
+      return NULL;
+    }
+
+  return new Stream_from_buffer(buf, sec_length);
 }
 
 // Class Import.

@@ -642,10 +642,10 @@ Import::find_archive_export_data(const std::string& filename, int fd,
 				     &member_fd, &member_off, &member_name))
 	return NULL;
 
-      Import::Stream* is = Import::find_elf_export_data(member_name,
-							member_fd,
-							member_off,
-							location);
+      Import::Stream* is = Import::find_object_export_data(member_name,
+							   member_fd,
+							   member_off,
+							   location);
       if (is != NULL)
 	{
 	  ret->add(is);

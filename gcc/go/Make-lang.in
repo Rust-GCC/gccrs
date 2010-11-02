@@ -58,7 +58,6 @@ GO_OBJS = \
 	go/gogo.o \
 	go/import.o \
 	go/import-archive.o \
-	go/import-elf.o \
 	go/lex.o \
 	go/parse.o \
 	go/statements.o \
@@ -165,10 +164,9 @@ go/gogo.o: go/gogo.cc $(GO_SYSTEM_H) go/go-dump.h $(GO_LEX_H) $(GO_TYPES_H) \
 	$(GO_STATEMENTS_H) $(GO_EXPRESSIONS_H) go/dataflow.h $(GO_IMPORT_H) \
 	go/export.h $(GO_GOGO_H)
 go/import.o: go/import.cc $(GO_SYSTEM_H) $(srcdir)/../include/filenames.h \
-	$(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) go/export.h $(GO_IMPORT_H)
+	../include/simple-object.h $(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) \
+	go/export.h $(GO_IMPORT_H)
 go/import-archive.o: go/import-archive.cc $(GO_SYSTEM_H) $(GO_IMPORT_H)
-go/import-elf.o: go/import-elf.cc $(GO_SYSTEM_H) intl.h $(DIAGNOSTIC_H) \
-	$(ELFCPP_H) $(srcdir)/../elfcpp/elfcpp_file.h $(GO_IMPORT_H)
 go/lex.o: go/lex.cc $(GO_LEX_H) $(GO_SYSTEM_H)
 go/parse.o: go/parse.cc $(GO_SYSTEM_H) $(GO_LEX_H) $(GO_GOGO_H) $(GO_TYPES_H) \
 	$(GO_STATEMENTS_H) $(GO_EXPRESSIONS_H) $(GO_PARSE_H)
