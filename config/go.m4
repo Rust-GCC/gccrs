@@ -9,8 +9,8 @@ dnl This version is probably autoconf 2.64 specific.
 
 AC_LANG_DEFINE([Go], [go], [GO], [],
 [ac_ext=go
-ac_compile='$GCCGO -c $GOFLAGS conftest.$ac_ext >&AS_MESSAGE_LOG_FD'
-ac_link='$GCCGO -o conftest$ac_exeext $GOFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&AS_MESSAGE_LOG_FD'
+ac_compile='$GOC -c $GOCFLAGS conftest.$ac_ext >&AS_MESSAGE_LOG_FD'
+ac_link='$GOC -o conftest$ac_exeext $GOCFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&AS_MESSAGE_LOG_FD'
 ac_compile_gnu=yes
 ])
 
@@ -60,23 +60,23 @@ func ulongval() ulong { return $2 }],
 AC_DEFUN([AC_LANG_COMPILER(Go)],
 [AC_REQUIRE([AC_PROG_GO])])
 
-AN_MAKEVAR([GCCGO], [AC_PROG_GO])
+AN_MAKEVAR([GOC], [AC_PROG_GO])
 AN_PROGRAM([gccgo], [AC_PROG_GO])
 AC_DEFUN([AC_PROG_GO],
 [AC_LANG_PUSH(Go)dnl
-AC_ARG_VAR([GCCGO],   [Go compiler command])dnl
-AC_ARG_VAR([GOFLAGS], [Go compiler flags])dnl
+AC_ARG_VAR([GOC],   [Go compiler command])dnl
+AC_ARG_VAR([GOCFLAGS], [Go compiler flags])dnl
 _AC_ARG_VAR_LDFLAGS()dnl
 m4_ifval([$1],
-      [AC_CHECK_TOOLS(GCCGO, [$1])],
-[AC_CHECK_TOOL(GCCGO, gccgo)
-if test -z "$GCCGO"; then
+      [AC_CHECK_TOOLS(GOC, [$1])],
+[AC_CHECK_TOOL(GOC, gccgo)
+if test -z "$GOC"; then
   if test -n "$ac_tool_prefix"; then
-    AC_CHECK_PROG(GCCGO, [${ac_tool_prefix}gccgo], [$ac_tool_prefix}gccgo])
+    AC_CHECK_PROG(GOC, [${ac_tool_prefix}gccgo], [$ac_tool_prefix}gccgo])
   fi
 fi
-if test -z "$GCCGO"; then
-  AC_CHECK_PROG(GCCGO, gccgo, gccgo, , , gccgo)
+if test -z "$GOC"; then
+  AC_CHECK_PROG(GOC, gccgo, gccgo, , , gccgo)
 fi
 ])
 
@@ -87,6 +87,6 @@ ac_compiler=$[2]
 _AC_DO_LIMIT([$ac_compiler --version >&AS_MESSAGE_LOG_FD])
 m4_expand_once([_AC_COMPILER_EXEEXT])[]dnl
 m4_expand_once([_AC_COMPILER_OBJEXT])[]dnl
-GOFLAGS="-g -O2"
+GOCFLAGS="-g -O2"
 AC_LANG_POP(Go)dnl
 ])# AC_PROG_GO

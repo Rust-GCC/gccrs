@@ -7030,7 +7030,7 @@ _LT_LINKER_BOILERPLATE
 lt_save_CC="$CC"
 lt_save_GCC="$GCC"
 GCC=yes
-CC=${GCCGO-"gccgo"}
+CC=${GOC-"gccgo"}
 compiler=$CC
 _LT_TAGVAR(compiler, $1)=$CC
 _LT_TAGVAR(LD, $1)="$LD"
@@ -7131,7 +7131,7 @@ dnl AC_DEFUN([LT_AC_PROG_GCJ], [])
 # LT_PROG_GO
 # -----------
 AC_DEFUN([LT_PROG_GO],
-[AC_CHECK_TOOL(GCCGO, gccgo,)
+[AC_CHECK_TOOL(GOC, gccgo,)
 ])
 
 # LT_PROG_RC
