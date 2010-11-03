@@ -297,8 +297,8 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
-GCCGO = @GCCGO@
-GOFLAGS = $(CFLAGS)
+GOC = @GOC@
+GOCFLAGS = $(CFLAGS)
 GREP = @GREP@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -385,7 +385,6 @@ libexecdir = @libexecdir@
 libtool_VERSION = @libtool_VERSION@
 localedir = @localedir@
 localstatedir = @localstatedir@
-lt_ECHO = @lt_ECHO@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 multi_basedir = @multi_basedir@
@@ -442,9 +441,9 @@ AM_MAKEFLAGS = \
 	"CXXFLAGS=$(CXXFLAGS)" \
 	"CFLAGS_FOR_BUILD=$(CFLAGS_FOR_BUILD)" \
 	"CFLAGS_FOR_TARGET=$(CFLAGS_FOR_TARGET)" \
-	"GCCGO_FOR_TARGET=$(GCCGO_FOR_TARGET)" \
-	"GCCGO=$(GCCGO)" \
-	"GOFLAGS=$(GOFLAGS)" \
+	"GOC_FOR_TARGET=$(GOC_FOR_TARGET)" \
+	"GOC=$(GOC)" \
+	"GOCFLAGS=$(GOCFLAGS)" \
 	"INSTALL=$(INSTALL)" \
 	"INSTALL_DATA=$(INSTALL_DATA)" \
 	"INSTALL_PROGRAM=$(INSTALL_PROGRAM)" \
@@ -1505,13 +1504,13 @@ libgobegin_a_SOURCES = \
 	runtime/go-main.c
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
-AM_GOFLAGS = $(STRINGOPS_FLAG)
-GOCOMPILE = $(GCCGO) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_GOFLAGS) $(GOFLAGS)
-LTGOCOMPILE = $(LIBTOOL) --tag GO --mode=compile $(GCCGO) $(INCLUDES) \
-	$(AM_GOFLAGS) $(GOFLAGS)
+AM_GOCFLAGS = $(STRINGOPS_FLAG)
+GOCOMPILE = $(GOC) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_GOCFLAGS) $(GOCFLAGS)
+LTGOCOMPILE = $(LIBTOOL) --tag GO --mode=compile $(GOC) $(INCLUDES) \
+	$(AM_GOCFLAGS) $(GOCFLAGS)
 
-GOLINK = $(LIBTOOL) --tag GO --mode-link $(GCCGO) \
-	$(OPT_LDFLAGS) $(SECTION_LDFLAGS) $(AM_GOFLAGS) $(LTLDFLAGS) \
+GOLINK = $(LIBTOOL) --tag GO --mode-link $(GOC) \
+	$(OPT_LDFLAGS) $(SECTION_LDFLAGS) $(AM_GOCFLAGS) $(LTLDFLAGS) \
 	-lpthread -o $@
 
 
@@ -1530,7 +1529,7 @@ BUILDARCHIVE = \
 
 # Check a package.
 CHECK = \
-	@GC="$(GCCGO) -L `${PWD_COMMAND}` -L `${PWD_COMMAND}`/.libs -Wl,-R,`${PWD_COMMAND}`/.libs"; \
+	@GC="$(GOC) -L `${PWD_COMMAND}` -L `${PWD_COMMAND}`/.libs -Wl,-R,`${PWD_COMMAND}`/.libs"; \
 	export GC; \
 	RUNTESTFLAGS="$(RUNTESTFLAGS)"; \
 	export RUNTESTFLAGS; \

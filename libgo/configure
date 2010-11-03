@@ -654,8 +654,8 @@ SED
 MAINT
 MAINTAINER_MODE_FALSE
 MAINTAINER_MODE_TRUE
-GOFLAGS
-GCCGO
+GOCFLAGS
+GOC
 am__fastdepCC_FALSE
 am__fastdepCC_TRUE
 CCDEPMODE
@@ -1419,8 +1419,8 @@ Some influential environment variables:
   LIBS        libraries to pass to the linker, e.g. -l<library>
   CPPFLAGS    C/C++/Objective C preprocessor flags, e.g. -I<include dir> if
               you have headers in a nonstandard directory <include dir>
-  GCCGO       Go compiler command
-  GOFLAGS     Go compiler flags
+  GOC         Go compiler command
+  GOCFLAGS    Go compiler flags
   CPP         C preprocessor
 
 Use these variables to override the choices made by `configure' or to help
@@ -3868,19 +3868,19 @@ fi
 
 
 ac_ext=go
-ac_compile='$GCCGO -c $GOFLAGS conftest.$ac_ext >&5'
-ac_link='$GCCGO -o conftest$ac_exeext $GOFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compile='$GOC -c $GOCFLAGS conftest.$ac_ext >&5'
+ac_link='$GOC -o conftest$ac_exeext $GOCFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compile_gnu=yes
 if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}gccgo", so it can be a program name with args.
 set dummy ${ac_tool_prefix}gccgo; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
 $as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_prog_GCCGO+set}" = set; then :
+if test "${ac_cv_prog_GOC+set}" = set; then :
   $as_echo_n "(cached) " >&6
 else
-  if test -n "$GCCGO"; then
-  ac_cv_prog_GCCGO="$GCCGO" # Let the user override the test.
+  if test -n "$GOC"; then
+  ac_cv_prog_GOC="$GOC" # Let the user override the test.
 else
 as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
 for as_dir in $PATH
@@ -3889,7 +3889,7 @@ do
   test -z "$as_dir" && as_dir=.
     for ac_exec_ext in '' $ac_executable_extensions; do
   if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_prog_GCCGO="${ac_tool_prefix}gccgo"
+    ac_cv_prog_GOC="${ac_tool_prefix}gccgo"
     $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
@@ -3899,10 +3899,10 @@ IFS=$as_save_IFS
 
 fi
 fi
-GCCGO=$ac_cv_prog_GCCGO
-if test -n "$GCCGO"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $GCCGO" >&5
-$as_echo "$GCCGO" >&6; }
+GOC=$ac_cv_prog_GOC
+if test -n "$GOC"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $GOC" >&5
+$as_echo "$GOC" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
@@ -3910,17 +3910,17 @@ fi
 
 
 fi
-if test -z "$ac_cv_prog_GCCGO"; then
-  ac_ct_GCCGO=$GCCGO
+if test -z "$ac_cv_prog_GOC"; then
+  ac_ct_GOC=$GOC
   # Extract the first word of "gccgo", so it can be a program name with args.
 set dummy gccgo; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
 $as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_prog_ac_ct_GCCGO+set}" = set; then :
+if test "${ac_cv_prog_ac_ct_GOC+set}" = set; then :
   $as_echo_n "(cached) " >&6
 else
-  if test -n "$ac_ct_GCCGO"; then
-  ac_cv_prog_ac_ct_GCCGO="$ac_ct_GCCGO" # Let the user override the test.
+  if test -n "$ac_ct_GOC"; then
+  ac_cv_prog_ac_ct_GOC="$ac_ct_GOC" # Let the user override the test.
 else
 as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
 for as_dir in $PATH
@@ -3929,7 +3929,7 @@ do
   test -z "$as_dir" && as_dir=.
     for ac_exec_ext in '' $ac_executable_extensions; do
   if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_prog_ac_ct_GCCGO="gccgo"
+    ac_cv_prog_ac_ct_GOC="gccgo"
     $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
@@ -3939,17 +3939,17 @@ IFS=$as_save_IFS
 
 fi
 fi
-ac_ct_GCCGO=$ac_cv_prog_ac_ct_GCCGO
-if test -n "$ac_ct_GCCGO"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_ct_GCCGO" >&5
-$as_echo "$ac_ct_GCCGO" >&6; }
+ac_ct_GOC=$ac_cv_prog_ac_ct_GOC
+if test -n "$ac_ct_GOC"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_ct_GOC" >&5
+$as_echo "$ac_ct_GOC" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 fi
 
-  if test "x$ac_ct_GCCGO" = x; then
-    GCCGO=""
+  if test "x$ac_ct_GOC" = x; then
+    GOC=""
   else
     case $cross_compiling:$ac_tool_warned in
 yes:)
@@ -3957,23 +3957,23 @@ yes:)
 $as_echo "$as_me: WARNING: using cross tools not prefixed with host triplet" >&2;}
 ac_tool_warned=yes ;;
 esac
-    GCCGO=$ac_ct_GCCGO
+    GOC=$ac_ct_GOC
   fi
 else
-  GCCGO="$ac_cv_prog_GCCGO"
+  GOC="$ac_cv_prog_GOC"
 fi
 
-if test -z "$GCCGO"; then
+if test -z "$GOC"; then
   if test -n "$ac_tool_prefix"; then
     # Extract the first word of "${ac_tool_prefix}gccgo", so it can be a program name with args.
 set dummy ${ac_tool_prefix}gccgo; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
 $as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_prog_GCCGO+set}" = set; then :
+if test "${ac_cv_prog_GOC+set}" = set; then :
   $as_echo_n "(cached) " >&6
 else
-  if test -n "$GCCGO"; then
-  ac_cv_prog_GCCGO="$GCCGO" # Let the user override the test.
+  if test -n "$GOC"; then
+  ac_cv_prog_GOC="$GOC" # Let the user override the test.
 else
 as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
 for as_dir in $PATH
@@ -3982,7 +3982,7 @@ do
   test -z "$as_dir" && as_dir=.
     for ac_exec_ext in '' $ac_executable_extensions; do
   if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_prog_GCCGO="$ac_tool_prefix}gccgo"
+    ac_cv_prog_GOC="$ac_tool_prefix}gccgo"
     $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
@@ -3992,10 +3992,10 @@ IFS=$as_save_IFS
 
 fi
 fi
-GCCGO=$ac_cv_prog_GCCGO
-if test -n "$GCCGO"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $GCCGO" >&5
-$as_echo "$GCCGO" >&6; }
+GOC=$ac_cv_prog_GOC
+if test -n "$GOC"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $GOC" >&5
+$as_echo "$GOC" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
@@ -4004,16 +4004,16 @@ fi
 
   fi
 fi
-if test -z "$GCCGO"; then
+if test -z "$GOC"; then
   # Extract the first word of "gccgo", so it can be a program name with args.
 set dummy gccgo; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
 $as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_prog_GCCGO+set}" = set; then :
+if test "${ac_cv_prog_GOC+set}" = set; then :
   $as_echo_n "(cached) " >&6
 else
-  if test -n "$GCCGO"; then
-  ac_cv_prog_GCCGO="$GCCGO" # Let the user override the test.
+  if test -n "$GOC"; then
+  ac_cv_prog_GOC="$GOC" # Let the user override the test.
 else
   ac_prog_rejected=no
 as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
@@ -4027,7 +4027,7 @@ do
        ac_prog_rejected=yes
        continue
      fi
-    ac_cv_prog_GCCGO="gccgo"
+    ac_cv_prog_GOC="gccgo"
     $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
@@ -4037,22 +4037,22 @@ IFS=$as_save_IFS
 
 if test $ac_prog_rejected = yes; then
   # We found a bogon in the path, so make sure we never use it.
-  set dummy $ac_cv_prog_GCCGO
+  set dummy $ac_cv_prog_GOC
   shift
   if test $# != 0; then
     # We chose a different compiler from the bogus one.
     # However, it has the same basename, so the bogon will be chosen
-    # first if we set GCCGO to just the basename; use the full file name.
+    # first if we set GOC to just the basename; use the full file name.
     shift
-    ac_cv_prog_GCCGO="$as_dir/$ac_word${1+' '}$@"
+    ac_cv_prog_GOC="$as_dir/$ac_word${1+' '}$@"
   fi
 fi
 fi
 fi
-GCCGO=$ac_cv_prog_GCCGO
-if test -n "$GCCGO"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $GCCGO" >&5
-$as_echo "$GCCGO" >&6; }
+GOC=$ac_cv_prog_GOC
+if test -n "$GOC"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $GOC" >&5
+$as_echo "$GOC" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
@@ -4084,7 +4084,7 @@ $as_echo "$ac_try_echo"; } >&5
   fi
   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
   test $ac_status = 0; }
-GOFLAGS="-g -O2"
+GOCFLAGS="-g -O2"
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
@@ -7295,11 +7295,11 @@ if test -n "$ac_tool_prefix"; then
 set dummy ${ac_tool_prefix}gccgo; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
 $as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_prog_GCCGO+set}" = set; then :
+if test "${ac_cv_prog_GOC+set}" = set; then :
   $as_echo_n "(cached) " >&6
 else
-  if test -n "$GCCGO"; then
-  ac_cv_prog_GCCGO="$GCCGO" # Let the user override the test.
+  if test -n "$GOC"; then
+  ac_cv_prog_GOC="$GOC" # Let the user override the test.
 else
 as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
 for as_dir in $PATH
@@ -7308,7 +7308,7 @@ do
   test -z "$as_dir" && as_dir=.
     for ac_exec_ext in '' $ac_executable_extensions; do
   if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_prog_GCCGO="${ac_tool_prefix}gccgo"
+    ac_cv_prog_GOC="${ac_tool_prefix}gccgo"
     $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
@@ -7318,10 +7318,10 @@ IFS=$as_save_IFS
 
 fi
 fi
-GCCGO=$ac_cv_prog_GCCGO
-if test -n "$GCCGO"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $GCCGO" >&5
-$as_echo "$GCCGO" >&6; }
+GOC=$ac_cv_prog_GOC
+if test -n "$GOC"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $GOC" >&5
+$as_echo "$GOC" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
@@ -7329,17 +7329,17 @@ fi
 
 
 fi
-if test -z "$ac_cv_prog_GCCGO"; then
-  ac_ct_GCCGO=$GCCGO
+if test -z "$ac_cv_prog_GOC"; then
+  ac_ct_GOC=$GOC
   # Extract the first word of "gccgo", so it can be a program name with args.
 set dummy gccgo; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
 $as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_prog_ac_ct_GCCGO+set}" = set; then :
+if test "${ac_cv_prog_ac_ct_GOC+set}" = set; then :
   $as_echo_n "(cached) " >&6
 else
-  if test -n "$ac_ct_GCCGO"; then
-  ac_cv_prog_ac_ct_GCCGO="$ac_ct_GCCGO" # Let the user override the test.
+  if test -n "$ac_ct_GOC"; then
+  ac_cv_prog_ac_ct_GOC="$ac_ct_GOC" # Let the user override the test.
 else
 as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
 for as_dir in $PATH
@@ -7348,7 +7348,7 @@ do
   test -z "$as_dir" && as_dir=.
     for ac_exec_ext in '' $ac_executable_extensions; do
   if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_prog_ac_ct_GCCGO="gccgo"
+    ac_cv_prog_ac_ct_GOC="gccgo"
     $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
     break 2
   fi
@@ -7358,17 +7358,17 @@ IFS=$as_save_IFS
 
 fi
 fi
-ac_ct_GCCGO=$ac_cv_prog_ac_ct_GCCGO
-if test -n "$ac_ct_GCCGO"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_ct_GCCGO" >&5
-$as_echo "$ac_ct_GCCGO" >&6; }
+ac_ct_GOC=$ac_cv_prog_ac_ct_GOC
+if test -n "$ac_ct_GOC"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_ct_GOC" >&5
+$as_echo "$ac_ct_GOC" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 fi
 
-  if test "x$ac_ct_GCCGO" = x; then
-    GCCGO=""
+  if test "x$ac_ct_GOC" = x; then
+    GOC=""
   else
     case $cross_compiling:$ac_tool_warned in
 yes:)
@@ -7376,10 +7376,10 @@ yes:)
 $as_echo "$as_me: WARNING: using cross tools not prefixed with host triplet" >&2;}
 ac_tool_warned=yes ;;
 esac
-    GCCGO=$ac_ct_GCCGO
+    GOC=$ac_ct_GOC
   fi
 else
-  GCCGO="$ac_cv_prog_GCCGO"
+  GOC="$ac_cv_prog_GOC"
 fi
 
 
@@ -11249,7 +11249,7 @@ $RM -r conftest*
 lt_save_CC="$CC"
 lt_save_GCC="$GCC"
 GCC=yes
-CC=${GCCGO-"gccgo"}
+CC=${GOC-"gccgo"}
 compiler=$CC
 compiler_GO=$CC
 LD_GO="$LD"
