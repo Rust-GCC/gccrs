@@ -280,7 +280,7 @@ Gogo::register_gc_vars(const std::vector<Named_object*>& var_gc,
       elt->value = build_fold_addr_expr(decl);
 
       elt = VEC_quick_push(constructor_elt, init, NULL);
-      field = TREE_CHAIN(field);
+      field = DECL_CHAIN(field);
       elt->index = field;
       elt->value = DECL_SIZE_UNIT(decl);
 
@@ -299,7 +299,7 @@ Gogo::register_gc_vars(const std::vector<Named_object*>& var_gc,
   elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
 
   elt = VEC_quick_push(constructor_elt, init, NULL);
-  field = TREE_CHAIN(field);
+  field = DECL_CHAIN(field);
   elt->index = field;
   elt->value = size_zero_node;
 
@@ -317,7 +317,7 @@ Gogo::register_gc_vars(const std::vector<Named_object*>& var_gc,
   elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
 
   elt = VEC_quick_push(constructor_elt, root_list_init, NULL);
-  field = TREE_CHAIN(field);
+  field = DECL_CHAIN(field);
   elt->index = field;
   elt->value = build_constructor(array_type, roots_init);
 
@@ -1522,7 +1522,7 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
 	      if (TREE_CODE(var) == INDIRECT_REF)
 		var = TREE_OPERAND(var, 0);
 	      gcc_assert(TREE_CODE(var) == VAR_DECL);
-	      TREE_CHAIN(var) = declare_vars;
+	      DECL_CHAIN(var) = declare_vars;
 	      declare_vars = var;
 	      *pp = parm_decl;
 	    }
@@ -1534,7 +1534,7 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
 	      gcc_assert(TREE_CODE(*pp) == INDIRECT_REF);
 	      tree var_decl = TREE_OPERAND(*pp, 0);
 	      gcc_assert(TREE_CODE(var_decl) == VAR_DECL);
-	      TREE_CHAIN(var_decl) = declare_vars;
+	      DECL_CHAIN(var_decl) = declare_vars;
 	      declare_vars = var_decl;
 	      *pp = parm_decl;
 	    }
@@ -1542,7 +1542,7 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
 	  if (*pp != error_mark_node)
 	    {
 	      gcc_assert(TREE_CODE(*pp) == PARM_DECL);
-	      pp = &TREE_CHAIN(*pp);
+	      pp = &DECL_CHAIN(*pp);
 	    }
 	}
       else if ((*p)->is_result_variable())
@@ -1554,7 +1554,7 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
 	      var_decl = TREE_OPERAND(var_decl, 0);
 	    }
 	  gcc_assert(TREE_CODE(var_decl) == VAR_DECL);
-	  TREE_CHAIN(var_decl) = declare_vars;
+	  DECL_CHAIN(var_decl) = declare_vars;
 	  declare_vars = var_decl;
 	}
     }
@@ -1589,7 +1589,7 @@ Function::build_tree(Gogo* gogo, Named_object* named_function)
       tree fini = NULL_TREE;
 
       // Initialize variables if necessary.
-      for (tree v = declare_vars; v != NULL_TREE; v = TREE_CHAIN(v))
+      for (tree v = declare_vars; v != NULL_TREE; v = DECL_CHAIN(v))
 	{
 	  tree dv = build1(DECL_EXPR, void_type_node, v);
 	  SET_EXPR_LOCATION(dv, DECL_SOURCE_LOCATION(v));
@@ -1765,7 +1765,7 @@ Function::return_value(Gogo* gogo, Named_object* named_function,
       int index = 0;
       for (Typed_identifier_list::const_iterator pr = results->begin();
 	   pr != results->end();
-	   ++pr, ++index, field = TREE_CHAIN(field))
+	   ++pr, ++index, field = DECL_CHAIN(field))
 	{
 	  gcc_assert(field != NULL);
 	  tree val;
@@ -1874,7 +1874,7 @@ Block::get_tree(Translate_context* context)
 		  gcc_assert(TREE_CODE(var) == VAR_DECL);
 		}
 	      *pp = var;
-	      pp = &TREE_CHAIN(*pp);
+	      pp = &DECL_CHAIN(*pp);
 	    }
 	}
     }
@@ -2108,7 +2108,7 @@ Gogo::builtin_struct(tree* ptype, const char* struct_name, tree struct_type,
 	}
       tree field = build_decl(BUILTINS_LOCATION, FIELD_DECL,
 			      get_identifier(field_name), type);
-      TREE_CHAIN(field) = fields;
+      DECL_CHAIN(field) = fields;
       fields = field;
     }
 
@@ -2177,7 +2177,7 @@ Gogo::go_string_constant_tree(const std::string& val)
 			    build_fold_addr_expr(str));
 
   elt = VEC_quick_push(constructor_elt, init, NULL);
-  field = TREE_CHAIN(field);
+  field = DECL_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__length") == 0);
   elt->index = field;
   elt->value = build_int_cst_type(TREE_TYPE(field), val.length());
@@ -2273,13 +2273,13 @@ Gogo::slice_constructor(tree slice_type_tree, tree values, tree count,
       capacity = count;
     }
 
-  field = TREE_CHAIN(field);
+  field = DECL_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__count") == 0);
   elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
   elt->value = fold_convert(TREE_TYPE(field), count);
 
-  field = TREE_CHAIN(field);
+  field = DECL_CHAIN(field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__capacity") == 0);
   elt = VEC_quick_push(constructor_elt, init, NULL);
   elt->index = field;
@@ -2348,11 +2348,11 @@ Gogo::map_descriptor(Map_type* maptype)
   if (map_entry_type == error_mark_node)
     return error_mark_node;
 
-  tree map_entry_key_field = TREE_CHAIN(TYPE_FIELDS(map_entry_type));
+  tree map_entry_key_field = DECL_CHAIN(TYPE_FIELDS(map_entry_type));
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(map_entry_key_field)),
 		    "__key") == 0);
 
-  tree map_entry_val_field = TREE_CHAIN(map_entry_key_field);
+  tree map_entry_val_field = DECL_CHAIN(map_entry_key_field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(map_entry_val_field)),
 		    "__val") == 0);
 
@@ -2361,13 +2361,13 @@ Gogo::map_descriptor(Map_type* maptype)
   tree map_descriptor_field = TYPE_FIELDS(struct_type);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(map_descriptor_field)),
 		    "__map_descriptor") == 0);
-  tree entry_size_field = TREE_CHAIN(map_descriptor_field);
+  tree entry_size_field = DECL_CHAIN(map_descriptor_field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(entry_size_field)),
 		    "__entry_size") == 0);
-  tree key_offset_field = TREE_CHAIN(entry_size_field);
+  tree key_offset_field = DECL_CHAIN(entry_size_field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(key_offset_field)),
 		    "__key_offset") == 0);
-  tree val_offset_field = TREE_CHAIN(key_offset_field);
+  tree val_offset_field = DECL_CHAIN(key_offset_field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(val_offset_field)),
 		    "__val_offset") == 0);
 

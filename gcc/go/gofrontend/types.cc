@@ -2080,7 +2080,7 @@ String_type::length_tree(Gogo*, tree string)
 {
   tree string_type = TREE_TYPE(string);
   gcc_assert(TREE_CODE(string_type) == RECORD_TYPE);
-  tree length_field = TREE_CHAIN(TYPE_FIELDS(string_type));
+  tree length_field = DECL_CHAIN(TYPE_FIELDS(string_type));
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(length_field)),
 		    "__length") == 0);
   return fold_build3(COMPONENT_REF, integer_type_node, string,
@@ -2115,7 +2115,7 @@ String_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
 
   for (tree field = TYPE_FIELDS(type_tree);
        field != NULL_TREE;
-       field = TREE_CHAIN(field))
+       field = DECL_CHAIN(field))
     {
       constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
       elt->index = field;
@@ -2551,7 +2551,7 @@ Function_type::do_get_tree(Gogo* gogo)
 				  field_type_tree);
 	  DECL_CONTEXT(field) = result;
 	  *pp = field;
-	  pp = &TREE_CHAIN(field);
+	  pp = &DECL_CHAIN(field);
 	}
       TYPE_FIELDS(result) = field_trees;
       layout_type(result);
@@ -3659,7 +3659,7 @@ Struct_type::fill_in_tree(Gogo* gogo, tree type)
 			      field_type_tree);
       DECL_CONTEXT(field) = type;
       *pp = field;
-      pp = &TREE_CHAIN(field);
+      pp = &DECL_CHAIN(field);
     }
 
   TYPE_FIELDS(type) = field_trees;
@@ -3694,7 +3694,7 @@ Struct_type::do_get_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
   Struct_field_list::const_iterator p = this->fields_->begin();
   for (tree field = TYPE_FIELDS(type_tree);
        field != NULL_TREE;
-       field = TREE_CHAIN(field), ++p)
+       field = DECL_CHAIN(field), ++p)
     {
       gcc_assert(p != this->fields_->end());
       tree value = p->type()->get_init_tree(gogo, is_clear);
@@ -4364,7 +4364,7 @@ Array_type::do_get_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
 
       for (tree field = TYPE_FIELDS(type_tree);
 	   field != NULL_TREE;
-	   field = TREE_CHAIN(field))
+	   field = DECL_CHAIN(field))
 	{
 	  constructor_elt* elt = VEC_quick_push(constructor_elt, init,
 						NULL);
@@ -4414,7 +4414,7 @@ Array_type::do_make_expression_tree(Translate_context* context,
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(values_field)),
 		    "__values") == 0);
 
-  tree count_field = TREE_CHAIN(values_field);
+  tree count_field = DECL_CHAIN(values_field);
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(count_field)),
 		    "__count") == 0);
 
@@ -4600,7 +4600,7 @@ Array_type::length_tree(Gogo* gogo, tree array)
   tree type = TREE_TYPE(array);
   gcc_assert(TREE_CODE(type) == RECORD_TYPE);
 
-  tree field = TREE_CHAIN(TYPE_FIELDS(type));
+  tree field = DECL_CHAIN(TYPE_FIELDS(type));
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__count") == 0);
 
   tree ret = build3(COMPONENT_REF, TREE_TYPE(field), array, field, NULL_TREE);
@@ -4623,7 +4623,7 @@ Array_type::capacity_tree(Gogo* gogo, tree array)
   tree type = TREE_TYPE(array);
   gcc_assert(TREE_CODE(type) == RECORD_TYPE);
 
-  tree field = TREE_CHAIN(TREE_CHAIN(TYPE_FIELDS(type)));
+  tree field = DECL_CHAIN(DECL_CHAIN(TYPE_FIELDS(type)));
   gcc_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(field)), "__capacity") == 0);
 
   return build3(COMPONENT_REF, TREE_TYPE(field), array, field, NULL_TREE);
@@ -4940,20 +4940,20 @@ Map_type::do_get_tree(Gogo* gogo)
       name = get_identifier("__element_count");
       field = build_decl(BUILTINS_LOCATION, FIELD_DECL, name, sizetype);
       DECL_CONTEXT(field) = struct_type;
-      TREE_CHAIN(last_field) = field;
+      DECL_CHAIN(last_field) = field;
       last_field = field;
 
       name = get_identifier("__bucket_count");
       field = build_decl(BUILTINS_LOCATION, FIELD_DECL, name, sizetype);
       DECL_CONTEXT(field) = struct_type;
-      TREE_CHAIN(last_field) = field;
+      DECL_CHAIN(last_field) = field;
       last_field = field;
 
       name = get_identifier("__buckets");
       field = build_decl(BUILTINS_LOCATION, FIELD_DECL, name,
 			 build_pointer_type(ptr_type_node));
       DECL_CONTEXT(field) = struct_type;
-      TREE_CHAIN(last_field) = field;
+      DECL_CHAIN(last_field) = field;
 
       layout_type(struct_type);
 
@@ -5858,7 +5858,7 @@ Interface_type::fill_in_tree(Gogo* gogo, tree type)
   TYPE_FIELDS(method_table) = field;
 
   std::string last_name = "";
-  tree* pp = &TREE_CHAIN(field);
+  tree* pp = &DECL_CHAIN(field);
   for (Typed_identifier_list::const_iterator p = this->methods_->begin();
        p != this->methods_->end();
        ++p)
@@ -5871,7 +5871,7 @@ Interface_type::fill_in_tree(Gogo* gogo, tree type)
       field = build_decl(this->location_, FIELD_DECL, name_tree, field_type);
       DECL_CONTEXT(field) = method_table;
       *pp = field;
-      pp = &TREE_CHAIN(field);
+      pp = &DECL_CHAIN(field);
       // Sanity check: the names should be sorted.
       gcc_assert(p->name() > last_name);
       last_name = p->name();
@@ -5887,7 +5887,7 @@ Interface_type::fill_in_tree(Gogo* gogo, tree type)
   field = build_decl(this->location_, FIELD_DECL, name_tree, mtype);
   DECL_CONTEXT(field) = type;
   *pp = field;
-  pp = &TREE_CHAIN(field);
+  pp = &DECL_CHAIN(field);
 
   name_tree = get_identifier("__object");
   field = build_decl(this->location_, FIELD_DECL, name_tree, ptr_type_node);
@@ -5912,7 +5912,7 @@ Interface_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
   VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
   for (tree field = TYPE_FIELDS(type_tree);
        field != NULL_TREE;
-       field = TREE_CHAIN(field))
+       field = DECL_CHAIN(field))
     {
       constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
       elt->index = field;

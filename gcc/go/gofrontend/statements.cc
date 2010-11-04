@@ -382,7 +382,7 @@ Temporary_statement::do_get_tree(Translate_context* context)
       // in a BIND_EXPR.
       tree block_tree = context->block_tree();
       gcc_assert(block_tree != NULL_TREE);
-      TREE_CHAIN(decl) = BLOCK_VARS(block_tree);
+      DECL_CHAIN(decl) = BLOCK_VARS(block_tree);
       BLOCK_VARS(block_tree) = decl;
 
       this->decl_ = decl;
@@ -2590,7 +2590,7 @@ Return_statement::do_get_tree(Translate_context* context)
       Typed_identifier_list::const_iterator pr = results->begin();
       for (tree field = TYPE_FIELDS(rettype);
 	   field != NULL_TREE;
-	   ++pv, ++pr, field = TREE_CHAIN(field))
+	   ++pv, ++pr, field = DECL_CHAIN(field))
 	{
 	  gcc_assert(pv != this->vals_->end());
 	  tree val = (*pv)->get_tree(context);
