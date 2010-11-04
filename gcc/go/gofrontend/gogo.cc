@@ -195,6 +195,11 @@ Gogo::Gogo()
   copy_type->set_is_builtin();
   this->globals_->add_function_declaration("copy", NULL, copy_type, loc);
 
+  Function_type* append_type = Type::make_function_type(NULL, NULL, NULL, loc);
+  append_type->set_is_varargs();
+  append_type->set_is_builtin();
+  this->globals_->add_function_declaration("append", NULL, append_type, loc);
+
   Function_type* cmplx_type = Type::make_function_type(NULL, NULL, NULL, loc);
   cmplx_type->set_is_varargs();
   cmplx_type->set_is_builtin();

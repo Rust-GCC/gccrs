@@ -1197,6 +1197,11 @@ class Call_expression : public Expression
   void
   set_recover_arg(Expression*);
 
+  // Whether the last argument is a varargs argument (f(a...)).
+  bool
+  is_varargs() const
+  { return this->is_varargs_; }
+
   // Whether this call is being deferred.
   bool
   is_deferred() const
@@ -1251,10 +1256,12 @@ class Call_expression : public Expression
   set_args(Expression_list* args)
   { this->args_ = args; }
 
- private:
+  // Let a builtin expression lower varargs.
   Expression*
-  lower_varargs(Gogo*, Named_object*);
+  lower_varargs(Gogo*, Named_object* function, Type* varargs_type,
+		size_t param_count);
 
+ private:
   bool
   is_compatible_varargs_argument(Named_object*, Expression*, Type*, bool*);
 

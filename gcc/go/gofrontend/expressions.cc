@@ -6075,7 +6075,7 @@ class Builtin_call_expression : public Call_expression
 {
  public:
   Builtin_call_expression(Gogo* gogo, Expression* fn, Expression_list* args,
-			  source_location location);
+			  bool is_varargs, source_location location);
 
  protected:
   // This overrides Call_expression::do_lower.
@@ -6108,6 +6108,7 @@ class Builtin_call_expression : public Call_expression
   {
     return new Builtin_call_expression(this->gogo_, this->fn()->copy(),
 				       this->args()->copy(),
+				       this->is_varargs(),
 				       this->location());
   }
 
@@ -6130,6 +6131,7 @@ class Builtin_call_expression : public Call_expression
       BUILTIN_INVALID,
 
       // Predeclared builtin functions.
+      BUILTIN_APPEND,
       BUILTIN_CAP,
       BUILTIN_CLOSE,
       BUILTIN_CLOSED,
@@ -6173,14 +6175,17 @@ class Builtin_call_expression : public Call_expression
 Builtin_call_expression::Builtin_call_expression(Gogo* gogo,
 						 Expression* fn,
 						 Expression_list* args,
+						 bool is_varargs,
 						 source_location location)
-  : Call_expression(fn, args, false, location),
+  : Call_expression(fn, args, is_varargs, location),
     gogo_(gogo), code_(BUILTIN_INVALID)
 {
   Func_expression* fnexp = this->fn()->func_expression();
   gcc_assert(fnexp != NULL);
   const std::string& name(fnexp->named_object()->name());
-  if (name == "cap")
+  if (name == "append")
+    this->code_ = BUILTIN_APPEND;
+  else if (name == "cap")
     this->code_ = BUILTIN_CAP;
   else if (name == "close")
     this->code_ = BUILTIN_CLOSE;
@@ -6277,7 +6282,7 @@ Find_call_expression::expression(Expression** pexpr)
 // specific expressions.  We also convert to a constant if we can.
 
 Expression*
-Builtin_call_expression::do_lower(Gogo*, Named_object* function, int)
+Builtin_call_expression::do_lower(Gogo* gogo, Named_object* function, int)
 {
   if (this->code_ == BUILTIN_NEW)
     {
@@ -6393,6 +6398,22 @@ Builtin_call_expression::do_lower(Gogo*, Named_object* function, int)
 				       Expression::make_nil(this->location()),
 				       this->location());
 	}
+    }
+  else if (this->code_ == BUILTIN_APPEND)
+    {
+      // Lower the varargs.
+      const Expression_list* args = this->args();
+      if (args == NULL || args->empty())
+	return this;
+      Type* slice_type = args->front()->type();
+      if (!slice_type->is_open_array_type())
+	{
+	  error_at(args->front()->location(),
+		   _("argument 1 must be a slice"));
+	  this->set_is_error();
+	  return this;
+	}
+      return this->lower_varargs(gogo, function, slice_type, 2);
     }
 
   return this;
@@ -6768,6 +6789,14 @@ Builtin_call_expression::do_type()
     case BUILTIN_RECOVER:
       return Type::make_interface_type(NULL, BUILTINS_LOCATION);
 
+    case BUILTIN_APPEND:
+      {
+	const Expression_list* args = this->args();
+	if (args == NULL || args->empty())
+	  return Type::make_error_type();
+	return args->front()->type();
+      }
+
     case BUILTIN_REAL:
     case BUILTIN_IMAG:
       {
@@ -7092,6 +7121,33 @@ Builtin_call_expression::do_check_types(Gogo*)
 	  this->report_error(_("element types must be the same"));
       }
       break;
+
+    case BUILTIN_APPEND:
+      {
+	const Expression_list* args = this->args();
+	if (args == NULL || args->empty())
+	  {
+	    this->report_error(_("not enough arguments"));
+	    break;
+	  }
+	/* Lowering varargs should have left us with 2 arguments.  */
+	gcc_assert(args->size() == 2);
+	std::string reason;
+	if (!Type::are_assignable(args->front()->type(), args->back()->type(),
+				  &reason))
+	  {
+	    if (reason.empty())
+	      this->report_error(_("arguments 1 and 2 have different types"));
+	    else
+	      {
+		error_at(this->location(),
+			 "arguments 1 and 2 have different types (%s)",
+			 reason.c_str());
+		this->set_is_error();
+	      }
+	  }
+	break;
+      }
 
     case BUILTIN_REAL:
     case BUILTIN_IMAG:
@@ -7559,6 +7615,36 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 			       call, len);
       }
 
+    case BUILTIN_APPEND:
+      {
+	const Expression_list* args = this->args();
+	gcc_assert(args != NULL && args->size() == 2);
+	Expression* arg1 = args->front();
+	Expression* arg2 = args->back();
+
+	tree arg1_tree = arg1->get_tree(context);
+	tree arg2_tree = arg2->get_tree(context);
+	if (arg1_tree == error_mark_node || arg2_tree == error_mark_node)
+	  return error_mark_node;
+
+	tree descriptor_tree = arg1->type()->type_descriptor_pointer(gogo);
+
+	// We rebuild the decl each time since the slice types may
+	// change.
+	tree append_fndecl = NULL_TREE;
+	return Gogo::call_builtin(&append_fndecl,
+				  location,
+				  "__go_append",
+				  3,
+				  TREE_TYPE(arg1_tree),
+				  TREE_TYPE(descriptor_tree),
+				  descriptor_tree,
+				  TREE_TYPE(arg1_tree),
+				  arg1_tree,
+				  TREE_TYPE(arg2_tree),
+				  arg2_tree);
+      }
+
     case BUILTIN_REAL:
     case BUILTIN_IMAG:
       {
@@ -7690,7 +7776,7 @@ Call_expression::do_lower(Gogo* gogo, Named_object* function, int)
       && fne->named_object()->is_function_declaration()
       && fne->named_object()->func_declaration_value()->type()->is_builtin())
     return new Builtin_call_expression(gogo, this->fn_, this->args_,
-				       this->location());
+				       this->is_varargs_, this->location());
 
   // Handle an argument which is a call to a function which returns
   // multiple results.
@@ -7720,28 +7806,41 @@ Call_expression::do_lower(Gogo* gogo, Named_object* function, int)
 
   // Handle a call to a varargs function by packaging up the extra
   // parameters.
-  if (!this->varargs_are_lowered_
-      && this->fn_->type()->function_type() != NULL
+  if (this->fn_->type()->function_type() != NULL
       && this->fn_->type()->function_type()->is_varargs())
-    return this->lower_varargs(gogo, function);
+    {
+      Function_type* fntype = this->fn_->type()->function_type();
+      const Typed_identifier_list* parameters = fntype->parameters();
+      gcc_assert(parameters != NULL && !parameters->empty());
+      Type* varargs_type = parameters->back().type();
+      return this->lower_varargs(gogo, function, varargs_type,
+				 parameters->size());
+    }
 
   return this;
 }
 
-// Lower a call to a varargs function.
+// Lower a call to a varargs function.  FUNCTION is the function in
+// which the call occurs--it's not the function we are calling.
+// VARARGS_TYPE is the type of the varargs parameter, a slice type.
+// PARAM_COUNT is the number of parameters of the function we are
+// calling; the last of these parameters will be the varargs
+// parameter.
 
 Expression*
-Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
+Call_expression::lower_varargs(Gogo* gogo, Named_object* function,
+			       Type* varargs_type, size_t param_count)
 {
+  if (this->varargs_are_lowered_)
+    return this;
+
   source_location loc = this->location();
 
-  Function_type* fntype = this->fn_->type()->function_type();
-  const Typed_identifier_list* parameters = fntype->parameters();
-  gcc_assert(parameters != NULL && !parameters->empty());
-  Type* varargs_type = parameters->back().type();
+  gcc_assert(param_count > 0);
+  gcc_assert(varargs_type->is_open_array_type());
 
   size_t arg_count = this->args_ == NULL ? 0 : this->args_->size();
-  if (arg_count < parameters->size() - 1)
+  if (arg_count < param_count - 1)
     {
       // Not enough arguments; will be caught in check_types.
       return this;
@@ -7752,17 +7851,16 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
   bool push_empty_arg = false;
   if (old_args == NULL || old_args->empty())
     {
-      gcc_assert(parameters->size() == 1);
+      gcc_assert(param_count == 1);
       push_empty_arg = true;
     }
   else
     {
-      Typed_identifier_list::const_iterator pp = parameters->begin();
       Expression_list::const_iterator pa;
       int i = 1;
-      for (pa = old_args->begin(); pa != old_args->end(); ++pa, ++pp, ++i)
+      for (pa = old_args->begin(); pa != old_args->end(); ++pa, ++i)
 	{
-	  if (pp + 1 == parameters->end())
+	  if (static_cast<size_t>(i) == param_count)
 	    break;
 	  new_args->push_back(*pa);
 	}
@@ -7770,15 +7868,20 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function)
       // We have reached the varargs parameter.
 
       bool issued_error = false;
-      if (pa != old_args->end()
-	  && pa + 1 == old_args->end()
-	  && (this->is_varargs_
-	      || this->is_compatible_varargs_argument(function, *pa,
-						      varargs_type,
-						      &issued_error)))
-	new_args->push_back(*pa);
-      else if (pa == old_args->end())
+      if (pa == old_args->end())
 	push_empty_arg = true;
+      else if (pa + 1 == old_args->end() && this->is_varargs_)
+	new_args->push_back(*pa);
+      else if (this->is_varargs_)
+	{
+	  this->report_error("too many arguments");
+	  return this;
+	}
+      else if (pa + 1 == old_args->end()
+	       && this->is_compatible_varargs_argument(function, *pa,
+						       varargs_type,
+						       &issued_error))
+	new_args->push_back(*pa);
       else
 	{
 	  Type* element_type = varargs_type->array_type()->element_type();

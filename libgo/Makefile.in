@@ -119,7 +119,7 @@ libgobegin_a_OBJECTS = $(am_libgobegin_a_OBJECTS)
 LTLIBRARIES = $(toolexeclib_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libgo_la_DEPENDENCIES = $(libgo_go_objs) $(am__DEPENDENCIES_1)
-am__libgo_la_SOURCES_DIST = runtime/go-assert.c \
+am__libgo_la_SOURCES_DIST = runtime/go-append.c runtime/go-assert.c \
 	runtime/go-assert-interface.c \
 	runtime/go-byte-array-to-string.c runtime/go-breakpoint.c \
 	runtime/go-caller.c runtime/go-can-convert-interface.c \
@@ -164,7 +164,7 @@ am__libgo_la_SOURCES_DIST = runtime/go-assert.c \
 @HAVE_SYS_MMAN_H_FALSE@am__objects_1 = mem_posix_memalign.lo
 @HAVE_SYS_MMAN_H_TRUE@am__objects_1 = mem.lo
 @LIBGO_IS_RTEMS_TRUE@am__objects_2 = rtems-task-variable-add.lo
-am__objects_3 = go-assert.lo go-assert-interface.lo \
+am__objects_3 = go-append.lo go-assert.lo go-assert-interface.lo \
 	go-byte-array-to-string.lo go-breakpoint.lo go-caller.lo \
 	go-can-convert-interface.lo go-chan-cap.lo go-chan-len.lo \
 	go-check-interface.lo go-close.lo go-closed.lo \
@@ -650,6 +650,7 @@ toolexeclibtesting_DATA = \
 @LIBGO_IS_RTEMS_FALSE@rtems_task_variable_add_file = 
 @LIBGO_IS_RTEMS_TRUE@rtems_task_variable_add_file = runtime/rtems-task-variable-add.c
 runtime_files = \
+	runtime/go-append.c \
 	runtime/go-assert.c \
 	runtime/go-assert-interface.c \
 	runtime/go-byte-array-to-string.c \
@@ -1807,6 +1808,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chan.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-append.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-assert-interface.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-assert.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/go-breakpoint.Plo@am__quote@
@@ -1935,6 +1937,13 @@ go-main.obj: runtime/go-main.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-main.c' object='go-main.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-main.obj `if test -f 'runtime/go-main.c'; then $(CYGPATH_W) 'runtime/go-main.c'; else $(CYGPATH_W) '$(srcdir)/runtime/go-main.c'; fi`
+
+go-append.lo: runtime/go-append.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-append.lo -MD -MP -MF $(DEPDIR)/go-append.Tpo -c -o go-append.lo `test -f 'runtime/go-append.c' || echo '$(srcdir)/'`runtime/go-append.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/go-append.Tpo $(DEPDIR)/go-append.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='runtime/go-append.c' object='go-append.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o go-append.lo `test -f 'runtime/go-append.c' || echo '$(srcdir)/'`runtime/go-append.c
 
 go-assert.lo: runtime/go-assert.c
 @am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT go-assert.lo -MD -MP -MF $(DEPDIR)/go-assert.Tpo -c -o go-assert.lo `test -f 'runtime/go-assert.c' || echo '$(srcdir)/'`runtime/go-assert.c

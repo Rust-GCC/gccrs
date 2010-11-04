@@ -292,6 +292,7 @@ rtems_task_variable_add_file =
 endif
 
 runtime_files = \
+	runtime/go-append.c \
 	runtime/go-assert.c \
 	runtime/go-assert-interface.c \
 	runtime/go-byte-array-to-string.c \
