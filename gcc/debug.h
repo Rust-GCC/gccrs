@@ -165,6 +165,10 @@ struct gcc_debug_hooks
   /* This is 1 if the debug writer wants to see start and end commands for the
      main source files, and 0 otherwise.  */
   int start_end_main_source_file;
+
+  /* The type of symtab field used by these debug hooks.  This is one
+     of the TYPE_SYMTAB_IS_xxx values defined in tree.h.  */
+  int tree_type_symtab_field;
 };
 
 extern const struct gcc_debug_hooks *debug_hooks;
@@ -193,7 +197,6 @@ extern const struct gcc_debug_hooks sdb_debug_hooks;
 extern const struct gcc_debug_hooks xcoff_debug_hooks;
 extern const struct gcc_debug_hooks dwarf2_debug_hooks;
 extern const struct gcc_debug_hooks vmsdbg_debug_hooks;
-extern const struct gcc_debug_hooks go_debug_hooks;
 
 /* Dwarf2 frame information.  */
 
@@ -217,5 +220,10 @@ extern int symbol_queue_index;
 
 const char *remap_debug_filename (const char *);
 void add_debug_prefix_map (const char *);
+
+/* For -fdump-go-spec.  */
+
+extern const struct gcc_debug_hooks *
+dump_go_spec_init (const char *, const struct gcc_debug_hooks *);
 
 #endif /* !GCC_DEBUG_H  */

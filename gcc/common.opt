@@ -778,6 +778,10 @@ fdump-final-insns=
 Common RejectNegative Joined Var(flag_dump_final_insns)
 -fdump-final-insns=filename	Dump to filename the insns at the end of translation
 
+fdump-go-spec=
+Common RejectNegative Joined Var(flag_dump_go_spec)
+-fdump-go-spec=filename	Write all declarations to file as Go code
+
 fdump-noaddr
 Common Report Var(flag_dump_noaddr)
 Suppress output of addresses in debugging dumps
@@ -1867,10 +1871,6 @@ Generate debug information in DWARF v2 (or later) format
 ggdb
 Common JoinedOrMissing
 Generate debug information in default extended format
-
-ggo
-Common
-Generate Go language exports
 
 gstabs
 Common JoinedOrMissing Negative(gstabs+)

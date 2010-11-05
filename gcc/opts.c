@@ -2170,10 +2170,6 @@ common_handle_option (struct gcc_options *opts,
       set_debug_level (NO_DEBUG, 2, arg);
       break;
 
-    case OPT_ggo:
-      set_debug_level (GO_DEBUG, 1, "3");
-      break;
-
     case OPT_gstabs:
     case OPT_gstabs_:
       set_debug_level (DBX_DEBUG, code == OPT_gstabs_, arg);

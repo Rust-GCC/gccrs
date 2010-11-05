@@ -1064,7 +1064,7 @@ decode_d_option (const char *arg)
 /* Indexed by enum debug_info_type.  */
 const char *const debug_type_names[] =
 {
-  "none", "stabs", "coff", "dwarf-2", "xcoff", "vms", "go"
+  "none", "stabs", "coff", "dwarf-2", "xcoff", "vms"
 };
 
 /* Print version information to FILE.
@@ -1939,10 +1939,6 @@ process_options (void)
   else if (write_symbols == VMS_DEBUG || write_symbols == VMS_AND_DWARF2_DEBUG)
     debug_hooks = &vmsdbg_debug_hooks;
 #endif
-#ifdef GO_DEBUGGING_INFO
-  else if (write_symbols == GO_DEBUG)
-    debug_hooks = &go_debug_hooks;
-#endif
   else
     error ("target system does not support the \"%s\" debug format",
 	   debug_type_names[write_symbols]);
@@ -1965,6 +1961,12 @@ process_options (void)
       flag_var_tracking = 0;
       flag_var_tracking_uninit = 0;
     }
+
+  /* The debug hooks are used to implement -fdump-go-spec because it
+     gives a simple and stable API for all the information we need to
+     dump.  */
+  if (flag_dump_go_spec != NULL)
+    debug_hooks = dump_go_spec_init (flag_dump_go_spec, debug_hooks);
 
   /* If the user specifically requested variable tracking with tagging
      uninitialized variables, we need to turn on variable tracking.
