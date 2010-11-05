@@ -54,92 +54,78 @@ cat > sysinfo.c <<EOF
 #include <unistd.h>
 EOF
 
-${CC} -D_GNU_SOURCE -ggo -S -o sysinfo.s sysinfo.c
+${CC} -D_GNU_SOURCE -fdump-go-spec=gen-sysinfo.go -S -o sysinfo.s sysinfo.c
 
 echo 'package syscall' > ${OUT}
 
-# Get all the consts, types, and funcs, skipping ones which could not
-# be represented in Go and ones which we need to rewrite.  We also
-# skip function declarations, as we don't need them here.  All the
-# symbols will all have a leading underscore.
-grep '^#GO' sysinfo.s | \
-  grep -v '^#GO unknown' | \
-  grep -v 'INVALID' | \
-  grep -v '^#GO undef' | \
-  grep -v '^#GO func' | \
-  grep -v '^#GO type _timeval ' | \
-  grep -v '^#GO type _timespec ' | \
-  grep -v '^#GO type _epoll_' | \
+# Get all the consts and types, skipping ones which could not be
+# represented in Go and ones which we need to rewrite.  We also skip
+# function declarations, as we don't need them here.  All the symbols
+# will all have a leading underscore.
+grep -v '^// ' gen-sysinfo.go | \
+  grep -v '^func' | \
+  grep -v '^type _timeval ' | \
+  grep -v '^type _timespec ' | \
+  grep -v '^type _epoll_' | \
   grep -v 'in6_addr' | \
   grep -v 'sockaddr_in6' | \
-  sed -e 's/^#GO //' \
-      -e 's/\([^a-zA-Z0-9_]\)_timeval\([^a-zA-Z0-9_]\)/\1Timeval\2/g' \
+  sed -e 's/\([^a-zA-Z0-9_]\)_timeval\([^a-zA-Z0-9_]\)/\1Timeval\2/g' \
       -e 's/\([^a-zA-Z0-9_]\)_timespec\([^a-zA-Z0-9_]\)/\1Timespec\2/g' \
     >> ${OUT}
 
 # The errno constants.
-grep '^#GO const _E' sysinfo.s | \
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(E[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+grep '^const _E' gen-sysinfo.go | \
+  sed -e 's/^\(const \)_\(E[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 
 # The O_xxx flags.
-grep '^#GO const _\(O\|F\|FD\)_' sysinfo.s | \
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(\(O\|F\|FD\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+grep '^const _\(O\|F\|FD\)_' gen-sysinfo.go | \
+  sed -e 's/^\(const \)_\(\(O\|F\|FD\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 if ! grep '^const O_CLOEXEC' ${OUT} >/dev/null 2>&1; then \
   echo "const O_CLOEXEC = 0" >> ${OUT}
 fi
 
 # The signal numbers.
-grep '^#GO const _SIG[^_]' sysinfo.s | \
-  grep -v '^#GO const _SIGEV_' | \
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(SIG[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+grep '^const _SIG[^_]' gen-sysinfo.go | \
+  grep -v '^const _SIGEV_' | \
+  sed -e 's/^\(const \)_\(SIG[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 
 # The syscall numbers.  We force the names to upper case.
-grep '^#GO const _SYS_' sysinfo.s | \
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(SYS_[^= ]*\)\(.*\)$/\1\U\2\E = _\2/' >> ${OUT}
+grep '^const _SYS_' gen-sysinfo.go | \
+  sed -e 's/^\(const \)_\(SYS_[^= ]*\)\(.*\)$/\1\U\2\E = _\2/' >> ${OUT}
 
 # Stat constants.
-grep '^#GO const _S_' sysinfo.s | \
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(S_[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+grep '^const _S_' gen-sysinfo.go | \
+  sed -e 's/^\(const \)_\(S_[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 
 # Process status constants.
-grep '^#GO const _W' sysinfo.s |
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(W[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+grep '^const _W' gen-sysinfo.go |
+  sed -e 's/^\(const \)_\(W[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 # WSTOPPED was introduced in glibc 2.3.4.
-if ! grep '^#GO const _WSTOPPED = ' sysinfo.s >/dev/null 2>&1; then
-  if grep '^#GO const _WUNTRACED = ' sysinfo.s > /dev/null 2>&1; then
+if ! grep '^const _WSTOPPED = ' gen-sysinfo.go >/dev/null 2>&1; then
+  if grep '^const _WUNTRACED = ' gen-sysinfo.go > /dev/null 2>&1; then
     echo 'const WSTOPPED = _WUNTRACED' >> ${OUT}
   else
     echo 'const WSTOPPED = 2' >> ${OUT}
   fi
 fi
-if grep '^#GO const ___WALL = ' sysinfo.s >/dev/null 2>&1 \
-   && ! grep '^#GO const _WALL = ' sysinfo.s >/dev/null 2>&1; then
+if grep '^const ___WALL = ' gen-sysinfo.go >/dev/null 2>&1 \
+   && ! grep '^const _WALL = ' gen-sysinfo.go >/dev/null 2>&1; then
   echo 'const WALL = ___WALL' >> ${OUT}
 fi
 
 # Networking constants.
-grep '^#GO const _\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\)_' sysinfo.s |
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' \
+grep '^const _\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\)_' gen-sysinfo.go |
+  sed -e 's/^\(const \)_\(\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' \
     >> ${OUT}
-grep '^#GO const _SOMAXCONN' sysinfo.s |
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(SOMAXCONN[^= ]*\)\(.*\)$/\1\2 = _\2/' \
+grep '^const _SOMAXCONN' gen-sysinfo.go |
+  sed -e 's/^\(const \)_\(SOMAXCONN[^= ]*\)\(.*\)$/\1\2 = _\2/' \
     >> ${OUT}
-grep '^#GO const _SHUT_' sysinfo.s |
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(SHUT[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+grep '^const _SHUT_' gen-sysinfo.go |
+  sed -e 's/^\(const \)_\(SHUT[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 
 # pathconf constants.
-grep '^#GO const __PC' sysinfo.s |
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)__\(PC[^= ]*\)\(.*\)$/\1\2 = __\2/' >> ${OUT}
+grep '^const __PC' gen-sysinfo.go |
+  sed -e 's/^\(const \)__\(PC[^= ]*\)\(.*\)$/\1\2 = __\2/' >> ${OUT}
 
 # The epoll constants were picked up by the errno constants, but we
 # need to be sure the EPOLLRDHUP is defined.
@@ -149,12 +135,10 @@ fi
 
 # Ptrace constants.  We don't expose all the PTRACE flags, just the
 # PTRACE_O_xxx and PTRACE_EVENT_xxx ones.
-grep '^#GO const _PTRACE_O' sysinfo.s |
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(PTRACE_O[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
-grep '^#GO const _PTRACE_EVENT' sysinfo.s |
-  sed -e 's/#GO //' \
-      -e 's/^\(const \)_\(PTRACE_EVENT[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+grep '^const _PTRACE_O' gen-sysinfo.go |
+  sed -e 's/^\(const \)_\(PTRACE_O[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+grep '^const _PTRACE_EVENT' gen-sysinfo.go |
+  sed -e 's/^\(const \)_\(PTRACE_EVENT[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 # We need PTRACE_SETOPTIONS and PTRACE_GETEVENTMSG, but they are not
 # defined in older versions of glibc.
 if ! grep '^const _PTRACE_SETOPTIONS' ${OUT} > /dev/null 2>&1; then
@@ -208,7 +192,7 @@ fi
 
 # The registers returned by PTRACE_GETREGS.  This is probably
 # GNU/Linux specific.
-regs=`grep '^#GO type _user_regs_struct struct' sysinfo.s | sed -e 's/#GO //'`
+regs=`grep '^type _user_regs_struct struct' gen-sysinfo.go`
 if test "$regs" != ""; then
   regs=`echo $regs | sed -e 's/type _user_regs_struct struct //'`
   regs=`echo $regs | sed -e 's/\([^a-zA-Z0-9_]*\)\([a-zA-Z0-9_]\)\([a-zA-Z0-9_]* [^;]*;\)/\1\U\2\E\3/g'`
@@ -218,7 +202,7 @@ fi
 # Some basic types.
 echo 'type Size_t _size_t' >> ${OUT}
 echo "type Ssize_t _ssize_t" >> ${OUT}
-if grep '^#GO const _HAVE_OFF64_T = ' sysinfo.s > /dev/null 2>&1; then
+if grep '^const _HAVE_OFF64_T = ' gen-sysinfo.go > /dev/null 2>&1; then
   echo "type Offset_t _off64_t" >> ${OUT}
 else
   echo "type Offset_t _off_t" >> ${OUT}
@@ -230,7 +214,7 @@ echo "type Gid_t _gid_t" >> ${OUT}
 echo "type Socklen_t _socklen_t" >> ${OUT}
 
 # The long type, needed because that is the type that ptrace returns.
-sizeof_long=`grep '^#GO const ___SIZEOF_LONG__ = ' sysinfo.s | sed -e 's/.*= //'`
+sizeof_long=`grep '^const ___SIZEOF_LONG__ = ' gen-sysinfo.go | sed -e 's/.*= //'`
 if test "$sizeof_long" = "4"; then
   echo "type _C_long int32" >> ${OUT}
 elif test "$sizeof_long" = "8"; then
@@ -243,29 +227,28 @@ fi
 # The time structures need special handling: we need to name the
 # types, so that we can cast integers to the right types when
 # assigning to the structures.
-timeval=`grep '#GO type _timeval ' sysinfo.s`
+timeval=`grep '^type _timeval ' gen-sysinfo.go`
 timeval_sec=`echo $timeval | sed -n -e 's/^.*tv_sec \([^ ]*\);.*$/\1/p'`
 timeval_usec=`echo $timeval | sed -n -e 's/^.*tv_usec \([^ ]*\);.*$/\1/p'`
 echo "type Timeval_sec_t $timeval_sec" >> ${OUT}
 echo "type Timeval_usec_t $timeval_usec" >> ${OUT}
 echo $timeval | \
-  sed -e 's/^#GO type _timeval /type Timeval /' \
+  sed -e 's/type _timeval /type Timeval /' \
       -e 's/tv_sec *[a-zA-Z0-9_]*/Sec Timeval_sec_t/' \
       -e 's/tv_usec *[a-zA-Z0-9_]*/Usec Timeval_usec_t/' >> ${OUT}
-timespec=`grep '#GO type _timespec ' sysinfo.s`
+timespec=`grep '^type _timespec ' gen-sysinfo.go`
 timespec_sec=`echo $timespec | sed -n -e 's/^.*tv_sec \([^ ]*\);.*$/\1/p'`
 timespec_nsec=`echo $timespec | sed -n -e 's/^.*tv_nsec \([^ ]*\);.*$/\1/p'`
 echo "type Timespec_sec_t $timespec_sec" >> ${OUT}
 echo "type Timespec_nsec_t $timespec_nsec" >> ${OUT}
 echo $timespec | \
-  sed -e 's/^#GO type _timespec /type Timespec /' \
+  sed -e 's/^type _timespec /type Timespec /' \
       -e 's/tv_sec *[a-zA-Z0-9_]*/Sec Timespec_sec_t/' \
       -e 's/tv_nsec *[a-zA-Z0-9_]*/Nsec Timespec_nsec_t/' >> ${OUT}
 
 # The stat type.
-grep '#GO type _stat ' sysinfo.s | \
-  sed -e 's/#GO //' \
-      -e 's/type _stat/type Stat_t/' \
+grep 'type _stat ' gen-sysinfo.go | \
+  sed -e 's/type _stat/type Stat_t/' \
       -e 's/st_dev/Dev/' \
       -e 's/st_ino/Ino/' \
       -e 's/st_nlink/Nlink/' \
@@ -284,9 +267,8 @@ grep '#GO type _stat ' sysinfo.s | \
     >> ${OUT}
 
 # The directory searching types.
-grep '#GO type _dirent ' sysinfo.s | \
-  sed -e 's/#GO //' \
-      -e 's/type _dirent/type Dirent/' \
+grep '^type _dirent ' gen-sysinfo.go | \
+  sed -e 's/type _dirent/type Dirent/' \
       -e 's/d_name/Name/' \
       -e 's/]int8/]byte/' \
       -e 's/d_ino/Ino/' \
@@ -297,9 +279,8 @@ grep '#GO type _dirent ' sysinfo.s | \
 echo "type DIR _DIR" >> ${OUT}
 
 # The rusage struct.
-grep '#GO type _rusage ' sysinfo.s | \
-  sed -e 's/#GO //' \
-      -e 's/type _rusage/type Rusage/' \
+grep '^type _rusage ' gen-sysinfo.go | \
+  sed -e 's/type _rusage/type Rusage/' \
       -e 's/ru_\([a-z]\)/\U\1/g' \
       -e 's/\([^a-zA-Z0-9_]\)_timeval\([^a-zA-Z0-9_]\)/\1Timeval\2/g' \
       -e 's/\([^a-zA-Z0-9_]\)_timespec\([^a-zA-Z0-9_]\)/\1Timespec\2/g' \
