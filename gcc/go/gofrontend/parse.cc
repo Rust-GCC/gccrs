@@ -2395,7 +2395,15 @@ Parse::composite_lit(Type* type, int depth, source_location location)
 
 	  vals->push_back(val);
 
-	  val = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
+	  if (!token->is_op(OPERATOR_LCURLY))
+	    val = this->expression(PRECEDENCE_NORMAL, false, true, NULL);
+	  else
+	    {
+	      // This must be a composite literal inside another
+	      // composite literal, with the type omitted for the
+	      // inner one.
+	      val = this->composite_lit(type, depth + 1, token->location());
+	    }
 
 	  token = this->peek_token();
 	}
