@@ -7094,26 +7094,20 @@ Builtin_call_expression::do_check_types(Gogo*)
 	Type* e1;
 	if (arg1_type->is_open_array_type())
 	  e1 = arg1_type->array_type()->element_type();
-	else if (arg1_type->points_to() != NULL
-		 && arg1_type->points_to()->array_type() != NULL
-		 && !arg1_type->points_to()->is_open_array_type())
-	  e1 = arg1_type->points_to()->array_type()->element_type();
 	else
 	  {
-	    this->report_error(_("both arguments must be slices"));
+	    this->report_error(_("left argument must be a slice"));
 	    break;
 	  }
 
 	Type* e2;
 	if (arg2_type->is_open_array_type())
 	  e2 = arg2_type->array_type()->element_type();
-	else if (arg2_type->points_to() != NULL
-		 && arg2_type->points_to()->array_type() != NULL
-		 && !arg2_type->points_to()->is_open_array_type())
-	  e2 = arg2_type->points_to()->array_type()->element_type();
+	else if (arg2_type->is_string_type())
+	  e2 = Type::lookup_integer_type("uint8");
 	else
 	  {
-	    this->report_error(_("both arguments must be slices"));
+	    this->report_error(_("right argument must be a slice or a string"));
 	    break;
 	  }
 
@@ -7550,43 +7544,27 @@ Builtin_call_expression::do_get_tree(Translate_context* context)
 	  return error_mark_node;
 
 	Type* arg1_type = arg1->type();
-	Array_type* at;
-	tree arg1_val;
-	if (!arg1_type->is_open_array_type())
-	  {
-	    gcc_assert(arg1_type->points_to() != NULL
-		       && arg1_type->points_to()->array_type() != NULL
-		       && !arg1_type->points_to()->is_open_array_type());
-	    // ARG1_TREE is already a pointer to the array.
-	    arg1_val = fold_convert_loc(location, ptr_type_node, arg1_tree);
-	    at = arg1_type->points_to()->array_type();
-	  }
-	else
-	  {
-	    at = arg1_type->array_type();
-	    arg1_tree = save_expr(arg1_tree);
-	    arg1_val = at->value_pointer_tree(gogo, arg1_tree);
-	  }
+	Array_type* at = arg1_type->array_type();
+	arg1_tree = save_expr(arg1_tree);
+	tree arg1_val = at->value_pointer_tree(gogo, arg1_tree);
 	tree arg1_len = at->length_tree(gogo, arg1_tree);
 
 	Type* arg2_type = arg2->type();
 	tree arg2_val;
-	if (!arg2_type->is_open_array_type())
-	  {
-	    gcc_assert(arg2_type->points_to() != NULL
-		       && arg2_type->points_to()->array_type() != NULL
-		       && !arg2_type->points_to()->is_open_array_type());
-	    // ARG2_TREE is already a pointer to the array.
-	    arg2_val = fold_convert_loc(location, ptr_type_node, arg2_tree);
-	    at = arg2_type->points_to()->array_type();
-	  }
-	else
+	tree arg2_len;
+	if (arg2_type->is_open_array_type())
 	  {
 	    at = arg2_type->array_type();
 	    arg2_tree = save_expr(arg2_tree);
 	    arg2_val = at->value_pointer_tree(gogo, arg2_tree);
+	    arg2_len = at->length_tree(gogo, arg2_tree);
 	  }
-	tree arg2_len = at->length_tree(gogo, arg2_tree);
+	else
+	  {
+	    arg2_tree = save_expr(arg2_tree);
+	    arg2_val = String_type::bytes_tree(gogo, arg2_tree);
+	    arg2_len = String_type::length_tree(gogo, arg2_tree);
+	  }
 
 	arg1_len = save_expr(arg1_len);
 	arg2_len = save_expr(arg2_len);
