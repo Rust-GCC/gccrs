@@ -7450,6 +7450,21 @@ Type::bind_field_or_method(Gogo* gogo, const Type* type, Expression* expr,
   const Struct_type* st = type->deref()->struct_type();
   const Interface_type* it = type->deref()->interface_type();
 
+  // If this is a pointer to a pointer, then it is possible that the
+  // pointed-to type has methods.
+  if (nt == NULL
+      && st == NULL
+      && it == NULL
+      && type->points_to() != NULL
+      && type->points_to()->points_to() != NULL)
+    {
+      expr = Expression::make_unary(OPERATOR_MULT, expr, location);
+      type = type->points_to();
+      nt = type->points_to()->named_type();
+      st = type->points_to()->struct_type();
+      it = type->points_to()->interface_type();
+    }
+
   bool receiver_can_be_pointer = (expr->type()->points_to() != NULL
 				  || expr->is_addressable());
   bool is_method = false;
