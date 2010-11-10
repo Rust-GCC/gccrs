@@ -775,12 +775,61 @@ Type::check_int_value(Expression* e, const char* errmsg,
   return false;
 }
 
+// A hash table mapping unnamed types to trees.
+
+Type::Type_trees Type::type_trees;
+
 // Return a tree representing this type.
 
 tree
 Type::get_tree(Gogo* gogo)
 {
-  if (this->tree_ == NULL)
+  if (this->tree_ != NULL)
+    return this->tree_;
+
+  if (this->forward_declaration_type() != NULL
+      || this->named_type() != NULL)
+    return this->get_tree_without_hash(gogo);
+
+  // To avoid confusing GIMPLE, we need to translate all identical Go
+  // types to the same GIMPLE type.  We use a hash table to do that.
+  // There is no need to use the hash table for named types, as named
+  // types are only identical to themselves.
+
+  std::pair<Type*, tree> val(this, NULL);
+  std::pair<Type_trees::iterator, bool> ins =
+    Type::type_trees.insert(val);
+  if (!ins.second && ins.first->second != NULL_TREE)
+    {
+      this->tree_ = ins.first->second;
+      return this->tree_;
+    }
+
+  tree t = this->get_tree_without_hash(gogo);
+
+  if (ins.first->second == NULL_TREE)
+    ins.first->second = t;
+  else
+    {
+      // We have already created a tree for this type.  This can
+      // happen when an unnamed type is defined using a named type
+      // which in turns uses an identical unnamed type.  Use the tree
+      // we created earlier and ignore the one we just built.
+      t = ins.first->second;
+      this->tree_ = t;
+    }
+
+  return t;
+}
+
+// Return a tree for a type without looking in the hash table for
+// identical types.  This is used for named types, since there is no
+// point to looking in the hash table for them.
+
+tree
+Type::get_tree_without_hash(Gogo* gogo)
+{
+  if (this->tree_ == NULL_TREE)
     {
       tree t = this->do_get_tree(gogo);
 
@@ -4044,8 +4093,6 @@ Type::make_struct_type(Struct_field_list* fields,
 
 // Class Array_type.
 
-Array_type::Array_trees Array_type::array_trees;
-
 // Whether two array types are identical.
 
 bool
@@ -4319,22 +4366,6 @@ tree
 Array_type::fill_in_tree(Gogo* gogo, tree struct_type)
 {
   gcc_assert(this->length_ == NULL);
-
-  // Two different slices of the same element type are really the same
-  // type.  In order to make that valid at the tree level, we make
-  // sure to return the same struct.
-  std::pair<Type*, tree> val(this->element_type_, NULL);
-  std::pair<Array_trees::iterator, bool> ins =
-    Array_type::array_trees.insert(val);
-  if (!ins.second)
-    {
-      // We've already created a tree type for a slice with this
-      // element type.
-      gcc_assert(ins.first->second != NULL_TREE);
-      return ins.first->second;
-    }
-
-  ins.first->second = struct_type;
 
   tree element_type_tree = this->element_type_->get_tree(gogo);
   tree field = TYPE_FIELDS(struct_type);
@@ -6753,7 +6784,7 @@ Named_type::do_get_tree(Gogo* gogo)
     case TYPE_MAP:
     case TYPE_CHANNEL:
       // All maps and channels have the same type in GENERIC.
-      t = this->type_->get_tree(gogo);
+      t = Type::get_named_type_tree(gogo, this->type_);
       if (t == error_mark_node)
 	return error_mark_node;
       // Build a copy to set TYPE_NAME.
@@ -6771,7 +6802,7 @@ Named_type::do_get_tree(Gogo* gogo)
 	      == this))
 	return ptr_type_node;
       this->seen_ = true;
-      t = this->type_->get_tree(gogo);
+      t = Type::get_named_type_tree(gogo, this->type_);
       this->seen_ = false;
       if (t == error_mark_node)
 	return error_mark_node;
@@ -6784,7 +6815,7 @@ Named_type::do_get_tree(Gogo* gogo)
       if (this->seen_ && this->points_to()->forwarded() == this)
 	return ptr_type_node;
       this->seen_ = true;
-      t = this->type_->get_tree(gogo);
+      t = Type::get_named_type_tree(gogo, this->type_);
       this->seen_ = false;
       if (t == error_mark_node)
 	return error_mark_node;
@@ -6801,7 +6832,7 @@ Named_type::do_get_tree(Gogo* gogo)
 
     case TYPE_ARRAY:
       if (!this->is_open_array_type())
-	t = this->type_->get_tree(gogo);
+	t = Type::get_named_type_tree(gogo, this->type_);
       else
 	{
 	  if (this->named_tree_ != NULL_TREE)
@@ -6818,7 +6849,7 @@ Named_type::do_get_tree(Gogo* gogo)
     case TYPE_INTERFACE:
       if (this->type_->interface_type()->is_empty())
 	{
-	  t = this->type_->get_tree(gogo);
+	  t = Type::get_named_type_tree(gogo, this->type_);
 	  if (t == error_mark_node)
 	    return error_mark_node;
 	  t = build_variant_type_copy(t);
@@ -6842,7 +6873,7 @@ Named_type::do_get_tree(Gogo* gogo)
 	// but it's as close as we can get with GENERIC.
 	bool was_seen = this->seen_;
 	this->seen_ = true;
-	t = this->type_->get_tree(gogo);
+	t = Type::get_named_type_tree(gogo, this->type_);
 	this->seen_ = was_seen;
 	if (was_seen)
 	  return t;
@@ -7906,7 +7937,7 @@ tree
 Forward_declaration_type::do_get_tree(Gogo* gogo)
 {
   if (this->is_defined())
-    return this->real_type()->get_tree(gogo);
+    return Type::get_named_type_tree(gogo, this->real_type());
 
   if (this->warned_)
     return error_mark_node;

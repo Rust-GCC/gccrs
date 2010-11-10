@@ -945,6 +945,11 @@ class Type
   static unsigned int
   hash_string(const std::string&, unsigned int);
 
+  // Return a tree for the underlying type of a named type.
+  static tree
+  get_named_type_tree(Gogo* gogo, Type* base_type)
+  { return base_type->get_tree_without_hash(gogo); }
+
  private:
   // Convert to the desired type classification, or return NULL.  This
   // is a controlled dynamic_cast.
@@ -1056,6 +1061,18 @@ class Type
 		       int* level, bool* is_method,
 		       bool* found_pointer_method,
 		       std::string* ambig1, std::string* ambig2);
+
+  // Get a tree for a type without looking in the hash table for
+  // identical types.
+  tree
+  get_tree_without_hash(Gogo*);
+
+  // A mapping from Type to tree, used to ensure that the GIMPLE
+  // representation of identical types is identical.
+  typedef std::tr1::unordered_map<const Type*, tree, Type_hash_identical,
+				  Type_identical> Type_trees;
+
+  static Type_trees type_trees;
 
   // The type classification.
   Type_classification classification_;
@@ -2066,13 +2083,6 @@ class Array_type : public Type
 
   Expression*
   slice_type_descriptor(Gogo*, Named_type*);
-
-  // A mapping from Type to tree, used to ensure that arrays of
-  // identical types are identical.
-  typedef std::tr1::unordered_map<const Type*, tree, Type_hash_identical,
-				  Type_identical> Array_trees;
-
-  static Array_trees array_trees;
 
   // The type of elements of the array.
   Type* element_type_;
