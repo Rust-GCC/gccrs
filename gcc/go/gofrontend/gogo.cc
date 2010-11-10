@@ -329,6 +329,33 @@ Gogo::import_package(const std::string& filename,
   delete stream;
 }
 
+// Add an import control function for an imported package to the list.
+
+void
+Gogo::add_import_init_fn(const std::string& package_name,
+			 const std::string& init_name, int prio)
+{
+  for (std::set<Import_init>::const_iterator p =
+	 this->imported_init_fns_.begin();
+       p != this->imported_init_fns_.end();
+       ++p)
+    {
+      if (p->init_name() == init_name
+	  && (p->package_name() != package_name || p->priority() != prio))
+	{
+	  error("duplicate package initialization name %qs", init_name.c_str());
+	  inform(UNKNOWN_LOCATION, "used by package %qs at priority %d",
+		 p->package_name().c_str(), p->priority());
+	  inform(UNKNOWN_LOCATION, " and by package %qs at priority %d",
+		 package_name.c_str(), prio);
+	  return;
+	}
+    }
+
+  this->imported_init_fns_.insert(Import_init(package_name, init_name,
+					      prio));
+}
+
 // Return whether we are at the global binding level.
 
 bool

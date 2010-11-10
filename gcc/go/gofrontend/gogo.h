@@ -374,11 +374,7 @@ class Gogo
   // list.
   void
   add_import_init_fn(const std::string& package_name,
-		     const std::string& init_name, int prio)
-  {
-    this->imported_init_fns_.insert(Import_init(package_name, init_name,
-						prio));
-  }
+		     const std::string& init_name, int prio);
 
   // Turn short-cut operators (&&, ||) into explicit if statements.
   void
