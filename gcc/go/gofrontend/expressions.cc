@@ -2715,7 +2715,7 @@ class Type_conversion_expression : public Expression
   Type_conversion_expression(Type* type, Expression* expr,
 			     source_location location)
     : Expression(EXPRESSION_CONVERSION, location),
-      type_(type), expr_(expr)
+      type_(type), expr_(expr), may_convert_function_types_(false)
   { }
 
   // Return the type to which we are converting.
@@ -2728,6 +2728,15 @@ class Type_conversion_expression : public Expression
   expr() const
   { return this->expr_; }
 
+  // Permit converting from one function type to another.  This is
+  // used internally for method expressions.
+  void
+  set_may_convert_function_types()
+  {
+    this->may_convert_function_types_ = true;
+  }
+
+  // Import a type conversion expression.
   static Expression*
   do_import(Import*);
 
@@ -2786,6 +2795,9 @@ class Type_conversion_expression : public Expression
   Type* type_;
   // The expression to convert.
   Expression* expr_;
+  // True if this is permitted to convert function types.  This is
+  // used internally for method expressions.
+  bool may_convert_function_types_;
 };
 
 // Traversal.
@@ -3098,6 +3110,11 @@ Type_conversion_expression::do_check_types(Gogo*)
   Type* expr_type = this->expr_->type();
   std::string reason;
 
+  if (this->may_convert_function_types_
+      && type->function_type() != NULL
+      && expr_type->function_type() != NULL)
+    return;
+
   if (Type::are_convertible(type, expr_type, &reason))
     return;
 
@@ -3260,6 +3277,10 @@ Type_conversion_expression::do_get_tree(Translate_context* context)
   else if (type->is_unsafe_pointer_type()
 	   && expr_type->integer_type() != NULL)
     ret = convert_to_pointer(type_tree, expr_tree);
+  else if (this->may_convert_function_types_
+	   && type->function_type() != NULL
+	   && expr_type->function_type() != NULL)
+    ret = fold_convert_loc(this->location(), type_tree, expr_tree);
   else
     ret = Expression::convert_for_assignment(context, type, expr_type,
 					     expr_tree, this->location());
@@ -9747,8 +9768,6 @@ Selector_expression::lower_method_expression(Gogo* gogo)
       return Expression::make_error(location);
     }
 
-  std::string method_name = Gogo::thunk_name();
-
   // Build a new function type in which the receiver becomes the first
   // argument.
   Function_type* method_type = method->type();
@@ -9786,7 +9805,26 @@ Selector_expression::lower_method_expression(Gogo* gogo)
   if (method_type->is_varargs())
     fntype->set_is_varargs();
 
-  Named_object* no = gogo->start_function(method_name, fntype, false, location);
+  // We generate methods which always takes a pointer to the receiver
+  // as their first argument.  If this is for a pointer type, we can
+  // simply reuse the existing function.  We use an internal hack to
+  // get the right type.
+
+  if (is_pointer)
+    {
+      Named_object* mno = (method->needs_stub_method()
+			   ? method->stub_object()
+			   : method->named_object());
+      Expression* f = Expression::make_func_reference(mno, NULL, location);
+      f = Expression::make_cast(fntype, f, location);
+      Type_conversion_expression* tce =
+	static_cast<Type_conversion_expression*>(f);
+      tce->set_may_convert_function_types();
+      return f;
+    }
+
+  Named_object* no = gogo->start_function(Gogo::thunk_name(), fntype, false,
+					  location);
 
   Named_object* vno = gogo->lookup(receiver_name, NULL);
   gcc_assert(vno != NULL);
