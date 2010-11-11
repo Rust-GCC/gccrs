@@ -20,6 +20,8 @@
 #ifndef GO_SYSTEM_H
 #define GO_SYSTEM_H
 
+#include "config.h"
+
 // These must be included before the #poison declarations in system.h.
 
 #include <string>
@@ -41,10 +43,11 @@
 // later.
 #include <cstdio>
 
+#ifndef ENABLE_BUILD_WITH_CXX
 extern "C"
 {
+#endif
 
-#include "config.h"
 #include "system.h"
 #include "ansidecl.h"
 #include "coretypes.h"
@@ -53,6 +56,8 @@ extern "C"
 #include "diagnostic-core.h"
 #include "input.h"
 
+#ifndef ENABLE_BUILD_WITH_CXX
 } // End extern "C"
+#endif
 
 #endif // !defined(GO_SYSTEM_H)

@@ -20,7 +20,13 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GO_GO_C_H
 #define GO_GO_C_H
 
-#ifdef __cplusplus
+#ifdef ENABLE_BUILD_WITH_CXX
+#define GO_EXTERN_C
+#else
+#define GO_EXTERN_C extern "C"
+#endif
+
+#if defined(__cplusplus) && !defined(ENABLE_BUILD_WITH_CXX)
 extern "C"
 {
 #endif
@@ -40,7 +46,7 @@ extern void go_write_globals(void);
 extern tree go_type_for_size(unsigned int bits, int unsignedp);
 extern tree go_type_for_mode(enum machine_mode, int unsignedp);
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(ENABLE_BUILD_WITH_CXX)
 } /* End extern "C".  */
 #endif
 
