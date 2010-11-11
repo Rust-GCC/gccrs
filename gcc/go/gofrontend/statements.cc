@@ -3649,19 +3649,24 @@ Type_case_clauses::Type_case_clause::lower(Block* b,
       b->add_statement(s);
     }
 
-  if (this->statements_ != NULL)
+  if (this->statements_ != NULL
+      || (!this->is_fallthrough_
+	  && stmts_label != NULL
+	  && *stmts_label != NULL))
     {
       gcc_assert(!this->is_fallthrough_);
       if (stmts_label != NULL && *stmts_label != NULL)
 	{
 	  gcc_assert(!this->is_default_);
-	  (*stmts_label)->set_location(this->statements_->start_location());
+	  if (this->statements_ != NULL)
+	    (*stmts_label)->set_location(this->statements_->start_location());
 	  Statement* s = Statement::make_unnamed_label_statement(*stmts_label);
 	  b->add_statement(s);
 	  *stmts_label = NULL;
 	}
-      b->add_statement(Statement::make_block_statement(this->statements_,
-						       loc));
+      if (this->statements_ != NULL)
+	b->add_statement(Statement::make_block_statement(this->statements_,
+							 loc));
     }
 
   if (this->is_fallthrough_)
