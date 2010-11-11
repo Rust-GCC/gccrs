@@ -47,7 +47,7 @@ Go_dump::enable_by_name(const char* name)
 
 // Enable a dump.  Return 1 if this is a real name, 0 if not.
 
-extern "C"
+GO_EXTERN_C
 int
 go_enable_dump(const char* name)
 {

@@ -9,8 +9,11 @@
 #include <tr1/unordered_set>
 #include <gmp.h>
 
+#ifndef ENABLE_BUILD_WITH_CXX
 extern "C"
 {
+#endif
+
 #include "intl.h"
 #include "tree.h"
 #include "gimple.h"
@@ -18,7 +21,10 @@ extern "C"
 #include "tree-iterator.h"
 #include "tree-flow.h"
 #include "real.h"
+
+#ifndef ENABLE_BUILD_WITH_CXX
 }
+#endif
 
 #include "go-c.h"
 #include "types.h"

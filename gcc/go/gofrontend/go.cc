@@ -26,7 +26,7 @@ static Gogo* gogo;
 
 // Create the main IR data structure.
 
-extern "C"
+GO_EXTERN_C
 void
 go_create_gogo()
 {
@@ -38,7 +38,7 @@ go_create_gogo()
 
 // Set the unique prefix we use for exported symbols.
 
-extern "C"
+GO_EXTERN_C
 void
 go_set_prefix(const char* arg)
 {
@@ -58,7 +58,7 @@ go_set_prefix(const char* arg)
 
 // Parse the input files.
 
-extern "C"
+GO_EXTERN_C
 void
 go_parse_input_files(const char** filenames, unsigned int filename_count)
 {
@@ -139,7 +139,7 @@ go_parse_input_files(const char** filenames, unsigned int filename_count)
 
 // Write out globals.
 
-extern "C"
+GO_EXTERN_C
 void
 go_write_globals()
 {

@@ -8,8 +8,11 @@
 
 #include <gmp.h>
 
+#ifndef ENABLE_BUILD_WITH_CXX
 extern "C"
 {
+#endif
+
 #include "toplev.h"
 #include "intl.h"
 #include "tree.h"
@@ -19,7 +22,10 @@ extern "C"
 #include "real.h"
 #include "realmpfr.h"
 #include "tm_p.h"
+
+#ifndef ENABLE_BUILD_WITH_CXX
 }
+#endif
 
 #include "go-c.h"
 #include "gogo.h"

@@ -10,10 +10,16 @@
 #include <cstring>
 #include <unistd.h>
 
+#ifndef ENABLE_BUILD_WITH_CXX
 extern "C"
 {
+#endif
+
 #include "filenames.h"
+
+#ifndef ENABLE_BUILD_WITH_CXX
 }
+#endif
 
 #include "simple-object.h"
 
@@ -30,7 +36,7 @@ static std::vector<std::string> search_path;
 // Add a directory to the search path.  This is called from the option
 // handling language hook.
 
-extern "C"
+GO_EXTERN_C
 void
 go_add_search_path(const char* path)
 {

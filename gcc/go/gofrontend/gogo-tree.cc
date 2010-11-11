@@ -11,8 +11,11 @@
 
 #include <gmp.h>
 
+#ifndef ENABLE_BUILD_WITH_CXX
 extern "C"
 {
+#endif
+
 #include "toplev.h"
 #include "tree.h"
 #include "gimple.h"
@@ -24,7 +27,10 @@ extern "C"
 #include "tm_p.h"
 #include "diagnostic.h"
 #include "rtl.h"
+
+#ifndef ENABLE_BUILD_WITH_CXX
 }
+#endif
 
 #include "go-c.h"
 #include "types.h"
@@ -1963,7 +1969,7 @@ Unnamed_label::get_goto(source_location location)
 
 // Return the integer type to use for a size.
 
-extern "C"
+GO_EXTERN_C
 tree
 go_type_for_size(unsigned int bits, int unsignedp)
 {
@@ -1994,7 +2000,7 @@ go_type_for_size(unsigned int bits, int unsignedp)
 
 // Return the type to use for a mode.
 
-extern "C"
+GO_EXTERN_C
 tree
 go_type_for_mode(enum machine_mode mode, int unsignedp)
 {

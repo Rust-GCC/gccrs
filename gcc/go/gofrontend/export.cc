@@ -9,12 +9,18 @@
 #include "go-system.h"
 #include "sha1.h"
 
+#ifndef ENABLE_BUILD_WITH_CXX
 extern "C"
 {
+#endif
+
 #include "machmode.h"
 #include "output.h"
 #include "target.h"
+
+#ifndef ENABLE_BUILD_WITH_CXX
 }
+#endif
 
 #include "gogo.h"
 #include "types.h"
