@@ -587,6 +587,10 @@ AC_ARG_ENABLE(build-with-cxx,
 ENABLE_BUILD_WITH_CXX=$enableval,
 ENABLE_BUILD_WITH_CXX=no)
 AC_SUBST(ENABLE_BUILD_WITH_CXX)
+if test "$ENABLE_BUILD_WITH_CXX" = "yes"; then
+  AC_DEFINE(ENABLE_BUILD_WITH_CXX, 1,
+	    [Define if building with C++.])
+fi
 
 # With stabs
 AC_ARG_WITH(stabs,

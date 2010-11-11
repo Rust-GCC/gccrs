@@ -6614,6 +6614,11 @@ else
 fi
 
 
+if test "$ENABLE_BUILD_WITH_CXX" = "yes"; then
+
+$as_echo "#define ENABLE_BUILD_WITH_CXX 1" >>confdefs.h
+
+fi
 
 # With stabs
 
@@ -17083,7 +17088,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 17086 "configure"
+#line 17091 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -17189,7 +17194,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 17192 "configure"
+#line 17197 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
