@@ -394,7 +394,7 @@ Type::are_identical(const Type* t1, const Type* t2, std::string* reason)
 }
 
 // Return true if it's OK to have a binary operation with types LHS
-// and RHS.  This is not used for shifts.
+// and RHS.  This is not used for shifts or comparisons.
 
 bool
 Type::are_compatible_for_binop(const Type* lhs, const Type* rhs)

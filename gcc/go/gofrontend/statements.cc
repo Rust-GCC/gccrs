@@ -3077,7 +3077,8 @@ Case_clauses::Case_clause::check_types(Type* type)
 	   p != this->cases_->end();
 	   ++p)
 	{
-	  if (!Type::are_compatible_for_binop(type, (*p)->type()))
+	  if (!Type::are_assignable(type, (*p)->type(), NULL)
+	      && !Type::are_assignable((*p)->type(), type, NULL))
 	    {
 	      error_at((*p)->location(),
 		       "type mismatch between switch value and case clause");

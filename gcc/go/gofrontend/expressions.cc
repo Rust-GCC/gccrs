@@ -5461,49 +5461,67 @@ Binary_expression::check_operator_type(Operator op, Type* type,
 void
 Binary_expression::do_check_types(Gogo*)
 {
-  if (this->op_ != OPERATOR_LSHIFT && this->op_ != OPERATOR_RSHIFT)
-    {
-      Type* type = this->left_->type();
+  Type* left_type = this->left_->type();
+  Type* right_type = this->right_->type();
+  if (left_type->is_error_type() || right_type->is_error_type())
+    return;
 
-      if (!Type::are_compatible_for_binop(type, this->right_->type()))
+  if (this->op_ == OPERATOR_EQEQ
+      || this->op_ == OPERATOR_NOTEQ
+      || this->op_ == OPERATOR_LT
+      || this->op_ == OPERATOR_LE
+      || this->op_ == OPERATOR_GT
+      || this->op_ == OPERATOR_GE)
+    {
+      if (!Type::are_assignable(left_type, right_type, NULL)
+	  && !Type::are_assignable(right_type, left_type, NULL))
 	{
 	  this->report_error(_("incompatible types in binary expression"));
 	  return;
 	}
-
-      if (!type->is_error_type()
-	  && !this->right_->type()->is_error_type())
+      if (!Binary_expression::check_operator_type(this->op_, left_type,
+						  this->location())
+	  || !Binary_expression::check_operator_type(this->op_, right_type,
+						     this->location()))
 	{
-	  if (!Binary_expression::check_operator_type(this->op_, type,
-						      this->location()))
-	    this->set_is_error();
+	  this->set_is_error();
+	  return;
+	}
+    }
+  else if (this->op_ != OPERATOR_LSHIFT && this->op_ != OPERATOR_RSHIFT)
+    {
+      if (!Type::are_compatible_for_binop(left_type, right_type))
+	{
+	  this->report_error(_("incompatible types in binary expression"));
+	  return;
+	}
+      if (!Binary_expression::check_operator_type(this->op_, left_type,
+						  this->location()))
+	{
+	  this->set_is_error();
+	  return;
 	}
     }
   else
     {
-      if (this->left_->type()->integer_type() == NULL
-	  && !this->left_->type()->is_error_type())
+      if (left_type->integer_type() == NULL)
 	this->report_error(_("shift of non-integer operand"));
 
-      Type* shift_type = this->right_->type();
-      if (!shift_type->is_error_type())
+      if (!right_type->is_abstract()
+	  && (right_type->integer_type() == NULL
+	      || !right_type->integer_type()->is_unsigned()))
+	this->report_error(_("shift count not unsigned integer"));
+      else
 	{
-	  if (!shift_type->is_abstract()
-	      && (shift_type->integer_type() == NULL
-		  || !shift_type->integer_type()->is_unsigned()))
-	    this->report_error(_("shift count not unsigned integer"));
-	  else
+	  mpz_t val;
+	  mpz_init(val);
+	  Type* type;
+	  if (this->right_->integer_constant_value(true, val, &type))
 	    {
-	      mpz_t val;
-	      mpz_init(val);
-	      Type* type;
-	      if (this->right_->integer_constant_value(true, val, &type))
-		{
-		  if (mpz_sgn(val) < 0)
-		    this->report_error(_("negative shift count"));
-		}
-	      mpz_clear(val);
+	      if (mpz_sgn(val) < 0)
+		this->report_error(_("negative shift count"));
 	    }
+	  mpz_clear(val);
 	}
     }
 }
@@ -5929,8 +5947,93 @@ Expression::comparison_tree(Translate_context* context, Operator op,
       right_tree = build_int_cst_type(integer_type_node, 0);
     }
 
-  if (left_type->interface_type() != NULL
-      && right_type->interface_type() != NULL)
+  if ((left_type->interface_type() != NULL
+       && right_type->interface_type() == NULL
+       && !right_type->is_nil_type())
+      || (left_type->interface_type() == NULL
+	  && !left_type->is_nil_type()
+	  && right_type->interface_type() != NULL))
+    {
+      // Comparing an interface value to a non-interface value.
+      if (left_type->interface_type() == NULL)
+	{
+	  std::swap(left_type, right_type);
+	  std::swap(left_tree, right_tree);
+	}
+
+      // The right operand is not an interface.  We need to take its
+      // address if it is not a pointer.
+      tree make_tmp;
+      tree arg;
+      if (right_type->points_to() != NULL)
+	{
+	  make_tmp = NULL_TREE;
+	  arg = right_tree;
+	}
+      else if (TREE_ADDRESSABLE(TREE_TYPE(right_tree)) || DECL_P(right_tree))
+	{
+	  make_tmp = NULL_TREE;
+	  arg = build_fold_addr_expr_loc(location, right_tree);
+	  if (DECL_P(right_tree))
+	    TREE_ADDRESSABLE(right_tree) = 1;
+	}
+      else
+	{
+	  tree tmp = create_tmp_var(TREE_TYPE(right_tree),
+				    get_name(right_tree));
+	  DECL_IGNORED_P(tmp) = 0;
+	  DECL_INITIAL(tmp) = right_tree;
+	  TREE_ADDRESSABLE(tmp) = 1;
+	  make_tmp = build1(DECL_EXPR, void_type_node, tmp);
+	  SET_EXPR_LOCATION(make_tmp, location);
+	  arg = build_fold_addr_expr_loc(location, tmp);
+	}
+      arg = fold_convert_loc(location, ptr_type_node, arg);
+
+      tree descriptor = right_type->type_descriptor_pointer(context->gogo());
+
+      if (left_type->interface_type()->is_empty())
+	{
+	  static tree empty_interface_value_compare_decl;
+	  left_tree = Gogo::call_builtin(&empty_interface_value_compare_decl,
+					 location,
+					 "__go_empty_interface_value_compare",
+					 3,
+					 integer_type_node,
+					 TREE_TYPE(left_tree),
+					 left_tree,
+					 TREE_TYPE(descriptor),
+					 descriptor,
+					 ptr_type_node,
+					 arg);
+	  // This can panic if the type is not comparable.
+	  TREE_NOTHROW(empty_interface_value_compare_decl) = 0;
+	}
+      else
+	{
+	  static tree interface_value_compare_decl;
+	  left_tree = Gogo::call_builtin(&interface_value_compare_decl,
+					 location,
+					 "__go_interface_value_compare",
+					 3,
+					 integer_type_node,
+					 TREE_TYPE(left_tree),
+					 left_tree,
+					 TREE_TYPE(descriptor),
+					 descriptor,
+					 ptr_type_node,
+					 arg);
+	  // This can panic if the type is not comparable.
+	  TREE_NOTHROW(interface_value_compare_decl) = 0;
+	}
+      right_tree = build_int_cst_type(integer_type_node, 0);
+
+      if (make_tmp != NULL_TREE)
+	left_tree = build2(COMPOUND_EXPR, TREE_TYPE(left_tree), make_tmp,
+			   left_tree);
+    }
+  else if (left_type->interface_type() != NULL
+	   && right_type->interface_type() != NULL)
     {
       if (left_type->interface_type()->is_empty())
 	{
@@ -5947,7 +6050,6 @@ Expression::comparison_tree(Translate_context* context, Operator op,
 					 right_tree);
 	  // This can panic if the type is uncomparable.
 	  TREE_NOTHROW(empty_interface_compare_decl) = 0;
-	  right_tree = build_int_cst_type(integer_type_node, 0);
 	}
       else
 	{
@@ -5964,8 +6066,8 @@ Expression::comparison_tree(Translate_context* context, Operator op,
 					 right_tree);
 	  // This can panic if the type is uncomparable.
 	  TREE_NOTHROW(interface_compare_decl) = 0;
-	  right_tree = build_int_cst_type(integer_type_node, 0);
 	}
+      right_tree = build_int_cst_type(integer_type_node, 0);
     }
 
   if (left_type->is_nil_type()

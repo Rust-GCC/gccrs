@@ -512,7 +512,8 @@ class Type
   are_identical(const Type* lhs, const Type* rhs, std::string* reason);
 
   // Return true if two types are compatible for use in a binary
-  // operation.  This is an equivalence relation.
+  // operation, other than a shift, comparison, or channel send.  This
+  // is an equivalence relation.
   static bool
   are_compatible_for_binop(const Type* t1, const Type* t2);
 
