@@ -17,6 +17,30 @@ type T struct {
 	Y int
 }
 
+type tx struct {
+	x int
+}
+
+var txType = reflect.Typeof((*tx)(nil)).(*reflect.PtrType).Elem().(*reflect.StructType)
+
+// A type that can unmarshal itself.
+
+type unmarshaler struct {
+	T bool
+}
+
+func (u *unmarshaler) UnmarshalJSON(b []byte) os.Error {
+	*u = unmarshaler{true} // All we need to see that UnmarshalJson is called.
+	return nil
+}
+
+var (
+	um0, um1 unmarshaler // target2 of unmarshaling
+	ump      = &um1
+	umtrue   = unmarshaler{true}
+)
+
+
 type unmarshalTest struct {
 	in  string
 	ptr interface{}
@@ -26,29 +50,34 @@ type unmarshalTest struct {
 
 var unmarshalTests = []unmarshalTest{
 	// basic types
-	unmarshalTest{`true`, new(bool), true, nil},
-	unmarshalTest{`1`, new(int), 1, nil},
-	unmarshalTest{`1.2`, new(float), 1.2, nil},
-	unmarshalTest{`-5`, new(int16), int16(-5), nil},
-	unmarshalTest{`"a\u1234"`, new(string), "a\u1234", nil},
-	unmarshalTest{`"http:\/\/"`, new(string), "http://", nil},
-	unmarshalTest{`"g-clef: \uD834\uDD1E"`, new(string), "g-clef: \U0001D11E", nil},
-	unmarshalTest{`"invalid: \uD834x\uDD1E"`, new(string), "invalid: \uFFFDx\uFFFD", nil},
-	unmarshalTest{"null", new(interface{}), nil, nil},
-	unmarshalTest{`{"X": [1,2,3], "Y": 4}`, new(T), T{Y: 4}, &UnmarshalTypeError{"array", reflect.Typeof("")}},
+	{`true`, new(bool), true, nil},
+	{`1`, new(int), 1, nil},
+	{`1.2`, new(float), 1.2, nil},
+	{`-5`, new(int16), int16(-5), nil},
+	{`"a\u1234"`, new(string), "a\u1234", nil},
+	{`"http:\/\/"`, new(string), "http://", nil},
+	{`"g-clef: \uD834\uDD1E"`, new(string), "g-clef: \U0001D11E", nil},
+	{`"invalid: \uD834x\uDD1E"`, new(string), "invalid: \uFFFDx\uFFFD", nil},
+	{"null", new(interface{}), nil, nil},
+	{`{"X": [1,2,3], "Y": 4}`, new(T), T{Y: 4}, &UnmarshalTypeError{"array", reflect.Typeof("")}},
+	{`{"x": 1}`, new(tx), tx{}, &UnmarshalFieldError{"x", txType, txType.Field(0)}},
 
 	// syntax errors
-	unmarshalTest{`{"X": "foo", "Y"}`, nil, nil, SyntaxError("invalid character '}' after object key")},
+	{`{"X": "foo", "Y"}`, nil, nil, SyntaxError("invalid character '}' after object key")},
 
 	// composite tests
-	unmarshalTest{allValueIndent, new(All), allValue, nil},
-	unmarshalTest{allValueCompact, new(All), allValue, nil},
-	unmarshalTest{allValueIndent, new(*All), &allValue, nil},
-	unmarshalTest{allValueCompact, new(*All), &allValue, nil},
-	unmarshalTest{pallValueIndent, new(All), pallValue, nil},
-	unmarshalTest{pallValueCompact, new(All), pallValue, nil},
-	unmarshalTest{pallValueIndent, new(*All), &pallValue, nil},
-	unmarshalTest{pallValueCompact, new(*All), &pallValue, nil},
+	{allValueIndent, new(All), allValue, nil},
+	{allValueCompact, new(All), allValue, nil},
+	{allValueIndent, new(*All), &allValue, nil},
+	{allValueCompact, new(*All), &allValue, nil},
+	{pallValueIndent, new(All), pallValue, nil},
+	{pallValueCompact, new(All), pallValue, nil},
+	{pallValueIndent, new(*All), &pallValue, nil},
+	{pallValueCompact, new(*All), &pallValue, nil},
+
+	// unmarshal interface test
+	{`{"T":false}`, &um0, umtrue, nil}, // use "false" so test will fail if custom unmarshaler is not called
+	{`{"T":false}`, &ump, &umtrue, nil},
 }
 
 func TestMarshal(t *testing.T) {
@@ -252,15 +281,15 @@ var allValue = All{
 	Foo:     "foo",
 	String:  "16",
 	Map: map[string]Small{
-		"17": Small{Tag: "tag17"},
-		"18": Small{Tag: "tag18"},
+		"17": {Tag: "tag17"},
+		"18": {Tag: "tag18"},
 	},
 	MapP: map[string]*Small{
 		"19": &Small{Tag: "tag19"},
 		"20": nil,
 	},
 	EmptyMap:    map[string]Small{},
-	Slice:       []Small{Small{Tag: "tag20"}, Small{Tag: "tag21"}},
+	Slice:       []Small{{Tag: "tag20"}, {Tag: "tag21"}},
 	SliceP:      []*Small{&Small{Tag: "tag22"}, nil, &Small{Tag: "tag23"}},
 	EmptySlice:  []Small{},
 	StringSlice: []string{"str24", "str25", "str26"},

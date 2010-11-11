@@ -4,7 +4,7 @@
 #include "malloc.h"
 
 void*
-SysAlloc(uintptr n)
+runtime_SysAlloc(uintptr n)
 {
 	void *p;
 
@@ -23,7 +23,7 @@ SysAlloc(uintptr n)
 }
 
 void
-SysUnused(void *v, uintptr n)
+runtime_SysUnused(void *v, uintptr n)
 {
 	USED(v);
 	USED(n);
@@ -31,10 +31,20 @@ SysUnused(void *v, uintptr n)
 }
 
 void
-SysFree(void *v, uintptr n)
+runtime_SysFree(void *v, uintptr n)
 {
-	USED(v);
-	USED(n);
-	// TODO(rsc): call munmap
+	mstats.sys -= n;
+	runtime_munmap(v, n);
 }
 
+void
+runtime_SysMemInit(void)
+{
+	// Code generators assume that references to addresses
+	// on the first page will fault.  Map the page explicitly with
+	// no permissions, to head off possible bugs like the system
+	// allocating that page as the virtual address space fills.
+	// Ignore any error, since other systems might be smart
+	// enough to never allow anything there.
+	runtime_mmap(nil, 4096, PROT_NONE, MAP_FIXED|MAP_ANON|MAP_PRIVATE, -1, 0);
+}

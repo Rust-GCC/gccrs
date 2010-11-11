@@ -6,45 +6,51 @@ package draw
 
 import (
 	"image"
+	"os"
 )
 
-// A Context represents a single graphics window.
-type Context interface {
-	// Screen returns an editable Image of window.
+// A Window represents a single graphics window.
+type Window interface {
+	// Screen returns an editable Image for the window.
 	Screen() Image
-
 	// FlushImage flushes changes made to Screen() back to screen.
 	FlushImage()
+	// EventChan returns a channel carrying UI events such as key presses,
+	// mouse movements and window resizes.
+	EventChan() <-chan interface{}
+	// Close closes the window.
+	Close() os.Error
+}
 
-	// KeyboardChan returns a channel carrying keystrokes.
-	// An event is sent each time a key is pressed or released.
+// A KeyEvent is sent for a key press or release.
+type KeyEvent struct {
 	// The value k represents key k being pressed.
 	// The value -k represents key k being released.
 	// The specific set of key values is not specified,
-	// but ordinary character represent themselves.
-	KeyboardChan() <-chan int
-
-	// MouseChan returns a channel carrying mouse events.
-	// A new event is sent each time the mouse moves or a
-	// button is pressed or released.
-	MouseChan() <-chan Mouse
-
-	// ResizeChan returns a channel carrying resize events.
-	// An event is sent each time the window is resized;
-	// the client should respond by calling Screen() to obtain
-	// the new screen image.
-	// The value sent on the channel is always ``true'' and can be ignored.
-	ResizeChan() <-chan bool
-
-	// QuitChan returns a channel carrying quit requests.
-	// After reading a value from the quit channel, the application
-	// should exit.
-	QuitChan() <-chan bool
+	// but ordinary characters represent themselves.
+	Key int
 }
 
-// A Mouse represents the state of the mouse.
-type Mouse struct {
-	Buttons     int   // bit mask of buttons: 1<<0 is left, 1<<1 middle, 1<<2 right
-	image.Point       // location of cursor
-	Nsec        int64 // time stamp
+// A MouseEvent is sent for a button press or release or for a mouse movement.
+type MouseEvent struct {
+	// Buttons is a bit mask of buttons: 1<<0 is left, 1<<1 middle, 1<<2 right.
+	// It represents button state and not necessarily the state delta: bit 0
+	// being on means that the left mouse button is down, but does not imply
+	// that the same button was up in the previous MouseEvent.
+	Buttons int
+	// Loc is the location of the cursor.
+	Loc image.Point
+	// Nsec is the event's timestamp.
+	Nsec int64
+}
+
+// A ConfigEvent is sent each time the window's color model or size changes.
+// The client should respond by calling Window.Screen to obtain a new image.
+type ConfigEvent struct {
+	Config image.Config
+}
+
+// An ErrEvent is sent when an error occurs.
+type ErrEvent struct {
+	Err os.Error
 }

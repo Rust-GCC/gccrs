@@ -24,125 +24,138 @@ type URLTest struct {
 
 var urltests = []URLTest{
 	// no path
-	URLTest{
+	{
 		"http://www.google.com",
 		&URL{
-			Raw:       "http://www.google.com",
-			Scheme:    "http",
-			Authority: "www.google.com",
-			Host:      "www.google.com",
+			Raw:          "http://www.google.com",
+			Scheme:       "http",
+			RawAuthority: "www.google.com",
+			Host:         "www.google.com",
 		},
 		"",
 	},
 	// path
-	URLTest{
+	{
 		"http://www.google.com/",
 		&URL{
-			Raw:       "http://www.google.com/",
-			Scheme:    "http",
-			Authority: "www.google.com",
-			Host:      "www.google.com",
-			RawPath:   "/",
-			Path:      "/",
+			Raw:          "http://www.google.com/",
+			Scheme:       "http",
+			RawAuthority: "www.google.com",
+			Host:         "www.google.com",
+			RawPath:      "/",
+			Path:         "/",
 		},
 		"",
 	},
 	// path with hex escaping
-	URLTest{
+	{
 		"http://www.google.com/file%20one%26two",
 		&URL{
-			Raw:       "http://www.google.com/file%20one%26two",
-			Scheme:    "http",
-			Authority: "www.google.com",
-			Host:      "www.google.com",
-			RawPath:   "/file%20one%26two",
-			Path:      "/file one&two",
+			Raw:          "http://www.google.com/file%20one%26two",
+			Scheme:       "http",
+			RawAuthority: "www.google.com",
+			Host:         "www.google.com",
+			RawPath:      "/file%20one%26two",
+			Path:         "/file one&two",
 		},
-		"http://www.google.com/file%20one%26two",
+		"http://www.google.com/file%20one&two",
 	},
 	// user
-	URLTest{
+	{
 		"ftp://webmaster@www.google.com/",
 		&URL{
-			Raw:       "ftp://webmaster@www.google.com/",
-			Scheme:    "ftp",
-			Authority: "webmaster@www.google.com",
-			Userinfo:  "webmaster",
-			Host:      "www.google.com",
-			RawPath:   "/",
-			Path:      "/",
+			Raw:          "ftp://webmaster@www.google.com/",
+			Scheme:       "ftp",
+			RawAuthority: "webmaster@www.google.com",
+			RawUserinfo:  "webmaster",
+			Host:         "www.google.com",
+			RawPath:      "/",
+			Path:         "/",
 		},
 		"",
 	},
 	// escape sequence in username
-	URLTest{
+	{
 		"ftp://john%20doe@www.google.com/",
 		&URL{
-			Raw:       "ftp://john%20doe@www.google.com/",
-			Scheme:    "ftp",
-			Authority: "john doe@www.google.com",
-			Userinfo:  "john doe",
-			Host:      "www.google.com",
-			RawPath:   "/",
-			Path:      "/",
+			Raw:          "ftp://john%20doe@www.google.com/",
+			Scheme:       "ftp",
+			RawAuthority: "john%20doe@www.google.com",
+			RawUserinfo:  "john%20doe",
+			Host:         "www.google.com",
+			RawPath:      "/",
+			Path:         "/",
 		},
 		"ftp://john%20doe@www.google.com/",
 	},
 	// query
-	URLTest{
+	{
 		"http://www.google.com/?q=go+language",
 		&URL{
-			Raw:       "http://www.google.com/?q=go+language",
-			Scheme:    "http",
-			Authority: "www.google.com",
-			Host:      "www.google.com",
-			RawPath:   "/?q=go+language",
-			Path:      "/",
-			RawQuery:  "q=go+language",
+			Raw:          "http://www.google.com/?q=go+language",
+			Scheme:       "http",
+			RawAuthority: "www.google.com",
+			Host:         "www.google.com",
+			RawPath:      "/?q=go+language",
+			Path:         "/",
+			RawQuery:     "q=go+language",
 		},
 		"",
 	},
 	// query with hex escaping: NOT parsed
-	URLTest{
+	{
 		"http://www.google.com/?q=go%20language",
 		&URL{
-			Raw:       "http://www.google.com/?q=go%20language",
-			Scheme:    "http",
-			Authority: "www.google.com",
-			Host:      "www.google.com",
-			RawPath:   "/?q=go%20language",
-			Path:      "/",
-			RawQuery:  "q=go%20language",
+			Raw:          "http://www.google.com/?q=go%20language",
+			Scheme:       "http",
+			RawAuthority: "www.google.com",
+			Host:         "www.google.com",
+			RawPath:      "/?q=go%20language",
+			Path:         "/",
+			RawQuery:     "q=go%20language",
 		},
 		"",
 	},
 	// %20 outside query
-	URLTest{
+	{
 		"http://www.google.com/a%20b?q=c+d",
 		&URL{
-			Raw:       "http://www.google.com/a%20b?q=c+d",
-			Scheme:    "http",
-			Authority: "www.google.com",
-			Host:      "www.google.com",
-			RawPath:   "/a%20b?q=c+d",
-			Path:      "/a b",
-			RawQuery:  "q=c+d",
+			Raw:          "http://www.google.com/a%20b?q=c+d",
+			Scheme:       "http",
+			RawAuthority: "www.google.com",
+			Host:         "www.google.com",
+			RawPath:      "/a%20b?q=c+d",
+			Path:         "/a b",
+			RawQuery:     "q=c+d",
 		},
 		"",
 	},
-	// path without /, so no query parsing
-	URLTest{
+	// path without leading /, so no query parsing
+	{
 		"http:www.google.com/?q=go+language",
 		&URL{
-			Raw:     "http:www.google.com/?q=go+language",
-			Scheme:  "http",
-			RawPath: "www.google.com/?q=go+language",
-			Path:    "www.google.com/?q=go+language",
+			Raw:        "http:www.google.com/?q=go+language",
+			Scheme:     "http",
+			RawPath:    "www.google.com/?q=go+language",
+			Path:       "www.google.com/?q=go+language",
+			OpaquePath: true,
 		},
-		"http:www.google.com/%3fq%3dgo%2blanguage",
+		"http:www.google.com/?q=go+language",
+	},
+	// path without leading /, so no query parsing
+	{
+		"http:%2f%2fwww.google.com/?q=go+language",
+		&URL{
+			Raw:        "http:%2f%2fwww.google.com/?q=go+language",
+			Scheme:     "http",
+			RawPath:    "%2f%2fwww.google.com/?q=go+language",
+			Path:       "//www.google.com/?q=go+language",
+			OpaquePath: true,
+		},
+		"http:%2f/www.google.com/?q=go+language",
 	},
 	// non-authority
-	URLTest{
+	{
 		"mailto:/webmaster@golang.org",
 		&URL{
 			Raw:     "mailto:/webmaster@golang.org",
@@ -153,18 +166,19 @@ var urltests = []URLTest{
 		"",
 	},
 	// non-authority
-	URLTest{
+	{
 		"mailto:webmaster@golang.org",
 		&URL{
-			Raw:     "mailto:webmaster@golang.org",
-			Scheme:  "mailto",
-			RawPath: "webmaster@golang.org",
-			Path:    "webmaster@golang.org",
+			Raw:        "mailto:webmaster@golang.org",
+			Scheme:     "mailto",
+			RawPath:    "webmaster@golang.org",
+			Path:       "webmaster@golang.org",
+			OpaquePath: true,
 		},
 		"",
 	},
 	// unescaped :// in query should not create a scheme
-	URLTest{
+	{
 		"/foo?query=http://bad",
 		&URL{
 			Raw:      "/foo?query=http://bad",
@@ -175,7 +189,7 @@ var urltests = []URLTest{
 		"",
 	},
 	// leading // without scheme shouldn't create an authority
-	URLTest{
+	{
 		"//foo",
 		&URL{
 			Raw:     "//foo",
@@ -185,59 +199,81 @@ var urltests = []URLTest{
 		},
 		"",
 	},
+	{
+		"http://user:password@google.com",
+		&URL{
+			Raw:          "http://user:password@google.com",
+			Scheme:       "http",
+			RawAuthority: "user:password@google.com",
+			RawUserinfo:  "user:password",
+			Host:         "google.com",
+		},
+		"http://user:******@google.com",
+	},
+	{
+		"http://user:longerpass@google.com",
+		&URL{
+			Raw:          "http://user:longerpass@google.com",
+			Scheme:       "http",
+			RawAuthority: "user:longerpass@google.com",
+			RawUserinfo:  "user:longerpass",
+			Host:         "google.com",
+		},
+		"http://user:******@google.com",
+	},
 }
 
 var urlnofragtests = []URLTest{
-	URLTest{
+	{
 		"http://www.google.com/?q=go+language#foo",
 		&URL{
-			Raw:       "http://www.google.com/?q=go+language#foo",
-			Scheme:    "http",
-			Authority: "www.google.com",
-			Host:      "www.google.com",
-			RawPath:   "/?q=go+language#foo",
-			Path:      "/",
-			RawQuery:  "q=go+language#foo",
+			Raw:          "http://www.google.com/?q=go+language#foo",
+			Scheme:       "http",
+			RawAuthority: "www.google.com",
+			Host:         "www.google.com",
+			RawPath:      "/?q=go+language#foo",
+			Path:         "/",
+			RawQuery:     "q=go+language#foo",
 		},
 		"",
 	},
 }
 
 var urlfragtests = []URLTest{
-	URLTest{
+	{
 		"http://www.google.com/?q=go+language#foo",
 		&URL{
-			Raw:       "http://www.google.com/?q=go+language#foo",
-			Scheme:    "http",
-			Authority: "www.google.com",
-			Host:      "www.google.com",
-			RawPath:   "/?q=go+language#foo",
-			Path:      "/",
-			RawQuery:  "q=go+language",
-			Fragment:  "foo",
+			Raw:          "http://www.google.com/?q=go+language#foo",
+			Scheme:       "http",
+			RawAuthority: "www.google.com",
+			Host:         "www.google.com",
+			RawPath:      "/?q=go+language#foo",
+			Path:         "/",
+			RawQuery:     "q=go+language",
+			Fragment:     "foo",
 		},
 		"",
 	},
-	URLTest{
+	{
 		"http://www.google.com/?q=go+language#foo%26bar",
 		&URL{
-			Raw:       "http://www.google.com/?q=go+language#foo%26bar",
-			Scheme:    "http",
-			Authority: "www.google.com",
-			Host:      "www.google.com",
-			RawPath:   "/?q=go+language#foo%26bar",
-			Path:      "/",
-			RawQuery:  "q=go+language",
-			Fragment:  "foo&bar",
+			Raw:          "http://www.google.com/?q=go+language#foo%26bar",
+			Scheme:       "http",
+			RawAuthority: "www.google.com",
+			Host:         "www.google.com",
+			RawPath:      "/?q=go+language#foo%26bar",
+			Path:         "/",
+			RawQuery:     "q=go+language",
+			Fragment:     "foo&bar",
 		},
-		"",
+		"http://www.google.com/?q=go+language#foo&bar",
 	},
 }
 
 // more useful string for debugging than fmt's struct printer
 func ufmt(u *URL) string {
 	return fmt.Sprintf("%q, %q, %q, %q, %q, %q, %q, %q, %q",
-		u.Raw, u.Scheme, u.RawPath, u.Authority, u.Userinfo,
+		u.Raw, u.Scheme, u.RawPath, u.RawAuthority, u.RawUserinfo,
 		u.Host, u.Path, u.RawQuery, u.Fragment)
 }
 
@@ -285,11 +321,9 @@ func DoTestString(t *testing.T, parse func(string) (*URL, os.Error), name string
 
 func TestURLString(t *testing.T) {
 	DoTestString(t, ParseURL, "ParseURL", urltests)
-	DoTestString(t, ParseURL, "ParseURL", urlfragtests)
 	DoTestString(t, ParseURL, "ParseURL", urlnofragtests)
 	DoTestString(t, ParseURLReference, "ParseURLReference", urltests)
 	DoTestString(t, ParseURLReference, "ParseURLReference", urlfragtests)
-	DoTestString(t, ParseURLReference, "ParseURLReference", urlnofragtests)
 }
 
 type URLEscapeTest struct {
@@ -299,57 +333,57 @@ type URLEscapeTest struct {
 }
 
 var unescapeTests = []URLEscapeTest{
-	URLEscapeTest{
+	{
 		"",
 		"",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		"abc",
 		"abc",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		"1%41",
 		"1A",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		"1%41%42%43",
 		"1ABC",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		"%4a",
 		"J",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		"%6F",
 		"o",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		"%", // not enough characters after %
 		"",
 		URLEscapeError("%"),
 	},
-	URLEscapeTest{
+	{
 		"%a", // not enough characters after %
 		"",
 		URLEscapeError("%a"),
 	},
-	URLEscapeTest{
+	{
 		"%1", // not enough characters after %
 		"",
 		URLEscapeError("%1"),
 	},
-	URLEscapeTest{
+	{
 		"123%45%6", // not enough characters after %
 		"",
 		URLEscapeError("%6"),
 	},
-	URLEscapeTest{
+	{
 		"%zzzzz", // invalid hex digits
 		"",
 		URLEscapeError("%zz"),
@@ -366,27 +400,27 @@ func TestURLUnescape(t *testing.T) {
 }
 
 var escapeTests = []URLEscapeTest{
-	URLEscapeTest{
+	{
 		"",
 		"",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		"abc",
 		"abc",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		"one two",
 		"one+two",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		"10%",
 		"10%25",
 		nil,
 	},
-	URLEscapeTest{
+	{
 		" ?&=#+%!<>#\"{}|\\^[]`☺\t",
 		"+%3f%26%3d%23%2b%25!%3c%3e%23%22%7b%7d%7c%5c%5e%5b%5d%60%e2%98%ba%09",
 		nil,
@@ -414,27 +448,27 @@ type CanonicalPathTest struct {
 }
 
 var canonicalTests = []CanonicalPathTest{
-	CanonicalPathTest{"", ""},
-	CanonicalPathTest{"/", "/"},
-	CanonicalPathTest{".", ""},
-	CanonicalPathTest{"./", ""},
-	CanonicalPathTest{"/a/", "/a/"},
-	CanonicalPathTest{"a/", "a/"},
-	CanonicalPathTest{"a/./", "a/"},
-	CanonicalPathTest{"./a", "a"},
-	CanonicalPathTest{"/a/../b", "/b"},
-	CanonicalPathTest{"a/../b", "b"},
-	CanonicalPathTest{"a/../../b", "../b"},
-	CanonicalPathTest{"a/.", "a/"},
-	CanonicalPathTest{"../.././a", "../../a"},
-	CanonicalPathTest{"/../.././a", "/../../a"},
-	CanonicalPathTest{"a/b/g/../..", "a/"},
-	CanonicalPathTest{"a/b/..", "a/"},
-	CanonicalPathTest{"a/b/.", "a/b/"},
-	CanonicalPathTest{"a/b/../../../..", "../.."},
-	CanonicalPathTest{"a./", "a./"},
-	CanonicalPathTest{"/../a/b/../../../", "/../../"},
-	CanonicalPathTest{"../a/b/../../../", "../../"},
+	{"", ""},
+	{"/", "/"},
+	{".", ""},
+	{"./", ""},
+	{"/a/", "/a/"},
+	{"a/", "a/"},
+	{"a/./", "a/"},
+	{"./a", "a"},
+	{"/a/../b", "/b"},
+	{"a/../b", "b"},
+	{"a/../../b", "../b"},
+	{"a/.", "a/"},
+	{"../.././a", "../../a"},
+	{"/../.././a", "/../../a"},
+	{"a/b/g/../..", "a/"},
+	{"a/b/..", "a/"},
+	{"a/b/.", "a/b/"},
+	{"a/b/../../../..", "../.."},
+	{"a./", "a./"},
+	{"/../a/b/../../../", "/../../"},
+	{"../a/b/../../../", "../../"},
 }
 
 func TestCanonicalPath(t *testing.T) {
@@ -442,6 +476,34 @@ func TestCanonicalPath(t *testing.T) {
 		actual := CanonicalPath(tt.in)
 		if tt.out != actual {
 			t.Errorf("CanonicalPath(%q) = %q, want %q", tt.in, actual, tt.out)
+		}
+	}
+}
+
+type UserinfoTest struct {
+	User     string
+	Password string
+	Raw      string
+}
+
+var userinfoTests = []UserinfoTest{
+	{"user", "password", "user:password"},
+	{"foo:bar", "~!@#$%^&*()_+{}|[]\\-=`:;'\"<>?,./",
+		"foo%3abar:~!%40%23$%25%5e&*()_+%7b%7d%7c%5b%5d%5c-=%60%3a;'%22%3c%3e?,.%2f"},
+}
+
+func TestEscapeUserinfo(t *testing.T) {
+	for _, tt := range userinfoTests {
+		if raw := EscapeUserinfo(tt.User, tt.Password); raw != tt.Raw {
+			t.Errorf("EscapeUserinfo(%q, %q) = %q, want %q", tt.User, tt.Password, raw, tt.Raw)
+		}
+	}
+}
+
+func TestUnescapeUserinfo(t *testing.T) {
+	for _, tt := range userinfoTests {
+		if user, pass, err := UnescapeUserinfo(tt.Raw); user != tt.User || pass != tt.Password || err != nil {
+			t.Errorf("UnescapeUserinfo(%q) = %q, %q, %v, want %q, %q, nil", tt.Raw, user, pass, err, tt.User, tt.Password)
 		}
 	}
 }

@@ -115,22 +115,23 @@ struct	M
 #define USED(v)		((void) v)
 
 /* We map throw to assert.  */
-#define throw(s) __go_assert(s == 0)
+#define runtime_throw(s) __go_assert(s == 0)
 
-void*	mal(uintptr);
-void	mallocinit(void);
+void*	runtime_mal(uintptr);
+void	runtime_mallocinit(void);
 void	siginit(void);
 bool	__go_sigsend(int32 sig);
-int64	nanotime(void);
+int64	runtime_nanotime(void);
 
-void	stoptheworld(void);
-void	starttheworld(void);
+void	runtime_stoptheworld(void);
+void	runtime_starttheworld(void);
 void	__go_go(void (*pfn)(void*), void*);
 void	__go_gc_goroutine_init(void*);
 void	__go_enable_gc(void);
 int	__go_run_goroutine_gc(int);
-void	__go_scanstacks(void (*scan)(int32, byte *, int64));
+void	__go_scanstacks(void (*scan)(byte *, int64));
 void	__go_stealcache(void);
+void	__go_cachestats(void);
 
 /*
  * mutual exclusion locks.  in the uncontended case,
@@ -138,11 +139,11 @@ void	__go_stealcache(void);
  * but on the contention path they sleep in the kernel.
  */
 #define	LOCK_INITIALIZER	{ PTHREAD_MUTEX_INITIALIZER }
-void	initlock(Lock*);
-void	lock(Lock*);
-void	unlock(Lock*);
-void	destroylock(Lock*);
-bool	trylock(Lock*);
+void	runtime_initlock(Lock*);
+void	runtime_lock(Lock*);
+void	runtime_unlock(Lock*);
+void	runtime_destroylock(Lock*);
+bool	runtime_trylock(Lock*);
 
 void semacquire (uint32 *) asm ("libgo_runtime.runtime.Semacquire");
 void semrelease (uint32 *) asm ("libgo_runtime.runtime.Semrelease");
@@ -161,14 +162,22 @@ void	notesleep(Note*);
 void	notewakeup(Note*);
 
 /* Functions.  */
+#define runtime_printf printf
+#define runtime_malloc(s) __go_alloc(s)
+#define runtime_free(p) __go_free(p)
 #define runtime_memclr(buf, size) __builtin_memset((buf), 0, (size))
-#define mcmp(a, b, s) __builtin_memcmp((a), (b), (s))
-MCache*	allocmcache(void);
+#define runtime_strcmp(s1, s2) __builtin_strcmp((s1), (s2))
+#define runtime_getenv(s) getenv(s)
+#define runtime_atoi(s) atoi(s)
+#define runtime_mcmp(a, b, s) __builtin_memcmp((a), (b), (s))
+#define runtime_memmove(a, b, s) __builtin_memmove((a), (b), (s))
+MCache*	runtime_allocmcache(void);
 void	free(void *v);
 struct __go_func_type;
-void	addfinalizer(void*, void(*fn)(void*), const struct __go_func_type *);
-void	walkfintab(void (*fn)(void*), void (*scan)(int32, byte *, int64));
+void	runtime_addfinalizer(void*, void(*fn)(void*), const struct __go_func_type *);
+void	runtime_walkfintab(void (*fn)(void*), void (*scan)(byte *, int64));
 #define runtime_mmap mmap
+#define runtime_munmap(p, s) munmap((p), (s))
 #define cas(pval, old, new) __sync_bool_compare_and_swap (pval, old, new)
 
 struct __go_func_type;

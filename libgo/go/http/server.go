@@ -37,42 +37,93 @@ var (
 // registered to serve a particular path or subtree
 // in the HTTP server.
 //
-// ServeHTTP should write reply headers and data to the Conn
+// ServeHTTP should write reply headers and data to the ResponseWriter
 // and then return.  Returning signals that the request is finished
 // and that the HTTP server can move on to the next request on
 // the connection.
 type Handler interface {
-	ServeHTTP(*Conn, *Request)
+	ServeHTTP(ResponseWriter, *Request)
 }
 
-// A Conn represents the server side of a single active HTTP connection.
-type Conn struct {
-	RemoteAddr string   // network address of remote side
-	Req        *Request // current HTTP request
+// A ResponseWriter interface is used by an HTTP handler to
+// construct an HTTP response.
+type ResponseWriter interface {
+	// RemoteAddr returns the address of the client that sent the current request
+	RemoteAddr() string
 
-	rwc      io.ReadWriteCloser // i/o connection
-	buf      *bufio.ReadWriter  // buffered rwc
-	handler  Handler            // request handler
-	hijacked bool               // connection has been hijacked by handler
+	// UsingTLS returns true if the client is connected using TLS
+	UsingTLS() bool
 
-	// state for the current reply
-	closeAfterReply bool              // close connection after this reply
-	chunking        bool              // using chunked transfer encoding for reply body
-	wroteHeader     bool              // reply header has been written
-	wroteContinue   bool              // 100 Continue response was written
-	header          map[string]string // reply header parameters
-	written         int64             // number of bytes written in body
-	status          int               // status code passed to WriteHeader
+	// SetHeader sets a header line in the eventual response.
+	// For example, SetHeader("Content-Type", "text/html; charset=utf-8")
+	// will result in the header line
+	//
+	//	Content-Type: text/html; charset=utf-8
+	//
+	// being sent.  UTF-8 encoded HTML is the default setting for
+	// Content-Type in this library, so users need not make that
+	// particular call.  Calls to SetHeader after WriteHeader (or Write)
+	// are ignored.
+	SetHeader(string, string)
+
+	// Write writes the data to the connection as part of an HTTP reply.
+	// If WriteHeader has not yet been called, Write calls WriteHeader(http.StatusOK)
+	// before writing the data.
+	Write([]byte) (int, os.Error)
+
+	// WriteHeader sends an HTTP response header with status code.
+	// If WriteHeader is not called explicitly, the first call to Write
+	// will trigger an implicit WriteHeader(http.StatusOK).
+	// Thus explicit calls to WriteHeader are mainly used to
+	// send error codes.
+	WriteHeader(int)
+
+	// Flush sends any buffered data to the client.
+	Flush()
+
+	// Hijack lets the caller take over the connection.
+	// After a call to Hijack(), the HTTP server library
+	// will not do anything else with the connection.
+	// It becomes the caller's responsibility to manage
+	// and close the connection.
+	Hijack() (io.ReadWriteCloser, *bufio.ReadWriter, os.Error)
+}
+
+// A conn represents the server side of an HTTP connection.
+type conn struct {
+	remoteAddr string             // network address of remote side
+	handler    Handler            // request handler
+	rwc        io.ReadWriteCloser // i/o connection
+	buf        *bufio.ReadWriter  // buffered rwc
+	hijacked   bool               // connection has been hijacked by handler
+	usingTLS   bool               // a flag indicating connection over TLS
+}
+
+// A response represents the server side of an HTTP response.
+type response struct {
+	conn          *conn
+	req           *Request          // request for this response
+	chunking      bool              // using chunked transfer encoding for reply body
+	wroteHeader   bool              // reply header has been written
+	wroteContinue bool              // 100 Continue response was written
+	header        map[string]string // reply header parameters
+	written       int64             // number of bytes written in body
+	status        int               // status code passed to WriteHeader
+
+	// close connection after this reply.  set on request and
+	// updated after response from handler if there's a
+	// "Connection: keep-alive" response header and a
+	// Content-Length.
+	closeAfterReply bool
 }
 
 // Create new connection from rwc.
-func newConn(rwc net.Conn, handler Handler) (c *Conn, err os.Error) {
-	c = new(Conn)
-	if a := rwc.RemoteAddr(); a != nil {
-		c.RemoteAddr = a.String()
-	}
+func newConn(rwc net.Conn, handler Handler) (c *conn, err os.Error) {
+	c = new(conn)
+	c.remoteAddr = rwc.RemoteAddr().String()
 	c.handler = handler
 	c.rwc = rwc
+	_, c.usingTLS = rwc.(*tls.Conn)
 	br := bufio.NewReader(rwc)
 	bw := bufio.NewWriter(rwc)
 	c.buf = bufio.NewReadWriter(br, bw)
@@ -82,17 +133,15 @@ func newConn(rwc net.Conn, handler Handler) (c *Conn, err os.Error) {
 // wrapper around io.ReaderCloser which on first read, sends an
 // HTTP/1.1 100 Continue header
 type expectContinueReader struct {
-	conn       *Conn
+	resp       *response
 	readCloser io.ReadCloser
 }
 
 func (ecr *expectContinueReader) Read(p []byte) (n int, err os.Error) {
-	if !ecr.conn.wroteContinue && !ecr.conn.hijacked {
-		ecr.conn.wroteContinue = true
-		if ecr.conn.Req.ProtoAtLeast(1, 1) {
-			io.WriteString(ecr.conn.buf, "HTTP/1.1 100 Continue\r\n\r\n")
-			ecr.conn.buf.Flush()
-		}
+	if !ecr.resp.wroteContinue && !ecr.resp.conn.hijacked {
+		ecr.resp.wroteContinue = true
+		io.WriteString(ecr.resp.conn.buf, "HTTP/1.1 100 Continue\r\n\r\n")
+		ecr.resp.conn.buf.Flush()
 	}
 	return ecr.readCloser.Read(p)
 }
@@ -101,88 +150,88 @@ func (ecr *expectContinueReader) Close() os.Error {
 	return ecr.readCloser.Close()
 }
 
+// TimeFormat is the time format to use with
+// time.Parse and time.Time.Format when parsing
+// or generating times in HTTP headers.
+// It is like time.RFC1123 but hard codes GMT as the time zone.
+const TimeFormat = "Mon, 02 Jan 2006 15:04:05 GMT"
+
 // Read next request from connection.
-func (c *Conn) readRequest() (req *Request, err os.Error) {
+func (c *conn) readRequest() (w *response, err os.Error) {
 	if c.hijacked {
 		return nil, ErrHijacked
 	}
+	var req *Request
 	if req, err = ReadRequest(c.buf.Reader); err != nil {
 		return nil, err
 	}
 
-	// Reset per-request connection state.
-	c.header = make(map[string]string)
-	c.wroteHeader = false
-	c.wroteContinue = false
-	c.Req = req
+	w = new(response)
+	w.conn = c
+	w.req = req
+	w.header = make(map[string]string)
 
 	// Expect 100 Continue support
-	if req.expectsContinue() {
+	if req.expectsContinue() && req.ProtoAtLeast(1, 1) {
 		// Wrap the Body reader with one that replies on the connection
-		req.Body = &expectContinueReader{readCloser: req.Body, conn: c}
+		req.Body = &expectContinueReader{readCloser: req.Body, resp: w}
 	}
 
 	// Default output is HTML encoded in UTF-8.
-	c.SetHeader("Content-Type", "text/html; charset=utf-8")
+	w.SetHeader("Content-Type", "text/html; charset=utf-8")
+	w.SetHeader("Date", time.UTC().Format(TimeFormat))
 
 	if req.ProtoAtLeast(1, 1) {
 		// HTTP/1.1 or greater: use chunked transfer encoding
 		// to avoid closing the connection at EOF.
-		c.chunking = true
-		c.SetHeader("Transfer-Encoding", "chunked")
+		w.chunking = true
+		w.SetHeader("Transfer-Encoding", "chunked")
 	} else {
 		// HTTP version < 1.1: cannot do chunked transfer
 		// encoding, so signal EOF by closing connection.
-		// Could avoid closing the connection if there is
-		// a Content-Length: header in the response,
-		// but everyone who expects persistent connections
-		// does HTTP/1.1 now.
-		c.closeAfterReply = true
-		c.chunking = false
+		// Will be overridden if the HTTP handler ends up
+		// writing a Content-Length and the client requested
+		// "Connection: keep-alive"
+		w.closeAfterReply = true
 	}
 
-	return req, nil
+	return w, nil
 }
 
-// SetHeader sets a header line in the eventual reply.
-// For example, SetHeader("Content-Type", "text/html; charset=utf-8")
-// will result in the header line
-//
-//	Content-Type: text/html; charset=utf-8
-//
-// being sent.  UTF-8 encoded HTML is the default setting for
-// Content-Type in this library, so users need not make that
-// particular call.  Calls to SetHeader after WriteHeader (or Write)
-// are ignored.
-func (c *Conn) SetHeader(hdr, val string) { c.header[CanonicalHeaderKey(hdr)] = val }
+// UsingTLS implements the ResponseWriter.UsingTLS
+func (w *response) UsingTLS() bool {
+	return w.conn.usingTLS
+}
 
-// WriteHeader sends an HTTP response header with status code.
-// If WriteHeader is not called explicitly, the first call to Write
-// will trigger an implicit WriteHeader(http.StatusOK).
-// Thus explicit calls to WriteHeader are mainly used to
-// send error codes.
-func (c *Conn) WriteHeader(code int) {
-	if c.hijacked {
-		log.Stderr("http: Conn.WriteHeader on hijacked connection")
+// RemoteAddr implements the ResponseWriter.RemoteAddr method
+func (w *response) RemoteAddr() string { return w.conn.remoteAddr }
+
+// SetHeader implements the ResponseWriter.SetHeader method
+func (w *response) SetHeader(hdr, val string) { w.header[CanonicalHeaderKey(hdr)] = val }
+
+// WriteHeader implements the ResponseWriter.WriteHeader method
+func (w *response) WriteHeader(code int) {
+	if w.conn.hijacked {
+		log.Print("http: response.WriteHeader on hijacked connection")
 		return
 	}
-	if c.wroteHeader {
-		log.Stderr("http: multiple Conn.WriteHeader calls")
+	if w.wroteHeader {
+		log.Print("http: multiple response.WriteHeader calls")
 		return
 	}
-	c.wroteHeader = true
-	c.status = code
+	w.wroteHeader = true
+	w.status = code
 	if code == StatusNotModified {
 		// Must not have body.
-		c.header["Content-Type"] = "", false
-		c.header["Transfer-Encoding"] = "", false
+		w.header["Content-Type"] = "", false
+		w.header["Transfer-Encoding"] = "", false
+		w.chunking = false
 	}
-	c.written = 0
-	if !c.Req.ProtoAtLeast(1, 0) {
+	if !w.req.ProtoAtLeast(1, 0) {
 		return
 	}
 	proto := "HTTP/1.0"
-	if c.Req.ProtoAtLeast(1, 1) {
+	if w.req.ProtoAtLeast(1, 1) {
 		proto = "HTTP/1.1"
 	}
 	codestring := strconv.Itoa(code)
@@ -190,48 +239,55 @@ func (c *Conn) WriteHeader(code int) {
 	if !ok {
 		text = "status code " + codestring
 	}
-	io.WriteString(c.buf, proto+" "+codestring+" "+text+"\r\n")
-	for k, v := range c.header {
-		io.WriteString(c.buf, k+": "+v+"\r\n")
+	io.WriteString(w.conn.buf, proto+" "+codestring+" "+text+"\r\n")
+	for k, v := range w.header {
+		io.WriteString(w.conn.buf, k+": "+v+"\r\n")
 	}
-	io.WriteString(c.buf, "\r\n")
+	io.WriteString(w.conn.buf, "\r\n")
 }
 
-// Write writes the data to the connection as part of an HTTP reply.
-// If WriteHeader has not yet been called, Write calls WriteHeader(http.StatusOK)
-// before writing the data.
-func (c *Conn) Write(data []byte) (n int, err os.Error) {
-	if c.hijacked {
-		log.Stderr("http: Conn.Write on hijacked connection")
+// Write implements the ResponseWriter.Write method
+func (w *response) Write(data []byte) (n int, err os.Error) {
+	if w.conn.hijacked {
+		log.Print("http: response.Write on hijacked connection")
 		return 0, ErrHijacked
 	}
-	if !c.wroteHeader {
-		c.WriteHeader(StatusOK)
+	if !w.wroteHeader {
+		if w.req.wantsHttp10KeepAlive() {
+			_, hasLength := w.header["Content-Length"]
+			if hasLength {
+				_, connectionHeaderSet := w.header["Connection"]
+				if !connectionHeaderSet {
+					w.header["Connection"] = "keep-alive"
+				}
+			}
+		}
+		w.WriteHeader(StatusOK)
 	}
 	if len(data) == 0 {
 		return 0, nil
 	}
 
-	if c.status == StatusNotModified {
+	if w.status == StatusNotModified {
 		// Must not have body.
 		return 0, ErrBodyNotAllowed
 	}
 
-	c.written += int64(len(data)) // ignoring errors, for errorKludge
+	w.written += int64(len(data)) // ignoring errors, for errorKludge
 
 	// TODO(rsc): if chunking happened after the buffering,
 	// then there would be fewer chunk headers.
 	// On the other hand, it would make hijacking more difficult.
-	if c.chunking {
-		fmt.Fprintf(c.buf, "%x\r\n", len(data)) // TODO(rsc): use strconv not fmt
+	if w.chunking {
+		fmt.Fprintf(w.conn.buf, "%x\r\n", len(data)) // TODO(rsc): use strconv not fmt
 	}
-	n, err = c.buf.Write(data)
-	if err == nil && c.chunking {
+	n, err = w.conn.buf.Write(data)
+	if err == nil && w.chunking {
 		if n != len(data) {
 			err = io.ErrShortWrite
 		}
 		if err == nil {
-			io.WriteString(c.buf, "\r\n")
+			io.WriteString(w.conn.buf, "\r\n")
 		}
 	}
 
@@ -245,25 +301,25 @@ func (c *Conn) Write(data []byte) (n int, err os.Error) {
 // long enough.  The minimum lengths used in those
 // browsers are in the 256-512 range.
 // Pad to 1024 bytes.
-func errorKludge(c *Conn, req *Request) {
+func errorKludge(w *response) {
 	const min = 1024
 
 	// Is this an error?
-	if kind := c.status / 100; kind != 4 && kind != 5 {
+	if kind := w.status / 100; kind != 4 && kind != 5 {
 		return
 	}
 
 	// Did the handler supply any info?  Enough?
-	if c.written == 0 || c.written >= min {
+	if w.written == 0 || w.written >= min {
 		return
 	}
 
 	// Is it a broken browser?
 	var msg string
-	switch agent := req.UserAgent; {
-	case strings.Index(agent, "MSIE") >= 0:
+	switch agent := w.req.UserAgent; {
+	case strings.Contains(agent, "MSIE"):
 		msg = "Internet Explorer"
-	case strings.Index(agent, "Chrome/") >= 0:
+	case strings.Contains(agent, "Chrome/"):
 		msg = "Chrome"
 	default:
 		return
@@ -271,45 +327,53 @@ func errorKludge(c *Conn, req *Request) {
 	msg += " would ignore this error page if this text weren't here.\n"
 
 	// Is it text?  ("Content-Type" is always in the map)
-	baseType := strings.Split(c.header["Content-Type"], ";", 2)[0]
+	baseType := strings.Split(w.header["Content-Type"], ";", 2)[0]
 	switch baseType {
 	case "text/html":
-		io.WriteString(c, "<!-- ")
-		for c.written < min {
-			io.WriteString(c, msg)
+		io.WriteString(w, "<!-- ")
+		for w.written < min {
+			io.WriteString(w, msg)
 		}
-		io.WriteString(c, " -->")
+		io.WriteString(w, " -->")
 	case "text/plain":
-		io.WriteString(c, "\n")
-		for c.written < min {
-			io.WriteString(c, msg)
+		io.WriteString(w, "\n")
+		for w.written < min {
+			io.WriteString(w, msg)
 		}
 	}
 }
 
-func (c *Conn) finishRequest() {
-	if !c.wroteHeader {
-		c.WriteHeader(StatusOK)
+func (w *response) finishRequest() {
+	// If this was an HTTP/1.0 request with keep-alive and we sent a Content-Length
+	// back, we can make this a keep-alive response ...
+	if w.req.wantsHttp10KeepAlive() {
+		_, sentLength := w.header["Content-Length"]
+		if sentLength && w.header["Connection"] == "keep-alive" {
+			w.closeAfterReply = false
+		}
 	}
-	errorKludge(c, c.Req)
-	if c.chunking {
-		io.WriteString(c.buf, "0\r\n")
+	if !w.wroteHeader {
+		w.WriteHeader(StatusOK)
+	}
+	errorKludge(w)
+	if w.chunking {
+		io.WriteString(w.conn.buf, "0\r\n")
 		// trailer key/value pairs, followed by blank line
-		io.WriteString(c.buf, "\r\n")
+		io.WriteString(w.conn.buf, "\r\n")
 	}
-	c.buf.Flush()
+	w.conn.buf.Flush()
 }
 
-// Flush sends any buffered data to the client.
-func (c *Conn) Flush() {
-	if !c.wroteHeader {
-		c.WriteHeader(StatusOK)
+// Flush implements the ResponseWriter.Flush method.
+func (w *response) Flush() {
+	if !w.wroteHeader {
+		w.WriteHeader(StatusOK)
 	}
-	c.buf.Flush()
+	w.conn.buf.Flush()
 }
 
 // Close the connection.
-func (c *Conn) close() {
+func (c *conn) close() {
 	if c.buf != nil {
 		c.buf.Flush()
 		c.buf = nil
@@ -321,41 +385,39 @@ func (c *Conn) close() {
 }
 
 // Serve a new connection.
-func (c *Conn) serve() {
+func (c *conn) serve() {
 	for {
-		req, err := c.readRequest()
+		w, err := c.readRequest()
 		if err != nil {
 			break
 		}
-		// HTTP cannot have multiple simultaneous active requests.
+		// HTTP cannot have multiple simultaneous active requests.[*]
 		// Until the server replies to this request, it can't read another,
 		// so we might as well run the handler in this goroutine.
-		c.handler.ServeHTTP(c, req)
+		// [*] Not strictly true: HTTP pipelining.  We could let them all process
+		// in parallel even if their responses need to be serialized.
+		c.handler.ServeHTTP(w, w.req)
 		if c.hijacked {
 			return
 		}
-		c.finishRequest()
-		if c.closeAfterReply {
+		w.finishRequest()
+		if w.closeAfterReply {
 			break
 		}
 	}
 	c.close()
 }
 
-// Hijack lets the caller take over the connection.
-// After a call to c.Hijack(), the HTTP server library
-// will not do anything else with the connection.
-// It becomes the caller's responsibility to manage
-// and close the connection.
-func (c *Conn) Hijack() (rwc io.ReadWriteCloser, buf *bufio.ReadWriter, err os.Error) {
-	if c.hijacked {
+// Hijack impements the ResponseWriter.Hijack method.
+func (w *response) Hijack() (rwc io.ReadWriteCloser, buf *bufio.ReadWriter, err os.Error) {
+	if w.conn.hijacked {
 		return nil, nil, ErrHijacked
 	}
-	c.hijacked = true
-	rwc = c.rwc
-	buf = c.buf
-	c.rwc = nil
-	c.buf = nil
+	w.conn.hijacked = true
+	rwc = w.conn.rwc
+	buf = w.conn.buf
+	w.conn.rwc = nil
+	w.conn.buf = nil
 	return
 }
 
@@ -363,24 +425,24 @@ func (c *Conn) Hijack() (rwc io.ReadWriteCloser, buf *bufio.ReadWriter, err os.E
 // ordinary functions as HTTP handlers.  If f is a function
 // with the appropriate signature, HandlerFunc(f) is a
 // Handler object that calls f.
-type HandlerFunc func(*Conn, *Request)
+type HandlerFunc func(ResponseWriter, *Request)
 
-// ServeHTTP calls f(c, req).
-func (f HandlerFunc) ServeHTTP(c *Conn, req *Request) {
-	f(c, req)
+// ServeHTTP calls f(w, req).
+func (f HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
+	f(w, r)
 }
 
 // Helper handlers
 
 // Error replies to the request with the specified error message and HTTP code.
-func Error(c *Conn, error string, code int) {
-	c.SetHeader("Content-Type", "text/plain; charset=utf-8")
-	c.WriteHeader(code)
-	fmt.Fprintln(c, error)
+func Error(w ResponseWriter, error string, code int) {
+	w.SetHeader("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(code)
+	fmt.Fprintln(w, error)
 }
 
 // NotFound replies to the request with an HTTP 404 not found error.
-func NotFound(c *Conn, req *Request) { Error(c, "404 page not found", StatusNotFound) }
+func NotFound(w ResponseWriter, r *Request) { Error(w, "404 page not found", StatusNotFound) }
 
 // NotFoundHandler returns a simple request handler
 // that replies to each request with a ``404 page not found'' reply.
@@ -388,11 +450,11 @@ func NotFoundHandler() Handler { return HandlerFunc(NotFound) }
 
 // Redirect replies to the request with a redirect to url,
 // which may be a path relative to the request path.
-func Redirect(c *Conn, url string, code int) {
+func Redirect(w ResponseWriter, r *Request, url string, code int) {
 	// RFC2616 recommends that a short note "SHOULD" be included in the
 	// response because older user agents may not understand 301/307.
 	note := "<a href=\"%v\">" + statusText[code] + "</a>.\n"
-	if c.Req.Method == "POST" {
+	if r.Method == "POST" {
 		note = ""
 	}
 
@@ -417,7 +479,7 @@ func Redirect(c *Conn, url string, code int) {
 	// Because of this problem, no one pays attention
 	// to the RFC; they all send back just a new path.
 	// So do we.
-	oldpath := c.Req.URL.Path
+	oldpath := r.URL.Path
 	if oldpath == "" { // should not happen, but avoid a crash if it does
 		oldpath = "/"
 	}
@@ -438,9 +500,9 @@ func Redirect(c *Conn, url string, code int) {
 	}
 
 finish:
-	c.SetHeader("Location", url)
-	c.WriteHeader(code)
-	fmt.Fprintf(c, note, url)
+	w.SetHeader("Location", url)
+	w.WriteHeader(code)
+	fmt.Fprintf(w, note, url)
 }
 
 // Redirect to a fixed URL
@@ -449,8 +511,8 @@ type redirectHandler struct {
 	code int
 }
 
-func (rh *redirectHandler) ServeHTTP(c *Conn, req *Request) {
-	Redirect(c, rh.url, rh.code)
+func (rh *redirectHandler) ServeHTTP(w ResponseWriter, r *Request) {
+	Redirect(w, r, rh.url, rh.code)
 }
 
 // RedirectHandler returns a request handler that redirects
@@ -526,11 +588,11 @@ func cleanPath(p string) string {
 
 // ServeHTTP dispatches the request to the handler whose
 // pattern most closely matches the request URL.
-func (mux *ServeMux) ServeHTTP(c *Conn, req *Request) {
+func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
 	// Clean path to canonical form and redirect.
-	if p := cleanPath(req.URL.Path); p != req.URL.Path {
-		c.SetHeader("Location", p)
-		c.WriteHeader(StatusMovedPermanently)
+	if p := cleanPath(r.URL.Path); p != r.URL.Path {
+		w.SetHeader("Location", p)
+		w.WriteHeader(StatusMovedPermanently)
 		return
 	}
 
@@ -538,7 +600,7 @@ func (mux *ServeMux) ServeHTTP(c *Conn, req *Request) {
 	var h Handler
 	var n = 0
 	for k, v := range mux.m {
-		if !pathMatch(k, req.URL.Path) {
+		if !pathMatch(k, r.URL.Path) {
 			continue
 		}
 		if h == nil || len(k) > n {
@@ -549,7 +611,7 @@ func (mux *ServeMux) ServeHTTP(c *Conn, req *Request) {
 	if h == nil {
 		h = NotFoundHandler()
 	}
-	h.ServeHTTP(c, req)
+	h.ServeHTTP(w, r)
 }
 
 // Handle registers the handler for the given pattern.
@@ -569,7 +631,7 @@ func (mux *ServeMux) Handle(pattern string, handler Handler) {
 }
 
 // HandleFunc registers the handler function for the given pattern.
-func (mux *ServeMux) HandleFunc(pattern string, handler func(*Conn, *Request)) {
+func (mux *ServeMux) HandleFunc(pattern string, handler func(ResponseWriter, *Request)) {
 	mux.Handle(pattern, HandlerFunc(handler))
 }
 
@@ -579,7 +641,7 @@ func Handle(pattern string, handler Handler) { DefaultServeMux.Handle(pattern, h
 
 // HandleFunc registers the handler function for the given pattern
 // in the DefaultServeMux.
-func HandleFunc(pattern string, handler func(*Conn, *Request)) {
+func HandleFunc(pattern string, handler func(ResponseWriter, *Request)) {
 	DefaultServeMux.HandleFunc(pattern, handler)
 }
 
@@ -621,8 +683,8 @@ func Serve(l net.Listener, handler Handler) os.Error {
 //	)
 //
 //	// hello world, the web server
-//	func HelloServer(c *http.Conn, req *http.Request) {
-//		io.WriteString(c, "hello, world!\n")
+//	func HelloServer(w http.ResponseWriter, req *http.Request) {
+//		io.WriteString(w, "hello, world!\n")
 //	}
 //
 //	func main() {
@@ -653,14 +715,14 @@ func ListenAndServe(addr string, handler Handler) os.Error {
 //		"log"
 //	)
 //
-//	func handler(conn *http.Conn, req *http.Request) {
-//		conn.SetHeader("Content-Type", "text/plain")
-//		conn.Write([]byte("This is an example server.\n"))
+//	func handler(w http.ResponseWriter, req *http.Request) {
+//		w.SetHeader("Content-Type", "text/plain")
+//		w.Write([]byte("This is an example server.\n"))
 //	}
 //
 //	func main() {
 //		http.HandleFunc("/", handler)
-//		log.Stdoutf("About to listen on 10443. Go to https://127.0.0.1:10443/")
+//		log.Printf("About to listen on 10443. Go to https://127.0.0.1:10443/")
 //		err := http.ListenAndServeTLS(":10443", "cert.pem", "key.pem", nil)
 //		if err != nil {
 //			log.Exit(err)

@@ -114,8 +114,8 @@ if grep '^const ___WALL = ' gen-sysinfo.go >/dev/null 2>&1 \
 fi
 
 # Networking constants.
-grep '^const _\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\)_' gen-sysinfo.go |
-  sed -e 's/^\(const \)_\(\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' \
+grep '^const _\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\|IP\|IPV6\)_' gen-sysinfo.go |
+  sed -e 's/^\(const \)_\(\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\|IP\|IPV6\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' \
     >> ${OUT}
 grep '^const _SOMAXCONN' gen-sysinfo.go |
   sed -e 's/^\(const \)_\(SOMAXCONN[^= ]*\)\(.*\)$/\1\2 = _\2/' \

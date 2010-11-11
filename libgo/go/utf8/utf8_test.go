@@ -16,45 +16,47 @@ type Utf8Map struct {
 }
 
 var utf8map = []Utf8Map{
-	Utf8Map{0x0000, "\x00"},
-	Utf8Map{0x0001, "\x01"},
-	Utf8Map{0x007e, "\x7e"},
-	Utf8Map{0x007f, "\x7f"},
-	Utf8Map{0x0080, "\xc2\x80"},
-	Utf8Map{0x0081, "\xc2\x81"},
-	Utf8Map{0x00bf, "\xc2\xbf"},
-	Utf8Map{0x00c0, "\xc3\x80"},
-	Utf8Map{0x00c1, "\xc3\x81"},
-	Utf8Map{0x00c8, "\xc3\x88"},
-	Utf8Map{0x00d0, "\xc3\x90"},
-	Utf8Map{0x00e0, "\xc3\xa0"},
-	Utf8Map{0x00f0, "\xc3\xb0"},
-	Utf8Map{0x00f8, "\xc3\xb8"},
-	Utf8Map{0x00ff, "\xc3\xbf"},
-	Utf8Map{0x0100, "\xc4\x80"},
-	Utf8Map{0x07ff, "\xdf\xbf"},
-	Utf8Map{0x0800, "\xe0\xa0\x80"},
-	Utf8Map{0x0801, "\xe0\xa0\x81"},
-	Utf8Map{0xfffe, "\xef\xbf\xbe"},
-	Utf8Map{0xffff, "\xef\xbf\xbf"},
-	Utf8Map{0x10000, "\xf0\x90\x80\x80"},
-	Utf8Map{0x10001, "\xf0\x90\x80\x81"},
-	Utf8Map{0x10fffe, "\xf4\x8f\xbf\xbe"},
-	Utf8Map{0x10ffff, "\xf4\x8f\xbf\xbf"},
-	Utf8Map{0xFFFD, "\xef\xbf\xbd"},
+	{0x0000, "\x00"},
+	{0x0001, "\x01"},
+	{0x007e, "\x7e"},
+	{0x007f, "\x7f"},
+	{0x0080, "\xc2\x80"},
+	{0x0081, "\xc2\x81"},
+	{0x00bf, "\xc2\xbf"},
+	{0x00c0, "\xc3\x80"},
+	{0x00c1, "\xc3\x81"},
+	{0x00c8, "\xc3\x88"},
+	{0x00d0, "\xc3\x90"},
+	{0x00e0, "\xc3\xa0"},
+	{0x00f0, "\xc3\xb0"},
+	{0x00f8, "\xc3\xb8"},
+	{0x00ff, "\xc3\xbf"},
+	{0x0100, "\xc4\x80"},
+	{0x07ff, "\xdf\xbf"},
+	{0x0800, "\xe0\xa0\x80"},
+	{0x0801, "\xe0\xa0\x81"},
+	{0xfffe, "\xef\xbf\xbe"},
+	{0xffff, "\xef\xbf\xbf"},
+	{0x10000, "\xf0\x90\x80\x80"},
+	{0x10001, "\xf0\x90\x80\x81"},
+	{0x10fffe, "\xf4\x8f\xbf\xbe"},
+	{0x10ffff, "\xf4\x8f\xbf\xbf"},
+	{0xFFFD, "\xef\xbf\xbd"},
 }
 
-// strings.Bytes with one extra byte at end
-func makeBytes(s string) []byte {
-	s += "\x00"
-	b := []byte(s)
-	return b[0 : len(s)-1]
+var testStrings = []string{
+	"",
+	"abcd",
+	"☺☻☹",
+	"日a本b語ç日ð本Ê語þ日¥本¼語i日©",
+	"日a本b語ç日ð本Ê語þ日¥本¼語i日©日a本b語ç日ð本Ê語þ日¥本¼語i日©日a本b語ç日ð本Ê語þ日¥本¼語i日©",
+	"\x80\x80\x80\x80",
 }
 
 func TestFullRune(t *testing.T) {
 	for i := 0; i < len(utf8map); i++ {
 		m := utf8map[i]
-		b := makeBytes(m.str)
+		b := []byte(m.str)
 		if !FullRune(b) {
 			t.Errorf("FullRune(%q) (rune %04x) = false, want true", b, m.rune)
 		}
@@ -76,7 +78,7 @@ func TestFullRune(t *testing.T) {
 func TestEncodeRune(t *testing.T) {
 	for i := 0; i < len(utf8map); i++ {
 		m := utf8map[i]
-		b := makeBytes(m.str)
+		b := []byte(m.str)
 		var buf [10]byte
 		n := EncodeRune(m.rune, buf[0:])
 		b1 := buf[0:n]
@@ -89,7 +91,7 @@ func TestEncodeRune(t *testing.T) {
 func TestDecodeRune(t *testing.T) {
 	for i := 0; i < len(utf8map); i++ {
 		m := utf8map[i]
-		b := makeBytes(m.str)
+		b := []byte(m.str)
 		rune, size := DecodeRune(b)
 		if rune != m.rune || size != len(b) {
 			t.Errorf("DecodeRune(%q) = %#04x, %d want %#04x, %d", b, rune, size, m.rune, len(b))
@@ -141,6 +143,99 @@ func TestDecodeRune(t *testing.T) {
 		if rune != RuneError || size != 1 {
 			t.Errorf("DecodeRuneInString(%q) = %#04x, %d want %#04x, %d", s, rune, size, RuneError, 1)
 		}
+
+	}
+}
+
+// Check that DecodeRune and DecodeLastRune correspond to
+// the equivalent range loop.
+func TestSequencing(t *testing.T) {
+	for _, ts := range testStrings {
+		for _, m := range utf8map {
+			for _, s := range []string{ts + m.str, m.str + ts, ts + m.str + ts} {
+				testSequence(t, s)
+			}
+		}
+	}
+}
+
+// Check that a range loop and a []int conversion visit the same runes.
+// Not really a test of this package, but the assumption is used here and
+// it's good to verify
+func TestIntConversion(t *testing.T) {
+	for _, ts := range testStrings {
+		runes := []int(ts)
+		if RuneCountInString(ts) != len(runes) {
+			t.Error("%q: expected %d runes; got %d", ts, len(runes), RuneCountInString(ts))
+			break
+		}
+		i := 0
+		for _, r := range ts {
+			if r != runes[i] {
+				t.Errorf("%q[%d]: expected %c (U+%04x); got %c (U+%04x)", ts, i, runes[i], runes[i], r, r)
+			}
+			i++
+		}
+	}
+}
+
+func testSequence(t *testing.T, s string) {
+	type info struct {
+		index int
+		rune  int
+	}
+	index := make([]info, len(s))
+	b := []byte(s)
+	si := 0
+	j := 0
+	for i, r := range s {
+		if si != i {
+			t.Errorf("Sequence(%q) mismatched index %d, want %d", s, si, i)
+			return
+		}
+		index[j] = info{i, r}
+		j++
+		rune1, size1 := DecodeRune(b[i:])
+		if r != rune1 {
+			t.Errorf("DecodeRune(%q) = %#04x, want %#04x", s[i:], rune1, r)
+			return
+		}
+		rune2, size2 := DecodeRuneInString(s[i:])
+		if r != rune2 {
+			t.Errorf("DecodeRuneInString(%q) = %#04x, want %#04x", s[i:], rune2, r)
+			return
+		}
+		if size1 != size2 {
+			t.Errorf("DecodeRune/DecodeRuneInString(%q) size mismatch %d/%d", s[i:], size1, size2)
+			return
+		}
+		si += size1
+	}
+	j--
+	for si = len(s); si > 0; {
+		rune1, size1 := DecodeLastRune(b[0:si])
+		rune2, size2 := DecodeLastRuneInString(s[0:si])
+		if size1 != size2 {
+			t.Errorf("DecodeLastRune/DecodeLastRuneInString(%q, %d) size mismatch %d/%d", s, si, size1, size2)
+			return
+		}
+		if rune1 != index[j].rune {
+			t.Errorf("DecodeLastRune(%q, %d) = %#04x, want %#04x", s, si, rune1, index[j].rune)
+			return
+		}
+		if rune2 != index[j].rune {
+			t.Errorf("DecodeLastRuneInString(%q, %d) = %#04x, want %#04x", s, si, rune2, index[j].rune)
+			return
+		}
+		si -= size1
+		if si != index[j].index {
+			t.Errorf("DecodeLastRune(%q) index mismatch at %d, want %d", s, si, index[j].index)
+			return
+		}
+		j--
+	}
+	if si != 0 {
+		t.Errorf("DecodeLastRune(%q) finished at %d, not 0", s, si)
 	}
 }
 
@@ -161,10 +256,10 @@ type RuneCountTest struct {
 }
 
 var runecounttests = []RuneCountTest{
-	RuneCountTest{"abcd", 4},
-	RuneCountTest{"☺☻☹", 3},
-	RuneCountTest{"1,2,3,4", 7},
-	RuneCountTest{"\xe2\x00", 2},
+	{"abcd", 4},
+	{"☺☻☹", 3},
+	{"1,2,3,4", 7},
+	{"\xe2\x00", 2},
 }
 
 func TestRuneCount(t *testing.T) {
@@ -173,7 +268,7 @@ func TestRuneCount(t *testing.T) {
 		if out := RuneCountInString(tt.in); out != tt.out {
 			t.Errorf("RuneCountInString(%q) = %d, want %d", tt.in, out, tt.out)
 		}
-		if out := RuneCount(makeBytes(tt.in)); out != tt.out {
+		if out := RuneCount([]byte(tt.in)); out != tt.out {
 			t.Errorf("RuneCount(%q) = %d, want %d", tt.in, out, tt.out)
 		}
 	}

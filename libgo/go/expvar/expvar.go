@@ -6,6 +6,8 @@
 // such as operation counters in servers. It exposes these variables via
 // HTTP at /debug/vars in JSON format.
 //
+// Operations to set or modify these public variables are atomic.
+//
 // In addition to adding the HTTP handler, this package registers the
 // following variables:
 //
@@ -48,6 +50,12 @@ func (v *Int) Add(delta int64) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.i += delta
+}
+
+func (v *Int) Set(value int64) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.i = value
 }
 
 // Map is a string-to-Var map variable, and satisfies the Var interface.
@@ -153,12 +161,12 @@ var mutex sync.Mutex
 
 // Publish declares an named exported variable. This should be called from a
 // package's init function when it creates its Vars. If the name is already
-// registered then this will log.Crash.
+// registered then this will log.Panic.
 func Publish(name string, v Var) {
 	mutex.Lock()
 	defer mutex.Unlock()
 	if _, existing := vars[name]; existing {
-		log.Crash("Reuse of exported var name:", name)
+		log.Panicln("Reuse of exported var name:", name)
 	}
 	vars[name] = v
 }
@@ -210,18 +218,18 @@ func Iter() <-chan KeyValue {
 	return c
 }
 
-func expvarHandler(c *http.Conn, req *http.Request) {
-	c.SetHeader("content-type", "application/json; charset=utf-8")
-	fmt.Fprintf(c, "{\n")
+func expvarHandler(w http.ResponseWriter, r *http.Request) {
+	w.SetHeader("content-type", "application/json; charset=utf-8")
+	fmt.Fprintf(w, "{\n")
 	first := true
 	for name, value := range vars {
 		if !first {
-			fmt.Fprintf(c, ",\n")
+			fmt.Fprintf(w, ",\n")
 		}
 		first = false
-		fmt.Fprintf(c, "%q: %s", name, value)
+		fmt.Fprintf(w, "%q: %s", name, value)
 	}
-	fmt.Fprintf(c, "\n}\n")
+	fmt.Fprintf(w, "\n}\n")
 }
 
 func memstats() string {

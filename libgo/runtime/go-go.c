@@ -107,13 +107,17 @@ remove_current_thread (void)
   if (list_entry->next != NULL)
     list_entry->next->prev = list_entry->prev;
 
-  /* We use __go_thread_ids_lock as a lock for mheap.cachealloc.  */
-  MCache_ReleaseAll (mcache);
-  __builtin_memset (mcache, 0, sizeof (struct MCache));
-  FixAlloc_Free (&mheap.cachealloc, mcache);
-
   i = pthread_mutex_unlock (&__go_thread_ids_lock);
   __go_assert (i == 0);
+
+  runtime_MCache_ReleaseAll (mcache);
+
+  runtime_lock (&runtime_mheap);
+  mstats.heap_alloc += mcache->local_alloc;
+  mstats.heap_objects += mcache->local_objects;
+  __builtin_memset (mcache, 0, sizeof (struct MCache));
+  runtime_FixAlloc_Free (&runtime_mheap.cachealloc, mcache);
+  runtime_unlock (&runtime_mheap);
 
   free (list_entry);
 }
@@ -227,7 +231,7 @@ __go_go (void (*pfn) (void*), void *arg)
   __go_assert (i == 0);
 
   /* We use __go_thread_ids_lock as a lock for mheap.cachealloc.  */
-  newm->mcache = allocmcache ();
+  newm->mcache = runtime_allocmcache ();
 
   if (__go_all_thread_ids != NULL)
     __go_all_thread_ids->prev = list_entry;
@@ -353,7 +357,7 @@ __go_run_goroutine_gc (int r)
 /* Stop all the other threads for garbage collection.  */
 
 void
-stoptheworld (void)
+runtime_stoptheworld (void)
 {
   int i;
   pthread_t me;
@@ -424,7 +428,7 @@ stoptheworld (void)
    with __go_thread_ids_lock held.  */
 
 void
-__go_scanstacks (void (*scan) (int32, unsigned char *, int64_t))
+__go_scanstacks (void (*scan) (unsigned char *, int64_t))
 {
   pthread_t me;
   struct __go_thread_id *p;
@@ -440,9 +444,9 @@ __go_scanstacks (void (*scan) (int32, unsigned char *, int64_t))
 	  /* The goroutine function and argument can be allocated on
 	     the heap, so we have to scan them for a thread that has
 	     not yet started.  */
-	  scan (0, (void *) &p->pfn, sizeof (void *));
-	  scan (0, (void *) &p->arg, sizeof (void *));
-	  scan (0, (void *) &p->m, sizeof (void *));
+	  scan ((void *) &p->pfn, sizeof (void *));
+	  scan ((void *) &p->arg, sizeof (void *));
+	  scan ((void *) &p->m, sizeof (void *));
 	  continue;
 	}
 
@@ -473,7 +477,7 @@ __go_scanstacks (void (*scan) (int32, unsigned char *, int64_t))
 
       while (sp != NULL)
 	{
-	  scan (0, sp, len);
+	  scan (sp, len);
 	  sp = __splitstack_find (next_segment, next_sp, &len,
 				  &next_segment, &next_sp, &initial_sp);
 	}
@@ -485,20 +489,20 @@ __go_scanstacks (void (*scan) (int32, unsigned char *, int64_t))
 	  uintptr_t top = (uintptr_t) m->gc_sp;
 	  uintptr_t bottom = (uintptr_t) &top;
 	  if (top < bottom)
-	    scan (0, m->gc_sp, bottom - top);
+	    scan (m->gc_sp, bottom - top);
 	  else
-	    scan (0, (void *) bottom, top - bottom);
+	    scan ((void *) bottom, top - bottom);
 	}
       else
 	{
-	  scan (0, p->m->gc_next_sp, p->m->gc_len);
+	  scan (p->m->gc_next_sp, p->m->gc_len);
 	}
 	
 #endif /* !defined(USING_SPLIT_STACK) */
 
       /* Also scan the M structure while we're at it.  */
 
-      scan (0, (void *) &p->m, sizeof (void *));
+      scan ((void *) &p->m, sizeof (void *));
     }
 }
 
@@ -506,18 +510,38 @@ __go_scanstacks (void (*scan) (int32, unsigned char *, int64_t))
    __go_thread_ids_lock held.  */
 
 void
-__go_stealcache(void)
+__go_stealcache (void)
 {
   struct __go_thread_id *p;
 
   for (p = __go_all_thread_ids; p != NULL; p = p->next)
-    MCache_ReleaseAll (p->m->mcache);
+    runtime_MCache_ReleaseAll (p->m->mcache);
+}
+
+/* Gather memory cache statistics.  This is called with
+   __go_thread_ids_lock held.  */
+
+void
+__go_cachestats (void)
+{
+  struct __go_thread_id *p;
+
+  for (p = __go_all_thread_ids; p != NULL; p = p->next)
+    {
+      MCache *c;
+
+      c = p->m->mcache;
+      mstats.heap_alloc += c->local_alloc;
+      c->local_alloc = 0;
+      mstats.heap_objects += c->local_objects;
+      c->local_objects = 0;
+    }
 }
 
 /* Start the other threads after garbage collection.  */
 
 void
-starttheworld (void)
+runtime_starttheworld (void)
 {
   int i;
   pthread_t me;

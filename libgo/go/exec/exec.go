@@ -7,7 +7,6 @@ package exec
 
 import (
 	"os"
-	"strings"
 )
 
 // Arguments to Run.
@@ -63,7 +62,7 @@ func modeToFiles(mode, fd int) (*os.File, *os.File, os.Error) {
 	return nil, nil, os.EINVAL
 }
 
-// Run starts the binary prog running with
+// Run starts the named binary running with
 // arguments argv and environment envv.
 // It returns a pointer to a new Cmd representing
 // the command or an error.
@@ -78,7 +77,7 @@ func modeToFiles(mode, fd int) (*os.File, *os.File, os.Error) {
 // If a parameter is Pipe, then the corresponding field (Stdin, Stdout, Stderr)
 // of the returned Cmd is the other end of the pipe.
 // Otherwise the field in Cmd is nil.
-func Run(argv0 string, argv, envv []string, dir string, stdin, stdout, stderr int) (p *Cmd, err os.Error) {
+func Run(name string, argv, envv []string, dir string, stdin, stdout, stderr int) (p *Cmd, err os.Error) {
 	p = new(Cmd)
 	var fd [3]*os.File
 
@@ -95,7 +94,7 @@ func Run(argv0 string, argv, envv []string, dir string, stdin, stdout, stderr in
 	}
 
 	// Run command.
-	p.Pid, err = os.ForkExec(argv0, argv, envv, dir, fd[0:])
+	p.Pid, err = os.ForkExec(name, argv, envv, dir, fd[0:])
 	if err != nil {
 		goto Error
 	}
@@ -181,41 +180,4 @@ func (p *Cmd) Close() os.Error {
 		}
 	}
 	return err
-}
-
-func canExec(file string) bool {
-	d, err := os.Stat(file)
-	if err != nil {
-		return false
-	}
-	return d.IsRegular() && d.Permission()&0111 != 0
-}
-
-// LookPath searches for an executable binary named file
-// in the directories named by the PATH environment variable.
-// If file contains a slash, it is tried directly and the PATH is not consulted.
-//
-// TODO(rsc): Does LookPath belong in os instead?
-func LookPath(file string) (string, os.Error) {
-	// NOTE(rsc): I wish we could use the Plan 9 behavior here
-	// (only bypass the path if file begins with / or ./ or ../)
-	// but that would not match all the Unix shells.
-
-	if strings.Index(file, "/") >= 0 {
-		if canExec(file) {
-			return file, nil
-		}
-		return "", os.ENOENT
-	}
-	pathenv := os.Getenv("PATH")
-	for _, dir := range strings.Split(pathenv, ":", -1) {
-		if dir == "" {
-			// Unix shell semantics: path element "" means "."
-			dir = "."
-		}
-		if canExec(dir + "/" + file) {
-			return dir + "/" + file, nil
-		}
-	}
-	return "", os.ENOENT
 }

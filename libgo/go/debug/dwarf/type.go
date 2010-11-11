@@ -451,16 +451,7 @@ func (d *Data) Type(off Offset) (Type, os.Error) {
 				f.ByteSize, _ = kid.Val(AttrByteSize).(int64)
 				f.BitOffset, _ = kid.Val(AttrBitOffset).(int64)
 				f.BitSize, _ = kid.Val(AttrBitSize).(int64)
-				n := len(t.Field)
-				if n >= cap(t.Field) {
-					fld := make([]*StructField, n, n*2)
-					for i, f := range t.Field {
-						fld[i] = f
-					}
-					t.Field = fld
-				}
-				t.Field = t.Field[0 : n+1]
-				t.Field[n] = f
+				t.Field = append(t.Field, f)
 			}
 		}
 
@@ -505,9 +496,7 @@ func (d *Data) Type(off Offset) (Type, os.Error) {
 				n := len(t.Val)
 				if n >= cap(t.Val) {
 					val := make([]*EnumValue, n, n*2)
-					for i, f := range t.Val {
-						val[i] = f
-					}
+					copy(val, t.Val)
 					t.Val = val
 				}
 				t.Val = t.Val[0 : n+1]
@@ -558,16 +547,7 @@ func (d *Data) Type(off Offset) (Type, os.Error) {
 			case TagUnspecifiedParameters:
 				tkid = &DotDotDotType{}
 			}
-			n := len(t.ParamType)
-			if n >= cap(t.ParamType) {
-				param := make([]Type, n, n*2)
-				for i, t := range t.ParamType {
-					param[i] = t
-				}
-				t.ParamType = param
-			}
-			t.ParamType = t.ParamType[0 : n+1]
-			t.ParamType[n] = tkid
+			t.ParamType = append(t.ParamType, tkid)
 		}
 
 	case TagTypedef:

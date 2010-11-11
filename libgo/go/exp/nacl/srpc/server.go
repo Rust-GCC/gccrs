@@ -53,16 +53,7 @@ var rpcMethod []method
 //	s	string
 //
 func Add(name, fmt string, handler Handler) {
-	n := len(rpcMethod)
-	if n >= cap(rpcMethod) {
-		a := make([]method, n, (n+4)*2)
-		for i := range a {
-			a[i] = rpcMethod[i]
-		}
-		rpcMethod = a
-	}
-	rpcMethod = rpcMethod[0 : n+1]
-	rpcMethod[n] = method{name, fmt, handler}
+	rpcMethod = append(rpcMethod, method{name, fmt, handler})
 }
 
 // Serve accepts new SRPC connections from the file descriptor fd
@@ -94,10 +85,10 @@ func serveLoop(fd int) {
 		}
 		m.unpackRequest()
 		if !m.gotHeader {
-			log.Stderrf("cannot unpack header: %s", m.status)
+			log.Printf("cannot unpack header: %s", m.status)
 			continue
 		}
-		// log.Stdoutf("<- %#v", m);
+		// log.Printf("<- %#v", m);
 		m.isReq = false // set up for response
 		go serveMsg(m, c)
 	}
@@ -108,7 +99,7 @@ func sendLoop(fd int, c <-chan *msg) {
 	var s msgSender
 	s.fd = fd
 	for m := range c {
-		// log.Stdoutf("-> %#v", m);
+		// log.Printf("-> %#v", m);
 		m.packResponse()
 		s.send(m)
 	}

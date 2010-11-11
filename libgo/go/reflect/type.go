@@ -631,6 +631,9 @@ var canonicalType = make(map[string]Type)
 var canonicalTypeLock sync.Mutex
 
 func canonicalize(t Type) Type {
+	if t == nil {
+		return nil
+	}
 	u := t.uncommon()
 	var s string
 	if u == nil || u.PkgPath() == "" {

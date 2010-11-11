@@ -43,9 +43,10 @@ type SRV struct {
 	Weight   uint16
 }
 
-func LookupSRV(name string) (cname string, addrs []*SRV, err os.Error) {
+func LookupSRV(service, proto, name string) (cname string, addrs []*SRV, err os.Error) {
 	var r *syscall.DNSRecord
-	e := syscall.DnsQuery(name, syscall.DNS_TYPE_SRV, 0, nil, &r, nil)
+	target := "_" + service + "._" + proto + "." + name
+	e := syscall.DnsQuery(target, syscall.DNS_TYPE_SRV, 0, nil, &r, nil)
 	if int(e) != 0 {
 		return "", nil, os.NewSyscallError("LookupSRV", int(e))
 	}
@@ -54,7 +55,7 @@ func LookupSRV(name string) (cname string, addrs []*SRV, err os.Error) {
 	i := 0
 	for p := r; p != nil && p.Type == syscall.DNS_TYPE_SRV; p = p.Next {
 		v := (*syscall.DNSSRVData)(unsafe.Pointer(&p.Data[0]))
-		addrs[i] = &SRV{syscall.UTF16ToString((*[256]uint16)(unsafe.Pointer(v.Target))), v.Port, v.Priority, v.Weight}
+		addrs[i] = &SRV{syscall.UTF16ToString((*[256]uint16)(unsafe.Pointer(v.Target))[:]), v.Port, v.Priority, v.Weight}
 		i++
 	}
 	addrs = addrs[0:i]
@@ -75,4 +76,8 @@ func LookupPort(network, service string) (port int, err os.Error) {
 		return 0, os.NewSyscallError("GetServByName", e)
 	}
 	return int(syscall.Ntohs(s.Port)), nil
+}
+
+func isDomainName(s string) bool {
+	panic("unimplemented")
 }

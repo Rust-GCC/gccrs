@@ -6,12 +6,13 @@
 package tls
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"io/ioutil"
 	"net"
 	"os"
-	"encoding/pem"
-	"crypto/rsa"
-	"crypto/x509"
+	"strings"
 )
 
 func Server(conn net.Conn, config *Config) *Conn {
@@ -67,10 +68,26 @@ func Dial(network, laddr, raddr string) (net.Conn, os.Error) {
 	if err != nil {
 		return nil, err
 	}
-	return Client(c, nil), nil
+
+	colonPos := strings.LastIndex(raddr, ":")
+	if colonPos == -1 {
+		colonPos = len(raddr)
+	}
+	hostname := raddr[:colonPos]
+
+	config := defaultConfig()
+	config.ServerName = hostname
+	conn := Client(c, config)
+	err = conn.Handshake()
+	if err == nil {
+		return conn, nil
+	}
+	c.Close()
+	return nil, err
 }
 
-// LoadX509KeyPair
+// LoadX509KeyPair reads and parses a public/private key pair from a pair of
+// files. The files must contain PEM encoded data.
 func LoadX509KeyPair(certFile string, keyFile string) (cert Certificate, err os.Error) {
 	certPEMBlock, err := ioutil.ReadFile(certFile)
 	if err != nil {

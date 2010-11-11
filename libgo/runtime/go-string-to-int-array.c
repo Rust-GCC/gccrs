@@ -31,7 +31,8 @@ __go_string_to_int_array (struct __go_string str)
       p += __go_get_rune (p, pend - p, &rune);
     }
 
-  data = (uint32_t *) mallocgc (c * sizeof (uint32_t), RefNoPointers, 1, 0);
+  data = (uint32_t *) runtime_mallocgc (c * sizeof (uint32_t), RefNoPointers,
+					1, 0);
   p = str.__data;
   pd = data;
   while (p < pend)

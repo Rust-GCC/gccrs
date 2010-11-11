@@ -5,34 +5,34 @@
 #include "runtime.h"
 
 void
-initlock(Lock *l)
+runtime_initlock(Lock *l)
 {
 	if(pthread_mutex_init(&l->mutex, NULL) != 0)
-		throw("pthread_mutex_init failed");
+		runtime_throw("pthread_mutex_init failed");
 }
 
 void
-lock(Lock *l)
+runtime_lock(Lock *l)
 {
 	if(pthread_mutex_lock(&l->mutex) != 0)
-		throw("lock failed");
+		runtime_throw("lock failed");
 }
 
 void
-unlock(Lock *l)
+runtime_unlock(Lock *l)
 {
 	if(pthread_mutex_unlock(&l->mutex) != 0)
-		throw("unlock failed");
+		runtime_throw("unlock failed");
 }
 
 void
-destroylock(Lock *l)
+runtime_destroylock(Lock *l)
 {
 	pthread_mutex_destroy(&l->mutex);
 }
 
 bool
-trylock(Lock *l)
+runtime_trylock(Lock *l)
 {
 	return pthread_mutex_trylock(&l->mutex) == 0;
 }

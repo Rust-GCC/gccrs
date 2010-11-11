@@ -55,7 +55,7 @@ func exchange(cfg *dnsConfig, c Conn, name string, qtype uint16) (*dnsMsg, os.Er
 	out := new(dnsMsg)
 	out.id = uint16(rand.Int()) ^ uint16(time.Nanoseconds())
 	out.question = []dnsQuestion{
-		dnsQuestion{name, qtype, dnsClassINET},
+		{name, qtype, dnsClassINET},
 	}
 	out.recursion_desired = true
 	msg, ok := out.Pack()
@@ -192,15 +192,11 @@ var dnserr os.Error
 func loadConfig() { cfg, dnserr = dnsReadConfig() }
 
 func isDomainName(s string) bool {
-	// Requirements on DNS name:
-	//	* must not be empty.
-	//	* must be alphanumeric plus - and .
-	//	* each of the dot-separated elements must begin
-	//	  and end with a letter or digit.
-	//	  RFC 1035 required the element to begin with a letter,
-	//	  but RFC 3696 says this has been relaxed to allow digits too.
-	//	  still, there must be a letter somewhere in the entire name.
+	// See RFC 1035, RFC 3696.
 	if len(s) == 0 {
+		return false
+	}
+	if len(s) > 255 {
 		return false
 	}
 	if s[len(s)-1] != '.' { // simplify checking loop: make name end in dot
@@ -209,25 +205,33 @@ func isDomainName(s string) bool {
 
 	last := byte('.')
 	ok := false // ok once we've seen a letter
+	partlen := 0
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		switch {
 		default:
 			return false
-		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z':
+		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_':
 			ok = true
+			partlen++
 		case '0' <= c && c <= '9':
 			// fine
+			partlen++
 		case c == '-':
 			// byte before dash cannot be dot
 			if last == '.' {
 				return false
 			}
+			partlen++
 		case c == '.':
 			// byte before dot cannot be dot, dash
 			if last == '.' || last == '-' {
 				return false
 			}
+			if partlen > 63 || partlen == 0 {
+				return false
+			}
+			partlen = 0
 		}
 		last = c
 	}
@@ -322,9 +326,14 @@ type SRV struct {
 	Weight   uint16
 }
 
-func LookupSRV(name string) (cname string, addrs []*SRV, err os.Error) {
+// LookupSRV tries to resolve an SRV query of the given service,
+// protocol, and domain name, as specified in RFC 2782. In most cases
+// the proto argument can be the same as the corresponding
+// Addr.Network().
+func LookupSRV(service, proto, name string) (cname string, addrs []*SRV, err os.Error) {
+	target := "_" + service + "._" + proto + "." + name
 	var records []dnsRR
-	cname, records, err = lookup(name, dnsTypeSRV)
+	cname, records, err = lookup(target, dnsTypeSRV)
 	if err != nil {
 		return
 	}
@@ -332,6 +341,25 @@ func LookupSRV(name string) (cname string, addrs []*SRV, err os.Error) {
 	for i := 0; i < len(records); i++ {
 		r := records[i].(*dnsRR_SRV)
 		addrs[i] = &SRV{r.Target, r.Port, r.Priority, r.Weight}
+	}
+	return
+}
+
+type MX struct {
+	Host string
+	Pref uint16
+}
+
+func LookupMX(name string) (entries []*MX, err os.Error) {
+	var records []dnsRR
+	_, records, err = lookup(name, dnsTypeMX)
+	if err != nil {
+		return
+	}
+	entries = make([]*MX, len(records))
+	for i := 0; i < len(records); i++ {
+		r := records[i].(*dnsRR_MX)
+		entries[i] = &MX{r.Mx, r.Pref}
 	}
 	return
 }

@@ -7,7 +7,7 @@ package log
 // These tests are too simple.
 
 import (
-	"bufio"
+	"bytes"
 	"os"
 	"regexp"
 	"testing"
@@ -17,7 +17,7 @@ const (
 	Rdate         = `[0-9][0-9][0-9][0-9]/[0-9][0-9]/[0-9][0-9]`
 	Rtime         = `[0-9][0-9]:[0-9][0-9]:[0-9][0-9]`
 	Rmicroseconds = `\.[0-9][0-9][0-9][0-9][0-9][0-9]`
-	Rline         = `[0-9]+:` // must update if the calls to l.Logf / l.Log below move
+	Rline         = `[0-9]+:` // must update if the calls to l.Printf / l.Print below move
 	Rlongfile     = `.*/[A-Za-z0-9_\-]+\.go:|\?\?\?:` + Rline
 	Rshortfile    = `[A-Za-z0-9_\-]+\.go:|\?\?\?:` + Rline
 )
@@ -30,39 +30,32 @@ type tester struct {
 
 var tests = []tester{
 	// individual pieces:
-	tester{0, "", ""},
-	tester{0, "XXX", "XXX"},
-	tester{Lok | Ldate, "", Rdate + " "},
-	tester{Lok | Ltime, "", Rtime + " "},
-	tester{Lok | Ltime | Lmicroseconds, "", Rtime + Rmicroseconds + " "},
-	tester{Lok | Lmicroseconds, "", Rtime + Rmicroseconds + " "}, // microsec implies time
-	tester{Lok | Llongfile, "", Rlongfile + " "},
-	tester{Lok | Lshortfile, "", Rshortfile + " "},
-	tester{Lok | Llongfile | Lshortfile, "", Rshortfile + " "}, // shortfile overrides longfile
+	{0, "", ""},
+	{0, "XXX", "XXX"},
+	{Ldate, "", Rdate + " "},
+	{Ltime, "", Rtime + " "},
+	{Ltime | Lmicroseconds, "", Rtime + Rmicroseconds + " "},
+	{Lmicroseconds, "", Rtime + Rmicroseconds + " "}, // microsec implies time
+	{Llongfile, "", Rlongfile + " "},
+	{Lshortfile, "", Rshortfile + " "},
+	{Llongfile | Lshortfile, "", Rshortfile + " "}, // shortfile overrides longfile
 	// everything at once:
-	tester{Lok | Ldate | Ltime | Lmicroseconds | Llongfile, "XXX", "XXX" + Rdate + " " + Rtime + Rmicroseconds + " " + Rlongfile + " "},
-	tester{Lok | Ldate | Ltime | Lmicroseconds | Lshortfile, "XXX", "XXX" + Rdate + " " + Rtime + Rmicroseconds + " " + Rshortfile + " "},
+	{Ldate | Ltime | Lmicroseconds | Llongfile, "XXX", "XXX" + Rdate + " " + Rtime + Rmicroseconds + " " + Rlongfile + " "},
+	{Ldate | Ltime | Lmicroseconds | Lshortfile, "XXX", "XXX" + Rdate + " " + Rtime + Rmicroseconds + " " + Rshortfile + " "},
 }
 
-// Test using Log("hello", 23, "world") or using Logf("hello %d world", 23)
-func testLog(t *testing.T, flag int, prefix string, pattern string, useLogf bool) {
-	r, w, err1 := os.Pipe()
-	if err1 != nil {
-		t.Fatal("pipe", err1)
-	}
-	defer r.Close()
-	defer w.Close()
-	buf := bufio.NewReader(r)
-	l := New(w, nil, prefix, flag)
-	if useLogf {
-		l.Logf("hello %d world", 23)
+// Test using Println("hello", 23, "world") or using Printf("hello %d world", 23)
+func testPrint(t *testing.T, flag int, prefix string, pattern string, useFormat bool) {
+	buf := new(bytes.Buffer)
+	SetOutput(buf)
+	SetFlags(flag)
+	SetPrefix(prefix)
+	if useFormat {
+		Printf("hello %d world", 23)
 	} else {
-		l.Log("hello", 23, "world")
+		Println("hello", 23, "world")
 	}
-	line, err3 := buf.ReadString('\n')
-	if err3 != nil {
-		t.Fatal("log error", err3)
-	}
+	line := buf.String()
 	line = line[0 : len(line)-1]
 	pattern = "^" + pattern + "hello 23 world$"
 	matched, err4 := regexp.MatchString(pattern, line)
@@ -72,11 +65,22 @@ func testLog(t *testing.T, flag int, prefix string, pattern string, useLogf bool
 	if !matched {
 		t.Errorf("log output should match %q is %q", pattern, line)
 	}
+	SetOutput(os.Stderr)
 }
 
-func TestAllLog(t *testing.T) {
+func TestAll(t *testing.T) {
 	for _, testcase := range tests {
-		testLog(t, testcase.flag, testcase.prefix, testcase.pattern, false)
-		testLog(t, testcase.flag, testcase.prefix, testcase.pattern, true)
+		testPrint(t, testcase.flag, testcase.prefix, testcase.pattern, false)
+		testPrint(t, testcase.flag, testcase.prefix, testcase.pattern, true)
+	}
+}
+
+func TestOutput(t *testing.T) {
+	const testString = "test"
+	var b bytes.Buffer
+	l := New(&b, "", 0)
+	l.Println(testString)
+	if expect := testString + "\n"; b.String() != expect {
+		t.Errorf("log output should match %q is %q", expect, b.String())
 	}
 }

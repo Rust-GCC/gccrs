@@ -65,10 +65,11 @@ type printer struct {
 	errors chan os.Error
 
 	// Current state
-	nesting int  // nesting level (0: top-level (package scope), >0: functions/decls.)
-	written int  // number of bytes written
-	indent  int  // current indentation
-	escape  bool // true if in escape sequence
+	nesting int         // nesting level (0: top-level (package scope), >0: functions/decls.)
+	written int         // number of bytes written
+	indent  int         // current indentation
+	escape  bool        // true if in escape sequence
+	lastTok token.Token // the last token printed (token.ILLEGAL if it's whitespace)
 
 	// Buffered whitespace
 	buffer []whiteSpace
@@ -104,7 +105,7 @@ func (p *printer) init(output io.Writer, cfg *Config) {
 func (p *printer) internalError(msg ...interface{}) {
 	if debug {
 		fmt.Print(p.pos.String() + ": ")
-		fmt.Println(msg)
+		fmt.Println(msg...)
 		panic("go/printer")
 	}
 }
@@ -209,6 +210,11 @@ func (p *printer) write(data []byte) {
 
 		case tabwriter.Escape:
 			p.escape = !p.escape
+
+			// ignore escape chars introduced by printer - they are
+			// invisible and must not affect p.pos (was issue #1089)
+			p.pos.Offset--
+			p.pos.Column--
 		}
 	}
 
@@ -740,6 +746,26 @@ func (p *printer) writeWhitespace(n int) {
 // ----------------------------------------------------------------------------
 // Printing interface
 
+
+func mayCombine(prev token.Token, next byte) (b bool) {
+	switch prev {
+	case token.INT:
+		b = next == '.' // 1.
+	case token.ADD:
+		b = next == '+' // ++
+	case token.SUB:
+		b = next == '-' // --
+	case token.QUO:
+		b = next == '*' // /*
+	case token.LSS:
+		b = next == '-' || next == '<' // <- or <<
+	case token.AND:
+		b = next == '&' || next == '^' // && or &^
+	}
+	return
+}
+
+
 // print prints a list of "items" (roughly corresponding to syntactic
 // tokens, but also including whitespace and formatting information).
 // It is the only print function that should be called directly from
@@ -757,6 +783,7 @@ func (p *printer) print(args ...interface{}) {
 		var data []byte
 		var tag HTMLTag
 		var tok token.Token
+
 		switch x := f.(type) {
 		case whiteSpace:
 			if x == ignore {
@@ -793,22 +820,38 @@ func (p *printer) print(args ...interface{}) {
 			// bytes since they do not appear in legal UTF-8 sequences)
 			// TODO(gri): do this more efficiently.
 			data = []byte("\xff" + string(data) + "\xff")
-			tok = token.INT // representing all literal tokens
+			tok = x.Kind
 		case token.Token:
+			s := x.String()
+			if mayCombine(p.lastTok, s[0]) {
+				// the previous and the current token must be
+				// separated by a blank otherwise they combine
+				// into a different incorrect token sequence
+				// (except for token.INT followed by a '.' this
+				// should never happen because it is taken care
+				// of via binary expression formatting)
+				if len(p.buffer) != 0 {
+					p.internalError("whitespace buffer not empty")
+				}
+				p.buffer = p.buffer[0:1]
+				p.buffer[0] = ' '
+			}
 			if p.Styler != nil {
 				data, tag = p.Styler.Token(x)
 			} else {
-				data = []byte(x.String())
+				data = []byte(s)
 			}
 			tok = x
 		case token.Position:
 			if x.IsValid() {
 				next = x // accurate position of next item
 			}
+			tok = p.lastTok
 		default:
 			fmt.Fprintf(os.Stderr, "print: unsupported argument type %T\n", f)
 			panic("go/printer type")
 		}
+		p.lastTok = tok
 		p.pos = next
 
 		if data != nil {
@@ -1048,7 +1091,7 @@ func (cfg *Config) Fprint(output io.Writer, node interface{}) (int, os.Error) {
 			p.useNodeComments = n.Comments == nil
 			p.file(n)
 		default:
-			p.errors <- os.NewError(fmt.Sprintf("printer.Fprint: unsupported node type %T", n))
+			p.errors <- fmt.Errorf("printer.Fprint: unsupported node type %T", n)
 			runtime.Goexit()
 		}
 		p.flush(token.Position{Offset: infinity, Line: infinity}, token.EOF)

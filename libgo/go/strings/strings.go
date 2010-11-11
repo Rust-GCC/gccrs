@@ -61,6 +61,11 @@ func Count(s, sep string) int {
 	return n
 }
 
+// Contains returns true if substr is within s.
+func Contains(s, substr string) bool {
+	return Index(s, substr) != -1
+}
+
 // Index returns the index of the first instance of sep in s, or -1 if sep is not present in s.
 func Index(s, sep string) int {
 	n := len(sep)
@@ -451,34 +456,12 @@ func indexFunc(s string, f func(r int) bool, truth bool) int {
 // truth==false, the sense of the predicate function is
 // inverted.
 func lastIndexFunc(s string, f func(r int) bool, truth bool) int {
-	end := len(s)
-	for end > 0 {
-		start := end - 1
-		rune := int(s[start])
-		if rune >= utf8.RuneSelf {
-			// Back up & look for beginning of rune. Mustn't pass start.
-			for start--; start >= 0; start-- {
-				if utf8.RuneStart(s[start]) {
-					break
-				}
-			}
-			if start < 0 {
-				return -1
-			}
-			var wid int
-			rune, wid = utf8.DecodeRuneInString(s[start:end])
-
-			// If we've decoded fewer bytes than we expected,
-			// we've got some invalid UTF-8, so make sure we return
-			// the last possible index in s.
-			if start+wid < end && f(utf8.RuneError) == truth {
-				return end - 1
-			}
-		}
+	for i := len(s); i > 0; {
+		rune, size := utf8.DecodeLastRuneInString(s[0:i])
+		i -= size
 		if f(rune) == truth {
-			return start
+			return i
 		}
-		end = start
 	}
 	return -1
 }
@@ -549,21 +532,10 @@ func Replace(s, old, new string, n int) string {
 		} else {
 			j += Index(s[start:], old)
 		}
-		w += copyString(t[w:], s[start:j])
-		w += copyString(t[w:], new)
+		w += copy(t[w:], s[start:j])
+		w += copy(t[w:], new)
 		start = j + len(old)
 	}
-	w += copyString(t[w:], s[start:])
+	w += copy(t[w:], s[start:])
 	return string(t[0:w])
-}
-
-func copyString(dst []byte, src string) int {
-	n := len(dst)
-	if n > len(src) {
-		n = len(src)
-	}
-	for i := 0; i < n; i++ {
-		dst[i] = src[i]
-	}
-	return n
 }

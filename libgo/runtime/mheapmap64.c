@@ -12,13 +12,13 @@
 
 // 3-level radix tree mapping page ids to Span*.
 void
-MHeapMap_Init(MHeapMap *m, void *(*allocator)(uintptr))
+runtime_MHeapMap_Init(MHeapMap *m, void *(*allocator)(uintptr))
 {
 	m->allocator = allocator;
 }
 
 MSpan*
-MHeapMap_Get(MHeapMap *m, PageID k)
+runtime_MHeapMap_Get(MHeapMap *m, PageID k)
 {
 	int32 i1, i2, i3;
 
@@ -29,13 +29,13 @@ MHeapMap_Get(MHeapMap *m, PageID k)
 	i1 = k & MHeapMap_Level1Mask;
 	k >>= MHeapMap_Level1Bits;
 	if(k != 0)
-		throw("MHeapMap_Get");
+		runtime_throw("MHeapMap_Get");
 
 	return m->p[i1]->p[i2]->s[i3];
 }
 
 MSpan*
-MHeapMap_GetMaybe(MHeapMap *m, PageID k)
+runtime_MHeapMap_GetMaybe(MHeapMap *m, PageID k)
 {
 	int32 i1, i2, i3;
 	MHeapMapNode2 *p2;
@@ -48,7 +48,7 @@ MHeapMap_GetMaybe(MHeapMap *m, PageID k)
 	i1 = k & MHeapMap_Level1Mask;
 	k >>= MHeapMap_Level1Bits;
 	if(k != 0)
-		throw("MHeapMap_Get");
+		runtime_throw("MHeapMap_Get");
 
 	p2 = m->p[i1];
 	if(p2 == nil)
@@ -60,7 +60,7 @@ MHeapMap_GetMaybe(MHeapMap *m, PageID k)
 }
 
 void
-MHeapMap_Set(MHeapMap *m, PageID k, MSpan *s)
+runtime_MHeapMap_Set(MHeapMap *m, PageID k, MSpan *s)
 {
 	int32 i1, i2, i3;
 
@@ -71,7 +71,7 @@ MHeapMap_Set(MHeapMap *m, PageID k, MSpan *s)
 	i1 = k & MHeapMap_Level1Mask;
 	k >>= MHeapMap_Level1Bits;
 	if(k != 0)
-		throw("MHeapMap_Set");
+		runtime_throw("MHeapMap_Set");
 
 	m->p[i1]->p[i2]->s[i3] = s;
 }
@@ -79,7 +79,7 @@ MHeapMap_Set(MHeapMap *m, PageID k, MSpan *s)
 // Allocate the storage required for entries [k, k+1, ..., k+len-1]
 // so that Get and Set calls need not check for nil pointers.
 bool
-MHeapMap_Preallocate(MHeapMap *m, PageID k, uintptr len)
+runtime_MHeapMap_Preallocate(MHeapMap *m, PageID k, uintptr len)
 {
 	uintptr end;
 	int32 i1, i2;

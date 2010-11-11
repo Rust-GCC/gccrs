@@ -27,6 +27,7 @@ type Error struct {
 
 var (
 	ErrInvalidUnreadByte os.Error = &Error{"bufio: invalid use of UnreadByte"}
+	ErrInvalidUnreadRune os.Error = &Error{"bufio: invalid use of UnreadRune"}
 	ErrBufferFull        os.Error = &Error{"bufio: buffer full"}
 	ErrNegativeCount     os.Error = &Error{"bufio: negative count"}
 	errInternal          os.Error = &Error{"bufio: internal error"}
@@ -44,11 +45,12 @@ func (b BufSizeError) String() string {
 
 // Reader implements buffering for an io.Reader object.
 type Reader struct {
-	buf      []byte
-	rd       io.Reader
-	r, w     int
-	err      os.Error
-	lastbyte int
+	buf          []byte
+	rd           io.Reader
+	r, w         int
+	err          os.Error
+	lastByte     int
+	lastRuneSize int
 }
 
 // NewReaderSize creates a new Reader whose buffer has the specified size,
@@ -67,7 +69,8 @@ func NewReaderSize(rd io.Reader, size int) (*Reader, os.Error) {
 	b = new(Reader)
 	b.buf = make([]byte, size)
 	b.rd = rd
-	b.lastbyte = -1
+	b.lastByte = -1
+	b.lastRuneSize = -1
 	return b, nil
 }
 
@@ -141,7 +144,8 @@ func (b *Reader) Read(p []byte) (nn int, err os.Error) {
 				// Read directly into p to avoid copy.
 				n, b.err = b.rd.Read(p)
 				if n > 0 {
-					b.lastbyte = int(p[n-1])
+					b.lastByte = int(p[n-1])
+					b.lastRuneSize = -1
 				}
 				p = p[n:]
 				nn += n
@@ -156,7 +160,8 @@ func (b *Reader) Read(p []byte) (nn int, err os.Error) {
 		copy(p[0:n], b.buf[b.r:])
 		p = p[n:]
 		b.r += n
-		b.lastbyte = int(b.buf[b.r-1])
+		b.lastByte = int(b.buf[b.r-1])
+		b.lastRuneSize = -1
 		nn += n
 	}
 	return nn, nil
@@ -165,6 +170,7 @@ func (b *Reader) Read(p []byte) (nn int, err os.Error) {
 // ReadByte reads and returns a single byte.
 // If no byte is available, returns an error.
 func (b *Reader) ReadByte() (c byte, err os.Error) {
+	b.lastRuneSize = -1
 	for b.w == b.r {
 		if b.err != nil {
 			return 0, b.err
@@ -173,24 +179,25 @@ func (b *Reader) ReadByte() (c byte, err os.Error) {
 	}
 	c = b.buf[b.r]
 	b.r++
-	b.lastbyte = int(c)
+	b.lastByte = int(c)
 	return c, nil
 }
 
 // UnreadByte unreads the last byte.  Only the most recently read byte can be unread.
 func (b *Reader) UnreadByte() os.Error {
-	if b.r == b.w && b.lastbyte >= 0 {
+	b.lastRuneSize = -1
+	if b.r == b.w && b.lastByte >= 0 {
 		b.w = 1
 		b.r = 0
-		b.buf[0] = byte(b.lastbyte)
-		b.lastbyte = -1
+		b.buf[0] = byte(b.lastByte)
+		b.lastByte = -1
 		return nil
 	}
 	if b.r <= 0 {
 		return ErrInvalidUnreadByte
 	}
 	b.r--
-	b.lastbyte = -1
+	b.lastByte = -1
 	return nil
 }
 
@@ -200,6 +207,7 @@ func (b *Reader) ReadRune() (rune int, size int, err os.Error) {
 	for b.r+utf8.UTFMax > b.w && !utf8.FullRune(b.buf[b.r:b.w]) && b.err == nil {
 		b.fill()
 	}
+	b.lastRuneSize = -1
 	if b.r == b.w {
 		return 0, 0, b.err
 	}
@@ -208,8 +216,23 @@ func (b *Reader) ReadRune() (rune int, size int, err os.Error) {
 		rune, size = utf8.DecodeRune(b.buf[b.r:b.w])
 	}
 	b.r += size
-	b.lastbyte = int(b.buf[b.r-1])
+	b.lastByte = int(b.buf[b.r-1])
+	b.lastRuneSize = size
 	return rune, size, nil
+}
+
+// UnreadRune unreads the last rune.  If the most recent read operation on
+// the buffer was not a ReadRune, UnreadRune returns an error.  (In this
+// regard it is stricter than UnreadByte, which will unread the last byte
+// from any read operation.)
+func (b *Reader) UnreadRune() os.Error {
+	if b.lastRuneSize < 0 || b.r == 0 {
+		return ErrInvalidUnreadRune
+	}
+	b.r -= b.lastRuneSize
+	b.lastByte = -1
+	b.lastRuneSize = -1
+	return nil
 }
 
 // Buffered returns the number of bytes that can be read from the current buffer.
@@ -261,7 +284,7 @@ func (b *Reader) ReadSlice(delim byte) (line []byte, err os.Error) {
 }
 
 // ReadBytes reads until the first occurrence of delim in the input,
-// returning a string containing the data up to and including the delimiter.
+// returning a slice containing the data up to and including the delimiter.
 // If ReadBytes encounters an error before finding a delimiter,
 // it returns the data read before the error and the error itself (often os.EOF).
 // ReadBytes returns err != nil if and only if line does not end in delim.
@@ -270,7 +293,6 @@ func (b *Reader) ReadBytes(delim byte) (line []byte, err os.Error) {
 	// accumulating full buffers.
 	var frag []byte
 	var full [][]byte
-	nfull := 0
 	err = nil
 
 	for {
@@ -287,26 +309,12 @@ func (b *Reader) ReadBytes(delim byte) (line []byte, err os.Error) {
 		// Make a copy of the buffer.
 		buf := make([]byte, len(frag))
 		copy(buf, frag)
-
-		// Grow list if needed.
-		if full == nil {
-			full = make([][]byte, 16)
-		} else if nfull >= len(full) {
-			newfull := make([][]byte, len(full)*2)
-			for i := 0; i < len(full); i++ {
-				newfull[i] = full[i]
-			}
-			full = newfull
-		}
-
-		// Save buffer
-		full[nfull] = buf
-		nfull++
+		full = append(full, buf)
 	}
 
 	// Allocate new buffer to hold the full pieces and the fragment.
 	n := 0
-	for i := 0; i < nfull; i++ {
+	for i := range full {
 		n += len(full[i])
 	}
 	n += len(frag)
@@ -314,9 +322,8 @@ func (b *Reader) ReadBytes(delim byte) (line []byte, err os.Error) {
 	// Copy full pieces and fragment in.
 	buf := make([]byte, n)
 	n = 0
-	for i := 0; i < nfull; i++ {
-		copy(buf[n:], full[i])
-		n += len(full[i])
+	for i := range full {
+		n += copy(buf[n:], full[i])
 	}
 	copy(buf[n:], frag)
 	return buf, err

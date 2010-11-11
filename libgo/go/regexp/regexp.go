@@ -22,7 +22,8 @@
 //		character [ '-' character ]
 //
 // All characters are UTF-8-encoded code points.  Backslashes escape special
-// characters, including inside character classes.
+// characters, including inside character classes.  The standard Go character
+// escapes are also recognized: \a \b \f \n \r \t \v.
 //
 // There are 16 methods of Regexp that match a regular expression and identify
 // the matched text.  Their names are matched by this regular expression:
@@ -59,7 +60,6 @@ package regexp
 
 import (
 	"bytes"
-	"container/vector"
 	"io"
 	"os"
 	"strings"
@@ -116,7 +116,7 @@ type Regexp struct {
 	expr        string // the original expression
 	prefix      string // initial plain text string
 	prefixBytes []byte // initial plain text bytes
-	inst        *vector.Vector
+	inst        []instr
 	start       instr // first instruction of machine
 	prefixStart instr // where to start if there is a prefix
 	nbra        int   // number of brackets in expression, for subexpressions
@@ -189,8 +189,8 @@ func newChar(char int) *_Char {
 type _CharClass struct {
 	common
 	negate bool // is character class negated? ([^a-z])
-	// vector of int, stored pairwise: [a-z] is (a,z); x is (x,x):
-	ranges     *vector.IntVector
+	// slice of int, stored pairwise: [a-z] is (a,z); x is (x,x):
+	ranges     []int
 	cmin, cmax int
 }
 
@@ -201,9 +201,9 @@ func (cclass *_CharClass) print() {
 	if cclass.negate {
 		print(" (negated)")
 	}
-	for i := 0; i < cclass.ranges.Len(); i += 2 {
-		l := cclass.ranges.At(i)
-		r := cclass.ranges.At(i + 1)
+	for i := 0; i < len(cclass.ranges); i += 2 {
+		l := cclass.ranges[i]
+		r := cclass.ranges[i+1]
 		if l == r {
 			print(" [", string(l), "]")
 		} else {
@@ -214,8 +214,7 @@ func (cclass *_CharClass) print() {
 
 func (cclass *_CharClass) addRange(a, b int) {
 	// range is a through b inclusive
-	cclass.ranges.Push(a)
-	cclass.ranges.Push(b)
+	cclass.ranges = append(cclass.ranges, a, b)
 	if a < cclass.cmin {
 		cclass.cmin = a
 	}
@@ -228,7 +227,7 @@ func (cclass *_CharClass) matches(c int) bool {
 	if c < cclass.cmin || c > cclass.cmax {
 		return cclass.negate
 	}
-	ranges := []int(*cclass.ranges)
+	ranges := cclass.ranges
 	for i := 0; i < len(ranges); i = i + 2 {
 		if ranges[i] <= c && c <= ranges[i+1] {
 			return !cclass.negate
@@ -239,7 +238,7 @@ func (cclass *_CharClass) matches(c int) bool {
 
 func newCharClass() *_CharClass {
 	c := new(_CharClass)
-	c.ranges = new(vector.IntVector)
+	c.ranges = make([]int, 0, 4)
 	c.cmin = 0x10FFFF + 1 // MaxRune + 1
 	c.cmax = -1
 	return c
@@ -297,8 +296,8 @@ func (nop *_Nop) kind() int { return _NOP }
 func (nop *_Nop) print()    { print("nop") }
 
 func (re *Regexp) add(i instr) instr {
-	i.setIndex(re.inst.Len())
-	re.inst.Push(i)
+	i.setIndex(len(re.inst))
+	re.inst = append(re.inst, i)
 	return i
 }
 
@@ -353,6 +352,18 @@ func ispunct(c int) bool {
 	return false
 }
 
+var escapes = []byte("abfnrtv")
+var escaped = []byte("\a\b\f\n\r\t\v")
+
+func escape(c int) int {
+	for i, b := range escapes {
+		if int(b) == c {
+			return i
+		}
+	}
+	return -1
+}
+
 func (p *parser) charClass() instr {
 	cc := newCharClass()
 	if p.c() == '^' {
@@ -367,15 +378,15 @@ func (p *parser) charClass() instr {
 				p.error(ErrBadRange)
 			}
 			// Is it [^\n]?
-			if cc.negate && cc.ranges.Len() == 2 &&
-				cc.ranges.At(0) == '\n' && cc.ranges.At(1) == '\n' {
+			if cc.negate && len(cc.ranges) == 2 &&
+				cc.ranges[0] == '\n' && cc.ranges[1] == '\n' {
 				nl := new(_NotNl)
 				p.re.add(nl)
 				return nl
 			}
 			// Special common case: "[a]" -> "a"
-			if !cc.negate && cc.ranges.Len() == 2 && cc.ranges.At(0) == cc.ranges.At(1) {
-				c := newChar(cc.ranges.At(0))
+			if !cc.negate && len(cc.ranges) == 2 && cc.ranges[0] == cc.ranges[1] {
+				c := newChar(cc.ranges[0])
 				p.re.add(c)
 				return c
 			}
@@ -388,10 +399,10 @@ func (p *parser) charClass() instr {
 			switch {
 			case c == endOfFile:
 				p.error(ErrExtraneousBackslash)
-			case c == 'n':
-				c = '\n'
 			case ispunct(c):
 				// c is as delivered
+			case escape(c) >= 0:
+				c = int(escaped[escape(c)])
 			default:
 				p.error(ErrBadBackslash)
 			}
@@ -483,10 +494,10 @@ func (p *parser) term() (start, end instr) {
 		switch {
 		case c == endOfFile:
 			p.error(ErrExtraneousBackslash)
-		case c == 'n':
-			c = '\n'
 		case ispunct(c):
 			// c is as delivered
+		case escape(c) >= 0:
+			c = int(escaped[escape(c)])
 		default:
 			p.error(ErrBadBackslash)
 		}
@@ -593,8 +604,7 @@ func unNop(i instr) instr {
 }
 
 func (re *Regexp) eliminateNops() {
-	for i := 0; i < re.inst.Len(); i++ {
-		inst := re.inst.At(i).(instr)
+	for _, inst := range re.inst {
 		if inst.kind() == _END {
 			continue
 		}
@@ -608,8 +618,7 @@ func (re *Regexp) eliminateNops() {
 
 func (re *Regexp) dump() {
 	print("prefix <", re.prefix, ">\n")
-	for i := 0; i < re.inst.Len(); i++ {
-		inst := re.inst.At(i).(instr)
+	for _, inst := range re.inst {
 		print(inst.index(), ": ")
 		inst.print()
 		if inst.kind() != _END {
@@ -651,17 +660,17 @@ func (re *Regexp) setPrefix() {
 	var b []byte
 	var utf = make([]byte, utf8.UTFMax)
 	// First instruction is start; skip that.
-	i := re.inst.At(0).(instr).next().index()
+	i := re.inst[0].next().index()
 Loop:
-	for i < re.inst.Len() {
-		inst := re.inst.At(i).(instr)
+	for i < len(re.inst) {
+		inst := re.inst[i]
 		// stop if this is not a char
 		if inst.kind() != _CHAR {
 			break
 		}
 		// stop if this char can be followed by a match for an empty string,
 		// which includes closures, ^, and $.
-		switch re.inst.At(inst.next().index()).(instr).kind() {
+		switch re.inst[inst.next().index()].kind() {
 		case _BOT, _EOT, _ALT:
 			break Loop
 		}
@@ -670,7 +679,7 @@ Loop:
 		i = inst.next().index()
 	}
 	// point prefixStart instruction to first non-CHAR after prefix
-	re.prefixStart = re.inst.At(i).(instr)
+	re.prefixStart = re.inst[i]
 	re.prefixBytes = b
 	re.prefix = string(b)
 }
@@ -687,7 +696,7 @@ func Compile(str string) (regexp *Regexp, error os.Error) {
 		}
 	}()
 	regexp.expr = str
-	regexp.inst = new(vector.Vector)
+	regexp.inst = make([]instr, 0, 10)
 	regexp.doParse()
 	return
 }
@@ -803,15 +812,7 @@ func (a *matchArena) addState(s []state, inst instr, prefixed bool, match *match
 			return s
 		}
 	}
-	if l == cap(s) {
-		s1 := make([]state, 2*l)[0:l]
-		copy(s1, s)
-		s = s1
-	}
-	s = s[0 : l+1]
-	s[l].inst = inst
-	s[l].prefixed = prefixed
-	s[l].match = match
+	s = append(s, state{inst, prefixed, match})
 	match.ref++
 	if inst.kind() == _ALT {
 		s = a.addState(s, inst.(*_Alt).left, prefixed, a.copy(match), pos, end)
@@ -825,8 +826,8 @@ func (a *matchArena) addState(s []state, inst instr, prefixed bool, match *match
 // If bytes == nil, scan str.
 func (re *Regexp) doExecute(str string, bytestr []byte, pos int) []int {
 	var s [2][]state
-	s[0] = make([]state, 10)[0:0]
-	s[1] = make([]state, 10)[0:0]
+	s[0] = make([]state, 0, 10)
+	s[1] = make([]state, 0, 10)
 	in, out := 0, 1
 	var final state
 	found := false
@@ -1136,42 +1137,6 @@ func (re *Regexp) allMatches(s string, b []byte, n int, deliver func([]int)) {
 	}
 }
 
-// TODO: AllMatchesIter and AllMatchesStringIter should change to return submatches as well.
-
-// AllMatchesIter slices the byte slice b into substrings that are successive
-// matches of the Regexp within b. If n > 0, the function returns at most n
-// matches. Text that does not match the expression will be skipped. Empty
-// matches abutting a preceding match are ignored. The function returns a
-// channel that iterates over the matching substrings.
-func (re *Regexp) AllMatchesIter(b []byte, n int) <-chan []byte {
-	if n <= 0 {
-		n = len(b) + 1
-	}
-	c := make(chan []byte, 10)
-	go func() {
-		re.allMatches("", b, n, func(match []int) { c <- b[match[0]:match[1]] })
-		close(c)
-	}()
-	return c
-}
-
-// AllMatchesStringIter slices the string s into substrings that are successive
-// matches of the Regexp within s. If n > 0, the function returns at most n
-// matches. Text that does not match the expression will be skipped. Empty
-// matches abutting a preceding match are ignored. The function returns a
-// channel that iterates over the matching substrings.
-func (re *Regexp) AllMatchesStringIter(s string, n int) <-chan string {
-	if n <= 0 {
-		n = len(s) + 1
-	}
-	c := make(chan string, 10)
-	go func() {
-		re.allMatches(s, nil, n, func(match []int) { c <- s[match[0]:match[1]] })
-		close(c)
-	}()
-	return c
-}
-
 // Find returns a slice holding the text of the leftmost match in b of the regular expression.
 // A return value of nil indicates no match.
 func (re *Regexp) Find(b []byte) []byte {
@@ -1285,21 +1250,14 @@ func (re *Regexp) FindAll(b []byte, n int) [][]byte {
 	if n < 0 {
 		n = len(b) + 1
 	}
-	result := make([][]byte, startSize)
-	i := 0
+	result := make([][]byte, 0, startSize)
 	re.allMatches("", b, n, func(match []int) {
-		if i == cap(result) {
-			new := make([][]byte, 2*i)
-			copy(new, result)
-			result = new
-		}
-		result[i] = b[match[0]:match[1]]
-		i++
+		result = append(result, b[match[0]:match[1]])
 	})
-	if i == 0 {
+	if len(result) == 0 {
 		return nil
 	}
-	return result[0:i]
+	return result
 }
 
 // FindAllIndex is the 'All' version of FindIndex; it returns a slice of all
@@ -1310,21 +1268,14 @@ func (re *Regexp) FindAllIndex(b []byte, n int) [][]int {
 	if n < 0 {
 		n = len(b) + 1
 	}
-	result := make([][]int, startSize)
-	i := 0
+	result := make([][]int, 0, startSize)
 	re.allMatches("", b, n, func(match []int) {
-		if i == cap(result) {
-			new := make([][]int, 2*i)
-			copy(new, result)
-			result = new
-		}
-		result[i] = match[0:2]
-		i++
+		result = append(result, match[0:2])
 	})
-	if i == 0 {
+	if len(result) == 0 {
 		return nil
 	}
-	return result[0:i]
+	return result
 }
 
 // FindAllString is the 'All' version of FindString; it returns a slice of all
@@ -1335,21 +1286,14 @@ func (re *Regexp) FindAllString(s string, n int) []string {
 	if n < 0 {
 		n = len(s) + 1
 	}
-	result := make([]string, startSize)
-	i := 0
+	result := make([]string, 0, startSize)
 	re.allMatches(s, nil, n, func(match []int) {
-		if i == cap(result) {
-			new := make([]string, 2*i)
-			copy(new, result)
-			result = new
-		}
-		result[i] = s[match[0]:match[1]]
-		i++
+		result = append(result, s[match[0]:match[1]])
 	})
-	if i == 0 {
+	if len(result) == 0 {
 		return nil
 	}
-	return result[0:i]
+	return result
 }
 
 // FindAllStringIndex is the 'All' version of FindStringIndex; it returns a
@@ -1360,21 +1304,14 @@ func (re *Regexp) FindAllStringIndex(s string, n int) [][]int {
 	if n < 0 {
 		n = len(s) + 1
 	}
-	result := make([][]int, startSize)
-	i := 0
+	result := make([][]int, 0, startSize)
 	re.allMatches(s, nil, n, func(match []int) {
-		if i == cap(result) {
-			new := make([][]int, 2*i)
-			copy(new, result)
-			result = new
-		}
-		result[i] = match[0:2]
-		i++
+		result = append(result, match[0:2])
 	})
-	if i == 0 {
+	if len(result) == 0 {
 		return nil
 	}
-	return result[0:i]
+	return result
 }
 
 // FindAllSubmatch is the 'All' version of FindSubmatch; it returns a slice
@@ -1385,27 +1322,20 @@ func (re *Regexp) FindAllSubmatch(b []byte, n int) [][][]byte {
 	if n < 0 {
 		n = len(b) + 1
 	}
-	result := make([][][]byte, startSize)
-	i := 0
+	result := make([][][]byte, 0, startSize)
 	re.allMatches("", b, n, func(match []int) {
-		if i == cap(result) {
-			new := make([][][]byte, 2*i)
-			copy(new, result)
-			result = new
-		}
 		slice := make([][]byte, len(match)/2)
 		for j := range slice {
 			if match[2*j] >= 0 {
 				slice[j] = b[match[2*j]:match[2*j+1]]
 			}
 		}
-		result[i] = slice
-		i++
+		result = append(result, slice)
 	})
-	if i == 0 {
+	if len(result) == 0 {
 		return nil
 	}
-	return result[0:i]
+	return result
 }
 
 // FindAllSubmatchIndex is the 'All' version of FindSubmatchIndex; it returns
@@ -1416,21 +1346,14 @@ func (re *Regexp) FindAllSubmatchIndex(b []byte, n int) [][]int {
 	if n < 0 {
 		n = len(b) + 1
 	}
-	result := make([][]int, startSize)
-	i := 0
+	result := make([][]int, 0, startSize)
 	re.allMatches("", b, n, func(match []int) {
-		if i == cap(result) {
-			new := make([][]int, 2*i)
-			copy(new, result)
-			result = new
-		}
-		result[i] = match
-		i++
+		result = append(result, match)
 	})
-	if i == 0 {
+	if len(result) == 0 {
 		return nil
 	}
-	return result[0:i]
+	return result
 }
 
 // FindAllStringSubmatch is the 'All' version of FindStringSubmatch; it
@@ -1441,27 +1364,20 @@ func (re *Regexp) FindAllStringSubmatch(s string, n int) [][]string {
 	if n < 0 {
 		n = len(s) + 1
 	}
-	result := make([][]string, startSize)
-	i := 0
+	result := make([][]string, 0, startSize)
 	re.allMatches(s, nil, n, func(match []int) {
-		if i == cap(result) {
-			new := make([][]string, 2*i)
-			copy(new, result)
-			result = new
-		}
 		slice := make([]string, len(match)/2)
 		for j := range slice {
 			if match[2*j] >= 0 {
 				slice[j] = s[match[2*j]:match[2*j+1]]
 			}
 		}
-		result[i] = slice
-		i++
+		result = append(result, slice)
 	})
-	if i == 0 {
+	if len(result) == 0 {
 		return nil
 	}
-	return result[0:i]
+	return result
 }
 
 // FindAllStringSubmatchIndex is the 'All' version of
@@ -1473,19 +1389,12 @@ func (re *Regexp) FindAllStringSubmatchIndex(s string, n int) [][]int {
 	if n < 0 {
 		n = len(s) + 1
 	}
-	result := make([][]int, startSize)
-	i := 0
+	result := make([][]int, 0, startSize)
 	re.allMatches(s, nil, n, func(match []int) {
-		if i == cap(result) {
-			new := make([][]int, 2*i)
-			copy(new, result)
-			result = new
-		}
-		result[i] = match
-		i++
+		result = append(result, match)
 	})
-	if i == 0 {
+	if len(result) == 0 {
 		return nil
 	}
-	return result[0:i]
+	return result
 }

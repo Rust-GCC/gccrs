@@ -31,6 +31,9 @@ func _() {
 	_ = 1 + a
 	_ = a + 1
 	_ = a + b + 1
+	_ = s[a]
+	_ = s[a:]
+	_ = s[:b]
 	_ = s[1:2]
 	_ = s[a:b]
 	_ = s[0:len(s)]
@@ -56,6 +59,7 @@ func _() {
 	_ = s[a : b-c]
 	_ = s[0:]
 	_ = s[a+b]
+	_ = s[:b-c]
 	_ = s[a+b:]
 	_ = a[a<<b+1]
 	_ = a[a<<b+1:]
@@ -165,6 +169,45 @@ func _() {
 }
 
 
+func f(x int, args ...int) {
+	f(0, args...)
+	f(1, args)
+	f(2, args[0])
+
+	// make sure syntactically legal code remains syntactically legal
+	f(3, 42 ...)	// a blank must remain between 42 and ...
+	f(4, 42....)
+	f(5, 42....)
+	f(6, 42.0...)
+	f(7, 42.0...)
+	f(8, .42...)
+	f(9, .42...)
+	f(10, 42e0...)
+	f(11, 42e0...)
+
+	_ = 42 .x	// a blank must remain between 42 and .x
+	_ = 42..x
+	_ = 42..x
+	_ = 42.0.x
+	_ = 42.0.x
+	_ = .42.x
+	_ = .42.x
+	_ = 42e0.x
+	_ = 42e0.x
+
+	// a blank must remain between the binary operator and the 2nd operand
+	_ = x / *y
+	_ = x < -1
+	_ = x < <-1
+	_ = x + +1
+	_ = x - -1
+	_ = x & &x
+	_ = x & ^x
+
+	_ = f(x / *y, x < -1, x < <-1, x + +1, x - -1, x & &x, x & ^x)
+}
+
+
 func _() {
 	_ = T{}
 	_ = struct{}{}
@@ -233,6 +276,27 @@ func _() {
 }
 
 
+func _() {
+	_ = [][]int{
+		[]int{1},
+		[]int{1, 2},
+		[]int{1, 2, 3},
+	}
+	_ = [][]int{
+		{1},
+		[]int{1, 2},
+		[]int{1, 2, 3},
+	}
+	_ = [][]int{
+		{1},
+		{1, 2},
+		{1, 2, 3},
+	}
+	_ = [][]int{{1}, {1, 2}, {1, 2, 3}}
+}
+
+
+// various multi-line expressions
 func _() {
 	// do not add extra indentation to multi-line string lists
 	_ = "foo" + "bar"
@@ -331,7 +395,6 @@ func _() {
 		2,
 		3,
 	)
-	// TODO(gri) the cases below are not correct yet
 	f(1,
 		2,
 		3)	// comment
@@ -344,8 +407,7 @@ func _() {
 		3)	// comment
 	f(1,
 		2,
-		3 // comment
-		,
+		3,	// comment
 	)
 }
 

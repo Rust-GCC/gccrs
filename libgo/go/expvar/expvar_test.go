@@ -27,6 +27,11 @@ func TestInt(t *testing.T) {
 	if s := reqs.String(); s != "4" {
 		t.Errorf("reqs.String() = %q, want \"4\"", s)
 	}
+
+	reqs.Set(-2)
+	if reqs.i != -2 {
+		t.Errorf("reqs.i = %v, want -2", reqs.i)
+	}
 }
 
 func TestString(t *testing.T) {
@@ -76,7 +81,7 @@ func TestMapCounter(t *testing.T) {
 		t.Error("red.Kind() is not a number.")
 	}
 	if x != 3 {
-		t.Error("red = %v, want 3", x)
+		t.Errorf("red = %v, want 3", x)
 	}
 }
 

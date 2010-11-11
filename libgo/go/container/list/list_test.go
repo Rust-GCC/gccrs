@@ -23,8 +23,7 @@ func checkListPointers(t *testing.T, l *List, es []*Element) {
 		t.Errorf("l.back = %v, want %v", l.back, last)
 	}
 
-	for i := 0; i < len(es); i++ {
-		e := es[i]
+	for i, e := range es {
 		var e_prev, e_next *Element = nil, nil
 		if i > 0 {
 			e_prev = es[i-1]
@@ -116,8 +115,8 @@ func TestList(t *testing.T) {
 
 	// Check standard iteration.
 	sum := 0
-	for e := range l.Iter() {
-		if i, ok := e.(int); ok {
+	for e := l.Front(); e != nil; e = e.Next() {
+		if i, ok := e.Value.(int); ok {
 			sum += i
 		}
 	}
@@ -141,7 +140,8 @@ func checkList(t *testing.T, l *List, es []interface{}) {
 		return
 	}
 	i := 0
-	for le := range l.Iter() {
+	for e := l.Front(); e != nil; e = e.Next() {
+		le := e.Value.(int)
 		if le != es[i] {
 			t.Errorf("elt #%d has value=%v, want %v", i, le, es[i])
 		}
@@ -192,4 +192,18 @@ func TestExtending(t *testing.T) {
 	checkList(t, l1, []interface{}{1, 2, 3})
 	l1.PushFrontList(l3)
 	checkList(t, l1, []interface{}{1, 2, 3})
+}
+
+func TestRemove(t *testing.T) {
+	l := New()
+	e1 := l.PushBack(1)
+	e2 := l.PushBack(2)
+	checkListPointers(t, l, []*Element{e1, e2})
+	e := l.Front()
+	l.Remove(e)
+	checkListPointers(t, l, []*Element{e2})
+	checkListLen(t, l, 1)
+	l.Remove(e)
+	checkListPointers(t, l, []*Element{e2})
+	checkListLen(t, l, 1)
 }

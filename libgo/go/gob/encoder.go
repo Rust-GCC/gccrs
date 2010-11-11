@@ -21,6 +21,7 @@ type Encoder struct {
 	state      *encoderState           // so we can encode integers, strings directly
 	countState *encoderState           // stage for writing counts
 	buf        []byte                  // for collecting the output.
+	err        os.Error
 }
 
 // NewEncoder returns a new encoder that will transmit on the io.Writer.
@@ -28,10 +29,8 @@ func NewEncoder(w io.Writer) *Encoder {
 	enc := new(Encoder)
 	enc.w = w
 	enc.sent = make(map[reflect.Type]typeId)
-	enc.state = new(encoderState)
-	enc.state.b = new(bytes.Buffer) // the rest isn't important; all we need is buffer and writer
-	enc.countState = new(encoderState)
-	enc.countState.b = new(bytes.Buffer) // the rest isn't important; all we need is buffer and writer
+	enc.state = newEncoderState(enc, new(bytes.Buffer))
+	enc.countState = newEncoderState(enc, new(bytes.Buffer))
 	return enc
 }
 
@@ -40,8 +39,8 @@ func (enc *Encoder) badType(rt reflect.Type) {
 }
 
 func (enc *Encoder) setError(err os.Error) {
-	if enc.state.err == nil { // remember the first.
-		enc.state.err = err
+	if enc.err == nil { // remember the first.
+		enc.err = err
 	}
 	enc.state.b.Reset()
 }
@@ -74,7 +73,7 @@ func (enc *Encoder) sendType(origt reflect.Type) (sent bool) {
 
 	switch rt := rt.(type) {
 	default:
-		// Basic types do not need to be described.
+		// Basic types and interfaces do not need to be described.
 		return
 	case *reflect.SliceType:
 		// If it's []uint8, don't send; it's considered basic.
@@ -92,7 +91,7 @@ func (enc *Encoder) sendType(origt reflect.Type) (sent bool) {
 	case *reflect.StructType:
 		// structs must be sent so we know their fields.
 		break
-	case *reflect.ChanType, *reflect.FuncType, *reflect.InterfaceType:
+	case *reflect.ChanType, *reflect.FuncType:
 		// Probably a bad field in a struct.
 		enc.badType(rt)
 		return
@@ -115,9 +114,9 @@ func (enc *Encoder) sendType(origt reflect.Type) (sent bool) {
 	// Id:
 	encodeInt(enc.state, -int64(info.id))
 	// Type:
-	encode(enc.state.b, reflect.NewValue(info.wire))
+	enc.encode(enc.state.b, reflect.NewValue(info.wire))
 	enc.send()
-	if enc.state.err != nil {
+	if enc.err != nil {
 		return
 	}
 
@@ -134,7 +133,7 @@ func (enc *Encoder) sendType(origt reflect.Type) (sent bool) {
 	case reflect.ArrayOrSliceType:
 		enc.sendType(st.Elem())
 	}
-	return
+	return true
 }
 
 // Encode transmits the data item represented by the empty interface value,
@@ -143,30 +142,17 @@ func (enc *Encoder) Encode(e interface{}) os.Error {
 	return enc.EncodeValue(reflect.NewValue(e))
 }
 
-// EncodeValue transmits the data item represented by the reflection value,
-// guaranteeing that all necessary type information has been transmitted first.
-func (enc *Encoder) EncodeValue(value reflect.Value) os.Error {
-	// Make sure we're single-threaded through here, so multiple
-	// goroutines can share an encoder.
-	enc.mutex.Lock()
-	defer enc.mutex.Unlock()
-
-	enc.state.err = nil
-	rt, _ := indirect(value.Type())
-
-	// Sanity check only: encoder should never come in with data present.
-	if enc.state.b.Len() > 0 || enc.countState.b.Len() > 0 {
-		enc.state.err = os.ErrorString("encoder: buffer not empty")
-		return enc.state.err
-	}
-
+// sendTypeId makes sure the remote side knows about this type.
+// It will send a descriptor if this is the first time the type has been
+// sent.  Regardless, it sends the id.
+func (enc *Encoder) sendTypeDescriptor(rt reflect.Type) {
 	// Make sure the type is known to the other side.
 	// First, have we already sent this type?
 	if _, alreadySent := enc.sent[rt]; !alreadySent {
 		// No, so send it.
 		sent := enc.sendType(rt)
-		if enc.state.err != nil {
-			return enc.state.err
+		if enc.err != nil {
+			return
 		}
 		// If the type info has still not been transmitted, it means we have
 		// a singleton basic type (int, []byte etc.) at top level.  We don't
@@ -177,7 +163,7 @@ func (enc *Encoder) EncodeValue(value reflect.Value) os.Error {
 			typeLock.Unlock()
 			if err != nil {
 				enc.setError(err)
-				return err
+				return
 			}
 			enc.sent[rt] = info.id
 		}
@@ -185,14 +171,37 @@ func (enc *Encoder) EncodeValue(value reflect.Value) os.Error {
 
 	// Identify the type of this top-level value.
 	encodeInt(enc.state, int64(enc.sent[rt]))
+}
+
+// EncodeValue transmits the data item represented by the reflection value,
+// guaranteeing that all necessary type information has been transmitted first.
+func (enc *Encoder) EncodeValue(value reflect.Value) os.Error {
+	// Make sure we're single-threaded through here, so multiple
+	// goroutines can share an encoder.
+	enc.mutex.Lock()
+	defer enc.mutex.Unlock()
+
+	enc.err = nil
+	rt, _ := indirect(value.Type())
+
+	// Sanity check only: encoder should never come in with data present.
+	if enc.state.b.Len() > 0 || enc.countState.b.Len() > 0 {
+		enc.err = os.ErrorString("encoder: buffer not empty")
+		return enc.err
+	}
+
+	enc.sendTypeDescriptor(rt)
+	if enc.err != nil {
+		return enc.err
+	}
 
 	// Encode the object.
-	err := encode(enc.state.b, value)
+	err := enc.encode(enc.state.b, value)
 	if err != nil {
 		enc.setError(err)
 	} else {
 		enc.send()
 	}
 
-	return enc.state.err
+	return enc.err
 }

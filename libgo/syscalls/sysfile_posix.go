@@ -24,6 +24,7 @@ func libc_unlink(name *byte) int __asm__ ("unlink");
 func libc_rmdir(name *byte) int __asm__ ("rmdir");
 func libc_fcntl(fd int, cmd int, arg int) int __asm__ ("fcntl");
 func libc_mkdir(name *byte, perm Mode_t) int __asm__ ("mkdir");
+func libc_dup(int) int __asm__ ("dup")
 func libc_gettimeofday(tv *Timeval, tz *byte) int __asm__ ("gettimeofday");
 func libc_select(int, *byte, *byte, *byte, *Timeval) int __asm__ ("select");
 func libc_chdir(name *byte) int __asm__ ("chdir");
@@ -159,6 +160,14 @@ func Mkdir(path string, mode uint32) (errno int) {
   r := libc_mkdir(StringBytePtr(path), Mode_t(mode));
   if r < 0 { errno = GetErrno() }
   return;
+}
+
+func Dup(oldfd int) (fd int, errno int) {
+	fd = libc_dup(oldfd)
+	if fd < 0 {
+		errno = GetErrno()
+	}
+	return
 }
 
 func Gettimeofday(tv *Timeval) (errno int) {

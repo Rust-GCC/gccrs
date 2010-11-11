@@ -18,16 +18,16 @@ type Cipher interface {
 
 	// Encrypt encrypts the first block in src into dst.
 	// Src and dst may point at the same memory.
-	Encrypt(src, dst []byte)
+	Encrypt(dst, src []byte)
 
 	// Decrypt decrypts the first block in src into dst.
 	// Src and dst may point at the same memory.
-	Decrypt(src, dst []byte)
+	Decrypt(dst, src []byte)
 }
 
 // Utility routines
 
-func shift1(src, dst []byte) byte {
+func shift1(dst, src []byte) byte {
 	var b byte
 	for i := len(src) - 1; i >= 0; i-- {
 		bb := src[i] >> 7
@@ -49,10 +49,8 @@ func same(p, q []byte) bool {
 	return true
 }
 
-func copy(p []byte) []byte {
+func dup(p []byte) []byte {
 	q := make([]byte, len(p))
-	for i, b := range p {
-		q[i] = b
-	}
+	copy(q, p)
 	return q
 }

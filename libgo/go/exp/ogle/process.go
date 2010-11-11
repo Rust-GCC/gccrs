@@ -390,17 +390,7 @@ func (p *Process) causesToEvents() ([]Event, os.Error) {
 // postEvent appends an event to the posted queue.  These events will
 // be processed before any currently pending events.
 func (p *Process) postEvent(ev Event) {
-	n := len(p.posted)
-	m := n * 2
-	if m == 0 {
-		m = 4
-	}
-	posted := make([]Event, n+1, m)
-	for i, p := range p.posted {
-		posted[i] = p
-	}
-	posted[n] = ev
-	p.posted = posted
+	p.posted = append(p.posted, ev)
 }
 
 // processEvents processes events in the event queue until no events
@@ -452,7 +442,7 @@ func (p *Process) processEvent(ev Event) (EventAction, os.Error) {
 		action, err = p.goroutineExitHook.handle(ev)
 
 	default:
-		log.Crashf("Unknown event type %T in queue", p.event)
+		log.Panicf("Unknown event type %T in queue", p.event)
 	}
 
 	if err != nil {

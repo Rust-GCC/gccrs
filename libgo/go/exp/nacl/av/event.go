@@ -12,6 +12,7 @@ package av
 import (
 	"encoding/binary"
 	"exp/draw"
+	"image"
 	"log"
 	"os"
 	"time"
@@ -398,11 +399,11 @@ func (w *Window) readEvents() {
 		mbe *mouseButtonEvent
 		qe  *quitEvent
 	)
-	var m draw.Mouse
+	var m draw.MouseEvent
 	for {
 		if err := videoPollEvent(buf); err != nil {
 			if !clean {
-				clean = w.resizec <- false
+				clean = w.eventc <- draw.ConfigEvent{image.Config{ColorModel, w.Image.Bounds().Dx(), w.Image.Bounds().Dy()}}
 			}
 			time.Sleep(10e6) // 10ms
 			continue
@@ -411,7 +412,7 @@ func (w *Window) readEvents() {
 		var e event
 		switch buf[0] {
 		default:
-			log.Stdout("unsupported event type", buf[0])
+			log.Print("unsupported event type", buf[0])
 			continue
 		case eventActive:
 			ea = new(activeEvent)
@@ -434,39 +435,39 @@ func (w *Window) readEvents() {
 		}
 		r := reader(buf)
 		if err := binary.Read(&r, binary.LittleEndian, e); err != nil {
-			log.Stdout("unpacking %T event: %s", e, err)
+			log.Print("unpacking %T event: %s", e, err)
 			continue
 		}
-		// log.Stdoutf("%#v\n", e);
+		// log.Printf("%#v\n", e);
 		switch buf[0] {
 		case eventExpose:
-			w.resizec <- true
+			w.eventc <- draw.ConfigEvent{image.Config{ColorModel, w.Image.Bounds().Dx(), w.Image.Bounds().Dy()}}
 		case eventKeyDown:
-			w.kbdc <- int(ke.Key)
+			w.eventc <- draw.KeyEvent{int(ke.Key)}
 		case eventKeyUp:
-			w.kbdc <- -int(ke.Key)
+			w.eventc <- draw.KeyEvent{-int(ke.Key)}
 		case eventMouseMotion:
-			m.X = int(mme.X)
-			m.Y = int(mme.Y)
+			m.Loc.X = int(mme.X)
+			m.Loc.Y = int(mme.Y)
 			m.Buttons = int(mme.Buttons)
 			m.Nsec = time.Nanoseconds()
-			_ = w.mousec <- m
+			_ = w.eventc <- m
 		case eventMouseButtonDown:
-			m.X = int(mbe.X)
-			m.Y = int(mbe.Y)
+			m.Loc.X = int(mbe.X)
+			m.Loc.Y = int(mbe.Y)
 			// TODO(rsc): Remove uint cast once 8g bug is fixed.
 			m.Buttons |= 1 << uint(mbe.Button-1)
 			m.Nsec = time.Nanoseconds()
-			_ = w.mousec <- m
+			_ = w.eventc <- m
 		case eventMouseButtonUp:
-			m.X = int(mbe.X)
-			m.Y = int(mbe.Y)
+			m.Loc.X = int(mbe.X)
+			m.Loc.Y = int(mbe.Y)
 			// TODO(rsc): Remove uint cast once 8g bug is fixed.
 			m.Buttons &^= 1 << uint(mbe.Button-1)
 			m.Nsec = time.Nanoseconds()
-			_ = w.mousec <- m
+			_ = w.eventc <- m
 		case eventQuit:
-			w.quitc <- true
+			close(w.eventc)
 		}
 	}
 }

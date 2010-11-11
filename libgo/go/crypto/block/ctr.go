@@ -25,14 +25,14 @@ type ctrStream struct {
 func newCTRStream(c Cipher, ctr []byte) *ctrStream {
 	x := new(ctrStream)
 	x.c = c
-	x.ctr = copy(ctr)
+	x.ctr = dup(ctr)
 	x.out = make([]byte, len(ctr))
 	return x
 }
 
 func (x *ctrStream) Next() []byte {
 	// Next block is encryption of counter.
-	x.c.Encrypt(x.ctr, x.out)
+	x.c.Encrypt(x.out, x.ctr)
 
 	// Increment counter
 	for i := len(x.ctr) - 1; i >= 0; i-- {

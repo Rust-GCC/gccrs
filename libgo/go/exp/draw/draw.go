@@ -8,8 +8,6 @@
 // and the X Render extension.
 package draw
 
-// BUG(rsc): This is a toy library and not ready for production use.
-
 import "image"
 
 // m is the maximum color value returned by image.Color.RGBA.
@@ -40,18 +38,16 @@ func Draw(dst Image, r image.Rectangle, src image.Image, sp image.Point) {
 
 // DrawMask aligns r.Min in dst with sp in src and mp in mask and then replaces the rectangle r
 // in dst with the result of a Porter-Duff composition. A nil mask is treated as opaque.
-// The implementation is simple and slow.
-// TODO(nigeltao): Optimize this.
 func DrawMask(dst Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op Op) {
 	sb := src.Bounds()
-	dx, dy := sb.Dx()-sp.X, sb.Dy()-sp.Y
+	dx, dy := sb.Max.X-sp.X, sb.Max.Y-sp.Y
 	if mask != nil {
 		mb := mask.Bounds()
-		if dx > mb.Dx()-mp.X {
-			dx = mb.Dx() - mp.X
+		if dx > mb.Max.X-mp.X {
+			dx = mb.Max.X - mp.X
 		}
-		if dy > mb.Dy()-mp.Y {
-			dy = mb.Dy() - mp.Y
+		if dy > mb.Max.Y-mp.Y {
+			dy = mb.Max.Y - mp.Y
 		}
 	}
 	if r.Dx() > dx {
@@ -60,45 +56,38 @@ func DrawMask(dst Image, r image.Rectangle, src image.Image, sp image.Point, mas
 	if r.Dy() > dy {
 		r.Max.Y = r.Min.Y + dy
 	}
-
-	// TODO(nigeltao): Clip r to dst's bounding box, and handle the case when sp or mp has negative X or Y.
-	// TODO(nigeltao): Ensure that r is well formed, i.e. r.Max.X >= r.Min.X and likewise for Y.
+	r = r.Intersect(dst.Bounds())
+	if r.Empty() {
+		return
+	}
 
 	// Fast paths for special cases. If none of them apply, then we fall back to a general but slow implementation.
 	if dst0, ok := dst.(*image.RGBA); ok {
 		if op == Over {
 			if mask == nil {
-				if src0, ok := src.(image.ColorImage); ok {
+				if src0, ok := src.(*image.ColorImage); ok {
 					drawFillOver(dst0, r, src0)
 					return
 				}
 				if src0, ok := src.(*image.RGBA); ok {
-					if dst0 == src0 && r.Overlaps(r.Add(sp.Sub(r.Min))) {
-						// TODO(nigeltao): Implement a fast path for the overlapping case.
-					} else {
-						drawCopyOver(dst0, r, src0, sp)
-						return
-					}
+					drawCopyOver(dst0, r, src0, sp)
+					return
 				}
 			} else if mask0, ok := mask.(*image.Alpha); ok {
-				if src0, ok := src.(image.ColorImage); ok {
+				if src0, ok := src.(*image.ColorImage); ok {
 					drawGlyphOver(dst0, r, src0, mask0, mp)
 					return
 				}
 			}
 		} else {
 			if mask == nil {
-				if src0, ok := src.(image.ColorImage); ok {
+				if src0, ok := src.(*image.ColorImage); ok {
 					drawFillSrc(dst0, r, src0)
 					return
 				}
 				if src0, ok := src.(*image.RGBA); ok {
-					if dst0 == src0 && r.Overlaps(r.Add(sp.Sub(r.Min))) {
-						// TODO(nigeltao): Implement a fast path for the overlapping case.
-					} else {
-						drawCopySrc(dst0, r, src0, sp)
-						return
-					}
+					drawCopySrc(dst0, r, src0, sp)
+					return
 				}
 			}
 		}
@@ -160,7 +149,7 @@ func DrawMask(dst Image, r image.Rectangle, src image.Image, sp image.Point, mas
 	}
 }
 
-func drawFillOver(dst *image.RGBA, r image.Rectangle, src image.ColorImage) {
+func drawFillOver(dst *image.RGBA, r image.Rectangle, src *image.ColorImage) {
 	cr, cg, cb, ca := src.RGBA()
 	// The 0x101 is here for the same reason as in drawRGBA.
 	a := (m - ca) * 0x101
@@ -180,18 +169,42 @@ func drawFillOver(dst *image.RGBA, r image.Rectangle, src image.ColorImage) {
 }
 
 func drawCopyOver(dst *image.RGBA, r image.Rectangle, src *image.RGBA, sp image.Point) {
-	x0, x1 := r.Min.X, r.Max.X
-	y0, y1 := r.Min.Y, r.Max.Y
-	for y, sy := y0, sp.Y; y != y1; y, sy = y+1, sy+1 {
-		dbase := y * dst.Stride
-		dpix := dst.Pix[dbase+x0 : dbase+x1]
-		sbase := sy * src.Stride
-		spix := src.Pix[sbase+sp.X:]
-		for i, rgba := range dpix {
+	dx0, dx1 := r.Min.X, r.Max.X
+	dy0, dy1 := r.Min.Y, r.Max.Y
+	nrows := dy1 - dy0
+	sx0, sx1 := sp.X, sp.X+dx1-dx0
+	d0 := dy0*dst.Stride + dx0
+	d1 := dy0*dst.Stride + dx1
+	s0 := sp.Y*src.Stride + sx0
+	s1 := sp.Y*src.Stride + sx1
+	var (
+		ddelta, sdelta int
+		i0, i1, idelta int
+	)
+	if r.Min.Y < sp.Y || r.Min.Y == sp.Y && r.Min.X <= sp.X {
+		ddelta = dst.Stride
+		sdelta = src.Stride
+		i0, i1, idelta = 0, d1-d0, +1
+	} else {
+		// If the source start point is higher than the destination start point, or equal height but to the left,
+		// then we compose the rows in right-to-left, bottom-up order instead of left-to-right, top-down.
+		d0 += (nrows - 1) * dst.Stride
+		d1 += (nrows - 1) * dst.Stride
+		s0 += (nrows - 1) * src.Stride
+		s1 += (nrows - 1) * src.Stride
+		ddelta = -dst.Stride
+		sdelta = -src.Stride
+		i0, i1, idelta = d1-d0-1, -1, -1
+	}
+	for ; nrows > 0; nrows-- {
+		dpix := dst.Pix[d0:d1]
+		spix := src.Pix[s0:s1]
+		for i := i0; i != i1; i += idelta {
 			// For unknown reasons, even though both dpix[i] and spix[i] are
 			// image.RGBAColors, on an x86 CPU it seems fastest to call RGBA
 			// for the source but to do it manually for the destination.
 			sr, sg, sb, sa := spix[i].RGBA()
+			rgba := dpix[i]
 			dr := uint32(rgba.R)
 			dg := uint32(rgba.G)
 			db := uint32(rgba.B)
@@ -204,10 +217,14 @@ func drawCopyOver(dst *image.RGBA, r image.Rectangle, src *image.RGBA, sp image.
 			da = (da*a)/m + sa
 			dpix[i] = image.RGBAColor{uint8(dr >> 8), uint8(dg >> 8), uint8(db >> 8), uint8(da >> 8)}
 		}
+		d0 += ddelta
+		d1 += ddelta
+		s0 += sdelta
+		s1 += sdelta
 	}
 }
 
-func drawGlyphOver(dst *image.RGBA, r image.Rectangle, src image.ColorImage, mask *image.Alpha, mp image.Point) {
+func drawGlyphOver(dst *image.RGBA, r image.Rectangle, src *image.ColorImage, mask *image.Alpha, mp image.Point) {
 	x0, x1 := r.Min.X, r.Max.X
 	y0, y1 := r.Min.Y, r.Max.Y
 	cr, cg, cb, ca := src.RGBA()
@@ -237,7 +254,7 @@ func drawGlyphOver(dst *image.RGBA, r image.Rectangle, src image.ColorImage, mas
 	}
 }
 
-func drawFillSrc(dst *image.RGBA, r image.Rectangle, src image.ColorImage) {
+func drawFillSrc(dst *image.RGBA, r image.Rectangle, src *image.ColorImage) {
 	if r.Dy() < 1 {
 		return
 	}
@@ -264,17 +281,33 @@ func drawFillSrc(dst *image.RGBA, r image.Rectangle, src image.ColorImage) {
 func drawCopySrc(dst *image.RGBA, r image.Rectangle, src *image.RGBA, sp image.Point) {
 	dx0, dx1 := r.Min.X, r.Max.X
 	dy0, dy1 := r.Min.Y, r.Max.Y
+	nrows := dy1 - dy0
 	sx0, sx1 := sp.X, sp.X+dx1-dx0
 	d0 := dy0*dst.Stride + dx0
 	d1 := dy0*dst.Stride + dx1
-	s0 := sp.Y*dst.Stride + sx0
-	s1 := sp.Y*dst.Stride + sx1
-	for y := dy0; y < dy1; y++ {
+	s0 := sp.Y*src.Stride + sx0
+	s1 := sp.Y*src.Stride + sx1
+	var ddelta, sdelta int
+	if r.Min.Y <= sp.Y {
+		ddelta = dst.Stride
+		sdelta = src.Stride
+	} else {
+		// If the source start point is higher than the destination start point, then we compose the rows
+		// in bottom-up order instead of top-down. Unlike the drawCopyOver function, we don't have to
+		// check the x co-ordinates because the built-in copy function can handle overlapping slices.
+		d0 += (nrows - 1) * dst.Stride
+		d1 += (nrows - 1) * dst.Stride
+		s0 += (nrows - 1) * src.Stride
+		s1 += (nrows - 1) * src.Stride
+		ddelta = -dst.Stride
+		sdelta = -src.Stride
+	}
+	for ; nrows > 0; nrows-- {
 		copy(dst.Pix[d0:d1], src.Pix[s0:s1])
-		d0 += dst.Stride
-		d1 += dst.Stride
-		s0 += src.Stride
-		s1 += src.Stride
+		d0 += ddelta
+		d1 += ddelta
+		s0 += sdelta
+		s1 += sdelta
 	}
 }
 

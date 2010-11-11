@@ -20,10 +20,12 @@ var (
 	nilParenBytes   = []byte("(nil)")
 	nilBytes        = []byte("nil")
 	mapBytes        = []byte("map[")
-	missingBytes    = []byte("missing")
-	extraBytes      = []byte("?(extra ")
+	missingBytes    = []byte("(MISSING)")
+	extraBytes      = []byte("%!(EXTRA ")
 	irparenBytes    = []byte("i)")
 	bytesBytes      = []byte("[]byte{")
+	widthBytes      = []byte("%!(BADWIDTH)")
+	precBytes       = []byte("%!(BADPREC)")
 )
 
 // State represents the printer state passed to custom formatters.
@@ -144,18 +146,23 @@ func Fprintf(w io.Writer, format string, a ...interface{}) (n int, error os.Erro
 // Printf formats according to a format specifier and writes to standard output.
 // It returns the number of bytes written and any write error encountered.
 func Printf(format string, a ...interface{}) (n int, errno os.Error) {
-	n, errno = Fprintf(os.Stdout, format, a)
+	n, errno = Fprintf(os.Stdout, format, a...)
 	return n, errno
 }
 
 // Sprintf formats according to a format specifier and returns the resulting string.
-// It returns the number of bytes written.
 func Sprintf(format string, a ...interface{}) string {
 	p := newPrinter()
 	p.doPrintf(format, a)
 	s := p.buf.String()
 	p.free()
 	return s
+}
+
+// Errorf formats according to a format specifier and returns the string 
+// converted to an os.ErrorString, which satisfies the os.Error interface.
+func Errorf(format string, a ...interface{}) os.Error {
+	return os.ErrorString(Sprintf(format, a...))
 }
 
 // These routines do not take a format string
@@ -175,13 +182,12 @@ func Fprint(w io.Writer, a ...interface{}) (n int, error os.Error) {
 // Spaces are added between operands when neither is a string.
 // It returns the number of bytes written and any write error encountered.
 func Print(a ...interface{}) (n int, errno os.Error) {
-	n, errno = Fprint(os.Stdout, a)
+	n, errno = Fprint(os.Stdout, a...)
 	return n, errno
 }
 
 // Sprint formats using the default formats for its operands and returns the resulting string.
 // Spaces are added between operands when neither is a string.
-// It returns the number of bytes written.
 func Sprint(a ...interface{}) string {
 	p := newPrinter()
 	p.doPrint(a, false, false)
@@ -209,13 +215,12 @@ func Fprintln(w io.Writer, a ...interface{}) (n int, error os.Error) {
 // Spaces are always added between operands and a newline is appended.
 // It returns the number of bytes written and any write error encountered.
 func Println(a ...interface{}) (n int, errno os.Error) {
-	n, errno = Fprintln(os.Stdout, a)
+	n, errno = Fprintln(os.Stdout, a...)
 	return n, errno
 }
 
 // Sprintln formats using the default formats for its operands and returns the resulting string.
 // Spaces are always added between operands and a newline is appended.
-// It returns the number of bytes written.
 func Sprintln(a ...interface{}) string {
 	p := newPrinter()
 	p.doPrint(a, true, true)
@@ -267,6 +272,7 @@ func (p *pp) unknownType(v interface{}) {
 
 func (p *pp) badVerb(verb int, val interface{}) {
 	p.add('%')
+	p.add('!')
 	p.add(verb)
 	p.add('(')
 	if val == nil {
@@ -433,7 +439,7 @@ func (p *pp) fmtString(v string, verb int, goSyntax bool, value interface{}) {
 }
 
 func (p *pp) fmtBytes(v []byte, verb int, goSyntax bool, depth int, value interface{}) {
-	if verb == 'v' {
+	if verb == 'v' || verb == 'd' {
 		if goSyntax {
 			p.buf.Write(bytesBytes)
 		} else {
@@ -785,6 +791,16 @@ BigSwitch:
 	return false
 }
 
+// intFromArg gets the fieldnumth element of a. On return, isInt reports whether the argument has type int.
+func intFromArg(a []interface{}, end, i, fieldnum int) (num int, isInt bool, newi, newfieldnum int) {
+	newi, newfieldnum = end, fieldnum
+	if i < end && fieldnum < len(a) {
+		num, isInt = a[fieldnum].(int)
+		newi, newfieldnum = i+1, fieldnum+1
+	}
+	return
+}
+
 func (p *pp) doPrintf(format string, a []interface{}) {
 	end := len(format) - 1
 	fieldnum := 0 // we process one field per non-trivial format
@@ -819,11 +835,25 @@ func (p *pp) doPrintf(format string, a []interface{}) {
 				break F
 			}
 		}
-		// do we have 20 (width)?
-		p.fmt.wid, p.fmt.widPresent, i = parsenum(format, i, end)
-		// do we have .20 (precision)?
+		// do we have width?
+		if format[i] == '*' {
+			p.fmt.wid, p.fmt.widPresent, i, fieldnum = intFromArg(a, end, i, fieldnum)
+			if !p.fmt.widPresent {
+				p.buf.Write(widthBytes)
+			}
+		} else {
+			p.fmt.wid, p.fmt.widPresent, i = parsenum(format, i, end)
+		}
+		// do we have precision?
 		if i < end && format[i] == '.' {
-			p.fmt.prec, p.fmt.precPresent, i = parsenum(format, i+1, end)
+			if format[i+1] == '*' {
+				p.fmt.prec, p.fmt.precPresent, i, fieldnum = intFromArg(a, end, i+1, fieldnum)
+				if !p.fmt.precPresent {
+					p.buf.Write(precBytes)
+				}
+			} else {
+				p.fmt.prec, p.fmt.precPresent, i = parsenum(format, i+1, end)
+			}
 		}
 		c, w = utf8.DecodeRuneInString(format[i:])
 		i += w

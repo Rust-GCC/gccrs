@@ -8,7 +8,6 @@ import (
 	"crypto/hmac"
 	"crypto/rc4"
 	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/subtle"
 	"crypto/x509"
 	"io"
@@ -38,7 +37,8 @@ func (c *Conn) clientHandshake() os.Error {
 	hello.random[3] = byte(t)
 	_, err := io.ReadFull(c.config.Rand, hello.random[4:])
 	if err != nil {
-		return c.sendAlert(alertInternalError)
+		c.sendAlert(alertInternalError)
+		return os.ErrorString("short read from Rand")
 	}
 
 	finishedHash.Write(hello.marshal())
@@ -77,30 +77,55 @@ func (c *Conn) clientHandshake() os.Error {
 	finishedHash.Write(certMsg.marshal())
 
 	certs := make([]*x509.Certificate, len(certMsg.certificates))
+	chain := NewCASet()
 	for i, asn1Data := range certMsg.certificates {
 		cert, err := x509.ParseCertificate(asn1Data)
 		if err != nil {
-			return c.sendAlert(alertBadCertificate)
+			c.sendAlert(alertBadCertificate)
+			return os.ErrorString("failed to parse certificate from server: " + err.String())
 		}
 		certs[i] = cert
+		chain.AddCert(cert)
 	}
 
-	// TODO(agl): do better validation of certs: max path length, name restrictions etc.
-	for i := 1; i < len(certs); i++ {
-		if err := certs[i-1].CheckSignatureFrom(certs[i]); err != nil {
-			return c.sendAlert(alertBadCertificate)
-		}
-	}
-
+	// If we don't have a root CA set configured then anything is accepted.
 	// TODO(rsc): Find certificates for OS X 10.6.
-	if c.config.RootCAs != nil {
-		root := c.config.RootCAs.FindParent(certs[len(certs)-1])
-		if root == nil {
-			return c.sendAlert(alertBadCertificate)
+	for cur := certs[0]; c.config.RootCAs != nil; {
+		parent := c.config.RootCAs.FindVerifiedParent(cur)
+		if parent != nil {
+			break
 		}
-		if certs[len(certs)-1].CheckSignatureFrom(root) != nil {
-			return c.sendAlert(alertBadCertificate)
+
+		parent = chain.FindVerifiedParent(cur)
+		if parent == nil {
+			c.sendAlert(alertBadCertificate)
+			return os.ErrorString("could not find root certificate for chain")
 		}
+
+		if !parent.BasicConstraintsValid || !parent.IsCA {
+			c.sendAlert(alertBadCertificate)
+			return os.ErrorString("intermediate certificate does not have CA bit set")
+		}
+		// KeyUsage status flags are ignored. From Engineering
+		// Security, Peter Gutmann: A European government CA marked its
+		// signing certificates as being valid for encryption only, but
+		// no-one noticed. Another European CA marked its signature
+		// keys as not being valid for signatures. A different CA
+		// marked its own trusted root certificate as being invalid for
+		// certificate signing.  Another national CA distributed a
+		// certificate to be used to encrypt data for the country’s tax
+		// authority that was marked as only being usable for digital
+		// signatures but not for encryption. Yet another CA reversed
+		// the order of the bit flags in the keyUsage due to confusion
+		// over encoding endianness, essentially setting a random
+		// keyUsage in certificates that it issued. Another CA created
+		// a self-invalidating certificate by adding a certificate
+		// policy statement stipulating that the certificate had to be
+		// used strictly as specified in the keyUsage, and a keyUsage
+		// containing a flag indicating that the RSA encryption key
+		// could only be used for Diffie-Hellman key agreement.
+
+		cur = parent
 	}
 
 	pub, ok := certs[0].PublicKey.(*rsa.PublicKey)
@@ -226,7 +251,7 @@ func (c *Conn) clientHandshake() os.Error {
 
 	cipher, _ := rc4.NewCipher(clientKey)
 
-	c.out.prepareCipherSpec(cipher, hmac.New(sha1.New(), clientMAC))
+	c.out.prepareCipherSpec(cipher, hmac.NewSHA1(clientMAC))
 	c.writeRecord(recordTypeChangeCipherSpec, []byte{1})
 
 	finished := new(finishedMsg)
@@ -235,7 +260,7 @@ func (c *Conn) clientHandshake() os.Error {
 	c.writeRecord(recordTypeHandshake, finished.marshal())
 
 	cipher2, _ := rc4.NewCipher(serverKey)
-	c.in.prepareCipherSpec(cipher2, hmac.New(sha1.New(), serverMAC))
+	c.in.prepareCipherSpec(cipher2, hmac.NewSHA1(serverMAC))
 	c.readRecord(recordTypeChangeCipherSpec)
 	if c.err != nil {
 		return c.err

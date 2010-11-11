@@ -47,7 +47,7 @@ main (int argc, char **argv)
   int i;
   struct __go_string *values;
 
-  mallocinit ();
+  runtime_mallocinit ();
   __go_gc_goroutine_init (&argc);
 
   Args.__count = argc;

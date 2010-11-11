@@ -69,7 +69,7 @@ func TestReaderSimple(t *testing.T) {
 
 	b = NewReader(newRot13Reader(bytes.NewBufferString(data)))
 	if s := readBytes(b); s != "uryyb jbeyq" {
-		t.Error("rot13 hello world test failed: got %q", s)
+		t.Errorf("rot13 hello world test failed: got %q", s)
 	}
 }
 
@@ -80,10 +80,10 @@ type readMaker struct {
 }
 
 var readMakers = []readMaker{
-	readMaker{"full", func(r io.Reader) io.Reader { return r }},
-	readMaker{"byte", iotest.OneByteReader},
-	readMaker{"half", iotest.HalfReader},
-	readMaker{"data+err", iotest.DataErrReader},
+	{"full", func(r io.Reader) io.Reader { return r }},
+	{"byte", iotest.OneByteReader},
+	{"half", iotest.HalfReader},
+	{"data+err", iotest.DataErrReader},
 }
 
 // Call ReadString (which ends up calling everything else)
@@ -123,14 +123,14 @@ type bufReader struct {
 }
 
 var bufreaders = []bufReader{
-	bufReader{"1", func(b *Reader) string { return reads(b, 1) }},
-	bufReader{"2", func(b *Reader) string { return reads(b, 2) }},
-	bufReader{"3", func(b *Reader) string { return reads(b, 3) }},
-	bufReader{"4", func(b *Reader) string { return reads(b, 4) }},
-	bufReader{"5", func(b *Reader) string { return reads(b, 5) }},
-	bufReader{"7", func(b *Reader) string { return reads(b, 7) }},
-	bufReader{"bytes", readBytes},
-	bufReader{"lines", readLines},
+	{"1", func(b *Reader) string { return reads(b, 1) }},
+	{"2", func(b *Reader) string { return reads(b, 2) }},
+	{"3", func(b *Reader) string { return reads(b, 3) }},
+	{"4", func(b *Reader) string { return reads(b, 4) }},
+	{"5", func(b *Reader) string { return reads(b, 5) }},
+	{"7", func(b *Reader) string { return reads(b, 7) }},
+	{"bytes", readBytes},
+	{"lines", readLines},
 }
 
 var bufsizes = []int{
@@ -179,10 +179,7 @@ type StringReader struct {
 func (r *StringReader) Read(p []byte) (n int, err os.Error) {
 	if r.step < len(r.data) {
 		s := r.data[r.step]
-		for i := 0; i < len(s); i++ {
-			p[i] = s[i]
-		}
-		n = len(s)
+		n = copy(p, s)
 		r.step++
 	} else {
 		err = os.EOF
@@ -210,19 +207,126 @@ func readRuneSegments(t *testing.T, segments []string) {
 }
 
 var segmentList = [][]string{
-	[]string{},
-	[]string{""},
-	[]string{"日", "本語"},
-	[]string{"\u65e5", "\u672c", "\u8a9e"},
-	[]string{"\U000065e5", "\U0000672c", "\U00008a9e"},
-	[]string{"\xe6", "\x97\xa5\xe6", "\x9c\xac\xe8\xaa\x9e"},
-	[]string{"Hello", ", ", "World", "!"},
-	[]string{"Hello", ", ", "", "World", "!"},
+	{},
+	{""},
+	{"日", "本語"},
+	{"\u65e5", "\u672c", "\u8a9e"},
+	{"\U000065e5", "\U0000672c", "\U00008a9e"},
+	{"\xe6", "\x97\xa5\xe6", "\x9c\xac\xe8\xaa\x9e"},
+	{"Hello", ", ", "World", "!"},
+	{"Hello", ", ", "", "World", "!"},
 }
 
 func TestReadRune(t *testing.T) {
 	for _, s := range segmentList {
 		readRuneSegments(t, s)
+	}
+}
+
+func TestUnreadRune(t *testing.T) {
+	got := ""
+	segments := []string{"Hello, world:", "日本語"}
+	data := strings.Join(segments, "")
+	r := NewReader(&StringReader{data: segments})
+	// Normal execution.
+	for {
+		rune, _, err := r.ReadRune()
+		if err != nil {
+			if err != os.EOF {
+				t.Error("unexpected EOF")
+			}
+			break
+		}
+		got += string(rune)
+		// Put it back and read it again
+		if err = r.UnreadRune(); err != nil {
+			t.Error("unexpected error on UnreadRune:", err)
+		}
+		rune1, _, err := r.ReadRune()
+		if err != nil {
+			t.Error("unexpected error reading after unreading:", err)
+		}
+		if rune != rune1 {
+			t.Errorf("incorrect rune after unread: got %c wanted %c", rune1, rune)
+		}
+	}
+	if got != data {
+		t.Errorf("want=%q got=%q", data, got)
+	}
+}
+
+// Test that UnreadRune fails if the preceding operation was not a ReadRune.
+func TestUnreadRuneError(t *testing.T) {
+	buf := make([]byte, 3) // All runes in this test are 3 bytes long
+	r := NewReader(&StringReader{data: []string{"日本語日本語日本語"}})
+	if r.UnreadRune() == nil {
+		t.Error("expected error on UnreadRune from fresh buffer")
+	}
+	_, _, err := r.ReadRune()
+	if err != nil {
+		t.Error("unexpected error on ReadRune (1):", err)
+	}
+	if err = r.UnreadRune(); err != nil {
+		t.Error("unexpected error on UnreadRune (1):", err)
+	}
+	if r.UnreadRune() == nil {
+		t.Error("expected error after UnreadRune (1)")
+	}
+	// Test error after Read.
+	_, _, err = r.ReadRune() // reset state
+	if err != nil {
+		t.Error("unexpected error on ReadRune (2):", err)
+	}
+	_, err = r.Read(buf)
+	if err != nil {
+		t.Error("unexpected error on Read (2):", err)
+	}
+	if r.UnreadRune() == nil {
+		t.Error("expected error after Read (2)")
+	}
+	// Test error after ReadByte.
+	_, _, err = r.ReadRune() // reset state
+	if err != nil {
+		t.Error("unexpected error on ReadRune (2):", err)
+	}
+	for _ = range buf {
+		_, err = r.ReadByte()
+		if err != nil {
+			t.Error("unexpected error on ReadByte (2):", err)
+		}
+	}
+	if r.UnreadRune() == nil {
+		t.Error("expected error after ReadByte")
+	}
+	// Test error after UnreadByte.
+	_, _, err = r.ReadRune() // reset state
+	if err != nil {
+		t.Error("unexpected error on ReadRune (3):", err)
+	}
+	_, err = r.ReadByte()
+	if err != nil {
+		t.Error("unexpected error on ReadByte (3):", err)
+	}
+	err = r.UnreadByte()
+	if err != nil {
+		t.Error("unexpected error on UnreadByte (3):", err)
+	}
+	if r.UnreadRune() == nil {
+		t.Error("expected error after UnreadByte (3)")
+	}
+}
+
+func TestUnreadRuneAtEOF(t *testing.T) {
+	// UnreadRune/ReadRune should error at EOF (was a bug; used to panic)
+	r := NewReader(strings.NewReader("x"))
+	r.ReadRune()
+	r.ReadRune()
+	r.UnreadRune()
+	_, _, err := r.ReadRune()
+	if err == nil {
+		t.Error("expected error at EOF")
+	} else if err != os.EOF {
+		t.Error("expected EOF; got", err)
 	}
 }
 
@@ -315,12 +419,12 @@ func (w errorWriterTest) Write(p []byte) (int, os.Error) {
 }
 
 var errorWriterTests = []errorWriterTest{
-	errorWriterTest{0, 1, nil, io.ErrShortWrite},
-	errorWriterTest{1, 2, nil, io.ErrShortWrite},
-	errorWriterTest{1, 1, nil, nil},
-	errorWriterTest{0, 1, os.EPIPE, os.EPIPE},
-	errorWriterTest{1, 2, os.EPIPE, os.EPIPE},
-	errorWriterTest{1, 1, os.EPIPE, os.EPIPE},
+	{0, 1, nil, io.ErrShortWrite},
+	{1, 2, nil, io.ErrShortWrite},
+	{1, 1, nil, nil},
+	{0, 1, os.EPIPE, os.EPIPE},
+	{1, 2, os.EPIPE, os.EPIPE},
+	{1, 1, os.EPIPE, os.EPIPE},
 }
 
 func TestWriteErrors(t *testing.T) {
@@ -456,4 +560,13 @@ func TestPeek(t *testing.T) {
 	if _, err := buf.Peek(1); err != os.EOF {
 		t.Fatalf("want EOF got %v", err)
 	}
+}
+
+func TestPeekThenUnreadRune(t *testing.T) {
+	// This sequence used to cause a crash.
+	r := NewReader(strings.NewReader("x"))
+	r.ReadRune()
+	r.Peek(1)
+	r.UnreadRune()
+	r.ReadRune() // Used to panic here
 }

@@ -65,7 +65,7 @@ func (a *exprInfo) newExpr(t Type, desc string) *expr {
 }
 
 func (a *exprInfo) diag(format string, args ...interface{}) {
-	a.diagAt(&a.pos, format, args)
+	a.diagAt(&a.pos, format, args...)
 }
 
 func (a *exprInfo) diagOpType(op token.Token, vt Type) {
@@ -87,7 +87,7 @@ func (a *exprInfo) diagOpTypes(op token.Token, lt Type, rt Type) {
 // TODO(austin) Rename to resolveIdeal or something?
 func (a *expr) convertTo(t Type) *expr {
 	if !a.t.isIdeal() {
-		log.Crashf("attempted to convert from %v, expected ideal", a.t)
+		log.Panicf("attempted to convert from %v, expected ideal", a.t)
 	}
 
 	var rat *big.Rat
@@ -109,7 +109,7 @@ func (a *expr) convertTo(t Type) *expr {
 		i := a.asIdealInt()()
 		rat = new(big.Rat).SetInt(i)
 	default:
-		log.Crashf("unexpected ideal type %v", a.t)
+		log.Panicf("unexpected ideal type %v", a.t)
 	}
 
 	// Check bounds
@@ -149,7 +149,7 @@ func (a *expr) convertTo(t Type) *expr {
 	case *idealFloatType:
 		res.eval = func() *big.Rat { return rat }
 	default:
-		log.Crashf("cannot convert to type %T", t)
+		log.Panicf("cannot convert to type %T", t)
 	}
 
 	return res
@@ -202,7 +202,7 @@ func (a *expr) derefArray() *expr {
 		if _, ok := pt.Elem.lit().(*ArrayType); ok {
 			deref := a.compileStarExpr(a)
 			if deref == nil {
-				log.Crashf("failed to dereference *array")
+				log.Panicf("failed to dereference *array")
 			}
 			return deref
 		}
@@ -370,7 +370,7 @@ func (a *assignCompiler) compile(b *block, lt Type) func(Value, *Thread) {
 		a.rs = make([]*expr, len(a.rmt.Elems))
 		for i, t := range a.rmt.Elems {
 			if t.isIdeal() {
-				log.Crashf("Right side of unpack contains ideal: %s", rmt)
+				log.Panicf("Right side of unpack contains ideal: %s", rmt)
 			}
 			a.rs[i] = orig.newExpr(t, orig.desc)
 			index := i
@@ -496,7 +496,7 @@ func (a *exprCompiler) compile(x ast.Expr, callCtx bool) *expr {
 		case token.STRING:
 			return ei.compileStringLit(string(x.Value))
 		default:
-			log.Crashf("unexpected basic literal type %v", x.Kind)
+			log.Panicf("unexpected basic literal type %v", x.Kind)
 		}
 
 	case *ast.CompositeLit:
@@ -649,7 +649,7 @@ func (a *exprCompiler) compile(x ast.Expr, callCtx bool) *expr {
 		}
 		return ei.compileUnaryExpr(x.Op, v)
 	}
-	log.Crashf("unexpected ast node type %T", x)
+	log.Panicf("unexpected ast node type %T", x)
 	panic("unreachable")
 
 typeexpr:
@@ -711,7 +711,7 @@ func (a *exprInfo) compileIdent(b *block, constant bool, callCtx bool, name stri
 		a.diag("type %v used as expression", name)
 		return nil
 	}
-	log.Crashf("name %s has unknown type %T", name, def)
+	log.Panicf("name %s has unknown type %T", name, def)
 	panic("unreachable")
 }
 
@@ -770,7 +770,7 @@ func (a *exprInfo) compileCharLit(lit string) *expr {
 func (a *exprInfo) compileFloatLit(lit string) *expr {
 	f, ok := new(big.Rat).SetString(lit)
 	if !ok {
-		log.Crashf("malformed float literal %s at %v passed parser", lit, a.pos)
+		log.Panicf("malformed float literal %s at %v passed parser", lit, a.pos)
 	}
 	expr := a.newExpr(IdealFloatType, "float literal")
 	expr.eval = func() *big.Rat { return f }
@@ -828,7 +828,7 @@ func (a *exprInfo) compileSelectorExpr(v *expr, name string) *expr {
 			ambig = true
 
 		default:
-			log.Crashf("Marked field at depth %d, but already found one at depth %d", depth, bestDepth)
+			log.Panicf("Marked field at depth %d, but already found one at depth %d", depth, bestDepth)
 		}
 		amberr += "\n\t" + pathName[1:]
 	}
@@ -870,7 +870,7 @@ func (a *exprInfo) compileSelectorExpr(v *expr, name string) *expr {
 			_, ok := ti.methods[name]
 			if ok {
 				mark(depth, pathName+"."+name)
-				log.Crash("Methods not implemented")
+				log.Panic("Methods not implemented")
 			}
 			t = ti.Def
 		}
@@ -1002,7 +1002,7 @@ func (a *exprInfo) compileSliceExpr(arr, lo, hi *expr) *expr {
 		}
 
 	default:
-		log.Crashf("unexpected left operand type %T", arr.t.lit())
+		log.Panicf("unexpected left operand type %T", arr.t.lit())
 	}
 
 	return expr
@@ -1126,7 +1126,7 @@ func (a *exprInfo) compileIndexExpr(l, r *expr) *expr {
 		}
 
 	default:
-		log.Crashf("unexpected left operand type %T", l.t.lit())
+		log.Panicf("unexpected left operand type %T", l.t.lit())
 	}
 
 	return expr
@@ -1174,12 +1174,8 @@ func (a *exprInfo) compileCallExpr(b *block, l *expr, as []*expr) *expr {
 
 	// Gather argument and out types to initialize frame variables
 	vts := make([]Type, nin+nout)
-	for i, t := range lt.In {
-		vts[i] = t
-	}
-	for i, t := range lt.Out {
-		vts[i+nin] = t
-	}
+	copy(vts, lt.In)
+	copy(vts[nin:], lt.Out)
 
 	// Compile
 	lf := l.asFunc()
@@ -1236,6 +1232,38 @@ func (a *exprInfo) compileBuiltinCallExpr(b *block, ft *FuncType, as []*expr) *e
 		default:
 			a.diag("illegal argument type for cap function\n\t%v", arg.t)
 			return nil
+		}
+		return expr
+
+	case copyType:
+		if !checkCount(2, 2) {
+			return nil
+		}
+		src := as[1]
+		dst := as[0]
+		if src.t != dst.t {
+			a.diag("arguments to built-in function 'copy' must have same type\nsrc: %s\ndst: %s\n", src.t, dst.t)
+			return nil
+		}
+		if _, ok := src.t.lit().(*SliceType); !ok {
+			a.diag("src argument to 'copy' must be a slice (got: %s)", src.t)
+			return nil
+		}
+		if _, ok := dst.t.lit().(*SliceType); !ok {
+			a.diag("dst argument to 'copy' must be a slice (got: %s)", dst.t)
+			return nil
+		}
+		expr := a.newExpr(IntType, "function call")
+		srcf := src.asSlice()
+		dstf := dst.asSlice()
+		expr.eval = func(t *Thread) int64 {
+			src, dst := srcf(t), dstf(t)
+			nelems := src.Len
+			if nelems > dst.Len {
+				nelems = dst.Len
+			}
+			dst.Base.Sub(0, nelems).Assign(t, src.Base.Sub(0, nelems))
+			return nelems
 		}
 		return expr
 
@@ -1431,7 +1459,7 @@ func (a *exprInfo) compileBuiltinCallExpr(b *block, ft *FuncType, as []*expr) *e
 		return expr
 	}
 
-	log.Crashf("unexpected built-in function '%s'", ft.builtin)
+	log.Panicf("unexpected built-in function '%s'", ft.builtin)
 	panic("unreachable")
 }
 
@@ -1498,10 +1526,10 @@ func (a *exprInfo) compileUnaryExpr(op token.Token, v *expr) *expr {
 		t = NewPtrType(v.t)
 
 	case token.ARROW:
-		log.Crashf("Unary op %v not implemented", op)
+		log.Panicf("Unary op %v not implemented", op)
 
 	default:
-		log.Crashf("unknown unary operator %v", op)
+		log.Panicf("unknown unary operator %v", op)
 	}
 
 	desc, ok := unaryOpDescs[op]
@@ -1532,7 +1560,7 @@ func (a *exprInfo) compileUnaryExpr(op token.Token, v *expr) *expr {
 		expr.eval = func(t *Thread) Value { return vf(t) }
 
 	default:
-		log.Crashf("Compilation of unary op %v not implemented", op)
+		log.Panicf("Compilation of unary op %v not implemented", op)
 	}
 
 	return expr
@@ -1656,7 +1684,7 @@ func (a *exprInfo) compileBinaryExpr(op token.Token, l, r *expr) *expr {
 			if l.t.isIdeal() && !r.t.isInteger() {
 				r = r.convertTo(IdealIntType)
 				if r == nil {
-					log.Crashf("conversion to uintType succeeded, but conversion to idealIntType failed")
+					log.Panicf("conversion to uintType succeeded, but conversion to idealIntType failed")
 				}
 			}
 		} else if _, ok := r.t.lit().(*uintType); !ok {
@@ -1699,7 +1727,7 @@ func (a *exprInfo) compileBinaryExpr(op token.Token, l, r *expr) *expr {
 		// The operands in channel sends differ in type: one
 		// is always a channel and the other is a variable or
 		// value of the channel's element type.
-		log.Crash("Binary op <- not implemented")
+		log.Panic("Binary op <- not implemented")
 		t = BoolType
 
 	case token.LSS, token.GTR, token.LEQ, token.GEQ:
@@ -1767,7 +1795,7 @@ func (a *exprInfo) compileBinaryExpr(op token.Token, l, r *expr) *expr {
 		t = BoolType
 
 	default:
-		log.Crashf("unknown binary operator %v", op)
+		log.Panicf("unknown binary operator %v", op)
 	}
 
 	desc, ok := binOpDescs[op]
@@ -1869,7 +1897,7 @@ func (a *exprInfo) compileBinaryExpr(op token.Token, l, r *expr) *expr {
 		expr.genBinOpLogOr(l, r)
 
 	default:
-		log.Crashf("Compilation of binary op %v not implemented", op)
+		log.Panicf("Compilation of binary op %v not implemented", op)
 	}
 
 	return expr
@@ -1902,7 +1930,7 @@ func (a *compiler) compileArrayLen(b *block, expr ast.Expr) (int64, bool) {
 	case *uintType:
 		return int64(lenExpr.asUint()(nil)), true
 	}
-	log.Crashf("unexpected integer type %T", lenExpr.t)
+	log.Panicf("unexpected integer type %T", lenExpr.t)
 	return 0, false
 }
 
@@ -1911,7 +1939,7 @@ func (a *compiler) compileExpr(b *block, constant bool, expr ast.Expr) *expr {
 	nerr := a.numError()
 	e := ec.compile(expr, false)
 	if e == nil && nerr == a.numError() {
-		log.Crashf("expression compilation failed without reporting errors")
+		log.Panicf("expression compilation failed without reporting errors")
 	}
 	return e
 }
@@ -1949,7 +1977,7 @@ func (a *expr) extractEffect(b *block, errOp string) (func(*Thread), *expr) {
 		case tempType.isFloat():
 			tempType = FloatType
 		default:
-			log.Crashf("unexpected ideal type %v", tempType)
+			log.Panicf("unexpected ideal type %v", tempType)
 		}
 	}
 	temp := b.DefineTemp(tempType)
@@ -1958,7 +1986,7 @@ func (a *expr) extractEffect(b *block, errOp string) (func(*Thread), *expr) {
 	// Create "temp := rhs"
 	assign := ac.compile(b, tempType)
 	if assign == nil {
-		log.Crashf("compileAssign type check failed")
+		log.Panicf("compileAssign type check failed")
 	}
 
 	effect := func(t *Thread) {

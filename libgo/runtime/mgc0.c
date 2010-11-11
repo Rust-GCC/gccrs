@@ -19,11 +19,19 @@ enum {
 	Debug = 0
 };
 
+typedef struct BlockList BlockList;
+struct BlockList
+{
+	byte *obj;
+	uintptr size;
+};
+
 static bool finstarted;
 static Lock finqlock = LOCK_INITIALIZER;
 static pthread_cond_t finqcond = PTHREAD_COND_INITIALIZER;
 static Finalizer *finq;
 static int32 fingwait;
+static BlockList *bl, *ebl;
 
 static void runfinq(void*);
 
@@ -32,7 +40,7 @@ enum {
 };
 
 static void
-scanblock(int32 depth, byte *b, int64 n)
+scanblock(byte *b, int64 n)
 {
 	int32 off;
 	void *obj;
@@ -40,48 +48,65 @@ scanblock(int32 depth, byte *b, int64 n)
 	uint32 *refp, ref;
 	void **vp;
 	int64 i;
+	BlockList *w;
 
-	if(Debug > 1)
-		printf("%d scanblock %p %lld\n", depth, b, (long long) n);
-	off = (uint32)(uintptr)b & (PtrSize-1);
-	if(off) {
-		b += PtrSize - off;
-		n -= PtrSize - off;
-	}
+	w = bl;
+	w->obj = b;
+	w->size = n;
+	w++;
 
-	vp = (void**)b;
-	n /= PtrSize;
-	for(i=0; i<n; i++) {
-		obj = vp[i];
-		if(obj == nil)
-			continue;
-		if(mheap.closure_min != nil && mheap.closure_min <= (byte*)obj && (byte*)obj < mheap.closure_max) {
-			if((((uintptr)obj) & 63) != 0)
-				continue;
+	while(w > bl) {
+		w--;
+		b = w->obj;
+		n = w->size;
 
-			// Looks like a Native Client closure.
-			// Actual pointer is pointed at by address in first instruction.
-			// Embedded pointer starts at byte 2.
-			// If it is f4f4f4f4 then that space hasn't been
-			// used for a closure yet (f4 is the HLT instruction).
-			// See nacl/386/closure.c for more.
-			void **pp;
-			pp = *(void***)((byte*)obj+2);
-			if(pp == (void**)0xf4f4f4f4)	// HLT... - not a closure after all
-				continue;
-			obj = *pp;
+		if(Debug > 1)
+			runtime_printf("scanblock %p %lld\n", b, (long long) n);
+		off = (uint32)(uintptr)b & (PtrSize-1);
+		if(off) {
+			b += PtrSize - off;
+			n -= PtrSize - off;
 		}
-		if(mheap.min <= (byte*)obj && (byte*)obj < mheap.max) {
-			if(mlookup(obj, (byte**)&obj, &size, nil, &refp)) {
-				ref = *refp;
-				switch(ref & ~RefFlags) {
-				case RefNone:
-					if(Debug > 1)
-						printf("%d found at %p: ", depth, &vp[i]);
-					*refp = RefSome | (ref & RefFlags);
-					if(!(ref & RefNoPointers))
-						scanblock(depth+1, obj, size);
-					break;
+	
+		vp = (void**)b;
+		n /= PtrSize;
+		for(i=0; i<n; i++) {
+			obj = vp[i];
+			if(obj == nil)
+				continue;
+			if(runtime_mheap.closure_min != nil && runtime_mheap.closure_min <= (byte*)obj && (byte*)obj < runtime_mheap.closure_max) {
+				if((((uintptr)obj) & 63) != 0)
+					continue;
+	
+				// Looks like a Native Client closure.
+				// Actual pointer is pointed at by address in first instruction.
+				// Embedded pointer starts at byte 2.
+				// If it is f4f4f4f4 then that space hasn't been
+				// used for a closure yet (f4 is the HLT instruction).
+				// See nacl/386/closure.c for more.
+				void **pp;
+				pp = *(void***)((byte*)obj+2);
+				if(pp == (void**)0xf4f4f4f4)	// HLT... - not a closure after all
+					continue;
+				obj = *pp;
+			}
+			if(runtime_mheap.min <= (byte*)obj && (byte*)obj < runtime_mheap.max) {
+				if(runtime_mlookup(obj, (byte**)&obj, &size, nil, &refp)) {
+					ref = *refp;
+					switch(ref & ~RefFlags) {
+					case RefNone:
+						if(Debug > 1)
+							runtime_printf("found at %p: ", &vp[i]);
+						*refp = RefSome | (ref & RefFlags);
+						if(!(ref & RefNoPointers)) {
+							if(w >= ebl)
+								runtime_throw("scanblock: garbage collection stack overflow");
+							w->obj = obj;
+							w->size = size;
+							w++;
+						}
+						break;
+					}
 				}
 			}
 		}
@@ -96,11 +121,11 @@ markfin(void *v)
 
 	size = 0;
 	refp = nil;
-	if(!mlookup(v, (byte**)&v, &size, nil, &refp) || !(*refp & RefHasFinalizer))
-		throw("mark - finalizer inconsistency");
+	if(!runtime_mlookup(v, (byte**)&v, &size, nil, &refp) || !(*refp & RefHasFinalizer))
+		runtime_throw("mark - finalizer inconsistency");
 	
 	// do not mark the finalizer block itself.  just mark the things it points at.
-	scanblock(1, v, size);
+	scanblock(v, size);
 }
 
 struct root_list {
@@ -125,7 +150,28 @@ __go_register_gc_roots (struct root_list* r)
 static void
 mark(void)
 {
+	uintptr blsize, nobj;
 	struct root_list *pl;
+
+	// Figure out how big an object stack we need.
+	// Get a new one if we need more than we have
+	// or we need significantly less than we have.
+	nobj = mstats.heap_objects;
+	if(nobj > (uintptr)(ebl - bl) || nobj < (uintptr)(ebl-bl)/4) {
+		if(bl != nil)
+			runtime_SysFree(bl, (byte*)ebl - (byte*)bl);
+		
+		// While we're allocated a new object stack,
+		// add 20% headroom and also round up to
+		// the nearest page boundary, since mmap
+		// will anyway.
+		nobj = nobj * 12/10;
+		blsize = nobj * sizeof *bl;
+		blsize = (blsize + 4095) & ~4095;
+		nobj = blsize / sizeof *bl;
+		bl = runtime_SysAlloc(blsize);
+		ebl = bl + nobj;
+	}
 
 	for(pl = roots; pl != nil; pl = pl->next) {
 		struct root* pr = &pl->roots[0];
@@ -133,20 +179,20 @@ mark(void)
 			void *decl = pr->decl;
 			if(decl == nil)
 				break;
-			scanblock(0, decl, pr->size);
+			scanblock(decl, pr->size);
 			pr++;
 		}
 	}
 
-	scanblock(0, (byte*)&m0, sizeof m0);
-	scanblock(0, (byte*)&finq, sizeof finq);
-	MProf_Mark(scanblock);
+	scanblock((byte*)&m0, sizeof m0);
+	scanblock((byte*)&finq, sizeof finq);
+	runtime_MProf_Mark(scanblock);
 
 	// mark stacks
 	__go_scanstacks(scanblock);
 
 	// mark things pointed at by objects with finalizers
-	walkfintab(markfin, scanblock);
+	runtime_walkfintab(markfin, scanblock);
 }
 
 // free RefNone, free & queue finalizers for RefNone|RefHasFinalizer, reset RefSome
@@ -169,14 +215,14 @@ sweepspan(MSpan *s)
 			mstats.alloc -= s->npages<<PageShift;
 			runtime_memclr(p, s->npages<<PageShift);
 			if(ref & RefProfiled)
-				MProf_Free(p, s->npages<<PageShift);
+				runtime_MProf_Free(p, s->npages<<PageShift);
 			s->gcref0 = RefFree;
-			MHeap_Free(&mheap, s, 1);
+			runtime_MHeap_Free(&runtime_mheap, s, 1);
 			break;
 		case RefNone|RefHasFinalizer:
-			f = getfinalizer(p, 1);
+			f = runtime_getfinalizer(p, 1);
 			if(f == nil)
-				throw("finalizer inconsistency");
+				runtime_throw("finalizer inconsistency");
 			f->arg = p;
 			f->next = finq;
 			finq = f;
@@ -191,7 +237,7 @@ sweepspan(MSpan *s)
 	}
 
 	// Chunk full of small blocks.
-	MGetSizeClassInfo(s->sizeclass, &size, &npages, &n);
+	runtime_MGetSizeClassInfo(s->sizeclass, &size, &npages, &n);
 	gcrefp = s->gcref;
 	gcrefep = s->gcref + n;
 	for(; gcrefp < gcrefep; gcrefp++, p += size) {
@@ -202,19 +248,19 @@ sweepspan(MSpan *s)
 		case RefNone:
 			// Free small object.
 			if(ref & RefProfiled)
-				MProf_Free(p, size);
+				runtime_MProf_Free(p, size);
 			*gcrefp = RefFree;
 			c = m->mcache;
 			if(size > (int32)sizeof(uintptr))
 				((uintptr*)p)[1] = 1;	// mark as "needs to be zeroed"
 			mstats.alloc -= size;
 			mstats.by_size[s->sizeclass].nfree++;
-			MCache_Free(c, p, s->sizeclass, size);
+			runtime_MCache_Free(c, p, s->sizeclass, size);
 			break;
 		case RefNone|RefHasFinalizer:
-			f = getfinalizer(p, 1);
+			f = runtime_getfinalizer(p, 1);
 			if(f == nil)
-				throw("finalizer inconsistency");
+				runtime_throw("finalizer inconsistency");
 			f->arg = p;
 			f->next = finq;
 			finq = f;
@@ -233,7 +279,7 @@ sweep(void)
 {
 	MSpan *s;
 
-	for(s = mheap.allspans; s != nil; s = s->allnext)
+	for(s = runtime_mheap.allspans; s != nil; s = s->allnext)
 		if(s->state == MSpanInUse)
 			sweepspan(s);
 }
@@ -252,7 +298,7 @@ static Lock gcsema = LOCK_INITIALIZER;
 static int32 gcpercent = -2;
 
 void
-gc(int32 force __attribute__ ((unused)))
+runtime_gc(int32 force __attribute__ ((unused)))
 {
 	int64 t0, t1;
 	char *p;
@@ -266,40 +312,41 @@ gc(int32 force __attribute__ ((unused)))
 	// problems, don't bother trying to run gc
 	// while holding a lock.  The next mallocgc
 	// without a lock will do the gc instead.
-	if(!mstats.enablegc || m->locks > 0 /* || panicking */)
+	if(!mstats.enablegc || m->locks > 0 /* || runtime_panicking */)
 		return;
 
 	if(gcpercent == -2) {	// first time through
-		p = getenv("GOGC");
+		p = runtime_getenv("GOGC");
 		if(p == nil || p[0] == '\0')
 			gcpercent = 100;
-		else if(strcmp(p, "off") == 0)
+		else if(runtime_strcmp(p, "off") == 0)
 			gcpercent = -1;
 		else
-			gcpercent = atoi(p);
+			gcpercent = runtime_atoi(p);
 	}
 	if(gcpercent < 0)
 		return;
 
-	lock(&finqlock);
-	lock(&gcsema);
+	runtime_lock(&finqlock);
+	runtime_lock(&gcsema);
 	m->locks++;	// disable gc during the mallocs in newproc
-	t0 = nanotime();
-	stoptheworld();
+	t0 = runtime_nanotime();
+	runtime_stoptheworld();
 	if(force || mstats.heap_alloc >= mstats.next_gc) {
+		__go_cachestats();
 		mark();
 		sweep();
 		__go_stealcache();
 		mstats.next_gc = mstats.heap_alloc+mstats.heap_alloc*gcpercent/100;
 	}
 
-	t1 = nanotime();
+	t1 = runtime_nanotime();
 	mstats.numgc++;
 	mstats.pause_ns += t1 - t0;
 	if(mstats.debuggc)
-		printf("pause %llu\n", (unsigned long long)t1-t0);
-	unlock(&gcsema);
-	starttheworld();
+		runtime_printf("pause %llu\n", (unsigned long long)t1-t0);
+	runtime_unlock(&gcsema);
+	runtime_starttheworld();
 
 	// finqlock is still held.
 	fp = finq;
@@ -315,7 +362,7 @@ gc(int32 force __attribute__ ((unused)))
 		}
 	}
 	m->locks--;
-	unlock(&finqlock);
+	runtime_unlock(&finqlock);
 }
 
 static void
@@ -326,16 +373,16 @@ runfinq(void* dummy)
 	USED(dummy);
 
 	for(;;) {
-		lock(&finqlock);
+		runtime_lock(&finqlock);
 		f = finq;
 		finq = nil;
 		if(f == nil) {
 			fingwait = 1;
 			pthread_cond_wait(&finqcond, &finqlock.mutex);
-			unlock(&finqlock);
+			runtime_unlock(&finqlock);
 			continue;
 		}
-		unlock(&finqlock);
+		runtime_unlock(&finqlock);
 		for(; f; f=next) {
 			void *params[1];
 
@@ -345,9 +392,9 @@ runfinq(void* dummy)
 			f->fn = nil;
 			f->arg = nil;
 			f->next = nil;
-			__go_free(f);
+			runtime_free(f);
 		}
-		gc(1);	// trigger another gc to clean up the finalized objects, if possible
+		runtime_gc(1);	// trigger another gc to clean up the finalized objects, if possible
 	}
 }
 

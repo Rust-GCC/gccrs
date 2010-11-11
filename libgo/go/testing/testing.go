@@ -89,65 +89,65 @@ func (t *T) FailNow() {
 
 // Log formats its arguments using default formatting, analogous to Print(),
 // and records the text in the error log.
-func (t *T) Log(args ...interface{}) { t.errors += "\t" + tabify(fmt.Sprintln(args)) }
+func (t *T) Log(args ...interface{}) { t.errors += "\t" + tabify(fmt.Sprintln(args...)) }
 
 // Log formats its arguments according to the format, analogous to Printf(),
 // and records the text in the error log.
 func (t *T) Logf(format string, args ...interface{}) {
-	t.errors += "\t" + tabify(fmt.Sprintf(format, args))
+	t.errors += "\t" + tabify(fmt.Sprintf(format, args...))
 }
 
 // Error is equivalent to Log() followed by Fail().
 func (t *T) Error(args ...interface{}) {
-	t.Log(args)
+	t.Log(args...)
 	t.Fail()
 }
 
 // Errorf is equivalent to Logf() followed by Fail().
 func (t *T) Errorf(format string, args ...interface{}) {
-	t.Logf(format, args)
+	t.Logf(format, args...)
 	t.Fail()
 }
 
 // Fatal is equivalent to Log() followed by FailNow().
 func (t *T) Fatal(args ...interface{}) {
-	t.Log(args)
+	t.Log(args...)
 	t.FailNow()
 }
 
 // Fatalf is equivalent to Logf() followed by FailNow().
 func (t *T) Fatalf(format string, args ...interface{}) {
-	t.Logf(format, args)
+	t.Logf(format, args...)
 	t.FailNow()
 }
 
 // An internal type but exported because it is cross-package; part of the implementation
 // of gotest.
-type Test struct {
+type InternalTest struct {
 	Name string
 	F    func(*T)
 }
 
-func tRunner(t *T, test *Test) {
+func tRunner(t *T, test *InternalTest) {
 	test.F(t)
 	t.ch <- t
 }
 
 // An internal function but exported because it is cross-package; part of the implementation
 // of gotest.
-func Main(tests []Test) {
+func Main(matchString func(pat, str string) (bool, os.Error), tests []InternalTest) {
 	flag.Parse()
 	ok := true
 	if len(tests) == 0 {
 		println("testing: warning: no tests to run")
 	}
-	re, err := CompileRegexp(*match)
-	if err != "" {
-		println("invalid regexp for -match:", err)
-		os.Exit(1)
-	}
 	for i := 0; i < len(tests); i++ {
-		if !re.MatchString(tests[i].Name) {
+		matched, err := matchString(*match, tests[i].Name)
+		if err != nil {
+			println("invalid regexp for -match:", err)
+			os.Exit(1)
+		}
+		if !matched {
 			continue
 		}
 		if *chatty {

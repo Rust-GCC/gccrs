@@ -290,19 +290,20 @@ fi
 	fi
 	if [ $package != "testing" ]; then
 		echo 'import "testing"'
+		echo 'import __regexp__ "regexp"' # rename in case tested package is called regexp
 	fi
 	# test array
 	echo
-	echo 'var tests = []testing.Test {'
+	echo 'var tests = []testing.InternalTest {'
 	for i in $tests
 	do
-		echo '	testing.Test{ "'$i'", '$i' },'
+		echo '	{ "'$i'", '$i' },'
 	done
 	echo '}'
 	# body
 	echo
 	echo 'func main() {'
-	echo '	testing.Main(tests)'
+	echo '	testing.Main(__regexp__.MatchString, tests)'
 	echo '}'
 }>_testmain.go
 

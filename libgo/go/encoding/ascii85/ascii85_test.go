@@ -17,7 +17,7 @@ type testpair struct {
 
 var pairs = []testpair{
 	// Wikipedia example
-	testpair{
+	{
 		"Man is distinguished, not only by his reason, but by this singular passion from " +
 			"other animals, which is a lust of the mind, that by a perseverance of delight in " +
 			"the continued and indefatigable generation of knowledge, exceeds the short " +
@@ -34,7 +34,7 @@ var bigtest = pairs[len(pairs)-1]
 
 func testEqual(t *testing.T, msg string, args ...interface{}) bool {
 	if args[len(args)-2] != args[len(args)-1] {
-		t.Errorf(msg, args)
+		t.Errorf(msg, args...)
 		return false
 	}
 	return true
@@ -138,8 +138,8 @@ func TestDecodeCorrupt(t *testing.T) {
 		p int
 	}
 	examples := []corrupt{
-		corrupt{"v", 0},
-		corrupt{"!z!!!!!!!!!", 1},
+		{"v", 0},
+		{"!z!!!!!!!!!", 1},
 	}
 
 	for _, e := range examples {

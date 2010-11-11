@@ -47,7 +47,9 @@
 	number of places after the decimal, if appropriate.  The
 	format %6.2f prints 123.45. The width of a field is the number
 	of Unicode code points in the string. This differs from C's printf where
-	the field width is the number of bytes.
+	the field width is the number of bytes.  Either or both of the
+	flags may be replaced with the character '*', causing their values
+	to be obtained from the next operand, which must be of type int.
 
 	Other flags:
 		+	always print a sign for numeric values
@@ -67,21 +69,41 @@
 	Regardless of the verb, if an operand is an interface value,
 	the internal concrete value is used, not the interface itself.
 	Thus:
-		var i interface{} = 23;
-		fmt.Printf("%v\n", i);
+		var i interface{} = 23
+		fmt.Printf("%v\n", i)
 	will print 23.
 
 	If an operand implements interface Formatter, that interface
 	can be used for fine control of formatting.
 
 	If an operand implements method String() string that method
-	will be used to conver the object to a string, which will then
+	will be used to convert the object to a string, which will then
 	be formatted as required by the verb (if any). To avoid
 	recursion in cases such as
 		type X int
 		func (x X) String() string { return Sprintf("%d", x) }
 	cast the value before recurring:
 		func (x X) String() string { return Sprintf("%d", int(x)) }
+
+	Format errors:
+
+	If an invalid argument is given for a verb, such as providing
+	a string to %d, the generated string will contain a
+	description of the problem, as in these examples:
+
+		Wrong type or unknown verb: %!verb(type=value)
+			Printf("%d", hi):          %!d(string=hi)
+		Too many arguments: %!(EXTRA type=value)
+			Printf("hi", "guys"):      hi%!(EXTRA string=guys)
+		Too few arguments: %!verb(MISSING)
+			Printf("hi%d"):            hi %!d(MISSING)
+		Non-int for width or precision: %!(BADWIDTH) or %!(BADPREC)
+			Printf("%*s", 4.5, "hi"):  %!(BADWIDTH)hi
+			Printf("%.*s", 4.5, "hi"): %!(BADPREC)hi
+
+	All errors begin with the string "%!" followed sometimes
+	by a single character (the verb) and end with a parenthesized
+	description.
 
 	Scanning:
 
@@ -95,7 +117,7 @@
 	routines treat newlines as spaces.
 
 	Scanf, Fscanf, and Sscanf parse the arguments according to a
-	format string, analogous to that of Printf.  For example, "%x"
+	format string, analogous to that of Printf.  For example, %x
 	will scan an integer as a hexadecimal number, and %v will scan
 	the default representation format for the value.
 
@@ -128,5 +150,14 @@
 
 	All arguments to be scanned must be either pointers to basic
 	types or implementations of the Scanner interface.
+
+	Note: Fscan etc. can read one character (rune) past the
+	input they return, which means that a loop calling a scan
+	routine may skip some of the input.  This is usually a
+	problem only when there is no space between input values.
+	However, if the reader provided to Fscan implements UnreadRune,
+	that method will be used to save the character and successive
+	calls will not lose data.  To attach an UnreadRune method
+	to a reader without that capability, use bufio.NewReader.
 */
 package fmt

@@ -36,7 +36,7 @@ func rawValueIsInteger(raw *asn1.RawValue) bool {
 // ParsePKCS1PrivateKey returns an RSA private key from its ASN.1 PKCS#1 DER encoded form.
 func ParsePKCS1PrivateKey(der []byte) (key *rsa.PrivateKey, err os.Error) {
 	var priv pkcs1PrivateKey
-	rest, err := asn1.Unmarshal(&priv, der)
+	rest, err := asn1.Unmarshal(der, &priv)
 	if len(rest) > 0 {
 		err = asn1.SyntaxError{"trailing data"}
 		return
@@ -81,7 +81,7 @@ func MarshalPKCS1PrivateKey(key *rsa.PrivateKey) []byte {
 		Q:       asn1.RawValue{Tag: 2, Bytes: key.Q.Bytes()},
 	}
 
-	b, _ := asn1.MarshalToMemory(priv)
+	b, _ := asn1.Marshal(priv)
 	return b
 }
 
@@ -162,9 +162,10 @@ const (
 // Name represents an X.509 distinguished name. This only includes the common
 // elements of a DN.  Additional elements in the name are ignored.
 type Name struct {
-	Country, Organization, OrganizationalUnit string
-	CommonName, SerialNumber, Locality        string
-	Province, StreetAddress, PostalCode       string
+	Country, Organization, OrganizationalUnit []string
+	Locality, Province                        []string
+	StreetAddress, PostalCode                 []string
+	SerialNumber, CommonName                  string
 }
 
 func (n *Name) fillFromRDNSequence(rdns *rdnSequence) {
@@ -186,19 +187,19 @@ func (n *Name) fillFromRDNSequence(rdns *rdnSequence) {
 			case 5:
 				n.SerialNumber = value
 			case 6:
-				n.Country = value
+				n.Country = append(n.Country, value)
 			case 7:
-				n.Locality = value
+				n.Locality = append(n.Locality, value)
 			case 8:
-				n.Province = value
+				n.Province = append(n.Province, value)
 			case 9:
-				n.StreetAddress = value
+				n.StreetAddress = append(n.StreetAddress, value)
 			case 10:
-				n.Organization = value
+				n.Organization = append(n.Organization, value)
 			case 11:
-				n.OrganizationalUnit = value
+				n.OrganizationalUnit = append(n.OrganizationalUnit, value)
 			case 17:
-				n.PostalCode = value
+				n.PostalCode = append(n.PostalCode, value)
 			}
 		}
 	}
@@ -220,39 +221,39 @@ func (n Name) toRDNSequence() (ret rdnSequence) {
 	ret = make([]relativeDistinguishedNameSET, 9 /* maximum number of elements */ )
 	i := 0
 	if len(n.Country) > 0 {
-		ret[i] = []attributeTypeAndValue{attributeTypeAndValue{oidCountry, n.Country}}
+		ret[i] = []attributeTypeAndValue{{oidCountry, n.Country}}
 		i++
 	}
 	if len(n.Organization) > 0 {
-		ret[i] = []attributeTypeAndValue{attributeTypeAndValue{oidOrganization, n.Organization}}
+		ret[i] = []attributeTypeAndValue{{oidOrganization, n.Organization}}
 		i++
 	}
 	if len(n.OrganizationalUnit) > 0 {
-		ret[i] = []attributeTypeAndValue{attributeTypeAndValue{oidOrganizationalUnit, n.OrganizationalUnit}}
+		ret[i] = []attributeTypeAndValue{{oidOrganizationalUnit, n.OrganizationalUnit}}
 		i++
 	}
 	if len(n.CommonName) > 0 {
-		ret[i] = []attributeTypeAndValue{attributeTypeAndValue{oidCommonName, n.CommonName}}
+		ret[i] = []attributeTypeAndValue{{oidCommonName, n.CommonName}}
 		i++
 	}
 	if len(n.SerialNumber) > 0 {
-		ret[i] = []attributeTypeAndValue{attributeTypeAndValue{oidSerialNumber, n.SerialNumber}}
+		ret[i] = []attributeTypeAndValue{{oidSerialNumber, n.SerialNumber}}
 		i++
 	}
 	if len(n.Locality) > 0 {
-		ret[i] = []attributeTypeAndValue{attributeTypeAndValue{oidLocatity, n.Locality}}
+		ret[i] = []attributeTypeAndValue{{oidLocatity, n.Locality}}
 		i++
 	}
 	if len(n.Province) > 0 {
-		ret[i] = []attributeTypeAndValue{attributeTypeAndValue{oidProvince, n.Province}}
+		ret[i] = []attributeTypeAndValue{{oidProvince, n.Province}}
 		i++
 	}
 	if len(n.StreetAddress) > 0 {
-		ret[i] = []attributeTypeAndValue{attributeTypeAndValue{oidStreetAddress, n.StreetAddress}}
+		ret[i] = []attributeTypeAndValue{{oidStreetAddress, n.StreetAddress}}
 		i++
 	}
 	if len(n.PostalCode) > 0 {
-		ret[i] = []attributeTypeAndValue{attributeTypeAndValue{oidPostalCode, n.PostalCode}}
+		ret[i] = []attributeTypeAndValue{{oidPostalCode, n.PostalCode}}
 		i++
 	}
 
@@ -426,19 +427,37 @@ func matchHostnames(pattern, host string) bool {
 	return true
 }
 
-// IsValidForHost returns true iff c is a valid certificate for the given host.
-func (c *Certificate) IsValidForHost(h string) bool {
+type HostnameError struct {
+	Certificate *Certificate
+	Host        string
+}
+
+func (h *HostnameError) String() string {
+	var valid string
+	c := h.Certificate
+	if len(c.DNSNames) > 0 {
+		valid = strings.Join(c.DNSNames, ", ")
+	} else {
+		valid = c.Subject.CommonName
+	}
+	return "certificate is valid for " + valid + ", not " + h.Host
+}
+
+// VerifyHostname returns nil if c is a valid certificate for the named host.
+// Otherwise it returns an os.Error describing the mismatch.
+func (c *Certificate) VerifyHostname(h string) os.Error {
 	if len(c.DNSNames) > 0 {
 		for _, match := range c.DNSNames {
 			if matchHostnames(match, h) {
-				return true
+				return nil
 			}
 		}
 		// If Subject Alt Name is given, we ignore the common name.
-		return false
+	} else if matchHostnames(c.Subject.CommonName, h) {
+		return nil
 	}
 
-	return matchHostnames(c.Subject.CommonName, h)
+	return &HostnameError{c, h}
 }
 
 type UnhandledCriticalExtension struct{}
@@ -461,7 +480,7 @@ func parsePublicKey(algo PublicKeyAlgorithm, asn1Data []byte) (interface{}, os.E
 	switch algo {
 	case RSA:
 		p := new(rsaPublicKey)
-		_, err := asn1.Unmarshal(p, asn1Data)
+		_, err := asn1.Unmarshal(asn1Data, p)
 		if err != nil {
 			return nil, err
 		}
@@ -480,19 +499,6 @@ func parsePublicKey(algo PublicKeyAlgorithm, asn1Data []byte) (interface{}, os.E
 	}
 
 	panic("unreachable")
-}
-
-func appendString(in []string, v string) (out []string) {
-	if cap(in)-len(in) < 1 {
-		out = make([]string, len(in)+1, len(in)*2+1)
-		for i, v := range in {
-			out[i] = v
-		}
-	} else {
-		out = in[0 : len(in)+1]
-	}
-	out[len(in)] = v
-	return out
 }
 
 func parseCertificate(in *certificate) (*Certificate, os.Error) {
@@ -524,7 +530,7 @@ func parseCertificate(in *certificate) (*Certificate, os.Error) {
 			case 15:
 				// RFC 5280, 4.2.1.3
 				var usageBits asn1.BitString
-				_, err := asn1.Unmarshal(&usageBits, e.Value)
+				_, err := asn1.Unmarshal(e.Value, &usageBits)
 
 				if err == nil {
 					var usage int
@@ -539,7 +545,7 @@ func parseCertificate(in *certificate) (*Certificate, os.Error) {
 			case 19:
 				// RFC 5280, 4.2.1.9
 				var constriants basicConstraints
-				_, err := asn1.Unmarshal(&constriants, e.Value)
+				_, err := asn1.Unmarshal(e.Value, &constriants)
 
 				if err == nil {
 					out.BasicConstraintsValid = true
@@ -565,7 +571,7 @@ func parseCertificate(in *certificate) (*Certificate, os.Error) {
 				//      iPAddress                       [7]     OCTET STRING,
 				//      registeredID                    [8]     OBJECT IDENTIFIER }
 				var seq asn1.RawValue
-				_, err := asn1.Unmarshal(&seq, e.Value)
+				_, err := asn1.Unmarshal(e.Value, &seq)
 				if err != nil {
 					return nil, err
 				}
@@ -578,16 +584,16 @@ func parseCertificate(in *certificate) (*Certificate, os.Error) {
 				rest := seq.Bytes
 				for len(rest) > 0 {
 					var v asn1.RawValue
-					rest, err = asn1.Unmarshal(&v, rest)
+					rest, err = asn1.Unmarshal(rest, &v)
 					if err != nil {
 						return nil, err
 					}
 					switch v.Tag {
 					case 1:
-						out.EmailAddresses = appendString(out.EmailAddresses, string(v.Bytes))
+						out.EmailAddresses = append(out.EmailAddresses, string(v.Bytes))
 						parsedName = true
 					case 2:
-						out.DNSNames = appendString(out.DNSNames, string(v.Bytes))
+						out.DNSNames = append(out.DNSNames, string(v.Bytes))
 						parsedName = true
 					}
 				}
@@ -601,7 +607,7 @@ func parseCertificate(in *certificate) (*Certificate, os.Error) {
 			case 35:
 				// RFC 5280, 4.2.1.1
 				var a authKeyId
-				_, err = asn1.Unmarshal(&a, e.Value)
+				_, err = asn1.Unmarshal(e.Value, &a)
 				if err != nil {
 					return nil, err
 				}
@@ -611,7 +617,7 @@ func parseCertificate(in *certificate) (*Certificate, os.Error) {
 			case 14:
 				// RFC 5280, 4.2.1.2
 				var keyid []byte
-				_, err = asn1.Unmarshal(&keyid, e.Value)
+				_, err = asn1.Unmarshal(e.Value, &keyid)
 				if err != nil {
 					return nil, err
 				}
@@ -631,7 +637,7 @@ func parseCertificate(in *certificate) (*Certificate, os.Error) {
 // ParseCertificate parses a single certificate from the given ASN.1 DER data.
 func ParseCertificate(asn1Data []byte) (*Certificate, os.Error) {
 	var cert certificate
-	rest, err := asn1.Unmarshal(&cert, asn1Data)
+	rest, err := asn1.Unmarshal(asn1Data, &cert)
 	if err != nil {
 		return nil, err
 	}
@@ -650,7 +656,7 @@ func ParseCertificates(asn1Data []byte) ([]*Certificate, os.Error) {
 	for len(asn1Data) > 0 {
 		cert := new(certificate)
 		var err os.Error
-		asn1Data, err = asn1.Unmarshal(cert, asn1Data)
+		asn1Data, err = asn1.Unmarshal(asn1Data, cert)
 		if err != nil {
 			return nil, err
 		}
@@ -701,7 +707,7 @@ func buildExtensions(template *Certificate) (ret []extension, err os.Error) {
 			l = 2
 		}
 
-		ret[n].Value, err = asn1.MarshalToMemory(asn1.BitString{Bytes: a[0:l], BitLength: l * 8})
+		ret[n].Value, err = asn1.Marshal(asn1.BitString{Bytes: a[0:l], BitLength: l * 8})
 		if err != nil {
 			return
 		}
@@ -710,7 +716,7 @@ func buildExtensions(template *Certificate) (ret []extension, err os.Error) {
 
 	if template.BasicConstraintsValid {
 		ret[n].Id = oidExtensionBasicConstraints
-		ret[n].Value, err = asn1.MarshalToMemory(basicConstraints{template.IsCA, template.MaxPathLen})
+		ret[n].Value, err = asn1.Marshal(basicConstraints{template.IsCA, template.MaxPathLen})
 		ret[n].Critical = true
 		if err != nil {
 			return
@@ -720,7 +726,7 @@ func buildExtensions(template *Certificate) (ret []extension, err os.Error) {
 
 	if len(template.SubjectKeyId) > 0 {
 		ret[n].Id = oidExtensionSubjectKeyId
-		ret[n].Value, err = asn1.MarshalToMemory(template.SubjectKeyId)
+		ret[n].Value, err = asn1.Marshal(template.SubjectKeyId)
 		if err != nil {
 			return
 		}
@@ -729,7 +735,7 @@ func buildExtensions(template *Certificate) (ret []extension, err os.Error) {
 
 	if len(template.AuthorityKeyId) > 0 {
 		ret[n].Id = oidExtensionAuthorityKeyId
-		ret[n].Value, err = asn1.MarshalToMemory(authKeyId{template.AuthorityKeyId})
+		ret[n].Value, err = asn1.Marshal(authKeyId{template.AuthorityKeyId})
 		if err != nil {
 			return
 		}
@@ -742,7 +748,7 @@ func buildExtensions(template *Certificate) (ret []extension, err os.Error) {
 		for i, name := range template.DNSNames {
 			rawValues[i] = asn1.RawValue{Tag: 2, Class: 2, Bytes: []byte(name)}
 		}
-		ret[n].Value, err = asn1.MarshalToMemory(rawValues)
+		ret[n].Value, err = asn1.Marshal(rawValues)
 		if err != nil {
 			return
 		}
@@ -771,7 +777,7 @@ var (
 //
 // The returned slice is the certificate in DER encoding.
 func CreateCertificate(rand io.Reader, template, parent *Certificate, pub *rsa.PublicKey, priv *rsa.PrivateKey) (cert []byte, err os.Error) {
-	asn1PublicKey, err := asn1.MarshalToMemory(rsaPublicKey{
+	asn1PublicKey, err := asn1.Marshal(rsaPublicKey{
 		N: asn1.RawValue{Tag: 2, Bytes: pub.N.Bytes()},
 		E: pub.E,
 	})
@@ -800,7 +806,7 @@ func CreateCertificate(rand io.Reader, template, parent *Certificate, pub *rsa.P
 		Extensions:         extensions,
 	}
 
-	tbsCertContents, err := asn1.MarshalToMemory(c)
+	tbsCertContents, err := asn1.Marshal(c)
 	if err != nil {
 		return
 	}
@@ -816,7 +822,7 @@ func CreateCertificate(rand io.Reader, template, parent *Certificate, pub *rsa.P
 		return
 	}
 
-	cert, err = asn1.MarshalToMemory(certificate{
+	cert, err = asn1.Marshal(certificate{
 		c,
 		algorithmIdentifier{oidSHA1WithRSA},
 		asn1.BitString{Bytes: signature, BitLength: len(signature) * 8},

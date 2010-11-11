@@ -10,7 +10,6 @@ package printer
 
 import (
 	"bytes"
-	"container/vector"
 	"go/ast"
 	"go/token"
 )
@@ -543,7 +542,7 @@ func walkBinary(e *ast.BinaryExpr) (has5, has6 bool, maxProblem int) {
 
 	case *ast.UnaryExpr:
 		switch e.Op.String() + r.Op.String() {
-		case "/*":
+		case "/*", "&&", "&^":
 			maxProblem = 6
 		case "++", "--":
 			if maxProblem < 5 {
@@ -612,10 +611,13 @@ func reduceDepth(depth int) int {
 //	1) If there is a binary operator with a right side unary operand
 //	   that would clash without a space, the cutoff must be (in order):
 //
-//		&^	7
 //		/*	7
+//		&&	7
+//		&^	7
 //		++	6
 //		--	6
+//
+//         (Comparison operators always have spaces around them.)
 //
 //	2) If there is a mix of level 6 and level 5 operators, then the cutoff
 //	   is 6 (use spaces to distinguish precedence) in Normal mode
@@ -686,7 +688,7 @@ func splitSelector(expr ast.Expr) (body, suffix ast.Expr) {
 	case *ast.CallExpr:
 		body, suffix = splitSelector(x.Fun)
 		if body != nil {
-			suffix = &ast.CallExpr{suffix, x.Lparen, x.Args, x.Rparen}
+			suffix = &ast.CallExpr{suffix, x.Lparen, x.Args, x.Ellipsis, x.Rparen}
 			return
 		}
 	case *ast.IndexExpr:
@@ -715,23 +717,20 @@ func splitSelector(expr ast.Expr) (body, suffix ast.Expr) {
 
 // Convert an expression into an expression list split at the periods of
 // selector expressions.
-func selectorExprList(expr ast.Expr) []ast.Expr {
+func selectorExprList(expr ast.Expr) (list []ast.Expr) {
 	// split expression
-	var list vector.Vector
 	for expr != nil {
 		var suffix ast.Expr
 		expr, suffix = splitSelector(expr)
-		list.Push(suffix)
+		list = append(list, suffix)
 	}
 
-	// convert expression list
-	result := make([]ast.Expr, len(list))
-	i := len(result)
-	for _, x := range list {
-		i--
-		result[i] = x.(ast.Expr)
+	// reverse list
+	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
+		list[i], list[j] = list[j], list[i]
 	}
-	return result
+
+	return
 }
 
 
@@ -797,9 +796,15 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int, ctxt exprContext, multi
 		p.funcBody(x.Body, distance(x.Type.Pos(), p.pos), true, multiLine)
 
 	case *ast.ParenExpr:
-		p.print(token.LPAREN)
-		p.expr0(x.X, reduceDepth(depth), multiLine) // parentheses undo one level of depth
-		p.print(x.Rparen, token.RPAREN)
+		if _, hasParens := x.X.(*ast.ParenExpr); hasParens {
+			// don't print parentheses around an already parenthesized expression
+			// TODO(gri) consider making this more general and incorporate precedence levels
+			p.expr0(x.X, reduceDepth(depth), multiLine) // parentheses undo one level of depth
+		} else {
+			p.print(token.LPAREN)
+			p.expr0(x.X, reduceDepth(depth), multiLine) // parentheses undo one level of depth
+			p.print(x.Rparen, token.RPAREN)
+		}
 
 	case *ast.SelectorExpr:
 		parts := selectorExprList(expr)
@@ -826,9 +831,11 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int, ctxt exprContext, multi
 		// TODO(gri): should treat[] like parentheses and undo one level of depth
 		p.expr1(x.X, token.HighestPrec, 1, 0, multiLine)
 		p.print(token.LBRACK)
-		p.expr0(x.Index, depth+1, multiLine)
+		if x.Index != nil {
+			p.expr0(x.Index, depth+1, multiLine)
+		}
 		// blanks around ":" if both sides exist and either side is a binary expression
-		if depth <= 1 && x.End != nil && (isBinary(x.Index) || isBinary(x.End)) {
+		if depth <= 1 && x.Index != nil && x.End != nil && (isBinary(x.Index) || isBinary(x.End)) {
 			p.print(blank, token.COLON, blank)
 		} else {
 			p.print(token.COLON)
@@ -845,10 +852,16 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int, ctxt exprContext, multi
 		p.expr1(x.Fun, token.HighestPrec, depth, 0, multiLine)
 		p.print(x.Lparen, token.LPAREN)
 		p.exprList(x.Lparen, x.Args, depth, commaSep|commaTerm, multiLine, x.Rparen)
+		if x.Ellipsis.IsValid() {
+			p.print(x.Ellipsis, token.ELLIPSIS)
+		}
 		p.print(x.Rparen, token.RPAREN)
 
 	case *ast.CompositeLit:
-		p.expr1(x.Type, token.HighestPrec, depth, compositeLit, multiLine)
+		// composite literal elements that are composite literals themselves may have the type omitted
+		if x.Type != nil {
+			p.expr1(x.Type, token.HighestPrec, depth, compositeLit, multiLine)
+		}
 		p.print(x.Lbrace, token.LBRACE)
 		p.exprList(x.Lbrace, x.Elts, 1, commaSep|commaTerm, multiLine, x.Rbrace)
 		p.print(x.Rbrace, token.RBRACE)
@@ -962,16 +975,27 @@ func isTypeName(x ast.Expr) bool {
 }
 
 
-// TODO(gri): Decide if this should be used more broadly. The printing code
-//            knows when to insert parentheses for precedence reasons, but
-//            need to be careful to keep them around type expressions.
-func stripParens(x ast.Expr, inControlClause bool) ast.Expr {
-	for px, hasParens := x.(*ast.ParenExpr); hasParens; px, hasParens = x.(*ast.ParenExpr) {
-		x = px.X
-		if cx, isCompositeLit := x.(*ast.CompositeLit); inControlClause && isCompositeLit && isTypeName(cx.Type) {
-			// composite literals inside control clauses need parens if they start with a type name;
-			// don't strip innermost layer
-			return px
+func stripParens(x ast.Expr) ast.Expr {
+	if px, strip := x.(*ast.ParenExpr); strip {
+		// parentheses must not be stripped if there are any
+		// unparenthesized composite literals starting with
+		// a type name
+		ast.Inspect(px.X, func(node interface{}) bool {
+			switch x := node.(type) {
+			case *ast.ParenExpr:
+				// parentheses protect enclosed composite literals
+				return false
+			case *ast.CompositeLit:
+				if isTypeName(x.Type) {
+					strip = false // do not strip parentheses
+				}
+				return false
+			}
+			// in all other cases, keep inspecting
+			return true
+		})
+		if strip {
+			return stripParens(px.X)
 		}
 	}
 	return x
@@ -984,7 +1008,7 @@ func (p *printer) controlClause(isForStmt bool, init ast.Stmt, expr ast.Expr, po
 	if init == nil && post == nil {
 		// no semicolons required
 		if expr != nil {
-			p.expr(stripParens(expr, true), ignoreMultiLine)
+			p.expr(stripParens(expr), ignoreMultiLine)
 			needsBlank = true
 		}
 	} else {
@@ -995,7 +1019,7 @@ func (p *printer) controlClause(isForStmt bool, init ast.Stmt, expr ast.Expr, po
 		}
 		p.print(token.SEMICOLON, blank)
 		if expr != nil {
-			p.expr(stripParens(expr, true), ignoreMultiLine)
+			p.expr(stripParens(expr), ignoreMultiLine)
 			needsBlank = true
 		}
 		if isForStmt {
@@ -1176,7 +1200,7 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool, multiLine *bool) {
 			p.expr(s.Value, multiLine)
 		}
 		p.print(blank, s.TokPos, s.Tok, blank, token.RANGE, blank)
-		p.expr(stripParens(s.X, true), multiLine)
+		p.expr(stripParens(s.X), multiLine)
 		p.print(blank)
 		p.block(s.Body, 1)
 		*multiLine = true
@@ -1192,25 +1216,25 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool, multiLine *bool) {
 // ----------------------------------------------------------------------------
 // Declarations
 
-// The parameter n is the number of specs in the group. If indent is set,
+// The parameter n is the number of specs in the group. If doIndent is set,
 // multi-line identifier lists in the spec are indented when the first
 // linebreak is encountered.
 // Sets multiLine to true if the spec spans multiple lines.
 //
-func (p *printer) spec(spec ast.Spec, n int, indent bool, multiLine *bool) {
+func (p *printer) spec(spec ast.Spec, n int, doIndent bool, multiLine *bool) {
 	switch s := spec.(type) {
 	case *ast.ImportSpec:
 		p.setComment(s.Doc)
 		if s.Name != nil {
 			p.expr(s.Name, multiLine)
-			p.print(blank)
+			p.print(vtab)
 		}
 		p.expr(s.Path, multiLine)
 		p.setComment(s.Comment)
 
 	case *ast.ValueSpec:
 		p.setComment(s.Doc)
-		p.identList(s.Names, indent, multiLine) // always present
+		p.identList(s.Names, doIndent, multiLine) // always present
 		if n == 1 {
 			if s.Type != nil {
 				p.print(blank)

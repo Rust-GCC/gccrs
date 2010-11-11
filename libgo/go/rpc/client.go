@@ -69,12 +69,12 @@ func (client *Client) send(c *Call) {
 	// Encode and send the request.
 	request := new(Request)
 	client.sending.Lock()
+	defer client.sending.Unlock()
 	request.Seq = c.seq
 	request.ServiceMethod = c.ServiceMethod
 	if err := client.codec.WriteRequest(request, c.Args); err != nil {
 		panic("rpc: client encode error: " + err.String())
 	}
-	client.sending.Unlock()
 }
 
 func (client *Client) input() {
@@ -115,7 +115,7 @@ func (client *Client) input() {
 	}
 	client.mutex.Unlock()
 	if err != os.EOF || !client.closing {
-		log.Stderr("rpc: client protocol error:", err)
+		log.Println("rpc: client protocol error:", err)
 	}
 }
 
@@ -162,14 +162,21 @@ func (c *gobClientCodec) Close() os.Error {
 }
 
 
-// DialHTTP connects to an HTTP RPC server at the specified network address.
+// DialHTTP connects to an HTTP RPC server at the specified network address
+// listening on the default HTTP RPC path.
 func DialHTTP(network, address string) (*Client, os.Error) {
+	return DialHTTPPath(network, address, DefaultRPCPath)
+}
+
+// DialHTTPPath connects to an HTTP RPC server 
+// at the specified network address and path.
+func DialHTTPPath(network, address, path string) (*Client, os.Error) {
 	var err os.Error
 	conn, err := net.Dial(network, "", address)
 	if err != nil {
 		return nil, err
 	}
-	io.WriteString(conn, "CONNECT "+rpcPath+" HTTP/1.0\n\n")
+	io.WriteString(conn, "CONNECT "+path+" HTTP/1.0\n\n")
 
 	// Require successful HTTP response
 	// before switching to RPC protocol.
@@ -220,7 +227,7 @@ func (client *Client) Go(serviceMethod string, args interface{}, reply interface
 		// RPCs that will be using that channel.  If the channel
 		// is totally unbuffered, it's best not to run at all.
 		if cap(done) == 0 {
-			log.Crash("rpc: done channel is unbuffered")
+			log.Panic("rpc: done channel is unbuffered")
 		}
 	}
 	c.Done = done

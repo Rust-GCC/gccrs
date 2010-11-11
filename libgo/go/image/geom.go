@@ -28,6 +28,37 @@ func (p Point) Sub(q Point) Point {
 	return Point{p.X - q.X, p.Y - q.Y}
 }
 
+// Mul returns the vector p*k.
+func (p Point) Mul(k int) Point {
+	return Point{p.X * k, p.Y * k}
+}
+
+// Div returns the vector p/k.
+func (p Point) Div(k int) Point {
+	return Point{p.X / k, p.Y / k}
+}
+
+// Mod returns the point q in r such that p.X-q.X is a multiple of r's width
+// and p.Y-q.Y is a multiple of r's height.
+func (p Point) Mod(r Rectangle) Point {
+	w, h := r.Dx(), r.Dy()
+	p = p.Sub(r.Min)
+	p.X = p.X % w
+	if p.X < 0 {
+		p.X += w
+	}
+	p.Y = p.Y % h
+	if p.Y < 0 {
+		p.Y += h
+	}
+	return p.Add(r.Min)
+}
+
+// Eq returns whether p and q are equal.
+func (p Point) Eq(q Point) bool {
+	return p.X == q.X && p.Y == q.Y
+}
+
 // ZP is the zero Point.
 var ZP Point
 
@@ -37,6 +68,9 @@ func Pt(X, Y int) Point {
 }
 
 // A Rectangle contains the points with Min.X <= X < Max.X, Min.Y <= Y < Max.Y.
+// It is well-formed if Min.X <= Max.X and likewise for Y. Points are always
+// well-formed. A rectangle's methods always return well-formed outputs for
+// well-formed inputs.
 type Rectangle struct {
 	Min, Max Point
 }
@@ -56,6 +90,14 @@ func (r Rectangle) Dy() int {
 	return r.Max.Y - r.Min.Y
 }
 
+// Size returns r's width and height.
+func (r Rectangle) Size() Point {
+	return Point{
+		r.Max.X - r.Min.X,
+		r.Max.Y - r.Min.Y,
+	}
+}
+
 // Add returns the rectangle r translated by p.
 func (r Rectangle) Add(p Point) Rectangle {
 	return Rectangle{
@@ -72,12 +114,63 @@ func (r Rectangle) Sub(p Point) Rectangle {
 	}
 }
 
-// Inset returns the rectangle r inset by n, which may be negative.
+// Inset returns the rectangle r inset by n, which may be negative. If either
+// of r's dimensions is less than 2*n then an empty rectangle near the center
+// of r will be returned.
 func (r Rectangle) Inset(n int) Rectangle {
-	return Rectangle{
-		Point{r.Min.X + n, r.Min.Y + n},
-		Point{r.Max.X - n, r.Max.Y - n},
+	if r.Dx() < 2*n {
+		r.Min.X = (r.Min.X + r.Max.X) / 2
+		r.Max.X = r.Min.X
+	} else {
+		r.Min.X += n
+		r.Max.X -= n
 	}
+	if r.Dy() < 2*n {
+		r.Min.Y = (r.Min.Y + r.Max.Y) / 2
+		r.Max.Y = r.Min.Y
+	} else {
+		r.Min.Y += n
+		r.Max.Y -= n
+	}
+	return r
+}
+
+// Intersect returns the largest rectangle contained by both r and s. If the
+// two rectangles do not overlap then the zero rectangle will be returned.
+func (r Rectangle) Intersect(s Rectangle) Rectangle {
+	if r.Min.X < s.Min.X {
+		r.Min.X = s.Min.X
+	}
+	if r.Min.Y < s.Min.Y {
+		r.Min.Y = s.Min.Y
+	}
+	if r.Max.X > s.Max.X {
+		r.Max.X = s.Max.X
+	}
+	if r.Max.Y > s.Max.Y {
+		r.Max.Y = s.Max.Y
+	}
+	if r.Min.X > r.Max.X || r.Min.Y > r.Max.Y {
+		return ZR
+	}
+	return r
+}
+
+// Union returns the smallest rectangle that contains both r and s.
+func (r Rectangle) Union(s Rectangle) Rectangle {
+	if r.Min.X > s.Min.X {
+		r.Min.X = s.Min.X
+	}
+	if r.Min.Y > s.Min.Y {
+		r.Min.Y = s.Min.Y
+	}
+	if r.Max.X < s.Max.X {
+		r.Max.X = s.Max.X
+	}
+	if r.Max.Y < s.Max.Y {
+		r.Max.Y = s.Max.Y
+	}
+	return r
 }
 
 // Empty returns whether the rectangle contains no points.
@@ -103,9 +196,8 @@ func (r Rectangle) Contains(p Point) bool {
 		p.Y >= r.Min.Y && p.Y < r.Max.Y
 }
 
-// Canon returns the canonical version of r. The returned rectangle has
-// minimum and maximum coordinates swapped if necessary so that Min.X <= Max.X
-// and Min.Y <= Max.Y.
+// Canon returns the canonical version of r. The returned rectangle has minimum
+// and maximum coordinates swapped if necessary so that it is well-formed.
 func (r Rectangle) Canon() Rectangle {
 	if r.Max.X < r.Min.X {
 		r.Min.X, r.Max.X = r.Max.X, r.Min.X

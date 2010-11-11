@@ -445,7 +445,11 @@ func (c *Conn) sendAlertLocked(err alert) os.Error {
 	}
 	c.tmp[1] = byte(err)
 	c.writeRecord(recordTypeAlert, c.tmp[0:2])
-	return c.setError(&net.OpError{Op: "local error", Error: err})
+	// closeNotify is a special case in that it isn't an error:
+	if err != alertCloseNotify {
+		return c.setError(&net.OpError{Op: "local error", Error: err})
+	}
+	return nil
 }
 
 // sendAlert sends a TLS alert message.
@@ -594,7 +598,10 @@ func (c *Conn) Read(b []byte) (n int, err os.Error) {
 	defer c.in.Unlock()
 
 	for c.input == nil && c.err == nil {
-		c.readRecord(recordTypeApplicationData)
+		if err := c.readRecord(recordTypeApplicationData); err != nil {
+			// Soft error, like EAGAIN
+			return 0, err
+		}
 	}
 	if c.err != nil {
 		return 0, c.err
@@ -617,7 +624,7 @@ func (c *Conn) Close() os.Error {
 
 // Handshake runs the client or server handshake
 // protocol if it has not yet been run.
-// Most uses of this packge need not call Handshake
+// Most uses of this package need not call Handshake
 // explicitly: the first Read or Write will call it automatically.
 func (c *Conn) Handshake() os.Error {
 	c.handshakeMutex.Lock()
@@ -665,4 +672,19 @@ func (c *Conn) PeerCertificates() []*x509.Certificate {
 	defer c.handshakeMutex.Unlock()
 
 	return c.peerCertificates
+}
+
+// VerifyHostname checks that the peer certificate chain is valid for
+// connecting to host.  If so, it returns nil; if not, it returns an os.Error
+// describing the problem.
+func (c *Conn) VerifyHostname(host string) os.Error {
+	c.handshakeMutex.Lock()
+	defer c.handshakeMutex.Unlock()
+	if !c.isClient {
+		return os.ErrorString("VerifyHostname called on TLS server connection")
+	}
+	if !c.handshakeComplete {
+		return os.ErrorString("TLS handshake has not yet been performed")
+	}
+	return c.peerCertificates[0].VerifyHostname(host)
 }

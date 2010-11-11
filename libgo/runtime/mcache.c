@@ -10,7 +10,7 @@
 #include "malloc.h"
 
 void*
-MCache_Alloc(MCache *c, int32 sizeclass, uintptr size, int32 zeroed)
+runtime_MCache_Alloc(MCache *c, int32 sizeclass, uintptr size, int32 zeroed)
 {
 	MCacheList *l;
 	MLink *first, *v;
@@ -20,8 +20,8 @@ MCache_Alloc(MCache *c, int32 sizeclass, uintptr size, int32 zeroed)
 	l = &c->list[sizeclass];
 	if(l->list == nil) {
 		// Replenish using central lists.
-		n = MCentral_AllocList(&mheap.central[sizeclass],
-			class_to_transfercount[sizeclass], &first);
+		n = runtime_MCentral_AllocList(&runtime_mheap.central[sizeclass],
+			runtime_class_to_transfercount[sizeclass], &first);
 		l->list = first;
 		l->nlist = n;
 		c->size += n*size;
@@ -47,6 +47,7 @@ MCache_Alloc(MCache *c, int32 sizeclass, uintptr size, int32 zeroed)
 		}
 	}
 	c->local_alloc += size;
+	c->local_objects++;
 	return v;
 }
 
@@ -67,14 +68,14 @@ ReleaseN(MCache *c, MCacheList *l, int32 n, int32 sizeclass)
 	l->nlist -= n;
 	if(l->nlist < l->nlistmin)
 		l->nlistmin = l->nlist;
-	c->size -= n*class_to_size[sizeclass];
+	c->size -= n*runtime_class_to_size[sizeclass];
 
 	// Return them to central free list.
-	MCentral_FreeList(&mheap.central[sizeclass], n, first);
+	runtime_MCentral_FreeList(&runtime_mheap.central[sizeclass], n, first);
 }
 
 void
-MCache_Free(MCache *c, void *v, int32 sizeclass, uintptr size)
+runtime_MCache_Free(MCache *c, void *v, int32 sizeclass, uintptr size)
 {
 	int32 i, n;
 	MCacheList *l;
@@ -88,10 +89,11 @@ MCache_Free(MCache *c, void *v, int32 sizeclass, uintptr size)
 	l->nlist++;
 	c->size += size;
 	c->local_alloc -= size;
+	c->local_objects--;
 
 	if(l->nlist >= MaxMCacheListLen) {
 		// Release a chunk back.
-		ReleaseN(c, l, class_to_transfercount[sizeclass], sizeclass);
+		ReleaseN(c, l, runtime_class_to_transfercount[sizeclass], sizeclass);
 	}
 
 	if(c->size >= MaxMCacheSize) {
@@ -116,15 +118,10 @@ MCache_Free(MCache *c, void *v, int32 sizeclass, uintptr size)
 }
 
 void
-MCache_ReleaseAll(MCache *c)
+runtime_MCache_ReleaseAll(MCache *c)
 {
 	int32 i;
 	MCacheList *l;
-
-	lock(&mheap);
-	mstats.heap_alloc += c->local_alloc;
-	c->local_alloc = 0;
-	unlock(&mheap);
 
 	for(i=0; i<NumSizeClasses; i++) {
 		l = &c->list[i];

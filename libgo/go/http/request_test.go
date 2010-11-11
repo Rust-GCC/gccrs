@@ -7,6 +7,7 @@ package http
 import (
 	"bytes"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -19,15 +20,15 @@ type parseTest struct {
 }
 
 var parseTests = []parseTest{
-	parseTest{
+	{
 		query: "a=1&b=2",
 		out:   stringMultimap{"a": []string{"1"}, "b": []string{"2"}},
 	},
-	parseTest{
+	{
 		query: "a=1&a=2&a=banana",
 		out:   stringMultimap{"a": []string{"1", "2", "banana"}},
 	},
-	parseTest{
+	{
 		query: "ascii=%3Ckey%3A+0x90%3E",
 		out:   stringMultimap{"ascii": []string{"<key: 0x90>"}},
 	},
@@ -93,10 +94,10 @@ type parseContentTypeTest struct {
 }
 
 var parseContentTypeTests = []parseContentTypeTest{
-	parseContentTypeTest{contentType: stringMap{"Content-Type": "text/plain"}},
-	parseContentTypeTest{contentType: stringMap{"Content-Type": ""}},
-	parseContentTypeTest{contentType: stringMap{"Content-Type": "text/plain; boundary="}},
-	parseContentTypeTest{
+	{contentType: stringMap{"Content-Type": "text/plain"}},
+	{contentType: stringMap{"Content-Type": ""}},
+	{contentType: stringMap{"Content-Type": "text/plain; boundary="}},
+	{
 		contentType: stringMap{"Content-Type": "application/unknown"},
 		error:       true,
 	},
@@ -140,14 +141,15 @@ func TestMultipartReader(t *testing.T) {
 func TestRedirect(t *testing.T) {
 	const (
 		start = "http://google.com/"
-		end   = "http://www.google.com/"
+		endRe = "^http://www\\.google\\.[a-z.]+/$"
 	)
+	var end = regexp.MustCompile(endRe)
 	r, url, err := Get(start)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r.Body.Close()
-	if r.StatusCode != 200 || url != end {
-		t.Fatalf("Get(%s) got status %d at %s, want 200 at %s", start, r.StatusCode, url, end)
+	if r.StatusCode != 200 || !end.MatchString(url) {
+		t.Fatalf("Get(%s) got status %d at %q, want 200 matching %q", start, r.StatusCode, url, endRe)
 	}
 }

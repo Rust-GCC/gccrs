@@ -18,10 +18,11 @@
 	indirection.
 
 	In the following, 'field' is one of several things, according to the data.
-	- the name of a field of a struct (result = data.field)
-	- the value stored in a map under that key (result = data[field])
-	- the result of invoking a niladic single-valued method with that name
-	   (result = data.field())
+
+		- The name of a field of a struct (result = data.field),
+		- The value stored in a map under that key (result = data[field]), or
+		- The result of invoking a niladic single-valued method with that name
+		  (result = data.field())
 
 	Major constructs ({} are metacharacters; [] marks optional elements):
 
@@ -184,13 +185,13 @@ func New(fmap FormatterMap) *Template {
 
 // Report error and stop executing.  The line number must be provided explicitly.
 func (t *Template) execError(st *state, line int, err string, args ...interface{}) {
-	panic(&Error{line, fmt.Sprintf(err, args)})
+	panic(&Error{line, fmt.Sprintf(err, args...)})
 }
 
 // Report error, panic to terminate parsing.
 // The line number comes from the template state.
 func (t *Template) parseError(err string, args ...interface{}) {
-	panic(&Error{t.linenum, fmt.Sprintf(err, args)})
+	panic(&Error{t.linenum, fmt.Sprintf(err, args...)})
 }
 
 // -- Lexical analysis
@@ -216,10 +217,9 @@ func equal(s []byte, n int, t []byte) bool {
 // item is empty, we are at EOF.  The item will be either a
 // delimited string or a non-empty string between delimited
 // strings. Tokens stop at (but include, if plain text) a newline.
-// Action tokens on a line by themselves drop the white space on
+// Action tokens on a line by themselves drop any space on
 // either side, up to and including the newline.
 func (t *Template) nextItem() []byte {
-	special := false // is this a {.foo} directive, which means trim white space?
 	startOfLine := t.p == 0 || t.buf[t.p-1] == '\n'
 	start := t.p
 	var i int
@@ -233,7 +233,7 @@ func (t *Template) nextItem() []byte {
 			break
 		}
 	}
-	leadingWhite := i > start
+	leadingSpace := i > start
 	// What's left is nothing, newline, delimited string, or plain text
 Switch:
 	switch {
@@ -242,28 +242,50 @@ Switch:
 	case t.buf[i] == '\n':
 		newline()
 	case equal(t.buf, i, t.ldelim):
-		// Delete surrounding white space if this {.foo} is the first thing on the line.
-		i += len(t.ldelim) // position after delimiter
-		special = i+1 < len(t.buf) && (t.buf[i] == '.' || t.buf[i] == '#')
-		if special && startOfLine {
-			start = i - len(t.ldelim)
-		} else if leadingWhite {
-			// not trimming space: return leading white space if there is some.
-			i -= len(t.ldelim)
-			t.p = i
-			return t.buf[start:i]
-		}
+		left := i         // Start of left delimiter.
+		right := -1       // Will be (immediately after) right delimiter.
+		haveText := false // Delimiters contain text.
+		i += len(t.ldelim)
+		// Find the end of the action.
 		for ; i < len(t.buf); i++ {
 			if t.buf[i] == '\n' {
 				break
 			}
 			if equal(t.buf, i, t.rdelim) {
 				i += len(t.rdelim)
-				break Switch
+				right = i
+				break
+			}
+			haveText = true
+		}
+		if right < 0 {
+			t.parseError("unmatched opening delimiter")
+			return nil
+		}
+		// Is this a special action (starts with '.' or '#') and the only thing on the line?
+		if startOfLine && haveText {
+			firstChar := t.buf[left+len(t.ldelim)]
+			if firstChar == '.' || firstChar == '#' {
+				// It's special and the first thing on the line. Is it the last?
+				for j := right; j < len(t.buf) && white(t.buf[j]); j++ {
+					if t.buf[j] == '\n' {
+						// Yes it is. Drop the surrounding space and return the {.foo}
+						t.linenum++
+						t.p = j + 1
+						return t.buf[left:right]
+					}
+				}
 			}
 		}
-		t.parseError("unmatched opening delimiter")
-		return nil
+		// No it's not. If there's leading space, return that.
+		if leadingSpace {
+			// not trimming space: return leading white space if there is some.
+			t.p = left
+			return t.buf[start:left]
+		}
+		// Return the word, leave the trailing space.
+		start = left
+		break
 	default:
 		for ; i < len(t.buf); i++ {
 			if t.buf[i] == '\n' {
@@ -276,15 +298,6 @@ Switch:
 		}
 	}
 	item := t.buf[start:i]
-	if special && startOfLine {
-		// consume trailing white space
-		for ; i < len(t.buf) && white(t.buf[i]); i++ {
-			if t.buf[i] == '\n' {
-				newline()
-				break // stop before newline
-			}
-		}
-	}
 	t.p = i
 	return item
 }
@@ -305,15 +318,7 @@ func words(buf []byte) []string {
 		if start == p { // no text left
 			break
 		}
-		if i == cap(s) {
-			ns := make([]string, 2*cap(s))
-			for j := range s {
-				ns[j] = s[j]
-			}
-			s = ns
-		}
-		s = s[0 : i+1]
-		s[i] = string(buf[start:p])
+		s = append(s, string(buf[start:p]))
 	}
 	return s
 }
@@ -584,10 +589,7 @@ func lookup(v reflect.Value, name string) reflect.Value {
 			for i := 0; i < n; i++ {
 				m := typ.Method(i)
 				mtyp := m.Type
-				// We must check receiver type because of a bug in the reflection type tables:
-				// it should not be possible to find a method with the wrong receiver type but
-				// this can happen due to value/pointer receiver mismatch.
-				if m.Name == name && mtyp.NumIn() == 1 && mtyp.NumOut() == 1 && mtyp.In(0) == typ {
+				if m.Name == name && mtyp.NumIn() == 1 && mtyp.NumOut() == 1 {
 					return v.Method(i).Call(nil)[0]
 				}
 			}

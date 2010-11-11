@@ -269,45 +269,59 @@ func (z *Rat) SetString(s string) (*Rat, bool) {
 }
 
 
-// String returns a string representation of z in the form "a/b".
+// String returns a string representation of z in the form "a/b" (even if b == 1).
 func (z *Rat) String() string {
-	s := z.a.String()
-	if len(z.b) == 1 && z.b[0] == 1 {
-		return s
+	return z.a.String() + "/" + z.b.string(10)
+}
+
+
+// RatString returns a string representation of z in the form "a/b" if b != 1,
+// and in the form "a" if b == 1.
+func (z *Rat) RatString() string {
+	if z.IsInt() {
+		return z.a.String()
 	}
-	return s + "/" + z.b.string(10)
+	return z.String()
 }
 
 
 // FloatString returns a string representation of z in decimal form with prec
 // digits of precision after the decimal point and the last digit rounded.
 func (z *Rat) FloatString(prec int) string {
+	if z.IsInt() {
+		return z.a.String()
+	}
+
 	q, r := nat{}.div(nat{}, z.a.abs, z.b)
 
-	s := ""
-	if z.a.neg {
-		s = "-"
-	}
-	s += q.string(10)
-
-	if len(z.b) == 1 && z.b[0] == 1 {
-		return s
+	p := natOne
+	if prec > 0 {
+		p = nat{}.expNN(natTen, nat{}.setUint64(uint64(prec)), nil)
 	}
 
-	p := nat{}.expNN(natTen, nat{Word(prec)}, nil)
 	r = r.mul(r, p)
 	r, r2 := r.div(nat{}, r, z.b)
 
 	// see if we need to round up
-	r2 = r2.mul(r2, natTwo)
+	r2 = r2.add(r2, r2)
 	if z.b.cmp(r2) <= 0 {
 		r = r.add(r, natOne)
+		if r.cmp(p) >= 0 {
+			q = nat{}.add(q, natOne)
+			r = nat{}.sub(r, p)
+		}
 	}
 
-	rs := r.string(10)
-	leadingZeros := prec - len(rs)
-	s += "." + strings.Repeat("0", leadingZeros) + rs
-	s = strings.TrimRight(s, "0")
+	s := q.string(10)
+	if z.a.neg {
+		s = "-" + s
+	}
+
+	if prec > 0 {
+		rs := r.string(10)
+		leadingZeros := prec - len(rs)
+		s += "." + strings.Repeat("0", leadingZeros) + rs
+	}
 
 	return s
 }

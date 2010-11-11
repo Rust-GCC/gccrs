@@ -20,10 +20,10 @@ typedef struct __go_empty_interface Eface;
 typedef struct __go_type_descriptor Type;
 typedef struct __go_func_type FuncType;
 
-MHeap mheap;
-MStats mstats;
+MHeap runtime_mheap;
+extern MStats mstats;	// defined in extern.go
 
-extern volatile int32 MemProfileRate
+extern volatile int32 runtime_MemProfileRate
   __asm__ ("libgo_runtime.runtime.MemProfileRate");
 
 // Same algorithm from chan.c, but a different
@@ -45,7 +45,7 @@ fastrand1(void)
 // Small objects are allocated from the per-thread cache's free lists.
 // Large objects (> 32 kB) are allocated straight from the heap.
 void*
-mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
+runtime_mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 {
 	int32 sizeclass, rate;
 	MCache *c;
@@ -55,26 +55,26 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 	uint32 *ref;
 
 	if(!__sync_bool_compare_and_swap(&m->mallocing, 0, 1))
-		throw("malloc/free - deadlock");
+		runtime_throw("malloc/free - deadlock");
 	if(size == 0)
 		size = 1;
 
 	mstats.nmalloc++;
 	if(size <= MaxSmallSize) {
 		// Allocate from mcache free lists.
-		sizeclass = SizeToClass(size);
-		size = class_to_size[sizeclass];
+		sizeclass = runtime_SizeToClass(size);
+		size = runtime_class_to_size[sizeclass];
 		c = m->mcache;
-		v = MCache_Alloc(c, sizeclass, size, zeroed);
+		v = runtime_MCache_Alloc(c, sizeclass, size, zeroed);
 		if(v == nil)
-			throw("out of memory");
+			runtime_throw("out of memory");
 		mstats.alloc += size;
 		mstats.total_alloc += size;
 		mstats.by_size[sizeclass].nmalloc++;
 
-		if(!mlookup(v, nil, nil, nil, &ref)) {
-			//printf("malloc %lld; mlookup failed\n", (long long)size);
-			throw("malloc mlookup");
+		if(!runtime_mlookup(v, nil, nil, nil, &ref)) {
+			// runtime_printf("malloc %D; runtime_mlookup failed\n", (uint64)size);
+			runtime_throw("malloc runtime_mlookup");
 		}
 		*ref = RefNone | refflag;
 	} else {
@@ -84,9 +84,9 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 		npages = size >> PageShift;
 		if((size & PageMask) != 0)
 			npages++;
-		s = MHeap_Alloc(&mheap, npages, 0, 1);
+		s = runtime_MHeap_Alloc(&runtime_mheap, npages, 0, 1);
 		if(s == nil)
-			throw("out of memory");
+			runtime_throw("out of memory");
 		size = npages<<PageShift;
 		mstats.alloc += size;
 		mstats.total_alloc += size;
@@ -110,7 +110,7 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 		}
 	}
 
-	if(!(refflag & RefNoProfiling) && (rate = MemProfileRate) > 0) {
+	if(!(refflag & RefNoProfiling) && (rate = runtime_MemProfileRate) > 0) {
 		if(size >= (uint32) rate)
 			goto profile;
 		if((uint32) m->mcache->next_sample > size)
@@ -122,19 +122,19 @@ mallocgc(uintptr size, uint32 refflag, int32 dogc, int32 zeroed)
 			m->mcache->next_sample = fastrand1() % (2*rate);
 		profile:
 			*ref |= RefProfiled;
-			MProf_Malloc(v, size);
+			runtime_MProf_Malloc(v, size);
 		}
 	}
 
 	if(dogc && mstats.heap_alloc >= mstats.next_gc)
-		gc(0);
+		runtime_gc(0);
 	return v;
 }
 
 void*
 __go_alloc(uintptr size)
 {
-	return mallocgc(size, 0, 1, 1);
+	return runtime_mallocgc(size, 0, 0, 1);
 }
 
 // Free the object whose base pointer is v.
@@ -150,11 +150,11 @@ __go_free(void *v)
 		return;
 
 	if(!__sync_bool_compare_and_swap(&m->mallocing, 0, 1))
-		throw("malloc/free - deadlock");
+		runtime_throw("malloc/free - deadlock");
 
-	if(!mlookup(v, nil, nil, &s, &ref)) {
-		//printf("free %p: not an allocated block\n", v);
-		throw("free mlookup");
+	if(!runtime_mlookup(v, nil, nil, &s, &ref)) {
+		// runtime_printf("free %p: not an allocated block\n", v);
+		runtime_throw("free runtime_mlookup");
 	}
 	prof = *ref & RefProfiled;
 	*ref = RefFree;
@@ -164,21 +164,21 @@ __go_free(void *v)
 	if(sizeclass == 0) {
 		// Large object.
 		if(prof)
-			MProf_Free(v, s->npages<<PageShift);
+			runtime_MProf_Free(v, s->npages<<PageShift);
 		mstats.alloc -= s->npages<<PageShift;
 		runtime_memclr(v, s->npages<<PageShift);
-		MHeap_Free(&mheap, s, 1);
+		runtime_MHeap_Free(&runtime_mheap, s, 1);
 	} else {
 		// Small object.
 		c = m->mcache;
-		size = class_to_size[sizeclass];
+		size = runtime_class_to_size[sizeclass];
 		if(size > (int32)sizeof(uintptr))
 			((uintptr*)v)[1] = 1;	// mark as "needs to be zeroed"
 		if(prof)
-			MProf_Free(v, size);
+			runtime_MProf_Free(v, size);
 		mstats.alloc -= size;
 		mstats.by_size[sizeclass].nfree++;
-		MCache_Free(c, v, sizeclass, size);
+		runtime_MCache_Free(c, v, sizeclass, size);
 	}
 	__sync_bool_compare_and_swap(&m->mallocing, 1, 0);
 
@@ -187,14 +187,14 @@ __go_free(void *v)
 }
 
 int32
-mlookup(void *v, byte **base, uintptr *size, MSpan **sp, uint32 **ref)
+runtime_mlookup(void *v, byte **base, uintptr *size, MSpan **sp, uint32 **ref)
 {
 	uintptr n, nobj, i;
 	byte *p;
 	MSpan *s;
 
 	mstats.nlookup++;
-	s = MHeap_LookupMaybe(&mheap, (uintptr)v>>PageShift);
+	s = runtime_MHeap_LookupMaybe(&runtime_mheap, (uintptr)v>>PageShift);
 	if(sp)
 		*sp = s;
 	if(s == nil) {
@@ -225,7 +225,7 @@ mlookup(void *v, byte **base, uintptr *size, MSpan **sp, uint32 **ref)
 		return 0;
 	}
 
-	n = class_to_size[s->sizeclass];
+	n = runtime_class_to_size[s->sizeclass];
 	i = ((byte*)v - p)/n;
 	if(base)
 		*base = p + i*n;
@@ -236,12 +236,12 @@ mlookup(void *v, byte **base, uintptr *size, MSpan **sp, uint32 **ref)
 	if(0) {
 		nobj = (s->npages << PageShift) / (n + RefcountOverhead);
 		if((byte*)s->gcref < p || (byte*)(s->gcref+nobj) > p+(s->npages<<PageShift)) {
-			//printf("odd span state=%d span=%p base=%p sizeclass=%d n=%llu size=%llu npages=%llu\n",
-			//	s->state, s, p, s->sizeclass, (unsigned long long)nobj, (unsigned long long)n, (unsigned long long)s->npages);
-			//printf("s->base sizeclass %d v=%p base=%p gcref=%p blocksize=%llu nobj=%llu size=%llu end=%p end=%p\n",
-			//	s->sizeclass, v, p, s->gcref, (unsigned long long)s->npages<<PageShift,
-			//	(unsigned long long)nobj, (unsigned long long)n, s->gcref + nobj, p+(s->npages<<PageShift));
-			throw("bad gcref");
+			// runtime_printf("odd span state=%d span=%p base=%p sizeclass=%d n=%D size=%D npages=%D\n",
+			//	s->state, s, p, s->sizeclass, (uint64)nobj, (uint64)n, (uint64)s->npages);
+			// runtime_printf("s->base sizeclass %d v=%p base=%p gcref=%p blocksize=%D nobj=%D size=%D end=%p end=%p\n",
+			//	s->sizeclass, v, p, s->gcref, (uint64)s->npages<<PageShift,
+			//	(uint64)nobj, (uint64)n, s->gcref + nobj, p+(s->npages<<PageShift));
+			runtime_throw("bad gcref");
 		}
 	}
 	if(ref)
@@ -251,53 +251,56 @@ mlookup(void *v, byte **base, uintptr *size, MSpan **sp, uint32 **ref)
 }
 
 MCache*
-allocmcache(void)
+runtime_allocmcache(void)
 {
 	MCache *c;
 
-	c = FixAlloc_Alloc(&mheap.cachealloc);
+	runtime_lock(&runtime_mheap);
+	c = runtime_FixAlloc_Alloc(&runtime_mheap.cachealloc);
 
 	// Clear the free list used by FixAlloc; assume the rest is zeroed.
 	c->list[0].list = nil;
 
-	mstats.mcache_inuse = mheap.cachealloc.inuse;
-	mstats.mcache_sys = mheap.cachealloc.sys;
+	mstats.mcache_inuse = runtime_mheap.cachealloc.inuse;
+	mstats.mcache_sys = runtime_mheap.cachealloc.sys;
+	runtime_unlock(&runtime_mheap);
 	return c;
 }
 
 void
-mallocinit(void)
+runtime_mallocinit(void)
 {
-	InitSizes();
-	MHeap_Init(&mheap, SysAlloc);
-	m->mcache = allocmcache();
+	runtime_SysMemInit();
+	runtime_InitSizes();
+	runtime_MHeap_Init(&runtime_mheap, runtime_SysAlloc);
+	m->mcache = runtime_allocmcache();
 
 	// See if it works.
-	__go_free(__go_alloc(1));
+	runtime_free(runtime_malloc(1));
 }
 
 // Runtime stubs.
 
 void*
-mal(uintptr n)
+runtime_mal(uintptr n)
 {
-	return mallocgc(n, 0, 1, 1);
+	return runtime_mallocgc(n, 0, 1, 1);
 }
 
 func Alloc(n uintptr) (p *byte) {
-	p = __go_alloc(n);
+	p = runtime_malloc(n);
 }
 
 func Free(p *byte) {
-	__go_free(p);
+	runtime_free(p);
 }
 
 func Lookup(p *byte) (base *byte, size uintptr) {
-	mlookup(p, &base, &size, nil, nil);
+	runtime_mlookup(p, &base, &size, nil, nil);
 }
 
 func GC() {
-	gc(1);
+	runtime_gc(1);
 }
 
 func SetFinalizer(obj Eface, finalizer Eface) {
@@ -306,33 +309,33 @@ func SetFinalizer(obj Eface, finalizer Eface) {
 	const FuncType *ft;
 
 	if(obj.__type_descriptor == nil) {
-		//printf("runtime.SetFinalizer: first argument is nil interface\n");
+		// runtime_printf("runtime.SetFinalizer: first argument is nil interface\n");
 	throw:
-		throw("runtime.SetFinalizer");
+		runtime_throw("runtime.SetFinalizer");
 	}
 	if(obj.__type_descriptor->__code != GO_PTR) {
-		//printf("runtime.SetFinalizer: first argument is %.*s, not pointer\n", (int)obj.__type_descriptor->__reflection->__length, obj.__type_descriptor->__reflection->__data);
+		// runtime_printf("runtime.SetFinalizer: first argument is %S, not pointer\n", *obj.type->string);
 		goto throw;
 	}
-	if(!mlookup(obj.__object, &base, &size, nil, nil) || obj.__object != base) {
-		//printf("runtime.SetFinalizer: pointer not at beginning of allocated block\n");
+	if(!runtime_mlookup(obj.__object, &base, &size, nil, nil) || obj.__object != base) {
+		// runtime_printf("runtime.SetFinalizer: pointer not at beginning of allocated block\n");
 		goto throw;
 	}
 	ft = nil;
 	if(finalizer.__type_descriptor != nil) {
 		if(finalizer.__type_descriptor->__code != GO_FUNC) {
 		badfunc:
-		  //printf("runtime.SetFinalizer: second argument is %.*s, not func(%.*s)\n", (int)finalizer.__type_descriptor->__reflection->__length, finalizer.__type_descriptor->__reflection->__data, (int)obj.__type_descriptor->__reflection->__length, obj.__type_descriptor->__reflection->__data);
+			// runtime_printf("runtime.SetFinalizer: second argument is %S, not func(%S)\n", *finalizer.type->string, *obj.type->string);
 			goto throw;
 		}
 		ft = (const FuncType*)finalizer.__type_descriptor;
 		if(ft->__dotdotdot || ft->__in.__count != 1 || !__go_type_descriptors_equal(*(Type**)ft->__in.__values, obj.__type_descriptor))
 			goto badfunc;
 
-		if(getfinalizer(obj.__object, 0)) {
-			//printf("runtime.SetFinalizer: finalizer already set");
+		if(runtime_getfinalizer(obj.__object, 0)) {
+			// runtime_printf("runtime.SetFinalizer: finalizer already set");
 			goto throw;
 		}
 	}
-	addfinalizer(obj.__object, finalizer.__type_descriptor != nil ? *(void**)finalizer.__object : nil, ft);
+	runtime_addfinalizer(obj.__object, finalizer.__type_descriptor != nil ? *(void**)finalizer.__object : nil, ft);
 }

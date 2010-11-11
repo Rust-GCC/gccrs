@@ -118,7 +118,6 @@ toolexeclib_DATA = \
 	mime.gox \
 	net.gox \
 	netchan.gox \
-	nntp.gox \
 	os.gox \
 	patch.gox \
 	path.gox \
@@ -128,6 +127,7 @@ toolexeclib_DATA = \
 	rpc.gox \
 	runtime.gox \
 	scanner.gox \
+	smtp.gox \
 	sort.gox \
 	strconv.gox \
 	strings.gox \
@@ -138,6 +138,7 @@ toolexeclib_DATA = \
 	template.gox \
 	testing.gox \
 	time.gox \
+	try.gox \
 	unicode.gox \
 	utf16.gox \
 	utf8.gox \
@@ -147,7 +148,8 @@ toolexeclib_DATA = \
 toolexeclibarchivedir = $(toolexeclibdir)/archive
 
 toolexeclibarchive_DATA = \
-	archive/tar.gox
+	archive/tar.gox \
+	archive/zip.gox
 
 toolexeclibcompressdir = $(toolexeclibdir)/compress
 
@@ -170,6 +172,7 @@ toolexeclibcrypto_DATA = \
 	crypto/aes.gox \
 	crypto/block.gox \
 	crypto/blowfish.gox \
+	crypto/cast5.gox \
 	crypto/hmac.gox \
 	crypto/md4.gox \
 	crypto/md5.gox \
@@ -193,6 +196,7 @@ toolexeclibdebug_DATA = \
 	debug/elf.gox \
 	debug/gosym.gox \
 	debug/macho.gox \
+	debug/pe.gox \
 	debug/proc.gox
 
 toolexeclibencodingdir = $(toolexeclibdir)/encoding
@@ -210,8 +214,7 @@ toolexeclibexpdir = $(toolexeclibdir)/exp
 toolexeclibexp_DATA = \
 	exp/datafmt.gox \
 	exp/draw.gox \
-	exp/eval.gox \
-	exp/iterable.gox
+	exp/eval.gox
 
 toolexeclibgodir = $(toolexeclibdir)/go
 
@@ -221,7 +224,8 @@ toolexeclibgo_DATA = \
 	go/parser.gox \
 	go/printer.gox \
 	go/scanner.gox \
-	go/token.gox
+	go/token.gox \
+	go/typechecker.gox
 
 toolexeclibhashdir = $(toolexeclibdir)/hash
 
@@ -240,6 +244,11 @@ toolexeclibimagedir = $(toolexeclibdir)/image
 toolexeclibimage_DATA = \
 	image/jpeg.gox \
 	image/png.gox
+
+toolexeclibindexdir = $(toolexeclibdir)/index
+
+toolexeclibindex_DATA = \
+	index/suffixarray.gox
 
 toolexeclibiodir = $(toolexeclibdir)/io
 
@@ -309,12 +318,14 @@ runtime_files = \
 	runtime/go-defer.c \
 	runtime/go-deferred-recover.c \
 	runtime/go-eface-compare.c \
+	runtime/go-eface-val-compare.c \
 	runtime/go-getgoroot.c \
 	runtime/go-go.c \
 	runtime/go-gomaxprocs.c \
 	runtime/go-int-array-to-string.c \
 	runtime/go-int-to-string.c \
 	runtime/go-interface-compare.c \
+	runtime/go-interface-val-compare.c \
 	runtime/go-lock-os-thread.c \
 	runtime/go-map-delete.c \
 	runtime/go-map-index.c \
@@ -359,6 +370,7 @@ runtime_files = \
 	runtime/go-type-interface.c \
 	runtime/go-type-string.c \
 	runtime/go-typedesc-equal.c \
+	runtime/go-typestring.c \
 	runtime/go-unreflect.c \
 	runtime/go-unsafe-new.c \
 	runtime/go-unsafe-newarray.c \
@@ -456,7 +468,8 @@ go_ebnf_files = \
 	go/ebnf/parser.go
 
 go_exec_files = \
-	go/exec/exec.go
+	go/exec/exec.go \
+	go/exec/lp_unix.go
 
 go_expvar_files = \
 	go/expvar/expvar.go
@@ -473,8 +486,10 @@ go_fmt_files = \
 go_gob_files = \
 	go/gob/decode.go \
 	go/gob/decoder.go \
+	go/gob/doc.go \
 	go/gob/encode.go \
 	go/gob/encoder.go \
+	go/gob/error.go \
 	go/gob/type.go
 
 go_hash_files = \
@@ -608,11 +623,9 @@ go_netchan_files = \
 	go/netchan/export.go \
 	go/netchan/import.go
 
-go_nntp_files = \
-	go/nntp/nntp.go
-
 go_os_files = \
 	go/os/dir.go \
+	go/os/env.go \
 	go/os/env_unix.go \
 	go/os/error.go \
 	go/os/exec.go \
@@ -661,20 +674,59 @@ go_runtime_files = \
 	go/runtime/error.go \
 	go/runtime/extern.go \
 	go/runtime/sig.go \
+	go/runtime/softfloat64.go \
 	go/runtime/type.go \
 	version.go
+
+if LIBGO_IS_386
+GOARCH = 386
+else
+if LIBGO_IS_X86_64
+GOARCH = amd64
+else
+if LIBGO_IS_ARM
+GOARCH = arm
+else
+GOARCH = unknown
+endif
+endif
+endif
+
+if LIBGO_IS_LINUX
+GOOS = linux
+else
+if LIBGO_IS_DARWIN
+GOOS = darwin
+else
+if LIBGO_IS_FREEBSD
+GOOS = freebsd
+else
+if LIBGO_IS_RTEMS
+GOOS = rtems
+else
+GOOS = unknown
+endif
+endif
+endif
+endif
 
 version.go: s-version; @true
 s-version: Makefile
 	rm -f version.go.tmp
 	echo "package runtime" > version.go.tmp
 	echo 'const defaultGoroot = "$(prefix)"' >> version.go.tmp
-	echo 'const defaultVersion = "'`$(CC) --version | sed 1q`'"' >> version.go.tmp
+	echo 'const theVersion = "'`$(CC) --version | sed 1q`'"' >> version.go.tmp
+	echo 'const theGoarch = "'$(GOARCH)'"' >> version.go.tmp
+	echo 'const theGoos = "'$(GOOS)'"' >> version.go.tmp
 	$(SHELL) $(srcdir)/../move-if-change version.go.tmp version.go
 	$(STAMP) $@
 
 go_scanner_files = \
 	go/scanner/scanner.go
+
+go_smtp_files = \
+	go/smtp/auth.go \
+	go/smtp/smtp.go
 
 go_sort_files = \
 	go/sort/sort.go
@@ -711,7 +763,6 @@ go_template_files = \
 
 go_testing_files = \
 	go/testing/benchmark.go \
-	go/testing/regexp.go \
 	go/testing/testing.go
 
 go_time_files = \
@@ -720,6 +771,9 @@ go_time_files = \
 	go/time/tick.go \
 	go/time/time.go \
 	go/time/zoneinfo_unix.go
+
+go_try_files = \
+	go/try/try.go
 
 go_unicode_files = \
 	go/unicode/casetables.go \
@@ -731,6 +785,7 @@ go_utf16_files = \
 	go/utf16/utf16.go
 
 go_utf8_files = \
+	go/utf8/string.go \
 	go/utf8/utf8.go
 
 go_websocket_files = \
@@ -746,6 +801,10 @@ go_archive_tar_files = \
 	go/archive/tar/common.go \
 	go/archive/tar/reader.go \
 	go/archive/tar/writer.go
+
+go_archive_zip_files = \
+	go/archive/zip/reader.go \
+	go/archive/zip/struct.go
 
 go_compress_flate_files = \
 	go/compress/flate/deflate.go \
@@ -797,6 +856,8 @@ go_crypto_blowfish_files = \
 	go/crypto/blowfish/block.go \
 	go/crypto/blowfish/const.go \
 	go/crypto/blowfish/cipher.go
+go_crypto_cast5_files = \
+	go/crypto/cast5/cast5.go
 go_crypto_hmac_files = \
 	go/crypto/hmac/hmac.go
 go_crypto_md4_files = \
@@ -861,6 +922,9 @@ go_debug_gosym_files = \
 go_debug_macho_files = \
 	go/debug/macho/file.go \
 	go/debug/macho/macho.go
+go_debug_pe_files = \
+	go/debug/pe/file.go \
+	go/debug/pe/pe.go
 
 if LIBGO_IS_LINUX
 proc_file = go/debug/proc/proc_linux.go
@@ -941,9 +1005,6 @@ go_exp_eval_files = \
 	go/exp/eval/typec.go \
 	go/exp/eval/value.go \
 	go/exp/eval/world.go
-go_exp_iterable_files = \
-	go/exp/iterable/array.go \
-	go/exp/iterable/iterable.go
 
 go_go_ast_files = \
 	go/go/ast/ast.go \
@@ -965,6 +1026,10 @@ go_go_scanner_files = \
 	go/go/scanner/scanner.go
 go_go_token_files = \
 	go/go/token/token.go
+go_go_typechecker_files = \
+	go/go/typechecker/scope.go \
+	go/go/typechecker/typechecker.go \
+	go/go/typechecker/universe.go
 
 go_hash_adler32_files = \
 	go/hash/adler32/adler32.go
@@ -984,6 +1049,9 @@ go_image_jpeg_files = \
 go_image_png_files = \
 	go/image/png/reader.go \
 	go/image/png/writer.go
+
+go_index_suffixarray_files = \
+	go/index/suffixarray/suffixarray.go
 
 go_io_ioutil_files = \
 	go/io/ioutil/ioutil.go \
@@ -1094,7 +1162,6 @@ libgo_go_objs = \
 	mime/libmime.la \
 	net/libnet.la \
 	netchan/libnetchan.la \
-	nntp/libnntp.la \
 	os/libos.la \
 	patch/libpatch.la \
 	path/libpath.la \
@@ -1104,6 +1171,7 @@ libgo_go_objs = \
 	rpc/librpc.la \
 	runtime/libruntime.la \
 	scanner/libscanner.la \
+	smtp/libsmtp.la \
 	sort/libsort.la \
 	strconv/libstrconv.la \
 	strings/libstrings.la \
@@ -1112,12 +1180,14 @@ libgo_go_objs = \
 	tabwriter/libtabwriter.la \
 	template/libtemplate.la \
 	time/libtime.la \
+	try/libtry.la \
 	unicode/libunicode.la \
 	utf16/libutf16.la \
 	utf8/libutf8.la \
 	websocket/libwebsocket.la \
 	xml/libxml.la \
 	archive/libtar.la \
+	archive/libzip.la \
 	compress/libflate.la \
 	compress/libgzip.la \
 	compress/libzlib.la \
@@ -1128,6 +1198,7 @@ libgo_go_objs = \
 	crypto/libaes.la \
 	crypto/libblock.la \
 	crypto/libblowfish.la \
+	crypto/libcast5.la \
 	crypto/libhmac.la \
 	crypto/libmd4.la \
 	crypto/libmd5.la \
@@ -1147,6 +1218,7 @@ libgo_go_objs = \
 	debug/libelf.la \
 	debug/libgosym.la \
 	debug/libmacho.la \
+	debug/libpe.la \
 	debug/libproc.la \
 	encoding/libascii85.la \
 	encoding/libbase64.la \
@@ -1157,19 +1229,20 @@ libgo_go_objs = \
 	exp/libdatafmt.la \
 	exp/libdraw.la \
 	exp/libeval.la \
-	exp/libiterable.la \
 	go/libast.la \
 	go/libdoc.la \
 	go/libparser.la \
 	go/libprinter.la \
 	go/libscanner.la \
 	go/libtoken.la \
+	go/libtypechecker.la \
 	hash/libadler32.la \
 	hash/libcrc32.la \
 	hash/libcrc64.la \
 	http/libpprof.la \
 	image/libjpeg.la \
 	image/libpng.la \
+	index/libsuffixarray.la \
 	io/libioutil.la \
 	mime/libmultipart.la \
 	net/libdict.la \
@@ -1233,7 +1306,7 @@ CHECK = \
 	export MAKE; \
 	rm -f $@-log; \
 	echo -n "$(@D) " >$@-log 2>&1; \
-	prefix=`dirname $(@D)`; \
+	prefix=`if test "$(@D)" = "regexp"; then echo regexp-test; else dirname $(@D); fi`; \
 	test "$${prefix}" != "." || prefix="$(@D)"; \
 	$(srcdir)/testsuite/gotest --dejagnu=$(use_dejagnu) --basedir=$(srcdir) --srcdir=$(srcdir)/go/$(@D) --prefix="libgo_$${prefix}" --pkgfiles="$(go_$(subst /,_,$(@D))_files)" >>$@-log 2>&1; \
 	x=$$?; \
@@ -1355,7 +1428,7 @@ hash/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: hash/check
 
-html/libhtml.a: $(go_html_files) bytes.gox io.gox log.gox os.gox strconv.gox \
+html/libhtml.a: $(go_html_files) bytes.gox io.gox os.gox strconv.gox \
 		strings.gox utf8.gox
 	$(BUILDARCHIVE)
 html/libhtml.la: html/libhtml.a
@@ -1397,7 +1470,8 @@ json/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: json/check
 
-log/liblog.a: $(go_log_files) fmt.gox io.gox runtime.gox os.gox time.gox
+log/liblog.a: $(go_log_files) bytes.gox fmt.gox io.gox runtime.gox os.gox \
+		time.gox
 	$(BUILDARCHIVE)
 log/liblog.la: log/liblog.a
 log/check: $(CHECK_DEPS)
@@ -1428,21 +1502,12 @@ net/check: $(CHECK_DEPS)
 .PHONY: net/check
 
 netchan/libnetchan.a: $(go_netchan_files) gob.gox log.gox net.gox os.gox \
-		reflect.gox sync.gox
+		reflect.gox sync.gox time.gox
 	$(BUILDARCHIVE)
 netchan/libnetchan.la: netchan/libnetchan.a
 netchan/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: netchan/check
-
-nntp/libnntp.a: $(go_nntp_files) bufio.gox bytes.gox container/vector.gox \
-		fmt.gox http.gox io.gox io/ioutil.gox os.gox net.gox sort.gox \
-		strconv.gox strings.gox time.gox
-	$(BUILDARCHIVE)
-nntp/libnntp.la: nntp/libnntp.a
-nntp/check: $(CHECK_DEPS)
-	$(CHECK)
-.PHONY: nntp/check
 
 os/libos.a: $(go_os_files) sync.gox syscall.gox
 	$(BUILDARCHIVE)
@@ -1460,7 +1525,8 @@ patch/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: patch/check
 
-path/libpath.a: $(go_path_files) io/ioutil.gox os.gox strings.gox
+path/libpath.a: $(go_path_files) io/ioutil.gox os.gox sort.gox strings.gox \
+		utf8.gox
 	$(BUILDARCHIVE)
 path/libpath.la: path/libpath.a
 path/check: $(CHECK_DEPS)
@@ -1482,8 +1548,8 @@ reflect/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: reflect/check
 
-regexp/libregexp.a: $(go_regexp_files) bytes.gox container/vector.gox io.gox \
-		os.gox strings.gox utf8.gox
+regexp/libregexp.a: $(go_regexp_files) bytes.gox io.gox os.gox strings.gox \
+		utf8.gox
 	$(BUILDARCHIVE)
 regexp/libregexp.la: regexp/libregexp.a
 regexp/check: $(CHECK_DEPS)
@@ -1513,6 +1579,14 @@ scanner/libscanner.la: scanner/libscanner.a
 scanner/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: scanner/check
+
+smtp/libsmtp.a: $(go_smtp_files) crypto/tls.gox encoding/base64.gox io.gox \
+		net.gox net/textproto.gox os.gox strings.gox
+	$(BUILDARCHIVE)
+smtp/libsmtp.la: smtp/libsmtp.a
+smtp/check: $(CHECK_DEPS)
+	$(CHECK)
+.PHONY: smtp/check
 
 sort/libsort.a: $(go_sort_files)
 	$(BUILDARCHIVE)
@@ -1556,7 +1630,7 @@ syslog/check: $(CHECK_DEPS)
 .PHONY: syslog/check
 
 tabwriter/libtabwriter.a: $(go_tabwriter_files) bytes.gox io.gox os.gox \
-		utf8.gox container/vector.gox
+		utf8.gox
 	$(BUILDARCHIVE)
 tabwriter/libtabwriter.la: tabwriter/libtabwriter.a
 tabwriter/check: $(CHECK_DEPS)
@@ -1587,6 +1661,13 @@ time/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: time/check
 
+try/libtry.a: $(go_try_files) fmt.gox io.gox os.gox reflect.gox unicode.gox
+	$(BUILDARCHIVE)
+try/libtry.la: try/libtry.a
+try/check: $(CHECK_DEPS)
+	$(CHECK)
+.PHONY: try/check
+
 unicode/libunicode.a: $(go_unicode_files)
 	$(BUILDARCHIVE)
 unicode/libunicode.la: unicode/libunicode.a
@@ -1609,8 +1690,9 @@ utf8/check: $(CHECK_DEPS)
 .PHONY: utf8/check
 
 websocket/libwebsocket.a: $(go_websocket_files) bufio.gox bytes.gox \
-		container/vector.gox crypto/md5.gox encoding/binary.gox \
-		fmt.gox http.gox io.gox net.gox os.gox rand.gox strings.gox
+		container/vector.gox crypto/md5.gox crypto/tls.gox \
+		encoding/binary.gox fmt.gox http.gox io.gox net.gox os.gox \
+		rand.gox strings.gox
 	$(BUILDARCHIVE)
 websocket/libwebsocket.la: websocket/libwebsocket.a
 websocket/check: $(CHECK_DEPS)
@@ -1633,6 +1715,16 @@ archive/tar/check: $(CHECK_DEPS)
 	@mkdir -p archive/tar
 	$(CHECK)
 .PHONY: archive/tar/check
+
+archive/libzip.a: $(go_archive_zip_files) bufio.gox bytes.gox \
+		compress/flate.gox hash.gox hash/crc32.gox \
+		encoding/binary.gox io.gox os.gox
+	$(BUILDARCHIVE)
+archive/libzip.la: archive/libzip.a
+archive/zip/check: $(CHECK_DEPS)
+	@mkdir -p archive/zip
+	$(CHECK)
+.PHONY: archive/zip/check
 
 compress/libflate.a: $(go_compress_flate_files) bufio.gox io.gox math.gox \
 		os.gox sort.gox strconv.gox
@@ -1716,6 +1808,14 @@ crypto/blowfish/check: $(CHECK_DEPS)
 	@mkdir -p crypto/blowfish
 	$(CHECK)
 .PHONY: crypto/blowfish/check
+
+crypto/libcast5.a: $(go_crypto_cast5_files) os.gox
+	$(BUILDARCHIVE)
+crypto/libcast5.la: crypto/libcast5.a
+crypt/cast5/check: $(CHECK_DEPS)
+	@mkdir -p crypto/cast5
+	$(CHECK)
+.PHONY: crypto/cast5/check
 
 crypto/libhmac.a: $(go_crypto_hmac_files) crypto/md5.gox crypto/sha1.gox \
 		hash.gox os.gox
@@ -1821,7 +1921,8 @@ crypto/libtls.a: $(go_crypto_tls_files) bufio.gox bytes.gox container/list.gox \
 		crypto/hmac.gox crypto/md5.gox crypto/rc4.gox crypto/rand.gox \
 		crypto/rsa.gox crypto/sha1.gox crypto/subtle.gox \
 		crypto/rsa.gox crypto/x509.gox encoding/pem.gox fmt.gox \
-		hash.gox io.gox io/ioutil.gox net.gox os.gox sync.gox time.gox
+		hash.gox io.gox io/ioutil.gox net.gox os.gox strings.gox \
+		sync.gox time.gox
 	$(BUILDARCHIVE)
 crypto/libtls.la: crypto/libtls.a
 crypto/tls/check: $(CHECK_DEPS)
@@ -1882,6 +1983,15 @@ debug/macho/check: $(CHECK_DEPS)
 	@mkdir -p debug/macho
 	$(CHECK)
 .PHONY: debug/macho/check
+
+debug/libpe.a: $(go_debug_pe_files) debug/dwarf.gox encoding/binary.gox \
+		fmt.gox io.gox os.gox strconv.gox
+	$(BUILDARCHIVE)
+debug/libpe.la: debug/libpe.a
+debug/pe/check: $(CHECK_DEPS)
+	@mkdir -p debug/pe
+	$(CHECK)
+.PHONY: debug/pe/check
 
 debug/libproc.a: $(go_debug_proc_files) container/vector.gox fmt.gox \
 		io/ioutil.gox os.gox runtime.gox strconv.gox strings.gox \
@@ -1953,7 +2063,7 @@ exp/datafmt/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: exp/datafmt/check
 
-exp/libdraw.a: $(go_exp_draw_files) image.gox
+exp/libdraw.a: $(go_exp_draw_files) image.gox os.gox
 	$(BUILDARCHIVE)
 exp/libdraw.la: exp/libdraw.a
 exp/draw/check: $(CHECK_DEPS)
@@ -1971,15 +2081,6 @@ exp/eval/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: exp/eval/check
 
-exp/libiterable.a: $(go_exp_iterable_files) container/list.gox \
-		container/vector.gox
-	$(BUILDARCHIVE)
-exp/libiterable.la: exp/libiterable.a
-exp/iterable/check: $(CHECK_DEPS)
-	@mkdir -p exp/iterable
-	$(CHECK)
-.PHONY: exp/iterable/check
-
 go/libast.a: $(go_go_ast_files) fmt.gox go/token.gox io.gox os.gox \
 		reflect.gox unicode.gox utf8.gox
 	$(BUILDARCHIVE)
@@ -1989,8 +2090,8 @@ go/ast/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: go/ast/check
 
-go/libdoc.a: $(go_go_doc_files) container/vector.gox go/ast.gox go/token.gox \
-		http.gox io.gox regexp.gox sort.gox strings.gox template.gox
+go/libdoc.a: $(go_go_doc_files) go/ast.gox go/token.gox io.gox regexp.gox \
+		sort.gox strings.gox template.gox
 	$(BUILDARCHIVE)
 go/libdoc.la: go/libdoc.a
 go/doc/check: $(CHECK_DEPS)
@@ -1998,9 +2099,9 @@ go/doc/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: go/doc/check
 
-go/libparser.a: $(go_go_parser_files) bytes.gox container/vector.gox fmt.gox \
-		go/ast.gox go/scanner.gox go/token.gox io.gox io/ioutil.gox \
-		os.gox path.gox strings.gox
+go/libparser.a: $(go_go_parser_files) bytes.gox fmt.gox go/ast.gox \
+		go/scanner.gox go/token.gox io.gox io/ioutil.gox os.gox \
+		path.gox strings.gox
 	$(BUILDARCHIVE)
 go/libparser.la: go/libparser.a
 go/parser/check: $(CHECK_DEPS)
@@ -2008,8 +2109,8 @@ go/parser/check: $(CHECK_DEPS)
 	$(CHECK)
 .PHONY: go/parser/check
 
-go/libprinter.a: $(go_go_printer_files) bytes.gox container/vector.gox fmt.gox \
-		go/ast.gox go/token.gox io.gox os.gox reflect.gox runtime.gox \
+go/libprinter.a: $(go_go_printer_files) bytes.gox fmt.gox go/ast.gox \
+		go/token.gox io.gox os.gox reflect.gox runtime.gox \
 		strings.gox tabwriter.gox
 	$(BUILDARCHIVE)
 go/libprinter.la: go/libprinter.a
@@ -2035,6 +2136,15 @@ go/token/check: $(CHECK_DEPS)
 	@mkdir -p go/token
 	$(CHECK)
 .PHONY: go/token/check
+
+go/libtypechecker.a: $(go_go_typechecker_files) fmt.gox go/ast.gox \
+		go/token.gox go/scanner.gox os.gox
+	$(BUILDARCHIVE)
+go/libtypechecker.la: go/libtypechecker.a
+go/typechecker/check: $(CHECK_DEPS)
+	@mkdir -p go/typechecker
+	$(CHECK)
+.PHONY: go/typechecker/check
 
 hash/libadler32.a: $(go_hash_adler32_files) hash.gox os.gox
 	$(BUILDARCHIVE)
@@ -2085,6 +2195,15 @@ image/png/check: $(CHECK_DEPS)
 	@mkdir -p image/png
 	$(CHECK)
 .PHONY: image/png/check
+
+index/libsuffixarray.a: $(go_index_suffixarray_files) bytes.gox \
+		container/vector.gox sort.gox
+	$(BUILDARCHIVE)
+index/libsuffixarray.la: index/libsuffixarray.a
+index/suffixarray/check: $(CHECK_DEPS)
+	@mkdir -p index/suffixarray
+	$(CHECK)
+.PHONY: index/suffixarray/check
 
 io/libioutil.a: $(go_io_ioutil_files) bytes.gox io.gox os.gox sort.gox \
 		strconv.gox
@@ -2240,8 +2359,6 @@ net.gox: net/libnet.a
 	$(BUILDGOX)
 netchan.gox: netchan/libnetchan.a
 	$(BUILDGOX)
-nntp.gox: nntp/libnntp.a
-	$(BUILDGOX)
 os.gox: os/libos.a
 	$(BUILDGOX)
 patch.gox: patch/libpatch.a
@@ -2259,6 +2376,8 @@ rpc.gox: rpc/librpc.a
 runtime.gox: runtime/libruntime.a
 	$(BUILDGOX)
 scanner.gox: scanner/libscanner.a
+	$(BUILDGOX)
+smtp.gox: smtp/libsmtp.a
 	$(BUILDGOX)
 sort.gox: sort/libsort.a
 	$(BUILDGOX)
@@ -2280,6 +2399,8 @@ testing.gox: testing/libtesting.a
 	$(BUILDGOX)
 time.gox: time/libtime.a
 	$(BUILDGOX)
+try.gox: try/libtry.a
+	$(BUILDGOX)
 unicode.gox: unicode/libunicode.a
 	$(BUILDGOX)
 utf16.gox: utf16/libutf16.a
@@ -2292,6 +2413,8 @@ xml.gox: xml/libxml.a
 	$(BUILDGOX)
 
 archive/tar.gox: archive/libtar.a
+	$(BUILDGOX)
+archive/zip.gox: archive/libzip.a
 	$(BUILDGOX)
 
 compress/flate.gox: compress/libflate.a
@@ -2315,6 +2438,8 @@ crypto/aes.gox: crypto/libaes.a
 crypto/block.gox: crypto/libblock.a
 	$(BUILDGOX)
 crypto/blowfish.gox: crypto/libblowfish.a
+	$(BUILDGOX)
+crypto/cast5.gox: crypto/libcast5.a
 	$(BUILDGOX)
 crypto/hmac.gox: crypto/libhmac.a
 	$(BUILDGOX)
@@ -2355,6 +2480,8 @@ debug/gosym.gox: debug/libgosym.a
 	$(BUILDGOX)
 debug/macho.gox: debug/libmacho.a
 	$(BUILDGOX)
+debug/pe.gox: debug/libpe.a
+	$(BUILDGOX)
 debug/proc.gox: debug/libproc.a
 	$(BUILDGOX)
 
@@ -2377,8 +2504,6 @@ exp/draw.gox: exp/libdraw.a
 	$(BUILDGOX)
 exp/eval.gox: exp/libeval.a
 	$(BUILDGOX)
-exp/iterable.gox: exp/libiterable.a
-	$(BUILDGOX)
 
 go/ast.gox: go/libast.a
 	$(BUILDGOX)
@@ -2391,6 +2516,8 @@ go/printer.gox: go/libprinter.a
 go/scanner.gox: go/libscanner.a
 	$(BUILDGOX)
 go/token.gox: go/libtoken.a
+	$(BUILDGOX)
+go/typechecker.gox: go/libtypechecker.a
 	$(BUILDGOX)
 
 hash/adler32.gox: hash/libadler32.a
@@ -2406,6 +2533,9 @@ http/pprof.gox: http/libpprof.a
 image/jpeg.gox: image/libjpeg.a
 	$(BUILDGOX)
 image/png.gox: image/libpng.a
+	$(BUILDGOX)
+
+index/suffixarray.gox: index/libsuffixarray.a
 	$(BUILDGOX)
 
 io/ioutil.gox: io/libioutil.a
@@ -2456,7 +2586,6 @@ TEST_PACKAGES = \
 	mime/check \
 	net/check \
 	netchan/check \
-	nntp/check \
 	os/check \
 	patch/check \
 	path/check \
@@ -2464,7 +2593,9 @@ TEST_PACKAGES = \
 	reflect/check \
 	regexp/check \
 	rpc/check \
+	runtime/check \
 	scanner/check \
+	smtp/check \
 	sort/check \
 	strconv/check \
 	strings/check \
@@ -2472,14 +2603,15 @@ TEST_PACKAGES = \
 	syslog/check \
 	tabwriter/check \
 	template/check \
-	testing/check \
 	time/check \
+	try/check \
 	unicode/check \
 	utf16/check \
 	utf8/check \
 	websocket/check \
 	xml/check \
 	archive/tar/check \
+	archive/zip/check \
 	compress/flate/check \
 	compress/gzip/check \
 	compress/zlib/check \
@@ -2490,6 +2622,7 @@ TEST_PACKAGES = \
 	crypto/aes/check \
 	crypto/block/check \
 	crypto/blowfish/check \
+	crypto/cast5/check \
 	crypto/hmac/check \
 	crypto/md4/check \
 	crypto/md5/check \
@@ -2508,6 +2641,7 @@ TEST_PACKAGES = \
 	debug/dwarf/check \
 	debug/elf/check \
 	debug/macho/check \
+	debug/pe/check \
 	encoding/ascii85/check \
 	encoding/base64/check \
 	encoding/binary/check \
@@ -2517,14 +2651,15 @@ TEST_PACKAGES = \
 	exp/datafmt/check \
 	exp/draw/check \
 	exp/eval/check \
-	exp/iterable/check \
 	go/parser/check \
 	go/printer/check \
 	go/scanner/check \
+	go/typechecker/check \
 	hash/adler32/check \
 	hash/crc32/check \
 	hash/crc64/check \
 	image/png/check \
+	index/suffixarray/check \
 	io/ioutil/check \
 	mime/multipart/check \
 	net/textproto/check \

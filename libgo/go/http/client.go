@@ -8,12 +8,14 @@ package http
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -43,7 +45,7 @@ func send(req *Request) (resp *Response, err os.Error) {
 	if !hasPort(addr) {
 		addr += ":" + req.URL.Scheme
 	}
-	info := req.URL.Userinfo
+	info := req.URL.RawUserinfo
 	if len(info) > 0 {
 		enc := base64.URLEncoding
 		encoded := make([]byte, enc.EncodedLen(len(info)))
@@ -57,11 +59,21 @@ func send(req *Request) (resp *Response, err os.Error) {
 	var conn io.ReadWriteCloser
 	if req.URL.Scheme == "http" {
 		conn, err = net.Dial("tcp", "", addr)
+		if err != nil {
+			return nil, err
+		}
 	} else { // https
 		conn, err = tls.Dial("tcp", "", addr)
-	}
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+		h := req.URL.Host
+		if hasPort(h) {
+			h = h[0:strings.LastIndex(h, ":")]
+		}
+		if err := conn.(*tls.Conn).VerifyHostname(h); err != nil {
+			return nil, err
+		}
 	}
 
 	err = req.Write(conn)
@@ -118,6 +130,7 @@ func Get(url string) (r *Response, finalURL string, err os.Error) {
 		if req.URL, err = ParseURL(url); err != nil {
 			break
 		}
+		url = req.URL.String()
 		if r, err = send(&req); err != nil {
 			break
 		}
@@ -160,6 +173,48 @@ func Post(url string, bodyType string, body io.Reader) (r *Response, err os.Erro
 	return send(&req)
 }
 
+// PostForm issues a POST to the specified URL, 
+// with data's keys and values urlencoded as the request body.
+//
+// Caller should close r.Body when done reading it.
+func PostForm(url string, data map[string]string) (r *Response, err os.Error) {
+	var req Request
+	req.Method = "POST"
+	req.ProtoMajor = 1
+	req.ProtoMinor = 1
+	req.Close = true
+	body := urlencode(data)
+	req.Body = nopCloser{body}
+	req.Header = map[string]string{
+		"Content-Type":   "application/x-www-form-urlencoded",
+		"Content-Length": strconv.Itoa(body.Len()),
+	}
+	req.ContentLength = int64(body.Len())
+
+	req.URL, err = ParseURL(url)
+	if err != nil {
+		return nil, err
+	}
+
+	return send(&req)
+}
+
+func urlencode(data map[string]string) (b *bytes.Buffer) {
+	b = new(bytes.Buffer)
+	first := true
+	for k, v := range data {
+		if first {
+			first = false
+		} else {
+			b.WriteByte('&')
+		}
+		b.WriteString(URLEscape(k))
+		b.WriteByte('=')
+		b.WriteString(URLEscape(v))
+	}
+	return
+}
+
 // Head issues a HEAD to the specified URL.
 func Head(url string) (r *Response, err os.Error) {
 	var req Request
@@ -167,6 +222,7 @@ func Head(url string) (r *Response, err os.Error) {
 	if req.URL, err = ParseURL(url); err != nil {
 		return
 	}
+	url = req.URL.String()
 	if r, err = send(&req); err != nil {
 		return
 	}

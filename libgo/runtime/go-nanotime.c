@@ -10,7 +10,7 @@
 #include "runtime.h"
 
 int64
-nanotime (void)
+runtime_nanotime (void)
 {
   int i;
   struct timeval tv;

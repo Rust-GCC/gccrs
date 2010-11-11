@@ -8,17 +8,17 @@
 // A summary of the wire format can be found in XCB's xproto.xml.
 package x11
 
-// BUG(nigeltao): This is a toy library and not ready for production use.
-
 import (
 	"bufio"
 	"exp/draw"
 	"image"
 	"io"
+	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type resID uint32 // X resource IDs.
@@ -35,9 +35,6 @@ const (
 )
 
 type conn struct {
-	// TODO(nigeltao): Figure out which goroutine should be responsible for closing c,
-	// or if there is a race condition if one goroutine calls c.Close whilst another one
-	// is reading from r, or writing to w.
 	c io.Closer
 	r *bufio.Reader
 	w *bufio.Writer
@@ -45,11 +42,8 @@ type conn struct {
 	gc, window, root, visual resID
 
 	img        *image.RGBA
-	kbd        chan int
-	mouse      chan draw.Mouse
-	resize     chan bool
-	quit       chan bool
-	mouseState draw.Mouse
+	eventc     chan interface{}
+	mouseState draw.MouseEvent
 
 	buf [256]byte // General purpose scratch buffer.
 
@@ -58,15 +52,12 @@ type conn struct {
 	flushBuf1 [4 * 1024]byte
 }
 
-// flusher runs in its own goroutine, serving both FlushImage calls directly from the exp/draw client
-// and indirectly from X expose events. It paints c.img to the X server via PutImage requests.
-func (c *conn) flusher() {
-	for {
-		_ = <-c.flush
-		if closed(c.flush) {
-			return
-		}
-
+// writeSocket runs in its own goroutine, serving both FlushImage calls
+// directly from the exp/draw client and indirectly from X expose events.
+// It paints c.img to the X server via PutImage requests.
+func (c *conn) writeSocket() {
+	defer c.c.Close()
+	for _ = range c.flush {
 		b := c.img.Bounds()
 		if b.Empty() {
 			continue
@@ -78,8 +69,7 @@ func (c *conn) flusher() {
 		// TODO(nigeltao): See what XCB's xcb_put_image does in this situation.
 		units := 6 + b.Dx()
 		if units > 0xffff || b.Dy() > 0xffff {
-			// This window is too large for X.
-			close(c.flush)
+			log.Print("x11: window is too large for PutImage")
 			return
 		}
 
@@ -94,9 +84,10 @@ func (c *conn) flusher() {
 
 		for y := b.Min.Y; y < b.Max.Y; y++ {
 			setU32LE(c.flushBuf0[16:20], uint32(y<<16))
-			_, err := c.w.Write(c.flushBuf0[0:24])
-			if err != nil {
-				close(c.flush)
+			if _, err := c.w.Write(c.flushBuf0[0:24]); err != nil {
+				if err != os.EOF {
+					log.Println("x11:", err.String())
+				}
 				return
 			}
 			p := c.img.Pix[y*c.img.Stride : (y+1)*c.img.Stride]
@@ -111,15 +102,18 @@ func (c *conn) flusher() {
 					c.flushBuf1[4*i+2] = rgba.R
 				}
 				x += nx
-				_, err := c.w.Write(c.flushBuf1[0 : 4*nx])
-				if err != nil {
-					close(c.flush)
+				if _, err := c.w.Write(c.flushBuf1[0 : 4*nx]); err != nil {
+					if err != os.EOF {
+						log.Println("x11:", err.String())
+					}
 					return
 				}
 			}
 		}
-		if c.w.Flush() != nil {
-			close(c.flush)
+		if err := c.w.Flush(); err != nil {
+			if err != os.EOF {
+				log.Println("x11:", err.String())
+			}
 			return
 		}
 	}
@@ -134,32 +128,32 @@ func (c *conn) FlushImage() {
 	_ = c.flush <- false
 }
 
-func (c *conn) KeyboardChan() <-chan int { return c.kbd }
+func (c *conn) Close() os.Error {
+	// Shut down the writeSocket goroutine. This will close the socket to the
+	// X11 server, which will cause c.eventc to close.
+	close(c.flush)
+	for _ = range c.eventc {
+		// Drain the channel to allow the readSocket goroutine to shut down.
+	}
+	return nil
+}
 
-func (c *conn) MouseChan() <-chan draw.Mouse { return c.mouse }
+func (c *conn) EventChan() <-chan interface{} { return c.eventc }
 
-func (c *conn) ResizeChan() <-chan bool { return c.resize }
-
-func (c *conn) QuitChan() <-chan bool { return c.quit }
-
-// pumper runs in its own goroutine, reading X events and demuxing them over the kbd / mouse / resize / quit chans.
-func (c *conn) pumper() {
+// readSocket runs in its own goroutine, reading X events and sending draw
+// events on c's EventChan.
+func (c *conn) readSocket() {
 	var (
 		keymap            [256][]int
 		keysymsPerKeycode int
 	)
-	defer close(c.flush)
-	// TODO(nigeltao): Is this the right place for defer c.c.Close()?
-	// TODO(nigeltao): Should we explicitly defer close our kbd/mouse/resize/quit chans?
+	defer close(c.eventc)
 	for {
 		// X events are always 32 bytes long.
-		_, err := io.ReadFull(c.r, c.buf[0:32])
-		if err != nil {
-			// TODO(nigeltao): should draw.Context expose err?
-			// TODO(nigeltao): should we do c.quit<-true? Should c.quit be a buffered channel?
-			// Or is c.quit only for non-exceptional closing (e.g. when the window manager destroys
-			// our window), and not for e.g. an I/O error?
-			os.Stderr.Write([]byte(err.String()))
+		if _, err := io.ReadFull(c.r, c.buf[0:32]); err != nil {
+			if err != os.EOF {
+				c.eventc <- draw.ErrEvent{err}
+			}
 			return
 		}
 		switch c.buf[0] {
@@ -168,7 +162,7 @@ func (c *conn) pumper() {
 			if cookie != 1 {
 				// We issued only one request (GetKeyboardMapping) with a cookie of 1,
 				// so we shouldn't get any other reply from the X server.
-				os.Stderr.Write([]byte("exp/draw/x11: unexpected cookie\n"))
+				c.eventc <- draw.ErrEvent{os.NewError("x11: unexpected cookie")}
 				return
 			}
 			keysymsPerKeycode = int(c.buf[1])
@@ -181,7 +175,9 @@ func (c *conn) pumper() {
 				for j := range m {
 					u, err := readU32LE(c.r, c.buf[0:4])
 					if err != nil {
-						os.Stderr.Write([]byte(err.String()))
+						if err != os.EOF {
+							c.eventc <- draw.ErrEvent{err}
+						}
 						return
 					}
 					m[j] = int(u)
@@ -202,14 +198,14 @@ func (c *conn) pumper() {
 			if keysym == 0 {
 				keysym = keymap[keycode][0]
 			}
-			// TODO(nigeltao): Should we send KeyboardChan ints for Shift/Ctrl/Alt? Should Shift-A send
+			// TODO(nigeltao): Should we send KeyEvents for Shift/Ctrl/Alt? Should Shift-A send
 			// the same int down the channel as the sent on just the A key?
 			// TODO(nigeltao): How should IME events (e.g. key presses that should generate CJK text) work? Or
-			// is that outside the scope of the draw.Context interface?
+			// is that outside the scope of the draw.Window interface?
 			if c.buf[0] == 0x03 {
 				keysym = -keysym
 			}
-			c.kbd <- keysym
+			c.eventc <- draw.KeyEvent{keysym}
 		case 0x04, 0x05: // Button press, button release.
 			mask := 1 << (c.buf[1] - 1)
 			if c.buf[0] == 0x04 {
@@ -217,22 +213,21 @@ func (c *conn) pumper() {
 			} else {
 				c.mouseState.Buttons &^= mask
 			}
-			// TODO(nigeltao): update mouseState's timestamp.
-			c.mouse <- c.mouseState
+			c.mouseState.Nsec = time.Nanoseconds()
+			c.eventc <- c.mouseState
 		case 0x06: // Motion notify.
-			c.mouseState.Point.X = int(c.buf[25])<<8 | int(c.buf[24])
-			c.mouseState.Point.Y = int(c.buf[27])<<8 | int(c.buf[26])
-			// TODO(nigeltao): update mouseState's timestamp.
-			c.mouse <- c.mouseState
+			c.mouseState.Loc.X = int(int16(c.buf[25])<<8 | int16(c.buf[24]))
+			c.mouseState.Loc.Y = int(int16(c.buf[27])<<8 | int16(c.buf[26]))
+			c.mouseState.Nsec = time.Nanoseconds()
+			c.eventc <- c.mouseState
 		case 0x0c: // Expose.
 			// A single user action could trigger multiple expose events (e.g. if moving another
-			// window with XShape'd rounded corners over our window). In that case, the X server
-			// will send a count (in bytes 16-17) of the number of additional expose events coming.
+			// window with XShape'd rounded corners over our window). In that case, the X server will
+			// send a uint16 count (in bytes 16-17) of the number of additional expose events coming.
 			// We could parse each event for the (x, y, width, height) and maintain a minimal dirty
 			// rectangle, but for now, the simplest approach is to paint the entire window, when
 			// receiving the final event in the series.
-			count := int(c.buf[17])<<8 | int(c.buf[16])
-			if count == 0 {
+			if c.buf[17] == 0 && c.buf[16] == 0 {
 				// TODO(nigeltao): Should we ignore the very first expose event? A freshly mapped window
 				// will trigger expose, but until the first c.FlushImage call, there's probably nothing to
 				// paint but black. For an 800x600 window, at 4 bytes per pixel, each repaint writes about
@@ -494,16 +489,13 @@ func (c *conn) handshake() os.Error {
 	if err != nil {
 		return err
 	}
-	// Read the vendor length.
+	// Read the vendor length and round it up to a multiple of 4,
+	// for X11 protocol alignment reasons.
 	vendorLen, err := readU16LE(c.r, c.buf[0:2])
 	if err != nil {
 		return err
 	}
-	if vendorLen != 20 {
-		// For now, assume the vendor is "The X.Org Foundation". Supporting different
-		// vendors would require figuring out how much padding we need to read.
-		return os.NewError("unsupported X vendor")
-	}
+	vendorLen = (vendorLen + 3) &^ 3
 	// Read the maximum request length.
 	maxReqLen, err := readU16LE(c.r, c.buf[0:2])
 	if err != nil {
@@ -522,10 +514,13 @@ func (c *conn) handshake() os.Error {
 	if err != nil {
 		return err
 	}
-	// Ignore some things that we don't care about (totalling 30 bytes):
+	// Ignore some things that we don't care about (totalling 10 + vendorLen bytes):
 	// imageByteOrder(1), bitmapFormatBitOrder(1), bitmapFormatScanlineUnit(1) bitmapFormatScanlinePad(1),
-	// minKeycode(1), maxKeycode(1), padding(4), vendor(20, hard-coded above).
-	_, err = io.ReadFull(c.r, c.buf[0:30])
+	// minKeycode(1), maxKeycode(1), padding(4), vendor (vendorLen).
+	if 10+int(vendorLen) > cap(c.buf) {
+		return os.NewError("unsupported X vendor")
+	}
+	_, err = io.ReadFull(c.r, c.buf[0:10+int(vendorLen)])
 	if err != nil {
 		return err
 	}
@@ -553,7 +548,7 @@ func (c *conn) handshake() os.Error {
 }
 
 // NewWindow calls NewWindowDisplay with $DISPLAY.
-func NewWindow() (draw.Context, os.Error) {
+func NewWindow() (draw.Window, os.Error) {
 	display := os.Getenv("DISPLAY")
 	if len(display) == 0 {
 		return nil, os.NewError("$DISPLAY not set")
@@ -561,10 +556,10 @@ func NewWindow() (draw.Context, os.Error) {
 	return NewWindowDisplay(display)
 }
 
-// NewWindowDisplay returns a new draw.Context, backed by a newly created and
+// NewWindowDisplay returns a new draw.Window, backed by a newly created and
 // mapped X11 window. The X server to connect to is specified by the display
 // string, such as ":1".
-func NewWindowDisplay(display string) (draw.Context, os.Error) {
+func NewWindowDisplay(display string) (draw.Window, os.Error) {
 	socket, displayStr, err := connect(display)
 	if err != nil {
 		return nil, err
@@ -619,13 +614,9 @@ func NewWindowDisplay(display string) (draw.Context, os.Error) {
 	}
 
 	c.img = image.NewRGBA(windowWidth, windowHeight)
-	// TODO(nigeltao): Should these channels be buffered?
-	c.kbd = make(chan int)
-	c.mouse = make(chan draw.Mouse)
-	c.resize = make(chan bool)
-	c.quit = make(chan bool)
+	c.eventc = make(chan interface{}, 16)
 	c.flush = make(chan bool, 1)
-	go c.flusher()
-	go c.pumper()
+	go c.readSocket()
+	go c.writeSocket()
 	return c, nil
 }

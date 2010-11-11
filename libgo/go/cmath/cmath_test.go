@@ -203,16 +203,16 @@ type ff struct {
 }
 
 var polar = []ff{
-	ff{9.2022120669932650313380972e+00, 9.9909115046919291062461269e-01},
-	ff{7.7438239742296106616261394e+00, -3.5762575021856971295156489e-02},
-	ff{5.0182478202557746902556648e+00, -1.6259990074019058442232221e+00},
-	ff{1.0861137372799545160704002e+01, 2.0502936359659111755031062e+00},
-	ff{1.0070841084922199607011905e+01, 2.9483213155446756211881774e-01},
-	ff{5.9922447613166942183705192e+00, 1.0605860367252556281902109e+00},
-	ff{5.8978784056736762299945176e+00, 4.8084556083358307819310911e-01},
-	ff{3.2822866700678709020367184e+00, 5.8969634164776659423195222e-01},
-	ff{8.8756430028990417290744307e+00, -1.3636647724582455028314573e+00},
-	ff{1.0011785496777731986390856e+01, 2.6210913895386013290915234e+00},
+	{9.2022120669932650313380972e+00, 9.9909115046919291062461269e-01},
+	{7.7438239742296106616261394e+00, -3.5762575021856971295156489e-02},
+	{5.0182478202557746902556648e+00, -1.6259990074019058442232221e+00},
+	{1.0861137372799545160704002e+01, 2.0502936359659111755031062e+00},
+	{1.0070841084922199607011905e+01, 2.9483213155446756211881774e-01},
+	{5.9922447613166942183705192e+00, 1.0605860367252556281902109e+00},
+	{5.8978784056736762299945176e+00, 4.8084556083358307819310911e-01},
+	{3.2822866700678709020367184e+00, 5.8969634164776659423195222e-01},
+	{8.8756430028990417290744307e+00, -1.3636647724582455028314573e+00},
+	{1.0011785496777731986390856e+01, 2.6210913895386013290915234e+00},
 }
 var pow = []complex128{
 	(-2.499956739197529585028819e+00 + 1.759751724335650228957144e+00i),
@@ -392,10 +392,10 @@ var vcPolarSC = []complex128{
 	NaN(),
 }
 var polarSC = []ff{
-	ff{math.NaN(), math.NaN()},
+	{math.NaN(), math.NaN()},
 }
 var vcPowSC = [][2]complex128{
-	[2]complex128{NaN(), NaN()},
+	{NaN(), NaN()},
 }
 var powSC = []complex128{
 	NaN(),
@@ -483,175 +483,175 @@ func cAlike(a, b complex128) bool {
 func TestAbs(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Abs(vc[i]); !veryclose(abs[i], f) {
-			t.Errorf("Abs(%g) = %g, want %g\n", vc[i], f, abs[i])
+			t.Errorf("Abs(%g) = %g, want %g", vc[i], f, abs[i])
 		}
 	}
 	for i := 0; i < len(vcAbsSC); i++ {
 		if f := Abs(vcAbsSC[i]); !alike(absSC[i], f) {
-			t.Errorf("Abs(%g) = %g, want %g\n", vcAbsSC[i], f, absSC[i])
+			t.Errorf("Abs(%g) = %g, want %g", vcAbsSC[i], f, absSC[i])
 		}
 	}
 }
 func TestAcos(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Acos(vc[i]); !cSoclose(acos[i], f, 1e-14) {
-			t.Errorf("Acos(%g) = %g, want %g\n", vc[i], f, acos[i])
+			t.Errorf("Acos(%g) = %g, want %g", vc[i], f, acos[i])
 		}
 	}
 	for i := 0; i < len(vcAcosSC); i++ {
 		if f := Acos(vcAcosSC[i]); !cAlike(acosSC[i], f) {
-			t.Errorf("Acos(%g) = %g, want %g\n", vcAcosSC[i], f, acosSC[i])
+			t.Errorf("Acos(%g) = %g, want %g", vcAcosSC[i], f, acosSC[i])
 		}
 	}
 }
 func TestAcosh(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Acosh(vc[i]); !cSoclose(acosh[i], f, 1e-14) {
-			t.Errorf("Acosh(%g) = %g, want %g\n", vc[i], f, acosh[i])
+			t.Errorf("Acosh(%g) = %g, want %g", vc[i], f, acosh[i])
 		}
 	}
 	for i := 0; i < len(vcAcoshSC); i++ {
 		if f := Acosh(vcAcoshSC[i]); !cAlike(acoshSC[i], f) {
-			t.Errorf("Acosh(%g) = %g, want %g\n", vcAcoshSC[i], f, acoshSC[i])
+			t.Errorf("Acosh(%g) = %g, want %g", vcAcoshSC[i], f, acoshSC[i])
 		}
 	}
 }
 func TestAsin(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Asin(vc[i]); !cSoclose(asin[i], f, 1e-14) {
-			t.Errorf("Asin(%g) = %g, want %g\n", vc[i], f, asin[i])
+			t.Errorf("Asin(%g) = %g, want %g", vc[i], f, asin[i])
 		}
 	}
 	for i := 0; i < len(vcAsinSC); i++ {
 		if f := Asin(vcAsinSC[i]); !cAlike(asinSC[i], f) {
-			t.Errorf("Asin(%g) = %g, want %g\n", vcAsinSC[i], f, asinSC[i])
+			t.Errorf("Asin(%g) = %g, want %g", vcAsinSC[i], f, asinSC[i])
 		}
 	}
 }
 func TestAsinh(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Asinh(vc[i]); !cSoclose(asinh[i], f, 4e-15) {
-			t.Errorf("Asinh(%g) = %g, want %g\n", vc[i], f, asinh[i])
+			t.Errorf("Asinh(%g) = %g, want %g", vc[i], f, asinh[i])
 		}
 	}
 	for i := 0; i < len(vcAsinhSC); i++ {
 		if f := Asinh(vcAsinhSC[i]); !cAlike(asinhSC[i], f) {
-			t.Errorf("Asinh(%g) = %g, want %g\n", vcAsinhSC[i], f, asinhSC[i])
+			t.Errorf("Asinh(%g) = %g, want %g", vcAsinhSC[i], f, asinhSC[i])
 		}
 	}
 }
 func TestAtan(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Atan(vc[i]); !cVeryclose(atan[i], f) {
-			t.Errorf("Atan(%g) = %g, want %g\n", vc[i], f, atan[i])
+			t.Errorf("Atan(%g) = %g, want %g", vc[i], f, atan[i])
 		}
 	}
 	for i := 0; i < len(vcAtanSC); i++ {
 		if f := Atan(vcAtanSC[i]); !cAlike(atanSC[i], f) {
-			t.Errorf("Atan(%g) = %g, want %g\n", vcAtanSC[i], f, atanSC[i])
+			t.Errorf("Atan(%g) = %g, want %g", vcAtanSC[i], f, atanSC[i])
 		}
 	}
 }
 func TestAtanh(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Atanh(vc[i]); !cVeryclose(atanh[i], f) {
-			t.Errorf("Atanh(%g) = %g, want %g\n", vc[i], f, atanh[i])
+			t.Errorf("Atanh(%g) = %g, want %g", vc[i], f, atanh[i])
 		}
 	}
 	for i := 0; i < len(vcAtanhSC); i++ {
 		if f := Atanh(vcAtanhSC[i]); !cAlike(atanhSC[i], f) {
-			t.Errorf("Atanh(%g) = %g, want %g\n", vcAtanhSC[i], f, atanhSC[i])
+			t.Errorf("Atanh(%g) = %g, want %g", vcAtanhSC[i], f, atanhSC[i])
 		}
 	}
 }
 func TestConj(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Conj(vc[i]); !cVeryclose(conj[i], f) {
-			t.Errorf("Conj(%g) = %g, want %g\n", vc[i], f, conj[i])
+			t.Errorf("Conj(%g) = %g, want %g", vc[i], f, conj[i])
 		}
 	}
 	for i := 0; i < len(vcConjSC); i++ {
 		if f := Conj(vcConjSC[i]); !cAlike(conjSC[i], f) {
-			t.Errorf("Conj(%g) = %g, want %g\n", vcConjSC[i], f, conjSC[i])
+			t.Errorf("Conj(%g) = %g, want %g", vcConjSC[i], f, conjSC[i])
 		}
 	}
 }
 func TestCos(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Cos(vc[i]); !cSoclose(cos[i], f, 3e-15) {
-			t.Errorf("Cos(%g) = %g, want %g\n", vc[i], f, cos[i])
+			t.Errorf("Cos(%g) = %g, want %g", vc[i], f, cos[i])
 		}
 	}
 	for i := 0; i < len(vcCosSC); i++ {
 		if f := Cos(vcCosSC[i]); !cAlike(cosSC[i], f) {
-			t.Errorf("Cos(%g) = %g, want %g\n", vcCosSC[i], f, cosSC[i])
+			t.Errorf("Cos(%g) = %g, want %g", vcCosSC[i], f, cosSC[i])
 		}
 	}
 }
 func TestCosh(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Cosh(vc[i]); !cSoclose(cosh[i], f, 2e-15) {
-			t.Errorf("Cosh(%g) = %g, want %g\n", vc[i], f, cosh[i])
+			t.Errorf("Cosh(%g) = %g, want %g", vc[i], f, cosh[i])
 		}
 	}
 	for i := 0; i < len(vcCoshSC); i++ {
 		if f := Cosh(vcCoshSC[i]); !cAlike(coshSC[i], f) {
-			t.Errorf("Cosh(%g) = %g, want %g\n", vcCoshSC[i], f, coshSC[i])
+			t.Errorf("Cosh(%g) = %g, want %g", vcCoshSC[i], f, coshSC[i])
 		}
 	}
 }
 func TestExp(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Exp(vc[i]); !cSoclose(exp[i], f, 1e-15) {
-			t.Errorf("Exp(%g) = %g, want %g\n", vc[i], f, exp[i])
+			t.Errorf("Exp(%g) = %g, want %g", vc[i], f, exp[i])
 		}
 	}
 	for i := 0; i < len(vcExpSC); i++ {
 		if f := Exp(vcExpSC[i]); !cAlike(expSC[i], f) {
-			t.Errorf("Exp(%g) = %g, want %g\n", vcExpSC[i], f, expSC[i])
+			t.Errorf("Exp(%g) = %g, want %g", vcExpSC[i], f, expSC[i])
 		}
 	}
 }
 func TestIsNaN(t *testing.T) {
 	for i := 0; i < len(vcIsNaNSC); i++ {
 		if f := IsNaN(vcIsNaNSC[i]); isNaNSC[i] != f {
-			t.Errorf("IsNaN(%g) = %g, want %g\n", vcIsNaNSC[i], f, isNaNSC[i])
+			t.Errorf("IsNaN(%g) = %g, want %g", vcIsNaNSC[i], f, isNaNSC[i])
 		}
 	}
 }
 func TestLog(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Log(vc[i]); !cVeryclose(log[i], f) {
-			t.Errorf("Log(%g) = %g, want %g\n", vc[i], f, log[i])
+			t.Errorf("Log(%g) = %g, want %g", vc[i], f, log[i])
 		}
 	}
 	for i := 0; i < len(vcLogSC); i++ {
 		if f := Log(vcLogSC[i]); !cAlike(logSC[i], f) {
-			t.Errorf("Log(%g) = %g, want %g\n", vcLogSC[i], f, logSC[i])
+			t.Errorf("Log(%g) = %g, want %g", vcLogSC[i], f, logSC[i])
 		}
 	}
 }
 func TestLog10(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Log10(vc[i]); !cVeryclose(log10[i], f) {
-			t.Errorf("Log10(%g) = %g, want %g\n", vc[i], f, log10[i])
+			t.Errorf("Log10(%g) = %g, want %g", vc[i], f, log10[i])
 		}
 	}
 	for i := 0; i < len(vcLog10SC); i++ {
 		if f := Log10(vcLog10SC[i]); !cAlike(log10SC[i], f) {
-			t.Errorf("Log10(%g) = %g, want %g\n", vcLog10SC[i], f, log10SC[i])
+			t.Errorf("Log10(%g) = %g, want %g", vcLog10SC[i], f, log10SC[i])
 		}
 	}
 }
 func TestPolar(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if r, theta := Polar(vc[i]); !veryclose(polar[i].r, r) && !veryclose(polar[i].theta, theta) {
-			t.Errorf("Polar(%g) = %g, %g want %g, %g\n", vc[i], r, theta, polar[i].r, polar[i].theta)
+			t.Errorf("Polar(%g) = %g, %g want %g, %g", vc[i], r, theta, polar[i].r, polar[i].theta)
 		}
 	}
 	for i := 0; i < len(vcPolarSC); i++ {
 		if r, theta := Polar(vcPolarSC[i]); !alike(polarSC[i].r, r) && !alike(polarSC[i].theta, theta) {
-			t.Errorf("Polar(%g) = %g, %g, want %g, %g\n", vcPolarSC[i], r, theta, polarSC[i].r, polarSC[i].theta)
+			t.Errorf("Polar(%g) = %g, %g, want %g, %g", vcPolarSC[i], r, theta, polarSC[i].r, polarSC[i].theta)
 		}
 	}
 }
@@ -659,84 +659,84 @@ func TestPow(t *testing.T) {
 	var a = cmplx(float64(3), float64(3))
 	for i := 0; i < len(vc); i++ {
 		if f := Pow(a, vc[i]); !cSoclose(pow[i], f, 4e-15) {
-			t.Errorf("Pow(%g, %g) = %g, want %g\n", a, vc[i], f, pow[i])
+			t.Errorf("Pow(%g, %g) = %g, want %g", a, vc[i], f, pow[i])
 		}
 	}
 	for i := 0; i < len(vcPowSC); i++ {
 		if f := Pow(vcPowSC[i][0], vcPowSC[i][0]); !cAlike(powSC[i], f) {
-			t.Errorf("Pow(%g, %g) = %g, want %g\n", vcPowSC[i][0], vcPowSC[i][0], f, powSC[i])
+			t.Errorf("Pow(%g, %g) = %g, want %g", vcPowSC[i][0], vcPowSC[i][0], f, powSC[i])
 		}
 	}
 }
 func TestRect(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Rect(polar[i].r, polar[i].theta); !cVeryclose(vc[i], f) {
-			t.Errorf("Rect(%g, %g) = %g want %g\n", polar[i].r, polar[i].theta, f, vc[i])
+			t.Errorf("Rect(%g, %g) = %g want %g", polar[i].r, polar[i].theta, f, vc[i])
 		}
 	}
 	for i := 0; i < len(vcPolarSC); i++ {
 		if f := Rect(polarSC[i].r, polarSC[i].theta); !cAlike(vcPolarSC[i], f) {
-			t.Errorf("Rect(%g, %g) = %g, want %g\n", polarSC[i].r, polarSC[i].theta, f, vcPolarSC[i])
+			t.Errorf("Rect(%g, %g) = %g, want %g", polarSC[i].r, polarSC[i].theta, f, vcPolarSC[i])
 		}
 	}
 }
 func TestSin(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Sin(vc[i]); !cSoclose(sin[i], f, 2e-15) {
-			t.Errorf("Sin(%g) = %g, want %g\n", vc[i], f, sin[i])
+			t.Errorf("Sin(%g) = %g, want %g", vc[i], f, sin[i])
 		}
 	}
 	for i := 0; i < len(vcSinSC); i++ {
 		if f := Sin(vcSinSC[i]); !cAlike(sinSC[i], f) {
-			t.Errorf("Sin(%g) = %g, want %g\n", vcSinSC[i], f, sinSC[i])
+			t.Errorf("Sin(%g) = %g, want %g", vcSinSC[i], f, sinSC[i])
 		}
 	}
 }
 func TestSinh(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Sinh(vc[i]); !cSoclose(sinh[i], f, 2e-15) {
-			t.Errorf("Sinh(%g) = %g, want %g\n", vc[i], f, sinh[i])
+			t.Errorf("Sinh(%g) = %g, want %g", vc[i], f, sinh[i])
 		}
 	}
 	for i := 0; i < len(vcSinhSC); i++ {
 		if f := Sinh(vcSinhSC[i]); !cAlike(sinhSC[i], f) {
-			t.Errorf("Sinh(%g) = %g, want %g\n", vcSinhSC[i], f, sinhSC[i])
+			t.Errorf("Sinh(%g) = %g, want %g", vcSinhSC[i], f, sinhSC[i])
 		}
 	}
 }
 func TestSqrt(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Sqrt(vc[i]); !cVeryclose(sqrt[i], f) {
-			t.Errorf("Sqrt(%g) = %g, want %g\n", vc[i], f, sqrt[i])
+			t.Errorf("Sqrt(%g) = %g, want %g", vc[i], f, sqrt[i])
 		}
 	}
 	for i := 0; i < len(vcSqrtSC); i++ {
 		if f := Sqrt(vcSqrtSC[i]); !cAlike(sqrtSC[i], f) {
-			t.Errorf("Sqrt(%g) = %g, want %g\n", vcSqrtSC[i], f, sqrtSC[i])
+			t.Errorf("Sqrt(%g) = %g, want %g", vcSqrtSC[i], f, sqrtSC[i])
 		}
 	}
 }
 func TestTan(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Tan(vc[i]); !cSoclose(tan[i], f, 3e-15) {
-			t.Errorf("Tan(%g) = %g, want %g\n", vc[i], f, tan[i])
+			t.Errorf("Tan(%g) = %g, want %g", vc[i], f, tan[i])
 		}
 	}
 	for i := 0; i < len(vcTanSC); i++ {
 		if f := Tan(vcTanSC[i]); !cAlike(tanSC[i], f) {
-			t.Errorf("Tan(%g) = %g, want %g\n", vcTanSC[i], f, tanSC[i])
+			t.Errorf("Tan(%g) = %g, want %g", vcTanSC[i], f, tanSC[i])
 		}
 	}
 }
 func TestTanh(t *testing.T) {
 	for i := 0; i < len(vc); i++ {
 		if f := Tanh(vc[i]); !cSoclose(tanh[i], f, 2e-15) {
-			t.Errorf("Tanh(%g) = %g, want %g\n", vc[i], f, tanh[i])
+			t.Errorf("Tanh(%g) = %g, want %g", vc[i], f, tanh[i])
 		}
 	}
 	for i := 0; i < len(vcTanhSC); i++ {
 		if f := Tanh(vcTanhSC[i]); !cAlike(tanhSC[i], f) {
-			t.Errorf("Tanh(%g) = %g, want %g\n", vcTanhSC[i], f, tanhSC[i])
+			t.Errorf("Tanh(%g) = %g, want %g", vcTanhSC[i], f, tanhSC[i])
 		}
 	}
 }
