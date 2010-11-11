@@ -161,6 +161,14 @@ class Method
   Named_object*
   named_object() const;
 
+  // Get the stub object.
+  Named_object*
+  stub_object() const
+  {
+    gcc_assert(this->stub_ != NULL);
+    return this->stub_;
+  }
+
   // Set the stub object.
   void
   set_stub_object(Named_object* no)

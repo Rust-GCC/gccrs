@@ -1369,7 +1369,15 @@ Type::method_constructor(Gogo*, Type* method_type,
       vals->push_back(Expression::make_unary(OPERATOR_AND, s, bloc));
     }
 
-  Function_type* mtype = m->type();
+  Named_object* no = (m->needs_stub_method()
+		      ? m->stub_object()
+		      : m->named_object());
+
+  Function_type* mtype;
+  if (no->is_function())
+    mtype = no->func_value()->type();
+  else
+    mtype = no->func_declaration_value()->type();
   gcc_assert(mtype->is_method());
   Type* nonmethod_type = mtype->copy_without_receiver();
 
@@ -1383,8 +1391,7 @@ Type::method_constructor(Gogo*, Type* method_type,
 
   ++p;
   gcc_assert(p->field_name() == "tfn");
-  vals->push_back(Expression::make_func_reference(m->named_object(), NULL,
-						  bloc));
+  vals->push_back(Expression::make_func_reference(no, NULL, bloc));
 
   ++p;
   gcc_assert(p == fields->end());
