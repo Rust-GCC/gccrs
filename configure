@@ -6774,7 +6774,7 @@ if test -d ${srcdir}/gcc; then
         lang_requires=
         lang_requires_boot_languages=
         . ${lang_frag}
-        for other in ${lang_requires} ; do
+        for other in ${lang_requires} ${lang_requires_boot_languages}; do
           case ,${enable_languages}, in
 	    *,$other,*) ;;
 	    *,all,*) ;;
