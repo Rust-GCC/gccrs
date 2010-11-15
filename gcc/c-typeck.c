@@ -2821,7 +2821,7 @@ build_function_call_vec (location_t loc, tree function, VEC(tree,gc) *params,
 					  build_constructor (return_type, 0),
 					  false);
 	  else
-	    rhs = fold_convert_loc (loc, return_type, integer_zero_node);
+	    rhs = build_zero_cst (return_type);
 
 	  return require_complete_type (build2 (COMPOUND_EXPR, return_type,
 						trap, rhs));
@@ -3603,11 +3603,13 @@ build_unary_op (location_t location,
 	  goto return_build_unary_op;
 	}
 
-      /* Complain about anything that is not a true lvalue.  */
-      if (!lvalue_or_else (arg, ((code == PREINCREMENT_EXPR
-				  || code == POSTINCREMENT_EXPR)
-				 ? lv_increment
-				 : lv_decrement)))
+      /* Complain about anything that is not a true lvalue.  In
+	 Objective-C, skip this check for property_refs.  */
+      if (!objc_is_property_ref (arg) 
+	  && !lvalue_or_else (arg, ((code == PREINCREMENT_EXPR
+				     || code == POSTINCREMENT_EXPR)
+				    ? lv_increment
+				    : lv_decrement)))
 	return error_mark_node;
 
       if (warn_cxx_compat && TREE_CODE (TREE_TYPE (arg)) == ENUMERAL_TYPE)
@@ -3714,6 +3716,13 @@ build_unary_op (location_t location,
 	    inc = integer_one_node;
 	    inc = convert (argtype, inc);
 	  }
+
+	/* If 'arg' is an Objective-C PROPERTY_REF expression, then we
+	   need to ask Objective-C to build the increment or decrement
+	   expression for it.  */
+	if (objc_is_property_ref (arg))
+	  return objc_build_incr_expr_for_property_ref (location, code, 
+							arg, inc);
 
 	/* Report a read-only lvalue.  */
 	if (TYPE_READONLY (argtype))
@@ -4831,8 +4840,9 @@ c_cast_expr (location_t loc, struct c_type_name *type_name, tree expr)
   if (CAN_HAVE_LOCATION_P (ret) && !EXPR_HAS_LOCATION (ret))
     SET_EXPR_LOCATION (ret, loc);
 
-  /* C++ does not permits types to be defined in a cast.  */
-  if (warn_cxx_compat && type_name->specs->tag_defined_p)
+  /* C++ does not permits types to be defined in a cast, but it
+     allows references to incomplete types.  */
+  if (warn_cxx_compat && type_name->specs->typespec_kind == ctsk_tagdef)
     warning_at (loc, OPT_Wc___compat,
 		"defining a type in a cast is invalid in C++");
 

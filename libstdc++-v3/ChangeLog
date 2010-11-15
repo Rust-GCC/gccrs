@@ -1,3 +1,288 @@
+2010-11-15  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR libstdc++/45711
+	* src/Makefile.am (stamp-debug): Also adjust VPATH.
+	* src/Makefile.in: Regenerate.
+
+2010-11-15  Jie Zhang  <jie@codesourcery.com>
+
+	* testsuite/ext/profile/mh.cc: Add xfail for uclibc.
+
+2010-11-14  Matthias Klose  <doko@ubuntu.com>
+
+	* testsuite/28_regex/13_ecmascript: Remove, empty directory.
+	* testsuite/28_regex/02_definitions: Likewise.
+	* testsuite/29_atomics/headers/stdatomic.h: Likewise.
+
+2010-11-14  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/stl_tree.h (_Rb_tree<>::_M_const_cast_iter): Remove.
+	(_Rb_tree_const_iterator<>::_M_const_cast): Add.
+	(_Rb_tree<>::erase, _M_insert_unique_): Adjust.
+	* include/debug/map.h (map<>::erase, insert): Fix C++0x signatures.
+	* include/debug/multimap.h (multimap<>::erase, insert): Likewise.
+	* include/debug/set.h (set<>::erase, insert): Fix, only cosmetic
+	changes in this case.
+	* include/debug/multiset.h (multiset<>::erase, insert): Likewise.
+	* include/profile/set.h (set<>::insert): Remove redundant macro.
+	* include/profile/multiset.h (multiset<>::insert): Likewise.
+	* include/bits/stl_set.h (set<>::insert): Likewise.
+	* include/bits/stl_multiset.h (multiset<>::insert): Likewise.
+
+2010-11-12  Ian Lance Taylor  <iant@google.com>
+
+	PR other/46332
+	* testsuite/abi/demangle/abi_examples/14.cc (main): Change
+	expected demangling.
+
+2010-11-11  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/move.h (forward): Implement N3143, resolving US 90.
+	* testsuite/20_util/forward/a.cc: New.
+	* testsuite/20_util/forward/b.cc: Likewise.
+	* testsuite/20_util/forward/c_neg.cc: Likewise.
+	* testsuite/20_util/forward/d.cc: Likewise.
+	* testsuite/20_util/forward/e.cc: Likewise.
+	* testsuite/20_util/forward/f_neg.cc: Likewise.
+
+2010-11-10  François Dumont  <francois.cppdevs@free.fr>
+
+	* include/profile/unordered_map (unordered_map<>::_M_profile_size):
+	Simplify, don't take a __new_size argument; adjust all callers.
+
+2010-11-10  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/44436 (partial)
+	PR libstdc++/46148
+        * include/bits/stl_tree.h (_Rb_tree<>::_M_insert_, _M_insert_lower,
+	_M_insert_equal_lower, _M_insert_unique, _M_insert_equal,
+	_M_insert_unique_, _M_insert_equal_): Templatize in C++0x mode,
+	use _GLIBCXX_FORWARD throughout.
+        * include/bits/stl_map.h (map<>::insert(_Pair&&),
+	insert(const_iterator, _Pair&&), operator[](key_type&&): Add.
+        * include/bits/stl_set.h (set<>::insert(value_type&&),
+	insert(const_iterator, value_type&&)): Likewise.
+        * include/bits/stl_multimap.h (multimap<>::insert(_Pair&&),
+	insert(const_iterator, _Pair&&)): Likewise.
+        * include/bits/stl_multiset.h (multiset<>::insert(value_type&&),
+	insert(const_iterator, value_type&&)): Likewise.
+	* include/debug/set.h: Adjust.
+        * include/debug/multiset.h: Likewise.
+        * include/debug/map.h: Likewise.
+        * include/debug/multimap.h: Likewise.
+        * include/profile/set.h: Likewise.
+        * include/profile/multiset.h: Likewise.
+        * include/profile/map.h: Likewise.
+        * include/profile/multimap.h: Likewise.
+        * testsuite/23_containers/multimap/modifiers/insert/1.cc: New.
+        * testsuite/23_containers/multimap/modifiers/insert/2.cc: Likewise.
+        * testsuite/23_containers/multimap/modifiers/insert/3.cc: Likewise.
+        * testsuite/23_containers/multimap/modifiers/insert/4.cc: Likewise.
+        * testsuite/23_containers/set/modifiers/insert/2.cc: Likewise.
+        * testsuite/23_containers/set/modifiers/insert/3.cc: Likewise.
+        * testsuite/23_containers/multiset/modifiers/insert/3.cc: Likewise.
+        * testsuite/23_containers/multiset/modifiers/insert/4.cc: Likewise.
+        * testsuite/23_containers/map/modifiers/insert/2.cc: Likewise.
+        * testsuite/23_containers/map/modifiers/insert/3.cc: Likewise.
+        * testsuite/23_containers/map/modifiers/insert/4.cc: Likewise.
+        * testsuite/23_containers/map/modifiers/insert/5.cc: Likewise.
+        * testsuite/23_containers/map/element_access/2.cc: Likewise.
+        * testsuite/23_containers/map/element_access/46148.cc: Likewise.
+
+        * include/bits/hashtable.h: Trivial naming changes.
+
+2010-11-10  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/hashtable.h (_Hashtable<>::_Insert_Conv_Type,
+	_Hashtable<>::_Insert_Return_Type): Change to private.
+
+2010-11-10  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/unique_ptr.h: Use static_assert in constexpr
+	constructors.
+	* testsuite/20_util/unique_ptr/cons/ptr_deleter_neg.cc: Remove xfails.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-error
+	line number.
+
+2010-11-09  François Dumont  <francois.cppdevs@free.fr>
+            Johannes Singler  <singler@kit.edu>
+
+        * include/parallel/algobase.h (equal):  Call parallel variant
+        for applicable overloads.
+
+2010-11-09  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/stl_tree.h (_Rb_tree<>::_M_const_cast_iter): Add
+	and use it throughout.
+
+2010-11-09  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/46385
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-error
+	line number.
+
+2010-11-08  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/unique_ptr.h: Move misplaced static_assert and use
+	tuple's constexpr constructor in constexpr constructors.
+	* testsuite/20_util/unique_ptr/cons/ptr_deleter.cc: New.
+	* testsuite/20_util/unique_ptr/cons/ptr_deleter_neg.cc: New.
+
+2010-11-08  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/doxygen/user.cfg.in: Adjust scanned includes.
+	* include/std/forward_list: Make doxygen file markup unambiguous.
+
+2010-11-08  Jason Merrill  <jason@redhat.com>
+
+	* testsuite/20_util/ratio/cons/cons_overflow_neg.cc: Adjust
+	expected error.
+
+2010-11-08  Benjamin Kosnik  <bkoz@redhat.com>
+
+        * include/std/complex (operator==, !=): Mark constexpr.
+        * testsuite/26_numerics/complex/comparison_operators/constexpr.cc: New.
+
+2010-11-08  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/stl_tree.h (_Rb_tree<>::_M_erase_aux): Add.
+	(_Rb_tree<>::erase(iterator)): Fix in C++0x mode to take
+	const_iterator; remove redundant overload in C++03 mode.
+	(_Rb_tree<>::erase(iterator, iterator)): Likewise.
+	* include/bits/stl_map.h (map<>::erase): Adjust.
+	(map<>::insert): Fix signature in C++0x mode.
+	* include/bits/stl_set.h (set<>::erase): Likewise.
+	(set<>::insert): Likewise.
+	* include/bits/stl_multimap.h (multimap<>::erase): Likewise.
+	(multimap<>::insert): Likewise.
+	* include/bits/stl_multiset.h (multiset<>::erase): Likewise.
+	(multiset<>::insert): Fix signature in C++0x mode.
+	* include/profile/set.h: Adjust.
+	* include/profile/multiset.h: Likewise.
+	* include/profile/map.h: Likewise.
+	* include/profile/multimap.h: Likewise.
+	* testsuite/util/exception/safety.h (erase_base, insert_base):
+	Update.
+
+2010-11-07  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/profile/unordered_map (unordered_map<>::operator[](_Key&&)):
+	Add.
+
+2010-11-07  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/profile/bitset (bitset<>::bitset(), bitset<>::
+	bitset(unsigned long long)): Add constexpr specifier.
+
+2010-11-07  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/debug/bitset: Do not derive from _Safe_sequence_base in
+	C++0x mode, otherwise std::bitset isn't a literal type anymore;
+	adjust everywhere.
+
+	* include/debug/bitset (bitset<>::bitset(), bitset<>::
+	bitset(unsigned long long)):  Add missing constexpr specifier.
+
+2010-11-05  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/doxygen/user.cfg.in: Add typeindex.
+
+	* testsuite/util/testsuite_common_types.h (constexpr_comparison_eq_ne,
+	constexpr_comparison_operators): New.
+	* testsuite/20_util/duration/comparisons: Move...
+	* testsuite/20_util/duration/comparison_operators: ...here.
+	* testsuite/20_util/duration/comparison_operators/constexpr.cc: New.
+	* testsuite/20_util/time_point/comparison_operators/constexpr.cc: Add.
+
+	* testsuite/29_atomics/atomic_integral/cons/assign_neg.cc: Adjust line
+	numbers.
+	* testsuite/29_atomics/atomic_integral/cons/copy_neg.cc: Same.
+	* testsuite/29_atomics/atomic/cons/assign_neg.cc: Same.
+	* testsuite/29_atomics/atomic/cons/copy_neg.cc: Same.
+
+2010-11-05  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/shared_ptr.h (shared_ptr<>::__shared_ptr(),
+	shared_ptr<>::shared_ptr(nullptr_t), weak_ptr<>::weak_ptr(),
+	enable_shared_from_this::enable_shared_from_this()): Add constexpr
+	specifier.
+	* include/bits/shared_ptr_base.h (__shared_count::__shared_count(),
+	__shared_count::__shared_count(), __shared_ptr<>::__shared_ptr(),
+	__shared_ptr<>::__shared_ptr(nullptr_t), __weak_ptr<>::__weak_ptr(),
+	__enable_shared_from_this::__enable_shared_from_this()): Likewise.
+	* include/bits/unique_ptr.h (default_delete,
+	unique_ptr<>::unique_ptr(), unique_ptr<>::unique_ptr(nullptr_t)):
+	Likewise.
+	* testsuite/20_util/default_delete/cons/constexpr.cc: Do not xfail.
+	* testsuite/20_util/shared_ptr/cons/constexpr.cc: Remove, the test
+	cannot work for a non-literal type like std::shared_ptr.
+	* testsuite/20_util/weak_ptr/cons/constexpr.cc: Likewise.
+	* testsuite/util/testsuite_common_types.h: Add comments.
+	* testsuite/20_util/unique_ptr/cons/constexpr.cc: Likewise.
+	* testsuite/20_util/shared_ptr/cons/43820.cc: Adjust dg-error line
+	numbers.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Likewise.
+
+2010-11-05  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/doxygen/user.cfg.in: Remove tr1_impl headers.
+
+	* testsuite/tr1/4_metaprogramming/integral_constant/requirements/
+	constexpr_data.cc: New.
+
+	* testsuite/util/testsuite_tr1.h (LType, LTypeDerived, NLType): New.
+	* testsuite/20_util/is_literal_type/value.cc: New.
+	* testsuite/20_util/is_literal_type/requirements/typedefs.cc: Name.
+	* testsuite/20_util/is_literal_type/requirements/
+	explicit_instantiation.cc: New.
+
+2010-11-04  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/46303
+	* testsuite/30_threads/call_once/constexpr.cc: Add missing dg-require
+	directives.
+	* testsuite/30_threads/mutex/cons/constexpr.cc: Likewise.
+	* testsuite/30_threads/once_flag/cons/constexpr.cc: Likewise.
+
+2010-11-04  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/ratio (ratio_add, ratio_subtract, ratio_multiply,
+	ratio_divide): Declare the data members constexpr.
+	* testsuite/20_util/ratio/requirements/constexpr_data.cc: Extend.
+
+2010-11-03  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/std/tuple (tuple): Make default constructors constexpr.
+	* testsuite/20_util/tuple/cons/constexpr.cc: Add.
+
+	* testsuite/18_support/initializer_list/requirements/
+	constexpr_functions.cc: Add.
+	* testsuite/18_support/initializer_list/constexpr.cc: Add.
+
+2010-11-03  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/limits (__glibcxx_digits10, __glibcxx_max_digits10):
+	Use 643L instead of 643 to avoid overflows on 16-bit machines.
+	* include/ext/numeric_traits.h (__glibcxx_max_digits10): Likewise.
+
+2010-11-02  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/std/chrono: Use typedefs.
+	* testsuite/20_util/duration/requirements/typedefs_neg1.cc: Adjust
+	line numbers.
+	* testsuite/20_util/duration/requirements/typedefs_neg2.cc: Same.
+	* testsuite/20_util/duration/requirements/typedefs_neg3.cc: Same.
+	* testsuite/20_util/ratio/cons/cons_overflow_neg.cc: Same.
+
+2010-11-02  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/c_global/cmath (fpclassify, isfinite, isinf, isnan,
+	isnormal, signbit, isgreater, isgreaterequal, isless, islessequal,
+	islessgreater, isunordered): Remove spurious duplicate definition
+	added in the last commit.
+
+	* include/tr1/cmath: Remove tr1_impl leftover macro.
+
 2010-11-02  Paolo Carlini  <paolo.carlini@oracle.com>
 
 	* include/tr1_impl/cinttypes: Remove, move contents to C++0x
@@ -1291,13 +1576,13 @@
 
 2010-09-03  François Dumont <francois.cppdevs@free.fr>
 
-        * testsuite/lib/libstdc++.exp ([check_v3_target_debug_mode]): Fix so
-        that it really detects when debug mode is activated.
-        * testsuite/util/debug/construct_neg.h, insert_neg.h, assign_neg.h:
-        Remove, content moved...
-        * testsuite/util/debug/checks.h: ... here. Modify checks to take the
+	* testsuite/lib/libstdc++.exp ([check_v3_target_debug_mode]): Fix so
+	that it really detects when debug mode is activated.
+	* testsuite/util/debug/construct_neg.h, insert_neg.h, assign_neg.h:
+	Remove, content moved...
+	* testsuite/util/debug/checks.h: ... here. Modify checks to take the
 	type of the container to test rather than an intermediate container
-        type traits helper.
+	type traits helper.
 	* testsuite/23_containers/unordered_map/debug/insert1_neg.cc: Update to
 	use dg-require-debug-mode when necessary and use new check functions.
 	* testsuite/23_containers/unordered_map/debug/construct1_neg.cc:

@@ -310,7 +310,6 @@ consider_split (struct split_point *current, bitmap non_ssa_vars,
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "  Refused: header empty\n");
-      gcc_unreachable ();
       return;
     }
 
@@ -1252,7 +1251,7 @@ execute_split_functions (void)
      then inlining would still benefit.  */
   if ((!node->callers || !node->callers->next_caller)
       && !node->address_taken
-      && ((!flag_lto && !flag_whopr) || !node->local.externally_visible))
+      && (!flag_lto || !node->local.externally_visible))
     {
       if (dump_file)
 	fprintf (dump_file, "Not splitting: not called directly "

@@ -641,7 +641,7 @@ verify_def (basic_block bb, basic_block *definition_block, tree ssa_name,
   if (TREE_CODE (SSA_NAME_VAR (ssa_name)) == RESULT_DECL
       && DECL_BY_REFERENCE (SSA_NAME_VAR (ssa_name)))
     {
-      error ("RESULT_DECL should be read only when DECL_BY_REFERENCE is set.");
+      error ("RESULT_DECL should be read only when DECL_BY_REFERENCE is set");
       goto err;
     }
 
@@ -1026,8 +1026,8 @@ verify_ssa (bool check_modified_stmt)
 	      op = gimple_op (stmt, i);
 	      if (op && TREE_CODE (op) == SSA_NAME && --count < 0)
 		{
-		  error ("nr of operands and imm-links don't agree");
-		  error ("in statement");
+		  error ("number of operands and imm-links don%'t agree"
+			 " in statement");
 		  print_gimple_stmt (stderr, stmt, 0, TDF_VOPS|TDF_MEMSYMS);
 		  goto err;
 		}
@@ -1877,7 +1877,8 @@ non_rewritable_mem_ref_base (tree ref)
       if (DECL_P (decl)
 	  && (!integer_zerop (TREE_OPERAND (base, 1))
 	      || (DECL_SIZE (decl)
-		  != TYPE_SIZE (TREE_TYPE (base)))))
+		  != TYPE_SIZE (TREE_TYPE (base)))
+	      || TREE_THIS_VOLATILE (decl) != TREE_THIS_VOLATILE (base)))
 	return decl;
     }
 
@@ -1993,7 +1994,9 @@ execute_update_addresses_taken (void)
 		      if (DECL_P (decl)
 			  && (!integer_zerop (TREE_OPERAND (lhs, 1))
 			      || (DECL_SIZE (decl)
-				  != TYPE_SIZE (TREE_TYPE (orig_lhs)))))
+				  != TYPE_SIZE (TREE_TYPE (orig_lhs)))
+			      || (TREE_THIS_VOLATILE (lhs)
+				  != TREE_THIS_VOLATILE (decl))))
 			bitmap_set_bit (not_reg_needs, DECL_UID (decl));
 		    }
                 }
@@ -2040,7 +2043,9 @@ execute_update_addresses_taken (void)
 			  if (DECL_P (decl)
 			      && (!integer_zerop (TREE_OPERAND (lhs, 1))
 				  || (TYPE_MAIN_VARIANT (TREE_TYPE (decl))
-				      != TYPE_MAIN_VARIANT (TREE_TYPE (orig_lhs)))))
+				      != TYPE_MAIN_VARIANT (TREE_TYPE (orig_lhs)))
+				  || (TREE_THIS_VOLATILE (lhs)
+				      != TREE_THIS_VOLATILE (decl))))
 			    bitmap_set_bit (not_reg_needs, DECL_UID (decl));
 			}
 		    }

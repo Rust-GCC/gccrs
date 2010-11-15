@@ -261,12 +261,6 @@ Target Report Mask(VZEROUPPER) Save
 Generate vzeroupper instruction before a transfer of control flow out of
 the function.
 
-mfused-madd
-Target Report Mask(FUSED_MADD) Save
-Enable automatic generation of fused floating point multiply-add instructions
-if the ISA supports such instructions.  The -mfused-madd option is on by
-default.
-
 mdispatch-scheduler
 Target RejectNegative Var(flag_dispatch_scheduler)
 Do dispatch scheduling if processor is bdver1 and Haifa scheduling
@@ -357,6 +351,14 @@ Support code generation of Advanced Bit Manipulation (ABM) instructions.
 mpopcnt
 Target Report Mask(ISA_POPCNT) Var(ix86_isa_flags) Save
 Support code generation of popcnt instruction.
+
+mbmi
+Target Report Mask(ISA_BMI) Var(ix86_isa_flags) Save
+Support BMI built-in functions and code generation
+
+mtbm
+Target Report Mask(ISA_TBM) Var(ix86_isa_flags) Save
+Support TBM built-in functions and code generation
 
 mcx16
 Target Report Mask(ISA_CX16) Var(ix86_isa_flags) Save

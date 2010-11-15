@@ -653,7 +653,8 @@ type_internals_preclude_sra_p (tree type)
 	    if (TREE_THIS_VOLATILE (fld)
 		|| !DECL_FIELD_OFFSET (fld) || !DECL_SIZE (fld)
 		|| !host_integerp (DECL_FIELD_OFFSET (fld), 1)
-		|| !host_integerp (DECL_SIZE (fld), 1))
+		|| !host_integerp (DECL_SIZE (fld), 1)
+		|| (DECL_BIT_FIELD (fld) && AGGREGATE_TYPE_P (ft)))
 	      return true;
 
 	    if (AGGREGATE_TYPE_P (ft)
@@ -1390,7 +1391,7 @@ build_ref_for_offset (location_t loc, tree base, HOST_WIDE_INT offset,
 
 /* Construct a memory reference to a part of an aggregate BASE at the given
    OFFSET and of the same type as MODEL.  In case this is a reference to a
-   bit-field, the function will replicate the last component_ref of model's
+   component, the function will replicate the last COMPONENT_REF of model's
    expr to access it.  GSI and INSERT_AFTER have the same meaning as in
    build_ref_for_offset.  */
 
@@ -1399,12 +1400,9 @@ build_ref_for_model (location_t loc, tree base, HOST_WIDE_INT offset,
 		     struct access *model, gimple_stmt_iterator *gsi,
 		     bool insert_after)
 {
-  if (TREE_CODE (model->expr) == COMPONENT_REF
-      && DECL_BIT_FIELD (TREE_OPERAND (model->expr, 1)))
+  if (TREE_CODE (model->expr) == COMPONENT_REF)
     {
-      /* This access represents a bit-field.  */
       tree t, exp_type;
-
       offset -= int_bit_position (TREE_OPERAND (model->expr, 1));
       exp_type = TREE_TYPE (TREE_OPERAND (model->expr, 0));
       t = build_ref_for_offset (loc, base, offset, exp_type, gsi, insert_after);
@@ -2324,8 +2322,7 @@ init_subtree_with_zero (struct access *access, gimple_stmt_iterator *gsi,
       gimple stmt;
 
       stmt = gimple_build_assign (get_access_replacement (access),
-				  fold_convert (access->type,
-						integer_zero_node));
+				  build_zero_cst (access->type));
       if (insert_after)
 	gsi_insert_after (gsi, stmt, GSI_NEW_STMT);
       else
@@ -2629,6 +2626,41 @@ get_repl_default_def_ssa_name (struct access *racc)
   return repl;
 }
 
+/* Return true if REF has a COMPONENT_REF with a bit-field field declaration
+   somewhere in it.  */
+
+static inline bool
+contains_bitfld_comp_ref_p (const_tree ref)
+{
+  while (handled_component_p (ref))
+    {
+      if (TREE_CODE (ref) == COMPONENT_REF
+          && DECL_BIT_FIELD (TREE_OPERAND (ref, 1)))
+        return true;
+      ref = TREE_OPERAND (ref, 0);
+    }
+
+  return false;
+}
+
+/* Return true if REF has an VIEW_CONVERT_EXPR or a COMPONENT_REF with a
+   bit-field field declaration somewhere in it.  */
+
+static inline bool
+contains_vce_or_bfcref_p (const_tree ref)
+{
+  while (handled_component_p (ref))
+    {
+      if (TREE_CODE (ref) == VIEW_CONVERT_EXPR
+	  || (TREE_CODE (ref) == COMPONENT_REF
+	      && DECL_BIT_FIELD (TREE_OPERAND (ref, 1))))
+	return true;
+      ref = TREE_OPERAND (ref, 0);
+    }
+
+  return false;
+}
+
 /* Examine both sides of the assignment statement pointed to by STMT, replace
    them with a scalare replacement if there is one and generate copying of
    replacements if scalarized aggregates have been used in the assignment.  GSI
@@ -2697,6 +2729,7 @@ sra_modify_assign (gimple *stmt, gimple_stmt_iterator *gsi)
 	     ???  This should move to fold_stmt which we simply should
 	     call after building a VIEW_CONVERT_EXPR here.  */
 	  if (AGGREGATE_TYPE_P (TREE_TYPE (lhs))
+	      && !contains_bitfld_comp_ref_p (lhs)
 	      && !access_has_children_p (lacc))
 	    {
 	      lhs = build_ref_for_offset (loc, lhs, 0, TREE_TYPE (rhs),
@@ -2704,7 +2737,7 @@ sra_modify_assign (gimple *stmt, gimple_stmt_iterator *gsi)
 	      gimple_assign_set_lhs (*stmt, lhs);
 	    }
 	  else if (AGGREGATE_TYPE_P (TREE_TYPE (rhs))
-		   && !contains_view_convert_expr_p (rhs)
+		   && !contains_vce_or_bfcref_p (rhs)
 		   && !access_has_children_p (racc))
 	    rhs = build_ref_for_offset (loc, rhs, 0, TREE_TYPE (lhs),
 					gsi, false);
@@ -2754,8 +2787,8 @@ sra_modify_assign (gimple *stmt, gimple_stmt_iterator *gsi)
      This is what the first branch does.  */
 
   if (gimple_has_volatile_ops (*stmt)
-      || contains_view_convert_expr_p (rhs)
-      || contains_view_convert_expr_p (lhs))
+      || contains_vce_or_bfcref_p (rhs)
+      || contains_vce_or_bfcref_p (lhs))
     {
       if (access_has_children_p (racc))
 	generate_subtree_copies (racc->first_child, racc->base, 0, 0, 0,
@@ -4098,7 +4131,7 @@ sra_ipa_modify_assign (gimple *stmt_ptr, gimple_stmt_iterator *gsi,
 	    {
 	      /* V_C_Es of constructors can cause trouble (PR 42714).  */
 	      if (is_gimple_reg_type (TREE_TYPE (*lhs_p)))
-		*rhs_p = fold_convert (TREE_TYPE (*lhs_p), integer_zero_node);
+		*rhs_p = build_zero_cst (TREE_TYPE (*lhs_p));
 	      else
 		*rhs_p = build_constructor (TREE_TYPE (*lhs_p), 0);
 	    }

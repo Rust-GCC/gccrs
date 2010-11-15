@@ -6317,7 +6317,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl,
 	      comp = fold_build3_loc (input_location, COMPONENT_REF, ctype,
 				      decl, cdecl, NULL_TREE);
 	      
-	      /* Add reference to '$data' component.  */
+	      /* Add reference to '_data' component.  */
 	      tmp = CLASS_DATA (c)->backend_decl;
 	      comp = fold_build3_loc (input_location, COMPONENT_REF,
 				      TREE_TYPE (tmp), comp, tmp, NULL_TREE);
@@ -6357,7 +6357,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl,
 	      /* Allocatable scalar CLASS components.  */
 	      comp = fold_build3_loc (input_location, COMPONENT_REF, ctype,
 				      decl, cdecl, NULL_TREE);
-	      /* Add reference to '$data' component.  */
+	      /* Add reference to '_data' component.  */
 	      tmp = CLASS_DATA (c)->backend_decl;
 	      comp = fold_build3_loc (input_location, COMPONENT_REF,
 				      TREE_TYPE (tmp), comp, tmp, NULL_TREE);
@@ -6478,7 +6478,7 @@ gfc_trans_deferred_array (gfc_symbol * sym, gfc_wrapped_block * block)
 
   /* Make sure the frontend gets these right.  */
   if (!(sym->attr.pointer || sym->attr.allocatable || sym_has_alloc_comp))
-    fatal_error ("Possible frontend bug: Deferred array size without pointer, "
+    fatal_error ("Possible front-end bug: Deferred array size without pointer, "
 		 "allocatable attribute or derived type without allocatable "
 		 "components.");
 

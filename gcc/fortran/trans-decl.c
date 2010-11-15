@@ -555,6 +555,7 @@ gfc_finish_var_decl (tree decl, gfc_symbol * sym)
   if (sym->attr.volatile_)
     {
       TREE_THIS_VOLATILE (decl) = 1;
+      TREE_SIDE_EFFECTS (decl) = 1;
       new_type = build_qualified_type (TREE_TYPE (decl), TYPE_QUAL_VOLATILE);
       TREE_TYPE (decl) = new_type;
     } 
@@ -1944,9 +1945,18 @@ create_function_arglist (gfc_symbol * sym)
       if (f->sym->attr.proc_pointer)
         type = build_pointer_type (type);
 
+      if (f->sym->attr.volatile_)
+	type = build_qualified_type (type, TYPE_QUAL_VOLATILE);
+
       /* Build the argument declaration.  */
       parm = build_decl (input_location,
 			 PARM_DECL, gfc_sym_identifier (f->sym), type);
+
+      if (f->sym->attr.volatile_)
+	{
+	  TREE_THIS_VOLATILE (parm) = 1;
+	  TREE_SIDE_EFFECTS (parm) = 1;
+	}
 
       /* Fill in arg stuff.  */
       DECL_CONTEXT (parm) = fndecl;
@@ -3393,7 +3403,7 @@ gfc_trans_deferred_vars (gfc_symbol * proc_sym, gfc_wrapped_block * block)
 
 	      e = gfc_lval_expr_from_sym (sym);
 	      if (sym->ts.type == BT_CLASS)
-		gfc_add_component_ref (e, "$data");
+		gfc_add_data_component (e);
 
 	      gfc_init_se (&se, NULL);
 	      se.want_pointer = 1;
@@ -4017,9 +4027,10 @@ generate_local_decl (gfc_symbol * sym)
 	}
 
       /* Warn for unused variables, but not if they're inside a common
-	 block or are use-associated.  */
+	 block, a namelist, or are use-associated.  */
       else if (warn_unused_variable
-	       && !(sym->attr.in_common || sym->attr.use_assoc || sym->mark))
+	       && !(sym->attr.in_common || sym->attr.use_assoc || sym->mark
+		    || sym->attr.in_namelist))
 	gfc_warning ("Unused variable '%s' declared at %L", sym->name,
 		     &sym->declared_at);
 
@@ -4216,8 +4227,7 @@ add_argument_checking (stmtblock_t *block, gfc_symbol *sym)
 	    not_0length = fold_build2_loc (input_location, NE_EXPR,
 					   boolean_type_node,
 					   cl->passed_length,
-					   fold_convert (gfc_charlen_type_node,
-							 integer_zero_node));
+					   build_zero_cst (gfc_charlen_type_node));
 	    /* The symbol needs to be referenced for gfc_get_symbol_decl.  */
 	    fsym->attr.referenced = 1;
 	    not_absent = gfc_conv_expr_present (fsym);

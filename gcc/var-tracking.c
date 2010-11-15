@@ -92,6 +92,7 @@
 #include "tm.h"
 #include "rtl.h"
 #include "tree.h"
+#include "tm_p.h"
 #include "hard-reg-set.h"
 #include "basic-block.h"
 #include "flags.h"
@@ -7339,7 +7340,17 @@ emit_note_insn_var_location (void **varp, void *data)
 	NOTE_DURING_CALL_P (note) = true;
     }
   else
-    note = emit_note_before (NOTE_INSN_VAR_LOCATION, insn);
+    {
+      /* Make sure that the call related notes come first.  */
+      while (NEXT_INSN (insn)
+	     && NOTE_P (insn)
+	     && NOTE_DURING_CALL_P (insn))
+	insn = NEXT_INSN (insn);
+      if (NOTE_P (insn) && NOTE_DURING_CALL_P (insn))
+	note = emit_note_after (NOTE_INSN_VAR_LOCATION, insn);
+      else
+	note = emit_note_before (NOTE_INSN_VAR_LOCATION, insn);
+    }
   NOTE_VAR_LOCATION (note) = note_vl;
 
  clear:
@@ -8219,6 +8230,11 @@ vt_init_cfa_base (void)
   if (!MAY_HAVE_DEBUG_INSNS)
     return;
 
+  /* Tell alias analysis that cfa_base_rtx should share
+     find_base_term value with stack pointer or hard frame pointer.  */
+  vt_equate_reg_base_value (cfa_base_rtx,
+			    frame_pointer_needed
+			    ? hard_frame_pointer_rtx : stack_pointer_rtx);
   val = cselib_lookup_from_insn (cfa_base_rtx, GET_MODE (cfa_base_rtx), 1,
 				 get_insns ());
   preserve_value (val);

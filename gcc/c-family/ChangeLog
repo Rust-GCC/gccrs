@@ -1,3 +1,95 @@
+2010-11-15  Ian Lance Taylor  <iant@google.com>
+
+	* c-lex.c (init_c_lex): Set macro debug callbacks if
+	flag_dump_go_spec is set.
+
+2010-11-15  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* c-common.h (objc_build_incr_expr_for_property_ref): New.
+	* stub-objc.c (objc_build_incr_expr_for_property_ref): New.
+
+2010-11-15  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR preprocessor/45038
+	* c-cppbuiltin.c (c_cpp_builtins): Use different format for C++
+	dialects.
+
+2010-11-12  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-common.h (c_family_lang_mask): Declare.
+	* c-opts.c (c_family_lang_mask): Make extern.
+	* c-pragma.c (handle_pragma_diagnostic): Use
+	control_warning_option.
+
+2010-11-12  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-common.c (parse_optimize_options): Update call to
+	decode_options.
+	* c-common.h (c_common_handle_option): Update prototype.
+	* c-opts.c (c_common_handle_option): Take location_t parameter and
+	pass it to other functions.
+
+2010-11-11  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-opts.c (warning_as_error_callback): Remove.
+	(c_common_initialize_diagnostics): Don't call
+	register_warning_as_error_callback.
+	(c_common_handle_option): Handle -Werror=normalized= here.
+
+2010-11-10  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-common.c (handle_mode_attribute): Use %' and word "signedness"
+	in diagnostic.
+	* c-opts.c (c_common_parse_file): Start diagnostics with lowercase
+	letter.
+	* c-pragma.c (handle_pragma_target, handle_pragma_optimize):
+	Remove trailing '.' from diagnostics.
+	* c.opt (Wwrite-strings_: Avoid '`' in help text.
+
+2010-11-10  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-common.c (parse_optimize_options): Pass global_dc to
+	decode_options.
+	* c-opts.c (c_common_handle_option): Pass &global_options to
+	set_Wstrict_aliasing.
+	* c.opt (v): Don't mark Common or document here.
+
+2010-11-06  Iain Sandoe  <iains@gcc.gnu.org>
+
+	PR target/44981
+	* c-format.c (format_type): New type gcc_objc_string_format_type.
+	(valid_stringptr_type_p): New.
+	(handle_format_arg_attribute): Use valid_stringptr_type_p ().
+	(check_format_string): Pass expected type, use 
+	valid_stringptr_type_p (), check that the format string types are
+	consistent with the format specification.
+	(decode_format_attr): Warn if NSString is used outside objective-c.
+	(format_types_orig): Add NSString.
+	(format_name): New.
+	(format_flags): New.
+	(check_format_arg): Handle format strings requiring an external parser.
+	first_target_format_type: New variable.
+	(handle_format_attribute): Set up first_target_format_type, pass the
+	expected format arg string type to check_format_string().
+	* c-common.h (FMT_FLAG_PARSE_ARG_CONVERT_EXTERNAL):  New flag.
+	* stub-objc.c (objc_string_ref_type_p): New.
+	(objc_check_format_arg): New.
+
+2010-11-04  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Fixed using the Objective-C 2.0 dot-syntax with class names.	
+	* c-common.h (objc_build_class_component_ref): New.
+	* stub-objc.c (objc_build_class_component_ref): New.
+
+2010-11-03  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* c.opt (Wproperty-assign-default): New option.
+
+2010-11-03  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Implemented -fobjc-std=objc1 flag.
+	* c.opt (fobjc-std=objc1): New option.
+
 2010-11-01  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	Implemented format and noreturn attributes for Objective-C methods.

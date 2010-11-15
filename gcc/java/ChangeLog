@@ -1,3 +1,31 @@
+2010-11-12  Joseph Myers  <joseph@codesourcery.com>
+
+	* Make-lang.in (jvspec.o, java/lang.o): Use $(OPTS_H).
+	* lang.c (java_handle_option): Take location_t parameter.
+
+2010-11-10  Joseph Myers  <joseph@codesourcery.com>
+
+	* expr.c (expand_java_field_op): Use %' in diagnostic.
+	* jcf-parse.c (java_parse_file): Use %' in diagnostics.
+	* jvspec.c (lang_specific_driver): Use %' in diagnostic.
+	* lang.c (java_post_options): Use %' in diagnostics.
+
+2010-11-06  Joern Rennecke  <amylaar@spamcop.net>
+
+	PR middle-end/46314
+	* class.c: Include target.h.
+	(make_local_function_alias):
+	Use targetm.asm_out.generate_internal_label.
+	* expr.c (lookup_label, generate_name): Likewise.
+
+2010-11-03  Joern Rennecke  <joern.rennecke@embecosm.com>
+
+	PR bootstrap/44335
+	* jfc-parse.c (target.h): Include.
+	(handle_constant): Use targetm.words_big_endian and
+	targetm.float_words_big_endian.
+	(get_constant): Use targetm.float_words_big_endian.
+
 2010-10-13  Richard Henderson  <rth@redhat.com>
 
 	* lang.c (java_eh_personality): Update call to

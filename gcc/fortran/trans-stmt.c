@@ -1126,7 +1126,7 @@ gfc_trans_do (gfc_code * code, tree exit_cond)
   if (gfc_option.rtcheck & GFC_RTCHECK_DO)
     {
       tmp = fold_build2_loc (input_location, EQ_EXPR, boolean_type_node, step,
-			     fold_convert (type, integer_zero_node));
+			     build_zero_cst (type));
       gfc_trans_runtime_check (true, false, tmp, &block, &code->loc,
 			       "DO step value is zero");
     }
@@ -1138,7 +1138,7 @@ gfc_trans_do (gfc_code * code, tree exit_cond)
     return gfc_trans_simple_do (code, &block, dovar, from, to, step, exit_cond);
 
   pos_step = fold_build2_loc (loc, GT_EXPR, boolean_type_node, step,
-			      fold_convert (type, integer_zero_node));
+			      build_zero_cst (type));
 
   if (TREE_CODE (type) == INTEGER_TYPE)
     utype = unsigned_type_for (type);
@@ -4388,7 +4388,7 @@ gfc_trans_allocate (gfc_code * code)
       expr = gfc_copy_expr (al->expr);
 
       if (expr->ts.type == BT_CLASS)
-	gfc_add_component_ref (expr, "$data");
+	gfc_add_data_component (expr);
 
       gfc_init_se (&se, NULL);
       gfc_start_block (&se.pre);
@@ -4409,8 +4409,8 @@ gfc_trans_allocate (gfc_code * code)
 		  gfc_expr *sz;
 		  gfc_se se_sz;
 		  sz = gfc_copy_expr (code->expr3);
-		  gfc_add_component_ref (sz, "$vptr");
-		  gfc_add_component_ref (sz, "$size");
+		  gfc_add_vptr_component (sz);
+		  gfc_add_size_component (sz);
 		  gfc_init_se (&se_sz, NULL);
 		  gfc_conv_expr (&se_sz, sz);
 		  gfc_free_expr (sz);
@@ -4487,21 +4487,33 @@ gfc_trans_allocate (gfc_code * code)
 	  /* Initialization via SOURCE block
 	     (or static default initializer).  */
 	  gfc_expr *rhs = gfc_copy_expr (code->expr3);
-	  if (al->expr->ts.type == BT_CLASS && rhs->expr_type == EXPR_VARIABLE
-	      && rhs->ts.type != BT_CLASS)
-	    tmp = gfc_trans_assignment (expr, rhs, false, false);
-	  else if (al->expr->ts.type == BT_CLASS)
+	  if (al->expr->ts.type == BT_CLASS)
 	    {
-	      /* TODO: One needs to do a deep-copy for BT_CLASS; cf. PR 46174.  */
-	      gfc_se dst,src;
+	      gfc_se call;
+	      gfc_actual_arglist *actual;
+	      gfc_expr *ppc;
+	      gfc_init_se (&call, NULL);
+	      /* Do a polymorphic deep copy.  */
+	      actual = gfc_get_actual_arglist ();
+	      actual->expr = gfc_copy_expr (rhs);
 	      if (rhs->ts.type == BT_CLASS)
-		gfc_add_component_ref (rhs, "$data");
-	      gfc_init_se (&dst, NULL);
-	      gfc_init_se (&src, NULL);
-	      gfc_conv_expr (&dst, expr);
-	      gfc_conv_expr (&src, rhs);
-	      gfc_add_block_to_block (&block, &src.pre);
-	      tmp = gfc_build_memcpy_call (dst.expr, src.expr, memsz);
+		gfc_add_data_component (actual->expr);
+	      actual->next = gfc_get_actual_arglist ();
+	      actual->next->expr = gfc_copy_expr (al->expr);
+	      gfc_add_data_component (actual->next->expr);
+	      if (rhs->ts.type == BT_CLASS)
+		{
+		  ppc = gfc_copy_expr (rhs);
+		  gfc_add_vptr_component (ppc);
+		}
+	      else
+		ppc = gfc_lval_expr_from_sym (gfc_find_derived_vtab (rhs->ts.u.derived));
+	      gfc_add_component_ref (ppc, "_copy");
+	      gfc_conv_procedure_call (&call, ppc->symtree->n.sym, actual,
+					ppc, NULL);
+	      gfc_add_expr_to_block (&call.pre, call.expr);
+	      gfc_add_block_to_block (&call.pre, &call.post);
+	      tmp = gfc_finish_block (&call.pre);
 	    }
 	  else
 	    tmp = gfc_trans_assignment (gfc_expr_to_initialize (expr),
@@ -4515,8 +4527,8 @@ gfc_trans_allocate (gfc_code * code)
 	  /* Default-initialization via MOLD (polymorphic).  */
 	  gfc_expr *rhs = gfc_copy_expr (code->expr3);
 	  gfc_se dst,src;
-	  gfc_add_component_ref (rhs, "$vptr");
-	  gfc_add_component_ref (rhs, "$def_init");
+	  gfc_add_vptr_component (rhs);
+	  gfc_add_def_init_component (rhs);
 	  gfc_init_se (&dst, NULL);
 	  gfc_init_se (&src, NULL);
 	  gfc_conv_expr (&dst, expr);
@@ -4537,13 +4549,13 @@ gfc_trans_allocate (gfc_code * code)
 
 	  /* Initialize VPTR for CLASS objects.  */
 	  lhs = gfc_expr_to_initialize (expr);
-	  gfc_add_component_ref (lhs, "$vptr");
+	  gfc_add_vptr_component (lhs);
 	  rhs = NULL;
 	  if (code->expr3 && code->expr3->ts.type == BT_CLASS)
 	    {
 	      /* Polymorphic SOURCE: VPTR must be determined at run time.  */
 	      rhs = gfc_copy_expr (code->expr3);
-	      gfc_add_component_ref (rhs, "$vptr");
+	      gfc_add_vptr_component (rhs);
 	      tmp = gfc_trans_pointer_assignment (lhs, rhs);
 	      gfc_add_expr_to_block (&block, tmp);
 	      gfc_free_expr (rhs);

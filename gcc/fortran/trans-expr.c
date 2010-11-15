@@ -187,7 +187,7 @@ gfc_conv_missing_dummy (gfc_se * se, gfc_expr * arg, gfc_typespec ts, int kind)
     {
       tmp = build3_loc (input_location, COND_EXPR, TREE_TYPE (se->expr),
 			present, se->expr,
-			fold_convert (TREE_TYPE (se->expr), integer_zero_node));
+			build_zero_cst (TREE_TYPE (se->expr)));
       tmp = gfc_evaluate_now (tmp, &se->pre);
       se->expr = tmp;
     }
@@ -2584,7 +2584,7 @@ gfc_conv_derived_to_class (gfc_se *parmse, gfc_expr *e,
   var = gfc_create_var (tmp, "class");
 
   /* Set the vptr.  */
-  cmp = gfc_find_component (declared, "$vptr", true, true);
+  cmp = gfc_find_component (declared, "_vptr", true, true);
   ctree = fold_build3_loc (input_location, COMPONENT_REF,
 			   TREE_TYPE (cmp->backend_decl),
 			   var, cmp->backend_decl, NULL_TREE);
@@ -2598,7 +2598,7 @@ gfc_conv_derived_to_class (gfc_se *parmse, gfc_expr *e,
 		  fold_convert (TREE_TYPE (ctree), tmp));
 
   /* Now set the data field.  */
-  cmp = gfc_find_component (declared, "$data", true, true);
+  cmp = gfc_find_component (declared, "_data", true, true);
   ctree = fold_build3_loc (input_location, COMPONENT_REF,
 			   TREE_TYPE (cmp->backend_decl),
 			   var, cmp->backend_decl, NULL_TREE);
@@ -3121,8 +3121,10 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 	      && ((e->rank > 0 && sym->attr.elemental)
 		  || e->representation.length || e->ts.type == BT_CHARACTER
 		  || (e->rank > 0
-		      && (fsym == NULL || fsym->as->type == AS_ASSUMED_SHAPE
-			  || fsym->as->type == AS_DEFERRED))))
+		      && (fsym == NULL 
+			  || (fsym-> as
+			      && (fsym->as->type == AS_ASSUMED_SHAPE
+			      	  || fsym->as->type == AS_DEFERRED))))))
 	    gfc_conv_missing_dummy (&parmse, e, fsym ? fsym->ts : e->ts,
 				    e->representation.length);
 	}
@@ -3634,7 +3636,7 @@ fill_with_spaces (tree start, tree type, tree size)
 
   /* Exit condition.  */
   cond = fold_build2_loc (input_location, LE_EXPR, boolean_type_node, i,
-			  fold_convert (sizetype, integer_zero_node));
+			  build_zero_cst (sizetype));
   tmp = build1_v (GOTO_EXPR, exit_label);
   tmp = fold_build3_loc (input_location, COND_EXPR, void_type_node, cond, tmp,
 			 build_empty_stmt (input_location));
@@ -4504,13 +4506,13 @@ gfc_conv_structure (gfc_se * se, gfc_expr * expr, int init)
       if (!c->expr || cm->attr.allocatable)
         continue;
 
-      if (strcmp (cm->name, "$size") == 0)
+      if (strcmp (cm->name, "_size") == 0)
 	{
 	  val = TYPE_SIZE_UNIT (gfc_get_derived_type (cm->ts.u.derived));
 	  CONSTRUCTOR_APPEND_ELT (v, cm->backend_decl, val);
 	}
       else if (cm->initializer && cm->initializer->expr_type != EXPR_NULL
-	       && strcmp (cm->name, "$extends") == 0)
+	       && strcmp (cm->name, "_extends") == 0)
 	{
 	  tree vtab;
 	  gfc_symbol *vtabs;
@@ -5875,15 +5877,15 @@ gfc_trans_class_init_assign (gfc_code *code)
   gfc_start_block (&block);
 
   lhs = gfc_copy_expr (code->expr1);
-  gfc_add_component_ref (lhs, "$data");
+  gfc_add_data_component (lhs);
 
   rhs = gfc_copy_expr (code->expr1);
-  gfc_add_component_ref (rhs, "$vptr");
-  gfc_add_component_ref (rhs, "$def_init");
+  gfc_add_vptr_component (rhs);
+  gfc_add_def_init_component (rhs);
 
   sz = gfc_copy_expr (code->expr1);
-  gfc_add_component_ref (sz, "$vptr");
-  gfc_add_component_ref (sz, "$size");
+  gfc_add_vptr_component (sz);
+  gfc_add_size_component (sz);
 
   gfc_init_se (&dst, NULL);
   gfc_init_se (&src, NULL);
@@ -5914,9 +5916,9 @@ gfc_trans_class_assign (gfc_expr *expr1, gfc_expr *expr2, gfc_exec_op op)
 
   if (expr2->ts.type != BT_CLASS)
     {
-      /* Insert an additional assignment which sets the '$vptr' field.  */
+      /* Insert an additional assignment which sets the '_vptr' field.  */
       lhs = gfc_copy_expr (expr1);
-      gfc_add_component_ref (lhs, "$vptr");
+      gfc_add_vptr_component (lhs);
       if (expr2->ts.type == BT_DERIVED)
 	{
 	  gfc_symbol *vtab;
@@ -5925,7 +5927,7 @@ gfc_trans_class_assign (gfc_expr *expr1, gfc_expr *expr2, gfc_exec_op op)
 	  gcc_assert (vtab);
 	  rhs = gfc_get_expr ();
 	  rhs->expr_type = EXPR_VARIABLE;
-	  gfc_find_sym_tree (vtab->name, NULL, 1, &st);
+	  gfc_find_sym_tree (vtab->name, vtab->ns, 1, &st);
 	  rhs->symtree = st;
 	  rhs->ts = vtab->ts;
 	}
@@ -5945,7 +5947,7 @@ gfc_trans_class_assign (gfc_expr *expr1, gfc_expr *expr2, gfc_exec_op op)
   if (expr2->ts.type == BT_CLASS)
     op = EXEC_ASSIGN;
   else
-    gfc_add_component_ref (expr1, "$data");
+    gfc_add_data_component (expr1);
 
   if (op == EXEC_ASSIGN)
     tmp = gfc_trans_assignment (expr1, expr2, false, true);

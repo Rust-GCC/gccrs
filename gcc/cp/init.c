@@ -254,7 +254,7 @@ build_zero_init (tree type, tree nelts, bool static_storage_p)
       init = build_constructor (type, v);
     }
   else if (TREE_CODE (type) == VECTOR_TYPE)
-    init = fold_convert (type, integer_zero_node);
+    init = build_zero_cst (type);
   else
     gcc_assert (TREE_CODE (type) == REFERENCE_TYPE);
 
@@ -453,10 +453,8 @@ perform_member_init (tree member, tree init)
       /* mem() means value-initialization.  */
       if (TREE_CODE (type) == ARRAY_TYPE)
 	{
-	  init = build_vec_init (decl, NULL_TREE, NULL_TREE,
-				 /*explicit_value_init_p=*/true,
-				 /* from_array=*/0,
-				 tf_warning_or_error);
+	  init = build_vec_init_expr (type, init);
+	  init = build2 (INIT_EXPR, type, decl, init);
 	  finish_expr_stmt (init);
 	}
       else
@@ -1443,7 +1441,7 @@ expand_default_init (tree binfo, tree true_exp, tree exp, tree init, int flags,
   if (exp == true_exp && TREE_CODE (rval) == CALL_EXPR)
     {
       tree fn = get_callee_fndecl (rval);
-      if (DECL_DECLARED_CONSTEXPR_P (fn))
+      if (fn && DECL_DECLARED_CONSTEXPR_P (fn))
 	{
 	  tree e = maybe_constant_value (rval);
 	  if (TREE_CONSTANT (e))
@@ -2518,8 +2516,13 @@ build_new (VEC(tree,gc) **placement, tree type, tree nelts,
   if (nelts == NULL_TREE && VEC_length (tree, *init) == 1)
     {
       tree auto_node = type_uses_auto (type);
-      if (auto_node && describable_type (VEC_index (tree, *init, 0)))
-	type = do_auto_deduction (type, VEC_index (tree, *init, 0), auto_node);
+      if (auto_node)
+	{
+	  tree d_init = VEC_index (tree, *init, 0);
+	  d_init = resolve_nondeduced_context (d_init);
+	  if (describable_type (d_init))
+	    type = do_auto_deduction (type, d_init, auto_node);
+	}
     }
 
   if (processing_template_decl)
@@ -2631,7 +2634,7 @@ build_java_class_ref (tree type)
 	}
     if (!field)
       {
-	error ("can't find %<class$%> in %qT", type);
+	error ("can%'t find %<class$%> in %qT", type);
 	return error_mark_node;
       }
   }
@@ -3309,7 +3312,7 @@ build_delete (tree type, tree addr, special_function_kind auto_delete,
 		  cxx_incomplete_type_diagnostic (addr, type, DK_WARNING);
 		  inform (input_location, "neither the destructor nor the class-specific "
 			  "operator delete will be called, even if they are "
-			  "declared when the class is defined.");
+			  "declared when the class is defined");
 		}
 	      complete_p = false;
 	    }

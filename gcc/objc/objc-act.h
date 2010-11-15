@@ -62,6 +62,11 @@ tree objc_eh_personality (void);
 
 /* TREE_TYPE is the type (int, float, etc) of the property.  */
 
+/* DECL_ARTIFICIAL is set to 1 if the PROPERTY_DECL is an artificial
+   property declaration created when the dot-syntax object.component
+   is used with no actual @property matching the component, but a
+   valid getter/setter.  */
+
 /* PROPERTY_NAME is the name of the property.  */
 #define PROPERTY_NAME(DECL) DECL_NAME(DECL)
 
@@ -95,13 +100,24 @@ typedef enum objc_property_assign_semantics {
 #define PROPERTY_IVAR_NAME(DECL) ((DECL)->decl_common.initial)
 
 /* PROPERTY_DYNAMIC can be 0 or 1.  This is 1 if the PROPERTY_DECL
-   represents a @dynamic (or if it is a @property for which a @dynamic
-   declaration has been parsed); otherwise, it is set to 0.  */
+   represents a @dynamic; otherwise, it is set to 0.  */
 #define PROPERTY_DYNAMIC(DECL) DECL_LANG_FLAG_2 (DECL)
 
+/* PROPERTY_HAS_NO_GETTER can be 0 or 1.  Normally it is 0, but if
+   this is an artificial PROPERTY_DECL that we generate even without a
+   getter, it is set to 1.  */
+#define PROPERTY_HAS_NO_GETTER(DECL) DECL_LANG_FLAG_3 (DECL)
+
+/* PROPERTY_HAS_NO_SETTER can be 0 or 1.  Normally it is 0, but if
+   this is an artificial PROPERTY_DECL that we generate even without a
+   setter, it is set to 1.  */
+#define PROPERTY_HAS_NO_SETTER(DECL) DECL_LANG_FLAG_4 (DECL)
 
 /* PROPERTY_REF.  A PROPERTY_REF represents an 'object.property'
-   expression.  */
+   expression.  It is normally used for property access, but when
+   the Objective-C 2.0 "dot-syntax" (object.component) is used
+   with no matching property, a PROPERTY_REF is still created to
+   represent it, with an artificial PROPERTY_DECL.  */
 
 /* PROPERTY_REF_OBJECT is the object whose property we are
    accessing.  */
@@ -109,14 +125,28 @@ typedef enum objc_property_assign_semantics {
 
 /* PROPERTY_REF_PROPERTY_DECL is the PROPERTY_DECL for the property
    used in the expression.  From it, you can get the property type,
-   and the getter/setter names.  */
+   and the getter/setter names.  This PROPERTY_DECL could be artificial
+   if we are processing an 'object.component' syntax with no matching 
+   declared property.  */
 #define PROPERTY_REF_PROPERTY_DECL(NODE) TREE_OPERAND (PROPERTY_REF_CHECK (NODE), 1)
+
+/* PROPERTY_REF_GETTER_CALL is the getter call expression, ready to
+   use at gimplify time if needed.  Generating the getter call
+   requires modifying the selector table, and, in the case of
+   self/super, requires the context to be generated correctly.  The
+   gimplify stage is too late to do these things, so we generate the
+   getter call earlier instead, and keep it here in case we need to
+   use it.  */
+#define PROPERTY_REF_GETTER_CALL(NODE) TREE_OPERAND (PROPERTY_REF_CHECK (NODE), 2)
 
 
 /* CLASS_INTERFACE_TYPE, CLASS_IMPLEMENTATION_TYPE,
    CATEGORY_INTERFACE_TYPE, CATEGORY_IMPLEMENTATION_TYPE,
    PROTOCOL_INTERFACE_TYPE */
+/* CLASS_NAME is the name of the class.  */
 #define CLASS_NAME(CLASS) ((CLASS)->type.name)
+/* CLASS_SUPER_NAME is the name of the superclass, or, in the case of
+   categories, it is the name of the category itself.  */
 #define CLASS_SUPER_NAME(CLASS) (TYPE_CHECK (CLASS)->type.context)
 #define CLASS_IVARS(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 0)
 #define CLASS_RAW_IVARS(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 1)

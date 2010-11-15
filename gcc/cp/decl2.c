@@ -624,7 +624,7 @@ check_classfn (tree ctype, tree function, tree template_parms)
 	  && !comp_template_parms (template_parms,
 				   DECL_TEMPLATE_PARMS (function)))
 	{
-	  error ("template parameter lists provided don't match the "
+	  error ("template parameter lists provided don%'t match the "
 		 "template parameters of %qD", function);
 	  return error_mark_node;
 	}
@@ -1054,7 +1054,6 @@ grokbitfield (const cp_declarator *declarator,
       if (!INTEGRAL_OR_UNSCOPED_ENUMERATION_TYPE_P (TREE_TYPE (width)))
 	error ("width of bit-field %qD has non-integral type %qT", value,
 	       TREE_TYPE (width));
-      constant_expression_warning (width);
       DECL_INITIAL (value) = width;
       SET_DECL_C_BIT_FIELD (value);
     }

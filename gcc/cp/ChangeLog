@@ -1,3 +1,200 @@
+2010-11-15  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* typeck.c (cp_build_unary_op): Use
+	objc_build_incr_expr_for_property_ref to build the pre/post
+	increment/decrement of an Objective-C property ref.
+
+2010-11-13  Jason Merrill  <jason@redhat.com>
+
+	* decl.c (cp_finish_decl): Use resolve_nondeduced_context for auto.
+	* init.c (build_new): Likewise.
+	* pt.c (tsubst_decl): Likewise.
+	(do_auto_deduction): Likewise.
+	(resolve_nondeduced_context): Use build_offset_ref and
+	cp_build_addr_expr.
+
+2010-11-12  Joseph Myers  <joseph@codesourcery.com>
+
+	* Make-lang.in (g++spec.o): Use $(OPTS_H).
+
+2010-11-13  Ville Voutilainen <ville.voutilainen@gmail.com> <ville.voutilainen@symbio.com>
+
+	Core 1135, 1136, 1145, 1149
+	* method.c (defaultable_fn_check): Do not disallow defaulting a
+	non-public or explicit special member function on its first
+	declaration.
+
+2010-11-12  James Dennett <jdennett@google.com>
+
+	PR/39415
+	* typeck.c (build_static_cast_1): Convert to the target type
+	when doing static_cast<cv Derived*>(Base*).
+
+2010-11-10  Jason Merrill  <jason@redhat.com>
+
+	PR c++/46420
+	* pt.c (tsubst_copy_and_build) [TARGET_EXPR]: New case.
+	[CONSTRUCTOR]: Use the tsubsted type.
+
+	PR c++/46369
+	* semantics.c (cxx_eval_bit_field_ref): New.
+	(cxx_eval_constant_expression): Call it.
+
+2010-11-10  Joseph Myers  <joseph@codesourcery.com>
+
+	* cvt.c (cp_convert_to_pointer): Use %' in diagnostic.
+	* decl.c (layout_var_decl, maybe_commonize_var, grokdeclarator):
+	Use %' in diagnostics.
+	* decl2.c (check_classfn): Use %' in diagnostic.
+	* init.c (build_java_class_ref): Use %' in diagnostic.
+	(build_delete): Remove trailing '.' from diagnostic.
+	* method.c (do_build_copy_assign, walk_field_subobs): Use %' in
+	diagnostics.
+	* name-lookup.c (pushdecl_maybe_friend): Use %' in diagnostic.
+	* parser.c (cp_parser_exception_specification_opt): Remove
+	trailing '.' from diagnostic.
+	(cp_parser_objc_interstitial_code): Use %qs for quoting in
+	diagnostic.
+	* pt.c (check_valid_ptrmem_cst_expr): Use %< and %> for quoting in
+	diagnostic.
+	* repo.c (reopen_repo_file_for_write): Use %' in diagnostic.
+
+2010-11-10  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR c++/46065
+	* decl.c (poplevel_named_label_1): Use TREE_CHAIN if necessary.
+
+2010-11-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/45894
+	* tree.c (lvalue_kind): Don't crash if ref has NULL type.
+
+2010-11-08  Jason Merrill  <jason@redhat.com>
+
+	PR c++/46382
+	* semantics.c (check_constexpr_ctor_body): New fn.
+	* parser.c (cp_parser_ctor_initializer_opt_and_function_body): Call it.
+	* cp-tree.h: Declare it.
+
+	PR c++/46335
+	* tree.c (bot_manip): Check TREE_SIDE_EFFECTS as well.
+
+	Correct conversion/overflow behavior.
+	* cvt.c (ignore_overflows): Move here from typeck.c.
+	(ocp_convert): Use it.
+	(cp_fold_convert): Use it.  Don't call rvalue.
+	* typeck.c (build_static_cast_1): Don't use it.  Do call rvalue.
+	* error.c (location_of): Handle expressions, too.
+	* class.c (check_bitfield_decl): Set input_location around call to
+	cxx_constant_value.
+	* semantics.c (cxx_eval_outermost_constant_expr): Don't
+	print the expression if it already had TREE_OVERFLOW set.
+	(reduced_constant_expression_p): Check TREE_OVERFLOW_P for C++98, too.
+	(verify_constant): Allow overflow with a permerror if we're
+	enforcing.
+	(cxx_eval_outermost_constant_expr): Use verify_constant.
+	(adjust_temp_type): Use cp_fold_convert.
+	* decl.c (build_enumerator): Don't call constant_expression_warning.
+	* decl2.c (grokbitfield): Likewise.
+
+2010-11-06  Jason Merrill  <jason@redhat.com>
+
+	PR c++/46348
+	* init.c (perform_member_init): Use build_vec_init_expr for
+	value-init of arrays, too.
+	* cp-gimplify.c (cp_gimplify_expr): Use VEC_INIT_EXPR_VALUE_INIT.
+	* cp-tree.h (VEC_INIT_EXPR_IS_CONSTEXPR): New macro.
+	(VEC_INIT_EXPR_VALUE_INIT): New macro.
+	* semantics.c (potential_constant_expression): No longer static.
+	Check VEC_INIT_EXPR_IS_CONSTEXPR.
+	* tree.c (build_vec_init_expr): Handle value-init.  Set
+	VEC_INIT_EXPR_IS_CONSTEXPR and VEC_INIT_EXPR_VALUE_INIT.
+
+2010-11-06  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR c++/45332
+	* parser.c (cp_lexer_previous_token): New function.
+	(cp_parser_member_declaration): Use previous token for error
+	messages.  Assume semicolon presence rather than grovelling for
+	the next one.
+
+2010-11-06  Joern Rennecke  <amylaar@spamcop.net>
+
+	PR middle-end/46314
+	* method.c (make_alias_for_thunk):
+	Use targetm.asm_out.generate_internal_label.
+
+2010-11-05  Jason Merrill  <jason@redhat.com>
+
+	PR c++/45473
+	* search.c (look_for_overrides): A constructor is never virtual.
+
+2010-11-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/46160
+	* cp-gimplify.c (cp_gimplify_expr): Drop volatile MEM_REFs
+	on the RHS to avoid infinite recursion with gimplify_expr.
+
+2010-11-05  Jason Merrill  <jason@redhat.com>
+
+	PR c++/46304
+	* pt.c (tsubst_copy): Handle COMPLEX_CST.
+
+2010-11-04  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Fixed using the Objective-C 2.0 dot-syntax with class names.	
+	* parser.c (cp_parser_primary_expression): Recognize Objective-C
+	2.0 dot-syntax with class names and process it.
+	(cp_parser_nonclass_name): Recognize Objective-C 2.0 dot-syntax
+	with class names.
+	(cp_parser_class_name): Same change.
+	(cp_parser_simple_type_specifier): Tidied comments.
+	
+2010-11-04  Jason Merrill  <jason@redhat.com>
+
+	PR c++/46298
+	* semantics.c (build_constexpr_constructor_member_initializers):
+	Handle an enclosing STATEMENT_LIST.
+
+	* semantics.c (speculative_access_check): New.
+	* cp-tree.h: Declare it.
+	* call.c (build_over_call): Use it.
+	* class.c (type_has_constexpr_default_constructor): Use locate_ctor.
+	* method.c (locate_ctor): Use push/pop_deferring_access_checks.
+
+2010-11-03  Jason Merrill  <jason@redhat.com>
+
+	PR c++/46293
+	* semantics.c (build_data_member_initialization): Handle
+	value-init of aggregate empty base.
+
+	PR c++/46289
+	* call.c (can_convert_array): New fn.
+	(build_aggr_conv): Use it.
+
+	PR c++/46289
+	* semantics.c (build_constexpr_constructor_member_initializers):
+	Avoid ICE on error.
+
+2010-11-02  Dodji Seketeli  <dodji@redhat.com>
+
+	* cp-tree.h (enum tsubst_flags)<tf_no_class_instantiations>:
+	Remove.
+	* pt.c (tsubst): Remove the use of tf_no_class_instantiations.
+
+2010-11-03  Jason Merrill  <jason@redhat.com>
+
+	PR c++/46277
+	* init.c (expand_default_init): Avoid ICE if we can't figure out
+	which function is being called.
+
+2010-11-02  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* class.c (build_base_path, add_vcall_offset): Use build_zero_cst
+	instead of fold_convert.
+	* init.c (build_zero_init): Likewise.
+	* typeck.c (cp_build_binary_op): Likewise.
+
 2010-11-02  Dodji Seketeli  <dodji@redhat.com>
 
 	PR c++/46170
@@ -605,7 +802,7 @@
 	(type_dependent_expression_p): Added case for AT_ENCODE_EXPR.
 	* parser.c (cp_parser_objc_encode_expression): Updated comment.
 
-2010-10-07  Nicola Pero  <nicola@nicola.brainstorm.co.uk>
+2010-10-07  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	Merge from apple/trunk branch on FSF servers.
 

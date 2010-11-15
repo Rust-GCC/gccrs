@@ -475,7 +475,11 @@ poplevel_named_label_1 (void **slot, void *data)
     {
       tree decl;
 
-      for (decl = ent->names_in_scope; decl; decl = DECL_CHAIN (decl))
+      /* ENT->NAMES_IN_SCOPE may contain a mixture of DECLs and
+	 TREE_LISTs representing OVERLOADs, so be careful.  */
+      for (decl = ent->names_in_scope; decl; decl = (DECL_P (decl)
+						     ? DECL_CHAIN (decl)
+						     : TREE_CHAIN (decl)))
 	if (decl_jump_unsafe (decl))
 	  VEC_safe_push (tree, gc, ent->bad_decls, decl);
 
@@ -4687,7 +4691,7 @@ layout_var_decl (tree decl)
       /* An automatic variable with an incomplete type: that is an error.
 	 Don't talk about array types here, since we took care of that
 	 message in grokdeclarator.  */
-      error ("storage size of %qD isn't known", decl);
+      error ("storage size of %qD isn%'t known", decl);
       TREE_TYPE (decl) = error_mark_node;
     }
 #if 0
@@ -4710,7 +4714,7 @@ layout_var_decl (tree decl)
 	constant_expression_warning (DECL_SIZE (decl));
       else
 	{
-	  error ("storage size of %qD isn't constant", decl);
+	  error ("storage size of %qD isn%'t constant", decl);
 	  TREE_TYPE (decl) = error_mark_node;
 	}
     }
@@ -4757,7 +4761,7 @@ maybe_commonize_var (tree decl)
 	      DECL_COMMON (decl) = 0;
 	      warning_at (input_location, 0,
 			  "sorry: semantics of inline function static "
-			  "data %q+#D are wrong (you'll wind up "
+			  "data %q+#D are wrong (you%'ll wind up "
 			  "with multiple copies)", decl);
 	      warning_at (DECL_SOURCE_LOCATION (decl), 0, 
 			  "  you can work around this by removing "
@@ -5757,6 +5761,7 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
       if (TREE_CODE (d_init) == TREE_LIST)
 	d_init = build_x_compound_expr_from_list (d_init, ELK_INIT,
 						  tf_warning_or_error);
+      d_init = resolve_nondeduced_context (d_init);
       if (describable_type (d_init))
 	{
 	  type = TREE_TYPE (decl) = do_auto_deduction (type, d_init,
@@ -8786,7 +8791,7 @@ grokdeclarator (const cp_declarator *declarator,
 	    else if (friendp)
 	      {
 		if (initialized)
-		  error ("can't initialize friend function %qs", name);
+		  error ("can%'t initialize friend function %qs", name);
 		if (virtualp)
 		  {
 		    /* Cannot be both friend and virtual.  */
@@ -8796,7 +8801,7 @@ grokdeclarator (const cp_declarator *declarator,
 		if (decl_context == NORMAL)
 		  error ("friend declaration not in class definition");
 		if (current_function_decl && funcdef_flag)
-		  error ("can't define friend function %qs in a local "
+		  error ("can%'t define friend function %qs in a local "
 			 "class definition",
 			 name);
 	      }
@@ -11823,7 +11828,6 @@ build_enumerator (tree name, tree value, tree enumtype, location_t loc)
 	  if (TREE_CODE (value) == INTEGER_CST)
 	    {
 	      value = perform_integral_promotions (value);
-	      constant_expression_warning (value);
 	    }
 	  else
 	    {

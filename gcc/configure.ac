@@ -304,6 +304,8 @@ AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CPP
 AC_C_INLINE
 
+AC_SYS_LARGEFILE
+
 # sizeof(char) is 1 by definition.
 AC_CHECK_SIZEOF(void *)
 AC_CHECK_SIZEOF(short)
@@ -3656,6 +3658,20 @@ x:
       [AC_DEFINE(HAVE_AS_DTPRELWORD, 1,
 	  [Define if your assembler supports .dtprelword.])])
 
+    gcc_GAS_CHECK_FEATURE([DSPR1 mult with four accumulators support],
+      gcc_cv_as_mips_dspr1_mult,,,
+[	.set	mips32r2
+	.set	nodspr2
+	.set	dsp
+	madd	$ac3,$4,$5
+	maddu	$ac3,$4,$5
+	msub	$ac3,$4,$5
+	msubu	$ac3,$4,$5
+	mult	$ac3,$4,$5
+	multu	$ac3,$4,$5],,
+      [AC_DEFINE(HAVE_AS_DSPR1_MULT, 1,
+	  [Define if your assembler supports DSPR1 mult.])])
+
     AC_MSG_CHECKING(assembler and linker for explicit JALR relocation)
     gcc_cv_as_ld_jalr_reloc=no
     if test $gcc_cv_as_mips_explicit_relocs = yes; then
@@ -4712,11 +4728,15 @@ if test x"$enable_plugin" = x"yes"; then
 
   # Check that we can build shared objects with -fPIC -shared
   saved_LDFLAGS="$LDFLAGS"
+  saved_CFLAGS="$CFLAGS"
   case "${host}" in
     *-*-darwin*)
-      LDFLAGS="$LDFLAGS -fPIC -shared -undefined dynamic_lookup"
+      CFLAGS=`echo $CFLAGS | sed s/-mdynamic-no-pic//g`
+      CFLAGS="$CFLAGS -fPIC"
+      LDFLAGS="$LDFLAGS -shared -undefined dynamic_lookup"
     ;;
     *)
+      CFLAGS="$CFLAGS -fPIC"
       LDFLAGS="$LDFLAGS -fPIC -shared"
     ;;
   esac
@@ -4730,6 +4750,7 @@ if test x"$enable_plugin" = x"yes"; then
     enable_plugin=no
   fi
   LDFLAGS="$saved_LDFLAGS"
+  CFLAGS="$saved_CFLAGS"
 
   # If plugin support had been requested but not available, fail.
   if test x"$enable_plugin" = x"no" ; then

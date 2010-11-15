@@ -502,6 +502,19 @@ cp_lexer_token_at (cp_lexer *lexer ATTRIBUTE_UNUSED, cp_token_position pos)
   return pos;
 }
 
+static inline cp_token *
+cp_lexer_previous_token (cp_lexer *lexer)
+{
+  cp_token_position tp;
+
+  if (lexer->next_token == &eof_token)
+    tp = lexer->last_token - 1;
+  else
+    tp = cp_lexer_token_position (lexer, true);
+
+  return cp_lexer_token_at (lexer, tp);
+}
+
 /* nonzero if we are presently saving tokens.  */
 
 static inline int
@@ -3907,6 +3920,22 @@ cp_parser_primary_expression (cp_parser *parser,
 	       been issued.  */
 	    if (ambiguous_decls)
 	      return error_mark_node;
+
+	    /* In Objective-C++, we may have an Objective-C 2.0
+	       dot-syntax for classes here.  */
+	    if (c_dialect_objc ()
+		&& cp_lexer_peek_token (parser->lexer)->type == CPP_DOT
+		&& TREE_CODE (decl) == TYPE_DECL
+		&& objc_is_class_name (decl))
+	      {
+		tree component;
+		cp_lexer_consume_token (parser->lexer);
+		component = cp_parser_identifier (parser);
+		if (component == error_mark_node)
+		  return error_mark_node;
+
+		return objc_build_class_component_ref (id_expression, component);
+	      }
 
 	    /* In Objective-C++, an instance variable (ivar) may be preferred
 	       to whatever cp_parser_lookup_name() found.  */
@@ -12786,14 +12815,14 @@ cp_parser_simple_type_specifier (cp_parser* parser,
       return error_mark_node;
     }
 
-  /* There is no valid C++ program where a non-template type is
-     followed by a "<".  That usually indicates that the user thought
-     that the type was a template.  */
   if (type && type != error_mark_node)
     {
-      /* As a last-ditch effort, see if TYPE is an Objective-C type.
-	 If it is, then the '<'...'>' enclose protocol names rather than
-	 template arguments, and so everything is fine.  */
+      /* See if TYPE is an Objective-C type, and if so, parse and
+	 accept any protocol references following it.  Do this before
+	 the cp_parser_check_for_invalid_template_id() call, because
+	 Objective-C types can be followed by '<...>' which would
+	 enclose protocol names rather than template arguments, and so
+	 everything is fine.  */
       if (c_dialect_objc () && !parser->scope
 	  && (objc_is_id (type) || objc_is_class_name (type)))
 	{
@@ -12808,6 +12837,9 @@ cp_parser_simple_type_specifier (cp_parser* parser,
 	  return qual_type;
 	}
 
+      /* There is no valid C++ program where a non-template type is
+	 followed by a "<".  That usually indicates that the user
+	 thought that the type was a template.  */
       cp_parser_check_for_invalid_template_id (parser, TREE_TYPE (type),
 					       token->location);
     }
@@ -12888,9 +12920,17 @@ cp_parser_nonclass_name (cp_parser* parser)
       if (type)
 	type_decl = TYPE_NAME (type);
     }
-  
+
   /* Issue an error if we did not find a type-name.  */
-  if (TREE_CODE (type_decl) != TYPE_DECL)
+  if (TREE_CODE (type_decl) != TYPE_DECL
+      /* In Objective-C, we have the complication that class names are
+	 normally type names and start declarations (eg, the
+	 "NSObject" in "NSObject *object;"), but can be used in an
+	 Objective-C 2.0 dot-syntax (as in "NSObject.version") which
+	 is an expression.  So, a classname followed by a dot is not a
+	 valid type-name.  */
+      || (objc_is_class_name (TREE_TYPE (type_decl))
+	  && cp_lexer_peek_token (parser->lexer)->type == CPP_DOT))
     {
       if (!cp_parser_simulate_error (parser))
 	cp_parser_name_lookup_error (parser, identifier, type_decl,
@@ -16307,14 +16347,8 @@ cp_parser_ctor_initializer_opt_and_function_body (cp_parser *parser)
     }
   /* Parse the function-body.  */
   cp_parser_function_body (parser);
-  if (check_body_p
-      && (TREE_CODE (list) != STATEMENT_LIST
-	  || (last == NULL && STATEMENT_LIST_TAIL (list) != NULL)
-	  || (last != NULL && last != STATEMENT_LIST_TAIL (list)->stmt)))
-    {
-      error ("constexpr constructor does not have empty body");
-      DECL_DECLARED_CONSTEXPR_P (current_function_decl) = false;
-    }
+  if (check_body_p)
+    check_constexpr_ctor_body (last, list);
   /* Finish the function body.  */
   finish_function_body (body);
 
@@ -16714,7 +16748,12 @@ cp_parser_class_name (cp_parser *parser,
     }
   else if (TREE_CODE (decl) != TYPE_DECL
 	   || TREE_TYPE (decl) == error_mark_node
-	   || !MAYBE_CLASS_TYPE_P (TREE_TYPE (decl)))
+	   || !MAYBE_CLASS_TYPE_P (TREE_TYPE (decl))
+	   /* In Objective-C 2.0, a classname followed by '.' starts a
+	      dot-syntax expression, and it's not a type-name.  */
+	   || (c_dialect_objc ()
+	       && cp_lexer_peek_token (parser->lexer)->type == CPP_DOT 
+	       && objc_is_class_name (decl)))
     decl = error_mark_node;
 
   if (decl == error_mark_node)
@@ -17595,6 +17634,8 @@ cp_parser_member_declaration (cp_parser* parser)
     }
   else
     {
+      bool assume_semicolon = false;
+
       /* See if these declarations will be friends.  */
       friend_p = cp_parser_friend_p (&decl_specifiers);
 
@@ -17788,11 +17829,18 @@ cp_parser_member_declaration (cp_parser* parser)
 	  else if (cp_lexer_next_token_is_not (parser->lexer,
 					       CPP_SEMICOLON))
 	    {
-	      cp_parser_error (parser, "expected %<;%>");
-	      /* Skip tokens until we find a `;'.  */
-	      cp_parser_skip_to_end_of_statement (parser);
+	      /* The next token might be a ways away from where the
+		 actual semicolon is missing.  Find the previous token
+		 and use that for our error position.  */
+	      cp_token *token = cp_lexer_previous_token (parser->lexer);
+	      error_at (token->location,
+			"expected %<;%> at end of member declaration");
 
-	      break;
+	      /* Assume that the user meant to provide a semicolon.  If
+		 we were to cp_parser_skip_to_end_of_statement, we might
+		 skip to a semicolon inside a member function definition
+		 and issue nonsensical error messages.  */
+	      assume_semicolon = true;
 	    }
 
 	  if (decl)
@@ -17804,6 +17852,9 @@ cp_parser_member_declaration (cp_parser* parser)
 	      if (TREE_CODE (decl) == FUNCTION_DECL)
 		cp_parser_save_default_args (parser, decl);
 	    }
+
+	  if (assume_semicolon)
+	    return;
 	}
     }
 
@@ -18161,7 +18212,7 @@ cp_parser_exception_specification_opt (cp_parser* parser)
   /* Enable this once a lot of code has transitioned to noexcept?  */
   if (cxx_dialect == cxx0x && !in_system_header)
     warning (OPT_Wdeprecated, "dynamic exception specifications are "
-	     "deprecated in C++0x; use %<noexcept%> instead.");
+	     "deprecated in C++0x; use %<noexcept%> instead");
 #endif
 
   /* Consume the `throw'.  */
@@ -21921,7 +21972,7 @@ cp_parser_objc_interstitial_code (cp_parser* parser)
   else if (token->type == CPP_OPEN_BRACE || token->type == CPP_CLOSE_BRACE)
     {
       cp_lexer_consume_token (parser->lexer);
-      error ("stray `%s' between Objective-C++ methods",
+      error ("stray %qs between Objective-C++ methods",
 	     token->type == CPP_OPEN_BRACE ? "{" : "}");
     }
   /* Finally, try to parse a block-declaration, or a function-definition.  */

@@ -3574,7 +3574,7 @@ insert_insn_end_basic_block (struct expr *expr, basic_block bb)
 	 the new instruction just before the tablejump.  */
       if (GET_CODE (PATTERN (insn)) == ADDR_VEC
 	  || GET_CODE (PATTERN (insn)) == ADDR_DIFF_VEC)
-	insn = prev_real_insn (insn);
+	insn = prev_active_insn (insn);
 
 #ifdef HAVE_cc0
       /* FIXME: 'twould be nice to call prev_cc0_setter here but it aborts
@@ -5246,10 +5246,14 @@ gate_rtl_cprop (void)
 static unsigned int
 execute_rtl_cprop (void)
 {
+  int changed;
   delete_unreachable_blocks ();
   df_set_flags (DF_LR_RUN_DCE);
   df_analyze ();
-  flag_rerun_cse_after_global_opts |= one_cprop_pass ();
+  changed = one_cprop_pass ();
+  flag_rerun_cse_after_global_opts |= changed;
+  if (changed)
+    cleanup_cfg (0);
   return 0;
 }
 
@@ -5265,9 +5269,13 @@ gate_rtl_pre (void)
 static unsigned int
 execute_rtl_pre (void)
 {
+  int changed;
   delete_unreachable_blocks ();
   df_analyze ();
-  flag_rerun_cse_after_global_opts |= one_pre_gcse_pass ();
+  changed = one_pre_gcse_pass ();
+  flag_rerun_cse_after_global_opts |= changed;
+  if (changed)
+    cleanup_cfg (0);
   return 0;
 }
 
@@ -5286,9 +5294,13 @@ gate_rtl_hoist (void)
 static unsigned int
 execute_rtl_hoist (void)
 {
+  int changed;
   delete_unreachable_blocks ();
   df_analyze ();
-  flag_rerun_cse_after_global_opts |= one_code_hoisting_pass ();
+  changed = one_code_hoisting_pass ();
+  flag_rerun_cse_after_global_opts |= changed;
+  if (changed)
+    cleanup_cfg (0);
   return 0;
 }
 

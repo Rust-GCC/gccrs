@@ -402,8 +402,6 @@ do {									\
    Some svr4 assemblers need to also have something extra said about the
    function's return value.  We allow for that here.  */
 
-extern int rs6000_pic_labelno;
-
 /* Override elfos.h definition.  */
 #undef	ASM_DECLARE_FUNCTION_NAME
 #define ASM_DECLARE_FUNCTION_NAME(FILE, NAME, DECL)			\
@@ -842,7 +840,7 @@ SVR4_ASM_SPEC \
 #define LINK_START_FREEBSD_SPEC	""
 
 #define LINK_OS_FREEBSD_SPEC "\
-  %{p:%nconsider using `-pg' instead of `-p' with gprof(1)} \
+  %{p:%nconsider using '-pg' instead of '-p' with gprof(1)} \
   %{v:-V} \
   %{assert*} %{R*} %{rpath*} %{defsym*} \
   %{shared:-Bshareable %{h*} %{soname*}} \

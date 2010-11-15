@@ -114,10 +114,6 @@ static int print_help_list;
 
 static int print_version;
 
-/* Flag indicating whether we should print the command and arguments */
-
-static int verbose_flag;
-
 /* Flag indicating whether we should ONLY print the command and
    arguments (like verbose_flag) without executing the command.
    Displayed arguments are quoted so that the generated command
@@ -649,7 +645,7 @@ proper position among the other output files.  */
 /* We want %{T*} after %{L*} and %D so that it can be used to specify linker
    scripts which exist in user specified directories, or in standard
    directories.  */
-/* We pass any -flto and -fwhopr flags on to the linker, which is expected
+/* We pass any -flto flags on to the linker, which is expected
    to understand them.  In practice, this means it had better be collect2.  */
 #ifndef LINK_COMMAND_SPEC
 #define LINK_COMMAND_SPEC "\
@@ -662,8 +658,8 @@ proper position among the other output files.  */
     %{static|static-libgcc:-plugin-opt=-pass-through=%(lto_libgcc)}	\
     %{static:-plugin-opt=-pass-through=-lc}	\
     } \
-    %{flto:%<fcompare-debug*} %{fwhopr*:%<fcompare-debug*} \
-    %{flto} %{fwhopr*} %l " LINK_PIE_SPEC \
+    %{flto*:%<fcompare-debug*} \
+    %{flto*} %l " LINK_PIE_SPEC \
    "%X %{o*} %{A} %{d} %{e*} %{m} %{N} %{n} %{r}\
     %{s} %{t} %{u*} %{z} %{Z} %{!A:%{!nostdlib:%{!nostartfiles:%S}}}\
     %{static:} %{L*} %(mfwrap) %(link_libgcc) %o\
@@ -3146,7 +3142,9 @@ driver_handle_option (struct gcc_options *opts,
 		      struct gcc_options *opts_set,
 		      const struct cl_decoded_option *decoded,
 		      unsigned int lang_mask ATTRIBUTE_UNUSED, int kind,
-		      const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED)
+		      location_t loc,
+		      const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED,
+		      diagnostic_context *dc)
 {
   size_t opt_index = decoded->opt_index;
   const char *arg = decoded->arg;
@@ -3158,6 +3156,8 @@ driver_handle_option (struct gcc_options *opts,
   gcc_assert (opts == &global_options);
   gcc_assert (opts_set == &global_options_set);
   gcc_assert (kind == DK_UNSPECIFIED);
+  gcc_assert (loc == UNKNOWN_LOCATION);
+  gcc_assert (dc == global_dc);
 
   switch (opt_index)
     {
@@ -3422,7 +3422,7 @@ driver_handle_option (struct gcc_options *opts,
 	 is intended for use in shell scripts to capture the
 	 driver-generated command line.  */
       verbose_only_flag++;
-      verbose_flag++;
+      verbose_flag = 1;
       do_save = false;
       break;
 
@@ -3455,10 +3455,6 @@ driver_handle_option (struct gcc_options *opts,
 		    PREFIX_PRIORITY_B_OPT, 0, 0);
       }
       validated = true;
-      break;
-
-    case OPT_v:	/* Print our subcommands and print versions.  */
-      verbose_flag++;
       break;
 
     case OPT_x:
@@ -3806,8 +3802,8 @@ process_command (unsigned int decoded_options_count,
 	}
 
       read_cmdline_option (&global_options, &global_options_set,
-			   decoded_options + j, CL_DRIVER, &handlers,
-			   global_dc);
+			   decoded_options + j, UNKNOWN_LOCATION,
+			   CL_DRIVER, &handlers, global_dc);
     }
 
   /* If -save-temps=obj and -o name, create the prefix to use for %b.
@@ -4307,8 +4303,8 @@ do_self_spec (const char *spec)
 
 	    default:
 	      read_cmdline_option (&global_options, &global_options_set,
-				   decoded_options + j, CL_DRIVER, &handlers,
-				   global_dc);
+				   decoded_options + j, UNKNOWN_LOCATION,
+				   CL_DRIVER, &handlers, global_dc);
 	      break;
 	    }
 	}

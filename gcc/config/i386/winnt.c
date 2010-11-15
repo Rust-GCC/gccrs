@@ -144,7 +144,7 @@ i386_pe_determine_dllimport_p (tree decl)
 	 an error as long as we don't try to import it too.  */
       && !DECL_VIRTUAL_P (decl))
 	error ("definition of static data member %q+D of "
-	       "dllimport'd class", decl);
+	       "dllimport%'d class", decl);
 
   return false;
 }
@@ -326,10 +326,7 @@ i386_pe_binds_local_p (const_tree exp)
   /* Or a weak one, now that they are supported.  */
   if ((TREE_CODE (exp) == VAR_DECL || TREE_CODE (exp) == FUNCTION_DECL)
       && DECL_WEAK (exp))
-    /* But x64 gets confused and attempts to use unsupported GOTPCREL
-       relocations if we tell it the truth, so we still return true in
-       that case until the deeper problem can be fixed.  */
-    return (TARGET_64BIT && DEFAULT_ABI == MS_ABI);
+    return false;
 
   return true;
 }

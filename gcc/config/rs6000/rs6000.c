@@ -51,6 +51,7 @@
 #include "langhooks.h"
 #include "reload.h"
 #include "cfglayout.h"
+#include "cfgloop.h"
 #include "sched-int.h"
 #include "gimple.h"
 #include "tree-flow.h"
@@ -156,6 +157,9 @@ static GTY(()) bool rs6000_sched_groups;
 /* Align branch targets.  */
 static GTY(()) bool rs6000_align_branch_targets;
 
+/* Non-zero to allow overriding loop alignment. */
+static int can_override_loop_align = 0;
+
 /* Support for -msched-costly-dep option.  */
 const char *rs6000_sched_costly_dep_str;
 enum rs6000_dependence_cost rs6000_sched_costly_dep;
@@ -193,7 +197,7 @@ static GTY(()) int common_mode_defined;
 
 /* Label number of label created for -mrelocatable, to call to so we can
    get the address of the GOT section */
-int rs6000_pic_labelno;
+static int rs6000_pic_labelno;
 
 #ifdef USING_ELFOS_H
 /* Which abi to adhere to */
@@ -1140,6 +1144,7 @@ static void rs6000_option_override (void);
 static void rs6000_option_init_struct (struct gcc_options *);
 static void rs6000_option_default_params (void);
 static bool rs6000_handle_option (size_t, const char *, int);
+static int rs6000_loop_align_max_skip (rtx);
 static void rs6000_parse_tls_size_option (void);
 static void rs6000_parse_yes_no_option (const char *, const char *, int *);
 static int first_altivec_reg_to_save (void);
@@ -1606,6 +1611,9 @@ static const struct default_options rs6000_option_optimization_table[] =
 
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION rs6000_handle_option
+
+#undef TARGET_ASM_LOOP_ALIGN_MAX_SKIP
+#define TARGET_ASM_LOOP_ALIGN_MAX_SKIP rs6000_loop_align_max_skip
 
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE rs6000_option_override
@@ -2569,7 +2577,8 @@ rs6000_option_override_internal (const char *default_cpu)
   /* Masks for instructions set at various powerpc ISAs.  */
   enum {
     ISA_2_1_MASKS = MASK_MFCRF,
-    ISA_2_2_MASKS = (ISA_2_1_MASKS | MASK_POPCNTB | MASK_FPRND),
+    ISA_2_2_MASKS = (ISA_2_1_MASKS | MASK_POPCNTB),
+    ISA_2_4_MASKS = (ISA_2_2_MASKS | MASK_FPRND),
 
     /* For ISA 2.05, do not add MFPGPR, since it isn't in ISA 2.06, and don't
        add ALTIVEC, since in general it isn't a win on power6.  In ISA 2.04,
@@ -2653,7 +2662,7 @@ rs6000_option_override_internal (const char *default_cpu)
       if (TARGET_ALTIVEC)
 	error ("AltiVec not supported in this target");
       if (TARGET_SPE)
-	error ("Spe not supported in this target");
+	error ("SPE not supported in this target");
     }
 
   /* Disable Cell microcode if we are optimizing for the Cell
@@ -2738,7 +2747,9 @@ rs6000_option_override_internal (const char *default_cpu)
     target_flags |= (ISA_2_5_MASKS_SERVER & ~target_flags_explicit);
   else if (TARGET_CMPB)
     target_flags |= (ISA_2_5_MASKS_EMBEDDED & ~target_flags_explicit);
-  else if (TARGET_POPCNTB || TARGET_FPRND)
+  else if (TARGET_FPRND)
+    target_flags |= (ISA_2_4_MASKS & ~target_flags_explicit);
+  else if (TARGET_POPCNTB)
     target_flags |= (ISA_2_2_MASKS & ~target_flags_explicit);
   else if (TARGET_ALTIVEC)
     target_flags |= (MASK_PPC_GFXOPT & ~target_flags_explicit);
@@ -3026,7 +3037,10 @@ rs6000_option_override_internal (const char *default_cpu)
 	  if (align_jumps <= 0)
 	    align_jumps = 16;
 	  if (align_loops <= 0)
-	    align_loops = 16;
+	    {
+	      can_override_loop_align = 1;
+	      align_loops = 16;
+	    }
 	}
       if (align_jumps_max_skip <= 0)
 	align_jumps_max_skip = 15;
@@ -3236,7 +3250,7 @@ rs6000_option_override_internal (const char *default_cpu)
 
 	      if (i == ARRAY_SIZE (recip_options))
 		{
-		  error ("Unknown option for -mrecip=%s", q);
+		  error ("unknown option for -mrecip=%s", q);
 		  invert = false;
 		  mask = 0;
 		}
@@ -3269,6 +3283,38 @@ rs6000_builtin_mask_for_load (void)
     return altivec_builtin_mask_for_load;
   else
     return 0;
+}
+
+/* Implement LOOP_ALIGN. */
+int
+rs6000_loop_align (rtx label)
+{
+  basic_block bb;
+  int ninsns;
+
+  /* Don't override loop alignment if -falign-loops was specified. */
+  if (!can_override_loop_align)
+    return align_loops_log;
+
+  bb = BLOCK_FOR_INSN (label);
+  ninsns = num_loop_insns(bb->loop_father);
+
+  /* Align small loops to 32 bytes to fit in an icache sector, otherwise return default. */
+  if (ninsns > 4 && ninsns <= 8
+      && (rs6000_cpu == PROCESSOR_POWER4
+	  || rs6000_cpu == PROCESSOR_POWER5
+	  || rs6000_cpu == PROCESSOR_POWER6
+	  || rs6000_cpu == PROCESSOR_POWER7))
+    return 5;
+  else
+    return align_loops_log;
+}
+
+/* Implement TARGET_LOOP_ALIGN_MAX_SKIP. */
+static int
+rs6000_loop_align_max_skip (rtx label)
+{
+  return (1 << rs6000_loop_align (label)) - 1;
 }
 
 /* Implement targetm.vectorize.builtin_conversion.
@@ -4271,25 +4317,25 @@ rs6000_handle_option (size_t code, const char *arg, int value)
       else if (! strcmp (arg, "d64"))
 	{
 	  rs6000_darwin64_abi = 1;
-	  warning (0, "Using darwin64 ABI");
+	  warning (0, "using darwin64 ABI");
 	}
       else if (! strcmp (arg, "d32"))
 	{
 	  rs6000_darwin64_abi = 0;
-	  warning (0, "Using old darwin ABI");
+	  warning (0, "using old darwin ABI");
 	}
 
       else if (! strcmp (arg, "ibmlongdouble"))
 	{
 	  rs6000_explicit_options.ieee = true;
 	  rs6000_ieeequad = 0;
-	  warning (0, "Using IBM extended precision long double");
+	  warning (0, "using IBM extended precision long double");
 	}
       else if (! strcmp (arg, "ieeelongdouble"))
 	{
 	  rs6000_explicit_options.ieee = true;
 	  rs6000_ieeequad = 1;
-	  warning (0, "Using IEEE extended precision long double");
+	  warning (0, "using IEEE extended precision long double");
 	}
 
       else
@@ -4331,7 +4377,7 @@ rs6000_handle_option (size_t code, const char *arg, int value)
       rs6000_long_double_type_size = RS6000_DEFAULT_LONG_DOUBLE_SIZE;
       if (value != 64 && value != 128)
 	{
-	  error ("Unknown switch -mlong-double-%s", arg);
+	  error ("unknown switch -mlong-double-%s", arg);
 	  rs6000_long_double_type_size = RS6000_DEFAULT_LONG_DOUBLE_SIZE;
 	  return false;
 	}
@@ -9252,7 +9298,7 @@ rs6000_va_start (tree valist, rtx nextarg)
   f_ovf = DECL_CHAIN (f_res);
   f_sav = DECL_CHAIN (f_ovf);
 
-  valist = build_va_arg_indirect_ref (valist);
+  valist = build_simple_mem_ref (valist);
   gpr = build3 (COMPONENT_REF, TREE_TYPE (f_gpr), valist, f_gpr, NULL_TREE);
   fpr = build3 (COMPONENT_REF, TREE_TYPE (f_fpr), unshare_expr (valist),
 		f_fpr, NULL_TREE);
@@ -9585,7 +9631,7 @@ def_builtin (int mask, const char *name, tree type, int code)
     {
       tree t;
       if (rs6000_builtin_decls[code])
-	fatal_error ("internal error: builtin function to %s already processed.",
+	fatal_error ("internal error: builtin function to %s already processed",
 		     name);
 
       rs6000_builtin_decls[code] = t =
@@ -17205,7 +17251,9 @@ rs6000_emit_minmax (rtx dest, enum rtx_code code, rtx op0, rtx op1)
   rtx target;
 
   /* VSX/altivec have direct min/max insns.  */
-  if ((code == SMAX || code == SMIN) && VECTOR_UNIT_ALTIVEC_OR_VSX_P (mode))
+  if ((code == SMAX || code == SMIN)
+      && (VECTOR_UNIT_ALTIVEC_OR_VSX_P (mode)
+	  || (mode == SFmode && VECTOR_UNIT_VSX_P (DFmode))))
     {
       emit_insn (gen_rtx_SET (VOIDmode,
 			      dest,
@@ -18898,7 +18946,8 @@ rs6000_emit_load_toc_table (int fromprolog)
       char buf[30];
       rtx lab, tmp1, tmp2, got;
 
-      ASM_GENERATE_INTERNAL_LABEL (buf, "LCF", rs6000_pic_labelno);
+      lab = gen_label_rtx ();
+      ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (lab));
       lab = gen_rtx_SYMBOL_REF (Pmode, ggc_strdup (buf));
       if (flag_pic == 2)
 	got = gen_rtx_SYMBOL_REF (Pmode, toc_label_name);
@@ -18911,8 +18960,7 @@ rs6000_emit_load_toc_table (int fromprolog)
 	  tmp2 = gen_reg_rtx (Pmode);
 	}
       emit_insn (gen_load_toc_v4_PIC_1 (lab));
-      emit_move_insn (tmp1,
-			     gen_rtx_REG (Pmode, LR_REGNO));
+      emit_move_insn (tmp1, gen_rtx_REG (Pmode, LR_REGNO));
       emit_insn (gen_load_toc_v4_PIC_3b (tmp2, tmp1, got, lab));
       emit_insn (gen_load_toc_v4_PIC_3c (dest, tmp2, got, lab));
     }
@@ -18939,8 +18987,7 @@ rs6000_emit_load_toc_table (int fromprolog)
 	  symL = gen_rtx_SYMBOL_REF (Pmode, ggc_strdup (buf));
 
 	  emit_insn (gen_load_toc_v4_PIC_1 (symF));
-	  emit_move_insn (dest,
-			  gen_rtx_REG (Pmode, LR_REGNO));
+	  emit_move_insn (dest, gen_rtx_REG (Pmode, LR_REGNO));
 	  emit_insn (gen_load_toc_v4_PIC_2 (temp0, dest, symL, symF));
 	}
       else
@@ -19661,7 +19708,7 @@ rs6000_savres_routine_name (rs6000_stack_t *info, int regno,
 	}
     }
   else if (DEFAULT_ABI == ABI_DARWIN)
-    sorry ("Out-of-line save/restore routines not supported on Darwin");
+    sorry ("out-of-line save/restore routines not supported on Darwin");
 
   sprintf (savres_routine_name, "%s%d%s", prefix, regno, suffix);
 
@@ -27183,82 +27230,30 @@ rs6000_address_for_fpconvert (rtx x)
   addr = XEXP (x, 0);
   if (! legitimate_indirect_address_p (addr, strict_p)
       && ! legitimate_indexed_address_p (addr, strict_p))
-    x = replace_equiv_address (x, copy_addr_to_reg (addr));
+    {
+      if (GET_CODE (addr) == PRE_INC || GET_CODE (addr) == PRE_DEC)
+	{
+	  rtx reg = XEXP (addr, 0);
+	  HOST_WIDE_INT size = GET_MODE_SIZE (GET_MODE (x));
+	  rtx size_rtx = GEN_INT ((GET_CODE (addr) == PRE_DEC) ? -size : size);
+	  gcc_assert (REG_P (reg));
+	  emit_insn (gen_add3_insn (reg, reg, size_rtx));
+	  addr = reg;
+	}
+      else if (GET_CODE (addr) == PRE_MODIFY)
+	{
+	  rtx reg = XEXP (addr, 0);
+	  rtx expr = XEXP (addr, 1);
+	  gcc_assert (REG_P (reg));
+	  gcc_assert (GET_CODE (expr) == PLUS);
+	  emit_insn (gen_add3_insn (reg, XEXP (expr, 0), XEXP (expr, 1)));
+	  addr = reg;
+	}
+
+      x = replace_equiv_address (x, copy_addr_to_reg (addr));
+    }
 
   return x;
-}
-
-/* Expand 32-bit int -> floating point conversions.  Return true if
-   successful.  */
-
-void
-rs6000_expand_convert_si_to_sfdf (rtx dest, rtx src, bool unsigned_p)
-{
-  enum machine_mode dmode = GET_MODE (dest);
-  rtx (*func_si) (rtx, rtx, rtx, rtx);
-  rtx (*func_si_mem) (rtx, rtx);
-  rtx (*func_di) (rtx, rtx);
-  rtx reg, stack;
-
-  gcc_assert (GET_MODE (src) == SImode);
-
-  if (dmode == SFmode)
-    {
-      if (unsigned_p)
-	{
-	  gcc_assert (TARGET_FCFIDUS && TARGET_LFIWZX);
-	  func_si = gen_floatunssisf2_lfiwzx;
-	  func_si_mem = gen_floatunssisf2_lfiwzx_mem;
-	  func_di = gen_floatunsdisf2;
-	}
-      else
-	{
-	  gcc_assert (TARGET_FCFIDS && TARGET_LFIWAX);
-	  func_si = gen_floatsisf2_lfiwax;
-	  func_si_mem = gen_floatsisf2_lfiwax_mem;
-	  func_di = gen_floatdisf2;
-	}
-    }
-
-  else if (dmode == DFmode)
-    {
-      if (unsigned_p)
-	{
-	  gcc_assert (TARGET_FCFIDU && TARGET_LFIWZX);
-	  func_si = gen_floatunssidf2_lfiwzx;
-	  func_si_mem = gen_floatunssidf2_lfiwzx_mem;
-	  func_di = gen_floatunsdidf2;
-	}
-      else
-	{
-	  gcc_assert (TARGET_FCFID && TARGET_LFIWAX);
-	  func_si = gen_floatsidf2_lfiwax;
-	  func_si_mem = gen_floatsidf2_lfiwax_mem;
-	  func_di = gen_floatdidf2;
-	}
-    }
-
-  else
-    gcc_unreachable ();
-
-  if (MEM_P (src))
-    {
-      src = rs6000_address_for_fpconvert (src);
-      emit_insn (func_si_mem (dest, src));
-    }
-  else if (!TARGET_MFPGPR)
-    {
-      reg = gen_reg_rtx (DImode);
-      stack = rs6000_allocate_stack_temp (SImode, false, true);
-      emit_insn (func_si (dest, src, stack, reg));
-    }
-  else
-    {
-      if (!REG_P (src))
-	src = force_reg (SImode, src);
-      reg = convert_to_mode (DImode, src, unsigned_p);
-      emit_insn (func_di (dest, reg));
-    }
 }
 
 #include "gt-rs6000.h"

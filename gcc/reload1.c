@@ -2089,7 +2089,7 @@ static void
 spill_failure (rtx insn, enum reg_class rclass)
 {
   if (asm_noperands (PATTERN (insn)) >= 0)
-    error_for_asm (insn, "can't find a register in class %qs while "
+    error_for_asm (insn, "can%'t find a register in class %qs while "
 		   "reloading %<asm%>",
 		   reg_class_names[rclass]);
   else
@@ -2112,7 +2112,7 @@ spill_failure (rtx insn, enum reg_class rclass)
 static void
 delete_dead_insn (rtx insn)
 {
-  rtx prev = prev_real_insn (insn);
+  rtx prev = prev_active_insn (insn);
   rtx prev_dest;
 
   /* If the previous insn sets a register that dies in our insn, delete it
@@ -6025,7 +6025,9 @@ failed_reload (rtx insn, int r)
 static int
 set_reload_reg (int i, int r)
 {
-  int regno;
+  /* regno is 'set but not used' if HARD_REGNO_MODE_OK doesn't use its first
+     parameter.  */
+  int regno ATTRIBUTE_UNUSED;
   rtx reg = spill_reg_rtx[i];
 
   if (reg == 0 || GET_MODE (reg) != rld[r].mode)
@@ -8613,7 +8615,7 @@ gen_reload (rtx out, rtx in, int opnum, enum reload_type type)
 	  return insn;
 	}
 
-      fatal_insn ("Failure trying to reload:", set);
+      fatal_insn ("failure trying to reload:", set);
     }
   /* If IN is a simple operand, use gen_move_insn.  */
   else if (OBJECT_P (in) || GET_CODE (in) == SUBREG)

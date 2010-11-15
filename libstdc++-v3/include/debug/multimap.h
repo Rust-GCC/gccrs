@@ -198,17 +198,43 @@ namespace __debug
       { return iterator(_Base::insert(__x), this); }
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      template<typename _Pair, typename = typename
+	       std::enable_if<std::is_convertible<_Pair,
+						  value_type>::value>::type>
+        iterator
+        insert(_Pair&& __x)
+        { return iterator(_Base::insert(std::forward<_Pair>(__x)), this); }
+#endif
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
       void
       insert(std::initializer_list<value_type> __list)
       { _Base::insert(__list); }
 #endif
 
       iterator
-      insert(iterator __position, const value_type& __x)
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      insert(const_iterator __position, const value_type& __x)
+#else
+      insert(iterator __position, const value_type& __x)	
+#endif
       {
 	__glibcxx_check_insert(__position);
 	return iterator(_Base::insert(__position.base(), __x), this);
       }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      template<typename _Pair, typename = typename
+	       std::enable_if<std::is_convertible<_Pair,
+						  value_type>::value>::type>
+        iterator
+        insert(const_iterator __position, _Pair&& __x)
+        {
+	  __glibcxx_check_insert(__position);
+	  return iterator(_Base::insert(__position.base(),
+					std::forward<_Pair>(__x)), this);
+	}
+#endif
 
       template<typename _InputIterator>
         void
@@ -221,7 +247,7 @@ namespace __debug
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       iterator
-      erase(iterator __position)
+      erase(const_iterator __position)
       {
 	__glibcxx_check_erase(__position);
 	__position._M_invalidate();
@@ -254,14 +280,14 @@ namespace __debug
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       iterator
-      erase(iterator __first, iterator __last)
+      erase(const_iterator __first, const_iterator __last)
       {
 	// _GLIBCXX_RESOLVE_LIB_DEFECTS
 	// 151. can't currently clear() empty container
 	__glibcxx_check_erase_range(__first, __last);
 	while (__first != __last)
 	  this->erase(__first++);
-	return __last;
+	return iterator(__last.base()._M_const_cast(), this);
       }
 #else
       void

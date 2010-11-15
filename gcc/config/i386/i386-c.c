@@ -253,6 +253,10 @@ ix86_target_macros_internal (int isa_flag,
     def_or_undef (parse_in, "__LWP__");
   if (isa_flag & OPTION_MASK_ISA_ABM)
     def_or_undef (parse_in, "__ABM__");
+  if (isa_flag & OPTION_MASK_ISA_BMI)
+    def_or_undef (parse_in, "__BMI__");
+  if (isa_flag & OPTION_MASK_ISA_TBM)
+    def_or_undef (parse_in, "__TBM__");
   if (isa_flag & OPTION_MASK_ISA_POPCNT)
     def_or_undef (parse_in, "__POPCNT__");
   if (isa_flag & OPTION_MASK_ISA_FSGSBASE)

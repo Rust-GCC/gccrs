@@ -431,8 +431,7 @@ build_base_path (enum tree_code code,
  out:
   if (null_test)
     expr = fold_build3_loc (input_location, COND_EXPR, target_type, null_test, expr,
-			fold_build1_loc (input_location, NOP_EXPR, target_type,
-				     integer_zero_node));
+			    build_zero_cst (target_type));
 
   return expr;
 }
@@ -2798,11 +2797,14 @@ check_bitfield_decl (tree field)
     }
   else
     {
+      location_t loc = input_location;
       /* Avoid the non_lvalue wrapper added by fold for PLUS_EXPRs.  */
       STRIP_NOPS (w);
 
       /* detect invalid field size.  */
+      input_location = DECL_SOURCE_LOCATION (field);
       w = cxx_constant_value (w);
+      input_location = loc;
 
       if (TREE_CODE (w) != INTEGER_CST)
 	{
@@ -4350,7 +4352,7 @@ type_has_constexpr_default_constructor (tree t)
     return false;
   if (CLASSTYPE_LAZY_DEFAULT_CTOR (t))
     return synthesized_default_constructor_is_constexpr (t);
-  fns = get_default_ctor (t);
+  fns = locate_ctor (t);
   return (fns && DECL_DECLARED_CONSTEXPR_P (fns));
 }
 
@@ -8267,8 +8269,7 @@ add_vcall_offset (tree orig_fn, tree binfo, vtbl_init_data *vid)
       /* Find the overriding function.  */
       fn = find_final_overrider (vid->rtti_binfo, binfo, orig_fn);
       if (fn == error_mark_node)
-	vcall_offset = build1 (NOP_EXPR, vtable_entry_type,
-			       integer_zero_node);
+	vcall_offset = build_zero_cst (vtable_entry_type);
       else
 	{
 	  base = TREE_VALUE (fn);

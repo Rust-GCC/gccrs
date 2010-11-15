@@ -5234,7 +5234,7 @@ check_valid_ptrmem_cst_expr (tree type, tree expr,
     {
       error ("%qE is not a valid template argument for type %qT",
 	     expr, type);
-      error ("it must be a pointer-to-member of the form `&X::Y'");
+      error ("it must be a pointer-to-member of the form %<&X::Y%>");
     }
   return false;
 }
@@ -10035,10 +10035,14 @@ tsubst_decl (tree t, tree args, tsubst_flags_t complain)
 	      = tsubst_expr (DECL_INITIAL (t), args, complain, in_decl,
 			     /*constant_expression_p=*/false);
 
-	    if (auto_node && init && describable_type (init))
+	    if (auto_node && init)
 	      {
-		type = do_auto_deduction (type, init, auto_node);
-		TREE_TYPE (r) = type;
+		init = resolve_nondeduced_context (init);
+		if (describable_type (init))
+		  {
+		    type = do_auto_deduction (type, init, auto_node);
+		    TREE_TYPE (r) = type;
+		  }
 	      }
 	  }
 	else
@@ -10878,8 +10882,7 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	       But, such constructs have already been resolved by this
 	       point, so here CTX really should have complete type, unless
 	       it's a partial instantiation.  */
-	    if (!(complain & tf_no_class_instantiations))
-	      ctx = complete_type (ctx);
+	    ctx = complete_type (ctx);
 	    if (!COMPLETE_TYPE_P (ctx))
 	      {
 		if (complain & tf_error)
@@ -11659,6 +11662,7 @@ tsubst_copy (tree t, tree args, tsubst_flags_t complain, tree in_decl)
     case INTEGER_CST:
     case REAL_CST:
     case STRING_CST:
+    case COMPLEX_CST:
       {
 	/* Instantiate any typedefs in the type.  */
 	tree type = tsubst (TREE_TYPE (t), args, complain, in_decl);
@@ -13197,6 +13201,7 @@ tsubst_copy_and_build (tree t,
 	if (TREE_HAS_CONSTRUCTOR (t))
 	  return finish_compound_literal (type, r);
 
+	TREE_TYPE (r) = type;
 	return r;
       }
 
@@ -13315,6 +13320,12 @@ tsubst_copy_and_build (tree t,
 
 	return build_lambda_object (r);
       }
+
+    case TARGET_EXPR:
+      /* We can get here for a constant initializer of non-dependent type.
+         FIXME stop folding in cp_parser_initializer_clause.  */
+      gcc_assert (TREE_CONSTANT (t));
+      return get_target_expr (RECUR (TARGET_EXPR_INITIAL (t)));
 
     default:
       /* Handle Objective-C++ constructs, if appropriate.  */
@@ -14331,10 +14342,13 @@ resolve_nondeduced_context (tree orig_expr)
 				   BASELINK_ACCESS_BINFO (baselink),
 				   expr, BASELINK_OPTYPE (baselink));
 	  if (offset)
-	    expr = build2 (OFFSET_REF, TREE_TYPE (expr),
-			   TREE_OPERAND (offset, 0), expr);
+	    {
+	      tree base
+		= TYPE_MAIN_VARIANT (TREE_TYPE (TREE_OPERAND (offset, 0)));
+	      expr = build_offset_ref (base, expr, addr);
+	    }
 	  if (addr)
-	    expr = build_address (expr);
+	    expr = cp_build_addr_expr (expr, tf_warning_or_error);
 	  return expr;
 	}
       else if (good == 0 && badargs)
@@ -18882,6 +18896,8 @@ do_auto_deduction (tree type, tree init, tree auto_node)
      std::initializer_list<U>.  */
   if (BRACE_ENCLOSED_INITIALIZER_P (init))
     type = listify_autos (type, auto_node);
+
+  init = resolve_nondeduced_context (init);
 
   parms = build_tree_list (NULL_TREE, type);
   args[0] = init;

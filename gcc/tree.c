@@ -1362,7 +1362,7 @@ build_vector_from_ctor (tree type, VEC(constructor_elt,gc) *v)
     list = tree_cons (NULL_TREE, value, list);
   for (; idx < TYPE_VECTOR_SUBPARTS (type); ++idx)
     list = tree_cons (NULL_TREE,
-		      fold_convert (TREE_TYPE (type), integer_zero_node), list);
+		      build_zero_cst (TREE_TYPE (type)), list);
   return build_vector (type, nreverse (list));
 }
 
@@ -1599,22 +1599,52 @@ build_one_cst (tree type)
     case COMPLEX_TYPE:
       return build_complex (type,
 			    build_one_cst (TREE_TYPE (type)),
-			    fold_convert (TREE_TYPE (type), integer_zero_node));
+			    build_zero_cst (TREE_TYPE (type)));
 
     default:
       gcc_unreachable ();
     }
 }
 
-/* Build 0 constant of type TYPE.  This is used by constructor folding and thus
-   the constant should correspond zero in memory representation.  */
+/* Build 0 constant of type TYPE.  This is used by constructor folding
+   and thus the constant should be represented in memory by
+   zero(es).  */
 
 tree
 build_zero_cst (tree type)
 {
-  if (!AGGREGATE_TYPE_P (type))
-    return fold_convert (type, integer_zero_node);
-  return build_constructor (type, NULL);
+  switch (TREE_CODE (type))
+    {
+    case INTEGER_TYPE: case ENUMERAL_TYPE: case BOOLEAN_TYPE:
+    case POINTER_TYPE: case REFERENCE_TYPE:
+    case OFFSET_TYPE:
+      return build_int_cst (type, 0);
+
+    case REAL_TYPE:
+      return build_real (type, dconst0);
+
+    case FIXED_POINT_TYPE:
+      return build_fixed (type, FCONST0 (TYPE_MODE (type)));
+
+    case VECTOR_TYPE:
+      {
+	tree scalar = build_zero_cst (TREE_TYPE (type));
+
+	return build_vector_from_val (type, scalar);
+      }
+
+    case COMPLEX_TYPE:
+      {
+	tree zero = build_zero_cst (TREE_TYPE (type));
+
+	return build_complex (type, zero, zero);
+      }
+
+    default:
+      if (!AGGREGATE_TYPE_P (type))
+	return fold_convert (type, integer_zero_node);
+      return build_constructor (type, NULL);
+    }
 }
 
 
@@ -2765,8 +2795,8 @@ process_call_operands (tree t)
   TREE_READONLY (t) = read_only;
 }
 
-/* Return 1 if EXP contains a PLACEHOLDER_EXPR; i.e., if it represents a size
-   or offset that depends on a field within a record.  */
+/* Return true if EXP contains a PLACEHOLDER_EXPR, i.e. if it represents a
+   size or offset that depends on a field within a record.  */
 
 bool
 contains_placeholder_p (const_tree exp)
@@ -2852,9 +2882,9 @@ contains_placeholder_p (const_tree exp)
   return 0;
 }
 
-/* Return true if any part of the computation of TYPE involves a
-   PLACEHOLDER_EXPR.  This includes size, bounds, qualifiers
-   (for QUAL_UNION_TYPE) and field positions.  */
+/* Return true if any part of the structure of TYPE involves a PLACEHOLDER_EXPR
+   directly.  This includes size, bounds, qualifiers (for QUAL_UNION_TYPE) and
+   field positions.  */
 
 static bool
 type_contains_placeholder_1 (const_tree type)
@@ -2863,7 +2893,8 @@ type_contains_placeholder_1 (const_tree type)
      the case of arrays) type involves a placeholder, this type does.  */
   if (CONTAINS_PLACEHOLDER_P (TYPE_SIZE (type))
       || CONTAINS_PLACEHOLDER_P (TYPE_SIZE_UNIT (type))
-      || (TREE_TYPE (type) != 0
+      || (!POINTER_TYPE_P (type)
+	  && TREE_TYPE (type)
 	  && type_contains_placeholder_p (TREE_TYPE (type))))
     return true;
 
@@ -2891,8 +2922,8 @@ type_contains_placeholder_1 (const_tree type)
 	      || CONTAINS_PLACEHOLDER_P (TYPE_MAX_VALUE (type)));
 
     case ARRAY_TYPE:
-      /* We're already checked the component type (TREE_TYPE), so just check
-	 the index type.  */
+      /* We have already checked the component type above, so just check the
+	 domain type.  */
       return type_contains_placeholder_p (TYPE_DOMAIN (type));
 
     case RECORD_TYPE:
@@ -2916,6 +2947,8 @@ type_contains_placeholder_1 (const_tree type)
       gcc_unreachable ();
     }
 }
+
+/* Wrapper around above function used to cache its result.  */
 
 bool
 type_contains_placeholder_p (tree type)
@@ -10914,10 +10947,10 @@ get_binfo_at_offset (tree binfo, HOST_WIDE_INT offset, tree expected_type)
       tree fld;
       int i;
 
-      gcc_checking_assert (offset >= 0);
       if (type == expected_type)
 	  return binfo;
-      if (TREE_CODE (type) != RECORD_TYPE)
+      if (TREE_CODE (type) != RECORD_TYPE
+	  || offset < 0)
 	return NULL_TREE;
 
       for (fld = TYPE_FIELDS (type); fld; fld = DECL_CHAIN (fld))

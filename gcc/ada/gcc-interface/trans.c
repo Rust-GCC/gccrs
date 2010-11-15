@@ -399,8 +399,6 @@ gigi (Node_Id gnat_root, int max_gnat_node, int number_name ATTRIBUTE_UNUSED,
     (get_identifier ("system__soft_links__get_jmpbuf_address_soft"),
      NULL_TREE, build_function_type (jmpbuf_ptr_type, NULL_TREE),
      NULL_TREE, false, true, true, NULL, Empty);
-  /* Avoid creating superfluous edges to __builtin_setjmp receivers.  */
-  DECL_PURE_P (get_jmpbuf_decl) = 1;
   DECL_IGNORED_P (get_jmpbuf_decl) = 1;
 
   set_jmpbuf_decl
@@ -502,8 +500,6 @@ gigi (Node_Id gnat_root, int max_gnat_node, int number_name ATTRIBUTE_UNUSED,
      NULL_TREE,
      build_function_type (build_pointer_type (except_type_node), NULL_TREE),
      NULL_TREE, false, true, true, NULL, Empty);
-  /* Avoid creating superfluous edges to __builtin_setjmp receivers.  */
-  DECL_PURE_P (get_excptr_decl) = 1;
 
   raise_nodefer_decl
     = create_subprog_decl
@@ -829,29 +825,25 @@ lvalue_required_p (Node_Id gnat_node, tree gnu_type, bool constant,
 	      || (Is_Composite_Type (Underlying_Type (Etype (gnat_node)))
 		  && Is_Atomic (Entity (Name (gnat_parent)))));
 
-    case N_Type_Conversion:
-    case N_Qualified_Expression:
-      /* We must look through all conversions for composite types because we
-	 may need to bypass an intermediate conversion to a narrower record
-	 type that is generated for a formal conversion, e.g. the conversion
-	 to the root type of a hierarchy of tagged types generated for the
-	 formal conversion to the class-wide type.  */
-      if (!Is_Composite_Type (Underlying_Type (Etype (gnat_node))))
-	return 0;
+    case N_Unchecked_Type_Conversion:
+	if (!constant)
+	  return 1;
 
       /* ... fall through ... */
 
-    case N_Unchecked_Type_Conversion:
-      return (!constant
-	      || lvalue_required_p (gnat_parent,
-				    get_unpadded_type (Etype (gnat_parent)),
-				    constant, address_of_constant, aliased));
+    case N_Type_Conversion:
+    case N_Qualified_Expression:
+      /* We must look through all conversions because we may need to bypass
+	 an intermediate conversion that is meant to be purely formal.  */
+     return lvalue_required_p (gnat_parent,
+			       get_unpadded_type (Etype (gnat_parent)),
+			       constant, address_of_constant, aliased);
 
     case N_Allocator:
-      /* We should only reach here through the N_Qualified_Expression case
-	 and, therefore, only for composite types.  Force an lvalue since
-	 a block-copy to the newly allocated area of memory is made.  */
-      return 1;
+      /* We should only reach here through the N_Qualified_Expression case.
+	 Force an lvalue for composite types since a block-copy to the newly
+	 allocated area of memory is made.  */
+      return Is_Composite_Type (Underlying_Type (Etype (gnat_node)));
 
    case N_Explicit_Dereference:
       /* We look through dereferences for address of constant because we need
@@ -1739,12 +1731,13 @@ Attribute_to_gnu (Node_Id gnat_node, tree *gnu_result_type_p, int attribute)
 
 	/* Cache the expression we have just computed.  Since we want to do it
 	   at run time, we force the use of a SAVE_EXPR and let the gimplifier
-	   create the temporary.  */
+	   create the temporary in the outermost binding level.  We will make
+	   sure in Subprogram_Body_to_gnu that it is evaluated on all possible
+	   paths by forcing its evaluation on entry of the function.  */
 	if (pa)
 	  {
 	    gnu_result
 	      = build1 (SAVE_EXPR, TREE_TYPE (gnu_result), gnu_result);
-	    TREE_SIDE_EFFECTS (gnu_result) = 1;
 	    if (attribute == Attr_First)
 	      pa->first = gnu_result;
 	    else if (attribute == Attr_Last)
@@ -2634,8 +2627,9 @@ Subprogram_Body_to_gnu (Node_Id gnat_node)
 
   VEC_pop (tree, gnu_return_label_stack);
 
-  /* If we populated the parameter attributes cache, we need to make sure
-     that the cached expressions are evaluated on all possible paths.  */
+  /* If we populated the parameter attributes cache, we need to make sure that
+     the cached expressions are evaluated on all the possible paths leading to
+     their uses.  So we force their evaluation on entry of the function.  */
   cache = DECL_STRUCT_FUNCTION (gnu_subprog_decl)->language->parm_attr_cache;
   if (cache)
     {
@@ -2647,11 +2641,11 @@ Subprogram_Body_to_gnu (Node_Id gnat_node)
       FOR_EACH_VEC_ELT (parm_attr, cache, i, pa)
 	{
 	  if (pa->first)
-	    add_stmt_with_node (pa->first, gnat_node);
+	    add_stmt_with_node_force (pa->first, gnat_node);
 	  if (pa->last)
-	    add_stmt_with_node (pa->last, gnat_node);
+	    add_stmt_with_node_force (pa->last, gnat_node);
 	  if (pa->length)
-	    add_stmt_with_node (pa->length, gnat_node);
+	    add_stmt_with_node_force (pa->length, gnat_node);
 	}
 
       add_stmt (gnu_result);
@@ -5779,6 +5773,7 @@ gnat_to_gnu (Node_Id gnat_node)
      so that the code just below can put the location information of the
      reference to B on the inequality operator for better debug info.  */
   if (!optimize
+      && TREE_CODE (gnu_result) != INTEGER_CST
       && (kind == N_Identifier
 	  || kind == N_Expanded_Name
 	  || kind == N_Explicit_Dereference
@@ -5969,7 +5964,8 @@ start_stmt_group (void)
   current_stmt_group = group;
 }
 
-/* Add GNU_STMT to the current statement group.  */
+/* Add GNU_STMT to the current statement group.  If it is an expression with
+   no effects, it is ignored.  */
 
 void
 add_stmt (tree gnu_stmt)
@@ -5977,7 +5973,15 @@ add_stmt (tree gnu_stmt)
   append_to_statement_list (gnu_stmt, &current_stmt_group->stmt_list);
 }
 
-/* Similar, but set the location of GNU_STMT to that of GNAT_NODE.  */
+/* Similar, but the statement is always added, regardless of side-effects.  */
+
+void
+add_stmt_force (tree gnu_stmt)
+{
+  append_to_statement_list_force (gnu_stmt, &current_stmt_group->stmt_list);
+}
+
+/* Like add_stmt, but set the location of GNU_STMT to that of GNAT_NODE.  */
 
 void
 add_stmt_with_node (tree gnu_stmt, Node_Id gnat_node)
@@ -5985,6 +5989,16 @@ add_stmt_with_node (tree gnu_stmt, Node_Id gnat_node)
   if (Present (gnat_node))
     set_expr_location_from_node (gnu_stmt, gnat_node);
   add_stmt (gnu_stmt);
+}
+
+/* Similar, but the statement is always added, regardless of side-effects.  */
+
+void
+add_stmt_with_node_force (tree gnu_stmt, Node_Id gnat_node)
+{
+  if (Present (gnat_node))
+    set_expr_location_from_node (gnu_stmt, gnat_node);
+  add_stmt_force (gnu_stmt);
 }
 
 /* Add a declaration statement for GNU_DECL to the current statement group.

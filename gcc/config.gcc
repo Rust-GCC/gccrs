@@ -219,8 +219,6 @@ default_gnu_indirect_function=no
 target_gtfiles=
 need_64bit_hwint=
 need_64bit_isa=
-# Selects the object file format reader/writer used by LTO.
-lto_binary_reader=lto-elf
 
 # Don't carry these over build->host->target.  Please.
 xm_file=
@@ -313,23 +311,25 @@ i[34567]86-*-*)
 	cpu_type=i386
 	c_target_objs="i386-c.o"
 	cxx_target_objs="i386-c.o"
+	extra_options="${extra_options} fused-madd.opt"
 	extra_headers="cpuid.h mmintrin.h mm3dnow.h xmmintrin.h emmintrin.h
 		       pmmintrin.h tmmintrin.h ammintrin.h smmintrin.h
 		       nmmintrin.h bmmintrin.h fma4intrin.h wmmintrin.h
 		       immintrin.h x86intrin.h avxintrin.h xopintrin.h
 		       ia32intrin.h cross-stdarg.h lwpintrin.h popcntintrin.h
-		       abmintrin.h"
+		       abmintrin.h bmiintrin.h tbmintrin.h"
 	;;
 x86_64-*-*)
 	cpu_type=i386
 	c_target_objs="i386-c.o"
 	cxx_target_objs="i386-c.o"
+	extra_options="${extra_options} fused-madd.opt"
 	extra_headers="cpuid.h mmintrin.h mm3dnow.h xmmintrin.h emmintrin.h
 		       pmmintrin.h tmmintrin.h ammintrin.h smmintrin.h
 		       nmmintrin.h bmmintrin.h fma4intrin.h wmmintrin.h
 		       immintrin.h x86intrin.h avxintrin.h xopintrin.h
 		       ia32intrin.h cross-stdarg.h lwpintrin.h popcntintrin.h
-		       abmintrin.h"
+		       abmintrin.h bmiintrin.h tbmintrin.h"
 	need_64bit_hwint=yes
 	;;
 ia64-*-*)
@@ -398,6 +398,9 @@ s390*-*-*)
 sh[123456789lbe]*-*-* | sh-*-*)
 	cpu_type=sh
 	need_64bit_hwint=yes
+	;;
+xtensa*-*-*)
+	extra_options="${extra_options} fused-madd.opt"
 	;;
 esac
 
@@ -1160,13 +1163,11 @@ i[34567]86-*-darwin*)
 	# support.
 	with_cpu=${with_cpu:-generic}
 	tmake_file="${tmake_file} t-slibgcc-darwin i386/t-crtpc i386/t-crtfm"
-	lto_binary_reader=lto-macho
 	;;
 x86_64-*-darwin*)
 	with_cpu=${with_cpu:-generic}
 	tmake_file="${tmake_file} ${cpu_type}/t-darwin64 t-slibgcc-darwin i386/t-crtpc i386/t-crtfm"
 	tm_file="${tm_file} ${cpu_type}/darwin64.h"
-	lto_binary_reader=lto-macho
 	;;
 i[34567]86-*-elf*)
 	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h newlib-stdint.h i386/i386elf.h"
@@ -1421,7 +1422,6 @@ i[34567]86-*-pe | i[34567]86-*-cygwin*)
 		thread_file='posix'
 	fi
 	use_gcc_stdint=wrap
-	lto_binary_reader=lto-coff
 	;;
 i[34567]86-*-mingw* | x86_64-*-mingw*)
 	tm_file="${tm_file} i386/unix.h i386/bsd.h i386/gas.h dbxcoff.h i386/cygming.h i386/mingw32.h"
@@ -1494,7 +1494,6 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
 	cxx_target_objs="${cxx_target_objs} winnt-cxx.o msformat-c.o"
 	default_use_cxa_atexit=yes
 	use_gcc_stdint=wrap
-	lto_binary_reader=lto-coff
 	case ${enable_threads} in
 	  "" | yes | win32)	  thread_file='win32'
 	  tmake_file="${tmake_file} i386/t-gthr-win32"
@@ -1985,6 +1984,7 @@ pdp11-*-*)
 picochip-*)
 	tm_file="${tm_file} newlib-stdint.h"
 	use_gcc_stdint=wrap
+	tmake_file="picochip/t-picochip t-pnt16-warn"
         ;;
 # port not yet contributed
 #powerpc-*-openbsd*)
@@ -2006,7 +2006,6 @@ powerpc-*-darwin*)
 	    ;;
 	esac
 	tmake_file="${tmake_file} t-slibgcc-darwin"
-	lto_binary_reader=lto-macho
 	extra_headers=altivec.h
 	;;
 powerpc64-*-darwin*)
@@ -2014,7 +2013,6 @@ powerpc64-*-darwin*)
 	extra_parts="crt2.o"
 	tmake_file="${tmake_file} ${cpu_type}/t-darwin64 t-slibgcc-darwin"
 	tm_file="${tm_file} ${cpu_type}/darwin8.h ${cpu_type}/darwin64.h"
-	lto_binary_reader=lto-macho
 	extra_headers=altivec.h
 	;;
 powerpc*-*-freebsd*)
@@ -2330,6 +2328,9 @@ sh-*-symbianelf* | sh[12346l]*-*-symbianelf* | \
 	sh64*)
 		tmake_file="${tmake_file} sh/t-sh64"
 		tm_file="${tm_file} sh/sh64.h"
+		if test x$with_newlib = xyes; then
+			tm_file="${tm_file} newlib-stdint.h"
+		fi
 		extra_headers="shmedia.h ushmedia.h sshmedia.h"
 		;;
 	*-*-symbianelf*)
@@ -2999,6 +3000,9 @@ if test x$with_fpmath != x; then
   case ${target} in
     i[34567]86-*-* | x86_64-*-*)
       case ${with_fpmath} in
+      avx)
+	tm_file="${tm_file} i386/avxmath.h"
+	;;
       sse)
 	tm_file="${tm_file} i386/ssemath.h"
 	;;

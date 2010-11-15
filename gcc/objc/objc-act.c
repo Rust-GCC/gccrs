@@ -35,6 +35,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "c-family/c-common.h"
 #include "c-family/c-pragma.h"
+#include "c-family/c-format.h"
 #include "flags.h"
 #include "langhooks.h"
 #include "objc-act.h"
@@ -278,7 +279,7 @@ static void generate_struct_by_value_array (void)
      ATTRIBUTE_NORETURN;
 static void mark_referenced_methods (void);
 static void generate_objc_image_info (void);
-static bool objc_type_valid_for_messaging (tree typ);
+static bool objc_type_valid_for_messaging (tree type, bool allow_classes);
 
 /*** Private Interface (data) ***/
 
@@ -376,8 +377,14 @@ static const char *default_constant_string_class_name;
 #define TAG_GNUINIT			"__objc_gnu_init"
 
 /* Flags for lookup_method_static().  */
-#define OBJC_LOOKUP_CLASS	1	/* Look for class methods.  */
-#define OBJC_LOOKUP_NO_SUPER	2	/* Do not examine superclasses.  */
+
+/* Look for class methods.  */
+#define OBJC_LOOKUP_CLASS	1
+/* Do not examine superclasses.  */
+#define OBJC_LOOKUP_NO_SUPER	2
+/* Disable returning an instance method of a root class when a class
+   method can't be found.  */
+#define OBJC_LOOKUP_NO_INSTANCE_METHODS_OF_ROOT_CLASS 4 
 
 /* The OCTI_... enumeration itself is in objc/objc-act.h.  */
 tree objc_global_trees[OCTI_MAX];
@@ -407,9 +414,6 @@ static char *errbuf;	/* Buffer for error diagnostics */
 
 extern enum debug_info_type write_symbols;
 
-/* Data imported from toplev.c.  */
-
-extern const char *dump_base_name;
 
 static int flag_typed_selectors;
 
@@ -479,6 +483,33 @@ add_field_decl (tree type, const char *name, tree **chain)
   *chain = &DECL_CHAIN (field);
 
   return field;
+}
+
+/* Create a temporary variable of type 'type'.  If 'name' is set, uses
+   the specified name, else use no name.  Returns the declaration of
+   the type.  The 'name' is mostly useful for debugging.
+*/
+static tree
+objc_create_temporary_var (tree type, const char *name)
+{
+  tree decl;
+
+  if (name != NULL)
+    {
+      decl = build_decl (input_location,
+			 VAR_DECL, get_identifier (name), type);
+    }
+  else
+    {
+      decl = build_decl (input_location,
+			 VAR_DECL, NULL_TREE, type);
+    }
+  TREE_USED (decl) = 1;
+  DECL_ARTIFICIAL (decl) = 1;
+  DECL_IGNORED_P (decl) = 1;
+  DECL_CONTEXT (decl) = current_function_decl;
+
+  return decl;
 }
 
 /* Some platforms pass small structures through registers versus
@@ -555,7 +586,7 @@ objc_init (void)
       register char * const dumpname = concat (dump_base_name, ".decl", NULL);
       gen_declaration_file = fopen (dumpname, "w");
       if (gen_declaration_file == 0)
-	fatal_error ("can't open %s: %m", dumpname);
+	fatal_error ("can%'t open %s: %m", dumpname);
       free (dumpname);
     }
 
@@ -686,9 +717,14 @@ objc_start_class_interface (tree klass, tree super_class,
 			    tree protos, tree attributes)
 {
   if (attributes)
-    warning_at (input_location, OPT_Wattributes, 
-		"class attributes are not available in this version"
-		" of the compiler, (ignored)");
+    {
+      if (flag_objc1_only)
+	error_at (input_location, "class attributes are not available in Objective-C 1.0");
+      else
+	warning_at (input_location, OPT_Wattributes, 
+		    "class attributes are not available in this version"
+		    " of the compiler, (ignored)");
+    }
   objc_interface_context
     = objc_ivar_context
     = start_class (CLASS_INTERFACE_TYPE, klass, super_class, protos);
@@ -700,9 +736,14 @@ objc_start_category_interface (tree klass, tree categ,
 			       tree protos, tree attributes)
 {
   if (attributes)
-    warning_at (input_location, OPT_Wattributes, 
-		"category attributes are not available in this version"
-		" of the compiler, (ignored)");
+    {
+      if (flag_objc1_only)
+	error_at (input_location, "category attributes are not available in Objective-C 1.0");
+      else
+	warning_at (input_location, OPT_Wattributes, 
+		    "category attributes are not available in this version"
+		    " of the compiler, (ignored)");
+    }
   objc_interface_context
     = start_class (CATEGORY_INTERFACE_TYPE, klass, categ, protos);
   objc_ivar_chain
@@ -713,9 +754,14 @@ void
 objc_start_protocol (tree name, tree protos, tree attributes)
 {
   if (attributes)
-    warning_at (input_location, OPT_Wattributes, 
-		"protocol attributes are not available in this version"
-		" of the compiler, (ignored)");
+    {
+      if (flag_objc1_only)
+	error_at (input_location, "protocol attributes are not available in Objective-C 1.0");	
+      else
+	warning_at (input_location, OPT_Wattributes, 
+		    "protocol attributes are not available in this version"
+		    " of the compiler, (ignored)");
+    }
   objc_interface_context
     = start_protocol (PROTOCOL_INTERFACE_TYPE, name, protos);
   objc_method_optional_flag = false;
@@ -783,211 +829,28 @@ void
 objc_set_visibility (objc_ivar_visibility_kind visibility)
 {
   if (visibility == OBJC_IVAR_VIS_PACKAGE)
-    warning (0, "%<@package%> presently has the same effect as %<@public%>");
+    {
+      if (flag_objc1_only)
+	error ("%<@package%> is not available in Objective-C 1.0");
+      else
+	warning (0, "%<@package%> presently has the same effect as %<@public%>");
+    }
   objc_ivar_visibility = visibility;
 }
 
 void
 objc_set_method_opt (bool optional)
 {
+  if (flag_objc1_only)
+    error_at (input_location, "@optional/@required are not available in Objective-C 1.0");	
+
   objc_method_optional_flag = optional;
   if (!objc_interface_context 
       || TREE_CODE (objc_interface_context) != PROTOCOL_INTERFACE_TYPE)
     {
-      error ("@optional/@required is allowed in @protocol context only.");
+      error ("@optional/@required is allowed in @protocol context only");
       objc_method_optional_flag = false;
     }
-}
-
-/* This routine is called by the parser when a
-   @property... declaration is found.  'decl' is the declaration of
-   the property (type/identifier), and the other arguments represent
-   property attributes that may have been specified in the Objective-C
-   declaration.  'parsed_property_readonly' is 'true' if the attribute
-   'readonly' was specified, and 'false' if not; similarly for the
-   other bool parameters.  'parsed_property_getter_ident' is NULL_TREE
-   if the attribute 'getter' was not specified, and is the identifier
-   corresponding to the specified getter if it was; similarly for
-   'parsed_property_setter_ident'.  */
-void
-objc_add_property_declaration (location_t location, tree decl,
-			       bool parsed_property_readonly, bool parsed_property_readwrite,
-			       bool parsed_property_assign, bool parsed_property_retain,
-			       bool parsed_property_copy, bool parsed_property_nonatomic,
-			       tree parsed_property_getter_ident, tree parsed_property_setter_ident)
-{
-  tree property_decl;
-  tree x;
-  /* 'property_readonly' and 'property_assign_semantics' are the final
-     attributes of the property after all parsed attributes have been
-     considered (eg, if we parsed no 'readonly' and no 'readwrite', ie
-     parsed_property_readonly = false and parsed_property_readwrite =
-     false, then property_readonly will be false because the default
-     is readwrite).  */
-  bool property_readonly = false;
-  objc_property_assign_semantics property_assign_semantics = OBJC_PROPERTY_ASSIGN;
-
-  if (parsed_property_readonly && parsed_property_readwrite)
-    {
-      error_at (location, "%<readonly%> attribute conflicts with %<readwrite%> attribute");
-      /* In case of conflicting attributes (here and below), after
-	 producing an error, we pick one of the attributes and keep
-	 going.  */
-      property_readonly = false;
-    }
-  else
-    {
-      if (parsed_property_readonly)
-	property_readonly = true;
-  
-      if (parsed_property_readwrite)
-	property_readonly = false;
-    }
-
-  if (parsed_property_readonly && parsed_property_setter_ident)
-    {
-      /* Maybe this should be an error ?  The Apple documentation says it is a warning.  */
-      warning_at (location, 0, "%<readonly%> attribute conflicts with %<setter%> attribute");
-      property_readonly = false;
-    }
-
-  if (parsed_property_assign && parsed_property_retain)
-    {
-      error_at (location, "%<assign%> attribute conflicts with %<retain%> attribute");
-      property_assign_semantics = OBJC_PROPERTY_RETAIN;
-    }
-  else if (parsed_property_assign && parsed_property_copy)
-    {
-      error_at (location, "%<assign%> attribute conflicts with %<copy%> attribute");
-      property_assign_semantics = OBJC_PROPERTY_COPY;
-    }
-  else if (parsed_property_retain && parsed_property_copy)
-    {
-      error_at (location, "%<retain%> attribute conflicts with %<copy%> attribute");
-      property_assign_semantics = OBJC_PROPERTY_COPY;
-    }
-  else
-    {
-      if (parsed_property_assign)
-	property_assign_semantics = OBJC_PROPERTY_ASSIGN;
-
-      if (parsed_property_retain)
-	property_assign_semantics = OBJC_PROPERTY_RETAIN;
-
-      if (parsed_property_copy)
-	property_assign_semantics = OBJC_PROPERTY_COPY;
-    }
-
-  if (!objc_interface_context)
-    {
-      error_at (location, "property declaration not in @interface or @protocol context");
-      return;
-    }
-
-  /* At this point we know that we are either in an interface, a
-     category, or a protocol.  */
-
-  if (parsed_property_setter_ident)
-    {
-      /* The setter should be terminated by ':', but the parser only
-	 gives us an identifier without ':'.  So, we need to add ':'
-	 at the end.  */
-      const char *parsed_setter = IDENTIFIER_POINTER (parsed_property_setter_ident);
-      size_t length = strlen (parsed_setter);
-      char *final_setter = (char *)alloca (length + 2);
-
-      sprintf (final_setter, "%s:", parsed_setter);
-      parsed_property_setter_ident = get_identifier (final_setter);
-    }
-
-  /* Check that the property does not have an initial value specified.
-     This should never happen as the parser doesn't allow this, but
-     it's just in case.  */
-  if (DECL_INITIAL (decl))
-    {
-      error_at (location, "property can not have an initial value");
-      return;
-    }
-
-  /* TODO: Check that the property type is an Objective-C object or a "POD".  */
-
-  if (property_assign_semantics == OBJC_PROPERTY_ASSIGN)
-    {
-      /* If garbage collection is not being used, then 'assign' is
-	 valid for objects (and typically used for delegates) but it
-	 is wrong in most cases (since most objects need to be
-	 retained or copied in setters).  Warn users when 'assign' is
-	 used implicitly.  */
-      /* Please note that it would make sense to default to 'assign'
-	 for non-{Objective-C objects}, and to 'retain' for
-	 Objective-C objects.  But that would break compatibility with
-	 other compilers.  */
-      if (!flag_objc_gc)
-	{
-	  if (!parsed_property_assign && !parsed_property_retain && !parsed_property_copy)
-	    {
-	      if (objc_type_valid_for_messaging (TREE_TYPE (decl)))
-		{
-		  warning_at (location, 
-			      0,
-			      "object property %qD has no %<assign%>, %<retain%> or %<copy%> attribute; assuming %<assign%>", 
-			      decl);
-		  inform (location, 
-			  "%<assign%> can be unsafe for Objective-C objects; please state explicitly if you need it");
-		}
-	    }
-	}
-    }
-  
-  if (property_assign_semantics == OBJC_PROPERTY_RETAIN
-      && !objc_type_valid_for_messaging (TREE_TYPE (decl)))
-    error_at (location, "%<retain%> attribute is only valid for Objective-C objects");
-  
-  if (property_assign_semantics == OBJC_PROPERTY_COPY
-      && !objc_type_valid_for_messaging (TREE_TYPE (decl)))
-    error_at (location, "%<copy%> attribute is only valid for Objective-C objects");
-
-  /* Check for duplicate property declarations.  We first check the
-     immediate context for a property with the same name.  */
-  for (x = CLASS_PROPERTY_DECL (objc_interface_context); x; x = TREE_CHAIN (x))
-    {
-      if (PROPERTY_NAME (x) == DECL_NAME (decl))
-	{
-	  location_t original_location = DECL_SOURCE_LOCATION (x);
-	  
-	  error_at (location, "redeclaration of property %qD", decl);
-
-	  if (original_location != UNKNOWN_LOCATION)
-	    inform (original_location, "originally declared here");
-	  return;
-      }
-    }
-
-  /* TODO: Shall we check here for other property declaractions (in
-     the superclass, other categories or protocols) with the same name
-     and conflicting types ?  */
-
-  /* Create a PROPERTY_DECL node.  */
-  property_decl = make_node (PROPERTY_DECL);
-
-  /* Copy the basic information from the original decl.  */
-  TREE_TYPE (property_decl) = TREE_TYPE (decl);
-  DECL_SOURCE_LOCATION (property_decl) = DECL_SOURCE_LOCATION (decl);
-  TREE_DEPRECATED (property_decl) = TREE_DEPRECATED (decl);
-  
-  /* Add property-specific information.  */
-  PROPERTY_NAME (property_decl) = DECL_NAME (decl);
-  PROPERTY_GETTER_NAME (property_decl) = parsed_property_getter_ident;
-  PROPERTY_SETTER_NAME (property_decl) = parsed_property_setter_ident;
-  PROPERTY_READONLY (property_decl) = property_readonly;
-  PROPERTY_NONATOMIC (property_decl) = parsed_property_nonatomic;
-  PROPERTY_ASSIGN_SEMANTICS (property_decl) = property_assign_semantics;
-  PROPERTY_IVAR_NAME (property_decl) = NULL_TREE;
-  PROPERTY_DYNAMIC (property_decl) = 0;
-
-  /* Add the PROPERTY_DECL to the list of properties for the class.  */
-  TREE_CHAIN (property_decl) = CLASS_PROPERTY_DECL (objc_interface_context);
-  CLASS_PROPERTY_DECL (objc_interface_context) = property_decl;
 }
 
 /* This routine looks for a given PROPERTY in a list of CLASS, CATEGORY, or
@@ -1038,13 +901,22 @@ lookup_property (tree interface_type, tree property)
       /* Failing that, look for the property in each category of the class.  */
       category = inter;
       while ((category = CLASS_CATEGORY_LIST (category)))
-	if ((x = lookup_property_in_list (category, property)))
-	  return x;
+	{
+	  if ((x = lookup_property_in_list (category, property)))
+	    return x;
+
+	  /* When checking a category, also check the protocols
+	     attached with the category itself.  */
+	  if (CLASS_PROTOCOL_LIST (category)
+	      && (x = lookup_property_in_protocol_list
+		  (CLASS_PROTOCOL_LIST (category), property)))
+	    return x;
+	}
 
       /*  Failing to find in categories, look for property in protocol list. */
       if (CLASS_PROTOCOL_LIST (inter) 
-	  && (x = lookup_property_in_protocol_list (
-		    CLASS_PROTOCOL_LIST (inter), property)))
+	  && (x = lookup_property_in_protocol_list
+	      (CLASS_PROTOCOL_LIST (inter), property)))
 	return x;
       
       /* Failing that, climb up the inheritance hierarchy.  */
@@ -1053,24 +925,526 @@ lookup_property (tree interface_type, tree property)
   return inter;
 }
 
+/* This routine is called by the parser when a
+   @property... declaration is found.  'decl' is the declaration of
+   the property (type/identifier), and the other arguments represent
+   property attributes that may have been specified in the Objective-C
+   declaration.  'parsed_property_readonly' is 'true' if the attribute
+   'readonly' was specified, and 'false' if not; similarly for the
+   other bool parameters.  'parsed_property_getter_ident' is NULL_TREE
+   if the attribute 'getter' was not specified, and is the identifier
+   corresponding to the specified getter if it was; similarly for
+   'parsed_property_setter_ident'.  */
+void
+objc_add_property_declaration (location_t location, tree decl,
+			       bool parsed_property_readonly, bool parsed_property_readwrite,
+			       bool parsed_property_assign, bool parsed_property_retain,
+			       bool parsed_property_copy, bool parsed_property_nonatomic,
+			       tree parsed_property_getter_ident, tree parsed_property_setter_ident)
+{
+  tree property_decl;
+  tree x;
+  /* 'property_readonly' and 'property_assign_semantics' are the final
+     attributes of the property after all parsed attributes have been
+     considered (eg, if we parsed no 'readonly' and no 'readwrite', ie
+     parsed_property_readonly = false and parsed_property_readwrite =
+     false, then property_readonly will be false because the default
+     is readwrite).  */
+  bool property_readonly = false;
+  objc_property_assign_semantics property_assign_semantics = OBJC_PROPERTY_ASSIGN;
+
+  if (flag_objc1_only)
+    error_at (input_location, "%<@property%> is not available in Objective-C 1.0");
+
+  if (parsed_property_readonly && parsed_property_readwrite)
+    {
+      error_at (location, "%<readonly%> attribute conflicts with %<readwrite%> attribute");
+      /* In case of conflicting attributes (here and below), after
+	 producing an error, we pick one of the attributes and keep
+	 going.  */
+      property_readonly = false;
+    }
+  else
+    {
+      if (parsed_property_readonly)
+	property_readonly = true;
+  
+      if (parsed_property_readwrite)
+	property_readonly = false;
+    }
+
+  if (parsed_property_readonly && parsed_property_setter_ident)
+    {
+      error_at (location, "%<readonly%> attribute conflicts with %<setter%> attribute");
+      property_readonly = false;
+    }
+
+  if (parsed_property_assign && parsed_property_retain)
+    {
+      error_at (location, "%<assign%> attribute conflicts with %<retain%> attribute");
+      property_assign_semantics = OBJC_PROPERTY_RETAIN;
+    }
+  else if (parsed_property_assign && parsed_property_copy)
+    {
+      error_at (location, "%<assign%> attribute conflicts with %<copy%> attribute");
+      property_assign_semantics = OBJC_PROPERTY_COPY;
+    }
+  else if (parsed_property_retain && parsed_property_copy)
+    {
+      error_at (location, "%<retain%> attribute conflicts with %<copy%> attribute");
+      property_assign_semantics = OBJC_PROPERTY_COPY;
+    }
+  else
+    {
+      if (parsed_property_assign)
+	property_assign_semantics = OBJC_PROPERTY_ASSIGN;
+
+      if (parsed_property_retain)
+	property_assign_semantics = OBJC_PROPERTY_RETAIN;
+
+      if (parsed_property_copy)
+	property_assign_semantics = OBJC_PROPERTY_COPY;
+    }
+
+  if (!objc_interface_context)
+    {
+      error_at (location, "property declaration not in @interface or @protocol context");
+      return;
+    }
+
+  /* At this point we know that we are either in an interface, a
+     category, or a protocol.  */
+
+  /* We expect a FIELD_DECL from the parser.  Make sure we didn't get
+     something else, as that would confuse the checks below.  */
+  if (TREE_CODE (decl) != FIELD_DECL)
+    {
+      error_at (location, "invalid property declaration");
+      return;      
+    }
+
+  /* Do some spot-checks for the most obvious invalid types.  */
+
+  if (TREE_CODE (TREE_TYPE (decl)) == ARRAY_TYPE)
+    {
+      error_at (location, "property can not be an array");
+      return;
+    }
+
+  /* The C++/ObjC++ parser seems to reject the ':' for a bitfield when
+     parsing, while the C/ObjC parser accepts it and gives us a
+     FIELD_DECL with a DECL_INITIAL set.  So we use the DECL_INITIAL
+     to check for a bitfield when doing ObjC.  */
+#ifndef OBJCPLUS
+  if (DECL_INITIAL (decl))
+    {
+      /* A @property is not an actual variable, but it is a way to
+	 describe a pair of accessor methods, so its type (which is
+	 the type of the return value of the getter and the first
+	 argument of the setter) can't be a bitfield (as return values
+	 and arguments of functions can not be bitfields).  The
+	 underlying instance variable could be a bitfield, but that is
+	 a different matter.  */
+      error_at (location, "property can not be a bit-field");
+      return;      
+    }
+#endif
+
+  /* TODO: Check that the property type is an Objective-C object or a
+     "POD".  */
+
+  /* Implement -Wproperty-assign-default (which is enabled by default).  */
+  if (warn_property_assign_default
+      /* If garbage collection is not being used, then 'assign' is
+	 valid for objects (and typically used for delegates) but it
+	 is wrong in most cases (since most objects need to be
+	 retained or copied in setters).  Warn users when 'assign' is
+	 used implicitly.  */
+      && property_assign_semantics == OBJC_PROPERTY_ASSIGN
+      /* Read-only properties are never assigned, so the assignment
+	 semantics do not matter in that case.  */
+      && !property_readonly
+      && !flag_objc_gc)
+    {
+      /* Please note that it would make sense to default to 'assign'
+	 for non-{Objective-C objects}, and to 'retain' for
+	 Objective-C objects.  But that would break compatibility with
+	 other compilers.  */
+      if (!parsed_property_assign && !parsed_property_retain && !parsed_property_copy)
+	{
+	  /* Use 'false' so we do not warn for Class objects.  */
+	  if (objc_type_valid_for_messaging (TREE_TYPE (decl), false))
+	    {
+	      warning_at (location, 
+			  0,
+			  "object property %qD has no %<assign%>, %<retain%> or %<copy%> attribute; assuming %<assign%>", 
+			  decl);
+	      inform (location, 
+		      "%<assign%> can be unsafe for Objective-C objects; please state explicitly if you need it");
+	    }
+	}
+    }
+  
+  if (property_assign_semantics == OBJC_PROPERTY_RETAIN
+      && !objc_type_valid_for_messaging (TREE_TYPE (decl), true))
+    error_at (location, "%<retain%> attribute is only valid for Objective-C objects");
+  
+  if (property_assign_semantics == OBJC_PROPERTY_COPY
+      && !objc_type_valid_for_messaging (TREE_TYPE (decl), true))
+    error_at (location, "%<copy%> attribute is only valid for Objective-C objects");
+
+  /* Now determine the final property getter and setter names.  They
+     will be stored in the PROPERTY_DECL, from which they'll always be
+     extracted and used.  */
+
+  /* Adjust, or fill in, setter and getter names.  We overwrite the
+     parsed_property_setter_ident and parsed_property_getter_ident
+     with the final setter and getter identifiers that will be
+     used.  */
+  if (parsed_property_setter_ident)
+    {
+      /* The setter should be terminated by ':', but the parser only
+	 gives us an identifier without ':'.  So, we need to add ':'
+	 at the end.  */
+      const char *parsed_setter = IDENTIFIER_POINTER (parsed_property_setter_ident);
+      size_t length = strlen (parsed_setter);
+      char *final_setter = (char *)alloca (length + 2);
+
+      sprintf (final_setter, "%s:", parsed_setter);
+      parsed_property_setter_ident = get_identifier (final_setter);
+    }
+  else
+    {
+      if (!property_readonly)
+	parsed_property_setter_ident = get_identifier (objc_build_property_setter_name 
+						       (DECL_NAME (decl)));
+    }
+
+  if (!parsed_property_getter_ident)
+    parsed_property_getter_ident = DECL_NAME (decl);
+
+  /* Check for duplicate property declarations.  We first check the
+     immediate context for a property with the same name.  Any such
+     declarations are an error.  */
+  for (x = CLASS_PROPERTY_DECL (objc_interface_context); x; x = TREE_CHAIN (x))
+    {
+      if (PROPERTY_NAME (x) == DECL_NAME (decl))
+	{
+	  location_t original_location = DECL_SOURCE_LOCATION (x);
+	  
+	  error_at (location, "redeclaration of property %qD", decl);
+
+	  if (original_location != UNKNOWN_LOCATION)
+	    inform (original_location, "originally specified here");
+	  return;
+      }
+    }
+
+  /* We now need to check for existing property declarations (in the
+     superclass, other categories or protocols) and check that the new
+     declaration is not in conflict with existing ones.  */
+
+  /* Search for a previous, existing declaration of a property with
+     the same name in superclasses, protocols etc.  If one is found,
+     it will be in the 'x' variable.  */
+  x = NULL_TREE;
+
+  /* Note that, for simplicity, the following may search again the
+     local context.  That's Ok as nothing will be found (else we'd
+     have thrown an error above); it's only a little inefficient, but
+     the code is simpler.  */
+  switch (TREE_CODE (objc_interface_context))
+    {
+    case CLASS_INTERFACE_TYPE:
+      /* Look up the property in the current @interface (which will
+	 find nothing), then its protocols and categories and
+	 superclasses.  */
+      x = lookup_property (objc_interface_context, DECL_NAME (decl));
+      break;
+    case CATEGORY_INTERFACE_TYPE:
+      /* Look up the property in the main @interface, then protocols
+	 and categories (one of them is ours, and will find nothing)
+	 and superclasses.  */
+      x = lookup_property (lookup_interface (CLASS_NAME (objc_interface_context)),
+			   DECL_NAME (decl));
+      break;
+    case PROTOCOL_INTERFACE_TYPE:
+      /* Looks up the property in any protocols attached to the
+	 current protocol.  */
+      if (PROTOCOL_LIST (objc_interface_context))
+	{
+	  x = lookup_property_in_protocol_list (PROTOCOL_LIST (objc_interface_context),
+						DECL_NAME (decl));
+	}
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  if (x != NULL_TREE)
+    {
+      /* An existing property was found; check that it has the same
+	 types, or it is compatible.  */
+      location_t original_location = DECL_SOURCE_LOCATION (x);
+	  
+      if (PROPERTY_NONATOMIC (x) != parsed_property_nonatomic)
+	{
+	  warning_at (location, 0,
+		      "'nonatomic' attribute of property %qD conflicts with previous declaration", decl);
+      
+	  if (original_location != UNKNOWN_LOCATION)
+	    inform (original_location, "originally specified here");
+	  return;
+	}
+
+      if (PROPERTY_GETTER_NAME (x) != parsed_property_getter_ident)
+	{
+	  warning_at (location, 0,
+		      "'getter' attribute of property %qD conflicts with previous declaration", decl);
+      
+	  if (original_location != UNKNOWN_LOCATION)
+	    inform (original_location, "originally specified here");
+	  return;
+	}
+
+      /* We can only compare the setter names if both the old and new property have a setter.  */
+      if (!property_readonly  &&  !PROPERTY_READONLY(x))
+	{
+	  if (PROPERTY_SETTER_NAME (x) != parsed_property_setter_ident)
+	    {
+	      warning_at (location, 0,
+			  "'setter' attribute of property %qD conflicts with previous declaration", decl);
+	      
+	      if (original_location != UNKNOWN_LOCATION)
+		inform (original_location, "originally specified here");
+	      return;
+	    }
+	}
+
+      if (PROPERTY_ASSIGN_SEMANTICS (x) != property_assign_semantics)
+	{
+	  warning_at (location, 0,
+		      "assign semantics attributes of property %qD conflict with previous declaration", decl);
+      
+	  if (original_location != UNKNOWN_LOCATION)
+	    inform (original_location, "originally specified here");
+	  return;
+	}
+
+      /* It's ok to have a readonly property that becomes a readwrite, but not vice versa.  */
+      if (PROPERTY_READONLY (x) == 0  &&  property_readonly == 1)
+	{
+	  warning_at (location, 0,
+		      "'readonly' attribute of property %qD conflicts with previous declaration", decl);
+      
+	  if (original_location != UNKNOWN_LOCATION)
+	    inform (original_location, "originally specified here");
+	  return;
+	}
+
+      /* We now check that the new and old property declarations have
+	 the same types (or compatible one).  In the Objective-C
+	 tradition of loose type checking, we do type-checking but
+	 only generate warnings (not errors) if they do not match.
+	 For non-readonly properties, the types must match exactly;
+	 for readonly properties, it is allowed to use a "more
+	 specialized" type in the new property declaration.  Eg, the
+	 superclass has a getter returning (NSArray *) and the
+	 subclass a getter returning (NSMutableArray *).  The object's
+	 getter returns an (NSMutableArray *); but if you cast the
+	 object to the superclass, which is allowed, you'd still
+	 expect the getter to return an (NSArray *), which works since
+	 an (NSMutableArray *) is an (NSArray *) too.  So, the set of
+	 objects belonging to the type of the new @property should be
+	 a subset of the set of objects belonging to the type of the
+	 old @property.  This is what "specialization" means.  And the
+	 reason it only applies to readonly properties is that for a
+	 readwrite property the setter would have the opposite
+	 requirement - ie that the superclass type is more specialized
+	 then the subclass one; hence the only way to satisfy both
+	 constraints is that the types match.  */
+
+      /* If the types are not the same in the C sense, we warn ...  */
+      if (!comptypes (TREE_TYPE (x), TREE_TYPE (decl))
+	  /* ... unless the property is readonly, in which case we
+	     allow a new, more specialized, declaration.  */
+	  && (!property_readonly 
+	      || !objc_compare_types (TREE_TYPE (x),
+				      TREE_TYPE (decl), -5, NULL_TREE)))
+	{
+	  warning_at (location, 0,
+		      "type of property %qD conflicts with previous declaration", decl);
+	  if (original_location != UNKNOWN_LOCATION)
+	    inform (original_location, "originally specified here");
+	  return;
+	}
+    }
+
+  /* Create a PROPERTY_DECL node.  */
+  property_decl = make_node (PROPERTY_DECL);
+
+  /* Copy the basic information from the original decl.  */
+  TREE_TYPE (property_decl) = TREE_TYPE (decl);
+  DECL_SOURCE_LOCATION (property_decl) = DECL_SOURCE_LOCATION (decl);
+  TREE_DEPRECATED (property_decl) = TREE_DEPRECATED (decl);
+  
+  /* Add property-specific information.  */
+  PROPERTY_NAME (property_decl) = DECL_NAME (decl);
+  PROPERTY_GETTER_NAME (property_decl) = parsed_property_getter_ident;
+  PROPERTY_SETTER_NAME (property_decl) = parsed_property_setter_ident;
+  PROPERTY_READONLY (property_decl) = property_readonly;
+  PROPERTY_NONATOMIC (property_decl) = parsed_property_nonatomic;
+  PROPERTY_ASSIGN_SEMANTICS (property_decl) = property_assign_semantics;
+  PROPERTY_IVAR_NAME (property_decl) = NULL_TREE;
+  PROPERTY_DYNAMIC (property_decl) = 0;
+
+  /* Note that PROPERTY_GETTER_NAME is always set for all
+     PROPERTY_DECLs, and PROPERTY_SETTER_NAME is always set for all
+     PROPERTY_DECLs where PROPERTY_READONLY == 0.  Any time we deal
+     with a getter or setter, we should get the PROPERTY_DECL and use
+     PROPERTY_GETTER_NAME and PROPERTY_SETTER_NAME to know the correct
+     names.  */
+
+  /* Add the PROPERTY_DECL to the list of properties for the class.  */
+  TREE_CHAIN (property_decl) = CLASS_PROPERTY_DECL (objc_interface_context);
+  CLASS_PROPERTY_DECL (objc_interface_context) = property_decl;
+}
+
+/* This is a subroutine of objc_maybe_build_component_ref.  Search the
+   list of methods in the interface (and, failing that, the local list
+   in the implementation, and failing that, the protocol list)
+   provided for a 'setter' or 'getter' for 'component' with default
+   names (ie, if 'component' is "name", then search for "name" and
+   "setName:").  If any is found, then create an artificial property
+   that uses them.  Return NULL_TREE if 'getter' or 'setter' could not
+   be found.  */
+static tree
+maybe_make_artificial_property_decl (tree interface, tree implementation, 
+				     tree protocol_list, tree component, bool is_class)
+{
+  tree getter_name = component;
+  tree setter_name = get_identifier (objc_build_property_setter_name (component));
+  tree getter = NULL_TREE;
+  tree setter = NULL_TREE;
+
+  /* First, check the @interface and all superclasses.  */
+  if (interface)
+    {
+      int flags = 0;
+
+      /* Using instance methods of the root class as accessors is most
+	 likely unwanted and can be extremely confusing (and, most
+	 importantly, other Objective-C 2.0 compilers do not do it).
+	 Turn it off.  */
+      if (is_class)
+	flags = OBJC_LOOKUP_CLASS | OBJC_LOOKUP_NO_INSTANCE_METHODS_OF_ROOT_CLASS;
+      
+      getter = lookup_method_static (interface, getter_name, flags);
+      setter = lookup_method_static (interface, setter_name, flags);
+    }
+
+  /* Second, check the local @implementation context.  */
+  if (!getter && !setter)
+    {
+      if (implementation)
+	{
+	  if (is_class)
+	    {
+	      getter = lookup_method (CLASS_CLS_METHODS (implementation), getter_name);
+	      setter = lookup_method (CLASS_CLS_METHODS (implementation), setter_name);
+	    }
+	  else
+	    {
+	      getter = lookup_method (CLASS_NST_METHODS (implementation), getter_name);
+	      setter = lookup_method (CLASS_NST_METHODS (implementation), setter_name);	      
+	    }
+	}
+    }
+
+  /* Try the protocol_list if we didn't find anything in the
+     @interface and in the @implementation.  */
+  if (!getter && !setter)
+    {
+      getter = lookup_method_in_protocol_list (protocol_list, getter_name, is_class);
+      setter = lookup_method_in_protocol_list (protocol_list, setter_name, is_class);
+    }
+
+  /* There needs to be at least a getter or setter for this to be a
+     valid 'object.component' syntax.  */
+  if (getter || setter)
+    {
+      /* Yes ... determine the type of the expression.  */
+      tree property_decl;
+      tree type;
+      
+      if (getter)
+	type = TREE_VALUE (TREE_TYPE (getter));
+      else
+	type = TREE_VALUE (TREE_TYPE (METHOD_SEL_ARGS (setter)));
+      
+      /* Create an artificial property declaration with the
+	 information we collected on the type and getter/setter
+	 names.  */
+      property_decl = make_node (PROPERTY_DECL);
+      
+      TREE_TYPE (property_decl) = type;
+      DECL_SOURCE_LOCATION (property_decl) = input_location;
+      TREE_DEPRECATED (property_decl) = 0;
+      DECL_ARTIFICIAL (property_decl) = 1;
+	      
+      /* Add property-specific information.  Note that one of
+	 PROPERTY_GETTER_NAME or PROPERTY_SETTER_NAME may refer to a
+	 non-existing method; this will generate an error when the
+	 expression is later compiled.  At this stage we don't know if
+	 the getter or setter will be used, so we can't generate an
+	 error.  */
+      PROPERTY_NAME (property_decl) = component;
+      PROPERTY_GETTER_NAME (property_decl) = getter_name;
+      PROPERTY_SETTER_NAME (property_decl) = setter_name;
+      PROPERTY_READONLY (property_decl) = 0;
+      PROPERTY_NONATOMIC (property_decl) = 0;
+      PROPERTY_ASSIGN_SEMANTICS (property_decl) = 0;
+      PROPERTY_IVAR_NAME (property_decl) = NULL_TREE;
+      PROPERTY_DYNAMIC (property_decl) = 0;
+
+      if (!getter)
+	PROPERTY_HAS_NO_GETTER (property_decl) = 1;
+
+      /* The following is currently unused, but it's nice to have
+	 there.  We may use it if we need in the future.  */
+      if (!setter)
+	PROPERTY_HAS_NO_SETTER (property_decl) = 1;
+
+      return property_decl;
+    }
+
+  return NULL_TREE;
+}
 
 /* This hook routine is invoked by the parser when an expression such
    as 'xxx.yyy' is parsed.  We get a chance to process these
    expressions in a way that is specified to Objective-C (to implement
-   properties, or non-fragile ivars).  If the expression is not an
-   Objective-C specified expression, we should return NULL_TREE; else
-   we return the expression.
+   the Objective-C 2.0 dot-syntax, properties, or non-fragile ivars).
+   If the expression is not an Objective-C specified expression, we
+   should return NULL_TREE; else we return the expression.
 
-   At the moment this only implements properties (not non-fragile
-   ivars yet), ie 'object.property'.  */
+   At the moment this only implements dot-syntax and properties (not
+   non-fragile ivars yet), ie 'object.property' or 'object.component'
+   where 'component' is not a declared property, but a valid getter or
+   setter for it could be found.  */
 tree
 objc_maybe_build_component_ref (tree object, tree property_ident)
 {
   tree x = NULL_TREE;
   tree rtype;
 
-  /* Try to determine quickly if 'object' is an Objective-C object or
-     not.  If not, return.  */
+  /* If we are in Objective-C 1.0 mode, dot-syntax and properties are
+     not available.  */
+  if (flag_objc1_only)
+    return NULL_TREE;
+
+  /* Try to determine if 'object' is an Objective-C object or not.  If
+     not, return.  */
   if (object == NULL_TREE || object == error_mark_node 
       || (rtype = TREE_TYPE (object)) == NULL_TREE)
     return NULL_TREE;
@@ -1079,26 +1453,114 @@ objc_maybe_build_component_ref (tree object, tree property_ident)
       || TREE_CODE (property_ident) != IDENTIFIER_NODE)
     return NULL_TREE;
 
-  /* TODO: Implement super.property.  */
-  
-  /* TODO: Carefully review the following code.  */
+  /* The following analysis of 'object' is similar to the one used for
+     the 'receiver' of a method invocation.  We need to determine what
+     'object' is and find the appropriate property (either declared,
+     or artificial) for it (in the same way as we need to find the
+     appropriate method prototype for a method invocation).  There are
+     some simplifications here though: "object.property" is invalid if
+     "object" has a type of "id" or "Class"; it must at least have a
+     protocol attached to it, and "object" is never a class name as
+     that is done by objc_build_class_component_ref.  Finally, we
+     don't know if this really is a dot-syntax expression, so we want
+     to make a quick exit if it is not; for this reason, we try to
+     postpone checks after determining that 'object' looks like an
+     Objective-C object.  */
+
   if (objc_is_id (rtype))
     {
-      tree rprotos = (TYPE_HAS_OBJC_INFO (TREE_TYPE (rtype))
-		      ? TYPE_OBJC_PROTOCOL_LIST (TREE_TYPE (rtype))
-		      : NULL_TREE);
-      if (rprotos)
-	x = lookup_property_in_protocol_list (rprotos, property_ident);
+      /* This is the case that the 'object' is of type 'id' or
+	 'Class'.  */
+
+      /* Check if at least it is of type 'id <Protocol>' or 'Class
+	 <Protocol>'; if so, look the property up in the
+	 protocols.  */
+      if (TYPE_HAS_OBJC_INFO (TREE_TYPE (rtype)))
+	{
+	  tree rprotos = TYPE_OBJC_PROTOCOL_LIST (TREE_TYPE (rtype));
+	  
+	  if (rprotos)
+	    {
+	      /* No point looking up declared @properties if we are
+		 dealing with a class.  Classes have no declared
+		 properties.  */
+	      if (!IS_CLASS (rtype))
+		x = lookup_property_in_protocol_list (rprotos, property_ident);
+	      
+	      if (x == NULL_TREE)
+		{
+		  /* Ok, no property.  Maybe it was an
+		     object.component dot-syntax without a declared
+		     property (this is valid for classes too).  Look
+		     for getter/setter methods and internally declare
+		     an artifical property based on them if found.  */
+		  x = maybe_make_artificial_property_decl (NULL_TREE,
+							   NULL_TREE,
+							   rprotos, 
+							   property_ident,
+							   IS_CLASS (rtype));
+		}
+	    }
+	}
+      else if (objc_method_context)
+	{
+	  /* Else, if we are inside a method it could be the case of
+	     'super' or 'self'.  */
+	  tree interface_type = NULL_TREE;
+	  tree t = object;
+	  while (TREE_CODE (t) == COMPOUND_EXPR
+		 || TREE_CODE (t) == MODIFY_EXPR
+		 || CONVERT_EXPR_P (t)
+		 || TREE_CODE (t) == COMPONENT_REF)
+	    t = TREE_OPERAND (t, 0);
+	  
+	  if (t == UOBJC_SUPER_decl)
+	    {
+	      /* TODO: Check if this is correct also for 'super' in categories.  */
+	      interface_type = lookup_interface (CLASS_SUPER_NAME (implementation_template));
+	    }
+	  else if (t == self_decl)
+	    interface_type = lookup_interface (CLASS_NAME (implementation_template));
+
+	  if (interface_type)
+	    {
+	      if (TREE_CODE (objc_method_context) != CLASS_METHOD_DECL)
+		x = lookup_property (interface_type, property_ident);
+	
+	      if (x == NULL_TREE)
+		{
+		  /* Try the dot-syntax without a declared property.
+		     If this is an access to 'self', it is possible
+		     that they may refer to a setter/getter that is
+		     not declared in the interface, but exists locally
+		     in the implementation.  In that case, get the
+		     implementation context and use it.  */
+		  tree implementation = NULL_TREE;
+
+		  if (t == self_decl)
+		    implementation = objc_implementation_context;
+		  
+		  x = maybe_make_artificial_property_decl 
+		    (interface_type, implementation, NULL_TREE,
+		     property_ident,
+		     (TREE_CODE (objc_method_context) == CLASS_METHOD_DECL));
+		}
+	    }
+	}
     }
   else
     {
+      /* This is the case where we have more information on 'rtype'.  */
       tree basetype = TYPE_MAIN_VARIANT (rtype);
 
+      /* Skip the pointer - if none, it's not an Objective-C object or
+	 class.  */
       if (basetype != NULL_TREE && TREE_CODE (basetype) == POINTER_TYPE)
 	basetype = TREE_TYPE (basetype);
       else
 	return NULL_TREE;
 
+      /* Traverse typedefs.  */
       while (basetype != NULL_TREE
 	     && TREE_CODE (basetype) == RECORD_TYPE 
 	     && OBJC_TYPE_NAME (basetype)
@@ -1110,50 +1572,170 @@ objc_maybe_build_component_ref (tree object, tree property_ident)
 	{
 	  tree interface_type = TYPE_OBJC_INTERFACE (basetype);
 	  tree protocol_list = TYPE_OBJC_PROTOCOL_LIST (basetype);
-	  
-	  x = lookup_property (interface_type, property_ident);
 
-	  if (x == NULL_TREE)
-	    x = lookup_property_in_protocol_list (protocol_list, property_ident);
+	  if (interface_type 
+	      && (TREE_CODE (interface_type) == CLASS_INTERFACE_TYPE
+		  || TREE_CODE (interface_type) == CATEGORY_INTERFACE_TYPE
+		  || TREE_CODE (interface_type) == PROTOCOL_INTERFACE_TYPE))
+	    {
+	      /* Not sure 'rtype' could ever be a class here!  Just
+		 for safety we keep the checks.  */
+	      if (!IS_CLASS (rtype))
+		{
+		  x = lookup_property (interface_type, property_ident);
+		  
+		  if (x == NULL_TREE)
+		    x = lookup_property_in_protocol_list (protocol_list, 
+							  property_ident);
+		}
+	      
+	      if (x == NULL_TREE)
+		{
+		  /* Try the dot-syntax without a declared property.
+		     If we are inside a method implementation, it is
+		     possible that they may refer to a setter/getter
+		     that is not declared in the interface, but exists
+		     locally in the implementation.  In that case, get
+		     the implementation context and use it.  */
+		  tree implementation = NULL_TREE;
+
+		  if (objc_implementation_context
+		      && CLASS_NAME (objc_implementation_context) 
+		      == OBJC_TYPE_NAME (interface_type))
+		    implementation = objc_implementation_context;
+		  
+		  x = maybe_make_artificial_property_decl (interface_type,
+							   implementation,
+							   protocol_list, 
+							   property_ident,
+							   IS_CLASS (rtype));
+		}
+	    }
 	}
     }
 
   if (x)
     {
       tree expression;
-
-      if (TREE_DEPRECATED (x))
-	warn_deprecated_use (x, NULL_TREE);
-
-      expression = build2 (PROPERTY_REF, TREE_TYPE(x), object, x);
-      SET_EXPR_LOCATION (expression, input_location);
-      TREE_SIDE_EFFECTS (expression) = 1;
+      tree getter_call;
 
       /* We have an additional nasty problem here; if this
 	 PROPERTY_REF needs to become a 'getter', then the conversion
 	 from PROPERTY_REF into a getter call happens in gimplify,
-	 after the selector table has already been generated and it is
-	 too late to add another selector to it.  To work around the
-	 problem, we always put the selector in the table at this
-	 stage, as if we were building the method call here.  And the
-	 easiest way to do this is precisely to build the method call,
-	 then discard it.  Note that if the PROPERTY_REF becomes a
-	 'setter' instead of a 'getter', then we have added a selector
-	 too many to the selector table.  This is a little
-	 inefficient.
+	 after the selector table has already been generated and when
+	 it is too late to add another selector to it.  To work around
+	 the problem, we always create the getter call at this stage,
+	 which puts the selector in the table.  Note that if the
+	 PROPERTY_REF becomes a 'setter' instead of a 'getter', then
+	 we have added a selector too many to the selector table.
+	 This is a little inefficient.
 
-	 TODO: This can be made more efficient; in particular we don't
-	 need to build the whole message call, we could just work on
-	 the selector.  */
-      objc_finish_message_expr (object,
-				PROPERTY_GETTER_NAME (x),
-				NULL_TREE);
+	 Also note that method calls to 'self' and 'super' require the
+	 context (self_decl, UOBJS_SUPER_decl,
+	 objc_implementation_context etc) to be built correctly; this
+	 is yet another reason why building the call at the gimplify
+	 stage (when this context has been lost) is not very
+	 practical.  If we build it at this stage, we know it will
+	 always be built correctly.
+
+	 If the PROPERTY_HAS_NO_GETTER() (ie, it is an artificial
+	 property decl created to deal with a dotsyntax not really
+	 referring to an existing property) then do not try to build a
+	 call to the getter as there is no getter.  */
+      if (PROPERTY_HAS_NO_GETTER (x))
+	getter_call = NULL_TREE;
+      else
+	getter_call = objc_finish_message_expr (object,
+						PROPERTY_GETTER_NAME (x),
+						NULL_TREE);
+
+      if (TREE_DEPRECATED (x))
+	warn_deprecated_use (x, NULL_TREE);
+
+      expression = build3 (PROPERTY_REF, TREE_TYPE(x), object, x, getter_call);
+      SET_EXPR_LOCATION (expression, input_location);
+      TREE_SIDE_EFFECTS (expression) = 1;
       
       return expression;
     }
 
   return NULL_TREE;
 }
+
+/* This hook routine is invoked by the parser when an expression such
+   as 'xxx.yyy' is parsed, and 'xxx' is a class name.  This is the
+   Objective-C 2.0 dot-syntax applied to classes, so we need to
+   convert it into a setter/getter call on the class.  */
+tree
+objc_build_class_component_ref (tree class_name, tree property_ident)
+{
+  tree x = NULL_TREE;
+  tree object, rtype;
+  
+  if (flag_objc1_only)
+    error_at (input_location, "the dot syntax is not available in Objective-C 1.0");
+  
+  if (class_name == NULL_TREE || class_name == error_mark_node
+      || TREE_CODE (class_name) != IDENTIFIER_NODE)
+    return error_mark_node;
+  
+  if (property_ident == NULL_TREE || property_ident == error_mark_node
+      || TREE_CODE (property_ident) != IDENTIFIER_NODE)
+    return NULL_TREE;
+  
+  object = objc_get_class_reference (class_name);
+  if (!object)
+    {
+      /* We know that 'class_name' is an Objective-C class name as the
+	 parser won't call this function if it is not.  This is only a
+	 double-check for safety.  */
+      error_at (input_location, "could not find class %qE", class_name); 
+      return error_mark_node;
+    }
+
+  rtype = lookup_interface (class_name);
+  if (!rtype)
+    {
+      /* Again, this should never happen, but we do check.  */
+      error_at (input_location, "could not find interface for class %qE", class_name); 
+      return error_mark_node;
+    }
+
+  x = maybe_make_artificial_property_decl (rtype, NULL_TREE, NULL_TREE,
+					   property_ident,
+					   true);
+  
+  if (x)
+    {
+      tree expression;
+      tree getter_call;
+
+      if (PROPERTY_HAS_NO_GETTER (x))
+	getter_call = NULL_TREE;
+      else
+	getter_call = objc_finish_message_expr (object,
+						PROPERTY_GETTER_NAME (x),
+						NULL_TREE);
+      if (TREE_DEPRECATED (x))
+	warn_deprecated_use (x, NULL_TREE);
+
+      expression = build3 (PROPERTY_REF, TREE_TYPE(x), object, x, getter_call);
+      SET_EXPR_LOCATION (expression, input_location);
+      TREE_SIDE_EFFECTS (expression) = 1;
+
+      return expression;
+    }
+  else
+    {
+      error_at (input_location, "could not find setter/getter for %qE in class %qE", 
+		property_ident,	class_name); 
+      return error_mark_node;
+    }
+
+  return NULL_TREE;
+}
+
+
 
 /* This is used because we don't want to expose PROPERTY_REF to the
    C/C++ frontends.  Maybe we should!  */
@@ -1197,6 +1779,9 @@ objc_maybe_build_modify_expr (tree lhs, tree rhs)
 	{
 	  tree setter_argument = build_tree_list (NULL_TREE, rhs);
 	  tree setter;
+
+	  /* TODO: Check that the setter return type is 'void'.  */
+
 	  /* TODO: Decay argument in C.  */
 	  setter = objc_finish_message_expr (object_expr, 
 					     PROPERTY_SETTER_NAME (property_decl),
@@ -1206,6 +1791,116 @@ objc_maybe_build_modify_expr (tree lhs, tree rhs)
     }
   else
     return NULL_TREE;
+}
+
+/* This hook is called by the frontend when one of the four unary
+   expressions PREINCREMENT_EXPR, POSTINCREMENT_EXPR,
+   PREDECREMENT_EXPR and POSTDECREMENT_EXPR is being built with an
+   argument which is a PROPERTY_REF.  For example, this happens if you have
+
+   object.count++;
+
+   where 'count' is a property.  We need to use the 'getter' and
+   'setter' for the property in an appropriate way to build the
+   appropriate expression.  'code' is the code for the expression (one
+   of the four mentioned above); 'argument' is the PROPERTY_REF, and
+   'increment' is how much we need to add or subtract.  */   
+tree
+objc_build_incr_expr_for_property_ref (location_t location,
+				       enum tree_code code, 
+				       tree argument, tree increment)
+{
+  /* Here are the expressions that we want to build:
+
+     For PREINCREMENT_EXPR / PREDECREMENT_EXPR:
+    (temp = [object property] +/- increment, [object setProperty: temp], temp)
+    
+    For POSTINCREMENT_EXPR / POSTECREMENT_EXPR:
+    (temp = [object property], [object setProperty: temp +/- increment], temp) */
+  
+  tree temp_variable_decl, bind;
+  /* s1, s2 and s3 are the tree statements that we need in the
+     compound expression.  */
+  tree s1, s2, s3;
+  
+  /* Safety check.  */
+  if (!argument || TREE_CODE (argument) != PROPERTY_REF)
+    return error_mark_node;
+
+  /* Declare __objc_property_temp in a local bind.  */
+  temp_variable_decl = objc_create_temporary_var (TREE_TYPE (argument), "__objc_property_temp");
+  DECL_SOURCE_LOCATION (temp_variable_decl) = location;
+  bind = build3 (BIND_EXPR, void_type_node, temp_variable_decl, NULL, NULL);
+  SET_EXPR_LOCATION (bind, location);
+  TREE_SIDE_EFFECTS (bind) = 1;
+  add_stmt (bind);
+  
+  /* Now build the compound statement.  */
+  
+  /* Note that the 'getter' is generated at gimplify time; at this
+     time, we can simply put the property_ref (ie, argument) wherever
+     we want the getter ultimately to be.  */
+  
+  /* s1: __objc_property_temp = [object property] <+/- increment> */
+  switch (code)
+    {
+    case PREINCREMENT_EXPR:	 
+      /* __objc_property_temp = [object property] + increment */
+      s1 = build2 (MODIFY_EXPR, void_type_node, temp_variable_decl,
+		   build2 (PLUS_EXPR, TREE_TYPE (argument), argument, increment));
+      break;
+    case PREDECREMENT_EXPR:
+      /* __objc_property_temp = [object property] - increment */
+      s1 = build2 (MODIFY_EXPR, void_type_node, temp_variable_decl,
+		   build2 (MINUS_EXPR, TREE_TYPE (argument), argument, increment));
+      break;
+    case POSTINCREMENT_EXPR:
+    case POSTDECREMENT_EXPR:
+      /* __objc_property_temp = [object property] */
+      s1 = build2 (MODIFY_EXPR, void_type_node, temp_variable_decl, argument);
+      break;
+    default:
+      gcc_unreachable ();
+    }
+  SET_EXPR_LOCATION (s1, location);
+  
+  /* s2: [object setProperty: __objc_property_temp <+/- increment>] */
+  switch (code)
+    {
+    case PREINCREMENT_EXPR:	 
+    case PREDECREMENT_EXPR:
+      /* [object setProperty: __objc_property_temp] */
+      s2 = objc_maybe_build_modify_expr (argument, temp_variable_decl);
+      break;
+    case POSTINCREMENT_EXPR:
+      /* [object setProperty: __objc_property_temp + increment] */
+      s2 = objc_maybe_build_modify_expr (argument,
+					 build2 (PLUS_EXPR, TREE_TYPE (argument), 
+						 temp_variable_decl, increment));
+      break;
+    case POSTDECREMENT_EXPR:
+      /* [object setProperty: __objc_property_temp - increment] */
+      s2 = objc_maybe_build_modify_expr (argument,
+					 build2 (MINUS_EXPR, TREE_TYPE (argument), 
+						 temp_variable_decl, increment));
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  /* This happens if building the setter failed because the property
+     is readonly.  */
+  if (s2 == error_mark_node)
+    return error_mark_node;
+
+  SET_EXPR_LOCATION (s2, location); 
+  
+  /* s3: __objc_property_temp */
+  s3 = build1 (NOP_EXPR, TREE_TYPE (argument), temp_variable_decl);
+  SET_EXPR_LOCATION (s3, location); 
+  
+  /* Now build the compound statement (s1, s2, s3) */
+  return build_compound_expr (location, build_compound_expr (location, s1, s2), s3);
 }
 
 tree
@@ -1231,6 +1926,9 @@ objc_add_method_declaration (bool is_class_method, tree decl, tree attributes)
       */
       fatal_error ("method declaration not in @interface context");
     }
+
+  if (flag_objc1_only && attributes)
+    error_at (input_location, "method attributes are not available in Objective-C 1.0");
 
   objc_decl_method_attributes (&decl, attributes, 0);
   objc_add_method (objc_interface_context,
@@ -1601,8 +2299,8 @@ objc_common_type (tree type1, tree type2)
    returning 'true', this routine may issue warnings related to, e.g.,
    protocol conformance.  When returning 'false', the routine must
    produce absolutely no warnings; the C or C++ front-end will do so
-   instead, if needed.  If either LTYP or RTYP is not an Objective-C type,
-   the routine must return 'false'.
+   instead, if needed.  If either LTYP or RTYP is not an Objective-C
+   type, the routine must return 'false'.
 
    The ARGNO parameter is encoded as follows:
      >= 1	Parameter number (CALLEE contains function being called);
@@ -1610,8 +2308,11 @@ objc_common_type (tree type1, tree type2)
      -1		Assignment;
      -2		Initialization;
      -3		Comparison (LTYP and RTYP may match in either direction);
-     -4		Silent comparison (for C++ overload resolution).
-  */
+     -4		Silent comparison (for C++ overload resolution);
+     -5		Silent "specialization" comparison for RTYP to be a "specialization" 
+                of LTYP (a specialization means that RTYP is LTYP plus some constraints, 
+                so that each object of type RTYP is also of type LTYP).  This is used
+                when comparing property types.  */
 
 bool
 objc_compare_types (tree ltyp, tree rtyp, int argno, tree callee)
@@ -1696,11 +2397,24 @@ objc_compare_types (tree ltyp, tree rtyp, int argno, tree callee)
   if (rcls && TREE_CODE (rcls) == IDENTIFIER_NODE)
     rcls = NULL_TREE;
 
-  /* If either type is an unqualified 'id', we're done.  */
-  if ((!lproto && objc_is_object_id (ltyp))
-      || (!rproto && objc_is_object_id (rtyp)))
-    return true;
-
+  /* If either type is an unqualified 'id', we're done.  This is because
+     an 'id' can be assigned to or from any type with no warnings.  */
+  if (argno != -5)
+    {
+      if ((!lproto && objc_is_object_id (ltyp))
+	  || (!rproto && objc_is_object_id (rtyp)))
+	return true;
+    }
+  else
+    {
+      /* For property checks, though, an 'id' is considered the most
+	 general type of object, hence if you try to specialize an
+	 'NSArray *' (ltyp) property with an 'id' (rtyp) one, we need
+	 to warn.  */
+      if (!lproto && objc_is_object_id (ltyp))
+	return true;
+    }
+  
   pointers_compatible = (TYPE_MAIN_VARIANT (ltyp) == TYPE_MAIN_VARIANT (rtyp));
 
   /* If the underlying types are the same, and at most one of them has
@@ -1716,13 +2430,22 @@ objc_compare_types (tree ltyp, tree rtyp, int argno, tree callee)
   else
     {
       if (!pointers_compatible)
-	pointers_compatible
-	  = (objc_is_object_id (ltyp) || objc_is_object_id (rtyp));
+	{
+	  /* Again, if any of the two is an 'id', we're satisfied,
+	     unless we're comparing properties, in which case only an
+	     'id' on the left-hand side (old property) is good
+	     enough.  */
+	  if (argno != -5)
+	    pointers_compatible
+	      = (objc_is_object_id (ltyp) || objc_is_object_id (rtyp));
+	  else
+	    pointers_compatible = objc_is_object_id (ltyp);	    
+	}
 
       if (!pointers_compatible)
 	pointers_compatible = DERIVED_FROM_P (ltyp, rtyp);
 
-      if (!pointers_compatible && argno <= -3)
+      if (!pointers_compatible && (argno == -3 || argno == -4))
 	pointers_compatible = DERIVED_FROM_P (rtyp, ltyp);
     }
 
@@ -1748,6 +2471,7 @@ objc_compare_types (tree ltyp, tree rtyp, int argno, tree callee)
 	 ObjC-specific.  */
       switch (argno)
 	{
+	case -5:
 	case -4:
 	  return false;
 
@@ -1974,7 +2698,22 @@ objc_get_protocol_qualified_type (tree interface, tree protocols)
 		  : xref_tag (RECORD_TYPE, type));
 	}
       else
-        return interface;
+	{
+	  /* This case happens when we are given an 'interface' which
+	     is not a valid class name.  For example if a typedef was
+	     used, and 'interface' really is the identifier of the
+	     typedef, but when you resolve it you don't get an
+	     Objective-C class, but something else, such as 'int'.
+	     This is an error; protocols make no sense unless you use
+	     them with Objective-C objects.  */
+	  error_at (input_location, "only Objective-C object types can be qualified with a protocol");
+
+	  /* Try to recover.  Ignore the invalid class name, and treat
+	     the object as an 'id' to silence further warnings about
+	     the class.  */
+	  type = objc_object_type;
+	  is_ptr = true;
+	}
     }
 
   if (protocols)
@@ -2530,9 +3269,9 @@ objc_build_string_object (tree string)
      literal.  On Darwin (Mac OS X), for example, we may wish to obtain a 
      constant CFString reference instead.
      At present, this is only supported for the NeXT runtime.  */
-  if (flag_next_runtime && targetcm.objc_construct_string)
+  if (flag_next_runtime && targetcm.objc_construct_string_object)
     {
-      tree constructor = (*targetcm.objc_construct_string) (string);
+      tree constructor = (*targetcm.objc_construct_string_object) (string);
       if (constructor)
 	return build1 (NOP_EXPR, objc_object_type, constructor);
     }
@@ -4056,32 +4795,6 @@ get_class_ivars (tree interface, bool inherited)
   return ivar_chain;
 }
 
-/* Create a temporary variable of type 'type'.  If 'name' is set, uses
-   the specified name, else use no name.  Returns the declaration of
-   the type.  The 'name' is mostly useful for debugging.
-*/
-static tree
-objc_create_temporary_var (tree type, const char *name)
-{
-  tree decl;
-
-  if (name != NULL)
-    {
-      decl = build_decl (input_location,
-			 VAR_DECL, get_identifier (name), type);
-    }
-  else
-    {
-      decl = build_decl (input_location,
-			 VAR_DECL, NULL_TREE, type);
-    }
-  TREE_USED (decl) = 1;
-  DECL_ARTIFICIAL (decl) = 1;
-  DECL_IGNORED_P (decl) = 1;
-  DECL_CONTEXT (decl) = current_function_decl;
-
-  return decl;
-}
 
 /* Exception handling constructs.  We begin by having the parser do most
    of the work and passing us blocks.  What we do next depends on whether
@@ -6518,6 +7231,9 @@ objc_build_keyword_decl (tree key_name, tree arg_type,
 {
   tree keyword_decl;
 
+  if (flag_objc1_only && attributes)
+    error_at (input_location, "method argument attributes are not available in Objective-C 1.0");
+
   /* If no type is specified, default to "id".  */
   arg_type = adjust_type_for_id_default (arg_type);
 
@@ -7728,13 +8444,16 @@ lookup_method (tree mchain, tree method)
   return NULL_TREE;
 }
 
-/* Look up a class (if OBJC_LOOKUP_CLASS is set in FLAGS) or instance method
-   in INTERFACE, along with any categories and protocols attached thereto.
-   If method is not found, and the OBJC_LOOKUP_NO_SUPER is _not_ set in FLAGS,
-   recursively examine the INTERFACE's superclass.  If OBJC_LOOKUP_CLASS is
-   set, OBJC_LOOKUP_NO_SUPER is cleared, and no suitable class method could
-   be found in INTERFACE or any of its superclasses, look for an _instance_
-   method of the same name in the root class as a last resort.
+/* Look up a class (if OBJC_LOOKUP_CLASS is set in FLAGS) or instance
+   method in INTERFACE, along with any categories and protocols
+   attached thereto.  If method is not found, and the
+   OBJC_LOOKUP_NO_SUPER is _not_ set in FLAGS, recursively examine the
+   INTERFACE's superclass.  If OBJC_LOOKUP_CLASS is set,
+   OBJC_LOOKUP_NO_SUPER is clear, and no suitable class method could
+   be found in INTERFACE or any of its superclasses, look for an
+   _instance_ method of the same name in the root class as a last
+   resort.  This behaviour can be turned off by using
+   OBJC_LOOKUP_NO_INSTANCE_METHODS_OF_ROOT_CLASS.
 
    If a suitable method cannot be found, return NULL_TREE.  */
 
@@ -7745,6 +8464,7 @@ lookup_method_static (tree interface, tree ident, int flags)
   tree inter = interface;
   int is_class = (flags & OBJC_LOOKUP_CLASS);
   int no_superclasses = (flags & OBJC_LOOKUP_NO_SUPER);
+  int no_instance_methods_of_root_class = (flags & OBJC_LOOKUP_NO_INSTANCE_METHODS_OF_ROOT_CLASS);
 
   while (inter)
     {
@@ -7791,11 +8511,18 @@ lookup_method_static (tree interface, tree ident, int flags)
     }
   while (inter);
 
-  /* If no class (factory) method was found, check if an _instance_
-     method of the same name exists in the root class.  This is what
-     the Objective-C runtime will do.  If an instance method was not
-     found, return 0.  */
-  return is_class ? lookup_method_static (root_inter, ident, 0): NULL_TREE;
+  if (is_class && !no_instance_methods_of_root_class)
+    {
+      /* If no class (factory) method was found, check if an _instance_
+	 method of the same name exists in the root class.  This is what
+	 the Objective-C runtime will do.  */
+      return lookup_method_static (root_inter, ident, 0);
+    }
+  else
+    {
+      /* If an instance method was not found, return 0.  */      
+      return NULL_TREE;
+    }
 }
 
 /* Add the method to the hash list if it doesn't contain an identical
@@ -8176,20 +8903,44 @@ objc_is_public (tree expr, tree identifier)
   return 1;
 }
 
-/* Make sure all entries in CHAIN are also in LIST.  */
+/* Make sure all methods in CHAIN (a list of method declarations from
+   an @interface or a @protocol) are in IMPLEMENTATION (the
+   implementation context).  This is used to check for example that
+   all methods declared in an @interface were implemented in an
+   @implementation.
+
+   Some special methods (property setters/getters) are special and if
+   they are not found in IMPLEMENTATION, we look them up in its
+   superclasses.  */
 
 static int
-check_methods (tree chain, tree list, int mtype)
+check_methods (tree chain, tree implementation, int mtype)
 {
   int first = 1;
+  tree list;
+
+  if (mtype == (int)'+')
+    list = CLASS_CLS_METHODS (implementation);
+  else
+    list = CLASS_NST_METHODS (implementation);
 
   while (chain)
     {
       /* If the method is associated with a dynamic property, then it
 	 is Ok not to have the method implementation, as it will be
-	 generated dynamically at runtime.  */
-      tree property = METHOD_PROPERTY_CONTEXT (chain);
-      if (property != NULL_TREE  &&  PROPERTY_DYNAMIC (property))
+	 generated dynamically at runtime.  To decide if the method is
+	 associated with a @dynamic property, we search the list of
+	 @synthesize and @dynamic for this implementation, and look
+	 for any @dynamic property with the same setter or getter name
+	 as this method.  */
+      tree x;
+      for (x = IMPL_PROPERTY_DECL (implementation); x; x = TREE_CHAIN (x))
+	if (PROPERTY_DYNAMIC (x)
+	    && (PROPERTY_GETTER_NAME (x) == METHOD_SEL_NAME (chain)
+		|| PROPERTY_SETTER_NAME (x) == METHOD_SEL_NAME (chain)))
+	  break;
+      
+      if (x != NULL_TREE)
 	{
 	  chain = TREE_CHAIN (chain); /* next method...  */
 	  continue;
@@ -8197,17 +8948,67 @@ check_methods (tree chain, tree list, int mtype)
 
       if (!lookup_method (list, chain))
 	{
+	  /* If the method is a property setter/getter, we'll still
+	     allow it to be missing if it is implemented by
+	     'interface' or any of its superclasses.  */
+	  tree property = METHOD_PROPERTY_CONTEXT (chain);
+	  if (property)
+	    {
+	      /* Note that since this is a property getter/setter, it
+		 is obviously an instance method.  */
+	      tree interface = NULL_TREE;
+
+	      /* For a category, first check the main class
+		 @interface.  */
+	      if (TREE_CODE (implementation) == CATEGORY_IMPLEMENTATION_TYPE)
+		{
+		  interface = lookup_interface (CLASS_NAME (implementation));
+
+		  /* If the method is found in the main class, it's Ok.  */
+		  if (lookup_method (CLASS_NST_METHODS (interface), chain))
+		    {
+		      chain = DECL_CHAIN (chain);
+		      continue;		      
+		    }
+
+		  /* Else, get the superclass.  */
+		  if (CLASS_SUPER_NAME (interface))
+		    interface = lookup_interface (CLASS_SUPER_NAME (interface));
+		  else
+		    interface = NULL_TREE;
+		}
+
+	      /* Get the superclass for classes.  */
+	      if (TREE_CODE (implementation) == CLASS_IMPLEMENTATION_TYPE)
+		{
+		  if (CLASS_SUPER_NAME (implementation))
+		    interface = lookup_interface (CLASS_SUPER_NAME (implementation));
+		  else
+		    interface = NULL_TREE;
+		}
+
+	      /* Now, interface is the superclass, if any; go check it.  */
+	      if (interface)
+		{
+		  if (lookup_method_static (interface, chain, 0))
+		    {
+		      chain = DECL_CHAIN (chain);
+		      continue;
+		    }
+		}
+	      /* Else, fall through - warn.  */
+	    }
 	  if (first)
 	    {
-	      switch (TREE_CODE (objc_implementation_context))
+	      switch (TREE_CODE (implementation))
 		{
 		case CLASS_IMPLEMENTATION_TYPE:
 		  warning (0, "incomplete implementation of class %qE",
-			   CLASS_NAME (objc_implementation_context));
+			   CLASS_NAME (implementation));
 		  break;
 		case CATEGORY_IMPLEMENTATION_TYPE:
 		  warning (0, "incomplete implementation of category %qE",
-			   CLASS_SUPER_NAME (objc_implementation_context));
+			   CLASS_SUPER_NAME (implementation));
 		  break;
 		default:
 		  gcc_unreachable ();
@@ -8264,13 +9065,21 @@ check_methods_accessible (tree chain, tree context, int mtype)
     {
       /* If the method is associated with a dynamic property, then it
 	 is Ok not to have the method implementation, as it will be
-	 generated dynamically at runtime.  */
-      tree property = METHOD_PROPERTY_CONTEXT (chain);
-      if (property != NULL_TREE  &&  PROPERTY_DYNAMIC (property))
+	 generated dynamically at runtime.  Search for any @dynamic
+	 property with the same setter or getter name as this
+	 method.  TODO: Use a hashtable lookup.  */
+      tree x;
+      for (x = IMPL_PROPERTY_DECL (base_context); x; x = TREE_CHAIN (x))
+	if (PROPERTY_DYNAMIC (x)
+	    && (PROPERTY_GETTER_NAME (x) == METHOD_SEL_NAME (chain)
+		|| PROPERTY_SETTER_NAME (x) == METHOD_SEL_NAME (chain)))
+	  break;
+      
+      if (x != NULL_TREE)
 	{
 	  chain = TREE_CHAIN (chain); /* next method...  */
 	  continue;
-	}
+	}	
 
       context = base_context;
       while (context)
@@ -8345,10 +9154,10 @@ check_protocol (tree p, const char *type, tree name)
       if (warn_protocol)
 	{
 	  f1 = check_methods (PROTOCOL_CLS_METHODS (p),
-			      CLASS_CLS_METHODS (objc_implementation_context),
+			      objc_implementation_context,
 			      '+');
 	  f2 = check_methods (PROTOCOL_NST_METHODS (p),
-			      CLASS_NST_METHODS (objc_implementation_context),
+			      objc_implementation_context,
 			      '-');
 	}
       else
@@ -8763,7 +9572,7 @@ lookup_ivar (tree interface, tree instance_variable_name)
 /* This routine synthesizes a 'getter' method.  This is only called
    for @synthesize properties.  */
 static void
-objc_synthesize_getter (tree klass, tree class_method, tree property)
+objc_synthesize_getter (tree klass, tree class_methods ATTRIBUTE_UNUSED, tree property)
 {
   location_t location = DECL_SOURCE_LOCATION (property);
   tree fn, decl;
@@ -8775,9 +9584,9 @@ objc_synthesize_getter (tree klass, tree class_method, tree property)
 		     PROPERTY_GETTER_NAME (property)))
     return;
 
-  /* Find declaration of the property getter in the interface. There
-     must be one.  TODO: Search superclasses as well.  */
-  decl = lookup_method (CLASS_NST_METHODS (class_method), PROPERTY_GETTER_NAME (property));
+  /* Find declaration of the property getter in the interface (or
+     superclass, or protocol). There must be one.  */
+  decl = lookup_method_static (klass, PROPERTY_GETTER_NAME (property), 0);
 
   /* If one not declared in the interface, this condition has already
      been reported as user error (because property was not declared in
@@ -8942,7 +9751,7 @@ objc_synthesize_getter (tree klass, tree class_method, tree property)
 /* This routine synthesizes a 'setter' method.  */
 
 static void
-objc_synthesize_setter (tree klass ATTRIBUTE_UNUSED, tree class_method, tree property)
+objc_synthesize_setter (tree klass, tree class_methods ATTRIBUTE_UNUSED, tree property)
 {
   location_t location = DECL_SOURCE_LOCATION (property);
   tree fn, decl;
@@ -8954,9 +9763,9 @@ objc_synthesize_setter (tree klass ATTRIBUTE_UNUSED, tree class_method, tree pro
 		     PROPERTY_SETTER_NAME (property)))
     return;
 
-  /* Find declaration of the property setter in the interface. There
-     must be one.  TODO: Search superclasses as well.  */
-  decl = lookup_method (CLASS_NST_METHODS (class_method), PROPERTY_SETTER_NAME (property));
+  /* Find declaration of the property setter in the interface (or
+     superclass, or protocol). There must be one.  */
+  decl = lookup_method_static (klass, PROPERTY_SETTER_NAME (property), 0);
 
   /* If one not declared in the interface, this condition has already
      been reported as user error (because property was not declared in
@@ -9136,10 +9945,11 @@ objc_add_synthesize_declaration_for_property (location_t location, tree interfac
 {
   /* Find the @property declaration.  */
   tree property;
+  tree x;
 
   /* Check that synthesize or dynamic has not already been used for
      the same property.  */
-  for (property = CLASS_PROPERTY_DECL (objc_implementation_context); property; property = TREE_CHAIN (property))
+  for (property = IMPL_PROPERTY_DECL (objc_implementation_context); property; property = TREE_CHAIN (property))
     if (PROPERTY_NAME (property) == property_name)
       {
 	location_t original_location = DECL_SOURCE_LOCATION (property);
@@ -9156,12 +9966,9 @@ objc_add_synthesize_declaration_for_property (location_t location, tree interfac
 	return;
       }
 
-  /* Check that the property is declared in the interface.  */
-  /* TODO: This only check the immediate class; we need to check the
-     superclass (and categories ?) as well.  */
-  for (property = CLASS_PROPERTY_DECL (interface); property; property = TREE_CHAIN (property))
-    if (PROPERTY_NAME (property) == property_name)
-      break;
+  /* Check that the property is declared in the interface.  It could
+     also be declared in a superclass or protocol.  */
+  property = lookup_property (interface, property_name);
 
   if (!property)
     {
@@ -9185,16 +9992,97 @@ objc_add_synthesize_declaration_for_property (location_t location, tree interfac
 
   /* Check that the instance variable exists.  You can only use an
      instance variable from the same class, not one from the
-     superclass.  */
-  if (!is_ivar (CLASS_IVARS (interface), ivar_name))
-    error_at (location, "ivar %qs used by %<@synthesize%> declaration must be an existing ivar", 
-	      IDENTIFIER_POINTER (property_name));
+     superclass (this makes sense as it allows us to check that an
+     instance variable is only used in one synthesized property).  */
+  {
+    tree ivar = is_ivar (CLASS_IVARS (interface), ivar_name);
+    tree type_of_ivar;
+    if (!ivar)
+      {
+	error_at (location, "ivar %qs used by %<@synthesize%> declaration must be an existing ivar", 
+		  IDENTIFIER_POINTER (property_name));
+	return;
+      }
 
-  /* TODO: Check that the types of the instance variable and of the
-     property match.  */
+    if (DECL_BIT_FIELD_TYPE (ivar))
+      type_of_ivar = DECL_BIT_FIELD_TYPE (ivar);
+    else
+      type_of_ivar = TREE_TYPE (ivar);
+    
+    /* If the instance variable has a different C type, we throw an error ...  */
+    if (!comptypes (TREE_TYPE (property), type_of_ivar)
+	/* ... unless the property is readonly, in which case we allow
+	   the instance variable to be more specialized (this means we
+	   can generate the getter all right and it works).  */
+	&& (!PROPERTY_READONLY (property)
+	    || !objc_compare_types (TREE_TYPE (property),
+				    type_of_ivar, -5, NULL_TREE)))
+      {
+	location_t original_location = DECL_SOURCE_LOCATION (ivar);
+	
+	error_at (location, "property %qs is using instance variable %qs of incompatible type",
+		  IDENTIFIER_POINTER (property_name),
+		  IDENTIFIER_POINTER (ivar_name));
+	
+	if (original_location != UNKNOWN_LOCATION)
+	  inform (original_location, "originally specified here");
+      }
 
-  /* TODO: Check that no other property is using the same instance
+    /* If the instance variable is a bitfield, the property must be
+       'assign', 'nonatomic' because the runtime getter/setter helper
+       do not work with bitfield instance variables.  */
+    if (DECL_BIT_FIELD_TYPE (ivar))
+      {
+	/* If there is an error, we return and not generate any
+	   getter/setter because trying to set up the runtime
+	   getter/setter helper calls with bitfields is at high risk
+	   of ICE.  */
+
+	if (PROPERTY_ASSIGN_SEMANTICS (property) != OBJC_PROPERTY_ASSIGN)
+	  {
+	    location_t original_location = DECL_SOURCE_LOCATION (ivar);
+	    
+	    error_at (location, "'assign' property %qs is using bit-field instance variable %qs",
+		      IDENTIFIER_POINTER (property_name),
+		      IDENTIFIER_POINTER (ivar_name));
+	
+	    if (original_location != UNKNOWN_LOCATION)
+	      inform (original_location, "originally specified here");
+	    return;
+	  }
+
+	if (!PROPERTY_NONATOMIC (property))
+	  {
+	    location_t original_location = DECL_SOURCE_LOCATION (ivar);
+	    
+	    error_at (location, "'atomic' property %qs is using bit-field instance variable %qs",
+		      IDENTIFIER_POINTER (property_name),
+		      IDENTIFIER_POINTER (ivar_name));
+	    
+	    if (original_location != UNKNOWN_LOCATION)
+	      inform (original_location, "originally specified here");
+	    return;
+	  }
+      }
+  }
+
+  /* Check that no other property is using the same instance
      variable.  */
+  for (x = IMPL_PROPERTY_DECL (objc_implementation_context); x; x = TREE_CHAIN (x))
+    if (PROPERTY_IVAR_NAME (x) == ivar_name)
+      {
+	location_t original_location = DECL_SOURCE_LOCATION (x);
+	
+	error_at (location, "property %qs is using the same instance variable as property %qs",
+		  IDENTIFIER_POINTER (property_name),
+		  IDENTIFIER_POINTER (PROPERTY_NAME (x)));
+	
+	if (original_location != UNKNOWN_LOCATION)
+	  inform (original_location, "originally specified here");
+	
+	/* We keep going on.  This won't cause the compiler to fail;
+	   the failure would most likely be at runtime.  */
+      }
 
   /* Note that a @synthesize (and only a @synthesize) always sets
      PROPERTY_IVAR_NAME to a non-NULL_TREE.  You can recognize a
@@ -9225,6 +10113,9 @@ objc_add_synthesize_declaration (location_t location, tree property_and_ivar_lis
 {
   tree interface, chain;
 
+  if (flag_objc1_only)
+    error_at (input_location, "%<@synthesize%> is not available in Objective-C 1.0");
+
   if (property_and_ivar_list == error_mark_node)
     return;
 
@@ -9240,7 +10131,6 @@ objc_add_synthesize_declaration (location_t location, tree property_and_ivar_lis
 
   if (TREE_CODE (objc_implementation_context) == CATEGORY_IMPLEMENTATION_TYPE)
     {
-      /* TODO: Maybe we should allow @synthesize in categories ?  */
       error_at (location, "%<@synthesize%> can not be used in categories");
       return;
     }
@@ -9274,7 +10164,7 @@ objc_add_dynamic_declaration_for_property (location_t location, tree interface,
 
   /* Check that synthesize or dynamic has not already been used for
      the same property.  */
-  for (property = CLASS_PROPERTY_DECL (objc_implementation_context); property; property = TREE_CHAIN (property))
+  for (property = IMPL_PROPERTY_DECL (objc_implementation_context); property; property = TREE_CHAIN (property))
     if (PROPERTY_NAME (property) == property_name)
       {
 	location_t original_location = DECL_SOURCE_LOCATION (property);
@@ -9291,12 +10181,9 @@ objc_add_dynamic_declaration_for_property (location_t location, tree interface,
 	return;
       }
 
-  /* Check that the property is declared in the interface.  */
-  /* TODO: This only check the immediate class; we need to check the
-     superclass (and categories ?) as well.  */
-  for (property = CLASS_PROPERTY_DECL (interface); property; property = TREE_CHAIN (property))
-    if (PROPERTY_NAME (property) == property_name)
-      break;
+  /* Check that the property is declared in the interface.  It could
+     also be declared in a superclass or protocol.  */
+  property = lookup_property (interface, property_name);
 
   if (!property)
     {
@@ -9306,16 +10193,6 @@ objc_add_dynamic_declaration_for_property (location_t location, tree interface,
     }
   else
     {
-      /* Mark the original PROPERTY_DECL as dynamic.  The reason is
-	 that the setter and getter methods in the interface have a
-	 METHOD_PROPERTY_CONTEXT that points to the original
-	 PROPERTY_DECL; when we check that these methods have been
-	 implemented, we need to easily find that they are associated
-	 with a dynamic property.  TODO: Clean this up; maybe the
-	 @property PROPERTY_DECL should contain a reference to the
-	 @dynamic PROPERTY_DECL ? */
-      PROPERTY_DYNAMIC (property) = 1;
-
       /* We have to copy the property, because we want to chain it to
 	 the implementation context, and we want to store the source
 	 location of the @synthesize, not of the original
@@ -9345,6 +10222,9 @@ objc_add_dynamic_declaration (location_t location, tree property_list)
 {
   tree interface, chain;
 
+  if (flag_objc1_only)
+    error_at (input_location, "%<@dynamic%> is not available in Objective-C 1.0");
+
   if (property_list == error_mark_node)
     return;
 
@@ -9358,18 +10238,24 @@ objc_add_dynamic_declaration (location_t location, tree property_list)
       return;
     }
 
-  if (TREE_CODE (objc_implementation_context) == CATEGORY_IMPLEMENTATION_TYPE)
+  /* @dynamic is allowed in categories.  */
+  switch (TREE_CODE (objc_implementation_context))
     {
-      /* TODO: Maybe we should allow @dynamic in categories ?  */
-      error_at (location, "%<@dynamic%> can not be used in categories");
-      return;
+    case CLASS_IMPLEMENTATION_TYPE:
+      interface = lookup_interface (CLASS_NAME (objc_implementation_context));
+      break;
+    case CATEGORY_IMPLEMENTATION_TYPE:
+      interface = lookup_category (implementation_template, 
+				   CLASS_SUPER_NAME (objc_implementation_context));
+      break;
+    default:
+      gcc_unreachable ();
     }
-  
-  interface = lookup_interface (CLASS_NAME (objc_implementation_context));
+
   if (!interface)
     {
       /* I can't see how this could happen, but it is good as a safety check.  */
-      error_at (location, 
+      error_at (location,
 		"%<@dynamic%> requires the @interface of the class to be available");
       return;
     }
@@ -9431,9 +10317,9 @@ finish_class (tree klass)
 	  {
 	    /* Ensure that all method listed in the interface contain bodies.  */
 	    check_methods (CLASS_CLS_METHODS (implementation_template),
-			   CLASS_CLS_METHODS (objc_implementation_context), '+');
+			   objc_implementation_context, '+');
 	    check_methods (CLASS_NST_METHODS (implementation_template),
-			   CLASS_NST_METHODS (objc_implementation_context), '-');
+			   objc_implementation_context, '-');
 
 	    if (CLASS_PROTOCOL_LIST (implementation_template))
 	      check_protocols (CLASS_PROTOCOL_LIST (implementation_template),
@@ -9450,12 +10336,12 @@ finish_class (tree klass)
 	  {
 	    /* Generate what needed for property; setters, getters, etc. */
 	    objc_gen_property_data (implementation_template, category);
-	    
+
 	    /* Ensure all method listed in the interface contain bodies.  */
 	    check_methods (CLASS_CLS_METHODS (category),
-			   CLASS_CLS_METHODS (objc_implementation_context), '+');
+			   objc_implementation_context, '+');
 	    check_methods (CLASS_NST_METHODS (category),
-			   CLASS_NST_METHODS (objc_implementation_context), '-');
+			   objc_implementation_context, '-');
 	    
 	    if (CLASS_PROTOCOL_LIST (category))
 	      check_protocols (CLASS_PROTOCOL_LIST (category),
@@ -9472,104 +10358,69 @@ finish_class (tree klass)
 	tree x;
 	for (x = CLASS_PROPERTY_DECL (objc_interface_context); x; x = TREE_CHAIN (x))
 	  {
-	    /* Store the getter name that we used into the property.
-	       It is used to generate the right getter calls;
-	       moreover, when a @synthesize is processed, it copies
-	       everything from the property, including the
-	       PROPERTY_GETTER_NAME.  We want to be sure that
-	       @synthesize will get exactly the right
-	       PROPERTY_GETTER_NAME.  */
-	    if (PROPERTY_GETTER_NAME (x) == NULL_TREE)
-	      PROPERTY_GETTER_NAME (x) = PROPERTY_NAME (x);
-
 	    /* Now we check that the appropriate getter is declared,
 	       and if not, we declare one ourselves.  */
-	    {
-	      tree getter_decl = lookup_method (CLASS_NST_METHODS (klass),
-						PROPERTY_GETTER_NAME (x));
-	      
-	      if (getter_decl)
-		{
-		  /* TODO: Check that the declaration is consistent with the property.  */
-		  ;
-		}
-	      else
-		{
-		  /* Generate an instance method declaration for the
-		     getter; for example "- (id) name;".  In general
-		     it will be of the form
-		     -(type)property_getter_name;  */
-		  tree rettype = build_tree_list (NULL_TREE, TREE_TYPE (x));
-		  getter_decl = build_method_decl (INSTANCE_METHOD_DECL, 
-						   rettype, PROPERTY_GETTER_NAME (x), 
-						   NULL_TREE, false);
-		  objc_add_method (objc_interface_context, getter_decl, false, false);
-		  METHOD_PROPERTY_CONTEXT (getter_decl) = x;
-		}
-	    }
+	    tree getter_decl = lookup_method (CLASS_NST_METHODS (klass),
+					      PROPERTY_GETTER_NAME (x));
+	    
+	    if (getter_decl)
+	      {
+		/* TODO: Check that the declaration is consistent with the property.  */
+		;
+	      }
+	    else
+	      {
+		/* Generate an instance method declaration for the
+		   getter; for example "- (id) name;".  In general it
+		   will be of the form
+		   -(type)property_getter_name;  */
+		tree rettype = build_tree_list (NULL_TREE, TREE_TYPE (x));
+		getter_decl = build_method_decl (INSTANCE_METHOD_DECL, 
+						 rettype, PROPERTY_GETTER_NAME (x), 
+						 NULL_TREE, false);
+		objc_add_method (objc_interface_context, getter_decl, false, false);
+		METHOD_PROPERTY_CONTEXT (getter_decl) = x;
+	      }
 
 	    if (PROPERTY_READONLY (x) == 0)
 	      {
-		/* Store the setter name that we used into the
-		   property.  It is used when generating setter calls;
-		   moreover, when a @synthesize is processed, it
-		   copies everything from the property, including the
-		   PROPERTY_SETTER_NAME.  We want to be sure that
-		   @synthesize will get exactly the right
-		   PROPERTY_SETTER_NAME.  */
-		if (PROPERTY_SETTER_NAME (x) == NULL_TREE)
-		  PROPERTY_SETTER_NAME (x) = get_identifier (objc_build_property_setter_name 
-							     (PROPERTY_NAME (x)));
-
 		/* Now we check that the appropriate setter is declared,
 		   and if not, we declare on ourselves.  */
-		{
-		  tree setter_decl = lookup_method (CLASS_NST_METHODS (klass), 
-						    PROPERTY_SETTER_NAME (x));
-		  
-		  if (setter_decl)
-		    {
-		      /* TODO: Check that the declaration is consistent with the property.  */
-		      ;
-		    }
-		  else
-		    {
-		      /* The setter name is something like 'setName:'.
-			 We need the substring 'setName' to build the
-			 method declaration due to how the declaration
-			 works.  TODO: build_method_decl() will then
-			 generate back 'setName:' from 'setName'; it
-			 would be more efficient to hook into
-			 there.  */
-		      const char *full_setter_name = IDENTIFIER_POINTER (PROPERTY_SETTER_NAME (x));
-		      size_t length = strlen (full_setter_name);
-		      char *setter_name = (char *) alloca (length);
-		      tree ret_type, selector, arg_type, arg_name;
-
-		      strcpy (setter_name, full_setter_name);
-		      setter_name[length - 1] = '\0';
-		      ret_type = build_tree_list (NULL_TREE, void_type_node);
-		      arg_type = build_tree_list (NULL_TREE, TREE_TYPE (x));
-		      arg_name = get_identifier ("_value");
-		      selector = objc_build_keyword_decl (get_identifier (setter_name),
-							  arg_type, arg_name, NULL);
-		      setter_decl = build_method_decl (INSTANCE_METHOD_DECL, 
-						       ret_type, selector,
-						       build_tree_list (NULL_TREE, NULL_TREE),
-						       false);
-		      objc_add_method (objc_interface_context, setter_decl, false, false);
-		      METHOD_PROPERTY_CONTEXT (setter_decl) = x;
-		    }
-		}
-
-	    /* Note how at this point (once an @interface or @protocol
-	       have been processed), PROPERTY_GETTER_NAME is always
-	       set for all PROPERTY_DECLs, and PROPERTY_SETTER_NAME is
-	       always set for all PROPERTY_DECLs where
-	       PROPERTY_READONLY == 0.  Any time we deal with a getter
-	       or setter, we should get the PROPERTY_DECL and use
-	       PROPERTY_GETTER_NAME and PROPERTY_SETTER_NAME to know
-	       the correct names.  */
+		tree setter_decl = lookup_method (CLASS_NST_METHODS (klass), 
+						  PROPERTY_SETTER_NAME (x));
+		
+		if (setter_decl)
+		  {
+		    /* TODO: Check that the declaration is consistent with the property.  */
+		    ;
+		  }
+		else
+		  {
+		    /* The setter name is something like 'setName:'.
+		       We need the substring 'setName' to build the
+		       method declaration due to how the declaration
+		       works.  TODO: build_method_decl() will then
+		       generate back 'setName:' from 'setName'; it
+		       would be more efficient to hook into there.  */
+		    const char *full_setter_name = IDENTIFIER_POINTER (PROPERTY_SETTER_NAME (x));
+		    size_t length = strlen (full_setter_name);
+		    char *setter_name = (char *) alloca (length);
+		    tree ret_type, selector, arg_type, arg_name;
+		    
+		    strcpy (setter_name, full_setter_name);
+		    setter_name[length - 1] = '\0';
+		    ret_type = build_tree_list (NULL_TREE, void_type_node);
+		    arg_type = build_tree_list (NULL_TREE, TREE_TYPE (x));
+		    arg_name = get_identifier ("_value");
+		    selector = objc_build_keyword_decl (get_identifier (setter_name),
+							arg_type, arg_name, NULL);
+		    setter_decl = build_method_decl (INSTANCE_METHOD_DECL, 
+						     ret_type, selector,
+						     build_tree_list (NULL_TREE, NULL_TREE),
+						     false);
+		    objc_add_method (objc_interface_context, setter_decl, false, false);
+		    METHOD_PROPERTY_CONTEXT (setter_decl) = x;
+		  }	       
 	      }
 	  }
 	break;
@@ -11799,15 +12650,24 @@ objc_rewrite_function_call (tree function, tree first_param)
 static void
 objc_gimplify_property_ref (tree *expr_p)
 {
-  tree object_expression = PROPERTY_REF_OBJECT (*expr_p);
-  tree property_decl = PROPERTY_REF_PROPERTY_DECL (*expr_p);
-  tree call_exp, getter;
+  tree getter = PROPERTY_REF_GETTER_CALL (*expr_p);
+  tree call_exp;
 
-  /* TODO: Implement super.property.  */
+  if (getter == NULL_TREE)
+    {
+      tree property_decl = PROPERTY_REF_PROPERTY_DECL (*expr_p);
+      /* This can happen if DECL_ARTIFICIAL (*expr_p), but
+	 should be impossible for real properties, which always
+	 have a getter.  */
+      error_at (EXPR_LOCATION (*expr_p), "no %qs getter found",
+		IDENTIFIER_POINTER (PROPERTY_NAME (property_decl)));
+      /* Try to recover from the error to prevent an ICE.  We take
+	 zero and cast it to the type of the property.  */
+      *expr_p = convert (TREE_TYPE (property_decl),
+			 integer_zero_node);
+      return;
+    }
 
-  getter = objc_finish_message_expr (object_expression, 
-				     PROPERTY_GETTER_NAME (property_decl),
-				     NULL_TREE);
   call_exp = getter;
 #ifdef OBJCPLUS
   /* In C++, a getter which returns an aggregate value results in a
@@ -11873,24 +12733,37 @@ objc_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 #endif
 }
 
-/* This routine returns true if TYP is a valid objc object type, 
-   suitable for messaging; false otherwise.
-*/
+/* This routine returns true if TYPE is a valid objc object type,
+   suitable for messaging; false otherwise.  If 'accept_class' is
+   'true', then a Class object is considered valid for messaging and
+   'true' is returned if 'type' refers to a Class.  If 'accept_class'
+   is 'false', then a Class object is not considered valid for
+   messaging and 'false' is returned in that case.  */
 
 static bool
-objc_type_valid_for_messaging (tree typ)
+objc_type_valid_for_messaging (tree type, bool accept_classes)
 {
-  if (!POINTER_TYPE_P (typ))
+  if (!POINTER_TYPE_P (type))
     return false;
 
-  do
-    typ = TREE_TYPE (typ);  /* Remove indirections.  */
-  while (POINTER_TYPE_P (typ));
+  /* Remove the pointer indirection; don't remove more than one
+     otherwise we'd consider "NSObject **" a valid type for messaging,
+     which it isn't.  */
+  type = TREE_TYPE (type);
 
-  if (TREE_CODE (typ) != RECORD_TYPE)
+  if (TREE_CODE (type) != RECORD_TYPE)
     return false;
 
-  return objc_is_object_id (typ) || TYPE_HAS_OBJC_INFO (typ);
+  if (objc_is_object_id (type))
+    return true;
+
+  if (objc_is_class_id (type))
+    return accept_classes;
+
+  if (TYPE_HAS_OBJC_INFO (type))
+    return true;
+
+  return false;
 }
 
 /* Begin code generation for fast enumeration (foreach) ... */
@@ -12049,19 +12922,22 @@ objc_finish_foreach_loop (location_t location, tree object_expression, tree coll
   tree t;
   int i;
 
+  if (flag_objc1_only)
+    error_at (location, "fast enumeration is not available in Objective-C 1.0");
+
   if (object_expression == error_mark_node)
     return;
 
   if (collection_expression == error_mark_node)
     return;
 
-  if (!objc_type_valid_for_messaging (TREE_TYPE (object_expression)))
+  if (!objc_type_valid_for_messaging (TREE_TYPE (object_expression), true))
     {
       error ("iterating variable in fast enumeration is not an object");
       return;
     }
 
-  if (!objc_type_valid_for_messaging (TREE_TYPE (collection_expression)))
+  if (!objc_type_valid_for_messaging (TREE_TYPE (collection_expression), true))
     {
       error ("collection in fast enumeration is not an object");
       return;
@@ -12417,6 +13293,30 @@ objc_finish_foreach_loop (location_t location, tree object_expression, tree coll
 
   /* } */
   /* Done by c-parser.c  */
+}
+
+/* Return true if we have an NxString object pointer.  */
+
+bool
+objc_string_ref_type_p (tree strp)
+{
+  tree tmv;
+  if (!strp || TREE_CODE (strp) != POINTER_TYPE)
+    return false;
+
+  tmv = TYPE_MAIN_VARIANT (TREE_TYPE (strp));
+  tmv = OBJC_TYPE_NAME (tmv);
+  return (tmv
+  	  && TREE_CODE (tmv) == IDENTIFIER_NODE
+  	  && IDENTIFIER_POINTER (tmv)
+	  && !strncmp (IDENTIFIER_POINTER (tmv), "NSString", 8));
+}
+
+/* At present the behavior of this is undefined and it does nothing.  */
+void
+objc_check_format_arg (tree ARG_UNUSED (format_arg), 
+		       tree ARG_UNUSED (args_list))
+{
 }
 
 #include "gt-objc-objc-act.h"

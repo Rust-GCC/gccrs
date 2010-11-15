@@ -928,7 +928,7 @@ predicate_bbs (loop_p loop)
 						     &true_edge, &false_edge);
 
 		/* If C is true, then TRUE_EDGE is taken.  */
-		add_to_dst_predicate_list (loop, true_edge, cond, c);
+		add_to_dst_predicate_list (loop, true_edge, cond, unshare_expr (c));
 
 		/* If C is false, then FALSE_EDGE is taken.  */
 		c2 = invert_truthvalue_loc (loc, unshare_expr (c));
@@ -1224,7 +1224,7 @@ predicate_scalar_phi (gimple phi, tree cond,
 {
   gimple new_stmt;
   basic_block bb;
-  tree rhs, res, arg;
+  tree rhs, res, arg, scev;
 
   gcc_assert (gimple_code (phi) == GIMPLE_PHI
 	      && gimple_phi_num_args (phi) == 2);
@@ -1236,8 +1236,12 @@ predicate_scalar_phi (gimple phi, tree cond,
 
   bb = gimple_bb (phi);
 
-  arg = degenerate_phi_result (phi);
-  if (arg)
+  if ((arg = degenerate_phi_result (phi))
+      || ((scev = analyze_scalar_evolution (gimple_bb (phi)->loop_father,
+					    res))
+	  && !chrec_contains_undetermined (scev)
+	  && scev != res
+	  && (arg = gimple_phi_arg_def (phi, 0))))
     rhs = arg;
   else
     {

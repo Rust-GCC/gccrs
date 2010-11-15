@@ -2418,7 +2418,13 @@ standard modes, the X/Open function @code{strfmon} is also checked as
 are @code{printf_unlocked} and @code{fprintf_unlocked}.
 @xref{C Dialect Options,,Options Controlling C Dialect}.
 
-The target may provide additional types of format checks.
+For Objective-C dialects, @code{NSString} (or @code{__NSString__}) is 
+recognized in the same context.  Declarations including these format attributes
+will be parsed for correct syntax, however the result of checking of such format
+strings is not yet defined, and will not be carried out by this version of the 
+compiler.
+
+The target may also provide additional types of format checks.
 @xref{Target Format Checks,,Format Checks Specific to Particular
 Target Machines}.
 
@@ -2466,6 +2472,14 @@ requested by @option{-ansi} or an appropriate @option{-std} option, or
 @option{-ffreestanding} or @option{-fno-builtin}
 is used.  @xref{C Dialect Options,,Options
 Controlling C Dialect}.
+
+For Objective-C dialects, the @code{format-arg} attribute may refer to an
+@code{NSString} reference for compatibility with the @code{format} attribute
+above.
+
+The target may also allow additional types in @code{format-arg} attributes.
+@xref{Target Format Checks,,Format Checks Specific to Particular
+Target Machines}.
 
 @item function_vector
 @cindex calling functions through the function vector on H8/300, M16C, M32C and SH2A processors
@@ -9378,6 +9392,24 @@ unsigned char __builtin_ia32_lwpins32 (unsigned int, unsigned int, unsigned int)
 unsigned char __builtin_ia32_lwpins64 (unsigned __int64, unsigned int, unsigned int)
 @end smallexample
 
+The following built-in functions are available when @option{-mbmi} is used.
+All of them generate the machine instruction that is part of the name.
+@smallexample
+unsigned int __builtin_ia32_bextr_u32(unsigned int, unsigned int);
+unsigned long long __builtin_ia32_bextr_u64 (unsigned long long, unsigned long long);
+unsigned short __builtin_ia32_lzcnt_16(unsigned short);
+unsigned int __builtin_ia32_lzcnt_u32(unsigned int);
+unsigned long long __builtin_ia32_lzcnt_u64 (unsigned long long);
+@end smallexample
+
+The following built-in functions are available when @option{-mtbm} is used.
+Both of them generate the immediate form of the bextr machine instruction.
+@smallexample
+unsigned int __builtin_ia32_bextri_u32 (unsigned int, const unsigned int);
+unsigned long long __builtin_ia32_bextri_u64 (unsigned long long, const unsigned long long);
+@end smallexample
+
+
 The following built-in functions are available when @option{-m3dnow} is used.
 All of them generate the machine instruction that is part of the name.
 
@@ -9646,6 +9678,12 @@ i32 __builtin_mips_lbux (void *, i32)
 i32 __builtin_mips_lhx (void *, i32)
 i32 __builtin_mips_lwx (void *, i32)
 i32 __builtin_mips_bposge32 (void)
+a64 __builtin_mips_madd (a64, i32, i32);
+a64 __builtin_mips_maddu (a64, ui32, ui32);
+a64 __builtin_mips_msub (a64, i32, i32);
+a64 __builtin_mips_msubu (a64, ui32, ui32);
+a64 __builtin_mips_mult (i32, i32);
+a64 __builtin_mips_multu (ui32, ui32);
 @end smallexample
 
 The following built-in functions map directly to a particular MIPS DSP REV 2
@@ -9665,18 +9703,12 @@ i32 __builtin_mips_cmpgdu_lt_qb (v4i8, v4i8);
 i32 __builtin_mips_cmpgdu_le_qb (v4i8, v4i8);
 a64 __builtin_mips_dpa_w_ph (a64, v2i16, v2i16);
 a64 __builtin_mips_dps_w_ph (a64, v2i16, v2i16);
-a64 __builtin_mips_madd (a64, i32, i32);
-a64 __builtin_mips_maddu (a64, ui32, ui32);
-a64 __builtin_mips_msub (a64, i32, i32);
-a64 __builtin_mips_msubu (a64, ui32, ui32);
 v2i16 __builtin_mips_mul_ph (v2i16, v2i16);
 v2i16 __builtin_mips_mul_s_ph (v2i16, v2i16);
 q31 __builtin_mips_mulq_rs_w (q31, q31);
 v2q15 __builtin_mips_mulq_s_ph (v2q15, v2q15);
 q31 __builtin_mips_mulq_s_w (q31, q31);
 a64 __builtin_mips_mulsa_w_ph (a64, v2i16, v2i16);
-a64 __builtin_mips_mult (i32, i32);
-a64 __builtin_mips_multu (ui32, ui32);
 v4i8 __builtin_mips_precr_qb_ph (v2i16, v2i16);
 v2i16 __builtin_mips_precr_sra_ph_w (i32, i32, imm0_31);
 v2i16 __builtin_mips_precr_sra_r_ph_w (i32, i32, imm0_31);
@@ -12426,6 +12458,7 @@ format attribute
 
 @menu
 * Solaris Format Checks::
+* Darwin Format Checks::
 @end menu
 
 @node Solaris Format Checks
@@ -12435,6 +12468,20 @@ Solaris targets support the @code{cmn_err} (or @code{__cmn_err__}) format
 check.  @code{cmn_err} accepts a subset of the standard @code{printf}
 conversions, and the two-argument @code{%b} conversion for displaying
 bit-fields.  See the Solaris man page for @code{cmn_err} for more information.
+
+@node Darwin Format Checks
+@subsection Darwin Format Checks
+
+Darwin targets support the @code{CFString} (or @code{__CFString__}) in the format 
+attribute context.  Declarations made with such attribution will be parsed for correct syntax
+and format argument types.  However, parsing of the format string itself is currently undefined
+and will not be carried out by this version of the compiler.  
+
+Additionally, @code{CFStringRefs} (defined by the @code{CoreFoundation} headers) may
+also be used as format arguments.  Note that the relevant headers are only likely to be
+available on Darwin (OSX) installations.  On such installations, the XCode and system
+documentation provide descriptions of @code{CFString}, @code{CFStringRefs} and
+associated functions.
 
 @node Pragmas
 @section Pragmas Accepted by GCC

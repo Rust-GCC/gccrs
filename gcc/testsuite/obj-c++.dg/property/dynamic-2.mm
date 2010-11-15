@@ -24,9 +24,10 @@
 
 
 @interface Test (Category)
+@property int v1;
 @end
 @implementation Test (Category)
-@dynamic v1;  /* { dg-error ".@dynamic. can not be used in categories" } */
+@dynamic v1;
 @end
 
 
@@ -38,9 +39,7 @@
 
 @implementation AnotherTest
 @dynamic one;
-/* FIXME - there is a problem with the testuite in running the following test.  The compiler
-   generates the messages, but the testsuite still complains.  */
-/*@dynamic one;*/ /*  dg-error "property .one. already specified in .@dynamic." */
-              /*  dg-message "originally specified here" "" { target *-*-* } 40 */
+@dynamic one; /* { dg-error "property .one. already specified in .@dynamic." } */
+              /* { dg-warning "originally specified here" "" { target *-*-* } 41 } */
 @dynamic three; /* { dg-error "no declaration of property .three. found in the interface" } */
 @end

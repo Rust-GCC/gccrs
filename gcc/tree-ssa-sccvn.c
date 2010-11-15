@@ -1338,7 +1338,7 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
 	  && offset2 <= offset
 	  && offset2 + size2 >= offset + maxsize)
 	{
-	  tree val = fold_convert (vr->type, integer_zero_node);
+	  tree val = build_zero_cst (vr->type);
 	  unsigned int value_id = get_or_alloc_constant_value_id (val);
 	  return vn_reference_insert_pieces (vuse, vr->set, vr->type,
 					     VEC_copy (vn_reference_op_s,
@@ -1361,7 +1361,7 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *vr_)
 	  && offset2 <= offset
 	  && offset2 + size2 >= offset + maxsize)
 	{
-	  tree val = fold_convert (vr->type, integer_zero_node);
+	  tree val = build_zero_cst (vr->type);
 	  unsigned int value_id = get_or_alloc_constant_value_id (val);
 	  return vn_reference_insert_pieces (vuse, vr->set, vr->type,
 					     VEC_copy (vn_reference_op_s,
@@ -3108,9 +3108,20 @@ process_scc (VEC (tree, heap) *scc)
   if (VEC_length (tree, scc) == 1)
     {
       tree use = VEC_index (tree, scc, 0);
-      if (!VN_INFO (use)->use_processed)
-	visit_use (use);
-      return;
+      if (VN_INFO (use)->use_processed)
+	return;
+      /* We need to make sure it doesn't form a cycle itself, which can
+	 happen for self-referential PHI nodes.  In that case we would
+	 end up inserting an expression with VN_TOP operands into the
+	 valid table which makes us derive bogus equivalences later.
+	 The cheapest way to check this is to assume it for all PHI nodes.  */
+      if (gimple_code (SSA_NAME_DEF_STMT (use)) == GIMPLE_PHI)
+	/* Fallthru to iteration.  */ ;
+      else
+	{
+	  visit_use (use);
+	  return;
+	}
     }
 
   /* Iterate over the SCC with the optimistic table until it stops

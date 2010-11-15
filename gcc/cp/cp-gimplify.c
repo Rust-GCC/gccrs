@@ -535,7 +535,7 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 	gcc_assert (EXPR_HAS_LOCATION (*expr_p));
 	input_location = EXPR_LOCATION (*expr_p);
 	*expr_p = build_vec_init (VEC_INIT_EXPR_SLOT (*expr_p), NULL_TREE,
-				  init, /*explicit_value_init_p*/false,
+				  init, VEC_INIT_EXPR_VALUE_INIT (*expr_p),
 				  from_array,
 				  tf_warning_or_error);
 	ret = GS_OK;
@@ -595,6 +595,16 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 	    if (!TREE_SIDE_EFFECTS (op1)
 		|| (DECL_P (op1) && TREE_THIS_VOLATILE (op1)))
 	      *expr_p = op0;
+	    else if (TREE_CODE (op1) == MEM_REF
+		     && TREE_THIS_VOLATILE (op1))
+	      {
+		/* Similarly for volatile MEM_REFs on the RHS.  */
+		if (!TREE_SIDE_EFFECTS (TREE_OPERAND (op1, 0)))
+		  *expr_p = op0;
+		else
+		  *expr_p = build2 (COMPOUND_EXPR, TREE_TYPE (*expr_p),
+				    TREE_OPERAND (op1, 0), op0);
+	      }
 	    else
 	      *expr_p = build2 (COMPOUND_EXPR, TREE_TYPE (*expr_p),
 				op0, op1);

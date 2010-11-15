@@ -28,6 +28,7 @@ m4_include([ltoptions.m4])
 m4_include([ltsugar.m4])
 m4_include([ltversion.m4])
 m4_include([lt~obsolete.m4])
+m4_include([config/cloog.m4])
 
 AC_INIT(move-if-change)
 AC_PREREQ(2.64)
@@ -1158,8 +1159,8 @@ case "${host}" in
     tentative_cc="/usr/cygnus/progressive/bin/gcc"
     host_makefile_frag="config/mh-lynxrs6k"
     ;;
-  powerpc-*-darwin*)
-    host_makefile_frag="config/mh-ppc-darwin"
+  *-*-darwin*)
+    host_makefile_frag="config/mh-darwin"
     ;;
   powerpc-*-aix*)
     host_makefile_frag="config/mh-ppc-aix"
@@ -1273,9 +1274,9 @@ have_gmp=no
 AC_ARG_WITH(mpc, [  --with-mpc=PATH        specify prefix directory for installed MPC package.
                           Equivalent to --with-mpc-include=PATH/include
                           plus --with-mpc-lib=PATH/lib])
-AC_ARG_WITH(mpc_include, [  --with-mpc-include=PATH
+AC_ARG_WITH(mpc-include, [  --with-mpc-include=PATH
                           specify directory for installed MPC include files])
-AC_ARG_WITH(mpc_lib, [  --with-mpc-lib=PATH    specify directory for the installed MPC library])
+AC_ARG_WITH(mpc-lib, [  --with-mpc-lib=PATH    specify directory for the installed MPC library])
 
 if test "x$with_mpc" != x; then
   gmplibs="-L$with_mpc/lib $gmplibs"
@@ -1306,9 +1307,9 @@ Use --with-mpfr=PATH or --with-mpfr-include=PATH plus --with-mpfr-lib=PATH]))
 AC_ARG_WITH(mpfr, [  --with-mpfr=PATH        specify prefix directory for installed MPFR package.
                           Equivalent to --with-mpfr-include=PATH/include
                           plus --with-mpfr-lib=PATH/lib])
-AC_ARG_WITH(mpfr_include, [  --with-mpfr-include=PATH
+AC_ARG_WITH(mpfr-include, [  --with-mpfr-include=PATH
                           specify directory for installed MPFR include files])
-AC_ARG_WITH(mpfr_lib, [  --with-mpfr-lib=PATH    specify directory for the installed MPFR library])
+AC_ARG_WITH(mpfr-lib, [  --with-mpfr-lib=PATH    specify directory for the installed MPFR library])
 
 if test "x$with_mpfr" != x; then
   gmplibs="-L$with_mpfr/lib $gmplibs"
@@ -1339,8 +1340,8 @@ Use --with-gmp=PATH or --with-gmp-include=PATH plus --with-gmp-lib=PATH]))
 AC_ARG_WITH(gmp, [  --with-gmp=PATH         specify prefix directory for the installed GMP package.
                           Equivalent to --with-gmp-include=PATH/include
                           plus --with-gmp-lib=PATH/lib])
-AC_ARG_WITH(gmp_include, [  --with-gmp-include=PATH specify directory for installed GMP include files])
-AC_ARG_WITH(gmp_lib, [  --with-gmp-lib=PATH     specify directory for the installed GMP library])
+AC_ARG_WITH(gmp-include, [  --with-gmp-include=PATH specify directory for installed GMP include files])
+AC_ARG_WITH(gmp-lib, [  --with-gmp-lib=PATH     specify directory for the installed GMP library])
 
 
 if test "x$with_gmp" != x; then
@@ -1539,8 +1540,8 @@ pplinc=
 AC_ARG_WITH(ppl, [  --with-ppl=PATH         Specify prefix directory for the installed PPL package
                           Equivalent to --with-ppl-include=PATH/include
                           plus --with-ppl-lib=PATH/lib])
-AC_ARG_WITH(ppl_include, [  --with-ppl-include=PATH Specify directory for installed PPL include files])
-AC_ARG_WITH(ppl_lib, [  --with-ppl-lib=PATH     Specify the directory for the installed PPL library])
+AC_ARG_WITH(ppl-include, [  --with-ppl-include=PATH Specify directory for installed PPL include files])
+AC_ARG_WITH(ppl-lib, [  --with-ppl-lib=PATH     Specify the directory for the installed PPL library])
 
 case $with_ppl in 
   no)
@@ -1588,68 +1589,38 @@ AC_SUBST(pplinc)
 
 
 # Check for CLOOG
-clooglibs=" -lcloog "
-clooginc=" -DCLOOG_PPL_BACKEND "
 
-AC_ARG_WITH(cloog, [  --with-cloog=PATH       Specify prefix directory for the installed CLooG-PPL package
-                          Equivalent to --with-cloog-include=PATH/include
-                          plus --with-cloog-lib=PATH/lib])
-AC_ARG_WITH(cloog_include, [  --with-cloog-include=PATH Specify directory for installed CLooG include files])
-AC_ARG_WITH(cloog_lib, [  --with-cloog-lib=PATH   Specify the directory for the installed CLooG library])
-
+dnl Provide configure switches and initialize clooginc & clooglibs
+dnl with user input.
+CLOOG_INIT_FLAGS
 if test "x$with_ppl" = "xno"; then
   with_cloog=no
 fi
-
-case $with_cloog in 
-  no)
-    clooglibs=
-    clooginc=
-    ;;
-  "" | yes)
-    ;;
-  *)
-    clooglibs="-L$with_cloog/lib -lcloog"
-    clooginc="-I$with_cloog/include -DCLOOG_PPL_BACKEND "
-    ;;
-esac
-if test "x$with_cloog_include" != x; then
-  clooginc="-I$with_cloog_include -DCLOOG_PPL_BACKEND "
+if test "x${with_cloog}" = x && test "x${with_cloog_include}" = x \
+  && test "x${with_cloog_lib}" = x && test -d ${srcdir}/cloog; then
+  clooglibs='-L$$r/$(HOST_SUBDIR)/cloog/'"$lt_cv_objdir"' '
+  clooginc='-I$$r/$(HOST_SUBDIR)/cloog/include -I$$s/cloog/include '
 fi
-if test "x$with_cloog_lib" != x; then
-  clooglibs="-L$with_cloog_lib -lcloog"
-fi
-if test "x$with_cloog$with_cloog_include$with_cloog_lib" = x && test -d ${srcdir}/cloog; then
-  clooglibs='-L$$r/$(HOST_SUBDIR)/cloog/'"$lt_cv_objdir"' -lcloog '
-  clooginc='-I$$r/$(HOST_SUBDIR)/cloog/include -I$$s/cloog/include -DCLOOG_PPL_BACKEND '
-  enable_cloog_version_check=no
-fi
+if test "x$with_cloog" != "xno"; then
+  dnl Version check for CLooG-Org
+  dnl As long as there is no new release of CLooG,
+  dnl we will check for 0.14.0.
+  dnl
+  dnl The first git revision that will work with
+  dnl GCC is: bd91b845a65805c290d43fc1bef8139864a163fb
+  dnl This is enforced implictly, as this is the commit that
+  dnl introduced the versioning information used within our
+  dnl checks.
+  dnl
+  dnl If we're using CLooG-Legacy, the provided version information
+  dnl will be ignored.
+  CLOOG_CHECK_VERSION(0,14,0)
 
-AC_ARG_ENABLE(cloog-version-check,
-[  --disable-cloog-version-check  disable check for CLooG version],
-ENABLE_CLOOG_CHECK=$enableval,
-ENABLE_CLOOG_CHECK=yes)
-
-if test "x$with_cloog" != "xno" -a "${ENABLE_CLOOG_CHECK}" = "yes"; then
-  saved_CFLAGS="$CFLAGS"
-  CFLAGS="$CFLAGS $clooginc $gmpinc $pplinc"
-  AC_MSG_CHECKING([for version 0.15.5 (or later revision) of CLooG])
-  AC_TRY_COMPILE([#include "cloog/cloog.h"],[
-  #if CLOOG_VERSION_MAJOR != 0 || CLOOG_VERSION_MINOR != 15 || CLOOG_VERSION_REVISION < 5
-  choke me
-  #endif
-  ], [AC_TRY_COMPILE([#include "cloog/cloog.h"],[
-  #if CLOOG_VERSION_MAJOR != 0 || CLOOG_VERSION_MINOR != 15 || CLOOG_VERSION_REVISION < 9
-  choke me
-  #endif
-  ], [AC_MSG_RESULT([yes])], [AC_MSG_RESULT([buggy but acceptable])])],
-  [AC_MSG_RESULT([no]); clooglibs= ; clooginc= ])
-  CFLAGS="$saved_CFLAGS"
+  dnl Only execute fail-action, if CLooG has been
+  dnl requested.
+  CLOOG_IF_FAILED([
+    AC_MSG_ERROR([Unable to find a usable CLooG. See config.log for details.])])
 fi
-
-# Flags needed for CLOOG
-AC_SUBST(clooglibs)
-AC_SUBST(clooginc)
 
 # Check for LTO support.
 AC_ARG_ENABLE(lto,
@@ -1657,149 +1628,12 @@ AC_ARG_ENABLE(lto,
 enable_lto=$enableval,
 enable_lto=yes; default_enable_lto=yes)
 
-
-ACX_ELF_TARGET_IFELSE([if test x"$enable_lto" = x"yes" ; then
-  # Make sure that libelf.h and gelf.h are available.
-  AC_ARG_WITH(libelf, [  --with-libelf=PATH       Specify prefix directory for the installed libelf package
-                          Equivalent to --with-libelf-include=PATH/include
-                          plus --with-libelf-lib=PATH/lib])
-
-  AC_ARG_WITH(libelf_include, [  --with-libelf-include=PATH Specify directory for installed libelf include files])
-
-  AC_ARG_WITH(libelf_lib, [  --with-libelf-lib=PATH   Specify the directory for the installed libelf library])
-
-  saved_CFLAGS="$CFLAGS"
-  saved_CPPFLAGS="$CPPFLAGS"
-  saved_LIBS="$LIBS"
-
-  case $with_libelf in 
-    "")
-      libelflibs="-lelf"
-      libelfinc="-I/usr/include/libelf"
-      ;;
-    *)
-      libelflibs="-L$with_libelf/lib -lelf"
-      libelfinc="-I$with_libelf/include -I$with_libelf/include/libelf"
-      LIBS="$libelflibs $LIBS"
-      ;;
-  esac
-
-  if test "x$with_libelf_include" != x; then
-    libelfinc="-I$with_libelf_include"
-  fi
-
-  if test "x$with_libelf_lib" != x; then
-    libelflibs="-L$with_libelf_lib -lelf"
-    LIBS="$libelflibs $LIBS"
-  fi
-
-  if test "x$with_libelf$with_libelf_include$with_libelf_lib" = x \
-     && test -d ${srcdir}/libelf; then
-    libelflibs='-L$$r/$(HOST_SUBDIR)/libelf/lib -lelf '
-    libelfinc='-D__LIBELF_INTERNAL__ -I$$r/$(HOST_SUBDIR)/libelf/lib -I$$s/libelf/lib'
-    LIBS="$libelflibs $LIBS"
-
- else
-
-  CFLAGS="$CFLAGS $libelfinc"
-  CPPFLAGS="$CPPFLAGS $libelfinc"
-  LIBS="$LIBS $libelflibs"
-
-  AC_CHECK_HEADERS(libelf.h, [have_libelf_h=yes])
-  AC_CHECK_HEADERS(gelf.h, [have_gelf_h=yes])
-
-  AC_CHECK_HEADERS(libelf/libelf.h, [have_libelf_libelf_h=yes])
-  AC_CHECK_HEADERS(libelf/gelf.h, [have_libelf_gelf_h=yes])
-
-  # If we couldn't find libelf.h and the user forced it, emit an error.
-  if test x"$have_libelf_h" != x"yes" \
-     && test x"$have_libelf_libelf_h" != x"yes" ; then
-    if test x"$default_enable_lto" != x"yes" ; then
-      AC_MSG_ERROR([LTO support requires libelf.h or libelf/libelf.h.])
-    else
-      enable_lto=no
-      libelflibs=
-      libelfinc=
-    fi
-  fi
-
-  # If we couldn't find gelf.h and the user forced it, emit an error.
-  if test x"$have_gelf_h" != x"yes" \
-     && test x"$have_libelf_gelf_h" != x"yes" ; then
-    if test x"$default_enable_lto" != x"yes" ; then
-      AC_MSG_ERROR([LTO support requires gelf.h or libelf/gelf.h.])
-    else
-      enable_lto=no
-      libelflibs=
-      libelfinc=
-    fi
-  fi
-
-  # Check that the detected libelf has the functions we need.  We cannot
-  # rely on just detecting the headers since they do not include 
-  # versioning information.  Add functions, if needed.
-  if test x"$enable_lto" = x"yes" ; then
-    AC_MSG_CHECKING([for the correct version of libelf])
-    AC_TRY_LINK(
-      [#include <libelf.h>],[
-      elf_errmsg (0);
-      elf_getscn (0, 0);
-      elf_nextscn (0, 0);
-      elf_strptr (0, 0, 0);
-      elf_getident (0, 0);
-      elf_begin (0, 0, 0);
-      elf_ndxscn (0);
-      elf_end (0);
-      ],
-      [AC_MSG_RESULT([yes]);],
-      [AC_MSG_RESULT([no]); enable_lto=no; libelflibs= ; libelfinc= ]
-    )
-
-    # Check for elf_getshdrstrndx or elf_getshstrndx.  The latter's flavor
-    # is determined in gcc/configure.ac.
-    if test x"$enable_lto" = x"yes" ; then
-      AC_MSG_CHECKING([for elf_getshdrstrndx])
-      AC_TRY_LINK(
-        [#include <libelf.h>],[
-	elf_getshdrstrndx (0, 0);
-        ],
-        [AC_MSG_RESULT([yes]);],
-        [AC_MSG_RESULT([no]);
-	 AC_MSG_CHECKING([for elf_getshstrndx])
-         AC_TRY_LINK(
-           [#include <libelf.h>],[
-	   elf_getshstrndx (0, 0);
-           ],
-           [AC_MSG_RESULT([yes]);],
-           [AC_MSG_RESULT([no]); enable_lto=no; libelflibs= ; libelfinc= ]
-         )]
-      )
-    fi
-
-    # If we couldn't enable LTO and the user forced it, emit an error.
-    if test x"$enable_lto" = x"no" \
-       && test x"$default_enable_lto" != x"yes" ; then
-      AC_MSG_ERROR([To enable LTO, GCC requires libelf v0.8.12+.
-Try the --with-libelf, --with-libelf-include and --with-libelf-lib options
-to specify its location.])
-    fi
-  fi
-
-  CFLAGS="$saved_CFLAGS"
-  CPPFLAGS="$saved_CPPFLAGS"
-  LIBS="$saved_LIBS"
-
- fi
-
-  # Flags needed for libelf.
-  AC_SUBST(libelflibs)
-  AC_SUBST(libelfinc)
-  # ELF platforms build the lto-plugin when GOLD is in use.
-  build_lto_plugin=${ENABLE_GOLD}
-fi],[if test x"$default_enable_lto" = x"yes" ; then
+ACX_ELF_TARGET_IFELSE([# ELF platforms build the lto-plugin always.
+  build_lto_plugin=yes
+],[if test x"$default_enable_lto" = x"yes" ; then
     case $target in
       *-apple-darwin* | *-cygwin* | *-mingw*) ;;
-      # On other non-ELF platforms, LTO must be explicitly enabled.
+      # On other non-ELF platforms, LTO has yet to be validated.
       *) enable_lto=no ;;
     esac
   else
@@ -1817,11 +1651,12 @@ fi],[if test x"$default_enable_lto" = x"yes" ; then
     esac
   fi
   # Among non-ELF, only Windows platforms support the lto-plugin so far.
+  # Build it unless LTO was explicitly disabled.
   case $target in
-    *-cygwin* | *-mingw*) build_lto_plugin=yes ;;
+    *-cygwin* | *-mingw*) build_lto_plugin=$enable_lto ;;
     *) ;;
   esac
-  default_enable_lto=no])
+])
 
 
 # By default, C is the only stage 1 language.
@@ -3093,7 +2928,7 @@ case " $target_configdirs " in
        # to it.  This is right: we don't want to search that directory
        # for binaries, but we want the header files in there, so add
        # them explicitly.
-       FLAGS_FOR_TARGET=$FLAGS_FOR_TARGET' -isystem $$r/$(HOST_SUBDIR)/gcc/include'
+       FLAGS_FOR_TARGET=$FLAGS_FOR_TARGET' -isystem $$r/$(HOST_SUBDIR)/gcc/include -isystem $$r/$(HOST_SUBDIR)/gcc/include-fixed'
 
        # Someone might think of using the pre-installed headers on
        # Canadian crosses, in case the installed compiler is not fully

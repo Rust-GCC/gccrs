@@ -1856,16 +1856,47 @@
 ;;	(set (reg1) (mem (addr1)))
 ;;	(set (reg2) (mult (reg1) (mem (addr2))))
 ;;	(set (reg3) (plus (reg2) (mem (addr3))))
+;;
+;; ??? This is historic, pre-dating the gimple fma transformation.
+;; We could now properly represent that only one memory operand is
+;; allowed and not be penalized during optimization.
 
 ;; Intrinsic FMA operations.
 
-;; The standard name for fma is only available with SSE math enabled.
+;; The standard names for fma is only available with SSE math enabled.
 (define_expand "fma<mode>4"
   [(set (match_operand:FMAMODE 0 "register_operand")
 	(fma:FMAMODE
 	  (match_operand:FMAMODE 1 "nonimmediate_operand")
 	  (match_operand:FMAMODE 2 "nonimmediate_operand")
 	  (match_operand:FMAMODE 3 "nonimmediate_operand")))]
+  "(TARGET_FMA || TARGET_FMA4) && TARGET_SSE_MATH"
+  "")
+
+(define_expand "fms<mode>4"
+  [(set (match_operand:FMAMODE 0 "register_operand")
+	(fma:FMAMODE
+	  (match_operand:FMAMODE 1 "nonimmediate_operand")
+	  (match_operand:FMAMODE 2 "nonimmediate_operand")
+	  (neg:FMAMODE (match_operand:FMAMODE 3 "nonimmediate_operand"))))]
+  "(TARGET_FMA || TARGET_FMA4) && TARGET_SSE_MATH"
+  "")
+
+(define_expand "fnma<mode>4"
+  [(set (match_operand:FMAMODE 0 "register_operand")
+	(fma:FMAMODE
+	  (neg:FMAMODE (match_operand:FMAMODE 1 "nonimmediate_operand"))
+	  (match_operand:FMAMODE 2 "nonimmediate_operand")
+	  (match_operand:FMAMODE 3 "nonimmediate_operand")))]
+  "(TARGET_FMA || TARGET_FMA4) && TARGET_SSE_MATH"
+  "")
+
+(define_expand "fnms<mode>4"
+  [(set (match_operand:FMAMODE 0 "register_operand")
+	(fma:FMAMODE
+	  (neg:FMAMODE (match_operand:FMAMODE 1 "nonimmediate_operand"))
+	  (match_operand:FMAMODE 2 "nonimmediate_operand")
+	  (neg:FMAMODE (match_operand:FMAMODE 3 "nonimmediate_operand"))))]
   "(TARGET_FMA || TARGET_FMA4) && TARGET_SSE_MATH"
   "")
 
@@ -2150,100 +2181,6 @@
    vfmsubadd231<ssemodesuffix>\t{%2, %1, %0|%0, %1, %2}"
   [(set_attr "type" "ssemuladd")
    (set_attr "mode" "<MODE>")])
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Non-intrinsic versions, matched when fused-multiply-add is allowed.
-;;
-;; ??? If fused-madd were a generic flag, combine could do this without
-;; needing splitters here in the backend.  Irritatingly, combine won't
-;; recognize many of these with mere splits, since only 3 or more insns
-;; are allowed to split during combine.  Thankfully, there's always a
-;; split_all_insns pass that runs before reload.
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define_insn_and_split "*split_fma"
-  [(set (match_operand:FMAMODE 0 "register_operand")
-	(plus:FMAMODE
-	  (mult:FMAMODE
-	    (match_operand:FMAMODE 1 "nonimmediate_operand")
-	    (match_operand:FMAMODE 2 "nonimmediate_operand"))
-	  (match_operand:FMAMODE 3 "nonimmediate_operand")))]
-  "TARGET_SSE_MATH && TARGET_FUSED_MADD
-   && (TARGET_FMA || TARGET_FMA4)
-   && !(reload_in_progress || reload_completed)"
-  { gcc_unreachable (); }
-  "&& 1"
-  [(set (match_dup 0)
-	(fma:FMAMODE
-	  (match_dup 1)
-	  (match_dup 2)
-	  (match_dup 3)))]
-  "")
-
-;; Floating multiply and subtract.
-(define_insn_and_split "*split_fms"
-  [(set (match_operand:FMAMODE 0 "register_operand")
-	(minus:FMAMODE
-	  (mult:FMAMODE
-	    (match_operand:FMAMODE 1 "nonimmediate_operand")
-	    (match_operand:FMAMODE 2 "nonimmediate_operand"))
-	  (match_operand:FMAMODE 3 "nonimmediate_operand")))]
-  "TARGET_SSE_MATH && TARGET_FUSED_MADD
-   && (TARGET_FMA || TARGET_FMA4)
-   && !(reload_in_progress || reload_completed)"
-  { gcc_unreachable (); }
-  "&& 1"
-  [(set (match_dup 0)
-	(fma:FMAMODE
-	  (match_dup 1)
-	  (match_dup 2)
-	  (neg:FMAMODE (match_dup 3))))]
-  "")
-
-;; Floating point negative multiply and add.
-;; Recognize (-a * b + c) via the canonical form: c - (a * b).
-(define_insn_and_split "*split_fnma"
-  [(set (match_operand:FMAMODE 0 "register_operand")
-	(minus:FMAMODE
-	 (match_operand:FMAMODE 3 "nonimmediate_operand")
-	 (mult:FMAMODE
-	  (match_operand:FMAMODE 1 "nonimmediate_operand")
-	  (match_operand:FMAMODE 2 "nonimmediate_operand"))))]
-  "TARGET_SSE_MATH && TARGET_FUSED_MADD
-   && (TARGET_FMA || TARGET_FMA4)
-   && !(reload_in_progress || reload_completed)"
-  { gcc_unreachable (); }
-  "&& 1"
-  [(set (match_dup 0)
-	(fma:FMAMODE
-	  (neg:FMAMODE (match_dup 1))
-	  (match_dup 2)
-	  (match_dup 3)))]
-  "")
-
-;; Floating point negative multiply and subtract.
-;; Recognize (-a * b - c) via the canonical form: c - (-a * b).
-(define_insn_and_split "*split_fnms"
-  [(set (match_operand:FMAMODE 0 "register_operand")
-	(minus:FMAMODE
-	  (mult:FMAMODE
-	    (neg:FMAMODE
-	      (match_operand:FMAMODE 1 "nonimmediate_operand"))
-	    (match_operand:FMAMODE 2 "nonimmediate_operand"))
-	 (match_operand:FMAMODE 3 "nonimmediate_operand")))]
-  "TARGET_SSE_MATH && TARGET_FUSED_MADD
-   && (TARGET_FMA || TARGET_FMA4)
-   && !(reload_in_progress || reload_completed)"
-  { gcc_unreachable (); }
-  "&& 1"
-  [(set (match_dup 0)
-	(fma:FMAMODE
-	  (neg:FMAMODE (match_dup 1))
-	  (match_dup 2)
-	  (neg:FMAMODE (match_dup 3))))]
-  "")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

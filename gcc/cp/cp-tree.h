@@ -72,6 +72,7 @@ c-common.h, not after.
       CONSTRUCTOR_IS_DIRECT_INIT (in CONSTRUCTOR)
       LAMBDA_EXPR_CAPTURES_THIS_P (in LAMBDA_EXPR)
       DECLTYPE_FOR_LAMBDA_CAPTURE (in DECLTYPE_TYPE)
+      VEC_INIT_EXPR_IS_CONSTEXPR (in VEC_INIT_EXPR)
    1: IDENTIFIER_VIRTUAL_P (in IDENTIFIER_NODE)
       TI_PENDING_TEMPLATE_FLAG.
       TEMPLATE_PARMS_FOR_INLINE.
@@ -2898,6 +2899,15 @@ more_aggr_init_expr_args_p (const aggr_init_expr_arg_iterator *iter)
 #define VEC_INIT_EXPR_SLOT(NODE) TREE_OPERAND (NODE, 0)
 #define VEC_INIT_EXPR_INIT(NODE) TREE_OPERAND (NODE, 1)
 
+/* Indicates that a VEC_INIT_EXPR is a potential constant expression.
+   Only set when the current function is constexpr.  */
+#define VEC_INIT_EXPR_IS_CONSTEXPR(NODE) \
+  TREE_LANG_FLAG_0 (VEC_INIT_EXPR_CHECK (NODE))
+
+/* Indicates that a VEC_INIT_EXPR is expressing value-initialization.  */
+#define VEC_INIT_EXPR_VALUE_INIT(NODE) \
+  TREE_LANG_FLAG_1 (VEC_INIT_EXPR_CHECK (NODE))
+
 /* The TYPE_MAIN_DECL for a class template type is a TYPE_DECL, not a
    TEMPLATE_DECL.  This macro determines whether or not a given class
    type is really a template type, as opposed to an instantiation or
@@ -3960,8 +3970,6 @@ enum tsubst_flags {
 				    conversion.  */
   tf_no_access_control = 1 << 7, /* Do not perform access checks, even
 				    when issuing other errors.   */
-  /* Do not instantiate classes (used by count_non_default_template_args). */
-  tf_no_class_instantiations = 1 << 8,
   /* Convenient substitution flags combinations.  */
   tf_warning_or_error = tf_warning | tf_error
 };
@@ -5194,6 +5202,7 @@ extern void pop_to_parent_deferring_access_checks (void);
 extern void perform_access_checks		(VEC (deferred_access_check,gc)*);
 extern void perform_deferred_access_checks	(void);
 extern void perform_or_defer_access_check	(tree, tree, tree);
+extern bool speculative_access_check		(tree, tree, tree, bool);
 extern int stmts_are_full_exprs_p		(void);
 extern void init_cp_semantics			(void);
 extern tree do_poplevel				(tree);
@@ -5240,7 +5249,9 @@ extern void finish_cleanup			(tree, tree);
 extern bool literal_type_p (tree);
 extern tree validate_constexpr_fundecl (tree);
 extern tree register_constexpr_fundef (tree, tree);
+extern bool check_constexpr_ctor_body (tree, tree);
 extern tree ensure_literal_type_for_constexpr_object (tree);
+extern bool potential_constant_expression (tree, tsubst_flags_t);
 extern tree cxx_constant_value (tree);
 extern tree maybe_constant_value (tree);
 extern tree maybe_constant_init (tree);

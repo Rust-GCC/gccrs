@@ -135,7 +135,8 @@ parse_error (const char *msg, ...)
 {
   va_list ap;
 
-  fprintf (stderr, "%s:%d: parse error: ", lexer_line.file, lexer_line.line);
+  fprintf (stderr, "%s:%d: parse error: ", 
+	   get_input_file_name (lexer_line.file), lexer_line.line);
 
   va_start (ap, msg);
   vfprintf (stderr, msg, ap);
@@ -750,7 +751,9 @@ type (options_p *optsp, bool nested)
 	if (token () == ID)
 	  s = advance ();
 	else
-	  s = xasprintf ("anonymous:%s:%d", lexer_line.file, lexer_line.line);
+	  s = xasprintf ("anonymous:%s:%d",
+			 get_input_file_name (lexer_line.file),
+			 lexer_line.line);
 
 	/* Unfortunately above GTY_TOKEN check does not capture the
 	   typedef struct_type GTY case.  */
@@ -787,7 +790,9 @@ type (options_p *optsp, bool nested)
       if (token () == ID)
 	s = advance ();
       else
-	s = xasprintf ("anonymous:%s:%d", lexer_line.file, lexer_line.line);
+	s = xasprintf ("anonymous:%s:%d",
+		       get_input_file_name (lexer_line.file),
+		       lexer_line.line);
 
       if (token () == '{')
 	consume_balanced ('{', '}');

@@ -404,6 +404,12 @@ cgraph_estimate_growth (struct cgraph_node *node)
   if (cgraph_will_be_removed_from_program_if_no_direct_calls (node)
       && !DECL_EXTERNAL (node->decl) && !self_recursive)
     growth -= node->global.size;
+  /* COMDAT functions are very often not shared across multiple units since they
+     come from various template instantiations.  Take this into account.  */
+  else  if (DECL_COMDAT (node->decl) && !self_recursive
+	    && cgraph_can_remove_if_no_direct_calls_p (node))
+    growth -= (node->global.size
+	       * (100 - PARAM_VALUE (PARAM_COMDAT_SHARING_PROBABILITY)) + 50) / 100;
 
   node->global.estimated_growth = growth;
   return growth;
@@ -1407,6 +1413,14 @@ cgraph_flatten (struct cgraph_node *node)
 	  continue;
 	}
 
+      if (gimple_in_ssa_p (DECL_STRUCT_FUNCTION (node->decl))
+	  != gimple_in_ssa_p (DECL_STRUCT_FUNCTION (e->callee->decl)))
+	{
+	  if (dump_file)
+	    fprintf (dump_file, "Not inlining: SSA form does not match.\n");
+	  continue;
+	}
+
       /* Inline the edge and flatten the inline clone.  Avoid
          recursing through the original node if the node was cloned.  */
       if (dump_file)
@@ -1578,16 +1592,15 @@ cgraph_decide_inlining (void)
   return 0;
 }
 
-/* Return true when N is leaf function.  Accept cheap (pure&const) builtins
+/* Return true when N is leaf function.  Accept cheap builtins
    in leaf functions.  */
+
 static bool
 leaf_node_p (struct cgraph_node *n)
 {
   struct cgraph_edge *e;
   for (e = n->callees; e; e = e->next_callee)
-    if (!DECL_BUILT_IN (e->callee->decl)
-	|| (!TREE_READONLY (e->callee->decl)
-	    || DECL_PURE_P (e->callee->decl)))
+    if (!is_inexpensive_builtin (e->callee->decl))
       return false;
   return true;
 }
@@ -1848,24 +1861,29 @@ struct gimple_opt_pass pass_early_inline =
 };
 
 
-/* See if statement might disappear after inlining.  We are not terribly
-   sophisficated, basically looking for simple abstraction penalty wrappers.  */
+/* See if statement might disappear after inlining.
+   0 - means not eliminated
+   1 - half of statements goes away
+   2 - for sure it is eliminated.
+   We are not terribly sophisficated, basically looking for simple abstraction
+   penalty wrappers.  */
 
-static bool
-likely_eliminated_by_inlining_p (gimple stmt)
+static int
+eliminated_by_inlining_prob (gimple stmt)
 {
   enum gimple_code code = gimple_code (stmt);
   switch (code)
     {
       case GIMPLE_RETURN:
-        return true;
+        return 2;
       case GIMPLE_ASSIGN:
 	if (gimple_num_ops (stmt) != 2)
-	  return false;
+	  return 0;
 
 	/* Casts of parameters, loads from parameters passed by reference
-	   and stores to return value or parameters are probably free after
-	   inlining.  */
+	   and stores to return value or parameters are often free after
+	   inlining dua to SRA and further combining.
+	   Assume that half of statements goes away.  */
 	if (gimple_assign_rhs_code (stmt) == CONVERT_EXPR
 	    || gimple_assign_rhs_code (stmt) == NOP_EXPR
 	    || gimple_assign_rhs_code (stmt) == VIEW_CONVERT_EXPR
@@ -1907,11 +1925,11 @@ likely_eliminated_by_inlining_p (gimple stmt)
 		&& (is_gimple_reg (rhs) || is_gimple_min_invariant (rhs)))
 	      rhs_free = true;
 	    if (lhs_free && rhs_free)
-	      return true;
+	      return 1;
 	  }
-	return false;
+	return 0;
       default:
-	return false;
+	return 0;
     }
 }
 
@@ -1922,8 +1940,11 @@ estimate_function_body_sizes (struct cgraph_node *node)
 {
   gcov_type time = 0;
   gcov_type time_inlining_benefit = 0;
-  int size = 0;
-  int size_inlining_benefit = 0;
+  /* Estimate static overhead for function prologue/epilogue and alignment. */
+  int size = 2;
+  /* Benefits are scaled by probability of elimination that is in range
+     <0,2>.  */
+  int size_inlining_benefit = 2 * 2;
   basic_block bb;
   gimple_stmt_iterator bsi;
   struct function *my_function = DECL_STRUCT_FUNCTION (node->decl);
@@ -1944,6 +1965,7 @@ estimate_function_body_sizes (struct cgraph_node *node)
 	  gimple stmt = gsi_stmt (bsi);
 	  int this_size = estimate_num_insns (stmt, &eni_size_weights);
 	  int this_time = estimate_num_insns (stmt, &eni_time_weights);
+	  int prob;
 
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    {
@@ -1954,20 +1976,21 @@ estimate_function_body_sizes (struct cgraph_node *node)
 	  this_time *= freq;
 	  time += this_time;
 	  size += this_size;
-	  if (likely_eliminated_by_inlining_p (stmt))
-	    {
-	      size_inlining_benefit += this_size;
-	      time_inlining_benefit += this_time;
-	      if (dump_file && (dump_flags & TDF_DETAILS))
-		fprintf (dump_file, "    Likely eliminated\n");
-	    }
+	  prob = eliminated_by_inlining_prob (stmt);
+	  if (prob == 1 && dump_file && (dump_flags & TDF_DETAILS))
+	    fprintf (dump_file, "    50%% will be eliminated by inlining\n");
+	  if (prob == 2 && dump_file && (dump_flags & TDF_DETAILS))
+	    fprintf (dump_file, "    will eliminated by inlining\n");
+	  size_inlining_benefit += this_size * prob;
+	  time_inlining_benefit += this_time * prob;
 	  gcc_assert (time >= 0);
 	  gcc_assert (size >= 0);
 	}
     }
   time = (time + CGRAPH_FREQ_BASE / 2) / CGRAPH_FREQ_BASE;
-  time_inlining_benefit = ((time_inlining_benefit + CGRAPH_FREQ_BASE / 2)
-  			   / CGRAPH_FREQ_BASE);
+  time_inlining_benefit = ((time_inlining_benefit + CGRAPH_FREQ_BASE)
+  			   / (CGRAPH_FREQ_BASE * 2));
+  size_inlining_benefit = (size_inlining_benefit + 1) / 2;
   if (dump_file)
     fprintf (dump_file, "Overall function body time: %i-%i size: %i-%i\n",
 	     (int)time, (int)time_inlining_benefit,

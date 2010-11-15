@@ -337,6 +337,30 @@ perform_or_defer_access_check (tree binfo, tree decl, tree diag_decl)
   new_access->diag_decl = diag_decl;
 }
 
+/* Used by build_over_call in LOOKUP_SPECULATIVE mode: return whether DECL
+   is accessible in BINFO, and possibly complain if not.  If we're not
+   checking access, everything is accessible.  */
+
+bool
+speculative_access_check (tree binfo, tree decl, tree diag_decl,
+			  bool complain)
+{
+  if (deferred_access_no_check)
+    return true;
+
+  /* If we're checking for implicit delete, we don't want access
+     control errors.  */
+  if (!accessible_p (binfo, decl, true))
+    {
+      /* Unless we're under maybe_explain_implicit_delete.  */
+      if (complain)
+	enforce_access (binfo, decl, diag_decl);
+      return false;
+    }
+
+  return true;
+}
+
 /* Returns nonzero if the current statement is a full expression,
    i.e. temporaries created during that statement should be destroyed
    at the end of the statement.  */
@@ -5300,8 +5324,6 @@ typedef struct GTY(()) constexpr_fundef {
 
 static GTY ((param_is (constexpr_fundef))) htab_t constexpr_fundef_table;
 
-static bool potential_constant_expression (tree, tsubst_flags_t);
-
 /* Utility function used for managing the constexpr function table.
    Return true if the entries pointed to by P and Q are for the
    same constexpr function.  */
@@ -5460,6 +5482,14 @@ build_data_member_initialization (tree t, VEC(constructor_elt,gc) **vec)
     {
       member = TREE_OPERAND (t, 0);
       init = unshare_expr (TREE_OPERAND (t, 1));
+      if (TREE_CODE (member) == INDIRECT_REF)
+	{
+	  /* Don't put out anything for value-init of an empty base.  */
+	  gcc_assert (is_empty_class (TREE_TYPE (member)));
+	  gcc_assert (TREE_CODE (init) == CONSTRUCTOR
+		      && CONSTRUCTOR_NELTS (init) == 0);
+	  return true;
+	}
     }
   else
     {
@@ -5492,6 +5522,48 @@ build_data_member_initialization (tree t, VEC(constructor_elt,gc) **vec)
   return true;
 }
 
+/* Make sure that there are no statements after LAST in the constructor
+   body represented by LIST.  */
+
+bool
+check_constexpr_ctor_body (tree last, tree list)
+{
+  bool ok = true;
+  if (TREE_CODE (list) == STATEMENT_LIST)
+    {
+      tree_stmt_iterator i = tsi_last (list);
+      for (; !tsi_end_p (i); tsi_prev (&i))
+	{
+	  tree t = tsi_stmt (i);
+	  if (t == last)
+	    break;
+	  if (TREE_CODE (t) == BIND_EXPR)
+	    {
+	      if (!check_constexpr_ctor_body (last, BIND_EXPR_BODY (t)))
+		return false;
+	      else
+		continue;
+	    }
+	  /* We currently allow typedefs and static_assert.
+	     FIXME allow them in the standard, too.  */
+	  if (TREE_CODE (t) != STATIC_ASSERT)
+	    {
+	      ok = false;
+	      break;
+	    }
+	}
+    }
+  else if (list != last
+	   && TREE_CODE (list) != STATIC_ASSERT)
+    ok = false;
+  if (!ok)
+    {
+      error ("constexpr constructor does not have empty body");
+      DECL_DECLARED_CONSTEXPR_P (current_function_decl) = false;
+    }
+  return ok;
+}
+
 /* Build compile-time evalable representations of member-initializer list
    for a constexpr constructor.  */
 
@@ -5503,14 +5575,14 @@ build_constexpr_constructor_member_initializers (tree type, tree body)
   if (TREE_CODE (body) == MUST_NOT_THROW_EXPR
       || TREE_CODE (body) == EH_SPEC_BLOCK)
     body = TREE_OPERAND (body, 0);
-  if (TREE_CODE (body) == BIND_EXPR)
-    body = BIND_EXPR_BODY (body);
+  if (TREE_CODE (body) == STATEMENT_LIST)
+    body = STATEMENT_LIST_HEAD (body)->stmt;
+  body = BIND_EXPR_BODY (body);
   if (TREE_CODE (body) == CLEANUP_POINT_EXPR)
     ok = build_data_member_initialization (body, &vec);
-  else
+  else if (TREE_CODE (body) == STATEMENT_LIST)
     {
       tree_stmt_iterator i;
-      gcc_assert (TREE_CODE (body) == STATEMENT_LIST);
       for (i = tsi_start (body); !tsi_end_p (i); tsi_next (&i))
 	{
 	  ok = build_data_member_initialization (tsi_stmt (i), &vec);
@@ -5518,6 +5590,8 @@ build_constexpr_constructor_member_initializers (tree type, tree body)
 	    break;
 	}
     }
+  else
+    gcc_assert (errorcount > 0);
   if (ok)
     return build_constructor (type, vec);
   else
@@ -5757,7 +5831,7 @@ adjust_temp_type (tree type, tree temp)
   if (TREE_CODE (temp) == CONSTRUCTOR)
     return build_constructor (type, CONSTRUCTOR_ELTS (temp));
   gcc_assert (SCALAR_TYPE_P (type));
-  return fold_convert (type, temp);
+  return cp_fold_convert (type, temp);
 }
 
 /* Subroutine of cxx_eval_call_expression.
@@ -5971,13 +6045,13 @@ cxx_eval_call_expression (const constexpr_call *old_call, tree t,
   return result;
 }
 
+/* FIXME speed this up, it's taking 16% of compile time on sieve testcase.  */
+
 bool
 reduced_constant_expression_p (tree t)
 {
-  /* FIXME speed this up, it's taking 16% of compile time on sieve testcase.  */
-  if (cxx_dialect >= cxx0x && TREE_OVERFLOW_P (t))
-    /* In C++0x, integer overflow makes this not a constant expression.
-       FIXME arithmetic overflow is different from conversion truncation */
+  if (TREE_OVERFLOW_P (t))
+    /* Integer overflow makes this not a constant expression.  */
     return false;
   /* FIXME are we calling this too much?  */
   return initializer_constant_valid_p (t, TREE_TYPE (t)) != NULL_TREE;
@@ -5998,7 +6072,20 @@ verify_constant (tree t, bool allow_non_constant, bool *non_constant_p)
   if (!*non_constant_p && !reduced_constant_expression_p (t))
     {
       if (!allow_non_constant)
-	error ("%qE is not a constant expression", t);
+	{
+	  /* If T was already folded to a _CST with TREE_OVERFLOW set,
+	     printing the folded constant isn't helpful.  */
+	  if (TREE_OVERFLOW_P (t))
+	    {
+	      permerror (input_location, "overflow in constant expression");
+	      /* If we're being permissive (and are in an enforcing
+		 context), consider this constant.  */
+	      if (flag_permissive)
+		return false;
+	    }
+	  else
+	    error ("%q+E is not a constant expression", t);
+	}
       *non_constant_p = true;
     }
   return *non_constant_p;
@@ -6171,6 +6258,45 @@ cxx_eval_component_reference (const constexpr_call *call, tree t,
 	       "constant expression", part, CONSTRUCTOR_ELT (whole, 0)->index);
       *non_constant_p = true;
       return t;
+    }
+  gcc_unreachable();
+  return error_mark_node;
+}
+
+/* Subroutine of cxx_eval_constant_expression.
+   Attempt to reduce a field access of a value of class type that is
+   expressed as a BIT_FIELD_REF.  */
+
+static tree
+cxx_eval_bit_field_ref (const constexpr_call *call, tree t,
+			bool allow_non_constant, bool addr,
+			bool *non_constant_p)
+{
+  tree orig_whole = TREE_OPERAND (t, 0);
+  tree whole = cxx_eval_constant_expression (call, orig_whole,
+					     allow_non_constant, addr,
+					     non_constant_p);
+  tree start, field, value;
+  unsigned HOST_WIDE_INT i;
+
+  if (whole == orig_whole)
+    return t;
+  /* Don't VERIFY_CONSTANT here; we only want to check that we got a
+     CONSTRUCTOR.  */
+  if (!*non_constant_p && TREE_CODE (whole) != CONSTRUCTOR)
+    {
+      if (!allow_non_constant)
+	error ("%qE is not a constant expression", orig_whole);
+      *non_constant_p = true;
+    }
+  if (*non_constant_p)
+    return t;
+
+  start = TREE_OPERAND (t, 2);
+  FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (whole), i, field, value)
+    {
+      if (bit_position (field) == start)
+	return value;
     }
   gcc_unreachable();
   return error_mark_node;
@@ -6754,6 +6880,11 @@ cxx_eval_constant_expression (const constexpr_call *call, tree t,
 					non_constant_p);
       break;
 
+    case BIT_FIELD_REF:
+      r = cxx_eval_bit_field_ref (call, t, allow_non_constant, addr,
+				  non_constant_p);
+      break;
+
     case COND_EXPR:
     case VEC_COND_EXPR:
       r = cxx_eval_conditional_expression (call, t, allow_non_constant, addr,
@@ -6863,12 +6994,7 @@ cxx_eval_outermost_constant_expr (tree t, bool allow_non_constant)
   tree r = cxx_eval_constant_expression (NULL, t, allow_non_constant,
 					 false, &non_constant_p);
 
-  if (!non_constant_p && !reduced_constant_expression_p (r))
-    {
-      if (!allow_non_constant)
-	error ("%qE is not a constant expression", t);
-      non_constant_p = true;
-    }
+  verify_constant (r, allow_non_constant, &non_constant_p);
 
   if (non_constant_p && !allow_non_constant)
     return error_mark_node;
@@ -7032,7 +7158,7 @@ morally_constexpr_builtin_function_p (tree decl)
       logical OR (5.15), and conditional (5.16) operations that are
       not evaluated are not considered.   */
 
-static bool
+bool
 potential_constant_expression (tree t, tsubst_flags_t flags)
 {
   int i;
@@ -7417,11 +7543,7 @@ potential_constant_expression (tree t, tsubst_flags_t flags)
       return false;
 
     case VEC_INIT_EXPR:
-      /* We should only see this in a defaulted constructor for a class
-	 with a non-static data member of array type; if we get here we
-	 know this is a potential constant expression.  */
-      gcc_assert (DECL_DEFAULTED_FN (current_function_decl));
-      return true;
+      return VEC_INIT_EXPR_IS_CONSTEXPR (t);
 
     default:
       sorry ("unexpected ast of kind %s", tree_code_name[TREE_CODE (t)]);

@@ -539,7 +539,7 @@ spu_option_override (void)
       else if (strcmp (&spu_arch_string[0], "celledp") == 0)
         spu_arch = PROCESSOR_CELLEDP;
       else
-        error ("Unknown architecture '%s'", &spu_arch_string[0]);
+        error ("unknown architecture %qs", &spu_arch_string[0]);
     }
 
   /* Determine processor to tune for.  */
@@ -550,7 +550,7 @@ spu_option_override (void)
       else if (strcmp (&spu_tune_string[0], "celledp") == 0)
         spu_tune = PROCESSOR_CELLEDP;
       else
-        error ("Unknown architecture '%s'", &spu_tune_string[0]);
+        error ("unknown architecture %qs", &spu_tune_string[0]);
     }
 
   /* Change defaults according to the processor architecture.  */
@@ -749,9 +749,9 @@ spu_expand_insv (rtx ops[])
   HOST_WIDE_INT width = INTVAL (ops[1]);
   HOST_WIDE_INT start = INTVAL (ops[2]);
   HOST_WIDE_INT maskbits;
-  enum machine_mode dst_mode, src_mode;
+  enum machine_mode dst_mode;
   rtx dst = ops[0], src = ops[3];
-  int dst_size, src_size;
+  int dst_size;
   rtx mask;
   rtx shift_reg;
   int shift;
@@ -771,8 +771,6 @@ spu_expand_insv (rtx ops[])
       src = force_reg (m, convert_to_mode (m, src, 0));
     }
   src = adjust_operand (src, 0);
-  src_mode = GET_MODE (src);
-  src_size = GET_MODE_BITSIZE (GET_MODE (src));
 
   mask = gen_reg_rtx (dst_mode);
   shift_reg = gen_reg_rtx (dst_mode);
@@ -4154,7 +4152,7 @@ spu_va_start (tree valist, rtx nextarg)
   f_args = TYPE_FIELDS (TREE_TYPE (va_list_type_node));
   f_skip = DECL_CHAIN (f_args);
 
-  valist = build_va_arg_indirect_ref (valist);
+  valist = build_simple_mem_ref (valist);
   args =
     build3 (COMPONENT_REF, TREE_TYPE (f_args), valist, f_args, NULL_TREE);
   skip =
@@ -4974,6 +4972,7 @@ spu_split_store (rtx * ops)
 	}
     }
 
+  gcc_assert (aform == 0 || aform == 1);
   reg = gen_reg_rtx (TImode);
 
   scalar = store_with_one_insn_p (ops[0]);
@@ -6424,7 +6423,7 @@ spu_check_builtin_parm (struct spu_builtin_description *d, rtx op, int p)
       int range = p - SPU_BTI_7;
 
       if (!CONSTANT_P (op))
-	error ("%s expects an integer literal in the range [%d, %d].",
+	error ("%s expects an integer literal in the range [%d, %d]",
 	       d->name,
 	       spu_builtin_range[range].low, spu_builtin_range[range].high);
 
@@ -6444,8 +6443,7 @@ spu_check_builtin_parm (struct spu_builtin_description *d, rtx op, int p)
       /* The default for v is 0 which is valid in every range. */
       if (v < spu_builtin_range[range].low
 	  || v > spu_builtin_range[range].high)
-	error ("%s expects an integer literal in the range [%d, %d]. ("
-	       HOST_WIDE_INT_PRINT_DEC ")",
+	error ("%s expects an integer literal in the range [%d, %d]. (%wd)",
 	       d->name,
 	       spu_builtin_range[range].low, spu_builtin_range[range].high,
 	       v);
@@ -6474,7 +6472,7 @@ spu_check_builtin_parm (struct spu_builtin_description *d, rtx op, int p)
 	  || (GET_CODE (op) == SYMBOL_REF
 	      && SYMBOL_REF_FUNCTION_P (op))
 	  || (v & ((1 << lsbits) - 1)) != 0)
-	warning (0, "%d least significant bits of %s are ignored.", lsbits,
+	warning (0, "%d least significant bits of %s are ignored", lsbits,
 		 d->name);
     }
 }
@@ -7111,7 +7109,7 @@ spu_split_convert (rtx ops[])
 }
 
 void
-spu_function_profiler (FILE * file, int labelno)
+spu_function_profiler (FILE * file, int labelno ATTRIBUTE_UNUSED)
 {
   fprintf (file, "# profile\n");
   fprintf (file, "brsl $75,  _mcount\n");

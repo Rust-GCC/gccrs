@@ -553,42 +553,6 @@ PACKAGE_URL=
 
 ac_unique_file="move-if-change"
 enable_option_checking=no
-# Factoring default headers for most tests.
-ac_includes_default="\
-#include <stdio.h>
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif
-#ifdef HAVE_SYS_STAT_H
-# include <sys/stat.h>
-#endif
-#ifdef STDC_HEADERS
-# include <stdlib.h>
-# include <stddef.h>
-#else
-# ifdef HAVE_STDLIB_H
-#  include <stdlib.h>
-# endif
-#endif
-#ifdef HAVE_STRING_H
-# if !defined STDC_HEADERS && defined HAVE_MEMORY_H
-#  include <memory.h>
-# endif
-# include <string.h>
-#endif
-#ifdef HAVE_STRINGS_H
-# include <strings.h>
-#endif
-#ifdef HAVE_INTTYPES_H
-# include <inttypes.h>
-#endif
-#ifdef HAVE_STDINT_H
-# include <stdint.h>
-#endif
-#ifdef HAVE_UNISTD_H
-# include <unistd.h>
-#endif"
-
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
 compare_exclusions
@@ -676,11 +640,6 @@ DEBUG_PREFIX_CFLAGS_FOR_TARGET
 SYSROOT_CFLAGS_FOR_TARGET
 stage1_languages
 extra_host_libiberty_configure_flags
-libelfinc
-libelflibs
-EGREP
-GREP
-CPP
 clooginc
 clooglibs
 pplinc
@@ -807,11 +766,9 @@ enable_ppl_version_check
 with_cloog
 with_cloog_include
 with_cloog_lib
+enable_cloog_backend
 enable_cloog_version_check
 enable_lto
-with_libelf
-with_libelf_include
-with_libelf_lib
 enable_stage1_languages
 enable_objc_gc
 with_build_sysroot
@@ -835,7 +792,6 @@ CPPFLAGS
 CXX
 CXXFLAGS
 CCC
-CPP
 build_configargs
 host_configargs
 target_configargs
@@ -1498,7 +1454,12 @@ Optional Features:
   --enable-libssp         build libssp directory
   --enable-build-with-cxx build with C++ compiler instead of C compiler
   --disable-ppl-version-check    disable check for PPL version
-  --disable-cloog-version-check  disable check for CLooG version
+  --enable-cloog-backend=backend
+				isl: The cloog.org isl backend
+				ppl-legacy: The legacy ppl backend - default
+				ppl: The cloog.org ppl backend
+  --disable-cloog-version-check
+                          disable check for CLooG version
   --enable-lto            enable link time optimization support
   --enable-stage1-languages[=all]   choose additional languages to build during
                           stage1.  Mostly useful for compiler development.
@@ -1549,16 +1510,14 @@ Optional Packages:
                           plus --with-ppl-lib=PATH/lib
   --with-ppl-include=PATH Specify directory for installed PPL include files
   --with-ppl-lib=PATH     Specify the directory for the installed PPL library
-  --with-cloog=PATH       Specify prefix directory for the installed CLooG-PPL package
-                          Equivalent to --with-cloog-include=PATH/include
-                          plus --with-cloog-lib=PATH/lib
-  --with-cloog-include=PATH Specify directory for installed CLooG include files
-  --with-cloog-lib=PATH   Specify the directory for the installed CLooG library
-  --with-libelf=PATH       Specify prefix directory for the installed libelf package
-                          Equivalent to --with-libelf-include=PATH/include
-                          plus --with-libelf-lib=PATH/lib
-  --with-libelf-include=PATH Specify directory for installed libelf include files
-  --with-libelf-lib=PATH   Specify the directory for the installed libelf library
+  --with-cloog=PATH       Specify prefix directory for the installed CLooG-PPL
+                          package. Equivalent to
+                          --with-cloog-include=PATH/include plus
+                          --with-cloog-lib=PATH/lib
+  --with-cloog-include=PATH
+                          Specify directory for installed CLooG include files
+  --with-cloog-lib=PATH   Specify the directory for the installed CLooG
+                          library
   --with-build-sysroot=SYSROOT
                           use sysroot as the system root during the build
   --with-debug-prefix-map='A=B C=D ...'
@@ -1578,7 +1537,6 @@ Some influential environment variables:
               you have headers in a nonstandard directory <include dir>
   CXX         C++ compiler command
   CXXFLAGS    C++ compiler flags
-  CPP         C preprocessor
   build_configargs
               additional configure arguments for build directories
   host_configargs
@@ -1833,203 +1791,6 @@ fi
   return $ac_retval
 
 } # ac_fn_c_try_link
-
-# ac_fn_c_try_cpp LINENO
-# ----------------------
-# Try to preprocess conftest.$ac_ext, and return whether this succeeded.
-ac_fn_c_try_cpp ()
-{
-  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
-  if { { ac_try="$ac_cpp conftest.$ac_ext"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:${as_lineno-$LINENO}: $ac_try_echo\""
-$as_echo "$ac_try_echo"; } >&5
-  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.err
-  ac_status=$?
-  if test -s conftest.err; then
-    grep -v '^ *+' conftest.err >conftest.er1
-    cat conftest.er1 >&5
-    mv -f conftest.er1 conftest.err
-  fi
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; } >/dev/null && {
-	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
-	 test ! -s conftest.err
-       }; then :
-  ac_retval=0
-else
-  $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-    ac_retval=1
-fi
-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
-  return $ac_retval
-
-} # ac_fn_c_try_cpp
-
-# ac_fn_c_check_header_mongrel LINENO HEADER VAR INCLUDES
-# -------------------------------------------------------
-# Tests whether HEADER exists, giving a warning if it cannot be compiled using
-# the include files in INCLUDES and setting the cache variable VAR
-# accordingly.
-ac_fn_c_check_header_mongrel ()
-{
-  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
-  if { as_var=$3; eval "test \"\${$as_var+set}\" = set"; }; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
-$as_echo_n "checking for $2... " >&6; }
-if { as_var=$3; eval "test \"\${$as_var+set}\" = set"; }; then :
-  $as_echo_n "(cached) " >&6
-fi
-eval ac_res=\$$3
-	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-else
-  # Is the header compilable?
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking $2 usability" >&5
-$as_echo_n "checking $2 usability... " >&6; }
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-$4
-#include <$2>
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ac_header_compiler=yes
-else
-  ac_header_compiler=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_header_compiler" >&5
-$as_echo "$ac_header_compiler" >&6; }
-
-# Is the header present?
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking $2 presence" >&5
-$as_echo_n "checking $2 presence... " >&6; }
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <$2>
-_ACEOF
-if ac_fn_c_try_cpp "$LINENO"; then :
-  ac_header_preproc=yes
-else
-  ac_header_preproc=no
-fi
-rm -f conftest.err conftest.$ac_ext
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_header_preproc" >&5
-$as_echo "$ac_header_preproc" >&6; }
-
-# So?  What about this header?
-case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in #((
-  yes:no: )
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: accepted by the compiler, rejected by the preprocessor!" >&5
-$as_echo "$as_me: WARNING: $2: accepted by the compiler, rejected by the preprocessor!" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: proceeding with the compiler's result" >&5
-$as_echo "$as_me: WARNING: $2: proceeding with the compiler's result" >&2;}
-    ;;
-  no:yes:* )
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: present but cannot be compiled" >&5
-$as_echo "$as_me: WARNING: $2: present but cannot be compiled" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2:     check for missing prerequisite headers?" >&5
-$as_echo "$as_me: WARNING: $2:     check for missing prerequisite headers?" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: see the Autoconf documentation" >&5
-$as_echo "$as_me: WARNING: $2: see the Autoconf documentation" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2:     section \"Present But Cannot Be Compiled\"" >&5
-$as_echo "$as_me: WARNING: $2:     section \"Present But Cannot Be Compiled\"" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: proceeding with the compiler's result" >&5
-$as_echo "$as_me: WARNING: $2: proceeding with the compiler's result" >&2;}
-    ;;
-esac
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
-$as_echo_n "checking for $2... " >&6; }
-if { as_var=$3; eval "test \"\${$as_var+set}\" = set"; }; then :
-  $as_echo_n "(cached) " >&6
-else
-  eval "$3=\$ac_header_compiler"
-fi
-eval ac_res=\$$3
-	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-fi
-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
-
-} # ac_fn_c_check_header_mongrel
-
-# ac_fn_c_try_run LINENO
-# ----------------------
-# Try to link conftest.$ac_ext, and return whether this succeeded. Assumes
-# that executables *can* be run.
-ac_fn_c_try_run ()
-{
-  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
-  if { { ac_try="$ac_link"
-case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:${as_lineno-$LINENO}: $ac_try_echo\""
-$as_echo "$ac_try_echo"; } >&5
-  (eval "$ac_link") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; } && { ac_try='./conftest$ac_exeext'
-  { { case "(($ac_try" in
-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
-  *) ac_try_echo=$ac_try;;
-esac
-eval ac_try_echo="\"\$as_me:${as_lineno-$LINENO}: $ac_try_echo\""
-$as_echo "$ac_try_echo"; } >&5
-  (eval "$ac_try") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; }; }; then :
-  ac_retval=0
-else
-  $as_echo "$as_me: program exited with status $ac_status" >&5
-       $as_echo "$as_me: failed program was:" >&5
-sed 's/^/| /' conftest.$ac_ext >&5
-
-       ac_retval=$ac_status
-fi
-  rm -rf conftest.dSYM conftest_ipa8_conftest.oo
-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
-  return $ac_retval
-
-} # ac_fn_c_try_run
-
-# ac_fn_c_check_header_compile LINENO HEADER VAR INCLUDES
-# -------------------------------------------------------
-# Tests whether HEADER exists and can be compiled using the include files in
-# INCLUDES, setting the cache variable VAR accordingly.
-ac_fn_c_check_header_compile ()
-{
-  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
-$as_echo_n "checking for $2... " >&6; }
-if { as_var=$3; eval "test \"\${$as_var+set}\" = set"; }; then :
-  $as_echo_n "(cached) " >&6
-else
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-$4
-#include <$2>
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  eval "$3=yes"
-else
-  eval "$3=no"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-eval ac_res=\$$3
-	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
-
-} # ac_fn_c_check_header_compile
 cat >config.log <<_ACEOF
 This file contains any messages produced by compilers while
 running configure, to aid debugging if configure makes a mistake.
@@ -3951,8 +3712,8 @@ fi
     tentative_cc="/usr/cygnus/progressive/bin/gcc"
     host_makefile_frag="config/mh-lynxrs6k"
     ;;
-  powerpc-*-darwin*)
-    host_makefile_frag="config/mh-ppc-darwin"
+  *-*-darwin*)
+    host_makefile_frag="config/mh-darwin"
     ;;
   powerpc-*-aix*)
     host_makefile_frag="config/mh-ppc-aix"
@@ -5367,13 +5128,13 @@ if test "${with_mpc+set}" = set; then :
 fi
 
 
-# Check whether --with-mpc_include was given.
+# Check whether --with-mpc-include was given.
 if test "${with_mpc_include+set}" = set; then :
   withval=$with_mpc_include;
 fi
 
 
-# Check whether --with-mpc_lib was given.
+# Check whether --with-mpc-lib was given.
 if test "${with_mpc_lib+set}" = set; then :
   withval=$with_mpc_lib;
 fi
@@ -5416,13 +5177,13 @@ if test "${with_mpfr+set}" = set; then :
 fi
 
 
-# Check whether --with-mpfr_include was given.
+# Check whether --with-mpfr-include was given.
 if test "${with_mpfr_include+set}" = set; then :
   withval=$with_mpfr_include;
 fi
 
 
-# Check whether --with-mpfr_lib was given.
+# Check whether --with-mpfr-lib was given.
 if test "${with_mpfr_lib+set}" = set; then :
   withval=$with_mpfr_lib;
 fi
@@ -5465,13 +5226,13 @@ if test "${with_gmp+set}" = set; then :
 fi
 
 
-# Check whether --with-gmp_include was given.
+# Check whether --with-gmp-include was given.
 if test "${with_gmp_include+set}" = set; then :
   withval=$with_gmp_include;
 fi
 
 
-# Check whether --with-gmp_lib was given.
+# Check whether --with-gmp-lib was given.
 if test "${with_gmp_lib+set}" = set; then :
   withval=$with_gmp_lib;
 fi
@@ -5824,13 +5585,13 @@ if test "${with_ppl+set}" = set; then :
 fi
 
 
-# Check whether --with-ppl_include was given.
+# Check whether --with-ppl-include was given.
 if test "${with_ppl_include+set}" = set; then :
   withval=$with_ppl_include;
 fi
 
 
-# Check whether --with-ppl_lib was given.
+# Check whether --with-ppl-lib was given.
 if test "${with_ppl_lib+set}" = set; then :
   withval=$with_ppl_lib;
 fi
@@ -5904,8 +5665,7 @@ fi
 
 
 # Check for CLOOG
-clooglibs=" -lcloog "
-clooginc=" -DCLOOG_PPL_BACKEND "
+
 
 
 # Check whether --with-cloog was given.
@@ -5914,47 +5674,32 @@ if test "${with_cloog+set}" = set; then :
 fi
 
 
-# Check whether --with-cloog_include was given.
+# Check whether --with-cloog-include was given.
 if test "${with_cloog_include+set}" = set; then :
   withval=$with_cloog_include;
 fi
 
 
-# Check whether --with-cloog_lib was given.
+# Check whether --with-cloog-lib was given.
 if test "${with_cloog_lib+set}" = set; then :
   withval=$with_cloog_lib;
 fi
 
 
-if test "x$with_ppl" = "xno"; then
-  with_cloog=no
+  # Check whether --enable-cloog-backend was given.
+if test "${enable_cloog_backend+set}" = set; then :
+  enableval=$enable_cloog_backend;  if   test "x${enableval}" = "xisl"; then
+	cloog_backend=isl
+      elif test "x${enableval}" = "xppl"; then
+	cloog_backend=ppl
+      else
+	cloog_backend=ppl-legacy
+      fi
+else
+  cloog_backend=ppl-legacy
 fi
 
-case $with_cloog in
-  no)
-    clooglibs=
-    clooginc=
-    ;;
-  "" | yes)
-    ;;
-  *)
-    clooglibs="-L$with_cloog/lib -lcloog"
-    clooginc="-I$with_cloog/include -DCLOOG_PPL_BACKEND "
-    ;;
-esac
-if test "x$with_cloog_include" != x; then
-  clooginc="-I$with_cloog_include -DCLOOG_PPL_BACKEND "
-fi
-if test "x$with_cloog_lib" != x; then
-  clooglibs="-L$with_cloog_lib -lcloog"
-fi
-if test "x$with_cloog$with_cloog_include$with_cloog_lib" = x && test -d ${srcdir}/cloog; then
-  clooglibs='-L$$r/$(HOST_SUBDIR)/cloog/'"$lt_cv_objdir"' -lcloog '
-  clooginc='-I$$r/$(HOST_SUBDIR)/cloog/include -I$$s/cloog/include -DCLOOG_PPL_BACKEND '
-  enable_cloog_version_check=no
-fi
-
-# Check whether --enable-cloog-version-check was given.
+  # Check whether --enable-cloog-version-check was given.
 if test "${enable_cloog_version_check+set}" = set; then :
   enableval=$enable_cloog_version_check; ENABLE_CLOOG_CHECK=$enableval
 else
@@ -5962,22 +5707,238 @@ else
 fi
 
 
-if test "x$with_cloog" != "xno" -a "${ENABLE_CLOOG_CHECK}" = "yes"; then
-  saved_CFLAGS="$CFLAGS"
-  CFLAGS="$CFLAGS $clooginc $gmpinc $pplinc"
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for version 0.15.5 (or later revision) of CLooG" >&5
+  # Initialize clooglibs and clooginc.
+  case $with_cloog in
+    no)
+      clooglibs=
+      clooginc=
+      ;;
+    "" | yes)
+      ;;
+    *)
+      clooglibs="-L$with_cloog/lib"
+      clooginc="-I$with_cloog/include"
+      ;;
+  esac
+  if test "x${with_cloog_include}" != x ; then
+    clooginc="-I$with_cloog_include"
+  fi
+  if test "x${with_cloog_lib}" != x; then
+    clooglibs="-L$with_cloog_lib"
+  fi
+
+
+
+
+
+if test "x$with_ppl" = "xno"; then
+  with_cloog=no
+fi
+if test "x${with_cloog}" = x && test "x${with_cloog_include}" = x \
+  && test "x${with_cloog_lib}" = x && test -d ${srcdir}/cloog; then
+  clooglibs='-L$$r/$(HOST_SUBDIR)/cloog/'"$lt_cv_objdir"' '
+  clooginc='-I$$r/$(HOST_SUBDIR)/cloog/include -I$$s/cloog/include '
+fi
+if test "x$with_cloog" != "xno"; then
+
+
+
+  _cloog_saved_CFLAGS=$CFLAGS
+  _cloog_saved_CPPFLAGS=$CPPFLAGS
+  _cloog_saved_LDFLAGS=$LDFLAGS
+  _cloog_saved_LIBS=$LIBS
+
+  _cloogorginc="-DCLOOG_INT_GMP -DCLOOG_ORG"
+
+    CFLAGS="${CFLAGS} ${clooginc} ${gmpinc}"
+  CPPFLAGS="${CPPFLAGS} ${_cloogorginc}"
+  LDFLAGS="${LDFLAGS} ${clooglibs}"
+
+  case $cloog_backend in
+    "ppl-legacy")
+    CFLAGS="${CFLAGS} ${pplinc}"
+    LDFLAGS="${LDFLAGS} ${ppllibs}"
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for installed CLooG PPL Legacy" >&5
+$as_echo_n "checking for installed CLooG PPL Legacy... " >&6; }
+if test "${gcc_cv_cloog_type+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  LIBS="-lcloog ${_cloog_saved_LIBS}"
+      cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include "cloog/cloog.h"
+int
+main ()
+{
+#ifndef CLOOG_PPL_BACKEND
+    choke me
+   #endif
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  gcc_cv_cloog_type="PPL Legacy"
+else
+  gcc_cv_cloog_type=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_cloog_type" >&5
+$as_echo "$gcc_cv_cloog_type" >&6; }
+    ;;
+    "isl")
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for installed CLooG ISL" >&5
+$as_echo_n "checking for installed CLooG ISL... " >&6; }
+if test "${gcc_cv_cloog_type+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  LIBS="-lcloog-isl ${_cloog_saved_LIBS}"
+      cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include "cloog/cloog.h"
+int
+main ()
+{
+cloog_version ()
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  gcc_cv_cloog_type="ISL"
+else
+  gcc_cv_cloog_type=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_cloog_type" >&5
+$as_echo "$gcc_cv_cloog_type" >&6; }
+    ;;
+    "ppl")
+    CFLAGS="${CFLAGS} ${pplinc}"
+    LDFLAGS="${LDFLAGS} ${ppllibs}"
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for installed CLooG PPL" >&5
+$as_echo_n "checking for installed CLooG PPL... " >&6; }
+if test "${gcc_cv_cloog_type+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  LIBS="-lcloog-ppl ${_cloog_saved_LIBS}"
+      cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include "cloog/cloog.h"
+   #include "cloog/ppl/cloog.h"
+int
+main ()
+{
+cloog_version ()
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  gcc_cv_cloog_type="PPL"
+else
+  gcc_cv_cloog_type=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_cloog_type" >&5
+$as_echo "$gcc_cv_cloog_type" >&6; }
+    ;;
+    *)
+      gcc_cv_cloog_type=""
+  esac
+
+  case $gcc_cv_cloog_type in
+    "PPL Legacy")
+      clooginc="${clooginc}"
+      clooglibs="${clooglibs} -lcloog"
+      cloog_org=no
+      ;;
+    "ISL")
+      clooginc="${clooginc} ${_cloogorginc}"
+      clooglibs="${clooglibs} -lcloog-isl"
+      cloog_org=yes
+      ;;
+    "PPL")
+      clooginc="${clooginc} ${_cloogorginc}"
+      clooglibs="${clooglibs} -lcloog-ppl"
+      cloog_org=yes
+      ;;
+    *)
+      clooglibs=
+      clooginc=
+      cloog_org=
+      ;;
+  esac
+
+  LIBS=$_cloog_saved_LIBS
+  CFLAGS=$_cloog_saved_CFLAGS
+  CPPFLAGS=$_cloog_saved_CPPFLAGS
+  LDFLAGS=$_cloog_saved_LDFLAGS
+
+
+
+
+
+  if test "${ENABLE_CLOOG_CHECK}" = yes ; then
+    _cloog_saved_CFLAGS=$CFLAGS
+    _cloog_saved_LDFLAGS=$LDFLAGS
+
+    CFLAGS="${_cloog_saved_CFLAGS} ${clooginc} ${pplinc} ${gmpinc}"
+    LDFLAGS="${_cloog_saved_LDFLAGS} ${clooglibs} ${ppllibs}"
+
+    if test "${cloog_org}" = yes ; then
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for version 0.14.0 of CLooG" >&5
+$as_echo_n "checking for version 0.14.0 of CLooG... " >&6; }
+if test "${gcc_cv_cloog_ct_0_14_0+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include "cloog/cloog.h"
+int
+main ()
+{
+#if CLOOG_VERSION_MAJOR != 0 \
+    || CLOOG_VERSION_MINOR != 14 \
+    || CLOOG_VERSION_REVISION < 0
+    choke me
+   #endif
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  gcc_cv_cloog_ct_0_14_0=yes
+else
+  gcc_cv_cloog_ct_0_14_0=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_cloog_ct_0_14_0" >&5
+$as_echo "$gcc_cv_cloog_ct_0_14_0" >&6; }
+    elif test "${cloog_org}" = no ; then
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for version 0.15.5 (or later revision) of CLooG" >&5
 $as_echo_n "checking for version 0.15.5 (or later revision) of CLooG... " >&6; }
+if test "${gcc_cv_cloog_ct_0_15_5+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #include "cloog/cloog.h"
 int
 main ()
 {
-
-  #if CLOOG_VERSION_MAJOR != 0 || CLOOG_VERSION_MINOR != 15 || CLOOG_VERSION_REVISION < 5
-  choke me
-  #endif
-
+#if CLOOG_VERSION_MAJOR != 0 \
+    || CLOOG_VERSION_MINOR != 15 \
+    || CLOOG_VERSION_REVISION < 5
+    choke me
+   #endif
   ;
   return 0;
 }
@@ -5989,34 +5950,66 @@ if ac_fn_c_try_compile "$LINENO"; then :
 int
 main ()
 {
-
-  #if CLOOG_VERSION_MAJOR != 0 || CLOOG_VERSION_MINOR != 15 || CLOOG_VERSION_REVISION < 9
-  choke me
-  #endif
-
+#if CLOOG_VERSION_MAJOR != 0 \
+    || CLOOG_VERSION_MINOR != 15 \
+    || CLOOG_VERSION_REVISION < 9
+    choke me
+   #endif
   ;
   return 0;
 }
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }
+  gcc_cv_cloog_ct_0_15_5=yes
 else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: buggy but acceptable" >&5
-$as_echo "buggy but acceptable" >&6; }
+  gcc_cv_cloog_ct_0_15_5="buggy but acceptable"
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }; clooglibs= ; clooginc=
+  gcc_cv_cloog_ct_0_15_5=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS="$saved_CFLAGS"
 fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_cloog_ct_0_15_5" >&5
+$as_echo "$gcc_cv_cloog_ct_0_15_5" >&6; }
+    fi
 
-# Flags needed for CLOOG
+    CFLAGS=$_cloog_saved_CFLAGS
+    LDFLAGS=$_cloog_saved_LDFLAGS
+  fi
 
 
+
+
+
+
+
+  if test "x${with_cloog}" != x \
+    || test "x${with_cloog_include}" != x \
+    || test "x${with_cloog_lib}" != x ; then
+    graphite_requested=yes
+  else
+    graphite_requested=no
+  fi
+
+
+
+  if test "${gcc_cv_cloog_ct_0_14_0}" = no \
+    || test "${gcc_cv_cloog_rt_0_14_0}" = no \
+    || test "${gcc_cv_cloog_ct_0_15_5}" = no; then
+    clooglibs=
+    clooginc=
+  fi
+
+  if test "${graphite_requested}" = yes \
+    && test "x${clooglibs}" = x \
+    && test "x${clooginc}" = x ; then
+
+    as_fn_error "Unable to find a usable CLooG. See config.log for details." "$LINENO" 5
+  fi
+
+
+fi
 
 # Check for LTO support.
 # Check whether --enable-lto was given.
@@ -6025,405 +6018,6 @@ if test "${enable_lto+set}" = set; then :
 else
   enable_lto=yes; default_enable_lto=yes
 fi
-
-
-
-ac_ext=c
-ac_cpp='$CPP $CPPFLAGS'
-ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
-ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
-ac_compiler_gnu=$ac_cv_c_compiler_gnu
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking how to run the C preprocessor" >&5
-$as_echo_n "checking how to run the C preprocessor... " >&6; }
-# On Suns, sometimes $CPP names a directory.
-if test -n "$CPP" && test -d "$CPP"; then
-  CPP=
-fi
-if test -z "$CPP"; then
-  if test "${ac_cv_prog_CPP+set}" = set; then :
-  $as_echo_n "(cached) " >&6
-else
-      # Double quotes because CPP needs to be expanded
-    for CPP in "$CC -E" "$CC -E -traditional-cpp" "/lib/cpp"
-    do
-      ac_preproc_ok=false
-for ac_c_preproc_warn_flag in '' yes
-do
-  # Use a header file that comes with gcc, so configuring glibc
-  # with a fresh cross-compiler works.
-  # Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
-  # <limits.h> exists even on freestanding compilers.
-  # On the NeXT, cc -E runs the code through the compiler's parser,
-  # not just through cpp. "Syntax error" is here to catch this case.
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#ifdef __STDC__
-# include <limits.h>
-#else
-# include <assert.h>
-#endif
-		     Syntax error
-_ACEOF
-if ac_fn_c_try_cpp "$LINENO"; then :
-
-else
-  # Broken: fails on valid input.
-continue
-fi
-rm -f conftest.err conftest.$ac_ext
-
-  # OK, works on sane cases.  Now check whether nonexistent headers
-  # can be detected and how.
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <ac_nonexistent.h>
-_ACEOF
-if ac_fn_c_try_cpp "$LINENO"; then :
-  # Broken: success on invalid input.
-continue
-else
-  # Passes both tests.
-ac_preproc_ok=:
-break
-fi
-rm -f conftest.err conftest.$ac_ext
-
-done
-# Because of `break', _AC_PREPROC_IFELSE's cleaning code was skipped.
-rm -f conftest.err conftest.$ac_ext
-if $ac_preproc_ok; then :
-  break
-fi
-
-    done
-    ac_cv_prog_CPP=$CPP
-
-fi
-  CPP=$ac_cv_prog_CPP
-else
-  ac_cv_prog_CPP=$CPP
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $CPP" >&5
-$as_echo "$CPP" >&6; }
-ac_preproc_ok=false
-for ac_c_preproc_warn_flag in '' yes
-do
-  # Use a header file that comes with gcc, so configuring glibc
-  # with a fresh cross-compiler works.
-  # Prefer <limits.h> to <assert.h> if __STDC__ is defined, since
-  # <limits.h> exists even on freestanding compilers.
-  # On the NeXT, cc -E runs the code through the compiler's parser,
-  # not just through cpp. "Syntax error" is here to catch this case.
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#ifdef __STDC__
-# include <limits.h>
-#else
-# include <assert.h>
-#endif
-		     Syntax error
-_ACEOF
-if ac_fn_c_try_cpp "$LINENO"; then :
-
-else
-  # Broken: fails on valid input.
-continue
-fi
-rm -f conftest.err conftest.$ac_ext
-
-  # OK, works on sane cases.  Now check whether nonexistent headers
-  # can be detected and how.
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <ac_nonexistent.h>
-_ACEOF
-if ac_fn_c_try_cpp "$LINENO"; then :
-  # Broken: success on invalid input.
-continue
-else
-  # Passes both tests.
-ac_preproc_ok=:
-break
-fi
-rm -f conftest.err conftest.$ac_ext
-
-done
-# Because of `break', _AC_PREPROC_IFELSE's cleaning code was skipped.
-rm -f conftest.err conftest.$ac_ext
-if $ac_preproc_ok; then :
-
-else
-  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-as_fn_error "C preprocessor \"$CPP\" fails sanity check
-See \`config.log' for more details." "$LINENO" 5; }
-fi
-
-ac_ext=c
-ac_cpp='$CPP $CPPFLAGS'
-ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
-ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
-ac_compiler_gnu=$ac_cv_c_compiler_gnu
-
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for grep that handles long lines and -e" >&5
-$as_echo_n "checking for grep that handles long lines and -e... " >&6; }
-if test "${ac_cv_path_GREP+set}" = set; then :
-  $as_echo_n "(cached) " >&6
-else
-  if test -z "$GREP"; then
-  ac_path_GREP_found=false
-  # Loop through the user's path and test for each of PROGNAME-LIST
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH$PATH_SEPARATOR/usr/xpg4/bin
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_prog in grep ggrep; do
-    for ac_exec_ext in '' $ac_executable_extensions; do
-      ac_path_GREP="$as_dir/$ac_prog$ac_exec_ext"
-      { test -f "$ac_path_GREP" && $as_test_x "$ac_path_GREP"; } || continue
-# Check for GNU ac_path_GREP and select it if it is found.
-  # Check for GNU $ac_path_GREP
-case `"$ac_path_GREP" --version 2>&1` in
-*GNU*)
-  ac_cv_path_GREP="$ac_path_GREP" ac_path_GREP_found=:;;
-*)
-  ac_count=0
-  $as_echo_n 0123456789 >"conftest.in"
-  while :
-  do
-    cat "conftest.in" "conftest.in" >"conftest.tmp"
-    mv "conftest.tmp" "conftest.in"
-    cp "conftest.in" "conftest.nl"
-    $as_echo 'GREP' >> "conftest.nl"
-    "$ac_path_GREP" -e 'GREP$' -e '-(cannot match)-' < "conftest.nl" >"conftest.out" 2>/dev/null || break
-    diff "conftest.out" "conftest.nl" >/dev/null 2>&1 || break
-    as_fn_arith $ac_count + 1 && ac_count=$as_val
-    if test $ac_count -gt ${ac_path_GREP_max-0}; then
-      # Best one so far, save it but keep looking for a better one
-      ac_cv_path_GREP="$ac_path_GREP"
-      ac_path_GREP_max=$ac_count
-    fi
-    # 10*(2^10) chars as input seems more than enough
-    test $ac_count -gt 10 && break
-  done
-  rm -f conftest.in conftest.tmp conftest.nl conftest.out;;
-esac
-
-      $ac_path_GREP_found && break 3
-    done
-  done
-  done
-IFS=$as_save_IFS
-  if test -z "$ac_cv_path_GREP"; then
-    as_fn_error "no acceptable grep could be found in $PATH$PATH_SEPARATOR/usr/xpg4/bin" "$LINENO" 5
-  fi
-else
-  ac_cv_path_GREP=$GREP
-fi
-
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_path_GREP" >&5
-$as_echo "$ac_cv_path_GREP" >&6; }
- GREP="$ac_cv_path_GREP"
-
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for egrep" >&5
-$as_echo_n "checking for egrep... " >&6; }
-if test "${ac_cv_path_EGREP+set}" = set; then :
-  $as_echo_n "(cached) " >&6
-else
-  if echo a | $GREP -E '(a|b)' >/dev/null 2>&1
-   then ac_cv_path_EGREP="$GREP -E"
-   else
-     if test -z "$EGREP"; then
-  ac_path_EGREP_found=false
-  # Loop through the user's path and test for each of PROGNAME-LIST
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH$PATH_SEPARATOR/usr/xpg4/bin
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_prog in egrep; do
-    for ac_exec_ext in '' $ac_executable_extensions; do
-      ac_path_EGREP="$as_dir/$ac_prog$ac_exec_ext"
-      { test -f "$ac_path_EGREP" && $as_test_x "$ac_path_EGREP"; } || continue
-# Check for GNU ac_path_EGREP and select it if it is found.
-  # Check for GNU $ac_path_EGREP
-case `"$ac_path_EGREP" --version 2>&1` in
-*GNU*)
-  ac_cv_path_EGREP="$ac_path_EGREP" ac_path_EGREP_found=:;;
-*)
-  ac_count=0
-  $as_echo_n 0123456789 >"conftest.in"
-  while :
-  do
-    cat "conftest.in" "conftest.in" >"conftest.tmp"
-    mv "conftest.tmp" "conftest.in"
-    cp "conftest.in" "conftest.nl"
-    $as_echo 'EGREP' >> "conftest.nl"
-    "$ac_path_EGREP" 'EGREP$' < "conftest.nl" >"conftest.out" 2>/dev/null || break
-    diff "conftest.out" "conftest.nl" >/dev/null 2>&1 || break
-    as_fn_arith $ac_count + 1 && ac_count=$as_val
-    if test $ac_count -gt ${ac_path_EGREP_max-0}; then
-      # Best one so far, save it but keep looking for a better one
-      ac_cv_path_EGREP="$ac_path_EGREP"
-      ac_path_EGREP_max=$ac_count
-    fi
-    # 10*(2^10) chars as input seems more than enough
-    test $ac_count -gt 10 && break
-  done
-  rm -f conftest.in conftest.tmp conftest.nl conftest.out;;
-esac
-
-      $ac_path_EGREP_found && break 3
-    done
-  done
-  done
-IFS=$as_save_IFS
-  if test -z "$ac_cv_path_EGREP"; then
-    as_fn_error "no acceptable egrep could be found in $PATH$PATH_SEPARATOR/usr/xpg4/bin" "$LINENO" 5
-  fi
-else
-  ac_cv_path_EGREP=$EGREP
-fi
-
-   fi
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_path_EGREP" >&5
-$as_echo "$ac_cv_path_EGREP" >&6; }
- EGREP="$ac_cv_path_EGREP"
-
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for ANSI C header files" >&5
-$as_echo_n "checking for ANSI C header files... " >&6; }
-if test "${ac_cv_header_stdc+set}" = set; then :
-  $as_echo_n "(cached) " >&6
-else
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-#include <float.h>
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ac_cv_header_stdc=yes
-else
-  ac_cv_header_stdc=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-
-if test $ac_cv_header_stdc = yes; then
-  # SunOS 4.x string.h does not declare mem*, contrary to ANSI.
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <string.h>
-
-_ACEOF
-if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
-  $EGREP "memchr" >/dev/null 2>&1; then :
-
-else
-  ac_cv_header_stdc=no
-fi
-rm -f conftest*
-
-fi
-
-if test $ac_cv_header_stdc = yes; then
-  # ISC 2.0.2 stdlib.h does not declare free, contrary to ANSI.
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <stdlib.h>
-
-_ACEOF
-if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
-  $EGREP "free" >/dev/null 2>&1; then :
-
-else
-  ac_cv_header_stdc=no
-fi
-rm -f conftest*
-
-fi
-
-if test $ac_cv_header_stdc = yes; then
-  # /bin/cc in Irix-4.0.5 gets non-ANSI ctype macros unless using -ansi.
-  if test "$cross_compiling" = yes; then :
-  :
-else
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <ctype.h>
-#include <stdlib.h>
-#if ((' ' & 0x0FF) == 0x020)
-# define ISLOWER(c) ('a' <= (c) && (c) <= 'z')
-# define TOUPPER(c) (ISLOWER(c) ? 'A' + ((c) - 'a') : (c))
-#else
-# define ISLOWER(c) \
-		   (('a' <= (c) && (c) <= 'i') \
-		     || ('j' <= (c) && (c) <= 'r') \
-		     || ('s' <= (c) && (c) <= 'z'))
-# define TOUPPER(c) (ISLOWER(c) ? ((c) | 0x40) : (c))
-#endif
-
-#define XOR(e, f) (((e) && !(f)) || (!(e) && (f)))
-int
-main ()
-{
-  int i;
-  for (i = 0; i < 256; i++)
-    if (XOR (islower (i), ISLOWER (i))
-	|| toupper (i) != TOUPPER (i))
-      return 2;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_run "$LINENO"; then :
-
-else
-  ac_cv_header_stdc=no
-fi
-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
-  conftest.$ac_objext conftest.beam conftest.$ac_ext
-fi
-
-fi
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_header_stdc" >&5
-$as_echo "$ac_cv_header_stdc" >&6; }
-if test $ac_cv_header_stdc = yes; then
-
-$as_echo "#define STDC_HEADERS 1" >>confdefs.h
-
-fi
-
-# On IRIX 5.3, sys/types and inttypes.h are conflicting.
-for ac_header in sys/types.h sys/stat.h stdlib.h string.h memory.h strings.h \
-		  inttypes.h stdint.h unistd.h
-do :
-  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
-ac_fn_c_check_header_compile "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default
-"
-eval as_val=\$$as_ac_Header
-   if test "x$as_val" = x""yes; then :
-  cat >>confdefs.h <<_ACEOF
-#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
-_ACEOF
-
-fi
-
-done
 
 
 
@@ -6442,258 +6036,14 @@ case $target in
 esac
 
 if test $target_elf = yes; then :
-  if test x"$enable_lto" = x"yes" ; then
-  # Make sure that libelf.h and gelf.h are available.
+  # ELF platforms build the lto-plugin always.
+  build_lto_plugin=yes
 
-# Check whether --with-libelf was given.
-if test "${with_libelf+set}" = set; then :
-  withval=$with_libelf;
-fi
-
-
-
-# Check whether --with-libelf_include was given.
-if test "${with_libelf_include+set}" = set; then :
-  withval=$with_libelf_include;
-fi
-
-
-
-# Check whether --with-libelf_lib was given.
-if test "${with_libelf_lib+set}" = set; then :
-  withval=$with_libelf_lib;
-fi
-
-
-  saved_CFLAGS="$CFLAGS"
-  saved_CPPFLAGS="$CPPFLAGS"
-  saved_LIBS="$LIBS"
-
-  case $with_libelf in
-    "")
-      libelflibs="-lelf"
-      libelfinc="-I/usr/include/libelf"
-      ;;
-    *)
-      libelflibs="-L$with_libelf/lib -lelf"
-      libelfinc="-I$with_libelf/include -I$with_libelf/include/libelf"
-      LIBS="$libelflibs $LIBS"
-      ;;
-  esac
-
-  if test "x$with_libelf_include" != x; then
-    libelfinc="-I$with_libelf_include"
-  fi
-
-  if test "x$with_libelf_lib" != x; then
-    libelflibs="-L$with_libelf_lib -lelf"
-    LIBS="$libelflibs $LIBS"
-  fi
-
-  if test "x$with_libelf$with_libelf_include$with_libelf_lib" = x \
-     && test -d ${srcdir}/libelf; then
-    libelflibs='-L$$r/$(HOST_SUBDIR)/libelf/lib -lelf '
-    libelfinc='-D__LIBELF_INTERNAL__ -I$$r/$(HOST_SUBDIR)/libelf/lib -I$$s/libelf/lib'
-    LIBS="$libelflibs $LIBS"
-
- else
-
-  CFLAGS="$CFLAGS $libelfinc"
-  CPPFLAGS="$CPPFLAGS $libelfinc"
-  LIBS="$LIBS $libelflibs"
-
-  for ac_header in libelf.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "libelf.h" "ac_cv_header_libelf_h" "$ac_includes_default"
-if test "x$ac_cv_header_libelf_h" = x""yes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBELF_H 1
-_ACEOF
- have_libelf_h=yes
-fi
-
-done
-
-  for ac_header in gelf.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "gelf.h" "ac_cv_header_gelf_h" "$ac_includes_default"
-if test "x$ac_cv_header_gelf_h" = x""yes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_GELF_H 1
-_ACEOF
- have_gelf_h=yes
-fi
-
-done
-
-
-  for ac_header in libelf/libelf.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "libelf/libelf.h" "ac_cv_header_libelf_libelf_h" "$ac_includes_default"
-if test "x$ac_cv_header_libelf_libelf_h" = x""yes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBELF_LIBELF_H 1
-_ACEOF
- have_libelf_libelf_h=yes
-fi
-
-done
-
-  for ac_header in libelf/gelf.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "libelf/gelf.h" "ac_cv_header_libelf_gelf_h" "$ac_includes_default"
-if test "x$ac_cv_header_libelf_gelf_h" = x""yes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBELF_GELF_H 1
-_ACEOF
- have_libelf_gelf_h=yes
-fi
-
-done
-
-
-  # If we couldn't find libelf.h and the user forced it, emit an error.
-  if test x"$have_libelf_h" != x"yes" \
-     && test x"$have_libelf_libelf_h" != x"yes" ; then
-    if test x"$default_enable_lto" != x"yes" ; then
-      as_fn_error "LTO support requires libelf.h or libelf/libelf.h." "$LINENO" 5
-    else
-      enable_lto=no
-      libelflibs=
-      libelfinc=
-    fi
-  fi
-
-  # If we couldn't find gelf.h and the user forced it, emit an error.
-  if test x"$have_gelf_h" != x"yes" \
-     && test x"$have_libelf_gelf_h" != x"yes" ; then
-    if test x"$default_enable_lto" != x"yes" ; then
-      as_fn_error "LTO support requires gelf.h or libelf/gelf.h." "$LINENO" 5
-    else
-      enable_lto=no
-      libelflibs=
-      libelfinc=
-    fi
-  fi
-
-  # Check that the detected libelf has the functions we need.  We cannot
-  # rely on just detecting the headers since they do not include
-  # versioning information.  Add functions, if needed.
-  if test x"$enable_lto" = x"yes" ; then
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for the correct version of libelf" >&5
-$as_echo_n "checking for the correct version of libelf... " >&6; }
-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <libelf.h>
-int
-main ()
-{
-
-      elf_errmsg (0);
-      elf_getscn (0, 0);
-      elf_nextscn (0, 0);
-      elf_strptr (0, 0, 0);
-      elf_getident (0, 0);
-      elf_begin (0, 0, 0);
-      elf_ndxscn (0);
-      elf_end (0);
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; };
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }; enable_lto=no; libelflibs= ; libelfinc=
-
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-
-    # Check for elf_getshdrstrndx or elf_getshstrndx.  The latter's flavor
-    # is determined in gcc/configure.ac.
-    if test x"$enable_lto" = x"yes" ; then
-      { $as_echo "$as_me:${as_lineno-$LINENO}: checking for elf_getshdrstrndx" >&5
-$as_echo_n "checking for elf_getshdrstrndx... " >&6; }
-      cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <libelf.h>
-int
-main ()
-{
-
-	elf_getshdrstrndx (0, 0);
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; };
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; };
-	 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for elf_getshstrndx" >&5
-$as_echo_n "checking for elf_getshstrndx... " >&6; }
-         cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <libelf.h>
-int
-main ()
-{
-
-	   elf_getshstrndx (0, 0);
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; };
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }; enable_lto=no; libelflibs= ; libelfinc=
-
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-    fi
-
-    # If we couldn't enable LTO and the user forced it, emit an error.
-    if test x"$enable_lto" = x"no" \
-       && test x"$default_enable_lto" != x"yes" ; then
-      as_fn_error "To enable LTO, GCC requires libelf v0.8.12+.
-Try the --with-libelf, --with-libelf-include and --with-libelf-lib options
-to specify its location." "$LINENO" 5
-    fi
-  fi
-
-  CFLAGS="$saved_CFLAGS"
-  CPPFLAGS="$saved_CPPFLAGS"
-  LIBS="$saved_LIBS"
-
- fi
-
-  # Flags needed for libelf.
-
-
-  # ELF platforms build the lto-plugin when GOLD is in use.
-  build_lto_plugin=${ENABLE_GOLD}
-fi
 else
   if test x"$default_enable_lto" = x"yes" ; then
     case $target in
       *-apple-darwin* | *-cygwin* | *-mingw*) ;;
-      # On other non-ELF platforms, LTO must be explicitly enabled.
+      # On other non-ELF platforms, LTO has yet to be validated.
       *) enable_lto=no ;;
     esac
   else
@@ -6711,11 +6061,12 @@ else
     esac
   fi
   # Among non-ELF, only Windows platforms support the lto-plugin so far.
+  # Build it unless LTO was explicitly disabled.
   case $target in
-    *-cygwin* | *-mingw*) build_lto_plugin=yes ;;
+    *-cygwin* | *-mingw*) build_lto_plugin=$enable_lto ;;
     *) ;;
   esac
-  default_enable_lto=no
+
 fi
 
 
@@ -8048,7 +7399,7 @@ case " $target_configdirs " in
        # to it.  This is right: we don't want to search that directory
        # for binaries, but we want the header files in there, so add
        # them explicitly.
-       FLAGS_FOR_TARGET=$FLAGS_FOR_TARGET' -isystem $$r/$(HOST_SUBDIR)/gcc/include'
+       FLAGS_FOR_TARGET=$FLAGS_FOR_TARGET' -isystem $$r/$(HOST_SUBDIR)/gcc/include -isystem $$r/$(HOST_SUBDIR)/gcc/include-fixed'
 
        # Someone might think of using the pre-installed headers on
        # Canadian crosses, in case the installed compiler is not fully

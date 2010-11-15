@@ -6408,7 +6408,7 @@ handle_mode_attribute (tree *node, tree name, tree args,
 	  if (ALL_FIXED_POINT_MODE_P (mode)
 	      && TYPE_UNSIGNED (type) != UNSIGNED_FIXED_POINT_MODE_P (mode))
 	    {
-	      error ("signness of type and machine mode %qs don't match", p);
+	      error ("signedness of type and machine mode %qs don%'t match", p);
 	      return NULL_TREE;
 	    }
 	  /* For fixed-point modes, we need to pass saturating info.  */
@@ -7804,7 +7804,8 @@ parse_optimize_options (tree args, bool attr_p)
 						&decoded_options,
 						&decoded_options_count);
   decode_options (&global_options, &global_options_set,
-		  decoded_options, decoded_options_count);
+		  decoded_options, decoded_options_count,
+		  input_location, global_dc);
 
   targetm.override_options_after_change();
 

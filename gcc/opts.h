@@ -21,6 +21,8 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_OPTS_H
 #define GCC_OPTS_H
 
+#include "input.h"
+
 /* Specifies how a switch's VAR_VALUE relates to its FLAG_VAR.  */
 enum cl_var_type {
   /* The switch is enabled when FLAG_VAR is nonzero.  */
@@ -71,12 +73,12 @@ extern const unsigned int cl_options_count;
 extern const char *const lang_names[];
 extern const unsigned int cl_lang_count;
 
-#define CL_PARAMS               (1 << 13) /* Fake entry.  Used to display --param info with --help.  */
-#define CL_WARNING		(1 << 14) /* Enables an (optional) warning message.  */
-#define CL_OPTIMIZATION		(1 << 15) /* Enables an (optional) optimization.  */
-#define CL_DRIVER		(1 << 16) /* Driver option.  */
-#define CL_TARGET		(1 << 17) /* Target-specific option.  */
-#define CL_COMMON		(1 << 18) /* Language-independent.  */
+#define CL_PARAMS               (1 << 11) /* Fake entry.  Used to display --param info with --help.  */
+#define CL_WARNING		(1 << 12) /* Enables an (optional) warning message.  */
+#define CL_OPTIMIZATION		(1 << 13) /* Enables an (optional) optimization.  */
+#define CL_DRIVER		(1 << 14) /* Driver option.  */
+#define CL_TARGET		(1 << 15) /* Target-specific option.  */
+#define CL_COMMON		(1 << 16) /* Language-independent.  */
 
 #define CL_MIN_OPTION_CLASS	CL_PARAMS
 #define CL_MAX_OPTION_CLASS	CL_COMMON
@@ -85,6 +87,11 @@ extern const unsigned int cl_lang_count;
    Before this point the bits have described the class of the option.
    This distinction is important because --help will not list options
    which only have these higher bits set.  */
+
+/* Options marked with CL_SEPARATE take a number of separate arguments
+   (1 to 4) that is one more than the number in this bit-field.  */
+#define CL_SEPARATE_NARGS_SHIFT	17
+#define CL_SEPARATE_NARGS_MASK	(3 << CL_SEPARATE_NARGS_SHIFT)
 
 #define CL_SEPARATE_ALIAS	(1 << 19) /* Option is an alias when used with separate argument.  */
 #define CL_NO_DRIVER_ARG	(1 << 20) /* Option takes no argument in the driver.  */
@@ -159,8 +166,9 @@ struct cl_option_handler_func
   bool (*handler) (struct gcc_options *opts,
 		   struct gcc_options *opts_set,
 		   const struct cl_decoded_option *decoded,
-		   unsigned int lang_mask, int kind,
-		   const struct cl_option_handlers *handlers);
+		   unsigned int lang_mask, int kind, location_t loc,
+		   const struct cl_option_handlers *handlers,
+		   diagnostic_context *dc);
 
   /* The mask that must have some bit in common with the flags for the
      option for this particular handler to be used.  */
@@ -215,28 +223,25 @@ extern void decode_cmdline_options_to_array_default_mask (unsigned int argc,
 							  const char **argv, 
 							  struct cl_decoded_option **decoded_options,
 							  unsigned int *decoded_options_count);
+extern void set_default_handlers (struct cl_option_handlers *handlers);
 extern void decode_options (struct gcc_options *opts,
 			    struct gcc_options *opts_set,
 			    struct cl_decoded_option *decoded_options,
-			    unsigned int decoded_options_count);
+			    unsigned int decoded_options_count,
+			    location_t loc,
+			    diagnostic_context *dc);
 extern int option_enabled (int opt_idx, void *opts);
 extern bool get_option_state (struct gcc_options *, int,
 			      struct cl_option_state *);
 extern void set_option (struct gcc_options *opts,
 			struct gcc_options *opts_set,
 			int opt_index, int value, const char *arg, int kind,
-			diagnostic_context *dc);
+			location_t loc, diagnostic_context *dc);
 extern void *option_flag_var (int opt_index, struct gcc_options *opts);
-bool handle_option (struct gcc_options *opts,
-		    struct gcc_options *opts_set,
-		    const struct cl_decoded_option *decoded,
-		    unsigned int lang_mask, int kind,
-		    const struct cl_option_handlers *handlers,
-		    bool generated_p, diagnostic_context *dc);
 bool handle_generated_option (struct gcc_options *opts,
 			      struct gcc_options *opts_set,
 			      size_t opt_index, const char *arg, int value,
-			      unsigned int lang_mask, int kind,
+			      unsigned int lang_mask, int kind, location_t loc,
 			      const struct cl_option_handlers *handlers,
 			      diagnostic_context *dc);
 void generate_option (size_t opt_index, const char *arg, int value,
@@ -247,13 +252,16 @@ void generate_option_input_file (const char *file,
 extern void read_cmdline_option (struct gcc_options *opts,
 				 struct gcc_options *opts_set,
 				 struct cl_decoded_option *decoded,
+				 location_t loc,
 				 unsigned int lang_mask,
 				 const struct cl_option_handlers *handlers,
 				 diagnostic_context *dc);
-extern void register_warning_as_error_callback (void (*callback) (int));
-extern void enable_warning_as_error (const char *arg, int value,
-				     unsigned int lang_mask,
-				     const struct cl_option_handlers *handlers,
-				     diagnostic_context *dc);
+extern void control_warning_option (unsigned int opt_index, int kind,
+				    bool imply, location_t loc,
+				    unsigned int lang_mask,
+				    const struct cl_option_handlers *handlers,
+				    struct gcc_options *opts,
+				    struct gcc_options *opts_set,
+				    diagnostic_context *dc);
 extern void print_ignored_options (void);
 #endif

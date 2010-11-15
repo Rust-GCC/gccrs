@@ -413,7 +413,8 @@ compute_complex_assign_jump_func (struct ipa_node_params *info,
   offset += mem_ref_offset (op1).low * BITS_PER_UNIT;
   op1 = TREE_OPERAND (op1, 0);
   if (TREE_CODE (op1) != SSA_NAME
-      || !SSA_NAME_IS_DEFAULT_DEF (op1))
+      || !SSA_NAME_IS_DEFAULT_DEF (op1)
+      || offset < 0)
     return;
 
   index = ipa_get_param_decl_index (info, SSA_NAME_VAR (op1));
@@ -490,7 +491,8 @@ compute_complex_ancestor_jump_func (struct ipa_node_params *info,
   offset += mem_ref_offset (expr).low * BITS_PER_UNIT;
   parm = TREE_OPERAND (expr, 0);
   if (TREE_CODE (parm) != SSA_NAME
-      || !SSA_NAME_IS_DEFAULT_DEF (parm))
+      || !SSA_NAME_IS_DEFAULT_DEF (parm)
+      || offset < 0)
     return;
 
   index = ipa_get_param_decl_index (info, SSA_NAME_VAR (parm));
@@ -888,7 +890,7 @@ ipa_compute_jump_functions (struct cgraph_node *node,
     {
       /* We do not need to bother analyzing calls to unknown
 	 functions unless they may become known during lto/whopr.  */
-      if (!cs->callee->analyzed && !flag_lto && !flag_whopr)
+      if (!cs->callee->analyzed && !flag_lto)
 	continue;
       ipa_count_arguments (cs);
       /* If the descriptor of the callee is not initialized yet, we have to do
@@ -916,10 +918,15 @@ ipa_compute_jump_functions (struct cgraph_node *node,
 static tree
 ipa_get_member_ptr_load_param (tree rhs, bool use_delta)
 {
-  tree rec, ref_offset, fld_offset;
-  tree ptr_field;
-  tree delta_field;
+  tree rec, ref_field, ref_offset, fld, fld_offset, ptr_field, delta_field;
 
+  if (TREE_CODE (rhs) == COMPONENT_REF)
+    {
+      ref_field = TREE_OPERAND (rhs, 1);
+      rhs = TREE_OPERAND (rhs, 0);
+    }
+  else
+    ref_field = NULL_TREE;
   if (TREE_CODE (rhs) != MEM_REF)
     return NULL_TREE;
   rec = TREE_OPERAND (rhs, 0);
@@ -931,6 +938,20 @@ ipa_get_member_ptr_load_param (tree rhs, bool use_delta)
     return NULL_TREE;
 
   ref_offset = TREE_OPERAND (rhs, 1);
+
+  if (ref_field)
+    {
+      if (integer_nonzerop (ref_offset))
+	return NULL_TREE;
+
+      if (use_delta)
+	fld = delta_field;
+      else
+	fld = ptr_field;
+
+      return ref_field == fld ? rec : NULL_TREE;
+    }
+
   if (use_delta)
     fld_offset = byte_position (delta_field);
   else
@@ -1003,10 +1024,15 @@ ipa_note_param_call (struct cgraph_node *node, int param_index, gimple stmt,
    below, the call is on the last line:
 
      <bb 2>:
+       f$__delta_5 = f.__delta;
+       f$__pfn_24 = f.__pfn;
+
+   or
+     <bb 2>:
        f$__delta_5 = MEM[(struct  *)&f];
        f$__pfn_24 = MEM[(struct  *)&f + 4B];
 
-     ...
+   and a few lines below:
 
      <bb 5>
        D.2496_3 = (int) f$__pfn_24;

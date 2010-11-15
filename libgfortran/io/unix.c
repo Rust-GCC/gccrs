@@ -104,14 +104,6 @@ typedef struct stat gfstat_t;
 #define PATH_MAX 1024
 #endif
 
-#ifndef PROT_READ
-#define PROT_READ 1
-#endif
-
-#ifndef PROT_WRITE
-#define PROT_WRITE 2
-#endif
-
 /* These flags aren't defined on all targets (mingw32), so provide them
    here.  */
 #ifndef S_IRGRP
@@ -174,6 +166,31 @@ fallback_access (const char *path, int mode)
 /* Unix and internal stream I/O module */
 
 static const int BUFFER_SIZE = 8192;
+
+typedef struct
+{
+  stream st;
+
+  gfc_offset buffer_offset;	/* File offset of the start of the buffer */
+  gfc_offset physical_offset;	/* Current physical file offset */
+  gfc_offset logical_offset;	/* Current logical file offset */
+  gfc_offset file_length;	/* Length of the file, -1 if not seekable. */
+
+  char *buffer;                 /* Pointer to the buffer.  */
+  int fd;                       /* The POSIX file descriptor.  */
+
+  int active;			/* Length of valid bytes in the buffer */
+
+  int ndirty;			/* Dirty bytes starting at buffer_offset */
+
+  int special_file;             /* =1 if the fd refers to a special file */
+
+  /* Cached stat(2) values.  */
+  dev_t st_dev;
+  ino_t st_ino;
+}
+unix_stream;
+
 
 /* fix_fd()-- Given a file descriptor, make sure it is not one of the
  * standard descriptors, returning a non-standard descriptor.  If the
@@ -849,15 +866,6 @@ mem_close (unix_stream * s)
   define functional equivalents of the following.
 *********************************************************************/
 
-/* empty_internal_buffer()-- Zero the buffer of Internal file */
-
-void
-empty_internal_buffer(stream *strm)
-{
-  unix_stream * s = (unix_stream *) strm;
-  memset(s->buffer, ' ', s->file_length);
-}
-
 /* open_internal()-- Returns a stream structure from a character(kind=1)
    internal file */
 
@@ -919,7 +927,7 @@ open_internal4 (char *base, int length, gfc_offset offset)
  * around it. */
 
 static stream *
-fd_to_stream (int fd, int prot)
+fd_to_stream (int fd)
 {
   gfstat_t statbuf;
   unix_stream *s;
@@ -931,24 +939,34 @@ fd_to_stream (int fd, int prot)
   s->buffer_offset = 0;
   s->physical_offset = 0;
   s->logical_offset = 0;
-  s->prot = prot;
 
   /* Get the current length of the file. */
 
   fstat (fd, &statbuf);
 
-  if (lseek (fd, 0, SEEK_CUR) == (gfc_offset) -1)
-    s->file_length = -1;
-  else
-    s->file_length = S_ISREG (statbuf.st_mode) ? statbuf.st_size : -1;
-
+  s->st_dev = statbuf.st_dev;
+  s->st_ino = statbuf.st_ino;
   s->special_file = !S_ISREG (statbuf.st_mode);
 
-  if (isatty (s->fd) || options.all_unbuffered
+  if (S_ISREG (statbuf.st_mode))
+    s->file_length = statbuf.st_size;
+  else if (S_ISBLK (statbuf.st_mode))
+    {
+      /* Hopefully more portable than ioctl(fd, BLKGETSIZE64, &size)?  */
+      gfc_offset cur = lseek (fd, 0, SEEK_CUR);
+      s->file_length = lseek (fd, 0, SEEK_END);
+      lseek (fd, cur, SEEK_SET);
+    }
+  else
+    s->file_length = -1;
+
+  if (!(S_ISREG (statbuf.st_mode) || S_ISBLK (statbuf.st_mode))
+      || options.all_unbuffered
       ||(options.unbuffered_preconnected && 
          (s->fd == STDIN_FILENO 
           || s->fd == STDOUT_FILENO 
-          || s->fd == STDERR_FILENO)))
+          || s->fd == STDERR_FILENO))
+      || isatty (s->fd))
     raw_init (s);
   else
     buf_init (s);
@@ -1231,7 +1249,7 @@ regular_file (st_parameter_open *opp, unit_flags *flags)
 stream *
 open_external (st_parameter_open *opp, unit_flags *flags)
 {
-  int fd, prot;
+  int fd;
 
   if (flags->status == STATUS_SCRATCH)
     {
@@ -1256,25 +1274,7 @@ open_external (st_parameter_open *opp, unit_flags *flags)
     return NULL;
   fd = fix_fd (fd);
 
-  switch (flags->action)
-    {
-    case ACTION_READ:
-      prot = PROT_READ;
-      break;
-
-    case ACTION_WRITE:
-      prot = PROT_WRITE;
-      break;
-
-    case ACTION_READWRITE:
-      prot = PROT_READ | PROT_WRITE;
-      break;
-
-    default:
-      internal_error (&opp->common, "open_external(): Bad action");
-    }
-
-  return fd_to_stream (fd, prot);
+  return fd_to_stream (fd);
 }
 
 
@@ -1284,7 +1284,7 @@ open_external (st_parameter_open *opp, unit_flags *flags)
 stream *
 input_stream (void)
 {
-  return fd_to_stream (STDIN_FILENO, PROT_READ);
+  return fd_to_stream (STDIN_FILENO);
 }
 
 
@@ -1300,7 +1300,7 @@ output_stream (void)
   setmode (STDOUT_FILENO, O_BINARY);
 #endif
 
-  s = fd_to_stream (STDOUT_FILENO, PROT_WRITE);
+  s = fd_to_stream (STDOUT_FILENO);
   return s;
 }
 
@@ -1317,7 +1317,7 @@ error_stream (void)
   setmode (STDERR_FILENO, O_BINARY);
 #endif
 
-  s = fd_to_stream (STDERR_FILENO, PROT_WRITE);
+  s = fd_to_stream (STDERR_FILENO);
   return s;
 }
 
@@ -1385,9 +1385,9 @@ int
 compare_file_filename (gfc_unit *u, const char *name, int len)
 {
   char path[PATH_MAX + 1];
-  gfstat_t st1;
+  gfstat_t st;
 #ifdef HAVE_WORKING_STAT
-  gfstat_t st2;
+  unix_stream *s;
 #else
 # ifdef __MINGW32__
   uint64_t id1, id2;
@@ -1400,12 +1400,12 @@ compare_file_filename (gfc_unit *u, const char *name, int len)
   /* If the filename doesn't exist, then there is no match with the
    * existing file. */
 
-  if (stat (path, &st1) < 0)
+  if (stat (path, &st) < 0)
     return 0;
 
 #ifdef HAVE_WORKING_STAT
-  fstat (((unix_stream *) (u->s))->fd, &st2);
-  return (st1.st_dev == st2.st_dev) && (st1.st_ino == st2.st_ino);
+  s = (unix_stream *) (u->s);
+  return (st.st_dev == s->st_dev) && (st.st_ino == s->st_ino);
 #else
 
 # ifdef __MINGW32__
@@ -1447,10 +1447,12 @@ find_file0 (gfc_unit *u, FIND_FILE0_DECL)
     return NULL;
 
 #ifdef HAVE_WORKING_STAT
-  if (u->s != NULL
-      && fstat (((unix_stream *) u->s)->fd, &st[1]) >= 0 &&
-      st[0].st_dev == st[1].st_dev && st[0].st_ino == st[1].st_ino)
-    return u;
+  if (u->s != NULL)
+    {
+      unix_stream *s = (unix_stream *) (u->s);
+      if (st[0].st_dev == s->st_dev && st[0].st_ino == s->st_ino)
+	return u;
+    }
 #else
 # ifdef __MINGW32__ 
   if (u->s && ((id1 = id_from_fd (((unix_stream *) u->s)->fd)) || id1))
@@ -1483,7 +1485,7 @@ gfc_unit *
 find_file (const char *file, gfc_charlen_type file_len)
 {
   char path[PATH_MAX + 1];
-  gfstat_t st[2];
+  gfstat_t st[1];
   gfc_unit *u;
 #if defined(__MINGW32__) && !HAVE_WORKING_STAT
   uint64_t id = 0ULL;
@@ -1822,14 +1824,18 @@ stream_isatty (stream *s)
 }
 
 char *
+#ifdef HAVE_TTYNAME
+stream_ttyname (stream *s)
+{
+  return ttyname (((unix_stream *) s)->fd);
+}
+#else
 stream_ttyname (stream *s __attribute__ ((unused)))
 {
-#ifdef HAVE_TTYNAME
-  return ttyname (((unix_stream *) s)->fd);
-#else
   return NULL;
-#endif
 }
+#endif
+
 
 
 /* How files are stored:  This is an operating-system specific issue,

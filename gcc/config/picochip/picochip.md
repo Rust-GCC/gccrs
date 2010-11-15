@@ -1,6 +1,6 @@
 ;; GCC machine description for picochip
 ;; Copyright (C) 2008, 2009 Free Software Foundation, Inc.
-;; Contributed by picoChip Designs Ltd (http://www.picochip.com)
+;; Contributed by Picochip Ltd (http://www.picochip.com)
 ;; Maintained by Daniel Towner (dant@picochip.com) and Hariharan
 ;; Sandanagobalane (hariharan@picochip.com)
 ;;
@@ -2520,7 +2520,6 @@
   ""
   {if (!picochip_check_conditional_copy (operands))
      FAIL;
-   operands[4] = GEN_INT(GET_CODE(operands[1]));
   })
 
 (define_insn_and_split "*checked_movhicc"
@@ -2593,7 +2592,7 @@
   (const_string "unknown"))
 
 (define_attr "schedType" "none,space,speed"
-  (const (symbol_ref "picochip_schedule_type")))
+  (const (symbol_ref "(enum attr_schedType) picochip_schedule_type")))
 
 ;; Define whether an instruction uses a long constant.
 

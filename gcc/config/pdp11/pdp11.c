@@ -1002,7 +1002,8 @@ pdp11_assemble_integer (rtx x, unsigned int size, int aligned_p)
       {
       case 1:
 	fprintf (asm_out_file, "\t.byte\t");
-	output_addr_const_pdp11 (asm_out_file, x);
+	output_addr_const_pdp11 (asm_out_file, GEN_INT (INTVAL (x) & 0xff));
+;
 	fprintf (asm_out_file, " /* char */\n");
 	return true;
 
@@ -1630,18 +1631,18 @@ pdp11_cannot_change_mode_class (enum machine_mode from,
 loading is easier into LOAD_FPU_REGS than FPU_REGS! */
 
 static reg_class_t
-pdp11_preferred_reload_class (rtx x, reg_class_t class)
+pdp11_preferred_reload_class (rtx x, reg_class_t rclass)
 {
-  if (class == FPU_REGS)
+  if (rclass == FPU_REGS)
     return LOAD_FPU_REGS;
-  if (class == ALL_REGS)
+  if (rclass == ALL_REGS)
     {
       if (FLOAT_MODE_P (GET_MODE (x)))
 	return LOAD_FPU_REGS;
       else
 	return GENERAL_REGS;
     }
-  return class;
+  return rclass;
 }
 
 /* TARGET_PREFERRED_OUTPUT_RELOAD_CLASS
@@ -1654,18 +1655,18 @@ pdp11_preferred_reload_class (rtx x, reg_class_t class)
 loading is easier into LOAD_FPU_REGS than FPU_REGS! */
 
 static reg_class_t
-pdp11_preferred_output_reload_class (rtx x, reg_class_t class)
+pdp11_preferred_output_reload_class (rtx x, reg_class_t rclass)
 {
-  if (class == FPU_REGS)
+  if (rclass == FPU_REGS)
     return LOAD_FPU_REGS;
-  if (class == ALL_REGS)
+  if (rclass == ALL_REGS)
     {
       if (FLOAT_MODE_P (GET_MODE (x)))
 	return LOAD_FPU_REGS;
       else
 	return GENERAL_REGS;
     }
-  return class;
+  return rclass;
 }
 
 
@@ -1674,7 +1675,7 @@ pdp11_preferred_output_reload_class (rtx x, reg_class_t class)
    FPU registers AC4 and AC5 (class NO_LOAD_FPU_REGS) require an 
    intermediate register (AC0-AC3: LOAD_FPU_REGS).  Everything else
    can be loade/stored directly.  */
-reg_class_t 
+static reg_class_t 
 pdp11_secondary_reload (bool in_p ATTRIBUTE_UNUSED,
 			rtx x,
 			reg_class_t reload_class,
@@ -1739,9 +1740,7 @@ output_addr_const_pdp11 (FILE *file, rtx x)
       break;
 
     case CONST_INT:
-      /* Should we check for constants which are too big?  Maybe cutting
-	 them off to 16 bits is OK?  */
-      fprintf (file, "%#ho", (unsigned short) INTVAL (x));
+      fprintf (file, "%#o", (int) INTVAL (x) & 0xffff);
       break;
 
     case CONST:

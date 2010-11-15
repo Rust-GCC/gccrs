@@ -99,41 +99,6 @@ from being defined in the @file{.h} file to being part of the
 @c prevent bad page break with this line
 You can control the compilation driver.
 
-@defmac WORD_SWITCH_TAKES_ARG (@var{name})
-A C expression which determines whether the option @option{-@var{name}}
-takes arguments.  The value should be the number of arguments that
-option takes--zero, for many options.
-This macro does not need to handle options defined in @file{.opt}
-files, only those that are handled purely through specs.
-
-By default, this macro is defined as
-@code{DEFAULT_WORD_SWITCH_TAKES_ARG}, which handles the standard options
-properly.  You need not define @code{WORD_SWITCH_TAKES_ARG} unless you
-wish to add additional options which take arguments.  Any redefinition
-should call @code{DEFAULT_WORD_SWITCH_TAKES_ARG} and then check for
-additional options.
-@end defmac
-
-@defmac TARGET_OPTION_TRANSLATE_TABLE
-If defined, a list of pairs of strings, the first of which is a
-potential command line target to the @file{gcc} driver program, and the
-second of which is a space-separated (tabs and other whitespace are not
-supported) list of options with which to replace the first option.  The
-target defining this list is responsible for assuring that the results
-are valid.  Replacement options may not be the @code{--opt} style, they
-must be the @code{-opt} style.  It is the intention of this macro to
-provide a mechanism for substitution that affects the multilibs chosen,
-such as one option that enables many options, some of which select
-multilibs.  Example nonsensical definition, where @option{-malt-abi},
-@option{-EB}, and @option{-mspoo} cause different multilibs to be chosen:
-
-@smallexample
-#define TARGET_OPTION_TRANSLATE_TABLE \
-@{ "-fast",   "-march=fast-foo -malt-abi -I/usr/fast-foo" @}, \
-@{ "-compat", "-EB -malign=4 -mspoo" @}
-@end smallexample
-@end defmac
-
 @defmac DRIVER_SELF_SPECS
 A list of specs for the driver itself.  It should be a suitable
 initializer for an array of strings, with no surrounding braces.
@@ -730,8 +695,16 @@ only available in the C (and related language) front ends, then you
 should use @code{TARGET_HANDLE_C_OPTION} instead.
 @end deftypefn
 
-@deftypefn {Target Hook} tree TARGET_OBJC_CONSTRUCT_STRING (tree @var{string})
-Construct a constant string representation for @var{string}
+@deftypefn {Target Hook} tree TARGET_OBJC_CONSTRUCT_STRING_OBJECT (tree @var{string})
+Targets may provide a string object type that can be used within and between C, C++ and their respective Objective-C dialects. A string object might, for example, embed encoding and length information. These objects are considered opaque to the compiler and handled as references. An ideal implementation makes the composition of the string object match that of the Objective-C @code{NSString} (@code{NXString} for GNUStep), allowing efficient interworking between C-only and Objective-C code. If a target implements string objects then this hook should return a reference to such an object constructed from the normal `C' string representation provided in @var{string}. At present, the hook is used by Objective-C only, to obtain a common-format string object when the target provides one.
+@end deftypefn
+
+@deftypefn {Target Hook} bool TARGET_STRING_OBJECT_REF_TYPE_P (const_tree @var{stringref})
+If a target implements string objects then this hook should return @code{true} if @var{stringref} is a valid reference to such an object.
+@end deftypefn
+
+@deftypefn {Target Hook} void TARGET_CHECK_STRING_OBJECT_FORMAT_ARG (tree @var{format_arg}, tree @var{args_list})
+If a target implements string objects then this hook should should  provide a facility to check the function arguments in @var{args_list}  against the format specifiers in @var{format_arg} where the type of  @var{format_arg} is one recognized as a valid string reference type.
 @end deftypefn
 
 @defmac TARGET_VERSION
@@ -1141,6 +1114,8 @@ If this macro is not defined, then @var{basic-align} is used.
 
 One use of this macro is to increase alignment of medium-size data to
 make it all fit in fewer cache lines.
+
+It the value of this macro has a type, it should be an unsigned type.
 @end defmac
 
 @defmac STACK_SLOT_ALIGNMENT (@var{type}, @var{mode}, @var{basic-align})
@@ -1156,6 +1131,8 @@ be used.
 
 This macro is to set alignment of stack slot to the maximum alignment
 of all possible modes which the slot may have.
+
+It the value of this macro has a type, it should be an unsigned type.
 @end defmac
 
 @defmac LOCAL_DECL_ALIGNMENT (@var{decl})
@@ -1168,6 +1145,8 @@ is used.
 
 One use of this macro is to increase alignment of medium-size data to
 make it all fit in fewer cache lines.
+
+It the value of this macro has a type, it should be an unsigned type.
 @end defmac
 
 @defmac MINIMUM_ALIGNMENT (@var{exp}, @var{mode}, @var{align})
@@ -3878,6 +3857,8 @@ alignment.  Then the definition should be
 @smallexample
 #define PUSH_ROUNDING(BYTES) (((BYTES) + 1) & ~1)
 @end smallexample
+
+It the value of this macro has a type, it should be an unsigned type.
 @end defmac
 
 @findex current_function_outgoing_args_size
@@ -8496,6 +8477,22 @@ If defined, a C initializer for an array of structures containing a name
 and a register number.  This macro defines additional names for hard
 registers, thus allowing the @code{asm} option in declarations to refer
 to registers using alternate names.
+@end defmac
+
+@defmac OVERLAPPING_REGISTER_NAMES
+If defined, a C initializer for an array of structures containing a
+name, a register number and a count of the number of consecutive
+machine registers the name overlaps.  This macro defines additional
+names for hard registers, thus allowing the @code{asm} option in
+declarations to refer to registers using alternate names.  Unlike
+@code{ADDITIONAL_REGISTER_NAMES}, this macro should be used when the
+register name implies multiple underlying registers.
+
+This macro should be used when it is important that a clobber in an
+@code{asm} statement clobbers all the underlying values implied by the
+register name.  For example, on ARM, clobbering the double-precision
+VFP register ``d0'' implies clobbering both single-precision registers
+``s0'' and ``s1''.
 @end defmac
 
 @defmac ASM_OUTPUT_OPCODE (@var{stream}, @var{ptr})

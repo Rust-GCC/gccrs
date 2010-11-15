@@ -1,3 +1,53 @@
+2010-11-12  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc-interface/Make-lang.in (ada/misc.o): Use $(OPTS_H).
+	* gcc-interface/misc.c (gnat_handle_option): Take location_t parameter.
+
+2010-11-10  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (gigi): Don't set 'pure' flag on SJLJ routines.
+	* gcc-interface/utils2.c (compare_arrays): Add LOC parameter.  Set it
+	directly on all the comparison expressions.
+	(build_binary_op): Pass input_location to compare_arrays.
+
+2010-11-10  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (lvalue_required_p) <N_Type_Conversion>): Look
+	through it for elementary types as well.
+	<N_Unchecked_Type_Conversion>: Adjust to above change.
+	<N_Allocator>: Likewise.
+	(gnat_to_gnu): Do not attempt to rewrite boolean literals.
+
+2010-11-10  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity): Do not set DECL_ARTIFICIAL
+	on the reused DECL node coming from a renamed object.
+	Set DECL_IGNORED_P on the DECL node built for renaming entities if they
+	don't need debug info.
+
+2010-11-09  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/utils.c (save_gnu_tree): Improve comments.
+	(get_gnu_tree): Likewise.
+
+2010-11-09  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (finish_fat_pointer_type): New function.
+	(gnat_to_gnu_entity) <E_Array_Type>: Use it to build the fat pointer
+	type.
+	<E_Access_Type>: Likewise.
+
+2010-11-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/gigi.h (add_stmt_force): Declare.
+	(add_stmt_with_node_force): Likewise.
+	* gcc-interface/trans.c (Attribute_to_gnu): Don't set TREE_SIDE_EFFECTS
+	on the SAVE_EXPR built for cached expressions of parameter attributes.
+	(Subprogram_Body_to_gnu): Force evaluation of the SAVE_EXPR built for
+	cached expressions of parameter attributes.
+	(add_stmt_force): New function.
+	(add_stmt_with_node_force): Likewise.
+
 2010-10-27  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* gcc-interface/trans.c (gigi): Fix formatting issues.
@@ -158,8 +208,7 @@
 
 2010-10-26  Robert Dewar  <dewar@adacore.com>
 
-	* opt.ads: Minor code reorganization
-	Alphabetize Warning switches.
+	* opt.ads: Minor code reorganization.  Alphabetize Warning switches.
 
 2010-10-26  Robert Dewar  <dewar@adacore.com>
 

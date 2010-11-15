@@ -1,3 +1,187 @@
+2010-11-15  Tobias Burnus  <burnus@net.b.de>
+
+	PR fortran/46484
+	* check.c (variable_check): Don't treat functions calls as variables;
+	optionally accept function themselves.
+	(gfc_check_all_any, gfc_check_loc, gfc_check_move_alloc,
+	gfc_check_null, gfc_check_present, gfc_check_cpu_time,
+	gfc_check_date_and_time, gfc_check_mvbits, gfc_check_random_number,
+	gfc_check_random_seed, gfc_check_system_clock,
+	gfc_check_dtime_etime, gfc_check_dtime_etime_sub,
+	gfc_check_itime_idate,gfc_check_ltime_gmtime): Update call.
+
+2010-11-13  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/45742
+	* trans-common.c (build_field): Add TREE_SIDE_EFFECTS for volatile.
+	* trans-decl.c (gfc_finish_var_decl): Ditto.
+	(create_function_arglist): Handle volatile dummy arguments.
+
+2010-11-12  Joseph Myers  <joseph@codesourcery.com>
+
+	* Make-lang.in (gfortranspec.o): Use $(OPTS_H).
+	* gfortran.h (gfc_handle_option): Take location_t parameter.
+	* options.c (gfc_handle_option): Take location_t parameter.
+
+2010-11-12  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/45794
+	trans-expr.c (gfc_conv_procedure_call): Avoid NULL array spec.
+	
+2010-11-11  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR c/44782
+	* options.c (gfc_post_options): Initialize gfc_option.max_errors.
+	(gfc_handle_option) [OPT_fmax_errors_]: Remove.
+	* lang.opt (fmax-errors=): Remove.
+
+2010-11-11  Steven G. Kargl <kargl@gcc.gnu.org>
+
+	* symbol.c (verify_bind_c_derived_type):  Accept BIND(C) on an empty
+	derived type.
+
+2010-11-11  Jan Hubicka  <jh@suse.cz>
+
+	* options.c (gfc_post_options): Remove flag_whopr.
+
+2010-11-11  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/46413
+	* resolve.c (resolve_transfer): Reject I/O transfer of
+	polymorphic type.
+
+	PR fortran/46205
+	* resolve.c (resolve_code): Reject nonscalar FORALL masks.
+
+2010-11-11  Janus Weil  <janus@gcc.gnu.org>
+
+	* resolve.c (resolve_procedure_interface): Copy 'is_bind_c' attribute.
+
+2010-11-10  Joseph Myers  <joseph@codesourcery.com>
+
+	* trans-array.c (gfc_trans_deferred_array): Use "front-end"
+	spelling in diagnostic.
+	* trans.c (gfc_allocate_array_with_status): Add missing space in
+	diagnostic.
+
+2010-11-10  Joseph Myers  <joseph@codesourcery.com>
+
+	* cpp.c (asm_file_name): Don't declare here.
+
+2010-11-10  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/46411
+	* intrinsic.c (gfc_intrinsic_sub_interface): Check for attr.pure
+	and not for attr.elemental.
+	* intrinsic.texi (move_alloc): Document as being pure.
+
+2010-11-10  Tobias Burnus <burnus@net-b.de>
+
+	PR fortran/46244
+	* resolve.c (resolve_fl_derived): Don't allow CLASS in
+	sequence/BIND(C) types.
+
+2010-11-09  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+	    Mikael Morin   <mikael@gcc.gnu.org>
+
+	PR fortran/46331
+	* intrinsic.c: Correctly set the pure attributes for intrinsic
+	functions.
+	* expr.c (check_specification_function): Remove this function and move
+	its code into gfc_is_constant_expr. (gfc_is_constant_expr): Change the
+	order of checks by checking for non-constant arguments first.  Then,
+	check for initialization functions, followed by intrinsics.
+
+2010-11-09  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/46313
+	* gfortran.h (gfc_add_data_component,gfc_add_vptr_component,
+	gfc_add_hash_component,gfc_add_size_component,
+	gfc_add_def_init_component): New macros.
+	* class.c (gfc_add_component_ref): Renamed data component.
+	(get_unique_type_string): New function.
+	(gfc_build_class_symbol): Use 'get_unique_type_string' to construct
+	uniques names for the class containers. Rename components.
+	(gfc_find_derived_vtab): Use 'get_unique_type_string' to construct
+	uniques names for the vtab symbols. Rename components.
+	* decl.c (attr_decl1): Renamed class container components.
+	* iresolve.c (gfc_resolve_extends_type_of): Ditto.
+	* match.c (select_type_set_tmp): Renamed temporaries.
+	* module.c (read_module): Renamed vtab and vtype symbols.
+	* resolve.c (resolve_structure_cons,resolve_typebound_function,
+	resolve_typebound_subroutine,resolve_deallocate_expr,
+	resolve_select_type,resolve_fl_derived): Renamed class container and
+	vtab components.
+	* trans-array.c (structure_alloc_comps): Ditto.
+	* trans-decl.c (gfc_trans_deferred_vars): Ditto.
+	* trans-expr.c (gfc_conv_derived_to_class,gfc_conv_structure,
+	gfc_trans_class_init_assign,gfc_trans_class_assign): Ditto.
+	* trans-intrinsic.c (gfc_conv_intrinsic_sizeof,
+	gfc_conv_intrinsic_storage_size,gfc_conv_allocated,gfc_conv_associated,
+	gfc_conv_same_type_as): Ditto.
+	* trans-stmt.c (gfc_trans_allocate): Ditto.
+
+2010-11-08  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/43899
+	* trans-decl.c (generate_local_decl): Do not generate unused warning
+	for variables in namelists.
+
+2010-11-08  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/46344
+	* decl.c (build_struct): Build vtab immediately if derived type
+	has already been declared.
+
+2010-11-08  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/46344
+	* trans-types.c (gfc_copy_dt_decls_ifequal): Handle CLASS components.
+
+2010-11-06  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/46330
+	* trans-expr.c (gfc_trans_class_assign): Find 'vtab' symbol in correct
+	namespace.
+
+2010-11-05  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/45451
+	PR fortran/46174
+	* class.c (gfc_find_derived_vtab): Improved search for existing vtab.
+	Add component '$copy' to vtype symbol for polymorphic deep copying.
+	* expr.c (gfc_check_pointer_assign): Make sure the vtab is generated
+	during resolution stage.
+	* resolve.c (resolve_codes): Don't resolve code if namespace is already
+	resolved.
+	* trans-stmt.c (gfc_trans_allocate): Call '$copy' procedure for
+	polymorphic ALLOCATE statements with SOURCE.
+
+2010-11-03  Thomas Koenig  <tkoenig@gcc.gnu.org>
+	    Paul Thomas  <pault@gcc.gnu.org>
+
+	* dump-parse-tree.c (code_indent):  Take label into acount
+	when calculating indent.
+	(show_typespec):  Also display class.
+	(show_attr):  Add module name to argument.
+	Don't show UNKNOWN for flavor, access and save. Don't show
+	SAVE_NONE.  Don't show INTENT_UNKNOWN.  Show module for use
+	association.  Show intent only for dummy arguments.
+	Set length of shown symbol names to minimum of 12.
+	Show attributes header.
+	(show_symbol):  Adjust show_level.
+	(show_symtree):  Clear up display for ambiguous.  Show if symbol
+	was imported from namespace.
+	(show_code_node):  Clear up indenting.  Traverse symtree and
+	show code directly instead of calling show_namespace.
+
+2010-11-02  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* trans-decl.c (add_argument_checking): Use build_zero_cst instead of
+	fold_convert.
+	* trans-expr.c (gfc_conv_missing_dummy, fill_with_spaces): Likewise.
+	* trans-stmt.c (gfc_trans_do): Likewise.
+
 2010-11-02  Steven G. Kargl  < kargl@gcc.gnu.org>
 	    Tobias Burnus  <burnus@net-b.de>
 

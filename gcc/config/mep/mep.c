@@ -1270,9 +1270,11 @@ mep_legitimate_address (enum machine_mode mode, rtx x, int strict)
 
 int
 mep_legitimize_reload_address (rtx *x, enum machine_mode mode, int opnum,
-			       enum reload_type type,
+			       int type_i,
 			       int ind_levels ATTRIBUTE_UNUSED)
 {
+  enum reload_type type = (enum reload_type) type_i;
+
   if (GET_CODE (*x) == PLUS
       && GET_CODE (XEXP (*x, 0)) == MEM
       && GET_CODE (XEXP (*x, 1)) == REG)
@@ -2097,7 +2099,7 @@ mep_secondary_copro_reload_class (enum reg_class rclass, rtx x)
 
 /* Copying X to register in RCLASS.  */
 
-int
+enum reg_class
 mep_secondary_input_reload_class (enum reg_class rclass,
 				  enum machine_mode mode ATTRIBUTE_UNUSED,
 				  rtx x)
@@ -2118,12 +2120,12 @@ mep_secondary_input_reload_class (enum reg_class rclass,
 #if DEBUG_RELOAD
   fprintf (stderr, " - requires %s\n", reg_class_names[rv]);
 #endif
-  return rv;
+  return (enum reg_class) rv;
 }
 
 /* Copying register in RCLASS to X.  */
 
-int
+enum reg_class
 mep_secondary_output_reload_class (enum reg_class rclass,
 				   enum machine_mode mode ATTRIBUTE_UNUSED,
 				   rtx x)
@@ -2145,7 +2147,7 @@ mep_secondary_output_reload_class (enum reg_class rclass,
   fprintf (stderr, " - requires %s\n", reg_class_names[rv]);
 #endif
 
-  return rv;
+  return (enum reg_class) rv;
 }
 
 /* Implement SECONDARY_MEMORY_NEEDED.  */
@@ -3804,7 +3806,7 @@ mep_narrow_volatile_bitfield (void)
 /* Implement FUNCTION_VALUE.  All values are returned in $0.  */
 
 rtx
-mep_function_value (tree type, tree func ATTRIBUTE_UNUSED)
+mep_function_value (const_tree type, const_tree func ATTRIBUTE_UNUSED)
 {
   if (TARGET_IVC2 && VECTOR_TYPE_P (type))
     return gen_rtx_REG (TYPE_MODE (type), 48);
@@ -4066,7 +4068,7 @@ mep_validate_vliw (tree *node, tree name, tree args ATTRIBUTE_UNUSED,
       if (TREE_CODE (*node) == POINTER_TYPE
  	  && !gave_pointer_note)
  	{
- 	  inform (input_location, "To describe a pointer to a VLIW function, use syntax like this:");
+ 	  inform (input_location, "to describe a pointer to a VLIW function, use syntax like this:");
  	  inform (input_location, "  typedef int (__vliw *vfuncptr) ();");
  	  gave_pointer_note = 1;
  	}
@@ -4074,7 +4076,7 @@ mep_validate_vliw (tree *node, tree name, tree args ATTRIBUTE_UNUSED,
       if (TREE_CODE (*node) == ARRAY_TYPE
  	  && !gave_array_note)
  	{
- 	  inform (input_location, "To describe an array of VLIW function pointers, use syntax like this:");
+ 	  inform (input_location, "to describe an array of VLIW function pointers, use syntax like this:");
  	  inform (input_location, "  typedef int (__vliw *vfuncptr[]) ();");
  	  gave_array_note = 1;
  	}

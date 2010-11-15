@@ -2261,7 +2261,8 @@ can_store_by_pieces (unsigned HOST_WIDE_INT len,
   enum machine_mode mode, tmode;
   enum insn_code icode;
   int reverse;
-  rtx cst;
+  /* cst is set but not used if LEGITIMATE_CONSTANT doesn't use it.  */
+  rtx cst ATTRIBUTE_UNUSED;
 
   if (len == 0)
     return 1;
@@ -3775,7 +3776,7 @@ emit_push_insn (rtx x, enum machine_mode mode, tree type, rtx size,
 	      || align >= BIGGEST_ALIGNMENT
 	      || (PUSH_ROUNDING (align / BITS_PER_UNIT)
 		  == (align / BITS_PER_UNIT)))
-	  && PUSH_ROUNDING (INTVAL (size)) == INTVAL (size))
+	  && (HOST_WIDE_INT) PUSH_ROUNDING (INTVAL (size)) == INTVAL (size))
 	{
 	  /* Push padding now if padding above and stack grows down,
 	     or if padding below and stack grows up.
@@ -4259,11 +4260,16 @@ expand_assignment (tree to, tree from, bool nontemporal)
       to_rtx = expand_normal (tem);
 
       /* If the bitfield is volatile, we want to access it in the
-	 field's mode, not the computed mode.  */
-      if (volatilep
-	  && GET_CODE (to_rtx) == MEM
-	  && flag_strict_volatile_bitfields > 0)
-	to_rtx = adjust_address (to_rtx, mode1, 0);
+	 field's mode, not the computed mode.
+	 If a MEM has VOIDmode (external with incomplete type),
+	 use BLKmode for it instead.  */
+      if (MEM_P (to_rtx))
+	{
+	  if (volatilep && flag_strict_volatile_bitfields > 0)
+	    to_rtx = adjust_address (to_rtx, mode1, 0);
+	  else if (GET_MODE (to_rtx) == VOIDmode)
+	    to_rtx = adjust_address (to_rtx, BLKmode, 0);
+	}
  
       if (offset != 0)
 	{
@@ -7254,7 +7260,7 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
   int ignore;
   bool reduce_bit_field;
   location_t loc = ops->location;
-  tree treeop0, treeop1;
+  tree treeop0, treeop1, treeop2;
 #define REDUCE_BIT_FIELD(expr)	(reduce_bit_field			  \
 				 ? reduce_to_bit_field_precision ((expr), \
 								  target, \
@@ -7267,6 +7273,7 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 
   treeop0 = ops->op0;
   treeop1 = ops->op1;
+  treeop2 = ops->op2;
 
   /* We should be called only on simple (binary or unary) expressions,
      exactly those that are valid in gimple expressions that aren't
@@ -7624,7 +7631,7 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
     case WIDEN_MULT_PLUS_EXPR:
     case WIDEN_MULT_MINUS_EXPR:
       expand_operands (treeop0, treeop1, NULL_RTX, &op0, &op1, EXPAND_NORMAL);
-      op2 = expand_normal (ops->op2);
+      op2 = expand_normal (treeop2);
       target = expand_widen_pattern_expr (ops, op0, op1, op2,
 					  target, unsignedp);
       return target;
@@ -7710,6 +7717,46 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
       treeop1 = fold_build1 (CONVERT_EXPR, type, treeop1);
       expand_operands (treeop0, treeop1, subtarget, &op0, &op1, EXPAND_NORMAL);
       return REDUCE_BIT_FIELD (expand_mult (mode, op0, op1, target, unsignedp));
+
+    case FMA_EXPR:
+      {
+	optab opt = fma_optab;
+	gimple def0, def2;
+
+	def0 = get_def_for_expr (treeop0, NEGATE_EXPR);
+	def2 = get_def_for_expr (treeop2, NEGATE_EXPR);
+
+	op0 = op2 = NULL;
+
+	if (def0 && def2
+	    && optab_handler (fnms_optab, mode) != CODE_FOR_nothing)
+	  {
+	    opt = fnms_optab;
+	    op0 = expand_normal (gimple_assign_rhs1 (def0));
+	    op2 = expand_normal (gimple_assign_rhs1 (def2));
+	  }
+	else if (def0
+		 && optab_handler (fnma_optab, mode) != CODE_FOR_nothing)
+	  {
+	    opt = fnma_optab;
+	    op0 = expand_normal (gimple_assign_rhs1 (def0));
+	  }
+	else if (def2
+		 && optab_handler (fms_optab, mode) != CODE_FOR_nothing)
+	  {
+	    opt = fms_optab;
+	    op2 = expand_normal (gimple_assign_rhs1 (def2));
+	  }
+
+	if (op0 == NULL)
+	  op0 = expand_expr (treeop0, subtarget, VOIDmode, EXPAND_NORMAL);
+	if (op2 == NULL)
+	  op2 = expand_normal (treeop2);
+	op1 = expand_normal (treeop1);
+
+	return expand_ternary_op (TYPE_MODE (type), opt,
+				  op0, op1, op2, target, 0);
+      }
 
     case MULT_EXPR:
       /* If this is a fixed-point operation, then we cannot use the code
@@ -8712,7 +8759,7 @@ expand_expr_real_1 (tree exp, rtx target, enum machine_mode tmode,
 	  }
 	align = MAX (TYPE_ALIGN (TREE_TYPE (exp)),
 		     get_object_alignment (exp, BIGGEST_ALIGNMENT));
-	op0 = expand_expr (base, NULL_RTX, VOIDmode, EXPAND_NORMAL);
+	op0 = expand_expr (base, NULL_RTX, VOIDmode, EXPAND_SUM);
 	op0 = convert_memory_address_addr_space (address_mode, op0, as);
 	if (!integer_zerop (TREE_OPERAND (exp, 1)))
 	  {
@@ -8971,11 +9018,16 @@ expand_expr_real_1 (tree exp, rtx target, enum machine_mode tmode,
 
 
 	/* If the bitfield is volatile, we want to access it in the
-	   field's mode, not the computed mode.  */
-	if (volatilep
-	    && GET_CODE (op0) == MEM
-	    && flag_strict_volatile_bitfields > 0)
-	  op0 = adjust_address (op0, mode1, 0);
+	   field's mode, not the computed mode.
+	   If a MEM has VOIDmode (external with incomplete type),
+	   use BLKmode for it instead.  */
+	if (MEM_P (op0))
+	  {
+	    if (volatilep && flag_strict_volatile_bitfields > 0)
+	      op0 = adjust_address (op0, mode1, 0);
+	    else if (GET_MODE (op0) == VOIDmode)
+	      op0 = adjust_address (op0, BLKmode, 0);
+	  }
 
 	mode2
 	  = CONSTANT_P (op0) ? TYPE_MODE (TREE_TYPE (tem)) : GET_MODE (op0);

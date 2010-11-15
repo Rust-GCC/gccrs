@@ -838,6 +838,10 @@ go_finish (const char *filename)
   obstack_free (&container.type_obstack, NULL);
 
   queue = NULL;
+
+  if (fclose (go_dump_file) != 0)
+    error ("could not close Go dump file: %m");
+  go_dump_file = NULL;
 }
 
 /* Set up our hooks.  */

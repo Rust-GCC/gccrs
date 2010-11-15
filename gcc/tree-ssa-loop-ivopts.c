@@ -834,7 +834,8 @@ htab_inv_expr_eq (const void *ent1, const void *ent2)
   const struct iv_inv_expr_ent *expr2 =
       (const struct iv_inv_expr_ent *)ent2;
 
-  return operand_equal_p (expr1->expr, expr2->expr, 0);
+  return expr1->hash == expr2->hash
+	 && operand_equal_p (expr1->expr, expr2->expr, 0);
 }
 
 /* Hash function for loop invariant expressions.  */
@@ -4027,6 +4028,8 @@ get_computation_cost_at (struct ivopts_data *data,
   STRIP_NOPS (cbase);
   ctype = TREE_TYPE (cbase);
 
+  stmt_is_after_inc = stmt_after_increment (data->current_loop, cand, at);
+
   /* use = ubase + ratio * (var - cbase).  If either cbase is a constant
      or ratio == 1, it is better to handle this like
 
@@ -4045,8 +4048,24 @@ get_computation_cost_at (struct ivopts_data *data,
     }
   else if (ratio == 1)
     {
+      tree real_cbase = cbase;
+
+      /* Check to see if any adjustment is needed.  */
+      if (cstepi == 0 && stmt_is_after_inc)
+        {
+          aff_tree real_cbase_aff;
+          aff_tree cstep_aff;
+
+          tree_to_aff_combination (cbase, TREE_TYPE (real_cbase),
+                                   &real_cbase_aff);
+          tree_to_aff_combination (cstep, TREE_TYPE (cstep), &cstep_aff);
+
+          aff_combination_add (&real_cbase_aff, &cstep_aff);
+          real_cbase = aff_combination_to_tree (&real_cbase_aff);
+        }
+
       cost = difference_cost (data,
-			      ubase, cbase,
+			      ubase, real_cbase,
 			      &symbol_present, &var_present, &offset,
 			      depends_on);
       cost.cost /= avg_loop_niter (data->current_loop);
@@ -4088,7 +4107,6 @@ get_computation_cost_at (struct ivopts_data *data,
 
   /* If we are after the increment, the value of the candidate is higher by
      one iteration.  */
-  stmt_is_after_inc = stmt_after_increment (data->current_loop, cand, at);
   if (stmt_is_after_inc)
     offset -= ratio * cstepi;
 

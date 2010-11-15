@@ -954,7 +954,7 @@ maybe_run_lto_and_relink (char **lto_ld_argv, char **object_lst,
       size_t num_files;
 
       if (!lto_wrapper)
-	fatal ("COLLECT_LTO_WRAPPER must be set.");
+	fatal ("COLLECT_LTO_WRAPPER must be set");
 
       num_lto_c_args++;
 
@@ -1196,21 +1196,20 @@ main (int argc, char **argv)
 
   /* Parse command line early for instances of -debug.  This allows
      the debug flag to be set before functions like find_a_file()
-     are called.  We also look for the -flto or -fwhopr flag to know
+     are called.  We also look for the -flto or -flto-partition=none flag to know
      what LTO mode we are in.  */
   {
     int i;
+    bool no_partition = false;
 
     for (i = 1; argv[i] != NULL; i ++)
       {
 	if (! strcmp (argv[i], "-debug"))
 	  debug = true;
-        else if (! strcmp (argv[i], "-flto") && ! use_plugin)
-	  {
-	    use_verbose = true;
-	    lto_mode = LTO_MODE_LTO;
-	  }
-        else if (! strncmp (argv[i], "-fwhopr", 7) && ! use_plugin)
+        else if (! strcmp (argv[i], "-flto-partition=none"))
+	  no_partition = true;
+        else if ((! strncmp (argv[i], "-flto=", 6)
+		  || ! strcmp (argv[i], "-flto")) && ! use_plugin)
 	  {
 	    use_verbose = true;
 	    lto_mode = LTO_MODE_WHOPR;
@@ -1239,6 +1238,8 @@ main (int argc, char **argv)
 #endif
       }
     vflag = debug;
+    if (no_partition)
+      lto_mode = LTO_MODE_LTO;
   }
 
 #ifndef DEFAULT_A_OUT_NAME
@@ -1485,8 +1486,7 @@ main (int argc, char **argv)
 	      break;
 
             case 'f':
-	      if (strcmp (arg, "-flto") == 0
-		  || strncmp (arg, "-fwhopr", 7) == 0)
+	      if (strncmp (arg, "-flto", 5) == 0)
 		{
 #ifdef ENABLE_LTO
 		  /* Do not pass LTO flag to the linker. */
@@ -1698,16 +1698,16 @@ main (int argc, char **argv)
 
   if (helpflag)
     {
-      fprintf (stderr, "Usage: collect2 [options]\n");
-      fprintf (stderr, " Wrap linker and generate constructor code if needed.\n");
-      fprintf (stderr, " Options:\n");
-      fprintf (stderr, "  -debug          Enable debug output\n");
-      fprintf (stderr, "  --help          Display this information\n");
-      fprintf (stderr, "  -v, --version   Display this program's version number\n");
-      fprintf (stderr, "Overview: http://gcc.gnu.org/onlinedocs/gccint/Collect2.html\n");
-      fprintf (stderr, "Report bugs: %s\n", bug_report_url);
-
-      collect_exit (0);
+      printf ("Usage: collect2 [options]\n");
+      printf (" Wrap linker and generate constructor code if needed.\n");
+      printf (" Options:\n");
+      printf ("  -debug          Enable debug output\n");
+      printf ("  --help          Display this information\n");
+      printf ("  -v, --version   Display this program's version number\n");
+      printf ("\n");
+      printf ("Overview: http://gcc.gnu.org/onlinedocs/gccint/Collect2.html\n");
+      printf ("Report bugs: %s\n", bug_report_url);
+      printf ("\n");
     }
 
   if (debug)

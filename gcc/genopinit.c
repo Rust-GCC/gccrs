@@ -160,6 +160,9 @@ static const char * const optabs[] =
   "set_optab_handler (floor_optab, $A, CODE_FOR_$(floor$a2$))",
   "set_convert_optab_handler (lfloor_optab, $B, $A, CODE_FOR_$(lfloor$F$a$I$b2$))",
   "set_optab_handler (fma_optab, $A, CODE_FOR_$(fma$a4$))",
+  "set_optab_handler (fms_optab, $A, CODE_FOR_$(fms$a4$))",
+  "set_optab_handler (fnma_optab, $A, CODE_FOR_$(fnma$a4$))",
+  "set_optab_handler (fnms_optab, $A, CODE_FOR_$(fnms$a4$))",
   "set_optab_handler (ceil_optab, $A, CODE_FOR_$(ceil$a2$))",
   "set_convert_optab_handler (lceil_optab, $B, $A, CODE_FOR_$(lceil$F$a$I$b2$))",
   "set_optab_handler (round_optab, $A, CODE_FOR_$(round$a2$))",
@@ -521,8 +524,9 @@ from the machine description file `md'.  */\n\n");
   for (i = 0; i < NUM_MACHINE_MODES; i++)\n\
     for (j = 0; j < NUM_MACHINE_MODES; j++)\n\
       set_convert_optab_handler\n\
- 	(ufixtrunc_optab, i, j,\n\
-	 convert_optab_handler (sfixtrunc_optab, i, j));\n\
+ 	(ufixtrunc_optab, (enum machine_mode) i, (enum machine_mode) j,\n\
+	 convert_optab_handler (sfixtrunc_optab, (enum machine_mode) i,\n\
+						 (enum machine_mode) j));\n\
 #endif\n\
 }");
 

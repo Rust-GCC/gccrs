@@ -197,8 +197,7 @@ cgraph_decide_is_function_needed (struct cgraph_node *node, tree decl)
 	    && !(DECL_CONTEXT (decl)
 		 && TREE_CODE (DECL_CONTEXT (decl)) == FUNCTION_DECL)))
        && !flag_whole_program
-       && !flag_lto
-       && !flag_whopr)
+       && !flag_lto)
       && !DECL_COMDAT (decl) && !DECL_EXTERNAL (decl))
     return true;
 
@@ -468,22 +467,22 @@ verify_cgraph_node (struct cgraph_node *node)
       }
   if (node->count < 0)
     {
-      error ("Execution count is negative");
+      error ("execution count is negative");
       error_found = true;
     }
   if (node->global.inlined_to && node->local.externally_visible)
     {
-      error ("Externally visible inline clone");
+      error ("externally visible inline clone");
       error_found = true;
     }
   if (node->global.inlined_to && node->address_taken)
     {
-      error ("Inline clone with address taken");
+      error ("inline clone with address taken");
       error_found = true;
     }
   if (node->global.inlined_to && node->needed)
     {
-      error ("Inline clone is needed");
+      error ("inline clone is needed");
       error_found = true;
     }
   for (e = node->indirect_calls; e; e = e->next_callee)
@@ -1411,8 +1410,7 @@ assemble_thunk (struct cgraph_node *node)
 	      remove_edge (single_succ_edge (bb));
 	      true_label = gimple_block_label (then_bb);
 	      stmt = gimple_build_cond (NE_EXPR, restmp,
-	      				fold_convert (TREE_TYPE (restmp),
-						      integer_zero_node),
+	      				build_zero_cst (TREE_TYPE (restmp)),
 	      			        NULL_TREE, NULL_TREE);
 	      gsi_insert_after (&bsi, stmt, GSI_NEW_STMT);
 	      make_edge (bb, then_bb, EDGE_TRUE_VALUE);
@@ -1429,8 +1427,8 @@ assemble_thunk (struct cgraph_node *node)
 	    {
 	      gimple stmt;
 	      bsi = gsi_last_bb (else_bb);
-	      stmt = gimple_build_assign (restmp, fold_convert (TREE_TYPE (restmp),
-								integer_zero_node));
+	      stmt = gimple_build_assign (restmp,
+					  build_zero_cst (TREE_TYPE (restmp)));
 	      gsi_insert_after (&bsi, stmt, GSI_NEW_STMT);
 	      bsi = gsi_last_bb (return_bb);
 	    }

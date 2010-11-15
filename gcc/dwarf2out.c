@@ -5761,6 +5761,18 @@ struct GTY(()) dw_ranges_struct {
   int num;
 };
 
+/* A structure to hold a macinfo entry.  */
+
+typedef struct GTY(()) macinfo_struct {
+  unsigned HOST_WIDE_INT code;
+  unsigned HOST_WIDE_INT lineno;
+  const char *info;
+}
+macinfo_entry;
+
+DEF_VEC_O(macinfo_entry);
+DEF_VEC_ALLOC_O(macinfo_entry, gc);
+
 struct GTY(()) dw_ranges_by_label_struct {
   const char *begin;
   const char *end;
@@ -5990,6 +6002,10 @@ static GTY(()) unsigned separate_line_info_table_in_use;
    line_info_table.  */
 #define LINE_INFO_TABLE_INCREMENT 1024
 
+/* A flag to tell pubnames/types export if there is an info section to
+   refer to.  */
+static bool info_section_emitted;
+
 /* A pointer to the base of a table that contains a list of publicly
    accessible names.  */
 static GTY (()) VEC (pubname_entry, gc) *  pubname_table;
@@ -5997,6 +6013,10 @@ static GTY (()) VEC (pubname_entry, gc) *  pubname_table;
 /* A pointer to the base of a table that contains a list of publicly
    accessible types.  */
 static GTY (()) VEC (pubname_entry, gc) * pubtype_table;
+
+/* A pointer to the base of a table that contains a list of macro
+   defines/undefines (and file start/end markers).  */
+static GTY (()) VEC (macinfo_entry, gc) * macinfo_table;
 
 /* Array of dies for which we should generate .debug_arange info.  */
 static GTY((length ("arange_table_allocated"))) dw_die_ref *arange_table;
@@ -11264,7 +11284,11 @@ output_comp_unit (dw_die_ref die, int output_if_empty)
       switch_to_section (get_section (secname, SECTION_DEBUG, NULL));
     }
   else
-    switch_to_section (debug_info_section);
+    {
+      switch_to_section (debug_info_section);
+      ASM_OUTPUT_LABEL (asm_out_file, debug_info_section_label);
+      info_section_emitted = true;
+    }
 
   /* Output debugging information.  */
   output_compilation_unit_header ();
@@ -17740,7 +17764,7 @@ scope_die_for (tree t, dw_die_ref context_die)
   if (containing_scope && TREE_CODE (containing_scope) == FUNCTION_TYPE)
     containing_scope = NULL_TREE;
 
-  if (containing_scope == NULL_TREE)
+  if (SCOPE_FILE_SCOPE_P (containing_scope))
     scope_die = comp_unit_die ();
   else if (TYPE_P (containing_scope))
     {
@@ -21667,14 +21691,11 @@ dwarf2out_start_source_file (unsigned int lineno, const char *filename)
 
   if (debug_info_level >= DINFO_LEVEL_VERBOSE)
     {
-      int file_num = maybe_emit_file (lookup_filename (filename));
-
-      switch_to_section (debug_macinfo_section);
-      dw2_asm_output_data (1, DW_MACINFO_start_file, "Start new file");
-      dw2_asm_output_data_uleb128 (lineno, "Included from line number %d",
-				   lineno);
-
-      dw2_asm_output_data_uleb128 (file_num, "file %s", filename);
+      macinfo_entry e;
+      e.code = DW_MACINFO_start_file;
+      e.lineno = lineno;
+      e.info = xstrdup (filename);
+      VEC_safe_push (macinfo_entry, gc, macinfo_table, &e);
     }
 }
 
@@ -21689,8 +21710,11 @@ dwarf2out_end_source_file (unsigned int lineno ATTRIBUTE_UNUSED)
 
   if (debug_info_level >= DINFO_LEVEL_VERBOSE)
     {
-      switch_to_section (debug_macinfo_section);
-      dw2_asm_output_data (1, DW_MACINFO_end_file, "End file");
+      macinfo_entry e;
+      e.code = DW_MACINFO_end_file;
+      e.lineno = lineno;
+      e.info = NULL;
+      VEC_safe_push (macinfo_entry, gc, macinfo_table, &e);
     }
 }
 
@@ -21704,10 +21728,11 @@ dwarf2out_define (unsigned int lineno ATTRIBUTE_UNUSED,
 {
   if (debug_info_level >= DINFO_LEVEL_VERBOSE)
     {
-      switch_to_section (debug_macinfo_section);
-      dw2_asm_output_data (1, DW_MACINFO_define, "Define macro");
-      dw2_asm_output_data_uleb128 (lineno, "At line number %d", lineno);
-      dw2_asm_output_nstring (buffer, -1, "The macro");
+      macinfo_entry e;
+      e.code = DW_MACINFO_define;
+      e.lineno = lineno;
+      e.info = xstrdup (buffer);;
+      VEC_safe_push (macinfo_entry, gc, macinfo_table, &e);
     }
 }
 
@@ -21721,10 +21746,58 @@ dwarf2out_undef (unsigned int lineno ATTRIBUTE_UNUSED,
 {
   if (debug_info_level >= DINFO_LEVEL_VERBOSE)
     {
-      switch_to_section (debug_macinfo_section);
-      dw2_asm_output_data (1, DW_MACINFO_undef, "Undefine macro");
-      dw2_asm_output_data_uleb128 (lineno, "At line number %d", lineno);
-      dw2_asm_output_nstring (buffer, -1, "The macro");
+      macinfo_entry e;
+      e.code = DW_MACINFO_undef;
+      e.lineno = lineno;
+      e.info = xstrdup (buffer);;
+      VEC_safe_push (macinfo_entry, gc, macinfo_table, &e);
+    }
+}
+
+static void
+output_macinfo (void)
+{
+  unsigned i;
+  unsigned long length = VEC_length (macinfo_entry, macinfo_table);
+  macinfo_entry *ref;
+
+  if (! length)
+    return;
+
+  for (i = 0; VEC_iterate (macinfo_entry, macinfo_table, i, ref); i++)
+    {
+      switch (ref->code)
+	{
+	  case DW_MACINFO_start_file:
+	    {
+	      int file_num = maybe_emit_file (lookup_filename (ref->info));
+	      dw2_asm_output_data (1, DW_MACINFO_start_file, "Start new file");
+	      dw2_asm_output_data_uleb128 
+			(ref->lineno, "Included from line number %lu", 
+			 			(unsigned long)ref->lineno);
+	      dw2_asm_output_data_uleb128 (file_num, "file %s", ref->info);
+	    }
+	    break;
+	  case DW_MACINFO_end_file:
+	    dw2_asm_output_data (1, DW_MACINFO_end_file, "End file");
+	    break;
+	  case DW_MACINFO_define:
+	    dw2_asm_output_data (1, DW_MACINFO_define, "Define macro");
+	    dw2_asm_output_data_uleb128 (ref->lineno, "At line number %lu", 
+			 			(unsigned long)ref->lineno);
+	    dw2_asm_output_nstring (ref->info, -1, "The macro");
+	    break;
+	  case DW_MACINFO_undef:
+	    dw2_asm_output_data (1, DW_MACINFO_undef, "Undefine macro");
+	    dw2_asm_output_data_uleb128 (ref->lineno, "At line number %lu",
+			 			(unsigned long)ref->lineno);
+	    dw2_asm_output_nstring (ref->info, -1, "The macro");
+	    break;
+	  default:
+	   fprintf (asm_out_file, "%s unrecognized macinfo code %lu\n",
+	     ASM_COMMENT_START, (unsigned long)ref->code);
+	  break;
+	}
     }
 }
 
@@ -21816,20 +21889,11 @@ dwarf2out_init (const char *filename ATTRIBUTE_UNUSED)
 			       DEBUG_LINE_SECTION_LABEL, 0);
   ASM_GENERATE_INTERNAL_LABEL (ranges_section_label,
 			       DEBUG_RANGES_SECTION_LABEL, 0);
-  switch_to_section (debug_abbrev_section);
-  ASM_OUTPUT_LABEL (asm_out_file, abbrev_section_label);
-  switch_to_section (debug_info_section);
-  ASM_OUTPUT_LABEL (asm_out_file, debug_info_section_label);
-  switch_to_section (debug_line_section);
-  ASM_OUTPUT_LABEL (asm_out_file, debug_line_section_label);
+  ASM_GENERATE_INTERNAL_LABEL (macinfo_section_label,
+			       DEBUG_MACINFO_SECTION_LABEL, 0);
 
   if (debug_info_level >= DINFO_LEVEL_VERBOSE)
-    {
-      switch_to_section (debug_macinfo_section);
-      ASM_GENERATE_INTERNAL_LABEL (macinfo_section_label,
-				   DEBUG_MACINFO_SECTION_LABEL, 0);
-      ASM_OUTPUT_LABEL (asm_out_file, macinfo_section_label);
-    }
+    macinfo_table = VEC_alloc (macinfo_entry, gc, 64);
 
   switch_to_section (text_section);
   ASM_OUTPUT_LABEL (asm_out_file, text_section_label);
@@ -23043,11 +23107,12 @@ dwarf2out_finish (const char *filename)
   htab_delete (comdat_type_table);
 
   /* Output the main compilation unit if non-empty or if .debug_macinfo
-     has been emitted.  */
+     will be emitted.  */
   output_comp_unit (comp_unit_die (), debug_info_level >= DINFO_LEVEL_VERBOSE);
 
   /* Output the abbreviation table.  */
   switch_to_section (debug_abbrev_section);
+  ASM_OUTPUT_LABEL (asm_out_file, abbrev_section_label);
   output_abbrev_section ();
 
   /* Output location list section if necessary.  */
@@ -23064,6 +23129,7 @@ dwarf2out_finish (const char *filename)
   /* Output public names table if necessary.  */
   if (!VEC_empty (pubname_entry, pubname_table))
     {
+      gcc_assert (info_section_emitted);
       switch_to_section (debug_pubnames_section);
       output_pubnames (pubname_table);
     }
@@ -23074,8 +23140,27 @@ dwarf2out_finish (const char *filename)
      simply won't look for the section.  */
   if (!VEC_empty (pubname_entry, pubtype_table))
     {
-      switch_to_section (debug_pubtypes_section);
-      output_pubnames (pubtype_table);
+      bool empty = false;
+      
+      if (flag_eliminate_unused_debug_types)
+	{
+	  /* The pubtypes table might be emptied by pruning unused items.  */
+	  unsigned i;
+	  pubname_ref p;
+	  empty = true;
+	  FOR_EACH_VEC_ELT (pubname_entry, pubtype_table, i, p)
+	    if (p->die->die_offset != 0)
+	      {
+		empty = false;
+		break;
+	      }
+	}
+      if (!empty)
+	{
+	  gcc_assert (info_section_emitted);
+	  switch_to_section (debug_pubtypes_section);
+	  output_pubnames (pubtype_table);
+	}
     }
 
   /* Output direct and virtual call tables if necessary.  */
@@ -23112,16 +23197,18 @@ dwarf2out_finish (const char *filename)
      .debug_info section.  IRIX 6.5 `nm' will then complain when
      examining the file.  This is done late so that any filenames
      used by the debug_info section are marked as 'used'.  */
+  switch_to_section (debug_line_section);
+  ASM_OUTPUT_LABEL (asm_out_file, debug_line_section_label);
   if (! DWARF2_ASM_LINE_DEBUG_INFO)
-    {
-      switch_to_section (debug_line_section);
-      output_line_info ();
-    }
+    output_line_info ();
 
   /* Have to end the macro section.  */
   if (debug_info_level >= DINFO_LEVEL_VERBOSE)
     {
       switch_to_section (debug_macinfo_section);
+      ASM_OUTPUT_LABEL (asm_out_file, macinfo_section_label);
+      if (!VEC_empty (macinfo_entry, macinfo_table))
+        output_macinfo ();
       dw2_asm_output_data (1, 0, "End compilation unit");
     }
 

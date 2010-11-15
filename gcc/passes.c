@@ -598,7 +598,7 @@ position_pass (struct register_pass_info *new_pass_info,
                 pass = new_pass;
                 break;
               default:
-                error ("Invalid pass positioning operation");
+                error ("invalid pass positioning operation");
                 return false;
             }
 
@@ -736,7 +736,6 @@ init_optimization_passes (void)
   NEXT_PASS (pass_refactor_eh);
   NEXT_PASS (pass_lower_eh);
   NEXT_PASS (pass_build_cfg);
-  NEXT_PASS (pass_lower_vector);
   NEXT_PASS (pass_warn_function_return);
   NEXT_PASS (pass_build_cgraph_edges);
   NEXT_PASS (pass_inline_parameters);
@@ -755,6 +754,7 @@ init_optimization_passes (void)
 
       NEXT_PASS (pass_referenced_vars);
       NEXT_PASS (pass_build_ssa);
+      NEXT_PASS (pass_lower_vector);
       NEXT_PASS (pass_early_warn_uninitialized);
       /* Note that it is not strictly necessary to schedule an early
 	 inline pass here.  However, some test cases (e.g.,

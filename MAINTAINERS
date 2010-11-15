@@ -83,7 +83,7 @@ pdp11 port		Paul Koning		ni1d@arrl.net
 picochip port		Hariharan Sandanagobalane	hariharan@picochip.com
 picochip port		Daniel Towner		dant@picochip.com
 rs6000 port		Geoff Keating		geoffk@geoffk.org
-rs6000 port		David Edelsohn		edelsohn@gnu.org
+rs6000 port		David Edelsohn		dje.gcc@gmail.com
 rs6000 vector extns	Aldy Hernandez		aldyh@redhat.com
 rx port	      		Nick Clifton		nickc@redhat.com
 s390 port		Hartmut Penner		hpenner@de.ibm.com
@@ -96,7 +96,7 @@ sparc port		David S. Miller		davem@redhat.com
 sparc port		Jakub Jelinek		jakub@redhat.com
 sparc port		Eric Botcazou		ebotcazou@libertysurf.fr
 spu port		Trevor Smigiel		trevor_smigiel@playstation.sony.com
-spu port		David Edelsohn		edelsohn@gnu.org
+spu port		David Edelsohn		dje.gcc@gmail.com
 spu port		Ulrich Weigand		uweigand@de.ibm.com
 v850 port		Nick Clifton		nickc@redhat.com
 vax port		Matt Thomas		matt@3am-software.com
@@ -199,6 +199,7 @@ build machinery (*.in)	Paolo Bonzini		bonzini@gnu.org
 build machinery (*.in)	DJ Delorie		dj@redhat.com
 build machinery (*.in)	Nathanael Nerode	neroden@gcc.gnu.org
 build machinery (*.in)	Alexandre Oliva		aoliva@redhat.com
+build machinery (*.in)	Ralf Wildenhues		Ralf.Wildenhues@gmx.de
 docs co-maintainer	Gerald Pfeifer		gerald@pfeifer.com
 docs co-maintainer	Joseph Myers		joseph@codesourcery.com
 predict.def		Jan Hubicka		jh@suse.cz
@@ -329,6 +330,7 @@ Ian Dall					ian@beware.dropbear.id.au
 David Daney					david.daney@caviumnetworks.com
 Bud Davis					jmdavis@link.com
 Chris Demetriou					cgd@google.com
+François Dumont					fdumont@gcc.gnu.org
 Benoit Dupont de Dinechin			benoit.dupont-de-dinechin@st.com
 Michael Eager					eager@eagercon.com
 Phil Edwards					pme@gcc.gnu.org
@@ -347,7 +349,7 @@ John Freeman					jfreeman08@gmail.com
 Nathan Froyd					froydnj@codesourcery.com
 Chao-ying Fu					fu@mips.com
 Gary Funck					gary@intrepid.com
-Kaveh Ghazi					ghazi@caip.rutgers.edu
+Kaveh Ghazi					ghazi@gcc.gnu.org
 Matthew Gingell					gingell@gnat.com
 Tristan Gingold					gingold@adacore.com
 Anthony Green					green@redhat.com
@@ -488,7 +490,6 @@ Florian Weimer					fw@deneb.enyo.de
 Zack Weinberg					zackw@panix.com
 Mark Wielaard					mark@gcc.gnu.org
 Ollie Wild					aaw@google.com
-Ralf Wildenhues					Ralf.Wildenhues@gmx.de
 Kevin Williams					kevin.williams@inria.fr
 Carlo Wood					carlo@alinoe.com
 Le-Chun Wu					lcwu@google.com

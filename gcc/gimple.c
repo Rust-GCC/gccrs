@@ -449,7 +449,6 @@ void
 gimple_cond_get_ops_from_tree (tree cond, enum tree_code *code_p,
                                tree *lhs_p, tree *rhs_p)
 {
-  location_t loc = EXPR_LOCATION (cond);
   gcc_assert (TREE_CODE_CLASS (TREE_CODE (cond)) == tcc_comparison
 	      || TREE_CODE (cond) == TRUTH_NOT_EXPR
 	      || is_gimple_min_invariant (cond)
@@ -462,14 +461,14 @@ gimple_cond_get_ops_from_tree (tree cond, enum tree_code *code_p,
     {
       *code_p = EQ_EXPR;
       gcc_assert (*lhs_p && *rhs_p == NULL_TREE);
-      *rhs_p = fold_convert_loc (loc, TREE_TYPE (*lhs_p), integer_zero_node);
+      *rhs_p = build_zero_cst (TREE_TYPE (*lhs_p));
     }
   /* Canonicalize conditionals of the form 'if (VAL)'  */
   else if (TREE_CODE_CLASS (*code_p) != tcc_comparison)
     {
       *code_p = NE_EXPR;
       gcc_assert (*lhs_p && *rhs_p == NULL_TREE);
-      *rhs_p = fold_convert_loc (loc, TREE_TYPE (*lhs_p), integer_zero_node);
+      *rhs_p = build_zero_cst (TREE_TYPE (*lhs_p));
     }
 }
 
@@ -2530,7 +2529,8 @@ get_gimple_rhs_num_ops (enum tree_code code)
       || (SYM) == TRUTH_XOR_EXPR) ? GIMPLE_BINARY_RHS			    \
    : (SYM) == TRUTH_NOT_EXPR ? GIMPLE_UNARY_RHS				    \
    : ((SYM) == WIDEN_MULT_PLUS_EXPR					    \
-      || (SYM) == WIDEN_MULT_MINUS_EXPR) ? GIMPLE_TERNARY_RHS		    \
+      || (SYM) == WIDEN_MULT_MINUS_EXPR					    \
+      || (SYM) == FMA_EXPR) ? GIMPLE_TERNARY_RHS			    \
    : ((SYM) == COND_EXPR						    \
       || (SYM) == CONSTRUCTOR						    \
       || (SYM) == OBJ_TYPE_REF						    \

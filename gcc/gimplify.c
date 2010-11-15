@@ -3885,7 +3885,7 @@ gimplify_init_constructor (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	i = VEC_index (constructor_elt, elts, 1)->value;
 	if (r == NULL || i == NULL)
 	  {
-	    tree zero = fold_convert (TREE_TYPE (type), integer_zero_node);
+	    tree zero = build_zero_cst (TREE_TYPE (type));
 	    if (r == NULL)
 	      r = zero;
 	    if (i == NULL)
@@ -5066,6 +5066,13 @@ gimplify_asm_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
       /* If the operand is a memory input, it should be an lvalue.  */
       if (!allows_reg && allows_mem)
 	{
+	  tree inputv = TREE_VALUE (link);
+	  STRIP_NOPS (inputv);
+	  if (TREE_CODE (inputv) == PREDECREMENT_EXPR
+	      || TREE_CODE (inputv) == PREINCREMENT_EXPR
+	      || TREE_CODE (inputv) == POSTDECREMENT_EXPR
+	      || TREE_CODE (inputv) == POSTINCREMENT_EXPR)
+	    TREE_VALUE (link) = error_mark_node;
 	  tret = gimplify_expr (&TREE_VALUE (link), pre_p, post_p,
 				is_gimple_lvalue, fb_lvalue | fb_mayfail);
 	  mark_addressable (TREE_VALUE (link));
@@ -7170,6 +7177,16 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	  ret = gimplify_omp_atomic (expr_p, pre_p);
 	  break;
 
+	case TRUTH_AND_EXPR:
+	case TRUTH_OR_EXPR:
+	case TRUTH_XOR_EXPR:
+	  /* Classified as tcc_expression.  */
+	  goto expr_2;
+
+	case FMA_EXPR:
+	  /* Classified as tcc_expression.  */
+	  goto expr_3;
+
 	case POINTER_PLUS_EXPR:
           /* Convert ((type *)A)+offset into &A->field_of_type_and_offset.
 	     The second is gimple immediate saving a need for extra statement.
@@ -7249,16 +7266,28 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 		break;
 	      }
 
+	    expr_3:
+	      {
+		enum gimplify_status r0, r1, r2;
+
+		r0 = gimplify_expr (&TREE_OPERAND (*expr_p, 0), pre_p,
+		                    post_p, is_gimple_val, fb_rvalue);
+		r1 = gimplify_expr (&TREE_OPERAND (*expr_p, 1), pre_p,
+				    post_p, is_gimple_val, fb_rvalue);
+		r2 = gimplify_expr (&TREE_OPERAND (*expr_p, 2), pre_p,
+				    post_p, is_gimple_val, fb_rvalue);
+
+		ret = MIN (MIN (r0, r1), r2);
+		break;
+	      }
+
 	    case tcc_declaration:
 	    case tcc_constant:
 	      ret = GS_ALL_DONE;
 	      goto dont_recalculate;
 
 	    default:
-	      gcc_assert (TREE_CODE (*expr_p) == TRUTH_AND_EXPR
-			  || TREE_CODE (*expr_p) == TRUTH_OR_EXPR
-			  || TREE_CODE (*expr_p) == TRUTH_XOR_EXPR);
-	      goto expr_2;
+	      gcc_unreachable ();
 	    }
 
 	  recalculate_side_effects (*expr_p);
@@ -8025,7 +8054,11 @@ force_gimple_operand_1 (tree expr, gimple_seq *stmts,
 
   *stmts = NULL;
 
-  if (is_gimple_val (expr))
+  /* gimple_test_f might be more strict than is_gimple_val, make
+     sure we pass both.  Just checking gimple_test_f doesn't work
+     because most gimple predicates do not work recursively.  */
+  if (is_gimple_val (expr)
+      && (*gimple_test_f) (expr))
     return expr;
 
   push_gimplify_context (&gctx);

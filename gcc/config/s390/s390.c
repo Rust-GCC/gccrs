@@ -1554,6 +1554,9 @@ s390_handle_arch_option (const char *arg,
 	*flags = processor_alias_table[i].flags;
 	return true;
       }
+
+  *type = PROCESSOR_max;
+  *flags = 0;
   return false;
 }
 
@@ -1614,6 +1617,12 @@ s390_option_override (void)
       s390_handle_arch_option (s390_arch_string, &s390_arch, &s390_arch_flags);
     }
 
+  /* This check is triggered when the user specified a wrong -march=
+     string and prevents subsequent error messages from being
+     issued.  */
+  if (s390_arch == PROCESSOR_max)
+    return;
+
   /* Determine processor to tune for.  */
   if (s390_tune == PROCESSOR_max)
     {
@@ -1632,10 +1641,10 @@ s390_option_override (void)
       if (target_flags_explicit & MASK_HARD_DFP)
 	{
 	  if (!TARGET_CPU_DFP)
-	    error ("Hardware decimal floating point instructions"
+	    error ("hardware decimal floating point instructions"
 		   " not available on %s", s390_arch_string);
 	  if (!TARGET_ZARCH)
-	    error ("Hardware decimal floating point instructions"
+	    error ("hardware decimal floating point instructions"
 		   " not available in ESA/390 mode");
 	}
       else
@@ -1645,7 +1654,7 @@ s390_option_override (void)
   if ((target_flags_explicit & MASK_SOFT_FLOAT) && TARGET_SOFT_FLOAT)
     {
       if ((target_flags_explicit & MASK_HARD_DFP) && TARGET_HARD_DFP)
-	error ("-mhard-dfp can't be used in conjunction with -msoft-float");
+	error ("-mhard-dfp can%'t be used in conjunction with -msoft-float");
 
       target_flags &= ~MASK_HARD_DFP;
     }
@@ -7939,6 +7948,9 @@ s390_emit_prologue (void)
   if (!TARGET_PACKED_STACK)
     next_fpr = cfun_save_high_fprs_p ? 31 : 0;
 
+  if (flag_stack_usage)
+    current_function_static_stack_size = cfun_frame_layout.frame_size;
+
   /* Decrement stack pointer.  */
 
   if (cfun_frame_layout.frame_size > 0)
@@ -8719,7 +8731,7 @@ s390_va_start (tree valist, rtx nextarg ATTRIBUTE_UNUSED)
   f_ovf = DECL_CHAIN (f_fpr);
   f_sav = DECL_CHAIN (f_ovf);
 
-  valist = build_va_arg_indirect_ref (valist);
+  valist = build_simple_mem_ref (valist);
   gpr = build3 (COMPONENT_REF, TREE_TYPE (f_gpr), valist, f_gpr, NULL_TREE);
   fpr = build3 (COMPONENT_REF, TREE_TYPE (f_fpr), valist, f_fpr, NULL_TREE);
   ovf = build3 (COMPONENT_REF, TREE_TYPE (f_ovf), valist, f_ovf, NULL_TREE);

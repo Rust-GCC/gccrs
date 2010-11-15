@@ -1629,7 +1629,13 @@ build_struct (const char *name, gfc_charlen *cl, gfc_expr **init,
 
 scalar:
   if (c->ts.type == BT_CLASS)
-    gfc_build_class_symbol (&c->ts, &c->attr, &c->as, true);
+    {
+      bool delayed = (gfc_state_stack->sym == c->ts.u.derived)
+		     || (!c->ts.u.derived->components
+			 && !c->ts.u.derived->attr.zero_comp);
+      gfc_build_class_symbol (&c->ts, &c->attr, &c->as, delayed);
+    }
+
 
   return t;
 }
@@ -6014,10 +6020,10 @@ attr_decl1 (void)
 
   /* Update symbol table.  DIMENSION attribute is set in
      gfc_set_array_spec().  For CLASS variables, this must be applied
-     to the first component, or '$data' field.  */
+     to the first component, or '_data' field.  */
   if (sym->ts.type == BT_CLASS && sym->ts.u.derived->attr.is_class)
     {
-      if (gfc_copy_attr (&CLASS_DATA (sym)->attr, &current_attr,&var_locus)
+      if (gfc_copy_attr (&CLASS_DATA (sym)->attr, &current_attr, &var_locus)
 	  == FAILURE)
 	{
 	  m = MATCH_ERROR;

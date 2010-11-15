@@ -58,6 +58,53 @@ bool flag_warn_unused_result = false
 Variable
 int *param_values
 
+; Floating-point contraction mode, fast by default.
+Variable
+enum fp_contract_mode flag_fp_contract_mode = FP_CONTRACT_FAST
+
+; The excess precision specified on the command line, or defaulted by
+; the front end.
+Variable
+enum excess_precision flag_excess_precision_cmdline = EXCESS_PRECISION_DEFAULT
+
+; Nonzero if we should write GIMPLE bytecode for link-time optimization.
+Variable
+int flag_generate_lto
+
+; True to warn about any objects definitions whose size is larger
+; than N bytes.  Also want about function definitions whose returned
+; values are larger than N bytes, where N is 'larger_than_size'.
+Variable
+bool warn_larger_than
+
+Variable
+HOST_WIDE_INT larger_than_size
+
+; True to warn about any function whose frame size is larger
+; than N bytes.
+Variable
+bool warn_frame_larger_than
+
+Variable
+HOST_WIDE_INT frame_larger_than_size
+
+; Nonzero means we should be saving declaration info into a .X file.
+Variable
+int flag_gen_aux_info = 0
+
+; Nonzero if we are compiling code for a shared library, zero for
+; executable.
+Variable
+int flag_shlib
+
+; The default visibility for all symbols (unless overridden).
+Variable
+enum symbol_visibility default_visibility = VISIBILITY_DEFAULT
+
+; Set to the default thread-local storage (tls) model to use.
+Variable
+enum tls_model flag_tls_default = TLS_MODEL_GLOBAL_DYNAMIC
+
 ###
 Driver
 
@@ -518,14 +565,14 @@ Xpreprocessor
 Driver Separate
 
 aux-info
-Common Separate
+Common Separate Var(aux_info_file_name)
 -aux-info <file>	Emit declaration information into <file>
 
 aux-info=
 Common Joined Alias(aux-info)
 
 auxbase
-Common Separate RejectDriver
+Common Separate RejectDriver Var(aux_base_name)
 
 auxbase-strip
 Common Separate RejectDriver
@@ -541,11 +588,11 @@ Common Joined
 -d<letters>	Enable dumps from specific passes of the compiler
 
 dumpbase
-Common Separate
+Common Separate Var(dump_base_name)
 -dumpbase <file>	Set the file basename to be used for dumps
 
 dumpdir
-Common Separate
+Common Separate Var(dump_dir_name)
 -dumpdir <dir>	Set the directory name to be used for dumps
 
 dumpmachine
@@ -587,28 +634,28 @@ Common Report Var(align_functions,0) Optimization UInteger
 Align the start of functions
 
 falign-functions=
-Common RejectNegative Joined UInteger
+Common RejectNegative Joined UInteger Var(align_functions)
 
 falign-jumps
 Common Report Var(align_jumps,0) Optimization UInteger
 Align labels which are only reached by jumping
 
 falign-jumps=
-Common RejectNegative Joined UInteger
+Common RejectNegative Joined UInteger Var(align_jumps)
 
 falign-labels
 Common Report Var(align_labels,0) Optimization UInteger
 Align all labels
 
 falign-labels=
-Common RejectNegative Joined UInteger
+Common RejectNegative Joined UInteger Var(align_labels)
 
 falign-loops
 Common Report Var(align_loops,0) Optimization UInteger
 Align the start of loops
 
 falign-loops=
-Common RejectNegative Joined UInteger
+Common RejectNegative Joined UInteger Var(align_loops)
 
 fargument-alias
 Common Ignore
@@ -861,6 +908,10 @@ fforward-propagate
 Common Report Var(flag_forward_propagate) Optimization
 Perform a forward propagation pass on RTL
 
+ffp-contract=
+Common Joined RejectNegative
+-ffp-contract=[off|on|fast] Perform floating-point expression contraction.
+
 ; Nonzero means don't put addresses of constant functions in registers.
 ; Used for compiling the Unix kernel, where strange substitutions are
 ; done on the assembly output.
@@ -1091,8 +1142,12 @@ Common Ignore
 Does nothing.  Preserved for backward compatibility.
 
 flto
-Common Var(flag_lto)
+Common
 Enable link-time optimization.
+
+flto=
+Common RejectNegative Joined Var(flag_lto)
+Link-time optimization with number of parallel jobs or jobserver.
 
 flto-partition=1to1
 Common Var(flag_lto_partition_1to1)
@@ -1101,6 +1156,10 @@ Partition functions and vars at linktime based on object files they originate fr
 flto-partition=balanced
 Common Var(flag_lto_partition_balanced)
 Partition functions and vars at linktime into approximately same sized buckets
+
+flto-partition=none
+Common Var(flag_lto_partition_none)
+Disable partioning and streaming
 
 ; The initial value of -1 comes from Z_DEFAULT_COMPRESSION in zlib.h.
 flto-compression-level=
@@ -1114,6 +1173,10 @@ Report various link-time optimization statistics
 fmath-errno
 Common Report Var(flag_errno_math) Init(1) Optimization
 Set errno after built-in math functions
+
+fmax-errors=
+Common Joined RejectNegative UInteger Var(flag_max_errors)
+-fmax-errors=<number>	Maximum number of errors to report
 
 fmem-report
 Common Report Var(mem_report)
@@ -1832,14 +1895,6 @@ fweb
 Common Report Var(flag_web) Init(2) Optimization
 Construct webs and split unrelated uses of single variable
 
-fwhopr
-Common
-Enable partitioned link-time optimization
-
-fwhopr=
-Common RejectNegative Joined Var(flag_whopr)
-Partitioned link-time optimization with number of parallel jobs or jobserver.
-
 ftree-builtin-call-dce
 Common Report Var(flag_tree_builtin_call_dce) Init(0) Optimization
 Enable conditional dead code elimination for builtin calls
@@ -1924,7 +1979,7 @@ nostdlib
 Driver
 
 o
-Common Driver Joined Separate MissingArgError(missing filename after %qs)
+Common Driver Joined Separate Var(asm_file_name) MissingArgError(missing filename after %qs)
 -o <file>	Place output into <file>
 
 p
@@ -1939,7 +1994,7 @@ Common Var(pedantic)
 Issue warnings needed for strict compliance to the standard
 
 pedantic-errors
-Common
+Common Var(flag_pedantic_errors)
 Like -pedantic but issue them as errors
 
 pg
@@ -1999,7 +2054,8 @@ Driver
 ; C option, but driver must not handle as "-u ndef".
 
 v
-Driver
+Common Driver Var(verbose_flag)
+Enable verbose output
 
 version
 Common Var(version_flag) RejectDriver
