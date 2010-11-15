@@ -759,7 +759,7 @@ if [ -n "${multidirs}" ] && [ -z "${ml_norecursion}" ]; then
 	F77_=$F77' '
 	GCJ_=$GCJ' '
 	GFORTRAN_=$GFORTRAN' '
-	GOC_=$GOC '
+	GOC_=$GOC' '
     else
 	# Create a regular expression that matches any string as long
 	# as ML_POPDIR.
