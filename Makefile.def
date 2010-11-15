@@ -590,6 +590,8 @@ languages = { language=ada;	gcc-check-target=check-ada;
 languages = { language=objc;	gcc-check-target=check-objc;
 				lib-check-target=check-target-libobjc; };
 languages = { language=obj-c++;	gcc-check-target=check-obj-c++; };
+languages = { language=go;	gcc-check-target=check-go;
+				lib-check-target=check-target-libgo; };
 
 // Toplevel bootstrap
 bootstrap_stage = { id=1 ; };
