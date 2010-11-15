@@ -509,8 +509,8 @@ go_format_type (struct godump_container *container, tree type,
 		if (slot != NULL)
 		  obstack_1grow (ob, '_');
 		go_append_string (ob, DECL_NAME (field));
-		obstack_1grow (ob, ' ');
 	      }
+	    obstack_1grow (ob, ' ');
 	    if (DECL_BIT_FIELD (field))
 	      {
 		obstack_grow (ob, "INVALID-bit-field", 17);
