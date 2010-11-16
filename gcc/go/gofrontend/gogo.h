@@ -612,12 +612,12 @@ class Gogo
   typedef std::map<std::string, std::string> Sys_names;
 
   // Hash table mapping map types to map descriptor decls.
-  typedef std::tr1::unordered_map<const Map_type*, tree, Type_hash_identical,
-				  Type_identical> Map_descriptors;
+  typedef Unordered_map_hash(const Map_type*, tree, Type_hash_identical,
+			     Type_identical) Map_descriptors;
 
   // Map unnamed types to type descriptor decls.
-  typedef std::tr1::unordered_map<const Type*, tree, Type_hash_identical,
-				  Type_identical> Type_descriptor_decls;
+  typedef Unordered_map_hash(const Type*, tree, Type_hash_identical,
+			     Type_identical) Type_descriptor_decls;
 
   // The package we are compiling.
   Package* package_;
@@ -932,7 +932,7 @@ class Function
 
  private:
   // Type for mapping from label names to Label objects.
-  typedef std::tr1::unordered_map<std::string, Label*> Labels;
+  typedef Unordered_map(std::string, Label*) Labels;
 
   tree
   make_receiver_parm_decl(Gogo*, Named_object*, tree);
@@ -1846,7 +1846,7 @@ class Bindings
 {
  public:
   // Type for mapping from names to objects.
-  typedef std::tr1::unordered_map<std::string, Named_object*> Contour;
+  typedef Unordered_map(std::string, Named_object*) Contour;
 
   Bindings(Bindings* enclosing);
 

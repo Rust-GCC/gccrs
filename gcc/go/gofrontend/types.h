@@ -308,7 +308,7 @@ class Interface_method : public Method
 class Methods
 {
  private:
-  typedef std::tr1::unordered_map<std::string, Method*> Method_map;
+  typedef Unordered_map(std::string, Method*) Method_map;
 
  public:
   typedef Method_map::const_iterator const_iterator;
@@ -1078,8 +1078,8 @@ class Type
 
   // A mapping from Type to tree, used to ensure that the GIMPLE
   // representation of identical types is identical.
-  typedef std::tr1::unordered_map<const Type*, tree, Type_hash_identical,
-				  Type_identical> Type_trees;
+  typedef Unordered_map_hash(const Type*, tree, Type_hash_identical,
+			     Type_identical) Type_trees;
 
   static Type_trees type_trees;
 
@@ -2577,9 +2577,8 @@ class Named_type : public Type
  private:
   // A mapping from interfaces to the associated interface method
   // tables for this type.  This maps to a decl.
-  typedef std::tr1::unordered_map<const Interface_type*, tree,
-				  Type_hash_identical,
-				  Type_identical> Interface_method_tables;
+  typedef Unordered_map_hash(const Interface_type*, tree, Type_hash_identical,
+			     Type_identical) Interface_method_tables;
 
   // A pointer back to the Named_object for this type.
   Named_object* named_object_;

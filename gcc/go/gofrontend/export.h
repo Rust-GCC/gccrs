@@ -163,7 +163,7 @@ class Export
   register_builtin_type(Gogo*, const char* name, Builtin_code);
 
   // Mapping from Type objects to a constant index.
-  typedef std::tr1::unordered_map<const Type*, int> Type_refs;
+  typedef Unordered_map(const Type*, int) Type_refs;
 
   // The stream to which we are writing data.
   Stream* stream_;

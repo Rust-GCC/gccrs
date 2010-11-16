@@ -3167,7 +3167,7 @@ Pointer_type::do_import(Import* imp)
 Pointer_type*
 Type::make_pointer_type(Type* to_type)
 {
-  typedef std::tr1::unordered_map<Type*, Pointer_type*> Hashtable;
+  typedef Unordered_map(Type*, Pointer_type*) Hashtable;
   static Hashtable pointer_types;
   Hashtable::const_iterator p = pointer_types.find(to_type);
   if (p != pointer_types.end())
