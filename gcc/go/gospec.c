@@ -42,22 +42,12 @@ along with GCC; see the file COPYING3.  If not see
 #define MATH_LIBRARY_PROFILE MATH_LIBRARY
 #endif
 
-#ifndef THREAD_LIBRARY
 #define THREAD_LIBRARY "pthread"
-#endif
-#ifndef THREAD_LIBRARY_PROFILE
 #define THREAD_LIBRARY_PROFILE THREAD_LIBRARY
-#endif
 
-#ifndef LIBGO
 #define LIBGO "go"
-#endif
-#ifndef LIBGOBEGIN
-#define LIBGOBEGIN "gobegin"
-#endif
-#ifndef LIBGO_PROFILE
 #define LIBGO_PROFILE LIBGO
-#endif
+#define LIBGOBEGIN "gobegin"
 
 void
 lang_specific_driver (struct cl_decoded_option **in_decoded_options,
