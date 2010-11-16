@@ -351,7 +351,7 @@ convert (tree type, tree expr)
 static GTY(()) tree go_gc_root;
 
 void
-go_preserve_from_gc(tree t)
+go_preserve_from_gc (tree t)
 {
   go_gc_root = tree_cons (NULL_TREE, t, go_gc_root);
 }
