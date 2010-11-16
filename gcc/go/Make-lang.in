@@ -20,9 +20,6 @@
 
 # This file provides the language dependent support in the main Makefile.
 
-# Build Go export info generator.
-INTERNAL_CFLAGS += -DGO_DEBUGGING_INFO
-
 # Installation name.
 
 GCCGO_INSTALL_NAME := $(shell echo gccgo|sed '$(program_transform_name)')
