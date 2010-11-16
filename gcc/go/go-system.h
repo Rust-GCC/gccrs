@@ -26,7 +26,72 @@
 
 #include <string>
 #include <vector>
-#include <tr1/unordered_map>
+
+#if defined(HAVE_UNORDERED_MAP)
+
+# include <unordered_map>
+
+# define Unordered_map(KEYTYPE, VALTYPE) \
+	std::unordered_map<KEYTYPE, VALTYPE>
+
+# define Unordered_map_hash(KEYTYPE, VALTYPE, HASHFN, EQFN) \
+	std::unordered_map<KEYTYPE, VALTYPE, HASHFN, EQFN>
+
+#elif defined(HAVE_TR1_UNORDERED_MAP)
+
+# include <tr1/unordered_map>
+
+# define Unordered_map(KEYTYPE, VALTYPE) \
+	std::tr1::unordered_map<KEYTYPE, VALTYPE>
+
+# define Unordered_map_hash(KEYTYPE, VALTYPE, HASHFN, EQFN) \
+	std::tr1::unordered_map<KEYTYPE, VALTYPE, HASHFN, EQFN>
+
+#elif defined(HAVE_EXT_HASH_MAP)
+
+# include <ext/hash_map>
+
+# define Unordered_map(KEYTYPE, VALTYPE) \
+	__gnu_cxx::hash_map<KEYTYPE, VALTYPE>
+
+# define Unordered_map_hash(KEYTYPE, VALTYPE, HASHFN, EQFN) \
+	__gnu_cxx::hash_map<KEYTYPE, VALTYPE, HASHFN, EQFN>
+
+// Provide hash functions for strings and pointers.
+
+namespace __gnu_cxx
+{
+
+template<>
+struct hash<std::string>
+{
+  size_t
+  operator()(std::string s) const
+  { return __stl_hash_string(s.c_str()); }
+};
+
+template<typename T>
+struct hash<T*>
+{
+  size_t
+  operator()(T* p) const
+  { return reinterpret_cast<size_t>(p); }
+};
+
+}
+
+#else
+
+# include <map>
+
+# define Unordered_map(KEYTYPE, VALTYPE) \
+	std::map<KEYTYPE, VALTYPE>
+
+// We could make this work by writing an adapter class which
+// implemented operator< in terms of the hash function.
+# error "requires hash table type"
+
+#endif
 
 // We don't really need iostream, but some versions of gmp.h include
 // it when compiled with C++, which means that we need to include it

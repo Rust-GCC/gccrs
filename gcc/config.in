@@ -45,7 +45,7 @@
 #endif
 
 
-/* Define to 1 if building with C++. */
+/* Define if building with C++. */
 #ifndef USED_FOR_TARGET
 #undef ENABLE_BUILD_WITH_CXX
 #endif
@@ -838,6 +838,12 @@
 #endif
 
 
+/* Define to 1 if you have the <ext/hash_map> header file. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_EXT_HASH_MAP
+#endif
+
+
 /* Define to 1 if you have the <fcntl.h> header file. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_FCNTL_H
@@ -1431,6 +1437,12 @@
 #endif
 
 
+/* Define to 1 if you have the <tr1/unordered_map> header file. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_TR1_UNORDERED_MAP
+#endif
+
+
 /* Define to 1 if the system has the type `uintmax_t'. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_UINTMAX_T
@@ -1446,6 +1458,12 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_UNISTD_H
+#endif
+
+
+/* Define to 1 if you have the <unordered_map> header file. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_UNORDERED_MAP
 #endif
 
 
