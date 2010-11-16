@@ -94,7 +94,7 @@ go_langhook_init (void)
     size_type_node = long_long_unsigned_type_node;
   else
     size_type_node = long_unsigned_type_node;
-  set_sizetype(size_type_node);
+  set_sizetype (size_type_node);
 
   build_common_tree_nodes_2 (0);
 
@@ -110,6 +110,14 @@ go_langhook_init (void)
   /* I don't know why this is not done by any of the above.  */
   void_list_node = build_tree_list (NULL_TREE, void_type_node);
 
+  /* The default precision for floating point numbers.  This is used
+     for floating point constants with abstract type.  This may
+     eventually be controllable by a command line option.  */
+  mpfr_set_default_prec (128);
+
+  /* Go uses exceptions.  */
+  using_eh_for_cleanups ();
+
   return true;
 }
 
@@ -121,49 +129,37 @@ go_langhook_option_lang_mask (void)
   return CL_Go;
 }
 
-/* Initialize before parsing options.  */
+/* Initialize the options structure.  */
 
 static void
-go_langhook_init_options (
-    unsigned int argc ATTRIBUTE_UNUSED,
-    struct cl_decoded_option *decoded_options ATTRIBUTE_UNUSED)
+go_langhook_init_options_struct (struct gcc_options *opts)
 {
   /* Go says that signed overflow is precisely defined.  */
-  flag_wrapv = 1;
+  opts->x_flag_wrapv = 1;
 
   /* We default to using strict aliasing, since Go pointers are safe.
      This is turned off for code that imports the "unsafe" package,
      because using unsafe.pointer violates C style aliasing
      requirements.  */
-  flag_strict_aliasing = 1;
+  opts->x_flag_strict_aliasing = 1;
 
   /* Default to avoiding range issues for complex multiply and
      divide.  */
-  flag_complex_method = 2;
+  opts->x_flag_complex_method = 2;
 
   /* The builtin math functions should not set errno.  */
-  flag_errno_math = 0;
+  opts->x_flag_errno_math = 0;
 
   /* By default assume that floating point math does not trap.  */
-  flag_trapping_math = 0;
-
-  /* We default to always showing a column number.  */
-  flag_show_column = 1;
-
-  /* The default precision for floating point numbers.  This is used
-     for floating point constants with abstract type.  This may
-     eventually be controllable by a command line option.  */
-  mpfr_set_default_prec (128);
+  opts->x_flag_trapping_math = 0;
 
   /* We turn on stack splitting if we can.  */
   if (targetm.supports_split_stack (false))
-    flag_split_stack = 1;
+    opts->x_flag_split_stack = 1;
 
   /* Exceptions are used to handle recovering from panics.  */
-  flag_exceptions = 1;
-  flag_non_call_exceptions = 1;
-  using_eh_for_cleanups ();
-
+  opts->x_flag_exceptions = 1;
+  opts->x_flag_non_call_exceptions = 1;
 }
 
 /* Handle Go specific options.  Return 0 if we didn't do anything.  */
@@ -363,7 +359,7 @@ go_preserve_from_gc(tree t)
 #undef LANG_HOOKS_NAME
 #undef LANG_HOOKS_INIT
 #undef LANG_HOOKS_OPTION_LANG_MASK
-#undef LANG_HOOKS_INIT_OPTIONS
+#undef LANG_HOOKS_INIT_OPTIONS_STRUCT
 #undef LANG_HOOKS_HANDLE_OPTION
 #undef LANG_HOOKS_POST_OPTIONS
 #undef LANG_HOOKS_PARSE_FILE
@@ -380,7 +376,7 @@ go_preserve_from_gc(tree t)
 #define LANG_HOOKS_NAME			"GNU Go"
 #define LANG_HOOKS_INIT			go_langhook_init
 #define LANG_HOOKS_OPTION_LANG_MASK	go_langhook_option_lang_mask
-#define LANG_HOOKS_INIT_OPTIONS		go_langhook_init_options
+#define LANG_HOOKS_INIT_OPTIONS_STRUCT	go_langhook_init_options_struct
 #define LANG_HOOKS_HANDLE_OPTION	go_langhook_handle_option
 #define LANG_HOOKS_POST_OPTIONS		go_langhook_post_options
 #define LANG_HOOKS_PARSE_FILE		go_langhook_parse_file
