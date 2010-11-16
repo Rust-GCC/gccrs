@@ -21,7 +21,7 @@
 
 // Class Gogo.
 
-Gogo::Gogo()
+Gogo::Gogo(int int_type_size, int float_type_size, int pointer_size)
   : package_(NULL),
     functions_(),
     globals_(new Bindings(NULL)),
@@ -68,7 +68,8 @@ Gogo::Gogo()
   this->add_named_type(Type::make_complex_type("complex128", 128,
 					       RUNTIME_TYPE_KIND_COMPLEX128));
 
-  const int int_type_size = std::max(INT_TYPE_SIZE, 32);
+  if (int_type_size < 32)
+    int_type_size = 32;
   this->add_named_type(Type::make_integer_type("uint", true,
 					       int_type_size,
 					       RUNTIME_TYPE_KIND_UINT));
@@ -84,13 +85,13 @@ Gogo::Gogo()
   byte_type->set_type_value(uint8_type);
 
   this->add_named_type(Type::make_integer_type("uintptr", true,
-					       POINTER_SIZE,
+					       pointer_size,
 					       RUNTIME_TYPE_KIND_UINTPTR));
 
-  this->add_named_type(Type::make_float_type("float", FLOAT_TYPE_SIZE,
+  this->add_named_type(Type::make_float_type("float", float_type_size,
 					     RUNTIME_TYPE_KIND_FLOAT));
 
-  this->add_named_type(Type::make_complex_type("complex", FLOAT_TYPE_SIZE * 2,
+  this->add_named_type(Type::make_complex_type("complex", float_type_size * 2,
 					       RUNTIME_TYPE_KIND_COMPLEX));
 
   this->add_named_type(Type::make_named_bool_type());

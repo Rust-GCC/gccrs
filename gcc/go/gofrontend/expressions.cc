@@ -21,6 +21,7 @@ extern "C"
 #include "convert.h"
 #include "real.h"
 #include "realmpfr.h"
+#include "tm.h"
 #include "tm_p.h"
 
 #ifndef ENABLE_BUILD_WITH_CXX

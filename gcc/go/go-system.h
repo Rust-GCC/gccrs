@@ -51,10 +51,9 @@ extern "C"
 #include "system.h"
 #include "ansidecl.h"
 #include "coretypes.h"
-#include "tm.h"
 
-#include "diagnostic-core.h"
-#include "input.h"
+#include "diagnostic-core.h"	/* For error_at and friends.  */
+#include "input.h"		/* For source_location.  */
 
 #ifndef ENABLE_BUILD_WITH_CXX
 } // End extern "C"

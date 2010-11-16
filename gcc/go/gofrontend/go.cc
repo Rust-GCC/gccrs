@@ -28,10 +28,10 @@ static Gogo* gogo;
 
 GO_EXTERN_C
 void
-go_create_gogo()
+go_create_gogo(int int_type_size, int float_type_size, int pointer_size)
 {
   gcc_assert(::gogo == NULL);
-  ::gogo = new Gogo();
+  ::gogo = new Gogo(int_type_size, float_type_size, pointer_size);
   if (!unique_prefix.empty())
     ::gogo->set_unique_prefix(unique_prefix);
 }
@@ -60,7 +60,8 @@ go_set_prefix(const char* arg)
 
 GO_EXTERN_C
 void
-go_parse_input_files(const char** filenames, unsigned int filename_count)
+go_parse_input_files(const char** filenames, unsigned int filename_count,
+		     bool only_check_syntax, bool require_return_statement)
 {
   gcc_assert(filename_count > 0);
   for (unsigned int i = 0; i < filename_count; ++i)
@@ -105,17 +106,17 @@ go_parse_input_files(const char** filenames, unsigned int filename_count)
   // correct.
   ::gogo->verify_types();
 
-  if (flag_syntax_only)
-    return;
-
   // Work out types of unspecified constants and variables.
   ::gogo->determine_types();
 
   // Check types and issue errors as appropriate.
   ::gogo->check_types();
 
+  if (only_check_syntax)
+    return;
+
   // Check that functions have return statements.
-  if (go_require_return_statement)
+  if (require_return_statement)
     ::gogo->check_return_statements();
 
   // Export global identifiers as appropriate.

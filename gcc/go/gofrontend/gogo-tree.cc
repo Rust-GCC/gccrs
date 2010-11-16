@@ -16,6 +16,7 @@ extern "C"
 {
 #endif
 
+#include "tm.h"
 #include "toplev.h"
 #include "tree.h"
 #include "gimple.h"
@@ -24,7 +25,6 @@ extern "C"
 #include "langhooks.h"
 #include "convert.h"
 #include "output.h"
-#include "tm_p.h"
 #include "diagnostic.h"
 #include "rtl.h"
 

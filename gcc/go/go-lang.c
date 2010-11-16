@@ -103,7 +103,7 @@ go_langhook_init (void)
      to, e.g., unsigned_char_type_node) but before calling
      build_common_builtin_nodes (because it calls, indirectly,
      go_type_for_size).  */
-  go_create_gogo ();
+  go_create_gogo (INT_TYPE_SIZE, FLOAT_TYPE_SIZE, POINTER_SIZE);
 
   build_common_builtin_nodes ();
 
@@ -223,7 +223,8 @@ go_langhook_post_options (const char **pfilename ATTRIBUTE_UNUSED)
 static void
 go_langhook_parse_file (int set_yy_debug ATTRIBUTE_UNUSED)
 {
-  go_parse_input_files (in_fnames, num_in_fnames);
+  go_parse_input_files (in_fnames, num_in_fnames, flag_syntax_only,
+			go_require_return_statement);
 }
 
 static tree

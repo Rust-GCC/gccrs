@@ -122,7 +122,7 @@ go.stageprofile: stageprofile-start
 go.stagefeedback: stagefeedback-start
 	-mv go/*$(objext) stagefeedback/go
 
-GO_SYSTEM_H = go/go-system.h $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
+GO_SYSTEM_H = go/go-system.h $(CONFIG_H) $(SYSTEM_H) coretypes.h \
 	$(DIAGNOSTIC_CORE_H) $(INPUT_H)
 
 GO_C_H = go/go-c.h $(MACHMODE_H)
@@ -151,16 +151,16 @@ go/export.o: go/gofrontend/export.cc $(GO_SYSTEM_H) \
 	$(GO_GOGO_H) $(GO_TYPES_H) $(GO_STATEMENTS_H) go/gofrontend/export.h
 go/expressions.o: go/gofrontend/expressions.cc $(GO_SYSTEM_H) $(TOPLEV_H) \
 	intl.h $(TREE_H) $(GIMPLE_H) tree-iterator.h convert.h $(REAL_H) \
-	realmpfr.h $(TM_P_H) $(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) \
+	realmpfr.h $(TM_H) $(TM_P_H) $(GO_C_H) $(GO_GOGO_H) $(GO_TYPES_H) \
 	go/gofrontend/export.h $(GO_IMPORT_H) $(GO_STATEMENTS_H) $(GO_LEX_H) \
 	$(GO_EXPRESSIONS_H)
 go/go.o: go/gofrontend/go.cc $(GO_SYSTEM_H) $(GO_C_H) $(GO_LEX_H) \
 	$(GO_PARSE_H) $(GO_GOGO_H)
 go/go-dump.o: go/gofrontend/go-dump.cc $(GO_SYSTEM_H) $(GO_C_H) \
 	go/gofrontend/go-dump.h
-go/gogo-tree.o: go/gofrontend/gogo-tree.cc $(GO_SYSTEM_H) $(TOPLEV_H) \
+go/gogo-tree.o: go/gofrontend/gogo-tree.cc $(GO_SYSTEM_H) $(TM_H) $(TOPLEV_H) \
 	$(TREE_H) $(GIMPLE_H) tree-iterator.h $(CGRAPH_H) langhooks.h \
-	convert.h output.h $(TM_P_H) $(DIAGNOSTIC_H) $(RTL_H) $(GO_TYPES_H) \
+	convert.h output.h $(DIAGNOSTIC_H) $(RTL_H) $(GO_TYPES_H) \
 	$(GO_EXPRESSIONS_H) $(GO_STATEMENTS_H) $(GO_GOGO_H)
 go/gogo.o: go/gofrontend/gogo.cc $(GO_SYSTEM_H) go/gofrontend/go-dump.h \
 	$(GO_LEX_H) $(GO_TYPES_H) $(GO_STATEMENTS_H) $(GO_EXPRESSIONS_H) \

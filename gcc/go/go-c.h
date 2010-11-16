@@ -33,18 +33,29 @@ extern "C"
 
 #include "machmode.h"
 
-extern int go_enable_dump(const char*);
-extern void go_set_prefix(const char*);
+/* Functions defined in the Go frontend proper called by the GCC
+   interface.  */
 
-extern void go_preserve_from_gc(tree);
+extern int go_enable_dump (const char*);
+extern void go_set_prefix (const char*);
 
-extern void go_add_search_path(const char*);
-extern void go_create_gogo(void);
-extern void go_parse_input_files(const char**, unsigned int);
-extern void go_write_globals(void);
+extern void go_add_search_path (const char*);
 
-extern tree go_type_for_size(unsigned int bits, int unsignedp);
-extern tree go_type_for_mode(enum machine_mode, int unsignedp);
+extern void go_create_gogo (int int_type_size, int float_type_size,
+			    int pointer_size);
+
+extern void go_parse_input_files (const char**, unsigned int,
+				  bool only_check_syntax,
+				  bool require_return_statement);
+extern void go_write_globals (void);
+
+extern tree go_type_for_size (unsigned int bits, int unsignedp);
+extern tree go_type_for_mode (enum machine_mode, int unsignedp);
+
+/* Functions defined in the GCC interface called by the Go frontend
+   proper.  */
+
+extern void go_preserve_from_gc (tree);
 
 #if defined(__cplusplus) && !defined(ENABLE_BUILD_WITH_CXX)
 } /* End extern "C".  */
