@@ -38,13 +38,8 @@ gospec.o: $(srcdir)/go/gospec.c $(SYSTEM_H) coretypes.h $(TM_H) $(GCC_H) \
 
 GCCGO_OBJS = $(GCC_OBJS) gospec.o intl.o prefix.o version.o
 gccgo$(exeext): $(GCCGO_OBJS) $(EXTRA_GCC_OBJS) $(LIBDEPS)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ \
+	$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
 	  $(GCCGO_OBJS) $(EXTRA_GCC_OBJS) $(LIBS)
-
-# Create a version of the g++ driver which calls the cross-compiler.
-gccgo-cross$(exeext): gccgo$(exeext)
-	-rm -f gccgo-cross$(exeext)
-	cp gccgo$(exeext) gccgo-cross$(exeext)
 
 # Use strict warnings.
 go-warn = $(STRICT_WARN)
@@ -72,7 +67,7 @@ go1$(exeext): $(GO_OBJS) attribs.o $(BACKEND) $(LIBDEPS)
 
 # Build hooks.
 
-go.all.cross: gccgo-cross$(exeext)
+go.all.cross: gccgo$(exeext)
 go.start.encap: gccgo$(exeext)
 go.rest.encap:
 go.info:
@@ -81,6 +76,7 @@ go.dvi:
 go.pdf:
 go.install-pdf:
 go.html:
+go.install-html:
 go.srcinfo:
 go.srcextra:
 go.tags:
@@ -94,8 +90,7 @@ lang_checks += check-go
 
 go.install-common: installdirs
 	-rm -f $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
-	-$(INSTALL_PROGRAM) gccgo$(exeext) $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
-	-chmod a+x $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
+	$(INSTALL_PROGRAM) gccgo$(exeext) $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
 
 go.install-plugin:
 go.install-man:
