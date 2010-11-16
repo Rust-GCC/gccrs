@@ -56,8 +56,8 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
 {
   unsigned int i, j;
 
-  /* If nonzero, the user gave us the `-p' or `-pg' flag.  */
-  int saw_profile_flag = 0;
+  /* If true, the user gave us the `-p' or `-pg' flag.  */
+  bool saw_profile_flag = false;
 
   /* This is a tristate:
      -1 means we should not link in libgo
@@ -140,7 +140,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
 
 	case OPT_pg:
 	case OPT_p:
-	  saw_profile_flag++;
+	  saw_profile_flag = true;
 	  break;
 
 	case OPT_x:
