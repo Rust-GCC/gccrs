@@ -356,6 +356,14 @@ go_preserve_from_gc (tree t)
   go_gc_root = tree_cons (NULL_TREE, t, go_gc_root);
 }
 
+/* Convert an identifier for use in an error message.  */
+
+const char *
+go_localize_identifier (const char *ident)
+{
+  return identifier_to_locale (ident);
+}
+
 #undef LANG_HOOKS_NAME
 #undef LANG_HOOKS_INIT
 #undef LANG_HOOKS_OPTION_LANG_MASK

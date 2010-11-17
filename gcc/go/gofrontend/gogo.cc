@@ -6,6 +6,7 @@
 
 #include "go-system.h"
 
+#include "go-c.h"
 #include "go-dump.h"
 #include "lex.h"
 #include "types.h"
@@ -222,6 +223,14 @@ Gogo::Gogo(int int_type_size, int float_type_size, int pointer_size)
 			 loc);
 }
 
+// Munge name for use in an error message.
+
+std::string
+Gogo::message_name(const std::string& name)
+{
+  return go_localize_identifier(Gogo::unpack_hidden_name(name).c_str());
+}
+
 // Get the package name.
 
 const std::string&
@@ -240,7 +249,7 @@ Gogo::set_package_name(const std::string& package_name,
   if (this->package_ != NULL && this->package_->name() != package_name)
     {
       error_at(location, "expected package %<%s%>",
-	       this->package_->name().c_str());
+	       Gogo::message_name(this->package_->name()).c_str());
       return;
     }
 
@@ -341,11 +350,13 @@ Gogo::add_import_init_fn(const std::string& package_name,
       if (p->init_name() == init_name
 	  && (p->package_name() != package_name || p->priority() != prio))
 	{
-	  error("duplicate package initialization name %qs", init_name.c_str());
+	  error("duplicate package initialization name %qs",
+		Gogo::message_name(init_name).c_str());
 	  inform(UNKNOWN_LOCATION, "used by package %qs at priority %d",
-		 p->package_name().c_str(), p->priority());
+		 Gogo::message_name(p->package_name()).c_str(),
+		 p->priority());
 	  inform(UNKNOWN_LOCATION, " and by package %qs at priority %d",
-		 package_name.c_str(), prio);
+		 Gogo::message_name(package_name).c_str(), prio);
 	  return;
 	}
     }
@@ -1037,7 +1048,7 @@ Gogo::clear_file_scope()
 	  && !package->uses_sink_alias()
 	  && !saw_errors())
 	error_at(package->location(), "imported and not used: %s",
-		 package->name().c_str());
+		 Gogo::message_name(package->name()).c_str());
       package->clear_is_imported();
       package->clear_uses_sink_alias();
       package->clear_used();
@@ -2571,9 +2582,10 @@ Function::add_label_definition(const std::string& label_name,
 	}
       else
 	{
-	  error_at(location, "redefinition of label %qs", label_name.c_str());
+	  error_at(location, "redefinition of label %qs",
+		   Gogo::message_name(label_name).c_str());
 	  inform(label->location(), "previous definition of %qs was here",
-		 label_name.c_str());
+		 Gogo::message_name(label_name).c_str());
 	  return new Label(label_name);
 	}
     }
@@ -3610,8 +3622,11 @@ std::string
 Named_object::message_name() const
 {
   if (this->package_ == NULL)
-    return this->name_;
-  return this->package_->name() + '.' + this->name_;
+    return Gogo::message_name(this->name_);
+  std::string ret = Gogo::message_name(this->package_->name());
+  ret += '.';
+  ret += Gogo::message_name(this->name_);
+  return ret;
 }
 
 // Set the type when a declaration is defined.
@@ -3707,7 +3722,7 @@ Named_object::export_named_object(Export* exp) const
     case NAMED_OBJECT_TYPE_DECLARATION:
       error_at(this->type_declaration_value()->location(),
 	       "attempt to export %<%s%> which was declared but not defined",
-	       this->name_.c_str());
+	       this->message_name().c_str());
       break;
 
     case NAMED_OBJECT_FUNC_DECLARATION:
@@ -3961,7 +3976,7 @@ Bindings::new_definition(Named_object* old_object, Named_object* new_object)
       break;
     }
 
-  std::string n = Gogo::unpack_hidden_name(old_object->name());
+  std::string n = old_object->message_name();
   if (reason.empty())
     error_at(new_object->location(), "redefinition of %qs", n.c_str());
   else

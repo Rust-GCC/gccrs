@@ -148,6 +148,11 @@ class Gogo
     return name.substr(1, name.rfind('.') - 1);
   }
 
+  // Given a name which may or may not have been hidden, return the
+  // name to use in an error message.
+  static std::string
+  message_name(const std::string& name);
+
   // Return whether a name is the blank identifier _.
   static bool
   is_sink_name(const std::string& name)

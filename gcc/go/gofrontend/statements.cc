@@ -2718,7 +2718,7 @@ Goto_statement::do_check_types(Gogo*)
   if (!this->label_->is_defined())
     {
       error_at(this->location(), "reference to undefined label %qs",
-	       this->label_->name().c_str());
+	       Gogo::message_name(this->label_->name()).c_str());
       this->set_is_error();
     }
 }

@@ -601,7 +601,8 @@ Import::read_type()
   else if (!no->is_type_declaration() && !no->is_type())
     {
       error_at(this->location_, "imported %<%s.%s%> both type and non-type",
-	       package->name().c_str(), type_name.c_str());
+	       Gogo::message_name(package->name()).c_str(),
+	       Gogo::message_name(type_name).c_str());
       stream->set_saw_error();
       return Type::make_error_type();
     }

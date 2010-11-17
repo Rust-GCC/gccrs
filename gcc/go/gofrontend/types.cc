@@ -3472,7 +3472,7 @@ Struct_type::struct_has_hidden_fields(const Named_type* within,
 	  if (reason != NULL)
 	    {
 	      std::string within_name = within->named_object()->message_name();
-	      std::string name = Gogo::unpack_hidden_name(pf->field_name());
+	      std::string name = Gogo::message_name(pf->field_name());
 	      size_t bufsize = 200 + within_name.length() + name.length();
 	      char* buf = new char[bufsize];
 	      snprintf(buf, bufsize,
@@ -5542,7 +5542,7 @@ Interface_type::finalize_methods()
 	    {
 	      if (!is_recursive)
 		error_at(p->location(), "inherited method %qs is ambiguous",
-			 Gogo::unpack_hidden_name(q->name()).c_str());
+			 Gogo::message_name(q->name()).c_str());
 	    }
 	}
       ++from;
@@ -5659,8 +5659,7 @@ Interface_type::is_compatible_for_assign(const Interface_type* t,
 	      char buf[200];
 	      snprintf(buf, sizeof buf,
 		       _("need explicit conversion; missing method %s%s%s"),
-		       open_quote,
-		       Gogo::unpack_hidden_name(p->name()).c_str(),
+		       open_quote, Gogo::message_name(p->name()).c_str(),
 		       close_quote);
 	      reason->assign(buf);
 	    }
@@ -5672,19 +5671,17 @@ Interface_type::is_compatible_for_assign(const Interface_type* t,
 	{
 	  if (reason != NULL)
 	    {
-	      size_t len = 200 + p->name().length() + subreason.length();
+	      std::string n = Gogo::message_name(p->name());
+	      size_t len = 100 + n.length() + subreason.length();
 	      char* buf = new char[len];
 	      if (subreason.empty())
 		snprintf(buf, len, _("incompatible type for method %s%s%s"),
-			 open_quote,
-			 Gogo::unpack_hidden_name(p->name()).c_str(),
-			 close_quote);
+			 open_quote, n.c_str(), close_quote);
 	      else
 		snprintf(buf, len,
 			 _("incompatible type for method %s%s%s (%s)"),
-			 open_quote,
-			 Gogo::unpack_hidden_name(p->name()).c_str(),
-			 close_quote, subreason.c_str());
+			 open_quote, n.c_str(), close_quote,
+			 subreason.c_str());
 	      reason->assign(buf);
 	      delete[] buf;
 	    }
@@ -5786,19 +5783,17 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
 	{
 	  if (reason != NULL)
 	    {
-	      char buf[200];
-
+	      std::string n = Gogo::message_name(p->name());
+	      size_t len = n.length() + 100;
+	      char* buf = new char[len];
 	      if (is_ambiguous)
-		snprintf(buf, sizeof buf, _("ambiguous method %s%s%s"),
-			 open_quote,
-			 Gogo::unpack_hidden_name(p->name()).c_str(),
-			 close_quote);
+		snprintf(buf, len, _("ambiguous method %s%s%s"),
+			 open_quote, n.c_str(), close_quote);
 	      else
-		snprintf(buf, sizeof buf, _("missing method %s%s%s"),
-			 open_quote,
-			 Gogo::unpack_hidden_name(p->name()).c_str(),
-			 close_quote);
+		snprintf(buf, len, _("missing method %s%s%s"),
+			 open_quote, n.c_str(), close_quote);
 	      reason->assign(buf);
+	      delete[] buf;
 	    }
 	  return false;
 	}
@@ -5811,19 +5806,17 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
 	{
 	  if (reason != NULL)
 	    {
-	      size_t len = 200 + p->name().length() + subreason.length();
+	      std::string n = Gogo::message_name(p->name());
+	      size_t len = 100 + n.length() + subreason.length();
 	      char* buf = new char[len];
 	      if (subreason.empty())
 		snprintf(buf, len, _("incompatible type for method %s%s%s"),
-			 open_quote,
-			 Gogo::unpack_hidden_name(p->name()).c_str(),
-			 close_quote);
+			 open_quote, n.c_str(), close_quote);
 	      else
 		snprintf(buf, len,
 			 _("incompatible type for method %s%s%s (%s)"),
-			 open_quote,
-			 Gogo::unpack_hidden_name(p->name()).c_str(),
-			 close_quote, subreason.c_str());
+			 open_quote, n.c_str(), close_quote,
+			 subreason.c_str());
 	      reason->assign(buf);
 	      delete[] buf;
 	    }
@@ -5834,12 +5827,11 @@ Interface_type::implements_interface(const Type* t, std::string* reason) const
 	{
 	  if (reason != NULL)
 	    {
-	      size_t len = 200 + p->name().length();
+	      std::string n = Gogo::message_name(p->name());
+	      size_t len = 100 + n.length();
 	      char* buf = new char[len];
 	      snprintf(buf, len, _("method %s%s%s requires a pointer"),
-		       open_quote,
-		       Gogo::unpack_hidden_name(p->name()).c_str(),
-		       close_quote);
+		       open_quote, n.c_str(), close_quote);
 	      reason->assign(buf);
 	      delete[] buf;
 	    }
@@ -6690,7 +6682,7 @@ Named_type::do_verify()
   if (find.found())
     {
       error_at(this->location_, "invalid recursive type %qs",
-	       this->name().c_str());
+	       this->message_name().c_str());
       this->is_error_ = true;
       return false;
     }
@@ -6716,14 +6708,14 @@ Named_type::do_verify()
 		{
 		  error_at(p->second->location(),
 			   "method %qs redeclares struct field name",
-			   Gogo::unpack_hidden_name(name).c_str());
+			   Gogo::message_name(name).c_str());
 		  found_dup = true;
 		}
 	      if (it != NULL && it->find_method(name) != NULL)
 		{
 		  error_at(p->second->location(),
 			   "method %qs redeclares interface method name",
-			   Gogo::unpack_hidden_name(name).c_str());
+			   Gogo::message_name(name).c_str());
 		  found_dup = true;
 		}
 	    }
@@ -7554,30 +7546,33 @@ Type::bind_field_or_method(Gogo* gogo, const Type* type, Expression* expr,
     {
       if (!ambig1.empty())
 	error_at(location, "%qs is ambiguous via %qs and %qs",
-		 Gogo::unpack_hidden_name(name).c_str(),
-		 ambig1.c_str(), ambig2.c_str());
+		 Gogo::message_name(name).c_str(),
+		 Gogo::message_name(ambig1).c_str(),
+		 Gogo::message_name(ambig2).c_str());
       else if (found_pointer_method)
 	error_at(location, "method requires a pointer");
       else if (nt == NULL && st == NULL && it == NULL)
 	error_at(location,
 		 ("reference to field %qs in object which "
 		  "has no fields or methods"),
-		 name.c_str());
+		 Gogo::message_name(name).c_str());
       else
 	{
 	  bool is_unexported;
-	  std::string unpacked = Gogo::unpack_hidden_name(name);
 	  if (!Gogo::is_hidden_name(name))
 	    is_unexported = false;
 	  else
-	    is_unexported = Type::is_unexported_field_or_method(gogo, type,
-								unpacked);
+	    {
+	      std::string unpacked = Gogo::unpack_hidden_name(name);
+	      is_unexported = Type::is_unexported_field_or_method(gogo, type,
+								  unpacked);
+	    }
 	  if (is_unexported)
 	    error_at(location, "reference to unexported field or method %qs",
-		     unpacked.c_str());
+		     Gogo::message_name(name).c_str());
 	  else
 	    error_at(location, "reference to undefined field or method %qs",
-		     unpacked.c_str());
+		     Gogo::message_name(name).c_str());
 	}
       return Expression::make_error(location);
     }
@@ -7844,7 +7839,7 @@ Forward_declaration_type::warn() const
 	{
 	  error_at(this->named_object_->location(),
 		   "use of undefined type %qs",
-		   Gogo::unpack_hidden_name(no->name()).c_str());
+		   no->message_name().c_str());
 	  this->warned_ = true;
 	}
     }
@@ -7855,7 +7850,7 @@ Forward_declaration_type::warn() const
 	{
 	  error_at(this->named_object_->location(),
 		   "use of undefined type %qs",
-		   Gogo::unpack_hidden_name(no->name()).c_str());
+		   no->message_name().c_str());
 	  this->warned_ = true;
 	}
     }

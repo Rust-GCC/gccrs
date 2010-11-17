@@ -593,13 +593,13 @@ sort_var_inits(Var_inits* var_inits)
 				      p2->var()->var_value()->preinit(),
 				      var))
 		{
-		  std::string n1 = Gogo::unpack_hidden_name(var->name());
-		  std::string n2 = Gogo::unpack_hidden_name(p2->var()->name());
 		  error_at(var->location(),
 			   ("initialization expressions for %qs and "
 			    "%qs depend upon each other"),
-			   n1.c_str(), n2.c_str());
-		  inform(p2->var()->location(), "%qs defined here", n2.c_str());
+			   var->message_name().c_str(),
+			   p2->var()->message_name().c_str());
+		  inform(p2->var()->location(), "%qs defined here",
+			 p2->var()->message_name().c_str());
 		  p2 = var_inits->end();
 		}
 	      else
@@ -627,8 +627,7 @@ sort_var_inits(Var_inits* var_inits)
 	  if (init != NULL && expression_requires(init, preinit, var))
 	    error_at(var->location(),
 		     "initialization expression for %qs depends upon itself",
-		     Gogo::unpack_hidden_name(var->name()).c_str());
-
+		     var->message_name().c_str());
 	  ready.splice(ready.end(), *var_inits, p1);
 	}
     }
@@ -988,7 +987,8 @@ Named_object::get_tree(Gogo* gogo, Named_object* function)
       break;
 
     case NAMED_OBJECT_TYPE_DECLARATION:
-      error("reference to undefined type %qs", IDENTIFIER_POINTER(name));
+      error("reference to undefined type %qs",
+	    this->message_name().c_str());
       return error_mark_node;
 
     case NAMED_OBJECT_VAR:

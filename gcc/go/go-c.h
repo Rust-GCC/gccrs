@@ -57,6 +57,8 @@ extern tree go_type_for_mode (enum machine_mode, int unsignedp);
 
 extern void go_preserve_from_gc (tree);
 
+extern const char *go_localize_identifier (const char*);
+
 #if defined(__cplusplus) && !defined(ENABLE_BUILD_WITH_CXX)
 } /* End extern "C".  */
 #endif

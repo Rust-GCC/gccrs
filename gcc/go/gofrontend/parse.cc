@@ -320,8 +320,10 @@ Parse::type_name(bool issue_error)
 	  named_object = package->package_value()->lookup(s);
 	  if (named_object != NULL)
 	    {
+	      const std::string& packname(package->package_value()->name());
 	      error_at(location, "invalid reference to hidden type %<%s.%s%>",
-		       package->package_value()->name().c_str(), name.c_str());
+		       Gogo::message_name(packname).c_str(),
+		       Gogo::message_name(name).c_str());
 	      issue_error = false;
 	    }
 	}
@@ -487,11 +489,8 @@ Parse::struct_type()
 	{
 	  if (pi->field_name() == pj->field_name()
 	      && !Gogo::is_sink_name(pi->field_name()))
-	    {
-	      std::string name = pi->field_name();
-	      error_at(pi->location(), "duplicate field name %<%s%>",
-		       Gogo::unpack_hidden_name(name).c_str());
-	    }
+	    error_at(pi->location(), "duplicate field name %<%s%>",
+		     Gogo::message_name(pi->field_name()).c_str());
 	}
     }
 
@@ -864,9 +863,8 @@ Parse::parameter_list(bool* is_varargs)
 		    type = Type::make_forward_declaration(no);
 		  else
 		    {
-		      std::string n = Gogo::unpack_hidden_name(p->name());
 		      error_at(p->location(), "expected %<%s%> to be a type",
-			       n.c_str());
+			       Gogo::message_name(p->name()).c_str());
 		      type = Type::make_error_type();
 		    }
 		  tret->push_back(Typed_identifier("", type, p->location()));
@@ -2133,9 +2131,9 @@ Parse::operand(bool may_be_sink)
 	    && !named_object->type_value()->is_visible())
 	  {
 	    gcc_assert(package != NULL);
-	    const std::string& pname(package->name());
 	    error_at(location, "invalid reference to hidden type %<%s.%s%>",
-		     Gogo::unpack_hidden_name(pname).c_str(), id.c_str());
+		     Gogo::message_name(package->name()).c_str(),
+		     Gogo::message_name(id).c_str());
 	    return Expression::make_error(location);
 	  }
 
@@ -2144,18 +2142,17 @@ Parse::operand(bool may_be_sink)
 	  {
 	    if (package != NULL)
 	      {
-		const std::string& pname(package->name());
+		std::string n1 = Gogo::message_name(package->name());
+		std::string n2 = Gogo::message_name(id);
 		if (!is_exported)
 		  error_at(location,
 			   ("invalid reference to unexported identifier "
 			    "%<%s.%s%>"),
-			   Gogo::unpack_hidden_name(pname).c_str(),
-			   id.c_str());
+			   n1.c_str(), n2.c_str());
 		else
 		  error_at(location,
 			   "reference to undefined identifier %<%s.%s%>",
-			   Gogo::unpack_hidden_name(pname).c_str(),
-			   id.c_str());
+			   n1.c_str(), n2.c_str());
 		return Expression::make_error(location);
 	      }
 
@@ -4449,7 +4446,7 @@ Parse::break_stat()
 	  error_at(token->location(),
 		   ("break label %qs not associated with "
 		    "for or switch or select"),
-		   token->identifier().c_str());
+		   Gogo::message_name(token->identifier()).c_str());
 	  this->advance_token();
 	  return;
 	}
@@ -4501,7 +4498,7 @@ Parse::continue_stat()
 	{
 	  error_at(token->location(),
 		   "continue label %qs not associated with for",
-		   token->identifier().c_str());
+		   Gogo::message_name(token->identifier()).c_str());
 	  this->advance_token();
 	  return;
 	}

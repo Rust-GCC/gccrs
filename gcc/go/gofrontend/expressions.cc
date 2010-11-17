@@ -1242,9 +1242,8 @@ Unknown_expression::do_lower(Gogo*, Named_object*, int)
     {
       if (this->is_composite_literal_key_)
 	return this;
-      const std::string& n(this->named_object_->name());
       error_at(location, "reference to undefined name %qs",
-	       Gogo::unpack_hidden_name(n).c_str());
+	       this->named_object_->message_name().c_str());
       return Expression::make_error(location);
     }
   switch (real->classification())
@@ -1257,7 +1256,7 @@ Unknown_expression::do_lower(Gogo*, Named_object*, int)
       if (this->is_composite_literal_key_)
 	return this;
       error_at(location, "reference to undefined type %qs",
-	       Gogo::unpack_hidden_name(real->name()).c_str());
+	       real->message_name().c_str());
       return Expression::make_error(location);
     case Named_object::NAMED_OBJECT_VAR:
       return Expression::make_var_reference(real, location);
@@ -9749,7 +9748,7 @@ Interface_field_reference_expression::do_check_types(Gogo*)
       if (method == NULL)
 	{
 	  error_at(this->location(), "method %qs not in interface",
-		   this->name_.c_str());
+		   Gogo::message_name(this->name_).c_str());
 	  this->set_is_error();
 	}
     }
@@ -9861,17 +9860,20 @@ Selector_expression::lower_method_expression(Gogo* gogo)
     {
       if (!is_ambiguous)
 	error_at(location, "type %<%s%> has no method %<%s%>",
-		 nt->message_name().c_str(), name.c_str());
+		 nt->message_name().c_str(),
+		 Gogo::message_name(name).c_str());
       else
 	error_at(location, "method %<%s%> is ambiguous in type %<%s%>",
-		 name.c_str(), nt->message_name().c_str());
+		 Gogo::message_name(name).c_str(),
+		 nt->message_name().c_str());
       return Expression::make_error(location);
     }
 
   if (!is_pointer && !method->is_value_method())
     {
       error_at(location, "method requires pointer (use %<(*%s).%s)%>",
-	       nt->message_name().c_str(), name.c_str());
+	       nt->message_name().c_str(),
+	       Gogo::message_name(name).c_str());
       return Expression::make_error(location);
     }
 
@@ -11342,7 +11344,7 @@ Composite_literal_expression::lower_struct(Type* type)
       if (sf == NULL)
 	{
 	  error_at(name_expr->location(), "unknown field %qs in %qs",
-		   Gogo::unpack_hidden_name(name).c_str(),
+		   Gogo::message_name(name).c_str(),
 		   (type->named_type() != NULL
 		    ? type->named_type()->message_name().c_str()
 		    : "unnamed struct"));
@@ -11352,7 +11354,7 @@ Composite_literal_expression::lower_struct(Type* type)
 	{
 	  error_at(name_expr->location(),
 		   "duplicate value for field %qs in %qs",
-		   Gogo::unpack_hidden_name(name).c_str(),
+		   Gogo::message_name(name).c_str(),
 		   (type->named_type() != NULL
 		    ? type->named_type()->message_name().c_str()
 		    : "unnamed struct"));
