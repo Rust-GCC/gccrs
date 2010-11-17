@@ -15,6 +15,10 @@
 #include "export.h"
 #include "import.h"
 
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
 // The list of paths we search for import files.
 
 static std::vector<std::string> search_path;
@@ -84,7 +88,7 @@ Import::try_package_in_directory(const std::string& filename,
 				 source_location location)
 {
   std::string found_filename = filename;
-  int fd = open(found_filename.c_str(), O_RDONLY);
+  int fd = open(found_filename.c_str(), O_RDONLY | O_BINARY);
 
   if (fd >= 0)
     {
@@ -128,7 +132,7 @@ int
 Import::try_suffixes(std::string* pfilename)
 {
   std::string filename = *pfilename + ".gox";
-  int fd = open(filename.c_str(), O_RDONLY);
+  int fd = open(filename.c_str(), O_RDONLY | O_BINARY);
   if (fd >= 0)
     {
       *pfilename = filename;
@@ -138,7 +142,7 @@ Import::try_suffixes(std::string* pfilename)
   const char* basename = lbasename(pfilename->c_str());
   size_t basename_pos = basename - pfilename->c_str();
   filename = pfilename->substr(0, basename_pos) + "lib" + basename + ".so";
-  fd = open(filename.c_str(), O_RDONLY);
+  fd = open(filename.c_str(), O_RDONLY | O_BINARY);
   if (fd >= 0)
     {
       *pfilename = filename;
@@ -146,7 +150,7 @@ Import::try_suffixes(std::string* pfilename)
     }
 
   filename = pfilename->substr(0, basename_pos) + "lib" + basename + ".a";
-  fd = open(filename.c_str(), O_RDONLY);
+  fd = open(filename.c_str(), O_RDONLY | O_BINARY);
   if (fd >= 0)
     {
       *pfilename = filename;
@@ -154,7 +158,7 @@ Import::try_suffixes(std::string* pfilename)
     }
 
   filename = *pfilename + ".o";
-  fd = open(filename.c_str(), O_RDONLY);
+  fd = open(filename.c_str(), O_RDONLY | O_BINARY);
   if (fd >= 0)
     {
       *pfilename = filename;

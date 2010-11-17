@@ -8,6 +8,10 @@
 
 #include "import.h"
 
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
 // Archive magic numbers.
 
 static const char armag[] =
@@ -365,7 +369,7 @@ Archive_file::get_file_and_offset(off_t off, const std::string& hdrname,
 	nfile = p->second;
       else
 	{
-	  int nfd = open(filename.c_str(), O_RDONLY);
+	  int nfd = open(filename.c_str(), O_RDONLY | O_BINARY);
 	  if (nfd < 0)
 	    {
 	      error_at(this->location_, "%s: can't open nested archive %s",
@@ -391,7 +395,7 @@ Archive_file::get_file_and_offset(off_t off, const std::string& hdrname,
     }
 
   // An external member of a thin archive.
-  *memfd = open(filename.c_str(), O_RDONLY);
+  *memfd = open(filename.c_str(), O_RDONLY | O_BINARY);
   if (*memfd < 0)
     {
       error_at(this->location_, "%s: %m", filename.c_str());
