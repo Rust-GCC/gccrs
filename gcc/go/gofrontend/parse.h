@@ -7,8 +7,6 @@
 #ifndef GO_PARSE_H
 #define GO_PARSE_H
 
-#include <set>
-
 class Set_iota_traverse;
 class Lex;
 class Gogo;

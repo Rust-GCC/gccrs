@@ -7,8 +7,6 @@
 #ifndef GO_IMPORT_H
 #define GO_IMPORT_H
 
-#include <sys/types.h>
-
 #include "export.h"
 
 class Gogo;

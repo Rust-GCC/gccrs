@@ -3714,8 +3714,8 @@ Type_case_clauses::traverse(Traverse* traverse)
 void
 Type_case_clauses::check_duplicates() const
 {
-  typedef std::tr1::unordered_set<const Type*, Type_hash_identical,
-				  Type_identical> Types_seen;
+  typedef Unordered_set_hash(const Type*, Type_hash_identical,
+			     Type_identical) Types_seen;
   Types_seen types_seen;
   for (Type_clauses::const_iterator p = this->clauses_.begin();
        p != this->clauses_.end();

@@ -416,7 +416,7 @@ class Find_var : public Traverse
   // A hash table we use to avoid looping.  The index is the name of a
   // named object.  We only look through objects defined in this
   // package.
-  typedef std::tr1::unordered_set<std::string> Seen_objects;
+  typedef Unordered_set(std::string) Seen_objects;
 
   Find_var(Named_object* var, Seen_objects* seen_objects)
     : Traverse(traverse_expressions),

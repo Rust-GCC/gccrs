@@ -4,10 +4,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#include <map>
-#include <set>
-#include <tr1/unordered_set>
-
 #ifndef GO_GOGO_H
 #define GO_GOGO_H
 
@@ -2373,10 +2369,10 @@ class Traverse
   type(Type*);
 
  private:
-  typedef std::tr1::unordered_set<const Type*, Type_hash_identical,
-				  Type_identical> Types_seen;
+  typedef Unordered_set_hash(const Type*, Type_hash_identical,
+			     Type_identical) Types_seen;
 
-  typedef std::tr1::unordered_set<const Expression*> Expressions_seen;
+  typedef Unordered_set(const Expression*) Expressions_seen;
 
   // Bitmask of what sort of objects to traverse.
   unsigned int traverse_mask_;

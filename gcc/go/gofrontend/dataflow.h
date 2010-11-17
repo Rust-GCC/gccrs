@@ -7,8 +7,6 @@
 #ifndef GO_DATAFLOW_H
 #define GO_DATAFLOW_H
 
-#include <map>
-
 class Expression;
 class Named_object;
 class Statement;

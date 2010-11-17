@@ -7,8 +7,6 @@
 #ifndef GO_STATEMENTS_H
 #define GO_STATEMENTS_H
 
-#include <tr1/unordered_set>
-
 #include "operator.h"
 
 class Gogo;
@@ -1139,7 +1137,7 @@ class Case_clauses
  private:
   // For a constant tree we need to keep a record of constants we have
   // already seen.  Note that INTEGER_CST trees are interned.
-  typedef std::tr1::unordered_set<tree> Case_constants;
+  typedef Unordered_set(tree) Case_constants;
 
   // One case clause.
   class Case_clause

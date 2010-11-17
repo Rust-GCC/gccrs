@@ -6,10 +6,6 @@
 
 #include "go-system.h"
 
-#include <cerrno>
-#include <cstring>
-#include <unistd.h>
-
 #include "filenames.h"
 #include "simple-object.h"
 

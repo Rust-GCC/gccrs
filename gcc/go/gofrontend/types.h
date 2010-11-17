@@ -7,9 +7,6 @@
 #ifndef GO_TYPES_H
 #define GO_TYPES_H
 
-#include <map>
-#include <tr1/unordered_set>
-
 class Gogo;
 class Package;
 class Traverse;
@@ -1024,8 +1021,8 @@ class Type
   build_receive_return_type(tree type);
 
   // A hash table we use to avoid infinite recursion.
-  typedef std::tr1::unordered_set<const Named_type*, Type_hash_identical,
-				  Type_identical> Types_seen;
+  typedef Unordered_set_hash(const Named_type*, Type_hash_identical,
+			     Type_identical) Types_seen;
 
   // Add all methods for TYPE to the list of methods for THIS.
   static void

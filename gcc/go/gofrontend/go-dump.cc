@@ -6,8 +6,6 @@
 
 #include "go-system.h"
 
-#include <cstring>
-
 #include "go-c.h"
 #include "go-dump.h"
 

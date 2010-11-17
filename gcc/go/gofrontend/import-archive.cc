@@ -6,13 +6,6 @@
 
 #include "go-system.h"
 
-#include <cerrno>
-#include <cstring>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <list>
-#include <map>
-
 #include "import.h"
 
 // Archive magic numbers.

@@ -27,6 +27,8 @@
 #include <algorithm>
 #include <string>
 #include <list>
+#include <map>
+#include <set>
 #include <vector>
 
 #if defined(HAVE_UNORDERED_MAP)
@@ -40,11 +42,11 @@
 # define Unordered_map_hash(KEYTYPE, VALTYPE, HASHFN, EQFN) \
 	std::unordered_map<KEYTYPE, VALTYPE, HASHFN, EQFN>
 
-# define Unordered_set(KEYTYPE, VALTYPE) \
-	std::unordered_set<KEYTYPE, VALTYPE>
+# define Unordered_set(KEYTYPE) \
+	std::unordered_set<KEYTYPE>
 
-# define Unordered_set_hash(KEYTYPE, VALTYPE, HASHFN, EQFN) \
-	std::unordered_set<KEYTYPE, VALTYPE, HASHFN, EQFN>
+# define Unordered_set_hash(KEYTYPE, HASHFN, EQFN) \
+	std::unordered_set<KEYTYPE, HASHFN, EQFN>
 
 #elif defined(HAVE_TR1_UNORDERED_MAP)
 
@@ -57,11 +59,11 @@
 # define Unordered_map_hash(KEYTYPE, VALTYPE, HASHFN, EQFN) \
 	std::tr1::unordered_map<KEYTYPE, VALTYPE, HASHFN, EQFN>
 
-# define Unordered_set(KEYTYPE, VALTYPE) \
-	std::tr1::unordered_set<KEYTYPE, VALTYPE>
+# define Unordered_set(KEYTYPE) \
+	std::tr1::unordered_set<KEYTYPE>
 
-# define Unordered_set_hash(KEYTYPE, VALTYPE, HASHFN, EQFN) \
-	std::tr1::unordered_set<KEYTYPE, VALTYPE, HASHFN, EQFN>
+# define Unordered_set_hash(KEYTYPE, HASHFN, EQFN) \
+	std::tr1::unordered_set<KEYTYPE, HASHFN, EQFN>
 
 #elif defined(HAVE_EXT_HASH_MAP)
 
@@ -74,11 +76,11 @@
 # define Unordered_map_hash(KEYTYPE, VALTYPE, HASHFN, EQFN) \
 	__gnu_cxx::hash_map<KEYTYPE, VALTYPE, HASHFN, EQFN>
 
-# define Unordered_set(KEYTYPE, VALTYPE) \
-	__gnu_cxx::hash_set<KEYTYPE, VALTYPE>
+# define Unordered_set(KEYTYPE) \
+	__gnu_cxx::hash_set<KEYTYPE>
 
-# define Unordered_set_hash(KEYTYPE, VALTYPE, HASHFN, EQFN) \
-	__gnu_cxx::hash_set<KEYTYPE, VALTYPE, HASHFN, EQFN>
+# define Unordered_set_hash(KEYTYPE, HASHFN, EQFN) \
+	__gnu_cxx::hash_set<KEYTYPE, HASHFN, EQFN>
 
 // Provide hash functions for strings and pointers.
 
@@ -105,14 +107,11 @@ struct hash<T*>
 
 #else
 
-# include <map>
-# include <set>
-
 # define Unordered_map(KEYTYPE, VALTYPE) \
 	std::map<KEYTYPE, VALTYPE>
 
-# define Unordered_set(KEYTYPE, VALTYPE) \
-	std::set<KEYTYPE, VALTYPE>
+# define Unordered_set(KEYTYPE) \
+	std::set<KEYTYPE>
 
 // We could make this work by writing an adapter class which
 // implemented operator< in terms of the hash function.
