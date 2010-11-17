@@ -1599,7 +1599,9 @@ Lex::skip_cpp_comment()
 	  if (plend > pcolon + 1
 	      && (plend == pend
 		  || *plend < '0'
-		  || *plend > '9'))
+		  || *plend > '9')
+	      && lineno > 0
+	      && lineno < 0x7fffffff)
 	    {
 	      unsigned int filelen = pcolon - p;
 	      char* file = new char[filelen + 1];

@@ -311,7 +311,10 @@ Import::import(Gogo* gogo, const std::string& local_name,
 
       this->require_c_string("priority ");
       std::string priority_string = this->read_identifier();
-      this->package_->set_priority(atoi(priority_string.c_str()));
+      int prio;
+      if (!this->string_to_int(priority_string, false, &prio))
+	return NULL;
+      this->package_->set_priority(prio);
       this->require_c_string(";\n");
 
       if (stream->match_c_string("import "))
@@ -368,7 +371,9 @@ Import::read_import_init_fns(Gogo* gogo)
       std::string init_name = this->read_identifier();
       this->require_c_string(" ");
       std::string prio_string = this->read_identifier();
-      int prio = atoi(prio_string.c_str());
+      int prio;
+      if (!this->string_to_int(prio_string, false, &prio))
+	return;
       gogo->add_import_init_fn(package_name, init_name, prio);
     }
   this->require_c_string(";\n");
@@ -480,7 +485,10 @@ Import::read_type()
 	break;
       number += c;
     }
-  int index = atoi(number.c_str());
+
+  int index;
+  if (!this->string_to_int(number, true, &index))
+    return Type::make_error_type();
 
   if (c == '>')
     {
@@ -730,6 +738,24 @@ Import::read_identifier()
       stream->advance(1);
     }
   return ret;
+}
+
+// Turn a string into a integer with appropriate error handling.
+
+bool
+Import::string_to_int(const std::string &s, bool is_neg_ok, int* ret)
+{
+  char* end;
+  long prio = strtol(s.c_str(), &end, 10);
+  if (*end != '\0' || prio > 0x7fffffff || (prio < 0 && !is_neg_ok))
+    {
+      error_at(this->location_, "invalid integer in import data at %d",
+	       this->stream_->pos());
+      this->stream_->set_saw_error();
+      return false;
+    }
+  *ret = prio;
+  return true;
 }
 
 // Class Import::Stream.

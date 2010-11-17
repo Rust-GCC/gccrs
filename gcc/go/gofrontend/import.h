@@ -237,6 +237,10 @@ class Import
   void
   register_builtin_type(Gogo*, const char* name, Builtin_code);
 
+  // Get an integer from a string.
+  bool
+  string_to_int(const std::string&, bool is_neg_ok, int* ret);
+
   // The general IR.
   Gogo* gogo_;
   // The stream from which to read import data.
