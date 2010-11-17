@@ -67,8 +67,11 @@ Import::open_package(const std::string& filename, source_location location)
 	   p != search_path.end();
 	   ++p)
 	{
-	  Stream* s = Import::try_package_in_directory(*p + '/' + filename,
-						       location);
+	  std::string indir = *p;
+	  if (!indir.empty() && indir[indir.size() - 1] != '/')
+	    indir += '/';
+	  indir += filename;
+	  Stream* s = Import::try_package_in_directory(indir, location);
 	  if (s != NULL)
 	    return s;
 	}
