@@ -2526,8 +2526,8 @@ Const_expression::do_check_types(Gogo*)
 	  if (cexpr->float_constant_value(fval, &dummy))
 	    {
 	      if (!mpfr_integer_p(fval))
-		this->report_error("floating point constant "
-				   "truncated to integer");
+		this->report_error(_("floating point constant "
+				     "truncated to integer"));
 	      else
 		{
 		  mpfr_get_z(ival, fval, GMP_RNDN);
@@ -3125,7 +3125,7 @@ Type_conversion_expression::do_check_types(Gogo*)
   if (Type::are_convertible(type, expr_type, &reason))
     return;
 
-  error_at(this->location(), reason.c_str());
+  error_at(this->location(), "%s", reason.c_str());
   this->set_is_error();
 }
 
@@ -5368,7 +5368,7 @@ Binary_expression::check_operator_type(Operator op, Type* type,
     case OPERATOR_ANDAND:
       if (!type->is_boolean_type())
 	{
-	  error_at(location, _("expected boolean type"));
+	  error_at(location, "expected boolean type");
 	  return false;
 	}
       break;
@@ -5390,9 +5390,9 @@ Binary_expression::check_operator_type(Operator op, Type* type,
 	  && type->function_type() == NULL)
 	{
 	  error_at(location,
-		   _("expected integer, floating, complex, string, pointer, "
-		     "boolean, interface, slice, map, channel, "
-		     "or function type"));
+		   ("expected integer, floating, complex, string, pointer, "
+		    "boolean, interface, slice, map, channel, "
+		    "or function type"));
 	  return false;
 	}
       break;
@@ -5405,8 +5405,7 @@ Binary_expression::check_operator_type(Operator op, Type* type,
 	  && type->float_type() == NULL
 	  && !type->is_string_type())
 	{
-	  error_at(location,
-		   _("expected integer, floating, or string type"));
+	  error_at(location, "expected integer, floating, or string type");
 	  return false;
 	}
       break;
@@ -5419,7 +5418,7 @@ Binary_expression::check_operator_type(Operator op, Type* type,
 	  && !type->is_string_type())
 	{
 	  error_at(location,
-		   _("expected integer, floating, complex, or string type"));
+		   "expected integer, floating, complex, or string type");
 	  return false;
 	}
       break;
@@ -5434,7 +5433,7 @@ Binary_expression::check_operator_type(Operator op, Type* type,
 	  && type->float_type() == NULL
 	  && type->complex_type() == NULL)
 	{
-	  error_at(location, _("expected integer, floating, or complex type"));
+	  error_at(location, "expected integer, floating, or complex type");
 	  return false;
 	}
       break;
@@ -5451,7 +5450,7 @@ Binary_expression::check_operator_type(Operator op, Type* type,
     case OPERATOR_BITCLEAREQ:
       if (type->integer_type() == NULL)
 	{
-	  error_at(location, _("expected integer type"));
+	  error_at(location, "expected integer type");
 	  return false;
 	}
       break;
@@ -6426,7 +6425,7 @@ Builtin_call_expression::do_lower(Gogo* gogo, Named_object* function, int)
 	  Expression* arg = args->front();
 	  if (!arg->is_type_expression())
 	    {
-	      error_at(arg->location(), _("expected type"));
+	      error_at(arg->location(), "expected type");
 	      this->set_is_error();
 	    }
 	  else
@@ -6443,7 +6442,7 @@ Builtin_call_expression::do_lower(Gogo* gogo, Named_object* function, int)
 	  Expression* arg = args->front();
 	  if (!arg->is_type_expression())
 	    {
-	      error_at(arg->location(), _("expected type"));
+	      error_at(arg->location(), "expected type");
 	      this->set_is_error();
 	    }
 	  else
@@ -6538,8 +6537,7 @@ Builtin_call_expression::do_lower(Gogo* gogo, Named_object* function, int)
       Type* slice_type = args->front()->type();
       if (!slice_type->is_open_array_type())
 	{
-	  error_at(args->front()->location(),
-		   _("argument 1 must be a slice"));
+	  error_at(args->front()->location(), "argument 1 must be a slice");
 	  this->set_is_error();
 	  return this;
 	}
@@ -7982,7 +7980,7 @@ Call_expression::lower_varargs(Gogo* gogo, Named_object* function,
 	new_args->push_back(*pa);
       else if (this->is_varargs_)
 	{
-	  this->report_error("too many arguments");
+	  this->report_error(_("too many arguments"));
 	  return this;
 	}
       else if (pa + 1 == old_args->end()
@@ -8274,7 +8272,7 @@ Call_expression::do_check_types(Gogo*)
 				    first_arg_type, &reason))
 	    {
 	      if (reason.empty())
-		this->report_error("incompatible type for receiver");
+		this->report_error(_("incompatible type for receiver"));
 	      else
 		{
 		  error_at(this->location(),
@@ -10294,7 +10292,7 @@ Struct_construction_expression::do_check_types(Gogo*)
   Struct_type* st = this->type_->struct_type();
   if (this->vals_->size() > st->field_count())
     {
-      this->report_error("too many expressions for struct");
+      this->report_error(_("too many expressions for struct"));
       return;
     }
 
@@ -10307,7 +10305,7 @@ Struct_construction_expression::do_check_types(Gogo*)
     {
       if (pv == this->vals_->end())
 	{
-	  this->report_error("too few expressions for struct");
+	  this->report_error(_("too few expressions for struct"));
 	  break;
 	}
 
@@ -11875,7 +11873,8 @@ Send_expression::do_check_types(Gogo*)
   Channel_type* channel_type = type->channel_type();
   if (channel_type == NULL)
     {
-      this->report_error(_("left operand of %<<-%> must be channel"));
+      error_at(this->location(), "left operand of %<<-%> must be channel");
+      this->set_is_error();
       return;
     }
   Type* element_type = channel_type->element_type();

@@ -343,9 +343,6 @@ class Lex
   fetch_char(const char* str, unsigned int *value);
 
  private:
-  void
-  error(const char*);
-
   ssize_t
   get_line();
 
@@ -427,9 +424,6 @@ class Lex
 
   void
   skip_cpp_comment();
-
-  void
-  error();
 
   // The input file name.
   const char* input_file_name_;

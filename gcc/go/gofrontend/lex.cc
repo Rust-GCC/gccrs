@@ -470,7 +470,7 @@ Lex::get_line()
 	{
 	  size_t ns = 2 * size + 1;
 	  if (ns < size || static_cast<ssize_t>(ns) < 0)
-	    this->error("out of memory");
+	    error_at(this->location(), "out of memory");
 	  char* nb = new char[ns];
 	  memcpy(nb, buf, cur);
 	  delete[] buf;
@@ -810,9 +810,9 @@ Lex::advance_one_utf8_char(const char* p, unsigned int* value,
   if (adv == 0)
     {
       if (*p == '\0')
-	this->error("invalid NUL byte");
+	error_at(this->location(), "invalid NUL byte");
       else
-	this->error("invalid UTF-8 encoding");
+	error_at(this->location(), "invalid UTF-8 encoding");
       *issued_error = true;
       return p + 1;
     }
@@ -1092,7 +1092,7 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
       if (is_single_quote
 	  && (*value == '\'' || *value == '\n')
 	  && !issued_error)
-	this->error("invalid character literal");
+	error_at(this->location(), "invalid character literal");
       return ret;
     }
   else
@@ -1111,12 +1111,12 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
 			+ Lex::octal_value(p[2]));
 	      if (*value > 255)
 		{
-		  this->error("invalid octal constant");
+		  error_at(this->location(), "invalid octal constant");
 		  *value = 255;
 		}
 	      return p + 3;
 	    }
-	  this->error("invalid octal character");
+	      error_at(this->location(), "invalid octal character");
 	  return (p[1] >= '0' && p[1] <= '7'
 		  ? p + 2
 		  : p + 1);
@@ -1129,7 +1129,7 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
 	      *value = (hex_value(p[1]) << 4) + hex_value(p[2]);
 	      return p + 3;
 	    }
-	  this->error("invalid hex character");
+	  error_at(this->location(), "invalid hex character");
 	  return (Lex::is_hex_digit(p[1])
 		  ? p + 2
 		  : p + 1);
@@ -1160,12 +1160,12 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
 	  return p + 1;
 	case '\'':
 	  if (!is_single_quote)
-	    this->error("invalid quoted character");
+	    error_at(this->location(), "invalid quoted character");
 	  *value = '\'';
 	  return p + 1;
 	case '"':
 	  if (is_single_quote)
-	    this->error("invalid quoted character");
+	    error_at(this->location(), "invalid quoted character");
 	  *value = '"';
 	  return p + 1;
 
@@ -1179,14 +1179,15 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
 			+ hex_value(p[4]));
 	      if (*value >= 0xd800 && *value < 0xe000)
 		{
-		  error_at(this->location(),"invalid unicode code point 0x%x",
+		  error_at(this->location(),
+			   "invalid unicode code point 0x%x",
 			   *value);
 		  // Use the replacement character.
 		  *value = 0xfffd;
 		}
 	      return p + 5;
 	    }
-	  this->error("invalid little unicode code point");
+	  error_at(this->location(), "invalid little unicode code point");
 	  return p + 1;
 
 	case 'U':
@@ -1213,11 +1214,11 @@ Lex::advance_one_char(const char* p, bool is_single_quote, unsigned int* value,
 		}
 	      return p + 9;
 	    }
-	  this->error("invalid big unicode code point");
+	  error_at(this->location(), "invalid big unicode code point");
 	  return p + 1;
 
 	default:
-	  this->error("invalid character after %<\\%>");
+	  error_at(this->location(), "invalid character after %<\\%>");
 	  *value = *p;
 	  return p + 1;
 	}
@@ -1288,7 +1289,7 @@ Lex::gather_character()
 
   if (*p != '\'')
     {
-      this->error("unterminated character constant");
+      error_at(this->location(), "unterminated character constant");
       this->lineoff_ = p - this->linebuf_;
       return this->make_invalid_token();
     }
@@ -1322,7 +1323,7 @@ Lex::gather_string()
       p = this->advance_one_char(p, false, &c, &is_character);
       if (p >= pend)
 	{
-	  this->error("unterminated string");
+	  error_at(this->location(), "unterminated string");
 	  --p;
 	  break;
 	}
@@ -1543,7 +1544,7 @@ Lex::skip_c_comment()
     {
       if (!this->require_line())
 	{
-	  this->error("unterminated comment");
+	  error_at(this->location(), "unterminated comment");
 	  return false;
 	}
 
@@ -1621,14 +1622,6 @@ Lex::skip_cpp_comment()
       bool issued_error;
       p = this->advance_one_utf8_char(p, &c, &issued_error);
     }
-}
-
-// Report an error.
-
-void
-Lex::error(const char* msg)
-{
-  error_at(this->location(), msg);
 }
 
 // The Unicode tables use this struct.

@@ -269,9 +269,6 @@ class Parse
   int iota_value();
   void increment_iota();
 
-  void
-  error(const char* msg);
-
   // Skip past an error looking for a semicolon or OP.  Return true if
   // all is well, false if we found EOF.
   bool
