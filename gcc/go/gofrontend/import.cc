@@ -192,6 +192,13 @@ Import::find_export_data(const std::string& filename, int fd,
 
   const int len = MAX(Export::v1_magic_len, Import::archive_magic_len);
 
+  if (lseek(fd, 0, SEEK_SET) < 0)
+    {
+      error_at(location, "lseek %s failed: %s", filename.c_str(),
+	       strerror(errno));
+      return NULL;
+    }
+
   char buf[len];
   ssize_t c = read(fd, buf, len);
   if (c < len)
