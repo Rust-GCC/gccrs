@@ -10,17 +10,7 @@
 #include <cstring>
 #include <unistd.h>
 
-#ifndef ENABLE_BUILD_WITH_CXX
-extern "C"
-{
-#endif
-
 #include "filenames.h"
-
-#ifndef ENABLE_BUILD_WITH_CXX
-}
-#endif
-
 #include "simple-object.h"
 
 #include "go-c.h"
