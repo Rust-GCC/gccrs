@@ -147,8 +147,7 @@ Archive_file::initialize()
   struct stat st;
   if (fstat(this->fd_, &st) < 0)
     {
-      error_at(this->location_, "%s: %s", this->filename_.c_str(),
-	       strerror(errno));
+      error_at(this->location_, "%s: %m", this->filename_.c_str());
       return false;
     }
   this->filesize_ = st.st_size;
@@ -157,8 +156,7 @@ Archive_file::initialize()
   if (::lseek(this->fd_, 0, SEEK_SET) < 0
       || ::read(this->fd_, buf, sizeof(armagt)) != sizeof(armagt))
     {
-      error_at(this->location_, "%s: %s", this->filename_.c_str(),
-	       strerror(errno));
+      error_at(this->location_, "%s: %m", this->filename_.c_str());
       return false;
     }
   this->is_thin_archive_ = memcmp(buf, armagt, sizeof(armagt)) == 0;
@@ -208,8 +206,7 @@ Archive_file::read(off_t offset, off_t size, char* buf)
   if (::lseek(this->fd_, offset, SEEK_SET) < 0
       || ::read(this->fd_, buf, size) != size)
     {
-      error_at(this->location_, "%s: %s", this->filename_.c_str(),
-	       strerror(errno));
+      error_at(this->location_, "%s: %m", this->filename_.c_str());
       return false;
     }
   return true;
@@ -225,16 +222,14 @@ Archive_file::read_header(off_t off, std::string* pname, off_t* size,
   Archive_header hdr;
   if (::lseek(this->fd_, off, SEEK_SET) < 0)
     {
-      error_at(this->location_, "%s: %s", this->filename_.c_str(),
-	       strerror(errno));
+      error_at(this->location_, "%s: %m", this->filename_.c_str());
       return false;
     }
   ssize_t got = ::read(this->fd_, &hdr, sizeof hdr);
   if (got != sizeof hdr)
     {
       if (got < 0)
-	error_at(this->location_, "%s: %s", this->filename_.c_str(),
-		 strerror(errno));
+	error_at(this->location_, "%s: %m", this->filename_.c_str());
       else if (got > 0)
 	error_at(this->location_, "%s: short archive header at %ld",
 		 this->filename_.c_str(), static_cast<long>(off));
@@ -406,7 +401,7 @@ Archive_file::get_file_and_offset(off_t off, const std::string& hdrname,
   *memfd = open(filename.c_str(), O_RDONLY);
   if (*memfd < 0)
     {
-      error_at(this->location_, "%s: %s", filename.c_str(), strerror(errno));
+      error_at(this->location_, "%s: %m", filename.c_str());
       return false;
     }
   *memoff = 0;

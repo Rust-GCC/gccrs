@@ -73,7 +73,7 @@ go_parse_input_files(const char** filenames, unsigned int filename_count,
 	{
 	  file = fopen(filename, "r");
 	  if (file == NULL)
-	    fatal_error("cannot open %s: %s", filename, strerror(errno));
+	    fatal_error("cannot open %s: %m", filename);
 	}
 
       Lex lexer(filename, file);

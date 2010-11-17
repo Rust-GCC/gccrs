@@ -104,7 +104,7 @@ Import::try_package_in_directory(const std::string& filename,
   if (fd < 0)
     {
       if (errno != ENOENT && errno != EISDIR)
-	warning_at(location, 0, "%s: %s", filename.c_str(), strerror(errno));
+	warning_at(location, 0, "%s: %m", filename.c_str());
 
       fd = Import::try_suffixes(&found_filename);
       if (fd < 0)
@@ -184,8 +184,7 @@ Import::find_export_data(const std::string& filename, int fd,
 
   if (lseek(fd, 0, SEEK_SET) < 0)
     {
-      error_at(location, "lseek %s failed: %s", filename.c_str(),
-	       strerror(errno));
+      error_at(location, "lseek %s failed: %m", filename.c_str());
       return NULL;
     }
 
@@ -233,8 +232,7 @@ Import::find_object_export_data(const std::string& filename,
 
   if (lseek(fd, offset + sec_offset, SEEK_SET) < 0)
     {
-      error_at(location, "lseek %s failed: %s", filename.c_str(),
-	       strerror(errno));
+      error_at(location, "lseek %s failed: %m", filename.c_str());
       return NULL;
     }
 
@@ -242,8 +240,7 @@ Import::find_object_export_data(const std::string& filename,
   ssize_t c = read(fd, buf, sec_length);
   if (c < 0)
     {
-      error_at(location, "read %s failed: %s", filename.c_str(),
-	       strerror(errno));
+      error_at(location, "read %s failed: %m", filename.c_str());
       return NULL;
     }
   if (c < sec_length)
@@ -821,7 +818,7 @@ Stream_from_file::Stream_from_file(int fd)
 {
   if (lseek(fd, 0, SEEK_SET) != 0)
     {
-      error("lseek failed: %s", strerror(errno));
+      error("lseek failed: %m");
       this->set_saw_error();
     }
 }
@@ -849,7 +846,7 @@ Stream_from_file::do_peek(size_t length, const char** bytes)
   if (got < 0)
     {
       if (!this->saw_error())
-	error("read failed: %s", strerror(errno));
+	error("read failed: %m");
       this->set_saw_error();
       return false;
     }
@@ -857,7 +854,7 @@ Stream_from_file::do_peek(size_t length, const char** bytes)
   if (lseek(this->fd_, - got, SEEK_CUR) != 0)
     {
       if (!this->saw_error())
-	error("lseek failed: %s", strerror(errno));
+	error("lseek failed: %m");
       this->set_saw_error();
       return false;
     }
@@ -879,7 +876,7 @@ Stream_from_file::do_advance(size_t skip)
   if (lseek(this->fd_, skip, SEEK_CUR) != 0)
     {
       if (!this->saw_error())
-	error("lseek failed: %s", strerror(errno));
+	error("lseek failed: %m");
       this->set_saw_error();
     }
   if (!this->data_.empty())
