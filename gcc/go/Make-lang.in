@@ -90,7 +90,14 @@ lang_checks += check-go
 
 go.install-common: installdirs
 	-rm -f $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
+	-rm -f $(DESTDIR)$(bindir)/$(GCCGO_TARGET_INSTALL_NAME)$(exeext)
 	$(INSTALL_PROGRAM) gccgo$(exeext) $(DESTDIR)$(bindir)/$(GCCGO_INSTALL_NAME)$(exeext)
+	if test -f $(DESTDIR)$(bindir)$(GCCGO_TARGET_INSTALL_NAME)$(exeext); then \
+	  :; \
+	else \
+	  cd $(DESTDIR)$(bindir) && \
+	   $(LN) $(GCCGO_INSTALL_NAME)$(exeext) $(GCCGO_TARGET_INSTALL_NAME)$(exeext); \
+	fi
 
 go.install-plugin:
 go.install-man:
