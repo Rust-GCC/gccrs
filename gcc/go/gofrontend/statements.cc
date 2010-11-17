@@ -6,7 +6,6 @@
 
 #include "go-system.h"
 
-#include <tr1/unordered_set>
 #include <gmp.h>
 
 #ifndef ENABLE_BUILD_WITH_CXX

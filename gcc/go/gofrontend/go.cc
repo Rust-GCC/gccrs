@@ -4,10 +4,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#include <cerrno>
-#include <cstdio>
-#include <string>
-
 #include "go-system.h"
 
 #include "go-c.h"
