@@ -398,10 +398,10 @@ runtime_files = \
 	sigqueue.c \
 	string.c
 
-goc2c.o: runtime/goc2c.c
+goc2c.$(OBJEXT): runtime/goc2c.c
 	$(CC_FOR_BUILD) -c $(CFLAGS_FOR_BUILD) $<
 
-goc2c: goc2c.o
+goc2c: goc2c.$(OBJEXT)
 	$(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) $(LDFLAGS_FOR_BUILD) -o $@ $<
 
 malloc.c: $(srcdir)/runtime/malloc.goc goc2c
@@ -423,8 +423,6 @@ sigqueue.c: $(srcdir)/runtime/sigqueue.goc goc2c
 %.c: $(srcdir)/runtime/%.goc goc2c
 	./goc2c --gcc $< > $@.tmp
 	mv -f $@.tmp $@
-
-BUILT_SOURCES = chan.c iface.c malloc.c map.c sigqueue.c string.c
 
 go_asn1_files = \
 	go/asn1/asn1.go \
@@ -1279,11 +1277,11 @@ GOLINK = $(LIBTOOL) --tag GO --mode-link $(GOC) \
 # Build a package.
 BUILDARCHIVE = \
 	rm -f `echo $@ | sed -e 's|/lib|/|' -e 's/\.a/.gox/'`; \
-	test -d $(@D) || mkdir -p $(@D); \
+	test -d $(@D) || $(MKDIR_P) $(@D); \
 	rm -f $@; \
 	files=`echo $^ | sed -e 's/[^ ]*\.gox//g'`; \
-	if $(LTGOCOMPILE) -c -fgo-prefix="libgo_$(@D)" -o $@.o $$files; then \
-	  $(AR) rc $@ $@.o; \
+	if $(LTGOCOMPILE) -c -fgo-prefix="libgo_$(@D)" -o $@.$(OBJEXT) $$files; then \
+	  $(AR) rc $@ $@.$(OBJEXT); \
 	else exit 1; fi
 
 # Build a .la file from a .a file.
@@ -1357,11 +1355,11 @@ bufio/check: $(CHECK_DEPS)
 .PHONY: bufio/check
 
 bytes/libbytes.a: $(go_bytes_files) $(go_bytes_c_files) io.gox os.gox utf8.gox
-	test -d bytes || mkdir -p bytes
-	$(LTGOCOMPILE) -c -o bytes/bytes.o -fgo-prefix=libgo_bytes $(srcdir)/go/bytes/buffer.go $(srcdir)/go/bytes/bytes.go $(srcdir)/go/bytes/bytes_decl.go
-	$(LTCOMPILE) -c -o bytes/index.o $(srcdir)/go/bytes/indexbyte.c
+	test -d bytes || $(MKDIR_P) bytes
+	$(LTGOCOMPILE) -c -o bytes/bytes.$(OBJEXT) -fgo-prefix=libgo_bytes $(srcdir)/go/bytes/buffer.go $(srcdir)/go/bytes/bytes.go $(srcdir)/go/bytes/bytes_decl.go
+	$(LTCOMPILE) -c -o bytes/index.$(OBJEXT) $(srcdir)/go/bytes/indexbyte.c
 	rm -f $@
-	$(AR) rc $@ bytes/bytes.o bytes/index.o
+	$(AR) rc $@ bytes/bytes.$(OBJEXT) bytes/index.$(OBJEXT)
 bytes/libbytes.la: bytes/libbytes.a
 	$(LINK) bytes/bytes.lo bytes/index.lo
 bytes/check: $(CHECK_DEPS)
@@ -1611,11 +1609,11 @@ strings/check: $(CHECK_DEPS)
 .PHONY: strings/check
 
 sync/libsync.a: $(go_sync_files) $(go_sync_c_files) runtime.gox
-	test -d sync || mkdir -p sync
-	$(LTGOCOMPILE) -c -o sync/mutex.o -fgo-prefix=libgo_sync $(srcdir)/go/sync/mutex.go $(srcdir)/go/sync/once.go $(srcdir)/go/sync/rwmutex.go
-	$(LTCOMPILE) -c -o sync/cas.o $(srcdir)/go/sync/cas.c
+	test -d sync || $(MKDIR_P) sync
+	$(LTGOCOMPILE) -c -o sync/mutex.$(OBJEXT) -fgo-prefix=libgo_sync $(srcdir)/go/sync/mutex.go $(srcdir)/go/sync/once.go $(srcdir)/go/sync/rwmutex.go
+	$(LTCOMPILE) -c -o sync/cas.$(OBJEXT) $(srcdir)/go/sync/cas.c
 	rm -f $@
-	$(AR) rc $@ sync/mutex.o sync/cas.o
+	$(AR) rc $@ sync/mutex.$(OBJEXT) sync/cas.$(OBJEXT)
 sync/libsync.la: sync/libsync.a
 	$(LINK) sync/mutex.lo sync/cas.lo
 sync/check: $(CHECK_DEPS)
@@ -1712,7 +1710,7 @@ archive/libtar.a: $(go_archive_tar_files) bytes.gox io.gox os.gox strconv.gox \
 	$(BUILDARCHIVE)
 archive/libtar.la: archive/libtar.a
 archive/tar/check: $(CHECK_DEPS)
-	@mkdir -p archive/tar
+	@$(MKDIR_P) archive/tar
 	$(CHECK)
 .PHONY: archive/tar/check
 
@@ -1722,7 +1720,7 @@ archive/libzip.a: $(go_archive_zip_files) bufio.gox bytes.gox \
 	$(BUILDARCHIVE)
 archive/libzip.la: archive/libzip.a
 archive/zip/check: $(CHECK_DEPS)
-	@mkdir -p archive/zip
+	@$(MKDIR_P) archive/zip
 	$(CHECK)
 .PHONY: archive/zip/check
 
@@ -1731,7 +1729,7 @@ compress/libflate.a: $(go_compress_flate_files) bufio.gox io.gox math.gox \
 	$(BUILDARCHIVE)
 compress/libflate.la: compress/libflate.a
 compress/flate/check: $(CHECK_DEPS)
-	@mkdir -p compress/flate
+	@$(MKDIR_P) compress/flate
 	$(CHECK)
 .PHONY: compress/flate/check
 
@@ -1740,7 +1738,7 @@ compress/libgzip.a: $(go_compress_gzip_files) bufio.gox compress/flate.gox \
 	$(BUILDARCHIVE)
 compress/libgzip.la: compress/libgzip.a
 compress/gzip/check: $(CHECK_DEPS)
-	@mkdir -p compress/gzip
+	@$(MKDIR_P) compress/gzip
 	$(CHECK)
 .PHONY: compress/gzip/check
 
@@ -1749,7 +1747,7 @@ compress/libzlib.a: $(go_compress_zlib_files) bufio.gox compress/flate.gox \
 	$(BUILDARCHIVE)
 compress/libzlib.la: compress/libzlib.a
 compress/zlib/check: $(CHECK_DEPS)
-	@mkdir -p compress/zlib
+	@$(MKDIR_P) compress/zlib
 	$(CHECK)
 .PHONY: compress/zlib/check
 
@@ -1757,7 +1755,7 @@ container/libheap.a: $(go_container_heap_files) sort.gox
 	$(BUILDARCHIVE)
 container/libheap.la: container/libheap.a
 container/heap/check: $(CHECK_DEPS)
-	@mkdir -p container/heap
+	@$(MKDIR_P) container/heap
 	$(CHECK)
 .PHONY: container/heap/check
 
@@ -1765,7 +1763,7 @@ container/liblist.a: $(go_container_list_files)
 	$(BUILDARCHIVE)
 container/liblist.la: container/liblist.a
 container/list/check: $(CHECK_DEPS)
-	@mkdir -p container/list
+	@$(MKDIR_P) container/list
 	$(CHECK)
 .PHONY: container/list/check
 
@@ -1773,7 +1771,7 @@ container/libring.a: $(go_container_ring_files)
 	$(BUILDARCHIVE)
 container/libring.la: container/libring.a
 container/ring/check: $(CHECK_DEPS)
-	@mkdir -p container/ring
+	@$(MKDIR_P) container/ring
 	$(CHECK)
 .PHONY: container/ring/check
 
@@ -1781,7 +1779,7 @@ container/libvector.a: $(go_container_vector_files)
 	$(BUILDARCHIVE)
 container/libvector.la: container/libvector.a
 container/vector/check: $(CHECK_DEPS)
-	@mkdir -p container/vector
+	@$(MKDIR_P) container/vector
 	$(CHECK)
 .PHONY: container/vector/check
 
@@ -1789,7 +1787,7 @@ crypto/libaes.a: $(go_crypto_aes_files) os.gox strconv.gox
 	$(BUILDARCHIVE)
 crypto/libaes.la: crypto/libaes.a
 crypto/aes/check: $(CHECK_DEPS)
-	@mkdir -p crypto/aes
+	@$(MKDIR_P) crypto/aes
 	$(CHECK)
 .PHONY: crypto/aes/check
 
@@ -1797,7 +1795,7 @@ crypto/libblock.a: $(go_crypto_block_files) fmt.gox io.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
 crypto/libblock.la: crypto/libblock.a
 crypto/block/check: $(CHECK_DEPS)
-	@mkdir -p crypto/block
+	@$(MKDIR_P) crypto/block
 	$(CHECK)
 .PHONY: crypto/block/check
 
@@ -1805,7 +1803,7 @@ crypto/libblowfish.a: $(go_crypto_blowfish_files) os.gox strconv.gox
 	$(BUILDARCHIVE)
 crypto/libblowfish.la: crypto/libblowfish.a
 crypto/blowfish/check: $(CHECK_DEPS)
-	@mkdir -p crypto/blowfish
+	@$(MKDIR_P) crypto/blowfish
 	$(CHECK)
 .PHONY: crypto/blowfish/check
 
@@ -1813,7 +1811,7 @@ crypto/libcast5.a: $(go_crypto_cast5_files) os.gox
 	$(BUILDARCHIVE)
 crypto/libcast5.la: crypto/libcast5.a
 crypt/cast5/check: $(CHECK_DEPS)
-	@mkdir -p crypto/cast5
+	@$(MKDIR_P) crypto/cast5
 	$(CHECK)
 .PHONY: crypto/cast5/check
 
@@ -1822,7 +1820,7 @@ crypto/libhmac.a: $(go_crypto_hmac_files) crypto/md5.gox crypto/sha1.gox \
 	$(BUILDARCHIVE)
 crypto/libhmac.la: crypto/libhmac.a
 crypto/hmac/check: $(CHECK_DEPS)
-	@mkdir -p crypto/hmac
+	@$(MKDIR_P) crypto/hmac
 	$(CHECK)
 .PHONY: crypto/hmac/check
 
@@ -1830,7 +1828,7 @@ crypto/libmd4.a: $(go_crypto_md4_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 crypto/libmd4.la: crypto/libmd4.a
 crypto/md4/check: $(CHECK_DEPS)
-	@mkdir -p crypto/md4
+	@$(MKDIR_P) crypto/md4
 	$(CHECK)
 .PHONY: crypto/md4/check
 
@@ -1838,7 +1836,7 @@ crypto/libmd5.a: $(go_crypto_md5_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 crypto/libmd5.la: crypto/libmd5.a
 crypto/md5/check: $(CHECK_DEPS)
-	@mkdir -p crypto/md5
+	@$(MKDIR_P) crypto/md5
 	$(CHECK)
 .PHONY: crypto/md5/check
 
@@ -1847,7 +1845,7 @@ crypto/libocsp.a: $(go_crypto_ocsp_files) asn1.gox crypto/rsa.gox \
 	$(BUILDARCHIVE)
 crypto/libocsp.la: crypto/libocsp.a
 crypto/ocsp/check: $(CHECK_DEPS)
-	@mkdir -p crypto/ocsp
+	@$(MKDIR_P) crypto/ocsp
 	$(CHECK)
 .PHONY: crypto/ocsp/check
 
@@ -1856,7 +1854,7 @@ crypto/librand.a: $(go_crypto_rand_files) crypto/aes.gox io.gox os.gox \
 	$(BUILDARCHIVE)
 crypto/librand.la: crypto/librand.a
 crypto/rand/check: $(CHECK_DEPS)
-	@mkdir -p crypto/rand
+	@$(MKDIR_P) crypto/rand
 	$(CHECK)
 .PHONY: crypto/rand/check
 
@@ -1864,7 +1862,7 @@ crypto/librc4.a: $(go_crypto_rc4_files) os.gox strconv.gox
 	$(BUILDARCHIVE)
 crypto/librc4.la: crypto/librc4.a
 crypto/rc4/check: $(CHECK_DEPS)
-	@mkdir -p crypto/rc4
+	@$(MKDIR_P) crypto/rc4
 	$(CHECK)
 .PHONY: crypto/rc4/check
 
@@ -1872,7 +1870,7 @@ crypto/libripemd160.a: $(go_crypto_ripemd160_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 crypto/libripemd160.la: crypto/libripemd160.a
 crypto/ripemd160/check: $(CHECK_DEPS)
-	@mkdir -p crypto/ripemd160
+	@$(MKDIR_P) crypto/ripemd160
 	$(CHECK)
 .PHONY: crypto/ripemd160/check
 
@@ -1881,7 +1879,7 @@ crypto/librsa.a: $(go_crypto_rsa_files) big.gox crypto/sha1.gox \
 	$(BUILDARCHIVE)
 crypto/librsa.la: crypto/librsa.a
 crypto/rsa/check: $(CHECK_DEPS)
-	@mkdir -p crypto/rsa
+	@$(MKDIR_P) crypto/rsa
 	$(CHECK)
 .PHONY: crypto/rsa/check
 
@@ -1889,7 +1887,7 @@ crypto/libsha1.a: $(go_crypto_sha1_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 crypto/libsha1.la: crypto/libsha1.a
 crypto/sha1/check: $(CHECK_DEPS)
-	@mkdir -p crypto/sha1
+	@$(MKDIR_P) crypto/sha1
 	$(CHECK)
 .PHONY: crypto/sha1/check
 
@@ -1897,7 +1895,7 @@ crypto/libsha256.a: $(go_crypto_sha256_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 crypto/libsha256.la: crypto/libsha256.a
 crypto/sha256/check: $(CHECK_DEPS)
-	@mkdir -p crypto/sha256
+	@$(MKDIR_P) crypto/sha256
 	$(CHECK)
 .PHONY: crypto/sha256/check
 
@@ -1905,7 +1903,7 @@ crypto/libsha512.a: $(go_crypto_sha512_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 crypto/libsha512.la: crypto/libsha512.a
 crypto/sha512/check: $(CHECK_DEPS)
-	@mkdir -p crypto/sha512
+	@$(MKDIR_P) crypto/sha512
 	$(CHECK)
 .PHONY: crypto/sha512/check
 
@@ -1913,7 +1911,7 @@ crypto/libsubtle.a: $(go_crypto_subtle_files)
 	$(BUILDARCHIVE)
 crypto/libsubtle.la: crypto/libsubtle.a
 crypto/subtle/check: $(CHECK_DEPS)
-	@mkdir -p crypto/subtle
+	@$(MKDIR_P) crypto/subtle
 	$(CHECK)
 .PHONY: crypto/subtle/check
 
@@ -1926,7 +1924,7 @@ crypto/libtls.a: $(go_crypto_tls_files) bufio.gox bytes.gox container/list.gox \
 	$(BUILDARCHIVE)
 crypto/libtls.la: crypto/libtls.a
 crypto/tls/check: $(CHECK_DEPS)
-	@mkdir -p crypto/tls
+	@$(MKDIR_P) crypto/tls
 	$(CHECK)
 .PHONY: crypto/tls/check
 
@@ -1936,7 +1934,7 @@ crypto/libx509.a: $(go_crypto_x509_files) asn1.gox big.gox \
 	$(BUILDARCHIVE)
 crypto/libx509.la: crypto/libx509.a
 crypto/x509/check: $(CHECK_DEPS)
-	@mkdir -p crypto/x509
+	@$(MKDIR_P) crypto/x509
 	$(CHECK)
 .PHONY: crypto/x509/check
 
@@ -1944,7 +1942,7 @@ crypto/libxtea.a: $(go_crypto_xtea_files) os.gox strconv.gox
 	$(BUILDARCHIVE)
 crypto/libxtea.la: crypto/libxtea.a
 crypto/xtea/check: $(CHECK_DEPS)
-	@mkdir -p crypto/xtea
+	@$(MKDIR_P) crypto/xtea
 	$(CHECK)
 .PHONY: crypto/xtea/check
 
@@ -1953,7 +1951,7 @@ debug/libdwarf.a: $(go_debug_dwarf_files) encoding/binary.gox os.gox \
 	$(BUILDARCHIVE)
 debug/libdwarf.la: debug/libdwarf.a
 debug/dwarf/check: $(CHECK_DEPS)
-	@mkdir -p debug/dwarf
+	@$(MKDIR_P) debug/dwarf
 	$(CHECK)
 .PHONY: debug/dwarf/check
 
@@ -1962,7 +1960,7 @@ debug/libelf.a: $(go_debug_elf_files) bytes.gox debug/dwarf.gox \
 	$(BUILDARCHIVE)
 debug/libelf.la: debug/libelf.a
 debug/elf/check: $(CHECK_DEPS)
-	@mkdir -p debug/elf
+	@$(MKDIR_P) debug/elf
 	$(CHECK)
 .PHONY: debug/elf/check
 
@@ -1971,7 +1969,7 @@ debug/libgosym.a: $(go_debug_gosym_files) encoding/binary.gox fmt.gox os.gox \
 	$(BUILDARCHIVE)
 debug/libgosym.la: debug/libgosym.a
 debug/gosym/check: $(CHECK_DEPS)
-	@mkdir -p debug/gosym
+	@$(MKDIR_P) debug/gosym
 	$(CHECK)
 .PHONY: debug/gosym/check
 
@@ -1980,7 +1978,7 @@ debug/libmacho.a: $(go_debug_macho_files) bytes.gox debug/dwarf.gox \
 	$(BUILDARCHIVE)
 debug/libmacho.la: debug/libmacho.a
 debug/macho/check: $(CHECK_DEPS)
-	@mkdir -p debug/macho
+	@$(MKDIR_P) debug/macho
 	$(CHECK)
 .PHONY: debug/macho/check
 
@@ -1989,7 +1987,7 @@ debug/libpe.a: $(go_debug_pe_files) debug/dwarf.gox encoding/binary.gox \
 	$(BUILDARCHIVE)
 debug/libpe.la: debug/libpe.a
 debug/pe/check: $(CHECK_DEPS)
-	@mkdir -p debug/pe
+	@$(MKDIR_P) debug/pe
 	$(CHECK)
 .PHONY: debug/pe/check
 
@@ -1999,7 +1997,7 @@ debug/libproc.a: $(go_debug_proc_files) container/vector.gox fmt.gox \
 	$(BUILDARCHIVE)
 debug/libproc.la: debug/libproc.a
 debug/proc/check: $(CHECK_DEPS)
-	@mkdir -p debug/proc
+	@$(MKDIR_P) debug/proc
 	$(CHECK)
 .PHONY: debug/proc/check
 
@@ -2007,7 +2005,7 @@ encoding/libascii85.a: $(go_encoding_ascii85_files) io.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
 encoding/libascii85.la: encoding/libascii85.a
 encoding/ascii85/check: $(CHECK_DEPS)
-	@mkdir -p encoding/ascii85
+	@$(MKDIR_P) encoding/ascii85
 	$(CHECK)
 .PHONY: encoding/ascii85/check
 
@@ -2015,7 +2013,7 @@ encoding/libbase64.a: $(go_encoding_base64_files) io.gox os.gox strconv.gox
 	$(BUILDARCHIVE)
 encoding/libbase64.la: encoding/libbase64.a
 encoding/base64/check: $(CHECK_DEPS)
-	@mkdir -p encoding/base64
+	@$(MKDIR_P) encoding/base64
 	$(CHECK)
 .PHONY: encoding/base64/check
 
@@ -2024,7 +2022,7 @@ encoding/libbinary.a: $(go_encoding_binary_files) io.gox math.gox os.gox \
 	$(BUILDARCHIVE)
 encoding/libbinary.la: encoding/libbinary.a
 encoding/binary/check: $(CHECK_DEPS)
-	@mkdir -p encoding/binary
+	@$(MKDIR_P) encoding/binary
 	$(CHECK)
 .PHONY: encoding/binary/check
 
@@ -2033,7 +2031,7 @@ encoding/libgit85.a: $(go_encoding_git85_files) bytes.gox io.gox os.gox \
 	$(BUILDARCHIVE)
 encoding/libgit85.la: encoding/libgit85.a
 encoding/git85/check: $(CHECK_DEPS)
-	@mkdir -p encoding/git85
+	@$(MKDIR_P) encoding/git85
 	$(CHECK)
 .PHONY: encoding/git85/check
 
@@ -2041,7 +2039,7 @@ encoding/libhex.a: $(go_encoding_hex_files) os.gox strconv.gox
 	$(BUILDARCHIVE)
 encoding/libhex.la: encoding/libhex.a
 encoding/hex/check: $(CHECK_DEPS)
-	@mkdir -p encoding/hex
+	@$(MKDIR_P) encoding/hex
 	$(CHECK)
 .PHONY: encoding/hex/check
 
@@ -2049,7 +2047,7 @@ encoding/libpem.a: $(go_encoding_pem_files) bytes.gox encoding/base64.gox
 	$(BUILDARCHIVE)
 encoding/libpem.la: encoding/libpem.a
 encoding/pem/check: $(CHECK_DEPS)
-	@mkdir -p encoding/pem
+	@$(MKDIR_P) encoding/pem
 	$(CHECK)
 .PHONY: encoding/pem/check
 
@@ -2059,7 +2057,7 @@ exp/libdatafmt.a: $(go_exp_datafmt_files) bytes.gox container/vector.gox \
 	$(BUILDARCHIVE)
 exp/libdatafmt.la: exp/libdatafmt.a
 exp/datafmt/check: $(CHECK_DEPS)
-	@mkdir -p exp/datafmt
+	@$(MKDIR_P) exp/datafmt
 	$(CHECK)
 .PHONY: exp/datafmt/check
 
@@ -2067,7 +2065,7 @@ exp/libdraw.a: $(go_exp_draw_files) image.gox os.gox
 	$(BUILDARCHIVE)
 exp/libdraw.la: exp/libdraw.a
 exp/draw/check: $(CHECK_DEPS)
-	@mkdir -p exp/draw
+	@$(MKDIR_P) exp/draw
 	$(CHECK)
 .PHONY: exp/draw/check
 
@@ -2077,7 +2075,7 @@ exp/libeval.a: $(go_exp_eval_files) big.gox go/ast.gox go/parser.gox \
 	$(BUILDARCHIVE)
 exp/libeval.la: exp/libeval.a
 exp/eval/check: $(CHECK_DEPS)
-	@mkdir -p exp/eval
+	@$(MKDIR_P) exp/eval
 	$(CHECK)
 .PHONY: exp/eval/check
 
@@ -2086,7 +2084,7 @@ go/libast.a: $(go_go_ast_files) fmt.gox go/token.gox io.gox os.gox \
 	$(BUILDARCHIVE)
 go/libast.la: go/libast.a
 go/ast/check: $(CHECK_DEPS)
-	@mkdir -p go/ast
+	@$(MKDIR_P) go/ast
 	$(CHECK)
 .PHONY: go/ast/check
 
@@ -2095,7 +2093,7 @@ go/libdoc.a: $(go_go_doc_files) go/ast.gox go/token.gox io.gox regexp.gox \
 	$(BUILDARCHIVE)
 go/libdoc.la: go/libdoc.a
 go/doc/check: $(CHECK_DEPS)
-	@mkdir -p go/doc
+	@$(MKDIR_P) go/doc
 	$(CHECK)
 .PHONY: go/doc/check
 
@@ -2105,7 +2103,7 @@ go/libparser.a: $(go_go_parser_files) bytes.gox fmt.gox go/ast.gox \
 	$(BUILDARCHIVE)
 go/libparser.la: go/libparser.a
 go/parser/check: $(CHECK_DEPS)
-	@mkdir -p go/parser
+	@$(MKDIR_P) go/parser
 	$(CHECK)
 .PHONY: go/parser/check
 
@@ -2115,7 +2113,7 @@ go/libprinter.a: $(go_go_printer_files) bytes.gox fmt.gox go/ast.gox \
 	$(BUILDARCHIVE)
 go/libprinter.la: go/libprinter.a
 go/printer/check: $(CHECK_DEPS)
-	@mkdir -p go/printer
+	@$(MKDIR_P) go/printer
 	$(CHECK)
 .PHONY: go/printer/check
 
@@ -2125,7 +2123,7 @@ go/libscanner.a: $(go_go_scanner_files) bytes.gox container/vector.gox fmt.gox \
 	$(BUILDARCHIVE)
 go/libscanner.la: go/libscanner.a
 go/scanner/check: $(CHECK_DEPS)
-	@mkdir -p go/scanner
+	@$(MKDIR_P) go/scanner
 	$(CHECK)
 .PHONY: go/scanner/check
 
@@ -2133,7 +2131,7 @@ go/libtoken.a: $(go_go_token_files) fmt.gox strconv.gox
 	$(BUILDARCHIVE)
 go/libtoken.la: go/libtoken.a
 go/token/check: $(CHECK_DEPS)
-	@mkdir -p go/token
+	@$(MKDIR_P) go/token
 	$(CHECK)
 .PHONY: go/token/check
 
@@ -2142,7 +2140,7 @@ go/libtypechecker.a: $(go_go_typechecker_files) fmt.gox go/ast.gox \
 	$(BUILDARCHIVE)
 go/libtypechecker.la: go/libtypechecker.a
 go/typechecker/check: $(CHECK_DEPS)
-	@mkdir -p go/typechecker
+	@$(MKDIR_P) go/typechecker
 	$(CHECK)
 .PHONY: go/typechecker/check
 
@@ -2150,7 +2148,7 @@ hash/libadler32.a: $(go_hash_adler32_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 hash/libadler32.la: hash/libadler32.a
 hash/adler32/check: $(CHECK_DEPS)
-	@mkdir -p hash/adler32
+	@$(MKDIR_P) hash/adler32
 	$(CHECK)
 .PHONY: hash/adler32/check
 
@@ -2158,7 +2156,7 @@ hash/libcrc32.a: $(go_hash_crc32_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 hash/libcrc32.la: hash/libcrc32.a
 hash/crc32/check: $(CHECK_DEPS)
-	@mkdir -p hash/crc32
+	@$(MKDIR_P) hash/crc32
 	$(CHECK)
 .PHONY: hash/crc32/check
 
@@ -2166,7 +2164,7 @@ hash/libcrc64.a: $(go_hash_crc64_files) hash.gox os.gox
 	$(BUILDARCHIVE)
 hash/libcrc64.la: hash/libcrc64.a
 hash/crc64/check: $(CHECK_DEPS)
-	@mkdir -p hash/crc64
+	@$(MKDIR_P) hash/crc64
 	$(CHECK)
 .PHONY: hash/crc64/check
 
@@ -2175,7 +2173,7 @@ http/libpprof.a: $(go_http_pprof_files) bufio.gox fmt.gox http.gox os.gox \
 	$(BUILDARCHIVE)
 http/libpprof.la: http/libpprof.a
 http/pprof/check: $(CHECK_DEPS)
-	@mkdir -p http/pprof
+	@$(MKDIR_P) http/pprof
 	$(CHECK)
 .PHONY: http/pprof/check
 
@@ -2183,7 +2181,7 @@ image/libjpeg.a: $(go_image_jpeg_files) bufio.gox image.gox io.gox os.gox
 	$(BUILDARCHIVE)
 image/libjpeg.la: image/libjpeg.a
 image/jpeg/check: $(CHECK_DEPS)
-	@mkdir -p image/jpeg
+	@$(MKDIR_P) image/jpeg
 	$(CHECK)
 .PHONY: image/jpeg/check
 
@@ -2192,7 +2190,7 @@ image/libpng.a: $(go_image_png_files) bufio.gox compress/zlib.gox fmt.gox \
 	$(BUILDARCHIVE)
 image/libpng.la: image/libpng.a
 image/png/check: $(CHECK_DEPS)
-	@mkdir -p image/png
+	@$(MKDIR_P) image/png
 	$(CHECK)
 .PHONY: image/png/check
 
@@ -2201,7 +2199,7 @@ index/libsuffixarray.a: $(go_index_suffixarray_files) bytes.gox \
 	$(BUILDARCHIVE)
 index/libsuffixarray.la: index/libsuffixarray.a
 index/suffixarray/check: $(CHECK_DEPS)
-	@mkdir -p index/suffixarray
+	@$(MKDIR_P) index/suffixarray
 	$(CHECK)
 .PHONY: index/suffixarray/check
 
@@ -2210,7 +2208,7 @@ io/libioutil.a: $(go_io_ioutil_files) bytes.gox io.gox os.gox sort.gox \
 	$(BUILDARCHIVE)
 io/libioutil.la: io/libioutil.a
 io/ioutil/check: $(CHECK_DEPS)
-	@mkdir -p io/ioutil
+	@$(MKDIR_P) io/ioutil
 	$(CHECK)
 .PHONY: io/ioutil/check
 
@@ -2219,7 +2217,7 @@ mime/libmultipart.a: $(go_mime_multipart_files) bufio.gox bytes.gox io.gox \
 	$(BUILDARCHIVE)
 mime/libmultipart.la: mime/libmultipart.a
 mime/multipart/check: $(CHECK_DEPS)
-	@mkdir -p mime/multipart
+	@$(MKDIR_P) mime/multipart
 	$(CHECK)
 .PHONY: mime/multipart/check
 
@@ -2234,7 +2232,7 @@ net/libtextproto.a: $(go_net_textproto_files) bufio.gox bytes.gox \
 	$(BUILDARCHIVE)
 net/libtextproto.la: net/libtextproto.a
 net/textproto/check: $(CHECK_DEPS)
-	@mkdir -p net/textproto
+	@$(MKDIR_P) net/textproto
 	$(CHECK)
 .PHONY: net/textproto/check
 
@@ -2242,7 +2240,7 @@ os/libsignal.a: $(go_os_signal_files) runtime.gox strconv.gox
 	$(BUILDARCHIVE)
 os/libsignal.la: os/libsignal.a
 os/signal/check: $(CHECK_DEPS)
-	@mkdir -p os/signal
+	@$(MKDIR_P) os/signal
 	$(CHECK)
 .PHONY: os/signal/check
 
@@ -2255,7 +2253,7 @@ rpc/libjsonrpc.a: $(go_rpc_jsonrpc_files) fmt.gox io.gox json.gox net.gox \
 	$(BUILDARCHIVE)
 rpc/libjsonrpc.la: rpc/libjsonrpc.a
 rpc/jsonrpc/check: $(CHECK_DEPS)
-	@mkdir -p rpc/jsonrpc
+	@$(MKDIR_P) rpc/jsonrpc
 	$(CHECK)
 .PHONY: rpc/jsonrpc/check
 
@@ -2264,7 +2262,7 @@ runtime/libpprof.a: $(go_runtime_pprof_files) bufio.gox fmt.gox io.gox os.gox \
 	$(BUILDARCHIVE)
 runtime/libpprof.la: runtime/libpprof.a
 runtime/pprof/check: $(CHECK_DEPS)
-	@mkdir -p runtime/pprof
+	@$(MKDIR_P) runtime/pprof
 	$(CHECK)
 .PHONY: runtime/pprof/check
 
@@ -2272,7 +2270,7 @@ testing/libiotest.a: $(go_testing_iotest_files) io.gox log.gox os.gox
 	$(BUILDARCHIVE)
 testing/libiotest.la: testing/libiotest.a
 testing/iotest/check: $(CHECK_DEPS)
-	@mkdir -p testing/iotest
+	@$(MKDIR_P) testing/iotest
 	$(CHECK)
 .PHONY: testing/iotest/check
 
@@ -2281,7 +2279,7 @@ testing/libquick.a: $(go_testing_quick_files) flag.gox fmt.gox math.gox \
 	$(BUILDARCHIVE)
 testing/libquick.la: testing/libquick.a
 testing/quick/check: $(CHECK_DEPS)
-	@mkdir -p testing/quick
+	@$(MKDIR_P) testing/quick
 	$(CHECK)
 .PHONY: testing/quick/check
 
@@ -2290,7 +2288,7 @@ testing/libscript.a: $(go_testing_script_files) fmt.gox os.gox rand.gox \
 	$(BUILDARCHIVE)
 testing/libscript.la: testing/libscript.a
 testing/script/check: $(CHECK_DEPS)
-	@mkdir -p testing/script
+	@$(MKDIR_P) testing/script
 	$(CHECK)
 .PHONY: testing/script/check
 
@@ -2298,22 +2296,22 @@ sysinfo.go: $(srcdir)/mksysinfo.sh config.h
 	$(SHELL) $(srcdir)/mksysinfo.sh
 syscalls/libsyscall.a: $(go_syscall_files) $(go_syscall_c_files) sync.gox
 	rm -f syscall.gox syscalls/libsyscall.a
-	test -d syscalls || mkdir -p syscalls
+	test -d syscalls || $(MKDIR_P) syscalls
 	files=`echo $^ | sed -e 's/[^ ]*\.gox//g' -e's/[^ ]*\.c//g'`; \
-	$(LTGOCOMPILE) -c -fgo-prefix="libgo_syscalls" -o syscalls/syscall.o $$files
-	$(LTCOMPILE) -c -o syscalls/errno.o $(srcdir)/syscalls/errno.c
-	$(AR) rc syscalls/libsyscall.a syscalls/syscall.o syscalls/errno.o
+	$(LTGOCOMPILE) -c -fgo-prefix="libgo_syscalls" -o syscalls/syscall.$(OBJEXT) $$files
+	$(LTCOMPILE) -c -o syscalls/errno.$(OBJEXT) $(srcdir)/syscalls/errno.c
+	$(AR) rc syscalls/libsyscall.a syscalls/syscall.$(OBJEXT) syscalls/errno.$(OBJEXT)
 syscalls/libsyscall.la: syscalls/libsyscall.a
 	$(LINK) syscalls/syscall.lo syscalls/errno.lo
 
 # How to build a .gox file from a .a file.
 BUILDGOX = \
 	set -e; \
-	rm -f $@.o; \
-	$(CC) -r -nostdlib -o $@.o -Wl,--whole-archive $<; \
-	$(OBJCOPY) -j .go_export $@.o $@.tmp; \
+	rm -f $@.$(OBJEXT); \
+	$(CC) -r -nostdlib -o $@.$(OBJEXT) -Wl,--whole-archive $<; \
+	$(OBJCOPY) -j .go_export $@.$(OBJEXT) $@.tmp; \
 	mv -f $@.tmp $@; \
-	rm -f $@.o
+	rm -f $@.$(OBJEXT)
 
 asn1.gox: asn1/libasn1.a
 	$(BUILDGOX)
@@ -2672,7 +2670,7 @@ check-recursive: $(TEST_PACKAGES)
 
 mostlyclean-local:
 	find . -name '*.lo' -print | xargs $(LIBTOOL) --mode=clean rm -f
-	find . -name '*.o' -print | xargs rm -f
+	find . -name '*.$(OBJEXT)' -print | xargs rm -f
 
 clean-local:
 	find . -name '*.la' -print | xargs $(LIBTOOL) --mode=clean rm -f
