@@ -428,7 +428,7 @@ runtime_stoptheworld (void)
    with __go_thread_ids_lock held.  */
 
 void
-__go_scanstacks (void (*scan) (unsigned char *, int64_t))
+__go_scanstacks (void (*scan) (byte *, int64_t))
 {
   pthread_t me;
   struct __go_thread_id *p;
