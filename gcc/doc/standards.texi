@@ -273,13 +273,13 @@ available online, see @uref{http://gcc.gnu.org/readings.html}
 
 @section Go language
 
-The Go language continues to evolve as of this writing.  The Go
-language specification may be found at
-@uref{http://golang.org/doc/go_spec.html}.  At present there are no
-specific versions of Go, and there is no way to describe the language
-supported by GCC in terms of a specific version.  In general GCC
-tracks the evolving specification closely, and any given release will
-support the language as of the date that the release was frozen.
+The Go language continues to evolve as of this writing; see the
+@uref{http://golang.org/@/doc/@/go_spec.html, current language
+specifications}.  At present there are no specific versions of Go, and
+there is no way to describe the language supported by GCC in terms of
+a specific version.  In general GCC tracks the evolving specification
+closely, and any given release will support the language as of the
+date that the release was frozen.
 
 @section References for other languages
 
