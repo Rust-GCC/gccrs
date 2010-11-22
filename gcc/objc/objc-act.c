@@ -63,11 +63,6 @@ along with GCC; see the file COPYING3.  If not see
 
 static unsigned int should_call_super_dealloc = 0;
 
-/* When building Objective-C++, we need in_late_binary_op.  */
-#ifdef OBJCPLUS
-bool in_late_binary_op = false;
-#endif  /* OBJCPLUS */
-
 /* When building Objective-C++, we are not linking against the C front-end
    and so need to replicate the C tree-construction functions in some way.  */
 #ifdef OBJCPLUS
@@ -144,7 +139,7 @@ static tree get_proto_encoding (tree);
 static tree lookup_interface (tree);
 static tree objc_add_static_instance (tree, tree);
 
-static tree start_class (enum tree_code, tree, tree, tree);
+static tree start_class (enum tree_code, tree, tree, tree, tree);
 static tree continue_class (tree);
 static void finish_class (tree);
 static void start_method_def (tree);
@@ -153,7 +148,7 @@ static void objc_start_function (tree, tree, tree, tree);
 #else
 static void objc_start_function (tree, tree, tree, struct c_arg_info *);
 #endif
-static tree start_protocol (enum tree_code, tree, tree);
+static tree start_protocol (enum tree_code, tree, tree, tree);
 static tree build_method_decl (enum tree_code, tree, tree, tree, bool);
 static tree objc_add_method (tree, tree, int, bool);
 static tree add_instance_variable (tree, objc_ivar_visibility_kind, tree);
@@ -234,9 +229,9 @@ enum string_section
 static tree add_objc_string (tree, enum string_section);
 static void build_selector_table_decl (void);
 
-/* Protocol additions.  */
+/* Protocols.  */
 
-static tree lookup_protocol (tree);
+static tree lookup_protocol (tree, bool);
 static tree lookup_and_install_protocols (tree);
 
 /* Type encoding.  */
@@ -649,30 +644,44 @@ static tree
 lookup_method_in_protocol_list (tree rproto_list, tree sel_name,
 				int is_class)
 {
-   tree rproto, p;
-   tree fnd = 0;
+  tree rproto, p, m;
 
    for (rproto = rproto_list; rproto; rproto = TREE_CHAIN (rproto))
      {
-        p = TREE_VALUE (rproto);
+       p = TREE_VALUE (rproto);
+       m = NULL_TREE;
 
 	if (TREE_CODE (p) == PROTOCOL_INTERFACE_TYPE)
 	  {
-	    if ((fnd = lookup_method (is_class
-				      ? PROTOCOL_CLS_METHODS (p)
-				      : PROTOCOL_NST_METHODS (p), sel_name)))
-	      ;
-	    else if (PROTOCOL_LIST (p))
-	      fnd = lookup_method_in_protocol_list (PROTOCOL_LIST (p),
-						    sel_name, is_class);
+	    /* First, search the @required protocol methods.  */
+	    if (is_class)
+	      m = lookup_method (PROTOCOL_CLS_METHODS (p),  sel_name);
+	    else
+	      m = lookup_method (PROTOCOL_NST_METHODS (p), sel_name);
+
+	    if (m)
+	      return m;
+
+	    /* If still not found, search the @optional protocol methods.  */
+	    if (is_class)
+	      m = lookup_method (PROTOCOL_OPTIONAL_CLS_METHODS (p), sel_name);
+	    else
+	      m = lookup_method (PROTOCOL_OPTIONAL_NST_METHODS (p), sel_name);
+
+	    if (m)
+	      return m;
+
+	    /* If still not found, search the attached protocols.  */
+	    if (PROTOCOL_LIST (p))
+	      m = lookup_method_in_protocol_list (PROTOCOL_LIST (p),
+						  sel_name, is_class);
+	    if (m)
+	      return m;
 	  }
 	else
           {
 	    ; /* An identifier...if we could not find a protocol.  */
           }
-
-	if (fnd)
-	  return fnd;
      }
 
    return 0;
@@ -716,18 +725,12 @@ void
 objc_start_class_interface (tree klass, tree super_class,
 			    tree protos, tree attributes)
 {
-  if (attributes)
-    {
-      if (flag_objc1_only)
-	error_at (input_location, "class attributes are not available in Objective-C 1.0");
-      else
-	warning_at (input_location, OPT_Wattributes, 
-		    "class attributes are not available in this version"
-		    " of the compiler, (ignored)");
-    }
+  if (flag_objc1_only && attributes)
+    error_at (input_location, "class attributes are not available in Objective-C 1.0");	
+
   objc_interface_context
     = objc_ivar_context
-    = start_class (CLASS_INTERFACE_TYPE, klass, super_class, protos);
+    = start_class (CLASS_INTERFACE_TYPE, klass, super_class, protos, attributes);
   objc_ivar_visibility = OBJC_IVAR_VIS_PROTECTED;
 }
 
@@ -745,7 +748,7 @@ objc_start_category_interface (tree klass, tree categ,
 		    " of the compiler, (ignored)");
     }
   objc_interface_context
-    = start_class (CATEGORY_INTERFACE_TYPE, klass, categ, protos);
+    = start_class (CATEGORY_INTERFACE_TYPE, klass, categ, protos, NULL_TREE);
   objc_ivar_chain
     = continue_class (objc_interface_context);
 }
@@ -753,17 +756,11 @@ objc_start_category_interface (tree klass, tree categ,
 void
 objc_start_protocol (tree name, tree protos, tree attributes)
 {
-  if (attributes)
-    {
-      if (flag_objc1_only)
-	error_at (input_location, "protocol attributes are not available in Objective-C 1.0");	
-      else
-	warning_at (input_location, OPT_Wattributes, 
-		    "protocol attributes are not available in this version"
-		    " of the compiler, (ignored)");
-    }
+  if (flag_objc1_only && attributes)
+    error_at (input_location, "protocol attributes are not available in Objective-C 1.0");	
+
   objc_interface_context
-    = start_protocol (PROTOCOL_INTERFACE_TYPE, name, protos);
+    = start_protocol (PROTOCOL_INTERFACE_TYPE, name, protos, attributes);
   objc_method_optional_flag = false;
 }
 
@@ -787,7 +784,8 @@ objc_start_class_implementation (tree klass, tree super_class)
 {
   objc_implementation_context
     = objc_ivar_context
-    = start_class (CLASS_IMPLEMENTATION_TYPE, klass, super_class, NULL_TREE);
+    = start_class (CLASS_IMPLEMENTATION_TYPE, klass, super_class, NULL_TREE,
+		   NULL_TREE);
   objc_ivar_visibility = OBJC_IVAR_VIS_PROTECTED;
 }
 
@@ -795,7 +793,8 @@ void
 objc_start_category_implementation (tree klass, tree categ)
 {
   objc_implementation_context
-    = start_class (CATEGORY_IMPLEMENTATION_TYPE, klass, categ, NULL_TREE);
+    = start_class (CATEGORY_IMPLEMENTATION_TYPE, klass, categ, NULL_TREE,
+		   NULL_TREE);
   objc_ivar_chain
     = continue_class (objc_implementation_context);
 }
@@ -1700,6 +1699,11 @@ objc_build_class_component_ref (tree class_name, tree property_ident)
       error_at (input_location, "could not find interface for class %qE", class_name); 
       return error_mark_node;
     }
+  else
+    {
+      if (TREE_DEPRECATED (rtype))
+	warning (OPT_Wdeprecated_declarations, "class %qE is deprecated", class_name);    
+    }
 
   x = maybe_make_artificial_property_decl (rtype, NULL_TREE, NULL_TREE,
 					   property_ident,
@@ -1748,6 +1752,42 @@ objc_is_property_ref (tree node)
     return false;
 }
 
+/* This function builds a setter call for a PROPERTY_REF (real, for a
+   declared property, or artificial, for a dot-syntax accessor which
+   is not corresponding to a property).  'lhs' must be a PROPERTY_REF
+   (the caller must check this beforehand).  'rhs' is the value to
+   assign to the property.  A plain setter call is returned, or
+   error_mark_node if the property is readonly.  */
+
+static tree
+objc_build_setter_call (tree lhs, tree rhs)
+{
+  tree object_expr = PROPERTY_REF_OBJECT (lhs);
+  tree property_decl = PROPERTY_REF_PROPERTY_DECL (lhs);
+  
+  if (PROPERTY_READONLY (property_decl))
+    {
+      error ("readonly property can not be set");	  
+      return error_mark_node;
+    }
+  else
+    {
+      tree setter_argument = build_tree_list (NULL_TREE, rhs);
+      tree setter;
+      
+      /* TODO: Check that the setter return type is 'void'.  */
+
+      /* TODO: Decay arguments in C.  */
+      setter = objc_finish_message_expr (object_expr, 
+					 PROPERTY_SETTER_NAME (property_decl),
+					 setter_argument);
+      return setter;
+    }
+
+  /* Unreachable, but the compiler may not realize.  */
+  return error_mark_node;
+}
+
 /* This hook routine is called when a MODIFY_EXPR is being built.  We
    check what is being modified; if it is a PROPERTY_REF, we need to
    generate a 'setter' function call for the property.  If this is not
@@ -1767,27 +1807,69 @@ objc_maybe_build_modify_expr (tree lhs, tree rhs)
 {
   if (lhs && TREE_CODE (lhs) == PROPERTY_REF)
     {
-      tree object_expr = PROPERTY_REF_OBJECT (lhs);
-      tree property_decl = PROPERTY_REF_PROPERTY_DECL (lhs);
+      /* Building a simple call to the setter method would work for cases such as
 
-      if (PROPERTY_READONLY (property_decl))
-	{
-	  error ("readonly property can not be set");	  
-	  return error_mark_node;
-	}
-      else
-	{
-	  tree setter_argument = build_tree_list (NULL_TREE, rhs);
-	  tree setter;
+      object.count = 1;
 
-	  /* TODO: Check that the setter return type is 'void'.  */
+      but wouldn't work for cases such as
 
-	  /* TODO: Decay argument in C.  */
-	  setter = objc_finish_message_expr (object_expr, 
-					     PROPERTY_SETTER_NAME (property_decl),
-					     setter_argument);
-	  return setter;
-	}
+      count = object2.count = 1;
+
+      to get these to work with very little effort, we build a
+      compound statement which does the setter call (to set the
+      property to 'rhs'), but which can also be evaluated returning
+      the 'rhs'.  So, we want to create the following:
+
+      (temp = rhs; [object setProperty: temp]; temp)
+      */
+      tree temp_variable_decl, bind;
+      /* s1, s2 and s3 are the tree statements that we need in the
+	 compound expression.  */
+      tree s1, s2, s3, compound_expr;
+      
+      /* TODO: If 'rhs' is a constant, we could maybe do without the
+	 'temp' variable ? */
+
+      /* Declare __objc_property_temp in a local bind.  */
+      temp_variable_decl = objc_create_temporary_var (TREE_TYPE (rhs), "__objc_property_temp");
+      DECL_SOURCE_LOCATION (temp_variable_decl) = input_location;
+      bind = build3 (BIND_EXPR, void_type_node, temp_variable_decl, NULL, NULL);
+      SET_EXPR_LOCATION (bind, input_location);
+      TREE_SIDE_EFFECTS (bind) = 1;
+      add_stmt (bind);
+      
+      /* Now build the compound statement.  */
+      
+      /* s1: __objc_property_temp = rhs */
+      s1 = build_modify_expr (input_location, temp_variable_decl, NULL_TREE,
+			      NOP_EXPR,
+			      input_location, rhs, NULL_TREE);
+      SET_EXPR_LOCATION (s1, input_location);
+  
+      /* s2: [object setProperty: __objc_property_temp] */
+      s2 = objc_build_setter_call (lhs, temp_variable_decl);
+
+      /* This happens if building the setter failed because the property
+	 is readonly.  */
+      if (s2 == error_mark_node)
+	return error_mark_node;
+
+      SET_EXPR_LOCATION (s2, input_location);
+  
+      /* s3: __objc_property_temp */
+      s3 = convert (TREE_TYPE (lhs), temp_variable_decl);
+
+      /* Now build the compound statement (s1, s2, s3) */
+      compound_expr = build_compound_expr (input_location, build_compound_expr (input_location, s1, s2), s3);
+
+      /* Without this, with -Wall you get a 'valued computed is not
+	 used' every time there is a "object.property = x" where the
+	 value of the resulting MODIFY_EXPR is not used.  That is
+	 correct (maybe a more sophisticated implementation could
+	 avoid generating the compound expression if not needed), but
+	 we need to turn it off.  */
+      TREE_NO_WARNING (compound_expr) = 1;
+      return compound_expr;
     }
   else
     return NULL_TREE;
@@ -1821,7 +1903,7 @@ objc_build_incr_expr_for_property_ref (location_t location,
   tree temp_variable_decl, bind;
   /* s1, s2 and s3 are the tree statements that we need in the
      compound expression.  */
-  tree s1, s2, s3;
+  tree s1, s2, s3, compound_expr;
   
   /* Safety check.  */
   if (!argument || TREE_CODE (argument) != PROPERTY_REF)
@@ -1846,23 +1928,28 @@ objc_build_incr_expr_for_property_ref (location_t location,
     {
     case PREINCREMENT_EXPR:	 
       /* __objc_property_temp = [object property] + increment */
-      s1 = build2 (MODIFY_EXPR, void_type_node, temp_variable_decl,
-		   build2 (PLUS_EXPR, TREE_TYPE (argument), argument, increment));
+      s1 = build_modify_expr (location, temp_variable_decl, NULL_TREE,
+			      NOP_EXPR,
+			      location, build2 (PLUS_EXPR, TREE_TYPE (argument), 
+						argument, increment), NULL_TREE);
       break;
     case PREDECREMENT_EXPR:
       /* __objc_property_temp = [object property] - increment */
-      s1 = build2 (MODIFY_EXPR, void_type_node, temp_variable_decl,
-		   build2 (MINUS_EXPR, TREE_TYPE (argument), argument, increment));
+      s1 = build_modify_expr (location, temp_variable_decl, NULL_TREE,
+			      NOP_EXPR,
+			      location, build2 (MINUS_EXPR, TREE_TYPE (argument), 
+						argument, increment), NULL_TREE);
       break;
     case POSTINCREMENT_EXPR:
     case POSTDECREMENT_EXPR:
       /* __objc_property_temp = [object property] */
-      s1 = build2 (MODIFY_EXPR, void_type_node, temp_variable_decl, argument);
+      s1 = build_modify_expr (location, temp_variable_decl, NULL_TREE,
+			      NOP_EXPR,
+			      location, argument, NULL_TREE);
       break;
     default:
       gcc_unreachable ();
     }
-  SET_EXPR_LOCATION (s1, location);
   
   /* s2: [object setProperty: __objc_property_temp <+/- increment>] */
   switch (code)
@@ -1870,19 +1957,19 @@ objc_build_incr_expr_for_property_ref (location_t location,
     case PREINCREMENT_EXPR:	 
     case PREDECREMENT_EXPR:
       /* [object setProperty: __objc_property_temp] */
-      s2 = objc_maybe_build_modify_expr (argument, temp_variable_decl);
+      s2 = objc_build_setter_call (argument, temp_variable_decl);
       break;
     case POSTINCREMENT_EXPR:
       /* [object setProperty: __objc_property_temp + increment] */
-      s2 = objc_maybe_build_modify_expr (argument,
-					 build2 (PLUS_EXPR, TREE_TYPE (argument), 
-						 temp_variable_decl, increment));
+      s2 = objc_build_setter_call (argument,
+				   build2 (PLUS_EXPR, TREE_TYPE (argument), 
+					   temp_variable_decl, increment));
       break;
     case POSTDECREMENT_EXPR:
       /* [object setProperty: __objc_property_temp - increment] */
-      s2 = objc_maybe_build_modify_expr (argument,
-					 build2 (MINUS_EXPR, TREE_TYPE (argument), 
-						 temp_variable_decl, increment));
+      s2 = objc_build_setter_call (argument,
+				   build2 (MINUS_EXPR, TREE_TYPE (argument), 
+					   temp_variable_decl, increment));
       break;
     default:
       gcc_unreachable ();
@@ -1896,11 +1983,15 @@ objc_build_incr_expr_for_property_ref (location_t location,
   SET_EXPR_LOCATION (s2, location); 
   
   /* s3: __objc_property_temp */
-  s3 = build1 (NOP_EXPR, TREE_TYPE (argument), temp_variable_decl);
-  SET_EXPR_LOCATION (s3, location); 
+  s3 = convert (TREE_TYPE (argument), temp_variable_decl);
   
   /* Now build the compound statement (s1, s2, s3) */
-  return build_compound_expr (location, build_compound_expr (location, s1, s2), s3);
+  compound_expr = build_compound_expr (location, build_compound_expr (location, s1, s2), s3);
+
+  /* Prevent C++ from warning with -Wall that "right operand of comma
+     operator has no effect".  */
+  TREE_NO_WARNING (compound_expr) = 1;
+  return compound_expr;
 }
 
 tree
@@ -2765,7 +2856,7 @@ check_protocol_recursively (tree proto, tree list)
       tree pp = TREE_VALUE (p);
 
       if (TREE_CODE (pp) == IDENTIFIER_NODE)
-	pp = lookup_protocol (pp);
+	pp = lookup_protocol (pp, /* warn if deprecated */ false);
 
       if (pp == proto)
 	fatal_error ("protocol %qE has circular dependency",
@@ -2775,8 +2866,9 @@ check_protocol_recursively (tree proto, tree list)
     }
 }
 
-/* Look up PROTOCOLS, and return a list of those that are found.
-   If none are found, return NULL.  */
+/* Look up PROTOCOLS, and return a list of those that are found.  If
+   none are found, return NULL.  Note that this function will emit a
+   warning if a protocol is found and is deprecated.  */
 
 static tree
 lookup_and_install_protocols (tree protocols)
@@ -2790,7 +2882,7 @@ lookup_and_install_protocols (tree protocols)
   for (proto = protocols; proto; proto = TREE_CHAIN (proto))
     {
       tree ident = TREE_VALUE (proto);
-      tree p = lookup_protocol (ident);
+      tree p = lookup_protocol (ident, /* warn_if_deprecated */ true);
 
       if (p)
 	return_value = chainon (return_value,
@@ -4131,7 +4223,6 @@ add_class_reference (tree ident)
 
 /* Get a class reference, creating it if necessary.  Also create the
    reference variable.  */
-
 tree
 objc_get_class_reference (tree ident)
 {
@@ -5527,6 +5618,10 @@ build_private_template (tree klass)
 	 can emit stabs for this struct type.  */
       if (flag_debug_only_used_symbols && TYPE_STUB_DECL (record))
 	TREE_USED (TYPE_STUB_DECL (record)) = 1;
+
+      /* Copy the attributes from the class to the type.  */
+      if (TREE_DEPRECATED (klass))
+	TREE_DEPRECATED (record) = 1;
     }
 }
 
@@ -8136,7 +8231,7 @@ tree
 objc_build_protocol_expr (tree protoname)
 {
   tree expr;
-  tree p = lookup_protocol (protoname);
+  tree p = lookup_protocol (protoname, /* warn if deprecated */ true);
 
   if (!p)
     {
@@ -8555,7 +8650,10 @@ objc_add_method (tree klass, tree method, int is_class, bool is_optional)
 {
   tree mth;
 
-  /* @optional methods are added to protocol's OPTIONAL list */
+  /* @optional methods are added to protocol's OPTIONAL list.  Note
+     that this disables checking that the methods are implemented by
+     classes implementing the protocol, since these checks only use
+     the CLASS_CLS_METHODS and CLASS_NST_METHODS.  */
   if (is_optional)
     {
       gcc_assert (TREE_CODE (klass) == PROTOCOL_INTERFACE_TYPE);
@@ -9217,7 +9315,7 @@ check_protocols (tree proto_list, const char *type, tree name)
 
 static tree
 start_class (enum tree_code code, tree class_name, tree super_name,
-	     tree protocol_list)
+	     tree protocol_list, tree attributes)
 {
   tree klass, decl;
 
@@ -9245,8 +9343,12 @@ start_class (enum tree_code code, tree class_name, tree super_name,
       && super_name)
     {
       tree super = objc_is_class_name (super_name);
+      tree super_interface = NULL_TREE;
 
-      if (!super || !lookup_interface (super))
+      if (super)
+	super_interface = lookup_interface (super);
+      
+      if (!super_interface)
 	{
 	  error ("cannot find interface declaration for %qE, superclass of %qE",
 		 super ? super : super_name,
@@ -9254,7 +9356,12 @@ start_class (enum tree_code code, tree class_name, tree super_name,
 	  super_name = NULL_TREE;
 	}
       else
-	super_name = super;
+	{
+	  if (TREE_DEPRECATED (super_interface))
+	    warning (OPT_Wdeprecated_declarations, "class %qE is deprecated", 
+		     super);
+	  super_name = super;
+	}
     }
 
   CLASS_NAME (klass) = class_name;
@@ -9337,6 +9444,22 @@ start_class (enum tree_code code, tree class_name, tree super_name,
       if (protocol_list)
 	CLASS_PROTOCOL_LIST (klass)
 	  = lookup_and_install_protocols (protocol_list);
+
+      /* Determine if 'deprecated', the only attribute we recognize
+	 for classes, was used.  Ignore all other attributes for now,
+	 but store them in the klass.  */
+      if (attributes)
+	{
+	  tree attribute;
+	  for (attribute = attributes; attribute; attribute = TREE_CHAIN (attribute))
+	    {
+	      tree name = TREE_PURPOSE (attribute);
+	      
+	      if (is_attribute_p  ("deprecated", name))
+		TREE_DEPRECATED (klass) = 1;
+	    }
+	  TYPE_ATTRIBUTES (klass) = attributes;
+	}
       break;     
 
     case CATEGORY_INTERFACE_TYPE:
@@ -9353,8 +9476,13 @@ start_class (enum tree_code code, tree class_name, tree super_name,
 	    exit (FATAL_EXIT_CODE);
 	  }
 	else
-	  add_category (class_category_is_assoc_with, klass);
-	
+	  {
+	    if (TREE_DEPRECATED (class_category_is_assoc_with))
+	      warning (OPT_Wdeprecated_declarations, "class %qE is deprecated", 
+		       class_name);
+	    add_category (class_category_is_assoc_with, klass);
+	  }
+
 	if (protocol_list)
 	  CLASS_PROTOCOL_LIST (klass)
 	    = lookup_and_install_protocols (protocol_list);
@@ -10440,14 +10568,28 @@ add_protocol (tree protocol)
   return protocol_chain;
 }
 
+/* Looks up a protocol.  If 'warn_if_deprecated' is true, a warning is
+   emitted if the protocol is deprecated.  */
+
 static tree
-lookup_protocol (tree ident)
+lookup_protocol (tree ident, bool warn_if_deprecated)
 {
   tree chain;
 
   for (chain = protocol_chain; chain; chain = TREE_CHAIN (chain))
     if (ident == PROTOCOL_NAME (chain))
-      return chain;
+      {
+	if (warn_if_deprecated && TREE_DEPRECATED (chain))
+	  {
+	    /* It would be nice to use warn_deprecated_use() here, but
+	       we are using TREE_CHAIN (which is supposed to be the
+	       TYPE_STUB_DECL for a TYPE) for something different.  */
+	    warning (OPT_Wdeprecated_declarations, "protocol %qE is deprecated", 
+		     PROTOCOL_NAME (chain));
+	  }
+
+	return chain;
+      }
 
   return NULL_TREE;
 }
@@ -10456,9 +10598,10 @@ lookup_protocol (tree ident)
    they are already declared or defined, the function has no effect.  */
 
 void
-objc_declare_protocols (tree names)
+objc_declare_protocols (tree names, tree attributes)
 {
   tree list;
+  bool deprecated = false;
 
 #ifdef OBJCPLUS
   if (current_namespace != global_namespace) {
@@ -10466,11 +10609,25 @@ objc_declare_protocols (tree names)
   }
 #endif /* OBJCPLUS */
 
+  /* Determine if 'deprecated', the only attribute we recognize for
+     protocols, was used.  Ignore all other attributes.  */
+  if (attributes)
+    {
+      tree attribute;
+      for (attribute = attributes; attribute; attribute = TREE_CHAIN (attribute))
+	{
+	  tree name = TREE_PURPOSE (attribute);
+	  
+	  if (is_attribute_p  ("deprecated", name))
+	    deprecated = true;
+	}
+    }
+
   for (list = names; list; list = TREE_CHAIN (list))
     {
       tree name = TREE_VALUE (list);
 
-      if (lookup_protocol (name) == NULL_TREE)
+      if (lookup_protocol (name, /* warn if deprecated */ false) == NULL_TREE)
 	{
 	  tree protocol = make_node (PROTOCOL_INTERFACE_TYPE);
 
@@ -10481,14 +10638,22 @@ objc_declare_protocols (tree names)
 	  add_protocol (protocol);
 	  PROTOCOL_DEFINED (protocol) = 0;
 	  PROTOCOL_FORWARD_DECL (protocol) = NULL_TREE;
+	  
+	  if (attributes)
+	    {
+	      TYPE_ATTRIBUTES (protocol) = attributes;
+	      if (deprecated)
+		TREE_DEPRECATED (protocol) = 1;
+	    }
 	}
     }
 }
 
 static tree
-start_protocol (enum tree_code code, tree name, tree list)
+start_protocol (enum tree_code code, tree name, tree list, tree attributes)
 {
   tree protocol;
+  bool deprecated = false;
 
 #ifdef OBJCPLUS
   if (current_namespace != global_namespace) {
@@ -10496,7 +10661,21 @@ start_protocol (enum tree_code code, tree name, tree list)
   }
 #endif /* OBJCPLUS */
 
-  protocol = lookup_protocol (name);
+  /* Determine if 'deprecated', the only attribute we recognize for
+     protocols, was used.  Ignore all other attributes.  */
+  if (attributes)
+    {
+      tree attribute;
+      for (attribute = attributes; attribute; attribute = TREE_CHAIN (attribute))
+	{
+	  tree name = TREE_PURPOSE (attribute);
+	  
+	  if (is_attribute_p  ("deprecated", name))
+	    deprecated = true;
+	}
+    }
+
+  protocol = lookup_protocol (name, /* warn_if_deprecated */ false);
 
   if (!protocol)
     {
@@ -10523,6 +10702,14 @@ start_protocol (enum tree_code code, tree name, tree list)
       warning (0, "duplicate declaration for protocol %qE",
 	       name);
     }
+
+  if (attributes)
+    {
+      TYPE_ATTRIBUTES (protocol) = attributes;
+      if (deprecated)
+	TREE_DEPRECATED (protocol) = 1;
+    }
+
   return protocol;
 }
 

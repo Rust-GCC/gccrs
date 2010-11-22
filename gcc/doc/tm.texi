@@ -1916,8 +1916,8 @@ preserve the entire contents of a register across a call.
 @findex global_regs
 @findex reg_names
 @findex reg_class_contents
-@defmac CONDITIONAL_REGISTER_USAGE
-Zero or more C statements that may conditionally modify five variables
+@deftypefn {Target Hook} void TARGET_CONDITIONAL_REGISTER_USAGE (void)
+This hook may conditionally modify five variables
 @code{fixed_regs}, @code{call_used_regs}, @code{global_regs},
 @code{reg_names}, and @code{reg_class_contents}, to take into account
 any dependence of these register sets on target flags.  The first three
@@ -1931,8 +1931,6 @@ from @code{FIXED_REGISTERS}, @code{CALL_USED_REGISTERS},
 @code{global_regs} has been cleared, and any @option{-ffixed-@var{reg}},
 @option{-fcall-used-@var{reg}} and @option{-fcall-saved-@var{reg}}
 command options have been applied.
-
-You need not define this macro if it has no work to do.
 
 @cindex disabling certain registers
 @cindex controlling register usage
@@ -1948,7 +1946,7 @@ is called with a letter for a class that shouldn't be used.
 of the insn patterns whose constraints permit this class are
 controlled by target switches, then GCC will automatically avoid using
 these registers when the target switches are opposed to them.)
-@end defmac
+@end deftypefn
 
 @defmac INCOMING_REGNO (@var{out})
 Define this macro if the target machine has register windows.  This C
@@ -4190,8 +4188,8 @@ to pad out an argument with extra space.  The value should be of type
 @code{downward} to pad below, or @code{none} to inhibit padding.
 
 The @emph{amount} of padding is always just enough to reach the next
-multiple of @code{FUNCTION_ARG_BOUNDARY}; this macro does not control
-it.
+multiple of @code{TARGET_FUNCTION_ARG_BOUNDARY}; this macro does not
+control it.
 
 This macro has a default definition which is right for most systems.
 For little-endian machines, the default is to pad upward.  For
@@ -4218,11 +4216,11 @@ a three byte aggregate may be passed in the high part of a register if so
 required.
 @end defmac
 
-@defmac FUNCTION_ARG_BOUNDARY (@var{mode}, @var{type})
-If defined, a C expression that gives the alignment boundary, in bits,
-of an argument with the specified mode and type.  If it is not defined,
-@code{PARM_BOUNDARY} is used for all arguments.
-@end defmac
+@deftypefn {Target Hook} {unsigned int} TARGET_FUNCTION_ARG_BOUNDARY (enum machine_mode @var{mode}, const_tree @var{type})
+This hook returns the the alignment boundary, in bits, of an argument
+with the specified mode and type.  The default hook returns
+@code{PARM_BOUNDARY} for all arguments.
+@end deftypefn
 
 @defmac FUNCTION_ARG_REGNO_P (@var{regno})
 A C expression that is nonzero if @var{regno} is the number of a hard
@@ -8431,16 +8429,24 @@ part of a cross compiler always uses @command{nm} for the target machine.
 Define this macro as a C string constant containing the file name to use
 to execute @command{nm}.  The default is to search the path normally for
 @command{nm}.
+@end defmac
+
+@defmac NM_FLAGS
+@command{collect2} calls @command{nm} to scan object files for static
+constructors and destructors and LTO info.  By default, @option{-n} is
+passed.  Define @code{NM_FLAGS} to a C string constant if other options
+are needed to get the same output formut as GNU @command{nm -n}
+produces.
+@end defmac
 
 If your system supports shared libraries and has a program to list the
 dynamic dependencies of a given library or executable, you can define
 these macros to enable support for running initialization and
 termination functions in shared libraries:
-@end defmac
 
 @defmac LDD_SUFFIX
 Define this macro to a C string constant containing the name of the program
-which lists dynamic dependencies, like @command{"ldd"} under SunOS 4.
+which lists dynamic dependencies, like @command{ldd} under SunOS 4.
 @end defmac
 
 @defmac PARSE_LDD_OUTPUT (@var{ptr})
@@ -10658,55 +10664,8 @@ rule to the makefile fragment pointed to by @code{tmake_file} that shows
 how to build this object file.
 @end deftypefun
 
-@findex #pragma
-@findex pragma
-@defmac HANDLE_SYSV_PRAGMA
-Define this macro (to a value of 1) if you want the System V style
-pragmas @samp{#pragma pack(<n>)} and @samp{#pragma weak <name>
-[=<value>]} to be supported by gcc.
-
-The pack pragma specifies the maximum alignment (in bytes) of fields
-within a structure, in much the same way as the @samp{__aligned__} and
-@samp{__packed__} @code{__attribute__}s do.  A pack value of zero resets
-the behavior to the default.
-
-A subtlety for Microsoft Visual C/C++ style bit-field packing
-(e.g.@: -mms-bitfields) for targets that support it:
-When a bit-field is inserted into a packed record, the whole size
-of the underlying type is used by one or more same-size adjacent
-bit-fields (that is, if its long:3, 32 bits is used in the record,
-and any additional adjacent long bit-fields are packed into the same
-chunk of 32 bits.  However, if the size changes, a new field of that
-size is allocated).
-
-If both MS bit-fields and @samp{__attribute__((packed))} are used,
-the latter will take precedence.  If @samp{__attribute__((packed))} is
-used on a single field when MS bit-fields are in use, it will take
-precedence for that field, but the alignment of the rest of the structure
-may affect its placement.
-
-The weak pragma only works if @code{SUPPORTS_WEAK} and
-@code{ASM_WEAKEN_LABEL} are defined.  If enabled it allows the creation
-of specifically named weak labels, optionally with a value.
-@end defmac
-
-@findex #pragma
-@findex pragma
-@defmac HANDLE_PRAGMA_PACK_PUSH_POP
-Define this macro (to a value of 1) if you want to support the Win32
-style pragmas @samp{#pragma pack(push[,@var{n}])} and @samp{#pragma
-pack(pop)}.  The @samp{pack(push,[@var{n}])} pragma specifies the maximum
-alignment (in bytes) of fields within a structure, in much the same way as
-the @samp{__aligned__} and @samp{__packed__} @code{__attribute__}s do.  A
-pack value of zero resets the behavior to the default.  Successive
-invocations of this pragma cause the previous values to be stacked, so
-that invocations of @samp{#pragma pack(pop)} will return to the previous
-value.
-@end defmac
-
 @defmac HANDLE_PRAGMA_PACK_WITH_EXPANSION
-Define this macro, as well as
-@code{HANDLE_SYSV_PRAGMA}, if macros should be expanded in the
+Define this macro if macros should be expanded in the
 arguments of @samp{#pragma pack}.
 @end defmac
 

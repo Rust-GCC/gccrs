@@ -1,3 +1,66 @@
+2010-11-22  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	PR objc/34033
+	* c-lex.c (lex_string): Check that each string in an Objective-C
+	string concat sequence starts with either one or zero '@', and
+	that there are no spurious '@' signs at the end.
+
+2010-11-20  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-pragma.c: Remove conditionals on HANDLE_PRAGMA_PACK,
+	HANDLE_PRAGMA_PACK_PUSH_POP, HANDLE_PRAGMA_WEAK and
+	HANDLE_PRAGMA_VISIBILITY.
+	* c-pragma.h (HANDLE_PRAGMA_WEAK, HANDLE_PRAGMA_PACK,
+	HANDLE_PRAGMA_VISIBILITY): Don't define.
+	(HANDLE_SYSV_PRAGMA, HANDLE_PRAGMA_PACK_PUSH_POP): Don't test.
+
+2010-11-20  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR c++/16189
+	PR c++/36888
+	PR c++/45331
+	* c-common.h (keyword_begins_type_specifier): Declare.
+	(keyword_is_storage_class_specifier): Declare.
+	(keyword_is_type_qualifier): Declare.
+	* c-common.c (keyword_begins_type_specifier): New function.
+	(keyword_is_storage_class_specifier): New function.
+	(keyword_is_type_qualifier): Declare.
+
+2010-11-19  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/46547
+	* c-common.c (in_late_binary_op): Define.
+	(c_common_truthvalue_conversion): Check in_late_binary_op before
+	calling c_save_expr.
+	* c-common.h (in_late_binary_op): Declare.
+
+2010-11-19  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-opts.c (c_common_handle_option): Update calls to
+	set_struct_debug_option.
+
+2010-11-19  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* c-common.h (objc_declare_protocols): Added additional argument.
+	* stub-objc.c (objc_declare_protocol): Same change.
+	
+2010-11-18  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR c/33193
+	* c-common.h (build_real_imag_expr): Declare.
+	* c-semantics.c (build_real_imag_expr): Define.
+
+2010-11-17  Joseph Myers  <joseph@codesourcery.com>
+
+	* c-opts.c (c_common_parse_file): Take no arguments.
+	* c-common.h (c_common_parse_file): Update prototype.
+
+2010-11-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/46401
+	* c-common.c (warning_candidate_p): Don't track non-const calls
+	or STRING_CSTs.
+
 2010-11-15  Ian Lance Taylor  <iant@google.com>
 
 	* c-lex.c (init_c_lex): Set macro debug callbacks if

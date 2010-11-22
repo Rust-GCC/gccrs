@@ -167,9 +167,6 @@ extern GTY(()) int spu_tune;
     1, 1, 1 \
 }
 
-#define CONDITIONAL_REGISTER_USAGE \
-	spu_conditional_register_usage()
-
 
 /* Values in Registers */
 
@@ -511,8 +508,6 @@ targetm.resolve_overloaded_builtin = spu_resolve_overloaded_builtin;	\
 #define FUNCTION_MODE QImode
 
 #define NO_IMPLICIT_EXTERN_C 1
-
-#define HANDLE_PRAGMA_PACK_PUSH_POP 1
 
 /* Canonicalize a comparison from one we don't have to one we do have.  */
 #define CANONICALIZE_COMPARISON(CODE,OP0,OP1) \

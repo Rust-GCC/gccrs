@@ -1139,6 +1139,9 @@ init_regs_for_mode (enum machine_mode mode)
             /* Can't use regs which aren't saved by
                the prologue.  */
             || !TEST_HARD_REG_BIT (sel_hrd.regs_ever_used, cur_reg + i)
+	    /* Can't use regs with non-null REG_BASE_VALUE, because adjusting
+	       it affects aliasing globally and invalidates all AV sets.  */
+	    || get_reg_base_value (cur_reg + i)
 #ifdef LEAF_REGISTERS
             /* We can't use a non-leaf register if we're in a
                leaf function.  */
@@ -3735,7 +3738,7 @@ fill_vec_av_set (av_set_t av, blist_t bnds, fence_t fence,
     {
       expr_t expr = VEC_index (expr_t, vec_av_set, n);
       insn_t insn = EXPR_INSN_RTX (expr);
-      char target_available;
+      signed char target_available;
       bool is_orig_reg_p = true;
       int need_cycles, new_prio;
 

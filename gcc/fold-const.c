@@ -2097,7 +2097,16 @@ pedantic_non_lvalue_loc (location_t loc, tree x)
 {
   if (pedantic_lvalues)
     return non_lvalue_loc (loc, x);
-  protected_set_expr_location (x, loc);
+
+  if (CAN_HAVE_LOCATION_P (x)
+      && EXPR_LOCATION (x) != loc
+      && !(TREE_CODE (x) == SAVE_EXPR
+	   || TREE_CODE (x) == TARGET_EXPR
+	   || TREE_CODE (x) == BIND_EXPR))
+    {
+      x = copy_node (x);
+      SET_EXPR_LOCATION (x, loc);
+    }
   return x;
 }
 
@@ -2635,6 +2644,14 @@ operand_equal_p (const_tree arg0, const_tree arg1, unsigned int flags)
 	case TRUTH_ORIF_EXPR:
 	  return OP_SAME (0) && OP_SAME (1);
 
+	case FMA_EXPR:
+	case WIDEN_MULT_PLUS_EXPR:
+	case WIDEN_MULT_MINUS_EXPR:
+	  if (!OP_SAME (2))
+	    return 0;
+	  /* The multiplcation operands are commutative.  */
+	  /* FALLTHRU */
+
 	case TRUTH_AND_EXPR:
 	case TRUTH_OR_EXPR:
 	case TRUTH_XOR_EXPR:
@@ -2648,6 +2665,8 @@ operand_equal_p (const_tree arg0, const_tree arg1, unsigned int flags)
 				      TREE_OPERAND (arg1, 0), flags));
 
 	case COND_EXPR:
+	case VEC_COND_EXPR:
+	case DOT_PROD_EXPR:
 	  return OP_SAME (0) && OP_SAME (1) && OP_SAME (2);
 
 	default:

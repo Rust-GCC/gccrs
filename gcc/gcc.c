@@ -47,6 +47,7 @@ compilation is specified by a string called a "spec".  */
 #include "diagnostic.h"
 #include "flags.h"
 #include "opts.h"
+#include "vec.h"
 
 #ifdef HAVE_MMAP_FILE
 # include <sys/mman.h>
@@ -983,23 +984,24 @@ static const struct compiler default_compilers[] =
 
 static const int n_default_compilers = ARRAY_SIZE (default_compilers) - 1;
 
+typedef char *char_p; /* For DEF_VEC_P.  */
+DEF_VEC_P(char_p);
+DEF_VEC_ALLOC_P(char_p,heap);
+
 /* A vector of options to give to the linker.
    These options are accumulated by %x,
    and substituted into the linker command with %X.  */
-static int n_linker_options;
-static char **linker_options;
+static VEC(char_p,heap) *linker_options;
 
 /* A vector of options to give to the assembler.
    These options are accumulated by -Wa,
    and substituted into the assembler command with %Y.  */
-static int n_assembler_options;
-static char **assembler_options;
+static VEC(char_p,heap) *assembler_options;
 
 /* A vector of options to give to the preprocessor.
    These options are accumulated by -Wp,
    and substituted into the preprocessor command with %Z.  */
-static int n_preprocessor_options;
-static char **preprocessor_options;
+static VEC(char_p,heap) *preprocessor_options;
 
 static char *
 skip_whitespace (char *p)
@@ -1504,19 +1506,15 @@ set_spec (const char *name, const char *spec)
 
 /* Accumulate a command (program name and args), and run it.  */
 
+typedef const char *const_char_p; /* For DEF_VEC_P.  */
+DEF_VEC_P(const_char_p);
+DEF_VEC_ALLOC_P(const_char_p,heap);
+
 /* Vector of pointers to arguments in the current line of specifications.  */
 
-static const char **argbuf;
+static VEC(const_char_p,heap) *argbuf;
 
-/* Number of elements allocated in argbuf.  */
-
-static int argbuf_length;
-
-/* Number of elements in argbuf currently in use (containing args).  */
-
-static int argbuf_index;
-
-/* Position in the argbuf array containing the name of the output file
+/* Position in the argbuf vector containing the name of the output file
    (the value associated with the "-o" flag).  */
 
 static int have_o_argbuf_index = 0;
@@ -1553,8 +1551,7 @@ static int signal_count;
 static void
 alloc_args (void)
 {
-  argbuf_length = 10;
-  argbuf = XNEWVEC (const char *, argbuf_length);
+  argbuf = VEC_alloc (const_char_p, heap, 10);
 }
 
 /* Clear out the vector of arguments (after a command is executed).  */
@@ -1562,7 +1559,7 @@ alloc_args (void)
 static void
 clear_args (void)
 {
-  argbuf_index = 0;
+  VEC_truncate (const_char_p, argbuf, 0);
 }
 
 /* Add one argument to the vector at the end.
@@ -1575,14 +1572,10 @@ clear_args (void)
 static void
 store_arg (const char *arg, int delete_always, int delete_failure)
 {
-  if (argbuf_index + 1 == argbuf_length)
-    argbuf = XRESIZEVEC (const char *, argbuf, (argbuf_length *= 2));
-
-  argbuf[argbuf_index++] = arg;
-  argbuf[argbuf_index] = 0;
+  VEC_safe_push (const_char_p, heap, argbuf, arg);
 
   if (strcmp (arg, "-o") == 0)
-    have_o_argbuf_index = argbuf_index;
+    have_o_argbuf_index = VEC_length (const_char_p, argbuf);
   if (delete_always || delete_failure)
     {
       const char *p;
@@ -2460,6 +2453,7 @@ execute (void)
     const char *prog;		/* program name.  */
     const char **argv;		/* vector of args.  */
   };
+  const char *arg;
 
   struct command *commands;	/* each command buffer with above info.  */
 
@@ -2467,14 +2461,16 @@ execute (void)
 
   if (wrapper_string)
     {
-      string = find_a_file (&exec_prefixes, argbuf[0], X_OK, false);
-      argbuf[0] = (string) ? string : argbuf[0];
+      string = find_a_file (&exec_prefixes,
+			    VEC_index (const_char_p, argbuf, 0), X_OK, false);
+      if (string)
+	VEC_replace (const_char_p, argbuf, 0, string);
       insert_wrapper (wrapper_string);
     }
 
   /* Count # of piped commands.  */
-  for (n_commands = 1, i = 0; i < argbuf_index; i++)
-    if (strcmp (argbuf[i], "|") == 0)
+  for (n_commands = 1, i = 0; VEC_iterate (const_char_p, argbuf, i, arg); i++)
+    if (strcmp (arg, "|") == 0)
       n_commands++;
 
   /* Get storage for each command.  */
@@ -2484,8 +2480,10 @@ execute (void)
      and record info about each one.
      Also search for the programs that are to be run.  */
 
-  commands[0].prog = argbuf[0]; /* first command.  */
-  commands[0].argv = &argbuf[0];
+  VEC_safe_push (const_char_p, heap, argbuf, 0);
+
+  commands[0].prog = VEC_index (const_char_p, argbuf, 0); /* first command.  */
+  commands[0].argv = VEC_address (const_char_p, argbuf);
 
   if (!wrapper_string)
     {
@@ -2493,23 +2491,23 @@ execute (void)
       commands[0].argv[0] = (string) ? string : commands[0].argv[0];
     }
 
-  for (n_commands = 1, i = 0; i < argbuf_index; i++)
-    if (strcmp (argbuf[i], "|") == 0)
+  for (n_commands = 1, i = 0; VEC_iterate (const_char_p, argbuf, i, arg); i++)
+    if (arg && strcmp (arg, "|") == 0)
       {				/* each command.  */
 #if defined (__MSDOS__) || defined (OS2) || defined (VMS)
 	fatal_error ("-pipe not supported");
 #endif
-	argbuf[i] = 0;	/* termination of command args.  */
-	commands[n_commands].prog = argbuf[i + 1];
-	commands[n_commands].argv = &argbuf[i + 1];
+	VEC_replace (const_char_p, argbuf, i, 0); /* Termination of
+						     command args.  */
+	commands[n_commands].prog = VEC_index (const_char_p, argbuf, i + 1);
+	commands[n_commands].argv
+	  = &(VEC_address (const_char_p, argbuf))[i + 1];
 	string = find_a_file (&exec_prefixes, commands[n_commands].prog,
 			      X_OK, false);
 	if (string)
 	  commands[n_commands].argv[0] = string;
 	n_commands++;
       }
-
-  argbuf[argbuf_index] = 0;
 
   /* If -v, print what we are about to do, and maybe query.  */
 
@@ -2979,43 +2977,20 @@ display_help (void)
 static void
 add_preprocessor_option (const char *option, int len)
 {
-  n_preprocessor_options++;
-
-  if (! preprocessor_options)
-    preprocessor_options = XNEWVEC (char *, n_preprocessor_options);
-  else
-    preprocessor_options = XRESIZEVEC (char *, preprocessor_options,
-				       n_preprocessor_options);
-
-  preprocessor_options [n_preprocessor_options - 1] =
-    save_string (option, len);
+  VEC_safe_push (char_p, heap, preprocessor_options,
+		 save_string (option, len));
 }
 
 static void
 add_assembler_option (const char *option, int len)
 {
-  n_assembler_options++;
-
-  if (! assembler_options)
-    assembler_options = XNEWVEC (char *, n_assembler_options);
-  else
-    assembler_options = XRESIZEVEC (char *, assembler_options,
-				    n_assembler_options);
-
-  assembler_options [n_assembler_options - 1] = save_string (option, len);
+  VEC_safe_push (char_p, heap, assembler_options, save_string (option, len));
 }
 
 static void
 add_linker_option (const char *option, int len)
 {
-  n_linker_options++;
-
-  if (! linker_options)
-    linker_options = XNEWVEC (char *, n_linker_options);
-  else
-    linker_options = XRESIZEVEC (char *, linker_options, n_linker_options);
-
-  linker_options [n_linker_options - 1] = save_string (option, len);
+  VEC_safe_push (char_p, heap, linker_options, save_string (option, len));
 }
 
 /* Allocate space for an input file in infiles.  */
@@ -4105,6 +4080,7 @@ insert_wrapper (const char *wrapper)
   int i;
   char *buf = xstrdup (wrapper);
   char *p = buf;
+  unsigned int old_length = VEC_length (const_char_p, argbuf);
 
   do
     {
@@ -4114,15 +4090,10 @@ insert_wrapper (const char *wrapper)
     }
   while ((p = strchr (p, ',')) != NULL);
 
-  if (argbuf_index + n >= argbuf_length)
-    {
-      argbuf_length = argbuf_length * 2;
-      while (argbuf_length < argbuf_index + n)
-	argbuf_length *= 2;
-      argbuf = XRESIZEVEC (const char *, argbuf, argbuf_length);
-    }
-  for (i = argbuf_index - 1; i >= 0; i--)
-    argbuf[i + n] = argbuf[i];
+  VEC_safe_grow (const_char_p, heap, argbuf, old_length + n);
+  memmove (VEC_address (const_char_p, argbuf) + n,
+	   VEC_address (const_char_p, argbuf),
+	   old_length * sizeof (const_char_p));
 
   i = 0;
   p = buf;
@@ -4133,11 +4104,11 @@ insert_wrapper (const char *wrapper)
           *p = 0;
           p++;
         }
-      argbuf[i++] = p;
+      VEC_replace (const_char_p, argbuf, i, p);
+      i++;
     }
   while ((p = strchr (p, ',')) != NULL);
   gcc_assert (i == n);
-  argbuf_index += n;
 }
 
 /* Process the spec SPEC and run the commands specified therein.
@@ -4154,12 +4125,13 @@ do_spec (const char *spec)
      If -pipe, this forces out the last command if it ended in `|'.  */
   if (value == 0)
     {
-      if (argbuf_index > 0 && !strcmp (argbuf[argbuf_index - 1], "|"))
-	argbuf_index--;
+      if (VEC_length (const_char_p, argbuf) > 0
+	  && !strcmp (VEC_last (const_char_p, argbuf), "|"))
+	VEC_pop (const_char_p, argbuf);
 
       set_collect_gcc_options ();
 
-      if (argbuf_index > 0)
+      if (VEC_length (const_char_p, argbuf) > 0)
 	value = execute ();
     }
 
@@ -4255,7 +4227,7 @@ do_self_spec (const char *spec)
     if ((switches[i].live_cond & SWITCH_IGNORE))
       switches[i].live_cond |= SWITCH_IGNORE_PERMANENTLY;
 
-  if (argbuf_index > 0)
+  if (VEC_length (const_char_p, argbuf) > 0)
     {
       const char **argbuf_copy;
       struct cl_decoded_option *decoded_options;
@@ -4265,11 +4237,14 @@ do_self_spec (const char *spec)
 
       /* Create a copy of argbuf with a dummy argv[0] entry for
 	 decode_cmdline_options_to_array.  */
-      argbuf_copy = XNEWVEC (const char *, argbuf_index + 1);
+      argbuf_copy = XNEWVEC (const char *,
+			     VEC_length (const_char_p, argbuf) + 1);
       argbuf_copy[0] = "";
-      memcpy (argbuf_copy + 1, argbuf, argbuf_index * sizeof (const char *));
+      memcpy (argbuf_copy + 1, VEC_address (const_char_p, argbuf),
+	      VEC_length (const_char_p, argbuf) * sizeof (const char *));
 
-      decode_cmdline_options_to_array (argbuf_index + 1, argbuf_copy,
+      decode_cmdline_options_to_array (VEC_length (const_char_p, argbuf) + 1,
+				       argbuf_copy,
 				       CL_DRIVER, &decoded_options,
 				       &decoded_options_count);
 
@@ -4408,6 +4383,22 @@ compile_input_file_p (struct infile *infile)
   return false;
 }
 
+/* Process each member of VEC as a spec.  */
+
+static void
+do_specs_vec (VEC(char_p,heap) *vec)
+{
+  unsigned ix;
+  char *opt;
+
+  FOR_EACH_VEC_ELT (char_p, vec, ix, opt)
+    {
+      do_spec_1 (opt, 1, NULL);
+      /* Make each accumulated option a separate argument.  */
+      do_spec_1 (" ", 0, NULL);
+    }
+}
+
 /* Process the sub-spec SPEC as a portion of a larger spec.
    This is like processing a whole spec except that we do
    not initialize at the beginning and we do not supply a
@@ -4436,7 +4427,8 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
       case '\n':
 	end_going_arg ();
 
-	if (argbuf_index > 0 && !strcmp (argbuf[argbuf_index - 1], "|"))
+	if (VEC_length (const_char_p, argbuf) > 0
+	    && !strcmp (VEC_last (const_char_p, argbuf), "|"))
 	  {
 	    /* A `|' before the newline means use a pipe here,
 	       but only if -pipe was specified.
@@ -4447,12 +4439,12 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 		break;
 	      }
 	    else
-	      argbuf_index--;
+	      VEC_pop (const_char_p, argbuf);
 	  }
 
 	set_collect_gcc_options ();
 
-	if (argbuf_index > 0)
+	if (VEC_length (const_char_p, argbuf) > 0)
 	  {
 	    value = execute ();
 	    if (value)
@@ -4948,7 +4940,7 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 
 	  case 'W':
 	    {
-	      int cur_index = argbuf_index;
+	      unsigned int cur_index = VEC_length (const_char_p, argbuf);
 	      /* Handle the {...} following the %W.  */
 	      if (*p != '{')
 		fatal_error ("spec %qs has invalid %<%%W%c%>", spec, *p);
@@ -4958,8 +4950,8 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 	      end_going_arg ();
 	      /* If any args were output, mark the last one for deletion
 		 on failure.  */
-	      if (argbuf_index != cur_index)
-		record_temp_file (argbuf[argbuf_index - 1], 0, 1);
+	      if (VEC_length (const_char_p, argbuf) != cur_index)
+		record_temp_file (VEC_last (const_char_p, argbuf), 0, 1);
 	      break;
 	    }
 
@@ -4968,6 +4960,8 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 	    {
 	      const char *p1 = p;
 	      char *string;
+	      char *opt;
+	      unsigned ix;
 
 	      /* Skip past the option value and make a copy.  */
 	      if (*p != '{')
@@ -4977,8 +4971,8 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 	      string = save_string (p1 + 1, p - p1 - 2);
 
 	      /* See if we already recorded this option.  */
-	      for (i = 0; i < n_linker_options; i++)
-		if (! strcmp (string, linker_options[i]))
+	      FOR_EACH_VEC_ELT (char_p, linker_options, ix, opt)
+		if (! strcmp (string, opt))
 		  {
 		    free (string);
 		    return 0;
@@ -4991,32 +4985,17 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 
 	  /* Dump out the options accumulated previously using %x.  */
 	  case 'X':
-	    for (i = 0; i < n_linker_options; i++)
-	      {
-		do_spec_1 (linker_options[i], 1, NULL);
-		/* Make each accumulated option a separate argument.  */
-		do_spec_1 (" ", 0, NULL);
-	      }
+	    do_specs_vec (linker_options);
 	    break;
 
 	  /* Dump out the options accumulated previously using -Wa,.  */
 	  case 'Y':
-	    for (i = 0; i < n_assembler_options; i++)
-	      {
-		do_spec_1 (assembler_options[i], 1, NULL);
-		/* Make each accumulated option a separate argument.  */
-		do_spec_1 (" ", 0, NULL);
-	      }
+	    do_specs_vec (assembler_options);
 	    break;
 
 	  /* Dump out the options accumulated previously using -Wp,.  */
 	  case 'Z':
-	    for (i = 0; i < n_preprocessor_options; i++)
-	      {
-		do_spec_1 (preprocessor_options[i], 1, NULL);
-		/* Make each accumulated option a separate argument.  */
-		do_spec_1 (" ", 0, NULL);
-	      }
+	    do_specs_vec (preprocessor_options);
 	    break;
 
 	    /* Here are digits and numbers that just process
@@ -5303,9 +5282,7 @@ eval_spec_function (const char *func, const char *args)
   const char *funcval;
 
   /* Saved spec processing context.  */
-  int save_argbuf_index;
-  int save_argbuf_length;
-  const char **save_argbuf;
+  VEC(const_char_p,heap) *save_argbuf;
 
   int save_arg_going;
   int save_delete_this_arg;
@@ -5321,8 +5298,6 @@ eval_spec_function (const char *func, const char *args)
     fatal_error ("unknown spec function %qs", func);
 
   /* Push the spec processing context.  */
-  save_argbuf_index = argbuf_index;
-  save_argbuf_length = argbuf_length;
   save_argbuf = argbuf;
 
   save_arg_going = arg_going;
@@ -5343,12 +5318,11 @@ eval_spec_function (const char *func, const char *args)
   /* argbuf_index is an index for the next argument to be inserted, and
      so contains the count of the args already inserted.  */
 
-  funcval = (*sf->func) (argbuf_index, argbuf);
+  funcval = (*sf->func) (VEC_length (const_char_p, argbuf),
+			 VEC_address (const_char_p, argbuf));
 
   /* Pop the spec processing context.  */
-  argbuf_index = save_argbuf_index;
-  argbuf_length = save_argbuf_length;
-  free (argbuf);
+  VEC_free (const_char_p, heap, argbuf);
   argbuf = save_argbuf;
 
   arg_going = save_arg_going;
@@ -6321,10 +6295,10 @@ main (int argc, char **argv)
   if (*sysroot_suffix_spec != 0
       && do_spec_2 (sysroot_suffix_spec) == 0)
     {
-      if (argbuf_index > 1)
+      if (VEC_length (const_char_p, argbuf) > 1)
         error ("spec failure: more than one arg to SYSROOT_SUFFIX_SPEC");
-      else if (argbuf_index == 1)
-        target_sysroot_suffix = xstrdup (argbuf[argbuf_index -1]);
+      else if (VEC_length (const_char_p, argbuf) == 1)
+        target_sysroot_suffix = xstrdup (VEC_last (const_char_p, argbuf));
     }
 
 #ifdef HAVE_LD_SYSROOT
@@ -6344,10 +6318,10 @@ main (int argc, char **argv)
   if (*sysroot_hdrs_suffix_spec != 0
       && do_spec_2 (sysroot_hdrs_suffix_spec) == 0)
     {
-      if (argbuf_index > 1)
+      if (VEC_length (const_char_p, argbuf) > 1)
         error ("spec failure: more than one arg to SYSROOT_HEADERS_SUFFIX_SPEC");
-      else if (argbuf_index == 1)
-        target_sysroot_hdrs_suffix = xstrdup (argbuf[argbuf_index -1]);
+      else if (VEC_length (const_char_p, argbuf) == 1)
+        target_sysroot_hdrs_suffix = xstrdup (VEC_last (const_char_p, argbuf));
     }
 
   /* Look for startfiles in the standard places.  */
@@ -6355,9 +6329,10 @@ main (int argc, char **argv)
       && do_spec_2 (startfile_prefix_spec) == 0
       && do_spec_1 (" ", 0, NULL) == 0)
     {
+      const char *arg;
       int ndx;
-      for (ndx = 0; ndx < argbuf_index; ndx++)
-	add_sysrooted_prefix (&startfile_prefixes, argbuf[ndx], "BINUTILS",
+      FOR_EACH_VEC_ELT (const_char_p, argbuf, ndx, arg)
+	add_sysrooted_prefix (&startfile_prefixes, arg, "BINUTILS",
 			      PREFIX_PRIORITY_LAST, 0, 1);
     }
   /* We should eventually get rid of all these and stick to
@@ -8088,19 +8063,20 @@ compare_debug_dump_opt_spec_function (int arg,
   do_spec_2 ("%{fdump-final-insns=*:%*}");
   do_spec_1 (" ", 0, NULL);
 
-  if (argbuf_index > 0 && strcmp (argv[argbuf_index - 1], "."))
+  if (VEC_length (const_char_p, argbuf) > 0
+      && strcmp (argv[VEC_length (const_char_p, argbuf) - 1], "."))
     {
       if (!compare_debug)
 	return NULL;
 
-      name = xstrdup (argv[argbuf_index - 1]);
+      name = xstrdup (argv[VEC_length (const_char_p, argbuf) - 1]);
       ret = NULL;
     }
   else
     {
       const char *ext = NULL;
 
-      if (argbuf_index > 0)
+      if (VEC_length (const_char_p, argbuf) > 0)
 	{
 	  do_spec_2 ("%{o*:%*}%{!o:%{!S:%b%O}%{S:%b.s}}");
 	  ext = ".gkd";
@@ -8112,9 +8088,9 @@ compare_debug_dump_opt_spec_function (int arg,
 
       do_spec_1 (" ", 0, NULL);
 
-      gcc_assert (argbuf_index > 0);
+      gcc_assert (VEC_length (const_char_p, argbuf) > 0);
 
-      name = concat (argbuf[argbuf_index - 1], ext, NULL);
+      name = concat (VEC_last (const_char_p, argbuf), ext, NULL);
 
       ret = concat ("-fdump-final-insns=", name, NULL);
     }
@@ -8158,9 +8134,9 @@ compare_debug_self_opt_spec_function (int arg,
   do_spec_2 ("%{c|S:%{o*:%*}}");
   do_spec_1 (" ", 0, NULL);
 
-  if (argbuf_index > 0)
+  if (VEC_length (const_char_p, argbuf) > 0)
     debug_auxbase_opt = concat ("-auxbase-strip ",
-				argbuf[argbuf_index - 1],
+				VEC_last (const_char_p, argbuf),
 				NULL);
   else
     debug_auxbase_opt = NULL;

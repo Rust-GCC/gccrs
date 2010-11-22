@@ -2122,19 +2122,21 @@ struct case_bit_test
 static
 bool lshift_cheap_p (void)
 {
-  static bool init = false;
-  static bool cheap = true;
+  static bool init[2] = {false, false};
+  static bool cheap[2] = {true, true};
 
-  if (!init)
+  bool speed_p = optimize_insn_for_speed_p ();
+
+  if (!init[speed_p])
     {
       rtx reg = gen_rtx_REG (word_mode, 10000);
       int cost = rtx_cost (gen_rtx_ASHIFT (word_mode, const1_rtx, reg), SET,
-      			   optimize_insn_for_speed_p ());
-      cheap = cost < COSTS_N_INSNS (3);
-      init = true;
+      			   speed_p);
+      cheap[speed_p] = cost < COSTS_N_INSNS (3);
+      init[speed_p] = true;
     }
 
-  return cheap;
+  return cheap[speed_p];
 }
 
 /* Comparison function for qsort to order bit tests by decreasing
@@ -2249,6 +2251,25 @@ emit_case_bit_tests (tree index_type, tree index_expr, tree minval,
 #ifndef HAVE_tablejump
 #define HAVE_tablejump 0
 #endif
+
+/* Return true if a switch should be expanded as a bit test.
+   INDEX_EXPR is the index expression, RANGE is the difference between
+   highest and lowest case, UNIQ is number of unique case node targets
+   not counting the default case and COUNT is the number of comparisons
+   needed, not counting the default case.  */
+bool
+expand_switch_using_bit_tests_p (tree index_expr, tree range,
+				 unsigned int uniq, unsigned int count)
+{
+  return (CASE_USE_BIT_TESTS
+	  && ! TREE_CONSTANT (index_expr)
+	  && compare_tree_int (range, GET_MODE_BITSIZE (word_mode)) < 0
+	  && compare_tree_int (range, 0) > 0
+	  && lshift_cheap_p ()
+	  && ((uniq == 1 && count >= 3)
+	      || (uniq == 2 && count >= 5)
+	      || (uniq == 3 && count >= 6)));
+}
 
 /* Terminate a case (Pascal/Ada) or switch (C) statement
    in which ORIG_INDEX is the expression to be tested.
@@ -2384,14 +2405,7 @@ expand_case (gimple stmt)
       /* Try implementing this switch statement by a short sequence of
 	 bit-wise comparisons.  However, we let the binary-tree case
 	 below handle constant index expressions.  */
-      if (CASE_USE_BIT_TESTS
-	  && ! TREE_CONSTANT (index_expr)
-	  && compare_tree_int (range, GET_MODE_BITSIZE (word_mode)) < 0
-	  && compare_tree_int (range, 0) > 0
-	  && lshift_cheap_p ()
-	  && ((uniq == 1 && count >= 3)
-	      || (uniq == 2 && count >= 5)
-	      || (uniq == 3 && count >= 6)))
+      if (expand_switch_using_bit_tests_p (index_expr, range, uniq, count))
 	{
 	  /* Optimize the case where all the case values fit in a
 	     word without having to subtract MINVAL.  In this case,

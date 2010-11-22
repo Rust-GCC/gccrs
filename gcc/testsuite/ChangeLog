@@ -1,8 +1,354 @@
+2010-11-22  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	PR objc/34033
+	* objc.dg/strings-1.m: New.
+	* objc.dg/strings-2.m: New.
+	* obj-c++.dg/strings-1.mm: New.
+	* obj-c++.dg/strings-2.mm: New.	
+
+2010-11-22  Ian Bolton  <ian.bolton@arm.com>
+
+	* testsuite/c-c++-common/pr44832.c: Use -fno-short-enums option for
+	"target short_enums".
+	* testsuite/gcc.c-torture/compile/pr39845.c: Likewise.
+
+2010-11-22  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc.dg/pr28796-2.c: SKIP on SPARC/Solaris 8.
+
+	PR rtl-optimization/46603
+	* gcc.dg/vect/slp-multitypes-2.c: XFAIL execution on SPARC 32-bit.
+
+	PR testsuite/46230
+	* gcc.dg/vect/vect-peel-3.c (main): Prevent initialization loop from
+	being vectorized.  Adjust dg-final pattern.
+	* gcc.dg/vect/pr46009.c: Add vect_int_mult target selector.
+
+	* gcc.dg/vect: Do not include <stdio.h> in testcases.
+	* gcc.dg/vect/costmodel/ppc: Likewise.
+
+2010-11-22  Alexander Monakov  <amonakov@ispras.ru>
+
+	PR rtl-optimization/45652
+	* gcc.dg/pr45652.c: New.
+
+2010-11-21  Richard Henderson  <rth@redhat.com>
+
+	PR rtl-optimization/46571
+	* gcc.dg/pr46571.c: New.
+
+2010-11-21  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* g++.dg/lto/20090303_0.C: Do not pass -fPIC on the SPARC.
+
+2010-11-21  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/46533
+	* gcc.dg/inline-2.c: Do not scan for "jsr" on alpha*-*-*  targets.
+
+2010-11-20  Joseph Myers  <joseph@codesourcery.com>
+
+	* g++.dg/cpp/_Pragma1.C: Test for all non-Solaris targets.
+	* gcc.dg/cpp/_Pragma6.c: Test for all non-Solaris targets.
+	* gcc.dg/pack-test-1.c: Test for all non-default_packed targets.
+	* gcc.dg/pack-test-2.c: Test for all targets.
+	* gcc.dg/pragma-align.c: Test for all targets.
+	* gcc.dg/pragma-pack-4.c: Do not skip for AVR.
+	* gcc.dg/ucnid-10.c: Test for all targets.
+
+2010-11-20  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc.target/sparc/sparc-align-1.c: New test.
+
+2010-11-20  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR c++/16189
+	PR c++/36888
+	PR c++/45331
+	* g++.dg/parse/semicolon3.C: New test.
+	* g++.dg/debug/pr22514.C: Adjust.
+	* g++.dg/init/error1.C: Adjust.
+	* g++.dg/other/bitfield3.C: Adjust.
+	* g++.dg/other/semicolon.C: Adjust.
+	* g++.dg/parse/error14.C: Adjust.
+	* g++.dg/parse/error5.C: Adjust.
+	* g++.dg/parse/parameter-declaration-1.C: Adjust.
+	* g++.dg/template/pr23510.C: Adjust.
+	* g++.dg/template/pr39425.C: Adjust.
+	* g++.old-deja/g++.robertl/eb125.C: Adjust.
+
+2010-11-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR debug/46561
+	* gcc.dg/autopar/pr46561.c: New test.
+
+	PR c++/46538
+	* g++.dg/other/error34.C: New test.
+
+	PR c++/46526
+	* g++.dg/cpp0x/constexpr-base3.C: New test.
+
+	PR tree-optimization/45830
+	* gcc.target/i386/pr45830.c: New test.
+	* gcc.c-torture/execute/pr45830.c: New test.
+
+2010-11-19  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc.dg/attributes/class-attribute-1.m: Rewritten.
+	* objc.dg/attributes/class-attribute-2.m: Same change.
+	* obj-c++.dg/attributes/class-attribute-1.mm: Same change.
+	* obj-c++.dg/attributes/class-attribute-2.mm: Same change.
+	* objc.dg/fobjc-std-1.m: Updated.
+	* obj-c++.dg/fobjc-std-1.mm: Updated.
+
+2010-11-19  Michael Matz  <matz@suse.de>
+
+	PR tree-optimization/46077
+	* gcc.dg/vect/O3-pr46077.c: New testcase.
+
+2010-11-19  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/46547
+	* gcc.c-torture/compile/pr46547-1.c: New test.
+
+2010-11-19  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* lib/gcc-defs.exp (gcc-set-multilib-library-path): Use eval to
+	exec $compiler.
+	* lib/gfortran.exp (gfortran_link_flags): Remove braces around
+	$GFORTRAN_UNDER_TEST.
+	(gfortran_init): Use -B to specify specpath, add trailing /.
+
+2010-11-19  Michael Meissner  <meissner@linux.vnet.ibm.com>
+
+	* gcc.target/powerpc/ppc-target-1.c: New file to test target
+	attributes on PowerPC.
+	* gcc.target/powerpc/ppc-target-2.c: Ditto.
+	* gcc.target/powerpc/ppc-target-3.c: Ditto.
+
+2010-11-19  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc.dg/attributes/proto-attribute-1.m: Updated.
+	* objc.dg/attributes/proto-attribute-2.m: New.
+	* objc.dg/attributes/proto-attribute-3.m: New.
+	* obj-c++.dg/attributes/proto-attribute-1.mm: Updated.
+	* obj-c++.dg/attributes/proto-attribute-2.mm: New.
+	* obj-c++.dg/attributes/proto-attribute-3.mm: New.
+
+2010-11-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc.dg/lto/20090210_1.c: Do not pass -fPIC on the SPARC.
+
+2010-11-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc.dg/tree-ssa/20040204-1.c: Do not XFAIL on the SPARC.
+
+2010-11-18  Steve Ellcey  <sje@cup.hp.com>
+
+	* gcc.dg/vect/slp-reduc-3.c: Make check dependent on vect_unpack.
+	* gcc.dg/vect/slp-reduc-6.c: Ditto, plus add alignment.
+
+2010-11-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/46534
+	* gcc.c-torture/compile/pr46534.c: New test.
+
+2010-11-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/atomic4.ad[sb]: New test.
+	* gnat.dg/volatile4.adb: Likewise.
+
+2010-11-18  Richard Henderson  <rth@redhat.com>
+
+	* gcc.target/i386/pr46470.c: Skip for 32-bit PIC.
+
+2010-11-18  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR c/33193
+	* c-c++-common/pr33193.c: New test.
+
+2010-11-18  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/46172
+	* gcc.dg/torture/pr46172.c: New testcase.
+
+2010-11-18  Jeff Law  <law@redhat.com>
+
+	PR middle-end-optimization/46297
+	* gfortran.dg/pr46297.f: New test.
+
+2010-11-17  Steve Ellcey  <sje@cup.hp.com>
+
+	PR middle-end/31490
+	* gcc.dg/pr31490.c: New test.
+
+2010-11-17  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.dg/nop.h: Move from ...
+	* gcc.dg/guality/nop.h: ... here.
+	* gcc.dg/lto/20091216-1_0.c: Include nop.h and use NOP macro.
+	* gcc.dg/guality/asm-1.c: Update nop.h include.
+	* gcc.dg/guality/pr43329-1.c: Ditto.
+
+2010-11-17  Paolo Bonzini  <bonzini@gnu.org>
+
+	* gcc.dg/two-types-1.c: New test.
+	* gcc.dg/two-types-2.c: New test.
+	* gcc.dg/two-types-3.c: New test.
+	* gcc.dg/two-types-4.c: New test.
+	* gcc.dg/two-types-5.c: New test.
+	* gcc.dg/two-types-6.c: New test.
+	* gcc.dg/two-types-7.c: New test.
+	* gcc.dg/two-types-8.c: New test.
+	* gcc.dg/two-types-9.c: New test.
+	* gcc.dg/two-types-10.c: New test.
+	* objc.dg/two-types-1.m: New test.
+
+2010-11-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/46440
+	* gcc.dg/pr46440.c: New test.
+
+	PR testsuite/45429
+	* gcc.dg/vect/no-section-anchors-vect-64.c: New test.
+
+2010-11-17  Ira Rosen  <irar@il.ibm.com>
+
+	PR tree-optimization/46312
+	* gcc.dg/vect/vect-scal-opt2.c: Rename to...
+	* gcc.dg/vect/vec-scal-opt2.c: ... this. Expect to pass only
+	on targets that support vector shifts with scalar shift argument.
+	Remove dg-options.
+	* gcc.dg/vect/vect-scal-opt.c: Rename to...
+	* gcc.dg/vect/vec-scal-opt.c: ... this, and change likewise.
+	* gcc.dg/vect/vect-scal-opt1.c: Rename to...
+	* gcc.dg/vect/vec-scal-opt1.c: ... this, and change likewise.
+	* gcc.dg/vect/vect.exp: Run vec-scal-* tests with relevant flags.
+	* gcc.dg/vect/vect-114.c: Expect to pass only on targets that
+	support misaligned data accesses.
+	* gcc.dg/vect/pr43432.c, gcc.dg/vect/vect-15.c: Likewise.
+	* gcc.dg/vect/pr43430-2.c: Remove dg-options.
+	* lib/target-supports.exp
+	(check_effective_target_vect_shift_scalar): New.
+
+2010-11-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.dg/guality/nop.h: New file.
+	* gcc.dg/guality/asm-1.c: Include it and use NOP macro instead of
+	"nop".  Adjust line numbers in gdb-test.
+	* gcc.dg/guality/pr43329-1.c: Likewise.
+
+2010-11-16  Jason Merrill  <jason@redhat.com>
+
+	* g++.dg/cpp0x/defaulted20.C: New.
+
+	* g++.dg/template/injected2.C: New.
+
+2010-11-17  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc.dg/protocol-optional-1.m: New.
+	* obj-c++.dg/protocol-optional-1.mm: New.
+
+2010-11-16  Richard Henderson  <rth@redhat.com>
+
+	* gcc.target/powerpc/ppc-fma-2.c: Use -ffp-contract=off.
+	* gcc.target/powerpc/ppc-fma-4.c: Likewise.
+
+2010-11-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/opt12.adb: New test.
+	* gnat.dg/opt12_pkg.ad[sb]: New helper.
+
+2010-11-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc.target/rx/pack.c: New test.
+
+2010-11-16  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+	    Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/32049
+	* gfortran.dg/quad_1.f90: New.
+	* lib/gcc-defs.exp (gcc-set-multilib-library-path): Use also
+	compiler arguments.
+	* lib/gfortran.exp (gfortran_link_flags): Add libquadmath to
+	library search path; call gcc-set-multilib-library-path with
+	arguments such that libgfortran.spec is found.
+	(gfortran_init): Add path for libgfortran.spec to GFORTRAN_UNDER_TEST.
+
+2010-11-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/46401
+	* g++.dg/warn/Wsequence-point-3.C: New test.
+
+2010-11-16  Kai Tietz  <kai.tietz@onevision.com>
+
+	PR preprocessor/17349
+	* gcc.dg/cpp/cmdlne-C3.c: New.
+
+2010-11-16  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/44545
+	* gcc.dg/pr44545.c: New testcase.
+
+2010-11-16  Andrey Belevantsev  <abel@ispras.ru>
+
+	PR rtl-optimization/46366
+	* gcc.target/i386/pr45352-2.c: Silence warnings by using appropriate
+	casts.
+
+2010-11-16  Richard Guenther  <rguenther@suse.de>
+
+	* gcc.dg/tree-ssa/ssa-fre-30.c: New testcase.
+
+2010-11-16  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/45172
+	* gfortran.dg/gomp/pr45172.f90: New testcase.
+
+2010-11-16  Nick Clifton  <nickc@redhat.com>
+
+	* gcc.target/rx/pack.c: New test.
+
+2010-11-15  Richard Henderson  <rth@redhat.com>
+
+	* gcc.dg/torture/builtin-math-2.c: Split out fma tests...
+	* gcc.dg/torture/builtin-math-8.c: ... here.  New file.
+	Use builtin_constant_p rather than scanning for builtin name.
+
+2010-11-15  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc.dg/property/dotsyntax-18.m: New.
+	* objc.dg/property/dotsyntax-19.m: New.
+	* objc.dg/property/dotsyntax-20.m: New.
+	* obj-c++.dg/property/dotsyntax-18.mm: New.
+	* obj-c++.dg/property/dotsyntax-19.mm: New.
+	* obj-c++.dg/property/dotsyntax-20.mm: New.
+	* objc.dg/property/dotsyntax-4.m: Removed some unused
+	variables and code.
+	* objc.dg/property/dotsyntax-6.m: Same change.
+	* objc.dg/property/dotsyntax-16.m: Same change.
+	* objc.dg/property/dotsyntax-17.m: Same change.
+	* obj-c++.dg/property/dotsyntax-4.mm: Same change.
+	* obj-c++.dg/property/dotsyntax-6.mm: Same change.
+	* obj-c++.dg/property/dotsyntax-16.mm: Same change.
+	* obj-c++.dg/property/dotsyntax-17.mm: Same change.
+	* objc.dg/property/at-property-22.m: Added missing casts.
+	* obj-c++.dg/property/at-property-22.mm: Same change.
+
+2010-11-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/46491
+	* gcc.target/i386/pr46491.c: New test.
+
+	PR tree-optimization/46461
+	* gcc.c-torture/compile/pr46461.c: New test.
+
 2010-11-15  Tobias Burnus  <burnus@net.b.de>
 
 	PR fortran/46484
 	* gfortran.dg/allocatable_scalar_11.f90: New.
-	* gfortran.dg/allocatable_scalar_5.f90: Make test case standard conform.
+	* gfortran.dg/allocatable_scalar_5.f90: Make test case
+	standard conform.
 
 2010-11-15  Jakub Jelinek  <jakub@redhat.com>
 
@@ -15,13 +361,13 @@
 2010-11-15  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	* objc.dg/property/dotsyntax-16.m: New.
-	* objc.dg/property/dotsyntax-17.m: New.	
+	* objc.dg/property/dotsyntax-17.m: New.
 	* obj-c++.dg/property/dotsyntax-16.mm: New.
-	* obj-c++.dg/property/dotsyntax-17.mm: New.	
+	* obj-c++.dg/property/dotsyntax-17.mm: New.
 	* objc.dg/property/at-property-10.m: Uncommented using 'x++'
 	syntax with properties, which now works.
 	* obj-c++.dg/property/at-property-10.mm: Same change.
-	
+
 2010-11-15  Martin Jambor  <mjambor@suse.cz>
 
 	PR tree-optimization/46349
@@ -57,16 +403,16 @@
 
 	* objc.dg/property/at-property-21.m: New.
 	* objc.dg/property/at-property-22.m: New.
-	* objc.dg/property/at-property-23.m: New.	
+	* objc.dg/property/at-property-23.m: New.
 	* objc.dg/property/synthesize-9.m: New.
 	* objc.dg/property/synthesize-10.m: New.
-	* objc.dg/property/synthesize-11.m: New.	
+	* objc.dg/property/synthesize-11.m: New.
 	* obj-c++.dg/property/at-property-21.mm: New.
 	* obj-c++.dg/property/at-property-22.mm: New.
-	* obj-c++.dg/property/at-property-23.mm: New.	
+	* obj-c++.dg/property/at-property-23.mm: New.
 	* obj-c++.dg/property/synthesize-9.mm: New.
 	* obj-c++.dg/property/synthesize-10.mm: New.
-	* obj-c++.dg/property/synthesize-11.mm: New.	
+	* obj-c++.dg/property/synthesize-11.mm: New.
 
 	* objc.dg/property/at-property-4.m: Updated to match new compiler
 	where some errors have been converted into warnings and vice versa.
@@ -77,14 +423,14 @@
 	* obj-c++.dg/property/at-property-16.mm: Same change.
 	* obj-c++.dg/property/at-property-18.mm: Same change.
 	* obj-c++.dg/property/property-neg-5.mm: Same change.
-	
+
 	* obj-c++.dg/property/dynamic-2.mm: Enable tests that were
 	commented out because of testsuite problems; I found out that
 	using dg-warning instead of dg-message gets them to work.
 	* obj-c++.dg/property/property-neg-3.mm: Same change.
 	* obj-c++.dg/property/synthesize-6.mm: Same change.
-	* obj-c++.dg/property/at-property-5.mm: Same change.	
-	* obj-c++.dg/property/at-property-14.mm: Same change.	
+	* obj-c++.dg/property/at-property-5.mm: Same change.
+	* obj-c++.dg/property/at-property-14.mm: Same change.
 	* obj-c++.dg/property/at-property-18.mm: Same change.
 	* obj-c++.dg/property/at-property-16.mm: Same change (in this file,
 	some tests still do not work due to some other testsuite issue).
@@ -119,8 +465,8 @@
 	Test various valid uses of typedef with Objective-C objects and
 	protocols instead.
 	* objc.dg/invalid-type-1.m: New.
-	* obj-c++.dg/invalid-type-1.m: New.	
-	
+	* obj-c++.dg/invalid-type-1.m: New.
+
 2010-11-13  Iain Sandoe  <iains@gcc.gnu.org>
 
 	* gcc.dg/darwin-segaddr.c: New test for multiple argument c/l switch.
@@ -173,7 +519,7 @@
 	PR fortran/45794
 	* gfortran.dg/optional_mask.f90: New test.
 
-2010-11-13  Ville Voutilainen <ville.voutilainen@gmail.com> <ville.voutilainen@symbio.com>
+2010-11-13  Ville Voutilainen  <ville.voutilainen@gmail.com>
 
 	* g++.dg/cpp0x/defaulted15.C: Adjust.
 
@@ -230,7 +576,7 @@
 	    Tobias Burnus  <burnus@net-b.de>
 
 	PR fortran/46325
-	* gfortran.dg/char_initialiser_actual.f90: Make test case valid. 
+	* gfortran.dg/char_initialiser_actual.f90: Make test case valid.
 
 2010-11-11  Jan Hubicka  <jh@suse.cz>
 
@@ -295,10 +641,10 @@
 2010-11-11  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	* objc.dg/property/at-property-20.m: New.
-	* objc.dg/property/synthesize-8.m: New.	
+	* objc.dg/property/synthesize-8.m: New.
 	* obj-c++.dg/property/at-property-20.m: New.
 	* obj-c++.dg/property/synthesize-8.mm: New.
-	
+
 2010-11-11  Joseph Myers  <joseph@codesourcery.com>
 
 	* gcc.dg/cpp/warn-normalized-3.c: Update expected note text.
@@ -414,8 +760,7 @@
 2010-11-10  H.J. Lu  <hongjiu.lu@intel.com>
 
 	PR tree-optimization/46414
-	* gcc.target/i386/recip-vec-sqrtf-avx.c: Updated for loop
-	unrolling.
+	* gcc.target/i386/recip-vec-sqrtf-avx.c: Updated for loop unrolling.
 
 2010-11-10  Tobias Burnus  <burnus@net-b.de>
 
@@ -525,8 +870,8 @@
 2010-10-09  Jakub Jelinek  <jakub@redhat.com>
 
 	PR middle-end/45663
-	* gcc.dg/guality/sra-1.c: Move all gdb-test lines to the second bar invocation
-	instead of first.
+	* gcc.dg/guality/sra-1.c: Move all gdb-test lines to the second
+	bar invocation instead of first.
 
 	PR debug/46171
 	* gcc.dg/pr46171.c: New test.
@@ -6109,6 +6454,7 @@
 
 2010-07-16  Iain Sandoe  <iains@gcc.gnu.org>
 
+	PR testsuite/43925
 	* lib/plugin-support.exp (plugin-test-execute):
 	Add ${gcc_objdir}/intl to includes.
 

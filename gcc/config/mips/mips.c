@@ -346,7 +346,7 @@ struct GTY(())  machine_function {
 
   /* How many instructions it takes to load a label into $AT, or 0 if
      this property hasn't yet been calculated.  */
-  unsigned int load_label_length;
+  unsigned int load_label_num_insns;
 
   /* True if mips_adjust_insn_length should ignore an instruction's
      hazard attribute.  */
@@ -1190,6 +1190,7 @@ static const struct mips_rtx_cost_data
 static rtx mips_find_pic_call_symbol (rtx, rtx);
 static int mips_register_move_cost (enum machine_mode, reg_class_t,
 				    reg_class_t);
+static unsigned int mips_function_arg_boundary (enum machine_mode, const_tree);
 
 /* This hash table keeps track of implicit "mips16" and "nomips16" attributes
    for -mflip_mips16.  It maps decl names onto a boolean mode setting.  */
@@ -4783,7 +4784,8 @@ mips_get_arg_info (struct mips_arg_info *info, const CUMULATIVE_ARGS *cum,
     }
 
   /* See whether the argument has doubleword alignment.  */
-  doubleword_aligned_p = FUNCTION_ARG_BOUNDARY (mode, type) > BITS_PER_WORD;
+  doubleword_aligned_p = (mips_function_arg_boundary (mode, type)
+			  > BITS_PER_WORD);
 
   /* Set REG_OFFSET to the register count we're interested in.
      The EABI allocates the floating-point registers separately,
@@ -5008,11 +5010,11 @@ mips_arg_partial_bytes (CUMULATIVE_ARGS *cum,
   return info.stack_words > 0 ? info.reg_words * UNITS_PER_WORD : 0;
 }
 
-/* Implement FUNCTION_ARG_BOUNDARY.  Every parameter gets at least
-   PARM_BOUNDARY bits of alignment, but will be given anything up
+/* Implement TARGET_FUNCTION_ARG_BOUNDARY.  Every parameter gets at
+   least PARM_BOUNDARY bits of alignment, but will be given anything up
    to STACK_BOUNDARY bits if the type requires it.  */
 
-int
+static unsigned int
 mips_function_arg_boundary (enum machine_mode mode, const_tree type)
 {
   unsigned int alignment;
@@ -11273,14 +11275,14 @@ mips_process_load_label (rtx target)
 /* Return the number of instructions needed to load a label into $AT.  */
 
 static unsigned int
-mips_load_label_length (void)
+mips_load_label_num_insns (void)
 {
-  if (cfun->machine->load_label_length == 0)
+  if (cfun->machine->load_label_num_insns == 0)
     {
       mips_process_load_label (pc_rtx);
-      cfun->machine->load_label_length = mips_multi_num_insns;
+      cfun->machine->load_label_num_insns = mips_multi_num_insns;
     }
-  return cfun->machine->load_label_length;
+  return cfun->machine->load_label_num_insns;
 }
 
 /* Emit an asm sequence to start a noat block and load the address
@@ -11322,7 +11324,7 @@ mips_adjust_insn_length (rtx insn, int length)
 
       /* Load the label into $AT and jump to it.  Ignore the delay
 	 slot of the jump.  */
-      length += mips_load_label_length () + 4;
+      length += 4 * mips_load_label_num_insns() + 4;
     }
 
   /* A unconditional jump has an unfilled delay slot if it is not part
@@ -15924,9 +15926,9 @@ mips_swap_registers (unsigned int i)
 #undef SWAP_INT
 }
 
-/* Implement CONDITIONAL_REGISTER_USAGE.  */
+/* Implement TARGET_CONDITIONAL_REGISTER_USAGE.  */
 
-void
+static void
 mips_conditional_register_usage (void)
 {
 
@@ -16542,6 +16544,8 @@ mips_shift_truncation_mask (enum machine_mode mode)
 #define TARGET_FUNCTION_ARG mips_function_arg
 #undef TARGET_FUNCTION_ARG_ADVANCE
 #define TARGET_FUNCTION_ARG_ADVANCE mips_function_arg_advance
+#undef TARGET_FUNCTION_ARG_BOUNDARY
+#define TARGET_FUNCTION_ARG_BOUNDARY mips_function_arg_boundary
 
 #undef TARGET_MODE_REP_EXTENDED
 #define TARGET_MODE_REP_EXTENDED mips_mode_rep_extended
@@ -16610,6 +16614,9 @@ mips_shift_truncation_mask (enum machine_mode mode)
 
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE mips_can_eliminate
+
+#undef TARGET_CONDITIONAL_REGISTER_USAGE
+#define TARGET_CONDITIONAL_REGISTER_USAGE mips_conditional_register_usage
 
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT mips_trampoline_init

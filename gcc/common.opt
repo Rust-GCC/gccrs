@@ -105,6 +105,27 @@ enum symbol_visibility default_visibility = VISIBILITY_DEFAULT
 Variable
 enum tls_model flag_tls_default = TLS_MODEL_GLOBAL_DYNAMIC
 
+; These two are really VEC(char_p,heap) *.
+
+Variable
+void *flag_instrument_functions_exclude_functions
+
+Variable
+void *flag_instrument_functions_exclude_files
+
+; Generic structs (e.g. templates not explicitly specialized)
+; may not have a compilation unit associated with them, and so
+; may need to be treated differently from ordinary structs.
+;
+; Structs only handled by reference (indirectly), will also usually
+; not need as much debugging information.
+
+Variable
+enum debug_struct_file debug_struct_ordinary[DINFO_USAGE_NUM_ENUMS] = { DINFO_STRUCT_FILE_ANY, DINFO_STRUCT_FILE_ANY, DINFO_STRUCT_FILE_ANY }
+
+Variable
+enum debug_struct_file debug_struct_generic[DINFO_USAGE_NUM_ENUMS] = { DINFO_STRUCT_FILE_ANY, DINFO_STRUCT_FILE_ANY, DINFO_STRUCT_FILE_ANY }
+
 ###
 Driver
 
@@ -710,11 +731,11 @@ Common Report Var(flag_btr_bb_exclusive) Optimization
 Restrict target load migration not to re-use registers in any basic block
 
 fcall-saved-
-Common Joined RejectNegative
+Common Joined RejectNegative Var(common_deferred_options) Defer
 -fcall-saved-<register>	Mark <register> as being preserved across functions
 
 fcall-used-
-Common Joined RejectNegative
+Common Joined RejectNegative Var(common_deferred_options) Defer
 -fcall-used-<register>	Mark <register> as being corrupted by function calls
 
 ; Nonzero for -fcaller-saves: allocate values in regs that need to
@@ -815,7 +836,7 @@ Common Var(flag_diagnostics_show_option) Init(1)
 Amend appropriate diagnostic messages with the command line option that controls them
 
 fdump-
-Common Joined RejectNegative
+Common Joined RejectNegative Var(common_deferred_options) Defer
 -fdump-<type>	Dump various compiler internals to a file
 
 fdump-final-insns
@@ -893,7 +914,7 @@ Common Report Var(flag_finite_math_only) Optimization
 Assume no NaNs or infinities are generated
 
 ffixed-
-Common Joined RejectNegative
+Common Joined RejectNegative Var(common_deferred_options) Defer
 -ffixed-<register>	Mark <register> as being unavailable to the compiler
 
 ffloat-store
@@ -1306,11 +1327,11 @@ Common Report Var(flag_pie,1)
 Generate position-independent code for executables if possible (small mode)
 
 fplugin=
-Common Joined RejectNegative
+Common Joined RejectNegative Var(common_deferred_options) Defer
 Specify a plugin to load
 
 fplugin-arg-
-Common Joined RejectNegative
+Common Joined RejectNegative Var(common_deferred_options) Defer
 -fplugin-arg-<name>-<key>[=<value>]	Specify argument <key>=<value> for plugin <name>
 
 fpredictive-commoning
@@ -1573,14 +1594,14 @@ Common Alias(fstack-check=, specific, no)
 Insert stack checking code into the program.  Same as -fstack-check=specific
 
 fstack-limit
-Common
+Common Var(common_deferred_options) Defer
 
 fstack-limit-register=
-Common RejectNegative Joined
+Common RejectNegative Joined Var(common_deferred_options) Defer
 -fstack-limit-register=<register>	Trap if the stack goes past <register>
 
 fstack-limit-symbol=
-Common RejectNegative Joined
+Common RejectNegative Joined Var(common_deferred_options) Defer
 -fstack-limit-symbol=<name>	Trap if the stack goes past symbol <name>
 
 fstack-protector

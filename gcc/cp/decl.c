@@ -3227,6 +3227,9 @@ make_unbound_class_template (tree context, tree name, tree parm_list,
       if (MAYBE_CLASS_TYPE_P (context))
 	tmpl = lookup_field (context, name, 0, false);
 
+      if (tmpl && TREE_CODE (tmpl) == TYPE_DECL)
+	tmpl = maybe_get_template_decl_from_type_decl (tmpl);
+
       if (!tmpl || !DECL_CLASS_TEMPLATE_P (tmpl))
 	{
 	  if (complain & tf_error)
@@ -3684,6 +3687,8 @@ cp_make_fname_decl (location_t loc, tree id, int type_dep)
   if (current_function_decl)
     {
       struct cp_binding_level *b = current_binding_level;
+      if (b->kind == sk_function_parms)
+	return error_mark_node;
       while (b->level_chain->kind != sk_function_parms)
 	b = b->level_chain;
       pushdecl_with_scope (decl, b, /*is_friend=*/false);

@@ -217,7 +217,7 @@ go_langhook_post_options (const char **pfilename ATTRIBUTE_UNUSED)
 }
 
 static void
-go_langhook_parse_file (int set_yy_debug ATTRIBUTE_UNUSED)
+go_langhook_parse_file (void)
 {
   go_parse_input_files (in_fnames, num_in_fnames, flag_syntax_only,
 			go_require_return_statement);

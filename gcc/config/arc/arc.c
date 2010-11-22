@@ -98,8 +98,10 @@ static rtx arc_function_arg (CUMULATIVE_ARGS *, enum machine_mode,
 			     const_tree, bool);
 static void arc_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode,
 				      const_tree, bool);
+static unsigned int arc_function_arg_boundary (enum machine_mode, const_tree);
 static void arc_trampoline_init (rtx, tree, rtx);
 static void arc_option_override (void);
+static void arc_conditional_register_usage (void);
 
 
 /* ARC specific attributs.  */
@@ -156,6 +158,8 @@ static const struct attribute_spec arc_attribute_table[] =
 #define TARGET_FUNCTION_ARG arc_function_arg
 #undef TARGET_FUNCTION_ARG_ADVANCE
 #define TARGET_FUNCTION_ARG_ADVANCE arc_function_arg_advance
+#undef TARGET_FUNCTION_ARG_BOUNDARY
+#define TARGET_FUNCTION_ARG_BOUNDARY arc_function_arg_boundary
 #undef TARGET_CALLEE_COPIES
 #define TARGET_CALLEE_COPIES hook_bool_CUMULATIVE_ARGS_mode_tree_bool_true
 
@@ -167,6 +171,9 @@ static const struct attribute_spec arc_attribute_table[] =
 
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT arc_trampoline_init
+
+#undef TARGET_CONDITIONAL_REGISTER_USAGE
+#define TARGET_CONDITIONAL_REGISTER_USAGE arc_conditional_register_usage
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -2423,6 +2430,18 @@ arc_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
 	  + ROUND_ADVANCE_ARG (mode, type));
 }
 
+/* Worker function for TARGET_FUNCTION_ARG_BOUNDARY.  */
+
+static unsigned int
+arc_function_arg_boundary (enum machine_mode mode, const_tree type)
+{
+  return (type != NULL_TREE
+	  ? TYPE_ALIGN (type)
+	  : (GET_MODE_BITSIZE (mode) <= PARM_BOUNDARY
+	     ? PARM_BOUNDARY
+	     : 2 * PARM_BOUNDARY));
+}
+
 /* Trampolines.  */
 /* ??? This doesn't work yet because GCC will use as the address of a nested
    function the address of the trampoline.  We need to use that address
@@ -2458,3 +2477,16 @@ arc_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 
   emit_insn (gen_flush_icache (m_tramp));
 }
+
+/* Worker function for TARGET_CONDITIONAL_REGISTER_USAGE.  */
+
+static void
+arc_conditional_register_usage (void)
+{
+  if (PIC_OFFSET_TABLE_REGNUM != INVALID_REGNUM)
+    {
+      fixed_regs[PIC_OFFSET_TABLE_REGNUM] = 1;
+      call_used_regs[PIC_OFFSET_TABLE_REGNUM] = 1;
+    }
+}
+

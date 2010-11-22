@@ -271,6 +271,14 @@ tree (*make_fname_decl) (location_t, tree, int);
    executed.  */
 int c_inhibit_evaluation_warnings;
 
+/* Whether we are building a boolean conversion inside
+   convert_for_assignment, or some other late binary operation.  If
+   build_binary_op is called for C (from code shared by C and C++) in
+   this case, then the operands have already been folded and the
+   result will not be folded again, so C_MAYBE_CONST_EXPR should not
+   be generated.  */
+bool in_late_binary_op;
+
 /* Whether lexing has been completed, so subsequent preprocessor
    errors should use the compiler's input_location.  */
 bool done_lexing = false;
@@ -2324,10 +2332,26 @@ warn_for_collisions (struct tlist *list)
 static int
 warning_candidate_p (tree x)
 {
-  /* !VOID_TYPE_P (TREE_TYPE (x)) is workaround for cp/tree.c
+  if (DECL_P (x) && DECL_ARTIFICIAL (x))
+    return 0;
+
+  /* VOID_TYPE_P (TREE_TYPE (x)) is workaround for cp/tree.c
      (lvalue_p) crash on TRY/CATCH. */
-  return !(DECL_P (x) && DECL_ARTIFICIAL (x))
-    && TREE_TYPE (x) && !VOID_TYPE_P (TREE_TYPE (x)) && lvalue_p (x);
+  if (TREE_TYPE (x) == NULL_TREE || VOID_TYPE_P (TREE_TYPE (x)))
+    return 0;
+
+  if (!lvalue_p (x))
+    return 0;
+
+  /* No point to track non-const calls, they will never satisfy
+     operand_equal_p.  */
+  if (TREE_CODE (x) == CALL_EXPR && (call_expr_flags (x) & ECF_CONST) == 0)
+    return 0;
+
+  if (TREE_CODE (x) == STRING_CST)
+    return 0;
+
+  return 1;
 }
 
 /* Return nonzero if X and Y appear to be the same candidate (or NULL) */
@@ -3923,7 +3947,7 @@ c_common_truthvalue_conversion (location_t location, tree expr)
 
   if (TREE_CODE (TREE_TYPE (expr)) == COMPLEX_TYPE)
     {
-      tree t = c_save_expr (expr);
+      tree t = (in_late_binary_op ? save_expr (expr) : c_save_expr (expr));
       expr = (build_binary_op
 	      (EXPR_LOCATION (expr),
 	       (TREE_SIDE_EFFECTS (expr)
@@ -9435,6 +9459,84 @@ make_tree_vector_copy (const VEC(tree,gc) *orig)
   FOR_EACH_VEC_ELT (tree, orig, ix, t)
     VEC_quick_push (tree, ret, t);
   return ret;
+}
+
+/* Return true if KEYWORD starts a type specifier.  */
+
+bool
+keyword_begins_type_specifier (enum rid keyword)
+{
+  switch (keyword)
+    {
+    case RID_INT:
+    case RID_CHAR:
+    case RID_FLOAT:
+    case RID_DOUBLE:
+    case RID_VOID:
+    case RID_INT128:
+    case RID_UNSIGNED:
+    case RID_LONG:
+    case RID_SHORT:
+    case RID_SIGNED:
+    case RID_DFLOAT32:
+    case RID_DFLOAT64:
+    case RID_DFLOAT128:
+    case RID_FRACT:
+    case RID_ACCUM:
+    case RID_BOOL:
+    case RID_WCHAR:
+    case RID_CHAR16:
+    case RID_CHAR32:
+    case RID_SAT:
+    case RID_COMPLEX:
+    case RID_TYPEOF:
+    case RID_STRUCT:
+    case RID_CLASS:
+    case RID_UNION:
+    case RID_ENUM:
+      return true;
+    default:
+      return false;
+    }
+}
+
+/* Return true if KEYWORD names a type qualifier.  */
+
+bool
+keyword_is_type_qualifier (enum rid keyword)
+{
+  switch (keyword)
+    {
+    case RID_CONST:
+    case RID_VOLATILE:
+    case RID_RESTRICT:
+      return true;
+    default:
+      return false;
+    }
+}
+
+/* Return true if KEYWORD names a storage class specifier.
+
+   RID_TYPEDEF is not included in this list despite `typedef' being
+   listed in C99 6.7.1.1.  6.7.1.3 indicates that `typedef' is listed as
+   such for syntactic convenience only.  */
+
+bool
+keyword_is_storage_class_specifier (enum rid keyword)
+{
+  switch (keyword)
+    {
+    case RID_STATIC:
+    case RID_EXTERN:
+    case RID_REGISTER:
+    case RID_AUTO:
+    case RID_MUTABLE:
+    case RID_THREAD:
+      return true;
+    default:
+      return false;
+    }
 }
 
 #include "gt-c-family-c-common.h"

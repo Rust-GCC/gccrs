@@ -117,9 +117,6 @@ static void crash_signal (int) ATTRIBUTE_NORETURN;
 static void setup_core_dumping (void);
 static void compile_file (void);
 
-/* Nonzero to dump debug info whilst parsing (-dy option).  */
-static int set_yydebug;
-
 /* True if we don't need a backend (e.g. preprocessing only).  */
 static bool no_backend;
 
@@ -135,6 +132,12 @@ unsigned int save_decoded_options_count;
    If there isn't any there, then this is the cc1 input file name.  */
 
 const char *main_input_filename;
+
+/* Pointer to base name in main_input_filename, with directories and a
+   single final extension removed, and the length of this base
+   name.  */
+const char *main_input_basename;
+int main_input_baselength;
 
 /* Used to enable -fvar-tracking, -fweb and -frename-registers according
    to optimize in process_options ().  */
@@ -870,7 +873,7 @@ compile_file (void)
 
   /* Call the parser, which parses the entire file (calling
      rest_of_compilation for each function).  */
-  lang_hooks.parse_file (set_yydebug);
+  lang_hooks.parse_file ();
 
   /* Compilation is now finished except for writing
      what's left of the symbol table output.  */
@@ -992,9 +995,6 @@ decode_d_option (const char *arg)
 	break;
       case 'x':
 	rtl_dump_and_exit = 1;
-	break;
-      case 'y':
-	set_yydebug = 1;
 	break;
       case 'D':	/* These are handled by the preprocessor.  */
       case 'I':
@@ -2364,6 +2364,8 @@ toplev_main (int argc, char **argv)
   decode_options (&global_options, &global_options_set,
 		  save_decoded_options, save_decoded_options_count,
 		  UNKNOWN_LOCATION, global_dc);
+
+  handle_common_deferred_options ();
 
   init_local_tick ();
 

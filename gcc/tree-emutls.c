@@ -257,7 +257,12 @@ get_emutls_init_templ_addr (tree decl)
 			targetm.emutls.tmpl_section);
     }
 
-  varpool_finalize_decl (to);
+  /* Create varpool node for the new variable and finalize it if it is
+     not external one.  */
+  if (DECL_EXTERNAL (to))
+    varpool_node (to);
+  else
+    varpool_finalize_decl (to);
   return build_fold_addr_expr (to);
 }
 
@@ -324,7 +329,12 @@ new_emutls_decl (tree decl)
       record_references_in_initializer (to, false);
     }
 
-  varpool_finalize_decl (to);
+  /* Create varpool node for the new variable and finalize it if it is
+     not external one.  */
+  if (DECL_EXTERNAL (to))
+    varpool_node (to);
+  else
+    varpool_finalize_decl (to);
   return to;
 }
 
@@ -792,7 +802,7 @@ struct simple_ipa_opt_pass pass_ipa_lower_emutls =
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */
-  TV_NONE,				/* tv_id */
+  TV_IPA_OPT,				/* tv_id */
   PROP_cfg | PROP_ssa,			/* properties_required */
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */

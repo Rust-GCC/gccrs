@@ -2464,21 +2464,6 @@ s390_rtx_costs (rtx x, int code, int outer_code, int *total,
 
     case PLUS:
     case MINUS:
-      /* Check for multiply and add.  */
-      if ((GET_MODE (x) == DFmode || GET_MODE (x) == SFmode)
-	  && GET_CODE (XEXP (x, 0)) == MULT
-	  && TARGET_HARD_FLOAT && TARGET_FUSED_MADD)
-	{
-	  /* This is the multiply and add case.  */
-	  if (GET_MODE (x) == DFmode)
-	    *total = s390_cost->madbr;
-	  else
-	    *total = s390_cost->maebr;
-	  *total += (rtx_cost (XEXP (XEXP (x, 0), 0), MULT, speed)
-		     + rtx_cost (XEXP (XEXP (x, 0), 1), MULT, speed)
-		     + rtx_cost (XEXP (x, 1), (enum rtx_code) code, speed));
-	  return true;  /* Do not do an additional recursive descent.  */
-	}
       *total = COSTS_N_INSNS (1);
       return false;
 
@@ -2538,6 +2523,28 @@ s390_rtx_costs (rtx x, int code, int outer_code, int *total,
 	  break;
 	default:
 	  return false;
+	}
+      return false;
+
+    case FMA:
+      switch (GET_MODE (x))
+	{
+	case DFmode:
+	  *total = s390_cost->madbr;
+	  break;
+	case SFmode:
+	  *total = s390_cost->maebr;
+	  break;
+	default:
+	  return false;
+	}
+      /* Negate in the third argument is free: FMSUB.  */
+      if (GET_CODE (XEXP (x, 2)) == NEG)
+	{
+	  *total += (rtx_cost (XEXP (x, 0), FMA, speed)
+		     + rtx_cost (XEXP (x, 1), FMA, speed)
+		     + rtx_cost (XEXP (XEXP (x, 2), 0), FMA, speed));
+	  return true;
 	}
       return false;
 
@@ -8426,6 +8433,7 @@ s390_function_arg_integer (enum machine_mode mode, const_tree type)
   /* We accept small integral (and similar) types.  */
   if (INTEGRAL_TYPE_P (type)
       || POINTER_TYPE_P (type)
+      || TREE_CODE (type) == NULLPTR_TYPE
       || TREE_CODE (type) == OFFSET_TYPE
       || (TARGET_SOFT_FLOAT && TREE_CODE (type) == REAL_TYPE))
     return true;
@@ -9734,9 +9742,9 @@ s390_emit_call (rtx addr_location, rtx tls_call, rtx result_reg,
   return insn;
 }
 
-/* Implement CONDITIONAL_REGISTER_USAGE.  */
+/* Implement TARGET_CONDITIONAL_REGISTER_USAGE.  */
 
-void
+static void
 s390_conditional_register_usage (void)
 {
   int i;
@@ -10511,7 +10519,7 @@ s390_loop_unroll_adjust (unsigned nunroll, struct loop *loop)
 #define TARGET_ASM_CLOSE_PAREN ""
 
 #undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS (TARGET_DEFAULT | MASK_FUSED_MADD)
+#define TARGET_DEFAULT_TARGET_FLAGS (TARGET_DEFAULT)
 
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION s390_handle_option
@@ -10639,6 +10647,9 @@ s390_loop_unroll_adjust (unsigned nunroll, struct loop *loop)
 
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE s390_can_eliminate
+
+#undef TARGET_CONDITIONAL_REGISTER_USAGE
+#define TARGET_CONDITIONAL_REGISTER_USAGE s390_conditional_register_usage
 
 #undef TARGET_LOOP_UNROLL_ADJUST
 #define TARGET_LOOP_UNROLL_ADJUST s390_loop_unroll_adjust

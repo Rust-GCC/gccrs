@@ -22,7 +22,7 @@
 #<http://www.gnu.org/licenses/>.
 
 # The targets for external use include:
-# all, doc, install, install-cross, install-cross-rest,
+# all, doc, install, install-cross, install-cross-rest, install-strip,
 # uninstall, TAGS, mostlyclean, clean, distclean, maintainer-clean.
 
 # This is the default target.
@@ -233,10 +233,6 @@ LINKER_FLAGS = $(CFLAGS)
 endif
 endif
 
-# This is set by the configure script to be -static-libstdc++ if
-# $(CXX) supports the option.
-STATIC_LIBSTDCXX = @STATIC_LIBSTDCXX@
-
 # -------------------------------------------
 # Programs which operate on the build machine
 # -------------------------------------------
@@ -259,6 +255,8 @@ LN_S=@LN_S@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_SCRIPT = @INSTALL@
+install_sh = $(SHELL) $(srcdir)/../install-sh
+INSTALL_STRIP_PROGRAM = $(install_sh) -c -s
 MAKEINFO = @MAKEINFO@
 MAKEINFOFLAGS = --no-split
 TEXI2DVI = texi2dvi
@@ -391,7 +389,7 @@ AR_FOR_TARGET := $(shell \
     if [ "$(host)" = "$(target)" ] ; then \
       echo $(AR); \
     else \
-       t='$(program_transform_name)'; echo ar | sed -e $$t ; \
+       t='$(program_transform_name)'; echo ar | sed -e "$$t" ; \
     fi; \
   fi)
 AR_FLAGS_FOR_TARGET =
@@ -406,20 +404,20 @@ RANLIB_FOR_TARGET := $(shell \
     if [ "$(host)" = "$(target)" ] ; then \
       echo $(RANLIB); \
     else \
-       t='$(program_transform_name)'; echo ranlib | sed -e $$t ; \
+       t='$(program_transform_name)'; echo ranlib | sed -e "$$t" ; \
     fi; \
   fi)
 ORIGINAL_LD_FOR_TARGET = @ORIGINAL_LD_FOR_TARGET@
 ORIGINAL_NM_FOR_TARGET = @ORIGINAL_NM_FOR_TARGET@
 NM_FOR_TARGET = ./nm
 STRIP_FOR_TARGET := $(shell \
-  if [ -f $(objdir)/../binutils/strip ] ; then \
-    echo $(objdir)/../binutils/strip ; \
+  if [ -f $(objdir)/../binutils/strip-new ] ; then \
+    echo $(objdir)/../binutils/strip-new ; \
   else \
     if [ "$(host)" = "$(target)" ] ; then \
       echo strip; \
     else \
-       t='$(program_transform_name)'; echo strip | sed -e $$t ; \
+       t='$(program_transform_name)'; echo strip | sed -e "$$t" ; \
     fi; \
   fi)
 
@@ -435,6 +433,7 @@ FIBHEAP_H   = $(srcdir)/../include/fibheap.h
 PARTITION_H = $(srcdir)/../include/partition.h
 MD5_H	    = $(srcdir)/../include/md5.h
 DWARF2_H    = $(srcdir)/../include/dwarf2.h
+XREGEX_H    =  $(srcdir)/../include/xregex.h
 
 # Linker plugin API headers
 LINKER_PLUGIN_API_H = $(srcdir)/../include/plugin-api.h
@@ -810,6 +809,16 @@ T_TARGET : $(T_TARGET)
 # at build time.
 SPECS = specs
 
+# Extra include files that are defined by HeaderInclude directives in
+# the .opt files
+OPTIONS_H_EXTRA =
+
+# Extra include files that are defined by SourceInclude directives in
+# the .opt files
+OPTIONS_C_EXTRA =
+
+@option_includes@
+
 # End of variables for you to override.
 
 # GTM_H lists the config files that the generator files depend on,
@@ -897,7 +906,7 @@ RECOG_H = recog.h
 ALIAS_H = alias.h coretypes.h
 EMIT_RTL_H = emit-rtl.h
 FLAGS_H = flags.h coretypes.h flag-types.h $(OPTIONS_H)
-OPTIONS_H = options.h flag-types.h
+OPTIONS_H = options.h flag-types.h $(OPTIONS_H_EXTRA)
 FUNCTION_H = function.h $(TREE_H) $(HASHTAB_H) vecprim.h $(TM_H)
 EXPR_H = expr.h insn-config.h $(FUNCTION_H) $(RTL_H) $(FLAGS_H) $(TREE_H) $(MACHMODE_H) $(EMIT_RTL_H)
 OPTABS_H = optabs.h insn-codes.h
@@ -936,7 +945,7 @@ PREDICT_H = predict.h predict.def
 CPPLIB_H = $(srcdir)/../libcpp/include/line-map.h \
 	$(srcdir)/../libcpp/include/cpplib.h
 INPUT_H = $(srcdir)/../libcpp/include/line-map.h input.h
-OPTS_H = $(INPUT_H) opts.h
+OPTS_H = $(INPUT_H) $(VEC_H) opts.h
 DECNUM_H = $(DECNUM)/decContext.h $(DECNUM)/decDPD.h $(DECNUM)/decNumber.h \
 	$(DECNUMFMT)/decimal32.h $(DECNUMFMT)/decimal64.h \
 	$(DECNUMFMT)/decimal128.h $(DECNUMFMT)/decimal128Local.h
@@ -1141,7 +1150,7 @@ FORTRAN_TARGET_OBJS=@fortran_target_objs@
 
 # Object files for gcc driver.
 GCC_OBJS = gcc.o opts-common.o gcc-options.o diagnostic.o pretty-print.o \
-  input.o
+  input.o vec.o ggc-none.o
 
 # Language-specific object files shared by all C-family front ends.
 C_COMMON_OBJS = c-family/c-common.o c-family/c-cppbuiltin.o c-family/c-dump.o \
@@ -1299,6 +1308,7 @@ OBJS-common = \
 	optabs.o \
 	options.o \
 	opts-common.o \
+	opts-global.o \
 	opts.o \
 	params.o \
 	passes.o \
@@ -2049,8 +2059,7 @@ graph.o: graph.c $(SYSTEM_H) coretypes.h $(TM_H) $(TOPLEV_H) $(DIAGNOSTIC_CORE_H
     $(CONFIG_H) $(EMIT_RTL_H)
 
 sbitmap.o: sbitmap.c sbitmap.h $(CONFIG_H) $(SYSTEM_H) coretypes.h $(BASIC_BLOCK_H)
-ebitmap.o: ebitmap.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
-	$(EBITMAP_H) $(RTL_H) $(FLAGS_H) $(OBSTACK_H)
+ebitmap.o: ebitmap.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(EBITMAP_H)
 sparseset.o: sparseset.c $(SYSTEM_H) sparseset.h $(CONFIG_H)
 
 COLLECT2_OBJS = collect2.o collect2-aix.o tlink.o intl.o version.o
@@ -2196,7 +2205,7 @@ DRIVER_DEFINES = \
 
 gcc.o: gcc.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) intl.h multilib.h \
     Makefile $(lang_specs_files) specs.h prefix.h $(GCC_H) $(FLAGS_H) \
-    configargs.h $(OBSTACK_H) $(OPTS_H) $(DIAGNOSTIC_H)
+    configargs.h $(OBSTACK_H) $(OPTS_H) $(DIAGNOSTIC_H) $(VEC_H)
 	(SHLIB_LINK='$(SHLIB_LINK)'; \
 	$(COMPILER) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) \
   $(DRIVER_DEFINES) \
@@ -2238,9 +2247,10 @@ s-options-h: optionlist $(srcdir)/opt-functions.awk $(srcdir)/opth-gen.awk
 	$(STAMP) $@
 
 options.o: options.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TARGET_H) $(FLAGS_H) \
-	$(TM_H) $(OPTS_H) intl.h
+	$(TM_H) $(OPTS_H) intl.h $(OPTIONS_C_EXTRA)
 
-gcc-options.o: options.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(OPTS_H) intl.h
+gcc-options.o: options.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(OPTS_H) intl.h \
+	$(OPTIONS_C_EXTRA)
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(OUTPUT_OPTION) \
 		-DGCC_DRIVER options.c
 
@@ -2277,7 +2287,7 @@ ggc-zone.o: ggc-zone.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_H) \
 ggc-none.o: ggc-none.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(GGC_H) \
 	$(BCONFIG_H)
 
-stringpool.o: stringpool.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
+stringpool.o: stringpool.c $(CONFIG_H) $(SYSTEM_H) coretypes.h \
 	$(TREE_H) $(GGC_H) $(GGC_INTERNAL_H) gt-stringpool.h $(CPPLIB_H) $(SYMTAB_H)
 
 convert.o: convert.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) \
@@ -2814,10 +2824,13 @@ fold-const.o : fold-const.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
 diagnostic.o : diagnostic.c $(CONFIG_H) $(SYSTEM_H) coretypes.h \
    version.h $(INPUT_H) intl.h $(DIAGNOSTIC_H) diagnostic.def
 opts.o : opts.c $(OPTS_H) $(OPTIONS_H) $(TOPLEV_H) $(DIAGNOSTIC_CORE_H) $(CONFIG_H) $(SYSTEM_H) \
-   coretypes.h $(TREE_H) $(TM_H) langhooks.h $(GGC_H) $(EXPR_H) $(RTL_H) \
-   output.h $(DIAGNOSTIC_H) $(TM_P_H) $(INSN_ATTR_H) intl.h $(TARGET_H) \
-   $(FLAGS_H) $(PARAMS_H) $(TREE_PASS_H) $(DBGCNT_H) debug.h \
-   $(PLUGIN_H) $(EXCEPT_H) $(LTO_STREAMER_H) opts-diagnostic.h
+   coretypes.h $(TREE_H) $(TM_H) langhooks.h $(EXPR_H) \
+   $(DIAGNOSTIC_H) $(TM_P_H) $(INSN_ATTR_H) intl.h $(TARGET_H) \
+   $(FLAGS_H) $(PARAMS_H) $(DBGCNT_H) debug.h \
+   $(EXCEPT_H) $(LTO_STREAMER_H) opts-diagnostic.h
+opts-global.o : opts-global.c $(CONFIG_H) $(SYSTEM_H) coretypes.h \
+   $(DIAGNOSTIC_CORE_H) $(OPTS_H) $(FLAGS_H) $(GGC_H) $(TM_H) $(RTL_H) \
+   output.h $(PLUGIN_H) $(TREE_PASS_H)
 opts-common.o : opts-common.c $(OPTS_H) $(FLAGS_H) $(CONFIG_H) $(SYSTEM_H) \
    coretypes.h intl.h $(DIAGNOSTIC_H) $(TM_H)
 targhooks.o : targhooks.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TREE_H) \
@@ -2898,7 +2911,7 @@ function.o : function.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_ERROR_
    gt-function.h $(TARGET_H) $(BASIC_BLOCK_H) $(INTEGRATE_H) $(PREDICT_H) \
    $(TREE_PASS_H) $(DF_H) $(TIMEVAR_H) vecprim.h
 statistics.o : statistics.c $(CONFIG_H) $(SYSTEM_H) coretypes.h \
-   $(TREE_PASS_H) $(TREE_DUMP_H) $(HASHTAB_H) statistics.h $(TM_H) $(FUNCTION_H)
+   $(TREE_PASS_H) $(TREE_DUMP_H) $(HASHTAB_H) statistics.h $(FUNCTION_H)
 stmt.o : stmt.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_H) \
    $(TREE_H) $(FLAGS_H) $(FUNCTION_H) insn-config.h hard-reg-set.h $(EXPR_H) \
    $(LIBFUNCS_H) $(EXCEPT_H) $(RECOG_H) $(TOPLEV_H) $(DIAGNOSTIC_CORE_H) \
@@ -3102,7 +3115,7 @@ dse.o : dse.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_H) \
 fwprop.o : fwprop.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_H) \
    $(TOPLEV_H) $(DIAGNOSTIC_CORE_H) insn-config.h $(RECOG_H) $(FLAGS_H) $(OBSTACK_H) $(BASIC_BLOCK_H) \
    output.h $(DF_H) alloc-pool.h $(TIMEVAR_H) $(TREE_PASS_H) $(TARGET_H) \
-   $(TM_P_H) $(CFGLOOP_H) $(EMIT_RTL_H) domwalk.h
+   $(TM_P_H) $(CFGLOOP_H) $(EMIT_RTL_H) domwalk.h sparseset.h
 web.o : web.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_H) \
    hard-reg-set.h $(FLAGS_H) $(BASIC_BLOCK_H) $(FUNCTION_H) output.h $(TOPLEV_H) $(DIAGNOSTIC_CORE_H) \
    insn-config.h $(RECOG_H) $(DF_H) $(OBSTACK_H) $(TIMEVAR_H) $(TREE_PASS_H)
@@ -3277,7 +3290,7 @@ loop-unroll.o: loop-unroll.c $(CONFIG_H) $(SYSTEM_H) $(RTL_H) $(TM_H) \
 dominance.o : dominance.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_H) \
    hard-reg-set.h $(BASIC_BLOCK_H) et-forest.h $(OBSTACK_H) $(TOPLEV_H) $(DIAGNOSTIC_CORE_H) \
    $(TIMEVAR_H) graphds.h vecprim.h pointer-set.h $(BITMAP_H)
-et-forest.o : et-forest.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
+et-forest.o : et-forest.c $(CONFIG_H) $(SYSTEM_H) coretypes.h \
    et-forest.h alloc-pool.h $(BASIC_BLOCK_H)
 combine.o : combine.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_H) \
    $(FLAGS_H) $(FUNCTION_H) insn-config.h $(INSN_ATTR_H) $(REGS_H) $(EXPR_H) \
@@ -3289,8 +3302,8 @@ reginfo.o : reginfo.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_H) \
    insn-config.h $(RECOG_H) reload.h $(TOPLEV_H) $(DIAGNOSTIC_CORE_H) \
    $(FUNCTION_H) output.h $(TM_P_H) $(EXPR_H) $(TIMEVAR_H) $(HASHTAB_H) \
    $(TARGET_H) $(TREE_PASS_H) $(DF_H) ira.h
-bitmap.o : bitmap.c $(CONFIG_H) $(SYSTEM_H)  coretypes.h $(TM_H) $(RTL_H) \
-   $(FLAGS_H) $(GGC_H) gt-bitmap.h $(BITMAP_H) $(OBSTACK_H) $(HASHTAB_H)
+bitmap.o : bitmap.c $(CONFIG_H) $(SYSTEM_H)  coretypes.h \
+   $(GGC_H) gt-bitmap.h $(BITMAP_H) $(OBSTACK_H) $(HASHTAB_H)
 vec.o : vec.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(VEC_H) $(GGC_H) \
    $(TOPLEV_H) $(DIAGNOSTIC_CORE_H) $(HASHTAB_H)
 reload.o : reload.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_ERROR_H) \
@@ -3443,7 +3456,7 @@ reg-stack.o : reg-stack.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
    insn-config.h reload.h $(FUNCTION_H) $(TM_P_H) $(GGC_H) \
    $(BASIC_BLOCK_H) $(CFGLAYOUT_H) output.h $(TIMEVAR_H) \
    $(TREE_PASS_H) $(TARGET_H) vecprim.h $(DF_H) $(EMIT_RTL_H)
-sreal.o: sreal.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) sreal.h
+sreal.o: sreal.c $(CONFIG_H) $(SYSTEM_H) coretypes.h sreal.h
 predict.o: predict.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(RTL_H) \
    $(TREE_H) $(FLAGS_H) insn-config.h $(BASIC_BLOCK_H) $(REGS_H) \
    hard-reg-set.h output.h $(TOPLEV_H) $(DIAGNOSTIC_CORE_H) $(RECOG_H) $(FUNCTION_H) $(EXCEPT_H) \
@@ -3902,7 +3915,8 @@ build/gengtype-lex.o : gengtype-lex.c gengtype.h $(BCONFIG_H) $(SYSTEM_H)
 build/gengtype-parse.o : gengtype-parse.c gengtype.h $(BCONFIG_H)	\
   $(SYSTEM_H)
 build/gengtype.o : gengtype.c $(BCONFIG_H) $(SYSTEM_H) gengtype.h 	\
-  rtl.def insn-notes.def errors.h double-int.h $(HASHTAB_H)
+  rtl.def insn-notes.def errors.h double-int.h $(HASHTAB_H)             \
+  $(OBSTACK_H) $(XREGEX_H)
 build/genmddeps.o: genmddeps.c $(BCONFIG_H) $(SYSTEM_H) coretypes.h	\
   errors.h $(READ_MD_H)
 build/genmodes.o : genmodes.c $(BCONFIG_H) $(SYSTEM_H) errors.h		\
@@ -4478,7 +4492,7 @@ maintainer-clean:
 	-rm -f gcc.??s gcc.*aux
 	-rm -f $(gcc_docdir)/*.info $(gcc_docdir)/*.1 $(gcc_docdir)/*.7 $(gcc_docdir)/*.dvi $(gcc_docdir)/*.pdf
 #
-# Entry points `install' and `uninstall'.
+# Entry points `install', `install-strip', and `uninstall'.
 # Also use `install-collect2' to install collect2 when the config files don't.
 
 # Copy the compiler files into directories where they will be run.
@@ -4491,6 +4505,13 @@ install: install-common $(INSTALL_HEADERS) \
 ifeq ($(enable_plugin),yes)
 install: install-plugin
 endif
+
+install-strip: override INSTALL_PROGRAM = $(INSTALL_STRIP_PROGRAM)
+ifneq ($(STRIP),)
+install-strip: STRIPPROG = $(STRIP)
+export STRIPPROG
+endif
+install-strip: install
 
 # Handle cpp installation.
 install-cpp: installdirs cpp$(exeext)

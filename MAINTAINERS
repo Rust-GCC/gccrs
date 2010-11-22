@@ -239,9 +239,7 @@ check in changes outside of the parts of the compiler they maintain.
 
 			Non-Algorithmic Maintainers
 
-loop optimizer		Zdenek Dvorak		ook@ucw.cz
 loop optimizer		Daniel Berlin		dberlin@dberlin.org
-libcpp			Tom Tromey		tromey@redhat.com
 
 Note that individuals who maintain parts of the compiler as non-algorithmic
 maintainers need approval to check in algorithmic changes or changes
@@ -271,6 +269,8 @@ gengtype/GTY		Laurynas Biveinis       laurynas.biveinis@gmail.com
 Graphite		Daniel Berlin		dberlin@dberlin.org
 Graphite 		Tobias Grosser		grosser@fim.uni-passau.de
 Graphite		Sebastian Pop		sebastian.pop@amd.com
+libcpp			Tom Tromey		tromey@redhat.com
+loop optimizer		Zdenek Dvorak		ook@ucw.cz
 Plugin			Diego Novillo		dnovillo@google.com
 Plugin			Le-Chun Wu		lcwu@google.com
 register allocation	Peter Bergner		bergner@vnet.ibm.com
@@ -426,6 +426,7 @@ Catherine Moore					clm@codesourcery.com
 James A. Morrison				phython@gcc.gnu.org
 Dirk Mueller					dmueller@suse.de
 Phil Muldoon					pmuldoon@redhat.com
+Quentin Neill					quentin.neill.gnu@gmail.com
 Adam Nemet					adambnemet@gmail.com
 Thomas Neumann					tneumann@users.sourceforge.net
 Dan Nicolaescu					dann@ics.uci.edu

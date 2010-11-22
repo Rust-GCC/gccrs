@@ -1,3 +1,77 @@
+2010-11-20  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Only disable a language library if no language needs
+	it.  Don't let --disable-libgcj uncondtionally disable libffi.
+	* configure: Rebuild.
+
+2010-11-20  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+
+	PR other/46202
+	* configure.ac: Fix just-built in-tree STRIP name to be
+	binutils/strip-new.
+	* configure: Regenerate.
+	* Makefile.def (install-strip-gcc, install-strip-binutils)
+	(install-strip-opcodes, install-strip-ld, install-strip-itcl)
+	(install-strip-sid): Mirror dependencies on non-strip variants
+	of these targets on the respective -strip prerequisites.
+	* Makefile.tpl (install-strip, install-strip-host)
+	(install-strip-target): New targets.
+	(install-strip-[+module+], install-strip-target-[+module+]):
+	New targets.
+	* Makefile.in: Regenerate.
+
+2010-11-19  Ian Lance Taylor  <iant@google.com>
+	    Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure.ac: Add target-libgo to target_libraries.  Set
+	and substitute GOC_FOR_BUILD and GOC_FOR_TARGET.
+	* Makefile.tpl (BUILD_EXPORTS): Add GOC and GOCFLAGS.
+	(HOST_EXPORTS): Add GOC.
+	(BASE_TARGET_EXPORTS): Add GOC.
+	(GOC_FOR_BUILD, GOCFLAGS, GOC_FOR_TARGET): New variables.
+	(GOCFLAGS_FOR_TARGET): New variable.
+	(EXTRA_HOST_FLAGS): Add GOC.
+	(EXTRA_TARGET_FLAGS): Add GOC and GOCFLAGS.
+	* Makefile.def (target_modules): Add libgo.
+	(flags_to_pass): Add GOC_FOR_TARGET and GOCFLAGS_FOR_TARGET.
+	(dependencies): Add dependency from configure-target-libgo to
+	configure-target-libffi and all-target-libstdc++-v3.  Add
+	dependencies from all-target-libgo to all-target-libffi.
+	(languages): Add go.
+	* configure: Rebuild.
+	* Makefile.in: Rebuild.
+
+2010-11-19  Ian Lance Taylor  <iant@google.com>
+
+	* config-ml.in: Add Go support: treat GOC and GOCFLAGS like other
+	compiler/flag environment variables.
+
+2010-11-18  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Check for lang_requires_boot_languages in
+	config-lang.in files.
+	* configure: Rebuild.
+
+2010-11-16  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+	    Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/32049
+	* Makefile.def: Add libquadmath; build it with language=fortran.
+	* configure.ac: Add libquadmath.
+	* Makefile.tpl: Handle multiple libs in check-[+language+].
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+
+2010-11-16  Tom Tromey  <tromey@redhat.com>
+
+	* MAINTAINERS: Moved myself to reviewers section.
+
+2010-11-15  Zdenek Dvorak  <ook@ucw.cz>
+
+	* MAINTAINERS: Moved myself to reviewers section.
+
 2010-11-15  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
 
 	* MAINTAINERS (Various Maintainers): Add self for build machinery.
@@ -20,29 +94,19 @@
 
 2010-11-12  Tobias Grosser  <grosser@fim.uni-passau.de>
 
-	* config/cloog.m4: Add -enable-cloog-backend=(isl|ppl|ppl-legacy) to
-	define the cloog backend to use. Furthermore, only pass the ppllibs to
-	the configure checks, if necessary.
 	* configure: Regenerate.
 
 2010-11-12  Tobias Grosser  <grosser@fim.uni-passau.de>
 
-	* config/cloog.m4: Use CLooG predefined macro to check for CLooG PPL.
-	* configure: regenerate
-
-2010-11-12  Tobias Grosser  <grosser@fim.uni-passau.de>
-
-	* config/cloog.m4: Fix typo.  verison -> version.
 	* configure: Regenerate.
 
 2010-11-12  Tobias Grosser  <grosser@fim.uni-passau.de>
 
-	* config/cloog.m4: Pass ppl libraries to the CLooG version check.
 	* configure: Regenerate.
 
-2010-11-11  Jan Hubicka  <jh@suse.cz>
+2010-11-12  Tobias Grosser  <grosser@fim.uni-passau.de>
 
-	* config/bootstrap-lto: Use -flto.
+	* configure: Regenerate.
 
 2010-11-11  Andreas Simbuerger  <simbuerg@fim.uni-passau.de>
 
@@ -62,7 +126,6 @@
 
 	* configure.ac (*-*-darwin*): Use mh-darwin for all Darwin variants.
 	* configure: Regenerate.
-	* config/mh-ppc-darwin: Rename to mh-darwin.
 
 2010-11-03  Ian Lance Taylor  <iant@google.com>
 	    Dave Korn  <dave.korn.cygwin@gmail.com>

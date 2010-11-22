@@ -260,16 +260,6 @@ if (GET_MODE_CLASS (MODE) == MODE_INT		\
   48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,		\
   27, 28, 29, 30 }
 
-/* Macro to conditionally modify fixed_regs/call_used_regs.  */
-#define CONDITIONAL_REGISTER_USAGE			\
-do {							\
-  if (PIC_OFFSET_TABLE_REGNUM != INVALID_REGNUM)	\
-    {							\
-      fixed_regs[PIC_OFFSET_TABLE_REGNUM] = 1;		\
-      call_used_regs[PIC_OFFSET_TABLE_REGNUM] = 1;	\
-    }							\
-} while (0)
-
 /* Return number of consecutive hard regs needed starting at reg REGNO
    to hold something of mode MODE.
    This is ordinarily the length in words of a value of mode MODE
@@ -520,13 +510,6 @@ extern enum reg_class arc_regno_reg_class[FIRST_PSEUDO_REGISTER];
 #define FUNCTION_ARG_REGNO_P(N) \
 ((unsigned) (N) < MAX_ARC_PARM_REGS)
 
-/* If defined, a C expression that gives the alignment boundary, in bits,
-   of an argument with the specified mode and type.  If it is not defined, 
-   PARM_BOUNDARY is used for all arguments.  */
-#define FUNCTION_ARG_BOUNDARY(MODE, TYPE) \
-(((TYPE) ? TYPE_ALIGN (TYPE) : GET_MODE_BITSIZE (MODE)) <= PARM_BOUNDARY \
- ? PARM_BOUNDARY \
- : 2 * PARM_BOUNDARY)
 
 /* Function results.  */
 

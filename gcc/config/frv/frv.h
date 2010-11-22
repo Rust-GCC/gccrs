@@ -784,28 +784,6 @@
 	1, 1				/* 171-172, iacc0 */		\
 }
 
-/* Zero or more C statements that may conditionally modify two variables
-   `fixed_regs' and `call_used_regs' (both of type `char []') after they have
-   been initialized from the two preceding macros.
-
-   This is necessary in case the fixed or call-clobbered registers depend on
-   target flags.
-
-   You need not define this macro if it has no work to do.
-
-   If the usage of an entire class of registers depends on the target flags,
-   you may indicate this to GCC by using this macro to modify `fixed_regs' and
-   `call_used_regs' to 1 for each of the registers in the classes which should
-   not be used by GCC.  Also define the macro `REG_CLASS_FROM_LETTER' to return
-   `NO_REGS' if it is called with a letter for a class that shouldn't be used.
-
-   (However, if this class is not included in `GENERAL_REGS' and all of the
-   insn patterns whose constraints permit this class are controlled by target
-   switches, then GCC will automatically avoid using these registers when the
-   target switches are opposed to them.)  */
-
-#define CONDITIONAL_REGISTER_USAGE frv_conditional_register_usage ()
-
 
 /* Order of allocation of registers.  */
 
@@ -1561,13 +1539,6 @@ typedef struct frv_stack {
 #define INIT_CUMULATIVE_INCOMING_ARGS(CUM, FNTYPE, LIBNAME) \
   frv_init_cumulative_args (&CUM, FNTYPE, LIBNAME, NULL, TRUE)
 
-/* If defined, a C expression that gives the alignment boundary, in bits, of an
-   argument with the specified mode and type.  If it is not defined,
-   `PARM_BOUNDARY' is used for all arguments.  */
-
-#define FUNCTION_ARG_BOUNDARY(MODE, TYPE) \
-  frv_function_arg_boundary (MODE, TYPE)
-
 /* A C expression that is nonzero if REGNO is the number of a hard register in
    which function arguments are sometimes passed.  This does *not* include
    implicit arguments such as the static chain and the structure-value address.
@@ -2312,13 +2283,6 @@ fprintf (STREAM, "\t.word .L%d\n", VALUE)
    called, in `call' RTL expressions.  On most machines this should be
    `QImode'.  */
 #define FUNCTION_MODE QImode
-
-/* Define this macro to handle System V style pragmas: #pragma pack and
-   #pragma weak.  Note, #pragma weak will only be supported if SUPPORT_WEAK is
-   defined.
-
-   Defined in svr4.h.  */
-#define HANDLE_SYSV_PRAGMA 1
 
 /* A C expression for the maximum number of instructions to execute via
    conditional execution instructions instead of a branch.  A value of

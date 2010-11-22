@@ -1,3 +1,61 @@
+2010-11-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/46547
+	* objc-act.c (in_late_binary_op): Remove.
+
+2010-11-19  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_start_class_interface): Do not warn that class
+	attributes are unimplemented.  Pass the attributes to start_class.
+	(objc_start_category_interface): Updated call to start_class.
+	(objc_start_class_implementation): Same change.
+	(objc_start_category_implementation): Same change.
+	(objc_build_class_component_ref): Warn if the class is deprecated.
+	(build_private_template): Mark the template as deprecated if the
+	class is deprecated.
+	(start_class): Added 'attributes' argument.  Emit a warning if
+	using a deprecated class as superclass of a class, or original
+	class of a category.  Recognize the 'deprecated' attribute when
+	starting and interface, and mark the interface with
+	TREE_DEPRECATED if present.  Store attributes in the interface.
+	
+2010-11-19  Nicola Pero  <nicola.pero@meta-innovation.com>	
+
+	* objc-act.c (lookup_protocol): Added 'warn_if_deprecated'
+	argument.  If it is 'true' and the protocol is deprecated, emit a
+	deprecation warning.
+	(objc_start_protocol): Do not warn that protocol attributes are
+	unimplemented.  Pass the attributes to start_protocol.
+	(start_protocol): Added attributes argument.  Recognize the
+	'deprecated' attribute and mark the protocols with TREE_DEPRECATED
+	if present.  Store attributes in the protocol.
+	(objc_declare_protocols): Added 'attributes' argument.  Recognize
+	the 'deprecated' attribute and mark the protocols with
+	TREE_DEPRECATED if present.  Store attributes in the protocol.
+	Updated call to lookup_protocol.
+	(objc_build_protocol_expr): Updated call to lookup_protocol.
+	(check_protocol_recursively): Same change.
+	(lookup_and_install_protocols): Same change.
+	* objc-act.h: Updated comments.
+	
+2010-11-17  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (lookup_method_in_protocol_list): Search methods in
+	PROTOCOL_OPTIONAL_CLS_METHODS / PROTOCOL_OPTIONAL_NST_METHODS if
+	they are not found in PROTOCOL_CLS_METHODS / PROTOCOL_NST_METHODS.
+
+2010-11-15  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_build_setter_call): New.
+	(objc_maybe_build_modify_expr): Rewritten to build a compound
+	statement.
+	(objc_build_incr_expr_for_property_ref): Updated calls to
+	objc_maybe_build_modify_expr to call objc_build_setter_call
+	instead.  Use build_modify_expr () instead of build2 (MODIFY_EXPR,
+	...).  Use convert () instead of build1 (NOP_EXPR, ...).  Use
+	TREE_NO_WARNING on the final compound statement to silence C++
+	warnings.
+
 2010-11-15  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	* objc-act.c (objc_build_incr_expr_for_property_ref): New.
@@ -99,7 +157,7 @@
 	
 2010-11-06  Nicola Pero  <nicola.pero@meta-innovation.com>
 
-	Fixed using the Objective-C 2.0 syntax with self and super.
+	Fixed using the Objective-C 2.0 dot-syntax with self and super.
 	* objc-act.c (OBJC_LOOKUP_NO_INSTANCE_METHODS_OF_ROOT_CLASS): New.
 	(maybe_make_artificial_property_decl): Added 'implementation'
 	argument.  Use OBJC_LOOKUP_NO_INSTANCE_METHODS_OF_ROOT_CLASS when

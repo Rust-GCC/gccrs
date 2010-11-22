@@ -342,12 +342,9 @@ init_reg_sets_1 (void)
     inv_reg_alloc_order[reg_alloc_order[i]] = i;
 #endif
 
-  /* This macro allows the fixed or call-used registers
-     and the register classes to depend on target flags.  */
+  /* Let the target tweak things if necessary.  */
 
-#ifdef CONDITIONAL_REGISTER_USAGE
-  CONDITIONAL_REGISTER_USAGE;
-#endif
+  targetm.conditional_register_usage ();
 
   /* Compute number of hard regs in each class.  */
 
@@ -1019,7 +1016,7 @@ struct rtl_opt_pass pass_reginfo_init =
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */
-  TV_NONE,                                    /* tv_id */
+  TV_NONE,                              /* tv_id */
   0,                                    /* properties_required */
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */

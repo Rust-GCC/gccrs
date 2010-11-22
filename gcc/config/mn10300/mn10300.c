@@ -523,6 +523,52 @@ mn10300_print_operand_address (FILE *file, rtx addr)
     }
 }
 
+/* Implement TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA.
+
+   Used for PIC-specific UNSPECs.  */
+
+static bool
+mn10300_asm_output_addr_const_extra (FILE *file, rtx x)
+{
+  if (GET_CODE (x) == UNSPEC)
+    {
+      switch (XINT (x, 1))
+	{
+	case UNSPEC_INT_LABEL:
+	  asm_fprintf (file, ".%LLIL" HOST_WIDE_INT_PRINT_DEC,
+		       INTVAL (XVECEXP (x, 0, 0)));
+	  break;
+	case UNSPEC_PIC:
+	  /* GLOBAL_OFFSET_TABLE or local symbols, no suffix.  */
+	  output_addr_const (file, XVECEXP (x, 0, 0));
+	  break;
+	case UNSPEC_GOT:
+	  output_addr_const (file, XVECEXP (x, 0, 0));
+	  fputs ("@GOT", file);
+	  break;
+	case UNSPEC_GOTOFF:
+	  output_addr_const (file, XVECEXP (x, 0, 0));
+	  fputs ("@GOTOFF", file);
+	  break;
+	case UNSPEC_PLT:
+	  output_addr_const (file, XVECEXP (x, 0, 0));
+	  fputs ("@PLT", file);
+	  break;
+	case UNSPEC_GOTSYM_OFF:
+	  assemble_name (file, GOT_SYMBOL_NAME);
+	  fputs ("-(", file);
+	  output_addr_const (file, XVECEXP (x, 0, 0));
+	  fputs ("-.)", file);
+	  break;
+	default:
+	  return false;
+	}
+      return true;
+    }
+  else
+    return false;
+}
+
 /* Count the number of FP registers that have to be saved.  */
 static int
 fp_regs_to_save (void)
@@ -1268,6 +1314,35 @@ mn10300_store_multiple_operation (rtx op,
     return 0;
 
   return mask;
+}
+
+/* Implement TARGET_PREFERRED_RELOAD_CLASS.  */
+
+static reg_class_t
+mn10300_preferred_reload_class (rtx x, reg_class_t rclass)
+{
+  if (x == stack_pointer_rtx && rclass != SP_REGS)
+     return ADDRESS_OR_EXTENDED_REGS;
+  else if (MEM_P (x)
+	   || (REG_P (x) 
+	       && !HARD_REGISTER_P (x))
+	   || (GET_CODE (x) == SUBREG
+	       && REG_P (SUBREG_REG (x))
+	       && !HARD_REGISTER_P (SUBREG_REG (x))))
+    return LIMIT_RELOAD_CLASS (GET_MODE (x), rclass);
+  else
+    return rclass;
+}
+
+/* Implement TARGET_PREFERRED_OUTPUT_RELOAD_CLASS.  */
+
+static reg_class_t
+mn10300_preferred_output_reload_class (rtx x, reg_class_t rclass)
+{
+  if (x == stack_pointer_rtx && rclass != SP_REGS)
+    return ADDRESS_OR_EXTENDED_REGS;
+
+  return rclass;
 }
 
 /* What (if any) secondary registers are needed to move IN with mode
@@ -2400,6 +2475,28 @@ mn10300_adjust_sched_cost (rtx insn, rtx link, rtx dep, int cost)
   /* Extract the latency value from the timings attribute.  */
   return timings < 100 ? (timings % 10) : (timings % 100);
 }
+
+static void
+mn10300_conditional_register_usage (void)
+{
+  unsigned int i;
+
+  if (!TARGET_AM33)
+    {
+      for (i = FIRST_EXTENDED_REGNUM;
+	   i <= LAST_EXTENDED_REGNUM; i++)
+	fixed_regs[i] = call_used_regs[i] = 1;
+    }
+  if (!TARGET_AM33_2)
+    {
+      for (i = FIRST_FP_REGNUM;
+	   i <= LAST_FP_REGNUM; i++)
+	fixed_regs[i] = call_used_regs[i] = 1;
+    }
+  if (flag_pic)
+    fixed_regs[PIC_OFFSET_TABLE_REGNUM] =
+    call_used_regs[PIC_OFFSET_TABLE_REGNUM] = 1;
+}
 
 /* Initialize the GCC target structure.  */
 
@@ -2421,6 +2518,9 @@ mn10300_adjust_sched_cost (rtx insn, rtx link, rtx dep, int cost)
 #define TARGET_ASM_FILE_START mn10300_file_start
 #undef  TARGET_ASM_FILE_START_FILE_DIRECTIVE
 #define TARGET_ASM_FILE_START_FILE_DIRECTIVE true
+
+#undef TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA
+#define TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA mn10300_asm_output_addr_const_extra
 
 #undef  TARGET_DEFAULT_TARGET_FLAGS
 #define TARGET_DEFAULT_TARGET_FLAGS MASK_MULT_BUG | MASK_PTR_A0D0
@@ -2460,6 +2560,11 @@ mn10300_adjust_sched_cost (rtx insn, rtx link, rtx dep, int cost)
 #undef  TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P	mn10300_legitimate_address_p
 
+#undef  TARGET_PREFERRED_RELOAD_CLASS
+#define TARGET_PREFERRED_RELOAD_CLASS mn10300_preferred_reload_class
+#undef  TARGET_PREFERRED_OUTPUT_RELOAD_CLASS
+#define TARGET_PREFERRED_OUTPUT_RELOAD_CLASS mn10300_preferred_output_reload_class
+
 #undef  TARGET_ASM_TRAMPOLINE_TEMPLATE
 #define TARGET_ASM_TRAMPOLINE_TEMPLATE mn10300_asm_trampoline_template
 #undef  TARGET_TRAMPOLINE_INIT
@@ -2477,5 +2582,8 @@ mn10300_adjust_sched_cost (rtx insn, rtx link, rtx dep, int cost)
 
 #undef  TARGET_SCHED_ADJUST_COST
 #define TARGET_SCHED_ADJUST_COST mn10300_adjust_sched_cost
+
+#undef  TARGET_CONDITIONAL_REGISTER_USAGE
+#define TARGET_CONDITIONAL_REGISTER_USAGE mn10300_conditional_register_usage
 
 struct gcc_target targetm = TARGET_INITIALIZER;

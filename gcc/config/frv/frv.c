@@ -396,6 +396,8 @@ static rtx frv_function_incoming_arg (CUMULATIVE_ARGS *, enum machine_mode,
 				      const_tree, bool);
 static void frv_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode,
 				       const_tree, bool);
+static unsigned int frv_function_arg_boundary	(enum machine_mode,
+						 const_tree);
 static void frv_output_dwarf_dtprel		(FILE *, int, rtx)
   ATTRIBUTE_UNUSED;
 static reg_class_t frv_secondary_reload		(bool, rtx, reg_class_t,
@@ -403,6 +405,7 @@ static reg_class_t frv_secondary_reload		(bool, rtx, reg_class_t,
 						 secondary_reload_info *);
 static bool frv_frame_pointer_required		(void);
 static bool frv_can_eliminate			(const int, const int);
+static void frv_conditional_register_usage	(void);
 static void frv_trampoline_init			(rtx, tree, rtx);
 static bool frv_class_likely_spilled_p 		(reg_class_t);
 
@@ -500,6 +503,8 @@ static const struct default_options frv_option_optimization_table[] =
 #define TARGET_FUNCTION_INCOMING_ARG frv_function_incoming_arg
 #undef TARGET_FUNCTION_ARG_ADVANCE
 #define TARGET_FUNCTION_ARG_ADVANCE frv_function_arg_advance
+#undef TARGET_FUNCTION_ARG_BOUNDARY
+#define TARGET_FUNCTION_ARG_BOUNDARY frv_function_arg_boundary
 
 #undef TARGET_EXPAND_BUILTIN_SAVEREGS
 #define TARGET_EXPAND_BUILTIN_SAVEREGS frv_expand_builtin_saveregs
@@ -530,6 +535,9 @@ static const struct default_options frv_option_optimization_table[] =
 
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE frv_can_eliminate
+
+#undef TARGET_CONDITIONAL_REGISTER_USAGE
+#define TARGET_CONDITIONAL_REGISTER_USAGE frv_conditional_register_usage
 
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT frv_trampoline_init
@@ -899,7 +907,7 @@ frv_string_begins_with (const_tree name, const char *prefix)
    switches, then GCC will automatically avoid using these registers when the
    target switches are opposed to them.)  */
 
-void
+static void
 frv_conditional_register_usage (void)
 {
   int i;
@@ -3195,9 +3203,9 @@ frv_must_pass_in_stack (enum machine_mode mode, const_tree type)
    argument with the specified mode and type.  If it is not defined,
    `PARM_BOUNDARY' is used for all arguments.  */
 
-int
+static unsigned int
 frv_function_arg_boundary (enum machine_mode mode ATTRIBUTE_UNUSED,
-                           tree type ATTRIBUTE_UNUSED)
+                           const_tree type ATTRIBUTE_UNUSED)
 {
   return BITS_PER_WORD;
 }

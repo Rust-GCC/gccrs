@@ -275,8 +275,6 @@ struct GTY(()) machine_function
    1, 1, 1, 1, 1, 1, 1 \
  }
 
-#define CONDITIONAL_REGISTER_USAGE mmix_conditional_register_usage ()
-
 #define INCOMING_REGNO(OUT) mmix_opposite_regno (OUT, 0)
 
 #define OUTGOING_REGNO(IN) mmix_opposite_regno (IN, 1)
@@ -886,8 +884,6 @@ typedef struct { int regs; int lib; } CUMULATIVE_ARGS;
 #define FUNCTION_MODE QImode
 
 #define NO_IMPLICIT_EXTERN_C
-
-#define HANDLE_SYSV_PRAGMA 1
 
 /* These are checked.  */
 #define DOLLARS_IN_IDENTIFIERS 0

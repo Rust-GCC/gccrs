@@ -38,7 +38,6 @@ extern frv_cpu_t frv_cpu_type;			/* value of -mcpu= */
 /* Define functions defined in frv.c */
 extern void frv_expand_prologue			(void);
 extern void frv_expand_epilogue			(bool);
-extern void frv_conditional_register_usage	(void);
 extern frv_stack_t *frv_stack_info		(void);
 extern void frv_debug_stack			(frv_stack_t *);
 extern int frv_initial_elimination_offset	(int, int);
@@ -52,7 +51,6 @@ extern rtx frv_find_base_term			(rtx);
 extern void frv_init_cumulative_args		(CUMULATIVE_ARGS *, tree,
 						 rtx, tree, int);
 
-extern int frv_function_arg_boundary		(enum machine_mode, tree);
 extern bool frv_function_value_regno_p		(const unsigned int);
 #endif /* TREE_CODE */
 

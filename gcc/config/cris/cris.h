@@ -431,9 +431,6 @@ extern int cris_cpu_version;
 #define CALL_USED_REGISTERS \
  {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1}
 
-#define CONDITIONAL_REGISTER_USAGE cris_conditional_register_usage ()
-
-
 /* Node: Allocation Order */
 
 /* We need this on CRIS, because call-used regs should be used first,
@@ -1333,9 +1330,6 @@ enum cris_pic_symbol_type
 #define FUNCTION_MODE QImode
 
 #define NO_IMPLICIT_EXTERN_C
-
-/* No specific purpose other than warningless compatibility.  */
-#define HANDLE_PRAGMA_PACK_PUSH_POP 1
 
 /*
  * Local variables:

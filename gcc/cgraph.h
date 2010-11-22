@@ -56,6 +56,7 @@ enum availability
 struct lto_file_decl_data;
 
 extern const char * const cgraph_availability_names[];
+extern const char * const ld_plugin_symbol_resolution_names[];
 
 /* Function inlining information.  */
 
@@ -695,6 +696,7 @@ void varpool_node_set_remove (varpool_node_set, struct varpool_node *);
 void dump_varpool_node_set (FILE *, varpool_node_set);
 void debug_varpool_node_set (varpool_node_set);
 void ipa_discover_readonly_nonaddressable_vars (void);
+bool cgraph_comdat_can_be_unshared_p (struct cgraph_node *);
 
 /* In predict.c  */
 bool cgraph_maybe_hot_edge_p (struct cgraph_edge *e);
@@ -926,6 +928,18 @@ cgraph_can_remove_if_no_direct_calls_p (struct cgraph_node *node)
   if (DECL_EXTERNAL (node->decl))
     return true;
   return !node->address_taken && cgraph_can_remove_if_no_direct_calls_and_refs_p (node);
+}
+
+/* Return true when function NODE can be removed from callgraph
+   if all direct calls are eliminated.  */
+
+static inline bool
+varpool_can_remove_if_no_refs (struct varpool_node *node)
+{
+  return (!node->force_output && !node->used_from_other_partition
+	  && (flag_toplevel_reorder || DECL_COMDAT (node->decl)
+	      || DECL_ARTIFICIAL (node->decl))
+  	  && (DECL_COMDAT (node->decl) || !node->externally_visible));
 }
 
 /* Return true when all references to VNODE must be visible in ipa_ref_list.

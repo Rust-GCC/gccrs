@@ -335,7 +335,7 @@ x86_64-*-*)
 ia64-*-*)
 	extra_headers=ia64intrin.h
 	need_64bit_hwint=yes
-	extra_options="${extra_options} g.opt"
+	extra_options="${extra_options} g.opt fused-madd.opt"
 	;;
 hppa*-*-*)
 	cpu_type=pa
@@ -372,11 +372,11 @@ powerpc*-*-*)
 		cpu_is_64bit=yes
 		;;
 	esac
-	extra_options="${extra_options} g.opt"
+	extra_options="${extra_options} g.opt fused-madd.opt"
 	;;
 rs6000*-*-*)
 	need_64bit_hwint=yes
-	extra_options="${extra_options} g.opt"
+	extra_options="${extra_options} g.opt fused-madd.opt"
 	;;
 score*-*-*)
 	cpu_type=score
@@ -393,6 +393,7 @@ spu*-*-*)
 s390*-*-*)
 	cpu_type=s390
 	need_64bit_hwint=yes
+	extra_options="${extra_options} fused-madd.opt"
 	;;
 # Note the 'l'; we need to be able to match e.g. "shle" or "shl".
 sh[123456789lbe]*-*-* | sh-*-*)

@@ -256,9 +256,6 @@ crtbegin.o%s"
   1, CALL_USED_SHADOW_REGISTERS				\
   }
 
-#define CONDITIONAL_REGISTER_USAGE \
-	mep_conditional_register_usage ();
-
 #define REG_ALLOC_ORDER {						\
   /* core registers */							\
   3, 2, 1, 0, 9, 10, 11, 12, 4, 5, 6, 7, 8, 13, 14, 15, 		\
@@ -804,8 +801,6 @@ typedef struct
 
 #define REGISTER_TARGET_PRAGMAS()	 mep_register_pragmas ()
 
-#define HANDLE_PRAGMA_PACK_PUSH_POP 1
-   
 /* If defined, a C expression to determine the base term of address X.
    This macro is used in only one place: `find_base_term' in alias.c.
 

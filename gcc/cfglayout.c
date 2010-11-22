@@ -374,7 +374,7 @@ struct rtl_opt_pass pass_into_cfg_layout_mode =
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */
-  TV_NONE,                              /* tv_id */
+  TV_CFG,                               /* tv_id */
   0,                                    /* properties_required */
   PROP_cfglayout,                       /* properties_provided */
   0,                                    /* properties_destroyed */
@@ -393,7 +393,7 @@ struct rtl_opt_pass pass_outof_cfg_layout_mode =
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */
-  TV_NONE,                              /* tv_id */
+  TV_CFG,                               /* tv_id */
   0,                                    /* properties_required */
   0,                                    /* properties_provided */
   PROP_cfglayout,                       /* properties_destroyed */
@@ -1179,7 +1179,7 @@ duplicate_insn_chain (rtx from, rtx to)
 	      || GET_CODE (PATTERN (insn)) == ADDR_DIFF_VEC)
 	    break;
 	  copy = emit_copy_of_insn_after (insn, get_last_insn ());
-          maybe_copy_epilogue_insn (insn, copy);
+          maybe_copy_prologue_epilogue_insn (insn, copy);
 	  break;
 
 	case CODE_LABEL:

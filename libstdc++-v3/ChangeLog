@@ -1,3 +1,43 @@
+2010-11-18  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/46455
+	* include/std/mutex: Define destructors for mutex types which use an
+	init function.
+	* include/ext/concurrence.h: Likewise.
+
+2010-11-18  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/26211 + N3168
+	* include/bits/istream.tcc (basic_istream<>::tellg, seekg(pos_type),
+	seekg(off_type, ios_base::seekdir)): Construct a sentry.
+	(basic_istream<>::seekg(pos_type), seekg(off_type, ios_base::seekdir)
+	putback, unget): Clear eofbit first, per N3168.
+	* testsuite/27_io/basic_istream/seekg/char/26211.cc: New.
+	* testsuite/27_io/basic_istream/seekg/wchar_t/26211.cc: Likewise.
+	* testsuite/27_io/basic_istream/tellg/char/26211.cc: Likewise.
+	* testsuite/27_io/basic_istream/tellg/wchar_t/26211.cc: Likewise.
+	* testsuite/27_io/basic_istream/tellg/char/8348.cc: Tweak.
+	* testsuite/27_io/basic_istream/tellg/wchar_t/8348.cc: Likewise.
+
+2010-11-18  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR other/42670
+	* testsuite/abi/demangle/regression/cw-13.cc: Updated.
+
+2010-11-18  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/debug/formatter.h (__truth): Remove, unused.
+	(__is_same): Remove, include cpp_type_traits.h instead.
+	(_Parameter::_Parameter(const _Safe_iterator<>&, const char*,
+	_Is_iterator)): Adjust.
+	* include/debug/safe_iterator.h (_Safe_iterator<>::_M_constant):
+	Likewise.
+
+2010-11-17  François Dumont  <francois.cppdevs@free.fr>
+
+	* testsuite/lib/libstdc++.exp (check_v3_target_debug_mode): Clean
+	built exe.
+
 2010-11-15  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
 
 	PR libstdc++/45711

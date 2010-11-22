@@ -432,6 +432,8 @@ static rtx sparc_function_arg (CUMULATIVE_ARGS *,
 			       enum machine_mode, const_tree, bool);
 static rtx sparc_function_incoming_arg (CUMULATIVE_ARGS *,
 					enum machine_mode, const_tree, bool);
+static unsigned int sparc_function_arg_boundary (enum machine_mode,
+						 const_tree);
 static int sparc_arg_partial_bytes (CUMULATIVE_ARGS *,
 				    enum machine_mode, tree, bool);
 static void sparc_dwarf_handle_frame_unspec (const char *, rtx, int);
@@ -439,6 +441,7 @@ static void sparc_output_dwarf_dtprel (FILE *, int, rtx) ATTRIBUTE_UNUSED;
 static void sparc_file_end (void);
 static bool sparc_frame_pointer_required (void);
 static bool sparc_can_eliminate (const int, const int);
+static void sparc_conditional_register_usage (void);
 #ifdef TARGET_ALTERNATE_LONG_DOUBLE_MANGLING
 static const char *sparc_mangle_type (const_tree);
 #endif
@@ -579,6 +582,8 @@ static const struct default_options sparc_option_optimization_table[] =
 #define TARGET_FUNCTION_ARG sparc_function_arg
 #undef TARGET_FUNCTION_INCOMING_ARG
 #define TARGET_FUNCTION_INCOMING_ARG sparc_function_incoming_arg
+#undef TARGET_FUNCTION_ARG_BOUNDARY
+#define TARGET_FUNCTION_ARG_BOUNDARY sparc_function_arg_boundary
 
 #undef TARGET_EXPAND_BUILTIN_SAVEREGS
 #define TARGET_EXPAND_BUILTIN_SAVEREGS sparc_builtin_saveregs
@@ -634,6 +639,9 @@ static const struct default_options sparc_option_optimization_table[] =
 
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE sparc_can_eliminate
+
+#undef TARGET_CONDITIONAL_REGISTER_USAGE
+#define TARGET_CONDITIONAL_REGISTER_USAGE sparc_conditional_register_usage
 
 #ifdef TARGET_ALTERNATE_LONG_DOUBLE_MANGLING
 #undef TARGET_MANGLE_TYPE
@@ -5749,6 +5757,18 @@ sparc_function_incoming_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
   return sparc_function_arg_1 (cum, mode, type, named, true);
 }
 
+/* For sparc64, objects requiring 16 byte alignment are passed that way.  */
+
+static unsigned int
+sparc_function_arg_boundary (enum machine_mode mode, const_tree type)
+{
+  return ((TARGET_ARCH64
+	   && (GET_MODE_ALIGNMENT (mode) == 128
+	       || (type && TYPE_ALIGN (type) == 128)))
+	  ? 128
+	  : PARM_BOUNDARY);
+}
+
 /* For an arg passed partly in registers and partly in memory,
    this is the number of bytes of registers used.
    For args passed entirely in registers or entirely in memory, zero.
@@ -9603,6 +9623,56 @@ sparc_can_eliminate (const int from ATTRIBUTE_UNUSED, const int to)
 {
   return (to == HARD_FRAME_POINTER_REGNUM
           || !targetm.frame_pointer_required ());
+}
+
+/* If !TARGET_FPU, then make the fp registers and fp cc regs fixed so that
+   they won't be allocated.  */
+
+static void
+sparc_conditional_register_usage (void)
+{
+  if (PIC_OFFSET_TABLE_REGNUM != INVALID_REGNUM)
+    {
+      fixed_regs[PIC_OFFSET_TABLE_REGNUM] = 1;
+      call_used_regs[PIC_OFFSET_TABLE_REGNUM] = 1;
+    }
+  /* If the user has passed -f{fixed,call-{used,saved}}-g5 */
+  /* then honor it.  */
+  if (TARGET_ARCH32 && fixed_regs[5])
+    fixed_regs[5] = 1;
+  else if (TARGET_ARCH64 && fixed_regs[5] == 2)
+    fixed_regs[5] = 0;
+  if (! TARGET_V9)
+    {
+      int regno;
+      for (regno = SPARC_FIRST_V9_FP_REG;
+	   regno <= SPARC_LAST_V9_FP_REG;
+	   regno++)
+	fixed_regs[regno] = 1;
+      /* %fcc0 is used by v8 and v9.  */
+      for (regno = SPARC_FIRST_V9_FCC_REG + 1;
+	   regno <= SPARC_LAST_V9_FCC_REG;
+	   regno++)
+	fixed_regs[regno] = 1;
+    }
+  if (! TARGET_FPU)
+    {
+      int regno;
+      for (regno = 32; regno < SPARC_LAST_V9_FCC_REG; regno++)
+	fixed_regs[regno] = 1;
+    }
+  /* If the user has passed -f{fixed,call-{used,saved}}-g2 */
+  /* then honor it.  Likewise with g3 and g4.  */
+  if (fixed_regs[2] == 2)
+    fixed_regs[2] = ! TARGET_APP_REGS;
+  if (fixed_regs[3] == 2)
+    fixed_regs[3] = ! TARGET_APP_REGS;
+  if (TARGET_ARCH32 && fixed_regs[4] == 2)
+    fixed_regs[4] = ! TARGET_APP_REGS;
+  else if (TARGET_CM_EMBMEDANY)
+    fixed_regs[4] = 1;
+  else if (fixed_regs[4] == 2)
+    fixed_regs[4] = 0;
 }
 
 #include "gt-sparc.h"

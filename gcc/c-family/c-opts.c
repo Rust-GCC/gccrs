@@ -654,15 +654,16 @@ c_common_handle_option (size_t scode, const char *arg, int value,
       break;
 
     case OPT_femit_struct_debug_baseonly:
-      set_struct_debug_option ("base");
+      set_struct_debug_option (&global_options, "base");
       break;
 
     case OPT_femit_struct_debug_reduced:
-      set_struct_debug_option ("dir:ord:sys,dir:gen:any,ind:base");
+      set_struct_debug_option (&global_options,
+			       "dir:ord:sys,dir:gen:any,ind:base");
       break;
 
     case OPT_femit_struct_debug_detailed_:
-      set_struct_debug_option (arg);
+      set_struct_debug_option (&global_options, arg);
       break;
 
     case OPT_idirafter:
@@ -1057,30 +1058,9 @@ c_common_init (void)
 /* Initialize the integrated preprocessor after debug output has been
    initialized; loop over each input file.  */
 void
-c_common_parse_file (int set_yydebug)
+c_common_parse_file (void)
 {
   unsigned int i;
-
-  if (set_yydebug)
-    switch (c_language)
-      {
-      case clk_c:
-	warning(0, "the C parser does not support -dy, option ignored");
-	break;
-      case clk_objc:
-	warning(0,
-		"the Objective-C parser does not support -dy, option ignored");
-	break;
-      case clk_cxx:
-	warning(0, "the C++ parser does not support -dy, option ignored");
-	break;
-      case clk_objcxx:
-	warning(0,
-	    "the Objective-C++ parser does not support -dy, option ignored");
-	break;
-      default:
-	gcc_unreachable ();
-    }
 
   i = 0;
   for (;;)

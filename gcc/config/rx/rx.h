@@ -125,8 +125,6 @@ extern enum rx_cpu_types  rx_cpu_type;
 #define STACK_BOUNDARY 			32
 #define PARM_BOUNDARY 			8
 
-#define FUNCTION_ARG_BOUNDARY(MODE, TYPE) 32
-
 #define STACK_GROWS_DOWNWARD		1
 #define FRAME_GROWS_DOWNWARD		0
 #define FIRST_PARM_OFFSET(FNDECL) 	0
@@ -152,8 +150,6 @@ extern enum rx_cpu_types  rx_cpu_type;
 #define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC)   1
 
 #define LEGITIMATE_CONSTANT_P(X) 	rx_is_legitimate_constant (X)
-
-#define HANDLE_PRAGMA_PACK_PUSH_POP	1
 
 #define HAVE_PRE_DECCREMENT		1
 #define HAVE_POST_INCREMENT		1
@@ -248,9 +244,6 @@ enum reg_class
 {							\
   1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1	\
 }
-
-#define CONDITIONAL_REGISTER_USAGE			\
-  rx_conditional_register_usage ()
 
 #define LIBCALL_VALUE(MODE)				\
   gen_rtx_REG (((GET_MODE_CLASS (MODE) != MODE_INT	\

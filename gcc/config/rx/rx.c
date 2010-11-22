@@ -822,6 +822,13 @@ rx_function_arg_advance (Fargs * cum, Mmode mode, const_tree type,
   *cum += rx_function_arg_size (mode, type);
 }
 
+static unsigned int
+rx_function_arg_boundary (Mmode mode ATTRIBUTE_UNUSED,
+			  const_tree type ATTRIBUTE_UNUSED)
+{
+  return 32;
+}
+
 /* Return an RTL describing where a function return value of type RET_TYPE
    is held.  */
 
@@ -926,7 +933,7 @@ is_naked_func (const_tree decl)
 
 static bool use_fixed_regs = false;
 
-void
+static void
 rx_conditional_register_usage (void)
 {
   static bool using_fixed_regs = false;
@@ -2306,7 +2313,8 @@ rx_file_start (void)
 static bool
 rx_is_ms_bitfield_layout (const_tree record_type ATTRIBUTE_UNUSED)
 {
-  return TRUE;
+  /* The packed attribute overrides the MS behaviour.  */
+  return ! TYPE_PACKED (record_type);
 }
 
 /* Try to generate code for the "isnv" pattern which inserts bits
@@ -2815,6 +2823,9 @@ rx_memory_move_cost (enum machine_mode mode, reg_class_t regclass, bool in)
 #undef  TARGET_FUNCTION_ARG_ADVANCE
 #define TARGET_FUNCTION_ARG_ADVANCE     	rx_function_arg_advance
 
+#undef	TARGET_FUNCTION_ARG_BOUNDARY
+#define	TARGET_FUNCTION_ARG_BOUNDARY		rx_function_arg_boundary
+
 #undef  TARGET_SET_CURRENT_FUNCTION
 #define TARGET_SET_CURRENT_FUNCTION		rx_set_current_function
 
@@ -2835,6 +2846,9 @@ rx_memory_move_cost (enum machine_mode mode, reg_class_t regclass, bool in)
 
 #undef  TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE			rx_can_eliminate
+
+#undef  TARGET_CONDITIONAL_REGISTER_USAGE
+#define TARGET_CONDITIONAL_REGISTER_USAGE	rx_conditional_register_usage
 
 #undef  TARGET_ASM_TRAMPOLINE_TEMPLATE
 #define TARGET_ASM_TRAMPOLINE_TEMPLATE		rx_trampoline_template
