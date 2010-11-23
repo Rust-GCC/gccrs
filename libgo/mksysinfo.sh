@@ -51,6 +51,9 @@ cat > sysinfo.c <<EOF
 #if defined(HAVE_SYS_USER_H)
 #include <sys/user.h>
 #endif
+#if defined(HAVE_SYS_UTSNAME_H)
+#include <sys/utsname.h>
+#endif
 #include <unistd.h>
 EOF
 
@@ -284,6 +287,17 @@ grep '^type _rusage ' gen-sysinfo.go | \
       -e 's/ru_\([a-z]\)/\U\1/g' \
       -e 's/\([^a-zA-Z0-9_]\)_timeval\([^a-zA-Z0-9_]\)/\1Timeval\2/g' \
       -e 's/\([^a-zA-Z0-9_]\)_timespec\([^a-zA-Z0-9_]\)/\1Timespec\2/g' \
+    >> ${OUT}
+
+# The utsname struct.
+grep '^type _utsname ' gen-sysinfo.go | \
+    sed -e 's/_utsname/Utsname/' \
+      -e 's/sysname/Sysname/' \
+      -e 's/nodename/Nodename/' \
+      -e 's/release/Release/' \
+      -e 's/version/Version/' \
+      -e 's/machine/Machine/' \
+      -e 's/domainname/Domainname/' \
     >> ${OUT}
 
 mv -f ${OUT} sysinfo.go
