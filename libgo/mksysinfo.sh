@@ -82,8 +82,8 @@ grep '^const _E' gen-sysinfo.go | \
 
 # The O_xxx flags.
 grep '^const _\(O\|F\|FD\)_' gen-sysinfo.go | \
-  sed -e 's/^\(const \)_\(\(O\|F\|FD\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
-if ! grep '^const O_CLOEXEC' ${OUT} >/dev/null 2>&1; then \
+  sed -e 's/^\(const \)_\([^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+if ! grep '^const O_CLOEXEC' ${OUT} >/dev/null 2>&1; then
   echo "const O_CLOEXEC = 0" >> ${OUT}
 fi
 
@@ -94,7 +94,11 @@ grep '^const _SIG[^_]' gen-sysinfo.go | \
 
 # The syscall numbers.  We force the names to upper case.
 grep '^const _SYS_' gen-sysinfo.go | \
-  sed -e 's/^\(const \)_\(SYS_[^= ]*\)\(.*\)$/\1\U\2\E = _\2/' >> ${OUT}
+  sed -e 's/const _\(SYS_[^= ]*\).*$/\1/' | \
+  while read sys; do
+    sup=`echo $sys | tr abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ`
+    echo "const $sup = _$sys" >> ${OUT}
+  done
 
 # Stat constants.
 grep '^const _S_' gen-sysinfo.go | \
@@ -118,8 +122,7 @@ fi
 
 # Networking constants.
 grep '^const _\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\|IP\|IPV6\)_' gen-sysinfo.go |
-  sed -e 's/^\(const \)_\(\(AF\|SOCK\|SOL\|SO\|IPPROTO\|TCP\|IP\|IPV6\)_[^= ]*\)\(.*\)$/\1\2 = _\2/' \
-    >> ${OUT}
+  sed -e 's/^\(const \)_\([^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
 grep '^const _SOMAXCONN' gen-sysinfo.go |
   sed -e 's/^\(const \)_\(SOMAXCONN[^= ]*\)\(.*\)$/\1\2 = _\2/' \
     >> ${OUT}
@@ -132,7 +135,7 @@ grep '^const __PC' gen-sysinfo.go |
 
 # The epoll constants were picked up by the errno constants, but we
 # need to be sure the EPOLLRDHUP is defined.
-if ! grep '^const EPOLLRDHUP' ${OUT} >/dev/null 2>&1; then \
+if ! grep '^const EPOLLRDHUP' ${OUT} >/dev/null 2>&1; then
   echo "const EPOLLRDHUP = 0x2000" >> ${OUT}
 fi
 
@@ -197,9 +200,20 @@ fi
 # GNU/Linux specific.
 regs=`grep '^type _user_regs_struct struct' gen-sysinfo.go`
 if test "$regs" != ""; then
-  regs=`echo $regs | sed -e 's/type _user_regs_struct struct //'`
-  regs=`echo $regs | sed -e 's/\([^a-zA-Z0-9_]*\)\([a-zA-Z0-9_]\)\([a-zA-Z0-9_]* [^;]*;\)/\1\U\2\E\3/g'`
-  echo "type PtraceRegs struct $regs" >> ${OUT}
+  regs=`echo $regs | sed -e 's/type _user_regs_struct struct //' -e 's/[{}]//g'`
+  regs=`echo $regs | sed -e s'/^ *//'`
+  nregs=
+  while test -n "$regs"; do
+    field=`echo $regs | sed -e 's/^\([^;]*\);.*$/\1/'`
+    regs=`echo $regs | sed -e 's/^[^;]*; *\(.*\)$/\1/'`
+    # Capitalize the first character of the field.
+    f=`echo $field | sed -e 's/^\(.\).*$/\1/'`
+    r=`echo $field | sed -e 's/^.\(.*\)$/\1/'`
+    f=`echo $f | tr abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ`
+    field="$f$r"
+    nregs="$nregs $field;"
+  done
+  echo "type PtraceRegs struct {$nregs }" >> ${OUT}
 fi
 
 # Some basic types.
@@ -282,12 +296,27 @@ grep '^type _dirent ' gen-sysinfo.go | \
 echo "type DIR _DIR" >> ${OUT}
 
 # The rusage struct.
-grep '^type _rusage ' gen-sysinfo.go | \
-  sed -e 's/type _rusage/type Rusage/' \
-      -e 's/ru_\([a-z]\)/\U\1/g' \
-      -e 's/\([^a-zA-Z0-9_]\)_timeval\([^a-zA-Z0-9_]\)/\1Timeval\2/g' \
-      -e 's/\([^a-zA-Z0-9_]\)_timespec\([^a-zA-Z0-9_]\)/\1Timespec\2/g' \
-    >> ${OUT}
+rusage=`grep '^type _rusage struct' gen-sysinfo.go`
+if test "$rusage" != ""; then
+  rusage=`echo $rusage | sed -e 's/type _rusage struct //' -e 's/[{}]//g'`
+  rusage=`echo $rusage | sed -e 's/^ *//'`
+  nrusage=
+  while test -n "$rusage"; do
+    field=`echo $rusage | sed -e 's/^\([^;]*\);.*$/\1/'`
+    rusage=`echo $rusage | sed -e 's/^[^;]*; *\(.*\)$/\1/'`
+    # Drop the leading ru_, capitalize the next character.
+    field=`echo $field | sed -e 's/^ru_//'`
+    f=`echo $field | sed -e 's/^\(.\).*$/\1/'`
+    r=`echo $field | sed -e 's/^.\(.*\)$/\1/'`
+    f=`echo $f | tr abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ`
+    # Fix _timeval and _timespec.
+    r=`echo $r | sed -e s'/ _timeval$/ Timeval/'`
+    r=`echo $r | sed -e s'/ _timespec$/ Timespec/'`
+    field="$f$r"
+    nrusage="$nrusage $field;"
+  done
+  echo "type Rusage struct {$nrusage }" >> ${OUT}
+fi
 
 # The utsname struct.
 grep '^type _utsname ' gen-sysinfo.go | \
