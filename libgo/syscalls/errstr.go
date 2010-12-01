@@ -6,26 +6,24 @@
 
 package syscall
 
-const ENONE = 0;
+const ENONE = 0
 
-// FIXME: The name is only right for glibc.
-func libc_strerror_r(int, *byte, Size_t) int __asm__ ("__xpg_strerror_r")
 func GetErrno() int
 func SetErrno(int)
 
 func Errstr(errno int) string {
 	for len := Size_t(128); ; len *= 2 {
-		b := make([]byte, len);
-		r := libc_strerror_r(errno, &b[0], len);
+		b := make([]byte, len)
+		r := libc_strerror_r(errno, &b[0], len)
 		if r >= 0 {
-			i := 0;
+			i := 0
 			for b[i] != 0 {
-				i++;
+				i++
 			}
-			return string(b[0:i]);
+			return string(b[:i])
 		}
 		if GetErrno() != ERANGE {
-			return "Errstr failure";
+			return "Errstr failure"
 		}
 	}
 }

@@ -8,8 +8,6 @@ package syscall
 
 const ENONE = 0
 
-// RTEMS uses strerror_r in newlib, which is a GNU extension returning a char *.
-func libc_strerror_r(int, *byte, Size_t) int __asm__ ("strerror_r")
 func GetErrno() int
 func SetErrno(int)
 

@@ -1110,6 +1110,7 @@ syscall_socket_epoll_file=
 syscall_sysfile_os_file = syscalls/sysfile_rtems.go
 syscall_syscall_file = syscalls/syscall_stubs.go
 syscall_errstr_file = syscalls/errstr_rtems.go
+syscall_errstr_decl_file = syscalls/errstr_decl_rtems.go
 else
 syscall_exec_os_file = syscalls/exec.go
 syscall_socket_os_file = syscalls/socket_linux.go
@@ -1117,10 +1118,16 @@ syscall_socket_epoll_file = syscalls/socket_epoll.go
 syscall_sysfile_os_file = syscalls/sysfile_linux.go
 syscall_syscall_file = syscalls/syscall.go
 syscall_errstr_file = syscalls/errstr.go
+if LIBGO_IS_LINUX
+syscall_errstr_decl_file = syscalls/errstr_decl_linux.go
+else
+syscall_errstr_decl_file = syscalls/errstr_decl.go
+endif
 endif
 
 go_syscall_files = \
 	$(syscall_errstr_file) \
+	$(syscall_errstr_decl_file) \
 	syscalls/exec_helpers.go \
 	$(syscall_exec_os_file) \
 	syscalls/socket.go \
