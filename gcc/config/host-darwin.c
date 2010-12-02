@@ -1,5 +1,5 @@
 /* Darwin host-specific hook definitions.
-   Copyright (C) 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2003, 2004, 2005, 2007, 2010 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -20,9 +20,7 @@
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include <sys/mman.h>
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "config/host-darwin.h"
 
 /* Yes, this is really supposed to work.  */

@@ -34,7 +34,7 @@ enum debug_info_type
                           and DWARF v2 debug info (using dwarf2out.c).  */
 };
 
-enum debug_info_level
+enum debug_info_levels
 {
   DINFO_LEVEL_NONE,	/* Write no debugging info.  */
   DINFO_LEVEL_TERSE,	/* Write minimal info to support tracebacks only.  */
@@ -105,12 +105,6 @@ enum symbol_visibility
   VISIBILITY_INTERNAL
 };
 #endif
-
-struct visibility_flags
-{
-  unsigned inpragma : 1;	/* True when in #pragma GCC visibility.  */
-  unsigned inlines_hidden : 1;	/* True when -finlineshidden in effect.  */
-};
 
 /* The algorithm used for the integrated register allocator (IRA).  */
 enum ira_algorithm
@@ -192,6 +186,22 @@ enum fp_contract_mode {
   FP_CONTRACT_OFF = 0,
   FP_CONTRACT_ON = 1,
   FP_CONTRACT_FAST = 2
+};
+
+/* Vectorizer verbosity levels.  */
+enum vect_verbosity_levels {
+  REPORT_NONE,
+  REPORT_VECTORIZED_LOCATIONS,
+  REPORT_UNVECTORIZED_LOCATIONS,
+  REPORT_COST,
+  REPORT_ALIGNMENT,
+  REPORT_DR_DETAILS,
+  REPORT_BAD_FORM_LOOPS,
+  REPORT_OUTER_LOOPS,
+  REPORT_SLP,
+  REPORT_DETAILS,
+  /* New verbosity levels should be added before this one.  */
+  MAX_VERBOSITY_LEVEL
 };
 
 #endif /* ! GCC_FLAG_TYPES_H */

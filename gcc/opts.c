@@ -23,40 +23,18 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "intl.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "tree.h"
-#include "expr.h"
-#include "langhooks.h"
+#include "tm.h" /* Needed by rtl.h and used for STACK_CHECK_BUILTIN,
+		   STACK_CHECK_STATIC_BUILTIN, DEFAULT_GDB_EXTENSIONS,
+		   DWARF2_DEBUGGING_INFO and DBX_DEBUGGING_INFO.  */
+#include "rtl.h" /* Needed by insn-attr.h.  */
 #include "opts.h"
 #include "options.h"
 #include "flags.h"
-#include "toplev.h"
 #include "params.h"
 #include "diagnostic.h"
 #include "opts-diagnostic.h"
-#include "insn-attr.h"		/* For INSN_SCHEDULING.  */
+#include "insn-attr.h"		/* For INSN_SCHEDULING and DELAY_SLOTS.  */
 #include "target.h"
-#include "dbgcnt.h"
-#include "debug.h"
-#include "except.h"
-#include "lto-streamer.h"
-
-/* True if we should exit after parsing options.  */
-bool exit_after_options;
-
-/* Type(s) of debugging information we are producing (if any).  See
-   flags.h for the definitions of the different possible types of
-   debugging information.  */
-enum debug_info_type write_symbols = NO_DEBUG;
-
-/* Level of debugging information we are producing.  See flags.h for
-   the definitions of the different possible levels.  */
-enum debug_info_level debug_info_level = DINFO_LEVEL_NONE;
-
-/* Run the second compilation of -fcompare-debug.  Not defined using
-   Var in common.opt because this is used in Ada code and so must be
-   an actual variable not a macro.  */
-int flag_compare_debug;
 
 /* Parse the -femit-struct-debug-detailed option value
    and set the flag variables. */
@@ -66,13 +44,14 @@ int flag_compare_debug;
    ? ((string += sizeof prefix - 1), 1) : 0)
 
 void
-set_struct_debug_option (struct gcc_options *opts, const char *spec)
+set_struct_debug_option (struct gcc_options *opts, location_t loc,
+			 const char *spec)
 {
   /* various labels for comparison */
-  static char dfn_lbl[] = "dfn:", dir_lbl[] = "dir:", ind_lbl[] = "ind:";
-  static char ord_lbl[] = "ord:", gen_lbl[] = "gen:";
-  static char none_lbl[] = "none", any_lbl[] = "any";
-  static char base_lbl[] = "base", sys_lbl[] = "sys";
+  static const char dfn_lbl[] = "dfn:", dir_lbl[] = "dir:", ind_lbl[] = "ind:";
+  static const char ord_lbl[] = "ord:", gen_lbl[] = "gen:";
+  static const char none_lbl[] = "none", any_lbl[] = "any";
+  static const char base_lbl[] = "base", sys_lbl[] = "sys";
 
   enum debug_struct_file files = DINFO_STRUCT_FILE_ANY;
   /* Default is to apply to as much as possible. */
@@ -103,8 +82,10 @@ set_struct_debug_option (struct gcc_options *opts, const char *spec)
   else if (MATCH (base_lbl, spec))
     files = DINFO_STRUCT_FILE_BASE;
   else
-    error ("argument %qs to %<-femit-struct-debug-detailed%> not recognized",
-           spec);
+    error_at (loc,
+	      "argument %qs to %<-femit-struct-debug-detailed%> "
+	      "not recognized",
+	      spec);
 
   /* Effect the specification. */
   if (usage == DINFO_USAGE_NUM_ENUMS)
@@ -131,20 +112,55 @@ set_struct_debug_option (struct gcc_options *opts, const char *spec)
     }
 
   if (*spec == ',')
-    set_struct_debug_option (opts, spec+1);
+    set_struct_debug_option (opts, loc, spec+1);
   else
     {
       /* No more -femit-struct-debug-detailed specifications.
          Do final checks. */
       if (*spec != '\0')
-	error ("argument %qs to %<-femit-struct-debug-detailed%> unknown",
-               spec);
+	error_at (loc,
+		  "argument %qs to %<-femit-struct-debug-detailed%> unknown",
+		  spec);
       if (opts->x_debug_struct_ordinary[DINFO_USAGE_DIR_USE]
 		< opts->x_debug_struct_ordinary[DINFO_USAGE_IND_USE]
 	  || opts->x_debug_struct_generic[DINFO_USAGE_DIR_USE]
 		< opts->x_debug_struct_generic[DINFO_USAGE_IND_USE])
-	error ("%<-femit-struct-debug-detailed=dir:...%> must allow at least"
-               " as much as %<-femit-struct-debug-detailed=ind:...%>");
+	error_at (loc,
+		  "%<-femit-struct-debug-detailed=dir:...%> must allow "
+		  "at least as much as "
+		  "%<-femit-struct-debug-detailed=ind:...%>");
+    }
+}
+
+/* Handle -ftree-vectorizer-verbose=VAL for options OPTS.  */
+
+static void
+vect_set_verbosity_level (struct gcc_options *opts, int val)
+{
+   if (val < MAX_VERBOSITY_LEVEL)
+     opts->x_user_vect_verbosity_level = (enum vect_verbosity_levels) val;
+   else
+     opts->x_user_vect_verbosity_level
+      = (enum vect_verbosity_levels) (MAX_VERBOSITY_LEVEL - 1);
+}
+
+
+/* Strip off a legitimate source ending from the input string NAME of
+   length LEN.  Rather than having to know the names used by all of
+   our front ends, we strip off an ending of a period followed by
+   up to five characters.  (Java uses ".class".)  */
+
+void
+strip_off_ending (char *name, int len)
+{
+  int i;
+  for (i = 2; i < 6 && len > i; i++)
+    {
+      if (name[len - i] == '.')
+	{
+	  name[len - i] = '\0';
+	  break;
+	}
     }
 }
 
@@ -174,14 +190,6 @@ base_of_path (const char *path, const char **base_out)
   return dot - base;
 }
 
-/* Nonzero means use GNU-only extensions in the generated symbolic
-   debugging information.  Currently, this only has an effect when
-   write_symbols is set to DBX_DEBUG, XCOFF_DEBUG, or DWARF_DEBUG.  */
-bool use_gnu_debug_info_extensions;
-
-/* Global visibility options.  */
-struct visibility_flags visibility_options;
-
 /* What to print when a switch has no documentation.  */
 static const char undocumented_msg[] = N_("This switch lacks documentation");
 
@@ -189,31 +197,16 @@ typedef char *char_p; /* For DEF_VEC_P.  */
 DEF_VEC_P(char_p);
 DEF_VEC_ALLOC_P(char_p,heap);
 
-typedef const char *const_char_p; /* For DEF_VEC_P.  */
-DEF_VEC_P(const_char_p);
-DEF_VEC_ALLOC_P(const_char_p,heap);
-
-static VEC(const_char_p,heap) *ignored_options;
-
-/* Input file names.  */
-const char **in_fnames;
-unsigned num_in_fnames;
-
-static bool common_handle_option (struct gcc_options *opts,
-				  struct gcc_options *opts_set,
-				  const struct cl_decoded_option *decoded,
-				  unsigned int lang_mask, int kind,
-				  location_t loc,
-				  const struct cl_option_handlers *handlers,
-				  diagnostic_context *dc);
 static void handle_param (struct gcc_options *opts,
-			  struct gcc_options *opts_set, const char *carg);
-static char *write_langs (unsigned int lang_mask);
-static void complain_wrong_lang (const struct cl_decoded_option *,
-				 unsigned int lang_mask);
+			  struct gcc_options *opts_set, location_t loc,
+			  const char *carg);
 static void set_debug_level (enum debug_info_type type, int extended,
-			     const char *arg);
+			     const char *arg, struct gcc_options *opts,
+			     struct gcc_options *opts_set,
+			     location_t loc);
 static void set_fast_math_flags (struct gcc_options *opts, int set);
+static void decode_d_option (const char *arg, struct gcc_options *opts,
+			     location_t loc, diagnostic_context *dc);
 static void set_unsafe_math_optimizations_flags (struct gcc_options *opts,
 						 int set);
 static void enable_warning_as_error (const char *arg, int value,
@@ -224,155 +217,10 @@ static void enable_warning_as_error (const char *arg, int value,
 				     location_t loc,
 				     diagnostic_context *dc);
 
-/* Return a malloced slash-separated list of languages in MASK.  */
-static char *
-write_langs (unsigned int mask)
-{
-  unsigned int n = 0, len = 0;
-  const char *lang_name;
-  char *result;
-
-  for (n = 0; (lang_name = lang_names[n]) != 0; n++)
-    if (mask & (1U << n))
-      len += strlen (lang_name) + 1;
-
-  result = XNEWVEC (char, len);
-  len = 0;
-  for (n = 0; (lang_name = lang_names[n]) != 0; n++)
-    if (mask & (1U << n))
-      {
-	if (len)
-	  result[len++] = '/';
-	strcpy (result + len, lang_name);
-	len += strlen (lang_name);
-      }
-
-  result[len] = 0;
-
-  return result;
-}
-
-/* Complain that switch DECODED does not apply to this front end (mask
-   LANG_MASK).  */
-static void
-complain_wrong_lang (const struct cl_decoded_option *decoded,
-		     unsigned int lang_mask)
-{
-  const struct cl_option *option = &cl_options[decoded->opt_index];
-  const char *text = decoded->orig_option_with_args_text;
-  char *ok_langs = NULL, *bad_lang = NULL;
-  unsigned int opt_flags = option->flags;
-
-  if (!lang_hooks.complain_wrong_lang_p (option))
-    return;
-
-  opt_flags &= ((1U << cl_lang_count) - 1) | CL_DRIVER;
-  if (opt_flags != CL_DRIVER)
-    ok_langs = write_langs (opt_flags);
-  if (lang_mask != CL_DRIVER)
-    bad_lang = write_langs (lang_mask);
-
-  if (opt_flags == CL_DRIVER)
-    error ("command line option %qs is valid for the driver but not for %s",
-	   text, bad_lang);
-  else if (lang_mask == CL_DRIVER)
-    gcc_unreachable ();
-  else
-    /* Eventually this should become a hard error IMO.  */
-    warning (0, "command line option %qs is valid for %s but not for %s",
-	     text, ok_langs, bad_lang);
-
-  free (ok_langs);
-  free (bad_lang);
-}
-
-/* Buffer the unknown option described by the string OPT.  Currently,
-   we only complain about unknown -Wno-* options if they may have
-   prevented a diagnostic. Otherwise, we just ignore them.
-   Note that if we do complain, it is only as a warning, not an error;
-   passing the compiler an unrecognised -Wno-* option should never
-   change whether the compilation succeeds or fails.  */
-
-static void postpone_unknown_option_warning(const char *opt)
-{
-  VEC_safe_push (const_char_p, heap, ignored_options, opt);
-}
-
-/* Produce a warning for each option previously buffered.  */
-
-void print_ignored_options (void)
-{
-  location_t saved_loc = input_location;
-
-  input_location = 0;
-
-  while (!VEC_empty (const_char_p, ignored_options))
-    {
-      const char *opt;
-      opt = VEC_pop (const_char_p, ignored_options);
-      warning (0, "unrecognized command line option \"%s\"", opt);
-    }
-
-  input_location = saved_loc;
-}
-
-/* Handle an unknown option DECODED, returning true if an error should be
-   given.  */
-
-static bool
-unknown_option_callback (const struct cl_decoded_option *decoded)
-{
-  const char *opt = decoded->arg;
-
-  if (opt[1] == 'W' && opt[2] == 'n' && opt[3] == 'o' && opt[4] == '-'
-      && !(decoded->errors & CL_ERR_NEGATIVE))
-    {
-      /* We don't generate warnings for unknown -Wno-* options unless
-	 we issue diagnostics.  */
-      postpone_unknown_option_warning (opt);
-      return false;
-    }
-  else
-    return true;
-}
-
-/* Note that an option DECODED has been successfully handled with a
-   handler for mask MASK.  */
-
-static void
-post_handling_callback (const struct cl_decoded_option *decoded ATTRIBUTE_UNUSED,
-			unsigned int mask ATTRIBUTE_UNUSED)
-{
-#ifdef ENABLE_LTO
-  lto_register_user_option (decoded->opt_index, decoded->arg,
-			    decoded->value, mask);
-#endif
-}
-
-/* Handle a front-end option; arguments and return value as for
-   handle_option.  */
-
-static bool
-lang_handle_option (struct gcc_options *opts,
-		    struct gcc_options *opts_set,
-		    const struct cl_decoded_option *decoded,
-		    unsigned int lang_mask ATTRIBUTE_UNUSED, int kind,
-		    location_t loc,
-		    const struct cl_option_handlers *handlers,
-		    diagnostic_context *dc)
-{
-  gcc_assert (opts == &global_options);
-  gcc_assert (opts_set == &global_options_set);
-  gcc_assert (dc == global_dc);
-  gcc_assert (decoded->canonical_option_num_elements <= 2);
-  return lang_hooks.handle_option (decoded->opt_index, decoded->arg,
-				   decoded->value, kind, loc, handlers);
-}
-
 /* Handle a back-end option; arguments and return value as for
    handle_option.  */
 
-static bool
+bool
 target_handle_option (struct gcc_options *opts,
 		      struct gcc_options *opts_set,
 		      const struct cl_decoded_option *decoded,
@@ -392,15 +240,6 @@ target_handle_option (struct gcc_options *opts,
      location in the handler is not generally important.  */
   return targetm.handle_option (decoded->opt_index, decoded->arg,
 				decoded->value);
-}
-
-/* Handle FILENAME from the command line.  */
-static void
-add_input_filename (const char *filename)
-{
-  num_in_fnames++;
-  in_fnames = XRESIZEVEC (const char *, in_fnames, num_in_fnames);
-  in_fnames[num_in_fnames - 1] = filename;
 }
 
 /* Add comma-separated strings to a char_p vector.  */
@@ -444,61 +283,6 @@ add_comma_separated_to_vector (void **pvec, const char *arg)
   *pvec = vec;
 }
 
-/* Handle the vector of command line options (located at LOC), storing
-   the results of processing DECODED_OPTIONS and DECODED_OPTIONS_COUNT
-   in OPTS and OPTS_SET and using DC for diagnostic state.  LANG_MASK
-   contains has a single bit set representing the current language.
-   HANDLERS describes what functions to call for the options.  */
-static void
-read_cmdline_options (struct gcc_options *opts, struct gcc_options *opts_set,
-		      struct cl_decoded_option *decoded_options,
-		      unsigned int decoded_options_count,
-		      location_t loc,
-		      unsigned int lang_mask,
-		      const struct cl_option_handlers *handlers,
-		      diagnostic_context *dc)
-{
-  unsigned int i;
-
-  for (i = 1; i < decoded_options_count; i++)
-    {
-      if (decoded_options[i].opt_index == OPT_SPECIAL_input_file)
-	{
-	  /* Input files should only ever appear on the main command
-	     line.  */
-	  gcc_assert (opts == &global_options);
-	  gcc_assert (opts_set == &global_options_set);
-
-	  if (main_input_filename == NULL)
-	    {
-	      main_input_filename = decoded_options[i].arg;
-	      main_input_baselength
-		= base_of_path (main_input_filename, &main_input_basename);
-	    }
-	  add_input_filename (decoded_options[i].arg);
-	  continue;
-	}
-
-      read_cmdline_option (opts, opts_set,
-			   decoded_options + i, loc, lang_mask, handlers,
-			   dc);
-    }
-}
-
-/* Language mask determined at initialization.  */
-static unsigned int initial_lang_mask;
-
-/* Initialize global options-related settings at start-up.  */
-
-void
-init_options_once (void)
-{
-  /* Perform language-specific options initialization.  */
-  initial_lang_mask = lang_hooks.option_lang_mask ();
-
-  lang_hooks.initialize_diagnostics (global_dc);
-}
-
 /* Initialize OPTS and OPTS_SET before using them in parsing options.  */
 
 void
@@ -533,21 +317,6 @@ init_options_struct (struct gcc_options *opts, struct gcc_options *opts_set)
 
   /* Some targets have other target-specific initialization.  */
   targetm.target_option.init_struct (opts);
-}
-
-/* Decode command-line options to an array, like
-   decode_cmdline_options_to_array and with the same arguments but
-   using the default lang_mask.  */
-
-void
-decode_cmdline_options_to_array_default_mask (unsigned int argc,
-					      const char **argv, 
-					      struct cl_decoded_option **decoded_options,
-					      unsigned int *decoded_options_count)
-{
-  decode_cmdline_options_to_array (argc, argv,
-				   initial_lang_mask | CL_COMMON | CL_TARGET,
-				   decoded_options, decoded_options_count);
 }
 
 /* If indicated by the optimization level LEVEL (-Os if SIZE is set,
@@ -741,7 +510,7 @@ static const struct default_options default_options_table[] =
 
 /* Default the options in OPTS and OPTS_SET based on the optimization
    settings in DECODED_OPTIONS and DECODED_OPTIONS_COUNT.  */
-static void
+void
 default_options_optimization (struct gcc_options *opts,
 			      struct gcc_options *opts_set,
 			      struct cl_decoded_option *decoded_options,
@@ -773,8 +542,9 @@ default_options_optimization (struct gcc_options *opts,
 	    {
 	      const int optimize_val = integral_argument (opt->arg);
 	      if (optimize_val == -1)
-		error ("argument to %qs should be a non-negative integer",
-		       "-O");
+		error_at (loc,
+			  "argument to %qs should be a non-negative integer",
+			  "-O");
 	      else
 		{
 		  opts->x_optimize = optimize_val;
@@ -842,76 +612,14 @@ default_options_optimization (struct gcc_options *opts,
 			 ofast, lang_mask, handlers, loc, dc);
 }
 
-static void finish_options (struct gcc_options *, struct gcc_options *);
-
-/* Set *HANDLERS to the default set of option handlers for use in the
-   compilers proper (not the driver).  */
-void
-set_default_handlers (struct cl_option_handlers *handlers)
-{
-  handlers->unknown_option_callback = unknown_option_callback;
-  handlers->wrong_lang_callback = complain_wrong_lang;
-  handlers->post_handling_callback = post_handling_callback;
-  handlers->num_handlers = 3;
-  handlers->handlers[0].handler = lang_handle_option;
-  handlers->handlers[0].mask = initial_lang_mask;
-  handlers->handlers[1].handler = common_handle_option;
-  handlers->handlers[1].mask = CL_COMMON;
-  handlers->handlers[2].handler = target_handle_option;
-  handlers->handlers[2].mask = CL_TARGET;
-}
-
-/* Parse command line options and set default flag values.  Do minimal
-   options processing.  The decoded options are in *DECODED_OPTIONS
-   and *DECODED_OPTIONS_COUNT; settings go in OPTS, OPTS_SET and DC;
-   the options are located at LOC.  */
-void
-decode_options (struct gcc_options *opts, struct gcc_options *opts_set,
-		struct cl_decoded_option *decoded_options,
-		unsigned int decoded_options_count,
-		location_t loc, diagnostic_context *dc)
-{
-  struct cl_option_handlers handlers;
-
-  unsigned int lang_mask;
-
-  lang_mask = initial_lang_mask;
-
-  set_default_handlers (&handlers);
-
-  /* Enable -Werror=coverage-mismatch by default.  */
-  control_warning_option (OPT_Wcoverage_mismatch, (int) DK_ERROR, true,
-			  loc, lang_mask,
-			  &handlers, opts, opts_set, dc);
-
-  default_options_optimization (opts, opts_set,
-				decoded_options, decoded_options_count,
-				loc, lang_mask, &handlers, dc);
-
-#ifdef ENABLE_LTO
-  /* Clear any options currently held for LTO.  */
-  lto_clear_user_options ();
-#endif
-
-  read_cmdline_options (opts, opts_set,
-			decoded_options, decoded_options_count,
-			loc, lang_mask,
-			&handlers, dc);
-
-  finish_options (opts, opts_set);
-}
-
-/* After all options have been read into OPTS and OPTS_SET, finalize
-   settings of those options and diagnose incompatible
+/* After all options at LOC have been read into OPTS and OPTS_SET,
+   finalize settings of those options and diagnose incompatible
    combinations.  */
-static void
-finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
+void
+finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
+		location_t loc)
 {
-  static bool first_time_p = true;
   enum unwind_info_type ui_except;
-
-  gcc_assert (opts == &global_options);
-  gcc_assert (opts_set = &global_options_set);
 
   if (opts->x_dump_base_name && ! IS_ABSOLUTE_PATH (opts->x_dump_base_name))
     {
@@ -948,12 +656,12 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
   if (!opts->x_flag_unit_at_a_time)
     {
       if (opts->x_flag_section_anchors && opts_set->x_flag_section_anchors)
-	error ("section anchors must be disabled when unit-at-a-time "
-	       "is disabled");
+	error_at (loc, "section anchors must be disabled when unit-at-a-time "
+		  "is disabled");
       opts->x_flag_section_anchors = 0;
       if (opts->x_flag_toplevel_reorder == 1)
-	error ("toplevel reorder must be disabled when unit-at-a-time "
-	       "is disabled");
+	error_at (loc, "toplevel reorder must be disabled when unit-at-a-time "
+		  "is disabled");
       opts->x_flag_toplevel_reorder = 0;
     }
 
@@ -964,7 +672,7 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
   /* Unless the user has asked for section anchors, we disable toplevel
      reordering at -O0 to disable transformations that might be surprising
      to end users and to get -fno-toplevel-reorder tested.  */
-  if (!optimize
+  if (!opts->x_optimize
       && opts->x_flag_toplevel_reorder == 2
       && !(opts->x_flag_section_anchors && opts_set->x_flag_section_anchors))
     {
@@ -974,21 +682,21 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
   if (!opts->x_flag_toplevel_reorder)
     {
       if (opts->x_flag_section_anchors && opts_set->x_flag_section_anchors)
-	error ("section anchors must be disabled when toplevel reorder"
-	       " is disabled");
+	error_at (loc, "section anchors must be disabled when toplevel reorder"
+		  " is disabled");
       opts->x_flag_section_anchors = 0;
     }
 
-  if (first_time_p)
+  if (!opts->x_flag_opts_finished)
     {
       if (opts->x_flag_pie)
 	opts->x_flag_pic = opts->x_flag_pie;
       if (opts->x_flag_pic && !opts->x_flag_pie)
 	opts->x_flag_shlib = 1;
-      first_time_p = false;
+      opts->x_flag_opts_finished = false;
     }
 
-  if (optimize == 0)
+  if (opts->x_optimize == 0)
     {
       /* Inlining does not work if not optimizing,
 	 so force it not to be done.  */
@@ -1002,13 +710,13 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
      generating unwind info.  If opts->x_flag_exceptions is turned on
      we need to turn off the partitioning optimization.  */
 
-  ui_except = targetm.except_unwind_info ();
+  ui_except = targetm.except_unwind_info (opts);
 
   if (opts->x_flag_exceptions
       && opts->x_flag_reorder_blocks_and_partition
       && (ui_except == UI_SJLJ || ui_except == UI_TARGET))
     {
-      inform (input_location,
+      inform (loc,
 	      "-freorder-blocks-and-partition does not work "
 	      "with exceptions on this architecture");
       opts->x_flag_reorder_blocks_and_partition = 0;
@@ -1023,7 +731,7 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
       && opts->x_flag_reorder_blocks_and_partition
       && (ui_except == UI_SJLJ || ui_except == UI_TARGET))
     {
-      inform (input_location,
+      inform (loc,
 	      "-freorder-blocks-and-partition does not support "
 	      "unwind info on this architecture");
       opts->x_flag_reorder_blocks_and_partition = 0;
@@ -1040,7 +748,7 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
 	      && targetm.unwind_tables_default
 	      && (ui_except == UI_SJLJ || ui_except == UI_TARGET))))
     {
-      inform (input_location,
+      inform (loc,
 	      "-freorder-blocks-and-partition does not work "
 	      "on this architecture");
       opts->x_flag_reorder_blocks_and_partition = 0;
@@ -1055,7 +763,7 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
   if (!targetm.ira_cover_classes
       && opts->x_flag_ira_algorithm == IRA_ALGORITHM_CB)
     {
-      inform (input_location,
+      inform (loc,
 	      "-fira-algorithm=CB does not work on this architecture");
       opts->x_flag_ira_algorithm = IRA_ALGORITHM_PRIORITY;
     }
@@ -1084,7 +792,7 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
 	 errors later.  */
       opts->x_flag_whole_program = 0;
 #else
-      error ("LTO support has not been enabled in this configuration");
+      error_at (loc, "LTO support has not been enabled in this configuration");
 #endif
     }
   if ((opts->x_flag_lto_partition_balanced != 0) + (opts->x_flag_lto_partition_1to1 != 0)
@@ -1093,7 +801,7 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
       if ((opts->x_flag_lto_partition_balanced != 0)
 	   + (opts->x_flag_lto_partition_1to1 != 0)
 	   + (opts->x_flag_lto_partition_none != 0) > 1)
-	error ("only one -flto-partition value can be specified");
+	error_at (loc, "only one -flto-partition value can be specified");
     }
 
   /* We initialize opts->x_flag_split_stack to -1 so that targets can set a
@@ -1102,10 +810,10 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set)
     opts->x_flag_split_stack = 0;
   else if (opts->x_flag_split_stack)
     {
-      if (!targetm.supports_split_stack (true))
+      if (!targetm.supports_split_stack (true, opts))
 	{
-	  error ("%<-fsplit-stack%> is not supported by "
-		 "this compiler configuration");
+	  error_at (loc, "%<-fsplit-stack%> is not supported by "
+		    "this compiler configuration");
 	  opts->x_flag_split_stack = 0;
 	}
     }
@@ -1165,11 +873,12 @@ static void
 print_filtered_help (unsigned int include_flags,
 		     unsigned int exclude_flags,
 		     unsigned int any_flags,
-		     unsigned int columns)
+		     unsigned int columns,
+		     struct gcc_options *opts,
+		     unsigned int lang_mask)
 {
   unsigned int i;
   const char *help;
-  static char *printed = NULL;
   bool found = false;
   bool displayed = false;
 
@@ -1196,12 +905,15 @@ print_filtered_help (unsigned int include_flags,
       return;
     }
 
-  if (!printed)
-    printed = XCNEWVAR (char, cl_options_count);
+  if (!opts->x_help_printed)
+    opts->x_help_printed = XCNEWVAR (char, cl_options_count);
+
+  if (!opts->x_help_enum_printed)
+    opts->x_help_enum_printed = XCNEWVAR (char, cl_enums_count);
 
   for (i = 0; i < cl_options_count; i++)
     {
-      static char new_help[128];
+      char new_help[128];
       const struct cl_option *option = cl_options + i;
       unsigned int len;
       const char *opt;
@@ -1226,10 +938,10 @@ print_filtered_help (unsigned int include_flags,
 
       found = true;
       /* Skip switches that have already been printed.  */
-      if (printed[i])
+      if (opts->x_help_printed[i])
 	continue;
 
-      printed[i] = true;
+      opts->x_help_printed[i] = true;
 
       help = option->help;
       if (help == NULL)
@@ -1261,7 +973,7 @@ print_filtered_help (unsigned int include_flags,
 	 with an option to be an indication of its current setting.  */
       if (!quiet_flag)
 	{
-	  void *flag_var = option_flag_var (i, &global_options);
+	  void *flag_var = option_flag_var (i, opts);
 
 	  if (len < (LEFT_COLUMN + 2))
 	    strcpy (new_help, "\t\t");
@@ -1280,12 +992,26 @@ print_filtered_help (unsigned int include_flags,
 				  sizeof (new_help) - strlen (new_help),
 				  * (const char **) flag_var);
 		    }
+		  else if (option->var_type == CLVC_ENUM)
+		    {
+		      const struct cl_enum *e = &cl_enums[option->var_enum];
+		      int value;
+		      const char *arg = NULL;
+
+		      value = e->get (flag_var);
+		      enum_value_to_arg (e->values, &arg, value, lang_mask);
+		      if (arg == NULL)
+			arg = _("[default]");
+		      snprintf (new_help + strlen (new_help),
+				sizeof (new_help) - strlen (new_help),
+				arg);
+		    }
 		  else
 		    sprintf (new_help + strlen (new_help),
 			     "%#x", * (int *) flag_var);
 		}
 	      else
-		strcat (new_help, option_enabled (i, &global_options)
+		strcat (new_help, option_enabled (i, opts)
 			? _("[enabled]") : _("[disabled]"));
 	    }
 
@@ -1294,6 +1020,10 @@ print_filtered_help (unsigned int include_flags,
 
       wrap_help (help, opt, len, columns);
       displayed = true;
+
+      if (option->var_type == CLVC_ENUM
+	  && opts->x_help_enum_printed[option->var_enum] != 2)
+	opts->x_help_enum_printed[option->var_enum] = 1;
     }
 
   if (! found)
@@ -1319,23 +1049,63 @@ print_filtered_help (unsigned int include_flags,
     printf (_(" All options with the desired characteristics have already been displayed\n"));
 
   putchar ('\n');
+
+  /* Print details of enumerated option arguments, if those
+     enumerations have help text headings provided.  If no help text
+     is provided, presume that the possible values are listed in the
+     help text for the relevant options.  */
+  for (i = 0; i < cl_enums_count; i++)
+    {
+      unsigned int j, pos;
+
+      if (opts->x_help_enum_printed[i] != 1)
+	continue;
+      if (cl_enums[i].help == NULL)
+	continue;
+      printf ("  %s\n    ", _(cl_enums[i].help));
+      pos = 4;
+      for (j = 0; cl_enums[i].values[j].arg != NULL; j++)
+	{
+	  unsigned int len = strlen (cl_enums[i].values[j].arg);
+
+	  if (pos > 4 && pos + 1 + len <= columns)
+	    {
+	      printf (" %s", cl_enums[i].values[j].arg);
+	      pos += 1 + len;
+	    }
+	  else
+	    {
+	      if (pos > 4)
+		{
+		  printf ("\n    ");
+		  pos = 4;
+		}
+	      printf ("%s", cl_enums[i].values[j].arg);
+	      pos += len;
+	    }
+	}
+      printf ("\n\n");
+      opts->x_help_enum_printed[i] = 2;
+    }
 }
 
 /* Display help for a specified type of option.
    The options must have ALL of the INCLUDE_FLAGS set
    ANY of the flags in the ANY_FLAGS set
-   and NONE of the EXCLUDE_FLAGS set.  */
+   and NONE of the EXCLUDE_FLAGS set.  The current option state is in
+   OPTS; LANG_MASK is used for interpreting enumerated option state.  */
 static void
 print_specific_help (unsigned int include_flags,
 		     unsigned int exclude_flags,
-		     unsigned int any_flags)
+		     unsigned int any_flags,
+		     struct gcc_options *opts,
+		     unsigned int lang_mask)
 {
   unsigned int all_langs_mask = (1U << cl_lang_count) - 1;
   const char * description = NULL;
   const char * descrip_extra = "";
   size_t i;
   unsigned int flag;
-  static unsigned int columns = 0;
 
   /* Sanity check: Make sure that we do not have more
      languages than we have bits available to enumerate them.  */
@@ -1343,22 +1113,22 @@ print_specific_help (unsigned int include_flags,
 
   /* If we have not done so already, obtain
      the desired maximum width of the output.  */
-  if (columns == 0)
+  if (opts->x_help_columns == 0)
     {
       const char *p;
 
-      GET_ENVIRONMENT (p, "COLUMNS");
+      p = getenv ("COLUMNS");
       if (p != NULL)
 	{
 	  int value = atoi (p);
 
 	  if (value > 0)
-	    columns = value;
+	    opts->x_help_columns = value;
 	}
 
-      if (columns == 0)
+      if (opts->x_help_columns == 0)
 	/* Use a reasonable default.  */
-	columns = 80;
+	opts->x_help_columns = 80;
     }
 
   /* Decide upon the title for the options that we are going to display.  */
@@ -1424,7 +1194,8 @@ print_specific_help (unsigned int include_flags,
     }
 
   printf ("%s%s:\n", description, descrip_extra);
-  print_filtered_help (include_flags, exclude_flags, any_flags, columns);
+  print_filtered_help (include_flags, exclude_flags, any_flags,
+		       opts->x_help_columns, opts, lang_mask);
 }
 
 /* Handle target- and language-independent options.  Return zero to
@@ -1432,7 +1203,7 @@ print_specific_help (unsigned int include_flags,
    extra handling need to be listed here; if you simply want
    DECODED->value assigned to a variable, it happens automatically.  */
 
-static bool
+bool
 common_handle_option (struct gcc_options *opts,
 		      struct gcc_options *opts_set,
 		      const struct cl_decoded_option *decoded,
@@ -1446,15 +1217,12 @@ common_handle_option (struct gcc_options *opts,
   int value = decoded->value;
   enum opt_code code = (enum opt_code) scode;
 
-  gcc_assert (opts == &global_options);
-  gcc_assert (opts_set == &global_options_set);
-  gcc_assert (dc == global_dc);
   gcc_assert (decoded->canonical_option_num_elements <= 2);
 
   switch (code)
     {
     case OPT__param:
-      handle_param (opts, opts_set, arg);
+      handle_param (opts, opts_set, loc, arg);
       break;
 
     case OPT__help:
@@ -1469,20 +1237,21 @@ common_handle_option (struct gcc_options *opts,
 	/* First display any single language specific options.  */
 	for (i = 0; i < cl_lang_count; i++)
 	  print_specific_help
-	    (1U << i, (all_langs_mask & (~ (1U << i))) | undoc_mask, 0);
+	    (1U << i, (all_langs_mask & (~ (1U << i))) | undoc_mask, 0, opts,
+	     lang_mask);
 	/* Next display any multi language specific options.  */
-	print_specific_help (0, undoc_mask, all_langs_mask);
+	print_specific_help (0, undoc_mask, all_langs_mask, opts, lang_mask);
 	/* Then display any remaining, non-language options.  */
 	for (i = CL_MIN_OPTION_CLASS; i <= CL_MAX_OPTION_CLASS; i <<= 1)
 	  if (i != CL_DRIVER)
-	    print_specific_help (i, undoc_mask, 0);
-	exit_after_options = true;
+	    print_specific_help (i, undoc_mask, 0, opts, lang_mask);
+	opts->x_exit_after_options = true;
 	break;
       }
 
     case OPT__target_help:
-      print_specific_help (CL_TARGET, CL_UNDOCUMENTED, 0);
-      exit_after_options = true;
+      print_specific_help (CL_TARGET, CL_UNDOCUMENTED, 0, opts, lang_mask);
+      opts->x_exit_after_options = true;
 
       /* Allow the target a chance to give the user some additional information.  */
       if (targetm.help)
@@ -1507,7 +1276,7 @@ common_handle_option (struct gcc_options *opts,
 		   params|common|<language>}  */
 	while (* a != 0)
 	  {
-	    static struct
+	    static const struct
 	    {
 	      const char * string;
 	      unsigned int flag;
@@ -1584,17 +1353,18 @@ common_handle_option (struct gcc_options *opts,
 		    if (strncasecmp (a, "c", len) == 0)
 		      * pflags |= lang_flag;
 		    else
-		      fnotice (stderr,
-			       "warning: --help argument %.*s is ambiguous, please be more specific\n",
-			       len, a);
+		      warning_at (loc, 0,
+				  "--help argument %q.*s is ambiguous, "
+				  "please be more specific",
+				  len, a);
 		  }
 	      }
 	    else if (lang_flag != 0)
 	      * pflags |= lang_flag;
 	    else
-	      fnotice (stderr,
-		       "warning: unrecognized argument to --help= option: %.*s\n",
-		       len, a);
+	      warning_at (loc, 0,
+			  "unrecognized argument to --help= option: %q.*s",
+			  len, a);
 
 	    if (comma == NULL)
 	      break;
@@ -1602,13 +1372,14 @@ common_handle_option (struct gcc_options *opts,
 	  }
 
 	if (include_flags)
-	  print_specific_help (include_flags, exclude_flags, 0);
-	exit_after_options = true;
+	  print_specific_help (include_flags, exclude_flags, 0, opts,
+			       lang_mask);
+	opts->x_exit_after_options = true;
 	break;
       }
 
     case OPT__version:
-      exit_after_options = true;
+      opts->x_exit_after_options = true;
       break;
 
     case OPT_O:
@@ -1664,7 +1435,7 @@ common_handle_option (struct gcc_options *opts,
       break;
 
     case OPT_d:
-      decode_d_option (arg);
+      decode_d_option (arg, opts, loc, dc);
       break;
 
     case OPT_fcall_used_:
@@ -1672,30 +1443,17 @@ common_handle_option (struct gcc_options *opts,
       /* Deferred.  */
       break;
 
-    case OPT_fcompare_debug_second:
-      flag_compare_debug = value;
-      break;
-
     case OPT_fdbg_cnt_:
-      dbg_cnt_process_opt (arg);
-      break;
-
     case OPT_fdbg_cnt_list:
-      dbg_cnt_list_all_counters ();
+      /* Deferred.  */
       break;
 
     case OPT_fdebug_prefix_map_:
-      add_debug_prefix_map (arg);
+      /* Deferred.  */
       break;
 
     case OPT_fdiagnostics_show_location_:
-      if (!strcmp (arg, "once"))
-	diagnostic_prefixing_rule (dc) = DIAGNOSTICS_SHOW_PREFIX_ONCE;
-      else if (!strcmp (arg, "every-line"))
-	diagnostic_prefixing_rule (dc)
-	  = DIAGNOSTICS_SHOW_PREFIX_EVERY_LINE;
-      else
-	return false;
+      diagnostic_prefixing_rule (dc) = (diagnostic_prefixing_rule_t) value;
       break;
 
     case OPT_fdiagnostics_show_option:
@@ -1704,27 +1462,6 @@ common_handle_option (struct gcc_options *opts,
 
     case OPT_fdump_:
       /* Deferred.  */
-      break;
-
-    case OPT_ffp_contract_:
-      if (!strcmp (arg, "on"))
-	/* Not implemented, fall back to conservative FP_CONTRACT_OFF.  */
-	opts->x_flag_fp_contract_mode = FP_CONTRACT_OFF;
-      else if (!strcmp (arg, "off"))
-	opts->x_flag_fp_contract_mode = FP_CONTRACT_OFF;
-      else if (!strcmp (arg, "fast"))
-	opts->x_flag_fp_contract_mode = FP_CONTRACT_FAST;
-      else
-	error ("unknown floating point contraction style \"%s\"", arg);
-      break;
-
-    case OPT_fexcess_precision_:
-      if (!strcmp (arg, "fast"))
-	opts->x_flag_excess_precision_cmdline = EXCESS_PRECISION_FAST;
-      else if (!strcmp (arg, "standard"))
-	opts->x_flag_excess_precision_cmdline = EXCESS_PRECISION_STANDARD;
-      else
-	error ("unknown excess precision style \"%s\"", arg);
       break;
 
     case OPT_ffast_math:
@@ -1762,12 +1499,11 @@ common_handle_option (struct gcc_options *opts,
 
     case OPT_fpack_struct_:
       if (value <= 0 || (value & (value - 1)) || value > 16)
-	error ("structure alignment must be a small power of two, not %d", value);
+	error_at (loc,
+		  "structure alignment must be a small power of two, not %d",
+		  value);
       else
-	{
-	  initial_max_fld_align = value;
-	  maximum_field_alignment = value * BITS_PER_UNIT;
-	}
+	opts->x_initial_max_fld_align = value;
       break;
 
     case OPT_fplugin_:
@@ -1775,12 +1511,8 @@ common_handle_option (struct gcc_options *opts,
       /* Deferred.  */
       break;
 
-    case OPT_fprofile_dir_:
-      profile_data_prefix = xstrdup (arg);
-      break;
-
     case OPT_fprofile_use_:
-      profile_data_prefix = xstrdup (arg);
+      opts->x_profile_data_prefix = xstrdup (arg);
       opts->x_flag_profile_use = true;
       value = true;
       /* No break here - do -fprofile-use processing. */
@@ -1813,7 +1545,7 @@ common_handle_option (struct gcc_options *opts,
       break;
 
     case OPT_fprofile_generate_:
-      profile_data_prefix = xstrdup (arg);
+      opts->x_profile_data_prefix = xstrdup (arg);
       value = true;
       /* No break here - do -fprofile-generate processing. */
     case OPT_fprofile_generate:
@@ -1831,35 +1563,20 @@ common_handle_option (struct gcc_options *opts,
       dc->show_column = value;
       break;
 
-    case OPT_fvisibility_:
-      {
-        if (!strcmp(arg, "default"))
-          opts->x_default_visibility = VISIBILITY_DEFAULT;
-        else if (!strcmp(arg, "internal"))
-          opts->x_default_visibility = VISIBILITY_INTERNAL;
-        else if (!strcmp(arg, "hidden"))
-          opts->x_default_visibility = VISIBILITY_HIDDEN;
-        else if (!strcmp(arg, "protected"))
-          opts->x_default_visibility = VISIBILITY_PROTECTED;
-        else
-          error ("unrecognized visibility value \"%s\"", arg);
-      }
-      break;
-
     case OPT_frandom_seed:
       /* The real switch is -fno-random-seed.  */
       if (value)
 	return false;
-      set_random_seed (NULL);
+      /* Deferred.  */
       break;
 
     case OPT_frandom_seed_:
-      set_random_seed (arg);
+      /* Deferred.  */
       break;
 
     case OPT_fsched_verbose_:
 #ifdef INSN_SCHEDULING
-      fix_sched_param ("verbose", arg);
+      /* Handled with Var in common.opt.  */
       break;
 #else
       return false;
@@ -1877,21 +1594,21 @@ common_handle_option (struct gcc_options *opts,
 
     case OPT_fstack_check_:
       if (!strcmp (arg, "no"))
-	flag_stack_check = NO_STACK_CHECK;
+	opts->x_flag_stack_check = NO_STACK_CHECK;
       else if (!strcmp (arg, "generic"))
 	/* This is the old stack checking method.  */
-	flag_stack_check = STACK_CHECK_BUILTIN
+	opts->x_flag_stack_check = STACK_CHECK_BUILTIN
 			   ? FULL_BUILTIN_STACK_CHECK
 			   : GENERIC_STACK_CHECK;
       else if (!strcmp (arg, "specific"))
 	/* This is the new stack checking method.  */
-	flag_stack_check = STACK_CHECK_BUILTIN
+	opts->x_flag_stack_check = STACK_CHECK_BUILTIN
 			   ? FULL_BUILTIN_STACK_CHECK
 			   : STACK_CHECK_STATIC_BUILTIN
 			     ? STATIC_BUILTIN_STACK_CHECK
 			     : GENERIC_STACK_CHECK;
       else
-	warning (0, "unknown stack check parameter \"%s\"", arg);
+	warning_at (loc, 0, "unknown stack check parameter \"%s\"", arg);
       break;
 
     case OPT_fstack_limit:
@@ -1907,74 +1624,44 @@ common_handle_option (struct gcc_options *opts,
       break;
 
     case OPT_ftree_vectorizer_verbose_:
-      vect_set_verbosity_level (arg);
-      break;
-
-    case OPT_ftls_model_:
-      if (!strcmp (arg, "global-dynamic"))
-	opts->x_flag_tls_default = TLS_MODEL_GLOBAL_DYNAMIC;
-      else if (!strcmp (arg, "local-dynamic"))
-	opts->x_flag_tls_default = TLS_MODEL_LOCAL_DYNAMIC;
-      else if (!strcmp (arg, "initial-exec"))
-	opts->x_flag_tls_default = TLS_MODEL_INITIAL_EXEC;
-      else if (!strcmp (arg, "local-exec"))
-	opts->x_flag_tls_default = TLS_MODEL_LOCAL_EXEC;
-      else
-	warning (0, "unknown tls-model \"%s\"", arg);
-      break;
-
-    case OPT_fira_algorithm_:
-      if (!strcmp (arg, "CB"))
-	opts->x_flag_ira_algorithm = IRA_ALGORITHM_CB;
-      else if (!strcmp (arg, "priority"))
-	opts->x_flag_ira_algorithm = IRA_ALGORITHM_PRIORITY;
-      else
-	warning (0, "unknown ira algorithm \"%s\"", arg);
-      break;
-
-    case OPT_fira_region_:
-      if (!strcmp (arg, "one"))
-	opts->x_flag_ira_region = IRA_REGION_ONE;
-      else if (!strcmp (arg, "all"))
-	opts->x_flag_ira_region = IRA_REGION_ALL;
-      else if (!strcmp (arg, "mixed"))
-	opts->x_flag_ira_region = IRA_REGION_MIXED;
-      else
-	warning (0, "unknown ira region \"%s\"", arg);
+      vect_set_verbosity_level (opts, value);
       break;
 
     case OPT_g:
-      set_debug_level (NO_DEBUG, DEFAULT_GDB_EXTENSIONS, arg);
+      set_debug_level (NO_DEBUG, DEFAULT_GDB_EXTENSIONS, arg, opts, opts_set,
+		       loc);
       break;
 
     case OPT_gcoff:
-      set_debug_level (SDB_DEBUG, false, arg);
+      set_debug_level (SDB_DEBUG, false, arg, opts, opts_set, loc);
       break;
 
     case OPT_gdwarf_:
       if (value < 2 || value > 4)
-	error ("dwarf version %d is not supported", value);
+	error_at (loc, "dwarf version %d is not supported", value);
       else
 	dwarf_version = value;
-      set_debug_level (DWARF2_DEBUG, false, "");
+      set_debug_level (DWARF2_DEBUG, false, "", opts, opts_set, loc);
       break;
 
     case OPT_ggdb:
-      set_debug_level (NO_DEBUG, 2, arg);
+      set_debug_level (NO_DEBUG, 2, arg, opts, opts_set, loc);
       break;
 
     case OPT_gstabs:
     case OPT_gstabs_:
-      set_debug_level (DBX_DEBUG, code == OPT_gstabs_, arg);
+      set_debug_level (DBX_DEBUG, code == OPT_gstabs_, arg, opts, opts_set,
+		       loc);
       break;
 
     case OPT_gvms:
-      set_debug_level (VMS_DEBUG, false, arg);
+      set_debug_level (VMS_DEBUG, false, arg, opts, opts_set, loc);
       break;
 
     case OPT_gxcoff:
     case OPT_gxcoff_:
-      set_debug_level (XCOFF_DEBUG, code == OPT_gxcoff_, arg);
+      set_debug_level (XCOFF_DEBUG, code == OPT_gxcoff_, arg, opts, opts_set,
+		       loc);
       break;
 
     case OPT_pedantic_errors:
@@ -2011,7 +1698,7 @@ common_handle_option (struct gcc_options *opts,
 /* Handle --param NAME=VALUE.  */
 static void
 handle_param (struct gcc_options *opts, struct gcc_options *opts_set,
-	      const char *carg)
+	      location_t loc, const char *carg)
 {
   char *equal, *arg;
   int value;
@@ -2019,12 +1706,13 @@ handle_param (struct gcc_options *opts, struct gcc_options *opts_set,
   arg = xstrdup (carg);
   equal = strchr (arg, '=');
   if (!equal)
-    error ("%s: --param arguments should be of the form NAME=VALUE", arg);
+    error_at (loc, "%s: --param arguments should be of the form NAME=VALUE",
+	      arg);
   else
     {
       value = integral_argument (equal + 1);
       if (value == -1)
-	error ("invalid --param value %qs", equal + 1);
+	error_at (loc, "invalid --param value %qs", equal + 1);
       else
 	{
 	  *equal = '\0';
@@ -2080,15 +1768,15 @@ set_unsafe_math_optimizations_flags (struct gcc_options *opts, int set)
   opts->x_flag_reciprocal_math = set;
 }
 
-/* Return true iff flags are set as if -ffast-math.  */
+/* Return true iff flags in OPTS are set as if -ffast-math.  */
 bool
-fast_math_flags_set_p (void)
+fast_math_flags_set_p (const struct gcc_options *opts)
 {
-  return (!flag_trapping_math
-	  && flag_unsafe_math_optimizations
-	  && flag_finite_math_only
-	  && !flag_signed_zeros
-	  && !flag_errno_math);
+  return (!opts->x_flag_trapping_math
+	  && opts->x_flag_unsafe_math_optimizations
+	  && opts->x_flag_finite_math_only
+	  && !opts->x_flag_signed_zeros
+	  && !opts->x_flag_errno_math);
 }
 
 /* Return true iff flags are set as if -ffast-math but using the flags stored
@@ -2103,132 +1791,134 @@ fast_math_flags_struct_set_p (struct cl_optimization *opt)
 	  && !opt->x_flag_errno_math);
 }
 
-/* Handle a debug output -g switch.  EXTENDED is true or false to support
+/* Handle a debug output -g switch for options OPTS
+   (OPTS_SET->x_write_symbols storing whether a debug type was passed
+   explicitly), location LOC.  EXTENDED is true or false to support
    extended output (2 is special and means "-ggdb" was given).  */
 static void
-set_debug_level (enum debug_info_type type, int extended, const char *arg)
+set_debug_level (enum debug_info_type type, int extended, const char *arg,
+		 struct gcc_options *opts, struct gcc_options *opts_set,
+		 location_t loc)
 {
-  static bool type_explicit;
-
-  use_gnu_debug_info_extensions = extended;
+  opts->x_use_gnu_debug_info_extensions = extended;
 
   if (type == NO_DEBUG)
     {
-      if (write_symbols == NO_DEBUG)
+      if (opts->x_write_symbols == NO_DEBUG)
 	{
-	  write_symbols = PREFERRED_DEBUGGING_TYPE;
+	  opts->x_write_symbols = PREFERRED_DEBUGGING_TYPE;
 
 	  if (extended == 2)
 	    {
 #ifdef DWARF2_DEBUGGING_INFO
-	      write_symbols = DWARF2_DEBUG;
+	      opts->x_write_symbols = DWARF2_DEBUG;
 #elif defined DBX_DEBUGGING_INFO
-	      write_symbols = DBX_DEBUG;
+	      opts->x_write_symbols = DBX_DEBUG;
 #endif
 	    }
 
-	  if (write_symbols == NO_DEBUG)
-	    warning (0, "target system does not support debug output");
+	  if (opts->x_write_symbols == NO_DEBUG)
+	    warning_at (loc, 0, "target system does not support debug output");
 	}
     }
   else
     {
       /* Does it conflict with an already selected type?  */
-      if (type_explicit && write_symbols != NO_DEBUG && type != write_symbols)
-	error ("debug format \"%s\" conflicts with prior selection",
-	       debug_type_names[type]);
-      write_symbols = type;
-      type_explicit = true;
+      if (opts_set->x_write_symbols != NO_DEBUG
+	  && opts->x_write_symbols != NO_DEBUG
+	  && type != opts->x_write_symbols)
+	error_at (loc, "debug format \"%s\" conflicts with prior selection",
+		  debug_type_names[type]);
+      opts->x_write_symbols = type;
+      opts_set->x_write_symbols = type;
     }
 
   /* A debug flag without a level defaults to level 2.  */
   if (*arg == '\0')
     {
-      if (!debug_info_level)
-	debug_info_level = DINFO_LEVEL_NORMAL;
+      if (!opts->x_debug_info_level)
+	opts->x_debug_info_level = DINFO_LEVEL_NORMAL;
     }
   else
     {
       int argval = integral_argument (arg);
       if (argval == -1)
-	error ("unrecognised debug output level \"%s\"", arg);
+	error_at (loc, "unrecognised debug output level \"%s\"", arg);
       else if (argval > 3)
-	error ("debug output level %s is too high", arg);
+	error_at (loc, "debug output level %s is too high", arg);
       else
-	debug_info_level = (enum debug_info_level) argval;
+	opts->x_debug_info_level = (enum debug_info_levels) argval;
     }
 }
 
-/* Return 1 if option OPT_IDX is enabled in OPTS, 0 if it is disabled,
-   or -1 if it isn't a simple on-off switch.  */
+/* Arrange to dump core on error for diagnostic context DC.  (The
+   regular error message is still printed first, except in the case of
+   abort ().)  */
 
-int
-option_enabled (int opt_idx, void *opts)
+static void
+setup_core_dumping (diagnostic_context *dc)
 {
-  const struct cl_option *option = &(cl_options[opt_idx]);
-  struct gcc_options *optsg = (struct gcc_options *) opts;
-  void *flag_var = option_flag_var (opt_idx, optsg);
+#ifdef SIGABRT
+  signal (SIGABRT, SIG_DFL);
+#endif
+#if defined(HAVE_SETRLIMIT)
+  {
+    struct rlimit rlim;
+    if (getrlimit (RLIMIT_CORE, &rlim) != 0)
+      fatal_error ("getting core file size maximum limit: %m");
+    rlim.rlim_cur = rlim.rlim_max;
+    if (setrlimit (RLIMIT_CORE, &rlim) != 0)
+      fatal_error ("setting core file size limit to maximum: %m");
+  }
+#endif
+  diagnostic_abort_on_error (dc);
+}
 
-  if (flag_var)
-    switch (option->var_type)
+/* Parse a -d<ARG> command line switch for OPTS, location LOC,
+   diagnostic context DC.  */
+
+static void
+decode_d_option (const char *arg, struct gcc_options *opts,
+		 location_t loc, diagnostic_context *dc)
+{
+  int c;
+
+  while (*arg)
+    switch (c = *arg++)
       {
-      case CLVC_BOOLEAN:
-	return *(int *) flag_var != 0;
+      case 'A':
+	opts->x_flag_debug_asm = 1;
+	break;
+      case 'p':
+	opts->x_flag_print_asm_name = 1;
+	break;
+      case 'P':
+	opts->x_flag_dump_rtl_in_asm = 1;
+	opts->x_flag_print_asm_name = 1;
+	break;
+      case 'v':
+	opts->x_graph_dump_format = vcg;
+	break;
+      case 'x':
+	opts->x_rtl_dump_and_exit = 1;
+	break;
+      case 'D':	/* These are handled by the preprocessor.  */
+      case 'I':
+      case 'M':
+      case 'N':
+      case 'U':
+	break;
+      case 'H':
+	setup_core_dumping (dc);
+	break;
+      case 'a':
+	opts->x_flag_dump_all_passed = true;
+	break;
 
-      case CLVC_EQUAL:
-	return *(int *) flag_var == option->var_value;
-
-      case CLVC_BIT_CLEAR:
-	return (*(int *) flag_var & option->var_value) == 0;
-
-      case CLVC_BIT_SET:
-	return (*(int *) flag_var & option->var_value) != 0;
-
-      case CLVC_STRING:
-      case CLVC_DEFER:
+      default:
+	  warning_at (loc, 0, "unrecognized gcc debugging option: %c", c);
 	break;
       }
-  return -1;
-}
-
-/* Fill STATE with the current state of option OPTION in OPTS.  Return
-   true if there is some state to store.  */
-
-bool
-get_option_state (struct gcc_options *opts, int option,
-		  struct cl_option_state *state)
-{
-  void *flag_var = option_flag_var (option, opts);
-
-  if (flag_var == 0)
-    return false;
-
-  switch (cl_options[option].var_type)
-    {
-    case CLVC_BOOLEAN:
-    case CLVC_EQUAL:
-      state->data = flag_var;
-      state->size = sizeof (int);
-      break;
-
-    case CLVC_BIT_CLEAR:
-    case CLVC_BIT_SET:
-      state->ch = option_enabled (option, opts);
-      state->data = &state->ch;
-      state->size = 1;
-      break;
-
-    case CLVC_STRING:
-      state->data = *(const char **) flag_var;
-      if (state->data == 0)
-	state->data = "";
-      state->size = strlen ((const char *) state->data) + 1;
-      break;
-
-    case CLVC_DEFER:
-      return false;
-    }
-  return true;
 }
 
 /* Enable (or disable if VALUE is 0) a warning option ARG (language
@@ -2252,7 +1942,7 @@ enable_warning_as_error (const char *arg, int value, unsigned int lang_mask,
   option_index = find_opt (new_option, lang_mask);
   if (option_index == OPT_SPECIAL_unknown)
     {
-      error ("-Werror=%s: no option -%s", arg, new_option);
+      error_at (loc, "-Werror=%s: no option -%s", arg, new_option);
     }
   else
     {

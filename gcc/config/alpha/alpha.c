@@ -42,7 +42,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "except.h"
 #include "function.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "ggc.h"
 #include "integrate.h"
 #include "tm_p.h"
@@ -50,7 +49,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "target-def.h"
 #include "debug.h"
 #include "langhooks.h"
-#include <splay-tree.h>
+#include "splay-tree.h"
 #include "cfglayout.h"
 #include "gimple.h"
 #include "tree-flow.h"

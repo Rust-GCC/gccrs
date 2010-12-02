@@ -1,3 +1,36 @@
+2010-12-01  Joseph Myers  <joseph@codesourcery.com>
+
+	* jcf-parse.c: Don't include toplev.h.
+	* Make-lang.in (java/jcf-parse.o): Don't depend on toplev.h.
+
+2010-11-30  Joseph Myers  <joseph@codesourcery.com>
+
+	* boehm.c: Don't include toplev.h.
+	* Make-lang.in (java/boehm.o): Don't depend on toplev.h.
+
+2010-11-30  Joseph Myers  <joseph@codesourcery.com>
+
+	* expr.c, lang.c, mangle.c, mangle_name.c, typeck.c,
+	verify-glue.c: Don't include toplev.h.
+	* Make-lang.in: Dependencies for above files changed to remove
+	toplev.h.
+
+2010-11-29  Joseph Myers  <joseph@codesourcery.com>
+
+	* boehm.c: Include "config.h" instead of <config.h>.
+	* builtins.c: Don't include <stdarg.h>.
+	* class.c: Don't include "stdio.h".
+	(O_BINARY): Don't define here.
+	* jcf-depend.c: Don't include <assert.h>.
+	(jcf_dependency_set_dep_file, jcf_dependency_init,
+	jcf_dependency_write): Use gcc_assert.
+	* jcf-io.c (O_BINARY): Don't define here.
+	* jcf-path.c: Don't include "tm.h".
+	(jcf_path_init): Use getenv instead of GET_ENVIRONMENT.
+	* resource.c: Don't include "stdio.h".
+	(O_BINARY): Don't define here.
+	* verify-impl.c: Don't include <stdio.h>.
+
 2010-11-17  Joseph Myers  <joseph@codesourcery.com>
 
 	* jcf-parse.c (java_parse_file): Take no arguments.

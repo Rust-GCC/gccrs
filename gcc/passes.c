@@ -28,16 +28,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include <signal.h>
-
-#ifdef HAVE_SYS_RESOURCE_H
-# include <sys/resource.h>
-#endif
-
-#ifdef HAVE_SYS_TIMES_H
-# include <sys/times.h>
-#endif
-
 #include "line-map.h"
 #include "input.h"
 #include "tree.h"
@@ -897,7 +887,6 @@ init_optimization_passes (void)
 	  NEXT_PASS (pass_graphite);
 	    {
 	      struct opt_pass **p = &pass_graphite.pass.sub;
-	      NEXT_PASS (pass_copy_prop);
 	      NEXT_PASS (pass_graphite_transforms);
 	      NEXT_PASS (pass_copy_prop);
 	      NEXT_PASS (pass_dce_loop);

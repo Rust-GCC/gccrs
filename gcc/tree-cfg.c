@@ -38,7 +38,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-dump.h"
 #include "tree-pass.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "except.h"
 #include "cfgloop.h"
 #include "cfglayout.h"
@@ -1570,7 +1569,7 @@ replace_uses_by (tree name, tree val)
 	  size_t i;
 
 	  fold_stmt_inplace (stmt);
-	  if (cfgcleanup_altered_bbs)
+	  if (cfgcleanup_altered_bbs && !is_gimple_debug (stmt))
 	    bitmap_set_bit (cfgcleanup_altered_bbs, gimple_bb (stmt)->index);
 
 	  /* FIXME.  This should go in update_stmt.  */

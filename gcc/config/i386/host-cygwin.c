@@ -1,5 +1,5 @@
 /* Cygwin host-specific hook definitions.
- Copyright (C) 2004, 2007 Free Software Foundation, Inc.
+ Copyright (C) 2004, 2007, 2010 Free Software Foundation, Inc.
 
  This file is part of GCC.
 
@@ -20,10 +20,8 @@
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include <sys/mman.h>
 #include "hosthooks.h"
 #include "hosthooks-def.h"
-#include "toplev.h"
 #include "diagnostic.h"
 
 static void * cygwin_gt_pch_get_address (size_t, int fd);

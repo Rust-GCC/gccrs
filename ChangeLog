@@ -1,3 +1,36 @@
+2010-12-02  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Always set default for poststage1_ldflags to
+	-static-libstdc++ -static-libgcc.
+
+2010-11-29  Andreas Schwab  <schwab@redhat.com>
+
+	* configure.ac: Move comment to remove extra space in last argument
+	of GCC_TARGET_TOOL.
+
+2010-11-26  Alexandre Oliva  <aoliva@redhat.com>
+
+	PR other/46020
+	* configure.ac (CXX_FOR_TARGET): Add -funconfigured-libstdc++-v3.
+	* Makefile.def (CXX_FOR_TARGET): Removed from flags_to_pass.
+	* Makefile.tpl (CXX_FOR_TARGET_FLAG_TO_PASS): New.
+	(BASE_FLAGS_TO_PASS): Use it.
+	* configure: Rebuilt.
+	* Makefile.in: Rebuilt.
+
+2010-11-23  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR binutils/12258
+	* configure.ac: Correct comments for --enable-gold/--enable-ld.
+	Properly check default linker.
+	* configure: Regnerated.
+
+2010-11-23  Matthias Klose  <doko@ubuntu.com>
+
+	* configure.ac: For --enable-gold, handle value `default' instead of
+	`both*'.   New configure option --{en,dis}able-ld.
+	* configure: Regenerate.
+
 2010-11-20  Ian Lance Taylor  <iant@google.com>
 
 	* configure.ac: Only disable a language library if no language needs

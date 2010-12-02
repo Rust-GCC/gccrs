@@ -28,30 +28,11 @@ along with GCC; see the file COPYING3.  If not see
 
 #if !defined(IN_LIBGCC2) && !defined(IN_TARGET_LIBS) && !defined(IN_RTS)
 
-/* Specify which kind of debugging info to generate.  */
-extern enum debug_info_type write_symbols;
-
 /* Names of debug_info_type, for error messages.  */
 extern const char *const debug_type_names[];
 
-/* Specify how much debugging info to generate.  */
-extern enum debug_info_level debug_info_level;
-
+extern void strip_off_ending (char *, int);
 extern int base_of_path (const char *path, const char **base_out);
-extern void set_struct_debug_option (struct gcc_options *opts,
-				     const char *value);
-
-/* Nonzero means use GNU-only extensions in the generated symbolic
-   debugging information.  */
-extern bool use_gnu_debug_info_extensions;
-
-/* Run the second compilation of -fcompare-debug.  Not defined using
-   Var in common.opt because this is used in Ada code and so must be
-   an actual variable not a macro.  */
-extern int flag_compare_debug;
-
-/* Global visibility options.  */
-extern struct visibility_flags visibility_options;
 
 /* True if this is the LTO front end (lto1).  This is used to disable
    gimple generation and lowering passes that are normally run on the
@@ -59,6 +40,10 @@ extern struct visibility_flags visibility_options;
    they have already been done before the gimple was written.  */
 
 extern bool in_lto_p;
+
+/* Return true iff flags are set as if -ffast-math.  */
+extern bool fast_math_flags_set_p (const struct gcc_options *);
+extern bool fast_math_flags_struct_set_p (struct cl_optimization *);
 
 /* Used to set the level of -Wstrict-aliasing in OPTS, when no level
    is specified.  The external way to set the default level is to use
@@ -68,17 +53,8 @@ extern bool in_lto_p;
    set to the default value of -Wstrict_aliasing=level.  */
 
 extern void set_Wstrict_aliasing (struct gcc_options *opts, int onoff);
-
-/* Nonzero for -dp: annotate the assembly with a comment describing the
-   pattern and alternative used.  */
-
-extern int flag_print_asm_name;
 
 /* Now the symbols that are set with `-f' switches.  */
-
-/* Nonzero if we are only using compiler to check syntax errors.  */
-
-extern int rtl_dump_and_exit;
 
 /* True if printing into -fdump-final-insns= dump.  */
 
@@ -88,20 +64,9 @@ extern bool final_insns_dump_p;
 
 extern int flag_permissive;
 
-/* -dA causes debug information to be produced in
-   the generated assembly code (to make it more readable).  This option
-   is generally only of use to those who actually need to read the
-   generated assembly code (perhaps while debugging the compiler itself).
-   Currently, this switch is only used by dwarfout.c; however, it is intended
-   to be a catchall for printing debug information in the assembler file.  */
-
-extern int flag_debug_asm;
-
 /* Generate code for GNU or NeXT Objective-C runtime environment.  */
 
 extern int flag_next_runtime;
-
-extern int flag_dump_rtl_in_asm;
 
 /* Other basic status info about current function.  */
 
@@ -149,10 +114,6 @@ extern struct target_flag_state *this_target_flag_state;
 
 /* Nonzero if we dump in VCG format, not plain text.  */
 extern int dump_for_graph;
-
-extern enum graph_dump_types graph_dump_format;
-
-extern enum stack_check_type flag_stack_check;
 
 /* Returns TRUE if generated code should match ABI version N or
    greater is in use.  */

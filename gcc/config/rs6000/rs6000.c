@@ -3017,14 +3017,15 @@ rs6000_option_override_internal (bool global_init_p)
 				 || rs6000_cpu == PROCESSOR_PPCE500MC
 				 || rs6000_cpu == PROCESSOR_PPCE500MC64);
 
-  /* Allow debug switches to override the above settings.  */
-  if (TARGET_ALWAYS_HINT > 0)
+  /* Allow debug switches to override the above settings.  These are set to -1
+     in rs6000.opt to indicate the user hasn't directly set the switch.  */
+  if (TARGET_ALWAYS_HINT >= 0)
     rs6000_always_hint = TARGET_ALWAYS_HINT;
 
-  if (TARGET_SCHED_GROUPS > 0)
+  if (TARGET_SCHED_GROUPS >= 0)
     rs6000_sched_groups = TARGET_SCHED_GROUPS;
 
-  if (TARGET_ALIGN_BRANCH_TARGETS > 0)
+  if (TARGET_ALIGN_BRANCH_TARGETS >= 0)
     rs6000_align_branch_targets = TARGET_ALIGN_BRANCH_TARGETS;
 
   rs6000_sched_restricted_insns_priority
@@ -20032,8 +20033,10 @@ rs6000_reg_live_or_pic_offset_p (int reg)
   return (((crtl->calls_eh_return || df_regs_ever_live_p (reg))
            && (!call_used_regs[reg]
                || (reg == RS6000_PIC_OFFSET_TABLE_REGNUM
+		   && !TARGET_SINGLE_PIC_BASE
                    && TARGET_TOC && TARGET_MINIMAL_TOC)))
           || (reg == RS6000_PIC_OFFSET_TABLE_REGNUM
+	      && !TARGET_SINGLE_PIC_BASE
               && ((DEFAULT_ABI == ABI_V4 && flag_pic != 0)
                   || (DEFAULT_ABI == ABI_DARWIN && flag_pic))));
 }
@@ -20687,6 +20690,9 @@ rs6000_emit_prologue (void)
 
       insn = emit_insn (generate_set_vrsave (reg, info, 0));
     }
+
+  if (TARGET_SINGLE_PIC_BASE)
+    return; /* Do not set PIC register */
 
   /* If we are using RS6000_PIC_OFFSET_TABLE_REGNUM, we need to set it up.  */
   if ((TARGET_TOC && TARGET_MINIMAL_TOC && get_pool_size () != 0)
@@ -26067,54 +26073,9 @@ rs6000_rtx_costs (rtx x, int code, int outer_code, int *total,
       return true;
 
     case PLUS:
-      if (mode == DFmode)
-	{
-	  if (GET_CODE (XEXP (x, 0)) == MULT)
-	    {
-	      /* FNMA accounted in outer NEG.  */
-	      if (outer_code == NEG)
-		*total = rs6000_cost->dmul - rs6000_cost->fp;
-	      else
-		*total = rs6000_cost->dmul;
-	    }
-	  else
-	    *total = rs6000_cost->fp;
-	}
-      else if (mode == SFmode)
-	{
-	  /* FNMA accounted in outer NEG.  */
-	  if (outer_code == NEG && GET_CODE (XEXP (x, 0)) == MULT)
-	    *total = 0;
-	  else
-	    *total = rs6000_cost->fp;
-	}
-      else
-	*total = COSTS_N_INSNS (1);
-      return false;
-
     case MINUS:
-      if (mode == DFmode)
-	{
-	  if (GET_CODE (XEXP (x, 0)) == MULT
-	      || GET_CODE (XEXP (x, 1)) == MULT)
-	    {
-	      /* FNMA accounted in outer NEG.  */
-	      if (outer_code == NEG)
-		*total = rs6000_cost->dmul - rs6000_cost->fp;
-	      else
-		*total = rs6000_cost->dmul;
-	    }
-	  else
-	    *total = rs6000_cost->fp;
-	}
-      else if (mode == SFmode)
-	{
-	  /* FNMA accounted in outer NEG.  */
-	  if (outer_code == NEG && GET_CODE (XEXP (x, 0)) == MULT)
-	    *total = 0;
-	  else
-	    *total = rs6000_cost->fp;
-	}
+      if (FLOAT_MODE_P (mode))
+	*total = rs6000_cost->fp;
       else
 	*total = COSTS_N_INSNS (1);
       return false;
@@ -26129,19 +26090,22 @@ rs6000_rtx_costs (rtx x, int code, int outer_code, int *total,
 	  else
 	    *total = rs6000_cost->mulsi_const;
 	}
-      /* FMA accounted in outer PLUS/MINUS.  */
-      else if ((mode == DFmode || mode == SFmode)
-	       && (outer_code == PLUS || outer_code == MINUS))
-	*total = 0;
-      else if (mode == DFmode)
-	*total = rs6000_cost->dmul;
       else if (mode == SFmode)
 	*total = rs6000_cost->fp;
+      else if (FLOAT_MODE_P (mode))
+	*total = rs6000_cost->dmul;
       else if (mode == DImode)
 	*total = rs6000_cost->muldi;
       else
 	*total = rs6000_cost->mulsi;
       return false;
+
+    case FMA:
+      if (mode == SFmode)
+	*total = rs6000_cost->fp;
+      else
+	*total = rs6000_cost->dmul;
+      break;
 
     case DIV:
     case MOD:

@@ -1,3 +1,31 @@
+2010-12-01  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc-interface/misc.c (flag_compare_debug, flag_stack_check):
+	Undefine as macros then define as variables.
+	(gnat_post_options): Set variables from global_options.
+
+2010-11-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/46574
+	* gcc-interface/utils2.c (compare_elmt_bitpos): Fix typos.
+
+2010-11-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/40777
+	* gcc-interface/targtyps.c (get_target_double_scalar_alignment): Guard
+	use of TARGET_64BIT macro.
+
+2010-11-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* s-osinte-linux.ads (sigset_t): Use unsigned_char subtype directly.
+	(unsigned_long_long_t): New modular type.
+	(pthread_cond_t): Add alignment clause.
+
+2010-11-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnatvsn.adb (Version_String): Change type to C-like array of chars.
+	(Gnat_Version_String): Adjust to above change.
+
 2010-11-18  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Subprogram_Type>: Also

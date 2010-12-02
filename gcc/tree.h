@@ -3107,6 +3107,11 @@ struct GTY(()) tree_parm_decl {
 #define DECL_HAS_INIT_PRIORITY_P(NODE) \
   (VAR_DECL_CHECK (NODE)->decl_with_vis.init_priority_p)
 
+/* Specify whether the section name was set by user or by
+   compiler via -ffunction-sections.  */
+#define DECL_HAS_IMPLICIT_SECTION_NAME_P(NODE) \
+  (DECL_WITH_VIS_CHECK (NODE)->decl_with_vis.implicit_section_name_p)
+
 struct GTY(()) tree_decl_with_vis {
  struct tree_decl_with_rtl common;
  tree assembler_name;
@@ -3135,7 +3140,9 @@ struct GTY(()) tree_decl_with_vis {
  unsigned init_priority_p : 1;
  /* Used by C++ only.  Might become a generic decl flag.  */
  unsigned shadowed_for_var_p : 1;
- /* 14 unused bits. */
+ /* When SECTION_NAME is implied by -ffunsection-section.  */
+ unsigned implicit_section_name_p : 1;
+ /* 13 unused bits. */
 };
 
 extern tree decl_debug_expr_lookup (tree);
@@ -4027,6 +4034,81 @@ extern tree build6_stat (enum tree_code, tree, tree, tree, tree, tree,
 #define build6(c,t1,t2,t3,t4,t5,t6,t7) \
   build6_stat (c,t1,t2,t3,t4,t5,t6,t7 MEM_STAT_INFO)
 
+/* _loc versions of build[1-6].  */
+
+static inline tree
+build1_stat_loc (location_t loc, enum tree_code code, tree type,
+		 tree arg1 MEM_STAT_DECL)
+{
+  tree t = build1_stat (code, type, arg1 PASS_MEM_STAT);
+  if (CAN_HAVE_LOCATION_P (t))
+    SET_EXPR_LOCATION (t, loc);
+  return t;
+}
+#define build1_loc(l,c,t1,t2) build1_stat_loc (l,c,t1,t2 MEM_STAT_INFO)
+
+static inline tree
+build2_stat_loc (location_t loc, enum tree_code code, tree type, tree arg0,
+		 tree arg1 MEM_STAT_DECL)
+{
+  tree t = build2_stat (code, type, arg0, arg1 PASS_MEM_STAT);
+  if (CAN_HAVE_LOCATION_P (t))
+    SET_EXPR_LOCATION (t, loc);
+  return t;
+}
+#define build2_loc(l,c,t1,t2,t3) build2_stat_loc (l,c,t1,t2,t3 MEM_STAT_INFO)
+
+static inline tree
+build3_stat_loc (location_t loc, enum tree_code code, tree type, tree arg0,
+		 tree arg1, tree arg2 MEM_STAT_DECL)
+{
+  tree t = build3_stat (code, type, arg0, arg1, arg2 PASS_MEM_STAT);
+  if (CAN_HAVE_LOCATION_P (t))
+    SET_EXPR_LOCATION (t, loc);
+  return t;
+}
+#define build3_loc(l,c,t1,t2,t3,t4) \
+  build3_stat_loc (l,c,t1,t2,t3,t4 MEM_STAT_INFO)
+
+static inline tree
+build4_stat_loc (location_t loc, enum tree_code code, tree type, tree arg0,
+		 tree arg1, tree arg2, tree arg3 MEM_STAT_DECL)
+{
+  tree t = build4_stat (code, type, arg0, arg1, arg2, arg3 PASS_MEM_STAT);
+  if (CAN_HAVE_LOCATION_P (t))
+    SET_EXPR_LOCATION (t, loc);
+  return t;
+}
+#define build4_loc(l,c,t1,t2,t3,t4,t5) \
+  build4_stat_loc (l,c,t1,t2,t3,t4,t5 MEM_STAT_INFO)
+
+static inline tree
+build5_stat_loc (location_t loc, enum tree_code code, tree type, tree arg0,
+		 tree arg1, tree arg2, tree arg3, tree arg4 MEM_STAT_DECL)
+{
+  tree t = build5_stat (code, type, arg0, arg1, arg2, arg3,
+			arg4 PASS_MEM_STAT);
+  if (CAN_HAVE_LOCATION_P (t))
+    SET_EXPR_LOCATION (t, loc);
+  return t;
+}
+#define build5_loc(l,c,t1,t2,t3,t4,t5,t6) \
+  build5_stat_loc (l,c,t1,t2,t3,t4,t5,t6 MEM_STAT_INFO)
+
+static inline tree
+build6_stat_loc (location_t loc, enum tree_code code, tree type, tree arg0,
+		 tree arg1, tree arg2, tree arg3, tree arg4,
+		 tree arg5 MEM_STAT_DECL)
+{
+  tree t = build6_stat (code, type, arg0, arg1, arg2, arg3, arg4,
+			arg5 PASS_MEM_STAT);
+  if (CAN_HAVE_LOCATION_P (t))
+    SET_EXPR_LOCATION (t, loc);
+  return t;
+}
+#define build6_loc(l,c,t1,t2,t3,t4,t5,t6,t7) \
+  build6_stat_loc (l,c,t1,t2,t3,t4,t5,t6,t7 MEM_STAT_INFO)
+
 extern tree build_var_debug_value_stat (tree, tree MEM_STAT_DECL);
 #define build_var_debug_value(t1,t2) \
   build_var_debug_value_stat (t1,t2 MEM_STAT_INFO)
@@ -4496,8 +4578,6 @@ extern void finalize_size_functions (void);
 
 /* If nonzero, an upper limit on alignment of structure fields, in bits,  */
 extern unsigned int maximum_field_alignment;
-/* and its original value in bytes, specified via -fpack-struct=<value>.  */
-extern unsigned int initial_max_fld_align;
 
 /* Concatenate two lists (chains of TREE_LIST nodes) X and Y
    by making the last node in X point to Y.
@@ -4879,6 +4959,7 @@ extern tree tree_strip_nop_conversions (tree);
 extern tree tree_strip_sign_nop_conversions (tree);
 extern tree lhd_gcc_personality (void);
 extern void assign_assembler_name_if_neeeded (tree);
+extern void warn_deprecated_use (tree, tree);
 
 
 /* In cgraph.c */
@@ -5419,9 +5500,6 @@ extern bool in_gimple_form;
 /* In gimple.c.  */
 extern tree get_base_address (tree t);
 extern void mark_addressable (tree);
-
-/* In tree-vectorizer.c.  */
-extern void vect_set_verbosity_level (const char *);
 
 /* In tree.c.  */
 

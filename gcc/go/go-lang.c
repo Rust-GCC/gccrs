@@ -154,7 +154,7 @@ go_langhook_init_options_struct (struct gcc_options *opts)
   opts->x_flag_trapping_math = 0;
 
   /* We turn on stack splitting if we can.  */
-  if (targetm.supports_split_stack (false))
+  if (targetm.supports_split_stack (false, opts))
     opts->x_flag_split_stack = 1;
 
   /* Exceptions are used to handle recovering from panics.  */

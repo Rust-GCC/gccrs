@@ -1,5 +1,7 @@
-// { dg-do compile { xfail *-*-* } }
-// { dg-options "-std=gnu++0x" }
+// { dg-do compile }
+// { dg-options "-std=gnu++0x -fno-inline -save-temps" }
+// { dg-final { scan-assembler-not "_ZNSt23enable_shared_from_thisIiEC2Ev" } }
+// { dg-final { scan-assembler-not "_ZN7derivedC2Ev" } }
 
 // Copyright (C) 2010 Free Software Foundation, Inc.
 //
@@ -29,7 +31,6 @@ struct derived : public std::enable_shared_from_this<int>
 int main()
 {
   __gnu_test::constexpr_default_constructible test;
-  test.operator()<derived>();  // { dg-excess-errors "" }
-  derived d;
+  test.operator()<derived>();
   return 0;
 }

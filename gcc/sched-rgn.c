@@ -50,7 +50,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "rtl.h"
 #include "tm_p.h"
 #include "hard-reg-set.h"
@@ -60,7 +59,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "insn-config.h"
 #include "insn-attr.h"
 #include "except.h"
-#include "toplev.h"
 #include "recog.h"
 #include "cfglayout.h"
 #include "params.h"
@@ -2574,7 +2572,10 @@ concat_INSN_LIST (rtx copy, rtx old)
 {
   rtx new_rtx = old;
   for (; copy ; copy = XEXP (copy, 1))
-    new_rtx = alloc_INSN_LIST (XEXP (copy, 0), new_rtx);
+    {
+      new_rtx = alloc_INSN_LIST (XEXP (copy, 0), new_rtx);
+      PUT_REG_NOTE_KIND (new_rtx, REG_NOTE_KIND (copy));
+    }
   return new_rtx;
 }
 

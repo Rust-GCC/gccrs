@@ -29,7 +29,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-pragma.h"
 #include "output.h"
 #include "debug.h"		/* For dwarf2out_do_cfi_asm.  */
-#include "toplev.h"
 #include "tm_p.h"		/* For TARGET_CPU_CPP_BUILTINS & friends.  */
 #include "target.h"
 #include "cpp-id-data.h"
@@ -627,7 +626,7 @@ c_cpp_builtins (cpp_reader *pfile)
 				   1000 + flag_abi_version);
 
   /* libgcc needs to know this.  */
-  if (targetm.except_unwind_info () == UI_SJLJ)
+  if (targetm.except_unwind_info (&global_options) == UI_SJLJ)
     cpp_define (pfile, "__USING_SJLJ_EXCEPTIONS__");
 
   /* limits.h and stdint.h need to know these.  */

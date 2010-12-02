@@ -43,7 +43,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "basic-block.h"
 #include "libfuncs.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "sched-int.h"
 #include "timevar.h"
 #include "target.h"
@@ -262,7 +261,7 @@ static void ia64_asm_emit_except_personality (rtx);
 static void ia64_asm_init_sections (void);
 
 static enum unwind_info_type ia64_debug_unwind_info (void);
-static enum unwind_info_type ia64_except_unwind_info (void);
+static enum unwind_info_type ia64_except_unwind_info (struct gcc_options *);
 
 static struct bundle_state *get_free_bundle_state (void);
 static void free_bundle_state (struct bundle_state *);
@@ -336,6 +335,8 @@ static tree ia64_builtin_decl (unsigned, bool);
 
 static reg_class_t ia64_preferred_reload_class (rtx, reg_class_t);
 static enum machine_mode ia64_get_reg_raw_mode (int regno);
+static section * ia64_hpux_function_section (tree, enum node_frequency,
+					     bool, bool);
 
 /* Table of valid machine attributes.  */
 static const struct attribute_spec ia64_attribute_table[] =
@@ -1970,6 +1971,44 @@ ia64_expand_vecint_minmax (enum rtx_code code, enum machine_mode mode,
   return true;
 }
 
+/* Emit an integral vector unpack operation.  */
+
+void
+ia64_expand_unpack (rtx operands[3], bool unsignedp, bool highp)
+{
+  enum machine_mode mode = GET_MODE (operands[1]);
+  rtx (*gen) (rtx, rtx, rtx);
+  rtx x;
+
+  switch (mode)
+    {
+    case V8QImode:
+      gen = highp ? gen_vec_interleave_highv8qi : gen_vec_interleave_lowv8qi;
+      break;
+    case V4HImode:
+      gen = highp ? gen_vec_interleave_highv4hi : gen_vec_interleave_lowv4hi;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  /* Fill in x with the sign extension of each element in op1.  */
+  if (unsignedp)
+    x = CONST0_RTX (mode);
+  else
+    {
+      bool neg;
+
+      x = gen_reg_rtx (mode);
+
+      neg = ia64_expand_vecint_compare (LT, mode, x, operands[1],
+					CONST0_RTX (mode));
+      gcc_assert (!neg);
+    }
+
+  emit_insn (gen (gen_lowpart (mode, operands[0]), operands[1], x));
+}
+
 /* Emit an integral vector widening sum operations.  */
 
 void
@@ -1987,13 +2026,13 @@ ia64_expand_widen_sum (rtx operands[3], bool unsignedp)
   switch (mode)
     {
     case V8QImode:
-      unpack_l = gen_unpack1_l;
-      unpack_h = gen_unpack1_h;
+      unpack_l = gen_vec_interleave_lowv8qi;
+      unpack_h = gen_vec_interleave_highv8qi;
       plus = gen_addv4hi3;
       break;
     case V4HImode:
-      unpack_l = gen_unpack2_l;
-      unpack_h = gen_unpack2_h;
+      unpack_l = gen_vec_interleave_lowv4hi;
+      unpack_h = gen_vec_interleave_highv4hi;
       plus = gen_addv2si3;
       break;
     default:
@@ -2022,6 +2061,27 @@ ia64_expand_widen_sum (rtx operands[3], bool unsignedp)
   emit_insn (unpack_h (gen_lowpart (mode, h), operands[1], x));
   emit_insn (plus (s, l, operands[2]));
   emit_insn (plus (operands[0], h, s));
+}
+
+void
+ia64_expand_widen_mul_v4hi (rtx operands[3], bool unsignedp, bool highp)
+{
+  rtx l = gen_reg_rtx (V4HImode);
+  rtx h = gen_reg_rtx (V4HImode);
+  rtx (*mulhigh)(rtx, rtx, rtx, rtx);
+  rtx (*interl)(rtx, rtx, rtx);
+
+  emit_insn (gen_mulv4hi3 (l, operands[1], operands[2]));
+
+  /* For signed, pmpy2.r would appear to more closely match this operation.
+     However, the vectorizer is more likely to use the LO and HI patterns
+     in pairs. At which point, with this formulation, the first two insns
+     of each can be CSEd.  */
+  mulhigh = unsignedp ? gen_pmpyshr2_u : gen_pmpyshr2;
+  emit_insn (mulhigh (h, operands[1], operands[2], GEN_INT (16)));
+
+  interl = highp ? gen_vec_interleave_highv4hi : gen_vec_interleave_lowv4hi;
+  emit_insn (interl (gen_lowpart (V4HImode, operands[0]), l, h));
 }
 
 /* Emit a signed or unsigned V8QI dot product operation.  */
@@ -2054,10 +2114,14 @@ ia64_expand_dot_prod_v8qi (rtx operands[4], bool unsignedp)
   h1 = gen_reg_rtx (V4HImode);
   h2 = gen_reg_rtx (V4HImode);
 
-  emit_insn (gen_unpack1_l (gen_lowpart (V8QImode, l1), operands[1], x1));
-  emit_insn (gen_unpack1_l (gen_lowpart (V8QImode, l2), operands[2], x2));
-  emit_insn (gen_unpack1_h (gen_lowpart (V8QImode, h1), operands[1], x1));
-  emit_insn (gen_unpack1_h (gen_lowpart (V8QImode, h2), operands[2], x2));
+  emit_insn (gen_vec_interleave_lowv8qi
+	     (gen_lowpart (V8QImode, l1), operands[1], x1));
+  emit_insn (gen_vec_interleave_lowv8qi
+	     (gen_lowpart (V8QImode, l2), operands[2], x2));
+  emit_insn (gen_vec_interleave_highv8qi
+	     (gen_lowpart (V8QImode, h1), operands[1], x1));
+  emit_insn (gen_vec_interleave_highv8qi
+	     (gen_lowpart (V8QImode, h2), operands[2], x2));
 
   p1 = gen_reg_rtx (V2SImode);
   p2 = gen_reg_rtx (V2SImode);
@@ -3955,7 +4019,7 @@ ia64_output_function_prologue (FILE *file, HOST_WIDE_INT size ATTRIBUTE_UNUSED)
 	     current_frame_info.n_output_regs,
 	     current_frame_info.n_rotate_regs);
 
-  if (ia64_except_unwind_info () != UI_TARGET)
+  if (ia64_except_unwind_info (&global_options) != UI_TARGET)
     return;
 
   /* Emit the .prologue directive.  */
@@ -4013,7 +4077,7 @@ ia64_output_function_prologue (FILE *file, HOST_WIDE_INT size ATTRIBUTE_UNUSED)
 static void
 ia64_output_function_end_prologue (FILE *file)
 {
-  if (ia64_except_unwind_info () != UI_TARGET)
+  if (ia64_except_unwind_info (&global_options) != UI_TARGET)
     return;
 
   fputs ("\t.body\n", file);
@@ -8635,7 +8699,7 @@ ia64_add_bundle_selector_before (int template0, rtx insn)
   ia64_emit_insn_before (b, insn);
 #if NR_BUNDLES == 10
   if ((template0 == 4 || template0 == 5)
-      && ia64_except_unwind_info () == UI_TARGET)
+      && ia64_except_unwind_info (&global_options) == UI_TARGET)
     {
       int i;
       rtx note = NULL_RTX;
@@ -9476,7 +9540,7 @@ ia64_reorg (void)
   /* A call must not be the last instruction in a function, so that the
      return address is still within the function, so that unwinding works
      properly.  Note that IA-64 differs from dwarf2 on this point.  */
-  if (ia64_except_unwind_info () == UI_TARGET)
+  if (ia64_except_unwind_info (&global_options) == UI_TARGET)
     {
       rtx insn;
       int saw_stop = 0;
@@ -9942,7 +10006,7 @@ process_cfa_offset (FILE *asm_out_file, rtx pat, bool unwind)
 static void
 ia64_asm_unwind_emit (FILE *asm_out_file, rtx insn)
 {
-  bool unwind = ia64_except_unwind_info () == UI_TARGET;
+  bool unwind = ia64_except_unwind_info (&global_options) == UI_TARGET;
   bool frame = dwarf2out_do_frame ();
   rtx note, pat;
   bool handled_one;
@@ -10079,7 +10143,7 @@ ia64_debug_unwind_info (void)
 /* Implement TARGET_EXCEPT_UNWIND_INFO.  */
 
 static enum unwind_info_type
-ia64_except_unwind_info (void)
+ia64_except_unwind_info (struct gcc_options *opts)
 {
   /* Honor the --enable-sjlj-exceptions configure switch.  */
 #ifdef CONFIG_UNWIND_EXCEPTIONS
@@ -10089,7 +10153,7 @@ ia64_except_unwind_info (void)
 
   /* For simplicity elsewhere in this file, indicate that all unwind
      info is disabled if we're not emitting unwind tables.  */
-  if (!flag_exceptions && !flag_unwind_tables)
+  if (!opts->x_flag_exceptions && !opts->x_flag_unwind_tables)
     return UI_NONE;
 
   return UI_TARGET;
@@ -11020,6 +11084,17 @@ ia64_get_reg_raw_mode (int regno)
   if (FR_REGNO_P (regno))
     return XFmode;
   return default_get_reg_raw_mode(regno);
+}
+
+/* Always default to .text section until HP-UX linker is fixed.  */
+
+ATTRIBUTE_UNUSED static section *
+ia64_hpux_function_section (tree decl ATTRIBUTE_UNUSED,
+			    enum node_frequency freq ATTRIBUTE_UNUSED,
+			    bool startup ATTRIBUTE_UNUSED,
+			    bool exit ATTRIBUTE_UNUSED)
+{
+  return NULL;
 }
 
 #include "gt-ia64.h"

@@ -33,7 +33,6 @@
 #include "tree-flow.h"
 #include "tree-inline.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "gimple.h"
 #include "hashtab.h"
 #include "function.h"
@@ -5887,7 +5886,7 @@ pt_solution_set_var (struct pt_solution *pt, tree var)
 {
   memset (pt, 0, sizeof (struct pt_solution));
   pt->vars = BITMAP_GGC_ALLOC ();
-  bitmap_set_bit (pt->vars, DECL_UID (var));
+  bitmap_set_bit (pt->vars, DECL_PT_UID (var));
   pt->vars_contains_global = is_global_var (var);
 }
 

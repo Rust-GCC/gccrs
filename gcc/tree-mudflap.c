@@ -39,11 +39,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "hashtab.h"
 #include "diagnostic.h"
-#include <demangle.h>
+#include "demangle.h"
 #include "langhooks.h"
 #include "ggc.h"
 #include "cgraph.h"
-#include "toplev.h"
 #include "gimple.h"
 
 /* Internal function decls */

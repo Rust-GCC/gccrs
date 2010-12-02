@@ -28,16 +28,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include <signal.h>
-
-#ifdef HAVE_SYS_RESOURCE_H
-# include <sys/resource.h>
-#endif
-
-#ifdef HAVE_SYS_TIMES_H
-# include <sys/times.h>
-#endif
-
 #include "line-map.h"
 #include "input.h"
 #include "tree.h"
@@ -111,10 +101,9 @@ static void process_options (void);
 static void backend_init (void);
 static int lang_dependent_init (const char *);
 static void init_asm_output (const char *);
-static void finalize (void);
+static void finalize (bool);
 
 static void crash_signal (int) ATTRIBUTE_NORETURN;
-static void setup_core_dumping (void);
 static void compile_file (void);
 
 /* True if we don't need a backend (e.g. preprocessing only).  */
@@ -127,34 +116,13 @@ static bool no_backend;
 struct cl_decoded_option *save_decoded_options;
 unsigned int save_decoded_options_count;
 
-/* Name of top-level original source file (what was input to cpp).
-   This comes from the #-command at the beginning of the actual input.
-   If there isn't any there, then this is the cc1 input file name.  */
-
-const char *main_input_filename;
-
-/* Pointer to base name in main_input_filename, with directories and a
-   single final extension removed, and the length of this base
-   name.  */
-const char *main_input_basename;
-int main_input_baselength;
-
 /* Used to enable -fvar-tracking, -fweb and -frename-registers according
    to optimize in process_options ().  */
 #define AUTODETECT_VALUE 2
 
-/* Prefix for profile data files */
-const char *profile_data_prefix;
-
 /* Debug hooks - dependent upon command line options.  */
 
 const struct gcc_debug_hooks *debug_hooks;
-
-/* Other flags saying which kinds of debugging dump have been requested.  */
-
-int rtl_dump_and_exit;
-int flag_print_asm_name;
-enum graph_dump_types graph_dump_format;
 
 /* True if this is the lto front end.  This is used to disable
    gimple generation and lowering passes that are normally run on the
@@ -193,19 +161,6 @@ int flag_next_runtime = 0;
 
 int flag_permissive = 0;
 
-/* -dA causes debug commentary information to be produced in
-   the generated assembly code (to make it more readable).  This option
-   is generally only of use to those who actually need to read the
-   generated assembly code (perhaps while debugging the compiler itself).
-   Currently, this switch is only used by dwarfout.c; however, it is intended
-   to be a catchall for printing debug information in the assembler file.  */
-
-int flag_debug_asm = 0;
-
-/* -dP causes the rtl to be emitted as a comment in assembly.  */
-
-int flag_dump_rtl_in_asm = 0;
-
 /* When non-NULL, indicates that whenever space is allocated on the
    stack, the resulting stack pointer must not pass this
    address---that is, for stacks that grow downward, the stack pointer
@@ -214,9 +169,6 @@ int flag_dump_rtl_in_asm = 0;
    At present, the rtx may be either a REG or a SYMBOL_REF, although
    the support provided depends on the backend.  */
 rtx stack_limit_rtx;
-
-/* Type of stack check.  */
-enum stack_check_type flag_stack_check = NO_STACK_CHECK;
 
 /* True if the user has tagged the function with the 'section'
    attribute.  */
@@ -387,82 +339,6 @@ set_random_seed (const char *val)
   return old;
 }
 
-#if GCC_VERSION < 3004
-
-/* The functions clz_hwi, ctz_hwi, ffs_hwi, floor_log2 and exact_log2
-   are defined as inline functions in toplev.h if GCC_VERSION >= 3004.
-   The definitions here are used for older versions of gcc.  */
-
-/* Given X, an unsigned number, return the largest int Y such that 2**Y <= X.
-   If X is 0, return -1.  */
-
-int
-floor_log2 (unsigned HOST_WIDE_INT x)
-{
-  int t = 0;
-
-  if (x == 0)
-    return -1;
-
-  if (HOST_BITS_PER_WIDE_INT > 64)
-    if (x >= (unsigned HOST_WIDE_INT) 1 << (t + 64))
-      t += 64;
-  if (HOST_BITS_PER_WIDE_INT > 32)
-    if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 32))
-      t += 32;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 16))
-    t += 16;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 8))
-    t += 8;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 4))
-    t += 4;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 2))
-    t += 2;
-  if (x >= ((unsigned HOST_WIDE_INT) 1) << (t + 1))
-    t += 1;
-
-  return t;
-}
-
-/* Return the logarithm of X, base 2, considering X unsigned,
-   if X is a power of 2.  Otherwise, returns -1.  */
-
-int
-exact_log2 (unsigned HOST_WIDE_INT x)
-{
-  if (x != (x & -x))
-    return -1;
-  return floor_log2 (x);
-}
-
-/* Given X, an unsigned number, return the number of least significant bits
-   that are zero.  When X == 0, the result is the word size.  */
-
-int
-ctz_hwi (unsigned HOST_WIDE_INT x)
-{
-  return x ? floor_log2 (x & -x) : HOST_BITS_PER_WIDE_INT;
-}
-
-/* Similarly for most significant bits.  */
-
-int
-clz_hwi (unsigned HOST_WIDE_INT x)
-{
-  return HOST_BITS_PER_WIDE_INT - 1 - floor_log2(x);
-}
-
-/* Similar to ctz_hwi, except that the least significant bit is numbered
-   starting from 1, and X == 0 yields 0.  */
-
-int
-ffs_hwi (unsigned HOST_WIDE_INT x)
-{
-  return 1 + floor_log2 (x & -x);
-}
-
-#endif /* GCC_VERSION < 3004 */
-
 /* Handler for fatal signals, such as SIGSEGV.  These are transformed
    into ICE messages, which is much more user friendly.  In case the
    error printer crashes, reset the signal to prevent infinite recursion.  */
@@ -481,74 +357,6 @@ crash_signal (int signo)
     }
 
   internal_error ("%s", strsignal (signo));
-}
-
-/* Arrange to dump core on error.  (The regular error message is still
-   printed first, except in the case of abort().)  */
-
-static void
-setup_core_dumping (void)
-{
-#ifdef SIGABRT
-  signal (SIGABRT, SIG_DFL);
-#endif
-#if defined(HAVE_SETRLIMIT)
-  {
-    struct rlimit rlim;
-    if (getrlimit (RLIMIT_CORE, &rlim) != 0)
-      fatal_error ("getting core file size maximum limit: %m");
-    rlim.rlim_cur = rlim.rlim_max;
-    if (setrlimit (RLIMIT_CORE, &rlim) != 0)
-      fatal_error ("setting core file size limit to maximum: %m");
-  }
-#endif
-  diagnostic_abort_on_error (global_dc);
-}
-
-
-/* Strip off a legitimate source ending from the input string NAME of
-   length LEN.  Rather than having to know the names used by all of
-   our front ends, we strip off an ending of a period followed by
-   up to five characters.  (Java uses ".class".)  */
-
-void
-strip_off_ending (char *name, int len)
-{
-  int i;
-  for (i = 2; i < 6 && len > i; i++)
-    {
-      if (name[len - i] == '.')
-	{
-	  name[len - i] = '\0';
-	  break;
-	}
-    }
-}
-
-/* Output a quoted string.  */
-
-void
-output_quoted_string (FILE *asm_file, const char *string)
-{
-#ifdef OUTPUT_QUOTED_STRING
-  OUTPUT_QUOTED_STRING (asm_file, string);
-#else
-  char c;
-
-  putc ('\"', asm_file);
-  while ((c = *string++) != 0)
-    {
-      if (ISPRINT (c))
-	{
-	  if (c == '\"' || c == '\\')
-	    putc ('\\', asm_file);
-	  putc (c, asm_file);
-	}
-      else
-	fprintf (asm_file, "\\%03o", (unsigned char) c);
-    }
-  putc ('\"', asm_file);
-#endif
 }
 
 /* A subroutine of wrapup_global_declarations.  We've come to the end of
@@ -748,111 +556,6 @@ emit_debug_global_declarations (tree *vec, int len)
   timevar_pop (TV_SYMOUT);
 }
 
-/* Warn about a use of an identifier which was marked deprecated.  */
-void
-warn_deprecated_use (tree node, tree attr)
-{
-  const char *msg;
-
-  if (node == 0 || !warn_deprecated_decl)
-    return;
-
-  if (!attr)
-    {
-      if (DECL_P (node))
-	attr = DECL_ATTRIBUTES (node);
-      else if (TYPE_P (node))
-	{
-	  tree decl = TYPE_STUB_DECL (node);
-	  if (decl)
-	    attr = lookup_attribute ("deprecated",
-				     TYPE_ATTRIBUTES (TREE_TYPE (decl)));
-	}
-    }
-
-  if (attr)
-    attr = lookup_attribute ("deprecated", attr);
-
-  if (attr)
-    msg = TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (attr)));
-  else
-    msg = NULL;
-
-  if (DECL_P (node))
-    {
-      expanded_location xloc = expand_location (DECL_SOURCE_LOCATION (node));
-      if (msg)
-	warning (OPT_Wdeprecated_declarations,
-		 "%qD is deprecated (declared at %s:%d): %s",
-		 node, xloc.file, xloc.line, msg);
-      else
-	warning (OPT_Wdeprecated_declarations,
-		 "%qD is deprecated (declared at %s:%d)",
-		 node, xloc.file, xloc.line);
-    }
-  else if (TYPE_P (node))
-    {
-      tree what = NULL_TREE;
-      tree decl = TYPE_STUB_DECL (node);
-
-      if (TYPE_NAME (node))
-	{
-	  if (TREE_CODE (TYPE_NAME (node)) == IDENTIFIER_NODE)
-	    what = TYPE_NAME (node);
-	  else if (TREE_CODE (TYPE_NAME (node)) == TYPE_DECL
-		   && DECL_NAME (TYPE_NAME (node)))
-	    what = DECL_NAME (TYPE_NAME (node));
-	}
-
-      if (decl)
-	{
-	  expanded_location xloc
-	    = expand_location (DECL_SOURCE_LOCATION (decl));
-	  if (what)
-	    {
-	      if (msg)
-		warning (OPT_Wdeprecated_declarations,
-			 "%qE is deprecated (declared at %s:%d): %s",
-			 what, xloc.file, xloc.line, msg);
-	      else
-		warning (OPT_Wdeprecated_declarations,
-			 "%qE is deprecated (declared at %s:%d)", what,
-			 xloc.file, xloc.line);
-	    }
-	  else
-	    {
-	      if (msg)
-		warning (OPT_Wdeprecated_declarations,
-			 "type is deprecated (declared at %s:%d): %s",
-			 xloc.file, xloc.line, msg);
-	      else
-		warning (OPT_Wdeprecated_declarations,
-			 "type is deprecated (declared at %s:%d)",
-			 xloc.file, xloc.line);
-	    }
-	}
-      else
-	{
-	  if (what)
-	    {
-	      if (msg)
-		warning (OPT_Wdeprecated_declarations, "%qE is deprecated: %s",
-			 what, msg);
-	      else
-		warning (OPT_Wdeprecated_declarations, "%qE is deprecated", what);
-	    }
-	  else
-	    {
-	      if (msg)
-		warning (OPT_Wdeprecated_declarations, "type is deprecated: %s",
-			 msg);
-	      else
-		warning (OPT_Wdeprecated_declarations, "type is deprecated");
-	    }
-	}
-    }
-}
-
 /* Compile an entire translation unit.  Write a file of assembly
    output and various debugging dumps.  */
 
@@ -968,51 +671,6 @@ compile_file (void)
      into the assembly file here, and hence we can not output anything to the
      assembly file after this point.  */
   targetm.asm_out.file_end ();
-}
-
-/* Parse a -d... command line switch.  */
-
-void
-decode_d_option (const char *arg)
-{
-  int c;
-
-  while (*arg)
-    switch (c = *arg++)
-      {
-      case 'A':
-	flag_debug_asm = 1;
-	break;
-      case 'p':
-	flag_print_asm_name = 1;
-	break;
-      case 'P':
-	flag_dump_rtl_in_asm = 1;
-	flag_print_asm_name = 1;
-	break;
-      case 'v':
-	graph_dump_format = vcg;
-	break;
-      case 'x':
-	rtl_dump_and_exit = 1;
-	break;
-      case 'D':	/* These are handled by the preprocessor.  */
-      case 'I':
-      case 'M':
-      case 'N':
-      case 'U':
-	break;
-      case 'H':
-	setup_core_dumping();
-	break;
-      case 'a':
-	enable_rtl_dump_file ();
-	break;
-
-      default:
-	  warning (0, "unrecognized gcc debugging option: %c", c);
-	break;
-      }
 }
 
 /* Indexed by enum debug_info_type.  */
@@ -1304,115 +962,6 @@ init_asm_output (const char *name)
     }
 }
 
-/* Return true if the state of option OPTION should be stored in PCH files
-   and checked by default_pch_valid_p.  Store the option's current state
-   in STATE if so.  */
-
-static inline bool
-option_affects_pch_p (int option, struct cl_option_state *state)
-{
-  if ((cl_options[option].flags & CL_TARGET) == 0)
-    return false;
-  if (option_flag_var (option, &global_options) == &target_flags)
-    if (targetm.check_pch_target_flags)
-      return false;
-  return get_option_state (&global_options, option, state);
-}
-
-/* Default version of get_pch_validity.
-   By default, every flag difference is fatal; that will be mostly right for
-   most targets, but completely right for very few.  */
-
-void *
-default_get_pch_validity (size_t *sz)
-{
-  struct cl_option_state state;
-  size_t i;
-  char *result, *r;
-
-  *sz = 2;
-  if (targetm.check_pch_target_flags)
-    *sz += sizeof (target_flags);
-  for (i = 0; i < cl_options_count; i++)
-    if (option_affects_pch_p (i, &state))
-      *sz += state.size;
-
-  result = r = XNEWVEC (char, *sz);
-  r[0] = flag_pic;
-  r[1] = flag_pie;
-  r += 2;
-  if (targetm.check_pch_target_flags)
-    {
-      memcpy (r, &target_flags, sizeof (target_flags));
-      r += sizeof (target_flags);
-    }
-
-  for (i = 0; i < cl_options_count; i++)
-    if (option_affects_pch_p (i, &state))
-      {
-	memcpy (r, state.data, state.size);
-	r += state.size;
-      }
-
-  return result;
-}
-
-/* Return a message which says that a PCH file was created with a different
-   setting of OPTION.  */
-
-static const char *
-pch_option_mismatch (const char *option)
-{
-  char *r;
-
-  asprintf (&r, _("created and used with differing settings of '%s'"), option);
-  if (r == NULL)
-    return _("out of memory");
-  return r;
-}
-
-/* Default version of pch_valid_p.  */
-
-const char *
-default_pch_valid_p (const void *data_p, size_t len)
-{
-  struct cl_option_state state;
-  const char *data = (const char *)data_p;
-  size_t i;
-
-  /* -fpic and -fpie also usually make a PCH invalid.  */
-  if (data[0] != flag_pic)
-    return _("created and used with different settings of -fpic");
-  if (data[1] != flag_pie)
-    return _("created and used with different settings of -fpie");
-  data += 2;
-
-  /* Check target_flags.  */
-  if (targetm.check_pch_target_flags)
-    {
-      int tf;
-      const char *r;
-
-      memcpy (&tf, data, sizeof (target_flags));
-      data += sizeof (target_flags);
-      len -= sizeof (target_flags);
-      r = targetm.check_pch_target_flags (tf);
-      if (r != NULL)
-	return r;
-    }
-
-  for (i = 0; i < cl_options_count; i++)
-    if (option_affects_pch_p (i, &state))
-      {
-	if (memcmp (data, state.data, state.size) != 0)
-	  return pch_option_mismatch (cl_options[i].opt_text);
-	data += state.size;
-	len -= state.size;
-      }
-
-  return NULL;
-}
-
 /* Default tree printer.   Handles declarations only.  */
 bool
 default_tree_printer (pretty_printer *pp, text_info *text, const char *spec,
@@ -1701,6 +1250,8 @@ process_options (void)
   /* Just in case lang_hooks.post_options ends up calling a debug_hook.
      This can happen with incorrect pre-processed input. */
   debug_hooks = &do_nothing_debug_hooks;
+
+  maximum_field_alignment = initial_max_fld_align * BITS_PER_UNIT;
 
   /* This replaces set_Wunused.  */
   if (warn_unused_function == -1)
@@ -2251,7 +1802,7 @@ dump_memory_report (bool final)
 /* Clean up: close opened files, etc.  */
 
 static void
-finalize (void)
+finalize (bool no_backend)
 {
   /* Close the dump files.  */
   if (flag_gen_aux_info)
@@ -2278,10 +1829,14 @@ finalize (void)
   if (stack_usage_file)
     fclose (stack_usage_file);
 
-  statistics_fini ();
-  finish_optimization_passes ();
+  if (!no_backend)
+    {
+      statistics_fini ();
 
-  ira_finish_once ();
+      finish_optimization_passes ();
+
+      ira_finish_once ();
+    }
 
   if (mem_report)
     dump_memory_report (true);
@@ -2318,7 +1873,7 @@ do_compile (void)
       if (lang_dependent_init (main_input_filename))
 	compile_file ();
 
-      finalize ();
+      finalize (no_backend);
     }
 
   /* Stop timing and print the times.  */

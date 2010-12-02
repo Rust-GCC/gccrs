@@ -40,7 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "integrate.h"
 #include "function.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "ggc.h"
 #include "recog.h"
 #include "predict.h"
@@ -543,7 +542,8 @@ pa_option_override (void)
      call frame information.  There is no benefit in using this optimization
      on PA8000 and later processors.  */
   if (pa_cpu >= PROCESSOR_8000
-      || (targetm.except_unwind_info () == UI_DWARF2 && flag_exceptions)
+      || (targetm.except_unwind_info (&global_options) == UI_DWARF2
+	  && flag_exceptions)
       || flag_unwind_tables)
     target_flags &= ~MASK_JUMP_IN_DELAY;
 

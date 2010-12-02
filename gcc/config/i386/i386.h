@@ -240,7 +240,9 @@ extern const struct processor_costs ix86_size_cost;
 #define TARGET_K8 (ix86_tune == PROCESSOR_K8)
 #define TARGET_ATHLON_K8 (TARGET_K8 || TARGET_ATHLON)
 #define TARGET_NOCONA (ix86_tune == PROCESSOR_NOCONA)
-#define TARGET_CORE2 (ix86_tune == PROCESSOR_CORE2)
+#define TARGET_CORE2_32 (ix86_tune == PROCESSOR_CORE2_32)
+#define TARGET_CORE2_64 (ix86_tune == PROCESSOR_CORE2_64)
+#define TARGET_CORE2 (TARGET_CORE2_32 || TARGET_CORE2_64)
 #define TARGET_COREI7_32 (ix86_tune == PROCESSOR_COREI7_32)
 #define TARGET_COREI7_64 (ix86_tune == PROCESSOR_COREI7_64)
 #define TARGET_COREI7 (TARGET_COREI7_32 || TARGET_COREI7_64)
@@ -2050,7 +2052,8 @@ enum processor_type
   PROCESSOR_PENTIUM4,
   PROCESSOR_K8,
   PROCESSOR_NOCONA,
-  PROCESSOR_CORE2,
+  PROCESSOR_CORE2_32,
+  PROCESSOR_CORE2_64,
   PROCESSOR_COREI7_32,
   PROCESSOR_COREI7_64,
   PROCESSOR_GENERIC32,
@@ -2294,12 +2297,6 @@ struct GTY(()) machine_function {
      stack below the return address.  */
   BOOL_BITFIELD static_chain_on_stack : 1;
 
-  /* Nonzero if the current function uses vzeroupper.  */
-  BOOL_BITFIELD use_vzeroupper_p : 1;
-
-  /* Nonzero if the current function uses 256bit AVX regisers.  */
-  BOOL_BITFIELD use_avx256_p : 1;
-
   /* Nonzero if caller passes 256bit AVX modes.  */
   BOOL_BITFIELD caller_pass_avx256_p : 1;
 
@@ -2311,6 +2308,9 @@ struct GTY(()) machine_function {
 
   /* Nonzero if the current callee returns 256bit AVX modes.  */
   BOOL_BITFIELD callee_return_avx256_p : 1;
+
+  /* Nonzero if rescan vzerouppers in the current function is needed.  */
+  BOOL_BITFIELD rescan_vzeroupper_p : 1;
 
   /* During prologue/epilogue generation, the current frame state.
      Otherwise, the frame state at the end of the prologue.  */

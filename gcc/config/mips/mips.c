@@ -27,7 +27,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include <signal.h>
 #include "rtl.h"
 #include "regs.h"
 #include "hard-reg-set.h"
@@ -35,7 +34,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "conditions.h"
 #include "insn-attr.h"
 #include "recog.h"
-#include "toplev.h"
 #include "output.h"
 #include "tree.h"
 #include "function.h"

@@ -872,8 +872,6 @@ standard_conversion (tree to, tree from, tree expr, bool c_cast_p,
 	       && TREE_CODE (TREE_TYPE (from)) != FUNCTION_TYPE)
 	{
 	  tree nfrom = TREE_TYPE (from);
-	  if (c_dialect_objc ())
-	    nfrom = objc_non_volatilized_type (nfrom);
 	  from = build_pointer_type
 	    (cp_build_qualified_type (void_type_node, 
 			              cp_type_quals (nfrom)));
@@ -1093,7 +1091,7 @@ convert_class_to_reference (tree reference_type, tree s, tree expr, int flags)
   if (!expr)
     return NULL;
 
-  conversions = lookup_conversions (s, /*lookup_template_convs_p=*/true);
+  conversions = lookup_conversions (s);
   if (!conversions)
     return NULL;
 
@@ -1482,9 +1480,6 @@ implicit_conversion (tree to, tree from, tree expr, bool c_cast_p,
   if (from == error_mark_node || to == error_mark_node
       || expr == error_mark_node)
     return NULL;
-
-  if (c_dialect_objc ())
-    from = objc_non_volatilized_type (from);
 
   if (TREE_CODE (to) == REFERENCE_TYPE)
     conv = reference_binding (to, from, expr, c_cast_p, flags);
@@ -2022,6 +2017,7 @@ add_builtin_candidate (struct z_candidate **candidates, enum tree_code code,
 
     case INDIRECT_REF:
       if (TREE_CODE (type1) == POINTER_TYPE
+	  && is_complete (TREE_TYPE (type1))
 	  && (TYPE_PTROB_P (type1)
 	      || TREE_CODE (TREE_TYPE (type1)) == FUNCTION_TYPE))
 	break;
@@ -2464,8 +2460,7 @@ add_builtin_candidates (struct z_candidate **candidates, enum tree_code code,
 	  if (i == 0 && code == MODIFY_EXPR && code2 == NOP_EXPR)
 	    return;
 
-	  convs = lookup_conversions (argtypes[i],
-				      /*lookup_template_convs_p=*/false);
+	  convs = lookup_conversions (argtypes[i]);
 
 	  if (code == COND_EXPR)
 	    {
@@ -3028,8 +3023,7 @@ build_user_type_conversion_1 (tree totype, tree expr, int flags)
 	     reference to it)...  */
 	}
       else
-	conv_fns = lookup_conversions (fromtype,
-				       /*lookup_template_convs_p=*/true);
+	conv_fns = lookup_conversions (fromtype);
     }
 
   candidates = 0;
@@ -3585,7 +3579,7 @@ build_op_call (tree obj, VEC(tree,gc) **args, tsubst_flags_t complain)
 		      LOOKUP_NORMAL, &candidates);
     }
 
-  convs = lookup_conversions (type, /*lookup_template_convs_p=*/true);
+  convs = lookup_conversions (type);
 
   for (; convs; convs = TREE_CHAIN (convs))
     {

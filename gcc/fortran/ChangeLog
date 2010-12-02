@@ -1,3 +1,114 @@
+2010-12-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR fortran/46753
+	* trans-openmp.c (gfc_trans_omp_do): Use build2_loc instead of
+	fold_build2_loc for OMP_FOR conditions.
+
+2010-11-30  Janne Blomqvist  <jb@gcc.gnu.org>
+
+	PR fortran/28105
+	* trans-array.c (gfc_unlikely): Helper function to mark boolean
+	expr as unlikely.
+	(gfc_array_index_size): Check whether the size overflows.
+	(gfc_array_allocate): Check whether size overflows and generate
+	error.
+
+2010-11-30  Joseph Myers  <joseph@codesourcery.com>
+
+	* trans-common.c: Don't include toplev.h.
+
+2010-11-29  Joseph Myers  <joseph@codesourcery.com>
+
+	* gfortran.h (alloca): Don't include definitions.
+	(NULL): Don't define.
+
+2010-11-28  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/46662
+	* resolve.c (update_ppc_arglist): Add check for abstract passed object.
+
+2010-11-28  Paul Thomas  <pault@gcc.gnu.org>
+
+	 PR fortran/35810
+	* trans-array.c (gfc_trans_array_constructor): If the loop->to
+	is a VAR_DECL, assume this is dynamic. In this case, use the
+	counter to obtain the value and set loop->to appropriately.
+	(gfc_conv_ss_descriptor): Always save the offset of a variable
+	in info.saved_offset.
+	(gfc_conv_ss_startstride): Do not attempt bound checking of the
+	lhs of an assignment, if allocatable and f2003 is allowed.
+	(gfc_conv_loop_setup): If possible, do not use an allocatable
+	lhs variable for the loopspec.
+	(gfc_is_reallocatable_lhs): New function.
+	(get_std_lbound): New function.
+	(gfc_alloc_allocatable_for_assignment): New function.
+	* gfortran.h : Add flag_realloc_lhs to the options structure.
+	* lang.opt : Add option f(no-)realloc-lhs.
+	* invoke.texi : Document option f(no-)realloc-lhs.
+	* options.c (gfc_init_options, gfc_post_options,
+	gfc_handle_option): Incorporate f(no-)realloc-lhs with default
+	to frealloc_lhs for -std > f95.
+	* trans-array.h : Add primitive for previous.
+	* trans-expr.c (gfc_conv_string_length): Return if character
+	length is a variable and the expression is NULL.
+	(gfc_conv_procedure_call): If the call is of the kind x = f(...)
+	and the lhs is allocatable and reallocation on assignment OK,
+	call gfc_alloc_allocatable_for_assignment. Do not generate the
+	function call unless direct by reference.
+	(realloc_lhs_loop_for_fcn_call): New function.
+	(realloc_lhs_bounds_for_intrinsic_call): New function.
+	(gfc_trans_arrayfunc_assign): Reallocation assignments need
+	a loopinfo and for the loop bounds to be set.  With intrinsic
+	functions, free the lhs data and let the library allocate the
+	data array. Done by the new functions above.
+	(gfc_trans_assignment_1): If the lhs is allocatable and
+	reallocation on assignment is allowed, mark the lhs and use
+	gfc_alloc_allocatable_for_assignment to make the reallocation.
+	* trans.h : Add is_alloc_lhs bitfield to gfc_ss structure.
+
+2010-11-27  Tobias Burnus  <burnus@net-b.de>
+	    Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/46678
+	trans-decl.c (gfc_trans_auto_character_variable): Use gfc_init_block
+	instead of gfc_start_block.
+
+2010-11-27  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/46301
+	trans-expr.c (gfc_trans_assignment): Add error message for not
+	implemented assignment to deferred-length character variable.
+
+2010-11-26  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/45700
+	* trans.h (build1_stat_loc, build2_stat_loc, build3_stat_loc,
+	build4_stat_loc): Removed.
+	(build1_loc, build2_loc, build3_loc, build4_loc): Removed.
+
+2010-11-25  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/46581
+	* trans.h (gfc_process_block_locals): Removed second argument.
+	* trans-decl.c (trans_associate_var): Moved to trans-stmt.c.
+	(gfc_trans_deferred_vars): Skip ASSOCIATE variables.
+	(gfc_process_block_locals): Don't mark associate names to be
+	initialized.
+	* trans-stmt.c (trans_associate_var): Moved here from trans-decl.c.
+	(gfc_trans_block_construct): Call 'trans_associate_var' from here
+	to make sure SELECT TYPE with associate-name is treated correctly.
+
+2010-11-24  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/46638
+	* target-memory.c (gfc_interpret_derived): Correctly handle
+	component offset.
+
+2010-11-23  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/46545
+	* gfortran.texi (KIND Type Parameters): Quadmath and F2008 changes.
+
 2010-11-22  Michael Matz  <matz@suse.de>
 
 	* gfortranspec.c (library): New global, moved from ...

@@ -40,11 +40,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "function.h"
 #include "optabs.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "basic-block.h"
 #include "tm_p.h"
 #include "ggc.h"
-#include <ctype.h>
 #include "target.h"
 #include "target-def.h"
 #include "targhooks.h"

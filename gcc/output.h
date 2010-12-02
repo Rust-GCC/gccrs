@@ -269,6 +269,10 @@ extern bool default_assemble_integer (rtx, unsigned int, int);
    be outputable. */
 extern bool assemble_integer (rtx, unsigned, unsigned, int);
 
+/* Return section for TEXT_SECITON_NAME if DECL or DECL_SECTION_NAME (DECL)
+   is NULL.  */
+extern section *get_named_text_section (tree, const char *, const char *);
+
 /* An interface to assemble_integer for the common case in which a value is
    fully aligned and must be printed.  VALUE is the value of the integer
    object and SIZE is the number of bytes it contains.  */
@@ -293,6 +297,8 @@ extern rtx peephole (rtx);
 extern void output_shared_constant_pool (void);
 
 extern void output_object_blocks (void);
+
+extern void output_quoted_string (FILE *, const char *);
 
 /* Whether a constructor CTOR is a valid static constant initializer if all
    its elements are.  This used to be internal to initializer_constant_valid_p

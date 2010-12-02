@@ -405,9 +405,9 @@ static int objc_collecting_ivars = 0;
 
 static char *errbuf;	/* Buffer for error diagnostics */
 
-/* Data imported from tree.c.  */
-
-extern enum debug_info_type write_symbols;
+/* An array of all the local variables in the current function that
+   need to be marked as volatile.  */
+VEC(tree,gc) *local_variables_to_volatilize = NULL;
 
 
 static int flag_typed_selectors;
@@ -1185,7 +1185,7 @@ objc_add_property_declaration (location_t location, tree decl,
       /* An existing property was found; check that it has the same
 	 types, or it is compatible.  */
       location_t original_location = DECL_SOURCE_LOCATION (x);
-	  
+
       if (PROPERTY_NONATOMIC (x) != parsed_property_nonatomic)
 	{
 	  warning_at (location, 0,
@@ -1297,6 +1297,13 @@ objc_add_property_declaration (location_t location, tree decl,
   PROPERTY_IVAR_NAME (property_decl) = NULL_TREE;
   PROPERTY_DYNAMIC (property_decl) = 0;
 
+  /* Remember the fact that the property was found in the @optional
+     section in a @protocol, or not.  */
+  if (objc_method_optional_flag)
+    PROPERTY_OPTIONAL (property_decl) = 1;
+  else
+    PROPERTY_OPTIONAL (property_decl) = 0;
+
   /* Note that PROPERTY_GETTER_NAME is always set for all
      PROPERTY_DECLs, and PROPERTY_SETTER_NAME is always set for all
      PROPERTY_DECLs where PROPERTY_READONLY == 0.  Any time we deal
@@ -1314,17 +1321,21 @@ objc_add_property_declaration (location_t location, tree decl,
    in the implementation, and failing that, the protocol list)
    provided for a 'setter' or 'getter' for 'component' with default
    names (ie, if 'component' is "name", then search for "name" and
-   "setName:").  If any is found, then create an artificial property
-   that uses them.  Return NULL_TREE if 'getter' or 'setter' could not
-   be found.  */
+   "setName:").  It is also possible to specify a different
+   'getter_name' (this is used for @optional readonly properties).  If
+   any is found, then create an artificial property that uses them.
+   Return NULL_TREE if 'getter' or 'setter' could not be found.  */
 static tree
 maybe_make_artificial_property_decl (tree interface, tree implementation, 
-				     tree protocol_list, tree component, bool is_class)
+				     tree protocol_list, tree component, bool is_class,
+				     tree getter_name)
 {
-  tree getter_name = component;
   tree setter_name = get_identifier (objc_build_property_setter_name (component));
   tree getter = NULL_TREE;
   tree setter = NULL_TREE;
+
+  if (getter_name == NULL_TREE)
+    getter_name = component;
 
   /* First, check the @interface and all superclasses.  */
   if (interface)
@@ -1405,6 +1416,7 @@ maybe_make_artificial_property_decl (tree interface, tree implementation,
       PROPERTY_ASSIGN_SEMANTICS (property_decl) = 0;
       PROPERTY_IVAR_NAME (property_decl) = NULL_TREE;
       PROPERTY_DYNAMIC (property_decl) = 0;
+      PROPERTY_OPTIONAL (property_decl) = 0;
 
       if (!getter)
 	PROPERTY_HAS_NO_GETTER (property_decl) = 1;
@@ -1485,7 +1497,7 @@ objc_maybe_build_component_ref (tree object, tree property_ident)
 		 properties.  */
 	      if (!IS_CLASS (rtype))
 		x = lookup_property_in_protocol_list (rprotos, property_ident);
-	      
+
 	      if (x == NULL_TREE)
 		{
 		  /* Ok, no property.  Maybe it was an
@@ -1497,7 +1509,25 @@ objc_maybe_build_component_ref (tree object, tree property_ident)
 							   NULL_TREE,
 							   rprotos, 
 							   property_ident,
-							   IS_CLASS (rtype));
+							   IS_CLASS (rtype),
+							   NULL_TREE);
+		}
+	      else if (PROPERTY_OPTIONAL (x) && PROPERTY_READONLY (x))
+		{
+		  /* This is a special, complicated case.  If the
+		     property is optional, and is read-only, then the
+		     property is always used for reading, but an
+		     eventual existing non-property setter can be used
+		     for writing.  We create an artificial property
+		     decl copying the getter from the optional
+		     property, and looking up the setter in the
+		     interface.  */
+		  x = maybe_make_artificial_property_decl (NULL_TREE,
+							   NULL_TREE,
+							   rprotos,
+							   property_ident,
+							   false,
+							   PROPERTY_GETTER_NAME (x));		  
 		}
 	    }
 	}
@@ -1513,11 +1543,8 @@ objc_maybe_build_component_ref (tree object, tree property_ident)
 		 || TREE_CODE (t) == COMPONENT_REF)
 	    t = TREE_OPERAND (t, 0);
 	  
-	  if (t == UOBJC_SUPER_decl)
-	    {
-	      /* TODO: Check if this is correct also for 'super' in categories.  */
-	      interface_type = lookup_interface (CLASS_SUPER_NAME (implementation_template));
-	    }
+	  if (t == UOBJC_SUPER_decl)	
+	    interface_type = lookup_interface (CLASS_SUPER_NAME (implementation_template));
 	  else if (t == self_decl)
 	    interface_type = lookup_interface (CLASS_NAME (implementation_template));
 
@@ -1542,7 +1569,22 @@ objc_maybe_build_component_ref (tree object, tree property_ident)
 		  x = maybe_make_artificial_property_decl 
 		    (interface_type, implementation, NULL_TREE,
 		     property_ident,
-		     (TREE_CODE (objc_method_context) == CLASS_METHOD_DECL));
+		     (TREE_CODE (objc_method_context) == CLASS_METHOD_DECL),
+		     NULL_TREE);
+		}
+	      else if (PROPERTY_OPTIONAL (x) && PROPERTY_READONLY (x))
+		{
+		  tree implementation = NULL_TREE;
+		  
+		  if (t == self_decl)
+		    implementation = objc_implementation_context;
+		  
+		  x = maybe_make_artificial_property_decl (interface_type,
+							   implementation,
+							   NULL_TREE,
+							   property_ident,
+							   false,
+							   PROPERTY_GETTER_NAME (x));		  
 		}
 	    }
 	}
@@ -1607,8 +1649,25 @@ objc_maybe_build_component_ref (tree object, tree property_ident)
 							   implementation,
 							   protocol_list, 
 							   property_ident,
-							   IS_CLASS (rtype));
+							   IS_CLASS (rtype),
+							   NULL_TREE);
 		}
+	      else if (PROPERTY_OPTIONAL (x) && PROPERTY_READONLY (x))
+		{
+		  tree implementation = NULL_TREE;
+
+		  if (objc_implementation_context
+		      && CLASS_NAME (objc_implementation_context) 
+		      == OBJC_TYPE_NAME (interface_type))
+		    implementation = objc_implementation_context;
+		  
+		  x = maybe_make_artificial_property_decl (interface_type,
+							   implementation,
+							   protocol_list,
+							   property_ident,
+							   false,
+							   PROPERTY_GETTER_NAME (x));		  
+		}	      
 	    }
 	}
     }
@@ -1707,7 +1766,7 @@ objc_build_class_component_ref (tree class_name, tree property_ident)
 
   x = maybe_make_artificial_property_decl (rtype, NULL_TREE, NULL_TREE,
 					   property_ident,
-					   true);
+					   true, NULL_TREE);
   
   if (x)
     {
@@ -2141,32 +2200,54 @@ objc_build_struct (tree klass, tree fields, tree super_name)
       fields = base;
     }
 
-  /* NB: Calling finish_struct() may cause type TYPE_LANG_SPECIFIC fields
-     in all variants of this RECORD_TYPE to be clobbered, but it is therein
-     that we store protocol conformance info (e.g., 'NSObject <MyProtocol>').
-     Hence, we must squirrel away the ObjC-specific information before calling
+  /* NB: Calling finish_struct() may cause type TYPE_OBJC_INFO
+     information in all variants of this RECORD_TYPE to be destroyed
+     (this is because the C frontend manipulates TYPE_LANG_SPECIFIC
+     for something else and then will change all variants to use the
+     same resulting TYPE_LANG_SPECIFIC, ignoring the fact that we use
+     it for ObjC protocols and that such propagation will make all
+     variants use the same objc_info), but it is therein that we store
+     protocol conformance info (e.g., 'NSObject <MyProtocol>').
+     Hence, we must save the ObjC-specific information before calling
      finish_struct(), and then reinstate it afterwards.  */
 
-  for (t = TYPE_NEXT_VARIANT (s); t; t = TYPE_NEXT_VARIANT (t))
+  for (t = TYPE_MAIN_VARIANT (s); t; t = TYPE_NEXT_VARIANT (t))
     {
-      if (!TYPE_HAS_OBJC_INFO (t))
-	{
-	  INIT_TYPE_OBJC_INFO (t);
-	  TYPE_OBJC_INTERFACE (t) = klass;
-	}
+      INIT_TYPE_OBJC_INFO (t);
       VEC_safe_push (tree, heap, objc_info, TYPE_OBJC_INFO (t));
     }
 
-  /* Point the struct at its related Objective-C class.  */
-  INIT_TYPE_OBJC_INFO (s);
-  TYPE_OBJC_INTERFACE (s) = klass;
-
   s = objc_finish_struct (s, fields);
 
-  for (i = 0, t = TYPE_NEXT_VARIANT (s); t; t = TYPE_NEXT_VARIANT (t), i++)
+  for (i = 0, t = TYPE_MAIN_VARIANT (s); t; t = TYPE_NEXT_VARIANT (t), i++)
     {
+      /* We now want to restore the different TYPE_OBJC_INFO, but we
+	 have the additional problem that the C frontend doesn't just
+	 copy TYPE_LANG_SPECIFIC from one variant to the other; it
+	 actually makes all of them the *same* TYPE_LANG_SPECIFIC.  As
+	 we need a different TYPE_OBJC_INFO for each (and
+	 TYPE_OBJC_INFO is a field in TYPE_LANG_SPECIFIC), we need to
+	 make a copy of each TYPE_LANG_SPECIFIC before we modify
+	 TYPE_OBJC_INFO.  */
+      if (TYPE_LANG_SPECIFIC (t))
+	{
+	  /* Create a copy of TYPE_LANG_SPECIFIC.  */
+	  struct lang_type *old_lang_type = TYPE_LANG_SPECIFIC (t);
+	  ALLOC_OBJC_TYPE_LANG_SPECIFIC (t);
+	  memcpy (TYPE_LANG_SPECIFIC (t), old_lang_type,
+		  SIZEOF_OBJC_TYPE_LANG_SPECIFIC);
+	}
+      else
+	{
+	  /* Just create a new one.  */
+	  ALLOC_OBJC_TYPE_LANG_SPECIFIC (t);
+	}
+      /* Replace TYPE_OBJC_INFO with the saved one.  This restores any
+	 protocol information that may have been associated with the
+	 type.  */
       TYPE_OBJC_INFO (t) = VEC_index (tree, objc_info, i);
-      /* Replace the IDENTIFIER_NODE with an actual @interface.  */
+      /* Replace the IDENTIFIER_NODE with an actual @interface now
+	 that we have it.  */
       TYPE_OBJC_INTERFACE (t) = klass;
     }
   VEC_free (tree, heap, objc_info);
@@ -2178,61 +2259,6 @@ objc_build_struct (tree klass, tree fields, tree super_name)
   CLASS_STATIC_TEMPLATE (klass) = s;
 
   return s;
-}
-
-/* Build a type differing from TYPE only in that TYPE_VOLATILE is set.
-   Unlike tree.c:build_qualified_type(), preserve TYPE_LANG_SPECIFIC in the
-   process.  */
-static tree
-objc_build_volatilized_type (tree type)
-{
-  tree t;
-
-  /* Check if we have not constructed the desired variant already.  */
-  for (t = TYPE_MAIN_VARIANT (type); t; t = TYPE_NEXT_VARIANT (t))
-    {
-      /* The type qualifiers must (obviously) match up.  */
-      if (!TYPE_VOLATILE (t)
-	  || (TYPE_READONLY (t) != TYPE_READONLY (type))
-	  || (TYPE_RESTRICT (t) != TYPE_RESTRICT (type)))
-	continue;
-
-      /* For pointer types, the pointees (and hence their TYPE_LANG_SPECIFIC
-	 info, if any) must match up.  */
-      if (POINTER_TYPE_P (t)
-	  && (TREE_TYPE (t) != TREE_TYPE (type)))
-	continue;
-
-      /* Only match up the types which were previously volatilized in similar fashion and not
-	 because they were declared as such. */
-      if (!lookup_attribute ("objc_volatilized", TYPE_ATTRIBUTES (t)))
-	continue;
-
-      /* Everything matches up!  */
-      return t;
-    }
-
-  /* Ok, we could not re-use any of the pre-existing variants.  Create
-     a new one.  */
-  t = build_variant_type_copy (type);
-  TYPE_VOLATILE (t) = 1;
-
-  TYPE_ATTRIBUTES (t) = merge_attributes (TYPE_ATTRIBUTES (type),
-                      			  tree_cons (get_identifier ("objc_volatilized"),
-                                 	  NULL_TREE,
-                                 	  NULL_TREE));
-  if (TREE_CODE (t) == ARRAY_TYPE)
-    TREE_TYPE (t) = objc_build_volatilized_type (TREE_TYPE (t));
-
-  /* Set up the canonical type information. */
-  if (TYPE_STRUCTURAL_EQUALITY_P (type))
-    SET_TYPE_STRUCTURAL_EQUALITY (t);
-  else if (TYPE_CANONICAL (type) != type)
-    TYPE_CANONICAL (t) = objc_build_volatilized_type (TYPE_CANONICAL (type));
-  else
-    TYPE_CANONICAL (t) = t;
-
-  return t;
 }
 
 /* Mark DECL as being 'volatile' for purposes of Darwin
@@ -2247,17 +2273,44 @@ objc_volatilize_decl (tree decl)
       && (TREE_CODE (decl) == VAR_DECL
 	  || TREE_CODE (decl) == PARM_DECL))
     {
-      tree t = TREE_TYPE (decl);
+      if (local_variables_to_volatilize == NULL)
+	local_variables_to_volatilize = VEC_alloc (tree, gc, 8);
 
-      t = objc_build_volatilized_type (t);
+      VEC_safe_push (tree, gc, local_variables_to_volatilize, decl);
+    }
+}
 
-      TREE_TYPE (decl) = t;
-      TREE_THIS_VOLATILE (decl) = 1;
-      TREE_SIDE_EFFECTS (decl) = 1;
-      DECL_REGISTER (decl) = 0;
+/* Called when parsing of a function completes; if any local variables
+   in the function were marked as variables to volatilize, change them
+   to volatile.  We do this at the end of the function when the
+   warnings about discarding 'volatile' have already been produced.
+   We are making the variables as volatile just to force the compiler
+   to preserve them between setjmp/longjmp, but we don't want warnings
+   for them as they aren't really volatile.  */
+void
+objc_finish_function (void)
+{
+  /* If there are any local variables to volatilize, volatilize them.  */
+  if (local_variables_to_volatilize)
+    {
+      int i;
+      tree decl;
+      FOR_EACH_VEC_ELT (tree, local_variables_to_volatilize, i, decl)
+	{
+	  tree t = TREE_TYPE (decl);
+
+	  t = build_qualified_type (t, TYPE_QUALS (t) | TYPE_QUAL_VOLATILE);
+	  TREE_TYPE (decl) = t;
+	  TREE_THIS_VOLATILE (decl) = 1;
+	  TREE_SIDE_EFFECTS (decl) = 1;
+	  DECL_REGISTER (decl) = 0;
 #ifndef OBJCPLUS
-      C_DECL_REGISTER (decl) = 0;
+	  C_DECL_REGISTER (decl) = 0;
 #endif
+	}
+
+      /* Now we delete the vector.  This sets it to NULL as well.  */
+      VEC_free (tree, gc, local_variables_to_volatilize);
     }
 }
 
@@ -2614,24 +2667,6 @@ objc_have_common_type (tree ltyp, tree rtyp, int argno, tree callee)
   return false;
 }
 
-/* Check if LTYP and RTYP have the same type qualifiers.  If either type
-   lives in the volatilized hash table, ignore the 'volatile' bit when
-   making the comparison.  */
-
-bool
-objc_type_quals_match (tree ltyp, tree rtyp)
-{
-  int lquals = TYPE_QUALS (ltyp), rquals = TYPE_QUALS (rtyp);
-
-  if (lookup_attribute ("objc_volatilized", TYPE_ATTRIBUTES (ltyp)))
-    lquals &= ~TYPE_QUAL_VOLATILE;
-
-  if (lookup_attribute ("objc_volatilized", TYPE_ATTRIBUTES (rtyp)))
-    rquals &= ~TYPE_QUAL_VOLATILE;
-
-  return (lquals == rquals);
-}
-
 #ifndef OBJCPLUS
 /* Determine if CHILD is derived from PARENT.  The routine assumes that
    both parameters are RECORD_TYPEs, and is non-reflexive.  */
@@ -2751,19 +2786,12 @@ objc_check_global_decl (tree decl)
     error ("redeclaration of Objective-C class %qs", IDENTIFIER_POINTER (id));
 }
 
-/* Return a non-volatalized version of TYPE. */
-
-tree
-objc_non_volatilized_type (tree type)
-{
-  if (lookup_attribute ("objc_volatilized", TYPE_ATTRIBUTES (type)))
-    type = build_qualified_type (type, (TYPE_QUALS (type) & ~TYPE_QUAL_VOLATILE));
-  return type;
-}
-
-/* Construct a PROTOCOLS-qualified variant of INTERFACE, where INTERFACE may
-   either name an Objective-C class, or refer to the special 'id' or 'Class'
-   types.  If INTERFACE is not a valid ObjC type, just return it unchanged.  */
+/* Construct a PROTOCOLS-qualified variant of INTERFACE, where
+   INTERFACE may either name an Objective-C class, or refer to the
+   special 'id' or 'Class' types.  If INTERFACE is not a valid ObjC
+   type, just return it unchanged.  This function is often called when
+   PROTOCOLS is NULL_TREE, in which case we simply look up the
+   appropriate INTERFACE.  */
 
 tree
 objc_get_protocol_qualified_type (tree interface, tree protocols)
@@ -4417,6 +4445,9 @@ objc_declare_class (tree ident_list)
 
 	  record = xref_tag (RECORD_TYPE, ident);
 	  INIT_TYPE_OBJC_INFO (record);
+	  /* In the case of a @class declaration, we store the ident
+	     in the TYPE_OBJC_INTERFACE.  If later an @interface is
+	     found, we'll replace the ident with the interface.  */
 	  TYPE_OBJC_INTERFACE (record) = ident;
 	  hash_class_name_enter (cls_name_hash_list, ident, NULL_TREE);
 	}
@@ -4654,6 +4685,10 @@ objc_generate_write_barrier (tree lhs, enum tree_code modifycode, tree rhs)
 {
   tree result = NULL_TREE, outer;
   int strong_cast_p = 0, outer_gc_p = 0, indirect_p = 0;
+
+  /* This function is currently only used with the next runtime with
+     garbage collection enabled (-fobjc-gc).  */
+  gcc_assert (flag_next_runtime);
 
   /* See if we have any lhs casts, and strip them out.  NB: The lvalue casts
      will have been transformed to the form '*(type *)&expr'.  */
@@ -4934,7 +4969,14 @@ static GTY(()) tree objc_eh_personality_decl;
 tree
 objc_eh_runtime_type (tree type)
 {
-  return add_objc_string (OBJC_TYPE_NAME (TREE_TYPE (type)), class_names);
+  /* Use 'ErrorMarkNode' as class name when error_mark_node is found
+     to prevent an ICE.  Note that we know that the compiler will
+     terminate with an error and this 'ErrorMarkNode' class name will
+     never be actually used.  */
+  if (type == error_mark_node)
+    return add_objc_string (get_identifier ("ErrorMarkNode"), class_names);
+  else
+    return add_objc_string (OBJC_TYPE_NAME (TREE_TYPE (type)), class_names);
 }
 
 tree
@@ -5259,13 +5301,18 @@ objc_begin_try_stmt (location_t try_locus, tree body)
       error_at (try_locus, "%<-fobjc-exceptions%> is required to enable Objective-C exception syntax");
     }
 
+  /* Collect the list of local variables.  We'll mark them as volatile
+     at the end of compilation of this function to prevent them being
+     clobbered by setjmp/longjmp.  */
   if (flag_objc_sjlj_exceptions)
     objc_mark_locals_volatile (NULL);
 }
 
 /* Called just after parsing "@catch (parm)".  Open a binding level,
    enter DECL into the binding level, and initialize it.  Leave the
-   binding level open while the body of the compound statement is parsed.  */
+   binding level open while the body of the compound statement is
+   parsed.  If DECL is NULL_TREE, then we are compiling "@catch(...)"
+   which we compile as "@catch(id tmp_variable)".  */
 
 void
 objc_begin_catch_clause (tree decl)
@@ -5275,46 +5322,99 @@ objc_begin_catch_clause (tree decl)
   /* Begin a new scope that the entire catch clause will live in.  */
   compound = c_begin_compound_stmt (true);
 
-  /* The parser passed in a PARM_DECL, but what we really want is a VAR_DECL.  */
-  decl = build_decl (input_location,
-		     VAR_DECL, DECL_NAME (decl), TREE_TYPE (decl));
-  lang_hooks.decls.pushdecl (decl);
+  /* Create the appropriate declaration for the argument.  */
+ if (decl == error_mark_node)
+   type = error_mark_node;
+ else
+   {
+     if (decl == NULL_TREE)
+       {
+	 /* If @catch(...) was specified, create a temporary variable of
+	    type 'id' and use it.  */
+	 decl = objc_create_temporary_var (objc_object_type, "__objc_generic_catch_var");
+	 DECL_SOURCE_LOCATION (decl) = input_location;
+       }
+     else
+       {
+	 /* The parser passed in a PARM_DECL, but what we really want is a VAR_DECL.  */
+	 decl = build_decl (input_location,
+			    VAR_DECL, DECL_NAME (decl), TREE_TYPE (decl));
+       }
+     lang_hooks.decls.pushdecl (decl);
 
-  /* Since a decl is required here by syntax, don't warn if its unused.  */
-  /* ??? As opposed to __attribute__((unused))?  Anyway, this appears to
-     be what the previous objc implementation did.  */
-  TREE_USED (decl) = 1;
-  DECL_READ_P (decl) = 1;
+     /* Mark the declaration as used so you never any warnings whether
+	you use the exception argument or not.  TODO: Implement a
+	-Wunused-exception-parameter flag, which would cause warnings
+	if exception parameter is not used.  */
+     TREE_USED (decl) = 1;
+     DECL_READ_P (decl) = 1;
 
-  /* Verify that the type of the catch is valid.  It must be a pointer
-     to an Objective-C class, or "id" (which is catch-all).  */
-  type = TREE_TYPE (decl);
+     type = TREE_TYPE (decl);
+   }
 
-  if (POINTER_TYPE_P (type) && objc_is_object_id (TREE_TYPE (type)))
-    type = NULL;
-  else if (!POINTER_TYPE_P (type) || !TYPED_OBJECT (TREE_TYPE (type)))
+ /* Verify that the type of the catch is valid.  It must be a pointer
+    to an Objective-C class, or "id" (which is catch-all).  */
+ if (type == error_mark_node)
+   {
+     ;/* Just keep going.  */
+   }
+ else if (!objc_type_valid_for_messaging (type, false))
     {
       error ("@catch parameter is not a known Objective-C class type");
       type = error_mark_node;
     }
-  else if (cur_try_context->catch_list)
+  else if (TYPE_HAS_OBJC_INFO (TREE_TYPE (type))
+	   && TYPE_OBJC_PROTOCOL_LIST (TREE_TYPE (type)))
     {
-      /* Examine previous @catch clauses and see if we've already
-	 caught the type in question.  */
-      tree_stmt_iterator i = tsi_start (cur_try_context->catch_list);
-      for (; !tsi_end_p (i); tsi_next (&i))
+      error ("@catch parameter can not be protocol-qualified");
+      type = error_mark_node;      
+    }
+  else if (objc_is_object_id (TREE_TYPE (type)))
+    type = NULL;
+  else
+    {
+      /* If 'type' was built using typedefs, we need to get rid of
+	 them and get a simple pointer to the class.  */
+      bool is_typedef = false;
+      tree x = TYPE_MAIN_VARIANT (type);
+      
+      /* Skip from the pointer to the pointee.  */
+      if (TREE_CODE (x) == POINTER_TYPE)
+	x = TREE_TYPE (x);
+      
+      /* Traverse typedef aliases */
+      while (TREE_CODE (x) == RECORD_TYPE && OBJC_TYPE_NAME (x)
+	     && TREE_CODE (OBJC_TYPE_NAME (x)) == TYPE_DECL
+	     && DECL_ORIGINAL_TYPE (OBJC_TYPE_NAME (x)))
 	{
-	  tree stmt = tsi_stmt (i);
-	  t = CATCH_TYPES (stmt);
-	  if (t == error_mark_node)
-	    continue;
-	  if (!t || DERIVED_FROM_P (TREE_TYPE (t), TREE_TYPE (type)))
+	  is_typedef = true;
+	  x = DECL_ORIGINAL_TYPE (OBJC_TYPE_NAME (x));
+	}
+
+      /* If it was a typedef, build a pointer to the final, original
+	 class.  */
+      if (is_typedef)
+	type = build_pointer_type (x);
+
+      if (cur_try_context->catch_list)
+	{
+	  /* Examine previous @catch clauses and see if we've already
+	     caught the type in question.  */
+	  tree_stmt_iterator i = tsi_start (cur_try_context->catch_list);
+	  for (; !tsi_end_p (i); tsi_next (&i))
 	    {
-	      warning (0, "exception of type %<%T%> will be caught",
-		       TREE_TYPE (type));
-	      warning_at  (EXPR_LOCATION (stmt), 0, "   by earlier handler for %<%T%>",
-			   TREE_TYPE (t ? t : objc_object_type));
-	      break;
+	      tree stmt = tsi_stmt (i);
+	      t = CATCH_TYPES (stmt);
+	      if (t == error_mark_node)
+		continue;
+	      if (!t || DERIVED_FROM_P (TREE_TYPE (t), TREE_TYPE (type)))
+		{
+		  warning (0, "exception of type %<%T%> will be caught",
+			   TREE_TYPE (type));
+		  warning_at  (EXPR_LOCATION (stmt), 0, "   by earlier handler for %<%T%>",
+			       TREE_TYPE (t ? t : objc_object_type));
+		  break;
+		}
 	    }
 	}
     }
@@ -5420,7 +5520,7 @@ objc_build_throw_stmt (location_t loc, tree throw_expr)
           || cur_try_context->current_catch == NULL)
 	{
 	  error_at (loc, "%<@throw%> (rethrow) used outside of a @catch block");
-	  return NULL_TREE;
+	  return error_mark_node;
 	}
 
       /* Otherwise the object is still sitting in the EXC_PTR_EXPR
@@ -9388,10 +9488,13 @@ start_class (enum tree_code code, tree class_name, tree super_name,
 	    {
 	      error ("reimplementation of class %qE",
 		     class_name);
-	      return error_mark_node;
+	      /* TODO: error message saying where it was previously
+		 implemented.  */
+	      break;
 	    }
-	implemented_classes = tree_cons (NULL_TREE, class_name,
-					 implemented_classes);
+	if (chain == NULL_TREE)
+	  implemented_classes = tree_cons (NULL_TREE, class_name,
+					   implemented_classes);
       }
 
       /* Reset for multiple classes per file.  */
@@ -10506,7 +10609,10 @@ finish_class (tree klass)
 		getter_decl = build_method_decl (INSTANCE_METHOD_DECL, 
 						 rettype, PROPERTY_GETTER_NAME (x), 
 						 NULL_TREE, false);
-		objc_add_method (objc_interface_context, getter_decl, false, false);
+		if (PROPERTY_OPTIONAL (x))
+		  objc_add_method (objc_interface_context, getter_decl, false, true);
+		else
+		  objc_add_method (objc_interface_context, getter_decl, false, false);
 		METHOD_PROPERTY_CONTEXT (getter_decl) = x;
 	      }
 
@@ -10546,7 +10652,10 @@ finish_class (tree klass)
 						     ret_type, selector,
 						     build_tree_list (NULL_TREE, NULL_TREE),
 						     false);
-		    objc_add_method (objc_interface_context, setter_decl, false, false);
+		    if (PROPERTY_OPTIONAL (x))
+		      objc_add_method (objc_interface_context, setter_decl, false, true);
+		    else
+		      objc_add_method (objc_interface_context, setter_decl, false, false);
 		    METHOD_PROPERTY_CONTEXT (setter_decl) = x;
 		  }	       
 	      }
@@ -12302,6 +12411,22 @@ static const char *
 objc_demangle (const char *mangled)
 {
   char *demangled, *cp;
+
+  /* First of all, if the name is too short it can't be an Objective-C
+     mangled method name.  */
+  if (mangled[0] == '\0' || mangled[1] == '\0' || mangled[2] == '\0')
+    return NULL;
+
+  /* If the name looks like an already demangled one, return it
+     unchanged.  This should only happen on Darwin, where method names
+     are mangled differently into a pretty-print form (such as
+     '+[NSObject class]', see darwin.h).  In that case, demangling is
+     a no-op, but we need to return the demangled name if it was an
+     ObjC one, and return NULL if not.  We should be safe as no C/C++
+     function can start with "-[" or "+[".  */
+  if ((mangled[0] == '-' || mangled[0] == '+')
+      && (mangled[1] == '['))
+    return mangled;
 
   if (mangled[0] == '_' &&
       (mangled[1] == 'i' || mangled[1] == 'c') &&

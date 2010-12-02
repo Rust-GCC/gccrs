@@ -57,12 +57,25 @@ along with GCC; see the file COPYING3.  If not see
 #include "dwarf2out.h"
 #include "sched-int.h"
 
+enum upper_128bits_state
+{
+  unknown = 0,		/* Unknown.  */
+  unused,		/* Not used or not referenced.  */
+  used			/* Used or referenced.  */
+};
+
 typedef struct block_info_def
 {
-  /* TRUE if the upper 128bits of any AVX registers are live at exit.  */
-  bool upper_128bits_set;
+  /* State of the upper 128bits of any AVX registers at exit.  */
+  enum upper_128bits_state state;
+  /* If the upper 128bits of any AVX registers are referenced.  */
+  enum upper_128bits_state referenced;
+  /* Number of vzerouppers in this block.  */
+  unsigned int count;
   /* TRUE if block has been processed.  */
-  bool done;
+  bool processed;
+  /* TRUE if block has been rescanned.  */
+  bool rescanned;
 } *block_info;
 
 #define BLOCK_INFO(B)   ((block_info) (B)->aux)
@@ -93,8 +106,9 @@ check_avx256_stores (rtx dest, const_rtx set, void *data)
 	  && REG_P (SET_SRC (set))
 	  && VALID_AVX256_REG_MODE (GET_MODE (SET_SRC (set)))))
     {
-      bool *upper_128bits_set = (bool *) data;
-      *upper_128bits_set = true;
+      enum upper_128bits_state *state
+	= (enum upper_128bits_state *) data;
+      *state = used;
     }
 }
 
@@ -106,19 +120,24 @@ check_avx256_stores (rtx dest, const_rtx set, void *data)
    are live at entry.  */
 
 static void
-move_or_delete_vzeroupper_2 (basic_block bb, bool upper_128bits_set)
+move_or_delete_vzeroupper_2 (basic_block bb,
+			     enum upper_128bits_state state)
 {
-  rtx insn;
+  rtx insn, bb_end;
   rtx vzeroupper_insn = NULL_RTX;
   rtx pat;
   int avx256;
+  enum upper_128bits_state referenced = BLOCK_INFO (bb)->referenced;
+  int count = BLOCK_INFO (bb)->count;
 
   if (dump_file)
     fprintf (dump_file, " BB [%i] entry: upper 128bits: %d\n",
-	     bb->index, upper_128bits_set);
+	     bb->index, state);
 
+  /* BB_END changes when it is deleted.  */
+  bb_end = BB_END (bb);
   insn = BB_HEAD (bb);
-  while (insn != BB_END (bb))
+  while (insn != bb_end)
     {
       insn = NEXT_INSN (insn);
 
@@ -167,67 +186,89 @@ move_or_delete_vzeroupper_2 (basic_block bb, bool upper_128bits_set)
 	      && GET_CODE (XVECEXP (pat, 0, 0)) == UNSPEC_VOLATILE
 	      && XINT (XVECEXP (pat, 0, 0), 1) == UNSPECV_VZEROALL)
 	    {
-	      upper_128bits_set = false;
+	      state = unused;
 
 	      /* Delete pending vzeroupper insertion.  */
 	      if (vzeroupper_insn)
 		{
+		  count--;
 		  delete_insn (vzeroupper_insn);
 		  vzeroupper_insn = NULL_RTX;
 		}
 	    }
-	  else if (!upper_128bits_set)
-	    note_stores (pat, check_avx256_stores, &upper_128bits_set);
+	  else if (state != used && referenced != unused)
+	    {
+	      /* No need to call note_stores if the upper 128bits of
+		 AVX registers are never referenced.  */
+	      note_stores (pat, check_avx256_stores, &state);
+	      if (state == used)
+		referenced = used;
+	    }
 	  continue;
 	}
 
       /* Process vzeroupper intrinsic.  */
+      count++;
       avx256 = INTVAL (XVECEXP (pat, 0, 0));
 
-      if (!upper_128bits_set)
+      if (state == unused)
 	{
 	  /* Since the upper 128bits are cleared, callee must not pass
 	     256bit AVX register.  We only need to check if callee
 	     returns 256bit AVX register.  */
-	  upper_128bits_set = (avx256 == callee_return_avx256);
+	  if (avx256 == callee_return_avx256)
+	    state = used;
 
-	  /* Remove unnecessary vzeroupper since
-	     upper 128bits are cleared.  */
+	  /* Remove unnecessary vzeroupper since upper 128bits are
+	     cleared.  */
 	  if (dump_file)
 	    {
 	      fprintf (dump_file, "Delete redundant vzeroupper:\n");
 	      print_rtl_single (dump_file, insn);
 	    }
-	  delete_insn (insn);
-	}
-      else if (avx256 == callee_return_pass_avx256
-	       || avx256 == callee_pass_avx256)
-	{
-	  /* Callee passes 256bit AVX register.  Check if callee
-	     returns 256bit AVX register.  */
-	  upper_128bits_set = (avx256 == callee_return_pass_avx256);
-
-	  /* Must remove vzeroupper since
-	     callee passes in 256bit AVX register.  */
-	  if (dump_file)
-	    {
-	      fprintf (dump_file, "Delete callee pass vzeroupper:\n");
-	      print_rtl_single (dump_file, insn);
-	    }
+	  count--;
 	  delete_insn (insn);
 	}
       else
 	{
-	  upper_128bits_set = false;
-	  vzeroupper_insn = insn;
+	  /* Set state to UNUSED if callee doesn't return 256bit AVX
+	     register.  */
+	  if (avx256 != callee_return_pass_avx256)
+	    state = unused;
+
+	  if (avx256 == callee_return_pass_avx256
+	      || avx256 == callee_pass_avx256)
+	    {
+	      /* Must remove vzeroupper since callee passes in 256bit
+		 AVX register.  */
+	      if (dump_file)
+		{
+		  fprintf (dump_file, "Delete callee pass vzeroupper:\n");
+		  print_rtl_single (dump_file, insn);
+		}
+	      count--;
+	      delete_insn (insn);
+	    }
+	  else
+	    vzeroupper_insn = insn;
 	}
     }
 
-  BLOCK_INFO (bb)->upper_128bits_set = upper_128bits_set;
+  BLOCK_INFO (bb)->state = state;
+
+  if (BLOCK_INFO (bb)->referenced == unknown)
+    {
+      /* The upper 128bits of AVX registers are never referenced if
+	 REFERENCED isn't updated.  */
+      if (referenced == unknown)
+	referenced = unused;
+      BLOCK_INFO (bb)->referenced = referenced;
+      BLOCK_INFO (bb)->count = count;
+    }
 
   if (dump_file)
     fprintf (dump_file, " BB [%i] exit: upper 128bits: %d\n",
-	     bb->index, upper_128bits_set);
+	     bb->index, state);
 }
 
 /* Helper function for move_or_delete_vzeroupper.  Process vzeroupper
@@ -238,18 +279,18 @@ move_or_delete_vzeroupper_1 (basic_block block)
 {
   edge e;
   edge_iterator ei;
-  bool upper_128bits_set;
+  enum upper_128bits_state state;
 
   if (dump_file)
     fprintf (dump_file, " Process BB [%i]: status: %d\n",
-	     block->index, BLOCK_INFO (block)->done);
+	     block->index, BLOCK_INFO (block)->processed);
 
-  if (BLOCK_INFO (block)->done)
+  if (BLOCK_INFO (block)->processed)
     return;
 
-  BLOCK_INFO (block)->done = true;
+  BLOCK_INFO (block)->processed = true;
 
-  upper_128bits_set = false;
+  state = unknown;
 
   /* Process all predecessor edges of this block.  */
   FOR_EACH_EDGE (e, ei, block->preds)
@@ -257,12 +298,70 @@ move_or_delete_vzeroupper_1 (basic_block block)
       if (e->src == block)
 	continue;
       move_or_delete_vzeroupper_1 (e->src);
-      if (BLOCK_INFO (e->src)->upper_128bits_set)
-	upper_128bits_set = true;
+      switch (BLOCK_INFO (e->src)->state)
+	{
+	case unknown:
+	  if (state == unused)
+	    state = unknown;
+	  break;
+	case used:
+	  state = used;
+	  break;
+	case unused:
+	  break;
+	}
     }
 
+  /* If state of any predecessor edges is unknown, we need to rescan.  */
+  if (state == unknown)
+    cfun->machine->rescan_vzeroupper_p = 1;
+
   /* Process this block.  */
-  move_or_delete_vzeroupper_2 (block, upper_128bits_set);
+  move_or_delete_vzeroupper_2 (block, state);
+}
+
+/* Helper function for move_or_delete_vzeroupper.  Rescan vzeroupper
+   in BLOCK and its predecessor blocks recursively.  */
+
+static void
+rescan_move_or_delete_vzeroupper (basic_block block)
+{
+  edge e;
+  edge_iterator ei;
+  enum upper_128bits_state state;
+
+  if (dump_file)
+    fprintf (dump_file, " Rescan BB [%i]: status: %d\n",
+	     block->index, BLOCK_INFO (block)->rescanned);
+
+  if (BLOCK_INFO (block)->rescanned)
+    return;
+
+  BLOCK_INFO (block)->rescanned = true;
+
+  state = unused;
+
+  /* Rescan all predecessor edges of this block.  */
+  FOR_EACH_EDGE (e, ei, block->preds)
+    {
+      if (e->src == block)
+	continue;
+      rescan_move_or_delete_vzeroupper (e->src);
+      /* For rescan, UKKNOWN state is treated as UNUSED.  */
+      if (BLOCK_INFO (e->src)->state == used)
+	state = used;
+    }
+
+  /* Rescan this block only if there are vzerouppers or the upper
+     128bits of AVX registers are referenced.  */
+  if (BLOCK_INFO (block)->count == 0
+      && (state == used || BLOCK_INFO (block)->referenced != used))
+    {
+      if (state == used)
+	BLOCK_INFO (block)->state = state;
+    }
+  else
+    move_or_delete_vzeroupper_2 (block, state);
 }
 
 /* Go through the instruction stream looking for vzeroupper.  Delete
@@ -274,6 +373,8 @@ move_or_delete_vzeroupper (void)
 {
   edge e;
   edge_iterator ei;
+  basic_block bb;
+  unsigned int count = 0;
 
   /* Set up block info for each basic block.  */
   alloc_aux_for_blocks (sizeof (struct block_info_def));
@@ -285,16 +386,31 @@ move_or_delete_vzeroupper (void)
   FOR_EACH_EDGE (e, ei, ENTRY_BLOCK_PTR->succs)
     {
       move_or_delete_vzeroupper_2 (e->dest,
-				   cfun->machine->caller_pass_avx256_p);
-      BLOCK_INFO (e->dest)->done = true;
+				   cfun->machine->caller_pass_avx256_p
+				   ? used : unused);
+      BLOCK_INFO (e->dest)->processed = true;
+      BLOCK_INFO (e->dest)->rescanned = true;
     }
 
-  /* Process predecessor blocks of all exit points.  */
+  /* Process all basic blocks.  */
   if (dump_file)
-    fprintf (dump_file, "Process all exit points\n");
+    fprintf (dump_file, "Process all basic blocks\n");
 
-  FOR_EACH_EDGE (e, ei, EXIT_BLOCK_PTR->preds)
-    move_or_delete_vzeroupper_1 (e->src);
+  FOR_EACH_BB (bb)
+    {
+      move_or_delete_vzeroupper_1 (bb);
+      count += BLOCK_INFO (bb)->count;
+    }
+
+  /* Rescan all basic blocks if needed.  */
+  if (count && cfun->machine->rescan_vzeroupper_p)
+    {
+      if (dump_file)
+	fprintf (dump_file, "Rescan all basic blocks\n");
+
+      FOR_EACH_BB (bb)
+	rescan_move_or_delete_vzeroupper (bb);
+    }
 
   free_aux_for_blocks ();
 }
@@ -1294,79 +1410,6 @@ struct processor_costs nocona_cost = {
 };
 
 static const
-struct processor_costs core2_cost = {
-  COSTS_N_INSNS (1),			/* cost of an add instruction */
-  COSTS_N_INSNS (1) + 1,		/* cost of a lea instruction */
-  COSTS_N_INSNS (1),			/* variable shift costs */
-  COSTS_N_INSNS (1),			/* constant shift costs */
-  {COSTS_N_INSNS (3),			/* cost of starting multiply for QI */
-   COSTS_N_INSNS (3),			/*				 HI */
-   COSTS_N_INSNS (3),			/*				 SI */
-   COSTS_N_INSNS (3),			/*				 DI */
-   COSTS_N_INSNS (3)},			/*			      other */
-  0,					/* cost of multiply per each bit set */
-  {COSTS_N_INSNS (22),			/* cost of a divide/mod for QI */
-   COSTS_N_INSNS (22),			/*			    HI */
-   COSTS_N_INSNS (22),			/*			    SI */
-   COSTS_N_INSNS (22),			/*			    DI */
-   COSTS_N_INSNS (22)},			/*			    other */
-  COSTS_N_INSNS (1),			/* cost of movsx */
-  COSTS_N_INSNS (1),			/* cost of movzx */
-  8,					/* "large" insn */
-  16,					/* MOVE_RATIO */
-  2,				     /* cost for loading QImode using movzbl */
-  {6, 6, 6},				/* cost of loading integer registers
-					   in QImode, HImode and SImode.
-					   Relative to reg-reg move (2).  */
-  {4, 4, 4},				/* cost of storing integer registers */
-  2,					/* cost of reg,reg fld/fst */
-  {6, 6, 6},				/* cost of loading fp registers
-					   in SFmode, DFmode and XFmode */
-  {4, 4, 4},				/* cost of storing fp registers
-					   in SFmode, DFmode and XFmode */
-  2,					/* cost of moving MMX register */
-  {6, 6},				/* cost of loading MMX registers
-					   in SImode and DImode */
-  {4, 4},				/* cost of storing MMX registers
-					   in SImode and DImode */
-  2,					/* cost of moving SSE register */
-  {6, 6, 6},				/* cost of loading SSE registers
-					   in SImode, DImode and TImode */
-  {4, 4, 4},				/* cost of storing SSE registers
-					   in SImode, DImode and TImode */
-  2,					/* MMX or SSE register to integer */
-  32,					/* size of l1 cache.  */
-  2048,					/* size of l2 cache.  */
-  128,					/* size of prefetch block */
-  8,					/* number of parallel prefetches */
-  3,					/* Branch cost */
-  COSTS_N_INSNS (3),			/* cost of FADD and FSUB insns.  */
-  COSTS_N_INSNS (5),			/* cost of FMUL instruction.  */
-  COSTS_N_INSNS (32),			/* cost of FDIV instruction.  */
-  COSTS_N_INSNS (1),			/* cost of FABS instruction.  */
-  COSTS_N_INSNS (1),			/* cost of FCHS instruction.  */
-  COSTS_N_INSNS (58),			/* cost of FSQRT instruction.  */
-  {{libcall, {{11, loop}, {-1, rep_prefix_4_byte}}},
-   {libcall, {{32, loop}, {64, rep_prefix_4_byte},
-	      {8192, rep_prefix_8_byte}, {-1, libcall}}}},
-  {{libcall, {{8, loop}, {15, unrolled_loop},
-	      {2048, rep_prefix_4_byte}, {-1, libcall}}},
-   {libcall, {{24, loop}, {32, unrolled_loop},
-	      {8192, rep_prefix_8_byte}, {-1, libcall}}}},
-  1,					/* scalar_stmt_cost.  */
-  1,					/* scalar load_cost.  */
-  1,					/* scalar_store_cost.  */
-  1,					/* vec_stmt_cost.  */
-  1,					/* vec_to_scalar_cost.  */
-  1,					/* scalar_to_vec_cost.  */
-  1,					/* vec_align_load_cost.  */
-  2,					/* vec_unalign_load_cost.  */
-  1,					/* vec_store_cost.  */
-  3,					/* cond_taken_branch_cost.  */
-  1,					/* cond_not_taken_branch_cost.  */
-};
-
-static const
 struct processor_costs atom_cost = {
   COSTS_N_INSNS (1),			/* cost of an add instruction */
   COSTS_N_INSNS (1) + 1,		/* cost of a lea instruction */
@@ -1597,9 +1640,13 @@ const struct processor_costs *ix86_cost = &pentium_cost;
 #define m_PPRO (1<<PROCESSOR_PENTIUMPRO)
 #define m_PENT4  (1<<PROCESSOR_PENTIUM4)
 #define m_NOCONA  (1<<PROCESSOR_NOCONA)
-#define m_CORE2  (1<<PROCESSOR_CORE2)
+#define m_CORE2_32  (1<<PROCESSOR_CORE2_32)
+#define m_CORE2_64  (1<<PROCESSOR_CORE2_64)
 #define m_COREI7_32  (1<<PROCESSOR_COREI7_32)
 #define m_COREI7_64  (1<<PROCESSOR_COREI7_64)
+#define m_CORE2I7_32  (m_CORE2_32 | m_COREI7_32)
+#define m_CORE2I7_64  (m_CORE2_64 | m_COREI7_64)
+#define m_CORE2I7  (m_CORE2I7_32 | m_CORE2I7_64)
 #define m_ATOM  (1<<PROCESSOR_ATOM)
 
 #define m_GEODE  (1<<PROCESSOR_GEODE)
@@ -1612,8 +1659,8 @@ const struct processor_costs *ix86_cost = &pentium_cost;
 #define m_BDVER1  (1<<PROCESSOR_BDVER1)
 #define m_AMD_MULTIPLE  (m_K8 | m_ATHLON | m_AMDFAM10 | m_BDVER1)
 
-#define m_GENERIC32 (1<<PROCESSOR_GENERIC32 | m_COREI7_32)
-#define m_GENERIC64 (1<<PROCESSOR_GENERIC64 | m_COREI7_64)
+#define m_GENERIC32 (1<<PROCESSOR_GENERIC32)
+#define m_GENERIC64 (1<<PROCESSOR_GENERIC64)
 
 /* Generic instruction choice should be common subset of supported CPUs
    (PPro/PENT4/NOCONA/CORE2/Athlon/K8).  */
@@ -1629,21 +1676,22 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
      negatively, so enabling for Generic64 seems like good code size
      tradeoff.  We can't enable it for 32bit generic because it does not
      work well with PPro base chips.  */
-  m_386 | m_K6_GEODE | m_AMD_MULTIPLE | m_CORE2 | m_GENERIC64,
+  m_386 | m_K6_GEODE | m_AMD_MULTIPLE | m_CORE2I7_64 | m_GENERIC64,
 
   /* X86_TUNE_PUSH_MEMORY */
   m_386 | m_K6_GEODE | m_AMD_MULTIPLE | m_PENT4
-  | m_NOCONA | m_CORE2 | m_GENERIC,
+  | m_NOCONA | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_ZERO_EXTEND_WITH_AND */
   m_486 | m_PENT,
 
   /* X86_TUNE_UNROLL_STRLEN */
   m_486 | m_PENT | m_ATOM | m_PPRO | m_AMD_MULTIPLE | m_K6
-  | m_CORE2 | m_GENERIC,
+  | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_DEEP_BRANCH_PREDICTION */
-  m_ATOM | m_PPRO | m_K6_GEODE | m_AMD_MULTIPLE | m_PENT4 | m_GENERIC,
+  m_ATOM | m_PPRO | m_K6_GEODE | m_AMD_MULTIPLE | m_PENT4
+  | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_BRANCH_PREDICTION_HINTS: Branch hints were put in P4 based
      on simulation result. But after P4 was made, no performance benefit
@@ -1656,12 +1704,12 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
 
   /* X86_TUNE_USE_SAHF */
   m_ATOM | m_PPRO | m_K6_GEODE | m_K8 | m_AMDFAM10 | m_BDVER1 | m_PENT4
-  | m_NOCONA | m_CORE2 | m_GENERIC,
+  | m_NOCONA | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_MOVX: Enable to zero extend integer registers to avoid
      partial dependencies.  */
   m_AMD_MULTIPLE | m_ATOM | m_PPRO | m_PENT4 | m_NOCONA
-  | m_CORE2 | m_GENERIC | m_GEODE /* m_386 | m_K6 */,
+  | m_CORE2I7 | m_GENERIC | m_GEODE /* m_386 | m_K6 */,
 
   /* X86_TUNE_PARTIAL_REG_STALL: We probably ought to watch for partial
      register stalls on Generic32 compilation setting as well.  However
@@ -1674,19 +1722,19 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
   m_PPRO,
 
   /* X86_TUNE_PARTIAL_FLAG_REG_STALL */
-  m_CORE2 | m_GENERIC,
+  m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_USE_HIMODE_FIOP */
   m_386 | m_486 | m_K6_GEODE,
 
   /* X86_TUNE_USE_SIMODE_FIOP */
-  ~(m_PPRO | m_AMD_MULTIPLE | m_PENT | m_ATOM | m_CORE2 | m_GENERIC),
+  ~(m_PPRO | m_AMD_MULTIPLE | m_PENT | m_ATOM | m_CORE2I7 | m_GENERIC),
 
   /* X86_TUNE_USE_MOV0 */
   m_K6,
 
   /* X86_TUNE_USE_CLTD */
-  ~(m_PENT | m_ATOM | m_K6 | m_CORE2 | m_GENERIC),
+  ~(m_PENT | m_ATOM | m_K6 | m_CORE2I7 | m_GENERIC),
 
   /* X86_TUNE_USE_XCHGB: Use xchgb %rh,%rl instead of rolw/rorw $8,rx.  */
   m_PENT4,
@@ -1702,7 +1750,7 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
 
   /* X86_TUNE_PROMOTE_QIMODE */
   m_K6_GEODE | m_PENT | m_ATOM | m_386 | m_486 | m_AMD_MULTIPLE
-  | m_CORE2 | m_GENERIC /* | m_PENT4 ? */,
+  | m_CORE2I7 | m_GENERIC /* | m_PENT4 ? */,
 
   /* X86_TUNE_FAST_PREFIX */
   ~(m_PENT | m_486 | m_386),
@@ -1743,11 +1791,11 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
 
   /* X86_TUNE_INTEGER_DFMODE_MOVES: Enable if integer moves are preferred
      for DFmode copies */
-  ~(m_AMD_MULTIPLE | m_ATOM | m_PENT4 | m_NOCONA | m_PPRO | m_CORE2
+  ~(m_AMD_MULTIPLE | m_ATOM | m_PENT4 | m_NOCONA | m_PPRO | m_CORE2I7
     | m_GENERIC | m_GEODE),
 
   /* X86_TUNE_PARTIAL_REG_DEPENDENCY */
-  m_AMD_MULTIPLE | m_ATOM | m_PENT4 | m_NOCONA | m_CORE2 | m_GENERIC,
+  m_AMD_MULTIPLE | m_ATOM | m_PENT4 | m_NOCONA | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_SSE_PARTIAL_REG_DEPENDENCY: In the Generic model we have a
      conflict here in between PPro/Pentium4 based chips that thread 128bit
@@ -1758,7 +1806,7 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
      shows that disabling this option on P4 brings over 20% SPECfp regression,
      while enabling it on K8 brings roughly 2.4% regression that can be partly
      masked by careful scheduling of moves.  */
-  m_ATOM | m_PENT4 | m_NOCONA | m_PPRO | m_CORE2 | m_GENERIC
+  m_ATOM | m_PENT4 | m_NOCONA | m_PPRO | m_CORE2I7 | m_GENERIC
   | m_AMDFAM10 | m_BDVER1,
 
   /* X86_TUNE_SSE_UNALIGNED_LOAD_OPTIMAL */
@@ -1783,13 +1831,13 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
   m_PPRO | m_PENT4 | m_NOCONA,
 
   /* X86_TUNE_MEMORY_MISMATCH_STALL */
-  m_AMD_MULTIPLE | m_ATOM | m_PENT4 | m_NOCONA | m_CORE2 | m_GENERIC,
+  m_AMD_MULTIPLE | m_ATOM | m_PENT4 | m_NOCONA | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_PROLOGUE_USING_MOVE */
-  m_ATHLON_K8 | m_ATOM | m_PPRO | m_CORE2 | m_GENERIC,
+  m_ATHLON_K8 | m_ATOM | m_PPRO | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_EPILOGUE_USING_MOVE */
-  m_ATHLON_K8 | m_ATOM | m_PPRO | m_CORE2 | m_GENERIC,
+  m_ATHLON_K8 | m_ATOM | m_PPRO | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_SHIFT1 */
   ~m_486,
@@ -1798,41 +1846,41 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
   m_AMD_MULTIPLE,
 
   /* X86_TUNE_INTER_UNIT_MOVES */
-  ~(m_AMD_MULTIPLE | m_GENERIC),
+  ~(m_AMD_MULTIPLE | m_CORE2I7 | m_GENERIC),
 
   /* X86_TUNE_INTER_UNIT_CONVERSIONS */
   ~(m_AMDFAM10 | m_BDVER1),
 
   /* X86_TUNE_FOUR_JUMP_LIMIT: Some CPU cores are not able to predict more
      than 4 branch instructions in the 16 byte window.  */
-  m_ATOM | m_PPRO | m_AMD_MULTIPLE | m_PENT4 | m_NOCONA | m_CORE2
+  m_ATOM | m_PPRO | m_AMD_MULTIPLE | m_PENT4 | m_NOCONA | m_CORE2I7
   | m_GENERIC,
 
   /* X86_TUNE_SCHEDULE */
-  m_PPRO | m_AMD_MULTIPLE | m_K6_GEODE | m_PENT | m_ATOM | m_CORE2
+  m_PPRO | m_AMD_MULTIPLE | m_K6_GEODE | m_PENT | m_ATOM | m_CORE2I7
   | m_GENERIC,
 
   /* X86_TUNE_USE_BT */
-  m_AMD_MULTIPLE | m_ATOM | m_CORE2 | m_GENERIC,
+  m_AMD_MULTIPLE | m_ATOM | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_USE_INCDEC */
-  ~(m_PENT4 | m_NOCONA | m_GENERIC | m_ATOM),
+  ~(m_PENT4 | m_NOCONA | m_CORE2I7 | m_GENERIC | m_ATOM),
 
   /* X86_TUNE_PAD_RETURNS */
-  m_AMD_MULTIPLE | m_CORE2 | m_GENERIC,
+  m_AMD_MULTIPLE | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_PAD_SHORT_FUNCTION: Pad short funtion.  */
   m_ATOM,
 
   /* X86_TUNE_EXT_80387_CONSTANTS */
   m_K6_GEODE | m_ATHLON_K8 | m_ATOM | m_PENT4 | m_NOCONA | m_PPRO
-  | m_CORE2 | m_GENERIC,
+  | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_SHORTEN_X87_SSE */
   ~m_K8,
 
   /* X86_TUNE_AVOID_VECTOR_DECODE */
-  m_K8 | m_GENERIC64,
+  m_K8 | m_CORE2I7_64 | m_GENERIC64,
 
   /* X86_TUNE_PROMOTE_HIMODE_IMUL: Modern CPUs have same latency for HImode
      and SImode multiply, but 386 and 486 do HImode multiply faster.  */
@@ -1840,11 +1888,11 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
 
   /* X86_TUNE_SLOW_IMUL_IMM32_MEM: Imul of 32-bit constant and memory is
      vector path on AMD machines.  */
-  m_K8 | m_GENERIC64 | m_AMDFAM10 | m_BDVER1,
+  m_K8 | m_CORE2I7_64 | m_GENERIC64 | m_AMDFAM10 | m_BDVER1,
 
   /* X86_TUNE_SLOW_IMUL_IMM8: Imul of 8-bit constant is vector path on AMD
      machines.  */
-  m_K8 | m_GENERIC64 | m_AMDFAM10 | m_BDVER1,
+  m_K8 | m_CORE2I7_64 | m_GENERIC64 | m_AMDFAM10 | m_BDVER1,
 
   /* X86_TUNE_MOVE_M1_VIA_OR: On pentiums, it is faster to load -1 via OR
      than a MOV.  */
@@ -1861,7 +1909,7 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
 
   /* X86_TUNE_USE_VECTOR_FP_CONVERTS: Prefer vector packed SSE conversion
      from FP to FP. */
-  m_AMDFAM10 | m_GENERIC,
+  m_AMDFAM10 | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_USE_VECTOR_CONVERTS: Prefer vector packed SSE conversion
      from integer to FP. */
@@ -1870,7 +1918,7 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
   /* X86_TUNE_FUSE_CMP_AND_BRANCH: Fuse a compare or test instruction
      with a subsequent conditional jump instruction into a single
      compare-and-branch uop.  */
-  m_CORE2 | m_BDVER1,
+  m_BDVER1,
 
   /* X86_TUNE_OPT_AGU: Optimize for Address Generation Unit. This flag
      will impact LEA instruction selection. */
@@ -1904,12 +1952,12 @@ static unsigned int initial_ix86_arch_features[X86_ARCH_LAST] = {
 };
 
 static const unsigned int x86_accumulate_outgoing_args
-  = m_AMD_MULTIPLE | m_ATOM | m_PENT4 | m_NOCONA | m_PPRO | m_CORE2
+  = m_AMD_MULTIPLE | m_ATOM | m_PENT4 | m_NOCONA | m_PPRO | m_CORE2I7
     | m_GENERIC;
 
 static const unsigned int x86_arch_always_fancy_math_387
   = m_PENT | m_ATOM | m_PPRO | m_AMD_MULTIPLE | m_PENT4
-    | m_NOCONA | m_CORE2 | m_GENERIC;
+    | m_NOCONA | m_CORE2I7 | m_GENERIC;
 
 static enum stringop_alg stringop_alg = no_stringop;
 
@@ -2424,7 +2472,10 @@ static const struct ptt processor_target_table[PROCESSOR_max] =
   {&pentium4_cost, 0, 0, 0, 0, 0},
   {&k8_cost, 16, 7, 16, 7, 16},
   {&nocona_cost, 0, 0, 0, 0, 0},
-  {&core2_cost, 16, 10, 16, 10, 16},
+  /* Core 2 32-bit.  */
+  {&generic32_cost, 16, 10, 16, 10, 16},
+  /* Core 2 64-bit.  */
+  {&generic64_cost, 16, 10, 16, 10, 16},
   /* Core i7 32-bit.  */
   {&generic32_cost, 16, 10, 16, 10, 16},
   /* Core i7 64-bit.  */
@@ -3180,12 +3231,12 @@ ix86_option_override_internal (bool main_args_p)
       {"nocona", PROCESSOR_NOCONA, CPU_NONE,
 	PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
 	| PTA_CX16 | PTA_NO_SAHF},
-      {"core2", PROCESSOR_CORE2, CPU_CORE2,
+      {"core2", PROCESSOR_CORE2_64, CPU_CORE2,
 	PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
 	| PTA_SSSE3 | PTA_CX16},
-      {"corei7", PROCESSOR_COREI7_64, CPU_GENERIC64,
-       PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
-       | PTA_SSSE3 | PTA_SSE4_1 | PTA_SSE4_2 | PTA_CX16},
+      {"corei7", PROCESSOR_COREI7_64, CPU_COREI7,
+	PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
+	| PTA_SSSE3 | PTA_SSE4_1 | PTA_SSE4_2 | PTA_CX16},
       {"atom", PROCESSOR_ATOM, CPU_ATOM,
 	PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
 	| PTA_SSSE3 | PTA_CX16 | PTA_MOVBE},
@@ -3560,9 +3611,12 @@ ix86_option_override_internal (bool main_args_p)
 		ix86_schedule = CPU_PENTIUMPRO;
 		break;
 
+	      case PROCESSOR_CORE2_64:
+		ix86_tune = PROCESSOR_CORE2_32;
+		break;
+
 	      case PROCESSOR_COREI7_64:
 		ix86_tune = PROCESSOR_COREI7_32;
-		ix86_schedule = CPU_PENTIUMPRO;
 		break;
 
 	      default:
@@ -4051,8 +4105,11 @@ ix86_option_override_internal (bool main_args_p)
 
   if (TARGET_AVX)
     {
-      /* Enable vzeroupper pass by default for TARGET_AVX.  */
-      if (!(target_flags_explicit & MASK_VZEROUPPER))
+      /* When not optimize for size, enable vzeroupper optimization for
+	 TARGET_AVX with -fexpensive-optimizations.  */
+      if (!optimize_size
+	  && flag_expensive_optimizations
+	  && !(target_flags_explicit & MASK_VZEROUPPER))
 	target_flags |= MASK_VZEROUPPER;
     }
   else 
@@ -4060,17 +4117,6 @@ ix86_option_override_internal (bool main_args_p)
       /* Disable vzeroupper pass if TARGET_AVX is disabled.  */
       target_flags &= ~MASK_VZEROUPPER;
     }
-}
-
-/* Return TRUE if type TYPE and mode MODE use 256bit AVX modes.  */
-
-static bool
-use_avx256_p (enum machine_mode mode, const_tree type)
-{
-  return (VALID_AVX256_REG_MODE (mode)
-	  || (type
-	      && TREE_CODE (type) == VECTOR_TYPE
-	      && int_size_in_bytes (type) == 32));
 }
 
 /* Return TRUE if VAL is passed in register with 256bit AVX modes.  */
@@ -5687,7 +5733,6 @@ init_cumulative_args (CUMULATIVE_ARGS *cum,  /* Argument info to initialize */
       if (function_pass_avx256_p (fnret_value))
 	{
 	  /* The return value of this function uses 256bit AVX modes.  */
-	  cfun->machine->use_avx256_p = true;
 	  if (caller)
 	    cfun->machine->callee_return_avx256_p = true;
 	  else
@@ -6956,7 +7001,6 @@ ix86_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode omode,
   if (TARGET_VZEROUPPER && function_pass_avx256_p (arg))
     {
       /* This argument uses 256bit AVX modes.  */
-      cfun->machine->use_avx256_p = true;
       if (cum->caller)
 	cfun->machine->callee_pass_avx256_p = true;
       else
@@ -8931,7 +8975,8 @@ ix86_builtin_setjmp_frame_value (void)
    field in the TCB, so they can not be used together.  */
 
 static bool
-ix86_supports_split_stack (bool report ATTRIBUTE_UNUSED)
+ix86_supports_split_stack (bool report ATTRIBUTE_UNUSED,
+			   struct gcc_options *opts ATTRIBUTE_UNUSED)
 {
   bool ret = true;
 
@@ -10970,12 +11015,9 @@ ix86_expand_epilogue (int style)
 
   /* Emit vzeroupper if needed.  */
   if (TARGET_VZEROUPPER
-      && cfun->machine->use_avx256_p
+      && !TREE_THIS_VOLATILE (cfun->decl)
       && !cfun->machine->caller_return_avx256_p)
-    {
-      cfun->machine->use_vzeroupper_p = 1;
-      emit_insn (gen_avx_vzeroupper (GEN_INT (call_no_avx256))); 
-    }
+    emit_insn (gen_avx_vzeroupper (GEN_INT (call_no_avx256))); 
 
   if (crtl->args.pops_args && crtl->args.size)
     {
@@ -15130,9 +15172,6 @@ ix86_expand_move (enum machine_mode mode, rtx operands[])
   rtx op0, op1;
   enum tls_model model;
 
-  if (VALID_AVX256_REG_MODE (mode))
-    cfun->machine->use_avx256_p = true;
-
   op0 = operands[0];
   op1 = operands[1];
 
@@ -15277,9 +15316,6 @@ ix86_expand_vector_move (enum machine_mode mode, rtx operands[])
   rtx op0 = operands[0], op1 = operands[1];
   unsigned int align = GET_MODE_ALIGNMENT (mode);
 
-  if (VALID_AVX256_REG_MODE (mode))
-    cfun->machine->use_avx256_p = true;
-
   /* Force constants other than zero into memory.  We do not know how
      the instructions used to build constants modify the upper 64 bits
      of the register, once we have that information we may be able
@@ -15385,9 +15421,6 @@ void
 ix86_expand_vector_move_misalign (enum machine_mode mode, rtx operands[])
 {
   rtx op0, op1, m;
-
-  if (VALID_AVX256_REG_MODE (mode))
-    cfun->machine->use_avx256_p = true;
 
   op0 = operands[0];
   op1 = operands[1];
@@ -21661,12 +21694,11 @@ ix86_expand_call (rtx retval, rtx fnaddr, rtx callarg1,
     }
 
   /* Add UNSPEC_CALL_NEEDS_VZEROUPPER decoration.  */
-  if (TARGET_VZEROUPPER && cfun->machine->use_avx256_p)
+  if (TARGET_VZEROUPPER)
     {
       rtx unspec;
       int avx256;
 
-      cfun->machine->use_vzeroupper_p = 1;
       if (cfun->machine->callee_pass_avx256_p)
 	{
 	  if (cfun->machine->callee_return_avx256_p)
@@ -22139,6 +22171,10 @@ ix86_issue_rate (void)
 
     case PROCESSOR_PENTIUMPRO:
     case PROCESSOR_PENTIUM4:
+    case PROCESSOR_CORE2_32:
+    case PROCESSOR_CORE2_64:
+    case PROCESSOR_COREI7_32:
+    case PROCESSOR_COREI7_64:
     case PROCESSOR_ATHLON:
     case PROCESSOR_K8:
     case PROCESSOR_AMDFAM10:
@@ -22147,9 +22183,6 @@ ix86_issue_rate (void)
     case PROCESSOR_GENERIC64:
     case PROCESSOR_BDVER1:
       return 3;
-
-    case PROCESSOR_CORE2:
-      return 4;
 
     default:
       return 1;
@@ -22389,7 +22422,8 @@ ia32_multipass_dfa_lookahead (void)
     case PROCESSOR_K6:
       return 1;
 
-    case PROCESSOR_CORE2:
+    case PROCESSOR_CORE2_32:
+    case PROCESSOR_CORE2_64:
     case PROCESSOR_COREI7_32:
     case PROCESSOR_COREI7_64:
       /* Generally, we want haifa-sched:max_issue() to look ahead as far
@@ -22611,7 +22645,8 @@ ix86_sched_init_global (FILE *dump ATTRIBUTE_UNUSED,
      they are actually used.  */
   switch (ix86_tune)
     {
-    case PROCESSOR_CORE2:
+    case PROCESSOR_CORE2_32:
+    case PROCESSOR_CORE2_64:
     case PROCESSOR_COREI7_32:
     case PROCESSOR_COREI7_64:
       targetm.sched.dfa_post_advance_cycle
@@ -22763,9 +22798,6 @@ ix86_local_alignment (tree exp, enum machine_mode mode,
       decl = NULL;
     }
 
-  if (use_avx256_p (mode, type))
-    cfun->machine->use_avx256_p = true;
-
   /* Don't do dynamic stack realignment for long long objects with
      -mpreferred-stack-boundary=2.  */
   if (!TARGET_64BIT
@@ -22871,9 +22903,6 @@ ix86_minimum_alignment (tree exp, enum machine_mode mode,
       type = exp;
       decl = NULL;
     }
-
-  if (use_avx256_p (mode, type))
-    cfun->machine->use_avx256_p = true;
 
   if (TARGET_64BIT || align != 64 || ix86_preferred_stack_boundary >= 64)
     return align;
@@ -29782,7 +29811,7 @@ ix86_reorg (void)
     }
 
   /* Run the vzeroupper optimization if needed.  */
-  if (cfun->machine->use_vzeroupper_p)
+  if (TARGET_VZEROUPPER)
     move_or_delete_vzeroupper ();
 }
 

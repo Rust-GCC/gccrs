@@ -26,7 +26,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "diagnostic-core.h"
 #include "tm.h"
-#include "libiberty.h"
 #include "cgraph.h"
 #include "ggc.h"
 #include "tree-ssa-operands.h"
@@ -45,20 +44,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "lto-streamer.h"
 #include "splay-tree.h"
 #include "params.h"
-
-/* This needs to be included after config.h.  Otherwise, _GNU_SOURCE will not
-   be defined in time to set __USE_GNU in the system headers, and strsignal
-   will not be declared.  */
-#if HAVE_MMAP_FILE
-#include <sys/mman.h>
-#endif
-
-/* Handle opening elf files on hosts, such as Windows, that may use 
-   text file handling that will break binary access.  */
-
-#ifndef O_BINARY
-# define O_BINARY 0
-#endif
 
 static GTY(()) tree first_personality_decl;
 
@@ -2194,6 +2179,11 @@ read_cgraph_and_symbols (unsigned nfiles, const char **fnames)
   timevar_push (TV_IPA_LTO_DECL_MERGE);
   /* Merge global decls.  */
   lto_symtab_merge_decls ();
+
+  /* If there were errors during symbol merging bail out, we have no
+     good way to recover here.  */
+  if (seen_error ())
+    fatal_error ("errors during merging of translation units");
 
   /* Fixup all decls and types and free the type hash tables.  */
   lto_fixup_decls (all_file_decl_data);

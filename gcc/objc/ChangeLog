@@ -1,3 +1,100 @@
+2010-12-02  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_build_throw_stmt): Return error_mark_node and
+	not NULL_TREE when a @throw is used outside of a @catch block.
+
+2010-11-30  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_build_volatilized_type): Removed.
+	(objc_non_volatilized_type): Removed.
+	(objc_type_quals_match): Removed.
+	(local_variables_to_volatilize): New.
+	(objc_volatilize_decl): Add the decl to volatilize to
+	local_variables_to_volatilize, but don't volatilize it yet.
+	(objc_finish_function): New.
+	* objc-act.h (local_variables_to_volatilize): New.
+
+2010-11-29  Nicola Pero  <nicola.pero@meta-innovation.com>
+	    Mike Stump  <mikestump@comcast.net>
+
+	Allow 'make check-objc -j2'
+	* Make-lang.in (lang_checks_parallelized): New.
+	(check_objc_parallelize): New.
+	
+2010-11-29  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (start_class): When a class is reimplemented,
+	generate an error and avoid adding the class to the list of
+	implemented classes again, but do not return error_mark_node.
+
+2010-11-29  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_maybe_build_component_ref): Removed TODO.
+
+2010-11-29  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_eh_runtime_type): Avoid ICE if error_mark_node
+	is passed as argument.
+	(objc_begin_catch_clause): Added code to deal with an
+	error_mark_node or NULL_TREE argument.  Improved checks for
+	invalid arguments.  Added code to traverse typedefs.
+
+2010-11-29  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_demangle): Return immediately if the string is
+	too short.  Detect names that do not need demangling, and return
+	them unchanged.
+
+2010-11-27  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	Implemented optional properties.
+	* objc-act.h (PROPERTY_OPTIONAL): New.
+	* objc-act.c (objc_add_property_declaration): Set
+	PROPERTY_OPTIONAL if appropriate.
+	(finish_class): When generating definitions of setter and getter
+	methods associated with a property for a protocol, mark them as
+	optional if the property is optional.
+	(maybe_make_artificial_property_decl): Added 'getter_name'
+	argument.  Set PROPERTY_OPTIONAL.
+	(objc_maybe_build_component_ref): Updated calls to
+	maybe_make_artificial_property_decl.  Added code for optional,
+	readonly properties.
+	(objc_build_class_component_ref): Updated call to
+	maybe_make_artificial_property_decl.
+	
+2010-11-27  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_build_struct): Fixed loops that save and
+	restore TYPE_OBJC_INFO to iterate over all variants of the type; a
+	special case for the current type is then no longer required.
+	Duplicate TYPE_LANG_SPECIFIC for each type before restoring
+	TYPE_OBJC_INFO.
+	(objc_get_protocol_qualified_type): Updated comments.
+	
+2010-11-25  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-act.c (objc_build_struct): Install TYPE_OBJC_INTERFACE
+	after finish_struct, not before, otherwise it may be wiped out by
+	it.  This fixes spurious warnings when a class has more than 15
+	instance variables.
+
+2010-11-23  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	PR objc/24358
+	* lang-specs.h: Added objective-c-cpp-output.  Mapped .mi to
+	objective-c-cpp-output instead of objc-cpp-output.  Print a
+	deprecation note every time objc-cpp-output is requested.
+
+2010-11-22  Joseph Myers  <joseph@codesourcery.com>
+
+	* objc-act.c (write_symbols): Don't declare here.
+
+2010-11-22  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	PR objc/41108
+	* objc-act.c (objc_generate_write_barrier): Added assert to make sure
+	this function is only called with the next runtime.
+
 2010-11-20  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c/46547

@@ -40,7 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 #include "flags.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "tree-inline.h"
 #include "gmp.h"
 
@@ -95,10 +94,10 @@ split_to_var_and_offset (tree expr, tree *var, mpz_t offset)
       *var = op0;
       /* Always sign extend the offset.  */
       off = tree_to_double_int (op1);
-      if (negate)
-	off = double_int_neg (off);
       off = double_int_sext (off, TYPE_PRECISION (type));
       mpz_set_double_int (offset, off, false);
+      if (negate)
+	mpz_neg (offset, offset);
       break;
 
     case INTEGER_CST:

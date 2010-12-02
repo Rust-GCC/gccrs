@@ -1,5 +1,5 @@
 /* LTO symbol table.
-   Copyright 2009 Free Software Foundation, Inc.
+   Copyright 2009, 2010 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -22,7 +22,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "tree.h"
 #include "gimple.h"
 #include "ggc.h"
@@ -210,6 +209,7 @@ lto_cgraph_replace_node (struct cgraph_node *node,
 {
   struct cgraph_edge *e, *next;
   bool no_aliases_please = false;
+  bool compatible_p;
 
   if (cgraph_dump_file)
     {
@@ -240,10 +240,19 @@ lto_cgraph_replace_node (struct cgraph_node *node,
     }
 
   /* Redirect all incoming edges.  */
+  compatible_p
+    = gimple_types_compatible_p (TREE_TYPE (TREE_TYPE (prevailing_node->decl)),
+				 TREE_TYPE (TREE_TYPE (node->decl)), GTC_DIAG);
   for (e = node->callers; e; e = next)
     {
       next = e->next_caller;
       cgraph_redirect_edge_callee (e, prevailing_node);
+      /* If there is a mismatch between the supposed callee return type and
+	 the real one do not attempt to inline this function.
+	 ???  We really need a way to match function signatures for ABI
+	 compatibility and perform related promotions at inlining time.  */
+      if (!compatible_p)
+	e->call_stmt_cannot_inline_p = 1;
     }
   /* Redirect incomming references.  */
   ipa_clone_refering (prevailing_node, NULL, &node->ref_list);

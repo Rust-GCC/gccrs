@@ -324,19 +324,31 @@ case ${with_newlib} in
   yes) skipdirs=`echo " ${skipdirs} " | sed -e 's/ target-newlib / /'` ;;
 esac
 
-# Handle --enable-gold.
-#   --enable-gold		Build only gold
-#   --disable-gold [default]	Build only ld
-#   --enable-gold=both		Build both gold and ld, ld is default
-#   --enable-gold=both/ld	Same
-#   --enable-gold=both/gold	Build both gold and ld, gold is default, ld is renamed ld.bfd
+# Handle --enable-gold, --enable-ld.
+# --disable-gold [--enable-ld]
+#     Build only ld.  Default option.
+# --enable-gold [--enable-ld]
+#     Build both gold and ld.  Install gold as "ld.gold", install ld
+#     as "ld.bfd" and "ld".
+# --enable-gold=default [--enable-ld]
+#     Build both gold and ld.  Install gold as "ld.gold" and "ld",
+#     install ld as "ld.bfd".
+# --enable-gold[=default] --disable-ld
+#     Build only gold, which is then installed as both "ld.gold" and "ld".
+# --enable-gold --enable-ld=default
+#     Build both gold (installed as "ld.gold") and ld (installed as "ld"
+#     and ld.bfd).
+#     In other words, ld is default
+# --enable-gold=default --enable-ld=default
+#     Error.
 
+default_ld=
 AC_ARG_ENABLE(gold,
-[[  --enable-gold[=ARG]     build gold [ARG={both}[/{gold,ld}]]]],
+[[  --enable-gold[=ARG]     build gold [ARG={default,yes,no}]]],
 ENABLE_GOLD=$enableval,
 ENABLE_GOLD=no)
-  case "${ENABLE_GOLD}" in
-  yes|both|both/gold|both/ld)
+case "${ENABLE_GOLD}" in
+  yes|default)
     # Check for ELF target.
     is_elf=no
     case "${target}" in
@@ -356,14 +368,10 @@ ENABLE_GOLD=no)
       # Check for target supported by gold.
       case "${target}" in
         i?86-*-* | x86_64-*-* | sparc*-*-* | powerpc*-*-* | arm*-*-*)
-	  case "${ENABLE_GOLD}" in 
-	  both*)
-            configdirs="$configdirs gold"
-	    ;;
-	  *)
-            configdirs=`echo " ${configdirs} " | sed -e 's/ ld / gold /'`
-	    ;;
-	  esac
+	  configdirs="$configdirs gold"
+	  if test x${ENABLE_GOLD} = xdefault; then
+	    default_ld=gold
+	  fi
 	  ENABLE_GOLD=yes
           ;;
       esac
@@ -374,7 +382,31 @@ ENABLE_GOLD=no)
   *)
     AC_MSG_ERROR([invalid --enable-gold argument])
     ;;
-  esac
+esac
+
+AC_ARG_ENABLE(ld,
+[[  --enable-ld[=ARG]     build ld [ARG={default,yes,no}]]],
+ENABLE_LD=$enableval,
+ENABLE_LD=yes)
+
+case "${ENABLE_LD}" in
+  default)
+    if test x${default_ld} != x; then
+      AC_MSG_ERROR([either gold or ld can be the default ld])
+    fi
+    ;;
+  yes)
+    ;;
+  no)
+    if test x${ENABLE_GOLD} != xyes; then
+      AC_MSG_WARN([neither ld nor gold are enabled])
+    fi
+    configdirs=`echo " ${configdirs} " | sed -e 's/ ld / /'`
+    ;;
+  *)
+    AC_MSG_ERROR([invalid --enable-ld argument])
+    ;;
+esac
 
 # Configure extra directories which are host specific
 
@@ -3203,8 +3235,9 @@ RAW_CXX_FOR_TARGET="$CXX_FOR_TARGET"
 GCC_TARGET_TOOL(ar, AR_FOR_TARGET, AR, [binutils/ar])
 GCC_TARGET_TOOL(as, AS_FOR_TARGET, AS, [gas/as-new])
 GCC_TARGET_TOOL(cc, CC_FOR_TARGET, CC, [gcc/xgcc -B$$r/$(HOST_SUBDIR)/gcc/])
+dnl see comments for CXX_FOR_TARGET_FLAG_TO_PASS
 GCC_TARGET_TOOL(c++, CXX_FOR_TARGET, CXX,
-		[gcc/g++ -B$$r/$(HOST_SUBDIR)/gcc/ -nostdinc++ `test ! -f $$r/$(TARGET_SUBDIR)/libstdc++-v3/scripts/testsuite_flags || $(SHELL) $$r/$(TARGET_SUBDIR)/libstdc++-v3/scripts/testsuite_flags --build-includes` -L$$r/$(TARGET_SUBDIR)/libstdc++-v3/src -L$$r/$(TARGET_SUBDIR)/libstdc++-v3/src/.libs],
+		[gcc/g++ -B$$r/$(HOST_SUBDIR)/gcc/ -nostdinc++ `if test -f $$r/$(TARGET_SUBDIR)/libstdc++-v3/scripts/testsuite_flags; then $(SHELL) $$r/$(TARGET_SUBDIR)/libstdc++-v3/scripts/testsuite_flags --build-includes; else echo -funconfigured-libstdc++-v3 ; fi` -L$$r/$(TARGET_SUBDIR)/libstdc++-v3/src -L$$r/$(TARGET_SUBDIR)/libstdc++-v3/src/.libs],
 		c++)
 GCC_TARGET_TOOL(c++ for libstdc++, RAW_CXX_FOR_TARGET, CXX,
 		[gcc/xgcc -shared-libgcc -B$$r/$(HOST_SUBDIR)/gcc -nostdinc++ -L$$r/$(TARGET_SUBDIR)/libstdc++-v3/src -L$$r/$(TARGET_SUBDIR)/libstdc++-v3/src/.libs],

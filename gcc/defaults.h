@@ -28,10 +28,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifndef GCC_DEFAULTS_H
 #define GCC_DEFAULTS_H
 
-#ifndef GET_ENVIRONMENT
-#define GET_ENVIRONMENT(VALUE, NAME) do { (VALUE) = getenv (NAME); } while (0)
-#endif
-
 /* Store in OUTPUT a string (made with alloca) containing an
    assembler-name for a local static variable or function named NAME.
    LABELNO is an integer which is different for each call.  */
@@ -897,14 +893,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define TARGET_DEC_EVAL_METHOD 2
 #endif
 
-#ifndef HOT_TEXT_SECTION_NAME
-#define HOT_TEXT_SECTION_NAME ".text.hot"
-#endif
-
-#ifndef UNLIKELY_EXECUTED_TEXT_SECTION_NAME
-#define UNLIKELY_EXECUTED_TEXT_SECTION_NAME ".text.unlikely"
-#endif
-
 #ifndef HAS_LONG_COND_BRANCH
 #define HAS_LONG_COND_BRANCH 0
 #endif
@@ -1300,16 +1288,20 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifdef STACK_CHECK_PROTECT
 #define STACK_OLD_CHECK_PROTECT STACK_CHECK_PROTECT
 #else
-#define STACK_OLD_CHECK_PROTECT \
- (targetm.except_unwind_info () == UI_SJLJ ? 75 * UNITS_PER_WORD : 8 * 1024)
+#define STACK_OLD_CHECK_PROTECT					\
+ (targetm.except_unwind_info (&global_options) == UI_SJLJ	\
+  ? 75 * UNITS_PER_WORD						\
+  : 8 * 1024)
 #endif
 
 /* Minimum amount of stack required to recover from an anticipated stack
    overflow detection.  The default value conveys an estimate of the amount
    of stack required to propagate an exception.  */
 #ifndef STACK_CHECK_PROTECT
-#define STACK_CHECK_PROTECT \
- (targetm.except_unwind_info () == UI_SJLJ ? 75 * UNITS_PER_WORD : 12 * 1024)
+#define STACK_CHECK_PROTECT					\
+ (targetm.except_unwind_info (&global_options) == UI_SJLJ	\
+  ? 75 * UNITS_PER_WORD						\
+  : 12 * 1024)
 #endif
 
 /* Make the maximum frame size be the largest we can and still only need

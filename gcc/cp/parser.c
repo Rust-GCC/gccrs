@@ -31,7 +31,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "decl.h"
 #include "flags.h"
 #include "diagnostic-core.h"
-#include "toplev.h"
 #include "output.h"
 #include "target.h"
 #include "cgraph.h"
@@ -22598,15 +22597,25 @@ cp_parser_objc_declaration (cp_parser* parser, tree attributes)
      objc-catch-clause objc-catch-clause-seq [opt]
 
    objc-catch-clause:
-     @catch ( exception-declaration ) compound-statement
+     @catch ( objc-exception-declaration ) compound-statement
 
-   objc-finally-clause
+   objc-finally-clause:
      @finally compound-statement
 
-   Returns NULL_TREE.  */
+   objc-exception-declaration:
+     parameter-declaration
+     '...'
+
+   where '...' is to be interpreted literally, that is, it means CPP_ELLIPSIS.
+
+   Returns NULL_TREE.
+
+   PS: This function is identical to c_parser_objc_try_catch_finally_statement
+   for C.  Keep them in sync.  */   
 
 static tree
-cp_parser_objc_try_catch_finally_statement (cp_parser *parser) {
+cp_parser_objc_try_catch_finally_statement (cp_parser *parser)
+{
   location_t location;
   tree stmt;
 
@@ -22620,22 +22629,60 @@ cp_parser_objc_try_catch_finally_statement (cp_parser *parser) {
 
   while (cp_lexer_next_token_is_keyword (parser->lexer, RID_AT_CATCH))
     {
-      cp_parameter_declarator *parmdecl;
-      tree parm;
+      cp_parameter_declarator *parm;
+      tree parameter_declaration = error_mark_node;
+      bool seen_open_paren = false;
 
       cp_lexer_consume_token (parser->lexer);
-      cp_parser_require (parser, CPP_OPEN_PAREN, RT_OPEN_PAREN);
-      parmdecl = cp_parser_parameter_declaration (parser, false, NULL);
-      parm = grokdeclarator (parmdecl->declarator,
-			     &parmdecl->decl_specifiers,
-			     PARM, /*initialized=*/0,
-			     /*attrlist=*/NULL);
-      cp_parser_require (parser, CPP_CLOSE_PAREN, RT_CLOSE_PAREN);
-      objc_begin_catch_clause (parm);
+      if (cp_parser_require (parser, CPP_OPEN_PAREN, RT_OPEN_PAREN))
+	seen_open_paren = true;
+      if (cp_lexer_next_token_is (parser->lexer, CPP_ELLIPSIS))
+	{
+	  /* We have "@catch (...)" (where the '...' are literally
+	     what is in the code).  Skip the '...'.
+	     parameter_declaration is set to NULL_TREE, and
+	     objc_being_catch_clauses() knows that that means
+	     '...'.  */
+	  cp_lexer_consume_token (parser->lexer);
+	  parameter_declaration = NULL_TREE;
+	}
+      else
+	{
+	  /* We have "@catch (NSException *exception)" or something
+	     like that.  Parse the parameter declaration.  */
+	  parm = cp_parser_parameter_declaration (parser, false, NULL);
+	  if (parm == NULL)
+	    parameter_declaration = error_mark_node;
+	  else
+	    parameter_declaration = grokdeclarator (parm->declarator,
+						    &parm->decl_specifiers,
+						    PARM, /*initialized=*/0,
+						    /*attrlist=*/NULL);
+	}
+      if (seen_open_paren)
+	cp_parser_require (parser, CPP_CLOSE_PAREN, RT_CLOSE_PAREN);
+      else
+	{
+	  /* If there was no open parenthesis, we are recovering from
+	     an error, and we are trying to figure out what mistake
+	     the user has made.  */
+
+	  /* If there is an immediate closing parenthesis, the user
+	     probably forgot the opening one (ie, they typed "@catch
+	     NSException *e)".  Parse the closing parenthesis and keep
+	     going.  */
+	  if (cp_lexer_next_token_is (parser->lexer, CPP_CLOSE_PAREN))
+	    cp_lexer_consume_token (parser->lexer);
+	  
+	  /* If these is no immediate closing parenthesis, the user
+	     probably doesn't know that parenthesis are required at
+	     all (ie, they typed "@catch NSException *e").  So, just
+	     forget about the closing parenthesis and keep going.  */
+	}
+      objc_begin_catch_clause (parameter_declaration);
       cp_parser_compound_statement (parser, NULL, false);
       objc_finish_catch_clause ();
     }
-
   if (cp_lexer_next_token_is_keyword (parser->lexer, RID_AT_FINALLY))
     {
       cp_lexer_consume_token (parser->lexer);
@@ -22658,7 +22705,8 @@ cp_parser_objc_try_catch_finally_statement (cp_parser *parser) {
    Returns NULL_TREE.  */
 
 static tree
-cp_parser_objc_synchronized_statement (cp_parser *parser) {
+cp_parser_objc_synchronized_statement (cp_parser *parser)
+{
   location_t location;
   tree lock, stmt;
 
@@ -22685,14 +22733,15 @@ cp_parser_objc_synchronized_statement (cp_parser *parser) {
    Returns a constructed '@throw' statement.  */
 
 static tree
-cp_parser_objc_throw_statement (cp_parser *parser) {
+cp_parser_objc_throw_statement (cp_parser *parser)
+{
   tree expr = NULL_TREE;
   location_t loc = cp_lexer_peek_token (parser->lexer)->location;
 
   cp_parser_require_keyword (parser, RID_AT_THROW, RT_AT_THROW);
 
   if (cp_lexer_next_token_is_not (parser->lexer, CPP_SEMICOLON))
-    expr = cp_parser_assignment_expression (parser, false, NULL);
+    expr = cp_parser_expression (parser, /*cast_p=*/false, NULL);
 
   cp_parser_consume_semicolon_at_end_of_statement (parser);
 
@@ -22702,7 +22751,8 @@ cp_parser_objc_throw_statement (cp_parser *parser) {
 /* Parse an Objective-C statement.  */
 
 static tree
-cp_parser_objc_statement (cp_parser * parser) {
+cp_parser_objc_statement (cp_parser * parser)
+{
   /* Try to figure out what kind of declaration is present.  */
   cp_token *kwd = cp_lexer_peek_token (parser->lexer);
 
