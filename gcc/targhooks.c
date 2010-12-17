@@ -358,6 +358,17 @@ default_print_operand_punct_valid_p (unsigned char code ATTRIBUTE_UNUSED)
 #endif
 }
 
+/* The default implementation of TARGET_MANGLE_ASSEMBLER_NAME.  */
+tree
+default_mangle_assembler_name (const char *name ATTRIBUTE_UNUSED)
+{
+  const char *skipped = name + (*name == '*' ? 1 : 0);
+  const char *stripped = targetm.strip_name_encoding (skipped);
+  if (*name != '*' && user_label_prefix[0])
+    stripped = ACONCAT ((user_label_prefix, stripped, NULL));
+  return get_identifier (stripped);
+}
+
 /* The default implementation of TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA.  */
 
 bool
@@ -1276,6 +1287,13 @@ default_preferred_output_reload_class (rtx x ATTRIBUTE_UNUSED,
 #else
   return rclass;
 #endif
+}
+
+/* The default implementation of TARGET_PREFERRED_RENAME_CLASS.  */
+reg_class_t
+default_preferred_rename_class (reg_class_t rclass ATTRIBUTE_UNUSED)
+{
+  return NO_REGS;
 }
 
 /* The default implementation of TARGET_CLASS_LIKELY_SPILLED_P.  */

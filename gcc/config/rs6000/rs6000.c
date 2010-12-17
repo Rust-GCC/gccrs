@@ -5436,7 +5436,7 @@ rs6000_expand_vector_extract (rtx target, rtx vec, int elt)
 {
   enum machine_mode mode = GET_MODE (vec);
   enum machine_mode inner_mode = GET_MODE_INNER (mode);
-  rtx mem, x;
+  rtx mem;
 
   if (VECTOR_MEM_VSX_P (mode) && (mode == V2DFmode || mode == V2DImode))
     {
@@ -5449,17 +5449,11 @@ rs6000_expand_vector_extract (rtx target, rtx vec, int elt)
   /* Allocate mode-sized buffer.  */
   mem = assign_stack_temp (mode, GET_MODE_SIZE (mode), 0);
 
-  /* Add offset to field within buffer matching vector element.  */
-  mem = adjust_address_nv (mem, mode, elt * GET_MODE_SIZE (inner_mode));
+  emit_move_insn (mem, vec);
 
-  /* Store single field into mode-sized buffer.  */
-  x = gen_rtx_UNSPEC (VOIDmode,
-		      gen_rtvec (1, const0_rtx), UNSPEC_STVE);
-  emit_insn (gen_rtx_PARALLEL (VOIDmode,
-			       gen_rtvec (2,
-					  gen_rtx_SET (VOIDmode,
-						       mem, vec),
-					  x)));
+  /* Add offset to field within buffer matching vector element.  */
+  mem = adjust_address_nv (mem, inner_mode, elt * GET_MODE_SIZE (inner_mode));
+
   emit_move_insn (target, adjust_address_nv (mem, inner_mode, 0));
 }
 
@@ -8156,8 +8150,9 @@ rs6000_darwin64_record_arg_advance_recurse (CUMULATIVE_ARGS *cum,
 	  rs6000_darwin64_record_arg_advance_recurse (cum, ftype, bitpos);
 	else if (USE_FP_FOR_ARG_P (cum, mode, ftype))
 	  {
+	    unsigned n_fpregs = (GET_MODE_SIZE (mode) + 7) >> 3;
 	    rs6000_darwin64_record_arg_advance_flush (cum, bitpos, 0);
-	    cum->fregno += (GET_MODE_SIZE (mode) + 7) >> 3;
+	    cum->fregno += n_fpregs;
 	    /* Single-precision floats present a special problem for
 	       us, because they are smaller than an 8-byte GPR, and so
 	       the structure-packing rules combined with the standard
@@ -8192,7 +8187,7 @@ rs6000_darwin64_record_arg_advance_recurse (CUMULATIVE_ARGS *cum,
 		  }
 	      }
 	    else
-	      cum->words += (GET_MODE_SIZE (mode) + 7) >> 3;
+	      cum->words += n_fpregs;
 	  }
 	else if (USE_ALTIVEC_FOR_ARG_P (cum, mode, type, 1))
 	  {
@@ -8618,6 +8613,7 @@ rs6000_darwin64_record_arg_recurse (CUMULATIVE_ARGS *cum, const_tree type,
 	  rs6000_darwin64_record_arg_recurse (cum, ftype, bitpos, rvec, k);
 	else if (cum->named && USE_FP_FOR_ARG_P (cum, mode, ftype))
 	  {
+	    unsigned n_fpreg = (GET_MODE_SIZE (mode) + 7) >> 3;
 #if 0
 	    switch (mode)
 	      {
@@ -8628,6 +8624,14 @@ rs6000_darwin64_record_arg_recurse (CUMULATIVE_ARGS *cum, const_tree type,
 	      }
 #endif
 	    rs6000_darwin64_record_arg_flush (cum, bitpos, rvec, k);
+	    if (cum->fregno + n_fpreg > FP_ARG_MAX_REG + 1)
+	      {
+		gcc_assert (cum->fregno == FP_ARG_MAX_REG
+			    && (mode == TFmode || mode == TDmode));
+		/* Long double or _Decimal128 split over regs and memory.  */
+		mode = DECIMAL_FLOAT_MODE_P (mode) ? DDmode : DFmode;
+		cum->use_stack=1;
+	      }
 	    rvec[(*k)++]
 	      = gen_rtx_EXPR_LIST (VOIDmode,
 				   gen_rtx_REG (mode, cum->fregno++),
@@ -8685,7 +8689,7 @@ rs6000_darwin64_record_arg (CUMULATIVE_ARGS *orig_cum, const_tree type,
      for the chunks of memory that go in int regs.  Note we start at
      element 1; 0 is reserved for an indication of using memory, and
      may or may not be filled in below. */
-  rs6000_darwin64_record_arg_recurse (cum, type, 0, rvec, &k);
+  rs6000_darwin64_record_arg_recurse (cum, type, /* startbit pos= */ 0, rvec, &k);
   rs6000_darwin64_record_arg_flush (cum, typesize * BITS_PER_UNIT, rvec, &k);
 
   /* If any part of the struct went on the stack put all of it there.
@@ -8813,7 +8817,7 @@ rs6000_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
 
   if (TARGET_MACHO && rs6000_darwin64_struct_check_p (mode, type))
     {
-      rtx rslt = rs6000_darwin64_record_arg (cum, type, named, false);
+      rtx rslt = rs6000_darwin64_record_arg (cum, type, named, /*retval= */false);
       if (rslt != NULL_RTX)
 	return rslt;
       /* Else fall through to usual handling.  */
@@ -11114,6 +11118,7 @@ altivec_expand_stv_builtin (enum insn_code icode, tree exp)
   rtx op2 = expand_normal (arg2);
   rtx pat, addr;
   enum machine_mode tmode = insn_data[icode].operand[0].mode;
+  enum machine_mode smode = insn_data[icode].operand[1].mode;
   enum machine_mode mode1 = Pmode;
   enum machine_mode mode2 = Pmode;
 
@@ -11123,8 +11128,8 @@ altivec_expand_stv_builtin (enum insn_code icode, tree exp)
       || arg2 == error_mark_node)
     return const0_rtx;
 
-  if (! (*insn_data[icode].operand[1].predicate) (op0, tmode))
-    op0 = copy_to_mode_reg (tmode, op0);
+  if (! (*insn_data[icode].operand[1].predicate) (op0, smode))
+    op0 = copy_to_mode_reg (smode, op0);
 
   op2 = copy_to_mode_reg (mode2, op2);
 
@@ -26907,7 +26912,7 @@ rs6000_function_value (const_tree valtype,
       valcum.vregno = ALTIVEC_ARG_MIN_REG;
       /* Do a trial code generation as if this were going to be passed as
 	 an argument; if any part goes in memory, we return NULL.  */
-      valret = rs6000_darwin64_record_arg (&valcum, valtype, true, true);
+      valret = rs6000_darwin64_record_arg (&valcum, valtype, true, /* retval= */ true);
       if (valret)
 	return valret;
       /* Otherwise fall through to standard ABI rules.  */

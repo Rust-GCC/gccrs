@@ -63,32 +63,14 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #ifdef USE_GAS
 #define SVR4_ASM_SPEC \
-  "%{v:-V} %{Wa,*:%*}"
+  ""
 #else
 #define SVR4_ASM_SPEC \
-  "%{v:-V} %{Qy:} %{!Qn:-Qy} %{n} %{T} %{Ym,*} %{Yd,*} %{Wa,*:%*}"
+  "%{v:-V} %{Qy:} %{!Qn:-Qy} %{Ym,*} %{Yd,*}"
 #endif
 
 #undef  ASM_SPEC
 #define ASM_SPEC SVR4_ASM_SPEC
-
-#define AS_NEEDS_DASH_FOR_PIPED_INPUT
-
-/* Under svr4, the normal location of the `ld' and `as' programs is the
-   /usr/ccs/bin directory.  */
-
-#ifndef CROSS_DIRECTORY_STRUCTURE
-#undef  MD_EXEC_PREFIX
-#define MD_EXEC_PREFIX "/usr/ccs/bin/"
-#endif
-
-/* Under svr4, the normal location of the various *crt*.o files is the
-   /usr/ccs/lib directory.  */
-
-#ifndef CROSS_DIRECTORY_STRUCTURE
-#undef  MD_STARTFILE_PREFIX
-#define MD_STARTFILE_PREFIX "/usr/ccs/lib/"
-#endif
 
 /* Provide a LIB_SPEC appropriate for svr4.  Here we tack on the default
    standard C library (unless we are building a shared library).  */
@@ -112,7 +94,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    support here for as many of the other svr4 linker options as seems
    reasonable, given that some of them conflict with options for other
    svr4 tools (e.g. the assembler).  In particular, we do support the
-   -z*, -V, -b, -t, -Qy, -Qn, and -YP* options here, and the -e*, -l*,
+   -z*, -V, -t, -Qy, -Qn, and -YP* options here, and the -e*, -l*,
    -o*, -r, -s, -u*, and -L* options are directly supported by gcc.c
    itself.  We don't directly support the -m (generate load map)
    option because that conflicts with the -m (run m4) option of the
@@ -131,7 +113,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #undef	LINK_SPEC
 #ifdef CROSS_DIRECTORY_STRUCTURE
 #define LINK_SPEC "%{h*} %{v:-V} \
-		   %{b} \
 		   %{static:-dn -Bstatic} \
 		   %{shared:-G -dy -z text} \
 		   %{symbolic:-Bsymbolic -G -dy -z text} \
@@ -140,7 +121,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 		   %{Qy:} %{!Qn:-Qy}"
 #else
 #define LINK_SPEC "%{h*} %{v:-V} \
-		   %{b} \
 		   %{static:-dn -Bstatic} \
 		   %{shared:-G -dy -z text} \
 		   %{symbolic:-Bsymbolic -G -dy -z text} \
@@ -195,5 +175,3 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #undef  WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE BITS_PER_WORD
-
-#define TARGET_POSIX_IO

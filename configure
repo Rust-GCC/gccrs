@@ -742,6 +742,8 @@ enable_option_checking
 with_build_libsubdir
 enable_gold
 enable_ld
+enable_libquadmath
+enable_libquadmath_support
 enable_libada
 enable_libssp
 enable_build_with_cxx
@@ -1453,6 +1455,9 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --enable-gold[=ARG]     build gold [ARG={default,yes,no}]
   --enable-ld[=ARG]     build ld [ARG={default,yes,no}]
+  --disable-libquadmath   do not build libquadmath directory
+  --disable-libquadmath-support
+                          disable libquadmath support for Fortran
   --enable-libada         build libada directory
   --enable-libssp         build libssp directory
   --enable-build-with-cxx build with C++ compiler instead of C compiler
@@ -2992,6 +2997,31 @@ case "${host}" in
 esac
 
 
+# Check whether --enable-libquadmath was given.
+if test "${enable_libquadmath+set}" = set; then :
+  enableval=$enable_libquadmath; ENABLE_LIBQUADMATH=$enableval
+else
+  ENABLE_LIBQUADMATH=yes
+fi
+
+if test "${ENABLE_LIBQUADMATH}" = "no" ; then
+  noconfigdirs="$noconfigdirs target-libquadmath"
+fi
+
+
+# Check whether --enable-libquadmath-support was given.
+if test "${enable_libquadmath_support+set}" = set; then :
+  enableval=$enable_libquadmath_support; ENABLE_LIBQUADMATH_SUPPORT=$enableval
+else
+  ENABLE_LIBQUADMATH_SUPPORT=yes
+fi
+
+enable_libquadmath_support=
+if test "${ENABLE_LIBQUADMATH_SUPPORT}" = "no" ; then
+  enable_libquadmath_support=no
+fi
+
+
 # Check whether --enable-libada was given.
 if test "${enable_libada+set}" = set; then :
   enableval=$enable_libada; ENABLE_LIBADA=$enableval
@@ -3025,6 +3055,9 @@ no)
   # Make sure we get it printed in the list of not supported target libs.
   # Don't disable libffi, though, other languages use it.
   noconfigdirs="$noconfigdirs `echo ${libgcj} | sed -e 's/target-libffi//'`"
+  # Clear libgcj_saved so that even if java is enabled libffi won't be
+  # built.
+  libgcj_saved=
   ;;
 esac
 
@@ -3247,8 +3280,8 @@ case "${target}" in
       *-*-aout)
 	unsupported_languages="$unsupported_languages fortran"
 	noconfigdirs="$noconfigdirs target-libffi target-boehm-gc";;
-      *-*-elf)
-	noconfigdirs="$noconfigdirs target-boehm-gc";;
+      *-*-elf) # See PR46792 regarding target-libffi.
+	noconfigdirs="$noconfigdirs target-libffi target-boehm-gc";;
       *-*-linux*)
 	noconfigdirs="$noconfigdirs target-newlib target-libgloss";;
       *)

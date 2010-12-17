@@ -640,7 +640,7 @@ Gogo::start_function(const std::string& name, Function_type* type,
 	}
     }
 
-  function->create_named_result_variables();
+  function->create_named_result_variables(this);
 
   const std::string* pname;
   std::string nested_name;
@@ -1472,7 +1472,8 @@ Check_types_traverse::constant(Named_object* named_object, bool)
       && !ctype->is_boolean_type()
       && !ctype->is_string_type())
     {
-      error_at(constant->location(), "invalid constant type");
+      if (!ctype->is_error_type())
+	error_at(constant->location(), "invalid constant type");
       constant->set_error();
     }
   else if (!constant->expr()->is_constant())
@@ -2473,7 +2474,7 @@ Function::Function(Function_type* type, Function* enclosing, Block* block,
 // Create the named result variables.
 
 void
-Function::create_named_result_variables()
+Function::create_named_result_variables(Gogo* gogo)
 {
   const Typed_identifier_list* results = this->type_->results();
   if (results == NULL
@@ -2490,10 +2491,17 @@ Function::create_named_result_variables()
        p != results->end();
        ++p, ++index)
     {
-      Result_variable* result = new Result_variable(p->type(), this,
-						    index);
-      Named_object* no = block->bindings()->add_result_variable(p->name(),
-								result);
+      std::string name = p->name();
+      if (Gogo::is_sink_name(name))
+	{
+	  static int unnamed_result_counter;
+	  char buf[100];
+	  snprintf(buf, sizeof buf, "_$%d", unnamed_result_counter);
+	  ++unnamed_result_counter;
+	  name = gogo->pack_hidden_name(buf, false);
+	}
+      Result_variable* result = new Result_variable(p->type(), this, index);
+      Named_object* no = block->bindings()->add_result_variable(name, result);
       this->named_results_->push_back(no);
     }
 }
@@ -3119,7 +3127,10 @@ Variable::type_from_tuple(Expression* expr, bool report_error) const
   else if (expr->receive_expression() != NULL)
     {
       Expression* channel = expr->receive_expression()->channel();
-      return channel->type()->channel_type()->element_type();
+      Type* channel_type = channel->type();
+      if (channel_type->is_error_type())
+	return Type::make_error_type();
+      return channel_type->channel_type()->element_type();
     }
   else
     {
@@ -4201,6 +4212,8 @@ Traverse::~Traverse()
 bool
 Traverse::remember_type(const Type* type)
 {
+  if (type->is_error_type())
+    return true;
   gcc_assert((this->traverse_mask() & traverse_types) != 0
 	     || (this->traverse_mask() & traverse_expressions) != 0);
   // We only have to remember named types, as they are the only ones

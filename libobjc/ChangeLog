@@ -1,3 +1,150 @@
+2010-12-17  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* init.c: Include objc/runtime.h and objc-private/module-abi-8.h
+	instead of objc/objc-api.h.
+	(init_check_module_version): Take a 'struct objc_module *'
+	argument instead of 'Module_t'.  Use 'struct objc_module *'
+	instead of 'Module_t'.
+	(__objc_created_classes_tree): Take a 'struct objc_module *'
+	argument instead of 'Module_t'; use 'struct objc_symtab *' instead
+	of 'Symtab_t'.
+	(__objc_call_callback): Take a 'struct objc_module *' argument
+	instead of 'Module_t'; use 'struct objc_symtab *' instead of
+	'Symtab_t' and 'struct objc_category *' instead of 'Category_t'.
+	(_objc_load_callback): Take a 'struct objc_category *' argument
+	instead of 'Category *'.
+	(class_superclass_of_class): Use objc_getClass() instead of
+	objc_lookup_class().
+	(create_tree_of_subclasses_inherited_from): Same change (also, use
+	an explicit 'if' instead of '?').
+	(objc_init_statics): Same change.
+	(objc_send_load): Same change.
+	(__objc_init_protocol): same change.
+	(__objc_send_message_in_list): Take a 'struct objc_method_list *'
+	argument instead of 'MethodList_t'.  Use 'struct objc_method *'
+	instead of 'Method_t'.
+	(__objc_send_load): Use 'struct objc_method_list *' instead of
+	'MethodList_t'.  Use sel_registerName() instead of
+	sel_register_name().
+	(__objc_exec_class): Take a 'struct objc_module *' argument
+	instead of 'Module_t'.  Use 'struct objc_symtab *' instead of
+	'Symtab_t'.  Use objc_getClass() instead of objc_lookup_class().
+	Use 'struct objc_category *' instead of 'Category_t'.
+	
+2010-12-16  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* sendmsg.c: Include objc/runtime.h instead of objc/objc-api.h.
+	Include objc-private/module-abi-8.h and objc-private/selector.h
+	instead of objc/encoding.h.
+	(objc_msg_lookup_super): Use super->super_class instead of
+	super->class.
+	(method_get_first_argument, method_get_next_argument): Declare
+	locally.
+	(class_get_instance_method): Declare before using.
+	(objc_msg_sendv): Use 'struct objc_method' instead of 'Method'.
+	(__objc_init_dispatch_tables, __objc_send_initialize): Use
+	sel_registerName() instead of sel_register_name().
+	(__objc_forward): Use sel_getName() instead of sel_get_name().
+	(objc_get_uninstalled_dtable): Use 'void' as argument.
+	* objc-private/selector.h: New.
+
+2010-12-15  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/message.h (objc_super): When using the modern API, do not
+	define Super and Super_t, and always use 'super_class' for the
+	super class field.	
+	(objc_msg_lookup_super): Updated prototype to use 'struct
+	objc_super *' instead of 'Super_t'.
+	* sendmsg.c (objc_msg_lookup_super): Updated prototype to use
+	'struct objc_super *' instead of 'Super_t'.
+
+2010-12-15  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/message.h: Update comments, reindented code and moved
+	deprecated types and functions at the end of the file.  No code
+	changes.
+
+2010-12-15  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* ivars.c (class_addIvar): Use the 'size' argument instead of
+	trying to calculate it using objc_sizeof_type().
+	* objc/runtime.h (class_addIvar): Updated comments.
+	
+2010-12-15  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* sendmsg.c: Reindented some code and tidied up comments.  No
+	actual code changes.
+	
+2010-12-14  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc/Object.h: Moved all the methods, with the exception of
+	-class and -isEqual:, into ...
+	* objc/deprecated/Object.h: here.
+	* Object.m: Moved all the methods, with the exception of -class
+	and -isEqual: into the 'Deprecated' category.
+
+2010-12-14  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objects.c (object_copy): Do not #undef as we are no longer
+	including objc/objc-api.h.
+	* selector.c: Include objc/runtime.h and
+	objc-private/module-abi-8.h.  Do not include objc/objc-api.h and
+	objc/encoding.h.  Updated
+	(__objc_register_selectors_from_class): Use struct
+	objc_method_list * instead of MethodList_t.
+	(__objc_register_selectors_from_list): Use Method instead of
+	Method_t.
+	(struct objc_method_description_list): Do not define here.
+	(__objc_register_instance_methods_to_class): Use struct
+	objc_method_list * instead of MethodList_t and Method instead of
+	Method_t.
+	
+2010-12-14  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* selector.c: Reindented some code and tidied up comments.  No
+	actual code changes.
+
+2010-12-13  Iain Sandoe  <iains@gcc.gnu.org>
+
+	* encoding.c (_darwin_rs6000_special_round_type_align): New.
+	(darwin_rs6000_special_round_type_align): Adjust to use new routine.
+
+2010-12-11  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* sendmsg.c (selector_resolveClassMethod): New.
+	(selector_resolveInstanceMethod): New.
+	(__objc_resolve_class_method): New.
+	(__objc_resolve_instance_method): New.
+	(get_imp): Call __objc_resolve_class_method or
+	__objc_resolve_instance_method at the appropriate time.
+	(objc_msg_lookup): Same.
+	(class_getClassMethod): Same.	
+	(class_getInstanceMethod): Same.
+	(__objc_init_dispatch_tables): Initialize
+	selector_resolveClassMethod and selector_resolveInstanceMethod.
+	* objc/runtime.h: Updated documentation of class_getClassMethod,
+	class_getInstanceMethod and class_getMethodImplementation.
+	
+2010-12-11  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* objc-private/module-abi-8.h (struct objc_symtab): Updated
+	description of sel_ref_cnt and refs.
+	* objc/deprecated/struct_objc_symtab.h (objc_symtab): Same change.
+	
+2010-12-06  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	PR target/40125
+	PR lto/46695
+	* configure.ac (extra_ldflags_libobjc): Invoke ACX_LT_HOST_FLAGS.
+	* Makefile.in (lt_host_flags): Import AC_SUBST'd value.
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+
+2010-12-03  Matthias Klose  <doko@ubuntu.com> 
+
+	* configure.ac (VERSION): Bump the version to 3:0:0.
+	* configure: Regenerate.
+
 2010-11-23  Richard Frith-Macdonald <rfm@gnu.org>
 
 	* sendmsg.c (get_imp): Fixed call to __objc_get_forward_imp to

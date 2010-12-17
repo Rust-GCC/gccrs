@@ -1,7 +1,5 @@
-// { dg-options "-std=gnu++0x" }
 // { dg-do compile }
-
-// Copyright (C) 2010 Free Software Foundation
+// Copyright (C) 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,23 +16,37 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// 20.9.11.2 Template class shared_ptr [util.smartptr.shared]
+#include <iterator>
+#include <testsuite_greedy_ops.h>
 
-#include <memory>
-
-// incomplete type
-struct X;
-
-// get an auto_ptr rvalue
-std::auto_ptr<X>&& ap();
+namespace greedy_ops
+{
+  struct C
+  {
+    typedef X* pointer;
+  };
+}
 
 void test01()
 {
-  X* px = 0;
-  std::shared_ptr<X> p1(px);   // { dg-error "here" }
-  // { dg-error "incomplete" "" { target *-*-* } 764 }
+  typedef __gnu_cxx::__normal_iterator<greedy_ops::X*,
+				       greedy_ops::C> iterator_type;
 
-  std::shared_ptr<X> p9(ap());  // { dg-error "here" }
-  // { dg-error "incomplete" "" { target *-*-* } 856 }
+  iterator_type it(0);
+  
+  it == it;
+  it != it;
+  it < it;
+  it <= it;
+  it > it;
+  it >= it;
+  it - it;
+  it + 1;
+  1 + it;
+}
 
+int main() 
+{ 
+  test01();
+  return 0;
 }

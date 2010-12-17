@@ -41,8 +41,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks.h"
 #include "target.h"
 #include "tm_p.h"
-#include "c-tree.h"
-#include "c-lang.h"
 #include "diagnostic-core.h"
 #include "toplev.h"
 #include "hashtab.h"
@@ -2970,6 +2968,8 @@ section *
 darwin_function_section (tree decl, enum node_frequency freq,
 			  bool startup, bool exit)
 {
+  if (!flag_reorder_functions)
+    return NULL;
   /* Startup code should go to startup subsection unless it is
      unlikely executed (this happens especially with function splitting
      where we can split away unnecesary parts of static constructors.  */

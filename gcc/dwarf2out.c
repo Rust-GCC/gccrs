@@ -282,7 +282,7 @@ dw_cfi_node;
    It can now be either REG + CFA_OFFSET or *(REG + BASE_OFFSET) + CFA_OFFSET.
    Instead of passing around REG and OFFSET, we pass a copy
    of this structure.  */
-typedef struct GTY(()) cfa_loc {
+typedef struct cfa_loc {
   HOST_WIDE_INT offset;
   HOST_WIDE_INT base_offset;
   unsigned int reg;
@@ -5879,7 +5879,7 @@ typedef struct GTY(()) limbo_die_struct {
 }
 limbo_die_node;
 
-typedef struct GTY(()) skeleton_chain_struct
+typedef struct skeleton_chain_struct
 {
   dw_die_ref old_die;
   dw_die_ref new_die;
@@ -12907,7 +12907,12 @@ modified_type_die (tree type, int is_const_type, int is_volatile_type,
       /* Else cv-qualified version of named type; fall through.  */
     }
 
-  if (is_const_type)
+  if (is_const_type
+      /* If both is_const_type and is_volatile_type, prefer the path
+	 which leads to a qualified type.  */
+      && (!is_volatile_type
+	  || get_qualified_type (type, TYPE_QUAL_CONST) == NULL_TREE
+	  || get_qualified_type (type, TYPE_QUAL_VOLATILE) != NULL_TREE))
     {
       mod_type_die = new_die (DW_TAG_const_type, comp_unit_die (), type);
       sub_die = modified_type_die (type, 0, is_volatile_type, context_die);
@@ -12915,7 +12920,7 @@ modified_type_die (tree type, int is_const_type, int is_volatile_type,
   else if (is_volatile_type)
     {
       mod_type_die = new_die (DW_TAG_volatile_type, comp_unit_die (), type);
-      sub_die = modified_type_die (type, 0, 0, context_die);
+      sub_die = modified_type_die (type, is_const_type, 0, context_die);
     }
   else if (code == POINTER_TYPE)
     {
@@ -20212,6 +20217,10 @@ gen_tagged_type_die (tree type,
 	 out yet, use a NULL context for now; it will be fixed up in
 	 decls_for_scope.  */
       context_die = lookup_decl_die (TYPE_CONTEXT (type));
+      /* A declaration DIE doesn't count; nested types need to go in the
+	 specification.  */
+      if (context_die && is_declaration_die (context_die))
+	context_die = NULL;
       need_pop = 0;
     }
   else
@@ -20242,12 +20251,22 @@ gen_tagged_type_die (tree type,
 
 static void
 gen_type_die_with_usage (tree type, dw_die_ref context_die,
-				enum debug_info_usage usage)
+			 enum debug_info_usage usage)
 {
   struct array_descr_info info;
 
   if (type == NULL_TREE || type == error_mark_node)
     return;
+
+  if (TYPE_NAME (type) != NULL_TREE
+      && TREE_CODE (TYPE_NAME (type)) == TYPE_DECL
+      && is_redundant_typedef (TYPE_NAME (type))
+      && DECL_ORIGINAL_TYPE (TYPE_NAME (type)))
+    /* The DECL of this type is a typedef we don't want to emit debug
+       info for but we want debug info for its underlying typedef.
+       This can happen for e.g, the injected-class-name of a C++
+       type.  */
+    type = DECL_ORIGINAL_TYPE (TYPE_NAME (type));
 
   /* If TYPE is a typedef type variant, let's generate debug info
      for the parent typedef which TYPE is a type of.  */

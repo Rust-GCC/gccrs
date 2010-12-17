@@ -21,12 +21,6 @@
 #ifndef GCC_MOXIE_H
 #define GCC_MOXIE_H
 
-/* This is defined by svr4.h, which is included prior to this file.
-   However, we should undefine it for moxie-elf, since we don't provide
-   functions like access() and mkdir() in newlib.  This will have to
-   be defined again for a Linux port.  */
-#undef TARGET_POSIX_IO
-
 /* Another C string constant used much like `LINK_SPEC'.  The difference
    between the two is that `STARTFILE_SPEC' is used at the very beginning of
    the command given to the linker.
@@ -54,6 +48,10 @@
 #undef LIB_SPEC
 #define LIB_SPEC "%{!shared:%{!symbolic:-lc}}"
 
+#undef  LINK_SPEC
+#define LINK_SPEC "%{h*} %{v:-V} \
+		   %{static:-Bstatic} %{shared:-shared} %{symbolic:-Bsymbolic}"
+
 /* Layout of Source Language Data Types */
 
 #define INT_TYPE_SIZE 32
@@ -66,6 +64,18 @@
 #define LONG_DOUBLE_TYPE_SIZE 64
 
 #define DEFAULT_SIGNED_CHAR 1
+
+#undef  SIZE_TYPE
+#define SIZE_TYPE "unsigned int"
+
+#undef  PTRDIFF_TYPE
+#define PTRDIFF_TYPE "int"
+
+#undef  WCHAR_TYPE
+#define WCHAR_TYPE "long int"
+
+#undef  WCHAR_TYPE_SIZE
+#define WCHAR_TYPE_SIZE BITS_PER_WORD
 
 /* Registers...
 

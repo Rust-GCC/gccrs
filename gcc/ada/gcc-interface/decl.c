@@ -97,7 +97,7 @@ static struct incomplete *defer_limited_with;
 static int defer_finalize_level = 0;
 static VEC (tree,heap) *defer_finalize_list;
 
-typedef struct GTY(()) subst_pair_d {
+typedef struct subst_pair_d {
   tree discriminant;
   tree replacement;
 } subst_pair;
@@ -105,7 +105,7 @@ typedef struct GTY(()) subst_pair_d {
 DEF_VEC_O(subst_pair);
 DEF_VEC_ALLOC_O(subst_pair,heap);
 
-typedef struct GTY(()) variant_desc_d {
+typedef struct variant_desc_d {
   /* The type of the variant.  */
   tree type;
 
@@ -3566,6 +3566,11 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 		TYPE_DUMMY_P (gnu_array_type) = 1;
 
 		gnu_type = make_node (RECORD_TYPE);
+		/* Build a stub DECL to trigger the special processing for fat
+		   pointer types in gnat_pushdecl.  */
+		TYPE_NAME (gnu_type)
+		  = create_type_stub_decl
+		    (create_concat_name (gnat_desig_equiv, "XUP"), gnu_type);
 		SET_TYPE_UNCONSTRAINED_ARRAY (gnu_type, gnu_desig_type);
 		TYPE_POINTER_TO (gnu_desig_type) = gnu_type;
 

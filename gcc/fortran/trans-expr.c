@@ -976,6 +976,7 @@ gfc_conv_power_op (gfc_se * se, gfc_expr * expr)
   tree gfc_int4_type_node;
   int kind;
   int ikind;
+  int res_ikind_1, res_ikind_2;
   gfc_se lse;
   gfc_se rse;
   tree fndecl = NULL;
@@ -996,6 +997,13 @@ gfc_conv_power_op (gfc_se * se, gfc_expr * expr)
 
   gfc_int4_type_node = gfc_get_int_type (4);
 
+  /* In case of integer operands with kinds 1 or 2, we call the integer kind 4
+     library routine.  But in the end, we have to convert the result back
+     if this case applies -- with res_ikind_K, we keep track whether operand K
+     falls into this case.  */
+  res_ikind_1 = -1;
+  res_ikind_2 = -1;
+
   kind = expr->value.op.op1->ts.kind;
   switch (expr->value.op.op2->ts.type)
     {
@@ -1006,6 +1014,7 @@ gfc_conv_power_op (gfc_se * se, gfc_expr * expr)
 	case 1:
 	case 2:
 	  rse.expr = convert (gfc_int4_type_node, rse.expr);
+	  res_ikind_2 = ikind;
 	  /* Fall through.  */
 
 	case 4:
@@ -1028,7 +1037,10 @@ gfc_conv_power_op (gfc_se * se, gfc_expr * expr)
 	case 1:
 	case 2:
 	  if (expr->value.op.op1->ts.type == BT_INTEGER)
-	    lse.expr = convert (gfc_int4_type_node, lse.expr);
+	    {
+	      lse.expr = convert (gfc_int4_type_node, lse.expr);
+	      res_ikind_1 = kind;
+	    }
 	  else
 	    gcc_unreachable ();
 	  /* Fall through.  */
@@ -1121,6 +1133,15 @@ gfc_conv_power_op (gfc_se * se, gfc_expr * expr)
 
   se->expr = build_call_expr_loc (input_location,
 			      fndecl, 2, lse.expr, rse.expr);
+
+  /* Convert the result back if it is of wrong integer kind.  */
+  if (res_ikind_1 != -1 && res_ikind_2 != -1)
+    {
+      /* We want the maximum of both operand kinds as result.  */
+      if (res_ikind_1 < res_ikind_2)
+	res_ikind_1 = res_ikind_2;
+      se->expr = convert (gfc_get_int_type (res_ikind_1), se->expr);
+    }
 }
 
 
@@ -1417,9 +1438,9 @@ gfc_conv_expr_op (gfc_se * se, gfc_expr * expr)
 tree
 gfc_string_to_single_character (tree len, tree str, int kind)
 {
-  gcc_assert (POINTER_TYPE_P (TREE_TYPE (str)));
 
-  if (!INTEGER_CST_P (len) || TREE_INT_CST_HIGH (len) != 0)
+  if (!INTEGER_CST_P (len) || TREE_INT_CST_HIGH (len) != 0
+      || !POINTER_TYPE_P (TREE_TYPE (str)))
     return NULL_TREE;
 
   if (TREE_INT_CST_LOW (len) == 1)
@@ -3573,7 +3594,7 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 
       if (!se->direct_byref)
 	{
-	  if (sym->attr.dimension || (comp && comp->attr.dimension))
+	  if ((sym->attr.dimension && !comp) || (comp && comp->attr.dimension))
 	    {
 	      if (gfc_option.rtcheck & GFC_RTCHECK_BOUNDS)
 		{
@@ -3805,12 +3826,12 @@ gfc_trans_string_copy (stmtblock_t * block, tree dlength, tree dest,
 			  fold_convert (size_type_node,
 					TYPE_SIZE_UNIT (chartype)));
 
-  if (dlength)
+  if (dlength && POINTER_TYPE_P (TREE_TYPE (dest)))
     dest = fold_convert (pvoid_type_node, dest);
   else
     dest = gfc_build_addr_expr (pvoid_type_node, dest);
 
-  if (slength)
+  if (slength && POINTER_TYPE_P (TREE_TYPE (src)))
     src = fold_convert (pvoid_type_node, src);
   else
     src = gfc_build_addr_expr (pvoid_type_node, src);
@@ -3885,35 +3906,42 @@ gfc_conv_statement_function (gfc_se * se, gfc_expr * expr)
       gcc_assert (fargs->sym->attr.dimension == 0);
       fsym = fargs->sym;
 
-      /* Create a temporary to hold the value.  */
-      type = gfc_typenode_for_spec (&fsym->ts);
-      temp_vars[n] = gfc_create_var (type, fsym->name);
-
       if (fsym->ts.type == BT_CHARACTER)
         {
 	  /* Copy string arguments.  */
-          tree arglen;
+	  tree arglen;
 
-          gcc_assert (fsym->ts.u.cl && fsym->ts.u.cl->length
+	  gcc_assert (fsym->ts.u.cl && fsym->ts.u.cl->length
 		      && fsym->ts.u.cl->length->expr_type == EXPR_CONSTANT);
 
-          arglen = TYPE_MAX_VALUE (TYPE_DOMAIN (type));
-          tmp = gfc_build_addr_expr (build_pointer_type (type),
-				     temp_vars[n]);
+	  /* Create a temporary to hold the value.  */
+          if (fsym->ts.u.cl->backend_decl == NULL_TREE)
+	     fsym->ts.u.cl->backend_decl
+		= gfc_conv_constant_to_tree (fsym->ts.u.cl->length);
 
-          gfc_conv_expr (&rse, args->expr);
-          gfc_conv_string_parameter (&rse);
-          gfc_add_block_to_block (&se->pre, &lse.pre);
-          gfc_add_block_to_block (&se->pre, &rse.pre);
+	  type = gfc_get_character_type (fsym->ts.kind, fsym->ts.u.cl);
+	  temp_vars[n] = gfc_create_var (type, fsym->name);
 
-	  gfc_trans_string_copy (&se->pre, arglen, tmp, fsym->ts.kind,
+	  arglen = TYPE_MAX_VALUE (TYPE_DOMAIN (type));
+
+	  gfc_conv_expr (&rse, args->expr);
+	  gfc_conv_string_parameter (&rse);
+	  gfc_add_block_to_block (&se->pre, &lse.pre);
+	  gfc_add_block_to_block (&se->pre, &rse.pre);
+
+	  gfc_trans_string_copy (&se->pre, arglen, temp_vars[n], fsym->ts.kind,
 				 rse.string_length, rse.expr, fsym->ts.kind);
-          gfc_add_block_to_block (&se->pre, &lse.post);
-          gfc_add_block_to_block (&se->pre, &rse.post);
+	  gfc_add_block_to_block (&se->pre, &lse.post);
+	  gfc_add_block_to_block (&se->pre, &rse.post);
         }
       else
         {
           /* For everything else, just evaluate the expression.  */
+
+	  /* Create a temporary to hold the value.  */
+	  type = gfc_typenode_for_spec (&fsym->ts);
+	  temp_vars[n] = gfc_create_var (type, fsym->name);
+
           gfc_conv_expr (&lse, args->expr);
 
           gfc_add_block_to_block (&se->pre, &lse.pre);
@@ -4424,7 +4452,7 @@ gfc_trans_subcomponent_assign (tree dest, gfc_component * cm, gfc_expr * expr)
 					gfc_class_null_initializer (&cm->ts));
       gfc_add_expr_to_block (&block, tmp);
     }
-  else if (cm->attr.dimension)
+  else if (cm->attr.dimension && !cm->attr.proc_pointer)
     {
       if (cm->attr.allocatable && expr->expr_type == EXPR_NULL)
  	gfc_conv_descriptor_data_set (&block, dest, null_pointer_node);

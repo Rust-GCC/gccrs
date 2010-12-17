@@ -533,6 +533,9 @@ section *
 default_function_section (tree decl, enum node_frequency freq,
 			  bool startup, bool exit)
 {
+  if (!flag_reorder_functions
+      || !targetm.have_named_sections)
+    return NULL;
   /* Startup code should go to startup subsection unless it is
      unlikely executed (this happens especially with function splitting
      where we can split away unnecesary parts of static constructors.  */
@@ -1548,8 +1551,6 @@ assemble_start_function (tree decl, const char *fnname)
   if (CONSTANT_POOL_BEFORE_FUNCTION)
     output_constant_pool (fnname, decl);
 
-  resolve_unique_section (decl, 0, flag_function_sections);
-
   /* Make sure the not and cold text (code) sections are properly
      aligned.  This is necessary here in the case where the function
      has both hot and cold sections, because we don't want to re-set
@@ -2540,7 +2541,7 @@ assemble_real (REAL_VALUE_TYPE d, enum machine_mode mode, unsigned int align)
    Store them both in the structure *VALUE.
    EXP must be reducible.  */
 
-struct GTY(()) addr_const {
+struct addr_const {
   rtx base;
   HOST_WIDE_INT offset;
 };

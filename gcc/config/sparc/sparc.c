@@ -129,6 +129,30 @@ struct processor_costs hypersparc_costs = {
 };
 
 static const
+struct processor_costs leon_costs = {
+  COSTS_N_INSNS (1), /* int load */
+  COSTS_N_INSNS (1), /* int signed load */
+  COSTS_N_INSNS (1), /* int zeroed load */
+  COSTS_N_INSNS (1), /* float load */
+  COSTS_N_INSNS (1), /* fmov, fneg, fabs */
+  COSTS_N_INSNS (1), /* fadd, fsub */
+  COSTS_N_INSNS (1), /* fcmp */
+  COSTS_N_INSNS (1), /* fmov, fmovr */
+  COSTS_N_INSNS (1), /* fmul */
+  COSTS_N_INSNS (15), /* fdivs */
+  COSTS_N_INSNS (15), /* fdivd */
+  COSTS_N_INSNS (23), /* fsqrts */
+  COSTS_N_INSNS (23), /* fsqrtd */
+  COSTS_N_INSNS (5), /* imul */
+  COSTS_N_INSNS (5), /* imulX */
+  0, /* imul bit factor */
+  COSTS_N_INSNS (5), /* idiv */
+  COSTS_N_INSNS (5), /* idivX */
+  COSTS_N_INSNS (1), /* movcc/movr */
+  0, /* shift penalty */
+};
+
+static const
 struct processor_costs sparclet_costs = {
   COSTS_N_INSNS (3), /* int load */
   COSTS_N_INSNS (3), /* int signed load */
@@ -698,19 +722,20 @@ sparc_option_override (void)
     { NULL, (enum cmodel) 0 }
   };
   const struct code_model *cmodel;
-  /* Map TARGET_CPU_DEFAULT to value for -m{arch,tune}=.  */
+  /* Map TARGET_CPU_DEFAULT to value for -m{cpu,tune}=.  */
   static struct cpu_default {
     const int cpu;
     const char *const name;
   } const cpu_default[] = {
     /* There must be one entry here for each TARGET_CPU value.  */
     { TARGET_CPU_sparc, "cypress" },
-    { TARGET_CPU_sparclet, "tsc701" },
-    { TARGET_CPU_sparclite, "f930" },
     { TARGET_CPU_v8, "v8" },
-    { TARGET_CPU_hypersparc, "hypersparc" },
-    { TARGET_CPU_sparclite86x, "sparclite86x" },
     { TARGET_CPU_supersparc, "supersparc" },
+    { TARGET_CPU_hypersparc, "hypersparc" },
+    { TARGET_CPU_leon, "leon" },
+    { TARGET_CPU_sparclite, "f930" },
+    { TARGET_CPU_sparclite86x, "sparclite86x" },
+    { TARGET_CPU_sparclet, "tsc701" },
     { TARGET_CPU_v9, "v9" },
     { TARGET_CPU_ultrasparc, "ultrasparc" },
     { TARGET_CPU_ultrasparc3, "ultrasparc3" },
@@ -731,28 +756,32 @@ sparc_option_override (void)
     { "v8",         PROCESSOR_V8, MASK_ISA, MASK_V8 },
     /* TI TMS390Z55 supersparc */
     { "supersparc", PROCESSOR_SUPERSPARC, MASK_ISA, MASK_V8 },
-    { "sparclite",  PROCESSOR_SPARCLITE, MASK_ISA, MASK_SPARCLITE },
-    /* The Fujitsu MB86930 is the original sparclite chip, with no fpu.
-       The Fujitsu MB86934 is the recent sparclite chip, with an fpu.  */
-    { "f930",       PROCESSOR_F930, MASK_ISA|MASK_FPU, MASK_SPARCLITE },
-    { "f934",       PROCESSOR_F934, MASK_ISA, MASK_SPARCLITE|MASK_FPU },
     { "hypersparc", PROCESSOR_HYPERSPARC, MASK_ISA, MASK_V8|MASK_FPU },
+    /* LEON */
+    { "leon",       PROCESSOR_LEON, MASK_ISA, MASK_V8|MASK_FPU },
+    { "sparclite",  PROCESSOR_SPARCLITE, MASK_ISA, MASK_SPARCLITE },
+    /* The Fujitsu MB86930 is the original sparclite chip, with no FPU.  */
+    { "f930",       PROCESSOR_F930, MASK_ISA|MASK_FPU, MASK_SPARCLITE },
+    /* The Fujitsu MB86934 is the recent sparclite chip, with an FPU.  */
+    { "f934",       PROCESSOR_F934, MASK_ISA, MASK_SPARCLITE|MASK_FPU },
     { "sparclite86x",  PROCESSOR_SPARCLITE86X, MASK_ISA|MASK_FPU,
       MASK_SPARCLITE },
     { "sparclet",   PROCESSOR_SPARCLET, MASK_ISA, MASK_SPARCLET },
     /* TEMIC sparclet */
     { "tsc701",     PROCESSOR_TSC701, MASK_ISA, MASK_SPARCLET },
     { "v9",         PROCESSOR_V9, MASK_ISA, MASK_V9 },
-    /* TI ultrasparc I, II, IIi */
-    { "ultrasparc", PROCESSOR_ULTRASPARC, MASK_ISA, MASK_V9
-    /* Although insns using %y are deprecated, it is a clear win on current
-       ultrasparcs.  */
-    						    |MASK_DEPRECATED_V8_INSNS},
-    /* TI ultrasparc III */
-    /* ??? Check if %y issue still holds true in ultra3.  */
-    { "ultrasparc3", PROCESSOR_ULTRASPARC3, MASK_ISA, MASK_V9|MASK_DEPRECATED_V8_INSNS},
+    /* UltraSPARC I, II, IIi */
+    { "ultrasparc", PROCESSOR_ULTRASPARC, MASK_ISA,
+    /* Although insns using %y are deprecated, it is a clear win.  */
+      MASK_V9|MASK_DEPRECATED_V8_INSNS},
+    /* UltraSPARC III */
+    /* ??? Check if %y issue still holds true.  */
+    { "ultrasparc3", PROCESSOR_ULTRASPARC3, MASK_ISA,
+      MASK_V9|MASK_DEPRECATED_V8_INSNS},
     /* UltraSPARC T1 */
-    { "niagara", PROCESSOR_NIAGARA, MASK_ISA, MASK_V9|MASK_DEPRECATED_V8_INSNS},
+    { "niagara", PROCESSOR_NIAGARA, MASK_ISA,
+      MASK_V9|MASK_DEPRECATED_V8_INSNS},
+    /* UltraSPARC T2 */
     { "niagara2", PROCESSOR_NIAGARA, MASK_ISA, MASK_V9},
     { 0, (enum processor_type) 0, 0, 0 }
   };
@@ -907,6 +936,9 @@ sparc_option_override (void)
     case PROCESSOR_SPARCLITE86X:
       sparc_costs = &hypersparc_costs;
       break;
+    case PROCESSOR_LEON:
+      sparc_costs = &leon_costs;
+      break;
     case PROCESSOR_SPARCLET:
     case PROCESSOR_TSC701:
       sparc_costs = &sparclet_costs;
@@ -1025,6 +1057,36 @@ fp_high_losum_p (rtx op)
   return 0;
 }
 
+/* Return true if the address of LABEL can be loaded by means of the
+   mov{si,di}_pic_label_ref patterns in PIC mode.  */
+
+static bool
+can_use_mov_pic_label_ref (rtx label)
+{
+  /* VxWorks does not impose a fixed gap between segments; the run-time
+     gap can be different from the object-file gap.  We therefore can't
+     assume X - _GLOBAL_OFFSET_TABLE_ is a link-time constant unless we
+     are absolutely sure that X is in the same segment as the GOT.
+     Unfortunately, the flexibility of linker scripts means that we
+     can't be sure of that in general, so assume that GOT-relative
+     accesses are never valid on VxWorks.  */
+  if (TARGET_VXWORKS_RTP)
+    return false;
+
+  /* Similarly, if the label is non-local, it might end up being placed
+     in a different section than the current one; now mov_pic_label_ref
+     requires the label and the code to be in the same section.  */
+  if (LABEL_REF_NONLOCAL_P (label))
+    return false;
+
+  /* Finally, if we are reordering basic blocks and partition into hot
+     and cold sections, this might happen for any label.  */
+  if (flag_reorder_blocks_and_partition)
+    return false;
+
+  return true;
+}
+
 /* Expand a move instruction.  Return true if all work is done.  */
 
 bool
@@ -1059,14 +1121,9 @@ sparc_expand_move (enum machine_mode mode, rtx *operands)
       if (pic_address_needs_scratch (operands[1]))
 	operands[1] = sparc_legitimize_pic_address (operands[1], NULL_RTX);
 
-      /* VxWorks does not impose a fixed gap between segments; the run-time
-	 gap can be different from the object-file gap.  We therefore can't
-	 assume X - _GLOBAL_OFFSET_TABLE_ is a link-time constant unless we
-	 are absolutely sure that X is in the same segment as the GOT.
-	 Unfortunately, the flexibility of linker scripts means that we
-	 can't be sure of that in general, so assume that _G_O_T_-relative
-	 accesses are never valid on VxWorks.  */
-      if (GET_CODE (operands[1]) == LABEL_REF && !TARGET_VXWORKS_RTP)
+      /* We cannot use the mov{si,di}_pic_label_ref patterns in all cases.  */
+      if (GET_CODE (operands[1]) == LABEL_REF
+	  && can_use_mov_pic_label_ref (operands[1]))
 	{
 	  if (mode == SImode)
 	    {
@@ -3425,7 +3482,7 @@ sparc_legitimize_pic_address (rtx orig, rtx reg)
 
   if (GET_CODE (orig) == SYMBOL_REF
       /* See the comment in sparc_expand_move.  */
-      || (TARGET_VXWORKS_RTP && GET_CODE (orig) == LABEL_REF))
+      || (GET_CODE (orig) == LABEL_REF && !can_use_mov_pic_label_ref (orig)))
     {
       rtx pic_ref, address;
       rtx insn;
@@ -3478,11 +3535,13 @@ sparc_legitimize_pic_address (rtx orig, rtx reg)
 	}
       else
 	{
-	  pic_ref = gen_const_mem (Pmode,
-				   gen_rtx_PLUS (Pmode,
-						 pic_offset_table_rtx, address));
+	  pic_ref
+	    = gen_const_mem (Pmode,
+			     gen_rtx_PLUS (Pmode,
+					   pic_offset_table_rtx, address));
 	  insn = emit_move_insn (reg, pic_ref);
 	}
+
       /* Put a REG_EQUAL note on this insn, so that it can be optimized
 	 by loop.  */
       set_unique_reg_note (insn, REG_EQUAL, orig);
@@ -3520,9 +3579,8 @@ sparc_legitimize_pic_address (rtx orig, rtx reg)
       return gen_rtx_PLUS (Pmode, base, offset);
     }
   else if (GET_CODE (orig) == LABEL_REF)
-    /* ??? Why do we do this?  */
-    /* Now movsi_pic_label_ref uses it, but we ought to be checking that
-       the register is live instead, in case it is eliminated.  */
+    /* ??? We ought to be checking that the register is live instead, in case
+       it is eliminated.  */
     crtl->uses_pic_offset_table = 1;
 
   return orig;
@@ -8440,7 +8498,6 @@ sparc_function_ok_for_sibcall (tree decl, tree exp ATTRIBUTE_UNUSED)
 }
 
 /* libfunc renaming.  */
-#include "config/gofast.h"
 
 static void
 sparc_init_libfuncs (void)
@@ -8534,8 +8591,6 @@ sparc_init_libfuncs (void)
 	  set_conv_libfunc (ufix_optab, DImode, DFmode, "__dtoul");
 	}
     }
-
-  gofast_maybe_init_libfuncs ();
 }
 
 #define def_builtin(NAME, CODE, TYPE) \
@@ -9453,6 +9508,7 @@ sparc_file_end (void)
 	  DECL_VISIBILITY (decl) = VISIBILITY_HIDDEN;
 	  DECL_VISIBILITY_SPECIFIED (decl) = 1;
 	  allocate_struct_function (decl, true);
+	  cfun->is_thunk = 1;
 	  current_function_decl = decl;
 	  init_varasm_status ();
 	  assemble_start_function (decl, name);

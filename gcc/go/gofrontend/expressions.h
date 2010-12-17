@@ -1235,7 +1235,10 @@ class Call_expression : public Expression
   Expression*
   do_copy()
   {
-    return Expression::make_call(this->fn_->copy(), this->args_->copy(),
+    return Expression::make_call(this->fn_->copy(),
+				 (this->args_ == NULL
+				  ? NULL
+				  : this->args_->copy()),
 				 this->is_varargs_, this->location());
   }
 
@@ -1383,6 +1386,12 @@ class Unknown_expression : public Parser_expression
   void
   set_is_composite_literal_key()
   { this->is_composite_literal_key_ = true; }
+
+  // Note that this expression should no longer be treated as a
+  // composite literal key.
+  void
+  clear_is_composite_literal_key()
+  { this->is_composite_literal_key_ = false; }
 
  protected:
   Expression*

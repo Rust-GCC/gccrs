@@ -1115,7 +1115,7 @@ If this macro is not defined, then @var{basic-align} is used.
 One use of this macro is to increase alignment of medium-size data to
 make it all fit in fewer cache lines.
 
-It the value of this macro has a type, it should be an unsigned type.
+If the value of this macro has a type, it should be an unsigned type.
 @end defmac
 
 @defmac STACK_SLOT_ALIGNMENT (@var{type}, @var{mode}, @var{basic-align})
@@ -1132,7 +1132,7 @@ be used.
 This macro is to set alignment of stack slot to the maximum alignment
 of all possible modes which the slot may have.
 
-It the value of this macro has a type, it should be an unsigned type.
+If the value of this macro has a type, it should be an unsigned type.
 @end defmac
 
 @defmac LOCAL_DECL_ALIGNMENT (@var{decl})
@@ -1146,7 +1146,7 @@ is used.
 One use of this macro is to increase alignment of medium-size data to
 make it all fit in fewer cache lines.
 
-It the value of this macro has a type, it should be an unsigned type.
+If the value of this macro has a type, it should be an unsigned type.
 @end defmac
 
 @defmac MINIMUM_ALIGNMENT (@var{exp}, @var{mode}, @var{align})
@@ -2504,6 +2504,10 @@ looking for one that is valid, and will reload one or both registers
 only if neither labeling works.
 @end defmac
 
+@deftypefn {Target Hook} reg_class_t TARGET_PREFERRED_RENAME_CLASS (reg_class_t @var{rclass})
+A target hook that places additional preference on the register class to use when it is necessary to rename a register in class @var{rclass} to another class, or perhaps @var{NO_REGS}, if no preferred register class is found or hook @code{preferred_rename_class} is not implemented. Sometimes returning a more restrictive class makes better code.  For example, on ARM, thumb-2 instructions using @code{LO_REGS} may be smaller than instructions using @code{GENERIC_REGS}.  By returning @code{LO_REGS} from @code{preferred_rename_class}, code size can be reduced.
+@end deftypefn
+
 @deftypefn {Target Hook} reg_class_t TARGET_PREFERRED_RELOAD_CLASS (rtx @var{x}, reg_class_t @var{rclass})
 A target hook that places additional restrictions on the register class
 to use when it is necessary to copy value @var{x} into a register in class
@@ -3859,7 +3863,7 @@ alignment.  Then the definition should be
 #define PUSH_ROUNDING(BYTES) (((BYTES) + 1) & ~1)
 @end smallexample
 
-It the value of this macro has a type, it should be an unsigned type.
+If the value of this macro has a type, it should be an unsigned type.
 @end defmac
 
 @findex current_function_outgoing_args_size
@@ -5264,26 +5268,6 @@ If this macro evaluates to @code{false} the comparison functions return
 in @file{libgcc.a}, you do not need to define this macro.
 @end defmac
 
-@cindex US Software GOFAST, floating point emulation library
-@cindex floating point emulation library, US Software GOFAST
-@cindex GOFAST, floating point emulation library
-@findex gofast_maybe_init_libfuncs
-@defmac US_SOFTWARE_GOFAST
-Define this macro if your system C library uses the US Software GOFAST
-library to provide floating point emulation.
-
-In addition to defining this macro, your architecture must set
-@code{TARGET_INIT_LIBFUNCS} to @code{gofast_maybe_init_libfuncs}, or
-else call that function from its version of that hook.  It is defined
-in @file{config/gofast.h}, which must be included by your
-architecture's @file{@var{cpu}.c} file.  See @file{sparc/sparc.c} for
-an example.
-
-If this macro is defined, the
-@code{TARGET_FLOAT_LIB_COMPARE_RETURNS_BOOL} target hook must return
-false for @code{SFmode} and @code{DFmode} comparisons.
-@end defmac
-
 @cindex @code{EDOM}, implicit usage
 @findex matherr
 @defmac TARGET_EDOM
@@ -5852,7 +5836,7 @@ interested in most macros in this section.
 @menu
 * CC0 Condition Codes::      Old style representation of condition codes.
 * MODE_CC Condition Codes::  Modern representation of condition codes.
-* Cond. Exec. Macros::       Macros to control conditional execution.
+* Cond Exec Macros::         Macros to control conditional execution.
 @end menu
 
 @node CC0 Condition Codes
@@ -6060,7 +6044,7 @@ same.  If they are, it returns that mode.  If they are different, it
 returns @code{VOIDmode}.
 @end deftypefn
 
-@node Cond. Exec. Macros
+@node Cond Exec Macros
 @subsection Macros to control conditional execution
 @findex conditional execution
 @findex predication
@@ -8036,6 +8020,10 @@ A C statement (sans semicolon) to output to the stdio stream
 is customary on your operating system, as it is in most Berkeley Unix
 systems.  This macro is used in @code{assemble_name}.
 @end defmac
+
+@deftypefn {Target Hook} tree TARGET_MANGLE_ASSEMBLER_NAME (const char *@var{name})
+Given a symbol @var{name}, perform same mangling as @code{varasm.c}'s @code{assemble_name}, but in memory rather than to a file stream, returning result as an @code{IDENTIFIER_NODE}.  Required for correct LTO symtabs.  The default implementation calls the @code{TARGET_STRIP_NAME_ENCODING} hook and then prepends the @code{USER_LABEL_PREFIX}, if any.
+@end deftypefn
 
 @defmac ASM_OUTPUT_SYMBOL_REF (@var{stream}, @var{sym})
 A C statement (sans semicolon) to output a reference to

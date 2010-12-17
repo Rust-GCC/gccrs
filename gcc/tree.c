@@ -7096,6 +7096,7 @@ static tree
 build_range_type_1 (tree type, tree lowval, tree highval, bool shared)
 {
   tree itype = make_node (INTEGER_TYPE);
+  hashval_t hashcode = 0;
 
   TREE_TYPE (itype) = type;
 
@@ -7109,6 +7110,9 @@ build_range_type_1 (tree type, tree lowval, tree highval, bool shared)
   TYPE_ALIGN (itype) = TYPE_ALIGN (type);
   TYPE_USER_ALIGN (itype) = TYPE_USER_ALIGN (type);
 
+  if (!shared)
+    return itype;
+
   if ((TYPE_MIN_VALUE (itype)
        && TREE_CODE (TYPE_MIN_VALUE (itype)) != INTEGER_CST)
       || (TYPE_MAX_VALUE (itype)
@@ -7120,13 +7124,10 @@ build_range_type_1 (tree type, tree lowval, tree highval, bool shared)
       return itype;
     }
 
-  if (shared)
-    {
-      hashval_t hash = iterative_hash_expr (TYPE_MIN_VALUE (itype), 0);
-      hash = iterative_hash_expr (TYPE_MAX_VALUE (itype), hash);
-      hash = iterative_hash_hashval_t (TYPE_HASH (type), hash);
-      itype = type_hash_canon (hash, itype);
-    }
+  hashcode = iterative_hash_expr (TYPE_MIN_VALUE (itype), hashcode);
+  hashcode = iterative_hash_expr (TYPE_MAX_VALUE (itype), hashcode);
+  hashcode = iterative_hash_hashval_t (TYPE_HASH (type), hashcode);
+  itype = type_hash_canon (hashcode, itype);
 
   return itype;
 }
@@ -8517,8 +8518,12 @@ get_file_function_name (const char *type)
     p = q = ASTRDUP (first_global_object_name);
   /* If the target is handling the constructors/destructors, they
      will be local to this file and the name is only necessary for
-     debugging purposes.  */
-  else if ((type[0] == 'I' || type[0] == 'D') && targetm.have_ctors_dtors)
+     debugging purposes. 
+     We also assign sub_I and sub_D sufixes to constructors called from
+     the global static constructors.  These are always local.  */
+  else if (((type[0] == 'I' || type[0] == 'D') && targetm.have_ctors_dtors)
+	   || (strncmp (type, "sub_", 4) == 0
+	       && (type[4] == 'I' || type[4] == 'D')))
     {
       const char *file = main_input_filename;
       if (! file)
