@@ -23,9 +23,8 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file concurrence.h
- *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+/** @file ext/concurrence.h
+ *  This file is a GNU extension to the Standard C++ Library.
  */
 
 #ifndef _CONCURRENCE_H
@@ -39,7 +38,9 @@
 #include <bits/cpp_type_traits.h>
 #include <ext/type_traits.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Available locking policies:
   // _S_single    single-threaded code that doesn't need to be locked.
@@ -382,6 +383,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
   };
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif

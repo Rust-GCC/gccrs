@@ -1,5 +1,6 @@
 /* Contributed by Nicola Pero <nicola.pero@meta-innovation.com>, November 2010.  */
 /* { dg-do compile } */
+/* { dg-skip-if "No API#2 pre-Darwin9" { *-*-darwin[5-8]* } { "-fnext-runtime" } { "" } } */
 
 /* Test deprecate attribute with a forward declarations of
    @protocol.  */
@@ -12,19 +13,6 @@ __attribute__ ((deprecated))
 @protocol DeprecatedProtocol1;
 
 @protocol NonDeprecatedProtocol1;
-
-
-@interface Class1 <DeprecatedProtocol1> /* { dg-warning "is deprecated" } */
-@end
-
-@interface Class2 <NonDeprecatedProtocol1>
-@end
-
-@interface Class3 <NonDeprecatedProtocol1, DeprecatedProtocol1> /* { dg-warning "is deprecated" } */
-@end
-
-@interface Class2 (Category1) <DeprecatedProtocol1> /* { dg-warning "is deprecated" } */
-@end
 
 void function1 (id <DeprecatedProtocol1> object); /* { dg-warning "is deprecated" } */
 void function2 (id <NonDeprecatedProtocol1> object);

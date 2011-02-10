@@ -49,18 +49,15 @@ THIS SOFTWARE.
 #define _3 0
 #endif
 
- int
-#ifdef KR_headers
-quadmath_strtopQ(s, sp, V) CONST char *s; char **sp; void *V;
-#else
-quadmath_strtopQ(CONST char *s, char **sp, void *V)
-#endif
+__float128
+strtoflt128(CONST char *s, char **sp)
 {
 	static FPI fpi0 = { 113, 1-16383-113+1, 32766 - 16383 - 113 + 1, 1, SI };
 	ULong bits[4];
 	Long exp;
 	int k;
-	ULong *L = (ULong*)V;
+	union { __float128 f; ULong L[4]; } u;
+	ULong *L = &u.L[0];
 #ifdef Honor_FLT_ROUNDS
 #include "gdtoa_fltrnds.h"
 #else
@@ -95,12 +92,12 @@ quadmath_strtopQ(CONST char *s, char **sp, void *V)
 		break;
 
 	  case STRTOG_NaN:
-		L[0] = ld_QNAN0;
-		L[1] = ld_QNAN1;
-		L[2] = ld_QNAN2;
-		L[3] = ld_QNAN3;
+		L[_0] = ld_QNAN3;
+		L[_1] = ld_QNAN2;
+		L[_2] = ld_QNAN1;
+		L[_3] = ld_QNAN0;
 	  }
 	if (k & STRTOG_Neg)
 		L[_0] |= 0x80000000L;
-	return k;
-	}
+	return u.f;
+}

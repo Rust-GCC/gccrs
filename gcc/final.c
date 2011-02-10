@@ -256,6 +256,13 @@ default_function_pro_epilogue (FILE *file ATTRIBUTE_UNUSED,
 {
 }
 
+void
+default_function_switched_text_sections (FILE *file ATTRIBUTE_UNUSED,
+					 tree decl ATTRIBUTE_UNUSED,
+					 bool new_is_cold ATTRIBUTE_UNUSED)
+{
+}
+
 /* Default target hook that outputs nothing to a stream.  */
 void
 no_asm_to_stream (FILE *file ATTRIBUTE_UNUSED)
@@ -1841,6 +1848,9 @@ final_scan_insn (rtx insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	    debug_hooks->switch_text_section ();
 
 	  switch_to_section (current_function_section ());
+	  targetm.asm_out.function_switched_text_sections (asm_out_file,
+							   current_function_decl,
+							   in_cold_section_p);
 	  break;
 
 	case NOTE_INSN_BASIC_BLOCK:
@@ -4392,7 +4402,11 @@ rest_of_clean_state (void)
 	    if (LABEL_P (insn))
 	      INSN_UID (insn) = CODE_LABEL_NUMBER (insn);
 	    else
-	      INSN_UID (insn) = 0;
+	      {
+		if (NOTE_P (insn))
+		  set_block_for_insn (insn, NULL);
+		INSN_UID (insn) = 0;
+	      }
 	}
     }
 
@@ -4413,7 +4427,6 @@ rest_of_clean_state (void)
 	       && NOTE_KIND (insn) != NOTE_INSN_BLOCK_END
 	       && NOTE_KIND (insn) != NOTE_INSN_CFA_RESTORE_STATE)))
 	print_rtl_single (final_output, insn);
-
     }
 
   if (final_output)

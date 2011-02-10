@@ -1,6 +1,6 @@
 /* Subroutines used for code generation on IBM S/390 and zSeries
    Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-   2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+   2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Hartmut Penner (hpenner@de.ibm.com) and
                   Ulrich Weigand (uweigand@de.ibm.com) and
                   Andreas Krebbel (Andreas.Krebbel@de.ibm.com).
@@ -2426,6 +2426,31 @@ s390_float_const_zero_p (rtx value)
 	  && value == CONST0_RTX (GET_MODE (value)));
 }
 
+/* Implement TARGET_REGISTER_MOVE_COST.  */
+
+static int
+s390_register_move_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
+                         reg_class_t from, reg_class_t to)
+{
+/* On s390, copy between fprs and gprs is expensive.  */
+  if ((reg_classes_intersect_p (from, GENERAL_REGS)
+       && reg_classes_intersect_p (to, FP_REGS))
+      || (reg_classes_intersect_p (from, FP_REGS)
+	  && reg_classes_intersect_p (to, GENERAL_REGS)))
+    return 10;
+
+  return 1;
+}
+
+/* Implement TARGET_MEMORY_MOVE_COST.  */
+
+static int
+s390_memory_move_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
+		       reg_class_t rclass ATTRIBUTE_UNUSED,
+		       bool in ATTRIBUTE_UNUSED)
+{
+  return 1;
+}
 
 /* Compute a (partial) cost for rtx X.  Return true if the complete
    cost has been computed, and false if subexpressions should be
@@ -2926,8 +2951,8 @@ legitimate_reload_fp_constant_p (rtx op)
 /* Given an rtx OP being reloaded into a reg required to be in class RCLASS,
    return the class of reg to actually use.  */
 
-enum reg_class
-s390_preferred_reload_class (rtx op, enum reg_class rclass)
+static reg_class_t
+s390_preferred_reload_class (rtx op, reg_class_t rclass)
 {
   switch (GET_CODE (op))
     {
@@ -5056,7 +5081,7 @@ get_some_local_dynamic_name (void)
    in assembler syntax to stdio stream FILE.  Returns true if the
    constant X could be recognized, false otherwise.  */
 
-bool
+static bool
 s390_output_addr_const_extra (FILE *file, rtx x)
 {
   if (GET_CODE (x) == UNSPEC && XVECLEN (x, 0) == 1)
@@ -5131,7 +5156,8 @@ print_operand_address (FILE *file, rtx addr)
     {
       if (!TARGET_Z10)
 	{
-	  error ("symbolic memory references are only supported on z10 or later");
+	  output_operand_lossage ("symbolic memory references are "
+				  "only supported on z10 or later");
 	  return;
 	}
       output_addr_const (file, addr);
@@ -5200,7 +5226,8 @@ print_operand (FILE *file, rtx x, int code)
       else if (GET_CODE (x) == GT)
 	fprintf (file, "h");
       else
-	error ("invalid comparison operator for 'E' output modifier");
+	output_operand_lossage ("invalid comparison operator "
+				"for 'E' output modifier");
       return;
 
     case 'J':
@@ -5220,7 +5247,7 @@ print_operand (FILE *file, rtx x, int code)
 	  assemble_name (file, get_some_local_dynamic_name ());
 	}
       else
-	error ("invalid reference for 'J' output modifier");
+	output_operand_lossage ("invalid reference for 'J' output modifier");
       return;
 
     case 'G':
@@ -5234,7 +5261,8 @@ print_operand (FILE *file, rtx x, int code)
 
 	if (!MEM_P (x))
 	  {
-	    error ("memory reference expected for 'O' output modifier");
+	    output_operand_lossage ("memory reference expected for "
+				    "'O' output modifier");
 	    return;
 	  }
 
@@ -5244,7 +5272,7 @@ print_operand (FILE *file, rtx x, int code)
 	    || (ad.base && !REGNO_OK_FOR_BASE_P (REGNO (ad.base)))
 	    || ad.indx)
 	  {
-	    error ("invalid address for 'O' output modifier");
+	    output_operand_lossage ("invalid address for 'O' output modifier");
 	    return;
 	  }
 
@@ -5262,7 +5290,8 @@ print_operand (FILE *file, rtx x, int code)
 
 	if (!MEM_P (x))
 	  {
-	    error ("memory reference expected for 'R' output modifier");
+	    output_operand_lossage ("memory reference expected for "
+				    "'R' output modifier");
 	    return;
 	  }
 
@@ -5272,7 +5301,7 @@ print_operand (FILE *file, rtx x, int code)
 	    || (ad.base && !REGNO_OK_FOR_BASE_P (REGNO (ad.base)))
 	    || ad.indx)
 	  {
-	    error ("invalid address for 'R' output modifier");
+	    output_operand_lossage ("invalid address for 'R' output modifier");
 	    return;
 	  }
 
@@ -5290,7 +5319,8 @@ print_operand (FILE *file, rtx x, int code)
 
 	if (!MEM_P (x))
 	  {
-	    error ("memory reference expected for 'S' output modifier");
+	    output_operand_lossage ("memory reference expected for "
+				    "'S' output modifier");
 	    return;
 	  }
 	ret = s390_decompose_address (XEXP (x, 0), &ad);
@@ -5299,7 +5329,7 @@ print_operand (FILE *file, rtx x, int code)
 	    || (ad.base && !REGNO_OK_FOR_BASE_P (REGNO (ad.base)))
 	    || ad.indx)
 	  {
-	    error ("invalid address for 'S' output modifier");
+	    output_operand_lossage ("invalid address for 'S' output modifier");
 	    return;
 	  }
 
@@ -5319,7 +5349,8 @@ print_operand (FILE *file, rtx x, int code)
       else if (GET_CODE (x) == MEM)
 	x = change_address (x, VOIDmode, plus_constant (XEXP (x, 0), 4));
       else
-	error ("register or memory expression expected for 'N' output modifier");
+	output_operand_lossage ("register or memory expression expected "
+				"for 'N' output modifier");
       break;
 
     case 'M':
@@ -5328,7 +5359,8 @@ print_operand (FILE *file, rtx x, int code)
       else if (GET_CODE (x) == MEM)
 	x = change_address (x, VOIDmode, plus_constant (XEXP (x, 0), 8));
       else
-	error ("register or memory expression expected for 'M' output modifier");
+	output_operand_lossage ("register or memory expression expected "
+				"for 'M' output modifier");
       break;
 
     case 'Y':
@@ -5387,21 +5419,26 @@ print_operand (FILE *file, rtx x, int code)
       else if (code == 'x')
         fprintf (file, HOST_WIDE_INT_PRINT_DEC, CONST_DOUBLE_LOW (x) & 0xffff);
       else if (code == 'h')
-        fprintf (file, HOST_WIDE_INT_PRINT_DEC, ((CONST_DOUBLE_LOW (x) & 0xffff) ^ 0x8000) - 0x8000);
+        fprintf (file, HOST_WIDE_INT_PRINT_DEC,
+		 ((CONST_DOUBLE_LOW (x) & 0xffff) ^ 0x8000) - 0x8000);
       else
 	{
 	  if (code == 0)
-	    error ("invalid constant - try using an output modifier");
+	    output_operand_lossage ("invalid constant - try using "
+				    "an output modifier");
 	  else
-	    error ("invalid constant for output modifier '%c'", code);
+	    output_operand_lossage ("invalid constant for output modifier '%c'",
+				    code);
 	}
       break;
 
     default:
       if (code == 0)
-	error ("invalid expression - try using an output modifier");
+	output_operand_lossage ("invalid expression - try using "
+				"an output modifier");
       else
-	error ("invalid expression for output modifier '%c'", code);
+	output_operand_lossage ("invalid expression for output "
+				"modifier '%c'", code);
       break;
     }
 }
@@ -10600,6 +10637,9 @@ s390_loop_unroll_adjust (unsigned nunroll, struct loop *loop)
 #undef  TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN s390_expand_builtin
 
+#undef TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA
+#define TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA s390_output_addr_const_extra
+
 #undef TARGET_ASM_OUTPUT_MI_THUNK
 #define TARGET_ASM_OUTPUT_MI_THUNK s390_output_mi_thunk
 #undef TARGET_ASM_CAN_OUTPUT_MI_THUNK
@@ -10625,6 +10665,10 @@ s390_loop_unroll_adjust (unsigned nunroll, struct loop *loop)
 #define TARGET_RTX_COSTS s390_rtx_costs
 #undef TARGET_ADDRESS_COST
 #define TARGET_ADDRESS_COST s390_address_cost
+#undef TARGET_REGISTER_MOVE_COST
+#define TARGET_REGISTER_MOVE_COST s390_register_move_cost
+#undef TARGET_MEMORY_MOVE_COST
+#define TARGET_MEMORY_MOVE_COST s390_memory_move_cost
 
 #undef TARGET_MACHINE_DEPENDENT_REORG
 #define TARGET_MACHINE_DEPENDENT_REORG s390_reorg
@@ -10672,6 +10716,9 @@ s390_loop_unroll_adjust (unsigned nunroll, struct loop *loop)
 
 #undef TARGET_SCALAR_MODE_SUPPORTED_P
 #define TARGET_SCALAR_MODE_SUPPORTED_P s390_scalar_mode_supported_p
+
+#undef  TARGET_PREFERRED_RELOAD_CLASS
+#define TARGET_PREFERRED_RELOAD_CLASS s390_preferred_reload_class
 
 #undef TARGET_SECONDARY_RELOAD
 #define TARGET_SECONDARY_RELOAD s390_secondary_reload

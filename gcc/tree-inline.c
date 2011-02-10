@@ -811,57 +811,47 @@ remap_gimple_op_r (tree *tp, int *walk_subtrees, void *data)
 	 knows not to copy VAR_DECLs, etc., so this is safe.  */
       if (TREE_CODE (*tp) == MEM_REF)
 	{
+	  tree ptr = TREE_OPERAND (*tp, 0);
+	  tree old = *tp;
+	  tree tem;
+
 	  /* We need to re-canonicalize MEM_REFs from inline substitutions
-	     that can happen when a pointer argument is an ADDR_EXPR.  */
-	  tree decl = TREE_OPERAND (*tp, 0);
-	  tree *n;
-
-          /* See remap_ssa_name.  */
-          if (TREE_CODE (decl) == SSA_NAME
-              && TREE_CODE (SSA_NAME_VAR (decl)) == RESULT_DECL
-              && id->transform_return_to_modify)
-            decl = SSA_NAME_VAR (decl);
-
-	  n = (tree *) pointer_map_contains (id->decl_map, decl);
-	  if (n)
+	     that can happen when a pointer argument is an ADDR_EXPR.
+	     Recurse here manually to allow that.  */
+	  walk_tree (&ptr, remap_gimple_op_r, data, NULL);
+	  if ((tem = maybe_fold_offset_to_reference (EXPR_LOCATION (*tp),
+						     ptr,
+						     TREE_OPERAND (*tp, 1),
+						     TREE_TYPE (*tp)))
+	      && TREE_THIS_VOLATILE (tem) == TREE_THIS_VOLATILE (old))
 	    {
-	      tree old = *tp;
-	      tree ptr = unshare_expr (*n);
-	      tree tem;
-	      if ((tem = maybe_fold_offset_to_reference (EXPR_LOCATION (*tp),
-							 ptr,
-							 TREE_OPERAND (*tp, 1),
-							 TREE_TYPE (*tp)))
-		  && TREE_THIS_VOLATILE (tem) == TREE_THIS_VOLATILE (old))
-		{
-		  tree *tem_basep = &tem;
-		  while (handled_component_p (*tem_basep))
-		    tem_basep = &TREE_OPERAND (*tem_basep, 0);
-		  if (TREE_CODE (*tem_basep) == MEM_REF)
-		    *tem_basep
-		      = build2 (MEM_REF, TREE_TYPE (*tem_basep),
-				TREE_OPERAND (*tem_basep, 0),
-				fold_convert (TREE_TYPE (TREE_OPERAND (*tp, 1)),
-					      TREE_OPERAND (*tem_basep, 1)));
-		  else
-		    *tem_basep
-		      = build2 (MEM_REF, TREE_TYPE (*tem_basep),
-				build_fold_addr_expr (*tem_basep),
-				build_int_cst
-				  (TREE_TYPE (TREE_OPERAND (*tp, 1)), 0));
-		  *tp = tem;
-		}
+	      tree *tem_basep = &tem;
+	      while (handled_component_p (*tem_basep))
+		tem_basep = &TREE_OPERAND (*tem_basep, 0);
+	      if (TREE_CODE (*tem_basep) == MEM_REF)
+		*tem_basep
+		    = build2 (MEM_REF, TREE_TYPE (*tem_basep),
+			      TREE_OPERAND (*tem_basep, 0),
+			      fold_convert (TREE_TYPE (TREE_OPERAND (*tp, 1)),
+					    TREE_OPERAND (*tem_basep, 1)));
 	      else
-		{
-		  *tp = fold_build2 (MEM_REF, TREE_TYPE (*tp),
-				     ptr, TREE_OPERAND (*tp, 1));
-		  TREE_THIS_VOLATILE (*tp) = TREE_THIS_VOLATILE (old);
-		  TREE_THIS_NOTRAP (*tp) = TREE_THIS_NOTRAP (old);
-		}
-	      TREE_NO_WARNING (*tp) = TREE_NO_WARNING (old);
-	      *walk_subtrees = 0;
-	      return NULL;
+		*tem_basep
+		    = build2 (MEM_REF, TREE_TYPE (*tem_basep),
+			      build_fold_addr_expr (*tem_basep),
+			      build_int_cst
+			      (TREE_TYPE (TREE_OPERAND (*tp, 1)), 0));
+	      *tp = tem;
 	    }
+	  else
+	    {
+	      *tp = fold_build2 (MEM_REF, TREE_TYPE (*tp),
+				 ptr, TREE_OPERAND (*tp, 1));
+	      TREE_THIS_VOLATILE (*tp) = TREE_THIS_VOLATILE (old);
+	      TREE_THIS_NOTRAP (*tp) = TREE_THIS_NOTRAP (old);
+	    }
+	  TREE_NO_WARNING (*tp) = TREE_NO_WARNING (old);
+	  *walk_subtrees = 0;
+	  return NULL;
 	}
 
       /* Here is the "usual case".  Copy this tree node, and then
@@ -2759,7 +2749,6 @@ declare_return_variable (copy_body_data *id, tree return_slot, tree modify_dest,
 			 basic_block entry_bb)
 {
   tree callee = id->src_fn;
-  tree caller = id->dst_fn;
   tree result = DECL_RESULT (callee);
   tree callee_type = TREE_TYPE (result);
   tree caller_type;
@@ -2874,7 +2863,6 @@ declare_return_variable (copy_body_data *id, tree return_slot, tree modify_dest,
     }
 
   DECL_SEEN_IN_BIND_EXPR_P (var) = 1;
-  add_local_decl (DECL_STRUCT_FUNCTION (caller), var);
 
   /* Do not have the rest of GCC warn about this variable as it should
      not be visible to the user.  */
@@ -3281,6 +3269,7 @@ estimate_operator_cost (enum tree_code code, eni_weights *weights,
     CASE_CONVERT:
     case COMPLEX_EXPR:
     case PAREN_EXPR:
+    case VIEW_CONVERT_EXPR:
       return 0;
 
     /* Assign cost of 1 to usual operations.
@@ -3782,14 +3771,19 @@ expand_call_inline (basic_block bb, gimple stmt, copy_body_data *id)
   if (gimple_code (stmt) != GIMPLE_CALL)
     goto egress;
 
-  /* First, see if we can figure out what function is being called.
-     If we cannot, then there is no hope of inlining the function.  */
-  fn = gimple_call_fndecl (stmt);
-  if (!fn)
+  /* Objective C and fortran still calls tree_rest_of_compilation directly.
+     Kill this check once this is fixed.  */
+  if (!id->dst_node->analyzed)
     goto egress;
 
-  /* Turn forward declarations into real ones.  */
-  fn = cgraph_node (fn)->decl;
+  cg_edge = cgraph_edge (id->dst_node, stmt);
+  gcc_checking_assert (cg_edge);
+  /* First, see if we can figure out what function is being called.
+     If we cannot, then there is no hope of inlining the function.  */
+  if (cg_edge->indirect_unknown_callee)
+    goto egress;
+  fn = cg_edge->callee->decl;
+  gcc_checking_assert (fn);
 
   /* If FN is a declaration of a function in a nested scope that was
      globally declared inline, we don't set its DECL_INITIAL.
@@ -3802,13 +3796,6 @@ expand_call_inline (basic_block bb, gimple stmt, copy_body_data *id)
       && DECL_ABSTRACT_ORIGIN (fn)
       && gimple_has_body_p (DECL_ABSTRACT_ORIGIN (fn)))
     fn = DECL_ABSTRACT_ORIGIN (fn);
-
-  /* Objective C and fortran still calls tree_rest_of_compilation directly.
-     Kill this check once this is fixed.  */
-  if (!id->dst_node->analyzed)
-    goto egress;
-
-  cg_edge = cgraph_edge (id->dst_node, stmt);
 
   /* First check that inlining isn't simply forbidden in this case.  */
   if (inline_forbidden_into_p (cg_edge->caller->decl, cg_edge->callee->decl))
@@ -5174,16 +5161,26 @@ tree_function_versioning (tree old_decl, tree new_decl,
     /* Add local vars.  */
     add_local_variables (DECL_STRUCT_FUNCTION (old_decl), cfun, &id, false);
 
+  if (DECL_RESULT (old_decl) != NULL_TREE)
+    {
+      tree old_name;
+      DECL_RESULT (new_decl) = remap_decl (DECL_RESULT (old_decl), &id);
+      lang_hooks.dup_lang_specific_decl (DECL_RESULT (new_decl));
+      if (gimple_in_ssa_p (id.src_cfun)
+	  && DECL_BY_REFERENCE (DECL_RESULT (old_decl))
+	  && (old_name
+	      = gimple_default_def (id.src_cfun, DECL_RESULT (old_decl))))
+	{
+	  tree new_name = make_ssa_name (DECL_RESULT (new_decl), NULL);
+	  insert_decl_map (&id, old_name, new_name);
+	  SSA_NAME_DEF_STMT (new_name) = gimple_build_nop ();
+	  set_default_def (DECL_RESULT (new_decl), new_name);
+	}
+    }
+
   /* Copy the Function's body.  */
   copy_body (&id, old_entry_block->count, REG_BR_PROB_BASE,
 	     ENTRY_BLOCK_PTR, EXIT_BLOCK_PTR, blocks_to_copy, new_entry);
-
-  if (DECL_RESULT (old_decl) != NULL_TREE)
-    {
-      tree *res_decl = &DECL_RESULT (old_decl);
-      DECL_RESULT (new_decl) = remap_decl (*res_decl, &id);
-      lang_hooks.dup_lang_specific_decl (DECL_RESULT (new_decl));
-    }
 
   /* Renumber the lexical scoping (non-code) blocks consecutively.  */
   number_blocks (new_decl);
@@ -5379,7 +5376,8 @@ tree_can_inline_p (struct cgraph_edge *e)
   if (inline_forbidden_into_p (caller, callee))
     {
       e->inline_failed = CIF_UNSPECIFIED;
-      gimple_call_set_cannot_inline (e->call_stmt, true);
+      if (e->call_stmt)
+	gimple_call_set_cannot_inline (e->call_stmt, true);
       return false;
     }
 
@@ -5387,7 +5385,8 @@ tree_can_inline_p (struct cgraph_edge *e)
   if (!targetm.target_option.can_inline_p (caller, callee))
     {
       e->inline_failed = CIF_TARGET_OPTION_MISMATCH;
-      gimple_call_set_cannot_inline (e->call_stmt, true);
+      if (e->call_stmt)
+	gimple_call_set_cannot_inline (e->call_stmt, true);
       e->call_stmt_cannot_inline_p = true;
       return false;
     }
@@ -5404,7 +5403,8 @@ tree_can_inline_p (struct cgraph_edge *e)
 	  || !gimple_check_call_args (e->call_stmt)))
     {
       e->inline_failed = CIF_MISMATCHED_ARGUMENTS;
-      gimple_call_set_cannot_inline (e->call_stmt, true);
+      if (e->call_stmt)
+	gimple_call_set_cannot_inline (e->call_stmt, true);
       e->call_stmt_cannot_inline_p = true;
       return false;
     }

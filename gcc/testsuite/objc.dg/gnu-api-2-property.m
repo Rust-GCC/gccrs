@@ -3,7 +3,7 @@
   This is test 'property', covering all functions starting with 'property'.  */
 
 /* { dg-do run } */
-/* { dg-skip-if "" { *-*-* } { "-fnext-runtime" } { "" } } */
+/* { dg-skip-if "No API#2 pre-Darwin9" { *-*-darwin[5-8]* } { "-fnext-runtime" } { "" } } */
 
 /* To get the modern GNU Objective-C Runtime API, you include
    objc/runtime.h.  */
@@ -16,11 +16,13 @@
 { Class isa; }
 + alloc;
 - init;
++ initialize;
 @end
 
 @implementation MyRootClass
 + alloc { return class_createInstance (self, 0); }
 - init  { return self; }
++ initialize { return self; }
 @end
 
 @protocol MyProtocol
@@ -50,15 +52,21 @@ int main(int argc, void **args)
   /* TODO: Test new ABI (when available).  */
   printf ("Testing property_getAttributes () ...\n");
   {
+    /* The Apple/NeXT runtime seems to crash on the following.  */
+#ifdef __GNU_LIBOBJC__
     if (property_getAttributes (NULL) != NULL)
       abort ();
+#endif
   }
 
   /* TODO: Test new ABI (when available).  */
   printf ("Testing property_getName () ...\n");
   {
+    /* The Apple/NeXT runtime seems to crash on the following.  */
+#ifdef __GNU_LIBOBJC__
     if (property_getName (NULL) != NULL)
       abort ();
+#endif
   }
 
   return 0;

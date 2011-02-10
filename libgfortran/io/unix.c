@@ -1,4 +1,5 @@
-/* Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+/* Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+   2011
    Free Software Foundation, Inc.
    Contributed by Andy Vaught
    F2003 I/O support contributed by Jerry DeLisle
@@ -252,16 +253,6 @@ flush_if_preconnected (stream * s)
     fflush (stdout);
   else if (fd == STDERR_FILENO)
     fflush (stderr);
-}
-
-
-/* get_oserror()-- Get the most recent operating system error.  For
- * unix, this is errno. */
-
-const char *
-get_oserror (void)
-{
-  return strerror (errno);
 }
 
 
@@ -1000,6 +991,8 @@ unit_to_fd (int unit)
 int
 unpack_filename (char *cstring, const char *fstring, int len)
 {
+  if (fstring == NULL)
+    return 1;
   len = fstrlen (fstring, len);
   if (len >= PATH_MAX)
     return 1;
@@ -1082,13 +1075,8 @@ tempfile (st_parameter_open *opp)
   while (fd == -1 && errno == EEXIST);
 #endif /* HAVE_MKSTEMP */
 
-  if (fd < 0)
-    free (template);
-  else
-    {
-      opp->file = template;
-      opp->file_len = strlen (template);	/* Don't include trailing nul */
-    }
+  opp->file = template;
+  opp->file_len = strlen (template);	/* Don't include trailing nul */
 
   return fd;
 }
@@ -1823,18 +1811,29 @@ stream_isatty (stream *s)
   return isatty (((unix_stream *) s)->fd);
 }
 
-char *
-#ifdef HAVE_TTYNAME
-stream_ttyname (stream *s)
+int
+stream_ttyname (stream *s  __attribute__ ((unused)),
+		char * buf  __attribute__ ((unused)),
+		size_t buflen  __attribute__ ((unused)))
 {
-  return ttyname (((unix_stream *) s)->fd);
-}
+#ifdef HAVE_TTYNAME_R
+  return ttyname_r (((unix_stream *) s)->fd, buf, buflen);
+#elif defined HAVE_TTYNAME
+  char *p;
+  size_t plen;
+  p = ttyname (((unix_stream *) s)->fd);
+  if (!p)
+    return errno;
+  plen = strlen (p);
+  if (buflen < plen)
+    plen = buflen;
+  memcpy (buf, p, plen);
+  return 0;
 #else
-stream_ttyname (stream *s __attribute__ ((unused)))
-{
-  return NULL;
-}
+  return ENOSYS;
 #endif
+}
+
 
 
 

@@ -1,6 +1,6 @@
 // Specific definitions for mingw32 platform  -*- C++ -*-
 
-// Copyright (C) 2007, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,9 +22,9 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file error_constants.h
+/** @file bits/error_constants.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{system_error}
  */
 
 #ifndef _GLIBCXX_ERROR_CONSTANTS
@@ -34,7 +34,9 @@
 #include <cerrno>
 
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 // Most of the commented-out error codes are socket-related and could be
 // replaced by Winsock WSA-prefixed equivalents.
@@ -80,8 +82,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 //    no_child_process = 			ECHILD,
 //    no_link = 				ENOLINK,
       no_lock_available = 			ENOLCK,
-//    no_message_available = 			ENODATA, 
-//    no_message = 				ENOMSG, 
+//    no_message_available = 			ENODATA,
+//    no_message = 				ENOMSG,
 //    no_protocol_option = 			ENOPROTOOPT,
 //    no_space_on_device = 			ENOSPC,
 //    no_stream_resources = 			ENOSR,
@@ -120,6 +122,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
  //   wrong_protocol_type = 			EPROTOTYPE
    };
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif

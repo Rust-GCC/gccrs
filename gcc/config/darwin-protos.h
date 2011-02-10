@@ -58,6 +58,8 @@ extern section *machopic_select_rtx_section (enum machine_mode, rtx,
 					     unsigned HOST_WIDE_INT);
 
 extern section *darwin_function_section (tree, enum node_frequency, bool, bool); 
+extern void darwin_function_switched_text_sections (FILE *, tree, bool);
+
 extern void darwin_unique_section (tree decl, int reloc);
 extern void darwin_asm_named_section (const char *, unsigned int, tree);
 extern void darwin_non_lazy_pcrel (FILE *, rtx);
@@ -122,3 +124,4 @@ extern bool darwin_use_anchors_for_symbol_p (const_rtx symbol);
 extern bool darwin_kextabi_p (void);
 extern void darwin_override_options (void);
 extern void darwin_patch_builtins (void);
+extern void darwin_rename_builtins (void);

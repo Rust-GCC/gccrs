@@ -1221,9 +1221,9 @@ enum languages { lang_c, lang_cplusplus, lang_java };
 
 /* Gives the visibility specification for a class type.  */
 #define CLASSTYPE_VISIBILITY(TYPE)		\
-	DECL_VISIBILITY (TYPE_NAME (TYPE))
+	DECL_VISIBILITY (TYPE_MAIN_DECL (TYPE))
 #define CLASSTYPE_VISIBILITY_SPECIFIED(TYPE)	\
-	DECL_VISIBILITY_SPECIFIED (TYPE_NAME (TYPE))
+	DECL_VISIBILITY_SPECIFIED (TYPE_MAIN_DECL (TYPE))
 
 typedef struct GTY (()) tree_pair_s {
   tree purpose;
@@ -5025,6 +5025,7 @@ extern bool is_auto				(const_tree);
 extern tree process_template_parm		(tree, location_t, tree, 
 						 bool, bool, unsigned);
 extern tree end_template_parm_list		(tree);
+void fixup_template_parms (void);
 extern void end_template_decl			(void);
 extern tree maybe_update_decl_type		(tree, tree);
 extern bool check_default_tmpl_args             (tree, tree, int, int, int);
@@ -5214,12 +5215,13 @@ extern tree begin_do_stmt			(void);
 extern void finish_do_body			(tree);
 extern void finish_do_stmt			(tree, tree);
 extern tree finish_return_stmt			(tree);
-extern tree begin_for_stmt			(void);
+extern tree begin_for_scope			(tree *);
+extern tree begin_for_stmt			(tree, tree);
 extern void finish_for_init_stmt		(tree);
 extern void finish_for_cond			(tree, tree);
 extern void finish_for_expr			(tree, tree);
 extern void finish_for_stmt			(tree);
-extern tree begin_range_for_stmt		(void);
+extern tree begin_range_for_stmt		(tree, tree);
 extern void finish_range_for_decl		(tree, tree, tree);
 extern void finish_range_for_stmt		(tree);
 extern tree finish_break_stmt			(void);
@@ -5244,7 +5246,8 @@ extern tree validate_constexpr_fundecl (tree);
 extern tree register_constexpr_fundef (tree, tree);
 extern bool check_constexpr_ctor_body (tree, tree);
 extern tree ensure_literal_type_for_constexpr_object (tree);
-extern bool potential_constant_expression (tree, tsubst_flags_t);
+extern bool potential_constant_expression (tree);
+extern bool require_potential_constant_expression (tree);
 extern tree cxx_constant_value (tree);
 extern tree maybe_constant_value (tree);
 extern tree maybe_constant_init (tree);

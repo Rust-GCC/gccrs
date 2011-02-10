@@ -1,7 +1,7 @@
 /* Handle modules, which amounts to loading and saving symbols and
    their attendant structures.
    Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
-   2009, 2010
+   2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
@@ -1675,7 +1675,8 @@ typedef enum
   AB_POINTER_COMP, AB_PRIVATE_COMP, AB_VALUE, AB_VOLATILE, AB_PROTECTED,
   AB_IS_BIND_C, AB_IS_C_INTEROP, AB_IS_ISO_C, AB_ABSTRACT, AB_ZERO_COMP,
   AB_IS_CLASS, AB_PROCEDURE, AB_PROC_POINTER, AB_ASYNCHRONOUS, AB_CODIMENSION,
-  AB_COARRAY_COMP, AB_VTYPE, AB_VTAB, AB_CONTIGUOUS, AB_CLASS_POINTER
+  AB_COARRAY_COMP, AB_VTYPE, AB_VTAB, AB_CONTIGUOUS, AB_CLASS_POINTER,
+  AB_IMPLICIT_PURE
 }
 ab_attribute;
 
@@ -1725,6 +1726,7 @@ static const mstring attr_bits[] =
     minit ("VTYPE", AB_VTYPE),
     minit ("VTAB", AB_VTAB),
     minit ("CLASS_POINTER", AB_CLASS_POINTER),
+    minit ("IMPLICIT_PURE", AB_IMPLICIT_PURE),
     minit (NULL, -1)
 };
 
@@ -1859,6 +1861,8 @@ mio_symbol_attribute (symbol_attribute *attr)
 	MIO_NAME (ab_attribute) (AB_ELEMENTAL, attr_bits);
       if (attr->pure)
 	MIO_NAME (ab_attribute) (AB_PURE, attr_bits);
+      if (attr->implicit_pure)
+	MIO_NAME (ab_attribute) (AB_IMPLICIT_PURE, attr_bits);
       if (attr->recursive)
 	MIO_NAME (ab_attribute) (AB_RECURSIVE, attr_bits);
       if (attr->always_explicit)
@@ -1989,6 +1993,9 @@ mio_symbol_attribute (symbol_attribute *attr)
 	      break;
 	    case AB_PURE:
 	      attr->pure = 1;
+	      break;
+	    case AB_IMPLICIT_PURE:
+	      attr->implicit_pure = 1;
 	      break;
 	    case AB_RECURSIVE:
 	      attr->recursive = 1;
@@ -2130,6 +2137,20 @@ mio_typespec (gfc_typespec *ts)
     }
   else
     mio_charlen (&ts->u.cl);
+
+  /* So as not to disturb the existing API, use an ATOM_NAME to
+     transmit deferred characteristic for characters (F2003).  */
+  if (iomode == IO_OUTPUT)
+    {
+      if (ts->type == BT_CHARACTER && ts->deferred)
+	write_atom (ATOM_NAME, "DEFERRED_CL");
+    }
+  else if (peek_atom () != ATOM_RPAREN)
+    {
+      if (parse_atom () != ATOM_NAME)
+	bad_module ("Expected string");
+      ts->deferred = 1;
+    }
 
   mio_rparen ();
 }
@@ -2310,6 +2331,9 @@ mio_component_ref (gfc_component **cp, gfc_symbol *sym)
   else
     {
       mio_internal_string (name);
+
+      if (sym && sym->attr.is_class)
+	sym = sym->components->ts.u.derived;
 
       /* It can happen that a component reference can be read before the
 	 associated derived type symbol has been loaded. Return now and
@@ -4195,9 +4219,23 @@ read_cleanup (pointer_info *p)
 
   if (p->type == P_SYMBOL && p->u.rsym.state == USED && !p->u.rsym.referenced)
     {
+      gfc_namespace *ns;
       /* Add hidden symbols to the symtree.  */
       q = get_integer (p->u.rsym.ns);
-      st = gfc_get_unique_symtree ((gfc_namespace *) q->u.pointer);
+      ns = (gfc_namespace *) q->u.pointer;
+
+      if (!p->u.rsym.sym->attr.vtype
+	    && !p->u.rsym.sym->attr.vtab)
+	st = gfc_get_unique_symtree (ns);
+      else
+	{
+	  /* There is no reason to use 'unique_symtrees' for vtabs or
+	     vtypes - their name is fine for a symtree and reduces the
+	     namespace pollution.  */
+	  st = gfc_find_symtree (ns->sym_root, p->u.rsym.sym->name);
+	  if (!st)
+	    st = gfc_new_symtree (&ns->sym_root, p->u.rsym.sym->name);
+	}
 
       st->n.sym = p->u.rsym.sym;
       st->n.sym->refs++;

@@ -1,6 +1,7 @@
 // Support for atomic operations -*- C++ -*-
 
-// Copyright (C) 2004, 2005, 2006, 2008, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2004, 2005, 2006, 2008, 2009, 2010
+// Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,9 +23,8 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file atomicity.h
- *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+/** @file ext/atomicity.h
+ *  This file is a GNU extension to the Standard C++ Library.
  */
 
 #ifndef _GLIBCXX_ATOMICITY_H
@@ -34,7 +34,9 @@
 #include <bits/gthr.h>
 #include <bits/atomic_word.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Functions for portable atomic access.
   // To abstract locking primitives across all thread policies, use:
@@ -98,7 +100,8 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 #endif
   }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 // Even if the CPU doesn't need a memory barrier, we need to ensure
 // that the compiler doesn't reorder memory accesses across the

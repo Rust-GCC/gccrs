@@ -1,6 +1,6 @@
 /* Handle parameterized types (templates) for GNU C++.
    Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
+   2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Written by Ken Raeburn (raeburn@cygnus.com) while at Watchmaker Computing.
    Rewritten by Jason Merrill (jason@cygnus.com).
@@ -194,7 +194,6 @@ static tree template_parm_to_arg (tree t);
 static tree current_template_args (void);
 static tree fixup_template_type_parm_type (tree, int);
 static tree fixup_template_parm_index (tree, tree, int);
-static void fixup_template_parms (void);
 static tree tsubst_template_parm (tree, tree, tsubst_flags_t);
 
 /* Make the current scope suitable for access checking when we are
@@ -3614,8 +3613,6 @@ end_template_parm_list (tree parms)
       TREE_CHAIN (parm) = NULL_TREE;
     }
 
-  fixup_template_parms ();
-
   --processing_template_parmlist;
 
   return saved_parmlist;
@@ -3774,21 +3771,16 @@ fixup_template_parm (tree parm_desc,
     {
       /* PARM is a template template parameter. This is going to
 	 be interesting.  */
-      tree tparms, targs, innermost_args;
+      tree tparms, targs, innermost_args, t;
       int j;
 
-      /* First, fix up the type of the parm.  */
+      /* First, fix up the parms of the template template parm
+	 because the parms are involved in defining the new canonical
+	 type of the template template parm.  */
 
-      tree t =
-	fixup_template_type_parm_type (TREE_TYPE (parm), num_parms);
-      TREE_TYPE (parm) = t;
-
-      TREE_VEC_ELT (fixedup_args, idx) =
-	template_parm_to_arg (parm_desc);
-
-      /* Now we need to substitute the template parm types that
-	 have been fixed up so far into the non-type template
-	 parms of this template template parm. E.g, consider this:
+      /* So we need to substitute the template parm types that have
+	 been fixed up so far into the template parms of this template
+	 template parm. E.g, consider this:
 
 	 template<class T, template<T u> class TT> class S;
 
@@ -3827,6 +3819,14 @@ fixup_template_parm (tree parm_desc,
 			       TREE_VEC_LENGTH (tparms),
 			       targs);
 	}
+
+      /* Now fix up the type of the template template parm.  */
+
+      t = fixup_template_type_parm_type (TREE_TYPE (parm), num_parms);
+      TREE_TYPE (parm) = t;
+
+      TREE_VEC_ELT (fixedup_args, idx) =
+	template_parm_to_arg (parm_desc);
     }
   else if (TREE_CODE (parm) == PARM_DECL)
     {
@@ -3882,11 +3882,11 @@ fixup_template_parm (tree parm_desc,
   pop_deferring_access_checks ();
 }
 
-/* Walk current the template parms and properly compute the canonical
+/* Walk the current template parms and properly compute the canonical
    types of the dependent types created during
    cp_parser_template_parameter_list.  */
 
-static void
+void
 fixup_template_parms (void)
 {
   tree arglist;
@@ -3910,8 +3910,6 @@ fixup_template_parms (void)
      argument.  */
   arglist = current_template_args ();
   arglist = add_outermost_template_args (arglist, fixedup_args);
-
-  fixedup_args = INNERMOST_TEMPLATE_ARGS (arglist);
 
   /* Let's do the proper fixup now.  */
   for (i = 0; i < num_parms; ++i)
@@ -4737,7 +4735,7 @@ push_template_decl_real (tree decl, bool is_friend)
 	      return error_mark_node;
 	    }
 	  if (NEW_DELETE_OPNAME_P (DECL_NAME (decl))
-	      && (!TYPE_ARG_TYPES (TREE_TYPE (decl))
+	      && (!prototype_p (TREE_TYPE (decl))
 		  || TYPE_ARG_TYPES (TREE_TYPE (decl)) == void_list_node
 		  || !TREE_CHAIN (TYPE_ARG_TYPES (TREE_TYPE (decl)))
 		  || (TREE_CHAIN (TYPE_ARG_TYPES ((TREE_TYPE (decl))))
@@ -5159,6 +5157,7 @@ fold_non_dependent_expr_sfinae (tree expr, tsubst_flags_t complain)
      as two declarations of the same function, for example.  */
   if (processing_template_decl
       && !type_dependent_expression_p (expr)
+      && potential_constant_expression (expr)
       && !value_dependent_expression_p (expr))
     {
       HOST_WIDE_INT saved_processing_template_decl;
@@ -6410,7 +6409,7 @@ coerce_template_parms (tree parms,
 		    sorry ("cannot expand %<%T%> into a fixed-length "
 			   "argument list", arg);
 		}
-	      return error_mark_node;
+	      ++lost;
             }
         }
       else if (require_all_args)
@@ -6438,7 +6437,7 @@ coerce_template_parms (tree parms,
            reported) that we are trying to recover from, e.g., a class
            template with a parameter list such as
            template<typename..., typename>.  */
-        return error_mark_node;
+	++lost;
       else
 	arg = convert_template_argument (TREE_VALUE (parm),
 					 arg, new_args, complain, 
@@ -12052,7 +12051,7 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl,
       }
 
     case FOR_STMT:
-      stmt = begin_for_stmt ();
+      stmt = begin_for_stmt (NULL_TREE, NULL_TREE);
       RECUR (FOR_INIT_STMT (t));
       finish_for_init_stmt (stmt);
       tmp = RECUR (FOR_COND (t));
@@ -12066,7 +12065,7 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl,
     case RANGE_FOR_STMT:
       {
         tree decl, expr;
-        stmt = begin_for_stmt ();
+        stmt = begin_for_stmt (NULL_TREE, NULL_TREE);
         decl = RANGE_FOR_DECL (t);
         decl = tsubst (decl, args, complain, in_decl);
         maybe_push_decl (decl);
@@ -13239,8 +13238,7 @@ tsubst_copy_and_build (tree t,
 
     case VA_ARG_EXPR:
       return build_x_va_arg (RECUR (TREE_OPERAND (t, 0)),
-			     tsubst_copy (TREE_TYPE (t), args, complain,
-					  in_decl));
+			     tsubst (TREE_TYPE (t), args, complain, in_decl));
 
     case OFFSETOF_EXPR:
       return finish_offsetof (RECUR (TREE_OPERAND (t, 0)));
@@ -16512,7 +16510,7 @@ most_specialized_class (tree type, tree tmpl, tsubst_flags_t complain)
       if (!(complain & tf_error))
 	return error_mark_node;
       error ("ambiguous class template instantiation for %q#T", type);
-      str = TREE_CHAIN (list) ? _("candidates are:") : _("candidate is:");
+      str = ngettext ("candidate is:", "candidates are:", list_length (list));
       for (t = list; t; t = TREE_CHAIN (t))
         {
           error ("%s %+#T", spaces ? spaces : str, TREE_TYPE (t));
@@ -17965,11 +17963,11 @@ dependent_scope_p (tree scope)
    [temp.dep.constexpr].  EXPRESSION is already known to be a constant
    expression.  */
 
-/* FIXME this predicate is not appropriate for general expressions; the
-   predicates we want instead are "valid constant expression, value
-   dependent or not?", "really constant expression, not value dependent?"
-   and "instantiation-dependent?".  Try to integrate with
-   potential_constant_expression?
+/* Note that this predicate is not appropriate for general expressions;
+   only constant expressions (that satisfy potential_constant_expression)
+   can be tested for value dependence.
+
+   We should really also have a predicate for "instantiation-dependent".
 
    fold_non_dependent_expr: fold if constant and not type-dependent and not value-dependent.
      (what about instantiation-dependent constant-expressions?)

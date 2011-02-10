@@ -745,6 +745,7 @@ new_loop_vec_info (struct loop *loop)
   LOOP_VINFO_VECTORIZABLE_P (res) = 0;
   LOOP_PEELING_FOR_ALIGNMENT (res) = 0;
   LOOP_VINFO_VECT_FACTOR (res) = 0;
+  LOOP_VINFO_LOOP_NEST (res) = VEC_alloc (loop_p, heap, 3);
   LOOP_VINFO_DATAREFS (res) = VEC_alloc (data_reference_p, heap, 10);
   LOOP_VINFO_DDRS (res) = VEC_alloc (ddr_p, heap, 10 * 10);
   LOOP_VINFO_UNALIGNED_DR (res) = NULL;
@@ -793,7 +794,9 @@ destroy_loop_vec_info (loop_vec_info loop_vinfo, bool clean_stmts)
       free (LOOP_VINFO_BBS (loop_vinfo));
       free_data_refs (LOOP_VINFO_DATAREFS (loop_vinfo));
       free_dependence_relations (LOOP_VINFO_DDRS (loop_vinfo));
+      VEC_free (loop_p, heap, LOOP_VINFO_LOOP_NEST (loop_vinfo));
       VEC_free (gimple, heap, LOOP_VINFO_MAY_MISALIGN_STMTS (loop_vinfo));
+      VEC_free (ddr_p, heap, LOOP_VINFO_MAY_ALIAS_DDRS (loop_vinfo));
 
       free (loop_vinfo);
       loop->aux = NULL;
@@ -839,6 +842,7 @@ destroy_loop_vec_info (loop_vec_info loop_vinfo, bool clean_stmts)
   free (LOOP_VINFO_BBS (loop_vinfo));
   free_data_refs (LOOP_VINFO_DATAREFS (loop_vinfo));
   free_dependence_relations (LOOP_VINFO_DDRS (loop_vinfo));
+  VEC_free (loop_p, heap, LOOP_VINFO_LOOP_NEST (loop_vinfo));
   VEC_free (gimple, heap, LOOP_VINFO_MAY_MISALIGN_STMTS (loop_vinfo));
   VEC_free (ddr_p, heap, LOOP_VINFO_MAY_ALIAS_DDRS (loop_vinfo));
   slp_instances = LOOP_VINFO_SLP_INSTANCES (loop_vinfo);
@@ -1645,9 +1649,10 @@ report_vect_op (gimple stmt, const char *msg)
    1. operation is commutative and associative and it is safe to
       change the order of the computation (if CHECK_REDUCTION is true)
    2. no uses for a2 in the loop (a2 is used out of the loop)
-   3. no uses of a1 in the loop besides the reduction operation.
+   3. no uses of a1 in the loop besides the reduction operation
+   4. no uses of a1 outside the loop.
 
-   Condition 1 is tested here.
+   Conditions 1,4 are tested here.
    Conditions 2,3 are tested in vect_mark_stmts_to_be_vectorized.
 
    (2) Detect a cross-iteration def-use cycle in nested loops, i.e.,
@@ -1698,8 +1703,16 @@ vect_is_simple_reduction_1 (loop_vec_info loop_info, gimple phi,
       gimple use_stmt = USE_STMT (use_p);
       if (is_gimple_debug (use_stmt))
 	continue;
-      if (flow_bb_inside_loop_p (loop, gimple_bb (use_stmt))
-	  && vinfo_for_stmt (use_stmt)
+
+      if (!flow_bb_inside_loop_p (loop, gimple_bb (use_stmt)))
+        {
+          if (vect_print_dump_info (REPORT_DETAILS))
+            fprintf (vect_dump, "intermediate value used outside loop.");
+
+          return NULL;
+        }
+
+      if (vinfo_for_stmt (use_stmt)
 	  && !is_pattern_stmt_p (vinfo_for_stmt (use_stmt)))
         nloop_uses++;
       if (nloop_uses > 1)

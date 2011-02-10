@@ -23,32 +23,17 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "ggc.h"
-#include "tree.h"
-#include "rtl.h"
-#include "output.h"
-#include "basic-block.h"
-#include "diagnostic.h"
 #include "tree-flow.h"
 #include "tree-dump.h"
-#include "timevar.h"
 #include "cfgloop.h"
 #include "tree-chrec.h"
 #include "tree-data-ref.h"
 #include "tree-scalar-evolution.h"
-#include "tree-pass.h"
-#include "domwalk.h"
-#include "value-prof.h"
-#include "pointer-set.h"
-#include "gimple.h"
-#include "params.h"
+#include "sese.h"
 
 #ifdef HAVE_cloog
 #include "ppl_c.h"
-#include "sese.h"
 #include "graphite-ppl.h"
-#include "graphite.h"
 #include "graphite-poly.h"
 
 /* Builds a linear expression, of dimension DIM, representing PDR's
@@ -461,20 +446,18 @@ memory_strides_in_loop (lst_p loop, graphite_dim_t depth, mpz_t strides)
    profitable to interchange the loops at DEPTH1 and DEPTH2.  */
 
 static bool
-lst_interchange_profitable_p (lst_p loop1, lst_p loop2)
+lst_interchange_profitable_p (lst_p nest, int depth1, int depth2)
 {
   mpz_t d1, d2;
   bool res;
 
-  gcc_assert (loop1 && loop2
-	      && LST_LOOP_P (loop1) && LST_LOOP_P (loop2)
-	      && lst_depth (loop1) < lst_depth (loop2));
+  gcc_assert (depth1 < depth2);
 
   mpz_init (d1);
   mpz_init (d2);
 
-  memory_strides_in_loop (loop1, lst_depth (loop1), d1);
-  memory_strides_in_loop (loop2, lst_depth (loop2), d2);
+  memory_strides_in_loop (nest, depth1, d1);
+  memory_strides_in_loop (nest, depth2, d2);
 
   res = mpz_cmp (d1, d2) < 0;
 
@@ -607,11 +590,11 @@ lst_try_interchange_loops (scop_p scop, lst_p loop1, lst_p loop2)
 
   lst_p before = NULL, nest = NULL, after = NULL;
 
-  if (!lst_interchange_profitable_p (loop1, loop2))
-    return false;
-
   if (!lst_perfectly_nested_p (loop1, loop2))
     lst_perfect_nestify (loop1, loop2, &before, &nest, &after);
+
+  if (!lst_interchange_profitable_p (loop2, depth1, depth2))
+    return false;
 
   lst_apply_interchange (loop2, depth1, depth2);
 

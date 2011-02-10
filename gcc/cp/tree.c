@@ -474,7 +474,12 @@ build_vec_init_expr (tree type, tree init)
      what functions are needed.  Here we assume that init is either
      NULL_TREE, void_type_node (indicating value-initialization), or
      another array to copy.  */
-  if (init == void_type_node)
+  if (integer_zerop (array_type_nelts_total (type)))
+    {
+      /* No actual initialization to do.  */;
+      init = NULL_TREE;
+    }
+  else if (init == void_type_node)
     {
       elt_init = build_value_init (inner_type, tf_warning_or_error);
       value_init = true;
@@ -508,9 +513,13 @@ build_vec_init_expr (tree type, tree init)
   SET_EXPR_LOCATION (init, input_location);
 
   if (current_function_decl
-      && DECL_DECLARED_CONSTEXPR_P (current_function_decl)
-      && potential_constant_expression (elt_init, tf_warning_or_error))
-    VEC_INIT_EXPR_IS_CONSTEXPR (init) = true;
+      && DECL_DECLARED_CONSTEXPR_P (current_function_decl))
+    {
+      if (potential_constant_expression (elt_init))
+	VEC_INIT_EXPR_IS_CONSTEXPR (init) = true;
+      else if (!processing_template_decl)
+	require_potential_constant_expression (elt_init);
+    }
   VEC_INIT_EXPR_VALUE_INIT (init) = value_init;
 
   init = build_target_expr (slot, init);
@@ -2167,6 +2176,9 @@ cp_tree_equal (tree t1, tree t2)
 				BASELINK_FUNCTIONS (t2)));
 
     case TEMPLATE_PARM_INDEX:
+      if (TEMPLATE_PARM_NUM_SIBLINGS (t1)
+	  != TEMPLATE_PARM_NUM_SIBLINGS (t2))
+	return false;
       return (TEMPLATE_PARM_IDX (t1) == TEMPLATE_PARM_IDX (t2)
 	      && TEMPLATE_PARM_LEVEL (t1) == TEMPLATE_PARM_LEVEL (t2)
 	      && (TEMPLATE_PARM_PARAMETER_PACK (t1)
@@ -2374,12 +2386,12 @@ maybe_dummy_object (tree type, tree* binfop)
   if (binfop)
     *binfop = binfo;
 
-  if (current_class_ref && context == current_class_type
-      /* Kludge: Make sure that current_class_type is actually
-	 correct.  It might not be if we're in the middle of
-	 tsubst_default_argument.  */
-      && same_type_p (TYPE_MAIN_VARIANT (TREE_TYPE (current_class_ref)),
-		      current_class_type))
+  if (current_class_ref
+      /* current_class_ref might not correspond to current_class_type if
+	 we're in tsubst_default_argument or a lambda-declarator; in either
+	 case, we want to use current_class_ref if it matches CONTEXT.  */
+      && (same_type_ignoring_top_level_qualifiers_p
+	  (TREE_TYPE (current_class_ref), context)))
     decl = current_class_ref;
   else if (current != current_class_type
 	   && context == nonlambda_method_basetype ())
@@ -2749,7 +2761,8 @@ cp_build_type_attribute_variant (tree type, tree attributes)
 bool
 cxx_type_hash_eq (const_tree typea, const_tree typeb)
 {
-  gcc_assert (TREE_CODE (typea) == FUNCTION_TYPE);
+  gcc_assert (TREE_CODE (typea) == FUNCTION_TYPE
+	      || TREE_CODE (typea) == METHOD_TYPE);
 
   return comp_except_specs (TYPE_RAISES_EXCEPTIONS (typea),
 			    TYPE_RAISES_EXCEPTIONS (typeb), ce_exact);
@@ -3058,9 +3071,7 @@ stabilize_expr (tree exp, tree* initp)
 
   if (!TREE_SIDE_EFFECTS (exp))
     init_expr = NULL_TREE;
-  /* There are no expressions with REFERENCE_TYPE, but there can be call
-     arguments with such a type; just treat it as a pointer.  */
-  else if (TREE_CODE (TREE_TYPE (exp)) == REFERENCE_TYPE
+  else if (!TYPE_NEEDS_CONSTRUCTING (TREE_TYPE (exp))
 	   || !lvalue_or_rvalue_with_address_p (exp))
     {
       init_expr = get_target_expr (exp);

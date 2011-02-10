@@ -23,8 +23,8 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file iostream
- *  This is a Standard C++ Library header. 
+/** @file include/iostream
+ *  This is a Standard C++ Library header.
  */
 
 //
@@ -40,7 +40,9 @@
 #include <ostream>
 #include <istream>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    *  @name Standard Stream Objects
@@ -56,22 +58,23 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    *  linked to above.
   */
   //@{
-  extern istream cin;		///< Linked to standard input
-  extern ostream cout;		///< Linked to standard output
-  extern ostream cerr;		///< Linked to standard error (unbuffered)
-  extern ostream clog;		///< Linked to standard error (buffered)
+  extern istream cin;		/// Linked to standard input
+  extern ostream cout;		/// Linked to standard output
+  extern ostream cerr;		/// Linked to standard error (unbuffered)
+  extern ostream clog;		/// Linked to standard error (buffered)
 
 #ifdef _GLIBCXX_USE_WCHAR_T
-  extern wistream wcin;		///< Linked to standard input
-  extern wostream wcout;	///< Linked to standard output
-  extern wostream wcerr;	///< Linked to standard error (unbuffered)
-  extern wostream wclog;	///< Linked to standard error (buffered)
+  extern wistream wcin;		/// Linked to standard input
+  extern wostream wcout;	/// Linked to standard output
+  extern wostream wcerr;	/// Linked to standard error (unbuffered)
+  extern wostream wclog;	/// Linked to standard error (buffered)
 #endif
   //@}
 
   // For construction of filebuffers for cout, cin, cerr, clog et. al.
   static ios_base::Init __ioinit;
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _GLIBCXX_IOSTREAM */

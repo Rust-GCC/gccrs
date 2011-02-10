@@ -1,6 +1,6 @@
 // -*- C++ -*- header.
 
-// Copyright (C) 2008, 2009, 2010 Free Software Foundation, Inc.
+// Copyright (C) 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,9 +22,9 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file bits/atomic_base.h
+/** @file bits/atomic_base.h 
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{atomic}
  */
 
 #ifndef _GLIBCXX_ATOMIC_BASE_H
@@ -33,11 +33,12 @@
 #pragma GCC system_header
 
 #include <bits/c++config.h>
-#include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    * @defgroup atomics Atomics
@@ -72,8 +73,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     inline _Tp
     kill_dependency(_Tp __y)
     {
-      _Tp ret(__y);
-      return ret;
+      _Tp __ret(__y);
+      return __ret;
     }
 
   /**
@@ -285,6 +286,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   // @} group atomics
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif

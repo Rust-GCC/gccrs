@@ -1,5 +1,5 @@
 /* GNU Objective C Runtime class related functions
-   Copyright (C) 1993, 1995, 1996, 2009 Free Software Foundation, Inc.
+   Copyright (C) 1993, 1995, 1996, 2009, 2010 Free Software Foundation, Inc.
    Contributed by Kresten Krab Thorup
 
 This file is part of GCC.
@@ -123,11 +123,8 @@ object_setClass (id object, Class class_)
     }
 }
 
-/*
-  Hook functions for memory allocation and disposal.  Deprecated
-  and currently unused.
-*/
-
+/* Hook functions for memory allocation and disposal.  Deprecated and
+   currently unused.  */
 id (*_objc_object_alloc) (Class)   = 0;
 id (*_objc_object_dispose) (id)    = 0;
 id (*_objc_object_copy) (id)       = 0;

@@ -434,8 +434,8 @@ Token::print(FILE* file) const
 
 Lex::Lex(const char* input_file_name, FILE* input_file)
   : input_file_name_(input_file_name), input_file_(input_file),
-    linebuf_(NULL), linebufsize_(120), linesize_(0), lineno_(0),
-    add_semi_at_eol_(false)
+    linebuf_(NULL), linebufsize_(120), linesize_(0), lineoff_(0),
+    lineno_(0), add_semi_at_eol_(false)
 {
   this->linebuf_ = new char[this->linebufsize_];
   linemap_add(line_table, LC_ENTER, 0, input_file_name, 1);
@@ -742,12 +742,7 @@ int
 Lex::fetch_char(const char* p, unsigned int* value)
 {
   unsigned char c = *p;
-  if (c == 0)
-    {    
-      *value = 0xfffd;
-      return 0;
-    }
-  else if (c <= 0x7f)
+  if (c <= 0x7f)
     {
       *value = c;
       return 1;
@@ -812,13 +807,19 @@ Lex::advance_one_utf8_char(const char* p, unsigned int* value,
 			   bool* issued_error)
 {
   *issued_error = false;
+
+  if (*p == '\0')
+    {
+      error_at(this->location(), "invalid NUL byte");
+      *issued_error = true;
+      *value = 0;
+      return p + 1;
+    }
+
   int adv = Lex::fetch_char(p, value);
   if (adv == 0)
     {
-      if (*p == '\0')
-	error_at(this->location(), "invalid NUL byte");
-      else
-	error_at(this->location(), "invalid UTF-8 encoding");
+      error_at(this->location(), "invalid UTF-8 encoding");
       *issued_error = true;
       return p + 1;
     }
@@ -931,6 +932,25 @@ Lex::is_hex_digit(char c)
 	  || (c >= 'a' && c <= 'f'));
 }
 
+// Return whether an exponent could start at P.
+
+bool
+Lex::could_be_exponent(const char* p, const char* pend)
+{
+  if (*p != 'e' && *p != 'E')
+    return false;
+  ++p;
+  if (p >= pend)
+    return false;
+  if (*p == '+' || *p == '-')
+    {
+      ++p;
+      if (p >= pend)
+	return false;
+    }
+  return *p >= '0' && *p <= '9';
+}
+
 // Pick up a number.
 
 Token
@@ -980,7 +1000,7 @@ Lex::gather_number()
 	    }
 	}
 
-      if (*p != '.' && *p != 'e' && *p != 'E' && *p != 'i')
+      if (*p != '.' && *p != 'i' && !Lex::could_be_exponent(p, pend))
 	{
 	  std::string s(pnum, p - pnum);
 	  mpz_t val;
@@ -1004,7 +1024,7 @@ Lex::gather_number()
       ++p;
     }
 
-  if (*p != '.' && *p != 'E' && *p != 'e' && *p != 'i')
+  if (*p != '.' && *p != 'i' && !Lex::could_be_exponent(p, pend))
     {
       std::string s(pnum, p - pnum);
       mpz_t val;
@@ -1039,7 +1059,7 @@ Lex::gather_number()
 	  ++p;
 	}
 
-      if (dot && (*p == 'E' || *p == 'e'))
+      if (dot && Lex::could_be_exponent(p, pend))
 	{
 	  ++p;
 	  if (*p == '+' || *p == '-')

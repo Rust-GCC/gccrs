@@ -1,6 +1,7 @@
 # Rules common to all arm targets
 #
-# Copyright (C) 2004, 2005, 2007, 2008, 2009 Free Software Foundation, Inc.
+# Copyright (C) 2004, 2005, 2007, 2008, 2009, 2010
+# Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -24,6 +25,11 @@ MD_INCLUDES= 	$(srcdir)/config/arm/arm-tune.md \
 		$(srcdir)/config/arm/arm1020e.md \
 		$(srcdir)/config/arm/arm1026ejs.md \
 		$(srcdir)/config/arm/arm1136jfs.md \
+		$(srcdir)/config/arm/fa526.md \
+		$(srcdir)/config/arm/fa606te.md \
+		$(srcdir)/config/arm/fa626te.md \
+		$(srcdir)/config/arm/fmp626.md \
+		$(srcdir)/config/arm/fa726te.md \
 		$(srcdir)/config/arm/arm926ejs.md \
 		$(srcdir)/config/arm/cirrus.md \
 		$(srcdir)/config/arm/fpa.md \

@@ -1,3 +1,60 @@
+2011-02-03  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR c++/46890
+	* c-common.h (keyword_is_decl_specifier): Declare.
+	* c-common.c (keyword_is_decl_specifier): Define.
+	(keyword_is_function_specifier): New function.
+
+2011-01-26  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/47473
+	* c-lex.c (interpret_float): If CPP_N_IMAGINARY, ensure
+	EXCESS_PRECISION_EXPR is created with COMPLEX_TYPE instead of
+	REAL_TYPE.
+
+2011-01-26  Arnaud Charlet  <charlet@adacore.com>
+
+	* c-ada-spec.c (dump_generic_ada_node): Avoid dereferencing null type.
+
+2011-01-26  Jakub Jelinek  <jakub@redhat.com>
+
+	PR pch/47430
+	* c-opts.c (c_common_post_options): Call c_common_no_more_pch
+	after init_c_lex if pch_file is set.
+
+2011-01-26  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	PR c++/43601
+	* c.opt (-fkeep-inline-dllexport): New switch.
+
+2011-01-12  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/32511
+	* c-common.c (handle_weak_attribute): Warn instead of error
+	on declaring an inline function weak.
+
+2011-01-05  Tom Tromey  <tromey@redhat.com>
+
+	* c-common.h (lvalue_error): Update.
+	* c-common.c (lvalue_error): Add 'loc' argument.  Call error_at,
+	not error.
+
+2010-12-29  Nicola Pero  <nicola@nicola.brainstorm.co.uk>
+
+	PR objc/47075
+	* c-objc.h (objc_finish_message_expr): Added argument to
+	prototype.
+
+2010-12-22  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* c-common.c (handle_nonnull_attribute, handle_sentinel_attribute):
+	Use prototype_p.
+
+2010-12-18  Nicola Pero  <nicola.pero@meta-innovation.com>
+
+	* c-objc.h (objc_maybe_warn_exceptions): New.
+	* stub-objc.c (objc_maybe_warn_exceptions): New.	
+
 2010-12-10  Nathan Froyd  <froydnj@codesourcery.com>
 
 	* c-common.h (readonly_error): Declare.

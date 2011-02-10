@@ -72,6 +72,7 @@ Math Library Application Programming Interface (API).
 @comment  better formatting.
 @comment
 @menu
+* Typedef and constants::      Defined data types and constants
 * Math Library Routines::      The Libquadmath math runtime application
                                programming interface.
 * I/O Library Routines::       The Libquadmath I/O runtime application
@@ -81,6 +82,52 @@ Math Library Application Programming Interface (API).
 * Reporting Bugs::             How to report bugs in GCC Libquadmath.
 @c * Index::                      Index of this documentation.
 @end menu
+
+
+@c ---------------------------------------------------------------------
+@c Defined macros
+@c ---------------------------------------------------------------------
+
+@node Typedef and constants
+@chapter Typedef and constants
+
+The following data type has been defined via @code{typedef}.
+
+@table @asis
+@item @code{__complex128}: @code{__float128}-based complex number
+@end table
+
+The following macros are defined, which give the numeric limits of the
+@code{__float128} data type.
+
+@table @asis
+@item @code{FLT128_MAX}: largest finite number
+@item @code{FLT128_MIN}: smallest positive number with full precision
+@item @code{FLT128_EPSILON}: difference between 1 and the next larger
+                             representable number
+@item @code{FLT128_DENORM_MIN}: smallest positive denormalized number
+@item @code{FLT128_MANT_DIG}: number of digits in the mantissa (bit precision)
+@item @code{FLT128_MIN_EXP}: maximal negative exponent
+@item @code{FLT128_MAX_EXP}: maximal positive exponent
+@end table
+
+The following mathematical constants of type @code{__float128} are defined.
+
+@table @asis
+@item @code{M_Eq}: the constant e (Euler's number)
+@item @code{M_LOG2Eq}: binary logarithm of 2
+@item @code{M_LOG10Eq}: common, decimal logarithm of 2
+@item @code{M_LN2q}: natural logarithm of 2
+@item @code{M_LN10q}: natural logarithm of 10
+@item @code{M_PIq}: pi
+@item @code{M_PI_2q}: two pi
+@item @code{M_PI_4q}: four pi
+@item @code{M_1_PIq}: one over pi
+@item @code{M_2_PIq}: one over two pi
+@item @code{M_2_SQRTPIq}: two over square root of pi
+@item @code{M_SQRT2q}: square root of 2
+@item @code{M_SQRT1_2q}: one over square root of 2
+@end table
 
 
 @c ---------------------------------------------------------------------
@@ -111,11 +158,16 @@ The following mathematical functions are available:
 @item @code{expm1q}: exponential minus 1 function
 @need 800
 @item @code{fabsq}: absolute value function
+@item @code{fdimq}: positive difference function
 @item @code{finiteq}: check finiteness of value
 @item @code{floorq}: floor value function
+@item @code{fmaq}: fused multiply and add
+@item @code{fmaxq}: determine maximum of two values
+@item @code{fminq}: determine minimum of two values
 @item @code{fmodq}: remainder value function
 @item @code{frexpq}: extract mantissa and exponent
 @item @code{hypotq}: Eucledian distance function
+@item @code{ilogbq}: get exponent of the value
 @item @code{isinfq}: check for infinity
 @item @code{isnanq}: check for not a number
 @item @code{j0q}: Bessel function of the first kind, first order
@@ -123,17 +175,22 @@ The following mathematical functions are available:
 @item @code{jnq}: Bessel function of the first kind, @var{n}-th order
 @item @code{ldexpq}: load exponent of the value
 @item @code{lgammaq}: logarithmic gamma function
+@item @code{llrintq}: round to nearest integer value
 @item @code{llroundq}: round to nearest integer value away from zero
 @item @code{logq}: natural logarithm function
 @item @code{log10q}: base 10 logarithm function
 @item @code{log1pq}: compute natural logarithm of the value plus one
+@item @code{log2q}: base 2 logarithm function
 @need 800
+@item @code{lrintq}: round to nearest integer value
 @item @code{lroundq}: round to nearest integer value away from zero
 @item @code{modfq}: decompose the floating-point number
 @item @code{nanq}: return quiet NaN
+@item @code{nearbyintq}: round to nearest integer
 @item @code{nextafterq}: next representable floating-point number
 @item @code{powq}: power function
 @item @code{remainderq}: remainder function
+@item @code{remquoq}: remainder and part of quotient
 @item @code{rintq}: round-to-nearest integral value
 @item @code{roundq}: round-to-nearest integral value, return @code{__float128}
 @item @code{scalblnq}: compute exponent using @code{FLT_RADIX}
@@ -151,19 +208,29 @@ The following mathematical functions are available:
 @item @code{y0q}: Bessel function of the second kind, first order
 @item @code{y1q}: Bessel function of the second kind, second order
 @item @code{ynq}: Bessel function of the second kind, @var{n}-th order
-@item @code{cabsq} complex absolute value function:
+@item @code{cabsq} complex absolute value function
 @item @code{cargq}: calculate the argument
+@item @code{cimagq} imaginary part of complex number
+@item @code{crealq}: real part of complex number
+@item @code{cacoshq}: complex arc hyperbolic cosine function
+@item @code{cacosq}: complex arc cosine function
+@item @code{casinhq}: complex arc hyperbolic sine function
+@item @code{casinq}: complex arc sine function
+@item @code{catanhq}: complex arc hyperbolic tangent function
+@item @code{catanq}: complex arc tangent function
 @item @code{ccosq} complex cosine function:
 @item @code{ccoshq}: complex hyperbolic cosine function
 @item @code{cexpq}: complex exponential function
+@need 800
 @item @code{cexpiq}: computes the exponential function of ``i'' times a
                      real value
 @item @code{clogq}: complex natural logarithm
 @item @code{clog10q}: complex base 10 logarithm
+@item @code{conjq}: complex conjugate function
 @item @code{cpowq}: complex power function
+@item @code{cprojq}: project into Riemann Sphere
 @item @code{csinq}: complex sine function
 @item @code{csinhq}: complex hyperbolic sine function
-@need 800
 @item @code{csqrtq}: complex square root
 @item @code{ctanq}: complex tangent function
 @item @code{ctanhq}: complex hyperbolic tangent function
@@ -178,20 +245,20 @@ The following mathematical functions are available:
 @chapter I/O Library Routines
 
 @menu
-* @code{quadmath_strtopQ}:  quadmath_strtopQ,  Convert from string
-* @code{quadmath_dtoaq}:    quadmath_dtoaq,    Convert to string
+* @code{strtoflt128}:          strtoflt128,          Convert from string
+* @code{quadmath_flt128tostr}: quadmath_flt128tostr, Convert to string
 @end menu
 
 
-@node quadmath_strtopQ
-@section @code{quadmath_strtopQ} --- Convert from string
+@node strtoflt128
+@section @code{strtoflt128} --- Convert from string
 
 The function @code{dmath_strtopQ} converts a string into a
 @code{__float128} number.
 
 @table @asis
 @item Syntax
-@code{int quadmath_strtopQ (const char *s, char **sp, void *V)}
+@code{__float128 strtoflt128 (const char *s, char **sp)}
 
 @c The return values are defined in gdtoa/gdtoa.h STRTOG_*
 @c However, the values are currently not exported - thus we
@@ -201,7 +268,6 @@ The function @code{dmath_strtopQ} converts a string into a
 @multitable @columnfractions .15 .70
 @item @var{s}  @tab input string
 @item @var{sp} @tab the address of the next character in the string
-@item @var{V}  @tab @code{__float128} containing the converted number
 @end multitable
 
 The argument @var{sp} contains, if not @code{NULL}, the address of the
@@ -214,9 +280,8 @@ next character following the parts of the string, which have been read.
 int main ()
 @{
   __float128 r;
-  char str[200];
 
-  quadmath_strtopQ ("1.2345678", NULL, &r);
+  r = strtoflt128 ("1.2345678", NULL);
 
   return 0;
 @}
@@ -224,15 +289,15 @@ int main ()
 @end table
 
 
-@node quadmath_dtoaq
-@section @code{quadmath_dtoaq} --- Convert to string
+@node quadmath_flt128tostr
+@section @code{quadmath_flt128tostr} --- Convert to string
 
-The function @code{quadmath_dtoaq} converts a @code{__float128} floating-point
+The function @code{quadmath_flt128tostr} converts a @code{__float128} floating-point
 number into a string.
 
 @table @asis
 @item Syntax
-@code{void quadmath_dtoaq (char *s, size_t size, size_t n, __float128 x)}
+@code{void quadmath_flt128tostr (char *s, size_t size, size_t n, __float128 x)}
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
@@ -253,7 +318,7 @@ int main ()
 
   r = 2.0q;
   r = sqrtq(r);
-  quadmath_dtoaq (str, sizeof (str), 20, r);
+  quadmath_flt128tostr (str, sizeof (str), 20, r);
   printf("%s\n", str);
   /* Prints: +1.41421356237309504880e+00 */
   return 0;
@@ -271,6 +336,9 @@ int main ()
 @c ---------------------------------------------------------------------
 @c Reporting Bugs
 @c ---------------------------------------------------------------------
+
+@c For BUGURL
+@include libquadmath-vers.texi
 
 @node Reporting Bugs
 @chapter Reporting Bugs

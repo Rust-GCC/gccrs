@@ -535,8 +535,10 @@ perform_member_init (tree member, tree init)
 		       "uninitialized member %qD with %<const%> type %qT",
 		       member, type);
 
+	  core_type = strip_array_types (type);
+
 	  if (DECL_DECLARED_CONSTEXPR_P (current_function_decl)
-	      && !type_has_constexpr_default_constructor (type))
+	      && !type_has_constexpr_default_constructor (core_type))
 	    {
 	      if (!DECL_TEMPLATE_INSTANTIATION (current_function_decl))
 		error ("uninitialized member %qD in %<constexpr%> constructor",
@@ -544,7 +546,6 @@ perform_member_init (tree member, tree init)
 	      DECL_DECLARED_CONSTEXPR_P (current_function_decl) = false;
 	    }
 
-	  core_type = strip_array_types (type);
 	  if (CLASS_TYPE_P (core_type)
 	      && (CLASSTYPE_READONLY_FIELDS_NEED_INIT (core_type)
 		  || CLASSTYPE_REF_FIELDS_NEED_INIT (core_type)))
@@ -2294,7 +2295,22 @@ build_new_1 (VEC(tree,gc) **placement, tree type, tree nelts,
 	  explicit_value_init_p = true;
 	}
 
-      if (array_p)
+      if (processing_template_decl && explicit_value_init_p)
+	{
+	  /* build_value_init doesn't work in templates, and we don't need
+	     the initializer anyway since we're going to throw it away and
+	     rebuild it at instantiation time, so just build up a single
+	     constructor call to get any appropriate diagnostics.  */
+	  init_expr = cp_build_indirect_ref (data_addr, RO_NULL, complain);
+	  if (TYPE_NEEDS_CONSTRUCTING (elt_type))
+	    init_expr = build_special_member_call (init_expr,
+						   complete_ctor_identifier,
+						   init, elt_type,
+						   LOOKUP_NORMAL,
+						   complain);
+	  stable = stabilize_init (init_expr, &init_preeval_expr);
+	}
+      else if (array_p)
 	{
 	  tree vecinit = NULL_TREE;
 	  if (*init && VEC_length (tree, *init) == 1
@@ -2343,8 +2359,7 @@ build_new_1 (VEC(tree,gc) **placement, tree type, tree nelts,
 	{
 	  init_expr = cp_build_indirect_ref (data_addr, RO_NULL, complain);
 
-	  if (TYPE_NEEDS_CONSTRUCTING (type)
-	      && (!explicit_value_init_p || processing_template_decl))
+	  if (TYPE_NEEDS_CONSTRUCTING (type) && !explicit_value_init_p)
 	    {
 	      init_expr = build_special_member_call (init_expr,
 						     complete_ctor_identifier,
@@ -2354,17 +2369,11 @@ build_new_1 (VEC(tree,gc) **placement, tree type, tree nelts,
 	    }
 	  else if (explicit_value_init_p)
 	    {
-	      if (processing_template_decl)
-		/* Don't worry about it, we'll handle this properly at
-		   instantiation time.  */;
-	      else
-		{
-		  /* Something like `new int()'.  */
-		  tree val = build_value_init (type, complain);
-		  if (val == error_mark_node)
-		    return error_mark_node;
-		  init_expr = build2 (INIT_EXPR, type, init_expr, val);
-		}
+	      /* Something like `new int()'.  */
+	      tree val = build_value_init (type, complain);
+	      if (val == error_mark_node)
+		return error_mark_node;
+	      init_expr = build2 (INIT_EXPR, type, init_expr, val);
 	    }
 	  else
 	    {
@@ -3117,7 +3126,7 @@ build_vec_init (tree base, tree maxindex, tree init,
       tree elt_init;
       tree to;
 
-      for_stmt = begin_for_stmt ();
+      for_stmt = begin_for_stmt (NULL_TREE, NULL_TREE);
       finish_for_init_stmt (for_stmt);
       finish_for_cond (build2 (NE_EXPR, boolean_type_node, iterator,
 			       build_int_cst (TREE_TYPE (iterator), -1)),

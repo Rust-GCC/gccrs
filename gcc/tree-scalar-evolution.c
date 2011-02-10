@@ -257,20 +257,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "ggc.h"
-#include "tree.h"
-#include "basic-block.h"
-#include "tree-pretty-print.h"
 #include "gimple-pretty-print.h"
 #include "tree-flow.h"
-#include "tree-dump.h"
-#include "timevar.h"
 #include "cfgloop.h"
 #include "tree-chrec.h"
 #include "tree-scalar-evolution.h"
 #include "tree-pass.h"
-#include "flags.h"
 #include "params.h"
 
 static tree analyze_scalar_evolution_1 (struct loop *, tree, tree);
@@ -1407,7 +1399,7 @@ follow_ssa_edge (struct loop *loop, gimple def, gimple halting_phi,
     return t_false;
 
   /* Give up if the path is longer than the MAX that we allow.  */
-  if (limit > PARAM_VALUE (PARAM_SCEV_MAX_EXPR_SIZE))
+  if (limit > PARAM_VALUE (PARAM_SCEV_MAX_EXPR_COMPLEXITY))
     return t_dont_know;
 
   def_loop = loop_containing_stmt (def);
@@ -2616,7 +2608,8 @@ instantiate_scev_r (basic_block instantiate_below,
   if (size_expr++ > PARAM_VALUE (PARAM_SCEV_MAX_EXPR_SIZE))
     return chrec_dont_know;
 
-  if (automatically_generated_chrec_p (chrec)
+  if (chrec == NULL_TREE
+      || automatically_generated_chrec_p (chrec)
       || is_gimple_min_invariant (chrec))
     return chrec;
 

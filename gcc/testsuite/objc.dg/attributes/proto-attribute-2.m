@@ -6,25 +6,11 @@
 
 #include <stdlib.h>
 #include <objc/objc.h>
-#include <objc/runtime.h>
 
 __attribute__ ((deprecated))
 @protocol DeprecatedProtocol1;
 
 @protocol NonDeprecatedProtocol1;
-
-
-@interface Class1 <DeprecatedProtocol1> /* { dg-warning "is deprecated" } */
-@end
-
-@interface Class2 <NonDeprecatedProtocol1>
-@end
-
-@interface Class3 <NonDeprecatedProtocol1, DeprecatedProtocol1> /* { dg-warning "is deprecated" } */
-@end
-
-@interface Class2 (Category1) <DeprecatedProtocol1> /* { dg-warning "is deprecated" } */
-@end
 
 void function1 (id <DeprecatedProtocol1> object); /* { dg-warning "is deprecated" } */
 void function2 (id <NonDeprecatedProtocol1> object);

@@ -3,6 +3,7 @@
 // license that can be found in the LICENSE file.
 
 #include "runtime.h"
+#include "go-assert.h"
 
 void
 runtime_initlock(Lock *l)
@@ -38,9 +39,11 @@ runtime_lock_full(Lock *l)
 void
 runtime_lock(Lock *l)
 {
-	if(m->locks < 0)
-		runtime_throw("lock count");
-	m->locks++;
+	if(m != nil) {
+		if(m->locks < 0)
+			runtime_throw("lock count");
+		m->locks++;
+	}
 
 	if(runtime_xadd(&l->key, 1) > 1)	// someone else has it; wait
 		runtime_lock_full(l);
@@ -58,9 +61,11 @@ runtime_unlock_full(Lock *l)
 void
 runtime_unlock(Lock *l)
 {
-	m->locks--;
-	if(m->locks < 0)
-		runtime_throw("lock count");
+	if(m != nil) {
+		m->locks--;
+		if(m->locks < 0)
+			runtime_throw("lock count");
+	}
 
 	if(runtime_xadd(&l->key, -1) > 0)	// someone else is waiting
 		runtime_unlock_full(l);
@@ -71,3 +76,38 @@ runtime_destroylock(Lock *l)
 {
 	sem_destroy(&l->sem);
 }
+
+#ifndef HAVE_SYNC_BOOL_COMPARE_AND_SWAP_4
+
+// For targets which don't have the required sync support.  Really
+// this should be provided by gcc itself.  FIXME.
+
+static pthread_mutex_t sync_lock = PTHREAD_MUTEX_INITIALIZER;
+
+_Bool
+__sync_bool_compare_and_swap_4(uint32*, uint32, uint32)
+  __attribute__((visibility("hidden")));
+
+_Bool
+__sync_bool_compare_and_swap_4(uint32* ptr, uint32 old, uint32 new)
+{
+  int i;
+  _Bool ret;
+
+  i = pthread_mutex_lock(&sync_lock);
+  __go_assert(i == 0);
+
+  if(*ptr != old) {
+    ret = 0;
+  } else {
+    *ptr = new;
+    ret = 1;
+  }
+
+  i = pthread_mutex_unlock(&sync_lock);
+  __go_assert(i == 0);
+
+  return ret;
+}
+
+#endif

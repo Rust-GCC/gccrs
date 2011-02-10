@@ -1,3 +1,155 @@
+2011-01-31  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libquadmath/47293
+	* gdtoa/qd_qnan.h: Fix NAN bit patterns.
+	* gdtoa/strtopQ.c (strtoflt128): Handle endianess with NAN.
+
+2011-01-17  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/47295
+	* libquadmath.text: Document typedef and constants.
+
+2011-01-17  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/46817
+	* quadmath-imp.h: Refer to libquadmath not ot libiberty,
+	bump copyright year and use /**/ instead of // comments.
+	* quadmath.h: Ditto.
+	* quadmath-weak.h: Ditto.
+	* quadmath_io.c: Ditto.
+
+2011-01-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libfortran/47322
+	* math/remquoq.c (remquoq): Use uint64_t type instead of u_int64_t.
+
+	PR fortran/46625
+	* quadmath.map (QUADMATH_1.0): Remove quadmath_strtopQ
+	and quadmath_dtoaq.  Add strtoflt128 and quadmath_flt128tostr.
+	* quadmath_weak.h (quadmath_strtopQ, quadmath_dtoaq): Remove.
+	(strtoflt128, quadmath_flt128tostr): Add.
+	* gdtoa/strtopQ.c (quadmath_strtopQ): Rename to...
+	(strtoflt128): ... this.  Return __float128, instead of writing
+	to memory pointed by last argument.
+	* quadmath.h: Use C style comments instead of C++ style.
+	(quadmath_strtopQ, quadmath_dtoaq): Remove prototypes.
+	(strtoflt128, quadmath_flt128tostr): Add prototypes.
+	* libquadmath.texi (quadmath_dtoaq): Rename to quadmath_flt128tostr.
+	(quadmath_strtopQ): Rename to strtoflt128.  Adjust prototype,
+	adjust examples.
+	* quadmath_io.c (quadmath_dtoaq): Rename to...
+	(quadmath_flt128tostr): ... this.
+
+	* quadmath.h (__quadmath_throw, __quadmath_nth): Define.
+	Use it for all prototypes.
+
+	PR fortran/46416
+	* quadmath.h (cbrtq, finiteq, isnanq, signbitq, sqrtq): Remove
+	const from prototype argument.
+	(cimagq, conjq, cprojq, crealq, fdimq, fmaxq, fminq, ilogbq,
+	llrintq, log2q, lrintq, nearbyintq, remquoq): New prototypes.
+	(__quadmath_extern_inline): Define.
+	(cimagq, conjq, crealq): New inlines.
+	* Makefile.am (libquadmath_la_SOURCES): Add math/cimagq.c,
+	math/conjq.c, math/cprojq.c, math/crealq.c, math/fdimq.c,
+	math/fmaxq.c, math/fminq.c, math/ilogbq.c, math/llrintq.c,
+	math/log2q.c, math/lrintq.c, math/nearbyintq.c and math/remquoq.c.
+	* Makefile.in: Regenerated.
+	* quadmath_weak.h (cimagq, conjq, cprojq, crealq, fdimq, fmaxq,
+	fminq, ilogbq, llrintq, log2q, lrintq, nearbyintq, remquoq): Add.
+	* quadmath-imp.h (__LITTLE_ENDIAN__): Don't define.
+	(ieee854_float128): Use __BYTE_ORDER == __ORDER_BIG_ENDIAN__
+	tests instead of __BIG_ENDIAN__.
+	* quadmath.map (QUADMATH_1.0): Add cimagq, conjq, cprojq, crealq,
+	fdimq, fmaxq, fminq, ilogbq, llrintq, log2q, lrintq, nearbyintq
+	and remquoq.
+	* libquadmath.texi (cimagq, conjq, cprojq, crealq, fdimq, fmaxq,
+	fminq, ilogbq, llrintq, log2q, lrintq, nearbyintq, remquoq): Add.
+	* math/cprojq.c: New file.
+	* math/ilogbq.c: New file.
+	* math/fminq.c: New file.
+	* math/llrintq.c: New file.
+	* math/log2q.c: New file.
+	* math/lrintq.c: New file.
+	* math/crealq.c: New file.
+	* math/nearbyintq.c: New file.
+	* math/fmaxq.c: New file.
+	* math/conjq.c: New file.
+	* math/remquoq.c: New file.
+	* math/cimagq.c: New file.
+	* math/fdimq.c: New file.
+
+	* math/ldexpq.c: Include errno.h.  Set errno to ERANGE if needed.
+
+	PR fortran/46416
+	* quadmath.h (cacosq, cacoshq, casinq, casinhq, catanq, catanhq):
+	New prototypes.
+	(M_Eq, M_LOG2Eq, M_LOG10Eq, M_LN2q, M_LN10q, M_PIq, M_PI_2q, M_PI_4q,
+	M_1_PIq, M_2_PIq, M_2_SQRTPIq, M_SQRT2q, M_SQRT1_2q): Define.
+	* quadmath_weak.h (cacosq, cacoshq, casinq, casinhq, catanq,
+	catanhq): Add.
+	* quadmath-imp.h (fpclassifyq, QUADFP_NAN, QUADFP_INFINITE,
+	QUADFP_ZERO, QUADFP_SUBNORMAL, QUADFP_NORMAL): Define.
+	* quadmath.map (QUADMATH_1.0): Add cacosq, cacoshq, casinq, casinhq,
+	catanq and catanhq.
+	* Makefile.am (libquadmath_la_SOURCES): Add math/cacosq.c,
+	math/cacoshq.c, math/casinq.c, math/casinhq.c, math/catanq.c
+	and math/catanhq.c.
+	* Makefile.in: Regenerated.
+	* libquadmath.texi (cacosq, cacoshq, casinq, casinhq,
+	catanq, catanhq): Add.
+	* math/cacoshq.c: New file.
+	* math/cacosq.c: New file.
+	* math/catanq.c: New file.
+	* math/catanhq.c: New file.
+	* math/casinq.c: New file.
+	* math/casinhq.c: New file.
+
+	* math/hypotq.c (hypotq): Use Q suffix instead of L.
+	* math/atan2q.c (tiny, pi_o_4, pi_o_2, pi, pi_lo, atan2q): Likewise.
+	* math/cosq.c (cosq): Likewise.
+
+	PR fortran/46402
+	* quadmath.map (QUADMATH_1.0): Add fmaq.
+	* configure.ac: Check for fenv.h, feholdexcept, fesetround,
+	feupdateenv, fesetenv and fetestexcept.
+	* configure: Regenerated.
+	* config.h.in: Regenerated.
+	* quadmath.h (fmaq): New prototype.
+	* quadmath_weak.h (fmaq): Add.
+	* Makefile.am (libquadmath_la_SOURCES): Add math/fmaq.c.
+	* Makefile.in: Regenerated.
+	* quadmath-imp.h: Include config.h.
+	* math/expq.c: Include fenv.h.
+	(USE_FENV_H): Define if libm support for fe* is there.
+	(expq): Add fesetround etc. support if USE_FENV_H is defined.
+	* math/fmaq.c: New file.
+	* libquadmath.texi (fmaq): Add.
+
+2011-01-14  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/47182
+	* configure.ac: Use ACX_BUGURL.
+	* libquadmath.texi: Include libquadmath-vers.texi for BUGURL.
+	* Makefile.am: Create libquadmath-vers.texi.
+	* configure.in: Regenerate.
+	* Makefile.in: Regenerate.
+
+2011-01-06  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR fortran/47174
+	* Makefile.am (libquadmath.info): Unconditionally override
+	target, not only if BUILD_LIBQUADMATH.
+	* Makefile.in: Regenerate.
+	* configure.ac (AM_INIT_AUTOMAKE): Add -Wno-override option to
+	avoid warning from automake.
+
+2010-12-19  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/46520
+	* configure.ac: Do not call AC_CHECK_LIB for gcc_no_link.
+	* configure: Regenerate
+
 2010-12-13  Tobias Burnus  <burnus@net-b.de>
 
 	PR fortran/46625

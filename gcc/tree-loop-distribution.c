@@ -45,20 +45,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "tree.h"
-#include "basic-block.h"
 #include "tree-flow.h"
-#include "tree-dump.h"
-#include "timevar.h"
 #include "cfgloop.h"
 #include "tree-chrec.h"
 #include "tree-data-ref.h"
 #include "tree-scalar-evolution.h"
 #include "tree-pass.h"
-#include "lambda.h"
-#include "langhooks.h"
-#include "tree-vectorizer.h"
 
 /* If bit I is not set, it means that this node represents an
    operation that has already been performed, and that should not be
@@ -653,6 +645,8 @@ rdg_flag_loop_exits (struct graph *rdg, bitmap loops, bitmap partition,
 
       BITMAP_FREE (new_loops);
     }
+
+  VEC_free (gimple, heap, conds);
 }
 
 /* Returns a bitmap in which all the statements needed for computing
@@ -693,6 +687,8 @@ free_rdg_components (VEC (rdgc, heap) *components)
       VEC_free (int, heap, x->vertices);
       free (x);
     }
+
+  VEC_free (rdgc, heap, components);
 }
 
 /* Build the COMPONENTS vector with the strongly connected components
@@ -1146,6 +1142,9 @@ distribute_loop (struct loop *loop, VEC (gimple, heap) *stmts)
   gimple s;
   unsigned i;
   VEC (int, heap) *vertices;
+  VEC (ddr_p, heap) *dependence_relations;
+  VEC (data_reference_p, heap) *datarefs;
+  VEC (loop_p, heap) *loop_nest;
 
   if (loop->num_nodes > 2)
     {
@@ -1157,7 +1156,10 @@ distribute_loop (struct loop *loop, VEC (gimple, heap) *stmts)
       return res;
     }
 
-  rdg = build_rdg (loop);
+  datarefs = VEC_alloc (data_reference_p, heap, 10);
+  dependence_relations = VEC_alloc (ddr_p, heap, 100);
+  loop_nest = VEC_alloc (loop_p, heap, 3);
+  rdg = build_rdg (loop, &loop_nest, &dependence_relations, &datarefs);
 
   if (!rdg)
     {
@@ -1166,6 +1168,9 @@ distribute_loop (struct loop *loop, VEC (gimple, heap) *stmts)
 		 "FIXME: Loop %d not distributed: failed to build the RDG.\n",
 		 loop->num);
 
+      free_dependence_relations (dependence_relations);
+      free_data_refs (datarefs);
+      VEC_free (loop_p, heap, loop_nest);
       return res;
     }
 
@@ -1191,7 +1196,9 @@ distribute_loop (struct loop *loop, VEC (gimple, heap) *stmts)
   res = ldist_gen (loop, rdg, vertices);
   VEC_free (int, heap, vertices);
   free_rdg (rdg);
-
+  free_dependence_relations (dependence_relations);
+  free_data_refs (datarefs);
+  VEC_free (loop_p, heap, loop_nest);
   return res;
 }
 
@@ -1207,6 +1214,7 @@ tree_loop_distribution (void)
   FOR_EACH_LOOP (li, loop, 0)
     {
       VEC (gimple, heap) *work_list = NULL;
+      int num = loop->num;
 
       /* If the loop doesn't have a single exit we will fail anyway,
 	 so do that early.  */
@@ -1248,9 +1256,9 @@ tree_loop_distribution (void)
 	{
 	  if (nb_generated_loops > 1)
 	    fprintf (dump_file, "Loop %d distributed: split to %d loops.\n",
-		     loop->num, nb_generated_loops);
+		     num, nb_generated_loops);
 	  else
-	    fprintf (dump_file, "Loop %d is the same.\n", loop->num);
+	    fprintf (dump_file, "Loop %d is the same.\n", num);
 	}
 
       verify_loop_structure ();

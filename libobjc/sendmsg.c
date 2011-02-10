@@ -23,6 +23,9 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
+/* Uncommented the following line to enable debug logging.  Use this
+   only while debugging the runtime.  */
+/* #define DEBUG 1 */
 
 /* FIXME: This file has no business including tm.h.  */
 /* FIXME: This should be using libffi instead of __builtin_apply
@@ -34,6 +37,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "coretypes.h"
 #include "tm.h"
 #include "objc/runtime.h"
+#include "objc/message.h"          /* For objc_msg_lookup(), objc_msg_lookup_super().  */
 #include "objc/thr.h"
 #include "objc-private/module-abi-8.h"
 #include "objc-private/runtime.h"
@@ -42,10 +46,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "runtime-info.h"
 #include <assert.h> /* For assert */
 #include <string.h> /* For strlen */
-
-/* Temporarily while we include objc/objc-api.h instead of objc-private/module-abi-8.h.  */
-#define _CLS_IN_CONSTRUCTION 0x10L
-#define CLS_IS_IN_CONSTRUCTION(cls) __CLS_ISINFO(cls, _CLS_IN_CONSTRUCTION)
 
 /* This is how we hack STRUCT_VALUE to be 1 or 0.   */
 #define gen_rtx(args...) 1
@@ -231,9 +231,6 @@ __objc_resolve_instance_method (Class class, SEL sel)
   return NULL;
 }
 
-/* Temporary definition until we include objc/runtime.h.  */
-objc_EXPORT Class objc_lookupClass (const char *name);
-
 /* Given a class and selector, return the selector's
    implementation.  */
 inline
@@ -295,7 +292,7 @@ get_imp (Class class, SEL sel)
 		     need to obtain the class from the meta class,
 		     which we do using the fact that both the class
 		     and the meta-class have the same name.  */
-		  Class realClass = objc_lookupClass (class->name);
+		  Class realClass = objc_lookUpClass (class->name);
 		  if (realClass)
 		    res = __objc_resolve_class_method (realClass, sel);
 		}
@@ -330,7 +327,8 @@ class_getMethodImplementation (Class class_, SEL selector)
   return get_imp (class_, selector);
 }
 
-/* Given a method, return its implementation.  */
+/* Given a method, return its implementation.  This has been replaced
+   by method_getImplementation() in the modern API.  */
 IMP
 method_get_imp (struct objc_method * method)
 {
@@ -548,6 +546,7 @@ __objc_send_initialize (Class class)
 
   if (! CLS_ISINITIALIZED (class))
     {
+      DEBUG_PRINTF ("+initialize: need to initialize class '%s'\n", class->name);
       CLS_SETINITIALIZED (class);
       CLS_SETINITIALIZED (class->class_pointer);
 
@@ -584,7 +583,17 @@ __objc_send_initialize (Class class)
 	    method_list = method_list->method_next;
 	  }
 	if (imp)
-	  (*imp) ((id) class, op);
+	  {
+	    DEBUG_PRINTF (" begin of [%s +initialize]\n", class->name);
+	    (*imp) ((id) class, op);
+	    DEBUG_PRINTF (" end of [%s +initialize]\n", class->name);
+	  }
+#ifdef DEBUG
+	else
+	  {
+	    DEBUG_PRINTF (" class '%s' has no +initialize method\n", class->name);	    
+	  }
+#endif
       }
     }
 }
@@ -626,6 +635,8 @@ __objc_install_dispatch_table_for_class (Class class)
      re-compute all class links.  */
   if (! CLS_ISRESOLV (class))
     __objc_resolve_class_links ();
+
+  DEBUG_PRINTF ("__objc_install_dispatch_table_for_class (%s)\n", class->name);
   
   super = class->super_class;
 
@@ -654,6 +665,8 @@ __objc_update_dispatch_table_for_class (Class class)
   /* Not yet installed -- skip it.  */
   if (class->dtable == __objc_uninstalled_dtable) 
     return;
+
+  DEBUG_PRINTF (" _objc_update_dispatch_table_for_class (%s)\n", class->name);
 
   objc_mutex_lock (__objc_runtime_mutex);
 
@@ -764,6 +777,45 @@ class_addMethod (Class class_, SEL selector, IMP implementation,
   if (method_name == NULL)
     return NO;
 
+  /* If the method already exists in the class, return NO.  It is fine
+     if the method already exists in the superclass; in that case, we
+     are overriding it.  */
+  if (CLS_IS_IN_CONSTRUCTION (class_))
+    {
+      /* The class only contains a list of methods; they have not been
+	 registered yet, ie, the method_name of each of them is still
+	 a string, not a selector.  Iterate manually over them to
+	 check if we have already added the method.  */
+      struct objc_method_list * method_list = class_->methods;
+      while (method_list)
+	{
+	  int i;
+	  
+	  /* Search the method list.  */
+	  for (i = 0; i < method_list->method_count; ++i)
+	    {
+	      struct objc_method * method = &method_list->method_list[i];
+	      
+	      if (method->method_name
+		  && strcmp ((char *)method->method_name, method_name) == 0)
+		return NO;
+	    }
+	  
+	  /* The method wasn't found.  Follow the link to the next list of
+	     methods.  */
+	  method_list = method_list->method_next;
+	}
+      /* The method wasn't found.  It's a new one.  Go ahead and add
+	 it.  */
+    }
+  else
+    {
+      /* Do the standard lookup.  This assumes the selectors are
+	 mapped.  */
+      if (search_for_method_in_list (class_->methods, selector))
+	return NO;
+    }
+
   method_list = (struct objc_method_list *)objc_calloc (1, sizeof (struct objc_method_list));
   method_list->method_count = 1;
 
@@ -794,10 +846,6 @@ class_addMethod (Class class_, SEL selector, IMP implementation,
 
   return YES;
 }
-
-/* Temporarily, until we include objc/runtime.h.  */
-extern IMP
-method_setImplementation (struct objc_method * method, IMP implementation);
 
 IMP
 class_replaceMethod (Class class_, SEL selector, IMP implementation,
@@ -989,7 +1037,7 @@ __objc_forward (id object, SEL sel, arglist_t args)
 }
 
 void
-__objc_print_dtable_stats ()
+__objc_print_dtable_stats (void)
 {
   int total = 0;
 

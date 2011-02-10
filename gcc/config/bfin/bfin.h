@@ -1,5 +1,6 @@
 /* Definitions for the Blackfin port.
-   Copyright (C) 2005, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2007, 2008, 2009, 2010, 2011
+   Free Software Foundation, Inc.
    Contributed by Analog Devices.
 
    This file is part of GCC.
@@ -238,17 +239,8 @@ extern unsigned int bfin_workarounds;
   %{mfast-fp:-lbffastfp} %G %L %{mfast-fp:-lbffastfp} %G \
 "
 
-/* A C string constant that tells the GCC driver program options to pass to
-   the assembler.  It can also specify how to translate options you give to GNU
-   CC into options for GCC to pass to the assembler.  See the file `sun3.h'
-   for an example of this.
-
-   Do not define this macro if it does not need to do anything.
-
-   Defined in svr4.h.  */
 #undef  ASM_SPEC
 #define ASM_SPEC "\
-%{Ym,*} %{Yd,*} \
     %{mno-fdpic:-mnopic} %{mfdpic}"
 
 #define LINK_SPEC "\
@@ -257,8 +249,6 @@ extern unsigned int bfin_workarounds;
 %{static:-dn -Bstatic} \
 %{shared:-G -Bdynamic} \
 %{symbolic:-Bsymbolic} \
-%{YP,*} \
-%{Qy:} %{!Qn:-Qy} \
 -init __init -fini __fini "
 
 /* Generate DSP instructions, like DSP halfword loads */

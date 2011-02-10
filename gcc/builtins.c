@@ -51,9 +51,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic-core.h"
 #include "builtins.h"
 
-#ifndef SLOW_UNALIGNED_ACCESS
-#define SLOW_UNALIGNED_ACCESS(MODE, ALIGN) STRICT_ALIGNMENT
-#endif
 
 #ifndef PAD_VARARGS_DOWN
 #define PAD_VARARGS_DOWN BYTES_BIG_ENDIAN
@@ -608,7 +605,7 @@ c_readstr (const char *str, enum machine_mode mode)
       if (WORDS_BIG_ENDIAN)
 	j = GET_MODE_SIZE (mode) - i - 1;
       if (BYTES_BIG_ENDIAN != WORDS_BIG_ENDIAN
-	  && GET_MODE_SIZE (mode) > UNITS_PER_WORD)
+	  && GET_MODE_SIZE (mode) >= UNITS_PER_WORD)
 	j = j + UNITS_PER_WORD - 2 * (j % UNITS_PER_WORD) - 1;
       j *= BITS_PER_UNIT;
       gcc_assert (j < 2 * HOST_BITS_PER_WIDE_INT);
@@ -655,9 +652,10 @@ target_char_cast (tree cst, char *p)
 static tree
 builtin_save_expr (tree exp)
 {
-  if (TREE_ADDRESSABLE (exp) == 0
-      && (TREE_CODE (exp) == PARM_DECL
-	  || (TREE_CODE (exp) == VAR_DECL && !TREE_STATIC (exp))))
+  if (TREE_CODE (exp) == SSA_NAME
+      || (TREE_ADDRESSABLE (exp) == 0
+	  && (TREE_CODE (exp) == PARM_DECL
+	      || (TREE_CODE (exp) == VAR_DECL && !TREE_STATIC (exp)))))
     return exp;
 
   return save_expr (exp);

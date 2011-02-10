@@ -24,15 +24,16 @@
 // <http://www.gnu.org/licenses/>.
 
 /** @file ext/sso_string_base.h
- *  This file is a GNU extension to the Standard C++ Library.
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{ext/vstring.h}
  */
 
 #ifndef _SSO_STRING_BASE_H
 #define _SSO_STRING_BASE_H 1
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _CharT, typename _Traits, typename _Alloc>
     class __sso_string_base
@@ -571,6 +572,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       _M_set_length(_M_length() - __n);
     }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _SSO_STRING_BASE_H */

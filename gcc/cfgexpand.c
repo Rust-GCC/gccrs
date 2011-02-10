@@ -1,5 +1,5 @@
 /* A pass for lowering trees to RTL.
-   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -1325,7 +1325,7 @@ account_used_vars_for_block (tree block, bool toplevel)
 
   /* Expand all variables at this level.  */
   for (t = BLOCK_VARS (block); t ; t = DECL_CHAIN (t))
-    if (TREE_USED (t))
+    if (var_ann (t) && is_used_p (t))
       size += expand_one_var (t, toplevel, false);
 
   /* Expand all variables at containing levels.  */
@@ -1389,9 +1389,10 @@ estimated_stack_frame_size (tree decl)
 
   FOR_EACH_LOCAL_DECL (cfun, ix, var)
     {
+      /* TREE_USED marks local variables that do not appear in lexical
+	 blocks.  We don't want to expand those that do twice.  */
       if (TREE_USED (var))
         size += expand_one_var (var, true, false);
-      TREE_USED (var) = 1;
     }
   size += account_used_vars_for_block (outer_block, true);
 
@@ -2567,6 +2568,13 @@ expand_debug_expr (tree exp)
 
       if (TREE_CODE (exp) == MEM_REF)
 	{
+	  if (GET_CODE (op0) == DEBUG_IMPLICIT_PTR
+	      || (GET_CODE (op0) == PLUS
+		  && GET_CODE (XEXP (op0, 0)) == DEBUG_IMPLICIT_PTR))
+	    /* (mem (debug_implicit_ptr)) might confuse aliasing.
+	       Instead just use get_inner_reference.  */
+	    goto component_ref;
+
 	  op1 = expand_debug_expr (TREE_OPERAND (exp, 1));
 	  if (!op1 || !CONST_INT_P (op1))
 	    return NULL;
@@ -2605,6 +2613,7 @@ expand_debug_expr (tree exp)
 
       return op0;
 
+    component_ref:
     case ARRAY_REF:
     case ARRAY_RANGE_REF:
     case COMPONENT_REF:
@@ -4085,7 +4094,19 @@ gimple_expand_cfg (void)
       for (ei = ei_start (bb->succs); (e = ei_safe_edge (ei)); )
 	{
 	  if (e->insns.r)
-	    commit_one_edge_insertion (e);
+	    {
+	      /* Avoid putting insns before parm_birth_insn.  */
+	      if (e->src == ENTRY_BLOCK_PTR
+		  && single_succ_p (ENTRY_BLOCK_PTR)
+		  && parm_birth_insn)
+		{
+		  rtx insns = e->insns.r;
+		  e->insns.r = NULL_RTX;
+		  emit_insn_after_noloc (insns, parm_birth_insn, e->dest);
+		}
+	      else
+		commit_one_edge_insertion (e);
+	    }
 	  else
 	    ei_next (&ei);
 	}

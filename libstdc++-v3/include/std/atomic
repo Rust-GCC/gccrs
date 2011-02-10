@@ -22,7 +22,7 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file atomic
+/** @file include/atomic
  *  This is a Standard C++ Library header.
  */
 
@@ -42,7 +42,9 @@
 #include <bits/atomic_0.h>
 #include <bits/atomic_2.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    * @addtogroup atomics
@@ -1347,6 +1349,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   // @} group atomics
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif

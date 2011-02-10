@@ -22,6 +22,10 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+/** @file ext/string_conversions.h
+ *  This file is a GNU extension to the Standard C++ Library.
+ */
+
 #ifndef _STRING_CONVERSIONS_H
 #define _STRING_CONVERSIONS_H 1
 
@@ -35,7 +39,9 @@
 #include <cstdio>
 #include <cerrno>
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Helper for all the sto* functions.
   template<typename _TRet, typename _Ret = _TRet, typename _CharT,
@@ -89,6 +95,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       return _String(__s, __s + __len);
     }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif // _STRING_CONVERSIONS_H

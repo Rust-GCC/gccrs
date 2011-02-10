@@ -737,7 +737,7 @@ use_narrower_mode_test (rtx *loc, void *data)
   switch (GET_CODE (*loc))
     {
     case REG:
-      if (cselib_lookup (*loc, GET_MODE (SUBREG_REG (subreg)), 0))
+      if (cselib_lookup (*loc, GET_MODE (SUBREG_REG (subreg)), 0, VOIDmode))
 	return 1;
       return -1;
     case PLUS:
@@ -805,6 +805,7 @@ adjust_mems (rtx loc, const_rtx old_rtx, void *data)
 	       && hard_frame_pointer_adjustment != -1
 	       && cfa_base_rtx)
 	return compute_cfa_pointer (hard_frame_pointer_adjustment);
+      gcc_checking_assert (loc != virtual_incoming_args_rtx);
       return loc;
     case MEM:
       mem = loc;
@@ -3953,8 +3954,10 @@ variable_post_merge_new_vals (void **slot, void *info)
 			 subsequent rounds.  */
 		      cselib_val *v;
 		      gcc_assert (!cselib_lookup (node->loc,
-						  GET_MODE (node->loc), 0));
-		      v = cselib_lookup (node->loc, GET_MODE (node->loc), 1);
+						  GET_MODE (node->loc), 0,
+						  VOIDmode));
+		      v = cselib_lookup (node->loc, GET_MODE (node->loc), 1,
+					 VOIDmode);
 		      cselib_preserve_value (v);
 		      cselib_invalidate_rtx (node->loc);
 		      cval = v->val_rtx;
@@ -4792,7 +4795,7 @@ find_use_val (rtx x, enum machine_mode mode, struct count_use_info *cui)
 	      return cui->sets[i].src_elt;
 	}
       else
-	return cselib_lookup (x, mode, 0);
+	return cselib_lookup (x, mode, 0, VOIDmode);
     }
 
   return NULL;
@@ -4821,14 +4824,15 @@ replace_expr_with_values (rtx loc)
   else if (MEM_P (loc))
     {
       cselib_val *addr = cselib_lookup (XEXP (loc, 0),
-					get_address_mode (loc), 0);
+					get_address_mode (loc), 0,
+					GET_MODE (loc));
       if (addr)
 	return replace_equiv_address_nv (loc, addr->val_rtx);
       else
 	return NULL;
     }
   else
-    return cselib_subst_to_values (loc);
+    return cselib_subst_to_values (loc, VOIDmode);
 }
 
 /* Determine what kind of micro operation to choose for a USE.  Return
@@ -4848,7 +4852,8 @@ use_type (rtx loc, struct count_use_info *cui, enum machine_mode *modep)
 	      rtx ploc = PAT_VAR_LOCATION_LOC (loc);
 	      if (! VAR_LOC_UNKNOWN_P (ploc))
 		{
-		  cselib_val *val = cselib_lookup (ploc, GET_MODE (loc), 1);
+		  cselib_val *val = cselib_lookup (ploc, GET_MODE (loc), 1,
+						   VOIDmode);
 
 		  /* ??? flag_float_store and volatile mems are never
 		     given values, but we could in theory use them for
@@ -4870,7 +4875,8 @@ use_type (rtx loc, struct count_use_info *cui, enum machine_mode *modep)
 	      if (REG_P (loc)
 		  || (find_use_val (loc, GET_MODE (loc), cui)
 		      && cselib_lookup (XEXP (loc, 0),
-					get_address_mode (loc), 0)))
+					get_address_mode (loc), 0,
+					GET_MODE (loc))))
 		return MO_VAL_SET;
 	    }
 	  else
@@ -5032,13 +5038,15 @@ add_uses (rtx *ploc, void *data)
 	      rtx mloc = vloc;
 	      enum machine_mode address_mode = get_address_mode (mloc);
 	      cselib_val *val
-		= cselib_lookup (XEXP (mloc, 0), address_mode, 0);
+		= cselib_lookup (XEXP (mloc, 0), address_mode, 0,
+				 GET_MODE (mloc));
 
 	      if (val && !cselib_preserved_value_p (val))
 		{
 		  micro_operation moa;
 		  preserve_value (val);
-		  mloc = cselib_subst_to_values (XEXP (mloc, 0));
+		  mloc = cselib_subst_to_values (XEXP (mloc, 0),
+						 GET_MODE (mloc));
 		  moa.type = MO_VAL_USE;
 		  moa.insn = cui->insn;
 		  moa.u.loc = gen_rtx_CONCAT (address_mode,
@@ -5108,13 +5116,15 @@ add_uses (rtx *ploc, void *data)
 	      rtx mloc = oloc;
 	      enum machine_mode address_mode = get_address_mode (mloc);
 	      cselib_val *val
-		= cselib_lookup (XEXP (mloc, 0), address_mode, 0);
+		= cselib_lookup (XEXP (mloc, 0), address_mode, 0,
+				GET_MODE (mloc));
 
 	      if (val && !cselib_preserved_value_p (val))
 		{
 		  micro_operation moa;
 		  preserve_value (val);
-		  mloc = cselib_subst_to_values (XEXP (mloc, 0));
+		  mloc = cselib_subst_to_values (XEXP (mloc, 0),
+						GET_MODE (mloc));
 		  moa.type = MO_VAL_USE;
 		  moa.insn = cui->insn;
 		  moa.u.loc = gen_rtx_CONCAT (address_mode,
@@ -5224,7 +5234,7 @@ reverse_op (rtx val, const_rtx expr)
   if (!SCALAR_INT_MODE_P (GET_MODE (src)) || XEXP (src, 0) == cfa_base_rtx)
     return NULL_RTX;
 
-  v = cselib_lookup (XEXP (src, 0), GET_MODE (XEXP (src, 0)), 0);
+  v = cselib_lookup (XEXP (src, 0), GET_MODE (XEXP (src, 0)), 0, VOIDmode);
   if (!v || !cselib_preserved_value_p (v))
     return NULL_RTX;
 
@@ -5345,13 +5355,15 @@ add_stores (rtx loc, const_rtx expr, void *cuip)
 	  rtx mloc = loc;
 	  enum machine_mode address_mode = get_address_mode (mloc);
 	  cselib_val *val = cselib_lookup (XEXP (mloc, 0),
-					   address_mode, 0);
+					   address_mode, 0,
+					   GET_MODE (mloc));
 
 	  if (val && !cselib_preserved_value_p (val))
 	    {
 	      preserve_value (val);
 	      mo.type = MO_VAL_USE;
-	      mloc = cselib_subst_to_values (XEXP (mloc, 0));
+	      mloc = cselib_subst_to_values (XEXP (mloc, 0),
+					     GET_MODE (mloc));
 	      mo.u.loc = gen_rtx_CONCAT (address_mode, val->val_rtx, mloc);
 	      mo.insn = cui->insn;
 	      if (dump_file && (dump_flags & TDF_DETAILS))
@@ -5410,7 +5422,7 @@ add_stores (rtx loc, const_rtx expr, void *cuip)
 
   if (GET_CODE (PATTERN (cui->insn)) == COND_EXEC)
     {
-      cselib_val *oval = cselib_lookup (oloc, GET_MODE (oloc), 0);
+      cselib_val *oval = cselib_lookup (oloc, GET_MODE (oloc), 0, VOIDmode);
 
       gcc_assert (oval != v);
       gcc_assert (REG_P (oloc) || MEM_P (oloc));
@@ -7999,6 +8011,114 @@ vt_get_decl_and_offset (rtx rtl, tree *declp, HOST_WIDE_INT *offsetp)
   return false;
 }
 
+/* Insert function parameter PARM in IN and OUT sets of ENTRY_BLOCK.  */
+
+static void
+vt_add_function_parameter (tree parm)
+{
+  rtx decl_rtl = DECL_RTL_IF_SET (parm);
+  rtx incoming = DECL_INCOMING_RTL (parm);
+  tree decl;
+  enum machine_mode mode;
+  HOST_WIDE_INT offset;
+  dataflow_set *out;
+  decl_or_value dv;
+
+  if (TREE_CODE (parm) != PARM_DECL)
+    return;
+
+  if (!decl_rtl || !incoming)
+    return;
+
+  if (GET_MODE (decl_rtl) == BLKmode || GET_MODE (incoming) == BLKmode)
+    return;
+
+  if (!vt_get_decl_and_offset (incoming, &decl, &offset))
+    {
+      if (REG_P (incoming) || MEM_P (incoming))
+	{
+	  /* This means argument is passed by invisible reference.  */
+	  offset = 0;
+	  decl = parm;
+	  incoming = gen_rtx_MEM (GET_MODE (decl_rtl), incoming);
+	}
+      else
+	{
+	  if (!vt_get_decl_and_offset (decl_rtl, &decl, &offset))
+	    return;
+	  offset += byte_lowpart_offset (GET_MODE (incoming),
+					 GET_MODE (decl_rtl));
+	}
+    }
+
+  if (!decl)
+    return;
+
+  if (parm != decl)
+    {
+      /* Assume that DECL_RTL was a pseudo that got spilled to
+	 memory.  The spill slot sharing code will force the
+	 memory to reference spill_slot_decl (%sfp), so we don't
+	 match above.  That's ok, the pseudo must have referenced
+	 the entire parameter, so just reset OFFSET.  */
+      gcc_assert (decl == get_spill_slot_decl (false));
+      offset = 0;
+    }
+
+  if (!track_loc_p (incoming, parm, offset, false, &mode, &offset))
+    return;
+
+  out = &VTI (ENTRY_BLOCK_PTR)->out;
+
+  dv = dv_from_decl (parm);
+
+  if (target_for_debug_bind (parm)
+      /* We can't deal with these right now, because this kind of
+	 variable is single-part.  ??? We could handle parallels
+	 that describe multiple locations for the same single
+	 value, but ATM we don't.  */
+      && GET_CODE (incoming) != PARALLEL)
+    {
+      cselib_val *val;
+
+      /* ??? We shouldn't ever hit this, but it may happen because
+	 arguments passed by invisible reference aren't dealt with
+	 above: incoming-rtl will have Pmode rather than the
+	 expected mode for the type.  */
+      if (offset)
+	return;
+
+      val = cselib_lookup (var_lowpart (mode, incoming), mode, true,
+			   VOIDmode);
+
+      /* ??? Float-typed values in memory are not handled by
+	 cselib.  */
+      if (val)
+	{
+	  preserve_value (val);
+	  set_variable_part (out, val->val_rtx, dv, offset,
+			     VAR_INIT_STATUS_INITIALIZED, NULL, INSERT);
+	  dv = dv_from_value (val->val_rtx);
+	}
+    }
+
+  if (REG_P (incoming))
+    {
+      incoming = var_lowpart (mode, incoming);
+      gcc_assert (REGNO (incoming) < FIRST_PSEUDO_REGISTER);
+      attrs_list_insert (&out->regs[REGNO (incoming)], dv, offset,
+			 incoming);
+      set_variable_part (out, incoming, dv, offset,
+			 VAR_INIT_STATUS_INITIALIZED, NULL, INSERT);
+    }
+  else if (MEM_P (incoming))
+    {
+      incoming = var_lowpart (mode, incoming);
+      set_variable_part (out, incoming, dv, offset,
+			 VAR_INIT_STATUS_INITIALIZED, NULL, INSERT);
+    }
+}
+
 /* Insert function parameters to IN and OUT sets of ENTRY_BLOCK.  */
 
 static void
@@ -8008,110 +8128,20 @@ vt_add_function_parameters (void)
 
   for (parm = DECL_ARGUMENTS (current_function_decl);
        parm; parm = DECL_CHAIN (parm))
+    vt_add_function_parameter (parm);
+
+  if (DECL_HAS_VALUE_EXPR_P (DECL_RESULT (current_function_decl)))
     {
-      rtx decl_rtl = DECL_RTL_IF_SET (parm);
-      rtx incoming = DECL_INCOMING_RTL (parm);
-      tree decl;
-      enum machine_mode mode;
-      HOST_WIDE_INT offset;
-      dataflow_set *out;
-      decl_or_value dv;
+      tree vexpr = DECL_VALUE_EXPR (DECL_RESULT (current_function_decl));
 
-      if (TREE_CODE (parm) != PARM_DECL)
-	continue;
+      if (TREE_CODE (vexpr) == INDIRECT_REF)
+	vexpr = TREE_OPERAND (vexpr, 0);
 
-      if (!DECL_NAME (parm))
-	continue;
-
-      if (!decl_rtl || !incoming)
-	continue;
-
-      if (GET_MODE (decl_rtl) == BLKmode || GET_MODE (incoming) == BLKmode)
-	continue;
-
-      if (!vt_get_decl_and_offset (incoming, &decl, &offset))
-	{
-	  if (REG_P (incoming) || MEM_P (incoming))
-	    {
-	      /* This means argument is passed by invisible reference.  */
-	      offset = 0;
-	      decl = parm;
-	      incoming = gen_rtx_MEM (GET_MODE (decl_rtl), incoming);
-	    }
-	  else
-	    {
-	      if (!vt_get_decl_and_offset (decl_rtl, &decl, &offset))
-		continue;
-	      offset += byte_lowpart_offset (GET_MODE (incoming),
-					     GET_MODE (decl_rtl));
-	    }
-	}
-
-      if (!decl)
-	continue;
-
-      if (parm != decl)
-	{
-	  /* Assume that DECL_RTL was a pseudo that got spilled to
-	     memory.  The spill slot sharing code will force the
-	     memory to reference spill_slot_decl (%sfp), so we don't
-	     match above.  That's ok, the pseudo must have referenced
-	     the entire parameter, so just reset OFFSET.  */
-	  gcc_assert (decl == get_spill_slot_decl (false));
-	  offset = 0;
-	}
-
-      if (!track_loc_p (incoming, parm, offset, false, &mode, &offset))
-	continue;
-
-      out = &VTI (ENTRY_BLOCK_PTR)->out;
-
-      dv = dv_from_decl (parm);
-
-      if (target_for_debug_bind (parm)
-	  /* We can't deal with these right now, because this kind of
-	     variable is single-part.  ??? We could handle parallels
-	     that describe multiple locations for the same single
-	     value, but ATM we don't.  */
-	  && GET_CODE (incoming) != PARALLEL)
-	{
-	  cselib_val *val;
-
-	  /* ??? We shouldn't ever hit this, but it may happen because
-	     arguments passed by invisible reference aren't dealt with
-	     above: incoming-rtl will have Pmode rather than the
-	     expected mode for the type.  */
-	  if (offset)
-	    continue;
-
-	  val = cselib_lookup (var_lowpart (mode, incoming), mode, true);
-
-	  /* ??? Float-typed values in memory are not handled by
-	     cselib.  */
-	  if (val)
-	    {
-	      preserve_value (val);
-	      set_variable_part (out, val->val_rtx, dv, offset,
-				 VAR_INIT_STATUS_INITIALIZED, NULL, INSERT);
-	      dv = dv_from_value (val->val_rtx);
-	    }
-	}
-
-      if (REG_P (incoming))
-	{
-	  incoming = var_lowpart (mode, incoming);
-	  gcc_assert (REGNO (incoming) < FIRST_PSEUDO_REGISTER);
-	  attrs_list_insert (&out->regs[REGNO (incoming)], dv, offset,
-			     incoming);
-	  set_variable_part (out, incoming, dv, offset,
-			     VAR_INIT_STATUS_INITIALIZED, NULL, INSERT);
-	}
-      else if (MEM_P (incoming))
-	{
-	  incoming = var_lowpart (mode, incoming);
-	  set_variable_part (out, incoming, dv, offset,
-			     VAR_INIT_STATUS_INITIALIZED, NULL, INSERT);
-	}
+      if (TREE_CODE (vexpr) == PARM_DECL
+	  && DECL_ARTIFICIAL (vexpr)
+	  && !DECL_IGNORED_P (vexpr)
+	  && DECL_NAMELESS (vexpr))
+	vt_add_function_parameter (vexpr);
     }
 
   if (MAY_HAVE_DEBUG_INSNS)
@@ -8179,7 +8209,7 @@ vt_init_cfa_base (void)
 			    frame_pointer_needed
 			    ? hard_frame_pointer_rtx : stack_pointer_rtx);
   val = cselib_lookup_from_insn (cfa_base_rtx, GET_MODE (cfa_base_rtx), 1,
-				 get_insns ());
+				 VOIDmode, get_insns ());
   preserve_value (val);
   cselib_preserve_cfa_base_value (val, REGNO (cfa_base_rtx));
   var_reg_decl_set (&VTI (ENTRY_BLOCK_PTR)->out, cfa_base_rtx,

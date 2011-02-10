@@ -86,6 +86,11 @@ extern int flag_pa_unix;
 #define TARGET_HPUX_11_11 0
 #endif
 
+/* HP-UX long double library.  */
+#ifndef HPUX_LONG_DOUBLE_LIBRARY
+#define HPUX_LONG_DOUBLE_LIBRARY 0
+#endif
+
 /* The following three defines are potential target switches.  The current
    defines are optimal given the current capabilities of GAS and GNU ld.  */
 
@@ -599,7 +604,7 @@ struct hppa_args {int words, nargs_prototype, incoming, indirect; };
   (CUM).words = 0, 							\
   (CUM).incoming = 0,							\
   (CUM).indirect = (FNTYPE) && !(FNDECL),				\
-  (CUM).nargs_prototype = (FNTYPE && TYPE_ARG_TYPES (FNTYPE)		\
+  (CUM).nargs_prototype = (FNTYPE && prototype_p (FNTYPE)		\
 			   ? (list_length (TYPE_ARG_TYPES (FNTYPE)) - 1	\
 			      + (TYPE_MODE (TREE_TYPE (FNTYPE)) == BLKmode \
 				 || pa_return_in_memory (TREE_TYPE (FNTYPE), 0))) \

@@ -23,12 +23,16 @@
 // <http://www.gnu.org/licenses/>.
 
 /**
- * @file bits/regex_grep_matcher.tcc
+ *  @file bits/regex_grep_matcher.tcc
+ *  This is an internal header file, included by other library headers.
+ *  Do not attempt to use it directly. @headername{regex}
  */
 
 #include <regex>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 namespace
 {
@@ -173,4 +177,5 @@ namespace __regex
 
 } // namespace __regex
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace

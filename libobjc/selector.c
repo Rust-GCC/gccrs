@@ -1,5 +1,6 @@
 /* GNU Objective C Runtime selector related functions
-   Copyright (C) 1993, 1995, 1996, 1997, 2002, 2004, 2009 Free Software Foundation, Inc.
+   Copyright (C) 1993, 1995, 1996, 1997, 2002, 2004, 2009, 2010
+   Free Software Foundation, Inc.
    Contributed by Kresten Krab Thorup
 
 This file is part of GCC.
@@ -30,6 +31,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "objc-private/module-abi-8.h"
 #include "objc-private/runtime.h"
 #include "objc-private/sarray.h"
+#include "objc-private/selector.h"
+#include <stdlib.h>                    /* For malloc.  */
 
 /* Initial selector hash table size. Value doesn't matter much.  */
 #define SELECTOR_HASH_SIZE 128
@@ -42,6 +45,11 @@ static cache_ptr      __objc_selector_hash  = 0; /* name -> uid !T:MUTEX */
 /* Number of selectors stored in each of the above tables.  */
 unsigned int __objc_selector_max_index = 0;     /* !T:MUTEX */
 
+/* Forward-declare an internal function.  */
+static SEL
+__sel_register_typed_name (const char *name, const char *types,
+			   struct objc_selector *orig, BOOL is_const);
+
 void __objc_init_selector_tables (void)
 {
   __objc_selector_array = sarray_new (SELECTOR_HASH_SIZE, 0);
@@ -51,6 +59,29 @@ void __objc_init_selector_tables (void)
 		     (hash_func_type) objc_hash_string,
 		     (compare_func_type) objc_compare_strings);
 }  
+
+/* Register a bunch of selectors from the table of selectors in a
+   module.  'selectors' should not be NULL.  The list is terminated by
+   a selectors with a NULL sel_id.  The selectors are assumed to
+   contain the 'name' in the sel_id field; this is replaced with the
+   final selector id after they are registered.  */
+void
+__objc_register_selectors_from_module (struct objc_selector *selectors)
+{
+  int i;
+
+  for (i = 0; selectors[i].sel_id; ++i)
+    {
+      const char *name, *type;
+      name = (char *) selectors[i].sel_id;
+      type = (char *) selectors[i].sel_types;
+      /* Constructors are constant static data and we can safely store
+	 pointers to them in the runtime structures, so we set
+	 is_const == YES.  */
+      __sel_register_typed_name (name, type, (struct objc_selector *) &(selectors[i]),
+				 /* is_const */ YES);
+    }
+}
 
 /* This routine is given a class and records all of the methods in its
    class structure in the record table.  */
@@ -221,7 +252,11 @@ sel_types_match (const char *t1, const char *t2)
   return NO;
 }
 
-/* Return selector representing name.  */
+/* Return selector representing name.  In the Modern API, you'd
+   normally use sel_registerTypedName() for this, which does the same
+   but would register the selector with the runtime if not registered
+   yet (if you only want to check for selectors without registering,
+   use sel_copyTypedSelectorList()).  */
 SEL
 sel_get_typed_uid (const char *name, const char *types)
 {
@@ -261,7 +296,8 @@ sel_get_typed_uid (const char *name, const char *types)
 }
 
 /* Return selector representing name; prefer a selector with non-NULL
-   type.  */
+   type.  In the Modern API, sel_getTypedSelector() is similar but
+   returns NULL if a typed selector couldn't be found.  */
 SEL
 sel_get_any_typed_uid (const char *name)
 {
@@ -318,6 +354,95 @@ sel_get_any_uid (const char *name)
   return (SEL) l->head;
 }
 
+SEL
+sel_getTypedSelector (const char *name)
+{
+  sidx i;
+
+  if (name == NULL)
+    return NULL;
+  
+  objc_mutex_lock (__objc_runtime_mutex);
+  
+  /* Look for a typed selector.  */
+  i = (sidx) objc_hash_value_for_key (__objc_selector_hash, name);
+  if (i != 0)
+    {
+      struct objc_list *l;
+
+      for (l = (struct objc_list *) sarray_get_safe (__objc_selector_array, i);
+	   l; l = l->tail)
+	{
+	  SEL s = (SEL) l->head;
+	  if (s->sel_types)
+	    {
+	      objc_mutex_unlock (__objc_runtime_mutex);
+	      return s;
+	    }
+	}
+    }
+
+  /* No typed selector found.  Return NULL.  */
+  objc_mutex_unlock (__objc_runtime_mutex);
+  return 0;
+}
+
+SEL *
+sel_copyTypedSelectorList (const char *name, unsigned int *numberOfReturnedSelectors)
+{
+  unsigned int count = 0;
+  SEL *returnValue = NULL;
+  sidx i;
+  
+  if (name == NULL)
+    {
+      if (numberOfReturnedSelectors)
+	*numberOfReturnedSelectors = 0;
+      return NULL;
+    }
+
+  objc_mutex_lock (__objc_runtime_mutex);
+
+  /* Count how many selectors we have.  */
+  i = (sidx) objc_hash_value_for_key (__objc_selector_hash, name);
+  if (i != 0)
+    {
+      struct objc_list *selector_list = NULL;
+      selector_list = (struct objc_list *) sarray_get_safe (__objc_selector_array, i);
+
+      /* Count how many selectors we have.  */
+      {
+	struct objc_list *l;
+	for (l = selector_list; l; l = l->tail)
+	  count++;
+      }
+
+      if (count != 0)
+	{
+	  /* Allocate enough memory to hold them.  */
+	  returnValue = (SEL *)(malloc (sizeof (SEL) * (count + 1)));
+	  
+	  /* Copy the selectors.  */
+	  {
+	    unsigned int j;
+	    for (j = 0; j < count; j++)
+	      {
+		returnValue[j] = (SEL)(selector_list->head);
+		selector_list = selector_list->tail;
+	      }
+	    returnValue[j] = NULL;
+	  }
+	}
+    }      
+
+  objc_mutex_unlock (__objc_runtime_mutex);
+  
+  if (numberOfReturnedSelectors)
+    *numberOfReturnedSelectors = count;
+  
+  return returnValue;
+}
+
 /* Get the name of a selector.  If the selector is unknown, the empty
    string "" is returned.  */ 
 const char *sel_getName (SEL selector)
@@ -353,7 +478,7 @@ sel_is_mapped (SEL selector)
   return ((idx > 0) && (idx <= __objc_selector_max_index));
 }
 
-const char *sel_getType (SEL selector)
+const char *sel_getTypeEncoding (SEL selector)
 {
   if (selector)
     return selector->sel_types;
@@ -364,7 +489,7 @@ const char *sel_getType (SEL selector)
 /* Traditional GNU Objective-C Runtime API.  */
 const char *sel_get_type (SEL selector)
 {
-  return sel_getType (selector);
+  return sel_getTypeEncoding (selector);
 }
 
 /* The uninstalled dispatch table.  */
@@ -402,11 +527,16 @@ pool_alloc_selector(void)
 /* Store the passed selector name in the selector record and return
    its selector value (value returned by sel_get_uid).  Assume that
    the calling function has locked down __objc_runtime_mutex.  The
-   is_const parameter tells us if the name and types parameters are
+   'is_const' parameter tells us if the name and types parameters are
    really constant or not.  If YES then they are constant and we can
    just store the pointers.  If NO then we need to copy name and types
-   because the pointers may disappear later on.  */
-SEL
+   because the pointers may disappear later on.  If the 'orig'
+   parameter is not NULL, then we are registering a selector from a
+   module, and 'orig' is that selector.  In this case, we can put the
+   selector in the tables if needed, and orig->sel_id is updated with
+   the selector ID of the registered selector, and 'orig' is
+   returned.  */
+static SEL
 __sel_register_typed_name (const char *name, const char *types, 
 			   struct objc_selector *orig, BOOL is_const)
 {
@@ -417,17 +547,19 @@ __sel_register_typed_name (const char *name, const char *types,
   i = (sidx) objc_hash_value_for_key (__objc_selector_hash, name);
   if (soffset_decode (i) != 0)
     {
-      for (l = (struct objc_list *) sarray_get_safe (__objc_selector_array, i);
+      /* There are already selectors with that name.  Examine them to
+	 see if the one we're registering already exists.  */
+      for (l = (struct objc_list *)sarray_get_safe (__objc_selector_array, i);
 	   l; l = l->tail)
 	{
-	  SEL s = (SEL) l->head;
+	  SEL s = (SEL)l->head;
 	  if (types == 0 || s->sel_types == 0)
 	    {
 	      if (s->sel_types == types)
 		{
 		  if (orig)
 		    {
-		      orig->sel_id = (void *) i;
+		      orig->sel_id = (void *)i;
 		      return orig;
 		    }
 		  else
@@ -438,85 +570,102 @@ __sel_register_typed_name (const char *name, const char *types,
 	    {
 	      if (orig)
 		{
-		  orig->sel_id = (void *) i;
+		  orig->sel_id = (void *)i;
 		  return orig;
 		}
 	      else
 		return s;
 	    }
 	}
+      /* A selector with this specific name/type combination does not
+	 exist yet.  We need to register it.  */
       if (orig)
 	j = orig;
       else
 	j = pool_alloc_selector ();
       
-      j->sel_id = (void *) i;
-      /* Can we use the pointer or must copy types?  Don't copy if
+      j->sel_id = (void *)i;
+      /* Can we use the pointer or must we copy types ?  Don't copy if
 	 NULL.  */
       if ((is_const) || (types == 0))
-	j->sel_types = (const char *) types;
+	j->sel_types = types;
       else
 	{
-	  j->sel_types = (char *) objc_malloc (strlen (types) + 1);
-	  strcpy ((char *) j->sel_types, types);
+	  j->sel_types = (char *)objc_malloc (strlen (types) + 1);
+	  strcpy ((char *)j->sel_types, types);
 	}
-      l = (struct objc_list *) sarray_get_safe (__objc_selector_array, i);
+      l = (struct objc_list *)sarray_get_safe (__objc_selector_array, i);
     }
   else
     {
+      /* There are no other selectors with this name registered in the
+	 runtime tables.  */
+      const char *new_name;
+
+      /* Determine i.  */
       __objc_selector_max_index += 1;
       i = soffset_encode (__objc_selector_max_index);
+
+      /* Prepare the selector.  */
       if (orig)
 	j = orig;
       else
 	j = pool_alloc_selector ();
       
-      j->sel_id = (void *) i;
-      /* Can we use the pointer or must copy types?  Don't copy if
+      j->sel_id = (void *)i;
+      /* Can we use the pointer or must we copy types ?  Don't copy if
 	 NULL.  */
-      if ((is_const) || (types == 0))
-	j->sel_types = (const char *) types;
+      if (is_const || (types == 0))
+	j->sel_types = types;
       else
 	{
-	  j->sel_types = (char *) objc_malloc (strlen (types) + 1);
-	  strcpy ((char *) j->sel_types, types);
+	  j->sel_types = (char *)objc_malloc (strlen (types) + 1);
+	  strcpy ((char *)j->sel_types, types);
 	}
+
+      /* Since this is the first selector with this name, we need to
+	 register the correspondence between 'i' (the sel_id) and
+	 'name' (the actual string) in __objc_selector_names and
+	 __objc_selector_hash.  */
+      
+      /* Can we use the pointer or must we copy name ?  Don't copy if
+	 NULL.  (FIXME: Can the name really be NULL here ?)  */
+      if (is_const || (name == 0))
+	new_name = name;
+      else
+	{
+	  new_name = (char *)objc_malloc (strlen (name) + 1);
+	  strcpy ((char *)new_name, name);
+	}
+      
+      /* This maps the sel_id to the name.  */
+      sarray_at_put_safe (__objc_selector_names, i, (void *)new_name);
+
+      /* This maps the name to the sel_id.  */
+      objc_hash_add (&__objc_selector_hash, (void *)new_name, (void *)i);
+
       l = 0;
     }
 
   DEBUG_PRINTF ("Record selector %s[%s] as: %ld\n", name, types, 
-		(long) soffset_decode (i));
-  
-  {
-    int is_new = (l == 0);
-    const char *new_name;
+		(long)soffset_decode (i));
 
-    /* Can we use the pointer or must copy name?  Don't copy if
-       NULL.  */
-    if ((is_const) || (name == 0))
-      new_name = name;
-    else
-      {
-	new_name = (char *) objc_malloc (strlen (name) + 1);
-	strcpy ((char *) new_name, name);
-      }
-    
-    l = list_cons ((void *) j, l);
-    sarray_at_put_safe (__objc_selector_names, i, (void *) new_name);
-    sarray_at_put_safe (__objc_selector_array, i, (void *) l);
-    if (is_new)
-      objc_hash_add (&__objc_selector_hash, (void *) new_name, (void *) i);
-  }
-  
+  /* Now add the selector to the list of selectors with that id.  */
+  l = list_cons ((void *)j, l);
+  sarray_at_put_safe (__objc_selector_array, i, (void *)l);
+
   sarray_realloc (__objc_uninstalled_dtable, __objc_selector_max_index + 1);
   
-  return (SEL) j;
+  return (SEL)j;
 }
 
 SEL
 sel_registerName (const char *name)
 {
   SEL ret;
+
+  if (name == NULL)
+    return NULL;
     
   objc_mutex_lock (__objc_runtime_mutex);
   /* Assume that name is not constant static memory and needs to be
@@ -538,6 +687,9 @@ SEL
 sel_registerTypedName (const char *name, const char *type)
 {
   SEL ret;
+
+  if (name == NULL)
+    return NULL;
 
   objc_mutex_lock (__objc_runtime_mutex);
   /* Assume that name and type are not constant static memory and need

@@ -636,8 +636,9 @@ m32c_regno_reg_class (int regno)
     case R3_REGNO:
       return R3_REGS;
     case A0_REGNO:
+      return A0_REGS;
     case A1_REGNO:
-      return A_REGS;
+      return A1_REGS;
     case SB_REGNO:
       return SB_REGS;
     case FB_REGNO:
@@ -3617,7 +3618,7 @@ m32c_subreg (enum machine_mode outer,
 	  /* Volatile MEMs don't get simplified, but we need them to
 	     be.  We are little endian, so the subreg byte is the
 	     offset.  */
-	  r = adjust_address (x, outer, byte);
+	  r = adjust_address_nv (x, outer, byte);
 	}
       return r;
     }

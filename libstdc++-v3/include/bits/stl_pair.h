@@ -49,9 +49,9 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_pair.h
+/** @file bits/stl_pair.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{utility}
  */
 
 #ifndef _STL_PAIR_H
@@ -63,7 +63,9 @@
 #include <type_traits> // for std::__decay_and_strip too
 #endif
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
   /// piecewise_construct_t
@@ -72,7 +74,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   /// piecewise_construct
   constexpr piecewise_construct_t piecewise_construct = piecewise_construct_t();
 
-  // forward declarations
+  // Forward declarations.
   template<typename...>
     class tuple;
 
@@ -80,15 +82,15 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     struct _Index_tuple;
 #endif
 
-  /// pair holds two objects of arbitrary type.
+  /// Struct holding two objects of arbitrary type.
   template<class _T1, class _T2>
     struct pair
     {
-      typedef _T1 first_type;    ///<  @c first_type is the first bound type
-      typedef _T2 second_type;   ///<  @c second_type is the second bound type
+      typedef _T1 first_type;    /// @c first_type is the first bound type
+      typedef _T2 second_type;   /// @c second_type is the second bound type
 
-      _T1 first;                 ///< @c first is a copy of the first object
-      _T2 second;                ///< @c second is a copy of the second object
+      _T1 first;                 /// @c first is a copy of the first object
+      _T2 second;                /// @c second is a copy of the second object
 
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
       // 265.  std::pair::pair() effects overly restrictive
@@ -271,6 +273,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     { return pair<_T1, _T2>(__x, __y); }
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _STL_PAIR_H */

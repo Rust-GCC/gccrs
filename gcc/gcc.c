@@ -1,7 +1,7 @@
 /* Compiler driver program that can handle many languages.
    Copyright (C) 1987, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
    1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
-   2010
+   2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -390,6 +390,7 @@ or with constant text in a single argument.
         Note - this command is position dependent.  % commands in the
         spec string before this one will see -S, % commands in the
         spec string after this one will not.
+ %>S	Similar to "%<S", but keep it in the GCC command line.
  %<S*	remove all occurrences of all switches beginning with -S from the
         command line.
  %:function(args)
@@ -620,6 +621,20 @@ proper position among the other output files.  */
 # endif
 #endif
 
+/* Conditional to test whether plugin is used or not.
+   FIXME: For slim LTO we will need to enable plugin unconditionally.  This
+   still cause problems with PLUGIN_LD != LD and when plugin is built but
+   not useable.  For GCC 4.6 we don't support slim LTO and thus we can enable
+   plugin only when LTO is enabled.  We still honor explicit
+   -fuse-linker-plugin.  */
+#ifdef HAVE_LTO_PLUGIN
+#define PLUGIN_COND "!fno-use-linker-plugin:%{flto|flto=*|fuse-linker-plugin"
+#define PLUGIN_COND_CLOSE "}"
+#else
+#define PLUGIN_COND "fuse-linker-plugin"
+#define PLUGIN_COND_CLOSE ""
+#endif
+
 
 /* -u* was put back because both BSD and SysV seem to support it.  */
 /* %{static:} simply prevents an error message if the target machine
@@ -633,14 +648,14 @@ proper position among the other output files.  */
 #define LINK_COMMAND_SPEC "\
 %{!fsyntax-only:%{!c:%{!M:%{!MM:%{!E:%{!S:\
     %(linker) \
-    %{fuse-linker-plugin: \
+    %{"PLUGIN_COND": \
     -plugin %(linker_plugin_file) \
     -plugin-opt=%(lto_wrapper) \
     -plugin-opt=-fresolution=%u.res \
     %{!nostdlib:%{!nodefaultlibs:%:pass-through-libs(%(link_gcc_c_sequence))}} \
-    } \
-    %{flto*:%<fcompare-debug*} \
-    %{flto*} %l " LINK_PIE_SPEC \
+    }"PLUGIN_COND_CLOSE" \
+    %{flto|flto=*:%<fcompare-debug*} \
+    %{flto} %{flto=*} %l " LINK_PIE_SPEC \
    "%X %{o*} %{e*} %{N} %{n} %{r}\
     %{s} %{t} %{u*} %{z} %{Z} %{!nostdlib:%{!nostartfiles:%S}}\
     %{static:} %{L*} %(mfwrap) %(link_libgcc) %o\
@@ -935,11 +950,11 @@ static const struct compiler default_compilers[] =
   {".i", "@cpp-output", 0, 0, 0},
   {"@cpp-output",
    "%{!M:%{!MM:%{!E:cc1 -fpreprocessed %i %(cc1_options) %{!fsyntax-only:%(invoke_as)}}}}", 0, 1, 0},
-  {".s", "@assembler", 0, 1, 0},
+  {".s", "@assembler", 0, 0, 0},
   {"@assembler",
-   "%{!M:%{!MM:%{!E:%{!S:as %(asm_debug) %(asm_options) %i %A }}}}", 0, 1, 0},
-  {".sx", "@assembler-with-cpp", 0, 1, 0},
-  {".S", "@assembler-with-cpp", 0, 1, 0},
+   "%{!M:%{!MM:%{!E:%{!S:as %(asm_debug) %(asm_options) %i %A }}}}", 0, 0, 0},
+  {".sx", "@assembler-with-cpp", 0, 0, 0},
+  {".S", "@assembler-with-cpp", 0, 0, 0},
   {"@assembler-with-cpp",
 #ifdef AS_NEEDS_DASH_FOR_PIPED_INPUT
    "%(trad_capable_cpp) -lang-asm %(cpp_options) -fno-directives-only\
@@ -952,7 +967,7 @@ static const struct compiler default_compilers[] =
       %{!M:%{!MM:%{!E:%{!S:-o %|.s |\n\
        as %(asm_debug) %(asm_options) %m.s %A }}}}"
 #endif
-   , 0, 1, 0},
+   , 0, 0, 0},
 
 #include "specs.h"
   /* Mark end of table.  */
@@ -1360,7 +1375,8 @@ init_spec (void)
 			    "-lgcc_eh"
 #ifdef USE_LIBUNWIND_EXCEPTIONS
 # ifdef HAVE_LD_STATIC_DYNAMIC
-			    " %{!static:-Bstatic} -lunwind %{!static:-Bdynamic}"
+			    " %{!static:" LD_STATIC_OPTION "} -lunwind"
+			    " %{!static:" LD_DYNAMIC_OPTION "}"
 # else
 			    " -lunwind"
 # endif
@@ -2743,10 +2759,11 @@ execute (void)
    The `validated' field is nonzero if any spec has looked at this switch;
    if it remains zero at the end of the run, it must be meaningless.  */
 
-#define SWITCH_LIVE    			0x1
-#define SWITCH_FALSE   			0x2
-#define SWITCH_IGNORE			0x4
-#define SWITCH_IGNORE_PERMANENTLY	0x8
+#define SWITCH_LIVE    			(1 << 0)
+#define SWITCH_FALSE   			(1 << 1)
+#define SWITCH_IGNORE			(1 << 2)
+#define SWITCH_IGNORE_PERMANENTLY	(1 << 3)
+#define SWITCH_KEEP_FOR_GCC		(1 << 4)
 
 struct switchstr
 {
@@ -3926,7 +3943,9 @@ set_collect_gcc_options (void)
       first_time = FALSE;
 
       /* Ignore elided switches.  */
-      if ((switches[i].live_cond & SWITCH_IGNORE) != 0)
+      if ((switches[i].live_cond
+	   & (SWITCH_IGNORE | SWITCH_KEEP_FOR_GCC))
+	  == SWITCH_IGNORE)
 	continue;
 
       obstack_grow (&collect_obstack, "'-", 2);
@@ -5091,10 +5110,17 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 	   /* Henceforth ignore the option(s) matching the pattern
 	      after the %<.  */
 	  case '<':
+	  case '>':
 	    {
 	      unsigned len = 0;
 	      int have_wildcard = 0;
 	      int i;
+	      int switch_option;
+
+	      if (c == '>')
+		switch_option = SWITCH_IGNORE | SWITCH_KEEP_FOR_GCC;
+	      else
+		switch_option = SWITCH_IGNORE;
 
 	      while (p[len] && p[len] != ' ' && p[len] != '\t')
 		len++;
@@ -5106,7 +5132,7 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 		if (!strncmp (switches[i].part1, p, len - have_wildcard)
 		    && (have_wildcard || switches[i].part1[len] == '\0'))
 		  {
-		    switches[i].live_cond |= SWITCH_IGNORE;
+		    switches[i].live_cond |= switch_option;
 		    switches[i].validated = 1;
 		  }
 
@@ -6513,7 +6539,7 @@ main (int argc, char **argv)
     {
       printf (_("%s %s%s\n"), progname, pkgversion_string,
 	      version_string);
-      printf ("Copyright %s 2010 Free Software Foundation, Inc.\n",
+      printf ("Copyright %s 2011 Free Software Foundation, Inc.\n",
 	      _("(C)"));
       fputs (_("This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"),
@@ -6768,7 +6794,11 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
   if (num_linker_inputs > 0 && !seen_error () && print_subprocess_help < 2)
     {
       int tmp = execution_count;
+#ifdef HAVE_LTO_PLUGIN
+      const char *fno_use_linker_plugin = "fno-use-linker-plugin";
+#else
       const char *fuse_linker_plugin = "fuse-linker-plugin";
+#endif
 
       /* We'll use ld if we can't find collect2.  */
       if (! strcmp (linker_name_spec, "collect2"))
@@ -6778,8 +6808,13 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
 	    linker_name_spec = "ld";
 	}
 
+#ifdef HAVE_LTO_PLUGIN
+      if (!switch_matches (fno_use_linker_plugin,
+			   fno_use_linker_plugin + strlen (fno_use_linker_plugin), 0))
+#else
       if (switch_matches (fuse_linker_plugin,
 			  fuse_linker_plugin + strlen (fuse_linker_plugin), 0))
+#endif
 	{
 	  linker_plugin_file_spec = find_a_file (&exec_prefixes,
 						 LTOPLUGINSONAME, R_OK,

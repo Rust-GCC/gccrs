@@ -1,6 +1,6 @@
 // Specific definitions for IRIX  -*- C++ -*-
 
-// Copyright (C) 2000, 2002, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2000, 2002, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -21,6 +21,11 @@
 // a copy of the GCC Runtime Library Exception along with this program;
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
+
+/** @file bits/os_defines.h
+ *  This is an internal header file, included by other library headers.
+ *  Do not attempt to use it directly. @headername{iosfwd}
+ */
 
 #ifndef _GLIBCXX_OS_DEFINES
 #define _GLIBCXX_OS_DEFINES 1

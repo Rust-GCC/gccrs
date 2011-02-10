@@ -1784,8 +1784,21 @@ instantiate_expr (tree *tp, int *walk_subtrees, void *data ATTRIBUTE_UNUSED)
   if (! EXPR_P (t))
     {
       *walk_subtrees = 0;
-      if (DECL_P (t) && DECL_RTL_SET_P (t))
-	instantiate_decl_rtl (DECL_RTL (t));
+      if (DECL_P (t))
+	{
+	  if (DECL_RTL_SET_P (t))
+	    instantiate_decl_rtl (DECL_RTL (t));
+	  if (TREE_CODE (t) == PARM_DECL && DECL_NAMELESS (t)
+	      && DECL_INCOMING_RTL (t))
+	    instantiate_decl_rtl (DECL_INCOMING_RTL (t));
+	  if ((TREE_CODE (t) == VAR_DECL
+	       || TREE_CODE (t) == RESULT_DECL)
+	      && DECL_HAS_VALUE_EXPR_P (t))
+	    {
+	      tree v = DECL_VALUE_EXPR (t);
+	      walk_tree (&v, instantiate_expr, NULL, NULL);
+	    }
+	}
     }
   return NULL;
 }
@@ -1828,6 +1841,18 @@ instantiate_decls (tree fndecl)
     {
       instantiate_decl_rtl (DECL_RTL (decl));
       instantiate_decl_rtl (DECL_INCOMING_RTL (decl));
+      if (DECL_HAS_VALUE_EXPR_P (decl))
+	{
+	  tree v = DECL_VALUE_EXPR (decl);
+	  walk_tree (&v, instantiate_expr, NULL, NULL);
+	}
+    }
+
+  if ((decl = DECL_RESULT (fndecl))
+      && TREE_CODE (decl) == RESULT_DECL)
+    {
+      if (DECL_RTL_SET_P (decl))
+	instantiate_decl_rtl (DECL_RTL (decl));
       if (DECL_HAS_VALUE_EXPR_P (decl))
 	{
 	  tree v = DECL_VALUE_EXPR (decl);
@@ -2253,10 +2278,11 @@ assign_parms_augmented_arg_list (struct assign_parm_data_all *all)
       tree decl;
 
       decl = build_decl (DECL_SOURCE_LOCATION (fndecl),
-			 PARM_DECL, NULL_TREE, type);
+			 PARM_DECL, get_identifier (".result_ptr"), type);
       DECL_ARG_TYPE (decl) = type;
       DECL_ARTIFICIAL (decl) = 1;
-      DECL_IGNORED_P (decl) = 1;
+      DECL_NAMELESS (decl) = 1;
+      TREE_CONSTANT (decl) = 1;
 
       DECL_CHAIN (decl) = all->orig_fnargs;
       all->orig_fnargs = decl;
@@ -3418,13 +3444,22 @@ assign_parms (tree fndecl)
       rtx x;
 
       if (DECL_BY_REFERENCE (result))
-	x = addr;
+	{
+	  SET_DECL_VALUE_EXPR (result, all.function_result_decl);
+	  x = addr;
+	}
       else
 	{
+	  SET_DECL_VALUE_EXPR (result,
+			       build1 (INDIRECT_REF, TREE_TYPE (result),
+				       all.function_result_decl));
 	  addr = convert_memory_address (Pmode, addr);
 	  x = gen_rtx_MEM (DECL_MODE (result), addr);
 	  set_mem_attributes (x, result, 1);
 	}
+
+      DECL_HAS_VALUE_EXPR_P (result) = 1;
+
       SET_DECL_RTL (result, x);
     }
 
@@ -5451,7 +5486,8 @@ thread_prologue_and_epilogue_insns (void)
       start_sequence ();
       epilogue_end = emit_note (NOTE_INSN_EPILOGUE_BEG);
       seq = gen_epilogue ();
-      emit_jump_insn (seq);
+      if (seq)
+	emit_jump_insn (seq);
 
       /* Retain a map of the epilogue insns.  */
       record_insns (seq, NULL, &epilogue_insn_hash);

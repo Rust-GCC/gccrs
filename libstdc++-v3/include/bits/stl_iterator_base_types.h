@@ -49,9 +49,9 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_iterator_base_types.h
+/** @file bits/stl_iterator_base_types.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{iterator}
  *
  *  This file contains all of the general iterator-related utility types,
  *  such as iterator_traits and struct iterator.
@@ -68,7 +68,9 @@
 # include <type_traits>  // For _GLIBCXX_HAS_NESTED_TYPE
 #endif
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    *  @defgroup iterators Iterators
@@ -220,7 +222,8 @@ _GLIBCXX_HAS_NESTED_TYPE(iterator_category)
       { return __it.base(); }
     };
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _STL_ITERATOR_BASE_TYPES_H */
 

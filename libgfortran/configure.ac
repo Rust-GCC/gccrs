@@ -82,6 +82,8 @@ else
   LIBGFOR_IS_NATIVE=true
 fi
 
+AC_USE_SYSTEM_EXTENSIONS
+
 # Calculate toolexeclibdir
 # Also toolexecdir, though it's only used in toolexeclibdir
 case ${version_specific_libs} in
@@ -249,7 +251,8 @@ AC_CHECK_FUNCS(chdir strerror getlogin gethostname kill link symlink perror)
 AC_CHECK_FUNCS(sleep time ttyname signal alarm ctime clock access fork execl)
 AC_CHECK_FUNCS(wait setmode execvp pipe dup2 close fdopen strcasestr getrlimit)
 AC_CHECK_FUNCS(gettimeofday stat fstat lstat getpwuid vsnprintf dup getcwd)
-AC_CHECK_FUNCS(localtime_r gmtime_r)
+AC_CHECK_FUNCS(localtime_r gmtime_r strerror_r getpwuid_r ttyname_r ctime_r)
+AC_CHECK_FUNCS(clock_gettime)
 
 # Check for glibc backtrace functions
 AC_CHECK_FUNCS(backtrace backtrace_symbols)
@@ -480,6 +483,16 @@ LIBGFOR_CHECK_FLOAT128
 
 # Check for GNU libc feenableexcept
 AC_CHECK_LIB([m],[feenableexcept],[have_feenableexcept=yes AC_DEFINE([HAVE_FEENABLEEXCEPT],[1],[libm includes feenableexcept])])
+
+# At least for glibc, clock_gettime is in librt.  But don't pull that
+# in if it still doesn't give us the function we want.
+# This test is copied from libgomp, and modified to not link in -lrt
+# as libgfortran calls clock_gettime via a weak reference.
+if test $ac_cv_func_clock_gettime = no; then
+  AC_CHECK_LIB(rt, clock_gettime,
+    [AC_DEFINE(HAVE_CLOCK_GETTIME, 1,
+               [Define to 1 if you have the `clock_gettime' function.])])
+fi
 
 # Check for SysV fpsetmask
 LIBGFOR_CHECK_FPSETMASK

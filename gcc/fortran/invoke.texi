@@ -1,11 +1,11 @@
-@c Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
+@c Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 @c Free Software Foundation, Inc.
 @c This is part of the GNU Fortran manual.   
 @c For copying conditions, see the file gfortran.texi.
 
 @ignore
 @c man begin COPYRIGHT
-Copyright @copyright{} 2004, 2005, 2006, 2007, 2008, 2009, 2010
+Copyright @copyright{} 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
 Free Software Foundation, Inc.
 
 Permission is granted to copy, distribute and/or modify this document
@@ -394,9 +394,11 @@ this option to manually enable preprocessing of any kind of Fortran file.
 To disable preprocessing of files with any of the above listed extensions,
 use the negative form: @option{-nocpp}.
 
-The preprocessor is run in traditional mode, be aware that any
-restrictions of the file-format, e.g. fixed-form line width,
-apply for preprocessed output as well.
+The preprocessor is run in traditional mode. Any restrictions of the
+file-format, especially the limits on line length, apply for
+preprocessed output as well, so it might be advisable to use the
+@option{-ffree-line-length-none} or @option{-ffixed-line-length-none}
+options.
 
 @item -dM
 @opindex @code{dM}
@@ -408,7 +410,7 @@ preprocessor, including predefined macros. This gives you a way
 of finding out what is predefined in your version of the preprocessor.
 Assuming you have no file @file{foo.f90}, the command
 @smallexample
-  touch foo.f90; gfortran -cpp -dM foo.f90
+  touch foo.f90; gfortran -cpp -E -dM foo.f90
 @end smallexample
 will show all the predefined macros.
 
@@ -863,7 +865,7 @@ off via @option{-Wno-align-commons}. See also @option{-falign-commons}.
 Turns all warnings into errors.
 @end table
 
-@xref{Error and Warning Options,,Options to Request or Suppress Errors and
+@xref{Warning Options,,Options to Request or Suppress Errors and
 Warnings, gcc,Using the GNU Compiler Collection (GCC)}, for information on
 more options offered by the GBE shared by @command{gfortran}, @command{gcc}
 and other GNU compilers.

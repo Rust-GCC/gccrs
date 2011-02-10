@@ -24,9 +24,9 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file time_members.h
+/** @file bits/time_members.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{locale}
  */
 
 //
@@ -36,7 +36,9 @@
 
 // Written by Benjamin Kosnik <bkoz@redhat.com>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _CharT>
     __timepunct<_CharT>::__timepunct(size_t __refs) 
@@ -88,4 +90,5 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       _S_destroy_c_locale(_M_c_locale_timepunct); 
     }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace

@@ -100,9 +100,9 @@ operator<(const Import_init& i1, const Import_init& i2)
 class Gogo
 {
  public:
-  // Create the IR, passing in the sizes of the types "int", "float",
-  // and "uintptr" in bits.
-  Gogo(int int_type_size, int float_type_size, int pointer_size);
+  // Create the IR, passing in the sizes of the types "int" and
+  // "uintptr" in bits.
+  Gogo(int int_type_size, int pointer_size);
 
   // Get the package name.
   const std::string&
@@ -111,6 +111,10 @@ class Gogo
   // Set the package name.
   void
   set_package_name(const std::string&, source_location);
+
+  // Return whether this is the "main" package.
+  bool
+  is_main_package() const;
 
   // If necessary, adjust the name to use for a hidden symbol.  We add
   // a prefix of the package name, so that hidden symbols in different
@@ -317,6 +321,11 @@ class Gogo
   // all required interface method tables.
   void
   record_interface_type(Interface_type*);
+
+  // Note that we need an initialization function.
+  void
+  set_need_init_fn()
+  { this->need_init_fn_ = true; }
 
   // Clear out all names in file scope.  This is called when we start
   // parsing a new file.
@@ -648,6 +657,8 @@ class Gogo
   std::set<Import_init> imported_init_fns_;
   // The unique prefix used for all global symbols.
   std::string unique_prefix_;
+  // Whether an explicit unique prefix was set by -fgo-prefix.
+  bool unique_prefix_specified_;
   // A list of interface types defined while parsing.
   std::vector<Interface_type*> interface_types_;
 };
@@ -786,6 +797,11 @@ class Function
   // Create the named result variables in the outer block.
   void
   create_named_result_variables(Gogo*);
+
+  // Update the named result variables when cloning a function which
+  // calls recover.
+  void
+  update_named_result_variables();
 
   // Add a new field to the closure variable.
   void
@@ -1039,6 +1055,9 @@ class Variable
 
   // Get the type of the variable.
   Type*
+  type();
+
+  Type*
   type() const;
 
   // Return whether the type is defined yet.
@@ -1135,12 +1154,12 @@ class Variable
   // Get the preinit block, a block of statements to be run before the
   // initialization expression.
   Block*
-  preinit_block();
+  preinit_block(Gogo*);
 
   // Add a statement to be run before the initialization expression.
   // This is only used for global variables.
   void
-  add_preinit_statement(Statement*);
+  add_preinit_statement(Gogo*, Statement*);
 
   // Lower the initialization expression after parsing is complete.
   void
@@ -1258,6 +1277,8 @@ class Variable
   bool is_varargs_parameter_ : 1;
   // Whether something takes the address of this variable.
   bool is_address_taken_ : 1;
+  // True if we have seen this variable in a traversal.
+  bool seen_ : 1;
   // True if we have lowered the initialization expression.
   bool init_is_lowered_ : 1;
   // True if init is a tuple used to set the type.
@@ -1312,6 +1333,12 @@ class Result_variable
   bool
   is_in_heap() const
   { return this->is_address_taken_; }
+
+  // Set the function.  This is used when cloning functions which call
+  // recover.
+  void
+  set_function(Function* function)
+  { this->function_ = function; }
 
  private:
   // Type of result variable.
@@ -1809,6 +1836,10 @@ class Named_object
   // Define a function declaration.
   void
   set_function_value(Function*);
+
+  // Declare an unknown name as a type declaration.
+  void
+  declare_as_type();
 
   // Export this object.
   void

@@ -983,7 +983,7 @@ decls_match (tree newdecl, tree olddecl)
 
       if (same_type_p (TREE_TYPE (f1), TREE_TYPE (f2)))
 	{
-	  if (p2 == NULL_TREE && DECL_EXTERN_C_P (olddecl)
+	  if (!prototype_p (f2) && DECL_EXTERN_C_P (olddecl)
 	      && (DECL_BUILT_IN (olddecl)
 #ifndef NO_IMPLICIT_EXTERN_C
 		  || (DECL_IN_SYSTEM_HEADER (newdecl) && !DECL_CLASS_SCOPE_P (newdecl))
@@ -996,7 +996,7 @@ decls_match (tree newdecl, tree olddecl)
 		TREE_TYPE (newdecl) = TREE_TYPE (olddecl);
 	    }
 #ifndef NO_IMPLICIT_EXTERN_C
-	  else if (p1 == NULL_TREE
+	  else if (!prototype_p (f1)
 		   && (DECL_EXTERN_C_P (olddecl)
 		       && DECL_IN_SYSTEM_HEADER (olddecl)
 		       && !DECL_CLASS_SCOPE_P (olddecl))
@@ -1009,7 +1009,11 @@ decls_match (tree newdecl, tree olddecl)
 	    }
 #endif
 	  else
-	    types_match = compparms (p1, p2);
+	    types_match =
+	      compparms (p1, p2)
+	      && (TYPE_ATTRIBUTES (TREE_TYPE (newdecl)) == NULL_TREE
+	          || targetm.comp_type_attributes (TREE_TYPE (newdecl),
+						   TREE_TYPE (olddecl)) != 0);
 	}
       else
 	types_match = 0;
@@ -1536,8 +1540,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	}
       else if (TREE_CODE (olddecl) == FUNCTION_DECL
 	       && DECL_INITIAL (olddecl) != NULL_TREE
-	       && TYPE_ARG_TYPES (TREE_TYPE (olddecl)) == NULL_TREE
-	       && TYPE_ARG_TYPES (TREE_TYPE (newdecl)) != NULL_TREE)
+	       && !prototype_p (TREE_TYPE (olddecl))
+	       && prototype_p (TREE_TYPE (newdecl)))
 	{
 	  /* Prototype decl follows defn w/o prototype.  */
 	  warning_at (input_location, 0, "prototype for %q+#D", newdecl);
@@ -3702,7 +3706,10 @@ cp_make_fname_decl (location_t loc, tree id, int type_dep)
 		      LOOKUP_ONLYCONVERTING);
     }
   else
-    pushdecl_top_level_and_finish (decl, init);
+    {
+      DECL_THIS_STATIC (decl) = true;
+      pushdecl_top_level_and_finish (decl, init);
+    }
 
   return decl;
 }
@@ -9210,6 +9217,12 @@ grokdeclarator (const cp_declarator *declarator,
 	  error ("const %qs cannot be declared %<mutable%>", name);
 	  storage_class = sc_none;
 	}
+      else if (TREE_CODE (type) == REFERENCE_TYPE)
+	{
+	  permerror (input_location, "reference %qs cannot be declared "
+	             "%<mutable%>", name);
+	  storage_class = sc_none;
+	}
     }
 
   /* If this is declaring a typedef name, return a TYPE_DECL.  */
@@ -11859,7 +11872,8 @@ build_enumerator (tree name, tree value, tree enumtype, location_t loc)
 	{
 	  value = cxx_constant_value (value);
 
-	  if (TREE_CODE (value) == INTEGER_CST)
+	  if (TREE_CODE (value) == INTEGER_CST
+	      && INTEGRAL_OR_ENUMERATION_TYPE_P (TREE_TYPE (value)))
 	    {
 	      value = perform_integral_promotions (value);
 	    }

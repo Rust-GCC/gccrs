@@ -1,6 +1,6 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 2000, 2002, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2000, 2002, 2009, 2010 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,19 +22,21 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file ctype_inline.h
+/** @file bits/ctype_inline.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{locale}
  */
 
 //
 // ISO C++ 14882: 22.1  Locales
 //
-  
+
 // ctype bits to be inlined go here. Non-inlinable (ie virtual do_*)
 // functions go in ctype.cc
-  
-_GLIBCXX_BEGIN_NAMESPACE(std)
+
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   bool
   ctype<char>::
@@ -52,7 +54,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   const char*
   ctype<char>::
-  scan_is(mask __m, const char* __low, const char* __high) const 
+  scan_is(mask __m, const char* __low, const char* __high) const
   {
     while (__low < __high && !this->is(__m, *__low))
       ++__low;
@@ -68,4 +70,5 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     return __low;
   }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace

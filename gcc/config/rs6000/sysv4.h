@@ -1,6 +1,7 @@
 /* Target definitions for GNU compiler for PowerPC running System V.4
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
-   2004, 2005, 2006, 2007, 2008, 2009, 2010  Free Software Foundation, Inc.
+   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   Free Software Foundation, Inc.
    Contributed by Cygnus Support.
 
    This file is part of GCC.
@@ -266,16 +267,16 @@ do {									\
 #define	RESTORE_FP_PREFIX "_restfpr_"
 #define RESTORE_FP_SUFFIX ""
 
+/* Type used for size_t, as a string used in a declaration.  */
+#undef  SIZE_TYPE
+#define SIZE_TYPE "unsigned int"
+
 /* Type used for ptrdiff_t, as a string used in a declaration.  */
 #define PTRDIFF_TYPE "int"
 
-/* Type used for wchar_t, as a string used in a declaration.  */
-/* Override svr4.h definition.  */
 #undef	WCHAR_TYPE
 #define WCHAR_TYPE "long int"
 
-/* Width of wchar_t in bits.  */
-/* Override svr4.h definition.  */
 #undef	WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE 32
 
@@ -399,8 +400,6 @@ do {									\
 
 #define	LOCAL_LABEL_PREFIX "."
 #define	USER_LABEL_PREFIX ""
-
-/* svr4.h overrides (*targetm.asm_out.internal_label).  */
 
 #define	ASM_OUTPUT_INTERNAL_LABEL_PREFIX(FILE,PREFIX)	\
   asm_fprintf (FILE, "%L%s", PREFIX)
@@ -546,13 +545,10 @@ extern int fixuplabelno;
   while (0)
 #endif
 
-/* Pass various options to the assembler.  */
-/* Override svr4.h definition.  */
 #undef	ASM_SPEC
 #define	ASM_SPEC "%(asm_cpu) \
-%{,assembler|,assembler-with-cpp: %{mregnames} %{mno-regnames}}" \
-SVR4_ASM_SPEC \
-"%{mrelocatable} %{mrelocatable-lib} %{fpic|fpie|fPIC|fPIE:-K PIC} \
+%{,assembler|,assembler-with-cpp: %{mregnames} %{mno-regnames}} \
+%{mrelocatable} %{mrelocatable-lib} %{fpic|fpie|fPIC|fPIE:-K PIC} \
 %{memb|msdata=eabi: -memb} \
 %{mlittle|mlittle-endian:-mlittle; \
   mbig|mbig-endian      :-mbig;    \
@@ -605,23 +601,6 @@ SVR4_ASM_SPEC \
 %{!mbss-plt: %{!msecure-plt: %(cc1_secure_plt_default)}} \
 %{profile: -p}"
 
-/* Don't put -Y P,<path> for cross compilers.  */
-#ifndef CROSS_DIRECTORY_STRUCTURE
-#define LINK_PATH_SPEC "\
-%{!R*:%{L*:-R %*}} \
-%{!nostdlib: %{!YP,*: \
-    %{compat-bsd: \
-	%{p:-Y P,/usr/ucblib:/usr/ccs/lib/libp:/usr/lib/libp:/usr/ccs/lib:/usr/lib} \
-	%{!p:-Y P,/usr/ucblib:/usr/ccs/lib:/usr/lib}} \
-	%{!R*: %{!L*: -R /usr/ucblib}} \
-    %{!compat-bsd: \
-	%{p:-Y P,/usr/ccs/lib/libp:/usr/lib/libp:/usr/ccs/lib:/usr/lib} \
-	%{!p:-Y P,/usr/ccs/lib:/usr/lib}}}}"
-
-#else
-#define LINK_PATH_SPEC ""
-#endif
-
 /* Default starting address if specified.  */
 #define LINK_START_SPEC "\
 %{mads         : %(link_start_ads)         ; \
@@ -637,40 +616,21 @@ SVR4_ASM_SPEC \
 
 #define LINK_START_DEFAULT_SPEC ""
 
-/* Override svr4.h definition.  */
 #undef	LINK_SPEC
 #define	LINK_SPEC "\
 %{h*} %{v:-V} %{!msdata=none:%{G*}} %{msdata=none:-G0} \
-%{YP,*} %{R*} \
-%{Qy:} %{!Qn:-Qy} \
+%{R*} \
 %(link_shlib) \
 %{!T*: %(link_start) } \
 %(link_target) \
 %(link_os)"
 
-/* For now, turn off shared libraries by default.  */
-#ifndef SHARED_LIB_SUPPORT
-#define NO_SHARED_LIB_SUPPORT
-#endif
-
-#ifndef NO_SHARED_LIB_SUPPORT
-/* Shared libraries are default.  */
-#define LINK_SHLIB_SPEC "\
-%{!static: %(link_path) %{!R*:%{L*:-R %*}}} \
-%{mshlib: } \
-%{static:-dn -Bstatic} \
-%{shared:-G -dy -z text} \
-%{symbolic:-Bsymbolic -G -dy -z text}"
-
-#else
 /* Shared libraries are not default.  */
 #define LINK_SHLIB_SPEC "\
-%{mshlib: %(link_path) } \
 %{!mshlib: %{!shared: %{!symbolic: -dn -Bstatic}}} \
 %{static: } \
-%{shared:-G -dy -z text %(link_path) } \
-%{symbolic:-Bsymbolic -G -dy -z text %(link_path) }"
-#endif
+%{shared:-G -dy -z text } \
+%{symbolic:-Bsymbolic -G -dy -z text }"
 
 /* Override the default target of the linker.  */
 #define	LINK_TARGET_SPEC "\
@@ -713,7 +673,6 @@ SVR4_ASM_SPEC \
 
 #define	CPP_OS_DEFAULT_SPEC ""
 
-/* Override svr4.h definition.  */
 #undef	STARTFILE_SPEC
 #define	STARTFILE_SPEC "\
 %{mads         : %(startfile_ads)         ; \
@@ -729,7 +688,6 @@ SVR4_ASM_SPEC \
 
 #define	STARTFILE_DEFAULT_SPEC "ecrti.o%s crtbegin.o%s"
 
-/* Override svr4.h definition.  */
 #undef	LIB_SPEC
 #define	LIB_SPEC "\
 %{mads         : %(lib_ads)         ; \
@@ -745,7 +703,6 @@ SVR4_ASM_SPEC \
 
 #define LIB_DEFAULT_SPEC "-lc"
 
-/* Override svr4.h definition.  */
 #undef	ENDFILE_SPEC
 #define	ENDFILE_SPEC "\
 %{mads         : %(endfile_ads)         ; \
@@ -915,7 +872,7 @@ SVR4_ASM_SPEC \
 
 /* NetBSD support.  */
 #define LIB_NETBSD_SPEC "\
-%{profile:-lgmon -lc_p} %{!profile:-lc}"
+-lc"
 
 #define	STARTFILE_NETBSD_SPEC "\
 ncrti.o%s crt0.o%s \
@@ -999,7 +956,6 @@ ncrtn.o%s"
   { "endfile_netbsd",		ENDFILE_NETBSD_SPEC },			\
   { "endfile_openbsd",		ENDFILE_OPENBSD_SPEC },			\
   { "endfile_default",		ENDFILE_DEFAULT_SPEC },			\
-  { "link_path",		LINK_PATH_SPEC },			\
   { "link_shlib",		LINK_SHLIB_SPEC },			\
   { "link_target",		LINK_TARGET_SPEC },			\
   { "link_start",		LINK_START_SPEC },			\
@@ -1077,3 +1033,5 @@ ncrtn.o%s"
 
 /* This target uses the sysv4.opt file.  */
 #define TARGET_USES_SYSV4_OPT 1
+
+#undef DBX_REGISTER_NUMBER

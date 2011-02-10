@@ -1211,6 +1211,8 @@ main (int argc, char **argv)
         else if ((! strncmp (argv[i], "-flto=", 6)
 		  || ! strcmp (argv[i], "-flto")) && ! use_plugin)
 	  lto_mode = LTO_MODE_WHOPR;
+	else if (!strncmp (argv[i], "-fno-lto", 8))
+	  lto_mode = LTO_MODE_NONE;
         else if (! strcmp (argv[i], "-plugin"))
 	  {
 	    use_plugin = true;
@@ -1234,7 +1236,7 @@ main (int argc, char **argv)
 #endif
       }
     vflag = debug;
-    if (no_partition)
+    if (no_partition && lto_mode == LTO_MODE_WHOPR)
       lto_mode = LTO_MODE_LTO;
   }
 

@@ -1,6 +1,6 @@
 /* Convert tree expression to rtl instructions, for GNU compiler.
    Copyright (C) 1988, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -3398,7 +3398,7 @@ emit_move_insn (rtx x, rtx y)
       && (set = single_set (last_insn)) != NULL_RTX
       && SET_DEST (set) == x
       && ! rtx_equal_p (y_cst, SET_SRC (set)))
-    set_unique_reg_note (last_insn, REG_EQUAL, y_cst);
+    set_unique_reg_note (last_insn, REG_EQUAL, copy_rtx (y_cst));
 
   return last_insn;
 }
@@ -4712,7 +4712,10 @@ store_expr (tree exp, rtx target, int call_param_p, bool nontemporal)
       /* If store_expr stores a DECL whose DECL_RTL(exp) == TARGET,
 	 but TARGET is not valid memory reference, TEMP will differ
 	 from TARGET although it is really the same location.  */
-      && !(alt_rtl && rtx_equal_p (alt_rtl, target))
+      && !(alt_rtl
+	   && rtx_equal_p (alt_rtl, target)
+	   && !side_effects_p (alt_rtl)
+	   && !side_effects_p (target))
       /* If there's nothing to copy, don't bother.  Don't call
 	 expr_size unless necessary, because some front-ends (C++)
 	 expr_size-hook must not be given objects that are not
@@ -7628,10 +7631,10 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 	      if (optab_handler (this_optab, mode) != CODE_FOR_nothing)
 		{
 		  if (TYPE_UNSIGNED (TREE_TYPE (treeop0)))
-		    expand_operands (treeop0, treeop1, subtarget, &op0, &op1,
+		    expand_operands (treeop0, treeop1, NULL_RTX, &op0, &op1,
 				     EXPAND_NORMAL);
 		  else
-		    expand_operands (treeop0, treeop1, subtarget, &op1, &op0,
+		    expand_operands (treeop0, treeop1, NULL_RTX, &op1, &op0,
 				     EXPAND_NORMAL);
 		  goto binop3;
 		}
@@ -7649,7 +7652,8 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
 	  optab other_optab = zextend_p ? smul_widen_optab : umul_widen_optab;
 	  this_optab = zextend_p ? umul_widen_optab : smul_widen_optab;
 
-	  if (mode == GET_MODE_2XWIDER_MODE (innermode))
+	  if (mode == GET_MODE_2XWIDER_MODE (innermode)
+	      && TREE_CODE (treeop0) != INTEGER_CST)
 	    {
 	      if (optab_handler (this_optab, mode) != CODE_FOR_nothing)
 		{
@@ -7690,6 +7694,18 @@ expand_expr_real_2 (sepops ops, rtx target, enum machine_mode tmode,
       {
 	optab opt = fma_optab;
 	gimple def0, def2;
+
+	/* If there is no insn for FMA, emit it as __builtin_fma{,f,l}
+	   call.  */
+	if (optab_handler (fma_optab, mode) == CODE_FOR_nothing)
+	  {
+	    tree fn = mathfn_built_in (TREE_TYPE (treeop0), BUILT_IN_FMA);
+	    tree call_expr;
+
+	    gcc_assert (fn != NULL_TREE);
+	    call_expr = build_call_expr (fn, 3, treeop0, treeop1, treeop2);
+	    return expand_builtin (call_expr, target, subtarget, mode, false);
+	  }
 
 	def0 = get_def_for_expr (treeop0, NEGATE_EXPR);
 	def2 = get_def_for_expr (treeop2, NEGATE_EXPR);
@@ -8371,6 +8387,13 @@ expand_expr_real_1 (tree exp, rtx target, enum machine_mode tmode,
 				   NULL);
 
       g = get_gimple_for_ssa_name (exp);
+      /* For EXPAND_INITIALIZER try harder to get something simpler.  */
+      if (g == NULL
+	  && modifier == EXPAND_INITIALIZER
+	  && !SSA_NAME_IS_DEFAULT_DEF (exp)
+	  && (optimize || DECL_IGNORED_P (SSA_NAME_VAR (exp)))
+	  && stmt_is_replaceable_p (SSA_NAME_DEF_STMT (exp)))
+	g = SSA_NAME_DEF_STMT (exp);
       if (g)
 	return expand_expr_real (gimple_assign_rhs_to_tree (g), target, tmode,
 				 modifier, NULL);
@@ -8728,7 +8751,7 @@ expand_expr_real_1 (tree exp, rtx target, enum machine_mode tmode,
 	align = MAX (TYPE_ALIGN (TREE_TYPE (exp)),
 		     get_object_alignment (exp, BIGGEST_ALIGNMENT));
 	op0 = expand_expr (base, NULL_RTX, VOIDmode, EXPAND_SUM);
-	op0 = convert_memory_address_addr_space (address_mode, op0, as);
+	op0 = memory_address_addr_space (address_mode, op0, as);
 	if (!integer_zerop (TREE_OPERAND (exp, 1)))
 	  {
 	    rtx off

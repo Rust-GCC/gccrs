@@ -12,6 +12,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <semaphore.h>
 
@@ -97,6 +100,8 @@ struct	M
 	int32	locks;
 	int32	nomemprof;
 	int32	gcing_for_prof;
+	int32	holds_finlock;
+	int32	gcing_for_finlock;
 	MCache	*mcache;
 
 	/* For the list of all threads.  */

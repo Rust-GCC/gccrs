@@ -49,15 +49,17 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_raw_storage_iter.h
+/** @file bits/stl_raw_storage_iter.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{memory}
  */
 
 #ifndef _STL_RAW_STORAGE_ITERATOR_H
 #define _STL_RAW_STORAGE_ITERATOR_H 1
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    *  This iterator class lets algorithms store their results into
@@ -101,6 +103,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       }
     };
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif

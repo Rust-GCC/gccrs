@@ -619,7 +619,7 @@ should_emit_struct_debug (tree type, enum debug_info_usage usage)
   if (criterion == DINFO_STRUCT_FILE_ANY)
     return DUMP_GSTRUCT (type, usage, criterion, generic, false, true);
 
-  type_decl = TYPE_STUB_DECL (type);
+  type_decl = TYPE_STUB_DECL (TYPE_MAIN_VARIANT (type));
 
   if (criterion == DINFO_STRUCT_FILE_SYS && DECL_IN_SYSTEM_HEADER (type_decl))
     return DUMP_GSTRUCT (type, usage, criterion, generic, false, true);
@@ -6196,6 +6196,12 @@ static GTY(()) struct dwarf_file_data * file_table_last_lookup;
 
 static GTY(()) VEC(die_arg_entry,gc) *tmpl_value_parm_die_table;
 
+/* Instances of generic types for which we need to generate debug
+   info that describe their generic parameters and arguments. That
+   generation needs to happen once all types are properly laid out so
+   we do it at the end of compilation.  */
+static GTY(()) VEC(tree,gc) *generic_type_instances;
+
 /* Offset from the "steady-state frame pointer" to the frame base,
    within the current function.  */
 static HOST_WIDE_INT frame_pointer_fb_offset;
@@ -6477,6 +6483,7 @@ static void output_loc_list (dw_loc_list_ref);
 static char *gen_internal_sym (const char *);
 
 static void prune_unmark_dies (dw_die_ref);
+static void prune_unused_types_mark_generic_parms_dies (dw_die_ref);
 static void prune_unused_types_mark (dw_die_ref, int);
 static void prune_unused_types_walk (dw_die_ref);
 static void prune_unused_types_walk_attribs (dw_die_ref);
@@ -6489,6 +6496,9 @@ static inline void add_AT_vms_delta (dw_die_ref, enum dwarf_attribute,
 				     const char *, const char *);
 static void append_entry_to_tmpl_value_parm_die_table (dw_die_ref, tree);
 static void gen_remaining_tmpl_value_param_die_attribute (void);
+static bool generic_type_p (tree);
+static void schedule_generic_params_dies_gen (tree t);
+static void gen_scheduled_generic_parms_dies (void);
 
 /* Section names used to hold DWARF debugging information.  */
 #ifndef DEBUG_INFO_SECTION
@@ -15446,12 +15456,12 @@ loc_list_from_tree (tree loc, int want_address)
       /* FALLTHRU */
 
     case PARM_DECL:
+    case RESULT_DECL:
       if (DECL_HAS_VALUE_EXPR_P (loc))
 	return loc_list_from_tree (DECL_VALUE_EXPR (loc),
 				   want_address);
       /* FALLTHRU */
 
-    case RESULT_DECL:
     case FUNCTION_DECL:
       {
 	rtx rtl;
@@ -16526,6 +16536,8 @@ rtl_for_decl_init (tree init, tree type)
 {
   rtx rtl = NULL_RTX;
 
+  STRIP_NOPS (init);
+
   /* If a variable is initialized with a string constant without embedded
      zeros, build CONST_STRING.  */
   if (TREE_CODE (init) == STRING_CST && TREE_CODE (type) == ARRAY_TYPE)
@@ -16550,7 +16562,10 @@ rtl_for_decl_init (tree init, tree type)
     }
   /* Other aggregates, and complex values, could be represented using
      CONCAT: FIXME!  */
-  else if (AGGREGATE_TYPE_P (type) || TREE_CODE (type) == COMPLEX_TYPE)
+  else if (AGGREGATE_TYPE_P (type)
+	   || (TREE_CODE (init) == VIEW_CONVERT_EXPR
+	       && AGGREGATE_TYPE_P (TREE_TYPE (TREE_OPERAND (init, 0))))
+	   || TREE_CODE (type) == COMPLEX_TYPE)
     ;
   /* Vectors only work if their mode is supported by the target.
      FIXME: generic vectors ought to work too.  */
@@ -17651,7 +17666,7 @@ static inline void
 add_prototyped_attribute (dw_die_ref die, tree func_type)
 {
   if (get_AT_unsigned (comp_unit_die (), DW_AT_language) == DW_LANG_C89
-      && TYPE_ARG_TYPES (func_type) != NULL)
+      && prototype_p (func_type))
     add_AT_flag (die, DW_AT_prototyped, 1);
 }
 
@@ -18897,10 +18912,8 @@ premark_types_used_by_global_vars (void)
 static void
 gen_subprogram_die (tree decl, dw_die_ref context_die)
 {
-  char label_id[MAX_ARTIFICIAL_LABEL_BYTES];
   tree origin = decl_ultimate_origin (decl);
   dw_die_ref subr_die;
-  tree fn_arg_types;
   tree outer_scope;
   dw_die_ref old_die = lookup_decl_die (decl);
   int declaration = (current_function_decl != decl
@@ -19067,12 +19080,24 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 
       if (!flag_reorder_blocks_and_partition)
 	{
-	  ASM_GENERATE_INTERNAL_LABEL (label_id, FUNC_BEGIN_LABEL,
-				       current_function_funcdef_no);
-	  add_AT_lbl_id (subr_die, DW_AT_low_pc, label_id);
-	  ASM_GENERATE_INTERNAL_LABEL (label_id, FUNC_END_LABEL,
-				       current_function_funcdef_no);
-	  add_AT_lbl_id (subr_die, DW_AT_high_pc, label_id);
+	  dw_fde_ref fde = &fde_table[current_funcdef_fde];
+	  if (fde->dw_fde_begin)
+	    {
+	      /* We have already generated the labels.  */
+	      add_AT_lbl_id (subr_die, DW_AT_low_pc, fde->dw_fde_begin);
+	      add_AT_lbl_id (subr_die, DW_AT_high_pc, fde->dw_fde_end);
+	    }
+	  else
+	    {
+	      /* Create start/end labels and add the range.  */
+	      char label_id[MAX_ARTIFICIAL_LABEL_BYTES];
+	      ASM_GENERATE_INTERNAL_LABEL (label_id, FUNC_BEGIN_LABEL,
+					   current_function_funcdef_no);
+	      add_AT_lbl_id (subr_die, DW_AT_low_pc, label_id);
+	      ASM_GENERATE_INTERNAL_LABEL (label_id, FUNC_END_LABEL,
+					   current_function_funcdef_no);
+	      add_AT_lbl_id (subr_die, DW_AT_high_pc, label_id);
+	    }
 
 #if VMS_DEBUGGING_INFO
       /* HP OpenVMS Industry Standard 64: DWARF Extensions
@@ -19088,8 +19113,6 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 	 attributes allow a compiler to communicate the location(s) to use.  */
 
       {
-        dw_fde_ref fde = &fde_table[current_funcdef_fde];
-
         if (fde->dw_fde_vms_end_prologue)
           add_AT_vms_delta (subr_die, DW_AT_HP_prologue,
 	    fde->dw_fde_begin, fde->dw_fde_vms_end_prologue);
@@ -19104,19 +19127,116 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 	  add_arange (decl, subr_die);
 	}
       else
-	{  /* Do nothing for now; maybe need to duplicate die, one for
-	      hot section and one for cold section, then use the hot/cold
-	      section begin/end labels to generate the aranges...  */
-	  /*
-	    add_AT_lbl_id (subr_die, DW_AT_low_pc, hot_section_label);
-	    add_AT_lbl_id (subr_die, DW_AT_high_pc, hot_section_end_label);
-	    add_AT_lbl_id (subr_die, DW_AT_lo_user, unlikely_section_label);
-	    add_AT_lbl_id (subr_die, DW_AT_hi_user, cold_section_end_label);
+	{  /* Generate pubnames entries for the split function code
+	      ranges.  */
+	  dw_fde_ref fde = &fde_table[current_funcdef_fde];
 
-	    add_pubname (decl, subr_die);
-	    add_arange (decl, subr_die);
-	    add_arange (decl, subr_die);
-	   */
+	  if (fde->dw_fde_switched_sections)
+	    {
+	      if (dwarf_version >= 3 || !dwarf_strict)
+		{
+		  /* We should use ranges for non-contiguous code section 
+		     addresses.  Use the actual code range for the initial
+		     section, since the HOT/COLD labels might precede an 
+		     alignment offset.  */
+		  bool range_list_added = false;
+		  if (fde->in_std_section)
+		    {
+		      add_ranges_by_labels (subr_die,
+					    fde->dw_fde_begin,
+					    fde->dw_fde_end,
+					    &range_list_added);
+		      add_ranges_by_labels (subr_die,
+					    fde->dw_fde_unlikely_section_label,
+					    fde->dw_fde_unlikely_section_end_label,
+					    &range_list_added);
+		    }
+		  else
+		    {
+		      add_ranges_by_labels (subr_die,
+					    fde->dw_fde_begin,
+					    fde->dw_fde_end,
+					    &range_list_added);
+		      add_ranges_by_labels (subr_die,
+					    fde->dw_fde_hot_section_label,
+					    fde->dw_fde_hot_section_end_label,
+					    &range_list_added);
+		    }
+		  add_pubname (decl, subr_die);
+		  if (range_list_added)
+		    add_ranges (NULL);
+		}
+	      else
+		{
+		  /* There is no real support in DW2 for this .. so we make
+		     a work-around.  First, emit the pub name for the segment
+		     containing the function label.  Then make and emit a
+		     simplified subprogram DIE for the second segment with the
+		     name pre-fixed by __hot/cold_sect_of_.  We use the same
+		     linkage name for the second die so that gdb will find both
+		     sections when given "b foo".  */
+		  const char *name = NULL;
+		  tree decl_name = DECL_NAME (decl);
+		  dw_die_ref seg_die;
+
+		  /* Do the 'primary' section.   */
+		  add_AT_lbl_id (subr_die, DW_AT_low_pc,
+				 fde->dw_fde_begin);
+		  add_AT_lbl_id (subr_die, DW_AT_high_pc,
+				 fde->dw_fde_end);
+		  /* Add it.   */
+		  add_pubname (decl, subr_die);
+		  add_arange (decl, subr_die);
+
+		  /* Build a minimal DIE for the secondary section.  */
+		  seg_die = new_die (DW_TAG_subprogram,
+				     subr_die->die_parent, decl);
+
+		  if (TREE_PUBLIC (decl))
+		    add_AT_flag (seg_die, DW_AT_external, 1);
+
+		  if (decl_name != NULL 
+		      && IDENTIFIER_POINTER (decl_name) != NULL)
+		    {
+		      name = dwarf2_name (decl, 1);
+		      if (! DECL_ARTIFICIAL (decl))
+			add_src_coords_attributes (seg_die, decl);
+
+		      add_linkage_name (seg_die, decl);
+		    }
+		  gcc_assert (name!=NULL);
+		  add_pure_or_virtual_attribute (seg_die, decl);
+		  if (DECL_ARTIFICIAL (decl))
+		    add_AT_flag (seg_die, DW_AT_artificial, 1);
+
+		  if (fde->in_std_section)
+		    {
+		      name = concat ("__cold_sect_of_", name, NULL); 
+		      add_AT_lbl_id (seg_die, DW_AT_low_pc,
+				     fde->dw_fde_unlikely_section_label);
+		      add_AT_lbl_id (seg_die, DW_AT_high_pc,
+				     fde->dw_fde_unlikely_section_end_label); 
+		    }
+		  else 
+		    {
+		      name = concat ("__hot_sect_of_", name, NULL); 
+		      add_AT_lbl_id (seg_die, DW_AT_low_pc,
+				     fde->dw_fde_hot_section_label);
+		      add_AT_lbl_id (seg_die, DW_AT_high_pc,
+				     fde->dw_fde_hot_section_end_label); 
+		    }
+		  add_name_attribute (seg_die, name);
+		  add_pubname_string (name, seg_die);
+		  add_arange (decl, seg_die);
+		}
+	    }
+	  else
+	    {
+	      add_AT_lbl_id (subr_die, DW_AT_low_pc, fde->dw_fde_begin);
+	      add_AT_lbl_id (subr_die, DW_AT_high_pc, fde->dw_fde_end);
+	      add_pubname (decl, subr_die);
+	      add_arange (decl, subr_die);
+	    }
 	}
 
 #ifdef MIPS_DEBUGGING_INFO
@@ -19238,8 +19358,7 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 	 void_type_node 2) an unprototyped function declaration (not a
 	 definition).  This just means that we have no info about the
 	 parameters at all.  */
-      fn_arg_types = TYPE_ARG_TYPES (TREE_TYPE (decl));
-      if (fn_arg_types != NULL)
+      if (prototype_p (TREE_TYPE (decl)))
 	{
 	  /* This is the prototyped case, check for....  */
 	  if (stdarg_p (TREE_TYPE (decl)))
@@ -20037,7 +20156,7 @@ gen_struct_or_union_type_die (tree type, dw_die_ref context_die,
   /* Generate child dies for template paramaters.  */
   if (debug_info_level > DINFO_LEVEL_TERSE
       && COMPLETE_TYPE_P (type))
-    gen_generic_params_dies (type);
+    schedule_generic_params_dies_gen (type);
 
   /* If this type has been completed, then give it a byte_size attribute and
      then give a list of members.  */
@@ -21464,6 +21583,33 @@ append_entry_to_tmpl_value_parm_die_table (dw_die_ref die, tree arg)
 		 &entry);
 }
 
+/* Return TRUE if T is an instance of generic type, FALSE
+   otherwise.  */
+
+static bool
+generic_type_p (tree t)
+{
+  if (t == NULL_TREE || !TYPE_P (t))
+    return false;
+  return lang_hooks.get_innermost_generic_parms (t) != NULL_TREE;
+}
+
+/* Schedule the generation of the generic parameter dies for the
+  instance of generic type T. The proper generation itself is later
+  done by gen_scheduled_generic_parms_dies. */
+
+static void
+schedule_generic_params_dies_gen (tree t)
+{
+  if (!generic_type_p (t))
+    return;
+
+  if (generic_type_instances == NULL)
+    generic_type_instances = VEC_alloc (tree, gc, 256);
+
+  VEC_safe_push (tree, gc, generic_type_instances, t);
+}
+
 /* Add a DW_AT_const_value attribute to DIEs that were scheduled
    by append_entry_to_tmpl_value_parm_die_table. This function must
    be called after function DIEs have been generated.  */
@@ -21479,6 +21625,24 @@ gen_remaining_tmpl_value_param_die_attribute (void)
       FOR_EACH_VEC_ELT (die_arg_entry, tmpl_value_parm_die_table, i, e)
 	tree_add_const_value_attribute (e->die, e->arg);
     }
+}
+
+/* Generate generic parameters DIEs for instances of generic types
+   that have been previously scheduled by
+   schedule_generic_params_dies_gen. This function must be called
+   after all the types of the CU have been laid out.  */
+
+static void
+gen_scheduled_generic_parms_dies (void)
+{
+  unsigned i;
+  tree t;
+
+  if (generic_type_instances == NULL)
+    return;
+  
+  FOR_EACH_VEC_ELT (tree, generic_type_instances, i, t)
+    gen_generic_params_dies (t);
 }
 
 
@@ -22136,6 +22300,32 @@ prune_unused_types_walk_attribs (dw_die_ref die)
     }
 }
 
+/* Mark the generic parameters and arguments children DIEs of DIE.  */
+
+static void
+prune_unused_types_mark_generic_parms_dies (dw_die_ref die)
+{
+  dw_die_ref c;
+
+  if (die == NULL || die->die_child == NULL)
+    return;
+  c = die->die_child;
+  do
+    {
+      switch (c->die_tag)
+	{
+	case DW_TAG_template_type_param:
+	case DW_TAG_template_value_param:
+	case DW_TAG_GNU_template_template_param:
+	case DW_TAG_GNU_template_parameter_pack:
+	  prune_unused_types_mark (c, 1);
+	  break;
+	default:
+	  break;
+	}
+      c = c->die_sib;
+    } while (c && c != die->die_child);
+}
 
 /* Mark DIE as being used.  If DOKIDS is true, then walk down
    to DIE's children.  */
@@ -22149,6 +22339,10 @@ prune_unused_types_mark (dw_die_ref die, int dokids)
     {
       /* We haven't done this node yet.  Mark it as used.  */
       die->die_mark = 1;
+      /* If this is the DIE of a generic type instantiation,
+	 mark the children DIEs that describe its generic parms and
+	 args.  */
+      prune_unused_types_mark_generic_parms_dies (die);
 
       /* We also have to mark its parents as used.
 	 (But we don't want to mark our parents' kids due to this.)  */
@@ -23013,6 +23207,7 @@ dwarf2out_finish (const char *filename)
   htab_t comdat_type_table;
   unsigned int i;
 
+  gen_scheduled_generic_parms_dies ();
   gen_remaining_tmpl_value_param_die_attribute ();
 
   /* Add the name for the main input file now.  We delayed this from
@@ -23161,8 +23356,8 @@ dwarf2out_finish (const char *filename)
 
   /* We can only use the low/high_pc attributes if all of the code was
      in .text.  */
-  if (!have_multiple_function_sections
-      || !(dwarf_version >= 3 || !dwarf_strict))
+  if (!have_multiple_function_sections 
+      || (dwarf_version < 3 && dwarf_strict))
     {
       add_AT_lbl_id (comp_unit_die (), DW_AT_low_pc, text_section_label);
       add_AT_lbl_id (comp_unit_die (), DW_AT_high_pc, text_end_label);
@@ -23321,7 +23516,7 @@ dwarf2out_finish (const char *filename)
 
   /* Output the address range information.  We only put functions in the arange
      table, so don't write it out if we don't have any.  */
-  if (fde_table_in_use)
+  if (arange_table_in_use)
     {
       switch_to_section (debug_aranges_section);
       output_aranges ();

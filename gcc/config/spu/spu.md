@@ -1,4 +1,4 @@
-;; Copyright (C) 2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+;; Copyright (C) 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
 
 ;; This file is free software; you can redistribute it and/or modify it under
 ;; the terms of the GNU General Public License as published by the Free
@@ -269,8 +269,8 @@
 ;; mov
 
 (define_expand "mov<mode>"
-  [(set (match_operand:ALL 0 "spu_nonimm_operand" "=r,r,r,m")
-	(match_operand:ALL 1 "general_operand" "r,i,m,r"))]
+  [(set (match_operand:ALL 0 "nonimmediate_operand" "")
+	(match_operand:ALL 1 "general_operand" ""))]
   ""
   {
     if (spu_expand_mov(operands, <MODE>mode))

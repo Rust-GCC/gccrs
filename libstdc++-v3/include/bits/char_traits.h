@@ -24,9 +24,9 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file char_traits.h
+/** @file bits/char_traits.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{string}
  */
 
 //
@@ -42,7 +42,9 @@
 #include <bits/postypes.h>      // For streampos
 #include <cwchar>               // For WEOF, wmemmove, wmemset, etc.
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    *  @brief  Mapping from character type to associated types.
@@ -203,9 +205,12 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       return __s;
     }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // 21.1
   /**
@@ -364,14 +369,17 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   };
 #endif //_GLIBCXX_USE_WCHAR_T
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #if (defined(__GXX_EXPERIMENTAL_CXX0X__) \
      && defined(_GLIBCXX_USE_C99_STDINT_TR1))
 
 #include <cstdint>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<>
     struct char_traits<char16_t>
@@ -559,7 +567,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       { return eq_int_type(__c, eof()) ? 0 : __c; }
     };
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif 
 

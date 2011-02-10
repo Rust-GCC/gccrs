@@ -1,6 +1,7 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 2000, 2003, 2004, 2005, 2009 Free Software Foundation, Inc.
+// Copyright (C) 2000, 2003, 2004, 2005, 2009, 2010
+// Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,24 +23,26 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file ctype_inline.h
+/** @file bits/ctype_inline.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{locale}
  */
 
 //
 // ISO C++ 14882: 22.1  Locales
 //
-  
+
 // ctype bits to be inlined go here. Non-inlinable (ie virtual do_*)
 // functions go in ctype.cc
-  
-_GLIBCXX_BEGIN_NAMESPACE(std)
+
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   bool
   ctype<char>::
   is(mask __m, char __c) const
-  { 
+  {
     if (_M_table)
       return _M_table[static_cast<unsigned char>(__c)] & __m;
     else
@@ -107,7 +110,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     return __low;
   }
 
-#ifdef _GLIBCXX_USE_WCHAR_T  
+#ifdef _GLIBCXX_USE_WCHAR_T
   inline bool
   ctype<wchar_t>::
   do_is(mask __m, wchar_t __c) const
@@ -115,7 +118,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     return __istype (__c, __m);
   }
 
-  inline const wchar_t* 
+  inline const wchar_t*
   ctype<wchar_t>::
   do_is(const wchar_t* __lo, const wchar_t* __hi, mask* __vec) const
   {
@@ -124,8 +127,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 			   | space | print | graph | cntrl | punct | alnum);
     return __hi;
   }
-  
-  inline const wchar_t* 
+
+  inline const wchar_t*
   ctype<wchar_t>::
   do_scan_is(mask __m, const wchar_t* __lo, const wchar_t* __hi) const
   {
@@ -144,4 +147,5 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   }
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace

@@ -1,5 +1,5 @@
 /* Transformations based on profile information for values.
-   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -46,8 +46,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "timevar.h"
 #include "tree-pass.h"
 #include "pointer-set.h"
-
-static struct value_prof_hooks *value_prof_hooks;
 
 /* In this file value profile based optimizations are placed.  Currently the
    following optimizations are implemented (for more detailed descriptions
@@ -476,8 +474,12 @@ check_counter (gimple stmt, const char * name,
       else
 	{
 	  error_at (locus, "corrupted value profile: %s "
-		    "profiler overall count (%d) does not match BB count (%d)",
-		    name, (int)*all, (int)bb_count);
+		    "profile counter (%d out of %d) inconsistent with "
+		    "basic-block count (%d)",
+		    name,
+		    (int) *count,
+		    (int) *all,
+		    (int) bb_count);
 	  return true;
 	}
     }
@@ -488,7 +490,7 @@ check_counter (gimple stmt, const char * name,
 
 /* GIMPLE based transformations. */
 
-static bool
+bool
 gimple_value_profile_transformations (void)
 {
   basic_block bb;
@@ -1403,6 +1405,21 @@ gimple_stringop_fixed_value (gimple vcall_stmt, tree icall_size, int prob,
   e_vj->probability = REG_BR_PROB_BASE;
   e_vj->count = all - count;
 
+  /* Insert PHI node for the call result if necessary.  */
+  if (gimple_call_lhs (vcall_stmt)
+      && TREE_CODE (gimple_call_lhs (vcall_stmt)) == SSA_NAME)
+    {
+      tree result = gimple_call_lhs (vcall_stmt);
+      gimple phi = create_phi_node (result, join_bb);
+      SSA_NAME_DEF_STMT (result) = phi;
+      gimple_call_set_lhs (vcall_stmt,
+			   make_ssa_name (SSA_NAME_VAR (result), vcall_stmt));
+      add_phi_arg (phi, gimple_call_lhs (vcall_stmt), e_vj, UNKNOWN_LOCATION);
+      gimple_call_set_lhs (icall_stmt,
+			   make_ssa_name (SSA_NAME_VAR (result), icall_stmt));
+      add_phi_arg (phi, gimple_call_lhs (icall_stmt), e_ij, UNKNOWN_LOCATION);
+    }
+
   /* Because these are all string op builtins, they're all nothrow.  */
   gcc_assert (!stmt_could_throw_p (vcall_stmt));
   gcc_assert (!stmt_could_throw_p (icall_stmt));
@@ -1545,14 +1562,6 @@ stringop_block_profile (gimple stmt, unsigned int *expected_align,
     }
 }
 
-struct value_prof_hooks {
-  /* Find list of values for which we want to measure histograms.  */
-  void (*find_values_to_profile) (histogram_values *);
-
-  /* Identify and exploit properties of values that are hard to analyze
-     statically.  See value-prof.c for more detail.  */
-  bool (*value_profile_transformations) (void);
-};
 
 /* Find values inside STMT for that we want to measure histograms for
    division/modulo optimization.  */
@@ -1686,7 +1695,7 @@ gimple_values_to_profile (gimple stmt, histogram_values *values)
     }
 }
 
-static void
+void
 gimple_find_values_to_profile (histogram_values *values)
 {
   basic_block bb;
@@ -1743,28 +1752,3 @@ gimple_find_values_to_profile (histogram_values *values)
     }
 }
 
-static struct value_prof_hooks gimple_value_prof_hooks = {
-  gimple_find_values_to_profile,
-  gimple_value_profile_transformations
-};
-
-void
-gimple_register_value_prof_hooks (void)
-{
-  gcc_assert (current_ir_type () == IR_GIMPLE);
-  value_prof_hooks = &gimple_value_prof_hooks;
-}
-
-/* IR-independent entry points.  */
-void
-find_values_to_profile (histogram_values *values)
-{
-  (value_prof_hooks->find_values_to_profile) (values);
-}
-
-bool
-value_profile_transformations (void)
-{
-  return (value_prof_hooks->value_profile_transformations) ();
-}
-

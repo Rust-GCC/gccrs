@@ -1,6 +1,6 @@
 /* Functions for generic Darwin as target machine for GNU C compiler.
    Copyright (C) 1989, 1990, 1991, 1992, 1993, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007, 2008, 2009, 2010
+   2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Apple Computer Inc.
 
@@ -90,6 +90,9 @@ int darwin_emit_branch_islands = false;
    functions).  */
 int darwin_running_cxx;
 
+/* Some code-gen now depends on OS major version numbers (at least).  */
+int generating_for_darwin_version ;
+
 /* Section names.  */
 section * darwin_sections[NUM_DARWIN_SECTIONS];
 
@@ -157,6 +160,11 @@ output_objc_section_asm_op (const void *directive)
   output_section_asm_op (directive);
 }
 
+
+/* Private flag applied to disable section-anchors in a particular section.  */
+#define SECTION_NO_ANCHOR SECTION_MACH_DEP
+
+
 /* Implement TARGET_ASM_INIT_SECTIONS.  */
 
 void
@@ -174,10 +182,6 @@ darwin_init_sections (void)
   readonly_data_section = darwin_sections[const_section];
   exception_section = darwin_sections[darwin_exception_section];
   eh_frame_section = darwin_sections[darwin_eh_frame_section];
-
-  /* Make sure that there is no conflict between the 'no anchor' section
-     flag declared in darwin.h and the section flags declared in output.h.  */
-  gcc_assert (SECTION_NO_ANCHOR > SECTION_MACH_DEP);
 }
 
 int
@@ -1145,19 +1149,6 @@ darwin_mark_decl_preserved (const char *name)
 }
 
 static section *
-darwin_text_section (int reloc, int weak)
-{
-  if (reloc)
-    return (weak
-	    ? darwin_sections[text_unlikely_coal_section]
-	    : unlikely_text_section ());
-  else
-    return (weak
-	    ? darwin_sections[text_coal_section]
-	    : text_section);
-}
-
-static section *
 darwin_rodata_section (int weak, bool zsize)
 {
   return (weak
@@ -1267,17 +1258,7 @@ machopic_select_section (tree decl,
   switch (categorize_decl_for_section (decl, reloc))
     {
     case SECCAT_TEXT:
-      {
-	struct cgraph_node *node;
-	if (decl && TREE_CODE (decl) == FUNCTION_DECL
-	    && (node = cgraph_get_node (decl)) != NULL)
-	  base_section = darwin_function_section (decl,
-						  node->frequency,
-						  node->only_called_at_startup,
-						  node->only_called_at_exit);
-	if (!base_section)
-          base_section = darwin_text_section (reloc, weak);
-      }
+      gcc_unreachable ();
       break;
 
     case SECCAT_RODATA:
@@ -1684,12 +1665,37 @@ darwin_handle_weak_import_attribute (tree *node, tree name,
 void
 darwin_emit_unwind_label (FILE *file, tree decl, int for_eh, int empty)
 {
-  char *lab;
-
-  if (! for_eh)
+  char *lab ;
+  char buf[32];
+  static int invok_count = 0;
+  static tree last_fun_decl = NULL_TREE;
+  
+  /* We use the linker to emit the .eh labels for Darwin 9 and above.  */
+  if (! for_eh || generating_for_darwin_version >= 9)
     return;
 
-  lab = concat (IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl)), ".eh", NULL);
+  /* FIXME: This only works when the eh for all sections of a function is 
+     emitted at the same time.  If that changes, we would need to use a lookup
+     table of some form to determine what to do.  Also, we should emit the
+     unadorned label for the partition containing the public label for a
+     function.  This is of limited use, probably, since we do not currently
+     enable partitioning.  */
+  strcpy (buf, ".eh");
+  if (decl && TREE_CODE (decl) == FUNCTION_DECL) 
+    {
+      if (decl == last_fun_decl)
+        {
+	  invok_count++;
+	  snprintf (buf, 31, "$$part$$%d.eh", invok_count);
+	}
+      else
+	{
+	  last_fun_decl = decl;
+	  invok_count = 0;
+	}
+    }
+
+  lab = concat (IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl)), buf, NULL);
 
   if (TREE_PUBLIC (decl))
     {
@@ -2551,24 +2557,45 @@ darwin_kextabi_p (void) {
 void
 darwin_override_options (void)
 {
-  bool darwin9plus = (darwin_macosx_version_min
-		      && strverscmp (darwin_macosx_version_min, "10.5") >= 0);
+  /* Keep track of which (major) version we're generating code for.  */
+  if (darwin_macosx_version_min)
+    {
+      if (strverscmp (darwin_macosx_version_min, "10.6") >= 0)
+	generating_for_darwin_version = 10;
+      else if (strverscmp (darwin_macosx_version_min, "10.5") >= 0)
+	generating_for_darwin_version = 9;
+
+      /* Earlier versions are not specifically accounted, until required.  */
+    }
 
   /* Don't emit DWARF3/4 unless specifically selected.  This is a 
      workaround for tool bugs.  */
   if (!global_options_set.x_dwarf_strict) 
     dwarf_strict = 1;
 
-  /* Disable -freorder-blocks-and-partition for darwin_emit_unwind_label.  */
-  if (flag_reorder_blocks_and_partition 
-      && (targetm.asm_out.emit_unwind_label == darwin_emit_unwind_label))
-    {
-      inform (input_location,
-              "-freorder-blocks-and-partition does not work with exceptions "
-              "on this architecture");
-      flag_reorder_blocks_and_partition = 0;
-      flag_reorder_blocks = 1;
-    }
+  /* Do not allow unwind tables to be generated by default for m32.  
+     fnon-call-exceptions will override this, regardless of what we do.  */
+  if (generating_for_darwin_version < 10
+      && !global_options_set.x_flag_asynchronous_unwind_tables
+      && !TARGET_64BIT)
+    global_options.x_flag_asynchronous_unwind_tables = 0;
+
+   /* Disable -freorder-blocks-and-partition when unwind tables are being emitted
+      for Darwin < 10 (OSX 10.6).  
+      The strategy is, "Unless the User has specifically set/unset an unwind flag
+      we will switch off -freorder-blocks-and-partition when unwind tables will be
+      generated".  If the User specifically sets flags... we assume (s)he knows
+      why...  */
+   if (generating_for_darwin_version < 9
+       && global_options_set.x_flag_reorder_blocks_and_partition
+       && ((global_options.x_flag_exceptions 		/* User, c++, java */
+	    && !global_options_set.x_flag_exceptions) 	/* User specified... */
+	   || (global_options.x_flag_unwind_tables
+		&& !global_options_set.x_flag_unwind_tables)
+	   || (global_options.x_flag_non_call_exceptions
+		&& !global_options_set.x_flag_non_call_exceptions)
+	   || (global_options.x_flag_asynchronous_unwind_tables
+		&& !global_options_set.x_flag_asynchronous_unwind_tables)))
 
   if (flag_mkernel || flag_apple_kext)
     {
@@ -2590,9 +2617,10 @@ darwin_override_options (void)
     }
 
   if (flag_var_tracking
-      && darwin9plus
-      && debug_info_level >= DINFO_LEVEL_NORMAL
-      && debug_hooks->var_location != do_nothing_debug_hooks.var_location)
+      && generating_for_darwin_version >= 9
+      && (flag_gtoggle ? (debug_info_level == DINFO_LEVEL_NONE)
+      : (debug_info_level >= DINFO_LEVEL_NORMAL))
+      && write_symbols == DWARF2_DEBUG)
     flag_var_tracking_uninit = 1;
 
   if (MACHO_DYNAMIC_NO_PIC_P)
@@ -2608,7 +2636,7 @@ darwin_override_options (void)
     }
 
   /* It is assumed that branch island stubs are needed for earlier systems.  */
-  if (!darwin9plus)
+  if (generating_for_darwin_version < 9)
     darwin_emit_branch_islands = true;
   else
     emit_aligned_common = true; /* Later systems can support aligned common.  */
@@ -2795,6 +2823,34 @@ darwin_fold_builtin (tree fndecl, int n_args, tree *argp,
   return NULL_TREE;
 }
 
+void
+darwin_rename_builtins (void)
+{
+  /* The system ___divdc3 routine in libSystem on darwin10 is not
+     accurate to 1ulp, ours is, so we avoid ever using the system name
+     for this routine and instead install a non-conflicting name that
+     is accurate.
+
+     When -ffast-math or -funsafe-math-optimizations is given, we can
+     use the faster version.  */
+  if (!flag_unsafe_math_optimizations)
+    {
+      int dcode = (BUILT_IN_COMPLEX_DIV_MIN
+		   + DCmode - MIN_MODE_COMPLEX_FLOAT);
+      tree fn = built_in_decls[dcode];
+      /* Fortran and c call TARGET_INIT_BUILTINS and
+	 TARGET_INIT_LIBFUNCS at different times, so we have to put a
+	 call into each to ensure that at least one of them is called
+	 after build_common_builtin_nodes.  A better fix is to add a
+	 new hook to run after build_common_builtin_nodes runs.  */
+      if (fn)
+	set_user_assembler_name (fn, "___ieee_divdc3");
+      fn = implicit_built_in_decls[dcode];
+      if (fn)
+	set_user_assembler_name (fn, "___ieee_divdc3");
+    }
+}
+
 static hashval_t
 cfstring_hash (const void *ptr)
 {
@@ -2968,34 +3024,74 @@ section *
 darwin_function_section (tree decl, enum node_frequency freq,
 			  bool startup, bool exit)
 {
+  /* Decide if we need to put this in a coalescable section.  */
+  bool weak = (decl 
+	       && DECL_WEAK (decl)
+	       && (!DECL_ATTRIBUTES (decl)
+		   || !lookup_attribute ("weak_import", 
+					  DECL_ATTRIBUTES (decl))));
+
+  /* If there is a specified section name, we should not be trying to
+     override.  */
+  if (decl && DECL_SECTION_NAME (decl) != NULL_TREE)
+    return get_named_section (decl, NULL, 0);
+
+  /* Default when there is no function re-ordering.  */
   if (!flag_reorder_functions)
-    return NULL;
+    return (weak)
+	    ? darwin_sections[text_coal_section]
+	    : text_section;
+
   /* Startup code should go to startup subsection unless it is
      unlikely executed (this happens especially with function splitting
-     where we can split away unnecesary parts of static constructors.  */
+     where we can split away unnecesary parts of static constructors).  */
   if (startup && freq != NODE_FREQUENCY_UNLIKELY_EXECUTED)
-    return get_named_text_section
-	     (decl, "__TEXT,__startup,regular,pure_instructions", "_startup");
+    return (weak)
+	    ? darwin_sections[text_startup_coal_section]
+	    : darwin_sections[text_startup_section];
 
   /* Similarly for exit.  */
   if (exit && freq != NODE_FREQUENCY_UNLIKELY_EXECUTED)
-    return get_named_text_section (decl,
-				   "__TEXT,__exit,regular,pure_instructions",
-				   "_exit");
+    return (weak)
+	    ? darwin_sections[text_exit_coal_section]
+	    : darwin_sections[text_exit_section];
 
   /* Group cold functions together, similarly for hot code.  */
   switch (freq)
     {
       case NODE_FREQUENCY_UNLIKELY_EXECUTED:
-	return get_named_text_section
-		 (decl,
-	          "__TEXT,__unlikely,regular,pure_instructions", "_unlikely");
+	return (weak)
+		? darwin_sections[text_cold_coal_section]
+		: darwin_sections[text_cold_section];
+	break;
       case NODE_FREQUENCY_HOT:
-	return get_named_text_section
-		 (decl, "__TEXT,__hot,regular,pure_instructions", "_hot");
+	return (weak)
+		? darwin_sections[text_hot_coal_section]
+		: darwin_sections[text_hot_section];
+	break;
       default:
-	return NULL;
+	return (weak)
+		? darwin_sections[text_coal_section]
+		: text_section;
+	break;
     }
+}
+
+/* When a function is partitioned between sections, we need to insert a label
+   at the start of each new chunk - so that it may become a valid 'atom' for
+   eh and debug purposes.  Without this the linker will emit warnings if one 
+   tries to add line location information (since the switched fragment will 
+   be anonymous).  */
+
+void
+darwin_function_switched_text_sections (FILE *fp, tree decl, bool new_is_cold)
+{
+  char buf[128];
+  snprintf (buf, 128, "%s%s",new_is_cold?"__cold_sect_of_":"__hot_sect_of_",
+	    IDENTIFIER_POINTER (DECL_NAME (decl)));
+  /* Make sure we pick up all the relevant quotes etc.  */
+  assemble_name_raw (fp, (const char *) buf);
+  fputs (":\n", fp);
 }
 
 #include "gt-darwin.h"

@@ -1,6 +1,6 @@
 // Special functions -*- C++ -*-
 
-// Copyright (C) 2006, 2007, 2008, 2009
+// Copyright (C) 2006, 2007, 2008, 2009, 2010
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -25,7 +25,7 @@
 
 /** @file tr1/beta_function.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{tr1/cmath}
  */
 
 //
@@ -47,16 +47,16 @@
 #ifndef _GLIBCXX_TR1_BETA_FUNCTION_TCC
 #define _GLIBCXX_TR1_BETA_FUNCTION_TCC 1
 
-namespace std
+namespace std _GLIBCXX_VISIBILITY(default)
 {
 namespace tr1
 {
-
   // [5.2] Special functions
 
   // Implementation-space details.
   namespace __detail
   {
+  _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     /**
      *   @brief  Return the beta function: \f$B(x,y)\f$.
@@ -190,6 +190,7 @@ namespace tr1
         return __beta_lgamma(__x, __y);
     }
 
+  _GLIBCXX_END_NAMESPACE_VERSION
   } // namespace std::tr1::__detail
 }
 }

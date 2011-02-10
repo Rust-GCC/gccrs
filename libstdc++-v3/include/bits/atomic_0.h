@@ -1,6 +1,6 @@
 // -*- C++ -*- header.
 
-// Copyright (C) 2008, 2009, 2010
+// Copyright (C) 2008, 2009, 2010, 2011
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -25,7 +25,7 @@
 
 /** @file bits/atomic_0.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{atomic}
  */
 
 #ifndef _GLIBCXX_ATOMIC_0_H
@@ -33,7 +33,9 @@
 
 #pragma GCC system_header
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 // 0 == __atomic0 == Never lock-free
 namespace __atomic0
@@ -66,41 +68,41 @@ namespace __atomic0
     atomic_flag_clear_explicit(__g, __x);		       		   \
     __r; })
 
-#define _ATOMIC_STORE_(__a, __m, __x)					   \
+#define _ATOMIC_STORE_(__a, __n, __x)					   \
   ({typedef __typeof__(_ATOMIC_MEMBER_) __i_type;                          \
     __i_type* __p = &_ATOMIC_MEMBER_;	   				   \
-    __typeof__(__m) __v = (__m);			       		   \
+    __typeof__(__n) __w = (__n);			       		   \
     __atomic_flag_base* __g = __atomic_flag_for_address(__p);	  	   \
     __atomic_flag_wait_explicit(__g, __x);				   \
-    *__p = __v;								   \
+    *__p = __w;								   \
     atomic_flag_clear_explicit(__g, __x);		       		   \
-    __v; })
+    __w; })
 
-#define _ATOMIC_MODIFY_(__a, __o, __m, __x)				   \
+#define _ATOMIC_MODIFY_(__a, __o, __n, __x)				   \
   ({typedef __typeof__(_ATOMIC_MEMBER_) __i_type;                          \
     __i_type* __p = &_ATOMIC_MEMBER_;	   				   \
-    __typeof__(__m) __v = (__m);			       		   \
+    __typeof__(__n) __w = (__n);			       		   \
     __atomic_flag_base* __g = __atomic_flag_for_address(__p);	  	   \
     __atomic_flag_wait_explicit(__g, __x);				   \
     __i_type __r = *__p;		       				   \
-    *__p __o __v;					       		   \
+    *__p __o __w;					       		   \
     atomic_flag_clear_explicit(__g, __x);		       		   \
     __r; })
 
-#define _ATOMIC_CMPEXCHNG_(__a, __e, __m, __x)				   \
+#define _ATOMIC_CMPEXCHNG_(__a, __e, __n, __x)				   \
   ({typedef __typeof__(_ATOMIC_MEMBER_) __i_type;                          \
     __i_type* __p = &_ATOMIC_MEMBER_;	   				   \
     __typeof__(__e) __q = (__e);			       		   \
-    __typeof__(__m) __v = (__m);			       		   \
+    __typeof__(__n) __w = (__n);			       		   \
     bool __r;						       		   \
     __atomic_flag_base* __g = __atomic_flag_for_address(__p);	   	   \
     __atomic_flag_wait_explicit(__g, __x);				   \
     __i_type __t = *__p;		       				   \
     if (*__q == __t) 							   \
-    {                                                                      \
-      *__p = (__i_type)__v;						\
-      __r = true;                                                          \
-    }									   \
+      {									   \
+	*__p = (__i_type)__w;						   \
+	__r = true;							   \
+      }									   \
     else { *__q = __t; __r = false; }		       			   \
     atomic_flag_clear_explicit(__g, __x);		       		   \
     __r; })
@@ -732,6 +734,7 @@ namespace __atomic0
 #undef _ATOMIC_CMPEXCHNG_
 } // namespace __atomic0
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif

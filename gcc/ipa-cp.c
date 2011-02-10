@@ -781,25 +781,15 @@ ipcp_propagate_types (struct ipa_node_params *caller_info,
 		      struct ipa_node_params *callee_info,
 		      struct ipa_jump_func *jf, int i)
 {
-  tree cst, binfo;
-
   switch (jf->type)
     {
     case IPA_JF_UNKNOWN:
     case IPA_JF_CONST_MEMBER_PTR:
+    case IPA_JF_CONST:
       break;
 
     case IPA_JF_KNOWN_TYPE:
       return ipcp_add_param_type (callee_info, i, jf->value.base_binfo);
-
-    case IPA_JF_CONST:
-      cst = jf->value.constant;
-      if (TREE_CODE (cst) != ADDR_EXPR)
-	break;
-      binfo = gimple_get_relevant_ref_binfo (TREE_OPERAND (cst, 0), NULL_TREE);
-      if (!binfo)
-	break;
-      return ipcp_add_param_type (callee_info, i, binfo);
 
     case IPA_JF_PASS_THROUGH:
     case IPA_JF_ANCESTOR:
@@ -1050,25 +1040,29 @@ ipcp_update_callgraph (void)
   for (node = cgraph_nodes; node; node = node->next)
     if (node->analyzed && ipcp_node_is_clone (node))
       {
-	bitmap args_to_skip = BITMAP_ALLOC (NULL);
+	bitmap args_to_skip = NULL;
 	struct cgraph_node *orig_node = ipcp_get_orig_node (node);
         struct ipa_node_params *info = IPA_NODE_REF (orig_node);
         int i, count = ipa_get_param_count (info);
         struct cgraph_edge *cs, *next;
 
-	for (i = 0; i < count; i++)
+	if (node->local.can_change_signature)
 	  {
-	    struct ipcp_lattice *lat = ipcp_get_lattice (info, i);
-
-	    /* We can proactively remove obviously unused arguments.  */
-	    if (!ipa_is_param_used (info, i))
+	    args_to_skip = BITMAP_ALLOC (NULL);
+	    for (i = 0; i < count; i++)
 	      {
-		bitmap_set_bit (args_to_skip, i);
-		continue;
-	      }
+		struct ipcp_lattice *lat = ipcp_get_lattice (info, i);
 
-	    if (lat->type == IPA_CONST_VALUE)
-	      bitmap_set_bit (args_to_skip, i);
+		/* We can proactively remove obviously unused arguments.  */
+		if (!ipa_is_param_used (info, i))
+		  {
+		    bitmap_set_bit (args_to_skip, i);
+		    continue;
+		  }
+
+		if (lat->type == IPA_CONST_VALUE)
+		  bitmap_set_bit (args_to_skip, i);
+	      }
 	  }
 	for (cs = node->callers; cs; cs = next)
 	  {
@@ -1140,17 +1134,18 @@ ipcp_estimate_growth (struct cgraph_node *node)
 
   info = IPA_NODE_REF (node);
   count = ipa_get_param_count (info);
-  for (i = 0; i < count; i++)
-    {
-      struct ipcp_lattice *lat = ipcp_get_lattice (info, i);
+  if (node->local.can_change_signature)
+    for (i = 0; i < count; i++)
+      {
+	struct ipcp_lattice *lat = ipcp_get_lattice (info, i);
 
-      /* We can proactively remove obviously unused arguments.  */
-      if (!ipa_is_param_used (info, i))
-	removable_args++;
+	/* We can proactively remove obviously unused arguments.  */
+	if (!ipa_is_param_used (info, i))
+	  removable_args++;
 
-      if (lat->type == IPA_CONST_VALUE)
-	removable_args++;
-    }
+	if (lat->type == IPA_CONST_VALUE)
+	  removable_args++;
+      }
 
   /* We make just very simple estimate of savings for removal of operand from
      call site.  Precise cost is dificult to get, as our size metric counts
@@ -1292,35 +1287,13 @@ ipcp_discover_new_direct_edges (struct cgraph_node *node, int index, tree cst)
   for (ie = node->indirect_calls; ie; ie = next_ie)
     {
       struct cgraph_indirect_call_info *ici = ie->indirect_info;
-      tree target, delta = NULL_TREE;
 
       next_ie = ie->next_callee;
-      if (ici->param_index != index)
+      if (ici->param_index != index
+	  || ici->polymorphic)
 	continue;
 
-      if (ici->polymorphic)
-	{
-	  tree binfo;
-	  HOST_WIDE_INT token;
-
-	  if (TREE_CODE (cst) != ADDR_EXPR)
-	    continue;
-
-	  binfo = gimple_get_relevant_ref_binfo (TREE_OPERAND (cst, 0),
-						 NULL_TREE);
-	  if (!binfo)
-	    continue;
-	  gcc_assert (ie->indirect_info->anc_offset == 0);
-	  token = ie->indirect_info->otr_token;
-	  target = gimple_get_virt_mehtod_for_binfo (token, binfo, &delta,
-						     true);
-	  if (!target)
-	    continue;
-	}
-      else
-	target = cst;
-
-      ipa_make_edge_direct_to_target (ie, target, delta);
+      ipa_make_edge_direct_to_target (ie, cst, NULL_TREE);
     }
 }
 
@@ -1418,16 +1391,21 @@ ipcp_insert_stage (void)
       count = ipa_get_param_count (info);
 
       replace_trees = VEC_alloc (ipa_replace_map_p, gc, 1);
-      args_to_skip = BITMAP_GGC_ALLOC ();
+
+      if (node->local.can_change_signature)
+	args_to_skip = BITMAP_GGC_ALLOC ();
+      else
+	args_to_skip = NULL;
       for (i = 0; i < count; i++)
 	{
 	  struct ipcp_lattice *lat = ipcp_get_lattice (info, i);
 	  parm_tree = ipa_get_param (info, i);
 
 	  /* We can proactively remove obviously unused arguments.  */
-          if (!ipa_is_param_used (info, i))
+	  if (!ipa_is_param_used (info, i))
 	    {
-	      bitmap_set_bit (args_to_skip, i);
+	      if (args_to_skip)
+	        bitmap_set_bit (args_to_skip, i);
 	      continue;
 	    }
 
@@ -1436,7 +1414,8 @@ ipcp_insert_stage (void)
 	      replace_param =
 		ipcp_create_replace_map (parm_tree, lat);
 	      VEC_safe_push (ipa_replace_map_p, gc, replace_trees, replace_param);
-	      bitmap_set_bit (args_to_skip, i);
+	      if (args_to_skip)
+	        bitmap_set_bit (args_to_skip, i);
 	    }
 	}
 

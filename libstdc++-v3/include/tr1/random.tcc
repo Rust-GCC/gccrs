@@ -25,13 +25,13 @@
 
 /** @file tr1/random.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{tr1/random}
  */
 
 #ifndef _GLIBCXX_TR1_RANDOM_TCC
 #define _GLIBCXX_TR1_RANDOM_TCC 1
 
-namespace std
+namespace std _GLIBCXX_VISIBILITY(default)
 {
 namespace tr1
 {
@@ -40,6 +40,8 @@ namespace tr1
    */
   namespace __detail
   {
+  _GLIBCXX_BEGIN_NAMESPACE_VERSION
+
     // General case for x = (ax + c) mod m -- use Schrage's algorithm to avoid
     // integer overflow.
     //
@@ -90,8 +92,10 @@ namespace tr1
 	__calc(_Tp __x)
 	{ return __a * __x + __c; }
       };
+  _GLIBCXX_END_NAMESPACE_VERSION
   } // namespace __detail
 
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<class _UIntType, _UIntType __a, _UIntType __c, _UIntType __m>
     const _UIntType
@@ -1709,6 +1713,8 @@ namespace tr1
       __os.precision(__precision);
       return __os;
     }
+
+_GLIBCXX_END_NAMESPACE_VERSION
 }
 }
 

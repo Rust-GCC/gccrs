@@ -1,6 +1,7 @@
 // Queue implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
+// 2010, 2011
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -49,9 +50,9 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_queue.h
+/** @file bits/stl_queue.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{queue}
  */
 
 #ifndef _STL_QUEUE_H
@@ -60,7 +61,9 @@
 #include <bits/concept_check.h>
 #include <debug/debug.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    *  @brief  A standard container giving FIFO behavior.
@@ -240,7 +243,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       void
       swap(queue& __q)
-      { c.swap(__q.c); }
+      {
+	using std::swap;
+	swap(c, __q.c);
+      }
 #endif
     };
 
@@ -526,7 +532,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       swap(priority_queue& __pq)
       {
 	using std::swap;
-	c.swap(__pq.c);
+	swap(c, __pq.c);
 	swap(comp, __pq.comp);
       }
 #endif
@@ -547,6 +553,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     : public uses_allocator<_Sequence, _Alloc>::type { };
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _STL_QUEUE_H */

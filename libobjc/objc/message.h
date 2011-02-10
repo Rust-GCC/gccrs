@@ -130,26 +130,9 @@ objc_EXPORT IMP objc_msg_lookup_super (struct objc_super *super, SEL sel);
    built-in forwarding with one based on a library, such as ffi, that
    implement closures, thereby avoiding gcc's __builtin_apply
    problems.  __objc_msg_forward2's result will be preferred over that
-   of __objc_msg_forward if both are set and return non-NULL.
-
-   TODO: The API should define objc_set_msg_forward_handler () or
-   similar instead of these hooks.  */
+   of __objc_msg_forward if both are set and return non-NULL.  */   
 objc_EXPORT IMP (*__objc_msg_forward)(SEL);
 objc_EXPORT IMP (*__objc_msg_forward2)(id, SEL);
-
-
-/* The following types and functions are provided only for
-   backwards-compatibility and should not be used in new code.  They
-   were deprecated in GCC 4.6 and will be removed in the next
-   release.  */
-typedef void* retval_t;		/* return value */
-typedef void(*apply_t)(void);	/* function pointer */
-typedef union arglist {
-  char *arg_ptr;
-  char arg_regs[sizeof (char*)];
-} *arglist_t;		        /* argument frame */
-
-objc_EXPORT retval_t objc_msg_sendv(id, SEL, arglist_t);
 
 #ifdef __cplusplus
 }

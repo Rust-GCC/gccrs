@@ -1,5 +1,5 @@
 /* Command line option handling.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Neil Booth.
 
@@ -456,6 +456,7 @@ static const struct default_options default_options_table[] =
     { OPT_LEVELS_1_PLUS, OPT_ftree_sink, NULL, 1 },
     { OPT_LEVELS_1_PLUS, OPT_ftree_ch, NULL, 1 },
     { OPT_LEVELS_1_PLUS, OPT_fcombine_stack_adjustments, NULL, 1 },
+    { OPT_LEVELS_1_PLUS, OPT_fcompare_elim, NULL, 1 },
 
     /* -O2 optimizations.  */
     { OPT_LEVELS_2_PLUS, OPT_finline_small_functions, NULL, 1 },
@@ -485,6 +486,7 @@ static const struct default_options default_options_table[] =
     { OPT_LEVELS_2_PLUS, OPT_ftree_pre, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_ftree_switch_conversion, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fipa_cp, NULL, 1 },
+    { OPT_LEVELS_2_PLUS, OPT_fdevirtualize, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fipa_sra, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_falign_loops, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_falign_jumps, NULL, 1 },
@@ -631,7 +633,8 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
       if (opts->x_dump_dir_name)
 	opts->x_dump_base_name = concat (opts->x_dump_dir_name,
 					 opts->x_dump_base_name, NULL);
-      else if (opts->x_aux_base_name)
+      else if (opts->x_aux_base_name
+	       && strcmp (opts->x_aux_base_name, HOST_BIT_BUCKET) != 0)
 	{
 	  const char *aux_base;
 
@@ -693,7 +696,7 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
 	opts->x_flag_pic = opts->x_flag_pie;
       if (opts->x_flag_pic && !opts->x_flag_pie)
 	opts->x_flag_shlib = 1;
-      opts->x_flag_opts_finished = false;
+      opts->x_flag_opts_finished = true;
     }
 
   if (opts->x_optimize == 0)
@@ -754,6 +757,10 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
       opts->x_flag_reorder_blocks_and_partition = 0;
       opts->x_flag_reorder_blocks = 1;
     }
+
+  if (opts->x_flag_reorder_blocks_and_partition
+      && !opts_set->x_flag_reorder_functions)
+    opts->x_flag_reorder_functions = 1;
 
   /* Pipelining of outer loops is only possible when general pipelining
      capabilities are requested.  */
@@ -1557,6 +1564,11 @@ common_handle_option (struct gcc_options *opts,
 	opts->x_flag_value_profile_transformations = value;
       if (!opts_set->x_flag_inline_functions)
 	opts->x_flag_inline_functions = value;
+      /* FIXME: Instrumentation we insert makes ipa-reference bitmaps
+	 quadratic.  Disable the pass until better memory representation
+	 is done.  */
+      if (!opts_set->x_flag_ipa_reference && in_lto_p)
+        opts->x_flag_ipa_reference = false;
       break;
 
     case OPT_fshow_column:
@@ -1670,7 +1682,7 @@ common_handle_option (struct gcc_options *opts,
       break;
 
     case OPT_flto:
-      opts->x_flag_lto = "";
+      opts->x_flag_lto = value ? "" : NULL;
       break;
 
     case OPT_w:
@@ -1745,15 +1757,23 @@ set_Wstrict_aliasing (struct gcc_options *opts, int onoff)
 static void
 set_fast_math_flags (struct gcc_options *opts, int set)
 {
-  opts->x_flag_unsafe_math_optimizations = set;
-  set_unsafe_math_optimizations_flags (opts, set);
-  opts->x_flag_finite_math_only = set;
-  opts->x_flag_errno_math = !set;
+  if (!opts->frontend_set_flag_unsafe_math_optimizations)
+    {
+      opts->x_flag_unsafe_math_optimizations = set;
+      set_unsafe_math_optimizations_flags (opts, set);
+    }
+  if (!opts->frontend_set_flag_finite_math_only)
+    opts->x_flag_finite_math_only = set;
+  if (!opts->frontend_set_flag_errno_math)
+    opts->x_flag_errno_math = !set;
   if (set)
     {
-      opts->x_flag_signaling_nans = 0;
-      opts->x_flag_rounding_math = 0;
-      opts->x_flag_cx_limited_range = 1;
+      if (!opts->frontend_set_flag_signaling_nans)
+	opts->x_flag_signaling_nans = 0;
+      if (!opts->frontend_set_flag_rounding_math)
+	opts->x_flag_rounding_math = 0;
+      if (!opts->frontend_set_flag_cx_limited_range)
+	opts->x_flag_cx_limited_range = 1;
     }
 }
 
@@ -1762,10 +1782,14 @@ set_fast_math_flags (struct gcc_options *opts, int set)
 static void
 set_unsafe_math_optimizations_flags (struct gcc_options *opts, int set)
 {
-  opts->x_flag_trapping_math = !set;
-  opts->x_flag_signed_zeros = !set;
-  opts->x_flag_associative_math = set;
-  opts->x_flag_reciprocal_math = set;
+  if (!opts->frontend_set_flag_trapping_math)
+    opts->x_flag_trapping_math = !set;
+  if (!opts->frontend_set_flag_signed_zeros)
+    opts->x_flag_signed_zeros = !set;
+  if (!opts->frontend_set_flag_associative_math)
+    opts->x_flag_associative_math = set;
+  if (!opts->frontend_set_flag_reciprocal_math)
+    opts->x_flag_reciprocal_math = set;
 }
 
 /* Return true iff flags in OPTS are set as if -ffast-math.  */

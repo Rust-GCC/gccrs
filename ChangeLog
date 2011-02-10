@@ -1,3 +1,112 @@
+2011-02-08  Tobias Burnus  <burnus@net-b.de>
+
+	* MAINTAINERS: Add myself as libquadmath maintainer.
+
+2011-02-08  Thomas Schwinge  <thomas@schwinge.name>
+
+	* MAINTAINERS: Update my email address.
+
+2011-02-07  Joseph Myers  <joseph@codesourcery.com>
+
+	* MAINTAINERS (option handling): Add self.
+
+2011-02-06  Kai Tietz  <kai.tietz@onevision.com>
+
+	PR lto/47225
+	* Makefile.def: Add dependency for install-gcc
+	on install-lto-plugin.
+	* Makfile.in: Regenerated
+
+2011-02-01  Sebastien Bourdeauducq  <sebastien@milkymist.org>
+
+	* MAINTAINERS (CPU Port Maintainers): Add myself.
+
+2011-01-31  Alexandre Oliva  <aoliva@redhat.com>
+
+	PR libgcj/44341
+	* configure.ac: Discard --with-* flags for host when configuring
+	target libraries for cross build.
+	* configure: Rebuilt.
+
+2011-01-25  Sebastian Pop  <sebastian.pop@amd.com>
+
+	* MAINTAINERS (linear loop transforms): Removed.
+
+2011-01-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* config/cloog.m4 (CLOOG_REQUESTED): Use $2 if --without-cloog.
+	* configure.ac: If with_ppl is no, move setting with_cloog=no
+	after CLOOG_REQUESTED check.
+	* configure: Regenerated.
+
+2011-01-25  Sebastian Pop  <sebastian.pop@amd.com>
+
+	* configure.ac: Call AC_MSG_ERROR when PPL 0.11 is not present and
+	CLooG has been requested.
+	* configure: Regenerated.
+
+2011-01-25  Sebastian Pop  <sebastian.pop@amd.com>
+
+	* configure: Regenerated.
+	* configure.ac: Check for version 0.11 (or later revision) of PPL.
+
+2011-01-25  Tobias Grosser  <grosser@fim.uni-passau.de>
+
+	* configure: Regenerated.
+	* configure.ac: Use CLOOG_CHECK_VERSION(0,16,1).
+
+2011-01-21  Andreas Schwab  <schwab@redhat.com>
+
+	* configure.ac: Use AS_HELP_STRING throughout.
+	* configure: Regenerate.
+
+2011-01-18  Jie Zhang  <jie.zhang@analog.com>
+
+	* configure.ac (bfin-*-*): Remove gdb from noconfigdirs.
+	* configure: Regenerate.
+
+2011-01-13  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
+
+	* ltmain.sh (relink): Use absolute path when hardcoding with -L.
+
+2011-01-13  Joel Brobecker  <brobecker@adacore.com>
+
+	* configure.ac: Remove readline, mmalloc, and gdb from noconfigdirs
+	for ia64-hpux.
+	* configure: Regenerate.
+
+2011-01-10  Jan Hubicka  <jh@suse.cz>
+
+	* config/bootstrap-lto.mk: -fuse-linker-plugin is default now;
+	pass -fno-lto to STAGEprofile.
+
+2011-01-07  Jan Hubicka  <jh@suse.cz>
+
+	PR lto/47225
+	* Makefile.in: Regenerate.
+	* Makefile.def (lto-plugin): Always pass enable-shared to the plugin
+	configure.
+
+2011-01-07  Jan Hubicka  <jh@suse.cz>
+
+	* Makefile.in: Regenerate.
+	* Makefile.def (gcc host module) and soft dependency on lto-plugin
+	and configure dependency on lto-plugin configure.
+	(lto-plugin module): Remove dependency on GCC; add dependency on
+	liniberty.
+
+2011-01-07  William Schmidt  <wschmidt@linux.vnet.ibm.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2010-12-23  Hariharan Sandanagobalane <hariharan@picochip.com>
+
+	* configure: Regenerate.
+
+2010-12-22  Hariharan Sandanagobalane <hariharan@picochip.com>
+
+	* configure.ac: (picochip): Disable libiberty.
+
 2010-12-14  Kaushik Phatak  <kaushik.phatak@kpitcummins.com>
 
 	* MAINTAINERS (Write After Approval): Add myself.

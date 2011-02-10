@@ -1,5 +1,6 @@
 /* Instruction scheduling pass.  Selective scheduler and pipeliner.
-   Copyright (C) 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -2141,6 +2142,15 @@ moveup_expr (expr_t expr, insn_t through_insn, bool inside_insn_group,
   ds_t *has_dep_p;
   ds_t full_ds;
 
+  /* ??? We use dependencies of non-debug insns on debug insns to
+     indicate that the debug insns need to be reset if the non-debug
+     insn is pulled ahead of it.  It's hard to figure out how to
+     introduce such a notion in sel-sched, but it already fails to
+     support debug insns in other ways, so we just go ahead and
+     let the deug insns go corrupt for now.  */
+  if (DEBUG_INSN_P (through_insn) && !DEBUG_INSN_P (insn))
+    return MOVEUP_EXPR_SAME;
+
   /* When inside_insn_group, delegate to the helper.  */
   if (inside_insn_group)
     return moveup_expr_inside_insn_group (expr, through_insn);
@@ -2171,10 +2181,8 @@ moveup_expr (expr_t expr, insn_t through_insn, bool inside_insn_group,
               || ! in_current_region_p (fallthru_bb))
             return MOVEUP_EXPR_NULL;
 
-          /* And it should be mutually exclusive with through_insn, or
-             be an unconditional jump.  */
-          if (! any_uncondjump_p (insn)
-              && ! sched_insns_conditions_mutex_p (insn, through_insn)
+          /* And it should be mutually exclusive with through_insn.  */
+          if (! sched_insns_conditions_mutex_p (insn, through_insn)
 	      && ! DEBUG_INSN_P (through_insn))
             return MOVEUP_EXPR_NULL;
         }
@@ -6990,7 +6998,7 @@ reset_sched_cycles_in_current_ebb (void)
     {
       int cost, haifa_cost;
       int sort_p;
-      bool asm_p, real_insn, after_stall;
+      bool asm_p, real_insn, after_stall, all_issued;
       int clock;
 
       if (!INSN_P (insn))
@@ -7026,8 +7034,8 @@ reset_sched_cycles_in_current_ebb (void)
           haifa_cost = cost;
           after_stall = 1;
         }
-      if (haifa_cost == 0
-	  && issued_insns == issue_rate)
+      all_issued = issued_insns == issue_rate;
+      if (haifa_cost == 0 && all_issued)
 	haifa_cost = 1;
       if (haifa_cost > 0)
 	{
@@ -7053,7 +7061,18 @@ reset_sched_cycles_in_current_ebb (void)
                   && haifa_cost > 0
                   && estimate_insn_cost (insn, curr_state) == 0)
                 break;
-	    }
+
+              /* When the data dependency stall is longer than the DFA stall,
+                 and when we have issued exactly issue_rate insns and stalled,
+                 it could be that after this longer stall the insn will again
+                 become unavailable  to the DFA restrictions.  Looks strange
+                 but happens e.g. on x86-64.  So recheck DFA on the last
+                 iteration.  */
+              if ((after_stall || all_issued)
+                  && real_insn
+                  && haifa_cost == 0)
+                haifa_cost = estimate_insn_cost (insn, curr_state);
+            }
 
 	  haifa_clock += i;
           if (sched_verbose >= 2)
@@ -7504,21 +7523,23 @@ sel_sched_region_1 (void)
             {
               basic_block bb = EBB_FIRST_BB (i);
 
-              if (sel_bb_empty_p (bb))
-                {
-                  bitmap_clear_bit (blocks_to_reschedule, bb->index);
-                  continue;
-                }
-
               if (bitmap_bit_p (blocks_to_reschedule, bb->index))
                 {
+                  if (! bb_ends_ebb_p (bb))
+                    bitmap_set_bit (blocks_to_reschedule, bb_next_bb (bb)->index);
+                  if (sel_bb_empty_p (bb))
+                    {
+                      bitmap_clear_bit (blocks_to_reschedule, bb->index);
+                      continue;
+                    }
                   clear_outdated_rtx_info (bb);
                   if (sel_insn_is_speculation_check (BB_END (bb))
                       && JUMP_P (BB_END (bb)))
                     bitmap_set_bit (blocks_to_reschedule,
                                     BRANCH_EDGE (bb)->dest->index);
                 }
-              else if (INSN_SCHED_TIMES (sel_bb_head (bb)) <= 0)
+              else if (! sel_bb_empty_p (bb)
+                       && INSN_SCHED_TIMES (sel_bb_head (bb)) <= 0)
                 bitmap_set_bit (blocks_to_reschedule, bb->index);
             }
 

@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2010, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2011, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -50,14 +50,19 @@
 #include "ada-tree.h"
 #include "gigi.h"
 
-/* Convention_Stdcall should be processed in a specific way on Windows targets
-   only.  The macro below is a helper to avoid having to check for a Windows
-   specific attribute throughout this unit.  */
+/* Convention_Stdcall should be processed in a specific way on 32 bits
+   Windows targets only.  The macro below is a helper to avoid having to
+   check for a Windows specific attribute throughout this unit.  */
 
 #if TARGET_DLLIMPORT_DECL_ATTRIBUTES
-#define Has_Stdcall_Convention(E) (Convention (E) == Convention_Stdcall)
+#ifdef TARGET_64BIT
+#define Has_Stdcall_Convention(E) \
+  (!TARGET_64BIT && Convention (E) == Convention_Stdcall)
 #else
-#define Has_Stdcall_Convention(E) (0)
+#define Has_Stdcall_Convention(E) (Convention (E) == Convention_Stdcall)
+#endif
+#else
+#define Has_Stdcall_Convention(E) 0
 #endif
 
 /* Stack realignment is necessary for functions with foreign conventions when
@@ -180,7 +185,7 @@ static void rest_of_type_decl_compilation_no_defer (tree);
 static void finish_fat_pointer_type (tree, tree);
 
 /* The relevant constituents of a subprogram binding to a GCC builtin.  Used
-   to pass around calls performing profile compatibilty checks.  */
+   to pass around calls performing profile compatibility checks.  */
 
 typedef struct {
   Entity_Id gnat_entity;  /* The Ada subprogram entity.  */
@@ -3962,7 +3967,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	  {
 	    gnu_builtin_decl = builtin_decl_for (gnu_ext_name);
 
-	    /* Unability to find the builtin decl most often indicates a
+	    /* Inability to find the builtin decl most often indicates a
 	       genuine mistake, but imports of unregistered intrinsics are
 	       sometimes issued on purpose to allow hooking in alternate
 	       bodies.  We post a warning conditioned on Wshadow in this case,
@@ -8297,7 +8302,7 @@ intrin_return_compatible_p (intrin_binding_t * inb)
    compatible.  Issue relevant warnings when they are not.
 
    This is intended as a light check to diagnose the most obvious cases, not
-   as a full fledged type compatiblity predicate.  It is the programmer's
+   as a full fledged type compatibility predicate.  It is the programmer's
    responsibility to ensure correctness of the Ada declarations in Imports,
    especially when binding straight to a compiler internal.  */
 
@@ -8638,10 +8643,7 @@ substitute_in_type (tree t, tree f, tree r)
 
       return build_complex_type (nt);
 
-    case OFFSET_TYPE:
-    case METHOD_TYPE:
     case FUNCTION_TYPE:
-    case LANG_TYPE:
       /* These should never show up here.  */
       gcc_unreachable ();
 

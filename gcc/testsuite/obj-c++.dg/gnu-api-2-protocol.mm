@@ -3,7 +3,8 @@
   This is test 'protocol', covering all functions starting with 'protocol'.  */
 
 /* { dg-do run } */
-/* { dg-skip-if "" { *-*-* } { "-fnext-runtime" } { "" } } */
+/* { dg-skip-if "No API#2 pre-Darwin9" { *-*-darwin[5-8]* } { "-fnext-runtime" } { "" } } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
 /* To get the modern GNU Objective-C Runtime API, you include
    objc/runtime.h.  */
@@ -16,11 +17,13 @@
 { Class isa; }
 + alloc;
 - init;
++ initialize;
 @end
 
 @implementation MyRootClass
 + alloc { return class_createInstance (self, 0); }
 - init  { return self; }
++ initialize { return self; }
 @end
 
 @protocol MyProtocol
@@ -88,7 +91,7 @@ int main ()
   std::cout << "Testing protocol_copyPropertyList ()...\n";
   {
     unsigned int count;
-    Property *list;
+    objc_property_t *list;
 
     list = protocol_copyPropertyList (@protocol (MyProtocol), &count);
 
@@ -136,7 +139,7 @@ int main ()
   /* TODO: Test new ABI (when available).  */
   std::cout << "Testing protocol_getProperty ()...\n";
   {
-    Property property;
+    objc_property_t property;
 
     property = protocol_getProperty (objc_getProtocol ("MyProtocol"), "someProperty",
 				     YES, YES);

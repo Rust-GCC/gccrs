@@ -1,6 +1,6 @@
 /* Subroutines used for code generation on IA-32.
    Copyright (C) 1988, 1992, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -56,26 +56,29 @@ along with GCC; see the file COPYING3.  If not see
 #include "debug.h"
 #include "dwarf2out.h"
 #include "sched-int.h"
+#include "sbitmap.h"
+#include "fibheap.h"
 
 enum upper_128bits_state
 {
-  unknown = 0,		/* Unknown.  */
-  unused,		/* Not used or not referenced.  */
-  used			/* Used or referenced.  */
+  unknown = 0,
+  unused,
+  used
 };
 
 typedef struct block_info_def
 {
-  /* State of the upper 128bits of any AVX registers at exit.  */
+  /* State of the upper 128bits of AVX registers at exit.  */
   enum upper_128bits_state state;
-  /* If the upper 128bits of any AVX registers are referenced.  */
-  enum upper_128bits_state referenced;
-  /* Number of vzerouppers in this block.  */
-  unsigned int count;
+  /* TRUE if state of the upper 128bits of AVX registers is unchanged
+     in this block.  */
+  bool unchanged;
   /* TRUE if block has been processed.  */
   bool processed;
-  /* TRUE if block has been rescanned.  */
-  bool rescanned;
+  /* TRUE if block has been scanned.  */
+  bool scanned;
+  /* Previous state of the upper 128bits of AVX registers at entry.  */
+  enum upper_128bits_state prev;
 } *block_info;
 
 #define BLOCK_INFO(B)   ((block_info) (B)->aux)
@@ -116,8 +119,7 @@ check_avx256_stores (rtx dest, const_rtx set, void *data)
    in basic block BB.  Delete it if upper 128bit AVX registers are
    unused.  If it isn't deleted, move it to just before a jump insn.
    
-   UPPER_128BITS_LIVE is TRUE if the upper 128bits of any AVX registers
-   are live at entry.  */
+   STATE is state of the upper 128bits of AVX registers at entry.  */
 
 static void
 move_or_delete_vzeroupper_2 (basic_block bb,
@@ -127,12 +129,33 @@ move_or_delete_vzeroupper_2 (basic_block bb,
   rtx vzeroupper_insn = NULL_RTX;
   rtx pat;
   int avx256;
-  enum upper_128bits_state referenced = BLOCK_INFO (bb)->referenced;
-  int count = BLOCK_INFO (bb)->count;
+  bool unchanged;
+
+  if (BLOCK_INFO (bb)->unchanged)
+    {
+      if (dump_file)
+	fprintf (dump_file, " [bb %i] unchanged: upper 128bits: %d\n",
+		 bb->index, state);
+
+      BLOCK_INFO (bb)->state = state;
+      return;
+    }
+
+  if (BLOCK_INFO (bb)->scanned && BLOCK_INFO (bb)->prev == state)
+    {
+      if (dump_file)
+	fprintf (dump_file, " [bb %i] scanned: upper 128bits: %d\n",
+		 bb->index, BLOCK_INFO (bb)->state);
+      return;
+    }
+
+  BLOCK_INFO (bb)->prev = state;
 
   if (dump_file)
     fprintf (dump_file, " [bb %i] entry: upper 128bits: %d\n",
 	     bb->index, state);
+
+  unchanged = true;
 
   /* BB_END changes when it is deleted.  */
   bb_end = BB_END (bb);
@@ -187,28 +210,25 @@ move_or_delete_vzeroupper_2 (basic_block bb,
 	      && XINT (XVECEXP (pat, 0, 0), 1) == UNSPECV_VZEROALL)
 	    {
 	      state = unused;
+	      unchanged = false;
 
 	      /* Delete pending vzeroupper insertion.  */
 	      if (vzeroupper_insn)
 		{
-		  count--;
 		  delete_insn (vzeroupper_insn);
 		  vzeroupper_insn = NULL_RTX;
 		}
 	    }
-	  else if (state != used && referenced != unused)
+	  else if (state != used)
 	    {
-	      /* No need to call note_stores if the upper 128bits of
-		 AVX registers are never referenced.  */
 	      note_stores (pat, check_avx256_stores, &state);
 	      if (state == used)
-		referenced = used;
+		unchanged = false;
 	    }
 	  continue;
 	}
 
       /* Process vzeroupper intrinsic.  */
-      count++;
       avx256 = INTVAL (XVECEXP (pat, 0, 0));
 
       if (state == unused)
@@ -217,7 +237,10 @@ move_or_delete_vzeroupper_2 (basic_block bb,
 	     256bit AVX register.  We only need to check if callee
 	     returns 256bit AVX register.  */
 	  if (avx256 == callee_return_avx256)
-	    state = used;
+	    {
+	      state = used;
+	      unchanged = false;
+	    }
 
 	  /* Remove unnecessary vzeroupper since upper 128bits are
 	     cleared.  */
@@ -226,7 +249,6 @@ move_or_delete_vzeroupper_2 (basic_block bb,
 	      fprintf (dump_file, "Delete redundant vzeroupper:\n");
 	      print_rtl_single (dump_file, insn);
 	    }
-	  count--;
 	  delete_insn (insn);
 	}
       else
@@ -246,125 +268,88 @@ move_or_delete_vzeroupper_2 (basic_block bb,
 		  fprintf (dump_file, "Delete callee pass vzeroupper:\n");
 		  print_rtl_single (dump_file, insn);
 		}
-	      count--;
 	      delete_insn (insn);
 	    }
 	  else
-	    vzeroupper_insn = insn;
+	    {
+	      vzeroupper_insn = insn;
+	      unchanged = false;
+	    }
 	}
     }
 
   BLOCK_INFO (bb)->state = state;
-
-  if (BLOCK_INFO (bb)->referenced == unknown)
-    {
-      /* The upper 128bits of AVX registers are never referenced if
-	 REFERENCED isn't updated.  */
-      if (referenced == unknown)
-	referenced = unused;
-      BLOCK_INFO (bb)->referenced = referenced;
-      BLOCK_INFO (bb)->count = count;
-    }
+  BLOCK_INFO (bb)->unchanged = unchanged;
+  BLOCK_INFO (bb)->scanned = true;
 
   if (dump_file)
-    fprintf (dump_file, " [bb %i] exit: upper 128bits: %d\n",
-	     bb->index, state);
+    fprintf (dump_file, " [bb %i] exit: %s: upper 128bits: %d\n",
+	     bb->index, unchanged ? "unchanged" : "changed",
+	     state);
 }
 
 /* Helper function for move_or_delete_vzeroupper.  Process vzeroupper
-   in BLOCK and its predecessor blocks recursively.  */
+   in BLOCK and check its predecessor blocks.  Treat UNKNOWN state
+   as USED if UNKNOWN_IS_UNUSED is true.  Return TRUE if the exit
+   state is changed.  */
 
-static void
-move_or_delete_vzeroupper_1 (basic_block block)
+static bool
+move_or_delete_vzeroupper_1 (basic_block block, bool unknown_is_unused)
 {
   edge e;
   edge_iterator ei;
-  enum upper_128bits_state state;
+  enum upper_128bits_state state, old_state, new_state;
+  bool seen_unknown;
 
   if (dump_file)
     fprintf (dump_file, " Process [bb %i]: status: %d\n",
 	     block->index, BLOCK_INFO (block)->processed);
 
   if (BLOCK_INFO (block)->processed)
-    return;
-
-  BLOCK_INFO (block)->processed = true;
-
-  state = unknown;
-
-  /* Process all predecessor edges of this block.  */
-  FOR_EACH_EDGE (e, ei, block->preds)
-    {
-      if (e->src == block)
-	continue;
-      move_or_delete_vzeroupper_1 (e->src);
-      switch (BLOCK_INFO (e->src)->state)
-	{
-	case unknown:
-	  if (state == unused)
-	    state = unknown;
-	  break;
-	case used:
-	  state = used;
-	  break;
-	case unused:
-	  break;
-	}
-    }
-
-  /* If state of any predecessor edges is unknown, we need to rescan.  */
-  if (state == unknown)
-    cfun->machine->rescan_vzeroupper_p = 1;
-
-  /* Process this block.  */
-  move_or_delete_vzeroupper_2 (block, state);
-}
-
-/* Helper function for move_or_delete_vzeroupper.  Rescan vzeroupper
-   in BLOCK and its predecessor blocks recursively.  */
-
-static void
-rescan_move_or_delete_vzeroupper (basic_block block)
-{
-  edge e;
-  edge_iterator ei;
-  enum upper_128bits_state state;
-
-  if (dump_file)
-    fprintf (dump_file, " Rescan [bb %i]: status: %d\n",
-	     block->index, BLOCK_INFO (block)->rescanned);
-
-  if (BLOCK_INFO (block)->rescanned)
-    return;
-
-  BLOCK_INFO (block)->rescanned = true;
+    return false;
 
   state = unused;
 
-  /* Rescan all predecessor edges of this block.  */
+  /* Check all predecessor edges of this block.  */
+  seen_unknown = false;
   FOR_EACH_EDGE (e, ei, block->preds)
     {
       if (e->src == block)
 	continue;
-      rescan_move_or_delete_vzeroupper (e->src);
-      /* For rescan, UKKNOWN state is treated as UNUSED.  */
-      if (BLOCK_INFO (e->src)->state == used)
-	state = used;
+      switch (BLOCK_INFO (e->src)->state)
+	{
+	case unknown:
+	  if (!unknown_is_unused)
+	    seen_unknown = true;
+	case unused:
+	  break;
+	case used:
+	  state = used;
+	  goto done;
+	}
     }
 
-  /* Rescan this block only if there are vzerouppers or the upper
-     128bits of AVX registers are referenced.  */
-  if (BLOCK_INFO (block)->count == 0
-      && (state == used || BLOCK_INFO (block)->referenced != used))
+  if (seen_unknown)
+    state = unknown;
+
+done:
+  old_state = BLOCK_INFO (block)->state;
+  move_or_delete_vzeroupper_2 (block, state);
+  new_state = BLOCK_INFO (block)->state;
+
+  if (state != unknown || new_state == used)
+    BLOCK_INFO (block)->processed = true;
+
+  /* Need to rescan if the upper 128bits of AVX registers are changed
+     to USED at exit.  */
+  if (new_state != old_state)
     {
-      if (state == used)
-	BLOCK_INFO (block)->state = state;
-      if (dump_file)
-	fprintf (dump_file, " [bb %i] exit: upper 128bits: %d\n",
-		 block->index, BLOCK_INFO (block)->state);
+      if (new_state == used)
+	cfun->machine->rescan_vzeroupper_p = 1;
+      return true;
     }
   else
-    move_or_delete_vzeroupper_2 (block, state);
+    return false;
 }
 
 /* Go through the instruction stream looking for vzeroupper.  Delete
@@ -377,14 +362,18 @@ move_or_delete_vzeroupper (void)
   edge e;
   edge_iterator ei;
   basic_block bb;
-  unsigned int count = 0;
+  fibheap_t worklist, pending, fibheap_swap;
+  sbitmap visited, in_worklist, in_pending, sbitmap_swap;
+  int *bb_order;
+  int *rc_order;
+  int i;
 
   /* Set up block info for each basic block.  */
   alloc_aux_for_blocks (sizeof (struct block_info_def));
 
-  /* Process successor blocks of all entry points.  */
+  /* Process outgoing edges of entry point.  */
   if (dump_file)
-    fprintf (dump_file, "Process all entry points\n");
+    fprintf (dump_file, "Process outgoing edges of entry point\n");
 
   FOR_EACH_EDGE (e, ei, ENTRY_BLOCK_PTR->succs)
     {
@@ -392,28 +381,107 @@ move_or_delete_vzeroupper (void)
 				   cfun->machine->caller_pass_avx256_p
 				   ? used : unused);
       BLOCK_INFO (e->dest)->processed = true;
-      BLOCK_INFO (e->dest)->rescanned = true;
     }
 
-  /* Process all basic blocks.  */
+  /* Compute reverse completion order of depth first search of the CFG
+     so that the data-flow runs faster.  */
+  rc_order = XNEWVEC (int, n_basic_blocks - NUM_FIXED_BLOCKS);
+  bb_order = XNEWVEC (int, last_basic_block);
+  pre_and_rev_post_order_compute (NULL, rc_order, false);
+  for (i = 0; i < n_basic_blocks - NUM_FIXED_BLOCKS; i++)
+    bb_order[rc_order[i]] = i;
+  free (rc_order);
+
+  worklist = fibheap_new ();
+  pending = fibheap_new ();
+  visited = sbitmap_alloc (last_basic_block);
+  in_worklist = sbitmap_alloc (last_basic_block);
+  in_pending = sbitmap_alloc (last_basic_block);
+  sbitmap_zero (in_worklist);
+
+  /* Don't check outgoing edges of entry point.  */
+  sbitmap_ones (in_pending);
+  FOR_EACH_BB (bb)
+    if (BLOCK_INFO (bb)->processed)
+      RESET_BIT (in_pending, bb->index);
+    else
+      {
+	move_or_delete_vzeroupper_1 (bb, false);
+	fibheap_insert (pending, bb_order[bb->index], bb);
+      }
+
   if (dump_file)
-    fprintf (dump_file, "Process all basic blocks\n");
+    fprintf (dump_file, "Check remaining basic blocks\n");
+
+  while (!fibheap_empty (pending))
+    {
+      fibheap_swap = pending;
+      pending = worklist;
+      worklist = fibheap_swap;
+      sbitmap_swap = in_pending;
+      in_pending = in_worklist;
+      in_worklist = sbitmap_swap;
+
+      sbitmap_zero (visited);
+
+      cfun->machine->rescan_vzeroupper_p = 0;
+
+      while (!fibheap_empty (worklist))
+	{
+	  bb = (basic_block) fibheap_extract_min (worklist);
+	  RESET_BIT (in_worklist, bb->index);
+	  gcc_assert (!TEST_BIT (visited, bb->index));
+	  if (!TEST_BIT (visited, bb->index))
+	    {
+	      edge_iterator ei;
+
+	      SET_BIT (visited, bb->index);
+
+	      if (move_or_delete_vzeroupper_1 (bb, false))
+		FOR_EACH_EDGE (e, ei, bb->succs)
+		  {
+		    if (e->dest == EXIT_BLOCK_PTR
+			|| BLOCK_INFO (e->dest)->processed)
+		      continue;
+
+		    if (TEST_BIT (visited, e->dest->index))
+		      {
+			if (!TEST_BIT (in_pending, e->dest->index))
+			  {
+			    /* Send E->DEST to next round.  */
+			    SET_BIT (in_pending, e->dest->index);
+			    fibheap_insert (pending,
+					    bb_order[e->dest->index],
+					    e->dest);
+			  }
+		      }
+		    else if (!TEST_BIT (in_worklist, e->dest->index))
+		      {
+			/* Add E->DEST to current round.  */
+			SET_BIT (in_worklist, e->dest->index);
+			fibheap_insert (worklist, bb_order[e->dest->index],
+					e->dest);
+		      }
+		  }
+	    }
+	}
+
+      if (!cfun->machine->rescan_vzeroupper_p)
+	break;
+    }
+
+  free (bb_order);
+  fibheap_delete (worklist);
+  fibheap_delete (pending);
+  sbitmap_free (visited);
+  sbitmap_free (in_worklist);
+  sbitmap_free (in_pending);
+
+  if (dump_file)
+    fprintf (dump_file, "Process remaining basic blocks\n");
 
   FOR_EACH_BB (bb)
-    {
-      move_or_delete_vzeroupper_1 (bb);
-      count += BLOCK_INFO (bb)->count;
-    }
-
-  /* Rescan all basic blocks if needed.  */
-  if (count && cfun->machine->rescan_vzeroupper_p)
-    {
-      if (dump_file)
-	fprintf (dump_file, "Rescan all basic blocks\n");
-
-      FOR_EACH_BB (bb)
-	rescan_move_or_delete_vzeroupper (bb);
-    }
+    move_or_delete_vzeroupper_1 (bb, true);
 
   free_aux_for_blocks ();
 }
@@ -1268,6 +1336,88 @@ struct processor_costs bdver1_cost = {
   1,					/* cond_not_taken_branch_cost.  */
 };
 
+struct processor_costs btver1_cost = {
+  COSTS_N_INSNS (1),			/* cost of an add instruction */
+  COSTS_N_INSNS (2),			/* cost of a lea instruction */
+  COSTS_N_INSNS (1),			/* variable shift costs */
+  COSTS_N_INSNS (1),			/* constant shift costs */
+  {COSTS_N_INSNS (3),			/* cost of starting multiply for QI */
+   COSTS_N_INSNS (4),			/*				 HI */
+   COSTS_N_INSNS (3),			/*				 SI */
+   COSTS_N_INSNS (4),			/*				 DI */
+   COSTS_N_INSNS (5)},			/*			      other */
+  0,					/* cost of multiply per each bit set */
+  {COSTS_N_INSNS (19),			/* cost of a divide/mod for QI */
+   COSTS_N_INSNS (35),			/*			    HI */
+   COSTS_N_INSNS (51),			/*			    SI */
+   COSTS_N_INSNS (83),			/*			    DI */
+   COSTS_N_INSNS (83)},			/*			    other */
+  COSTS_N_INSNS (1),			/* cost of movsx */
+  COSTS_N_INSNS (1),			/* cost of movzx */
+  8,					/* "large" insn */
+  9,					/* MOVE_RATIO */
+  4,				     /* cost for loading QImode using movzbl */
+  {3, 4, 3},				/* cost of loading integer registers
+					   in QImode, HImode and SImode.
+					   Relative to reg-reg move (2).  */
+  {3, 4, 3},				/* cost of storing integer registers */
+  4,					/* cost of reg,reg fld/fst */
+  {4, 4, 12},				/* cost of loading fp registers
+					   in SFmode, DFmode and XFmode */
+  {6, 6, 8},				/* cost of storing fp registers
+					   in SFmode, DFmode and XFmode */
+  2,					/* cost of moving MMX register */
+  {3, 3},				/* cost of loading MMX registers
+					   in SImode and DImode */
+  {4, 4},				/* cost of storing MMX registers
+					   in SImode and DImode */
+  2,					/* cost of moving SSE register */
+  {4, 4, 3},				/* cost of loading SSE registers
+					   in SImode, DImode and TImode */
+  {4, 4, 5},				/* cost of storing SSE registers
+					   in SImode, DImode and TImode */
+  3,					/* MMX or SSE register to integer */
+					/* On K8:
+					   MOVD reg64, xmmreg Double FSTORE 4
+					   MOVD reg32, xmmreg Double FSTORE 4
+					   On AMDFAM10:
+					   MOVD reg64, xmmreg Double FADD 3
+							       1/1  1/1
+					    MOVD reg32, xmmreg Double FADD 3
+							       1/1  1/1 */
+  32,					/* size of l1 cache.  */
+  512,					/* size of l2 cache.  */
+  64,					/* size of prefetch block */
+  100,					/* number of parallel prefetches */
+  2,					/* Branch cost */
+  COSTS_N_INSNS (4),			/* cost of FADD and FSUB insns.  */
+  COSTS_N_INSNS (4),			/* cost of FMUL instruction.  */
+  COSTS_N_INSNS (19),			/* cost of FDIV instruction.  */
+  COSTS_N_INSNS (2),			/* cost of FABS instruction.  */
+  COSTS_N_INSNS (2),			/* cost of FCHS instruction.  */
+  COSTS_N_INSNS (35),			/* cost of FSQRT instruction.  */
+
+  /* BTVER1 has optimized REP instruction for medium sized blocks, but for
+     very small blocks it is better to use loop. For large blocks, libcall can
+     do nontemporary accesses and beat inline considerably.  */
+  {{libcall, {{6, loop}, {14, unrolled_loop}, {-1, rep_prefix_4_byte}}},
+   {libcall, {{16, loop}, {8192, rep_prefix_8_byte}, {-1, libcall}}}},
+  {{libcall, {{8, loop}, {24, unrolled_loop},
+	      {2048, rep_prefix_4_byte}, {-1, libcall}}},
+   {libcall, {{48, unrolled_loop}, {8192, rep_prefix_8_byte}, {-1, libcall}}}},
+  4,					/* scalar_stmt_cost.  */
+  2,					/* scalar load_cost.  */
+  2,					/* scalar_store_cost.  */
+  6,					/* vec_stmt_cost.  */
+  0,					/* vec_to_scalar_cost.  */
+  2,					/* scalar_to_vec_cost.  */
+  2,					/* vec_align_load_cost.  */
+  2,					/* vec_unalign_load_cost.  */
+  2,					/* vec_store_cost.  */
+  2,					/* cond_taken_branch_cost.  */
+  1,					/* cond_not_taken_branch_cost.  */
+};
+
 static const
 struct processor_costs pentium4_cost = {
   COSTS_N_INSNS (1),			/* cost of an add instruction */
@@ -1661,7 +1811,8 @@ const struct processor_costs *ix86_cost = &pentium_cost;
 #define m_ATHLON_K8  (m_K8 | m_ATHLON)
 #define m_AMDFAM10  (1<<PROCESSOR_AMDFAM10)
 #define m_BDVER1  (1<<PROCESSOR_BDVER1)
-#define m_AMD_MULTIPLE  (m_K8 | m_ATHLON | m_AMDFAM10 | m_BDVER1)
+#define m_BTVER1  (1<<PROCESSOR_BTVER1)
+#define m_AMD_MULTIPLE  (m_K8 | m_ATHLON | m_AMDFAM10 | m_BDVER1 | m_BTVER1)
 
 #define m_GENERIC32 (1<<PROCESSOR_GENERIC32)
 #define m_GENERIC64 (1<<PROCESSOR_GENERIC64)
@@ -1707,8 +1858,8 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
   ~m_386,
 
   /* X86_TUNE_USE_SAHF */
-  m_ATOM | m_PPRO | m_K6_GEODE | m_K8 | m_AMDFAM10 | m_BDVER1 | m_PENT4
-  | m_NOCONA | m_CORE2I7 | m_GENERIC,
+  m_ATOM | m_PPRO | m_K6_GEODE | m_K8 | m_AMDFAM10 | m_BDVER1 | m_BTVER1
+  | m_PENT4 | m_NOCONA | m_CORE2I7 | m_GENERIC,
 
   /* X86_TUNE_MOVX: Enable to zero extend integer registers to avoid
      partial dependencies.  */
@@ -1814,7 +1965,7 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
   | m_AMDFAM10 | m_BDVER1,
 
   /* X86_TUNE_SSE_UNALIGNED_LOAD_OPTIMAL */
-  m_AMDFAM10 | m_BDVER1 | m_COREI7,
+  m_AMDFAM10 | m_BDVER1 | m_BTVER1 | m_COREI7,
 
   /* X86_TUNE_SSE_UNALIGNED_STORE_OPTIMAL */
   m_BDVER1 | m_COREI7,
@@ -1892,11 +2043,11 @@ static unsigned int initial_ix86_tune_features[X86_TUNE_LAST] = {
 
   /* X86_TUNE_SLOW_IMUL_IMM32_MEM: Imul of 32-bit constant and memory is
      vector path on AMD machines.  */
-  m_K8 | m_CORE2I7_64 | m_GENERIC64 | m_AMDFAM10 | m_BDVER1,
+  m_K8 | m_CORE2I7_64 | m_GENERIC64 | m_AMDFAM10 | m_BDVER1 | m_BTVER1,
 
   /* X86_TUNE_SLOW_IMUL_IMM8: Imul of 8-bit constant is vector path on AMD
      machines.  */
-  m_K8 | m_CORE2I7_64 | m_GENERIC64 | m_AMDFAM10 | m_BDVER1,
+  m_K8 | m_CORE2I7_64 | m_GENERIC64 | m_AMDFAM10 | m_BDVER1 | m_BTVER1,
 
   /* X86_TUNE_MOVE_M1_VIA_OR: On pentiums, it is faster to load -1 via OR
      than a MOV.  */
@@ -2488,6 +2639,7 @@ static const struct ptt processor_target_table[PROCESSOR_max] =
   {&generic64_cost, 16, 10, 16, 10, 16},
   {&amdfam10_cost, 32, 24, 32, 7, 32},
   {&bdver1_cost, 32, 24, 32, 7, 32},
+  {&btver1_cost, 32, 24, 32, 7, 32},
   {&atom_cost, 16, 7, 16, 7, 16}
 };
 
@@ -2516,7 +2668,8 @@ static const char *const cpu_names[TARGET_CPU_DEFAULT_max] =
   "athlon-4",
   "k8",
   "amdfam10",
-  "bdver1"
+  "bdver1",
+  "btver1"
 };
 
 /* Return true if a red-zone is in use.  */
@@ -3112,6 +3265,7 @@ software_prefetching_beneficial_p (void)
     case PROCESSOR_ATHLON:
     case PROCESSOR_K8:
     case PROCESSOR_AMDFAM10:
+    case PROCESSOR_BTVER1:
       return true;
 
     default:
@@ -3293,10 +3447,13 @@ ix86_option_override_internal (bool main_args_p)
 	PTA_64BIT | PTA_MMX | PTA_3DNOW | PTA_3DNOW_A | PTA_SSE
 	| PTA_SSE2 | PTA_SSE3 | PTA_SSE4A | PTA_CX16 | PTA_ABM},
       {"bdver1", PROCESSOR_BDVER1, CPU_BDVER1,
-	PTA_64BIT | PTA_MMX | PTA_3DNOW | PTA_3DNOW_A | PTA_SSE
-	| PTA_SSE2 | PTA_SSE3 | PTA_SSE4A | PTA_CX16 | PTA_ABM
-	| PTA_SSSE3 | PTA_SSE4_1 | PTA_SSE4_2 | PTA_AES
-	| PTA_PCLMUL | PTA_AVX | PTA_FMA4 | PTA_XOP | PTA_LWP},
+	PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
+	| PTA_SSE4A | PTA_CX16 | PTA_ABM | PTA_SSSE3 | PTA_SSE4_1
+	| PTA_SSE4_2 | PTA_AES | PTA_PCLMUL | PTA_AVX | PTA_FMA4
+	| PTA_XOP | PTA_LWP},
+      {"btver1", PROCESSOR_BTVER1, CPU_GENERIC64,
+        PTA_64BIT | PTA_MMX |  PTA_SSE  | PTA_SSE2 | PTA_SSE3
+        | PTA_SSSE3 | PTA_SSE4A |PTA_ABM | PTA_CX16},
       {"generic32", PROCESSOR_GENERIC32, CPU_PENTIUMPRO,
 	0 /* flags are only used for -march switch.  */ },
       {"generic64", PROCESSOR_GENERIC64, CPU_GENERIC64,
@@ -5336,7 +5493,7 @@ ix86_function_regparm (const_tree type, const_tree decl)
     {
       /* FIXME: remove this CONST_CAST when cgraph.[ch] is constified.  */
       struct cgraph_local_info *i = cgraph_local_info (CONST_CAST_TREE (decl));
-      if (i && i->local)
+      if (i && i->local && i->can_change_signature)
 	{
 	  int local_regparm, globals = 0, regno;
 
@@ -5413,7 +5570,7 @@ ix86_function_sseregparm (const_tree type, const_tree decl, bool warn)
     {
       /* FIXME: remove this CONST_CAST when cgraph.[ch] is constified.  */
       struct cgraph_local_info *i = cgraph_local_info (CONST_CAST_TREE(decl));
-      if (i && i->local)
+      if (i && i->local && i->can_change_signature)
 	return TARGET_SSE2 ? 2 : 1;
     }
 
@@ -5434,6 +5591,19 @@ ix86_eax_live_at_start_p (void)
      functions that might use uninitialized data that happens to be
      allocated in eax, but who cares?  */
   return REGNO_REG_SET_P (df_get_live_out (ENTRY_BLOCK_PTR), 0);
+}
+
+static bool
+ix86_keep_aggregate_return_pointer (tree fntype)
+{
+  tree attr;
+
+  attr = lookup_attribute ("callee_pop_aggregate_return",
+			   TYPE_ATTRIBUTES (fntype));
+  if (attr)
+    return (TREE_INT_CST_LOW (TREE_VALUE (TREE_VALUE (attr))) == 0);
+
+  return KEEP_AGGREGATE_RETURN_POINTER != 0;
 }
 
 /* Value is the number of bytes of arguments automatically
@@ -5480,7 +5650,7 @@ ix86_return_pops_args (tree fundecl, tree funtype, int size)
 
   /* Lose any fake structure return argument if it is passed on the stack.  */
   if (aggregate_value_p (TREE_TYPE (funtype), fundecl)
-      && !KEEP_AGGREGATE_RETURN_POINTER)
+      && !ix86_keep_aggregate_return_pointer (funtype))
     {
       int nregs = ix86_function_regparm (funtype, fundecl);
       if (nregs == 0)
@@ -5784,7 +5954,7 @@ init_cumulative_args (CUMULATIVE_ARGS *cum,  /* Argument info to initialize */
      va_start so for local functions maybe_vaarg can be made aggressive
      helping K&R code.
      FIXME: once typesytem is fixed, we won't need this code anymore.  */
-  if (i && i->local)
+  if (i && i->local && i->can_change_signature)
     fntype = TREE_TYPE (fndecl);
   cum->maybe_vaarg = (fntype
 		      ? (!prototype_p (fntype) || stdarg_p (fntype))
@@ -12529,6 +12699,17 @@ legitimize_tls_address (rtx x, enum tls_model model, int for_mov)
     case TLS_MODEL_INITIAL_EXEC:
       if (TARGET_64BIT)
 	{
+	  if (TARGET_SUN_TLS)
+	    {
+	      /* The Sun linker took the AMD64 TLS spec literally
+		 and can only handle %rax as destination of the
+		 initial executable code sequence.  */
+
+	      dest = gen_reg_rtx (Pmode);
+	      emit_insn (gen_tls_initial_exec_64_sun (dest, x));
+	      return dest;
+	    }
+
 	  pic = NULL;
 	  type = UNSPEC_GOTNTPOFF;
 	}
@@ -13178,7 +13359,11 @@ ix86_delegitimize_address (rtx x)
 	return ix86_delegitimize_tls_address (orig_x);
       x = XVECEXP (XEXP (x, 0), 0, 0);
       if (GET_MODE (orig_x) != Pmode)
-	return simplify_gen_subreg (GET_MODE (orig_x), x, Pmode, 0);
+	{
+	  x = simplify_gen_subreg (GET_MODE (orig_x), x, Pmode, 0);
+	  if (x == NULL_RTX)
+	    return orig_x;
+	}
       return x;
     }
 
@@ -13247,7 +13432,11 @@ ix86_delegitimize_address (rtx x)
 	return orig_x;
     }
   if (GET_MODE (orig_x) != Pmode && MEM_P (orig_x))
-    return simplify_gen_subreg (GET_MODE (orig_x), result, Pmode, 0);
+    {
+      result = simplify_gen_subreg (GET_MODE (orig_x), result, Pmode, 0);
+      if (result == NULL_RTX)
+	return orig_x;
+    }
   return result;
 }
 
@@ -22190,6 +22379,7 @@ ix86_issue_rate (void)
     case PROCESSOR_GENERIC32:
     case PROCESSOR_GENERIC64:
     case PROCESSOR_BDVER1:
+    case PROCESSOR_BTVER1:
       return 3;
 
     default:
@@ -22377,6 +22567,7 @@ ix86_adjust_cost (rtx insn, rtx link, rtx dep_insn, int cost)
     case PROCESSOR_K8:
     case PROCESSOR_AMDFAM10:
     case PROCESSOR_BDVER1:
+    case PROCESSOR_BTVER1:
     case PROCESSOR_ATOM:
     case PROCESSOR_GENERIC32:
     case PROCESSOR_GENERIC64:
@@ -22845,8 +23036,9 @@ ix86_local_alignment (tree exp, enum machine_mode mode,
       && TARGET_SSE)
     {
       if (AGGREGATE_TYPE_P (type)
-	   && (TYPE_MAIN_VARIANT (type)
-	       != TYPE_MAIN_VARIANT (va_list_type_node))
+	   && (va_list_type_node == NULL_TREE
+	       || (TYPE_MAIN_VARIANT (type)
+		   != TYPE_MAIN_VARIANT (va_list_type_node)))
 	   && TYPE_SIZE (type)
 	   && TREE_CODE (TYPE_SIZE (type)) == INTEGER_CST
 	   && (TREE_INT_CST_LOW (TYPE_SIZE (type)) >= 16
@@ -24129,9 +24321,9 @@ enum ix86_builtins
   IX86_BUILTIN_WRGSBASE64,
 
   /* RDRND instructions.  */
-  IX86_BUILTIN_RDRAND16,
-  IX86_BUILTIN_RDRAND32,
-  IX86_BUILTIN_RDRAND64,
+  IX86_BUILTIN_RDRAND16_STEP,
+  IX86_BUILTIN_RDRAND32_STEP,
+  IX86_BUILTIN_RDRAND64_STEP,
 
   /* F16C instructions.  */
   IX86_BUILTIN_CVTPH2PS,
@@ -24397,14 +24589,14 @@ static const struct builtin_description bdesc_special_args[] =
   { OPTION_MASK_ISA_AVX, CODE_FOR_avx_movntv4df, "__builtin_ia32_movntpd256", IX86_BUILTIN_MOVNTPD256, UNKNOWN, (int) VOID_FTYPE_PDOUBLE_V4DF },
   { OPTION_MASK_ISA_AVX, CODE_FOR_avx_movntv8sf, "__builtin_ia32_movntps256", IX86_BUILTIN_MOVNTPS256, UNKNOWN, (int) VOID_FTYPE_PFLOAT_V8SF },
 
-  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskloadpd, "__builtin_ia32_maskloadpd", IX86_BUILTIN_MASKLOADPD, UNKNOWN, (int) V2DF_FTYPE_PCV2DF_V2DF },
-  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskloadps, "__builtin_ia32_maskloadps", IX86_BUILTIN_MASKLOADPS, UNKNOWN, (int) V4SF_FTYPE_PCV4SF_V4SF },
-  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskloadpd256, "__builtin_ia32_maskloadpd256", IX86_BUILTIN_MASKLOADPD256, UNKNOWN, (int) V4DF_FTYPE_PCV4DF_V4DF },
-  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskloadps256, "__builtin_ia32_maskloadps256", IX86_BUILTIN_MASKLOADPS256, UNKNOWN, (int) V8SF_FTYPE_PCV8SF_V8SF },
-  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskstorepd, "__builtin_ia32_maskstorepd", IX86_BUILTIN_MASKSTOREPD, UNKNOWN, (int) VOID_FTYPE_PV2DF_V2DF_V2DF },
-  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskstoreps, "__builtin_ia32_maskstoreps", IX86_BUILTIN_MASKSTOREPS, UNKNOWN, (int) VOID_FTYPE_PV4SF_V4SF_V4SF },
-  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskstorepd256, "__builtin_ia32_maskstorepd256", IX86_BUILTIN_MASKSTOREPD256, UNKNOWN, (int) VOID_FTYPE_PV4DF_V4DF_V4DF },
-  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskstoreps256, "__builtin_ia32_maskstoreps256", IX86_BUILTIN_MASKSTOREPS256, UNKNOWN, (int) VOID_FTYPE_PV8SF_V8SF_V8SF },
+  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskloadpd, "__builtin_ia32_maskloadpd", IX86_BUILTIN_MASKLOADPD, UNKNOWN, (int) V2DF_FTYPE_PCV2DF_V2DI },
+  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskloadps, "__builtin_ia32_maskloadps", IX86_BUILTIN_MASKLOADPS, UNKNOWN, (int) V4SF_FTYPE_PCV4SF_V4SI },
+  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskloadpd256, "__builtin_ia32_maskloadpd256", IX86_BUILTIN_MASKLOADPD256, UNKNOWN, (int) V4DF_FTYPE_PCV4DF_V4DI },
+  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskloadps256, "__builtin_ia32_maskloadps256", IX86_BUILTIN_MASKLOADPS256, UNKNOWN, (int) V8SF_FTYPE_PCV8SF_V8SI },
+  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskstorepd, "__builtin_ia32_maskstorepd", IX86_BUILTIN_MASKSTOREPD, UNKNOWN, (int) VOID_FTYPE_PV2DF_V2DI_V2DF },
+  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskstoreps, "__builtin_ia32_maskstoreps", IX86_BUILTIN_MASKSTOREPS, UNKNOWN, (int) VOID_FTYPE_PV4SF_V4SI_V4SF },
+  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskstorepd256, "__builtin_ia32_maskstorepd256", IX86_BUILTIN_MASKSTOREPD256, UNKNOWN, (int) VOID_FTYPE_PV4DF_V4DI_V4DF },
+  { OPTION_MASK_ISA_AVX, CODE_FOR_avx_maskstoreps256, "__builtin_ia32_maskstoreps256", IX86_BUILTIN_MASKSTOREPS256, UNKNOWN, (int) VOID_FTYPE_PV8SF_V8SI_V8SF },
 
   { OPTION_MASK_ISA_LWP, CODE_FOR_lwp_llwpcb, "__builtin_ia32_llwpcb", IX86_BUILTIN_LLWPCB, UNKNOWN, (int) VOID_FTYPE_PVOID },
   { OPTION_MASK_ISA_LWP, CODE_FOR_lwp_slwpcb, "__builtin_ia32_slwpcb", IX86_BUILTIN_SLWPCB, UNKNOWN, (int) PVOID_FTYPE_VOID },
@@ -24422,11 +24614,6 @@ static const struct builtin_description bdesc_special_args[] =
   { OPTION_MASK_ISA_FSGSBASE | OPTION_MASK_ISA_64BIT, CODE_FOR_wrfsbasedi, "__builtin_ia32_wrfsbase64", IX86_BUILTIN_WRFSBASE64, UNKNOWN, (int) VOID_FTYPE_UINT64 },
   { OPTION_MASK_ISA_FSGSBASE | OPTION_MASK_ISA_64BIT, CODE_FOR_wrgsbasesi, "__builtin_ia32_wrgsbase32", IX86_BUILTIN_WRGSBASE32, UNKNOWN, (int) VOID_FTYPE_UNSIGNED },
   { OPTION_MASK_ISA_FSGSBASE | OPTION_MASK_ISA_64BIT, CODE_FOR_wrgsbasedi, "__builtin_ia32_wrgsbase64", IX86_BUILTIN_WRGSBASE64, UNKNOWN, (int) VOID_FTYPE_UINT64 },
-
-  /* RDRND */
-  { OPTION_MASK_ISA_RDRND, CODE_FOR_rdrandhi, "__builtin_ia32_rdrand16", IX86_BUILTIN_RDRAND16, UNKNOWN, (int) UINT16_FTYPE_VOID },
-  { OPTION_MASK_ISA_RDRND, CODE_FOR_rdrandsi, "__builtin_ia32_rdrand32", IX86_BUILTIN_RDRAND32, UNKNOWN, (int) UNSIGNED_FTYPE_VOID },
-  { OPTION_MASK_ISA_RDRND | OPTION_MASK_ISA_64BIT, CODE_FOR_rdranddi, "__builtin_ia32_rdrand64", IX86_BUILTIN_RDRAND64, UNKNOWN, (int) UINT64_FTYPE_VOID },
 };
 
 /* Builtins with variable number of arguments.  */
@@ -25434,6 +25621,15 @@ ix86_init_mmx_sse_builtins (void)
   /* PCLMUL */
   def_builtin_const (OPTION_MASK_ISA_PCLMUL, "__builtin_ia32_pclmulqdq128",
 		     V2DI_FTYPE_V2DI_V2DI_INT, IX86_BUILTIN_PCLMULQDQ128);
+
+  /* RDRND */
+  def_builtin (OPTION_MASK_ISA_RDRND, "__builtin_ia32_rdrand16_step",
+	       INT_FTYPE_PUSHORT, IX86_BUILTIN_RDRAND16_STEP);
+  def_builtin (OPTION_MASK_ISA_RDRND, "__builtin_ia32_rdrand32_step",
+	       INT_FTYPE_PUNSIGNED, IX86_BUILTIN_RDRAND32_STEP);
+  def_builtin (OPTION_MASK_ISA_RDRND | OPTION_MASK_ISA_64BIT,
+	       "__builtin_ia32_rdrand64_step", INT_FTYPE_PULONGLONG,
+	       IX86_BUILTIN_RDRAND64_STEP);
 
   /* MMX access to the vec_init patterns.  */
   def_builtin_const (OPTION_MASK_ISA_MMX, "__builtin_ia32_vec_init_v2si",
@@ -26690,7 +26886,6 @@ ix86_expand_special_args_builtin (const struct builtin_description *d,
       break;
     case UINT64_FTYPE_VOID:
     case UNSIGNED_FTYPE_VOID:
-    case UINT16_FTYPE_VOID:
       nargs = 0;
       klass = load;
       memory = 0;
@@ -26732,18 +26927,18 @@ ix86_expand_special_args_builtin (const struct builtin_description *d,
       klass = load;
       memory = 1;
       break;
-    case V8SF_FTYPE_PCV8SF_V8SF:
-    case V4DF_FTYPE_PCV4DF_V4DF:
-    case V4SF_FTYPE_PCV4SF_V4SF:
-    case V2DF_FTYPE_PCV2DF_V2DF:
+    case V8SF_FTYPE_PCV8SF_V8SI:
+    case V4DF_FTYPE_PCV4DF_V4DI:
+    case V4SF_FTYPE_PCV4SF_V4SI:
+    case V2DF_FTYPE_PCV2DF_V2DI:
       nargs = 2;
       klass = load;
       memory = 0;
       break;
-    case VOID_FTYPE_PV8SF_V8SF_V8SF:
-    case VOID_FTYPE_PV4DF_V4DF_V4DF:
-    case VOID_FTYPE_PV4SF_V4SF_V4SF:
-    case VOID_FTYPE_PV2DF_V2DF_V2DF:
+    case VOID_FTYPE_PV8SF_V8SI_V8SF:
+    case VOID_FTYPE_PV4DF_V4DI_V4DF:
+    case VOID_FTYPE_PV4SF_V4SI_V4SF:
+    case VOID_FTYPE_PV2DF_V2DI_V2DF:
       nargs = 2;
       klass = store;
       /* Reserve memory operand for target.  */
@@ -27201,6 +27396,51 @@ ix86_expand_builtin (tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
             emit_insn (pat);
           return target;
         }
+
+    case IX86_BUILTIN_RDRAND16_STEP:
+      icode = CODE_FOR_rdrandhi_1;
+      mode0 = HImode;
+      goto rdrand_step;
+
+    case IX86_BUILTIN_RDRAND32_STEP:
+      icode = CODE_FOR_rdrandsi_1;
+      mode0 = SImode;
+      goto rdrand_step;
+
+    case IX86_BUILTIN_RDRAND64_STEP:
+      icode = CODE_FOR_rdranddi_1;
+      mode0 = DImode;
+
+rdrand_step:
+      op0 = gen_reg_rtx (mode0);
+      emit_insn (GEN_FCN (icode) (op0));
+
+      op1 = gen_reg_rtx (SImode);
+      emit_move_insn (op1, CONST1_RTX (SImode));
+
+      /* Emit SImode conditional move.  */
+      if (mode0 == HImode)
+	{
+	  op2 = gen_reg_rtx (SImode);
+	  emit_insn (gen_zero_extendhisi2 (op2, op0));
+	}
+      else if (mode0 == SImode)
+	op2 = op0;
+      else
+	op2 = gen_rtx_SUBREG (SImode, op0, 0);
+
+      pat = gen_rtx_GEU (VOIDmode, gen_rtx_REG (CCCmode, FLAGS_REG),
+			 const0_rtx);
+      emit_insn (gen_rtx_SET (VOIDmode, op1,
+			      gen_rtx_IF_THEN_ELSE (SImode, pat, op2, op1)));
+      emit_move_insn (target, op1);
+
+      arg0 = CALL_EXPR_ARG (exp, 0);
+      op1 = expand_normal (arg0);
+      if (!address_operand (op1, VOIDmode))
+	op1 = copy_addr_to_reg (op1);
+      emit_move_insn (gen_rtx_MEM (mode0, op1), op0);
+      return target;
 
     default:
       break;
@@ -29058,6 +29298,58 @@ x86_order_regs_for_local_alloc (void)
       at all.  */
    while (pos < FIRST_PSEUDO_REGISTER)
      reg_alloc_order [pos++] = 0;
+}
+
+/* Handle a "callee_pop_aggregate_return" attribute; arguments as
+   in struct attribute_spec handler.  */
+static tree
+ix86_handle_callee_pop_aggregate_return (tree *node, tree name,
+					      tree args,
+					      int flags ATTRIBUTE_UNUSED,
+					      bool *no_add_attrs)
+{
+  if (TREE_CODE (*node) != FUNCTION_TYPE
+      && TREE_CODE (*node) != METHOD_TYPE
+      && TREE_CODE (*node) != FIELD_DECL
+      && TREE_CODE (*node) != TYPE_DECL)
+    {
+      warning (OPT_Wattributes, "%qE attribute only applies to functions",
+	       name);
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+  if (TARGET_64BIT)
+    {
+      warning (OPT_Wattributes, "%qE attribute only available for 32-bit",
+	       name);
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+  if (is_attribute_p ("callee_pop_aggregate_return", name))
+    {
+      tree cst;
+
+      cst = TREE_VALUE (args);
+      if (TREE_CODE (cst) != INTEGER_CST)
+	{
+	  warning (OPT_Wattributes,
+		   "%qE attribute requires an integer constant argument",
+		   name);
+	  *no_add_attrs = true;
+	}
+      else if (compare_tree_int (cst, 0) != 0
+	       && compare_tree_int (cst, 1) != 0)
+	{
+	  warning (OPT_Wattributes,
+		   "argument to %qE attribute is neither zero, nor one",
+		   name);
+	  *no_add_attrs = true;
+	}
+
+      return NULL_TREE;
+    }
+
+  return NULL_TREE;
 }
 
 /* Handle a "ms_abi" or "sysv" attribute; arguments as in
@@ -32229,6 +32521,8 @@ static const struct attribute_spec ix86_attribute_table[] =
   { "ms_abi", 0, 0, false, true, true, ix86_handle_abi_attribute },
   { "sysv_abi", 0, 0, false, true, true, ix86_handle_abi_attribute },
   { "ms_hook_prologue", 0, 0, true, false, false, ix86_handle_fndecl_attribute },
+  { "callee_pop_aggregate_return", 1, 1, false, true, true,
+    ix86_handle_callee_pop_aggregate_return },
   /* End element.  */
   { NULL,        0, 0, false, false, false, NULL }
 };
@@ -33494,7 +33788,7 @@ ix86_canonical_va_list_type (tree type)
   else if (POINTER_TYPE_P (type) && TREE_CODE (TREE_TYPE (type)) == ARRAY_TYPE)
     type = TREE_TYPE (type);
 
-  if (TARGET_64BIT)
+  if (TARGET_64BIT && va_list_type_node != NULL_TREE)
     {
       wtype = va_list_type_node;
 	  gcc_assert (wtype != NULL_TREE);
@@ -34745,6 +35039,11 @@ ix86_autovectorize_vector_sizes (void)
 
 #undef TARGET_CONDITIONAL_REGISTER_USAGE
 #define TARGET_CONDITIONAL_REGISTER_USAGE ix86_conditional_register_usage
+
+#if TARGET_MACHO
+#undef TARGET_INIT_LIBFUNCS
+#define TARGET_INIT_LIBFUNCS darwin_rename_builtins
+#endif
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

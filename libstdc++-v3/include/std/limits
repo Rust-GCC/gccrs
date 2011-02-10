@@ -23,7 +23,7 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file limits
+/** @file include/limits
  *  This is a Standard C++ Library header.
  */
 
@@ -145,7 +145,9 @@
 #define __glibcxx_max_digits10(T) \
   (2 + (T) * 643L / 2136)
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    *  @brief Describes the rounding style for floating-point types.
@@ -154,11 +156,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   */
   enum float_round_style
   {
-    round_indeterminate       = -1,    ///< Self-explanatory.
-    round_toward_zero         = 0,     ///< Self-explanatory.
-    round_to_nearest          = 1,     ///< To the nearest representable value.
-    round_toward_infinity     = 2,     ///< Self-explanatory.
-    round_toward_neg_infinity = 3      ///< Self-explanatory.
+    round_indeterminate       = -1,    /// Intermediate.
+    round_toward_zero         = 0,     /// To zero.
+    round_to_nearest          = 1,     /// To the nearest representable value.
+    round_toward_infinity     = 2,     /// To infinity.
+    round_toward_neg_infinity = 3      /// To negative infinity.
   };
 
   /**
@@ -1617,7 +1619,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 #undef __glibcxx_long_double_traps
 #undef __glibcxx_long_double_tinyness_before
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #undef __glibcxx_signed
 #undef __glibcxx_min

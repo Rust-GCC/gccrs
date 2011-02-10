@@ -404,6 +404,13 @@ struct GTY((chain_next ("%h.outer"))) c_scope {
      up searching for labels when popping scopes, particularly since
      labels are normally only found at function scope.  */
   BOOL_BITFIELD has_label_bindings : 1;
+
+  /* True if we should issue a warning if a goto statement crosses any
+     of the bindings.  We still need to check the list of bindings to
+     find the specific ones we need to warn about.  This is true if
+     decl_jump_unsafe would return true for any of the bindings.  This
+     is used to avoid looping over all the bindings unnecessarily.  */
+  BOOL_BITFIELD has_jump_unsafe_decl : 1;
 };
 
 /* The scope currently in effect.  */
@@ -554,6 +561,31 @@ add_stmt (tree t)
   return t;
 }
 
+/* Return true if we will want to say something if a goto statement
+   crosses DECL.  */
+
+static bool
+decl_jump_unsafe (tree decl)
+{
+  if (decl == error_mark_node || TREE_TYPE (decl) == error_mark_node)
+    return false;
+
+  /* Always warn about crossing variably modified types.  */
+  if ((TREE_CODE (decl) == VAR_DECL || TREE_CODE (decl) == TYPE_DECL)
+      && variably_modified_type_p (TREE_TYPE (decl), NULL_TREE))
+    return true;
+
+  /* Otherwise, only warn if -Wgoto-misses-init and this is an
+     initialized automatic decl.  */
+  if (warn_jump_misses_init
+      && TREE_CODE (decl) == VAR_DECL
+      && !TREE_STATIC (decl)
+      && DECL_INITIAL (decl) != NULL_TREE)
+    return true;
+
+  return false;
+}
+
 
 void
 c_print_identifier (FILE *file, tree node, int indent)
@@ -601,6 +633,9 @@ bind (tree name, tree decl, struct c_scope *scope, bool invisible,
 
   b->prev = scope->bindings;
   scope->bindings = b;
+
+  if (decl_jump_unsafe (decl))
+    scope->has_jump_unsafe_decl = 1;
 
   if (!name)
     return;
@@ -756,31 +791,6 @@ set_spot_bindings (struct c_spot_bindings *p, bool defining)
     }
   p->stmt_exprs = 0;
   p->left_stmt_expr = false;
-}
-
-/* Return true if we will want to say something if a goto statement
-   crosses DECL.  */
-
-static bool
-decl_jump_unsafe (tree decl)
-{
-  if (decl == error_mark_node || TREE_TYPE (decl) == error_mark_node)
-    return false;
-
-  /* Always warn about crossing variably modified types.  */
-  if ((TREE_CODE (decl) == VAR_DECL || TREE_CODE (decl) == TYPE_DECL)
-      && variably_modified_type_p (TREE_TYPE (decl), NULL_TREE))
-    return true;
-
-  /* Otherwise, only warn if -Wgoto-misses-init and this is an
-     initialized automatic decl.  */
-  if (warn_jump_misses_init
-      && TREE_CODE (decl) == VAR_DECL
-      && !TREE_STATIC (decl)
-      && DECL_INITIAL (decl) != NULL_TREE)
-    return true;
-
-  return false;
 }
 
 /* Update spot bindings P as we pop out of SCOPE.  Return true if we
@@ -969,6 +979,7 @@ update_label_decls (struct c_scope *scope)
 	    {
 	      struct c_label_vars *label_vars;
 	      struct c_binding *b1;
+	      bool hjud;
 	      unsigned int ix;
 	      struct c_goto_bindings *g;
 
@@ -977,18 +988,26 @@ update_label_decls (struct c_scope *scope)
 	      label_vars = b->u.label;
 
 	      b1 = label_vars->label_bindings.bindings_in_scope;
+	      if (label_vars->label_bindings.scope == NULL)
+		hjud = false;
+	      else
+		hjud = label_vars->label_bindings.scope->has_jump_unsafe_decl;
 	      if (update_spot_bindings (scope, &label_vars->label_bindings))
 		{
 		  /* This label is defined in this scope.  */
-		  for (; b1 != NULL;  b1 = b1->prev)
+		  if (hjud)
 		    {
-		      /* A goto from later in the function to this
-			 label will never see the initialization of
-			 B1, if any.  Save it to issue a warning if
-			 needed.  */
-		      if (decl_jump_unsafe (b1->decl))
-			VEC_safe_push (tree, gc, label_vars->decls_in_scope,
-				       b1->decl);
+		      for (; b1 != NULL; b1 = b1->prev)
+			{
+			  /* A goto from later in the function to this
+			     label will never see the initialization
+			     of B1, if any.  Save it to issue a
+			     warning if needed.  */
+			  if (decl_jump_unsafe (b1->decl))
+			    VEC_safe_push (tree, gc,
+					   label_vars->decls_in_scope,
+					   b1->decl);
+			}
 		    }
 		}
 
@@ -1501,9 +1520,8 @@ diagnose_arglist_conflict (tree newdecl, tree olddecl,
 
   if (TREE_CODE (olddecl) != FUNCTION_DECL
       || !comptypes (TREE_TYPE (oldtype), TREE_TYPE (newtype))
-      || !((TYPE_ARG_TYPES (oldtype) == 0 && DECL_INITIAL (olddecl) == 0)
-	   ||
-	   (TYPE_ARG_TYPES (newtype) == 0 && DECL_INITIAL (newdecl) == 0)))
+      || !((!prototype_p (oldtype) && DECL_INITIAL (olddecl) == 0)
+	   || (!prototype_p (newtype) && DECL_INITIAL (newdecl) == 0)))
     return;
 
   t = TYPE_ARG_TYPES (oldtype);
@@ -1833,7 +1851,7 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
 	  && !C_DECL_DECLARED_BUILTIN (olddecl)
 	  && (!TREE_PUBLIC (newdecl)
 	      || (DECL_INITIAL (newdecl)
-		  && !TYPE_ARG_TYPES (TREE_TYPE (newdecl)))))
+		  && !prototype_p (TREE_TYPE (newdecl)))))
 	{
 	  warning (OPT_Wshadow, "declaration of %q+D shadows "
 		   "a built-in function", newdecl);
@@ -1870,7 +1888,7 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
       /* If we have a prototype after an old-style function definition,
 	 the argument types must be checked specially.  */
       else if (DECL_INITIAL (olddecl)
-	       && !TYPE_ARG_TYPES (oldtype) && TYPE_ARG_TYPES (newtype)
+	       && !prototype_p (oldtype) && prototype_p (newtype)
 	       && TYPE_ACTUAL_ARG_TYPES (oldtype)
 	       && !validate_proto_after_old_defn (newdecl, newtype, oldtype))
 	{
@@ -2139,9 +2157,9 @@ merge_decls (tree newdecl, tree olddecl, tree newtype, tree oldtype)
   bool new_is_definition = (TREE_CODE (newdecl) == FUNCTION_DECL
 			    && DECL_INITIAL (newdecl) != 0);
   bool new_is_prototype = (TREE_CODE (newdecl) == FUNCTION_DECL
-			   && TYPE_ARG_TYPES (TREE_TYPE (newdecl)) != 0);
+			   && prototype_p (TREE_TYPE (newdecl)));
   bool old_is_prototype = (TREE_CODE (olddecl) == FUNCTION_DECL
-			   && TYPE_ARG_TYPES (TREE_TYPE (olddecl)) != 0);
+			   && prototype_p (TREE_TYPE (olddecl)));
   bool extern_changed = false;
 
   /* For real parm decl following a forward decl, rechain the old decl
@@ -3166,12 +3184,15 @@ check_earlier_gotos (tree label, struct c_label_vars* label_vars)
       /* We have a goto to this label.  The goto is going forward.  In
 	 g->scope, the goto is going to skip any binding which was
 	 defined after g->bindings_in_scope.  */
-      for (b = g->goto_bindings.scope->bindings;
-	   b != g->goto_bindings.bindings_in_scope;
-	   b = b->prev)
+      if (g->goto_bindings.scope->has_jump_unsafe_decl)
 	{
-	  if (decl_jump_unsafe (b->decl))
-	    warn_about_goto (g->loc, label, b->decl);
+	  for (b = g->goto_bindings.scope->bindings;
+	       b != g->goto_bindings.bindings_in_scope;
+	       b = b->prev)
+	    {
+	      if (decl_jump_unsafe (b->decl))
+		warn_about_goto (g->loc, label, b->decl);
+	    }
 	}
 
       /* We also need to warn about decls defined in any scopes
@@ -3181,14 +3202,17 @@ check_earlier_gotos (tree label, struct c_label_vars* label_vars)
 	   scope = scope->outer)
 	{
 	  gcc_assert (scope != NULL);
-	  if (scope == label_vars->label_bindings.scope)
-	    b = label_vars->label_bindings.bindings_in_scope;
-	  else
-	    b = scope->bindings;
-	  for (; b != NULL; b = b->prev)
+	  if (scope->has_jump_unsafe_decl)
 	    {
-	      if (decl_jump_unsafe (b->decl))
-		warn_about_goto (g->loc, label, b->decl);
+	      if (scope == label_vars->label_bindings.scope)
+		b = label_vars->label_bindings.bindings_in_scope;
+	      else
+		b = scope->bindings;
+	      for (; b != NULL; b = b->prev)
+		{
+		  if (decl_jump_unsafe (b->decl))
+		    warn_about_goto (g->loc, label, b->decl);
+		}
 	    }
 	}
 
@@ -3304,6 +3328,10 @@ c_check_switch_jump_warnings (struct c_spot_bindings *switch_bindings,
       struct c_binding *b;
 
       gcc_assert (scope != NULL);
+
+      if (!scope->has_jump_unsafe_decl)
+	continue;
+
       for (b = scope->bindings; b != NULL; b = b->prev)
 	{
 	  if (decl_jump_unsafe (b->decl))
@@ -3539,7 +3567,7 @@ c_builtin_function (tree decl)
   tree   id = DECL_NAME (decl);
 
   const char *name = IDENTIFIER_POINTER (id);
-  C_DECL_BUILTIN_PROTOTYPE (decl) = (TYPE_ARG_TYPES (type) != 0);
+  C_DECL_BUILTIN_PROTOTYPE (decl) = prototype_p (type);
 
   /* Should never be called on a symbol with a preexisting meaning.  */
   gcc_assert (!I_SYMBOL_BINDING (id));
@@ -3565,7 +3593,7 @@ c_builtin_function_ext_scope (tree decl)
   tree   id = DECL_NAME (decl);
 
   const char *name = IDENTIFIER_POINTER (id);
-  C_DECL_BUILTIN_PROTOTYPE (decl) = (TYPE_ARG_TYPES (type) != 0);
+  C_DECL_BUILTIN_PROTOTYPE (decl) = prototype_p (type);
 
   /* Should never be called on a symbol with a preexisting meaning.  */
   gcc_assert (!I_SYMBOL_BINDING (id));
@@ -4001,7 +4029,7 @@ start_decl (struct c_declarator *declarator, struct c_declspecs *declspecs,
      prototypes file (if requested).  */
 
   if (TREE_CODE (decl) == FUNCTION_DECL)
-    gen_aux_info_record (decl, 0, 0, TYPE_ARG_TYPES (TREE_TYPE (decl)) != 0);
+    gen_aux_info_record (decl, 0, 0, prototype_p (TREE_TYPE (decl)));
 
   /* ANSI specifies that a tentative definition which is not merged with
      a non-tentative definition behaves exactly like a definition with an
@@ -6806,11 +6834,9 @@ detect_field_duplicates (tree fieldlist)
 
   /* First, see if there are more than "a few" fields.
      This is trivially true if there are zero or one fields.  */
-  if (!fieldlist)
+  if (!fieldlist || !DECL_CHAIN (fieldlist))
     return;
-  x = DECL_CHAIN (fieldlist);
-  if (!x)
-    return;
+  x = fieldlist;
   do {
     timeout--;
     if (DECL_NAME (x) == NULL_TREE
@@ -7625,7 +7651,7 @@ start_function (struct c_declspecs *declspecs, struct c_declarator *declarator,
   current_function_prototype_locus = UNKNOWN_LOCATION;
   current_function_prototype_built_in = false;
   current_function_prototype_arg_types = NULL_TREE;
-  if (TYPE_ARG_TYPES (TREE_TYPE (decl1)) == 0)
+  if (!prototype_p (TREE_TYPE (decl1)))
     {
       if (old_decl != 0 && TREE_CODE (TREE_TYPE (old_decl)) == FUNCTION_TYPE
 	  && comptypes (TREE_TYPE (TREE_TYPE (decl1)),
@@ -7674,7 +7700,7 @@ start_function (struct c_declspecs *declspecs, struct c_declarator *declarator,
   /* Optionally warn of old-fashioned def with no previous prototype.  */
   if (warn_strict_prototypes
       && old_decl != error_mark_node
-      && TYPE_ARG_TYPES (TREE_TYPE (decl1)) == 0
+      && !prototype_p (TREE_TYPE (decl1))
       && C_DECL_ISNT_PROTOTYPE (old_decl))
     warning_at (loc, OPT_Wstrict_prototypes,
 		"function declaration isn%'t a prototype");
@@ -7692,7 +7718,7 @@ start_function (struct c_declspecs *declspecs, struct c_declarator *declarator,
 	   && old_decl != 0
 	   && old_decl != error_mark_node
 	   && TREE_USED (old_decl)
-	   && TYPE_ARG_TYPES (TREE_TYPE (old_decl)) == 0)
+	   && !prototype_p (TREE_TYPE (old_decl)))
     warning_at (loc, OPT_Wmissing_prototypes,
 		"%qD was used with no prototype before its definition", decl1);
   /* Optionally warn of any global def with no previous declaration.  */

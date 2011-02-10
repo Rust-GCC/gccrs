@@ -1,6 +1,6 @@
 // Functor implementations -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2010
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2010, 2011
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -49,15 +49,17 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_function.h
+/** @file bits/stl_function.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{functional}
  */
 
 #ifndef _STL_FUNCTION_H
 #define _STL_FUNCTION_H 1
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // 20.3.1 base classes
   /** @defgroup functors Function Objects
@@ -99,10 +101,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   template<typename _Arg, typename _Result>
     struct unary_function
     {
-      typedef _Arg argument_type;   ///< @c argument_type is the type of the
-                                    ///     argument (no surprises here)
+      /// @c argument_type is the type of the argument
+      typedef _Arg 	argument_type;   
 
-      typedef _Result result_type;  ///< @c result_type is the return type
+      /// @c result_type is the return type
+      typedef _Result 	result_type;  
     };
 
   /**
@@ -111,11 +114,14 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   template<typename _Arg1, typename _Arg2, typename _Result>
     struct binary_function
     {
-      typedef _Arg1 first_argument_type;   ///< the type of the first argument
-                                           ///  (no surprises here)
+      /// @c first_argument_type is the type of the first argument
+      typedef _Arg1 	first_argument_type; 
 
-      typedef _Arg2 second_argument_type;  ///< the type of the second argument
-      typedef _Result result_type;         ///< type of the return type
+      /// @c second_argument_type is the type of the second argument
+      typedef _Arg2 	second_argument_type;
+
+      /// @c result_type is the return type
+      typedef _Result 	result_type;
     };
   /** @}  */
 
@@ -718,9 +724,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /** @}  */
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
-#if !defined(__GXX_EXPERIMENTAL_CXX0X__) || _GLIBCXX_DEPRECATED
+#if !defined(__GXX_EXPERIMENTAL_CXX0X__) || _GLIBCXX_USE_DEPRECATED
 # include <backward/binders.h>
 #endif
 

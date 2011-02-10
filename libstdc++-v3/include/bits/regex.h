@@ -23,12 +23,14 @@
 // <http://www.gnu.org/licenses/>.
 
 /**
- * @file bits/regex.h
+ *  @file bits/regex.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{regex}
  */
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 /**
  * @defgroup regex Regular Expressions
@@ -2421,5 +2423,6 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 #endif
   
   //@} // group regex
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 

@@ -405,8 +405,7 @@ do { \
 #define SUBTARGET_LINK_EMUL_SUFFIX ""
 #define SUBTARGET_LINK_SPEC ""
 
-/* svr4.h redefines LINK_SPEC inappropriately, so go via SH_LINK_SPEC,
-   so that we can undo the damage without code replication.  */
+/* Go via SH_LINK_SPEC to avoid code replication.  */
 #define LINK_SPEC SH_LINK_SPEC
 
 #define SH_LINK_SPEC "\
@@ -1212,19 +1211,6 @@ extern enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
 
 #define CONST_OK_FOR_K08(VALUE) (((HOST_WIDE_INT)(VALUE))>= 0 \
 				 && ((HOST_WIDE_INT)(VALUE)) <= 255)
-
-/* Given an rtx X being reloaded into a reg required to be
-   in class CLASS, return the class of reg to actually use.
-   In general this is just CLASS; but on some machines
-   in some cases it is preferable to use a more restrictive class.  */
-
-#define PREFERRED_RELOAD_CLASS(X, CLASS) \
-  ((CLASS) == NO_REGS && TARGET_SHMEDIA \
-   && (GET_CODE (X) == CONST_DOUBLE \
-       || GET_CODE (X) == SYMBOL_REF \
-       || PIC_ADDR_P (X)) \
-   ? GENERAL_REGS \
-   : (CLASS)) \
 
 #if 0
 #define SECONDARY_INOUT_RELOAD_CLASS(CLASS,MODE,X,ELSE) \
@@ -2224,8 +2210,6 @@ struct sh_args {
 /* DBX register number for a given compiler register number.  */
 /* GDB has FPUL at 23 and FP0 at 25, so we must add one to all FP registers
    to match gdb.  */
-/* svr4.h undefines this macro, yet we really want to use the same numbers
-   for coff as for elf, so we go via another macro: SH_DBX_REGISTER_NUMBER.  */
 /* expand_builtin_init_dwarf_reg_sizes uses this to test if a
    register exists, so we should return -1 for invalid register numbers.  */
 #define DBX_REGISTER_NUMBER(REGNO) SH_DBX_REGISTER_NUMBER (REGNO)

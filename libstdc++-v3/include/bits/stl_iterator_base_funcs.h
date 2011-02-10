@@ -49,9 +49,9 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_iterator_base_funcs.h
+/** @file bits/stl_iterator_base_funcs.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{iterator}
  *
  *  This file contains all of the general iterator-related utility
  *  functions, such as distance() and advance().
@@ -64,7 +64,9 @@
 
 #include <bits/concept_check.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _InputIterator>
     inline typename iterator_traits<_InputIterator>::difference_type
@@ -195,6 +197,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
 #endif // __GXX_EXPERIMENTAL_CXX0X__
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _STL_ITERATOR_BASE_FUNCS_H */

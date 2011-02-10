@@ -14910,7 +14910,9 @@ $as_echo "#define GC_SOLARIS_PTHREADS 1" >>confdefs.h
 	# The alternate thread library was only introduced in Solaris 8 and
 	# became the default in Solaris 9, so no need for the special code
 	# above otherwise.
-	THREADLIBS=-lpthread
+	# nanosleep, sched_yield, and sem_* only live in librt before
+	# Solaris 11.
+	THREADLIBS="-lpthread -lrt"
 	;;
      *-*-irix*)
 
@@ -15086,9 +15088,12 @@ fi
   *) ;;
 esac
 
-# We never want libdl on darwin. It is a fake libdl that just ends up making
-# dyld calls anyway
 case "$host" in
+  # While IRIX 6 has libdl for the O32 and N32 ABIs, it's missing for N64
+  # and unnecessary everywhere.
+  mips-sgi-irix6*) ;;
+  # We never want libdl on darwin. It is a fake libdl that just ends up making
+  # dyld calls anyway
   *-*-darwin*) ;;
   *)
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for dlopen in -ldl" >&5

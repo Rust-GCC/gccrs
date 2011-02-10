@@ -25,12 +25,21 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifndef __objc_private_selector_INCLUDE_GNU
 #define __objc_private_selector_INCLUDE_GNU
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* Private runtime functions that may go away or be rewritten or
    replaced.  */
+
+/* Number of selectors stored in each of the selector tables.  */
+extern unsigned int __objc_selector_max_index;
+
+/* Initialize the selector tables.  This must be called by init.c.  */
+void __objc_init_selector_tables(void);
+
+/* Various private functions to register selectors.  */
+void __objc_register_selectors_from_class(Class);
+void __objc_register_selectors_from_list (struct objc_method_list *);
+void __objc_register_selectors_from_description_list
+(struct objc_method_description_list *method_list);
+void __objc_register_selectors_from_module (struct objc_selector *selectors);
 
 /* Return whether a selector is mapped or not ("mapped" meaning that
    it has been inserted into the selector table).  This is private as
@@ -44,9 +53,5 @@ BOOL sel_is_mapped (SEL aSel);
    in the most efficient way.  */
 SEL
 sel_get_any_uid (const char *name);
-
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
 
 #endif /* not __objc_private_selector_INCLUDE_GNU */

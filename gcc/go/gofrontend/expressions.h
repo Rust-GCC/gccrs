@@ -873,8 +873,7 @@ class Parser_expression : public Expression
   do_lower(Gogo*, Named_object*, int) = 0;
 
   Type*
-  do_type()
-  { gcc_unreachable(); }
+  do_type();
 
   void
   do_determine_type(const Type_context*)
@@ -1346,7 +1345,9 @@ class Func_expression : public Expression
   do_copy()
   {
     return Expression::make_func_reference(this->function_,
-					   this->closure_->copy(),
+					   (this->closure_ == NULL
+					    ? NULL
+					    : this->closure_->copy()),
 					   this->location());
   }
 

@@ -251,6 +251,7 @@ enum reg_class
 
 #define LIBCALL_VALUE(MODE)				\
   gen_rtx_REG (((GET_MODE_CLASS (MODE) != MODE_INT	\
+                 || COMPLEX_MODE_P (MODE)		\
 		 || GET_MODE_SIZE (MODE) >= 4)		\
 		? (MODE)				\
 		: SImode),				\
@@ -595,8 +596,6 @@ typedef unsigned int CUMULATIVE_ARGS;
    they contain are always computed between two same-section symbols.  */
 #define JUMP_TABLES_IN_TEXT_SECTION	(flag_pic)
 
-extern int rx_float_compare_mode;
-
 /* This is a version of REG_P that also returns TRUE for SUBREGs.  */
 #define RX_REG_P(rtl) (REG_P (rtl) || GET_CODE (rtl) == SUBREG)
 
@@ -624,12 +623,4 @@ extern int rx_float_compare_mode;
 #define BRANCH_COST(SPEED,PREDICT)       1
 #define REGISTER_MOVE_COST(MODE,FROM,TO) 2
 
-#define SELECT_CC_MODE(OP,X,Y)						\
-  (GET_MODE_CLASS (GET_MODE (X)) == MODE_FLOAT ? CC_ZSmode :		\
-    (GET_CODE (X) == PLUS || GET_CODE (X) == MINUS ? CC_ZSCmode :	\
-    (GET_CODE (X) == ABS ? CC_ZSOmode :					\
-    (GET_CODE (X) == AND || GET_CODE (X) == NOT || GET_CODE (X) == IOR	\
-     || GET_CODE (X) == XOR || GET_CODE (X) == ROTATE			\
-     || GET_CODE (X) == ROTATERT || GET_CODE (X) == ASHIFTRT		\
-     || GET_CODE (X) == LSHIFTRT || GET_CODE (X) == ASHIFT ? CC_ZSmode : \
-     CCmode))))
+#define SELECT_CC_MODE(OP,X,Y)  rx_select_cc_mode(OP, X, Y)

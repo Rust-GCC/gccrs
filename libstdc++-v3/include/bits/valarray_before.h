@@ -23,9 +23,9 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file valarray_before.h
+/** @file bits/valarray_before.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{valarray}
  */
 
 // Written by Gabriel Dos Reis <Gabriel.Dos-Reis@cmla.ens-cachan.fr>
@@ -37,7 +37,9 @@
 
 #include <bits/slice_array.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   //
   // Implementing a loosened valarray return value is tricky.
@@ -726,6 +728,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       _SClos (_Array<_Tp> __a, const slice& __s) : _Base (__a, __s) {}
     };
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _CPP_VALARRAY_BEFORE_H */

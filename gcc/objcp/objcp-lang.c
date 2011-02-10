@@ -1,5 +1,5 @@
 /* Language-dependent hooks for Objective-C++.
-   Copyright 2005, 2007, 2008 Free Software Foundation, Inc.
+   Copyright 2005, 2007, 2008, 2010 Free Software Foundation, Inc.
    Contributed by Ziemowit Laski  <zlaski@apple.com>
 
 This file is part of GCC.
@@ -76,7 +76,7 @@ objcp_tsubst_copy_and_build (tree t, tree args, tsubst_flags_t complain,
       return objc_finish_message_expr
 	(RECURSE (TREE_OPERAND (t, 0)),
 	 TREE_OPERAND (t, 1),  /* No need to expand the selector.  */
-	 RECURSE (TREE_OPERAND (t, 2)));
+	 RECURSE (TREE_OPERAND (t, 2)), NULL);
 
     case CLASS_REFERENCE_EXPR:
       return objc_get_class_reference

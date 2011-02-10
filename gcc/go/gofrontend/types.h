@@ -60,22 +60,20 @@ static const int RUNTIME_TYPE_KIND_UINT16 = 9;
 static const int RUNTIME_TYPE_KIND_UINT32 = 10;
 static const int RUNTIME_TYPE_KIND_UINT64 = 11;
 static const int RUNTIME_TYPE_KIND_UINTPTR = 12;
-static const int RUNTIME_TYPE_KIND_FLOAT = 13;
-static const int RUNTIME_TYPE_KIND_FLOAT32 = 14;
-static const int RUNTIME_TYPE_KIND_FLOAT64 = 15;
-static const int RUNTIME_TYPE_KIND_COMPLEX = 16;
-static const int RUNTIME_TYPE_KIND_COMPLEX64 = 17;
-static const int RUNTIME_TYPE_KIND_COMPLEX128 = 18;
-static const int RUNTIME_TYPE_KIND_ARRAY = 19;
-static const int RUNTIME_TYPE_KIND_CHAN = 20;
-static const int RUNTIME_TYPE_KIND_FUNC = 21;
-static const int RUNTIME_TYPE_KIND_INTERFACE = 22;
-static const int RUNTIME_TYPE_KIND_MAP = 23;
-static const int RUNTIME_TYPE_KIND_PTR = 24;
-static const int RUNTIME_TYPE_KIND_SLICE = 25;
-static const int RUNTIME_TYPE_KIND_STRING = 26;
-static const int RUNTIME_TYPE_KIND_STRUCT = 27;
-static const int RUNTIME_TYPE_KIND_UNSAFE_POINTER = 28;
+static const int RUNTIME_TYPE_KIND_FLOAT32 = 13;
+static const int RUNTIME_TYPE_KIND_FLOAT64 = 14;
+static const int RUNTIME_TYPE_KIND_COMPLEX64 = 15;
+static const int RUNTIME_TYPE_KIND_COMPLEX128 = 16;
+static const int RUNTIME_TYPE_KIND_ARRAY = 17;
+static const int RUNTIME_TYPE_KIND_CHAN = 18;
+static const int RUNTIME_TYPE_KIND_FUNC = 19;
+static const int RUNTIME_TYPE_KIND_INTERFACE = 20;
+static const int RUNTIME_TYPE_KIND_MAP = 21;
+static const int RUNTIME_TYPE_KIND_PTR = 22;
+static const int RUNTIME_TYPE_KIND_SLICE = 23;
+static const int RUNTIME_TYPE_KIND_STRING = 24;
+static const int RUNTIME_TYPE_KIND_STRUCT = 25;
+static const int RUNTIME_TYPE_KIND_UNSAFE_POINTER = 26;
 
 // To build the complete list of methods for a named type we need to
 // gather all methods from anonymous fields.  Those methods may
@@ -791,7 +789,8 @@ class Type
 
   // Return true if NAME is an unexported field or method of TYPE.
   static bool
-  is_unexported_field_or_method(Gogo*, const Type*, const std::string&);
+  is_unexported_field_or_method(Gogo*, const Type*, const std::string&,
+				std::vector<const Named_type*>*);
 
   // This type was passed to the builtin function make.  ARGS are the
   // arguments passed to make after the type; this may be NULL if
@@ -1067,8 +1066,8 @@ class Type
   static bool
   find_field_or_method(const Type* type, const std::string& name,
 		       bool receiver_can_be_pointer,
-		       int* level, bool* is_method,
-		       bool* found_pointer_method,
+		       std::vector<const Named_type*>*, int* level,
+		       bool* is_method, bool* found_pointer_method,
 		       std::string* ambig1, std::string* ambig2);
 
   // Get a tree for a type without looking in the hash table for
@@ -1842,7 +1841,8 @@ class Struct_type : public Type
  public:
   Struct_type(Struct_field_list* fields, source_location location)
     : Type(TYPE_STRUCT),
-      fields_(fields), location_(location), all_methods_(NULL)
+      fields_(fields), location_(location), all_methods_(NULL),
+      prerequisites_()
   { }
 
   // Return the field NAME.  This only looks at local fields, not at
@@ -1937,6 +1937,17 @@ class Struct_type : public Type
   tree
   fill_in_tree(Gogo*, tree);
 
+  // Note that a struct must be converted to the backend
+  // representation before we convert this struct.
+  void
+  add_prerequisite(Named_type* nt)
+  { this->prerequisites_.push_back(nt); }
+
+  // If there are any structs which must be converted to the backend
+  // representation before this one, convert them.
+  void
+  convert_prerequisites(Gogo*);
+
  protected:
   int
   do_traverse(Traverse*);
@@ -1982,6 +1993,16 @@ class Struct_type : public Type
   source_location location_;
   // If this struct is unnamed, a list of methods.
   Methods* all_methods_;
+  // A list of structs which must be converted to the backend
+  // representation before this struct can be converted.  This is for
+  // cases like
+  //   type S1 { p *S2 }
+  //   type S2 { s S1 }
+  // where we must start converting S2 before we start converting S1.
+  // That is because we can fully convert S1 before S2 is complete,
+  // but we can not fully convert S2 before S1 is complete.  If we
+  // start converting S1 first, we won't be able to convert S2.
+  std::vector<Named_type*> prerequisites_;
 };
 
 // The type of an array.
@@ -2387,7 +2408,7 @@ class Named_type : public Type
       local_methods_(NULL), all_methods_(NULL),
       interface_method_tables_(NULL), pointer_interface_method_tables_(NULL),
       location_(location), named_tree_(NULL), is_visible_(true),
-      is_error_(false), seen_(false)
+      is_error_(false), seen_(0)
   { }
 
   // Return the associated Named_object.  This holds the actual name.
@@ -2551,8 +2572,7 @@ class Named_type : public Type
   do_verify();
 
   bool
-  do_has_pointer() const
-  { return this->type_->has_pointer(); }
+  do_has_pointer() const;
 
   unsigned int
   do_hash_for_method(Gogo*) const;
@@ -2626,7 +2646,7 @@ class Named_type : public Type
   // used to prevent infinite recursion when a type refers to itself.
   // This is mutable because it is always reset to false when the
   // function exits.
-  mutable bool seen_;
+  mutable int seen_;
 };
 
 // A forward declaration.  This handles a type which has been declared
@@ -2676,7 +2696,7 @@ class Forward_declaration_type : public Type
 
   bool
   do_has_pointer() const
-  { return this->base()->has_pointer(); }
+  { return this->real_type()->has_pointer(); }
 
   unsigned int
   do_hash_for_method(Gogo* gogo) const

@@ -1240,6 +1240,8 @@ else
    AM_ICONV
    AM_LC_MESSAGES
    AC_STRUCT_TIMEZONE
+   LDLIBICONV=`echo " $LIBICONV " | sed "s/${acl_cv_wl--Wl,}/ /g; s/,/ /g"`
+   AC_SUBST([LDLIBICONV])
 
    AC_CHECK_FUNCS(gethostbyname_r, [
      AC_DEFINE(HAVE_GETHOSTBYNAME_R, 1,
@@ -1460,15 +1462,14 @@ else
    if test "$GC" = boehm; then
       case "${host}" in
           mips-sgi-irix6*)
-	    # IRIX 6 lacks a N64 libdl.so, but only the N32 (default multilib)
-	    # libgcj.spec is used, so override here
-	    SYSTEMSPEC="$SYSTEMSPEC %{!mabi=64:-ldl}"
-	  ;;
+	    # While IRIX 6 has libdl for the O32 and N32 ABIs, the N64 one is
+	    # missing.  It's unnecessary anyway since dlopen lives in libc.
+	    ;;
 	  *-*-darwin*)
-	  ;;
+	    ;;
 	  *)
             AC_CHECK_LIB(dl, main, SYSTEMSPEC="$SYSTEMSPEC -ldl")
-	  ;;
+	    ;;
       esac
    fi
 fi

@@ -1,6 +1,6 @@
 /* Callgraph based interprocedural optimizations.
-   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
-   Free Software Foundation, Inc.
+   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+   2011 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -440,13 +440,22 @@ verify_edge_count_and_frequency (struct cgraph_edge *e)
   return error_found;
 }
 
+/* Switch to THIS_CFUN if needed and print STMT to stderr.  */
+static void
+cgraph_debug_gimple_stmt (struct function *this_cfun, gimple stmt)
+{
+  /* debug_gimple_stmt needs correct cfun */
+  if (cfun != this_cfun)
+    set_cfun (this_cfun);
+  debug_gimple_stmt (stmt);
+}
+
 /* Verify cgraph nodes of given cgraph node.  */
 DEBUG_FUNCTION void
 verify_cgraph_node (struct cgraph_node *node)
 {
   struct cgraph_edge *e;
   struct function *this_cfun = DECL_STRUCT_FUNCTION (node->decl);
-  struct function *saved_cfun = cfun;
   basic_block this_block;
   gimple_stmt_iterator gsi;
   bool error_found = false;
@@ -455,8 +464,6 @@ verify_cgraph_node (struct cgraph_node *node)
     return;
 
   timevar_push (TV_CGRAPH_VERIFY);
-  /* debug_generic_stmt needs correct cfun */
-  set_cfun (this_cfun);
   for (e = node->callees; e; e = e->next_callee)
     if (e->aux)
       {
@@ -499,7 +506,7 @@ verify_cgraph_node (struct cgraph_node *node)
 	  error ("An indirect edge from %s is not marked as indirect or has "
 		 "associated indirect_info, the corresponding statement is: ",
 		 identifier_to_locale (cgraph_node_name (e->caller)));
-	  debug_gimple_stmt (e->call_stmt);
+	  cgraph_debug_gimple_stmt (this_cfun, e->call_stmt);
 	  error_found = true;
 	}
     }
@@ -642,11 +649,13 @@ verify_cgraph_node (struct cgraph_node *node)
 			if (e->aux)
 			  {
 			    error ("shared call_stmt:");
-			    debug_gimple_stmt (stmt);
+			    cgraph_debug_gimple_stmt (this_cfun, stmt);
 			    error_found = true;
 			  }
 			if (!e->indirect_unknown_callee)
 			  {
+			    struct cgraph_node *n;
+
 			    if (e->callee->same_body_alias)
 			      {
 				error ("edge points to same body alias:");
@@ -667,6 +676,16 @@ verify_cgraph_node (struct cgraph_node *node)
 				debug_tree (decl);
 				error_found = true;
 			      }
+			    else if (decl
+				     && (n = cgraph_get_node_or_alias (decl))
+				     && (n->same_body_alias
+					 && n->thunk.thunk_p))
+			      {
+				error ("a call to thunk improperly represented "
+				       "in the call graph:");
+				cgraph_debug_gimple_stmt (this_cfun, stmt);
+				error_found = true;
+			      }
 			  }
 			else if (decl)
 			  {
@@ -674,14 +693,14 @@ verify_cgraph_node (struct cgraph_node *node)
 				   "corresponding to a call_stmt with "
 				   "a known declaration:");
 			    error_found = true;
-			    debug_gimple_stmt (e->call_stmt);
+			    cgraph_debug_gimple_stmt (this_cfun, e->call_stmt);
 			  }
 			e->aux = (void *)1;
 		      }
 		    else if (decl)
 		      {
 			error ("missing callgraph edge for call stmt:");
-			debug_gimple_stmt (stmt);
+			cgraph_debug_gimple_stmt (this_cfun, stmt);
 			error_found = true;
 		      }
 		  }
@@ -699,7 +718,7 @@ verify_cgraph_node (struct cgraph_node *node)
 	      error ("edge %s->%s has no corresponding call_stmt",
 		     identifier_to_locale (cgraph_node_name (e->caller)),
 		     identifier_to_locale (cgraph_node_name (e->callee)));
-	      debug_gimple_stmt (e->call_stmt);
+	      cgraph_debug_gimple_stmt (this_cfun, e->call_stmt);
 	      error_found = true;
 	    }
 	  e->aux = 0;
@@ -710,7 +729,7 @@ verify_cgraph_node (struct cgraph_node *node)
 	    {
 	      error ("an indirect edge from %s has no corresponding call_stmt",
 		     identifier_to_locale (cgraph_node_name (e->caller)));
-	      debug_gimple_stmt (e->call_stmt);
+	      cgraph_debug_gimple_stmt (this_cfun, e->call_stmt);
 	      error_found = true;
 	    }
 	  e->aux = 0;
@@ -721,7 +740,6 @@ verify_cgraph_node (struct cgraph_node *node)
       dump_cgraph_node (stderr, node);
       internal_error ("verify_cgraph_node failed");
     }
-  set_cfun (saved_cfun);
   timevar_pop (TV_CGRAPH_VERIFY);
 }
 
@@ -780,6 +798,24 @@ cgraph_analyze_function (struct cgraph_node *node)
   current_function_decl = save;
 }
 
+/* Process attributes common for vars and functions.  */
+
+static void
+process_common_attributes (tree decl)
+{
+  tree weakref = lookup_attribute ("weakref", DECL_ATTRIBUTES (decl));
+
+  if (weakref && !lookup_attribute ("alias", DECL_ATTRIBUTES (decl)))
+    {
+      warning_at (DECL_SOURCE_LOCATION (decl), OPT_Wattributes,
+		  "%<weakref%> attribute should be accompanied with"
+		  " an %<alias%> attribute");
+      DECL_WEAK (decl) = 0;
+      DECL_ATTRIBUTES (decl) = remove_attribute ("weakref",
+						 DECL_ATTRIBUTES (decl));
+    }
+}
+
 /* Look for externally_visible and used attributes and mark cgraph nodes
    accordingly.
 
@@ -832,6 +868,17 @@ process_function_and_variable_attributes (struct cgraph_node *first,
 	  else if (node->local.finalized)
 	     cgraph_mark_needed_node (node);
 	}
+      if (lookup_attribute ("weakref", DECL_ATTRIBUTES (decl))
+	  && node->local.finalized)
+	{
+	  warning_at (DECL_SOURCE_LOCATION (node->decl), OPT_Wattributes,
+		      "%<weakref%> attribute ignored"
+		      " because function is defined");
+	  DECL_WEAK (decl) = 0;
+	  DECL_ATTRIBUTES (decl) = remove_attribute ("weakref",
+						     DECL_ATTRIBUTES (decl));
+	}
+      process_common_attributes (decl);
     }
   for (vnode = varpool_nodes; vnode != first_var; vnode = vnode->next)
     {
@@ -858,6 +905,18 @@ process_function_and_variable_attributes (struct cgraph_node *first,
 	  else if (vnode->finalized)
 	    varpool_mark_needed_node (vnode);
 	}
+      if (lookup_attribute ("weakref", DECL_ATTRIBUTES (decl))
+	  && vnode->finalized
+	  && DECL_INITIAL (decl))
+	{
+	  warning_at (DECL_SOURCE_LOCATION (vnode->decl), OPT_Wattributes,
+		      "%<weakref%> attribute ignored"
+		      " because variable is initialized");
+	  DECL_WEAK (decl) = 0;
+	  DECL_ATTRIBUTES (decl) = remove_attribute ("weakref",
+						      DECL_ATTRIBUTES (decl));
+	}
+      process_common_attributes (decl);
     }
 }
 
@@ -1306,6 +1365,9 @@ assemble_thunk (struct cgraph_node *node)
 
   current_function_decl = thunk_fndecl;
 
+  /* Ensure thunks are emitted in their correct sections.  */
+  resolve_unique_section (thunk_fndecl, 0, flag_function_sections);
+
   if (this_adjusting
       && targetm.asm_out.can_output_mi_thunk (thunk_fndecl, fixed_offset,
 					      virtual_value, alias))
@@ -1653,6 +1715,10 @@ cgraph_output_in_order (void)
   varpool_empty_needed_queue ();
 
   for (i = 0; i < max; ++i)
+    if (nodes[i].kind == ORDER_VAR)
+      varpool_finalize_named_section_flags (nodes[i].u.v);
+
+  for (i = 0; i < max; ++i)
     {
       switch (nodes[i].kind)
 	{
@@ -1981,6 +2047,8 @@ cgraph_function_versioning (struct cgraph_node *old_version_node,
   if (!tree_versionable_function_p (old_decl))
     return NULL;
 
+  gcc_assert (old_version_node->local.can_change_signature || !args_to_skip);
+
   /* Make a new FUNCTION_DECL tree node for the
      new version. */
   if (!args_to_skip)
@@ -2168,22 +2236,20 @@ cgraph_redirect_edge_call_stmt_to_callee (struct cgraph_edge *e)
 	}
     }
 
-  if (e->indirect_info && e->indirect_info->thunk_delta
-      && integer_nonzerop (e->indirect_info->thunk_delta)
+  if (e->indirect_info &&
+      e->indirect_info->thunk_delta != 0
       && (!e->callee->clone.combined_args_to_skip
 	  || !bitmap_bit_p (e->callee->clone.combined_args_to_skip, 0)))
     {
       if (cgraph_dump_file)
-	{
-	  fprintf (cgraph_dump_file, "          Thunk delta is ");
-	  print_generic_expr (cgraph_dump_file,
-			      e->indirect_info->thunk_delta, 0);
-	  fprintf (cgraph_dump_file, "\n");
-	}
+	fprintf (cgraph_dump_file, "          Thunk delta is "
+		 HOST_WIDE_INT_PRINT_DEC "\n", e->indirect_info->thunk_delta);
       gsi = gsi_for_stmt (e->call_stmt);
       gsi_computed = true;
-      gimple_adjust_this_by_delta (&gsi, e->indirect_info->thunk_delta);
-      e->indirect_info->thunk_delta = NULL_TREE;
+      gimple_adjust_this_by_delta (&gsi,
+				   build_int_cst (sizetype,
+					       e->indirect_info->thunk_delta));
+      e->indirect_info->thunk_delta = 0;
     }
 
   if (e->callee->clone.combined_args_to_skip)

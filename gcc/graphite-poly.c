@@ -21,34 +21,19 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "ggc.h"
-#include "tree.h"
-#include "rtl.h"
-#include "output.h"
-#include "basic-block.h"
-#include "diagnostic.h"
-#include "tree-pretty-print.h"
-#include "gimple-pretty-print.h"
+#include "diagnostic-core.h"
 #include "tree-flow.h"
 #include "tree-dump.h"
-#include "timevar.h"
+#include "gimple-pretty-print.h"
 #include "cfgloop.h"
 #include "tree-chrec.h"
 #include "tree-data-ref.h"
 #include "tree-scalar-evolution.h"
-#include "tree-pass.h"
-#include "domwalk.h"
-#include "value-prof.h"
-#include "pointer-set.h"
-#include "gimple.h"
-#include "params.h"
+#include "sese.h"
 
 #ifdef HAVE_cloog
 #include "ppl_c.h"
-#include "sese.h"
 #include "graphite-ppl.h"
-#include "graphite.h"
 #include "graphite-poly.h"
 #include "graphite-dependences.h"
 #include "graphite-cloog-util.h"
@@ -828,15 +813,16 @@ pbb_remove_duplicate_pdrs (poly_bb_p pbb)
 {
   int i, j;
   poly_dr_p pdr1, pdr2;
-  unsigned n = VEC_length (poly_dr_p, PBB_DRS (pbb));
-  VEC (poly_dr_p, heap) *collapsed = VEC_alloc (poly_dr_p, heap, n);
 
   FOR_EACH_VEC_ELT (poly_dr_p, PBB_DRS (pbb), i, pdr1)
-    FOR_EACH_VEC_ELT (poly_dr_p, collapsed, j, pdr2)
-      if (!can_collapse_pdrs (pdr1, pdr2))
-	VEC_quick_push (poly_dr_p, collapsed, pdr1);
+    for (j = i + 1; VEC_iterate (poly_dr_p, PBB_DRS (pbb), j, pdr2); j++)
+      if (can_collapse_pdrs (pdr1, pdr2))
+	{
+	  PDR_NB_REFS (pdr1) += PDR_NB_REFS (pdr2);
+	  free_poly_dr (pdr2);
+	  VEC_ordered_remove (poly_dr_p, PBB_DRS (pbb), j);
+	}
 
-  VEC_free (poly_dr_p, heap, collapsed);
   PBB_PDR_DUPLICATES_REMOVED (pbb) = true;
 }
 

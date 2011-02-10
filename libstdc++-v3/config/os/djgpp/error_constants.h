@@ -22,9 +22,9 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file error_constants.h
+/** @file bits/error_constants.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{system_error}
  */
 
 #ifndef _GLIBCXX_ERROR_CONSTANTS
@@ -33,7 +33,9 @@
 #include <bits/c++config.h>
 #include <cerrno>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 // Most of the commented-out error codes are socket-related and could be
 // replaced by Winsock WSA-prefixed equivalents.
@@ -119,6 +121,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
  //   wrong_protocol_type = 			EPROTOTYPE
    };
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif

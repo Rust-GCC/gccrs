@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, for Sun SPARC.
    Copyright (C) 1987, 1988, 1989, 1992, 1994, 1995, 1996, 1997, 1998, 1999
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com).
    64-bit SPARC-V9 support by Michael Tiemann, Jim Wilson, and Doug Evans,
@@ -361,11 +361,6 @@ extern enum cmodel sparc_cmodel;
    for handling -mcpu=xxx switches.  */
 #define CPP_CPU_SPEC "\
 %{msoft-float:-D_SOFT_FLOAT} \
-%{mcypress:} \
-%{msparclite:-D__sparclite__} \
-%{mf930:-D__sparclite__} %{mf934:-D__sparclite__} \
-%{mv8:-D__sparc_v8__} \
-%{msupersparc:-D__supersparc__ -D__sparc_v8__} \
 %{mcpu=sparclet:-D__sparclet__} %{mcpu=tsc701:-D__sparclet__} \
 %{mcpu=sparclite:-D__sparclite__} \
 %{mcpu=f930:-D__sparclite__} %{mcpu=f934:-D__sparclite__} \
@@ -379,7 +374,7 @@ extern enum cmodel sparc_cmodel;
 %{mcpu=ultrasparc3:-D__sparc_v9__} \
 %{mcpu=niagara:-D__sparc_v9__} \
 %{mcpu=niagara2:-D__sparc_v9__} \
-%{!mcpu*:%{!mcypress:%{!msparclite:%{!mf930:%{!mf934:%{!mv8:%{!msupersparc:%(cpp_cpu_default)}}}}}}} \
+%{!mcpu*:%(cpp_cpu_default)} \
 "
 #define CPP_ARCH32_SPEC ""
 #define CPP_ARCH64_SPEC "-D__arch64__"
@@ -403,24 +398,14 @@ extern enum cmodel sparc_cmodel;
 
 #define CPP_SPEC "%(cpp_cpu) %(cpp_arch) %(cpp_endian) %(cpp_subtarget)"
 
-/* Prevent error on `-sun4' and `-target sun4' options.  */
 /* This used to translate -dalign to -malign, but that is no good
    because it can't turn off the usual meaning of making debugging dumps.  */
-/* Translate old style -m<cpu> into new style -mcpu=<cpu>.
-   ??? Delete support for -m<cpu> for 2.9.  */
 
-#define CC1_SPEC "\
-%{sun4:} %{target:} \
-%{mcypress:-mcpu=cypress} \
-%{msparclite:-mcpu=sparclite} %{mf930:-mcpu=f930} %{mf934:-mcpu=f934} \
-%{mv8:-mcpu=v8} %{msupersparc:-mcpu=supersparc} \
-"
+#define CC1_SPEC ""
 
 /* Override in target specific files.  */
 #define ASM_CPU_SPEC "\
 %{mcpu=sparclet:-Asparclet} %{mcpu=tsc701:-Asparclet} \
-%{msparclite:-Asparclite} \
-%{mf930:-Asparclite} %{mf934:-Asparclite} \
 %{mcpu=sparclite:-Asparclite} \
 %{mcpu=sparclite86x:-Asparclite} \
 %{mcpu=f930:-Asparclite} %{mcpu=f934:-Asparclite} \
@@ -430,7 +415,7 @@ extern enum cmodel sparc_cmodel;
 %{mcpu=ultrasparc3:%{!mv8plus:-Av9b}} \
 %{mcpu=niagara:%{!mv8plus:-Av9b}} \
 %{mcpu=niagara2:%{!mv8plus:-Av9b}} \
-%{!mcpu*:%{!mcypress:%{!msparclite:%{!mf930:%{!mf934:%{!mv8:%{!msupersparc:%(asm_cpu_default)}}}}}}} \
+%{!mcpu*:%(asm_cpu_default)} \
 "
 
 /* Word size selection, among other things.
@@ -906,10 +891,15 @@ extern int sparc_mode_class[];
    not be a register used by the prologue.  */
 #define STATIC_CHAIN_REGNUM (TARGET_ARCH64 ? 5 : 2)
 
+/* Register which holds the global offset table, if any.  */
+
+#define GLOBAL_OFFSET_TABLE_REGNUM 23
+
 /* Register which holds offset table for position-independent
    data references.  */
 
-#define PIC_OFFSET_TABLE_REGNUM (flag_pic ? 23 : INVALID_REGNUM)
+#define PIC_OFFSET_TABLE_REGNUM \
+  (flag_pic ? GLOBAL_OFFSET_TABLE_REGNUM : INVALID_REGNUM)
 
 /* Pick a default value we can notice from override_options:
    !v9: Default is on.

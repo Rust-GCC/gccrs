@@ -1,6 +1,6 @@
 // Internal policy header for TR1 unordered_set and unordered_map -*- C++ -*-
 
-// Copyright (C) 2010 Free Software Foundation, Inc.
+// Copyright (C) 2010, 2011 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,15 +24,18 @@
 
 /** @file tr1/hashtable_policy.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. 
+ *  @headername{tr1/unordered_map, tr1/unordered_set}
  */
 
-namespace std
+namespace std _GLIBCXX_VISIBILITY(default)
 { 
 namespace tr1
 {
 namespace __detail
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
   // Helper function: return distance(first, last) for forward
   // iterators, or 0 for input iterators.
   template<class _Iterator>
@@ -774,6 +777,7 @@ namespace __detail
       _H1          _M_h1;
       _H2          _M_h2;
     };
+_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace __detail
 }
 }
