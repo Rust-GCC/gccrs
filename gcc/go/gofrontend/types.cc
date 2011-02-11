@@ -4565,6 +4565,8 @@ Array_type::do_make_expression_tree(Translate_context* context,
   tree element_size_tree = TYPE_SIZE_UNIT(element_type_tree);
 
   tree value = this->element_type_->get_init_tree(gogo, true);
+  if (value == error_mark_node)
+    return error_mark_node;
 
   // The first argument is the number of elements, the optional second
   // argument is the capacity.
@@ -4688,7 +4690,7 @@ Array_type::do_make_expression_tree(Translate_context* context,
   tree range = build2(RANGE_EXPR, sizetype, size_zero_node, max);
   tree space_init = build_constructor_single(array_type, range, value);
 
-  return build2(COMPOUND_EXPR, TREE_TYPE(space),
+  return build2(COMPOUND_EXPR, TREE_TYPE(constructor),
 		build2(MODIFY_EXPR, void_type_node,
 		       build_fold_indirect_ref(value_pointer),
 		       space_init),
@@ -8052,9 +8054,9 @@ Type::is_unexported_field_or_method(Gogo* gogo, const Type* type,
 				    const std::string& name,
 				    std::vector<const Named_type*>* seen)
 {
-  type = type->deref();
-
   const Named_type* nt = type->named_type();
+  if (nt == NULL)
+    nt = type->deref()->named_type();
   if (nt != NULL)
     {
       if (nt->is_unexported_local_method(gogo, name))
@@ -8071,6 +8073,8 @@ Type::is_unexported_field_or_method(Gogo* gogo, const Type* type,
 	    }
 	}
     }
+
+  type = type->deref();
 
   const Interface_type* it = type->interface_type();
   if (it != NULL && it->is_unexported_method(gogo, name))
@@ -8095,11 +8099,17 @@ Type::is_unexported_field_or_method(Gogo* gogo, const Type* type,
        ++pf)
     {
       if (pf->is_anonymous()
-	  && (!pf->type()->deref()->is_error_type()
-	      && !pf->type()->deref()->is_undefined()))
+	  && !pf->type()->deref()->is_error_type()
+	  && !pf->type()->deref()->is_undefined())
 	{
-	  Named_type* subtype = pf->type()->deref()->named_type();
-	  gcc_assert(subtype != NULL);
+	  Named_type* subtype = pf->type()->named_type();
+	  if (subtype == NULL)
+	    subtype = pf->type()->deref()->named_type();
+	  if (subtype == NULL)
+	    {
+	      // This is an error, but it will be diagnosed elsewhere.
+	      continue;
+	    }
 	  if (Type::is_unexported_field_or_method(gogo, subtype, name, seen))
 	    {
 	      if (nt != NULL)

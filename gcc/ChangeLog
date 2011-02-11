@@ -1,3 +1,9 @@
+2011-02-10  DJ Delorie  <dj@redhat.com>
+
+	* config/m32c/m32c.c (m32c_option_override): Disable
+	-fcombine-stack-adjustments until flag value tracking and compare
+	optimization can be rewritten.
+
 2011-02-10  Peter Bergner  <bergner@vnet.ibm.com>
 
 	* config/rs6000/linux64.h (PROCESSOR_DEFAULT): Change to
@@ -15,8 +21,7 @@
 
 2011-02-10  Richard Guenther  <rguenther@suse.de>
 
-	* tree-ssa-structalias.c (bitpos_of_field): Use BITS_PER_UNIT,
-	not 8.
+	* tree-ssa-structalias.c (bitpos_of_field): Use BITS_PER_UNIT, not 8.
 
 2011-02-10  Richard Guenther  <rguenther@suse.de>
 
@@ -46,6 +51,8 @@
 
 2011-02-09  David Edelsohn  <dje.gcc@gmail.com>
 
+	PR target/46481
+	PR target/47032
 	* config/rs6000/aix61.h (PROCESSOR_DEFAULT): Change to
 	PROCESSOR_POWER7.
 	(PROCESSOR_DEFAULT64): Same.
@@ -117,8 +124,7 @@
 	(funsafe-math-optimizations): Likewise.
 	* opth-gen.awk: Handle SetByCombined.
 	* optc-gen.awk: Likewise.
-	* opts.c (set_fast_math_flags): Don't override flag if set by
-	frontend.
+	* opts.c (set_fast_math_flags): Don't override flag if set by frontend.
 	(set_unsafe_math_optimizations_flags): Likewise.
 	* doc/options.texi (Option properties): Document SetByCombined.
 
@@ -253,8 +259,7 @@
 
 2011-02-07  Mike Stump  <mikestump@comcast.net>
 
-	* config/darwin.opt (mmacosx-version-min): Update default OS
-	version.
+	* config/darwin.opt (mmacosx-version-min): Update default OS version.
 
 2011-02-07  Denis Chertykov  <chertykov@gmail.com>
 

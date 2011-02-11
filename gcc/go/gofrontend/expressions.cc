@@ -5536,6 +5536,9 @@ Binary_expression::do_determine_type(const Type_context* context)
 	subcontext.type = tright;
       else
 	subcontext.type = tleft;
+
+      if (subcontext.type != NULL && !context->may_be_abstract)
+	subcontext.type = subcontext.type->make_non_abstract_type();
     }
 
   this->left_->determine_type(&subcontext);
@@ -6394,7 +6397,8 @@ Bound_method_expression::do_check_types(Gogo*)
 tree
 Bound_method_expression::do_get_tree(Translate_context*)
 {
-  gcc_unreachable();
+  error_at(this->location(), "reference to method other than calling it");
+  return error_mark_node;
 }
 
 // Make a method expression.
@@ -9946,7 +9950,10 @@ Expression::make_map_index(Expression* map, Expression* index,
 Type*
 Field_reference_expression::do_type()
 {
-  Struct_type* struct_type = this->expr_->type()->struct_type();
+  Type* type = this->expr_->type();
+  if (type->is_error_type())
+    return type;
+  Struct_type* struct_type = type->struct_type();
   gcc_assert(struct_type != NULL);
   return struct_type->field(this->field_index_)->type();
 }
@@ -9956,7 +9963,10 @@ Field_reference_expression::do_type()
 void
 Field_reference_expression::do_check_types(Gogo*)
 {
-  Struct_type* struct_type = this->expr_->type()->struct_type();
+  Type* type = this->expr_->type();
+  if (type->is_error_type())
+    return;
+  Struct_type* struct_type = type->struct_type();
   gcc_assert(struct_type != NULL);
   gcc_assert(struct_type->field(this->field_index_) != NULL);
 }
