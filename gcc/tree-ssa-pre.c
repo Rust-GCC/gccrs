@@ -1691,6 +1691,12 @@ phi_translate_1 (pre_expr expr, bitmap_set_t set1, bitmap_set_t set2,
 		result = fold_build1 (VIEW_CONVERT_EXPR, ref->type, result);
 		converted = true;
 	      }
+	    else if (!result && newref
+		     && !useless_type_conversion_p (ref->type, newref->type))
+	      {
+		VEC_free (vn_reference_op_s, heap, newoperands);
+		return NULL;
+	      }
 
 	    if (result && is_gimple_min_invariant (result))
 	      {
@@ -4374,9 +4380,12 @@ eliminate (void)
 	  if (is_gimple_call (stmt)
 	      && TREE_CODE (gimple_call_fn (stmt)) == SSA_NAME)
 	    {
-	      tree fn = VN_INFO (gimple_call_fn (stmt))->valnum;
+	      tree orig_fn = gimple_call_fn (stmt);
+	      tree fn = VN_INFO (orig_fn)->valnum;
 	      if (TREE_CODE (fn) == ADDR_EXPR
-		  && TREE_CODE (TREE_OPERAND (fn, 0)) == FUNCTION_DECL)
+		  && TREE_CODE (TREE_OPERAND (fn, 0)) == FUNCTION_DECL
+		  && useless_type_conversion_p (TREE_TYPE (orig_fn),
+						TREE_TYPE (fn)))
 		{
 		  bool can_make_abnormal_goto
 		    = stmt_can_make_abnormal_goto (stmt);
@@ -4909,7 +4918,10 @@ execute_pre (bool do_fre)
   clear_expression_ids ();
   free_scc_vn ();
   if (!do_fre)
-    remove_dead_inserted_code ();
+    {
+      remove_dead_inserted_code ();
+      todo |= TODO_verify_flow;
+    }
 
   scev_finalize ();
   fini_pre (do_fre);

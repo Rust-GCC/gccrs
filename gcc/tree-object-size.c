@@ -143,7 +143,7 @@ compute_object_offset (const_tree expr, const_tree var)
 
     case MEM_REF:
       gcc_assert (TREE_CODE (TREE_OPERAND (expr, 0)) == ADDR_EXPR);
-      return TREE_OPERAND (expr, 1);
+      return double_int_to_tree (sizetype, mem_ref_offset (expr));
 
     default:
       return error_mark_node;
@@ -348,8 +348,6 @@ addr_object_size (struct object_size_info *osi, const_tree ptr,
 	  tree bytes2 = compute_object_offset (TREE_OPERAND (ptr, 0), pt_var);
 	  if (bytes2 != error_mark_node)
 	    {
-	      bytes2 = size_binop (PLUS_EXPR, bytes2,
-				   TREE_OPERAND (pt_var, 1));
 	      if (TREE_CODE (bytes2) == INTEGER_CST
 		  && tree_int_cst_lt (pt_var_size, bytes2))
 		bytes2 = size_zero_node;

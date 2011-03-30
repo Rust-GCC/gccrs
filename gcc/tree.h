@@ -1106,8 +1106,7 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
 
 /* In VAR_DECL, PARM_DECL and RESULT_DECL nodes, nonzero means address
    of this is needed.  So it cannot be in a register.
-   In a FUNCTION_DECL, nonzero means its address is needed.
-   So it must be compiled even if it is an inline function.
+   In a FUNCTION_DECL it has no meaning.
    In CONSTRUCTOR nodes, it means object constructed must be in memory.
    In LABEL_DECL nodes, it means a goto for this label has been seen
    from a place outside all binding contours that restore stack levels.
@@ -4287,6 +4286,11 @@ extern tree build_type_attribute_variant (tree, tree);
 extern tree build_decl_attribute_variant (tree, tree);
 extern tree build_type_attribute_qual_variant (tree, tree, int);
 
+/* Return 0 if the attributes for two types are incompatible, 1 if they
+   are compatible, and 2 if they are nearly compatible (which causes a
+   warning to be generated).  */
+extern int comp_type_attributes (const_tree, const_tree);
+
 /* Structure describing an attribute and a function to handle it.  */
 struct attribute_spec
 {
@@ -4330,6 +4334,8 @@ struct attribute_spec
      by the rest of this structure.  */
   tree (*const handler) (tree *node, tree name, tree args,
 				 int flags, bool *no_add_attrs);
+  /* Specifies if attribute affects type's identity.  */
+  const bool affects_type_identity;
 };
 
 /* Flags that may be passed in the third argument of decl_attributes, and
@@ -5095,6 +5101,7 @@ extern tree build_simple_mem_ref_loc (location_t, tree);
 	build_simple_mem_ref_loc (UNKNOWN_LOCATION, T)
 extern double_int mem_ref_offset (const_tree);
 extern tree reference_alias_ptr_type (const_tree);
+extern tree build_invariant_address (tree, tree, HOST_WIDE_INT);
 extern tree constant_boolean_node (int, tree);
 extern tree div_if_zero_remainder (enum tree_code, const_tree, const_tree);
 
@@ -5349,7 +5356,7 @@ extern bool must_pass_in_stack_var_size_or_pad (enum machine_mode, const_tree);
 
 /* In attribs.c.  */
 
-extern const struct attribute_spec *lookup_attribute_spec (tree);
+extern const struct attribute_spec *lookup_attribute_spec (const_tree);
 
 /* Process the attributes listed in ATTRIBUTES and install them in *NODE,
    which is either a DECL (including a TYPE_DECL) or a TYPE.  If a DECL,

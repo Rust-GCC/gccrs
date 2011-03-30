@@ -124,7 +124,7 @@ GLIBCXX_3.4 {
       std::messages*;
       std::money*;
 #     std::n[^u]*;
-      std::n[^au]*;
+      std::n[^aue]*;
       std::nu[^m]*;
       std::num[^e]*;
       std::ostrstream*;
@@ -322,7 +322,8 @@ GLIBCXX_3.4 {
     _ZNSt15basic_stringbufIcSt11char_traitsIcESaIcEE3strERKSs;
     _ZNSt15basic_stringbufIwSt11char_traitsIwESaIwEE3strERKSbIwS1_S2_E;
     _ZNSt15basic_stringbufI[cw]St11char_traitsI[cw]ESaI[cw]EE[0-9][t-z]*;
-    _ZNSt15basic_stringbufI[cw]St11char_traitsI[cw]ESaI[cw]EE[0-9]_M_[a-z]*;
+    _ZNSt15basic_stringbufI[cw]St11char_traitsI[cw]ESaI[cw]EE[0-9]_M_[a-o]*;
+    _ZNSt15basic_stringbufI[cw]St11char_traitsI[cw]ESaI[cw]EE[0-9]_M_[q-z]*;
     _ZNSt15basic_stringbufI[cw]St11char_traitsI[cw]ESaI[cw]EE[0-9][0-9]_M_[a-z]*;
 
     # std::basic_iostream constructors, destructors
@@ -617,7 +618,10 @@ GLIBCXX_3.4 {
     _ZTVSt[0-9][0-9][g-k]*;
     _ZTVSt11logic_error;
     _ZTVSt12length_error;
-    _ZTVSt[0-9][0-9][m-q]*;
+#   _ZTVSt[0-9][0-9][m-q]*;
+    _ZTVSt[0-9][0-9][m]*;
+    _ZTVSt[0-9][0-9]n[^e]*;
+    _ZTVSt[0-9][0-9][o-q]*;
     _ZTVSt11range_error;
     _ZTVSt13runtime_error;
     _ZTVSt[0-9][0-9][t-z]*;
@@ -647,7 +651,10 @@ GLIBCXX_3.4 {
     _ZTISt[0-9][0-9][g-k]*;
     _ZTISt11logic_error;
     _ZTISt12length_error;
-    _ZTISt[0-9][0-9][m-q]*;
+#   _ZTISt[0-9][0-9][m-q]*;
+    _ZTISt[0-9][0-9][m]*;
+    _ZTISt[0-9][0-9]n[^e]*;
+    _ZTISt[0-9][0-9][o-q]*;
     _ZTISt11range_error;
     _ZTISt13runtime_error;
     _ZTISt[0-9][0-9][t-z]*;
@@ -681,7 +688,10 @@ GLIBCXX_3.4 {
     _ZTSSt[0-9][0-9][g-k]*;
     _ZTSSt11logic_error;
     _ZTSSt12length_error;
-    _ZTSSt[0-9][0-9][m-q]*;
+#   _ZTSSt[0-9][0-9][m-q]*;
+    _ZTSSt[0-9][0-9][m]*;
+    _ZTSSt[0-9][0-9]n[^e]*;
+    _ZTSSt[0-9][0-9][o-q]*;
     _ZTSSt11range_error;
     _ZTSSt13runtime_error;
     _ZTSSt[0-9][0-9][t-z]*;
@@ -1192,6 +1202,10 @@ GLIBCXX_3.4.15 {
     _ZNSbIwSt11char_traitsIwESaIwEE4backEv;
     _ZNKSbIwSt11char_traitsIwESaIwEE4backEv;
 
+    # string|wstring move contructor.
+    _ZNSsC2EOSs;
+    _ZNSbIwSt11char_traitsIwESaIwEEC2EOS2_;
+
     # basic_filebuf::_M_get_ext_pos
     _ZNSt13basic_filebufI[cw]St11char_traitsI[cw]EE14_M_get_ext_pos*;
 
@@ -1211,12 +1225,42 @@ GLIBCXX_3.4.15 {
     _ZNSt8__detail15_List_node_base11_M_transfer*;
     _ZNSt8__detail15_List_node_base4swapERS0_S1_;
 
+    _ZNSt11range_errorD2Ev;
+    _ZNSt12domain_errorD2Ev;
+    _ZNSt12length_errorD2Ev;
+    _ZNSt12out_of_rangeD2Ev;
+    _ZNSt14overflow_errorD2Ev;
+    _ZNSt15underflow_errorD2Ev;
+    _ZNSt16invalid_argumentD2Ev;
+
     _ZNSt11regex_errorD*;
     _ZNKSt11regex_error4whatEv;
-    _ZTSSt11regex_error;
     _ZTVSt11regex_error;
     _ZTISt11regex_error;
     _ZSt19__throw_regex_errorNSt15regex_constants10error_typeE;
+
+    # std::bad_weak_ptr
+    _ZNSt12bad_weak_ptrD*;
+    _ZNKSt12bad_weak_ptr4whatEv;
+    _ZTVSt12bad_weak_ptr;
+    _ZTISt12bad_weak_ptr;
+
+    # std::bad_function_call
+    _ZNSt17bad_function_callD*;
+    _ZTISt17bad_function_call;
+    _ZTVSt17bad_function_call;
+
+    _ZNSt14error_categoryC*;
+    _ZNSt14error_categoryD*;
+
+    _ZNSt13__future_base12_Result_baseC*;
+    _ZNSt13__future_base12_Result_baseD*;
+    _ZTINSt13__future_base12_Result_baseE;
+    _ZTVNSt13__future_base12_Result_baseE;
+
+    _ZNSt13__future_base11_State_baseD*;
+    _ZTINSt13__future_base11_State_baseE;
+    _ZTVNSt13__future_base11_State_baseE;
 
 } GLIBCXX_3.4.14;
 
@@ -1292,9 +1336,9 @@ CXXABI_1.3 {
     _ZTVN10__cxxabiv121__vmi_class_type_infoE;
 
     # typeinfo structure (and some names)
-    _ZTI[a-fh-z];
-    _ZTIP[a-fh-z];
-    _ZTIPK[a-fh-z];
+    _ZTI[a-fh-mp-z];
+    _ZTIP[a-fh-mp-z];
+    _ZTIPK[a-fh-mp-z];
     _ZTIN10__cxxabiv117__array_type_infoE;
     _ZTIN10__cxxabiv117__class_type_infoE;
     _ZTIN10__cxxabiv116__enum_type_infoE;
@@ -1307,9 +1351,9 @@ CXXABI_1.3 {
     _ZTIN10__cxxabiv121__vmi_class_type_infoE;
 
     # typeinfo name
-    _ZTS[a-fh-z];
-    _ZTSP[a-fh-z];
-    _ZTSPK[a-fh-z];
+    _ZTS[a-fh-mp-z];
+    _ZTSP[a-fh-mp-z];
+    _ZTSPK[a-fh-mp-z];
     _ZTSN10__cxxabiv117__array_type_infoE;
     _ZTSN10__cxxabiv117__class_type_infoE;
     _ZTSN10__cxxabiv116__enum_type_infoE;
@@ -1390,16 +1434,20 @@ CXXABI_1.3.5 {
     _ZTIPDn;
     _ZTIPKDn;
 
+    # typeinfo for __int128 and unsigned __int128
+    _ZTI[no];
+    _ZTIP[no];
+    _ZTIPK[no];
+
     # Default function.
     _ZSt11_Hash_bytesPKv*;
 
     # FNV hash.
     _ZSt15_Fnv_hash_bytesPKv*;
 
-    # std::bad_function_call.
-    _ZNSt17bad_function_callD*;
-    _ZTISt17bad_function_call;
-    _ZTSSt17bad_function_call;
-    _ZTVSt17bad_function_call;
+    # std::nested_exception
+    _ZNSt16nested_exceptionD*;
+    _ZTISt16nested_exception;
+    _ZTVSt16nested_exception;
 
 } CXXABI_1.3.4;

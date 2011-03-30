@@ -1,5 +1,5 @@
 /* GCC backend definitions for the Renesas RX processor.
-   Copyright (C) 2008, 2009, 2010 Free Software Foundation, Inc.
+   Copyright (C) 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Red Hat.
 
    This file is part of GCC.
@@ -85,10 +85,10 @@ extern enum rx_cpu_types  rx_cpu_type;
 #define LIB_SPEC "					\
 --start-group						\
 -lc							\
-%{msim*:-lsim}%{!msim*:-lnosys}				\
+%{msim:-lsim}%{!msim:-lnosys}				\
 %{fprofile-arcs|fprofile-generate|coverage:-lgcov} 	\
 --end-group					   	\
-%{!T*: %{msim*:%Trx-sim.ld}%{!msim*:%Trx.ld}}		\
+%{!T*: %{msim:%Trx-sim.ld}%{!msim:%Trx.ld}}		\
 "
 
 #undef  LINK_SPEC
@@ -187,11 +187,6 @@ enum reg_class
   { 0x0000ffff }	/* All registers.  */		\
 }
 
-#define IRA_COVER_CLASSES				\
-  {							\
-    GR_REGS, LIM_REG_CLASSES				\
-  }
-
 #define SMALL_REGISTER_CLASSES 		0
 #define N_REG_CLASSES			(int) LIM_REG_CLASSES
 #define CLASS_MAX_NREGS(CLASS, MODE)    ((GET_MODE_SIZE (MODE) \
@@ -288,14 +283,6 @@ enum reg_class
     ( (REG_P (X)						\
        || (GET_CODE (X) == SUBREG				\
 	   && REG_P (SUBREG_REG (X))))))
-
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)	\
-  do							\
-    {							\
-      if (rx_is_mode_dependent_addr (ADDR))		\
-        goto LABEL;					\
-    }							\
-  while (0)
 
 
 #define RETURN_ADDR_RTX(COUNT, FRAMEADDR)				\
@@ -420,6 +407,25 @@ typedef unsigned int CUMULATIVE_ARGS;
 #define LOCAL_LABEL_PREFIX	"L"
 #undef  USER_LABEL_PREFIX
 #define USER_LABEL_PREFIX	"_"
+
+#define LABEL_ALIGN_AFTER_BARRIER(x)		rx_align_for_label ()
+
+#define ASM_OUTPUT_MAX_SKIP_ALIGN(STREAM, LOG, MAX_SKIP)	\
+  do						\
+    {						\
+      if ((LOG) == 0 || (MAX_SKIP) == 0)	\
+        break;					\
+      if (TARGET_AS100_SYNTAX)			\
+	{					\
+	  if ((LOG) >= 2)			\
+	    fprintf (STREAM, "\t.ALIGN 4\t; %d alignment actually requested\n", 1 << (LOG)); \
+	  else					\
+	    fprintf (STREAM, "\t.ALIGN 2\n");	\
+	}					\
+      else					\
+	fprintf (STREAM, "\t.balign %d,3,%d\n", 1 << (LOG), (MAX_SKIP));	\
+    }						\
+  while (0)
 
 #define ASM_OUTPUT_ALIGN(STREAM, LOG)		\
   do						\

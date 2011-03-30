@@ -16,22 +16,37 @@ import (
 // other side of a connection.
 type Encoder struct {
 	mutex      sync.Mutex              // each item must be sent atomically
-	w          io.Writer               // where to send the data
+	w          []io.Writer             // where to send the data
 	sent       map[reflect.Type]typeId // which types we've already sent
-	state      *encoderState           // so we can encode integers, strings directly
 	countState *encoderState           // stage for writing counts
+	freeList   *encoderState           // list of free encoderStates; avoids reallocation
 	buf        []byte                  // for collecting the output.
+	byteBuf    bytes.Buffer            // buffer for top-level encoderState
 	err        os.Error
 }
 
 // NewEncoder returns a new encoder that will transmit on the io.Writer.
 func NewEncoder(w io.Writer) *Encoder {
 	enc := new(Encoder)
-	enc.w = w
+	enc.w = []io.Writer{w}
 	enc.sent = make(map[reflect.Type]typeId)
-	enc.state = newEncoderState(enc, new(bytes.Buffer))
-	enc.countState = newEncoderState(enc, new(bytes.Buffer))
+	enc.countState = enc.newEncoderState(new(bytes.Buffer))
 	return enc
+}
+
+// writer() returns the innermost writer the encoder is using
+func (enc *Encoder) writer() io.Writer {
+	return enc.w[len(enc.w)-1]
+}
+
+// pushWriter adds a writer to the encoder.
+func (enc *Encoder) pushWriter(w io.Writer) {
+	enc.w = append(enc.w, w)
+}
+
+// popWriter pops the innermost writer.
+func (enc *Encoder) popWriter() {
+	enc.w = enc.w[0 : len(enc.w)-1]
 }
 
 func (enc *Encoder) badType(rt reflect.Type) {
@@ -42,16 +57,14 @@ func (enc *Encoder) setError(err os.Error) {
 	if enc.err == nil { // remember the first.
 		enc.err = err
 	}
-	enc.state.b.Reset()
 }
 
-// Send the data item preceded by a unsigned count of its length.
-func (enc *Encoder) send() {
-	// Encode the length.
-	enc.countState.encodeUint(uint64(enc.state.b.Len()))
+// writeMessage sends the data item preceded by a unsigned count of its length.
+func (enc *Encoder) writeMessage(w io.Writer, b *bytes.Buffer) {
+	enc.countState.encodeUint(uint64(b.Len()))
 	// Build the buffer.
 	countLen := enc.countState.b.Len()
-	total := countLen + enc.state.b.Len()
+	total := countLen + b.Len()
 	if total > len(enc.buf) {
 		enc.buf = make([]byte, total+1000) // extra for growth
 	}
@@ -59,19 +72,65 @@ func (enc *Encoder) send() {
 	// TODO(r): avoid the extra copy here.
 	enc.countState.b.Read(enc.buf[0:countLen])
 	// Now the data.
-	enc.state.b.Read(enc.buf[countLen:total])
+	b.Read(enc.buf[countLen:total])
 	// Write the data.
-	_, err := enc.w.Write(enc.buf[0:total])
+	_, err := w.Write(enc.buf[0:total])
 	if err != nil {
 		enc.setError(err)
 	}
 }
 
-func (enc *Encoder) sendType(origt reflect.Type) (sent bool) {
-	// Drill down to the base type.
-	rt, _ := indirect(origt)
+// sendActualType sends the requested type, without further investigation, unless
+// it's been sent before.
+func (enc *Encoder) sendActualType(w io.Writer, state *encoderState, ut *userTypeInfo, actual reflect.Type) (sent bool) {
+	if _, alreadySent := enc.sent[actual]; alreadySent {
+		return false
+	}
+	typeLock.Lock()
+	info, err := getTypeInfo(ut)
+	typeLock.Unlock()
+	if err != nil {
+		enc.setError(err)
+		return
+	}
+	// Send the pair (-id, type)
+	// Id:
+	state.encodeInt(-int64(info.id))
+	// Type:
+	enc.encode(state.b, reflect.NewValue(info.wire), wireTypeUserInfo)
+	enc.writeMessage(w, state.b)
+	if enc.err != nil {
+		return
+	}
 
-	switch rt := rt.(type) {
+	// Remember we've sent this type, both what the user gave us and the base type.
+	enc.sent[ut.base] = info.id
+	if ut.user != ut.base {
+		enc.sent[ut.user] = info.id
+	}
+	// Now send the inner types
+	switch st := actual.(type) {
+	case *reflect.StructType:
+		for i := 0; i < st.NumField(); i++ {
+			enc.sendType(w, state, st.Field(i).Type)
+		}
+	case reflect.ArrayOrSliceType:
+		enc.sendType(w, state, st.Elem())
+	}
+	return true
+}
+
+// sendType sends the type info to the other side, if necessary. 
+func (enc *Encoder) sendType(w io.Writer, state *encoderState, origt reflect.Type) (sent bool) {
+	ut := userType(origt)
+	if ut.isGobEncoder {
+		// The rules are different: regardless of the underlying type's representation,
+		// we need to tell the other side that this exact type is a GobEncoder.
+		return enc.sendActualType(w, state, ut, ut.user)
+	}
+
+	// It's a concrete value, so drill down to the base type.
+	switch rt := ut.base.(type) {
 	default:
 		// Basic types and interfaces do not need to be described.
 		return
@@ -97,43 +156,7 @@ func (enc *Encoder) sendType(origt reflect.Type) (sent bool) {
 		return
 	}
 
-	// Have we already sent this type?  This time we ask about the base type.
-	if _, alreadySent := enc.sent[rt]; alreadySent {
-		return
-	}
-
-	// Need to send it.
-	typeLock.Lock()
-	info, err := getTypeInfo(rt)
-	typeLock.Unlock()
-	if err != nil {
-		enc.setError(err)
-		return
-	}
-	// Send the pair (-id, type)
-	// Id:
-	enc.state.encodeInt(-int64(info.id))
-	// Type:
-	enc.encode(enc.state.b, reflect.NewValue(info.wire))
-	enc.send()
-	if enc.err != nil {
-		return
-	}
-
-	// Remember we've sent this type.
-	enc.sent[rt] = info.id
-	// Remember we've sent the top-level, possibly indirect type too.
-	enc.sent[origt] = info.id
-	// Now send the inner types
-	switch st := rt.(type) {
-	case *reflect.StructType:
-		for i := 0; i < st.NumField(); i++ {
-			enc.sendType(st.Field(i).Type)
-		}
-	case reflect.ArrayOrSliceType:
-		enc.sendType(st.Elem())
-	}
-	return true
+	return enc.sendActualType(w, state, ut, ut.base)
 }
 
 // Encode transmits the data item represented by the empty interface value,
@@ -142,15 +165,19 @@ func (enc *Encoder) Encode(e interface{}) os.Error {
 	return enc.EncodeValue(reflect.NewValue(e))
 }
 
-// sendTypeId makes sure the remote side knows about this type.
+// sendTypeDescriptor makes sure the remote side knows about this type.
 // It will send a descriptor if this is the first time the type has been
-// sent.  Regardless, it sends the id.
-func (enc *Encoder) sendTypeDescriptor(rt reflect.Type) {
+// sent.
+func (enc *Encoder) sendTypeDescriptor(w io.Writer, state *encoderState, ut *userTypeInfo) {
 	// Make sure the type is known to the other side.
 	// First, have we already sent this type?
+	rt := ut.base
+	if ut.isGobEncoder {
+		rt = ut.user
+	}
 	if _, alreadySent := enc.sent[rt]; !alreadySent {
 		// No, so send it.
-		sent := enc.sendType(rt)
+		sent := enc.sendType(w, state, rt)
 		if enc.err != nil {
 			return
 		}
@@ -159,7 +186,7 @@ func (enc *Encoder) sendTypeDescriptor(rt reflect.Type) {
 		// need to send the type info but we do need to update enc.sent.
 		if !sent {
 			typeLock.Lock()
-			info, err := getTypeInfo(rt)
+			info, err := getTypeInfo(ut)
 			typeLock.Unlock()
 			if err != nil {
 				enc.setError(err)
@@ -168,9 +195,12 @@ func (enc *Encoder) sendTypeDescriptor(rt reflect.Type) {
 			enc.sent[rt] = info.id
 		}
 	}
+}
 
+// sendTypeId sends the id, which must have already been defined.
+func (enc *Encoder) sendTypeId(state *encoderState, ut *userTypeInfo) {
 	// Identify the type of this top-level value.
-	enc.state.encodeInt(int64(enc.sent[rt]))
+	state.encodeInt(int64(enc.sent[ut.base]))
 }
 
 // EncodeValue transmits the data item represented by the reflection value,
@@ -181,27 +211,30 @@ func (enc *Encoder) EncodeValue(value reflect.Value) os.Error {
 	enc.mutex.Lock()
 	defer enc.mutex.Unlock()
 
-	enc.err = nil
-	rt, _ := indirect(value.Type())
+	// Remove any nested writers remaining due to previous errors.
+	enc.w = enc.w[0:1]
 
-	// Sanity check only: encoder should never come in with data present.
-	if enc.state.b.Len() > 0 || enc.countState.b.Len() > 0 {
-		enc.err = os.ErrorString("encoder: buffer not empty")
-		return enc.err
+	ut, err := validUserType(value.Type())
+	if err != nil {
+		return err
 	}
 
-	enc.sendTypeDescriptor(rt)
+	enc.err = nil
+	enc.byteBuf.Reset()
+	state := enc.newEncoderState(&enc.byteBuf)
+
+	enc.sendTypeDescriptor(enc.writer(), state, ut)
+	enc.sendTypeId(state, ut)
 	if enc.err != nil {
 		return enc.err
 	}
 
 	// Encode the object.
-	err := enc.encode(enc.state.b, value)
-	if err != nil {
-		enc.setError(err)
-	} else {
-		enc.send()
+	enc.encode(state.b, value, ut)
+	if enc.err == nil {
+		enc.writeMessage(enc.writer(), state.b)
 	}
 
+	enc.freeEncoderState(state)
 	return enc.err
 }

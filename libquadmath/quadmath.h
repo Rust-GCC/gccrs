@@ -132,8 +132,8 @@ extern __complex128 ctanhq (__complex128) __quadmath_throw;
 
 /* Prototypes for string <-> __float128 conversion functions */
 extern __float128 strtoflt128 (const char *, char **) __quadmath_throw;
-extern void quadmath_flt128tostr (char *, size_t, size_t, __float128)
-  __quadmath_throw;
+extern int quadmath_snprintf (char *str, size_t size,
+			      const char *format, ...) __quadmath_throw;
 
 
 /* Macros */
@@ -144,8 +144,9 @@ extern void quadmath_flt128tostr (char *, size_t, size_t, __float128)
 #define FLT128_MANT_DIG 113
 #define FLT128_MIN_EXP (-16381)
 #define FLT128_MAX_EXP 16384
-/* TODO -- One day, we need to add the following macros:
-   FLT128_DIG, FLT128_MIN_10_EXP, FLT128_MAX_10_EXP */
+#define FLT128_DIG 33
+#define FLT128_MIN_10_EXP (-4931)
+#define FLT128_MAX_10_EXP 4932
 
 
 #define HUGE_VALQ __builtin_huge_valq()

@@ -18,6 +18,8 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+// libstdc++/47662
+
 // Avoid using PCH
 #include <cerrno>
 #include <bits/stdc++.h>

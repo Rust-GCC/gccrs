@@ -144,11 +144,15 @@ typedef struct stat gfstat_t;
 static int
 fallback_access (const char *path, int mode)
 {
-  if ((mode & R_OK) && open (path, O_RDONLY) < 0)
-    return -1;
+  int fd;
 
-  if ((mode & W_OK) && open (path, O_WRONLY) < 0)
+  if ((mode & R_OK) && (fd = open (path, O_RDONLY)) < 0)
     return -1;
+  close (fd);
+
+  if ((mode & W_OK) && (fd = open (path, O_WRONLY)) < 0)
+    return -1;
+  close (fd);
 
   if (mode == F_OK)
     {
@@ -1018,6 +1022,12 @@ tempfile (st_parameter_open *opp)
   char *template;
   const char *slash = "/";
   int fd;
+  size_t tempdirlen;
+
+#ifndef HAVE_MKSTEMP
+  int count;
+  size_t slashlen;
+#endif
 
   tempdir = getenv ("GFORTRAN_TMPDIR");
 #ifdef __MINGW32__
@@ -1042,16 +1052,19 @@ tempfile (st_parameter_open *opp)
   if (tempdir == NULL)
     tempdir = DEFAULT_TEMPDIR;
 #endif
+
   /* Check for special case that tempdir contains slash
      or backslash at end.  */
-  if (*tempdir == 0 || tempdir[strlen (tempdir) - 1] == '/'
+  tempdirlen = strlen (tempdir);
+  if (*tempdir == 0 || tempdir[tempdirlen - 1] == '/'
 #ifdef __MINGW32__
-      || tempdir[strlen (tempdir) - 1] == '\\'
+      || tempdir[tempdirlen - 1] == '\\'
 #endif
      )
     slash = "";
 
-  template = get_mem (strlen (tempdir) + 20);
+  // Take care that the template is longer in the mktemp() branch.
+  template = get_mem (tempdirlen + 23);
 
 #ifdef HAVE_MKSTEMP
   sprintf (template, "%s%sgfortrantmpXXXXXX", tempdir, slash);
@@ -1060,11 +1073,30 @@ tempfile (st_parameter_open *opp)
 
 #else /* HAVE_MKSTEMP */
   fd = -1;
+  count = 0;
+  slashlen = strlen (slash);
   do
     {
-      sprintf (template, "%s%sgfortrantmpXXXXXX", tempdir, slash);
+      sprintf (template, "%s%sgfortrantmpaaaXXXXXX", tempdir, slash);
+      if (count > 0)
+	{
+	  int c = count;
+	  template[tempdirlen + slashlen + 13] = 'a' + (c% 26);
+	  c /= 26;
+	  template[tempdirlen + slashlen + 12] = 'a' + (c % 26);
+	  c /= 26;
+	  template[tempdirlen + slashlen + 11] = 'a' + (c % 26);
+	  if (c >= 26)
+	    break;
+	}
+
       if (!mktemp (template))
-	break;
+      {
+	errno = EEXIST;
+	count++;
+	continue;
+      }
+
 #if defined(HAVE_CRLF) && defined(O_BINARY)
       fd = open (template, O_RDWR | O_CREAT | O_EXCL | O_BINARY,
 		 S_IREAD | S_IWRITE);

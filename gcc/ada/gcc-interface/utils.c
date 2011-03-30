@@ -104,29 +104,42 @@ static tree fake_attribute_handler      (tree *, tree, tree, int, bool *);
    this minimal set of attributes to accommodate the needs of builtins.  */
 const struct attribute_spec gnat_internal_attribute_table[] =
 {
-  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler } */
-  { "const",        0, 0,  true,  false, false, handle_const_attribute   },
-  { "nothrow",      0, 0,  true,  false, false, handle_nothrow_attribute },
-  { "pure",         0, 0,  true,  false, false, handle_pure_attribute },
-  { "no vops",      0, 0,  true,  false, false, handle_novops_attribute },
-  { "nonnull",      0, -1, false, true,  true,  handle_nonnull_attribute },
-  { "sentinel",     0, 1,  false, true,  true,  handle_sentinel_attribute },
-  { "noreturn",     0, 0,  true,  false, false, handle_noreturn_attribute },
-  { "leaf",         0, 0,  true,  false, false, handle_leaf_attribute },
-  { "malloc",       0, 0,  true,  false, false, handle_malloc_attribute },
-  { "type generic", 0, 0,  false, true, true, handle_type_generic_attribute },
+  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
+       affects_type_identity } */
+  { "const",        0, 0,  true,  false, false, handle_const_attribute,
+    false },
+  { "nothrow",      0, 0,  true,  false, false, handle_nothrow_attribute,
+    false },
+  { "pure",         0, 0,  true,  false, false, handle_pure_attribute,
+    false },
+  { "no vops",      0, 0,  true,  false, false, handle_novops_attribute,
+    false },
+  { "nonnull",      0, -1, false, true,  true,  handle_nonnull_attribute,
+    false },
+  { "sentinel",     0, 1,  false, true,  true,  handle_sentinel_attribute,
+    false },
+  { "noreturn",     0, 0,  true,  false, false, handle_noreturn_attribute,
+    false },
+  { "leaf",         0, 0,  true,  false, false, handle_leaf_attribute,
+    false },
+  { "malloc",       0, 0,  true,  false, false, handle_malloc_attribute,
+    false },
+  { "type generic", 0, 0,  false, true, true, handle_type_generic_attribute,
+    false },
 
-  { "vector_size",  1, 1,  false, true, false,  handle_vector_size_attribute },
-  { "vector_type",  0, 0,  false, true, false,  handle_vector_type_attribute },
-  { "may_alias",    0, 0, false, true, false, NULL },
+  { "vector_size",  1, 1,  false, true, false,  handle_vector_size_attribute,
+    false },
+  { "vector_type",  0, 0,  false, true, false,  handle_vector_type_attribute,
+    false },
+  { "may_alias",    0, 0, false, true, false, NULL, false },
 
   /* ??? format and format_arg are heavy and not supported, which actually
      prevents support for stdio builtins, which we however declare as part
      of the common builtins.def contents.  */
-  { "format",     3, 3,  false, true,  true,  fake_attribute_handler },
-  { "format_arg", 1, 1,  false, true,  true,  fake_attribute_handler },
+  { "format",     3, 3,  false, true,  true,  fake_attribute_handler, false },
+  { "format_arg", 1, 1,  false, true,  true,  fake_attribute_handler, false },
 
-  { NULL,         0, 0, false, false, false, NULL }
+  { NULL,         0, 0, false, false, false, NULL, false }
 };
 
 /* Associates a GNAT tree node to a GCC tree node. It is used in
@@ -1777,6 +1790,7 @@ create_subprog_decl (tree subprog_name, tree asm_name,
      We could inline the nested function as well but it's probably better
      to err on the side of too little inlining.  */
   if (!inline_flag
+      && !public_flag
       && current_function_decl
       && DECL_DECLARED_INLINE_P (current_function_decl)
       && DECL_EXTERNAL (current_function_decl))
@@ -4043,6 +4057,18 @@ convert (tree type, tree expr)
       } while (TREE_CODE (child_etype) == RECORD_TYPE);
     }
 
+  /* If we are converting from a smaller form of record type back to it, just
+     make a VIEW_CONVERT_EXPR.  But first pad the expression to have the same
+     size on both sides.  */
+  else if (ecode == RECORD_TYPE && code == RECORD_TYPE
+	   && smaller_form_type_p (etype, type))
+    {
+      expr = convert (maybe_pad_type (etype, TYPE_SIZE (type), 0, Empty,
+				      false, false, false, true),
+		      expr);
+      return build1 (VIEW_CONVERT_EXPR, type, expr);
+    }
+
   /* In all other cases of related types, make a NOP_EXPR.  */
   else if (TYPE_MAIN_VARIANT (type) == TYPE_MAIN_VARIANT (etype))
     return fold_convert (type, expr);
@@ -4672,6 +4698,30 @@ type_for_nonaliased_component_p (tree gnu_type)
   return true;
 }
 
+/* Return true if TYPE is a smaller form of ORIG_TYPE.  */
+
+bool
+smaller_form_type_p (tree type, tree orig_type)
+{
+  tree size, osize;
+
+  /* We're not interested in variants here.  */
+  if (TYPE_MAIN_VARIANT (type) == TYPE_MAIN_VARIANT (orig_type))
+    return false;
+
+  /* Like a variant, a packable version keeps the original TYPE_NAME.  */
+  if (TYPE_NAME (type) != TYPE_NAME (orig_type))
+    return false;
+
+  size = TYPE_SIZE (type);
+  osize = TYPE_SIZE (orig_type);
+
+  if (!(TREE_CODE (size) == INTEGER_CST && TREE_CODE (osize) == INTEGER_CST))
+    return false;
+
+  return tree_int_cst_lt (size, osize) != 0;
+}
+
 /* Perform final processing on global variables.  */
 
 void
@@ -4881,6 +4931,7 @@ def_fn_type (builtin_type def, builtin_type ret, bool var, int n, ...)
 
  egress:
   builtin_types[def] = t;
+  va_end (list);
 }
 
 /* Build the builtin function types and install them in the builtin_types

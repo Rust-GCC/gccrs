@@ -51,7 +51,7 @@ static struct {
 void
 siginit(void)
 {
-	noteclear(&sig);
+	runtime_noteclear(&sig);
 }
 
 // Called from sighandler to send a signal back out of the signal handling thread.
@@ -71,7 +71,7 @@ __go_sigsend(int32 s)
 			// Added to queue.
 			// Only send a wakeup for the first signal in each round.
 			if(mask == 0)
-				notewakeup(&sig);
+				runtime_notewakeup(&sig);
 			break;
 		}
 	}
@@ -81,9 +81,9 @@ __go_sigsend(int32 s)
 // Called to receive a bitmask of queued signals.
 func Sigrecv() (m uint32) {
 	// runtime·entersyscall();
-	notesleep(&sig);
+	runtime_notesleep(&sig);
 	// runtime·exitsyscall();
-	noteclear(&sig);
+	runtime_noteclear(&sig);
 	for(;;) {
 		m = sig.mask;
 		if(runtime_cas(&sig.mask, m, 0))
@@ -102,7 +102,7 @@ func Signame(sig int32) (name String) {
 		s = buf;
 	}
 	int32 len = __builtin_strlen(s);
-	unsigned char *data = runtime_mallocgc(len, RefNoPointers, 0, 0);
+	unsigned char *data = runtime_mallocgc(len, FlagNoPointers, 0, 0);
 	__builtin_memcpy(data, s, len);
 	name.__data = data;
 	name.__length = len;

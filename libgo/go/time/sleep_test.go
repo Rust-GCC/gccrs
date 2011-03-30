@@ -64,6 +64,18 @@ func BenchmarkAfterFunc(b *testing.B) {
 	<-c
 }
 
+func BenchmarkAfter(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		<-After(1)
+	}
+}
+
+func BenchmarkStop(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		NewTimer(1e9).Stop()
+	}
+}
+
 func TestAfter(t *testing.T) {
 	const delay = int64(100e6)
 	start := Nanoseconds()
@@ -94,7 +106,35 @@ func TestAfterTick(t *testing.T) {
 	}
 }
 
-var slots = []int{5, 3, 6, 6, 6, 1, 1, 2, 7, 9, 4, 8, 0}
+func TestAfterStop(t *testing.T) {
+	const msec = 1e6
+	AfterFunc(100*msec, func() {})
+	t0 := NewTimer(50 * msec)
+	c1 := make(chan bool, 1)
+	t1 := AfterFunc(150*msec, func() { c1 <- true })
+	c2 := After(200 * msec)
+	if !t0.Stop() {
+		t.Fatalf("failed to stop event 0")
+	}
+	if !t1.Stop() {
+		t.Fatalf("failed to stop event 1")
+	}
+	<-c2
+	select {
+	case <-t0.C:
+		t.Fatalf("event 0 was not stopped")
+	case <-c1:
+		t.Fatalf("event 1 was not stopped")
+	default:
+	}
+	if t1.Stop() {
+		t.Fatalf("Stop returned true twice")
+	}
+}
+
+// For gccgo omit 0 for now because it can take too long to start the
+// thread.
+var slots = []int{5, 3, 6, 6, 6, 1, 1, 2, 7, 9, 4, 8, /*0*/}
 
 type afterResult struct {
 	slot int

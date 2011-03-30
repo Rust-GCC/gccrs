@@ -32,6 +32,11 @@ int optimize
 Variable
 int optimize_size
 
+; Not used directly to control optimizations, only to save -Ofast
+; setting for "optimize" attributes.
+Variable
+int optimize_fast
+
 ; 0 means straightforward implementation of complex divide acceptable.
 ; 1 means wide ranges of inputs must work for complex divide.
 ; 2 means C99-like requirements for complex multiply and divide.
@@ -712,6 +717,13 @@ Driver
 e
 Driver Joined Separate
 
+; This option has historically been passed down to the linker by an
+; accident of a %{e*} spec, so ensure it continues to be passed down
+; as a single option.  The supported option for this purpose is
+; -rdynamic.  See PR 47390.
+export-dynamic
+Driver Undocumented
+
 ; The version of the C++ ABI in use.  The following values are allowed:
 ;
 ; 0: The version of the ABI believed most conformant with the C++ ABI
@@ -727,7 +739,12 @@ Driver Joined Separate
 ;    in template non-type arguments of pointer type.
 ;
 ; 4: The version of the ABI that introduces unambiguous mangling of
-;    vector types.
+;    vector types.  First selectable in G++ 4.5.
+;
+; 5: The version of the ABI that ignores attribute const/noreturn
+;    in function pointer mangling, and corrects mangling of decltype and
+;    function parameters used in other parameters and the return type.
+;    First selectable in G++ 4.6.
 ;
 ; Additional positive integers will be assigned as new versions of
 ; the ABI become the default version of the ABI.
@@ -995,10 +1012,6 @@ femit-class-debug-always
 Common Report Var(flag_emit_class_debug_always) Init(0)
 Do not suppress C++ class debug information.
 
-fenable-icf-debug
-Common Report Var(flag_enable_icf_debug)
-Generate debug information to support Identical Code Folding (ICF)
-
 fexceptions
 Common Report Var(flag_exceptions) Optimization
 Enable exception handling
@@ -1236,9 +1249,8 @@ Perform matrix layout flattening and transposing based
 on profiling information.
 
 fipa-struct-reorg
-Common Report Var(flag_ipa_struct_reorg)
-Perform structure layout optimizations based
-on profiling information.
+Common Ignore
+Does nothing. Preserved for backward compatibility.
 
 fira-algorithm=
 Common Joined RejectNegative Enum(ira_algorithm) Var(flag_ira_algorithm) Init(IRA_ALGORITHM_CB)
@@ -2174,6 +2186,9 @@ no-canonical-prefixes
 Driver
 
 nodefaultlibs
+Driver
+
+nostartfiles
 Driver
 
 nostdlib

@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler.  
    Vitesse IQ2000 processors
-   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
    This file is part of GCC.
@@ -209,11 +209,6 @@ enum reg_class
 
 #define N_REG_CLASSES (int) LIM_REG_CLASSES
 
-#define IRA_COVER_CLASSES	\
-{				\
-  GR_REGS, LIM_REG_CLASSES	\
-}
-
 #define REG_CLASS_NAMES						\
 {								\
   "NO_REGS",							\
@@ -235,12 +230,6 @@ enum reg_class
 
 #define INDEX_REG_CLASS NO_REGS
 
-#define REG_CLASS_FROM_LETTER(C) \
-  ((C) == 'd' ? GR_REGS :        \
-   (C) == 'b' ? ALL_REGS :       \
-   (C) == 'y' ? GR_REGS :        \
-   NO_REGS)
-
 #define REGNO_OK_FOR_INDEX_P(regno)	0
 
 #define PREFERRED_RELOAD_CLASS(X,CLASS)				\
@@ -256,53 +245,6 @@ enum reg_class
 
 #define CLASS_MAX_NREGS(CLASS, MODE)    \
   ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
-
-/* For IQ2000:
-
-   `I'	is used for the range of constants an arithmetic insn can
-	actually contain (16-bits signed integers).
-
-   `J'	is used for the range which is just zero (i.e., $r0).
-
-   `K'	is used for the range of constants a logical insn can actually
-	contain (16-bit zero-extended integers).
-
-   `L'	is used for the range of constants that be loaded with lui
-	(i.e., the bottom 16 bits are zero).
-
-   `M'	is used for the range of constants that take two words to load
-	(i.e., not matched by `I', `K', and `L').
-
-   `N'	is used for constants 0xffffnnnn or 0xnnnnffff
-
-   `O'	is a 5-bit zero-extended integer.  */
-
-#define CONST_OK_FOR_LETTER_P(VALUE, C)					\
-  ((C) == 'I' ? ((unsigned HOST_WIDE_INT) ((VALUE) + 0x8000) < 0x10000)	\
-   : (C) == 'J' ? ((VALUE) == 0)					\
-   : (C) == 'K' ? ((unsigned HOST_WIDE_INT) (VALUE) < 0x10000)		\
-   : (C) == 'L' ? (((VALUE) & 0x0000ffff) == 0				\
-		   && (((VALUE) & ~2147483647) == 0			\
-		       || ((VALUE) & ~2147483647) == ~2147483647))	\
-   : (C) == 'M' ? ((((VALUE) & ~0x0000ffff) != 0)			\
-		   && (((VALUE) & ~0x0000ffff) != ~0x0000ffff)		\
-		   && (((VALUE) & 0x0000ffff) != 0			\
-		       || (((VALUE) & ~2147483647) != 0			\
-			   && ((VALUE) & ~2147483647) != ~2147483647)))	\
-   : (C) == 'N' ? ((((VALUE) & 0xffff) == 0xffff)			\
-		   || (((VALUE) & 0xffff0000) == 0xffff0000))		\
-   : (C) == 'O' ? ((unsigned HOST_WIDE_INT) ((VALUE) + 0x20) < 0x40)	\
-   : 0)
-
-#define CONST_DOUBLE_OK_FOR_LETTER_P(VALUE, C)				\
-  ((C) == 'G'								\
-   && (VALUE) == CONST0_RTX (GET_MODE (VALUE)))
-
-/* `R' is for memory references which take 1 word for the instruction.  */
-
-#define EXTRA_CONSTRAINT(OP,CODE)					\
-  (((CODE) == 'R')	  ? simple_memory_operand (OP, GET_MODE (OP))	\
-   : FALSE)
 
 
 /* Basic Stack Layout.  */
@@ -662,15 +604,6 @@ enum delay_type
   DELAY_FCMP				/* Delay after doing c.<xx>.{d,s}.  */
 };
 
-/* Which processor to schedule for.  */
-
-enum processor_type
-{
-  PROCESSOR_DEFAULT,
-  PROCESSOR_IQ2000,
-  PROCESSOR_IQ10
-};
-
 /* Recast the cpu class to be the cpu attribute.  */
 #define iq2000_cpu_attr ((enum attr_cpu) iq2000_tune)
 
@@ -903,9 +836,6 @@ enum processor_type
 #define SDATA_SECTION_ASM_OP	"\t.sdata"	/* Small data.  */
 
 
-/* The target cpu for optimization and scheduling.  */
-extern enum processor_type iq2000_tune;
-
 /* Which instruction set architecture to use.  */
 extern int iq2000_isa;
 

@@ -1,3 +1,34 @@
+2011-03-21  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (THREADS): Remove solaris.
+	* configure: Regenerate.
+
+2011-03-21  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR bootstrap/48135
+	* configure.ac (libjava_cv_anon_version_script): Handle
+	--disable-symvers.
+	* configure: Regenerate.
+
+2011-02-14  Gary Benson  <gbenson@redhat.com>
+
+	* libjava/contrib/aot-compile.in: Add our module directory
+	to the start of the search path rather than the end.
+	* libjava/contrib/aot-compile-rpm.in: Likewise.
+
+2011-02-14  Gary Benson  <gbenson@redhat.com>
+
+	PR libjava/47484
+	* configure.ac (python_mod_dir, python_mod_dir_expanded):
+	Install Python modules into versioned directory.
+	* configure: Regenerate.
+
+2011-02-13  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure: Regenerate.
+	* shlibpath.m4 (AC_LIBTOOL_SYS_DYNAMIC_LINKER): Remove handling
+	of freebsd1* which soon would incorrectly match FreeBSD 10.0.
+
 2011-02-04  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
 
 	PR java/21206

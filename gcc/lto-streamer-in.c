@@ -140,7 +140,10 @@ input_string_internal (struct data_in *data_in, struct lto_input_block *ib,
   unsigned int loc;
   const char *result;
 
+  /* Read the location of the string from IB.  */
   loc = lto_input_uleb128 (ib);
+
+  /* Get the string stored at location LOC in DATA_IN->STRINGS.  */
   LTO_INIT_INPUT_BLOCK (str_tab, data_in->strings, loc, data_in->strings_len);
   len = lto_input_uleb128 (&str_tab);
   *rlen = len;
@@ -191,10 +194,24 @@ input_identifier (struct data_in *data_in, struct lto_input_block *ib)
   return get_identifier_with_length (ptr, len);
 }
 
+
+/* Read LENGTH bytes from STREAM to ADDR.  */
+
+void
+lto_input_data_block (struct lto_input_block *ib, void *addr, size_t length)
+{
+  size_t i;
+  unsigned char *const buffer = (unsigned char *const) addr;
+
+  for (i = 0; i < length; i++)
+    buffer[i] = lto_input_1_unsigned (ib);
+}
+
+
 /* Read a NULL terminated string from the string table in DATA_IN.  */
 
-static const char *
-input_string (struct data_in *data_in, struct lto_input_block *ib)
+const char *
+lto_input_string (struct data_in *data_in, struct lto_input_block *ib)
 {
   unsigned int len;
   const char *ptr;
@@ -275,7 +292,7 @@ lto_input_location (struct lto_input_block *ib, struct data_in *data_in)
 {
   expanded_location xloc;
 
-  xloc.file = input_string (data_in, ib);
+  xloc.file = lto_input_string (data_in, ib);
   if (xloc.file == NULL)
     return UNKNOWN_LOCATION;
 
@@ -1097,8 +1114,8 @@ input_bb (struct lto_input_block *ib, enum LTO_tags tag,
   while (tag)
     {
       gimple stmt = input_gimple_stmt (ib, data_in, fn, tag);
-
-      find_referenced_vars_in (stmt);
+      if (!is_gimple_debug (stmt))
+	find_referenced_vars_in (stmt);
       gsi_insert_after (&bsi, stmt, GSI_NEW_STMT);
 
       /* After the statement, expect a 0 delimiter or the EH region
@@ -1960,13 +1977,6 @@ lto_input_ts_decl_minimal_tree_pointers (struct lto_input_block *ib,
 {
   DECL_NAME (expr) = lto_input_tree (ib, data_in);
   DECL_CONTEXT (expr) = lto_input_tree (ib, data_in);
-  /* We do not stream BLOCK_VARS but lazily construct it here.  */
-  if (DECL_CONTEXT (expr)
-      && TREE_CODE (DECL_CONTEXT (expr)) == BLOCK)
-    {
-      TREE_CHAIN (expr) = BLOCK_VARS (DECL_CONTEXT (expr));
-      BLOCK_VARS (DECL_CONTEXT (expr)) = expr;
-    }
   DECL_SOURCE_LOCATION (expr) = lto_input_location (ib, data_in);
 }
 
@@ -1982,11 +1992,14 @@ lto_input_ts_decl_common_tree_pointers (struct lto_input_block *ib,
   DECL_SIZE (expr) = lto_input_tree (ib, data_in);
   DECL_SIZE_UNIT (expr) = lto_input_tree (ib, data_in);
 
-  if (TREE_CODE (expr) != FUNCTION_DECL)
+  if (TREE_CODE (expr) != FUNCTION_DECL
+      && TREE_CODE (expr) != TRANSLATION_UNIT_DECL)
     DECL_INITIAL (expr) = lto_input_tree (ib, data_in);
 
   DECL_ATTRIBUTES (expr) = lto_input_tree (ib, data_in);
-  DECL_ABSTRACT_ORIGIN (expr) = lto_input_tree (ib, data_in);
+  /* Do not stream DECL_ABSTRACT_ORIGIN.  We cannot handle debug information
+     for early inlining so drop it on the floor instead of ICEing in
+     dwarf2out.c.  */
 
   if (TREE_CODE (expr) == PARM_DECL)
     TREE_CHAIN (expr) = lto_input_chain (ib, data_in);
@@ -2185,25 +2198,19 @@ static void
 lto_input_ts_block_tree_pointers (struct lto_input_block *ib,
 				  struct data_in *data_in, tree expr)
 {
-  unsigned i, len;
+  /* Do not stream BLOCK_SOURCE_LOCATION.  We cannot handle debug information
+     for early inlining so drop it on the floor instead of ICEing in
+     dwarf2out.c.  */
+  BLOCK_VARS (expr) = lto_input_chain (ib, data_in);
 
-  BLOCK_SOURCE_LOCATION (expr) = lto_input_location (ib, data_in);
-  /* We do not stream BLOCK_VARS but lazily construct it when reading
-     in decls.  */
-
-  len = lto_input_uleb128 (ib);
-  if (len > 0)
-    {
-      VEC_reserve_exact (tree, gc, BLOCK_NONLOCALIZED_VARS (expr), len);
-      for (i = 0; i < len; i++)
-	{
-	  tree t = lto_input_tree (ib, data_in);
-	  VEC_quick_push (tree, BLOCK_NONLOCALIZED_VARS (expr), t);
-	}
-    }
+  /* Do not stream BLOCK_NONLOCALIZED_VARS.  We cannot handle debug information
+     for early inlining so drop it on the floor instead of ICEing in
+     dwarf2out.c.  */
 
   BLOCK_SUPERCONTEXT (expr) = lto_input_tree (ib, data_in);
-  BLOCK_ABSTRACT_ORIGIN (expr) = lto_input_tree (ib, data_in);
+  /* Do not stream BLOCK_ABSTRACT_ORIGIN.  We cannot handle debug information
+     for early inlining so drop it on the floor instead of ICEing in
+     dwarf2out.c.  */
   BLOCK_FRAGMENT_ORIGIN (expr) = lto_input_tree (ib, data_in);
   BLOCK_FRAGMENT_CHAIN (expr) = lto_input_tree (ib, data_in);
   /* We re-compute BLOCK_SUBBLOCKS of our parent here instead
@@ -2215,6 +2222,13 @@ lto_input_ts_block_tree_pointers (struct lto_input_block *ib,
       BLOCK_CHAIN (expr) = BLOCK_SUBBLOCKS (BLOCK_SUPERCONTEXT (expr));
       BLOCK_SUBBLOCKS (BLOCK_SUPERCONTEXT (expr)) = expr;
     }
+  /* The global block is rooted at the TU decl.  Hook it here to
+     avoid the need to stream in this block during WPA time.  */
+  else if (BLOCK_SUPERCONTEXT (expr)
+	   && TREE_CODE (BLOCK_SUPERCONTEXT (expr)) == TRANSLATION_UNIT_DECL)
+    DECL_INITIAL (BLOCK_SUPERCONTEXT (expr)) = expr;
+  /* The function-level block is connected at the time we read in
+     function bodies for the same reason.  */
 }
 
 
@@ -2310,7 +2324,7 @@ lto_input_ts_translation_unit_decl_tree_pointers (struct lto_input_block *ib,
 						  struct data_in *data_in,
 						  tree expr)
 {
-  TRANSLATION_UNIT_LANGUAGE (expr) = xstrdup (input_string (data_in, ib));
+  TRANSLATION_UNIT_LANGUAGE (expr) = xstrdup (lto_input_string (data_in, ib));
   VEC_safe_push (tree, gc, all_translation_units, expr);
 }
 
@@ -2432,6 +2446,8 @@ lto_register_var_decl_in_symtab (struct data_in *data_in, tree decl)
       ASM_FORMAT_PRIVATE_NAME (label, name, DECL_UID (decl));
       SET_DECL_ASSEMBLER_NAME (decl, get_identifier (label));
       rest_of_decl_compilation (decl, 1, 0);
+
+      VEC_safe_push (tree, gc, lto_global_var_decls, decl);
     }
 
   /* If this variable has already been declared, queue the
@@ -2591,7 +2607,7 @@ lto_get_builtin_tree (struct lto_input_block *ib, struct data_in *data_in)
   else
     gcc_unreachable ();
 
-  asmname = input_string (data_in, ib);
+  asmname = lto_input_string (data_in, ib);
   if (asmname)
     set_builtin_user_assembler_name (result, asmname);
 

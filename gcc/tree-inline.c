@@ -312,13 +312,17 @@ remap_decl (tree decl, copy_body_data *id)
 	    walk_tree (&DECL_QUALIFIER (t), copy_tree_body_r, id, NULL);
 	}
 
-      if (cfun && gimple_in_ssa_p (cfun)
-	  && (TREE_CODE (t) == VAR_DECL
-	      || TREE_CODE (t) == RESULT_DECL || TREE_CODE (t) == PARM_DECL))
-	{
-	  get_var_ann (t);
-	  add_referenced_var (t);
-	}
+      if ((TREE_CODE (t) == VAR_DECL
+	   || TREE_CODE (t) == RESULT_DECL
+	   || TREE_CODE (t) == PARM_DECL)
+	  && id->src_fn && DECL_STRUCT_FUNCTION (id->src_fn)
+	  && gimple_referenced_vars (DECL_STRUCT_FUNCTION (id->src_fn))
+	  /* We don't want to mark as referenced VAR_DECLs that were
+	     not marked as such in the src function.  */
+	  && (TREE_CODE (decl) != VAR_DECL
+	      || referenced_var_lookup (DECL_STRUCT_FUNCTION (id->src_fn),
+					DECL_UID (decl))))
+	add_referenced_var (t);
       return t;
     }
 
@@ -2547,10 +2551,7 @@ setup_one_parameter (copy_body_data *id, tree p, tree value, tree fn,
 
   /* We're actually using the newly-created var.  */
   if (gimple_in_ssa_p (cfun) && TREE_CODE (var) == VAR_DECL)
-    {
-      get_var_ann (var);
-      add_referenced_var (var);
-    }
+    add_referenced_var (var);
 
   /* Declare this new variable.  */
   DECL_CHAIN (var) = *vars;
@@ -2857,10 +2858,7 @@ declare_return_variable (copy_body_data *id, tree return_slot, tree modify_dest,
 
   var = copy_result_decl_to_var (result, id);
   if (gimple_in_ssa_p (cfun))
-    {
-      get_var_ann (var);
-      add_referenced_var (var);
-    }
+    add_referenced_var (var);
 
   DECL_SEEN_IN_BIND_EXPR_P (var) = 1;
 
@@ -2896,10 +2894,7 @@ declare_return_variable (copy_body_data *id, tree return_slot, tree modify_dest,
     {
       tree temp = create_tmp_var (TREE_TYPE (result), "retvalptr");
       if (gimple_in_ssa_p (id->src_cfun))
-	{
-	  get_var_ann (temp);
-	  add_referenced_var (temp);
-	}
+	add_referenced_var (temp);
       insert_decl_map (id, result, temp);
       /* When RESULT_DECL is in SSA form, we need to use it's default_def
 	 SSA_NAME.  */
@@ -3771,11 +3766,6 @@ expand_call_inline (basic_block bb, gimple stmt, copy_body_data *id)
   if (gimple_code (stmt) != GIMPLE_CALL)
     goto egress;
 
-  /* Objective C and fortran still calls tree_rest_of_compilation directly.
-     Kill this check once this is fixed.  */
-  if (!id->dst_node->analyzed)
-    goto egress;
-
   cg_edge = cgraph_edge (id->dst_node, stmt);
   gcc_checking_assert (cg_edge);
   /* First, see if we can figure out what function is being called.
@@ -4208,6 +4198,7 @@ optimize_inline_calls (tree fn)
   memset (&id, 0, sizeof (id));
 
   id.src_node = id.dst_node = cgraph_node (fn);
+  gcc_assert (id.dst_node->analyzed);
   id.dst_fn = fn;
   /* Or any functions that aren't finished yet.  */
   if (current_function_decl)
@@ -4753,6 +4744,14 @@ copy_decl_for_dup_finish (copy_body_data *id, tree decl, tree copy)
        new function.  */
     DECL_CONTEXT (copy) = id->dst_fn;
 
+  if (TREE_CODE (decl) == VAR_DECL
+      /* C++ clones functions during parsing, before
+	 referenced_vars.  */
+      && gimple_referenced_vars (DECL_STRUCT_FUNCTION (id->src_fn))
+      && referenced_var_lookup (DECL_STRUCT_FUNCTION (id->src_fn),
+				DECL_UID (decl)))
+    add_referenced_var (copy);
+
   return copy;
 }
 
@@ -4864,7 +4863,6 @@ copy_arguments_for_versioning (tree orig_parm, copy_body_data * id,
 	   as temporary variable later in function, the uses will be
 	   replaced by local variable.  */
 	tree var = copy_decl_to_var (arg, id);
-	get_var_ann (var);
 	add_referenced_var (var);
 	insert_decl_map (id, arg, var);
         /* Declare this new variable.  */
@@ -5154,6 +5152,7 @@ tree_function_versioning (tree old_decl, tree new_decl,
       				     args_to_skip, &vars);
 
   DECL_INITIAL (new_decl) = remap_blocks (DECL_INITIAL (id.src_fn), &id);
+  BLOCK_SUPERCONTEXT (DECL_INITIAL (new_decl)) = new_decl;
 
   declare_inline_vars (DECL_INITIAL (new_decl), vars);
 

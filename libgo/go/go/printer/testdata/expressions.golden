@@ -224,11 +224,7 @@ func _() {
 	_ = struct{ x int }{0}
 	_ = struct{ x, y, z int }{0, 1, 2}
 	_ = struct{ int }{0}
-	_ = struct {
-		s struct {
-			int
-		}
-	}{struct{ int }{0}}	// compositeLit context not propagated => multiLine result
+	_ = struct{ s struct{ int } }{struct{ int }{0}}
 }
 
 
@@ -244,6 +240,77 @@ func _() {
 		bar`
 	_ = `three spaces before the end of the line starting here:   
 they must not be removed`
+}
+
+
+func _() {
+	// smart handling of indentation for multi-line raw strings
+	var _ = ``
+	var _ = `foo`
+	var _ = `foo
+bar`
+
+	var _ = ``
+	var _ = `foo`
+	var _ =
+	// the next line should not be indented
+`foo
+bar`
+
+	var _ =	// comment
+	``
+	var _ =	// comment
+	`foo`
+	var _ =	// comment
+	// the next line should not be indented
+`foo
+bar`
+
+	var _ = /* comment */ ``
+	var _ = /* comment */ `foo`
+	var _ = /* comment */ `foo
+bar`
+
+	var _ =	/* comment */
+	``
+	var _ =	/* comment */
+	`foo`
+	var _ =	/* comment */
+	// the next line should not be indented
+`foo
+bar`
+
+	var board = []int(
+`...........
+...........
+....●●●....
+....●●●....
+..●●●●●●●..
+..●●●○●●●..
+..●●●●●●●..
+....●●●....
+....●●●....
+...........
+...........
+`)
+
+	var state = S{
+		"foo",
+		// the next line should not be indented
+`...........
+...........
+....●●●....
+....●●●....
+..●●●●●●●..
+..●●●○●●●..
+..●●●●●●●..
+....●●●....
+....●●●....
+...........
+...........
+`,
+		"bar",
+	}
 }
 
 

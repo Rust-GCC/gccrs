@@ -1,5 +1,5 @@
 /* Target Definitions for R8C/M16C/M32C
-   Copyright (C) 2005, 2007, 2008, 2009, 2010
+   Copyright (C) 2005, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Red Hat.
 
@@ -54,13 +54,13 @@
    family.  Most of the logic here is making sure we do the right
    thing when no CPU is specified, which defaults to R8C.  */
 #undef  LIB_SPEC
-#define LIB_SPEC "-( -lc %{msim*:-lsim}%{!msim*:-lnosys} -) \
-%{msim*:%{!T*: %{mcpu=m32cm:%Tsim24.ld}%{mcpu=m32c:%Tsim24.ld} \
-	%{!mcpu=m32cm:%{!mcpu=m32c:%Tsim16.ld}}}} \
-%{!T*:%{!msim*: %{mcpu=m16c:%Tm16c.ld} \
-		%{mcpu=m32cm:%Tm32cm.ld} \
-		%{mcpu=m32c:%Tm32c.ld} \
-		%{!mcpu=m16c:%{!mcpu=m32cm:%{!mcpu=m32c:%Tr8c.ld}}}}} \
+#define LIB_SPEC "-( -lc %{msim:-lsim}%{!msim:-lnosys} -) \
+%{msim:%{!T*: %{mcpu=m32cm:%Tsim24.ld}%{mcpu=m32c:%Tsim24.ld} \
+       %{!mcpu=m32cm:%{!mcpu=m32c:%Tsim16.ld}}}} \
+%{!T*:%{!msim: %{mcpu=m16c:%Tm16c.ld} \
+	       %{mcpu=m32cm:%Tm32cm.ld} \
+	       %{mcpu=m32c:%Tm32c.ld} \
+	       %{!mcpu=m16c:%{!mcpu=m32cm:%{!mcpu=m32c:%Tr8c.ld}}}}} \
 "
 
 /* Run-time Target Specification */
@@ -86,7 +86,6 @@
    beginning of the file.  This variable starts off TRUE and later
    becomes FALSE.  */
 extern int ok_to_change_target_memregs;
-extern int target_memregs;
 
 /* TARGET_CPU is a multi-way option set in m32c.opt.  While we could
    use enums or defines for this, this and m32c.opt are the only

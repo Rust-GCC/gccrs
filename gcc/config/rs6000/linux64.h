@@ -172,10 +172,6 @@ extern int dot_symbols;
 #undef	ASM_SPEC
 #undef	LINK_OS_LINUX_SPEC
 
-/* FIXME: This will quite possibly choose the wrong dynamic linker.  */
-#undef	LINK_OS_GNU_SPEC
-#define	LINK_OS_GNU_SPEC LINK_OS_LINUX_SPEC
-
 #ifndef	RS6000_BI_ARCH
 #define	ASM_DEFAULT_SPEC "-mppc64"
 #define	ASM_SPEC	 "%(asm_spec64) %(asm_spec_common)"
@@ -199,7 +195,6 @@ extern int dot_symbols;
     %{mcall-freebsd: -mbig} \
     %{mcall-i960-old: -mlittle} \
     %{mcall-linux: -mbig} \
-    %{mcall-gnu: -mbig} \
     %{mcall-netbsd: -mbig} \
 }}}}"
 
@@ -536,8 +531,6 @@ extern int dot_symbols;
    structure return convention.  */
 #undef DRAFT_V4_STRUCT_RET
 #define DRAFT_V4_STRUCT_RET (!TARGET_64BIT)
-
-#define TARGET_ASM_FILE_END rs6000_elf_end_indicate_exec_stack
 
 #define TARGET_POSIX_IO
 

@@ -132,6 +132,7 @@ GLIBCXX_ENABLE_DEBUG([no])
 GLIBCXX_ENABLE_PARALLEL([yes])
 GLIBCXX_ENABLE_CXX_FLAGS
 GLIBCXX_ENABLE_FULLY_DYNAMIC_STRING([no])
+GLIBCXX_ENABLE_EXTERN_TEMPLATE([yes])
 
 # Checks for operating systems support that doesn't require linking.
 GLIBCXX_CHECK_SYSTEM_ERROR
@@ -307,7 +308,6 @@ GLIBCXX_ENABLE_VISIBILITY([yes])
 ac_ldbl_compat=no
 case "$target" in
   powerpc*-*-linux* | \
-  powerpc*-*-gnu* | \
   sparc*-*-linux* | \
   s390*-*-linux* | \
   alpha*-*-linux*)
@@ -343,11 +343,7 @@ AC_CHECK_PROG([DOT], dot, yes, no)
 # Check for docbook
 AC_CHECK_PROG([XSLTPROC], xsltproc, yes, no)
 AC_CHECK_PROG([XMLLINT], xmllint, yes, no)
-
-glibcxx_stylesheets=no
-if test -f /usr/share/sgml/docbook/xsl-ns-stylesheets/VERSION; then
-  glibcxx_stylesheets=yes
-fi
+GLIBCXX_CONFIGURE_DOCBOOK
 
 # Check for xml/html dependencies.
 AM_CONDITIONAL(BUILD_XML,
@@ -377,7 +373,7 @@ AM_CONDITIONAL(BUILD_PDF,
 	       test $ac_cv_prog_PDFLATEX = "yes")
 
 AC_CHECK_PROG([RUBY], ruby, yes, no)
-AC_CHECK_PROG([DBTOEPUB], dbtoepubm, yes, no)
+AC_CHECK_PROG([DBTOEPUB], dbtoepub, yes, no)
 AM_CONDITIONAL(BUILD_EPUB,
 	       test $ac_cv_prog_RUBY = "yes" &&
 	       test $ac_cv_prog_DBTOEPUB = "yes")

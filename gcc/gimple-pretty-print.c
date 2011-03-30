@@ -408,6 +408,26 @@ dump_ternary_rhs (pretty_printer *buffer, gimple gs, int spc, int flags)
       dump_generic_node (buffer, gimple_assign_rhs3 (gs), spc, flags, false);
       break;
 
+    case DOT_PROD_EXPR:
+      pp_string (buffer, "DOT_PROD_EXPR <");
+      dump_generic_node (buffer, gimple_assign_rhs1 (gs), spc, flags, false);
+      pp_string (buffer, ", ");
+      dump_generic_node (buffer, gimple_assign_rhs2 (gs), spc, flags, false);
+      pp_string (buffer, ", ");
+      dump_generic_node (buffer, gimple_assign_rhs3 (gs), spc, flags, false);
+      pp_string (buffer, ">");
+      break;
+
+    case REALIGN_LOAD_EXPR:
+      pp_string (buffer, "REALIGN_LOAD <");
+      dump_generic_node (buffer, gimple_assign_rhs1 (gs), spc, flags, false);
+      pp_string (buffer, ", ");
+      dump_generic_node (buffer, gimple_assign_rhs2 (gs), spc, flags, false);
+      pp_string (buffer, ", ");
+      dump_generic_node (buffer, gimple_assign_rhs3 (gs), spc, flags, false);
+      pp_string (buffer, ">");
+      break;
+
     default:
       gcc_unreachable ();
     }
@@ -542,7 +562,7 @@ pp_points_to_solution (pretty_printer *buffer, struct pt_solution *pt)
       pp_string (buffer, "{ ");
       EXECUTE_IF_SET_IN_BITMAP (pt->vars, 0, i, bi)
 	{
-	  tree var = referenced_var_lookup (i);
+	  tree var = referenced_var_lookup (cfun, i);
 	  if (var)
 	    {
 	      dump_generic_node (buffer, var, 0, dump_flags, false);

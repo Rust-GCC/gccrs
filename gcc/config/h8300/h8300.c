@@ -1,6 +1,6 @@
 /* Subroutines for insn-output.c for Renesas H8/300.
    Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Steve Chamberlain (sac@cygnus.com),
    Jim Wilson (wilson@cygnus.com), and Doug Evans (dje@cygnus.com).
@@ -5367,15 +5367,23 @@ h8300_insert_attributes (tree node, tree *attributes)
 
 static const struct attribute_spec h8300_attribute_table[] =
 {
-  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler } */
-  { "interrupt_handler", 0, 0, true,  false, false, h8300_handle_fndecl_attribute },
-  { "saveall",           0, 0, true,  false, false, h8300_handle_fndecl_attribute },
-  { "OS_Task",           0, 0, true,  false, false, h8300_handle_fndecl_attribute },
-  { "monitor",           0, 0, true,  false, false, h8300_handle_fndecl_attribute },
-  { "function_vector",   0, 0, true,  false, false, h8300_handle_fndecl_attribute },
-  { "eightbit_data",     0, 0, true,  false, false, h8300_handle_eightbit_data_attribute },
-  { "tiny_data",         0, 0, true,  false, false, h8300_handle_tiny_data_attribute },
-  { NULL,                0, 0, false, false, false, NULL }
+  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
+       affects_type_identity } */
+  { "interrupt_handler", 0, 0, true,  false, false,
+    h8300_handle_fndecl_attribute, false },
+  { "saveall",           0, 0, true,  false, false,
+    h8300_handle_fndecl_attribute, false },
+  { "OS_Task",           0, 0, true,  false, false,
+    h8300_handle_fndecl_attribute, false },
+  { "monitor",           0, 0, true,  false, false,
+    h8300_handle_fndecl_attribute, false },
+  { "function_vector",   0, 0, true,  false, false,
+    h8300_handle_fndecl_attribute, false },
+  { "eightbit_data",     0, 0, true,  false, false,
+    h8300_handle_eightbit_data_attribute, false },
+  { "tiny_data",         0, 0, true,  false, false,
+    h8300_handle_tiny_data_attribute, false },
+  { NULL,                0, 0, false, false, false, NULL, false }
 };
 
 
@@ -5852,6 +5860,38 @@ h8300_init_libfuncs (void)
   set_optab_libfunc (umod_optab, HImode, "__umodhi3");
 }
 
+/* Worker function for TARGET_FUNCTION_VALUE.
+
+   On the H8 the return value is in R0/R1.  */
+
+static rtx
+h8300_function_value (const_tree ret_type,
+		      const_tree fn_decl_or_type ATTRIBUTE_UNUSED,
+		      bool outgoing ATTRIBUTE_UNUSED)
+{
+  return gen_rtx_REG (TYPE_MODE (ret_type), R0_REG);
+}
+
+/* Worker function for TARGET_LIBCALL_VALUE.
+
+   On the H8 the return value is in R0/R1.  */
+
+static rtx
+h8300_libcall_value (enum machine_mode mode, const_rtx fun ATTRIBUTE_UNUSED)
+{
+  return gen_rtx_REG (mode, R0_REG);
+}
+
+/* Worker function for TARGET_FUNCTION_VALUE_REGNO_P.
+
+   On the H8, R0 is the only register thus used.  */
+
+static bool
+h8300_function_value_regno_p (const unsigned int regno)
+{
+  return (regno == R0_REG);
+}
+
 /* Worker function for TARGET_RETURN_IN_MEMORY.  */
 
 static bool
@@ -5937,6 +5977,15 @@ h8300_trampoline_init (rtx m_tramp, tree fndecl, rtx cxt)
 
 #undef TARGET_INIT_LIBFUNCS
 #define TARGET_INIT_LIBFUNCS h8300_init_libfuncs
+
+#undef TARGET_FUNCTION_VALUE
+#define TARGET_FUNCTION_VALUE h8300_function_value
+
+#undef TARGET_LIBCALL_VALUE
+#define TARGET_LIBCALL_VALUE h8300_libcall_value
+
+#undef TARGET_FUNCTION_VALUE_REGNO_P
+#define TARGET_FUNCTION_VALUE_REGNO_P h8300_function_value_regno_p
 
 #undef TARGET_RETURN_IN_MEMORY
 #define TARGET_RETURN_IN_MEMORY h8300_return_in_memory

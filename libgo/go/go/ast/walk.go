@@ -195,6 +195,10 @@ func Walk(v Visitor, node Node) {
 	case *ExprStmt:
 		Walk(v, n.X)
 
+	case *SendStmt:
+		Walk(v, n.Chan)
+		Walk(v, n.Value)
+
 	case *IncDecStmt:
 		Walk(v, n.X)
 
@@ -223,16 +227,14 @@ func Walk(v Visitor, node Node) {
 		if n.Init != nil {
 			Walk(v, n.Init)
 		}
-		if n.Cond != nil {
-			Walk(v, n.Cond)
-		}
+		Walk(v, n.Cond)
 		Walk(v, n.Body)
 		if n.Else != nil {
 			Walk(v, n.Else)
 		}
 
 	case *CaseClause:
-		walkExprList(v, n.Values)
+		walkExprList(v, n.List)
 		walkStmtList(v, n.Body)
 
 	case *SwitchStmt:
@@ -244,12 +246,6 @@ func Walk(v Visitor, node Node) {
 		}
 		Walk(v, n.Body)
 
-	case *TypeCaseClause:
-		for _, x := range n.Types {
-			Walk(v, x)
-		}
-		walkStmtList(v, n.Body)
-
 	case *TypeSwitchStmt:
 		if n.Init != nil {
 			Walk(v, n.Init)
@@ -258,11 +254,8 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Body)
 
 	case *CommClause:
-		if n.Lhs != nil {
-			Walk(v, n.Lhs)
-		}
-		if n.Rhs != nil {
-			Walk(v, n.Rhs)
+		if n.Comm != nil {
+			Walk(v, n.Comm)
 		}
 		walkStmtList(v, n.Body)
 

@@ -207,10 +207,9 @@ target_libraries="target-libgcc \
 # run only in the target environment
 #
 # note: any program that *uses* libraries that are in the "target_libraries"
-# list belongs in this list.  those programs are also very likely
-# candidates for the "native_only" list which follows
+# list belongs in this list.
 #
-target_tools="target-examples target-groff target-gperf target-rda"
+target_tools="target-examples target-gperf target-rda"
 
 ################################################################################
 
@@ -296,17 +295,12 @@ case ${with_x} in
   *)  echo "*** bad value \"${with_x}\" for -with-x flag; ignored" 1>&2 ;;
 esac
 
-# Some tools are only suitable for building in a "native" situation.
-# Remove these if host!=target.  
-native_only="autoconf automake libtool fileutils find gawk gettext gzip hello indent m4 rcs recode sed shellutils tar textutils uudecode wdiff target-groff guile perl time ash bash bzip2 prms gnuserv target-gperf"
-
-# Similarly, some are only suitable for cross toolchains.
+# Some are only suitable for cross toolchains.
 # Remove these if host=target.
 cross_only="target-libgloss target-newlib target-opcodes"
 
 case $is_cross_compiler in
   no) skipdirs="${skipdirs} ${cross_only}" ;;
-  yes) skipdirs="${skipdirs} ${native_only}" ;;
 esac
 
 # If both --with-headers and --with-libs are specified, default to
@@ -355,7 +349,8 @@ case "${ENABLE_GOLD}" in
     case "${target}" in
       *-*-elf* | *-*-sysv4* | *-*-unixware* | *-*-eabi* | hppa*64*-*-hpux* \
       | *-*-linux* | frv-*-uclinux* | *-*-irix5* | *-*-irix6* \
-      | *-*-netbsd* | *-*-openbsd* | *-*-freebsd* | *-*-solaris2* | *-*-nto*)
+      | *-*-netbsd* | *-*-openbsd* | *-*-freebsd* | *-*-dragonfly* \
+      | *-*-solaris2* | *-*-nto*)
         case "${target}" in
           *-*-linux*aout* | *-*-linux*oldld*)
             ;;
@@ -426,36 +421,8 @@ unsupported_languages=
 # exist yet.
 
 case "${host}" in
-  hppa*64*-*-*)
-    noconfigdirs="$noconfigdirs byacc"
-    ;;
-  i[[3456789]]86-*-vsta)
-    noconfigdirs="$noconfigdirs tcl expect dejagnu make texinfo bison patch flex byacc send-pr gprof uudecode dejagnu diff guile perl itcl gnuserv gettext"
-    ;;
-  i[[3456789]]86-*-go32* | i[[3456789]]86-*-msdosdjgpp*)
-    noconfigdirs="$noconfigdirs tcl tk expect dejagnu send-pr uudecode guile itcl gnuserv libffi"
-    ;;
-  x86_64-*-mingw*)
-    noconfigdirs="$noconfigdirs expect dejagnu autoconf automake send-pr rcs guile perl texinfo libtool newlib"
-    ;;
-  i[[3456789]]86-*-mingw32*)
-    # noconfigdirs="tcl tk expect dejagnu make texinfo bison patch flex byacc send-pr uudecode dejagnu diff guile perl itcl gnuserv"
-    noconfigdirs="$noconfigdirs expect dejagnu autoconf automake send-pr rcs guile perl texinfo libtool newlib"
-    ;;
-  i[[3456789]]86-*-beos*)
-    noconfigdirs="$noconfigdirs tk itcl libgui gdb"
-    ;;
-  *-*-cygwin*)
-    noconfigdirs="$noconfigdirs autoconf automake send-pr rcs guile perl"
-    ;;
-  *-*-netbsd*)
-    noconfigdirs="$noconfigdirs rcs"
-    ;;
-  ppc*-*-pe)
-    noconfigdirs="$noconfigdirs patch diff make tk tcl expect dejagnu autoconf automake texinfo bison send-pr gprof rcs guile perl itcl gnuserv"
-    ;;
-  powerpc-*-beos*)
-    noconfigdirs="$noconfigdirs tk itcl libgui gdb dejagnu readline"
+  i[[3456789]]86-*-msdosdjgpp*)
+    noconfigdirs="$noconfigdirs tcl tk itcl"
     ;;
 esac
 
@@ -537,7 +504,7 @@ if test x$enable_libgomp = x ; then
     case "${target}" in
     *-*-linux* | *-*-gnu* | *-*-k*bsd*-gnu | *-*-kopensolaris*-gnu)
 	;;
-    *-*-netbsd* | *-*-freebsd* | *-*-openbsd*)
+    *-*-netbsd* | *-*-freebsd* | *-*-openbsd* | *-*-dragonfly*)
 	;;
     *-*-solaris2* | *-*-sysv4* | *-*-irix6* | *-*-osf* | *-*-hpux11*)
 	;;
@@ -573,6 +540,9 @@ case "${target}" in
     noconfigdirs="$noconfigdirs sim target-rda"
     noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
+  *-*-dragonfly*)
+    noconfigdirs="$noconfigdirs target-newlib target-libgloss"
+    ;;
   *-*-freebsd[[12]] | *-*-freebsd[[12]].* | *-*-freebsd*aout*)
     noconfigdirs="$noconfigdirs target-newlib target-libgloss ${libgcj}"
     ;;
@@ -595,8 +565,8 @@ case "${target}" in
     ;;
   *-*-kaos*)
     # Remove unsupported stuff on all kaOS configurations.
-    skipdirs="target-libiberty ${libgcj} target-libstdc++-v3 target-librx"
-    skipdirs="$skipdirs target-libobjc target-examples target-groff target-gperf"
+    skipdirs="target-libiberty ${libgcj} target-libstdc++-v3"
+    skipdirs="$skipdirs target-libobjc"
     skipdirs="$skipdirs zlib fastjar target-libjava target-boehm-gc target-zlib"
     noconfigdirs="$noconfigdirs target-libgloss"
     ;;
@@ -614,7 +584,7 @@ case "${target}" in
     esac
     ;;
   *-*-netware*)
-    noconfigdirs="$noconfigdirs target-newlib target-libiberty target-libgloss ${libgcj} target-libmudflap"
+    noconfigdirs="$noconfigdirs target-newlib target-libiberty target-libgloss ${libgcj}"
     ;;
   *-*-rtems*)
     skipdirs="${skipdirs} target-libiberty"
@@ -622,7 +592,7 @@ case "${target}" in
     ;;
     # The tpf target doesn't support gdb yet.
   *-*-tpf*)
-    noconfigdirs="$noconfigdirs target-newlib target-libgloss target-libiberty ${libgcj} target-libmudflap gdb tcl tk libgui itcl"
+    noconfigdirs="$noconfigdirs target-newlib target-libgloss target-libiberty ${libgcj} gdb tcl tk libgui itcl"
     ;;
   *-*-uclinux*)
     noconfigdirs="$noconfigdirs target-newlib target-libgloss target-rda ${libgcj}"
@@ -632,9 +602,9 @@ case "${target}" in
     ;;
   alpha*-dec-osf*)
     # ld works, but does not support shared libraries.
-    # newlib is not 64 bit ready.  I'm not sure about fileutils.
+    # newlib is not 64 bit ready.
     # gas doesn't generate exception information.
-    noconfigdirs="$noconfigdirs gas ld fileutils target-newlib target-libgloss"
+    noconfigdirs="$noconfigdirs gas ld target-newlib target-libgloss"
     ;;
   alpha*-*-*vms*)
     noconfigdirs="$noconfigdirs gdb target-newlib target-libgloss ${libgcj}"
@@ -655,35 +625,26 @@ case "${target}" in
     ;;    
   sh*-*-pe|mips*-*-pe|*arm-wince-pe)
     noconfigdirs="$noconfigdirs ${libgcj}"
-    noconfigdirs="$noconfigdirs target-examples"
-    noconfigdirs="$noconfigdirs target-libiberty texinfo send-pr"
+    noconfigdirs="$noconfigdirs target-libiberty"
     noconfigdirs="$noconfigdirs tcl tk itcl libgui sim"
-    noconfigdirs="$noconfigdirs expect dejagnu"
     # the C++ libraries don't build on top of CE's C libraries
     noconfigdirs="$noconfigdirs target-libstdc++-v3"
     noconfigdirs="$noconfigdirs target-newlib"
-    case "${host}" in
-      *-*-cygwin*) ;; # keep gdb and readline
-      *) noconfigdirs="$noconfigdirs gdb readline"
-	 ;;
-    esac
     libgloss_dir=wince
     ;;
   arc-*-*)
-    noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libgloss"
     ;;
-  arm-semi-aof )
-    ;;
-  arm-*-coff | strongarm-*-coff | xscale-*-coff)
+  arm-*-coff)
     noconfigdirs="$noconfigdirs ${libgcj}"
     libgloss_dir=arm
     ;;
-  arm-*-elf* | strongarm-*-elf* | xscale-*-elf* | arm*-*-eabi* )
-    noconfigdirs="$noconfigdirs target-libffi target-qthreads"
+  arm-*-elf* | arm*-*-eabi* )
+    noconfigdirs="$noconfigdirs target-libffi"
     libgloss_dir=arm
     ;;
   arm*-*-linux-gnueabi)
-    noconfigdirs="$noconfigdirs target-qthreads"
+    noconfigdirs="$noconfigdirs"
     case ${with_newlib} in
       no) noconfigdirs="$noconfigdirs target-newlib target-libgloss"
     esac
@@ -694,15 +655,6 @@ case "${target}" in
     libgloss_dir=arm
     ;;
   arm-*-pe*)
-    noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
-    ;;
-  thumb-*-coff)
-    noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
-    ;;
-  thumb-*-elf)
-    noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
-    ;;
-  thumb-*-pe)
     noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
     ;;
   arm-*-riscix*)
@@ -722,7 +674,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs target-libstdc++-v3 target-libgloss ${libgcj}"
     ;;
   c54x*-*-* | tic54x-*-*)
-    noconfigdirs="$noconfigdirs target-libstdc++-v3 target-libgloss ${libgcj} gcc gdb newlib"
+    noconfigdirs="$noconfigdirs target-libstdc++-v3 target-libgloss ${libgcj} gcc gdb"
     ;;
   cr16-*-*)
     noconfigdirs="$noconfigdirs ${libgcj} gdb"
@@ -743,17 +695,11 @@ case "${target}" in
     esac
     libgloss_dir=cris
     ;;
-  crx-*-*)
-    noconfigdirs="$noconfigdirs target-libstdc++-v3 target-mudflap ${libgcj}"
-    ;;
   d10v-*-*)
     noconfigdirs="$noconfigdirs target-libstdc++-v3 target-libgloss ${libgcj}"
     ;;
   d30v-*-*)
     noconfigdirs="$noconfigdirs ${libgcj} gdb"
-    ;;
-  ep9312-*-elf | ep9312-*-coff)
-    libgloss_dir=arm
     ;;
   fr30-*-elf*)
     noconfigdirs="$noconfigdirs ${libgcj} gdb"
@@ -773,13 +719,13 @@ case "${target}" in
     ;;
   hppa1.1-*-osf* | hppa1.1-*-bsd* )
     ;;
-  hppa*64*-*-linux* | parisc*64*-*-linux*)
+  hppa*64*-*-linux*)
     # In this case, it's because the hppa64-linux target is for
     # the kernel only at this point and has no libc, and thus no
     # headers, crt*.o, etc., all of which are needed by these.
     noconfigdirs="$noconfigdirs target-zlib"
     ;;
-  parisc*-*-linux* | hppa*-*-linux*)
+  hppa*-*-linux*)
     ;;
   hppa*-*-*elf* | \
   hppa*-*-lites* | \
@@ -788,7 +734,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
   hppa*-hp-hpux11*)
-    noconfigdirs="$noconfigdirs ld shellutils"
+    noconfigdirs="$noconfigdirs ld"
     ;;
   hppa*-*-pro*)
     libgloss_dir=pa
@@ -796,14 +742,14 @@ case "${target}" in
   hppa*-*-*)
     # According to Alexandre Oliva <aoliva@redhat.com>, libjava won't
     # build on HP-UX 10.20.
-    noconfigdirs="$noconfigdirs ld shellutils ${libgcj}"
+    noconfigdirs="$noconfigdirs ld ${libgcj}"
     ;;
   i960-*-*)
     noconfigdirs="$noconfigdirs ${libgcj} gdb"
     ;;
   ia64*-*-elf*)
     # No gdb support yet.
-    noconfigdirs="$noconfigdirs readline mmalloc libgui itcl gdb"
+    noconfigdirs="$noconfigdirs readline libgui itcl gdb"
     ;;
   ia64*-**-hpux*)
     # No ld support yet.
@@ -811,9 +757,7 @@ case "${target}" in
     ;;
   ia64*-*-*vms*)
     # No gdb or ld support yet.
-    noconfigdirs="$noconfigdirs ${libgcj} tix readline mmalloc libgui itcl gdb ld"
-    ;;
-  i370-*-opened*)
+    noconfigdirs="$noconfigdirs ${libgcj} readline libgui itcl gdb ld"
     ;;
   i[[3456789]]86-*-coff | i[[3456789]]86-*-elf)
     noconfigdirs="$noconfigdirs ${libgcj}"
@@ -839,18 +783,18 @@ case "${target}" in
     # 'target-newlib' will appear in skipdirs.
     ;;
   i[[3456789]]86-w64-mingw*)
-    noconfigdirs="$noconfigdirs expect target-libgloss target-newlib ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libgloss target-newlib ${libgcj}"
     ;;
   i[[3456789]]86-*-mingw*)
     target_configdirs="$target_configdirs target-winsup"
-    noconfigdirs="$noconfigdirs expect target-libgloss target-newlib ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libgloss target-newlib ${libgcj}"
     ;;
   x86_64-*-mingw*)
-    noconfigdirs="$noconfigdirs expect target-libgloss target-newlib ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libgloss target-newlib ${libgcj}"
     ;;
   *-*-cygwin*)
     target_configdirs="$target_configdirs target-libtermcap target-winsup"
-    noconfigdirs="$noconfigdirs target-gperf target-libgloss"
+    noconfigdirs="$noconfigdirs target-libgloss"
     # always build newlib if winsup directory is present.
     if test -d "$srcdir/winsup/cygwin"; then
       skipdirs=`echo " ${skipdirs} " | sed -e 's/ target-newlib / /'`
@@ -858,11 +802,10 @@ case "${target}" in
       echo "Warning: winsup/cygwin is missing so newlib can't be built."
     fi
     ;;
-  i[[3456789]]86-moss-msdos | i[[3456789]]86-*-moss* | \
-  i[[3456789]]86-*-uwin* | i[[3456789]]86-*-interix* )
+  i[[3456789]]86-*-interix* )
     ;;
   i[[3456789]]86-*-pe)
-    noconfigdirs="$noconfigdirs target-libstdc++-v3 target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libgloss"
     ;;
   i[[3456789]]86-*-sco3.2v5*)
     # The linker does not yet know about weak symbols in COFF,
@@ -888,7 +831,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
   m68hc11-*-*|m6811-*-*|m68hc12-*-*|m6812-*-*)
-    noconfigdirs="$noconfigdirs target-libiberty target-libstdc++-v3 ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libiberty"
     libgloss_dir=m68hc11
     ;;
   m68k-*-elf*)
@@ -899,11 +842,6 @@ case "${target}" in
     ;;
   m68*-*-* | fido-*-*)
     libgloss_dir=m68k
-    ;;
-  mcore-*-pe*)
-  # The EPOC C++ environment does not support exceptions or rtti,
-  # and so building libstdc++-v3 tends not to always work.
-    noconfigdirs="$noconfigdirs target-libstdc++-v3"
     ;;
   mmix-*-*)
     noconfigdirs="$noconfigdirs target-libffi target-boehm-gc gdb libgloss"
@@ -925,15 +863,15 @@ case "${target}" in
     # copied from rs6000-*-* entry
     noconfigdirs="$noconfigdirs gprof target-libgloss target-libssp target-newlib ${libgcj}"
     ;;
-  powerpc*-*-winnt* | powerpc*-*-pe* | ppc*-*-pe)
+  powerpc*-*-winnt* | powerpc*-*-pe*)
     target_configdirs="$target_configdirs target-winsup"
-    noconfigdirs="$noconfigdirs gdb tcl tk make expect target-libgloss itcl gnuserv ${libgcj}"
+    noconfigdirs="$noconfigdirs gdb tcl tk target-libgloss itcl ${libgcj}"
     # always build newlib.
     skipdirs=`echo " ${skipdirs} " | sed -e 's/ target-newlib / /'`
     ;;
     # This is temporary until we can link against shared libraries
   powerpcle-*-solaris*)
-    noconfigdirs="$noconfigdirs gdb sim make tcl tk expect itcl gnuserv ${libgcj}"
+    noconfigdirs="$noconfigdirs gdb sim tcl tk itcl ${libgcj}"
     libgloss_dir=rs6000
     ;;
   powerpc-*-beos*)
@@ -993,12 +931,6 @@ case "${target}" in
     noconfigdirs="$noconfigdirs bfd binutils ld gas opcodes target-libgloss ${libgcj}"
     ;;
   sh-*-* | sh64-*-*)
-    case "${host}" in
-      i[[3456789]]86-*-vsta) ;; # don't add gprof back in
-      i[[3456789]]86-*-go32*) ;; # don't add gprof back in
-      i[[3456789]]86-*-msdosdjgpp*) ;; # don't add gprof back in
-      *) skipdirs=`echo " ${skipdirs} " | sed -e 's/ gprof / /'` ;;
-    esac
     case "${target}" in
       sh*-*-elf)
          noconfigdirs="$noconfigdirs ${libgcj}" ;;
@@ -1073,111 +1005,9 @@ case "${noconfigdirs}" in
 esac
 
 # Work in distributions that contain no compiler tools, like Autoconf.
-tentative_cc=""
 host_makefile_frag=/dev/null
 if test -d ${srcdir}/config ; then
 case "${host}" in
-  m68k-hp-hpux*)
-    # Avoid "too much defining" errors from HPUX compiler.
-    tentative_cc="cc -Wp,-H256000"
-    # If "ar" in $PATH is GNU ar, the symbol table may need rebuilding.
-    # If it's HP/UX ar, this should be harmless.
-    RANLIB="ar ts"
-    ;;
-  m68k-apollo-sysv*)
-    tentative_cc="cc -A ansi -A runtype,any -A systype,any -U__STDC__ -DUSG"
-    ;;
-  m68k-apollo-bsd*)
-    #None of the Apollo compilers can compile gas or binutils.  The preprocessor
-    # chokes on bfd, the compiler won't let you assign integers to enums, and
-    # other problems.  Defining CC to gcc is a questionable way to say "don't use
-    # the apollo compiler" (the preferred version of GCC could be called cc,
-    # or whatever), but I'm not sure leaving CC as cc is any better...
-    #CC=cc -A ansi -A runtype,any -A systype,any -U__STDC__ -DNO_STDARG
-    # Used to have BISON=yacc.
-    tentative_cc=gcc
-    ;;
-  m88k-dg-dgux*)
-    tentative_cc="gcc -Wall -ansi -D__using_DGUX"
-    ;;
-  m88k-harris-cxux*)
-    # Under CX/UX, we want to tell the compiler to use ANSI mode.
-    tentative_cc="cc -Xa"
-    host_makefile_frag="config/mh-cxux"
-    ;;
-  m88k-motorola-sysv*)
-    ;;
-  mips*-dec-ultrix*)
-    tentative_cc="cc -Wf,-XNg1000"
-    host_makefile_frag="config/mh-decstation"
-    ;;
-  mips*-nec-sysv4*)
-    # The C compiler on NEC MIPS SVR4 needs bigger tables.
-    tentative_cc="cc -ZXNd=5000 -ZXNg=1000"
-    host_makefile_frag="config/mh-necv4"
-    ;;
-  mips*-sgi-irix4*)
-    # Tell compiler to use K&R C.  We can't compile under the SGI Ansi
-    # environment.  Also bump switch table size so that cp-parse will
-    # compile.  Bump string length limit so linker builds.
-    tentative_cc="cc -cckr -Wf,-XNg1500 -Wf,-XNk1000 -Wf,-XNh2000 -Wf,-XNl8192"
-    ;;
-  mips*-*-sysv4*)
-    host_makefile_frag="config/mh-sysv4"
-    ;;
-  mips*-*-sysv*)
-    # This is for a MIPS running RISC/os 4.52C.
-
-    # This is needed for GDB, but needs to be in the top-level make because
-    # if a library is compiled with the bsd headers and gets linked with the
-    # sysv system libraries all hell can break loose (e.g. a jmp_buf might be
-    # a different size).
-    # ptrace(2) apparently has problems in the BSD environment.  No workaround is
-    # known except to select the sysv environment.  Could we use /proc instead?
-    # These "sysv environments" and "bsd environments" often end up being a pain.
-    #
-    # This is not part of CFLAGS because perhaps not all C compilers have this
-    # option.
-    tentative_cc="cc -systype sysv"
-    ;;
-  i370-ibm-opened*)
-    tentative_cc="c89"
-    ;;
-  i[[3456789]]86-*-sysv5*)
-    host_makefile_frag="config/mh-sysv5"
-    ;;
-  i[[3456789]]86-*-dgux*)
-    tentative_cc="gcc -Wall -ansi -D__using_DGUX"
-    host_makefile_frag="config/mh-dgux386"
-    ;;
-  i[[3456789]]86-ncr-sysv4.3*)
-    # The MetaWare compiler will generate a copyright message unless you
-    # turn it off by adding the -Hnocopyr flag.
-    tentative_cc="cc -Hnocopyr"
-    ;;
-  i[[3456789]]86-ncr-sysv4*)
-    # for an NCR 3000 (i486/SVR4) system.
-    # The NCR 3000 ships with a MetaWare compiler installed as /bin/cc.
-    # This compiler not only emits obnoxious copyright messages every time
-    # you run it, but it chokes and dies on a whole bunch of GNU source
-    # files.  Default to using the AT&T compiler installed in /usr/ccs/ATT/cc.
-    tentative_cc="/usr/ccs/ATT/cc"
-    host_makefile_frag="config/mh-ncr3000"
-    ;;
-  i[[3456789]]86-*-sco3.2v5*)
-    ;;
-  i[[3456789]]86-*-sco*)
-    # The native C compiler botches some simple uses of const.  Unfortunately,
-    # it doesn't defined anything like "__sco__" for us to test for in ansidecl.h.
-    tentative_cc="cc -Dconst="
-    host_makefile_frag="config/mh-sco"
-    ;;
-  i[[3456789]]86-*-udk*)
-    host_makefile_frag="config/mh-sysv5"
-    ;;
-  i[[3456789]]86-*-solaris2*)
-    host_makefile_frag="config/mh-sysv4"
-    ;;
   i[[3456789]]86-*-msdosdjgpp*)
     host_makefile_frag="config/mh-djgpp"
     ;;
@@ -1191,36 +1021,14 @@ case "${host}" in
   *-interix*)
     host_makefile_frag="config/mh-interix"
     ;;
-  vax-*-ultrix2*)
-    # The old BSD pcc isn't up to compiling parts of gdb so use gcc
-    tentative_cc=gcc
-    ;;
-  *-*-solaris2*)
-    host_makefile_frag="config/mh-solaris"
-    ;;
-  m68k-sun-sunos*)
-    # Sun's C compiler needs the -J flag to be able to compile cp-parse.c
-    # without overflowing the jump tables (-J says to use a 32 bit table)
-    tentative_cc="cc -J"
-    ;;
   hppa*-hp-hpux10*)
-    tentative_cc="cc -Wp,-H256000"
     host_makefile_frag="config/mh-pa-hpux10"
     ;;
-  hppa*-hp-hpux* | hppa*-*-hiux*)
-    tentative_cc="cc -Wp,-H256000"
+  hppa*-hp-hpux*)
     host_makefile_frag="config/mh-pa"
     ;;
   hppa*-*)	
     host_makefile_frag="config/mh-pa"
-    ;;
-  *-hp-hpux* | *-*-hiux*)
-    tentative_cc="cc -Wp,-H256000"
-    ;;
-  rs6000-*-lynxos*)
-    # /bin/cc is less than useful for our purposes.  Always use GCC
-    tentative_cc="/usr/cygnus/progressive/bin/gcc"
-    host_makefile_frag="config/mh-lynxrs6k"
     ;;
   *-*-darwin*)
     host_makefile_frag="config/mh-darwin"
@@ -1231,38 +1039,7 @@ case "${host}" in
   rs6000-*-aix*)
     host_makefile_frag="config/mh-ppc-aix"
     ;;
-  *-*-lynxos*)
-    # /bin/cc is less than useful for our purposes.  Always use GCC
-    tentative_cc="/bin/gcc"
-    ;;
-  *-*-sysv4*)
-    host_makefile_frag="config/mh-sysv4"
-    ;;
-  # This is placed last to prevent interfering with the cases above.
-  i[[3456789]]86-*-*)
-    # Build the stage2 and stage3 compilers with -fomit-frame-pointer.
-    host_makefile_frag="config/mh-x86omitfp"
-    ;;
 esac
-fi
-
-# If we aren't going to be using gcc, see if we can extract a definition
-# of CC from the fragment.
-# Actually, use the 'pre-extracted' version above.
-if test -z "${CC}" && test "${build}" = "${host}" ; then
-  IFS="${IFS= 	}"; save_ifs="$IFS"; IFS="${IFS}:"
-  found=
-  for dir in $PATH; do
-    test -z "$dir" && dir=.
-    if test -f $dir/gcc; then
-      found=yes
-      break
-    fi
-  done
-  IFS="$save_ifs"
-  if test -z "${found}" && test -n "${tentative_cc}" ; then
-    CC=$tentative_cc
-  fi
 fi
 
 if test "${build}" != "${host}" ; then
@@ -1621,8 +1398,9 @@ AC_ARG_WITH(boot-ldflags,
 AC_SUBST(poststage1_ldflags)
 
 # Check for PPL
-ppllibs=" -lppl_c -lppl -lgmpxx"
+ppllibs=
 pplinc=
+pwllib=
 
 AC_ARG_WITH(ppl,
 [AS_HELP_STRING([--with-ppl=PATH],
@@ -1636,45 +1414,65 @@ AC_ARG_WITH(ppl-lib,
 [AS_HELP_STRING([--with-ppl-lib=PATH],
 		[specify directory for the installed PPL library])])
 
-case $with_ppl in 
-  no)
-    ppllibs=
-    ;;
-  "" | yes)
-    ;;
-  *)
-    ppllibs="-L$with_ppl/lib -lppl_c -lppl -lgmpxx"
-    pplinc="-I$with_ppl/include $pplinc"
-    ;;
-esac
-if test "x$with_ppl_include" != x; then
-  pplinc="-I$with_ppl_include $pplinc"
-fi
-if test "x$with_ppl_lib" != x; then
-  ppllibs="-L$with_ppl_lib -lppl_c -lppl -lgmpxx"
-fi
-if test "x$with_ppl$with_ppl_include$with_ppl_lib" = x && test -d ${srcdir}/ppl; then
-  ppllibs='-L$$r/$(HOST_SUBDIR)/ppl/interfaces/C/'"$lt_cv_objdir"' -L$$r/$(HOST_SUBDIR)/ppl/src/'"$lt_cv_objdir"' -lppl_c -lppl -lgmpxx '
-  pplinc='-I$$r/$(HOST_SUBDIR)/ppl/src -I$$r/$(HOST_SUBDIR)/ppl/interfaces/C '
-  enable_ppl_version_check=no
-fi
-
 AC_ARG_ENABLE(ppl-version-check,
 [AS_HELP_STRING([--disable-ppl-version-check],
-		[disable check for PPL version])],
-ENABLE_PPL_CHECK=$enableval,
-ENABLE_PPL_CHECK=yes)
+		[disable check for PPL version])])
 
-if test "x$with_ppl" != "xno" -a "${ENABLE_PPL_CHECK}" = "yes"; then
-  saved_CFLAGS="$CFLAGS"
-  CFLAGS="$CFLAGS $pplinc $gmpinc"
-  AC_MSG_CHECKING([for version 0.11 (or later revision) of PPL])
-  AC_TRY_COMPILE([#include "ppl_c.h"],[
-  #if PPL_VERSION_MAJOR != 0 || PPL_VERSION_MINOR < 11
-  choke me
-  #endif
-  ], [AC_MSG_RESULT([yes])], [AC_MSG_RESULT([no]); ppllibs= ; pplinc= ; with_ppl=no ])
-  CFLAGS="$saved_CFLAGS"
+case $with_ppl in
+  yes | no | "")
+    ;;
+  *)
+    ppllibs="-L$with_ppl/lib"
+    pplinc="-I$with_ppl/include $pplinc"
+    if test -d "$with_ppl/lib" && test -d "$with_ppl/include"; then
+      with_ppl=yes
+    else
+      AC_MSG_ERROR([cannot find directories "$with_ppl/lib" or "$with_ppl/include"])
+    fi
+    ;;
+esac
+
+if test x"$with_ppl_include" != x; then
+  pplinc="-I$with_ppl_include $pplinc"
+  with_ppl=yes
+fi
+
+if test "x$with_ppl_lib" != x; then
+  ppllibs="-L$with_ppl_lib"
+  with_ppl=yes
+fi
+
+if test x"$with_ppl$with_ppl_include$with_ppl_lib" = x && test -d ${srcdir}/ppl; then
+  if test x"$enable_watchdog" = xyes; then
+    pwllib="-lpwl"
+  fi
+  ppllibs='-L$$r/$(HOST_SUBDIR)/ppl/interfaces/C/'"$lt_cv_objdir"' -L$$r/$(HOST_SUBDIR)/ppl/src/'"$lt_cv_objdir"
+  pplinc='-I$$r/$(HOST_SUBDIR)/ppl/src -I$$r/$(HOST_SUBDIR)/ppl/interfaces/C '
+  enable_ppl_version_check=no
+  with_ppl=yes
+fi
+
+if test "x$with_ppl" != xno; then
+  if test "x$pwllib" = x; then
+    saved_LIBS="$LIBS"
+    LIBS="$LIBS $ppllibs -lstdc++ -lm"
+    AC_CHECK_LIB(pwl, PWL_handle_timeout, [pwllib="-lpwl"])
+    LIBS="$saved_LIBS"
+  fi
+
+  ppllibs="$ppllibs -lppl_c -lppl $pwllib -lgmpxx"
+
+  if test "$enable_ppl_version_check" != no; then
+    saved_CFLAGS="$CFLAGS"
+    CFLAGS="$CFLAGS $pplinc $gmpinc"
+    AC_MSG_CHECKING([for version 0.11 (revision 0 or later) of PPL])
+    AC_TRY_COMPILE([#include "ppl_c.h"],[
+    #if PPL_VERSION_MAJOR != 0 || PPL_VERSION_MINOR < 11
+    choke me
+    #endif
+    ], [AC_MSG_RESULT([yes])], [AC_MSG_RESULT([no]); ppllibs= ; pplinc= ; with_ppl=no ])
+    CFLAGS="$saved_CFLAGS"
+  fi
 fi
 
 # Flags needed for PPL
@@ -1691,7 +1489,7 @@ if test "x$with_ppl" = "xno"; then
   dnl Only execute fail-action, if CLooG has been requested.
   CLOOG_REQUESTED([graphite_requested=yes], [graphite_requested=no])
   if test "${graphite_requested}" = yes; then
-    AC_MSG_ERROR([Unable to find a usable PPL.  See config.log for details.])]
+    AC_MSG_ERROR([Unable to find a usable PPL.  See config.log for details.])
   fi
   with_cloog=no
 fi
@@ -1722,7 +1520,7 @@ ACX_ELF_TARGET_IFELSE([# ELF platforms build the lto-plugin always.
   build_lto_plugin=yes
 ],[if test x"$default_enable_lto" = x"yes" ; then
     case $target in
-      *-apple-darwin* | *-cygwin* | *-mingw*) ;;
+      *-apple-darwin9 | *-cygwin* | *-mingw*) ;;
       # On other non-ELF platforms, LTO has yet to be validated.
       *) enable_lto=no ;;
     esac
@@ -2406,9 +2204,6 @@ extra_nmflags_for_target=
 extra_ranlibflags_for_target=
 target_makefile_frag=/dev/null
 case "${target}" in
-  mep*-*-*)
-    target_makefile_frag="config/mt-mep"
-    ;;
   spu-*-*)
     target_makefile_frag="config/mt-spu"
     ;;
@@ -2420,9 +2215,6 @@ case "${target}" in
     ;;
   mips*-*-*linux* | mips*-*-gnu*)
     target_makefile_frag="config/mt-mips-gnu"
-    ;;
-  *-*-netware*)
-    target_makefile_frag="config/mt-netware"
     ;;
   *-*-linux* | *-*-gnu* | *-*-k*bsd*-gnu | *-*-kopensolaris*-gnu)
     target_makefile_frag="config/mt-gnu"
@@ -2437,9 +2229,6 @@ case "${target}" in
   *-*-darwin[[3-9]]*)
     # ranlib before Darwin10 requires the -c flag to look at common symbols.
     extra_ranlibflags_for_target=" -c"
-    ;;
-  mips*-*-pe | sh*-*-pe | *arm-wince-pe)
-    target_makefile_frag="config/mt-wince"
     ;;
 esac
 
@@ -2567,7 +2356,7 @@ esac
 # Decide which environment variable is used to find dynamic libraries.
 case "${host}" in
   *-*-hpux*) RPATH_ENVVAR=SHLIB_PATH ;;
-  *-*-darwin* | *-*-rhapsody* ) RPATH_ENVVAR=DYLD_LIBRARY_PATH ;;
+  *-*-darwin*) RPATH_ENVVAR=DYLD_LIBRARY_PATH ;;
   *-*-mingw* | *-*-cygwin ) RPATH_ENVVAR=PATH ;;
   *) RPATH_ENVVAR=LD_LIBRARY_PATH ;;
 esac

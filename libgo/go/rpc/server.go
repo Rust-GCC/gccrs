@@ -73,7 +73,7 @@
 		rpc.HandleHTTP()
 		l, e := net.Listen("tcp", ":1234")
 		if e != nil {
-			log.Exit("listen error:", e)
+			log.Fatal("listen error:", e)
 		}
 		go http.Serve(l, nil)
 
@@ -82,7 +82,7 @@
 
 		client, err := rpc.DialHTTP("tcp", serverAddress + ":1234")
 		if err != nil {
-			log.Exit("dialing:", err)
+			log.Fatal("dialing:", err)
 		}
 
 	Then it can make a remote call:
@@ -92,7 +92,7 @@
 		var reply int
 		err = client.Call("Arith.Multiply", args, &reply)
 		if err != nil {
-			log.Exit("arith error:", err)
+			log.Fatal("arith error:", err)
 		}
 		fmt.Printf("Arith: %d*%d=%d", args.A, args.B, *reply)
 
@@ -110,6 +110,7 @@
 package rpc
 
 import (
+	"bufio"
 	"gob"
 	"http"
 	"log"
@@ -153,29 +154,29 @@ type service struct {
 // but documented here as an aid to debugging, such as when analyzing
 // network traffic.
 type Request struct {
-	ServiceMethod string // format: "Service.Method"
-	Seq           uint64 // sequence number chosen by client
+	ServiceMethod string   // format: "Service.Method"
+	Seq           uint64   // sequence number chosen by client
+	next          *Request // for free list in Server
 }
 
 // Response is a header written before every RPC return.  It is used internally
 // but documented here as an aid to debugging, such as when analyzing
 // network traffic.
 type Response struct {
-	ServiceMethod string // echoes that of the Request
-	Seq           uint64 // echoes that of the request
-	Error         string // error, if any.
-}
-
-// ClientInfo records information about an RPC client connection.
-type ClientInfo struct {
-	LocalAddr  string
-	RemoteAddr string
+	ServiceMethod string    // echoes that of the Request
+	Seq           uint64    // echoes that of the request
+	Error         string    // error, if any.
+	next          *Response // for free list in Server
 }
 
 // Server represents an RPC Server.
 type Server struct {
 	sync.Mutex // protects the serviceMap
 	serviceMap map[string]*service
+	reqLock    sync.Mutex // protects freeReq
+	freeReq    *Request
+	respLock   sync.Mutex // protects freeResp
+	freeResp   *Response
 }
 
 // NewServer returns a new Server.
@@ -225,7 +226,7 @@ func (server *Server) register(rcvr interface{}, name string, useName bool) os.E
 		sname = name
 	}
 	if sname == "" {
-		log.Exit("rpc: no service name for type", s.typ.String())
+		log.Fatal("rpc: no service name for type", s.typ.String())
 	}
 	if s.typ.PkgPath() != "" && !isExported(sname) && !useName {
 		s := "rpc Register: type " + sname + " is not exported"
@@ -269,13 +270,6 @@ func (server *Server) register(rcvr interface{}, name string, useName bool) os.E
 			log.Println(mname, "reply type not exported:", replyType)
 			continue
 		}
-		if mtype.NumIn() == 4 {
-			t := mtype.In(3)
-			if t != reflect.Typeof((*ClientInfo)(nil)) {
-				log.Println(mname, "last argument not *ClientInfo")
-				continue
-			}
-		}
 		// Method needs one out: os.Error.
 		if mtype.NumOut() != 1 {
 			log.Println("method", mname, "has wrong number of outs:", mtype.NumOut())
@@ -298,11 +292,9 @@ func (server *Server) register(rcvr interface{}, name string, useName bool) os.E
 }
 
 // A value sent as a placeholder for the response when the server receives an invalid request.
-type InvalidRequest struct {
-	marker int
-}
+type InvalidRequest struct{}
 
-var invalidRequest = InvalidRequest{1}
+var invalidRequest = InvalidRequest{}
 
 func _new(t *reflect.PtrType) *reflect.PtrValue {
 	v := reflect.MakeZero(t).(*reflect.PtrValue)
@@ -310,12 +302,13 @@ func _new(t *reflect.PtrType) *reflect.PtrValue {
 	return v
 }
 
-func sendResponse(sending *sync.Mutex, req *Request, reply interface{}, codec ServerCodec, errmsg string) {
-	resp := new(Response)
+func (server *Server) sendResponse(sending *sync.Mutex, req *Request, reply interface{}, codec ServerCodec, errmsg string) {
+	resp := server.getResponse()
 	// Encode the response header
 	resp.ServiceMethod = req.ServiceMethod
 	if errmsg != "" {
 		resp.Error = errmsg
+		reply = invalidRequest
 	}
 	resp.Seq = req.Seq
 	sending.Lock()
@@ -324,6 +317,7 @@ func sendResponse(sending *sync.Mutex, req *Request, reply interface{}, codec Se
 		log.Println("rpc: writing response:", err)
 	}
 	sending.Unlock()
+	server.freeResponse(resp)
 }
 
 func (m *methodType) NumCalls() (n uint) {
@@ -333,7 +327,7 @@ func (m *methodType) NumCalls() (n uint) {
 	return n
 }
 
-func (s *service) call(sending *sync.Mutex, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) {
+func (s *service) call(server *Server, sending *sync.Mutex, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) {
 	mtype.Lock()
 	mtype.numCalls++
 	mtype.Unlock()
@@ -346,13 +340,15 @@ func (s *service) call(sending *sync.Mutex, mtype *methodType, req *Request, arg
 	if errInter != nil {
 		errmsg = errInter.(os.Error).String()
 	}
-	sendResponse(sending, req, replyv.Interface(), codec, errmsg)
+	server.sendResponse(sending, req, replyv.Interface(), codec, errmsg)
+	server.freeRequest(req)
 }
 
 type gobServerCodec struct {
-	rwc io.ReadWriteCloser
-	dec *gob.Decoder
-	enc *gob.Encoder
+	rwc    io.ReadWriteCloser
+	dec    *gob.Decoder
+	enc    *gob.Encoder
+	encBuf *bufio.Writer
 }
 
 func (c *gobServerCodec) ReadRequestHeader(r *Request) os.Error {
@@ -363,11 +359,14 @@ func (c *gobServerCodec) ReadRequestBody(body interface{}) os.Error {
 	return c.dec.Decode(body)
 }
 
-func (c *gobServerCodec) WriteResponse(r *Response, body interface{}) os.Error {
-	if err := c.enc.Encode(r); err != nil {
-		return err
+func (c *gobServerCodec) WriteResponse(r *Response, body interface{}) (err os.Error) {
+	if err = c.enc.Encode(r); err != nil {
+		return
 	}
-	return c.enc.Encode(body)
+	if err = c.enc.Encode(body); err != nil {
+		return
+	}
+	return c.encBuf.Flush()
 }
 
 func (c *gobServerCodec) Close() os.Error {
@@ -381,7 +380,9 @@ func (c *gobServerCodec) Close() os.Error {
 // ServeConn uses the gob wire format (see package gob) on the
 // connection.  To use an alternate codec, use ServeCodec.
 func (server *Server) ServeConn(conn io.ReadWriteCloser) {
-	server.ServeCodec(&gobServerCodec{conn, gob.NewDecoder(conn), gob.NewEncoder(conn)})
+	buf := bufio.NewWriter(conn)
+	srv := &gobServerCodec{conn, gob.NewDecoder(conn), gob.NewEncoder(buf), buf}
+	server.ServeCodec(srv)
 }
 
 // ServeCodec is like ServeConn but uses the specified codec to
@@ -389,9 +390,29 @@ func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 func (server *Server) ServeCodec(codec ServerCodec) {
 	sending := new(sync.Mutex)
 	for {
-		// Grab the request header.
-		req := new(Request)
-		err := codec.ReadRequestHeader(req)
+		req, service, mtype, err := server.readRequest(codec)
+		if err != nil {
+			if err != os.EOF {
+				log.Println("rpc:", err)
+			}
+			if err == os.EOF || err == io.ErrUnexpectedEOF {
+				break
+			}
+			// discard body
+			codec.ReadRequestBody(nil)
+
+			// send a response if we actually managed to read a header.
+			if req != nil {
+				server.sendResponse(sending, req, invalidRequest, codec, err.String())
+				server.freeRequest(req)
+			}
+			continue
+		}
+
+		// Decode the argument value.
+		argv := _new(mtype.ArgType)
+		replyv := _new(mtype.ReplyType)
+		err = codec.ReadRequestBody(argv.Interface())
 		if err != nil {
 			if err == os.EOF || err == io.ErrUnexpectedEOF {
 				if err == io.ErrUnexpectedEOF {
@@ -399,43 +420,85 @@ func (server *Server) ServeCodec(codec ServerCodec) {
 				}
 				break
 			}
-			s := "rpc: server cannot decode request: " + err.String()
-			sendResponse(sending, req, invalidRequest, codec, s)
-			break
-		}
-		serviceMethod := strings.Split(req.ServiceMethod, ".", -1)
-		if len(serviceMethod) != 2 {
-			s := "rpc: service/method request ill-formed: " + req.ServiceMethod
-			sendResponse(sending, req, invalidRequest, codec, s)
+			server.sendResponse(sending, req, replyv.Interface(), codec, err.String())
 			continue
 		}
-		// Look up the request.
-		server.Lock()
-		service, ok := server.serviceMap[serviceMethod[0]]
-		server.Unlock()
-		if !ok {
-			s := "rpc: can't find service " + req.ServiceMethod
-			sendResponse(sending, req, invalidRequest, codec, s)
-			continue
-		}
-		mtype, ok := service.method[serviceMethod[1]]
-		if !ok {
-			s := "rpc: can't find method " + req.ServiceMethod
-			sendResponse(sending, req, invalidRequest, codec, s)
-			continue
-		}
-		// Decode the argument value.
-		argv := _new(mtype.ArgType)
-		replyv := _new(mtype.ReplyType)
-		err = codec.ReadRequestBody(argv.Interface())
-		if err != nil {
-			log.Println("rpc: tearing down", serviceMethod[0], "connection:", err)
-			sendResponse(sending, req, replyv.Interface(), codec, err.String())
-			break
-		}
-		go service.call(sending, mtype, req, argv, replyv, codec)
+		go service.call(server, sending, mtype, req, argv, replyv, codec)
 	}
 	codec.Close()
+}
+
+func (server *Server) getRequest() *Request {
+	server.reqLock.Lock()
+	req := server.freeReq
+	if req == nil {
+		req = new(Request)
+	} else {
+		server.freeReq = req.next
+		*req = Request{}
+	}
+	server.reqLock.Unlock()
+	return req
+}
+
+func (server *Server) freeRequest(req *Request) {
+	server.reqLock.Lock()
+	req.next = server.freeReq
+	server.freeReq = req
+	server.reqLock.Unlock()
+}
+
+func (server *Server) getResponse() *Response {
+	server.respLock.Lock()
+	resp := server.freeResp
+	if resp == nil {
+		resp = new(Response)
+	} else {
+		server.freeResp = resp.next
+		*resp = Response{}
+	}
+	server.respLock.Unlock()
+	return resp
+}
+
+func (server *Server) freeResponse(resp *Response) {
+	server.respLock.Lock()
+	resp.next = server.freeResp
+	server.freeResp = resp
+	server.respLock.Unlock()
+}
+
+func (server *Server) readRequest(codec ServerCodec) (req *Request, service *service, mtype *methodType, err os.Error) {
+	// Grab the request header.
+	req = server.getRequest()
+	err = codec.ReadRequestHeader(req)
+	if err != nil {
+		req = nil
+		if err == os.EOF || err == io.ErrUnexpectedEOF {
+			return
+		}
+		err = os.ErrorString("rpc: server cannot decode request: " + err.String())
+		return
+	}
+
+	serviceMethod := strings.Split(req.ServiceMethod, ".", -1)
+	if len(serviceMethod) != 2 {
+		err = os.ErrorString("rpc: service/method request ill-formed: " + req.ServiceMethod)
+		return
+	}
+	// Look up the request.
+	server.Lock()
+	service = server.serviceMap[serviceMethod[0]]
+	server.Unlock()
+	if service == nil {
+		err = os.ErrorString("rpc: can't find service " + req.ServiceMethod)
+		return
+	}
+	mtype = service.method[serviceMethod[1]]
+	if mtype == nil {
+		err = os.ErrorString("rpc: can't find method " + req.ServiceMethod)
+	}
+	return
 }
 
 // Accept accepts connections on the listener and serves requests
@@ -445,7 +508,7 @@ func (server *Server) Accept(lis net.Listener) {
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			log.Exit("rpc.Serve: accept:", err.String()) // TODO(r): exit?
+			log.Fatal("rpc.Serve: accept:", err.String()) // TODO(r): exit?
 		}
 		go server.ServeConn(conn)
 	}
@@ -465,7 +528,8 @@ func RegisterName(name string, rcvr interface{}) os.Error {
 // The server calls ReadRequestHeader and ReadRequestBody in pairs
 // to read requests from the connection, and it calls WriteResponse to
 // write a response back.  The server calls Close when finished with the
-// connection.
+// connection. ReadRequestBody may be called with a nil
+// argument to force the body of the request to be read and discarded.
 type ServerCodec interface {
 	ReadRequestHeader(*Request) os.Error
 	ReadRequestBody(interface{}) os.Error
@@ -500,14 +564,14 @@ var connected = "200 Connected to Go RPC"
 // ServeHTTP implements an http.Handler that answers RPC requests.
 func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "CONNECT" {
-		w.SetHeader("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		io.WriteString(w, "405 must CONNECT\n")
 		return
 	}
-	conn, _, err := w.Hijack()
+	conn, _, err := w.(http.Hijacker).Hijack()
 	if err != nil {
-		log.Print("rpc hijacking ", w.RemoteAddr(), ": ", err.String())
+		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.String())
 		return
 	}
 	io.WriteString(conn, "HTTP/1.0 "+connected+"\n\n")

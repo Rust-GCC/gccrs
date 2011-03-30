@@ -164,28 +164,28 @@ static GTY(()) struct cgraph_asm_node *cgraph_asm_last_node;
    them, to support -fno-toplevel-reorder.  */
 int cgraph_order;
 
-/* List of hooks trigerred on cgraph_edge events.  */
+/* List of hooks triggered on cgraph_edge events.  */
 struct cgraph_edge_hook_list {
   cgraph_edge_hook hook;
   void *data;
   struct cgraph_edge_hook_list *next;
 };
 
-/* List of hooks trigerred on cgraph_node events.  */
+/* List of hooks triggered on cgraph_node events.  */
 struct cgraph_node_hook_list {
   cgraph_node_hook hook;
   void *data;
   struct cgraph_node_hook_list *next;
 };
 
-/* List of hooks trigerred on events involving two cgraph_edges.  */
+/* List of hooks triggered on events involving two cgraph_edges.  */
 struct cgraph_2edge_hook_list {
   cgraph_2edge_hook hook;
   void *data;
   struct cgraph_2edge_hook_list *next;
 };
 
-/* List of hooks trigerred on events involving two cgraph_nodes.  */
+/* List of hooks triggered on events involving two cgraph_nodes.  */
 struct cgraph_2node_hook_list {
   cgraph_2node_hook hook;
   void *data;
@@ -536,16 +536,16 @@ cgraph_node (tree decl)
   return node;
 }
 
-/* Mark ALIAS as an alias to DECL.  */
+/* Mark ALIAS as an alias to DECL.  DECL_NODE is cgraph node representing
+   the function body is associated with (not neccesarily cgraph_node (DECL).  */
 
 static struct cgraph_node *
-cgraph_same_body_alias_1 (tree alias, tree decl)
+cgraph_same_body_alias_1 (struct cgraph_node *decl_node, tree alias, tree decl)
 {
-  struct cgraph_node key, *alias_node, *decl_node, **slot;
+  struct cgraph_node key, *alias_node, **slot;
 
   gcc_assert (TREE_CODE (decl) == FUNCTION_DECL);
   gcc_assert (TREE_CODE (alias) == FUNCTION_DECL);
-  decl_node = cgraph_node (decl);
 
   key.decl = alias;
 
@@ -575,7 +575,7 @@ cgraph_same_body_alias_1 (tree alias, tree decl)
    and cgraph_node (ALIAS) transparently returns cgraph_node (DECL).   */
 
 struct cgraph_node *
-cgraph_same_body_alias (tree alias, tree decl)
+cgraph_same_body_alias (struct cgraph_node *decl_node, tree alias, tree decl)
 {
 #ifndef ASM_OUTPUT_DEF
   /* If aliases aren't supported by the assembler, fail.  */
@@ -584,15 +584,16 @@ cgraph_same_body_alias (tree alias, tree decl)
 
   /*gcc_assert (!assembler_name_hash);*/
 
-  return cgraph_same_body_alias_1 (alias, decl);
+  return cgraph_same_body_alias_1 (decl_node, alias, decl);
 }
 
 /* Add thunk alias into callgraph.  The alias declaration is ALIAS and it
-   alises DECL with an adjustments made into the first parameter.
+   aliases DECL with an adjustments made into the first parameter.
    See comments in thunk_adjust for detail on the parameters.  */
 
 struct cgraph_node *
-cgraph_add_thunk (tree alias, tree decl, bool this_adjusting,
+cgraph_add_thunk (struct cgraph_node *decl_node, tree alias, tree decl,
+		  bool this_adjusting,
 		  HOST_WIDE_INT fixed_offset, HOST_WIDE_INT virtual_value,
 		  tree virtual_offset,
 		  tree real_alias)
@@ -606,7 +607,7 @@ cgraph_add_thunk (tree alias, tree decl, bool this_adjusting,
       cgraph_remove_node (node);
     }
   
-  node = cgraph_same_body_alias_1 (alias, decl);
+  node = cgraph_same_body_alias_1 (decl_node, alias, decl);
   gcc_assert (node);
   gcc_checking_assert (!virtual_offset
 		       || tree_int_cst_equal (virtual_offset,
@@ -937,7 +938,7 @@ cgraph_create_edge_including_clones (struct cgraph_node *orig,
         /* It is possible that clones already contain the edge while
 	   master didn't.  Either we promoted indirect call into direct
 	   call in the clone or we are processing clones of unreachable
-	   master where edges has been rmeoved.  */
+	   master where edges has been removed.  */
 	if (edge)
 	  cgraph_set_call_stmt (edge, stmt);
 	else if (!cgraph_edge (node, stmt))
@@ -997,7 +998,7 @@ cgraph_create_edge_1 (struct cgraph_node *caller, struct cgraph_node *callee,
      have not been loaded yet.  */
   if (call_stmt)
     {
-      /* This is a rather expensive check possibly trigerring
+      /* This is a rather expensive check possibly triggering
 	 construction of call stmt hashtable.  */
       gcc_checking_assert (!cgraph_edge (caller, call_stmt));
 
@@ -1252,7 +1253,7 @@ cgraph_update_edges_for_call_stmt_node (struct cgraph_node *node,
   if (!new_call && !old_call)
     return;
   /* See if we turned indirect call into direct call or folded call to one builtin
-     into different bultin.  */
+     into different builtin.  */
   if (old_call != new_call)
     {
       struct cgraph_edge *e = cgraph_edge (node, old_stmt);
@@ -1973,7 +1974,7 @@ dump_cgraph_node (FILE *f, struct cgraph_node *node)
           fprintf (f, " %s/%i", cgraph_node_name (n), n->uid);
 	  if (n->thunk.thunk_p)
 	    {
-	      fprintf (f, " (thunk of %s fixed ofset %i virtual value %i has "
+	      fprintf (f, " (thunk of %s fixed offset %i virtual value %i has "
 		       "virtual offset %i",
 	      	       lang_hooks.decl_printable_name (n->thunk.alias, 2),
 		       (int)n->thunk.fixed_offset,
@@ -2411,8 +2412,8 @@ cgraph_function_body_availability (struct cgraph_node *node)
     avail = AVAIL_LOCAL;
   else if (!node->local.externally_visible)
     avail = AVAIL_AVAILABLE;
-  /* Inline functions are safe to be analyzed even if their sybol can
-     be overwritten at runtime.  It is not meaningful to enfore any sane
+  /* Inline functions are safe to be analyzed even if their symbol can
+     be overwritten at runtime.  It is not meaningful to enforce any sane
      behaviour on replacing inline function by different body.  */
   else if (DECL_DECLARED_INLINE_P (node->decl))
     avail = AVAIL_AVAILABLE;
@@ -2494,11 +2495,13 @@ cgraph_add_new_function (tree fndecl, bool lowered)
       case CGRAPH_STATE_FINISHED:
 	/* At the very end of compilation we have to do all the work up
 	   to expansion.  */
+	node = cgraph_node (fndecl);
+	if (lowered)
+	  node->lowered = true;
+	cgraph_analyze_function (node);
 	push_cfun (DECL_STRUCT_FUNCTION (fndecl));
 	current_function_decl = fndecl;
 	gimple_register_cfg_hooks ();
-	if (!lowered)
-          tree_lowering_passes (fndecl);
 	bitmap_obstack_initialize (NULL);
 	if (!gimple_in_ssa_p (DECL_STRUCT_FUNCTION (fndecl)))
 	  execute_pass_list (pass_early_local_passes.pass.sub);
@@ -2706,9 +2709,9 @@ cgraph_propagate_frequency (struct cgraph_node *node)
       if (edge->caller != node)
 	{
           only_called_at_startup &= edge->caller->only_called_at_startup;
-	  /* It makes snese to put main() together with the static constructors.
+	  /* It makes sense to put main() together with the static constructors.
 	     It will be executed for sure, but rest of functions called from
-	     main are definitly not at startup only.  */
+	     main are definitely not at startup only.  */
 	  if (MAIN_NAME_P (DECL_NAME (edge->caller->decl)))
 	    only_called_at_startup = 0;
           only_called_at_exit &= edge->caller->only_called_at_exit;
@@ -2722,7 +2725,7 @@ cgraph_propagate_frequency (struct cgraph_node *node)
 	case NODE_FREQUENCY_EXECUTED_ONCE:
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    fprintf (dump_file, "  Called by %s that is executed once\n",
-		     cgraph_node_name (node));
+		     cgraph_node_name (edge->caller));
 	  maybe_unlikely_executed = false;
 	  if (edge->loop_nest)
 	    {
@@ -2735,7 +2738,7 @@ cgraph_propagate_frequency (struct cgraph_node *node)
 	case NODE_FREQUENCY_NORMAL:
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    fprintf (dump_file, "  Called by %s that is normal or hot\n",
-		     cgraph_node_name (node));
+		     cgraph_node_name (edge->caller));
 	  maybe_unlikely_executed = false;
 	  maybe_executed_once = false;
 	  break;
@@ -2843,7 +2846,7 @@ cgraph_can_remove_if_no_direct_calls_and_refs_p (struct cgraph_node *node)
   return true;
 }
 
-/* Return true when function NODE can be excpected to be removed
+/* Return true when function NODE can be expected to be removed
    from program when direct calls in this compilation unit are removed.
 
    As a special case COMDAT functions are
@@ -2852,7 +2855,7 @@ cgraph_can_remove_if_no_direct_calls_and_refs_p (struct cgraph_node *node)
    unit)
 
    This function behaves as cgraph_only_called_directly_p because eliminating
-   all uses of COMDAT function does not make it neccesarily disappear from
+   all uses of COMDAT function does not make it necessarily disappear from
    the program unless we are compiling whole program or we do LTO.  In this
    case we know we win since dynamic linking will not really discard the
    linkonce section.  */
@@ -2874,7 +2877,7 @@ cgraph_will_be_removed_from_program_if_no_direct_calls (struct cgraph_node *node
 }
 
 /* Return true when RESOLUTION indicate that linker will use
-   the symbol from non-LTo object files.  */
+   the symbol from non-LTO object files.  */
 
 bool
 resolution_used_from_other_file_p (enum ld_plugin_symbol_resolution resolution)

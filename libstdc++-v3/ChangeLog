@@ -1,3 +1,552 @@
+2011-03-25  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/28_regex/match_results/ctors/char/default.cc: Do not call
+	members which require a fully established result state.
+	* testsuite/28_regex/match_results/ctors/wchar_t/default.cc: Likewise.
+
+2011-03-25  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/random.h (negative_binomial_distribution<>::
+	negative_binomial_distribution(_IntType, double),
+	negative_binomial_distribution<>::
+	negative_binomial_distribution(const param_type&)): Tweak
+	construction of _M_gd.
+	* include/bits/random.tcc (negative_binomial_distribution<>::
+	operator()): Adjust.
+
+2011-03-24  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/random.h (negative_binomial_distribution<>::
+	negative_binomial_distribution(_IntType, double),
+	negative_binomial_distribution<>::
+	negative_binomial_distribution(const param_type&)): Fix
+	construction of _M_gd.
+	* include/bits/random.tcc (negative_binomial_distribution<>::
+	operator()): Fix computation, per Leger's algorithm.
+	* testsuite/util/testsuite_random.h (discrete_pdf,
+	negative_binomial_pdf, poisson_pdf, uniform_int_pdf): New.
+	(binomial_pdf): Swap last two parameters.
+	* testsuite/26_numerics/random/discrete_distribution/
+	operators/values.cc: New.
+	* testsuite/26_numerics/random/negative_binomial_distribution/
+	operators/values.cc: Likewise.
+	* testsuite/26_numerics/random/poisson_distribution/
+	operators/values.cc: Likewise.
+	* testsuite/26_numerics/random/uniform_int_distribution/
+	operators/values.cc: Likewise.
+	* testsuite/26_numerics/random/binomial_distribution/
+	operators/values.cc: Adjust.
+
+2011-03-24  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/abi/post/solaris2.8/baseline_symbols.txt: Regenerate.
+	* config/abi/post/solaris2.8/sparcv9/baseline_symbols.txt: Likewise.
+	* config/abi/post/solaris2.10/baseline_symbols.txt: Likewise.
+	* config/abi/post/solaris2.10/amd64/baseline_symbols.txt: Likewise.
+	* config/abi/post/solaris2.10/sparcv9/baseline_symbols.txt: Likewise.
+
+2011-03-23  Matthias Klose  <doko@ubuntu.com>
+
+	* config/abi/post/sparc-linux-gnu/baseline_symbols.txt: Regenerated.
+
+2011-03-23  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/abi/post/alpha-linux-gnu/baseline_symbols.txt: Regenerated.
+
+2011-03-22  Joseph Myers  <joseph@codesourcery.com>
+
+	* configure.ac: Don't handle powerpc*-*-gnu*.
+	* configure: Regenerate.
+
+2011-03-22  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/21_strings/basic_string/cons/char/moveable2.cc: Tweak
+	Copyright years.
+	* testsuite/21_strings/basic_string/cons/wchar_t/moveable2.cc:
+	Likewise.
+
+2011-03-22  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/shared_ptr.h (operator>, operator<=, operator>=): Add,
+	per DR 1401.
+	(operator==, operator!=, operator<): Fix per the letter of DR 1401.
+	* include/bits/shared_ptr_base.h: Likewise for __shared_ptr.
+	* include/bits/unique_ptr.h (operator==, operator!=, operator<,
+	operator<=, operator>, operator>=): Fix per the letter of DR 1401.
+	* testsuite/20_util/shared_ptr/comparison/dr1401.cc: New.
+	* testsuite/20_util/unique_ptr/comparison/dr1401.cc: Likewise.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust.
+
+2011-03-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* config/abi/pre/gnu.ver (GLIBCXX_3.4.15): Export _ZNSsC2EOSs
+	and _ZNSbIwSt11char_traitsIwESaIwEEC2EOS2_.
+	* config/abi/post/solaris2.8/baseline_symbols.txt: Regenerated.
+	* config/abi/post/solaris2.8/sparcv9/baseline_symbols.txt: Likewise.
+	* config/abi/post/s390x-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/x86_64-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/x86_64-linux-gnu/32/baseline_symbols.txt: Likewise.
+	* config/abi/post/powerpc-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/powerpc64-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/powerpc64-linux-gnu/32/baseline_symbols.txt:
+	Likewise.
+	* config/abi/post/solaris2.10/baseline_symbols.txt: Likewise.
+	* config/abi/post/solaris2.10/amd64/baseline_symbols.txt: Likewise.
+	* config/abi/post/solaris2.10/sparcv9/baseline_symbols.txt: Likewise.
+	* config/abi/post/i486-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/i386-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/s390-linux-gnu/baseline_symbols.txt: Likewise.
+	* testsuite/21_strings/basic_string/cons/char/moveable2.cc: New test.
+	* testsuite/21_strings/basic_string/cons/wchar_t/moveable2.cc: New
+	test.
+
+2011-03-21  Jack Howarth  <howarth@bromo.med.uc.edu>
+
+	* testsuite/lib/prune.exp (libstdc++-dg-prune): Prune "could not
+	create compact unwind for" warnings.
+
+2011-03-21  Jakub Jelinek  <jakub@redhat.com>
+
+	* config/abi/post/i386-linux-gnu/baseline_symbols.txt: Update.
+	* config/abi/post/i486-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/powerpc64-linux-gnu/32/baseline_symbols.txt:
+	Likewise.
+	* config/abi/post/powerpc64-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/powerpc-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/s390-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/s390x-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/x86_64-linux-gnu/32/baseline_symbols.txt: Likewise.
+	* config/abi/post/x86_64-linux-gnu/baseline_symbols.txt: Likewise.
+	* config/abi/post/solaris2.8/sparcv9/baseline_symbols.txt: Likewise.
+	* config/abi/post/solaris2.10/amd64/baseline_symbols.txt: Likewise.
+	* config/abi/post/solaris2.10/sparcv9/baseline_symbols.txt: Likewise.
+
+	* testsuite/util/testsuite_abi.cc (check_version): Set incompatible
+	even when adding symbols to CXXABI_1.3, GLIBCXX_LDBL_3.4 and
+	CXXABI_LDBL_1.3 versions.
+
+2011-03-21  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* config/abi/pre/gnu.ver: Remove typeinfo name exports for C++0x types.
+
+2011-03-21  Jakub Jelinek  <jakub@redhat.com>
+
+	* config/abi/pre/gnu.ver (CXXABI_1.3): Don't export _ZT[IS][PK]*[no].
+	(CXXABI_1.3.5): Export _ZTI[PK]*[no].
+
+2011-03-21  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* testsuite/22_locale/num_put/put/char/14220.cc: Don't xfail on
+	sparc*-sun-solaris2.10 && lp64.
+
+2011-03-19  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/lib/libstdc++.exp (check_v3_target_c99_math): Rename
+	to check_v3_target_cmath.
+	* testsuite/lib/dg-options.exp (dg-require-c99_math): Rename
+	to dg-require-cmath.
+	* testsuite/26_numerics/random/binomial_distribution/
+	operators/values.cc: Adjust.
+
+2011-03-18  Diego Novillo  <dnovillo@google.com>
+
+	* testsuite/decimal/mixed-mode-arith_neg.cc: Rename from
+	mixed-mode_neg.cc
+	* testsuite/decimal/mixed-mode-cmp_neg.cc: Factor out of
+	mixed-mode-arith_neg.cc
+
+2011-03-18  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/util/testsuite_random.h: New.
+	* testsuite/lib/libstdc++.exp (check_v3_target_c99_math): Add.
+	* testsuite/lib/dg-options.exp (dg-require-c99_math): Likewise.
+	* testsuite/26_numerics/random/bernoulli_distribution/
+	operators/values.cc: New.
+	* testsuite/26_numerics/random/binomial_distribution/
+	operators/values.cc: Likewise.
+	* testsuite/26_numerics/random/geometric_distribution/
+	operators/values.cc: Likewise.
+
+2011-03-16  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* config/abi/pre/gnu.ver: Add base destructors for stdexcept classes.
+	* testsuite/19_diagnostics/stdexcept.cc: New.
+
+2011-03-15  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/std/thread: Revert.
+	* src/thread.cc: Same.
+	* config/abi/pre/gnu.ver: Same.
+
+2011-03-15  Doug Kwan  <dougkwan@google.com>
+
+	PR libstdc++/48123
+	* include/Makefile.am (install-freestanding-headers): Install
+	cpu_defines.h
+	* include/Makefile.in: Regenerate.
+
+2011-03-15  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* config/abi/pre/gnu.ver: Make nested_exception exports super clear.
+	Move bad_function_call exports from CXXABI_1.3.5 to GLIBCXX_3.4.15.
+
+2011-03-14  Benjamin Kosnik  <bkoz@redhat.com>
+
+	PR libstdc++/48130
+	* src/future.cc: Guard definitions.
+	* libsupc++/nested_exception.cc: Same.
+
+2011-03-14  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* src/Makefile.am: Add functional.cc, shared_ptr.cc.
+	* src/Makefile.in: Regenerate.
+	* libsupc++/Makefile.am: Add nested_exception.cc.
+	* libsupc++/Makefile.in: Regenerate.
+	* src/system_error.cc: Add ctor and dtor definitions for error_category.
+	* src/functional.cc: New. Add dtor definition for bad_function_call.
+	* src/stdexcept.cc: Add dtor definitions for domain_error,
+	invalid_argument, length_error, out_of_range, range_error,
+	overflow_error, underflow_error.
+	* src/future.cc: Add dtor definition for __future_base::_Result_base.
+	* src/shared_ptr.cc: New. Add dtor definition for bad_weak_ptr.
+	* src/thread.cc: Add dtor for thread::_Impl_base.
+	* include/std/system_error: Adjust.
+	* include/std/stdexcept: Same.
+	* include/std/future: Same.
+	* include/std/functional: Same.
+	* include/std/thread: Same.
+	* include/bits/shared_ptr_base.h: Same.
+	* libsupc++/nested_exception.cc: New. Add dtor for nested_exception.
+	* libsupc++/nested_exception.h: Adjust.
+	* testsuite/20_util/shared_ptr/cons/43820_neg.cc: Adjust line numbers.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Same.
+	* config/abi/pre/gnu.ver: Add new exports.
+
+2011-03-14  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/bits/regex_compiler.h: Nest namespace versioning.
+	* include/bits/regex_grep_matcher.tcc: Same.
+	* include/bits/regex_grep_matcher.h: Same.
+	* include/bits/regex_cursor.h: Same.
+	* include/bits/regex_nfa.h: Same.
+	* include/bits/regex_nfa.tcc: Same.
+
+	* include/bits/regex_grep_matcher.h: Version forward declarations.
+	* include/bits/c++config: Add namespace association for __regex.
+	* include/bits/regex.h: Make sub_match consistent.
+
+2011-03-14  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* doc/xml/manual/abi.xml: Replace docs.sun.com URLs by their OTN
+	equivalents.
+	* doc/html/manual/abi.html: Regenerate.
+
+2011-03-14  Tom Tromey  <tromey@redhat.com>
+
+	* python/libstdcxx/v6/printers.py (_use_gdb_pp): New global.
+	Try to import `gdb.printing' module.
+	(UniquePointerPrinter.__init__): Add 'typename' argument.
+	(StdSlistPrinter.__init__): Likewise.
+	(StdSlistIteratorPrinter.__init__): Likewise.
+	(StdVectorIteratorPrinter.__init__): Likewise.
+	(StdRbtreeIteratorPrinter.__init__): Likewise.
+	(StdDebugIteratorPrinter.__init__): Likewise.
+	(StdDequeIteratorPrinter.__init__): Likewise.
+	(StdStringPrinter.__init__): Likewise.
+	(RxPrinter, Printer): New class.
+	(libstdcxx_printer): New global.
+	(register_libstdcxx_printers): Rewrite.
+	(build_libstdcxx_dictionary): Rewrite.
+	(pretty_printers_dict): Remove.
+
+2011-03-14  Andrey Zholos  <aaz@althenia.net>
+
+	PR libstdc++/48114
+	* include/bits/random.h (geometric_distribution): Correct formula
+	in comment, per C++0x.
+	(geometric_distribution<>::param_type::param_type(double)): Fix check.
+	(geometric_distribution<>::param_type::_M_initialize):
+	Store log(1 - p).
+	* include/bits/random.tcc (geometric_distribution<>::operator()):
+	Fix computation.
+	(binomial_distribution<>::operator()): Likewise.
+
+2011-03-09  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/util/testsuite_rvalref.h: Minor tweaks.
+
+2011-03-09  Jonathan Wakely  <redi@gcc.gnu.org>
+	    Chris Jefferson  <chris@bubblescope.net>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/util/testsuite_rvalref.h (rvalstruct_compare_by_value):
+	New.
+	* testsuite/25_algorithms/sort_heap/check_compare_by_value.cc:
+	Likewise.
+	* testsuite/25_algorithms/partial_sort/check_compare_by_value:
+	Likewise.
+	* testsuite/25_algorithms/stable_sort/check_compare_by_value.cc:
+	Likewise.
+	* testsuite/25_algorithms/sort/check_compare_by_value: Likewise.
+
+2011-03-09  Chris Jefferson  <chris@bubblescope.net>
+
+	PR libstdc++/48038
+	* include/bits/stl_algo.h (__merge_backward): Rename to
+	__move_merge_backward and change to always move rather than copy.
+	(__move_merge): New function similar to std::merge except values
+	are moved instead of copied.
+	(__merge_adaptive, __merge_sort_loop): Change from using std::merge
+	and __merge_backward to __move_merge and __move_merge_backward.
+
+2011-03-07  Jason Merrill  <jason@redhat.com>
+
+	* testsuite/20_util/ratio/cons/cons_overflow_neg.cc: Adjust
+	expected errors.
+
+2011-03-07  Benjamin Kosnik  <bkoz@redhat.com>
+	    Matthias Klose  <doko@ubuntu.com>
+	    Jonathan Wakely  <redi@gcc.gnu.org>
+
+	PR libstdc++/47145
+	* acinclude.m4 (GLIBCXX_CONFIGURE_DOCBOOK): Define.
+	* configure.ac: Use it.
+	* doc/Makefile.am (XSL_STYLE_DIR): Set at configure time.
+	* configure: Regenerate.
+	* doc/Makefile.in: Regenerate.
+
+2011-03-04  Benjamin Kosnik  <bkoz@chula>
+
+	* src/Makefile.am (inst_sources): Make source instantion files
+	conditional.
+	(XTEMPLATE_FLAGS): Make -fno-implicit-templates conditional.
+	* src/Makefile.in: Regenerate.
+	* src/valarray-inst.cc: Move to..
+	* src/valarray.cc: ...this.
+	* acinclude.m4 (GLIBCXX_ENABLE_EXTERN_TEMPLATE]): Define.
+	* configure.ac (GLIBCXX_ENABLE_EXTERN_TEMPLATE): Use it.
+	* configure: Regenerate.
+	* include/Makefile.am (stamp-extern-template): Add.
+	* include/Makefile.in: Regenerate.
+
+	* doc/xml/manual/configure.xml: Document --enable-extern-template.
+
+	* include/bits/locale_classes.tcc: Adjust comment.
+	* include/bits/locale_facets.tcc: Same.
+	* include/bits/basic_ios.tcc: Same.
+	* include/bits/istream.tcc: Same.
+	* include/bits/codecvt.h: Same.
+	* include/bits/ostream.tcc: Same.
+	* include/bits/sstream.tcc: Same.
+	* include/bits/c++config: Same.
+	* include/bits/basic_string.tcc: Same.
+	* include/bits/ostream_insert.h: Same.
+	* include/bits/locale_facets_nonio.tcc: Same.
+	* include/bits/streambuf.tcc: Same.
+	* include/bits/allocator.h: Same.
+	* include/bits/fstream.tcc: Same.
+
+	* testsuite/ext/profile/mutex_extensions_neg.cc: Adjust line numbers.
+
+2011-03-02  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* testsuite/Makefile.am: Make clean fixups.
+	* testsuite/Makefile.in: Regenerate.
+
+2011-03-02  Marc Glisse  <marc.glisse@normalesup.org>
+
+	* include/std/ratio (ratio_less): Add comments.
+
+2011-03-02  Marc Glisse  <marc.glisse@normalesup.org>
+
+	PR libstdc++/47913
+	* include/std/ratio (ratio_add): Avoid denominator overflow.
+	* testsuite/20_util/ratio/operations/47913.cc: New.
+
+2011-02-28  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* testsuite/20_util/hash/chi2_quality.cc: Use C++0x mode on simulators.
+	* testsuite/20_util/hash/quality.cc: Same.
+
+2011-02-28  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/47921
+	* include/std/streambuf (basic_streambuf<>::__safe_gbump,
+	__safe_pbump): Add.
+	* include/bits/streambuf.tcc (basic_streambuf<>::xgetn,
+	xputn): Use the latter.
+	* include/bits/streambuf_iterator.h: Likewise.
+	* src/strstream.cc: Likewise.
+	* src/streambuf.cc: Likewise.
+	* src/compatibility.cc: Likewise.
+	* src/istream.cc: Likewise.
+	* include/bits/fstream.tcc (basic_filebuf<>::xsgetn): Use setg
+	instead of gbump.
+	* include/std/sstream (basic_stringbuf<>::_M_pbump): Add.
+	* include/bits/sstream.tcc (basic_stringbuf<>::seekoff,
+	seekpos, _M_sync): Use setg, setp, and _M_pbump.
+	* config/abi/pre/gnu.ver: Tweak.
+
+2011-02-28  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/20_util/ratio/comparisons/comp3.cc: New.
+
+2011-02-28  Marc Glisse  <marc.glisse@normalesup.org>
+
+	PR libstdc++/42622
+	* include/std/ratio (ratio_less): Reimplement to never overflow.
+	* testsuite/20_util/ratio/comparisons/comp2.cc: Extend.
+
+2011-02-24  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* testsuite/18_support/type_info/fundamental.cc: New.
+
+	* testsuite/Makefile.am: Make clean fixups.
+	* testsuite/Makefile.in: Regenerate.
+
+2011-02-19  François Dumont  <francois.cppdevs@free.fr>
+
+	* include/debug/string (basic_string::insert): Add iterator check and
+	pass normal iterator to normal insert.
+	* include/debug/macros.h (__glibcxx_check_heap,
+	__glibcxx_check_heap_pred): Remove __glibcxx_check_valid_range,
+	already done.
+
+2011-02-17  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/47776
+	* testsuite/ext/vstring/hash/char/1.cc: Fix.
+	* testsuite/ext/vstring/hash/wchar_t/1.cc: Likewise.
+
+2011-02-17  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/regex.h (basic_regex::traits_type): Add typedef.
+	(basic_regex::basic_regex(basic_regex&&)): Add noexcept.
+	(basic_regex::operator=(basic_regex&&)): Likewise.
+	(basic_regex::assign(basic_regex&&)): Likewise.
+	(operator==(sub_match,...)): Implement DR 1181.
+	(match_results::match_results(match_results&&)): Define.
+	(match_results::operator=(const match_results&)): Fix parameter type.
+	(match_results::operator=(match_results&&)): Define.
+
+2011-02-17  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/47724
+	* include/bits/regex_compiler.h (_Scanner::_M_advance): Do not treat
+	line anchors as metacharacters.
+	* testsuite/28_regex/basic_regex/ctors/47724.cc: New.
+
+2011-02-16  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/47773
+	* include/ext/vstring.h (hash<__gnu_cxx::__vstring>,
+	hash<__gnu_cxx::__wvstring>, hash<__gnu_cxx::__u16vstring>,
+	hash<__gnu_cxx::__u32vstring>): Add.
+	* testsuite/ext/vstring/hash/char/1.cc: New.
+	* testsuite/ext/vstring/hash/wchar_t/1.cc: Likewise.
+
+2011-02-16  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/regex.h (match_results::format): Use char_traits.
+
+2011-02-16  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/std/atomic: Remove atomic_address, uplift to N3225.
+	* include/bits/atomic_0.h: Same.
+	* include/bits/atomic_2.h: Same.
+	* include/bits/atomic_base.h: Same.
+	* testsuite/29_atomics/atomic_address/*: Delete.
+
+2011-02-14  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/regex.h (sub_match::sub_match): Add.
+	(match_results::ready): Add.
+	(match_results::empty): Adjust.
+	(match_results::length): Add missing dereference.
+	(match_results::operator[],prefix,suffix): Add debug mode checks.
+	(match_results::cend): Re-use end().
+	(match_results::format): Adjust signatures.
+	(operator==(match_results,match_results)): Implement.
+	* include/bits/regex_compiler.h (_Scanner_base): Use constexpr.
+	* include/bits/regex_constants.h (syntax_option_type): Likewise.
+	* include/bits/regex_grep_matcher.h: Fix comment typo.
+	(_SpecializedResults::_SpecializedResults): Simplify.
+	* include/bits/regex_cursor.h: Fix comment typo.
+	* include/bits/regex_nfa.h: Likewise.
+	* testsuite/28_regex/basic_regex/ctors/basic/string_range_01_02_03.cc:
+	Fix error code, remove xfail.
+	* testsuite/28_regex/basic_regex/ctors/extended/
+	string_range_01_02_03.cc: Likewise.
+
+2011-02-14  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/regex_compiler.h: Remove unnecessary bind() calls.
+	* include/bits/regex_nfa.h: Remove unnecessary base classes.
+
+2011-02-13  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure: Regenerate.
+
+2011-02-12  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/47709
+	* include/ext/algorithm (is_heap): In C++0x mode import from
+	namespace std.
+	* testsuite/ext/is_heap/47709.cc: New.
+
+2011-02-12  Jakub Jelinek  <jakub@redhat.com>
+	    Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/47662
+	* testsuite/17_intro/headers/c++200x/operator_names.cc: New.
+	* testsuite/17_intro/headers/c++1998/operator_names.cc: Add comment.
+
+2011-02-12  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/tr1/cmath (fabs): Define.
+	* include/tr1/complex (acos, asin, atan): Avoid duplicate definitions
+	in C++0x mode.
+
+2011-02-12  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/tr1/headers/c++200x/complex.cc: New.
+
+2011-02-11  Johannes Singler  <singler@kit.edu>
+
+	PR libstdc++/47433
+	* include/parallel/losertree.h
+	(_LoserTreeUnguarded<>::__delete_min_insert):
+	Add missing "using std::swap;", as for other variants.
+
+2011-02-10  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* src/Makefile.am (sources): Add regex.cc.
+	* src/Makefile.in: Regenerate.
+	* src/regex.cc: New.
+	* include/bits/regex_error.h (error_type): Use constexpr.
+	(regex_error): Move ctor and dtor out of line.
+
+	* testsuite/28_regex/03_requirements: To...
+	* testsuite/28_regex/requirements: ... this.
+	* testsuite/28_regex/04_header: To...
+	* testsuite/28_regex/headers: ... this.
+	* testsuite/28_regex/05_constants: To...
+	* testsuite/28_regex/constants: ... this.
+	* testsuite/28_regex/06_exception_type: To...
+	* testsuite/28_regex/regex_error: ... this.
+	* testsuite/28_regex/07_traits: To...
+	* testsuite/28_regex/traits: ... this.
+	* testsuite/28_regex/08_basic_regex: To...
+	* testsuite/28_regex/basic_regex: ... this.
+	* testsuite/28_regex/09_sub_match: To...
+	* testsuite/28_regex/sub_match: ... this.
+	* testsuite/28_regex/10_match_results: To...
+	* testsuite/28_regex/match_results: ... this.
+	* testsuite/28_regex/11_algorithms: To...
+	* testsuite/28_regex/algorithms: ... this.
+	* testsuite/28_regex/12_iterators: To...
+	* testsuite/28_regex/iterators: ... this.
+
 2011-02-10  Jonathan Wakely  <jwakely.gcc@gmail.com>
 
 	PR libstdc++/47662
@@ -169,10 +718,10 @@
 
 2011-01-31  Paolo Carlini  <paolo.carlini@oracle.com>
 
-        * doc/html/ext/lwg-active.html: Update to Revision D73.
-        * doc/html/ext/lwg-closed.html: Likewise.
-        * doc/html/ext/lwg-defects.html: Likewise.
-        * doc/xml/manual/intro.xml: Update status of issues 408, 539, 865.
+	* doc/html/ext/lwg-active.html: Update to Revision D73.
+	* doc/html/ext/lwg-closed.html: Likewise.
+	* doc/html/ext/lwg-defects.html: Likewise.
+	* doc/xml/manual/intro.xml: Update status of issues 408, 539, 865.
 
 2011-01-30  Benjamin Kosnik  <bkoz@redhat.com>
 

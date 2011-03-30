@@ -96,8 +96,7 @@ do {					\
     mark_visited (EXP);			\
 } while (0)
 
-/* Finalize any From_With_Type incomplete types.  We do this after processing
-   our compilation unit and after processing its spec, if this is a body.  */
+/* Finalize the processing of From_With_Type incomplete types.  */
 extern void finalize_from_with_types (void);
 
 /* Return the equivalent type to be used for GNAT_ENTITY, if it's a
@@ -755,6 +754,9 @@ extern bool is_double_scalar_or_array (Entity_Id gnat_type,
 /* Return true if GNU_TYPE is suitable as the type of a non-aliased
    component of an aggregate type.  */
 extern bool type_for_nonaliased_component_p (tree gnu_type);
+
+/* Return true if TYPE is a smaller form of ORIG_TYPE.  */
+extern bool smaller_form_type_p (tree type, tree orig_type);
 
 /* Return the base type of TYPE.  */
 extern tree get_base_type (tree type);

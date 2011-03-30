@@ -1,5 +1,5 @@
 /* Intrinsic translation
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
    and Steven Bosscher <s.bosscher@student.tudelft.nl>
@@ -918,6 +918,20 @@ gfc_conv_intrinsic_exponent (gfc_se *se, gfc_expr *expr)
   se->expr = fold_convert (type, res);
 }
 
+static void
+trans_this_image (gfc_se * se, gfc_expr *expr ATTRIBUTE_UNUSED)
+{
+  gfc_init_coarray_decl ();
+  se->expr = gfort_gvar_caf_this_image;
+}
+
+static void
+trans_num_images (gfc_se * se)
+{
+  gfc_init_coarray_decl ();
+  se->expr = gfort_gvar_caf_num_images;
+}
+
 /* Evaluate a single upper or lower bound.  */
 /* TODO: bound intrinsic generates way too much unnecessary code.  */
 
@@ -1501,7 +1515,7 @@ gfc_conv_intrinsic_ctime (gfc_se * se, gfc_expr * expr)
   args = XALLOCAVEC (tree, num_args);
 
   var = gfc_create_var (pchar_type_node, "pstr");
-  len = gfc_create_var (gfc_get_int_type (8), "len");
+  len = gfc_create_var (gfc_charlen_type_node, "len");
 
   gfc_conv_intrinsic_function_args (se, expr, &args[2], num_args - 2);
   args[0] = gfc_build_addr_expr (NULL_TREE, var);
@@ -6109,6 +6123,14 @@ gfc_conv_intrinsic_function (gfc_se * se, gfc_expr * expr)
 
     case GFC_ISYM_LOC:
       gfc_conv_intrinsic_loc (se, expr);
+      break;
+
+    case GFC_ISYM_THIS_IMAGE:
+      trans_this_image (se, expr);
+      break;
+
+    case GFC_ISYM_NUM_IMAGES:
+      trans_num_images (se);
       break;
 
     case GFC_ISYM_ACCESS:

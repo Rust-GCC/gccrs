@@ -719,6 +719,10 @@ fconstant-string-class=
 ObjC ObjC++ Joined MissingArgError(no class name specified with %qs)
 -fconst-string-class=<name>	Use class <name> for constant strings
 
+fconstexpr-depth=
+C++ ObjC++ Joined RejectNegative UInteger Var(max_constexpr_depth) Init(512)
+-fconstexpr-depth=<number>	Specify maximum constexpr recursion depth
+
 fdeduce-init-list
 C++ ObjC++ Var(flag_deduce_init_list) Init(1)
 -fno-deduce-init-list	disable deduction of std::initializer_list for a template type parameter from a brace-enclosed initializer-list
@@ -853,6 +857,10 @@ fnothrow-opt
 C++ ObjC++ Optimization Var(flag_nothrow_opt)
 Treat a throw() exception specification as noexcept to improve code size
 
+fobjc-abi-version=
+ObjC ObjC++ Joined Report RejectNegative UInteger Var(flag_objc_abi)
+Specify which ABI to use for Objective-C family code and meta-data generation.
+
 ; Generate special '- .cxx_construct' and '- .cxx_destruct' methods
 ; to initialize any non-POD ivars in Objective-C++ classes.
 fobjc-call-cxx-cdtors
@@ -872,6 +880,10 @@ Enable Objective-C exception and synchronization syntax
 fobjc-gc
 ObjC ObjC++ Var(flag_objc_gc)
 Enable garbage collection (GC) in Objective-C/Objective-C++ programs
+
+fobjc-nilcheck
+ObjC ObjC++ Var(flag_objc_nilcheck,1)
+Enable inline checks for nil receivers with the NeXT runtime and ABI version 2.
 
 ; Nonzero means that we generate NeXT setjmp based exceptions.
 fobjc-sjlj-exceptions
@@ -1125,7 +1137,11 @@ Remap file names when including files
 
 std=c++98
 C++ ObjC++
-Conform to the ISO 1998 C++ standard
+Conform to the ISO 1998 C++ standard revised by the 2003 technical corrigendum
+
+std=c++03
+C++ ObjC++ Alias(std=c++98)
+Conform to the ISO 1998 C++ standard revised by the 2003 technical corrigendum
 
 std=c++0x
 C++ ObjC++

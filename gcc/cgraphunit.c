@@ -143,7 +143,6 @@ static void cgraph_expand_all_functions (void);
 static void cgraph_mark_functions_to_output (void);
 static void cgraph_expand_function (struct cgraph_node *);
 static void cgraph_output_pending_asms (void);
-static void cgraph_analyze_function (struct cgraph_node *);
 
 FILE *cgraph_dump_file;
 
@@ -246,13 +245,14 @@ cgraph_process_new_functions (void)
 	    cgraph_analyze_function (node);
 	  push_cfun (DECL_STRUCT_FUNCTION (fndecl));
 	  current_function_decl = fndecl;
-	  compute_inline_parameters (node);
 	  if ((cgraph_state == CGRAPH_STATE_IPA_SSA
 	      && !gimple_in_ssa_p (DECL_STRUCT_FUNCTION (fndecl)))
 	      /* When not optimizing, be sure we run early local passes anyway
 		 to expand OMP.  */
 	      || !optimize)
 	    execute_pass_list (pass_early_local_passes.pass.sub);
+	  else
+	    compute_inline_parameters (node);
 	  free_dominance_info (CDI_POST_DOMINATORS);
 	  free_dominance_info (CDI_DOMINATORS);
 	  pop_cfun ();
@@ -364,7 +364,7 @@ cgraph_finalize_function (tree decl, bool nested)
       || DECL_STATIC_CONSTRUCTOR (decl)
       || DECL_STATIC_DESTRUCTOR (decl)
       /* COMDAT virtual functions may be referenced by vtable from
-	 other compilatoin unit.  Still we want to devirtualize calls
+	 other compilation unit.  Still we want to devirtualize calls
 	 to those so we need to analyze them.
 	 FIXME: We should introduce may edges for this purpose and update
 	 their handling in unreachable function removal and inliner too.  */
@@ -431,7 +431,7 @@ verify_edge_count_and_frequency (struct cgraph_edge *e)
 	  != compute_call_stmt_bb_frequency (e->caller->decl,
 					     gimple_bb (e->call_stmt))))
     {
-      error ("caller edge frequency %i does not match BB freqency %i",
+      error ("caller edge frequency %i does not match BB frequency %i",
 	     e->frequency,
 	     compute_call_stmt_bb_frequency (e->caller->decl,
 					     gimple_bb (e->call_stmt)));
@@ -550,7 +550,7 @@ verify_cgraph_node (struct cgraph_node *node)
       error_found = true;
     }
 
-  if (!cgraph_node (node->decl))
+  if (!cgraph_get_node (node->decl))
     {
       error ("node not found in cgraph_hash");
       error_found = true;
@@ -772,7 +772,7 @@ cgraph_output_pending_asms (void)
 }
 
 /* Analyze the function scheduled to be output.  */
-static void
+void
 cgraph_analyze_function (struct cgraph_node *node)
 {
   tree save = current_function_decl;
@@ -782,6 +782,11 @@ cgraph_analyze_function (struct cgraph_node *node)
   push_cfun (DECL_STRUCT_FUNCTION (decl));
 
   assign_assembler_name_if_neeeded (node->decl);
+
+  /* disregard_inline_limits affects topological order of the early optimization,
+     so we need to compute it ahead of rest of inline parameters.  */
+  node->local.disregard_inline_limits
+    = DECL_DISREGARD_INLINE_LIMITS (node->decl);
 
   /* Make sure to gimplify bodies only once.  During analyzing a
      function we lower it, which will require gimplified nested
@@ -1550,7 +1555,7 @@ cgraph_expand_function (struct cgraph_node *node)
       	   alias && alias->next; alias = alias->next)
         ;
       /* Walk aliases in the order they were created; it is possible that
-         thunks reffers to the aliases made earlier.  */
+         thunks refers to the aliases made earlier.  */
       for (; alias; alias = next)
         {
 	  next = alias->previous;
@@ -2328,7 +2333,7 @@ cgraph_materialize_all_clones (void)
 	        {
 		  if (cgraph_dump_file)
 		    {
-		      fprintf (cgraph_dump_file, "clonning %s to %s\n",
+		      fprintf (cgraph_dump_file, "cloning %s to %s\n",
 			       cgraph_node_name (node->clone_of),
 			       cgraph_node_name (node));
 		      if (node->clone.tree_map)

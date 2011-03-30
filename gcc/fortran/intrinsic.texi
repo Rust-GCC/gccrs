@@ -992,7 +992,10 @@ scalar entities are available in Fortran 2003 and later.
 Inquiry function
 
 @item @emph{Syntax}:
-@code{RESULT = ALLOCATED(ARRAY)} or @code{RESULT = ALLOCATED(SCALAR)} 
+@multitable @columnfractions .80
+@item @code{RESULT = ALLOCATED(ARRAY)}
+@item @code{RESULT = ALLOCATED(SCALAR)} 
+@end multitable
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
@@ -1395,8 +1398,10 @@ Fortran 2008 or later
 Elemental function
 
 @item @emph{Syntax}:
-@code{RESULT = ATAN(X)}
-@code{RESULT = ATAN(Y, X)}
+@multitable @columnfractions .80
+@item @code{RESULT = ATAN(X)}
+@item @code{RESULT = ATAN(Y, X)}
+@end multitable
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
@@ -1666,8 +1671,10 @@ Elemental function, except for the transformational function
 @code{BESSEL_JN(N1, N2, X)}
 
 @item @emph{Syntax}:
-@code{RESULT = BESSEL_JN(N, X)}
-@code{RESULT = BESSEL_JN(N1, N2, X)}
+@multitable @columnfractions .80
+@item @code{RESULT = BESSEL_JN(N, X)}
+@item @code{RESULT = BESSEL_JN(N1, N2, X)}
+@end multitable
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
@@ -1826,8 +1833,10 @@ Elemental function, except for the transformational function
 @code{BESSEL_YN(N1, N2, X)}
 
 @item @emph{Syntax}:
-@code{RESULT = BESSEL_YN(N, X)}
-@code{RESULT = BESSEL_YN(N1, N2, X)}
+@multitable @columnfractions .80
+@item @code{RESULT = BESSEL_YN(N, X)}
+@item @code{RESULT = BESSEL_YN(N1, N2, X)}
+@end multitable
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
@@ -3209,7 +3218,10 @@ end program test_cshift
 @table @asis
 @item @emph{Description}:
 @code{CTIME} converts a system time value, such as returned by
-@code{TIME8}, to a string of the form @samp{Sat Aug 19 18:13:14 1995}.
+@code{TIME8}, to a string. Unless the application has called
+@code{setlocale}, the output will be in the default locale, of length
+24 and of the form @samp{Sat Aug 19 18:13:14 1995}. In other locales,
+a longer string may result.
 
 This intrinsic is provided in both subroutine and function forms; however,
 only one form can be used in any given program unit.
@@ -3223,18 +3235,20 @@ Subroutine, function
 @item @emph{Syntax}:
 @multitable @columnfractions .80
 @item @code{CALL CTIME(TIME, RESULT)}.
-@item @code{RESULT = CTIME(TIME)}, (not recommended).
+@item @code{RESULT = CTIME(TIME)}.
 @end multitable
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
-@item @var{TIME}    @tab The type shall be of type @code{INTEGER(KIND=8)}.
+@item @var{TIME}    @tab The type shall be of type @code{INTEGER}.
 @item @var{RESULT}  @tab The type shall be of type @code{CHARACTER} and
-of default kind.
+of default kind. It is an @code{INTENT(OUT)} argument. If the length
+of this variable is too short for the time and date string to fit
+completely, it will be blank on procedure return.
 @end multitable
 
 @item @emph{Return value}:
-The converted date and time as a string.
+The converted date and time as a string. 
 
 @item @emph{Example}:
 @smallexample
@@ -3251,7 +3265,7 @@ end program test_ctime
 @end smallexample
 
 @item @emph{See Also}:
-@ref{GMTIME}, @ref{LTIME}, @ref{TIME}, @ref{TIME8}
+@ref{DATE_AND_TIME}, @ref{GMTIME}, @ref{LTIME}, @ref{TIME}, @ref{TIME8}
 @end table
 
 
@@ -4271,7 +4285,7 @@ end program test_exit
 @fnindex ZEXP
 @fnindex CDEXP
 @cindex exponential function
-@cindex logarithmic function, inverse
+@cindex logarithm function, inverse
 
 @table @asis
 @item @emph{Description}:
@@ -4411,9 +4425,6 @@ TIME())}.
 This intrinsic is provided in both subroutine and function forms; however,
 only one form can be used in any given program unit.
 
-@var{DATE} is an @code{INTENT(OUT)} @code{CHARACTER} variable of the
-default kind.
-
 @item @emph{Standard}:
 GNU extension
 
@@ -4423,17 +4434,19 @@ Subroutine, function
 @item @emph{Syntax}:
 @multitable @columnfractions .80
 @item @code{CALL FDATE(DATE)}.
-@item @code{DATE = FDATE()}, (not recommended).
+@item @code{DATE = FDATE()}.
 @end multitable
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
 @item @var{DATE}@tab The type shall be of type @code{CHARACTER} of the
-default kind
+default kind. It is an @code{INTENT(OUT)} argument.  If the length of
+this variable is too short for the date and time string to fit
+completely, it will be blank on procedure return.
 @end multitable
 
 @item @emph{Return value}:
-The current date as a string.
+The current date and time as a string.
 
 @item @emph{Example}:
 @smallexample
@@ -4449,8 +4462,10 @@ program test_fdate
     print *, 'Program ended on ', date
 end program test_fdate
 @end smallexample
-@end table
 
+@item @emph{See also}:
+@ref{DATE_AND_TIME}, @ref{CTIME}
+@end table
 
 
 @node FGET
@@ -7751,7 +7766,7 @@ end program test_loc
 
 
 @node LOG
-@section @code{LOG} --- Logarithm function
+@section @code{LOG} --- Natural logarithm function
 @fnindex LOG
 @fnindex ALOG
 @fnindex DLOG
@@ -7759,11 +7774,13 @@ end program test_loc
 @fnindex ZLOG
 @fnindex CDLOG
 @cindex exponential function, inverse
-@cindex logarithmic function
+@cindex logarithm function
+@cindex natural logarithm function
 
 @table @asis
 @item @emph{Description}:
-@code{LOG(X)} computes the logarithm of @var{X}.
+@code{LOG(X)} computes the natural logarithm of @var{X}, i.e. the
+logarithm to the base @math{e}.
 
 @item @emph{Standard}:
 Fortran 77 and later
@@ -7789,9 +7806,9 @@ If @var{X} is @code{COMPLEX}, the imaginary part @math{\omega} is in the range
 @item @emph{Example}:
 @smallexample
 program test_log
-  real(8) :: x = 1.0_8
+  real(8) :: x = 2.7182818284590451_8
   complex :: z = (1.0, 2.0)
-  x = log(x)
+  x = log(x)    ! will yield (approximately) 1
   z = log(z)
 end program test_log
 @end smallexample
@@ -7815,7 +7832,8 @@ end program test_log
 @fnindex ALOG10
 @fnindex DLOG10
 @cindex exponential function, inverse
-@cindex logarithmic function
+@cindex logarithm function with base 10
+@cindex base 10 logarithm function
 
 @table @asis
 @item @emph{Description}:
@@ -12593,19 +12611,20 @@ END PROGRAM
 
 
 @node VERIFY
-@section @code{VERIFY} --- Scan a string for the absence of a set of characters
+@section @code{VERIFY} --- Scan a string for characters not a given set
 @fnindex VERIFY
 @cindex string, find missing set
 
 @table @asis
 @item @emph{Description}:
-Verifies that all the characters in a @var{SET} are present in a @var{STRING}.
+Verifies that all the characters in @var{STRING} belong to the set of
+characters in @var{SET}.
 
 If @var{BACK} is either absent or equals @code{FALSE}, this function
 returns the position of the leftmost character of @var{STRING} that is
-not in @var{SET}. If @var{BACK} equals @code{TRUE}, the rightmost position
-is returned. If all characters of @var{SET} are found in @var{STRING}, the 
-result is zero.
+not in @var{SET}. If @var{BACK} equals @code{TRUE}, the rightmost
+position is returned. If all characters of @var{STRING} are found in
+@var{SET}, the result is zero.
 
 @item @emph{Standard}:
 Fortran 95 and later, with @var{KIND} argument Fortran 2003 and later

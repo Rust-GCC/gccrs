@@ -1,5 +1,5 @@
 /* Header for code translation functions
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Paul Brook
 
@@ -396,6 +396,8 @@ void gfc_trans_vla_type_sizes (gfc_symbol *, stmtblock_t *);
 
 /* Add an expression to the end of a block.  */
 void gfc_add_expr_to_block (stmtblock_t *, tree);
+/* Add an expression to the beginning of a block.  */
+void gfc_prepend_expr_to_block (stmtblock_t *, tree);
 /* Add a block to the end of a block.  */
 void gfc_add_block_to_block (stmtblock_t *, stmtblock_t *);
 /* Add a MODIFY_EXPR to a block.  */
@@ -444,8 +446,14 @@ void gfc_build_builtin_function_decls (void);
 /* Set the backend source location of a decl.  */
 void gfc_set_decl_location (tree, locus *);
 
+/* Get a module symbol backend_decl if possible.  */
+bool gfc_get_module_backend_decl (gfc_symbol *);
+
 /* Return the variable decl for a symbol.  */
 tree gfc_get_symbol_decl (gfc_symbol *);
+
+/* Initialize coarray global variables.  */
+void gfc_init_coarray_decl (void);
 
 /* Build a static initializer.  */
 tree gfc_conv_initializer (gfc_expr *, gfc_typespec *, tree, bool, bool, bool);
@@ -608,6 +616,22 @@ extern GTY(()) tree gfor_fndecl_in_pack;
 extern GTY(()) tree gfor_fndecl_in_unpack;
 extern GTY(()) tree gfor_fndecl_associated;
 
+
+/* Coarray run-time library function decls.  */
+extern GTY(()) tree gfor_fndecl_caf_init;
+extern GTY(()) tree gfor_fndecl_caf_finalize;
+extern GTY(()) tree gfor_fndecl_caf_critical;
+extern GTY(()) tree gfor_fndecl_caf_end_critical;
+extern GTY(()) tree gfor_fndecl_caf_sync_all;
+extern GTY(()) tree gfor_fndecl_caf_sync_images;
+extern GTY(()) tree gfor_fndecl_caf_error_stop;
+extern GTY(()) tree gfor_fndecl_caf_error_stop_str;
+
+/* Coarray global variables for num_images/this_image.  */
+extern GTY(()) tree gfort_gvar_caf_num_images;
+extern GTY(()) tree gfort_gvar_caf_this_image;
+
+
 /* Math functions.  Many other math functions are handled in
    trans-intrinsic.c.  */
 
@@ -700,6 +724,7 @@ struct GTY((variable_size))	lang_type	 {
   tree dataptr_type;
   tree span;
   tree base_decl[2];
+  tree nonrestricted_type;
 };
 
 struct GTY((variable_size)) lang_decl {

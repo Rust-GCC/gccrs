@@ -1,5 +1,5 @@
-#   Copyright (C) 1999, 2001, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
-#    Free Software Foundation, Inc.
+#   Copyright (C) 1999, 2001, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+#   2011 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -541,30 +541,32 @@ proc check_profiling_available { test_what } {
     if {![info exists profiling_available_saved]} {
 	# Some targets don't have any implementation of __bb_init_func or are
 	# missing other needed machinery.
-	if { [istarget mmix-*-*]
+	if {    [istarget am3*-*-linux*]
 	     || [istarget arm*-*-eabi*]
-	     || [istarget picochip-*-*]
-	     || [istarget *-*-netware*]
 	     || [istarget arm*-*-elf]
 	     || [istarget arm*-*-symbianelf*]
 	     || [istarget avr-*-*]
 	     || [istarget bfin-*-*]
-	     || [istarget powerpc-*-eabi*]
-	     || [istarget powerpc-*-elf]
 	     || [istarget cris-*-*]
 	     || [istarget crisv32-*-*]
 	     || [istarget fido-*-elf]
 	     || [istarget h8300-*-*]
-             || [istarget lm32-*-*]
-             || [istarget m32c-*-elf]
+	     || [istarget lm32-*-*]
+	     || [istarget m32c-*-elf]
 	     || [istarget m68k-*-elf]
 	     || [istarget m68k-*-uclinux*]
 	     || [istarget mep-*-elf]
 	     || [istarget mips*-*-elf*]
+	     || [istarget mmix-*-*]
+	     || [istarget mn10300-*-elf*]
 	     || [istarget moxie-*-elf*]
+	     || [istarget picochip-*-*]
+	     || [istarget powerpc-*-eabi*]
+	     || [istarget powerpc-*-elf]
 	     || [istarget rx-*-*]	
 	     || [istarget xstormy16-*]
 	     || [istarget xtensa*-*-elf]
+	     || [istarget *-*-netware*]
 	     || [istarget *-*-rtems*]
 	     || [istarget *-*-vxworks*] } {
 	    set profiling_available_saved 0
@@ -922,6 +924,17 @@ proc check_iconv_available { test_what } {
     }] $libiconv]
 }
 
+# Return 1 if an ASCII locale is supported on this host, 0 otherwise.
+
+proc check_ascii_locale_available { } {
+    if { ([ishost alpha*-dec-osf*] || [ishost mips-sgi-irix*]) } {
+	# Neither Tru64 UNIX nor IRIX support an ASCII locale.
+	return 0
+    } else {
+	return 1
+    }
+}
+
 # Return true if named sections are supported on this target.
 
 proc check_named_sections_available { } {
@@ -940,6 +953,22 @@ proc check_effective_target_fortran_large_real { } {
 	! Fortran
 	integer,parameter :: k = selected_real_kind (precision (0.0_8) + 1)
 	real(kind=k) :: x
+	x = cos (x)
+	end
+    }]
+}
+
+# Return 1 if the target supports Fortran real kind real(16),
+# 0 otherwise. Contrary to check_effective_target_fortran_large_real
+# this checks for Real(16) only; the other returned real(10) if
+# both real(10) and real(16) are available.
+#
+# When the target name changes, replace the cached result.
+
+proc check_effective_target_fortran_real_16 { } {
+    return [check_no_compiler_messages fortran_real_16 executable {
+	! Fortran
+	real(kind=16) :: x
 	x = cos (x)
 	end
     }]

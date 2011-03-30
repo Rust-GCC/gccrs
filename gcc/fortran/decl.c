@@ -1177,10 +1177,8 @@ build_sym (const char *name, gfc_charlen *cl, bool cl_deferred,
 
   sym->attr.implied_index = 0;
 
-  if (sym->ts.type == BT_CLASS
-      && (sym->attr.class_ok = sym->attr.dummy || sym->attr.pointer
-			       || sym->attr.allocatable))
-    gfc_build_class_symbol (&sym->ts, &sym->attr, &sym->as, false);
+  if (sym->ts.type == BT_CLASS)
+    return gfc_build_class_symbol (&sym->ts, &sym->attr, &sym->as, false);
 
   return SUCCESS;
 }
@@ -1639,9 +1637,8 @@ scalar:
       bool delayed = (gfc_state_stack->sym == c->ts.u.derived)
 		     || (!c->ts.u.derived->components
 			 && !c->ts.u.derived->attr.zero_comp);
-      gfc_build_class_symbol (&c->ts, &c->attr, &c->as, delayed);
+      return gfc_build_class_symbol (&c->ts, &c->attr, &c->as, delayed);
     }
-
 
   return t;
 }
@@ -2614,6 +2611,16 @@ gfc_match_decl_type_spec (gfc_typespec *ts, int implicit_flag)
     ts->type = BT_DERIVED;
   else
     {
+      /* Match CLASS declarations.  */
+      m = gfc_match (" class ( * )");
+      if (m == MATCH_ERROR)
+	return MATCH_ERROR;
+      else if (m == MATCH_YES)
+	{
+	  gfc_fatal_error ("Unlimited polymorphism at %C not yet supported");
+	  return MATCH_ERROR;
+	}
+
       m = gfc_match (" class ( %n )", name);
       if (m != MATCH_YES)
 	return m;
@@ -4730,8 +4737,9 @@ match_procedure_decl (void)
 	    return MATCH_ERROR;
 	  sym->ts.interface = gfc_new_symbol ("", gfc_current_ns);
 	  sym->ts.interface->ts = current_ts;
+	  sym->ts.interface->attr.flavor = FL_PROCEDURE;
 	  sym->ts.interface->attr.function = 1;
-	  sym->attr.function = sym->ts.interface->attr.function;
+	  sym->attr.function = 1;
 	  sym->attr.if_source = IFSRC_UNKNOWN;
 	}
 
@@ -4864,8 +4872,9 @@ match_ppc_decl (void)
 	  c->ts = ts;
 	  c->ts.interface = gfc_new_symbol ("", gfc_current_ns);
 	  c->ts.interface->ts = ts;
+	  c->ts.interface->attr.flavor = FL_PROCEDURE;
 	  c->ts.interface->attr.function = 1;
-	  c->attr.function = c->ts.interface->attr.function;
+	  c->attr.function = 1;
 	  c->attr.if_source = IFSRC_UNKNOWN;
 	}
 
@@ -6046,10 +6055,12 @@ attr_decl1 (void)
 	}
     }
     
-  if (sym->ts.type == BT_CLASS && !sym->attr.class_ok
-      && (sym->attr.class_ok = sym->attr.class_ok || current_attr.allocatable
-			       || current_attr.pointer))
-    gfc_build_class_symbol (&sym->ts, &sym->attr, &sym->as, false);
+  if (sym->ts.type == BT_CLASS
+      && gfc_build_class_symbol (&sym->ts, &sym->attr, &sym->as, false) == FAILURE)
+    {
+      m = MATCH_ERROR;
+      goto cleanup;
+    }
 
   if (gfc_set_array_spec (sym, as, &var_locus) == FAILURE)
     {

@@ -4591,6 +4591,9 @@ gfc_simplify_num_images (void)
       return &gfc_bad_expr;
     }
 
+  if (gfc_option.coarray != GFC_FCOARRAY_SINGLE)
+    return NULL;
+
   /* FIXME: gfc_current_locus is wrong.  */
   result = gfc_get_constant_expr (BT_INTEGER, gfc_default_integer_kind,
 				  &gfc_current_locus);
@@ -6313,6 +6316,9 @@ gfc_simplify_this_image (gfc_expr *coarray, gfc_expr *dim)
   gfc_array_spec *as;
   int d;
 
+  if (gfc_option.coarray != GFC_FCOARRAY_SINGLE)
+    return NULL;
+
   if (coarray == NULL)
     {
       gfc_expr *result;
@@ -6844,9 +6850,9 @@ gfc_simplify_compiler_version (void)
   char *buffer;
   size_t len;
 
-  len = strlen ("GCC version ") + strlen (version_string) + 1;
-  buffer = (char*) alloca (len);
-  snprintf (buffer, len, "GCC version %s", version_string);
+  len = strlen ("GCC version ") + strlen (version_string);
+  buffer = XALLOCAVEC (char, len + 1);
+  snprintf (buffer, len + 1, "GCC version %s", version_string);
   return gfc_get_character_expr (gfc_default_character_kind,
                                 &gfc_current_locus, buffer, len);
 }

@@ -551,6 +551,7 @@ lto_output_node (struct lto_simple_output_block *ob, struct cgraph_node *node,
 	      lto_output_fn_decl_index (ob->decl_state, ob->main_stream,
 					alias->thunk.alias);
 	    }
+	  gcc_assert (cgraph_get_node (alias->thunk.alias) == node);
 	  lto_output_uleb128_stream (ob->main_stream, alias->resolution);
 	  alias = alias->previous;
 	}
@@ -974,6 +975,7 @@ input_overwrite_node (struct lto_file_decl_data *file_data,
 	  || node->clone_of->decl != node->decl))
     {
       DECL_EXTERNAL (node->decl) = 1;
+      DECL_ABSTRACT_ORIGIN (node->decl) = NULL_TREE;
       TREE_STATIC (node->decl) = 0;
     }
   node->alias = bp_unpack_value (bp, 1);
@@ -1094,7 +1096,7 @@ input_node (struct lto_file_decl_data *file_data,
 	  tree real_alias;
 	  decl_index = lto_input_uleb128 (ib);
 	  real_alias = lto_file_decl_data_get_fn_decl (file_data, decl_index);
-	  alias = cgraph_same_body_alias (alias_decl, real_alias);
+	  alias = cgraph_same_body_alias (node, alias_decl, real_alias);
 	}
       else
         {
@@ -1103,12 +1105,13 @@ input_node (struct lto_file_decl_data *file_data,
 	  tree real_alias;
 	  decl_index = lto_input_uleb128 (ib);
 	  real_alias = lto_file_decl_data_get_fn_decl (file_data, decl_index);
-	  alias = cgraph_add_thunk (alias_decl, fn_decl, type & 2, fixed_offset,
+	  alias = cgraph_add_thunk (node, alias_decl, fn_decl, type & 2, fixed_offset,
 				    virtual_value,
 				    (type & 4) ? size_int (virtual_value) : NULL_TREE,
 				    real_alias);
 	}
-       alias->resolution = (enum ld_plugin_symbol_resolution)lto_input_uleb128 (ib);
+      gcc_assert (alias);
+      alias->resolution = (enum ld_plugin_symbol_resolution)lto_input_uleb128 (ib);
     }
   return node;
 }
@@ -1144,6 +1147,7 @@ input_varpool_node (struct lto_file_decl_data *file_data,
   if (node->in_other_partition)
     {
       DECL_EXTERNAL (node->decl) = 1;
+      DECL_ABSTRACT_ORIGIN (node->decl) = NULL_TREE;
       TREE_STATIC (node->decl) = 0;
     }
   aliases_p = bp_unpack_value (&bp, 1);

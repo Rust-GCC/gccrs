@@ -18,6 +18,10 @@ var illegalInputs = []interface{}{
 	3.14,
 	[]byte(nil),
 	"foo!",
+	`package p; func f() { if /* should have condition */ {} };`,
+	`package p; func f() { if ; /* should have condition */ {} };`,
+	`package p; func f() { if f(); /* should have condition */ {} };`,
+	`package p; const c; /* should have constant value */`,
 }
 
 
@@ -32,20 +36,23 @@ func TestParseIllegalInputs(t *testing.T) {
 
 
 var validPrograms = []interface{}{
-	"package main\n",
-	`package main;`,
-	`package main; import "fmt"; func main() { fmt.Println("Hello, World!") };`,
-	`package main; func main() { if f(T{}) {} };`,
-	`package main; func main() { _ = (<-chan int)(x) };`,
-	`package main; func main() { _ = (<-chan <-chan int)(x) };`,
-	`package main; func f(func() func() func());`,
-	`package main; func f(...T);`,
-	`package main; func f(float, ...int);`,
-	`package main; func f(x int, a ...int) { f(0, a...); f(1, a...,) };`,
-	`package main; type T []int; var a []bool; func f() { if a[T{42}[0]] {} };`,
-	`package main; type T []int; func g(int) bool { return true }; func f() { if g(T{42}[0]) {} };`,
-	`package main; type T []int; func f() { for _ = range []int{T{42}[0]} {} };`,
-	`package main; var a = T{{1, 2}, {3, 4}}`,
+	"package p\n",
+	`package p;`,
+	`package p; import "fmt"; func f() { fmt.Println("Hello, World!") };`,
+	`package p; func f() { if f(T{}) {} };`,
+	`package p; func f() { _ = (<-chan int)(x) };`,
+	`package p; func f() { _ = (<-chan <-chan int)(x) };`,
+	`package p; func f(func() func() func());`,
+	`package p; func f(...T);`,
+	`package p; func f(float, ...int);`,
+	`package p; func f(x int, a ...int) { f(0, a...); f(1, a...,) };`,
+	`package p; type T []int; var a []bool; func f() { if a[T{42}[0]] {} };`,
+	`package p; type T []int; func g(int) bool { return true }; func f() { if g(T{42}[0]) {} };`,
+	`package p; type T []int; func f() { for _ = range []int{T{42}[0]} {} };`,
+	`package p; var a = T{{1, 2}, {3, 4}}`,
+	`package p; func f() { select { case <- c: case c <- d: case c <- <- d: case <-c <- d: } };`,
+	`package p; func f() { if ; true {} };`,
+	`package p; func f() { switch ; {} };`,
 }
 
 
@@ -67,7 +74,7 @@ var validFiles = []string{
 
 func TestParse3(t *testing.T) {
 	for _, filename := range validFiles {
-		_, err := ParseFile(fset, filename, nil, 0)
+		_, err := ParseFile(fset, filename, nil, DeclarationErrors)
 		if err != nil {
 			t.Errorf("ParseFile(%s): %v", filename, err)
 		}

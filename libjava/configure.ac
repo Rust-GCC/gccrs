@@ -1033,7 +1033,7 @@ case "$THREADS" in
     ;;
  win32)
     ;;
- decosf1 | irix | mach | os2 | solaris | dce | vxworks)
+ decosf1 | irix | mach | os2 | dce | vxworks)
     AC_MSG_ERROR(thread package $THREADS not yet supported)
     ;;
  *)
@@ -1800,26 +1800,38 @@ GCC_CHECK_UNWIND_GETIPINFO
 # See if linker supports anonymous version scripts.
 AC_CACHE_CHECK([whether ld supports anonymous version scripts],
   [libjava_cv_anon_version_script],
-  [save_CFLAGS="$CFLAGS"; save_LDFLAGS="$LDFLAGS"
-   libjava_cv_anon_version_script=no
-   CFLAGS="$CFLAGS -fPIC";
-   LDFLAGS="$LDFLAGS -shared -Wl,--version-script,conftest.map"
-   echo '{ global: globalsymb*; local: *; };' > conftest.map
-   AC_TRY_LINK(void globalsymbol (void) {} void localsymbol (void) {},,
-	       [libjava_cv_anon_version_script=gnu], [])
-   if test x$libjava_cv_anon_version_script = xno; then
-     case "$target_os" in
-       solaris2*)
-         LDFLAGS="$save_LDFLAGS"
-         LDFLAGS="$LDFLAGS -shared -Wl,-M,conftest.map"
-         # Sun ld doesn't understand wildcards here.
-         echo '{ global: globalsymbol; local: *; };' > conftest.map
-         AC_TRY_LINK(void globalsymbol (void) {} void localsymbol (void) {},,
-	 	     [libjava_cv_anon_version_script=sun], [])
-         ;;
-     esac
+  [AC_ARG_ENABLE(symvers,
+     AS_HELP_STRING([--disable-symvers],
+		    [disable symbol versioning for libjava]),
+       [case "$enableval" in
+         yes) libjava_cv_anon_version_script=yes ;;
+         no)  libjava_cv_anon_version_script=no ;;
+         *)   AC_MSG_ERROR([Unknown argument to enable/disable symvers]);;
+        esac],
+       [libjava_cv_anon_version_script=yes]
+   )
+   if test x$libjava_cv_anon_version_script = xyes; then
+     save_CFLAGS="$CFLAGS"; save_LDFLAGS="$LDFLAGS"
+     CFLAGS="$CFLAGS -fPIC";
+     LDFLAGS="$LDFLAGS -shared -Wl,--version-script,conftest.map"
+     echo '{ global: globalsymb*; local: *; };' > conftest.map
+     AC_TRY_LINK(void globalsymbol (void) {} void localsymbol (void) {},,
+	         [libjava_cv_anon_version_script=gnu],
+		 [libjava_cv_anon_version_script=no])
+     if test x$libjava_cv_anon_version_script = xno; then
+       case "$target_os" in
+         solaris2*)
+           LDFLAGS="$save_LDFLAGS"
+           LDFLAGS="$LDFLAGS -shared -Wl,-M,conftest.map"
+           # Sun ld doesn't understand wildcards here.
+           echo '{ global: globalsymbol; local: *; };' > conftest.map
+           AC_TRY_LINK(void globalsymbol (void) {} void localsymbol (void) {},,
+	 	       [libjava_cv_anon_version_script=sun], [])
+           ;;
+       esac
+     fi
+     CFLAGS="$save_CFLAGS"; LDFLAGS="$save_LDFLAGS"
    fi
-   CFLAGS="$save_CFLAGS"; LDFLAGS="$save_LDFLAGS"
   ])
 AM_CONDITIONAL(ANONVERSCRIPT, test "$libjava_cv_anon_version_script" != no)
 AM_CONDITIONAL(ANONVERSCRIPT_GNU, test "$libjava_cv_anon_version_script" = gnu)
@@ -1843,21 +1855,18 @@ AC_SUBST(here)
 # We get this from the environment.
 AC_SUBST(GCJFLAGS)
 
+default_python_dir="/share/gcc-`cat ${srcdir}/../gcc/BASE-VER`/python/libjava"
 AC_ARG_WITH([python-dir],
             AS_HELP_STRING([--with-python-dir],
                            [the location to install Python modules. This path should NOT include the prefix.]),
-            [with_python_dir=$withval], [with_python_dir=""])
+            [with_python_dir=$withval], [with_python_dir="${default_python_dir}"])
 
-if test "x${with_python_dir}" = "x"
-then
-  # Needed for installing Python modules during make install.
-  python_mod_dir="\${prefix}/share/python"
-  # Needed for substituting into aot-compile*
-  python_mod_dir_expanded="${expanded_prefix}/share/python"
-else
-  python_mod_dir="\${prefix}${with_python_dir}"
-  python_mod_dir_expanded="${expanded_prefix}${with_python_dir}"
-fi
+# Needed for installing Python modules during make install.
+python_mod_dir="\${prefix}${with_python_dir}"
+
+# Needed for substituting into aot-compile*
+python_mod_dir_expanded="${expanded_prefix}${with_python_dir}"
+
 AC_MSG_RESULT(Python modules dir: ${python_mod_dir_expanded});
 AC_SUBST(python_mod_dir)
 AC_SUBST(python_mod_dir_expanded)

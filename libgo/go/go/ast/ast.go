@@ -535,6 +535,13 @@ type (
 		X Expr // expression
 	}
 
+	// A SendStmt node represents a send statement.
+	SendStmt struct {
+		Chan  Expr
+		Arrow token.Pos // position of "<-"
+		Value Expr
+	}
+
 	// An IncDecStmt node represents an increment or decrement statement.
 	IncDecStmt struct {
 		X      Expr
@@ -590,17 +597,17 @@ type (
 	IfStmt struct {
 		If   token.Pos // position of "if" keyword
 		Init Stmt      // initalization statement; or nil
-		Cond Expr      // condition; or nil
+		Cond Expr      // condition
 		Body *BlockStmt
 		Else Stmt // else branch; or nil
 	}
 
-	// A CaseClause represents a case of an expression switch statement.
+	// A CaseClause represents a case of an expression or type switch statement.
 	CaseClause struct {
-		Case   token.Pos // position of "case" or "default" keyword
-		Values []Expr    // nil means default case
-		Colon  token.Pos // position of ":"
-		Body   []Stmt    // statement list; or nil
+		Case  token.Pos // position of "case" or "default" keyword
+		List  []Expr    // list of expressions or types; nil means default case
+		Colon token.Pos // position of ":"
+		Body  []Stmt    // statement list; or nil
 	}
 
 	// A SwitchStmt node represents an expression switch statement.
@@ -611,29 +618,20 @@ type (
 		Body   *BlockStmt // CaseClauses only
 	}
 
-	// A TypeCaseClause represents a case of a type switch statement.
-	TypeCaseClause struct {
-		Case  token.Pos // position of "case" or "default" keyword
-		Types []Expr    // nil means default case
-		Colon token.Pos // position of ":"
-		Body  []Stmt    // statement list; or nil
-	}
-
 	// An TypeSwitchStmt node represents a type switch statement.
 	TypeSwitchStmt struct {
 		Switch token.Pos  // position of "switch" keyword
 		Init   Stmt       // initalization statement; or nil
-		Assign Stmt       // x := y.(type)
-		Body   *BlockStmt // TypeCaseClauses only
+		Assign Stmt       // x := y.(type) or y.(type)
+		Body   *BlockStmt // CaseClauses only
 	}
 
 	// A CommClause node represents a case of a select statement.
 	CommClause struct {
-		Case     token.Pos   // position of "case" or "default" keyword
-		Tok      token.Token // ASSIGN or DEFINE (valid only if Lhs != nil)
-		Lhs, Rhs Expr        // Rhs == nil means default case
-		Colon    token.Pos   // position of ":"
-		Body     []Stmt      // statement list; or nil
+		Case  token.Pos // position of "case" or "default" keyword
+		Comm  Stmt      // send or receive statement; nil means default case
+		Colon token.Pos // position of ":"
+		Body  []Stmt    // statement list; or nil
 	}
 
 	// An SelectStmt node represents a select statement.
@@ -670,6 +668,7 @@ func (s *DeclStmt) Pos() token.Pos       { return s.Decl.Pos() }
 func (s *EmptyStmt) Pos() token.Pos      { return s.Semicolon }
 func (s *LabeledStmt) Pos() token.Pos    { return s.Label.Pos() }
 func (s *ExprStmt) Pos() token.Pos       { return s.X.Pos() }
+func (s *SendStmt) Pos() token.Pos       { return s.Chan.Pos() }
 func (s *IncDecStmt) Pos() token.Pos     { return s.X.Pos() }
 func (s *AssignStmt) Pos() token.Pos     { return s.Lhs[0].Pos() }
 func (s *GoStmt) Pos() token.Pos         { return s.Go }
@@ -680,7 +679,6 @@ func (s *BlockStmt) Pos() token.Pos      { return s.Lbrace }
 func (s *IfStmt) Pos() token.Pos         { return s.If }
 func (s *CaseClause) Pos() token.Pos     { return s.Case }
 func (s *SwitchStmt) Pos() token.Pos     { return s.Switch }
-func (s *TypeCaseClause) Pos() token.Pos { return s.Case }
 func (s *TypeSwitchStmt) Pos() token.Pos { return s.Switch }
 func (s *CommClause) Pos() token.Pos     { return s.Case }
 func (s *SelectStmt) Pos() token.Pos     { return s.Select }
@@ -695,6 +693,7 @@ func (s *EmptyStmt) End() token.Pos {
 }
 func (s *LabeledStmt) End() token.Pos { return s.Stmt.End() }
 func (s *ExprStmt) End() token.Pos    { return s.X.End() }
+func (s *SendStmt) End() token.Pos    { return s.Value.End() }
 func (s *IncDecStmt) End() token.Pos {
 	return s.TokPos + 2 /* len("++") */
 }
@@ -726,13 +725,7 @@ func (s *CaseClause) End() token.Pos {
 	}
 	return s.Colon + 1
 }
-func (s *SwitchStmt) End() token.Pos { return s.Body.End() }
-func (s *TypeCaseClause) End() token.Pos {
-	if n := len(s.Body); n > 0 {
-		return s.Body[n-1].End()
-	}
-	return s.Colon + 1
-}
+func (s *SwitchStmt) End() token.Pos     { return s.Body.End() }
 func (s *TypeSwitchStmt) End() token.Pos { return s.Body.End() }
 func (s *CommClause) End() token.Pos {
 	if n := len(s.Body); n > 0 {
@@ -753,6 +746,7 @@ func (s *DeclStmt) stmtNode()       {}
 func (s *EmptyStmt) stmtNode()      {}
 func (s *LabeledStmt) stmtNode()    {}
 func (s *ExprStmt) stmtNode()       {}
+func (s *SendStmt) stmtNode()       {}
 func (s *IncDecStmt) stmtNode()     {}
 func (s *AssignStmt) stmtNode()     {}
 func (s *GoStmt) stmtNode()         {}
@@ -763,7 +757,6 @@ func (s *BlockStmt) stmtNode()      {}
 func (s *IfStmt) stmtNode()         {}
 func (s *CaseClause) stmtNode()     {}
 func (s *SwitchStmt) stmtNode()     {}
-func (s *TypeCaseClause) stmtNode() {}
 func (s *TypeSwitchStmt) stmtNode() {}
 func (s *CommClause) stmtNode()     {}
 func (s *SelectStmt) stmtNode()     {}
@@ -928,11 +921,13 @@ func (d *FuncDecl) declNode() {}
 // via Doc and Comment fields.
 //
 type File struct {
-	Doc      *CommentGroup   // associated documentation; or nil
-	Package  token.Pos       // position of "package" keyword
-	Name     *Ident          // package name
-	Decls    []Decl          // top-level declarations; or nil
-	Comments []*CommentGroup // list of all comments in the source file
+	Doc        *CommentGroup   // associated documentation; or nil
+	Package    token.Pos       // position of "package" keyword
+	Name       *Ident          // package name
+	Decls      []Decl          // top-level declarations; or nil
+	Scope      *Scope          // package scope
+	Unresolved []*Ident        // unresolved global identifiers
+	Comments   []*CommentGroup // list of all comments in the source file
 }
 
 
@@ -950,7 +945,7 @@ func (f *File) End() token.Pos {
 //
 type Package struct {
 	Name  string           // package name
-	Scope *Scope           // package scope; or nil
+	Scope *Scope           // package scope
 	Files map[string]*File // Go source files by filename
 }
 

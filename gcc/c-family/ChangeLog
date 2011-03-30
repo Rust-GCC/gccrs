@@ -1,3 +1,84 @@
+2011-03-29  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/48248
+	* c-ppoutput.c (print): Add src_file field.
+	(init_pp_output): Initialize it.
+	(maybe_print_line): Don't optimize by adding up to 8 newlines
+	if map->to_file and print.src_file are different file.
+	(print_line): Update print.src_file.
+
+2011-03-25  Kai Tietz  <ktietz@redhat.com>
+
+	* c-ada-spec.c (compare_comment): Use filename_cmp
+	instead of strcmp for filename.
+
+2011-03-25  Jeff Law  <law@redhat.com>
+
+	* c-family/c-common.c (def_fn_type): Add missing va_end.
+
+2011-03-25  Jason Merrill  <jason@redhat.com>
+
+	* c.opt: Add -std=c++03.
+
+2011-03-22  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-ada-spec.c (dump_ada_template): Skip non-class instances.
+
+2011-03-17  Kai Tietz
+
+	PR target/12171
+	* c-pretty-print.c (pp_c_specifier_qualifier_list):
+	Display allowed attributes for function pointer types.
+	(pp_c_attributes_display): New function to display
+	attributes having affects_type_identity flag set to true.
+	* c-pretty-print.h (pp_c_attributes_display): New prototype.
+
+	* c-common.c (c_common_attribute_table):
+	Add new element.
+	(c_common_format_attribute_table): Likewise.
+
+2011-03-18  Jason Merrill  <jason@redhat.com>
+
+	* c.opt (fconstexpr-depth): Add Var(max_constexpr_depth).
+	* c-common.h: Don't declare it here.
+	* c-common.c: Or define it here.
+	* c-opts.c (c_common_handle_option): Or set it here.
+
+	PR c++/35315
+	* c-common.c (handle_transparent_union_attribute): Don't
+	make a duplicate type in C++.
+
+2011-03-15  Jason Merrill  <jason@redhat.com>
+
+	* c-common.c (max_constexpr_depth): New.
+	* c-common.h: Declare it.
+	* c-opts.c (c_common_handle_option): Set it.
+	* c.opt (fconstexpr-depth): New option.
+
+2011-03-11  Jason Merrill  <jason@redhat.com>
+
+	* c-common.c (attribute_takes_identifier_p): Add missing const.
+
+	PR c++/46803
+	* c-common.c (attribute_takes_identifier_p): Assume that an
+	unknown attribute takes an identifier.
+
+2011-03-07  Nathan Froyd  <froydnj@codesourcery.com>
+
+	PR c/47786
+	* c-common.c (c_type_hash): Call list_length instead of iterating
+	through DECL_CHAIN.  Rename 'i' to 'n_elements'.
+
+2011-02-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/47809
+	* c-common.c (c_fully_fold_internal): Handle VIEW_CONVERT_EXPR.
+
+2011-02-17  Iain Sandoe  <iains@gcc.gnu.org>
+
+	* c.opt (fobjc-abi-version=) New.
+	(fobjc-nilcheck): New.
+
 2011-02-03  Nathan Froyd  <froydnj@codesourcery.com>
 
 	PR c++/46890

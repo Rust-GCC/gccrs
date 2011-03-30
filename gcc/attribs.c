@@ -57,7 +57,7 @@ static bool attributes_initialized = false;
 
 static const struct attribute_spec empty_attribute_table[] =
 {
-  { NULL, 0, 0, false, false, false, NULL }
+  { NULL, 0, 0, false, false, false, NULL, false }
 };
 
 /* Return base name of the attribute.  Ie '__attr__' is turned into 'attr'.
@@ -208,7 +208,7 @@ register_attribute (const struct attribute_spec *attr)
 /* Return the spec for the attribute named NAME.  */
 
 const struct attribute_spec *
-lookup_attribute_spec (tree name)
+lookup_attribute_spec (const_tree name)
 {
   struct substring attr;
 

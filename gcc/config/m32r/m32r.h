@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, Renesas M32R cpu.
    Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+   2005, 2006, 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -194,91 +194,8 @@
 #define TARGET_CPU_DEFAULT 0
 #endif
 
-/* Code Models
-
-   Code models are used to select between two choices of two separate
-   possibilities (address space size, call insn to use):
-
-   small: addresses use 24 bits, use bl to make calls
-   medium: addresses use 32 bits, use bl to make calls (*1)
-   large: addresses use 32 bits, use seth/add3/jl to make calls (*2)
-
-   The fourth is "addresses use 24 bits, use seth/add3/jl to make calls" but
-   using this one doesn't make much sense.
-
-   (*1) The linker may eventually be able to relax seth/add3 -> ld24.
-   (*2) The linker may eventually be able to relax seth/add3/jl -> bl.
-
-   Internally these are recorded as TARGET_ADDR{24,32} and
-   TARGET_CALL{26,32}.
-
-   The __model__ attribute can be used to select the code model to use when
-   accessing particular objects.  */
-
-enum m32r_model { M32R_MODEL_SMALL, M32R_MODEL_MEDIUM, M32R_MODEL_LARGE };
-
-extern enum m32r_model m32r_model;
-#define TARGET_MODEL_SMALL  (m32r_model == M32R_MODEL_SMALL)
-#define TARGET_MODEL_MEDIUM (m32r_model == M32R_MODEL_MEDIUM)
-#define TARGET_MODEL_LARGE  (m32r_model == M32R_MODEL_LARGE)
-#define TARGET_ADDR24       (m32r_model == M32R_MODEL_SMALL)
-#define TARGET_ADDR32       (! TARGET_ADDR24)
-#define TARGET_CALL26       (! TARGET_CALL32)
-#define TARGET_CALL32       (m32r_model == M32R_MODEL_LARGE)
-
-/* The default is the small model.  */
-#ifndef M32R_MODEL_DEFAULT
-#define M32R_MODEL_DEFAULT M32R_MODEL_SMALL
-#endif
-
-/* Small Data Area
-
-   The SDA consists of sections .sdata, .sbss, and .scommon.
-   .scommon isn't a real section, symbols in it have their section index
-   set to SHN_M32R_SCOMMON, though support for it exists in the linker script.
-
-   Two switches control the SDA:
-
-   -G NNN        - specifies the maximum size of variable to go in the SDA
-
-   -msdata=foo   - specifies how such variables are handled
-
-        -msdata=none  - small data area is disabled
-
-        -msdata=sdata - small data goes in the SDA, special code isn't
-                        generated to use it, and special relocs aren't
-                        generated
-
-        -msdata=use   - small data goes in the SDA, special code is generated
-                        to use the SDA and special relocs are generated
-
-   The SDA is not multilib'd, it isn't necessary.
-   MULTILIB_EXTRA_OPTS is set in tmake_file to -msdata=sdata so multilib'd
-   libraries have small data in .sdata/SHN_M32R_SCOMMON so programs that use
-   -msdata=use will successfully link with them (references in header files
-   will cause the compiler to emit code that refers to library objects in
-   .data).  ??? There can be a problem if the user passes a -G value greater
-   than the default and a library object in a header file is that size.
-   The default is 8 so this should be rare - if it occurs the user
-   is required to rebuild the libraries or use a smaller value for -G.  */
-
-/* Maximum size of variables that go in .sdata/.sbss.
-   The -msdata=foo switch also controls how small variables are handled.  */
-#ifndef SDATA_DEFAULT_SIZE
-#define SDATA_DEFAULT_SIZE 8
-#endif
-
-enum m32r_sdata { M32R_SDATA_NONE, M32R_SDATA_SDATA, M32R_SDATA_USE };
-
-extern enum m32r_sdata m32r_sdata;
-#define TARGET_SDATA_NONE  (m32r_sdata == M32R_SDATA_NONE)
-#define TARGET_SDATA_SDATA (m32r_sdata == M32R_SDATA_SDATA)
-#define TARGET_SDATA_USE   (m32r_sdata == M32R_SDATA_USE)
-
-/* Default is to disable the SDA
-   [for upward compatibility with previous toolchains].  */
-#ifndef M32R_SDATA_DEFAULT
-#define M32R_SDATA_DEFAULT M32R_SDATA_NONE
+#ifndef M32R_OPTS_H
+#include "config/m32r/m32r-opts.h"
 #endif
 
 /* Define this macro as a C expression for the initializer of an array of
@@ -541,11 +458,6 @@ enum reg_class
 {
   NO_REGS, CARRY_REG, ACCUM_REGS, GENERAL_REGS, ALL_REGS, LIM_REG_CLASSES
 };
-
-#define IRA_COVER_CLASSES				\
-{							\
-  ACCUM_REGS, GENERAL_REGS, LIM_REG_CLASSES		\
-}
 
 #define N_REG_CLASSES ((int) LIM_REG_CLASSES)
 
@@ -858,99 +770,6 @@ L2:     .word STATIC
       && (GET_CODE (XEXP (XEXP (X, 0), 0)) == SYMBOL_REF || GET_CODE (XEXP (XEXP (X, 0), 0)) == LABEL_REF) \
       && CONST_INT_P (XEXP (XEXP (X, 0), 1))			\
       && (unsigned HOST_WIDE_INT) INTVAL (XEXP (XEXP (X, 0), 1)) > 32767))
-
-/* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
-   and check its validity for a certain class.
-   We have two alternate definitions for each of them.
-   The usual definition accepts all pseudo regs; the other rejects
-   them unless they have been allocated suitable hard regs.
-   The symbol REG_OK_STRICT causes the latter definition to be used.
-
-   Most source files want to accept pseudo regs in the hope that
-   they will get allocated to the class that the insn wants them to be in.
-   Source files for reload pass need to be strict.
-   After reload, it makes no difference, since pseudo regs have
-   been eliminated by then.  */
-
-#ifdef REG_OK_STRICT
-
-/* Nonzero if X is a hard reg that can be used as a base reg.  */
-#define REG_OK_FOR_BASE_P(X) GPR_P (REGNO (X))
-/* Nonzero if X is a hard reg that can be used as an index.  */
-#define REG_OK_FOR_INDEX_P(X) REG_OK_FOR_BASE_P (X)
-
-#else
-
-/* Nonzero if X is a hard reg that can be used as a base reg
-   or if it is a pseudo reg.  */
-#define REG_OK_FOR_BASE_P(X)		\
-  (GPR_P (REGNO (X))			\
-   || (REGNO (X)) == ARG_POINTER_REGNUM	\
-   || REGNO (X) >= FIRST_PSEUDO_REGISTER)
-/* Nonzero if X is a hard reg that can be used as an index
-   or if it is a pseudo reg.  */
-#define REG_OK_FOR_INDEX_P(X) REG_OK_FOR_BASE_P (X)
-
-#endif
-
-/* GO_IF_LEGITIMATE_ADDRESS recognizes an RTL expression
-   that is a valid memory address for an instruction.
-   The MODE argument is the machine mode for the MEM expression
-   that wants to use this address.  */
-
-/* Local to this file.  */
-#define RTX_OK_FOR_BASE_P(X) (REG_P (X) && REG_OK_FOR_BASE_P (X))
-
-/* Local to this file.  */
-#define RTX_OK_FOR_OFFSET_P(X) \
-  (CONST_INT_P (X) && INT16_P (INTVAL (X)))
-
-/* Local to this file.  */
-#define LEGITIMATE_OFFSET_ADDRESS_P(MODE, X)			\
-  (GET_CODE (X) == PLUS						\
-   && RTX_OK_FOR_BASE_P (XEXP (X, 0))				\
-   && RTX_OK_FOR_OFFSET_P (XEXP (X, 1)))
-
-/* Local to this file.  */
-/* For LO_SUM addresses, do not allow them if the MODE is > 1 word,
-   since more than one instruction will be required.  */
-#define LEGITIMATE_LO_SUM_ADDRESS_P(MODE, X)			\
-  (GET_CODE (X) == LO_SUM					\
-   && (MODE != BLKmode && GET_MODE_SIZE (MODE) <= UNITS_PER_WORD)\
-   && RTX_OK_FOR_BASE_P (XEXP (X, 0))				\
-   && CONSTANT_P (XEXP (X, 1)))
-
-/* Local to this file.  */
-/* Is this a load and increment operation.  */
-#define LOAD_POSTINC_P(MODE, X)					\
-  (((MODE) == SImode || (MODE) == SFmode)			\
-   && GET_CODE (X) == POST_INC					\
-   && REG_P (XEXP (X, 0))				\
-   && RTX_OK_FOR_BASE_P (XEXP (X, 0)))
-
-/* Local to this file.  */
-/* Is this an increment/decrement and store operation.  */
-#define STORE_PREINC_PREDEC_P(MODE, X)				\
-  (((MODE) == SImode || (MODE) == SFmode)			\
-   && (GET_CODE (X) == PRE_INC || GET_CODE (X) == PRE_DEC)	\
-   && REG_P (XEXP (X, 0))				\
-   && RTX_OK_FOR_BASE_P (XEXP (X, 0)))
-
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, ADDR)			\
-  do								\
-    {								\
-      if (RTX_OK_FOR_BASE_P (X))				\
-	goto ADDR;						\
-      if (LEGITIMATE_OFFSET_ADDRESS_P ((MODE), (X)))		\
-	goto ADDR;						\
-      if (LEGITIMATE_LO_SUM_ADDRESS_P ((MODE), (X)))		\
-	goto ADDR;						\
-      if (LOAD_POSTINC_P ((MODE), (X)))				\
-	goto ADDR;						\
-      if (STORE_PREINC_PREDEC_P ((MODE), (X)))			\
-	goto ADDR;						\
-    }								\
-  while (0)
 
 /* Condition code usage.  */
 

@@ -42,15 +42,10 @@
 #include "target.h"
 #include "target-def.h"
 #include "tm-constrs.h"
+#include "opts.h"
 
 /* Array of valid operand punctuation characters.  */
 static char m32r_punct_chars[256];
-
-/* Selected code model.  */
-enum m32r_model m32r_model = M32R_MODEL_DEFAULT;
-
-/* Selected SDA support.  */
-enum m32r_sdata m32r_sdata = M32R_SDATA_DEFAULT;
 
 /* Machine-specific symbol_ref flags.  */
 #define SYMBOL_FLAG_MODEL_SHIFT		SYMBOL_FLAG_MACH_DEP_SHIFT
@@ -61,11 +56,13 @@ enum m32r_sdata m32r_sdata = M32R_SDATA_DEFAULT;
 #define LIT_NAME_P(NAME) ((NAME)[0] == '*' && (NAME)[1] == '.')
 
 /* Forward declaration.  */
-static bool  m32r_handle_option (size_t, const char *, int);
+static bool  m32r_handle_option (struct gcc_options *, struct gcc_options *,
+				 const struct cl_decoded_option *, location_t);
 static void  m32r_option_override (void);
 static void  init_reg_tables (void);
 static void  block_move_call (rtx, rtx, rtx);
 static int   m32r_is_insn (rtx);
+static bool  m32r_legitimate_address_p (enum machine_mode, rtx, bool);
 static rtx   m32r_legitimize_address (rtx, rtx, enum machine_mode);
 static bool  m32r_mode_dependent_address_p (const_rtx);
 static tree  m32r_handle_model_attribute (tree *, tree, tree, int, bool *);
@@ -107,10 +104,12 @@ static void m32r_trampoline_init (rtx, tree, rtx);
 
 static const struct attribute_spec m32r_attribute_table[] =
 {
-  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler } */
-  { "interrupt", 0, 0, true,  false, false, NULL },
-  { "model",     1, 1, true,  false, false, m32r_handle_model_attribute },
-  { NULL,        0, 0, false, false, false, NULL }
+  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
+       affects_type_identity } */
+  { "interrupt", 0, 0, true,  false, false, NULL, false },
+  { "model",     1, 1, true,  false, false, m32r_handle_model_attribute,
+    false },
+  { NULL,        0, 0, false, false, false, NULL, false }
 };
 
 static const struct default_options m32r_option_optimization_table[] =
@@ -124,6 +123,8 @@ static const struct default_options m32r_option_optimization_table[] =
 #undef  TARGET_ATTRIBUTE_TABLE
 #define TARGET_ATTRIBUTE_TABLE m32r_attribute_table
 
+#undef TARGET_LEGITIMATE_ADDRESS_P
+#define TARGET_LEGITIMATE_ADDRESS_P m32r_legitimate_address_p
 #undef TARGET_LEGITIMIZE_ADDRESS
 #define TARGET_LEGITIMIZE_ADDRESS m32r_legitimize_address
 #undef TARGET_MODE_DEPENDENT_ADDRESS_P
@@ -218,46 +219,26 @@ struct gcc_target targetm = TARGET_INITIALIZER;
 /* Implement TARGET_HANDLE_OPTION.  */
 
 static bool
-m32r_handle_option (size_t code, const char *arg, int value)
+m32r_handle_option (struct gcc_options *opts,
+		    struct gcc_options *opts_set ATTRIBUTE_UNUSED,
+		    const struct cl_decoded_option *decoded,
+		    location_t loc ATTRIBUTE_UNUSED)
 {
+  size_t code = decoded->opt_index;
+  int value = decoded->value;
+
   switch (code)
     {
     case OPT_m32r:
-      target_flags &= ~(MASK_M32R2 | MASK_M32RX);
-      return true;
-
-    case OPT_mmodel_:
-      if (strcmp (arg, "small") == 0)
-	m32r_model = M32R_MODEL_SMALL;
-      else if (strcmp (arg, "medium") == 0)
-	m32r_model = M32R_MODEL_MEDIUM;
-      else if (strcmp (arg, "large") == 0)
-	m32r_model = M32R_MODEL_LARGE;
-      else
-	return false;
-      return true;
-
-    case OPT_msdata_:
-      if (strcmp (arg, "none") == 0)
-	m32r_sdata = M32R_SDATA_NONE;
-      else if (strcmp (arg, "sdata") == 0)
-	m32r_sdata = M32R_SDATA_SDATA;
-      else if (strcmp (arg, "use") == 0)
-	m32r_sdata = M32R_SDATA_USE;
-      else
-	return false;
+      opts->x_target_flags &= ~(MASK_M32R2 | MASK_M32RX);
       return true;
 
     case OPT_mno_flush_func:
-      m32r_cache_flush_func = NULL;
+      opts->x_m32r_cache_flush_func = NULL;
       return true;
 
     case OPT_mflush_trap_:
       return value <= 15;
-
-    case OPT_mno_flush_trap:
-      m32r_cache_flush_trap = -1;
-      return true;
 
     default:
       return true;
@@ -2842,6 +2823,107 @@ m32r_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 		       LCT_NORMAL, VOIDmode, 3, XEXP (m_tramp, 0), Pmode,
 		       gen_int_mode (TRAMPOLINE_SIZE, SImode), SImode,
 		       GEN_INT (3), SImode);
+}
+
+/* True if X is a reg that can be used as a base reg.  */
+
+static bool
+m32r_rtx_ok_for_base_p (const_rtx x, bool strict)
+{
+  if (! REG_P (x))
+    return false;
+
+  if (strict)
+    {
+      if (GPR_P (REGNO (x)))
+	return true;
+    }
+  else
+    {
+      if (GPR_P (REGNO (x))
+	  || REGNO (x) == ARG_POINTER_REGNUM
+	  || ! HARD_REGISTER_P (x))
+	return true;
+    }
+
+  return false;
+}
+
+static inline bool
+m32r_rtx_ok_for_offset_p (const_rtx x)
+{
+  return (CONST_INT_P (x) && INT16_P (INTVAL (x)));
+}
+
+static inline bool
+m32r_legitimate_offset_addres_p (enum machine_mode mode ATTRIBUTE_UNUSED,
+				 const_rtx x, bool strict)
+{
+  if (GET_CODE (x) == PLUS
+      && m32r_rtx_ok_for_base_p (XEXP (x, 0), strict)
+      && m32r_rtx_ok_for_offset_p (XEXP (x, 1)))
+    return true;
+
+  return false;
+}
+
+/* For LO_SUM addresses, do not allow them if the MODE is > 1 word,
+   since more than one instruction will be required.  */
+
+static inline bool
+m32r_legitimate_lo_sum_addres_p (enum machine_mode mode, const_rtx x,
+				 bool strict)
+{
+  if (GET_CODE (x) == LO_SUM
+      && (mode != BLKmode && GET_MODE_SIZE (mode) <= UNITS_PER_WORD)
+      && m32r_rtx_ok_for_base_p (XEXP (x, 0), strict)
+      && CONSTANT_P (XEXP (x, 1)))
+    return true;
+
+  return false;
+}
+
+/* Is this a load and increment operation.  */
+
+static inline bool
+m32r_load_postinc_p (enum machine_mode mode, const_rtx x, bool strict)
+{
+  if ((mode == SImode || mode == SFmode)
+      && GET_CODE (x) == POST_INC
+      && REG_P (XEXP (x, 0))
+      && m32r_rtx_ok_for_base_p (XEXP (x, 0), strict))
+    return true;
+
+  return false;
+}
+
+/* Is this an increment/decrement and store operation.  */
+
+static inline bool
+m32r_store_preinc_predec_p (enum machine_mode mode, const_rtx x, bool strict)
+{
+  if ((mode == SImode || mode == SFmode)
+      && (GET_CODE (x) == PRE_INC || GET_CODE (x) == PRE_DEC)
+      && REG_P (XEXP (x, 0))                           \
+      && m32r_rtx_ok_for_base_p (XEXP (x, 0), strict))
+    return true;
+
+  return false;
+}
+
+/* Implement  TARGET_LEGITIMATE_ADDRESS_P.  */
+
+static bool
+m32r_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
+{
+  if (m32r_rtx_ok_for_base_p (x, strict)
+      || m32r_legitimate_offset_addres_p (mode, x, strict)
+      || m32r_legitimate_lo_sum_addres_p (mode, x, strict)
+      || m32r_load_postinc_p (mode, x, strict)
+      || m32r_store_preinc_predec_p (mode, x, strict))
+    return true;
+
+  return false;
 }
 
 static void

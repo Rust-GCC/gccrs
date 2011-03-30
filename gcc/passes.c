@@ -729,7 +729,6 @@ init_optimization_passes (void)
   NEXT_PASS (pass_build_cfg);
   NEXT_PASS (pass_warn_function_return);
   NEXT_PASS (pass_build_cgraph_edges);
-  NEXT_PASS (pass_inline_parameters);
   *p = NULL;
 
   /* Interprocedural optimization passes.  */
@@ -747,12 +746,8 @@ init_optimization_passes (void)
       NEXT_PASS (pass_build_ssa);
       NEXT_PASS (pass_lower_vector);
       NEXT_PASS (pass_early_warn_uninitialized);
-      /* Note that it is not strictly necessary to schedule an early
-	 inline pass here.  However, some test cases (e.g.,
-	 g++.dg/other/p334435.C g++.dg/other/i386-1.C) expect extern
-	 inline functions to be inlined even at -O0.  This does not
-	 happen during the first early inline pass.  */
       NEXT_PASS (pass_rebuild_cgraph_edges);
+      NEXT_PASS (pass_inline_parameters);
       NEXT_PASS (pass_early_inline);
       NEXT_PASS (pass_all_early_optimizations);
 	{
@@ -767,6 +762,7 @@ init_optimization_passes (void)
 	     locals into SSA form if possible.  */
 	  NEXT_PASS (pass_build_ealias);
 	  NEXT_PASS (pass_sra_early);
+	  NEXT_PASS (pass_fre);
 	  NEXT_PASS (pass_copy_prop);
 	  NEXT_PASS (pass_merge_phi);
 	  NEXT_PASS (pass_cd_dce);
@@ -803,9 +799,7 @@ init_optimization_passes (void)
   NEXT_PASS (pass_ipa_inline);
   NEXT_PASS (pass_ipa_pure_const);
   NEXT_PASS (pass_ipa_reference);
-  NEXT_PASS (pass_ipa_type_escape);
   NEXT_PASS (pass_ipa_pta);
-  NEXT_PASS (pass_ipa_struct_reorg);
   *p = NULL;
 
   p = &all_lto_gen_passes;
@@ -1246,7 +1240,7 @@ execute_function_todo (void *data)
   if (flags & TODO_verify_flow)
     verify_flow_info ();
   if (flags & TODO_verify_stmts)
-    verify_stmts ();
+    verify_gimple_in_cfg (cfun);
   if (current_loops && loops_state_satisfies_p (LOOP_CLOSED_SSA))
     verify_loop_closed_ssa (false);
   if (flags & TODO_verify_rtl_sharing)

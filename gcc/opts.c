@@ -225,21 +225,13 @@ target_handle_option (struct gcc_options *opts,
 		      struct gcc_options *opts_set,
 		      const struct cl_decoded_option *decoded,
 		      unsigned int lang_mask ATTRIBUTE_UNUSED, int kind,
-		      location_t loc ATTRIBUTE_UNUSED,
+		      location_t loc,
 		      const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED,
 		      diagnostic_context *dc)
 {
-  gcc_assert (opts == &global_options);
-  gcc_assert (opts_set == &global_options_set);
   gcc_assert (dc == global_dc);
-  gcc_assert (decoded->canonical_option_num_elements <= 2);
   gcc_assert (kind == DK_UNSPECIFIED);
-  /* Although the location is not passed down to
-     targetm.handle_option, do not make assertions about its value;
-     options may come from optimize attributes and having the correct
-     location in the handler is not generally important.  */
-  return targetm.handle_option (decoded->opt_index, decoded->arg,
-				decoded->value);
+  return targetm.handle_option (opts, opts_set, decoded, loc);
 }
 
 /* Add comma-separated strings to a char_p vector.  */
@@ -296,11 +288,6 @@ init_options_struct (struct gcc_options *opts, struct gcc_options *opts_set)
   opts->x_param_values = XNEWVEC (int, num_params);
   opts_set->x_param_values = XCNEWVEC (int, num_params);
   init_param_values (opts->x_param_values);
-
-  /* Use priority coloring if cover classes is not defined for the
-     target.  */
-  if (targetm.ira_cover_classes == NULL)
-    opts->x_flag_ira_algorithm = IRA_ALGORITHM_PRIORITY;
 
   /* Initialize whether `char' is signed.  */
   opts->x_flag_signed_char = DEFAULT_SIGNED_CHAR;
@@ -524,7 +511,6 @@ default_options_optimization (struct gcc_options *opts,
 {
   unsigned int i;
   int opt2;
-  int ofast = 0;
 
   /* Scan to see what optimization level has been specified.  That will
      determine the default value of many flags.  */
@@ -538,7 +524,7 @@ default_options_optimization (struct gcc_options *opts,
 	    {
 	      opts->x_optimize = 1;
 	      opts->x_optimize_size = 0;
-	      ofast = 0;
+	      opts->x_optimize_fast = 0;
 	    }
 	  else
 	    {
@@ -553,7 +539,7 @@ default_options_optimization (struct gcc_options *opts,
 		  if ((unsigned int) opts->x_optimize > 255)
 		    opts->x_optimize = 255;
 		  opts->x_optimize_size = 0;
-		  ofast = 0;
+		  opts->x_optimize_fast = 0;
 		}
 	    }
 	  break;
@@ -563,14 +549,14 @@ default_options_optimization (struct gcc_options *opts,
 
 	  /* Optimizing for size forces optimize to be 2.  */
 	  opts->x_optimize = 2;
-	  ofast = 0;
+	  opts->x_optimize_fast = 0;
 	  break;
 
 	case OPT_Ofast:
 	  /* -Ofast only adds flags to -O3.  */
 	  opts->x_optimize_size = 0;
 	  opts->x_optimize = 3;
-	  ofast = 1;
+	  opts->x_optimize_fast = 1;
 	  break;
 
 	default:
@@ -581,7 +567,7 @@ default_options_optimization (struct gcc_options *opts,
 
   maybe_default_options (opts, opts_set, default_options_table,
 			 opts->x_optimize, opts->x_optimize_size,
-			 ofast, lang_mask, handlers, loc, dc);
+			 opts->x_optimize_fast, lang_mask, handlers, loc, dc);
 
   /* -O2 param settings.  */
   opt2 = (opts->x_optimize >= 2);
@@ -611,7 +597,7 @@ default_options_optimization (struct gcc_options *opts,
   maybe_default_options (opts, opts_set,
 			 targetm.target_option.optimization_table,
 			 opts->x_optimize, opts->x_optimize_size,
-			 ofast, lang_mask, handlers, loc, dc);
+			 opts->x_optimize_fast, lang_mask, handlers, loc, dc);
 }
 
 /* After all options at LOC have been read into OPTS and OPTS_SET,
@@ -767,14 +753,6 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
   if (!opts->x_flag_sel_sched_pipelining)
     opts->x_flag_sel_sched_pipelining_outer_loops = 0;
 
-  if (!targetm.ira_cover_classes
-      && opts->x_flag_ira_algorithm == IRA_ALGORITHM_CB)
-    {
-      inform (loc,
-	      "-fira-algorithm=CB does not work on this architecture");
-      opts->x_flag_ira_algorithm = IRA_ALGORITHM_PRIORITY;
-    }
-
   if (opts->x_flag_conserve_stack)
     {
       maybe_set_param_value (PARAM_LARGE_STACK_FRAME, 100,
@@ -786,7 +764,6 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
     {
       /* These passes are not WHOPR compatible yet.  */
       opts->x_flag_ipa_pta = 0;
-      opts->x_flag_ipa_struct_reorg = 0;
     }
 
   if (opts->x_flag_lto)
@@ -824,6 +801,12 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
 	  opts->x_flag_split_stack = 0;
 	}
     }
+
+  /* Set PARAM_MAX_STORES_TO_SINK to 0 if either vectorization or if-conversion
+     is disabled.  */
+  if (!opts->x_flag_tree_vectorize || !opts->x_flag_tree_loop_if_convert)
+    maybe_set_param_value (PARAM_MAX_STORES_TO_SINK, 0,
+                           opts->x_param_values, opts_set->x_param_values);
 }
 
 #define LEFT_COLUMN	27

@@ -6,7 +6,6 @@
 
 // TODO(rsc):
 //	logging
-//	cgi support
 //	post support
 
 package http
@@ -31,6 +30,7 @@ var (
 	ErrWriteAfterFlush = os.NewError("Conn.Write called after Flush")
 	ErrBodyNotAllowed  = os.NewError("http: response status code does not allow body")
 	ErrHijacked        = os.NewError("Conn has been hijacked")
+	ErrContentLength   = os.NewError("Conn.Write wrote more than the declared Content-Length")
 )
 
 // Objects implementing the Handler interface can be
@@ -48,23 +48,10 @@ type Handler interface {
 // A ResponseWriter interface is used by an HTTP handler to
 // construct an HTTP response.
 type ResponseWriter interface {
-	// RemoteAddr returns the address of the client that sent the current request
-	RemoteAddr() string
-
-	// UsingTLS returns true if the client is connected using TLS
-	UsingTLS() bool
-
-	// SetHeader sets a header line in the eventual response.
-	// For example, SetHeader("Content-Type", "text/html; charset=utf-8")
-	// will result in the header line
-	//
-	//	Content-Type: text/html; charset=utf-8
-	//
-	// being sent.  UTF-8 encoded HTML is the default setting for
-	// Content-Type in this library, so users need not make that
-	// particular call.  Calls to SetHeader after WriteHeader (or Write)
-	// are ignored.
-	SetHeader(string, string)
+	// Header returns the header map that will be sent by WriteHeader.
+	// Changing the header after a call to WriteHeader (or Write) has
+	// no effect.
+	Header() Header
 
 	// Write writes the data to the connection as part of an HTTP reply.
 	// If WriteHeader has not yet been called, Write calls WriteHeader(http.StatusOK)
@@ -77,38 +64,52 @@ type ResponseWriter interface {
 	// Thus explicit calls to WriteHeader are mainly used to
 	// send error codes.
 	WriteHeader(int)
+}
 
+// The Flusher interface is implemented by ResponseWriters that allow
+// an HTTP handler to flush buffered data to the client.
+//
+// Note that even for ResponseWriters that support Flush,
+// if the client is connected through an HTTP proxy,
+// the buffered data may not reach the client until the response
+// completes.
+type Flusher interface {
 	// Flush sends any buffered data to the client.
 	Flush()
+}
 
+// The Hijacker interface is implemented by ResponseWriters that allow
+// an HTTP handler to take over the connection.
+type Hijacker interface {
 	// Hijack lets the caller take over the connection.
 	// After a call to Hijack(), the HTTP server library
 	// will not do anything else with the connection.
 	// It becomes the caller's responsibility to manage
 	// and close the connection.
-	Hijack() (io.ReadWriteCloser, *bufio.ReadWriter, os.Error)
+	Hijack() (net.Conn, *bufio.ReadWriter, os.Error)
 }
 
 // A conn represents the server side of an HTTP connection.
 type conn struct {
-	remoteAddr string             // network address of remote side
-	handler    Handler            // request handler
-	rwc        io.ReadWriteCloser // i/o connection
-	buf        *bufio.ReadWriter  // buffered rwc
-	hijacked   bool               // connection has been hijacked by handler
-	usingTLS   bool               // a flag indicating connection over TLS
+	remoteAddr string               // network address of remote side
+	handler    Handler              // request handler
+	rwc        net.Conn             // i/o connection
+	buf        *bufio.ReadWriter    // buffered rwc
+	hijacked   bool                 // connection has been hijacked by handler
+	tlsState   *tls.ConnectionState // or nil when not using TLS        
 }
 
 // A response represents the server side of an HTTP response.
 type response struct {
 	conn          *conn
-	req           *Request          // request for this response
-	chunking      bool              // using chunked transfer encoding for reply body
-	wroteHeader   bool              // reply header has been written
-	wroteContinue bool              // 100 Continue response was written
-	header        map[string]string // reply header parameters
-	written       int64             // number of bytes written in body
-	status        int               // status code passed to WriteHeader
+	req           *Request // request for this response
+	chunking      bool     // using chunked transfer encoding for reply body
+	wroteHeader   bool     // reply header has been written
+	wroteContinue bool     // 100 Continue response was written
+	header        Header   // reply header parameters
+	written       int64    // number of bytes written in body
+	contentLength int64    // explicitly-declared Content-Length; or -1
+	status        int      // status code passed to WriteHeader
 
 	// close connection after this reply.  set on request and
 	// updated after response from handler if there's a
@@ -123,10 +124,15 @@ func newConn(rwc net.Conn, handler Handler) (c *conn, err os.Error) {
 	c.remoteAddr = rwc.RemoteAddr().String()
 	c.handler = handler
 	c.rwc = rwc
-	_, c.usingTLS = rwc.(*tls.Conn)
 	br := bufio.NewReader(rwc)
 	bw := bufio.NewWriter(rwc)
 	c.buf = bufio.NewReadWriter(br, bw)
+
+	if tlsConn, ok := rwc.(*tls.Conn); ok {
+		c.tlsState = new(tls.ConnectionState)
+		*c.tlsState = tlsConn.ConnectionState()
+	}
+
 	return c, nil
 }
 
@@ -166,52 +172,27 @@ func (c *conn) readRequest() (w *response, err os.Error) {
 		return nil, err
 	}
 
+	req.RemoteAddr = c.remoteAddr
+	req.TLS = c.tlsState
+
 	w = new(response)
 	w.conn = c
 	w.req = req
-	w.header = make(map[string]string)
+	w.header = make(Header)
+	w.contentLength = -1
 
 	// Expect 100 Continue support
 	if req.expectsContinue() && req.ProtoAtLeast(1, 1) {
 		// Wrap the Body reader with one that replies on the connection
 		req.Body = &expectContinueReader{readCloser: req.Body, resp: w}
 	}
-
-	// Default output is HTML encoded in UTF-8.
-	w.SetHeader("Content-Type", "text/html; charset=utf-8")
-	w.SetHeader("Date", time.UTC().Format(TimeFormat))
-
-	if req.Method == "HEAD" {
-		// do nothing
-	} else if req.ProtoAtLeast(1, 1) {
-		// HTTP/1.1 or greater: use chunked transfer encoding
-		// to avoid closing the connection at EOF.
-		w.chunking = true
-		w.SetHeader("Transfer-Encoding", "chunked")
-	} else {
-		// HTTP version < 1.1: cannot do chunked transfer
-		// encoding, so signal EOF by closing connection.
-		// Will be overridden if the HTTP handler ends up
-		// writing a Content-Length and the client requested
-		// "Connection: keep-alive"
-		w.closeAfterReply = true
-	}
-
 	return w, nil
 }
 
-// UsingTLS implements the ResponseWriter.UsingTLS
-func (w *response) UsingTLS() bool {
-	return w.conn.usingTLS
+func (w *response) Header() Header {
+	return w.header
 }
 
-// RemoteAddr implements the ResponseWriter.RemoteAddr method
-func (w *response) RemoteAddr() string { return w.conn.remoteAddr }
-
-// SetHeader implements the ResponseWriter.SetHeader method
-func (w *response) SetHeader(hdr, val string) { w.header[CanonicalHeaderKey(hdr)] = val }
-
-// WriteHeader implements the ResponseWriter.WriteHeader method
 func (w *response) WriteHeader(code int) {
 	if w.conn.hijacked {
 		log.Print("http: response.WriteHeader on hijacked connection")
@@ -225,13 +206,85 @@ func (w *response) WriteHeader(code int) {
 	w.status = code
 	if code == StatusNotModified {
 		// Must not have body.
-		w.header["Content-Type"] = "", false
-		w.header["Transfer-Encoding"] = "", false
-		w.chunking = false
+		for _, header := range []string{"Content-Type", "Content-Length", "Transfer-Encoding"} {
+			if w.header.Get(header) != "" {
+				// TODO: return an error if WriteHeader gets a return parameter
+				// or set a flag on w to make future Writes() write an error page?
+				// for now just log and drop the header.
+				log.Printf("http: StatusNotModified response with header %q defined", header)
+				w.header.Del(header)
+			}
+		}
+	} else {
+		// Default output is HTML encoded in UTF-8.
+		if w.header.Get("Content-Type") == "" {
+			w.header.Set("Content-Type", "text/html; charset=utf-8")
+		}
 	}
+
+	if w.header.Get("Date") == "" {
+		w.Header().Set("Date", time.UTC().Format(TimeFormat))
+	}
+
+	// Check for a explicit (and valid) Content-Length header.
+	var hasCL bool
+	var contentLength int64
+	if clenStr := w.header.Get("Content-Length"); clenStr != "" {
+		var err os.Error
+		contentLength, err = strconv.Atoi64(clenStr)
+		if err == nil {
+			hasCL = true
+		} else {
+			log.Printf("http: invalid Content-Length of %q sent", clenStr)
+			w.header.Del("Content-Length")
+		}
+	}
+
+	te := w.header.Get("Transfer-Encoding")
+	hasTE := te != ""
+	if hasCL && hasTE && te != "identity" {
+		// TODO: return an error if WriteHeader gets a return parameter
+		// For now just ignore the Content-Length.
+		log.Printf("http: WriteHeader called with both Transfer-Encoding of %q and a Content-Length of %d",
+			te, contentLength)
+		w.header.Del("Content-Length")
+		hasCL = false
+	}
+
+	if w.req.Method == "HEAD" || code == StatusNotModified {
+		// do nothing
+	} else if hasCL {
+		w.contentLength = contentLength
+		w.header.Del("Transfer-Encoding")
+	} else if w.req.ProtoAtLeast(1, 1) {
+		// HTTP/1.1 or greater: use chunked transfer encoding
+		// to avoid closing the connection at EOF.
+		// TODO: this blows away any custom or stacked Transfer-Encoding they
+		// might have set.  Deal with that as need arises once we have a valid
+		// use case.
+		w.chunking = true
+		w.header.Set("Transfer-Encoding", "chunked")
+	} else {
+		// HTTP version < 1.1: cannot do chunked transfer
+		// encoding and we don't know the Content-Length so
+		// signal EOF by closing connection.
+		w.closeAfterReply = true
+		w.header.Del("Transfer-Encoding") // in case already set
+	}
+
+	if w.req.wantsHttp10KeepAlive() && (w.req.Method == "HEAD" || hasCL) {
+		_, connectionHeaderSet := w.header["Connection"]
+		if !connectionHeaderSet {
+			w.header.Set("Connection", "keep-alive")
+		}
+	} else if !w.req.ProtoAtLeast(1, 1) {
+		// Client did not ask to keep connection alive.
+		w.closeAfterReply = true
+	}
+
 	// Cannot use Content-Length with non-identity Transfer-Encoding.
 	if w.chunking {
-		w.header["Content-Length"] = "", false
+		w.header.Del("Content-Length")
 	}
 	if !w.req.ProtoAtLeast(1, 0) {
 		return
@@ -246,28 +299,16 @@ func (w *response) WriteHeader(code int) {
 		text = "status code " + codestring
 	}
 	io.WriteString(w.conn.buf, proto+" "+codestring+" "+text+"\r\n")
-	for k, v := range w.header {
-		io.WriteString(w.conn.buf, k+": "+v+"\r\n")
-	}
+	writeSortedHeader(w.conn.buf, w.header, nil)
 	io.WriteString(w.conn.buf, "\r\n")
 }
 
-// Write implements the ResponseWriter.Write method
 func (w *response) Write(data []byte) (n int, err os.Error) {
 	if w.conn.hijacked {
 		log.Print("http: response.Write on hijacked connection")
 		return 0, ErrHijacked
 	}
 	if !w.wroteHeader {
-		if w.req.wantsHttp10KeepAlive() {
-			_, hasLength := w.header["Content-Length"]
-			if hasLength {
-				_, connectionHeaderSet := w.header["Connection"]
-				if !connectionHeaderSet {
-					w.header["Connection"] = "keep-alive"
-				}
-			}
-		}
 		w.WriteHeader(StatusOK)
 	}
 	if len(data) == 0 {
@@ -280,6 +321,9 @@ func (w *response) Write(data []byte) (n int, err os.Error) {
 	}
 
 	w.written += int64(len(data)) // ignoring errors, for errorKludge
+	if w.contentLength != -1 && w.written > w.contentLength {
+		return 0, ErrContentLength
+	}
 
 	// TODO(rsc): if chunking happened after the buffering,
 	// then there would be fewer chunk headers.
@@ -333,7 +377,7 @@ func errorKludge(w *response) {
 	msg += " would ignore this error page if this text weren't here.\n"
 
 	// Is it text?  ("Content-Type" is always in the map)
-	baseType := strings.Split(w.header["Content-Type"], ";", 2)[0]
+	baseType := strings.Split(w.header.Get("Content-Type"), ";", 2)[0]
 	switch baseType {
 	case "text/html":
 		io.WriteString(w, "<!-- ")
@@ -353,8 +397,8 @@ func (w *response) finishRequest() {
 	// If this was an HTTP/1.0 request with keep-alive and we sent a Content-Length
 	// back, we can make this a keep-alive response ...
 	if w.req.wantsHttp10KeepAlive() {
-		_, sentLength := w.header["Content-Length"]
-		if sentLength && w.header["Connection"] == "keep-alive" {
+		sentLength := w.header.Get("Content-Length") != ""
+		if sentLength && w.header.Get("Connection") == "keep-alive" {
 			w.closeAfterReply = false
 		}
 	}
@@ -369,9 +413,13 @@ func (w *response) finishRequest() {
 	}
 	w.conn.buf.Flush()
 	w.req.Body.Close()
+
+	if w.contentLength != -1 && w.contentLength != w.written {
+		// Did not write enough. Avoid getting out of sync.
+		w.closeAfterReply = true
+	}
 }
 
-// Flush implements the ResponseWriter.Flush method.
 func (w *response) Flush() {
 	if !w.wroteHeader {
 		w.WriteHeader(StatusOK)
@@ -415,8 +463,9 @@ func (c *conn) serve() {
 	c.close()
 }
 
-// Hijack impements the ResponseWriter.Hijack method.
-func (w *response) Hijack() (rwc io.ReadWriteCloser, buf *bufio.ReadWriter, err os.Error) {
+// Hijack implements the Hijacker.Hijack method. Our response is both a ResponseWriter
+// and a Hijacker.
+func (w *response) Hijack() (rwc net.Conn, buf *bufio.ReadWriter, err os.Error) {
 	if w.conn.hijacked {
 		return nil, nil, ErrHijacked
 	}
@@ -443,7 +492,7 @@ func (f HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
 
 // Error replies to the request with the specified error message and HTTP code.
 func Error(w ResponseWriter, error string, code int) {
-	w.SetHeader("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(code)
 	fmt.Fprintln(w, error)
 }
@@ -496,7 +545,7 @@ func Redirect(w ResponseWriter, r *Request, url string, code int) {
 		}
 	}
 
-	w.SetHeader("Location", url)
+	w.Header().Set("Location", url)
 	w.WriteHeader(code)
 
 	// RFC2616 recommends that a short note "SHOULD" be included in the
@@ -539,9 +588,8 @@ func RedirectHandler(url string, code int) Handler {
 // patterns and calls the handler for the pattern that
 // most closely matches the URL.
 //
-// Patterns named fixed paths, like "/favicon.ico",
-// or subtrees, like "/images/" (note the trailing slash).
-// Patterns must begin with /.
+// Patterns named fixed, rooted paths, like "/favicon.ico",
+// or rooted subtrees, like "/images/" (note the trailing slash).
 // Longer patterns take precedence over shorter ones, so that
 // if there are handlers registered for both "/images/"
 // and "/images/thumbnails/", the latter handler will be
@@ -549,11 +597,11 @@ func RedirectHandler(url string, code int) Handler {
 // former will receiver requests for any other paths in the
 // "/images/" subtree.
 //
-// In the future, the pattern syntax may be relaxed to allow
-// an optional host-name at the beginning of the pattern,
-// so that a handler might register for the two patterns
-// "/codesearch" and "codesearch.google.com/"
-// without taking over requests for http://www.google.com/.
+// Patterns may optionally begin with a host name, restricting matches to
+// URLs on that host only.  Host-specific patterns take precedence over
+// general patterns, so that a handler might register for the two patterns
+// "/codesearch" and "codesearch.google.com/" without also taking over
+// requests for "http://www.google.com/".
 //
 // ServeMux also takes care of sanitizing the URL request path,
 // redirecting any request containing . or .. elements to an
@@ -598,27 +646,36 @@ func cleanPath(p string) string {
 	return np
 }
 
-// ServeHTTP dispatches the request to the handler whose
-// pattern most closely matches the request URL.
-func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
-	// Clean path to canonical form and redirect.
-	if p := cleanPath(r.URL.Path); p != r.URL.Path {
-		w.SetHeader("Location", p)
-		w.WriteHeader(StatusMovedPermanently)
-		return
-	}
-
-	// Most-specific (longest) pattern wins.
+// Find a handler on a handler map given a path string
+// Most-specific (longest) pattern wins
+func (mux *ServeMux) match(path string) Handler {
 	var h Handler
 	var n = 0
 	for k, v := range mux.m {
-		if !pathMatch(k, r.URL.Path) {
+		if !pathMatch(k, path) {
 			continue
 		}
 		if h == nil || len(k) > n {
 			n = len(k)
 			h = v
 		}
+	}
+	return h
+}
+
+// ServeHTTP dispatches the request to the handler whose
+// pattern most closely matches the request URL.
+func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
+	// Clean path to canonical form and redirect.
+	if p := cleanPath(r.URL.Path); p != r.URL.Path {
+		w.Header().Set("Location", p)
+		w.WriteHeader(StatusMovedPermanently)
+		return
+	}
+	// Host-specific pattern takes precedence over generic ones
+	h := mux.match(r.Host + r.URL.Path)
+	if h == nil {
+		h = mux.match(r.URL.Path)
 	}
 	if h == nil {
 		h = NotFoundHandler()
@@ -628,7 +685,7 @@ func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
 
 // Handle registers the handler for the given pattern.
 func (mux *ServeMux) Handle(pattern string, handler Handler) {
-	if pattern == "" || pattern[0] != '/' {
+	if pattern == "" {
 		panic("http: invalid pattern " + pattern)
 	}
 
@@ -649,10 +706,12 @@ func (mux *ServeMux) HandleFunc(pattern string, handler func(ResponseWriter, *Re
 
 // Handle registers the handler for the given pattern
 // in the DefaultServeMux.
+// The documentation for ServeMux explains how patterns are matched.
 func Handle(pattern string, handler Handler) { DefaultServeMux.Handle(pattern, handler) }
 
 // HandleFunc registers the handler function for the given pattern
 // in the DefaultServeMux.
+// The documentation for ServeMux explains how patterns are matched.
 func HandleFunc(pattern string, handler func(ResponseWriter, *Request)) {
 	DefaultServeMux.HandleFunc(pattern, handler)
 }
@@ -662,6 +721,39 @@ func HandleFunc(pattern string, handler func(ResponseWriter, *Request)) {
 // read requests and then call handler to reply to them.
 // Handler is typically nil, in which case the DefaultServeMux is used.
 func Serve(l net.Listener, handler Handler) os.Error {
+	srv := &Server{Handler: handler}
+	return srv.Serve(l)
+}
+
+// A Server defines parameters for running an HTTP server.
+type Server struct {
+	Addr         string  // TCP address to listen on, ":http" if empty
+	Handler      Handler // handler to invoke, http.DefaultServeMux if nil
+	ReadTimeout  int64   // the net.Conn.SetReadTimeout value for new connections
+	WriteTimeout int64   // the net.Conn.SetWriteTimeout value for new connections
+}
+
+// ListenAndServe listens on the TCP network address srv.Addr and then
+// calls Serve to handle requests on incoming connections.  If
+// srv.Addr is blank, ":http" is used.
+func (srv *Server) ListenAndServe() os.Error {
+	addr := srv.Addr
+	if addr == "" {
+		addr = ":http"
+	}
+	l, e := net.Listen("tcp", addr)
+	if e != nil {
+		return e
+	}
+	return srv.Serve(l)
+}
+
+// Serve accepts incoming connections on the Listener l, creating a
+// new service thread for each.  The service threads read requests and
+// then call srv.Handler to reply to them.
+func (srv *Server) Serve(l net.Listener) os.Error {
+	defer l.Close()
+	handler := srv.Handler
 	if handler == nil {
 		handler = DefaultServeMux
 	}
@@ -669,6 +761,12 @@ func Serve(l net.Listener, handler Handler) os.Error {
 		rw, e := l.Accept()
 		if e != nil {
 			return e
+		}
+		if srv.ReadTimeout != 0 {
+			rw.SetReadTimeout(srv.ReadTimeout)
+		}
+		if srv.WriteTimeout != 0 {
+			rw.SetWriteTimeout(srv.WriteTimeout)
 		}
 		c, err := newConn(rw, handler)
 		if err != nil {
@@ -703,17 +801,12 @@ func Serve(l net.Listener, handler Handler) os.Error {
 //		http.HandleFunc("/hello", HelloServer)
 //		err := http.ListenAndServe(":12345", nil)
 //		if err != nil {
-//			log.Exit("ListenAndServe: ", err.String())
+//			log.Fatal("ListenAndServe: ", err.String())
 //		}
 //	}
 func ListenAndServe(addr string, handler Handler) os.Error {
-	l, e := net.Listen("tcp", addr)
-	if e != nil {
-		return e
-	}
-	e = Serve(l, handler)
-	l.Close()
-	return e
+	server := &Server{Addr: addr, Handler: handler}
+	return server.ListenAndServe()
 }
 
 // ListenAndServeTLS acts identically to ListenAndServe, except that it
@@ -728,7 +821,7 @@ func ListenAndServe(addr string, handler Handler) os.Error {
 //	)
 //
 //	func handler(w http.ResponseWriter, req *http.Request) {
-//		w.SetHeader("Content-Type", "text/plain")
+//		w.Header().Set("Content-Type", "text/plain")
 //		w.Write([]byte("This is an example server.\n"))
 //	}
 //
@@ -737,7 +830,7 @@ func ListenAndServe(addr string, handler Handler) os.Error {
 //		log.Printf("About to listen on 10443. Go to https://127.0.0.1:10443/")
 //		err := http.ListenAndServeTLS(":10443", "cert.pem", "key.pem", nil)
 //		if err != nil {
-//			log.Exit(err)
+//			log.Fatal(err)
 //		}
 //	}
 //

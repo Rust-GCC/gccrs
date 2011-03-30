@@ -1,4 +1,4 @@
-/* Copyright (C) 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+/* Copyright (C) 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Andy Vaught
    Write float code factoring to this file by Jerry DeLisle   
    F2003 I/O support contributed by Jerry DeLisle
@@ -109,34 +109,7 @@ output_float (st_parameter_dt *dtp, const fnode *f, char *buffer, size_t size,
 
   /* Make sure zero comes out as 0.0e0.   */
   if (zero_flag)
-    {
-      e = 0;
-      if (compile_options.sign_zero != 1)
-	sign = calculate_sign (dtp, 0);
-
-      /* Handle special cases.  */
-      if (w == 0)
-	w = d + 1;
-
-      /* For this one we choose to not output a decimal point.
-	 F95 10.5.1.2.1  */
-      if (w == 1 && ft == FMT_F)
-	{
-	  out = write_block (dtp, w);
-	  if (out == NULL)
-	    return FAILURE;
-
-	  if (unlikely (is_char4_unit (dtp)))
-	    {
-	      gfc_char4_t *out4 = (gfc_char4_t *) out;
-	      *out4 = '0';
-	      return SUCCESS;
-	    }
-
-	  *out = '0';
-	  return SUCCESS;
-	}
-    }
+    e = 0;
 
   /* Normalize the fractional component.  */
   buffer[2] = buffer[1];
@@ -395,15 +368,21 @@ output_float (st_parameter_dt *dtp, const fnode *f, char *buffer, size_t size,
   else
     edigits = 0;
 
-  /* Zero values always output as positive, even if the value was negative
-     before rounding.  */
+  /* Scan the digits string and count the number of zeros.  If we make it
+     all the way through the loop, we know the value is zero after the
+     rounding completed above.  */
   for (i = 0; i < ndigits; i++)
     {
       if (digits[i] != '0')
 	break;
     }
+
+  /* To format properly, we need to know if the rounded result is zero and if
+     so, we set the zero_flag which may have been already set for
+     actual zero.  */
   if (i == ndigits)
     {
+      zero_flag = true;
       /* The output is zero, so set the sign according to the sign bit unless
 	 -fno-sign-zero was specified.  */
       if (compile_options.sign_zero == 1)
@@ -412,11 +391,17 @@ output_float (st_parameter_dt *dtp, const fnode *f, char *buffer, size_t size,
 	sign = calculate_sign (dtp, 0);
     }
 
-  /* Pick a field size if none was specified.  */
+  /* Pick a field size if none was specified, taking into account small
+     values that may have been rounded to zero.  */
   if (w <= 0)
     {
-      w = nbefore + nzero + nafter + (sign != S_NONE ? 2 : 1);
-      w = w == 1 ? 2 : w;
+      if (zero_flag)
+	w = d + (sign != S_NONE ? 2 : 1) + (d == 0 ? 1 : 0);
+      else
+	{
+	  w = nbefore + nzero + nafter + (sign != S_NONE ? 2 : 1);
+	  w = w == 1 ? 2 : w;
+	}
     }
   
   /* Work out how much padding is needed.  */
@@ -1000,7 +985,9 @@ sprintf (buffer, "%+-#" STR(MIN_FIELD_WIDTH) ".*" \
 
 #if defined(GFC_REAL_16_IS_FLOAT128)
 #define DTOAQ \
-__qmath_(quadmath_flt128tostr) (buffer, size, ndigits - 1, tmp);
+__qmath_(quadmath_snprintf) (buffer, sizeof buffer, \
+			     "%+-#" STR(MIN_FIELD_WIDTH) ".*" \
+			     "Qe", ndigits - 1, tmp);
 #endif
 
 #define WRITE_FLOAT(x,y)\
@@ -1033,7 +1020,7 @@ write_float (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
 {
 
 #if defined(HAVE_GFC_REAL_16) || __LDBL_DIG__ > 18
-# define MIN_FIELD_WIDTH 46
+# define MIN_FIELD_WIDTH 48
 #else
 # define MIN_FIELD_WIDTH 31
 #endif

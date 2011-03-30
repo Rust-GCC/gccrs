@@ -647,7 +647,8 @@ setup_save_areas (void)
 		  saved_reg->slot
 		    = assign_stack_local_1
 		      (regno_save_mode[regno][1],
-		       GET_MODE_SIZE (regno_save_mode[regno][1]), 0, true);
+		       GET_MODE_SIZE (regno_save_mode[regno][1]), 0,
+		       ASLK_REDUCE_ALIGN);
 		  if (dump_file != NULL)
 		    fprintf (dump_file, "%d uses a new slot\n", regno);
 		}
@@ -705,7 +706,7 @@ setup_save_areas (void)
 	    regno_save_mem[i][j]
 	      = assign_stack_local_1 (regno_save_mode[i][j],
 				      GET_MODE_SIZE (regno_save_mode[i][j]),
-				      0, true);
+				      0, ASLK_REDUCE_ALIGN);
 
 	    /* Setup single word save area just in case...  */
 	    for (k = 0; k < j; k++)
@@ -1311,7 +1312,7 @@ insert_save (struct insn_chain *chain, int before_p, int regno,
 static int
 add_used_regs_1 (rtx *loc, void *data)
 {
-  int regno, i;
+  unsigned int regno;
   regset live;
   rtx x;
 
@@ -1320,11 +1321,10 @@ add_used_regs_1 (rtx *loc, void *data)
   if (REG_P (x))
     {
       regno = REGNO (x);
-      if (!HARD_REGISTER_NUM_P (regno))
+      if (HARD_REGISTER_NUM_P (regno))
+	bitmap_set_range (live, regno, hard_regno_nregs[regno][GET_MODE (x)]);
+      else
 	regno = reg_renumber[regno];
-      if (regno >= 0)
-	for (i = hard_regno_nregs[regno][GET_MODE (x)] - 1; i >= 0; i--)
-	  SET_REGNO_REG_SET (live, regno + i);
     }
   return 0;
 }

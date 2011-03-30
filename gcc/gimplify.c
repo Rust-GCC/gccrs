@@ -1,6 +1,6 @@
 /* Tree lowering pass.  This pass converts the GENERIC functions-as-trees
    tree representation into the GIMPLE form.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Major work done by Sebastian Pop <s.pop@laposte.net>,
    Diego Novillo <dnovillo@redhat.com> and Jason Merrill <jason@redhat.com>.
@@ -1322,6 +1322,7 @@ gimplify_vla_decl (tree decl, gimple_seq *seq_p)
   addr = create_tmp_var (ptr_type, get_name (decl));
   DECL_IGNORED_P (addr) = 0;
   t = build_fold_indirect_ref (addr);
+  TREE_THIS_NOTRAP (t) = 1;
   SET_DECL_VALUE_EXPR (decl, t);
   DECL_HAS_VALUE_EXPR_P (decl) = 1;
 
@@ -2255,7 +2256,17 @@ gimplify_arg (tree *arg_p, gimple_seq *pre_p, location_t call_location)
   if (is_gimple_reg_type (TREE_TYPE (*arg_p)))
     test = is_gimple_val, fb = fb_rvalue;
   else
-    test = is_gimple_lvalue, fb = fb_either;
+    {
+      test = is_gimple_lvalue, fb = fb_either;
+      /* Also strip a TARGET_EXPR that would force an extra copy.  */
+      if (TREE_CODE (*arg_p) == TARGET_EXPR)
+	{
+	  tree init = TARGET_EXPR_INITIAL (*arg_p);
+	  if (init
+	      && !VOID_TYPE_P (TREE_TYPE (init)))
+	    *arg_p = init;
+	}
+    }
 
   /* If this is a variable sized type, we must remember the size.  */
   maybe_with_size_expr (arg_p);
@@ -2980,6 +2991,11 @@ gimplify_cond_expr (tree *expr_p, gimple_seq *pre_p, fallback_t fallback)
       *expr_p = result;
       return GS_ALL_DONE;
     }
+
+  /* Remove any COMPOUND_EXPR so the following cases will be caught.  */
+  STRIP_TYPE_NOPS (TREE_OPERAND (expr, 0));
+  if (TREE_CODE (TREE_OPERAND (expr, 0)) == COMPOUND_EXPR)
+    gimplify_compound_expr (&TREE_OPERAND (expr, 0), pre_p, true);
 
   /* Make sure the condition has BOOLEAN_TYPE.  */
   TREE_OPERAND (expr, 0) = gimple_boolify (TREE_OPERAND (expr, 0));
@@ -5511,7 +5527,8 @@ omp_add_variable (struct gimplify_omp_ctx *ctx, tree decl, unsigned int flags)
 	 For local variables TYPE_SIZE_UNIT might not be gimplified yet,
 	 in this case omp_notice_variable will be called later
 	 on when it is gimplified.  */
-      else if (! (flags & GOVD_LOCAL))
+      else if (! (flags & GOVD_LOCAL)
+	       && DECL_P (TYPE_SIZE_UNIT (TREE_TYPE (decl))))
 	omp_notice_variable (ctx, TYPE_SIZE_UNIT (TREE_TYPE (decl)), true);
     }
   else if (lang_hooks.decls.omp_privatize_by_reference (decl))
@@ -7752,10 +7769,8 @@ gimplify_body (tree *body_p, tree fndecl, bool do_parms)
   pop_gimplify_context (outer_bind);
   gcc_assert (gimplify_ctxp == NULL);
 
-#ifdef ENABLE_TYPES_CHECKING
   if (!seen_error ())
-    verify_types_in_gimple_seq (gimple_bind_body (outer_bind));
-#endif
+    verify_gimple_in_seq (gimple_bind_body (outer_bind));
 
   timevar_pop (TV_TREE_GIMPLIFY);
   input_location = saved_location;
@@ -7867,7 +7882,7 @@ gimplify_function_tree (tree fndecl)
       gimple call;
 
       x = implicit_built_in_decls[BUILT_IN_RETURN_ADDRESS];
-      call = gimple_build_call (x, 0);
+      call = gimple_build_call (x, 1, integer_zero_node);
       tmp_var = create_tmp_var (ptr_type_node, "return_addr");
       gimple_call_set_lhs (call, tmp_var);
       gimplify_seq_add_stmt (&cleanup, call);
@@ -7879,7 +7894,7 @@ gimplify_function_tree (tree fndecl)
       tf = gimple_build_try (seq, cleanup, GIMPLE_TRY_FINALLY);
 
       x = implicit_built_in_decls[BUILT_IN_RETURN_ADDRESS];
-      call = gimple_build_call (x, 0);
+      call = gimple_build_call (x, 1, integer_zero_node);
       tmp_var = create_tmp_var (ptr_type_node, "return_addr");
       gimple_call_set_lhs (call, tmp_var);
       gimplify_seq_add_stmt (&body, call);

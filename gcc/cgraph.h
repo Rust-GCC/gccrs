@@ -559,8 +559,8 @@ struct cgraph_indirect_call_info *cgraph_allocate_init_indirect_info (void);
 struct cgraph_node * cgraph_get_node (const_tree);
 struct cgraph_node * cgraph_get_node_or_alias (const_tree);
 struct cgraph_node * cgraph_node (tree);
-struct cgraph_node * cgraph_same_body_alias (tree, tree);
-struct cgraph_node * cgraph_add_thunk (tree, tree, bool, HOST_WIDE_INT,
+struct cgraph_node * cgraph_same_body_alias (struct cgraph_node *, tree, tree);
+struct cgraph_node * cgraph_add_thunk (struct cgraph_node *, tree, tree, bool, HOST_WIDE_INT,
 				       HOST_WIDE_INT, tree, tree);
 void cgraph_remove_same_body_alias (struct cgraph_node *);
 struct cgraph_node *cgraph_node_for_asm (tree);
@@ -618,6 +618,7 @@ bool varpool_used_from_object_file_p (struct varpool_node *node);
 extern FILE *cgraph_dump_file;
 void cgraph_finalize_function (tree, bool);
 void cgraph_mark_if_needed (tree);
+void cgraph_analyze_function (struct cgraph_node *);
 void cgraph_finalize_compilation_unit (void);
 void cgraph_optimize (void);
 void cgraph_mark_needed_node (struct cgraph_node *);
@@ -769,7 +770,7 @@ varpool_next_static_initializer (struct varpool_node *node)
 
 /* In ipa-inline.c  */
 void cgraph_clone_inlined_nodes (struct cgraph_edge *, bool, bool);
-unsigned int compute_inline_parameters (struct cgraph_node *);
+void compute_inline_parameters (struct cgraph_node *);
 
 
 /* Create a new static variable of type TYPE.  */
@@ -944,7 +945,7 @@ varpool_can_remove_if_no_refs (struct varpool_node *node)
 /* Return true when all references to VNODE must be visible in ipa_ref_list.
    i.e. if the variable is not externally visible or not used in some magic
    way (asm statement or such).
-   The magic uses are all sumarized in force_output flag.  */
+   The magic uses are all summarized in force_output flag.  */
 
 static inline bool
 varpool_all_refs_explicit_p (struct varpool_node *vnode)

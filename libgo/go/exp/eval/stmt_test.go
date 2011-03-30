@@ -27,7 +27,7 @@ var stmtTests = []test{
 	CErr("i, u := 1, 2", atLeastOneDecl),
 	Val2("i, x := 2, f", "i", 2, "x", 1.0),
 	// Various errors
-	CErr("1 := 2", "left side of := must be a name"),
+	CErr("1 := 2", "expected identifier"),
 	CErr("c, a := 1, 1", "cannot assign"),
 	// Unpacking
 	Val2("x, y := oneTwo()", "x", 1, "y", 2),
@@ -217,7 +217,7 @@ var stmtTests = []test{
 	Val2("if false { i = 2 } else { i = 3 }; i2 = 4", "i", 3, "i2", 4),
 	Val2("if i == i2 { i = 2 } else { i = 3 }; i2 = 4", "i", 3, "i2", 4),
 	// Omit optional parts
-	Val2("if { i = 2 } else { i = 3 }; i2 = 4", "i", 2, "i2", 4),
+	Val2("if true { i = 2 } else { i = 3 }; i2 = 4", "i", 2, "i2", 4),
 	Val2("if true { i = 2 }; i2 = 4", "i", 2, "i2", 4),
 	Val2("if false { i = 2 }; i2 = 4", "i", 1, "i2", 4),
 	// Init
@@ -243,11 +243,11 @@ var stmtTests = []test{
 	CErr("fn1 := func() int { if true { return 1 } }", "return"),
 	CErr("fn1 := func() int { if true { } }", "return"),
 	Run("fn1 := func() int { if true { }; return 1 }"),
-	CErr("fn1 := func() int { if { } }", "return"),
-	CErr("fn1 := func() int { if { } else { return 2 } }", "return"),
-	Run("fn1 := func() int { if { return 1 } }"),
-	Run("fn1 := func() int { if { return 1 } else { } }"),
-	Run("fn1 := func() int { if { return 1 } else { } }"),
+	CErr("fn1 := func() int { if true { } }", "return"),
+	CErr("fn1 := func() int { if true { } else { return 2 } }", "return"),
+	Run("fn1 := func() int { if true { return 1 }; return 0 }"),
+	Run("fn1 := func() int { if true { return 1 } else { }; return 0 }"),
+	Run("fn1 := func() int { if true { return 1 } else { }; return 0 }"),
 
 	// Switch
 	Val1("switch { case false: i += 2; case true: i += 4; default: i += 8 }", "i", 1+4),

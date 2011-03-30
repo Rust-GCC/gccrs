@@ -12,7 +12,7 @@
 //
 // Functions of the form
 //     func BenchmarkXxx(*testing.B)
-// are considered benchmarks, and are executed by gotest when the -benchmarks
+// are considered benchmarks, and are executed by gotest when the -test.bench
 // flag is provided.
 //
 // A sample benchmark function looks like this:
@@ -43,11 +43,18 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/pprof"
+	"time"
 )
 
-// Report as tests are run; default is silent for success.
-var chatty = flag.Bool("v", false, "verbose: print additional output")
-var match = flag.String("match", "", "regular expression to select tests to run")
+var (
+	// Report as tests are run; default is silent for success.
+	chatty         = flag.Bool("test.v", false, "verbose: print additional output")
+	match          = flag.String("test.run", "", "regular expression to select tests to run")
+	memProfile     = flag.String("test.memprofile", "", "write a memory profile to the named file after execution")
+	memProfileRate = flag.Int("test.memprofilerate", 0, "if >=0, sets runtime.MemProfileRate")
+	cpuProfile     = flag.String("test.cpuprofile", "", "write a cpu profile to the named file during execution")
+)
 
 
 // Insert final newline if needed and tabs after internal newlines.
@@ -91,7 +98,7 @@ func (t *T) FailNow() {
 // and records the text in the error log.
 func (t *T) Log(args ...interface{}) { t.errors += "\t" + tabify(fmt.Sprintln(args...)) }
 
-// Log formats its arguments according to the format, analogous to Printf(),
+// Logf formats its arguments according to the format, analogous to Printf(),
 // and records the text in the error log.
 func (t *T) Logf(format string, args ...interface{}) {
 	t.errors += "\t" + tabify(fmt.Sprintf(format, args...))
@@ -135,8 +142,16 @@ func tRunner(t *T, test *InternalTest) {
 
 // An internal function but exported because it is cross-package; part of the implementation
 // of gotest.
-func Main(matchString func(pat, str string) (bool, os.Error), tests []InternalTest) {
+func Main(matchString func(pat, str string) (bool, os.Error), tests []InternalTest, benchmarks []InternalBenchmark) {
 	flag.Parse()
+
+	before()
+	RunTests(matchString, tests)
+	RunBenchmarks(matchString, benchmarks)
+	after()
+}
+
+func RunTests(matchString func(pat, str string) (bool, os.Error), tests []InternalTest) {
 	ok := true
 	if len(tests) == 0 {
 		println("testing: warning: no tests to run")
@@ -144,7 +159,7 @@ func Main(matchString func(pat, str string) (bool, os.Error), tests []InternalTe
 	for i := 0; i < len(tests); i++ {
 		matched, err := matchString(*match, tests[i].Name)
 		if err != nil {
-			println("invalid regexp for -match:", err.String())
+			println("invalid regexp for -test.run:", err.String())
 			os.Exit(1)
 		}
 		if !matched {
@@ -153,16 +168,19 @@ func Main(matchString func(pat, str string) (bool, os.Error), tests []InternalTe
 		if *chatty {
 			println("=== RUN ", tests[i].Name)
 		}
+		ns := -time.Nanoseconds()
 		t := new(T)
 		t.ch = make(chan *T)
 		go tRunner(t, &tests[i])
 		<-t.ch
+		ns += time.Nanoseconds()
+		tstr := fmt.Sprintf("(%.1f seconds)", float64(ns)/1e9)
 		if t.failed {
-			println("--- FAIL:", tests[i].Name)
+			println("--- FAIL:", tests[i].Name, tstr)
 			print(t.errors)
 			ok = false
 		} else if *chatty {
-			println("--- PASS:", tests[i].Name)
+			println("--- PASS:", tests[i].Name, tstr)
 			print(t.errors)
 		}
 	}
@@ -171,4 +189,43 @@ func Main(matchString func(pat, str string) (bool, os.Error), tests []InternalTe
 		os.Exit(1)
 	}
 	println("PASS")
+}
+
+// before runs before all testing.
+func before() {
+	if *memProfileRate > 0 {
+		runtime.MemProfileRate = *memProfileRate
+	}
+	if *cpuProfile != "" {
+		f, err := os.Open(*cpuProfile, os.O_WRONLY|os.O_CREAT|os.O_TRUNC, 0666)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "testing: %s", err)
+			return
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			fmt.Fprintf(os.Stderr, "testing: can't start cpu profile: %s", err)
+			f.Close()
+			return
+		}
+		// Could save f so after can call f.Close; not worth the effort.
+	}
+
+}
+
+// after runs after all testing.
+func after() {
+	if *cpuProfile != "" {
+		pprof.StopCPUProfile() // flushes profile to disk
+	}
+	if *memProfile != "" {
+		f, err := os.Open(*memProfile, os.O_WRONLY|os.O_CREAT|os.O_TRUNC, 0666)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "testing: %s", err)
+			return
+		}
+		if err = pprof.WriteHeapProfile(f); err != nil {
+			fmt.Fprintf(os.Stderr, "testing: can't write %s: %s", *memProfile, err)
+		}
+		f.Close()
+	}
 }

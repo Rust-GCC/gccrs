@@ -28,7 +28,8 @@
 #ifdef RTX_CODE
 
 #ifdef TREE_CODE
-extern void init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, int, int, int);
+extern void init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, int, int, int,
+				  tree, enum machine_mode);
 #endif /* TREE_CODE */
 
 extern bool easy_altivec_constant (rtx, enum machine_mode);
@@ -40,7 +41,8 @@ extern int small_data_operand (rtx, enum machine_mode);
 extern bool toc_relative_expr_p (rtx);
 extern bool invalid_e500_subreg (rtx, enum machine_mode);
 extern void validate_condition_mode (enum rtx_code, enum machine_mode);
-extern bool legitimate_constant_pool_address_p (const_rtx, bool);
+extern bool legitimate_constant_pool_address_p (const_rtx, enum machine_mode,
+						bool);
 extern bool legitimate_indirect_address_p (rtx, int);
 extern bool legitimate_indexed_address_p (rtx, int);
 extern bool avoiding_indexed_address_p (enum machine_mode);
@@ -77,6 +79,7 @@ extern bool (*rs6000_cannot_change_mode_class_ptr) (enum machine_mode,
 						    enum machine_mode,
 						    enum reg_class);
 extern void rs6000_secondary_reload_inner (rtx, rtx, rtx, bool);
+extern void rs6000_secondary_reload_ppc64 (rtx, rtx, rtx, bool);
 extern int paired_emit_vector_cond_expr (rtx, rtx, rtx,
                                          rtx, rtx, rtx);
 extern void paired_expand_vector_move (rtx operands[]);

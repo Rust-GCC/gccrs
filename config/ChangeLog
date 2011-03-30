@@ -1,3 +1,47 @@
+2011-03-24  Paolo Bonzini  <pbonzini@redhat.com>
+
+	* mt-mep: Remove, obsolete.
+	* mt-netware: Remove, obsolete.
+	* mt-wince: Remove, obsolete.
+	* mt-v810: Remove, unused.
+
+2011-03-24  Paolo Bonzini  <bonzini@gnu.org>
+
+	* mh-x86omitfp: Remove.
+
+2011-03-24  Paolo Bonzini  <bonzini@gnu.org>
+
+	* mh-cygwin: Remove obsolete variables and dependencies.
+
+2011-03-24  Paolo Bonzini  <bonzini@gnu.org>
+
+	* mh-sysv4: Remove.
+	* mh-solaris: Remove.
+
+2011-03-24  Paolo Bonzini  <bonzini@gnu.org>
+
+	* mh-sysv4: Remove AR_CFLAGS.
+
+2011-03-24  Joseph Myers  <joseph@codesourcery.com>
+
+	* mh-cxux, mh-decstation, mh-dgux386, mh-lynxrs6k, mh-ncr3000,
+	mh-necv4, mh-sco, mh-sysv5: Remove.
+
+2011-03-05  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+	    Eric Blake  <eblake@redhat.com>
+
+	* override.m4: Error out if a buggy M4 was detected, to
+	avoid spurious diffs in generated files.
+
+2011-01-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* cloog.m4 (CLOOG_REQUESTED): Use $2 if --without-cloog.
+
+2011-01-10  Jan Hubicka  <jh@suse.cz>
+
+	* bootstrap-lto.mk: -fuse-linker-plugin is default now;
+	pass -fno-lto to STAGEprofile.
+
 2010-12-06  Dave Korn  <dave.korn.cygwin@gmail.com>
 
 	PR target/40125

@@ -50,6 +50,7 @@
 #include "target.h"
 #include "target-def.h"
 #include "langhooks.h"
+#include "opts.h"
 
 static void rx_print_operand (FILE *, rtx, int);
 
@@ -199,8 +200,10 @@ rx_is_restricted_memory_address (rtx mem, enum machine_mode mode)
     }
 }
 
-bool
-rx_is_mode_dependent_addr (rtx addr)
+/* Implement TARGET_MODE_DEPENDENT_ADDRESS_P.  */
+
+static bool
+rx_mode_dependent_address_p (const_rtx addr)
 {
   if (GET_CODE (addr) == CONST)
     addr = XEXP (addr, 0);
@@ -2235,18 +2238,31 @@ rx_handle_func_attribute (tree * node,
 /* Table of RX specific attributes.  */
 const struct attribute_spec rx_attribute_table[] =
 {
-  /* Name, min_len, max_len, decl_req, type_req, fn_type_req, handler.  */
-  { "fast_interrupt", 0, 0, true, false, false, rx_handle_func_attribute },
-  { "interrupt",      0, 0, true, false, false, rx_handle_func_attribute },
-  { "naked",          0, 0, true, false, false, rx_handle_func_attribute },
-  { NULL,             0, 0, false, false, false, NULL }
+  /* Name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
+     affects_type_identity.  */
+  { "fast_interrupt", 0, 0, true, false, false, rx_handle_func_attribute,
+    false },
+  { "interrupt",      0, 0, true, false, false, rx_handle_func_attribute,
+    false },
+  { "naked",          0, 0, true, false, false, rx_handle_func_attribute,
+    false },
+  { NULL,             0, 0, false, false, false, NULL, false }
 };
 
 /* Extra processing for target specific command line options.  */
 
 static bool
-rx_handle_option (size_t code, const char *  arg ATTRIBUTE_UNUSED, int value)
+rx_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
+		  const struct cl_decoded_option *decoded,
+		  location_t loc ATTRIBUTE_UNUSED)
 {
+  size_t code = decoded->opt_index;
+  const char *arg = decoded->arg;
+  int value = decoded->value;
+
+  gcc_assert (opts == &global_options);
+  gcc_assert (opts_set == &global_options_set);
+
   switch (code)
     {
     case OPT_mint_register_:
@@ -2334,6 +2350,13 @@ rx_option_override (void)
     flag_strict_volatile_bitfields = 1;
 
   rx_override_options_after_change ();
+
+  if (align_jumps == 0 && ! optimize_size)
+    align_jumps = 3;
+  if (align_loops == 0 && ! optimize_size)
+    align_loops = 3;
+  if (align_labels == 0 && ! optimize_size)
+    align_labels = 3;
 }
 
 /* Implement TARGET_OPTION_OPTIMIZATION_TABLE.  */
@@ -2724,8 +2747,47 @@ rx_match_ccmode (rtx insn, enum machine_mode cc_mode)
 
   return true;
 }
-
 
+int
+rx_align_for_label (void)
+{
+  return optimize_size ? 1 : 3;
+}
+
+static int
+rx_max_skip_for_label (rtx lab)
+{
+  int opsize;
+  rtx op;
+
+  if (lab == NULL_RTX)
+    return 0;
+
+  op = lab;
+  do
+    {
+      op = next_nonnote_nondebug_insn (op);
+    }
+  while (op && (LABEL_P (op)
+		|| (INSN_P (op) && GET_CODE (PATTERN (op)) == USE)));
+  if (!op)
+    return 0;
+
+  opsize = get_attr_length (op);
+  if (opsize >= 0 && opsize < 8)
+    return opsize - 1;
+  return 0;
+}
+
+#undef  TARGET_ASM_JUMP_ALIGN_MAX_SKIP
+#define TARGET_ASM_JUMP_ALIGN_MAX_SKIP			rx_max_skip_for_label
+#undef  TARGET_ASM_LOOP_ALIGN_MAX_SKIP
+#define TARGET_ASM_LOOP_ALIGN_MAX_SKIP			rx_max_skip_for_label
+#undef  TARGET_LABEL_ALIGN_AFTER_BARRIER_MAX_SKIP
+#define TARGET_LABEL_ALIGN_AFTER_BARRIER_MAX_SKIP	rx_max_skip_for_label
+#undef  TARGET_ASM_LABEL_ALIGN_MAX_SKIP
+#define TARGET_ASM_LABEL_ALIGN_MAX_SKIP			rx_max_skip_for_label
+
 #undef  TARGET_FUNCTION_VALUE
 #define TARGET_FUNCTION_VALUE		rx_function_value
 
@@ -2773,6 +2835,9 @@ rx_match_ccmode (rtx insn, enum machine_mode cc_mode)
 
 #undef  TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P		rx_is_legitimate_address
+
+#undef  TARGET_MODE_DEPENDENT_ADDRESS_P
+#define TARGET_MODE_DEPENDENT_ADDRESS_P		rx_mode_dependent_address_p
 
 #undef  TARGET_ALLOCATE_STACK_SLOTS_FOR_ARGS
 #define TARGET_ALLOCATE_STACK_SLOTS_FOR_ARGS	rx_allocate_stack_slots_for_args

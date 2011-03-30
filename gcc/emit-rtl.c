@@ -1,7 +1,7 @@
 /* Emit RTL for the GCC expander.
    Copyright (C) 1987, 1988, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
    1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
-   2010
+   2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -805,7 +805,10 @@ gen_rtvec (int n, ...)
 
   /* Don't allocate an empty rtvec...  */
   if (n == 0)
-    return NULL_RTVEC;
+    {
+      va_end (p);
+      return NULL_RTVEC;
+    }
 
   rt_val = rtvec_alloc (n);
 
@@ -3477,10 +3480,6 @@ try_split (rtx pat, rtx trial, int last)
 	      p = &XEXP (*p, 1);
 	    *p = CALL_INSN_FUNCTION_USAGE (trial);
 	    SIBLING_CALL_P (insn) = SIBLING_CALL_P (trial);
-
-	    /* Update the debug information for the CALL_INSN.  */
-	    if (flag_enable_icf_debug)
-	      (*debug_hooks->copy_call_info) (trial, insn);
 	  }
     }
 
@@ -4026,12 +4025,10 @@ reorder_insns (rtx from, rtx to, rtx after)
    SEQUENCE rtl results in much fragmented RTL memory since the SEQUENCE
    generated would almost certainly die right after it was created.  */
 
-/* Make X be output before the instruction BEFORE.  */
-
-rtx
-emit_insn_before_noloc (rtx x, rtx before, basic_block bb)
+static rtx
+emit_pattern_before_noloc (rtx x, rtx before, rtx last, basic_block bb,
+                           rtx (*make_raw) (rtx))
 {
-  rtx last = before;
   rtx insn;
 
   gcc_assert (before);
@@ -4065,12 +4062,20 @@ emit_insn_before_noloc (rtx x, rtx before, basic_block bb)
 #endif
 
     default:
-      last = make_insn_raw (x);
+      last = (*make_raw) (x);
       add_insn_before (last, before, bb);
       break;
     }
 
   return last;
+}
+
+/* Make X be output before the instruction BEFORE.  */
+
+rtx
+emit_insn_before_noloc (rtx x, rtx before, basic_block bb)
+{
+  return emit_pattern_before_noloc (x, before, before, bb, make_insn_raw);
 }
 
 /* Make an instruction with body X and code JUMP_INSN
@@ -4079,42 +4084,8 @@ emit_insn_before_noloc (rtx x, rtx before, basic_block bb)
 rtx
 emit_jump_insn_before_noloc (rtx x, rtx before)
 {
-  rtx insn, last = NULL_RTX;
-
-  gcc_assert (before);
-
-  switch (GET_CODE (x))
-    {
-    case DEBUG_INSN:
-    case INSN:
-    case JUMP_INSN:
-    case CALL_INSN:
-    case CODE_LABEL:
-    case BARRIER:
-    case NOTE:
-      insn = x;
-      while (insn)
-	{
-	  rtx next = NEXT_INSN (insn);
-	  add_insn_before (insn, before, NULL);
-	  last = insn;
-	  insn = next;
-	}
-      break;
-
-#ifdef ENABLE_RTL_CHECKING
-    case SEQUENCE:
-      gcc_unreachable ();
-      break;
-#endif
-
-    default:
-      last = make_jump_insn_raw (x);
-      add_insn_before (last, before, NULL);
-      break;
-    }
-
-  return last;
+  return emit_pattern_before_noloc (x, before, NULL_RTX, NULL,
+				    make_jump_insn_raw);
 }
 
 /* Make an instruction with body X and code CALL_INSN
@@ -4123,42 +4094,8 @@ emit_jump_insn_before_noloc (rtx x, rtx before)
 rtx
 emit_call_insn_before_noloc (rtx x, rtx before)
 {
-  rtx last = NULL_RTX, insn;
-
-  gcc_assert (before);
-
-  switch (GET_CODE (x))
-    {
-    case DEBUG_INSN:
-    case INSN:
-    case JUMP_INSN:
-    case CALL_INSN:
-    case CODE_LABEL:
-    case BARRIER:
-    case NOTE:
-      insn = x;
-      while (insn)
-	{
-	  rtx next = NEXT_INSN (insn);
-	  add_insn_before (insn, before, NULL);
-	  last = insn;
-	  insn = next;
-	}
-      break;
-
-#ifdef ENABLE_RTL_CHECKING
-    case SEQUENCE:
-      gcc_unreachable ();
-      break;
-#endif
-
-    default:
-      last = make_call_insn_raw (x);
-      add_insn_before (last, before, NULL);
-      break;
-    }
-
-  return last;
+  return emit_pattern_before_noloc (x, before, NULL_RTX, NULL,
+				    make_call_insn_raw);
 }
 
 /* Make an instruction with body X and code DEBUG_INSN
@@ -4167,42 +4104,8 @@ emit_call_insn_before_noloc (rtx x, rtx before)
 rtx
 emit_debug_insn_before_noloc (rtx x, rtx before)
 {
-  rtx last = NULL_RTX, insn;
-
-  gcc_assert (before);
-
-  switch (GET_CODE (x))
-    {
-    case DEBUG_INSN:
-    case INSN:
-    case JUMP_INSN:
-    case CALL_INSN:
-    case CODE_LABEL:
-    case BARRIER:
-    case NOTE:
-      insn = x;
-      while (insn)
-	{
-	  rtx next = NEXT_INSN (insn);
-	  add_insn_before (insn, before, NULL);
-	  last = insn;
-	  insn = next;
-	}
-      break;
-
-#ifdef ENABLE_RTL_CHECKING
-    case SEQUENCE:
-      gcc_unreachable ();
-      break;
-#endif
-
-    default:
-      last = make_debug_insn_raw (x);
-      add_insn_before (last, before, NULL);
-      break;
-    }
-
-  return last;
+  return emit_pattern_before_noloc (x, before, NULL_RTX, NULL,
+				    make_debug_insn_raw);
 }
 
 /* Make an insn of code BARRIER
@@ -4296,11 +4199,9 @@ emit_insn_after_1 (rtx first, rtx after, basic_block bb)
   return last;
 }
 
-/* Make X be output after the insn AFTER and set the BB of insn.  If
-   BB is NULL, an attempt is made to infer the BB from AFTER.  */
-
-rtx
-emit_insn_after_noloc (rtx x, rtx after, basic_block bb)
+static rtx
+emit_pattern_after_noloc (rtx x, rtx after, basic_block bb,
+			  rtx (*make_raw)(rtx))
 {
   rtx last = after;
 
@@ -4328,12 +4229,21 @@ emit_insn_after_noloc (rtx x, rtx after, basic_block bb)
 #endif
 
     default:
-      last = make_insn_raw (x);
+      last = (*make_raw) (x);
       add_insn_after (last, after, bb);
       break;
     }
 
   return last;
+}
+
+/* Make X be output after the insn AFTER and set the BB of insn.  If
+   BB is NULL, an attempt is made to infer the BB from AFTER.  */
+
+rtx
+emit_insn_after_noloc (rtx x, rtx after, basic_block bb)
+{
+  return emit_pattern_after_noloc (x, after, bb, make_insn_raw);
 }
 
 
@@ -4343,35 +4253,7 @@ emit_insn_after_noloc (rtx x, rtx after, basic_block bb)
 rtx
 emit_jump_insn_after_noloc (rtx x, rtx after)
 {
-  rtx last;
-
-  gcc_assert (after);
-
-  switch (GET_CODE (x))
-    {
-    case DEBUG_INSN:
-    case INSN:
-    case JUMP_INSN:
-    case CALL_INSN:
-    case CODE_LABEL:
-    case BARRIER:
-    case NOTE:
-      last = emit_insn_after_1 (x, after, NULL);
-      break;
-
-#ifdef ENABLE_RTL_CHECKING
-    case SEQUENCE:
-      gcc_unreachable ();
-      break;
-#endif
-
-    default:
-      last = make_jump_insn_raw (x);
-      add_insn_after (last, after, NULL);
-      break;
-    }
-
-  return last;
+  return emit_pattern_after_noloc (x, after, NULL, make_jump_insn_raw);
 }
 
 /* Make an instruction with body X and code CALL_INSN
@@ -4380,35 +4262,7 @@ emit_jump_insn_after_noloc (rtx x, rtx after)
 rtx
 emit_call_insn_after_noloc (rtx x, rtx after)
 {
-  rtx last;
-
-  gcc_assert (after);
-
-  switch (GET_CODE (x))
-    {
-    case DEBUG_INSN:
-    case INSN:
-    case JUMP_INSN:
-    case CALL_INSN:
-    case CODE_LABEL:
-    case BARRIER:
-    case NOTE:
-      last = emit_insn_after_1 (x, after, NULL);
-      break;
-
-#ifdef ENABLE_RTL_CHECKING
-    case SEQUENCE:
-      gcc_unreachable ();
-      break;
-#endif
-
-    default:
-      last = make_call_insn_raw (x);
-      add_insn_after (last, after, NULL);
-      break;
-    }
-
-  return last;
+  return emit_pattern_after_noloc (x, after, NULL, make_call_insn_raw);
 }
 
 /* Make an instruction with body X and code CALL_INSN
@@ -4417,35 +4271,7 @@ emit_call_insn_after_noloc (rtx x, rtx after)
 rtx
 emit_debug_insn_after_noloc (rtx x, rtx after)
 {
-  rtx last;
-
-  gcc_assert (after);
-
-  switch (GET_CODE (x))
-    {
-    case DEBUG_INSN:
-    case INSN:
-    case JUMP_INSN:
-    case CALL_INSN:
-    case CODE_LABEL:
-    case BARRIER:
-    case NOTE:
-      last = emit_insn_after_1 (x, after, NULL);
-      break;
-
-#ifdef ENABLE_RTL_CHECKING
-    case SEQUENCE:
-      gcc_unreachable ();
-      break;
-#endif
-
-    default:
-      last = make_debug_insn_raw (x);
-      add_insn_after (last, after, NULL);
-      break;
-    }
-
-  return last;
+  return emit_pattern_after_noloc (x, after, NULL, make_debug_insn_raw);
 }
 
 /* Make an insn of code BARRIER

@@ -341,17 +341,31 @@ resolve_formal_arglist (gfc_symbol *proc)
       if (gfc_pure (proc) && !sym->attr.pointer
 	  && sym->attr.flavor != FL_PROCEDURE)
 	{
-	  if (proc->attr.function && sym->attr.intent != INTENT_IN
-	      && !sym->attr.value)
-	    gfc_error ("Argument '%s' of pure function '%s' at %L must be "
-		       "INTENT(IN) or VALUE", sym->name, proc->name,
-		       &sym->declared_at);
+	  if (proc->attr.function && sym->attr.intent != INTENT_IN)
+	    {
+	      if (sym->attr.value)
+		gfc_notify_std (GFC_STD_F2008, "Fortran 2008: Argument '%s' "
+				"of pure function '%s' at %L with VALUE "
+				"attribute but without INTENT(IN)", sym->name,
+				proc->name, &sym->declared_at);
+	      else
+		gfc_error ("Argument '%s' of pure function '%s' at %L must be "
+			   "INTENT(IN) or VALUE", sym->name, proc->name,
+			   &sym->declared_at);
+	    }
 
-	  if (proc->attr.subroutine && sym->attr.intent == INTENT_UNKNOWN
-	      && !sym->attr.value)
-	    gfc_error ("Argument '%s' of pure subroutine '%s' at %L must "
+	  if (proc->attr.subroutine && sym->attr.intent == INTENT_UNKNOWN)
+	    {
+	      if (sym->attr.value)
+		gfc_notify_std (GFC_STD_F2008, "Fortran 2008: Argument '%s' "
+				"of pure subroutine '%s' at %L with VALUE "
+				"attribute but without INTENT", sym->name,
+				proc->name, &sym->declared_at);
+	      else
+		gfc_error ("Argument '%s' of pure subroutine '%s' at %L must "
 		       "have its INTENT specified or have the VALUE "
 		       "attribute", sym->name, proc->name, &sym->declared_at);
+	    }
 	}
 
       if (proc->attr.implicit_pure && !sym->attr.pointer
@@ -8077,6 +8091,14 @@ resolve_transfer (gfc_code *code)
 	  return;
 	}
 
+      /* F08:C935.  */
+      if (ts->u.derived->attr.proc_pointer_comp)
+	{
+	  gfc_error ("Data transfer element at %L cannot have "
+		     "procedure pointer components", &code->loc);
+	  return;
+	}
+
       if (ts->u.derived->attr.alloc_comp)
 	{
 	  gfc_error ("Data transfer element at %L cannot have "
@@ -10132,7 +10154,7 @@ resolve_fl_procedure (gfc_symbol *sym, int mp_flag)
      the host.  */
   if (!(sym->ns->parent
 	&& sym->ns->parent->proc_name->attr.flavor == FL_MODULE)
-      && gfc_check_access(sym->attr.access, sym->ns->default_access))
+      && gfc_check_symbol_access (sym))
     {
       gfc_interface *iface;
 
@@ -10141,8 +10163,7 @@ resolve_fl_procedure (gfc_symbol *sym, int mp_flag)
 	  if (arg->sym
 	      && arg->sym->ts.type == BT_DERIVED
 	      && !arg->sym->ts.u.derived->attr.use_assoc
-	      && !gfc_check_access (arg->sym->ts.u.derived->attr.access,
-				    arg->sym->ts.u.derived->ns->default_access)
+	      && !gfc_check_symbol_access (arg->sym->ts.u.derived)
 	      && gfc_notify_std (GFC_STD_F2003, "Fortran 2003: '%s' is of a "
 				 "PRIVATE type and cannot be a dummy argument"
 				 " of '%s', which is PUBLIC at %L",
@@ -10164,8 +10185,7 @@ resolve_fl_procedure (gfc_symbol *sym, int mp_flag)
 	      if (arg->sym
 		  && arg->sym->ts.type == BT_DERIVED
 		  && !arg->sym->ts.u.derived->attr.use_assoc
-		  && !gfc_check_access (arg->sym->ts.u.derived->attr.access,
-					arg->sym->ts.u.derived->ns->default_access)
+		  && !gfc_check_symbol_access (arg->sym->ts.u.derived)
 		  && gfc_notify_std (GFC_STD_F2003, "Fortran 2003: Procedure "
 				     "'%s' in PUBLIC interface '%s' at %L "
 				     "takes dummy arguments of '%s' which is "
@@ -10189,8 +10209,7 @@ resolve_fl_procedure (gfc_symbol *sym, int mp_flag)
 	      if (arg->sym
 		  && arg->sym->ts.type == BT_DERIVED
 		  && !arg->sym->ts.u.derived->attr.use_assoc
-		  && !gfc_check_access (arg->sym->ts.u.derived->attr.access,
-					arg->sym->ts.u.derived->ns->default_access)
+		  && !gfc_check_symbol_access (arg->sym->ts.u.derived)
 		  && gfc_notify_std (GFC_STD_F2003, "Fortran 2003: Procedure "
 				     "'%s' in PUBLIC interface '%s' at %L "
 				     "takes dummy arguments of '%s' which is "
@@ -11641,11 +11660,10 @@ resolve_fl_derived (gfc_symbol *sym)
 
       if (c->ts.type == BT_DERIVED
 	  && sym->component_access != ACCESS_PRIVATE
-	  && gfc_check_access (sym->attr.access, sym->ns->default_access)
+	  && gfc_check_symbol_access (sym)
 	  && !is_sym_host_assoc (c->ts.u.derived, sym->ns)
 	  && !c->ts.u.derived->attr.use_assoc
-	  && !gfc_check_access (c->ts.u.derived->attr.access,
-				c->ts.u.derived->ns->default_access)
+	  && !gfc_check_symbol_access (c->ts.u.derived)
 	  && gfc_notify_std (GFC_STD_F2003, "Fortran 2003: the component '%s' "
 			     "is a PRIVATE type and cannot be a component of "
 			     "'%s', which is PUBLIC at %L", c->name,
@@ -11809,14 +11827,13 @@ resolve_fl_namelist (gfc_symbol *sym)
     }
 
   /* Reject PRIVATE objects in a PUBLIC namelist.  */
-  if (gfc_check_access(sym->attr.access, sym->ns->default_access))
+  if (gfc_check_symbol_access (sym))
     {
       for (nl = sym->namelist; nl; nl = nl->next)
 	{
 	  if (!nl->sym->attr.use_assoc
 	      && !is_sym_host_assoc (nl->sym, sym->ns)
-	      && !gfc_check_access(nl->sym->attr.access,
-				nl->sym->ns->default_access))
+	      && !gfc_check_symbol_access (nl->sym))
 	    {
 	      gfc_error ("NAMELIST object '%s' was declared PRIVATE and "
 			 "cannot be member of PUBLIC namelist '%s' at %L",
@@ -11837,9 +11854,7 @@ resolve_fl_namelist (gfc_symbol *sym)
 	  /* Types with private components that are defined in the same module.  */
 	  if (nl->sym->ts.type == BT_DERIVED
 	      && !is_sym_host_assoc (nl->sym->ts.u.derived, sym->ns)
-	      && !gfc_check_access (nl->sym->ts.u.derived->attr.private_comp
-					? ACCESS_PRIVATE : ACCESS_UNKNOWN,
-					nl->sym->ns->default_access))
+	      && nl->sym->ts.u.derived->attr.private_comp)
 	    {
 	      gfc_error ("NAMELIST object '%s' has PRIVATE components and "
 			 "cannot be a member of PUBLIC namelist '%s' at %L",
@@ -12212,8 +12227,7 @@ resolve_symbol (gfc_symbol *sym)
 	return;
 
       gfc_find_symbol (sym->ts.u.derived->name, sym->ns, 1, &ds);
-      if (!ds && sym->attr.function
-	    && gfc_check_access (sym->attr.access, sym->ns->default_access))
+      if (!ds && sym->attr.function && gfc_check_symbol_access (sym))
 	{
 	  symtree = gfc_new_symtree (&sym->ns->sym_root,
 				     sym->ts.u.derived->name);
@@ -12229,9 +12243,8 @@ resolve_symbol (gfc_symbol *sym)
   if (sym->ts.type == BT_DERIVED
       && sym->ns->proc_name && sym->ns->proc_name->attr.flavor == FL_MODULE
       && !sym->ts.u.derived->attr.use_assoc
-      && gfc_check_access (sym->attr.access, sym->ns->default_access)
-      && !gfc_check_access (sym->ts.u.derived->attr.access,
-			    sym->ts.u.derived->ns->default_access)
+      && gfc_check_symbol_access (sym)
+      && !gfc_check_symbol_access (sym->ts.u.derived)
       && gfc_notify_std (GFC_STD_F2003, "Fortran 2003: PUBLIC %s '%s' at %L "
 		         "of PRIVATE derived type '%s'",
 			 (sym->attr.flavor == FL_PARAMETER) ? "parameter"
@@ -13342,9 +13355,8 @@ resolve_fntype (gfc_namespace *ns)
 
   if (sym->ts.type == BT_DERIVED && !sym->ts.u.derived->attr.use_assoc
       && !sym->attr.contained
-      && !gfc_check_access (sym->ts.u.derived->attr.access,
-			    sym->ts.u.derived->ns->default_access)
-      && gfc_check_access (sym->attr.access, sym->ns->default_access))
+      && !gfc_check_symbol_access (sym->ts.u.derived)
+      && gfc_check_symbol_access (sym))
     {
       gfc_notify_std (GFC_STD_F2003, "Fortran 2003: PUBLIC function '%s' at "
 		      "%L of PRIVATE type '%s'", sym->name,

@@ -207,15 +207,25 @@
         {
 	case MODE_V8SF:
 	case MODE_V4SF:
-	  return "vmovaps\t{%1, %0|%0, %1}";
+	  if (misaligned_operand (operands[0], <MODE>mode)
+	      || misaligned_operand (operands[1], <MODE>mode))
+	    return "vmovups\t{%1, %0|%0, %1}";
+	  else
+	    return "vmovaps\t{%1, %0|%0, %1}";
 	case MODE_V4DF:
 	case MODE_V2DF:
-	  if (TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL)
+	  if (misaligned_operand (operands[0], <MODE>mode)
+	      || misaligned_operand (operands[1], <MODE>mode))
+	    return "vmovupd\t{%1, %0|%0, %1}";
+	  else if (TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL)
 	    return "vmovaps\t{%1, %0|%0, %1}";
 	  else
 	    return "vmovapd\t{%1, %0|%0, %1}";
 	default:
-	  if (TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL)
+	  if (misaligned_operand (operands[0], <MODE>mode)
+	      || misaligned_operand (operands[1], <MODE>mode))
+	    return "vmovdqu\t{%1, %0|%0, %1}";
+	  else if (TARGET_SSE_PACKED_SINGLE_INSN_OPTIMAL)
 	    return "vmovaps\t{%1, %0|%0, %1}";
 	  else
 	    return "vmovdqa\t{%1, %0|%0, %1}";
@@ -2715,6 +2725,7 @@
    (set_attr "prefix" "maybe_vex")
    (set_attr "mode" "TI")
    (set_attr "amdfam10_decode" "double")
+   (set_attr "athlon_decode" "vector")
    (set_attr "bdver1_decode" "double")])
 
 (define_insn "avx_cvttpd2dq256"
@@ -2746,6 +2757,7 @@
    (set_attr "prefix" "maybe_vex")
    (set_attr "mode" "TI")
    (set_attr "amdfam10_decode" "double")
+   (set_attr "athlon_decode" "vector")
    (set_attr "bdver1_decode" "double")])
 
 (define_insn "*avx_cvtsd2ss"
@@ -2806,6 +2818,7 @@
   "cvtss2sd\t{%2, %0|%0, %2}"
   [(set_attr "type" "ssecvt")
    (set_attr "amdfam10_decode" "vector,double")
+   (set_attr "athlon_decode" "direct,direct")
    (set_attr "bdver1_decode" "direct,direct")
    (set_attr "mode" "DF")])
 
@@ -2842,6 +2855,7 @@
    (set_attr "prefix" "maybe_vex")
    (set_attr "mode" "V4SF")
    (set_attr "amdfam10_decode" "double")
+   (set_attr "athlon_decode" "vector")
    (set_attr "bdver1_decode" "double")])
 
 (define_insn "avx_cvtps2pd256"
@@ -2879,6 +2893,7 @@
    (set_attr "mode" "V2DF")
    (set_attr "prefix_data16" "0")
    (set_attr "amdfam10_decode" "direct")
+   (set_attr "athlon_decode" "double")
    (set_attr "bdver1_decode" "double")])
 
 (define_expand "vec_unpacks_hi_v4sf"
@@ -4122,17 +4137,21 @@
    (match_operand:SI 2 "const_0_to_1_operand" "")]
   "TARGET_AVX"
 {
+  rtx (*insn)(rtx, rtx);
+
   switch (INTVAL (operands[2]))
     {
     case 0:
-      emit_insn (gen_vec_extract_lo_<mode> (operands[0], operands[1]));
+      insn = gen_vec_extract_lo_<mode>;
       break;
     case 1:
-      emit_insn (gen_vec_extract_hi_<mode> (operands[0], operands[1]));
+      insn = gen_vec_extract_hi_<mode>;
       break;
     default:
       gcc_unreachable ();
     }
+
+  emit_insn (insn (operands[0], operands[1]));
   DONE;
 })
 
@@ -8885,7 +8904,7 @@
 	(ss_plus:V8HI
 	  (mult:V8HI
 	    (zero_extend:V8HI
-	      (vec_select:V4QI
+	      (vec_select:V8QI
 		(match_operand:V16QI 1 "register_operand" "x")
 		(parallel [(const_int 0)
 			   (const_int 2)
@@ -8908,7 +8927,7 @@
 			   (const_int 14)]))))
 	  (mult:V8HI
 	    (zero_extend:V8HI
-	      (vec_select:V16QI (match_dup 1)
+	      (vec_select:V8QI (match_dup 1)
 		(parallel [(const_int 1)
 			   (const_int 3)
 			   (const_int 5)
@@ -8918,7 +8937,7 @@
 			   (const_int 13)
 			   (const_int 15)])))
 	    (sign_extend:V8HI
-	      (vec_select:V16QI (match_dup 2)
+	      (vec_select:V8QI (match_dup 2)
 		(parallel [(const_int 1)
 			   (const_int 3)
 			   (const_int 5)
@@ -8939,7 +8958,7 @@
 	(ss_plus:V8HI
 	  (mult:V8HI
 	    (zero_extend:V8HI
-	      (vec_select:V4QI
+	      (vec_select:V8QI
 		(match_operand:V16QI 1 "register_operand" "0")
 		(parallel [(const_int 0)
 			   (const_int 2)
@@ -8962,7 +8981,7 @@
 			   (const_int 14)]))))
 	  (mult:V8HI
 	    (zero_extend:V8HI
-	      (vec_select:V16QI (match_dup 1)
+	      (vec_select:V8QI (match_dup 1)
 		(parallel [(const_int 1)
 			   (const_int 3)
 			   (const_int 5)
@@ -8972,7 +8991,7 @@
 			   (const_int 13)
 			   (const_int 15)])))
 	    (sign_extend:V8HI
-	      (vec_select:V16QI (match_dup 2)
+	      (vec_select:V8QI (match_dup 2)
 		(parallel [(const_int 1)
 			   (const_int 3)
 			   (const_int 5)
@@ -9009,13 +9028,13 @@
 			   (const_int 6)]))))
 	  (mult:V4HI
 	    (zero_extend:V4HI
-	      (vec_select:V8QI (match_dup 1)
+	      (vec_select:V4QI (match_dup 1)
 		(parallel [(const_int 1)
 			   (const_int 3)
 			   (const_int 5)
 			   (const_int 7)])))
 	    (sign_extend:V4HI
-	      (vec_select:V8QI (match_dup 2)
+	      (vec_select:V4QI (match_dup 2)
 		(parallel [(const_int 1)
 			   (const_int 3)
 			   (const_int 5)
@@ -11776,19 +11795,21 @@
    (match_operand:SI 3 "const_0_to_1_operand" "")]
   "TARGET_AVX"
 {
+  rtx (*insn)(rtx, rtx, rtx);
+
   switch (INTVAL (operands[3]))
     {
     case 0:
-      emit_insn (gen_vec_set_lo_<mode> (operands[0], operands[1],
-					operands[2]));
+      insn = gen_vec_set_lo_<mode>;
       break;
     case 1:
-      emit_insn (gen_vec_set_hi_<mode> (operands[0], operands[1],
-					operands[2]));
+      insn = gen_vec_set_hi_<mode>;
       break;
     default:
       gcc_unreachable ();
     }
+
+  emit_insn (insn (operands[0], operands[1], operands[2]));
   DONE;
 })
 

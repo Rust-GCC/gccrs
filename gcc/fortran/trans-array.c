@@ -1495,60 +1495,9 @@ gfc_trans_array_constructor_value (stmtblock_t * pblock, tree type,
 }
 
 
-/* Figure out the string length of a variable reference expression.
-   Used by get_array_ctor_strlen.  */
-
-static void
-get_array_ctor_var_strlen (gfc_expr * expr, tree * len)
-{
-  gfc_ref *ref;
-  gfc_typespec *ts;
-  mpz_t char_len;
-
-  /* Don't bother if we already know the length is a constant.  */
-  if (*len && INTEGER_CST_P (*len))
-    return;
-
-  ts = &expr->symtree->n.sym->ts;
-  for (ref = expr->ref; ref; ref = ref->next)
-    {
-      switch (ref->type)
-	{
-	case REF_ARRAY:
-	  /* Array references don't change the string length.  */
-	  break;
-
-	case REF_COMPONENT:
-	  /* Use the length of the component.  */
-	  ts = &ref->u.c.component->ts;
-	  break;
-
-	case REF_SUBSTRING:
-	  if (ref->u.ss.start->expr_type != EXPR_CONSTANT
-	      || ref->u.ss.end->expr_type != EXPR_CONSTANT)
-	    break;
-	  mpz_init_set_ui (char_len, 1);
-	  mpz_add (char_len, char_len, ref->u.ss.end->value.integer);
-	  mpz_sub (char_len, char_len, ref->u.ss.start->value.integer);
-	  *len = gfc_conv_mpz_to_tree (char_len, gfc_default_integer_kind);
-	  *len = convert (gfc_charlen_type_node, *len);
-	  mpz_clear (char_len);
-	  return;
-
-	default:
-	  /* TODO: Substrings are tricky because we can't evaluate the
-	     expression more than once.  For now we just give up, and hope
-	     we can figure it out elsewhere.  */
-	  return;
-	}
-    }
-
-  *len = ts->u.cl->backend_decl;
-}
-
-
 /* A catch-all to obtain the string length for anything that is not a
-   constant, array or variable.  */
+   a substring of non-constant length, a constant, array or variable.  */
+
 static void
 get_array_ctor_all_strlen (stmtblock_t *block, gfc_expr *e, tree *len)
 {
@@ -1587,6 +1536,59 @@ get_array_ctor_all_strlen (stmtblock_t *block, gfc_expr *e, tree *len)
 
       e->ts.u.cl->backend_decl = *len;
     }
+}
+
+
+/* Figure out the string length of a variable reference expression.
+   Used by get_array_ctor_strlen.  */
+
+static void
+get_array_ctor_var_strlen (stmtblock_t *block, gfc_expr * expr, tree * len)
+{
+  gfc_ref *ref;
+  gfc_typespec *ts;
+  mpz_t char_len;
+
+  /* Don't bother if we already know the length is a constant.  */
+  if (*len && INTEGER_CST_P (*len))
+    return;
+
+  ts = &expr->symtree->n.sym->ts;
+  for (ref = expr->ref; ref; ref = ref->next)
+    {
+      switch (ref->type)
+	{
+	case REF_ARRAY:
+	  /* Array references don't change the string length.  */
+	  break;
+
+	case REF_COMPONENT:
+	  /* Use the length of the component.  */
+	  ts = &ref->u.c.component->ts;
+	  break;
+
+	case REF_SUBSTRING:
+	  if (ref->u.ss.start->expr_type != EXPR_CONSTANT
+	      || ref->u.ss.end->expr_type != EXPR_CONSTANT)
+	    {
+	      /* Note that this might evaluate expr.  */
+	      get_array_ctor_all_strlen (block, expr, len);
+	      return;
+	    }
+	  mpz_init_set_ui (char_len, 1);
+	  mpz_add (char_len, char_len, ref->u.ss.end->value.integer);
+	  mpz_sub (char_len, char_len, ref->u.ss.start->value.integer);
+	  *len = gfc_conv_mpz_to_tree (char_len, gfc_default_integer_kind);
+	  *len = convert (gfc_charlen_type_node, *len);
+	  mpz_clear (char_len);
+	  return;
+
+	default:
+	 gcc_unreachable ();
+	}
+    }
+
+  *len = ts->u.cl->backend_decl;
 }
 
 
@@ -1633,7 +1635,7 @@ get_array_ctor_strlen (stmtblock_t *block, gfc_constructor_base base, tree * len
 	case EXPR_VARIABLE:
 	  is_const = false;
 	  if (len)
-	    get_array_ctor_var_strlen (c->expr, len);
+	    get_array_ctor_var_strlen (block, c->expr, len);
 	  break;
 
 	default:
@@ -6095,10 +6097,11 @@ gfc_conv_array_parameter (gfc_se * se, gfc_expr * expr, gfc_ss * ss, bool g77,
 	&& expr->ts.u.derived->attr.alloc_comp
 	&& expr->expr_type != EXPR_VARIABLE)
     {
-      tmp = build_fold_indirect_ref_loc (input_location,
-				     se->expr);
+      tmp = build_fold_indirect_ref_loc (input_location, se->expr);
       tmp = gfc_deallocate_alloc_comp (expr->ts.u.derived, tmp, expr->rank);
-      gfc_add_expr_to_block (&se->post, tmp);
+
+      /* The components shall be deallocated before their containing entity.  */
+      gfc_prepend_expr_to_block (&se->post, tmp);
     }
 
   if (g77 || (fsym && fsym->attr.contiguous
@@ -7154,6 +7157,8 @@ gfc_trans_deferred_array (gfc_symbol * sym, gfc_wrapped_block * block)
 		 "allocatable attribute or derived type without allocatable "
 		 "components.");
 
+  gfc_save_backend_locus (&loc);
+  gfc_set_backend_locus (&sym->declared_at);
   gfc_init_block (&init);
 
   gcc_assert (TREE_CODE (sym->backend_decl) == VAR_DECL
@@ -7170,11 +7175,10 @@ gfc_trans_deferred_array (gfc_symbol * sym, gfc_wrapped_block * block)
   if (sym->attr.dummy || sym->attr.use_assoc || sym->attr.result)
     {
       gfc_add_init_cleanup (block, gfc_finish_block (&init), NULL_TREE);
+      gfc_restore_backend_locus (&loc);
       return;
     }
 
-  gfc_save_backend_locus (&loc);
-  gfc_set_backend_locus (&sym->declared_at);
   descriptor = sym->backend_decl;
 
   /* Although static, derived types with default initializers and
@@ -7223,8 +7227,8 @@ gfc_trans_deferred_array (gfc_symbol * sym, gfc_wrapped_block * block)
   if (GFC_DESCRIPTOR_TYPE_P (type) && !sym->attr.save)
     gfc_conv_descriptor_data_set (&init, descriptor, null_pointer_node);
 
-  gfc_init_block (&cleanup);
   gfc_restore_backend_locus (&loc);
+  gfc_init_block (&cleanup);
 
   /* Allocatable arrays need to be freed when they go out of scope.
      The allocatable components of pointers must not be touched.  */

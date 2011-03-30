@@ -661,6 +661,8 @@ dump_type_prefix (tree t, int flags)
 	  {
 	    pp_cxx_whitespace (cxx_pp);
 	    pp_cxx_left_paren (cxx_pp);
+	    pp_c_attributes_display (pp_c_base (cxx_pp),
+				     TYPE_ATTRIBUTES (sub));
 	  }
 	if (TREE_CODE (t) == POINTER_TYPE)
 	  pp_character(cxx_pp, '*');
@@ -2493,7 +2495,11 @@ location_of (tree t)
   if (TREE_CODE (t) == PARM_DECL && DECL_CONTEXT (t))
     t = DECL_CONTEXT (t);
   else if (TYPE_P (t))
-    t = TYPE_MAIN_DECL (t);
+    {
+      t = TYPE_MAIN_DECL (t);
+      if (t == NULL_TREE)
+	return input_location;
+    }
   else if (TREE_CODE (t) == OVERLOAD)
     t = OVL_FUNCTION (t);
 

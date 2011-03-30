@@ -1,6 +1,6 @@
 # GCC host-specific configuration file.
 # Copyright 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2006, 2007, 2008, 2009,
-# 2010 Free Software Foundation, Inc.
+# 2010, 2011 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -169,6 +169,10 @@ case ${host} in
     prefix=/gnu
     local_prefix=/gnu/local
     ;;
+  alpha*-dec-osf*)
+    out_host_hook_obj=host-osf.o
+    host_xmake_file="${host_xmake_file} alpha/x-osf"
+    ;;
   alpha*-dec-*vms*)
     host_xm_file="vms/xm-vms.h"
     host_xmake_file=vms/x-vms
@@ -207,7 +211,7 @@ case ${host} in
         ;;
     esac
     ;;
-  i[34567]86-*-pe | i[34567]86-*-cygwin*)
+  i[34567]86-*-cygwin*)
     host_xm_file=i386/xm-cygwin.h
     out_host_hook_obj=host-cygwin.o
     host_xmake_file="${host_xmake_file} i386/x-cygwin"

@@ -189,6 +189,75 @@ convert_real (st_parameter_dt *dtp, void *dest, const char *buffer, int length)
   return 0;
 }
 
+/* convert_infnan()-- Convert character INF/NAN representation to the
+   machine number.  Note: many architectures (e.g. IA-64, HP-PA) require
+   that the storage pointed to by the dest argument is properly aligned
+   for the type in question.  */
+
+int
+convert_infnan (st_parameter_dt *dtp, void *dest, const char *buffer,
+	        int length)
+{
+  const char *s = buffer;
+  int is_inf, plus = 1;
+
+  if (*s == '+')
+    s++;
+  else if (*s == '-')
+    {
+      s++;
+      plus = 0;
+    }
+
+  is_inf = *s == 'i';
+
+  switch (length)
+    {
+    case 4:
+      if (is_inf)
+	*((GFC_REAL_4*) dest) = plus ? __builtin_inff () : -__builtin_inff ();
+      else
+	*((GFC_REAL_4*) dest) = plus ? __builtin_nanf ("") : -__builtin_nanf ("");
+      break;
+
+    case 8:
+      if (is_inf)
+	*((GFC_REAL_8*) dest) = plus ? __builtin_inf () : -__builtin_inf ();
+      else
+	*((GFC_REAL_8*) dest) = plus ? __builtin_nan ("") : -__builtin_nan ("");
+      break;
+
+#if defined(HAVE_GFC_REAL_10)
+    case 10:
+      if (is_inf)
+	*((GFC_REAL_10*) dest) = plus ? __builtin_infl () : -__builtin_infl ();
+      else
+	*((GFC_REAL_10*) dest) = plus ? __builtin_nanl ("") : -__builtin_nanl ("");
+      break;
+#endif
+
+#if defined(HAVE_GFC_REAL_16)
+# if defined(GFC_REAL_16_IS_FLOAT128)
+    case 16:
+      *((GFC_REAL_16*) dest) = __qmath_(strtoflt128) (buffer, NULL);
+      break;
+# else
+    case 16:
+      if (is_inf)
+	*((GFC_REAL_16*) dest) = plus ? __builtin_infl () : -__builtin_infl ();
+      else
+	*((GFC_REAL_16*) dest) = plus ? __builtin_nanl ("") : -__builtin_nanl ("");
+      break;
+# endif
+#endif
+
+    default:
+      internal_error (&dtp->common, "Unsupported real kind during IO");
+    }
+
+  return 0;
+}
+
 
 /* read_l()-- Read a logical value */
 
@@ -896,7 +965,7 @@ read_f (st_parameter_dt *dtp, const fnode *f, char *dest, int length)
       else if (strcmp (save, "nan") != 0)
 	goto bad_float;
 
-      convert_real (dtp, dest, buffer, length);
+      convert_infnan (dtp, dest, buffer, length);
       return;
     }
 
@@ -1117,8 +1186,7 @@ bad_float:
 void
 read_x (st_parameter_dt *dtp, int n)
 {
-  int length;
-  char *p, q;
+  int length, q, q2;
 
   if ((dtp->u.p.current_unit->pad_status == PAD_NO || is_internal_unit (dtp))
        && dtp->u.p.current_unit->bytes_left < n)
@@ -1131,7 +1199,7 @@ read_x (st_parameter_dt *dtp, int n)
 
   if (is_internal_unit (dtp))
     {
-      p = mem_alloc_r (dtp->u.p.current_unit->s, &length);
+      mem_alloc_r (dtp->u.p.current_unit->s, &length);
       if (unlikely (length < n))
 	n = length;
       goto done;
@@ -1140,55 +1208,37 @@ read_x (st_parameter_dt *dtp, int n)
   if (dtp->u.p.sf_seen_eor)
     return;
 
-  p = fbuf_read (dtp->u.p.current_unit, &length);
-  if (p == NULL)
-    {
-      hit_eof (dtp);
-      return;
-    }
-  
-  if (length == 0 && dtp->u.p.item_count == 1)
-    {
-      if (dtp->u.p.current_unit->pad_status == PAD_NO)
-	{
-	  hit_eof (dtp);
-	  return;
-	}
-      else
-	return;
-    }
-
   n = 0;
   while (n < length)
     {
-      q = *p;
-      if (q == '\n' || q == '\r')
+      q = fbuf_getc (dtp->u.p.current_unit);
+      if (q == EOF)
+	break;
+      else if (q == '\n' || q == '\r')
 	{
 	  /* Unexpected end of line. Set the position.  */
-	  fbuf_seek (dtp->u.p.current_unit, n + 1 ,SEEK_CUR);
 	  dtp->u.p.sf_seen_eor = 1;
 
+	  /* If we see an EOR during non-advancing I/O, we need to skip
+	     the rest of the I/O statement.  Set the corresponding flag.  */
+	  if (dtp->u.p.advance_status == ADVANCE_NO || dtp->u.p.seen_dollar)
+	    dtp->u.p.eor_condition = 1;
+	    
 	  /* If we encounter a CR, it might be a CRLF.  */
 	  if (q == '\r') /* Probably a CRLF */
 	    {
-	      /* See if there is an LF. Use fbuf_read rather then fbuf_getc so
-		 the position is not advanced unless it really is an LF.  */
-	      int readlen = 1;
-	      p = fbuf_read (dtp->u.p.current_unit, &readlen);
-	      if (*p == '\n' && readlen == 1)
-	        {
-		  dtp->u.p.sf_seen_eor = 2;
-		  fbuf_seek (dtp->u.p.current_unit, 1 ,SEEK_CUR);
-		}
+	      /* See if there is an LF.  */
+	      q2 = fbuf_getc (dtp->u.p.current_unit);
+	      if (q2 == '\n')
+		dtp->u.p.sf_seen_eor = 2;
+	      else if (q2 != EOF) /* Oops, seek back.  */
+		fbuf_seek (dtp->u.p.current_unit, -1, SEEK_CUR);
 	    }
 	  goto done;
 	}
       n++;
-      p++;
     } 
 
-  fbuf_seek (dtp->u.p.current_unit, n, SEEK_CUR);
-  
  done:
   if ((dtp->common.flags & IOPARM_DT_HAS_SIZE) != 0)
     dtp->u.p.size_used += (GFC_IO_INT) n;

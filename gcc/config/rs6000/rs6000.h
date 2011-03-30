@@ -1005,6 +1005,16 @@ extern unsigned rs6000_pointer_size;
 
 #define HARD_REGNO_NREGS(REGNO, MODE) rs6000_hard_regno_nregs[(MODE)][(REGNO)]
 
+/* When setting up caller-save slots (MODE == VOIDmode) ensure we allocate
+   enough space to account for vectors in FP regs. */
+#define HARD_REGNO_CALLER_SAVE_MODE(REGNO, NREGS, MODE)	\
+  (TARGET_VSX						\
+   && ((MODE) == VOIDmode || VSX_VECTOR_MODE (MODE)	\
+       || ALTIVEC_VECTOR_MODE (MODE))			\
+   && FP_REGNO_P (REGNO)				\
+   ? V2DFmode						\
+   : choose_hard_reg_mode ((REGNO), (NREGS), false))
+
 #define HARD_REGNO_CALL_PART_CLOBBERED(REGNO, MODE)			\
   (((TARGET_32BIT && TARGET_POWERPC64					\
      && (GET_MODE_SIZE (MODE) > 4)					\
@@ -1240,34 +1250,6 @@ enum reg_class
   { 0xffffffff, 0x00000000, 0x0000efff, 0x00020000 }, /* NON_FLOAT_REGS */   \
   { 0x00000000, 0x00000000, 0x00001000, 0x00000000 }, /* CA_REGS */	     \
   { 0xffffffff, 0xffffffff, 0xffffffff, 0x0003ffff }  /* ALL_REGS */	     \
-}
-
-/* The following macro defines cover classes for Integrated Register
-   Allocator.  Cover classes is a set of non-intersected register
-   classes covering all hard registers used for register allocation
-   purpose.  Any move between two registers of a cover class should be
-   cheaper than load or store of the registers.  The macro value is
-   array of register classes with LIM_REG_CLASSES used as the end
-   marker.
-
-   We need two IRA_COVER_CLASSES, one for pre-VSX, and the other for VSX to
-   account for the Altivec and Floating registers being subsets of the VSX
-   register set.  */
-
-#define IRA_COVER_CLASSES_PRE_VSX					     \
-{									     \
-  GENERAL_REGS, SPECIAL_REGS, FLOAT_REGS, ALTIVEC_REGS, /* VSX_REGS, */	     \
-  /* VRSAVE_REGS,*/ VSCR_REGS, SPE_ACC_REGS, SPEFSCR_REGS,		     \
-  /* MQ_REGS, LINK_REGS, CTR_REGS, */					     \
-  CR_REGS, CA_REGS, LIM_REG_CLASSES					     \
-}
-
-#define IRA_COVER_CLASSES_VSX						     \
-{									     \
-  GENERAL_REGS, SPECIAL_REGS, /* FLOAT_REGS, ALTIVEC_REGS, */ VSX_REGS,	     \
-  /* VRSAVE_REGS,*/ VSCR_REGS, SPE_ACC_REGS, SPEFSCR_REGS,		     \
-  /* MQ_REGS, LINK_REGS, CTR_REGS, */					     \
-  CR_REGS, CA_REGS, LIM_REG_CLASSES					     \
 }
 
 /* The same information, inverted:
@@ -1570,25 +1552,29 @@ typedef struct rs6000_args
   int floats_in_gpr;		/* count of SFmode floats taking up
 				   GPR space (darwin64) */
   int named;			/* false for varargs params */
+  int escapes;			/* if function visible outside tu */
 } CUMULATIVE_ARGS;
 
 /* Initialize a variable CUM of type CUMULATIVE_ARGS
    for a call to a function whose data type is FNTYPE.
    For a library call, FNTYPE is 0.  */
 
-#define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
-  init_cumulative_args (&CUM, FNTYPE, LIBNAME, FALSE, FALSE, N_NAMED_ARGS)
+#define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, FNDECL, N_NAMED_ARGS) \
+  init_cumulative_args (&CUM, FNTYPE, LIBNAME, FALSE, FALSE, \
+			N_NAMED_ARGS, FNDECL, VOIDmode)
 
 /* Similar, but when scanning the definition of a procedure.  We always
    set NARGS_PROTOTYPE large so we never return an EXPR_LIST.  */
 
 #define INIT_CUMULATIVE_INCOMING_ARGS(CUM, FNTYPE, LIBNAME) \
-  init_cumulative_args (&CUM, FNTYPE, LIBNAME, TRUE, FALSE, 1000)
+  init_cumulative_args (&CUM, FNTYPE, LIBNAME, TRUE, FALSE, \
+			1000, current_function_decl, VOIDmode)
 
 /* Like INIT_CUMULATIVE_ARGS' but only used for outgoing libcalls.  */
 
 #define INIT_CUMULATIVE_LIBCALL_ARGS(CUM, MODE, LIBNAME) \
-  init_cumulative_args (&CUM, NULL_TREE, LIBNAME, FALSE, TRUE, 0)
+  init_cumulative_args (&CUM, NULL_TREE, LIBNAME, FALSE, TRUE, \
+			0, NULL_TREE, MODE)
 
 /* If defined, a C expression which determines whether, and in which
    direction, to pad out an argument with extra space.  The value

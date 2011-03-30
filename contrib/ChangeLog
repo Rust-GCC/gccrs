@@ -1,3 +1,16 @@
+2011-03-22  Joseph Myers  <joseph@codesourcery.com>
+
+	* compare-all-tests (all_targets): Remove crx and m68hc11.
+
+2011-03-21  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR bootstrap/48135
+	* make_sunver.pl: Don't use File::Glob.
+
+2011-03-05  Joseph Myers  <joseph@codesourcery.com>
+
+	* gennews (files): Add files for GCC 4.6.
+
 2011-01-26  Dave Korn  <dave.korn.cygwin@gmail.com>
 
 	* patch_tester.sh (nopristinecache): New shell var, set according

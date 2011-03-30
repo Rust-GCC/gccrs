@@ -1,5 +1,5 @@
 /* Inlining decision heuristics.
-   Copyright (C) 2003, 2004, 2007, 2008, 2009, 2010
+   Copyright (C) 2003, 2004, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
@@ -333,7 +333,7 @@ cgraph_mark_inline_edge (struct cgraph_edge *e, bool update_original,
   ncalls_inlined++;
 
   /* FIXME: We should remove the optimize check after we ensure we never run
-     IPA passes when not optimizng.  */
+     IPA passes when not optimizing.  */
   if (flag_indirect_inlining && optimize)
     return ipa_propagate_indirect_call_infos (curr, new_edges);
   else
@@ -528,7 +528,7 @@ cgraph_edge_badness (struct cgraph_edge *edge, bool dump)
 
   if (dump)
     {
-      fprintf (dump_file, "    Badness calculcation for %s -> %s\n",
+      fprintf (dump_file, "    Badness calculation for %s -> %s\n",
 	       cgraph_node_name (edge->caller),
 	       cgraph_node_name (edge->callee));
       fprintf (dump_file, "      growth %i, time %i-%i, size %i-%i\n",
@@ -653,7 +653,7 @@ update_edge_key (fibheap_t heap, struct cgraph_edge *edge)
       /* fibheap_replace_key only decrease the keys.
 	 When we increase the key we do not update heap
 	 and instead re-insert the element once it becomes
-	 a minium of heap.  */
+	 a minimum of heap.  */
       if (badness < n->key)
 	{
 	  fibheap_replace_key (heap, n, badness);
@@ -1006,7 +1006,7 @@ add_new_edges_to_heap (fibheap_t heap, VEC (cgraph_edge_p, heap) *new_edges)
    All inline candidates are put into prioritized heap based on estimated
    growth of the overall number of instructions and then update the estimates.
 
-   INLINED and INLINED_CALEES are just pointers to arrays large enough
+   INLINED and INLINED_CALLEES are just pointers to arrays large enough
    to be passed to cgraph_inlined_into and cgraph_inlined_callees.  */
 
 static void
@@ -1118,7 +1118,7 @@ cgraph_decide_inlining_of_small_functions (void)
 	 ??? When the frequencies are taken into account we might not need this
 	 restriction.
 
-	 We need to be cureful here, in some testcases, e.g. directivec.c in
+	 We need to be careful here, in some testcases, e.g. directives.c in
 	 libcpp, we can estimate self recursive function to have negative growth
 	 for inlining completely.
 	 */
@@ -1243,7 +1243,7 @@ cgraph_decide_inlining_of_small_functions (void)
       if (dump_file)
 	{
 	  fprintf (dump_file,
-		   " Inlined into %s which now has size %i and self time %i,"
+		   " Inlined into %s which now has time %i and size %i,"
 		   "net change of %+i.\n",
 		   cgraph_node_name (edge->caller),
 		   edge->caller->global.time,
@@ -1498,6 +1498,7 @@ cgraph_decide_inlining (void)
 	      && node->callers->caller != node
 	      && node->callers->caller->global.inlined_to != node
 	      && !node->callers->call_stmt_cannot_inline_p
+	      && tree_can_inline_p (node->callers)
 	      && !DECL_EXTERNAL (node->decl))
 	    {
 	      cgraph_inline_failed_t reason;
@@ -1815,7 +1816,7 @@ struct gimple_opt_pass pass_early_inline =
    0 - means not eliminated
    1 - half of statements goes away
    2 - for sure it is eliminated.
-   We are not terribly sophisficated, basically looking for simple abstraction
+   We are not terribly sophisticated, basically looking for simple abstraction
    penalty wrappers.  */
 
 static int
@@ -1975,22 +1976,23 @@ estimate_function_body_sizes (struct cgraph_node *node)
 }
 
 /* Compute parameters of functions used by inliner.  */
-unsigned int
+void
 compute_inline_parameters (struct cgraph_node *node)
 {
   HOST_WIDE_INT self_stack_size;
 
   gcc_assert (!node->global.inlined_to);
 
-  /* Estimate the stack size for the function.  But not at -O0
-     because estimated_stack_frame_size is a quadratic problem.  */
-  self_stack_size = optimize ? estimated_stack_frame_size (node->decl) : 0;
+  /* Estimate the stack size for the function if we're optimizing.  */
+  self_stack_size = optimize ? estimated_stack_frame_size (node) : 0;
   inline_summary (node)->estimated_self_stack_size = self_stack_size;
   node->global.estimated_stack_size = self_stack_size;
   node->global.stack_frame_offset = 0;
 
   /* Can this function be inlined at all?  */
   node->local.inlinable = tree_inlinable_function_p (node->decl);
+  if (!node->local.inlinable)
+    node->local.disregard_inline_limits = 0;
 
   /* Inlinable functions always can change signature.  */
   if (node->local.inlinable)
@@ -1999,7 +2001,7 @@ compute_inline_parameters (struct cgraph_node *node)
     {
       struct cgraph_edge *e;
 
-      /* Functions calling builtlin_apply can not change signature.  */
+      /* Functions calling builtin_apply can not change signature.  */
       for (e = node->callees; e; e = e->next_callee)
 	if (DECL_BUILT_IN (e->callee->decl)
 	    && DECL_BUILT_IN_CLASS (e->callee->decl) == BUILT_IN_NORMAL
@@ -2007,14 +2009,10 @@ compute_inline_parameters (struct cgraph_node *node)
 	  break;
       node->local.can_change_signature = !e;
     }
-  if (node->local.inlinable && !node->local.disregard_inline_limits)
-    node->local.disregard_inline_limits
-      = DECL_DISREGARD_INLINE_LIMITS (node->decl);
   estimate_function_body_sizes (node);
   /* Inlining characteristics are maintained by the cgraph_mark_inline.  */
   node->global.time = inline_summary (node)->self_time;
   node->global.size = inline_summary (node)->self_size;
-  return 0;
 }
 
 
@@ -2046,7 +2044,7 @@ struct gimple_opt_pass pass_inline_parameters =
  }
 };
 
-/* This function performs intraprocedural analyzis in NODE that is required to
+/* This function performs intraprocedural analysis in NODE that is required to
    inline indirect calls.  */
 static void
 inline_indirect_intraprocedural_analysis (struct cgraph_node *node)
@@ -2068,7 +2066,7 @@ analyze_function (struct cgraph_node *node)
 
   compute_inline_parameters (node);
   /* FIXME: We should remove the optimize check after we ensure we never run
-     IPA passes when not optimizng.  */
+     IPA passes when not optimizing.  */
   if (flag_indirect_inlining && optimize)
     inline_indirect_intraprocedural_analysis (node);
 
@@ -2114,7 +2112,7 @@ inline_transform (struct cgraph_node *node)
   struct cgraph_edge *e;
   bool inline_p = false;
 
-  /* FIXME: Currently the passmanager is adding inline transform more than once to some
+  /* FIXME: Currently the pass manager is adding inline transform more than once to some
      clones.  This needs revisiting after WPA cleanups.  */
   if (cfun->after_inlining)
     return 0;

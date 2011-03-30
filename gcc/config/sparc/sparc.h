@@ -388,10 +388,9 @@ extern enum cmodel sparc_cmodel;
 %{!m32:%{!m64:%(cpp_arch_default)}} \
 "
 
-/* Macros to distinguish endianness.  */
+/* Macro to distinguish endianness.  */
 #define CPP_ENDIAN_SPEC "\
-%{mlittle-endian:-D__LITTLE_ENDIAN__} \
-%{mlittle-endian-data:-D__LITTLE_ENDIAN_DATA__}"
+%{mlittle-endian:-D__LITTLE_ENDIAN__}"
 
 /* Macros to distinguish the particular subtarget.  */
 #define CPP_SUBTARGET_SPEC ""
@@ -514,31 +513,6 @@ extern enum cmodel sparc_cmodel;
    -mno-app-regs).  */
 #define TARGET_DEFAULT (MASK_APP_REGS + MASK_FPU)
 
-/* Processor type.
-   These must match the values for the cpu attribute in sparc.md.  */
-enum processor_type {
-  PROCESSOR_V7,
-  PROCESSOR_CYPRESS,
-  PROCESSOR_V8,
-  PROCESSOR_SUPERSPARC,
-  PROCESSOR_HYPERSPARC,
-  PROCESSOR_LEON,
-  PROCESSOR_SPARCLITE,
-  PROCESSOR_F930,
-  PROCESSOR_F934,
-  PROCESSOR_SPARCLITE86X,
-  PROCESSOR_SPARCLET,
-  PROCESSOR_TSC701,
-  PROCESSOR_V9,
-  PROCESSOR_ULTRASPARC,
-  PROCESSOR_ULTRASPARC3,
-  PROCESSOR_NIAGARA,
-  PROCESSOR_NIAGARA2
-};
-
-/* This is set from -m{cpu,tune}=xxx.  */
-extern enum processor_type sparc_cpu;
-
 /* Recast the cpu class to be the cpu attribute.
    Every file includes us, but not every file includes insn-attr.h.  */
 #define sparc_cpu_attr ((enum attr_cpu) sparc_cpu)
@@ -551,18 +525,7 @@ extern enum processor_type sparc_cpu;
 #define OPTION_DEFAULT_SPECS \
   {"cpu", "%{!mcpu=*:-mcpu=%(VALUE)}" }, \
   {"tune", "%{!mtune=*:-mtune=%(VALUE)}" }, \
-  {"float", "%{!msoft-float:%{!mhard-float:%{!fpu:%{!no-fpu:-m%(VALUE)-float}}}}" }
-
-/* sparc_select[0] is reserved for the default cpu.  */
-struct sparc_cpu_select
-{
-  const char *string;
-  const char *const name;
-  const int set_tune_p;
-  const int set_arch_p;
-};
-
-extern struct sparc_cpu_select sparc_select[];
+  {"float", "%{!msoft-float:%{!mhard-float:%{!mfpu:%{!mno-fpu:-m%(VALUE)-float}}}}" }
 
 /* target machine storage layout */
 
@@ -1008,19 +971,6 @@ enum reg_class { NO_REGS, FPCC_REGS, I64_REGS, GENERAL_REGS, FP_REGS,
 extern enum reg_class sparc_regno_reg_class[FIRST_PSEUDO_REGISTER];
 
 #define REGNO_REG_CLASS(REGNO) sparc_regno_reg_class[(REGNO)]
-
-/* The following macro defines cover classes for Integrated Register
-   Allocator.  Cover classes is a set of non-intersected register
-   classes covering all hard registers used for register allocation
-   purpose.  Any move between two registers of a cover class should be
-   cheaper than load or store of the registers.  The macro value is
-   array of register classes with LIM_REG_CLASSES used as the end
-   marker.  */
-
-#define IRA_COVER_CLASSES						     \
-{									     \
-  GENERAL_REGS, EXTRA_FP_REGS, FPCC_REGS, LIM_REG_CLASSES		     \
-}
 
 /* Defines invalid mode changes.  Borrowed from pa64-regs.h.
 

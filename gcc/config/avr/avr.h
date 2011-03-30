@@ -296,19 +296,6 @@ enum reg_class {
 
 #define REGNO_REG_CLASS(R) avr_regno_reg_class(R)
 
-/* The following macro defines cover classes for Integrated Register
-   Allocator.  Cover classes is a set of non-intersected register
-   classes covering all hard registers used for register allocation
-   purpose.  Any move between two registers of a cover class should be
-   cheaper than load or store of the registers.  The macro value is
-   array of register classes with LIM_REG_CLASSES used as the end
-   marker.  */
-
-#define IRA_COVER_CLASSES               \
-{                                       \
-  GENERAL_REGS, LIM_REG_CLASSES         \
-}
-
 #define BASE_REG_CLASS (reload_completed ? BASE_POINTER_REGS : POINTER_REGS)
 
 #define INDEX_REG_CLASS NO_REGS
@@ -351,9 +338,6 @@ enum reg_class {
 
 #define STATIC_CHAIN_REGNUM 2
 
-/* Offset from the frame pointer register value to the top of the stack.  */
-#define FRAME_POINTER_CFA_OFFSET(FNDECL) 0
-
 #define ELIMINABLE_REGS {					\
       {ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM},		\
 	{FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM}		\
@@ -379,12 +363,6 @@ typedef struct avr_args {
 #define FUNCTION_ARG_REGNO_P(r) function_arg_regno_p(r)
 
 extern int avr_reg_order[];
-
-#define RET_REGISTER avr_ret_register ()
-
-#define LIBCALL_VALUE(MODE)  avr_libcall_value (MODE)
-
-#define FUNCTION_VALUE_REGNO_P(N) ((int) (N) == RET_REGISTER)
 
 #define DEFAULT_PCC_STRUCT_RETURN 0
 
@@ -446,15 +424,6 @@ do {									    \
 } while(0)
 
 #define LEGITIMATE_CONSTANT_P(X) 1
-
-#define REGISTER_MOVE_COST(MODE, FROM, TO) ((FROM) == STACK_REG ? 6 \
-					    : (TO) == STACK_REG ? 12 \
-					    : 2)
-
-#define MEMORY_MOVE_COST(MODE,CLASS,IN) ((MODE)==QImode ? 2 :	\
-					 (MODE)==HImode ? 4 :	\
-					 (MODE)==SImode ? 8 :	\
-					 (MODE)==SFmode ? 8 : 16)
 
 #define BRANCH_COST(speed_p, predictable_p) 0
 
@@ -809,6 +778,13 @@ mmcu=*:-mmcu=%*}"
 
 #define OBJECT_FORMAT_ELF
 
+#define INCOMING_RETURN_ADDR_RTX   avr_incoming_return_addr_rtx ()
+#define INCOMING_FRAME_SP_OFFSET   (AVR_3_BYTE_PC ? 3 : 2)
+
+/* The caller's stack pointer value immediately before the call
+   is one byte below the first argument.  */
+#define ARG_POINTER_CFA_OFFSET(FNDECL)  -1
+
 #define HARD_REGNO_RENAME_OK(OLD_REG, NEW_REG) \
   avr_hard_regno_rename_ok (OLD_REG, NEW_REG)
 
@@ -837,4 +813,7 @@ struct GTY(()) machine_function
   
   /* Current function stack size.  */
   int stack_usage;
+
+  /* 'true' if a callee might be tail called */
+  int sibcall_fails;
 };

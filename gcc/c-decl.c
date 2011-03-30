@@ -1813,20 +1813,16 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
 	  || TREE_NO_WARNING (olddecl))
 	return true;  /* Allow OLDDECL to continue in use.  */
 
-      if (pedantic && !flag_isoc1x)
+      if (variably_modified_type_p (newtype, NULL))
+	{
+	  error ("redefinition of typedef %q+D with variably modified type",
+		 newdecl);
+	  locate_old_decl (olddecl);
+	}
+      else if (pedantic && !flag_isoc1x)
 	{
 	  pedwarn (input_location, OPT_pedantic,
 		   "redefinition of typedef %q+D", newdecl);
-	  locate_old_decl (olddecl);
-	}
-      else if (variably_modified_type_p (newtype, NULL))
-	{
-	  /* Whether there is a constraint violation for the types not
-	     being the same cannot be determined at compile time; a
-	     warning that there may be one at runtime is considered
-	     appropriate (WG14 reflector message 11743, 8 May 2009).  */
-	  warning (0, "redefinition of typedef %q+D may be a constraint "
-		   "violation at runtime", newdecl);
 	  locate_old_decl (olddecl);
 	}
 
@@ -4892,6 +4888,7 @@ grokdeclarator (const struct c_declarator *declarator,
   const char *errmsg;
   tree expr_dummy;
   bool expr_const_operands_dummy;
+  enum c_declarator_kind first_non_attr_kind;
 
   if (TREE_CODE (type) == ERROR_MARK)
     return error_mark_node;
@@ -4911,6 +4908,7 @@ grokdeclarator (const struct c_declarator *declarator,
   {
     const struct c_declarator *decl = declarator;
 
+    first_non_attr_kind = cdk_attrs;
     while (decl)
       switch (decl->kind)
 	{
@@ -4922,6 +4920,8 @@ grokdeclarator (const struct c_declarator *declarator,
 	case cdk_pointer:
 	  funcdef_syntax = (decl->kind == cdk_function);
 	  decl = decl->declarator;
+	  if (first_non_attr_kind == cdk_attrs)
+	    first_non_attr_kind = decl->kind;
 	  break;
 
 	case cdk_attrs:
@@ -4932,6 +4932,8 @@ grokdeclarator (const struct c_declarator *declarator,
 	  loc = decl->id_loc;
 	  if (decl->u.id)
 	    name = decl->u.id;
+	  if (first_non_attr_kind == cdk_attrs)
+	    first_non_attr_kind = decl->kind;
 	  decl = 0;
 	  break;
 
@@ -5038,7 +5040,9 @@ grokdeclarator (const struct c_declarator *declarator,
     error_at (loc, "conflicting named address spaces (%s vs %s)",
 	      c_addr_space_name (as1), c_addr_space_name (as2));
 
-  if (!flag_gen_aux_info && (TYPE_QUALS (element_type)))
+  if ((TREE_CODE (type) == ARRAY_TYPE
+       || first_non_attr_kind == cdk_array)
+      && TYPE_QUALS (element_type))
     type = TYPE_MAIN_VARIANT (type);
   type_quals = ((constp ? TYPE_QUAL_CONST : 0)
 		| (restrictp ? TYPE_QUAL_RESTRICT : 0)
@@ -6674,11 +6678,14 @@ grokfield (location_t loc,
 		      || TREE_CODE (type) == UNION_TYPE);
       bool ok = false;
 
-      if (type_ok)
+      if (type_ok
+	  && (flag_ms_extensions
+	      || flag_plan9_extensions
+	      || !declspecs->typedef_p))
 	{
 	  if (flag_ms_extensions || flag_plan9_extensions)
 	    ok = true;
-	  else if (TYPE_NAME (TYPE_MAIN_VARIANT (type)) == NULL)
+	  else if (TYPE_NAME (type) == NULL)
 	    ok = true;
 	  else
 	    ok = false;
