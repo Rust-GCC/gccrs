@@ -1447,7 +1447,9 @@ update_conflict_hard_regno_costs (int *costs, enum reg_class aclass,
 }
 
 /* Set up conflicting and profitable regs (through CONFLICT_REGS and
-   PROFITABLE_REGS) for each object of allocno A.  */
+   PROFITABLE_REGS) for each object of allocno A.  Remember that the
+   profitable regs exclude hard regs which can not hold value of mode
+   of allocno A.  */
 static inline void
 setup_conflict_profitable_regs (ira_allocno_t a, bool retry_p,
 				HARD_REG_SET *conflict_regs,
@@ -1463,8 +1465,13 @@ setup_conflict_profitable_regs (ira_allocno_t a, bool retry_p,
       COPY_HARD_REG_SET (conflict_regs[i],
 			 OBJECT_TOTAL_CONFLICT_HARD_REGS (obj));
       if (retry_p)
-	COPY_HARD_REG_SET (profitable_regs[i],
-			   reg_class_contents[ALLOCNO_CLASS (a)]);
+	{
+	  COPY_HARD_REG_SET (profitable_regs[i],
+			     reg_class_contents[ALLOCNO_CLASS (a)]);
+	  AND_COMPL_HARD_REG_SET (profitable_regs[i],
+				  ira_prohibited_class_mode_regs
+				  [ALLOCNO_CLASS (a)][ALLOCNO_MODE (a)]);
+	}
       else
 	COPY_HARD_REG_SET (profitable_regs[i],
 			   OBJECT_COLOR_DATA (obj)->profitable_hard_regs);
@@ -1615,10 +1622,11 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
 	      if (hard_regno >= 0
 		  && ira_class_hard_reg_index[aclass][hard_regno] >= 0)
 		{
-		  enum machine_mode mode = ALLOCNO_MODE (conflict_a);
-		  int conflict_nregs = hard_regno_nregs[hard_regno][mode];
 		  int n_objects = ALLOCNO_NUM_OBJECTS (conflict_a);
+		  int conflict_nregs;
 
+		  mode = ALLOCNO_MODE (conflict_a);
+		  conflict_nregs = hard_regno_nregs[hard_regno][mode];
 		  if (conflict_nregs == n_objects && conflict_nregs > 1)
 		    {
 		      int num = OBJECT_SUBWORD (conflict_obj);

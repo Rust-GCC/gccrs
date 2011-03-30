@@ -9152,11 +9152,14 @@ coproc_secondary_reload_class (enum machine_mode mode, rtx x, bool wb)
       return GENERAL_REGS;
     }
 
+  /* The neon move patterns handle all legitimate vector and struct
+     addresses.  */
   if (TARGET_NEON
+      && MEM_P (x)
       && (GET_MODE_CLASS (mode) == MODE_VECTOR_INT
-          || GET_MODE_CLASS (mode) == MODE_VECTOR_FLOAT)
-      && neon_vector_mem_operand (x, 0))
-     return NO_REGS;
+	  || GET_MODE_CLASS (mode) == MODE_VECTOR_FLOAT
+	  || VALID_NEON_STRUCT_MODE (mode)))
+    return NO_REGS;
 
   if (arm_coproc_mem_operand (x, wb) || s_register_operand (x, mode))
     return NO_REGS;
@@ -10894,14 +10897,14 @@ arm_reload_in_hi (rtx *operands)
 	 are two cases here: the first where there is a simple
 	 stack-slot replacement and a second where the stack-slot is
 	 out of range, or is used as a subreg.  */
-      if (reg_equiv_mem[REGNO (ref)])
+      if (reg_equiv_mem (REGNO (ref)))
 	{
-	  ref = reg_equiv_mem[REGNO (ref)];
+	  ref = reg_equiv_mem (REGNO (ref));
 	  base = find_replacement (&XEXP (ref, 0));
 	}
       else
 	/* The slot is out of range, or was dressed up in a SUBREG.  */
-	base = reg_equiv_address[REGNO (ref)];
+	base = reg_equiv_address (REGNO (ref));
     }
   else
     base = find_replacement (&XEXP (ref, 0));
@@ -11011,14 +11014,14 @@ arm_reload_out_hi (rtx *operands)
 	 are two cases here: the first where there is a simple
 	 stack-slot replacement and a second where the stack-slot is
 	 out of range, or is used as a subreg.  */
-      if (reg_equiv_mem[REGNO (ref)])
+      if (reg_equiv_mem (REGNO (ref)))
 	{
-	  ref = reg_equiv_mem[REGNO (ref)];
+	  ref = reg_equiv_mem (REGNO (ref));
 	  base = find_replacement (&XEXP (ref, 0));
 	}
       else
 	/* The slot is out of range, or was dressed up in a SUBREG.  */
-	base = reg_equiv_address[REGNO (ref)];
+	base = reg_equiv_address (REGNO (ref));
     }
   else
     base = find_replacement (&XEXP (ref, 0));

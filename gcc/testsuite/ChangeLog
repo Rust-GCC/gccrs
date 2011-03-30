@@ -1,3 +1,17 @@
+2011-03-30  Richard Sandiford  <richard.sandiford@linaro.org>
+
+	PR target/47551
+	* gcc.target/arm/neon-modes-2.c: New test.
+
+2011-03-30  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/48305
+	* gcc.c-torture/compile/pr48305.c: New test.
+
+2011-03-29  Jason Merrill  <jason@redhat.com>
+
+	* g++.dg/cpp0x/regress/value-dep1.C: New.
+
 2011-03-29  Steve Ellcey  <sje@cup.hp.com>
 
 	* gcc.dg/torture/pr47917.c: Use -std=gnu99 on HP-UX.
