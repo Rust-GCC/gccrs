@@ -82,10 +82,6 @@ extern const char * const *h8_reg_names;
 
 #define LIB_SPEC "%{mrelax:-relax} %{g:-lg} %{!p:%{!pg:-lc}}%{p:-lc_p}%{pg:-lc_p}"
 
-/* Print subsidiary information on the compiler version in use.  */
-
-#define TARGET_VERSION fprintf (stderr, " (Renesas H8/300)");
-
 /* Macros used in the machine description to test the flags.  */
 
 /* Select between the H8/300 and H8/300H CPUs.  */
@@ -361,76 +357,6 @@ enum reg_class {
 #define INDEX_REG_CLASS (TARGET_H8300SX ? GENERAL_REGS : NO_REGS)
 #define BASE_REG_CLASS  GENERAL_REGS
 
-/* Get reg_class from a letter such as appears in the machine description.
-
-   'a' is the MAC register.  */
-
-#define REG_CLASS_FROM_LETTER(C) (h8300_reg_class_from_letter (C))
-
-/* The letters I, J, K, L, M, N, O, P in a register constraint string
-   can be used to stand for particular ranges of immediate operands.
-   This macro defines what the ranges are.
-   C is the letter, and VALUE is a constant value.
-   Return 1 if VALUE is in the range specified by C.  */
-
-#define CONST_OK_FOR_I(VALUE) ((VALUE) == 0)
-#define CONST_OK_FOR_J(VALUE) (((VALUE) & 0xff) == 0)
-#define CONST_OK_FOR_L(VALUE)				\
-  (TARGET_H8300H || TARGET_H8300S			\
-   ? (VALUE) == 1 || (VALUE) == 2 || (VALUE) == 4	\
-   : (VALUE) == 1 || (VALUE) == 2)
-#define CONST_OK_FOR_M(VALUE)				\
-  ((VALUE) == 1 || (VALUE) == 2)
-#define CONST_OK_FOR_N(VALUE)				\
-  (TARGET_H8300H || TARGET_H8300S			\
-   ? (VALUE) == -1 || (VALUE) == -2 || (VALUE) == -4	\
-   : (VALUE) == -1 || (VALUE) == -2)
-#define CONST_OK_FOR_O(VALUE)				\
-  ((VALUE) == -1 || (VALUE) == -2)
-
-/* Multi-letter constraints for constant are always started with P
-   (just because it was the only letter in the range left.  New
-   constraints for constants should be added here.  */
-#define CONST_OK_FOR_Ppositive(VALUE, NBITS)		\
-  ((VALUE) > 0 && (VALUE) < (1 << (NBITS)))
-#define CONST_OK_FOR_Pnegative(VALUE, NBITS)		\
-  ((VALUE) < 0 && (VALUE) > -(1 << (NBITS)))
-#define CONST_OK_FOR_P(VALUE, STR) \
-  ((STR)[1] >= '1' && (STR)[1] <= '9' && (STR)[2] == '<' 	\
-   ? (((STR)[3] == '0' || ((STR)[3] == 'X' && TARGET_H8300SX))	\
-      && CONST_OK_FOR_Pnegative ((VALUE), (STR)[1] - '0'))	\
-   : ((STR)[1] >= '1' && (STR)[1] <= '9' && (STR)[2] == '>')	\
-   ? (((STR)[3] == '0' || ((STR)[3] == 'X' && TARGET_H8300SX))	\
-      && CONST_OK_FOR_Ppositive ((VALUE), (STR)[1] - '0'))	\
-   : 0)
-#define CONSTRAINT_LEN_FOR_P(STR) \
-  ((((STR)[1] >= '1' && (STR)[1] <= '9')			\
-    && ((STR)[2] == '<' || (STR)[2] == '>')			\
-    && ((STR)[3] == 'X' || (STR)[3] == '0')) ? 4		\
-   : 0)
-
-#define CONST_OK_FOR_CONSTRAINT_P(VALUE, C, STR)	\
-  ((C) == 'P' ? CONST_OK_FOR_P ((VALUE), (STR))		\
-   : CONST_OK_FOR_LETTER_P ((VALUE), (C)))
-  
-#define CONST_OK_FOR_LETTER_P(VALUE, C)		\
-  ((C) == 'I' ? CONST_OK_FOR_I (VALUE) :	\
-   (C) == 'J' ? CONST_OK_FOR_J (VALUE) :	\
-   (C) == 'L' ? CONST_OK_FOR_L (VALUE) :	\
-   (C) == 'M' ? CONST_OK_FOR_M (VALUE) :	\
-   (C) == 'N' ? CONST_OK_FOR_N (VALUE) :	\
-   (C) == 'O' ? CONST_OK_FOR_O (VALUE) :	\
-   0)
-
-/* Similar, but for floating constants, and defining letters G and H.
-   Here VALUE is the CONST_DOUBLE rtx itself.
-
-  `G' is a floating-point zero.  */
-
-#define CONST_DOUBLE_OK_FOR_LETTER_P(VALUE, C)	\
-  ((C) == 'G' ? (VALUE) == CONST0_RTX (SFmode)	\
-   : 0)
-
 /* Return the maximum number of consecutive registers
    needed to represent mode MODE in a register of class CLASS.  */
 
@@ -439,13 +365,6 @@ enum reg_class {
 #define CLASS_MAX_NREGS(CLASS, MODE)	\
   ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
 
-/* Any SI register-to-register move may need to be reloaded,
-   so define REGISTER_MOVE_COST to be > 2 so that reload never
-   shortcuts.  */
-
-#define REGISTER_MOVE_COST(MODE, CLASS1, CLASS2)  \
-  (CLASS1 == MAC_REGS || CLASS2 == MAC_REGS ? 6 : 3)
-
 /* Stack layout; function entry, exit and calling.  */
 
 /* Define this if pushing a word on the stack
@@ -649,133 +568,6 @@ struct cum_arg
 
 #endif
 
-/* Extra constraints.  */
-
-#define OK_FOR_Q(OP)					\
-  (TARGET_H8300SX && memory_operand ((OP), VOIDmode))
-
-#define OK_FOR_R(OP)					\
-  (GET_CODE (OP) == CONST_INT				\
-   ? !h8300_shift_needs_scratch_p (INTVAL (OP), QImode)	\
-   : 0)
-
-#define OK_FOR_S(OP)					\
-  (GET_CODE (OP) == CONST_INT				\
-   ? !h8300_shift_needs_scratch_p (INTVAL (OP), HImode)	\
-   : 0)
-
-#define OK_FOR_T(OP)					\
-  (GET_CODE (OP) == CONST_INT				\
-   ? !h8300_shift_needs_scratch_p (INTVAL (OP), SImode)	\
-   : 0)
-
-/* 'U' if valid for a bset destination;
-   i.e. a register, register indirect, or the eightbit memory region
-   (a SYMBOL_REF with an SYMBOL_REF_FLAG set).
-
-   On the H8S 'U' can also be a 16bit or 32bit absolute.  */
-#define OK_FOR_U(OP)							\
-  ((GET_CODE (OP) == REG && REG_OK_FOR_BASE_P (OP))			\
-   || (GET_CODE (OP) == MEM && GET_CODE (XEXP (OP, 0)) == REG		\
-       && REG_OK_FOR_BASE_P (XEXP (OP, 0)))				\
-   || (GET_CODE (OP) == MEM && GET_CODE (XEXP (OP, 0)) == SYMBOL_REF	\
-       && TARGET_H8300S)						\
-   || (GET_CODE (OP) == MEM && GET_CODE (XEXP (OP, 0)) == CONST		\
-       && GET_CODE (XEXP (XEXP (OP, 0), 0)) == PLUS			\
-       && GET_CODE (XEXP (XEXP (XEXP (OP, 0), 0), 0)) == SYMBOL_REF	\
-       && GET_CODE (XEXP (XEXP (XEXP (OP, 0), 0), 1)) == CONST_INT	\
-       && (TARGET_H8300S						\
-	   || SYMBOL_REF_FLAG (XEXP (XEXP (XEXP (OP, 0), 0), 0))))	\
-   || (GET_CODE (OP) == MEM						\
-       && h8300_eightbit_constant_address_p (XEXP (OP, 0)))		\
-   || (GET_CODE (OP) == MEM && (TARGET_H8300S || TARGET_H8300SX)	\
-       && GET_CODE (XEXP (OP, 0)) == CONST_INT))
-
-/* Multi-letter constraints starting with W are to be used for
-   operands that require a memory operand, i.e,. that are never used
-   along with register constraints (see EXTRA_MEMORY_CONSTRAINTS).  */
-
-#define OK_FOR_WU(OP)					\
-  (GET_CODE (OP) == MEM && OK_FOR_U (OP))
-
-#define OK_FOR_W(OP, STR)				\
-  ((STR)[1] == 'U' ? OK_FOR_WU (OP)			\
-   : 0)
-
-#define CONSTRAINT_LEN_FOR_W(STR)			\
-  ((STR)[1] == 'U' ? 2					\
-   : 0)
-
-/* Multi-letter constraints starting with Y are to be used for operands
-   that are constant immediates and have single 1 or 0 in their binary
-   representation.  */
-
-#define OK_FOR_Y2(OP)                                   \
-  ((GET_CODE (OP) == CONST_INT) && (exact_log2 (INTVAL (OP) & 0xff) != -1))
-
-#define OK_FOR_Y0(OP)                                   \
-  ((GET_CODE (OP) == CONST_INT) && (exact_log2 (~INTVAL (OP) & 0xff) != -1))
-
-#define OK_FOR_Y(OP, STR)                               \
-  ((STR)[1] == '2' ? OK_FOR_Y2 (OP)                     \
-   : (STR)[1] == '0' ? OK_FOR_Y0 (OP)	\
-   : 0)
-
-#define CONSTRAINT_LEN_FOR_Y(STR)			\
-  ((STR)[1] == '2' ? 2                                  \
-   : (STR)[1] == '0' ? 2		\
-   : 0)
-
-#define OK_FOR_Z(OP)					\
-  (TARGET_H8300SX					\
-   && GET_CODE (OP) == MEM				\
-   && CONSTANT_P (XEXP ((OP), 0)))
-
-#define EXTRA_CONSTRAINT_STR(OP, C, STR)	\
-  ((C) == 'Q' ? OK_FOR_Q (OP) :			\
-   (C) == 'R' ? OK_FOR_R (OP) :			\
-   (C) == 'S' ? OK_FOR_S (OP) :			\
-   (C) == 'T' ? OK_FOR_T (OP) :			\
-   (C) == 'U' ? OK_FOR_U (OP) :			\
-   (C) == 'W' ? OK_FOR_W ((OP), (STR)) :	\
-   (C) == 'Y' ? OK_FOR_Y ((OP), (STR)) :	\
-   (C) == 'Z' ? OK_FOR_Z (OP) :			\
-   0)
-
-#define CONSTRAINT_LEN(C, STR) \
-  ((C) == 'P' ? CONSTRAINT_LEN_FOR_P (STR)	\
-   : (C) == 'W' ? CONSTRAINT_LEN_FOR_W (STR)	\
-   : (C) == 'Y' ? CONSTRAINT_LEN_FOR_Y (STR)	\
-   : DEFAULT_CONSTRAINT_LEN ((C), (STR)))
-
-/* Experiments suggest that it's better not add 'Q' or 'U' here.  No
-   patterns need it for correctness (no patterns use 'Q' and 'U'
-   without also providing a register alternative).  And defining it
-   will mean that a spilled pseudo could be replaced by its frame
-   location in several consecutive insns.
-
-   Instead, it seems to be better to force pseudos to be reloaded
-   into registers and then use peepholes to recombine insns when
-   beneficial.
-
-   Unfortunately, for WU (unlike plain U, that matches regs as well),
-   we must require a memory address.  In fact, all multi-letter
-   constraints started with W are supposed to have this property, so
-   we just test for W here.  */
-#define EXTRA_MEMORY_CONSTRAINT(C, STR) \
-  ((C) == 'W')
-
-
-/* Go to LABEL if ADDR (a legitimate address expression)
-   has an effect that depends on the machine mode it is used for.
-
-   On the H8/300, the predecrement and postincrement address depend thus
-   (the amount of decrement or increment being the length of the operand).  */
-
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL) \
-  if (GET_CODE (ADDR) == PLUS \
-      && h8300_get_index (XEXP (ADDR, 0), VOIDmode, 0) != XEXP (ADDR, 0)) \
-    goto LABEL;
 
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */
@@ -991,19 +783,6 @@ struct cum_arg
   fprintf ((FILE), ",%d\n", (int)(SIZE)))
 
 #define ASM_PN_FORMAT "%s___%lu"
-
-/* Print an instruction operand X on file FILE.
-   Look in h8300.c for details.  */
-
-#define PRINT_OPERAND_PUNCT_VALID_P(CODE) \
-  ((CODE) == '#')
-
-#define PRINT_OPERAND(FILE, X, CODE) print_operand (FILE, X, CODE)
-
-/* Print a memory operand whose address is X, on file FILE.
-   This uses a function in h8300.c.  */
-
-#define PRINT_OPERAND_ADDRESS(FILE, ADDR) print_operand_address (FILE, ADDR)
 
 /* H8300 specific pragmas.  */
 #define REGISTER_TARGET_PRAGMAS()				\

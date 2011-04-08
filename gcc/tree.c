@@ -439,6 +439,7 @@ initialize_tree_contains_struct (void)
 	  break;
 
 	case TS_DECL_WRTL:
+	case TS_CONST_DECL:
 	  MARK_TS_DECL_COMMON (code);
 	  break;
 
@@ -450,7 +451,6 @@ initialize_tree_contains_struct (void)
 	case TS_PARM_DECL:
 	case TS_LABEL_DECL:
 	case TS_RESULT_DECL:
-	case TS_CONST_DECL:
 	  MARK_TS_DECL_WRTL (code);
 	  break;
 
@@ -488,7 +488,6 @@ initialize_tree_contains_struct (void)
   gcc_assert (tree_contains_struct[TRANSLATION_UNIT_DECL][TS_DECL_COMMON]);
   gcc_assert (tree_contains_struct[LABEL_DECL][TS_DECL_COMMON]);
   gcc_assert (tree_contains_struct[FIELD_DECL][TS_DECL_COMMON]);
-  gcc_assert (tree_contains_struct[CONST_DECL][TS_DECL_WRTL]);
   gcc_assert (tree_contains_struct[VAR_DECL][TS_DECL_WRTL]);
   gcc_assert (tree_contains_struct[PARM_DECL][TS_DECL_WRTL]);
   gcc_assert (tree_contains_struct[RESULT_DECL][TS_DECL_WRTL]);
@@ -4647,6 +4646,13 @@ free_lang_data_in_decl (tree decl)
 	  && RECORD_OR_UNION_TYPE_P
 	       (DECL_CONTEXT (DECL_ABSTRACT_ORIGIN (decl))))
 	DECL_ABSTRACT_ORIGIN (decl) = NULL_TREE;
+
+      /* Sometimes the C++ frontend doesn't manage to transform a temporary
+         DECL_VINDEX referring to itself into a vtable slot number as it
+	 should.  Happens with functions that are copied and then forgotten
+	 about.  Just clear it, it won't matter anymore.  */
+      if (DECL_VINDEX (decl) && !host_integerp (DECL_VINDEX (decl), 0))
+	DECL_VINDEX (decl) = NULL_TREE;
     }
   else if (TREE_CODE (decl) == VAR_DECL)
     {
@@ -5913,6 +5919,8 @@ decl_init_priority_insert (tree decl, priority_type priority)
   struct tree_priority_map *h;
 
   gcc_assert (VAR_OR_FUNCTION_DECL_P (decl));
+  if (priority == DEFAULT_INIT_PRIORITY)
+    return;
   h = decl_priority_info (decl);
   h->init = priority;
 }
@@ -5925,6 +5933,8 @@ decl_fini_priority_insert (tree decl, priority_type priority)
   struct tree_priority_map *h;
 
   gcc_assert (TREE_CODE (decl) == FUNCTION_DECL);
+  if (priority == DEFAULT_INIT_PRIORITY)
+    return;
   h = decl_priority_info (decl);
   h->fini = priority;
 }
@@ -9891,50 +9901,6 @@ needs_to_live_in_memory (const_tree t)
 	  || (TREE_CODE (t) == RESULT_DECL
 	      && !DECL_BY_REFERENCE (t)
 	      && aggregate_value_p (t, current_function_decl)));
-}
-
-/* There are situations in which a language considers record types
-   compatible which have different field lists.  Decide if two fields
-   are compatible.  It is assumed that the parent records are compatible.  */
-
-bool
-fields_compatible_p (const_tree f1, const_tree f2)
-{
-  if (!operand_equal_p (DECL_FIELD_BIT_OFFSET (f1),
-			DECL_FIELD_BIT_OFFSET (f2), OEP_ONLY_CONST))
-    return false;
-
-  if (!operand_equal_p (DECL_FIELD_OFFSET (f1),
-                        DECL_FIELD_OFFSET (f2), OEP_ONLY_CONST))
-    return false;
-
-  if (!types_compatible_p (TREE_TYPE (f1), TREE_TYPE (f2)))
-    return false;
-
-  return true;
-}
-
-/* Locate within RECORD a field that is compatible with ORIG_FIELD.  */
-
-tree
-find_compatible_field (tree record, tree orig_field)
-{
-  tree f;
-
-  for (f = TYPE_FIELDS (record); f ; f = TREE_CHAIN (f))
-    if (TREE_CODE (f) == FIELD_DECL
-	&& fields_compatible_p (f, orig_field))
-      return f;
-
-  /* ??? Why isn't this on the main fields list?  */
-  f = TYPE_VFIELD (record);
-  if (f && TREE_CODE (f) == FIELD_DECL
-      && fields_compatible_p (f, orig_field))
-    return f;
-
-  /* ??? We should abort here, but Java appears to do Bad Things
-     with inherited fields.  */
-  return orig_field;
 }
 
 /* Return value of a constant X and sign-extend it.  */

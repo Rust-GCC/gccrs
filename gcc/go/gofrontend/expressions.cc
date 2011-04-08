@@ -33,6 +33,7 @@ extern "C"
 #include "import.h"
 #include "statements.h"
 #include "lex.h"
+#include "backend.h"
 #include "expressions.h"
 
 // Class Expression.
@@ -9283,10 +9284,13 @@ Array_index_expression::do_check_types(Gogo*)
 
   // A slice of an array requires an addressable array.  A slice of a
   // slice is always possible.
-  if (this->end_ != NULL
-      && !array_type->is_open_array_type()
-      && !this->array_->is_addressable())
-    this->report_error(_("array is not addressable"));
+  if (this->end_ != NULL && !array_type->is_open_array_type())
+    {
+      if (!this->array_->is_addressable())
+	this->report_error(_("array is not addressable"));
+      else
+	this->array_->address_taken(true);
+    }
 }
 
 // Return whether this expression is addressable.
@@ -10412,8 +10416,7 @@ Selector_expression::lower_method_expression(Gogo* gogo)
 	  for (size_t i = 0; i < count; ++i)
 	    retvals->push_back(Expression::make_call_result(call, i));
 	}
-      s = Statement::make_return_statement(no->func_value()->type()->results(),
-					   retvals, location);
+      s = Statement::make_return_statement(retvals, location);
     }
   gogo->add_statement(s);
 
@@ -12593,8 +12596,10 @@ class Label_addr_expression : public Expression
   { return new Label_addr_expression(this->label_, this->location()); }
 
   tree
-  do_get_tree(Translate_context*)
-  { return this->label_->get_addr(this->location()); }
+  do_get_tree(Translate_context* context)
+  {
+    return expr_to_tree(this->label_->get_addr(context, this->location()));
+  }
 
  private:
   // The label whose address we are taking.

@@ -1,4 +1,80 @@
-2011-03-30  Michael Matz  matz@suse.de>
+2011-04-06  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/18918
+	* trans-intrinsic.c (gfc_conv_intrinsic_function): Fix
+	call for this_image.
+
+2011-04-05  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* trans-intrinsic.c (gfc_build_intrinsic_lib_fndecls): Use
+	build_function_type_list instead of build_function_type.  Correct
+	argument order for func_frexp and func_scalbn.
+
+2011-04-05  Duncan Sands  <baldrick@free.fr>
+
+	* f95-lang.c (build_builtin_fntypes): Swap frexp parameter types.
+
+2010-04-04  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* frontend-passes: (optimize_lexical_comparison): New function.
+	(optimize_expr): Call it.
+	(optimize_comparison): Also handle lexical comparison functions.
+	Return false instad of -2 for unequal comparison.
+
+2011-04-04  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/48412
+	* frontend-passes (cfe_expr_0):  Reverse the order of going
+	through the loops.
+
+2011-04-04  Tobias Burnus  <burnus@net-b.de>
+	    Mikael Morin  <mikael.morin@sfr.fr>
+
+	PR fortran/18918
+	* check.c (is_coarray): Update - because of DIMEN_THIS_IMAGE.
+	* expr.c (gfc_is_coindexed): Ditto.
+	* gfortran.h (gfc_array_ref_dimen_type): Add DIMEN_THIS_IMAGE.
+	* interface.c (compare_parameter): Use gfc_expr_attr and
+	gfc_is_coindexed.
+	* resolve.c (check_dimension, compare_spec_to_ref,
+	resolve_allocate_expr, check_data_variable): Update for
+	DIMEN_THIS_IMAGE.
+	* simplify.c (gfc_simplify_lcobound, gfc_simplify_this_image,
+	gfc_simplify_ucobound): Allow non-constant bounds.
+	* trans-array.c (gfc_set_loop_bounds_from_array_spec,
+	gfc_trans_create_temp_array, gfc_trans_constant_array_constructor,
+	gfc_set_vector_loop_bounds, gfc_conv_array_index_offset,
+	gfc_start_scalarized_body, gfc_trans_scalarizing_loops,
+	gfc_trans_scalarized_loop_boundary, gfc_conv_section_startstride,
+	gfc_conv_ss_startstride, gfc_conv_loop_setup,
+	gfc_trans_array_bounds, gfc_conv_expr_descriptor,
+	gfc_walk_variable_expr): Handle codimen.
+	* trans-decl.c (gfc_build_qualified_array): Save cobounds.
+	* trans-intrinsic.c (gfc_conv_intrinsic_bound): Use arg2.
+	(conv_intrinsic_cobound): New function.
+	(gfc_conv_intrinsic_function): Call it.
+	(gfc_walk_intrinsic_function, gfc_add_intrinsic_ss_code): Handle
+	ucobound, lcobound, this_image.
+	* fortran/trans-types.c (gfc_build_array_type): Save cobounds.
+	(gfc_get_dtype): Honour corank.
+	(gfc_get_nodesc_array_type): Save corank and codimensions.
+	(gfc_get_array_type_bounds): Save cobound.
+	* fortran/trans.h (gfc_ss_info,gfc_loopinfo): Add codimen item.
+	(gfc_array_kind): Add corank item.
+	(GFC_TYPE_ARRAY_CORANK): New macro.
+
+2011-04-03  Kai Tietz  <ktietz@redhat.com>
+
+	PR middle-end/48422
+	* Make-lang.in (f95-lang.o): Add some missing dependencies.
+
+2011-04-01  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/48352
+	* frontend-passes (cfe_register_funcs):  Don't
+	register functions if they appear as iterators in DO loops.
+
+2011-03-30  Michael Matz  <matz@suse.de>
 
 	PR fortran/47516
 	* trans-expr.c (realloc_lhs_loop_for_fcn_call): Take loop as parameter,

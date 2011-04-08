@@ -91,6 +91,14 @@ form part of the @code{targetm} structure, it is documented below as a
 from being defined in the @file{.h} file to being part of the
 @code{targetm} structure.
 
+Similarly, there is a @code{targetcm} variable for hooks that are
+specific to front ends for C-family languages, documented as ``C
+Target Hook''.  This is declared in @file{c-family/c-target.h}, the
+the initializer @code{TARGETCM_INITIALIZER} in
+@file{c-family/c-target-def.h}.  If targets initialize @code{targetcm}
+themselves, they should set @code{target_has_targetcm=yes} in
+@file{config.gcc}; otherwise a default definition is used.
+
 @node Driver
 @section Controlling the Compilation Driver, @file{gcc}
 @cindex driver
@@ -697,22 +705,6 @@ should use @code{TARGET_HANDLE_C_OPTION} instead.
 @hook TARGET_STRING_OBJECT_REF_TYPE_P
 
 @hook TARGET_CHECK_STRING_OBJECT_FORMAT_ARG
-
-@defmac TARGET_VERSION
-This macro is a C statement to print on @code{stderr} a string
-describing the particular machine description choice.  Every machine
-description should define @code{TARGET_VERSION}.  For example:
-
-@smallexample
-#ifdef MOTOROLA
-#define TARGET_VERSION \
-  fprintf (stderr, " (68k, Motorola syntax)");
-#else
-#define TARGET_VERSION \
-  fprintf (stderr, " (68k, MIT syntax)");
-#endif
-@end smallexample
-@end defmac
 
 @hook TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE
 This target function is similar to the hook @code{TARGET_OPTION_OVERRIDE}

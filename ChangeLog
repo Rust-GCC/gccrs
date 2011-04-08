@@ -1,3 +1,106 @@
+2011-04-07  Stuart Henderson  <shenders@gcc.gnu.org>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2011-04-06  Joseph Myers  <joseph@codesourcery.com>
+
+	* configure.ac (build_tools): Remove build-byacc.
+	(host_libs): Remove mmalloc.
+	(host_tools): Remove byacc make patch prms send-pr ash bash bzip2
+	autoconf automake libtool diff rcs fileutils shellutils time
+	textutils wdiff find uudecode hello tar gzip indent recode release
+	sed perl gawk findutils gettext zip.
+	(libgcj): Remove target-qthreads.
+	(target_tools): Remove target-examples target-gperf.
+	(YACC): Don't handle building byacc.
+	* configure: Regenerate.
+	* Makefile.def (ash, autoconf, automake, bash, byacc, bzip2, diff,
+	dosutils, examples, fileutils, find, findutils, gawk, gettext,
+	gnuserv, gperf, gzip, hello, indent, libtool, make, mmalloc,
+	patch, perl, prms, qthreads, rcs, recode, release, sed, send-pr,
+	shellutils, tar, textutils, time, uudecode, wdiff, zip): Don't
+	handle building components.
+	* Makefile.in: Regenerate.
+
+2011-04-05  Sterling Augustine <augustine.sterling@gmail.com>
+
+	* MAINTAINERS: Update my email address as Xtensa maintainer.
+
+2011-04-05  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* config.sub: Sync from upstream.
+
+2011-04-01  Joseph Myers  <joseph@codesourcery.com>
+
+	* configure.ac (avr-*-*): Add comment about why libssp is disabled.
+	(microblaze*): Don't disable libssp.
+	* configure: Regenerate.
+
+2011-04-01  Joseph Myers  <joseph@codesourcery.com>
+
+	* configure.ac: Remove code setting CONFIG_SHELL, config_shell and
+	moveifchange.
+	* configure: Regenerate.
+	* Makefile.tpl: Use @SHELL@ not @config_shell@.
+	* Makefile.in: Regenerate.
+
+2011-04-01  Joseph Myers  <joseph@codesourcery.com>
+
+	* configure.ac (*-*-sysv4*): Don't enable libgomp.
+	(alpha*-*-*vms*, i[[34567]]86-*-sco3.2v5*, mn10300-*-*,
+	powerpc-*-chorusos*, powerpc*-*-eabi*, powerpc*-*-sysv*,
+	powerpc*-*-kaos*, s390x-ibm-tpf*, sparc64-*-elf*, v850*-*-*,
+	xtensa*-*-elf*, *-*-beos*, *-*-elf*, *-*-netware*, *-*-rtems*,
+	*-*-sysv[[45]]*, *-*-vxworks*, *-wrs-windiss): Remove
+	md_exec_prefix cases.
+	* configure: Regenerate.
+
+2011-04-01  Joseph Myers  <joseph@codesourcery.com>
+
+	* configure.ac: Separate cases disabling target-libssp,
+	target-libiberty, target-libstdc++-v3 and Fortran from general
+	case over targets.
+	* configure: Regenerate.
+
+2011-04-01  Joseph Myers  <joseph@codesourcery.com>
+
+	* configure.ac (*-*-chorusos): Don't disable libgcj.
+	(*-*-freebsd[[12]] | *-*-freebsd[[12]].* | *-*-freebsd*aout*):
+	Remove case.
+	(*-*-kaos*): Don't disable GCC libraries, zlib or fastjar.
+	(arm-*-coff): Don't disable libgcj.
+	(arm*-*-linux-gnueabi): Remove useless assignment.
+	(arm-*-riscix*): Don't disable libgcj.
+	(bfin-*-*): Don't enable target-bsp and target-cygmon depending on
+	configuration.
+	(c4x-*-* | tic4x-*-*): Don't disable GCC libraries.
+	(c54x*-*-*): Remove case.
+	(tic54x-*-*): Don't disable GCC or GCC libraries.
+	(cris-*-* | crisv32-*-*): Don't handle *-*-aout.  Change *-*-elf
+	to *.
+	(d10v-*-*): Don't disable GCC libraries.
+	(d30v-*-*): Don't disable libgcj.
+	(h8500-*-*): Don't disable GCC libraries.
+	(i960-*-*): Don't disable libgcj.
+	(i[[3456789]]86-*-linux*): Don't handle *-*-*libc1*.
+	(i[[3456789]]86-*-sco3.2v5*, i[[3456789]]86-*-sco*,
+	i[[3456789]]86-*-sysv4*, i[[3456789]]86-*-beos*): Don't disable
+	libgcj.
+	(m68k-*-coff*): Remove case.
+	(mmix-*-*): Don't disable libgloss on host.
+	(mn10200-*-*, mn10300-*-*): Remove cases.
+	(powerpc*-*-winnt* | powerpc*-*-pe*, powerpcle-*-solaris*,
+	powerpc-*-beos*, m68k-apollo-*, mips*-*-irix5*, mips*-*-bsd*):
+	Don't disable libgcj.
+	(romp-*-*): Remove case.
+	(sparclite-*-*, sparc-*-sunos4*): Don't disable libgcj.
+	(sparc-*-solaris2.[[0-6]] | sparc-*-solaris2.[[0-6]].*): Remove
+	case.
+	(v810-*-*): Don't disable GCC libraries.
+	(v850*-*-*, vax-*-vms, xtensa*-*-*): Remove cases.
+	(ip2k-*-*): Don't disable GCC libraries.
+	* configure: Regenerate.
+
 2011-03-28  Joseph Myers  <joseph@codesourcery.com>
 
 	* configure.ac (i[[3456789]]86-*-msdosdjgpp*): Don't disable

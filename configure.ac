@@ -89,42 +89,6 @@ AC_PROG_LN_S
 AC_PROG_SED
 AC_PROG_AWK
 
-### we might need to use some other shell than /bin/sh for running subshells
-### If we are on Windows, search for the shell.  This will permit people
-### to not have /bin/sh, but to be able to see /SOME/PATH/sh configure
-### without also having to set CONFIG_SHELL.  This code will work when
-### using bash, which sets OSTYPE.
-case "${OSTYPE}" in
-*win32*)
-  if test x${CONFIG_SHELL} = x ; then
-    if test ! -f /bin/sh ; then
-      if test x${SHELL} != x && test -f ${SHELL} ; then
-	CONFIG_SHELL=${SHELL}
-	export CONFIG_SHELL
-      else
-	for prog in sh sh.exe bash bash.exe; do
-	  IFS="${IFS=	}"; save_ifs="$IFS"; IFS="${IFS}:"
-	  for dir in $PATH; do
-	    test -z "$dir" && dir=.
-	    if test -f $dir/$prog; then
-	      CONFIG_SHELL=$dir/$prog
-	      export CONFIG_SHELL
-	      break
-	    fi
-	  done
-	  IFS="$save_ifs"
-	  test -n "${CONFIG_SHELL}" && break
-	done
-      fi
-    fi
-  fi
-  ;;
-esac
-
-config_shell=${CONFIG_SHELL-/bin/sh}
-
-moveifchange=${srcdir}/move-if-change
-
 srcpwd=`cd ${srcdir} ; ${PWDCMD-pwd}`
 
 # We pass INSTALL explicitly to sub-makes.  Make sure that it is not
@@ -164,11 +128,11 @@ extra_host_args=
 build_libs="build-libiberty"
 
 # these tools are built for the build environment
-build_tools="build-texinfo build-byacc build-flex build-bison build-m4 build-fixincludes"
+build_tools="build-texinfo build-flex build-bison build-m4 build-fixincludes"
 
 # these libraries are used by various programs built for the host environment
 #
-host_libs="intl mmalloc libiberty opcodes bfd readline tcl tk itcl libgui zlib libcpp libdecnumber gmp mpfr mpc ppl cloog libelf libiconv"
+host_libs="intl libiberty opcodes bfd readline tcl tk itcl libgui zlib libcpp libdecnumber gmp mpfr mpc ppl cloog libelf libiconv"
 
 # these tools are built for the host environment
 # Note, the powerpc-eabi build depends on sim occurring before gdb in order to
@@ -176,12 +140,11 @@ host_libs="intl mmalloc libiberty opcodes bfd readline tcl tk itcl libgui zlib l
 # binutils, gas and ld appear in that order because it makes sense to run
 # "make check" in that particular order.
 # If --enable-gold is used, "gold" may replace "ld".
-host_tools="texinfo byacc flex bison binutils gas ld fixincludes gcc cgen sid sim gdb make patch prms send-pr gprof etc expect dejagnu ash bash bzip2 m4 autoconf automake libtool diff rcs fileutils shellutils time textutils wdiff find uudecode hello tar gzip indent recode release sed utils guile perl gawk findutils gettext zip fastjar gnattools"
+host_tools="texinfo flex bison binutils gas ld fixincludes gcc cgen sid sim gdb gprof etc expect dejagnu m4 utils guile fastjar gnattools"
 
 # libgcj represents the runtime libraries only used by gcj.
 libgcj="target-libffi \
 	target-zlib \
-	target-qthreads \
 	target-libjava"
 
 # these libraries are built for the target environment, and are built after
@@ -209,7 +172,7 @@ target_libraries="target-libgcc \
 # note: any program that *uses* libraries that are in the "target_libraries"
 # list belongs in this list.
 #
-target_tools="target-examples target-gperf target-rda"
+target_tools="target-rda"
 
 ################################################################################
 
@@ -506,7 +469,7 @@ if test x$enable_libgomp = x ; then
 	;;
     *-*-netbsd* | *-*-freebsd* | *-*-openbsd* | *-*-dragonfly*)
 	;;
-    *-*-solaris2* | *-*-sysv4* | *-*-irix6* | *-*-osf* | *-*-hpux11*)
+    *-*-solaris2* | *-*-irix6* | *-*-osf* | *-*-hpux11*)
 	;;
     *-*-darwin* | *-*-aix*)
 	;;
@@ -516,12 +479,91 @@ if test x$enable_libgomp = x ; then
     esac
 fi
 
+# Disable libssp for some systems.
+case "${target}" in
+  avr-*-*)
+    # No hosted I/O support.
+    noconfigdirs="$noconfigdirs target-libssp"
+    ;;
+  powerpc-*-aix* | rs6000-*-aix*)
+    noconfigdirs="$noconfigdirs target-libssp"
+    ;;
+esac
+
+# Disable target libiberty for some systems.
+case "${target}" in
+  *-*-kaos*)
+    # Remove unsupported stuff on all kaOS configurations.
+    skipdirs="target-libiberty"
+    ;;
+  *-*-netbsd*)
+    # Skip some stuff on all NetBSD configurations.
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+  *-*-netware*)
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+  *-*-rtems*)
+    skipdirs="${skipdirs} target-libiberty"
+    ;;
+  *-*-tpf*)
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+  *-*-vxworks*)
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+  sh*-*-pe|mips*-*-pe|*arm-wince-pe)
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+  arm*-*-symbianelf*)
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+  avr-*-*)
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+  m68hc11-*-*|m6811-*-*|m68hc12-*-*|m6812-*-*)
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+  picochip-*-*)
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+  mips*-sde-elf*)
+    skipdirs="$skipdirs target-libiberty"
+    ;;
+  ip2k-*-*)
+    noconfigdirs="$noconfigdirs target-libiberty"
+    ;;
+esac
+
+# Disable libstdc++-v3 for some systems.
+case "${target}" in
+  *-*-vxworks*)
+    # VxWorks uses the Dinkumware C++ library.
+    noconfigdirs="$noconfigdirs target-libstdc++-v3"
+    ;;
+  arm*-wince-pe*)
+    # the C++ libraries don't build on top of CE's C libraries
+    noconfigdirs="$noconfigdirs target-libstdc++-v3"
+    ;;
+  avr-*-*)
+    noconfigdirs="$noconfigdirs target-libstdc++-v3"
+    ;;
+esac
+
+# Disable Fortran for some systems.
+case "${target}" in
+  mmix-*-*)
+    # See <http://gcc.gnu.org/ml/gcc-patches/2004-11/msg00572.html>.
+    unsupported_languages="$unsupported_languages fortran"
+    ;;
+esac
+
 # Default libgloss CPU subdirectory.
 libgloss_dir="$target_cpu"
 
 case "${target}" in
   *-*-chorusos)
-    noconfigdirs="$noconfigdirs target-newlib target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs target-newlib target-libgloss"
     ;;
   powerpc-*-darwin*)
     noconfigdirs="$noconfigdirs ld gas gdb gprof"
@@ -543,9 +585,6 @@ case "${target}" in
   *-*-dragonfly*)
     noconfigdirs="$noconfigdirs target-newlib target-libgloss"
     ;;
-  *-*-freebsd[[12]] | *-*-freebsd[[12]].* | *-*-freebsd*aout*)
-    noconfigdirs="$noconfigdirs target-newlib target-libgloss ${libgcj}"
-    ;;
   *-*-freebsd*)
     noconfigdirs="$noconfigdirs target-newlib target-libgloss"
     if test "x$with_gmp" = x && test "x$with_gmp_dir" = x \
@@ -565,14 +604,11 @@ case "${target}" in
     ;;
   *-*-kaos*)
     # Remove unsupported stuff on all kaOS configurations.
-    skipdirs="target-libiberty ${libgcj} target-libstdc++-v3"
-    skipdirs="$skipdirs target-libobjc"
-    skipdirs="$skipdirs zlib fastjar target-libjava target-boehm-gc target-zlib"
     noconfigdirs="$noconfigdirs target-libgloss"
     ;;
   *-*-netbsd*)
     # Skip some stuff on all NetBSD configurations.
-    noconfigdirs="$noconfigdirs target-newlib target-libiberty target-libgloss"
+    noconfigdirs="$noconfigdirs target-newlib target-libgloss"
 
     # Skip some stuff that's unsupported on some NetBSD configurations.
     case "${target}" in
@@ -584,21 +620,20 @@ case "${target}" in
     esac
     ;;
   *-*-netware*)
-    noconfigdirs="$noconfigdirs target-newlib target-libiberty target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs target-newlib target-libgloss ${libgcj}"
     ;;
   *-*-rtems*)
-    skipdirs="${skipdirs} target-libiberty"
     noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
     ;;
     # The tpf target doesn't support gdb yet.
   *-*-tpf*)
-    noconfigdirs="$noconfigdirs target-newlib target-libgloss target-libiberty ${libgcj} gdb tcl tk libgui itcl"
+    noconfigdirs="$noconfigdirs target-newlib target-libgloss ${libgcj} gdb tcl tk libgui itcl"
     ;;
   *-*-uclinux*)
     noconfigdirs="$noconfigdirs target-newlib target-libgloss target-rda ${libgcj}"
     ;;
   *-*-vxworks*)
-    noconfigdirs="$noconfigdirs target-newlib target-libgloss target-libiberty target-libstdc++-v3 ${libgcj}"
+    noconfigdirs="$noconfigdirs target-newlib target-libgloss ${libgcj}"
     ;;
   alpha*-dec-osf*)
     # ld works, but does not support shared libraries.
@@ -625,10 +660,7 @@ case "${target}" in
     ;;    
   sh*-*-pe|mips*-*-pe|*arm-wince-pe)
     noconfigdirs="$noconfigdirs ${libgcj}"
-    noconfigdirs="$noconfigdirs target-libiberty"
     noconfigdirs="$noconfigdirs tcl tk itcl libgui sim"
-    # the C++ libraries don't build on top of CE's C libraries
-    noconfigdirs="$noconfigdirs target-libstdc++-v3"
     noconfigdirs="$noconfigdirs target-newlib"
     libgloss_dir=wince
     ;;
@@ -636,7 +668,6 @@ case "${target}" in
     noconfigdirs="$noconfigdirs target-libgloss"
     ;;
   arm-*-coff)
-    noconfigdirs="$noconfigdirs ${libgcj}"
     libgloss_dir=arm
     ;;
   arm-*-elf* | arm*-*-eabi* )
@@ -644,37 +675,33 @@ case "${target}" in
     libgloss_dir=arm
     ;;
   arm*-*-linux-gnueabi)
-    noconfigdirs="$noconfigdirs"
     case ${with_newlib} in
       no) noconfigdirs="$noconfigdirs target-newlib target-libgloss"
     esac
     libgloss_dir=arm
     ;;
   arm*-*-symbianelf*)
-    noconfigdirs="$noconfigdirs ${libgcj} target-libiberty"
+    noconfigdirs="$noconfigdirs ${libgcj}"
     libgloss_dir=arm
     ;;
   arm-*-pe*)
     noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
     ;;
   arm-*-riscix*)
-    noconfigdirs="$noconfigdirs ld target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs ld target-libgloss"
     ;;
   avr-*-*)
-    noconfigdirs="$noconfigdirs target-libiberty target-libstdc++-v3 ${libgcj} target-libssp"
+    noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
   bfin-*-*)
     unsupported_languages="$unsupported_languages java"
     noconfigdirs="$noconfigdirs target-boehm-gc"
-    if test x${is_cross_compiler} != xno ; then
-      target_configdirs="${target_configdirs} target-bsp target-cygmon"
-    fi
     ;;
   c4x-*-* | tic4x-*-*)
-    noconfigdirs="$noconfigdirs target-libstdc++-v3 target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libgloss"
     ;;
-  c54x*-*-* | tic54x-*-*)
-    noconfigdirs="$noconfigdirs target-libstdc++-v3 target-libgloss ${libgcj} gcc gdb"
+  tic54x-*-*)
+    noconfigdirs="$noconfigdirs target-libgloss gdb"
     ;;
   cr16-*-*)
     noconfigdirs="$noconfigdirs ${libgcj} gdb"
@@ -682,24 +709,18 @@ case "${target}" in
   cris-*-* | crisv32-*-*)
     unsupported_languages="$unsupported_languages java"
     case "${target}" in
-      *-*-aout)
-	unsupported_languages="$unsupported_languages fortran"
-	noconfigdirs="$noconfigdirs target-libffi target-boehm-gc";;
-      *-*-elf) # See PR46792 regarding target-libffi.
-	noconfigdirs="$noconfigdirs target-libffi target-boehm-gc";;
       *-*-linux*)
 	noconfigdirs="$noconfigdirs target-newlib target-libgloss";;
-      *)
-	unsupported_languages="$unsupported_languages fortran"
-	noconfigdirs="$noconfigdirs ${libgcj} target-newlib target-libgloss";;
+      *) # See PR46792 regarding target-libffi.
+	noconfigdirs="$noconfigdirs target-libffi target-boehm-gc";;
     esac
     libgloss_dir=cris
     ;;
   d10v-*-*)
-    noconfigdirs="$noconfigdirs target-libstdc++-v3 target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libgloss"
     ;;
   d30v-*-*)
-    noconfigdirs="$noconfigdirs ${libgcj} gdb"
+    noconfigdirs="$noconfigdirs gdb"
     ;;
   fr30-*-elf*)
     noconfigdirs="$noconfigdirs ${libgcj} gdb"
@@ -715,7 +736,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
     ;;
   h8500-*-*)
-    noconfigdirs="$noconfigdirs target-libstdc++-v3 target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libgloss"
     ;;
   hppa1.1-*-osf* | hppa1.1-*-bsd* )
     ;;
@@ -745,7 +766,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs ld ${libgcj}"
     ;;
   i960-*-*)
-    noconfigdirs="$noconfigdirs ${libgcj} gdb"
+    noconfigdirs="$noconfigdirs gdb"
     ;;
   ia64*-*-elf*)
     # No gdb support yet.
@@ -764,13 +785,6 @@ case "${target}" in
     libgloss_dir=i386
     ;;
   i[[3456789]]86-*-linux*)
-    # The GCC port for glibc1 has no MD_FALLBACK_FRAME_STATE_FOR, so let's
-    # not build java stuff by default.
-    case "${target}" in
-      *-*-*libc1*)
-	noconfigdirs="$noconfigdirs ${libgcj}";;
-    esac
-
     # This section makes it possible to build newlib natively on linux.
     # If we are using a cross compiler then don't configure newlib.
     if test x${is_cross_compiler} != xno ; then
@@ -810,19 +824,19 @@ case "${target}" in
   i[[3456789]]86-*-sco3.2v5*)
     # The linker does not yet know about weak symbols in COFF,
     # and is not configured to handle mixed ELF and COFF.
-    noconfigdirs="$noconfigdirs ld target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs ld target-libgloss"
     ;;
   i[[3456789]]86-*-sco*)
-    noconfigdirs="$noconfigdirs gprof target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs gprof target-libgloss"
     ;;
   i[[3456789]]86-*-solaris2*)
     noconfigdirs="$noconfigdirs target-libgloss"
     ;;
   i[[3456789]]86-*-sysv4*)
-    noconfigdirs="$noconfigdirs target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libgloss"
     ;;
   i[[3456789]]86-*-beos*)
-    noconfigdirs="$noconfigdirs gdb target-newlib target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs gdb target-newlib target-libgloss"
     ;;
   i[[3456789]]86-*-rdos*)
     noconfigdirs="$noconfigdirs gdb target-newlib target-libgloss"
@@ -831,51 +845,38 @@ case "${target}" in
     noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
   m68hc11-*-*|m6811-*-*|m68hc12-*-*|m6812-*-*)
-    noconfigdirs="$noconfigdirs target-libiberty"
     libgloss_dir=m68hc11
     ;;
   m68k-*-elf*)
-    noconfigdirs="$noconfigdirs ${libgcj}"
-    ;;
-  m68k-*-coff*)
     noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
   m68*-*-* | fido-*-*)
     libgloss_dir=m68k
     ;;
   mmix-*-*)
-    noconfigdirs="$noconfigdirs target-libffi target-boehm-gc gdb libgloss"
-    unsupported_languages="$unsupported_languages fortran java"
-    ;;
-  mn10200-*-*)
-    noconfigdirs="$noconfigdirs ${libgcj}"
-    ;;
-  mn10300-*-*)
-    noconfigdirs="$noconfigdirs ${libgcj}"
+    noconfigdirs="$noconfigdirs target-libffi target-boehm-gc gdb"
+    unsupported_languages="$unsupported_languages java"
     ;;
   mt-*-*)
     noconfigdirs="$noconfigdirs sim"
     ;;
-  picochip-*-*)
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
   powerpc-*-aix*)
     # copied from rs6000-*-* entry
-    noconfigdirs="$noconfigdirs gprof target-libgloss target-libssp target-newlib ${libgcj}"
+    noconfigdirs="$noconfigdirs gprof target-libgloss target-newlib ${libgcj}"
     ;;
   powerpc*-*-winnt* | powerpc*-*-pe*)
     target_configdirs="$target_configdirs target-winsup"
-    noconfigdirs="$noconfigdirs gdb tcl tk target-libgloss itcl ${libgcj}"
+    noconfigdirs="$noconfigdirs gdb tcl tk target-libgloss itcl"
     # always build newlib.
     skipdirs=`echo " ${skipdirs} " | sed -e 's/ target-newlib / /'`
     ;;
     # This is temporary until we can link against shared libraries
   powerpcle-*-solaris*)
-    noconfigdirs="$noconfigdirs gdb sim tcl tk itcl ${libgcj}"
+    noconfigdirs="$noconfigdirs gdb sim tcl tk itcl"
     libgloss_dir=rs6000
     ;;
   powerpc-*-beos*)
-    noconfigdirs="$noconfigdirs gdb target-newlib target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs gdb target-newlib target-libgloss"
     ;;
   powerpc-*-eabi)
     noconfigdirs="$noconfigdirs ${libgcj}"
@@ -888,19 +889,18 @@ case "${target}" in
     noconfigdirs="$noconfigdirs target-newlib gprof ${libgcj}"
     ;;
   rs6000-*-aix*)
-    noconfigdirs="$noconfigdirs gprof target-libgloss target-libssp target-newlib ${libgcj}"
+    noconfigdirs="$noconfigdirs gprof target-libgloss target-newlib ${libgcj}"
     ;;
   rs6000-*-*)
     noconfigdirs="$noconfigdirs gprof ${libgcj}"
     ;;
   m68k-apollo-*)
-    noconfigdirs="$noconfigdirs ld binutils gprof target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs ld binutils gprof target-libgloss"
     ;;
   microblaze*)
-    noconfigdirs="$noconfigdirs gprof target-libssp ${libgcj}"
+    noconfigdirs="$noconfigdirs gprof ${libgcj}"
     ;;
   mips*-sde-elf*)
-    skipdirs="$skipdirs target-libiberty"
     noconfigdirs="$noconfigdirs ${libgcj}"
     if test x$with_newlib = xyes; then
       noconfigdirs="$noconfigdirs gprof"
@@ -908,7 +908,7 @@ case "${target}" in
     libgloss_dir=mips
     ;;
   mips*-*-irix5*)
-    noconfigdirs="$noconfigdirs gprof target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs gprof target-libgloss"
     ;;
   mips*-*-irix6*)
     # Linking libjava exceeds command-line length limits on at least
@@ -918,7 +918,7 @@ case "${target}" in
     noconfigdirs="$noconfigdirs gprof target-libgloss ${libgcj}"
     ;;
   mips*-*-bsd*)
-    noconfigdirs="$noconfigdirs gprof target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs gprof target-libgloss"
     ;;
   mips*-*-linux*)
     noconfigdirs="$noconfigdirs target-newlib target-libgloss"
@@ -926,9 +926,6 @@ case "${target}" in
   mips*-*-*)
     noconfigdirs="$noconfigdirs gprof ${libgcj}"
     libgloss_dir=mips
-    ;;
-  romp-*-*)
-    noconfigdirs="$noconfigdirs bfd binutils ld gas opcodes target-libgloss ${libgcj}"
     ;;
   sh-*-* | sh64-*-*)
     case "${target}" in
@@ -949,19 +946,14 @@ case "${target}" in
     libgloss_dir=sparc
     ;;
   sparclite-*-*)
-    noconfigdirs="$noconfigdirs ${libgcj}"
     libgloss_dir=sparc
     ;;
   sparc-*-sunos4*)
-    noconfigdirs="$noconfigdirs ${libgcj}"
     if test x${is_cross_compiler} != xno ; then
            noconfigdirs="$noconfigdirs gdb target-newlib target-libgloss"
     else
            use_gnu_ld=no
     fi
-    ;;
-  sparc-*-solaris2.[[0-6]] | sparc-*-solaris2.[[0-6]].*)
-    noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
   sparc-*-solaris* | sparc64-*-solaris* | sparcv9-*-solaris*)
     ;;
@@ -969,22 +961,10 @@ case "${target}" in
     noconfigdirs="$noconfigdirs gdb sim ${libgcj}"
     ;;
   v810-*-*)
-    noconfigdirs="$noconfigdirs bfd binutils gas gcc gdb ld target-libstdc++-v3 opcodes target-libgloss ${libgcj}"
-    ;;
-  v850*-*-*)
-    noconfigdirs="$noconfigdirs ${libgcj}"
-    ;;
-  vax-*-vms)
-    noconfigdirs="$noconfigdirs bfd binutils gdb ld target-newlib opcodes target-libgloss ${libgcj}"
+    noconfigdirs="$noconfigdirs bfd binutils gas gdb ld opcodes target-libgloss"
     ;;
   vax-*-*)
     noconfigdirs="$noconfigdirs target-newlib target-libgloss ${libgcj}"
-    ;;
-  xtensa*-*-*)
-    noconfigdirs="$noconfigdirs ${libgcj}"
-    ;;
-  ip2k-*-*)
-    noconfigdirs="$noconfigdirs target-libiberty target-libstdc++-v3 ${libgcj}"
     ;;
   *-*-linux* | *-*-gnu* | *-*-k*bsd*-gnu | *-*-kopensolaris*-gnu)
     noconfigdirs="$noconfigdirs target-newlib target-libgloss"
@@ -2155,46 +2135,12 @@ done
 # the *-*-osname triplets last.
 md_exec_prefix=
 case "${target}" in
-  alpha*-*-*vms*)
-    md_exec_prefix=/gnu/lib/gcc-lib
-    ;;
   i[[34567]]86-pc-msdosdjgpp*)
     md_exec_prefix=/dev/env/DJDIR/bin
     ;;
-  i[[34567]]86-*-sco3.2v5*)
-    if test $with_gnu_as = yes; then
-      md_exec_prefix=/usr/gnu/bin
-    else
-      md_exec_prefix=/usr/ccs/bin/elf
-    fi
-    ;;
-
-  mn10300-*-* | \
-  powerpc-*-chorusos* | \
-  powerpc*-*-eabi* | \
-  powerpc*-*-sysv* | \
-  powerpc*-*-kaos* | \
-  s390x-ibm-tpf*)
-    md_exec_prefix=/usr/ccs/bin
-    ;;
-  sparc64-*-elf*)
-    ;;
-  v850*-*-*)
-    md_exec_prefix=/usr/ccs/bin
-    ;;
-  xtensa*-*-elf*)
-    ;;
-
-  *-*-beos* | \
-  *-*-elf* | \
   *-*-hpux* | \
-  *-*-netware* | \
   *-*-nto-qnx* | \
-  *-*-rtems* | \
-  *-*-solaris2* | \
-  *-*-sysv[[45]]* | \
-  *-*-vxworks* | \
-  *-wrs-windiss)
+  *-*-solaris2*)
     md_exec_prefix=/usr/ccs/bin
     ;;
 esac
@@ -3000,7 +2946,6 @@ AC_SUBST(NM_FOR_BUILD)
 AC_SUBST(RANLIB_FOR_BUILD)
 AC_SUBST(WINDMC_FOR_BUILD)
 AC_SUBST(WINDRES_FOR_BUILD)
-AC_SUBST(config_shell)
 
 # Generate default definitions for YACC, M4, LEX and other programs that run
 # on the build machine.  These are used if the Makefile can't locate these
@@ -3010,7 +2955,6 @@ MISSING=`cd $ac_aux_dir && ${PWDCMD-pwd}`/missing
 AC_CHECK_PROGS([YACC], ['bison -y' byacc yacc], [$MISSING bison -y])
 case " $build_configdirs " in
   *" bison "*) YACC='$$r/$(BUILD_SUBDIR)/bison/tests/bison -y' ;;
-  *" byacc "*) YACC='$$r/$(BUILD_SUBDIR)/byacc/byacc' ;;
 esac
 
 AC_CHECK_PROGS([BISON], [bison], [$MISSING bison])

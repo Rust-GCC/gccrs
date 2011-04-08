@@ -4562,7 +4562,7 @@ build_init_list_var_init (tree decl, tree type, tree init, tree *array_init,
     return error_mark_node;
 
   aggr_init = TARGET_EXPR_INITIAL (init);
-  array = AGGR_INIT_EXPR_ARG (aggr_init, 1);
+  array = CONSTRUCTOR_ELT (aggr_init, 0)->value;
   arrtype = TREE_TYPE (array);
   STRIP_NOPS (array);
   gcc_assert (TREE_CODE (array) == ADDR_EXPR);
@@ -4574,7 +4574,7 @@ build_init_list_var_init (tree decl, tree type, tree init, tree *array_init,
       tree var = set_up_extended_ref_temp (decl, array, cleanup, array_init);
       var = build_address (var);
       var = convert (arrtype, var);
-      AGGR_INIT_EXPR_ARG (aggr_init, 1) = var;
+      CONSTRUCTOR_ELT (aggr_init, 0)->value = var;
     }
   return init;
 }
@@ -4905,6 +4905,8 @@ reshape_init_array_1 (tree elt_type, tree max_index, reshape_iter *d)
 	return error_mark_node;
       CONSTRUCTOR_APPEND_ELT (CONSTRUCTOR_ELTS (new_init),
 			      size_int (index), elt_init);
+      if (!TREE_CONSTANT (elt_init))
+	TREE_CONSTANT (new_init) = false;
     }
 
   return new_init;

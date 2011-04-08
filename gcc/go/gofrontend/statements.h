@@ -39,6 +39,8 @@ class Case_clauses;
 class Type_case_clauses;
 class Select_clauses;
 class Typed_identifier_list;
+class Bexpression;
+class Bstatement;
 
 // This class is used to traverse assignments made by a statement
 // which makes assignments.
@@ -200,8 +202,7 @@ class Statement
 
   // Make a return statement.
   static Statement*
-  make_return_statement(const Typed_identifier_list*, Expression_list*,
-			source_location);
+  make_return_statement(Expression_list*, source_location);
 
   // Make a break statement.
   static Statement*
@@ -556,10 +557,9 @@ class Variable_declaration_statement : public Statement
 class Return_statement : public Statement
 {
  public:
-  Return_statement(const Typed_identifier_list* results, Expression_list* vals,
-		   source_location location)
+  Return_statement(Expression_list* vals, source_location location)
     : Statement(STATEMENT_RETURN, location),
-      results_(results), vals_(vals)
+      vals_(vals), is_lowered_(false)
   { }
 
   // The list of values being returned.  This may be NULL.
@@ -578,12 +578,6 @@ class Return_statement : public Statement
   Statement*
   do_lower(Gogo*, Named_object*, Block*);
 
-  void
-  do_determine_types();
-
-  void
-  do_check_types(Gogo*);
-
   bool
   do_may_fall_through() const
   { return false; }
@@ -592,12 +586,10 @@ class Return_statement : public Statement
   do_get_tree(Translate_context*);
 
  private:
-  // The result types of the function we are returning from.  This is
-  // here because in some of the traversals it is inconvenient to get
-  // it.
-  const Typed_identifier_list* results_;
   // Return values.  This may be NULL.
   Expression_list* vals_;
+  // True if this statement has been lowered.
+  bool is_lowered_;
 };
 
 // A send statement.
@@ -1172,13 +1164,18 @@ class Case_clauses
 
   // Return the body of a SWITCH_EXPR when all the clauses are
   // constants.
-  tree
-  get_constant_tree(Translate_context*, Unnamed_label* break_label) const;
+  void
+  get_backend(Translate_context*, Unnamed_label* break_label,
+	      std::vector<std::vector<Bexpression*> >* all_cases,
+	      std::vector<Bstatement*>* all_statements) const;
 
  private:
   // For a constant tree we need to keep a record of constants we have
   // already seen.  Note that INTEGER_CST trees are interned.
-  typedef Unordered_set(tree) Case_constants;
+  class Hash_integer_value;
+  class Eq_integer_value;
+  typedef Unordered_set_hash(Expression*, Hash_integer_value,
+			     Eq_integer_value) Case_constants;
 
   // One case clause.
   class Case_clause
@@ -1236,11 +1233,11 @@ class Case_clauses
     bool
     may_fall_through() const;
 
-    // Build up the body of a SWITCH_EXPR when the case expressions
-    // are constant.
-    void
-    get_constant_tree(Translate_context*, Unnamed_label* break_label,
-		      Case_constants* case_constants, tree* stmt_list) const;
+    // Convert the case values and statements to the backend
+    // representation.
+    Bstatement*
+    get_backend(Translate_context*, Unnamed_label* break_label,
+		Case_constants*, std::vector<Bexpression*>* cases) const;
 
    private:
     // The list of case expressions.

@@ -895,7 +895,7 @@ reload (rtx first, int global)
 			 && (REGNO (XEXP (XEXP (x, 0), 0))
 			     < FIRST_PSEUDO_REGISTER)
 			 && CONSTANT_P (XEXP (XEXP (x, 0), 1))))
-	      reg_equiv_mem (i) = XEXP (x, 0), reg_equiv_mem (i) = 0;
+	      reg_equiv_address (i) = XEXP (x, 0), reg_equiv_mem (i) = 0;
 	    else
 	      {
 		/* Make a new stack slot.  Then indicate that something
@@ -2997,7 +2997,7 @@ elimination_effects (rtx x, enum machine_mode mem_mode)
 
 	}
       else if (reg_renumber[regno] < 0
-	       && reg_equiv_constant (0)
+	       && reg_equivs != 0
 	       && reg_equiv_constant (regno)
 	       && ! function_invariant_p (reg_equiv_constant (regno)))
 	elimination_effects (reg_equiv_constant (regno), mem_mode);

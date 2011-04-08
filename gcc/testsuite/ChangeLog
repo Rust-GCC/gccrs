@@ -1,3 +1,212 @@
+2011-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR fortran/48117
+	* gfortran.dg/gomp/pr48117.f90: New test.
+
+	PR debug/48343
+	* gcc.dg/torture/pr48343.c: New test.
+
+2011-04-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.target/i386/asm-6.c: Remove dg-xfail-if.
+
+2011-04-07  Maxim Kuvyrkov  <maxim@codesourcery.com>
+
+	* gcc.dg/lto/20090210_0.c: Require tls_runtime target.
+
+2011-04-07  Tom de Vries  <tom@codesourcery.com>
+
+	PR target/43920
+	* lib/scanasm.exp (object-size): New proc.
+	* gcc.target/arm/pr43920-2.c: New test.
+
+2011-04-06  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/18918
+	PR fortran/48477
+	* gfortran.dg/coarray_13.f90: Avoid out-of-bounds access.
+
+2011-04-06  Steve Ellcey  <sje@cup.hp.com>
+
+	* gcc.dg/mtune.c: Prune note from output.
+
+2011-04-06  Jakub Jelinek  <jakub@redhat.com>
+
+	PR debug/48466
+	* gcc.dg/guality/pr36977.c: New test.
+	* gcc.dg/guality/pr48466.c: New test.
+
+2011-04-06  Ramana Radhakrishnan  <ramana.radhakrishnan@linaro.org>
+
+	* gcc.target/arm/pr43920-1.c: Fix accidental duplication.
+
+2011-04-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/return3.adb: New test.
+
+2011-04-06  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/47663
+	* gcc.dg/tree-ssa/inline-8.c: New testcase.
+
+2011-04-05  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc.dg/torture/pr47917.c: Add -D_XOPEN_SOURCE=500 to dg-options for
+	Solaris 8 and 9 as well.
+
+2011-04-05  Tom de Vries  <tom@codesourcery.com>
+
+	PR target/43920
+	* gcc.target/arm/pr43920-1.c: New test.
+
+2011-04-04  Yufeng Zhang  <yufeng.zhang@arm.com>
+
+	* g++.dg/abi/arm_cxa_vec1.C (__ARM_EABI__): Fix typo.
+	(cctor): Actually return the value.
+	(main): Cast return values.
+
+2010-04-04  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* gfortran.dg/character_comparison_8.f90:  New test.
+
+2010-04-04  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* frontend-passes: (optimize_lexical_comparison): New function.
+	(optimize_expr): Call it.
+	(optimize_comparison): Also handle lexical comparison functions.
+	Return false instad of -2 for unequal comparison.
+
+2011-04-04  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/48412
+	* function_optimize_4.f90:  New test.
+
+2011-04-04  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/18918
+	* gfortran.dg/coarray_10.f90: Add coarray descriptor diagnostic check.
+	* gfortran.dg/coarray_13.f90: Add checks for run-time cobounds.
+	* gfortran.dg/coarray_15.f90: New.
+
+2011-04-04  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gfortran.dg/bessel_6.f90: Use dg-add-options ieee.
+	* gfortran.dg/bessel_7.f90: Likewise.
+
+2011-04-03  Tobias Burnus  <burnus@net-b.de>
+
+	* gfortran.dg/bessel_6.f90: Reduce mymax for Tru64.
+
+2011-04-03  Richard Guenther  <rguenther@suse.de>
+	    Ira Rosen  <ira.rosen@linaro.org>
+
+	* gcc.dg/vect/if-cvt-stores-vect-ifcvt-18.c: New test.
+	* gcc.dg/vect/vect.exp: Run if-cvt-stores-vect* tests with
+	-ftree-loop-if-convert-stores.
+
+2011-04-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/specs/aggr2.ads: New test.
+
+2011-04-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/debug2.ad[sb]: New test.
+	* gnat.dg/debug2_pkg.ads: New helper.
+	* gnat.dg/debug3.ad[sb]: New test.
+
+2011-04-01  Uros Bizjak  <ubizjak@gmail.com>
+
+	* go.test/go-test.exp (go-set-goarch): Recognize alpha*-*-*.
+
+2011-04-01  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/48335
+	* gcc.c-torture/compile/pr48335-1.c: New test.
+	* gcc.dg/pr48335-1.c: New test.
+	* gcc.dg/pr48335-2.c: New test.
+	* gcc.dg/pr48335-3.c: New test.
+	* gcc.dg/pr48335-4.c: New test.
+	* gcc.dg/pr48335-5.c: New test.
+	* gcc.dg/pr48335-6.c: New test.
+	* gcc.dg/pr48335-7.c: New test.
+	* gcc.dg/pr48335-8.c: New test.
+	* gcc.target/i386/pr48335-1.c: New test.
+
+2011-04-01  Vincent Lefevre  <vincent+gcc@vinc17.org>
+
+	PR c/36299
+	* gcc.dg/Waddress.c: New test.
+
+2011-04-01  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/48352
+	* gfortran.dg/function_optimize_3.f90:  New test.
+
+2011-04-01  Bernd Schmidt  <bernds@codesourcery.com>
+
+	* gcc.c-torture/compile/20110401-1.c: New test.
+
+	* g++.dg/lto/20091002-1_0.C: Use "dg-require-effective-target fpic".
+	* g++.dg/lto/20091002-2_0.C: Likewise.
+	* g++.dg/lto/20090303_0.c: Likewise.
+	* g++.dg/lto/20091004-1_0.C: Likewise.
+	* g++.dg/lto/20091002-3_0.C: Likewise.
+	* g++.dg/lto/20091004-2_0.C: Likewise.
+	* g++.dg/lto/20081123_0.C: Likewise.
+	* g++.dg/lto/20090313_0.C: Likewise.
+	* g++.dg/lto/20081109-1_0.C: Likewise.
+	* g++.dg/lto/20081219_0.C: Likewise.
+	* g++.dg/lto/20081204-1_0.C: Likewise.
+	* g++.dg/lto/20090302_0.C: Likewise.
+	* g++.dg/lto/20081119-1_0.C: Likewise.
+	* g++.dg/lto/20081118_0.C: Likewise.
+	* gcc.dg/lto/20091020-2_0.c: Likewise.
+	* gcc.dg/lto/20090210_0.c: Likewise.
+	* gcc.dg/lto/20081204-1_0.c: Likewise.
+	* gcc.dg/lto/20081224_0.c: Likewise.
+	* gcc.dg/lto/20090219_0.c: Likewise.
+	* gcc.dg/lto/20091014-1_0.c: Likewise.
+	* gcc.dg/lto/20091016-1_0.c: Likewise.
+	* gcc.dg/lto/20090206-2_0.c: Likewise.
+	* gcc.dg/lto/20090116_0.c: Likewise.
+	* gcc.dg/lto/20091013-1_0.c: Likewise.
+	* gcc.dg/lto/20091015-1_0.c: Likewise.
+	* gcc.dg/lto/20090126-2_0.c: Likewise.
+
+2011-03-31  Ian Lance Taylor  <iant@google.com>
+
+	* go.test/go-test.exp (go-set-goarch): Recognize MIPS ABIs.
+
+2011-03-31  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/opt16.adb: New test.
+
+2011-03-31  Jason Merrill  <jason@redhat.com>
+
+	* g++.dg/cpp0x/defaulted24.C: New.
+
+2011-03-31  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR target/16292
+	* gfortran.dg/g77/cabs.f: Only xfail execution on mips-sgi-irix6*
+	with -O0.
+
+2011-03-31  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* g++.dg/other/i386-9.C: New test.
+
+2011-03-30  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* go.test/go-test.exp (go-set-goarch): Use sparc64 for 64-bit SPARC.
+
+2011-03-30  Jason Merrill  <jason@redhat.com>
+
+	* g++.dg/cpp0x/regress/error-recovery1.C: New.
+
+	* g++.dg/cpp0x/regress/isnan.C: New.
+
+	* g++.dg/cpp0x/initlist46.C: New.
+
 2011-03-30  Richard Sandiford  <richard.sandiford@linaro.org>
 
 	PR target/47551
@@ -205,7 +414,7 @@
 	* gcc.dg/graphite/block-8.c: Likewise.
 
 2011-03-25  Richard Guenther  <rguenther@suse.de>
- 
+
 	* g++.dg/tree-ssa/pr41186.C: Scan the appropriate FRE dump.
 	* g++.dg/tree-ssa/pr8781.C: Likewise.
 	* gcc.dg/ipa/ipa-pta-13.c: Likewise.

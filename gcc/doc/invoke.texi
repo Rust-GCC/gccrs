@@ -313,6 +313,7 @@ Objective-C and Objective-C++ Dialects}.
 -fcompare-debug@r{[}=@var{opts}@r{]}  -fcompare-debug-second @gol
 -feliminate-dwarf2-dups -feliminate-unused-debug-types @gol
 -feliminate-unused-debug-symbols -femit-class-debug-always @gol
+-fdebug-types-section @gol
 -fmem-report -fpre-ipa-mem-report -fpost-ipa-mem-report -fprofile-arcs @gol
 -frandom-seed=@var{string} -fsched-verbose=@var{n} @gol
 -fsel-sched-verbose -fsel-sched-dump-cfg -fsel-sched-pipelining-verbose @gol
@@ -453,7 +454,7 @@ Objective-C and Objective-C++ Dialects}.
 -mapcs-reentrant  -mno-apcs-reentrant @gol
 -msched-prolog  -mno-sched-prolog @gol
 -mlittle-endian  -mbig-endian  -mwords-little-endian @gol
--mfloat-abi=@var{name}  -msoft-float  -mhard-float  -mfpe @gol
+-mfloat-abi=@var{name}  -mfpe @gol
 -mfp16-format=@var{name}
 -mthumb-interwork  -mno-thumb-interwork @gol
 -mcpu=@var{name}  -march=@var{name}  -mfpu=@var{name}  @gol
@@ -4584,6 +4585,15 @@ should be used only with debuggers that are unable to handle the way GCC
 normally emits debugging information for classes because using this
 option will increase the size of debugging information by as much as a
 factor of two.
+
+@item -fno-debug-types-section
+@opindex fno-debug-types-section
+@opindex fdebug-types-section
+By default when using DWARF v4 or higher type DIEs will be put into
+their own .debug_types section instead of making them part of the
+.debug_info section.  It is more efficient to put them in a separate
+comdat sections since the linker will then be able to remove duplicates.
+But not all DWARF consumers support .debug_types sections yet.
 
 @item -gstabs+
 @opindex gstabs+
@@ -9381,7 +9391,7 @@ This tells the compiler to create, override or delete the named spec
 string.  All lines after this directive up to the next directive or
 blank line are considered to be the text for the spec string.  If this
 results in an empty string then the spec will be deleted.  (Or, if the
-spec did not exist, then nothing will happened.)  Otherwise, if the spec
+spec did not exist, then nothing will happen.)  Otherwise, if the spec
 does not currently exist a new spec will be created.  If the spec does
 exist then its contents will be overridden by the text of this
 directive, unless the first character of that text is the @samp{+}
@@ -10068,14 +10078,6 @@ The default depends on the specific target configuration.  Note that
 the hard-float and soft-float ABIs are not link-compatible; you must
 compile your entire program with the same ABI, and link with a
 compatible set of libraries.
-
-@item -mhard-float
-@opindex mhard-float
-Equivalent to @option{-mfloat-abi=hard}.
-
-@item -msoft-float
-@opindex msoft-float
-Equivalent to @option{-mfloat-abi=soft}.
 
 @item -mlittle-endian
 @opindex mlittle-endian

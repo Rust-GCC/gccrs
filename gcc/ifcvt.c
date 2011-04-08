@@ -1,5 +1,6 @@
 /* If-conversion support.
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2010
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2010,
+   2011
    Free Software Foundation, Inc.
 
    This file is part of GCC.
@@ -304,6 +305,10 @@ cond_exec_process_insns (ce_if_block_t *ce_info ATTRIBUTE_UNUSED,
 
   for (insn = start; ; insn = NEXT_INSN (insn))
     {
+      /* dwarf2out can't cope with conditional prologues.  */
+      if (NOTE_P (insn) && NOTE_KIND (insn) == NOTE_INSN_PROLOGUE_END)
+	return FALSE;
+
       if (NOTE_P (insn) || DEBUG_INSN_P (insn))
 	goto insn_done;
 
@@ -476,7 +481,8 @@ cond_exec_process_if_block (ce_if_block_t * ce_info,
       /* Look for matching sequences at the head and tail of the two blocks,
 	 and limit the range of insns to be converted if possible.  */
       n_matching = flow_find_cross_jump (then_bb, else_bb,
-					 &then_first_tail, &else_first_tail);
+					 &then_first_tail, &else_first_tail,
+					 NULL);
       if (then_first_tail == BB_HEAD (then_bb))
 	then_start = then_end = NULL_RTX;
       if (else_first_tail == BB_HEAD (else_bb))

@@ -1,7 +1,7 @@
 /* Write and read the cgraph to the memory mapped representation of a
    .o file.
 
-   Copyright 2009, 2010 Free Software Foundation, Inc.
+   Copyright 2009, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
 
 This file is part of GCC.
@@ -285,6 +285,8 @@ lto_output_edge (struct lto_simple_output_block *ob, struct cgraph_edge *edge,
   bp_pack_value (&bp, uid, HOST_BITS_PER_INT);
   bp_pack_value (&bp, edge->inline_failed, HOST_BITS_PER_INT);
   bp_pack_value (&bp, edge->frequency, HOST_BITS_PER_INT);
+  bp_pack_value (&bp, edge->call_stmt_size, HOST_BITS_PER_INT);
+  bp_pack_value (&bp, edge->call_stmt_time, HOST_BITS_PER_INT);
   bp_pack_value (&bp, edge->loop_nest, 30);
   bp_pack_value (&bp, edge->indirect_inlining_edge, 1);
   bp_pack_value (&bp, edge->call_stmt_cannot_inline_p, 1);
@@ -975,7 +977,6 @@ input_overwrite_node (struct lto_file_decl_data *file_data,
 	  || node->clone_of->decl != node->decl))
     {
       DECL_EXTERNAL (node->decl) = 1;
-      DECL_ABSTRACT_ORIGIN (node->decl) = NULL_TREE;
       TREE_STATIC (node->decl) = 0;
     }
   node->alias = bp_unpack_value (bp, 1);
@@ -1147,7 +1148,6 @@ input_varpool_node (struct lto_file_decl_data *file_data,
   if (node->in_other_partition)
     {
       DECL_EXTERNAL (node->decl) = 1;
-      DECL_ABSTRACT_ORIGIN (node->decl) = NULL_TREE;
       TREE_STATIC (node->decl) = 0;
     }
   aliases_p = bp_unpack_value (&bp, 1);
@@ -1217,6 +1217,7 @@ input_edge (struct lto_input_block *ib, VEC(cgraph_node_ptr, heap) *nodes,
   cgraph_inline_failed_t inline_failed;
   struct bitpack_d bp;
   int ecf_flags = 0;
+  int call_stmt_time, call_stmt_size;
 
   caller = VEC_index (cgraph_node_ptr, nodes, lto_input_sleb128 (ib));
   if (caller == NULL || caller->decl == NULL_TREE)
@@ -1238,6 +1239,8 @@ input_edge (struct lto_input_block *ib, VEC(cgraph_node_ptr, heap) *nodes,
   inline_failed = (cgraph_inline_failed_t) bp_unpack_value (&bp,
 							    HOST_BITS_PER_INT);
   freq = (int) bp_unpack_value (&bp, HOST_BITS_PER_INT);
+  call_stmt_size = (int) bp_unpack_value (&bp, HOST_BITS_PER_INT);
+  call_stmt_time = (int) bp_unpack_value (&bp, HOST_BITS_PER_INT);
   nest = (unsigned) bp_unpack_value (&bp, 30);
 
   if (indirect)
@@ -1250,6 +1253,8 @@ input_edge (struct lto_input_block *ib, VEC(cgraph_node_ptr, heap) *nodes,
   edge->inline_failed = inline_failed;
   edge->call_stmt_cannot_inline_p = bp_unpack_value (&bp, 1);
   edge->can_throw_external = bp_unpack_value (&bp, 1);
+  edge->call_stmt_size = call_stmt_size;
+  edge->call_stmt_time = call_stmt_time;
   if (indirect)
     {
       if (bp_unpack_value (&bp, 1))

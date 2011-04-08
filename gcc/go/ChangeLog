@@ -1,3 +1,53 @@
+2011-04-06  Ian Lance Taylor  <iant@google.com>
+
+	* go-gcc.cc (if_statement): Use build3_loc.
+	(Gcc_backend::switch_statement): New function.
+	(Gcc_backend::statement_list): New function.
+
+2011-04-06  Ian Lance Taylor  <iant@google.com>
+
+	* go-gcc.cc (Gcc_backend::if_statement): New function.
+	(tree_to_stat): New function.
+	(expr_to_tree): Renamed from expression_to_tree.
+	(stat_to_tree): Renamed from statement_to_tree.
+
+2011-04-06  Ian Lance Taylor  <iant@google.com>
+
+	* go-gcc.cc (Gcc_backend::expression_statement): New function.
+
+2011-04-04  Ian Lance Taylor  <iant@google.com>
+
+	* go-gcc.c (class Blabel): Define.
+	(Gcc_backend::make_expression): New function.
+	(get_identifier_from_string): New function.
+	(Gcc_backend::label): New function.
+	(Gcc_backend::label_definition_statement): New function.
+	(Gcc_backend::goto_statement): New function.
+	(Gcc_backend::label_address): New function.
+	(expression_to_tree): New function.
+	* Make-lang.in (go/expressions.o): Depend on
+	go/gofrontend/backend.h.
+	(go/gogo.o): Likewise.
+
+2011-04-04  Ian Lance Taylor  <iant@google.com>
+
+	* go-gcc.cc: #include "tree-iterator.h", "gimple.h", and "gogo.h".
+	(class Bfunction): Define.
+	(Gcc_backend::assignment_statement): Rename from assignment.
+	Check for errors.
+	(Gcc_backend::return_statement): New function.
+	(tree_to_function): New function.
+	* Make-lang.in (go/go-gcc.o): Depend on tree-iterator.h,
+	$(GIMPLE_H), and $(GO_GOGO_H).
+
+2011-04-03  Ian Lance Taylor  <iant@google.com>
+
+	* go-gcc.cc: New file.
+	* Make-lang.in (GO_OBJS): Add go/go-gcc.o.
+	(go/go-gcc.o): New target.
+	(go/go.o): Depend on go/gofrontend/backend.h.
+	(go/statements.o): Likewise.
+
 2011-02-14  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
 
 	* gccgo.texi (Top, Import and Export): Fix a typo and a markup nit.

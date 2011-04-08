@@ -3242,8 +3242,8 @@ typedef struct GTY(()) gimple_type_leader_entry_s {
 } gimple_type_leader_entry;
 
 #define GIMPLE_TYPE_LEADER_SIZE 16381
-static GTY((length("GIMPLE_TYPE_LEADER_SIZE"))) gimple_type_leader_entry
-  *gimple_type_leader;
+static GTY((deletable, length("GIMPLE_TYPE_LEADER_SIZE")))
+  gimple_type_leader_entry *gimple_type_leader;
 
 /* Lookup an existing leader for T and return it or NULL_TREE, if
    there is none in the cache.  */
@@ -3306,8 +3306,7 @@ compare_type_names_p (tree t1, tree t2, bool for_completion_p)
 
 /* Return true if the field decls F1 and F2 are at the same offset.
 
-   This is intended to be used on GIMPLE types only.  In order to
-   compare GENERIC types, use fields_compatible_p instead.  */
+   This is intended to be used on GIMPLE types only.  */
 
 bool
 gimple_compare_field_offset (tree f1, tree f2)

@@ -308,10 +308,10 @@ gigi (Node_Id gnat_root, int max_gnat_node, int number_name ATTRIBUTE_UNUSED,
 
   /* Record the builtin types.  Define `integer' and `character' first so that
      dbx will output them first.  */
-  record_builtin_type ("integer", integer_type_node);
-  record_builtin_type ("character", unsigned_char_type_node);
-  record_builtin_type ("boolean", boolean_type_node);
-  record_builtin_type ("void", void_type_node);
+  record_builtin_type ("integer", integer_type_node, false);
+  record_builtin_type ("character", unsigned_char_type_node, false);
+  record_builtin_type ("boolean", boolean_type_node, false);
+  record_builtin_type ("void", void_type_node, false);
 
   /* Save the type we made for integer as the type for Standard.Integer.  */
   save_gnu_tree (Base_Type (standard_integer),
@@ -397,7 +397,7 @@ gigi (Node_Id gnat_root, int max_gnat_node, int number_name ATTRIBUTE_UNUSED,
   jmpbuf_type
     = build_array_type (gnat_type_for_mode (Pmode, 0),
 			build_index_type (size_int (5)));
-  record_builtin_type ("JMPBUF_T", jmpbuf_type);
+  record_builtin_type ("JMPBUF_T", jmpbuf_type, true);
   jmpbuf_ptr_type = build_pointer_type (jmpbuf_type);
 
   /* Functions to get and set the jumpbuf pointer for the current thread.  */
@@ -552,7 +552,7 @@ gigi (Node_Id gnat_root, int max_gnat_node, int number_name ATTRIBUTE_UNUSED,
 	}
 
       finish_record_type (fdesc_type_node, nreverse (field_list), 0, false);
-      record_builtin_type ("descriptor", fdesc_type_node);
+      record_builtin_type ("descriptor", fdesc_type_node, true);
       null_fdesc_node = gnat_build_constructor (fdesc_type_node, null_vec);
     }
 
@@ -566,7 +566,8 @@ gigi (Node_Id gnat_root, int max_gnat_node, int number_name ATTRIBUTE_UNUSED,
       longest_float_type_node = make_node (REAL_TYPE);
       TYPE_PRECISION (longest_float_type_node) = LONG_DOUBLE_TYPE_SIZE;
       layout_type (longest_float_type_node);
-      record_builtin_type ("longest float type", longest_float_type_node);
+      record_builtin_type ("longest float type", longest_float_type_node,
+			   false);
     }
   else
     longest_float_type_node = TREE_TYPE (long_long_float_type);
@@ -6608,11 +6609,17 @@ process_freeze_entity (Node_Id gnat_node)
       && Root_Type (Class_Wide_Type (gnat_entity)) == gnat_entity)
     save_gnu_tree (Class_Wide_Type (gnat_entity), gnu_new, false);
 
-  /* If we've made any pointers to the old version of this type, we
-     have to update them.  */
+  /* If we have an old type and we've made pointers to this type, update those
+     pointers.  If this is a Taft amendment type in the main unit, we need to
+     mark the type as used since other units referencing it don't see the full
+     declaration and, therefore, cannot mark it as used themselves.  */
   if (gnu_old)
-    update_pointer_to (TYPE_MAIN_VARIANT (TREE_TYPE (gnu_old)),
-		       TREE_TYPE (gnu_new));
+    {
+      update_pointer_to (TYPE_MAIN_VARIANT (TREE_TYPE (gnu_old)),
+			 TREE_TYPE (gnu_new));
+      if (DECL_TAFT_TYPE_P (gnu_old))
+	used_types_insert (TREE_TYPE (gnu_new));
+    }
 }
 
 /* Elaborate decls in the lists GNAT_DECLS and GNAT_DECLS2, if present.
@@ -7455,7 +7462,11 @@ process_type (Entity_Id gnat_entity)
 	  save_gnu_tree (gnat_entity, gnu_decl, false);
 	  if (IN (Ekind (gnat_entity), Incomplete_Or_Private_Kind)
 	      && Present (Full_View (gnat_entity)))
-	    save_gnu_tree (Full_View (gnat_entity), gnu_decl, false);
+	    {
+	      if (Has_Completion_In_Body (gnat_entity))
+		DECL_TAFT_TYPE_P (gnu_decl) = 1;
+	      save_gnu_tree (Full_View (gnat_entity), gnu_decl, false);
+	    }
 	}
 
       return;
@@ -7477,11 +7488,17 @@ process_type (Entity_Id gnat_entity)
   gnu_new = gnat_to_gnu_entity (gnat_entity, NULL_TREE, 1);
   gcc_assert (TREE_CODE (gnu_new) == TYPE_DECL);
 
-  /* If we have an old type and we've made pointers to this type,
-     update those pointers.  */
+  /* If we have an old type and we've made pointers to this type, update those
+     pointers.  If this is a Taft amendment type in the main unit, we need to
+     mark the type as used since other units referencing it don't see the full
+     declaration and, therefore, cannot mark it as used themselves.  */
   if (gnu_old)
-    update_pointer_to (TYPE_MAIN_VARIANT (TREE_TYPE (gnu_old)),
-		       TREE_TYPE (gnu_new));
+    {
+      update_pointer_to (TYPE_MAIN_VARIANT (TREE_TYPE (gnu_old)),
+			 TREE_TYPE (gnu_new));
+      if (DECL_TAFT_TYPE_P (gnu_old))
+	used_types_insert (TREE_TYPE (gnu_new));
+    }
 
   /* If this is a record type corresponding to a task or protected type
      that is a completion of an incomplete type, perform a similar update

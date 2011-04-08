@@ -1,3 +1,37 @@
+2011-03-31  Jason Merrill  <jason@redhat.com>
+
+	PR c++/48277
+	* semantics.c (finish_call_expr): Remove assert.
+
+	PR c++/48280
+	* method.c (defaultable_fn_check): Templates are not defaultable.
+
+	* parser.c (cp_parser_init_declarator): Avoid redundant
+	cp_finish_decl for member declarations.
+
+2011-03-30  Jason Merrill  <jason@redhat.com>
+
+	PR c++/48212
+	* semantics.c (non_const_var_error): Just return if DECL_INITIAL
+	is error_mark_node.
+
+2011-03-30  Jason Merrill  <jason@redhat.com>
+
+	PR c++/48369
+	* semantics.c (potential_constant_expression_1): Handle
+	UNORDERED_EXPR and ORDERED_EXPR.
+
+	PR c++/48281
+	* semantics.c (finish_compound_literal): Do put static/constant
+	arrays in static variables.
+
+	* call.c (convert_like_real) [ck_list]: Build up the
+	initializer_list object directly.
+	* decl.c (build_init_list_var_init): Adjust.
+
+	* call.c (convert_like_real): Correct TREE_CONSTANT on CONSTRUCTOR.
+	* decl.c (reshape_init_array_1): Likewise.
+
 2011-03-29  Jason Merrill  <jason@redhat.com>
 
 	PR c++/48265

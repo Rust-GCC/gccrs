@@ -18944,7 +18944,7 @@ arm_init_neon_builtins (void)
 		/* Build a function type directly from the insn_data for this
 		   builtin.  The build_function_type() function takes care of
 		   removing duplicates for us.  */
-		for (k = insn_data[icode].n_operands - 1; k >= 0; k--)
+		for (k = insn_data[icode].n_generator_args - 1; k >= 0; k--)
 		  {
 		    tree eltype;
 
@@ -22333,14 +22333,16 @@ arm_preferred_simd_mode (enum machine_mode mode)
 
 /* Implement TARGET_CLASS_LIKELY_SPILLED_P.
  
-   We need to define this for LO_REGS on thumb.  Otherwise we can end up
-   using r0-r4 for function arguments, r7 for the stack frame and don't
-   have enough left over to do doubleword arithmetic.  */
-
+   We need to define this for LO_REGS on Thumb-1.  Otherwise we can end up
+   using r0-r4 for function arguments, r7 for the stack frame and don't have
+   enough left over to do doubleword arithmetic.  For Thumb-2 all the
+   potentially problematic instructions accept high registers so this is not
+   necessary.  Care needs to be taken to avoid adding new Thumb-2 patterns
+   that require many low registers.  */
 static bool
 arm_class_likely_spilled_p (reg_class_t rclass)
 {
-  if ((TARGET_THUMB && rclass == LO_REGS)
+  if ((TARGET_THUMB1 && rclass == LO_REGS)
       || rclass  == CC_REG)
     return true;
 

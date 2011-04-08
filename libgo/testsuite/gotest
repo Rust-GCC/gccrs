@@ -32,6 +32,8 @@ loop=true
 keep=false
 prefix=
 dejagnu=no
+timeout=60
+testname=""
 while $loop; do
 	case "x$1" in
         x--srcdir)
@@ -81,6 +83,24 @@ while $loop; do
 		;;
 	x--dejagnu=*)
 		dejagnu=`echo $1 | sed -e 's/^--dejagnu=//'`
+		shift
+		;;
+	x--timeout)
+		timeout=$2
+		shift
+		shift
+		;;
+	x--timeout=*)
+		timeout=`echo $1 | sed -e 's/^--timeout=//'`
+		shift
+		;;
+	x--testname)
+		testname=$2
+		shift
+		shift
+		;;
+	x--testname=*)
+		testname=`echo $1 | sed -e 's/^--testname=//'`
 		shift
 		;;
 	x-*)
@@ -211,7 +231,7 @@ mkdir _test
 
 case "x$gofiles" in
 x)
-	gofiles=$(echo -n $(ls *_test.go 2>/dev/null))
+	gofiles=`ls *_test.go 2>/dev/null`
 esac
 
 case "x$gofiles" in
@@ -230,7 +250,7 @@ GC="$holdGC"
 
 case "x$pkgfiles" in
 x)
-	pkgbasefiles=$(echo -n $(ls *.go | grep -v _test.go 2>/dev/null))
+	pkgbasefiles=`ls *.go | grep -v _test.go 2>/dev/null`
 	;;
 *)
 	for f in $pkgfiles; do
@@ -357,7 +377,20 @@ case "x$dejagnu" in
 xno)
 	${GC} -g -c _testmain.go
 	${GL} *.o ${GOLIBS}
-	./a.out -test.short "$@"
+
+	./a.out -test.short -test.timeout=$timeout "$@" &
+	pid=$!
+	(sleep `expr $timeout + 10`
+	    echo > gotest-timeout
+	    echo "timed out in gotest" 1>&2
+	    kill -9 $pid) &
+	alarmpid=$!
+	wait $pid
+	status=$?
+	if ! test -f gotest-timeout; then
+	    kill $alarmpid
+	fi
+	exit $status
 	;;
 xyes)
 	rm -rf ../testsuite/*.o
@@ -376,6 +409,10 @@ xyes)
 	cd ../testsuite
 	rm -rf _obj _test
 	mkdir _obj _test
+	if test "$testname" != ""; then
+	    GOTESTNAME="$testname"
+	    export GOTESTNAME
+	fi
 	$MAKE check RUNTESTFLAGS="$RUNTESTFLAGS GOTEST_TMPDIR=$DIR"
 	# Useful when using make check-target-libgo
 	cat libgo.log >> libgo-all.log

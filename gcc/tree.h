@@ -1636,6 +1636,7 @@ extern void protected_set_expr_location (tree, location_t);
 #define CASE_LOW(NODE)          	TREE_OPERAND (CASE_LABEL_EXPR_CHECK (NODE), 0)
 #define CASE_HIGH(NODE)         	TREE_OPERAND (CASE_LABEL_EXPR_CHECK (NODE), 1)
 #define CASE_LABEL(NODE)		TREE_OPERAND (CASE_LABEL_EXPR_CHECK (NODE), 2)
+#define CASE_CHAIN(NODE)		TREE_CHAIN (CASE_LABEL_EXPR_CHECK (NODE))
 
 /* The operands of a TARGET_MEM_REF.  Operands 0 and 1 have to match
    corresponding MEM_REF operands.  */
@@ -2962,7 +2963,7 @@ struct GTY(()) tree_result_decl {
 };
 
 struct GTY(()) tree_const_decl {
-  struct tree_decl_with_rtl common;
+  struct tree_decl_common common;
 };
 
 /* For a PARM_DECL, records the data type used to pass the argument,
@@ -3228,7 +3229,7 @@ struct GTY(())
   tree arguments;
   /* Almost all FE's use this.  */
   tree result;
-  /* C++ uses this in namespaces.  */
+  /* C++ uses this in namespaces and function_decls.  */
   tree vindex;
 };
 
@@ -5226,9 +5227,6 @@ extern tree build_nonshared_range_type (tree, tree, tree);
 extern bool subrange_type_for_debug_p (const_tree, tree *, tree *);
 extern HOST_WIDE_INT int_cst_value (const_tree);
 extern HOST_WIDEST_INT widest_int_cst_value (const_tree);
-
-extern bool fields_compatible_p (const_tree, const_tree);
-extern tree find_compatible_field (tree, tree);
 
 extern tree *tree_block (tree);
 extern location_t *block_nonartificial_location (tree);

@@ -122,8 +122,6 @@ extern GTY(()) section *progmem_section;
 #define AVR_2_BYTE_PC (!AVR_HAVE_EIJMP_EICALL)
 #define AVR_3_BYTE_PC (AVR_HAVE_EIJMP_EICALL)
 
-#define TARGET_VERSION fprintf (stderr, " (GNU assembler syntax)");
-
 #define BITS_BIG_ENDIAN 0
 #define BYTES_BIG_ENDIAN 0
 #define WORDS_BIG_ENDIAN 0
@@ -476,8 +474,8 @@ do {									   \
      fprintf ((STREAM), ",%lu,1\n", (unsigned long)(SIZE));		   \
 } while (0)
 
-#define ASM_OUTPUT_BSS(FILE, DECL, NAME, SIZE, ROUNDED)			\
-  asm_output_bss ((FILE), (DECL), (NAME), (SIZE), (ROUNDED))
+#define ASM_OUTPUT_ALIGNED_BSS(FILE, DECL, NAME, SIZE, ALIGN) \
+  asm_output_aligned_bss (FILE, DECL, NAME, SIZE, ALIGN)
 
 #define ASM_OUTPUT_LOCAL(STREAM, NAME, SIZE, ROUNDED)			\
 do {									\
