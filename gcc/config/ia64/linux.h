@@ -31,7 +31,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 /* Target OS builtins.  */
 #define TARGET_OS_CPP_BUILTINS()		\
 do {						\
-	LINUX_TARGET_OS_CPP_BUILTINS();		\
+	GNU_USER_TARGET_OS_CPP_BUILTINS();	\
 	builtin_define("_LONGLONG");		\
 } while (0)
 
@@ -50,7 +50,7 @@ do {						\
 /* Similar to standard Linux, but adding -ffast-math support.  */
 #undef  ENDFILE_SPEC
 #define ENDFILE_SPEC \
-  "%{ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
+  "%{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
    %{shared|pie:crtendS.o%s;:crtend.o%s} crtn.o%s"
 
 /* Define this for shared library support because it isn't in the main
@@ -64,7 +64,7 @@ do {						\
   %{!shared: \
     %{!static: \
       %{rdynamic:-export-dynamic} \
-      -dynamic-linker " LINUX_DYNAMIC_LINKER "} \
+      -dynamic-linker " GNU_USER_DYNAMIC_LINKER "} \
       %{static:-static}}"
 
 #define CPP_SPEC "%{posix:-D_POSIX_SOURCE} %{pthread:-D_REENTRANT}"

@@ -37,6 +37,7 @@ along with Gcov; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "intl.h"
+#include "diagnostic.h"
 #include "version.h"
 
 #include <getopt.h>
@@ -53,6 +54,13 @@ along with Gcov; see the file COPYING3.  If not see
    are very similar to functions in the gcc source file profile.c.  In
    some places we make use of the knowledge of how profile.c works to
    select particular algorithms here.  */
+
+/* The code validates that the profile information read in corresponds
+   to the code currently being compiled.  Rather than checking for
+   identical files, the code below computes a checksum on the CFG
+   (based on the order of basic blocks and the arcs in the CFG).  If
+   the CFG checksum in the gcda file match the CFG checksum for the
+   code currently being compiled, the profile data will be used.  */
 
 /* This is the size of the buffer used to read in source file lines.  */
 
@@ -161,7 +169,8 @@ typedef struct function_info
   /* Name of function.  */
   char *name;
   unsigned ident;
-  unsigned checksum;
+  unsigned lineno_checksum;
+  unsigned cfg_checksum;
 
   /* Array of basic blocks.  */
   block_t *blocks;
@@ -334,7 +343,6 @@ static int flag_preserve_paths = 0;
 static int flag_counts = 0;
 
 /* Forward declarations.  */
-static void fnotice (FILE *, const char *, ...) ATTRIBUTE_PRINTF_2;
 static int process_args (int, char **);
 static void print_usage (int) ATTRIBUTE_NORETURN;
 static void print_version (void) ATTRIBUTE_NORETURN;
@@ -361,11 +369,21 @@ main (int argc, char **argv)
 {
   int argno;
   int first_arg;
+  const char *p;
+
+  p = argv[0] + strlen (argv[0]);
+  while (p != argv[0] && !IS_DIR_SEPARATOR (p[-1]))
+    --p;
+  progname = p;
+
+  xmalloc_set_program_name (progname);
 
   /* Unlock the stdio streams.  */
   unlock_std_streams ();
 
   gcc_init_libintl ();
+
+  diagnostic_initialize (global_dc, 0);
 
   /* Handle response files.  */
   expandargv (&argc, &argv);
@@ -392,16 +410,6 @@ main (int argc, char **argv)
   release_structures ();
 
   return 0;
-}
-
-static void
-fnotice (FILE *file, const char *cmsgid, ...)
-{
-  va_list ap;
-
-  va_start (ap, cmsgid);
-  vfprintf (file, _(cmsgid), ap);
-  va_end (ap);
 }
 
 /* Print a usage message and exit.  If ERROR_P is nonzero, this is an error,
@@ -661,10 +669,8 @@ create_file_names (const char *file_name)
   int base;
 
   /* Free previous file names.  */
-  if (bbg_file_name)
-    free (bbg_file_name);
-  if (da_file_name)
-    free (da_file_name);
+  free (bbg_file_name);
+  free (da_file_name);
   da_file_name = bbg_file_name = NULL;
   bbg_file_time = 0;
   bbg_stamp = 0;
@@ -809,12 +815,14 @@ read_graph_file (void)
       if (tag == GCOV_TAG_FUNCTION)
 	{
 	  char *function_name;
-	  unsigned ident, checksum, lineno;
+	  unsigned ident, lineno;
+	  unsigned lineno_checksum, cfg_checksum;
 	  source_t *src;
 	  function_t *probe, *prev;
 
 	  ident = gcov_read_unsigned ();
-	  checksum = gcov_read_unsigned ();
+	  lineno_checksum = gcov_read_unsigned ();
+	  cfg_checksum = gcov_read_unsigned ();
 	  function_name = xstrdup (gcov_read_string ());
 	  src = find_source (gcov_read_string ());
 	  lineno = gcov_read_unsigned ();
@@ -822,7 +830,8 @@ read_graph_file (void)
 	  fn = XCNEW (function_t);
 	  fn->name = function_name;
 	  fn->ident = ident;
-	  fn->checksum = checksum;
+	  fn->lineno_checksum = lineno_checksum;
+	  fn->cfg_checksum = cfg_checksum;
 	  fn->src = src;
 	  fn->line = lineno;
 
@@ -1109,7 +1118,8 @@ read_count_file (void)
 
 	  if (!fn)
 	    ;
-	  else if (gcov_read_unsigned () != fn->checksum)
+	  else if (gcov_read_unsigned () != fn->lineno_checksum
+		   || gcov_read_unsigned () != fn->cfg_checksum)
 	    {
 	    mismatch:;
 	      fnotice (stderr, "%s:profile mismatch for '%s'\n",

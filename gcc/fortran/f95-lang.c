@@ -59,7 +59,7 @@ lang_identifier {
 /* The resulting tree type.  */
 
 union GTY((desc ("TREE_CODE (&%h.generic) == IDENTIFIER_NODE"),
-     chain_next ("(union lang_tree_node *)TREE_CHAIN (&%h.generic)")))
+     chain_next ("CODE_CONTAINS_STRUCT (TREE_CODE (&%h.generic), TS_COMMON) ? ((union lang_tree_node *) TREE_CHAIN (&%h.generic)) : NULL")))
 
 lang_tree_node {
   union tree_node GTY((tag ("0"),
@@ -91,7 +91,7 @@ static void gfc_finish (void);
 static void gfc_write_global_declarations (void);
 static void gfc_print_identifier (FILE *, tree, int);
 void do_function_end (void);
-int global_bindings_p (void);
+bool global_bindings_p (void);
 static void clear_binding_stack (void);
 static void gfc_be_parse_file (void);
 static alias_set_type gfc_get_alias_set (tree);
@@ -373,12 +373,12 @@ static GTY(()) struct binding_level *global_binding_level;
 static struct binding_level clear_binding_level = { NULL, NULL, NULL };
 
 
-/* Return nonzero if we are currently in the global binding level.  */
+/* Return true if we are in the global binding level.  */
 
-int
+bool
 global_bindings_p (void)
 {
-  return current_binding_level == global_binding_level ? -1 : 0;
+  return current_binding_level == global_binding_level;
 }
 
 tree
@@ -444,7 +444,7 @@ poplevel (int keep, int reverse, int functionbody)
 
   /* Record the BLOCK node just built as the subblock its enclosing scope.  */
   for (subblock_node = subblock_chain; subblock_node;
-       subblock_node = TREE_CHAIN (subblock_node))
+       subblock_node = BLOCK_CHAIN (subblock_node))
     BLOCK_SUPERCONTEXT (subblock_node) = block_node;
 
   /* Clear out the meanings of the local variables of this level.  */
@@ -475,7 +475,7 @@ poplevel (int keep, int reverse, int functionbody)
   else if (block_node)
     {
       current_binding_level->blocks
-	= chainon (current_binding_level->blocks, block_node);
+	= block_chainon (current_binding_level->blocks, block_node);
     }
 
   /* If we did not make a block for the level just exited, any blocks made for
@@ -484,7 +484,7 @@ poplevel (int keep, int reverse, int functionbody)
      else.  */
   else if (subblock_chain)
     current_binding_level->blocks
-      = chainon (current_binding_level->blocks, subblock_chain);
+      = block_chainon (current_binding_level->blocks, subblock_chain);
   if (block_node)
     TREE_USED (block_node) = 1;
 

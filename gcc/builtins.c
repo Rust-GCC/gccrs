@@ -268,7 +268,7 @@ called_as_built_in (tree node)
    Don't return more than MAX_ALIGN no matter what.  */
 
 unsigned int
-get_object_alignment (tree exp, unsigned int max_align)
+get_object_alignment_1 (tree exp, unsigned HOST_WIDE_INT *bitposp)
 {
   HOST_WIDE_INT bitsize, bitpos;
   tree offset;
@@ -320,8 +320,7 @@ get_object_alignment (tree exp, unsigned int max_align)
 	  align = MAX (pi->align * BITS_PER_UNIT, align);
 	}
       else if (TREE_CODE (addr) == ADDR_EXPR)
-	align = MAX (align, get_object_alignment (TREE_OPERAND (addr, 0),
-						  max_align));
+	align = MAX (align, get_object_alignment (TREE_OPERAND (addr, 0), ~0U));
       bitpos += mem_ref_offset (exp).low * BITS_PER_UNIT;
     }
   else if (TREE_CODE (exp) == TARGET_MEM_REF)
@@ -345,8 +344,7 @@ get_object_alignment (tree exp, unsigned int max_align)
 	  align = MAX (pi->align * BITS_PER_UNIT, align);
 	}
       else if (TREE_CODE (addr) == ADDR_EXPR)
-	align = MAX (align, get_object_alignment (TREE_OPERAND (addr, 0),
-						  max_align));
+	align = MAX (align, get_object_alignment (TREE_OPERAND (addr, 0), ~0U));
       if (TMR_OFFSET (exp))
 	bitpos += TREE_INT_CST_LOW (TMR_OFFSET (exp)) * BITS_PER_UNIT;
       if (TMR_INDEX (exp) && TMR_STEP (exp))
@@ -364,7 +362,7 @@ get_object_alignment (tree exp, unsigned int max_align)
 
   /* If there is a non-constant offset part extract the maximum
      alignment that can prevail.  */
-  inner = max_align;
+  inner = ~0U;
   while (offset)
     {
       tree next_offset;
@@ -410,6 +408,21 @@ get_object_alignment (tree exp, unsigned int max_align)
      and non-constant offset parts.  */
   align = MIN (align, inner);
   bitpos = bitpos & (align - 1);
+
+  *bitposp = bitpos;
+  return align;
+}
+
+/* Return the alignment in bits of EXP, an object.
+   Don't return more than MAX_ALIGN no matter what.  */
+
+unsigned int
+get_object_alignment (tree exp, unsigned int max_align)
+{
+  unsigned HOST_WIDE_INT bitpos = 0;
+  unsigned int align;
+
+  align = get_object_alignment_1 (exp, &bitpos);
 
   /* align and bitpos now specify known low bits of the pointer.
      ptr & (align - 1) == bitpos.  */
@@ -5410,8 +5423,7 @@ expand_builtin_signbit (tree exp, rtx target)
       /* Perform a logical right shift to place the signbit in the least
 	 significant bit, then truncate the result to the desired mode
 	 and mask just this bit.  */
-      temp = expand_shift (RSHIFT_EXPR, imode, temp,
-			   build_int_cst (NULL_TREE, bitpos), NULL_RTX, 1);
+      temp = expand_shift (RSHIFT_EXPR, imode, temp, bitpos, NULL_RTX, 1);
       temp = gen_lowpart (rmode, temp);
       temp = expand_binop (rmode, and_optab, temp, const1_rtx,
 			   NULL_RTX, 1, OPTAB_LIB_WIDEN);
@@ -6012,7 +6024,7 @@ expand_builtin (tree exp, rtx target, rtx subtarget, enum machine_mode mode,
     case BUILT_IN_ALLOCA:
       /* If the allocation stems from the declaration of a variable-sized
 	 object, it cannot accumulate.  */
-      target = expand_builtin_alloca (exp, ALLOCA_FOR_VAR_P (exp));
+      target = expand_builtin_alloca (exp, CALL_ALLOCA_FOR_VAR_P (exp));
       if (target)
 	return target;
       break;
@@ -6761,9 +6773,9 @@ static tree
 fold_builtin_classify_type (tree arg)
 {
   if (arg == 0)
-    return build_int_cst (NULL_TREE, no_type_class);
+    return build_int_cst (integer_type_node, no_type_class);
 
-  return build_int_cst (NULL_TREE, type_to_class (TREE_TYPE (arg)));
+  return build_int_cst (integer_type_node, type_to_class (TREE_TYPE (arg)));
 }
 
 /* Fold a call to __builtin_strlen with argument ARG.  */
@@ -9121,10 +9133,10 @@ fold_builtin_isascii (location_t loc, tree arg)
     {
       /* Transform isascii(c) -> ((c & ~0x7f) == 0).  */
       arg = fold_build2 (BIT_AND_EXPR, integer_type_node, arg,
-			 build_int_cst (NULL_TREE,
+			 build_int_cst (integer_type_node,
 					~ (unsigned HOST_WIDE_INT) 0x7f));
       return fold_build2_loc (loc, EQ_EXPR, integer_type_node,
-			  arg, integer_zero_node);
+			      arg, integer_zero_node);
     }
 }
 
@@ -9138,7 +9150,7 @@ fold_builtin_toascii (location_t loc, tree arg)
 
   /* Transform toascii(c) -> (c & 0x7f).  */
   return fold_build2_loc (loc, BIT_AND_EXPR, integer_type_node, arg,
-		      build_int_cst (NULL_TREE, 0x7f));
+			  build_int_cst (integer_type_node, 0x7f));
 }
 
 /* Fold a call to builtin isdigit with argument ARG.  */
@@ -9329,7 +9341,7 @@ fold_builtin_logb (location_t loc, tree arg, tree rettype)
 	   exponent and subtract 1.  */
 	if (REAL_MODE_FORMAT (TYPE_MODE (TREE_TYPE (arg)))->b == 2)
 	  return fold_convert_loc (loc, rettype,
-				   build_int_cst (NULL_TREE,
+				   build_int_cst (integer_type_node,
 						  REAL_EXP (value)-1));
 	break;
       }
@@ -9417,7 +9429,7 @@ fold_builtin_frexp (location_t loc, tree arg0, tree arg1, tree rettype)
 	  REAL_VALUE_TYPE frac_rvt = *value;
 	  SET_REAL_EXP (&frac_rvt, 0);
 	  frac = build_real (rettype, frac_rvt);
-	  exp = build_int_cst (NULL_TREE, REAL_EXP (value));
+	  exp = build_int_cst (integer_type_node, REAL_EXP (value));
 	}
 	break;
       default:
@@ -11202,7 +11214,8 @@ fold_builtin_strstr (location_t loc, tree s1, tree s2, tree type)
 
       /* New argument list transforming strstr(s1, s2) to
 	 strchr(s1, s2[0]).  */
-      return build_call_expr_loc (loc, fn, 2, s1, build_int_cst (NULL_TREE, p2[0]));
+      return build_call_expr_loc (loc, fn, 2, s1,
+				  build_int_cst (integer_type_node, p2[0]));
     }
 }
 
@@ -11388,7 +11401,8 @@ fold_builtin_strpbrk (location_t loc, tree s1, tree s2, tree type)
 
       /* New argument list transforming strpbrk(s1, s2) to
 	 strchr(s1, s2[0]).  */
-      return build_call_expr_loc (loc, fn, 2, s1, build_int_cst (NULL_TREE, p2[0]));
+      return build_call_expr_loc (loc, fn, 2, s1,
+				  build_int_cst (integer_type_node, p2[0]));
     }
 }
 
@@ -11671,7 +11685,8 @@ fold_builtin_fputs (location_t loc, tree arg0, tree arg1,
 	  {
  	    if (fn_fputc)
 	      return build_call_expr_loc (loc, fn_fputc, 2,
-				      build_int_cst (NULL_TREE, p[0]), arg1);
+					  build_int_cst
+					    (integer_type_node, p[0]), arg1);
 	    else
 	      return NULL_TREE;
 	  }
@@ -11843,7 +11858,7 @@ fold_builtin_sprintf (location_t loc, tree dest, tree fmt,
 	 'format' is known to contain no % formats.  */
       call = build_call_expr_loc (loc, fn, 2, dest, fmt);
       if (!ignored)
-	retval = build_int_cst (NULL_TREE, strlen (fmt_str));
+	retval = build_int_cst (integer_type_node, strlen (fmt_str));
     }
 
   /* If the format is "%s", use strcpy if the result isn't used.  */
@@ -11951,7 +11966,7 @@ fold_builtin_snprintf (location_t loc, tree dest, tree destsize, tree fmt,
       call = build_call_expr_loc (loc, fn, 2, dest, fmt);
 
       if (!ignored)
-	retval = build_int_cst (NULL_TREE, strlen (fmt_str));
+	retval = build_int_cst (integer_type_node, strlen (fmt_str));
     }
 
   /* If the format is "%s", use strcpy if the result isn't used.  */
@@ -12935,7 +12950,7 @@ fold_builtin_printf (location_t loc, tree fndecl, tree fmt,
 	  /* Given printf("c"), (where c is any one character,)
 	     convert "c"[0] to an int and pass that to the replacement
 	     function.  */
-	  newarg = build_int_cst (NULL_TREE, str[0]);
+	  newarg = build_int_cst (integer_type_node, str[0]);
 	  if (fn_putchar)
 	    call = build_call_expr_loc (loc, fn_putchar, 1, newarg);
 	}
@@ -13537,9 +13552,10 @@ do_mpfr_remquo (tree arg0, tree arg1, tree arg_quo)
 	      if (TYPE_MAIN_VARIANT (TREE_TYPE (arg_quo)) == integer_type_node)
 	        {
 		  /* Set the value. */
-		  tree result_quo = fold_build2 (MODIFY_EXPR,
-						 TREE_TYPE (arg_quo), arg_quo,
-						 build_int_cst (NULL, integer_quo));
+		  tree result_quo
+		    = fold_build2 (MODIFY_EXPR, TREE_TYPE (arg_quo), arg_quo,
+				   build_int_cst (TREE_TYPE (arg_quo),
+						  integer_quo));
 		  TREE_SIDE_EFFECTS (result_quo) = 1;
 		  /* Combine the quo assignment with the rem.  */
 		  result = non_lvalue (fold_build2 (COMPOUND_EXPR, type,
@@ -13604,7 +13620,7 @@ do_mpfr_lgamma_r (tree arg, tree arg_sg, tree type)
 	      /* Assign the signgam value into *arg_sg. */
 	      result_sg = fold_build2 (MODIFY_EXPR,
 				       TREE_TYPE (arg_sg), arg_sg,
-				       build_int_cst (NULL, sg));
+				       build_int_cst (TREE_TYPE (arg_sg), sg));
 	      TREE_SIDE_EFFECTS (result_sg) = 1;
 	      /* Combine the signgam assignment with the lgamma result.  */
 	      result = non_lvalue (fold_build2 (COMPOUND_EXPR, type,

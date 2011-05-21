@@ -5,6 +5,7 @@
    license that can be found in the LICENSE file.  */
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "go-alloc.h"
 #include "go-assert.h"
@@ -12,13 +13,18 @@
 #include "channel.h"
 
 struct __go_channel*
-__go_new_channel (size_t element_size, size_t entries)
+__go_new_channel (const struct __go_type_descriptor *element_type,
+		  uintptr_t entries)
 {
+  uintptr_t element_size;
   struct __go_channel* ret;
   size_t alloc_size;
   int i;
 
-  if ((size_t) (int) entries != entries || entries > (size_t) -1 / element_size)
+  element_size = element_type->__size;
+
+  if ((uintptr_t) (int) entries != entries
+      || entries > (uintptr_t) -1 / element_size)
     __go_panic_msg ("chan size out of range");
 
   alloc_size = (element_size + sizeof (uint64_t) - 1) / sizeof (uint64_t);
@@ -38,7 +44,7 @@ __go_new_channel (size_t element_size, size_t entries)
   __go_assert (i == 0);
   i = pthread_cond_init (&ret->cond, NULL);
   __go_assert (i == 0);
-  ret->element_size = element_size;
+  ret->element_type = element_type;
   ret->waiting_to_send = 0;
   ret->waiting_to_receive = 0;
   ret->selected_for_send = 0;

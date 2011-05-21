@@ -305,6 +305,7 @@ static int sh2a_function_vector_p (tree);
 static void sh_trampoline_init (rtx, tree, rtx);
 static rtx sh_trampoline_adjust_address (rtx);
 static void sh_conditional_register_usage (void);
+static bool sh_legitimate_constant_p (enum machine_mode, rtx);
 
 static const struct attribute_spec sh_attribute_table[] =
 {
@@ -597,6 +598,9 @@ static const struct default_options sh_option_optimization_table[] =
 #define TARGET_TRAMPOLINE_INIT		sh_trampoline_init
 #undef TARGET_TRAMPOLINE_ADJUST_ADDRESS
 #define TARGET_TRAMPOLINE_ADJUST_ADDRESS sh_trampoline_adjust_address
+
+#undef TARGET_LEGITIMATE_CONSTANT_P
+#define TARGET_LEGITIMATE_CONSTANT_P	sh_legitimate_constant_p
 
 /* Machine-specific symbol_ref flags.  */
 #define SYMBOL_FLAG_FUNCVEC_FUNCTION    (SYMBOL_FLAG_MACH_DEP << 0)
@@ -8058,8 +8062,13 @@ sh_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
   HOST_WIDE_INT size, rsize;
   tree tmp, pptr_type_node;
   tree addr, lab_over = NULL, result = NULL;
-  int pass_by_ref = targetm.calls.must_pass_in_stack (TYPE_MODE (type), type);
+  bool pass_by_ref;
   tree eff_type;
+
+  if (!VOID_TYPE_P (type))
+    pass_by_ref = targetm.calls.must_pass_in_stack (TYPE_MODE (type), type);
+  else
+    pass_by_ref = false;
 
   if (pass_by_ref)
     type = build_pointer_type (type);
@@ -9105,7 +9114,7 @@ sh2a_is_function_vector_call (rtx x)
   return 0;
 }
 
-/* Returns the function vector number, if the the attribute
+/* Returns the function vector number, if the attribute
    'function_vector' is assigned, otherwise returns zero.  */
 int
 sh2a_get_function_vector_number (rtx x)
@@ -11222,6 +11231,7 @@ sh_media_init_builtins (void)
       else
 	{
 	  int has_result = signature_args[signature][0] != 0;
+	  tree args[3];
 
 	  if ((signature_args[signature][1] & 8)
 	      && (((signature_args[signature][1] & 1) && TARGET_SHMEDIA32)
@@ -11230,7 +11240,8 @@ sh_media_init_builtins (void)
 	  if (! TARGET_FPU_ANY
 	      && FLOAT_MODE_P (insn_data[d->icode].operand[0].mode))
 	    continue;
-	  type = void_list_node;
+	  for (i = 0; i < (int) ARRAY_SIZE (args); i++)
+	    args[i] = NULL_TREE;
 	  for (i = 3; ; i--)
 	    {
 	      int arg = signature_args[signature][i];
@@ -11248,9 +11259,10 @@ sh_media_init_builtins (void)
 		arg_type = void_type_node;
 	      if (i == 0)
 		break;
-	      type = tree_cons (NULL_TREE, arg_type, type);
+	      args[i-1] = arg_type;
 	    }
-	  type = build_function_type (arg_type, type);
+	  type = build_function_type_list (arg_type, args[0], args[1],
+					   args[2], NULL_TREE);
 	  if (signature < SH_BLTIN_NUM_SHARED_SIGNATURES)
 	    shared[signature] = type;
 	}
@@ -12625,6 +12637,22 @@ sh_conditional_register_usage (void)
 	SET_HARD_REG_BIT (reg_class_contents[SIBCALL_REGS], regno);
 }
 
+/* Implement TARGET_LEGITIMATE_CONSTANT_P
+
+   can_store_by_pieces constructs VOIDmode CONST_DOUBLEs.  */
+
+static bool
+sh_legitimate_constant_p (enum machine_mode mode, rtx x)
+{
+  return (TARGET_SHMEDIA
+	  ? ((mode != DFmode && GET_MODE_CLASS (mode) != MODE_VECTOR_FLOAT)
+	     || x == CONST0_RTX (mode)
+	     || !TARGET_SHMEDIA_FPU
+	     || TARGET_SHMEDIA64)
+	  : (GET_CODE (x) != CONST_DOUBLE
+	     || mode == DFmode || mode == SFmode
+	     || mode == DImode || GET_MODE (x) == VOIDmode));
+}
 
 enum sh_divide_strategy_e sh_div_strategy = SH_DIV_STRATEGY_DEFAULT;
 

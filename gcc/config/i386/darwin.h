@@ -129,7 +129,7 @@ extern int darwin_emit_branch_islands;
 
 #undef ENDFILE_SPEC
 #define ENDFILE_SPEC \
-  "%{ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
+  "%{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
    %{mpc32:crtprec32.o%s} \
    %{mpc64:crtprec64.o%s} \
    %{mpc80:crtprec80.o%s}"
@@ -310,12 +310,3 @@ do {								\
     = darwin_init_cfstring_builtins ((unsigned) (IX86_BUILTIN_CFSTRING));	\
   darwin_rename_builtins ();					\
 } while(0)
-
-/* The system ___divdc3 routine in libSystem on darwin10 is not
-   accurate to 1ulp, ours is, so we avoid ever using the system name
-   for this routine and instead install a non-conflicting name that is
-   accurate.  See darwin_rename_builtins.  */
-#ifdef L_divdc3
-#define DECLARE_LIBRARY_RENAMES \
-  asm(".text; ___divdc3: jmp ___ieee_divdc3 ; .globl ___divdc3");
-#endif

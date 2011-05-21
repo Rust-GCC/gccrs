@@ -39,7 +39,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define OPTION_BIONIC (linux_libc == LIBC_BIONIC)
 #endif
 
-#define LINUX_TARGET_OS_CPP_BUILTINS()				\
+#define GNU_USER_TARGET_OS_CPP_BUILTINS()			\
     do {							\
 	if (OPTION_GLIBC)					\
 	  builtin_define ("__gnu_linux__");			\
@@ -81,19 +81,21 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define BIONIC_DYNAMIC_LINKER32 "/system/bin/linker"
 #define BIONIC_DYNAMIC_LINKER64 "/system/bin/linker64"
 
-#define LINUX_DYNAMIC_LINKER						\
+#define GNU_USER_DYNAMIC_LINKER						\
   CHOOSE_DYNAMIC_LINKER (GLIBC_DYNAMIC_LINKER, UCLIBC_DYNAMIC_LINKER,	\
 			 BIONIC_DYNAMIC_LINKER)
-#define LINUX_DYNAMIC_LINKER32						\
+#define GNU_USER_DYNAMIC_LINKER32					\
   CHOOSE_DYNAMIC_LINKER (GLIBC_DYNAMIC_LINKER32, UCLIBC_DYNAMIC_LINKER32, \
 			 BIONIC_DYNAMIC_LINKER32)
-#define LINUX_DYNAMIC_LINKER64						\
+#define GNU_USER_DYNAMIC_LINKER64					\
   CHOOSE_DYNAMIC_LINKER (GLIBC_DYNAMIC_LINKER64, UCLIBC_DYNAMIC_LINKER64, \
 			 BIONIC_DYNAMIC_LINKER64)
 
 /* Determine whether the entire c99 runtime
    is present in the runtime library.  */
+#undef TARGET_C99_FUNCTIONS
 #define TARGET_C99_FUNCTIONS (OPTION_GLIBC)
 
 /* Whether we have sincos that follows the GNU extension.  */
+#undef TARGET_HAS_SINCOS
 #define TARGET_HAS_SINCOS (OPTION_GLIBC || OPTION_BIONIC)

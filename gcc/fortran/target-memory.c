@@ -495,7 +495,7 @@ gfc_interpret_derived (unsigned char *buffer, size_t buffer_size, gfc_expr *resu
       /* The constructor points to the component.  */
       c->n.component = cmp;
 
-      /* Calculate the offset, which consists of the the FIELD_OFFSET in
+      /* Calculate the offset, which consists of the FIELD_OFFSET in
 	 bytes, which appears in multiples of DECL_OFFSET_ALIGN-bit-sized,
 	 and additional bits of FIELD_BIT_OFFSET. The code assumes that all
 	 sizes of the components are multiples of BITS_PER_UNIT,
@@ -569,7 +569,7 @@ gfc_target_interpret_expr (unsigned char *buffer, size_t buffer_size,
   else
     {
       result->representation.string =
-        (char *) gfc_getmem (result->representation.length + 1);
+        XCNEWVEC (char, result->representation.length + 1);
       memcpy (result->representation.string, buffer,
 	      result->representation.length);
       result->representation.string[result->representation.length] = '\0';

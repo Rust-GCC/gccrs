@@ -1,6 +1,6 @@
 /* Definitions of Objective-C front-end entry points used for C and C++.
    Copyright (C) 1987, 1993, 1994, 1995, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -52,8 +52,8 @@ extern int objc_is_public (tree, tree);
 extern tree objc_is_id (tree);
 extern void objc_declare_alias (tree, tree);
 extern void objc_declare_class (tree);
-extern void objc_declare_protocols (tree, tree);
-extern tree objc_build_message_expr (tree);
+extern void objc_declare_protocol (tree, tree);
+extern tree objc_build_message_expr (tree, tree);
 extern tree objc_finish_message_expr (tree, tree, tree, tree*);
 extern tree objc_build_selector_expr (location_t, tree);
 extern tree objc_build_protocol_expr (tree);
@@ -62,7 +62,7 @@ extern tree objc_build_string_object (tree);
 extern tree objc_get_protocol_qualified_type (tree, tree);
 extern tree objc_get_class_reference (tree);
 extern tree objc_get_class_ivars (tree);
-extern tree objc_get_interface_ivars (tree);
+extern bool objc_detect_field_duplicates (bool);
 extern void objc_start_class_interface (tree, tree, tree, tree);
 extern void objc_start_category_interface (tree, tree, tree, tree);
 extern void objc_start_protocol (tree, tree, tree);
@@ -75,7 +75,7 @@ extern void objc_finish_implementation (void);
 extern void objc_set_visibility (objc_ivar_visibility_kind);
 extern tree objc_build_method_signature (bool, tree, tree, tree, bool);
 extern void objc_add_method_declaration (bool, tree, tree);
-extern bool objc_start_method_definition (bool, tree, tree);
+extern bool objc_start_method_definition (bool, tree, tree, tree);
 extern void objc_finish_method_definition (tree);
 extern void objc_add_instance_variable (tree);
 extern tree objc_build_keyword_decl (tree, tree, tree, tree);

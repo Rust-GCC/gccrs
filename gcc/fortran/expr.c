@@ -421,7 +421,7 @@ free_expr0 (gfc_expr *e)
 	  break;
 
 	case BT_CHARACTER:
-	  gfc_free (e->value.character.string);
+	  free (e->value.character.string);
 	  break;
 
 	case BT_COMPLEX:
@@ -433,8 +433,7 @@ free_expr0 (gfc_expr *e)
 	}
 
       /* Free the representation.  */
-      if (e->representation.string)
-	gfc_free (e->representation.string);
+      free (e->representation.string);
 
       break;
 
@@ -463,7 +462,7 @@ free_expr0 (gfc_expr *e)
       break;
 
     case EXPR_SUBSTRING:
-      gfc_free (e->value.character.string);
+      free (e->value.character.string);
       break;
 
     case EXPR_NULL:
@@ -479,7 +478,7 @@ free_expr0 (gfc_expr *e)
       for (n = 0; n < e->rank; n++)
 	mpz_clear (e->shape[n]);
 
-      gfc_free (e->shape);
+      free (e->shape);
     }
 
   gfc_free_ref_list (e->ref);
@@ -496,7 +495,7 @@ gfc_free_expr (gfc_expr *e)
   if (e == NULL)
     return;
   free_expr0 (e);
-  gfc_free (e);
+  free (e);
 }
 
 
@@ -511,7 +510,7 @@ gfc_free_actual_arglist (gfc_actual_arglist *a1)
     {
       a2 = a1->next;
       gfc_free_expr (a1->expr);
-      gfc_free (a1);
+      free (a1);
       a1 = a2;
     }
 }
@@ -579,7 +578,7 @@ gfc_free_ref_list (gfc_ref *p)
 	  break;
 	}
 
-      gfc_free (p);
+      free (p);
     }
 }
 
@@ -591,7 +590,7 @@ gfc_replace_expr (gfc_expr *dest, gfc_expr *src)
 {
   free_expr0 (dest);
   *dest = *src;
-  gfc_free (src);
+  free (src);
 }
 
 
@@ -640,7 +639,7 @@ gfc_copy_ref (gfc_ref *src)
     case REF_ARRAY:
       ar = gfc_copy_array_ref (&src->u.ar);
       dest->u.ar = *ar;
-      gfc_free (ar);
+      free (ar);
       break;
 
     case REF_COMPONENT:
@@ -894,6 +893,9 @@ gfc_is_constant_expr (gfc_expr *e)
     case EXPR_FUNCTION:
     case EXPR_PPC:
     case EXPR_COMPCALL:
+      gcc_assert (e->symtree || e->value.function.esym
+		  || e->value.function.isym);
+
       /* Call to intrinsic with at least one argument.  */
       if (e->value.function.isym && e->value.function.actual)
 	{
@@ -902,13 +904,14 @@ gfc_is_constant_expr (gfc_expr *e)
 	      return 0;
 	}
 
-      /* Make sure we have a symbol.  */
-      gcc_assert (e->symtree);
-
-      sym = e->symtree->n.sym;
-    
       /* Specification functions are constant.  */
       /* F95, 7.1.6.2; F2003, 7.1.7  */
+      sym = NULL;
+      if (e->symtree)
+	sym = e->symtree->n.sym;
+      if (e->value.function.esym)
+	sym = e->value.function.esym;
+
       if (sym
 	  && sym->attr.function
 	  && sym->attr.pure
@@ -1566,7 +1569,7 @@ find_substring_ref (gfc_expr *p, gfc_expr **newp)
     return FAILURE;
 
   *newp = gfc_copy_expr (p);
-  gfc_free ((*newp)->value.character.string);
+  free ((*newp)->value.character.string);
 
   end = (int) mpz_get_ui (p->ref->u.ss.end->value.integer);
   start = (int) mpz_get_ui (p->ref->u.ss.start->value.integer);
@@ -1840,7 +1843,7 @@ gfc_simplify_expr (gfc_expr *p, int type)
 	  memcpy (s, p->value.character.string + start,
 		  (end - start) * sizeof (gfc_char_t));
 	  s[end - start + 1] = '\0';  /* TODO: C-style string.  */
-	  gfc_free (p->value.character.string);
+	  free (p->value.character.string);
 	  p->value.character.string = s;
 	  p->value.character.length = end - start;
 	  p->ts.u.cl = gfc_new_charlen (gfc_current_ns, NULL);
@@ -3583,7 +3586,7 @@ gfc_check_assign_symbol (gfc_symbol *sym, gfc_expr *rvalue)
   lvalue.ts = sym->ts;
   if (sym->as)
     lvalue.rank = sym->as->rank;
-  lvalue.symtree = (gfc_symtree *) gfc_getmem (sizeof (gfc_symtree));
+  lvalue.symtree = XCNEW (gfc_symtree);
   lvalue.symtree->n.sym = sym;
   lvalue.where = sym->declared_at;
 
@@ -3594,7 +3597,7 @@ gfc_check_assign_symbol (gfc_symbol *sym, gfc_expr *rvalue)
   else
     r = gfc_check_assign (&lvalue, rvalue, 1);
 
-  gfc_free (lvalue.symtree);
+  free (lvalue.symtree);
 
   if (r == FAILURE)
     return r;
@@ -4372,15 +4375,26 @@ gfc_build_intrinsic_call (const char* name, locus where, unsigned numarg, ...)
 gfc_try
 gfc_check_vardef_context (gfc_expr* e, bool pointer, const char* context)
 {
-  gfc_symbol* sym;
+  gfc_symbol* sym = NULL;
   bool is_pointer;
   bool check_intentin;
   bool ptr_component;
   symbol_attribute attr;
   gfc_ref* ref;
 
+  if (e->expr_type == EXPR_VARIABLE)
+    {
+      gcc_assert (e->symtree);
+      sym = e->symtree->n.sym;
+    }
+  else if (e->expr_type == EXPR_FUNCTION)
+    {
+      gcc_assert (e->symtree);
+      sym = e->value.function.esym ? e->value.function.esym : e->symtree->n.sym;
+    }
+
   if (!pointer && e->expr_type == EXPR_FUNCTION
-      && e->symtree->n.sym->result->attr.pointer)
+      && sym->result->attr.pointer)
     {
       if (!(gfc_option.allow_std & GFC_STD_F2008))
 	{
@@ -4397,9 +4411,6 @@ gfc_check_vardef_context (gfc_expr* e, bool pointer, const char* context)
 		   " at %L", context, &e->where);
       return FAILURE;
     }
-
-  gcc_assert (e->symtree);
-  sym = e->symtree->n.sym;
 
   if (!pointer && sym->attr.flavor == FL_PARAMETER)
     {

@@ -1,5 +1,5 @@
 /* If-conversion for vectorizer.
-   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Devang Patel <dpatel@apple.com>
 
@@ -718,6 +718,22 @@ if_convertible_stmt_p (gimple stmt, VEC (data_reference_p, heap) *refs)
 
     case GIMPLE_ASSIGN:
       return if_convertible_gimple_assign_stmt_p (stmt, refs);
+
+    case GIMPLE_CALL:
+      {
+	tree fndecl = gimple_call_fndecl (stmt);
+	if (fndecl)
+	  {
+	    int flags = gimple_call_flags (stmt);
+	    if ((flags & ECF_CONST)
+		&& !(flags & ECF_LOOPING_CONST_OR_PURE)
+		/* We can only vectorize some builtins at the moment,
+		   so restrict if-conversion to those.  */
+		&& DECL_BUILT_IN (fndecl))
+	      return true;
+	  }
+	return false;
+      }
 
     default:
       /* Don't know what to do with 'em so don't do anything.  */
@@ -1621,6 +1637,7 @@ combine_blocks (struct loop *loop)
   for (i = 0; i < orig_loop_num_nodes; i++)
     {
       bb = ifc_bbs[i];
+      free_bb_predicate (bb);
       if (bb_with_exit_edge_p (loop, bb))
 	{
 	  exit_bb = bb;
@@ -1696,6 +1713,9 @@ combine_blocks (struct loop *loop)
       && exit_bb != loop->header
       && can_merge_blocks_p (loop->header, exit_bb))
     merge_blocks (loop->header, exit_bb);
+
+  free (ifc_bbs);
+  ifc_bbs = NULL;
 }
 
 /* If-convert LOOP when it is legal.  For the moment this pass has no

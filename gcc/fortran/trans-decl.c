@@ -1096,7 +1096,7 @@ gfc_add_assign_aux_vars (gfc_symbol * sym)
       target label's address. Otherwise, value is the length of a format string
       and ASSIGN_ADDR is its address.  */
   if (TREE_STATIC (length))
-    DECL_INITIAL (length) = build_int_cst (NULL_TREE, -2);
+    DECL_INITIAL (length) = build_int_cst (gfc_charlen_type_node, -2);
   else
     gfc_defer_symbol_init (sym);
 
@@ -1228,7 +1228,8 @@ gfc_get_symbol_decl (gfc_symbol * sym)
 	}
 
       /* Use a copy of the descriptor for dummy arrays.  */
-      if (sym->attr.dimension && !TREE_USED (sym->backend_decl))
+      if ((sym->attr.dimension || sym->attr.codimension)
+         && !TREE_USED (sym->backend_decl))
         {
 	  decl = gfc_build_dummy_array_decl (sym, sym->backend_decl);
 	  /* Prevent the dummy from being detected as unused if it is copied.  */
@@ -1316,7 +1317,7 @@ gfc_get_symbol_decl (gfc_symbol * sym)
 	DECL_IGNORED_P (decl) = 1;
     }
 
-  if (sym->attr.dimension)
+  if (sym->attr.dimension || sym->attr.codimension)
     {
       /* Create variables to hold the non-constant bits of array info.  */
       gfc_build_qualified_array (decl, sym);
@@ -1527,7 +1528,6 @@ gfc_get_extern_function_decl (gfc_symbol * sym)
   tree name;
   tree mangled_name;
   gfc_gsymbol *gsym;
-  bool proc_formal_arg;
 
   if (sym->backend_decl)
     return sym->backend_decl;
@@ -1544,27 +1544,10 @@ gfc_get_extern_function_decl (gfc_symbol * sym)
      return the backend_decl.  */
   gsym =  gfc_find_gsymbol (gfc_gsym_root, sym->name);
 
-  /* Do not use procedures that have a procedure argument because this
-     can result in problems of multiple decls during inlining.  */
-  proc_formal_arg = false;
-  if (gsym && gsym->ns && gsym->ns->proc_name)
-    {
-      gfc_formal_arglist *formal = gsym->ns->proc_name->formal;
-      for (; formal; formal = formal->next)
-	{
-	  if (formal->sym && formal->sym->attr.flavor == FL_PROCEDURE)
-	    {
-	      proc_formal_arg = true;
-	      break;
-	    }
-	}
-    }
-
   if (gfc_option.flag_whole_file
 	&& (!sym->attr.use_assoc || sym->attr.if_source != IFSRC_DECL)
 	&& !sym->backend_decl
 	&& gsym && gsym->ns
-	&& !proc_formal_arg
 	&& ((gsym->type == GSYM_SUBROUTINE) || (gsym->type == GSYM_FUNCTION))
 	&& (gsym->ns->proc_name->backend_decl || !sym->attr.intrinsic))
     {
@@ -1697,7 +1680,7 @@ gfc_get_extern_function_decl (gfc_symbol * sym)
 
   /* Initialize DECL_EXTERNAL and TREE_PUBLIC before calling decl_attributes;
      TREE_PUBLIC specifies whether a function is globally addressable (i.e.
-     the the opposite of declaring a function as static in C).  */
+     the opposite of declaring a function as static in C).  */
   DECL_EXTERNAL (fndecl) = 1;
   TREE_PUBLIC (fndecl) = 1;
 
@@ -1780,7 +1763,7 @@ build_function_decl (gfc_symbol * sym, bool global)
 
   /* Initialize DECL_EXTERNAL and TREE_PUBLIC before calling decl_attributes;
      TREE_PUBLIC specifies whether a function is globally addressable (i.e.
-     the the opposite of declaring a function as static in C).  */
+     the opposite of declaring a function as static in C).  */
   DECL_EXTERNAL (fndecl) = 0;
 
   if (!current_function_decl
@@ -2133,12 +2116,6 @@ trans_function_start (gfc_symbol * sym)
   make_decl_rtl (fndecl);
 
   init_function_start (fndecl);
-
-  /* Even though we're inside a function body, we still don't want to
-     call expand_expr to calculate the size of a variable-sized array.
-     We haven't necessarily assigned RTL to all variables yet, so it's
-     not safe to try to expand expressions involving them.  */
-  cfun->dont_save_pending_sizes_p = 1;
 
   /* function.c requires a push at the start of the function.  */
   pushlevel (0);
@@ -2496,8 +2473,7 @@ static tree
 build_library_function_decl_1 (tree name, const char *spec,
 			       tree rettype, int nargs, va_list p)
 {
-  tree arglist;
-  tree argtype;
+  VEC(tree,gc) *arglist;
   tree fntype;
   tree fndecl;
   int n;
@@ -2506,20 +2482,18 @@ build_library_function_decl_1 (tree name, const char *spec,
   gcc_assert (current_function_decl == NULL_TREE);
 
   /* Create a list of the argument types.  */
-  for (arglist = NULL_TREE, n = abs (nargs); n > 0; n--)
+  arglist = VEC_alloc (tree, gc, abs (nargs));
+  for (n = abs (nargs); n > 0; n--)
     {
-      argtype = va_arg (p, tree);
-      arglist = gfc_chainon_list (arglist, argtype);
-    }
-
-  if (nargs >= 0)
-    {
-      /* Terminate the list.  */
-      arglist = chainon (arglist, void_list_node);
+      tree argtype = va_arg (p, tree);
+      VEC_quick_push (tree, arglist, argtype);
     }
 
   /* Build the function type and decl.  */
-  fntype = build_function_type (rettype, arglist);
+  if (nargs >= 0)
+    fntype = build_function_type_vec (rettype, arglist);
+  else
+    fntype = build_varargs_function_type_vec (rettype, arglist);
   if (spec)
     {
       tree attr_args = build_tree_list (NULL_TREE,
@@ -3148,7 +3122,7 @@ gfc_trans_assign_aux_var (gfc_symbol * sym, gfc_wrapped_block * block)
   /* Set the initial value to length. See the comments in
      function gfc_add_assign_aux_vars in this file.  */
   gfc_add_modify (&init, GFC_DECL_STRING_LEN (sym->backend_decl),
-		  build_int_cst (NULL_TREE, -2));
+		  build_int_cst (gfc_charlen_type_node, -2));
 
   gfc_add_init_cleanup (block, gfc_finish_block (&init), NULL_TREE);
 }
@@ -3462,7 +3436,7 @@ gfc_trans_deferred_vars (gfc_symbol * proc_sym, gfc_wrapped_block * block)
       if (sym->assoc)
 	continue;
 
-      if (sym->attr.dimension)
+      if (sym->attr.dimension || sym->attr.codimension)
 	{
 	  switch (sym->as->type)
 	    {
@@ -4374,7 +4348,7 @@ gfc_trans_entry_master_switch (gfc_entry_list * el)
       /* Add the case label.  */
       label = gfc_build_label_decl (NULL_TREE);
       val = build_int_cst (gfc_array_index_type, el->id);
-      tmp = build3_v (CASE_LABEL_EXPR, val, NULL_TREE, label);
+      tmp = build_case_label (val, NULL_TREE, label);
       gfc_add_expr_to_block (&block, tmp);
 
       /* And jump to the actual entry point.  */
@@ -4481,10 +4455,16 @@ add_argument_checking (stmtblock_t *block, gfc_symbol *sym)
 }
 
 
+/* Generate the _gfortran_caf_this_image and _gfortran_caf_num_images
+   global variables for -fcoarray=lib. They are placed into the translation
+   unit of the main program.  Make sure that in one TU (the one of the main
+   program), the first call to gfc_init_coarray_decl is done with true.
+   Otherwise, expect link errors.  */
+
 void
-gfc_init_coarray_decl (void)
+gfc_init_coarray_decl (bool main_tu)
 {
-  tree save_fn_decl = current_function_decl;
+  tree save_fn_decl;
 
   if (gfc_option.coarray != GFC_FCOARRAY_LIB)
     return;
@@ -4496,19 +4476,37 @@ gfc_init_coarray_decl (void)
   current_function_decl = NULL_TREE;
   push_cfun (cfun);
 
-  gfort_gvar_caf_this_image = gfc_create_var (integer_type_node,
-					      PREFIX("caf_this_image"));
+  gfort_gvar_caf_this_image
+	= build_decl (input_location, VAR_DECL,
+		      get_identifier (PREFIX("caf_this_image")),
+		      integer_type_node);
   DECL_ARTIFICIAL (gfort_gvar_caf_this_image) = 1;
   TREE_USED (gfort_gvar_caf_this_image) = 1;
   TREE_PUBLIC (gfort_gvar_caf_this_image) = 1;
-  TREE_STATIC (gfort_gvar_caf_this_image) = 1;
+  TREE_READONLY (gfort_gvar_caf_this_image) = 0;
 
-  gfort_gvar_caf_num_images = gfc_create_var (integer_type_node,
-					      PREFIX("caf_num_images"));
+  if (main_tu)
+    TREE_STATIC (gfort_gvar_caf_this_image) = 1;
+  else
+    DECL_EXTERNAL (gfort_gvar_caf_this_image) = 1;
+
+  pushdecl_top_level (gfort_gvar_caf_this_image);
+
+  gfort_gvar_caf_num_images
+	= build_decl (input_location, VAR_DECL,
+		      get_identifier (PREFIX("caf_num_images")),
+		      integer_type_node);
   DECL_ARTIFICIAL (gfort_gvar_caf_num_images) = 1;
   TREE_USED (gfort_gvar_caf_num_images) = 1;
   TREE_PUBLIC (gfort_gvar_caf_num_images) = 1;
-  TREE_STATIC (gfort_gvar_caf_num_images) = 1;
+  TREE_READONLY (gfort_gvar_caf_num_images) = 0;
+
+  if (main_tu)
+    TREE_STATIC (gfort_gvar_caf_num_images) = 1;
+  else
+    DECL_EXTERNAL (gfort_gvar_caf_num_images) = 1;
+
+  pushdecl_top_level (gfort_gvar_caf_num_images);
 
   pop_cfun ();
   current_function_decl = save_fn_decl;
@@ -4602,7 +4600,7 @@ create_main_function (tree fndecl)
       pppchar_type
 	= build_pointer_type (build_pointer_type (pchar_type_node));
 
-      gfc_init_coarray_decl ();
+      gfc_init_coarray_decl (true);
       tmp = build_call_expr_loc (input_location, gfor_fndecl_caf_init, 4,
 		gfc_build_addr_expr (pint_type, argc),
 		gfc_build_addr_expr (pppchar_type, argv),
@@ -4639,9 +4637,12 @@ create_main_function (tree fndecl)
                                            gfc_option.allow_std));
     CONSTRUCTOR_APPEND_ELT (v, NULL_TREE,
                             build_int_cst (integer_type_node, pedantic));
+    /* TODO: This is the old -fdump-core option, which is unused but
+       passed due to ABI compatibility; remove when bumping the
+       library ABI.  */
     CONSTRUCTOR_APPEND_ELT (v, NULL_TREE,
                             build_int_cst (integer_type_node,
-                                           gfc_option.flag_dump_core));
+                                           0));
     CONSTRUCTOR_APPEND_ELT (v, NULL_TREE,
                             build_int_cst (integer_type_node,
                                            gfc_option.flag_backtrace));
@@ -4657,7 +4658,7 @@ create_main_function (tree fndecl)
                                            gfc_option.flag_range_check));
 
     array_type = build_array_type (integer_type_node,
-		       build_index_type (build_int_cst (NULL_TREE, 7)));
+				   build_index_type (size_int (7)));
     array = build_constructor (array_type, v);
     TREE_CONSTANT (array) = 1;
     TREE_STATIC (array) = 1;
@@ -4924,7 +4925,7 @@ gfc_generate_function_code (gfc_namespace * ns)
       gfc_trans_runtime_check (true, false, recurcheckvar, &init,
 			       &sym->declared_at, msg);
       gfc_add_modify (&init, recurcheckvar, boolean_true_node);
-      gfc_free (msg);
+      free (msg);
     }
 
   /* Now generate the code for the body of this function.  */
@@ -5064,7 +5065,7 @@ gfc_generate_function_code (gfc_namespace * ns)
   if (decl_function_context (fndecl))
     /* Register this function with cgraph just far enough to get it
        added to our parent's nested function list.  */
-    (void) cgraph_node (fndecl);
+    (void) cgraph_create_node (fndecl);
   else
     cgraph_finalize_function (fndecl, true);
 

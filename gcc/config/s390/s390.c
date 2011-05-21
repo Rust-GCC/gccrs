@@ -2777,15 +2777,15 @@ legitimate_pic_operand_p (rtx op)
 /* Returns true if the constant value OP is a legitimate general operand.
    It is given that OP satisfies CONSTANT_P or is a CONST_DOUBLE.  */
 
-int
-legitimate_constant_p (rtx op)
+static bool
+s390_legitimate_constant_p (enum machine_mode mode, rtx op)
 {
   /* Accept all non-symbolic constants.  */
   if (!SYMBOLIC_CONST (op))
     return 1;
 
   /* Accept immediate LARL operands.  */
-  if (TARGET_CPU_ZARCH && larl_operand (op, VOIDmode))
+  if (TARGET_CPU_ZARCH && larl_operand (op, mode))
     return 1;
 
   /* Thread-local symbols are never legal constants.  This is
@@ -2810,7 +2810,7 @@ legitimate_constant_p (rtx op)
    not constant (TLS) or not known at final link time (PIC).  */
 
 static bool
-s390_cannot_force_const_mem (rtx x)
+s390_cannot_force_const_mem (enum machine_mode mode, rtx x)
 {
   switch (GET_CODE (x))
     {
@@ -2832,11 +2832,11 @@ s390_cannot_force_const_mem (rtx x)
 	return flag_pic != 0;
 
     case CONST:
-      return s390_cannot_force_const_mem (XEXP (x, 0));
+      return s390_cannot_force_const_mem (mode, XEXP (x, 0));
     case PLUS:
     case MINUS:
-      return s390_cannot_force_const_mem (XEXP (x, 0))
-	     || s390_cannot_force_const_mem (XEXP (x, 1));
+      return s390_cannot_force_const_mem (mode, XEXP (x, 0))
+	     || s390_cannot_force_const_mem (mode, XEXP (x, 1));
 
     case UNSPEC:
       switch (XINT (x, 1))
@@ -4012,7 +4012,7 @@ s390_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 }
 
 /* Try a machine-dependent way of reloading an illegitimate address AD
-   operand.  If we find one, push the reload and and return the new address.
+   operand.  If we find one, push the reload and return the new address.
 
    MODE is the mode of the enclosing MEM.  OPNUM is the operand number
    and TYPE is the reload type of the current reload.  */
@@ -8485,7 +8485,7 @@ s390_emit_epilogue (bool sibcall)
 
       p = rtvec_alloc (2);
 
-      RTVEC_ELT (p, 0) = gen_rtx_RETURN (VOIDmode);
+      RTVEC_ELT (p, 0) = ret_rtx;
       RTVEC_ELT (p, 1) = gen_rtx_USE (VOIDmode, return_reg);
       emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, p));
     }
@@ -8742,7 +8742,7 @@ s390_promote_function_mode (const_tree type, enum machine_mode mode,
   if (INTEGRAL_MODE_P (mode)
       && GET_MODE_SIZE (mode) < UNITS_PER_LONG)
     {
-      if (POINTER_TYPE_P (type))
+      if (type != NULL_TREE && POINTER_TYPE_P (type))
 	*punsignedp = POINTERS_EXTEND_UNSIGNED;
       return Pmode;
     }
@@ -9172,7 +9172,7 @@ s390_init_builtins (void)
 {
   tree ftype;
 
-  ftype = build_function_type (ptr_type_node, void_list_node);
+  ftype = build_function_type_list (ptr_type_node, NULL_TREE);
   add_builtin_function ("__builtin_thread_pointer", ftype,
 			S390_BUILTIN_THREAD_POINTER, BUILT_IN_MD,
 			NULL, NULL_TREE);
@@ -9287,16 +9287,16 @@ s390_asm_trampoline_template (FILE *file)
 
   if (TARGET_64BIT)
     {
-      output_asm_insn ("basr\t%1,0", op);
-      output_asm_insn ("lmg\t%0,%1,14(%1)", op);
-      output_asm_insn ("br\t%1", op);
+      output_asm_insn ("basr\t%1,0", op);         /* 2 byte */
+      output_asm_insn ("lmg\t%0,%1,14(%1)", op);  /* 6 byte */
+      output_asm_insn ("br\t%1", op);             /* 2 byte */
       ASM_OUTPUT_SKIP (file, (HOST_WIDE_INT)(TRAMPOLINE_SIZE - 10));
     }
   else
     {
-      output_asm_insn ("basr\t%1,0", op);
-      output_asm_insn ("lm\t%0,%1,6(%1)", op);
-      output_asm_insn ("br\t%1", op);
+      output_asm_insn ("basr\t%1,0", op);         /* 2 byte */
+      output_asm_insn ("lm\t%0,%1,6(%1)", op);    /* 4 byte */
+      output_asm_insn ("br\t%1", op);             /* 2 byte */
       ASM_OUTPUT_SKIP (file, (HOST_WIDE_INT)(TRAMPOLINE_SIZE - 8));
     }
 }
@@ -9312,11 +9312,11 @@ s390_trampoline_init (rtx m_tramp, tree fndecl, rtx cxt)
   rtx mem;
 
   emit_block_move (m_tramp, assemble_trampoline_template (),
-		   GEN_INT (2*UNITS_PER_WORD), BLOCK_OP_NORMAL);
+		   GEN_INT (2 * UNITS_PER_LONG), BLOCK_OP_NORMAL);
 
-  mem = adjust_address (m_tramp, Pmode, 2*UNITS_PER_WORD);
+  mem = adjust_address (m_tramp, Pmode, 2 * UNITS_PER_LONG);
   emit_move_insn (mem, cxt);
-  mem = adjust_address (m_tramp, Pmode, 3*UNITS_PER_WORD);
+  mem = adjust_address (m_tramp, Pmode, 3 * UNITS_PER_LONG);
   emit_move_insn (mem, fnaddr);
 }
 
@@ -10828,6 +10828,9 @@ s390_loop_unroll_adjust (unsigned nunroll, struct loop *loop)
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P s390_legitimate_address_p
+
+#undef TARGET_LEGITIMATE_CONSTANT_P
+#define TARGET_LEGITIMATE_CONSTANT_P s390_legitimate_constant_p
 
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE s390_can_eliminate

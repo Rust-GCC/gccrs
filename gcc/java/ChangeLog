@@ -1,3 +1,57 @@
+2011-05-20  Joseph Myers  <joseph@codesourcery.com>
+
+	* Make-lang.in ($(XGCJ)$(exeext)): Don't explicitly use intl.o and
+	version.o.
+	(JCFDUMP_OBJS): Remove errors.o, version.o and intl.o.
+	(JVGENMAIN_OBJS): Remove errors.o and intl.o.
+	(java/jcf-dump.o, java/jvgenmain.o): Depend in $(DIAGNOSTIC_H).
+	* jcf-dump.c: Include diagnostic.h.
+	(main): Initialize diagnostics.
+	* jvgenmain.c: Include diagnostic.h.
+	(main): Initialize diagnostics.
+
+2011-05-11  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* java-tree.h (TYPE_ARGUMENT_SIGNATURE): Use TYPE_MINVAL.
+
+2011-05-07  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* java-tree.h (global_bindings_p): Adjust prototype.
+	* decl.c (global_bindings_p): Return bool.
+
+2011-05-05  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* expr.c (expand_java_switch): Call build_case_label.
+	(expand_java_add_case): Likewise.
+
+2011-04-29  Richard Guenther  <rguenther@suse.de>
+
+	PR middle-end/48819
+	* constants.c (build_constants_constructor): Use ptr_type_node for
+	temp.
+
+2011-04-20  Jim Meyering  <meyering@redhat.com>
+
+	* jcf-parse.c (java_parse_file): Remove useless if-before-free.
+
+2011-04-18  Jim Meyering  <meyering@redhat.com>
+
+	* jcf-parse.c: Fix typo in comment.
+
+2011-04-14  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* decl.c (poplevel): Use BLOCK_CHAIN and block_chainon.
+
+2011-04-12  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* java-tree.h (union lang_tree_node): Check for TS_COMMON before
+	calling TREE_CHAIN.
+
+2011-04-11  Martin Jambor  <mjambor@suse.cz>
+
+	* decl.c (java_mark_decl_local): Call cgraph_get_node instead of
+	cgraph_node and handle returned NULL.
+
 2011-03-25  Kai Tietz  <ktietz@redhat.com>
 
 	* jcf-parse.c (java_read_sourcefilenames): Use filename_cmp
@@ -22453,7 +22507,7 @@ Tue Mar  9 11:52:08 1999  Alexandre Petit-Bianco  <apbianco@cygnus.com>
 
 
 Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-2006, 2007, 2008, 2009 Free Software Foundation, Inc.
+2006, 2007, 2008, 2009, 2011 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

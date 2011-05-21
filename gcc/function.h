@@ -597,15 +597,6 @@ struct GTY(()) function {
   /* Nonzero if current function uses stdarg.h or equivalent.  */
   unsigned int stdarg : 1;
 
-  /* Nonzero if the back-end should not keep track of expressions that
-     determine the size of variable-sized objects.  Normally, such
-     expressions are saved away, and then expanded when the next
-     function is started.  For example, if a parameter has a
-     variable-sized type, then the size of the parameter is computed
-     when the function body is entered.  However, some front-ends do
-     not desire this behavior.  */
-  unsigned int dont_save_pending_sizes_p : 1;
-
   unsigned int after_inlining : 1;
   unsigned int always_inline_functions_inlined : 1;
 
@@ -713,6 +704,7 @@ extern void number_blocks (tree);
 
 extern void clear_block_marks (tree);
 extern tree blocks_nreverse (tree);
+extern tree block_chainon (tree, tree);
 
 /* Return size needed for stack frame based on slots so far allocated.
    This size counts from zero.  It is not rounded to STACK_BOUNDARY;
@@ -754,6 +746,7 @@ extern bool reference_callee_copied (CUMULATIVE_ARGS *, enum machine_mode,
 extern void used_types_insert (tree);
 
 extern int get_next_funcdef_no (void);
+extern int get_last_funcdef_no (void);
 
 /* In predict.c */
 extern bool optimize_function_for_size_p (struct function *);

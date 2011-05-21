@@ -1,5 +1,5 @@
 /* Data references and dependences detectors.
-   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Sebastian Pop <pop@cri.ensmp.fr>
 
@@ -123,7 +123,7 @@ tree_fold_divides_p (const_tree a, const_tree b)
 {
   gcc_assert (TREE_CODE (a) == INTEGER_CST);
   gcc_assert (TREE_CODE (b) == INTEGER_CST);
-  return integer_zerop (int_const_binop (TRUNC_MOD_EXPR, b, a, 0));
+  return integer_zerop (int_const_binop (TRUNC_MOD_EXPR, b, a));
 }
 
 /* Returns true iff A divides B.  */
@@ -5017,7 +5017,7 @@ stmts_from_loop (struct loop *loop, VEC (gimple, heap) **stmts)
       for (bsi = gsi_start_bb (bb); !gsi_end_p (bsi); gsi_next (&bsi))
 	{
 	  stmt = gsi_stmt (bsi);
-	  if (gimple_code (stmt) != GIMPLE_LABEL)
+	  if (gimple_code (stmt) != GIMPLE_LABEL && !is_gimple_debug (stmt))
 	    VEC_safe_push (gimple, heap, *stmts, stmt);
 	}
     }
@@ -5127,11 +5127,9 @@ free_rdg (struct graph *rdg)
       struct graph_edge *e;
 
       for (e = v->succ; e; e = e->succ_next)
-	if (e->data)
-	  free (e->data);
+	free (e->data);
 
-      if (v->data)
-	free (v->data);
+      free (v->data);
     }
 
   htab_delete (rdg->indices);

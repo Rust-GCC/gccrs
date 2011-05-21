@@ -75,11 +75,11 @@ gfc_build_string_const (int length, const char *s)
   tree len;
 
   str = build_string (length, s);
-  len = build_int_cst (NULL_TREE, length);
+  len = size_int (length);
   TREE_TYPE (str) =
     build_array_type (gfc_character1_type_node,
 		      build_range_type (gfc_charlen_type_node,
-					integer_one_node, len));
+					size_one_node, len));
   return str;
 }
 
@@ -102,13 +102,13 @@ gfc_build_wide_string_const (int kind, int length, const gfc_char_t *string)
   gfc_encode_character (kind, length, string, (unsigned char *) s, size);
 
   str = build_string (size, s);
-  gfc_free (s);
+  free (s);
 
-  len = build_int_cst (NULL_TREE, length);
+  len = size_int (length);
   TREE_TYPE (str) =
     build_array_type (gfc_get_char_type (kind),
 		      build_range_type (gfc_charlen_type_node,
-					integer_one_node, len));
+					size_one_node, len));
   return str;
 }
 
@@ -164,7 +164,7 @@ gfc_conv_string_init (tree length, gfc_expr * expr)
   str = gfc_build_wide_string_const (expr->ts.kind, len, s);
 
   if (free_s)
-    gfc_free (s);
+    free (s);
 
   return str;
 }

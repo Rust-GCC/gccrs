@@ -252,7 +252,7 @@ gfc_trans_io_runtime_check (tree cond, tree var, int error_code,
   asprintf (&message, "%s", _(msgid));
   arg3 = gfc_build_addr_expr (pchar_type_node,
 			      gfc_build_localized_cstring_const (message));
-  gfc_free(message);
+  free (message);
   
   tmp = build_call_expr_loc (input_location,
 			 gfor_fndecl_generate_error, 3, arg1, arg2, arg3);
@@ -267,13 +267,7 @@ gfc_trans_io_runtime_check (tree cond, tree var, int error_code,
     }
   else
     {
-      /* Tell the compiler that this isn't likely.  */
-      cond = fold_convert (long_integer_type_node, cond);
-      tmp = build_int_cst (long_integer_type_node, 0);
-      cond = build_call_expr_loc (input_location,
-			      built_in_decls[BUILT_IN_EXPECT], 2, cond, tmp);
-      cond = fold_convert (boolean_type_node, cond);
-
+      cond = gfc_unlikely (cond);
       tmp = build3_v (COND_EXPR, cond, body, build_empty_stmt (input_location));
       gfc_add_expr_to_block (pblock, tmp);
     }
@@ -301,7 +295,7 @@ gfc_build_io_library_fndecls (void)
   types[IOPARM_type_pchar] = pchar_type_node;
   pad_size = 16 * TREE_INT_CST_LOW (TYPE_SIZE_UNIT (pchar_type_node));
   pad_size += 32 * TREE_INT_CST_LOW (TYPE_SIZE_UNIT (integer_type_node));
-  pad_idx = build_index_type (build_int_cst (NULL_TREE, pad_size - 1));
+  pad_idx = build_index_type (size_int (pad_size - 1));
   types[IOPARM_type_pad] = build_array_type (char_type_node, pad_idx);
 
   /* pad actually contains pointers and integers so it needs to have an
@@ -717,7 +711,7 @@ set_string (stmtblock_t * block, stmtblock_t * postblock, tree var,
 	       "label", e->symtree->name);
       gfc_trans_runtime_check (true, false, cond, &se.pre, &e->where, msg,
 			       fold_convert (long_integer_type_node, tmp));
-      gfc_free (msg);
+      free (msg);
 
       gfc_add_modify (&se.pre, io,
 		 fold_convert (TREE_TYPE (io), GFC_DECL_ASSIGN_ADDR (se.expr)));
@@ -832,13 +826,13 @@ add_case (int label_value, gfc_st_label * label, stmtblock_t * body)
   if (label == NULL)
     return;			/* No label, no case */
 
-  value = build_int_cst (NULL_TREE, label_value);
+  value = build_int_cst (integer_type_node, label_value);
 
   /* Make a backend label for this case.  */
   tmp = gfc_build_label_decl (NULL_TREE);
 
   /* And the case itself.  */
-  tmp = build3_v (CASE_LABEL_EXPR, value, NULL_TREE, tmp);
+  tmp = build_case_label (value, NULL_TREE, tmp);
   gfc_add_expr_to_block (body, tmp);
 
   /* Jump to the label.  */
@@ -1456,7 +1450,7 @@ nml_full_name (const char* var_name, const char* cmp_name)
   char * full_name;
 
   full_name_length = strlen (var_name) + strlen (cmp_name) + 1;
-  full_name = (char*)gfc_getmem (full_name_length + 1);
+  full_name = XCNEWVEC (char, full_name_length + 1);
   strcpy (full_name, var_name);
   full_name = strcat (full_name, "%");
   full_name = strcat (full_name, cmp_name);
@@ -1633,7 +1627,7 @@ transfer_namelist_element (stmtblock_t * block, const char * var_name,
 	  transfer_namelist_element (block,
 				     full_name,
 				     NULL, cmp, expr);
-	  gfc_free (full_name);
+	  free (full_name);
 	}
     }
 }
@@ -2007,7 +2001,7 @@ transfer_array_component (tree expr, gfc_component * cm, locus * where)
 
   for (n = 0; n < cm->as->rank; n++)
     mpz_clear (ss->shape[n]);
-  gfc_free (ss->shape);
+  free (ss->shape);
 
   gfc_cleanup_loop (&loop);
 
@@ -2057,7 +2051,7 @@ transfer_expr (gfc_se * se, gfc_typespec * ts, tree addr_expr, gfc_code * code)
   switch (ts->type)
     {
     case BT_INTEGER:
-      arg2 = build_int_cst (NULL_TREE, kind);
+      arg2 = build_int_cst (integer_type_node, kind);
       if (last_dt == READ)
 	function = iocall[IOCALL_X_INTEGER];
       else
@@ -2066,7 +2060,7 @@ transfer_expr (gfc_se * se, gfc_typespec * ts, tree addr_expr, gfc_code * code)
       break;
 
     case BT_REAL:
-      arg2 = build_int_cst (NULL_TREE, kind);
+      arg2 = build_int_cst (integer_type_node, kind);
       if (last_dt == READ)
 	{
 	  if (gfc_real16_is_float128 && ts->kind == 16)
@@ -2085,7 +2079,7 @@ transfer_expr (gfc_se * se, gfc_typespec * ts, tree addr_expr, gfc_code * code)
       break;
 
     case BT_COMPLEX:
-      arg2 = build_int_cst (NULL_TREE, kind);
+      arg2 = build_int_cst (integer_type_node, kind);
       if (last_dt == READ)
 	{
 	  if (gfc_real16_is_float128 && ts->kind == 16)
@@ -2104,7 +2098,7 @@ transfer_expr (gfc_se * se, gfc_typespec * ts, tree addr_expr, gfc_code * code)
       break;
 
     case BT_LOGICAL:
-      arg2 = build_int_cst (NULL_TREE, kind);
+      arg2 = build_int_cst (integer_type_node, kind);
       if (last_dt == READ)
 	function = iocall[IOCALL_X_LOGICAL];
       else
@@ -2125,7 +2119,7 @@ transfer_expr (gfc_se * se, gfc_typespec * ts, tree addr_expr, gfc_code * code)
 	      arg2 = TYPE_MAX_VALUE (TYPE_DOMAIN (TREE_TYPE (tmp)));
 	      arg2 = fold_convert (gfc_charlen_type_node, arg2);
 	    }
-	  arg3 = build_int_cst (NULL_TREE, kind);
+	  arg3 = build_int_cst (integer_type_node, kind);
 	  if (last_dt == READ)
 	    function = iocall[IOCALL_X_CHARACTER_WIDE];
 	  else
@@ -2209,9 +2203,9 @@ transfer_array_desc (gfc_se * se, gfc_typespec * ts, tree addr_expr)
   if (ts->type == BT_CHARACTER)
     charlen_arg = se->string_length;
   else
-    charlen_arg = build_int_cst (NULL_TREE, 0);
+    charlen_arg = build_int_cst (gfc_charlen_type_node, 0);
 
-  kind_arg = build_int_cst (NULL_TREE, ts->kind);
+  kind_arg = build_int_cst (integer_type_node, ts->kind);
 
   tmp = gfc_build_addr_expr (NULL_TREE, dt_parm);
   if (last_dt == READ)

@@ -61,7 +61,7 @@ struct GTY(()) gimple_df {
   struct pointer_map_t * GTY((skip(""))) decls_to_pointers;
 
   /* Free list of SSA_NAMEs.  */
-  tree free_ssanames;
+  VEC(tree,gc) *free_ssanames;
 
   /* Hashtable holding definition for symbol.  If this field is not NULL, it
      means that the first reference to this variable in the function is a
@@ -171,10 +171,6 @@ struct GTY(()) var_ann_d {
      See the enum's definition for more detailed information about the
      states.  */
   ENUM_BITFIELD (need_phi_state) need_phi_state : 2;
-
-  /* True for HEAP artificial variables.  These variables represent
-     the memory area allocated by a call to malloc.  */
-  unsigned is_heapvar : 1;
 
   /* Used by var_map for the base index of ssa base variables.  */
   unsigned base_index;
@@ -515,7 +511,7 @@ extern void record_vars_into (tree, tree);
 extern void record_vars (tree);
 extern bool gimple_seq_may_fallthru (gimple_seq);
 extern bool gimple_stmt_may_fallthru (gimple);
-extern bool gimple_check_call_args (gimple);
+extern bool gimple_check_call_matching_types (gimple, tree);
 
 
 /* In tree-ssa.c  */
@@ -546,7 +542,7 @@ extern void flush_pending_stmts (edge);
 extern void verify_ssa (bool);
 extern void delete_tree_ssa (void);
 extern bool ssa_undefined_value_p (tree);
-extern void warn_uninit (tree, const char *, void *);
+extern void warn_uninit (enum opt_code, tree, const char *, void *);
 extern unsigned int warn_uninitialized_vars (bool);
 extern void execute_update_addresses_taken (void);
 
@@ -558,6 +554,7 @@ extern void walk_use_def_chains (tree, walk_use_def_chains_fn, void *, bool);
 
 void insert_debug_temps_for_defs (gimple_stmt_iterator *);
 void insert_debug_temp_for_var_def (gimple_stmt_iterator *, tree);
+void reset_debug_uses (gimple);
 void release_defs_bitset (bitmap toremove);
 
 /* In tree-into-ssa.c  */

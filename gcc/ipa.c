@@ -31,82 +31,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "pointer-set.h"
 #include "target.h"
 #include "tree-iterator.h"
-
-/* Fill array order with all nodes with output flag set in the reverse
-   topological order.  */
-
-int
-cgraph_postorder (struct cgraph_node **order)
-{
-  struct cgraph_node *node, *node2;
-  int stack_size = 0;
-  int order_pos = 0;
-  struct cgraph_edge *edge, last;
-  int pass;
-
-  struct cgraph_node **stack =
-    XCNEWVEC (struct cgraph_node *, cgraph_n_nodes);
-
-  /* We have to deal with cycles nicely, so use a depth first traversal
-     output algorithm.  Ignore the fact that some functions won't need
-     to be output and put them into order as well, so we get dependencies
-     right through inline functions.  */
-  for (node = cgraph_nodes; node; node = node->next)
-    node->aux = NULL;
-  for (pass = 0; pass < 2; pass++)
-    for (node = cgraph_nodes; node; node = node->next)
-      if (!node->aux
-	  && (pass
-	      || (!node->address_taken
-		  && !node->global.inlined_to
-		  && !cgraph_only_called_directly_p (node))))
-	{
-	  node2 = node;
-	  if (!node->callers)
-	    node->aux = &last;
-	  else
-	    node->aux = node->callers;
-	  while (node2)
-	    {
-	      while (node2->aux != &last)
-		{
-		  edge = (struct cgraph_edge *) node2->aux;
-		  if (edge->next_caller)
-		    node2->aux = edge->next_caller;
-		  else
-		    node2->aux = &last;
-		  /* Break possible cycles involving always-inline
-		     functions by ignoring edges from always-inline
-		     functions to non-always-inline functions.  */
-		  if (edge->caller->local.disregard_inline_limits
-		      && !edge->callee->local.disregard_inline_limits)
-		    continue;
-		  if (!edge->caller->aux)
-		    {
-		      if (!edge->caller->callers)
-			edge->caller->aux = &last;
-		      else
-			edge->caller->aux = edge->caller->callers;
-		      stack[stack_size++] = node2;
-		      node2 = edge->caller;
-		      break;
-		    }
-		}
-	      if (node2->aux == &last)
-		{
-		  order[order_pos++] = node2;
-		  if (stack_size)
-		    node2 = stack[--stack_size];
-		  else
-		    node2 = NULL;
-		}
-	    }
-	}
-  free (stack);
-  for (node = cgraph_nodes; node; node = node->next)
-    node->aux = NULL;
-  return order_pos;
-}
+#include "ipa-utils.h"
 
 /* Look for all functions inlined to NODE and update their inlined_to pointers
    to INLINED_TO.  */
@@ -380,7 +305,6 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 	  cgraph_node_remove_callees (node);
 	  ipa_remove_all_references (&node->ref_list);
 	  node->analyzed = false;
-	  node->local.inlinable = false;
 	}
       if (!node->aux)
 	{
@@ -421,7 +345,6 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 		  if (!clone)
 		    {
 		      cgraph_release_function_body (node);
-		      node->local.inlinable = false;
 		      if (node->prev_sibling_clone)
 			node->prev_sibling_clone->next_sibling_clone = node->next_sibling_clone;
 		      else if (node->clone_of)
@@ -517,6 +440,8 @@ cgraph_remove_unreachable_nodes (bool before_inlining_p, FILE *file)
 	      }
 	  }
       }
+  if (file)
+    fprintf (file, "\n");
 
 #ifdef ENABLE_CHECKING
   verify_cgraph ();
@@ -952,7 +877,47 @@ function_and_variable_visibility (bool whole_program)
 	       segfault though. */
 	    dissolve_same_comdat_group_list (node);
 	}
+
+      if (node->thunk.thunk_p
+	  && TREE_PUBLIC (node->decl))
+	{
+	  struct cgraph_node *decl_node = node;
+
+	  while (decl_node->thunk.thunk_p)
+	    decl_node = decl_node->callees->callee;
+
+	  /* Thunks have the same visibility as function they are attached to.
+	     For some reason C++ frontend don't seem to care. I.e. in 
+	     g++.dg/torture/pr41257-2.C the thunk is not comdat while function
+	     it is attached to is.
+
+	     We also need to arrange the thunk into the same comdat group as
+	     the function it reffers to.  */
+	  if (DECL_COMDAT (decl_node->decl))
+	    {
+	      DECL_COMDAT (node->decl) = 1;
+	      DECL_COMDAT_GROUP (node->decl) = DECL_COMDAT_GROUP (decl_node->decl);
+	      if (!node->same_comdat_group)
+		{
+		  node->same_comdat_group = decl_node;
+		  if (!decl_node->same_comdat_group)
+		    decl_node->same_comdat_group = node;
+		  else
+		    {
+		      struct cgraph_node *n;
+		      for (n = decl_node->same_comdat_group;
+			   n->same_comdat_group != decl_node;
+			   n = n->same_comdat_group)
+			;
+		      n->same_comdat_group = node;
+		    }
+		}
+	    }
+	  if (DECL_EXTERNAL (decl_node->decl))
+	    DECL_EXTERNAL (node->decl) = 1;
+	}
       node->local.local = cgraph_local_node_p (node);
+
     }
   for (vnode = varpool_nodes; vnode; vnode = vnode->next)
     {
@@ -1122,320 +1087,6 @@ struct ipa_opt_pass_d pass_ipa_whole_program_visibility =
  NULL,					/* variable_transform */
 };
 
-/* Hash a cgraph node set element.  */
-
-static hashval_t
-hash_cgraph_node_set_element (const void *p)
-{
-  const_cgraph_node_set_element element = (const_cgraph_node_set_element) p;
-  return htab_hash_pointer (element->node);
-}
-
-/* Compare two cgraph node set elements.  */
-
-static int
-eq_cgraph_node_set_element (const void *p1, const void *p2)
-{
-  const_cgraph_node_set_element e1 = (const_cgraph_node_set_element) p1;
-  const_cgraph_node_set_element e2 = (const_cgraph_node_set_element) p2;
-
-  return e1->node == e2->node;
-}
-
-/* Create a new cgraph node set.  */
-
-cgraph_node_set
-cgraph_node_set_new (void)
-{
-  cgraph_node_set new_node_set;
-
-  new_node_set = ggc_alloc_cgraph_node_set_def ();
-  new_node_set->hashtab = htab_create_ggc (10,
-					   hash_cgraph_node_set_element,
-					   eq_cgraph_node_set_element,
-					   NULL);
-  new_node_set->nodes = NULL;
-  return new_node_set;
-}
-
-/* Add cgraph_node NODE to cgraph_node_set SET.  */
-
-void
-cgraph_node_set_add (cgraph_node_set set, struct cgraph_node *node)
-{
-  void **slot;
-  cgraph_node_set_element element;
-  struct cgraph_node_set_element_def dummy;
-
-  dummy.node = node;
-  slot = htab_find_slot (set->hashtab, &dummy, INSERT);
-
-  if (*slot != HTAB_EMPTY_ENTRY)
-    {
-      element = (cgraph_node_set_element) *slot;
-      gcc_assert (node == element->node
-		  && (VEC_index (cgraph_node_ptr, set->nodes, element->index)
-		      == node));
-      return;
-    }
-
-  /* Insert node into hash table.  */
-  element = ggc_alloc_cgraph_node_set_element_def ();
-  element->node = node;
-  element->index = VEC_length (cgraph_node_ptr, set->nodes);
-  *slot = element;
-
-  /* Insert into node vector.  */
-  VEC_safe_push (cgraph_node_ptr, gc, set->nodes, node);
-}
-
-/* Remove cgraph_node NODE from cgraph_node_set SET.  */
-
-void
-cgraph_node_set_remove (cgraph_node_set set, struct cgraph_node *node)
-{
-  void **slot, **last_slot;
-  cgraph_node_set_element element, last_element;
-  struct cgraph_node *last_node;
-  struct cgraph_node_set_element_def dummy;
-
-  dummy.node = node;
-  slot = htab_find_slot (set->hashtab, &dummy, NO_INSERT);
-  if (slot == NULL)
-    return;
-
-  element = (cgraph_node_set_element) *slot;
-  gcc_assert (VEC_index (cgraph_node_ptr, set->nodes, element->index)
-	      == node);
-
-  /* Remove from vector. We do this by swapping node with the last element
-     of the vector.  */
-  last_node = VEC_pop (cgraph_node_ptr, set->nodes);
-  if (last_node != node)
-    {
-      dummy.node = last_node;
-      last_slot = htab_find_slot (set->hashtab, &dummy, NO_INSERT);
-      last_element = (cgraph_node_set_element) *last_slot;
-      gcc_assert (last_element);
-
-      /* Move the last element to the original spot of NODE.  */
-      last_element->index = element->index;
-      VEC_replace (cgraph_node_ptr, set->nodes, last_element->index,
-		   last_node);
-    }
-
-  /* Remove element from hash table.  */
-  htab_clear_slot (set->hashtab, slot);
-  ggc_free (element);
-}
-
-/* Find NODE in SET and return an iterator to it if found.  A null iterator
-   is returned if NODE is not in SET.  */
-
-cgraph_node_set_iterator
-cgraph_node_set_find (cgraph_node_set set, struct cgraph_node *node)
-{
-  void **slot;
-  struct cgraph_node_set_element_def dummy;
-  cgraph_node_set_element element;
-  cgraph_node_set_iterator csi;
-
-  dummy.node = node;
-  slot = htab_find_slot (set->hashtab, &dummy, NO_INSERT);
-  if (slot == NULL)
-    csi.index = (unsigned) ~0;
-  else
-    {
-      element = (cgraph_node_set_element) *slot;
-      gcc_assert (VEC_index (cgraph_node_ptr, set->nodes, element->index)
-		  == node);
-      csi.index = element->index;
-    }
-  csi.set = set;
-
-  return csi;
-}
-
-/* Dump content of SET to file F.  */
-
-void
-dump_cgraph_node_set (FILE *f, cgraph_node_set set)
-{
-  cgraph_node_set_iterator iter;
-
-  for (iter = csi_start (set); !csi_end_p (iter); csi_next (&iter))
-    {
-      struct cgraph_node *node = csi_node (iter);
-      fprintf (f, " %s/%i", cgraph_node_name (node), node->uid);
-    }
-  fprintf (f, "\n");
-}
-
-/* Dump content of SET to stderr.  */
-
-DEBUG_FUNCTION void
-debug_cgraph_node_set (cgraph_node_set set)
-{
-  dump_cgraph_node_set (stderr, set);
-}
-
-/* Hash a varpool node set element.  */
-
-static hashval_t
-hash_varpool_node_set_element (const void *p)
-{
-  const_varpool_node_set_element element = (const_varpool_node_set_element) p;
-  return htab_hash_pointer (element->node);
-}
-
-/* Compare two varpool node set elements.  */
-
-static int
-eq_varpool_node_set_element (const void *p1, const void *p2)
-{
-  const_varpool_node_set_element e1 = (const_varpool_node_set_element) p1;
-  const_varpool_node_set_element e2 = (const_varpool_node_set_element) p2;
-
-  return e1->node == e2->node;
-}
-
-/* Create a new varpool node set.  */
-
-varpool_node_set
-varpool_node_set_new (void)
-{
-  varpool_node_set new_node_set;
-
-  new_node_set = ggc_alloc_varpool_node_set_def ();
-  new_node_set->hashtab = htab_create_ggc (10,
-					   hash_varpool_node_set_element,
-					   eq_varpool_node_set_element,
-					   NULL);
-  new_node_set->nodes = NULL;
-  return new_node_set;
-}
-
-/* Add varpool_node NODE to varpool_node_set SET.  */
-
-void
-varpool_node_set_add (varpool_node_set set, struct varpool_node *node)
-{
-  void **slot;
-  varpool_node_set_element element;
-  struct varpool_node_set_element_def dummy;
-
-  dummy.node = node;
-  slot = htab_find_slot (set->hashtab, &dummy, INSERT);
-
-  if (*slot != HTAB_EMPTY_ENTRY)
-    {
-      element = (varpool_node_set_element) *slot;
-      gcc_assert (node == element->node
-		  && (VEC_index (varpool_node_ptr, set->nodes, element->index)
-		      == node));
-      return;
-    }
-
-  /* Insert node into hash table.  */
-  element = ggc_alloc_varpool_node_set_element_def ();
-  element->node = node;
-  element->index = VEC_length (varpool_node_ptr, set->nodes);
-  *slot = element;
-
-  /* Insert into node vector.  */
-  VEC_safe_push (varpool_node_ptr, gc, set->nodes, node);
-}
-
-/* Remove varpool_node NODE from varpool_node_set SET.  */
-
-void
-varpool_node_set_remove (varpool_node_set set, struct varpool_node *node)
-{
-  void **slot, **last_slot;
-  varpool_node_set_element element, last_element;
-  struct varpool_node *last_node;
-  struct varpool_node_set_element_def dummy;
-
-  dummy.node = node;
-  slot = htab_find_slot (set->hashtab, &dummy, NO_INSERT);
-  if (slot == NULL)
-    return;
-
-  element = (varpool_node_set_element) *slot;
-  gcc_assert (VEC_index (varpool_node_ptr, set->nodes, element->index)
-	      == node);
-
-  /* Remove from vector. We do this by swapping node with the last element
-     of the vector.  */
-  last_node = VEC_pop (varpool_node_ptr, set->nodes);
-  if (last_node != node)
-    {
-      dummy.node = last_node;
-      last_slot = htab_find_slot (set->hashtab, &dummy, NO_INSERT);
-      last_element = (varpool_node_set_element) *last_slot;
-      gcc_assert (last_element);
-
-      /* Move the last element to the original spot of NODE.  */
-      last_element->index = element->index;
-      VEC_replace (varpool_node_ptr, set->nodes, last_element->index,
-		   last_node);
-    }
-
-  /* Remove element from hash table.  */
-  htab_clear_slot (set->hashtab, slot);
-  ggc_free (element);
-}
-
-/* Find NODE in SET and return an iterator to it if found.  A null iterator
-   is returned if NODE is not in SET.  */
-
-varpool_node_set_iterator
-varpool_node_set_find (varpool_node_set set, struct varpool_node *node)
-{
-  void **slot;
-  struct varpool_node_set_element_def dummy;
-  varpool_node_set_element element;
-  varpool_node_set_iterator vsi;
-
-  dummy.node = node;
-  slot = htab_find_slot (set->hashtab, &dummy, NO_INSERT);
-  if (slot == NULL)
-    vsi.index = (unsigned) ~0;
-  else
-    {
-      element = (varpool_node_set_element) *slot;
-      gcc_assert (VEC_index (varpool_node_ptr, set->nodes, element->index)
-		  == node);
-      vsi.index = element->index;
-    }
-  vsi.set = set;
-
-  return vsi;
-}
-
-/* Dump content of SET to file F.  */
-
-void
-dump_varpool_node_set (FILE *f, varpool_node_set set)
-{
-  varpool_node_set_iterator iter;
-
-  for (iter = vsi_start (set); !vsi_end_p (iter); vsi_next (&iter))
-    {
-      struct varpool_node *node = vsi_node (iter);
-      fprintf (f, " %s", varpool_node_name (node));
-    }
-  fprintf (f, "\n");
-}
-
-/* Dump content of SET to stderr.  */
-
-DEBUG_FUNCTION void
-debug_varpool_node_set (varpool_node_set set)
-{
-  dump_varpool_node_set (stderr, set);
-}
-
 
 /* Simple ipa profile pass propagating frequencies across the callgraph.  */
 
@@ -1448,7 +1099,7 @@ ipa_profile (void)
   bool something_changed = false;
   int i;
 
-  order_pos = cgraph_postorder (order);
+  order_pos = ipa_reverse_postorder (order);
   for (i = order_pos - 1; i >= 0; i--)
     {
       if (order[i]->local.local && cgraph_propagate_frequency (order[i]))
@@ -1626,8 +1277,8 @@ record_cdtor_fn (struct cgraph_node *node)
     VEC_safe_push (tree, heap, static_ctors, node->decl);
   if (DECL_STATIC_DESTRUCTOR (node->decl))
     VEC_safe_push (tree, heap, static_dtors, node->decl);
-  node = cgraph_node (node->decl);
-  node->local.disregard_inline_limits = 1;
+  node = cgraph_get_node (node->decl);
+  DECL_DISREGARD_INLINE_LIMITS (node->decl) = 1;
 }
 
 /* Define global constructors/destructor functions for the CDTORS, of

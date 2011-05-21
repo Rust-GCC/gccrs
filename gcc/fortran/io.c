@@ -1394,10 +1394,12 @@ resolve_tag_format (const gfc_expr *e)
 	  || e->symtree->n.sym->as == NULL
 	  || e->symtree->n.sym->as->rank == 0))
     {
-      if (e->ts.type != BT_CHARACTER && e->ts.type != BT_INTEGER)
+      if ((e->ts.type != BT_CHARACTER
+	   || e->ts.kind != gfc_default_character_kind)
+	  && e->ts.type != BT_INTEGER)
 	{
-	  gfc_error ("FORMAT tag at %L must be of type CHARACTER or INTEGER",
-		     &e->where);
+	  gfc_error ("FORMAT tag at %L must be of type default-kind CHARACTER "
+		     "or of INTEGER", &e->where);
 	  return FAILURE;
 	}
       else if (e->ts.type == BT_INTEGER && e->expr_type == EXPR_VARIABLE)
@@ -1475,6 +1477,13 @@ resolve_tag (const io_tag *tag, gfc_expr *e)
     {
       gfc_error ("%s tag at %L must be of type %s", tag->name,
 		 &e->where, gfc_basic_typename (tag->type));
+      return FAILURE;
+    }
+
+  if (e->ts.type == BT_CHARACTER && e->ts.kind != gfc_default_character_kind)
+    {
+      gfc_error ("%s tag at %L must be a character string of default kind",
+		 tag->name, &e->where);
       return FAILURE;
     }
 
@@ -1640,7 +1649,7 @@ gfc_free_open (gfc_open *open)
   gfc_free_expr (open->convert);
   gfc_free_expr (open->asynchronous);
   gfc_free_expr (open->newunit);
-  gfc_free (open);
+  free (open);
 }
 
 
@@ -1764,7 +1773,7 @@ compare_to_allowed_values (const char *specifier, const char *allowed[],
       char *s = gfc_widechar_to_char (value, -1);
       gfc_warning ("%s specifier in %s statement at %C has invalid value '%s'",
 		   specifier, statement, s);
-      gfc_free (s);
+      free (s);
       return 1;
     }
   else
@@ -1772,7 +1781,7 @@ compare_to_allowed_values (const char *specifier, const char *allowed[],
       char *s = gfc_widechar_to_char (value, -1);
       gfc_error ("%s specifier in %s statement at %C has invalid value '%s'",
 		 specifier, statement, s);
-      gfc_free (s);
+      free (s);
       return 0;
     }
 }
@@ -2085,7 +2094,7 @@ gfc_match_open (void)
 					  -1);
 	  warn_or_error ("The STATUS specified in OPEN statement at %C is "
 			 "'%s' and no FILE specifier is present", s);
-	  gfc_free (s);
+	  free (s);
 	}
 
       /* F2003, 9.4.5: If the STATUS= specifier has the value SCRATCH,
@@ -2162,7 +2171,7 @@ gfc_free_close (gfc_close *close)
   gfc_free_expr (close->iomsg);
   gfc_free_expr (close->iostat);
   gfc_free_expr (close->status);
-  gfc_free (close);
+  free (close);
 }
 
 
@@ -2306,7 +2315,7 @@ gfc_free_filepos (gfc_filepos *fp)
   gfc_free_expr (fp->unit);
   gfc_free_expr (fp->iomsg);
   gfc_free_expr (fp->iostat);
-  gfc_free (fp);
+  free (fp);
 }
 
 
@@ -2740,7 +2749,7 @@ gfc_free_dt (gfc_dt *dt)
   gfc_free_expr (dt->pos);
   gfc_free_expr (dt->dt_io_kind);
   /* dt->extra_comma is a link to dt_io_kind if it is set.  */
-  gfc_free (dt);
+  free (dt);
 }
 
 
@@ -3822,7 +3831,7 @@ gfc_free_inquire (gfc_inquire *inquire)
   gfc_free_expr (inquire->sign);
   gfc_free_expr (inquire->size);
   gfc_free_expr (inquire->round);
-  gfc_free (inquire);
+  free (inquire);
 }
 
 
@@ -4059,6 +4068,7 @@ gfc_resolve_inquire (gfc_inquire *inquire)
   INQUIRE_RESOLVE_TAG (&tag_s_round, inquire->round);
   INQUIRE_RESOLVE_TAG (&tag_pending, inquire->pending);
   INQUIRE_RESOLVE_TAG (&tag_size, inquire->size);
+  INQUIRE_RESOLVE_TAG (&tag_s_decimal, inquire->decimal);
 #undef INQUIRE_RESOLVE_TAG
 
   if (gfc_reference_st_label (inquire->err, ST_LABEL_TARGET) == FAILURE)

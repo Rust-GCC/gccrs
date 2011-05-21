@@ -562,28 +562,23 @@ emit_debug_global_declarations (tree *vec, int len)
 static void
 compile_file (void)
 {
-  /* Initialize yet another pass.  */
-
-  ggc_protect_identifiers = true;
-
-  init_cgraph ();
-  init_final (main_input_filename);
-  coverage_init (aux_base_name);
-  statistics_init ();
-  invoke_plugin_callbacks (PLUGIN_START_UNIT, NULL);
-
-  timevar_push (TV_PARSE);
+  timevar_start (TV_PHASE_PARSING);
+  timevar_push (TV_PARSE_GLOBAL);
 
   /* Call the parser, which parses the entire file (calling
      rest_of_compilation for each function).  */
   lang_hooks.parse_file ();
 
+  timevar_pop (TV_PARSE_GLOBAL);
+  timevar_stop (TV_PHASE_PARSING);
+
   /* Compilation is now finished except for writing
      what's left of the symbol table output.  */
-  timevar_pop (TV_PARSE);
 
   if (flag_syntax_only || flag_wpa)
     return;
+
+  timevar_start (TV_PHASE_GENERATE);
 
   ggc_protect_identifiers = false;
 
@@ -591,7 +586,10 @@ compile_file (void)
   lang_hooks.decls.final_write_globals ();
 
   if (seen_error ())
-    return;
+    {
+      timevar_stop (TV_PHASE_GENERATE);
+      return;
+    }
 
   varpool_assemble_pending_decls ();
   finish_aliases_2 ();
@@ -671,6 +669,8 @@ compile_file (void)
      into the assembly file here, and hence we can not output anything to the
      assembly file after this point.  */
   targetm.asm_out.file_end ();
+
+  timevar_stop (TV_PHASE_GENERATE);
 }
 
 /* Indexed by enum debug_info_type.  */
@@ -1253,29 +1253,6 @@ process_options (void)
 
   maximum_field_alignment = initial_max_fld_align * BITS_PER_UNIT;
 
-  /* This replaces set_Wunused.  */
-  if (warn_unused_function == -1)
-    warn_unused_function = warn_unused;
-  if (warn_unused_label == -1)
-    warn_unused_label = warn_unused;
-  /* Wunused-parameter is enabled if both -Wunused -Wextra are enabled.  */
-  if (warn_unused_parameter == -1)
-    warn_unused_parameter = (warn_unused && extra_warnings);
-  if (warn_unused_variable == -1)
-    warn_unused_variable = warn_unused;
-  /* Wunused-but-set-parameter is enabled if both -Wunused -Wextra are
-     enabled.  */
-  if (warn_unused_but_set_parameter == -1)
-    warn_unused_but_set_parameter = (warn_unused && extra_warnings);
-  if (warn_unused_but_set_variable == -1)
-    warn_unused_but_set_variable = warn_unused;
-  if (warn_unused_value == -1)
-    warn_unused_value = warn_unused;
-
-  /* This replaces set_Wextra.  */
-  if (warn_uninitialized == -1)
-    warn_uninitialized = extra_warnings;
-
   /* Allow the front end to perform consistency checks and do further
      initialization based on the command line options.  This hook also
      sets the original filename if appropriate (e.g. foo.i -> foo.c)
@@ -1600,6 +1577,15 @@ process_options (void)
       flag_omit_frame_pointer = 0;
     }
 
+  /* Enable -Werror=coverage-mismatch when -Werror and -Wno-error
+     have not been set.  */
+  if (!global_options_set.x_warnings_are_errors
+      && warn_coverage_mismatch
+      && (global_dc->classify_diagnostic[OPT_Wcoverage_mismatch] ==
+          DK_UNSPECIFIED))
+    diagnostic_classify_diagnostic (global_dc, OPT_Wcoverage_mismatch,
+                                    DK_ERROR, UNKNOWN_LOCATION);
+
   /* Save the current optimization options.  */
   optimization_default_node = build_optimization_node ();
   optimization_current_node = optimization_default_node;
@@ -1743,11 +1729,14 @@ lang_dependent_init (const char *name)
     return 0;
   input_location = save_loc;
 
-  init_asm_output (name);
+  if (!flag_wpa)
+    {
+      init_asm_output (name);
 
-  /* If stack usage information is desired, open the output file.  */
-  if (flag_stack_usage)
-    stack_usage_file = open_auxiliary_file ("su");
+      /* If stack usage information is desired, open the output file.  */
+      if (flag_stack_usage)
+	stack_usage_file = open_auxiliary_file ("su");
+    }
 
   /* This creates various _DECL nodes, so needs to be called after the
      front end is initialized.  */
@@ -1756,20 +1745,23 @@ lang_dependent_init (const char *name)
   /* Do the target-specific parts of the initialization.  */
   lang_dependent_init_target ();
 
-  /* If dbx symbol table desired, initialize writing it and output the
-     predefined types.  */
-  timevar_push (TV_SYMOUT);
+  if (!flag_wpa)
+    {
+      /* If dbx symbol table desired, initialize writing it and output the
+	 predefined types.  */
+      timevar_push (TV_SYMOUT);
 
 #if defined DWARF2_DEBUGGING_INFO || defined DWARF2_UNWIND_INFO
-  if (dwarf2out_do_frame ())
-    dwarf2out_frame_init ();
+      if (dwarf2out_do_frame ())
+	dwarf2out_frame_init ();
 #endif
 
-  /* Now we have the correct original filename, we can initialize
-     debug output.  */
-  (*debug_hooks->init) (name);
+      /* Now we have the correct original filename, we can initialize
+	 debug output.  */
+      (*debug_hooks->init) (name);
 
-  timevar_pop (TV_SYMOUT);
+      timevar_pop (TV_SYMOUT);
+    }
 
   return 1;
 }
@@ -1848,8 +1840,6 @@ finalize (bool no_backend)
 	fatal_error ("error writing to %s: %m", asm_file_name);
       if (fclose (asm_out_file) != 0)
 	fatal_error ("error closing %s: %m", asm_file_name);
-      if (flag_wpa)
-	unlink_if_ordinary (asm_file_name);
     }
 
   if (stack_usage_file)
@@ -1886,6 +1876,8 @@ do_compile (void)
   /* Don't do any more if an error has already occurred.  */
   if (!seen_error ())
     {
+      timevar_start (TV_PHASE_SETUP);
+
       /* This must be run always, because it is needed to compute the FP
 	 predefined macros, such as __LDBL_MAX__, for targets using non
 	 default FP formats.  */
@@ -1897,9 +1889,31 @@ do_compile (void)
 
       /* Language-dependent initialization.  Returns true on success.  */
       if (lang_dependent_init (main_input_filename))
-	compile_file ();
+        {
+          /* Initialize yet another pass.  */
+
+          ggc_protect_identifiers = true;
+
+          init_cgraph ();
+          init_final (main_input_filename);
+          coverage_init (aux_base_name);
+          statistics_init ();
+          invoke_plugin_callbacks (PLUGIN_START_UNIT, NULL);
+
+          timevar_stop (TV_PHASE_SETUP);
+
+          compile_file ();
+        }
+      else
+        {
+          timevar_stop (TV_PHASE_SETUP);
+        }
+
+      timevar_start (TV_PHASE_FINALIZE);
 
       finalize (no_backend);
+
+      timevar_stop (TV_PHASE_FINALIZE);
     }
 
   /* Stop timing and print the times.  */

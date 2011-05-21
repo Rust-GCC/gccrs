@@ -270,6 +270,7 @@ check_handled_ts_structures (void)
   /* These are the TS_* structures that are either handled or
      explicitly ignored by the streamer routines.  */
   handled_p[TS_BASE] = true;
+  handled_p[TS_TYPED] = true;
   handled_p[TS_COMMON] = true;
   handled_p[TS_INT_CST] = true;
   handled_p[TS_REAL_CST] = true;
@@ -291,7 +292,9 @@ check_handled_ts_structures (void)
   handled_p[TS_CONST_DECL] = true;
   handled_p[TS_TYPE_DECL] = true;
   handled_p[TS_FUNCTION_DECL] = true;
-  handled_p[TS_TYPE] = true;
+  handled_p[TS_TYPE_COMMON] = true;
+  handled_p[TS_TYPE_WITH_LANG_SPECIFIC] = true;
+  handled_p[TS_TYPE_NON_COMMON] = true;
   handled_p[TS_LIST] = true;
   handled_p[TS_VEC] = true;
   handled_p[TS_EXP] = true;
@@ -347,26 +350,20 @@ lto_streamer_cache_insert_1 (struct lto_streamer_cache_d *cache,
 			     bool insert_at_next_slot_p)
 {
   void **slot;
-  struct tree_int_map d_entry, *entry;
   unsigned ix;
   bool existed_p;
 
   gcc_assert (t);
 
-  d_entry.base.from = t;
-  slot = htab_find_slot (cache->node_map, &d_entry, INSERT);
-  if (*slot == NULL)
+  slot = pointer_map_insert (cache->node_map, t);
+  if (!*slot)
     {
       /* Determine the next slot to use in the cache.  */
       if (insert_at_next_slot_p)
 	ix = VEC_length (tree, cache->nodes);
       else
 	ix = *ix_p;
-
-      entry = (struct tree_int_map *)pool_alloc (cache->node_map_entries);
-      entry->base.from = t;
-      entry->to = ix;
-      *slot = entry;
+       *slot = (void *)(size_t) (ix + 1);
 
       lto_streamer_cache_add_to_node_array (cache, ix, t);
 
@@ -375,26 +372,14 @@ lto_streamer_cache_insert_1 (struct lto_streamer_cache_d *cache,
     }
   else
     {
-      entry = (struct tree_int_map *) *slot;
-      ix = entry->to;
+      ix = (size_t) *slot - 1;
 
       if (!insert_at_next_slot_p && ix != *ix_p)
 	{
 	  /* If the caller wants to insert T at a specific slot
 	     location, and ENTRY->TO does not match *IX_P, add T to
-	     the requested location slot.  This situation arises when
-	     streaming builtin functions.
-
-	     For instance, on the writer side we could have two
-	     FUNCTION_DECLS T1 and T2 that are represented by the same
-	     builtin function.  The reader will only instantiate the
-	     canonical builtin, but since T1 and T2 had been
-	     originally stored in different cache slots (S1 and S2),
-	     the reader must be able to find the canonical builtin
-	     function at slots S1 and S2.  */
-	  gcc_assert (lto_stream_as_builtin_p (t));
+	     the requested location slot.  */
 	  ix = *ix_p;
-
 	  lto_streamer_cache_add_to_node_array (cache, ix, t);
 	}
 
@@ -452,14 +437,12 @@ lto_streamer_cache_lookup (struct lto_streamer_cache_d *cache, tree t,
 			   unsigned *ix_p)
 {
   void **slot;
-  struct tree_int_map d_slot;
   bool retval;
   unsigned ix;
 
   gcc_assert (t);
 
-  d_slot.base.from = t;
-  slot = htab_find_slot (cache->node_map, &d_slot, NO_INSERT);
+  slot = pointer_map_contains  (cache->node_map, t);
   if (slot == NULL)
     {
       retval = false;
@@ -468,7 +451,7 @@ lto_streamer_cache_lookup (struct lto_streamer_cache_d *cache, tree t,
   else
     {
       retval = true;
-      ix = ((struct tree_int_map *) *slot)->to;
+      ix = (size_t) *slot - 1;
     }
 
   if (ix_p)
@@ -492,17 +475,21 @@ lto_streamer_cache_get (struct lto_streamer_cache_d *cache, unsigned ix)
 }
 
 
-/* Record NODE in COMMON_NODES if it is not NULL and is not already in
-   SEEN_NODES.  */
+/* Record NODE in CACHE.  */
 
 static void
-lto_record_common_node (tree *nodep, VEC(tree, heap) **common_nodes,
-			struct pointer_set_t *seen_nodes)
+lto_record_common_node (struct lto_streamer_cache_d *cache, tree *nodep)
 {
   tree node = *nodep;
 
-  if (node == NULL_TREE)
-    return;
+  /* We have to make sure to fill exactly the same number of
+     elements for all frontends.  That can include NULL trees.
+     As our hash table can't deal with zero entries we'll simply stream
+     a random other tree.  A NULL tree never will be looked up so it
+     doesn't matter which tree we replace it with, just to be sure
+     use error_mark_node.  */
+  if (!node)
+    node = error_mark_node;
 
   if (TYPE_P (node))
     {
@@ -512,31 +499,37 @@ lto_record_common_node (tree *nodep, VEC(tree, heap) **common_nodes,
 	TYPE_CANONICAL (node) = NULL_TREE;
       node = gimple_register_type (node);
       TYPE_CANONICAL (node) = gimple_register_canonical_type (node);
+      if (in_lto_p)
+	TYPE_CANONICAL (*nodep) = TYPE_CANONICAL (node);
       *nodep = node;
     }
 
-  /* Return if node is already seen.  */
-  if (pointer_set_insert (seen_nodes, node))
-    return;
-
-  VEC_safe_push (tree, heap, *common_nodes, node);
+  lto_streamer_cache_append (cache, node);
 
   if (POINTER_TYPE_P (node)
       || TREE_CODE (node) == COMPLEX_TYPE
       || TREE_CODE (node) == ARRAY_TYPE)
-    lto_record_common_node (&TREE_TYPE (node), common_nodes, seen_nodes);
+    lto_record_common_node (cache, &TREE_TYPE (node));
+  else if (TREE_CODE (node) == RECORD_TYPE)
+    {
+      /* The FIELD_DECLs of structures should be shared, so that every
+	 COMPONENT_REF uses the same tree node when referencing a field.
+	 Pointer equality between FIELD_DECLs is used by the alias
+	 machinery to compute overlapping memory references (See
+	 nonoverlapping_component_refs_p).  */
+      tree f;
+      for (f = TYPE_FIELDS (node); f; f = TREE_CHAIN (f))
+	lto_record_common_node (cache, &f);
+    }
 }
 
+/* Preload common nodes into CACHE and make sure they are merged
+   properly according to the gimple type table.  */
 
-/* Generate a vector of common nodes and make sure they are merged
-   properly according to the the gimple type table.  */
-
-static VEC(tree,heap) *
-lto_get_common_nodes (void)
+static void
+lto_preload_common_nodes (struct lto_streamer_cache_d *cache)
 {
   unsigned i;
-  VEC(tree,heap) *common_nodes = NULL;
-  struct pointer_set_t *seen_nodes;
 
   /* The MAIN_IDENTIFIER_NODE is normally set up by the front-end, but the
      LTO back-end must agree. Currently, the only languages that set this
@@ -560,49 +553,17 @@ lto_get_common_nodes (void)
   gcc_assert (fileptr_type_node == ptr_type_node);
   gcc_assert (TYPE_MAIN_VARIANT (fileptr_type_node) == ptr_type_node);
 
-  seen_nodes = pointer_set_create ();
-
   /* Skip itk_char.  char_type_node is shared with the appropriately
      signed variant.  */
   for (i = itk_signed_char; i < itk_none; i++)
-    lto_record_common_node (&integer_types[i], &common_nodes, seen_nodes);
+    lto_record_common_node (cache, &integer_types[i]);
 
   for (i = 0; i < TYPE_KIND_LAST; i++)
-    lto_record_common_node (&sizetype_tab[i], &common_nodes, seen_nodes);
+    lto_record_common_node (cache, &sizetype_tab[i]);
 
   for (i = 0; i < TI_MAX; i++)
-    lto_record_common_node (&global_trees[i], &common_nodes, seen_nodes);
-
-  pointer_set_destroy (seen_nodes);
-
-  return common_nodes;
+    lto_record_common_node (cache, &global_trees[i]);
 }
-
-
-/* Assign an index to tree node T and enter it in the streamer cache
-   CACHE.  */
-
-static void
-preload_common_node (struct lto_streamer_cache_d *cache, tree t)
-{
-  gcc_assert (t);
-
-  lto_streamer_cache_insert (cache, t, NULL);
-
- /* The FIELD_DECLs of structures should be shared, so that every
-    COMPONENT_REF uses the same tree node when referencing a field.
-    Pointer equality between FIELD_DECLs is used by the alias
-    machinery to compute overlapping memory references (See
-    nonoverlapping_component_refs_p).  */
- if (TREE_CODE (t) == RECORD_TYPE)
-   {
-     tree f;
-
-     for (f = TYPE_FIELDS (t); f; f = TREE_CHAIN (f))
-       preload_common_node (cache, f);
-   }
-}
-
 
 /* Create a cache of pickled nodes.  */
 
@@ -610,27 +571,15 @@ struct lto_streamer_cache_d *
 lto_streamer_cache_create (void)
 {
   struct lto_streamer_cache_d *cache;
-  VEC(tree, heap) *common_nodes;
-  unsigned i;
-  tree node;
 
   cache = XCNEW (struct lto_streamer_cache_d);
 
-  cache->node_map = htab_create (101, tree_int_map_hash, tree_int_map_eq, NULL);
-
-  cache->node_map_entries = create_alloc_pool ("node map",
-					       sizeof (struct tree_int_map),
-					       100);
+  cache->node_map = pointer_map_create ();
 
   /* Load all the well-known tree nodes that are always created by
      the compiler on startup.  This prevents writing them out
      unnecessarily.  */
-  common_nodes = lto_get_common_nodes ();
-
-  FOR_EACH_VEC_ELT (tree, common_nodes, i, node)
-    preload_common_node (cache, node);
-
-  VEC_free(tree, heap, common_nodes);
+  lto_preload_common_nodes (cache);
 
   return cache;
 }
@@ -644,8 +593,7 @@ lto_streamer_cache_delete (struct lto_streamer_cache_d *c)
   if (c == NULL)
     return;
 
-  htab_delete (c->node_map);
-  free_alloc_pool (c->node_map_entries);
+  pointer_map_destroy (c->node_map);
   VEC_free (tree, heap, c->nodes);
   free (c);
 }

@@ -1,3 +1,119 @@
+2011-05-20  Richard Guenther  <rguenther@suse.de>
+
+	* lto.c (lto_ft_common): Remove pointer-to chain teardown.
+	(lto_ft_type): Move main-variant and pointer-to chain building ...
+	(uniquify_nodes): ... here.  Compute TYPE_CANONICAL also here,
+	in a separate final loop.
+
+2011-05-19  Richard Guenther  <rguenther@suse.de>
+
+	* lto.c (uniquify_nodes): First register all types before
+	fixing up the tree SCC.
+
+2011-05-11  Jan Hubicka  <jh@suse.cz>
+
+	PR lto/48952
+	* lto.c (do_whole_program_analysis): Do not register cgraph hooks.
+
+2011-05-11  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* lto.c (lto_ft_type): Use TYPE_MINVAL and TYPE_MAXVAL.  Adjust
+	location of binfo field.
+	(lto_fixup_prevailing_decls): Likewise.
+
+2011-05-10  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* lto-lang.c (def_fn_type): Don't call build_function_type, call
+	build_function_type_array or build_varargs_function_type_array
+	instead.
+
+2011-05-07  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* lto-lang.c (global_bindings_p): Return bool.
+
+2011-05-07  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (lto_materialize_function): Use
+	cgraph_function_with_gimple_body_p.
+	(add_cgraph_node_to_partition): Do not re-add items to partition;
+	handle thunks.
+	(add_varpool_node_to_partition): Do not re-add items to partition.
+
+2011-05-03  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (free_ltrans_partitions): Fix accidental commit.
+
+2011-05-03  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (ltrans_partition_def): Remove GTY annotations.
+	(ltrans_partitions): Move to heap.
+	(new_partition): Update.
+	(free_ltrans_partitions): New function.
+	(lto_wpa_write_files): Use it.
+
+2011-04-29  Martin Jambor  <mjambor@suse.cz>
+
+	* lto.c: Include ipa-utils.h.
+	(lto_balanced_map): Update call to ipa_reverse_postorder.
+	* Make-lang.in (lto/lto.o): Add IPA_UTILS_H to dependencies.
+
+2011-04-29  Michael Matz  <matz@suse.de>
+
+	* lto.c (toplevel): Include tree-flow.h.
+	(lto_read_in_decl_state): Don't merge types here.
+	(tree_with_vars): New static hash table.
+	(remember_with_vars): New static functions.
+	(LTO_FIXUP_TYPE): New macro.
+	(lto_ft_common, lto_ft_decl_minimal, lto_ft_decl_common,
+	lto_ft_decl_with_vis, lto_ft_decl_non_common, lto_ft_function,
+	lto_ft_field_decl, lto_ft_type, lto_ft_binfo, lto_ft_constructor,
+	lto_ft_expr, lto_fixup_types, uniquify_nodes): New static functions.
+	(lto_read_decls): Uniquify while reading in trees.
+	(lto_fixup_data_t, LTO_FIXUP_SUBTREE,
+	LTO_REGISTER_TYPE_AND_FIXUP_SUBTREE, no_fixup_p, lto_fixup_common,
+	lto_fixup_decl_minimal, lto_fixup_decl_common, lto_fixup_decl_with_vis,
+	lto_fixup_decl_non_common, lto_fixup_function, lto_fixup_field_decl,
+	lto_fixup_type, lto_fixup_binfo, lto_fixup_constructor,
+	lto_fixup_tree): Remove.
+	(lto_fixup_state): Remove data argument.  Use
+	lto_symtab_prevailing_decl.
+	(LTO_SET_PREVAIL, LTO_NO_PREVAIL): New macros.
+	(lto_fixup_prevailing_decls): New function.
+	(lto_fixup_state_aux): Argument aux is unused.
+	(lto_fixup_decls): Don't allocate pointer sets, don't use
+	lto_fixup_tree, use lto_fixup_prevailing_decls.
+	(read_cgraph_and_symbols): Allocate and remove tree_with_vars.
+	* Make-lang.in (lto/lto.o): Depend on $(TREE_FLOW_H).
+
+2011-04-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* lto.c (lto_balanced_map): Fix typos in head comment.
+	(lto_promote_cross_file_statics): Fix long lines and remove redundant
+	test.
+
+2011-04-16  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c (lto_balanced_map): Update.
+
+2011-04-14  Jan Hubicka  <jh@suse.cz>
+
+	* lto.c: Include ipa-inline.h
+	(add_cgraph_node_to_partition, undo_partition): Use inline_summary
+	accessor.
+	(ipa_node_duplication_hook): Fix declaration.
+	* Make-lang.in (lto.o): Update dependencies.
+
+2011-04-12  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* lto-tree.h (union lang_tree_node): Check for TS_COMMON before
+	calling TREE_CHAIN.
+	* lto.c (lto_fixup_common): Likewise.
+
+2011-04-08  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* lto-lang.c (handle_sentinel_attribute): Don't use TYPE_ARG_TYPES.
+	(handle_type_generic_attribute): Likewise.
+
 2011-04-03  Michael Matz  <matz@suse.de>
 
 	* lto.c (lto_materialize_function): Don't read and then discard
@@ -55,8 +171,8 @@
 
 	PR lto/45721
 	PR lto/45375
-	* lto.c (partition_cgraph_node_p, partition_varpool_node_p): Weakrefs are
-	not partitioned.
+	* lto.c (partition_cgraph_node_p, partition_varpool_node_p): Weakrefs
+	are not partitioned.
 
 2010-12-22  Nathan Froyd  <froydnj@codesourcery.com>
 
@@ -354,11 +470,12 @@
 	* lto.c (add_cgraph_node_to_partition): Forward declare; walk also
 	nodes from same comdat group as well as all comdat functions referenced
 	here.
-	(add_varpool_node_to_partition, add_references_to_partition): New function.
-	(lto_1_1_map): Skip COMDAT fnctions/variables; use add_varpool_node_to_partition;
-	clear aux flags when done.
-	(lto_promote_cross_file_statics): Do not promote stuff that gets duplicated to
-	each ltrans.
+	(add_varpool_node_to_partition, add_references_to_partition): New
+	function.
+	(lto_1_1_map): Skip COMDAT fnctions/variables; use
+	add_varpool_node_to_partition; clear aux flags when done.
+	(lto_promote_cross_file_statics): Do not promote stuff that gets
+	duplicated to each ltrans.
 
 2010-07-04  Jan Hubicka  <jh@suse.cz>
 
@@ -566,8 +683,8 @@
 
 2010-04-30  Jan Hubicka  <jh@suse.cz>
 
-	* lto.c (get_filename_for_set): Look for cgraph node and if none found, use
-	default name.
+	* lto.c (get_filename_for_set): Look for cgraph node and if none found,
+	use default name.
 	(lto_wpa_write_files): Write any non-empty partition.
 
 2010-04-30  Jan Hubicka  <jh@suse.cz>

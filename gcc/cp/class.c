@@ -1268,6 +1268,10 @@ check_bases (tree t,
 
       gcc_assert (COMPLETE_TYPE_P (basetype));
 
+      if (CLASSTYPE_FINAL (basetype))
+        error ("cannot derive from %<final%> base %qT in derived type %qT",
+               basetype, t);
+
       /* If any base class is non-literal, so is the derived class.  */
       if (!CLASSTYPE_LITERAL_P (basetype))
         CLASSTYPE_LITERAL_P (t) = false;
@@ -2453,6 +2457,7 @@ get_basefndecls (tree name, tree t)
 void
 check_for_override (tree decl, tree ctype)
 {
+  bool overrides_found = false;
   if (TREE_CODE (decl) == TEMPLATE_DECL)
     /* In [temp.mem] we have:
 
@@ -2467,7 +2472,10 @@ check_for_override (tree decl, tree ctype)
     /* Set DECL_VINDEX to a value that is neither an INTEGER_CST nor
        the error_mark_node so that we know it is an overriding
        function.  */
-    DECL_VINDEX (decl) = decl;
+    {
+      DECL_VINDEX (decl) = decl;
+      overrides_found = true;
+    }
 
   if (DECL_VIRTUAL_P (decl))
     {
@@ -2477,6 +2485,10 @@ check_for_override (tree decl, tree ctype)
       if (DECL_DESTRUCTOR_P (decl))
 	TYPE_HAS_NONTRIVIAL_DESTRUCTOR (ctype) = true;
     }
+  else if (DECL_FINAL_P (decl))
+    error ("%q+#D marked final, but is not virtual", decl);
+  if (DECL_OVERRIDE_P (decl) && !overrides_found)
+    error ("%q+#D marked override, but does not override", decl);
 }
 
 /* Warn about hidden virtual functions that are not overridden in t.
@@ -4458,6 +4470,27 @@ type_has_move_assign (tree t)
   return false;
 }
 
+/* Nonzero if we need to build up a constructor call when initializing an
+   object of this class, either because it has a user-provided constructor
+   or because it doesn't have a default constructor (so we need to give an
+   error if no initializer is provided).  Use TYPE_NEEDS_CONSTRUCTING when
+   what you care about is whether or not an object can be produced by a
+   constructor (e.g. so we don't set TREE_READONLY on const variables of
+   such type); use this function when what you care about is whether or not
+   to try to call a constructor to create an object.  The latter case is
+   the former plus some cases of constructors that cannot be called.  */
+
+bool
+type_build_ctor_call (tree t)
+{
+  tree inner;
+  if (TYPE_NEEDS_CONSTRUCTING (t))
+    return true;
+  inner = strip_array_types (t);
+  return (CLASS_TYPE_P (inner) && !TYPE_HAS_DEFAULT_CONSTRUCTOR (inner)
+	  && !ANON_AGGR_TYPE_P (inner));
+}
+
 /* Remove all zero-width bit-fields from T.  */
 
 static void
@@ -4561,10 +4594,17 @@ finalize_literal_type_property (tree t)
 	   && !TYPE_HAS_CONSTEXPR_CTOR (t))
     CLASSTYPE_LITERAL_P (t) = false;
 
-  for (fn = TYPE_METHODS (t); fn; fn = DECL_CHAIN (fn))
-    if (DECL_DECLARED_CONSTEXPR_P (fn)
-	&& TREE_CODE (fn) != TEMPLATE_DECL)
-      validate_constexpr_fundecl (fn);
+  if (!CLASSTYPE_LITERAL_P (t))
+    for (fn = TYPE_METHODS (t); fn; fn = DECL_CHAIN (fn))
+      if (DECL_DECLARED_CONSTEXPR_P (fn)
+	  && TREE_CODE (fn) != TEMPLATE_DECL
+	  && DECL_NONSTATIC_MEMBER_FUNCTION_P (fn)
+	  && !DECL_CONSTRUCTOR_P (fn))
+	{
+	  DECL_DECLARED_CONSTEXPR_P (fn) = false;
+	  if (!DECL_TEMPLATE_INFO (fn))
+	    error ("enclosing class of %q+#D is not a literal type", fn);
+	}
 }
 
 /* Check the validity of the bases and members declared in T.  Add any
@@ -5939,6 +5979,7 @@ fixed_type_or_null (tree instance, int *nonnull, int *cdtorp)
 	     itself.  */
 	  if (TREE_CODE (instance) == VAR_DECL
 	      && DECL_INITIAL (instance)
+	      && !type_dependent_expression_p_push (DECL_INITIAL (instance))
 	      && !htab_find (ht, instance))
 	    {
 	      tree type;
@@ -5979,7 +6020,17 @@ resolves_to_fixed_type_p (tree instance, int* nonnull)
 {
   tree t = TREE_TYPE (instance);
   int cdtorp = 0;
-  tree fixed = fixed_type_or_null (instance, nonnull, &cdtorp);
+  tree fixed;
+
+  if (processing_template_decl)
+    {
+      /* In a template we only care about the type of the result.  */
+      if (nonnull)
+	*nonnull = true;
+      return true;
+    }
+
+  fixed = fixed_type_or_null (instance, nonnull, &cdtorp);
   if (fixed == NULL_TREE)
     return 0;
   if (POINTER_TYPE_P (t))
@@ -6513,14 +6564,7 @@ resolve_address_of_overloaded_function (tree target_type,
 		 DECL_NAME (OVL_CURRENT (overload)),
 		 target_type);
 
-	  /* print_candidates expects a chain with the functions in
-	     TREE_VALUE slots, so we cons one up here (we're losing anyway,
-	     so why be clever?).  */
-	  for (; overload; overload = OVL_NEXT (overload))
-	    matches = tree_cons (NULL_TREE, OVL_CURRENT (overload),
-				 matches);
-
-	  print_candidates (matches);
+	  print_candidates (overload);
 	}
       return error_mark_node;
     }
@@ -8374,36 +8418,6 @@ build_rtti_vtbl_entries (tree binfo, vtbl_init_data* vid)
      function pointer, so that we can put it in the vtable.  */
   init = build_nop (vfunc_ptr_type_node, offset);
   CONSTRUCTOR_APPEND_ELT (vid->inits, NULL_TREE, init);
-}
-
-/* Fold a OBJ_TYPE_REF expression to the address of a function.
-   KNOWN_TYPE carries the true type of OBJ_TYPE_REF_OBJECT(REF).  */
-
-tree
-cp_fold_obj_type_ref (tree ref, tree known_type)
-{
-  HOST_WIDE_INT index = tree_low_cst (OBJ_TYPE_REF_TOKEN (ref), 1);
-  HOST_WIDE_INT i = 0;
-  tree v = BINFO_VIRTUALS (TYPE_BINFO (known_type));
-  tree fndecl;
-
-  while (i != index)
-    {
-      i += (TARGET_VTABLE_USES_DESCRIPTORS
-	    ? TARGET_VTABLE_USES_DESCRIPTORS : 1);
-      v = TREE_CHAIN (v);
-    }
-
-  fndecl = BV_FN (v);
-
-#ifdef ENABLE_CHECKING
-  gcc_assert (tree_int_cst_equal (OBJ_TYPE_REF_TOKEN (ref),
-				  DECL_VINDEX (fndecl)));
-#endif
-
-  cgraph_node (fndecl)->local.vtable_method = true;
-
-  return build_address (fndecl);
 }
 
 #include "gt-cp-class.h"

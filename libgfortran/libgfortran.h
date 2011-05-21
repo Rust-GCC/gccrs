@@ -106,37 +106,10 @@ typedef off_t gfc_offset;
 #endif
 
 
-/* We use intptr_t and uintptr_t, which may not be always defined in
-   system headers.  */
-
-#ifndef HAVE_INTPTR_T
-#if __SIZEOF_POINTER__ == __SIZEOF_LONG__
-#define intptr_t long
-#elif __SIZEOF_POINTER__ == __SIZEOF_LONG_LONG__
-#define intptr_t long long
-#elif __SIZEOF_POINTER__ == __SIZEOF_INT__
-#define intptr_t int
-#elif __SIZEOF_POINTER__ == __SIZEOF_SHORT__
-#define intptr_t short
-#else
-#error "Pointer type with unexpected size"
+/* Make sure we have ptrdiff_t. */
+#ifndef HAVE_PTRDIFF_T
+typedef intptr_t ptrdiff_t;
 #endif
-#endif
-
-#ifndef HAVE_UINTPTR_T
-#if __SIZEOF_POINTER__ == __SIZEOF_LONG__
-#define uintptr_t unsigned long
-#elif __SIZEOF_POINTER__ == __SIZEOF_LONG_LONG__
-#define uintptr_t unsigned long long
-#elif __SIZEOF_POINTER__ == __SIZEOF_INT__
-#define uintptr_t unsigned int
-#elif __SIZEOF_POINTER__ == __SIZEOF_SHORT__
-#define uintptr_t unsigned short
-#else
-#error "Pointer type with unexpected size"
-#endif
-#endif
-
 
 /* On mingw, work around the buggy Windows snprintf() by using the one
    mingw provides, __mingw_snprintf().  We also provide a prototype for
@@ -146,6 +119,10 @@ extern int __mingw_snprintf (char *, size_t, const char *, ...)
      __attribute__ ((format (gnu_printf, 3, 4)));
 #undef snprintf
 #define snprintf __mingw_snprintf
+/* Fallback to sprintf if target does not have snprintf.  */
+#elif !defined(HAVE_SNPRINTF)
+#undef snprintf
+#define snprintf(str, size, ...) sprintf (str, __VA_ARGS__)
 #endif
 
 
@@ -269,7 +246,7 @@ typedef GFC_INTEGER_4 GFC_IO_INT;
 /* The following two definitions must be consistent with the types used
    by the compiler.  */
 /* The type used of array indices, amongst other things.  */
-typedef ssize_t index_type;
+typedef ptrdiff_t index_type;
 
 /* The type used for the lengths of character variables.  */
 typedef GFC_INTEGER_4 gfc_charlen_type;
@@ -531,16 +508,16 @@ typedef struct
   int separator_len;
   const char *separator;
 
-  int use_stderr, all_unbuffered, unbuffered_preconnected, default_recl;
-  int fpe, dump_core, backtrace;
+  int all_unbuffered, unbuffered_preconnected, default_recl;
+  int fpe, backtrace;
 }
 options_t;
 
 extern options_t options;
 internal_proto(options);
 
-extern void handler (int);
-internal_proto(handler);
+extern void backtrace_handler (int);
+internal_proto(backtrace_handler);
 
 
 /* Compile-time options that will influence the library.  */
@@ -551,7 +528,6 @@ typedef struct
   int allow_std;
   int pedantic;
   int convert;
-  int dump_core;
   int backtrace;
   int sign_zero;
   size_t record_marker;
@@ -711,8 +687,18 @@ internal_proto(show_backtrace);
 #define GFC_OTOA_BUF_SIZE (GFC_LARGEST_BUF * 3 + 1)
 #define GFC_BTOA_BUF_SIZE (GFC_LARGEST_BUF * 8 + 1)
 
-extern void sys_exit (int) __attribute__ ((noreturn));
-internal_proto(sys_exit);
+extern void sys_abort (void) __attribute__ ((noreturn));
+internal_proto(sys_abort);
+
+extern ssize_t estr_write (const char *);
+internal_proto(estr_write);
+
+extern int st_vprintf (const char *, va_list);
+internal_proto(st_vprintf);
+
+extern int st_printf (const char *, ...)
+  __attribute__((format (gfc_printf, 1, 2)));
+internal_proto(st_printf);
 
 extern const char *gfc_xtoa (GFC_UINTEGER_LARGEST, char *, size_t);
 internal_proto(gfc_xtoa);
@@ -814,13 +800,6 @@ internal_proto(close_units);
 
 extern int unit_to_fd (int);
 internal_proto(unit_to_fd);
-
-extern int st_printf (const char *, ...)
-  __attribute__ ((format (gfc_printf, 1, 2)));
-internal_proto(st_printf);
-
-extern int st_vprintf (const char *, va_list);
-internal_proto(st_vprintf);
 
 extern char * filename_from_unit (int);
 internal_proto(filename_from_unit);
@@ -1323,52 +1302,52 @@ internal_proto(count_0);
 
 /* Internal auxiliary functions for cshift */
 
-void cshift0_i1 (gfc_array_i1 *, const gfc_array_i1 *, ssize_t, int);
+void cshift0_i1 (gfc_array_i1 *, const gfc_array_i1 *, ptrdiff_t, int);
 internal_proto(cshift0_i1);
 
-void cshift0_i2 (gfc_array_i2 *, const gfc_array_i2 *, ssize_t, int);
+void cshift0_i2 (gfc_array_i2 *, const gfc_array_i2 *, ptrdiff_t, int);
 internal_proto(cshift0_i2);
 
-void cshift0_i4 (gfc_array_i4 *, const gfc_array_i4 *, ssize_t, int);
+void cshift0_i4 (gfc_array_i4 *, const gfc_array_i4 *, ptrdiff_t, int);
 internal_proto(cshift0_i4);
 
-void cshift0_i8 (gfc_array_i8 *, const gfc_array_i8 *, ssize_t, int);
+void cshift0_i8 (gfc_array_i8 *, const gfc_array_i8 *, ptrdiff_t, int);
 internal_proto(cshift0_i8);
 
 #ifdef HAVE_GFC_INTEGER_16
-void cshift0_i16 (gfc_array_i16 *, const gfc_array_i16 *, ssize_t, int);
+void cshift0_i16 (gfc_array_i16 *, const gfc_array_i16 *, ptrdiff_t, int);
 internal_proto(cshift0_i16);
 #endif
 
-void cshift0_r4 (gfc_array_r4 *, const gfc_array_r4 *, ssize_t, int);
+void cshift0_r4 (gfc_array_r4 *, const gfc_array_r4 *, ptrdiff_t, int);
 internal_proto(cshift0_r4);
 
-void cshift0_r8 (gfc_array_r8 *, const gfc_array_r8 *, ssize_t, int);
+void cshift0_r8 (gfc_array_r8 *, const gfc_array_r8 *, ptrdiff_t, int);
 internal_proto(cshift0_r8);
 
 #ifdef HAVE_GFC_REAL_10
-void cshift0_r10 (gfc_array_r10 *, const gfc_array_r10 *, ssize_t, int);
+void cshift0_r10 (gfc_array_r10 *, const gfc_array_r10 *, ptrdiff_t, int);
 internal_proto(cshift0_r10);
 #endif
 
 #ifdef HAVE_GFC_REAL_16
-void cshift0_r16 (gfc_array_r16 *, const gfc_array_r16 *, ssize_t, int);
+void cshift0_r16 (gfc_array_r16 *, const gfc_array_r16 *, ptrdiff_t, int);
 internal_proto(cshift0_r16);
 #endif
 
-void cshift0_c4 (gfc_array_c4 *, const gfc_array_c4 *, ssize_t, int);
+void cshift0_c4 (gfc_array_c4 *, const gfc_array_c4 *, ptrdiff_t, int);
 internal_proto(cshift0_c4);
 
-void cshift0_c8 (gfc_array_c8 *, const gfc_array_c8 *, ssize_t, int);
+void cshift0_c8 (gfc_array_c8 *, const gfc_array_c8 *, ptrdiff_t, int);
 internal_proto(cshift0_c8);
 
 #ifdef HAVE_GFC_COMPLEX_10
-void cshift0_c10 (gfc_array_c10 *, const gfc_array_c10 *, ssize_t, int);
+void cshift0_c10 (gfc_array_c10 *, const gfc_array_c10 *, ptrdiff_t, int);
 internal_proto(cshift0_c10);
 #endif
 
 #ifdef HAVE_GFC_COMPLEX_16
-void cshift0_c16 (gfc_array_c16 *, const gfc_array_c16 *, ssize_t, int);
+void cshift0_c16 (gfc_array_c16 *, const gfc_array_c16 *, ptrdiff_t, int);
 internal_proto(cshift0_c16);
 #endif
 

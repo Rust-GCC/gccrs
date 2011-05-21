@@ -388,7 +388,6 @@ basic_block
 redirect_edge_and_branch_force (edge e, basic_block dest)
 {
   basic_block ret, src = e->src;
-  struct loop *loop;
 
   if (!cfg_hooks->redirect_edge_and_branch_force)
     internal_error ("%s does not support redirect_edge_and_branch_force",
@@ -398,16 +397,17 @@ redirect_edge_and_branch_force (edge e, basic_block dest)
     rescan_loop_exit (e, false, true);
 
   ret = cfg_hooks->redirect_edge_and_branch_force (e, dest);
-  if (ret != NULL
-      && dom_info_available_p (CDI_DOMINATORS))
+
+  if (ret != NULL && dom_info_available_p (CDI_DOMINATORS))
     set_immediate_dominator (CDI_DOMINATORS, ret, src);
 
   if (current_loops != NULL)
     {
       if (ret != NULL)
 	{
-	  loop = find_common_loop (single_pred (ret)->loop_father,
-				   single_succ (ret)->loop_father);
+	  struct loop *loop
+	    = find_common_loop (single_pred (ret)->loop_father,
+				single_succ (ret)->loop_father);
 	  add_bb_to_loop (ret, loop);
 	}
       else if (find_edge (src, dest) == e)
@@ -820,6 +820,8 @@ make_forwarder_block (basic_block bb, bool (*redirect_edge_p) (edge),
   return fallthru;
 }
 
+/* Try to make the edge fallthru.  */
+
 void
 tidy_fallthru_edge (edge e)
 {
@@ -872,6 +874,38 @@ tidy_fallthru_edges (void)
 	    tidy_fallthru_edge (s);
 	}
     }
+}
+
+/* Edge E is assumed to be fallthru edge.  Emit needed jump instruction
+   (and possibly create new basic block) to make edge non-fallthru.
+   Return newly created BB or NULL if none.  */
+
+basic_block
+force_nonfallthru (edge e)
+{
+  basic_block ret, src = e->src;
+
+  if (!cfg_hooks->force_nonfallthru)
+    internal_error ("%s does not support force_nonfallthru",
+		    cfg_hooks->name);
+
+  ret = cfg_hooks->force_nonfallthru (e);
+  if (ret != NULL)
+    {
+      if (dom_info_available_p (CDI_DOMINATORS))
+	set_immediate_dominator (CDI_DOMINATORS, ret, src);
+
+      if (current_loops != NULL)
+	{
+	  struct loop *loop
+	    = find_common_loop (single_pred (ret)->loop_father,
+				single_succ (ret)->loop_father);
+	  rescan_loop_exit (e, false, true);
+	  add_bb_to_loop (ret, loop);
+	}
+    }
+
+  return ret;
 }
 
 /* Returns true if we can duplicate basic block BB.  */

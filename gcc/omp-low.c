@@ -1209,7 +1209,8 @@ new_omp_context (gimple stmt, omp_context *outer_ctx)
     {
       ctx->cb.src_fn = current_function_decl;
       ctx->cb.dst_fn = current_function_decl;
-      ctx->cb.src_node = cgraph_node (current_function_decl);
+      ctx->cb.src_node = cgraph_get_node (current_function_decl);
+      gcc_checking_assert (ctx->cb.src_node);
       ctx->cb.dst_node = ctx->cb.src_node;
       ctx->cb.src_cfun = cfun;
       ctx->cb.copy_decl = omp_copy_decl;
@@ -4773,8 +4774,7 @@ expand_omp_sections (struct omp_region *region)
   i = 0;
   if (exit_reachable)
     {
-      t = build3 (CASE_LABEL_EXPR, void_type_node,
-		  build_int_cst (unsigned_type_node, 0), NULL, l2);
+      t = build_case_label (build_int_cst (unsigned_type_node, 0), NULL, l2);
       VEC_quick_push (tree, label_vec, t);
       i++;
     }
@@ -4799,7 +4799,7 @@ expand_omp_sections (struct omp_region *region)
 
       t = gimple_block_label (s_entry_bb);
       u = build_int_cst (unsigned_type_node, casei);
-      u = build3 (CASE_LABEL_EXPR, void_type_node, u, NULL, t);
+      u = build_case_label (u, NULL, t);
       VEC_quick_push (tree, label_vec, u);
 
       si = gsi_last_bb (s_entry_bb);
@@ -4820,7 +4820,7 @@ expand_omp_sections (struct omp_region *region)
 
   /* Error handling code goes in DEFAULT_BB.  */
   t = gimple_block_label (default_bb);
-  u = build3 (CASE_LABEL_EXPR, void_type_node, NULL, NULL, t);
+  u = build_case_label (NULL, NULL, t);
   make_edge (l0_bb, default_bb, 0);
 
   stmt = gimple_build_switch_vec (vmain, u, label_vec);
@@ -5005,6 +5005,8 @@ expand_omp_atomic_fetch_op (basic_block load_bb,
     return false;
 
   decl = built_in_decls[base + index + 1];
+  if (decl == NULL_TREE)
+    return false;
   itype = TREE_TYPE (TREE_TYPE (decl));
 
   if (direct_optab_handler (optab, TYPE_MODE (itype)) == CODE_FOR_nothing)
@@ -5056,6 +5058,8 @@ expand_omp_atomic_pipeline (basic_block load_bb, basic_block store_bb,
   edge e;
 
   cmpxchg = built_in_decls[BUILT_IN_VAL_COMPARE_AND_SWAP_N + index + 1];
+  if (cmpxchg == NULL_TREE)
+    return false;
   type = TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (addr)));
   itype = TREE_TYPE (TREE_TYPE (cmpxchg));
 
@@ -6225,7 +6229,6 @@ create_task_copyfn (gimple task_stmt, omp_context *ctx)
   child_fn = gimple_omp_task_copy_fn (task_stmt);
   child_cfun = DECL_STRUCT_FUNCTION (child_fn);
   gcc_assert (child_cfun->cfg == NULL);
-  child_cfun->dont_save_pending_sizes_p = 1;
   DECL_SAVED_TREE (child_fn) = alloc_stmt_list ();
 
   /* Reset DECL_CONTEXT on function arguments.  */
@@ -6263,7 +6266,8 @@ create_task_copyfn (gimple task_stmt, omp_context *ctx)
       memset (&tcctx, '\0', sizeof (tcctx));
       tcctx.cb.src_fn = ctx->cb.src_fn;
       tcctx.cb.dst_fn = child_fn;
-      tcctx.cb.src_node = cgraph_node (tcctx.cb.src_fn);
+      tcctx.cb.src_node = cgraph_get_node (tcctx.cb.src_fn);
+      gcc_checking_assert (tcctx.cb.src_node);
       tcctx.cb.dst_node = tcctx.cb.src_node;
       tcctx.cb.src_cfun = ctx->cb.src_cfun;
       tcctx.cb.copy_decl = task_copyfn_copy_decl;

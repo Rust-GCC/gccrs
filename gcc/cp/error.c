@@ -1,7 +1,8 @@
 /* Call-backs for C++ error reporting.
    This code is non-reentrant.
    Copyright (C) 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2002, 2003,
-   2004, 2005, 2006, 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+   Free Software Foundation, Inc.
    This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
@@ -483,6 +484,14 @@ dump_type (tree t, int flags)
       pp_cxx_right_paren (cxx_pp);
       break;
 
+    case UNDERLYING_TYPE:
+      pp_cxx_ws_string (cxx_pp, "__underlying_type");
+      pp_cxx_whitespace (cxx_pp);
+      pp_cxx_left_paren (cxx_pp);
+      dump_expr (UNDERLYING_TYPE_TYPE (t), flags & ~TFF_EXPR_IN_PARENS);
+      pp_cxx_right_paren (cxx_pp);
+      break;
+
     case TYPE_PACK_EXPANSION:
       dump_type (PACK_EXPANSION_PATTERN (t), flags);
       pp_cxx_ws_string (cxx_pp, "...");
@@ -731,6 +740,7 @@ dump_type_prefix (tree t, int flags)
     case COMPLEX_TYPE:
     case VECTOR_TYPE:
     case TYPEOF_TYPE:
+    case UNDERLYING_TYPE:
     case DECLTYPE_TYPE:
     case TYPE_PACK_EXPANSION:
     case FIXED_POINT_TYPE:
@@ -784,8 +794,7 @@ dump_type_suffix (tree t, int flags)
 	dump_parameters (arg, flags & ~TFF_FUNCTION_DEFAULT_ARGUMENTS);
 
 	if (TREE_CODE (t) == METHOD_TYPE)
-	  pp_cxx_cv_qualifier_seq
-	    (cxx_pp, TREE_TYPE (TREE_VALUE (TYPE_ARG_TYPES (t))));
+	  pp_cxx_cv_qualifier_seq (cxx_pp, class_of_this_parm (t));
 	else
 	  pp_cxx_cv_qualifier_seq (cxx_pp, t);
 	dump_exception_spec (TYPE_RAISES_EXCEPTIONS (t), flags);
@@ -834,6 +843,7 @@ dump_type_suffix (tree t, int flags)
     case COMPLEX_TYPE:
     case VECTOR_TYPE:
     case TYPEOF_TYPE:
+    case UNDERLYING_TYPE:
     case DECLTYPE_TYPE:
     case TYPE_PACK_EXPANSION:
     case FIXED_POINT_TYPE:
@@ -1349,8 +1359,7 @@ dump_function_decl (tree t, int flags)
       if (TREE_CODE (fntype) == METHOD_TYPE)
 	{
 	  pp_base (cxx_pp)->padding = pp_before;
-	  pp_cxx_cv_qualifier_seq
-	    (cxx_pp, TREE_TYPE (TREE_VALUE (TYPE_ARG_TYPES (fntype))));
+	  pp_cxx_cv_qualifier_seq (cxx_pp, class_of_this_parm (fntype));
 	}
 
       if (flags & TFF_EXCEPTION_SPECIFICATION)

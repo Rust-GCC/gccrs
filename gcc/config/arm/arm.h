@@ -103,16 +103,7 @@ extern char arm_arch_name[];
 	  }						\
     } while (0)
 
-/* The various ARM cores.  */
-enum processor_type
-{
-#define ARM_CORE(NAME, IDENT, ARCH, FLAGS, COSTS) \
-  IDENT,
-#include "arm-cores.def"
-#undef ARM_CORE
-  /* Used to indicate that no processor has been specified.  */
-  arm_none
-};
+#include "config/arm/arm-opts.h"
 
 enum target_cpus
 {
@@ -358,58 +349,16 @@ extern const struct arm_fpu_desc
 /* Which floating point hardware to schedule for.  */
 extern int arm_fpu_attr;
 
-enum float_abi_type
-{
-  ARM_FLOAT_ABI_SOFT,
-  ARM_FLOAT_ABI_SOFTFP,
-  ARM_FLOAT_ABI_HARD
-};
-
-extern enum float_abi_type arm_float_abi;
-
 #ifndef TARGET_DEFAULT_FLOAT_ABI
 #define TARGET_DEFAULT_FLOAT_ABI ARM_FLOAT_ABI_SOFT
 #endif
 
-/* Which __fp16 format to use.
-   The enumeration values correspond to the numbering for the
-   Tag_ABI_FP_16bit_format attribute.
- */
-enum arm_fp16_format_type
-{
-  ARM_FP16_FORMAT_NONE = 0,
-  ARM_FP16_FORMAT_IEEE = 1,
-  ARM_FP16_FORMAT_ALTERNATIVE = 2
-};
-
-extern enum arm_fp16_format_type arm_fp16_format;
 #define LARGEST_EXPONENT_IS_NORMAL(bits) \
     ((bits) == 16 && arm_fp16_format == ARM_FP16_FORMAT_ALTERNATIVE)
-
-/* Which ABI to use.  */
-enum arm_abi_type
-{
-  ARM_ABI_APCS,
-  ARM_ABI_ATPCS,
-  ARM_ABI_AAPCS,
-  ARM_ABI_IWMMXT,
-  ARM_ABI_AAPCS_LINUX
-};
-
-extern enum arm_abi_type arm_abi;
 
 #ifndef ARM_DEFAULT_ABI
 #define ARM_DEFAULT_ABI ARM_ABI_APCS
 #endif
-
-/* Which thread pointer access sequence to use.  */
-enum arm_tp_type {
-  TP_AUTO,
-  TP_SOFT,
-  TP_CP15
-};
-
-extern enum arm_tp_type target_thread_pointer;
 
 /* Nonzero if this chip supports the ARM Architecture 3M extensions.  */
 extern int arm_arch3m;
@@ -623,7 +572,6 @@ extern int arm_arch_hwdiv;
    0020D) page 2-20 says "Structures are aligned on word boundaries".
    The AAPCS specifies a value of 8.  */
 #define STRUCTURE_SIZE_BOUNDARY arm_structure_size_boundary
-extern int arm_structure_size_boundary;
 
 /* This is the value used to initialize arm_structure_size_boundary.  If a
    particular arm target wants to change the default value it should change
@@ -1755,27 +1703,6 @@ typedef struct
 #define TARGET_DEFAULT_WORD_RELOCATIONS 0
 #endif
 
-/* Nonzero if the constant value X is a legitimate general operand.
-   It is given that X satisfies CONSTANT_P or is a CONST_DOUBLE.
-
-   On the ARM, allow any integer (invalid ones are removed later by insn
-   patterns), nice doubles and symbol_refs which refer to the function's
-   constant pool XXX.
-
-   When generating pic allow anything.  */
-#define ARM_LEGITIMATE_CONSTANT_P(X)	(flag_pic || ! label_mentioned_p (X))
-
-#define THUMB_LEGITIMATE_CONSTANT_P(X)	\
- (   GET_CODE (X) == CONST_INT		\
-  || GET_CODE (X) == CONST_DOUBLE	\
-  || CONSTANT_ADDRESS_P (X)		\
-  || flag_pic)
-
-#define LEGITIMATE_CONSTANT_P(X)			\
-  (!arm_cannot_force_const_mem (X)			\
-   && (TARGET_32BIT ? ARM_LEGITIMATE_CONSTANT_P (X)	\
-		    : THUMB_LEGITIMATE_CONSTANT_P (X)))
-
 #ifndef SUBTARGET_NAME_ENCODING_LENGTHS
 #define SUBTARGET_NAME_ENCODING_LENGTHS
 #endif
@@ -2258,178 +2185,6 @@ extern int making_const_table;
    : arm_gen_return_addr_mask ())
 
 
-/* Neon defines builtins from ARM_BUILTIN_MAX upwards, though they don't have
-   symbolic names defined here (which would require too much duplication).
-   FIXME?  */
-enum arm_builtins
-{
-  ARM_BUILTIN_GETWCX,
-  ARM_BUILTIN_SETWCX,
-
-  ARM_BUILTIN_WZERO,
-
-  ARM_BUILTIN_WAVG2BR,
-  ARM_BUILTIN_WAVG2HR,
-  ARM_BUILTIN_WAVG2B,
-  ARM_BUILTIN_WAVG2H,
-
-  ARM_BUILTIN_WACCB,
-  ARM_BUILTIN_WACCH,
-  ARM_BUILTIN_WACCW,
-
-  ARM_BUILTIN_WMACS,
-  ARM_BUILTIN_WMACSZ,
-  ARM_BUILTIN_WMACU,
-  ARM_BUILTIN_WMACUZ,
-
-  ARM_BUILTIN_WSADB,
-  ARM_BUILTIN_WSADBZ,
-  ARM_BUILTIN_WSADH,
-  ARM_BUILTIN_WSADHZ,
-
-  ARM_BUILTIN_WALIGN,
-
-  ARM_BUILTIN_TMIA,
-  ARM_BUILTIN_TMIAPH,
-  ARM_BUILTIN_TMIABB,
-  ARM_BUILTIN_TMIABT,
-  ARM_BUILTIN_TMIATB,
-  ARM_BUILTIN_TMIATT,
-
-  ARM_BUILTIN_TMOVMSKB,
-  ARM_BUILTIN_TMOVMSKH,
-  ARM_BUILTIN_TMOVMSKW,
-
-  ARM_BUILTIN_TBCSTB,
-  ARM_BUILTIN_TBCSTH,
-  ARM_BUILTIN_TBCSTW,
-
-  ARM_BUILTIN_WMADDS,
-  ARM_BUILTIN_WMADDU,
-
-  ARM_BUILTIN_WPACKHSS,
-  ARM_BUILTIN_WPACKWSS,
-  ARM_BUILTIN_WPACKDSS,
-  ARM_BUILTIN_WPACKHUS,
-  ARM_BUILTIN_WPACKWUS,
-  ARM_BUILTIN_WPACKDUS,
-
-  ARM_BUILTIN_WADDB,
-  ARM_BUILTIN_WADDH,
-  ARM_BUILTIN_WADDW,
-  ARM_BUILTIN_WADDSSB,
-  ARM_BUILTIN_WADDSSH,
-  ARM_BUILTIN_WADDSSW,
-  ARM_BUILTIN_WADDUSB,
-  ARM_BUILTIN_WADDUSH,
-  ARM_BUILTIN_WADDUSW,
-  ARM_BUILTIN_WSUBB,
-  ARM_BUILTIN_WSUBH,
-  ARM_BUILTIN_WSUBW,
-  ARM_BUILTIN_WSUBSSB,
-  ARM_BUILTIN_WSUBSSH,
-  ARM_BUILTIN_WSUBSSW,
-  ARM_BUILTIN_WSUBUSB,
-  ARM_BUILTIN_WSUBUSH,
-  ARM_BUILTIN_WSUBUSW,
-
-  ARM_BUILTIN_WAND,
-  ARM_BUILTIN_WANDN,
-  ARM_BUILTIN_WOR,
-  ARM_BUILTIN_WXOR,
-
-  ARM_BUILTIN_WCMPEQB,
-  ARM_BUILTIN_WCMPEQH,
-  ARM_BUILTIN_WCMPEQW,
-  ARM_BUILTIN_WCMPGTUB,
-  ARM_BUILTIN_WCMPGTUH,
-  ARM_BUILTIN_WCMPGTUW,
-  ARM_BUILTIN_WCMPGTSB,
-  ARM_BUILTIN_WCMPGTSH,
-  ARM_BUILTIN_WCMPGTSW,
-
-  ARM_BUILTIN_TEXTRMSB,
-  ARM_BUILTIN_TEXTRMSH,
-  ARM_BUILTIN_TEXTRMSW,
-  ARM_BUILTIN_TEXTRMUB,
-  ARM_BUILTIN_TEXTRMUH,
-  ARM_BUILTIN_TEXTRMUW,
-  ARM_BUILTIN_TINSRB,
-  ARM_BUILTIN_TINSRH,
-  ARM_BUILTIN_TINSRW,
-
-  ARM_BUILTIN_WMAXSW,
-  ARM_BUILTIN_WMAXSH,
-  ARM_BUILTIN_WMAXSB,
-  ARM_BUILTIN_WMAXUW,
-  ARM_BUILTIN_WMAXUH,
-  ARM_BUILTIN_WMAXUB,
-  ARM_BUILTIN_WMINSW,
-  ARM_BUILTIN_WMINSH,
-  ARM_BUILTIN_WMINSB,
-  ARM_BUILTIN_WMINUW,
-  ARM_BUILTIN_WMINUH,
-  ARM_BUILTIN_WMINUB,
-
-  ARM_BUILTIN_WMULUM,
-  ARM_BUILTIN_WMULSM,
-  ARM_BUILTIN_WMULUL,
-
-  ARM_BUILTIN_PSADBH,
-  ARM_BUILTIN_WSHUFH,
-
-  ARM_BUILTIN_WSLLH,
-  ARM_BUILTIN_WSLLW,
-  ARM_BUILTIN_WSLLD,
-  ARM_BUILTIN_WSRAH,
-  ARM_BUILTIN_WSRAW,
-  ARM_BUILTIN_WSRAD,
-  ARM_BUILTIN_WSRLH,
-  ARM_BUILTIN_WSRLW,
-  ARM_BUILTIN_WSRLD,
-  ARM_BUILTIN_WRORH,
-  ARM_BUILTIN_WRORW,
-  ARM_BUILTIN_WRORD,
-  ARM_BUILTIN_WSLLHI,
-  ARM_BUILTIN_WSLLWI,
-  ARM_BUILTIN_WSLLDI,
-  ARM_BUILTIN_WSRAHI,
-  ARM_BUILTIN_WSRAWI,
-  ARM_BUILTIN_WSRADI,
-  ARM_BUILTIN_WSRLHI,
-  ARM_BUILTIN_WSRLWI,
-  ARM_BUILTIN_WSRLDI,
-  ARM_BUILTIN_WRORHI,
-  ARM_BUILTIN_WRORWI,
-  ARM_BUILTIN_WRORDI,
-
-  ARM_BUILTIN_WUNPCKIHB,
-  ARM_BUILTIN_WUNPCKIHH,
-  ARM_BUILTIN_WUNPCKIHW,
-  ARM_BUILTIN_WUNPCKILB,
-  ARM_BUILTIN_WUNPCKILH,
-  ARM_BUILTIN_WUNPCKILW,
-
-  ARM_BUILTIN_WUNPCKEHSB,
-  ARM_BUILTIN_WUNPCKEHSH,
-  ARM_BUILTIN_WUNPCKEHSW,
-  ARM_BUILTIN_WUNPCKEHUB,
-  ARM_BUILTIN_WUNPCKEHUH,
-  ARM_BUILTIN_WUNPCKEHUW,
-  ARM_BUILTIN_WUNPCKELSB,
-  ARM_BUILTIN_WUNPCKELSH,
-  ARM_BUILTIN_WUNPCKELSW,
-  ARM_BUILTIN_WUNPCKELUB,
-  ARM_BUILTIN_WUNPCKELUH,
-  ARM_BUILTIN_WUNPCKELUW,
-
-  ARM_BUILTIN_THREAD_POINTER,
-
-  ARM_BUILTIN_NEON_BASE,
-
-  ARM_BUILTIN_MAX = ARM_BUILTIN_NEON_BASE  /* FIXME: Wrong!  */
-};
-
 /* Do not emit .note.GNU-stack by default.  */
 #ifndef NEED_INDICATE_EXEC_STACK
 #define NEED_INDICATE_EXEC_STACK	0

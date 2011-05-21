@@ -119,7 +119,7 @@ gfc_trans_label_assign (gfc_code * code)
       gfc_expr *format = code->label1->format;
 
       label_len = format->value.character.length;
-      len_tree = build_int_cst (NULL_TREE, label_len);
+      len_tree = build_int_cst (gfc_charlen_type_node, label_len);
       label_tree = gfc_build_wide_string_const (format->ts.kind, label_len + 1,
 						format->value.character.string);
       label_tree = gfc_build_addr_expr (pvoid_type_node, label_tree);
@@ -1770,8 +1770,7 @@ gfc_trans_integer_select (gfc_code * code)
 
 	  /* Add this case label.
              Add parameter 'label', make it match GCC backend.  */
-	  tmp = fold_build3_loc (input_location, CASE_LABEL_EXPR,
-				 void_type_node, low, high, label);
+	  tmp = build_case_label (low, high, label);
 	  gfc_add_expr_to_block (&body, tmp);
 	}
 
@@ -2048,8 +2047,7 @@ gfc_trans_character_select (gfc_code *code)
 
 		  /* Add this case label.
 		     Add parameter 'label', make it match GCC backend.  */
-		  tmp = fold_build3_loc (input_location, CASE_LABEL_EXPR,
-					 void_type_node, low, high, label);
+		  tmp = build_case_label (low, high, label);
 		  gfc_add_expr_to_block (&body, tmp);
 		}
 
@@ -2128,11 +2126,10 @@ gfc_trans_character_select (gfc_code *code)
       for (d = c->ext.block.case_list; d; d = d->next)
         {
 	  label = gfc_build_label_decl (NULL_TREE);
-	  tmp = fold_build3_loc (input_location, CASE_LABEL_EXPR,
-				 void_type_node,
-				 (d->low == NULL && d->high == NULL)
-				 ? NULL : build_int_cst (NULL_TREE, d->n),
-				 NULL, label);
+	  tmp = build_case_label ((d->low == NULL && d->high == NULL)
+				  ? NULL
+				  : build_int_cst (integer_type_node, d->n),
+				  NULL, label);
           gfc_add_expr_to_block (&body, tmp);
         }
 
@@ -2185,7 +2182,7 @@ gfc_trans_character_select (gfc_code *code)
     }
 
   type = build_array_type (select_struct[k],
-			   build_index_type (build_int_cst (NULL_TREE, n-1)));
+			   build_index_type (size_int (n-1)));
 
   init = build_constructor (type, inits);
   TREE_CONSTANT (init) = 1;
@@ -2209,7 +2206,8 @@ gfc_trans_character_select (gfc_code *code)
     gcc_unreachable ();
 
   tmp = build_call_expr_loc (input_location,
-			 fndecl, 4, init, build_int_cst (NULL_TREE, n),
+			 fndecl, 4, init,
+			 build_int_cst (gfc_charlen_type_node, n),
 			 expr1se.expr, expr1se.string_length);
   case_num = gfc_create_var (integer_type_node, "case_num");
   gfc_add_modify (&block, case_num, tmp);
@@ -2484,8 +2482,8 @@ cleanup_forall_symtrees (gfc_code *c)
 {
   forall_restore_symtree (c->expr1);
   forall_restore_symtree (c->expr2);
-  gfc_free (new_symtree->n.sym);
-  gfc_free (new_symtree);
+  free (new_symtree->n.sym);
+  free (new_symtree);
 }
 
 
@@ -3455,15 +3453,15 @@ gfc_trans_forall_1 (gfc_code * code, forall_info * nested_forall_info)
   nvar = n;
 
   /* Allocate the space for var, start, end, step, varexpr.  */
-  var = (tree *) gfc_getmem (nvar * sizeof (tree));
-  start = (tree *) gfc_getmem (nvar * sizeof (tree));
-  end = (tree *) gfc_getmem (nvar * sizeof (tree));
-  step = (tree *) gfc_getmem (nvar * sizeof (tree));
-  varexpr = (gfc_expr **) gfc_getmem (nvar * sizeof (gfc_expr *));
-  saved_vars = (gfc_saved_var *) gfc_getmem (nvar * sizeof (gfc_saved_var));
+  var = XCNEWVEC (tree, nvar);
+  start = XCNEWVEC (tree, nvar);
+  end = XCNEWVEC (tree, nvar);
+  step = XCNEWVEC (tree, nvar);
+  varexpr = XCNEWVEC (gfc_expr *, nvar);
+  saved_vars = XCNEWVEC (gfc_saved_var, nvar);
 
   /* Allocate the space for info.  */
-  info = (forall_info *) gfc_getmem (sizeof (forall_info));
+  info = XCNEW (forall_info);
 
   gfc_start_block (&pre);
   gfc_init_block (&post);
@@ -3475,7 +3473,7 @@ gfc_trans_forall_1 (gfc_code * code, forall_info * nested_forall_info)
       gfc_symbol *sym = fa->var->symtree->n.sym;
 
       /* Allocate space for this_forall.  */
-      this_forall = (iter_info *) gfc_getmem (sizeof (iter_info));
+      this_forall = XCNEW (iter_info);
 
       /* Create a temporary variable for the FORALL index.  */
       tmp = gfc_typenode_for_spec (&sym->ts);
@@ -3705,22 +3703,22 @@ gfc_trans_forall_1 (gfc_code * code, forall_info * nested_forall_info)
     gfc_restore_sym (fa->var->symtree->n.sym, &saved_vars[n]);
 
   /* Free the space for var, start, end, step, varexpr.  */
-  gfc_free (var);
-  gfc_free (start);
-  gfc_free (end);
-  gfc_free (step);
-  gfc_free (varexpr);
-  gfc_free (saved_vars);
+  free (var);
+  free (start);
+  free (end);
+  free (step);
+  free (varexpr);
+  free (saved_vars);
 
   for (this_forall = info->this_loop; this_forall;)
     {
       iter_info *next = this_forall->next;
-      gfc_free (this_forall);
+      free (this_forall);
       this_forall = next;
     }
 
   /* Free the space for this forall_info.  */
-  gfc_free (info);
+  free (info);
 
   if (pmask)
     {

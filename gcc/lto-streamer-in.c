@@ -1062,6 +1062,14 @@ input_gimple_stmt (struct lto_input_block *ib, struct data_in *data_in,
 	      op = TREE_OPERAND (op, 0);
 	    }
 	}
+      if (is_gimple_call (stmt))
+	{
+	  if (gimple_call_internal_p (stmt))
+	    gimple_call_set_internal_fn
+	      (stmt, (enum internal_fn) lto_input_sleb128 (ib));
+	  else
+	    gimple_call_set_fntype (stmt, lto_input_tree (ib, data_in));
+	}
       break;
 
     case GIMPLE_NOP:
@@ -1243,7 +1251,6 @@ input_function (tree fn_decl, struct data_in *data_in,
   fn->can_throw_non_call_exceptions = bp_unpack_value (&bp, 1);
   fn->always_inline_functions_inlined = bp_unpack_value (&bp, 1);
   fn->after_inlining = bp_unpack_value (&bp, 1);
-  fn->dont_save_pending_sizes_p = bp_unpack_value (&bp, 1);
   fn->stdarg = bp_unpack_value (&bp, 1);
   fn->has_nonlocal_label = bp_unpack_value (&bp, 1);
   fn->calls_alloca = bp_unpack_value (&bp, 1);
@@ -1301,7 +1308,7 @@ input_function (tree fn_decl, struct data_in *data_in,
   DECL_INITIAL (fn_decl) = lto_input_tree (ib, data_in);
   gcc_assert (DECL_INITIAL (fn_decl));
   DECL_SAVED_TREE (fn_decl) = NULL_TREE;
-  node = cgraph_node (fn_decl);
+  node = cgraph_get_create_node (fn_decl);
 
   /* Read all the basic blocks.  */
   tag = input_record_start (ib);
@@ -1446,8 +1453,9 @@ lto_read_body (struct lto_file_decl_data *file_data, tree fn_decl,
     {
       struct function *fn = DECL_STRUCT_FUNCTION (fn_decl);
       struct lto_in_decl_state *decl_state;
-      struct cgraph_node *node = cgraph_node (fn_decl);
+      struct cgraph_node *node = cgraph_get_node (fn_decl);
 
+      gcc_checking_assert (node);
       push_cfun (fn);
       init_tree_ssa (fn);
 
@@ -1644,11 +1652,9 @@ unpack_ts_decl_common_value_fields (struct bitpack_d *bp, tree expr)
 
   if (TREE_CODE (expr) == FIELD_DECL)
     {
-      unsigned HOST_WIDE_INT off_align;
       DECL_PACKED (expr) = (unsigned) bp_unpack_value (bp, 1);
       DECL_NONADDRESSABLE_P (expr) = (unsigned) bp_unpack_value (bp, 1);
-      off_align = (unsigned HOST_WIDE_INT) bp_unpack_value (bp, 8);
-      SET_DECL_OFFSET_ALIGN (expr, off_align);
+      expr->decl_common.off_align = bp_unpack_value (bp, 8);
     }
 
   if (TREE_CODE (expr) == RESULT_DECL
@@ -1739,11 +1745,11 @@ unpack_ts_function_decl_value_fields (struct bitpack_d *bp, tree expr)
 }
 
 
-/* Unpack all the non-pointer fields of the TS_TYPE structure
+/* Unpack all the non-pointer fields of the TS_TYPE_COMMON structure
    of expression EXPR from bitpack BP.  */
 
 static void
-unpack_ts_type_value_fields (struct bitpack_d *bp, tree expr)
+unpack_ts_type_common_value_fields (struct bitpack_d *bp, tree expr)
 {
   enum machine_mode mode;
 
@@ -1815,8 +1821,8 @@ unpack_value_fields (struct bitpack_d *bp, tree expr)
   if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
     unpack_ts_function_decl_value_fields (bp, expr);
 
-  if (CODE_CONTAINS_STRUCT (code, TS_TYPE))
-    unpack_ts_type_value_fields (bp, expr);
+  if (CODE_CONTAINS_STRUCT (code, TS_TYPE_COMMON))
+    unpack_ts_type_common_value_fields (bp, expr);
 
   if (CODE_CONTAINS_STRUCT (code, TS_BLOCK))
     unpack_ts_block_value_fields (bp, expr);
@@ -2093,13 +2099,37 @@ lto_input_ts_function_decl_tree_pointers (struct lto_input_block *ib,
 }
 
 
-/* Read all pointer fields in the TS_TYPE structure of EXPR from input
-   block IB.  DATA_IN contains tables and descriptors for the
+/* Read all pointer fields in the TS_TYPE_COMMON structure of EXPR from
+   input block IB.  DATA_IN contains tables and descriptors for the file
+   being read.  */
+
+static void
+lto_input_ts_type_common_tree_pointers (struct lto_input_block *ib,
+					struct data_in *data_in, tree expr)
+{
+  TYPE_SIZE (expr) = lto_input_tree (ib, data_in);
+  TYPE_SIZE_UNIT (expr) = lto_input_tree (ib, data_in);
+  TYPE_ATTRIBUTES (expr) = lto_input_tree (ib, data_in);
+  TYPE_NAME (expr) = lto_input_tree (ib, data_in);
+  /* Do not stream TYPE_POINTER_TO or TYPE_REFERENCE_TO.  They will be
+     reconstructed during fixup.  */
+  /* Do not stream TYPE_NEXT_VARIANT, we reconstruct the variant lists
+     during fixup.  */
+  TYPE_MAIN_VARIANT (expr) = lto_input_tree (ib, data_in);
+  TYPE_CONTEXT (expr) = lto_input_tree (ib, data_in);
+  /* TYPE_CANONICAL gets re-computed during type merging.  */
+  TYPE_CANONICAL (expr) = NULL_TREE;
+  TYPE_STUB_DECL (expr) = lto_input_tree (ib, data_in);
+}
+
+/* Read all pointer fields in the TS_TYPE_NON_COMMON structure of EXPR
+   from input block IB.  DATA_IN contains tables and descriptors for the
    file being read.  */
 
 static void
-lto_input_ts_type_tree_pointers (struct lto_input_block *ib,
-				 struct data_in *data_in, tree expr)
+lto_input_ts_type_non_common_tree_pointers (struct lto_input_block *ib,
+					    struct data_in *data_in,
+					    tree expr)
 {
   if (TREE_CODE (expr) == ENUMERAL_TYPE)
     TYPE_VALUES (expr) = lto_input_tree (ib, data_in);
@@ -2111,24 +2141,11 @@ lto_input_ts_type_tree_pointers (struct lto_input_block *ib,
 	   || TREE_CODE (expr) == METHOD_TYPE)
     TYPE_ARG_TYPES (expr) = lto_input_tree (ib, data_in);
 
-  TYPE_SIZE (expr) = lto_input_tree (ib, data_in);
-  TYPE_SIZE_UNIT (expr) = lto_input_tree (ib, data_in);
-  TYPE_ATTRIBUTES (expr) = lto_input_tree (ib, data_in);
-  TYPE_NAME (expr) = lto_input_tree (ib, data_in);
-  /* Do not stream TYPE_POINTER_TO or TYPE_REFERENCE_TO nor
-     TYPE_NEXT_PTR_TO or TYPE_NEXT_REF_TO.  */
   if (!POINTER_TYPE_P (expr))
     TYPE_MINVAL (expr) = lto_input_tree (ib, data_in);
   TYPE_MAXVAL (expr) = lto_input_tree (ib, data_in);
-  TYPE_MAIN_VARIANT (expr) = lto_input_tree (ib, data_in);
-  /* Do not stream TYPE_NEXT_VARIANT, we reconstruct the variant lists
-     during fixup.  */
   if (RECORD_OR_UNION_TYPE_P (expr))
     TYPE_BINFO (expr) = lto_input_tree (ib, data_in);
-  TYPE_CONTEXT (expr) = lto_input_tree (ib, data_in);
-  /* TYPE_CANONICAL gets re-computed during type merging.  */
-  TYPE_CANONICAL (expr) = NULL_TREE;
-  TYPE_STUB_DECL (expr) = lto_input_tree (ib, data_in);
 }
 
 
@@ -2337,7 +2354,7 @@ lto_input_tree_pointers (struct lto_input_block *ib, struct data_in *data_in,
 
   code = TREE_CODE (expr);
 
-  if (CODE_CONTAINS_STRUCT (code, TS_COMMON))
+  if (CODE_CONTAINS_STRUCT (code, TS_TYPED))
     lto_input_ts_common_tree_pointers (ib, data_in, expr);
 
   if (CODE_CONTAINS_STRUCT (code, TS_VECTOR))
@@ -2364,8 +2381,11 @@ lto_input_tree_pointers (struct lto_input_block *ib, struct data_in *data_in,
   if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
     lto_input_ts_function_decl_tree_pointers (ib, data_in, expr);
 
-  if (CODE_CONTAINS_STRUCT (code, TS_TYPE))
-    lto_input_ts_type_tree_pointers (ib, data_in, expr);
+  if (CODE_CONTAINS_STRUCT (code, TS_TYPE_COMMON))
+    lto_input_ts_type_common_tree_pointers (ib, data_in, expr);
+
+  if (CODE_CONTAINS_STRUCT (code, TS_TYPE_NON_COMMON))
+    lto_input_ts_type_non_common_tree_pointers (ib, data_in, expr);
 
   if (CODE_CONTAINS_STRUCT (code, TS_LIST))
     lto_input_ts_list_tree_pointers (ib, data_in, expr);

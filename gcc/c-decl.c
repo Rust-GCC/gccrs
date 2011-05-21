@@ -1,6 +1,6 @@
 /* Process declarations and variables for C compiler.
    Copyright (C) 1988, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -147,10 +147,6 @@ static int warn_about_return_type;
 
 static bool undef_nested_function;
 
-/* True means global_bindings_p should return false even if the scope stack
-   says we are in file scope.  */
-bool c_override_global_bindings_to_false;
-
 
 /* Each c_binding structure describes one binding of an identifier to
    a decl.  All the decls in a scope - irrespective of namespace - are
@@ -242,7 +238,7 @@ extern char C_SIZEOF_STRUCT_LANG_IDENTIFIER_isnt_accurate
 /* The resulting tree type.  */
 
 union GTY((desc ("TREE_CODE (&%h.generic) == IDENTIFIER_NODE"),
-       chain_next ("TREE_CODE (&%h.generic) == INTEGER_TYPE ? (union lang_tree_node *) TYPE_NEXT_VARIANT (&%h.generic) : ((union lang_tree_node *) TREE_CHAIN (&%h.generic))")))  lang_tree_node
+       chain_next ("TREE_CODE (&%h.generic) == INTEGER_TYPE ? (union lang_tree_node *) TYPE_NEXT_VARIANT (&%h.generic) : CODE_CONTAINS_STRUCT (TREE_CODE (&%h.generic), TS_COMMON) ? ((union lang_tree_node *) TREE_CHAIN (&%h.generic)) : NULL")))  lang_tree_node
  {
   union tree_node GTY ((tag ("0"),
 			desc ("tree_node_structure (&%h)")))
@@ -845,14 +841,12 @@ objc_mark_locals_volatile (void *enclosing_blk)
     }
 }
 
-/* Nonzero if we are currently in file scope.  */
+/* Return true if we are in the global binding level.  */
 
-int
+bool
 global_bindings_p (void)
 {
-  return (current_scope == file_scope && !c_override_global_bindings_to_false
-	  ? -1
-	  : 0);
+  return current_scope == file_scope;
 }
 
 void
@@ -4246,7 +4240,7 @@ finish_decl (tree decl, location_t init_loc, tree init,
 		b_ext = b_ext->shadowed;
 	      if (b_ext)
 		{
-		  if (b_ext->u.type)
+		  if (b_ext->u.type && comptypes (b_ext->u.type, type))
 		    b_ext->u.type = composite_type (b_ext->u.type, type);
 		  else
 		    b_ext->u.type = type;
@@ -4428,12 +4422,6 @@ finish_decl (tree decl, location_t init_loc, tree init,
       rest_of_decl_compilation (decl, DECL_FILE_SCOPE_P (decl), 0);
     }
 
-  /* At the end of a declaration, throw away any variable type sizes
-     of types defined inside that declaration.  There is no use
-     computing them in the following function definition.  */
-  if (current_scope == file_scope)
-    get_pending_sizes ();
-
   /* Install a cleanup (aka destructor) if one was given.  */
   if (TREE_CODE (decl) == VAR_DECL && !TREE_STATIC (decl))
     {
@@ -4478,14 +4466,17 @@ finish_decl (tree decl, location_t init_loc, tree init,
     }
 }
 
-/* Given a parsed parameter declaration, decode it into a PARM_DECL.  */
+/* Given a parsed parameter declaration, decode it into a PARM_DECL.
+   EXPR is NULL or a pointer to an expression that needs to be
+   evaluated for the side effects of array size expressions in the
+   parameters.  */
 
 tree
-grokparm (const struct c_parm *parm)
+grokparm (const struct c_parm *parm, tree *expr)
 {
   tree attrs = parm->attrs;
   tree decl = grokdeclarator (parm->declarator, parm->specs, PARM, false,
-			      NULL, &attrs, NULL, NULL, DEPRECATED_NORMAL);
+			      NULL, &attrs, expr, NULL, DEPRECATED_NORMAL);
 
   decl_attributes (&decl, attrs, 0);
 
@@ -4493,16 +4484,18 @@ grokparm (const struct c_parm *parm)
 }
 
 /* Given a parsed parameter declaration, decode it into a PARM_DECL
-   and push that on the current scope.  */
+   and push that on the current scope.  EXPR is a pointer to an
+   expression that needs to be evaluated for the side effects of array
+   size expressions in the parameters.  */
 
 void
-push_parm_decl (const struct c_parm *parm)
+push_parm_decl (const struct c_parm *parm, tree *expr)
 {
   tree attrs = parm->attrs;
   tree decl;
 
   decl = grokdeclarator (parm->declarator, parm->specs, PARM, false, NULL,
-			 &attrs, NULL, NULL, DEPRECATED_NORMAL);
+			 &attrs, expr, NULL, DEPRECATED_NORMAL);
   decl_attributes (&decl, attrs, 0);
 
   decl = pushdecl (decl);
@@ -4717,7 +4710,7 @@ check_bitfield_type_and_width (tree *type, tree *width, tree orig_name)
     {
       error ("width of %qs exceeds its type", name);
       w = max_width;
-      *width = build_int_cst (NULL_TREE, w);
+      *width = build_int_cst (integer_type_node, w);
     }
   else
     w = tree_low_cst (*width, 1);
@@ -4787,34 +4780,6 @@ warn_variable_length_array (tree name, tree size)
 		     "variable length array is used");
 	}
     }
-}
-
-/* Given a size SIZE that may not be a constant, return a SAVE_EXPR to
-   serve as the actual size-expression for a type or decl.  This is
-   like variable_size in stor-layout.c, but we make global_bindings_p
-   return negative to avoid calls to that function from outside the
-   front end resulting in errors at file scope, then call this version
-   instead from front-end code.  */
-
-static tree
-c_variable_size (tree size)
-{
-  tree save;
-
-  if (TREE_CONSTANT (size))
-    return size;
-
-  size = save_expr (size);
-
-  save = skip_simple_arithmetic (size);
-
-  if (cfun && cfun->dont_save_pending_sizes_p)
-    return size;
-
-  if (!global_bindings_p ())
-    put_pending_size (save);
-
-  return size;
 }
 
 /* Given declspecs and a declarator,
@@ -5354,7 +5319,7 @@ grokdeclarator (const struct c_declarator *declarator,
 		       MINUS_EXPR, which allows the -1 to get folded
 		       with the +1 that happens when building TYPE_SIZE.  */
 		    if (size_varies)
-		      size = c_variable_size (size);
+		      size = save_expr (size);
 		    if (this_size_varies && TREE_CODE (size) == INTEGER_CST)
 		      size = build2 (COMPOUND_EXPR, TREE_TYPE (size),
 				     integer_zero_node, size);
@@ -5368,15 +5333,13 @@ grokdeclarator (const struct c_declarator *declarator,
 					     convert (index_type,
 						      size_one_node));
 
-		    /* If that overflowed, the array is too big.  ???
-		       While a size of INT_MAX+1 technically shouldn't
-		       cause an overflow (because we subtract 1), the
-		       overflow is recorded during the conversion to
-		       index_type, before the subtraction.  Handling
-		       this case seems like an unnecessary
-		       complication.  */
-		    if (TREE_CODE (itype) == INTEGER_CST
-			&& TREE_OVERFLOW (itype))
+		    /* The above overflows when size does not fit
+		       in index_type.
+		       ???  While a size of INT_MAX+1 technically shouldn't
+		       cause an overflow (because we subtract 1), handling
+		       this case seems like an unnecessary complication.  */
+		    if (TREE_CODE (size) == INTEGER_CST
+			&& !int_fits_type_p (size, index_type))
 		      {
 			if (name)
 			  error_at (loc, "size of array %qE is too large",
@@ -5575,8 +5538,6 @@ grokdeclarator (const struct c_declarator *declarator,
 	       inner layer of declarator.  */
 	    arg_info = declarator->u.arg_info;
 	    arg_types = grokparms (arg_info, really_funcdef);
-	    if (really_funcdef)
-	      put_pending_sizes (arg_info->pending_sizes);
 
 	    /* Type qualifiers before the return type of the function
 	       qualify the return type, not the function type.  */
@@ -6267,10 +6228,13 @@ build_arg_info (void)
    This structure is later fed to 'grokparms' and 'store_parm_decls'.
 
    ELLIPSIS being true means the argument list ended in '...' so don't
-   append a sentinel (void_list_node) to the end of the type-list.  */
+   append a sentinel (void_list_node) to the end of the type-list.
+
+   EXPR is NULL or an expression that needs to be evaluated for the
+   side effects of array size expressions in the parameters.  */
 
 struct c_arg_info *
-get_parm_info (bool ellipsis)
+get_parm_info (bool ellipsis, tree expr)
 {
   struct c_binding *b = current_scope->bindings;
   struct c_arg_info *arg_info = build_arg_info ();
@@ -6446,7 +6410,7 @@ get_parm_info (bool ellipsis)
   arg_info->tags = tags;
   arg_info->types = types;
   arg_info->others = others;
-  arg_info->pending_sizes = get_pending_sizes ();
+  arg_info->pending_sizes = expr;
   return arg_info;
 }
 
@@ -6829,15 +6793,19 @@ detect_field_duplicates (tree fieldlist)
   int timeout = 10;
 
   /* If the struct is the list of instance variables of an Objective-C
-     class, then we need to add all the instance variables of
-     superclasses before checking for duplicates (since you can't have
+     class, then we need to check all the instance variables of
+     superclasses when checking for duplicates (since you can't have
      an instance variable in a subclass with the same name as an
-     instance variable in a superclass).  objc_get_interface_ivars()
-     leaves fieldlist unchanged if we are not in this case, so in that
-     case nothing changes compared to C.
-  */
+     instance variable in a superclass).  We pass on this job to the
+     Objective-C compiler.  objc_detect_field_duplicates() will return
+     false if we are not checking the list of instance variables and
+     the C frontend should proceed with the standard field duplicate
+     checks.  If we are checking the list of instance variables, the
+     ObjC frontend will do the check, emit the errors if needed, and
+     then return true.  */
   if (c_dialect_objc ())
-    fieldlist = objc_get_interface_ivars (fieldlist);
+    if (objc_detect_field_duplicates (false))
+      return;
 
   /* First, see if there are more than "a few" fields.
      This is trivially true if there are zero or one fields.  */
@@ -8197,20 +8165,8 @@ store_parm_decls (void)
      because we throw away the array type in favor of a pointer type, and
      thus won't naturally see the SAVE_EXPR containing the increment.  All
      other pending sizes would be handled by gimplify_parameters.  */
-  {
-    VEC(tree,gc) *pending_sizes = get_pending_sizes ();
-    tree t;
-    int i;
-
-    FOR_EACH_VEC_ELT (tree, pending_sizes, i, t)
-      add_stmt (t);
-  }
-
-  /* Even though we're inside a function body, we still don't want to
-     call expand_expr to calculate the size of a variable-sized array.
-     We haven't necessarily assigned RTL to all variables yet, so it's
-     not safe to try to expand expressions involving them.  */
-  cfun->dont_save_pending_sizes_p = 1;
+  if (arg_info->pending_sizes)
+    add_stmt (arg_info->pending_sizes);
 }
 
 
@@ -8345,7 +8301,7 @@ finish_function (void)
 	  /* Register this function with cgraph just far enough to get it
 	    added to our parent's nested function list.  Handy, since the
 	    C front end doesn't have such a list.  */
-	  (void) cgraph_node (fndecl);
+	  (void) cgraph_get_create_node (fndecl);
 	}
     }
 
@@ -9833,6 +9789,8 @@ c_write_global_declarations (void)
   if (pch_file)
     return;
 
+  timevar_start (TV_PHASE_DEFERRED);
+
   /* Do the Objective-C stuff.  This is where all the Objective-C
      module stuff gets generated (symtab, class/protocol/selector
      lists etc).  */
@@ -9874,9 +9832,15 @@ c_write_global_declarations (void)
     c_write_global_declarations_1 (BLOCK_VARS (DECL_INITIAL (t)));
   c_write_global_declarations_1 (BLOCK_VARS (ext_block));
 
+  timevar_stop (TV_PHASE_DEFERRED);
+  timevar_start (TV_PHASE_CGRAPH);
+
   /* We're done parsing; proceed to optimize and emit assembly.
      FIXME: shouldn't be the front end's responsibility to call this.  */
   cgraph_finalize_compilation_unit ();
+
+  timevar_stop (TV_PHASE_CGRAPH);
+  timevar_start (TV_PHASE_DBGINFO);
 
   /* After cgraph has had a chance to emit everything that's going to
      be emitted, output debug information for globals.  */
@@ -9890,6 +9854,7 @@ c_write_global_declarations (void)
     }
 
   ext_block = NULL;
+  timevar_stop (TV_PHASE_DBGINFO);
 }
 
 /* Register reserved keyword WORD as qualifier for address space AS.  */

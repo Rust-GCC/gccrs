@@ -49,7 +49,7 @@ get_var(Expression* expr)
   if (ve == NULL)
     return NULL;
   Named_object* no = ve->named_object();
-  gcc_assert(no->is_variable() || no->is_result_variable());
+  go_assert(no->is_variable() || no->is_result_variable());
   if (no->is_variable() && no->var_value()->is_global())
     return NULL;
   return no;
@@ -103,7 +103,7 @@ Dataflow_traverse_assignment::initialize_variable(Named_object* var)
     {
       Expression* e = init;
       this->value(&e, true, true);
-      gcc_assert(e == init);
+      go_assert(e == init);
     }
 }
 
@@ -201,7 +201,7 @@ Dataflow::Compare_vars::operator()(const Named_object* no1,
 
   // We can't have two variables with the same name in the same
   // location.
-  gcc_unreachable();
+  go_unreachable();
 }
 
 // Class Dataflow.

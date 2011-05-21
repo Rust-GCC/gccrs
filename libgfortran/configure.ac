@@ -236,7 +236,12 @@ AC_SUBST(extra_ldflags_libgfortran)
 LIBGFOR_WORKING_GFORTRAN
 
 AC_SYS_LARGEFILE
+
+# Types
 AC_TYPE_OFF_T
+AC_TYPE_INTPTR_T
+AC_TYPE_UINTPTR_T
+AC_CHECK_TYPES([ptrdiff_t])
 
 # check header files
 AC_STDC_HEADERS
@@ -263,10 +268,6 @@ AC_CHECK_FUNCS(clock_gettime strftime)
 
 # Check for glibc backtrace functions
 AC_CHECK_FUNCS(backtrace backtrace_symbols)
-
-# Check for types
-AC_CHECK_TYPES([intptr_t])
-AC_CHECK_TYPES([uintptr_t])
 
 # Check libc for getgid, getpid, getuid
 AC_CHECK_LIB([c],[getgid],[AC_DEFINE([HAVE_GETGID],[1],[libc includes getgid])])
@@ -491,14 +492,15 @@ LIBGFOR_CHECK_FLOAT128
 # Check for GNU libc feenableexcept
 AC_CHECK_LIB([m],[feenableexcept],[have_feenableexcept=yes AC_DEFINE([HAVE_FEENABLEEXCEPT],[1],[libm includes feenableexcept])])
 
-# At least for glibc, clock_gettime is in librt.  But don't pull that
-# in if it still doesn't give us the function we want.
-# This test is copied from libgomp, and modified to not link in -lrt
-# as libgfortran calls clock_gettime via a weak reference.
+# At least for glibc and Tru64, clock_gettime is in librt.  But don't
+# pull that in if it still doesn't give us the function we want.  This
+# test is copied from libgomp, and modified to not link in -lrt as
+# libgfortran calls clock_gettime via a weak reference if it's found
+# in librt.
 if test $ac_cv_func_clock_gettime = no; then
   AC_CHECK_LIB(rt, clock_gettime,
-    [AC_DEFINE(HAVE_CLOCK_GETTIME, 1,
-               [Define to 1 if you have the `clock_gettime' function.])])
+    [AC_DEFINE(HAVE_CLOCK_GETTIME_LIBRT, 1,
+               [Define to 1 if you have the `clock_gettime' function in librt.])])
 fi
 
 # Check for SysV fpsetmask

@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006, 2009, 2010 Free Software Foundation, Inc.
+// Copyright (C) 2005, 2006, 2009, 2010, 2011 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -43,7 +43,7 @@ inline bool
 PB_DS_CLASS_C_DEC::
 erase(const_key_reference r_key)
 {
-  point_iterator it = find(r_key);
+  point_iterator it = this->find(r_key);
   if (it == base_type::end())
     return false;
   erase(it);
@@ -55,14 +55,14 @@ inline typename PB_DS_CLASS_C_DEC::iterator
 PB_DS_CLASS_C_DEC::
 erase(iterator it)
 {
-  _GLIBCXX_DEBUG_ONLY(assert_valid());
+  PB_DS_ASSERT_VALID((*this))
   if (it == base_type::end())
     return it;
 
   iterator ret_it = it;
   ++ret_it;
   erase_node(it.m_p_nd);
-  _GLIBCXX_DEBUG_ONLY(assert_valid());
+  PB_DS_ASSERT_VALID((*this))
   return ret_it;
 }
 
@@ -71,14 +71,14 @@ inline typename PB_DS_CLASS_C_DEC::reverse_iterator
 PB_DS_CLASS_C_DEC::
 erase(reverse_iterator it)
 {
-  _GLIBCXX_DEBUG_ONLY(assert_valid());
+  PB_DS_ASSERT_VALID((*this))
   if (it.m_p_nd == base_type::m_p_head)
     return it;
 
   reverse_iterator ret_it = it;
   ++ret_it;
   erase_node(it.m_p_nd);
-  _GLIBCXX_DEBUG_ONLY(assert_valid());
+  PB_DS_ASSERT_VALID((*this))
   return ret_it;
 }
 
@@ -88,7 +88,7 @@ inline typename PB_DS_CLASS_C_DEC::size_type
 PB_DS_CLASS_C_DEC::
 erase_if(Pred pred)
 {
-  _GLIBCXX_DEBUG_ONLY(assert_valid();)
+  PB_DS_ASSERT_VALID((*this))
   size_type num_ersd = 0;
   iterator it = base_type::begin();
   while (it != base_type::end())
@@ -102,7 +102,7 @@ erase_if(Pred pred)
 	++it;
     }
 
-  _GLIBCXX_DEBUG_ONLY(assert_valid();)
+  PB_DS_ASSERT_VALID((*this))
   return num_ersd;
 }
 
@@ -113,7 +113,7 @@ erase_node(node_pointer p_nd)
 {
   remove_node(p_nd);
   base_type::actual_erase_node(p_nd);
-  _GLIBCXX_DEBUG_ONLY(assert_valid());
+  PB_DS_ASSERT_VALID((*this))
 }
 
 PB_DS_CLASS_T_DEC
@@ -121,7 +121,7 @@ void
 PB_DS_CLASS_C_DEC::
 remove_node(node_pointer p_z)
 {
-  update_min_max_for_erased_node(p_z);
+  this->update_min_max_for_erased_node(p_z);
   node_pointer p_y = p_z;
   node_pointer p_x = 0;
   node_pointer p_new_x_parent = 0;
@@ -185,7 +185,7 @@ remove_node(node_pointer p_z)
       p_y = p_z;
     }
 
-  update_to_top(p_new_x_parent, (node_update* )this);
+  this->update_to_top(p_new_x_parent, (node_update* )this);
 
   if (p_y->m_red)
     return;
@@ -238,7 +238,7 @@ remove_fixup(node_pointer p_x, node_pointer p_new_x_parent)
 	      p_w->m_p_right->m_red = false;
 
 	    base_type::rotate_left(p_new_x_parent);
-	    update_to_top(p_new_x_parent, (node_update* )this);
+	    this->update_to_top(p_new_x_parent, (node_update* )this);
 	    break;
 	  }
       }
@@ -279,7 +279,7 @@ remove_fixup(node_pointer p_x, node_pointer p_new_x_parent)
 	      p_w->m_p_left->m_red = false;
 
 	    base_type::rotate_right(p_new_x_parent);
-	    update_to_top(p_new_x_parent, (node_update* )this);
+	    this->update_to_top(p_new_x_parent, (node_update* )this);
 	    break;
 	  }
       }

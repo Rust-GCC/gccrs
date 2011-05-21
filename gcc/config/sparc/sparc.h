@@ -1538,47 +1538,6 @@ do {									\
    addresses which require two reload registers.  */
 
 #define LEGITIMATE_PIC_OPERAND_P(X) legitimate_pic_operand_p (X)
-
-/* Nonzero if the constant value X is a legitimate general operand.
-   Anything can be made to work except floating point constants.
-   If TARGET_VIS, 0.0 can be made to work as well.  */
-
-#define LEGITIMATE_CONSTANT_P(X) legitimate_constant_p (X)
-
-/* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
-   and check its validity for a certain class.
-   We have two alternate definitions for each of them.
-   The usual definition accepts all pseudo regs; the other rejects
-   them unless they have been allocated suitable hard regs.
-   The symbol REG_OK_STRICT causes the latter definition to be used.
-
-   Most source files want to accept pseudo regs in the hope that
-   they will get allocated to the class that the insn wants them to be in.
-   Source files for reload pass need to be strict.
-   After reload, it makes no difference, since pseudo regs have
-   been eliminated by then.  */
-
-#ifndef REG_OK_STRICT
-
-/* Nonzero if X is a hard reg that can be used as an index
-   or if it is a pseudo reg.  */
-#define REG_OK_FOR_INDEX_P(X) \
-  (REGNO (X) < 32				\
-   || REGNO (X) == FRAME_POINTER_REGNUM		\
-   || REGNO (X) >= FIRST_PSEUDO_REGISTER)
-
-/* Nonzero if X is a hard reg that can be used as a base reg
-   or if it is a pseudo reg.  */
-#define REG_OK_FOR_BASE_P(X)  REG_OK_FOR_INDEX_P (X)
-
-#else
-
-/* Nonzero if X is a hard reg that can be used as an index.  */
-#define REG_OK_FOR_INDEX_P(X) REGNO_OK_FOR_INDEX_P (REGNO (X))
-/* Nonzero if X is a hard reg that can be used as a base reg.  */
-#define REG_OK_FOR_BASE_P(X) REGNO_OK_FOR_BASE_P (REGNO (X))
-
-#endif
 
 /* Should gcc use [%reg+%lo(xx)+offset] addresses?  */
 
@@ -1587,31 +1546,6 @@ do {									\
 #else
 #define USE_AS_OFFSETABLE_LO10 0
 #endif
-
-/* On SPARC, the actual legitimate addresses must be REG+REG or REG+SMALLINT
-   ordinarily.  This changes a bit when generating PIC.  The details are
-   in sparc.c's implementation of TARGET_LEGITIMATE_ADDRESS_P.  */
-
-#define SYMBOLIC_CONST(X) symbolic_operand (X, VOIDmode)
-
-#define RTX_OK_FOR_BASE_P(X)						\
-  ((GET_CODE (X) == REG && REG_OK_FOR_BASE_P (X))			\
-  || (GET_CODE (X) == SUBREG						\
-      && GET_CODE (SUBREG_REG (X)) == REG				\
-      && REG_OK_FOR_BASE_P (SUBREG_REG (X))))
-
-#define RTX_OK_FOR_INDEX_P(X)						\
-  ((GET_CODE (X) == REG && REG_OK_FOR_INDEX_P (X))			\
-  || (GET_CODE (X) == SUBREG						\
-      && GET_CODE (SUBREG_REG (X)) == REG				\
-      && REG_OK_FOR_INDEX_P (SUBREG_REG (X))))
-
-#define RTX_OK_FOR_OFFSET_P(X)						\
-  (GET_CODE (X) == CONST_INT && INTVAL (X) >= -0x1000 && INTVAL (X) < 0x1000 - 8)
-
-#define RTX_OK_FOR_OLO10_P(X)						\
-  (GET_CODE (X) == CONST_INT && INTVAL (X) >= -0x1000 && INTVAL (X) < 0xc00 - 8)
-
 
 /* Try a machine-dependent way of reloading an illegitimate address
    operand.  If we find one, push the reload and jump to WIN.  This
@@ -1714,18 +1648,6 @@ do {									   \
 #define SUN_CONVERSION_LIBFUNCS 	0
 #define DITF_CONVERSION_LIBFUNCS	0
 #define SUN_INTEGER_MULTIPLY_64 	0
-
-/* Compute extra cost of moving data between one register class
-   and another.  */
-#define GENERAL_OR_I64(C) ((C) == GENERAL_REGS || (C) == I64_REGS)
-#define REGISTER_MOVE_COST(MODE, CLASS1, CLASS2)		\
-  (((FP_REG_CLASS_P (CLASS1) && GENERAL_OR_I64 (CLASS2)) \
-    || (GENERAL_OR_I64 (CLASS1) && FP_REG_CLASS_P (CLASS2)) \
-    || (CLASS1) == FPCC_REGS || (CLASS2) == FPCC_REGS)		\
-   ? ((sparc_cpu == PROCESSOR_ULTRASPARC \
-       || sparc_cpu == PROCESSOR_ULTRASPARC3 \
-       || sparc_cpu == PROCESSOR_NIAGARA \
-       || sparc_cpu == PROCESSOR_NIAGARA2) ? 12 : 6) : 2)
 
 /* Provide the cost of a branch.  For pre-v9 processors we use
    a value of 3 to take into account the potential annulling of
@@ -1933,95 +1855,6 @@ extern int sparc_indent_opcode;
 	sparc_indent_opcode = 0;	\
       }					\
   } while (0)
-
-#define PRINT_OPERAND_PUNCT_VALID_P(CHAR) \
-  ((CHAR) == '#' || (CHAR) == '*' || (CHAR) == '('		\
-   || (CHAR) == ')' || (CHAR) == '_' || (CHAR) == '&')
-
-/* Print operand X (an rtx) in assembler syntax to file FILE.
-   CODE is a letter or dot (`z' in `%z0') or 0 if no letter was specified.
-   For `%' followed by punctuation, CODE is the punctuation and X is null.  */
-
-#define PRINT_OPERAND(FILE, X, CODE) print_operand (FILE, X, CODE)
-
-/* Print a memory address as an operand to reference that memory location.  */
-
-#define PRINT_OPERAND_ADDRESS(FILE, ADDR)  \
-{ register rtx base, index = 0;					\
-  int offset = 0;						\
-  register rtx addr = ADDR;					\
-  if (GET_CODE (addr) == REG)					\
-    fputs (reg_names[REGNO (addr)], FILE);			\
-  else if (GET_CODE (addr) == PLUS)				\
-    {								\
-      if (GET_CODE (XEXP (addr, 0)) == CONST_INT)		\
-	offset = INTVAL (XEXP (addr, 0)), base = XEXP (addr, 1);\
-      else if (GET_CODE (XEXP (addr, 1)) == CONST_INT)		\
-	offset = INTVAL (XEXP (addr, 1)), base = XEXP (addr, 0);\
-      else							\
-	base = XEXP (addr, 0), index = XEXP (addr, 1);		\
-      if (GET_CODE (base) == LO_SUM)				\
-	{							\
-	  gcc_assert (USE_AS_OFFSETABLE_LO10			\
-	      	      && TARGET_ARCH64				\
-		      && ! TARGET_CM_MEDMID);			\
-	  output_operand (XEXP (base, 0), 0);			\
-	  fputs ("+%lo(", FILE);				\
-	  output_address (XEXP (base, 1));			\
-	  fprintf (FILE, ")+%d", offset);			\
-	}							\
-      else							\
-	{							\
-	  fputs (reg_names[REGNO (base)], FILE);		\
-	  if (index == 0)					\
-	    fprintf (FILE, "%+d", offset);			\
-	  else if (GET_CODE (index) == REG)			\
-	    fprintf (FILE, "+%s", reg_names[REGNO (index)]);	\
-	  else if (GET_CODE (index) == SYMBOL_REF		\
-		   || GET_CODE (index) == LABEL_REF		\
-		   || GET_CODE (index) == CONST)		\
-	    fputc ('+', FILE), output_addr_const (FILE, index);	\
-	  else gcc_unreachable ();				\
-	}							\
-    }								\
-  else if (GET_CODE (addr) == MINUS				\
-	   && GET_CODE (XEXP (addr, 1)) == LABEL_REF)		\
-    {								\
-      output_addr_const (FILE, XEXP (addr, 0));			\
-      fputs ("-(", FILE);					\
-      output_addr_const (FILE, XEXP (addr, 1));			\
-      fputs ("-.)", FILE);					\
-    }								\
-  else if (GET_CODE (addr) == LO_SUM)				\
-    {								\
-      output_operand (XEXP (addr, 0), 0);			\
-      if (TARGET_CM_MEDMID)					\
-        fputs ("+%l44(", FILE);					\
-      else							\
-        fputs ("+%lo(", FILE);					\
-      output_address (XEXP (addr, 1));				\
-      fputc (')', FILE);					\
-    }								\
-  else if (flag_pic && GET_CODE (addr) == CONST			\
-	   && GET_CODE (XEXP (addr, 0)) == MINUS		\
-	   && GET_CODE (XEXP (XEXP (addr, 0), 1)) == CONST	\
-	   && GET_CODE (XEXP (XEXP (XEXP (addr, 0), 1), 0)) == MINUS	\
-	   && XEXP (XEXP (XEXP (XEXP (addr, 0), 1), 0), 1) == pc_rtx)	\
-    {								\
-      addr = XEXP (addr, 0);					\
-      output_addr_const (FILE, XEXP (addr, 0));			\
-      /* Group the args of the second CONST in parenthesis.  */	\
-      fputs ("-(", FILE);					\
-      /* Skip past the second CONST--it does nothing for us.  */\
-      output_addr_const (FILE, XEXP (XEXP (addr, 1), 0));	\
-      /* Close the parenthesis.  */				\
-      fputc (')', FILE);					\
-    }								\
-  else								\
-    {								\
-      output_addr_const (FILE, addr);				\
-    }								\
-}
 
 /* TLS support defaulting to original Sun flavor.  GNU extensions
    must be activated in separate configuration files.  */

@@ -1761,20 +1761,6 @@ struct sh_args {
 
 #define CONSTANT_ADDRESS_P(X)	(GET_CODE (X) == LABEL_REF)
 
-/* Nonzero if the constant value X is a legitimate general operand.  */
-/* can_store_by_pieces constructs VOIDmode CONST_DOUBLEs.  */
-
-#define LEGITIMATE_CONSTANT_P(X) \
-  (TARGET_SHMEDIA							\
-   ? ((GET_MODE (X) != DFmode						\
-       && GET_MODE_CLASS (GET_MODE (X)) != MODE_VECTOR_FLOAT)		\
-      || (X) == CONST0_RTX (GET_MODE (X))				\
-      || ! TARGET_SHMEDIA_FPU						\
-      || TARGET_SHMEDIA64)						\
-   : (GET_CODE (X) != CONST_DOUBLE					\
-      || GET_MODE (X) == DFmode || GET_MODE (X) == SFmode		\
-      || GET_MODE (X) == DImode || GET_MODE (X) == VOIDmode))
-
 /* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
    and check its validity for a certain class.
    The suitable hard regs are always accepted and all pseudo regs
@@ -2113,26 +2099,10 @@ struct sh_args {
 # endif
 #endif
 
-
-/* If defined, a C expression whose value is a string containing the
-   assembler operation to identify the following data as
-   uninitialized global data.  If not defined, and neither
-   `ASM_OUTPUT_BSS' nor `ASM_OUTPUT_ALIGNED_BSS' are defined,
-   uninitialized global data will be output in the data section if
-   `-fno-common' is passed, otherwise `ASM_OUTPUT_COMMON' will be
-   used.  */
 #ifndef BSS_SECTION_ASM_OP
 #define BSS_SECTION_ASM_OP	"\t.section\t.bss"
 #endif
 
-/* Like `ASM_OUTPUT_BSS' except takes the required alignment as a
-   separate, explicit argument.  If you define this macro, it is used
-   in place of `ASM_OUTPUT_BSS', and gives you more flexibility in
-   handling the required alignment of the variable.  The alignment is
-   specified as the number of bits.
-
-   Try to use function `asm_output_aligned_bss' defined in file
-   `varasm.c' when defining this macro.  */
 #ifndef ASM_OUTPUT_ALIGNED_BSS
 #define ASM_OUTPUT_ALIGNED_BSS(FILE, DECL, NAME, SIZE, ALIGN) \
   asm_output_aligned_bss (FILE, DECL, NAME, SIZE, ALIGN)
@@ -2321,8 +2291,8 @@ struct sh_args {
   final_prescan_insn ((INSN), (OPVEC), (NOPERANDS))
 
 
-extern struct rtx_def *sh_compare_op0;
-extern struct rtx_def *sh_compare_op1;
+extern rtx sh_compare_op0;
+extern rtx sh_compare_op1;
 
 /* Which processor to schedule for.  The elements of the enumeration must
    match exactly the cpu attribute in the sh.md file.  */

@@ -49,7 +49,7 @@ set_default_std_flags (void)
 {
   gfc_option.allow_std = GFC_STD_F95_OBS | GFC_STD_F95_DEL
     | GFC_STD_F2003 | GFC_STD_F2008 | GFC_STD_F95 | GFC_STD_F77
-    | GFC_STD_F2008_OBS | GFC_STD_GNU | GFC_STD_LEGACY;
+    | GFC_STD_F2008_OBS | GFC_STD_F2008_TR | GFC_STD_GNU | GFC_STD_LEGACY;
   gfc_option.warn_std = GFC_STD_F95_DEL | GFC_STD_LEGACY;
 }
 
@@ -99,6 +99,7 @@ gfc_init_options (unsigned int decoded_options_count,
   gfc_option.warn_array_temp = 0;
   gfc_option.gfc_warn_conversion = 0;
   gfc_option.warn_conversion_extra = 0;
+  gfc_option.warn_function_elimination = 0;
   gfc_option.warn_implicit_interface = 0;
   gfc_option.warn_line_truncation = 0;
   gfc_option.warn_surprising = 0;
@@ -107,6 +108,7 @@ gfc_init_options (unsigned int decoded_options_count,
   gfc_option.warn_intrinsic_shadow = 0;
   gfc_option.warn_intrinsics_std = 0;
   gfc_option.warn_align_commons = 1;
+  gfc_option.warn_real_q_constant = 0;
   gfc_option.warn_unused_dummy_argument = 0;
   gfc_option.max_errors = 25;
 
@@ -123,6 +125,7 @@ gfc_init_options (unsigned int decoded_options_count,
 
   /* Default value of flag_max_stack_var_size is set in gfc_post_options.  */
   gfc_option.flag_max_stack_var_size = -2;
+  gfc_option.flag_stack_arrays = -1;
 
   gfc_option.flag_range_check = 1;
   gfc_option.flag_pack_derived = 0;
@@ -131,9 +134,8 @@ gfc_init_options (unsigned int decoded_options_count,
   gfc_option.flag_automatic = 1;
   gfc_option.flag_backslash = 0;
   gfc_option.flag_module_private = 0;
-  gfc_option.flag_backtrace = 0;
+  gfc_option.flag_backtrace = 1;
   gfc_option.flag_allow_leading_underscore = 0;
-  gfc_option.flag_dump_core = 0;
   gfc_option.flag_external_blas = 0;
   gfc_option.blas_matmul_limit = 30;
   gfc_option.flag_cray_pointer = 0;
@@ -148,9 +150,10 @@ gfc_init_options (unsigned int decoded_options_count,
   gfc_option.flag_init_character = GFC_INIT_CHARACTER_OFF;
   gfc_option.flag_init_character_value = (char)0;
   gfc_option.flag_align_commons = 1;
-  gfc_option.flag_protect_parens = 1;
+  gfc_option.flag_protect_parens = -1;
   gfc_option.flag_realloc_lhs = -1;
   gfc_option.flag_aggressive_function_elimination = 0;
+  gfc_option.flag_frontend_optimize = -1;
   
   gfc_option.fpe = 0;
   gfc_option.rtcheck = 0;
@@ -268,6 +271,12 @@ gfc_post_options (const char **pfilename)
   if (flag_associative_math == -1)
     flag_associative_math = (!flag_trapping_math && !flag_signed_zeros);
 
+  if (gfc_option.flag_protect_parens == -1)
+    gfc_option.flag_protect_parens = !optimize_fast;
+
+  if (gfc_option.flag_stack_arrays == -1)
+    gfc_option.flag_stack_arrays = optimize_fast;
+
   /* By default, disable (re)allocation during assignment for -std=f95,
      and enable it for F2003/F2008/GNU/Legacy. */
   if (gfc_option.flag_realloc_lhs == -1)
@@ -328,7 +337,7 @@ gfc_post_options (const char **pfilename)
     gfc_add_include_path (".", true, true);
 
   if (canon_source_file != gfc_source_file)
-    gfc_free (CONST_CAST (char *, canon_source_file));
+    free (CONST_CAST (char *, canon_source_file));
 
   /* Decide which form the file will be read in as.  */
 
@@ -418,6 +427,12 @@ gfc_post_options (const char **pfilename)
   if (pedantic && gfc_option.flag_whole_file)
     gfc_option.flag_whole_file = 2;
 
+  /* Optimization implies front end optimization, unless the user
+     specified it directly.  */
+
+  if (gfc_option.flag_frontend_optimize == -1)
+    gfc_option.flag_frontend_optimize = optimize;
+
   gfc_cpp_post_options ();
 
 /* FIXME: return gfc_cpp_preprocess_only ();
@@ -446,12 +461,14 @@ set_Wall (int setting)
   gfc_option.warn_intrinsic_shadow = setting;
   gfc_option.warn_intrinsics_std = setting;
   gfc_option.warn_character_truncation = setting;
+  gfc_option.warn_real_q_constant = setting;
   gfc_option.warn_unused_dummy_argument = setting;
 
   warn_unused = setting;
   warn_return_type = setting;
   warn_switch = setting;
   warn_uninitialized = setting;
+  warn_maybe_uninitialized = setting;
 }
 
 
@@ -462,7 +479,7 @@ gfc_handle_module_path_options (const char *arg)
   if (gfc_option.module_dir != NULL)
     gfc_fatal_error ("gfortran: Only one -J option allowed");
 
-  gfc_option.module_dir = (char *) gfc_getmem (strlen (arg) + 2);
+  gfc_option.module_dir = XCNEWVEC (char, strlen (arg) + 2);
   strcpy (gfc_option.module_dir, arg);
 
   gfc_add_include_path (gfc_option.module_dir, true, false);
@@ -475,12 +492,14 @@ static void
 gfc_handle_fpe_trap_option (const char *arg)
 {
   int result, pos = 0, n;
+  /* precision is a backwards compatibility alias for inexact.  */
   static const char * const exception[] = { "invalid", "denormal", "zero",
 					    "overflow", "underflow",
-					    "precision", NULL };
+					    "inexact", "precision", NULL };
   static const int opt_exception[] = { GFC_FPE_INVALID, GFC_FPE_DENORMAL,
 				       GFC_FPE_ZERO, GFC_FPE_OVERFLOW,
-				       GFC_FPE_UNDERFLOW, GFC_FPE_PRECISION,
+				       GFC_FPE_UNDERFLOW, GFC_FPE_INEXACT,
+				       GFC_FPE_INEXACT,
 				       0 };
  
   while (*arg)
@@ -610,6 +629,10 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       gfc_option.warn_conversion_extra = value;
       break;
 
+    case OPT_Wfunction_elimination:
+      gfc_option.warn_function_elimination = value;
+      break;
+
     case OPT_Wimplicit_interface:
       gfc_option.warn_implicit_interface = value;
       break;
@@ -646,6 +669,10 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       gfc_option.warn_align_commons = value;
       break;
 
+    case OPT_Wreal_q_constant:
+      gfc_option.warn_real_q_constant = value;
+      break;
+
     case OPT_Wunused_dummy_argument:
       gfc_option.warn_unused_dummy_argument = value;
       break;
@@ -674,10 +701,6 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       gfc_option.rtcheck |= GFC_RTCHECK_ARRAY_TEMPS;
       break;
       
-    case OPT_fdump_core:
-      gfc_option.flag_dump_core = value;
-      break;
-
     case OPT_fcray_pointer:
       gfc_option.flag_cray_pointer = value;
       break;
@@ -781,6 +804,10 @@ gfc_handle_option (size_t scode, const char *arg, int value,
 
     case OPT_fmax_stack_var_size_:
       gfc_option.flag_max_stack_var_size = value;
+      break;
+
+    case OPT_fstack_arrays:
+      gfc_option.flag_stack_arrays = value;
       break;
 
     case OPT_fmodule_private:
@@ -918,6 +945,16 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       gfc_option.warn_tabs = 0;
       break;
 
+    case OPT_std_f2008tr:
+      gfc_option.allow_std = GFC_STD_F95_OBS | GFC_STD_F77 
+	| GFC_STD_F2003 | GFC_STD_F95 | GFC_STD_F2008 | GFC_STD_F2008_OBS
+	| GFC_STD_F2008_TR;
+      gfc_option.warn_std = GFC_STD_F95_OBS | GFC_STD_F2008_OBS;
+      gfc_option.max_identifier_length = 63;
+      gfc_option.warn_ampersand = 1;
+      gfc_option.warn_tabs = 0;
+      break;
+
     case OPT_std_gnu:
       set_default_std_flags ();
       break;
@@ -979,6 +1016,10 @@ gfc_handle_option (size_t scode, const char *arg, int value,
       gfc_option.flag_aggressive_function_elimination = value;
       break;
 
+    case OPT_ffrontend_optimize:
+      gfc_option.flag_frontend_optimize = value;
+      break;
+
     case OPT_fprotect_parens:
       gfc_option.flag_protect_parens = value;
       break;
@@ -1035,7 +1076,7 @@ gfc_get_option_string (void)
         }
     }
 
-  result = (char *) gfc_getmem (len);
+  result = XCNEWVEC (char, len);
 
   pos = 0; 
   for (j = 1; j < save_decoded_options_count; j++)

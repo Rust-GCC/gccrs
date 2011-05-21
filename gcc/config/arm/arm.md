@@ -97,7 +97,7 @@
                         ; generate correct unwind information.
   UNSPEC_PIC_OFFSET     ; A symbolic 12-bit OFFSET that has been treated
                         ; correctly for PIC usage.
-  UNSPEC_GOTSYM_OFF     ; The offset of the start of the the GOT from a
+  UNSPEC_GOTSYM_OFF     ; The offset of the start of the GOT from a
                         ; a given symbolic address.
   UNSPEC_THUMB1_CASESI  ; A Thumb1 compressed dispatch-table call.
   UNSPEC_RBIT           ; rbit operation.
@@ -797,7 +797,7 @@
   ""
 )
 
-(define_insn "*addsi3_compare0"
+(define_insn "addsi3_compare0"
   [(set (reg:CC_NOOV CC_REGNUM)
 	(compare:CC_NOOV
 	 (plus:SI (match_operand:SI 1 "s_register_operand" "r, r")
@@ -3696,7 +3696,7 @@
 ;; The constraints here are to prevent a *partial* overlap (where %Q0 == %R1).
 ;; The first alternative allows the common case of a *full* overlap.
 (define_insn "*arm_negdi2"
-  [(set (match_operand:DI         0 "s_register_operand" "=&r,r")
+  [(set (match_operand:DI         0 "s_register_operand" "=r,&r")
 	(neg:DI (match_operand:DI 1 "s_register_operand"  "0,r")))
    (clobber (reg:CC CC_REGNUM))]
   "TARGET_ARM"
@@ -5946,8 +5946,8 @@
 
 
 (define_insn "*arm_movqi_insn"
-  [(set (match_operand:QI 0 "nonimmediate_operand" "=r,r,r,m")
-	(match_operand:QI 1 "general_operand" "rI,K,m,r"))]
+  [(set (match_operand:QI 0 "nonimmediate_operand" "=r,r,l,Uu,r,m")
+	(match_operand:QI 1 "general_operand" "rI,K,Uu,l,m,r"))]
   "TARGET_32BIT
    && (   register_operand (operands[0], QImode)
        || register_operand (operands[1], QImode))"
@@ -5955,10 +5955,14 @@
    mov%?\\t%0, %1
    mvn%?\\t%0, #%B1
    ldr%(b%)\\t%0, %1
+   str%(b%)\\t%1, %0
+   ldr%(b%)\\t%0, %1
    str%(b%)\\t%1, %0"
-  [(set_attr "type" "*,*,load1,store1")
-   (set_attr "insn" "mov,mvn,*,*")
-   (set_attr "predicable" "yes")]
+  [(set_attr "type" "*,*,load1,store1,load1,store1")
+   (set_attr "insn" "mov,mvn,*,*,*,*")
+   (set_attr "predicable" "yes")
+   (set_attr "arch" "any,any,t2,t2,any,any")
+   (set_attr "length" "4,4,2,2,4,4")]
 )
 
 (define_insn "*thumb1_movqi_insn"
@@ -6188,7 +6192,7 @@
   [(match_operand:DF 0 "arm_reload_memory_operand" "=o")
    (match_operand:DF 1 "s_register_operand" "r")
    (match_operand:SI 2 "s_register_operand" "=&r")]
-  "TARGET_32BIT"
+  "TARGET_THUMB2"
   "
   {
     enum rtx_code code = GET_CODE (XEXP (operands[0], 0));
@@ -10002,9 +10006,7 @@
       DONE;
     }
   emit_jump_insn (gen_rtx_UNSPEC_VOLATILE (VOIDmode,
-	gen_rtvec (1,
-		gen_rtx_RETURN (VOIDmode)),
-	VUNSPEC_EPILOGUE));
+	gen_rtvec (1, ret_rtx), VUNSPEC_EPILOGUE));
   DONE;
   "
 )
@@ -10249,6 +10251,8 @@
 ;; Push multiple registers to the stack.  Registers are in parallel (use ...)
 ;; expressions.  For simplicity, the first register is also in the unspec
 ;; part.
+;; To avoid the usage of GNU extension, the length attribute is computed
+;; in a C function arm_attr_length_push_multi.
 (define_insn "*push_multi"
   [(match_parallel 2 "multi_register_push"
     [(set (match_operand:BLK 0 "memory_operand" "=m")
@@ -10290,27 +10294,7 @@
   }"
   [(set_attr "type" "store4")
    (set (attr "length")
-	(if_then_else
-	   (and (ne (symbol_ref "TARGET_THUMB2") (const_int 0))
-		(ne (symbol_ref "{
-		    /* Check if there are any high register (except lr)
-		       references in the list. KEEP the following iteration
-		       in sync with the template above.  */
-		    int i, regno, hi_reg;
-		    int num_saves = XVECLEN (operands[2], 0);
-		    regno = REGNO (operands[1]);
-		    hi_reg = (REGNO_REG_CLASS (regno) == HI_REGS)
-			     && (regno != LR_REGNUM);
-		    for (i = 1; i < num_saves && !hi_reg; i++)
-		      {
-			regno = REGNO (XEXP (XVECEXP (operands[2], 0, i), 0));
-			hi_reg |= (REGNO_REG_CLASS (regno) == HI_REGS)
-				  && (regno != LR_REGNUM);
-		      }
-		    !hi_reg;    }")
-		  (const_int 0)))
-	   (const_int 2)
-	   (const_int 4)))]
+	(symbol_ref "arm_attr_length_push_multi (operands[2], operands[1])"))]
 )
 
 (define_insn "stack_tie"

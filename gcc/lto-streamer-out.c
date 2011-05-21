@@ -401,7 +401,7 @@ pack_ts_decl_common_value_fields (struct bitpack_d *bp, tree expr)
     {
       bp_pack_value (bp, DECL_PACKED (expr), 1);
       bp_pack_value (bp, DECL_NONADDRESSABLE_P (expr), 1);
-      bp_pack_value (bp, DECL_OFFSET_ALIGN (expr), 8);
+      bp_pack_value (bp, expr->decl_common.off_align, 8);
     }
 
   if (TREE_CODE (expr) == RESULT_DECL
@@ -488,11 +488,11 @@ pack_ts_function_decl_value_fields (struct bitpack_d *bp, tree expr)
 }
 
 
-/* Pack all the non-pointer fields of the TS_TYPE structure
+/* Pack all the non-pointer fields of the TS_TYPE_COMMON structure
    of expression EXPR into bitpack BP.  */
 
 static void
-pack_ts_type_value_fields (struct bitpack_d *bp, tree expr)
+pack_ts_type_common_value_fields (struct bitpack_d *bp, tree expr)
 {
   bp_pack_value (bp, TYPE_PRECISION (expr), 10);
   bp_pack_value (bp, TYPE_MODE (expr), 8);
@@ -560,8 +560,8 @@ pack_value_fields (struct bitpack_d *bp, tree expr)
   if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
     pack_ts_function_decl_value_fields (bp, expr);
 
-  if (CODE_CONTAINS_STRUCT (code, TS_TYPE))
-    pack_ts_type_value_fields (bp, expr);
+  if (CODE_CONTAINS_STRUCT (code, TS_TYPE_COMMON))
+    pack_ts_type_common_value_fields (bp, expr);
 
   if (CODE_CONTAINS_STRUCT (code, TS_BLOCK))
     pack_ts_block_value_fields (bp, expr);
@@ -949,13 +949,36 @@ lto_output_ts_function_decl_tree_pointers (struct output_block *ob, tree expr,
 }
 
 
-/* Write all pointer fields in the TS_TYPE structure of EXPR to output
-   block OB.  If REF_P is true, write a reference to EXPR's pointer
-   fields.  */
+/* Write all pointer fields in the TS_TYPE_COMMON structure of EXPR to
+   output block OB.  If REF_P is true, write a reference to EXPR's
+   pointer fields.  */
 
 static void
-lto_output_ts_type_tree_pointers (struct output_block *ob, tree expr,
-				  bool ref_p)
+lto_output_ts_type_common_tree_pointers (struct output_block *ob, tree expr,
+					 bool ref_p)
+{
+  lto_output_tree_or_ref (ob, TYPE_SIZE (expr), ref_p);
+  lto_output_tree_or_ref (ob, TYPE_SIZE_UNIT (expr), ref_p);
+  lto_output_tree_or_ref (ob, TYPE_ATTRIBUTES (expr), ref_p);
+  lto_output_tree_or_ref (ob, TYPE_NAME (expr), ref_p);
+  /* Do not stream TYPE_POINTER_TO or TYPE_REFERENCE_TO.  They will be
+     reconstructed during fixup.  */
+  /* Do not stream TYPE_NEXT_VARIANT, we reconstruct the variant lists
+     during fixup.  */
+  lto_output_tree_or_ref (ob, TYPE_MAIN_VARIANT (expr), ref_p);
+  lto_output_tree_or_ref (ob, TYPE_CONTEXT (expr), ref_p);
+  /* TYPE_CANONICAL is re-computed during type merging, so no need
+     to stream it here.  */
+  lto_output_tree_or_ref (ob, TYPE_STUB_DECL (expr), ref_p);
+}
+
+/* Write all pointer fields in the TS_TYPE_NON_COMMON structure of EXPR
+   to output block OB.  If REF_P is true, write a reference to EXPR's
+   pointer fields.  */
+
+static void
+lto_output_ts_type_non_common_tree_pointers (struct output_block *ob,
+					     tree expr, bool ref_p)
 {
   if (TREE_CODE (expr) == ENUMERAL_TYPE)
     lto_output_tree_or_ref (ob, TYPE_VALUES (expr), ref_p);
@@ -967,24 +990,11 @@ lto_output_ts_type_tree_pointers (struct output_block *ob, tree expr,
 	   || TREE_CODE (expr) == METHOD_TYPE)
     lto_output_tree_or_ref (ob, TYPE_ARG_TYPES (expr), ref_p);
 
-  lto_output_tree_or_ref (ob, TYPE_SIZE (expr), ref_p);
-  lto_output_tree_or_ref (ob, TYPE_SIZE_UNIT (expr), ref_p);
-  lto_output_tree_or_ref (ob, TYPE_ATTRIBUTES (expr), ref_p);
-  lto_output_tree_or_ref (ob, TYPE_NAME (expr), ref_p);
-  /* Do not stream TYPE_POINTER_TO or TYPE_REFERENCE_TO nor
-     TYPE_NEXT_PTR_TO or TYPE_NEXT_REF_TO.  */
   if (!POINTER_TYPE_P (expr))
     lto_output_tree_or_ref (ob, TYPE_MINVAL (expr), ref_p);
   lto_output_tree_or_ref (ob, TYPE_MAXVAL (expr), ref_p);
-  lto_output_tree_or_ref (ob, TYPE_MAIN_VARIANT (expr), ref_p);
-  /* Do not stream TYPE_NEXT_VARIANT, we reconstruct the variant lists
-     during fixup.  */
   if (RECORD_OR_UNION_TYPE_P (expr))
     lto_output_tree_or_ref (ob, TYPE_BINFO (expr), ref_p);
-  lto_output_tree_or_ref (ob, TYPE_CONTEXT (expr), ref_p);
-  /* TYPE_CANONICAL is re-computed during type merging, so no need
-     to stream it here.  */
-  lto_output_tree_or_ref (ob, TYPE_STUB_DECL (expr), ref_p);
 }
 
 
@@ -1156,7 +1166,7 @@ lto_output_tree_pointers (struct output_block *ob, tree expr, bool ref_p)
 
   code = TREE_CODE (expr);
 
-  if (CODE_CONTAINS_STRUCT (code, TS_COMMON))
+  if (CODE_CONTAINS_STRUCT (code, TS_TYPED))
     lto_output_ts_common_tree_pointers (ob, expr, ref_p);
 
   if (CODE_CONTAINS_STRUCT (code, TS_VECTOR))
@@ -1183,8 +1193,11 @@ lto_output_tree_pointers (struct output_block *ob, tree expr, bool ref_p)
   if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
     lto_output_ts_function_decl_tree_pointers (ob, expr, ref_p);
 
-  if (CODE_CONTAINS_STRUCT (code, TS_TYPE))
-    lto_output_ts_type_tree_pointers (ob, expr, ref_p);
+  if (CODE_CONTAINS_STRUCT (code, TS_TYPE_COMMON))
+    lto_output_ts_type_common_tree_pointers (ob, expr, ref_p);
+
+  if (CODE_CONTAINS_STRUCT (code, TS_TYPE_NON_COMMON))
+    lto_output_ts_type_non_common_tree_pointers (ob, expr, ref_p);
 
   if (CODE_CONTAINS_STRUCT (code, TS_LIST))
     lto_output_ts_list_tree_pointers (ob, expr, ref_p);
@@ -1759,6 +1772,13 @@ output_gimple_stmt (struct output_block *ob, gimple stmt)
 	    }
 	  lto_output_tree_ref (ob, op);
 	}
+      if (is_gimple_call (stmt))
+	{
+	  if (gimple_call_internal_p (stmt))
+	    output_sleb128 (ob, (int) gimple_call_internal_fn (stmt));
+	  else
+	    lto_output_tree_ref (ob, gimple_call_fntype (stmt));
+	}
       break;
 
     case GIMPLE_NOP:
@@ -1922,7 +1942,6 @@ output_function (struct cgraph_node *node)
   bp_pack_value (&bp, fn->can_throw_non_call_exceptions, 1);
   bp_pack_value (&bp, fn->always_inline_functions_inlined, 1);
   bp_pack_value (&bp, fn->after_inlining, 1);
-  bp_pack_value (&bp, fn->dont_save_pending_sizes_p, 1);
   bp_pack_value (&bp, fn->stdarg, 1);
   bp_pack_value (&bp, fn->has_nonlocal_label, 1);
   bp_pack_value (&bp, fn->calls_alloca, 1);
@@ -2190,7 +2209,8 @@ lto_output (cgraph_node_set set, varpool_node_set vset)
   for (i = 0; i < n_nodes; i++)
     {
       node = lto_cgraph_encoder_deref (encoder, i);
-      if (lto_cgraph_encoder_encode_body_p (encoder, node))
+      if (lto_cgraph_encoder_encode_body_p (encoder, node)
+	  && !node->thunk.thunk_p)
 	{
 #ifdef ENABLE_CHECKING
 	  gcc_assert (!bitmap_bit_p (output, DECL_UID (node->decl)));

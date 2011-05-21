@@ -212,6 +212,22 @@ enum_arg_to_value (const struct cl_enum_arg *enum_args,
   return false;
 }
 
+/* Look up ARG in the enum used by option OPT_INDEX for language
+   LANG_MASK, returning true and storing the value in *VALUE if found,
+   and returning false without modifying *VALUE if not found.  */
+
+bool
+opt_enum_arg_to_value (size_t opt_index, const char *arg, int *value,
+		       unsigned int lang_mask)
+{
+  const struct cl_option *option = &cl_options[opt_index];
+
+  gcc_assert (option->var_type == CLVC_ENUM);
+
+  return enum_arg_to_value (cl_enums[option->var_enum].values, arg,
+			    value, lang_mask);
+}
+
 /* Look of VALUE in ENUM_ARGS for language LANG_MASK and store the
    corresponding string in *ARGP, returning true if the found string
    was marked as canonical, false otherwise.  If VALUE is not found
@@ -693,7 +709,6 @@ decode_cmdline_options_to_array (unsigned int argc, const char **argv,
   unsigned int n, i;
   struct cl_decoded_option *opt_array;
   unsigned int num_decoded_options;
-  bool argv_copied = false;
 
   opt_array = XNEWVEC (struct cl_decoded_option, argc);
 
@@ -728,8 +743,6 @@ decode_cmdline_options_to_array (unsigned int argc, const char **argv,
       num_decoded_options++;
     }
 
-  if (argv_copied)
-    free (argv);
   *decoded_options = opt_array;
   *decoded_options_count = num_decoded_options;
   prune_options (decoded_options, decoded_options_count);

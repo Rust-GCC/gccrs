@@ -583,11 +583,11 @@ setup_class_subset_and_memory_move_costs (void)
 	    ira_max_memory_move_cost[mode][cl][0]
 	      = ira_memory_move_cost[mode][cl][0]
 	      = memory_move_cost ((enum machine_mode) mode,
-				  (enum reg_class) cl, false);
+				  (reg_class_t) cl, false);
 	    ira_max_memory_move_cost[mode][cl][1]
 	      = ira_memory_move_cost[mode][cl][1]
 	      = memory_move_cost ((enum machine_mode) mode,
-				  (enum reg_class) cl, true);
+				  (reg_class_t) cl, true);
 	    /* Costs for NO_REGS are used in cost calculation on the
 	       1st pass when the preferred register classes are not
 	       known yet.  In this case we take the best scenario.  */
@@ -863,7 +863,7 @@ setup_pressure_classes (void)
      registers available for the allocation.  */
   CLEAR_HARD_REG_SET (temp_hard_regset);
   CLEAR_HARD_REG_SET (temp_hard_regset2);
-  for (cl = 0; cl <= LIM_REG_CLASSES; cl++)
+  for (cl = 0; cl < LIM_REG_CLASSES; cl++)
     {
       for (i = 0; i < n; i++)
 	if ((int) pressure_classes[i] == cl)
@@ -923,7 +923,7 @@ setup_allocno_and_important_classes (void)
   /* Collect classes which contain unique sets of allocatable hard
      registers.  Prefer GENERAL_REGS to other classes containing the
      same set of hard registers.  */
-  for (i = 0; i <= LIM_REG_CLASSES; i++)
+  for (i = 0; i < LIM_REG_CLASSES; i++)
     {
       COPY_HARD_REG_SET (temp_hard_regset, reg_class_contents[i]);
       AND_COMPL_HARD_REG_SET (temp_hard_regset, no_unit_alloc_regs);
@@ -1422,6 +1422,12 @@ clarify_prohibited_class_mode_regs (void)
 	  if (TEST_HARD_REG_BIT (ira_prohibited_class_mode_regs[cl][j], hard_regno))
 	    continue;
 	  nregs = hard_regno_nregs[hard_regno][j];
+          if (hard_regno + nregs > FIRST_PSEUDO_REGISTER)
+            {
+              SET_HARD_REG_BIT (ira_prohibited_class_mode_regs[cl][j],
+                                hard_regno);
+               continue;
+            }
 	  pclass = ira_pressure_class_translate[REGNO_REG_CLASS (hard_regno)];
 	  for (nregs-- ;nregs >= 0; nregs--)
 	    if (((enum reg_class) pclass
@@ -1556,16 +1562,11 @@ free_register_move_costs (void)
 
   for (mode = 0; mode < MAX_MACHINE_MODE; mode++)
     {
-      if (ira_max_register_move_cost[mode] != NULL)
-	free (ira_max_register_move_cost[mode]);
-      if (ira_may_move_in_cost[mode] != NULL)
-	free (ira_may_move_in_cost[mode]);
-      if (ira_may_move_out_cost[mode] != NULL)
-	free (ira_may_move_out_cost[mode]);
-      if (ira_max_may_move_in_cost[mode] != NULL)
-	free (ira_max_may_move_in_cost[mode]);
-      if (ira_max_may_move_out_cost[mode] != NULL)
-	free (ira_max_may_move_out_cost[mode]);
+      free (ira_max_register_move_cost[mode]);
+      free (ira_may_move_in_cost[mode]);
+      free (ira_may_move_out_cost[mode]);
+      free (ira_max_may_move_in_cost[mode]);
+      free (ira_max_may_move_out_cost[mode]);
       ira_register_move_cost[mode] = NULL;
       ira_max_register_move_cost[mode] = NULL;
       ira_may_move_in_cost[mode] = NULL;
@@ -1724,16 +1725,10 @@ compute_regs_asm_clobbered (void)
 	      {
 		df_ref def = *def_rec;
 		unsigned int dregno = DF_REF_REGNO (def);
-		if (dregno < FIRST_PSEUDO_REGISTER)
-		  {
-		    unsigned int i;
-		    enum machine_mode mode = GET_MODE (DF_REF_REAL_REG (def));
-		    unsigned int end = dregno
-		      + hard_regno_nregs[dregno][mode] - 1;
-
-		    for (i = dregno; i <= end; ++i)
-		      SET_HARD_REG_BIT(crtl->asm_clobbers, i);
-		  }
+		if (HARD_REGISTER_NUM_P (dregno))
+		  add_to_hard_reg_set (&crtl->asm_clobbers,
+				       GET_MODE (DF_REF_REAL_REG (def)),
+				       dregno);
 	      }
 	}
     }
@@ -3467,8 +3462,7 @@ build_insn_chain (void)
     }
 
   for (i = 0; i < (unsigned int) max_regno; i++)
-    if (live_subregs[i])
-      free (live_subregs[i]);
+    free (live_subregs[i]);
 
   reload_insn_chain = c;
   *p = NULL;

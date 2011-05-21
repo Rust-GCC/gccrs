@@ -163,10 +163,7 @@ static void m68k_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode,
 				       const_tree, bool);
 static rtx m68k_function_arg (CUMULATIVE_ARGS *, enum machine_mode,
 			      const_tree, bool);
-
-
-/* Specify the identification number of the library being built */
-const char *m68k_library_id_string = "_current_shared_library_a5_offset_";
+static bool m68k_cannot_force_const_mem (enum machine_mode mode, rtx x);
 
 /* Initialize the GCC target structure.  */
 
@@ -256,7 +253,7 @@ const char *m68k_library_id_string = "_current_shared_library_a5_offset_";
 #define TARGET_STRUCT_VALUE_RTX m68k_struct_value_rtx
 
 #undef TARGET_CANNOT_FORCE_CONST_MEM
-#define TARGET_CANNOT_FORCE_CONST_MEM m68k_illegitimate_symbolic_constant_p
+#define TARGET_CANNOT_FORCE_CONST_MEM m68k_cannot_force_const_mem
 
 #undef TARGET_FUNCTION_OK_FOR_SIBCALL
 #define TARGET_FUNCTION_OK_FOR_SIBCALL m68k_ok_for_sibcall_p
@@ -297,6 +294,9 @@ const char *m68k_library_id_string = "_current_shared_library_a5_offset_";
 
 #undef TARGET_FUNCTION_ARG_ADVANCE
 #define TARGET_FUNCTION_ARG_ADVANCE m68k_function_arg_advance
+
+#undef TARGET_LEGITIMATE_CONSTANT_P
+#define TARGET_LEGITIMATE_CONSTANT_P m68k_legitimate_constant_p
 
 static const struct attribute_spec m68k_attribute_table[] =
 {
@@ -381,20 +381,10 @@ static const struct m68k_target_selection all_devices[] =
    Used for -march selection.  */
 static const struct m68k_target_selection all_isas[] =
 {
-  { "68000",    m68000,     NULL,  u68000,   isa_00,    FL_FOR_isa_00 },
-  { "68010",    m68010,     NULL,  u68010,   isa_10,    FL_FOR_isa_10 },
-  { "68020",    m68020,     NULL,  u68020,   isa_20,    FL_FOR_isa_20 },
-  { "68030",    m68030,     NULL,  u68030,   isa_20,    FL_FOR_isa_20 },
-  { "68040",    m68040,     NULL,  u68040,   isa_40,    FL_FOR_isa_40 },
-  { "68060",    m68060,     NULL,  u68060,   isa_40,    FL_FOR_isa_40 },
-  { "cpu32",    cpu32,      NULL,  ucpu32,   isa_20,    FL_FOR_isa_cpu32 },
-  { "isaa",     mcf5206e,   NULL,  ucfv2,    isa_a,     (FL_FOR_isa_a
-							 | FL_CF_HWDIV) },
-  { "isaaplus", mcf5271,    NULL,  ucfv2,    isa_aplus, (FL_FOR_isa_aplus
-							 | FL_CF_HWDIV) },
-  { "isab",     mcf5407,    NULL,  ucfv4,    isa_b,     FL_FOR_isa_b },
-  { "isac",     unk_device, NULL,  ucfv4,    isa_c,     (FL_FOR_isa_c
-							 | FL_CF_HWDIV) },
+#define M68K_ISA(NAME,DEVICE,MICROARCH,ISA,FLAGS) \
+  { NAME, DEVICE, NULL, u##MICROARCH, ISA, FLAGS },
+#include "m68k-isas.def"
+#undef M68K_ISA
   { NULL,       unk_device, NULL,  unk_arch, isa_max,   0 }
 };
 
@@ -402,24 +392,10 @@ static const struct m68k_target_selection all_isas[] =
    device.  Used for -mtune selection.  */
 static const struct m68k_target_selection all_microarchs[] =
 {
-  { "68000",    m68000,     NULL,  u68000,    isa_00,  FL_FOR_isa_00 },
-  { "68010",    m68010,     NULL,  u68010,    isa_10,  FL_FOR_isa_10 },
-  { "68020",    m68020,     NULL,  u68020,    isa_20,  FL_FOR_isa_20 },
-  { "68020-40", m68020,     NULL,  u68020_40, isa_20,  FL_FOR_isa_20 },
-  { "68020-60", m68020,     NULL,  u68020_60, isa_20,  FL_FOR_isa_20 },
-  { "68030",    m68030,     NULL,  u68030,    isa_20,  FL_FOR_isa_20 },
-  { "68040",    m68040,     NULL,  u68040,    isa_40,  FL_FOR_isa_40 },
-  { "68060",    m68060,     NULL,  u68060,    isa_40,  FL_FOR_isa_40 },
-  { "cpu32",    cpu32,      NULL,  ucpu32,    isa_20,  FL_FOR_isa_cpu32 },
-  { "cfv1",     mcf51qe,    NULL,  ucfv1,     isa_c,   FL_FOR_isa_c },
-  { "cfv2",     mcf5206,    NULL,  ucfv2,     isa_a,   FL_FOR_isa_a },
-  { "cfv3",     mcf5307,    NULL,  ucfv3,     isa_a,   (FL_FOR_isa_a
-							| FL_CF_HWDIV) },
-  { "cfv4",     mcf5407,    NULL,  ucfv4,     isa_b,   FL_FOR_isa_b },
-  { "cfv4e",    mcf547x,    NULL,  ucfv4e,    isa_b,   (FL_FOR_isa_b
-							| FL_CF_USP
-							| FL_CF_EMAC
-							| FL_CF_FPU) },
+#define M68K_MICROARCH(NAME,DEVICE,MICROARCH,ISA,FLAGS) \
+  { NAME, DEVICE, NULL, u##MICROARCH, ISA, FLAGS },
+#include "m68k-microarchs.def"
+#undef M68K_MICROARCH
   { NULL,       unk_device, NULL,  unk_arch,  isa_max, 0 }
 };
 
@@ -454,97 +430,39 @@ const char *m68k_symbolic_jump;
 enum M68K_SYMBOLIC_CALL m68k_symbolic_call_var;
 
 
-/* See whether TABLE has an entry with name NAME.  Return true and
-   store the entry in *ENTRY if so, otherwise return false and
-   leave *ENTRY alone.  */
-
-static bool
-m68k_find_selection (const struct m68k_target_selection **entry,
-		     const struct m68k_target_selection *table,
-		     const char *name)
-{
-  size_t i;
-
-  for (i = 0; table[i].name; i++)
-    if (strcmp (table[i].name, name) == 0)
-      {
-	*entry = table + i;
-	return true;
-      }
-  return false;
-}
-
 /* Implement TARGET_HANDLE_OPTION.  */
 
 static bool
-m68k_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
+m68k_handle_option (struct gcc_options *opts,
+		    struct gcc_options *opts_set ATTRIBUTE_UNUSED,
 		    const struct cl_decoded_option *decoded,
-		    location_t loc ATTRIBUTE_UNUSED)
+		    location_t loc)
 {
   size_t code = decoded->opt_index;
   const char *arg = decoded->arg;
   int value = decoded->value;
 
-  gcc_assert (opts == &global_options);
-  gcc_assert (opts_set == &global_options_set);
-
   switch (code)
     {
-    case OPT_march_:
-      return m68k_find_selection (&m68k_arch_entry, all_isas, arg);
-
-    case OPT_mcpu_:
-      return m68k_find_selection (&m68k_cpu_entry, all_devices, arg);
-
-    case OPT_mtune_:
-      return m68k_find_selection (&m68k_tune_entry, all_microarchs, arg);
-
-    case OPT_m68000:
-    case OPT_mc68000:
-      return m68k_find_selection (&m68k_cpu_entry, all_devices, "68000");
-
-    case OPT_m68010:
-      return m68k_find_selection (&m68k_cpu_entry, all_devices, "68010");
-
-    case OPT_m68020:
-    case OPT_mc68020:
-      return m68k_find_selection (&m68k_cpu_entry, all_devices, "68020");
-
     case OPT_m68020_40:
-      return (m68k_find_selection (&m68k_tune_entry, all_microarchs,
-				   "68020-40")
-	      && m68k_find_selection (&m68k_cpu_entry, all_devices, "68020"));
+      opts->x_m68k_tune_option = u68020_40;
+      opts->x_m68k_cpu_option = m68020;
+      return true;
 
     case OPT_m68020_60:
-      return (m68k_find_selection (&m68k_tune_entry, all_microarchs,
-				   "68020-60")
-	      && m68k_find_selection (&m68k_cpu_entry, all_devices, "68020"));
-
-    case OPT_m68030:
-      return m68k_find_selection (&m68k_cpu_entry, all_devices, "68030");
-
-    case OPT_m68040:
-      return m68k_find_selection (&m68k_cpu_entry, all_devices, "68040");
-
-    case OPT_m68060:
-      return m68k_find_selection (&m68k_cpu_entry, all_devices, "68060");
-
-    case OPT_m68302:
-      return m68k_find_selection (&m68k_cpu_entry, all_devices, "68302");
-
-    case OPT_m68332:
-    case OPT_mcpu32:
-      return m68k_find_selection (&m68k_cpu_entry, all_devices, "68332");
+      opts->x_m68k_tune_option = u68020_60;
+      opts->x_m68k_cpu_option = m68020;
+      return true;
 
     case OPT_mshared_library_id_:
       if (value > MAX_LIBRARY_ID)
-	error ("-mshared-library-id=%s is not between 0 and %d",
-	       arg, MAX_LIBRARY_ID);
+	error_at (loc, "-mshared-library-id=%s is not between 0 and %d",
+		  arg, MAX_LIBRARY_ID);
       else
         {
 	  char *tmp;
 	  asprintf (&tmp, "%d", (value * -4) - 4);
-	  m68k_library_id_string = tmp;
+	  opts->x_m68k_library_id_string = tmp;
 	}
       return true;
 
@@ -560,6 +478,15 @@ m68k_option_override (void)
 {
   const struct m68k_target_selection *entry;
   unsigned long target_mask;
+
+  if (global_options_set.x_m68k_arch_option)
+    m68k_arch_entry = &all_isas[m68k_arch_option];
+
+  if (global_options_set.x_m68k_cpu_option)
+    m68k_cpu_entry = &all_devices[(int) m68k_cpu_option];
+
+  if (global_options_set.x_m68k_tune_option)
+    m68k_tune_entry = &all_microarchs[(int) m68k_tune_option];
 
   /* User can choose:
 
@@ -1054,13 +981,17 @@ m68k_expand_prologue (void)
 
   m68k_compute_frame_layout ();
 
+  if (flag_stack_usage)
+    current_function_static_stack_size
+      = current_frame.size + current_frame.offset;
+
   /* If the stack limit is a symbol, we can check it here,
      before actually allocating the space.  */
   if (crtl->limit_stack
       && GET_CODE (stack_limit_rtx) == SYMBOL_REF)
     {
       limit = plus_constant (stack_limit_rtx, current_frame.size + 4);
-      if (!LEGITIMATE_CONSTANT_P (limit))
+      if (!m68k_legitimate_constant_p (Pmode, limit))
 	{
 	  emit_move_insn (gen_rtx_REG (Pmode, D0_REG), limit);
 	  limit = gen_rtx_REG (Pmode, D0_REG);
@@ -1377,7 +1308,7 @@ m68k_expand_epilogue (bool sibcall_p)
 			   EH_RETURN_STACKADJ_RTX));
 
   if (!sibcall_p)
-    emit_jump_insn (gen_rtx_RETURN (VOIDmode));
+    emit_jump_insn (ret_rtx);
 }
 
 /* Return true if X is a valid comparison operator for the dbcc 
@@ -1964,6 +1895,14 @@ m68k_illegitimate_symbolic_constant_p (rtx x)
   return m68k_tls_reference_p (x, false);
 }
 
+/* Implement TARGET_CANNOT_FORCE_CONST_MEM.  */
+
+static bool
+m68k_cannot_force_const_mem (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
+{
+  return m68k_illegitimate_symbolic_constant_p (x);
+}
+
 /* Return true if X is a legitimate constant address that can reach
    bytes in the range [X, X + REACH).  STRICT_P says whether we need
    strict checking.  */
@@ -2179,6 +2118,14 @@ m68k_legitimate_mem_p (rtx x, struct m68k_address *address)
 	  && m68k_decompose_address (GET_MODE (x), XEXP (x, 0),
 				     reload_in_progress || reload_completed,
 				     address));
+}
+
+/* Implement TARGET_LEGITIMATE_CONSTANT_P.  */
+
+bool
+m68k_legitimate_constant_p (enum machine_mode mode, rtx x)
+{
+  return mode != XFmode && !m68k_illegitimate_symbolic_constant_p (x);
 }
 
 /* Return true if X matches the 'Q' constraint.  It must be a memory
@@ -6155,7 +6102,14 @@ m68k_sched_variable_issue (FILE *sched_dump ATTRIBUTE_UNUSED,
 	  gcc_unreachable ();
 	}
 
-      gcc_assert (insn_size <= sched_ib.filled);
+      if (insn_size > sched_ib.filled)
+	/* Scheduling for register pressure does not always take DFA into
+	   account.  Workaround instruction buffer not being filled enough.  */
+	{
+	  gcc_assert (sched_pressure_p);
+	  insn_size = sched_ib.filled;
+	}
+
       --can_issue_more;
     }
   else if (GET_CODE (PATTERN (insn)) == ASM_INPUT

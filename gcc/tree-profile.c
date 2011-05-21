@@ -43,6 +43,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "timevar.h"
 #include "value-prof.h"
 #include "cgraph.h"
+#include "profile.h"
+#include "target.h"
+#include "output.h"
 
 static GTY(()) tree gcov_type_node;
 static GTY(()) tree gcov_type_tmp_var;
@@ -79,6 +82,10 @@ init_ic_make_global_vars (void)
   TREE_PUBLIC (ic_void_ptr_var) = 0;
   DECL_ARTIFICIAL (ic_void_ptr_var) = 1;
   DECL_INITIAL (ic_void_ptr_var) = NULL;
+  if (targetm.have_tls)
+    DECL_TLS_MODEL (ic_void_ptr_var) =
+      decl_default_tls_model (ic_void_ptr_var);
+
   varpool_finalize_decl (ic_void_ptr_var);
   varpool_mark_needed_node (varpool_node (ic_void_ptr_var));
 
@@ -91,6 +98,10 @@ init_ic_make_global_vars (void)
   TREE_PUBLIC (ic_gcov_type_ptr_var) = 0;
   DECL_ARTIFICIAL (ic_gcov_type_ptr_var) = 1;
   DECL_INITIAL (ic_gcov_type_ptr_var) = NULL;
+  if (targetm.have_tls)
+    DECL_TLS_MODEL (ic_gcov_type_ptr_var) =
+      decl_default_tls_model (ic_gcov_type_ptr_var);
+
   varpool_finalize_decl (ic_gcov_type_ptr_var);
   varpool_mark_needed_node (varpool_node (ic_gcov_type_ptr_var));
 }
@@ -346,7 +357,7 @@ gimple_gen_ic_profiler (histogram_value value, unsigned tag, unsigned base)
 void
 gimple_gen_ic_func_profiler (void)
 {
-  struct cgraph_node * c_node = cgraph_node (current_function_decl);
+  struct cgraph_node * c_node = cgraph_get_node (current_function_decl);
   gimple_stmt_iterator gsi;
   gimple stmt1, stmt2;
   tree tree_uid, cur_func, counter_ptr, ptr_var, void0;
@@ -369,7 +380,7 @@ gimple_gen_ic_func_profiler (void)
   ptr_var = force_gimple_operand_gsi (&gsi, ic_void_ptr_var,
 				      true, NULL_TREE, true,
 				      GSI_SAME_STMT);
-  tree_uid = build_int_cst (gcov_type_node, c_node->pid);
+  tree_uid = build_int_cst (gcov_type_node, current_function_funcdef_no);
   stmt1 = gimple_build_call (tree_indirect_call_profiler_fn, 4,
 			     counter_ptr, tree_uid, cur_func, ptr_var);
   gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
@@ -453,6 +464,8 @@ tree_profiling (void)
      child function from already instrumented body).  */
   if (cgraph_state == CGRAPH_STATE_FINISHED)
     return 0;
+
+  init_node_map();
 
   for (node = cgraph_nodes; node; node = node->next)
     {
@@ -548,6 +561,7 @@ tree_profiling (void)
       pop_cfun ();
     }
 
+  del_node_map();
   return 0;
 }
 

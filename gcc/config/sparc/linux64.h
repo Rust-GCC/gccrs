@@ -22,7 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #define TARGET_OS_CPP_BUILTINS()		\
   do						\
     {						\
-      LINUX_TARGET_OS_CPP_BUILTINS();		\
+      GNU_USER_TARGET_OS_CPP_BUILTINS();	\
       if (TARGET_ARCH64)			\
         builtin_define ("_LONGLONG");		\
       if (TARGET_ARCH32				\
@@ -59,7 +59,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef	ENDFILE_SPEC
 #define ENDFILE_SPEC \
   "%{shared|pie:crtendS.o%s;:crtend.o%s} crtn.o%s\
-   %{ffast-math|funsafe-math-optimizations:crtfastmath.o%s}"
+   %{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s}"
 
 /* The default code model.  */
 #undef SPARC_DEFAULT_CMODEL
@@ -114,7 +114,7 @@ along with GCC; see the file COPYING3.  If not see
   %{!shared: \
     %{!static: \
       %{rdynamic:-export-dynamic} \
-      -dynamic-linker " LINUX_DYNAMIC_LINKER32 "} \
+      -dynamic-linker " GNU_USER_DYNAMIC_LINKER32 "} \
       %{static:-static}} \
 "
 
@@ -122,7 +122,7 @@ along with GCC; see the file COPYING3.  If not see
   %{!shared: \
     %{!static: \
       %{rdynamic:-export-dynamic} \
-      -dynamic-linker " LINUX_DYNAMIC_LINKER64 "} \
+      -dynamic-linker " GNU_USER_DYNAMIC_LINKER64 "} \
       %{static:-static}} \
 "
 
@@ -194,7 +194,7 @@ along with GCC; see the file COPYING3.  If not see
   %{!shared: \
     %{!static: \
       %{rdynamic:-export-dynamic} \
-      -dynamic-linker " LINUX_DYNAMIC_LINKER64 "} \
+      -dynamic-linker " GNU_USER_DYNAMIC_LINKER64 "} \
     %{static:-static}} \
 %{mlittle-endian:-EL} \
 %{!mno-relax:%{!r:-relax}} \

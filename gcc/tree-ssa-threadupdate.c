@@ -149,6 +149,10 @@ struct local_info
    (original_edge, target_edge).  */
 static VEC(edge,heap) *threaded_edges;
 
+/* When we start updating the CFG for threading, data necessary for jump
+   threading is attached to the AUX field for the incoming edge.  Use these
+   macros to access the underlying structure attached to the AUX field.  */
+#define THREAD_TARGET(E) ((edge *)(E)->aux)[0]
 
 /* Jump threading statistics.  */
 
@@ -194,27 +198,24 @@ remove_ctrl_stmt_and_useless_edges (basic_block bb, basic_block dest_bb)
     }
 }
 
-/* Create a duplicate of BB which only reaches the destination of the edge
-   stored in RD.  Record the duplicate block in RD.  */
+/* Create a duplicate of BB.  Record the duplicate block in RD.  */
 
 static void
 create_block_for_threading (basic_block bb, struct redirection_data *rd)
 {
+  edge_iterator ei;
+  edge e;
+
   /* We can use the generic block duplication code and simply remove
      the stuff we do not need.  */
   rd->dup_block = duplicate_block (bb, NULL, NULL);
 
+  FOR_EACH_EDGE (e, ei, rd->dup_block->succs)
+    e->aux = NULL;
+
   /* Zero out the profile, since the block is unreachable for now.  */
   rd->dup_block->frequency = 0;
   rd->dup_block->count = 0;
-
-  /* The call to duplicate_block will copy everything, including the
-     useless COND_EXPR or SWITCH_EXPR at the end of BB.  We just remove
-     the useless COND_EXPR or SWITCH_EXPR here rather than having a
-     specialized block copier.  We also remove all outgoing edges
-     from the duplicate block.  The appropriate edge will be created
-     later.  */
-  remove_ctrl_stmt_and_useless_edges (rd->dup_block, NULL);
 }
 
 /* Hashing and equality routines for our hash table.  */
@@ -314,7 +315,16 @@ create_edge_and_update_destination_phis (struct redirection_data *rd,
   rescan_loop_exit (e, true, false);
   e->probability = REG_BR_PROB_BASE;
   e->count = bb->count;
-  e->aux = rd->outgoing_edge->aux;
+
+  if (rd->outgoing_edge->aux)
+    {
+      e->aux = (edge *) XNEWVEC (edge, 1);
+      THREAD_TARGET(e) = THREAD_TARGET (rd->outgoing_edge);
+    }
+  else
+    {
+      e->aux = NULL;
+    }
 
   /* If there are any PHI nodes at the destination of the outgoing edge
      from the duplicate block, then we will need to add a new argument
@@ -356,6 +366,7 @@ create_duplicates (void **slot, void *data)
 
       /* Go ahead and wire up outgoing edges and update PHIs for the duplicate
          block.  */
+      remove_ctrl_stmt_and_useless_edges (rd->dup_block, NULL);
       create_edge_and_update_destination_phis (rd, rd->dup_block);
     }
 
@@ -377,6 +388,7 @@ fixup_template_block (void **slot, void *data)
      and halt the hash table traversal.  */
   if (rd->dup_block && rd->dup_block == local_info->template_block)
     {
+      remove_ctrl_stmt_and_useless_edges (rd->dup_block, NULL);
       create_edge_and_update_destination_phis (rd, rd->dup_block);
       return 0;
     }
@@ -406,10 +418,6 @@ redirect_edges (void **slot, void *data)
       next = el->next;
       free (el);
 
-      /* Go ahead and clear E->aux.  It's not needed anymore and failure
-         to clear it will cause all kinds of unpleasant problems later.  */
-      e->aux = NULL;
-
       thread_stats.num_threaded_edges++;
 
       if (rd->dup_block)
@@ -429,6 +437,12 @@ redirect_edges (void **slot, void *data)
 	  gcc_assert (e == e2);
 	  flush_pending_stmts (e2);
 	}
+
+      /* Go ahead and clear E->aux.  It's not needed anymore and failure
+         to clear it will cause all kinds of unpleasant problems later.  */
+      free (e->aux);
+      e->aux = NULL;
+
     }
 
   /* Indicate that we actually threaded one or more jumps.  */
@@ -512,7 +526,11 @@ thread_block (basic_block bb, bool noloop_only)
   if (loop->header == bb)
     {
       e = loop_latch_edge (loop);
-      e2 = (edge) e->aux;
+
+      if (e->aux)
+	e2 = THREAD_TARGET (e);
+      else
+	e2 = NULL;
 
       if (e2 && loop_exit_edge_p (loop, e2))
 	{
@@ -525,19 +543,22 @@ thread_block (basic_block bb, bool noloop_only)
      efficient lookups.  */
   FOR_EACH_EDGE (e, ei, bb->preds)
     {
-      e2 = (edge) e->aux;
+      if (e->aux == NULL)
+	continue;
+
+      e2 = THREAD_TARGET (e);
 
       if (!e2
 	  /* If NOLOOP_ONLY is true, we only allow threading through the
 	     header of a loop to exit edges.  */
 	  || (noloop_only
 	      && bb == bb->loop_father->header
-	      && !loop_exit_edge_p (bb->loop_father, e2)))
+	      && (!loop_exit_edge_p (bb->loop_father, e2))))
 	continue;
 
       if (e->dest == e2->src)
 	update_bb_profile_for_threading (e->dest, EDGE_FREQUENCY (e),
-				         e->count, (edge) e->aux);
+				         e->count, THREAD_TARGET (e));
 
       /* Insert the outgoing edge into the hash table if it is not
 	 already in the hash table.  */
@@ -582,17 +603,18 @@ thread_block (basic_block bb, bool noloop_only)
   return local_info.jumps_threaded;
 }
 
-/* Threads edge E through E->dest to the edge E->aux.  Returns the copy
-   of E->dest created during threading, or E->dest if it was not necessary
+/* Threads edge E through E->dest to the edge THREAD_TARGET (E).  Returns the
+   copy of E->dest created during threading, or E->dest if it was not necessary
    to copy it (E is its single predecessor).  */
 
 static basic_block
 thread_single_edge (edge e)
 {
   basic_block bb = e->dest;
-  edge eto = (edge) e->aux;
+  edge eto = THREAD_TARGET (e);
   struct redirection_data rd;
 
+  free (e->aux);
   e->aux = NULL;
 
   thread_stats.num_threaded_edges++;
@@ -617,6 +639,7 @@ thread_single_edge (edge e)
   rd.outgoing_edge = eto;
 
   create_block_for_threading (bb, &rd);
+  remove_ctrl_stmt_and_useless_edges (rd.dup_block, NULL);
   create_edge_and_update_destination_phis (&rd, rd.dup_block);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
@@ -794,7 +817,7 @@ thread_through_loop_header (struct loop *loop, bool may_peel_loop_headers)
 
   if (latch->aux)
     {
-      tgt_edge = (edge) latch->aux;
+      tgt_edge = THREAD_TARGET (latch);
       tgt_bb = tgt_edge->dest;
     }
   else if (!may_peel_loop_headers
@@ -817,7 +840,7 @@ thread_through_loop_header (struct loop *loop, bool may_peel_loop_headers)
 	      goto fail;
 	    }
 
-	  tgt_edge = (edge) e->aux;
+	  tgt_edge = THREAD_TARGET (e);
 	  atgt_bb = tgt_edge->dest;
 	  if (!tgt_bb)
 	    tgt_bb = atgt_bb;
@@ -883,7 +906,7 @@ thread_through_loop_header (struct loop *loop, bool may_peel_loop_headers)
 
       /* Now consider the case entry edges are redirected to the new entry
 	 block.  Remember one entry edge, so that we can find the new
-	preheader (its destination after threading).  */
+	 preheader (its destination after threading).  */
       FOR_EACH_EDGE (e, ei, header->preds)
 	{
 	  if (e->aux)
@@ -915,6 +938,7 @@ fail:
   /* We failed to thread anything.  Cancel the requests.  */
   FOR_EACH_EDGE (e, ei, header->preds)
     {
+      free (e->aux);
       e->aux = NULL;
     }
   return false;
@@ -946,9 +970,10 @@ mark_threaded_blocks (bitmap threaded_blocks)
   for (i = 0; i < VEC_length (edge, threaded_edges); i += 2)
     {
       edge e = VEC_index (edge, threaded_edges, i);
-      edge e2 = VEC_index (edge, threaded_edges, i + 1);
+      edge *x = (edge *) XNEWVEC (edge, 1);
 
-      e->aux = e2;
+      e->aux = x;
+      THREAD_TARGET (e) = VEC_index (edge, threaded_edges, i + 1);
       bitmap_set_bit (tmp, e->dest->index);
     }
 
@@ -963,7 +988,10 @@ mark_threaded_blocks (bitmap threaded_blocks)
 	      && !redirection_block_p (bb))
 	    {
 	      FOR_EACH_EDGE (e, ei, bb->preds)
-		      e->aux = NULL;
+		{
+		  free (e->aux);
+		  e->aux = NULL;
+		}
 	    }
 	  else
 	    bitmap_set_bit (threaded_blocks, i);
@@ -1059,8 +1087,13 @@ thread_through_all_blocks (bool may_peel_loop_headers)
 void
 register_jump_thread (edge e, edge e2)
 {
+  /* This can occur if we're jumping to a constant address or
+     or something similar.  Just get out now.  */
+  if (e2 == NULL)
+    return;
+
   if (threaded_edges == NULL)
-    threaded_edges = VEC_alloc (edge, heap, 10);
+    threaded_edges = VEC_alloc (edge, heap, 15);
 
   if (dump_file && (dump_flags & TDF_DETAILS)
       && e->dest != e2->src)

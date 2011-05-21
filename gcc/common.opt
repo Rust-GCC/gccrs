@@ -456,11 +456,20 @@ Driver Joined Separate
 Tbss
 Driver Separate
 
+Tbss=
+Driver Joined
+
 Tdata
 Driver Separate
 
+Tdata=
+Driver Joined
+
 Ttext
 Driver Separate
+
+Ttext=
+Driver Joined
 
 W
 Common RejectNegative Warning Alias(Wextra)
@@ -621,6 +630,10 @@ Warn if a comparison is always true or always false due to the limited range of 
 Wuninitialized
 Common Var(warn_uninitialized) Init(-1) Warning
 Warn about uninitialized automatic variables
+
+Wmaybe-uninitialized
+Common Var(warn_maybe_uninitialized) Warning
+Warn about maybe uninitialized automatic variables
 
 Wunreachable-code
 Common Ignore

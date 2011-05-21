@@ -27,10 +27,13 @@ GO_EXTERN_C
 void
 go_create_gogo(int int_type_size, int pointer_size)
 {
-  gcc_assert(::gogo == NULL);
+  go_assert(::gogo == NULL);
   ::gogo = new Gogo(go_get_backend(), int_type_size, pointer_size);
   if (!unique_prefix.empty())
     ::gogo->set_unique_prefix(unique_prefix);
+
+  // FIXME: This should be in the gcc dependent code.
+  ::gogo->define_builtin_function_trees();
 }
 
 // Set the unique prefix we use for exported symbols.
@@ -60,7 +63,7 @@ void
 go_parse_input_files(const char** filenames, unsigned int filename_count,
 		     bool only_check_syntax, bool require_return_statement)
 {
-  gcc_assert(filename_count > 0);
+  go_assert(filename_count > 0);
   for (unsigned int i = 0; i < filename_count; ++i)
     {
       if (i > 0)

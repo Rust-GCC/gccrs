@@ -1,4 +1,4 @@
-/* Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+/* Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Andy Vaught
    Namelist output contributed by Paul Thomas
@@ -1155,35 +1155,35 @@ write_z (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
 void
 write_d (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
 {
-  write_float (dtp, f, p, len);
+  write_float (dtp, f, p, len, 0);
 }
 
 
 void
 write_e (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
 {
-  write_float (dtp, f, p, len);
+  write_float (dtp, f, p, len, 0);
 }
 
 
 void
 write_f (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
 {
-  write_float (dtp, f, p, len);
+  write_float (dtp, f, p, len, 0);
 }
 
 
 void
 write_en (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
 {
-  write_float (dtp, f, p, len);
+  write_float (dtp, f, p, len, 0);
 }
 
 
 void
 write_es (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
 {
-  write_float (dtp, f, p, len);
+  write_float (dtp, f, p, len, 0);
 }
 
 
@@ -1432,8 +1432,8 @@ set_fnode_default (st_parameter_dt *dtp, fnode *f, int length)
   switch (length)
     {
     case 4:
-      f->u.real.w = 15;
-      f->u.real.d = 8;
+      f->u.real.w = 16;
+      f->u.real.d = 9;
       f->u.real.e = 2;
       break;
     case 8:
@@ -1442,13 +1442,13 @@ set_fnode_default (st_parameter_dt *dtp, fnode *f, int length)
       f->u.real.e = 3;
       break;
     case 10:
-      f->u.real.w = 29;
-      f->u.real.d = 20;
+      f->u.real.w = 30;
+      f->u.real.d = 21;
       f->u.real.e = 4;
       break;
     case 16:
-      f->u.real.w = 44;
-      f->u.real.d = 35;
+      f->u.real.w = 45;
+      f->u.real.d = 36;
       f->u.real.e = 4;
       break;
     default:
@@ -1456,10 +1456,18 @@ set_fnode_default (st_parameter_dt *dtp, fnode *f, int length)
       break;
     }
 }
-/* Output a real number with default format.
-   This is 1PG14.7E2 for REAL(4), 1PG23.15E3 for REAL(8),
-   1PG28.19E4 for REAL(10) and 1PG43.34E4 for REAL(16).  */
-// FX -- FIXME: should we change the default format for __float128-real(16)?
+
+/* Output a real number with default format.  To guarantee that a
+   binary -> decimal -> binary roundtrip conversion recovers the
+   original value, IEEE 754-2008 requires 9, 17, 21 and 36 significant
+   digits for REAL kinds 4, 8, 10, and 16, respectively. Thus, we use
+   1PG16.9E2 for REAL(4), 1PG25.17E3 for REAL(8), 1PG30.21E4 for
+   REAL(10) and 1PG45.36E4 for REAL(16). The exception is that the
+   Fortran standard requires outputting an extra digit when the scale
+   factor is 1 and when the magnitude of the value is such that E
+   editing is used. However, gfortran compensates for this, and thus
+   for list formatted the same number of significant digits is
+   generated both when using F and E editing.  */
 
 void
 write_real (st_parameter_dt *dtp, const char *source, int length)
@@ -1468,20 +1476,30 @@ write_real (st_parameter_dt *dtp, const char *source, int length)
   int org_scale = dtp->u.p.scale_factor;
   dtp->u.p.scale_factor = 1;
   set_fnode_default (dtp, &f, length);
-  write_float (dtp, &f, source , length);
+  write_float (dtp, &f, source , length, 1);
   dtp->u.p.scale_factor = org_scale;
 }
 
+/* Similar to list formatted REAL output, for kPG0 where k > 0 we
+   compensate for the extra digit.  */
 
 void
 write_real_g0 (st_parameter_dt *dtp, const char *source, int length, int d)
 {
-  fnode f ;
+  fnode f;
+  int comp_d; 
   set_fnode_default (dtp, &f, length);
   if (d > 0)
     f.u.real.d = d;
+
+  /* Compensate for extra digits when using scale factor, d is not
+     specified, and the magnitude is such that E editing is used.  */
+  if (dtp->u.p.scale_factor > 0 && d == 0)
+    comp_d = 1;
+  else
+    comp_d = 0;
   dtp->u.p.g0_no_blanks = 1;
-  write_float (dtp, &f, source , length);
+  write_float (dtp, &f, source , length, comp_d);
   dtp->u.p.g0_no_blanks = 0;
 }
 
@@ -1689,6 +1707,7 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
   char cup;
   char * obj_name;
   char * ext_name;
+  size_t ext_name_len;
   char rep_buff[NML_DIGITS];
   namelist_info * cmp;
   namelist_info * retval = obj->next;
@@ -1797,7 +1816,7 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
 	{
 	  if (rep_ctr > 1)
 	    {
-	      sprintf(rep_buff, " %d*", rep_ctr);
+	      snprintf(rep_buff, NML_DIGITS, " %d*", rep_ctr);
 	      write_character (dtp, rep_buff, 1, strlen (rep_buff));
 	      dtp->u.p.no_leading_blank = 1;
 	    }
@@ -1851,11 +1870,9 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
 
 	      base_name_len = base_name ? strlen (base_name) : 0;
 	      base_var_name_len = base ? strlen (base->var_name) : 0;
-	      ext_name = (char*)get_mem ( base_name_len
-					+ base_var_name_len
-					+ strlen (obj->var_name)
-					+ obj->var_rank * NML_DIGITS
-					+ 1);
+	      ext_name_len = base_name_len + base_var_name_len 
+		+ strlen (obj->var_name) + obj->var_rank * NML_DIGITS + 1;
+	      ext_name = (char*)get_mem (ext_name_len);
 
 	      memcpy (ext_name, base_name, base_name_len);
 	      clen = strlen (obj->var_name + base_var_name_len);
@@ -1872,7 +1889,8 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
 		      ext_name[tot_len] = '(';
 		      tot_len++;
 		    }
-		  sprintf (ext_name + tot_len, "%d", (int) obj->ls[dim_i].idx);
+		  snprintf (ext_name + tot_len, ext_name_len - tot_len, "%d", 
+			    (int) obj->ls[dim_i].idx);
 		  tot_len += strlen (ext_name + tot_len);
 		  ext_name[tot_len] = ((int) dim_i == obj->var_rank - 1) ? ')' : ',';
 		  tot_len++;
@@ -1932,7 +1950,7 @@ obj_loop:
       {
 	obj->ls[dim_i].idx += nml_carry ;
 	nml_carry = 0;
- 	if (obj->ls[dim_i].idx  > (ssize_t) GFC_DESCRIPTOR_UBOUND(obj,dim_i))
+ 	if (obj->ls[dim_i].idx  > GFC_DESCRIPTOR_UBOUND(obj,dim_i))
 	  {
  	    obj->ls[dim_i].idx = GFC_DESCRIPTOR_LBOUND(obj,dim_i);
 	    nml_carry = 1;

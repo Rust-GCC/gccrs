@@ -47,34 +47,6 @@ enum rs6000_dependence_cost rs6000_sched_costly_dep = no_dep_costly
 TargetVariable
 enum rs6000_nop_insertion rs6000_sched_insert_nops = sched_finish_none
 
-;; Size of long double.
-TargetVariable
-unsigned char rs6000_long_double_type_size
-
-;; IEEE quad extended precision long double.
-TargetVariable
-unsigned char rs6000_ieeequad
-
-;; Nonzero to use AltiVec ABI.
-TargetVariable
-unsigned char rs6000_altivec_abi
-
-;; Nonzero if we want SPE SIMD instructions.
-TargetVariable
-int rs6000_spe
-
-;; Nonzero if we want SPE ABI extensions.
-TargetVariable
-unsigned char rs6000_spe_abi
-
-;; Nonzero if floating point operations are done in the GPRs.
-TargetVariable
-unsigned char rs6000_float_gprs
-
-;; Nonzero if we want Darwin's struct-by-value-in-regs ABI.
-TargetVariable
-unsigned char rs6000_darwin64_abi
-
 ;; Non-zero to allow overriding loop alignment.
 TargetVariable
 unsigned char can_override_loop_align
@@ -106,14 +78,6 @@ enum rs6000_cmodel rs6000_current_cmodel = CMODEL_SMALL
 ;; What type of reciprocal estimation instructions to generate
 TargetVariable
 unsigned int rs6000_recip_control
-
-;; -mcpu=<xxx> as an index into the processor_target_table or -1
-TargetVariable
-int rs6000_cpu_index = -1
-
-;; -mtune=<xxx> as an index into the processor_target_table or -1
-TargetVariable
-int rs6000_tune_index = -1
 
 ;; Debug flags
 TargetVariable
@@ -311,7 +275,7 @@ Target Report
 Generate software reciprocal divide and square root for better throughput.
 
 mrecip=
-Target Report RejectNegative Joined
+Target Report RejectNegative Joined Var(rs6000_recip_name)
 Generate software reciprocal divide and square root for better throughput.
 
 mrecip-precision
@@ -378,7 +342,7 @@ Target RejectNegative Alias(misel)
 Deprecated option.  Use -misel instead
 
 mspe
-Target
+Target Var(rs6000_spe) Save
 Generate SPE SIMD instructions on E500
 
 mpaired
@@ -397,21 +361,61 @@ mdebug=
 Target RejectNegative Joined
 -mdebug=	Enable debug output
 
-mabi=
-Target RejectNegative Joined
--mabi=	Specify ABI to use
+mabi=altivec
+Target RejectNegative Var(rs6000_altivec_abi) Save
+Use the AltiVec ABI extensions
+
+mabi=no-altivec
+Target RejectNegative Var(rs6000_altivec_abi, 0)
+Do not use the AltiVec ABI extensions
+
+mabi=spe
+Target RejectNegative Var(rs6000_spe_abi) Save
+Use the SPE ABI extensions
+
+mabi=no-spe
+Target RejectNegative Var(rs6000_spe_abi, 0)
+Do not use the SPE ABI extensions
+
+; These are here for testing during development only, do not document
+; in the manual please.
+
+; If we want Darwin's struct-by-value-in-regs ABI.
+mabi=d64
+Target RejectNegative Undocumented Warn(using darwin64 ABI) Var(rs6000_darwin64_abi) Save
+
+mabi=d32
+Target RejectNegative Undocumented Warn(using old darwin ABI) Var(rs6000_darwin64_abi, 0)
+
+mabi=ieeelongdouble
+Target RejectNegative Undocumented Warn(using IEEE extended precision long double) Var(rs6000_ieeequad) Save
+
+mabi=ibmlongdouble
+Target RejectNegative Undocumented Warn(using IBM extended precision long double) Var(rs6000_ieeequad, 0)
 
 mcpu=
-Target RejectNegative Joined
+Target RejectNegative Joined Var(rs6000_cpu_index) Init(-1) Enum(rs6000_cpu_opt_value) Save
 -mcpu=	Use features of and schedule code for given CPU
 
 mtune=
-Target RejectNegative Joined
+Target RejectNegative Joined Var(rs6000_tune_index) Init(-1) Enum(rs6000_cpu_opt_value) Save
 -mtune=	Schedule code for given CPU
 
 mtraceback=
-Target RejectNegative Joined
+Target RejectNegative Joined Enum(rs6000_traceback_type) Var(rs6000_traceback)
 -mtraceback=	Select full, part, or no traceback table
+
+Enum
+Name(rs6000_traceback_type) Type(enum rs6000_traceback_type)
+
+EnumValue
+Enum(rs6000_traceback_type) String(full) Value(traceback_full)
+
+EnumValue
+Enum(rs6000_traceback_type) String(part) Value(traceback_part)
+
+EnumValue
+Enum(rs6000_traceback_type) String(no) Value(traceback_none)
 
 mlongcall
 Target Report Var(rs6000_default_long_calls) Save
@@ -430,24 +434,50 @@ Target Var(rs6000_warn_altivec_long) Init(1) Save
 Warn about deprecated 'vector long ...' AltiVec type usage
 
 mfloat-gprs=
-Target RejectNegative Joined
+Target RejectNegative Joined Enum(rs6000_float_gprs) Var(rs6000_float_gprs) Save
 -mfloat-gprs=	Select GPR floating point method
 
+Enum
+Name(rs6000_float_gprs) Type(unsigned char)
+Valid arguments to -mfloat-gprs=:
+
+EnumValue
+Enum(rs6000_float_gprs) String(yes) Value(1)
+
+EnumValue
+Enum(rs6000_float_gprs) String(single) Value(1)
+
+EnumValue
+Enum(rs6000_float_gprs) String(double) Value(2)
+
+EnumValue
+Enum(rs6000_float_gprs) String(no) Value(0)
+
 mlong-double-
-Target RejectNegative Joined UInteger
+Target RejectNegative Joined UInteger Var(rs6000_long_double_type_size) Save
 -mlong-double-<n>	Specify size of long double (64 or 128 bits)
 
 msched-costly-dep=
-Target RejectNegative Joined 
+Target RejectNegative Joined Var(rs6000_sched_costly_dep_str)
 Determine which dependences between insns are considered costly
 
 minsert-sched-nops=
-Target RejectNegative Joined
+Target RejectNegative Joined Var(rs6000_sched_insert_nops_str)
 Specify which post scheduling nop insertion scheme to apply
 
 malign-
-Target RejectNegative Joined
+Target RejectNegative Joined Enum(rs6000_alignment_flags) Var(rs6000_alignment_flags)
 Specify alignment of structure fields default/natural
+
+Enum
+Name(rs6000_alignment_flags) Type(unsigned char)
+Valid arguments to -malign-:
+
+EnumValue
+Enum(rs6000_alignment_flags) String(power) Value(MASK_ALIGN_POWER)
+
+EnumValue
+Enum(rs6000_alignment_flags) String(natural) Value(MASK_ALIGN_NATURAL)
 
 mprioritize-restricted-insns=
 Target RejectNegative Joined UInteger Var(rs6000_sched_restricted_insns_priority) Save
@@ -466,8 +496,26 @@ Target RejectNegative Var(rs6000_simple_fpu) Save
 Floating point unit does not support divide & sqrt
 
 mfpu=
-Target RejectNegative Joined 
+Target RejectNegative Joined Enum(fpu_type_t) Var(rs6000_fpu_type) Init(FPU_NONE)
 -mfpu=	Specify FP (sp, dp, sp-lite, dp-lite) (implies -mxilinx-fpu)
+
+Enum
+Name(fpu_type_t) Type(enum fpu_type_t)
+
+EnumValue
+Enum(fpu_type_t) String(none) Value(FPU_NONE)
+
+EnumValue
+Enum(fpu_type_t) String(sp_lite) Value(FPU_SF_LITE)
+
+EnumValue
+Enum(fpu_type_t) String(dp_lite) Value(FPU_DF_LITE)
+
+EnumValue
+Enum(fpu_type_t) String(sp_full) Value(FPU_SF_FULL)
+
+EnumValue
+Enum(fpu_type_t) String(dp_full) Value(FPU_DF_FULL)
 
 mxilinx-fpu
 Target Var(rs6000_xilinx_fpu) Save

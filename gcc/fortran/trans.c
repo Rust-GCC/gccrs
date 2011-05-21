@@ -63,19 +63,6 @@ gfc_advance_chain (tree t, int n)
 }
 
 
-/* Wrap a node in a TREE_LIST node and add it to the end of a list.  */
-
-tree
-gfc_chainon_list (tree list, tree add)
-{
-  tree l;
-
-  l = tree_cons (NULL_TREE, add, NULL_TREE);
-
-  return chainon (list, l);
-}
-
-
 /* Strip off a legitimate source ending from the input
    string NAME of length LEN.  */
 
@@ -329,6 +316,13 @@ gfc_build_array_ref (tree base, tree offset, tree decl)
   tree type = TREE_TYPE (base);
   tree tmp;
 
+  if (GFC_ARRAY_TYPE_P (type) && GFC_TYPE_ARRAY_RANK (type) == 0)
+    {
+      gcc_assert (GFC_TYPE_ARRAY_CORANK (type) > 0);
+
+      return fold_convert (TREE_TYPE (type), base);
+    }
+
   gcc_assert (TREE_CODE (type) == ARRAY_TYPE);
   type = TREE_TYPE (type);
 
@@ -407,12 +401,12 @@ trans_runtime_error_vararg (bool error, locus* where, const char* msgid,
 
   arg = gfc_build_addr_expr (pchar_type_node,
 			     gfc_build_localized_cstring_const (message));
-  gfc_free(message);
+  free (message);
   
   asprintf (&message, "%s", _(msgid));
   arg2 = gfc_build_addr_expr (pchar_type_node,
 			      gfc_build_localized_cstring_const (message));
-  gfc_free(message);
+  free (message);
 
   /* Build the argument array.  */
   argarray = XALLOCAVEC (tree, nargs + 2);
@@ -505,11 +499,7 @@ gfc_trans_runtime_check (bool error, bool once, tree cond, stmtblock_t * pblock,
       else
 	cond = fold_convert (long_integer_type_node, cond);
 
-      tmp = build_int_cst (long_integer_type_node, 0);
-      cond = build_call_expr_loc (where->lb->location,
-			      built_in_decls[BUILT_IN_EXPECT], 2, cond, tmp);
-      cond = fold_convert (boolean_type_node, cond);
-
+      cond = gfc_unlikely (cond);
       tmp = fold_build3_loc (where->lb->location, COND_EXPR, void_type_node,
 			     cond, body,
 			     build_empty_stmt (where->lb->location));
@@ -1153,7 +1143,7 @@ void
 gfc_restore_backend_locus (locus * loc)
 {
   gfc_set_backend_locus (loc);
-  gfc_free (loc->lb);
+  free (loc->lb);
 }
 
 
@@ -1564,4 +1554,20 @@ gfc_finish_wrapped_block (gfc_wrapped_block* block)
   block->cleanup = NULL_TREE;
 
   return result;
+}
+
+
+/* Helper function for marking a boolean expression tree as unlikely.  */
+
+tree
+gfc_unlikely (tree cond)
+{
+  tree tmp;
+
+  cond = fold_convert (long_integer_type_node, cond);
+  tmp = build_zero_cst (long_integer_type_node);
+  cond = build_call_expr_loc (input_location,
+			      built_in_decls[BUILT_IN_EXPECT], 2, cond, tmp);
+  cond = fold_convert (boolean_type_node, cond);
+  return cond;
 }

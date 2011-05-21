@@ -1690,7 +1690,7 @@ expand_prologue (void)
   /* Save/setup global registers for interrupt functions right now.  */
   if (interrupt_handler)
     {
-      if (! TARGET_DISABLE_CALLT)
+      if (! TARGET_DISABLE_CALLT && (TARGET_V850E || TARGET_V850E2_ALL))
 	emit_insn (gen_callt_save_interrupt ());
       else
 	emit_insn (gen_save_interrupt ());
@@ -1772,7 +1772,7 @@ expand_prologue (void)
       /* Special case interrupt functions that save all registers for a call.  */
       if (interrupt_handler && ((1L << LINK_POINTER_REGNUM) & reg_saved) != 0)
 	{
-	  if (! TARGET_DISABLE_CALLT)
+	  if (! TARGET_DISABLE_CALLT && (TARGET_V850E || TARGET_V850E2_ALL))
 	    emit_insn (gen_callt_save_all_interrupt ());
 	  else
 	    emit_insn (gen_save_all_interrupt ());
@@ -1890,7 +1890,7 @@ expand_epilogue (void)
 	  int offset;
 	  restore_all = gen_rtx_PARALLEL (VOIDmode,
 					  rtvec_alloc (num_restore + 2));
-	  XVECEXP (restore_all, 0, 0) = gen_rtx_RETURN (VOIDmode);
+	  XVECEXP (restore_all, 0, 0) = ret_rtx;
 	  XVECEXP (restore_all, 0, 1)
 	    = gen_rtx_SET (VOIDmode, stack_pointer_rtx,
 			    gen_rtx_PLUS (Pmode,
@@ -2023,7 +2023,7 @@ expand_epilogue (void)
       /* And return or use reti for interrupt handlers.  */
       if (interrupt_handler)
         {
-          if (! TARGET_DISABLE_CALLT)
+          if (! TARGET_DISABLE_CALLT && (TARGET_V850E || TARGET_V850E2_ALL))
             emit_insn (gen_callt_return_interrupt ());
           else
             emit_jump_insn (gen_return_interrupt ());
@@ -3117,6 +3117,19 @@ v850_issue_rate (void)
 {
   return (TARGET_V850E2_ALL? 2 : 1);
 }
+
+/* Implement TARGET_LEGITIMATE_CONSTANT_P.  */
+
+static bool
+v850_legitimate_constant_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
+{
+  return (GET_CODE (x) == CONST_DOUBLE
+	  || !(GET_CODE (x) == CONST
+	       && GET_CODE (XEXP (x, 0)) == PLUS
+	       && GET_CODE (XEXP (XEXP (x, 0), 0)) == SYMBOL_REF
+	       && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT
+	       && !CONST_OK_FOR_K (INTVAL (XEXP (XEXP (x, 0), 1)))));
+}
 
 /* V850 specific attributes.  */
 
@@ -3233,6 +3246,9 @@ static const struct attribute_spec v850_attribute_table[] =
 
 #undef  TARGET_OPTION_OPTIMIZATION_TABLE
 #define TARGET_OPTION_OPTIMIZATION_TABLE v850_option_optimization_table
+
+#undef  TARGET_LEGITIMATE_CONSTANT_P
+#define TARGET_LEGITIMATE_CONSTANT_P v850_legitimate_constant_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

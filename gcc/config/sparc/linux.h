@@ -22,7 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #define TARGET_OS_CPP_BUILTINS()		\
   do						\
     {						\
-      LINUX_TARGET_OS_CPP_BUILTINS();		\
+      GNU_USER_TARGET_OS_CPP_BUILTINS();	\
       if (TARGET_LONG_DOUBLE_128)       	\
 	builtin_define ("__LONG_DOUBLE_128__");	\
     }						\
@@ -37,7 +37,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef  ENDFILE_SPEC
 #define ENDFILE_SPEC \
   "%{shared|pie:crtendS.o%s;:crtend.o%s} crtn.o%s\
-   %{ffast-math|funsafe-math-optimizations:crtfastmath.o%s}"
+   %{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s}"
 
 /* This is for -profile to use -lc_p instead of -lc.  */
 #undef	CC1_SPEC
@@ -76,7 +76,7 @@ along with GCC; see the file COPYING3.  If not see
   %{!shared: \
     %{!static: \
       %{rdynamic:-export-dynamic} \
-      -dynamic-linker " LINUX_DYNAMIC_LINKER "} \
+      -dynamic-linker " GNU_USER_DYNAMIC_LINKER "} \
       %{static:-static}}"
 
 /* It's safe to pass -s always, even if -g is not used.  */

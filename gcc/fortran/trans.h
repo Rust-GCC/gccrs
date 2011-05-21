@@ -319,9 +319,6 @@ void gfc_conv_string_parameter (gfc_se * se);
 /* Compare two strings.  */
 tree gfc_build_compare_string (tree, tree, tree, tree, int, enum tree_code);
 
-/* Add an item to the end of TREE_LIST.  */
-tree gfc_chainon_list (tree, tree);
-
 /* When using the gfc_conv_* make sure you understand what they do, i.e.
    when a POST chain may be created, and what the returned expression may be
    used for.  Note that character strings have special handling.  This
@@ -452,9 +449,6 @@ bool gfc_get_module_backend_decl (gfc_symbol *);
 /* Return the variable decl for a symbol.  */
 tree gfc_get_symbol_decl (gfc_symbol *);
 
-/* Initialize coarray global variables.  */
-void gfc_init_coarray_decl (void);
-
 /* Build a static initializer.  */
 tree gfc_conv_initializer (gfc_expr *, gfc_typespec *, tree, bool, bool, bool);
 
@@ -511,6 +505,9 @@ void gfc_generate_constructors (void);
 
 /* Get the string length of an array constructor.  */
 bool get_array_ctor_strlen (stmtblock_t *, gfc_constructor_base, tree *);
+
+/* Mark a condition as unlikely.  */
+tree gfc_unlikely (tree);
 
 /* Generate a runtime error call.  */
 tree gfc_trans_runtime_error (bool, locus*, const char*, ...);

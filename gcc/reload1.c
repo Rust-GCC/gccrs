@@ -409,7 +409,7 @@ static void emit_reload_insns (struct insn_chain *);
 static void delete_output_reload (rtx, int, int, rtx);
 static void delete_address_reloads (rtx, rtx);
 static void delete_address_reloads_1 (rtx, rtx, rtx);
-static rtx inc_for_reload (rtx, rtx, rtx, int);
+static void inc_for_reload (rtx, rtx, rtx, int);
 #ifdef AUTO_INC_DEC
 static void add_auto_inc_notes (rtx, rtx);
 #endif
@@ -4161,6 +4161,9 @@ init_eliminable_invariants (rtx first, bool do_subregs)
 		}
 	      else if (function_invariant_p (x))
 		{
+		  enum machine_mode mode;
+
+		  mode = GET_MODE (SET_DEST (set));
 		  if (GET_CODE (x) == PLUS)
 		    {
 		      /* This is PLUS of frame pointer and a constant,
@@ -4173,12 +4176,11 @@ init_eliminable_invariants (rtx first, bool do_subregs)
 		      reg_equiv_invariant (i) = x;
 		      num_eliminable_invariants++;
 		    }
-		  else if (LEGITIMATE_CONSTANT_P (x))
+		  else if (targetm.legitimate_constant_p (mode, x))
 		    reg_equiv_constant (i) = x;
 		  else
 		    {
-		      reg_equiv_memory_loc (i)
-			= force_const_mem (GET_MODE (SET_DEST (set)), x);
+		      reg_equiv_memory_loc (i) = force_const_mem (mode, x);
 		      if (! reg_equiv_memory_loc (i))
 			reg_equiv_init (i) = NULL_RTX;
 		    }
@@ -4213,10 +4215,8 @@ free_reg_equiv (void)
   int i;
 
 
-  if (offsets_known_at)
-    free (offsets_known_at);
-  if (offsets_at)
-    free (offsets_at);
+  free (offsets_known_at);
+  free (offsets_at);
   offsets_at = 0;
   offsets_known_at = 0;
 
@@ -4958,60 +4958,54 @@ static void
 mark_reload_reg_in_use (unsigned int regno, int opnum, enum reload_type type,
 			enum machine_mode mode)
 {
-  unsigned int nregs = hard_regno_nregs[regno][mode];
-  unsigned int i;
-
-  for (i = regno; i < nregs + regno; i++)
+  switch (type)
     {
-      switch (type)
-	{
-	case RELOAD_OTHER:
-	  SET_HARD_REG_BIT (reload_reg_used, i);
-	  break;
+    case RELOAD_OTHER:
+      add_to_hard_reg_set (&reload_reg_used, mode, regno);
+      break;
 
-	case RELOAD_FOR_INPUT_ADDRESS:
-	  SET_HARD_REG_BIT (reload_reg_used_in_input_addr[opnum], i);
-	  break;
+    case RELOAD_FOR_INPUT_ADDRESS:
+      add_to_hard_reg_set (&reload_reg_used_in_input_addr[opnum], mode, regno);
+      break;
 
-	case RELOAD_FOR_INPADDR_ADDRESS:
-	  SET_HARD_REG_BIT (reload_reg_used_in_inpaddr_addr[opnum], i);
-	  break;
+    case RELOAD_FOR_INPADDR_ADDRESS:
+      add_to_hard_reg_set (&reload_reg_used_in_inpaddr_addr[opnum], mode, regno);
+      break;
 
-	case RELOAD_FOR_OUTPUT_ADDRESS:
-	  SET_HARD_REG_BIT (reload_reg_used_in_output_addr[opnum], i);
-	  break;
+    case RELOAD_FOR_OUTPUT_ADDRESS:
+      add_to_hard_reg_set (&reload_reg_used_in_output_addr[opnum], mode, regno);
+      break;
 
-	case RELOAD_FOR_OUTADDR_ADDRESS:
-	  SET_HARD_REG_BIT (reload_reg_used_in_outaddr_addr[opnum], i);
-	  break;
+    case RELOAD_FOR_OUTADDR_ADDRESS:
+      add_to_hard_reg_set (&reload_reg_used_in_outaddr_addr[opnum], mode, regno);
+      break;
 
-	case RELOAD_FOR_OPERAND_ADDRESS:
-	  SET_HARD_REG_BIT (reload_reg_used_in_op_addr, i);
-	  break;
+    case RELOAD_FOR_OPERAND_ADDRESS:
+      add_to_hard_reg_set (&reload_reg_used_in_op_addr, mode, regno);
+      break;
 
-	case RELOAD_FOR_OPADDR_ADDR:
-	  SET_HARD_REG_BIT (reload_reg_used_in_op_addr_reload, i);
-	  break;
+    case RELOAD_FOR_OPADDR_ADDR:
+      add_to_hard_reg_set (&reload_reg_used_in_op_addr_reload, mode, regno);
+      break;
 
-	case RELOAD_FOR_OTHER_ADDRESS:
-	  SET_HARD_REG_BIT (reload_reg_used_in_other_addr, i);
-	  break;
+    case RELOAD_FOR_OTHER_ADDRESS:
+      add_to_hard_reg_set (&reload_reg_used_in_other_addr, mode, regno);
+      break;
 
-	case RELOAD_FOR_INPUT:
-	  SET_HARD_REG_BIT (reload_reg_used_in_input[opnum], i);
-	  break;
+    case RELOAD_FOR_INPUT:
+      add_to_hard_reg_set (&reload_reg_used_in_input[opnum], mode, regno);
+      break;
 
-	case RELOAD_FOR_OUTPUT:
-	  SET_HARD_REG_BIT (reload_reg_used_in_output[opnum], i);
-	  break;
+    case RELOAD_FOR_OUTPUT:
+      add_to_hard_reg_set (&reload_reg_used_in_output[opnum], mode, regno);
+      break;
 
-	case RELOAD_FOR_INSN:
-	  SET_HARD_REG_BIT (reload_reg_used_in_insn, i);
-	  break;
-	}
-
-      SET_HARD_REG_BIT (reload_reg_used_at_all, i);
+    case RELOAD_FOR_INSN:
+      add_to_hard_reg_set (&reload_reg_used_in_insn,  mode, regno);
+      break;
     }
+
+  add_to_hard_reg_set (&reload_reg_used_at_all, mode, regno);
 }
 
 /* Similarly, but show REGNO is no longer in use for a reload.  */
@@ -6946,11 +6940,7 @@ choose_reload_regs (struct insn_chain *chain)
 			       nregno + nr);
 
 	  if (i >= 0)
-	    {
-	      nr = hard_regno_nregs[i][rld[r].mode];
-	      while (--nr >= 0)
-		SET_HARD_REG_BIT (reg_is_output_reload, i + nr);
-	    }
+	    add_to_hard_reg_set (&reg_is_output_reload, rld[r].mode, i);
 
 	  gcc_assert (rld[r].when_needed == RELOAD_OTHER
 		      || rld[r].when_needed == RELOAD_FOR_OUTPUT
@@ -7149,22 +7139,12 @@ emit_input_reload_insns (struct insn_chain *chain, struct reload *rl,
 
       old = XEXP (rl->in_reg, 0);
 
-      if (optimize && REG_P (oldequiv)
-	  && REGNO (oldequiv) < FIRST_PSEUDO_REGISTER
-	  && spill_reg_store[REGNO (oldequiv)]
-	  && REG_P (old)
-	  && (dead_or_set_p (insn,
-			     spill_reg_stored_to[REGNO (oldequiv)])
-	      || rtx_equal_p (spill_reg_stored_to[REGNO (oldequiv)],
-			      old)))
-	delete_output_reload (insn, j, REGNO (oldequiv), reloadreg);
-
       /* Prevent normal processing of this reload.  */
       special = 1;
-      /* Output a special code sequence for this case.  */
-      new_spill_reg_store[REGNO (reloadreg)]
-	= inc_for_reload (reloadreg, oldequiv, rl->out,
-			  rl->inc);
+      /* Output a special code sequence for this case, and forget about
+	 spill reg information.  */
+      new_spill_reg_store[REGNO (reloadreg)] = NULL;
+      inc_for_reload (reloadreg, oldequiv, rl->out, rl->inc);
     }
 
   /* If we are reloading a pseudo-register that was set by the previous
@@ -8975,11 +8955,9 @@ delete_address_reloads_1 (rtx dead_insn, rtx x, rtx current_insn)
    IN is either identical to VALUE, or some cheaper place to reload from.
 
    INC_AMOUNT is the number to increment or decrement by (always positive).
-   This cannot be deduced from VALUE.
+   This cannot be deduced from VALUE.  */
 
-   Return the instruction that stores into RELOADREG.  */
-
-static rtx
+static void
 inc_for_reload (rtx reloadreg, rtx in, rtx value, int inc_amount)
 {
   /* REG or MEM to be copied and incremented.  */
@@ -8991,7 +8969,6 @@ inc_for_reload (rtx reloadreg, rtx in, rtx value, int inc_amount)
   rtx inc;
   rtx add_insn;
   int code;
-  rtx store;
   rtx real_in = in == value ? incloc : in;
 
   /* No hard register is equivalent to this register after
@@ -9039,9 +9016,8 @@ inc_for_reload (rtx reloadreg, rtx in, rtx value, int inc_amount)
 		 be used as an address.  */
 
 	      if (! post)
-		add_insn = emit_insn (gen_move_insn (reloadreg, incloc));
-
-	      return add_insn;
+		emit_insn (gen_move_insn (reloadreg, incloc));
+	      return;
 	    }
 	}
       delete_insns_since (last);
@@ -9057,7 +9033,7 @@ inc_for_reload (rtx reloadreg, rtx in, rtx value, int inc_amount)
       if (in != reloadreg)
 	emit_insn (gen_move_insn (reloadreg, real_in));
       emit_insn (gen_add2_insn (reloadreg, inc));
-      store = emit_insn (gen_move_insn (incloc, reloadreg));
+      emit_insn (gen_move_insn (incloc, reloadreg));
     }
   else
     {
@@ -9071,14 +9047,12 @@ inc_for_reload (rtx reloadreg, rtx in, rtx value, int inc_amount)
 	 the original value.  */
 
       emit_insn (gen_add2_insn (reloadreg, inc));
-      store = emit_insn (gen_move_insn (incloc, reloadreg));
+      emit_insn (gen_move_insn (incloc, reloadreg));
       if (CONST_INT_P (inc))
 	emit_insn (gen_add2_insn (reloadreg, GEN_INT (-INTVAL (inc))));
       else
 	emit_insn (gen_sub2_insn (reloadreg, inc));
     }
-
-  return store;
 }
 
 #ifdef AUTO_INC_DEC

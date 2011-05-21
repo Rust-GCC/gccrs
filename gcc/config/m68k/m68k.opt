@@ -19,6 +19,13 @@
 ; along with GCC; see the file COPYING3.  If not see
 ; <http://www.gnu.org/licenses/>.
 
+HeaderInclude
+config/m68k/m68k-opts.h
+
+; Specify the identification number of the library being built.
+Variable
+const char *m68k_library_id_string = "_current_shared_library_a5_offset_"
+
 m5200
 Target RejectNegative Alias(mcpu=, 5206)
 Generate code for a 520X
@@ -40,15 +47,15 @@ Target RejectNegative Alias(mcpu=, 5407)
 Generate code for a 5407
 
 m68000
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68000)
 Generate code for a 68000
 
 m68010
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68010)
 Generate code for a 68010
 
 m68020
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68020)
 Generate code for a 68020
 
 m68020-40
@@ -60,23 +67,23 @@ Target RejectNegative
 Generate code for a 68060, without any new instructions
 
 m68030
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68030)
 Generate code for a 68030
 
 m68040
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68040)
 Generate code for a 68040
 
 m68060
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68060)
 Generate code for a 68060
 
 m68302
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68302)
 Generate code for a 68302
 
 m68332
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68332)
 Generate code for a 68332
 
 ; Has no effect on gcc
@@ -93,7 +100,7 @@ Target Report Mask(ALIGN_INT)
 Align variables on a 32-bit boundary
 
 march=
-Target RejectNegative Joined
+Target RejectNegative Joined Enum(m68k_isa) Var(m68k_arch_option)
 Specify the name of the target architecture
 
 mbitfield
@@ -101,11 +108,11 @@ Target Report Mask(BITFIELD)
 Use the bit-field instructions
 
 mc68000
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68000)
 Generate code for a 68000
 
 mc68020
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68020)
 Generate code for a 68020
 
 mcfv4e
@@ -113,11 +120,11 @@ Target RejectNegative Alias(mcpu=, 547x)
 Generate code for a ColdFire v4e
 
 mcpu=
-Target RejectNegative Joined
+Target RejectNegative Joined Enum(target_device) Var(m68k_cpu_option) Init(unk_device)
 Specify the target CPU
 
 mcpu32
-Target RejectNegative
+Target RejectNegative Alias(mcpu=, 68332)
 Generate code for a cpu32
 
 mdiv
@@ -177,7 +184,7 @@ Target Report Mask(STRICT_ALIGNMENT)
 Do not use unaligned memory references
 
 mtune=
-Target RejectNegative Joined
+Target RejectNegative Joined Enum(uarch_type) Var(m68k_tune_option) Init(unk_arch)
 Tune for the specified target CPU or architecture
 
 mxgot

@@ -79,18 +79,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #include "config/vxworks-dummy.h"
 
-/* Algorithm to expand string function with.  */
-enum stringop_alg
-{
-   no_stringop,
-   libcall,
-   rep_prefix_1_byte,
-   rep_prefix_4_byte,
-   rep_prefix_8_byte,
-   loop_1_byte,
-   loop,
-   unrolled_loop
-};
+#include "config/i386/i386-opts.h"
 
 #define MAX_STRINGOP_ALGS 4
 
@@ -322,6 +311,7 @@ enum ix86_tune_indices {
   X86_TUNE_FUSE_CMP_AND_BRANCH,
   X86_TUNE_OPT_AGU,
   X86_TUNE_VECTORIZE_DOUBLE,
+  X86_TUNE_SOFTWARE_PREFETCHING_BENEFICIAL,
 
   X86_TUNE_LAST
 };
@@ -418,6 +408,8 @@ extern unsigned char ix86_tune_features[X86_TUNE_LAST];
 #define TARGET_OPT_AGU ix86_tune_features[X86_TUNE_OPT_AGU]
 #define TARGET_VECTORIZE_DOUBLE \
 	ix86_tune_features[X86_TUNE_VECTORIZE_DOUBLE]
+#define TARGET_SOFTWARE_PREFETCHING_BENEFICIAL \
+	ix86_tune_features[X86_TUNE_SOFTWARE_PREFETCHING_BENEFICIAL]
 
 /* Feature tests against the various architecture variations.  */
 enum ix86_arch_indices {
@@ -502,16 +494,6 @@ extern tree x86_mfence;
 
 /* This is re-defined by cygming.h.  */
 #define TARGET_SEH 0
-
-/* Available call abi.  */
-enum calling_abi
-{
-  SYSV_ABI = 0,
-  MS_ABI = 1
-};
-
-/* The abi used by target.  */
-extern enum calling_abi ix86_abi;
 
 /* The default abi used by target.  */
 #define DEFAULT_ABI SYSV_ABI
@@ -1328,22 +1310,6 @@ enum reg_class
 #define SSE_FLOAT_MODE_P(MODE) \
   ((TARGET_SSE && (MODE) == SFmode) || (TARGET_SSE2 && (MODE) == DFmode))
 
-#define SSE_VEC_FLOAT_MODE_P(MODE) \
-  ((TARGET_SSE && (MODE) == V4SFmode) || (TARGET_SSE2 && (MODE) == V2DFmode))
-
-#define AVX_FLOAT_MODE_P(MODE) \
-  (TARGET_AVX && ((MODE) == SFmode || (MODE) == DFmode))
-
-#define AVX128_VEC_FLOAT_MODE_P(MODE) \
-  (TARGET_AVX && ((MODE) == V4SFmode || (MODE) == V2DFmode))
-
-#define AVX256_VEC_FLOAT_MODE_P(MODE) \
-  (TARGET_AVX && ((MODE) == V8SFmode || (MODE) == V4DFmode))
-
-#define AVX_VEC_FLOAT_MODE_P(MODE) \
-  (TARGET_AVX && ((MODE) == V4SFmode || (MODE) == V2DFmode \
-		  || (MODE) == V8SFmode || (MODE) == V4DFmode))
-
 #define FMA4_VEC_FLOAT_MODE_P(MODE) \
   (TARGET_FMA4 && ((MODE) == V4SFmode || (MODE) == V2DFmode \
 		  || (MODE) == V8SFmode || (MODE) == V4DFmode))
@@ -1659,11 +1625,6 @@ typedef struct ix86_args {
 #define MAX_REGS_PER_ADDRESS 2
 
 #define CONSTANT_ADDRESS_P(X)  constant_address_p (X)
-
-/* Nonzero if the constant value X is a legitimate general operand.
-   It is given that X satisfies CONSTANT_P or is a CONST_DOUBLE.  */
-
-#define LEGITIMATE_CONSTANT_P(X)  legitimate_constant_p (X)
 
 /* If defined, a C expression to determine the base term of address X.
    This macro is used in only one place: `find_base_term' in alias.c.
@@ -2068,50 +2029,13 @@ enum processor_type
 extern enum processor_type ix86_tune;
 extern enum processor_type ix86_arch;
 
-enum fpmath_unit
-{
-  FPMATH_387 = 1,
-  FPMATH_SSE = 2
-};
-
-extern enum fpmath_unit ix86_fpmath;
-
-enum tls_dialect
-{
-  TLS_DIALECT_GNU,
-  TLS_DIALECT_GNU2,
-  TLS_DIALECT_SUN
-};
-
-extern enum tls_dialect ix86_tls_dialect;
-
-enum cmodel {
-  CM_32,	/* The traditional 32-bit ABI.  */
-  CM_SMALL,	/* Assumes all code and data fits in the low 31 bits.  */
-  CM_KERNEL,	/* Assumes all code and data fits in the high 31 bits.  */
-  CM_MEDIUM,	/* Assumes code fits in the low 31 bits; data unlimited.  */
-  CM_LARGE,	/* No assumptions.  */
-  CM_SMALL_PIC,	/* Assumes code+data+got/plt fits in a 31 bit region.  */
-  CM_MEDIUM_PIC,/* Assumes code+got/plt fits in a 31 bit region.  */
-  CM_LARGE_PIC	/* No assumptions.  */
-};
-
-extern enum cmodel ix86_cmodel;
-
 /* Size of the RED_ZONE area.  */
 #define RED_ZONE_SIZE 128
 /* Reserved area of the red zone for temporaries.  */
 #define RED_ZONE_RESERVE 8
 
-enum asm_dialect {
-  ASM_ATT,
-  ASM_INTEL
-};
-
-extern enum asm_dialect ix86_asm_dialect;
 extern unsigned int ix86_preferred_stack_boundary;
 extern unsigned int ix86_incoming_stack_boundary;
-extern int ix86_branch_cost, ix86_section_threshold;
 
 /* Smallest class containing REGNO.  */
 extern enum reg_class const regclass_map[FIRST_PSEUDO_REGISTER];
@@ -2367,6 +2291,18 @@ extern void debug_dispatch_window (int);
 #define CLZ_DEFINED_VALUE_AT_ZERO(MODE, VALUE) \
 	((VALUE) = GET_MODE_BITSIZE (MODE), TARGET_BMI)
 
+
+/* Flags returned by ix86_get_callcvt ().  */
+#define IX86_CALLCVT_CDECL	0x1
+#define IX86_CALLCVT_STDCALL	0x2
+#define IX86_CALLCVT_FASTCALL	0x4
+#define IX86_CALLCVT_THISCALL	0x8
+#define IX86_CALLCVT_REGPARM	0x10
+#define IX86_CALLCVT_SSEREGPARM	0x20
+
+#define IX86_BASE_CALLCVT(FLAGS) \
+	((FLAGS) & (IX86_CALLCVT_CDECL | IX86_CALLCVT_STDCALL \
+		    | IX86_CALLCVT_FASTCALL | IX86_CALLCVT_THISCALL))
 
 /*
 Local variables:

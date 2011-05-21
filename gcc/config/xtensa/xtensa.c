@@ -164,6 +164,7 @@ static rtx xtensa_static_chain (const_tree, bool);
 static void xtensa_asm_trampoline_template (FILE *);
 static void xtensa_trampoline_init (rtx, tree, rtx);
 static bool xtensa_output_addr_const_extra (FILE *, rtx);
+static bool xtensa_cannot_force_const_mem (enum machine_mode, rtx);
 
 static reg_class_t xtensa_preferred_reload_class (rtx, reg_class_t);
 static reg_class_t xtensa_preferred_output_reload_class (rtx, reg_class_t);
@@ -172,6 +173,7 @@ static reg_class_t xtensa_secondary_reload (bool, rtx, reg_class_t,
 					    struct secondary_reload_info *);
 
 static bool constantpool_address_p (const_rtx addr);
+static bool xtensa_legitimate_constant_p (enum machine_mode, rtx);
 
 static const int reg_nonleaf_alloc_order[FIRST_PSEUDO_REGISTER] =
   REG_ALLOC_ORDER;
@@ -285,7 +287,7 @@ static const struct default_options xtensa_option_optimization_table[] =
 #define TARGET_HAVE_TLS (TARGET_THREADPTR && HAVE_AS_TLS)
 
 #undef TARGET_CANNOT_FORCE_CONST_MEM
-#define TARGET_CANNOT_FORCE_CONST_MEM xtensa_tls_referenced_p
+#define TARGET_CANNOT_FORCE_CONST_MEM xtensa_cannot_force_const_mem
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P	xtensa_legitimate_address_p
@@ -307,6 +309,9 @@ static const struct default_options xtensa_option_optimization_table[] =
 
 #undef TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA
 #define TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA xtensa_output_addr_const_extra
+
+#undef TARGET_LEGITIMATE_CONSTANT_P
+#define TARGET_LEGITIMATE_CONSTANT_P xtensa_legitimate_constant_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -1872,9 +1877,7 @@ xtensa_call_tls_desc (rtx sym, rtx *retp)
   emit_insn (gen_tls_arg (arg, sym));
   emit_move_insn (a10, arg);
   call_insn = emit_call_insn (gen_tls_call (a10, fn, sym, const1_rtx));
-  CALL_INSN_FUNCTION_USAGE (call_insn)
-    = gen_rtx_EXPR_LIST (VOIDmode, gen_rtx_USE (VOIDmode, a10),
-			 CALL_INSN_FUNCTION_USAGE (call_insn));
+  use_reg (&CALL_INSN_FUNCTION_USAGE (call_insn), a10);
   insns = get_insns ();
   end_sequence ();
 
@@ -2013,6 +2016,15 @@ xtensa_tls_referenced_p (rtx x)
     return false;
 
   return for_each_rtx (&x, xtensa_tls_referenced_p_1, NULL);
+}
+
+
+/* Implement TARGET_CANNOT_FORCE_CONST_MEM.  */
+
+static bool
+xtensa_cannot_force_const_mem (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
+{
+  return xtensa_tls_referenced_p (x);
 }
 
 
@@ -3085,7 +3097,7 @@ xtensa_init_builtins (void)
 
   if (TARGET_THREADPTR)
     {
-      ftype = build_function_type (ptr_type_node, void_list_node);
+      ftype = build_function_type_list (ptr_type_node, NULL_TREE);
       decl = add_builtin_function ("__builtin_thread_pointer", ftype,
 				   XTENSA_BUILTIN_THREAD_POINTER, BUILT_IN_MD,
 				   NULL, NULL_TREE);
@@ -3711,5 +3723,12 @@ xtensa_trampoline_init (rtx m_tramp, tree fndecl, rtx chain)
 		     LCT_NORMAL, VOIDmode, 1, XEXP (m_tramp, 0), Pmode);
 }
 
+/* Implement TARGET_LEGITIMATE_CONSTANT_P.  */
+
+static bool
+xtensa_legitimate_constant_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
+{
+  return !xtensa_tls_referenced_p (x);
+}
 
 #include "gt-xtensa.h"

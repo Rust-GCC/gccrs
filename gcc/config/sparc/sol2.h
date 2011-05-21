@@ -1,6 +1,6 @@
 /* Definitions of target machine for GCC, for SPARC running Solaris 2
    Copyright 1992, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2004, 2005,
-   2006, 2007, 2008, 2010 Free Software Foundation, Inc.
+   2006, 2007, 2008, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Ron Guilmette (rfg@netcom.com).
    Additional changes by David V. Henkel-Wallace (gumby@cygnus.com).
 
@@ -119,7 +119,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef  ENDFILE_SPEC
 #define ENDFILE_SPEC \
-  "%{ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
+  "%{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
    crtend.o%s crtn.o%s"
 
 /* Select a format to encode pointers in exception handling data.  CODE
@@ -168,13 +168,13 @@ along with GCC; see the file COPYING3.  If not see
 #define REGISTER_TARGET_PRAGMAS() solaris_register_pragmas ()
 
 /* Output a simple call for .init/.fini.  */
-#define ASM_OUTPUT_CALL(FILE, FN)			        \
-  do								\
-    {								\
-      fprintf (FILE, "\tcall\t");				\
-      print_operand (FILE, XEXP (DECL_RTL (FN), 0), 0);	\
-      fprintf (FILE, "\n\tnop\n");				\
-    }								\
+#define ASM_OUTPUT_CALL(FILE, FN)				        \
+  do									\
+    {									\
+      fprintf (FILE, "\tcall\t");					\
+      targetm.asm_out.print_operand (FILE, XEXP (DECL_RTL (FN), 0), 0);	\
+      fprintf (FILE, "\n\tnop\n");					\
+    }									\
   while (0)
 
 /* This is how to output an assembler line that says to advance
@@ -188,9 +188,16 @@ along with GCC; see the file COPYING3.  If not see
 #undef TARGET_ASM_NAMED_SECTION
 #define TARGET_ASM_NAMED_SECTION sparc_solaris_elf_asm_named_section
 
-/* And SPARC non-standard pushsection syntax.  */
-#undef PUSHSECTION_FORMAT
-#define PUSHSECTION_FORMAT "\t.pushsection\t\"%s\"\n"
+/* Emit COMDAT group signature symbols for Sun as.  */
+#undef TARGET_ASM_CODE_END
+#define TARGET_ASM_CODE_END solaris_code_end
+
+/* Solaris/SPARC as requires doublequoted section names.  While gas
+   supports that, too, we prefer the standard variant.  */
+#ifndef USE_GAS
+#undef SECTION_NAME_FORMAT
+#define SECTION_NAME_FORMAT	"\"%s\""
+#endif
 
 /* Static stack checking is supported by means of probes.  */
 #define STACK_CHECK_STATIC_BUILTIN 1

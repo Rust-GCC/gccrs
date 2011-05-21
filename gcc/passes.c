@@ -73,6 +73,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "predict.h"
 #include "lto-streamer.h"
 #include "plugin.h"
+#include "ipa-utils.h"
 
 #if defined (DWARF2_UNWIND_INFO) || defined (DWARF2_DEBUGGING_INFO)
 #include "dwarf2out.h"
@@ -1124,7 +1125,7 @@ do_per_function_toporder (void (*callback) (void *data), void *data)
     {
       gcc_assert (!order);
       order = ggc_alloc_vec_cgraph_node_ptr (cgraph_n_nodes);
-      nnodes = cgraph_postorder (order);
+      nnodes = ipa_reverse_postorder (order);
       for (i = nnodes - 1; i >= 0; i--)
         order[i]->process = 1;
       for (i = nnodes - 1; i >= 0; i--)
@@ -1134,7 +1135,7 @@ do_per_function_toporder (void (*callback) (void *data), void *data)
 	  /* Allow possibly removed nodes to be garbage collected.  */
 	  order[i] = NULL;
 	  node->process = 0;
-	  if (node->analyzed)
+	  if (cgraph_function_with_gimple_body_p (node))
 	    {
 	      push_cfun (DECL_STRUCT_FUNCTION (node->decl));
 	      current_function_decl = node->decl;
@@ -1343,7 +1344,7 @@ pass_init_dump_file (struct opt_pass *pass)
       if (dump_file && current_function_decl)
 	{
 	  const char *dname, *aname;
-	  struct cgraph_node *node = cgraph_node (current_function_decl);
+	  struct cgraph_node *node = cgraph_get_node (current_function_decl);
 	  dname = lang_hooks.decl_printable_name (current_function_decl, 2);
 	  aname = (IDENTIFIER_POINTER
 		   (DECL_ASSEMBLER_NAME (current_function_decl)));
@@ -1475,7 +1476,7 @@ execute_all_ipa_transforms (void)
   struct cgraph_node *node;
   if (!cfun)
     return;
-  node = cgraph_node (current_function_decl);
+  node = cgraph_get_node (current_function_decl);
 
   if (node->ipa_transforms_to_apply)
     {
@@ -1580,10 +1581,9 @@ execute_one_pass (struct opt_pass *pass)
   if (pass->type == IPA_PASS)
     {
       struct cgraph_node *node;
-      for (node = cgraph_nodes; node; node = node->next)
-        if (node->analyzed)
-          VEC_safe_push (ipa_opt_pass, heap, node->ipa_transforms_to_apply,
-			 (struct ipa_opt_pass_d *)pass);
+      FOR_EACH_FUNCTION_WITH_GIMPLE_BODY (node)
+	VEC_safe_push (ipa_opt_pass, heap, node->ipa_transforms_to_apply,
+		       (struct ipa_opt_pass_d *)pass);
     }
 
   if (!current_function_decl)
@@ -1697,14 +1697,14 @@ ipa_write_summaries (void)
      since it causes the gimple file to be processed in the same order
      as the source code.  */
   order = XCNEWVEC (struct cgraph_node *, cgraph_n_nodes);
-  order_pos = cgraph_postorder (order);
+  order_pos = ipa_reverse_postorder (order);
   gcc_assert (order_pos == cgraph_n_nodes);
 
   for (i = order_pos - 1; i >= 0; i--)
     {
       struct cgraph_node *node = order[i];
 
-      if (node->analyzed)
+      if (cgraph_function_with_gimple_body_p (node))
 	{
 	  /* When streaming out references to statements as part of some IPA
 	     pass summary, the statements need to have uids assigned and the
@@ -1717,7 +1717,7 @@ ipa_write_summaries (void)
 	  pop_cfun ();
 	}
       if (node->analyzed)
-	cgraph_node_set_add (set, node);
+        cgraph_node_set_add (set, node);
     }
   vset = varpool_node_set_new ();
 
@@ -1728,8 +1728,8 @@ ipa_write_summaries (void)
   ipa_write_summaries_1 (set, vset);
 
   free (order);
-  ggc_free (set);
-  ggc_free (vset);
+  free_cgraph_node_set (set);
+  free_varpool_node_set (vset);
 }
 
 /* Same as execute_pass_list but assume that subpasses of IPA passes
@@ -2029,11 +2029,13 @@ bool
 function_called_by_processed_nodes_p (void)
 {
   struct cgraph_edge *e;
-  for (e = cgraph_node (current_function_decl)->callers; e; e = e->next_caller)
+  for (e = cgraph_get_node (current_function_decl)->callers;
+       e;
+       e = e->next_caller)
     {
       if (e->caller->decl == current_function_decl)
         continue;
-      if (!e->caller->analyzed)
+      if (!cgraph_function_with_gimple_body_p (e->caller))
         continue;
       if (TREE_ASM_WRITTEN (e->caller->decl))
         continue;

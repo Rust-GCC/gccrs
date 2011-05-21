@@ -56,7 +56,6 @@ extern void sparc_emit_fixunsdi (rtx [2], enum machine_mode);
 extern void emit_tfmode_binop (enum rtx_code, rtx *);
 extern void emit_tfmode_unop (enum rtx_code, rtx *);
 extern void emit_tfmode_cvt (enum rtx_code, rtx *);
-extern bool legitimate_constant_p (rtx);
 extern bool constant_address_p (rtx);
 extern bool legitimate_pic_operand_p (rtx);
 extern rtx sparc_legitimize_reload_address (rtx, enum machine_mode, int, int,
@@ -76,7 +75,6 @@ extern const char *output_v9branch (rtx, rtx, int, int, int, int, rtx);
 extern const char *output_probe_stack_range (rtx, rtx);
 extern bool emit_scc_insn (rtx []);
 extern void emit_conditional_branch_insn (rtx []);
-extern void print_operand (FILE *, rtx, int);
 extern int mems_ok_for_ldd_peep (rtx, rtx, rtx);
 extern int arith_double_4096_operand (rtx, enum machine_mode);
 extern int arith_4096_operand (rtx, enum machine_mode);

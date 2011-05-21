@@ -248,7 +248,8 @@ toolexeclibgogo_DATA = \
 	go/printer.gox \
 	go/scanner.gox \
 	go/token.gox \
-	go/typechecker.gox
+	go/typechecker.gox \
+	go/types.gox
 
 toolexeclibgohashdir = $(toolexeclibgodir)/hash
 
@@ -262,14 +263,19 @@ toolexeclibgohttpdir = $(toolexeclibgodir)/http
 
 toolexeclibgohttp_DATA = \
 	http/cgi.gox \
+	http/fcgi.gox \
 	http/httptest.gox \
-	http/pprof.gox
+	http/pprof.gox \
+	http/spdy.gox
 
 toolexeclibgoimagedir = $(toolexeclibgodir)/image
 
 toolexeclibgoimage_DATA = \
+	image/gif.gox \
 	image/jpeg.gox \
-	image/png.gox
+	image/png.gox \
+	image/tiff.gox \
+	image/ycbcr.gox
 
 toolexeclibgoindexdir = $(toolexeclibgodir)/index
 
@@ -303,6 +309,7 @@ endif
 
 toolexeclibgoos_DATA = \
 	$(os_inotify_gox) \
+	os/user.gox \
 	os/signal.gox
 
 toolexeclibgopathdir = $(toolexeclibgodir)/path
@@ -404,6 +411,7 @@ runtime_files = \
 	runtime/go-send-nb-big.c \
 	runtime/go-send-nb-small.c \
 	runtime/go-send-small.c \
+	runtime/go-setenv.c \
 	runtime/go-signal.c \
 	runtime/go-strcmp.c \
 	runtime/go-string-to-byte-array.c \
@@ -560,6 +568,7 @@ go_http_files = \
 	go/http/persist.go \
 	go/http/request.go \
 	go/http/response.go \
+	go/http/reverseproxy.go \
 	go/http/server.go \
 	go/http/status.go \
 	go/http/transfer.go \
@@ -656,8 +665,17 @@ go_net_newpollserver_file = go/net/newpollserver.go
 endif # !LIBGO_IS_LINUX
 endif # !LIBGO_IS_RTEMS
 
+if LIBGO_IS_LINUX
+go_net_cgo_file = go/net/cgo_linux.go
+go_net_sock_file = go/net/sock_linux.go
+else
+go_net_cgo_file = go/net/cgo_bsd.go
+go_net_sock_file = go/net/sock_bsd.go
+endif
+
 go_net_files = \
-	go/net/cgo_stub.go \
+	go/net/cgo_unix.go \
+	$(go_net_cgo_file) \
 	go/net/dial.go \
 	go/net/dnsclient.go \
 	go/net/dnsconfig.go \
@@ -676,6 +694,7 @@ go_net_files = \
 	go/net/pipe.go \
 	go/net/port.go \
 	go/net/sock.go \
+	$(go_net_sock_file) \
 	go/net/tcpsock.go \
 	go/net/udpsock.go \
 	go/net/unixsock.go
@@ -825,9 +844,13 @@ go_sync_files = \
 	go/sync/waitgroup.go
 
 if LIBGO_IS_SOLARIS
-go_syslog_file = go/syslog/syslog_solaris.go
+go_syslog_file = go/syslog/syslog_libc.go
+else
+if LIBGO_IS_IRIX
+go_syslog_file = go/syslog/syslog_libc.go
 else
 go_syslog_file = go/syslog/syslog_unix.go
+endif
 endif
 
 go_syslog_files = \
@@ -998,7 +1021,6 @@ go_crypto_subtle_files = \
 	go/crypto/subtle/constant_time.go
 go_crypto_tls_files = \
 	go/crypto/tls/alert.go \
-	go/crypto/tls/ca_set.go \
 	go/crypto/tls/cipher_suites.go \
 	go/crypto/tls/common.go \
 	go/crypto/tls/conn.go \
@@ -1011,6 +1033,8 @@ go_crypto_tls_files = \
 go_crypto_twofish_files = \
 	go/crypto/twofish/twofish.go
 go_crypto_x509_files = \
+	go/crypto/x509/cert_pool.go \
+	go/crypto/x509/verify.go \
 	go/crypto/x509/x509.go
 go_crypto_xtea_files = \
 	go/crypto/xtea/block.go \
@@ -1126,6 +1150,12 @@ go_go_typechecker_files = \
 	go/go/typechecker/type.go \
 	go/go/typechecker/typechecker.go \
 	go/go/typechecker/universe.go
+go_go_types_files = \
+	go/go/types/const.go \
+	go/go/types/exportdata.go \
+	go/go/types/gcimporter.go \
+	go/go/types/types.go \
+	go/go/types/universe.go
 
 go_hash_adler32_files = \
 	go/hash/adler32/adler32.go
@@ -1139,20 +1169,38 @@ go_hash_fnv_files = \
 go_http_cgi_files = \
 	go/http/cgi/child.go \
 	go/http/cgi/host.go
+go_http_fcgi_files = \
+	go/http/fcgi/child.go \
+	go/http/fcgi/fcgi.go
 go_http_httptest_files = \
 	go/http/httptest/recorder.go \
 	go/http/httptest/server.go
 go_http_pprof_files = \
 	go/http/pprof/pprof.go
+go_http_spdy_files = \
+	go/http/spdy/protocol.go
+
+go_image_gif_files = \
+	go/image/gif/reader.go
 
 go_image_jpeg_files = \
+	go/image/jpeg/fdct.go \
 	go/image/jpeg/huffman.go \
 	go/image/jpeg/idct.go \
-	go/image/jpeg/reader.go
+	go/image/jpeg/reader.go \
+	go/image/jpeg/writer.go
 
 go_image_png_files = \
 	go/image/png/reader.go \
 	go/image/png/writer.go
+
+go_image_tiff_files = \
+	go/image/tiff/buffer.go \
+	go/image/tiff/consts.go \
+	go/image/tiff/reader.go
+
+go_image_ycbcr_files = \
+	go/image/ycbcr/ycbcr.go
 
 go_index_suffixarray_files = \
 	go/index/suffixarray/qsufsort.go \
@@ -1163,6 +1211,7 @@ go_io_ioutil_files = \
 	go/io/ioutil/tempfile.go
 
 go_mime_multipart_files = \
+	go/mime/multipart/formdata.go \
 	go/mime/multipart/multipart.go
 
 go_net_dict_files = \
@@ -1177,6 +1226,10 @@ go_net_textproto_files = \
 
 go_os_inotify_files = \
 	go/os/inotify/inotify_linux.go
+
+go_os_user_files = \
+	go/os/user/user.go \
+	go/os/user/lookup_unix.go
 
 go_os_signal_files = \
 	go/os/signal/signal.go \
@@ -1300,7 +1353,11 @@ else
 if LIBGO_IS_SOLARIS
 syscall_socket_os_file = syscalls/socket_solaris.go
 else
+if LIBGO_IS_IRIX
+syscall_socket_os_file = syscalls/socket_irix.go
+else
 syscall_socket_os_file = syscalls/socket_bsd.go
+endif
 endif
 endif
 
@@ -1477,21 +1534,28 @@ libgo_go_objs = \
 	go/scanner.lo \
 	go/token.lo \
 	go/typechecker.lo \
+	go/types.lo \
 	hash/adler32.lo \
 	hash/crc32.lo \
 	hash/crc64.lo \
 	hash/fnv.lo \
 	http/cgi.lo \
+	http/fcgi.lo \
 	http/httptest.lo \
 	http/pprof.lo \
+	http/spdy.lo \
+	image/gif.lo \
 	image/jpeg.lo \
 	image/png.lo \
+	image/tiff.lo \
+	image/ycbcr.lo \
 	index/suffixarray.lo \
 	io/ioutil.lo \
 	mime/multipart.lo \
 	net/dict.lo \
 	net/textproto.lo \
 	$(os_lib_inotify_lo) \
+	os/user.lo \
 	os/signal.lo \
 	path/filepath.lo \
 	rpc/jsonrpc.lo \
@@ -1544,12 +1608,16 @@ GOTESTFLAGS =
 
 # Check a package.
 CHECK = \
-	GC="$(GOC) -L `${PWD_COMMAND}` -L `${PWD_COMMAND}`/.libs -Wl,-R,`${PWD_COMMAND}`/.libs"; \
+	GC="$(GOC) -L `${PWD_COMMAND}` -L `${PWD_COMMAND}`/.libs"; \
 	export GC; \
 	RUNTESTFLAGS="$(RUNTESTFLAGS)"; \
 	export RUNTESTFLAGS; \
 	MAKE="$(MAKE)"; \
 	export MAKE; \
+	libgccdir=`${GOC} -print-libgcc-file-name | sed -e 's|/[^/]*$$||'`; \
+	LD_LIBRARY_PATH="`${PWD_COMMAND}`/.libs:$${libgccdir}:${LD_LIBRARY_PATH}"; \
+	LD_LIBRARY_PATH=`echo $${LD_LIBRARY_PATH} | sed 's,::*,:,g;s,^:*,,;s,:*$$,,'`; \
+	export LD_LIBRARY_PATH; \
 	rm -f $@-testsum $@-testlog; \
 	prefix=`if test "$(@D)" = "regexp"; then echo regexp-test; else dirname $(@D); fi`; \
 	test "$${prefix}" != "." || prefix="$(@D)"; \
@@ -1699,11 +1767,12 @@ html/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: html/check
 
-http/http.lo: $(go_http_files) bufio.gox bytes.gox container/vector.gox \
-		crypto/rand.gox crypto/tls.gox encoding/base64.gox fmt.gox \
-		io.gox io/ioutil.gox log.gox mime.gox mime/multipart.gox \
-		net.gox net/textproto.gox os.gox path.gox path/filepath.gox \
-		sort.gox strconv.gox strings.gox sync.gox time.gox utf8.gox
+http/http.lo: $(go_http_files) bufio.gox bytes.gox compress/gzip.gox \
+		container/vector.gox crypto/rand.gox crypto/tls.gox \
+		encoding/base64.gox fmt.gox io.gox io/ioutil.gox log.gox \
+		mime.gox mime/multipart.gox net.gox net/textproto.gox os.gox \
+		path.gox path/filepath.gox sort.gox strconv.gox strings.gox \
+		sync.gox time.gox utf8.gox
 	$(BUILDPACKAGE)
 http/check: $(CHECK_DEPS)
 	@$(CHECK)
@@ -1743,7 +1812,7 @@ math/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: math/check
 
-mime/mime.lo: $(go_mime_files) bufio.gox bytes.gox os.gox strings.gox \
+mime/mime.lo: $(go_mime_files) bufio.gox bytes.gox fmt.gox os.gox strings.gox \
 		sync.gox unicode.gox
 	$(BUILDPACKAGE)
 mime/check: $(CHECK_DEPS)
@@ -1751,8 +1820,8 @@ mime/check: $(CHECK_DEPS)
 .PHONY: mime/check
 
 net/net.lo: $(go_net_files) bytes.gox fmt.gox io.gox os.gox rand.gox \
-		reflect.gox strconv.gox strings.gox sync.gox syscall.gox \
-		time.gox
+		reflect.gox sort.gox strconv.gox strings.gox sync.gox \
+		syscall.gox time.gox
 	$(BUILDPACKAGE)
 net/check: $(CHECK_DEPS)
 	@$(CHECK_ON_REQUEST)
@@ -1933,8 +2002,8 @@ xml/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: xml/check
 
-archive/tar.lo: $(go_archive_tar_files) bytes.gox io.gox os.gox strconv.gox \
-		strings.gox
+archive/tar.lo: $(go_archive_tar_files) bytes.gox io.gox io/ioutil.gox os.gox \
+		strconv.gox strings.gox
 	$(BUILDPACKAGE)
 archive/tar/check: $(CHECK_DEPS)
 	@$(MKDIR_P) archive/tar
@@ -2136,8 +2205,7 @@ crypto/ripemd160/check: $(CHECK_DEPS)
 .PHONY: crypto/ripemd160/check
 
 crypto/rsa.lo: $(go_crypto_rsa_files) big.gox crypto.gox crypto/sha1.gox \
-		crypto/subtle.gox encoding/hex.gox hash.gox io.gox os.gox \
-		sync.gox
+		crypto/subtle.gox encoding/hex.gox hash.gox io.gox os.gox
 	$(BUILDPACKAGE)
 crypto/rsa/check: $(CHECK_DEPS)
 	@$(MKDIR_P) crypto/rsa
@@ -2172,13 +2240,13 @@ crypto/subtle/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: crypto/subtle/check
 
-crypto/tls.lo: $(go_crypto_tls_files) big.gox bufio.gox bytes.gox \
-		container/list.gox crypto.gox crypto/aes.gox crypto/cipher.gox \
-		crypto/elliptic.gox crypto/hmac.gox crypto/md5.gox \
-		crypto/rc4.gox crypto/rand.gox crypto/rsa.gox crypto/sha1.gox \
-		crypto/subtle.gox crypto/rsa.gox crypto/sha1.gox \
-		crypto/x509.gox encoding/pem.gox fmt.gox hash.gox io.gox \
-		io/ioutil.gox net.gox os.gox strings.gox sync.gox time.gox
+crypto/tls.lo: $(go_crypto_tls_files) big.gox bytes.gox crypto.gox \
+		crypto/aes.gox crypto/cipher.gox crypto/elliptic.gox \
+		crypto/hmac.gox crypto/md5.gox crypto/rand.gox crypto/rc4.gox \
+		crypto/rsa.gox crypto/sha1.gox crypto/subtle.gox \
+		crypto/x509.gox encoding/pem.gox hash.gox io.gox \
+		io/ioutil.gox net.gox os.gox strconv.gox strings.gox sync.gox \
+		time.gox
 	$(BUILDPACKAGE)
 crypto/tls/check: $(CHECK_DEPS)
 	@$(MKDIR_P) crypto/tls
@@ -2192,9 +2260,10 @@ crypto/twofish/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: crypto/twofish/check
 
-crypto/x509.lo: $(go_crypto_x509_files) asn1.gox big.gox container/vector.gox \
-		crypto.gox crypto/rsa.gox crypto/sha1.gox hash.gox os.gox \
-		strings.gox time.gox
+crypto/x509.lo: $(go_crypto_x509_files) asn1.gox big.gox bytes.gox \
+		container/vector.gox crypto.gox crypto/rsa.gox \
+		crypto/sha1.gox encoding/pem.gox hash.gox os.gox strings.gox \
+		time.gox
 	$(BUILDPACKAGE)
 crypto/x509/check: $(CHECK_DEPS)
 	@$(MKDIR_P) crypto/x509
@@ -2208,9 +2277,8 @@ crypto/xtea/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: crypto/xtea/check
 
-crypto/openpgp/armor.lo: $(go_crypto_openpgp_armor_files) bytes.gox \
-		crypto/openpgp/error.gox encoding/base64.gox \
-		encoding/line.gox io.gox os.gox
+crypto/openpgp/armor.lo: $(go_crypto_openpgp_armor_files) bufio.gox bytes.gox \
+		crypto/openpgp/error.gox encoding/base64.gox io.gox os.gox
 	$(BUILDPACKAGE)
 crypto/openpgp/armor/check: $(CHECK_DEPS)
 	@$(MKDIR_P) crypto/openpgp/armor
@@ -2362,7 +2430,7 @@ exp/datafmt/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: exp/datafmt/check
 
-exp/draw.lo: $(go_exp_draw_files) image.gox os.gox
+exp/draw.lo: $(go_exp_draw_files) image.gox image/ycbcr.gox os.gox
 	$(BUILDPACKAGE)
 exp/draw/check: $(CHECK_DEPS)
 	@$(MKDIR_P) exp/draw
@@ -2436,6 +2504,15 @@ go/typechecker/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: go/typechecker/check
 
+go/types.lo: $(go_go_types_files) big.gox bufio.gox fmt.gox go/ast.gox \
+		go/token.gox io.gox os.gox path/filepath.gox runtime.gox \
+		scanner.gox strconv.gox strings.gox
+	$(BUILDPACKAGE)
+go/types/check: $(CHECK_DEPS)
+	@$(MKDIR_P) go/types
+	@$(CHECK)
+.PHONY: go/types/check
+
 hash/adler32.lo: $(go_hash_adler32_files) hash.gox os.gox
 	$(BUILDPACKAGE)
 hash/adler32/check: $(CHECK_DEPS)
@@ -2464,14 +2541,24 @@ hash/fnv/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: hash/fnv/check
 
-http/cgi.lo: $(go_http_cgi_files) bufio.gox bytes.gox encoding/line.gox \
-		exec.gox fmt.gox http.gox io.gox io/ioutil.gox log.gox \
-		os.gox path/filepath.gox regexp.gox strconv.gox strings.gox
+http/cgi.lo: $(go_http_cgi_files) bufio.gox bytes.gox crypto/tls.gox \
+		exec.gox fmt.gox http.gox net.gox io.gox io/ioutil.gox \
+		log.gox os.gox path/filepath.gox regexp.gox strconv.gox \
+		strings.gox
 	$(BUILDPACKAGE)
 http/cgi/check: $(CHECK_DEPS)
 	@$(MKDIR_P) http/cgi
 	@$(CHECK)
 .PHONY: http/cgi/check
+
+http/fcgi.lo: $(go_http_fcgi_files) bufio.gox bytes.gox encoding/binary.gox \
+		fmt.gox http.gox http/cgi.gox io.gox net.gox os.gox sync.gox \
+		time.gox
+	$(BUILDPACKAGE)
+http/fcgi/check: $(CHECK_DEPS)
+	@$(MKDIR_P) http/fcgi
+	@$(CHECK)
+.PHONY: http/fcgi/check
 
 http/httptest.lo: $(go_http_httptest_files) bytes.gox crypto/rand.gox \
 		crypto/tls.gox fmt.gox http.gox net.gox os.gox time.gox
@@ -2481,15 +2568,33 @@ http/httptest/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: http/httptest/check
 
-http/pprof.lo: $(go_http_pprof_files) bufio.gox fmt.gox http.gox os.gox \
-		runtime.gox runtime/pprof.gox strconv.gox strings.gox
+http/pprof.lo: $(go_http_pprof_files) bufio.gox bytes.gox fmt.gox http.gox \
+		os.gox runtime.gox runtime/pprof.gox strconv.gox strings.gox
 	$(BUILDPACKAGE)
 http/pprof/check: $(CHECK_DEPS)
 	@$(MKDIR_P) http/pprof
 	@$(CHECK)
 .PHONY: http/pprof/check
 
-image/jpeg.lo: $(go_image_jpeg_files) bufio.gox image.gox io.gox os.gox
+http/spdy.lo: $(go_http_spdy_files) bytes.gox compress/zlib.gox \
+		encoding/binary.gox http.gox io.gox os.gox strconv.gox \
+		strings.gox sync.gox
+	$(BUILDPACKAGE)
+http/spdy/check: $(CHECK_DEPS)
+	@$(MKDIR_P) http/spdy
+	@$(CHECK)
+.PHONY: http/spdy/check
+
+image/gif.lo: $(go_image_gif_files) bufio.gox compress/lzw.gox fmt.gox \
+		image.gox io.gox os.gox
+	$(BUILDPACKAGE)
+image/gif/check: $(CHECK_DEPS)
+	@$(MKDIR_P) image/gif
+	@$(CHECK)
+.PHONY: image/gif/check
+
+image/jpeg.lo: $(go_image_jpeg_files) bufio.gox image.gox image/ycbcr.gox \
+		io.gox os.gox
 	$(BUILDPACKAGE)
 image/jpeg/check: $(CHECK_DEPS)
 	@$(MKDIR_P) image/jpeg
@@ -2503,6 +2608,21 @@ image/png/check: $(CHECK_DEPS)
 	@$(MKDIR_P) image/png
 	@$(CHECK)
 .PHONY: image/png/check
+
+image/tiff.lo: $(go_image_tiff_files) compress/lzw.gox compress/zlib.gox \
+		encoding/binary.gox image.gox io.gox io/ioutil.gox os.gox
+	$(BUILDPACKAGE)
+image/tiff/check: $(CHECK_DEPS)
+	@$(MKDIR_P) image/tiff
+	@$(CHECK)
+.PHONY: image/tiff/check
+
+image/ycbcr.lo: $(go_image_ycbcr_files) image.gox
+	$(BUILDPACKAGE)
+image/ycbcr/check: $(CHECK_DEPS)
+	@$(MKDIR_P) image/ycbcr
+	@$(CHECK)
+.PHONY: image/ycbcr/check
 
 index/suffixarray.lo: $(go_index_suffixarray_files) bytes.gox regexp.gox \
 		sort.gox
@@ -2520,8 +2640,9 @@ io/ioutil/check: $(CHECK_DEPS)
 	@$(CHECK)
 .PHONY: io/ioutil/check
 
-mime/multipart.lo: $(go_mime_multipart_files) bufio.gox bytes.gox io.gox \
-		mime.gox net/textproto.gox os.gox regexp.gox strings.gox
+mime/multipart.lo: $(go_mime_multipart_files) bufio.gox bytes.gox fmt.gox \
+		io.gox io/ioutil.gox mime.gox net/textproto.gox os.gox \
+		regexp.gox
 	$(BUILDPACKAGE)
 mime/multipart/check: $(CHECK_DEPS)
 	@$(MKDIR_P) mime/multipart
@@ -2547,6 +2668,14 @@ os/inotify/check: $(CHECK_DEPS)
 	@$(MKDIR_P) os/inotify
 	@$(CHECK)
 .PHONY: os/inotify/check
+
+os/user.lo: $(go_os_user_files) fmt.gox os.gox runtime.gox strconv.gox \
+		strings.gox syscall.gox
+	$(BUILDPACKAGE)
+os/user/check: $(CHECK_DEPS)
+	@$(MKDIR_P) os/user
+	@$(CHECK)
+.PHONY: os/user/check
 
 os/signal.lo: $(go_os_signal_files) runtime.gox strconv.gox
 	$(BUILDPACKAGE)
@@ -2874,6 +3003,8 @@ go/token.gox: go/token.lo
 	$(BUILDGOX)
 go/typechecker.gox: go/typechecker.lo
 	$(BUILDGOX)
+go/types.gox: go/types.lo
+	$(BUILDGOX)
 
 hash/adler32.gox: hash/adler32.lo
 	$(BUILDGOX)
@@ -2886,14 +3017,24 @@ hash/fnv.gox: hash/fnv.lo
 
 http/cgi.gox: http/cgi.lo
 	$(BUILDGOX)
+http/fcgi.gox: http/fcgi.lo
+	$(BUILDGOX)
 http/httptest.gox: http/httptest.lo
 	$(BUILDGOX)
 http/pprof.gox: http/pprof.lo
 	$(BUILDGOX)
+http/spdy.gox: http/spdy.lo
+	$(BUILDGOX)
 
+image/gif.gox: image/gif.lo
+	$(BUILDGOX)
 image/jpeg.gox: image/jpeg.lo
 	$(BUILDGOX)
 image/png.gox: image/png.lo
+	$(BUILDGOX)
+image/tiff.gox: image/tiff.lo
+	$(BUILDGOX)
+image/ycbcr.gox: image/ycbcr.lo
 	$(BUILDGOX)
 
 index/suffixarray.gox: index/suffixarray.lo
@@ -2911,6 +3052,8 @@ net/textproto.gox: net/textproto.lo
 	$(BUILDGOX)
 
 os/inotify.gox: os/inotify.lo
+	$(BUILDGOX)
+os/user.gox: os/user.lo
 	$(BUILDGOX)
 os/signal.gox: os/signal.lo
 	$(BUILDGOX)
@@ -3042,22 +3185,30 @@ TEST_PACKAGES = \
 	exp/datafmt/check \
 	exp/draw/check \
 	exp/eval/check \
+	go/ast/check \
 	go/parser/check \
 	go/printer/check \
 	go/scanner/check \
 	go/token/check \
 	go/typechecker/check \
+	$(go_types_check_omitted_since_it_calls_6g) \
 	hash/adler32/check \
 	hash/crc32/check \
 	hash/crc64/check \
 	hash/fnv/check \
 	http/cgi/check \
+	http/fcgi/check \
+	http/spdy/check \
+	image/jpeg/check \
 	image/png/check \
+	image/tiff/check \
+	image/ycbcr/check \
 	index/suffixarray/check \
 	io/ioutil/check \
 	mime/multipart/check \
 	net/textproto/check \
 	$(os_inotify_check) \
+	os/user/check \
 	os/signal/check \
 	path/filepath/check \
 	rpc/jsonrpc/check \
@@ -3065,55 +3216,103 @@ TEST_PACKAGES = \
 	testing/quick/check \
 	testing/script/check
 
+check: check-tail
+check-recursive: check-head
+
+check-head:
+	@echo "Test Run By $${USER} on `date`" > libgo.head
+	@echo "Native configuration is $(host_triplet)" >> libgo.head
+	@echo >> libgo.head
+	@echo "		=== libgo tests ===" >> libgo.head
+	@echo >> libgo.head
+
+check-tail: check-recursive check-multi
+	@lib=`${PWD_COMMAND} | sed -e 's,^.*/\([^/][^/]*\)$$,\1,'`; \
+	for dir in . $(MULTIDIRS); do \
+	  mv ../$${dir}/$${lib}/libgo.sum ../$${dir}/$${lib}/libgo.sum.sep; \
+	  mv ../$${dir}/$${lib}/libgo.log ../$${dir}/$${lib}/libgo.log.sep; \
+	done; \
+	mv libgo.head libgo.sum; \
+	cp libgo.sum libgo.log; \
+	echo "Schedule of variations:" >> libgo.sum; \
+	for dir in . $(MULTIDIRS); do \
+	  multidir=../$${dir}/$${lib}; \
+	  multivar=`cat $${multidir}/libgo.var`; \
+	  echo "    $${multivar}" >> libgo.sum; \
+	done; \
+	echo >> libgo.sum; \
+	pass=0; fail=0; untested=0; \
+	for dir in . $(MULTIDIRS); do \
+	  multidir=../$${dir}/$${lib}; \
+	  multivar=`cat $${multidir}/libgo.var`; \
+	  echo "Running target $${multivar}" >> libgo.sum; \
+	  echo "Running $(srcdir)/libgo.exp ..." >> libgo.sum; \
+	  cat $${multidir}/libgo.sum.sep >> libgo.sum; \
+	  cat $${multidir}/libgo.log.sep >> libgo.log; \
+	  if test -n "${MULTIDIRS}"; then \
+	    echo "		=== libgo Summary for $${multivar} ===" >> libgo.sum; \
+	    echo >> libgo.sum; \
+	  fi; \
+	  p=`grep -c PASS $${multidir}/libgo.sum.sep`; \
+	  pass=`expr $$pass + $$p`; \
+	  if test "$$p" -ne "0" && test -n "${MULTIDIRS}"; then \
+	    echo "# of expected passes		$$p" >> libgo.sum; \
+	  fi; \
+	  p=`grep -c FAIL $${multidir}/libgo.sum.sep`; \
+	  fail=`expr $$fail + $$p`; \
+	  if test "$$p" -ne "0" && test -n "${MULTIDIRS}"; then \
+	    echo "# of unexpected failures	$$p" >> libgo.sum; \
+	  fi; \
+	  p=`grep -c UNTESTED $${multidir}/libgo.sum.sep`; \
+	  untested=`expr $$untested + $$p`; \
+	  if test "$$p" -ne "0" && test -n "${MULTIDIRS}"; then \
+	    echo "# of untested testcases		$$p" >> libgo.sum; \
+	  fi; \
+	done; \
+	echo >> libgo.sum; \
+	echo "		=== libgo Summary ===" >> libgo.sum; \
+	echo >> libgo.sum; \
+	if test "$$pass" -ne "0"; then \
+	  echo "# of expected passes		$$pass" >> libgo.sum; \
+	fi; \
+	if test "$$fail" -ne "0"; then \
+	  echo "# of unexpected failures	$$fail" >> libgo.sum; \
+	fi; \
+	if test "$$untested" -ne "0"; then \
+	  echo "# of untested testcases		$$untested" >> libgo.sum; \
+	fi; \
+	echo `echo $(GOC) | sed -e 's/ .*//'`  `$(GOC) -v 2>&1 | grep " version" | sed -n -e 's/.* \(version.*$$\)/\1/p'` >> libgo.sum; \
+	echo >> libgo.log; \
+	echo "runtest completed at `date`" >> libgo.log; \
+	if test "$$fail" -ne "0"; then \
+	  status=1; \
+	else \
+	  status=0; \
+	fi; \
+	exit $$status
+
 check-am:
 	@rm -f libgo.sum libgo.log libgo.tail
-	@echo "Test Run By $${USER} on `date`" > libgo.sum
-	@echo "Native configuration is $(host_triplet)" >> libgo.sum
-	@echo >> libgo.sum
-	@echo "		=== libgo tests ===" >> libgo.sum
-	@echo >> libgo.sum
-	@echo "Schedule of variations:" >> libgo.sum
-	@echo "    unix" >> libgo.sum
-	@echo >> libgo.sum
-	@echo "Running target unix" >> libgo.sum
-	@echo "Running $(srcdir)/libgo.exp ..." >> libgo.sum
-	@cp libgo.sum libgo.log
-	@echo > libgo.tail
-	@echo "		=== libgo summary ===" >> libgo.tail
-	@echo >> libgo.tail
+	@multivar="unix"; \
+	[ -z "$(MULTIFLAGS)" ] || multivar="$${multivar}/$(MULTIFLAGS)"; \
+	echo "$${multivar}" > libgo.var
 	@for f in $(TEST_PACKAGES); do \
 	   rm -f $$f-testsum $$f-testlog; \
 	 done
-	@$(MAKE) -k $(TEST_PACKAGES); \
-	status=$$?; \
-	for f in $(TEST_PACKAGES); do \
+	-@$(MAKE) -k $(TEST_PACKAGES)
+	@for f in $(TEST_PACKAGES); do \
 	  if test -f $$f-testsum; then \
 	    cat $$f-testsum >> libgo.sum; \
 	  fi; \
 	  if test -f $$f-testlog; then \
 	    cat $$f-testlog >> libgo.log; \
 	  fi; \
-	done; \
-	p=`grep -c PASS libgo.sum`; \
-	if test "$$p" != "0"; then \
-	  echo "# of expected passes		$$p" >> libgo.tail; \
-	fi; \
-	p=`grep -c FAIL libgo.sum`; \
-	if test "$$p" != "0"; then \
-	  echo "# of unexpected failures	$$p" >> libgo.tail; \
-	fi; \
-	p=`grep -c UNTESTED libgo.sum`; \
-	if test "$$p" != "0"; then \
-	  echo "# of untested testcases		$$p" >> libgo.tail; \
-	fi; \
-	cat libgo.tail >> libgo.sum; \
-	cat libgo.tail >> libgo.log; \
-	echo `echo $(GOC) | sed -e 's/ .*//'`  `$(GOC) -v 2>&1 | grep " version" | sed -n -e 's/.* \(version.*$$\)/\1/p'` >> libgo.sum; \
-	echo >> libgo.log; \
-	echo "runtest completed at `date`" >> libgo.log; \
-	exit $$status
+	done
 
-MOSTLYCLEAN_FILES = libgo.tail
+check-multi:
+	$(MULTIDO) $(AM_MAKEFLAGS) DO=check-am multi-do # $(MAKE)
+
+MOSTLYCLEAN_FILES = libgo.head libgo.sum.sep libgo.log.sep
 
 mostlyclean-local:
 	find . -name '*.lo' -print | xargs $(LIBTOOL) --mode=clean rm -f

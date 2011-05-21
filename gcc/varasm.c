@@ -121,10 +121,6 @@ static unsigned min_align (unsigned, unsigned);
 static void globalize_decl (tree);
 static bool decl_readonly_section_1 (enum section_category);
 #ifdef BSS_SECTION_ASM_OP
-#ifdef ASM_OUTPUT_BSS
-static void asm_output_bss (FILE *, tree, const char *,
-			    unsigned HOST_WIDE_INT, unsigned HOST_WIDE_INT);
-#endif
 #ifdef ASM_OUTPUT_ALIGNED_BSS
 static void asm_output_aligned_bss (FILE *, tree, const char *,
 				    unsigned HOST_WIDE_INT, int)
@@ -427,34 +423,6 @@ resolve_unique_section (tree decl, int reloc ATTRIBUTE_UNUSED,
 
 #ifdef BSS_SECTION_ASM_OP
 
-#ifdef ASM_OUTPUT_BSS
-
-/* Utility function for ASM_OUTPUT_BSS for targets to use if
-   they don't support alignments in .bss.
-   ??? It is believed that this function will work in most cases so such
-   support is localized here.  */
-
-static void ATTRIBUTE_UNUSED
-asm_output_bss (FILE *file, tree decl ATTRIBUTE_UNUSED,
-		const char *name,
-		unsigned HOST_WIDE_INT size ATTRIBUTE_UNUSED,
-		unsigned HOST_WIDE_INT rounded)
-{
-  gcc_assert (strcmp (XSTR (XEXP (DECL_RTL (decl), 0), 0), name) == 0);
-  targetm.asm_out.globalize_decl_name (file, decl);
-  switch_to_section (bss_section);
-#ifdef ASM_DECLARE_OBJECT_NAME
-  last_assemble_variable_decl = decl;
-  ASM_DECLARE_OBJECT_NAME (file, name, decl);
-#else
-  /* Standard thing is just output label for the object.  */
-  ASM_OUTPUT_LABEL (file, name);
-#endif /* ASM_DECLARE_OBJECT_NAME */
-  ASM_OUTPUT_SKIP (file, rounded ? rounded : 1);
-}
-
-#endif
-
 #ifdef ASM_OUTPUT_ALIGNED_BSS
 
 /* Utility function for targets to use in implementing
@@ -605,11 +573,14 @@ function_section_1 (tree decl, bool force_cold)
 
   if (decl)
     {
-      struct cgraph_node *node = cgraph_node (decl);
+      struct cgraph_node *node = cgraph_get_node (decl);
 
-      freq = node->frequency;
-      startup = node->only_called_at_startup;
-      exit = node->only_called_at_exit;
+      if (node)
+	{
+	  freq = node->frequency;
+	  startup = node->only_called_at_startup;
+	  exit = node->only_called_at_exit;
+	}
     }
   if (force_cold)
     freq = NODE_FREQUENCY_UNLIKELY_EXECUTED;
@@ -1541,6 +1512,33 @@ notice_global_symbol (tree decl)
     }
 }
 
+/* If not using flag_reorder_blocks_and_partition, decide early whether the
+   current function goes into the cold section, so that targets can use
+   current_function_section during RTL expansion.  DECL describes the
+   function.  */
+
+void
+decide_function_section (tree decl)
+{
+  first_function_block_is_cold = false;
+
+  if (flag_reorder_blocks_and_partition)
+    /* We will decide in assemble_start_function.  */
+    return;
+
+ if (DECL_SECTION_NAME (decl))
+    {
+      struct cgraph_node *node = cgraph_get_node (current_function_decl);
+      /* Calls to function_section rely on first_function_block_is_cold
+	 being accurate.  */
+      first_function_block_is_cold = (node
+				      && node->frequency
+				      == NODE_FREQUENCY_UNLIKELY_EXECUTED);
+    }
+
+  in_cold_section_p = first_function_block_is_cold;
+}
+
 /* Output assembler code for the constant pool of a function and associated
    with defining the name of the function.  DECL describes the function.
    NAME is the function's name.  For the constant pool, we use the current
@@ -1553,7 +1551,6 @@ assemble_start_function (tree decl, const char *fnname)
   char tmp_label[100];
   bool hot_label_written = false;
 
-  first_function_block_is_cold = false;
   if (flag_reorder_blocks_and_partition)
     {
       ASM_GENERATE_INTERNAL_LABEL (tmp_label, "LHOTB", const_labelno);
@@ -1588,6 +1585,8 @@ assemble_start_function (tree decl, const char *fnname)
 
   if (flag_reorder_blocks_and_partition)
     {
+      first_function_block_is_cold = false;
+
       switch_to_section (unlikely_text_section ());
       assemble_align (DECL_ALIGN (decl));
       ASM_OUTPUT_LABEL (asm_out_file, crtl->subsections.cold_section_label);
@@ -1604,17 +1603,9 @@ assemble_start_function (tree decl, const char *fnname)
 	  hot_label_written = true;
 	  first_function_block_is_cold = true;
 	}
-    }
-  else if (DECL_SECTION_NAME (decl))
-    {
-      /* Calls to function_section rely on first_function_block_is_cold
-	 being accurate.  */
-      first_function_block_is_cold
-	 = (cgraph_node (current_function_decl)->frequency
-	    == NODE_FREQUENCY_UNLIKELY_EXECUTED);
+      in_cold_section_p = first_function_block_is_cold;
     }
 
-  in_cold_section_p = first_function_block_is_cold;
 
   /* Switch to the correct text section for the start of the function.  */
 
@@ -1795,7 +1786,7 @@ emit_local (tree decl ATTRIBUTE_UNUSED,
 
 /* A noswitch_section_callback for bss_noswitch_section.  */
 
-#if defined ASM_OUTPUT_ALIGNED_BSS || defined ASM_OUTPUT_BSS
+#if defined ASM_OUTPUT_ALIGNED_BSS
 static bool
 emit_bss (tree decl ATTRIBUTE_UNUSED,
 	  const char *name ATTRIBUTE_UNUSED,
@@ -1805,9 +1796,6 @@ emit_bss (tree decl ATTRIBUTE_UNUSED,
 #if defined ASM_OUTPUT_ALIGNED_BSS
   ASM_OUTPUT_ALIGNED_BSS (asm_out_file, decl, name, size, DECL_ALIGN (decl));
   return true;
-#else
-  ASM_OUTPUT_BSS (asm_out_file, decl, name, size, rounded);
-  return false;
 #endif
 }
 #endif
@@ -2230,10 +2218,9 @@ mark_decl_referenced (tree decl)
 	 If we know a method will be emitted in other TU and no new
 	 functions can be marked reachable, just use the external
 	 definition.  */
-      struct cgraph_node *node = cgraph_node (decl);
+      struct cgraph_node *node = cgraph_get_create_node (decl);
       if (!DECL_EXTERNAL (decl)
-	  && (!node->local.vtable_method || !cgraph_global_info_ready
-	      || !node->local.finalized))
+	  && !node->local.finalized)
 	cgraph_mark_needed_node (node);
     }
   else if (TREE_CODE (decl) == VAR_DECL)
@@ -3508,7 +3495,7 @@ force_const_mem (enum machine_mode mode, rtx x)
   void **slot;
 
   /* If we're not allowed to drop X into the constant pool, don't.  */
-  if (targetm.cannot_force_const_mem (x))
+  if (targetm.cannot_force_const_mem (mode, x))
     return NULL_RTX;
 
   /* Record that this function has used a constant pool entry.  */
@@ -4743,9 +4730,13 @@ output_constructor_regular_field (oc_local_state *local)
   unsigned int align2;
 
   if (local->index != NULL_TREE)
-    fieldpos = (tree_low_cst (TYPE_SIZE_UNIT (TREE_TYPE (local->val)), 1)
-		* ((tree_low_cst (local->index, 0)
-		    - tree_low_cst (local->min_index, 0))));
+    {
+      double_int idx = double_int_sub (tree_to_double_int (local->index),
+				       tree_to_double_int (local->min_index));
+      gcc_assert (double_int_fits_in_shwi_p (idx));
+      fieldpos = (tree_low_cst (TYPE_SIZE_UNIT (TREE_TYPE (local->val)), 1)
+		  * idx.low);
+    }
   else if (local->field != NULL_TREE)
     fieldpos = int_byte_position (local->field);
   else
@@ -4792,13 +4783,8 @@ output_constructor_regular_field (oc_local_state *local)
 	     better be last.  */
 	  gcc_assert (!fieldsize || !DECL_CHAIN (local->field));
 	}
-      else if (DECL_SIZE_UNIT (local->field))
-	{
-	  /* ??? This can't be right.  If the decl size overflows
-	     a host integer we will silently emit no data.  */
-	  if (host_integerp (DECL_SIZE_UNIT (local->field), 1))
-	    fieldsize = tree_low_cst (DECL_SIZE_UNIT (local->field), 1);
-	}
+      else
+	fieldsize = tree_low_cst (DECL_SIZE_UNIT (local->field), 1);
     }
   else
     fieldsize = int_size_in_bytes (TREE_TYPE (local->type));
@@ -5838,7 +5824,7 @@ assemble_alias (tree decl, tree target)
 
   /* Allow aliases to aliases.  */
   if (TREE_CODE (decl) == FUNCTION_DECL)
-    cgraph_node (decl)->alias = true;
+    cgraph_get_create_node (decl)->alias = true;
   else
     varpool_node (decl)->alias = true;
 
@@ -6004,7 +5990,7 @@ init_varasm_once (void)
   comm_section = get_noswitch_section (SECTION_WRITE | SECTION_BSS
 				       | SECTION_COMMON, emit_common);
 
-#if defined ASM_OUTPUT_ALIGNED_BSS || defined ASM_OUTPUT_BSS
+#if defined ASM_OUTPUT_ALIGNED_BSS
   bss_noswitch_section = get_noswitch_section (SECTION_WRITE | SECTION_BSS,
 					       emit_bss);
 #endif

@@ -283,8 +283,9 @@ gcov_exit (void)
 	      }
         }
       /* Update complete filename with stripped original. */
-      if (!IS_DIR_SEPARATOR (*fname) && !HAS_DRIVE_SPEC(fname))
-	{
+      if (prefix_length != 0 && !IS_DIR_SEPARATOR (*fname))
+        {
+          /* If prefix is given, add directory separator.  */
 	  strcpy (gi_filename_up, "/");
 	  strcpy (gi_filename_up + 1, fname);
 	}
@@ -372,9 +373,10 @@ gcov_exit (void)
 
 	      /* Check function.  */
 	      if (tag != GCOV_TAG_FUNCTION
-		  || length != GCOV_TAG_FUNCTION_LENGTH
+	          || length != GCOV_TAG_FUNCTION_LENGTH
 		  || gcov_read_unsigned () != fi_ptr->ident
-		  || gcov_read_unsigned () != fi_ptr->checksum)
+		  || gcov_read_unsigned () != fi_ptr->lineno_checksum
+		  || gcov_read_unsigned () != fi_ptr->cfg_checksum)
 		{
 		read_mismatch:;
 		  fprintf (stderr, "profiling:%s:Merge mismatch for %s\n",
@@ -517,7 +519,8 @@ gcov_exit (void)
 	  /* Announce function.  */
 	  gcov_write_tag_length (GCOV_TAG_FUNCTION, GCOV_TAG_FUNCTION_LENGTH);
 	  gcov_write_unsigned (fi_ptr->ident);
-	  gcov_write_unsigned (fi_ptr->checksum);
+	  gcov_write_unsigned (fi_ptr->lineno_checksum);
+	  gcov_write_unsigned (fi_ptr->cfg_checksum);
 
 	  c_ix = 0;
 	  for (t_ix = 0; t_ix < GCOV_COUNTERS; t_ix++)

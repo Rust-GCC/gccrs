@@ -124,7 +124,7 @@ default_promote_function_mode (const_tree type ATTRIBUTE_UNUSED,
 			       const_tree funtype ATTRIBUTE_UNUSED,
 			       int for_return ATTRIBUTE_UNUSED)
 {
-  if (for_return == 2)
+  if (type != NULL_TREE && for_return == 2)
     return promote_mode (type, mode, punsignedp);
   return mode;
 }
@@ -1189,9 +1189,10 @@ default_target_can_inline_p (tree caller, tree callee)
   else if (!caller_opts)
     ret = false;
 
-  /* If both caller and callee have attributes, assume that if the pointer is
-     different, the the two functions have different target options since
-     build_target_option_node uses a hash table for the options.  */
+  /* If both caller and callee have attributes, assume that if the
+     pointer is different, the two functions have different target
+     options since build_target_option_node uses a hash table for the
+     options.  */
   else
     ret = (callee_opts == caller_opts);
 

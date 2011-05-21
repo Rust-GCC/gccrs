@@ -783,6 +783,12 @@ print_curr_reg_pressure (void)
 /* Pointer to the last instruction scheduled.  */
 static rtx last_scheduled_insn;
 
+/* Pointer to the last nondebug instruction scheduled within the
+   block, or the prev_head of the scheduling block.  Used by
+   rank_for_schedule, so that insns independent of the last scheduled
+   insn will be preferred over dependent instructions.  */
+static rtx last_nondebug_scheduled_insn;
+
 /* Pointer that iterates through the list of unscheduled insns if we
    have a dbg_cnt enabled.  It always points at an insn prior to the
    first unscheduled one.  */
@@ -852,7 +858,7 @@ dep_cost_1 (dep_t link, dw_t dw)
   /* A USE insn should never require the value used to be computed.
      This allows the computation of a function's result and parameter
      values to overlap the return and call.  We don't care about the
-     the dependence cost when only decreasing register pressure.  */
+     dependence cost when only decreasing register pressure.  */
   if (recog_memoized (used) < 0)
     {
       cost = 0;
@@ -1158,7 +1164,6 @@ rank_for_schedule (const void *x, const void *y)
 {
   rtx tmp = *(const rtx *) y;
   rtx tmp2 = *(const rtx *) x;
-  rtx last;
   int tmp_class, tmp2_class;
   int val, priority_val, info_val;
 
@@ -1239,24 +1244,13 @@ rank_for_schedule (const void *x, const void *y)
   if(flag_sched_rank_heuristic && info_val)
     return info_val;
 
-  if (flag_sched_last_insn_heuristic)
-    {
-      int i = VEC_length (rtx, scheduled_insns);
-      last = NULL_RTX;
-      while (i-- > 0)
-	{
-	  last = VEC_index (rtx, scheduled_insns, i);
-	  if (NONDEBUG_INSN_P (last))
-	    break;
-	}
-    }
-
   /* Compare insns based on their relation to the last scheduled
      non-debug insn.  */
-  if (flag_sched_last_insn_heuristic && last && NONDEBUG_INSN_P (last))
+  if (flag_sched_last_insn_heuristic && last_nondebug_scheduled_insn)
     {
       dep_t dep1;
       dep_t dep2;
+      rtx last = last_nondebug_scheduled_insn;
 
       /* Classify the instructions into three classes:
          1) Data dependent on last schedule insn.
@@ -2898,7 +2892,7 @@ prune_ready_list (state_t temp_state, bool first_cycle_insn_p)
 	    cost = 1;
 	  reason = "asm";
 	}
-      else if (flag_sched_pressure)
+      else if (sched_pressure_p)
 	cost = 0;
       else
 	{
@@ -2967,6 +2961,7 @@ schedule_block (basic_block *target_bb)
 
   /* We start inserting insns after PREV_HEAD.  */
   last_scheduled_insn = nonscheduled_insns_begin = prev_head;
+  last_nondebug_scheduled_insn = NULL_RTX;
 
   gcc_assert ((NOTE_P (last_scheduled_insn)
 	       || DEBUG_INSN_P (last_scheduled_insn))
@@ -3226,13 +3221,14 @@ schedule_block (basic_block *target_bb)
 	  /* Update counters, etc in the scheduler's front end.  */
 	  (*current_sched_info->begin_schedule_ready) (insn);
 	  VEC_safe_push (rtx, heap, scheduled_insns, insn);
-	  last_scheduled_insn = insn;
+	  gcc_assert (NONDEBUG_INSN_P (insn));
+	  last_nondebug_scheduled_insn = last_scheduled_insn = insn;
 
 	  if (recog_memoized (insn) >= 0)
 	    {
 	      memcpy (temp_state, curr_state, dfa_state_size);
 	      cost = state_transition (curr_state, insn);
-	      if (!flag_sched_pressure)
+	      if (!sched_pressure_p)
 		gcc_assert (cost < 0);
 	      if (memcmp (temp_state, curr_state, dfa_state_size) != 0)
 		cycle_issued_insns++;
@@ -5582,8 +5578,7 @@ haifa_finish_h_i_d (void)
 
   FOR_EACH_VEC_ELT (haifa_insn_data_def, h_i_d, i, data)
     {
-      if (data->reg_pressure != NULL)
-	free (data->reg_pressure);
+      free (data->reg_pressure);
       for (use = data->reg_use_list; use != NULL; use = next)
 	{
 	  next = use->next_insn_use;
@@ -5611,6 +5606,8 @@ haifa_init_insn (rtx insn)
       /* Extend dependency caches by one element.  */
       extend_dependency_caches (1, false);
     }
+  if (sched_pressure_p)
+    init_insn_reg_pressure_info (insn);
 }
 
 /* Init data for the new basic block BB which comes after AFTER.  */
@@ -5653,9 +5650,16 @@ sched_create_empty_bb_1 (basic_block after)
 rtx
 sched_emit_insn (rtx pat)
 {
-  rtx insn = emit_insn_after (pat, last_scheduled_insn);
-  last_scheduled_insn = insn;
+  rtx insn = emit_insn_before (pat, nonscheduled_insns_begin);
   haifa_init_insn (insn);
+
+  if (current_sched_info->add_remove_insn)
+    current_sched_info->add_remove_insn (insn, 0);
+
+  (*current_sched_info->begin_schedule_ready) (insn);
+  VEC_safe_push (rtx, heap, scheduled_insns, insn);
+
+  last_scheduled_insn = insn;
   return insn;
 }
 

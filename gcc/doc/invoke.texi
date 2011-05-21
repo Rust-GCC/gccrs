@@ -246,11 +246,11 @@ Objective-C and Objective-C++ Dialects}.
 -Wformat-security  -Wformat-y2k @gol
 -Wframe-larger-than=@var{len} -Wjump-misses-init -Wignored-qualifiers @gol
 -Wimplicit  -Wimplicit-function-declaration  -Wimplicit-int @gol
--Winit-self  -Winline @gol
+-Winit-self  -Winline -Wmaybe-uninitialized @gol
 -Wno-int-to-pointer-cast -Wno-invalid-offsetof @gol
 -Winvalid-pch -Wlarger-than=@var{len}  -Wunsafe-loop-optimizations @gol
 -Wlogical-op -Wlong-long @gol
--Wmain  -Wmissing-braces  -Wmissing-field-initializers @gol
+-Wmain -Wmaybe-uninitialized -Wmissing-braces  -Wmissing-field-initializers @gol
 -Wmissing-format-attribute  -Wmissing-include-dirs @gol
 -Wno-mudflap @gol
 -Wno-multichar  -Wnonnull  -Wno-overflow @gol
@@ -714,6 +714,7 @@ Objective-C and Objective-C++ Dialects}.
 -mdivide-traps  -mdivide-breaks @gol
 -mmemcpy  -mno-memcpy  -mlong-calls  -mno-long-calls @gol
 -mmad  -mno-mad  -mfused-madd  -mno-fused-madd  -nocpp @gol
+-mfix-24k -mno-fix-24k @gol
 -mfix-r4000  -mno-fix-r4000  -mfix-r4400  -mno-fix-r4400 @gol
 -mfix-r10000 -mno-fix-r10000  -mfix-vr4120  -mno-fix-vr4120 @gol
 -mfix-vr4130  -mno-fix-vr4130  -mfix-sb1  -mno-fix-sb1 @gol
@@ -2945,6 +2946,7 @@ Options} and @ref{Objective-C and Objective-C++ Dialect Options}.
 -Wcomment  @gol
 -Wformat   @gol
 -Wmain @r{(only for C/ObjC and unless} @option{-ffreestanding}@r{)}  @gol
+-Wmaybe-uninitialized @gol
 -Wmissing-braces  @gol
 -Wnonnull  @gol
 -Wparentheses  @gol
@@ -3053,7 +3055,7 @@ promoted to @code{double}.  CPUs with a 32-bit ``single-precision''
 floating-point unit implement @code{float} in hardware, but emulate
 @code{double} in software.  On such a machine, doing computations
 using @code{double} values is much more expensive because of the
-overhead required for software emulation.  
+overhead required for software emulation.
 
 It is easy to accidentally do computations with @code{double} because
 floating-point literals are implicitly of type @code{double}.  For
@@ -3062,7 +3064,7 @@ example, in:
 @group
 float area(float radius)
 @{
-   return 3.14159 * radius * radius;        
+   return 3.14159 * radius * radius;
 @}
 @end group
 @end smallexample
@@ -3307,11 +3309,11 @@ look like this:
 @end group
 @end smallexample
 
-Also warn for dangerous uses of the 
+Also warn for dangerous uses of the
 ?: with omitted middle operand GNU extension. When the condition
 in the ?: operator is a boolean expression the omitted value will
 be always 1. Often the user expects it to be a value computed
-inside the conditional expression instead. 
+inside the conditional expression instead.
 
 This warning is enabled by @option{-Wall}.
 
@@ -3529,8 +3531,15 @@ to compute a value that itself is never used, because such
 computations may be deleted by data flow analysis before the warnings
 are printed.
 
-These warnings are made optional because GCC is not smart
-enough to see all the reasons why the code might be correct
+@item -Wmaybe-uninitialized
+@opindex Wmaybe-uninitialized
+@opindex Wno-maybe-uninitialized
+For an automatic variable, if there exists a path from the function
+entry to a use of the variable that is initialized, but there exist
+some other paths the variable is not initialized, the compiler will
+emit a warning if it can not prove the uninitialized paths do not
+happen at runtime. These warnings are made optional because GCC is
+not smart enough to see all the reasons why the code might be correct
 despite appearing to have an error.  Here is one example of how
 this can happen:
 
@@ -3553,20 +3562,9 @@ this can happen:
 
 @noindent
 If the value of @code{y} is always 1, 2 or 3, then @code{x} is
-always initialized, but GCC doesn't know this.  Here is
-another common case:
-
-@smallexample
-@{
-  int save_y;
-  if (change_y) save_y = y, y = new_y;
-  @dots{}
-  if (change_y) y = save_y;
-@}
-@end smallexample
-
-@noindent
-This has no bug because @code{save_y} is used only if it is set.
+always initialized, but GCC doesn't know this. To suppress the
+warning, the user needs to provide a default case with assert(0) or
+similar code.
 
 @cindex @code{longjmp} warnings
 This option also warns when a non-volatile automatic variable might be
@@ -3760,7 +3758,7 @@ headers---for that, @option{-Wunknown-pragmas} must also be used.
 @opindex Wtrampolines
 @opindex Wno-trampolines
  Warn about trampolines generated for pointers to nested functions.
- 
+
  A trampoline is a small piece of data or code that is created at run
  time on the stack when the address of a nested function is taken, and
  is used to call the nested function indirectly.  For some targets, it
@@ -5877,7 +5875,7 @@ Not all optimizations are controlled directly by a flag.  Only
 optimizations that have a flag are listed in this section.
 
 Most optimizations are only enabled if an @option{-O} level is set on
-the command line.  Otherwise they are disabled, even if individual             
+the command line.  Otherwise they are disabled, even if individual
 optimization flags are specified.
 
 Depending on the target and how GCC was configured, a slightly different
@@ -6001,7 +5999,8 @@ optimizations designed to reduce code size.
 Disregard strict standards compliance.  @option{-Ofast} enables all
 @option{-O3} optimizations.  It also enables optimizations that are not
 valid for all standard compliant programs.
-It turns on @option{-ffast-math}.
+It turns on @option{-ffast-math} and the Fortran-specific
+@option{-fno-protect-parens} and @option{-fstack-arrays}.
 
 If you use multiple @option{-O} options, with or without level numbers,
 the last such option is the one that is effective.
@@ -6635,48 +6634,48 @@ This only makes sense when scheduling after register allocation, i.e.@: with
 
 @item -fsched-group-heuristic
 @opindex fsched-group-heuristic
-Enable the group heuristic in the scheduler.  This heuristic favors 
-the instruction that belongs to a schedule group.  This is enabled 
-by default when scheduling is enabled, i.e.@: with @option{-fschedule-insns} 
+Enable the group heuristic in the scheduler.  This heuristic favors
+the instruction that belongs to a schedule group.  This is enabled
+by default when scheduling is enabled, i.e.@: with @option{-fschedule-insns}
 or @option{-fschedule-insns2} or at @option{-O2} or higher.
 
 @item -fsched-critical-path-heuristic
 @opindex fsched-critical-path-heuristic
-Enable the critical-path heuristic in the scheduler.  This heuristic favors 
-instructions on the critical path.  This is enabled by default when 
-scheduling is enabled, i.e.@: with @option{-fschedule-insns} 
+Enable the critical-path heuristic in the scheduler.  This heuristic favors
+instructions on the critical path.  This is enabled by default when
+scheduling is enabled, i.e.@: with @option{-fschedule-insns}
 or @option{-fschedule-insns2} or at @option{-O2} or higher.
 
 @item -fsched-spec-insn-heuristic
 @opindex fsched-spec-insn-heuristic
-Enable the speculative instruction heuristic in the scheduler.  This 
-heuristic favors speculative instructions with greater dependency weakness.  
-This is enabled by default when scheduling is enabled, i.e.@: 
-with @option{-fschedule-insns} or @option{-fschedule-insns2} 
+Enable the speculative instruction heuristic in the scheduler.  This
+heuristic favors speculative instructions with greater dependency weakness.
+This is enabled by default when scheduling is enabled, i.e.@:
+with @option{-fschedule-insns} or @option{-fschedule-insns2}
 or at @option{-O2} or higher.
 
 @item -fsched-rank-heuristic
 @opindex fsched-rank-heuristic
-Enable the rank heuristic in the scheduler.  This heuristic favors 
-the instruction belonging to a basic block with greater size or frequency.  
-This is enabled by default when scheduling is enabled, i.e.@: 
-with @option{-fschedule-insns} or @option{-fschedule-insns2} or 
+Enable the rank heuristic in the scheduler.  This heuristic favors
+the instruction belonging to a basic block with greater size or frequency.
+This is enabled by default when scheduling is enabled, i.e.@:
+with @option{-fschedule-insns} or @option{-fschedule-insns2} or
 at @option{-O2} or higher.
 
 @item -fsched-last-insn-heuristic
 @opindex fsched-last-insn-heuristic
-Enable the last-instruction heuristic in the scheduler.  This heuristic 
+Enable the last-instruction heuristic in the scheduler.  This heuristic
 favors the instruction that is less dependent on the last instruction
-scheduled.  This is enabled by default when scheduling is enabled, 
-i.e.@: with @option{-fschedule-insns} or @option{-fschedule-insns2} or 
+scheduled.  This is enabled by default when scheduling is enabled,
+i.e.@: with @option{-fschedule-insns} or @option{-fschedule-insns2} or
 at @option{-O2} or higher.
 
 @item -fsched-dep-count-heuristic
 @opindex fsched-dep-count-heuristic
-Enable the dependent-count heuristic in the scheduler.  This heuristic 
-favors the instruction that has more instructions depending on it.  
-This is enabled by default when scheduling is enabled, i.e.@: 
-with @option{-fschedule-insns} or @option{-fschedule-insns2} or 
+Enable the dependent-count heuristic in the scheduler.  This heuristic
+favors the instruction that has more instructions depending on it.
+This is enabled by default when scheduling is enabled, i.e.@:
+with @option{-fschedule-insns} or @option{-fschedule-insns2} or
 at @option{-O2} or higher.
 
 @item -freschedule-modulo-scheduled-loops
@@ -7637,7 +7636,7 @@ With the linker plugin enabled, the linker will extract the needed
 GIMPLE files from @file{libfoo.a} and pass them on to the running GCC
 to make them part of the aggregated GIMPLE image to be optimized.
 
-If you are not using a linker with linker plugin support and/or do not 
+If you are not using a linker with linker plugin support and/or do not
 enable linker plugin then the objects inside @file{libfoo.a}
 will be extracted and linked as usual, but they will not participate
 in the LTO optimization process.
@@ -7646,7 +7645,7 @@ Link time optimizations do not require the presence of the whole program to
 operate.  If the program does not require any symbols to be exported, it is
 possible to combine @option{-flto} and with @option{-fwhole-program} to allow
 the interprocedural optimizers to use more aggressive assumptions which may
-lead to improved optimization opportunities. 
+lead to improved optimization opportunities.
 Use of @option{-fwhole-program} is not needed when linker plugin is
 active (see @option{-fuse-linker-plugin}).
 
@@ -7667,11 +7666,11 @@ parallel jobs by utilizing an installed @command{make} program.  The
 environment variable @env{MAKE} may be used to override the program
 used.  The default value for @var{n} is 1.
 
-You can also specify @option{-flto=jobserver} to use GNU make's 
-job server mode to determine the number of parallel jobs. This 
+You can also specify @option{-flto=jobserver} to use GNU make's
+job server mode to determine the number of parallel jobs. This
 is useful when the Makefile calling GCC is already executing in parallel.
 The parent Makefile will need a @samp{+} prepended to the command recipe
-for this to work. This will likely only work if @env{MAKE} is 
+for this to work. This will likely only work if @env{MAKE} is
 GNU make.
 
 This option is disabled by default.
@@ -7702,17 +7701,18 @@ files in LTO mode (via @option{-flto}).
 Disabled by default.
 
 @item -fuse-linker-plugin
-Enables the use of linker plugin during link time optimization.  This option
-relies on the linker plugin support in linker that is available in gold
+Enables the use of a linker plugin during link time optimization.  This
+option relies on plugin support in the linker, which is available in gold
 or in GNU ld 2.21 or newer.
 
-This option enables the extraction of object files with GIMPLE bytecode out of
-library archives. This improves the quality of optimization by exposing more
-code the the link time optimizer.  This information specify what symbols 
-can be accessed externally (by non-LTO object or during dynamic linking).
-Resulting code quality improvements on binaries (and shared libraries that do
-use hidden visibility) is similar to @code{-fwhole-program}.  See
-@option{-flto} for a description on the effect of this flag and how to use it.
+This option enables the extraction of object files with GIMPLE bytecode out
+of library archives. This improves the quality of optimization by exposing
+more code to the link time optimizer.  This information specifies what
+symbols can be accessed externally (by non-LTO object or during dynamic
+linking).  Resulting code quality improvements on binaries (and shared
+libraries that use hidden visibility) are similar to @code{-fwhole-program}.
+See @option{-flto} for a description of the effect of this flag and how to
+use it.
 
 Enabled by default when LTO support in GCC is enabled and GCC was compiled
 with a linker supporting plugins (GNU ld 2.21 or newer or gold).
@@ -7751,7 +7751,7 @@ Set the directory to search for the profile data files in to @var{path}.
 This option affects only the profile data generated by
 @option{-fprofile-generate}, @option{-ftest-coverage}, @option{-fprofile-arcs}
 and used by @option{-fprofile-use} and @option{-fbranch-probabilities}
-and its related options.
+and its related options.  Both absolute and relative paths can be used.
 By default, GCC will use the current directory as @var{path}, thus the
 profile data file will appear in the same directory as the object file.
 
@@ -8699,6 +8699,10 @@ through which the instruction may be pipelined.  The default value is 2.
 @item selsched-max-insns-to-rename
 The maximum number of best instructions in the ready list that are considered
 for renaming in the selective scheduler.  The default value is 2.
+
+@item sms-min-sc
+The minimum value of stage count that swing modulo scheduler will
+generate.  The default value is 2.
 
 @item max-last-value-rtl
 The maximum size measured as number of RTLs that can be recorded in an expression
@@ -10279,15 +10283,15 @@ there is a function name embedded immediately preceding this location
 and has length @code{((pc[-3]) & 0xff000000)}.
 
 @item -mthumb
+@itemx -marm
+@opindex marm
 @opindex mthumb
-Generate code for the Thumb instruction set.  The default is to
-use the 32-bit ARM instruction set.
-This option automatically enables either 16-bit Thumb-1 or
-mixed 16/32-bit Thumb-2 instructions based on the @option{-mcpu=@var{name}}
-and @option{-march=@var{name}} options.  This option is not passed to the
-assembler. If you want to force assembler files to be interpreted as Thumb code,
-either add a @samp{.thumb} directive to the source or pass the @option{-mthumb}
-option directly to the assembler by prefixing it with @option{-Wa}.
+
+Select between generating code that executes in ARM and Thumb
+states.  The default for most configurations is to generate code
+that executes in ARM state, but the default can be changed by
+configuring GCC with the @option{--with-mode=}@var{state}
+configure option.
 
 @item -mtpcs-frame
 @opindex mtpcs-frame
@@ -10410,7 +10414,7 @@ can be one of @samp{bf512}, @samp{bf514}, @samp{bf516}, @samp{bf518},
 @samp{bf534}, @samp{bf536}, @samp{bf537}, @samp{bf538}, @samp{bf539},
 @samp{bf542}, @samp{bf544}, @samp{bf547}, @samp{bf548}, @samp{bf549},
 @samp{bf542m}, @samp{bf544m}, @samp{bf547m}, @samp{bf548m}, @samp{bf549m},
-@samp{bf561}.
+@samp{bf561}, @samp{bf592}.
 The optional @var{sirevision} specifies the silicon revision of the target
 Blackfin processor.  Any workarounds available for the targeted silicon revision
 will be enabled.  If @var{sirevision} is @samp{none}, no workarounds are enabled.
@@ -12498,7 +12502,7 @@ in this case.
 @opindex mvzeroupper
 This option instructs GCC to emit a @code{vzeroupper} instruction
 before a transfer of control flow out of the function to minimize
-AVX to SSE transition penalty as well as remove unnecessary zeroupper 
+AVX to SSE transition penalty as well as remove unnecessary zeroupper
 intrinsics.
 
 @item -mcx16
@@ -12578,6 +12582,13 @@ ABI when targeting Windows.  On all other systems, the default is the
 SYSV ABI.  You can control this behavior for a specific function by
 using the function attribute @samp{ms_abi}/@samp{sysv_abi}.
 @xref{Function Attributes}.
+
+@item -mtls-dialect=@var{type}
+@opindex mtls-dialect
+Generate code to access thread-local storage using the @samp{gnu} or
+@samp{gnu2} conventions.  @samp{gnu} is the conservative default;
+@samp{gnu2} is more efficient, but it may add compile- and run-time
+requirements that cannot be satisfied on all systems.
 
 @item -mpush-args
 @itemx -mno-push-args
@@ -13939,10 +13950,10 @@ This option is deprecated.  Use @option{-fno-zero-initialized-in-bss} instead.
 @item -mcpu=@var{cpu-type}
 @opindex mcpu=
 Use features of and schedule code for given CPU.
-Supported values are in the format @samp{v@var{X}.@var{YY}.@var{Z}}, 
-where @var{X} is a major version, @var{YY} is the minor version, and 
+Supported values are in the format @samp{v@var{X}.@var{YY}.@var{Z}},
+where @var{X} is a major version, @var{YY} is the minor version, and
 @var{Z} is compatibility code.  Example values are @samp{v3.00.a},
-@samp{v4.00.b}, @samp{v5.00.a}, @samp{v5.00.b}, @samp{v5.00.b}, @samp{v6.00.a}. 
+@samp{v4.00.b}, @samp{v5.00.a}, @samp{v5.00.b}, @samp{v5.00.b}, @samp{v6.00.a}.
 
 @item -mxl-soft-mul
 @opindex mxl-soft-mul
@@ -13985,29 +13996,29 @@ Use hardware floating point conversion instructions.
 Use hardware floating point square root instruction.
 
 @item -mxl-mode-@var{app-model}
-Select application model @var{app-model}.  Valid models are 
+Select application model @var{app-model}.  Valid models are
 @table @samp
 @item executable
 normal executable (default), uses startup code @file{crt0.o}.
 
 @item xmdstub
-for use with Xilinx Microprocessor Debugger (XMD) based 
-software intrusive debug agent called xmdstub. This uses startup file 
+for use with Xilinx Microprocessor Debugger (XMD) based
+software intrusive debug agent called xmdstub. This uses startup file
 @file{crt1.o} and sets the start address of the program to be 0x800.
 
 @item bootstrap
 for applications that are loaded using a bootloader.
-This model uses startup file @file{crt2.o} which does not contain a processor 
-reset vector handler. This is suitable for transferring control on a 
+This model uses startup file @file{crt2.o} which does not contain a processor
+reset vector handler. This is suitable for transferring control on a
 processor reset to the bootloader rather than the application.
 
 @item novectors
-for applications that do not require any of the 
+for applications that do not require any of the
 MicroBlaze vectors. This option may be useful for applications running
 within a monitoring application. This model uses @file{crt3.o} as a startup file.
 @end table
 
-Option @option{-xl-mode-@var{app-model}} is a deprecated alias for 
+Option @option{-xl-mode-@var{app-model}} is a deprecated alias for
 @option{-mxl-mode-@var{app-model}}.
 
 @end table
@@ -14597,6 +14608,13 @@ circumstances.
 @opindex nocpp
 Tell the MIPS assembler to not run its preprocessor over user
 assembler files (with a @samp{.s} suffix) when assembling them.
+
+@item -mfix-24k
+@item -mno-fix-24k
+@opindex mfix-24k
+@opindex mno-fix-24k
+Work around the 24K E48 (lost data on stores during refill) errata.
+The workarounds are implemented by the assembler rather than by GCC.
 
 @item -mfix-r4000
 @itemx -mno-fix-r4000
@@ -16767,7 +16785,7 @@ a small dividend to be unlikely, and inv20l assumes it to be likely.
 
 @item -maccumulate-outgoing-args
 @opindex maccumulate-outgoing-args
-Reserve space once for outgoing arguments in the function prologue rather 
+Reserve space once for outgoing arguments in the function prologue rather
 than around each call.  Generally beneficial for performance and size.  Also
 needed for unwinding to avoid changing the stack frame around conditional code.
 
@@ -18229,6 +18247,12 @@ files.  GCC uses temporary files to hold the output of one stage of
 compilation which is to be used as input to the next stage: for example,
 the output of the preprocessor, which is the input to the compiler
 proper.
+
+@item GCC_COMPARE_DEBUG
+@findex GCC_COMPARE_DEBUG
+Setting @env{GCC_COMPARE_DEBUG} is nearly equivalent to passing
+@option{-fcompare-debug} to the compiler driver.  See the documentation
+of this option for more details.
 
 @item GCC_EXEC_PREFIX
 @findex GCC_EXEC_PREFIX

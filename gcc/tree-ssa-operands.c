@@ -832,15 +832,8 @@ get_asm_expr_operands (gimple stmt)
     }
 
   /* Clobber all memory and addressable symbols for asm ("" : : : "memory");  */
-  for (i = 0; i < gimple_asm_nclobbers (stmt); i++)
-    {
-      tree link = gimple_asm_clobber_op (stmt, i);
-      if (strcmp (TREE_STRING_POINTER (TREE_VALUE (link)), "memory") == 0)
-	{
-	  add_virtual_operand (stmt, opf_def);
-	  break;
-	}
-    }
+  if (gimple_asm_clobbers_memory_p (stmt))
+    add_virtual_operand (stmt, opf_def);
 }
 
 
@@ -1133,6 +1126,12 @@ update_stmt_operands (gimple stmt)
     return;
 
   timevar_push (TV_TREE_OPS);
+
+  /* If the stmt is a noreturn call queue it to be processed by
+     split_bbs_on_noreturn_calls during cfg cleanup.  */
+  if (is_gimple_call (stmt)
+      && gimple_call_noreturn_p (stmt))
+    VEC_safe_push (gimple, gc, MODIFIED_NORETURN_CALLS (cfun), stmt);
 
   gcc_assert (gimple_modified_p (stmt));
   build_ssa_operands (stmt);

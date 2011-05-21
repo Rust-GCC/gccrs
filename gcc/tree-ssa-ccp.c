@@ -1702,7 +1702,6 @@ ccp_fold_stmt (gimple_stmt_iterator *gsi)
 	tree lhs = gimple_call_lhs (stmt);
 	tree val;
 	tree argt;
-	tree callee;
 	bool changed = false;
 	unsigned i;
 
@@ -1723,11 +1722,16 @@ ccp_fold_stmt (gimple_stmt_iterator *gsi)
 	    return true;
 	  }
 
+	/* Internal calls provide no argument types, so the extra laxity
+	   for normal calls does not apply.  */
+	if (gimple_call_internal_p (stmt))
+	  return false;
+
 	/* Propagate into the call arguments.  Compared to replace_uses_in
 	   this can use the argument slot types for type verification
 	   instead of the current argument type.  We also can safely
 	   drop qualifiers here as we are dealing with constants anyway.  */
-	argt = TYPE_ARG_TYPES (TREE_TYPE (TREE_TYPE (gimple_call_fn (stmt))));
+	argt = TYPE_ARG_TYPES (gimple_call_fntype (stmt));
 	for (i = 0; i < gimple_call_num_args (stmt) && argt;
 	     ++i, argt = TREE_CHAIN (argt))
 	  {
@@ -1741,17 +1745,6 @@ ccp_fold_stmt (gimple_stmt_iterator *gsi)
 		gimple_call_set_arg (stmt, i, unshare_expr (val));
 		changed = true;
 	      }
-	  }
-
-	callee = gimple_call_fn (stmt);
-	if (TREE_CODE (callee) == OBJ_TYPE_REF
-	    && TREE_CODE (OBJ_TYPE_REF_EXPR (callee)) == SSA_NAME)
-	  {
-	    tree expr = OBJ_TYPE_REF_EXPR (callee);
-	    OBJ_TYPE_REF_EXPR (callee) = valueize_op (expr);
-	    if (gimple_fold_call (gsi, false))
-	      changed = true;
-	    OBJ_TYPE_REF_EXPR (callee) = expr;
 	  }
 
 	return changed;

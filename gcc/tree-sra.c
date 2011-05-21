@@ -91,6 +91,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "dbgcnt.h"
 #include "tree-inline.h"
 #include "gimple-pretty-print.h"
+#include "ipa-inline.h"
 
 /* Enumeration of all aggregate reductions we can do.  */
 enum sra_mode { SRA_MODE_EARLY_IPA,   /* early call regularization */
@@ -1394,7 +1395,7 @@ build_ref_for_offset (location_t loc, tree base, HOST_WIDE_INT offset,
     {
       off = build_int_cst (TREE_TYPE (TREE_OPERAND (base, 1)),
 			   base_offset + offset / BITS_PER_UNIT);
-      off = int_const_binop (PLUS_EXPR, TREE_OPERAND (base, 1), off, 0);
+      off = int_const_binop (PLUS_EXPR, TREE_OPERAND (base, 1), off);
       base = unshare_expr (TREE_OPERAND (base, 0));
     }
   else
@@ -1504,7 +1505,7 @@ build_user_friendly_ref_for_offset (tree *res, tree type, HOST_WIDE_INT offset,
 	    return false;
 	  index = build_int_cst (TYPE_DOMAIN (type), offset / el_size);
 	  if (!integer_zerop (minidx))
-	    index = int_const_binop (PLUS_EXPR, index, minidx, 0);
+	    index = int_const_binop (PLUS_EXPR, index, minidx);
 	  *res = build4 (ARRAY_REF, TREE_TYPE (type), *res, index,
 			 NULL_TREE, NULL_TREE);
 	  offset = offset % el_size;
@@ -4365,7 +4366,7 @@ convert_callers (struct cgraph_node *node, tree old_decl,
   for (cs = node->callers; cs; cs = cs->next_caller)
     if (bitmap_set_bit (recomputed_callers, cs->caller->uid)
 	&& gimple_in_ssa_p (DECL_STRUCT_FUNCTION (cs->caller->decl)))
-      compute_inline_parameters (cs->caller);
+      compute_inline_parameters (cs->caller, true);
   BITMAP_FREE (recomputed_callers);
 
   current_function_decl = old_cur_fndecl;
@@ -4469,7 +4470,7 @@ ipa_sra_preliminary_function_checks (struct cgraph_node *node)
     }
 
   if ((DECL_COMDAT (node->decl) || DECL_EXTERNAL (node->decl))
-      && node->global.size >= MAX_INLINE_INSNS_AUTO)
+      && inline_summary(node)->size >= MAX_INLINE_INSNS_AUTO)
     {
       if (dump_file)
 	fprintf (dump_file, "Function too big to be made truly local.\n");
@@ -4502,7 +4503,7 @@ ipa_sra_preliminary_function_checks (struct cgraph_node *node)
 static unsigned int
 ipa_early_sra (void)
 {
-  struct cgraph_node *node = cgraph_node (current_function_decl);
+  struct cgraph_node *node = cgraph_get_node (current_function_decl);
   ipa_parm_adjustment_vec adjustments;
   int ret = 0;
 

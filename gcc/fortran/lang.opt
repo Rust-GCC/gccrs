@@ -222,6 +222,10 @@ Wconversion-extra
 Fortran Warning
 Warn about most implicit conversions
 
+Wfunction-elimination
+Fortran Warning
+Warn about function call elimination
+
 Wimplicit-interface
 Fortran Warning
 Warn about calls with implicit interface
@@ -237,6 +241,10 @@ Warn about truncated source lines
 Wintrinsics-std
 Fortran Warning
 Warn on intrinsics not part of the selected standard
+
+Wreal-q-constant
+Fortran Warning
+Warn about real-literal-constants with 'q' exponent-letter
 
 Wreturn-type
 Fortran Warning
@@ -359,8 +367,8 @@ Fortran
 Allow dollar signs in entity names
 
 fdump-core
-Fortran
-Dump a core file when a runtime error occurs
+Fortran Ignore
+Does nothing. Preserved for backward compatibility.
 
 fdump-fortran-original
 Fortran
@@ -414,6 +422,10 @@ ffree-line-length-
 Fortran RejectNegative Joined UInteger
 -ffree-line-length-<n>	Use n as character line width in free mode
 
+ffrontend-optimize
+Fortran
+Enable front end optimization
+
 fimplicit-none
 Fortran
 Specify that no implicit typing is allowed, unless overridden by explicit IMPLICIT statements
@@ -453,6 +465,10 @@ Fortran RejectNegative Joined UInteger
 fmax-stack-var-size=
 Fortran RejectNegative Joined UInteger
 -fmax-stack-var-size=<n>	Size in bytes of the largest array that will be put on the stack
+
+fstack-arrays
+Fortran
+Put all local arrays on stack.
 
 fmodule-private
 Fortran
@@ -573,6 +589,10 @@ Conform to the ISO Fortran 2003 standard
 std=f2008
 Fortran
 Conform to the ISO Fortran 2008 standard
+
+std=f2008tr
+Fortran
+Conform to the ISO Fortran 2008 standard including TR 29113
 
 std=f95
 Fortran

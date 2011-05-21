@@ -54,6 +54,8 @@
       builtin_define (TARGET_ALLOW_LIW ?	\
 		      "__LIW__" : "__NO_LIW__");\
 						\
+      builtin_define (TARGET_ALLOW_SETLB  ?	\
+		      "__SETLB__" : "__NO_SETLB__");\
     }						\
   while (0)
 
@@ -556,10 +558,6 @@ do {									     \
     }									     \
 } while (0)
 
-
-/* Nonzero if the constant value X is a legitimate general operand.
-   It is given that X satisfies CONSTANT_P or is a CONST_DOUBLE.  */
-#define LEGITIMATE_CONSTANT_P(X) mn10300_legitimate_constant_p (X)
 
 /* Zero if this needs fixing up to become PIC.  */
 

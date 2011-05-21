@@ -417,8 +417,8 @@ static rtx try_combine (rtx, rtx, rtx, rtx, int *, rtx);
 static void undo_all (void);
 static void undo_commit (void);
 static rtx *find_split_point (rtx *, rtx, bool);
-static rtx subst (rtx, rtx, rtx, int, int);
-static rtx combine_simplify_rtx (rtx, enum machine_mode, int);
+static rtx subst (rtx, rtx, rtx, int, int, int);
+static rtx combine_simplify_rtx (rtx, enum machine_mode, int, int);
 static rtx simplify_if_then_else (rtx);
 static rtx simplify_set (rtx);
 static rtx simplify_logical (rtx);
@@ -450,6 +450,7 @@ static rtx simplify_shift_const (rtx, enum rtx_code, enum machine_mode, rtx,
 				 int);
 static int recog_for_combine (rtx *, rtx, rtx *);
 static rtx gen_lowpart_for_combine (enum machine_mode, rtx);
+static enum rtx_code simplify_compare_const (enum rtx_code, rtx, rtx *);
 static enum rtx_code simplify_comparison (enum rtx_code, rtx *, rtx *);
 static void update_table_tick (rtx);
 static void record_value_for_reg (rtx, rtx, rtx);
@@ -789,14 +790,13 @@ do_SUBST_MODE (rtx *into, enum machine_mode newval)
 
 #define SUBST_MODE(INTO, NEWVAL)  do_SUBST_MODE(&(INTO), (NEWVAL))
 
-/* Subroutine of try_combine.  Determine whether the combine replacement
-   patterns NEWPAT, NEWI2PAT and NEWOTHERPAT are cheaper according to
-   insn_rtx_cost that the original instruction sequence I0, I1, I2, I3 and
-   undobuf.other_insn.  Note that I1 and/or NEWI2PAT may be NULL_RTX.
-   NEWOTHERPAT and undobuf.other_insn may also both be NULL_RTX.  This
-   function returns false, if the costs of all instructions can be
-   estimated, and the replacements are more expensive than the original
-   sequence.  */
+/* Subroutine of try_combine.  Determine whether the replacement patterns
+   NEWPAT, NEWI2PAT and NEWOTHERPAT are cheaper according to insn_rtx_cost
+   than the original sequence I0, I1, I2, I3 and undobuf.other_insn.  Note
+   that I0, I1 and/or NEWI2PAT may be NULL_RTX.  Similarly, NEWOTHERPAT and
+   undobuf.other_insn may also both be NULL_RTX.  Return false if the cost
+   of all the instructions can be estimated and the replacements are more
+   expensive than the original sequence.  */
 
 static bool
 combine_validate_cost (rtx i0, rtx i1, rtx i2, rtx i3, rtx newpat,
@@ -861,10 +861,9 @@ combine_validate_cost (rtx i0, rtx i1, rtx i2, rtx i3, rtx newpat,
 	old_cost = 0;
     }
 
-  /* Disallow this recombination if both new_cost and old_cost are
-     greater than zero, and new_cost is greater than old cost.  */
-  if (old_cost > 0
-      && new_cost > old_cost)
+  /* Disallow this combination if both new_cost and old_cost are greater than
+     zero, and new_cost is greater than old cost.  */
+  if (old_cost > 0 && new_cost > old_cost)
     {
       if (dump_file)
 	{
@@ -910,7 +909,11 @@ combine_validate_cost (rtx i0, rtx i1, rtx i2, rtx i3, rtx newpat,
   INSN_COST (i2) = new_i2_cost;
   INSN_COST (i3) = new_i3_cost;
   if (i1)
-    INSN_COST (i1) = 0;
+    {
+      INSN_COST (i1) = 0;
+      if (i0)
+	INSN_COST (i0) = 0;
+    }
 
   return true;
 }
@@ -1196,8 +1199,13 @@ combine_instructions (rtx f, unsigned int nregs)
 	  next = 0;
 	  if (NONDEBUG_INSN_P (insn))
 	    {
+	      while (last_combined_insn
+		     && INSN_DELETED_P (last_combined_insn))
+		last_combined_insn = PREV_INSN (last_combined_insn);
 	      if (last_combined_insn == NULL_RTX
-		  || DF_INSN_LUID (last_combined_insn) < DF_INSN_LUID (insn))
+		  || BARRIER_P (last_combined_insn)
+		  || BLOCK_FOR_INSN (last_combined_insn) != this_basic_block
+		  || DF_INSN_LUID (last_combined_insn) <= DF_INSN_LUID (insn))
 		last_combined_insn = insn;
 
 	      /* See if we know about function return values before this
@@ -2444,19 +2452,21 @@ propagate_for_debug_subst (rtx from, const_rtx old_rtx, void *data)
 }
 
 /* Replace all the occurrences of DEST with SRC in DEBUG_INSNs between INSN
-   and LAST.  */
+   and LAST, not including INSN, but including LAST.  Also stop at the end
+   of THIS_BASIC_BLOCK.  */
 
 static void
 propagate_for_debug (rtx insn, rtx last, rtx dest, rtx src)
 {
-  rtx next, loc;
+  rtx next, loc, end = NEXT_INSN (BB_END (this_basic_block));
 
   struct rtx_subst_pair p;
   p.to = src;
   p.adjusted = false;
 
   next = NEXT_INSN (insn);
-  while (next != last)
+  last = NEXT_INSN (last);
+  while (next != last && next != end)
     {
       insn = next;
       next = NEXT_INSN (insn);
@@ -2481,13 +2491,12 @@ static void
 update_cfg_for_uncondjump (rtx insn)
 {
   basic_block bb = BLOCK_FOR_INSN (insn);
-  bool at_end = (BB_END (bb) == insn);
+  gcc_assert (BB_END (bb) == insn);
 
-  if (at_end)
-    purge_dead_edges (bb);
+  purge_dead_edges (bb);
 
   delete_insn (insn);
-  if (at_end && EDGE_COUNT (bb->succs) == 1)
+  if (EDGE_COUNT (bb->succs) == 1)
     {
       rtx insn;
 
@@ -3038,58 +3047,98 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 
   if (i1 == 0 && added_sets_2 && GET_CODE (PATTERN (i3)) == SET
       && GET_CODE (SET_SRC (PATTERN (i3))) == COMPARE
-      && XEXP (SET_SRC (PATTERN (i3)), 1) == const0_rtx
+      && CONST_INT_P (XEXP (SET_SRC (PATTERN (i3)), 1))
       && rtx_equal_p (XEXP (SET_SRC (PATTERN (i3)), 0), i2dest))
     {
-#ifdef SELECT_CC_MODE
-      rtx *cc_use;
-      enum machine_mode compare_mode;
-#endif
+      rtx newpat_dest;
+      rtx *cc_use_loc = NULL, cc_use_insn = NULL_RTX;
+      rtx op0 = i2src, op1 = XEXP (SET_SRC (PATTERN (i3)), 1);
+      enum machine_mode compare_mode, orig_compare_mode;
+      enum rtx_code compare_code = UNKNOWN, orig_compare_code = UNKNOWN;
 
       newpat = PATTERN (i3);
-      SUBST (XEXP (SET_SRC (newpat), 0), i2src);
+      newpat_dest = SET_DEST (newpat);
+      compare_mode = orig_compare_mode = GET_MODE (newpat_dest);
 
-      i2_is_used = 1;
-
-#ifdef SELECT_CC_MODE
-      /* See if a COMPARE with the operand we substituted in should be done
-	 with the mode that is currently being used.  If not, do the same
-	 processing we do in `subst' for a SET; namely, if the destination
-	 is used only once, try to replace it with a register of the proper
-	 mode and also replace the COMPARE.  */
       if (undobuf.other_insn == 0
-	  && (cc_use = find_single_use (SET_DEST (newpat), i3,
-					&undobuf.other_insn))
-	  && ((compare_mode = SELECT_CC_MODE (GET_CODE (*cc_use),
-					      i2src, const0_rtx))
-	      != GET_MODE (SET_DEST (newpat))))
+	  && (cc_use_loc = find_single_use (SET_DEST (newpat), i3,
+					    &cc_use_insn)))
 	{
-	  if (can_change_dest_mode (SET_DEST (newpat), added_sets_2,
-				    compare_mode))
-	    {
-	      unsigned int regno = REGNO (SET_DEST (newpat));
-	      rtx new_dest;
-
-	      if (regno < FIRST_PSEUDO_REGISTER)
-		new_dest = gen_rtx_REG (compare_mode, regno);
-	      else
-		{
-		  SUBST_MODE (regno_reg_rtx[regno], compare_mode);
-		  new_dest = regno_reg_rtx[regno];
-		}
-
-	      SUBST (SET_DEST (newpat), new_dest);
-	      SUBST (XEXP (*cc_use, 0), new_dest);
-	      SUBST (SET_SRC (newpat),
-		     gen_rtx_COMPARE (compare_mode, i2src, const0_rtx));
-	    }
-	  else
-	    undobuf.other_insn = 0;
+	  compare_code = orig_compare_code = GET_CODE (*cc_use_loc);
+	  compare_code = simplify_compare_const (compare_code,
+						 op0, &op1);
+#ifdef CANONICALIZE_COMPARISON
+	  CANONICALIZE_COMPARISON (compare_code, op0, op1);
+#endif
 	}
+
+      /* Do the rest only if op1 is const0_rtx, which may be the
+	 result of simplification.  */
+      if (op1 == const0_rtx)
+	{
+	  /* If a single use of the CC is found, prepare to modify it
+	     when SELECT_CC_MODE returns a new CC-class mode, or when
+	     the above simplify_compare_const() returned a new comparison
+	     operator.  undobuf.other_insn is assigned the CC use insn
+	     when modifying it.  */
+	  if (cc_use_loc)
+	    {
+#ifdef SELECT_CC_MODE
+	      enum machine_mode new_mode
+		= SELECT_CC_MODE (compare_code, op0, op1);
+	      if (new_mode != orig_compare_mode
+		  && can_change_dest_mode (SET_DEST (newpat),
+					   added_sets_2, new_mode))
+		{
+		  unsigned int regno = REGNO (newpat_dest);
+		  compare_mode = new_mode;
+		  if (regno < FIRST_PSEUDO_REGISTER)
+		    newpat_dest = gen_rtx_REG (compare_mode, regno);
+		  else
+		    {
+		      SUBST_MODE (regno_reg_rtx[regno], compare_mode);
+		      newpat_dest = regno_reg_rtx[regno];
+		    }
+		}
 #endif
+	      /* Cases for modifying the CC-using comparison.  */
+	      if (compare_code != orig_compare_code
+		  /* ??? Do we need to verify the zero rtx?  */
+		  && XEXP (*cc_use_loc, 1) == const0_rtx)
+		{
+		  /* Replace cc_use_loc with entire new RTX.  */
+		  SUBST (*cc_use_loc,
+			 gen_rtx_fmt_ee (compare_code, compare_mode,
+					 newpat_dest, const0_rtx));
+		  undobuf.other_insn = cc_use_insn;
+		}
+	      else if (compare_mode != orig_compare_mode)
+		{
+		  /* Just replace the CC reg with a new mode.  */
+		  SUBST (XEXP (*cc_use_loc, 0), newpat_dest);
+		  undobuf.other_insn = cc_use_insn;
+		}	      
+	    }
+
+	  /* Now we modify the current newpat:
+	     First, SET_DEST(newpat) is updated if the CC mode has been
+	     altered. For targets without SELECT_CC_MODE, this should be
+	     optimized away.  */
+	  if (compare_mode != orig_compare_mode)
+	    SUBST (SET_DEST (newpat), newpat_dest);
+	  /* This is always done to propagate i2src into newpat.  */
+	  SUBST (SET_SRC (newpat),
+		 gen_rtx_COMPARE (compare_mode, op0, op1));
+	  /* Create new version of i2pat if needed; the below PARALLEL
+	     creation needs this to work correctly.  */
+	  if (! rtx_equal_p (i2src, op0))
+	    i2pat = gen_rtx_SET (VOIDmode, i2dest, op0);
+	  i2_is_used = 1;
+	}
     }
-  else
 #endif
+
+  if (i2_is_used == 0)
     {
       /* It is possible that the source of I2 or I1 may be performing
 	 an unneeded operation, such as a ZERO_EXTEND of something
@@ -3117,11 +3166,11 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 	  if (i1)
 	    {
 	      subst_low_luid = DF_INSN_LUID (i1);
-	      i1src = subst (i1src, pc_rtx, pc_rtx, 0, 0);
+	      i1src = subst (i1src, pc_rtx, pc_rtx, 0, 0, 0);
 	    }
 
 	  subst_low_luid = DF_INSN_LUID (i2);
-	  i2src = subst (i2src, pc_rtx, pc_rtx, 0, 0);
+	  i2src = subst (i2src, pc_rtx, pc_rtx, 0, 0, 0);
 	}
 
       n_occurrences = 0;		/* `subst' counts here */
@@ -3132,7 +3181,7 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 	 self-referential RTL when we will be substituting I1SRC for I1DEST
 	 later.  Likewise if I0 feeds into I2, either directly or indirectly
 	 through I1, and I0DEST is in I0SRC.  */
-      newpat = subst (PATTERN (i3), i2dest, i2src, 0,
+      newpat = subst (PATTERN (i3), i2dest, i2src, 0, 0,
 		      (i1_feeds_i2_n && i1dest_in_i1src)
 		      || ((i0_feeds_i2_n || (i0_feeds_i1_n && i1_feeds_i2_n))
 			  && i0dest_in_i0src));
@@ -3171,7 +3220,7 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 	 copy of I1SRC each time we substitute it, in order to avoid creating
 	 self-referential RTL when we will be substituting I0SRC for I0DEST
 	 later.  */
-      newpat = subst (newpat, i1dest, i1src, 0,
+      newpat = subst (newpat, i1dest, i1src, 0, 0,
 		      i0_feeds_i1_n && i0dest_in_i0src);
       substed_i1 = 1;
 
@@ -3201,7 +3250,7 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 
       n_occurrences = 0;
       subst_low_luid = DF_INSN_LUID (i0);
-      newpat = subst (newpat, i0dest, i0src, 0, 0);
+      newpat = subst (newpat, i0dest, i0src, 0, 0, 0);
       substed_i0 = 1;
     }
 
@@ -3263,7 +3312,7 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 	{
 	  rtx t = i1pat;
 	  if (i0_feeds_i1_n)
-	    t = subst (t, i0dest, i0src, 0, 0);
+	    t = subst (t, i0dest, i0src, 0, 0, 0);
 
 	  XVECEXP (newpat, 0, --total_sets) = t;
 	}
@@ -3271,10 +3320,10 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 	{
 	  rtx t = i2pat;
 	  if (i1_feeds_i2_n)
-	    t = subst (t, i1dest, i1src_copy ? i1src_copy : i1src, 0,
+	    t = subst (t, i1dest, i1src_copy ? i1src_copy : i1src, 0, 0,
 		       i0_feeds_i1_n && i0dest_in_i0src);
 	  if ((i0_feeds_i1_n && i1_feeds_i2_n) || i0_feeds_i2_n)
-	    t = subst (t, i0dest, i0src, 0, 0);
+	    t = subst (t, i0dest, i0src, 0, 0, 0);
 
 	  XVECEXP (newpat, 0, --total_sets) = t;
 	}
@@ -3449,7 +3498,7 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 	    newpat = m_split;
 	}
       else if (m_split && NEXT_INSN (NEXT_INSN (m_split)) == NULL_RTX
-	       && (next_real_insn (i2) == i3
+	       && (next_nonnote_nondebug_insn (i2) == i3
 		   || ! use_crosses_set_p (PATTERN (m_split), DF_INSN_LUID (i2))))
 	{
 	  rtx i2set, i3set;
@@ -3466,7 +3515,7 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 	     is used between I2 and I3, we also can't use these insns.  */
 
 	  if (i2_code_number >= 0 && i2set && i3set
-	      && (next_real_insn (i2) == i3
+	      && (next_nonnote_nondebug_insn (i2) == i3
 		  || ! reg_used_between_p (SET_DEST (i2set), i2, i3)))
 	    insn_code_number = recog_for_combine (&newi3pat, i3,
 						  &new_i3_notes);
@@ -3514,7 +3563,7 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 	      || GET_MODE (*split) == VOIDmode
 	      || can_change_dest_mode (i2dest, added_sets_2,
 				       GET_MODE (*split)))
-	  && (next_real_insn (i2) == i3
+	  && (next_nonnote_nondebug_insn (i2) == i3
 	      || ! use_crosses_set_p (*split, DF_INSN_LUID (i2)))
 	  /* We can't overwrite I2DEST if its value is still used by
 	     NEWPAT.  */
@@ -4400,7 +4449,8 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
 
   /* A noop might also need cleaning up of CFG, if it comes from the
      simplification of a jump.  */
-  if (GET_CODE (newpat) == SET
+  if (JUMP_P (i3)
+      && GET_CODE (newpat) == SET
       && SET_SRC (newpat) == pc_rtx
       && SET_DEST (newpat) == pc_rtx)
     {
@@ -4409,6 +4459,7 @@ try_combine (rtx i3, rtx i2, rtx i1, rtx i0, int *new_direct_jump_p,
     }
 
   if (undobuf.other_insn != NULL_RTX
+      && JUMP_P (undobuf.other_insn)
       && GET_CODE (PATTERN (undobuf.other_insn)) == SET
       && SET_SRC (PATTERN (undobuf.other_insn)) == pc_rtx
       && SET_DEST (PATTERN (undobuf.other_insn)) == pc_rtx)
@@ -4938,11 +4989,13 @@ find_split_point (rtx *loc, rtx insn, bool set_src)
 
    IN_DEST is nonzero if we are processing the SET_DEST of a SET.
 
+   IN_COND is nonzero if we are at the top level of a condition.
+
    UNIQUE_COPY is nonzero if each substitution must be unique.  We do this
    by copying if `n_occurrences' is nonzero.  */
 
 static rtx
-subst (rtx x, rtx from, rtx to, int in_dest, int unique_copy)
+subst (rtx x, rtx from, rtx to, int in_dest, int in_cond, int unique_copy)
 {
   enum rtx_code code = GET_CODE (x);
   enum machine_mode op0_mode = VOIDmode;
@@ -5003,7 +5056,7 @@ subst (rtx x, rtx from, rtx to, int in_dest, int unique_copy)
       && GET_CODE (XVECEXP (x, 0, 0)) == SET
       && GET_CODE (SET_SRC (XVECEXP (x, 0, 0))) == ASM_OPERANDS)
     {
-      new_rtx = subst (XVECEXP (x, 0, 0), from, to, 0, unique_copy);
+      new_rtx = subst (XVECEXP (x, 0, 0), from, to, 0, 0, unique_copy);
 
       /* If this substitution failed, this whole thing fails.  */
       if (GET_CODE (new_rtx) == CLOBBER
@@ -5020,7 +5073,7 @@ subst (rtx x, rtx from, rtx to, int in_dest, int unique_copy)
 	      && GET_CODE (dest) != CC0
 	      && GET_CODE (dest) != PC)
 	    {
-	      new_rtx = subst (dest, from, to, 0, unique_copy);
+	      new_rtx = subst (dest, from, to, 0, 0, unique_copy);
 
 	      /* If this substitution failed, this whole thing fails.  */
 	      if (GET_CODE (new_rtx) == CLOBBER
@@ -5066,8 +5119,8 @@ subst (rtx x, rtx from, rtx to, int in_dest, int unique_copy)
 		    }
 		  else
 		    {
-		      new_rtx = subst (XVECEXP (x, i, j), from, to, 0,
-				   unique_copy);
+		      new_rtx = subst (XVECEXP (x, i, j), from, to, 0, 0,
+				       unique_copy);
 
 		      /* If this substitution failed, this whole thing
 			 fails.  */
@@ -5144,7 +5197,9 @@ subst (rtx x, rtx from, rtx to, int in_dest, int unique_copy)
 				&& (code == SUBREG || code == STRICT_LOW_PART
 				    || code == ZERO_EXTRACT))
 			       || code == SET)
-			      && i == 0), unique_copy);
+			      && i == 0),
+				 code == IF_THEN_ELSE && i == 0,
+				 unique_copy);
 
 	      /* If we found that we will have to reject this combination,
 		 indicate that by returning the CLOBBER ourselves, rather than
@@ -5201,7 +5256,7 @@ subst (rtx x, rtx from, rtx to, int in_dest, int unique_copy)
       /* If X is sufficiently simple, don't bother trying to do anything
 	 with it.  */
       if (code != CONST_INT && code != REG && code != CLOBBER)
-	x = combine_simplify_rtx (x, op0_mode, in_dest);
+	x = combine_simplify_rtx (x, op0_mode, in_dest, in_cond);
 
       if (GET_CODE (x) == code)
 	break;
@@ -5221,10 +5276,12 @@ subst (rtx x, rtx from, rtx to, int in_dest, int unique_copy)
    expression.
 
    OP0_MODE is the original mode of XEXP (x, 0).  IN_DEST is nonzero
-   if we are inside a SET_DEST.  */
+   if we are inside a SET_DEST.  IN_COND is nonzero if we are at the top level
+   of a condition.  */
 
 static rtx
-combine_simplify_rtx (rtx x, enum machine_mode op0_mode, int in_dest)
+combine_simplify_rtx (rtx x, enum machine_mode op0_mode, int in_dest,
+		      int in_cond)
 {
   enum rtx_code code = GET_CODE (x);
   enum machine_mode mode = GET_MODE (x);
@@ -5279,8 +5336,8 @@ combine_simplify_rtx (rtx x, enum machine_mode op0_mode, int in_dest)
 	     false arms to store-flag values.  Be careful to use copy_rtx
 	     here since true_rtx or false_rtx might share RTL with x as a
 	     result of the if_then_else_cond call above.  */
-	  true_rtx = subst (copy_rtx (true_rtx), pc_rtx, pc_rtx, 0, 0);
-	  false_rtx = subst (copy_rtx (false_rtx), pc_rtx, pc_rtx, 0, 0);
+	  true_rtx = subst (copy_rtx (true_rtx), pc_rtx, pc_rtx, 0, 0, 0);
+	  false_rtx = subst (copy_rtx (false_rtx), pc_rtx, pc_rtx, 0, 0, 0);
 
 	  /* If true_rtx and false_rtx are not general_operands, an if_then_else
 	     is unlikely to be simpler.  */
@@ -5624,7 +5681,7 @@ combine_simplify_rtx (rtx x, enum machine_mode op0_mode, int in_dest)
 	{
 	  /* Try to simplify the expression further.  */
 	  rtx tor = simplify_gen_binary (IOR, mode, XEXP (x, 0), XEXP (x, 1));
-	  temp = combine_simplify_rtx (tor, mode, in_dest);
+	  temp = combine_simplify_rtx (tor, mode, in_dest, 0);
 
 	  /* If we could, great.  If not, do not go ahead with the IOR
 	     replacement, since PLUS appears in many special purpose
@@ -5715,9 +5772,17 @@ combine_simplify_rtx (rtx x, enum machine_mode op0_mode, int in_dest)
 	     Remove any ZERO_EXTRACT we made when thinking this was a
 	     comparison.  It may now be simpler to use, e.g., an AND.  If a
 	     ZERO_EXTRACT is indeed appropriate, it will be placed back by
-	     the call to make_compound_operation in the SET case.  */
+	     the call to make_compound_operation in the SET case.
 
-	  if (STORE_FLAG_VALUE == 1
+	     Don't apply these optimizations if the caller would
+	     prefer a comparison rather than a value.
+	     E.g., for the condition in an IF_THEN_ELSE most targets need
+	     an explicit comparison.  */
+
+	  if (in_cond)
+	    ;
+
+	  else if (STORE_FLAG_VALUE == 1
 	      && new_code == NE && GET_MODE_CLASS (mode) == MODE_INT
 	      && op1 == const0_rtx
 	      && mode == GET_MODE (op0)
@@ -5763,7 +5828,10 @@ combine_simplify_rtx (rtx x, enum machine_mode op0_mode, int in_dest)
 
 	  /* If STORE_FLAG_VALUE is -1, we have cases similar to
 	     those above.  */
-	  if (STORE_FLAG_VALUE == -1
+	  if (in_cond)
+	    ;
+
+	  else if (STORE_FLAG_VALUE == -1
 	      && new_code == NE && GET_MODE_CLASS (mode) == MODE_INT
 	      && op1 == const0_rtx
 	      && (num_sign_bit_copies (op0, mode)
@@ -5961,11 +6029,11 @@ simplify_if_then_else (rtx x)
       if (reg_mentioned_p (from, true_rtx))
 	true_rtx = subst (known_cond (copy_rtx (true_rtx), true_code,
 				      from, true_val),
-		      pc_rtx, pc_rtx, 0, 0);
+			  pc_rtx, pc_rtx, 0, 0, 0);
       if (reg_mentioned_p (from, false_rtx))
 	false_rtx = subst (known_cond (copy_rtx (false_rtx), false_code,
 				   from, false_val),
-		       pc_rtx, pc_rtx, 0, 0);
+			   pc_rtx, pc_rtx, 0, 0, 0);
 
       SUBST (XEXP (x, 1), swapped ? false_rtx : true_rtx);
       SUBST (XEXP (x, 2), swapped ? true_rtx : false_rtx);
@@ -6182,11 +6250,11 @@ simplify_if_then_else (rtx x)
 	{
 	  temp = subst (simplify_gen_relational (true_code, m, VOIDmode,
 						 cond_op0, cond_op1),
-			pc_rtx, pc_rtx, 0, 0);
+			pc_rtx, pc_rtx, 0, 0, 0);
 	  temp = simplify_gen_binary (MULT, m, temp,
 				      simplify_gen_binary (MULT, m, c1,
 							   const_true_rtx));
-	  temp = subst (temp, pc_rtx, pc_rtx, 0, 0);
+	  temp = subst (temp, pc_rtx, pc_rtx, 0, 0, 0);
 	  temp = simplify_gen_binary (op, m, gen_lowpart (m, z), temp);
 
 	  if (extend_op != UNKNOWN)
@@ -10784,6 +10852,191 @@ gen_lowpart_for_combine (enum machine_mode omode, rtx x)
   return gen_rtx_CLOBBER (omode, const0_rtx);
 }
 
+/* Try to simplify a comparison between OP0 and a constant OP1,
+   where CODE is the comparison code that will be tested, into a
+   (CODE OP0 const0_rtx) form.
+
+   The result is a possibly different comparison code to use.
+   *POP1 may be updated.  */
+
+static enum rtx_code
+simplify_compare_const (enum rtx_code code, rtx op0, rtx *pop1)
+{
+  enum machine_mode mode = GET_MODE (op0);
+  unsigned int mode_width = GET_MODE_BITSIZE (mode);
+  HOST_WIDE_INT const_op = INTVAL (*pop1);
+
+  /* Get the constant we are comparing against and turn off all bits
+     not on in our mode.  */
+  if (mode != VOIDmode)
+    const_op = trunc_int_for_mode (const_op, mode);
+
+  /* If we are comparing against a constant power of two and the value
+     being compared can only have that single bit nonzero (e.g., it was
+     `and'ed with that bit), we can replace this with a comparison
+     with zero.  */
+  if (const_op
+      && (code == EQ || code == NE || code == GE || code == GEU
+	  || code == LT || code == LTU)
+      && mode_width <= HOST_BITS_PER_WIDE_INT
+      && exact_log2 (const_op) >= 0
+      && nonzero_bits (op0, mode) == (unsigned HOST_WIDE_INT) const_op)
+    {
+      code = (code == EQ || code == GE || code == GEU ? NE : EQ);
+      const_op = 0;
+    }
+
+  /* Similarly, if we are comparing a value known to be either -1 or
+     0 with -1, change it to the opposite comparison against zero.  */
+  if (const_op == -1
+      && (code == EQ || code == NE || code == GT || code == LE
+	  || code == GEU || code == LTU)
+      && num_sign_bit_copies (op0, mode) == mode_width)
+    {
+      code = (code == EQ || code == LE || code == GEU ? NE : EQ);
+      const_op = 0;
+    }
+
+  /* Do some canonicalizations based on the comparison code.  We prefer
+     comparisons against zero and then prefer equality comparisons.
+     If we can reduce the size of a constant, we will do that too.  */
+  switch (code)
+    {
+    case LT:
+      /* < C is equivalent to <= (C - 1) */
+      if (const_op > 0)
+	{
+	  const_op -= 1;
+	  code = LE;
+	  /* ... fall through to LE case below.  */
+	}
+      else
+	break;
+
+    case LE:
+      /* <= C is equivalent to < (C + 1); we do this for C < 0  */
+      if (const_op < 0)
+	{
+	  const_op += 1;
+	  code = LT;
+	}
+
+      /* If we are doing a <= 0 comparison on a value known to have
+	 a zero sign bit, we can replace this with == 0.  */
+      else if (const_op == 0
+	       && mode_width <= HOST_BITS_PER_WIDE_INT
+	       && (nonzero_bits (op0, mode)
+		   & ((unsigned HOST_WIDE_INT) 1 << (mode_width - 1)))
+	       == 0)
+	code = EQ;
+      break;
+
+    case GE:
+      /* >= C is equivalent to > (C - 1).  */
+      if (const_op > 0)
+	{
+	  const_op -= 1;
+	  code = GT;
+	  /* ... fall through to GT below.  */
+	}
+      else
+	break;
+
+    case GT:
+      /* > C is equivalent to >= (C + 1); we do this for C < 0.  */
+      if (const_op < 0)
+	{
+	  const_op += 1;
+	  code = GE;
+	}
+
+      /* If we are doing a > 0 comparison on a value known to have
+	 a zero sign bit, we can replace this with != 0.  */
+      else if (const_op == 0
+	       && mode_width <= HOST_BITS_PER_WIDE_INT
+	       && (nonzero_bits (op0, mode)
+		   & ((unsigned HOST_WIDE_INT) 1 << (mode_width - 1)))
+	       == 0)
+	code = NE;
+      break;
+
+    case LTU:
+      /* < C is equivalent to <= (C - 1).  */
+      if (const_op > 0)
+	{
+	  const_op -= 1;
+	  code = LEU;
+	  /* ... fall through ...  */
+	}
+      /* (unsigned) < 0x80000000 is equivalent to >= 0.  */
+      else if (mode_width <= HOST_BITS_PER_WIDE_INT
+	       && (unsigned HOST_WIDE_INT) const_op
+	       == (unsigned HOST_WIDE_INT) 1 << (mode_width - 1))
+	{
+	  const_op = 0;
+	  code = GE;
+	  break;
+	}
+      else
+	break;
+
+    case LEU:
+      /* unsigned <= 0 is equivalent to == 0 */
+      if (const_op == 0)
+	code = EQ;
+      /* (unsigned) <= 0x7fffffff is equivalent to >= 0.  */
+      else if (mode_width <= HOST_BITS_PER_WIDE_INT
+	       && (unsigned HOST_WIDE_INT) const_op
+	       == ((unsigned HOST_WIDE_INT) 1 << (mode_width - 1)) - 1)
+	{
+	  const_op = 0;
+	  code = GE;
+	}
+      break;
+
+    case GEU:
+      /* >= C is equivalent to > (C - 1).  */
+      if (const_op > 1)
+	{
+	  const_op -= 1;
+	  code = GTU;
+	  /* ... fall through ...  */
+	}
+
+      /* (unsigned) >= 0x80000000 is equivalent to < 0.  */
+      else if (mode_width <= HOST_BITS_PER_WIDE_INT
+	       && (unsigned HOST_WIDE_INT) const_op
+	       == (unsigned HOST_WIDE_INT) 1 << (mode_width - 1))
+	{
+	  const_op = 0;
+	  code = LT;
+	  break;
+	}
+      else
+	break;
+
+    case GTU:
+      /* unsigned > 0 is equivalent to != 0 */
+      if (const_op == 0)
+	code = NE;
+      /* (unsigned) > 0x7fffffff is equivalent to < 0.  */
+      else if (mode_width <= HOST_BITS_PER_WIDE_INT
+	       && (unsigned HOST_WIDE_INT) const_op
+	       == ((unsigned HOST_WIDE_INT) 1 << (mode_width - 1)) - 1)
+	{
+	  const_op = 0;
+	  code = LT;
+	}
+      break;
+
+    default:
+      break;
+    }
+
+  *pop1 = GEN_INT (const_op);
+  return code;
+}
+
 /* Simplify a comparison between *POP0 and *POP1 where CODE is the
    comparison code that will be tested.
 
@@ -10973,185 +11226,10 @@ simplify_comparison (enum rtx_code code, rtx *pop0, rtx *pop1)
 		&& (GET_CODE (op0) == COMPARE || COMPARISON_P (op0))))
 	break;
 
-      /* Get the constant we are comparing against and turn off all bits
-	 not on in our mode.  */
+      /* Try to simplify the compare to constant, possibly changing the
+	 comparison op, and/or changing op1 to zero.  */
+      code = simplify_compare_const (code, op0, &op1);
       const_op = INTVAL (op1);
-      if (mode != VOIDmode)
-	const_op = trunc_int_for_mode (const_op, mode);
-      op1 = GEN_INT (const_op);
-
-      /* If we are comparing against a constant power of two and the value
-	 being compared can only have that single bit nonzero (e.g., it was
-	 `and'ed with that bit), we can replace this with a comparison
-	 with zero.  */
-      if (const_op
-	  && (code == EQ || code == NE || code == GE || code == GEU
-	      || code == LT || code == LTU)
-	  && mode_width <= HOST_BITS_PER_WIDE_INT
-	  && exact_log2 (const_op) >= 0
-	  && nonzero_bits (op0, mode) == (unsigned HOST_WIDE_INT) const_op)
-	{
-	  code = (code == EQ || code == GE || code == GEU ? NE : EQ);
-	  op1 = const0_rtx, const_op = 0;
-	}
-
-      /* Similarly, if we are comparing a value known to be either -1 or
-	 0 with -1, change it to the opposite comparison against zero.  */
-
-      if (const_op == -1
-	  && (code == EQ || code == NE || code == GT || code == LE
-	      || code == GEU || code == LTU)
-	  && num_sign_bit_copies (op0, mode) == mode_width)
-	{
-	  code = (code == EQ || code == LE || code == GEU ? NE : EQ);
-	  op1 = const0_rtx, const_op = 0;
-	}
-
-      /* Do some canonicalizations based on the comparison code.  We prefer
-	 comparisons against zero and then prefer equality comparisons.
-	 If we can reduce the size of a constant, we will do that too.  */
-
-      switch (code)
-	{
-	case LT:
-	  /* < C is equivalent to <= (C - 1) */
-	  if (const_op > 0)
-	    {
-	      const_op -= 1;
-	      op1 = GEN_INT (const_op);
-	      code = LE;
-	      /* ... fall through to LE case below.  */
-	    }
-	  else
-	    break;
-
-	case LE:
-	  /* <= C is equivalent to < (C + 1); we do this for C < 0  */
-	  if (const_op < 0)
-	    {
-	      const_op += 1;
-	      op1 = GEN_INT (const_op);
-	      code = LT;
-	    }
-
-	  /* If we are doing a <= 0 comparison on a value known to have
-	     a zero sign bit, we can replace this with == 0.  */
-	  else if (const_op == 0
-		   && mode_width <= HOST_BITS_PER_WIDE_INT
-		   && (nonzero_bits (op0, mode)
-		       & ((unsigned HOST_WIDE_INT) 1 << (mode_width - 1)))
-		         == 0)
-	    code = EQ;
-	  break;
-
-	case GE:
-	  /* >= C is equivalent to > (C - 1).  */
-	  if (const_op > 0)
-	    {
-	      const_op -= 1;
-	      op1 = GEN_INT (const_op);
-	      code = GT;
-	      /* ... fall through to GT below.  */
-	    }
-	  else
-	    break;
-
-	case GT:
-	  /* > C is equivalent to >= (C + 1); we do this for C < 0.  */
-	  if (const_op < 0)
-	    {
-	      const_op += 1;
-	      op1 = GEN_INT (const_op);
-	      code = GE;
-	    }
-
-	  /* If we are doing a > 0 comparison on a value known to have
-	     a zero sign bit, we can replace this with != 0.  */
-	  else if (const_op == 0
-		   && mode_width <= HOST_BITS_PER_WIDE_INT
-		   && (nonzero_bits (op0, mode)
-		       & ((unsigned HOST_WIDE_INT) 1 << (mode_width - 1)))
-		       == 0)
-	    code = NE;
-	  break;
-
-	case LTU:
-	  /* < C is equivalent to <= (C - 1).  */
-	  if (const_op > 0)
-	    {
-	      const_op -= 1;
-	      op1 = GEN_INT (const_op);
-	      code = LEU;
-	      /* ... fall through ...  */
-	    }
-
-	  /* (unsigned) < 0x80000000 is equivalent to >= 0.  */
-	  else if (mode_width <= HOST_BITS_PER_WIDE_INT
-		   && (unsigned HOST_WIDE_INT) const_op
-		      == (unsigned HOST_WIDE_INT) 1 << (mode_width - 1))
-	    {
-	      const_op = 0, op1 = const0_rtx;
-	      code = GE;
-	      break;
-	    }
-	  else
-	    break;
-
-	case LEU:
-	  /* unsigned <= 0 is equivalent to == 0 */
-	  if (const_op == 0)
-	    code = EQ;
-
-	  /* (unsigned) <= 0x7fffffff is equivalent to >= 0.  */
-	  else if (mode_width <= HOST_BITS_PER_WIDE_INT
-		   && (unsigned HOST_WIDE_INT) const_op
-		      == ((unsigned HOST_WIDE_INT) 1 << (mode_width - 1)) - 1)
-	    {
-	      const_op = 0, op1 = const0_rtx;
-	      code = GE;
-	    }
-	  break;
-
-	case GEU:
-	  /* >= C is equivalent to > (C - 1).  */
-	  if (const_op > 1)
-	    {
-	      const_op -= 1;
-	      op1 = GEN_INT (const_op);
-	      code = GTU;
-	      /* ... fall through ...  */
-	    }
-
-	  /* (unsigned) >= 0x80000000 is equivalent to < 0.  */
-	  else if (mode_width <= HOST_BITS_PER_WIDE_INT
-		   && (unsigned HOST_WIDE_INT) const_op
-		      == (unsigned HOST_WIDE_INT) 1 << (mode_width - 1))
-	    {
-	      const_op = 0, op1 = const0_rtx;
-	      code = LT;
-	      break;
-	    }
-	  else
-	    break;
-
-	case GTU:
-	  /* unsigned > 0 is equivalent to != 0 */
-	  if (const_op == 0)
-	    code = NE;
-
-	  /* (unsigned) > 0x7fffffff is equivalent to < 0.  */
-	  else if (mode_width <= HOST_BITS_PER_WIDE_INT
-		   && (unsigned HOST_WIDE_INT) const_op
-		      == ((unsigned HOST_WIDE_INT) 1 << (mode_width - 1)) - 1)
-	    {
-	      const_op = 0, op1 = const0_rtx;
-	      code = LT;
-	    }
-	  break;
-
-	default:
-	  break;
-	}
 
       /* Compute some predicates to simplify code below.  */
 

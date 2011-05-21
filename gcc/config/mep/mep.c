@@ -1195,9 +1195,10 @@ mep_multi_slot (rtx x)
   return get_attr_slot (x) == SLOT_MULTI;
 }
 
+/* Implement TARGET_LEGITIMATE_CONSTANT_P.  */
 
-bool
-mep_legitimate_constant_p (rtx x)
+static bool
+mep_legitimate_constant_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
 {
   /* We can't convert symbol values to gp- or tp-rel values after
      reload, as reload might have used $gp or $tp for other
@@ -1300,7 +1301,7 @@ mep_legitimate_address (enum machine_mode mode, rtx x, int strict)
 
   if ((mode == SImode || mode == SFmode)
       && CONSTANT_P (x)
-      && LEGITIMATE_CONSTANT_P (x)
+      && mep_legitimate_constant_p (mode, x)
       && the_tag != 't' && the_tag != 'b')
     {
       if (GET_CODE (x) != CONST_INT
@@ -4121,16 +4122,18 @@ mep_validate_vliw (tree *node, tree name, tree args ATTRIBUTE_UNUSED,
       if (TREE_CODE (*node) == POINTER_TYPE
  	  && !gave_pointer_note)
  	{
- 	  inform (input_location, "to describe a pointer to a VLIW function, use syntax like this:");
- 	  inform (input_location, "  typedef int (__vliw *vfuncptr) ();");
+ 	  inform (input_location,
+ 	          "to describe a pointer to a VLIW function, use syntax like this:\n%s",
+ 	          "   typedef int (__vliw *vfuncptr) ();");
  	  gave_pointer_note = 1;
  	}
  
       if (TREE_CODE (*node) == ARRAY_TYPE
  	  && !gave_array_note)
  	{
- 	  inform (input_location, "to describe an array of VLIW function pointers, use syntax like this:");
- 	  inform (input_location, "  typedef int (__vliw *vfuncptr[]) ();");
+ 	  inform (input_location,
+ 	          "to describe an array of VLIW function pointers, use syntax like this:\n%s",
+ 	          "   typedef int (__vliw *vfuncptr[]) ();");
  	  gave_array_note = 1;
  	}
     }
@@ -6133,7 +6136,7 @@ mep_init_builtins (void)
 	if (cgen_insns[i].cret_p)
 	  ret_type = mep_cgen_regnum_to_type (cgen_insns[i].regnums[0].type);
 
-	bi_type = build_function_type (ret_type, 0);
+	bi_type = build_function_type_list (ret_type, NULL_TREE);
 	add_builtin_function (cgen_intrinsics[cgen_insns[i].intrinsic],
 			      bi_type,
 			      cgen_insns[i].intrinsic, BUILT_IN_MD, NULL, NULL);
@@ -7477,6 +7480,8 @@ mep_asm_init_sections (void)
 #define TARGET_CONDITIONAL_REGISTER_USAGE	mep_conditional_register_usage
 #undef  TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT		mep_trampoline_init
+#undef  TARGET_LEGITIMATE_CONSTANT_P
+#define TARGET_LEGITIMATE_CONSTANT_P	mep_legitimate_constant_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

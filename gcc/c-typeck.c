@@ -507,9 +507,6 @@ composite_type (tree t1, tree t2)
 
 	/* If both args specify argument types, we must merge the two
 	   lists, argument by argument.  */
-	/* Tell global_bindings_p to return false so that variable_size
-	   doesn't die on VLAs in parameter types.  */
-	c_override_global_bindings_to_false = true;
 
 	len = list_length (p1);
 	newargs = 0;
@@ -592,7 +589,6 @@ composite_type (tree t1, tree t2)
 	  parm_done: ;
 	  }
 
-	c_override_global_bindings_to_false = false;
 	t1 = build_function_type (valtype, newargs);
 	t1 = qualify_type (t1, t2);
 	/* ... falls through ...  */
@@ -3737,12 +3733,6 @@ build_unary_op (location_t location,
 	  tree op0 = TREE_OPERAND (arg, 0);
 	  if (!c_mark_addressable (op0))
 	    return error_mark_node;
-	  return build_binary_op (location, PLUS_EXPR,
-				  (TREE_CODE (TREE_TYPE (op0)) == ARRAY_TYPE
-				   ? array_to_pointer_conversion (location,
-								  op0)
-				   : op0),
-				  TREE_OPERAND (arg, 1), 1);
 	}
 
       /* Anything not already handled and not a true memory reference
@@ -3769,10 +3759,11 @@ build_unary_op (location_t location,
       argtype = TREE_TYPE (arg);
 
       /* If the lvalue is const or volatile, merge that into the type
-	 to which the address will point.  This should only be needed
+	 to which the address will point.  This is only needed
 	 for function types.  */
       if ((DECL_P (arg) || REFERENCE_CLASS_P (arg))
-	  && (TREE_READONLY (arg) || TREE_THIS_VOLATILE (arg)))
+	  && (TREE_READONLY (arg) || TREE_THIS_VOLATILE (arg))
+	  && TREE_CODE (argtype) == FUNCTION_TYPE)
 	{
 	  int orig_quals = TYPE_QUALS (strip_array_types (argtype));
 	  int quals = orig_quals;
@@ -3781,9 +3772,6 @@ build_unary_op (location_t location,
 	    quals |= TYPE_QUAL_CONST;
 	  if (TREE_THIS_VOLATILE (arg))
 	    quals |= TYPE_QUAL_VOLATILE;
-
-	  gcc_assert (quals == orig_quals
-		      || TREE_CODE (argtype) == FUNCTION_TYPE);
 
 	  argtype = c_build_qualified_type (argtype, quals);
 	}
@@ -5773,11 +5761,13 @@ store_init_value (location_t init_loc, tree decl, tree init, tree origtype)
 	      /* For int foo[] = (int [3]){1}; we need to set array size
 		 now since later on array initializer will be just the
 		 brace enclosed list of the compound literal.  */
+	      tree etype = strip_array_types (TREE_TYPE (decl));
 	      type = build_distinct_type_copy (TYPE_MAIN_VARIANT (type));
-	      TREE_TYPE (decl) = type;
 	      TYPE_DOMAIN (type) = TYPE_DOMAIN (TREE_TYPE (cldecl));
 	      layout_type (type);
 	      layout_decl (cldecl, 0);
+	      TREE_TYPE (decl)
+		= c_build_qualified_type (type, TYPE_QUALS (etype));
 	    }
 	}
     }
@@ -6642,7 +6632,7 @@ really_start_incremental_init (tree type)
     {
       /* Vectors are like simple fixed-size arrays.  */
       constructor_max_index =
-	build_int_cst (NULL_TREE, TYPE_VECTOR_SUBPARTS (constructor_type) - 1);
+	bitsize_int (TYPE_VECTOR_SUBPARTS (constructor_type) - 1);
       constructor_index = bitsize_zero_node;
       constructor_unfilled_index = constructor_index;
     }
@@ -6811,8 +6801,8 @@ push_init_level (int implicit, struct obstack * braced_init_obstack)
     {
       /* Vectors are like simple fixed-size arrays.  */
       constructor_max_index =
-	build_int_cst (NULL_TREE, TYPE_VECTOR_SUBPARTS (constructor_type) - 1);
-      constructor_index = convert (bitsizetype, integer_zero_node);
+	bitsize_int (TYPE_VECTOR_SUBPARTS (constructor_type) - 1);
+      constructor_index = bitsize_int (0);
       constructor_unfilled_index = constructor_index;
     }
   else if (TREE_CODE (constructor_type) == ARRAY_TYPE)
@@ -6932,15 +6922,23 @@ pop_init_level (int implicit, struct obstack * braced_init_obstack)
       && TREE_CODE (constructor_type) == RECORD_TYPE
       && constructor_unfilled_fields)
     {
+	bool constructor_zeroinit =
+	 (VEC_length (constructor_elt, constructor_elements) == 1
+	  && integer_zerop
+	      (VEC_index (constructor_elt, constructor_elements, 0)->value));
+
 	/* Do not warn for flexible array members or zero-length arrays.  */
 	while (constructor_unfilled_fields
 	       && (!DECL_SIZE (constructor_unfilled_fields)
 		   || integer_zerop (DECL_SIZE (constructor_unfilled_fields))))
 	  constructor_unfilled_fields = DECL_CHAIN (constructor_unfilled_fields);
 
-	/* Do not warn if this level of the initializer uses member
-	   designators; it is likely to be deliberate.  */
-	if (constructor_unfilled_fields && !constructor_designated)
+	if (constructor_unfilled_fields
+	    /* Do not warn if this level of the initializer uses member
+	       designators; it is likely to be deliberate.  */
+	    && !constructor_designated
+	    /* Do not warn about initializing with ` = {0}'.  */
+	    && !constructor_zeroinit)
 	  {
 	    push_member_name (constructor_unfilled_fields);
 	    warning_init (OPT_Wmissing_field_initializers,
@@ -8502,6 +8500,13 @@ build_asm_expr (location_t loc, tree string, tree outputs, tree inputs,
 	     mark it addressable.  */
 	  if (!allows_reg && !c_mark_addressable (output))
 	    output = error_mark_node;
+	  if (!(!allows_reg && allows_mem)
+	      && output != error_mark_node
+	      && VOID_TYPE_P (TREE_TYPE (output)))
+	    {
+	      error_at (loc, "invalid use of void expression");
+	      output = error_mark_node;
+	    }
 	}
       else
 	output = error_mark_node;
@@ -8528,7 +8533,12 @@ build_asm_expr (location_t loc, tree string, tree outputs, tree inputs,
 	      STRIP_NOPS (input);
 	      if (!c_mark_addressable (input))
 		input = error_mark_node;
-	  }
+	    }
+	  else if (input != error_mark_node && VOID_TYPE_P (TREE_TYPE (input)))
+	    {
+	      error_at (loc, "invalid use of void expression");
+	      input = error_mark_node;
+	    }
 	}
       else
 	input = error_mark_node;
@@ -10176,7 +10186,7 @@ build_binary_op (location_t location, enum tree_code code,
 		warn_for_sign_compare (location, orig_op0_folded,
 				       orig_op1_folded, op0, op1,
 				       result_type, resultcode);
-	      if (!in_late_binary_op)
+	      if (!in_late_binary_op && !int_operands)
 		{
 		  if (!op0_maybe_const || TREE_CODE (op0) != INTEGER_CST)
 		    op0 = c_wrap_maybe_const (op0, !op0_maybe_const);

@@ -1,5 +1,5 @@
 /* Statement simplification on GIMPLE.
-   Copyright (C) 2010 Free Software Foundation, Inc.
+   Copyright (C) 2010, 2011 Free Software Foundation, Inc.
    Split out from tree-ssa-ccp.c.
 
 This file is part of GCC.
@@ -80,7 +80,10 @@ can_refer_decl_in_current_unit_p (tree decl)
     return true;
   /* We are not at ltrans stage; so don't worry about WHOPR.
      Also when still gimplifying all referred comdat functions will be
-     produced.  */
+     produced.
+     ??? as observed in PR20991 for already optimized out comdat virtual functions
+     we may not neccesarily give up because the copy will be output elsewhere when
+     corresponding vtable is output.  */
   if (!flag_ltrans && (!DECL_COMDAT (decl) || !cgraph_function_flags_ready))
     return true;
   /* If we already output the function body, we are safe.  */
@@ -227,7 +230,7 @@ maybe_fold_offset_to_array_ref (location_t loc, tree base, tree offset)
 	  || TREE_CODE (elt_offset) != INTEGER_CST)
 	return NULL_TREE;
 
-      elt_offset = int_const_binop (MINUS_EXPR, elt_offset, low_bound, 0);
+      elt_offset = int_const_binop (MINUS_EXPR, elt_offset, low_bound);
       base = TREE_OPERAND (base, 0);
     }
 
@@ -297,9 +300,9 @@ maybe_fold_offset_to_array_ref (location_t loc, tree base, tree offset)
     }
 
   if (!integer_zerop (min_idx))
-    idx = int_const_binop (PLUS_EXPR, idx, min_idx, 0);
+    idx = int_const_binop (PLUS_EXPR, idx, min_idx);
   if (!integer_zerop (elt_offset))
-    idx = int_const_binop (PLUS_EXPR, idx, elt_offset, 0);
+    idx = int_const_binop (PLUS_EXPR, idx, elt_offset);
 
   /* Make sure to possibly truncate late after offsetting.  */
   idx = fold_convert (idx_type, idx);
@@ -514,17 +517,17 @@ maybe_fold_stmt_addition (location_t loc, tree res_type, tree op0, tree op1)
 	      array_idx = fold_convert (TREE_TYPE (min_idx), array_idx);
 	      if (!integer_zerop (min_idx))
 		array_idx = int_const_binop (MINUS_EXPR, array_idx,
-					     min_idx, 0);
+					     min_idx);
 	    }
 	}
 
       /* Convert the index to a byte offset.  */
       array_idx = fold_convert (sizetype, array_idx);
-      array_idx = int_const_binop (MULT_EXPR, array_idx, elt_size, 0);
+      array_idx = int_const_binop (MULT_EXPR, array_idx, elt_size);
 
       /* Update the operands for the next round, or for folding.  */
       op1 = int_const_binop (PLUS_EXPR,
-			     array_idx, op1, 0);
+			     array_idx, op1);
       op0 = array_obj;
     }
 
@@ -1369,7 +1372,7 @@ gimple_fold_builtin (gimple stmt)
    is a thunk (other than a this adjustment which is dealt with by DELTA). */
 
 tree
-gimple_get_virt_mehtod_for_binfo (HOST_WIDE_INT token, tree known_binfo,
+gimple_get_virt_method_for_binfo (HOST_WIDE_INT token, tree known_binfo,
 				  tree *delta, bool refuse_thunks)
 {
   HOST_WIDE_INT i;
@@ -1387,6 +1390,10 @@ gimple_get_virt_mehtod_for_binfo (HOST_WIDE_INT token, tree known_binfo,
 	    ? TARGET_VTABLE_USES_DESCRIPTORS : 1);
       v = TREE_CHAIN (v);
     }
+
+  /* If BV_VCALL_INDEX is non-NULL, give up.  */
+  if (TREE_TYPE (v))
+    return NULL_TREE;
 
   fndecl = TREE_VALUE (v);
   node = cgraph_get_node_or_alias (fndecl);
@@ -1438,6 +1445,74 @@ gimple_adjust_this_by_delta (gimple_stmt_iterator *gsi, tree delta)
   gimple_call_set_arg (call_stmt, 0, tmp);
 }
 
+/* Return a binfo to be used for devirtualization of calls based on an object
+   represented by a declaration (i.e. a global or automatically allocated one)
+   or NULL if it cannot be found or is not safe.  CST is expected to be an
+   ADDR_EXPR of such object or the function will return NULL.  Currently it is
+   safe to use such binfo only if it has no base binfo (i.e. no ancestors).  */
+
+tree
+gimple_extract_devirt_binfo_from_cst (tree cst)
+{
+  HOST_WIDE_INT offset, size, max_size;
+  tree base, type, expected_type, binfo;
+  bool last_artificial = false;
+
+  if (!flag_devirtualize
+      || TREE_CODE (cst) != ADDR_EXPR
+      || TREE_CODE (TREE_TYPE (TREE_TYPE (cst))) != RECORD_TYPE)
+    return NULL_TREE;
+
+  cst = TREE_OPERAND (cst, 0);
+  expected_type = TREE_TYPE (cst);
+  base = get_ref_base_and_extent (cst, &offset, &size, &max_size);
+  type = TREE_TYPE (base);
+  if (!DECL_P (base)
+      || max_size == -1
+      || max_size != size
+      || TREE_CODE (type) != RECORD_TYPE)
+    return NULL_TREE;
+
+  /* Find the sub-object the constant actually refers to and mark whether it is
+     an artificial one (as opposed to a user-defined one).  */
+  while (true)
+    {
+      HOST_WIDE_INT pos, size;
+      tree fld;
+
+      if (TYPE_MAIN_VARIANT (type) == TYPE_MAIN_VARIANT (expected_type))
+	break;
+      if (offset < 0)
+	return NULL_TREE;
+
+      for (fld = TYPE_FIELDS (type); fld; fld = DECL_CHAIN (fld))
+	{
+	  if (TREE_CODE (fld) != FIELD_DECL)
+	    continue;
+
+	  pos = int_bit_position (fld);
+	  size = tree_low_cst (DECL_SIZE (fld), 1);
+	  if (pos <= offset && (pos + size) > offset)
+	    break;
+	}
+      if (!fld || TREE_CODE (TREE_TYPE (fld)) != RECORD_TYPE)
+	return NULL_TREE;
+
+      last_artificial = DECL_ARTIFICIAL (fld);
+      type = TREE_TYPE (fld);
+      offset -= pos;
+    }
+  /* Artifical sub-objects are ancestors, we do not want to use them for
+     devirtualization, at least not here.  */
+  if (last_artificial)
+    return NULL_TREE;
+  binfo = TYPE_BINFO (type);
+  if (!binfo || BINFO_N_BASE_BINFOS (binfo) > 0)
+    return NULL_TREE;
+  else
+    return binfo;
+}
+
 /* Attempt to fold a call statement referenced by the statement iterator GSI.
    The statement may be replaced by another statement, e.g., if the call
    simplifies to a constant value. Return true if any changes were made.
@@ -1447,11 +1522,11 @@ bool
 gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
 {
   gimple stmt = gsi_stmt (*gsi);
-
-  tree callee = gimple_call_fndecl (stmt);
+  tree callee;
 
   /* Check for builtins that CCP can handle using information not
      available in the generic fold routines.  */
+  callee = gimple_call_fndecl (stmt);
   if (!inplace && callee && DECL_BUILT_IN (callee))
     {
       tree result = gimple_fold_builtin (stmt);
@@ -1463,6 +1538,33 @@ gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
 	  return true;
 	}
     }
+
+  /* Check for virtual calls that became direct calls.  */
+  callee = gimple_call_fn (stmt);
+  if (callee && TREE_CODE (callee) == OBJ_TYPE_REF)
+    {
+      tree binfo, fndecl, delta, obj;
+      HOST_WIDE_INT token;
+
+      if (gimple_call_addr_fndecl (OBJ_TYPE_REF_EXPR (callee)) != NULL_TREE)
+	{
+	  gimple_call_set_fn (stmt, OBJ_TYPE_REF_EXPR (callee));
+	  return true;
+	}
+
+      obj = OBJ_TYPE_REF_OBJECT (callee);
+      binfo = gimple_extract_devirt_binfo_from_cst (obj);
+      if (!binfo)
+	return false;
+      token = TREE_INT_CST_LOW (OBJ_TYPE_REF_TOKEN (callee));
+      fndecl = gimple_get_virt_method_for_binfo (token, binfo, &delta, false);
+      if (!fndecl)
+	return false;
+      gcc_assert (integer_zerop (delta));
+      gimple_call_set_fndecl (stmt, fndecl);
+      return true;
+    }
+
   return false;
 }
 
@@ -2174,10 +2276,22 @@ and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 							code2, op2a, op2b))
 			return NULL_TREE;
 		    }
-		  else if (TREE_CODE (arg) == SSA_NAME)
+		  else if (TREE_CODE (arg) == SSA_NAME
+			   && !SSA_NAME_IS_DEFAULT_DEF (arg))
 		    {
-		      tree temp = and_var_with_comparison (arg, invert,
-							   code2, op2a, op2b);
+		      tree temp;
+		      gimple def_stmt = SSA_NAME_DEF_STMT (arg);
+		      /* In simple cases we can look through PHI nodes,
+			 but we have to be careful with loops.
+			 See PR49073.  */
+		      if (! dom_info_available_p (CDI_DOMINATORS)
+			  || gimple_bb (def_stmt) == gimple_bb (stmt)
+			  || dominated_by_p (CDI_DOMINATORS,
+					     gimple_bb (def_stmt),
+					     gimple_bb (stmt)))
+			return NULL_TREE;
+		      temp = and_var_with_comparison (arg, invert, code2,
+						      op2a, op2b);
 		      if (!temp)
 			return NULL_TREE;
 		      else if (!result)
@@ -2624,10 +2738,22 @@ or_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 							code2, op2a, op2b))
 			return NULL_TREE;
 		    }
-		  else if (TREE_CODE (arg) == SSA_NAME)
+		  else if (TREE_CODE (arg) == SSA_NAME
+			   && !SSA_NAME_IS_DEFAULT_DEF (arg))
 		    {
-		      tree temp = or_var_with_comparison (arg, invert,
-							  code2, op2a, op2b);
+		      tree temp;
+		      gimple def_stmt = SSA_NAME_DEF_STMT (arg);
+		      /* In simple cases we can look through PHI nodes,
+			 but we have to be careful with loops.
+			 See PR49073.  */
+		      if (! dom_info_available_p (CDI_DOMINATORS)
+			  || gimple_bb (def_stmt) == gimple_bb (stmt)
+			  || dominated_by_p (CDI_DOMINATORS,
+					     gimple_bb (def_stmt),
+					     gimple_bb (stmt)))
+			return NULL_TREE;
+		      temp = or_var_with_comparison (arg, invert, code2,
+						     op2a, op2b);
 		      if (!temp)
 			return NULL_TREE;
 		      else if (!result)
@@ -2856,7 +2982,13 @@ gimple_fold_stmt_to_constant_1 (gimple stmt, tree (*valueize) (tree))
 
     case GIMPLE_CALL:
       {
-	tree fn = (*valueize) (gimple_call_fn (stmt));
+	tree fn;
+
+	if (gimple_call_internal_p (stmt))
+	  /* No folding yet for these functions.  */
+	  return NULL_TREE;
+
+	fn = (*valueize) (gimple_call_fn (stmt));
 	if (TREE_CODE (fn) == ADDR_EXPR
 	    && TREE_CODE (TREE_OPERAND (fn, 0)) == FUNCTION_DECL
 	    && DECL_BUILT_IN (TREE_OPERAND (fn, 0)))

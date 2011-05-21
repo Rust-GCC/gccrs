@@ -211,8 +211,7 @@ free_after_compilation (struct function *f)
   prologue_insn_hash = NULL;
   epilogue_insn_hash = NULL;
 
-  if (crtl->emit.regno_pointer_align)
-    free (crtl->emit.regno_pointer_align);
+  free (crtl->emit.regno_pointer_align);
 
   memset (crtl, 0, sizeof (struct rtl_data));
   f->eh = NULL;
@@ -2877,9 +2876,7 @@ assign_parm_setup_block (struct assign_parm_data_all *all,
 	      int by = (UNITS_PER_WORD - size) * BITS_PER_UNIT;
 	      rtx reg = gen_rtx_REG (word_mode, REGNO (entry_parm));
 
-	      x = expand_shift (LSHIFT_EXPR, word_mode, reg,
-				build_int_cst (NULL_TREE, by),
-				NULL_RTX, 1);
+	      x = expand_shift (LSHIFT_EXPR, word_mode, reg, by, NULL_RTX, 1);
 	      tem = change_address (mem, word_mode, 0);
 	      emit_move_insn (tem, x);
 	    }
@@ -2912,12 +2909,8 @@ static void
 record_hard_reg_sets (rtx x, const_rtx pat ATTRIBUTE_UNUSED, void *data)
 {
   HARD_REG_SET *pset = (HARD_REG_SET *)data;
-  if (REG_P (x) && REGNO (x) < FIRST_PSEUDO_REGISTER)
-    {
-      int nregs = hard_regno_nregs[REGNO (x)][GET_MODE (x)];
-      while (nregs-- > 0)
-	SET_HARD_REG_BIT (*pset, REGNO (x) + nregs);
-    }
+  if (REG_P (x) && HARD_REGISTER_P (x))
+    add_to_hard_reg_set (pset, GET_MODE (x), REGNO (x));
 }
 
 /* A subroutine of assign_parms.  Allocate a pseudo to hold the current
@@ -3656,7 +3649,7 @@ gimplify_parameters (void)
 		  t = built_in_decls[BUILT_IN_ALLOCA];
 		  t = build_call_expr (t, 1, DECL_SIZE_UNIT (parm));
 		  /* The call has been built for a variable-sized object.  */
-		  ALLOCA_FOR_VAR_P (t) = 1;
+		  CALL_ALLOCA_FOR_VAR_P (t) = 1;
 		  t = fold_convert (ptr_type, t);
 		  t = build2 (MODIFY_EXPR, TREE_TYPE (addr), addr, t);
 		  gimplify_and_add (t, &stmts);
@@ -4183,6 +4176,34 @@ blocks_nreverse (tree t)
   return prev;
 }
 
+/* Concatenate two chains of blocks (chained through BLOCK_CHAIN)
+   by modifying the last node in chain 1 to point to chain 2.  */
+
+tree
+block_chainon (tree op1, tree op2)
+{
+  tree t1;
+
+  if (!op1)
+    return op2;
+  if (!op2)
+    return op1;
+
+  for (t1 = op1; BLOCK_CHAIN (t1); t1 = BLOCK_CHAIN (t1))
+    continue;
+  BLOCK_CHAIN (t1) = op2;
+
+#ifdef ENABLE_TREE_CHECKING
+  {
+    tree t2;
+    for (t2 = op2; t2; t2 = BLOCK_CHAIN (t2))
+      gcc_assert (t2 != t1);
+  }
+#endif
+
+  return op1;
+}
+
 /* Count the subblocks of the list starting with BLOCK.  If VECTOR is
    non-NULL, list them all into VECTOR, in a depth-first preorder
    traversal of the block tree.  Also clear TREE_ASM_WRITTEN in all
@@ -4355,6 +4376,13 @@ get_next_funcdef_no (void)
   return funcdef_no++;
 }
 
+/* Return value of funcdef.  */
+int
+get_last_funcdef_no (void)
+{
+  return funcdef_no;
+}
+
 /* Allocate a function structure for FNDECL and set its contents
    to the defaults.  Set cfun to the newly-allocated object.
    Some of the helper functions invoked during initialization assume
@@ -4487,6 +4515,7 @@ init_function_start (tree subr)
   else
     allocate_struct_function (subr, false);
   prepare_function_start ();
+  decide_function_section (subr);
 
   /* Warn if this value is an aggregate type,
      regardless of which calling convention we are using for it.  */
@@ -4784,9 +4813,8 @@ expand_function_start (tree subr)
 #endif
     }
 
-  /* After the display initializations is where the stack checking
-     probe should go.  */
-  if(flag_stack_check)
+  /* If we are doing generic stack checking, the probe should go here.  */
+  if (flag_stack_check == GENERIC_STACK_CHECK)
     stack_check_probe_note = emit_note (NOTE_INSN_DELETED);
 
   /* Make sure there is a line number after the function entry setup code.  */
@@ -5295,8 +5323,7 @@ thread_prologue_and_epilogue_insns (void)
 {
   bool inserted;
   rtx seq ATTRIBUTE_UNUSED, epilogue_end ATTRIBUTE_UNUSED;
-  edge entry_edge ATTRIBUTE_UNUSED;
-  edge e;
+  edge entry_edge, e;
   edge_iterator ei;
 
   rtl_profile_for_bb (ENTRY_BLOCK_PTR);
@@ -5328,10 +5355,6 @@ thread_prologue_and_epilogue_insns (void)
       record_insns (seq, NULL, &prologue_insn_hash);
       set_insn_locators (seq, prologue_locator);
 
-      /* This relies on the fact that committing the edge insertion
-	 will look for basic blocks within the inserted instructions,
-	 which in turn relies on the fact that we are not in CFG
-	 layout mode here.  */
       insert_insn_on_edge (seq, entry_edge);
       inserted = true;
 #endif
@@ -5566,12 +5589,22 @@ thread_prologue_and_epilogue_insns (void)
 	  cur_bb->aux = cur_bb->next_bb;
       cfg_layout_finalize ();
     }
+
 epilogue_done:
   default_rtl_profile ();
 
   if (inserted)
     {
+      sbitmap blocks;
+
       commit_edge_insertions ();
+
+      /* Look for basic blocks within the prologue insns.  */
+      blocks = sbitmap_alloc (last_basic_block);
+      sbitmap_zero (blocks);
+      SET_BIT (blocks, entry_edge->dest->index);
+      find_many_sub_basic_blocks (blocks);
+      sbitmap_free (blocks);
 
       /* The epilogue insns we inserted may cause the exit edge to no longer
 	 be fallthru.  */

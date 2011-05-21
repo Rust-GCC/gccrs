@@ -157,10 +157,8 @@ delete_var_map (var_map map)
 {
   var_map_base_fini (map);
   partition_delete (map->var_partition);
-  if (map->partition_to_view)
-    free (map->partition_to_view);
-  if (map->view_to_partition)
-    free (map->view_to_partition);
+  free (map->partition_to_view);
+  free (map->view_to_partition);
   free (map);
 }
 
@@ -822,8 +820,7 @@ remove_unused_locals (void)
     if (!is_global_var (t)
 	&& TREE_CODE (t) != PARM_DECL
 	&& TREE_CODE (t) != RESULT_DECL
-	&& !is_used_p (t)
-	&& !var_ann (t)->is_heapvar)
+	&& !is_used_p (t))
       remove_referenced_var (t);
   remove_unused_scope_block_p (DECL_INITIAL (current_function_decl));
   if (dump_file && (dump_flags & TDF_DETAILS))

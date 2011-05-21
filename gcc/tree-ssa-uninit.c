@@ -349,9 +349,6 @@ convert_control_dep_chain_into_preds (VEC(edge, heap) **dep_chains,
   if (num_chains == 0 || num_chains >= MAX_NUM_CHAINS)
     return false;
 
-  /* Now convert CD chains into predicates  */
-  has_valid_pred = true;
-
   /* Now convert the control dep chain into a set
      of predicates.  */
   *preds = XCNEWVEC (VEC(use_pred_info_t, heap) *,
@@ -412,6 +409,7 @@ convert_control_dep_chain_into_preds (VEC(edge, heap) **dep_chains,
           one_pred->cond = cond_stmt;
           one_pred->invert = !!(e->flags & EDGE_FALSE_VALUE);
           VEC_safe_push (use_pred_info_t, heap, (*preds)[i], one_pred);
+	  has_valid_pred = true;
         }
 
       if (!has_valid_pred)
@@ -1955,7 +1953,7 @@ warn_uninitialized_phi (gimple phi, VEC(gimple, heap) **worklist,
     return;
 
   uninit_op = gimple_phi_arg_def (phi, MASK_FIRST_SET_BIT (uninit_opnds));
-  warn_uninit (uninit_op,
+  warn_uninit (OPT_Wmaybe_uninitialized, uninit_op,
                "%qD may be used uninitialized in this function",
                uninit_use_stmt);
 

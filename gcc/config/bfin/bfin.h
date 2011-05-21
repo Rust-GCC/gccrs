@@ -140,6 +140,10 @@
 	case BFIN_CPU_BF561:			\
 	  builtin_define ("__ADSPBF561__");	\
 	  break;				\
+	case BFIN_CPU_BF592:            \
+	  builtin_define ("__ADSPBF592__"); \
+	  builtin_define ("__ADSPBF59x__"); \
+	  break;                \
 	}					\
 						\
       if (bfin_si_revision != -1)		\
@@ -784,13 +788,6 @@ typedef struct {
 
 /* Addressing Modes */
 
-/* Nonzero if the constant value X is a legitimate general operand.
-   symbol_ref are not legitimate and will be put into constant pool.
-   See force_const_mem().
-   If -mno-pool, all constants are legitimate.
- */
-#define LEGITIMATE_CONSTANT_P(X) bfin_legitimate_constant_p (X)
-
 /*   A number, the maximum number of registers that can appear in a
      valid memory address.  Note that it is up to you to specify a
      value equal to the maximum number that `TARGET_LEGITIMATE_ADDRESS_P'
@@ -1133,18 +1130,28 @@ do { 						\
 
 #define ASM_COMMENT_START "//"
 
+#define PROFILE_BEFORE_PROLOGUE
 #define FUNCTION_PROFILER(FILE, LABELNO)	\
   do {						\
-    fprintf (FILE, "\tCALL __mcount;\n");	\
+    fprintf (FILE, "\t[--SP] = RETS;\n");	\
+    if (TARGET_LONG_CALLS)			\
+      {						\
+	fprintf (FILE, "\tP2.h = __mcount;\n");	\
+	fprintf (FILE, "\tP2.l = __mcount;\n");	\
+	fprintf (FILE, "\tCALL (P2);\n");	\
+      }						\
+    else					\
+      fprintf (FILE, "\tCALL __mcount;\n");	\
+    fprintf (FILE, "\tRETS = [SP++];\n");	\
   } while(0)
 
 #undef NO_PROFILE_COUNTERS
 #define NO_PROFILE_COUNTERS 1
 
-#define ASM_OUTPUT_REG_PUSH(FILE, REGNO) fprintf (FILE, "[SP--] = %s;\n", reg_names[REGNO])
-#define ASM_OUTPUT_REG_POP(FILE, REGNO)  fprintf (FILE, "%s = [SP++];\n", reg_names[REGNO])
+#define ASM_OUTPUT_REG_PUSH(FILE, REGNO) fprintf (FILE, "\t[--SP] = %s;\n", reg_names[REGNO])
+#define ASM_OUTPUT_REG_POP(FILE, REGNO)  fprintf (FILE, "\t%s = [SP++];\n", reg_names[REGNO])
 
-extern struct rtx_def *bfin_cc_rtx, *bfin_rets_rtx;
+extern rtx bfin_cc_rtx, bfin_rets_rtx;
 
 /* This works for GAS and some other assemblers.  */
 #define SET_ASM_OP              ".set "

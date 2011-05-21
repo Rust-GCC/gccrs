@@ -134,17 +134,18 @@ by type.  Explanations are in the following sections.
 @item Error and Warning Options
 @xref{Error and Warning Options,,Options to request or suppress errors
 and warnings}.
-@gccoptlist{-fmax-errors=@var{n} @gol
--fsyntax-only  -pedantic  -pedantic-errors @gol
--Wall  -Waliasing  -Wampersand  -Warray-bounds -Wcharacter-truncation @gol
--Wconversion -Wimplicit-interface  -Wimplicit-procedure  -Wline-truncation @gol
--Wintrinsics-std  -Wsurprising  -Wno-tabs  -Wunderflow  -Wunused-parameter @gol
--Wintrinsic-shadow  -Wno-align-commons}
+@gccoptlist{-fmax-errors=@var{n}
+-fsyntax-only -pedantic -pedantic-errors -Wall @gol
+-Waliasing -Wampersand -Warray-bounds -Wcharacter-truncation @gol
+-Wconversion -Wimplicit-interface -Wimplicit-procedure -Wline-truncation @gol
+-Wintrinsics-std -Wreal-q-constant -Wsurprising -Wno-tabs -Wunderflow @gol
+-Wunused-parameter -Wintrinsic-shadow -Wno-align-commons @gol
+-Wfunction-elimination}
 
 @item Debugging Options
 @xref{Debugging Options,,Options for debugging your program or GNU Fortran}.
 @gccoptlist{-fdump-fortran-original  -fdump-fortran-optimized @gol
--ffpe-trap=@var{list}  -fdump-core -fbacktrace -fdump-parse-tree}
+-ffpe-trap=@var{list} -fbacktrace -fdump-parse-tree}
 
 @item Directory Options
 @xref{Directory Options,,Options for directory search}.
@@ -167,11 +168,13 @@ and warnings}.
 -fbounds-check -fcheck-array-temporaries  -fmax-array-constructor =@var{n} @gol
 -fcheck=@var{<all|array-temps|bounds|do|mem|pointer|recursion>} @gol
 -fcoarray=@var{<none|single|lib>} -fmax-stack-var-size=@var{n} @gol
+-fstack-arrays @gol
 -fpack-derived  -frepack-arrays  -fshort-enums  -fexternal-blas @gol
 -fblas-matmul-limit=@var{n} -frecursive -finit-local-zero @gol
 -finit-integer=@var{n} -finit-real=@var{<zero|inf|-inf|nan|snan>} @gol
 -finit-logical=@var{<true|false>} -finit-character=@var{n} @gol
--fno-align-commons -fno-protect-parens -frealloc-lhs}
+-fno-align-commons -fno-protect-parens -frealloc-lhs @gol
+-faggressive-function-elimination -ffrontend-optimize}
 @end table
 
 @menu
@@ -365,7 +368,9 @@ extensions, and may be useful for old non-standard programs.  The
 conformance to the Fortran 95, Fortran 2003 and Fortran 2008 standards,
 respectively; errors are given for all extensions beyond the relevant
 language standard, and warnings are given for the Fortran 77 features
-that are permitted but obsolescent in later standards.
+that are permitted but obsolescent in later standards. @samp{-std=f2008tr}
+allows the Fortran 2008 standard including the additions of the 
+technical report (TR) 29113.
 
 @end table
 
@@ -692,7 +697,7 @@ we recommend avoiding and that we believe are easy to avoid.
 This currently includes @option{-Waliasing}, @option{-Wampersand}, 
 @option{-Wconversion}, @option{-Wsurprising}, @option{-Wintrinsics-std},
 @option{-Wno-tabs}, @option{-Wintrinsic-shadow}, @option{-Wline-truncation},
-and @option{-Wunused}.
+@option{-Wreal-q-constant} and @option{-Wunused}.
 
 @item -Waliasing
 @opindex @code{Waliasing}
@@ -780,6 +785,12 @@ it as @code{EXTERNAL} procedure because of this.  @option{-fall-intrinsics} can
 be used to never trigger this behavior and always link to the intrinsic
 regardless of the selected standard.
 
+@item -Wreal-q-constant
+@opindex @code{Wreal-q-constant}
+@cindex warnings, @code{q} exponent-letter
+Produce a warning if a real-literal-constant contains a @code{q}
+exponent-letter.
+
 @item -Wsurprising
 @opindex @code{Wsurprising}
 @cindex warnings, suspicious code
@@ -859,6 +870,14 @@ By default, @command{gfortran} warns about any occasion of variables being
 padded for proper alignment inside a @code{COMMON} block. This warning can be turned
 off via @option{-Wno-align-commons}. See also @option{-falign-commons}.
 
+@item -Wfunction-elimination
+@opindex @code{Wfunction-elimination}
+@cindex function elimination
+@cindex warnings, function elimination
+Warn if any calls to functions are eliminated by the optimizations
+enabled by the @option{-ffrontend-optimize} option.
+
+
 @item -Werror
 @opindex @code{Werror}
 @cindex warnings, to errors
@@ -900,38 +919,44 @@ GNU Fortran compiler itself.  This option is deprecated; use
 
 @item -ffpe-trap=@var{list}
 @opindex @code{ffpe-trap=}@var{list}
-Specify a list of IEEE exceptions when a Floating Point Exception
-(FPE) should be raised.  On most systems, this will result in a SIGFPE
-signal being sent and the program being interrupted, producing a core
-file useful for debugging.  @var{list} is a (possibly empty) comma-separated
-list of the following IEEE exceptions: @samp{invalid} (invalid floating
-point operation, such as @code{SQRT(-1.0)}), @samp{zero} (division by
-zero), @samp{overflow} (overflow in a floating point operation),
-@samp{underflow} (underflow in a floating point operation),
-@samp{precision} (loss of precision during operation) and @samp{denormal}
-(operation produced a denormal value).
+Specify a list of floating point exception traps to enable.  On most
+systems, if a floating point exception occurs and the trap for that
+exception is enabled, a SIGFPE signal will be sent and the program
+being aborted, producing a core file useful for debugging.  @var{list}
+is a (possibly empty) comma-separated list of the following
+exceptions: @samp{invalid} (invalid floating point operation, such as
+@code{SQRT(-1.0)}), @samp{zero} (division by zero), @samp{overflow}
+(overflow in a floating point operation), @samp{underflow} (underflow
+in a floating point operation), @samp{inexact} (loss of precision
+during operation), and @samp{denormal} (operation performed on a
+denormal value).  The first five exceptions correspond to the five
+IEEE 754 exceptions, whereas the last one (@samp{denormal}) is not
+part of the IEEE 754 standard but is available on some common
+architectures such as x86.
 
-Some of the routines in the Fortran runtime library, like
-@samp{CPU_TIME}, are likely to trigger floating point exceptions when
-@code{ffpe-trap=precision} is used. For this reason, the use of 
-@code{ffpe-trap=precision} is not recommended.
+The first three exceptions (@samp{invalid}, @samp{zero}, and
+@samp{overflow}) often indicate serious errors, and unless the program
+has provisions for dealing with these exceptions, enabling traps for
+these three exceptions is probably a good idea.
 
-@item -fbacktrace
-@opindex @code{fbacktrace}
+Many, if not most, floating point operations incur loss of precision
+due to rounding, and hence the @code{ffpe-trap=inexact} is likely to
+be uninteresting in practice.
+
+By default no exception traps are enabled.
+
+@item -fno-backtrace
+@opindex @code{fno-backtrace}
 @cindex backtrace
 @cindex trace
-Specify that, when a runtime error is encountered or a deadly signal is
-emitted (segmentation fault, illegal instruction, bus error or
-floating-point exception), the Fortran runtime
-library should output a backtrace of the error.  This option
-only has influence for compilation of the Fortran main program.
+When a serious runtime error is encountered or a deadly signal is
+emitted (segmentation fault, illegal instruction, bus error,
+floating-point exception, and the other POSIX signals that have the
+action @samp{core}), the Fortran runtime library tries to output a
+backtrace of the error. @code{-fno-backtrace} disables the backtrace
+generation. This option only has influence for compilation of the
+Fortran main program.
 
-@item -fdump-core
-@cindex core, dump
-@opindex @code{fdump-core}
-Request that a core-dump file is written to disk when a runtime error
-is encountered on systems that support core dumps. This option is
-only effective for the compilation of the Fortran main program.
 @end table
 
 @xref{Debugging Options,,Options for Debugging Your Program or GCC,
@@ -1361,6 +1386,15 @@ Future versions of GNU Fortran may improve this behavior.
 
 The default value for @var{n} is 32768.
 
+@item -fstack-arrays
+@opindex @code{fstack-arrays}
+Adding this option will make the fortran compiler put all local arrays,
+even those of unknown size onto stack memory.  If your program uses very
+large local arrays it's possible that you'll have to extend your runtime
+limits for stack memory on some operating systems. This flag is enabled
+by default at optimization level @option{-Ofast}.
+
+
 @item -fpack-derived
 @opindex @code{fpack-derived}
 @cindex structure packing
@@ -1464,7 +1498,8 @@ levels such that the compiler does not do any re-association. Using
 @option{-fno-protect-parens} allows the compiler to reorder @code{REAL} and
 @code{COMPLEX} expressions to produce faster code. Note that for the re-association
 optimization @option{-fno-signed-zeros} and @option{-fno-trapping-math}
-need to be in effect.
+need to be in effect. The parentheses protection is enabled by default, unless
+@option{-Ofast} is given.
 
 @item -frealloc-lhs
 @opindex @code{frealloc-lhs}
@@ -1482,8 +1517,19 @@ statements, regardless of whether these functions are marked
 @smallexample
   a = f(b,c) + f(b,c)
 @end smallexample
-there will only be a single call to @code{f}.
+there will only be a single call to @code{f}.  This option only works
+if @option{-ffrontend-optimize} is in effect.
 
+@item -ffrontend-optimize
+@opindex @code{frontend-optimize}
+@cindex Front-end optimization
+This option performs front-end optimization, based on manipulating
+parts the Fortran parse tree.  Enabled by default by any @option{-O}
+option.  Optimizations enabled by this option include elimination of
+identical function calls within expressions, removing unnecessary
+calls to @code{TRIM} in comparisons and assignments and replacing
+@code{TRIM(a)} with @code{a(1:LEN_TRIM(a))}. 
+It can be deselected by specifying @option{-fno-frontend-optimize}.
 @end table
 
 @xref{Code Gen Options,,Options for Code Generation Conventions,

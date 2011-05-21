@@ -1,3 +1,719 @@
+2011-05-20  Jason Merrill  <jason@redhat.com>
+
+	* include/ext/pb_ds/assoc_container.hpp: Explicitly qualify calls to
+	functions from dependent bases.
+	* include/ext/pb_ds/detail/rb_tree_map_/erase_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/rb_tree_map_/
+	split_join_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/splay_tree_/erase_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/splay_tree_/insert_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/splay_tree_/splay_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/splay_tree_/
+	split_join_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/tree_policy/
+	order_statistics_imp.hpp: Likewise.
+	* include/ext/pb_ds/detail/trie_policy/
+	prefix_search_node_update_imp.hpp: Likewise.
+	* include/ext/rc_string_base.h: Likewise.
+	* include/ext/rope: Likewise.
+	* include/ext/ropeimpl.h: Likewise.
+	* testsuite/util/exception/safety.h: Likewise.
+	* testsuite/util/native_type/native_priority_queue.hpp: Likewise.
+	* testsuite/util/testsuite_io.h: Likewise.
+	* include/std/functional: Declare mem_fn earlier.
+	* include/tr1/functional: Likewise.
+	* include/tr1/exp_integral.tcc: Declare __expint_E1 earlier.
+
+2011-05-19  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/tuple (tuple_element<__i, const _Tp>,
+	tuple_element<__i, volatile _Tp>, tuple_element<__i,
+	const volatile _Tp>, tuple_size<const _Tp>, tuple_size<volatile _Tp>,
+	tuple_size<const volatile _Tp>): Add.
+	* include/std/utility (tuple_size<std::pair<_Tp1, _Tp2>>): Tweak.
+	* include/std/array (tuple_size<array<_Tp, _Nm>>): Likewise.
+	* testsuite/20_util/tuple/cv_tuple_size.cc: New.
+	* testsuite/20_util/tuple/cv_tuple_element.cc: Likewise.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Tweak dg-warning
+	line number.
+
+2011-05-19  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/tuple (tuple<>::operator=(tuple&&)): Specify as
+        noexcept.
+	(__get_helper): Likewise.
+	(_Head_base<>::_M_head, _Tuple_impl<>::_M_head, _M_tail): Likewise.
+	* include/bits/move.h (swap): Likewise.
+	* include/bits/algorithmfwd.h (swap): Adjust.
+	* include/bits/stl_pair.h (pair<>::operator=(pair&&)): Spec noexcept.
+	* testsuite/util/testsuite_allocator.h (uneq_allocator): In C++0x
+	mode, prefer delete to access control to make the type not copy
+	assignable.
+	* testsuite/util/testsuite_tr1.h: Add test classes.
+	* testsuite/20_util/tuple/noexcept_swap.cc: New.
+	* testsuite/20_util/tuple/noexcept_move_assign.cc: Likewise.
+	* testsuite/25_algorithms/reverse/moveable.cc: Likewise, prefer
+	delete to access control.
+	* testsuite/25_algorithms/swap_ranges/moveable.cc: Likewise.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-warning
+	line numbers.
+
+2011-05-19  Daniel Krugler  <daniel.kruegler@googlemail.com>
+
+	* testsuite/util/testsuite_tr1.h: Add test classes.
+	* testsuite/20_util/is_nothrow_assignable/value.cc: Add.
+
+2011-05-19  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/type_traits (is_assignable, is_copy_assignable,
+	is_move_assignable, is_nothrow_assignable, is_nothrow_copy_assignable,
+	is_nothrow_move_assignable): Add; minor tweaks elsewhere.
+	(has_nothrow_copy_assign): Remove.
+	* testsuite/util/testsuite_tr1.h: Add test classes.
+	* testsuite/20_util/is_assignable/requirements/typedefs.cc: Add.
+	* testsuite/20_util/is_assignable/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_nothrow_assignable/value.cc: Likewise.
+	* testsuite/20_util/is_nothrow_assignable/requirements/typedefs.cc:
+	Likewise.
+	* testsuite/20_util/is_nothrow_assignable/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_move_assignable/value.cc: Likewise.
+	* testsuite/20_util/is_move_assignable/requirements/typedefs.cc:
+	Likewise.
+	* testsuite/20_util/is_move_assignable/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_copy_assignable/value.cc: Likewise.
+	* testsuite/20_util/is_copy_assignable/requirements/typedefs.cc:
+	Likewise.
+	* testsuite/20_util/is_copy_assignable/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_nothrow_move_assignable/value.cc: Likewise.
+	* testsuite/20_util/is_nothrow_move_assignable/requirements/
+	typedefs.cc: Likewise.
+	* testsuite/20_util/is_nothrow_move_assignable/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_nothrow_copy_assignable/value.cc: Likewise.
+	* testsuite/20_util/is_nothrow_copy_assignable/requirements/
+	typedefs.cc: Likewise.
+	* testsuite/20_util/is_nothrow_copy_assignable/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/make_signed/requirements/typedefs_neg.cc: Adjust
+	dg-error line numbers.
+	* testsuite/20_util/make_unsigned/requirements/typedefs_neg.cc:
+	Likewise.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Likewise.
+
+2011-05-18  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/shared_ptr_base.h: Use noexcept. Define special member
+	functions as defaulted/deleted.
+	* include/bits/shared_ptr.h: Use noexcept.
+	* 20_util/shared_ptr/cons/43820_neg.cc: Adjust dg-error line numbers.
+	* 20_util/weak_ptr/comparison/cmp_neg.cc: Likewise.
+
+2011-05-18  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* doc/xml/manual/bitmap_allocator.xml: Fix typos.
+
+2011-05-18  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* libsupc++/initializer_list: Use noexcept specifier.
+	(initializer_list<>::size, begin, end): Qualify as const.
+	* include/bits/move.h (__addressof, forward, move, addressof): Specify
+	as noexcept.
+	* include/std/bitset: Use noexcept specifier throughout.
+	* include/debug/bitset: Update.
+	* include/profile/bitset: Likewise.
+
+2011-05-17  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/tuple: Use noexcept where appropriate.
+	(tuple<>::swap): Rework implementation.
+	(_Head_base<>::_M_swap_impl): Remove.
+	(get(std::tuple<>&&)): Add.
+	* testsuite/20_util/tuple/element_access/get2.cc: New.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-error
+	line number.
+
+2011-05-16  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/utility: Simplify the last commit, the whole
+	std::get code is C++0x only.
+
+2011-05-16  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/utility (get(std::pair<>&&)): Add.
+	* include/bits/stl_pair.h (pair::swap(pair&),
+	swap(pair<>&, pair<>&)): Use noexcept.
+	* include/bits/random.h (discard_block_engine<>::base,
+	independent_bits_engine<>::base, shuffle_order_engine<>::base,
+	random_device::entropy): Use noexcept.
+	* include/std/array: Use noexcept where appropriate.
+	(get(array<>&&)): Add.
+	* testsuite/23_containers/array/requirements/get.cc: New.
+	* testsuite/20_util/pair/get.cc: Likewise.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Tweak dg-error
+	line number.
+
+2011-05-15  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/c++config (_GLIBCXX_NOEXCEPT, _GLIBCXX_USE_NOEXCEPT):
+	Add.
+	* include/std/limits: Use the latter everywhere.
+	(numeric_limits<char16_t>, numeric_limits<char32_t>): Simplify
+	macro usages, the specializations exist only in C++0x mode.
+	* testsuite/ext/profile/mutex_extensions_neg.cc: Adjust dg-error
+	line number.
+
+2011-05-11  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/26_numerics/headers/cmath/overloads_c++0x_neg.cc: Use
+	dg-require-cmath.
+	* testsuite/tr1/8_c_compatibility/cmath/overloads_neg.cc: Likewise.
+
+2011-05-11  François Dumont  <francois.cppdevs@free.fr>
+
+	* include/ext/pb_ds/detail/resize_policy/
+	hash_load_check_resize_trigger_imp.hpp (assert_valid): Replace
+	_GLIBCXX_DEBUG_ASSERT calls with PB_DS_DEBUG_VERIFY.
+	* include/ext/pb_ds/detail/binomial_heap_base_/erase_fn_imps.hpp,
+	find_fn_imps.hpp, insert_fn_imps.hpp, binomial_heap_base_.hpp,
+	constructors_destructor_fn_imps.hpp, split_join_fn_imps.hpp
+	(PB_DS_ASSERT_VALID): Rename in PB_DS_ASSERT_VALID_COND.
+	* include/ext/pb_ds/detail/debug_map_base.hpp,
+	splay_tree_/splay_tree_.hpp, ov_tree_map_/ov_tree_map_.hpp,
+	cc_hash_table_map_/cc_ht_map_.hpp, pat_trie_/pat_trie_.hpp,
+	leaf.hpp, internal_node.hpp, gp_hash_table_map_/gp_ht_map_.hpp,
+	bin_search_tree_/bin_search_tree_.hpp, list_update_map_/lu_map_.hpp,
+	rb_tree_map_/rb_tree_.hpp (PB_DS_ASSERT_VALID, PB_DS_DEBUG_VERIFY,
+	PB_DS_CHECK_KEY_EXISTS,	PB_DS_CHECK_KEY_DOES_NOT_EXIST): Duplicate
+	macro definitions move...
+	* include/ext/pb_ds/detail/container_base_dispatch.hpp: ... here...
+	* include/ext/pb_ds/detail/basic_tree_policy/traits.hpp: ... and here.
+	* include/ext/pb_ds/detail/binary_heap_/binary_heap_.hpp,
+	resize_policy.hpp, pairing_heap_/pairing_heap_.hpp,
+	left_child_next_sibling_heap_/left_child_next_sibling_heap_.hpp,
+	binomial_heap_/binomial_heap_.hpp, thin_heap_/thin_heap_.hpp,
+	rc_binomial_heap_/rc_binomial_heap_.hpp, rc.hpp (PB_DS_ASSERT_VALID,
+	PB_DS_DEBUG_VERIFY): Duplicate macro definitions move...
+	* include/ext/pb_ds/detail/priority_queue_base_dispatch.hpp:
+	...here.
+
+2011-05-09  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/48933
+	* include/c_global/cmath (acosh, asinh, atanh, cbrt, copysign,
+	erf, erfc, exp2, expm1, fdim, fma, fmax, hypot, ilogb, lgamma,
+	llrint, llround, log1p, log2, logb, lrint, lround, nearbyint,
+	nextafter, nexttoward, remainder, remquo, rint, round, scalbln,
+	scalbn, tgamma, trunc): Use __enable_if on the return type.
+	* include/tr1/cmath: Likewise.
+	* testsuite/26_numerics/headers/cmath/overloads_c++0x_neg.cc: New.
+	* testsuite/tr1/8_c_compatibility/cmath/overloads_neg.cc: Likewise.
+
+2011-05-07  François Dumont  <francois.cppdevs@free.fr>
+
+	* include/debug/macro.h (_GLIBCXX_DEBUG_VERIFY_AT): New.
+	(_GLICXX_DEBUG_VERIFY): Use latter.
+	* include/ext/pb_ds/detail/resize_policy/
+	hash_load_check_resize_trigger_imp.hpp: Emit assertion on the line
+	containing the original assert call.
+	* include/ext/pb_ds/detail/binomial_heap_base_/erase_fn_imps.hpp,
+	find_fn_imps.hpp, insert_fn_imps.hpp, binomial_heap_base_.hpp,
+	constructors_destructor_fn_imps.hpp, debug_fn_imps.hpp,
+	split_join_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	erase_store_hash_fn_imps.hpp, insert_no_store_hash_fn_imps.hpp,
+	find_fn_imps.hpp, insert_store_hash_fn_imps.hpp, debug_fn_imps.hpp,
+	debug_no_store_hash_fn_imps.hpp, cc_ht_map_.hpp, resize_fn_imps.hpp,
+	constructor_destructor_fn_imps.hpp, debug_store_hash_fn_imps.hpp,
+	erase_no_store_hash_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/pat_trie_/find_fn_imps.hpp,
+	insert_join_fn_imps.hpp, pat_trie_/head.hpp, debug_fn_imps.hpp,
+	constructors_destructor_fn_imps.hpp, pat_trie_.hpp, split_fn_imps.hpp,
+	leaf.hpp, erase_fn_imps.hpp, node_base.hpp, internal_node.hpp:
+	Likewise.
+	* include/ext/pb_ds/detail/bin_search_tree_/find_fn_imps.hpp,
+	r_erase_fn_imps.hpp, constructors_destructor_fn_imps.hpp,
+	debug_fn_imps.hpp, rotate_fn_imps.hpp, erase_fn_imps.hpp,
+	bin_search_tree_.hpp, insert_fn_imps.hpp, split_join_fn_imps.hpp:
+	Likewise.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	erase_store_hash_fn_imps.hpp, insert_no_store_hash_fn_imps.hpp,
+	find_fn_imps.hpp, gp_ht_map_.hpp, insert_store_hash_fn_imps.hpp,
+	debug_fn_imps.hpp, erase_fn_imps.hpp, debug_no_store_hash_fn_imps.hpp,
+	resize_fn_imps.hpp, constructor_destructor_fn_imps.hpp,
+	debug_store_hash_fn_imps.hpp, erase_no_store_hash_fn_imps.hpp:
+	Likewise.
+	* include/ext/pb_ds/detail/binary_heap_/find_fn_imps.hpp,
+	constructors_destructor_fn_imps.hpp, debug_fn_imps.hpp,
+	erase_fn_imps.hpp, insert_fn_imps.hpp, binary_heap_.hpp,
+	resize_policy.hpp, split_join_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/pairing_heap_/erase_fn_imps.hpp,
+	find_fn_imps.hpp, insert_fn_imps.hpp,
+	constructors_destructor_fn_imps.hpp, debug_fn_imps.hpp,
+	pairing_heap_.hpp, split_join_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/binomial_heap_/
+	constructors_destructor_fn_imps.hpp, debug_fn_imps.hpp,
+	binomial_heap_.hpp: Likewise.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	erase_fn_imps.hpp, left_child_next_sibling_heap_.hpp,
+	constructors_destructor_fn_imps.hpp, debug_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/thin_heap_/erase_fn_imps.hpp,
+	find_fn_imps.hpp, thin_heap_.hpp, insert_fn_imps.hpp,
+	constructors_destructor_fn_imps.hpp, debug_fn_imps.hpp,
+	split_join_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/ov_tree_map_/erase_fn_imps.hpp,
+	ov_tree_map_.hpp, constructors_destructor_fn_imps.hpp,
+	debug_fn_imps.hpp, split_join_fn_imps.hpp, info_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/debug_map_base.hpp: Likewise.
+	* include/ext/pb_ds/detail/splay_tree_/erase_fn_imps.hpp,
+	find_fn_imps.hpp, insert_fn_imps.hpp,
+	constructors_destructor_fn_imps.hpp, debug_fn_imps.hpp,
+	splay_fn_imps.hpp, split_join_fn_imps.hpp, splay_tree_.hpp: Likewise.
+	* include/ext/pb_ds/detail/list_update_map_/erase_fn_imps.hpp,
+	find_fn_imps.hpp, lu_map_.hpp, constructor_destructor_fn_imps.hpp,
+	insert_fn_imps.hpp, debug_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/rc_binomial_heap_/erase_fn_imps.hpp,
+	rc_binomial_heap_.hpp, insert_fn_imps.hpp,
+	constructors_destructor_fn_imps.hpp, debug_fn_imps.hpp, rc.hpp,
+	split_join_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/detail/rb_tree_map_/erase_fn_imps.hpp,
+	insert_fn_imps.hpp, constructors_destructor_fn_imps.hpp,
+	debug_fn_imps.hpp, rb_tree_.hpp, split_join_fn_imps.hpp: Likewise.
+	* include/ext/pb_ds/hash_policy.hpp: Likewise.
+
+2011-05-06  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/22_locale/messages_byname/named_equivalence.cc: Fix.
+
+2011-05-04  Marc Glisse  <marc.glisse@normalesup.org>
+
+	PR libstdc++/47913 (again)
+	* include/std/ratio (ratio_add, ratio_less): Rewrite.
+	* testsuite/20_util/ratio/operations/47913.cc: Extend.
+	* testsuite/20_util/ratio/cons/cons_overflow_neg.cc: Adjust dg-error
+	line numbers.
+	* testsuite/20_util/ratio/operations/ops_overflow_neg.cc: Likewise.
+
+2011-05-03  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/48848
+	* include/std/valarray (valarray<>::valarray(valarray&&),
+	valarray<>::operator=(valarray&&), valarray<>::swap): Add.
+	* doc/xml/manual/status_cxx200x.xml: Update.
+	* testsuite/26_numerics/valarray/moveable.cc: New.
+	* testsuite/26_numerics/valarray/swap.cc: Likewise.
+
+2011-05-03  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/48750
+	* include/parallel/multiway_merge.h: Run _ValueType destructors.
+	* include/parallel/multiway_mergesort.h: Likewise.
+	* include/parallel/quicksort.h: Likewise.
+	* include/parallel/random_shuffle.h: Likewise.
+	* include/parallel/partial_sum.h: Likewise.
+	* include/parallel/losertree.h: Run destructors; minor tweaks.
+	* include/parallel/par_loop.h: Run destructors, fix memory
+	allocations and deallocations.
+	* testsuite/26_numerics/accumulate/48750.cc: New.
+
+	* testsuite/ext/profile/mutex_extensions_neg.cc: Do not run in
+	parallel-mode to avoid spurious multiple errors.
+
+2011-05-03  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/functional (bind): Remove from overload set when first
+	argument type might be a socket file descriptor.
+	* testsuite/20_util/bind/socket.cc: New.
+
+2011-05-03  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/48848
+	* doc/xml/manual/status_cxx200x.xml: Update valarray status.
+	* doc/html/*: Regenerate.
+
+2011-05-02  Ollie Wild  <aaw@google.com>
+
+	* include/ext/sso_string_base.h (__sso_string_base<>::_M_construct):
+	Fix unqualified lookup.
+	(__sso_string_base<>::_M_assign): Likewise.
+	(__sso_string_base<>::_M_reserve): Likewise.
+	(__sso_string_base<>::_M_mutate): Likewise.
+	(__sso_string_base<>::_M_erase): Likewise.
+	* include/ext/vstring.h (__versa_string<>::replace): Likewise.
+	(__versa_string<>::compare): Likewise.
+	* include/ext/vstring.tcc (__versa_string<>::compare): Likewise.
+
+2011-05-02  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* doc/xml/manual/status_cxx200x.xml: Update to reflect current status
+	and FDIS content.
+	* doc/xml/manual/documentation_hacking.xml: Fix typo.
+	* doc/html/*: Regenerate.
+
+2011-04-30  Daniel Krugler  <daniel.kruegler@googlemail.com>
+
+	* include/std/type_traits (__is_default_constructible_atom,
+	__is_default_constructible_safe<, true>,
+	__is_direct_constructible_new_safe,
+	__is_base_to_derived_ref<,, true>, __is_lvalue_to_rvalue_ref<,, true>,
+	__is_direct_constructible_ref_cast, __is_direct_constructible,
+	__is_nary_constructible): Simplify; add comments throughout.
+
+2011-04-30  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/20_util/make_signed/requirements/typedefs_neg.cc:
+	Adjust dg-error line numbers.
+	* testsuite/20_util/make_unsigned/requirements/typedefs_neg.cc:
+	Likewise.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Likewise.
+
+2011-04-30  Doug Kwan  <dougkwan@google.com>
+
+	* include/Makefile.am (install-freestanding-headers): Also install
+	cxxabi_tweaks.h.
+	* include/Makefile.in: Regenerate.
+
+2011-04-28  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/48760
+	* include/std/complex (complex<float>::complex(float, float),
+	complex<double>::complex(double, double),
+	complex<long double>::complex(long double, long double)): Use
+	list-initialization in C++0x mode, initialize in the body in
+	C++03 mode.
+	* testsuite/26_numerics/complex/cons/48760.cc: New.
+	* testsuite/26_numerics/complex/cons/48760_c++0x.cc: Likewise.
+
+2011-04-28  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/bitset (_Base_bitset(unsigned long long)): Minor
+	tweak, remove redundant round braces.
+
+2011-04-27  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/move.h (move_if_noexcept): Add.
+	* testsuite/20_util/move_if_noexcept/requirements/
+	explicit_instantiation.cc: New.
+	* testsuite/20_util/move_if_noexcept/1.cc: Likewise.
+
+2011-04-25  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/type_traits (struct underlying_type): Add.
+	* testsuite/20_util/underlying_type/requirements/typedefs-1.cc: New.
+	* testsuite/20_util/underlying_type/requirements/typedefs-2.cc:
+	Likewise.
+	* testsuite/20_util/underlying_type/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Adjust dg-error
+	line number.
+
+2011-04-24  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/parallel/multiway_merge.h: Uglify equally_split
+	and equally_split_point throughout.
+	* include/parallel/par_loop.h: Likewise.
+	* include/parallel/equally_split.h: Likewise.
+	* include/parallel/set_operations.h: Likewise.
+	* include/parallel/unique_copy.h: Likewise.
+	* include/parallel/multiway_mergesort.h: Likewise.
+	* include/parallel/search.h: Likewise.
+	* include/parallel/partial_sum.h: Likewise.
+	* include/parallel/find.h: Likewise.
+
+2011-04-24  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/xml/manual/parallel_mode.xml: Fix link to libgomp online
+	documentation.  Expand link text.
+
+2011-04-24  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* libsupc++/cxxabi.h: Adjust link to FAQ entry.
+
+2011-04-22  François Dumont  <francois.cppdevs@free.fr>
+
+	* testsuite/lib/libstdc++.exp (check_v3_target_time): Discard
+	unused compilation result thanks to /dev/null.
+	* testsuite/lib/libstdc++.exp (check_v3_target_debug_mode,
+	check_v3_target_profile_mode, check_v3_target_normal_mode,
+	check_v3_target_cstdint, check_v3_target_cmath,
+	check_v3_target_atomic_builtins, check_v3_target_gthreads,
+	check_v3_target_nanosleep, check_v3_target_sched_yield,
+	check_v3_target_string_conversions, check_v3_target_swprintf,
+	check_v3_target_binary_io): Use simple preprocessing rather than
+	compilation. Discard unused preprocessing result thanks to /dev/null.
+
+2011-04-20  Jim Meyering  <meyering@redhat.com>
+
+	* libsupc++/del_opnt.cc (operator delete): Remove useless
+	if-before-free.
+
+2011-04-19  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/48521
+	* include/std/type_traits (result_of): Handle pointer to member.
+	* include/std/functional (__invoke): Likewise.
+	(_Function_to_function_pointer): Remove.
+	(_Reference_wrapper_base): Provide nested types independent of
+	unary_function and binary_function.
+	(reference_wrapper::operator()): DR 2017.
+	(ref(const A&&), cref(const A&&): Define as deleted.
+	* include/std/future (async): Simplify SFINAE and use result_of to
+	support pointer to member.
+	* testsuite/20_util/reference_wrapper/invoke.cc: Test pointer to
+	member.
+	* testsuite/20_util/reference_wrapper/24803.cc: Likewise.
+	* testsuite/20_util/reference_wrapper/typedefs.cc: Test for types
+	instead of derivation from unary_function and binary_function.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Adjust.
+	* testsuite/20_util/reference_wrapper/invoke-2.cc: New.
+	* testsuite/20_util/reference_wrapper/ref_neg.c: New.
+	* testsuite/20_util/reference_wrapper/typedefs-3.c: New.
+
+2011-04-19  Hans-Peter Nilsson  <hp@axis.com>
+
+	PR testsuite/48675
+	* testsuite/20_util/hash/chi2_quality.cc (test_document_words): Stub
+	this part if SAMPLES < 100000.
+
+2011-04-18  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/type_traits (is_nothrow_default_constructible,
+	is_nothrow_copy_constructible, is_nothrow_move_constructible,
+	is_copy_constructible, is_move_constructible): Add.
+	(has_nothrow_default_constructor, has_nothrow_copy_constructor):
+	Remove.
+	(is_nothrow_constructible): Adjust.
+
+	* testsuite/util/testsuite_tr1.h (ThrowDefaultClass,
+	ThrowCopyConsClass, ThrowMoveConsClass, NoexceptDefaultClass,
+	ExceptDefaultClass, NoexceptCopyConsClass, ExceptCopyConsClass,
+	NoexceptMoveConsClass, ExceptMoveConsClass): Add in C++0x mode.
+
+	* testsuite/20_util/has_nothrow_default_constructor: Remove.
+	* testsuite/20_util/has_nothrow_copy_constructor: Likewise.
+
+	* testsuite/20_util/is_nothrow_move_constructible/value.cc: Likewise.
+	* testsuite/20_util/is_nothrow_move_constructible/requirements/
+	typedefs.cc: Likewise.
+	* testsuite/20_util/is_nothrow_move_constructible/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_nothrow_copy_constructible/value.cc: Likewise.
+	* testsuite/20_util/is_nothrow_copy_constructible/requirements/
+	typedefs.cc: Likewise.
+	* testsuite/20_util/is_nothrow_copy_constructible/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_nothrow_default_constructible/value.cc:
+	Likewise.
+	* testsuite/20_util/is_nothrow_default_constructible/requirements/
+	typedefs.cc: Likewise.
+	* testsuite/20_util/is_nothrow_default_constructible/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_move_constructible/value.cc: Likewise.
+	* testsuite/20_util/is_move_constructible/requirements/typedefs.cc:
+	Likewise.
+	* testsuite/20_util/is_move_constructible/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_copy_constructible/value.cc: Likewise.
+	* testsuite/20_util/is_copy_constructible/requirements/typedefs.cc:
+	Likewise.
+	* testsuite/20_util/is_copy_constructible/requirements/
+	explicit_instantiation.cc: Likewise.
+
+	* testsuite/20_util/is_default_constructible/value.cc: Add tests.
+	* testsuite/20_util/is_nothrow_constructible/value.cc: Likewise.
+
+	* testsuite/20_util/make_signed/requirements/typedefs_neg.cc:
+	Adjust dg-error line numbers.
+	* testsuite/20_util/make_unsigned/requirements/typedefs_neg.cc:
+	Likewise.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Likewise.
+
+2011-04-17  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/25_algorithms/partition/moveable.cc: Actually run
+	it in parallel-mode for check-parallel.
+
+2011-04-17  Daniel Krugler  <daniel.kruegler@googlemail.com>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/48635 (again)
+	* include/bits/unique_ptr.h (unique_ptr<>::unique_ptr(unique_ptr<>&&),
+	unique_ptr<_Tp[]>::unique_ptr(unique_ptr<>&&),
+	unique_ptr<>::operator=(unique_ptr<>&&),
+	unique_ptr<_Tp[]>::operator=(unique_ptr<>&&)): Use forward<_Ep>, not
+	forward<_Dp>, to forward the deleter.
+	* testsuite/20_util/unique_ptr/assign/48635_neg.cc: New.
+
+2011-04-15  Daniel Krugler  <daniel.kruegler@googlemail.com>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/48631
+	* include/bits/unique_ptr.h (default_delete<_Tp[]>): Add deleted
+	function call operator.
+	* testsuite/20_util/default_delete/48631_neg.cc: New.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-error
+	line numbers.
+
+2011-04-15  Daniel Krugler  <daniel.kruegler@googlemail.com>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/48635
+	* include/bits/unique_ptr.h (unique_ptr<>::operator=(unique_ptr&&),
+	unique_ptr<>::operator=(unique_ptr<>&&),
+	unique_ptr<_Tp[],>::operator=(unique_ptr&&),
+	unique_ptr<_Tp[],>::operator=(unique_ptr<>&&)): Forward the deleter
+	instead of moving it.
+	* testsuite/20_util/unique_ptr/assign/48635.cc: New.
+
+2011-04-15  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* scripts/extract_symvers.pl: Handle NOTY.
+
+2011-04-15  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/istream: Fix comments in the light of DR60 + N3168.
+
+2011-04-13  Daniel Krugler  <daniel.kruegler@googlemail.com>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/48526
+	* include/std/type_traits (struct is_constructible): Re-implement,
+	according to n3290.
+	(struct is_default_constructible): Add.
+	(struct is_destructible): Likewise.
+	(struct __and_, __or_, __not_): Add and use throughout; reorder some
+	facilities, other minor tweaks.
+	* testsuite/util/testsuite_tr1.h: Add test types.
+	* testsuite/20_util/is_constructible/value-2.cc: New.
+	* testsuite/20_util/is_default_constructible/value.cc: Likewise.
+	* testsuite/20_util/is_default_constructible/requirements/typedefs.cc:
+	Likewise.
+	* testsuite/20_util/is_default_constructible/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_destructible/value.cc: Likewise.
+	* testsuite/20_util/is_destructible/requirements/typedefs.cc:
+	Likewise.
+	* testsuite/20_util/is_destructible/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/make_signed/requirements/typedefs_neg.cc: Adjust
+	dg-error line numbers.
+	* testsuite/20_util/make_unsigned/requirements/typedefs_neg.cc:
+	Likewise.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Likewise.
+	* testsuite/20_util/ratio/cons/cons_overflow_neg.cc: Likewise.
+
+2011-04-13  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/20_util/is_function/value.cc: Add, adapted from the tr
+	testsuite.
+	* testsuite/20_util/is_function/requirements/typedefs.cc: Likewise.
+	* testsuite/20_util/is_function/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_function/24808.cc: Likewise.
+	* testsuite/20_util/is_function/35637.cc: Likewise.
+	* testsuite/20_util/is_object/value.cc: Likewise.
+	* testsuite/20_util/is_object/requirements/typedefs.cc: Likewise.
+	* testsuite/20_util/is_object/requirements/explicit_instantiation.cc:
+	: Likewise.
+	* testsuite/20_util/is_object/24808.cc: Likewise.
+	* testsuite/20_util/is_compound/value.cc: Likewise.
+	* testsuite/20_util/is_compound/requirements/typedefs.cc: Likewise.
+	* testsuite/20_util/is_compound/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_member_object_pointer/value.cc: Likewise.
+	* testsuite/20_util/is_member_object_pointer/requirements/
+	typedefs.cc: Likewise.
+	* testsuite/20_util/is_member_object_pointer/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_fundamental/value.cc: Likewise.
+	* testsuite/20_util/is_fundamental/requirements/typedefs.cc: Likewise.
+	* testsuite/20_util/is_fundamental/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_member_pointer/value.cc: Likewise.
+	* testsuite/20_util/is_member_pointer/requirements/typedefs.cc:
+	Likewise.
+	* testsuite/20_util/is_member_pointer/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/is_member_function_pointer/value.cc: Likewise.
+	* testsuite/20_util/is_member_function_pointer/
+	requirements/typedefs.cc: Likewise.
+	* testsuite/20_util/is_member_function_pointer/requirements/
+	explicit_instantiation.cc: Likewise.
+
+	* testsuite/20_util/is_convertible/value.cc: Minor tweak, adjust
+	Copyright years.
+
+2011-04-12  Takaya Saito  <gintensubaru@gmail.com>
+
+	PR libstdc++/48476
+	* include/std/tuple (_Tuple_impl<>::_Tuple_impl(_Tuple_impl<>&&),
+	_Tuple_impl<>::operator=(_Tuple_impl&&), _Tuple_impl<>::operator=
+	(_Tuple_impl<>&&), tuple_cat): Use std::forward where appropriate.
+	* testsuite/20_util/tuple/cons/48476.cc: New.
+	* testsuite/20_util/tuple/48476.cc: Likewise.
+	* testsuite/20_util/tuple/creation_functions/48476.cc: Likewise.
+
+2011-04-12  Allan McRae  <allan@archlinux.org>
+
+	PR libstdc++/48566
+	* testsuite/tr1/6_containers/unordered_map/requirements/
+	iterator_null_neg.cc: Include <cstddef>.
+	* testsuite/tr1/6_containers/unordered_set/requirements/
+	iterator_null_neg.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekoff/wchar_t/4.cc: Include
+	<cstring>.
+	* testsuite/util/testsuite_common_types.h: Include <limits>.
+	* testsuite/29_atomics/atomic_integral/cons/assign_neg.cc:
+	Adjust dg-error line numbers.
+	* testsuite/29_atomics/atomic_integral/cons/copy_neg.cc: Likewise.
+	* testsuite/29_atomics/atomic_integral/operators/increment_neg.cc:
+	Likewise.
+	* testsuite/29_atomics/atomic_integral/operators/bitwise_neg.cc:
+	Likewise.
+	* testsuite/29_atomics/atomic_integral/operators/decrement_neg.cc:
+	Likewise.
+	* testsuite/29_atomics/atomic/cons/assign_neg.cc: Likewise.
+	* testsuite/29_atomics/atomic/cons/copy_neg.cc: Likewise.
+
+2011-04-11  Jason Merrill  <jason@redhat.com>
+
+	* testsuite/20_util/is_convertible/value.cc: Adjust.
+
+2011-04-11  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/25_algorithms/inplace_merge/moveable.cc: Actually run
+	it in parallel-mode for check-parallel.
+	* testsuite/25_algorithms/rotate/moveable.cc: Likewise.
+	* testsuite/25_algorithms/stable_partition/moveable.cc: Likewise.
+	* testsuite/25_algorithms/remove/moveable.cc: Likewise.
+	* testsuite/25_algorithms/sort_heap/check_compare_by_value.cc:
+	Likewise.
+	* testsuite/25_algorithms/unique/moveable.cc: Likewise.
+	* testsuite/25_algorithms/remove_if/moveable.cc: Likewise.
+	* testsuite/25_algorithms/heap/moveable.cc: Likewise.
+
+	* testsuite/25_algorithms/next_permutation/moveable.cc: Only skip
+	the tests based on std::lexicographical_compare for check-parallel.
+	* testsuite/25_algorithms/prev_permutation/moveable.cc: Likewise.
+
+2011-04-10  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/48541
+	* include/std/functional (_Base_manager::_M_get_pointer): Use
+	addressof.
+	* testsuite/20_util/function/48541.cc: New.
+
+2011-04-10  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/48465
+	* configure.ac (libtool_VERSION): Bump library version to 6:16:0.
+	* configure: Regenerate.
+	* config/abi/pre/gnu.ver (GLIBCXX_3.4.16): Export missing symbols.
+	* testsuite/util/testsuite_abi.cc: Add GLIBCXX_3.4.16.
+
 2011-04-06  Jeffrey Yasskin  <jyasskin@google.com>
 
 	* include/ext/algorithm (is_sorted): In C++0x mode import from

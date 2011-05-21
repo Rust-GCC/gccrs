@@ -1,7 +1,7 @@
 /* Handle the hair of processing (but not expanding) inline functions.
    Also manage function and variable name overloading.
    Copyright (C) 1987, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 
@@ -259,8 +259,10 @@ make_alias_for_thunk (tree function)
 
   if (!flag_syntax_only)
     {
-      struct cgraph_node *aliasn = cgraph_same_body_alias (cgraph_node (function),
-							   alias, function);
+      struct cgraph_node *funcn, *aliasn;
+      funcn = cgraph_get_node (function);
+      gcc_checking_assert (funcn);
+      aliasn = cgraph_same_body_alias (funcn, alias, function);
       DECL_ASSEMBLER_NAME (function);
       gcc_assert (aliasn != NULL);
     }
@@ -279,6 +281,7 @@ use_thunk (tree thunk_fndecl, bool emit_p)
   tree virtual_offset;
   HOST_WIDE_INT fixed_offset, virtual_value;
   bool this_adjusting = DECL_THIS_THUNK_P (thunk_fndecl);
+  struct cgraph_node *funcn;
 
   /* We should have called finish_thunk to give it a name.  */
   gcc_assert (DECL_NAME (thunk_fndecl));
@@ -378,7 +381,9 @@ use_thunk (tree thunk_fndecl, bool emit_p)
   a = nreverse (t);
   DECL_ARGUMENTS (thunk_fndecl) = a;
   TREE_ASM_WRITTEN (thunk_fndecl) = 1;
-  cgraph_add_thunk (cgraph_node (function), thunk_fndecl, function,
+  funcn = cgraph_get_node (function);
+  gcc_checking_assert (funcn);
+  cgraph_add_thunk (funcn, thunk_fndecl, function,
 		    this_adjusting, fixed_offset, virtual_value,
 		    virtual_offset, alias);
 
@@ -838,10 +843,10 @@ locate_fn_flags (tree type, tree name, tree argtype, int flags,
 /* Locate the dtor of TYPE.  */
 
 tree
-get_dtor (tree type)
+get_dtor (tree type, tsubst_flags_t complain)
 {
   tree fn = locate_fn_flags (type, complete_dtor_identifier, NULL_TREE,
-			     LOOKUP_NORMAL, tf_warning_or_error);
+			     LOOKUP_NORMAL, complain);
   if (fn == error_mark_node)
     return NULL_TREE;
   return fn;
@@ -878,13 +883,13 @@ get_default_ctor (tree type)
 /* Locate the copy ctor of TYPE.  */
 
 tree
-get_copy_ctor (tree type)
+get_copy_ctor (tree type, tsubst_flags_t complain)
 {
   int quals = (TYPE_HAS_CONST_COPY_CTOR (type)
 	       ? TYPE_QUAL_CONST : TYPE_UNQUALIFIED);
   tree argtype = build_stub_type (type, quals, false);
   tree fn = locate_fn_flags (type, complete_ctor_identifier, argtype,
-			     LOOKUP_NORMAL, tf_warning_or_error);
+			     LOOKUP_NORMAL, complain);
   if (fn == error_mark_node)
     return NULL_TREE;
   return fn;

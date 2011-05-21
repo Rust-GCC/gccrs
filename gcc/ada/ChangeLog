@@ -1,3 +1,184 @@
+2011-05-20  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc-interface/Make-lang.in (EXTRA_GNATBIND_OBJS): Remove
+	version.o.
+	* gcc-interface/Makefile.in (EXTRA_GNATTOOLS_OBJS): Use
+	libcommon.a instead of version.o.
+
+2011-05-18  Kai Tietz <ktietz@redhat.com>
+
+	* gcc-interface/trans.c (Exception_Handler_to_gnu_sjlj): Use
+	boolean_false_node instead of integer_zero_node.
+	(convert_with_check): Likewise.
+	* gcc-interface/decl.c (choices_to_gnu): Likewise.
+
+2011-05-12  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (call_to_gnu): In the by-reference case, if the
+	type of the parameter is an unconstrained array, convert the actual to
+	the type of the formal in the In Out and Out cases as well.
+
+2011-05-11  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* gcc-interface/utils.c (def_fn_type): Don't call build_function_type;
+	call build_function_type_array or build_varargs_function_type_array
+	instead.
+	(create_subprog_type): Don't call build_function_type; call
+	build_function_type_vec instead.
+
+2011-05-11  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* gcc-interface/ada-tree.h (TYPE_OBJECT_RECORD_TYPE): Use TYPE_MINVAL.
+	(TYPE_GCC_MIN_VALUE): Use TYPE_MINVAL.
+	(TYPE_GCC_MAX_VALUE): Use TYPE_MAXVAL.
+
+2011-05-07  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (intrin_arglists_compatible_p): Remove spaces.
+
+	* gcc-interface/gigi.h (global_bindings_p): Adjust prototype.
+	* gcc-interface/utils.c (global_bindings_p): Return bool and simplify.
+
+2011-05-05  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* gcc-interface/trans.c (Case_Statement_to_gnu): Call build_case_label.
+
+2011-05-05  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* gcc-interface/decl.c (intrin_arglists_compatible_p): Use iterators
+	instead of accessing TYPE_ARG_TYPES directly.
+	* gcc-interface/utils.c (handle_nonnull_attribute): Likewise.
+
+2011-05-05  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/48844
+	* gcc-interface/gigi.h (get_variant_part): Declare.
+	* gcc-interface/decl.c (get_variant_part): Make global.
+	* gcc-interface/utils2.c (find_common_type): Do not return T1 if the
+	types have the same constant size, are record types and T1 has a
+	variant part while T2 doesn't.
+
+2011-05-05  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/utils.c (begin_subprog_body): Do not call
+	get_pending_sizes.
+	(end_subprog_body): Likewise.
+
+2011-05-04  Richard Guenther  <rguenther@suse.de>
+
+	* gcc-interface/trans.c (gnat_to_gnu): Remove zero notrunc argument to
+	int_const_binop.
+	(pos_to_constructor): Likewise.
+
+2011-05-03  Nathan Froyd  <froydnj@codesourcery.com>
+            Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (gigi): Call build_function_type_list instead
+	of build_function_type.  Adjust calls to...
+	(build_raise_check): ...this.  Do not take a void_tree parameter.
+	Call build_function_type_list instead of build_function_type.
+	Fix head comment and swap couple of conditional blocks.
+
+2011-04-30  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnatvsn.ads (Library_Version): Bump to 4.7.
+	(Current_Year): Bump to 2011.
+
+2011-04-29  Michael Matz  <matz@suse.de>
+
+	* gcc-interface/misc.c (gnat_handle_option): Set
+	warn_maybe_uninitialized.
+
+2011-04-23  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* gnat_ugn.texi (Complexity Metrics Control): Update link to
+	the Watson/McCabe paper.
+
+2011-04-23  Jim Meyering  <meyering@redhat.com>
+
+	* gnat_ugn.texi (Examples of gnatxref Usage): Fix typo: s/it it/it is/
+
+2011-04-22  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (make_packable_type): Copy DECL_PARALLEL_TYPE
+	onto the new type.
+
+2011-04-22  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/gigi.h (create_subprog_decl): Add ARTIFICIAL_FLAG
+	parameter.
+	* gcc-interface/utils.c (create_subprog_decl): Likewise.  Set
+	DECL_ARTIFICIAL and DECL_NO_INLINE_WARNING_P on the DECL accordingly.
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Subprogram_Type>: Add
+	ARTIFICIAL_FLAG local variable and pass it to create_subprog_decl.
+	<all>: Do not set flags on the reused DECL node coming from an alias.
+	Set DECL_IGNORED_P on the DECL node built for subprograms if they
+	don't need debug info here...
+	* gcc-interface/trans.c (Subprogram_Body_to_gnu): ...and not here.
+	(gigi): Adjust calls to create_subprog_decl.
+	(build_raise_check): Likewise.
+	(establish_gnat_vms_condition_handler): Likewise.
+	(Compilation_Unit_to_gnu): Likewise.
+	(gnat_to_gnu): Likewise.
+
+2011-04-21  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/Makefile.in (NO_SIBLING_ADAFLAGS): Always define.
+	(NO_REORDER_ADAFLAGS): New variable.
+	(EXTRA_GNATTOOLS): Always define.
+	(../stamp-gnatlib1-$(RTSDIR): Copy tsystem.h.
+	Clean up and adjust list of files compiled with special options.
+	* gcc-interface/Make-lang.in: Likewise.
+	(ada/decl.o): Cosmetical change.
+	(ada/misc.o): Remove dependency on $(PLUGIN_H).
+
+2011-04-20  Jim Meyering  <meyering@redhat.com>
+
+	* initialize.c (__gnat_initialize): Remove useless if-before-free.
+
+2011-04-17  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/Make-lang.in (gnatbind): Replace $(ALL_CFLAGS) with
+	$(CFLAGS) on the link line.
+
+2011-04-17  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Function>: Declare the
+	padded type built for the return type if it is unconstrained.
+
+2011-04-14  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* gcc-interface/utils.c (gnat_poplevel): Use block_chainon.
+
+2011-04-12  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* gcc-interface/ada-tree.h (union lang_tree_node): Check for TS_COMMON
+	before calling TREE_CHAIN.
+	* gcc-interface/misc.c (gnat_init_ts): New function.
+	(LANG_HOOKS_INIT_TS): Define.
+
+2011-04-12  Martin Jambor  <mjambor@suse.cz>
+
+	* gcc-interface/utils.c (end_subprog_body): Call cgraph_get_create_node
+	instead of cgraph_node.
+
+2011-04-08  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Procedure>: Set minimum
+	alignment on fields of the RETURN type built for the Copy-In Copy-Out
+	mechanism.
+
+2011-04-08  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (Identifier_to_gnu): Do not return initializers
+	of aggregate types that contain a placeholder.
+
+2011-04-08  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* gcc-interface/utils.c (handle_sentinel_attribute): Don't use
+	TYPE_ARG_TYPES.
+	(handle_type_generic_attribute): Likewise.
+
 2011-04-04  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/47163

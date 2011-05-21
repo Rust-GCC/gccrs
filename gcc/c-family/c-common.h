@@ -135,9 +135,10 @@ enum rid
   RID_IS_ABSTRACT,             RID_IS_BASE_OF,
   RID_IS_CONVERTIBLE_TO,       RID_IS_CLASS,
   RID_IS_EMPTY,                RID_IS_ENUM,
-  RID_IS_POD,                  RID_IS_POLYMORPHIC,
-  RID_IS_STD_LAYOUT,           RID_IS_TRIVIAL,
-  RID_IS_UNION,                RID_IS_LITERAL_TYPE,
+  RID_IS_LITERAL_TYPE,         RID_IS_POD,
+  RID_IS_POLYMORPHIC,          RID_IS_STD_LAYOUT,
+  RID_IS_TRIVIAL,              RID_IS_UNION,
+  RID_UNDERLYING_TYPE,
 
   /* C++0x */
   RID_CONSTEXPR, RID_DECLTYPE, RID_NOEXCEPT, RID_NULLPTR, RID_STATIC_ASSERT,
@@ -708,6 +709,7 @@ extern tree c_common_fixed_point_type_for_size (unsigned int, unsigned int,
 extern tree c_common_unsigned_type (tree);
 extern tree c_common_signed_type (tree);
 extern tree c_common_signed_or_unsigned_type (int, tree);
+extern void c_common_init_ts (void);
 extern tree c_build_bitfield_integer_type (unsigned HOST_WIDE_INT, int);
 extern bool decl_with_nonnull_addr_p (const_tree);
 extern tree c_fully_fold (tree, bool, bool *);
@@ -829,7 +831,6 @@ extern void warn_for_omitted_condop (location_t, tree);
 
 extern tree do_case (location_t, tree, tree);
 extern tree build_stmt (location_t, enum tree_code, ...);
-extern tree build_case_label (location_t, tree, tree, tree);
 extern tree build_real_imag_expr (location_t, enum tree_code, tree);
 
 /* These functions must be defined by each front-end which implements
@@ -957,6 +958,7 @@ extern void set_underlying_type (tree x);
 extern VEC(tree,gc) *make_tree_vector (void);
 extern void release_tree_vector (VEC(tree,gc) *);
 extern VEC(tree,gc) *make_tree_vector_single (tree);
+extern VEC(tree,gc) *make_tree_vector_from_list (tree);
 extern VEC(tree,gc) *make_tree_vector_copy (const VEC(tree,gc) *);
 
 /* In c-gimplify.c  */

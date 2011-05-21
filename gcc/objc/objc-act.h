@@ -26,8 +26,8 @@ along with GCC; see the file COPYING3.  If not see
 
 bool objc_init (void);
 const char *objc_printable_name (tree, int);
-tree objc_fold_obj_type_ref (tree, tree);
 int objc_gimplify_expr (tree *, gimple_seq *, gimple_seq *);
+void objc_common_init_ts (void);
 
 /* NB: The remaining public functions are prototyped in c-common.h, for the
    benefit of stub-objc.c and objc-act.c.  */
@@ -129,7 +129,7 @@ typedef enum objc_property_assign_semantics {
 /* PROPERTY_REF_PROPERTY_DECL is the PROPERTY_DECL for the property
    used in the expression.  From it, you can get the property type,
    and the getter/setter names.  This PROPERTY_DECL could be artificial
-   if we are processing an 'object.component' syntax with no matching 
+   if we are processing an 'object.component' syntax with no matching
    declared property.  */
 #define PROPERTY_REF_PROPERTY_DECL(NODE) TREE_OPERAND (PROPERTY_REF_CHECK (NODE), 1)
 
@@ -152,24 +152,24 @@ typedef enum objc_property_assign_semantics {
    CATEGORY_INTERFACE_TYPE, CATEGORY_IMPLEMENTATION_TYPE,
    PROTOCOL_INTERFACE_TYPE */
 /* CLASS_NAME is the name of the class.  */
-#define CLASS_NAME(CLASS) ((CLASS)->type.name)
+#define CLASS_NAME(CLASS) (TYPE_NAME (CLASS))
 /* CLASS_SUPER_NAME is the name of the superclass, or, in the case of
    categories, it is the name of the category itself.  */
-#define CLASS_SUPER_NAME(CLASS) (TYPE_CHECK (CLASS)->type.context)
+#define CLASS_SUPER_NAME(CLASS) (TYPE_CONTEXT (CLASS))
 #define CLASS_IVARS(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 0)
 #define CLASS_RAW_IVARS(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 1)
-#define CLASS_NST_METHODS(CLASS) ((CLASS)->type.minval)
-#define CLASS_CLS_METHODS(CLASS) ((CLASS)->type.maxval)
+#define CLASS_NST_METHODS(CLASS) (TYPE_MINVAL (CLASS))
+#define CLASS_CLS_METHODS(CLASS) (TYPE_MAXVAL (CLASS))
 #define CLASS_STATIC_TEMPLATE(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 2)
 #define CLASS_CATEGORY_LIST(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 3)
 #define CLASS_PROTOCOL_LIST(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 4)
 #define TOTAL_CLASS_RAW_IVARS(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 5)
 #define CLASS_HAS_EXCEPTION_ATTR(CLASS) (TYPE_LANG_FLAG_0 (CLASS))
 
-#define PROTOCOL_NAME(CLASS) ((CLASS)->type.name)
+#define PROTOCOL_NAME(CLASS) (TYPE_NAME (CLASS))
 #define PROTOCOL_LIST(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 0)
-#define PROTOCOL_NST_METHODS(CLASS) ((CLASS)->type.minval)
-#define PROTOCOL_CLS_METHODS(CLASS) ((CLASS)->type.maxval)
+#define PROTOCOL_NST_METHODS(CLASS) (TYPE_MINVAL (CLASS))
+#define PROTOCOL_CLS_METHODS(CLASS) (TYPE_MAXVAL (CLASS))
 #define PROTOCOL_FORWARD_DECL(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 1)
 #define PROTOCOL_DEFINED(CLASS) TREE_USED (CLASS)
 #define PROTOCOL_OPTIONAL_CLS_METHODS(CLASS) TREE_VEC_ELT (TYPE_LANG_SLOT_1 (CLASS), 2)
@@ -524,9 +524,9 @@ extern GTY(()) tree objc_global_trees[OCTI_MAX];
 #define objc_setjmp_decl	objc_global_trees[OCTI_SETJMP_DECL]
 #define objc_stack_exception_data		\
 				objc_global_trees[OCTI_STACK_EXCEPTION_DATA_DECL]
-#define objc_caught_exception	objc_global_trees[OCTI_LOCAL_EXCEPTION_DECL]	
-#define objc_rethrow_exception	objc_global_trees[OCTI_RETHROW_EXCEPTION_DECL]	
-#define objc_eval_once		objc_global_trees[OCTI_EVAL_ONCE_DECL]	
+#define objc_caught_exception	objc_global_trees[OCTI_LOCAL_EXCEPTION_DECL]
+#define objc_rethrow_exception	objc_global_trees[OCTI_RETHROW_EXCEPTION_DECL]
+#define objc_eval_once		objc_global_trees[OCTI_EVAL_ONCE_DECL]
 #define objc_catch_type		objc_global_trees[OCTI_CATCH_TYPE]
 
 #define execclass_decl		objc_global_trees[OCTI_EXECCLASS_DECL]
@@ -643,7 +643,7 @@ typedef enum string_section
 #define METHOD_REF			1
 
 /* (Decide if these can ever be validly changed.) */
-#define OBJC_ENCODE_INLINE_DEFS 	0
+#define OBJC_ENCODE_INLINE_DEFS		0
 #define OBJC_ENCODE_DONT_INLINE_DEFS	1
 
 #define BUFSIZE				1024
@@ -665,10 +665,8 @@ typedef enum string_section
 #define OBJC_MODIFIER_TRANSIENT		0x00000200
 #define OBJC_MODIFIER_NONE_SPECIFIED	0x80000000
 
-#define OBJC_VOID_AT_END		void_list_node
-
 /* Exception handling constructs.  We begin by having the parser do most
-   of the work and passing us blocks.  
+   of the work and passing us blocks.
    This allows us to handle different exceptions implementations.  */
 
 /* Stack of open try blocks.  */
@@ -706,7 +704,7 @@ struct objc_try_context
    than making them externs.  */
 
 extern tree objc_create_temporary_var (tree, const char *);
-  
+
 #define objc_is_object_id(TYPE) (OBJC_TYPE_NAME (TYPE) == objc_object_id)
 #define objc_is_class_id(TYPE) (OBJC_TYPE_NAME (TYPE) == objc_class_id)
 

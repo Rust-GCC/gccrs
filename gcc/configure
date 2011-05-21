@@ -618,6 +618,8 @@ xm_include_list
 xm_file_list
 tm_p_include_list
 tm_p_file_list
+libgcc_tm_include_list
+libgcc_tm_file_list
 tm_defines
 tm_include_list
 tm_file_list
@@ -913,6 +915,7 @@ enable_version_specific_runtime_libs
 with_slibdir
 enable_plugin
 enable_libquadmath_support
+with_linker_hash_style
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1552,24 +1555,24 @@ Optional Features:
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --enable-generated-files-in-srcdir
-                          put copies of generated files in source dir
-                          intended for creating source tarballs for users
-                          without texinfo bison or flex.
+                          put copies of generated files in source dir intended
+                          for creating source tarballs for users without
+                          texinfo bison or flex
   --disable-largefile     omit support for large files
   --enable-werror-always  enable -Werror despite compiler version
-  --enable-checking=LIST
-			  enable expensive run-time checks.  With LIST,
-			  enable only specific categories of checks.
-			  Categories are: yes,no,all,none,release.
-			  Flags are: assert,df,fold,gc,gcac,gimple,misc,
-			  rtlflag,rtl,runtime,tree,valgrind,types.
-  --enable-coverage=LEVEL
-			  enable compiler's code coverage collection.
-			  Use to measure compiler performance and locate
-			  unused parts of the compiler. With LEVEL, specify
-			  optimization. Values are opt, noopt,
-			  default is noopt
-  --enable-gather-detailed-mem-stats         enable detailed memory allocation stats gathering
+  --enable-checking[=LIST]
+                          enable expensive run-time checks. With LIST, enable
+                          only specific categories of checks. Categories are:
+                          yes,no,all,none,release. Flags are:
+                          assert,df,fold,gc,gcac,gimple,misc,
+                          rtlflag,rtl,runtime,tree,valgrind,types
+  --enable-coverage[=LEVEL]
+                          enable compiler's code coverage collection. Use to
+                          measure compiler performance and locate unused parts
+                          of the compiler. With LEVEL, specify optimization.
+                          Values are opt, noopt, default is noopt
+  --enable-gather-detailed-mem-stats
+                          enable detailed memory allocation stats gathering
   --enable-build-with-cxx build with C++ compiler instead of C compiler
   --enable-multilib       enable library support for multiple ABIs
   --enable-__cxa_atexit   enable __cxa_atexit for C++
@@ -1578,12 +1581,12 @@ Optional Features:
 			or 'dpd' choses which decimal floating point format
 			to use
   --enable-fixed-point    enable fixed-point arithmetic extension to C
-  --enable-threads        enable thread usage for target GCC
-  --enable-threads=LIB    use LIB thread package for target GCC
-  --enable-tls            enable or disable generation of tls code
-                          overriding the assembler check for tls support
-  --enable-objc-gc	  enable the use of Boehm's garbage collector with
-			  the GNU Objective-C runtime
+  --enable-threads[=LIB]  enable thread usage for target GCC, using LIB thread
+                          package
+  --enable-tls            enable or disable generation of tls code overriding
+                          the assembler check for tls support
+  --enable-objc-gc        enable the use of Boehm's garbage collector with the
+                          GNU Objective-C runtime
   --disable-shared        don't provide a shared libgcc
   --enable-languages=LIST specify which front-ends to build
   --disable-rpath         do not hardcode runtime library paths
@@ -1592,12 +1595,13 @@ Optional Features:
                           arrange to use setjmp/longjmp exception handling
   --enable-secureplt      enable -msecure-plt by default for PowerPC
   --enable-leading-mingw64-underscores
-                          Enable leading underscores on 64 bit mingw targets
+                          enable leading underscores on 64 bit mingw targets
   --enable-cld            enable -mcld by default for 32bit x86
-  --enable-frame-pointer  enable -fno-omit-frame-pointer by default for 32bit x86
+  --enable-frame-pointer  enable -fno-omit-frame-pointer by default for 32bit
+                          x86
   --disable-win32-registry
-                          disable lookup of installation paths in the
-                          Registry on Windows hosts
+                          disable lookup of installation paths in the Registry
+                          on Windows hosts
   --enable-win32-registry enable registry lookup (default)
   --enable-win32-registry=KEY
                           use KEY instead of GCC version as the last portion
@@ -1617,11 +1621,11 @@ Optional Features:
   --enable-linker-build-id
                           compiler will always pass --build-id to linker
   --enable-maintainer-mode
-                          enable make rules and dependencies not useful
-                          (and sometimes confusing) to the casual installer
+                          enable make rules and dependencies not useful (and
+                          sometimes confusing) to the casual installer
   --enable-version-specific-runtime-libs
-                          specify that runtime libraries should be
-                          installed in a compiler-specific directory
+                          specify that runtime libraries should be installed
+                          in a compiler-specific directory
   --enable-plugin         enable plugin support
   --disable-libquadmath-support
                           disable libquadmath support for Fortran
@@ -1636,20 +1640,20 @@ Optional Packages:
   --with-cpp-install-dir=DIR
                           install the user visible C preprocessor in DIR
                           (relative to PREFIX) as well as PREFIX/bin
-  --with-gnu-ld           arrange to work with GNU ld.
+  --with-gnu-ld           arrange to work with GNU ld
   --with-ld               arrange to use the specified ld (full pathname)
-  --with-demangler-in-ld  try to use demangler in GNU ld.
+  --with-demangler-in-ld  try to use demangler in GNU ld
   --with-gnu-as           arrange to work with GNU as
   --with-as               arrange to use the specified as (full pathname)
   --with-stabs            arrange to use stabs instead of host debug format
   --with-dwarf2           force the default debug format to be DWARF 2
   --with-build-sysroot=sysroot
                           use sysroot as the system root during the build
-  --with-sysroot=DIR Search for usr/lib, usr/include, et al, within DIR.
+  --with-sysroot[=DIR]    search for usr/lib, usr/include, et al, within DIR
   --with-specs=SPECS      add SPECS to driver command-line processing
   --with-pkgversion=PKG   Use PKG in the version string in place of "GCC"
   --with-bugurl=URL       Direct users to URL to report a bug
-  --with-multilib-list    Select multilibs (SH only)
+  --with-multilib-list    select multilibs (SH only)
   --with-gnu-ld           assume the C compiler uses GNU ld default=no
   --with-libiconv-prefix[=DIR]  search for libiconv in DIR/include and DIR/lib
   --without-libiconv-prefix     don't search for libiconv in includedir and libdir
@@ -1658,11 +1662,13 @@ Optional Packages:
                           both]
   --with-gnu-ld           assume the C compiler uses GNU ld [default=no]
   --with-plugin-ld=[ARG]  specify the plugin linker
-  --with-long-double-128  Use 128-bit long double by default.
-  --with-gc={page,zone}   choose the garbage collection mechanism to use
-                          with the compiler
+  --with-long-double-128  use 128-bit long double by default
+  --with-gc={page,zone}   choose the garbage collection mechanism to use with
+                          the compiler
   --with-system-zlib      use installed libz
   --with-slibdir=DIR      shared libraries in DIR [LIBDIR]
+  --with-linker-hash-style={sysv,gnu,both}
+                          specify the linker hash style
 
 Some influential environment variables:
   CC          C compiler command
@@ -6954,7 +6960,6 @@ _ACEOF
 # Check whether --enable-fixed-point was given.
 if test "${enable_fixed_point+set}" = set; then :
   enableval=$enable_fixed_point;
-
 else
 
   case $target in
@@ -11231,6 +11236,13 @@ for f in $tm_file; do
        tm_include_list="${tm_include_list} config/$f"
        ;;
   esac
+done
+
+libgcc_tm_file_list=
+libgcc_tm_include_list=
+for f in $libgcc_tm_file; do
+  libgcc_tm_file_list="${libgcc_tm_file_list} \$(srcdir)/../libgcc/config/$f"
+  libgcc_tm_include_list="${libgcc_tm_include_list} ../libgcc/config/$f"
 done
 
 tm_p_file_list=
@@ -17505,7 +17517,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 17508 "configure"
+#line 17520 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -17611,7 +17623,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 17614 "configure"
+#line 17626 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -22316,8 +22328,8 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler for COMDAT group support" >&5
-$as_echo_n "checking assembler for COMDAT group support... " >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler for COMDAT group support (GNU as)" >&5
+$as_echo_n "checking assembler for COMDAT group support (GNU as)... " >&6; }
 if test "${gcc_cv_as_comdat_group+set}" = set; then :
   $as_echo_n "(cached) " >&6
 else
@@ -22349,9 +22361,10 @@ $as_echo "$gcc_cv_as_comdat_group" >&6; }
 
 if test $gcc_cv_as_comdat_group = yes; then
   gcc_cv_as_comdat_group_percent=no
+  gcc_cv_as_comdat_group_group=no
 else
- { $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler for COMDAT group support" >&5
-$as_echo_n "checking assembler for COMDAT group support... " >&6; }
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler for COMDAT group support (GNU as, %type)" >&5
+$as_echo_n "checking assembler for COMDAT group support (GNU as, %type)... " >&6; }
 if test "${gcc_cv_as_comdat_group_percent+set}" = set; then :
   $as_echo_n "(cached) " >&6
 else
@@ -22381,6 +22394,59 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_as_comdat_group_percent" >&5
 $as_echo "$gcc_cv_as_comdat_group_percent" >&6; }
 
+ if test $gcc_cv_as_comdat_group_percent = yes; then
+   gcc_cv_as_comdat_group_group=no
+ else
+   case "${target}" in
+     # Sun as uses a completely different syntax.
+     *-*-solaris2*)
+       case "${target}" in
+         sparc*-*-solaris2*)
+           conftest_s='
+               .group foo,".text%foo",#comdat
+               .section ".text%foo", #alloc,#execinstr,#progbits
+               .globl foo
+             foo:
+	     '
+           ;;
+         i?86-*-solaris2*)
+	   conftest_s='
+               .group foo,.text%foo,#comdat
+               .section .text%foo, "ax", @progbits
+               .globl  foo
+             foo:
+	     '
+	   ;;
+       esac
+       { $as_echo "$as_me:${as_lineno-$LINENO}: checking assembler for COMDAT group support (Sun as, .group)" >&5
+$as_echo_n "checking assembler for COMDAT group support (Sun as, .group)... " >&6; }
+if test "${gcc_cv_as_comdat_group_group+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+  gcc_cv_as_comdat_group_group=no
+  if test x$gcc_cv_as != x; then
+    echo "$conftest_s" > conftest.s
+    if { ac_try='$gcc_cv_as $gcc_cv_as_flags  -o conftest.o conftest.s >&5'
+  { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; }; }
+    then
+	gcc_cv_as_comdat_group_group=yes
+    else
+      echo "configure: failed program was" >&5
+      cat conftest.s >&5
+    fi
+    rm -f conftest.o conftest.s
+  fi
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_as_comdat_group_group" >&5
+$as_echo "$gcc_cv_as_comdat_group_group" >&6; }
+
+       ;;
+   esac
+ fi
 fi
 if test x"$ld_is_gold" = xyes; then
   comdat_group=yes
@@ -22405,16 +22471,19 @@ elif echo "$ld_ver" | grep GNU > /dev/null; then
 else
   case "${target}" in
     *-*-solaris2.1[1-9]*)
+      comdat_group=no
       # Sun ld has COMDAT group support since Solaris 9, but it doesn't
       # interoperate with GNU as until Solaris 11 build 130, i.e. ld
       # version 1.688.
       #
-      # FIXME: Maybe need to refine later when COMDAT group support with
-      # Sun as is implemented.
-      if test "$ld_vers_major" -gt 1 || test "$ld_vers_minor" -ge 1688; then
+      # If using Sun as for COMDAT group as emitted by GCC, one needs at
+      # least ld version 1.2267.
+      if test "$ld_vers_major" -gt 1; then
         comdat_group=yes
-      else
-        comdat_group=no
+      elif test "x$gas_flag" = xyes && test "$ld_vers_minor" -ge 1688; then
+	comdat_group=yes
+      elif test "$ld_vers_minor" -ge 2267; then
+	comdat_group=yes
       fi
       ;;
     *)
@@ -22432,10 +22501,13 @@ fi
 if test $comdat_group = no; then
   gcc_cv_as_comdat_group=no
   gcc_cv_as_comdat_group_percent=no
+  gcc_cv_as_comdat_group_group=no
 fi
 
 cat >>confdefs.h <<_ACEOF
-#define HAVE_COMDAT_GROUP `if test $gcc_cv_as_comdat_group = yes || test $gcc_cv_as_comdat_group_percent = yes; then echo 1; else echo 0; fi`
+#define HAVE_COMDAT_GROUP `if test $gcc_cv_as_comdat_group = yes \
+    || test $gcc_cv_as_comdat_group_percent = yes \
+    || test $gcc_cv_as_comdat_group_group = yes; then echo 1; else echo 0; fi`
 _ACEOF
 
 
@@ -23359,6 +23431,7 @@ else
   gcc_cv_as_sparc_gotdata_op=no
   if test x$gcc_cv_as != x; then
     echo '.text
+.align 4
 foo:
 	nop
 bar:
@@ -23374,17 +23447,13 @@ bar:
     then
 	if test x$gcc_cv_ld != x \
        && $gcc_cv_ld -o conftest conftest.o -G > /dev/null 2>&1; then
-         if $gcc_cv_ld -v | grep GNU >/dev/null 2>&1; then
-           if test x$gcc_cv_objdump != x; then
-             if $gcc_cv_objdump -s -j .text conftest 2> /dev/null \
-                | grep ' 03000004 82186004 c405c001'> /dev/null 2>&1; then
+         if test x$gcc_cv_objdump != x; then
+           if $gcc_cv_objdump -s -j .text conftest 2> /dev/null \
+              | grep ' 03000004 82186004 c405c001'> /dev/null 2>&1; then
 	       gcc_cv_as_sparc_gotdata_op=no
-             else
+           else
 	       gcc_cv_as_sparc_gotdata_op=yes
-             fi
            fi
-         else
-	   gcc_cv_as_sparc_gotdata_op=yes
          fi
        fi
        rm -f conftest
@@ -26226,6 +26295,8 @@ fi
 
 
 
+
+
 # Echo link setup.
 if test x${build} = x${host} ; then
   if test x${host} = x${target} ; then
@@ -26460,6 +26531,36 @@ $as_echo "#define ENABLE_LIBQUADMATH_SUPPORT 1" >>confdefs.h
 
 fi
 
+
+# Specify what hash style to use by default.
+
+# Check whether --with-linker-hash-style was given.
+if test "${with_linker_hash_style+set}" = set; then :
+  withval=$with_linker_hash_style; case x"$withval" in
+   xsysv)
+     LINKER_HASH_STYLE=sysv
+     ;;
+   xgnu)
+     LINKER_HASH_STYLE=gnu
+     ;;
+   xboth)
+     LINKER_HASH_STYLE=both
+     ;;
+   *)
+     as_fn_error "$withval is an invalid option to --with-linker-hash-style" "$LINENO" 5
+     ;;
+ esac
+else
+  LINKER_HASH_STYLE=''
+fi
+
+if test x"${LINKER_HASH_STYLE}" != x; then
+
+cat >>confdefs.h <<_ACEOF
+#define LINKER_HASH_STYLE "$LINKER_HASH_STYLE"
+_ACEOF
+
+fi
 
 # Configure the subdirectories
 # AC_CONFIG_SUBDIRS($subdirs)

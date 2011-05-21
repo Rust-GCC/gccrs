@@ -22,6 +22,17 @@ along with GCC; see the file COPYING3.  If not see
 #undef DEFAULT_ABI
 #define DEFAULT_ABI MS_ABI
 
+/* By default, target has a 80387, uses IEEE compatible arithmetic,
+   returns float values in the 387 and needs stack probes.
+   We also align doubles to 64-bits for MSVC default compatibility.
+   Additionally we enable MS_BITFIELD_LAYOUT by default.  */
+
+#undef TARGET_SUBTARGET_DEFAULT
+#define TARGET_SUBTARGET_DEFAULT \
+	(MASK_80387 | MASK_IEEE_FP | MASK_FLOAT_RETURNS \
+	 | MASK_STACK_PROBE | MASK_ALIGN_DOUBLE \
+	 | MASK_MS_BITFIELD_LAYOUT)
+
 /* See i386/crtdll.h for an alternative definition. _INTEGRAL_MAX_BITS
    is for compatibility with native compiler.  */
 #define EXTRA_OS_CPP_BUILTINS()					\
@@ -132,7 +143,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef ENDFILE_SPEC
 #define ENDFILE_SPEC \
-  "%{ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
+  "%{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
   crtend.o%s"
 
 /* Override startfile prefix defaults.  */
@@ -149,11 +160,12 @@ along with GCC; see the file COPYING3.  If not see
 #undef OUTPUT_QUOTED_STRING
 #define OUTPUT_QUOTED_STRING(FILE, STRING)               \
 do {						         \
+  const char *_string = (const char *) (STRING);	 \
   char c;					         \
 						         \
-  putc ('\"', asm_file);			         \
+  putc ('\"', (FILE));				         \
 						         \
-  while ((c = *string++) != 0)			         \
+  while ((c = *_string++) != 0)			         \
     {						         \
       if (c == '\\')				         \
 	c = '/';				         \
@@ -161,14 +173,14 @@ do {						         \
       if (ISPRINT (c))                                   \
         {                                                \
           if (c == '\"')			         \
-	    putc ('\\', asm_file);		         \
-          putc (c, asm_file);			         \
+	    putc ('\\', (FILE));		         \
+          putc (c, (FILE));			         \
         }                                                \
       else                                               \
-        fprintf (asm_file, "\\%03o", (unsigned char) c); \
+        fprintf ((FILE), "\\%03o", (unsigned char) c);	 \
     }						         \
 						         \
-  putc ('\"', asm_file);			         \
+  putc ('\"', (FILE));					 \
 } while (0)
 
 /* Define as short unsigned for compatibility with MS runtime.  */
