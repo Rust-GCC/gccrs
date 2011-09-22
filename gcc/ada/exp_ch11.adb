@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -968,6 +968,8 @@ package body Exp_Ch11 is
 
       Handler := First_Non_Pragma (Handlrs);
       Handler_Loop : while Present (Handler) loop
+         Process_Statements_For_Controlled_Objects (Handler);
+
          Next_Handler := Next_Non_Pragma (Handler);
 
          --  Remove source handler if gnat debug flag .x is set
@@ -1095,8 +1097,9 @@ package body Exp_Ch11 is
                   --  any case this entire handling is relevant only if aborts
                   --  are allowed!
 
-               elsif Abort_Allowed then
-
+               elsif Abort_Allowed
+                 and then Exception_Mechanism /= Back_End_Exceptions
+               then
                   --  There are some special cases in which we do not do the
                   --  undefer. In particular a finalization (AT END) handler
                   --  wants to operate with aborts still deferred.
@@ -1120,7 +1123,6 @@ package body Exp_Ch11 is
                       (Others_Choice
                         and then
                           All_Others (First (Exception_Choices (Handler))))
-                    and then Abort_Allowed
                   then
                      Prepend_Call_To_Handler (RE_Abort_Undefer);
                   end if;
@@ -1439,6 +1441,7 @@ package body Exp_Ch11 is
       E     : Entity_Id;
       Str   : String_Id;
       H     : Node_Id;
+      Src   : Boolean;
 
    begin
       --  Processing for locally handled exception (exclude reraise case)
@@ -1510,12 +1513,12 @@ package body Exp_Ch11 is
          return;
       end if;
 
-      --  Remaining processing is for the case where no string expression
-      --  is present.
+      --  Remaining processing is for the case where no string expression is
+      --  present.
 
-      --  Don't expand a raise statement that does not come from source
-      --  if we have already had configurable run-time violations, since
-      --  most likely it will be junk cascaded nonsense.
+      --  Don't expand a raise statement that does not come from source if we
+      --  have already had configurable run-time violations, since most likely
+      --  it will be junk cascaded nonsense.
 
       if Configurable_Run_Time_Violations > 0
         and then not Comes_From_Source (N)
@@ -1526,27 +1529,30 @@ package body Exp_Ch11 is
       --  Convert explicit raise of Program_Error, Constraint_Error, and
       --  Storage_Error into the corresponding raise (in High_Integrity_Mode
       --  all other raises will get normal expansion and be disallowed,
-      --  but this is also faster in all modes).
+      --  but this is also faster in all modes). Propagate Comes_From_Source
+      --  flag to the new node.
 
       if Present (Name (N)) and then Nkind (Name (N)) = N_Identifier then
+         Src := Comes_From_Source (N);
+
          if Entity (Name (N)) = Standard_Constraint_Error then
             Rewrite (N,
-              Make_Raise_Constraint_Error (Loc,
-                Reason => CE_Explicit_Raise));
+              Make_Raise_Constraint_Error (Loc, Reason => CE_Explicit_Raise));
+            Set_Comes_From_Source (N, Src);
             Analyze (N);
             return;
 
          elsif Entity (Name (N)) = Standard_Program_Error then
             Rewrite (N,
-              Make_Raise_Program_Error (Loc,
-                Reason => PE_Explicit_Raise));
+              Make_Raise_Program_Error (Loc, Reason => PE_Explicit_Raise));
+            Set_Comes_From_Source (N, Src);
             Analyze (N);
             return;
 
          elsif Entity (Name (N)) = Standard_Storage_Error then
             Rewrite (N,
-              Make_Raise_Storage_Error (Loc,
-                Reason => SE_Explicit_Raise));
+              Make_Raise_Storage_Error (Loc, Reason => SE_Explicit_Raise));
+            Set_Comes_From_Source (N, Src);
             Analyze (N);
             return;
          end if;
@@ -1659,6 +1665,19 @@ package body Exp_Ch11 is
       --  does not have a choice parameter specification, then we provide one.
 
       else
+         --  Bypass expansion to a run-time call when back-end exception
+         --  handling is active, unless the target is a VM, CodePeer or
+         --  GNATprove. In CodePeer, raising an exception is treated as an
+         --  error, while in GNATprove all code with exceptions falls outside
+         --  the subset of code which can be formally analyzed.
+
+         if VM_Target = No_VM
+           and then not CodePeer_Mode
+           and then Exception_Mechanism = Back_End_Exceptions
+         then
+            return;
+         end if;
+
          --  Find innermost enclosing exception handler (there must be one,
          --  since the semantics has already verified that this raise statement
          --  is valid, and a raise with no arguments is only permitted in the

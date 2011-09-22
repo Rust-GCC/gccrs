@@ -409,11 +409,11 @@ should_replace_address (rtx old_rtx, rtx new_rtx, enum machine_mode mode,
 	  - address_cost (new_rtx, mode, as, speed));
 
   /* If the addresses have equivalent cost, prefer the new address
-     if it has the highest `rtx_cost'.  That has the potential of
+     if it has the highest `set_src_cost'.  That has the potential of
      eliminating the most insns without additional costs, and it
      is the same that cse.c used to do.  */
   if (gain == 0)
-    gain = rtx_cost (new_rtx, SET, speed) - rtx_cost (old_rtx, SET, speed);
+    gain = set_src_cost (new_rtx, speed) - set_src_cost (old_rtx, speed);
 
   return (gain > 0);
 }
@@ -963,7 +963,7 @@ try_fwprop_subst (df_ref use, rtx *loc, rtx new_rtx, rtx def_insn, bool set_reg_
      multiple sets.  If so, assume the cost of the new instruction is
      not greater than the old one.  */
   if (set)
-    old_cost = rtx_cost (SET_SRC (set), SET, speed);
+    old_cost = set_src_cost (SET_SRC (set), speed);
   if (dump_file)
     {
       fprintf (dump_file, "\nIn insn %d, replacing\n ", INSN_UID (insn));
@@ -984,7 +984,7 @@ try_fwprop_subst (df_ref use, rtx *loc, rtx new_rtx, rtx def_insn, bool set_reg_
 
   else if (DF_REF_TYPE (use) == DF_REF_REG_USE
 	   && set
-	   && rtx_cost (SET_SRC (set), SET, speed) > old_cost)
+	   && set_src_cost (SET_SRC (set), speed) > old_cost)
     {
       if (dump_file)
 	fprintf (dump_file, "Changes to insn %d not profitable\n",
@@ -1101,6 +1101,7 @@ forward_propagate_subreg (df_ref use, rtx def_insn, rtx def_set)
       src = SET_SRC (def_set);
       if (GET_CODE (src) == SUBREG
 	  && REG_P (SUBREG_REG (src))
+	  && REGNO (SUBREG_REG (src)) >= FIRST_PSEUDO_REGISTER
 	  && GET_MODE (SUBREG_REG (src)) == use_mode
 	  && subreg_lowpart_p (src)
 	  && all_uses_available_at (def_insn, use_insn))
@@ -1119,6 +1120,7 @@ forward_propagate_subreg (df_ref use, rtx def_insn, rtx def_set)
       if ((GET_CODE (src) == ZERO_EXTEND
 	   || GET_CODE (src) == SIGN_EXTEND)
 	  && REG_P (XEXP (src, 0))
+	  && REGNO (XEXP (src, 0)) >= FIRST_PSEUDO_REGISTER
 	  && GET_MODE (XEXP (src, 0)) == use_mode
 	  && !free_load_extend (src, def_insn)
 	  && all_uses_available_at (def_insn, use_insn))
@@ -1473,8 +1475,7 @@ struct rtl_opt_pass pass_rtl_fwprop =
   0,                                    /* todo_flags_start */
   TODO_df_finish
     | TODO_verify_flow
-    | TODO_verify_rtl_sharing
-    | TODO_dump_func                    /* todo_flags_finish */
+    | TODO_verify_rtl_sharing           /* todo_flags_finish */
  }
 };
 
@@ -1521,7 +1522,6 @@ struct rtl_opt_pass pass_rtl_fwprop_addr =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_dump_func                        /* todo_flags_finish */
+  TODO_df_finish | TODO_verify_rtl_sharing  /* todo_flags_finish */
  }
 };

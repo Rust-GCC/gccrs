@@ -55,9 +55,6 @@ extern int spu_constant_address_p (rtx x);
 extern bool spu_legitimate_constant_p (enum machine_mode, rtx);
 extern int spu_initial_elimination_offset (int from, int to);
 extern rtx spu_function_value (const_tree type, const_tree func);
-extern void spu_setup_incoming_varargs (int *cum, enum machine_mode mode,
-					tree type, int *pretend_size,
-					int no_rtl);
 extern int spu_expand_mov (rtx * ops, enum machine_mode mode);
 extern int spu_split_load (rtx * ops);
 extern int spu_split_store (rtx * ops);
@@ -79,6 +76,7 @@ extern void spu_builtin_insert (rtx ops[]);
 extern void spu_builtin_promote (rtx ops[]);
 extern void spu_expand_sign_extend (rtx ops[]);
 extern void spu_expand_vector_init (rtx target, rtx vals);
+extern rtx spu_legitimize_reload_address (rtx, enum machine_mode, int, int);
 #endif /* RTX_CODE  */
 
 extern void spu_init_expanders (void);

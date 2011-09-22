@@ -1,6 +1,6 @@
 /* CPP Library - lexical analysis.
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
-   Free Software Foundation, Inc.
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010,
+   2011 Free Software Foundation, Inc.
    Contributed by Per Bothner, 1994-95.
    Based on CCCP program by Paul Rubin, June 1986
    Adapted to ANSI C, Richard Stallman, Jan 1987
@@ -294,7 +294,7 @@ static const char repl_chars[4][16] __attribute__((aligned(16))) = {
 /* A version of the fast scanner using MMX vectorized byte compare insns.
 
    This uses the PMOVMSKB instruction which was introduced with "MMX2",
-   which was packaged into SSE1; it is also present in the AMD 3dNOW-A
+   which was packaged into SSE1; it is also present in the AMD MMX
    extension.  Mark the function as using "sse" so that we emit a real
    "emms" instruction, rather than the 3dNOW "femms" instruction.  */
 
@@ -488,7 +488,7 @@ init_vectorized_lexer (void)
   minimum = 3;
 #elif defined(__SSE2__)
   minimum = 2;
-#elif defined(__SSE__) || defined(__3dNOW_A__)
+#elif defined(__SSE__)
   minimum = 1;
 #endif
 
@@ -505,7 +505,8 @@ init_vectorized_lexer (void)
     }
   else if (__get_cpuid (0x80000001, &dummy, &dummy, &dummy, &edx))
     {
-      if (minimum == 1 || edx & bit_3DNOWP)
+      if (minimum == 1
+	  || (edx & (bit_MMXEXT | bit_CMOV)) == (bit_MMXEXT | bit_CMOV))
 	impl = search_line_mmx;
     }
 
@@ -1269,7 +1270,6 @@ static void
 lex_raw_string (cpp_reader *pfile, cpp_token *token, const uchar *base,
 		const uchar *cur)
 {
-  source_location saw_NUL = 0;
   const uchar *raw_prefix;
   unsigned int raw_prefix_len = 0;
   enum cpp_ttype type;
@@ -1475,15 +1475,8 @@ lex_raw_string (cpp_reader *pfile, cpp_token *token, const uchar *base,
 	  cur = base = pfile->buffer->cur;
 	  note = &pfile->buffer->notes[pfile->buffer->cur_note];
 	}
-      else if (c == '\0' && !saw_NUL)
-	LINEMAP_POSITION_FOR_COLUMN (saw_NUL, pfile->line_table,
-				     CPP_BUF_COLUMN (pfile->buffer, cur));
     }
  break_outer_loop:
-
-  if (saw_NUL && !pfile->state.skipping)
-    cpp_error_with_line (pfile, CPP_DL_WARNING, saw_NUL, 0,
-	       "null character(s) preserved in literal");
 
   pfile->buffer->cur = cur;
   if (first_buff == NULL)
@@ -1982,8 +1975,11 @@ _cpp_lex_direct (cpp_reader *pfile)
     }
   c = *buffer->cur++;
 
-  LINEMAP_POSITION_FOR_COLUMN (result->src_loc, pfile->line_table,
-			       CPP_BUF_COLUMN (buffer, buffer->cur));
+  if (pfile->forced_token_location_p)
+    result->src_loc = *pfile->forced_token_location_p;
+  else
+    result->src_loc = linemap_position_for_column (pfile->line_table,
+					  CPP_BUF_COLUMN (buffer, buffer->cur));
 
   switch (c)
     {
@@ -2014,18 +2010,20 @@ _cpp_lex_direct (cpp_reader *pfile)
     case 'R':
       /* 'L', 'u', 'U', 'u8' or 'R' may introduce wide characters,
 	 wide strings or raw strings.  */
-      if (c == 'L' || CPP_OPTION (pfile, uliterals))
+      if (c == 'L' || CPP_OPTION (pfile, rliterals)
+	  || (c != 'R' && CPP_OPTION (pfile, uliterals)))
 	{
 	  if ((*buffer->cur == '\'' && c != 'R')
 	      || *buffer->cur == '"'
 	      || (*buffer->cur == 'R'
 		  && c != 'R'
 		  && buffer->cur[1] == '"'
-		  && CPP_OPTION (pfile, uliterals))
+		  && CPP_OPTION (pfile, rliterals))
 	      || (*buffer->cur == '8'
 		  && c == 'u'
 		  && (buffer->cur[1] == '"'
-		      || (buffer->cur[1] == 'R' && buffer->cur[2] == '"'))))
+		      || (buffer->cur[1] == 'R' && buffer->cur[2] == '"'
+			  && CPP_OPTION (pfile, rliterals)))))
 	    {
 	      lex_string (pfile, result, buffer->cur - 1);
 	      break;
@@ -2843,4 +2841,22 @@ cpp_token_val_index (cpp_token *tok)
     default:
       return CPP_TOKEN_FLD_NONE;
     }
+}
+
+/* All tokens lexed in R after calling this function will be forced to have
+   their source_location the same as the location referenced by P, until
+   cpp_stop_forcing_token_locations is called for R.  */
+
+void
+cpp_force_token_locations (cpp_reader *r, source_location *p)
+{
+  r->forced_token_location_p = p;
+}
+
+/* Go back to assigning locations naturally for lexed tokens.  */
+
+void
+cpp_stop_forcing_token_locations (cpp_reader *r)
+{
+  r->forced_token_location_p = NULL;
 }

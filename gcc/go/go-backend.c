@@ -24,7 +24,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "tree.h"
 #include "tm_p.h"
+#include "output.h"
 #include "target.h"
+#include "common/common-target.h"
 
 #include "go-c.h"
 
@@ -90,4 +92,22 @@ go_imported_unsafe (void)
 
   /* Let the backend know that the options have changed.  */
   targetm.override_options_after_change ();
+}
+
+/* This is called by the Go frontend proper to add data to the
+   .go_export section.  */
+
+void
+go_write_export_data (const char *bytes, unsigned int size)
+{
+  static section* sec;
+
+  if (sec == NULL)
+    {
+      gcc_assert (targetm_common.have_named_sections);
+      sec = get_section (".go_export", SECTION_DEBUG, NULL);
+    }
+
+  switch_to_section (sec);
+  assemble_string (bytes, size);
 }

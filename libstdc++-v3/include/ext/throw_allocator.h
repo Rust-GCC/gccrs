@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010
+// Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2011
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -618,14 +618,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     public:
       size_type
-      max_size() const throw()
+      max_size() const _GLIBCXX_USE_NOEXCEPT
       { return _M_allocator.max_size(); }
 
       pointer
-      address(reference __x) const { return std::__addressof(__x); }
+      address(reference __x) const _GLIBCXX_NOEXCEPT
+      { return std::__addressof(__x); }
 
       const_pointer
-      address(const_reference __x) const { return std::__addressof(__x); }
+      address(const_reference __x) const _GLIBCXX_NOEXCEPT
+      { return std::__addressof(__x); }
 
       pointer
       allocate(size_type __n, std::allocator<void>::const_pointer hint = 0)
@@ -639,20 +641,25 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	return a;
       }
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+      template<typename _Up, typename... _Args>
+        void
+        construct(_Up* __p, _Args&&... __args)
+	{ return _M_allocator.construct(__p, std::forward<_Args>(__args)...); }
+
+      template<typename _Up>
+        void 
+        destroy(_Up* __p)
+        { _M_allocator.destroy(__p); }
+#else
       void
       construct(pointer __p, const value_type& val)
       { return _M_allocator.construct(__p, val); }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-      template<typename... _Args>
-	void
-	construct(pointer __p, _Args&&... __args)
-	{ return _M_allocator.construct(__p, std::forward<_Args>(__args)...); }
-#endif
-
       void
       destroy(pointer __p)
       { _M_allocator.destroy(__p); }
+#endif
 
       void
       deallocate(pointer __p, size_type __n)
@@ -694,14 +701,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	struct rebind
 	{ typedef throw_allocator_limit<_Tp1> other; };
 
-      throw_allocator_limit() throw() { }
+      throw_allocator_limit() _GLIBCXX_USE_NOEXCEPT { }
 
-      throw_allocator_limit(const throw_allocator_limit&) throw() { }
+      throw_allocator_limit(const throw_allocator_limit&)
+      _GLIBCXX_USE_NOEXCEPT { }
 
       template<typename _Tp1>
-	throw_allocator_limit(const throw_allocator_limit<_Tp1>&) throw() { }
+	throw_allocator_limit(const throw_allocator_limit<_Tp1>&)
+	_GLIBCXX_USE_NOEXCEPT { }
 
-      ~throw_allocator_limit() throw() { }
+      ~throw_allocator_limit() _GLIBCXX_USE_NOEXCEPT { }
     };
 
   /// Allocator throwing via random condition.
@@ -713,14 +722,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	struct rebind
 	{ typedef throw_allocator_random<_Tp1> other; };
 
-      throw_allocator_random() throw() { }
+      throw_allocator_random() _GLIBCXX_USE_NOEXCEPT { }
 
-      throw_allocator_random(const throw_allocator_random&) throw() { }
+      throw_allocator_random(const throw_allocator_random&)
+      _GLIBCXX_USE_NOEXCEPT { }
 
       template<typename _Tp1>
-	throw_allocator_random(const throw_allocator_random<_Tp1>&) throw() { }
+	throw_allocator_random(const throw_allocator_random<_Tp1>&)
+	_GLIBCXX_USE_NOEXCEPT { }
 
-      ~throw_allocator_random() throw() { }
+      ~throw_allocator_random() _GLIBCXX_USE_NOEXCEPT { }
     };
 
 _GLIBCXX_END_NAMESPACE_VERSION

@@ -5998,9 +5998,8 @@ gfc_conv_intrinsic_repeat (gfc_se * se, gfc_expr * expr)
 			 fold_convert (gfc_charlen_type_node, count));
   tmp = fold_build2_loc (input_location, MULT_EXPR, gfc_charlen_type_node,
 			 tmp, fold_convert (gfc_charlen_type_node, size));
-  tmp = fold_build2_loc (input_location, POINTER_PLUS_EXPR, pvoid_type_node,
-			 fold_convert (pvoid_type_node, dest),
-			 fold_convert (sizetype, tmp));
+  tmp = fold_build_pointer_plus_loc (input_location,
+				     fold_convert (pvoid_type_node, dest), tmp);
   tmp = build_call_expr_loc (input_location,
 			     built_in_decls[BUILT_IN_MEMMOVE], 3, tmp, src,
 			     fold_build2_loc (input_location, MULT_EXPR,
@@ -6802,19 +6801,11 @@ gfc_add_intrinsic_ss_code (gfc_loopinfo * loop ATTRIBUTE_UNUSED, gfc_ss * ss)
 static gfc_ss *
 gfc_walk_intrinsic_bound (gfc_ss * ss, gfc_expr * expr)
 {
-  gfc_ss *newss;
-
   /* The two argument version returns a scalar.  */
   if (expr->value.function.actual->next->expr)
     return ss;
 
-  newss = gfc_get_ss ();
-  newss->type = GFC_SS_INTRINSIC;
-  newss->expr = expr;
-  newss->next = ss;
-  newss->data.info.dimen = 1;
-
-  return newss;
+  return gfc_get_array_ss (ss, expr, 1, GFC_SS_INTRINSIC);
 }
 
 
@@ -6823,20 +6814,8 @@ gfc_walk_intrinsic_bound (gfc_ss * ss, gfc_expr * expr)
 static gfc_ss *
 gfc_walk_intrinsic_libfunc (gfc_ss * ss, gfc_expr * expr)
 {
-  gfc_ss *newss;
-  int n;
-
   gcc_assert (expr->rank > 0);
-
-  newss = gfc_get_ss ();
-  newss->type = GFC_SS_FUNCTION;
-  newss->expr = expr;
-  newss->next = ss;
-  newss->data.info.dimen = expr->rank;
-  for (n = 0; n < newss->data.info.dimen; n++)
-    newss->data.info.dim[n] = n;
-
-  return newss;
+  return gfc_get_array_ss (ss, expr, expr->rank, GFC_SS_FUNCTION);
 }
 
 
@@ -6952,8 +6931,44 @@ gfc_walk_intrinsic_function (gfc_ss * ss, gfc_expr * expr,
 }
 
 
-tree
-gfc_conv_intrinsic_move_alloc (gfc_code *code)
+static tree
+conv_intrinsic_atomic_def (gfc_code *code)
+{
+  gfc_se atom, value;
+  stmtblock_t block;
+
+  gfc_init_se (&atom, NULL);
+  gfc_init_se (&value, NULL);
+  gfc_conv_expr (&atom, code->ext.actual->expr);
+  gfc_conv_expr (&value, code->ext.actual->next->expr);
+
+  gfc_init_block (&block);
+  gfc_add_modify (&block, atom.expr,
+		  fold_convert (TREE_TYPE (atom.expr), value.expr));
+  return gfc_finish_block (&block);
+}
+
+
+static tree
+conv_intrinsic_atomic_ref (gfc_code *code)
+{
+  gfc_se atom, value;
+  stmtblock_t block;
+
+  gfc_init_se (&atom, NULL);
+  gfc_init_se (&value, NULL);
+  gfc_conv_expr (&value, code->ext.actual->expr);
+  gfc_conv_expr (&atom, code->ext.actual->next->expr);
+
+  gfc_init_block (&block);
+  gfc_add_modify (&block, value.expr,
+		  fold_convert (TREE_TYPE (value.expr), atom.expr));
+  return gfc_finish_block (&block);
+}
+
+
+static tree
+conv_intrinsic_move_alloc (gfc_code *code)
 {
   if (code->ext.actual->expr->rank == 0)
     {
@@ -7001,5 +7016,34 @@ gfc_conv_intrinsic_move_alloc (gfc_code *code)
     return gfc_trans_call (code, false, NULL_TREE, NULL_TREE, false);
 }
 
+
+tree
+gfc_conv_intrinsic_subroutine (gfc_code *code)
+{
+  tree res;
+
+  gcc_assert (code->resolved_isym);
+
+  switch (code->resolved_isym->id)
+    {
+    case GFC_ISYM_MOVE_ALLOC:
+      res = conv_intrinsic_move_alloc (code);
+      break;
+
+    case GFC_ISYM_ATOMIC_DEF:
+      res = conv_intrinsic_atomic_def (code);
+      break;
+
+    case GFC_ISYM_ATOMIC_REF:
+      res = conv_intrinsic_atomic_ref (code);
+      break;
+
+    default:
+      res = NULL_TREE;
+      break;
+    }
+
+  return res;
+}
 
 #include "gt-fortran-trans-intrinsic.h"

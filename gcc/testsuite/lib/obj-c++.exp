@@ -210,9 +210,9 @@ proc obj-c++_init { args } {
     global TOOL_EXECUTABLE TOOL_OPTIONS
     global OBJCXX_UNDER_TEST
     global TESTING_IN_BUILD_TREE
-    global target_triplet
     global gcc_warning_prefix
     global gcc_error_prefix
+    global TEST_ALWAYS_FLAGS
 
     if ![info exists OBJCXX_UNDER_TEST] then {
 	if [info exists TOOL_EXECUTABLE] {
@@ -249,6 +249,13 @@ proc obj-c++_init { args } {
 
     set ALWAYS_OBJCXXFLAGS ""
 
+    # TEST_ALWAYS_FLAGS are flags that should be passed to every
+    # compilation.  They are passed first to allow individual
+    # tests to override them.
+    if [info exists TEST_ALWAYS_FLAGS] {
+	lappend ALWAYS_OBJCXXFLAGS "additional_flags=$TEST_ALWAYS_FLAGS"
+    }
+
     if ![is_remote host] {
 	if [info exists TOOL_OPTIONS] {
 	    lappend ALWAYS_OBJCXXFLAGS "additional_flags=[obj-c++_include_flags [get_multilibs ${TOOL_OPTIONS}] ]";
@@ -270,7 +277,7 @@ proc obj-c++_init { args } {
     set gcc_warning_prefix "warning:"
     set gcc_error_prefix "error:"
 
-    if { [string match "*-*-darwin*" $target_triplet] } {
+    if { [istarget *-*-darwin*] } {
 	lappend ALWAYS_OBJCXXFLAGS "ldflags=-multiply_defined suppress"
     }
 
@@ -299,7 +306,7 @@ proc obj-c++_target_compile { source dest type options } {
     # we need to add the include path for the gnu runtime if that is in
     # use.
     # First, set the default...
-    if { [istarget "*-*-darwin*"] } {
+    if { [istarget *-*-darwin*] } {
 	set nextruntime 1
     } else {
 	set nextruntime 0

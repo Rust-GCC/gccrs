@@ -893,7 +893,8 @@ show_symbol (gfc_symbol *sym)
     }
 
   if (sym->formal_ns && (sym->formal_ns->proc_name != sym)
-      && sym->attr.proc != PROC_ST_FUNCTION)
+      && sym->attr.proc != PROC_ST_FUNCTION
+      && !sym->attr.entry)
     {
       show_indent ();
       fputs ("Formal namespace", dumpfile);
@@ -1038,6 +1039,7 @@ show_omp_node (int level, gfc_code *c)
     case EXEC_OMP_SINGLE: name = "SINGLE"; break;
     case EXEC_OMP_TASK: name = "TASK"; break;
     case EXEC_OMP_TASKWAIT: name = "TASKWAIT"; break;
+    case EXEC_OMP_TASKYIELD: name = "TASKYIELD"; break;
     case EXEC_OMP_WORKSHARE: name = "WORKSHARE"; break;
     default:
       gcc_unreachable ();
@@ -1070,6 +1072,7 @@ show_omp_node (int level, gfc_code *c)
       return;
     case EXEC_OMP_BARRIER:
     case EXEC_OMP_TASKWAIT:
+    case EXEC_OMP_TASKYIELD:
       return;
     default:
       break;
@@ -1082,6 +1085,12 @@ show_omp_node (int level, gfc_code *c)
 	{
 	  fputs (" IF(", dumpfile);
 	  show_expr (omp_clauses->if_expr);
+	  fputc (')', dumpfile);
+	}
+      if (omp_clauses->final_expr)
+	{
+	  fputs (" FINAL(", dumpfile);
+	  show_expr (omp_clauses->final_expr);
 	  fputc (')', dumpfile);
 	}
       if (omp_clauses->num_threads)
@@ -1129,6 +1138,8 @@ show_omp_node (int level, gfc_code *c)
 	fputs (" ORDERED", dumpfile);
       if (omp_clauses->untied)
 	fputs (" UNTIED", dumpfile);
+      if (omp_clauses->mergeable)
+	fputs (" MERGEABLE", dumpfile);
       if (omp_clauses->collapse)
 	fprintf (dumpfile, " COLLAPSE(%d)", omp_clauses->collapse);
       for (list_type = 0; list_type < OMP_LIST_NUM; list_type++)
@@ -1395,6 +1406,33 @@ show_code_node (int level, gfc_code *c)
 	}
       break;
 
+    case EXEC_LOCK:
+    case EXEC_UNLOCK:
+      if (c->op == EXEC_LOCK)
+	fputs ("LOCK ", dumpfile);
+      else
+	fputs ("UNLOCK ", dumpfile);
+
+      fputs ("lock-variable=", dumpfile);
+      if (c->expr1 != NULL)
+	show_expr (c->expr1);
+      if (c->expr4 != NULL)
+	{
+	  fputs (" acquired_lock=", dumpfile);
+	  show_expr (c->expr4);
+	}
+      if (c->expr2 != NULL)
+	{
+	  fputs (" stat=", dumpfile);
+	  show_expr (c->expr2);
+	}
+      if (c->expr3 != NULL)
+	{
+	  fputs (" errmsg=", dumpfile);
+	  show_expr (c->expr3);
+	}
+      break;
+
     case EXEC_ARITHMETIC_IF:
       fputs ("IF ", dumpfile);
       show_expr (c->expr1);
@@ -1570,6 +1608,28 @@ show_code_node (int level, gfc_code *c)
 	break;
 
       show_indent ();
+      fputs ("END DO", dumpfile);
+      break;
+
+    case EXEC_DO_CONCURRENT:
+      fputs ("DO CONCURRENT ", dumpfile);
+      for (fa = c->ext.forall_iterator; fa; fa = fa->next)
+        {
+          show_expr (fa->var);
+          fputc (' ', dumpfile);
+          show_expr (fa->start);
+          fputc (':', dumpfile);
+          show_expr (fa->end);
+          fputc (':', dumpfile);
+          show_expr (fa->stride);
+
+          if (fa->next != NULL)
+            fputc (',', dumpfile);
+        }
+      show_expr (c->expr1);
+
+      show_code (level + 1, c->block->next);
+      code_indent (level, c->label1);
       fputs ("END DO", dumpfile);
       break;
 
@@ -2139,6 +2199,7 @@ show_code_node (int level, gfc_code *c)
     case EXEC_OMP_SINGLE:
     case EXEC_OMP_TASK:
     case EXEC_OMP_TASKWAIT:
+    case EXEC_OMP_TASKYIELD:
     case EXEC_OMP_WORKSHARE:
       show_omp_node (level, c);
       break;

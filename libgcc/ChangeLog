@@ -1,3 +1,783 @@
+2011-09-13  Paul Brook  <paul@codesourcery.com>
+ 
+	* config.host (tic6x-*-*): Add c6x/t-c6x-elf.  Set unwind_header.
+	* unwind-c.c (PERSONALITY_FUNCTION): Use UNWIND_POINTER_REG.
+	* unwind-arm-common.inc: New file.
+	* config/arm/unwind-arm.c: Use unwind-arm-common.inc.
+	* config/arm/unwind-arm.h: Use unwind-arm-common.h.
+	(_GLIBCXX_OVERRIDE_TTYPE_ENCODING): Define.
+	* config/c6x/libunwind.S: New file.
+	* config/c6x/pr-support.c: New file.
+	* config/c6x/unwind-c6x.c: New file.
+	* config/c6x/unwind-c6x.h: New file.
+	* config/c6x/t-c6x-elf: New file.
+
+2011-08-23  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/i386/64/sfp-machine.h (ASM_INVALID): New define.
+	(ASM_DIVZERO): Ditto.
+	(FP_HANLDE_EXCEPTIONS): Use ASM_INVALID and ASM_DIVZERO.
+
+2011-08-18  Richard Sandiford  <richard.sandiford@linaro.org>
+
+	* config/arm/bpabi-lib.h (RENAME_LIBRARY_SET): Delete.
+
+2011-08-17  Richard Sandiford  <richard.sandiford@linaro.org>
+
+	PR target/50090
+	* config/arm/bpabi-lib.h (RENAME_LIBRARY): Use a C-level alias
+	instead of an assembly one.
+
+2011-08-12  Paolo Bonzini  <bonzini@gnu.org>
+
+	PR bootstrap/50047
+	* Makefile.in (install-unwind_h): Create
+	$(gcc_objdir)/include/unwind.h atomically.
+
+2011-08-11  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.in (install-unwind_h): Remove destination file first.
+
+2011-08-09  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* sync.c: New file.
+	* config/mips/t-mips16: New file.
+	* config.host (mips64*-*-linux*): Add mips/t-mips16 to tmake_file.
+	(mips*-*-linux*): Likewise.
+	(mips*-sde-elf*): Likewise.
+	(mipsisa32-*-elf*): Join with mipsisa32r2-*-elf*,
+	mipsisa64-*-elf*, mipsisa64r2-*-elf*.
+	Add mips/t-mips16 to tmake_file.
+	(mipsisa64sb1-*-elf*): Add mips/t-mips16 to tmake_file.
+	(mips-*-elf*): Likewise.
+	(mips64-*-elf*): Likewise.
+	(mips64orion-*-elf*): Likewise.
+	(mips*-*-rtems*): Likewise.
+	(mipstx39-*-elf*): Likewise.
+	* Makefile.in: Use SYNC instead of LIBGCC_SYNC.
+	($(libgcc-sync-size-funcs-o)): Use SYNC_CFLAGS instead of
+	LIBGCC_SYNC_CFLAGS.
+	Use $(srcdir) to refer to sync.c.
+	Use $<.
+	($(libgcc-sync-funcs-o)): Likewise.
+	($(libgcc-sync-size-funcs-s-o)): Likewise.
+	($(libgcc-sync-funcs-s-o)): Likewise.
+
+2011-08-09  Andreas Schwab  <schwab@linux-m68k.org>
+
+	* config.host (ia64*-*-linux*): Move ia64/t-glibc after
+	t-libunwind.
+
+2011-08-08  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR other/48007
+	* config/i386/value-unwind.h: New.
+
+2011-08-06  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* config.host (*-*-darwin*, *-*-freebsd*, *-*-linux*, frv-*-*linux*)
+	(*-*-kfreebsd*-gnu, *-*-knetbsd*-gnu, *-*-gnu*, *-*-kopensolaris*-gnu):
+	Add to tmake_file rather than overriding it.
+
+2011-08-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/t-softfp: Remove.
+	* soft-fp: Moved from ../gcc/config.
+	* soft-fp/README: Remove t-softfp reference.
+	* soft-fp/t-softfp: Move to config/t-softfp.
+	(softfp_machine_header): Remove.
+	(softfp_file_list): Remove config subdir.
+	(soft-fp-objects): New variable.
+	($(soft-fp-objects)): Set INTERNAL_CFLAGS.
+	(LIB2FUNCS_EXTRA): Add to LIB2ADD instead.
+	(SFP_MACHINE, $(SFP_MACHINE)): Remove.
+	* config/t-softfp-excl: New file.
+	* config/t-softfp-sfdf: New file.
+	* config/t-softfp-tf: New file.
+	* config/no-sfp-machine.h: New file.
+	* config/arm/sfp-machine.h: New file.
+	* config/arm/t-softfp: New file.
+	* config/c6x/sfp-machine.h: New file.
+	* config/i386/32/t-fprules-softfp: Rename to ...
+	* config/i386/32/t-softfp: ... this.
+	(tifunctions, LIB2ADD): Remove.
+	(softfp_int_modes): Override.
+	* config/i386/64/t-softfp-compat (tf-functions): Remove config
+	subdir.
+	* config/i386/64/eqtf2.c: Likewise.
+	* config/i386/64/getf2.c: Likewise.
+	* config/i386/64/letf2.c: Likewise.
+	* config/ia64/sft-machine.h: New file.
+	* config/ia64/t-fprules-softfp: Rename to ...
+	* config/ia64/t-softfp: ... this.
+	* config/lm32/sfp-machine.h: New file.
+	* config/moxie/t-moxie-softfp: Remove.
+	* config/rs6000/ibm-ldouble-format: New file.
+	* config/rs6000/ibm-ldouble.c: New file.
+	* config/rs6000/libgcc-ppc-glibc.ver: New file
+	* config/rs6000/libgcc-ppc64.ver: New file
+	* config/rs6000/sfp-machine.h: New file.
+	* config/rs6000/t-freebsd: New file.
+	* config/rs6000/t-ibm-ldouble: New file.
+	* config/rs6000/t-ldbl128: Use $(srcdir) to refer to
+	libgcc-ppc-glibc.ver.
+	* config/rs6000/t-linux64: New file.
+	* config/rs6000/t-ppccomm (LIB2ADD): Add
+	$(srcdir)/config/rs6000/ibm-ldouble.c.
+	* config/rs6000/t-ppccomm-ldbl: New file.
+	* config/score/sfp-machine.h: New file.
+	* config.host (sfp_machine_header): Explain.
+	(arm*-*-linux*): Add t-softfp-sfdf, t-softfp-excl, arm/t-softfp,
+	t-softfp to tmake_file.
+	(arm*-*-uclinux*): Likewise.
+	(arm*-*-ecos-elf): Likewise.
+	(arm*-*-eabi*, arm*-*-symbianelf*): Likewise.
+	(arm*-*-rtems*): Likewise.
+	(arm*-*-elf): Likewise.
+	(ia64*-*-linux*): Replace ia64/t-fprules-softfp by ia64/t-softfp
+	in tmake_file.
+	Add t-softfp-tf, t-softfp-excl, t-softfp to tmake_file.
+	(lm32-*-elf*, lm32-*-rtems*): Add t-softfp-sfdf, t-softfp to tmake_file.
+	(lm32-*-uclinux*): Likewise.
+	(moxie-*-*): Replace moxie/t-moxie-softfp by t-softfp-sfdf,
+	t-softfp-excl, t-softfp.
+	(powerpc-*-darwin*): Add rs6000/t-ibm-ldouble to tmake_file.
+	(powerpc64-*-darwin*): Likewise.
+	(powerpc-*-freebsd*): Add t-softfp-sfdf, t-softfp-excl, t-softfp
+	to tmake_file.
+	(powerpc-*-eabisimaltivec*): Add rs6000/t-ppccomm-ldbl to
+	tmake_file.
+	(powerpc-*-eabisim*): Likewise.
+	(powerpc-*-elf*): Likewise.
+	(powerpc-*-eabialtivec*): Likewise.
+	(powerpc-xilinx-eabi*): Likewise.
+	(powerpc-*-rtems*): Likewise.
+	(powerpc-*-linux*, powerpc64-*-linux*): Add t-softfp-sfdf,
+	t-softfp-excl, t-softfp to tmake_file.
+	(powerpc-wrs-vxworks, powerpc-wrs-vxworksae): Add
+	rs6000/t-ppccomm-ldbl to tmake_file.
+	(powerpcle-*-elf*): Likewise.
+	(powerpcle-*-eabisim*): Likewise.
+	(powerpcle-*-eabi*): Likewise.
+	(rs6000-ibm-aix4.[3456789]*, powerpc-ibm-aix4.[3456789]*): Add
+	rs6000/t-ibm-ldouble to tmake_file.
+	(rs6000-ibm-aix5.1.*, powerpc-ibm-aix5.1.*): Likewise.
+	(rs6000-ibm-aix[56789].*, powerpc-ibm-aix[56789].*): Likewise.
+	(score-*-elf): Add t-softfp-sfdf, t-softfp-excl, t-softfp to tmake_file.
+	(tic6x-*-*): Likewise.
+	(i[34567]86-*-darwin*, x86_64-*-darwin*,
+	i[34567]86-*-kfreebsd*-gnu, x86_64-*-kfreebsd*-gnu,
+	i[34567]86-*-linux*, x86_64-*-linux*, i[34567]86-*-gnu*,
+	i[34567]86-*-solaris2*, x86_64-*-solaris2.1[0-9]*,
+	i[34567]86-*-cygwin*, i[34567]86-*-mingw*, x86_64-*-mingw*,
+	i[34567]86-*-freebsd*, x86_64-*-freebsd*): Add t-softfp-tf,
+	t-softfp to tmake_file.
+	* configure.ac (sfp_machine_header): Provide default if unset.
+	Substitute.
+	Link sfp-machine.h to config/$sfp_machine_header.
+	* configure: Regenerate.
+
+2011-08-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.in (double_type_size, long_double_type_size): Set.
+	Remove $(fpbit-in-libgcc) support.
+	(FPBIT_FUNCS, DPBIT_FUNCS, TPBIT_FUNCS): New variables.
+	(fpbit-src): New variable.
+	($(fpbit-o), $(fpbit-s-o)): Use $(fpbit-src) instead of $(FPBIT).
+	Compile with -DFLOAT $(FPBIT_CFLAGS).
+	Use $<.
+	($(dpbit-o), $(dpbit-s-o)): Use $(fpbit-src) instead of $(DPBIT).
+	Compile with $(FPBIT_CFLAGS).
+	Use $<.
+	($(tpbit-o), $(tpbit-s-o): Use $(fpbit-src) instead of $(TPBIT).
+	Compile with -DFLOAT $(TPBIT_CFLAGS).
+	Use $<.
+	* configure.ac (double_type_size, long_double_type_size):
+	Determine and substitute.
+	* configure: Regenerate.
+	* fp-bit.c, fp-bit.h: New files.
+	* config/avr/avr-lib.h, config/h8300/h8300-lib.h: New files.
+	* config/mips/t-irix6 (TPBIT, $(gcc_objdir)/tp-bit.c): Remove.
+	* config/mips/t-mips: New file.
+	* config/mips/t-sdemtk: New file.
+	* config/rs6000/ppc64-fp.c: New file.
+	* config/rs6000/t-darwin (LIB2ADD): Add
+	$(srcdir)/config/rs6000/ppc64-fp.c.
+	* config/rs6000/t-ppc64-fp: New file.
+	* config/rx/rx-lib.h: New file.
+	* config/rx/t-rx (FPBIT): Set to true.
+	($(gcc_objdir)/fp-bit.c): Remove.
+	(DPBIT): Set to true only with -m64bit-doubles.
+	($(gcc_objdir)/dp-bit.c): Remove.
+	* config/sparc/t-softfp: Remove.
+	* config/spu/t-elf: New file.
+	* config/t-fdpbit, config/t-fpbit: New files.
+	* config.host (m32c*-*-*): Add t-fdpbit to tmake_file.
+	(mips*-*-*): Likewise.
+	(arm-wrs-vxworks): Likewise.
+	(arm*-*-freebsd*): Likewise.
+	(avr-*-rtems*): Add t-fpbit to tmake_file.
+	(avr-*-*): Likewise.
+	(bfin*-elf*): Add t-fdpbit to tmake_file.
+	(bfin*-uclinux*): Likewise.
+	(bfin*-linux-uclibc*): Likewise.
+	(bfin*-rtems*): New case.
+	Add t-fdpbit to tmake_file.
+	(bfin*-*): Add t-fdpbit to tmake_file.
+	(crisv32-*-elf): Likewise.
+	(cris-*-linux*): Likewise.
+	(fr30-*-elf): Likewise.
+	(frv-*-elf, frv-*-*linux*): Likewise.
+	(h8300-*-rtems*, h8300-*-elf*): Add t-fpbit to tmake_file.
+	(iq2000*-*-elf*): Add t-fdpbit to tmake_file.
+	(m32r-*-elf*): Likewise.
+	(m32rle-*-elf*): Likewise.
+	(m32r-*-linux*): Likewise.
+	(m32rle-*-linux*): Likewise.
+	(mcore-*-elf): Add t-fdpbit to tmake_file.
+	(microblaze*-*-*): Likewise.
+	(mips-sgi-irix6.5*): Add t-tpbit to tmake_file.
+	(mips*-*-netbsd*): Add mips/t-mips to tmake_file.
+	(mips64*-*-linux*): Also handle mipsisa64*-*-linux*.
+	Fix typo.
+	Add mips/t-tpbit to tmake-file.
+	(mips*-*-linux*): Fix typo.
+	(mips*-sde-elf*): New case
+	Add mips/t-sdemtk unless using newlib.
+	(mipsisa64sr71k-*-elf*): Add t-fdpbit to tmake_file.
+	(mipsisa64sb1-*-elf*): Add mips/t-mips to tmake_file.
+	(mn10300-*-*): Likewise.
+	(pdp11-*-*): Likewise.
+	(picochip-*-*): Add t-fpbit to tmake_file.
+	(powerpc-*-eabisimaltivec*): Likewise.
+	(powerpc-*-eabisim*): Likewise.
+	(powerpc-*-elf*): Likewise.
+	(powerpc-*-eabialtivec*): Likewise.
+	(powerpc-xilinx-eabi*): New case.
+	Add t-fdpbit to tmake_file.
+	(powerpc-*-eabi*):  Add t-fdpbit to tmake_file.
+	(powerpc-*-rtems*): Likewise.
+	(powerpc-*-linux*, powerpc64-*-linux*): Add rs6000/t-ppc64-fp to
+	tmake_file.
+	(powerpc-wrs-vxworks, powerpc-wrs-vxworksae): Add t-fdpbit to
+	tmake_file.
+	(powerpc-*-lynxos*): Likewise.
+	(powerpcle-*-elf*): Likewise.
+	(powerpcle-*-eabisim*): Likewise.
+	(powerpcle-*-eabi*): Likewise.
+	(rs6000-ibm-aix4.[3456789]*, powerpc-ibm-aix4.[3456789]*): Add
+	t-fdpbit, rs6000/t-ppc64-fp to tmake_file.
+	(rs6000-ibm-aix5.1.*, powerpc-ibm-aix5.1.*): Likewise.
+	(rs6000-ibm-aix[56789].*, powerpc-ibm-aix[56789].*): Likewise.
+	(rx-*-elf): Add t-fdpbit to tmake_file.
+	(sh-*-elf*, sh[12346l]*-*-elf*, sh-*-linux*)
+	(sh[2346lbe]*-*-linux*, sh-*-netbsdelf*, shl*-*-netbsdelf*)
+	(sh5-*-netbsd*, sh5l*-*-netbsd*, sh64-*-netbsd*)
+	(sh64l*-*-netbsd*): Add t-fdpbit to tmake_file except on
+	sh*-*-netbsd*.
+	(sh-*-rtems*): Add t-fdpbit to tmake_file.
+	(sh-wrs-vxworks): Likewise.
+	(sparc-*-elf*): Replace sparc/t-softfp by t-fdpbit in tmake_file.
+	(sparc-*-linux*): Add t-fdpbit to tmake_file for *-leon*.
+	(sparc-*-rtems*, sparc64-*-rtems*): Split off ...
+	(sparc64-*-rtems*): ... new case.
+	(sparc-*-rtems*): Add t-fdpbit to tmake_file.
+	(spu-*-elf*): Likewise.
+	Add spu/t-elf to tmake_file.
+	(v850*-*-*): Add t-fdpbit to tmake_file.
+	(xstormy16-*-elf): Likewise.
+	(am33_2.0-*-linux*): Add t-fdpbit to tmake_file.
+	(mep*-*-*): Likewise.
+
+2011-08-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.in (LIB2ADDEH, LIB2ADDEHSTATIC, LIB2ADDEHSHARED): New
+	variables.
+	(LIBUNWIND, SHLIBUNWIND_LINK, SHLIBUNWIND_INSTALL): New variables.
+	(LIB2ADDEH, LIB2ADDEHSTATIC, LIB2ADDEHSHARED): Add $(srcdir)/emutls.c.
+	(install-unwind_h): New target.
+	(all): Depend on it.
+	* config.host (unwind_header): New variable.
+	(*-*-freebsd*): Set tmake_file to t-eh-dw2-dip.
+	(*-*-linux*, frv-*-*linux*, *-*-kfreebsd*-gnu, *-*-knetbsd*-gnu,
+	*-*-gnu*): Likewise, also for *-*-kopensolaris*-gnu.
+	(*-*-solaris2*): Add t-eh-dw2-dip to tmake_file.
+	(arm*-*-linux*): Add arm/t-bpabi for arm*-*-linux-*eabi.
+	Set unwind_header.
+	(arm*-*-uclinux*): Add arm/t-bpabi for arm*-*-uclinux*eabi.
+	Set unwind_header.
+	(arm*-*-eabi*, arm*-*-symbianelf*): Add arm/t-bpabi for
+	arm*-*-eabi*.
+	Add arm/t-symbian to tmake_file for arm*-*-symbianelf*.
+	Set unwind_header.
+	(ia64*-*-elf*): Add ia64/t-eh-ia64 to tmake_file.
+	(ia64*-*-freebsd*): Likewise.
+	(ia64*-*-linux*): Add ia64/t-glibc, ia64/t-eh-ia64, t-libunwind to
+	tmake_file.
+	Add t-libunwind-elf, ia64/t-glibc-libunwind unless
+	$with_system_libunwind.
+	(ia64*-*-hpux*): Set tmake_file.
+	(ia64-hp-*vms*): Add ia64/t-eh-ia64 to tmake_file.
+	(picochip-*-*): Set tmake_file.
+	(rs6000-ibm-aix4.[3456789]*, powerpc-ibm-aix4.[3456789]*): Set
+	md_unwind_header.
+	(rs6000-ibm-aix5.1.*, powerpc-ibm-aix5.1.*): Likewise.
+	(rs6000-ibm-aix[56789].*, powerpc-ibm-aix[56789].*): Likewise.
+	(s390x-ibm-tpf*): Add t-eh-dw2-dip to tmake_file.
+	(xtensa*-*-elf*): Set tmake_file.
+	(xtensa*-*-linux*): Likewise.
+	* configure.ac: Include ../config/unwind_ipinfo.m4.
+	Call GCC_CHECK_UNWIND_GETIPINFO.
+	Link unwind.h to $unwind_header.
+	* configure: Regenerate.
+	* emutls.c, unwind-c.c, unwind-compat.c, unwind-compat.h,
+	unwind-dw2-fde-compat.c, unwind-dw2-fde-dip.c, unwind-dw2-fde.c,
+	unwind-dw2-fde.h, unwind-dw2.c, unwind-dw2.h, unwind-generic.h,
+	unwind-pe.h, unwind-sjlj.c, unwind.inc: New files.
+	* config/unwind-dw2-fde-darwin.c: New file.
+	* config/arm/libunwind.S, config/arm/pr-support.c,
+	config/arm/t-bpabi, config/arm/t-symbian, config/arm/unwind-arm.c,
+	config/arm/unwind-arm.h,: New files.
+	* config/ia64/fde-glibc.c, config/ia64/fde-vms.c,
+	config/ia64/t-eh-ia64, config/ia64/t-glibc,
+	config/ia64/t-glibc-libunwind, config/ia64/t-hpux,
+	config/ia64/t-vms, config/ia64/unwind-ia64.c,
+	config/ia64/unwind-ia64.h: New files.
+	* config/picochip/t-picochip: New file.
+	* config/rs6000/aix-unwind.h, config/rs6000/darwin-fallback.c: New
+	files.
+	* config/rs6000/t-darwin (LIB2ADDEH): Set.
+	* config/s390/t-tpf (LIB2ADDEH): Remove.
+	* config/t-darwin (LIB2ADDEH): Set.
+	* config/t-eh-dw2-dip: New file.
+	* config/t-libunwind, config/t-libunwind-elf: New files.
+	* config/t-sol2 (LIB2ADDEH): Remove.
+	* config/xtensa/t-xtensa: New file.
+
+2011-08-02  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* config/i386/linux-unwind.h (RT_SIGRETURN_SYSCALL): New.
+	(x86_64_fallback_frame_state): Use RT_SIGRETURN_SYSCALL and
+	long long to check rt_sigreturn syscall.
+
+2011-08-02  Alan Modra  <amodra@gmail.com>
+
+	* config/rs6000/linux-unwind.h (frob_update_context <__powerpc64__>):
+	Restore for indirect call bcrtl from correct stack slot, and only
+	if cfa+40 isn't valid.
+
+2011-08-01  Julian Brown  <julian@codesourcery.com>
+
+	* config.host (arm*-*-linux*, arm*-*-uclinux*, arm*-*-eabi*)
+	(arm*-*-symbianelf*): Add t-fixedpoint-gnu-prefix makefile fragment.
+	* config/arm/bpabi-lib.h (LIBGCC2_FIXEDBIT_GNU_PREFIX): Define.
+
+2011-08-01  Julian Brown  <julian@codesourcery.com>
+
+	* Makefile.in (LIBGCC_VER_FIXEDPOINT_GNU_PREFIX): New.
+	(libgcc-std.ver.in): Use above.
+	* fixed-bit.h (LIBGCC2_FIXEDBIT_GNU_PREFIX): Define, if
+	LIBGCC2_GNU_PREFIX is defined.  Use instead of LIBGCC2_GNU_PREFIX
+	throughout file.
+	* config/t-fixedpoint-gnu-prefix: New file.
+	* config/t-gnu-prefix (LIBGCC_VER_FIXEDPOINT_GNU_PREFIX): Set.
+	* libgcc-std.ver.in (fixed-point routines): Use __FIXPTPFX__
+	instead of __PFX__.
+
+2011-07-28  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* config/i386/morestack.S (X86_64_SAVE_NEW_STACK_BOUNDARY): New.
+	Use X86_64_SAVE_NEW_STACK_BOUNDARY to save the new stack boundary
+	for x86-64.  Properly check __x86_64__ and __LP64__.
+
+2010-07-28  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* config/i386/64/sfp-machine.h (_FP_W_TYPE): Always use _WIN64
+	version.
+	(_FP_WS_TYPE): Likewise.
+	(_FP_I_TYPE): Likewise.
+
+2011-07-28  Alan Modra  <amodra@gmail.com>
+
+	* config/rs6000/linux-unwind.h (frob_update_context <__powerpc64__>):
+	Leave r2 REG_UNSAVED if stopped on the instruction that saves r2
+	in a plt call stub.  Do restore r2 if stopped on bctrl.
+
+2011-07-18  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config.host (i[3456x]86-*-netware*): Remove.
+	* config/i386/netware-crt0.c, config/i386/t-nwld,
+	config/i386/t-slibgcc-nwld: Remove.
+
+2011-07-15  Bernd Schmidt  <bernds@codesourcery.com>
+
+	* config.host: Handle tic6x-*-*.
+	* config/c6x/c6x-abi.h: New file.
+
+2011-07-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/i386/crtprec.c: New file.
+	* config/i386/t-crtpc: Use $(srcdir) to refer to crtprec.c.
+	* config.host (i[34567]86-*-darwin*): Add i386/t-crtpc to tmake_file.
+	Add crtprec32.o, crtprec64.o, crtprec80.o to extra_parts.
+	(x86_64-*-darwin*): Likewise.
+	(i[34567]86-*-solaris2*: Likewise.
+
+2011-07-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/alpha/crtfastmath.c: New file.
+	* config/i386/crtfastmath.c: New file.
+	* config/ia64/crtfastmath.c: New file.
+	* config/mips/crtfastmath.c: New file.
+	* config/sparc/crtfastmath.c: New file.
+
+	* config/t-crtfm (crtfastmath.o): Use $(srcdir) to refer to
+	crtfastmath.c.
+	Add -frandom-seed=gcc-crtfastmath.
+	* config/alpha/t-crtfm: Remove.
+	* config/i386/t-crtfm: Use $(srcdir) to refer to crtfastmath.c.
+	* config/ia64/t-ia64 (crtfastmath.o): Remove.
+
+	* config.host (alpha*-*-linux*): Replace alpha/t-crtfm by t-crtfm.
+	(alpha*-dec-osf5.1*): Likewise.
+	(alpha*-*-freebsd*): Add t-crtfm to tmake_file.
+	Add crtfastmath.o to extra_parts.
+	(i[34567]86-*-darwin*): Add i386/t-crtfm to tmake_file.
+	Add crtfastmath.o to extra_parts.
+	(x86_64-*-darwin*): Likewise.
+	(x86_64-*-mingw*): Likewise.
+	(ia64*-*-elf*): Add t-crtfm to tmake_file.
+	(ia64*-*-freebsd*): Likewise.
+	(ia64*-*-linux*): Likewise.
+	(sparc64-*-freebsd*): Add t-crtfm to tmake_file.
+	Add crtfastmath.o to extra_parts.
+
+2011-07-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/darwin-crt3.o: New file.
+	* config/rs6000/darwin-crt2.c: New file.
+	* config/t-darwin: New file.
+	* config/rs6000/t-darwin (DARWIN_EXTRA_CRT_BUILD_CFLAGS): New variable.
+	(crt2.o): New rule.
+	* config.host (*-*-darwin*): Add crt3.o to extra_parts.
+	(powerpc-*-darwin*): Add crt2.o to extra_parts.
+	(powerpc64-*-darwin*): Likewise.
+
+2011-07-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/i386/netware-crt0.c: New file.
+	* config/i386/t-nwld: Rename to ...
+	* config/i386/t-slibgcc-nwld: ... this.
+	* config/i386/t-nwld: New file.
+	* config.host (i[3456x]86-*-netware*): Add i386/t-slibgcc-nwld to
+	tmake_file.
+	Add crt0.o, libgcc.def, libc.def, libcpre.def, posixpre.def to
+	extra_parts.
+
+2011-07-11  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (i?86-*-solaris2*): Use libgcc copy of
+	i386/t-crtstuff.
+	* configure: Regenerate.
+
+2011-07-11  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* dfp-bit.c, dfp-bit.h: New files.
+	* Makefile.in (D32PBIT_FUNCS, D64PBIT_FUNCS, D128PBIT_FUNCS): New
+	variables.
+	($(d32pbit-o)): Use $(srcdir) to refer to dfp-bit.c
+	($(d64pbit-o)): Likewise.
+	($(d128pbit-o)): Likewise.
+	* config/t-dfprules: New file.
+	* config.host (i[34567]86-*-linux*): Add t-dfprules to tmake_file.
+	(i[34567]86-*-kfreebsd*-gnu, i[34567]86-*-knetbsd*-gnu,
+	i[34567]86-*-gnu*, i[34567]86-*-kopensolaris*-gnu): Likewise.
+	(x86_64-*-linux*): Likewise.
+	(x86_64-*-kfreebsd*-gnu, x86_64-*-knetbsd*-gnu): Likewise.
+	(i[34567]86-*-cygwin*): Likewise.
+	(i[34567]86-*-mingw*,  x86_64-*-mingw*): Likewise.
+	(powerpc-*-linux*, powerpc64-*-linux*): Likewise.
+
+2011-07-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makfile.in (LIBGCOV): New variable.
+	($(libgcov-objects)): Use $(srcdir) to refer to libgcov.c.
+	* libgcov.c: New file.
+
+2011-07-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* fixed-bit.c, fixed-bit.h: New files.
+	* fixed-obj.mk ($o$(objext), $(o)_s$(objext)): Use $(srcdir) to
+	refer to fixed-bit.c.
+
+2011-07-07  Joseph Myers  <joseph@codesourcery.com>
+
+	* config.host (*local*): Remove.
+
+2011-07-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR target/39150
+	* config.host (*-*-solaris2*): Handle x86_64-*-solaris2.1[0-9]*
+	like i?86-*-solaris2.1[0-9]*.
+	(i[34567]86-*-solaris2*): Also handle x86_64-*-solaris2.1[0-9]*.
+	* configure.ac (i?86-*-solaris2*): Likewise.
+	* configure: Regenerate.
+
+2011-07-06  Thomas Schwinge  <thomas@schwinge.name>
+
+	* config.host (i[34567]86-*-kfreebsd*-gnu, i[34567]86-*-knetbsd*-gnu)
+	(i[34567]86-*-gnu*, i[34567]86-*-kopensolaris*-gnu): Remove
+	md_unwind_header by splitting out of...
+	(i[34567]86-*-linux*): ... this.
+	* config.host (x86_64-*-kfreebsd*-gnu, x86_64-*-knetbsd*-gnu):
+	Remove md_unwind_header by splitting out of...
+	(x86_64-*-linux*): ... this.
+
+2011-07-04  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/t-avr (intfuncs16): Add _clrsbXX2.
+
+2011-06-28  Nick Clifton  <nickc@redhat.com>
+
+	* config.host: Recognize all V850 variants.
+
+2011-06-22  Uros Bizjak  <ubizjak@gmail.com>
+
+	* enable-execute-stack-empty.c (__enable_execute_stack): Add prototype.
+
+2011-06-21  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* shared-object.mk (c_flags-$o): Save c_flags.
+	($(base)$(objext)): Use it.
+	($(base)_s$(objext)): Likewise.
+
+2011-06-21  Bernd Schmidt  <bernds@codesourcery.com>
+
+	* Makefile.in (lib2funcs): Add _clrsbsi2 and _clrsbdi2.
+	* libgcc-std.ver.in (GCC_4.7.0): New section.
+
+2011-06-16  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/49313
+	PR target/29524
+	* config/avr/t-avr: Fix line endings.
+	(intfuncs16): Remove _ffsXX2,  _clzXX2, _ctzXX2, _popcountXX2,
+	_parityXX2.
+
+2011-06-14  Olivier Hainque  <hainque@adacore.com>
+	    Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/mips/irix6-unwind.h: New file.
+	* config.host (mips-sgi-irix6.5*): Set md_unwind_header.
+
+2011-06-10  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* config/sparc/linux-unwind.h (STACK_BIAS): Define.
+	(sparc64_fallback_frame_state): Use it.
+	(sparc64_frob_update_context): Further adjust context.
+	* config/sparc/sol2-unwind.h (sparc64_frob_update_context): Likewise.
+	* config/sparc/sol2-ci.S: Add TARGET_FLAT handling.
+	* config/sparc/sol2-cn.S: Likewise.
+
+2011-06-09  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* enable-execute-stack-empty.c: New file.
+	* enable-execute-stack-mprotect.c: New file.
+	* config/i386/enable-execute-stack-mingw32.c: New file.
+	* config.host (enable_execute_stack): New variable.
+	Select appropriate variants.
+	* configure.ac: Link enable-execute-stack.c to
+	$enable_execute_stack.
+	* configure: Regenerate.
+	* Makefile.in (LIB2ADD): Add enable-execute-stack.c.
+	(lib2funcs): Remove _enable_execute_stack.
+
+2011-06-09  David S. Miller  <davem@davemloft.net>
+	    Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config.host (sparc-*-linux*): Correct md_unwind_header
+	filename.
+	(s390x-ibm-tpf*): Fix typo.
+
+2011-06-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config.host (mips-sgi-irix6.5*): Add t-crtfm to tmake_file.
+	Add crtfastmath.o to extra_parts.
+	(mips64*-*-linux*, mips*-*-linux*): Use t-crtfm instead of
+	mips/t-crtfm.
+	* config/mips/t-crtfm: Remove.
+
+2011-06-04  John David Anglin  <dave.anglin@nrc-cnrc.gc.ca>
+
+	* config.host (hppa*-*-linux*): Correct md_unwind_header name.
+
+2011-06-04  Kaz Kojima  <kkojima@gcc.gnu.org>
+
+	* config.host (sh*-*-linux*): Fix typo.
+
+2011-06-03  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/alpha/linux-unwind.h: Move from ../gcc/config/alpha.
+	* config/alpha/osf5-unwind.h: Move from ../gcc/config/alpha.
+	* config/alpha/vms-unwind.h: Move from ../gcc/config/alpha.
+	* config/bfin/linux-unwind.h: Move from ../gcc/config/bfin.
+	* config/i386/linux-unwind.h: Move from ../gcc/config/i386.
+	* config/i386/sol2-unwind.h: Move from ../gcc/config/i386.
+	* config/i386/w32-unwind.h: Move from ../gcc/config/i386.
+	Wrap in !__MINGW64__.
+	* config/ia64/linux-unwind.h: Move from ../gcc/config/ia64.
+	* config/ia64/vms-unwind.h: Move from ../gcc/config/ia64.
+	* config/m68k/linux-unwind.h: Move from ../gcc/config/m68k.
+	* config/mips/linux-unwind.h: Move from ../gcc/config/mips.
+	* config/pa/hpux-unwind.h: Move from ../gcc/config/pa.
+	* config/pa/linux-unwind.h: Move from ../gcc/config/pa.
+	* config/rs6000/darwin-unwind.h: Move from ../gcc/config/rs6000.
+	Wrap in !__LP64__.
+	* config/rs6000/linux-unwind.h: Move from ../gcc/config/rs6000.
+	* config/s390/linux-unwind.h: Move from ../gcc/config/s390.
+	* config/s390/tpf-unwind.h: Move from ../gcc/config/s390.
+	* config/sh/linux-unwind.h: Move from ../gcc/config/sh.
+	* config/sparc/linux-unwind.h: Move from ../gcc/config/sparc.
+	* config/sparc/sol2-unwind.h: Move from ../gcc/config/sparc.
+	* config/xtensa/linux-unwind.h: Move from ../gcc/config/xtensa.
+	* config/no-unwind.h: New file.
+	* config.host (md_unwind_header): Document.
+	Define.
+	(alpha*-*-linux*, alpha*-dec-osf5.1*, alpha64-dec-*vms*,
+	alpha*-dec-*vms*, bfin*-uclinux*, bfin*-linux-uclibc*,
+	hppa*-*-linux*, hppa[12]*-*-hpux10*, hppa*64*-*-hpux11*,
+	hppa[12]*-*-hpux11*): Set md_unwind_header.
+	(i[34567]86-*-linux*): Handle i[34567]86-*-kopensolaris*-gnu.
+	Set md_unwind_header.
+	(x86_64-*-linux*, i[34567]86-*-solaris2*): Set md_unwind_header.
+	(i[34567]86-*-cygwin*): Split from i[34567]86-*-mingw*.
+	(i[34567]86-*-mingw*, ia64*-*-linux*, ia64-hp-*vms*,
+	m68k-*-uclinux*, m68k-*-linux*, mips64*-*-linux*, mips*-*-linux*,
+	powerpc-*-darwin*, powerpc-*-linux*, s390-*-linux*,
+	s390x-*-linux*,  s390x-ibm-tpf*, sh*-*-linux*, sparc-*-linux*,
+	sparc*-*-solaris2*, sparc64-*-linux*, xtensa*-*-linux*): Set
+	md_unwind_header.
+	* configure.ac: Link md-unwind-support.h to $md_unwind_header.
+	* configure: Regenerate.
+
+2011-06-03  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config.host (mips-sgi-irix[56]*): Restrict to mips-sgi-irix6.5*.
+	Set tmake_file, extra_parts.
+	* config/mips/irix-crti.S: Move from ../gcc/config/mips/irix-crti.asm.
+	Remove O32 support.
+	* config/mips/irix-crtn.S: Move from ../gcc/config/mips/irix-crtn.asm.
+	Remove O32 support.
+	* config/mips/t-irix6: New file.
+	* config/mips/t-slibgcc-irix: New file.
+
+2011-06-03  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/s390/t-tpf (LIB2ADDEHDEP): Remove.
+	* config/t-sol2 (LIB2ADDEH): Use gcc_srcdir, add emutls.c.
+
+2011-06-03  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (target_thread_file): Determine thread model.
+	* configure: Regenerate.
+	* config.host (alpha*-dec-osf5.1*): Set tmake_file, extra_parts.
+	* config/alpha/t-alpha: New file.
+	* config/alpha/t-crtfm: Use $<.
+	* config/alpha/t-ieee: New file.
+	* config/alpha/t-osf-pthread: New file.
+	* config/alpha/t-slibgcc-osf: New file.
+	* config/alpha/libgcc-osf5.ver: New file.
+
+2011-06-01  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config.host (i[34567]86-*-solaris2*): Add i386/t-crtfm to
+	tmake_file.
+	Add crtfastmath.o to extra_parts.
+
+2011-06-01  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/gmon-sol2.c: Reindent.
+	Cleanup comments.
+	Remove, correct casts.
+	Use STDERR_FILENO, NULL.
+	(BASEADDRESS): Remove.
+	(minbrk): Remove.
+	(errno, sbrk): Remove declarations.
+	(monstartup) [hp300]: Remove.
+	(mcount): Remove.
+
+2011-06-01  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.in (cpu_type): Define.
+	* config.host (i[34567]86-*-rtems*): Handle it.
+	(i[34567]86-*-solaris2*): Move body ...
+	(*-*-solaris2*): ... here.
+	New case, generalize.
+	(sparc-*-elf*): Handle it.
+	(sparc-*-linux*, sparc64-*-linux*): Replace sparc/t-crtfm by t-crtfm.
+	(sparc-*-rtems*, sparc64-*-rtems*); Handle it.
+	(sparc64-*-solaris2*, sparcv9-*-solaris2*, sparc-*-solaris2*):
+	Fold into ...
+	(sparc*-*-solaris2*): ... this.
+	New case.
+	(sparc64-*-elf*): Handle it.
+	* config/gmon-sol2.c: Move from ../gcc/config/sparc.
+	Merge ../gcc/config/i386/gmon-sol2.c.
+	* config/i386/sol2-c1.S: Move from ../gcc/config/i386/sol2-c1.asm.
+	Use C comments.
+	Merge ../gcc/config/i386/sol2-gc1.asm.
+	* config/i386/sol2-ci.S: Move from ../gcc/config/i386/sol2-ci.asm.
+	Use C comments.
+	* config/i386/sol2-cn.S: Move from ../gcc/config/i386/sol2-cn.asm.
+	Use C comments.
+	* config/i386/t-crtfm (crtfastmath.o): Use $<.
+	* config/i386/t-crtstuff: New file.
+	* config/i386/t-softfp: New file.
+	* config/i386/t-sol2 ($(T)gmon.o, $(T)gcrt1.o, $(T)crt1.o),
+	$(T)crti.o, $(T)crtn.o): Remove.
+	(gcrt1.o): New rule.
+	(TARGET_LIBGCC2_CFLAGS): Remove.
+	* config/sparc/sol2-c1.S: Move from ../gcc/config/sparc/sol2-c1.asm.
+	* config/sparc/sol2-ci.S: Move from ../gcc/config/sparc/sol2-ci.asm.
+	* config/sparc/sol2-cn.S: Move from ../gcc/config/sparc/sol2-cn.asm.
+	* config/sparc/t-sol2: New file.
+	* config/sparc/t-crtfm: Move to ...
+	* config/t-crtfm: ... this.
+	Use $(cpu_type), $<.
+	* config/t-crtin: New file.
+	* config/sparc/t-softfp: New file.
+	* config/sparc/t-softmul: New file.
+	* config/t-rtems: New file.
+	* config/t-slibgcc: New file.
+	* config/t-slibgcc-elf-ver: New file.
+	* config/t-slibgcc-gld: New file.
+	* config/t-slibgcc-sld: New file.
+	* config/t-sol2: New file.
+	* configure.ac: Include ../config/lib-ld.m4.
+	Call AC_LIB_PROG_LD_GNU.
+	Substitute cpu_type.
+	* configure: Regenerate.
+
+2011-05-27  Bernd Schmidt  <bernds@codesourcery.com>
+
+	PR bootstrap/49173
+	* config/t-slibgcc-darwin (SHLIB_MAPFILES): Look for
+	libgcc-std.ver in the build directory.
+	* config/s390/t-linux (SHLIB_MAPFILES): Likewise.
+	* config/sh/t-linux (SHLIB_MAPFILES): Likewise.
+
+2011-05-25  Bernd Schmidt  <bernds@codesourcery.com>
+
+	* libgcc-std.ver.in: New file.
+	* Makefile.in (LIBGCC_VER_GNU_PREFIX, LIBGCC_VER_SYMBOLS_PREFIX): New
+	variables.
+	(libgcc-std.ver): New rule.
+	* config/t-gnu-prefix: New file.
+
+2011-05-23  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/s390/t-tpf (LIB2ADDEH): Remove $(gcc_srcdir)/gthr-gnat.c.
+
 2011-05-10  Joseph Myers  <joseph@codesourcery.com>
 
 	* config/i386/darwin-lib.h: New file.
@@ -146,7 +926,7 @@
 2010-09-09  Gerald Pfeifer  <gerald@pfeifer.com>
 	    Andrew Pinski  <pinskia@gmail.com>
 
-	PR target/40959	
+	PR target/40959
 	* config.host (ia64*-*-freebsd*): Set extra_parts.  Set tmake_file.
 
 2010-09-06  H.J. Lu  <hongjiu.lu@intel.com>

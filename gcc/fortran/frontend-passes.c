@@ -1,5 +1,5 @@
 /* Pass manager for Fortran front end.
-   Copyright (C) 2010 Free Software Foundation, Inc.
+   Copyright (C) 2010, 2011 Free Software Foundation, Inc.
    Contributed by Thomas König.
 
 This file is part of GCC.
@@ -36,6 +36,7 @@ static bool optimize_op (gfc_expr *);
 static bool optimize_comparison (gfc_expr *, gfc_intrinsic_op);
 static bool optimize_trim (gfc_expr *);
 static bool optimize_lexical_comparison (gfc_expr *);
+static void optimize_minmaxloc (gfc_expr **);
 
 /* How deep we are inside an argument list.  */
 
@@ -129,6 +130,17 @@ optimize_expr (gfc_expr **e, int *walk_subtrees ATTRIBUTE_UNUSED,
   if ((*e)->expr_type == EXPR_OP && optimize_op (*e))
     gfc_simplify_expr (*e, 0);
 
+  if ((*e)->expr_type == EXPR_FUNCTION && (*e)->value.function.isym)
+    switch ((*e)->value.function.isym->id)
+      {
+      case GFC_ISYM_MINLOC:
+      case GFC_ISYM_MAXLOC:
+	optimize_minmaxloc (e);
+	break;
+      default:
+	break;
+      }
+
   if (function_expr)
     count_arglist --;
 
@@ -137,8 +149,7 @@ optimize_expr (gfc_expr **e, int *walk_subtrees ATTRIBUTE_UNUSED,
 
 
 /* Callback function for common function elimination, called from cfe_expr_0.
-   Put all eligible function expressions into expr_array.  We can't do
-   allocatable functions.  */
+   Put all eligible function expressions into expr_array.  */
 
 static int
 cfe_register_funcs (gfc_expr **e, int *walk_subtrees ATTRIBUTE_UNUSED,
@@ -148,8 +159,10 @@ cfe_register_funcs (gfc_expr **e, int *walk_subtrees ATTRIBUTE_UNUSED,
   if ((*e)->expr_type != EXPR_FUNCTION)
     return 0;
 
-  /* We don't do character functions (yet).  */
-  if ((*e)->ts.type == BT_CHARACTER)
+  /* We don't do character functions with unknown charlens.  */
+  if ((*e)->ts.type == BT_CHARACTER 
+      && ((*e)->ts.u.cl == NULL || (*e)->ts.u.cl->length == NULL
+	  || (*e)->ts.u.cl->length->expr_type != EXPR_CONSTANT))
     return 0;
 
   /* If we don't know the shape at compile time, we create an allocatable
@@ -163,9 +176,6 @@ cfe_register_funcs (gfc_expr **e, int *walk_subtrees ATTRIBUTE_UNUSED,
      is specified.  */
   if ((*e)->value.function.esym)
     {
-      if ((*e)->value.function.esym->attr.allocatable)
-	return 0;
-
       /* Don't create an array temporary for elemental functions.  */
       if ((*e)->value.function.esym->attr.elemental && (*e)->rank > 0)
 	return 0;
@@ -181,9 +191,10 @@ cfe_register_funcs (gfc_expr **e, int *walk_subtrees ATTRIBUTE_UNUSED,
   if ((*e)->value.function.isym)
     {
       /* Conversions are handled on the fly by the middle end,
-	 transpose during trans-* stages.  */
+	 transpose during trans-* stages and TRANSFER by the middle end.  */
       if ((*e)->value.function.isym->id == GFC_ISYM_CONVERSION
-	  || (*e)->value.function.isym->id == GFC_ISYM_TRANSPOSE)
+	  || (*e)->value.function.isym->id == GFC_ISYM_TRANSPOSE
+	  || (*e)->value.function.isym->id == GFC_ISYM_TRANSFER)
 	return 0;
 
       /* Don't create an array temporary for elemental functions,
@@ -396,6 +407,85 @@ cfe_code (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
   return 0;
 }
 
+/* Dummy function for expression call back, for use when we
+   really don't want to do any walking.  */
+
+static int
+dummy_expr_callback (gfc_expr **e ATTRIBUTE_UNUSED, int *walk_subtrees,
+		     void *data ATTRIBUTE_UNUSED)
+{
+  *walk_subtrees = 0;
+  return 0;
+}
+
+/* Code callback function for converting
+   do while(a)
+   end do
+   into the equivalent
+   do
+     if (.not. a) exit
+   end do
+   This is because common function elimination would otherwise place the
+   temporary variables outside the loop.  */
+
+static int
+convert_do_while (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
+		  void *data ATTRIBUTE_UNUSED)
+{
+  gfc_code *co = *c;
+  gfc_code *c_if1, *c_if2, *c_exit;
+  gfc_code *loopblock;
+  gfc_expr *e_not, *e_cond;
+
+  if (co->op != EXEC_DO_WHILE)
+    return 0;
+
+  if (co->expr1 == NULL || co->expr1->expr_type == EXPR_CONSTANT)
+    return 0;
+
+  e_cond = co->expr1;
+
+  /* Generate the condition of the if statement, which is .not. the original
+     statement.  */
+  e_not = gfc_get_expr ();
+  e_not->ts = e_cond->ts;
+  e_not->where = e_cond->where;
+  e_not->expr_type = EXPR_OP;
+  e_not->value.op.op = INTRINSIC_NOT;
+  e_not->value.op.op1 = e_cond;
+
+  /* Generate the EXIT statement.  */
+  c_exit = XCNEW (gfc_code);
+  c_exit->op = EXEC_EXIT;
+  c_exit->ext.which_construct = co;
+  c_exit->loc = co->loc;
+
+  /* Generate the IF statement.  */
+  c_if2 = XCNEW (gfc_code);
+  c_if2->op = EXEC_IF;
+  c_if2->expr1 = e_not;
+  c_if2->next = c_exit;
+  c_if2->loc = co->loc;
+
+  /* ... plus the one to chain it to.  */
+  c_if1 = XCNEW (gfc_code);
+  c_if1->op = EXEC_IF;
+  c_if1->block = c_if2;
+  c_if1->loc = co->loc;
+
+  /* Make the DO WHILE loop into a DO block by replacing the condition
+     with a true constant.  */
+  co->expr1 = gfc_get_logical_expr (gfc_default_integer_kind, &co->loc, true);
+
+  /* Hang the generated if statement into the loop body.  */
+
+  loopblock = co->block->next;
+  co->block->next = c_if1;
+  c_if1->next = loopblock;
+
+  return 0;
+}
+
 /* Optimize a namespace, including all contained namespaces.  */
 
 static void
@@ -404,6 +494,7 @@ optimize_namespace (gfc_namespace *ns)
 
   current_ns = ns;
 
+  gfc_code_walker (&ns->code, convert_do_while, dummy_expr_callback, NULL);
   gfc_code_walker (&ns->code, cfe_code, cfe_expr_0, NULL);
   gfc_code_walker (&ns->code, optimize_code, optimize_expr, NULL);
 
@@ -487,6 +578,35 @@ optimize_binop_array_assignment (gfc_code *c, gfc_expr **rhs, bool seen_op)
   return false;
 }
 
+/* Remove unneeded TRIMs at the end of expressions.  */
+
+static bool
+remove_trim (gfc_expr *rhs)
+{
+  bool ret;
+
+  ret = false;
+
+  /* Check for a // b // trim(c).  Looping is probably not
+     necessary because the parser usually generates
+     (// (// a b ) trim(c) ) , but better safe than sorry.  */
+
+  while (rhs->expr_type == EXPR_OP
+	 && rhs->value.op.op == INTRINSIC_CONCAT)
+    rhs = rhs->value.op.op2;
+
+  while (rhs->expr_type == EXPR_FUNCTION && rhs->value.function.isym
+	 && rhs->value.function.isym->id == GFC_ISYM_TRIM)
+    {
+      strip_function_call (rhs);
+      /* Recursive call to catch silly stuff like trim ( a // trim(b)).  */
+      remove_trim (rhs);
+      ret = true;
+    }
+
+  return ret;
+}
+
 /* Optimizations for an assignment.  */
 
 static void
@@ -500,16 +620,7 @@ optimize_assignment (gfc_code * c)
   /* Optimize away a = trim(b), where a is a character variable.  */
 
   if (lhs->ts.type == BT_CHARACTER)
-    {
-      if (rhs->expr_type == EXPR_FUNCTION &&
-	  rhs->value.function.isym &&
-	  rhs->value.function.isym->id == GFC_ISYM_TRIM)
-	{
-	  strip_function_call (rhs);
-	  optimize_assignment (c);
-	  return;
-	}
-    }
+    remove_trim (rhs);
 
   if (lhs->rank > 0 && gfc_check_dependency (lhs, rhs, true) == 0)
     optimize_binop_array_assignment (c, &rhs, false);
@@ -632,36 +743,17 @@ optimize_comparison (gfc_expr *e, gfc_intrinsic_op op)
 
   /* Strip off unneeded TRIM calls from string comparisons.  */
 
-  change = false;
+  change = remove_trim (op1);
 
-  if (op1->expr_type == EXPR_FUNCTION 
-      && op1->value.function.isym
-      && op1->value.function.isym->id == GFC_ISYM_TRIM)
-    {
-      strip_function_call (op1);
-      change = true;
-    }
-
-  if (op2->expr_type == EXPR_FUNCTION 
-      && op2->value.function.isym
-      && op2->value.function.isym->id == GFC_ISYM_TRIM)
-    {
-      strip_function_call (op2);
-      change = true;
-    }
-
-  if (change)
-    {
-      optimize_comparison (e, op);
-      return true;
-    }
+  if (remove_trim (op2))
+    change = true;
 
   /* An expression of type EXPR_CONSTANT is only valid for scalars.  */
   /* TODO: A scalar constant may be acceptable in some cases (the scalarizer
      handles them well). However, there are also cases that need a non-scalar
      argument. For example the any intrinsic. See PR 45380.  */
   if (e->rank > 0)
-    return false;
+    return change;
 
   /* Don't compare REAL or COMPLEX expressions when honoring NaNs.  */
 
@@ -670,7 +762,7 @@ optimize_comparison (gfc_expr *e, gfc_intrinsic_op op)
 	  && op1->ts.type != BT_COMPLEX && op2->ts.type != BT_COMPLEX))
     {
       eq = gfc_dep_compare_expr (op1, op2);
-      if (eq == -2)
+      if (eq <= -2)
 	{
 	  /* Replace A // B < A // C with B < C, and A // B < C // B
 	     with A < C.  */
@@ -691,7 +783,7 @@ optimize_comparison (gfc_expr *e, gfc_intrinsic_op op)
 			&& op2_left->expr_type == EXPR_CONSTANT
 			&& op1_left->value.character.length
 			   != op2_left->value.character.length)
-		    return false;
+		    return change;
 		  else
 		    {
 		      free (op1_left);
@@ -780,7 +872,7 @@ optimize_comparison (gfc_expr *e, gfc_intrinsic_op op)
 	}
     }
 
-  return false;
+  return change;
 }
 
 /* Optimize a trim function by replacing it with an equivalent substring
@@ -860,6 +952,49 @@ optimize_trim (gfc_expr *e)
   gcc_assert (*rr == NULL);
   *rr = ref;
   return true;
+}
+
+/* Optimize minloc(b), where b is rank 1 array, into
+   (/ minloc(b, dim=1) /), and similarly for maxloc,
+   as the latter forms are expanded inline.  */
+
+static void
+optimize_minmaxloc (gfc_expr **e)
+{
+  gfc_expr *fn = *e;
+  gfc_actual_arglist *a;
+  char *name, *p;
+
+  if (fn->rank != 1
+      || fn->value.function.actual == NULL
+      || fn->value.function.actual->expr == NULL
+      || fn->value.function.actual->expr->rank != 1)
+    return;
+
+  *e = gfc_get_array_expr (fn->ts.type, fn->ts.kind, &fn->where);
+  (*e)->shape = fn->shape;
+  fn->rank = 0;
+  fn->shape = NULL;
+  gfc_constructor_append_expr (&(*e)->value.constructor, fn, &fn->where);
+
+  name = XALLOCAVEC (char, strlen (fn->value.function.name) + 1);
+  strcpy (name, fn->value.function.name);
+  p = strstr (name, "loc0");
+  p[3] = '1';
+  fn->value.function.name = gfc_get_string (name);
+  if (fn->value.function.actual->next)
+    {
+      a = fn->value.function.actual->next;
+      gcc_assert (a->expr == NULL);
+    }
+  else
+    {
+      a = gfc_get_actual_arglist ();
+      fn->value.function.actual->next = a;
+    }
+  a->expr = gfc_get_constant_expr (BT_INTEGER, gfc_default_integer_kind,
+				   &fn->where);
+  mpz_set_ui (a->expr->value.integer, 1);
 }
 
 #define WALK_SUBEXPR(NODE) \
@@ -1048,6 +1183,7 @@ gfc_code_walker (gfc_code **c, walk_code_fn_t codefn, walk_expr_fn_t exprfn,
 	      }
 
 	    case EXEC_FORALL:
+	    case EXEC_DO_CONCURRENT:
 	      {
 		gfc_forall_iterator *fa;
 		for (fa = co->ext.forall_iterator; fa; fa = fa->next)
@@ -1180,6 +1316,7 @@ gfc_code_walker (gfc_code **c, walk_code_fn_t codefn, walk_expr_fn_t exprfn,
 	      if (co->ext.omp_clauses)
 		{
 		  WALK_SUBEXPR (co->ext.omp_clauses->if_expr);
+		  WALK_SUBEXPR (co->ext.omp_clauses->final_expr);
 		  WALK_SUBEXPR (co->ext.omp_clauses->num_threads);
 		  WALK_SUBEXPR (co->ext.omp_clauses->chunk_size);
 		}
@@ -1191,6 +1328,7 @@ gfc_code_walker (gfc_code **c, walk_code_fn_t codefn, walk_expr_fn_t exprfn,
 	  WALK_SUBEXPR (co->expr1);
 	  WALK_SUBEXPR (co->expr2);
 	  WALK_SUBEXPR (co->expr3);
+	  WALK_SUBEXPR (co->expr4);
 	  for (b = co->block; b; b = b->block)
 	    {
 	      WALK_SUBEXPR (b->expr1);

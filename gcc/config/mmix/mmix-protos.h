@@ -1,5 +1,5 @@
 /* Prototypes for exported functions defined in mmix.c
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2007, 2010
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2007, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Hans-Peter Nilsson (hp@bitrange.com)
 
@@ -26,8 +26,6 @@ extern int mmix_starting_frame_offset (void);
 extern int mmix_function_arg_regno_p (int, int);
 extern void mmix_function_profiler (FILE *, int);
 extern int mmix_reversible_cc_mode (enum machine_mode);
-extern int mmix_register_move_cost
-  (enum machine_mode, enum reg_class, enum reg_class);
 extern const char *mmix_text_section_asm_op (void);
 extern const char *mmix_data_section_asm_op (void);
 extern void mmix_output_quoted_string (FILE *, const char *, int);
@@ -38,7 +36,6 @@ extern void mmix_asm_output_internal_label (FILE *, const char *);
 extern void mmix_asm_weaken_label (FILE *, const char *);
 extern void mmix_asm_output_labelref (FILE *, const char *);
 extern void mmix_asm_output_def (FILE *, const char *, const char *);
-extern int mmix_print_operand_punct_valid_p (int);
 extern void mmix_asm_output_reg_push (FILE *, int);
 extern void mmix_asm_output_reg_pop (FILE *, int);
 extern void mmix_asm_output_skip (FILE *, int);
@@ -60,9 +57,6 @@ extern void mmix_asm_declare_register_global
   (FILE *, tree, int, const char *);
 extern void mmix_asm_output_addr_diff_elt (FILE *, rtx, int, int);
 extern void mmix_asm_output_addr_vec_elt (FILE *, int);
-extern enum reg_class mmix_preferred_reload_class (rtx, enum reg_class);
-extern enum reg_class mmix_preferred_output_reload_class
-  (rtx, enum reg_class);
 extern enum reg_class mmix_secondary_reload_class
   (enum reg_class, enum machine_mode, rtx, int);
 extern int mmix_const_ok_for_letter_p (HOST_WIDE_INT, int);
@@ -73,8 +67,6 @@ extern rtx mmix_return_addr_rtx (int, rtx);
 extern rtx mmix_eh_return_stackadj_rtx (void);
 extern rtx mmix_eh_return_handler_rtx (void);
 extern int mmix_constant_address_p (rtx);
-extern void mmix_print_operand (FILE *, rtx, int);
-extern void mmix_print_operand_address (FILE *, rtx);
 extern void mmix_expand_prologue (void);
 extern void mmix_expand_epilogue (void);
 extern rtx mmix_get_hard_reg_initial_val (enum machine_mode, int);

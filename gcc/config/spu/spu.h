@@ -225,9 +225,6 @@ enum reg_class {
 #define INT_REG_OK_FOR_BASE_P(X,STRICT) \
 	((!(STRICT) || REGNO_OK_FOR_BASE_P (REGNO (X))))
 
-#define CLASS_MAX_NREGS(CLASS, MODE)	\
-	((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
-
 /* GCC assumes that modes are in the lowpart of a register, which is
    only true for SPU. */
 #define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS) \
@@ -392,6 +389,17 @@ targetm.resolve_overloaded_builtin = spu_resolve_overloaded_builtin;	\
 #define CONSTANT_ADDRESS_P(X)   spu_constant_address_p(X)
 
 #define MAX_REGS_PER_ADDRESS 2
+
+#define LEGITIMIZE_RELOAD_ADDRESS(AD, MODE, OPNUM, TYPE, IND, WIN)	\
+do {									\
+  rtx new_rtx = spu_legitimize_reload_address (AD, MODE, OPNUM,		\
+					       (int)(TYPE));		\
+  if (new_rtx)								\
+    {									\
+      (AD) = new_rtx;							\
+      goto WIN;								\
+    }									\
+} while (0)
 
 
 /* Costs */

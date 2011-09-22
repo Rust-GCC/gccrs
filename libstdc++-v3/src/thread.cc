@@ -24,7 +24,18 @@
 
 
 #include <thread>
+#include <system_error>
 #include <cerrno>
+
+#if defined(_GLIBCXX_USE_GET_NPROCS)
+# include <sys/sysinfo.h>
+# define _GLIBCXX_NPROCS get_nprocs()
+#elif defined(_GLIBCXX_USE_SC_NPROCESSORS_ONLN)
+# include <unistd.h>
+# define _GLIBCXX_NPROCS sysconf(_SC_NPROCESSORS_ONLN)
+#else
+# define _GLIBCXX_NPROCS 0
+#endif
 
 #if defined(_GLIBCXX_HAS_GTHREADS) && defined(_GLIBCXX_USE_C99_STDINT_TR1)
 
@@ -96,6 +107,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __b->_M_this_ptr.reset();
       __throw_system_error(__e);
     }
+  }
+
+  unsigned int
+  thread::hardware_concurrency() noexcept
+  {
+    int __n = _GLIBCXX_NPROCS;
+    if (__n < 0)
+      __n = 0;
+    return __n;
   }
 
 _GLIBCXX_END_NAMESPACE_VERSION

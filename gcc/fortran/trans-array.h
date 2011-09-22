@@ -24,7 +24,7 @@ tree gfc_array_deallocate (tree, tree, gfc_expr*);
 
 /* Generate code to initialize an allocate an array.  Statements are added to
    se, which should contain an expression for the array descriptor.  */
-bool gfc_array_allocate (gfc_se *, gfc_expr *, tree);
+bool gfc_array_allocate (gfc_se *, gfc_expr *, tree, tree, tree);
 
 /* Allow the bounds of a loop to be set from a callee's array spec.  */
 void gfc_set_loop_bounds_from_array_spec (gfc_interface_mapping *,
@@ -87,6 +87,12 @@ void gfc_add_ss_to_loop (gfc_loopinfo *, gfc_ss *);
 void gfc_mark_ss_chain_used (gfc_ss *, unsigned);
 /* Free a gfc_ss chain.  */
 void gfc_free_ss_chain (gfc_ss *);
+/* Allocate a new array type ss.  */
+gfc_ss *gfc_get_array_ss (gfc_ss *, gfc_expr *, int, gfc_ss_type);
+/* Allocate a new temporary type ss.  */
+gfc_ss *gfc_get_temp_ss (tree, tree, int);
+/* Allocate a new scalar type ss.  */
+gfc_ss *gfc_get_scalar_ss (gfc_ss *, gfc_expr *);
 
 /* Calculates the lower bound and stride of array sections.  */
 void gfc_conv_ss_startstride (gfc_loopinfo *);
@@ -132,6 +138,9 @@ tree gfc_conv_array_stride (tree, int);
 tree gfc_conv_array_lbound (tree, int);
 tree gfc_conv_array_ubound (tree, int);
 
+/* Set cobounds of an array.  */
+void gfc_trans_array_cobounds (tree, stmtblock_t *, const gfc_symbol *);
+
 /* Build expressions for accessing components of an array descriptor.  */
 tree gfc_conv_descriptor_data_get (tree);
 tree gfc_conv_descriptor_data_addr (tree);
@@ -140,6 +149,7 @@ tree gfc_conv_descriptor_dtype (tree);
 tree gfc_conv_descriptor_stride_get (tree, tree);
 tree gfc_conv_descriptor_lbound_get (tree, tree);
 tree gfc_conv_descriptor_ubound_get (tree, tree);
+tree gfc_conv_descriptor_token (tree);
 
 void gfc_conv_descriptor_data_set (stmtblock_t *, tree, tree);
 void gfc_conv_descriptor_offset_set (stmtblock_t *, tree, tree);

@@ -1,6 +1,6 @@
 /* Pretty formatting of GIMPLE statements and expressions.
-   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
-   Free Software Foundation, Inc.
+   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+   2011  Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com> and
    Diego Novillo <dnovillo@google.com>
 
@@ -420,6 +420,24 @@ dump_ternary_rhs (pretty_printer *buffer, gimple gs, int spc, int flags)
 
     case REALIGN_LOAD_EXPR:
       pp_string (buffer, "REALIGN_LOAD <");
+      dump_generic_node (buffer, gimple_assign_rhs1 (gs), spc, flags, false);
+      pp_string (buffer, ", ");
+      dump_generic_node (buffer, gimple_assign_rhs2 (gs), spc, flags, false);
+      pp_string (buffer, ", ");
+      dump_generic_node (buffer, gimple_assign_rhs3 (gs), spc, flags, false);
+      pp_string (buffer, ">");
+      break;
+
+    case COND_EXPR:
+      dump_generic_node (buffer, gimple_assign_rhs1 (gs), spc, flags, false);
+      pp_string (buffer, " ? ");
+      dump_generic_node (buffer, gimple_assign_rhs2 (gs), spc, flags, false);
+      pp_string (buffer, " : ");
+      dump_generic_node (buffer, gimple_assign_rhs3 (gs), spc, flags, false);
+      break;
+
+    case VEC_COND_EXPR:
+      pp_string (buffer, "VEC_COND_EXPR <");
       dump_generic_node (buffer, gimple_assign_rhs1 (gs), spc, flags, false);
       pp_string (buffer, ", ");
       dump_generic_node (buffer, gimple_assign_rhs2 (gs), spc, flags, false);
@@ -964,6 +982,17 @@ dump_gimple_debug (pretty_printer *buffer, gimple gs, int spc, int flags)
 	dump_gimple_fmt (buffer, spc, flags, "# DEBUG %T => %T",
 			 gimple_debug_bind_get_var (gs),
 			 gimple_debug_bind_get_value (gs));
+      break;
+
+    case GIMPLE_DEBUG_SOURCE_BIND:
+      if (flags & TDF_RAW)
+	dump_gimple_fmt (buffer, spc, flags, "%G SRCBIND <%T, %T>", gs,
+			 gimple_debug_source_bind_get_var (gs),
+			 gimple_debug_source_bind_get_value (gs));
+      else
+	dump_gimple_fmt (buffer, spc, flags, "# DEBUG %T s=> %T",
+			 gimple_debug_source_bind_get_var (gs),
+			 gimple_debug_source_bind_get_value (gs));
       break;
 
     default:

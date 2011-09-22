@@ -1,6 +1,6 @@
 /* Structure for saving state for a nested function.
    Copyright (C) 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   1999, 2000, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -169,6 +169,7 @@ struct gimple_df;
 struct temp_slot;
 typedef struct temp_slot *temp_slot_p;
 struct call_site_record_d;
+struct dw_fde_struct;
 
 DEF_VEC_P(temp_slot_p);
 DEF_VEC_ALLOC_P(temp_slot_p,gc);
@@ -476,9 +477,6 @@ struct GTY(()) stack_usage
      !ACCUMULATE_OUTGOING_ARGS, it contains the outgoing arguments.  */
   int pushed_stack_size;
 
-  /* # of dynamic allocations in the function.  */
-  unsigned int dynamic_alloc_count : 31;
-
   /* Nonzero if the amount of stack space allocated dynamically cannot
      be bounded at compile-time.  */
   unsigned int has_unbounded_dynamic_stack_size : 1;
@@ -487,7 +485,6 @@ struct GTY(()) stack_usage
 #define current_function_static_stack_size (cfun->su->static_stack_size)
 #define current_function_dynamic_stack_size (cfun->su->dynamic_stack_size)
 #define current_function_pushed_stack_size (cfun->su->pushed_stack_size)
-#define current_function_dynamic_alloc_count (cfun->su->dynamic_alloc_count)
 #define current_function_has_unbounded_dynamic_stack_size \
   (cfun->su->has_unbounded_dynamic_stack_size)
 #define current_function_allocates_dynamic_stack_space    \
@@ -545,6 +542,11 @@ struct GTY(()) function {
 
   /* Used types hash table.  */
   htab_t GTY ((param_is (union tree_node))) used_types_hash;
+
+  /* Dwarf2 Frame Description Entry, containing the Call Frame Instructions
+     used for unwinding.  Only set when either dwarf2 unwinding or dwarf2
+     debugging is enabled.  */
+  struct dw_fde_struct *fde;
 
   /* Last statement uid.  */
   int last_stmt_uid;

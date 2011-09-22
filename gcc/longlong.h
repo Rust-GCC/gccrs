@@ -1,6 +1,6 @@
 /* longlong.h -- definitions for mixed size 32/64 bit arithmetic.
    Copyright (C) 1991, 1992, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
    This file is part of the GNU C Library.
@@ -250,6 +250,28 @@ UDItype __umulsidi3 (USItype, USItype);
 #define COUNT_LEADING_ZEROS_0 32
 #endif
 
+#if defined (__AVR__)
+
+#if W_TYPE_SIZE == 16
+#define count_leading_zeros(COUNT,X)  ((COUNT) = __builtin_clz (X))
+#define count_trailing_zeros(COUNT,X) ((COUNT) = __builtin_ctz (X))
+#define COUNT_LEADING_ZEROS_0 16
+#endif /* W_TYPE_SIZE == 16 */
+
+#if W_TYPE_SIZE == 32
+#define count_leading_zeros(COUNT,X)  ((COUNT) = __builtin_clzl (X))
+#define count_trailing_zeros(COUNT,X) ((COUNT) = __builtin_ctzl (X))
+#define COUNT_LEADING_ZEROS_0 32
+#endif /* W_TYPE_SIZE == 32 */
+
+#if W_TYPE_SIZE == 64
+#define count_leading_zeros(COUNT,X)  ((COUNT) = __builtin_clzll (X))
+#define count_trailing_zeros(COUNT,X) ((COUNT) = __builtin_ctzll (X))
+#define COUNT_LEADING_ZEROS_0 64
+#endif /* W_TYPE_SIZE == 64 */
+
+#endif /* defined (__AVR__) */
+
 #if defined (__CRIS__) && __CRIS_arch_version >= 3
 #define count_leading_zeros(COUNT, X) ((COUNT) = __builtin_clz (X))
 #if __CRIS_arch_version >= 8
@@ -349,7 +371,7 @@ UDItype __umulsidi3 (USItype, USItype);
     __asm__ ("mr\t%%r0,%3"                                              \
              : "=r" (r0), "=r" (r1)                                     \
              : "r"  (r1),  "r" (m1));                                   \
-    (xh) = r1; (xl) = r0;                                               \
+    (xh) = r0; (xl) = r1;                                               \
   } while (0)
 #define sdiv_qrnnd(q, r, n1, n0, d) \
   do {									\
@@ -430,8 +452,8 @@ UDItype __umulsidi3 (USItype, USItype);
 	   : "0" ((UDItype) (n0)),					\
 	     "1" ((UDItype) (n1)),					\
 	     "rm" ((UDItype) (dv)))
-#define count_leading_zeros(count, x)	((count) = __builtin_clzl (x))
-#define count_trailing_zeros(count, x)	((count) = __builtin_ctzl (x))
+#define count_leading_zeros(count, x)	((count) = __builtin_clzll (x))
+#define count_trailing_zeros(count, x)	((count) = __builtin_ctzll (x))
 #define UMUL_TIME 40
 #define UDIV_TIME 40
 #endif /* x86_64 */
@@ -1366,6 +1388,36 @@ UDItype __umulsidi3 (USItype, USItype);
 	     : "g" (__xx.__ll), "g" (d));				\
   } while (0)
 #endif /* __vax__ */
+
+#ifdef _TMS320C6X
+#define add_ssaaaa(sh, sl, ah, al, bh, bl) \
+  do									\
+    {									\
+      UDItype __ll;							\
+      __asm__ ("addu .l1 %1, %2, %0"					\
+	       : "=a" (__ll) : "a" (al), "a" (bl));			\
+      (sl) = (USItype)__ll;						\
+      (sh) = ((USItype)(__ll >> 32)) + (ah) + (bh);			\
+    }									\
+  while (0)
+
+#ifdef _TMS320C6400_PLUS
+#define __umulsidi3(u,v) ((UDItype)(USItype)u*(USItype)v)
+#define umul_ppmm(w1, w0, u, v)						\
+  do {									\
+    UDItype __x = (UDItype) (USItype) (u) * (USItype) (v);		\
+    (w1) = (USItype) (__x >> 32);					\
+    (w0) = (USItype) (__x);						\
+  } while (0)
+#endif  /* _TMS320C6400_PLUS */
+
+#define count_leading_zeros(count, x)	((count) = __builtin_clz (x))
+#ifdef _TMS320C6400
+#define count_trailing_zeros(count, x)	((count) = __builtin_ctz (x))
+#endif
+#define UMUL_TIME 4
+#define UDIV_TIME 40
+#endif /* _TMS320C6X */
 
 #if defined (__xtensa__) && W_TYPE_SIZE == 32
 /* This code is not Xtensa-configuration-specific, so rely on the compiler

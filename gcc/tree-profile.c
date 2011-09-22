@@ -241,7 +241,8 @@ prepare_instrumented_value (gimple_stmt_iterator *gsi, histogram_value value)
 {
   tree val = value->hvalue.value;
   if (POINTER_TYPE_P (TREE_TYPE (val)))
-    val = fold_convert (sizetype, val);
+    val = fold_convert (build_nonstandard_integer_type
+			  (TYPE_PRECISION (TREE_TYPE (val)), 1), val);
   return force_gimple_operand_gsi (gsi, fold_convert (gcov_type_node, val),
 				   true, NULL_TREE, true, GSI_SAME_STMT);
 }
@@ -470,8 +471,7 @@ tree_profiling (void)
   for (node = cgraph_nodes; node; node = node->next)
     {
       if (!node->analyzed
-	  || !gimple_has_body_p (node->decl)
-	  || !(!node->clone_of || node->decl != node->clone_of->decl))
+	  || !gimple_has_body_p (node->decl))
 	continue;
 
       /* Don't profile functions produced for builtin stuff.  */
@@ -485,6 +485,8 @@ tree_profiling (void)
       /* Re-set global shared temporary variable for edge-counters.  */
       gcov_type_tmp_var = NULL_TREE;
 
+      /* Local pure-const may imply need to fixup the cfg.  */
+      execute_fixup_cfg ();
       branch_prob ();
 
       if (! flag_branch_probabilities
@@ -579,7 +581,7 @@ struct simple_ipa_opt_pass pass_ipa_tree_profile =
 {
  {
   SIMPLE_IPA_PASS,
-  "tree_profile_ipa",                  /* name */
+  "profile",  		               /* name */
   gate_tree_profile_ipa,               /* gate */
   tree_profiling,                      /* execute */
   NULL,                                /* sub */
@@ -590,7 +592,7 @@ struct simple_ipa_opt_pass pass_ipa_tree_profile =
   0,                                   /* properties_provided */
   0,                                   /* properties_destroyed */
   0,                                   /* todo_flags_start */
-  TODO_dump_func                       /* todo_flags_finish */
+  0                                    /* todo_flags_finish */
  }
 };
 

@@ -762,8 +762,7 @@ number_of_iterations_lt_to_ne (tree type, affine_iv *iv0, affine_iv *iv1,
       else if (POINTER_TYPE_P (type))
 	noloop = fold_build2 (GT_EXPR, boolean_type_node,
 			      iv0->base,
-			      fold_build2 (POINTER_PLUS_EXPR, type,
-					   iv1->base, tmod));
+			      fold_build_pointer_plus (iv1->base, tmod));
       else
 	noloop = fold_build2 (GT_EXPR, boolean_type_node,
 			      iv0->base,
@@ -788,10 +787,9 @@ number_of_iterations_lt_to_ne (tree type, affine_iv *iv0, affine_iv *iv1,
 	noloop = boolean_false_node;
       else if (POINTER_TYPE_P (type))
 	noloop = fold_build2 (GT_EXPR, boolean_type_node,
-			      fold_build2 (POINTER_PLUS_EXPR, type,
-					   iv0->base,
-					   fold_build1 (NEGATE_EXPR,
-							type1, tmod)),
+			      fold_build_pointer_plus (iv0->base,
+						       fold_build1 (NEGATE_EXPR,
+								    type1, tmod)),
 			      iv1->base);
       else
 	noloop = fold_build2 (GT_EXPR, boolean_type_node,
@@ -1166,16 +1164,13 @@ number_of_iterations_le (tree type, affine_iv *iv0, affine_iv *iv1,
   if (integer_nonzerop (iv0->step))
     {
       if (POINTER_TYPE_P (type))
-	iv1->base = fold_build2 (POINTER_PLUS_EXPR, type, iv1->base,
-				 build_int_cst (type1, 1));
+	iv1->base = fold_build_pointer_plus_hwi (iv1->base, 1);
       else
 	iv1->base = fold_build2 (PLUS_EXPR, type1, iv1->base,
 				 build_int_cst (type1, 1));
     }
   else if (POINTER_TYPE_P (type))
-    iv0->base = fold_build2 (POINTER_PLUS_EXPR, type, iv0->base,
-			     fold_build1 (NEGATE_EXPR, type1,
-					  build_int_cst (type1, 1)));
+    iv0->base = fold_build_pointer_plus_hwi (iv0->base, -1);
   else
     iv0->base = fold_build2 (MINUS_EXPR, type1,
 			     iv0->base, build_int_cst (type1, 1));
@@ -2568,18 +2563,17 @@ record_estimate (struct loop *loop, tree bound, double_int i_bound,
     }
 
   /* Update the number of iteration estimates according to the bound.
-     If at_stmt is an exit, then every statement in the loop is
-     executed at most BOUND + 1 times.  If it is not an exit, then
-     some of the statements before it could be executed BOUND + 2
-     times, if an exit of LOOP is before stmt.  */
+     If at_stmt is an exit or dominates the single exit from the loop,
+     then the loop latch is executed at most BOUND times, otherwise
+     it can be executed BOUND + 1 times.  */
   exit = single_exit (loop);
   if (is_exit
       || (exit != NULL
 	  && dominated_by_p (CDI_DOMINATORS,
 			     exit->src, gimple_bb (at_stmt))))
-    delta = double_int_one;
+    delta = double_int_zero;
   else
-    delta = double_int_two;
+    delta = double_int_one;
   i_bound = double_int_add (i_bound, delta);
 
   /* If an overflow occurred, ignore the result.  */
@@ -2832,6 +2826,64 @@ infer_loop_bounds_from_array (struct loop *loop, gimple stmt, bool reliable)
 }
 
 /* Determine information about number of iterations of a LOOP from the fact
+   that pointer arithmetics in STMT does not overflow.  */
+
+static void
+infer_loop_bounds_from_pointer_arith (struct loop *loop, gimple stmt)
+{
+  tree def, base, step, scev, type, low, high;
+  tree var, ptr;
+
+  if (!is_gimple_assign (stmt)
+      || gimple_assign_rhs_code (stmt) != POINTER_PLUS_EXPR)
+    return;
+
+  def = gimple_assign_lhs (stmt);
+  if (TREE_CODE (def) != SSA_NAME)
+    return;
+
+  type = TREE_TYPE (def);
+  if (!nowrap_type_p (type))
+    return;
+
+  ptr = gimple_assign_rhs1 (stmt);
+  if (!expr_invariant_in_loop_p (loop, ptr))
+    return;
+
+  var = gimple_assign_rhs2 (stmt);
+  if (TYPE_PRECISION (type) != TYPE_PRECISION (TREE_TYPE (var)))
+    return;
+
+  scev = instantiate_parameters (loop, analyze_scalar_evolution (loop, def));
+  if (chrec_contains_undetermined (scev))
+    return;
+
+  base = initial_condition_in_loop_num (scev, loop->num);
+  step = evolution_part_in_loop_num (scev, loop->num);
+
+  if (!base || !step
+      || TREE_CODE (step) != INTEGER_CST
+      || tree_contains_chrecs (base, NULL)
+      || chrec_contains_symbols_defined_in_loop (base, loop->num))
+    return;
+
+  low = lower_bound_in_type (type, type);
+  high = upper_bound_in_type (type, type);
+
+  /* In C, pointer arithmetic p + 1 cannot use a NULL pointer, and p - 1 cannot
+     produce a NULL pointer.  The contrary would mean NULL points to an object,
+     while NULL is supposed to compare unequal with the address of all objects.
+     Furthermore, p + 1 cannot produce a NULL pointer and p - 1 cannot use a
+     NULL pointer since that would mean wrapping, which we assume here not to
+     happen.  So, we can exclude NULL from the valid range of pointer
+     arithmetic.  */
+  if (flag_delete_null_pointer_checks && int_cst_value (low) == 0)
+    low = build_int_cstu (TREE_TYPE (low), TYPE_ALIGN_UNIT (TREE_TYPE (type)));
+
+  record_nonwrapping_iv (loop, base, step, stmt, low, high, false, true);
+}
+
+/* Determine information about number of iterations of a LOOP from the fact
    that signed arithmetics in STMT does not overflow.  */
 
 static void
@@ -2907,7 +2959,10 @@ infer_loop_bounds_from_undefined (struct loop *loop)
 	  infer_loop_bounds_from_array (loop, stmt, reliable);
 
 	  if (reliable)
-	    infer_loop_bounds_from_signedness (loop, stmt);
+            {
+              infer_loop_bounds_from_signedness (loop, stmt);
+              infer_loop_bounds_from_pointer_arith (loop, stmt);
+            }
   	}
 
     }
@@ -2989,6 +3044,93 @@ estimate_numbers_of_iterations_loop (struct loop *loop, bool use_undefined_p)
       && double_int_ucmp (loop->nb_iterations_upper_bound,
 			  loop->nb_iterations_estimate) < 0)
     loop->nb_iterations_estimate = loop->nb_iterations_upper_bound;
+}
+
+/* Sets NIT to the estimated number of executions of the latch of the
+   LOOP.  If CONSERVATIVE is true, we must be sure that NIT is at least as
+   large as the number of iterations.  If we have no reliable estimate,
+   the function returns false, otherwise returns true.  */
+
+bool
+estimated_loop_iterations (struct loop *loop, bool conservative,
+			   double_int *nit)
+{
+  estimate_numbers_of_iterations_loop (loop, true);
+  if (conservative)
+    {
+      if (!loop->any_upper_bound)
+	return false;
+
+      *nit = loop->nb_iterations_upper_bound;
+    }
+  else
+    {
+      if (!loop->any_estimate)
+	return false;
+
+      *nit = loop->nb_iterations_estimate;
+    }
+
+  return true;
+}
+
+/* Similar to estimated_loop_iterations, but returns the estimate only
+   if it fits to HOST_WIDE_INT.  If this is not the case, or the estimate
+   on the number of iterations of LOOP could not be derived, returns -1.  */
+
+HOST_WIDE_INT
+estimated_loop_iterations_int (struct loop *loop, bool conservative)
+{
+  double_int nit;
+  HOST_WIDE_INT hwi_nit;
+
+  if (!estimated_loop_iterations (loop, conservative, &nit))
+    return -1;
+
+  if (!double_int_fits_in_shwi_p (nit))
+    return -1;
+  hwi_nit = double_int_to_shwi (nit);
+
+  return hwi_nit < 0 ? -1 : hwi_nit;
+}
+
+/* Returns an upper bound on the number of executions of statements
+   in the LOOP.  For statements before the loop exit, this exceeds
+   the number of execution of the latch by one.  */
+
+HOST_WIDE_INT
+max_stmt_executions_int (struct loop *loop, bool conservative)
+{
+  HOST_WIDE_INT nit = estimated_loop_iterations_int (loop, conservative);
+  HOST_WIDE_INT snit;
+
+  if (nit == -1)
+    return -1;
+
+  snit = (HOST_WIDE_INT) ((unsigned HOST_WIDE_INT) nit + 1);
+
+  /* If the computation overflows, return -1.  */
+  return snit < 0 ? -1 : snit;
+}
+
+/* Sets NIT to the estimated number of executions of the latch of the
+   LOOP, plus one.  If CONSERVATIVE is true, we must be sure that NIT is at
+   least as large as the number of iterations.  If we have no reliable
+   estimate, the function returns false, otherwise returns true.  */
+
+bool
+max_stmt_executions (struct loop *loop, bool conservative, double_int *nit)
+{
+  double_int nit_minus_one;
+
+  if (!estimated_loop_iterations (loop, conservative, nit))
+    return false;
+
+  nit_minus_one = *nit;
+
+  *nit = double_int_add (*nit, double_int_one);
+
+  return double_int_ucmp (*nit, nit_minus_one) > 0;
 }
 
 /* Records estimates on numbers of iterations of loops.  */

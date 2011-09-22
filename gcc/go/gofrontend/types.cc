@@ -37,8 +37,7 @@ extern "C"
 // Class Type.
 
 Type::Type(Type_classification classification)
-  : classification_(classification), btype_(NULL),
-    type_descriptor_decl_(NULL_TREE)
+  : classification_(classification), btype_(NULL), type_descriptor_var_(NULL)
 {
 }
 
@@ -769,68 +768,6 @@ Type::hash_string(const std::string& s, unsigned int h)
   return h;
 }
 
-// Default check for the expression passed to make.  Any type which
-// may be used with make implements its own version of this.
-
-bool
-Type::do_check_make_expression(Expression_list*, source_location)
-{
-  go_unreachable();
-}
-
-// Return whether an expression has an integer value.  Report an error
-// if not.  This is used when handling calls to the predeclared make
-// function.
-
-bool
-Type::check_int_value(Expression* e, const char* errmsg,
-		      source_location location)
-{
-  if (e->type()->integer_type() != NULL)
-    return true;
-
-  // Check for a floating point constant with integer value.
-  mpfr_t fval;
-  mpfr_init(fval);
-
-  Type* dummy;
-  if (e->float_constant_value(fval, &dummy) && mpfr_integer_p(fval))
-    {
-      mpz_t ival;
-      mpz_init(ival);
-
-      bool ok = false;
-
-      mpfr_clear_overflow();
-      mpfr_clear_erangeflag();
-      mpfr_get_z(ival, fval, GMP_RNDN);
-      if (!mpfr_overflow_p()
-	  && !mpfr_erangeflag_p()
-	  && mpz_sgn(ival) >= 0)
-	{
-	  Named_type* ntype = Type::lookup_integer_type("int");
-	  Integer_type* inttype = ntype->integer_type();
-	  mpz_t max;
-	  mpz_init_set_ui(max, 1);
-	  mpz_mul_2exp(max, max, inttype->bits() - 1);
-	  ok = mpz_cmp(ival, max) < 0;
-	  mpz_clear(max);
-	}
-      mpz_clear(ival);
-
-      if (ok)
-	{
-	  mpfr_clear(fval);
-	  return true;
-	}
-    }
-
-  mpfr_clear(fval);
-
-  error_at(location, "%s", errmsg);
-  return false;
-}
-
 // A hash table mapping unnamed types to the backend representation of
 // those types.
 
@@ -913,44 +850,182 @@ Type::get_btype_without_hash(Gogo* gogo)
   return this->btype_;
 }
 
-// Return a tree representing a zero initialization for this type.
-
-tree
-Type::get_init_tree(Gogo* gogo, bool is_clear)
-{
-  tree type_tree = type_to_tree(this->get_backend(gogo));
-  if (type_tree == error_mark_node)
-    return error_mark_node;
-  return this->do_get_init_tree(gogo, type_tree, is_clear);
-}
-
-// Any type which supports the builtin make function must implement
-// this.
-
-tree
-Type::do_make_expression_tree(Translate_context*, Expression_list*,
-			      source_location)
-{
-  go_unreachable();
-}
-
 // Return a pointer to the type descriptor for this type.
 
 tree
-Type::type_descriptor_pointer(Gogo* gogo)
+Type::type_descriptor_pointer(Gogo* gogo, source_location location)
 {
   Type* t = this->forwarded();
-  if (t->type_descriptor_decl_ == NULL_TREE)
+  if (t->type_descriptor_var_ == NULL)
     {
-      Expression* e = t->do_type_descriptor(gogo, NULL);
-      gogo->build_type_descriptor_decl(t, e, &t->type_descriptor_decl_);
-      go_assert(t->type_descriptor_decl_ != NULL_TREE
-		 && (t->type_descriptor_decl_ == error_mark_node
-		     || DECL_P(t->type_descriptor_decl_)));
+      t->make_type_descriptor_var(gogo);
+      go_assert(t->type_descriptor_var_ != NULL);
     }
-  if (t->type_descriptor_decl_ == error_mark_node)
+  tree var_tree = var_to_tree(t->type_descriptor_var_);
+  if (var_tree == error_mark_node)
     return error_mark_node;
-  return build_fold_addr_expr(t->type_descriptor_decl_);
+  return build_fold_addr_expr_loc(location, var_tree);
+}
+
+// A mapping from unnamed types to type descriptor variables.
+
+Type::Type_descriptor_vars Type::type_descriptor_vars;
+
+// Build the type descriptor for this type.
+
+void
+Type::make_type_descriptor_var(Gogo* gogo)
+{
+  go_assert(this->type_descriptor_var_ == NULL);
+
+  Named_type* nt = this->named_type();
+
+  // We can have multiple instances of unnamed types, but we only want
+  // to emit the type descriptor once.  We use a hash table.  This is
+  // not necessary for named types, as they are unique, and we store
+  // the type descriptor in the type itself.
+  Bvariable** phash = NULL;
+  if (nt == NULL)
+    {
+      Bvariable* bvnull = NULL;
+      std::pair<Type_descriptor_vars::iterator, bool> ins =
+	Type::type_descriptor_vars.insert(std::make_pair(this, bvnull));
+      if (!ins.second)
+	{
+	  // We've already build a type descriptor for this type.
+	  this->type_descriptor_var_ = ins.first->second;
+	  return;
+	}
+      phash = &ins.first->second;
+    }
+
+  std::string var_name;
+  if (nt == NULL)
+    var_name = this->unnamed_type_descriptor_var_name(gogo);
+  else
+    var_name = this->type_descriptor_var_name(gogo);
+
+  // Build the contents of the type descriptor.
+  Expression* initializer = this->do_type_descriptor(gogo, NULL);
+
+  Btype* initializer_btype = initializer->type()->get_backend(gogo);
+
+  // See if this type descriptor is defined in a different package.
+  bool is_defined_elsewhere = false;
+  if (nt != NULL)
+    {
+      if (nt->named_object()->package() != NULL)
+	{
+	  // This is a named type defined in a different package.  The
+	  // type descriptor should be defined in that package.
+	  is_defined_elsewhere = true;
+	}
+    }
+  else
+    {
+      if (this->points_to() != NULL
+	  && this->points_to()->named_type() != NULL
+	  && this->points_to()->named_type()->named_object()->package() != NULL)
+	{
+	  // This is an unnamed pointer to a named type defined in a
+	  // different package.  The descriptor should be defined in
+	  // that package.
+	  is_defined_elsewhere = true;
+	}
+    }
+
+  source_location loc = nt == NULL ? BUILTINS_LOCATION : nt->location();
+
+  if (is_defined_elsewhere)
+    {
+      this->type_descriptor_var_ =
+	gogo->backend()->immutable_struct_reference(var_name,
+						    initializer_btype,
+						    loc);
+      if (phash != NULL)
+	*phash = this->type_descriptor_var_;
+      return;
+    }
+
+  // See if this type descriptor can appear in multiple packages.
+  bool is_common = false;
+  if (nt != NULL)
+    {
+      // We create the descriptor for a builtin type whenever we need
+      // it.
+      is_common = nt->is_builtin();
+    }
+  else
+    {
+      // This is an unnamed type.  The descriptor could be defined in
+      // any package where it is needed, and the linker will pick one
+      // descriptor to keep.
+      is_common = true;
+    }
+
+  // We are going to build the type descriptor in this package.  We
+  // must create the variable before we convert the initializer to the
+  // backend representation, because the initializer may refer to the
+  // type descriptor of this type.  By setting type_descriptor_var_ we
+  // ensure that type_descriptor_pointer will work if called while
+  // converting INITIALIZER.
+
+  this->type_descriptor_var_ =
+    gogo->backend()->immutable_struct(var_name, is_common, initializer_btype,
+				      loc);
+  if (phash != NULL)
+    *phash = this->type_descriptor_var_;
+
+  Translate_context context(gogo, NULL, NULL, NULL);
+  context.set_is_const();
+  Bexpression* binitializer = tree_to_expr(initializer->get_tree(&context));
+
+  gogo->backend()->immutable_struct_set_init(this->type_descriptor_var_,
+					     var_name, is_common,
+					     initializer_btype, loc,
+					     binitializer);
+}
+
+// Return the name of the type descriptor variable for an unnamed
+// type.
+
+std::string
+Type::unnamed_type_descriptor_var_name(Gogo* gogo)
+{
+  return "__go_td_" + this->mangled_name(gogo);
+}
+
+// Return the name of the type descriptor variable for a named type.
+
+std::string
+Type::type_descriptor_var_name(Gogo* gogo)
+{
+  Named_type* nt = this->named_type();
+  Named_object* no = nt->named_object();
+  const Named_object* in_function = nt->in_function();
+  std::string ret = "__go_tdn_";
+  if (nt->is_builtin())
+    go_assert(in_function == NULL);
+  else
+    {
+      const std::string& unique_prefix(no->package() == NULL
+				       ? gogo->unique_prefix()
+				       : no->package()->unique_prefix());
+      const std::string& package_name(no->package() == NULL
+				      ? gogo->package_name()
+				      : no->package()->name());
+      ret.append(unique_prefix);
+      ret.append(1, '.');
+      ret.append(package_name);
+      ret.append(1, '.');
+      if (in_function != NULL)
+	{
+	  ret.append(Gogo::unpack_hidden_name(in_function->name()));
+	  ret.append(1, '.');
+	}
+    }
+  ret.append(no->name());
+  return ret;
 }
 
 // Return a composite literal for a type descriptor.
@@ -1219,29 +1294,31 @@ Type::type_descriptor_constructor(Gogo* gogo, int runtime_type_kind,
   Expression_list* vals = new Expression_list();
   vals->reserve(9);
 
+  if (!this->has_pointer())
+    runtime_type_kind |= RUNTIME_TYPE_KIND_NO_POINTERS;
   Struct_field_list::const_iterator p = fields->begin();
-  go_assert(p->field_name() == "Kind");
+  go_assert(p->is_field_name("Kind"));
   mpz_t iv;
   mpz_init_set_ui(iv, runtime_type_kind);
   vals->push_back(Expression::make_integer(&iv, p->type(), bloc));
 
   ++p;
-  go_assert(p->field_name() == "align");
+  go_assert(p->is_field_name("align"));
   Expression::Type_info type_info = Expression::TYPE_INFO_ALIGNMENT;
   vals->push_back(Expression::make_type_info(this, type_info));
 
   ++p;
-  go_assert(p->field_name() == "fieldAlign");
+  go_assert(p->is_field_name("fieldAlign"));
   type_info = Expression::TYPE_INFO_FIELD_ALIGNMENT;
   vals->push_back(Expression::make_type_info(this, type_info));
 
   ++p;
-  go_assert(p->field_name() == "size");
+  go_assert(p->is_field_name("size"));
   type_info = Expression::TYPE_INFO_SIZE;
   vals->push_back(Expression::make_type_info(this, type_info));
 
   ++p;
-  go_assert(p->field_name() == "hash");
+  go_assert(p->is_field_name("hash"));
   mpz_set_ui(iv, this->hash_for_method(gogo));
   vals->push_back(Expression::make_integer(&iv, p->type(), bloc));
 
@@ -1250,7 +1327,7 @@ Type::type_descriptor_constructor(Gogo* gogo, int runtime_type_kind,
   this->type_functions(&hash_fn, &equal_fn);
 
   ++p;
-  go_assert(p->field_name() == "hashfn");
+  go_assert(p->is_field_name("hashfn"));
   Function_type* fntype = p->type()->function_type();
   Named_object* no = Named_object::make_function_declaration(hash_fn, NULL,
 							     fntype,
@@ -1259,14 +1336,14 @@ Type::type_descriptor_constructor(Gogo* gogo, int runtime_type_kind,
   vals->push_back(Expression::make_func_reference(no, NULL, bloc));
 
   ++p;
-  go_assert(p->field_name() == "equalfn");
+  go_assert(p->is_field_name("equalfn"));
   fntype = p->type()->function_type();
   no = Named_object::make_function_declaration(equal_fn, NULL, fntype, bloc);
   no->func_declaration_value()->set_asm_name(equal_fn);
   vals->push_back(Expression::make_func_reference(no, NULL, bloc));
 
   ++p;
-  go_assert(p->field_name() == "string");
+  go_assert(p->is_field_name("string"));
   Expression* s = Expression::make_string((name != NULL
 					   ? name->reflection(gogo)
 					   : this->reflection(gogo)),
@@ -1274,7 +1351,7 @@ Type::type_descriptor_constructor(Gogo* gogo, int runtime_type_kind,
   vals->push_back(Expression::make_unary(OPERATOR_AND, s, bloc));
 
   ++p;
-  go_assert(p->field_name() == "uncommonType");
+  go_assert(p->is_field_name("uncommonType"));
   if (name == NULL && methods == NULL)
     vals->push_back(Expression::make_nil(bloc));
   else
@@ -1288,7 +1365,7 @@ Type::type_descriptor_constructor(Gogo* gogo, int runtime_type_kind,
     }
 
   ++p;
-  go_assert(p->field_name() == "ptrToThis");
+  go_assert(p->is_field_name("ptrToThis"));
   if (name == NULL)
     vals->push_back(Expression::make_nil(bloc));
   else
@@ -1325,10 +1402,10 @@ Type::uncommon_type_constructor(Gogo* gogo, Type* uncommon_type,
   vals->reserve(3);
 
   Struct_field_list::const_iterator p = fields->begin();
-  go_assert(p->field_name() == "name");
+  go_assert(p->is_field_name("name"));
 
   ++p;
-  go_assert(p->field_name() == "pkgPath");
+  go_assert(p->is_field_name("pkgPath"));
 
   if (name == NULL)
     {
@@ -1367,7 +1444,7 @@ Type::uncommon_type_constructor(Gogo* gogo, Type* uncommon_type,
     }
 
   ++p;
-  go_assert(p->field_name() == "methods");
+  go_assert(p->is_field_name("methods"));
   vals->push_back(this->methods_constructor(gogo, p->type(), methods,
 					    only_value_methods));
 
@@ -1455,13 +1532,13 @@ Type::method_constructor(Gogo*, Type* method_type,
   vals->reserve(5);
 
   Struct_field_list::const_iterator p = fields->begin();
-  go_assert(p->field_name() == "name");
+  go_assert(p->is_field_name("name"));
   const std::string n = Gogo::unpack_hidden_name(method_name);
   Expression* s = Expression::make_string(n, bloc);
   vals->push_back(Expression::make_unary(OPERATOR_AND, s, bloc));
 
   ++p;
-  go_assert(p->field_name() == "pkgPath");
+  go_assert(p->is_field_name("pkgPath"));
   if (!Gogo::is_hidden_name(method_name))
     vals->push_back(Expression::make_nil(bloc));
   else
@@ -1483,11 +1560,11 @@ Type::method_constructor(Gogo*, Type* method_type,
   Type* nonmethod_type = mtype->copy_without_receiver();
 
   ++p;
-  go_assert(p->field_name() == "mtyp");
+  go_assert(p->is_field_name("mtyp"));
   vals->push_back(Expression::make_type_descriptor(nonmethod_type, bloc));
 
   ++p;
-  go_assert(p->field_name() == "typ");
+  go_assert(p->is_field_name("typ"));
   if (!only_value_methods && m->is_value_method())
     {
       // This is a value method on a pointer type.  Change the type of
@@ -1510,7 +1587,7 @@ Type::method_constructor(Gogo*, Type* method_type,
   vals->push_back(Expression::make_type_descriptor(mtype, bloc));
 
   ++p;
-  go_assert(p->field_name() == "tfn");
+  go_assert(p->is_field_name("tfn"));
   vals->push_back(Expression::make_func_reference(no, NULL, bloc));
 
   ++p;
@@ -1609,10 +1686,6 @@ class Error_type : public Type
   do_get_backend(Gogo* gogo)
   { return gogo->backend()->error_type(); }
 
-  tree
-  do_get_init_tree(Gogo*, tree, bool)
-  { return error_mark_node; }
-
   Expression*
   do_type_descriptor(Gogo*, Named_type*)
   { return Expression::make_error(BUILTINS_LOCATION); }
@@ -1647,10 +1720,6 @@ class Void_type : public Type
   do_get_backend(Gogo* gogo)
   { return gogo->backend()->void_type(); }
 
-  tree
-  do_get_init_tree(Gogo*, tree, bool)
-  { go_unreachable(); }
-
   Expression*
   do_type_descriptor(Gogo*, Named_type*)
   { go_unreachable(); }
@@ -1684,10 +1753,6 @@ class Boolean_type : public Type
   Btype*
   do_get_backend(Gogo* gogo)
   { return gogo->backend()->bool_type(); }
-
-  tree
-  do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-  { return is_clear ? NULL : fold_convert(type_tree, boolean_false_node); }
 
   Expression*
   do_type_descriptor(Gogo*, Named_type* name);
@@ -1830,12 +1895,6 @@ Integer_type::do_get_backend(Gogo* gogo)
   return gogo->backend()->integer_type(this->is_unsigned_, this->bits_);
 }
 
-tree
-Integer_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-{
-  return is_clear ? NULL : build_int_cst(type_tree, 0);
-}
-
 // The type descriptor for an integer type.  Integer types are always
 // named.
 
@@ -1961,16 +2020,6 @@ Btype*
 Float_type::do_get_backend(Gogo* gogo)
 {
   return gogo->backend()->float_type(this->bits_);
-}
-
-tree
-Float_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-{
-  if (is_clear)
-    return NULL;
-  REAL_VALUE_TYPE r;
-  real_from_integer(&r, TYPE_MODE(type_tree), 0, 0, 0);
-  return build_real(type_tree, r);
 }
 
 // The type descriptor for a float type.  Float types are always named.
@@ -2099,19 +2148,6 @@ Complex_type::do_get_backend(Gogo* gogo)
   return gogo->backend()->complex_type(this->bits_);
 }
 
-// Zero initializer.
-
-tree
-Complex_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-{
-  if (is_clear)
-    return NULL;
-  REAL_VALUE_TYPE r;
-  real_from_integer(&r, TYPE_MODE(TREE_TYPE(type_tree)), 0, 0, 0);
-  return build_complex(type_tree, build_real(TREE_TYPE(type_tree), r),
-		       build_real(TREE_TYPE(type_tree), r));
-}
-
 // The type descriptor for a complex type.  Complex types are always
 // named.
 
@@ -2223,32 +2259,6 @@ String_type::bytes_tree(Gogo*, tree string)
 		     bytes_field, NULL_TREE);
 }
 
-// We initialize a string to { NULL, 0 }.
-
-tree
-String_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-{
-  if (is_clear)
-    return NULL_TREE;
-
-  go_assert(TREE_CODE(type_tree) == RECORD_TYPE);
-
-  VEC(constructor_elt, gc)* init = VEC_alloc(constructor_elt, gc, 2);
-
-  for (tree field = TYPE_FIELDS(type_tree);
-       field != NULL_TREE;
-       field = DECL_CHAIN(field))
-    {
-      constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
-      elt->index = field;
-      elt->value = fold_convert(TREE_TYPE(field), size_zero_node);
-    }
-
-  tree ret = build_constructor(type_tree, init);
-  TREE_CONSTANT(ret) = 1;
-  return ret;
-}
-
 // The type descriptor for the string type.
 
 Expression*
@@ -2328,10 +2338,6 @@ class Sink_type : public Type
  protected:
   Btype*
   do_get_backend(Gogo*)
-  { go_unreachable(); }
-
-  tree
-  do_get_init_tree(Gogo*, tree, bool)
   { go_unreachable(); }
 
   Expression*
@@ -2704,16 +2710,6 @@ Function_type::convert_types(Gogo* gogo)
     }
 }
 
-// Functions are initialized to NULL.
-
-tree
-Function_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-{
-  if (is_clear)
-    return NULL;
-  return fold_convert(type_tree, null_pointer_node);
-}
-
 // The type of a function type descriptor.
 
 Type*
@@ -2756,22 +2752,22 @@ Function_type::do_type_descriptor(Gogo* gogo, Named_type* name)
   vals->reserve(4);
 
   Struct_field_list::const_iterator p = fields->begin();
-  go_assert(p->field_name() == "commonType");
+  go_assert(p->is_field_name("commonType"));
   vals->push_back(this->type_descriptor_constructor(gogo,
 						    RUNTIME_TYPE_KIND_FUNC,
 						    name, NULL, true));
 
   ++p;
-  go_assert(p->field_name() == "dotdotdot");
+  go_assert(p->is_field_name("dotdotdot"));
   vals->push_back(Expression::make_boolean(this->is_varargs(), bloc));
 
   ++p;
-  go_assert(p->field_name() == "in");
+  go_assert(p->is_field_name("in"));
   vals->push_back(this->type_descriptor_params(p->type(), this->receiver(),
 					       this->parameters()));
 
   ++p;
-  go_assert(p->field_name() == "out");
+  go_assert(p->is_field_name("out"));
   vals->push_back(this->type_descriptor_params(p->type(), NULL,
 					       this->results()));
 
@@ -3109,16 +3105,6 @@ Pointer_type::do_get_backend(Gogo* gogo)
   return gogo->backend()->pointer_type(to_btype);
 }
 
-// Initialize a pointer type.
-
-tree
-Pointer_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-{
-  if (is_clear)
-    return NULL;
-  return fold_convert(type_tree, null_pointer_node);
-}
-
 // The type of a pointer type descriptor.
 
 Type*
@@ -3173,13 +3159,13 @@ Pointer_type::do_type_descriptor(Gogo* gogo, Named_type* name)
       vals->reserve(2);
 
       Struct_field_list::const_iterator p = fields->begin();
-      go_assert(p->field_name() == "commonType");
+      go_assert(p->is_field_name("commonType"));
       vals->push_back(this->type_descriptor_constructor(gogo,
 							RUNTIME_TYPE_KIND_PTR,
 							name, methods, false));
 
       ++p;
-      go_assert(p->field_name() == "elem");
+      go_assert(p->is_field_name("elem"));
       vals->push_back(Expression::make_type_descriptor(deref, bloc));
 
       return Expression::make_struct_composite_literal(ptr_tdt, vals, bloc);
@@ -3262,10 +3248,6 @@ class Nil_type : public Type
   do_get_backend(Gogo* gogo)
   { return gogo->backend()->pointer_type(gogo->backend()->void_type()); }
 
-  tree
-  do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-  { return is_clear ? NULL : fold_convert(type_tree, null_pointer_node); }
-
   Expression*
   do_type_descriptor(Gogo*, Named_type*)
   { go_unreachable(); }
@@ -3314,13 +3296,6 @@ class Call_multiple_result_type : public Type
   {
     go_assert(saw_errors());
     return gogo->backend()->error_type();
-  }
-
-  tree
-  do_get_init_tree(Gogo*, tree, bool)
-  {
-    go_assert(saw_errors());
-    return error_mark_node;
   }
 
   Expression*
@@ -3395,6 +3370,34 @@ Struct_field::field_name() const
 	  else
 	    go_unreachable();
 	}
+    }
+}
+
+// Return whether this field is named NAME.
+
+bool
+Struct_field::is_field_name(const std::string& name) const
+{
+  const std::string& me(this->typed_identifier_.name());
+  if (!me.empty())
+    return me == name;
+  else
+    {
+      Type* t = this->typed_identifier_.type();
+      if (t->points_to() != NULL)
+	t = t->points_to();
+      Named_type* nt = t->named_type();
+      if (nt != NULL && nt->name() == name)
+	return true;
+
+      // This is a horrible hack caused by the fact that we don't pack
+      // the names of builtin types.  FIXME.
+      if (nt != NULL
+	  && nt->is_builtin()
+	  && nt->name() == Gogo::unpack_hidden_name(name))
+	return true;
+
+      return false;
     }
 }
 
@@ -3592,7 +3595,7 @@ Struct_type::find_local_field(const std::string& name,
        pf != fields->end();
        ++pf, ++i)
     {
-      if (pf->field_name() == name)
+      if (pf->is_field_name(name))
 	{
 	  if (pindex != NULL)
 	    *pindex = i;
@@ -3633,7 +3636,7 @@ Struct_type::field_reference_depth(Expression* struct_expr,
        pf != fields->end();
        ++pf, ++i)
     {
-      if (pf->field_name() == name)
+      if (pf->is_field_name(name))
 	{
 	  *depth = 0;
 	  return Expression::make_field_reference(struct_expr, i, location);
@@ -3823,63 +3826,6 @@ Struct_type::do_get_backend(Gogo* gogo)
   return gogo->backend()->struct_type(bfields);
 }
 
-// Initialize struct fields.
-
-tree
-Struct_type::do_get_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
-{
-  if (this->fields_ == NULL || this->fields_->empty())
-    {
-      if (is_clear)
-	return NULL;
-      else
-	{
-	  tree ret = build_constructor(type_tree,
-				       VEC_alloc(constructor_elt, gc, 0));
-	  TREE_CONSTANT(ret) = 1;
-	  return ret;
-	}
-    }
-
-  bool is_constant = true;
-  bool any_fields_set = false;
-  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc,
-					    this->fields_->size());
-
-  tree field = TYPE_FIELDS(type_tree);
-  for (Struct_field_list::const_iterator p = this->fields_->begin();
-       p != this->fields_->end();
-       ++p, field = DECL_CHAIN(field))
-    {
-      tree value = p->type()->get_init_tree(gogo, is_clear);
-      if (value == error_mark_node)
-	return error_mark_node;
-      go_assert(field != NULL_TREE);
-      if (value != NULL)
-	{
-	  constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
-	  elt->index = field;
-	  elt->value = value;
-	  any_fields_set = true;
-	  if (!TREE_CONSTANT(value))
-	    is_constant = false;
-	}
-    }
-  go_assert(field == NULL_TREE);
-
-  if (!any_fields_set)
-    {
-      go_assert(is_clear);
-      VEC_free(constructor_elt, gc, init);
-      return NULL;
-    }
-
-  tree ret = build_constructor(type_tree, init);
-  if (is_constant)
-    TREE_CONSTANT(ret) = 1;
-  return ret;
-}
-
 // The type of a struct type descriptor.
 
 Type*
@@ -3936,13 +3882,13 @@ Struct_type::do_type_descriptor(Gogo* gogo, Named_type* name)
   go_assert(methods == NULL || name == NULL);
 
   Struct_field_list::const_iterator ps = fields->begin();
-  go_assert(ps->field_name() == "commonType");
+  go_assert(ps->is_field_name("commonType"));
   vals->push_back(this->type_descriptor_constructor(gogo,
 						    RUNTIME_TYPE_KIND_STRUCT,
 						    name, methods, true));
 
   ++ps;
-  go_assert(ps->field_name() == "fields");
+  go_assert(ps->is_field_name("fields"));
 
   Expression_list* elements = new Expression_list();
   elements->reserve(this->fields_->size());
@@ -3957,7 +3903,7 @@ Struct_type::do_type_descriptor(Gogo* gogo, Named_type* name)
       fvals->reserve(5);
 
       Struct_field_list::const_iterator q = f->begin();
-      go_assert(q->field_name() == "name");
+      go_assert(q->is_field_name("name"));
       if (pf->is_anonymous())
 	fvals->push_back(Expression::make_nil(bloc));
       else
@@ -3968,7 +3914,7 @@ Struct_type::do_type_descriptor(Gogo* gogo, Named_type* name)
 	}
 
       ++q;
-      go_assert(q->field_name() == "pkgPath");
+      go_assert(q->is_field_name("pkgPath"));
       if (!Gogo::is_hidden_name(pf->field_name()))
 	fvals->push_back(Expression::make_nil(bloc));
       else
@@ -3979,11 +3925,11 @@ Struct_type::do_type_descriptor(Gogo* gogo, Named_type* name)
 	}
 
       ++q;
-      go_assert(q->field_name() == "typ");
+      go_assert(q->is_field_name("typ"));
       fvals->push_back(Expression::make_type_descriptor(pf->type(), bloc));
 
       ++q;
-      go_assert(q->field_name() == "tag");
+      go_assert(q->is_field_name("tag"));
       if (!pf->has_tag())
 	fvals->push_back(Expression::make_nil(bloc));
       else
@@ -3993,7 +3939,7 @@ Struct_type::do_type_descriptor(Gogo* gogo, Named_type* name)
 	}
 
       ++q;
-      go_assert(q->field_name() == "offset");
+      go_assert(q->is_field_name("offset"));
       fvals->push_back(Expression::make_struct_field_offset(this, &*pf));
 
       Expression* v = Expression::make_struct_composite_literal(element_type,
@@ -4353,43 +4299,6 @@ Array_type::do_hash_for_method(Gogo* gogo) const
   return this->element_type_->hash_for_method(gogo) + 1;
 }
 
-// See if the expression passed to make is suitable.  The first
-// argument is required, and gives the length.  An optional second
-// argument is permitted for the capacity.
-
-bool
-Array_type::do_check_make_expression(Expression_list* args,
-				     source_location location)
-{
-  go_assert(this->length_ == NULL);
-  if (args == NULL || args->empty())
-    {
-      error_at(location, "length required when allocating a slice");
-      return false;
-    }
-  else if (args->size() > 2)
-    {
-      error_at(location, "too many expressions passed to make");
-      return false;
-    }
-  else
-    {
-      if (!Type::check_int_value(args->front(),
-				 _("bad length when making slice"), location))
-	return false;
-
-      if (args->size() > 1)
-	{
-	  if (!Type::check_int_value(args->back(),
-				     _("bad capacity when making slice"),
-				     location))
-	    return false;
-	}
-
-      return true;
-    }
-}
-
 // Get a tree for the length of a fixed array.  The length may be
 // computed using a function call, so we must only evaluate it once.
 
@@ -4501,221 +4410,6 @@ Bexpression*
 Array_type::get_backend_length(Gogo* gogo)
 {
   return tree_to_expr(this->get_length_tree(gogo));
-}
-
-// Return an initializer for an array type.
-
-tree
-Array_type::do_get_init_tree(Gogo* gogo, tree type_tree, bool is_clear)
-{
-  if (this->length_ == NULL)
-    {
-      // Open array.
-
-      if (is_clear)
-	return NULL;
-
-      go_assert(TREE_CODE(type_tree) == RECORD_TYPE);
-
-      VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 3);
-
-      for (tree field = TYPE_FIELDS(type_tree);
-	   field != NULL_TREE;
-	   field = DECL_CHAIN(field))
-	{
-	  constructor_elt* elt = VEC_quick_push(constructor_elt, init,
-						NULL);
-	  elt->index = field;
-	  elt->value = fold_convert(TREE_TYPE(field), size_zero_node);
-	}
-
-      tree ret = build_constructor(type_tree, init);
-      TREE_CONSTANT(ret) = 1;
-      return ret;
-    }
-  else
-    {
-      // Fixed array.
-
-      tree value = this->element_type_->get_init_tree(gogo, is_clear);
-      if (value == NULL)
-	return NULL;
-      if (value == error_mark_node)
-	return error_mark_node;
-
-      tree length_tree = this->get_length_tree(gogo);
-      if (length_tree == error_mark_node)
-	return error_mark_node;
-
-      length_tree = fold_convert(sizetype, length_tree);
-      tree range = build2(RANGE_EXPR, sizetype, size_zero_node,
-			  fold_build2(MINUS_EXPR, sizetype,
-				      length_tree, size_one_node));
-      tree ret = build_constructor_single(type_tree, range, value);
-      if (TREE_CONSTANT(value))
-	TREE_CONSTANT(ret) = 1;
-      return ret;
-    }
-}
-
-// Handle the builtin make function for a slice.
-
-tree
-Array_type::do_make_expression_tree(Translate_context* context,
-				    Expression_list* args,
-				    source_location location)
-{
-  go_assert(this->length_ == NULL);
-
-  Gogo* gogo = context->gogo();
-  tree type_tree = type_to_tree(this->get_backend(gogo));
-  if (type_tree == error_mark_node)
-    return error_mark_node;
-
-  tree values_field = TYPE_FIELDS(type_tree);
-  go_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(values_field)),
-		    "__values") == 0);
-
-  tree count_field = DECL_CHAIN(values_field);
-  go_assert(strcmp(IDENTIFIER_POINTER(DECL_NAME(count_field)),
-		    "__count") == 0);
-
-  tree element_type_tree = type_to_tree(this->element_type_->get_backend(gogo));
-  if (element_type_tree == error_mark_node)
-    return error_mark_node;
-  tree element_size_tree = TYPE_SIZE_UNIT(element_type_tree);
-
-  tree value = this->element_type_->get_init_tree(gogo, true);
-  if (value == error_mark_node)
-    return error_mark_node;
-
-  // The first argument is the number of elements, the optional second
-  // argument is the capacity.
-  go_assert(args != NULL && args->size() >= 1 && args->size() <= 2);
-
-  tree length_tree = args->front()->get_tree(context);
-  if (length_tree == error_mark_node)
-    return error_mark_node;
-  if (!DECL_P(length_tree))
-    length_tree = save_expr(length_tree);
-  if (!INTEGRAL_TYPE_P(TREE_TYPE(length_tree)))
-    length_tree = convert_to_integer(TREE_TYPE(count_field), length_tree);
-
-  tree bad_index = Expression::check_bounds(length_tree,
-					    TREE_TYPE(count_field),
-					    NULL_TREE, location);
-
-  length_tree = fold_convert_loc(location, TREE_TYPE(count_field), length_tree);
-  tree capacity_tree;
-  if (args->size() == 1)
-    capacity_tree = length_tree;
-  else
-    {
-      capacity_tree = args->back()->get_tree(context);
-      if (capacity_tree == error_mark_node)
-	return error_mark_node;
-      if (!DECL_P(capacity_tree))
-	capacity_tree = save_expr(capacity_tree);
-      if (!INTEGRAL_TYPE_P(TREE_TYPE(capacity_tree)))
-	capacity_tree = convert_to_integer(TREE_TYPE(count_field),
-					   capacity_tree);
-
-      bad_index = Expression::check_bounds(capacity_tree,
-					   TREE_TYPE(count_field),
-					   bad_index, location);
-
-      tree chktype = (((TYPE_SIZE(TREE_TYPE(capacity_tree))
-			> TYPE_SIZE(TREE_TYPE(length_tree)))
-		       || ((TYPE_SIZE(TREE_TYPE(capacity_tree))
-			    == TYPE_SIZE(TREE_TYPE(length_tree)))
-			   && TYPE_UNSIGNED(TREE_TYPE(capacity_tree))))
-		      ? TREE_TYPE(capacity_tree)
-		      : TREE_TYPE(length_tree));
-      tree chk = fold_build2_loc(location, LT_EXPR, boolean_type_node,
-				 fold_convert_loc(location, chktype,
-						  capacity_tree),
-				 fold_convert_loc(location, chktype,
-						  length_tree));
-      if (bad_index == NULL_TREE)
-	bad_index = chk;
-      else
-	bad_index = fold_build2_loc(location, TRUTH_OR_EXPR, boolean_type_node,
-				    bad_index, chk);
-
-      capacity_tree = fold_convert_loc(location, TREE_TYPE(count_field),
-				       capacity_tree);
-    }
-
-  tree size_tree = fold_build2_loc(location, MULT_EXPR, sizetype,
-				   element_size_tree,
-				   fold_convert_loc(location, sizetype,
-						    capacity_tree));
-
-  tree chk = fold_build2_loc(location, TRUTH_AND_EXPR, boolean_type_node,
-			     fold_build2_loc(location, GT_EXPR,
-					     boolean_type_node,
-					     fold_convert_loc(location,
-							      sizetype,
-							      capacity_tree),
-					     size_zero_node),
-			     fold_build2_loc(location, LT_EXPR,
-					     boolean_type_node,
-					     size_tree, element_size_tree));
-  if (bad_index == NULL_TREE)
-    bad_index = chk;
-  else
-    bad_index = fold_build2_loc(location, TRUTH_OR_EXPR, boolean_type_node,
-				bad_index, chk);
-
-  tree space = context->gogo()->allocate_memory(this->element_type_,
-						size_tree, location);
-
-  if (value != NULL_TREE)
-    space = save_expr(space);
-
-  space = fold_convert(TREE_TYPE(values_field), space);
-
-  if (bad_index != NULL_TREE && bad_index != boolean_false_node)
-    {
-      tree crash = Gogo::runtime_error(RUNTIME_ERROR_MAKE_SLICE_OUT_OF_BOUNDS,
-				       location);
-      space = build2(COMPOUND_EXPR, TREE_TYPE(space),
-		     build3(COND_EXPR, void_type_node,
-			    bad_index, crash, NULL_TREE),
-		     space);
-    }
-
-  tree constructor = gogo->slice_constructor(type_tree, space, length_tree,
-					     capacity_tree);
-
-  if (value == NULL_TREE)
-    {
-      // The array contents are zero initialized.
-      return constructor;
-    }
-
-  // The elements must be initialized.
-
-  tree max = fold_build2_loc(location, MINUS_EXPR, TREE_TYPE(count_field),
-			     capacity_tree,
-			     fold_convert_loc(location, TREE_TYPE(count_field),
-					      integer_one_node));
-
-  tree array_type = build_array_type(element_type_tree,
-				     build_index_type(max));
-
-  tree value_pointer = fold_convert_loc(location,
-					build_pointer_type(array_type),
-					space);
-
-  tree range = build2(RANGE_EXPR, sizetype, size_zero_node, max);
-  tree space_init = build_constructor_single(array_type, range, value);
-
-  return build2(COMPOUND_EXPR, TREE_TYPE(constructor),
-		build2(MODIFY_EXPR, void_type_node,
-		       build_fold_indirect_ref(value_pointer),
-		       space_init),
-		constructor);
 }
 
 // Return a tree for a pointer to the values in ARRAY.
@@ -4895,22 +4589,22 @@ Array_type::array_type_descriptor(Gogo* gogo, Named_type* name)
   vals->reserve(3);
 
   Struct_field_list::const_iterator p = fields->begin();
-  go_assert(p->field_name() == "commonType");
+  go_assert(p->is_field_name("commonType"));
   vals->push_back(this->type_descriptor_constructor(gogo,
 						    RUNTIME_TYPE_KIND_ARRAY,
 						    name, NULL, true));
 
   ++p;
-  go_assert(p->field_name() == "elem");
+  go_assert(p->is_field_name("elem"));
   vals->push_back(Expression::make_type_descriptor(this->element_type_, bloc));
 
   ++p;
-  go_assert(p->field_name() == "slice");
+  go_assert(p->is_field_name("slice"));
   Type* slice_type = Type::make_array_type(this->element_type_, NULL);
   vals->push_back(Expression::make_type_descriptor(slice_type, bloc));
 
   ++p;
-  go_assert(p->field_name() == "len");
+  go_assert(p->is_field_name("len"));
   vals->push_back(Expression::make_cast(p->type(), this->length_, bloc));
 
   ++p;
@@ -4934,13 +4628,13 @@ Array_type::slice_type_descriptor(Gogo* gogo, Named_type* name)
   vals->reserve(2);
 
   Struct_field_list::const_iterator p = fields->begin();
-  go_assert(p->field_name() == "commonType");
+  go_assert(p->is_field_name("commonType"));
   vals->push_back(this->type_descriptor_constructor(gogo,
 						    RUNTIME_TYPE_KIND_SLICE,
 						    name, NULL, true));
 
   ++p;
-  go_assert(p->field_name() == "elem");
+  go_assert(p->is_field_name("elem"));
   vals->push_back(Expression::make_type_descriptor(this->element_type_, bloc));
 
   ++p;
@@ -5066,28 +4760,6 @@ Map_type::do_hash_for_method(Gogo* gogo) const
 	  + 2);
 }
 
-// Check that a call to the builtin make function is valid.  For a map
-// the optional argument is the number of spaces to preallocate for
-// values.
-
-bool
-Map_type::do_check_make_expression(Expression_list* args,
-				   source_location location)
-{
-  if (args != NULL && !args->empty())
-    {
-      if (!Type::check_int_value(args->front(), _("bad size when making map"),
-				 location))
-	return false;
-      else if (args->size() > 1)
-	{
-	  error_at(location, "too many arguments when making map");
-	  return false;
-	}
-    }
-  return true;
-}
-
 // Get the backend representation for a map type.  A map type is
 // represented as a pointer to a struct.  The struct is __go_map in
 // libgo/map.h.
@@ -5128,71 +4800,6 @@ Map_type::do_get_backend(Gogo* gogo)
   return backend_map_type;
 }
 
-// Initialize a map.
-
-tree
-Map_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-{
-  if (is_clear)
-    return NULL;
-  return fold_convert(type_tree, null_pointer_node);
-}
-
-// Return an expression for a newly allocated map.
-
-tree
-Map_type::do_make_expression_tree(Translate_context* context,
-				  Expression_list* args,
-				  source_location location)
-{
-  tree bad_index = NULL_TREE;
-
-  tree expr_tree;
-  if (args == NULL || args->empty())
-    expr_tree = size_zero_node;
-  else
-    {
-      expr_tree = args->front()->get_tree(context);
-      if (expr_tree == error_mark_node)
-	return error_mark_node;
-      if (!DECL_P(expr_tree))
-	expr_tree = save_expr(expr_tree);
-      if (!INTEGRAL_TYPE_P(TREE_TYPE(expr_tree)))
-	expr_tree = convert_to_integer(sizetype, expr_tree);
-      bad_index = Expression::check_bounds(expr_tree, sizetype, bad_index,
-					   location);
-    }
-
-  tree map_type = type_to_tree(this->get_backend(context->gogo()));
-
-  static tree new_map_fndecl;
-  tree ret = Gogo::call_builtin(&new_map_fndecl,
-				location,
-				"__go_new_map",
-				2,
-				map_type,
-				TREE_TYPE(TYPE_FIELDS(TREE_TYPE(map_type))),
-				context->gogo()->map_descriptor(this),
-				sizetype,
-				expr_tree);
-  if (ret == error_mark_node)
-    return error_mark_node;
-  // This can panic if the capacity is out of range.
-  TREE_NOTHROW(new_map_fndecl) = 0;
-
-  if (bad_index == NULL_TREE)
-    return ret;
-  else
-    {
-      tree crash = Gogo::runtime_error(RUNTIME_ERROR_MAKE_MAP_OUT_OF_BOUNDS,
-				       location);
-      return build2(COMPOUND_EXPR, TREE_TYPE(ret),
-		    build3(COND_EXPR, void_type_node,
-			   bad_index, crash, NULL_TREE),
-		    ret);
-    }
-}
-
 // The type of a map type descriptor.
 
 Type*
@@ -5231,23 +4838,146 @@ Map_type::do_type_descriptor(Gogo* gogo, Named_type* name)
   vals->reserve(3);
 
   Struct_field_list::const_iterator p = fields->begin();
-  go_assert(p->field_name() == "commonType");
+  go_assert(p->is_field_name("commonType"));
   vals->push_back(this->type_descriptor_constructor(gogo,
 						    RUNTIME_TYPE_KIND_MAP,
 						    name, NULL, true));
 
   ++p;
-  go_assert(p->field_name() == "key");
+  go_assert(p->is_field_name("key"));
   vals->push_back(Expression::make_type_descriptor(this->key_type_, bloc));
 
   ++p;
-  go_assert(p->field_name() == "elem");
+  go_assert(p->is_field_name("elem"));
   vals->push_back(Expression::make_type_descriptor(this->val_type_, bloc));
 
   ++p;
   go_assert(p == fields->end());
 
   return Expression::make_struct_composite_literal(mtdt, vals, bloc);
+}
+
+// A mapping from map types to map descriptors.
+
+Map_type::Map_descriptors Map_type::map_descriptors;
+
+// Build a map descriptor for this type.  Return a pointer to it.
+
+tree
+Map_type::map_descriptor_pointer(Gogo* gogo, source_location location)
+{
+  Bvariable* bvar = this->map_descriptor(gogo);
+  tree var_tree = var_to_tree(bvar);
+  if (var_tree == error_mark_node)
+    return error_mark_node;
+  return build_fold_addr_expr_loc(location, var_tree);
+}
+
+// Build a map descriptor for this type.
+
+Bvariable*
+Map_type::map_descriptor(Gogo* gogo)
+{
+  std::pair<Map_type*, Bvariable*> val(this, NULL);
+  std::pair<Map_type::Map_descriptors::iterator, bool> ins =
+    Map_type::map_descriptors.insert(val);
+  if (!ins.second)
+    return ins.first->second;
+
+  Type* key_type = this->key_type_;
+  Type* val_type = this->val_type_;
+
+  // The map entry type is a struct with three fields.  Build that
+  // struct so that we can get the offsets of the key and value within
+  // a map entry.  The first field should technically be a pointer to
+  // this type itself, but since we only care about field offsets we
+  // just use pointer to bool.
+  Type* pbool = Type::make_pointer_type(Type::make_boolean_type());
+  Struct_type* map_entry_type =
+    Type::make_builtin_struct_type(3,
+				   "__next", pbool,
+				   "__key", key_type,
+				   "__val", val_type);
+
+  Type* map_descriptor_type = Map_type::make_map_descriptor_type();
+
+  const Struct_field_list* fields =
+    map_descriptor_type->struct_type()->fields();
+
+  Expression_list* vals = new Expression_list();
+  vals->reserve(4);
+
+  source_location bloc = BUILTINS_LOCATION;
+
+  Struct_field_list::const_iterator p = fields->begin();
+
+  go_assert(p->is_field_name("__map_descriptor"));
+  vals->push_back(Expression::make_type_descriptor(this, bloc));
+
+  ++p;
+  go_assert(p->is_field_name("__entry_size"));
+  Expression::Type_info type_info = Expression::TYPE_INFO_SIZE;
+  vals->push_back(Expression::make_type_info(map_entry_type, type_info));
+
+  Struct_field_list::const_iterator pf = map_entry_type->fields()->begin();
+  ++pf;
+  go_assert(pf->is_field_name("__key"));
+
+  ++p;
+  go_assert(p->is_field_name("__key_offset"));
+  vals->push_back(Expression::make_struct_field_offset(map_entry_type, &*pf));
+
+  ++pf;
+  go_assert(pf->is_field_name("__val"));
+
+  ++p;
+  go_assert(p->is_field_name("__val_offset"));
+  vals->push_back(Expression::make_struct_field_offset(map_entry_type, &*pf));
+
+  ++p;
+  go_assert(p == fields->end());
+
+  Expression* initializer =
+    Expression::make_struct_composite_literal(map_descriptor_type, vals, bloc);
+
+  std::string mangled_name = "__go_map_" + this->mangled_name(gogo);
+  Btype* map_descriptor_btype = map_descriptor_type->get_backend(gogo);
+  Bvariable* bvar = gogo->backend()->immutable_struct(mangled_name, true,
+						      map_descriptor_btype,
+						      bloc);
+
+  Translate_context context(gogo, NULL, NULL, NULL);
+  context.set_is_const();
+  Bexpression* binitializer = tree_to_expr(initializer->get_tree(&context));
+
+  gogo->backend()->immutable_struct_set_init(bvar, mangled_name, true,
+					     map_descriptor_btype, bloc,
+					     binitializer);
+
+  ins.first->second = bvar;
+  return bvar;
+}
+
+// Build the type of a map descriptor.  This must match the struct
+// __go_map_descriptor in libgo/runtime/map.h.
+
+Type*
+Map_type::make_map_descriptor_type()
+{
+  static Type* ret;
+  if (ret == NULL)
+    {
+      Type* ptdt = Type::make_type_descriptor_ptr_type();
+      Type* uintptr_type = Type::lookup_integer_type("uintptr");
+      Struct_type* sf =
+	Type::make_builtin_struct_type(4,
+				       "__map_descriptor", ptdt,
+				       "__entry_size", uintptr_type,
+				       "__key_offset", uintptr_type,
+				       "__val_offset", uintptr_type);
+      ret = Type::make_builtin_named_type("__go_map_descriptor", sf);
+    }
+  return ret;
 }
 
 // Reflection string for a map.
@@ -5333,29 +5063,6 @@ Channel_type::is_identical(const Channel_type* t,
 	  && this->may_receive_ == t->may_receive_);
 }
 
-// Check whether the parameters for a call to the builtin function
-// make are OK for a channel.  A channel can take an optional single
-// parameter which is the buffer size.
-
-bool
-Channel_type::do_check_make_expression(Expression_list* args,
-				      source_location location)
-{
-  if (args != NULL && !args->empty())
-    {
-      if (!Type::check_int_value(args->front(),
-				 _("bad buffer size when making channel"),
-				 location))
-	return false;
-      else if (args->size() > 1)
-	{
-	  error_at(location, "too many arguments when making channel");
-	  return false;
-	}
-    }
-  return true;
-}
-
 // Return the tree for a channel type.  A channel is a pointer to a
 // __go_channel struct.  The __go_channel struct is defined in
 // libgo/runtime/channel.h.
@@ -5372,76 +5079,6 @@ Channel_type::do_get_backend(Gogo* gogo)
       backend_channel_type = gogo->backend()->pointer_type(bt);
     }
   return backend_channel_type;
-}
-
-// Initialize a channel variable.
-
-tree
-Channel_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-{
-  if (is_clear)
-    return NULL;
-  return fold_convert(type_tree, null_pointer_node);
-}
-
-// Handle the builtin function make for a channel.
-
-tree
-Channel_type::do_make_expression_tree(Translate_context* context,
-				      Expression_list* args,
-				      source_location location)
-{
-  Gogo* gogo = context->gogo();
-  tree channel_type = type_to_tree(this->get_backend(gogo));
-
-  Type* ptdt = Type::make_type_descriptor_ptr_type();
-  tree element_type_descriptor =
-    this->element_type_->type_descriptor_pointer(gogo);
-
-  tree bad_index = NULL_TREE;
-
-  tree expr_tree;
-  if (args == NULL || args->empty())
-    expr_tree = size_zero_node;
-  else
-    {
-      expr_tree = args->front()->get_tree(context);
-      if (expr_tree == error_mark_node)
-	return error_mark_node;
-      if (!DECL_P(expr_tree))
-	expr_tree = save_expr(expr_tree);
-      if (!INTEGRAL_TYPE_P(TREE_TYPE(expr_tree)))
-	expr_tree = convert_to_integer(sizetype, expr_tree);
-      bad_index = Expression::check_bounds(expr_tree, sizetype, bad_index,
-					   location);
-    }
-
-  static tree new_channel_fndecl;
-  tree ret = Gogo::call_builtin(&new_channel_fndecl,
-				location,
-				"__go_new_channel",
-				2,
-				channel_type,
-				type_to_tree(ptdt->get_backend(gogo)),
-				element_type_descriptor,
-				sizetype,
-				expr_tree);
-  if (ret == error_mark_node)
-    return error_mark_node;
-  // This can panic if the capacity is out of range.
-  TREE_NOTHROW(new_channel_fndecl) = 0;
-
-  if (bad_index == NULL_TREE)
-    return ret;
-  else
-    {
-      tree crash = Gogo::runtime_error(RUNTIME_ERROR_MAKE_CHAN_OUT_OF_BOUNDS,
-				       location);
-      return build2(COMPOUND_EXPR, TREE_TYPE(ret),
-		    build3(COND_EXPR, void_type_node,
-			   bad_index, crash, NULL_TREE),
-		    ret);
-    }
 }
 
 // Build a type descriptor for a channel type.
@@ -5484,17 +5121,17 @@ Channel_type::do_type_descriptor(Gogo* gogo, Named_type* name)
   vals->reserve(3);
 
   Struct_field_list::const_iterator p = fields->begin();
-  go_assert(p->field_name() == "commonType");
+  go_assert(p->is_field_name("commonType"));
   vals->push_back(this->type_descriptor_constructor(gogo,
 						    RUNTIME_TYPE_KIND_CHAN,
 						    name, NULL, true));
 
   ++p;
-  go_assert(p->field_name() == "elem");
+  go_assert(p->is_field_name("elem"));
   vals->push_back(Expression::make_type_descriptor(this->element_type_, bloc));
 
   ++p;
-  go_assert(p->field_name() == "dir");
+  go_assert(p->is_field_name("dir"));
   // These bits must match the ones in libgo/runtime/go-type.h.
   int val = 0;
   if (this->may_receive_)
@@ -6113,29 +5750,6 @@ Interface_type::do_get_backend(Gogo* gogo)
     }
 }
 
-// Initialization value.
-
-tree
-Interface_type::do_get_init_tree(Gogo*, tree type_tree, bool is_clear)
-{
-  if (is_clear)
-    return NULL;
-
-  VEC(constructor_elt,gc)* init = VEC_alloc(constructor_elt, gc, 2);
-  for (tree field = TYPE_FIELDS(type_tree);
-       field != NULL_TREE;
-       field = DECL_CHAIN(field))
-    {
-      constructor_elt* elt = VEC_quick_push(constructor_elt, init, NULL);
-      elt->index = field;
-      elt->value = fold_convert(TREE_TYPE(field), null_pointer_node);
-    }
-
-  tree ret = build_constructor(type_tree, init);
-  TREE_CONSTANT(ret) = 1;
-  return ret;
-}
-
 // The type of an interface type descriptor.
 
 Type*
@@ -6185,13 +5799,13 @@ Interface_type::do_type_descriptor(Gogo* gogo, Named_type* name)
   ivals->reserve(2);
 
   Struct_field_list::const_iterator pif = ifields->begin();
-  go_assert(pif->field_name() == "commonType");
+  go_assert(pif->is_field_name("commonType"));
   ivals->push_back(this->type_descriptor_constructor(gogo,
 						     RUNTIME_TYPE_KIND_INTERFACE,
 						     name, NULL, true));
 
   ++pif;
-  go_assert(pif->field_name() == "methods");
+  go_assert(pif->is_field_name("methods"));
 
   Expression_list* methods = new Expression_list();
   if (this->methods_ != NULL && !this->methods_->empty())
@@ -6209,13 +5823,13 @@ Interface_type::do_type_descriptor(Gogo* gogo, Named_type* name)
 	  mvals->reserve(3);
 
 	  Struct_field_list::const_iterator pmf = mfields->begin();
-	  go_assert(pmf->field_name() == "name");
+	  go_assert(pmf->is_field_name("name"));
 	  std::string s = Gogo::unpack_hidden_name(pm->name());
 	  Expression* e = Expression::make_string(s, bloc);
 	  mvals->push_back(Expression::make_unary(OPERATOR_AND, e, bloc));
 
 	  ++pmf;
-	  go_assert(pmf->field_name() == "pkgPath");
+	  go_assert(pmf->is_field_name("pkgPath"));
 	  if (!Gogo::is_hidden_name(pm->name()))
 	    mvals->push_back(Expression::make_nil(bloc));
 	  else
@@ -6226,7 +5840,7 @@ Interface_type::do_type_descriptor(Gogo* gogo, Named_type* name)
 	    }
 
 	  ++pmf;
-	  go_assert(pmf->field_name() == "typ");
+	  go_assert(pmf->is_field_name("typ"));
 	  mvals->push_back(Expression::make_type_descriptor(pm->type(), bloc));
 
 	  ++pmf;
@@ -6499,10 +6113,7 @@ Method::bind_method(Expression* expr, source_location location) const
       // the child class.
       return this->do_bind_method(expr, location);
     }
-
-  Expression* func = Expression::make_func_reference(this->stub_, NULL,
-						     location);
-  return Expression::make_bound_method(expr, func, location);
+  return Expression::make_bound_method(expr, this->stub_, location);
 }
 
 // Return the named object associated with a method.  This may only be
@@ -6544,9 +6155,8 @@ Named_method::do_receiver_location() const
 Expression*
 Named_method::do_bind_method(Expression* expr, source_location location) const
 {
-  Expression* func = Expression::make_func_reference(this->named_object_, NULL,
-						     location);
-  Bound_method_expression* bme = Expression::make_bound_method(expr, func,
+  Named_object* no = this->named_object_;
+  Bound_method_expression* bme = Expression::make_bound_method(expr, no,
 							       location);
   // If this is not a local method, and it does not use a stub, then
   // the real method expects a different type.  We need to cast the
@@ -6641,22 +6251,22 @@ Named_type::message_name() const
 Type*
 Named_type::named_base()
 {
-  if (this->seen_ > 0)
+  if (this->seen_)
     return this;
-  ++this->seen_;
+  this->seen_ = true;
   Type* ret = this->type_->base();
-  --this->seen_;
+  this->seen_ = false;
   return ret;
 }
 
 const Type*
 Named_type::named_base() const
 {
-  if (this->seen_ > 0)
+  if (this->seen_)
     return this;
-  ++this->seen_;
+  this->seen_ = true;
   const Type* ret = this->type_->base();
-  --this->seen_;
+  this->seen_ = false;
   return ret;
 }
 
@@ -6666,11 +6276,11 @@ Named_type::named_base() const
 bool
 Named_type::is_named_error_type() const
 {
-  if (this->seen_ > 0)
+  if (this->seen_)
     return false;
-  ++this->seen_;
+  this->seen_ = true;
   bool ret = this->type_->is_error_type();
-  --this->seen_;
+  this->seen_ = false;
   return ret;
 }
 
@@ -6820,11 +6430,11 @@ Named_type::interface_method_table(Gogo* gogo, const Interface_type* interface,
 bool
 Named_type::named_type_has_hidden_fields(std::string* reason) const
 {
-  if (this->seen_ > 0)
+  if (this->seen_)
     return false;
-  ++this->seen_;
+  this->seen_ = true;
   bool ret = this->type_->has_hidden_fields(this, reason);
-  --this->seen_;
+  this->seen_ = false;
   return ret;
 }
 
@@ -6990,11 +6600,11 @@ Named_type::do_verify()
 bool
 Named_type::do_has_pointer() const
 {
-  if (this->seen_ > 0)
+  if (this->seen_)
     return false;
-  ++this->seen_;
+  this->seen_ = true;
   bool ret = this->type_->has_pointer();
-  --this->seen_;
+  this->seen_ = false;
   return ret;
 }
 
@@ -7296,14 +6906,14 @@ Named_type::do_get_backend(Gogo* gogo)
     case TYPE_FUNCTION:
       // Don't build a circular data structure.  GENERIC can't handle
       // it.
-      if (this->seen_ > 0)
+      if (this->seen_in_get_backend_)
 	{
 	  this->is_circular_ = true;
 	  return gogo->backend()->circular_pointer_type(bt, true);
 	}
-      ++this->seen_;
+      this->seen_in_get_backend_ = true;
       bt1 = Type::get_named_base_btype(gogo, base);
-      --this->seen_;
+      this->seen_in_get_backend_ = false;
       if (this->is_circular_)
 	bt1 = gogo->backend()->circular_pointer_type(bt, true);
       if (!gogo->backend()->set_placeholder_function_type(bt, bt1))
@@ -7313,14 +6923,14 @@ Named_type::do_get_backend(Gogo* gogo)
     case TYPE_POINTER:
       // Don't build a circular data structure. GENERIC can't handle
       // it.
-      if (this->seen_ > 0)
+      if (this->seen_in_get_backend_)
 	{
 	  this->is_circular_ = true;
 	  return gogo->backend()->circular_pointer_type(bt, false);
 	}
-      ++this->seen_;
+      this->seen_in_get_backend_ = true;
       bt1 = Type::get_named_base_btype(gogo, base);
-      --this->seen_;
+      this->seen_in_get_backend_ = false;
       if (this->is_circular_)
 	bt1 = gogo->backend()->circular_pointer_type(bt, false);
       if (!gogo->backend()->set_placeholder_pointer_type(bt, bt1))
@@ -7819,9 +7429,10 @@ Type::build_one_stub_method(Gogo* gogo, Method* method,
   go_assert(func != NULL);
   Call_expression* call = Expression::make_call(func, arguments, is_varargs,
 						location);
+  call->set_hidden_fields_are_ok();
   size_t count = call->result_count();
   if (count == 0)
-    gogo->add_statement(Statement::make_statement(call));
+    gogo->add_statement(Statement::make_statement(call, true));
   else
     {
       Expression_list* retvals = new Expression_list();
@@ -7832,7 +7443,13 @@ Type::build_one_stub_method(Gogo* gogo, Method* method,
 	  for (size_t i = 0; i < count; ++i)
 	    retvals->push_back(Expression::make_call_result(call, i));
 	}
-      Statement* retstat = Statement::make_return_statement(retvals, location);
+      Return_statement* retstat = Statement::make_return_statement(retvals,
+								   location);
+
+      // We can return values with hidden fields from a stub.  This is
+      // necessary if the method is itself hidden.
+      retstat->set_hidden_fields_are_ok();
+
       gogo->add_statement(retstat);
     }
 }
@@ -7982,9 +7599,8 @@ Type::bind_field_or_method(Gogo* gogo, const Type* type, Expression* expr,
     {
       if (!ambig1.empty())
 	error_at(location, "%qs is ambiguous via %qs and %qs",
-		 Gogo::message_name(name).c_str(),
-		 Gogo::message_name(ambig1).c_str(),
-		 Gogo::message_name(ambig2).c_str());
+		 Gogo::message_name(name).c_str(), ambig1.c_str(),
+		 ambig2.c_str());
       else if (found_pointer_method)
 	error_at(location, "method requires a pointer");
       else if (nt == NULL && st == NULL && it == NULL)
@@ -8112,7 +7728,7 @@ Type::find_field_or_method(const Type* type,
        pf != fields->end();
        ++pf)
     {
-      if (pf->field_name() == name)
+      if (pf->is_field_name(name))
 	{
 	  *is_method = false;
 	  if (nt != NULL)
@@ -8155,8 +7771,10 @@ Type::find_field_or_method(const Type* type,
 	      // pass the ambiguity back to the caller.
 	      if (found_level == 0 || sublevel <= found_level)
 		{
-		  found_ambig1 = pf->field_name() + '.' + subambig1;
-		  found_ambig2 = pf->field_name() + '.' + subambig2;
+		  found_ambig1 = (Gogo::message_name(pf->field_name())
+				  + '.' + subambig1);
+		  found_ambig2 = (Gogo::message_name(pf->field_name())
+				  + '.' + subambig2);
 		  found_level = sublevel;
 		}
 	    }
@@ -8180,8 +7798,8 @@ Type::find_field_or_method(const Type* type,
 	    {
 	      // We found an ambiguity.
 	      go_assert(found_parent != NULL);
-	      found_ambig1 = found_parent->field_name();
-	      found_ambig2 = pf->field_name();
+	      found_ambig1 = Gogo::message_name(found_parent->field_name());
+	      found_ambig2 = Gogo::message_name(pf->field_name());
 	    }
 	  else
 	    {

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with System.Storage_Pools;    use System.Storage_Pools;
+with System.Storage_Pools; use System.Storage_Pools;
 with System.Memory;
 
 package body System.Pool_Global is
@@ -40,19 +40,25 @@ package body System.Pool_Global is
    -- Allocate --
    --------------
 
-   procedure Allocate
+   overriding procedure Allocate
      (Pool         : in out Unbounded_No_Reclaim_Pool;
       Address      : out System.Address;
       Storage_Size : SSE.Storage_Count;
       Alignment    : SSE.Storage_Count)
    is
+      use SSE;
       pragma Warnings (Off, Pool);
-      pragma Warnings (Off, Alignment);
 
-      Allocated : System.Address;
+      Aligned_Size    : Storage_Count := Storage_Size;
+      Aligned_Address : System.Address;
+      Allocated       : System.Address;
 
    begin
-      Allocated := Memory.Alloc (Memory.size_t (Storage_Size));
+      if Alignment > Standard'System_Allocator_Alignment then
+         Aligned_Size := Aligned_Size + Alignment;
+      end if;
+
+      Allocated := Memory.Alloc (Memory.size_t (Aligned_Size));
 
       --  The call to Alloc returns an address whose alignment is compatible
       --  with the worst case alignment requirement for the machine; thus the
@@ -60,6 +66,33 @@ package body System.Pool_Global is
 
       if Allocated = Null_Address then
          raise Storage_Error;
+      end if;
+
+      --  Case where alignment requested is greater than the alignment that is
+      --  guaranteed to be provided by the system allocator.
+
+      if Alignment > Standard'System_Allocator_Alignment then
+
+         --  Realign the returned address
+
+         Aligned_Address := To_Address
+           (To_Integer (Allocated) + Integer_Address (Alignment)
+              - (To_Integer (Allocated) mod Integer_Address (Alignment)));
+
+         --  Save the block address
+
+         declare
+            Saved_Address : System.Address;
+            pragma Import (Ada, Saved_Address);
+            for Saved_Address'Address use
+               Aligned_Address
+               - Storage_Offset (System.Address'Size / Storage_Unit);
+         begin
+            Saved_Address := Allocated;
+         end;
+
+         Address := Aligned_Address;
+
       else
          Address := Allocated;
       end if;
@@ -69,25 +102,44 @@ package body System.Pool_Global is
    -- Deallocate --
    ----------------
 
-   procedure Deallocate
+   overriding procedure Deallocate
      (Pool         : in out Unbounded_No_Reclaim_Pool;
       Address      : System.Address;
       Storage_Size : SSE.Storage_Count;
       Alignment    : SSE.Storage_Count)
    is
+      use System.Storage_Elements;
       pragma Warnings (Off, Pool);
       pragma Warnings (Off, Storage_Size);
-      pragma Warnings (Off, Alignment);
 
    begin
-      Memory.Free (Address);
+      --  Case where the alignment of the block exceeds the guaranteed
+      --  alignment required by the system storage allocator, meaning that
+      --  this was specially wrapped at allocation time.
+
+      if Alignment > Standard'System_Allocator_Alignment then
+
+         --  Retrieve the block address
+
+         declare
+            Saved_Address : System.Address;
+            pragma Import (Ada, Saved_Address);
+            for Saved_Address'Address use
+              Address - Storage_Offset (System.Address'Size / Storage_Unit);
+         begin
+            Memory.Free (Saved_Address);
+         end;
+
+      else
+         Memory.Free (Address);
+      end if;
    end Deallocate;
 
    ------------------
    -- Storage_Size --
    ------------------
 
-   function Storage_Size
+   overriding function Storage_Size
      (Pool  : Unbounded_No_Reclaim_Pool)
       return  SSE.Storage_Count
    is

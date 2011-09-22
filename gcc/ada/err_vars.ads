@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -143,7 +143,9 @@ package Err_Vars is
 
    Error_Msg_Warn : Boolean;
    --  Used if current message contains a < insertion character to indicate
-   --  if the current message is a warning message.
+   --  if the current message is a warning message. Must be set appropriately
+   --  before any call to Error_Msg_xxx with a < insertion character present.
+   --  Setting is irrelevant if no < insertion character is present.
 
    Error_Msg_String : String (1 .. 4096);
    Error_Msg_Strlen : Natural;

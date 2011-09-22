@@ -103,14 +103,6 @@ static const char * const ia64_local_reg_names[80] =
 static const char * const ia64_output_reg_names[8] =
 { "out0", "out1", "out2", "out3", "out4", "out5", "out6", "out7" };
 
-/* Determines whether we run our final scheduling pass or not.  We always
-   avoid the normal second scheduling pass.  */
-static int ia64_flag_schedule_insns2;
-
-/* Determines whether we run variable tracking in machine dependent
-   reorganization.  */
-static int ia64_flag_var_tracking;
-
 /* Variables which are this size or smaller are put in the sdata/sbss
    sections.  */
 
@@ -200,20 +192,19 @@ static rtx gen_fr_spill_x (rtx, rtx, rtx);
 static rtx gen_fr_restore_x (rtx, rtx, rtx);
 
 static void ia64_option_override (void);
-static void ia64_option_default_params (void);
 static bool ia64_can_eliminate (const int, const int);
 static enum machine_mode hfa_element_mode (const_tree, bool);
-static void ia64_setup_incoming_varargs (CUMULATIVE_ARGS *, enum machine_mode,
+static void ia64_setup_incoming_varargs (cumulative_args_t, enum machine_mode,
 					 tree, int *, int);
-static int ia64_arg_partial_bytes (CUMULATIVE_ARGS *, enum machine_mode,
+static int ia64_arg_partial_bytes (cumulative_args_t, enum machine_mode,
 				   tree, bool);
-static rtx ia64_function_arg_1 (const CUMULATIVE_ARGS *, enum machine_mode,
+static rtx ia64_function_arg_1 (cumulative_args_t, enum machine_mode,
 				const_tree, bool, bool);
-static rtx ia64_function_arg (CUMULATIVE_ARGS *, enum machine_mode,
+static rtx ia64_function_arg (cumulative_args_t, enum machine_mode,
 			      const_tree, bool);
-static rtx ia64_function_incoming_arg (CUMULATIVE_ARGS *,
+static rtx ia64_function_incoming_arg (cumulative_args_t,
 				       enum machine_mode, const_tree, bool);
-static void ia64_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode,
+static void ia64_function_arg_advance (cumulative_args_t, enum machine_mode,
 				       const_tree, bool);
 static unsigned int ia64_function_arg_boundary (enum machine_mode,
 						const_tree);
@@ -226,11 +217,9 @@ static int ia64_register_move_cost (enum machine_mode, reg_class_t,
                                     reg_class_t);
 static int ia64_memory_move_cost (enum machine_mode mode, reg_class_t,
 				  bool);
-static bool ia64_rtx_costs (rtx, int, int, int *, bool);
+static bool ia64_rtx_costs (rtx, int, int, int, int *, bool);
 static int ia64_unspec_may_trap_p (const_rtx, unsigned);
 static void fix_range (const char *);
-static bool ia64_handle_option (struct gcc_options *, struct gcc_options *,
-				const struct cl_decoded_option *, location_t);
 static struct machine_function * ia64_init_machine_status (void);
 static void emit_insn_group_barriers (FILE *);
 static void emit_all_insn_group_barriers (FILE *);
@@ -261,7 +250,6 @@ static void ia64_asm_emit_except_personality (rtx);
 static void ia64_asm_init_sections (void);
 
 static enum unwind_info_type ia64_debug_unwind_info (void);
-static enum unwind_info_type ia64_except_unwind_info (struct gcc_options *);
 
 static struct bundle_state *get_free_bundle_state (void);
 static void free_bundle_state (struct bundle_state *);
@@ -331,7 +319,6 @@ static enum machine_mode ia64_promote_function_mode (const_tree,
 static void ia64_trampoline_init (rtx, tree, rtx);
 static void ia64_override_options_after_change (void);
 
-static void ia64_dwarf_handle_frame_unspec (const char *, rtx, int);
 static tree ia64_builtin_decl (unsigned, bool);
 
 static reg_class_t ia64_preferred_reload_class (rtx, reg_class_t);
@@ -355,16 +342,6 @@ static const struct attribute_spec ia64_attribute_table[] =
     ia64_handle_version_id_attribute, false },
   { NULL,	       0, 0, false, false, false, NULL, false }
 };
-
-/* Implement overriding of the optimization options.  */
-static const struct default_options ia64_option_optimization_table[] =
-  {
-    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
-#ifdef SUBTARGET_OPTIMIZATION_OPTIONS
-    SUBTARGET_OPTIMIZATION_OPTIONS,
-#endif
-    { OPT_LEVELS_NONE, 0, NULL, 0 }
-  };
 
 /* Initialize the GCC target structure.  */
 #undef TARGET_ATTRIBUTE_TABLE
@@ -398,10 +375,6 @@ static const struct default_options ia64_option_optimization_table[] =
 
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE ia64_option_override
-#undef TARGET_OPTION_OPTIMIZATION_TABLE
-#define TARGET_OPTION_OPTIMIZATION_TABLE ia64_option_optimization_table
-#undef TARGET_OPTION_DEFAULT_PARAMS
-#define TARGET_OPTION_DEFAULT_PARAMS ia64_option_default_params
 
 #undef TARGET_ASM_FUNCTION_PROLOGUE
 #define TARGET_ASM_FUNCTION_PROLOGUE ia64_output_function_prologue
@@ -577,8 +550,6 @@ static const struct default_options ia64_option_optimization_table[] =
 #undef TARGET_GIMPLIFY_VA_ARG_EXPR
 #define TARGET_GIMPLIFY_VA_ARG_EXPR ia64_gimplify_va_arg
 
-#undef TARGET_DWARF_HANDLE_FRAME_UNSPEC
-#define TARGET_DWARF_HANDLE_FRAME_UNSPEC  ia64_dwarf_handle_frame_unspec
 #undef TARGET_ASM_UNWIND_EMIT
 #define TARGET_ASM_UNWIND_EMIT ia64_asm_unwind_emit
 #undef TARGET_ASM_EMIT_EXCEPT_PERSONALITY
@@ -588,8 +559,6 @@ static const struct default_options ia64_option_optimization_table[] =
 
 #undef TARGET_DEBUG_UNWIND_INFO
 #define TARGET_DEBUG_UNWIND_INFO  ia64_debug_unwind_info
-#undef TARGET_EXCEPT_UNWIND_INFO
-#define TARGET_EXCEPT_UNWIND_INFO  ia64_except_unwind_info
 
 #undef TARGET_SCALAR_MODE_SUPPORTED_P
 #define TARGET_SCALAR_MODE_SUPPORTED_P ia64_scalar_mode_supported_p
@@ -600,11 +569,6 @@ static const struct default_options ia64_option_optimization_table[] =
    in an order different from the specified program order.  */
 #undef TARGET_RELAXED_ORDERING
 #define TARGET_RELAXED_ORDERING true
-
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS (TARGET_DEFAULT | TARGET_CPU_DEFAULT)
-#undef TARGET_HANDLE_OPTION
-#define TARGET_HANDLE_OPTION ia64_handle_option
 
 #undef TARGET_LEGITIMATE_CONSTANT_P
 #define TARGET_LEGITIMATE_CONSTANT_P ia64_legitimate_constant_p
@@ -639,6 +603,14 @@ static const struct default_options ia64_option_optimization_table[] =
 
 #undef TARGET_PREFERRED_RELOAD_CLASS
 #define TARGET_PREFERRED_RELOAD_CLASS ia64_preferred_reload_class
+
+#undef TARGET_DELAY_SCHED2
+#define TARGET_DELAY_SCHED2 true
+
+/* Variable tracking should be run after all optimizations which
+   change order of insns.  It also needs a valid CFG.  */
+#undef TARGET_DELAY_VARTRACK
+#define TARGET_DELAY_VARTRACK true
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -1075,7 +1047,7 @@ ia64_expand_load_address (rtx dest, rtx src)
       tmp = gen_rtx_PLUS (Pmode, tmp, pic_offset_table_rtx);
       emit_insn (gen_rtx_SET (VOIDmode, dest, tmp));
 
-      tmp = gen_rtx_LO_SUM (Pmode, dest, src);
+      tmp = gen_rtx_LO_SUM (Pmode, gen_const_mem (Pmode, dest), src);
       emit_insn (gen_rtx_SET (VOIDmode, dest, tmp));
 
       if (addend)
@@ -2390,13 +2362,6 @@ ia64_expand_atomic_op (enum rtx_code code, rtx mem, rtx val,
 static void
 ia64_file_start (void)
 {
-  /* Variable tracking should be run after all optimizations which change order
-     of insns.  It also needs a valid CFG.  This can't be done in
-     ia64_option_override, because flag_var_tracking is finalized after
-     that.  */
-  ia64_flag_var_tracking = flag_var_tracking;
-  flag_var_tracking = 0;
-
   default_file_start ();
   emit_safe_across_calls ();
 }
@@ -3183,7 +3148,7 @@ ia64_expand_prologue (void)
   ia64_compute_frame_size (get_frame_size ());
   last_scratch_gr_reg = 15;
 
-  if (flag_stack_usage)
+  if (flag_stack_usage_info)
     current_function_static_stack_size = current_frame_info.total_size;
 
   if (dump_file) 
@@ -3281,7 +3246,14 @@ ia64_expand_prologue (void)
 				   GEN_INT (current_frame_info.n_local_regs),
 				   GEN_INT (current_frame_info.n_output_regs),
 				   GEN_INT (current_frame_info.n_rotate_regs)));
-      RTX_FRAME_RELATED_P (insn) = (current_frame_info.r[reg_save_ar_pfs] != 0);
+      if (current_frame_info.r[reg_save_ar_pfs])
+	{
+	  RTX_FRAME_RELATED_P (insn) = 1;
+	  add_reg_note (insn, REG_CFA_REGISTER,
+			gen_rtx_SET (VOIDmode,
+				     ar_pfs_save_reg,
+				     gen_rtx_REG (DImode, AR_PFS_REGNUM)));
+	}
     }
 
   /* Set up frame pointer, stack pointer, and spill iterators.  */
@@ -3469,7 +3441,8 @@ ia64_expand_prologue (void)
           reg_emitted (reg_save_b0);
 	  insn = emit_move_insn (alt_reg, reg);
 	  RTX_FRAME_RELATED_P (insn) = 1;
-	  add_reg_note (insn, REG_CFA_REGISTER, NULL_RTX);
+	  add_reg_note (insn, REG_CFA_REGISTER,
+			gen_rtx_SET (VOIDmode, alt_reg, pc_rtx));
 
 	  /* Even if we're not going to generate an epilogue, we still
 	     need to save the register so that EH works.  */
@@ -3817,10 +3790,19 @@ ia64_expand_epilogue (int sibcall_p)
       if (current_frame_info.n_input_regs != 0)
 	{
 	  rtx n_inputs = GEN_INT (current_frame_info.n_input_regs);
+
 	  insn = emit_insn (gen_alloc (gen_rtx_REG (DImode, fp),
 				const0_rtx, const0_rtx,
 				n_inputs, const0_rtx));
 	  RTX_FRAME_RELATED_P (insn) = 1;
+
+	  /* ??? We need to mark the alloc as frame-related so that it gets
+	     passed into ia64_asm_unwind_emit for ia64-specific unwinding.
+	     But there's nothing dwarf2 related to be done wrt the register
+	     windows.  If we do nothing, dwarf2out will abort on the UNSPEC;
+	     the empty parallel means dwarf2out will not see anything.  */
+	  add_reg_note (insn, REG_FRAME_RELATED_EXPR,
+			gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (0)));
 	}
     }
 }
@@ -4186,14 +4168,14 @@ ia64_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
    We generate the actual spill instructions during prologue generation.  */
 
 static void
-ia64_setup_incoming_varargs (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+ia64_setup_incoming_varargs (cumulative_args_t cum, enum machine_mode mode,
 			     tree type, int * pretend_size,
 			     int second_time ATTRIBUTE_UNUSED)
 {
-  CUMULATIVE_ARGS next_cum = *cum;
+  CUMULATIVE_ARGS next_cum = *get_cumulative_args (cum);
 
   /* Skip the current argument.  */
-  ia64_function_arg_advance (&next_cum, mode, type, 1);
+  ia64_function_arg_advance (pack_cumulative_args (&next_cum), mode, type, 1);
 
   if (next_cum.words < MAX_ARGUMENT_SLOTS)
     {
@@ -4341,9 +4323,11 @@ ia64_function_arg_offset (const CUMULATIVE_ARGS *cum,
    registers.  */
 
 static rtx
-ia64_function_arg_1 (const CUMULATIVE_ARGS *cum, enum machine_mode mode,
+ia64_function_arg_1 (cumulative_args_t cum_v, enum machine_mode mode,
 		     const_tree type, bool named, bool incoming)
 {
+  const CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+
   int basereg = (incoming ? GR_ARG_FIRST : AR_ARG_FIRST);
   int words = ia64_function_arg_words (type, mode);
   int offset = ia64_function_arg_offset (cum, type, words);
@@ -4534,7 +4518,7 @@ ia64_function_arg_1 (const CUMULATIVE_ARGS *cum, enum machine_mode mode,
 /* Implement TARGET_FUNCION_ARG target hook.  */
 
 static rtx
-ia64_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+ia64_function_arg (cumulative_args_t cum, enum machine_mode mode,
 		   const_tree type, bool named)
 {
   return ia64_function_arg_1 (cum, mode, type, named, false);
@@ -4543,7 +4527,7 @@ ia64_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
 /* Implement TARGET_FUNCION_INCOMING_ARG target hook.  */
 
 static rtx
-ia64_function_incoming_arg (CUMULATIVE_ARGS *cum,
+ia64_function_incoming_arg (cumulative_args_t cum,
 			    enum machine_mode mode,
 			    const_tree type, bool named)
 {
@@ -4555,9 +4539,11 @@ ia64_function_incoming_arg (CUMULATIVE_ARGS *cum,
    in memory.  */
 
 static int
-ia64_arg_partial_bytes (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+ia64_arg_partial_bytes (cumulative_args_t cum_v, enum machine_mode mode,
 			tree type, bool named ATTRIBUTE_UNUSED)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+
   int words = ia64_function_arg_words (type, mode);
   int offset = ia64_function_arg_offset (cum, type, words);
 
@@ -4596,9 +4582,10 @@ ia64_arg_type (enum machine_mode mode)
    ia64_function_arg.  */
 
 static void
-ia64_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+ia64_function_arg_advance (cumulative_args_t cum_v, enum machine_mode mode,
 			   const_tree type, bool named)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   int words = ia64_function_arg_words (type, mode);
   int offset = ia64_function_arg_offset (cum, type, words);
   enum machine_mode hfa_mode = VOIDmode;
@@ -4751,12 +4738,9 @@ ia64_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
   if ((TREE_CODE (type) == REAL_TYPE || TREE_CODE (type) == INTEGER_TYPE)
       ? int_size_in_bytes (type) > 8 : TYPE_ALIGN (type) > 8 * BITS_PER_UNIT)
     {
-      tree t = build2 (POINTER_PLUS_EXPR, TREE_TYPE (valist), valist,
-		       size_int (2 * UNITS_PER_WORD - 1));
-      t = fold_convert (sizetype, t);
+      tree t = fold_build_pointer_plus_hwi (valist, 2 * UNITS_PER_WORD - 1);
       t = build2 (BIT_AND_EXPR, TREE_TYPE (t), t,
-		  size_int (-2 * UNITS_PER_WORD));
-      t = fold_convert (TREE_TYPE (valist), t);
+		  build_int_cst (TREE_TYPE (t), -2 * UNITS_PER_WORD));
       gimplify_assign (unshare_expr (valist), t, pre_p);
     }
 
@@ -5260,8 +5244,8 @@ ia64_print_operand (FILE * file, rtx x, int code)
 /* ??? This is incomplete.  */
 
 static bool
-ia64_rtx_costs (rtx x, int code, int outer_code, int *total,
-		bool speed ATTRIBUTE_UNUSED)
+ia64_rtx_costs (rtx x, int code, int outer_code, int opno ATTRIBUTE_UNUSED,
+		int *total, bool speed ATTRIBUTE_UNUSED)
 {
   switch (code)
     {
@@ -5648,30 +5632,6 @@ fix_range (const char *const_str)
     }
 }
 
-/* Implement TARGET_HANDLE_OPTION.  */
-
-static bool
-ia64_handle_option (struct gcc_options *opts ATTRIBUTE_UNUSED,
-		    struct gcc_options *opts_set ATTRIBUTE_UNUSED,
-		    const struct cl_decoded_option *decoded,
-		    location_t loc)
-{
-  size_t code = decoded->opt_index;
-  const char *arg = decoded->arg;
-  int value = decoded->value;
-
-  switch (code)
-    {
-    case OPT_mtls_size_:
-      if (value != 14 && value != 22 && value != 64)
-	error_at (loc, "bad value %<%s%> for -mtls-size= switch", arg);
-      return true;
-
-    default:
-      return true;
-    }
-}
-
 /* Implement TARGET_OPTION_OVERRIDE.  */
 
 static void
@@ -5727,9 +5687,6 @@ ia64_option_override (void)
 static void
 ia64_override_options_after_change (void)
 {
-  ia64_flag_schedule_insns2 = flag_schedule_insns_after_reload;
-  flag_schedule_insns_after_reload = 0;
-
   if (optimize >= 3
       && !global_options_set.x_flag_selective_scheduling
       && !global_options_set.x_flag_selective_scheduling2)
@@ -9401,11 +9358,17 @@ ia64_reorg (void)
   if (optimize == 0)
     split_all_insns ();
 
-  if (optimize && ia64_flag_schedule_insns2
+  if (optimize && flag_schedule_insns_after_reload
       && dbg_cnt (ia64_sched2))
     {
+      basic_block bb;
       timevar_push (TV_SCHED2);
       ia64_final_schedule = 1;
+
+      /* We can't let modulo-sched prevent us from scheduling any bbs,
+	 since we need the final schedule to produce bundle information.  */
+      FOR_EACH_BB (bb)
+	bb->flags &= ~BB_DISABLE_SCHEDULE;
 
       initiate_bundle_states ();
       ia64_nop = make_insn_raw (gen_nop ());
@@ -9531,7 +9494,7 @@ ia64_reorg (void)
 
   emit_predicate_relation_info ();
 
-  if (ia64_flag_var_tracking)
+  if (flag_var_tracking)
     {
       timevar_push (TV_VAR_TRACKING);
       variable_tracking_main ();
@@ -9660,70 +9623,11 @@ static bool need_copy_state;
 # define MAX_ARTIFICIAL_LABEL_BYTES 30
 #endif
 
-/* Emit a debugging label after a call-frame-related insn.  We'd
-   rather output the label right away, but we'd have to output it
-   after, not before, the instruction, and the instruction has not
-   been output yet.  So we emit the label after the insn, delete it to
-   avoid introducing basic blocks, and mark it as preserved, such that
-   it is still output, given that it is referenced in debug info.  */
-
-static const char *
-ia64_emit_deleted_label_after_insn (rtx insn)
-{
-  char label[MAX_ARTIFICIAL_LABEL_BYTES];
-  rtx lb = gen_label_rtx ();
-  rtx label_insn = emit_label_after (lb, insn);
-
-  LABEL_PRESERVE_P (lb) = 1;
-
-  delete_insn (label_insn);
-
-  ASM_GENERATE_INTERNAL_LABEL (label, "L", CODE_LABEL_NUMBER (label_insn));
-
-  return xstrdup (label);
-}
-
-/* Define the CFA after INSN with the steady-state definition.  */
-
-static void
-ia64_dwarf2out_def_steady_cfa (rtx insn, bool frame)
-{
-  rtx fp = frame_pointer_needed
-    ? hard_frame_pointer_rtx
-    : stack_pointer_rtx;
-  const char *label = ia64_emit_deleted_label_after_insn (insn);
-
-  if (!frame)
-    return;
-
-  dwarf2out_def_cfa
-    (label, REGNO (fp),
-     ia64_initial_elimination_offset
-     (REGNO (arg_pointer_rtx), REGNO (fp))
-     + ARG_POINTER_CFA_OFFSET (current_function_decl));
-}
-
-/* All we need to do here is avoid a crash in the generic dwarf2
-   processing.  The real CFA definition is set up above.  */
-
-static void
-ia64_dwarf_handle_frame_unspec (const char * ARG_UNUSED (label),
-				rtx ARG_UNUSED (pattern),
-				int index)
-{
-  gcc_assert (index == UNSPECV_ALLOC);
-}
-
-/* The generic dwarf2 frame debug info generator does not define a
-   separate region for the very end of the epilogue, so refrain from
-   doing so in the IA64-specific code as well.  */
-
-#define IA64_CHANGE_CFA_IN_EPILOGUE 0
-
 /* The function emits unwind directives for the start of an epilogue.  */
 
 static void
-process_epilogue (FILE *asm_out_file, rtx insn, bool unwind, bool frame)
+process_epilogue (FILE *asm_out_file, rtx insn ATTRIBUTE_UNUSED,
+		  bool unwind, bool frame ATTRIBUTE_UNUSED)
 {
   /* If this isn't the last block of the function, then we need to label the
      current state, and copy it back in at the start of the next block.  */
@@ -9738,9 +9642,6 @@ process_epilogue (FILE *asm_out_file, rtx insn, bool unwind, bool frame)
 
   if (unwind)
     fprintf (asm_out_file, "\t.restore sp\n");
-  if (IA64_CHANGE_CFA_IN_EPILOGUE && frame)
-    dwarf2out_def_cfa (ia64_emit_deleted_label_after_insn (insn),
-		       STACK_POINTER_REGNUM, INCOMING_FRAME_SP_OFFSET);
 }
 
 /* This function processes a SET pattern for REG_CFA_ADJUST_CFA.  */
@@ -9768,7 +9669,6 @@ process_cfa_adjust_cfa (FILE *asm_out_file, rtx pat, rtx insn,
 		fprintf (asm_out_file,
 			 "\t.fframe "HOST_WIDE_INT_PRINT_DEC"\n",
 			 -INTVAL (op1));
-	      ia64_dwarf2out_def_steady_cfa (insn, frame);
 	    }
 	  else
 	    process_epilogue (asm_out_file, insn, unwind, frame);
@@ -9787,7 +9687,6 @@ process_cfa_adjust_cfa (FILE *asm_out_file, rtx pat, rtx insn,
       if (unwind)
 	fprintf (asm_out_file, "\t.vframe r%d\n",
 		 ia64_dbx_register_number (REGNO (dest)));
-      ia64_dwarf2out_def_steady_cfa (insn, frame);
     }
   else
     gcc_unreachable ();
@@ -9800,20 +9699,22 @@ process_cfa_register (FILE *asm_out_file, rtx pat, bool unwind)
 {
   rtx dest = SET_DEST (pat);
   rtx src = SET_SRC (pat);
-
   int dest_regno = REGNO (dest);
-  int src_regno = REGNO (src);
+  int src_regno;
 
-  switch (src_regno)
+  if (src == pc_rtx)
     {
-    case BR_REG (0):
       /* Saving return address pointer.  */
-      gcc_assert (dest_regno == current_frame_info.r[reg_save_b0]);
       if (unwind)
 	fprintf (asm_out_file, "\t.save rp, r%d\n",
 		 ia64_dbx_register_number (dest_regno));
-      break;
+      return;
+    }
 
+  src_regno = REGNO (src);
+
+  switch (src_regno)
+    {
     case PR_REG (0):
       gcc_assert (dest_regno == current_frame_info.r[reg_save_pr]);
       if (unwind)
@@ -9987,8 +9888,6 @@ ia64_asm_unwind_emit (FILE *asm_out_file, rtx insn)
 	      fprintf (asm_out_file, "\t.copy_state %d\n",
 		       cfun->machine->state_num);
 	    }
-	  if (IA64_CHANGE_CFA_IN_EPILOGUE)
-	    ia64_dwarf2out_def_steady_cfa (insn, frame);
 	  need_copy_state = false;
 	}
     }
@@ -10099,25 +9998,6 @@ ia64_debug_unwind_info (void)
 {
   return UI_TARGET;
 }
-
-/* Implement TARGET_EXCEPT_UNWIND_INFO.  */
-
-static enum unwind_info_type
-ia64_except_unwind_info (struct gcc_options *opts)
-{
-  /* Honor the --enable-sjlj-exceptions configure switch.  */
-#ifdef CONFIG_UNWIND_EXCEPTIONS
-  if (CONFIG_UNWIND_EXCEPTIONS)
-    return UI_SJLJ;
-#endif
-
-  /* For simplicity elsewhere in this file, indicate that all unwind
-     info is disabled if we're not emitting unwind tables.  */
-  if (!opts->x_flag_exceptions && !opts->x_flag_unwind_tables)
-    return UI_NONE;
-
-  return UI_TARGET;
-}
 
 enum ia64_builtins
 {
@@ -10198,11 +10078,9 @@ ia64_init_builtins (void)
 					       "__float128");
 
   /* Fwrite on VMS is non-standard.  */
-  if (TARGET_ABI_OPEN_VMS)
-    {
-      implicit_built_in_decls[(int) BUILT_IN_FWRITE] = NULL_TREE;
-      implicit_built_in_decls[(int) BUILT_IN_FWRITE_UNLOCKED] = NULL_TREE;
-    }
+#if TARGET_ABI_OPEN_VMS
+  vms_patch_builtins ();
+#endif
 
 #define def_builtin(name, type, code)					\
   add_builtin_function ((name), (type), (code), BUILT_IN_MD,	\
@@ -10329,10 +10207,6 @@ ia64_asm_output_external (FILE *file, tree decl, const char *name)
 	 visibility directive is output.  */
       int need_visibility = ((*targetm.binds_local_p) (decl)
 			     && maybe_assemble_visibility (decl));
-
-#ifdef DO_CRTL_NAMES
-      DO_CRTL_NAMES;
-#endif
 
       /* GNU as does not need anything here, but the HP linker does
 	 need something for external functions.  */
@@ -10921,20 +10795,6 @@ ia64_invalid_binary_op (int op ATTRIBUTE_UNUSED, const_tree type1, const_tree ty
   if (TYPE_MODE (type1) == RFmode || TYPE_MODE (type2) == RFmode)
     return N_("invalid operation on %<__fpreg%>");
   return NULL;
-}
-
-/* Implement TARGET_OPTION_DEFAULT_PARAMS.  */
-static void
-ia64_option_default_params (void)
-{
-  /* Let the scheduler form additional regions.  */
-  set_default_param_value (PARAM_MAX_SCHED_EXTEND_REGIONS_ITERS, 2);
-
-  /* Set the default values for cache-related parameters.  */
-  set_default_param_value (PARAM_SIMULTANEOUS_PREFETCHES, 6);
-  set_default_param_value (PARAM_L1_CACHE_LINE_SIZE, 32);
-
-  set_default_param_value (PARAM_SCHED_MEM_TRUE_DEP_COST, 4);
 }
 
 /* HP-UX version_id attribute.

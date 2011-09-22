@@ -80,6 +80,22 @@ along with GCC; see the file COPYING3.  If not see
 #define CPP_SPEC \
 "%{pthread|threads:-D_REENTRANT} %{threads:-D_PTHREAD_USE_D4}"
 
+/* -mcpu=native handling only makes sense with compiler running on
+   an Alpha chip.  */
+#if defined(__alpha__) || defined(__alpha)
+extern const char *host_detect_local_cpu (int argc, const char **argv);
+# define EXTRA_SPEC_FUNCTIONS						\
+  { "local_cpu_detect", host_detect_local_cpu },
+
+# define MCPU_MTUNE_NATIVE_SPECS					\
+   " %{mcpu=native:%<mcpu=native %:local_cpu_detect(cpu)}"		\
+   " %{mtune=native:%<mtune=native %:local_cpu_detect(tune)}"
+#else
+# define MCPU_MTUNE_NATIVE_SPECS ""
+#endif
+
+#define DRIVER_SELF_SPECS MCPU_MTUNE_NATIVE_SPECS
+
 /* Under DEC OSF/1 V4, -p and -pg require -lprof1, and -lprof1 requires 
    -lpdf.  */
 
@@ -165,22 +181,7 @@ along with GCC; see the file COPYING3.  If not see
 #define HAVE_STAMP_H 1
 #endif
 
-/* Attempt to turn on access permissions for the stack.  */
-
-#define ENABLE_EXECUTE_STACK						\
-void									\
-__enable_execute_stack (void *addr)					\
-{									\
-  extern int mprotect (const void *, size_t, int);			\
-  long size = getpagesize ();						\
-  long mask = ~(size-1);						\
-  char *page = (char *) (((long) addr) & mask);				\
-  char *end  = (char *) ((((long) (addr + TRAMPOLINE_SIZE)) & mask) + size); \
-									\
-  /* 7 is PROT_READ | PROT_WRITE | PROT_EXEC */				\
-  if (mprotect (page, end - page, 7) < 0)				\
-    perror ("mprotect of trampoline code");				\
-}
+#define HAVE_ENABLE_EXECUTE_STACK
 
 /* Digital UNIX V4.0E (1091)/usr/include/sys/types.h 4.3.49.9 1997/08/14 */
 #define SIZE_TYPE	"long unsigned int"
@@ -275,4 +276,4 @@ __enable_execute_stack (void *addr)					\
 /* Handle #pragma extern_prefix.  */
 #define TARGET_HANDLE_PRAGMA_EXTERN_PREFIX 1
 
-#define MD_UNWIND_SUPPORT "config/alpha/osf5-unwind.h"
+#define TARGET_HAVE_NAMED_SECTIONS false

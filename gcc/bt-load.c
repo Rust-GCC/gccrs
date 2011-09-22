@@ -558,7 +558,7 @@ compute_defs_uses_and_gen (fibheap_t all_btr_defs, btr_def *def_array,
 		      /* Check for sibcall.  */
 		      if (GET_CODE (pat) == PARALLEL)
 			for (i = XVECLEN (pat, 0) - 1; i >= 0; i--)
-			  if (GET_CODE (XVECEXP (pat, 0, i)) == RETURN)
+			  if (ANY_RETURN_P (XVECEXP (pat, 0, i)))
 			    {
 			      COMPL_HARD_REG_SET (call_saved,
 						  call_used_reg_set);
@@ -1519,7 +1519,6 @@ struct rtl_opt_pass pass_branch_target_load_optimize1 =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func |
   TODO_verify_rtl_sharing |
   TODO_ggc_collect,                     /* todo_flags_finish */
  }
@@ -1569,7 +1568,6 @@ struct rtl_opt_pass pass_branch_target_load_optimize2 =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func |
   TODO_ggc_collect,                     /* todo_flags_finish */
  }
 };

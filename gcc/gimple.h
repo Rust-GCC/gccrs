@@ -1,6 +1,6 @@
 /* Gimple IR definitions.
 
-   Copyright 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+   Copyright 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -114,15 +114,17 @@ enum gf_mask {
     GF_OMP_RETURN_NOWAIT	= 1 << 0,
 
     GF_OMP_SECTION_LAST		= 1 << 0,
+    GF_OMP_ATOMIC_NEED_VALUE	= 1 << 0,
     GF_PREDICT_TAKEN		= 1 << 15
 };
 
-/* Currently, there's only one type of gimple debug stmt.  Others are
+/* Currently, there are only two types of gimple debug stmt.  Others are
    envisioned, for example, to enable the generation of is_stmt notes
    in line number information, to mark sequence points, etc.  This
    subcode is to be used to tell them apart.  */
 enum gimple_debug_subcode {
-  GIMPLE_DEBUG_BIND = 0
+  GIMPLE_DEBUG_BIND = 0,
+  GIMPLE_DEBUG_SOURCE_BIND = 1
 };
 
 /* Masks for selecting a pass local flag (PLF) to work on.  These
@@ -823,6 +825,9 @@ gimple gimple_build_assign_with_ops_stat (enum tree_code, tree, tree,
 gimple gimple_build_debug_bind_stat (tree, tree, gimple MEM_STAT_DECL);
 #define gimple_build_debug_bind(var,val,stmt)			\
   gimple_build_debug_bind_stat ((var), (val), (stmt) MEM_STAT_INFO)
+gimple gimple_build_debug_source_bind_stat (tree, tree, gimple MEM_STAT_DECL);
+#define gimple_build_debug_source_bind(var,val,stmt)			\
+  gimple_build_debug_source_bind_stat ((var), (val), (stmt) MEM_STAT_INFO)
 
 gimple gimple_build_call_vec (tree, VEC(tree, heap) *);
 gimple gimple_build_call (tree, unsigned, ...);
@@ -904,7 +909,7 @@ unsigned get_gimple_rhs_num_ops (enum tree_code);
 gimple gimple_alloc_stat (enum gimple_code, unsigned MEM_STAT_DECL);
 const char *gimple_decl_printable_name (tree, int);
 bool gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace);
-tree gimple_get_virt_method_for_binfo (HOST_WIDE_INT, tree, tree *, bool);
+tree gimple_get_virt_method_for_binfo (HOST_WIDE_INT, tree);
 void gimple_adjust_this_by_delta (gimple_stmt_iterator *, tree);
 tree gimple_extract_devirt_binfo_from_cst (tree);
 /* Returns true iff T is a valid GIMPLE statement.  */
@@ -1627,6 +1632,29 @@ gimple_omp_parallel_set_combined_p (gimple g, bool combined_p)
     g->gsbase.subcode |= GF_OMP_PARALLEL_COMBINED;
   else
     g->gsbase.subcode &= ~GF_OMP_PARALLEL_COMBINED;
+}
+
+
+/* Return true if OMP atomic load/store statement G has the
+   GF_OMP_ATOMIC_NEED_VALUE flag set.  */
+
+static inline bool
+gimple_omp_atomic_need_value_p (const_gimple g)
+{
+  if (gimple_code (g) != GIMPLE_OMP_ATOMIC_LOAD)
+    GIMPLE_CHECK (g, GIMPLE_OMP_ATOMIC_STORE);
+  return (gimple_omp_subcode (g) & GF_OMP_ATOMIC_NEED_VALUE) != 0;
+}
+
+
+/* Set the GF_OMP_ATOMIC_NEED_VALUE flag on G.  */
+
+static inline void
+gimple_omp_atomic_set_need_value (gimple g)
+{
+  if (gimple_code (g) != GIMPLE_OMP_ATOMIC_LOAD)
+    GIMPLE_CHECK (g, GIMPLE_OMP_ATOMIC_STORE);
+  g->gsbase.subcode |= GF_OMP_ATOMIC_NEED_VALUE;
 }
 
 
@@ -3583,6 +3611,70 @@ gimple_debug_bind_has_value_p (gimple dbg)
 
 #undef GIMPLE_DEBUG_BIND_NOVALUE
 
+/* Return true if S is a GIMPLE_DEBUG SOURCE BIND statement.  */
+
+static inline bool
+gimple_debug_source_bind_p (const_gimple s)
+{
+  if (is_gimple_debug (s))
+    return s->gsbase.subcode == GIMPLE_DEBUG_SOURCE_BIND;
+
+  return false;
+}
+
+/* Return the variable bound in a GIMPLE_DEBUG source bind statement.  */
+
+static inline tree
+gimple_debug_source_bind_get_var (gimple dbg)
+{
+  GIMPLE_CHECK (dbg, GIMPLE_DEBUG);
+  gcc_gimple_checking_assert (gimple_debug_source_bind_p (dbg));
+  return gimple_op (dbg, 0);
+}
+
+/* Return the value bound to the variable in a GIMPLE_DEBUG source bind
+   statement.  */
+
+static inline tree
+gimple_debug_source_bind_get_value (gimple dbg)
+{
+  GIMPLE_CHECK (dbg, GIMPLE_DEBUG);
+  gcc_gimple_checking_assert (gimple_debug_source_bind_p (dbg));
+  return gimple_op (dbg, 1);
+}
+
+/* Return a pointer to the value bound to the variable in a
+   GIMPLE_DEBUG source bind statement.  */
+
+static inline tree *
+gimple_debug_source_bind_get_value_ptr (gimple dbg)
+{
+  GIMPLE_CHECK (dbg, GIMPLE_DEBUG);
+  gcc_gimple_checking_assert (gimple_debug_source_bind_p (dbg));
+  return gimple_op_ptr (dbg, 1);
+}
+
+/* Set the variable bound in a GIMPLE_DEBUG source bind statement.  */
+
+static inline void
+gimple_debug_source_bind_set_var (gimple dbg, tree var)
+{
+  GIMPLE_CHECK (dbg, GIMPLE_DEBUG);
+  gcc_gimple_checking_assert (gimple_debug_source_bind_p (dbg));
+  gimple_set_op (dbg, 0, var);
+}
+
+/* Set the value bound to the variable in a GIMPLE_DEBUG source bind
+   statement.  */
+
+static inline void
+gimple_debug_source_bind_set_value (gimple dbg, tree value)
+{
+  GIMPLE_CHECK (dbg, GIMPLE_DEBUG);
+  gcc_gimple_checking_assert (gimple_debug_source_bind_p (dbg));
+  gimple_set_op (dbg, 1, value);
+}
+
 /* Return the body for the OMP statement GS.  */
 
 static inline gimple_seq
@@ -4976,16 +5068,13 @@ extern void dump_gimple_statistics (void);
 void gimplify_and_update_call_from_tree (gimple_stmt_iterator *, tree);
 tree gimple_fold_builtin (gimple);
 bool fold_stmt (gimple_stmt_iterator *);
-bool fold_stmt_inplace (gimple);
-tree maybe_fold_offset_to_address (location_t, tree, tree, tree);
-tree maybe_fold_offset_to_reference (location_t, tree, tree, tree);
-tree maybe_fold_stmt_addition (location_t, tree, tree, tree);
+bool fold_stmt_inplace (gimple_stmt_iterator *);
 tree get_symbol_constant_value (tree);
 tree canonicalize_constructor_val (tree);
-bool may_propagate_address_into_dereference (tree, tree);
 extern tree maybe_fold_and_comparisons (enum tree_code, tree, tree, 
 					enum tree_code, tree, tree);
 extern tree maybe_fold_or_comparisons (enum tree_code, tree, tree,
 				       enum tree_code, tree, tree);
 
+bool gimple_val_nonnegative_real_p (tree);
 #endif  /* GCC_GIMPLE_H */

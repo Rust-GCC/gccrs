@@ -79,6 +79,7 @@ extern char sizeof_long_long_must_be_8[sizeof(long long) == 8 ? 1 : -1];
 #if HOST_BITS_PER_WIDE_INT == HOST_BITS_PER_LONG
 # define HOST_WIDE_INT_PRINT HOST_LONG_FORMAT
 # define HOST_WIDE_INT_PRINT_C "L"
+# define HOST_WIDE_INT_1 1L
   /* 'long' might be 32 or 64 bits, and the number of leading zeroes
      must be tweaked accordingly.  */
 # if HOST_BITS_PER_WIDE_INT == 64
@@ -91,6 +92,7 @@ extern char sizeof_long_long_must_be_8[sizeof(long long) == 8 ? 1 : -1];
 #else
 # define HOST_WIDE_INT_PRINT HOST_LONG_LONG_FORMAT
 # define HOST_WIDE_INT_PRINT_C "LL"
+# define HOST_WIDE_INT_1 1LL
   /* We can assume that 'long long' is at least 64 bits.  */
 # define HOST_WIDE_INT_PRINT_DOUBLE_HEX \
     "0x%" HOST_LONG_LONG_FORMAT "x%016" HOST_LONG_LONG_FORMAT "x"
@@ -228,33 +230,15 @@ exact_log2 (unsigned HOST_WIDE_INT x)
 
 #endif /* GCC_VERSION >= 3004 */
 
-/* Compute the greatest common divisor of two numbers using
-   Euclid's algorithm.  */
+#define HOST_WIDE_INT_MIN (HOST_WIDE_INT) \
+  ((unsigned HOST_WIDE_INT) 1 << (HOST_BITS_PER_WIDE_INT - 1))
+#define HOST_WIDE_INT_MAX (~(HOST_WIDE_INT_MIN))
 
-static inline int
-gcd (int a, int b)
-{
-  int x, y, z;
-
-  x = abs (a);
-  y = abs (b);
-
-  while (x > 0)
-    {
-      z = y % x;
-      y = x;
-      x = z;
-    }
-
-  return y;
-}
-
-/* Compute the least common multiple of two numbers A and B .  */
-
-static inline int
-least_common_multiple (int a, int b)
-{
-  return (abs (a) * abs (b) / gcd (a, b));
-}
+extern HOST_WIDE_INT abs_hwi (HOST_WIDE_INT);
+extern unsigned HOST_WIDE_INT absu_hwi (HOST_WIDE_INT);
+extern HOST_WIDE_INT gcd (HOST_WIDE_INT, HOST_WIDE_INT);
+extern HOST_WIDE_INT pos_mul_hwi (HOST_WIDE_INT, HOST_WIDE_INT);
+extern HOST_WIDE_INT mul_hwi (HOST_WIDE_INT, HOST_WIDE_INT);
+extern HOST_WIDE_INT least_common_multiple (HOST_WIDE_INT, HOST_WIDE_INT);
 
 #endif /* ! GCC_HWINT_H */

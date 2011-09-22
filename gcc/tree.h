@@ -1,6 +1,6 @@
 /* Front-end tree definitions for GNU compiler.
    Copyright (C) 1989, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -277,6 +277,10 @@ enum built_in_class
   BUILT_IN_NORMAL
 };
 
+/* Last marker used for LTO stremaing of built_in_class.  We can not add it
+   to the enum since we need the enumb to fit in 2 bits.  */
+#define BUILT_IN_LAST (BUILT_IN_NORMAL + 1)
+
 /* Names for the above.  */
 extern const char *const built_in_class_names[4];
 
@@ -399,7 +403,13 @@ enum omp_clause_code
   OMP_CLAUSE_COLLAPSE,
 
   /* OpenMP clause: untied.  */
-  OMP_CLAUSE_UNTIED
+  OMP_CLAUSE_UNTIED,
+
+  /* OpenMP clause: final (scalar-expression).  */
+  OMP_CLAUSE_FINAL,
+
+  /* OpenMP clause: mergeable.  */
+  OMP_CLAUSE_MERGEABLE
 };
 
 /* The definition of tree nodes fills the next several pages.  */
@@ -695,6 +705,9 @@ struct GTY(()) tree_common {
            all expressions
            all decls
 
+       TYPE_ARTIFICIAL in
+           all types
+
    default_def_flag:
 
        TYPE_VECTOR_OPAQUE in
@@ -782,7 +795,7 @@ enum tree_node_structure_enum {
 			     (CODE1), (CODE2), (CODE3), (CODE4), 0);	\
     __t; })
 
-#define NON_TREE_CHECK4(T, CODE1, CODE2, CODE3, CODE4) __extension__	\
+#define TREE_NOT_CHECK4(T, CODE1, CODE2, CODE3, CODE4) __extension__	\
 ({  __typeof (T) const __t = (T);					\
     if (TREE_CODE (__t) == (CODE1)					\
 	|| TREE_CODE (__t) == (CODE2)					\
@@ -1239,6 +1252,9 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
    emitted.  */
 #define TREE_NO_WARNING(NODE) ((NODE)->base.nowarning_flag)
 
+/* Used to indicate that this TYPE represents a compiler-generated entity.  */
+#define TYPE_ARTIFICIAL(NODE) (TYPE_CHECK (NODE)->base.nowarning_flag)
+
 /* In an IDENTIFIER_NODE, this means that assemble_name was called with
    this string as an argument.  */
 #define TREE_SYMBOL_REFERENCED(NODE) \
@@ -1393,6 +1409,10 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
 
 #define DECL_READ_P(NODE) \
   (TREE_CHECK2 (NODE, VAR_DECL, PARM_DECL)->decl_common.decl_read_flag)
+
+#define DECL_NONSHAREABLE(NODE) \
+  (TREE_CHECK2 (NODE, VAR_DECL, \
+		RESULT_DECL)->decl_common.decl_nonshareable_flag)
 
 /* In a CALL_EXPR, means that the call is the jump from a thunk to the
    thunked-to function.  */
@@ -1865,6 +1885,8 @@ extern void protected_set_expr_location (tree, location_t);
 #define OMP_CLAUSE_LASTPRIVATE_GIMPLE_SEQ(NODE) \
   (OMP_CLAUSE_CHECK (NODE))->omp_clause.gimple_reduction_init
 
+#define OMP_CLAUSE_FINAL_EXPR(NODE) \
+  OMP_CLAUSE_OPERAND (OMP_CLAUSE_SUBCODE_CHECK (NODE, OMP_CLAUSE_FINAL), 0)
 #define OMP_CLAUSE_IF_EXPR(NODE) \
   OMP_CLAUSE_OPERAND (OMP_CLAUSE_SUBCODE_CHECK (NODE, OMP_CLAUSE_IF), 0)
 #define OMP_CLAUSE_NUM_THREADS_EXPR(NODE) \
@@ -1917,7 +1939,7 @@ enum omp_clause_default_kind
   (OMP_CLAUSE_SUBCODE_CHECK (NODE, OMP_CLAUSE_DEFAULT)->omp_clause.subcode.default_kind)
 
 struct GTY(()) tree_exp {
-  struct tree_common common;
+  struct tree_typed typed;
   location_t locus;
   tree block;
   tree GTY ((special ("tree_exp"),
@@ -2051,9 +2073,7 @@ struct GTY(()) tree_omp_clause {
   VEC_index (tree, BLOCK_NONLOCALIZED_VARS (NODE), N)
 #define BLOCK_SUBBLOCKS(NODE) (BLOCK_CHECK (NODE)->block.subblocks)
 #define BLOCK_SUPERCONTEXT(NODE) (BLOCK_CHECK (NODE)->block.supercontext)
-/* Note: when changing this, make sure to find the places
-   that use chainon or nreverse.  */
-#define BLOCK_CHAIN(NODE) TREE_CHAIN (BLOCK_CHECK (NODE))
+#define BLOCK_CHAIN(NODE) (BLOCK_CHECK (NODE)->block.chain)
 #define BLOCK_ABSTRACT_ORIGIN(NODE) (BLOCK_CHECK (NODE)->block.abstract_origin)
 #define BLOCK_ABSTRACT(NODE) (BLOCK_CHECK (NODE)->block.abstract_flag)
 
@@ -2094,7 +2114,8 @@ struct GTY(()) tree_omp_clause {
 #define BLOCK_SOURCE_LOCATION(NODE) (BLOCK_CHECK (NODE)->block.locus)
 
 struct GTY(()) tree_block {
-  struct tree_common common;
+  struct tree_base base;
+  tree chain;
 
   unsigned abstract_flag : 1;
   unsigned block_num : 31;
@@ -2884,8 +2905,9 @@ struct GTY(()) tree_decl_common {
      being set.  */
   unsigned decl_read_flag : 1;
 
-  /* Padding so that 'off_align' can be on a 32-bit boundary.  */
-  unsigned decl_common_unused : 1;
+  /* In VAR_DECL or RESULT_DECL set when significant code movement precludes
+     attempting to share the stack slot with some other variable.  */
+  unsigned decl_nonshareable_flag : 1;
 
   /* DECL_OFFSET_ALIGN, used only for FIELD_DECLs.  */
   unsigned int off_align : 8;
@@ -3423,6 +3445,13 @@ struct GTY(())
 #define DECL_DISREGARD_INLINE_LIMITS(NODE) \
   (FUNCTION_DECL_CHECK (NODE)->function_decl.disregard_inline_limits)
 
+extern VEC(tree, gc) **decl_debug_args_lookup (tree);
+extern VEC(tree, gc) **decl_debug_args_insert (tree);
+
+/* Nonzero if a FUNCTION_DECL has DEBUG arguments attached to it.  */
+#define DECL_HAS_DEBUG_ARGS_P(NODE) \
+  (FUNCTION_DECL_CHECK (NODE)->function_decl.has_debug_args_flag)
+
 /* For FUNCTION_DECL, this holds a pointer to a structure ("struct function")
    that describes the status of this function.  */
 #define DECL_STRUCT_FUNCTION(NODE) \
@@ -3488,16 +3517,16 @@ struct GTY(()) tree_function_decl {
   unsigned operator_new_flag : 1;
   unsigned declared_inline_flag : 1;
   unsigned regdecl_flag : 1;
-
   unsigned no_inline_warning_flag : 1;
+
   unsigned no_instrument_function_entry_exit : 1;
   unsigned no_limit_stack : 1;
   unsigned disregard_inline_limits : 1;
   unsigned pure_flag : 1;
   unsigned looping_const_or_pure_flag : 1;
+  unsigned has_debug_args_flag : 1;
 
-
-  /* 3 bits left */
+  /* 2 bits left */
 };
 
 /* The source language of the translation-unit.  */
@@ -3557,7 +3586,7 @@ struct GTY ((chain_next ("%h.next"), chain_prev ("%h.prev"))) tree_statement_lis
 
 struct GTY(()) tree_statement_list
  {
-  struct tree_common common;
+  struct tree_typed typed;
   struct tree_statement_list_node *head;
   struct tree_statement_list_node *tail;
 };
@@ -4050,6 +4079,12 @@ enum ptrmemfunc_vbit_where_t
 
 #define NULL_TREE (tree) NULL
 
+/* True if NODE is an erroneous expression.  */
+
+#define error_operand_p(NODE)					\
+  ((NODE) == error_mark_node					\
+   || ((NODE) && TREE_TYPE ((NODE)) == error_mark_node))
+
 extern tree decl_assembler_name (tree);
 extern bool decl_assembler_name_equal (tree decl, const_tree asmname);
 extern hashval_t decl_assembler_name_hash (const_tree asmname);
@@ -4288,7 +4323,6 @@ extern tree signed_or_unsigned_type_for (int, tree);
 extern tree signed_type_for (tree);
 extern tree unsigned_type_for (tree);
 extern void initialize_sizetypes (void);
-extern void set_sizetype (tree);
 extern void fixup_unsigned_type (tree);
 extern tree build_pointer_type_for_mode (tree, enum machine_mode, bool);
 extern tree build_pointer_type (tree);
@@ -4346,7 +4380,6 @@ tree_low_cst (const_tree t, int pos)
   return TREE_INT_CST_LOW (t);
 }
 #endif
-extern int tree_int_cst_msb (const_tree);
 extern int tree_int_cst_sgn (const_tree);
 extern int tree_int_cst_sign_bit (const_tree);
 extern unsigned int tree_int_cst_min_precision (tree, bool);
@@ -4485,18 +4518,54 @@ enum attribute_flags
 extern tree merge_decl_attributes (tree, tree);
 extern tree merge_type_attributes (tree, tree);
 
-/* Given a tree node and a string, return nonzero if the tree node is
-   a valid attribute name for the string.  */
+/* This function is a private implementation detail of lookup_attribute()
+   and you should never call it directly.  */
+extern tree private_lookup_attribute (const char *, size_t, tree);
 
-extern int is_attribute_p (const char *, const_tree);
+/* Given an attribute name ATTR_NAME and a list of attributes LIST,
+   return a pointer to the attribute's list element if the attribute
+   is part of the list, or NULL_TREE if not found.  If the attribute
+   appears more than once, this only returns the first occurrence; the
+   TREE_CHAIN of the return value should be passed back in if further
+   occurrences are wanted.  ATTR_NAME must be in the form 'text' (not
+   '__text__').  */
 
-/* Given an attribute name and a list of attributes, return the list element
-   of the attribute or NULL_TREE if not found.  */
+static inline tree
+lookup_attribute (const char *attr_name, tree list)
+{
+  gcc_checking_assert (attr_name[0] != '_');  
+  /* In most cases, list is NULL_TREE.  */
+  if (list == NULL_TREE)
+    return NULL_TREE;
+  else
+    /* Do the strlen() before calling the out-of-line implementation.
+       In most cases attr_name is a string constant, and the compiler
+       will optimize the strlen() away.  */
+    return private_lookup_attribute (attr_name, strlen (attr_name), list);
+}
 
-extern tree lookup_attribute (const char *, tree);
+/* This function is a private implementation detail of
+   is_attribute_p() and you should never call it directly.  */
+extern bool private_is_attribute_p (const char *, size_t, const_tree);
+
+/* Given an identifier node IDENT and a string ATTR_NAME, return true
+   if the identifier node is a valid attribute name for the string.
+   ATTR_NAME must be in the form 'text' (not '__text__').  IDENT could
+   be the identifier for 'text' or for '__text__'.  */
+
+static inline bool
+is_attribute_p (const char *attr_name, const_tree ident)
+{
+  gcc_checking_assert (attr_name[0] != '_');
+  /* Do the strlen() before calling the out-of-line implementation.
+     In most cases attr_name is a string constant, and the compiler
+     will optimize the strlen() away.  */
+  return private_is_attribute_p (attr_name, strlen (attr_name), ident);
+}
 
 /* Remove any instances of attribute ATTR_NAME in LIST and return the
-   modified list.  */
+   modified list.  ATTR_NAME must be in the form 'text' (not
+   '__text__').  */
 
 extern tree remove_attribute (const char *, tree);
 
@@ -4742,21 +4811,10 @@ extern bool initializer_zerop (const_tree);
 
 extern VEC(tree,gc) *ctor_to_vec (tree);
 
-/* Examine CTOR to discover:
-   * how many scalar fields are set to nonzero values,
-     and place it in *P_NZ_ELTS;
-   * how many scalar fields in total are in CTOR,
-     and place it in *P_ELT_COUNT.
-   * if a type is a union, and the initializer from the constructor
-     is not the largest element in the union, then set *p_must_clear.
+extern bool categorize_ctor_elements (const_tree, HOST_WIDE_INT *,
+				      HOST_WIDE_INT *, bool *);
 
-   Return whether or not CTOR is a valid static constant initializer, the same
-   as "initializer_constant_valid_p (CTOR, TREE_TYPE (CTOR)) != 0".  */
-
-extern bool categorize_ctor_elements (const_tree, HOST_WIDE_INT *, HOST_WIDE_INT *,
-				      bool *);
-
-extern HOST_WIDE_INT count_type_elements (const_tree, bool);
+extern bool complete_ctor_at_level_p (const_tree, HOST_WIDE_INT, const_tree);
 
 /* integer_zerop (tree x) is nonzero if X is an integer constant of value 0.  */
 
@@ -5068,8 +5126,6 @@ extern bool commutative_ternary_tree_code (enum tree_code);
 extern tree upper_bound_in_type (tree, tree);
 extern tree lower_bound_in_type (tree, tree);
 extern int operand_equal_for_phi_arg_p (const_tree, const_tree);
-extern tree call_expr_arg (tree, int);
-extern tree *call_expr_argp (tree, int);
 extern tree create_artificial_label (location_t);
 extern const char *get_name (tree);
 extern bool stdarg_p (const_tree);
@@ -5218,7 +5274,7 @@ extern tree build_simple_mem_ref_loc (location_t, tree);
 extern double_int mem_ref_offset (const_tree);
 extern tree reference_alias_ptr_type (const_tree);
 extern tree build_invariant_address (tree, tree, HOST_WIDE_INT);
-extern tree constant_boolean_node (int, tree);
+extern tree constant_boolean_node (bool, tree);
 extern tree div_if_zero_remainder (enum tree_code, const_tree, const_tree);
 
 extern bool tree_swap_operands_p (const_tree, const_tree, bool);
@@ -5256,6 +5312,44 @@ truth_value_p (enum tree_code code)
 	  || code == TRUTH_XOR_EXPR || code == TRUTH_NOT_EXPR);
 }
 
+/* Return whether TYPE is a type suitable for an offset for
+   a POINTER_PLUS_EXPR.  */
+static inline bool
+ptrofftype_p (tree type)
+{
+  return (INTEGRAL_TYPE_P (type)
+	  && TYPE_PRECISION (type) == TYPE_PRECISION (sizetype)
+	  && TYPE_UNSIGNED (type) == TYPE_UNSIGNED (sizetype));
+}
+
+/* Return OFF converted to a pointer offset type suitable as offset for
+   POINTER_PLUS_EXPR.  Use location LOC for this conversion.  */
+static inline tree
+convert_to_ptrofftype_loc (location_t loc, tree off)
+{
+  return fold_convert_loc (loc, sizetype, off);
+}
+#define convert_to_ptrofftype(t) convert_to_ptrofftype_loc (UNKNOWN_LOCATION, t)
+
+/* Build and fold a POINTER_PLUS_EXPR at LOC offsetting PTR by OFF.  */
+static inline tree
+fold_build_pointer_plus_loc (location_t loc, tree ptr, tree off)
+{
+  return fold_build2_loc (loc, POINTER_PLUS_EXPR, TREE_TYPE (ptr),
+			  ptr, fold_convert_loc (loc, sizetype, off));
+}
+#define fold_build_pointer_plus(p,o) \
+	fold_build_pointer_plus_loc (UNKNOWN_LOCATION, p, o)
+
+/* Build and fold a POINTER_PLUS_EXPR at LOC offsetting PTR by OFF.  */
+static inline tree
+fold_build_pointer_plus_hwi_loc (location_t loc, tree ptr, HOST_WIDE_INT off)
+{
+  return fold_build2_loc (loc, POINTER_PLUS_EXPR, TREE_TYPE (ptr),
+			  ptr, size_int (off));
+}
+#define fold_build_pointer_plus_hwi(p,o) \
+	fold_build_pointer_plus_hwi_loc (UNKNOWN_LOCATION, p, o)
 
 /* In builtins.c */
 extern tree fold_call_expr (location_t, tree, bool);
@@ -5282,12 +5376,11 @@ extern tree build_va_arg_indirect_ref (tree);
 extern tree build_string_literal (int, const char *);
 extern bool validate_arglist (const_tree, ...);
 extern rtx builtin_memset_read_str (void *, HOST_WIDE_INT, enum machine_mode);
-extern bool can_trust_pointer_alignment (void);
-extern unsigned int get_pointer_alignment (tree, unsigned int);
 extern bool is_builtin_name (const char *);
 extern bool is_builtin_fn (tree);
 extern unsigned int get_object_alignment_1 (tree, unsigned HOST_WIDE_INT *);
-extern unsigned int get_object_alignment (tree, unsigned int);
+extern unsigned int get_object_alignment (tree);
+extern unsigned int get_pointer_alignment (tree);
 extern tree fold_call_stmt (gimple, bool);
 extern tree gimple_fold_builtin_snprintf_chk (gimple, tree, enum built_in_function);
 extern tree make_range (tree, int *, tree *, tree *, bool *);
@@ -5334,8 +5427,7 @@ extern int real_onep (const_tree);
 extern int real_twop (const_tree);
 extern int real_minus_onep (const_tree);
 extern void init_ttree (void);
-extern void build_common_tree_nodes (bool);
-extern void build_common_tree_nodes_2 (int);
+extern void build_common_tree_nodes (bool, bool);
 extern void build_common_builtin_nodes (void);
 extern tree build_nonstandard_integer_type (unsigned HOST_WIDE_INT, int);
 extern tree build_range_type (tree, tree, tree);
@@ -5472,6 +5564,8 @@ extern bool must_pass_in_stack_var_size_or_pad (enum machine_mode, const_tree);
 
 extern const struct attribute_spec *lookup_attribute_spec (const_tree);
 
+extern void init_attributes (void);
+
 /* Process the attributes listed in ATTRIBUTES and install them in *NODE,
    which is either a DECL (including a TYPE_DECL) or a TYPE.  If a DECL,
    it should be modified in place; if a TYPE, a copy should be created
@@ -5540,37 +5634,6 @@ extern tree tree_overlaps_hard_reg_set (tree, HARD_REG_SET *);
 #endif
 
 
-/* In dwarf2out.c */
-/* Interface of the DWARF2 unwind info support.  */
-
-/* Generate a new label for the CFI info to refer to.  */
-
-extern char *dwarf2out_cfi_label (bool);
-
-/* Entry point to update the canonical frame address (CFA).  */
-
-extern void dwarf2out_def_cfa (const char *, unsigned, HOST_WIDE_INT);
-
-/* Add the CFI for saving a register window.  */
-
-extern void dwarf2out_window_save (const char *);
-
-/* Entry point for saving a register to the stack.  */
-
-extern void dwarf2out_reg_save (const char *, unsigned, HOST_WIDE_INT);
-
-/* Entry point for saving the return address in the stack.  */
-
-extern void dwarf2out_return_save (const char *, HOST_WIDE_INT);
-
-/* Entry point for saving the return address in a register.  */
-
-extern void dwarf2out_return_reg (const char *, unsigned);
-
-/* Entry point for saving the first register into the second.  */
-
-extern void dwarf2out_reg_save_reg (const char *, rtx, rtx);
-
 /* In tree-inline.c  */
 
 /* The type of a set of already-visited pointers.  Functions for creating
@@ -5692,6 +5755,17 @@ struct GTY(()) tree_priority_map {
 #define tree_priority_map_eq tree_map_base_eq
 #define tree_priority_map_hash tree_map_base_hash
 #define tree_priority_map_marked_p tree_map_base_marked_p
+
+/* Map from a decl tree to a tree vector.  */
+
+struct GTY(()) tree_vec_map {
+  struct tree_map_base base;
+  VEC(tree,gc) *to;
+};
+
+#define tree_vec_map_eq tree_map_base_eq
+#define tree_vec_map_hash tree_decl_map_hash
+#define tree_vec_map_marked_p tree_map_base_marked_p
 
 /* In tree-ssa.c */
 

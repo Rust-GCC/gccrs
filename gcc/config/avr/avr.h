@@ -91,6 +91,26 @@ struct mcu_type_s {
   /* Stack pointer have 8 bits width.  */
   int short_sp;
   
+  /* Some AVR devices have a core erratum when skipping a 2-word instruction.
+     Skip instructions are:  SBRC, SBRS, SBIC, SBIS, CPSE.
+     Problems will occur with return address is IRQ executes during the
+     skip sequence.
+
+     A support ticket from Atmel returned the following information:
+
+         Subject: (ATTicket:644469) On AVR skip-bug core Erratum
+         From: avr@atmel.com                    Date: 2011-07-27
+         (Please keep the subject when replying to this mail)
+
+         This errata exists only in AT90S8515 and ATmega103 devices.
+
+         For information please refer the following respective errata links
+            http://www.atmel.com/dyn/resources/prod_documents/doc2494.pdf
+            http://www.atmel.com/dyn/resources/prod_documents/doc1436.pdf  */
+
+  /* Core Erratum:  Must not skip 2-word instruction.  */
+  int errata_skip;
+  
   /* Start of data section.  */
   int data_section_start;
   
@@ -106,10 +126,6 @@ extern const struct mcu_type_s avr_mcu_types[];
 extern const struct base_arch_s avr_arch_types[];
 
 #define TARGET_CPU_CPP_BUILTINS()	avr_cpu_cpp_builtins (pfile)
-
-#if !defined(IN_LIBGCC2) && !defined(IN_TARGET_LIBS)
-extern GTY(()) section *progmem_section;
-#endif
 
 #define AVR_HAVE_JMP_CALL (avr_current_arch->have_jmp_call && !TARGET_SHORT_CALLS)
 #define AVR_HAVE_MUL (avr_current_arch->have_mul)
@@ -149,8 +165,6 @@ extern GTY(()) section *progmem_section;
 
 /* No data type wants to be aligned rounder than this.  */
 #define BIGGEST_ALIGNMENT 8
-
-#define MAX_OFILE_ALIGNMENT (32768 * 8)
 
 #define TARGET_VTABLE_ENTRY_ALIGN 8
 
@@ -314,8 +328,6 @@ enum reg_class {
 
 #define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
 
-#define CLASS_MAX_NREGS(CLASS, MODE)   class_max_nregs (CLASS, MODE)
-
 #define STACK_PUSH_CODE POST_DEC
 
 #define STACK_GROWS_DOWNWARD
@@ -359,8 +371,6 @@ typedef struct avr_args {
   init_cumulative_args (&(CUM), FNTYPE, LIBNAME, FNDECL)
 
 #define FUNCTION_ARG_REGNO_P(r) function_arg_regno_p(r)
-
-extern int avr_reg_order[];
 
 #define DEFAULT_PCC_STRUCT_RETURN 0
 
@@ -457,11 +467,6 @@ do {									    \
 
 #define ASM_APP_OFF "/* #NOAPP */\n"
 
-/* Switch into a generic section.  */
-#define TARGET_ASM_NAMED_SECTION avr_asm_named_section
-
-#define ASM_OUTPUT_ASCII(FILE, P, SIZE)	 gas_output_ascii (FILE,P,SIZE)
-
 #define IS_ASM_LOGICAL_LINE_SEPARATOR(C, STR) ((C) == '\n' || ((C) == '$'))
 
 #define ASM_OUTPUT_ALIGNED_DECL_COMMON(STREAM, DECL, NAME, SIZE, ALIGN) \
@@ -473,120 +478,10 @@ do {									    \
 #define ASM_OUTPUT_ALIGNED_DECL_LOCAL(STREAM, DECL, NAME, SIZE, ALIGN)  \
   avr_asm_output_aligned_decl_common (STREAM, DECL, NAME, SIZE, ALIGN, true)
 
-#undef TYPE_ASM_OP
-#undef SIZE_ASM_OP
-#undef WEAK_ASM_OP
-#define TYPE_ASM_OP	"\t.type\t"
-#define SIZE_ASM_OP	"\t.size\t"
-#define WEAK_ASM_OP	"\t.weak\t"
-/* Define the strings used for the special svr4 .type and .size directives.
-   These strings generally do not vary from one system running svr4 to
-   another, but if a given system (e.g. m88k running svr) needs to use
-   different pseudo-op names for these, they may be overridden in the
-   file which includes this one.  */
-
-
-#undef TYPE_OPERAND_FMT
-#define TYPE_OPERAND_FMT	"@%s"
-/* The following macro defines the format used to output the second
-   operand of the .type assembler directive.  Different svr4 assemblers
-   expect various different forms for this operand.  The one given here
-   is just a default.  You may need to override it in your machine-
-   specific tm.h file (depending upon the particulars of your assembler).  */
-
-#define ASM_DECLARE_FUNCTION_NAME(FILE, NAME, DECL)		\
-avr_asm_declare_function_name ((FILE), (NAME), (DECL))
-
-#define ASM_DECLARE_FUNCTION_SIZE(FILE, FNAME, DECL)			\
-  do {									\
-    if (!flag_inhibit_size_directive)					\
-      ASM_OUTPUT_MEASURED_SIZE (FILE, FNAME);				\
-  } while (0)
-
-#define ASM_DECLARE_OBJECT_NAME(FILE, NAME, DECL)			\
-do {									\
-  ASM_OUTPUT_TYPE_DIRECTIVE (FILE, NAME, "object");			\
-  size_directive_output = 0;						\
-  if (!flag_inhibit_size_directive && DECL_SIZE (DECL))			\
-    {									\
-      size_directive_output = 1;					\
-      ASM_OUTPUT_SIZE_DIRECTIVE (FILE, NAME,				\
-				 int_size_in_bytes (TREE_TYPE (DECL)));	\
-    }									\
-  ASM_OUTPUT_LABEL(FILE, NAME);						\
-} while (0)
-
-#undef ASM_FINISH_DECLARE_OBJECT
-#define ASM_FINISH_DECLARE_OBJECT(FILE, DECL, TOP_LEVEL, AT_END)	 \
-do {									 \
-     const char *name = XSTR (XEXP (DECL_RTL (DECL), 0), 0);		 \
-     HOST_WIDE_INT size;						 \
-     if (!flag_inhibit_size_directive && DECL_SIZE (DECL)		 \
-         && ! AT_END && TOP_LEVEL					 \
-	 && DECL_INITIAL (DECL) == error_mark_node			 \
-	 && !size_directive_output)					 \
-       {								 \
-	 size_directive_output = 1;					 \
-	 size = int_size_in_bytes (TREE_TYPE (DECL));			 \
-	 ASM_OUTPUT_SIZE_DIRECTIVE (FILE, name, size);			 \
-       }								 \
-   } while (0)
-
-
-#define ESCAPES \
-"\1\1\1\1\1\1\1\1btn\1fr\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\
-\0\0\"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\
-\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\\\0\0\0\
-\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1\
-\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\
-\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\
-\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\
-\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1"
-/* A table of bytes codes used by the ASM_OUTPUT_ASCII and
-   ASM_OUTPUT_LIMITED_STRING macros.  Each byte in the table
-   corresponds to a particular byte value [0..255].  For any
-   given byte value, if the value in the corresponding table
-   position is zero, the given character can be output directly.
-   If the table value is 1, the byte must be output as a \ooo
-   octal escape.  If the tables value is anything else, then the
-   byte value should be output as a \ followed by the value
-   in the table.  Note that we can use standard UN*X escape
-   sequences for many control characters, but we don't use
-   \a to represent BEL because some svr4 assemblers (e.g. on
-   the i386) don't know about that.  Also, we don't use \v
-   since some versions of gas, such as 2.2 did not accept it.  */
-
-#define STRING_LIMIT	((unsigned) 64)
-#define STRING_ASM_OP	"\t.string\t"
-/* Some svr4 assemblers have a limit on the number of characters which
-   can appear in the operand of a .string directive.  If your assembler
-   has such a limitation, you should define STRING_LIMIT to reflect that
-   limit.  Note that at least some svr4 assemblers have a limit on the
-   actual number of bytes in the double-quoted string, and that they
-   count each character in an escape sequence as one byte.  Thus, an
-   escape sequence like \377 would count as four bytes.
-
-   If your target assembler doesn't support the .string directive, you
-   should define this to zero.  */
-
 /* Globalizing directive for a label.  */
 #define GLOBAL_ASM_OP ".global\t"
 
-#define SET_ASM_OP	"\t.set\t"
-
-#define ASM_WEAKEN_LABEL(FILE, NAME)	\
-  do					\
-    {					\
-      fputs ("\t.weak\t", (FILE));	\
-      assemble_name ((FILE), (NAME));	\
-      fputc ('\n', (FILE));		\
-    }					\
-  while (0)
-
 #define SUPPORTS_WEAK 1
-
-#define ASM_GENERATE_INTERNAL_LABEL(STRING, PREFIX, NUM)	\
-sprintf (STRING, "*.%s%lu", PREFIX, (unsigned long)(NUM))
 
 #define HAS_INIT_SECTION 1
 
@@ -605,8 +500,6 @@ sprintf (STRING, "*.%s%lu", PREFIX, (unsigned long)(NUM))
 
 #define PRINT_OPERAND_ADDRESS(STREAM, X) print_operand_address(STREAM, X)
 
-#define USER_LABEL_PREFIX ""
-
 #define ASSEMBLER_DIALECT AVR_HAVE_MOVW
 
 #define ASM_OUTPUT_REG_PUSH(STREAM, REGNO)	\
@@ -624,21 +517,11 @@ sprintf (STRING, "*.%s%lu", PREFIX, (unsigned long)(NUM))
 #define ASM_OUTPUT_ADDR_VEC_ELT(STREAM, VALUE)		\
   avr_output_addr_vec_elt(STREAM, VALUE)
 
-#define ASM_OUTPUT_CASE_LABEL(STREAM, PREFIX, NUM, TABLE) \
-  (switch_to_section (progmem_section), \
-   (*targetm.asm_out.internal_label) (STREAM, PREFIX, NUM))
-
-#define ASM_OUTPUT_SKIP(STREAM, N)		\
-fprintf (STREAM, "\t.skip %lu,0\n", (unsigned long)(N))
-
 #define ASM_OUTPUT_ALIGN(STREAM, POWER)			\
   do {							\
       if ((POWER) > 1)					\
           fprintf (STREAM, "\t.p2align\t%d\n", POWER);	\
   } while (0)
-
-#define ASM_OUTPUT_EXTERNAL(FILE, DECL, NAME) \
-  default_elf_asm_output_external (FILE, DECL, NAME)
 
 #define CASE_VECTOR_MODE HImode
 
@@ -653,8 +536,6 @@ fprintf (STREAM, "\t.skip %lu,0\n", (unsigned long)(N))
 #define FUNCTION_MODE HImode
 
 #define DOLLARS_IN_IDENTIFIERS 0
-
-#define NO_DOLLAR_IN_LABEL 1
 
 #define TRAMPOLINE_SIZE 4
 
@@ -757,13 +638,7 @@ mmcu=*:-mmcu=%*}"
 #define OUT_AS2(a,b,c) output_asm_insn (AS2(a,b,c), operands)
 #define CR_TAB "\n\t"
 
-#define PREFERRED_DEBUGGING_TYPE DBX_DEBUG
-
-#define DWARF2_DEBUGGING_INFO 1
-
 #define DWARF2_ADDR_SIZE 4
-
-#define OBJECT_FORMAT_ELF
 
 #define INCOMING_RETURN_ADDR_RTX   avr_incoming_return_addr_rtx ()
 #define INCOMING_FRAME_SP_OFFSET   (AVR_3_BYTE_PC ? 3 : 2)
@@ -804,3 +679,7 @@ struct GTY(()) machine_function
   /* 'true' if a callee might be tail called */
   int sibcall_fails;
 };
+
+/* AVR does not round pushes, but the existance of this macro is
+   required in order for pushes to be generated.  */
+#define PUSH_ROUNDING(X)	(X)

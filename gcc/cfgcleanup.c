@@ -599,9 +599,6 @@ try_forward_edges (int mode, basic_block b)
 			     + REG_BR_PROB_BASE / 2)
 			    / REG_BR_PROB_BASE);
 
-	  if (!FORWARDER_BLOCK_P (b) && forwarder_block_p (b))
-	    b->flags |= BB_FORWARDER_BLOCK;
-
 	  do
 	    {
 	      edge t;
@@ -886,7 +883,7 @@ merge_memattrs (rtx x, rtx y)
 	MEM_ATTRS (x) = 0;
       else
 	{
-	  rtx mem_size;
+	  HOST_WIDE_INT mem_size;
 
 	  if (MEM_ALIAS_SET (x) != MEM_ALIAS_SET (y))
 	    {
@@ -898,24 +895,28 @@ merge_memattrs (rtx x, rtx y)
 	    {
 	      set_mem_expr (x, 0);
 	      set_mem_expr (y, 0);
-	      set_mem_offset (x, 0);
-	      set_mem_offset (y, 0);
+	      clear_mem_offset (x);
+	      clear_mem_offset (y);
 	    }
-	  else if (MEM_OFFSET (x) != MEM_OFFSET (y))
+	  else if (MEM_OFFSET_KNOWN_P (x) != MEM_OFFSET_KNOWN_P (y)
+		   || (MEM_OFFSET_KNOWN_P (x)
+		       && MEM_OFFSET (x) != MEM_OFFSET (y)))
 	    {
-	      set_mem_offset (x, 0);
-	      set_mem_offset (y, 0);
+	      clear_mem_offset (x);
+	      clear_mem_offset (y);
 	    }
 
-	  if (!MEM_SIZE (x))
-	    mem_size = NULL_RTX;
-	  else if (!MEM_SIZE (y))
-	    mem_size = NULL_RTX;
+	  if (MEM_SIZE_KNOWN_P (x) && MEM_SIZE_KNOWN_P (y))
+	    {
+	      mem_size = MAX (MEM_SIZE (x), MEM_SIZE (y));
+	      set_mem_size (x, mem_size);
+	      set_mem_size (y, mem_size);
+	    }
 	  else
-	    mem_size = GEN_INT (MAX (INTVAL (MEM_SIZE (x)),
-				     INTVAL (MEM_SIZE (y))));
-	  set_mem_size (x, mem_size);
-	  set_mem_size (y, mem_size);
+	    {
+	      clear_mem_size (x);
+	      clear_mem_size (y);
+	    }
 
 	  set_mem_align (x, MIN (MEM_ALIGN (x), MEM_ALIGN (y)));
 	  set_mem_align (y, MEM_ALIGN (x));
@@ -1076,6 +1077,25 @@ old_insns_match_p (int mode ATTRIBUTE_UNUSED, rtx i1, rtx i2)
      NOTE_INSN_BASIC_BLOCK).  They may be crossjumped. */
   if (NOTE_INSN_BASIC_BLOCK_P (i1) && NOTE_INSN_BASIC_BLOCK_P (i2))
     return dir_both;
+
+  /* ??? Do not allow cross-jumping between different stack levels.  */
+  p1 = find_reg_note (i1, REG_ARGS_SIZE, NULL);
+  p2 = find_reg_note (i2, REG_ARGS_SIZE, NULL);
+  if (p1 && p2)
+    {
+      p1 = XEXP (p1, 0);
+      p2 = XEXP (p2, 0);
+      if (!rtx_equal_p (p1, p2))
+        return dir_none;
+
+      /* ??? Worse, this adjustment had better be constant lest we
+         have differing incoming stack levels.  */
+      if (!frame_pointer_needed
+          && find_args_size_adjust (i1) == HOST_WIDE_INT_MIN)
+	return dir_none;
+    }
+  else if (p1 || p2)
+    return dir_none;
 
   p1 = PATTERN (i1);
   p2 = PATTERN (i2);
@@ -2194,7 +2214,14 @@ try_head_merge_bb (basic_block bb)
 
   cond = get_condition (jump, &move_before, true, false);
   if (cond == NULL_RTX)
-    move_before = jump;
+    {
+#ifdef HAVE_cc0
+      if (reg_mentioned_p (cc0_rtx, jump))
+	move_before = prev_nonnote_nondebug_insn (jump);
+      else
+#endif
+	move_before = jump;
+    }
 
   for (ix = 0; ix < nedges; ix++)
     if (EDGE_SUCC (bb, ix)->dest == EXIT_BLOCK_PTR)
@@ -2356,7 +2383,14 @@ try_head_merge_bb (basic_block bb)
       jump = BB_END (final_dest_bb);
       cond = get_condition (jump, &move_before, true, false);
       if (cond == NULL_RTX)
-	move_before = jump;
+	{
+#ifdef HAVE_cc0
+	  if (reg_mentioned_p (cc0_rtx, jump))
+	    move_before = prev_nonnote_nondebug_insn (jump);
+	  else
+#endif
+	    move_before = jump;
+	}
     }
 
   do
@@ -2693,7 +2727,10 @@ try_optimize_cfg (int mode)
 
 	      /* Simplify branch to branch.  */
 	      if (try_forward_edges (mode, b))
-		changed_here = true;
+		{
+		  update_forwarder_flag (b);
+		  changed_here = true;
+		}
 
 	      /* Look for shared code between blocks.  */
 	      if ((mode & CLEANUP_CROSSJUMP)
@@ -2989,8 +3026,6 @@ struct rtl_opt_pass pass_jump2 =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   TODO_ggc_collect,                     /* todo_flags_start */
-  TODO_dump_func | TODO_verify_rtl_sharing,/* todo_flags_finish */
+  TODO_verify_rtl_sharing,              /* todo_flags_finish */
  }
 };
-
-

@@ -208,8 +208,8 @@ extern enum cmodel sparc_cmodel;
    which requires the following macro to be true if enabled.  Prior to V9,
    there are no instructions to even talk about memory synchronization.
    Note that the UltraSPARC III processors don't implement RMO, unlike the
-   UltraSPARC II processors.  Niagara and Niagara-2 do not implement RMO
-   either.
+   UltraSPARC II processors.  Niagara, Niagara-2, and Niagara-3 do not
+   implement RMO either.
 
    Default to false; for example, Solaris never enables RMO, only ever uses
    total memory ordering (TMO).  */
@@ -247,12 +247,16 @@ extern enum cmodel sparc_cmodel;
 #define TARGET_CPU_ultrasparc3	10
 #define TARGET_CPU_niagara	11
 #define TARGET_CPU_niagara2	12
+#define TARGET_CPU_niagara3	13
+#define TARGET_CPU_niagara4	14
 
 #if TARGET_CPU_DEFAULT == TARGET_CPU_v9 \
  || TARGET_CPU_DEFAULT == TARGET_CPU_ultrasparc \
  || TARGET_CPU_DEFAULT == TARGET_CPU_ultrasparc3 \
  || TARGET_CPU_DEFAULT == TARGET_CPU_niagara \
- || TARGET_CPU_DEFAULT == TARGET_CPU_niagara2
+ || TARGET_CPU_DEFAULT == TARGET_CPU_niagara2 \
+ || TARGET_CPU_DEFAULT == TARGET_CPU_niagara3 \
+ || TARGET_CPU_DEFAULT == TARGET_CPU_niagara4
 
 #define CPP_CPU32_DEFAULT_SPEC ""
 #define ASM_CPU32_DEFAULT_SPEC ""
@@ -278,6 +282,14 @@ extern enum cmodel sparc_cmodel;
 #define ASM_CPU64_DEFAULT_SPEC "-Av9b"
 #endif
 #if TARGET_CPU_DEFAULT == TARGET_CPU_niagara2
+#define CPP_CPU64_DEFAULT_SPEC "-D__sparc_v9__"
+#define ASM_CPU64_DEFAULT_SPEC "-Av9b"
+#endif
+#if TARGET_CPU_DEFAULT == TARGET_CPU_niagara3
+#define CPP_CPU64_DEFAULT_SPEC "-D__sparc_v9__"
+#define ASM_CPU64_DEFAULT_SPEC "-Av9b"
+#endif
+#if TARGET_CPU_DEFAULT == TARGET_CPU_niagara4
 #define CPP_CPU64_DEFAULT_SPEC "-D__sparc_v9__"
 #define ASM_CPU64_DEFAULT_SPEC "-Av9b"
 #endif
@@ -360,7 +372,6 @@ extern enum cmodel sparc_cmodel;
 /* Common CPP definitions used by CPP_SPEC amongst the various targets
    for handling -mcpu=xxx switches.  */
 #define CPP_CPU_SPEC "\
-%{msoft-float:-D_SOFT_FLOAT} \
 %{mcpu=sparclet:-D__sparclet__} %{mcpu=tsc701:-D__sparclet__} \
 %{mcpu=sparclite:-D__sparclite__} \
 %{mcpu=f930:-D__sparclite__} %{mcpu=f934:-D__sparclite__} \
@@ -374,6 +385,8 @@ extern enum cmodel sparc_cmodel;
 %{mcpu=ultrasparc3:-D__sparc_v9__} \
 %{mcpu=niagara:-D__sparc_v9__} \
 %{mcpu=niagara2:-D__sparc_v9__} \
+%{mcpu=niagara3:-D__sparc_v9__} \
+%{mcpu=niagara4:-D__sparc_v9__} \
 %{!mcpu*:%(cpp_cpu_default)} \
 "
 #define CPP_ARCH32_SPEC ""
@@ -388,14 +401,18 @@ extern enum cmodel sparc_cmodel;
 %{!m32:%{!m64:%(cpp_arch_default)}} \
 "
 
-/* Macro to distinguish endianness.  */
-#define CPP_ENDIAN_SPEC "\
-%{mlittle-endian:-D__LITTLE_ENDIAN__}"
+/* Macros to distinguish the endianness, window model and FP support.  */
+#define CPP_OTHER_SPEC "\
+%{mlittle-endian:-D__LITTLE_ENDIAN__} \
+%{mflat:-D_FLAT} \
+%{msoft-float:-D_SOFT_FLOAT} \
+"
 
 /* Macros to distinguish the particular subtarget.  */
 #define CPP_SUBTARGET_SPEC ""
 
-#define CPP_SPEC "%(cpp_cpu) %(cpp_arch) %(cpp_endian) %(cpp_subtarget)"
+#define CPP_SPEC \
+  "%(cpp_cpu) %(cpp_arch) %(cpp_endian) %(cpp_other) %(cpp_subtarget)"
 
 /* This used to translate -dalign to -malign, but that is no good
    because it can't turn off the usual meaning of making debugging dumps.  */
@@ -414,6 +431,8 @@ extern enum cmodel sparc_cmodel;
 %{mcpu=ultrasparc3:%{!mv8plus:-Av9b}} \
 %{mcpu=niagara:%{!mv8plus:-Av9b}} \
 %{mcpu=niagara2:%{!mv8plus:-Av9b}} \
+%{mcpu=niagara3:%{!mv8plus:-Av9b}} \
+%{mcpu=niagara4:%{!mv8plus:-Av9b}} \
 %{!mcpu*:%(asm_cpu_default)} \
 "
 
@@ -464,7 +483,7 @@ extern enum cmodel sparc_cmodel;
   { "cpp_arch64",	CPP_ARCH64_SPEC },	\
   { "cpp_arch_default",	CPP_ARCH_DEFAULT_SPEC },\
   { "cpp_arch",		CPP_ARCH_SPEC },	\
-  { "cpp_endian",	CPP_ENDIAN_SPEC },	\
+  { "cpp_other",	CPP_OTHER_SPEC },	\
   { "cpp_subtarget",	CPP_SUBTARGET_SPEC },	\
   { "asm_cpu",		ASM_CPU_SPEC },		\
   { "asm_cpu_default",	ASM_CPU_DEFAULT_SPEC },	\
@@ -627,6 +646,11 @@ extern enum cmodel sparc_cmodel;
      : MAX ((COMPUTED), (SPECIFIED)))			\
    :  MAX ((COMPUTED), (SPECIFIED)))
 
+/* We need 2 words, so we can save the stack pointer and the return register
+   of the function containing a non-local goto target.  */
+#define STACK_SAVEAREA_MODE(LEVEL) \
+  ((LEVEL) == SAVE_NONLOCAL ? (TARGET_ARCH64 ? TImode : DImode) : Pmode)
+
 /* Make strings word-aligned so strcpy from constants will be faster.  */
 #define CONSTANT_ALIGNMENT(EXP, ALIGN)  \
   ((TREE_CODE (EXP) == STRING_CST	\
@@ -687,7 +711,7 @@ extern enum cmodel sparc_cmodel;
 
 /* Argument passing regs.  */
 #define SPARC_OUTGOING_INT_ARG_FIRST 8
-#define SPARC_INCOMING_INT_ARG_FIRST 24
+#define SPARC_INCOMING_INT_ARG_FIRST (TARGET_FLAT ? 8 : 24)
 #define SPARC_FP_ARG_FIRST           32
 
 /* 1 for registers that have pervasive standard uses
@@ -721,7 +745,7 @@ extern enum cmodel sparc_cmodel;
  {1, 0, 2, 2, 2, 2, 1, 1,	\
   0, 0, 0, 0, 0, 0, 1, 0,	\
   0, 0, 0, 0, 0, 0, 0, 0,	\
-  0, 0, 0, 0, 0, 0, 1, 1,	\
+  0, 0, 0, 0, 0, 0, 0, 1,	\
 				\
   0, 0, 0, 0, 0, 0, 0, 0,	\
   0, 0, 0, 0, 0, 0, 0, 0,	\
@@ -746,7 +770,7 @@ extern enum cmodel sparc_cmodel;
  {1, 1, 1, 1, 1, 1, 1, 1,	\
   1, 1, 1, 1, 1, 1, 1, 1,	\
   0, 0, 0, 0, 0, 0, 0, 0,	\
-  0, 0, 0, 0, 0, 0, 1, 1,	\
+  0, 0, 0, 0, 0, 0, 0, 1,	\
 				\
   1, 1, 1, 1, 1, 1, 1, 1,	\
   1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -1223,13 +1247,11 @@ extern char leaf_reg_remap[];
   {{ FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM}, \
    { FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM} }
 
-/* We always pretend that this is a leaf function because if it's not,
-   there's no point in trying to eliminate the frame pointer.  If it
-   is a leaf function, we guessed right!  */
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET) 			\
   do {									\
     if ((TO) == STACK_POINTER_REGNUM)					\
-      (OFFSET) = sparc_compute_frame_size (get_frame_size (), 1);	\
+      (OFFSET) = sparc_compute_frame_size (get_frame_size (),		\
+					   current_function_is_leaf);	\
     else								\
       (OFFSET) = 0;							\
     (OFFSET) += SPARC_STACK_BIAS;					\
@@ -1247,7 +1269,7 @@ extern char leaf_reg_remap[];
    Return OUT if register number OUT is not an outbound register.  */
 
 #define INCOMING_REGNO(OUT) \
- (((OUT) < 8 || (OUT) > 15) ? (OUT) : (OUT) + 16)
+ ((TARGET_FLAT || (OUT) < 8 || (OUT) > 15) ? (OUT) : (OUT) + 16)
 
 /* Define this macro if the target machine has "register windows".  This
    C expression returns the register number as seen by the calling function
@@ -1255,14 +1277,14 @@ extern char leaf_reg_remap[];
    Return IN if register number IN is not an inbound register.  */
 
 #define OUTGOING_REGNO(IN) \
- (((IN) < 24 || (IN) > 31) ? (IN) : (IN) - 16)
+ ((TARGET_FLAT || (IN) < 24 || (IN) > 31) ? (IN) : (IN) - 16)
 
 /* Define this macro if the target machine has register windows.  This
    C expression returns true if the register is call-saved but is in the
    register window.  */
 
 #define LOCAL_REGNO(REGNO) \
-  ((REGNO) >= 16 && (REGNO) <= 31)
+  (!TARGET_FLAT && (REGNO) >= 16 && (REGNO) <= 31)
 
 /* Define the size of space to allocate for the return value of an
    untyped_call.  */
@@ -1373,27 +1395,22 @@ do {									\
 
 /* EXIT_IGNORE_STACK should be nonzero if, when returning from a function,
    the stack pointer does not matter.  The value is tested only in
-   functions that have frame pointers.
-   No definition is equivalent to always zero.  */
+   functions that have frame pointers.  */
+#define EXIT_IGNORE_STACK 1
 
-#define EXIT_IGNORE_STACK	\
- (get_frame_size () != 0	\
-  || cfun->calls_alloca || crtl->outgoing_args_size)
-
-/* Define registers used by the epilogue and return instruction.  */
-#define EPILOGUE_USES(REGNO) ((REGNO) == 31 \
-  || (crtl->calls_eh_return && (REGNO) == 1))
-
 /* Length in units of the trampoline for entering a nested function.  */
-
 #define TRAMPOLINE_SIZE (TARGET_ARCH64 ? 32 : 16)
 
-#define TRAMPOLINE_ALIGNMENT 128 /* 16 bytes */
+/* Alignment required for trampolines, in bits.  */
+#define TRAMPOLINE_ALIGNMENT 128
 
 /* Generate RTL to flush the register windows so as to make arbitrary frames
    available.  */
-#define SETUP_FRAME_ADDRESSES()		\
-  emit_insn (gen_flush_register_windows ())
+#define SETUP_FRAME_ADDRESSES()			\
+  do {						\
+    if (!TARGET_FLAT)				\
+      emit_insn (gen_flush_register_windows ());\
+  } while (0)
 
 /* Given an rtx for the address of a frame,
    return an rtx for the address of the word in the frame
@@ -1420,9 +1437,10 @@ do {									\
    farther back is in the register window save area at [%fp+60].  */
 /* ??? This ignores the fact that the actual return address is +8 for normal
    returns, and +12 for structure returns.  */
+#define RETURN_ADDR_REGNUM 31
 #define RETURN_ADDR_RTX(count, frame)		\
   ((count == -1)				\
-   ? gen_rtx_REG (Pmode, 31)			\
+   ? gen_rtx_REG (Pmode, RETURN_ADDR_REGNUM)			\
    : gen_rtx_MEM (Pmode,			\
 		  memory_address (Pmode, plus_constant (frame, \
 							15 * UNITS_PER_WORD \
@@ -1432,9 +1450,11 @@ do {									\
    +12, but always using +8 is close enough for frame unwind purposes.
    Actually, just using %o7 is close enough for unwinding, but %o7+8
    is something you can return to.  */
+#define INCOMING_RETURN_ADDR_REGNUM 15
 #define INCOMING_RETURN_ADDR_RTX \
-  plus_constant (gen_rtx_REG (word_mode, 15), 8)
-#define DWARF_FRAME_RETURN_COLUMN	DWARF_FRAME_REGNUM (15)
+  plus_constant (gen_rtx_REG (word_mode, INCOMING_RETURN_ADDR_REGNUM), 8)
+#define DWARF_FRAME_RETURN_COLUMN \
+  DWARF_FRAME_REGNUM (INCOMING_RETURN_ADDR_REGNUM)
 
 /* The offset from the incoming value of %sp to the top of the stack frame
    for the current function.  On sparc64, we have to account for the stack
@@ -1442,9 +1462,17 @@ do {									\
 #define INCOMING_FRAME_SP_OFFSET SPARC_STACK_BIAS
 
 /* Describe how we implement __builtin_eh_return.  */
+#define EH_RETURN_REGNUM 1
 #define EH_RETURN_DATA_REGNO(N) ((N) < 4 ? (N) + 24 : INVALID_REGNUM)
-#define EH_RETURN_STACKADJ_RTX	gen_rtx_REG (Pmode, 1)	/* %g1 */
-#define EH_RETURN_HANDLER_RTX	gen_rtx_REG (Pmode, 31)	/* %i7 */
+#define EH_RETURN_STACKADJ_RTX	gen_rtx_REG (Pmode, EH_RETURN_REGNUM)
+
+/* Define registers used by the epilogue and return instruction.  */
+#define EPILOGUE_USES(REGNO)					\
+  ((REGNO) == RETURN_ADDR_REGNUM				\
+   || (TARGET_FLAT						\
+       && epilogue_completed					\
+       && (REGNO) == INCOMING_RETURN_ADDR_REGNUM)		\
+   || (crtl->calls_eh_return && (REGNO) == EH_RETURN_REGNUM))
 
 /* Select a format to encode pointers in exception handling data.  CODE
    is 0 for data, 1 for code labels, 2 for function pointers.  GLOBAL is
@@ -1505,24 +1533,11 @@ do {									\
 #define REGNO_OK_FOR_FP_P(REGNO) \
   (((unsigned) (REGNO) - 32 < (TARGET_V9 ? (unsigned)64 : (unsigned)32)) \
    || ((unsigned) reg_renumber[REGNO] - 32 < (TARGET_V9 ? (unsigned)64 : (unsigned)32)))
+
 #define REGNO_OK_FOR_CCFP_P(REGNO) \
  (TARGET_V9 \
   && (((unsigned) (REGNO) - 96 < (unsigned)4) \
       || ((unsigned) reg_renumber[REGNO] - 96 < (unsigned)4)))
-
-/* Now macros that check whether X is a register and also,
-   strictly, whether it is in a specified class.
-
-   These macros are specific to the SPARC, and may be used only
-   in code for printing assembler insns and in conditions for
-   define_optimization.  */
-
-/* 1 if X is an fp register.  */
-
-#define FP_REG_P(X) (REG_P (X) && REGNO_OK_FOR_FP_P (REGNO (X)))
-
-/* Is X, a REG, an in or global register?  i.e. is regno 0..7 or 24..31 */
-#define IN_OR_GLOBAL_P(X) (REGNO (X) < 8 || (REGNO (X) >= 24 && REGNO (X) <= 31))
 
 /* Maximum number of registers that can appear in a valid memory address.  */
 
@@ -1631,9 +1646,6 @@ do {									   \
    but a CALL with constant address is cheap.  */
 #define NO_FUNCTION_CSE
 
-/* alloca should avoid clobbering the old register save area.  */
-#define SETJMP_VIA_SAVE_AREA
-
 /* The _Q_* comparison libcalls return booleans.  */
 #define FLOAT_LIB_COMPARE_RETURNS_BOOL(MODE, COMPARISON) ((MODE) == TFmode)
 
@@ -1662,8 +1674,8 @@ do {									   \
    On Niagara, normal branches insert 3 bubbles into the pipe
    and annulled branches insert 4 bubbles.
 
-   On Niagara-2, a not-taken branch costs 1 cycle whereas a taken
-   branch costs 6 cycles.  */
+   On Niagara-2 and Niagara-3, a not-taken branch costs 1 cycle whereas
+   a taken branch costs 6 cycles.  */
 
 #define BRANCH_COST(speed_p, predictable_p) \
 	((sparc_cpu == PROCESSOR_V9 \
@@ -1673,7 +1685,8 @@ do {									   \
             ? 9 \
 	 : (sparc_cpu == PROCESSOR_NIAGARA \
 	    ? 4 \
-	 : (sparc_cpu == PROCESSOR_NIAGARA2 \
+	 : ((sparc_cpu == PROCESSOR_NIAGARA2 \
+	     || sparc_cpu == PROCESSOR_NIAGARA3) \
 	    ? 5 \
 	 : 3))))
 

@@ -257,7 +257,15 @@ promote_debug_loc (struct elt_loc_list *l)
     {
       n_debug_values--;
       l->setting_insn = cselib_current_insn;
-      gcc_assert (!l->next);
+      if (cselib_preserve_constants && l->next)
+	{
+	  gcc_assert (l->next->setting_insn
+		      && DEBUG_INSN_P (l->next->setting_insn)
+		      && !l->next->next);
+	  l->next->setting_insn = cselib_current_insn;
+	}
+      else
+	gcc_assert (!l->next);
     }
 }
 
@@ -812,6 +820,10 @@ rtx_equal_for_cselib_1 (rtx x, rtx y, enum machine_mode memmode)
       return DEBUG_IMPLICIT_PTR_DECL (x)
 	     == DEBUG_IMPLICIT_PTR_DECL (y);
 
+    case DEBUG_PARAMETER_REF:
+      return DEBUG_PARAMETER_REF_DECL (x)
+	     == DEBUG_PARAMETER_REF_DECL (y);
+
     case ENTRY_VALUE:
       /* ENTRY_VALUEs are function invariant, it is thus undesirable to
 	 use rtx_equal_for_cselib_1 to compare the operands.  */
@@ -962,6 +974,11 @@ cselib_hash_rtx (rtx x, int create, enum machine_mode memmode)
       hash += ((unsigned) DEBUG_IMPLICIT_PTR << 7)
 	      + DECL_UID (DEBUG_IMPLICIT_PTR_DECL (x));
       return hash ? hash : (unsigned int) DEBUG_IMPLICIT_PTR;
+
+    case DEBUG_PARAMETER_REF:
+      hash += ((unsigned) DEBUG_PARAMETER_REF << 7)
+	      + DECL_UID (DEBUG_PARAMETER_REF_DECL (x));
+      return hash ? hash : (unsigned int) DEBUG_PARAMETER_REF;
 
     case ENTRY_VALUE:
       /* ENTRY_VALUEs are function invariant, thus try to avoid
@@ -1719,6 +1736,12 @@ cselib_subst_to_values (rtx x, enum machine_mode memmode)
 	}
       return e->val_rtx;
 
+    case ENTRY_VALUE:
+      e = cselib_lookup (x, GET_MODE (x), 0, memmode);
+      if (! e)
+	break;
+      return e->val_rtx;
+
     case CONST_DOUBLE:
     case CONST_VECTOR:
     case CONST_INT:
@@ -1842,6 +1865,43 @@ cselib_lookup_1 (rtx x, enum machine_mode mode,
 	     register, or NULL.  */
 	  used_regs[n_used_regs++] = i;
 	  REG_VALUES (i) = new_elt_list (REG_VALUES (i), NULL);
+	}
+      else if (cselib_preserve_constants
+	       && GET_MODE_CLASS (mode) == MODE_INT)
+	{
+	  /* During var-tracking, try harder to find equivalences
+	     for SUBREGs.  If a setter sets say a DImode register
+	     and user uses that register only in SImode, add a lowpart
+	     subreg location.  */
+	  struct elt_list *lwider = NULL;
+	  l = REG_VALUES (i);
+	  if (l && l->elt == NULL)
+	    l = l->next;
+	  for (; l; l = l->next)
+	    if (GET_MODE_CLASS (GET_MODE (l->elt->val_rtx)) == MODE_INT
+		&& GET_MODE_SIZE (GET_MODE (l->elt->val_rtx))
+		   > GET_MODE_SIZE (mode)
+		&& (lwider == NULL
+		    || GET_MODE_SIZE (GET_MODE (l->elt->val_rtx))
+		       < GET_MODE_SIZE (GET_MODE (lwider->elt->val_rtx))))
+	      {
+		struct elt_loc_list *el;
+		if (i < FIRST_PSEUDO_REGISTER
+		    && hard_regno_nregs[i][GET_MODE (l->elt->val_rtx)] != 1)
+		  continue;
+		for (el = l->elt->locs; el; el = el->next)
+		  if (!REG_P (el->loc))
+		    break;
+		if (el)
+		  lwider = l;
+	      }
+	  if (lwider)
+	    {
+	      rtx sub = lowpart_subreg (mode, lwider->elt->val_rtx,
+					GET_MODE (lwider->elt->val_rtx));
+	      if (sub)
+		e->locs->next = new_elt_loc_list (e->locs->next, sub);
+	    }
 	}
       REG_VALUES (i)->next = new_elt_list (REG_VALUES (i)->next, e);
       slot = cselib_find_slot (x, e->hash, INSERT, memmode);

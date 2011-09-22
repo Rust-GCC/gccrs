@@ -1,5 +1,5 @@
 /* Dwarf2 assembler output helper routines.
-   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
+   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -33,12 +33,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "splay-tree.h"
 #include "ggc.h"
 #include "tm_p.h"
-
-
-/* How to start an assembler comment.  */
-#ifndef ASM_COMMENT_START
-#define ASM_COMMENT_START ";#"
-#endif
 
 
 /* Output an unaligned integer with the given value and size.  Prefer not
@@ -915,14 +909,13 @@ dw2_output_indirect_constant_1 (splay_tree_node node,
     {
       TREE_PUBLIC (decl) = 1;
       make_decl_one_only (decl, DECL_ASSEMBLER_NAME (decl));
+      if (USE_LINKONCE_INDIRECT)
+	DECL_VISIBILITY (decl) = VISIBILITY_HIDDEN;
     }
   else
     TREE_STATIC (decl) = 1;
 
   sym_ref = gen_rtx_SYMBOL_REF (Pmode, sym);
-  sym = targetm.strip_name_encoding (sym);
-  if (TREE_PUBLIC (decl) && USE_LINKONCE_INDIRECT)
-    fprintf (asm_out_file, "\t.hidden %sDW.ref.%s\n", user_label_prefix, sym);
   assemble_variable (decl, 1, 1, 1);
   assemble_integer (sym_ref, POINTER_SIZE / BITS_PER_UNIT, POINTER_SIZE, 1);
 

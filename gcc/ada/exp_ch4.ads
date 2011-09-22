@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -34,6 +34,7 @@ package Exp_Ch4 is
    procedure Expand_N_Case_Expression             (N : Node_Id);
    procedure Expand_N_Conditional_Expression      (N : Node_Id);
    procedure Expand_N_Explicit_Dereference        (N : Node_Id);
+   procedure Expand_N_Expression_With_Actions     (N : Node_Id);
    procedure Expand_N_In                          (N : Node_Id);
    procedure Expand_N_Indexed_Component           (N : Node_Id);
    procedure Expand_N_Not_In                      (N : Node_Id);
@@ -89,6 +90,11 @@ package Exp_Ch4 is
    --  are created in the process. This is the responsibility of the caller
    --  to insert those bodies at the right place. Nod provides the Sloc
    --  value for generated code.
+
+   procedure Expand_Set_Membership (N : Node_Id);
+   --  For each choice of a set membership, we create a simple equality or
+   --  membership test. The whole membership is rewritten connecting these
+   --  with OR ELSE.
 
    function Integer_Promotion_Possible (N : Node_Id) return Boolean;
    --  Returns true if the node is a type conversion whose operand is an

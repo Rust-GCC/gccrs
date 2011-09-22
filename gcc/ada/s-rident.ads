@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -125,12 +125,17 @@ package System.Rident is
       --  The following cases do not require consistency checking
 
       Immediate_Reclamation,                   -- (RM H.4(10))
+      No_Implementation_Aspect_Specifications, -- Ada 2012 AI-241
       No_Implementation_Attributes,            -- Ada 2005 AI-257
+      No_Implementation_Identifiers,           -- Ada 2012 AI-246
       No_Implementation_Pragmas,               -- Ada 2005 AI-257
       No_Implementation_Restrictions,          -- GNAT
+      No_Implementation_Units,                 -- Ada 2012 AI-242
+      No_Implicit_Aliasing,                    -- GNAT
       No_Elaboration_Code,                     -- GNAT
       No_Obsolescent_Features,                 -- Ada 2005 AI-368
       No_Wide_Characters,                      -- GNAT
+      SPARK,                                   -- GNAT
 
       --  The following cases require a parameter value
 
@@ -180,7 +185,7 @@ package System.Rident is
    --  All restrictions (excluding only Not_A_Restriction_Id)
 
    subtype All_Boolean_Restrictions is Restriction_Id range
-     Simple_Barriers .. No_Wide_Characters;
+     Simple_Barriers .. SPARK;
    --  All restrictions which do not take a parameter
 
    subtype Partition_Boolean_Restrictions is All_Boolean_Restrictions range
@@ -191,7 +196,7 @@ package System.Rident is
    --  case of Boolean restrictions.
 
    subtype Cunit_Boolean_Restrictions is All_Boolean_Restrictions range
-     Immediate_Reclamation .. No_Wide_Characters;
+     Immediate_Reclamation .. SPARK;
    --  Boolean restrictions that are not checked for partition consistency
    --  and that thus apply only to the current unit. Note that for these
    --  restrictions, the compiler does not apply restrictions found in
@@ -308,12 +313,21 @@ package System.Rident is
    -- Profile Definitions and Data --
    ----------------------------------
 
-   type Profile_Name is (No_Profile, Ravenscar, Restricted);
+   --  Note: to add a profile, modify the following declarations appropriately,
+   --  add Name_xxx to Snames, and add a branch to the conditions for pragmas
+   --  Profile and Profile_Warnings in the body of Sem_Prag.
+
+   type Profile_Name is
+     (No_Profile,
+      No_Implementation_Extensions,
+      Ravenscar,
+      Restricted);
    --  Names of recognized profiles. No_Profile is used to indicate that a
    --  restriction came from pragma Restrictions[_Warning], as opposed to
    --  pragma Profile[_Warning].
 
-   subtype Profile_Name_Actual is Profile_Name range Ravenscar .. Restricted;
+   subtype Profile_Name_Actual is Profile_Name
+     range No_Implementation_Extensions .. Restricted;
    --  Actual used profile names
 
    type Profile_Data is record
@@ -332,9 +346,25 @@ package System.Rident is
 
    Profile_Info : constant array (Profile_Name_Actual) of Profile_Data :=
 
+                    (No_Implementation_Extensions =>
+                        --  Restrictions for Restricted profile
+
+                       (Set   =>
+                          (No_Implementation_Aspect_Specifications => True,
+                           No_Implementation_Attributes            => True,
+                           No_Implementation_Identifiers           => True,
+                           No_Implementation_Pragmas               => True,
+                           No_Implementation_Units                 => True,
+                           others                                  => False),
+
+                        --  Value settings for Restricted profile (none
+
+                        Value =>
+                          (others                          => 0)),
+
                      --  Restricted Profile
 
-                    (Restricted =>
+                     Restricted =>
 
                         --  Restrictions for Restricted profile
 

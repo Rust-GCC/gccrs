@@ -117,6 +117,7 @@ along with GCC; see the file COPYING3.  If not see
 #include <math.h>
 #include "hashtab.h"
 #include "vec.h"
+#include "fnmatch.h"
 
 #ifndef CHAR_BIT
 #define CHAR_BIT 8
@@ -251,6 +252,8 @@ static arc_t next_out_arc              (arc_t);
 #define V_OPTION "-v"
 #define W_OPTION "-w"
 #define NDFA_OPTION "-ndfa"
+#define COLLAPSE_OPTION "-collapse-ndfa"
+#define NO_COMB_OPTION "-no-comb-vect"
 #define PROGRESS_OPTION "-progress"
 
 /* The following flags are set up by function `initiate_automaton_gen'.  */
@@ -258,8 +261,16 @@ static arc_t next_out_arc              (arc_t);
 /* Make automata with nondeterministic reservation by insns (`-ndfa').  */
 static int ndfa_flag;
 
+/* When making an NDFA, produce additional transitions that collapse
+   NDFA state into a deterministic one suitable for querying CPU units.
+   Provide avance-state transitions only for deterministic states.  */
+static int collapse_flag;
+
 /* Do not make minimization of DFA (`-no-minimization').  */
 static int no_minimization_flag;
+
+/* Do not try to generate a comb vector (`-no-comb-vect').  */
+static int no_comb_flag;
 
 /* Value of this variable is number of automata being generated.  The
    actual number of automata may be less this value if there is not
@@ -384,8 +395,8 @@ struct unit_decl
 struct bypass_decl
 {
   int latency;
-  const char *out_insn_name;
-  const char *in_insn_name;
+  const char *out_pattern;
+  const char *in_pattern;
   const char *bypass_guard_name;
 
   /* The following fields are defined by checker.  */
@@ -603,7 +614,7 @@ struct regexp
    NDFA.  */
 struct description
 {
-  int decls_num;
+  int decls_num, normal_decls_num;
 
   /* The following fields are defined by checker.  */
 
@@ -623,9 +634,8 @@ struct description
   automaton_t first_automaton;
 
   /* The following field is created by pipeline hazard parser and
-     contains all declarations.  We allocate additional entry for
-     special insn "cycle advancing" which is added by the automaton
-     generator.  */
+     contains all declarations.  We allocate additional entries for
+     two special insns which are added by the automaton generator.  */
   decl_t decls [1];
 };
 
@@ -810,6 +820,9 @@ struct automaton
   /* The following field value is the list of insn declarations for
      given automaton.  */
   ainsn_t ainsn_list;
+  /* Pointers to the ainsns corresponding to the special reservations.  */
+  ainsn_t advance_ainsn, collapse_ainsn;
+
   /* The following field value is the corresponding automaton
      declaration.  This field is not NULL only if the automatic
      partition on automata is not used.  */
@@ -1306,17 +1319,17 @@ static void
 gen_bypass (rtx def)
 {
   decl_t decl;
-  char **out_insns;
+  char **out_patterns;
   int out_length;
-  char **in_insns;
+  char **in_patterns;
   int in_length;
   int i, j;
 
-  out_insns = get_str_vect (XSTR (def, 1), &out_length, ',', FALSE);
-  if (out_insns == NULL)
+  out_patterns = get_str_vect (XSTR (def, 1), &out_length, ',', FALSE);
+  if (out_patterns == NULL)
     fatal ("invalid string `%s' in define_bypass", XSTR (def, 1));
-  in_insns = get_str_vect (XSTR (def, 2), &in_length, ',', FALSE);
-  if (in_insns == NULL)
+  in_patterns = get_str_vect (XSTR (def, 2), &in_length, ',', FALSE);
+  if (in_patterns == NULL)
     fatal ("invalid string `%s' in define_bypass", XSTR (def, 2));
   for (i = 0; i < out_length; i++)
     for (j = 0; j < in_length; j++)
@@ -1325,8 +1338,8 @@ gen_bypass (rtx def)
 	decl->mode = dm_bypass;
 	decl->pos = 0;
 	DECL_BYPASS (decl)->latency = XINT (def, 0);
-	DECL_BYPASS (decl)->out_insn_name = out_insns [i];
-	DECL_BYPASS (decl)->in_insn_name = in_insns [j];
+	DECL_BYPASS (decl)->out_pattern = out_patterns[i];
+	DECL_BYPASS (decl)->in_pattern = in_patterns[j];
 	DECL_BYPASS (decl)->bypass_guard_name = XSTR (def, 3);
 	VEC_safe_push (decl_t, heap, decls, decl);
       }
@@ -1528,6 +1541,10 @@ gen_automata_option (rtx def)
     w_flag = 1;
   else if (strcmp (XSTR (def, 0), NDFA_OPTION + 1) == 0)
     ndfa_flag = 1;
+  else if (strcmp (XSTR (def, 0), COLLAPSE_OPTION + 1) == 0)
+    collapse_flag = 1;
+  else if (strcmp (XSTR (def, 0), NO_COMB_OPTION + 1) == 0)
+    no_comb_flag = 1;
   else if (strcmp (XSTR (def, 0), PROGRESS_OPTION + 1) == 0)
     progress_flag = 1;
   else
@@ -2397,19 +2414,19 @@ insert_bypass (struct bypass_decl *bypass)
 	      {
 		if (!w_flag)
 		  error ("the same bypass `%s - %s' is already defined",
-			 bypass->out_insn_name, bypass->in_insn_name);
+			 bypass->out_pattern, bypass->in_pattern);
 		else
 		  warning ("the same bypass `%s - %s' is already defined",
-			   bypass->out_insn_name, bypass->in_insn_name);
+			   bypass->out_pattern, bypass->in_pattern);
 	      }
 	    else if (!w_flag)
 	      error ("the same bypass `%s - %s' (guard %s) is already defined",
-		     bypass->out_insn_name, bypass->in_insn_name,
+		     bypass->out_pattern, bypass->in_pattern,
 		     bypass->bypass_guard_name);
 	    else
 	      warning
 		("the same bypass `%s - %s' (guard %s) is already defined",
-		 bypass->out_insn_name, bypass->in_insn_name,
+		 bypass->out_pattern, bypass->in_pattern,
 		 bypass->bypass_guard_name);
 	    return;
 	  }
@@ -2434,6 +2451,92 @@ insert_bypass (struct bypass_decl *bypass)
     }
 }
 
+/* BYPASS is a define_bypass decl that includes glob pattern PATTERN.
+   Call FN (BYPASS, INSN, DATA) for each matching instruction INSN.  */
+
+static void
+for_each_matching_insn (decl_t bypass, const char *pattern,
+			void (*fn) (decl_t, decl_t, void *), void *data)
+{
+  decl_t insn_reserv;
+  bool matched_p;
+  int i;
+
+  matched_p = false;
+  if (strpbrk (pattern, "*?["))
+    for (i = 0; i < description->decls_num; i++)
+      {
+	insn_reserv = description->decls[i];
+	if (insn_reserv->mode == dm_insn_reserv
+	    && fnmatch (pattern, DECL_INSN_RESERV (insn_reserv)->name, 0) == 0)
+	  {
+	    fn (bypass, insn_reserv, data);
+	    matched_p = true;
+	  }
+      }
+  else
+    {
+      insn_reserv = find_insn_decl (pattern);
+      if (insn_reserv)
+	{
+	  fn (bypass, insn_reserv, data);
+	  matched_p = true;
+	}
+    }
+  if (!matched_p)
+    error ("there is no insn reservation that matches `%s'", pattern);
+}
+
+/* A subroutine of process_bypass that is called for each pair
+   of matching instructions.  OUT_INSN_RESERV is the output
+   instruction and DATA is the input instruction.  */
+
+static void
+process_bypass_2 (decl_t model, decl_t out_insn_reserv, void *data)
+{
+  struct bypass_decl *bypass;
+  decl_t in_insn_reserv;
+
+  in_insn_reserv = (decl_t) data;
+  if (strcmp (DECL_INSN_RESERV (in_insn_reserv)->name,
+	      DECL_BYPASS (model)->in_pattern) == 0
+      && strcmp (DECL_INSN_RESERV (out_insn_reserv)->name,
+		 DECL_BYPASS (model)->out_pattern) == 0)
+    bypass = DECL_BYPASS (model);
+  else
+    {
+      bypass = XCNEW (struct bypass_decl);
+      bypass->latency = DECL_BYPASS (model)->latency;
+      bypass->out_pattern = DECL_INSN_RESERV (out_insn_reserv)->name;
+      bypass->in_pattern = DECL_INSN_RESERV (in_insn_reserv)->name;
+      bypass->bypass_guard_name = DECL_BYPASS (model)->bypass_guard_name;
+    }
+  bypass->out_insn_reserv = DECL_INSN_RESERV (out_insn_reserv);
+  bypass->in_insn_reserv = DECL_INSN_RESERV (in_insn_reserv);
+  insert_bypass (bypass);
+}
+
+/* A subroutine of process_bypass that is called for each input
+   instruction IN_INSN_RESERV.  */
+
+static void
+process_bypass_1 (decl_t bypass, decl_t in_insn_reserv,
+		  void *data ATTRIBUTE_UNUSED)
+{
+  for_each_matching_insn (bypass, DECL_BYPASS (bypass)->out_pattern,
+			  process_bypass_2, in_insn_reserv);
+}
+
+/* Process define_bypass decl BYPASS, inserting a bypass for each specific
+   pair of insn reservations.  */
+
+static void
+process_bypass (decl_t bypass)
+{
+  for_each_matching_insn (bypass, DECL_BYPASS (bypass)->in_pattern,
+			  process_bypass_1, NULL);
+}
+
 /* The function processes pipeline description declarations, checks
    their correctness, and forms exclusion/presence/absence sets.  */
 static void
@@ -2442,8 +2545,6 @@ process_decls (void)
   decl_t decl;
   decl_t automaton_decl;
   decl_t decl_in_table;
-  decl_t out_insn_reserv;
-  decl_t in_insn_reserv;
   int automaton_presence;
   int i;
 
@@ -2489,8 +2590,8 @@ process_decls (void)
 	{
 	  if (DECL_BYPASS (decl)->latency < 0)
 	    error ("define_bypass `%s - %s' has negative latency time",
-		   DECL_BYPASS (decl)->out_insn_name,
-		   DECL_BYPASS (decl)->in_insn_name);
+		   DECL_BYPASS (decl)->out_pattern,
+		   DECL_BYPASS (decl)->in_pattern);
 	}
       else if (decl->mode == dm_unit || decl->mode == dm_reserv)
 	{
@@ -2551,24 +2652,7 @@ process_decls (void)
     {
       decl = description->decls [i];
       if (decl->mode == dm_bypass)
-	{
-	  out_insn_reserv = find_insn_decl (DECL_BYPASS (decl)->out_insn_name);
-	  in_insn_reserv = find_insn_decl (DECL_BYPASS (decl)->in_insn_name);
-	  if (out_insn_reserv == NULL)
-	    error ("there is no insn reservation `%s'",
-		   DECL_BYPASS (decl)->out_insn_name);
-	  else if (in_insn_reserv == NULL)
-	    error ("there is no insn reservation `%s'",
-		   DECL_BYPASS (decl)->in_insn_name);
-	  else
-	    {
-	      DECL_BYPASS (decl)->out_insn_reserv
-		= DECL_INSN_RESERV (out_insn_reserv);
-	      DECL_BYPASS (decl)->in_insn_reserv
-		= DECL_INSN_RESERV (in_insn_reserv);
-	      insert_bypass (DECL_BYPASS (decl));
-	    }
-	}
+	process_bypass (decl);
     }
 
   /* Check exclusion set declarations and form exclusion sets.  */
@@ -3134,6 +3218,10 @@ static ticker_t all_time;
 
 /* Pseudo insn decl which denotes advancing cycle.  */
 static decl_t advance_cycle_insn_decl;
+/* Pseudo insn decl which denotes collapsing the NDFA state.  */
+static decl_t collapse_ndfa_insn_decl;
+
+/* Create and record a decl for the special advance-cycle transition.  */
 static void
 add_advance_cycle_insn_decl (void)
 {
@@ -3147,6 +3235,31 @@ add_advance_cycle_insn_decl (void)
   description->decls [description->decls_num] = advance_cycle_insn_decl;
   description->decls_num++;
   description->insns_num++;
+}
+
+/* Create and record a decl for the special collapse-NDFA transition.  */
+static void
+add_collapse_ndfa_insn_decl (void)
+{
+  collapse_ndfa_insn_decl = XCREATENODE (struct decl);
+  collapse_ndfa_insn_decl->mode = dm_insn_reserv;
+  collapse_ndfa_insn_decl->pos = no_pos;
+  DECL_INSN_RESERV (collapse_ndfa_insn_decl)->regexp = NULL;
+  DECL_INSN_RESERV (collapse_ndfa_insn_decl)->name = "$collapse_ndfa";
+  DECL_INSN_RESERV (collapse_ndfa_insn_decl)->insn_num
+    = description->insns_num;
+  description->decls [description->decls_num] = collapse_ndfa_insn_decl;
+  description->decls_num++;
+  description->insns_num++;
+}
+
+/* True if DECL is either of the two special decls we created.  */
+static bool
+special_decl_p (struct insn_reserv_decl *decl)
+{
+  return (decl == DECL_INSN_RESERV (advance_cycle_insn_decl)
+	  || (collapse_flag
+	      && decl == DECL_INSN_RESERV (collapse_ndfa_insn_decl)));
 }
 
 
@@ -3903,21 +4016,26 @@ find_arc (state_t from_state, state_t to_state, ainsn_t insn)
   arc_t arc;
 
   for (arc = first_out_arc (from_state); arc != NULL; arc = next_out_arc (arc))
-    if (arc->to_state == to_state && arc->insn == insn)
+    if (arc->insn == insn
+	&& (arc->to_state == to_state
+	    || (collapse_flag
+		/* Any arc is good enough for a collapse-ndfa transition.  */
+		&& (insn->insn_reserv_decl
+		    == DECL_INSN_RESERV (collapse_ndfa_insn_decl)))))
       return arc;
   return NULL;
 }
 
-/* The function adds arc from FROM_STATE to TO_STATE marked by AINSN.
-   The function returns added arc (or already existing arc).  */
-static arc_t
+/* The function adds arc from FROM_STATE to TO_STATE marked by AINSN,
+   unless such an arc already exists.  */
+static void
 add_arc (state_t from_state, state_t to_state, ainsn_t ainsn)
 {
   arc_t new_arc;
 
   new_arc = find_arc (from_state, to_state, ainsn);
   if (new_arc != NULL)
-    return new_arc;
+    return;
   if (first_free_arc == NULL)
     {
 #ifndef NDEBUG
@@ -3940,7 +4058,6 @@ add_arc (state_t from_state, state_t to_state, ainsn_t ainsn)
   from_state->first_out_arc = new_arc;
   from_state->num_out_arcs++;
   new_arc->next_arc_marked_by_insn = NULL;
-  return new_arc;
 }
 
 /* The function returns the first arc starting from STATE.  */
@@ -4889,12 +5006,14 @@ transform_insn_regexps (void)
 
   transform_time = create_ticker ();
   add_advance_cycle_insn_decl ();
+  if (collapse_flag)
+    add_collapse_ndfa_insn_decl ();
   if (progress_flag)
     fprintf (stderr, "Reservation transformation...");
-  for (i = 0; i < description->decls_num; i++)
+  for (i = 0; i < description->normal_decls_num; i++)
     {
       decl = description->decls [i];
-      if (decl->mode == dm_insn_reserv && decl != advance_cycle_insn_decl)
+      if (decl->mode == dm_insn_reserv)
 	DECL_INSN_RESERV (decl)->transformed_regexp
 	  = transform_regexp (copy_insn_regexp
 			      (DECL_INSN_RESERV (decl)->regexp));
@@ -5365,7 +5484,7 @@ create_alt_states (automaton_t automaton)
        curr_ainsn = curr_ainsn->next_ainsn)
     {
       reserv_decl = curr_ainsn->insn_reserv_decl;
-      if (reserv_decl != DECL_INSN_RESERV (advance_cycle_insn_decl))
+      if (!special_decl_p (reserv_decl))
         {
           curr_ainsn->alt_states = NULL;
           process_alts_for_forming_states (reserv_decl->transformed_regexp,
@@ -5394,8 +5513,7 @@ form_ainsn_with_same_reservs (automaton_t automaton)
   for (curr_ainsn = automaton->ainsn_list;
        curr_ainsn != NULL;
        curr_ainsn = curr_ainsn->next_ainsn)
-    if (curr_ainsn->insn_reserv_decl
-	== DECL_INSN_RESERV (advance_cycle_insn_decl))
+    if (special_decl_p (curr_ainsn->insn_reserv_decl))
       {
         curr_ainsn->next_same_reservs_insn = NULL;
         curr_ainsn->first_insn_with_same_reservs = 1;
@@ -5463,8 +5581,6 @@ make_automaton (automaton_t automaton)
   state_t state;
   state_t start_state;
   state_t state2;
-  ainsn_t advance_cycle_ainsn;
-  arc_t added_arc;
   VEC(state_t, heap) *state_stack = VEC_alloc(state_t, heap, 150);
   int states_n;
   reserv_sets_t reservs_matter = form_reservs_matter (automaton);
@@ -5478,18 +5594,16 @@ make_automaton (automaton_t automaton)
   while (VEC_length (state_t, state_stack) != 0)
     {
       state = VEC_pop (state_t, state_stack);
-      advance_cycle_ainsn = NULL;
       for (ainsn = automaton->ainsn_list;
 	   ainsn != NULL;
 	   ainsn = ainsn->next_ainsn)
         if (ainsn->first_insn_with_same_reservs)
           {
             insn_reserv_decl = ainsn->insn_reserv_decl;
-            if (insn_reserv_decl != DECL_INSN_RESERV (advance_cycle_insn_decl))
+            if (!special_decl_p (insn_reserv_decl))
               {
 		/* We process alt_states in the same order as they are
                    present in the description.  */
-		added_arc = NULL;
                 for (alt_state = ainsn->alt_states;
                      alt_state != NULL;
                      alt_state = alt_state->next_alt_state)
@@ -5507,21 +5621,12 @@ make_automaton (automaton_t automaton)
 			    if (progress_flag && states_n % 100 == 0)
 			      fprintf (stderr, ".");
                           }
-			added_arc = add_arc (state, state2, ainsn);
+			add_arc (state, state2, ainsn);
 			if (!ndfa_flag)
 			  break;
                       }
                   }
-		if (!ndfa_flag && added_arc != NULL)
-		  {
-		    for (alt_state = ainsn->alt_states;
-			 alt_state != NULL;
-			 alt_state = alt_state->next_alt_state)
-		      state2 = alt_state->state;
-		  }
               }
-            else
-              advance_cycle_ainsn = ainsn;
           }
       /* Add transition to advance cycle.  */
       state2 = state_shift (state, reservs_matter);
@@ -5533,8 +5638,7 @@ make_automaton (automaton_t automaton)
 	  if (progress_flag && states_n % 100 == 0)
 	    fprintf (stderr, ".");
         }
-      gcc_assert (advance_cycle_ainsn);
-      add_arc (state, state2, advance_cycle_ainsn);
+      add_arc (state, state2, automaton->advance_ainsn);
     }
   VEC_free (state_t, heap, state_stack);
 }
@@ -5642,7 +5746,13 @@ create_composed_state (state_t original_state, arc_t arcs_marked_by_insn,
                 for (curr_arc = first_out_arc (curr_alt_state->state);
                      curr_arc != NULL;
                      curr_arc = next_out_arc (curr_arc))
-		  add_arc (state, curr_arc->to_state, curr_arc->insn);
+		  if (!collapse_flag
+		      /* When producing collapse-NDFA transitions, we
+			 only add advance-cycle transitions to the
+			 collapsed states.  */
+		      || (curr_arc->insn->insn_reserv_decl
+			  != DECL_INSN_RESERV (advance_cycle_insn_decl)))
+		    add_arc (state, curr_arc->to_state, curr_arc->insn);
             }
           arcs_marked_by_insn->to_state = state;
           for (alts_number = 0,
@@ -5692,6 +5802,7 @@ NDFA_to_DFA (automaton_t automaton)
 	{
 	  decl = description->decls [i];
 	  if (decl->mode == dm_insn_reserv
+	      && decl != collapse_ndfa_insn_decl
 	      && create_composed_state
 	         (state, DECL_INSN_RESERV (decl)->arcs_marked_by_insn,
 		  &state_stack))
@@ -5700,6 +5811,22 @@ NDFA_to_DFA (automaton_t automaton)
 	      if (progress_flag && states_n % 100 == 0)
 		fprintf (stderr, ".");
 	    }
+	}
+      /* Add a transition to collapse the NDFA.  */
+      if (collapse_flag)
+	{
+	  if (state->component_states != NULL)
+	    {
+	      state_t state2 = state->component_states->state;
+	      if (!state2->it_was_placed_in_stack_for_DFA_forming)
+		{
+		  state2->it_was_placed_in_stack_for_DFA_forming = 1;
+		  VEC_safe_push (state_t, heap, state_stack, state2);
+		}
+	      add_arc (state, state2, automaton->collapse_ainsn);
+	    }
+	  else
+	    add_arc (state, state, automaton->collapse_ainsn);
 	}
     }
   VEC_free (state_t, heap, state_stack);
@@ -5756,8 +5883,7 @@ add_achieved_state (state_t state)
 
 /* The function sets up equivalence numbers of insns which mark all
    out arcs of STATE by equiv_class_num_1 (if ODD_ITERATION_FLAG has
-   nonzero value) or by equiv_class_num_2 of the destination state.
-   The function returns number of out arcs of STATE.  */
+   nonzero value) or by equiv_class_num_2 of the destination state.  */
 static void
 set_out_arc_insns_equiv_num (state_t state, int odd_iteration_flag)
 {
@@ -6525,8 +6651,8 @@ units_to_automata_heuristic_distr (void)
 /* The functions creates automaton insns for each automata.  Automaton
    insn is simply insn for given automaton which makes reservation
    only of units of the automaton.  */
-static ainsn_t
-create_ainsns (void)
+static void
+create_ainsns (automaton_t automaton)
 {
   decl_t decl;
   ainsn_t first_ainsn;
@@ -6549,10 +6675,14 @@ create_ainsns (void)
 	    first_ainsn = curr_ainsn;
 	  else
 	    prev_ainsn->next_ainsn = curr_ainsn;
+	  if (decl == advance_cycle_insn_decl)
+	    automaton->advance_ainsn = curr_ainsn;
+	  else if (decl == collapse_ndfa_insn_decl)
+	    automaton->collapse_ainsn = curr_ainsn;
 	  prev_ainsn = curr_ainsn;
 	}
     }
-  return first_ainsn;
+  automaton->ainsn_list = first_ainsn;
 }
 
 /* The function assigns automata to units according to constructions
@@ -6600,7 +6730,7 @@ create_automata (void)
            curr_automaton_num++, prev_automaton = curr_automaton)
         {
 	  curr_automaton = XCREATENODE (struct automaton);
-	  curr_automaton->ainsn_list = create_ainsns ();
+	  create_ainsns (curr_automaton);
 	  curr_automaton->corresponding_automaton_decl = NULL;
 	  curr_automaton->next_automaton = NULL;
           curr_automaton->automaton_order_num = curr_automaton_num;
@@ -6621,7 +6751,7 @@ create_automata (void)
 	      && DECL_AUTOMATON (decl)->automaton_is_used)
 	    {
 	      curr_automaton = XCREATENODE (struct automaton);
-	      curr_automaton->ainsn_list = create_ainsns ();
+	      create_ainsns (curr_automaton);
 	      curr_automaton->corresponding_automaton_decl
 		= DECL_AUTOMATON (decl);
 	      curr_automaton->next_automaton = NULL;
@@ -6638,7 +6768,7 @@ create_automata (void)
       if (curr_automaton_num == 0)
 	{
 	  curr_automaton = XCREATENODE (struct automaton);
-	  curr_automaton->ainsn_list = create_ainsns ();
+	  create_ainsns (curr_automaton);
 	  curr_automaton->corresponding_automaton_decl = NULL;
 	  curr_automaton->next_automaton = NULL;
 	  description->first_automaton = curr_automaton;
@@ -6867,10 +6997,11 @@ output_temp_chip_member_name (FILE *f, automaton_t automaton)
   output_chip_member_name (f, automaton);
 }
 
-/* This is name of macro value which is code of pseudo_insn
-   representing advancing cpu cycle.  Its value is used as internal
-   code unknown insn.  */
+/* This is name of macro value which is code of pseudo_insns
+   representing advancing cpu cycle and collapsing the NDFA.
+   Its value is used as internal code unknown insn.  */
 #define ADVANCE_CYCLE_VALUE_NAME "DFA__ADVANCE_CYCLE"
+#define COLLAPSE_NDFA_VALUE_NAME "NDFA__COLLAPSE"
 
 /* Output name of translate vector for given automaton.  */
 static void
@@ -7126,6 +7257,8 @@ static int undefined_vect_el_value;
 static int
 comb_vect_p (state_ainsn_table_t tab)
 {
+  if (no_comb_flag)
+    return false;
   return  (2 * VEC_length (vect_el_t, tab->full_vect)
            > 5 * VEC_length (vect_el_t, tab->comb_vect));
 }
@@ -7244,6 +7377,22 @@ add_vect (state_ainsn_table_t tab, int vect_num, vla_hwint_t vect)
       VEC_replace (vect_el_t, tab->full_vect, full_base + i,
 		   VEC_index (vect_el_t, vect, i));
   }
+
+  /* The comb_vect min/max values are also used for the full vector, so
+     compute them now.  */
+  for (vect_index = 0; vect_index < vect_length; vect_index++)
+    if (VEC_index (vect_el_t, vect, vect_index) != undefined_vect_el_value)
+      {
+	vect_el_t x = VEC_index (vect_el_t, vect, vect_index);
+        gcc_assert (x >= 0);
+        if (tab->max_comb_vect_el_value < x)
+          tab->max_comb_vect_el_value = x;
+        if (tab->min_comb_vect_el_value > x)
+          tab->min_comb_vect_el_value = x;
+      }
+  if (no_comb_flag)
+    return;
+
   /* Form comb vector in the table: */
   gcc_assert (VEC_length (vect_el_t, tab->comb_vect)
 	      == VEC_length (vect_el_t, tab->check_vect));
@@ -7353,10 +7502,6 @@ add_vect (state_ainsn_table_t tab, int vect_num, vla_hwint_t vect)
 			       comb_vect_index + vect_index)
 		    == undefined_vect_el_value);
         gcc_assert (x >= 0);
-        if (tab->max_comb_vect_el_value < x)
-          tab->max_comb_vect_el_value = x;
-        if (tab->min_comb_vect_el_value > x)
-          tab->min_comb_vect_el_value = x;
 	VEC_replace (vect_el_t, tab->comb_vect,
 		     comb_vect_index + vect_index, x);
 	VEC_replace (vect_el_t, tab->check_vect,
@@ -7745,6 +7890,9 @@ output_tables (void)
     }
   fprintf (output_file, "\n#define %s %d\n\n", ADVANCE_CYCLE_VALUE_NAME,
            DECL_INSN_RESERV (advance_cycle_insn_decl)->insn_num);
+  if (collapse_flag)
+    fprintf (output_file, "\n#define %s %d\n\n", COLLAPSE_NDFA_VALUE_NAME,
+	     DECL_INSN_RESERV (collapse_ndfa_insn_decl)->insn_num);
 }
 
 /* The function outputs definition and value of PHR interface variable
@@ -8022,13 +8170,20 @@ output_internal_insn_code_evaluation (const char *insn_name,
 				      const char *insn_code_name,
 				      int code)
 {
-  fprintf (output_file, "\n  if (%s != 0)\n    {\n", insn_name);
+  fprintf (output_file, "\n  if (%s == 0)\n", insn_name);
+  fprintf (output_file, "    %s = %s;\n\n",
+	   insn_code_name, ADVANCE_CYCLE_VALUE_NAME);
+  if (collapse_flag)
+    {
+      fprintf (output_file, "\n  else if (%s == const0_rtx)\n", insn_name);
+      fprintf (output_file, "    %s = %s;\n\n",
+	       insn_code_name, COLLAPSE_NDFA_VALUE_NAME);
+    }
+  fprintf (output_file, "\n  else\n    {\n");
   fprintf (output_file, "      %s = %s (%s);\n", insn_code_name,
 	   DFA_INSN_CODE_FUNC_NAME, insn_name);
-  fprintf (output_file, "      if (%s > %s)\n        return %d;\n",
+  fprintf (output_file, "      if (%s > %s)\n        return %d;\n    }\n",
 	   insn_code_name, ADVANCE_CYCLE_VALUE_NAME, code);
-  fprintf (output_file, "    }\n  else\n    %s = %s;\n\n",
-	   insn_code_name, ADVANCE_CYCLE_VALUE_NAME);
 }
 
 
@@ -8229,9 +8384,8 @@ output_default_latencies (void)
   fprintf (output_file, "  static const %s default_latencies[] =\n    {",
 	   tabletype);
 
-  for (i = 0, j = 0, col = 7; i < description->decls_num; i++)
-    if (description->decls[i]->mode == dm_insn_reserv
-	&& description->decls[i] != advance_cycle_insn_decl)
+  for (i = 0, j = 0, col = 7; i < description->normal_decls_num; i++)
+    if (description->decls[i]->mode == dm_insn_reserv)
       {
 	if ((col = (col+1) % 8) == 0)
 	  fputs ("\n     ", output_file);
@@ -8240,7 +8394,7 @@ output_default_latencies (void)
 	fprintf (output_file, "% 4d,",
 		 DECL_INSN_RESERV (decl)->default_latency);
       }
-  gcc_assert (j == DECL_INSN_RESERV (advance_cycle_insn_decl)->insn_num);
+  gcc_assert (j == description->insns_num - (collapse_flag ? 2 : 1));
   fputs ("\n    };\n", output_file);
 }
 
@@ -8421,10 +8575,10 @@ output_print_reservation_func (void)
   fputs ("  static const char *const reservation_names[] =\n    {",
 	 output_file);
 
-  for (i = 0, j = 0; i < description->decls_num; i++)
+  for (i = 0, j = 0; i < description->normal_decls_num; i++)
     {
       decl = description->decls [i];
-      if (decl->mode == dm_insn_reserv && decl != advance_cycle_insn_decl)
+      if (decl->mode == dm_insn_reserv)
 	{
 	  gcc_assert (j == DECL_INSN_RESERV (decl)->insn_num);
 	  j++;
@@ -8434,7 +8588,7 @@ output_print_reservation_func (void)
 	  finish_regexp_representation ();
 	}
     }
-  gcc_assert (j == DECL_INSN_RESERV (advance_cycle_insn_decl)->insn_num);
+  gcc_assert (j == description->insns_num - (collapse_flag ? 2 : 1));
 
   fprintf (output_file, "\n      \"%s\"\n    };\n  int %s;\n\n",
 	   NOTHING_NAME, INTERNAL_INSN_CODE_NAME);
@@ -8744,7 +8898,7 @@ output_description (void)
 	}
     }
   fprintf (output_description_file, "\n");
-  for (i = 0; i < description->decls_num; i++)
+  for (i = 0; i < description->normal_decls_num; i++)
     {
       decl = description->decls [i];
       if (decl->mode == dm_reserv)
@@ -8754,7 +8908,7 @@ output_description (void)
           output_regexp (DECL_RESERV (decl)->regexp);
           fprintf (output_description_file, "\n");
         }
-      else if (decl->mode == dm_insn_reserv && decl != advance_cycle_insn_decl)
+      else if (decl->mode == dm_insn_reserv)
         {
           fprintf (output_description_file, "insn reservation %s ",
 		   DECL_INSN_RESERV (decl)->name);
@@ -8767,8 +8921,8 @@ output_description (void)
       else if (decl->mode == dm_bypass)
 	fprintf (output_description_file, "bypass %d %s %s\n",
 		 DECL_BYPASS (decl)->latency,
-		 DECL_BYPASS (decl)->out_insn_name,
-		 DECL_BYPASS (decl)->in_insn_name);
+		 DECL_BYPASS (decl)->out_pattern,
+		 DECL_BYPASS (decl)->in_pattern);
     }
   fprintf (output_description_file, "\n\f\n");
 }
@@ -9160,6 +9314,8 @@ initiate_automaton_gen (int argc, char **argv)
       w_flag = 1;
     else if (strcmp (argv [i], NDFA_OPTION) == 0)
       ndfa_flag = 1;
+    else if (strcmp (argv [i], COLLAPSE_OPTION) == 0)
+      collapse_flag = 1;
     else if (strcmp (argv [i], PROGRESS_OPTION) == 0)
       progress_flag = 1;
     else if (strcmp (argv [i], "-split") == 0)
@@ -9202,7 +9358,8 @@ check_automata_insn_issues (void)
       for (ainsn = automaton->ainsn_list;
 	   ainsn != NULL;
 	   ainsn = ainsn->next_ainsn)
-	if (ainsn->first_insn_with_same_reservs && !ainsn->arc_exists_p)
+	if (ainsn->first_insn_with_same_reservs && !ainsn->arc_exists_p
+	    && ainsn != automaton->collapse_ainsn)
 	  {
 	    for (reserv_ainsn = ainsn;
 		 reserv_ainsn != NULL;
@@ -9316,9 +9473,10 @@ expand_automata (void)
 
   description = XCREATENODEVAR (struct description,
 				sizeof (struct description)
-				/* One entry for cycle advancing insn.  */
-				+ sizeof (decl_t) * VEC_length (decl_t, decls));
+				/* Two entries for special insns.  */
+				+ sizeof (decl_t) * (VEC_length (decl_t, decls) + 1));
   description->decls_num = VEC_length (decl_t, decls);
+  description->normal_decls_num = description->decls_num;
   description->query_units_num = 0;
   for (i = 0; i < description->decls_num; i++)
     {

@@ -191,6 +191,8 @@ if [[ -n "${frag}" ]]; then
   frag=${libiberty_topdir}/libiberty/config/$frag
 fi
 
+GCC_PICFLAG
+
 # If they didn't specify --enable-shared, don't generate shared libs.
 case "${enable_shared}" in
   yes) shared=yes ;;
@@ -198,27 +200,8 @@ case "${enable_shared}" in
   "") shared=no ;;
   *) shared=yes ;;
 esac
-if [[ "${shared}" = "yes" ]]; then
-  case "${host}" in
-    *-*-cygwin*)	;;
-    alpha*-*-linux*)	PICFLAG=-fPIC ;;
-    arm*-*-*)		PICFLAG=-fPIC ;;
-    hppa*-*-*)		PICFLAG=-fPIC ;;
-    i370-*-*)		PICFLAG=-fPIC ;;
-    ia64-*-*)		PICFLAG=-fpic ;;
-    i[[34567]]86-*-* | x86_64-*-*)
-			PICFLAG=-fpic ;;
-    m68k-*-*)		PICFLAG=-fpic ;;
-    mips*-*-linux*)	PICFLAG=-fPIC ;;
-    powerpc*-*-aix*)	;;
-    powerpc*-*-*)	PICFLAG=-fPIC ;;
-    sparc*-*-*)		case "${CFLAGS}" in
-			  *-fpic* ) PICFLAG=-fpic ;;
-			  * ) PICFLAG=-fPIC ;;
-			esac ;;
-    s390*-*-*)		PICFLAG=-fpic ;;
-    sh*-*-*)		PICFLAG=-fPIC ;;
-  esac
+if [[ "${shared}" != "yes" ]]; then
+  PICFLAG=
 fi
 AC_SUBST(PICFLAG)
 
@@ -358,10 +341,10 @@ funcs="$funcs setproctitle"
 
 vars="sys_errlist sys_nerr sys_siglist"
 
-checkfuncs="__fsetlocking canonicalize_file_name dup3 getrusage getsysinfo \
- gettimeofday on_exit psignal pstat_getdynamic pstat_getstatic realpath \
- sbrk spawnve spawnvpe strerror strsignal sysconf sysctl sysmp table \
- times wait3 wait4"
+checkfuncs="__fsetlocking canonicalize_file_name dup3 getrlimit getrusage \
+ getsysinfo gettimeofday on_exit psignal pstat_getdynamic pstat_getstatic \
+ realpath setrlimit sbrk spawnve spawnvpe strerror strsignal sysconf sysctl \
+ sysmp table times wait3 wait4"
 
 # These are neither executed nor required, but they help keep
 # autoheader happy without adding a bunch of text to acconfig.h.
@@ -371,13 +354,13 @@ if test "x" = "y"; then
     calloc canonicalize_file_name clock \
     dup3 \
     ffs __fsetlocking \
-    getcwd getpagesize getrusage getsysinfo gettimeofday \
+    getcwd getpagesize getrlimit getrusage getsysinfo gettimeofday \
     index insque \
     memchr memcmp memcpy memmem memmove memset mkstemps \
     on_exit \
     psignal pstat_getdynamic pstat_getstatic putenv \
     random realpath rename rindex \
-    sbrk setenv setproctitle sigsetmask snprintf spawnve spawnvpe \
+    sbrk setenv setproctitle setrlimit sigsetmask snprintf spawnve spawnvpe \
      stpcpy stpncpy strcasecmp strchr strdup \
      strerror strncasecmp strndup strrchr strsignal strstr strtod strtol \
      strtoul strverscmp sysconf sysctl sysmp \

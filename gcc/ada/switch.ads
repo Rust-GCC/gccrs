@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -63,6 +63,9 @@ package Switch is
       Initial_Year   : String;
       Version_String : String := Gnatvsn.Gnat_Version_String);
    --  Display version of a tool when switch --version is used
+
+   procedure Display_Usage_Version_And_Help;
+   --  Output the two lines of usage for switches --version and --help
 
    function Is_Switch (Switch_Chars : String) return Boolean;
    --  Returns True iff Switch_Chars is at least two characters long, and the

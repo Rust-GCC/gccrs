@@ -67,6 +67,7 @@ struct searchc_env {
   int order_pos;
   splay_tree nodes_marked_new;
   bool reduce;
+  bool allow_overwritable;
   int count;
 };
 
@@ -100,12 +101,15 @@ searchc (struct searchc_env* env, struct cgraph_node *v,
   for (edge = v->callees; edge; edge = edge->next_callee)
     {
       struct ipa_dfs_info * w_info;
-      struct cgraph_node *w = edge->callee;
+      enum availability avail;
+      struct cgraph_node *w = cgraph_function_or_thunk_node (edge->callee, &avail);
 
-      if (ignore_edge && ignore_edge (edge))
+      if (!w || (ignore_edge && ignore_edge (edge)))
         continue;
 
-      if (w->aux && cgraph_function_body_availability (edge->callee) > AVAIL_OVERWRITABLE)
+      if (w->aux
+	  && (avail > AVAIL_OVERWRITABLE
+	      || (env->allow_overwritable && avail == AVAIL_OVERWRITABLE)))
 	{
 	  w_info = (struct ipa_dfs_info *) w->aux;
 	  if (w_info->new_node)
@@ -134,6 +138,7 @@ searchc (struct searchc_env* env, struct cgraph_node *v,
 	x = env->stack[--(env->stack_size)];
 	x_info = (struct ipa_dfs_info *) x->aux;
 	x_info->on_stack = false;
+	x_info->scc_no = v_info->dfn_number;
 
 	if (env->reduce)
 	  {
@@ -171,6 +176,7 @@ ipa_reduced_postorder (struct cgraph_node **order,
   env.nodes_marked_new = splay_tree_new (splay_tree_compare_ints, 0, 0);
   env.count = 1;
   env.reduce = reduce;
+  env.allow_overwritable = allow_overwritable;
 
   for (node = cgraph_nodes; node; node = node->next)
     {
@@ -227,8 +233,16 @@ ipa_free_postorder_info (void)
     }
 }
 
+struct postorder_stack
+{
+  struct cgraph_node *node;
+  struct cgraph_edge *edge;
+  int ref;
+};
+
 /* Fill array order with all nodes with output flag set in the reverse
-   topological order.  Return the number of elements in the array.  */
+   topological order.  Return the number of elements in the array.
+   FIXME: While walking, consider aliases, too.  */
 
 int
 ipa_reverse_postorder (struct cgraph_node **order)
@@ -236,11 +250,12 @@ ipa_reverse_postorder (struct cgraph_node **order)
   struct cgraph_node *node, *node2;
   int stack_size = 0;
   int order_pos = 0;
-  struct cgraph_edge *edge, last;
+  struct cgraph_edge *edge;
   int pass;
+  struct ipa_ref *ref;
 
-  struct cgraph_node **stack =
-    XCNEWVEC (struct cgraph_node *, cgraph_n_nodes);
+  struct postorder_stack *stack =
+    XCNEWVEC (struct postorder_stack, cgraph_n_nodes);
 
   /* We have to deal with cycles nicely, so use a depth first traversal
      output algorithm.  Ignore the fact that some functions won't need
@@ -254,47 +269,51 @@ ipa_reverse_postorder (struct cgraph_node **order)
 	  && (pass
 	      || (!node->address_taken
 		  && !node->global.inlined_to
+		  && !node->alias && !node->thunk.thunk_p
 		  && !cgraph_only_called_directly_p (node))))
 	{
-	  node2 = node;
-	  if (!node->callers)
-	    node->aux = &last;
-	  else
-	    node->aux = node->callers;
-	  while (node2)
+	  stack_size = 0;
+          stack[stack_size].node = node;
+	  stack[stack_size].edge = node->callers;
+	  stack[stack_size].ref = 0;
+	  node->aux = (void *)(size_t)1;
+	  while (stack_size >= 0)
 	    {
-	      while (node2->aux != &last)
+	      while (true)
 		{
-		  edge = (struct cgraph_edge *) node2->aux;
-		  if (edge->next_caller)
-		    node2->aux = edge->next_caller;
-		  else
-		    node2->aux = &last;
-		  /* Break possible cycles involving always-inline
-		     functions by ignoring edges from always-inline
-		     functions to non-always-inline functions.  */
-		  if (DECL_DISREGARD_INLINE_LIMITS (edge->caller->decl)
-		      && !DECL_DISREGARD_INLINE_LIMITS (edge->callee->decl))
-		    continue;
-		  if (!edge->caller->aux)
+		  node2 = NULL;
+		  while (stack[stack_size].edge && !node2)
 		    {
-		      if (!edge->caller->callers)
-			edge->caller->aux = &last;
-		      else
-			edge->caller->aux = edge->caller->callers;
-		      stack[stack_size++] = node2;
+		      edge = stack[stack_size].edge;
 		      node2 = edge->caller;
-		      break;
+		      stack[stack_size].edge = edge->next_caller;
+		      /* Break possible cycles involving always-inline
+			 functions by ignoring edges from always-inline
+			 functions to non-always-inline functions.  */
+		      if (DECL_DISREGARD_INLINE_LIMITS (edge->caller->decl)
+			  && !DECL_DISREGARD_INLINE_LIMITS
+			    (cgraph_function_node (edge->callee, NULL)->decl))
+			node2 = NULL;
+		    }
+		  for (;ipa_ref_list_refering_iterate (&stack[stack_size].node->ref_list,
+						       stack[stack_size].ref,
+						       ref) && !node2;
+		       stack[stack_size].ref++)
+		    {
+		      if (ref->use == IPA_REF_ALIAS)
+			node2 = ipa_ref_refering_node (ref);
+		    }
+		  if (!node2)
+		    break;
+		  if (!node2->aux)
+		    {
+		      stack[++stack_size].node = node2;
+		      stack[stack_size].edge = node2->callers;
+		      stack[stack_size].ref = 0;
+		      node2->aux = (void *)(size_t)1;
 		    }
 		}
-	      if (node2->aux == &last)
-		{
-		  order[order_pos++] = node2;
-		  if (stack_size)
-		    node2 = stack[--stack_size];
-		  else
-		    node2 = NULL;
-		}
+	      order[order_pos++] = stack[stack_size--].node;
 	    }
 	}
   free (stack);

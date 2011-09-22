@@ -136,7 +136,7 @@ doc-install-xml: doc-xml
 
 # HTML
 htmldir="$(DESTDIR)@docdir@"
-stamp-html: stamp-html-docbook stamp-html-doxygen
+stamp-html: stamp-html-docbook-data stamp-html-doxygen
 	$(STAMP) stamp-html
 
 doc-html: stamp-html
@@ -331,6 +331,7 @@ xml_sources_manual = \
 	${xml_dir}/manual/mt_allocator.xml \
 	${xml_dir}/manual/numerics.xml \
 	${xml_dir}/manual/parallel_mode.xml \
+	${xml_dir}/manual/policy_data_structures.xml \
 	${xml_dir}/manual/prerequisites.xml \
 	${xml_dir}/manual/profile_mode.xml \
 	${xml_dir}/manual/shared_ptr.xml \
@@ -342,6 +343,7 @@ xml_sources_manual = \
 	${xml_dir}/manual/strings.xml \
 	${xml_dir}/manual/support.xml \
 	${xml_dir}/manual/test.xml \
+	${xml_dir}/manual/test_policy_data_structures.xml \
 	${xml_dir}/manual/using.xml \
 	${xml_dir}/manual/using_exceptions.xml \
 	${xml_dir}/manual/utilities.xml \
@@ -358,16 +360,108 @@ xml_sources = \
 	${xml_sources_manual} \
 	${xml_sources_extra}
 
+xml_image_dir = ${xml_dir}/images
+xml_image_basic = \
+	${xml_image_dir}/confdeps.png \
+	${xml_image_dir}/pbds_balls_and_bins.png \
+	${xml_image_dir}/pbds_container_tag_hierarchy.png \
+	${xml_image_dir}/pbds_different_underlying_dss_1.png \
+	${xml_image_dir}/pbds_different_underlying_dss_2.png \
+	${xml_image_dir}/pbds_embedded_lists_1.png \
+	${xml_image_dir}/pbds_embedded_lists_2.png \
+	${xml_image_dir}/pbds_embedded_lists_3.png \
+	${xml_image_dir}/pbds_exception_hierarchy.png \
+	${xml_image_dir}/pbds_hash_policy_cd.png \
+	${xml_image_dir}/pbds_hash_ranged_hash_range_hashing_fns.png \
+	${xml_image_dir}/pbds_hash_range_hashing_seq_diagram2.png \
+	${xml_image_dir}/pbds_hash_range_hashing_seq_diagram.png \
+	${xml_image_dir}/pbds_insert_resize_sequence_diagram1.png \
+	${xml_image_dir}/pbds_insert_resize_sequence_diagram2.png \
+	${xml_image_dir}/pbds_insert_resize_sequence_diagram3.png \
+	${xml_image_dir}/pbds_invalidation_guarantee_erase.png \
+	${xml_image_dir}/pbds_invalidation_tag_hierarchy.png \
+	${xml_image_dir}/pbds_list_update.png \
+	${xml_image_dir}/pbds_node_invariants.png \
+	${xml_image_dir}/pbds_pat_trie.png \
+	${xml_image_dir}/pbds_point_iterator_hierarchy.png \
+	${xml_image_dir}/pbds_point_iterators_range_ops_1.png \
+	${xml_image_dir}/pbds_point_iterators_range_ops_2.png \
+	${xml_image_dir}/pbds_priority_queue_different_underlying_dss.png \
+	${xml_image_dir}/pbds_priority_queue_tag_hierarchy.png \
+	${xml_image_dir}/pbds_rationale_null_node_updator.png \
+	${xml_image_dir}/pbds_resize_policy_cd.png \
+	${xml_image_dir}/pbds_restoring_node_invariants.png \
+	${xml_image_dir}/pbds_simple_list.png \
+	${xml_image_dir}/pbds_tree_node_invalidations.png \
+	${xml_image_dir}/pbds_tree_node_invariants.png \
+	${xml_image_dir}/pbds_tree_node_updator_policy_cd.png \
+	${xml_image_dir}/pbds_trie_node_updator_policy_cd.png \
+	${xml_image_dir}/pbds_update_seq_diagram.png
+
+xml_image_generated = \
+	${xml_image_dir}/pbds_binary_priority_queue_int_push_pop.png \
+	${xml_image_dir}/pbds_binary_priority_queue_int_push.png \
+	${xml_image_dir}/pbds_ccgp_hash_int_subscript_insert.png \
+	${xml_image_dir}/pbds_cc_hash_int_find.png \
+	${xml_image_dir}/pbds_cc_hash_int_subscript_find.png \
+	${xml_image_dir}/pbds_cc_hash_int_subscript_insert.png \
+	${xml_image_dir}/pbds_gp_hash_int_find.png \
+	${xml_image_dir}/pbds_gp_hash_int_subscript_find.png \
+	${xml_image_dir}/pbds_gp_hash_int_subscript_insert.png \
+	${xml_image_dir}/pbds_hash_int_erase_mem.png \
+	${xml_image_dir}/pbds_hash_text_find.png \
+	${xml_image_dir}/pbds_hash_zlob_int_find.png \
+	${xml_image_dir}/pbds_multimap_text_find_large_s2p_hash.png \
+	${xml_image_dir}/pbds_multimap_text_find_large_s2p_tree.png \
+	${xml_image_dir}/pbds_multimap_text_find_small_s2p_hash.png \
+	${xml_image_dir}/pbds_multimap_text_find_small_s2p_tree.png \
+	${xml_image_dir}/pbds_multimap_text_insert_large_s2p_hash.png \
+	${xml_image_dir}/pbds_multimap_text_insert_large_s2p_tree.png \
+	${xml_image_dir}/pbds_multimap_text_insert_mem_large_s2p_hash.png \
+	${xml_image_dir}/pbds_multimap_text_insert_mem_large_s2p_tree.png \
+	${xml_image_dir}/pbds_multimap_text_insert_mem_small_s2p_hash.png \
+	${xml_image_dir}/pbds_multimap_text_insert_mem_small_s2p_tree.png \
+	${xml_image_dir}/pbds_multimap_text_insert_small_s2p_hash.png \
+	${xml_image_dir}/pbds_multimap_text_insert_small_s2p_tree.png \
+	${xml_image_dir}/pbds_pairing_priority_queue_text_modify_down_thin.png \
+	${xml_image_dir}/pbds_pairing_priority_queue_text_modify_up_thin.png \
+	${xml_image_dir}/pbds_pairing_priority_queue_text_push_pop.png \
+	${xml_image_dir}/pbds_pairing_priority_queue_text_push.png \
+	${xml_image_dir}/pbds_priority_queue_int_push_pop.png \
+	${xml_image_dir}/pbds_priority_queue_int_push.png \
+	${xml_image_dir}/pbds_priority_queue_text_join.png \
+	${xml_image_dir}/pbds_priority_queue_text_modify_down.png \
+	${xml_image_dir}/pbds_priority_queue_text_modify_up.png \
+	${xml_image_dir}/pbds_priority_queue_text_pop_mem.png \
+	${xml_image_dir}/pbds_priority_queue_text_push_pop.png \
+	${xml_image_dir}/pbds_priority_queue_text_push.png \
+	${xml_image_dir}/pbds_tree_int_find.png \
+	${xml_image_dir}/pbds_tree_order_statistics.png \
+	${xml_image_dir}/pbds_tree_split_join.png \
+	${xml_image_dir}/pbds_tree_text_find.png \
+	${xml_image_dir}/pbds_tree_text_insert_node.png \
+	${xml_image_dir}/pbds_tree_text_insert_trie.png \
+	${xml_image_dir}/pbds_tree_text_insert_vector.png \
+	${xml_image_dir}/pbds_tree_text_lor_find.png
+
+xml_images = ${xml_image_basic} ${xml_image_generated}
+
+xml_extradir = ${glibcxx_srcdir}/doc/html/ext
+xml_extra = \
+	${xml_extradir}/lwg-active.html \
+	${xml_extradir}/lwg-closed.html \
+	${xml_extradir}/lwg-defects.html
+
 xml_noinst = \
 	${xml_dir}/book.txml \
 	${xml_dir}/chapter.txml \
 	${xml_dir}/class.txml \
-	${xml_dir}/images/confdeps.dot \
-	${xml_dir}/images/confdeps.png \
-	${xml_dir}/images/confdeps.pdf
+	${xml_image_dir}/confdeps.dot \
+	${xml_image_dir}/confdeps.pdf
 
 XSLTPROC       = xsltproc
-XSLTPROC_FLAGS = --nonet --xinclude
+XSLT_FLAGS = --nonet --xinclude
+XSLT_PARAM = --param toc.section.depth 4
 #XSL_STYLE_DIR = /usr/share/xml/docbook/stylesheet/docbook-xsl-ns
 #XSL_STYLE_DIR = /usr/share/sgml/docbook/xsl-ns-stylesheets
 XSL_FO_STYLE = $(XSL_STYLE_DIR)/fo/docbook.xsl
@@ -383,6 +477,8 @@ ${docbook_outdir}/fo:
 
 ${docbook_outdir}/html:
 	mkdir -p ${docbook_outdir}/html
+	mkdir -p ${docbook_outdir}/html/images
+	mkdir -p ${docbook_outdir}/html/manual/ext
 
 ${docbook_outdir}/pdf:
 	mkdir -p ${docbook_outdir}/pdf
@@ -400,7 +496,7 @@ SCHEMA_FLAGS = http://www.docbook.org/xml/5.0/dtd/docbook.dtd
 #SCHEMA_FLAGS = --nonet /usr/share/xml/docbook5/schema/dtd/5.0/docbook.dtd
 XMLLINT_VALID_FLAGS = $(LINT_FLAGS) --dtdvalid $(SCHEMA_FLAGS)
 XMLLINT_FLAGS = --xinclude --nsclean --c14n --noent --noblanks --nocdata
-doc-xml-validate-docbook: $(xml_sources)
+doc-xml-validate-docbook: $(xml_sources) $(xml_images)
 	@echo "Generating XML validation log..."
 	$(XMLLINT) $(XMLLINT_VALID_FLAGS) ${top_srcdir}/doc/xml/spine.xml
 
@@ -415,27 +511,36 @@ stamp-xml-single-docbook: $(xml_sources) ${docbook_outdir}/xml
 	${top_srcdir}/doc/xml/manual/spine.xml > ${manual_xml};
 	$(XMLLINT) $(XMLLINT_FLAGS) \
 	${top_srcdir}/doc/xml/spine.xml > ${set_xml};
-	if [ ! -d "${docbook_outdir}/xml/images" ]; then \
-	  $(LN_S) ${top_srcdir}/doc/xml/images ${docbook_outdir}/xml/; \
-	fi
 	$(STAMP) stamp-xml-single-docbook
 
 doc-xml-single-docbook: stamp-xml-single-docbook
 
+# HTML support files
+stamp-html-docbook-images: stamp-html-docbook $(xml_images)
+	$(INSTALL_DATA)	$(xml_images) ${docbook_outdir}/html/images
+	$(STAMP) stamp-html-docbook-images
+
+stamp-html-docbook-lwg: stamp-html-docbook $(xml_extra)
+	$(INSTALL_DATA)	$(xml_extra) ${docbook_outdir}/html/manual/ext
+	$(STAMP) stamp-html-docbook-lwg
+
+stamp-html-docbook-data: stamp-html-docbook-images stamp-html-docbook-lwg
+	$(STAMP) stamp-html-docbook-data
+
 # HTML, index plus chapters
 stamp-html-docbook: $(xml_sources) ${docbook_outdir}/html
 	@echo "Generating html files..."
-	$(XSLTPROC) $(XSLTPROC_FLAGS) -o ${docbook_outdir}/html/ \
+	$(XSLTPROC) $(XSLT_PARAM) $(XSLT_FLAGS) -o ${docbook_outdir}/html/ \
 	$(XSL_HTML_STYLE) ${top_srcdir}/doc/xml/spine.xml
 	$(STAMP) stamp-html-docbook
 
-doc-html-docbook: stamp-html-docbook
+doc-html-docbook: stamp-html-docbook-data
 
 # HTML, all one page
 manual_html = ${docbook_outdir}/html/libstdc++-manual-single.html
 stamp-html-single-docbook: $(xml_sources) ${docbook_outdir}/html
 	@echo "Generating html single file..."
-	$(XSLTPROC) $(XSLTPROC_FLAGS) -o ${manual_html} \
+	$(XSLTPROC) $(XSLT_PARAM) $(XSLT_FLAGS) -o ${manual_html} \
 	$(XSL_HTML_SINGLE_STYLE) ${top_srcdir}/doc/xml/spine.xml
 	$(STAMP) stamp-html-single-docbook
 
@@ -444,7 +549,7 @@ doc-html-single-docbook: stamp-html-single-docbook
 # FO
 stamp-fo-docbook: $(xml_sources) ${docbook_outdir}/fo
 	@echo "Generating FO files..."
-	$(XSLTPROC) $(XSLTPROC_FLAGS) -o ${docbook_outdir}/fo/spine.fo \
+	$(XSLTPROC) $(XSLT_FLAGS) -o ${docbook_outdir}/fo/spine.fo \
 	$(XSL_FO_STYLE) ${top_srcdir}/doc/xml/spine.xml
 	$(STAMP) stamp-fo-docbook
 
@@ -452,10 +557,11 @@ doc-fo-docbook: stamp-fo-docbook
 
 # PDF, via dblatex
 manual_pdf = ${docbook_outdir}/pdf/libstdc++-manual.pdf
-DBLATEX_FLAGS = --dump --verbose --pdf -o ${manual_pdf}
+DBLATEX_FLAGS = --dump --verbose --pdf
 stamp-pdf-docbook: $(xml_sources) ${docbook_outdir}/pdf
 	@echo "Generating pdf dblatex files..."
-	dblatex $(DBLATEX_FLAGS) ${top_srcdir}/doc/xml/spine.xml
+	dblatex $(DBLATEX_FLAGS) \
+	-o ${manual_pdf} ${top_srcdir}/doc/xml/spine.xml
 	$(STAMP) stamp-pdf-docbook
 
 doc-pdf-docbook: stamp-pdf-docbook
@@ -485,10 +591,14 @@ doc-texinfo-docbook: stamp-texinfo-docbook
 
 doc-info-docbook: stamp-info-docbook
 
-# EPUB, via dbtoepub + ruby
+# EPUB, via ruby + dbtoepub
+# Can verify document with: epubcheck
 manual_epub = ${docbook_outdir}/epub/libstdc++-manual.epub
 stamp-epub-docbook: stamp-xml-single-docbook ${docbook_outdir}/epub
 	@echo "Generating epub files..."
+	if [ ! -d "${docbook_outdir}/images" ]; then \
+	  $(LN_S) ${top_srcdir}/doc/xml/images ${docbook_outdir}/; \
+	fi
 	${XSL_STYLE_DIR}/epub/bin/dbtoepub -v -d -o ${manual_epub} ${set_xml}
 	$(STAMP) stamp-epub-docbook
 
@@ -497,15 +607,14 @@ doc-epub-docbook: stamp-epub-docbook
 
 # Performance doc and graph configuration.
 # Assumes pychart, beautiful soup installed.
-# Generates the plots and graphs for performance testing.
-doc_performance_script=${top_srcdir}/scripts/make_graphs.py
-doc-html-performance:
+# Generates the plots/graph imagery for performance testing.
+doc_performance_script=${top_srcdir}/scripts/make_graph.py
+doc-svg-performance: ${docbook_outdir}/xml
 	-@(chmod + ${doc_performance_script}; \
-	${doc_performance_script} ${top_srcdir} \
+	${doc_performance_script} \
+	${top_srcdir}/testsuite/data/make_graph_test_infos.xml \
 	${glibcxx_builddir}/testsuite \
-	${top_srcdir}/testsuite/data/make_graph_htmls.xml \
-	${top_srcdir}/testsuite/data/make_graph_test_infos.xml local g++)
-
+	${glibcxx_builddir}/doc/docbook/xml/images)
 
 .PHONY: doc-doxygen-html doc-doxygen-man doc-performance
 

@@ -296,6 +296,12 @@ DEF_RTL_EXPR(CALL, "call", "ee", RTX_EXTRA)
 
 DEF_RTL_EXPR(RETURN, "return", "", RTX_EXTRA)
 
+/* Like RETURN, but truly represents only a function return, while
+   RETURN may represent an insn that also performs other functions
+   of the function epilogue.  Like RETURN, this may also occur in
+   conditional jumps.  */
+DEF_RTL_EXPR(SIMPLE_RETURN, "simple_return", "", RTX_EXTRA)
+
 /* Special for EH return from subroutine.  */
 
 DEF_RTL_EXPR(EH_RETURN, "eh_return", "", RTX_EXTRA)
@@ -613,6 +619,10 @@ DEF_RTL_EXPR(BSWAP, "bswap", "e", RTX_UNARY)
    or 0 if arg is 0.  */
 DEF_RTL_EXPR(FFS, "ffs", "e", RTX_UNARY)
 
+/* Count number of leading redundant sign bits (number of leading
+   sign bits minus one).  */
+DEF_RTL_EXPR(CLRSB, "clrsb", "e", RTX_UNARY)
+
 /* Count leading zeros.  */
 DEF_RTL_EXPR(CLZ, "clz", "e", RTX_UNARY)
 
@@ -723,6 +733,10 @@ DEF_RTL_EXPR(DEBUG_IMPLICIT_PTR, "debug_implicit_ptr", "t", RTX_OBJ)
    parameter.  */
 DEF_RTL_EXPR(ENTRY_VALUE, "entry_value", "0", RTX_OBJ)
 
+/* Used in VAR_LOCATION for a reference to a parameter that has
+   been optimized away completely.  */
+DEF_RTL_EXPR(DEBUG_PARAMETER_REF, "debug_parameter_ref", "t", RTX_OBJ)
+
 /* All expressions from this point forward appear only in machine
    descriptions.  */
 #ifdef GENERATOR_FILE
@@ -805,9 +819,8 @@ DEF_RTL_EXPR(MATCH_PAR_DUP, "match_par_dup", "iE", RTX_MATCH)
    the result of the one before it.  */
 DEF_RTL_EXPR(MATCH_CODE, "match_code", "ss", RTX_MATCH)
 
-/* Appears only in define_predicate/define_special_predicate
-    expressions.  The argument is a C expression to be injected at this
-    point in the predicate formula.  */
+/* Used to inject a C conditional expression into an .md file.  It can
+   appear in a predicate definition or an attribute expression.  */
 DEF_RTL_EXPR(MATCH_TEST, "match_test", "s", RTX_MATCH)
 
 /* Insn (and related) definitions.  */

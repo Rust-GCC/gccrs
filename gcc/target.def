@@ -296,6 +296,15 @@ DEFHOOK
  section *, (tree decl),
  default_function_rodata_section)
 
+/* Nonnull if the target wants to override the default ".rodata" prefix
+   for mergeable data sections.  */
+DEFHOOKPOD
+(mergeable_rodata_prefix,
+ "Usually, the compiler uses the prefix @code{\".rodata\"} to construct\n\
+section names for mergeable constant data.  Define this macro to override\n\
+the string if a different section name should be used.",
+ const char *, ".rodata")
+
 /* Output a constructor for a symbol with a given priority.  */
 DEFHOOK
 (constructor,
@@ -897,6 +906,23 @@ DEFHOOK
 bool, (rtx insn, int x),
 hook_bool_rtx_int_false)
 
+DEFHOOKPOD
+(exposed_pipeline,
+"True if the processor has an exposed pipeline, which means that not just\n\
+the order of instructions is important for correctness when scheduling, but\n\
+also the latencies of operations.",
+bool, false)
+
+/* The following member value is a function that returns number
+   of operations reassociator should try to put in parallel for
+   statements of the given type.  By default 1 is used.  */
+DEFHOOK
+(reassociation_width,
+"This hook is called by tree reassociator to determine a level of\n\
+parallelism required in output calculations chain.",
+int, (unsigned int opc, enum machine_mode mode),
+hook_int_uint_mode_1)
+
 HOOK_VECTOR_END (sched)
 
 /* Functions relating to vectorization.  */
@@ -1005,12 +1031,6 @@ HOOK_VECTOR_END (vectorize)
 #undef HOOK_PREFIX
 #define HOOK_PREFIX "TARGET_"
 
-/* The initial value of target_flags.  */
-DEFHOOKPOD
-(default_target_flags,
- "",
- int, 0)
-
 /* Allow target specific overriding of option settings after options have
   been changed by an attribute or pragma or when it is reset at the
   end of the code affected by an attribute or pragma.  */
@@ -1019,23 +1039,6 @@ DEFHOOK
  "",
  void, (void),
  hook_void_void)
-
-/* Handle target switch DECODED for options structures OPTS and
-   OPTS_SET, at location LOC.  Return true if the switch was valid.  */
-DEFHOOK
-(handle_option,
- "",
- bool, (struct gcc_options *opts, struct gcc_options *opts_set,
-	const struct cl_decoded_option *decoded,
-	unsigned int /*location_t*/ loc),
- default_target_handle_option)
-
-/* Display extra, target specific information in response to a
-   --target-help switch.  */
-DEFHOOK
-(help,
- "",
- void, (void), NULL)
 
 DEFHOOK_UNDOC
 (eh_return_filter_mode,
@@ -1241,6 +1244,17 @@ DEFHOOK
  "",
  void, (void),
  hook_void_void)
+
+ /* Add a __gnu_ prefix to library functions rather than just __.  */
+DEFHOOKPOD
+(libfunc_gnu_prefix,
+ "If false (the default), internal library routines start with two\n\
+underscores.  If set to true, these routines start with @code{__gnu_}\n\
+instead.  E.g., @code{__muldi3} changes to @code{__gnu_muldi3}.  This\n\
+currently only affects functions defined in @file{libgcc2.c}.  If this\n\
+is set to true, the @file{tm.h} file must also\n\
+@code{#define LIBGCC2_GNU_PREFIX}.",
+  bool, false)
 
 /* Given a decl, a section name, and whether the decl initializer
    has relocs, choose attributes for the section.  */
@@ -1641,8 +1655,8 @@ DEFHOOKPOD
 DEFHOOK
 (rtx_costs,
  "",
- bool, (rtx x, int code, int outer_code, int *total, bool speed),
- hook_bool_rtx_int_int_intp_bool_false)
+ bool, (rtx x, int code, int outer_code, int opno, int *total, bool speed),
+ hook_bool_rtx_int_int_int_intp_bool_false)
 
 /* Compute the cost of X, used as an address.  Never called with
    invalid addresses.  */
@@ -1858,17 +1872,6 @@ DEFHOOK
  tree, (void),
  default_external_stack_protect_fail)
 
-DEFHOOK
-(supports_split_stack,
- "Whether this target supports splitting the stack when the options\
- described in @var{opts} have been passed.  This is called\
- after options have been parsed, so the target may reject splitting\
- the stack in some configurations.  The default version of this hook\
- returns false.  If @var{report} is true, this function may issue a warning\
- or error; if @var{report} is false, it must simply return a value",
- bool, (bool report, struct gcc_options *opts),
- hook_bool_bool_gcc_optionsp_false)
-
 /* Returns NULL if target supports the insn within a doloop block,
    otherwise it returns an error message.  */
 DEFHOOK
@@ -1933,7 +1936,7 @@ DEFHOOK
 (pass_by_reference,
  "",
  bool,
- (CUMULATIVE_ARGS *cum, enum machine_mode mode, const_tree type, bool named),
+ (cumulative_args_t cum, enum machine_mode mode, const_tree type, bool named),
  hook_bool_CUMULATIVE_ARGS_mode_tree_bool_false)
 
 DEFHOOK
@@ -1946,14 +1949,14 @@ DEFHOOK
 DEFHOOK
 (setup_incoming_varargs,
  "",
- void, (CUMULATIVE_ARGS *args_so_far, enum machine_mode mode, tree type,
+ void, (cumulative_args_t args_so_far, enum machine_mode mode, tree type,
 	int *pretend_args_size, int second_time),
  default_setup_incoming_varargs)
 
 DEFHOOK
 (strict_argument_naming,
  "",
- bool, (CUMULATIVE_ARGS *ca),
+ bool, (cumulative_args_t ca),
  hook_bool_CUMULATIVE_ARGS_false)
 
 /* Returns true if we should use
@@ -1962,7 +1965,7 @@ DEFHOOK
 DEFHOOK
 (pretend_outgoing_varargs_named,
  "",
- bool, (CUMULATIVE_ARGS *ca),
+ bool, (cumulative_args_t ca),
  default_pretend_outgoing_varargs_named)
 
 /* Given a complex type T, return true if a parameter of type T
@@ -1989,7 +1992,7 @@ DEFHOOK
 (callee_copies,
  "",
  bool,
- (CUMULATIVE_ARGS *cum, enum machine_mode mode, const_tree type, bool named),
+ (cumulative_args_t cum, enum machine_mode mode, const_tree type, bool named),
  hook_bool_CUMULATIVE_ARGS_mode_tree_bool_false)
 
 /* Return zero for arguments passed entirely on the stack or entirely
@@ -1998,7 +2001,7 @@ DEFHOOK
 DEFHOOK
 (arg_partial_bytes,
  "",
- int, (CUMULATIVE_ARGS *cum, enum machine_mode mode, tree type, bool named),
+ int, (cumulative_args_t cum, enum machine_mode mode, tree type, bool named),
  hook_int_CUMULATIVE_ARGS_mode_tree_bool_0)
 
 /* Update the state in CA to advance past an argument in the
@@ -2008,7 +2011,7 @@ DEFHOOK
 (function_arg_advance,
  "",
  void,
- (CUMULATIVE_ARGS *ca, enum machine_mode mode, const_tree type, bool named),
+ (cumulative_args_t ca, enum machine_mode mode, const_tree type, bool named),
  default_function_arg_advance)
 
 /* Return zero if the argument described by the state of CA should
@@ -2018,7 +2021,7 @@ DEFHOOK
 DEFHOOK
 (function_arg,
  "",
- rtx, (CUMULATIVE_ARGS *ca, enum machine_mode mode, const_tree type,
+ rtx, (cumulative_args_t ca, enum machine_mode mode, const_tree type,
        bool named),
  default_function_arg)
 
@@ -2027,7 +2030,7 @@ DEFHOOK
 DEFHOOK
 (function_incoming_arg,
  "",
- rtx, (CUMULATIVE_ARGS *ca, enum machine_mode mode, const_tree type,
+ rtx, (cumulative_args_t ca, enum machine_mode mode, const_tree type,
        bool named),
  default_function_incoming_arg)
 
@@ -2036,6 +2039,15 @@ DEFHOOK
  "",
  unsigned int, (enum machine_mode mode, const_tree type),
  default_function_arg_boundary)
+
+DEFHOOK
+(function_arg_round_boundary,
+ "Normally, the size of an argument is rounded up to @code{PARM_BOUNDARY},\n\
+which is the default value for this hook.  You can define this hook to\n\
+return a different value if an argument size must be rounded to a larger\n\
+value.",
+ unsigned int, (enum machine_mode mode, const_tree type),
+ default_function_arg_round_boundary)
 
 /* Return the diagnostic message string if function without a prototype
    is not allowed for this 'val' argument; NULL otherwise. */
@@ -2243,6 +2255,14 @@ DEFHOOK
  bool, (reg_class_t rclass),
  default_class_likely_spilled_p)
 
+/* Return the maximum number of consecutive registers
+   needed to represent mode MODE in a register of class RCLASS.  */
+DEFHOOK
+(class_max_nregs,
+ "",
+ unsigned char, (reg_class_t rclass, enum machine_mode mode),
+ default_class_max_nregs)
+
 DEFHOOK
 (preferred_rename_class,
  "A target hook that places additional preference on the register\
@@ -2441,6 +2461,12 @@ DEFHOOK
  void, (tree type),
  hook_void_tree)
 
+DEFHOOK
+(decl_mangling_context,
+ "Return target-specific mangling context of @var{decl} or @code{NULL_TREE}.",
+ tree, (const_tree decl),
+ hook_tree_const_tree_null)
+
 HOOK_VECTOR_END (cxx)
 
 /* Functions and data for emulated TLS support.  */
@@ -2561,25 +2587,6 @@ DEFHOOK
  void, (void),
  hook_void_void)
 
-/* Set default optimizations for the target.  */
-DEFHOOKPOD
-(optimization_table,
- "",
- const struct default_options *, empty_optimization_table)
-
-DEFHOOK
-(default_params,
-"Set target-dependent default values for @option{--param} settings, using\
- calls to @code{set_default_param_value}.",
- void, (void),
- hook_void_void)
-
-DEFHOOK
-(init_struct,
-"Set target-dependent initial values of fields in @var{opts}.",
- void, (struct gcc_options *opts),
- hook_void_gcc_optionsp)
-
 /* Function to determine if one function can inline another function.  */
 #undef HOOK_PREFIX
 #define HOOK_PREFIX "TARGET_"
@@ -2607,26 +2614,7 @@ DEFHOOK
  enum unwind_info_type, (void),
  default_debug_unwind_info)
 
-/* Determine the type of unwind info to emit for exceptions.  */
-DEFHOOK
-(except_unwind_info,
- "",
- enum unwind_info_type, (struct gcc_options *opts),
- default_except_unwind_info)
-
 /* Leave the boolean fields at the end.  */
-
-/* True if unwinding tables should be generated by default.  */
-DEFHOOKPOD
-(unwind_tables_default,
- "",
- bool, false)
-
-/* True if arbitrary sections are supported.  */
-DEFHOOKPOD
-(have_named_sections,
- "",
- bool, false)
 
 /* True if we can create zeroed data by switching to a BSS section
    and then using ASM_OUTPUT_SKIP to allocate the space.  */
@@ -2698,6 +2686,16 @@ DEFHOOKPOD
  should be emitted.  These sections are not used on most platforms, and\
  in particular GDB does not use them.",
  bool, false)
+
+DEFHOOKPOD
+(delay_sched2, "True if sched2 is not to be run at its normal place.  \
+This usually means it will be run as part of machine-specific reorg.",
+bool, false)
+
+DEFHOOKPOD
+(delay_vartrack, "True if vartrack is not to be run at its normal place.  \
+This usually means it will be run as part of machine-specific reorg.",
+bool, false)
 
 /* Leave the boolean fields at the end.  */
 

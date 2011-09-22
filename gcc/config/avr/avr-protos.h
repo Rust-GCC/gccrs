@@ -30,8 +30,6 @@ extern void avr_asm_declare_function_name (FILE *, const char *, tree);
 extern void order_regs_for_local_alloc (void);
 extern int avr_initial_elimination_offset (int from, int to);
 extern int avr_simple_epilogue (void);
-extern void gas_output_limited_string (FILE *file, const char *str);
-extern void gas_output_ascii (FILE *file, const char *str, size_t length);
 extern int avr_hard_regno_rename_ok (unsigned int, unsigned int);
 extern rtx avr_return_addr_rtx (int count, rtx tem);
 
@@ -87,17 +85,13 @@ extern const char *avr_out_sbxx_branch (rtx insn, rtx operands[]);
 extern int extra_constraint_Q (rtx x);
 extern int adjust_insn_length (rtx insn, int len);
 extern const char *output_reload_inhi (rtx insn, rtx *operands, int *len);
-extern const char *output_reload_insisf (rtx insn, rtx *operands, int *len);
-extern enum reg_class secondary_input_reload_class (enum reg_class,
-						    enum machine_mode,
-						    rtx);
+extern const char *output_reload_insisf (rtx insn, rtx *operands, rtx clobber, int *len);
 extern void notice_update_cc (rtx body, rtx insn);
 extern void print_operand (FILE *file, rtx x, int code);
 extern void print_operand_address (FILE *file, rtx addr);
 extern int reg_unused_after (rtx insn, rtx reg);
 extern int _reg_unused_after (rtx insn, rtx reg);
 extern int avr_jump_mode (rtx x, rtx insn);
-extern int byte_immediate_operand (rtx op, enum machine_mode mode);
 extern int test_hard_reg_class (enum reg_class rclass, rtx x);
 extern int jump_over_one_insn_p (rtx insn, rtx dest);
 
@@ -111,10 +105,6 @@ extern void out_shift_with_cnt (const char *templ, rtx insn,
 				rtx operands[], int *len, int t_len);
 extern rtx avr_incoming_return_addr_rtx (void);
 #endif /* RTX_CODE */
-
-#ifdef HAVE_MACHINE_MODES
-extern int class_max_nregs (enum reg_class rclass, enum machine_mode mode);
-#endif /* HAVE_MACHINE_MODES */
 
 #ifdef REAL_VALUE_TYPE
 extern void asm_output_float (FILE *file, REAL_VALUE_TYPE n);

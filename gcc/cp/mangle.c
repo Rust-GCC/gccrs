@@ -1,6 +1,6 @@
 /* Name mangling for the 3.0 C++ ABI.
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010
-   Free Software Foundation, Inc.
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010,
+   2011  Free Software Foundation, Inc.
    Written by Alex Samuel <samuel@codesourcery.com>
 
    This file is part of GCC.
@@ -747,6 +747,11 @@ write_encoding (const tree decl)
 static tree
 decl_mangling_context (tree decl)
 {
+  tree tcontext = targetm.cxx.decl_mangling_context (decl);
+
+  if (tcontext != NULL_TREE)
+    return tcontext;
+
   if (TREE_CODE (decl) == TYPE_DECL
       && LAMBDA_TYPE_P (TREE_TYPE (decl)))
     {
@@ -857,7 +862,7 @@ write_name (tree decl, const int ignore_local_scope)
 static void
 write_unscoped_name (const tree decl)
 {
-  tree context = CP_DECL_CONTEXT (decl);
+  tree context = decl_mangling_context (decl);
 
   MANGLE_TRACE_TREE ("unscoped-name", decl);
 
@@ -943,7 +948,7 @@ write_nested_name (const tree decl)
   else
     {
       /* No, just use <prefix>  */
-      write_prefix (DECL_CONTEXT (decl));
+      write_prefix (CP_DECL_CONTEXT (decl));
       write_unqualified_name (decl);
     }
   write_char ('E');
@@ -952,6 +957,7 @@ write_nested_name (const tree decl)
 /* <prefix> ::= <prefix> <unqualified-name>
 	    ::= <template-param>
 	    ::= <template-prefix> <template-args>
+	    ::= <decltype>
 	    ::= # empty
 	    ::= <substitution>  */
 
@@ -967,6 +973,12 @@ write_prefix (const tree node)
     return;
 
   MANGLE_TRACE_TREE ("prefix", node);
+
+  if (TREE_CODE (node) == DECLTYPE_TYPE)
+    {
+      write_type (node);
+      return;
+    }
 
   if (find_substitution (node))
     return;
@@ -1941,7 +1953,7 @@ write_type (tree type)
             case DECLTYPE_TYPE:
 	      /* These shouldn't make it into mangling.  */
 	      gcc_assert (!DECLTYPE_FOR_LAMBDA_CAPTURE (type)
-			  && !DECLTYPE_FOR_LAMBDA_RETURN (type));
+			  && !DECLTYPE_FOR_LAMBDA_PROXY (type));
 
 	      /* In ABI <5, we stripped decltype of a plain decl.  */
 	      if (!abi_version_at_least (5)
@@ -2495,6 +2507,11 @@ write_expression (tree expr)
   else if (TREE_CODE_CLASS (code) == tcc_constant
 	   || (abi_version_at_least (2) && code == CONST_DECL))
     write_template_arg_literal (expr);
+  else if (code == PARM_DECL && DECL_ARTIFICIAL (expr))
+    {
+      gcc_assert (!strcmp ("this", IDENTIFIER_POINTER (DECL_NAME (expr))));
+      write_string ("fpT");
+    }
   else if (code == PARM_DECL)
     {
       /* A function parameter used in a late-specified return type.  */
@@ -2598,6 +2615,15 @@ write_expression (tree expr)
 	write_string ("on");
       write_unqualified_id (fn);
       write_template_args (TREE_OPERAND (expr, 1));
+    }
+  else if (TREE_CODE (expr) == MODOP_EXPR)
+    {
+      enum tree_code subop = TREE_CODE (TREE_OPERAND (expr, 1));
+      const char *name = (assignment_operator_name_info[(int) subop]
+			  .mangled_name);
+      write_string (name);
+      write_expression (TREE_OPERAND (expr, 0));
+      write_expression (TREE_OPERAND (expr, 2));
     }
   else
     {
@@ -2736,29 +2762,34 @@ write_template_arg_literal (const tree value)
   write_char ('L');
   write_type (TREE_TYPE (value));
 
-  switch (TREE_CODE (value))
-    {
-    case CONST_DECL:
-      write_integer_cst (DECL_INITIAL (value));
-      break;
+  /* Write a null member pointer value as (type)0, regardless of its
+     real representation.  */
+  if (null_member_pointer_value_p (value))
+    write_integer_cst (integer_zero_node);
+  else
+    switch (TREE_CODE (value))
+      {
+      case CONST_DECL:
+	write_integer_cst (DECL_INITIAL (value));
+	break;
 
-    case INTEGER_CST:
-      gcc_assert (!same_type_p (TREE_TYPE (value), boolean_type_node)
-		  || integer_zerop (value) || integer_onep (value));
-      write_integer_cst (value);
-      break;
+      case INTEGER_CST:
+	gcc_assert (!same_type_p (TREE_TYPE (value), boolean_type_node)
+		    || integer_zerop (value) || integer_onep (value));
+	write_integer_cst (value);
+	break;
 
-    case REAL_CST:
-      write_real_cst (value);
-      break;
+      case REAL_CST:
+	write_real_cst (value);
+	break;
 
-    case STRING_CST:
-      sorry ("string literal in function template signature");
-      break;
+      case STRING_CST:
+	sorry ("string literal in function template signature");
+	break;
 
-    default:
-      gcc_unreachable ();
-    }
+      default:
+	gcc_unreachable ();
+      }
 
   write_char ('E');
 }
@@ -2819,7 +2850,8 @@ write_template_arg (tree node)
     /* A template appearing as a template arg is a template template arg.  */
     write_template_template_arg (node);
   else if ((TREE_CODE_CLASS (code) == tcc_constant && code != PTRMEM_CST)
-	   || (abi_version_at_least (2) && code == CONST_DECL))
+	   || (abi_version_at_least (2) && code == CONST_DECL)
+	   || null_member_pointer_value_p (node))
     write_template_arg_literal (node);
   else if (DECL_P (node))
     {
@@ -3086,14 +3118,17 @@ mangle_decl_string (const tree decl)
   tree saved_fn = NULL_TREE;
   bool template_p = false;
 
+  /* We shouldn't be trying to mangle an uninstantiated template.  */
+  gcc_assert (!type_dependent_expression_p (decl));
+
   if (DECL_LANG_SPECIFIC (decl) && DECL_USE_TEMPLATE (decl))
     {
       struct tinst_level *tl = current_instantiation ();
-      if (!tl || tl->decl != decl)
+      if ((!tl || tl->decl != decl)
+	  && push_tinst_level (decl))
 	{
 	  template_p = true;
 	  saved_fn = current_function_decl;
-	  push_tinst_level (decl);
 	  current_function_decl = NULL_TREE;
 	}
     }

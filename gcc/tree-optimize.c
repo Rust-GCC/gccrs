@@ -208,8 +208,7 @@ struct gimple_opt_pass pass_cleanup_cfg_post_optimizing =
   0,					/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func			/* todo_flags_finish */
-    | TODO_remove_unused_locals
+  TODO_remove_unused_locals             /* todo_flags_finish */
  }
 };
 
@@ -256,6 +255,10 @@ execute_fixup_cfg (void)
   ENTRY_BLOCK_PTR->count = cgraph_get_node (current_function_decl)->count;
   EXIT_BLOCK_PTR->count = (EXIT_BLOCK_PTR->count * count_scale
   			   + REG_BR_PROB_BASE / 2) / REG_BR_PROB_BASE;
+
+  FOR_EACH_EDGE (e, ei, ENTRY_BLOCK_PTR->succs)
+    e->count = (e->count * count_scale
+       + REG_BR_PROB_BASE / 2) / REG_BR_PROB_BASE;
 
   FOR_EACH_BB (bb)
     {

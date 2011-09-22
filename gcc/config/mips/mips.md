@@ -210,11 +210,11 @@
 ;; True if the main data type is twice the size of a word.
 (define_attr "dword_mode" "no,yes"
   (cond [(and (eq_attr "mode" "DI,DF")
-	      (eq (symbol_ref "TARGET_64BIT") (const_int 0)))
+	      (not (match_test "TARGET_64BIT")))
 	 (const_string "yes")
 
 	 (and (eq_attr "mode" "TI,TF")
-	      (ne (symbol_ref "TARGET_64BIT") (const_int 0)))
+	      (match_test "TARGET_64BIT"))
 	 (const_string "yes")]
 	(const_string "no")))
 
@@ -384,7 +384,7 @@
 ;; Length of instruction in bytes.
 (define_attr "length" ""
    (cond [(and (eq_attr "extended_mips16" "yes")
-	       (ne (symbol_ref "TARGET_MIPS16") (const_int 0)))
+	       (match_test "TARGET_MIPS16"))
 	  (const_int 8)
 
 	  ;; Direct branch instructions have a range of [-0x20000,0x1fffc],
@@ -423,7 +423,7 @@
 		   (const_int 4)
 
 		 ;; The non-PIC case: branch, first delay slot, and J.
-		 (ne (symbol_ref "TARGET_ABSOLUTE_JUMPS") (const_int 0))
+		 (match_test "TARGET_ABSOLUTE_JUMPS")
 		   (const_int 12)]
 
 		 ;; Use MAX_PIC_BRANCH_LENGTH as a (gross) overestimate.
@@ -439,7 +439,7 @@
 	  (const_int 0)
 
 	  (eq_attr "got" "load")
-	  (if_then_else (ne (symbol_ref "TARGET_MIPS16") (const_int 0))
+	  (if_then_else (match_test "TARGET_MIPS16")
 			(const_int 8)
 			(const_int 4))
 	  (eq_attr "got" "xgot_high")
@@ -456,7 +456,7 @@
 	  ;; SHIFT_SHIFTs are decomposed into two separate instructions.
 	  ;; They are extended instructions on MIPS16 targets.
 	  (eq_attr "move_type" "shift_shift")
-	  (if_then_else (ne (symbol_ref "TARGET_MIPS16") (const_int 0))
+	  (if_then_else (match_test "TARGET_MIPS16")
 			(const_int 16)
 			(const_int 8))
 
@@ -479,7 +479,7 @@
 	  (eq_attr "move_type" "load,fpload")
 	  (symbol_ref "mips_load_store_insns (operands[1], insn) * 4")
 	  (eq_attr "move_type" "store,fpstore")
-	  (cond [(eq (symbol_ref "TARGET_FIX_24K") (const_int 0))
+	  (cond [(not (match_test "TARGET_FIX_24K"))
 	         (symbol_ref "mips_load_store_insns (operands[0], insn) * 4")]
 	         (symbol_ref "mips_load_store_insns (operands[0], insn) * 4 + 4"))
 
@@ -500,7 +500,7 @@
 	  ;; instruction.  The assembler does this for us, so account for
 	  ;; the worst-case length here.
 	  (and (eq_attr "type" "imadd")
-	       (ne (symbol_ref "TARGET_FIX_VR4120") (const_int 0)))
+	       (match_test "TARGET_FIX_VR4120"))
 	  (const_int 8)
 
 	  ;; VR4120 errata MD(4): if there are consecutive dmult instructions,
@@ -508,7 +508,7 @@
 	  ;; around this by inserting a nop after the first dmult.
 	  (and (eq_attr "type" "imul,imul3")
 	       (and (eq_attr "mode" "DI")
-		    (ne (symbol_ref "TARGET_FIX_VR4120") (const_int 0))))
+		    (match_test "TARGET_FIX_VR4120")))
 	  (const_int 8)
 
 	  (eq_attr "type" "idiv,idiv3")
@@ -528,24 +528,24 @@
 ;; write to HI or LO.
 (define_attr "hazard" "none,delay,hilo"
   (cond [(and (eq_attr "type" "load,fpload,fpidxload")
-	      (ne (symbol_ref "ISA_HAS_LOAD_DELAY") (const_int 0)))
+	      (match_test "ISA_HAS_LOAD_DELAY"))
 	 (const_string "delay")
 
 	 (and (eq_attr "type" "mfc,mtc")
-	      (ne (symbol_ref "ISA_HAS_XFER_DELAY") (const_int 0)))
+	      (match_test "ISA_HAS_XFER_DELAY"))
 	 (const_string "delay")
 
 	 (and (eq_attr "type" "fcmp")
-	      (ne (symbol_ref "ISA_HAS_FCMP_DELAY") (const_int 0)))
+	      (match_test "ISA_HAS_FCMP_DELAY"))
 	 (const_string "delay")
 
 	 ;; The r4000 multiplication patterns include an mflo instruction.
 	 (and (eq_attr "type" "imul")
-	      (ne (symbol_ref "TARGET_FIX_R4000") (const_int 0)))
+	      (match_test "TARGET_FIX_R4000"))
 	 (const_string "hilo")
 
 	 (and (eq_attr "type" "mfhilo")
-	      (eq (symbol_ref "ISA_HAS_HILO_INTERLOCKS") (const_int 0)))
+	      (not (match_test "ISA_HAS_HILO_INTERLOCKS")))
 	 (const_string "hilo")]
 	(const_string "none")))
 
@@ -565,7 +565,7 @@
 ;; Attribute defining whether or not we can use the branch-likely
 ;; instructions.
 (define_attr "branch_likely" "no,yes"
-  (if_then_else (ne (symbol_ref "GENERATE_BRANCHLIKELY") (const_int 0))
+  (if_then_else (match_test "GENERATE_BRANCHLIKELY")
 		(const_string "yes")
 		(const_string "no")))
 
@@ -777,6 +777,8 @@
 (define_code_iterator any_lt [lt ltu])
 (define_code_iterator any_le [le leu])
 
+(define_code_iterator any_return [return simple_return])
+
 ;; <u> expands to an empty string when doing a signed operation and
 ;; "u" when doing an unsigned operation.
 (define_code_attr u [(sign_extend "") (zero_extend "u")
@@ -798,7 +800,9 @@
 			 (xor "xor")
 			 (and "and")
 			 (plus "add")
-			 (minus "sub")])
+			 (minus "sub")
+			 (return "return")
+			 (simple_return "simple_return")])
 
 ;; <insn> expands to the name of the insn that implements a particular code.
 (define_code_attr insn [(ashift "sll")
@@ -845,7 +849,7 @@
 ;; .........................
 
 (define_delay (and (eq_attr "type" "branch")
-		   (eq (symbol_ref "TARGET_MIPS16") (const_int 0))
+		   (not (match_test "TARGET_MIPS16"))
 		   (eq_attr "branch_likely" "yes"))
   [(eq_attr "can_delay" "yes")
    (nil)
@@ -853,7 +857,7 @@
 
 ;; Branches that don't have likely variants do not annul on false.
 (define_delay (and (eq_attr "type" "branch")
-		   (eq (symbol_ref "TARGET_MIPS16") (const_int 0))
+		   (not (match_test "TARGET_MIPS16"))
 		   (eq_attr "branch_likely" "no"))
   [(eq_attr "can_delay" "yes")
    (nil)
@@ -1779,7 +1783,7 @@
   [(set_attr "type" "imul")
    (set_attr "mode" "SI")
    (set (attr "length")
-	(if_then_else (ne (symbol_ref "ISA_HAS_EXT_INS") (const_int 0))
+	(if_then_else (match_test "ISA_HAS_EXT_INS")
 		      (const_int 16)
 		      (const_int 28)))])
 
@@ -2283,7 +2287,7 @@
   [(set_attr "type" "fdiv")
    (set_attr "mode" "<UNITMODE>")
    (set (attr "length")
-        (if_then_else (ne (symbol_ref "TARGET_FIX_SB1") (const_int 0))
+        (if_then_else (match_test "TARGET_FIX_SB1")
                       (const_int 8)
                       (const_int 4)))])
 
@@ -2301,7 +2305,7 @@
   [(set_attr "type" "frdiv")
    (set_attr "mode" "<UNITMODE>")
    (set (attr "length")
-        (if_then_else (ne (symbol_ref "TARGET_FIX_SB1") (const_int 0))
+        (if_then_else (match_test "TARGET_FIX_SB1")
                       (const_int 8)
                       (const_int 4)))])
 
@@ -2405,7 +2409,7 @@
   [(set_attr "type" "fsqrt")
    (set_attr "mode" "<UNITMODE>")
    (set (attr "length")
-        (if_then_else (ne (symbol_ref "TARGET_FIX_SB1") (const_int 0))
+        (if_then_else (match_test "TARGET_FIX_SB1")
                       (const_int 8)
                       (const_int 4)))])
 
@@ -2423,7 +2427,7 @@
   [(set_attr "type" "frsqrt")
    (set_attr "mode" "<UNITMODE>")
    (set (attr "length")
-        (if_then_else (ne (symbol_ref "TARGET_FIX_SB1") (const_int 0))
+        (if_then_else (match_test "TARGET_FIX_SB1")
                       (const_int 8)
                       (const_int 4)))])
 
@@ -2441,7 +2445,7 @@
   [(set_attr "type" "frsqrt")
    (set_attr "mode" "<UNITMODE>")
    (set (attr "length")
-        (if_then_else (ne (symbol_ref "TARGET_FIX_SB1") (const_int 0))
+        (if_then_else (match_test "TARGET_FIX_SB1")
                       (const_int 8)
                       (const_int 4)))])
 
@@ -3862,7 +3866,7 @@
    (set_attr "mode" "<MODE>")])
 
 ;; Convenience expander that generates the rhs of a load_got<mode> insn.
-(define_expand "unspec_got<mode>"
+(define_expand "unspec_got_<mode>"
   [(unspec:P [(match_operand:P 0)
 	      (match_operand:P 1)] UNSPEC_LOAD_GOT)])
 
@@ -4779,10 +4783,10 @@
 ;; Initialize the global pointer for MIPS16 code.  Operand 0 is the
 ;; global pointer and operand 1 is the MIPS16 register that holds
 ;; the required value.
-(define_insn_and_split "copygp_mips16"
-  [(set (match_operand:SI 0 "register_operand" "=y")
-	(unspec:SI [(match_operand:SI 1 "register_operand" "d")]
-		   UNSPEC_COPYGP))]
+(define_insn_and_split "copygp_mips16_<mode>"
+  [(set (match_operand:P 0 "register_operand" "=y")
+	(unspec:P [(match_operand:P 1 "register_operand" "d")]
+		  UNSPEC_COPYGP))]
   "TARGET_MIPS16"
   { return mips_must_initialize_gp_p () ? "#" : ""; }
   "&& mips_must_initialize_gp_p ()"
@@ -4796,12 +4800,12 @@
 ;;
 ;; The "cprestore" pattern requires operand 2 to be pic_offset_table_rtx,
 ;; otherwise any register that holds the correct value will do.
-(define_insn_and_split "potential_cprestore"
-  [(set (match_operand:SI 0 "cprestore_save_slot_operand" "=X,X")
-	(unspec:SI [(match_operand:SI 1 "const_int_operand" "I,i")
-		    (match_operand:SI 2 "register_operand" "d,d")]
-		   UNSPEC_POTENTIAL_CPRESTORE))
-   (clobber (match_operand:SI 3 "scratch_operand" "=X,&d"))]
+(define_insn_and_split "potential_cprestore_<mode>"
+  [(set (match_operand:P 0 "cprestore_save_slot_operand" "=X,X")
+	(unspec:P [(match_operand:P 1 "const_int_operand" "I,i")
+		   (match_operand:P 2 "register_operand" "d,d")]
+		  UNSPEC_POTENTIAL_CPRESTORE))
+   (clobber (match_operand:P 3 "scratch_operand" "=X,&d"))]
   "!TARGET_CPRESTORE_DIRECTIVE || operands[2] == pic_offset_table_rtx"
   { return mips_must_initialize_gp_p () ? "#" : ""; }
   "mips_must_initialize_gp_p ()"
@@ -4818,11 +4822,11 @@
 ;; for the cprestore slot.  Operand 1 is the offset of the slot from
 ;; the stack pointer.  (This is redundant with operand 0, but it makes
 ;; things a little simpler.)
-(define_insn "cprestore"
-  [(set (match_operand:SI 0 "cprestore_save_slot_operand" "=X,X")
-	(unspec:SI [(match_operand:SI 1 "const_int_operand" "I,i")
-		    (reg:SI 28)]
-		   UNSPEC_CPRESTORE))]
+(define_insn "cprestore_<mode>"
+  [(set (match_operand:P 0 "cprestore_save_slot_operand" "=X,X")
+	(unspec:P [(match_operand:P 1 "const_int_operand" "I,i")
+		   (reg:P 28)]
+		  UNSPEC_CPRESTORE))]
   "TARGET_CPRESTORE_DIRECTIVE"
 {
   if (mips_nomacro.nesting_level > 0 && which_alternative == 1)
@@ -4833,9 +4837,9 @@
   [(set_attr "type" "store")
    (set_attr "length" "4,12")])
 
-(define_insn "use_cprestore"
-  [(set (reg:SI CPRESTORE_SLOT_REGNUM)
-	(match_operand:SI 0 "cprestore_load_slot_operand"))]
+(define_insn "use_cprestore_<mode>"
+  [(set (reg:P CPRESTORE_SLOT_REGNUM)
+	(match_operand:P 0 "cprestore_load_slot_operand"))]
   ""
   ""
   [(set_attr "type" "ghost")])
@@ -4852,9 +4856,7 @@
     {
       mips_expand_synci_loop (operands[0], operands[1]);
       emit_insn (gen_sync ());
-      emit_insn (Pmode == SImode
-		 ? gen_clear_hazard_si ()
-		 : gen_clear_hazard_di ());
+      emit_insn (PMODE_INSN (gen_clear_hazard, ()));
     }
   else if (mips_cache_flush_func && mips_cache_flush_func[0])
     {
@@ -5563,14 +5565,11 @@
   ""
 {
   operands[0] = force_reg (Pmode, operands[0]);
-  if (Pmode == SImode)
-    emit_jump_insn (gen_indirect_jumpsi (operands[0]));
-  else
-    emit_jump_insn (gen_indirect_jumpdi (operands[0]));
+  emit_jump_insn (PMODE_INSN (gen_indirect_jump, (operands[0])));
   DONE;
 })
 
-(define_insn "indirect_jump<mode>"
+(define_insn "indirect_jump_<mode>"
   [(set (pc) (match_operand:P 0 "register_operand" "d"))]
   ""
   "%*j\t%0%/"
@@ -5601,14 +5600,11 @@
 				  start, 0, 0, OPTAB_WIDEN);
     }
 
-  if (Pmode == SImode)
-    emit_jump_insn (gen_tablejumpsi (operands[0], operands[1]));
-  else
-    emit_jump_insn (gen_tablejumpdi (operands[0], operands[1]));
+  emit_jump_insn (PMODE_INSN (gen_tablejump, (operands[0], operands[1])));
   DONE;
 })
 
-(define_insn "tablejump<mode>"
+(define_insn "tablejump_<mode>"
   [(set (pc)
 	(match_operand:P 0 "register_operand" "d"))
    (use (label_ref (match_operand 1 "" "")))]
@@ -5713,21 +5709,26 @@
 ;; allows jump optimizations to work better.
 
 (define_expand "return"
-  [(return)]
+  [(simple_return)]
   "mips_can_use_return_insn ()"
   { mips_expand_before_return (); })
 
-(define_insn "*return"
-  [(return)]
-  "mips_can_use_return_insn ()"
+(define_expand "simple_return"
+  [(simple_return)]
+  ""
+  { mips_expand_before_return (); })
+
+(define_insn "*<optab>"
+  [(any_return)]
+  ""
   "%*j\t$31%/"
   [(set_attr "type"	"jump")
    (set_attr "mode"	"none")])
 
 ;; Normal return.
 
-(define_insn "return_internal"
-  [(return)
+(define_insn "<optab>_internal"
+  [(any_return)
    (use (match_operand 0 "pmode_register_operand" ""))]
   ""
   "%*j\t%0%/"
@@ -5835,8 +5836,10 @@
   emit_insn (gen_set_got_version ());
 
   /* If we have a call-clobbered $gp, restore it from its save slot.  */
-  if (HAVE_restore_gp)
-    emit_insn (gen_restore_gp ());
+  if (HAVE_restore_gp_si)
+    emit_insn (gen_restore_gp_si ());
+  else if (HAVE_restore_gp_di)
+    emit_insn (gen_restore_gp_di ());
   DONE;
 })
 
@@ -5851,10 +5854,10 @@
 
 ;; Restore $gp from its .cprestore stack slot.  The instruction remains
 ;; volatile until all uses of $28 are exposed.
-(define_insn_and_split "restore_gp"
-  [(set (reg:SI 28)
-	(unspec_volatile:SI [(const_int 0)] UNSPEC_RESTORE_GP))
-   (clobber (match_scratch:SI 0 "=&d"))]
+(define_insn_and_split "restore_gp_<mode>"
+  [(set (reg:P 28)
+	(unspec_volatile:P [(const_int 0)] UNSPEC_RESTORE_GP))
+   (clobber (match_scratch:P 0 "=&d"))]
   "TARGET_CALL_CLOBBERED_GP"
   "#"
   "&& epilogue_completed"

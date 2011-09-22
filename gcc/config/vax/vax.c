@@ -1,6 +1,6 @@
 /* Subroutines for insn-output.c for VAX.
    Copyright (C) 1987, 1994, 1995, 1997, 1998, 1999, 2000, 2001, 2002,
-   2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -48,17 +48,16 @@ along with GCC; see the file COPYING3.  If not see
 
 static void vax_option_override (void);
 static bool vax_legitimate_address_p (enum machine_mode, rtx, bool);
-static void vax_output_function_prologue (FILE *, HOST_WIDE_INT);
 static void vax_file_start (void);
 static void vax_init_libfuncs (void);
 static void vax_output_mi_thunk (FILE *, tree, HOST_WIDE_INT,
 				 HOST_WIDE_INT, tree);
 static int vax_address_cost_1 (rtx);
 static int vax_address_cost (rtx, bool);
-static bool vax_rtx_costs (rtx, int, int, int *, bool);
-static rtx vax_function_arg (CUMULATIVE_ARGS *, enum machine_mode,
+static bool vax_rtx_costs (rtx, int, int, int, int *, bool);
+static rtx vax_function_arg (cumulative_args_t, enum machine_mode,
 			     const_tree, bool);
-static void vax_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode,
+static void vax_function_arg_advance (cumulative_args_t, enum machine_mode,
 				      const_tree, bool);
 static rtx vax_struct_value_rtx (tree, int);
 static rtx vax_builtin_setjmp_frame_value (void);
@@ -69,9 +68,6 @@ static int vax_return_pops_args (tree, tree, int);
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
 #define TARGET_ASM_ALIGNED_HI_OP "\t.word\t"
-
-#undef TARGET_ASM_FUNCTION_PROLOGUE
-#define TARGET_ASM_FUNCTION_PROLOGUE vax_output_function_prologue
 
 #undef TARGET_ASM_FILE_START
 #define TARGET_ASM_FILE_START vax_file_start
@@ -85,9 +81,6 @@ static int vax_return_pops_args (tree, tree, int);
 #define TARGET_ASM_OUTPUT_MI_THUNK vax_output_mi_thunk
 #undef TARGET_ASM_CAN_OUTPUT_MI_THUNK
 #define TARGET_ASM_CAN_OUTPUT_MI_THUNK default_can_output_mi_thunk_no_vcall
-
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS TARGET_DEFAULT
 
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS vax_rtx_costs
@@ -140,6 +133,17 @@ vax_option_override (void)
 #endif
 }
 
+static void
+vax_add_reg_cfa_offset (rtx insn, int offset, rtx src)
+{
+  rtx x;
+
+  x = plus_constant (frame_pointer_rtx, offset);
+  x = gen_rtx_MEM (SImode, x);
+  x = gen_rtx_SET (VOIDmode, x, src);
+  add_reg_note (insn, REG_CFA_OFFSET, x);
+}
+
 /* Generate the assembly code for function entry.  FILE is a stdio
    stream to output the code to.  SIZE is an int: how many units of
    temporary storage to allocate.
@@ -149,38 +153,67 @@ vax_option_override (void)
    used in the function.  This function is responsible for knowing
    which registers should not be saved even if used.  */
 
-static void
-vax_output_function_prologue (FILE * file, HOST_WIDE_INT size)
+void
+vax_expand_prologue (void)
 {
-  int regno;
+  int regno, offset;
   int mask = 0;
+  HOST_WIDE_INT size;
+  rtx insn;
 
   for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
     if (df_regs_ever_live_p (regno) && !call_used_regs[regno])
       mask |= 1 << regno;
 
-  fprintf (file, "\t.word 0x%x\n", mask);
+  insn = emit_insn (gen_procedure_entry_mask (GEN_INT (mask)));
+  RTX_FRAME_RELATED_P (insn) = 1;
 
-  if (dwarf2out_do_frame ())
-    {
-      const char *label = dwarf2out_cfi_label (false);
-      int offset = 0;
+  /* The layout of the CALLG/S stack frame is follows:
 
-      for (regno = FIRST_PSEUDO_REGISTER-1; regno >= 0; --regno)
-	if (df_regs_ever_live_p (regno) && !call_used_regs[regno])
-	  dwarf2out_reg_save (label, regno, offset -= 4);
+		<- CFA, AP
+	r11
+	r10
+	...	Registers saved as specified by MASK
+	r3
+	r2
+	return-addr
+	old fp
+	old ap
+	old psw
+	zero
+		<- FP, SP
 
-      dwarf2out_reg_save (label, PC_REGNUM, offset -= 4);
-      dwarf2out_reg_save (label, FRAME_POINTER_REGNUM, offset -= 4);
-      dwarf2out_reg_save (label, ARG_POINTER_REGNUM, offset -= 4);
-      dwarf2out_def_cfa (label, FRAME_POINTER_REGNUM, -(offset - 4));
-    }
+     The rest of the prologue will adjust the SP for the local frame.  */
 
+  vax_add_reg_cfa_offset (insn, 4, arg_pointer_rtx);
+  vax_add_reg_cfa_offset (insn, 8, frame_pointer_rtx);
+  vax_add_reg_cfa_offset (insn, 12, pc_rtx);
+
+  offset = 16;
+  for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
+    if (mask & (1 << regno))
+      {
+	vax_add_reg_cfa_offset (insn, offset, gen_rtx_REG (SImode, regno));
+	offset += 4;
+      }
+
+  /* Because add_reg_note pushes the notes, adding this last means that
+     it will be processed first.  This is required to allow the other
+     notes be interpreted properly.  */
+  add_reg_note (insn, REG_CFA_DEF_CFA,
+		plus_constant (frame_pointer_rtx, offset));
+
+  /* Allocate the local stack frame.  */
+  size = get_frame_size ();
   size -= STARTING_FRAME_OFFSET;
-  if (size >= 64)
-    asm_fprintf (file, "\tmovab %wd(%Rsp),%Rsp\n", -size);
-  else if (size)
-    asm_fprintf (file, "\tsubl2 $%wd,%Rsp\n", size);
+  emit_insn (gen_addsi3 (stack_pointer_rtx,
+			 stack_pointer_rtx, GEN_INT (-size)));
+
+  /* Do not allow instructions referencing local stack memory to be
+     scheduled before the frame is allocated.  This is more pedantic
+     than anything else, given that VAX does not currently have a
+     scheduling description.  */
+  emit_insn (gen_blockage ());
 }
 
 /* When debugging with stabs, we want to output an extra dummy label
@@ -488,6 +521,8 @@ print_operand (FILE *file, rtx x, int code)
     fprintf (file, "$%d", (int) (0xff & - INTVAL (x)));
   else if (code == 'M' && CONST_INT_P (x))
     fprintf (file, "$%d", ~((1 << INTVAL (x)) - 1));
+  else if (code == 'x' && CONST_INT_P (x))
+    fprintf (file, HOST_WIDE_INT_PRINT_HEX, INTVAL (x));
   else if (REG_P (x))
     fprintf (file, "%s", reg_names[REGNO (x)]);
   else if (MEM_P (x))
@@ -710,8 +745,8 @@ vax_address_cost (rtx x, bool speed ATTRIBUTE_UNUSED)
    costs on a per cpu basis.  */
 
 static bool
-vax_rtx_costs (rtx x, int code, int outer_code, int *total,
-	       bool speed ATTRIBUTE_UNUSED)
+vax_rtx_costs (rtx x, int code, int outer_code, int opno ATTRIBUTE_UNUSED,
+	       int *total, bool speed ATTRIBUTE_UNUSED)
 {
   enum machine_mode mode = GET_MODE (x);
   int i = 0;				   /* may be modified in switch */
@@ -2109,7 +2144,7 @@ vax_return_pops_args (tree fundecl ATTRIBUTE_UNUSED,
 /* On the VAX all args are pushed.  */
 
 static rtx
-vax_function_arg (CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED,
+vax_function_arg (cumulative_args_t cum ATTRIBUTE_UNUSED,
 		  enum machine_mode mode ATTRIBUTE_UNUSED,
 		  const_tree type ATTRIBUTE_UNUSED,
 		  bool named ATTRIBUTE_UNUSED)
@@ -2122,9 +2157,11 @@ vax_function_arg (CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED,
    may not be available.)  */
 
 static void
-vax_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+vax_function_arg_advance (cumulative_args_t cum_v, enum machine_mode mode,
 			  const_tree type, bool named ATTRIBUTE_UNUSED)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+
   *cum += (mode != BLKmode
 	   ? (GET_MODE_SIZE (mode) + 3) & ~3
 	   : (int_size_in_bytes (type) + 3) & ~3);

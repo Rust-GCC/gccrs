@@ -398,8 +398,12 @@ decode_statement (void)
       match ("intrinsic", gfc_match_intrinsic, ST_ATTR_DECL);
       break;
 
+    case 'l':
+      match ("lock", gfc_match_lock, ST_LOCK);
+      break;
+
     case 'm':
-      match ("module% procedure% ", gfc_match_modproc, ST_MODULE_PROC);
+      match ("module% procedure", gfc_match_modproc, ST_MODULE_PROC);
       match ("module", gfc_match_module, ST_MODULE);
       break;
 
@@ -449,6 +453,7 @@ decode_statement (void)
       break;
 
     case 'u':
+      match ("unlock", gfc_match_unlock, ST_UNLOCK);
       match ("use", gfc_match_use, ST_USE);
       break;
 
@@ -521,6 +526,7 @@ decode_omp_directive (void)
       match ("do", gfc_match_omp_do, ST_OMP_DO);
       break;
     case 'e':
+      match ("end atomic", gfc_match_omp_eos, ST_OMP_END_ATOMIC);
       match ("end critical", gfc_match_omp_critical, ST_OMP_END_CRITICAL);
       match ("end do", gfc_match_omp_end_nowait, ST_OMP_END_DO);
       match ("end master", gfc_match_omp_eos, ST_OMP_END_MASTER);
@@ -562,6 +568,7 @@ decode_omp_directive (void)
     case 't':
       match ("task", gfc_match_omp_task, ST_OMP_TASK);
       match ("taskwait", gfc_match_omp_taskwait, ST_OMP_TASKWAIT);
+      match ("taskyield", gfc_match_omp_taskyield, ST_OMP_TASKYIELD);
       match ("threadprivate", gfc_match_omp_threadprivate,
 	     ST_OMP_THREADPRIVATE);
     case 'w':
@@ -952,8 +959,9 @@ next_statement (void)
   case ST_POINTER_ASSIGNMENT: case ST_EXIT: case ST_CYCLE: \
   case ST_ASSIGNMENT: case ST_ARITHMETIC_IF: case ST_WHERE: case ST_FORALL: \
   case ST_LABEL_ASSIGNMENT: case ST_FLUSH: case ST_OMP_FLUSH: \
-  case ST_OMP_BARRIER: case ST_OMP_TASKWAIT: case ST_ERROR_STOP: \
-  case ST_SYNC_ALL: case ST_SYNC_IMAGES: case ST_SYNC_MEMORY
+  case ST_OMP_BARRIER: case ST_OMP_TASKWAIT: case ST_OMP_TASKYIELD: \
+  case ST_ERROR_STOP: case ST_SYNC_ALL: case ST_SYNC_IMAGES: \
+  case ST_SYNC_MEMORY: case ST_LOCK: case ST_UNLOCK
 
 /* Statements that mark other executable statements.  */
 
@@ -1107,6 +1115,8 @@ check_statement_label (gfc_statement st)
     case ST_ENDIF:
     case ST_END_SELECT:
     case ST_END_CRITICAL:
+    case ST_END_BLOCK:
+    case ST_END_ASSOCIATE:
     case_executable:
     case_exec_markers:
       type = ST_LABEL_TARGET;
@@ -1334,6 +1344,9 @@ gfc_ascii_statement (gfc_statement st)
     case ST_INTERFACE:
       p = "INTERFACE";
       break;
+    case ST_LOCK:
+      p = "LOCK";
+      break;
     case ST_PARAMETER:
       p = "PARAMETER";
       break;
@@ -1393,6 +1406,9 @@ gfc_ascii_statement (gfc_statement st)
       break;
     case ST_TYPE:
       p = "TYPE";
+      break;
+    case ST_UNLOCK:
+      p = "UNLOCK";
       break;
     case ST_USE:
       p = "USE";
@@ -1457,6 +1473,9 @@ gfc_ascii_statement (gfc_statement st)
       break;
     case ST_OMP_DO:
       p = "!$OMP DO";
+      break;
+    case ST_OMP_END_ATOMIC:
+      p = "!$OMP END ATOMIC";
       break;
     case ST_OMP_END_CRITICAL:
       p = "!$OMP END CRITICAL";
@@ -1529,6 +1548,9 @@ gfc_ascii_statement (gfc_statement st)
       break;
     case ST_OMP_TASKWAIT:
       p = "!$OMP TASKWAIT";
+      break;
+    case ST_OMP_TASKYIELD:
+      p = "!$OMP TASKYIELD";
       break;
     case ST_OMP_THREADPRIVATE:
       p = "!$OMP THREADPRIVATE";
@@ -1605,6 +1627,18 @@ accept_statement (gfc_statement st)
     case ST_ENDIF:
     case ST_END_SELECT:
     case ST_END_CRITICAL:
+      if (gfc_statement_label != NULL)
+	{
+	  new_st.op = EXEC_END_NESTED_BLOCK;
+	  add_statement ();
+	}
+      break;
+
+      /* In the case of BLOCK and ASSOCIATE blocks, there cannot be more than
+	 one parallel block.  Thus, we add the special code to the nested block
+	 itself, instead of the parent one.  */
+    case ST_END_BLOCK:
+    case ST_END_ASSOCIATE:
       if (gfc_statement_label != NULL)
 	{
 	  new_st.op = EXEC_END_BLOCK;
@@ -1998,7 +2032,7 @@ parse_derived (void)
   gfc_statement st;
   gfc_state_data s;
   gfc_symbol *sym;
-  gfc_component *c;
+  gfc_component *c, *lock_comp = NULL;
 
   accept_statement (ST_DERIVED_DECL);
   push_state (&s, COMP_DERIVED, gfc_new_block);
@@ -2106,17 +2140,28 @@ endType:
   sym = gfc_current_block ();
   for (c = sym->components; c; c = c->next)
     {
+      bool coarray, lock_type, allocatable, pointer;
+      coarray = lock_type = allocatable = pointer = false;
+
       /* Look for allocatable components.  */
       if (c->attr.allocatable
-	  || (c->ts.type == BT_CLASS && CLASS_DATA (c)->attr.allocatable)
+	  || (c->ts.type == BT_CLASS && c->attr.class_ok
+	      && CLASS_DATA (c)->attr.allocatable)
 	  || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.alloc_comp))
-	sym->attr.alloc_comp = 1;
+	{
+	  allocatable = true;
+	  sym->attr.alloc_comp = 1;
+	}
 
       /* Look for pointer components.  */
       if (c->attr.pointer
-	  || (c->ts.type == BT_CLASS && CLASS_DATA (c)->attr.class_pointer)
+	  || (c->ts.type == BT_CLASS && c->attr.class_ok
+	      && CLASS_DATA (c)->attr.class_pointer)
 	  || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.pointer_comp))
-	sym->attr.pointer_comp = 1;
+	{
+	  pointer = true;
+	  sym->attr.pointer_comp = 1;
+	}
 
       /* Look for procedure pointer components.  */
       if (c->attr.proc_pointer
@@ -2126,8 +2171,76 @@ endType:
 
       /* Looking for coarray components.  */
       if (c->attr.codimension
-	  || (c->attr.coarray_comp && !c->attr.pointer && !c->attr.allocatable))
-	sym->attr.coarray_comp = 1;
+	  || (c->ts.type == BT_CLASS && c->attr.class_ok
+	      && CLASS_DATA (c)->attr.codimension))
+	{
+	  coarray = true;
+	  sym->attr.coarray_comp = 1;
+	}
+     
+      if (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.coarray_comp)
+	{
+	  coarray = true;
+	  if (!pointer && !allocatable)
+	    sym->attr.coarray_comp = 1;
+	}
+
+      /* Looking for lock_type components.  */
+      if ((c->ts.type == BT_DERIVED
+	      && c->ts.u.derived->from_intmod == INTMOD_ISO_FORTRAN_ENV
+	      && c->ts.u.derived->intmod_sym_id == ISOFORTRAN_LOCK_TYPE)
+	  || (c->ts.type == BT_CLASS && c->attr.class_ok
+	      && CLASS_DATA (c)->ts.u.derived->from_intmod
+		 == INTMOD_ISO_FORTRAN_ENV
+	      && CLASS_DATA (c)->ts.u.derived->intmod_sym_id
+		 == ISOFORTRAN_LOCK_TYPE)
+	  || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.lock_comp
+	      && !allocatable && !pointer))
+	{
+	  lock_type = 1;
+	  lock_comp = c;
+	  sym->attr.lock_comp = 1;
+	}
+
+      /* Check for F2008, C1302 - and recall that pointers may not be coarrays
+	 (5.3.14) and that subobjects of coarray are coarray themselves (2.4.7),
+	 unless there are nondirect [allocatable or pointer] components
+	 involved (cf. 1.3.33.1 and 1.3.33.3).  */
+
+      if (pointer && !coarray && lock_type)
+	gfc_error ("Component %s at %L of type LOCK_TYPE must have a "
+		   "codimension or be a subcomponent of a coarray, "
+		   "which is not possible as the component has the "
+		   "pointer attribute", c->name, &c->loc);
+      else if (pointer && !coarray && c->ts.type == BT_DERIVED
+	       && c->ts.u.derived->attr.lock_comp)
+	gfc_error ("Pointer component %s at %L has a noncoarray subcomponent "
+		   "of type LOCK_TYPE, which must have a codimension or be a "
+		   "subcomponent of a coarray", c->name, &c->loc);
+
+      if (lock_type && allocatable && !coarray)
+	gfc_error ("Allocatable component %s at %L of type LOCK_TYPE must have "
+		   "a codimension", c->name, &c->loc);
+      else if (lock_type && allocatable && c->ts.type == BT_DERIVED
+	       && c->ts.u.derived->attr.lock_comp)
+	gfc_error ("Allocatable component %s at %L must have a codimension as "
+		   "it has a noncoarray subcomponent of type LOCK_TYPE",
+		   c->name, &c->loc);
+
+      if (sym->attr.coarray_comp && !coarray && lock_type)
+	gfc_error ("Noncoarray component %s at %L of type LOCK_TYPE or with "
+		   "subcomponent of type LOCK_TYPE must have a codimension or "
+		   "be a subcomponent of a coarray. (Variables of type %s may "
+		   "not have a codimension as already a coarray "
+		   "subcomponent exists)", c->name, &c->loc, sym->name);
+
+      if (sym->attr.lock_comp && coarray && !lock_type)
+	gfc_error ("Noncoarray component %s at %L of type LOCK_TYPE or with "
+		   "subcomponent of type LOCK_TYPE must have a codimension or "
+		   "be a subcomponent of a coarray. (Variables of type %s may "
+		   "not have a codimension as %s at %L has a codimension or a "
+		   "coarray subcomponent)", lock_comp->name, &lock_comp->loc,
+		   sym->name, c->name, &c->loc);
 
       /* Look for private components.  */
       if (sym->component_access == ACCESS_PRIVATE
@@ -2665,6 +2778,7 @@ parse_where_block (void)
 	    {
 	      gfc_error ("ELSEWHERE statement at %C follows previous "
 			 "unmasked ELSEWHERE");
+	      reject_statement ();
 	      break;
 	    }
 
@@ -3040,7 +3154,7 @@ check_do_closure (void)
     return 0;
 
   for (p = gfc_state_stack; p; p = p->previous)
-    if (p->state == COMP_DO)
+    if (p->state == COMP_DO || p->state == COMP_DO_CONCURRENT)
       break;
 
   if (p == NULL)
@@ -3058,7 +3172,8 @@ check_do_closure (void)
   /* At this point, the label doesn't terminate the innermost loop.
      Make sure it doesn't terminate another one.  */
   for (; p; p = p->previous)
-    if (p->state == COMP_DO && p->ext.end_do_label == gfc_statement_label)
+    if ((p->state == COMP_DO || p->state == COMP_DO_CONCURRENT)
+	&& p->ext.end_do_label == gfc_statement_label)
       {
 	gfc_error ("End of nonblock DO statement at %C is interwoven "
 		   "with another DO loop");
@@ -3273,7 +3388,9 @@ parse_do_block (void)
   gfc_code *top;
   gfc_state_data s;
   gfc_symtree *stree;
+  gfc_exec_op do_op;
 
+  do_op = new_st.op;
   s.ext.end_do_label = new_st.label1;
 
   if (new_st.ext.iterator != NULL)
@@ -3284,7 +3401,8 @@ parse_do_block (void)
   accept_statement (ST_DO);
 
   top = gfc_state_stack->tail;
-  push_state (&s, COMP_DO, gfc_new_block);
+  push_state (&s, do_op == EXEC_DO_CONCURRENT ? COMP_DO_CONCURRENT : COMP_DO,
+	      gfc_new_block);
 
   s.do_variable = stree;
 
@@ -3399,12 +3517,13 @@ parse_omp_do (gfc_statement omp_st)
 
 /* Parse the statements of OpenMP atomic directive.  */
 
-static void
+static gfc_statement
 parse_omp_atomic (void)
 {
   gfc_statement st;
   gfc_code *cp, *np;
   gfc_state_data s;
+  int count;
 
   accept_statement (ST_OMP_ATOMIC);
 
@@ -3413,21 +3532,35 @@ parse_omp_atomic (void)
   np = new_level (cp);
   np->op = cp->op;
   np->block = NULL;
+  count = 1 + (cp->ext.omp_atomic == GFC_OMP_ATOMIC_CAPTURE);
 
-  for (;;)
+  while (count)
     {
       st = next_statement ();
       if (st == ST_NONE)
 	unexpected_eof ();
       else if (st == ST_ASSIGNMENT)
-	break;
+	{
+	  accept_statement (st);
+	  count--;
+	}
       else
 	unexpected_statement (st);
     }
 
-  accept_statement (st);
-
   pop_state ();
+
+  st = next_statement ();
+  if (st == ST_OMP_END_ATOMIC)
+    {
+      gfc_clear_new_st ();
+      gfc_commit_symbols ();
+      gfc_warning_check ();
+      st = next_statement ();
+    }
+  else if (cp->ext.omp_atomic == GFC_OMP_ATOMIC_CAPTURE)
+    gfc_error ("Missing !$OMP END ATOMIC after !$OMP ATOMIC CAPTURE at %C");
+  return st;
 }
 
 
@@ -3537,8 +3670,8 @@ parse_omp_structured_block (gfc_statement omp_st, bool workshare_stmts_only)
 		  continue;
 
 		case ST_OMP_ATOMIC:
-		  parse_omp_atomic ();
-		  break;
+		  st = parse_omp_atomic ();
+		  continue;
 
 		default:
 		  cycle = false;
@@ -3718,8 +3851,8 @@ parse_executable (gfc_statement st)
 	  continue;
 
 	case ST_OMP_ATOMIC:
-	  parse_omp_atomic ();
-	  break;
+	  st = parse_omp_atomic ();
+	  continue;
 
 	default:
 	  return st;

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---         Copyright (C) 1992-2009, Free Software Foundation, Inc.          --
+--         Copyright (C) 1992-2011, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -39,7 +39,6 @@ pragma Polling (Off);
 --  operations. It causes infinite loops and other problems.
 
 with Ada.Unchecked_Conversion;
-with Ada.Unchecked_Deallocation;
 
 with Interfaces.C;
 
@@ -114,6 +113,13 @@ package body System.Task_Primitives.Operations is
    package body Specific is separate;
    --  The body of this package is target specific
 
+   ----------------------------------
+   -- ATCB allocation/deallocation --
+   ----------------------------------
+
+   package body ATCB_Allocation is separate;
+   --  The body of this package is shared across several targets
+
    ---------------------------------
    -- Support for foreign threads --
    ---------------------------------
@@ -135,9 +141,6 @@ package body System.Task_Primitives.Operations is
    function To_Address is
      new Ada.Unchecked_Conversion
        (Task_Id, System.Task_Primitives.Task_Address);
-
-   function Get_Exc_Stack_Addr return Address;
-   --  Replace System.Soft_Links.Get_Exc_Stack_Addr_NT
 
    procedure Timer_Sleep_AST (ID : Address);
    pragma Convention (C, Timer_Sleep_AST);
@@ -683,15 +686,6 @@ package body System.Task_Primitives.Operations is
       Specific.Set (Self_ID);
    end Enter_Task;
 
-   --------------
-   -- New_ATCB --
-   --------------
-
-   function New_ATCB (Entry_Num : Task_Entry_Index) return Task_Id is
-   begin
-      return new Ada_Task_Control_Block (Entry_Num);
-   end New_ATCB;
-
    -------------------
    -- Is_Valid_Task --
    -------------------
@@ -755,7 +749,6 @@ package body System.Task_Primitives.Operations is
 
       if Result = 0 then
          Succeeded := True;
-         Self_ID.Common.LL.Exc_Stack_Ptr := new Exc_Stack_T;
 
       else
          if not Single_Lock then
@@ -769,15 +762,6 @@ package body System.Task_Primitives.Operations is
       Result := pthread_condattr_destroy (Cond_Attr'Access);
       pragma Assert (Result = 0);
    end Initialize_TCB;
-
-   ------------------------
-   -- Get_Exc_Stack_Addr --
-   ------------------------
-
-   function Get_Exc_Stack_Addr return Address is
-   begin
-      return Self.Common.LL.Exc_Stack_Ptr (Exc_Stack_T'Last)'Address;
-   end Get_Exc_Stack_Addr;
 
    -----------------
    -- Create_Task --
@@ -852,15 +836,7 @@ package body System.Task_Primitives.Operations is
    ------------------
 
    procedure Finalize_TCB (T : Task_Id) is
-      Result  : Interfaces.C.int;
-      Tmp     : Task_Id := T;
-      Is_Self : constant Boolean := T = Self;
-
-      procedure Free is new
-        Ada.Unchecked_Deallocation (Ada_Task_Control_Block, Task_Id);
-
-      procedure Free is new Ada.Unchecked_Deallocation
-       (Exc_Stack_T, Exc_Stack_Ptr_T);
+      Result : Interfaces.C.int;
 
    begin
       if not Single_Lock then
@@ -875,12 +851,7 @@ package body System.Task_Primitives.Operations is
          Known_Tasks (T.Known_Tasks_Index) := null;
       end if;
 
-      Free (T.Common.LL.Exc_Stack_Ptr);
-      Free (Tmp);
-
-      if Is_Self then
-         Specific.Set (null);
-      end if;
+      ATCB_Allocation.Free_ATCB (T);
    end Finalize_TCB;
 
    ---------------
@@ -1247,8 +1218,6 @@ package body System.Task_Primitives.Operations is
    begin
       Environment_Task_Id := Environment_Task;
 
-      SSL.Get_Exc_Stack_Addr := Get_Exc_Stack_Addr'Access;
-
       --  Initialize the lock used to synchronize chain of all ATCBs
 
       Initialize_Lock (Single_RTS_Lock'Access, RTS_Lock_Level);
@@ -1273,4 +1242,16 @@ package body System.Task_Primitives.Operations is
       Enter_Task (Environment_Task);
    end Initialize;
 
+   -----------------------
+   -- Set_Task_Affinity --
+   -----------------------
+
+   procedure Set_Task_Affinity (T : ST.Task_Id) is
+      pragma Unreferenced (T);
+
+   begin
+      --  Setting task affinity is not supported by the underlying system
+
+      null;
+   end Set_Task_Affinity;
 end System.Task_Primitives.Operations;

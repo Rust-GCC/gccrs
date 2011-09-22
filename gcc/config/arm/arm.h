@@ -45,6 +45,10 @@ extern char arm_arch_name[];
 #define TARGET_CPU_CPP_BUILTINS()			\
   do							\
     {							\
+	if (TARGET_DSP_MULTIPLY)			\
+	   builtin_define ("__ARM_FEATURE_DSP");	\
+	if (unaligned_access)				\
+	  builtin_define ("__ARM_FEATURE_UNALIGNED");	\
 	/* Define __arm__ even when in thumb mode, for	\
 	   consistency with armcc.  */			\
 	builtin_define ("__arm__");			\
@@ -101,6 +105,8 @@ extern char arm_arch_name[];
 	      builtin_define ("__ARM_PCS");		\
 	    builtin_define ("__ARM_EABI__");		\
 	  }						\
+	if (TARGET_IDIV)				\
+	  builtin_define ("__ARM_ARCH_EXT_IDIV__");	\
     } while (0)
 
 #include "config/arm/arm-opts.h"
@@ -185,6 +191,7 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
    Do not define this macro if it does not need to do anything.  */
 #define EXTRA_SPECS						\
   { "subtarget_cpp_spec",	SUBTARGET_CPP_SPEC },           \
+  { "asm_cpu_spec",		ASM_CPU_SPEC },			\
   SUBTARGET_EXTRA_SPECS
 
 #ifndef SUBTARGET_EXTRA_SPECS
@@ -218,6 +225,7 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
 
 #define TARGET_HARD_TP			(target_thread_pointer == TP_CP15)
 #define TARGET_SOFT_TP			(target_thread_pointer == TP_SOFT)
+#define TARGET_GNU2_TLS			(target_tls_dialect == TLS_GNU2)
 
 /* Only 16-bit thumb code.  */
 #define TARGET_THUMB1			(TARGET_THUMB && !arm_arch_thumb2)
@@ -269,7 +277,8 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
   (TARGET_32BIT && arm_arch6 && (arm_arch_notm || arm_arch7em))
 
 /* Should MOVW/MOVT be used in preference to a constant pool.  */
-#define TARGET_USE_MOVT (arm_arch_thumb2 && !optimize_size)
+#define TARGET_USE_MOVT \
+  (arm_arch_thumb2 && !optimize_size && !current_tune->prefer_constant_pool)
 
 /* We could use unified syntax for arm mode, but for now we just use it
    for Thumb-2.  */
@@ -290,6 +299,10 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
 /* Nonzero if this chip supports ldrex{bhd} and strex{bhd}.  */
 #define TARGET_HAVE_LDREXBHD	((arm_arch6k && TARGET_ARM) || arm_arch7)
 
+/* Nonzero if integer division instructions supported.  */
+#define TARGET_IDIV		((TARGET_ARM && arm_arch_arm_hwdiv) \
+				 || (TARGET_THUMB2 && arm_arch_thumb_hwdiv))
+
 /* True iff the full BPABI is being used.  If TARGET_BPABI is true,
    then TARGET_AAPCS_BASED must be true -- but the converse does not
    hold.  TARGET_BPABI implies the use of the BPABI runtime library,
@@ -306,7 +319,8 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
      by -march).
    --with-float is ignored if -mfloat-abi is specified.
    --with-fpu is ignored if -mfpu is specified.
-   --with-abi is ignored is -mabi is specified.  */
+   --with-abi is ignored if -mabi is specified.
+   --with-tls is ignored if -mtls-dialect is specified. */
 #define OPTION_DEFAULT_SPECS \
   {"arch", "%{!march=*:%{!mcpu=*:-march=%(VALUE)}}" }, \
   {"cpu", "%{!march=*:%{!mcpu=*:-mcpu=%(VALUE)}}" }, \
@@ -314,7 +328,8 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
   {"float", "%{!mfloat-abi=*:-mfloat-abi=%(VALUE)}" }, \
   {"fpu", "%{!mfpu=*:-mfpu=%(VALUE)}"}, \
   {"abi", "%{!mabi=*:-mabi=%(VALUE)}"}, \
-  {"mode", "%{!marm:%{!mthumb:-m%(VALUE)}}"},
+  {"mode", "%{!marm:%{!mthumb:-m%(VALUE)}}"}, \
+  {"tls", "%{!mtls-dialect=*:-mtls-dialect=%(VALUE)}"},
 
 /* Which floating point model to use.  */
 enum arm_fp_model
@@ -430,8 +445,11 @@ extern int arm_cpp_interwork;
 /* Nonzero if chip supports Thumb 2.  */
 extern int arm_arch_thumb2;
 
-/* Nonzero if chip supports integer division instruction.  */
-extern int arm_arch_hwdiv;
+/* Nonzero if chip supports integer division instruction in ARM mode.  */
+extern int arm_arch_arm_hwdiv;
+
+/* Nonzero if chip supports integer division instruction in Thumb mode.  */
+extern int arm_arch_thumb_hwdiv;
 
 #ifndef TARGET_DEFAULT
 #define TARGET_DEFAULT  (MASK_APCS_FRAME)
@@ -591,6 +609,20 @@ extern int arm_arch_hwdiv;
 
 #define WCHAR_TYPE_SIZE BITS_PER_WORD
 #endif
+
+/* Sized for fixed-point types.  */
+
+#define SHORT_FRACT_TYPE_SIZE 8
+#define FRACT_TYPE_SIZE 16
+#define LONG_FRACT_TYPE_SIZE 32
+#define LONG_LONG_FRACT_TYPE_SIZE 64
+
+#define SHORT_ACCUM_TYPE_SIZE 16
+#define ACCUM_TYPE_SIZE 32
+#define LONG_ACCUM_TYPE_SIZE 64
+#define LONG_LONG_ACCUM_TYPE_SIZE 64
+
+#define MAX_FIXED_MODE_SIZE 64
 
 #ifndef SIZE_TYPE
 #define SIZE_TYPE (TARGET_AAPCS_BASED ? "unsigned int" : "long unsigned int")
@@ -794,6 +826,16 @@ extern int arm_arch_hwdiv;
 /* The register that holds the return address in exception handlers.  */
 #define ARM_EH_STACKADJ_REGNUM	2
 #define EH_RETURN_STACKADJ_RTX	gen_rtx_REG (SImode, ARM_EH_STACKADJ_REGNUM)
+
+#ifndef ARM_TARGET2_DWARF_FORMAT
+#define ARM_TARGET2_DWARF_FORMAT DW_EH_PE_pcrel
+
+/* ttype entries (the only interesting data references used)
+   use TARGET2 relocations.  */
+#define ASM_PREFERRED_EH_DATA_FORMAT(code, data) \
+  (((code) == 0 && (data) == 1 && ARM_UNWIND_INFO) ? ARM_TARGET2_DWARF_FORMAT \
+			       : DW_EH_PE_absptr)
+#endif
 
 /* The native (Norcroft) Pascal compiler for the ARM passes the static chain
    as an invisible last argument (possible since varargs don't exist in
@@ -1877,7 +1919,7 @@ typedef struct
       : min >= -4096 && max < 4096					\
       ? (ADDR_DIFF_VEC_FLAGS (body).offset_unsigned = 0, HImode)	\
       : SImode)								\
-   : ((min < 0 || max >= 0x2000 || !TARGET_THUMB2) ? SImode		\
+   : ((min < 0 || max >= 0x20000 || !TARGET_THUMB2) ? SImode		\
       : (max >= 0x200) ? HImode						\
       : QImode))
 
@@ -1946,8 +1988,8 @@ typedef struct
 /* Try to generate sequences that don't involve branches, we can then use
    conditional instructions */
 #define BRANCH_COST(speed_p, predictable_p) \
-  (TARGET_32BIT ? (TARGET_THUMB2 && !speed_p ? 1 : 4) \
-		: (optimize > 0 ? 2 : 0))
+  (current_tune->branch_cost (speed_p, predictable_p))
+
 
 /* Position Independent Code.  */
 /* We decide which register to use based on the compilation options and
@@ -2193,5 +2235,9 @@ extern int making_const_table;
 /* The maximum number of parallel loads or stores we support in an ldm/stm
    instruction.  */
 #define MAX_LDM_STM_OPS 4
+
+#define ASM_CPU_SPEC \
+   " %{mcpu=generic-*:-march=%*;"				\
+   "   :%{mcpu=*:-mcpu=%*} %{march=*:-march=%*}}"
 
 #endif /* ! GCC_ARM_H */

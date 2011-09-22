@@ -276,6 +276,8 @@ struct pretty_print_info
     }						              \
   while (0)
 #define pp_decimal_int(PP, I)  pp_scalar (PP, "%d", I)
+#define pp_unsigned_wide_integer(PP, I) \
+   pp_scalar (PP, HOST_WIDE_INT_PRINT_UNSIGNED, (unsigned HOST_WIDE_INT) I)
 #define pp_wide_integer(PP, I) \
    pp_scalar (PP, HOST_WIDE_INT_PRINT_DEC, (HOST_WIDE_INT) I)
 #define pp_widest_integer(PP, I) \
@@ -303,10 +305,18 @@ extern const char *pp_base_last_position_in_text (const pretty_printer *);
 extern void pp_base_emit_prefix (pretty_printer *);
 extern void pp_base_append_text (pretty_printer *, const char *, const char *);
 
+/* If we haven't already defined a front-end-specific diagnostics
+   style, use the generic one.  */
+#ifdef GCC_DIAG_STYLE
+#define GCC_PPDIAG_STYLE GCC_DIAG_STYLE
+#else
+#define GCC_PPDIAG_STYLE __gcc_diag__
+#endif
+
 /* This header may be included before diagnostics-core.h, hence the duplicate
    definitions to allow for GCC-specific formats.  */
 #if GCC_VERSION >= 3005
-#define ATTRIBUTE_GCC_PPDIAG(m, n) __attribute__ ((__format__ (__gcc_diag__, m ,n))) ATTRIBUTE_NONNULL(m)
+#define ATTRIBUTE_GCC_PPDIAG(m, n) __attribute__ ((__format__ (GCC_PPDIAG_STYLE, m ,n))) ATTRIBUTE_NONNULL(m)
 #else
 #define ATTRIBUTE_GCC_PPDIAG(m, n) ATTRIBUTE_NONNULL(m)
 #endif

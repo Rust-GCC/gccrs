@@ -19,15 +19,12 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/* The Solaris 2.0 x86 linker botches alignment of code sections.
-   It tries to align to a 16 byte boundary by padding with 0x00000090
-   ints, rather than 0x90 bytes (nop).  This generates trash in the
-   ".init" section since the contribution from crtbegin.o is only 7
-   bytes.  The linker pads it to 16 bytes with a single 0x90 byte, and
-   two 0x00000090 ints, which generates a segmentation violation when
-   executed.  This macro forces the assembler to do the padding, since
-   it knows what it is doing.  */
-#define FORCE_CODE_SECTION_ALIGN  asm(ALIGN_ASM_OP "16");
+/* Augment i386/unix.h version to return 8-byte vectors in memory, matching
+   Sun Studio compilers until version 12, the only ones supported on
+   Solaris 8 and 9.  */
+#undef TARGET_SUBTARGET_DEFAULT
+#define TARGET_SUBTARGET_DEFAULT \
+	(MASK_80387 | MASK_IEEE_FP | MASK_FLOAT_RETURNS | MASK_VECT8_RETURNS)
 
 /* Old versions of the Solaris assembler can not handle the difference of
    labels in different sections, so force DW_EH_PE_datarel.  */
@@ -47,23 +44,53 @@ along with GCC; see the file COPYING3.  If not see
 #undef EH_TABLES_CAN_BE_READ_ONLY
 #define EH_TABLES_CAN_BE_READ_ONLY (TARGET_64BIT)
 
-/* Solaris 2/Intel as chokes on #line directives.  */
+/* Follow Sun requirements for TLS code sequences and use Sun assembler TLS
+   syntax.  */
+#undef TARGET_SUN_TLS
+#define TARGET_SUN_TLS 1
+
+#undef  SIZE_TYPE
+#define SIZE_TYPE "unsigned int"
+
+#undef  PTRDIFF_TYPE
+#define PTRDIFF_TYPE "int"
+
+/* Solaris 2/Intel as chokes on #line directives before Solaris 10.  */
 #undef CPP_SPEC
 #define CPP_SPEC "%{,assembler-with-cpp:-P} %(cpp_subtarget)"
 
-/* FIXME: Removed -K PIC from generic Solaris 2 ASM_SPEC: the native assembler
-   gives many warnings: R_386_32 relocation is used for symbol ".text".  */
-#undef ASM_SPEC
-#define ASM_SPEC "%{v:-V} %{Qy:} %{!Qn:-Qy} %{Ym,*} -s %(asm_cpu)"
+#define ASM_CPU_DEFAULT_SPEC ""
 
 #define ASM_CPU_SPEC ""
  
+/* Don't include ASM_PIC_SPEC.  While the Solaris 8 and 9 assembler accepts
+   -K PIC, it gives many warnings:
+	R_386_32 relocation is used for symbol "<symbol>"
+   GNU as doesn't recognize -K at all.  */
+#undef ASM_SPEC
+#define ASM_SPEC ASM_SPEC_BASE
+
+#undef  ENDFILE_SPEC
+#define ENDFILE_SPEC \
+  "%{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
+   %{mpc32:crtprec32.o%s} \
+   %{mpc64:crtprec64.o%s} \
+   %{mpc80:crtprec80.o%s} \
+   crtend.o%s crtn.o%s"
+
+#define SUBTARGET_CPU_EXTRA_SPECS \
+  { "cpp_subtarget",	 CPP_SUBTARGET_SPEC },		\
+  { "asm_cpu",		 ASM_CPU_SPEC },		\
+  { "asm_cpu_default",	 ASM_CPU_DEFAULT_SPEC },	\
+
 #undef SUBTARGET_EXTRA_SPECS
 #define SUBTARGET_EXTRA_SPECS \
-  { "cpp_subtarget",	CPP_SUBTARGET_SPEC },	\
-  { "asm_cpu",		ASM_CPU_SPEC },		\
-  { "startfile_arch",	STARTFILE_ARCH_SPEC },	\
-  { "link_arch",	LINK_ARCH_SPEC }
+  { "startfile_arch",	STARTFILE_ARCH_SPEC },		\
+  { "link_arch",	LINK_ARCH_SPEC },		\
+  SUBTARGET_CPU_EXTRA_SPECS
+
+/* Register the Solaris-specific #pragma directives.  */
+#define REGISTER_SUBTARGET_PRAGMAS() solaris_register_pragmas ()
 
 #undef LOCAL_LABEL_PREFIX
 #define LOCAL_LABEL_PREFIX "."
@@ -88,18 +115,13 @@ along with GCC; see the file COPYING3.  If not see
       }							\
   } while (0)
 
-/* Follow Sun requirements for TLS code sequences and use Sun assembler TLS
-   syntax.  */
-#undef TARGET_SUN_TLS
-#define TARGET_SUN_TLS 1
-
+#ifndef USE_GAS
 /* The Sun assembler uses .tcomm for TLS common sections.  */
 #define TLS_COMMON_ASM_OP ".tcomm"
 
 /* Similar to the Sun assembler on SPARC, the native assembler requires
    TLS objects to be declared as @tls_obj (not @tls_object).  Unlike SPARC,
    gas doesn't understand this variant.  */
-#ifndef USE_GAS
 #undef  ASM_DECLARE_OBJECT_NAME
 #define ASM_DECLARE_OBJECT_NAME(FILE, NAME, DECL)		\
   do								\
@@ -123,26 +145,7 @@ along with GCC; see the file COPYING3.  If not see
       ASM_OUTPUT_LABEL (FILE, NAME);				\
     }								\
   while (0)
-#endif
-
-/* The Solaris assembler cannot grok .stabd directives.  */
-#undef NO_DBX_BNSYM_ENSYM
-#define NO_DBX_BNSYM_ENSYM 1
-
-/* Solaris-specific #pragmas are implemented on top of attributes.  Hook in
-   the bits from config/sol2.c.  */
-#define SUBTARGET_INSERT_ATTRIBUTES solaris_insert_attributes
-#define SUBTARGET_ATTRIBUTE_TABLE SOLARIS_ATTRIBUTE_TABLE
-
-/* Register the Solaris-specific #pragma directives.  */
-#define REGISTER_SUBTARGET_PRAGMAS() solaris_register_pragmas ()
-
-/* Augment i386/unix.h version to return 8-byte vectors in memory, matching
-   Sun Studio compilers until version 12, the only ones supported on
-   Solaris 8 and 9.  */
-#undef TARGET_SUBTARGET_DEFAULT
-#define TARGET_SUBTARGET_DEFAULT \
-	(MASK_80387 | MASK_IEEE_FP | MASK_FLOAT_RETURNS | MASK_VECT8_RETURNS)
+#endif /* !USE_GAS */
 
 /* Output a simple call for .init/.fini.  */
 #define ASM_OUTPUT_CALL(FILE, FN)				\
@@ -157,16 +160,26 @@ along with GCC; see the file COPYING3.  If not see
 #undef TARGET_ASM_NAMED_SECTION
 #define TARGET_ASM_NAMED_SECTION i386_solaris_elf_named_section
 
+#ifndef USE_GAS
+/* Emit COMDAT group signature symbols for Sun as.  */
+#undef TARGET_ASM_FILE_END
+#define TARGET_ASM_FILE_END solaris_file_end
+#endif
+
+/* Unlike GNU ld, Sun ld doesn't coalesce .ctors.N/.dtors.N sections, so
+   inhibit their creation.  Also cf. sparc/sysv4.h.  */
+#ifndef USE_GLD
+#define CTORS_SECTION_ASM_OP	"\t.section\t.ctors, \"aw\""
+#define DTORS_SECTION_ASM_OP	"\t.section\t.dtors, \"aw\""
+#endif
+
 /* We do not need NT_VERSION notes.  */
 #undef X86_FILE_START_VERSION_DIRECTIVE
 #define X86_FILE_START_VERSION_DIRECTIVE false
 
-/* Static stack checking is supported by means of probes.  */
-#define STACK_CHECK_STATIC_BUILTIN 1
-
 /* Only recent versions of Solaris 11 ld properly support hidden .gnu.linkonce
    sections, so don't use them.  */
-#ifndef TARGET_GNU_LD
+#ifndef USE_GLD
 #define USE_HIDDEN_LINKONCE 0
 #endif
 
@@ -175,11 +188,3 @@ along with GCC; see the file COPYING3.  If not see
 #define LIBGCC2_HAS_TF_MODE 1
 #define LIBGCC2_TF_CEXT q
 #define TF_SIZE 113
-
-#undef  SIZE_TYPE
-#define SIZE_TYPE "unsigned int"
-
-#undef  PTRDIFF_TYPE
-#define PTRDIFF_TYPE "int"
-
-#define MD_UNWIND_SUPPORT "config/i386/sol2-unwind.h"

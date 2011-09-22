@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -97,6 +97,20 @@ package body Switch is
          Exit_Program (E_Success);
       end if;
    end Check_Version_And_Help_G;
+
+   ------------------------------------
+   -- Display_Usage_Version_And_Help --
+   ------------------------------------
+
+   procedure Display_Usage_Version_And_Help is
+   begin
+      Write_Str ("  --version   Display version and exit");
+      Write_Eol;
+
+      Write_Str ("  --help      Display usage and exit");
+      Write_Eol;
+      Write_Eol;
+   end Display_Usage_Version_And_Help;
 
    ---------------------
    -- Display_Version --

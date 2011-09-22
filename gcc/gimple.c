@@ -1,6 +1,6 @@
 /* Gimple IR support functions.
 
-   Copyright 2007, 2008, 2009, 2010 Free Software Foundation, Inc.
+   Copyright 2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -856,6 +856,30 @@ gimple_build_debug_bind_stat (tree var, tree value, gimple stmt MEM_STAT_DECL)
 
   gimple_debug_bind_set_var (p, var);
   gimple_debug_bind_set_value (p, value);
+  if (stmt)
+    {
+      gimple_set_block (p, gimple_block (stmt));
+      gimple_set_location (p, gimple_location (stmt));
+    }
+
+  return p;
+}
+
+
+/* Build a new GIMPLE_DEBUG_SOURCE_BIND statement.
+
+   VAR is bound to VALUE; block and location are taken from STMT.  */
+
+gimple
+gimple_build_debug_source_bind_stat (tree var, tree value,
+				     gimple stmt MEM_STAT_DECL)
+{
+  gimple p = gimple_build_with_ops_stat (GIMPLE_DEBUG,
+					 (unsigned)GIMPLE_DEBUG_SOURCE_BIND, 2
+					 PASS_MEM_STAT);
+
+  gimple_debug_source_bind_set_var (p, var);
+  gimple_debug_source_bind_set_value (p, value);
   if (stmt)
     {
       gimple_set_block (p, gimple_block (stmt));
@@ -2587,19 +2611,19 @@ get_gimple_rhs_num_ops (enum tree_code code)
       || (SYM) == TRUTH_OR_EXPR						    \
       || (SYM) == TRUTH_XOR_EXPR) ? GIMPLE_BINARY_RHS			    \
    : (SYM) == TRUTH_NOT_EXPR ? GIMPLE_UNARY_RHS				    \
-   : ((SYM) == WIDEN_MULT_PLUS_EXPR					    \
+   : ((SYM) == COND_EXPR						    \
+      || (SYM) == WIDEN_MULT_PLUS_EXPR					    \
       || (SYM) == WIDEN_MULT_MINUS_EXPR					    \
       || (SYM) == DOT_PROD_EXPR						    \
       || (SYM) == REALIGN_LOAD_EXPR					    \
+      || (SYM) == VEC_COND_EXPR						    \
       || (SYM) == FMA_EXPR) ? GIMPLE_TERNARY_RHS			    \
-   : ((SYM) == COND_EXPR						    \
-      || (SYM) == CONSTRUCTOR						    \
+   : ((SYM) == CONSTRUCTOR						    \
       || (SYM) == OBJ_TYPE_REF						    \
       || (SYM) == ASSERT_EXPR						    \
       || (SYM) == ADDR_EXPR						    \
       || (SYM) == WITH_SIZE_EXPR					    \
-      || (SYM) == SSA_NAME						    \
-      || (SYM) == VEC_COND_EXPR) ? GIMPLE_SINGLE_RHS			    \
+      || (SYM) == SSA_NAME) ? GIMPLE_SINGLE_RHS				    \
    : GIMPLE_INVALID_RHS),
 #define END_OF_BASE_TREE_CODES (unsigned char) GIMPLE_INVALID_RHS,
 
@@ -3136,19 +3160,13 @@ canonicalize_cond_expr_cond (tree t)
 {
   /* Strip conversions around boolean operations.  */
   if (CONVERT_EXPR_P (t)
-      && truth_value_p (TREE_CODE (TREE_OPERAND (t, 0))))
+      && (truth_value_p (TREE_CODE (TREE_OPERAND (t, 0)))
+          || TREE_CODE (TREE_TYPE (TREE_OPERAND (t, 0)))
+	     == BOOLEAN_TYPE))
     t = TREE_OPERAND (t, 0);
 
-  /* For (bool)x use x != 0.  */
-  if (CONVERT_EXPR_P (t)
-      && TREE_CODE (TREE_TYPE (t)) == BOOLEAN_TYPE)
-    {
-      tree top0 = TREE_OPERAND (t, 0);
-      t = build2 (NE_EXPR, TREE_TYPE (t),
-		  top0, build_int_cst (TREE_TYPE (top0), 0));
-    }
   /* For !x use x == 0.  */
-  else if (TREE_CODE (t) == TRUTH_NOT_EXPR)
+  if (TREE_CODE (t) == TRUTH_NOT_EXPR)
     {
       tree top0 = TREE_OPERAND (t, 0);
       t = build2 (EQ_EXPR, TREE_TYPE (t),
@@ -3333,33 +3351,18 @@ gimple_lookup_type_leader (tree t)
    true if both types have no names.  */
 
 static bool
-compare_type_names_p (tree t1, tree t2, bool for_completion_p)
+compare_type_names_p (tree t1, tree t2)
 {
   tree name1 = TYPE_NAME (t1);
   tree name2 = TYPE_NAME (t2);
 
-  /* Consider anonymous types all unique for completion.  */
-  if (for_completion_p
-      && (!name1 || !name2))
-    return false;
-
   if (name1 && TREE_CODE (name1) == TYPE_DECL)
-    {
-      name1 = DECL_NAME (name1);
-      if (for_completion_p
-	  && !name1)
-	return false;
-    }
-  gcc_assert (!name1 || TREE_CODE (name1) == IDENTIFIER_NODE);
+    name1 = DECL_NAME (name1);
+  gcc_checking_assert (!name1 || TREE_CODE (name1) == IDENTIFIER_NODE);
 
   if (name2 && TREE_CODE (name2) == TYPE_DECL)
-    {
-      name2 = DECL_NAME (name2);
-      if (for_completion_p
-	  && !name2)
-	return false;
-    }
-  gcc_assert (!name2 || TREE_CODE (name2) == IDENTIFIER_NODE);
+    name2 = DECL_NAME (name2);
+  gcc_checking_assert (!name2 || TREE_CODE (name2) == IDENTIFIER_NODE);
 
   /* Identifiers can be compared with pointer equality rather
      than a string comparison.  */
@@ -3417,25 +3420,6 @@ gimple_compare_field_offset (tree f1, tree f2)
       return bit_offset1 % BITS_PER_UNIT == bit_offset2 % BITS_PER_UNIT;
     }
 
-  return false;
-}
-
-/* If the type T1 and the type T2 are a complete and an incomplete
-   variant of the same type return true.  */
-
-static bool
-gimple_compatible_complete_and_incomplete_subtype_p (tree t1, tree t2)
-{
-  /* If one pointer points to an incomplete type variant of
-     the other pointed-to type they are the same.  */
-  if (TREE_CODE (t1) == TREE_CODE (t2)
-      && RECORD_OR_UNION_TYPE_P (t1)
-      && (!COMPLETE_TYPE_P (t1)
-	  || !COMPLETE_TYPE_P (t2))
-      && TYPE_QUALS (t1) == TYPE_QUALS (t2)
-      && compare_type_names_p (TYPE_MAIN_VARIANT (t1),
-			       TYPE_MAIN_VARIANT (t2), true))
-    return true;
   return false;
 }
 
@@ -3586,6 +3570,10 @@ gimple_types_compatible_p_1 (tree t1, tree t2, type_pair_t p,
   /* Start with an equality assumption.  As we DFS recurse into child
      SCCs this assumption may get revisited.  */
   state->u.same_p = 1;
+
+  /* The struct tags shall compare equal.  */
+  if (!compare_type_names_p (t1, t2))
+    goto different_types;
 
   /* If their attributes are not the same they can't be the same type.  */
   if (!attribute_list_equal (TYPE_ATTRIBUTES (t1), TYPE_ATTRIBUTES (t2)))
@@ -3797,19 +3785,21 @@ gimple_types_compatible_p_1 (tree t1, tree t2, type_pair_t p,
       {
 	tree f1, f2;
 
-	/* The struct tags shall compare equal.  */
-	if (!compare_type_names_p (t1, t2, false))
-	  goto different_types;
-
 	/* For aggregate types, all the fields must be the same.  */
 	for (f1 = TYPE_FIELDS (t1), f2 = TYPE_FIELDS (t2);
 	     f1 && f2;
 	     f1 = TREE_CHAIN (f1), f2 = TREE_CHAIN (f2))
 	  {
-	    /* The fields must have the same name, offset and type.  */
+	    /* Different field kinds are not compatible.  */
+	    if (TREE_CODE (f1) != TREE_CODE (f2))
+	      goto different_types;
+	    /* Field decls must have the same name and offset.  */
+	    if (TREE_CODE (f1) == FIELD_DECL
+		&& (DECL_NONADDRESSABLE_P (f1) != DECL_NONADDRESSABLE_P (f2)
+		    || !gimple_compare_field_offset (f1, f2)))
+	      goto different_types;
+	    /* All entities should have the same name and type.  */
 	    if (DECL_NAME (f1) != DECL_NAME (f2)
-		|| DECL_NONADDRESSABLE_P (f1) != DECL_NONADDRESSABLE_P (f2)
-		|| !gimple_compare_field_offset (f1, f2)
 		|| !gtc_visit (TREE_TYPE (f1), TREE_TYPE (f2),
 			       state, sccstack, sccstate, sccstate_obstack))
 	      goto different_types;
@@ -4093,7 +4083,8 @@ iterative_hash_gimple_type (tree type, hashval_t val,
      smaller sets; when searching for existing matching types to merge,
      only existing types having the same features as the new type will be
      checked.  */
-  v = iterative_hash_hashval_t (TREE_CODE (type), 0);
+  v = iterative_hash_name (TYPE_NAME (type), 0);
+  v = iterative_hash_hashval_t (TREE_CODE (type), v);
   v = iterative_hash_hashval_t (TYPE_QUALS (type), v);
   v = iterative_hash_hashval_t (TREE_ADDRESSABLE (type), v);
 
@@ -4174,8 +4165,6 @@ iterative_hash_gimple_type (tree type, hashval_t val,
     {
       unsigned nf;
       tree f;
-
-      v = iterative_hash_name (TYPE_NAME (type), v);
 
       for (f = TYPE_FIELDS (type), nf = 0; f; f = TREE_CHAIN (f))
 	{
@@ -4392,27 +4381,11 @@ iterative_hash_canonical_type (tree type, hashval_t val)
       if (TREE_CODE (type) == METHOD_TYPE)
 	v = iterative_hash_canonical_type (TYPE_METHOD_BASETYPE (type), v);
 
-      /* For result types allow mismatch in completeness.  */
-      if (RECORD_OR_UNION_TYPE_P (TREE_TYPE (type)))
-	{
-	  v = iterative_hash_hashval_t (TREE_CODE (TREE_TYPE (type)), v);
-	  v = iterative_hash_name
-		(TYPE_NAME (TYPE_MAIN_VARIANT (TREE_TYPE (type))), v);
-	}
-      else
-	v = iterative_hash_canonical_type (TREE_TYPE (type), v);
+      v = iterative_hash_canonical_type (TREE_TYPE (type), v);
 
       for (p = TYPE_ARG_TYPES (type), na = 0; p; p = TREE_CHAIN (p))
 	{
-	  /* For argument types allow mismatch in completeness.  */
-	  if (RECORD_OR_UNION_TYPE_P (TREE_VALUE (p)))
-	    {
-	      v = iterative_hash_hashval_t (TREE_CODE (TREE_VALUE (p)), v);
-	      v = iterative_hash_name
-		    (TYPE_NAME (TYPE_MAIN_VARIANT (TREE_VALUE (p))), v);
-	    }
-	  else
-	    v = iterative_hash_canonical_type (TREE_VALUE (p), v);
+	  v = iterative_hash_canonical_type (TREE_VALUE (p), v);
 	  na++;
 	}
 
@@ -4427,10 +4400,11 @@ iterative_hash_canonical_type (tree type, hashval_t val)
       tree f;
 
       for (f = TYPE_FIELDS (type), nf = 0; f; f = TREE_CHAIN (f))
-	{
-	  v = iterative_hash_canonical_type (TREE_TYPE (f), v);
-	  nf++;
-	}
+	if (TREE_CODE (f) == FIELD_DECL)
+	  {
+	    v = iterative_hash_canonical_type (TREE_TYPE (f), v);
+	    nf++;
+	  }
 
       v = iterative_hash_hashval_t (nf, v);
     }
@@ -4701,10 +4675,7 @@ gimple_canonical_types_compatible_p (tree t1, tree t2)
     case FUNCTION_TYPE:
       /* Function types are the same if the return type and arguments types
 	 are the same.  */
-      if (!gimple_compatible_complete_and_incomplete_subtype_p
-	     (TREE_TYPE (t1), TREE_TYPE (t2))
-	  && !gimple_canonical_types_compatible_p
-	        (TREE_TYPE (t1), TREE_TYPE (t2)))
+      if (!gimple_canonical_types_compatible_p (TREE_TYPE (t1), TREE_TYPE (t2)))
 	return false;
 
       if (!comp_type_attributes (t1, t2))
@@ -4720,10 +4691,8 @@ gimple_canonical_types_compatible_p (tree t1, tree t2)
 	       parms1 && parms2;
 	       parms1 = TREE_CHAIN (parms1), parms2 = TREE_CHAIN (parms2))
 	    {
-	      if (!gimple_compatible_complete_and_incomplete_subtype_p
-		         (TREE_VALUE (parms1), TREE_VALUE (parms2))
-		  && !gimple_canonical_types_compatible_p
-		        (TREE_VALUE (parms1), TREE_VALUE (parms2)))
+	      if (!gimple_canonical_types_compatible_p
+		     (TREE_VALUE (parms1), TREE_VALUE (parms2)))
 		return false;
 	    }
 
@@ -4744,6 +4713,13 @@ gimple_canonical_types_compatible_p (tree t1, tree t2)
 	     f1 && f2;
 	     f1 = TREE_CHAIN (f1), f2 = TREE_CHAIN (f2))
 	  {
+	    /* Skip non-fields.  */
+	    while (f1 && TREE_CODE (f1) != FIELD_DECL)
+	      f1 = TREE_CHAIN (f1);
+	    while (f2 && TREE_CODE (f2) != FIELD_DECL)
+	      f2 = TREE_CHAIN (f2);
+	    if (!f1 || !f2)
+	      break;
 	    /* The fields must have the same name, offset and type.  */
 	    if (DECL_NONADDRESSABLE_P (f1) != DECL_NONADDRESSABLE_P (f2)
 		|| !gimple_compare_field_offset (f1, f2)
@@ -4780,45 +4756,22 @@ gimple_canonical_type_eq (const void *p1, const void *p2)
 /* Register type T in the global type table gimple_types.
    If another type T', compatible with T, already existed in
    gimple_types then return T', otherwise return T.  This is used by
-   LTO to merge identical types read from different TUs.  */
+   LTO to merge identical types read from different TUs.
+
+   ???  This merging does not exactly match how the tree.c middle-end
+   functions will assign TYPE_CANONICAL when new types are created
+   during optimization (which at least happens for pointer and array
+   types).  */
 
 tree
 gimple_register_canonical_type (tree t)
 {
   void **slot;
-  tree orig_t = t;
 
   gcc_assert (TYPE_P (t));
 
   if (TYPE_CANONICAL (t))
     return TYPE_CANONICAL (t);
-
-  /* Use the leader of our main variant for determining our canonical
-     type.  The main variant leader is a type that will always
-     prevail.  */
-  t = gimple_register_type (TYPE_MAIN_VARIANT (t));
-
-  if (TYPE_CANONICAL (t))
-    return TYPE_CANONICAL (t);
-
-  /* For pointer and reference types do as the middle-end does - the
-     canonical type is a pointer to the canonical pointed-to type.  */
-  if (TREE_CODE (t) == POINTER_TYPE)
-    {
-      TYPE_CANONICAL (t)
-	  = build_pointer_type_for_mode
-	  (gimple_register_canonical_type (TREE_TYPE (t)),
-	   TYPE_MODE (t), TYPE_REF_CAN_ALIAS_ALL (t));
-      return TYPE_CANONICAL (t);
-    }
-  else if (TREE_CODE (t) == REFERENCE_TYPE)
-    {
-      TYPE_CANONICAL (t)
-	  = build_reference_type_for_mode
-	  (gimple_register_canonical_type (TREE_TYPE (t)),
-	   TYPE_MODE (t), TYPE_REF_CAN_ALIAS_ALL (t));
-      return TYPE_CANONICAL (t);
-    }
 
   if (gimple_canonical_types == NULL)
     gimple_canonical_types = htab_create_ggc (16381, gimple_canonical_type_hash,
@@ -4838,9 +4791,6 @@ gimple_register_canonical_type (tree t)
       TYPE_CANONICAL (t) = t;
       *slot = (void *) t;
     }
-
-  /* Also cache the canonical type in the non-leaders.  */
-  TYPE_CANONICAL (orig_t) = t;
 
   return t;
 }
@@ -5309,6 +5259,20 @@ walk_stmt_load_store_addr_ops (gimple stmt, void *data,
 		   && TREE_CODE (OBJ_TYPE_REF_OBJECT (rhs)) == ADDR_EXPR)
 	    ret |= visit_addr (stmt, TREE_OPERAND (OBJ_TYPE_REF_OBJECT (rhs),
 						   0), data);
+	  else if (TREE_CODE (rhs) == CONSTRUCTOR)
+	    {
+	      unsigned int ix;
+	      tree val;
+
+	      FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (rhs), ix, val)
+		if (TREE_CODE (val) == ADDR_EXPR)
+		  ret |= visit_addr (stmt, TREE_OPERAND (val, 0), data);
+		else if (TREE_CODE (val) == OBJ_TYPE_REF
+			 && TREE_CODE (OBJ_TYPE_REF_OBJECT (val)) == ADDR_EXPR)
+		  ret |= visit_addr (stmt,
+				     TREE_OPERAND (OBJ_TYPE_REF_OBJECT (val),
+						   0), data);
+	    }
           lhs = gimple_assign_lhs (stmt);
 	  if (TREE_CODE (lhs) == TARGET_MEM_REF
               && TREE_CODE (TMR_BASE (lhs)) == ADDR_EXPR)

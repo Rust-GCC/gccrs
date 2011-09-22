@@ -1,6 +1,8 @@
 /* Test the Modern GNU Objective-C Runtime API.
 
-  This is test 'class', covering all functions starting with 'class'.  */
+  This is test 'class', covering all functions starting with 'class'.
+  Tests calling the functions with a meta class as argument are covered
+  in the separate file, gnu-api-2-class-meta.m.  */
 
 /* { dg-do run } */
 /* { dg-skip-if "No API#2 pre-Darwin9" { *-*-darwin[5-8]* } { "-fnext-runtime" } { "" } } */
@@ -109,7 +111,7 @@ int main(int argc, void **args)
     objc_registerClassPair (new_class);    
 
     {
-      MySubClass *o = [[objc_getClass ("MySubSubClass") alloc] init];
+      MySubClass *o = [[(Class)objc_getClass ("MySubSubClass") alloc] init];
       Ivar variable2 = class_getInstanceVariable (objc_getClass ("MySubSubClass"), "variable2_ivar");
       Ivar variable3 = class_getInstanceVariable (objc_getClass ("MySubSubClass"), "variable3_ivar");
       Ivar variable4 = class_getInstanceVariable (objc_getClass ("MySubSubClass"), "variable4_ivar");
@@ -178,7 +180,7 @@ int main(int argc, void **args)
     /* Now, MySubClass2 is basically the same as MySubClass!  We'll
        use the variable and setVariable: methods on it.  */
     {
-      MySubClass *o = (MySubClass *)[[objc_getClass ("MySubClass2") alloc] init];
+      MySubClass *o = (MySubClass *)[[(Class)objc_getClass ("MySubClass2") alloc] init];
 
       [o setVariable: o];
 
@@ -394,6 +396,14 @@ int main(int argc, void **args)
     MySubClass *object = [[MySubClass alloc] init];
     if (class_getSuperclass (object_getClass (object)) != objc_getClass ("MyRootClass"))
       abort ();
+
+    /* Test that it works on a newly created, but not registered, class.  */
+    {
+      Class new_class = objc_allocateClassPair (objc_getClass ("MyRootClass"), "MySubClass3", 0);
+
+      if (class_getSuperclass (new_class) != objc_getClass ("MyRootClass"))
+	abort ();
+    }
   }
 
   printf ("Testing class_getVersion ()...\n");

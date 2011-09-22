@@ -145,7 +145,7 @@ build_polynomial_chrec (unsigned loop_num,
 
   /* Types of left and right sides of a chrec should be compatible.  */
   if (POINTER_TYPE_P (TREE_TYPE (left)))
-    gcc_assert (sizetype == TREE_TYPE (right));
+    gcc_assert (ptrofftype_p (TREE_TYPE (right)));
   else
     gcc_assert (TREE_TYPE (left) == TREE_TYPE (right));
 
@@ -205,7 +205,9 @@ evolution_function_is_affine_p (const_tree chrec)
   return chrec
     && TREE_CODE (chrec) == POLYNOMIAL_CHREC
     && evolution_function_is_invariant_p (CHREC_RIGHT (chrec),
-					  CHREC_VARIABLE (chrec));
+					  CHREC_VARIABLE (chrec))
+    && (TREE_CODE (CHREC_RIGHT (chrec)) != POLYNOMIAL_CHREC
+	|| evolution_function_is_affine_p (CHREC_RIGHT (chrec)));
 }
 
 /* Determines whether EXPR does not contains chrec expressions.  */

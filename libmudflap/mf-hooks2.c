@@ -1,5 +1,5 @@
 /* Mudflap: narrow-pointer bounds-checking by tree rewriting.
-   Copyright (C) 2002, 2003, 2004, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2009, 2011 Free Software Foundation, Inc.
    Contributed by Frank Ch. Eigler <fche@redhat.com>
    and Graydon Hoare <graydon@redhat.com>
 
@@ -89,6 +89,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #endif
 #ifdef HAVE_MNTENT_H
 #include <mntent.h>
+#endif
+#ifdef HAVE_SYS_MNTTAB_H
+#include <sys/mnttab.h>
 #endif
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
@@ -2063,6 +2066,7 @@ WRAPPER2(const char *, gai_strerror, int errcode)
 
 
 #ifdef HAVE_GETMNTENT
+#ifdef HAVE_MNTENT_H
 WRAPPER2(struct mntent *, getmntent, FILE *filep)
 {
   struct mntent *m;
@@ -2097,6 +2101,44 @@ WRAPPER2(struct mntent *, getmntent, FILE *filep)
 
   return m;
 }
+#elif defined HAVE_SYS_MNTTAB_H
+WRAPPER2(int, getmntent, FILE *filep, struct mnttab *mp)
+{
+  static struct mnttab *last = NULL;
+  int res;
+
+  MF_VALIDATE_EXTENT (filep, sizeof (*filep), __MF_CHECK_WRITE,
+    "getmntent stream");
+#define UR(field) __mf_unregister(last->field, strlen (last->field)+1, __MF_TYPE_STATIC)
+  if (last)
+    {
+      UR (mnt_special);
+      UR (mnt_mountp);
+      UR (mnt_fstype);
+      UR (mnt_mntopts);
+      UR (mnt_time);
+      __mf_unregister (last, sizeof (*last), __MF_TYPE_STATIC);
+    }
+#undef UR
+
+  res = getmntent (filep, mp);
+  last = mp;
+
+#define R(field) __mf_register(last->field, strlen (last->field)+1, __MF_TYPE_STATIC, "mntent " #field)
+  if (mp)
+    {
+      R (mnt_special);
+      R (mnt_mountp);
+      R (mnt_fstype);
+      R (mnt_mntopts);
+      R (mnt_time);
+      __mf_register (last, sizeof (*last), __MF_TYPE_STATIC, "getmntent result");
+    }
+#undef R
+
+  return res;
+}
+#endif
 #endif
 
 

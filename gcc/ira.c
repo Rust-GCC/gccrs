@@ -383,6 +383,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "integrate.h"
 #include "ggc.h"
 #include "ira-int.h"
+#include "dce.h"
 
 
 struct target_ira default_target_ira;
@@ -799,27 +800,35 @@ setup_pressure_classes (void)
     {
       if (ira_available_class_regs[cl] == 0)
 	continue;
-      /* Check that the moves between any hard registers of the
-	 current class are not more expensive for a legal mode than
-	 load/store of the hard registers of the current class.  Such
-	 class is a potential candidate to be a register pressure
-	 class.  */
-      for (m = 0; m < NUM_MACHINE_MODES; m++)
+      if (ira_available_class_regs[cl] != 1
+	  /* A register class without subclasses may contain a few
+	     hard registers and movement between them is costly
+	     (e.g. SPARC FPCC registers).  We still should consider it
+	     as a candidate for a pressure class.  */
+	  && alloc_reg_class_subclasses[cl][0] != LIM_REG_CLASSES)
 	{
-	  COPY_HARD_REG_SET (temp_hard_regset, reg_class_contents[cl]);
-	  AND_COMPL_HARD_REG_SET (temp_hard_regset, no_unit_alloc_regs);
-	  AND_COMPL_HARD_REG_SET (temp_hard_regset,
-				  ira_prohibited_class_mode_regs[cl][m]);
-	  if (hard_reg_set_empty_p (temp_hard_regset))
+	  /* Check that the moves between any hard registers of the
+	     current class are not more expensive for a legal mode
+	     than load/store of the hard registers of the current
+	     class.  Such class is a potential candidate to be a
+	     register pressure class.  */
+	  for (m = 0; m < NUM_MACHINE_MODES; m++)
+	    {
+	      COPY_HARD_REG_SET (temp_hard_regset, reg_class_contents[cl]);
+	      AND_COMPL_HARD_REG_SET (temp_hard_regset, no_unit_alloc_regs);
+	      AND_COMPL_HARD_REG_SET (temp_hard_regset,
+				      ira_prohibited_class_mode_regs[cl][m]);
+	      if (hard_reg_set_empty_p (temp_hard_regset))
+		continue;
+	      ira_init_register_move_cost_if_necessary ((enum machine_mode) m);
+	      cost = ira_register_move_cost[m][cl][cl];
+	      if (cost <= ira_max_memory_move_cost[m][cl][1]
+		  || cost <= ira_max_memory_move_cost[m][cl][0])
+		break;
+	    }
+	  if (m >= NUM_MACHINE_MODES)
 	    continue;
-	  ira_init_register_move_cost_if_necessary ((enum machine_mode) m);
-	  cost = ira_register_move_cost[m][cl][cl];
-	  if (cost <= ira_max_memory_move_cost[m][cl][1]
-	      || cost <= ira_max_memory_move_cost[m][cl][0])
-	    break;
 	}
-      if (m >= NUM_MACHINE_MODES)
-	continue;
       curr = 0;
       insert_p = true;
       COPY_HARD_REG_SET (temp_hard_regset, reg_class_contents[cl]);
@@ -848,6 +857,8 @@ setup_pressure_classes (void)
 	      && (! hard_reg_set_equal_p (temp_hard_regset2, temp_hard_regset)
 		  || cl == (int) GENERAL_REGS))
 	    continue;
+	  if (hard_reg_set_equal_p (temp_hard_regset2, temp_hard_regset))
+	    insert_p = false;
 	  pressure_classes[curr++] = (enum reg_class) cl2;
 	}
       /* If the current candidate is a subset of a so far added
@@ -858,23 +869,44 @@ setup_pressure_classes (void)
       n = curr;
     }
 #ifdef ENABLE_IRA_CHECKING
-  /* Check pressure classes correctness: here we check that hard
-     registers from all register pressure classes contains all hard
-     registers available for the allocation.  */
-  CLEAR_HARD_REG_SET (temp_hard_regset);
-  CLEAR_HARD_REG_SET (temp_hard_regset2);
-  for (cl = 0; cl < LIM_REG_CLASSES; cl++)
-    {
-      for (i = 0; i < n; i++)
-	if ((int) pressure_classes[i] == cl)
-	  break;
-      IOR_HARD_REG_SET (temp_hard_regset2, reg_class_contents[cl]);
-      if (i >= n)
-	IOR_HARD_REG_SET (temp_hard_regset, reg_class_contents[cl]);
-    }
-  AND_COMPL_HARD_REG_SET (temp_hard_regset, no_unit_alloc_regs);
-  AND_COMPL_HARD_REG_SET (temp_hard_regset2, no_unit_alloc_regs);
-  ira_assert (hard_reg_set_subset_p (temp_hard_regset2, temp_hard_regset));
+  {
+    HARD_REG_SET ignore_hard_regs;
+
+    /* Check pressure classes correctness: here we check that hard
+       registers from all register pressure classes contains all hard
+       registers available for the allocation.  */
+    CLEAR_HARD_REG_SET (temp_hard_regset);
+    CLEAR_HARD_REG_SET (temp_hard_regset2);
+    COPY_HARD_REG_SET (ignore_hard_regs, no_unit_alloc_regs);
+    for (cl = 0; cl < LIM_REG_CLASSES; cl++)
+      {
+	/* For some targets (like MIPS with MD_REGS), there are some
+	   classes with hard registers available for allocation but
+	   not able to hold value of any mode.  */
+	for (m = 0; m < NUM_MACHINE_MODES; m++)
+	  if (contains_reg_of_mode[cl][m])
+	    break;
+	if (m >= NUM_MACHINE_MODES)
+	  {
+	    IOR_HARD_REG_SET (ignore_hard_regs, reg_class_contents[cl]);
+	    continue;
+	  }
+	for (i = 0; i < n; i++)
+	  if ((int) pressure_classes[i] == cl)
+	    break;
+	IOR_HARD_REG_SET (temp_hard_regset2, reg_class_contents[cl]);
+	if (i < n)
+	  IOR_HARD_REG_SET (temp_hard_regset, reg_class_contents[cl]);
+      }
+    for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+      /* Some targets (like SPARC with ICC reg) have alocatable regs
+	 for which no reg class is defined.  */
+      if (REGNO_REG_CLASS (i) == NO_REGS)
+	SET_HARD_REG_BIT (ignore_hard_regs, i);
+    AND_COMPL_HARD_REG_SET (temp_hard_regset, ignore_hard_regs);
+    AND_COMPL_HARD_REG_SET (temp_hard_regset2, ignore_hard_regs);
+    ira_assert (hard_reg_set_subset_p (temp_hard_regset2, temp_hard_regset));
+  }
 #endif
   ira_pressure_classes_num = 0;
   for (i = 0; i < n; i++)
@@ -1371,7 +1403,7 @@ setup_reg_class_nregs (void)
       for (cl = 0; cl < N_REG_CLASSES; cl++)
 	ira_reg_class_max_nregs[cl][m]
 	  = ira_reg_class_min_nregs[cl][m]
-	  = CLASS_MAX_NREGS ((enum reg_class) cl, (enum machine_mode) m);
+	  = targetm.class_max_nregs ((reg_class_t) cl, (enum machine_mode) m);
       for (cl = 0; cl < N_REG_CLASSES; cl++)
 	for (i = 0;
 	     (cl2 = alloc_reg_class_subclasses[cl][i]) != LIM_REG_CLASSES;
@@ -1469,6 +1501,10 @@ ira_init_register_move_cost (enum machine_mode mode)
 	  sizeof (move_table) * N_REG_CLASSES);
   for (cl1 = 0; cl1 < N_REG_CLASSES; cl1++)
     {
+      /* Some subclasses are to small to have enough registers to hold
+	 a value of MODE.  Just ignore them.  */
+      if (ira_reg_class_max_nregs[cl1][mode] > ira_available_class_regs[cl1])
+	continue;
       COPY_HARD_REG_SET (temp_hard_regset, reg_class_contents[cl1]);
       AND_COMPL_HARD_REG_SET (temp_hard_regset, no_unit_alloc_regs);
       if (hard_reg_set_empty_p (temp_hard_regset))
@@ -1921,8 +1957,8 @@ setup_reg_renumber (void)
 				      reg_class_contents[pclass]);
 	    }
 	  if (ALLOCNO_CALLS_CROSSED_NUM (a) != 0
-	      && ! ira_hard_reg_not_in_set_p (hard_regno, ALLOCNO_MODE (a),
-					      call_used_reg_set))
+	      && ira_hard_reg_set_intersection_p (hard_regno, ALLOCNO_MODE (a),
+						  call_used_reg_set))
 	    {
 	      ira_assert (!optimize || flag_caller_saves
 			  || regno >= ira_reg_equiv_len
@@ -1960,10 +1996,10 @@ setup_allocno_assignment_flags (void)
 				|| ALLOCNO_EMIT_DATA (a)->mem_optimized_dest_p
 				|| (ALLOCNO_MEMORY_COST (a)
 				    - ALLOCNO_CLASS_COST (a)) < 0);
-      ira_assert (hard_regno < 0
-		  || ! ira_hard_reg_not_in_set_p (hard_regno, ALLOCNO_MODE (a),
-						  reg_class_contents
-						  [ALLOCNO_CLASS (a)]));
+      ira_assert
+	(hard_regno < 0
+	 || ira_hard_reg_in_set_p (hard_regno, ALLOCNO_MODE (a),
+				   reg_class_contents[ALLOCNO_CLASS (a)]));
     }
 }
 
@@ -1981,9 +2017,9 @@ calculate_allocation_cost (void)
     {
       hard_regno = ALLOCNO_HARD_REGNO (a);
       ira_assert (hard_regno < 0
-		  || ! ira_hard_reg_not_in_set_p
-		       (hard_regno, ALLOCNO_MODE (a),
-			reg_class_contents[ALLOCNO_CLASS (a)]));
+		  || (ira_hard_reg_in_set_p
+		      (hard_regno, ALLOCNO_MODE (a),
+		       reg_class_contents[ALLOCNO_CLASS (a)])));
       if (hard_regno < 0)
 	{
 	  cost = ALLOCNO_MEMORY_COST (a);
@@ -3495,6 +3531,7 @@ ira (FILE *f)
   int rebuild_p;
   int saved_flag_ira_share_spill_slots;
   basic_block bb;
+  bool need_dce;
 
   timevar_push (TV_IRA);
 
@@ -3686,7 +3723,7 @@ ira (FILE *f)
   df_set_flags (DF_NO_INSN_RESCAN);
   build_insn_chain ();
 
-  reload_completed = !reload (get_insns (), ira_conflicts_p);
+  need_dce = reload (get_insns (), ira_conflicts_p);
 
   timevar_pop (TV_RELOAD);
 
@@ -3729,7 +3766,7 @@ ira (FILE *f)
 #endif
 
   /* The code after the reload has changed so much that at this point
-     we might as well just rescan everything.  Not that
+     we might as well just rescan everything.  Note that
      df_rescan_all_insns is not going to help here because it does not
      touch the artificial uses and defs.  */
   df_finish_pass (true);
@@ -3740,6 +3777,9 @@ ira (FILE *f)
 
   if (optimize)
     df_analyze ();
+
+  if (need_dce && optimize)
+    run_fast_dce ();
 
   timevar_pop (TV_IRA);
 }
@@ -3775,7 +3815,6 @@ struct rtl_opt_pass pass_ira =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func |
   TODO_ggc_collect                      /* todo_flags_finish */
  }
 };

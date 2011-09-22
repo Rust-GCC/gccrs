@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 2001-2009, AdaCore                     --
+--                     Copyright (C) 2001-2011, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -42,8 +40,17 @@ package body GNAT.Sockets.Thin is
 
    type VMS_Msghdr is new Msghdr;
    pragma Pack (VMS_Msghdr);
-   --  On VMS (unlike other platforms), struct msghdr is packed, so a specific
-   --  derived type is required.
+   --  On VMS 8.x (unlike other platforms), struct msghdr is packed, so a
+   --  specific derived type is required. This structure was not packed on
+   --  VMS 7.3.
+
+   function Is_VMS_V7 return Integer;
+   pragma Import (C, Is_VMS_V7, "__gnat_is_vms_v7");
+   --  Helper (defined in init.c) that returns a non-zero value if the VMS
+   --  version is 7.x.
+
+   VMS_V7 : constant Boolean := Is_VMS_V7 /= 0;
+   --  True if VMS version is 7.x.
 
    Non_Blocking_Sockets : aliased Fd_Set;
    --  When this package is initialized with Process_Blocking_IO set to True,
@@ -296,15 +303,24 @@ package body GNAT.Sockets.Thin is
    is
       Res : C.int;
 
+      Msg_Addr : System.Address;
+
       GNAT_Msg : Msghdr;
       for GNAT_Msg'Address use Msg;
       pragma Import (Ada, GNAT_Msg);
 
-      VMS_Msg : aliased VMS_Msghdr := VMS_Msghdr (GNAT_Msg);
+      VMS_Msg : aliased VMS_Msghdr;
 
    begin
+      if VMS_V7 then
+         Msg_Addr := Msg;
+      else
+         VMS_Msg := VMS_Msghdr (GNAT_Msg);
+         Msg_Addr := VMS_Msg'Address;
+      end if;
+
       loop
-         Res := Syscall_Recvmsg (S, VMS_Msg'Address, Flags);
+         Res := Syscall_Recvmsg (S, Msg_Addr, Flags);
          exit when SOSC.Thread_Blocking_IO
            or else Res /= Failure
            or else Non_Blocking_Socket (S)
@@ -312,7 +328,9 @@ package body GNAT.Sockets.Thin is
          delay Quantum;
       end loop;
 
-      GNAT_Msg := Msghdr (VMS_Msg);
+      if not VMS_V7 then
+         GNAT_Msg := Msghdr (VMS_Msg);
+      end if;
 
       return System.CRTL.ssize_t (Res);
    end C_Recvmsg;
@@ -328,15 +346,24 @@ package body GNAT.Sockets.Thin is
    is
       Res : C.int;
 
+      Msg_Addr : System.Address;
+
       GNAT_Msg : Msghdr;
       for GNAT_Msg'Address use Msg;
       pragma Import (Ada, GNAT_Msg);
 
-      VMS_Msg : aliased VMS_Msghdr := VMS_Msghdr (GNAT_Msg);
+      VMS_Msg : aliased VMS_Msghdr;
 
    begin
+      if VMS_V7 then
+         Msg_Addr := Msg;
+      else
+         VMS_Msg := VMS_Msghdr (GNAT_Msg);
+         Msg_Addr := VMS_Msg'Address;
+      end if;
+
       loop
-         Res := Syscall_Sendmsg (S, VMS_Msg'Address, Flags);
+         Res := Syscall_Sendmsg (S, Msg_Addr, Flags);
          exit when SOSC.Thread_Blocking_IO
            or else Res /= Failure
            or else Non_Blocking_Socket (S)
@@ -344,7 +371,9 @@ package body GNAT.Sockets.Thin is
          delay Quantum;
       end loop;
 
-      GNAT_Msg := Msghdr (VMS_Msg);
+      if not VMS_V7 then
+         GNAT_Msg := Msghdr (VMS_Msg);
+      end if;
 
       return System.CRTL.ssize_t (Res);
    end C_Sendmsg;

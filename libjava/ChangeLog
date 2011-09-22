@@ -1,3 +1,85 @@
+2011-08-10  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* exception.cc (std::abort): Remove static.
+
+2011-08-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (THREADS): Remove posix95.
+	* configure: Regenerate.
+
+2011-08-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (GCC_UNWIND_INCLUDE): Rename to
+	LIBGCC_UNWIND_INCLUDE.
+	Point to $(multi_basedir)/./libjava/../libgcc.
+	* configure: Regenerate.
+	* Makefile.am (GCC_UNWIND_INCLUDE): Reflect this.
+	* Makefile.in: Regenerate.
+
+2011-07-12  Andrew Haley  <aph@redhat.com>
+
+	* interpret.cc (check_handler): Fix bit rot.
+	(breakpoint_at): Likewise.
+
+2011-07-12  Andrew Haley  <aph@redhat.com>
+
+	* java/lang/natClass.cc (finalize): Make sure that the class
+	really has an engine.
+
+2011-07-07  Matthias Klose  <doko@ubuntu.com>
+
+	* libtool-version: Bump soversion.
+
+2011-07-07  Matthias Klose  <doko@ubuntu.com>
+
+	* sysdep/x86-64: Remove empty directory.
+
+2011-07-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR target/39150
+	* configure.host (x86_64-*): Add -Usun to libgcj_flags.
+	(x86_64-*-solaris2.1[0-9]*): New case.
+	(i?86-*-solaris2*): Also accept x86_64-*-solaris2.1[0-9]*.
+
+2011-06-21  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libgcj/49314
+	* gnu/gcj/convert/natIconv.cc (iconv_init): Pad in[] with NUL byte.
+
+2011-06-17  Jack Howarth <howarth@bromo.med.uc.edu>
+
+	PR target/49461
+	* libjava/configure.ac (SYSTEMSPEC): Pass -no_pie for darwin11.
+	* libjava/configure: Regenerate.
+
+2011-06-17  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libgcj/49315
+	* include/solaris-signal.h: Rename to ...
+	* include/posix-signal.h: ... this.
+	(SA_FLAGS): Define.
+	(SIGNAL_HANDLER): Handle non-SA_SIGINFO case.
+	(sa_signal_handler): Define.
+	(_INIT_SIG_HANDLER): New macro.
+	(INIT_SEGV, INIT_FPE): Use it.
+	* configure.ac (SIGNAL_HANDLER): Use it on alpha*-dec-osf*,
+	mips-sgi-irix*, *-*-solaris2*
+	* configure: Regenerate.
+	* include/aix-signal.h: Refer to AIX.
+	* configure.host (alpha*-dec-osf*): Enable can_unwind_signal.
+	(mips-sgi-irix6*): Likewise.
+
+2011-05-31  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR libgcj/49193
+	* configure.host (sysdeps_dir): Set to i386 for x86_64.
+
+	* sysdep/i386/locks.h (compare_and_swap): Call
+	__sync_bool_compare_and_swap.
+	(release_set): Call write_barrier ().
+
+	* sysdep/x86-64/locks.h: Removed.
+
 2011-04-24  Gerald Pfeifer  <gerald@pfeifer.com>
 
 	* README: Refer to our generic bug reporting page.

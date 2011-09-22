@@ -100,9 +100,9 @@ create_iv (tree base, tree step, tree var, struct loop *loop,
     {
       if (TREE_CODE (base) == ADDR_EXPR)
 	mark_addressable (TREE_OPERAND (base, 0));
-      step = fold_convert (sizetype, step);
+      step = convert_to_ptrofftype (step);
       if (incr_op == MINUS_EXPR)
-	step = fold_build1 (NEGATE_EXPR, sizetype, step);
+	step = fold_build1 (NEGATE_EXPR, TREE_TYPE (step), step);
       incr_op = POINTER_PLUS_EXPR;
     }
   /* Gimplify the step if necessary.  We put the computations in front of the
@@ -705,7 +705,7 @@ determine_exit_conditions (struct loop *loop, struct tree_niter_desc *desc,
   enum tree_code cmp = desc->cmp;
   tree cond = boolean_true_node, assum;
 
-  /* For pointers, do the arithmetics in the type of step (sizetype).  */
+  /* For pointers, do the arithmetics in the type of step.  */
   base = fold_convert (type, base);
   bound = fold_convert (type, bound);
 
@@ -1200,18 +1200,36 @@ canonicalize_loop_ivs (struct loop *loop, tree *nit, bool bump_in_latch)
   gimple stmt;
   edge exit = single_dom_exit (loop);
   gimple_seq stmts;
+  enum machine_mode mode;
+  bool unsigned_p = false;
 
   for (psi = gsi_start_phis (loop->header);
        !gsi_end_p (psi); gsi_next (&psi))
     {
       gimple phi = gsi_stmt (psi);
       tree res = PHI_RESULT (phi);
+      bool uns;
 
-      if (is_gimple_reg (res) && TYPE_PRECISION (TREE_TYPE (res)) > precision)
-	precision = TYPE_PRECISION (TREE_TYPE (res));
+      type = TREE_TYPE (res);
+      if (!is_gimple_reg (res)
+	  || (!INTEGRAL_TYPE_P (type)
+	      && !POINTER_TYPE_P (type))
+	  || TYPE_PRECISION (type) < precision)
+	continue;
+
+      uns = POINTER_TYPE_P (type) | TYPE_UNSIGNED (type);
+
+      if (TYPE_PRECISION (type) > precision)
+	unsigned_p = uns;
+      else
+	unsigned_p |= uns;
+
+      precision = TYPE_PRECISION (type);
     }
 
-  type = lang_hooks.types.type_for_size (precision, 1);
+  mode = smallest_mode_for_size (precision, MODE_INT);
+  precision = GET_MODE_PRECISION (mode);
+  type = build_nonstandard_integer_type (precision, unsigned_p);
 
   if (original_precision != precision)
     {

@@ -361,7 +361,7 @@ grok_array_decl (tree array_expr, tree index_exp)
   if (MAYBE_CLASS_TYPE_P (type) || MAYBE_CLASS_TYPE_P (TREE_TYPE (index_exp)))
     expr = build_new_op (ARRAY_REF, LOOKUP_NORMAL,
 			 array_expr, index_exp, NULL_TREE,
-			 /*overloaded_p=*/NULL, tf_warning_or_error);
+			 /*overload=*/NULL, tf_warning_or_error);
   else
     {
       tree p1, p2, i1, i2;
@@ -868,6 +868,7 @@ grokfield (const cp_declarator *declarator,
           && TYPE_NAME (TYPE_MAIN_VARIANT (TREE_TYPE (value))) != value)
 	set_underlying_type (value);
 
+      record_locally_defined_typedef (value);
       return value;
     }
 
@@ -1327,7 +1328,10 @@ build_anon_union_vars (tree type, tree object)
   /* Rather than write the code to handle the non-union case,
      just give an error.  */
   if (TREE_CODE (type) != UNION_TYPE)
-    error ("anonymous struct not inside named type");
+    {
+      error ("anonymous struct not inside named type");
+      return error_mark_node;
+    }
 
   for (field = TYPE_FIELDS (type);
        field != NULL_TREE;
@@ -1437,7 +1441,7 @@ finish_anon_union (tree anon_union_decl)
     }
 
   pushdecl (anon_union_decl);
-  if (building_stmt_tree ()
+  if (building_stmt_list_p ()
       && at_function_scope_p ())
     add_decl_expr (anon_union_decl);
   else if (!processing_template_decl)
@@ -3571,26 +3575,16 @@ decl_defined_p (tree decl)
 bool
 decl_constant_var_p (tree decl)
 {
-  bool ret;
-  tree type = TREE_TYPE (decl);
-  if (TREE_CODE (decl) != VAR_DECL)
+  if (!decl_maybe_constant_var_p (decl))
     return false;
-  if (DECL_DECLARED_CONSTEXPR_P (decl)
-      || (CP_TYPE_CONST_NON_VOLATILE_P (type)
-	  && INTEGRAL_OR_ENUMERATION_TYPE_P (type)))
-    {
-      /* We don't know if a template static data member is initialized with
-	 a constant expression until we instantiate its initializer.  Even
-	 in the case of a constexpr variable, we can't treat it as a
-	 constant until its initializer is complete in case it's used in
-	 its own initializer.  */
-      mark_used (decl);
-      ret = DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (decl);
-    }
-  else
-    ret = false;
 
-  return ret;
+  /* We don't know if a template static data member is initialized with
+     a constant expression until we instantiate its initializer.  Even
+     in the case of a constexpr variable, we can't treat it as a
+     constant until its initializer is complete in case it's used in
+     its own initializer.  */
+  mark_used (decl);
+  return DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (decl);
 }
 
 /* Returns true if DECL could be a symbolic constant variable, depending on
@@ -3635,6 +3629,15 @@ collect_all_refs (const char *source_file)
   collect_ada_namespace (global_namespace, source_file);
 }
 
+/* Clear DECL_EXTERNAL for NODE.  */
+
+static bool
+clear_decl_external (struct cgraph_node *node, void *data ATTRIBUTE_UNUSED)
+{
+  DECL_EXTERNAL (node->decl) = 0;
+  return false;
+}
+
 /* This routine is called at the end of compilation.
    Its job is to create all the code needed to initialize and
    destroy the global aggregates.  We do the destruction
@@ -3662,6 +3665,8 @@ cp_write_global_declarations (void)
 
   if (pch_file)
     c_common_write_pch ();
+
+  cgraph_process_same_body_aliases ();
 
   /* Handle -fdump-ada-spec[-slim] */
   if (dump_enabled_p (TDI_ada))
@@ -3857,17 +3862,14 @@ cp_write_global_declarations (void)
 	      && DECL_INITIAL (decl)
 	      && decl_needed_p (decl))
 	    {
-	      struct cgraph_node *node = cgraph_get_node (decl), *alias, *next;
+	      struct cgraph_node *node, *next;
 
-	      DECL_EXTERNAL (decl) = 0;
-	      /* If we mark !DECL_EXTERNAL one of the same body aliases,
-		 we need to mark all of them that way.  */
-	      if (node && node->same_body)
-		{
-		  DECL_EXTERNAL (node->decl) = 0;
-		  for (alias = node->same_body; alias; alias = alias->next)
-		    DECL_EXTERNAL (alias->decl) = 0;
-		}
+	      node = cgraph_get_node (decl);
+	      if (node->same_body_alias)
+		node = cgraph_alias_aliased_node (node);
+
+	      cgraph_for_node_and_aliases (node, clear_decl_external,
+					   NULL, true);
 	      /* If we mark !DECL_EXTERNAL one of the symbols in some comdat
 		 group, we need to mark all symbols in the same comdat group
 		 that way.  */
@@ -3875,16 +3877,8 @@ cp_write_global_declarations (void)
 		for (next = node->same_comdat_group;
 		     next != node;
 		     next = next->same_comdat_group)
-		  {
-		    DECL_EXTERNAL (next->decl) = 0;
-		    if (next->same_body)
-		      {
-			for (alias = next->same_body;
-			     alias;
-			     alias = alias->next)
-			  DECL_EXTERNAL (alias->decl) = 0;
-		      }
-		  }
+	          cgraph_for_node_and_aliases (next, clear_decl_external,
+					       NULL, true);
 	    }
 
 	  /* If we're going to need to write this function out, and
@@ -3947,10 +3941,10 @@ cp_write_global_declarations (void)
 	     #pragma interface, etc.) we decided not to emit the
 	     definition here.  */
 	  && !DECL_INITIAL (decl)
-	  /* An explicit instantiation can be used to specify
-	     that the body is in another unit. It will have
-	     already verified there was a definition.  */
-	  && !DECL_EXPLICIT_INSTANTIATION (decl))
+	  /* Don't complain if the template was defined.  */
+	  && !(DECL_TEMPLATE_INSTANTIATION (decl)
+	       && DECL_INITIAL (DECL_TEMPLATE_RESULT
+				(template_for_substitution (decl)))))
 	{
 	  warning (0, "inline function %q+D used but never defined", decl);
 	  /* Avoid a duplicate warning from check_global_declaration_1.  */
@@ -4228,6 +4222,9 @@ mark_used (tree decl)
       return;
     }
 
+  if (TREE_CODE (decl) == FUNCTION_DECL)
+    maybe_instantiate_noexcept (decl);
+
   /* Normally, we can wait until instantiation-time to synthesize DECL.
      However, if DECL is a static data member initialized with a constant
      or a constexpr function, we need it right now because a reference to
@@ -4235,9 +4232,9 @@ mark_used (tree decl)
   if ((decl_maybe_constant_var_p (decl)
        || (TREE_CODE (decl) == FUNCTION_DECL
 	   && DECL_DECLARED_CONSTEXPR_P (decl)))
-      && !DECL_INITIAL (decl)
       && DECL_LANG_SPECIFIC (decl)
-      && DECL_TEMPLATE_INSTANTIATION (decl))
+      && DECL_TEMPLATE_INFO (decl)
+      && !uses_template_parms (DECL_TI_ARGS (decl)))
     {
       /* Instantiating a function will result in garbage collection.  We
 	 must treat this situation as if we were within the body of a
@@ -4294,6 +4291,9 @@ mark_used (tree decl)
   if (TREE_CODE (decl) == FUNCTION_DECL
       && DECL_NONSTATIC_MEMBER_FUNCTION_P (decl)
       && DECL_DEFAULTED_FN (decl)
+      /* A function defaulted outside the class is synthesized either by
+	 cp_finish_decl or instantiate_decl.  */
+      && !DECL_DEFAULTED_OUTSIDE_CLASS_P (decl)
       && ! DECL_INITIAL (decl))
     {
       /* Remember the current location for a function we will end up
@@ -4328,8 +4328,12 @@ mark_used (tree decl)
        times.  Maintaining a stack of active functions is expensive,
        and the inliner knows to instantiate any functions it might
        need.  Therefore, we always try to defer instantiation.  */
-    instantiate_decl (decl, /*defer_ok=*/true,
-		      /*expl_inst_class_mem_p=*/false);
+    {
+      ++function_depth;
+      instantiate_decl (decl, /*defer_ok=*/true,
+			/*expl_inst_class_mem_p=*/false);
+      --function_depth;
+    }
 }
 
 #include "gt-cp-decl2.h"

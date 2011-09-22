@@ -617,7 +617,6 @@ USING_SPLIT_STACK_FALSE
 USING_SPLIT_STACK_TRUE
 SPLIT_STACK
 OSCFLAGS
-GO_DEBUG_PROC_REGS_OS_ARCH_FILE
 GO_SYSCALLS_SYSCALL_OS_ARCH_FILE
 GOARCH
 LIBGO_IS_X86_64_FALSE
@@ -668,6 +667,7 @@ glibgo_toolexecdir
 glibgo_prefixdir
 WERROR
 WARN_FLAGS
+CC_FOR_BUILD
 enable_static
 enable_shared
 CPP
@@ -6422,7 +6422,7 @@ $as_echo "$lt_cv_cc_needs_belf" >&6; }
       case $lt_cv_prog_gnu_ld in
       yes*)
         case $host in
-        i?86-*-solaris*)
+        i?86-*-solaris* | x86_64-*-solaris2.1[0-9]*)
           LD="${LD-ld} -m elf_x86_64"
           ;;
         sparc*-*-solaris*)
@@ -13148,6 +13148,9 @@ CC="$lt_save_CC"
 
 
 
+CC_FOR_BUILD=${CC_FOR_BUILD:-gcc}
+
+
 WARN_FLAGS='-Wall -Wextra -Wwrite-strings -Wcast-qual'
 
 
@@ -13551,12 +13554,6 @@ fi
 GO_SYSCALLS_SYSCALL_OS_ARCH_FILE=
 if test -f ${srcdir}/syscalls/syscall_${GOOS}_${GOARCH}.go; then
   GO_SYSCALLS_SYSCALL_OS_ARCH_FILE=syscalls/syscall_${GOOS}_${GOARCH}.go
-fi
-
-
-GO_DEBUG_PROC_REGS_OS_ARCH_FILE=
-if test -f ${srcdir}/go/debug/proc/regs_${GOOS}_${GOARCH}.go; then
-  GO_DEBUG_PROC_REGS_OS_ARCH_FILE=go/debug/proc/regs_${GOOS}_${GOARCH}.go
 fi
 
 
@@ -14248,7 +14245,7 @@ no)
   ;;
 esac
 
-for ac_header in sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/syscall.h sys/user.h sys/utsname.h sys/select.h
+for ac_header in sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/syscall.h sys/user.h sys/utsname.h sys/select.h sys/socket.h net/if.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
@@ -14262,6 +14259,26 @@ fi
 
 done
 
+
+for ac_header in linux/filter.h linux/netlink.h linux/rtnetlink.h
+do :
+  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ac_fn_c_check_header_compile "$LINENO" "$ac_header" "$as_ac_Header" "#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+
+"
+eval as_val=\$$as_ac_Header
+   if test "x$as_val" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+
  if test "$ac_cv_header_sys_mman_h" = yes; then
   HAVE_SYS_MMAN_H_TRUE=
   HAVE_SYS_MMAN_H_FALSE='#'
@@ -14271,7 +14288,7 @@ else
 fi
 
 
-for ac_func in srandom random strerror_r strsignal wait4 mincore
+for ac_func in srandom random strerror_r strsignal wait4 mincore setenv
 do :
   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"

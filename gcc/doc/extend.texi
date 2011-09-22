@@ -1629,7 +1629,7 @@ such an initializer, as shown here:
 char **foo = (char *[]) @{ "x", "y", "z" @};
 @end smallexample
 
-Compound literals for scalar types and union types are is
+Compound literals for scalar types and union types are
 also allowed, but then the compound literal is equivalent
 to a cast.
 
@@ -2819,15 +2819,15 @@ defined by shared libraries.
 @cindex @code{ms_abi} attribute
 @cindex @code{sysv_abi} attribute
 
-On 64-bit x86_64-*-* targets, you can use an ABI attribute to indicate
-which calling convention should be used for a function.  The @code{ms_abi}
-attribute tells the compiler to use the Microsoft ABI, while the
-@code{sysv_abi} attribute tells the compiler to use the ABI used on
-GNU/Linux and other systems.  The default is to use the Microsoft ABI
-when targeting Windows.  On all other systems, the default is the AMD ABI.
+On 32-bit and 64-bit (i?86|x86_64)-*-* targets, you can use an ABI attribute
+to indicate which calling convention should be used for a function.  The
+@code{ms_abi} attribute tells the compiler to use the Microsoft ABI,
+while the @code{sysv_abi} attribute tells the compiler to use the ABI
+used on GNU/Linux and other systems.  The default is to use the Microsoft ABI
+when targeting Windows.  On all other systems, the default is the x86/AMD ABI.
 
-Note, the @code{ms_abi} attribute for Windows targets currently requires
-the @option{-maccumulate-outgoing-args} option.
+Note, the @code{ms_abi} attribute for Windows 64-bit targets currently
+requires the @option{-maccumulate-outgoing-args} option.
 
 @item callee_pop_aggregate_return (@var{number})
 @cindex @code{callee_pop_aggregate_return} attribute
@@ -2836,11 +2836,11 @@ On 32-bit i?86-*-* targets, you can control by those attribute for
 aggregate return in memory, if the caller is responsible to pop the hidden
 pointer together with the rest of the arguments - @var{number} equal to
 zero -, or if the callee is responsible to pop hidden pointer - @var{number}
-equal to one.
+equal to one.  The default i386 ABI assumes that the callee pops the
+stack for hidden pointer.
 
-For i?86-netware, the caller pops the stack for the hidden arguments pointing
-to aggregate return value.  This differs from the default i386 ABI which assumes
-that the callee pops the stack for hidden pointer.
+Note, that on 32-bit i386 Windows targets the compiler assumes that the
+caller pops the stack for hidden pointer.
 
 @item ms_hook_prologue
 @cindex @code{ms_hook_prologue} attribute
@@ -3594,7 +3594,7 @@ away so that a longer more expensive calling sequence is required.
 @item cpu=@var{CPU}
 @cindex @code{target("cpu=@var{CPU}")} attribute
 Specify the architecture to generate code for when compiling the
-function.  If you select the @code{"target("cpu=power7)"} attribute when
+function.  If you select the @code{target("cpu=power7")} attribute when
 generating 32-bit code, VSX and Altivec instructions are not generated
 unless you use the @option{-mabi=altivec} option on the command line.
 
@@ -3646,6 +3646,10 @@ This attribute, attached to a function, means that code must be emitted
 for the function even if it appears that the function is not referenced.
 This is useful, for example, when the function is referenced only in
 inline assembly.
+
+When applied to a member function of a C++ class template, the
+attribute also means that the function will be instantiated if the
+class itself is instantiated.
 
 @item version_id
 @cindex @code{version_id} attribute
@@ -4456,6 +4460,10 @@ variable.
 @item used
 This attribute, attached to a variable, means that the variable must be
 emitted even if it appears that the variable is not referenced.
+
+When applied to a static data member of a C++ class template, the
+attribute also means that the member will be instantiated if the
+class itself is instantiated.
 
 @item vector_size (@var{bytes})
 This attribute specifies the vector size for the variable, measured in
@@ -6526,18 +6534,25 @@ In C it is possible to use shifting operators @code{<<}, @code{>>} on
 integer-type vectors. The operation is defined as following: @code{@{a0,
 a1, @dots{}, an@} >> @{b0, b1, @dots{}, bn@} == @{a0 >> b0, a1 >> b1,
 @dots{}, an >> bn@}}@. Vector operands must have the same number of
-elements.  Additionally second operands can be a scalar integer in which
-case the scalar is converted to the type used by the vector operand (with
-possible truncation) and each element of this new vector is the scalar's
-value.
+elements. 
+
+For the convenience in C it is allowed to use a binary vector operation
+where one operand is a scalar. In that case the compiler will transform
+the scalar operand into a vector where each element is the scalar from
+the operation. The transformation will happen only if the scalar could be
+safely converted to the vector-element type.
 Consider the following code.
 
 @smallexample
 typedef int v4si __attribute__ ((vector_size (16)));
 
-v4si a, b;
+v4si a, b, c;
+long l;
 
-b = a >> 1;     /* b = a >> @{1,1,1,1@}; */
+a = b + 1;    /* a = b + @{1,1,1,1@}; */
+a = 2 * b;    /* a = @{2,2,2,2@} * b; */
+
+a = l + a;    /* Error, cannot convert long to int. */
 @end smallexample
 
 In C vectors can be subscripted as if the vector were an array with
@@ -7496,6 +7511,18 @@ future revisions.
 
 @end deftypefn
 
+@deftypefn {Built-in Function} @var{type} __builtin_complex (@var{real}, @var{imag})
+
+The built-in function @code{__builtin_complex} is provided for use in
+implementing the ISO C1X macros @code{CMPLXF}, @code{CMPLX} and
+@code{CMPLXL}.  @var{real} and @var{imag} must have the same type, a
+real binary floating-point type, and the result has the corresponding
+complex type with real and imaginary parts @var{real} and @var{imag}.
+Unlike @samp{@var{real} + I * @var{imag}}, this works even when
+infinities, NaNs and negative zeros are involved.
+
+@end deftypefn
+
 @deftypefn {Built-in Function} int __builtin_constant_p (@var{exp})
 You can use the built-in function @code{__builtin_constant_p} to
 determine if a value is known to be constant at compile-time and hence
@@ -7644,6 +7671,28 @@ int g (int c)
 @}
 @end smallexample
 
+@end deftypefn
+
+@deftypefn {Built-in Function} void *__builtin_assume_aligned (const void *@var{exp}, size_t @var{align}, ...)
+This function returns its first argument, and allows the compiler
+to assume that the returned pointer is at least @var{align} bytes
+aligned.  This built-in can have either two or three arguments,
+if it has three, the third argument should have integer type, and
+if it is non-zero means misalignment offset.  For example:
+
+@smallexample
+void *x = __builtin_assume_aligned (arg, 16);
+@end smallexample
+
+means that the compiler can assume x, set to arg, is at least
+16 byte aligned, while:
+
+@smallexample
+void *x = __builtin_assume_aligned (arg, 32, 8);
+@end smallexample
+
+means that the compiler can assume for x, set to arg, that
+(char *) x - 8 is 32 byte aligned.
 @end deftypefn
 
 @deftypefn {Built-in Function} void __builtin___clear_cache (char *@var{begin}, char *@var{end})
@@ -7828,6 +7877,12 @@ Returns the number of trailing 0-bits in @var{x}, starting at the least
 significant bit position.  If @var{x} is 0, the result is undefined.
 @end deftypefn
 
+@deftypefn {Built-in Function} int __builtin_clrsb (int x)
+Returns the number of leading redundant sign bits in @var{x}, i.e. the
+number of bits following the most significant bit which are identical
+to it.  There are no special cases for 0 or other values. 
+@end deftypefn
+
 @deftypefn {Built-in Function} int __builtin_popcount (unsigned int x)
 Returns the number of 1-bits in @var{x}.
 @end deftypefn
@@ -7850,6 +7905,11 @@ Similar to @code{__builtin_clz}, except the argument type is
 @deftypefn {Built-in Function} int __builtin_ctzl (unsigned long)
 Similar to @code{__builtin_ctz}, except the argument type is
 @code{unsigned long}.
+@end deftypefn
+
+@deftypefn {Built-in Function} int __builtin_clrsbl (long)
+Similar to @code{__builtin_clrsb}, except the argument type is
+@code{long}.
 @end deftypefn
 
 @deftypefn {Built-in Function} int __builtin_popcountl (unsigned long)
@@ -7875,6 +7935,11 @@ Similar to @code{__builtin_clz}, except the argument type is
 @deftypefn {Built-in Function} int __builtin_ctzll (unsigned long long)
 Similar to @code{__builtin_ctz}, except the argument type is
 @code{unsigned long long}.
+@end deftypefn
+
+@deftypefn {Built-in Function} int __builtin_clrsbll (long long)
+Similar to @code{__builtin_clrsb}, except the argument type is
+@code{long long}.
 @end deftypefn
 
 @deftypefn {Built-in Function} int __builtin_popcountll (unsigned long long)
@@ -7937,6 +8002,7 @@ instructions, but allow the compiler to schedule those calls.
 * RX Built-in Functions::
 * SPARC VIS Built-in Functions::
 * SPU Built-in Functions::
+* TI C6X Built-in Functions::
 @end menu
 
 @node Alpha Built-in Functions
@@ -8188,8 +8254,8 @@ or if not a specific built-in is implemented or not. For example, if
 The following built-in functions map to the respective machine
 instruction, i.e. @code{nop}, @code{sei}, @code{cli}, @code{sleep},
 @code{wdr}, @code{swap}, @code{fmul}, @code{fmuls}
-resp. @code{fmulsu}. The latter three are only available if the AVR
-device actually supports multiplication.
+resp. @code{fmulsu}. The three @code{fmul*} built-ins are implemented
+as library call if no hardware multiplier is available.
 
 @smallexample
 void __builtin_avr_nop (void)
@@ -8694,6 +8760,14 @@ mode.  All of them implement the function that is part of the name.
 __float128 __builtin_fabsq (__float128)
 __float128 __builtin_copysignq (__float128, __float128)
 @end smallexample
+
+The following built-in function is always available.
+
+@table @code
+@item void __builtin_ia32_pause (void)
+Generates the @code{pause} machine instruction with a compiler memory
+barrier.
+@end table
 
 The following floating point built-in functions are made available in the
 64-bit mode.
@@ -9381,6 +9455,184 @@ v4df __builtin_ia32_xorpd256 (v4df,v4df)
 v8sf __builtin_ia32_xorps256 (v8sf,v8sf)
 @end smallexample
 
+The following built-in functions are available when @option{-mavx2} is
+used. All of them generate the machine instruction that is part of the
+name.
+
+@smallexample
+v32qi __builtin_ia32_mpsadbw256 (v32qi,v32qi,v32qi,int)
+v32qi __builtin_ia32_pabsb256 (v32qi)
+v16hi __builtin_ia32_pabsw256 (v16hi)
+v8si __builtin_ia32_pabsd256 (v8si)
+v16hi builtin_ia32_packssdw256 (v8si,v8si)
+v32qi __builtin_ia32_packsswb256 (v16hi,v16hi)
+v16hi __builtin_ia32_packusdw256 (v8si,v8si)
+v32qi __builtin_ia32_packuswb256 (v16hi,v16hi)
+v32qi__builtin_ia32_paddb256 (v32qi,v32qi)
+v16hi __builtin_ia32_paddw256 (v16hi,v16hi)
+v8si __builtin_ia32_paddd256 (v8si,v8si)
+v4di __builtin_ia32_paddq256 (v4di,v4di)
+v32qi __builtin_ia32_paddsb256 (v32qi,v32qi)
+v16hi __builtin_ia32_paddsw256 (v16hi,v16hi)
+v32qi __builtin_ia32_paddusb256 (v32qi,v32qi)
+v16hi __builtin_ia32_paddusw256 (v16hi,v16hi)
+v4di __builtin_ia32_palignr256 (v4di,v4di,int)
+v4di __builtin_ia32_andsi256 (v4di,v4di)
+v4di __builtin_ia32_andnotsi256 (v4di,v4di)
+v32qi__builtin_ia32_pavgb256 (v32qi,v32qi)
+v16hi __builtin_ia32_pavgw256 (v16hi,v16hi)
+v32qi __builtin_ia32_pblendvb256 (v32qi,v32qi,v32qi)
+v16hi __builtin_ia32_pblendw256 (v16hi,v16hi,int)
+v32qi __builtin_ia32_pcmpeqb256 (v32qi,v32qi)
+v16hi __builtin_ia32_pcmpeqw256 (v16hi,v16hi)
+v8si __builtin_ia32_pcmpeqd256 (c8si,v8si)
+v4di __builtin_ia32_pcmpeqq256 (v4di,v4di)
+v32qi __builtin_ia32_pcmpgtb256 (v32qi,v32qi)
+v16hi __builtin_ia32_pcmpgtw256 (16hi,v16hi)
+v8si __builtin_ia32_pcmpgtd256 (v8si,v8si)
+v4di __builtin_ia32_pcmpgtq256 (v4di,v4di)
+v16hi __builtin_ia32_phaddw256 (v16hi,v16hi)
+v8si __builtin_ia32_phaddd256 (v8si,v8si)
+v16hi __builtin_ia32_phaddsw256 (v16hi,v16hi)
+v16hi __builtin_ia32_phsubw256 (v16hi,v16hi)
+v8si __builtin_ia32_phsubd256 (v8si,v8si)
+v16hi __builtin_ia32_phsubsw256 (v16hi,v16hi)
+v32qi __builtin_ia32_pmaddubsw256 (v32qi,v32qi)
+v16hi __builtin_ia32_pmaddwd256 (v16hi,v16hi)
+v32qi __builtin_ia32_pmaxsb256 (v32qi,v32qi)
+v16hi __builtin_ia32_pmaxsw256 (v16hi,v16hi)
+v8si __builtin_ia32_pmaxsd256 (v8si,v8si)
+v32qi __builtin_ia32_pmaxub256 (v32qi,v32qi)
+v16hi __builtin_ia32_pmaxuw256 (v16hi,v16hi)
+v8si __builtin_ia32_pmaxud256 (v8si,v8si)
+v32qi __builtin_ia32_pminsb256 (v32qi,v32qi)
+v16hi __builtin_ia32_pminsw256 (v16hi,v16hi)
+v8si __builtin_ia32_pminsd256 (v8si,v8si)
+v32qi __builtin_ia32_pminub256 (v32qi,v32qi)
+v16hi __builtin_ia32_pminuw256 (v16hi,v16hi)
+v8si __builtin_ia32_pminud256 (v8si,v8si)
+int __builtin_ia32_pmovmskb256 (v32qi)
+v16hi __builtin_ia32_pmovsxbw256 (v16qi)
+v8si __builtin_ia32_pmovsxbd256 (v16qi)
+v4di __builtin_ia32_pmovsxbq256 (v16qi)
+v8si __builtin_ia32_pmovsxwd256 (v8hi)
+v4di __builtin_ia32_pmovsxwq256 (v8hi)
+v4di __builtin_ia32_pmovsxdq256 (v4si)
+v16hi __builtin_ia32_pmovzxbw256 (v16qi)
+v8si __builtin_ia32_pmovzxbd256 (v16qi)
+v4di __builtin_ia32_pmovzxbq256 (v16qi)
+v8si __builtin_ia32_pmovzxwd256 (v8hi)
+v4di __builtin_ia32_pmovzxwq256 (v8hi)
+v4di __builtin_ia32_pmovzxdq256 (v4si)
+v4di __builtin_ia32_pmuldq256 (v8si,v8si)
+v16hi __builtin_ia32_pmulhrsw256 (v16hi, v16hi)
+v16hi __builtin_ia32_pmulhuw256 (v16hi,v16hi)
+v16hi __builtin_ia32_pmulhw256 (v16hi,v16hi)
+v16hi __builtin_ia32_pmullw256 (v16hi,v16hi)
+v8si __builtin_ia32_pmulld256 (v8si,v8si)
+v4di __builtin_ia32_pmuludq256 (v8si,v8si)
+v4di __builtin_ia32_por256 (v4di,v4di)
+v16hi __builtin_ia32_psadbw256 (v32qi,v32qi)
+v32qi __builtin_ia32_pshufb256 (v32qi,v32qi)
+v8si __builtin_ia32_pshufd256 (v8si,int)
+v16hi __builtin_ia32_pshufhw256 (v16hi,int)
+v16hi __builtin_ia32_pshuflw256 (v16hi,int)
+v32qi __builtin_ia32_psignb256 (v32qi,v32qi)
+v16hi __builtin_ia32_psignw256 (v16hi,v16hi)
+v8si __builtin_ia32_psignd256 (v8si,v8si)
+v4di __builtin_ia32_pslldqi256 (v4di,int)
+v16hi __builtin_ia32_psllwi256 (16hi,int)
+v16hi __builtin_ia32_psllw256(v16hi,v8hi)
+v8si __builtin_ia32_pslldi256 (v8si,int)
+v8si __builtin_ia32_pslld256(v8si,v4si)
+v4di __builtin_ia32_psllqi256 (v4di,int)
+v4di __builtin_ia32_psllq256(v4di,v2di)
+v16hi __builtin_ia32_psrawi256 (v16hi,int)
+v16hi __builtin_ia32_psraw256 (v16hi,v8hi)
+v8si __builtin_ia32_psradi256 (v8si,int)
+v8si __builtin_ia32_psrad256 (v8si,v4si)
+v4di __builtin_ia32_psrldqi256 (v4di, int)
+v16hi __builtin_ia32_psrlwi256 (v16hi,int)
+v16hi __builtin_ia32_psrlw256 (v16hi,v8hi)
+v8si __builtin_ia32_psrldi256 (v8si,int)
+v8si __builtin_ia32_psrld256 (v8si,v4si)
+v4di __builtin_ia32_psrlqi256 (v4di,int)
+v4di __builtin_ia32_psrlq256(v4di,v2di)
+v32qi __builtin_ia32_psubb256 (v32qi,v32qi)
+v32hi __builtin_ia32_psubw256 (v16hi,v16hi)
+v8si __builtin_ia32_psubd256 (v8si,v8si)
+v4di __builtin_ia32_psubq256 (v4di,v4di)
+v32qi __builtin_ia32_psubsb256 (v32qi,v32qi)
+v16hi __builtin_ia32_psubsw256 (v16hi,v16hi)
+v32qi __builtin_ia32_psubusb256 (v32qi,v32qi)
+v16hi __builtin_ia32_psubusw256 (v16hi,v16hi)
+v32qi __builtin_ia32_punpckhbw256 (v32qi,v32qi)
+v16hi __builtin_ia32_punpckhwd256 (v16hi,v16hi)
+v8si __builtin_ia32_punpckhdq256 (v8si,v8si)
+v4di __builtin_ia32_punpckhqdq256 (v4di,v4di)
+v32qi __builtin_ia32_punpcklbw256 (v32qi,v32qi)
+v16hi __builtin_ia32_punpcklwd256 (v16hi,v16hi)
+v8si __builtin_ia32_punpckldq256 (v8si,v8si)
+v4di __builtin_ia32_punpcklqdq256 (v4di,v4di)
+v4di __builtin_ia32_pxor256 (v4di,v4di)
+v4di __builtin_ia32_movntdqa256 (pv4di)
+v4sf __builtin_ia32_vbroadcastss_ps (v4sf)
+v8sf __builtin_ia32_vbroadcastss_ps256 (v4sf)
+v4df __builtin_ia32_vbroadcastsd_pd256 (v2df)
+v4di __builtin_ia32_vbroadcastsi256 (v2di)
+v4si __builtin_ia32_pblendd128 (v4si,v4si)
+v8si __builtin_ia32_pblendd256 (v8si,v8si)
+v32qi __builtin_ia32_pbroadcastb256 (v16qi)
+v16hi __builtin_ia32_pbroadcastw256 (v8hi)
+v8si __builtin_ia32_pbroadcastd256 (v4si)
+v4di __builtin_ia32_pbroadcastq256 (v2di)
+v16qi __builtin_ia32_pbroadcastb128 (v16qi)
+v8hi __builtin_ia32_pbroadcastw128 (v8hi)
+v4si __builtin_ia32_pbroadcastd128 (v4si)
+v2di __builtin_ia32_pbroadcastq128 (v2di)
+v8si __builtin_ia32_permvarsi256 (v8si,v8si)
+v4df __builtin_ia32_permdf256 (v4df,int)
+v8sf __builtin_ia32_permvarsf256 (v8sf,v8sf)
+v4di __builtin_ia32_permdi256 (v4di,int)
+v4di __builtin_ia32_permti256 (v4di,v4di,int)
+v4di __builtin_ia32_extract128i256 (v4di,int)
+v4di __builtin_ia32_insert128i256 (v4di,v2di,int)
+v8si __builtin_ia32_maskloadd256 (pcv8si,v8si)
+v4di __builtin_ia32_maskloadq256 (pcv4di,v4di)
+v4si __builtin_ia32_maskloadd (pcv4si,v4si)
+v2di __builtin_ia32_maskloadq (pcv2di,v2di)
+void __builtin_ia32_maskstored256 (pv8si,v8si,v8si)
+void __builtin_ia32_maskstoreq256 (pv4di,v4di,v4di)
+void __builtin_ia32_maskstored (pv4si,v4si,v4si)
+void __builtin_ia32_maskstoreq (pv2di,v2di,v2di)
+v8si __builtin_ia32_psllv8si (v8si,v8si)
+v4si __builtin_ia32_psllv4si (v4si,v4si)
+v4di __builtin_ia32_psllv4di (v4di,v4di)
+v2di __builtin_ia32_psllv2di (v2di,v2di)
+v8si __builtin_ia32_psrav8si (v8si,v8si)
+v4si __builtin_ia32_psrav4si (v4si,v4si)
+v8si __builtin_ia32_psrlv8si (v8si,v8si)
+v4si __builtin_ia32_psrlv4si (v4si,v4si)
+v4di __builtin_ia32_psrlv4di (v4di,v4di)
+v2di __builtin_ia32_psrlv2di (v2di,v2di)
+v2df __builtin_ia32_gathersiv2df (v2df, pcdouble,v4si,v2df,int)
+v4df __builtin_ia32_gathersiv4df (v4df, pcdouble,v4si,v4df,int)
+v2df __builtin_ia32_gatherdiv2df (v2df, pcdouble,v2di,v2df,int)
+v4df __builtin_ia32_gatherdiv4df (v4df, pcdouble,v4di,v4df,int)
+v4sf __builtin_ia32_gathersiv4sf (v4sf, pcfloat,v4si,v4sf,int)
+v8sf __builtin_ia32_gathersiv8sf (v8sf, pcfloat,v8si,v8sf,int)
+v4sf __builtin_ia32_gatherdiv4sf (v4sf, pcfloat,v2di,v4sf,int)
+v4sf __builtin_ia32_gatherdiv4sf256 (v4sf, pcfloat,v4di,v4sf,int)
+v2di __builtin_ia32_gathersiv2di (v2di, pcint64,v4si,v2di,int)
+v4di __builtin_ia32_gathersiv4di (v4di, pcint64,v4si,v4di,int)
+v2di __builtin_ia32_gatherdiv2di (v2di, pcint64,v2di,v2di,int)
+v4di __builtin_ia32_gatherdiv4di (v4di, pcint64,v4di,v4di,int)
+v4si __builtin_ia32_gathersiv4si (v4si, pcint,v4si,v4si,int)
+v8si __builtin_ia32_gathersiv8si (v8si, pcint,v8si,v8si,int)
+v4si __builtin_ia32_gatherdiv4si (v4si, pcint,v2di,v4si,int)
+v4si __builtin_ia32_gatherdiv4si256 (v4si, pcint,v4di,v4si,int)
+@end smallexample
+
 The following built-in functions are available when @option{-maes} is
 used.  All of them generate the machine instruction that is part of the
 name.
@@ -9629,6 +9881,22 @@ All of them generate the machine instruction that is part of the name.
 @smallexample
 unsigned int __builtin_ia32_bextr_u32(unsigned int, unsigned int);
 unsigned long long __builtin_ia32_bextr_u64 (unsigned long long, unsigned long long);
+@end smallexample
+
+The following built-in functions are available when @option{-mbmi2} is used.
+All of them generate the machine instruction that is part of the name.
+@smallexample
+unsigned int _bzhi_u32 (unsigned int, unsigned int)
+unsigned int _pdep_u32 (unsigned int, unsigned int)
+unsigned int _pext_u32 (unsigned int, unsigned int)
+unsigned long long _bzhi_u64 (unsigned long long, unsigned long long)
+unsigned long long _pdep_u64 (unsigned long long, unsigned long long)
+unsigned long long _pext_u64 (unsigned long long, unsigned long long)
+@end smallexample
+
+The following built-in functions are available when @option{-mlzcnt} is used.
+All of them generate the machine instruction that is part of the name.
+@smallexample
 unsigned short __builtin_ia32_lzcnt_16(unsigned short);
 unsigned int __builtin_ia32_lzcnt_u32(unsigned int);
 unsigned long long __builtin_ia32_lzcnt_u64 (unsigned long long);
@@ -12664,10 +12932,11 @@ switch, the VIS extension is exposed as the following built-in functions:
 typedef int v2si __attribute__ ((vector_size (8)));
 typedef short v4hi __attribute__ ((vector_size (8)));
 typedef short v2hi __attribute__ ((vector_size (4)));
-typedef char v8qi __attribute__ ((vector_size (8)));
-typedef char v4qi __attribute__ ((vector_size (4)));
+typedef unsigned char v8qi __attribute__ ((vector_size (8)));
+typedef unsigned char v4qi __attribute__ ((vector_size (4)));
 
 void * __builtin_vis_alignaddr (void *, long);
+void * __builtin_vis_alignaddrl (void *, long);
 int64_t __builtin_vis_faligndatadi (int64_t, int64_t);
 v2si __builtin_vis_faligndatav2si (v2si, v2si);
 v4hi __builtin_vis_faligndatav4hi (v4si, v4si);
@@ -12676,19 +12945,35 @@ v8qi __builtin_vis_faligndatav8qi (v8qi, v8qi);
 v4hi __builtin_vis_fexpand (v4qi);
 
 v4hi __builtin_vis_fmul8x16 (v4qi, v4hi);
-v4hi __builtin_vis_fmul8x16au (v4qi, v4hi);
-v4hi __builtin_vis_fmul8x16al (v4qi, v4hi);
+v4hi __builtin_vis_fmul8x16au (v4qi, v2hi);
+v4hi __builtin_vis_fmul8x16al (v4qi, v2hi);
 v4hi __builtin_vis_fmul8sux16 (v8qi, v4hi);
 v4hi __builtin_vis_fmul8ulx16 (v8qi, v4hi);
 v2si __builtin_vis_fmuld8sux16 (v4qi, v2hi);
 v2si __builtin_vis_fmuld8ulx16 (v4qi, v2hi);
 
 v4qi __builtin_vis_fpack16 (v4hi);
-v8qi __builtin_vis_fpack32 (v2si, v2si);
+v8qi __builtin_vis_fpack32 (v2si, v8qi);
 v2hi __builtin_vis_fpackfix (v2si);
 v8qi __builtin_vis_fpmerge (v4qi, v4qi);
 
 int64_t __builtin_vis_pdist (v8qi, v8qi, int64_t);
+
+int __builtin_vis_edge8 (void *, void *);
+int __builtin_vis_edge8l (void *, void *);
+int __builtin_vis_edge16 (void *, void *);
+int __builtin_vis_edge16l (void *, void *);
+int __builtin_vis_edge32 (void *, void *);
+int __builtin_vis_edge32l (void *, void *);
+
+int __builtin_vis_fcmple16 (v4hi, v4hi);
+int __builtin_vis_fcmple32 (v2si, v2si);
+int __builtin_vis_fcmpne16 (v4hi, v4hi);
+int __builtin_vis_fcmpne32 (v2si, v2si);
+int __builtin_vis_fcmpgt16 (v4hi, v4hi);
+int __builtin_vis_fcmpgt32 (v2si, v2si);
+int __builtin_vis_fcmpeq16 (v4hi, v4hi);
+int __builtin_vis_fcmpeq32 (v2si, v2si);
 @end smallexample
 
 @node SPU Built-in Functions
@@ -12746,6 +13031,45 @@ The extended version of @code{__builtin_expect} is not supported.
 specification is supported. Internally, GCC uses built-in functions to
 implement the required functionality, but these are not supported and
 are subject to change without notice.
+
+@node TI C6X Built-in Functions
+@subsection TI C6X Built-in Functions
+
+GCC provides intrinsics to access certain instructions of the TI C6X
+processors.  These intrinsics, listed below, are available after
+inclusion of the @code{c6x_intrinsics.h} header file.  They map directly
+to C6X instructions.
+
+@smallexample
+
+int _sadd (int, int)
+int _ssub (int, int)
+int _sadd2 (int, int)
+int _ssub2 (int, int)
+long long _mpy2 (int, int)
+long long _smpy2 (int, int)
+int _add4 (int, int)
+int _sub4 (int, int)
+int _saddu4 (int, int)
+
+int _smpy (int, int)
+int _smpyh (int, int)
+int _smpyhl (int, int)
+int _smpylh (int, int)
+
+int _sshl (int, int)
+int _subc (int, int)
+
+int _avg2 (int, int)
+int _avgu4 (int, int)
+
+int _clrr (int, int)
+int _extr (int, int)
+int _extru (int, int)
+int _abs (int)
+int _abs2 (int)
+
+@end smallexample
 
 @node Target Format Checks
 @section Format Checks Specific to Particular Target Machines

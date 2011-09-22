@@ -34,6 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "toplev.h"
 #include "tm_p.h"
 #include "target.h"
+#include "common/common-target.h"
 #include "tree-pass.h"
 #include "diagnostic.h"
 #include "cgraph.h"
@@ -139,11 +140,12 @@ make_thunk (tree function, bool this_adjusting,
   THUNK_VIRTUAL_OFFSET (thunk) = virtual_offset;
   THUNK_ALIAS (thunk) = NULL_TREE;
 
-  /* The thunk itself is not a constructor or destructor, even if
-     the thing it is thunking to is.  */
   DECL_INTERFACE_KNOWN (thunk) = 1;
   DECL_NOT_REALLY_EXTERN (thunk) = 1;
+  DECL_COMDAT (thunk) = DECL_COMDAT (function);
   DECL_SAVED_FUNCTION_DATA (thunk) = NULL;
+  /* The thunk itself is not a constructor or destructor, even if
+     the thing it is thunking to is.  */
   DECL_DESTRUCTOR_P (thunk) = 0;
   DECL_CONSTRUCTOR_P (thunk) = 0;
   DECL_EXTERNAL (thunk) = 1;
@@ -281,7 +283,7 @@ use_thunk (tree thunk_fndecl, bool emit_p)
   tree virtual_offset;
   HOST_WIDE_INT fixed_offset, virtual_value;
   bool this_adjusting = DECL_THIS_THUNK_P (thunk_fndecl);
-  struct cgraph_node *funcn;
+  struct cgraph_node *funcn, *thunk_node;
 
   /* We should have called finish_thunk to give it a name.  */
   gcc_assert (DECL_NAME (thunk_fndecl));
@@ -341,8 +343,8 @@ use_thunk (tree thunk_fndecl, bool emit_p)
   DECL_VISIBILITY (thunk_fndecl) = DECL_VISIBILITY (function);
   DECL_VISIBILITY_SPECIFIED (thunk_fndecl)
     = DECL_VISIBILITY_SPECIFIED (function);
-  if (DECL_ONE_ONLY (function) || DECL_WEAK (function))
-    make_decl_one_only (thunk_fndecl, cxx_comdat_group (thunk_fndecl));
+  DECL_COMDAT (thunk_fndecl) = DECL_COMDAT (function);
+  DECL_WEAK (thunk_fndecl) = DECL_WEAK (function);
 
   if (flag_syntax_only)
     {
@@ -353,7 +355,7 @@ use_thunk (tree thunk_fndecl, bool emit_p)
   push_to_top_level ();
 
   if (TARGET_USE_LOCAL_THUNK_ALIAS_P (function)
-      && targetm.have_named_sections)
+      && targetm_common.have_named_sections)
     {
       resolve_unique_section (function, 0, flag_function_sections);
 
@@ -383,9 +385,11 @@ use_thunk (tree thunk_fndecl, bool emit_p)
   TREE_ASM_WRITTEN (thunk_fndecl) = 1;
   funcn = cgraph_get_node (function);
   gcc_checking_assert (funcn);
-  cgraph_add_thunk (funcn, thunk_fndecl, function,
-		    this_adjusting, fixed_offset, virtual_value,
-		    virtual_offset, alias);
+  thunk_node = cgraph_add_thunk (funcn, thunk_fndecl, function,
+				 this_adjusting, fixed_offset, virtual_value,
+				 virtual_offset, alias);
+  if (DECL_ONE_ONLY (function))
+    cgraph_add_to_same_comdat_group (thunk_node, funcn);
 
   if (!this_adjusting
       || !targetm.asm_out.can_output_mi_thunk (thunk_fndecl, fixed_offset,
@@ -924,7 +928,7 @@ process_subob_fn (tree fn, bool move_p, tree *spec_p, bool *trivial_p,
   if (spec_p)
     {
       tree raises = TYPE_RAISES_EXCEPTIONS (TREE_TYPE (fn));
-      *spec_p = merge_exception_specifiers (*spec_p, raises);
+      *spec_p = merge_exception_specifiers (*spec_p, raises, fn);
     }
 
   if (!trivial_fn_p (fn))
@@ -948,16 +952,15 @@ process_subob_fn (tree fn, bool move_p, tree *spec_p, bool *trivial_p,
       goto bad;
     }
 
-  if (constexpr_p)
+  if (constexpr_p && !DECL_DECLARED_CONSTEXPR_P (fn))
     {
-      /* If this is a specialization of a constexpr template, we need to
-	 force the instantiation now so that we know whether or not it's
-	 really constexpr.  */
-      if (DECL_DECLARED_CONSTEXPR_P (fn) && DECL_TEMPLATE_INSTANTIATION (fn)
-	  && !DECL_TEMPLATE_INSTANTIATED (fn))
-	instantiate_decl (fn, /*defer_ok*/false, /*expl_class*/false);
-      if (!DECL_DECLARED_CONSTEXPR_P (fn))
-	*constexpr_p = false;
+      *constexpr_p = false;
+      if (msg)
+	{
+	  inform (0, "defaulted constructor calls non-constexpr "
+		  "%q+D", fn);
+	  explain_invalid_constexpr_fn (fn);
+	}
     }
 
   return;
@@ -1036,7 +1039,12 @@ walk_field_subobs (tree fields, tree fnname, special_function_kind sfk,
 	  /* FIXME will need adjustment for non-static data member
 	     initializers.  */
 	  if (constexpr_p && !CLASS_TYPE_P (mem_type))
-	    *constexpr_p = false;
+	    {
+	      *constexpr_p = false;
+	      if (msg)
+		inform (0, "defaulted default constructor does not "
+			"initialize %q+#D", field);
+	    }
 	}
 
       if (!CLASS_TYPE_P (mem_type))
@@ -1070,8 +1078,9 @@ walk_field_subobs (tree fields, tree fnname, special_function_kind sfk,
 /* The caller wants to generate an implicit declaration of SFK for CTYPE
    which is const if relevant and CONST_P is set.  If spec_p, trivial_p and
    deleted_p are non-null, set their referent appropriately.  If diag is
-   true, we're being called from maybe_explain_implicit_delete to give
-   errors.  */
+   true, we're either being called from maybe_explain_implicit_delete to
+   give errors, or if constexpr_p is non-null, from
+   explain_invalid_constexpr_fn.  */
 
 static void
 synthesized_method_walk (tree ctype, special_function_kind sfk, bool const_p,
@@ -1174,10 +1183,11 @@ synthesized_method_walk (tree ctype, special_function_kind sfk, bool const_p,
      resolution, so a constructor can be trivial even if it would otherwise
      call a non-trivial constructor.  */
   if (expected_trivial
+      && !diag
       && (!copy_arg_p || cxx_dialect < cxx0x))
     {
       if (constexpr_p && sfk == sfk_constructor)
-	*constexpr_p = synthesized_default_constructor_is_constexpr (ctype);
+	*constexpr_p = trivial_default_constructor_is_constexpr (ctype);
       return;
     }
 
@@ -1319,21 +1329,17 @@ maybe_explain_implicit_delete (tree decl)
   if (DECL_DEFAULTED_FN (decl))
     {
       /* Not marked GTY; it doesn't need to be GC'd or written to PCH.  */
-      static htab_t explained_htab;
-      void **slot;
+      static struct pointer_set_t *explained;
 
       special_function_kind sfk;
       location_t loc;
       bool informed;
       tree ctype;
 
-      if (!explained_htab)
-	explained_htab = htab_create (37, htab_hash_pointer,
-				      htab_eq_pointer, NULL);
-      slot = htab_find_slot (explained_htab, decl, INSERT);
-      if (*slot)
+      if (!explained)
+	explained = pointer_set_create ();
+      if (pointer_set_insert (explained, decl))
 	return true;
-      *slot = decl;
 
       sfk = special_function_p (decl);
       ctype = DECL_CONTEXT (decl);
@@ -1367,6 +1373,20 @@ maybe_explain_implicit_delete (tree decl)
       return true;
     }
   return false;
+}
+
+/* DECL is a defaulted function which was declared constexpr.  Explain why
+   it can't be constexpr.  */
+
+void
+explain_implicit_non_constexpr (tree decl)
+{
+  tree parm_type = TREE_VALUE (FUNCTION_FIRST_USER_PARMTYPE (decl));
+  bool const_p = CP_TYPE_CONST_P (non_reference (parm_type));
+  bool dummy;
+  synthesized_method_walk (DECL_CLASS_CONTEXT (decl),
+			   special_function_p (decl), const_p,
+			   NULL, NULL, NULL, &dummy, true);
 }
 
 /* Implicitly declare the special function indicated by KIND, as a
@@ -1502,8 +1522,11 @@ implicitly_declare_fn (special_function_kind kind, tree type, bool const_p)
       /* Note that this parameter is *not* marked DECL_ARTIFICIAL; we
 	 want its type to be included in the mangled function
 	 name.  */
-      DECL_ARGUMENTS (fn) = cp_build_parm_decl (NULL_TREE, rhs_parm_type);
-      TREE_READONLY (DECL_ARGUMENTS (fn)) = 1;
+      tree decl = cp_build_parm_decl (NULL_TREE, rhs_parm_type);
+      TREE_READONLY (decl) = 1;
+      retrofit_lang_decl (decl);
+      DECL_PARM_INDEX (decl) = DECL_PARM_LEVEL (decl) = 1;
+      DECL_ARGUMENTS (fn) = decl;
     }
   /* Add the "this" parameter.  */
   this_parm = build_this_parm (fn_type, TYPE_UNQUALIFIED);
@@ -1559,25 +1582,37 @@ defaulted_late_check (tree fn)
   if (DECL_DEFAULTED_IN_CLASS_P (fn))
     {
       tree eh_spec = TYPE_RAISES_EXCEPTIONS (TREE_TYPE (implicit_fn));
-      if (TYPE_RAISES_EXCEPTIONS (TREE_TYPE (fn))
-	  && !comp_except_specs (TYPE_RAISES_EXCEPTIONS (TREE_TYPE (fn)),
-				 eh_spec, ce_normal))
-	error ("function %q+D defaulted on its first declaration "
-	       "with an exception-specification that differs from "
-	       "the implicit declaration %q#D", fn, implicit_fn);
+      if (TYPE_RAISES_EXCEPTIONS (TREE_TYPE (fn)))
+	{
+	  maybe_instantiate_noexcept (fn);
+	  if (!comp_except_specs (TYPE_RAISES_EXCEPTIONS (TREE_TYPE (fn)),
+				  eh_spec, ce_normal))
+	    error ("function %q+D defaulted on its first declaration "
+		   "with an exception-specification that differs from "
+		   "the implicit declaration %q#D", fn, implicit_fn);
+	}
       TREE_TYPE (fn) = build_exception_variant (TREE_TYPE (fn), eh_spec);
       if (DECL_DECLARED_CONSTEXPR_P (implicit_fn))
-	/* Hmm...should we do this for out-of-class too? Should it be OK to
-	   add constexpr later like inline, rather than requiring
-	   declarations to match?  */
-	DECL_DECLARED_CONSTEXPR_P (fn) = true;
+	{
+	  /* Hmm...should we do this for out-of-class too? Should it be OK to
+	     add constexpr later like inline, rather than requiring
+	     declarations to match?  */
+	  DECL_DECLARED_CONSTEXPR_P (fn) = true;
+	  if (kind == sfk_constructor)
+	    TYPE_HAS_CONSTEXPR_CTOR (ctx) = true;
+	}
     }
 
   if (!DECL_DECLARED_CONSTEXPR_P (implicit_fn)
       && DECL_DECLARED_CONSTEXPR_P (fn))
     {
       if (!CLASSTYPE_TEMPLATE_INSTANTIATION (ctx))
-	error ("%qD cannot be declared as constexpr", fn);
+	{
+	  error ("explicitly defaulted function %q+D cannot be declared "
+		 "as constexpr because the implicit declaration is not "
+		 "constexpr:", fn);
+	  explain_implicit_non_constexpr (fn);
+	}
       DECL_DECLARED_CONSTEXPR_P (fn) = false;
     }
 

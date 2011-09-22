@@ -39,6 +39,22 @@ along with GCC; see the file COPYING3.  If not see
   "%{shared|pie:crtendS.o%s;:crtend.o%s} crtn.o%s\
    %{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s}"
 
+/* -mcpu=native handling only makes sense with compiler running on
+   a SPARC chip.  */
+#if defined(__sparc__)
+extern const char *host_detect_local_cpu (int argc, const char **argv);
+# define EXTRA_SPEC_FUNCTIONS						\
+  { "local_cpu_detect", host_detect_local_cpu },
+
+# define MCPU_MTUNE_NATIVE_SPECS					\
+   " %{mcpu=native:%<mcpu=native %:local_cpu_detect(cpu)}"		\
+   " %{mtune=native:%<mtune=native %:local_cpu_detect(tune)}"
+#else
+# define MCPU_MTUNE_NATIVE_SPECS ""
+#endif
+
+#define DRIVER_SELF_SPECS MCPU_MTUNE_NATIVE_SPECS
+
 /* This is for -profile to use -lc_p instead of -lc.  */
 #undef	CC1_SPEC
 #define	CC1_SPEC "%{profile:-p} \
@@ -140,8 +156,6 @@ do {									\
 
 /* Static stack checking is supported by means of probes.  */
 #define STACK_CHECK_STATIC_BUILTIN 1
-
-#define MD_UNWIND_SUPPORT "config/sparc/linux-unwind.h"
 
 /* Linux currently uses RMO in uniprocessor mode, which is equivalent to
    TMO, and TMO in multiprocessor mode.  But they reserve the right to

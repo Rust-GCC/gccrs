@@ -1519,6 +1519,26 @@ check_hard_reg_p (ira_allocno_t a, int hard_regno,
     }
   return j == nregs;
 }
+#ifndef HONOR_REG_ALLOC_ORDER
+
+/* Return number of registers needed to be saved and restored at
+   function prologue/epilogue if we allocate HARD_REGNO to hold value
+   of MODE.  */
+static int
+calculate_saved_nregs (int hard_regno, enum machine_mode mode)
+{
+  int i;
+  int nregs = 0;
+
+  ira_assert (hard_regno >= 0);
+  for (i = hard_regno_nregs[hard_regno][mode] - 1; i >= 0; i--)
+    if (!allocated_hardreg_p[hard_regno + i]
+	&& !TEST_HARD_REG_BIT (call_used_reg_set, hard_regno + i)
+	&& !LOCAL_REGNO (hard_regno + i))
+      nregs++;
+  return nregs;
+}
+#endif
 
 /* Choose a hard register for allocno A.  If RETRY_P is TRUE, it means
    that the function called from function
@@ -1554,6 +1574,7 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
   enum machine_mode mode;
   static int costs[FIRST_PSEUDO_REGISTER], full_costs[FIRST_PSEUDO_REGISTER];
 #ifndef HONOR_REG_ALLOC_ORDER
+  int saved_nregs;
   enum reg_class rclass;
   int add_cost;
 #endif
@@ -1716,16 +1737,14 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
       cost = costs[i];
       full_cost = full_costs[i];
 #ifndef HONOR_REG_ALLOC_ORDER
-      if (! allocated_hardreg_p[hard_regno]
-	  && ira_hard_reg_not_in_set_p (hard_regno, mode, call_used_reg_set)
-	  && !LOCAL_REGNO (hard_regno))
+      if ((saved_nregs = calculate_saved_nregs (hard_regno, mode)) != 0)
 	/* We need to save/restore the hard register in
 	   epilogue/prologue.  Therefore we increase the cost.  */
 	{
-	  /* ??? If only part is call clobbered.  */
 	  rclass = REGNO_REG_CLASS (hard_regno);
-	  add_cost = (ira_memory_move_cost[mode][rclass][0]
-		      + ira_memory_move_cost[mode][rclass][1] - 1);
+	  add_cost = ((ira_memory_move_cost[mode][rclass][0]
+		       + ira_memory_move_cost[mode][rclass][1])
+		      * saved_nregs / hard_regno_nregs[hard_regno][mode] - 1);
 	  cost += add_cost;
 	  full_cost += add_cost;
 	}
@@ -1748,7 +1767,10 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
     }
  fail:
   if (best_hard_regno >= 0)
-    allocated_hardreg_p[best_hard_regno] = true;
+    {
+      for (i = hard_regno_nregs[best_hard_regno][mode] - 1; i >= 0; i--)
+	allocated_hardreg_p[best_hard_regno + 1] = true;
+    }
   ALLOCNO_HARD_REGNO (a) = best_hard_regno;
   ALLOCNO_ASSIGNED_P (a) = true;
   if (best_hard_regno >= 0)
@@ -3975,8 +3997,8 @@ allocno_reload_assign (ira_allocno_t a, HARD_REG_SET forbidden_regs)
 	       : ALLOCNO_HARD_REG_COSTS (a)[ira_class_hard_reg_index
 					    [aclass][hard_regno]]));
       if (ALLOCNO_CALLS_CROSSED_NUM (a) != 0
-	  && ! ira_hard_reg_not_in_set_p (hard_regno, ALLOCNO_MODE (a),
-					  call_used_reg_set))
+	  && ira_hard_reg_set_intersection_p (hard_regno, ALLOCNO_MODE (a),
+					      call_used_reg_set))
 	{
 	  ira_assert (flag_caller_saves);
 	  caller_save_needed = 1;
@@ -4467,7 +4489,7 @@ fast_allocation (void)
 	      && hard_regno <= LAST_STACK_REG)
 	    continue;
 #endif
-	  if (!ira_hard_reg_not_in_set_p (hard_regno, mode, conflict_hard_regs)
+	  if (ira_hard_reg_set_intersection_p (hard_regno, mode, conflict_hard_regs)
 	      || (TEST_HARD_REG_BIT
 		  (ira_prohibited_class_mode_regs[aclass][mode], hard_regno)))
 	    continue;

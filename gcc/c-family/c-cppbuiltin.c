@@ -1,5 +1,5 @@
 /* Define builtin-in macros for the C family front ends.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -31,6 +31,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "debug.h"		/* For dwarf2out_do_cfi_asm.  */
 #include "tm_p.h"		/* For TARGET_CPU_CPP_BUILTINS & friends.  */
 #include "target.h"
+#include "common/common-target.h"
 #include "cpp-id-data.h"
 #include "cppbuiltin.h"
 
@@ -559,7 +560,7 @@ c_cpp_builtins_optimize_pragma (cpp_reader *pfile, tree prev_tree,
       cpp_undef (pfile, "__FINITE_MATH_ONLY__");
       cpp_define (pfile, "__FINITE_MATH_ONLY__=1");
     }
-  else if (!prev->x_flag_finite_math_only && cur->x_flag_finite_math_only)
+  else if (prev->x_flag_finite_math_only && !cur->x_flag_finite_math_only)
     {
       cpp_undef (pfile, "__FINITE_MATH_ONLY__");
       cpp_define (pfile, "__FINITE_MATH_ONLY__=0");
@@ -626,7 +627,7 @@ c_cpp_builtins (cpp_reader *pfile)
 				   1000 + flag_abi_version);
 
   /* libgcc needs to know this.  */
-  if (targetm.except_unwind_info (&global_options) == UI_SJLJ)
+  if (targetm_common.except_unwind_info (&global_options) == UI_SJLJ)
     cpp_define (pfile, "__USING_SJLJ_EXCEPTIONS__");
 
   /* limits.h and stdint.h need to know these.  */
@@ -727,6 +728,12 @@ c_cpp_builtins (cpp_reader *pfile)
       builtin_define_fixed_point_constants ("UTA", "", uta_type_node);
     }
 
+  /* For libgcc-internal use only.  */
+  if (flag_building_libgcc)
+    /* For libgcc enable-execute-stack.c.  */
+    builtin_define_with_int_value ("__LIBGCC_TRAMPOLINE_SIZE__",
+				   TRAMPOLINE_SIZE);
+
   /* For use in assembly language.  */
   builtin_define_with_value ("__REGISTER_PREFIX__", REGISTER_PREFIX, 0);
   builtin_define_with_value ("__USER_LABEL_PREFIX__", user_label_prefix, 0);
@@ -800,7 +807,7 @@ c_cpp_builtins (cpp_reader *pfile)
     cpp_define (pfile, "__SSP__=1");
 
   if (flag_openmp)
-    cpp_define (pfile, "_OPENMP=200805");
+    cpp_define (pfile, "_OPENMP=201107");
 
   if (int128_integer_type_node != NULL_TREE)
     builtin_define_type_sizeof ("__SIZEOF_INT128__",

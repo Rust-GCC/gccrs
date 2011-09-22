@@ -83,6 +83,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "ggc.h"
 #include "cfgloop.h"
 #include "params.h"
+#include "tree-pretty-print.h"
 
 #ifdef XCOFF_DEBUGGING_INFO
 #include "xcoffout.h"		/* Needed for external data
@@ -103,11 +104,6 @@ along with GCC; see the file COPYING3.  If not see
    So define a null default for it to save conditionalization later.  */
 #ifndef CC_STATUS_INIT
 #define CC_STATUS_INIT
-#endif
-
-/* How to start an assembler comment.  */
-#ifndef ASM_COMMENT_START
-#define ASM_COMMENT_START ";#"
 #endif
 
 /* Is the given character a logical line separator for the assembler?  */
@@ -836,7 +832,7 @@ struct rtl_opt_pass pass_compute_alignments =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func | TODO_verify_rtl_sharing
+  TODO_verify_rtl_sharing
   | TODO_ggc_collect                    /* todo_flags_finish */
  }
 };
@@ -1559,11 +1555,6 @@ final_start_function (rtx first ATTRIBUTE_UNUSED, FILE *file,
   if (targetm.profile_before_prologue () && crtl->profile)
     profile_function (file);
 
-#if defined (HAVE_prologue)
-  if (dwarf2out_do_frame ())
-    dwarf2out_frame_debug_init ();
-#endif
-
   /* If debugging, assign block numbers to all of the blocks in this
      function.  */
   if (write_symbols)
@@ -1726,7 +1717,7 @@ dump_basic_block_info (FILE *file, rtx insn, basic_block *start_to_bb,
 void
 final (rtx first, FILE *file, int optimize_p)
 {
-  rtx insn;
+  rtx insn, next;
   int max_uid = 0;
   int seen = 0;
 
@@ -1748,7 +1739,7 @@ final (rtx first, FILE *file, int optimize_p)
       if (optimize_p && JUMP_P (insn))
 	{
 	  rtx lab = JUMP_LABEL (insn);
-	  if (lab && LABEL_NUSES (lab) == 1)
+	  if (lab && LABEL_P (lab) && LABEL_NUSES (lab) == 1)
 	    {
 	      LABEL_REFS (lab) = insn;
 	    }
@@ -1799,6 +1790,16 @@ final (rtx first, FILE *file, int optimize_p)
     {
       free (start_to_bb);
       free (end_to_bb);
+    }
+
+  /* Remove CFI notes, to avoid compare-debug failures.  */
+  for (insn = first; insn; insn = next)
+    {
+      next = NEXT_INSN (insn);
+      if (NOTE_P (insn)
+	  && (NOTE_KIND (insn) == NOTE_INSN_CFI
+	      || NOTE_KIND (insn) == NOTE_INSN_CFI_LABEL))
+	delete_insn (insn);
     }
 }
 
@@ -1972,16 +1973,17 @@ final_scan_insn (rtx insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	  break;
 
 	case NOTE_INSN_EPILOGUE_BEG:
-#if defined (HAVE_epilogue)
-	  if (dwarf2out_do_frame ())
-	    dwarf2out_cfi_begin_epilogue (insn);
-#endif
 	  (*debug_hooks->begin_epilogue) (last_linenum, last_filename);
 	  targetm.asm_out.function_begin_epilogue (file);
 	  break;
 
-	case NOTE_INSN_CFA_RESTORE_STATE:
-	  dwarf2out_frame_debug_restore_state ();
+	case NOTE_INSN_CFI:
+	  dwarf2out_emit_cfi (NOTE_CFI (insn));
+	  break;
+
+	case NOTE_INSN_CFI_LABEL:
+	  ASM_OUTPUT_DEBUG_LABEL (asm_out_file, "LCFI",
+				  NOTE_LABEL_NUMBER (insn));
 	  break;
 
 	case NOTE_INSN_FUNCTION_BEG:
@@ -2091,8 +2093,6 @@ final_scan_insn (rtx insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
       break;
 
     case BARRIER:
-      if (dwarf2out_do_frame ())
-	dwarf2out_frame_debug (insn, false);
       break;
 
     case CODE_LABEL:
@@ -2313,11 +2313,6 @@ final_scan_insn (rtx insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	    location_t loc;
 	    expanded_location expanded;
 
-	    /* Make sure we flush any queued register saves in case this
-	       clobbers affected registers.  */
-	    if (dwarf2out_do_frame ())
-	      dwarf2out_frame_debug (insn, false);
-
 	    /* There's no telling what that did to the condition codes.  */
 	    CC_STATUS_INIT;
 
@@ -2362,12 +2357,6 @@ final_scan_insn (rtx insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	    int i;
 
 	    final_sequence = body;
-
-	    /* Record the delay slots' frame information before the branch.
-	       This is needed for delayed calls: see execute_cfa_program().  */
-	    if (dwarf2out_do_frame ())
-	      for (i = 1; i < XVECLEN (body, 0); i++)
-		dwarf2out_frame_debug (XVECEXP (body, 0, i), false);
 
 	    /* The first insn in this SEQUENCE might be a JUMP_INSN that will
 	       force the restoration of a comparison that was previously
@@ -2503,7 +2492,7 @@ final_scan_insn (rtx insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	        delete_insn (insn);
 		break;
 	      }
-	    else if (GET_CODE (SET_SRC (body)) == RETURN)
+	    else if (ANY_RETURN_P (SET_SRC (body)))
 	      /* Replace (set (pc) (return)) with (return).  */
 	      PATTERN (insn) = body = SET_SRC (body);
 
@@ -2682,9 +2671,6 @@ final_scan_insn (rtx insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 
 	current_output_insn = debug_insn = insn;
 
-	if (CALL_P (insn) && dwarf2out_do_frame ())
-	  dwarf2out_frame_debug (insn, false);
-
 	/* Find the proper template for this insn.  */
 	templ = get_insn_template (insn_code_number, insn);
 
@@ -2763,16 +2749,6 @@ final_scan_insn (rtx insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	if (targetm.asm_out.final_postscan_insn)
 	  targetm.asm_out.final_postscan_insn (file, insn, recog_data.operand,
 					       recog_data.n_operands);
-
-	/* If necessary, report the effect that the instruction has on
-	   the unwind info.   We've already done this for delay slots
-	   and call instructions.  */
-	if (final_sequence == 0
-#if !defined (HAVE_prologue)
-	    && !ACCUMULATE_OUTGOING_ARGS
-#endif
-	    && dwarf2out_do_frame ())
-	  dwarf2out_frame_debug (insn, true);
 
 	if (!targetm.asm_out.unwind_emit_before_insn
 	    && targetm.asm_out.unwind_emit)
@@ -3633,8 +3609,7 @@ output_addr_const (FILE *file, rtx x)
       break;
 
     case CONST_FIXED:
-      fprintf (file, HOST_WIDE_INT_PRINT_HEX,
-	       (unsigned HOST_WIDE_INT) CONST_FIXED_VALUE_LOW (x));
+      fprintf (file, HOST_WIDE_INT_PRINT_DEC, CONST_FIXED_VALUE_LOW (x));
       break;
 
     case PLUS:
@@ -4336,7 +4311,7 @@ struct rtl_opt_pass pass_shorten_branches =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func                        /* todo_flags_finish */
+  0                                     /* todo_flags_finish */
  }
 };
 
@@ -4360,23 +4335,11 @@ rest_of_clean_state (void)
 	}
       else
 	{
-	  const char *aname;
-	  struct cgraph_node *node = cgraph_get_node (current_function_decl);
-
-	  aname = (IDENTIFIER_POINTER
-		   (DECL_ASSEMBLER_NAME (current_function_decl)));
-	  fprintf (final_output, "\n;; Function (%s) %s\n\n", aname,
-	     node->frequency == NODE_FREQUENCY_HOT
-	     ? " (hot)"
-	     : node->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED
-	     ? " (unlikely executed)"
-	     : node->frequency == NODE_FREQUENCY_EXECUTED_ONCE
-	     ? " (executed once)"
-	     : "");
-
 	  flag_dump_noaddr = flag_dump_unnumbered = 1;
 	  if (flag_compare_debug_opt || flag_compare_debug)
 	    dump_flags |= TDF_NOUID;
+	  dump_function_header (final_output, current_function_decl,
+				dump_flags);
 	  final_insns_dump_p = true;
 
 	  for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
@@ -4406,8 +4369,7 @@ rest_of_clean_state (void)
 	      (NOTE_KIND (insn) != NOTE_INSN_VAR_LOCATION
 	       && NOTE_KIND (insn) != NOTE_INSN_CALL_ARG_LOCATION
 	       && NOTE_KIND (insn) != NOTE_INSN_BLOCK_BEG
-	       && NOTE_KIND (insn) != NOTE_INSN_BLOCK_END
-	       && NOTE_KIND (insn) != NOTE_INSN_CFA_RESTORE_STATE)))
+	       && NOTE_KIND (insn) != NOTE_INSN_BLOCK_END)))
 	print_rtl_single (final_output, insn);
     }
 

@@ -161,6 +161,13 @@ default_can_output_mi_thunk_no_vcall (const_tree a ATTRIBUTE_UNUSED,
 }
 
 int
+hook_int_uint_mode_1 (unsigned int a ATTRIBUTE_UNUSED,
+		      enum machine_mode b ATTRIBUTE_UNUSED)
+{
+  return 1;
+}
+
+int
 hook_int_const_tree_0 (const_tree a ATTRIBUTE_UNUSED)
 {
   return 0;
@@ -267,11 +274,12 @@ hook_bool_uintp_uintp_false (unsigned int *a ATTRIBUTE_UNUSED,
 }
 
 bool
-hook_bool_rtx_int_int_intp_bool_false (rtx a ATTRIBUTE_UNUSED,
-				       int b ATTRIBUTE_UNUSED,
-				       int c ATTRIBUTE_UNUSED,
-				       int *d ATTRIBUTE_UNUSED,
-				       bool speed_p ATTRIBUTE_UNUSED)
+hook_bool_rtx_int_int_int_intp_bool_false (rtx a ATTRIBUTE_UNUSED,
+					   int b ATTRIBUTE_UNUSED,
+					   int c ATTRIBUTE_UNUSED,
+					   int d ATTRIBUTE_UNUSED,
+					   int *e ATTRIBUTE_UNUSED,
+					   bool speed_p ATTRIBUTE_UNUSED)
 {
   return false;
 }

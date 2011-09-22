@@ -58,6 +58,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "timevar.h"
 #include "diagnostic.h"
 #include "langhooks.h"
+#include "data-streamer.h"
 #include "lto-streamer.h"
 
 static void remove_node_data (struct cgraph_node *node,
@@ -196,7 +197,7 @@ ipa_reference_get_not_read_global (struct cgraph_node *fn)
 {
   ipa_reference_optimization_summary_t info;
 
-  info = get_reference_optimization_summary (fn);
+  info = get_reference_optimization_summary (cgraph_function_node (fn, NULL));
   if (info)
     return info->statics_not_read;
   else if (flags_from_decl_or_type (fn->decl) & ECF_LEAF)
@@ -301,16 +302,17 @@ propagate_bits (ipa_reference_global_vars_info_t x_global, struct cgraph_node *x
   struct cgraph_edge *e;
   for (e = x->callees; e; e = e->next_callee)
     {
-      struct cgraph_node *y = e->callee;
       enum availability avail;
+      struct cgraph_node *y = cgraph_function_node (e->callee, &avail);
 
-      avail = cgraph_function_body_availability (e->callee);
+      if (!y)
+	continue;
       /* Only look into nodes we can propagate something.  */
       if (avail > AVAIL_OVERWRITABLE
 	  || (avail == AVAIL_OVERWRITABLE
-	      && (flags_from_decl_or_type (e->callee->decl) & ECF_LEAF)))
+	      && (flags_from_decl_or_type (y->decl) & ECF_LEAF)))
 	{
-	  int flags = flags_from_decl_or_type (e->callee->decl);
+	  int flags = flags_from_decl_or_type (y->decl);
 	  if (get_reference_vars_info (y))
 	    {
 	      ipa_reference_vars_info_t y_info
@@ -644,6 +646,8 @@ propagate (void)
       struct ipa_dfs_info * w_info;
 
       node = order[i];
+      if (node->alias)
+	continue;
       node_info = get_reference_vars_info (node);
       gcc_assert (node_info);
 
@@ -663,8 +667,12 @@ propagate (void)
         read_write_all_from_decl (node, &read_all, &write_all);
 
       for (e = node->callees; e; e = e->next_callee)
-        if (cgraph_function_body_availability (e->callee) <= AVAIL_OVERWRITABLE)
-          read_write_all_from_decl (e->callee, &read_all, &write_all);
+	{
+	  enum availability avail;
+	  struct cgraph_node *callee = cgraph_function_node (e->callee, &avail);
+          if (!callee || avail <= AVAIL_OVERWRITABLE)
+            read_write_all_from_decl (callee, &read_all, &write_all);
+	}
 
       for (ie = node->indirect_calls; ie; ie = ie->next_callee)
 	if (!(ie->indirect_info->ecf_flags & ECF_CONST))
@@ -696,8 +704,13 @@ propagate (void)
 	    read_write_all_from_decl (w, &read_all, &write_all);
 
 	  for (e = w->callees; e; e = e->next_callee)
-	    if (cgraph_function_body_availability (e->callee) <= AVAIL_OVERWRITABLE)
-	      read_write_all_from_decl (e->callee, &read_all, &write_all);
+	    {
+	      enum availability avail;
+	      struct cgraph_node *callee = cgraph_function_node (e->callee, &avail);
+
+	      if (avail <= AVAIL_OVERWRITABLE)
+		read_write_all_from_decl (callee, &read_all, &write_all);
+	    }
 
 	  for (ie = w->indirect_calls; ie; ie = ie->next_callee)
 	    if (!(ie->indirect_info->ecf_flags & ECF_CONST))
@@ -792,6 +805,8 @@ propagate (void)
 	  struct ipa_dfs_info * w_info;
 
 	  node = order[i];
+	  if (node->alias)
+	    continue;
 	  node_info = get_reference_vars_info (node);
 	  node_g = &node_info->global;
 	  node_l = &node_info->local;
@@ -875,7 +890,7 @@ propagate (void)
       ipa_reference_global_vars_info_t node_g;
       ipa_reference_optimization_summary_t opt;
 
-      if (!node->analyzed)
+      if (!node->analyzed || node->alias)
         continue;
 
       node_info = get_reference_vars_info (node);
@@ -978,17 +993,17 @@ stream_out_bitmap (struct lto_simple_output_block *ob,
   bitmap_iterator bi;
   if (bits == all_module_statics)
     {
-      lto_output_sleb128_stream (ob->main_stream, -1);
+      streamer_write_hwi_stream (ob->main_stream, -1);
       return;
     }
   EXECUTE_IF_AND_IN_BITMAP (bits, ltrans_statics, 0, index, bi)
     count ++;
   if (count == ltrans_statics_bitcount)
     {
-      lto_output_sleb128_stream (ob->main_stream, -1);
+      streamer_write_hwi_stream (ob->main_stream, -1);
       return;
     }
-  lto_output_sleb128_stream (ob->main_stream, count);
+  streamer_write_hwi_stream (ob->main_stream, count);
   if (!count)
     return;
   EXECUTE_IF_AND_IN_BITMAP (bits, ltrans_statics, 0, index, bi)
@@ -1040,7 +1055,7 @@ ipa_reference_write_optimization_summary (cgraph_node_set set,
 				set, vset, ltrans_statics))
 	  count++;
 
-  lto_output_uleb128_stream (ob->main_stream, count);
+  streamer_write_uhwi_stream (ob->main_stream, count);
   if (count)
     stream_out_bitmap (ob, ltrans_statics, ltrans_statics,
 		       -1);
@@ -1057,7 +1072,7 @@ ipa_reference_write_optimization_summary (cgraph_node_set set,
 
 	    info = get_reference_optimization_summary (node);
 	    node_ref = lto_cgraph_encoder_encode (encoder, node);
-	    lto_output_uleb128_stream (ob->main_stream, node_ref);
+	    streamer_write_uhwi_stream (ob->main_stream, node_ref);
 
 	    stream_out_bitmap (ob, info->statics_not_read, ltrans_statics,
 			       ltrans_statics_bitcount);
@@ -1098,16 +1113,16 @@ ipa_reference_read_optimization_summary (void)
       if (ib)
 	{
 	  unsigned int i;
-	  unsigned int f_count = lto_input_uleb128 (ib);
+	  unsigned int f_count = streamer_read_uhwi (ib);
 	  int b_count;
 	  if (!f_count)
 	    continue;
-	  b_count = lto_input_sleb128 (ib);
+	  b_count = streamer_read_hwi (ib);
 	  if (dump_file)
 	    fprintf (dump_file, "all module statics:");
 	  for (i = 0; i < (unsigned int)b_count; i++)
 	    {
-	      unsigned int var_index = lto_input_uleb128 (ib);
+	      unsigned int var_index = streamer_read_uhwi (ib);
 	      tree v_decl = lto_file_decl_data_get_var_decl (file_data,
 							     var_index);
 	      bitmap_set_bit (all_module_statics, DECL_UID (v_decl));
@@ -1124,7 +1139,7 @@ ipa_reference_read_optimization_summary (void)
 	      int v_count;
 	      lto_cgraph_encoder_t encoder;
 
-	      index = lto_input_uleb128 (ib);
+	      index = streamer_read_uhwi (ib);
 	      encoder = file_data->cgraph_node_encoder;
 	      node = lto_cgraph_encoder_deref (encoder, index);
 	      info = XCNEW (struct ipa_reference_optimization_summary_d);
@@ -1137,7 +1152,7 @@ ipa_reference_read_optimization_summary (void)
 			 cgraph_node_name (node), node->uid);
 
 	      /* Set the statics not read.  */
-	      v_count = lto_input_sleb128 (ib);
+	      v_count = streamer_read_hwi (ib);
 	      if (v_count == -1)
 		{
 		  info->statics_not_read = all_module_statics;
@@ -1147,7 +1162,7 @@ ipa_reference_read_optimization_summary (void)
 	      else
 		for (j = 0; j < (unsigned int)v_count; j++)
 		  {
-		    unsigned int var_index = lto_input_uleb128 (ib);
+		    unsigned int var_index = streamer_read_uhwi (ib);
 		    tree v_decl = lto_file_decl_data_get_var_decl (file_data,
 								   var_index);
 		    bitmap_set_bit (info->statics_not_read, DECL_UID (v_decl));
@@ -1160,7 +1175,7 @@ ipa_reference_read_optimization_summary (void)
 		fprintf (dump_file,
 			 "\n  static not written:");
 	      /* Set the statics not written.  */
-	      v_count = lto_input_sleb128 (ib);
+	      v_count = streamer_read_hwi (ib);
 	      if (v_count == -1)
 		{
 		  info->statics_not_written = all_module_statics;
@@ -1170,7 +1185,7 @@ ipa_reference_read_optimization_summary (void)
 	      else
 		for (j = 0; j < (unsigned int)v_count; j++)
 		  {
-		    unsigned int var_index = lto_input_uleb128 (ib);
+		    unsigned int var_index = streamer_read_uhwi (ib);
 		    tree v_decl = lto_file_decl_data_get_var_decl (file_data,
 								   var_index);
 		    bitmap_set_bit (info->statics_not_written, DECL_UID (v_decl));

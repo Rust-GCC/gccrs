@@ -1,6 +1,6 @@
 /* Subroutines for manipulating rtx's in semantically interesting ways.
-   Copyright (C) 1987, 1991, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 1987, 1991, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
+   2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -40,6 +40,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "recog.h"
 #include "langhooks.h"
 #include "target.h"
+#include "common/common-target.h"
 #include "output.h"
 
 static rtx break_out_memory_refs (rtx);
@@ -50,7 +51,7 @@ static rtx break_out_memory_refs (rtx);
 HOST_WIDE_INT
 trunc_int_for_mode (HOST_WIDE_INT c, enum machine_mode mode)
 {
-  int width = GET_MODE_BITSIZE (mode);
+  int width = GET_MODE_PRECISION (mode);
 
   /* You want to truncate to a _what_?  */
   gcc_assert (SCALAR_INT_MODE_P (mode));
@@ -383,18 +384,23 @@ convert_memory_address_addr_space (enum machine_mode to_mode ATTRIBUTE_UNUSED,
 
     case PLUS:
     case MULT:
-      /* For addition we can safely permute the conversion and addition
-	 operation if one operand is a constant and converting the constant
-	 does not change it or if one operand is a constant and we are
-	 using a ptr_extend instruction  (POINTERS_EXTEND_UNSIGNED < 0).
+      /* FIXME: For addition, we used to permute the conversion and
+	 addition operation only if one operand is a constant and
+	 converting the constant does not change it or if one operand
+	 is a constant and we are using a ptr_extend instruction
+	 (POINTERS_EXTEND_UNSIGNED < 0) even if the resulting address
+	 may overflow/underflow.  We relax the condition to include
+	 zero-extend (POINTERS_EXTEND_UNSIGNED > 0) since the other
+	 parts of the compiler depend on it.  See PR 49721.
+
 	 We can always safely permute them if we are making the address
 	 narrower.  */
       if (GET_MODE_SIZE (to_mode) < GET_MODE_SIZE (from_mode)
 	  || (GET_CODE (x) == PLUS
 	      && CONST_INT_P (XEXP (x, 1))
-	      && (XEXP (x, 1) == convert_memory_address_addr_space
-				   (to_mode, XEXP (x, 1), as)
-                 || POINTERS_EXTEND_UNSIGNED < 0)))
+	      && (POINTERS_EXTEND_UNSIGNED != 0
+		  || XEXP (x, 1) == convert_memory_address_addr_space
+		  			(to_mode, XEXP (x, 1), as))))
 	return gen_rtx_fmt_ee (GET_CODE (x), to_mode,
 			       convert_memory_address_addr_space
 				 (to_mode, XEXP (x, 0), as),
@@ -872,14 +878,45 @@ promote_decl_mode (const_tree decl, int *punsignedp)
 }
 
 
+/* Controls the behaviour of {anti_,}adjust_stack.  */
+static bool suppress_reg_args_size;
+
+/* A helper for adjust_stack and anti_adjust_stack.  */
+
+static void
+adjust_stack_1 (rtx adjust, bool anti_p)
+{
+  rtx temp, insn;
+
+#ifndef STACK_GROWS_DOWNWARD
+  /* Hereafter anti_p means subtract_p.  */
+  anti_p = !anti_p;
+#endif
+
+  temp = expand_binop (Pmode,
+		       anti_p ? sub_optab : add_optab,
+		       stack_pointer_rtx, adjust, stack_pointer_rtx, 0,
+		       OPTAB_LIB_WIDEN);
+
+  if (temp != stack_pointer_rtx)
+    insn = emit_move_insn (stack_pointer_rtx, temp);
+  else
+    {
+      insn = get_last_insn ();
+      temp = single_set (insn);
+      gcc_assert (temp != NULL && SET_DEST (temp) == stack_pointer_rtx);
+    }
+
+  if (!suppress_reg_args_size)
+    add_reg_note (insn, REG_ARGS_SIZE, GEN_INT (stack_pointer_delta));
+}
+
 /* Adjust the stack pointer by ADJUST (an rtx for a number of bytes).
    This pops when ADJUST is positive.  ADJUST need not be constant.  */
 
 void
 adjust_stack (rtx adjust)
 {
-  rtx temp;
-
   if (adjust == const0_rtx)
     return;
 
@@ -888,17 +925,7 @@ adjust_stack (rtx adjust)
   if (CONST_INT_P (adjust))
     stack_pointer_delta -= INTVAL (adjust);
 
-  temp = expand_binop (Pmode,
-#ifdef STACK_GROWS_DOWNWARD
-		       add_optab,
-#else
-		       sub_optab,
-#endif
-		       stack_pointer_rtx, adjust, stack_pointer_rtx, 0,
-		       OPTAB_LIB_WIDEN);
-
-  if (temp != stack_pointer_rtx)
-    emit_move_insn (stack_pointer_rtx, temp);
+  adjust_stack_1 (adjust, false);
 }
 
 /* Adjust the stack pointer by minus ADJUST (an rtx for a number of bytes).
@@ -907,8 +934,6 @@ adjust_stack (rtx adjust)
 void
 anti_adjust_stack (rtx adjust)
 {
-  rtx temp;
-
   if (adjust == const0_rtx)
     return;
 
@@ -917,17 +942,7 @@ anti_adjust_stack (rtx adjust)
   if (CONST_INT_P (adjust))
     stack_pointer_delta += INTVAL (adjust);
 
-  temp = expand_binop (Pmode,
-#ifdef STACK_GROWS_DOWNWARD
-		       sub_optab,
-#else
-		       add_optab,
-#endif
-		       stack_pointer_rtx, adjust, stack_pointer_rtx, 0,
-		       OPTAB_LIB_WIDEN);
-
-  if (temp != stack_pointer_rtx)
-    emit_move_insn (stack_pointer_rtx, temp);
+  adjust_stack_1 (adjust, true);
 }
 
 /* Round the size of a block to be pushed up to the boundary required
@@ -1047,6 +1062,20 @@ emit_stack_restore (enum save_level save_level, rtx sa)
   /* The default is that we use a move insn.  */
   rtx (*fcn) (rtx, rtx) = gen_move_insn;
 
+  /* If stack_realign_drap, the x86 backend emits a prologue that aligns both
+     STACK_POINTER and HARD_FRAME_POINTER.
+     If stack_realign_fp, the x86 backend emits a prologue that aligns only
+     STACK_POINTER. This renders the HARD_FRAME_POINTER unusable for accessing
+     aligned variables, which is reflected in ix86_can_eliminate.
+     We normally still have the realigned STACK_POINTER that we can use.
+     But if there is a stack restore still present at reload, it can trigger 
+     mark_not_eliminable for the STACK_POINTER, leaving no way to eliminate
+     FRAME_POINTER into a hard reg.
+     To prevent this situation, we force need_drap if we emit a stack
+     restore.  */
+  if (SUPPORTS_STACK_ALIGNMENT)
+    crtl->need_drap = true;
+
   /* See if this machine has anything special to do for this kind of save.  */
   switch (save_level)
     {
@@ -1101,7 +1130,9 @@ update_nonlocal_goto_save_area (void)
      first one is used for the frame pointer save; the rest are sized by
      STACK_SAVEAREA_MODE.  Create a reference to array index 1, the first
      of the stack save area slots.  */
-  t_save = build4 (ARRAY_REF, ptr_type_node, cfun->nonlocal_goto_save_area,
+  t_save = build4 (ARRAY_REF,
+		   TREE_TYPE (TREE_TYPE (cfun->nonlocal_goto_save_area)),
+		   cfun->nonlocal_goto_save_area,
 		   integer_one_node, NULL_TREE, NULL_TREE);
   r_save = expand_expr (t_save, NULL_RTX, VOIDmode, EXPAND_WRITE);
 
@@ -1150,7 +1181,7 @@ allocate_dynamic_stack_space (rtx size, unsigned size_align,
   /* If stack usage info is requested, look into the size we are passed.
      We need to do so this early to avoid the obfuscation that may be
      introduced later by the various alignment operations.  */
-  if (flag_stack_usage)
+  if (flag_stack_usage_info)
     {
       if (CONST_INT_P (size))
 	stack_usage_size = INTVAL (size);
@@ -1242,44 +1273,12 @@ allocate_dynamic_stack_space (rtx size, unsigned size_align,
       size = plus_constant (size, extra);
       size = force_operand (size, NULL_RTX);
 
-      if (flag_stack_usage)
+      if (flag_stack_usage_info)
 	stack_usage_size += extra;
 
       if (extra && size_align > extra_align)
 	size_align = extra_align;
     }
-
-#ifdef SETJMP_VIA_SAVE_AREA
-  /* If setjmp restores regs from a save area in the stack frame,
-     avoid clobbering the reg save area.  Note that the offset of
-     virtual_incoming_args_rtx includes the preallocated stack args space.
-     It would be no problem to clobber that, but it's on the wrong side
-     of the old save area.
-
-     What used to happen is that, since we did not know for sure
-     whether setjmp() was invoked until after RTL generation, we
-     would use reg notes to store the "optimized" size and fix things
-     up later.  These days we know this information before we ever
-     start building RTL so the reg notes are unnecessary.  */
-  if (cfun->calls_setjmp)
-    {
-      rtx dynamic_offset
-	= expand_binop (Pmode, sub_optab, virtual_stack_dynamic_rtx,
-			stack_pointer_rtx, NULL_RTX, 1, OPTAB_LIB_WIDEN);
-
-      size = expand_binop (Pmode, add_optab, size, dynamic_offset,
-			   NULL_RTX, 1, OPTAB_LIB_WIDEN);
-
-      /* The above dynamic offset cannot be computed statically at this
-	 point, but it will be possible to do so after RTL expansion is
-	 done.  Record how many times we will need to add it.  */
-      if (flag_stack_usage)
-	current_function_dynamic_alloc_count++;
-
-      /* ??? Can we infer a minimum of STACK_BOUNDARY here?  */
-      size_align = BITS_PER_UNIT;
-    }
-#endif /* SETJMP_VIA_SAVE_AREA */
 
   /* Round the size to a multiple of the required stack alignment.
      Since the stack if presumed to be rounded before this allocation,
@@ -1298,7 +1297,7 @@ allocate_dynamic_stack_space (rtx size, unsigned size_align,
     {
       size = round_push (size);
 
-      if (flag_stack_usage)
+      if (flag_stack_usage_info)
 	{
 	  int align = crtl->preferred_stack_boundary / BITS_PER_UNIT;
 	  stack_usage_size = (stack_usage_size + align - 1) / align * align;
@@ -1309,7 +1308,7 @@ allocate_dynamic_stack_space (rtx size, unsigned size_align,
 
   /* The size is supposed to be fully adjusted at this point so record it
      if stack usage info is requested.  */
-  if (flag_stack_usage)
+  if (flag_stack_usage_info)
     {
       current_function_dynamic_stack_size += stack_usage_size;
 
@@ -1395,6 +1394,9 @@ allocate_dynamic_stack_space (rtx size, unsigned size_align,
   else if (flag_stack_check == STATIC_BUILTIN_STACK_CHECK)
     probe_stack_range (STACK_CHECK_PROTECT, size);
 
+  /* Don't let anti_adjust_stack emit notes.  */
+  suppress_reg_args_size = true;
+
   /* Perform the required allocation from the stack.  Some systems do
      this differently than simply incrementing/decrementing from the
      stack pointer, such as acquiring the space by calling malloc().  */
@@ -1445,10 +1447,12 @@ allocate_dynamic_stack_space (rtx size, unsigned size_align,
 	}
 
       saved_stack_pointer_delta = stack_pointer_delta;
+
       if (flag_stack_check && STACK_CHECK_MOVING_SP)
 	anti_adjust_stack_and_probe (size, false);
       else
 	anti_adjust_stack (size);
+
       /* Even if size is constant, don't modify stack_pointer_delta.
 	 The constant size alloca should preserve
 	 crtl->preferred_stack_boundary alignment.  */
@@ -1458,6 +1462,8 @@ allocate_dynamic_stack_space (rtx size, unsigned size_align,
       emit_move_insn (target, virtual_stack_dynamic_rtx);
 #endif
     }
+
+  suppress_reg_args_size = false;
 
   /* Finish up the split stack handling.  */
   if (final_label != NULL_RTX)

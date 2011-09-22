@@ -331,6 +331,10 @@ Wdeclaration-after-statement
 C ObjC Var(warn_declaration_after_statement) Warning
 Warn when a declaration is found after a statement
 
+Wdelete-non-virtual-dtor
+C++ ObjC++ Var(warn_delnonvdtor) Warning
+Warn about deleting polymorphic objects with non-virtual destructors
+
 Wdeprecated
 C C++ ObjC ObjC++ Var(warn_deprecated) Init(1) Warning
 Warn if a deprecated compiler feature, class, method, or field is used
@@ -484,6 +488,10 @@ Warn about global functions without prototypes
 Wmultichar
 C ObjC C++ ObjC++ Warning
 Warn about use of multi-character character constants
+
+Wnarrowing
+C ObjC C++ ObjC++ Warning Var(warn_narrowing) Init(1)
+-Wno-narrowing	  In C++0x mode, ignore ill-formed narrowing conversions within { }
 
 Wnested-externs
 C ObjC Var(warn_nested_externs) Warning
@@ -645,6 +653,10 @@ Wunsuffixed-float-constants
 C ObjC Var(warn_unsuffixed_float_constants) Warning
 Warn about unsuffixed float constants
 
+Wunused-local-typedefs
+C ObjC C++ ObjC++ Var(warn_unused_local_typedefs) Warning
+Warn about
+
 Wunused-macros
 C ObjC C++ ObjC++ Warning
 Warn about macros defined in the main file that are not used
@@ -695,6 +707,10 @@ No longer supported
 fasm
 C ObjC C++ ObjC++ Var(flag_no_asm, 0)
 Recognize the \"asm\" keyword
+
+; Define extra predefined macros for use in libgcc.
+fbuilding-libgcc
+C ObjC C++ ObjC++ Undocumented Var(flag_building_libgcc)
 
 fbuiltin
 C ObjC C++ ObjC++ Var(flag_no_builtin, 0)

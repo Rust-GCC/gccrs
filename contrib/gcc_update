@@ -81,6 +81,10 @@ gcc/config.in: gcc/cstamp-h.in
 gcc/fixinc/fixincl.x: gcc/fixinc/fixincl.tpl gcc/fixinc/inclhack.def
 gcc/config/arm/arm-tune.md: gcc/config/arm/arm-cores.def gcc/config/arm/gentune.sh
 gcc/config/arm/arm-tables.opt: gcc/config/arm/arm-arches.def gcc/config/arm/arm-cores.def gcc/config/arm/arm-fpus.def gcc/config/arm/genopt.sh
+gcc/config/avr/avr-tables.opt: gcc/config/avr/avr-mcus.def gcc/config/avr/genopt.sh
+gcc/config/c6x/c6x-tables.opt: gcc/config/c6x/c6x-isas.def gcc/config/c6x/genopt.sh
+gcc/config/c6x/c6x-sched.md: gcc/config/c6x/c6x-sched.md.in gcc/config/c6x/gensched.sh
+gcc/config/c6x/c6x-mult.md: gcc/config/c6x/c6x-mult.md.in gcc/config/c6x/genmult.sh
 gcc/config/m68k/m68k-tables.opt: gcc/config/m68k/m68k-devices.def gcc/config/m68k/m68k-isas.def gcc/config/m68k/m68k-microarchs.def gcc/config/m68k/genopt.sh
 gcc/config/mips/mips-tables.opt: gcc/config/mips/mips-cpus.def gcc/config/mips/genopt.sh
 gcc/config/rs6000/rs6000-tables.opt: gcc/config/rs6000/rs6000-cpus.def gcc/config/rs6000/genopt.sh
@@ -336,14 +340,13 @@ case $vcs_type in
 	# corresponding to the extra: tag, so need to use hg log --debug
 	# to extract the info.
 	parents=`$GCC_HG parents --template '{rev}'`
-	revision=`$GCC_HG log --debug -r$parents | \
+	convert_revision=`$GCC_HG log --debug -r$parents | \
 	    sed -ne "/^extra:.*convert_revision=svn:/ {
-	        s%^.*@%%
+	        s%^[^/]*/%%
 		p
 	    }"`
-	branch=`$GCC_HG branch`
-	# trunk in SVN parlance shows up as default branch in hg.
-	[ x$branch = x"default" ] && branch="trunk"
+	revision=`echo $convert_revision | sed -e 's/.*@//'`
+	branch=`echo $convert_revision | sed -e 's%branches/%%' -e 's/@.*//'`
 	;;
 
     svn)

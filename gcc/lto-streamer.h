@@ -32,6 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "vecprim.h"
 #include "alloc-pool.h"
 #include "gcov-io.h"
+#include "diagnostic.h"
 
 /* Define when debugging the LTO streamer.  This causes the writer
    to output the numeric value for the memory address of the tree node
@@ -146,27 +147,6 @@ along with GCC; see the file COPYING3.  If not see
 typedef unsigned char	lto_decl_flags_t;
 
 
-/* Data structures used to pack values and bitflags into a vector of
-   words.  Used to stream values of a fixed number of bits in a space
-   efficient way.  */
-static unsigned const BITS_PER_BITPACK_WORD = HOST_BITS_PER_WIDE_INT;
-
-typedef unsigned HOST_WIDE_INT bitpack_word_t;
-DEF_VEC_I(bitpack_word_t);
-DEF_VEC_ALLOC_I(bitpack_word_t, heap);
-
-struct bitpack_d
-{
-  /* The position of the first unused or unconsumed bit in the word.  */
-  unsigned pos;
-
-  /* The current word we are (un)packing.  */
-  bitpack_word_t word;
-
-  /* The lto_output_stream or the lto_input_block we are streaming to/from.  */
-  void *stream;
-};
-
 /* Tags representing the various IL objects written to the bytecode file
    (GIMPLE statements, basic blocks, EH regions, tree nodes, etc).
 
@@ -186,7 +166,7 @@ enum LTO_tags
 
      Conversely, to map between LTO tags and tree/gimple codes, the
      reverse operation must be applied.  */
-  LTO_bb0 = 1 + NUM_TREE_CODES + LAST_AND_UNUSED_GIMPLE_CODE,
+  LTO_bb0 = 1 + MAX_TREE_CODES + LAST_AND_UNUSED_GIMPLE_CODE,
   LTO_bb1,
 
   /* EH region holding the previous statement.  */
@@ -325,33 +305,6 @@ typedef void (lto_free_section_data_f) (struct lto_file_decl_data *,
 					const char *,
 					const char *,
 					size_t);
-
-/* Cache of pickled nodes.  Used to avoid writing the same node more
-   than once.  The first time a tree node is streamed out, it is
-   entered in this cache.  Subsequent references to the same node are
-   resolved by looking it up in this cache.
-
-   This is used in two ways:
-
-   - On the writing side, the first time T is added to STREAMER_CACHE,
-     a new reference index is created for T and T is emitted on the
-     stream.  If T needs to be emitted again to the stream, instead of
-     pickling it again, the reference index is emitted.
-
-   - On the reading side, the first time T is read from the stream, it
-     is reconstructed in memory and a new reference index created for
-     T.  The reconstructed T is inserted in some array so that when
-     the reference index for T is found in the input stream, it can be
-     used to look up into the array to get the reconstructed T.  */
-struct lto_streamer_cache_d
-{
-  /* The mapping between tree nodes and slots into the nodes array.  */
-  struct pointer_map_t *node_map;
-
-  /* The nodes pickled so far.  */
-  VEC(tree,heap) *nodes;
-};
-
 
 /* Structure used as buffer for reading an LTO file.  */
 struct lto_input_block
@@ -699,7 +652,11 @@ struct output_block
   bool global;
 
   /* Cache of nodes written in this section.  */
-  struct lto_streamer_cache_d *writer_cache;
+  struct streamer_tree_cache_d *writer_cache;
+
+  /* All data persistent across whole duration of output block
+     can go here.  */
+  struct obstack obstack;
 };
 
 
@@ -733,7 +690,7 @@ struct data_in
   VEC(ld_plugin_symbol_resolution_t,heap) *globals_resolution;
 
   /* Cache of pickled nodes.  */
-  struct lto_streamer_cache_d *reader_cache;
+  struct streamer_tree_cache_d *reader_cache;
 };
 
 
@@ -755,10 +712,6 @@ extern const char *lto_get_section_data (struct lto_file_decl_data *,
 extern void lto_free_section_data (struct lto_file_decl_data *,
 				   enum lto_section_type,
 				   const char *, const char *, size_t);
-extern unsigned HOST_WIDE_INT lto_input_uleb128 (struct lto_input_block *);
-extern unsigned HOST_WIDEST_INT lto_input_widest_uint_uleb128 (
-						struct lto_input_block *);
-extern HOST_WIDE_INT lto_input_sleb128 (struct lto_input_block *);
 extern htab_t lto_create_renaming_table (void);
 extern void lto_record_renamed_decl (struct lto_file_decl_data *,
 				     const char *, const char *);
@@ -771,6 +724,9 @@ extern int lto_eq_in_decl_state (const void *, const void *);
 extern struct lto_in_decl_state *lto_get_function_in_decl_state (
 				      struct lto_file_decl_data *, tree);
 extern void lto_section_overrun (struct lto_input_block *) ATTRIBUTE_NORETURN;
+extern void lto_value_range_error (const char *,
+				   HOST_WIDE_INT, HOST_WIDE_INT,
+				   HOST_WIDE_INT) ATTRIBUTE_NORETURN;
 
 /* In lto-section-out.c  */
 extern hashval_t lto_hash_decl_slot_node (const void *);
@@ -782,12 +738,6 @@ extern void lto_end_section (void);
 extern void lto_write_stream (struct lto_output_stream *);
 extern void lto_output_data_stream (struct lto_output_stream *, const void *,
 				    size_t);
-extern void lto_output_uleb128_stream (struct lto_output_stream *,
-       				       unsigned HOST_WIDE_INT);
-extern void lto_output_widest_uint_uleb128_stream (struct lto_output_stream *,
-       					           unsigned HOST_WIDEST_INT);
-extern void lto_output_sleb128_stream (struct lto_output_stream *,
-				       HOST_WIDE_INT);
 extern bool lto_output_decl_index (struct lto_output_stream *,
 			    struct lto_tree_ref_encoder *,
 			    tree, unsigned int *);
@@ -822,16 +772,6 @@ extern bitmap lto_bitmap_alloc (void);
 extern void lto_bitmap_free (bitmap);
 extern char *lto_get_section_name (int, const char *, struct lto_file_decl_data *);
 extern void print_lto_report (void);
-extern bool lto_streamer_cache_insert (struct lto_streamer_cache_d *, tree,
-				       unsigned *);
-extern bool lto_streamer_cache_insert_at (struct lto_streamer_cache_d *, tree,
-					  unsigned);
-extern void lto_streamer_cache_append (struct lto_streamer_cache_d *, tree);
-extern bool lto_streamer_cache_lookup (struct lto_streamer_cache_d *, tree,
-				       unsigned *);
-extern tree lto_streamer_cache_get (struct lto_streamer_cache_d *, unsigned);
-extern struct lto_streamer_cache_d *lto_streamer_cache_create (void);
-extern void lto_streamer_cache_delete (struct lto_streamer_cache_d *);
 extern void lto_streamer_init (void);
 extern bool gate_lto_out (void);
 #ifdef LTO_STREAMER_DEBUG
@@ -840,24 +780,26 @@ extern intptr_t lto_orig_address_get (tree);
 extern void lto_orig_address_remove (tree);
 #endif
 extern void lto_check_version (int, int);
-
+extern void lto_streamer_hooks_init (void);
 
 /* In lto-streamer-in.c */
 extern void lto_input_cgraph (struct lto_file_decl_data *, const char *);
-extern void lto_init_reader (void);
-extern tree lto_input_tree (struct lto_input_block *, struct data_in *);
+extern void lto_reader_init (void);
 extern void lto_input_function_body (struct lto_file_decl_data *, tree,
 				     const char *);
 extern void lto_input_constructors_and_inits (struct lto_file_decl_data *,
 					      const char *);
-extern void lto_init_reader (void);
 extern struct data_in *lto_data_in_create (struct lto_file_decl_data *,
 				    const char *, unsigned,
 				    VEC(ld_plugin_symbol_resolution_t,heap) *);
 extern void lto_data_in_delete (struct data_in *);
-extern const char *lto_input_string (struct data_in *,
-				     struct lto_input_block *);
 extern void lto_input_data_block (struct lto_input_block *, void *, size_t);
+location_t lto_input_location (struct lto_input_block *, struct data_in *);
+tree lto_input_tree_ref (struct lto_input_block *, struct data_in *,
+			 struct function *, enum LTO_tags);
+void lto_tag_check_set (enum LTO_tags, int, ...);
+void lto_init_eh (void);
+tree lto_input_tree (struct lto_input_block *, struct data_in *);
 
 
 /* In lto-streamer-out.c  */
@@ -866,18 +808,12 @@ extern struct output_block *create_output_block (enum lto_section_type);
 extern void destroy_output_block (struct output_block *);
 extern void lto_output_tree (struct output_block *, tree, bool);
 extern void produce_asm (struct output_block *ob, tree fn);
-extern void lto_output_string (struct output_block *,
-			       struct lto_output_stream *,
-			       const char *);
-extern void lto_output_string_with_length (struct output_block *,
-			                   struct lto_output_stream *,
-			                   const char *,
-			                   unsigned int);
 void lto_output_decl_state_streams (struct output_block *,
 				    struct lto_out_decl_state *);
 void lto_output_decl_state_refs (struct output_block *,
 			         struct lto_output_stream *,
 			         struct lto_out_decl_state *);
+void lto_output_location (struct output_block *, location_t);
 
 
 /* In lto-cgraph.c  */
@@ -953,7 +889,7 @@ extern VEC(lto_out_decl_state_ptr, heap) *lto_function_decl_states;
 static inline bool
 lto_tag_is_tree_code_p (enum LTO_tags tag)
 {
-  return tag > LTO_null && (unsigned) tag <= NUM_TREE_CODES;
+  return tag > LTO_null && (unsigned) tag <= MAX_TREE_CODES;
 }
 
 
@@ -1003,6 +939,28 @@ lto_tag_to_tree_code (enum LTO_tags tag)
   return (enum tree_code) ((unsigned) tag - 1);
 }
 
+/* Check that tag ACTUAL == EXPECTED.  */
+static inline void
+lto_tag_check (enum LTO_tags actual, enum LTO_tags expected)
+{
+  if (actual != expected)
+    internal_error ("bytecode stream: expected tag %s instead of %s",
+		    lto_tag_name (expected), lto_tag_name (actual));
+}
+
+/* Check that tag ACTUAL is in the range [TAG1, TAG2].  */
+static inline void
+lto_tag_check_range (enum LTO_tags actual, enum LTO_tags tag1,
+		     enum LTO_tags tag2)
+{
+  if (actual < tag1 || actual > tag2)
+    internal_error ("bytecode stream: tag %s is not in the expected range "
+		    "[%s, %s]",
+		    lto_tag_name (actual),
+		    lto_tag_name (tag1),
+		    lto_tag_name (tag2));
+}
+
 /* Initialize an lto_out_decl_buffer ENCODER.  */
 static inline void
 lto_init_tree_ref_encoder (struct lto_tree_ref_encoder *encoder,
@@ -1048,40 +1006,6 @@ emit_label_in_global_context_p (tree label)
   return DECL_NONLOCAL (label) || FORCED_LABEL (label);
 }
 
-/* Return true if tree node EXPR should be streamed as a builtin.  For
-   these nodes, we just emit the class and function code.  */
-static inline bool
-lto_stream_as_builtin_p (tree expr)
-{
-  return (TREE_CODE (expr) == FUNCTION_DECL
-	  && DECL_IS_BUILTIN (expr)
-	  && (DECL_BUILT_IN_CLASS (expr) == BUILT_IN_NORMAL
-	      || DECL_BUILT_IN_CLASS (expr) == BUILT_IN_MD));
-}
-
-/* Return true if EXPR is a tree node that can be written to disk.  */
-static inline bool
-lto_is_streamable (tree expr)
-{
-  enum tree_code code = TREE_CODE (expr);
-
-  /* Notice that we reject SSA_NAMEs as well.  We only emit the SSA
-     name version in lto_output_tree_ref (see output_ssa_names).  */
-  return !is_lang_specific (expr)
-	 && code != SSA_NAME
-	 && code != CALL_EXPR
-	 && code != LANG_TYPE
-	 && code != MODIFY_EXPR
-	 && code != INIT_EXPR
-	 && code != TARGET_EXPR
-	 && code != BIND_EXPR
-	 && code != WITH_CLEANUP_EXPR
-	 && code != STATEMENT_LIST
-	 && (code == CASE_LABEL_EXPR
-	     || code == DECL_EXPR
-	     || TREE_CODE_CLASS (code) != tcc_statement);
-}
-
 DEFINE_DECL_STREAM_FUNCS (TYPE, type)
 DEFINE_DECL_STREAM_FUNCS (FIELD_DECL, field_decl)
 DEFINE_DECL_STREAM_FUNCS (FN_DECL, fn_decl)
@@ -1089,114 +1013,5 @@ DEFINE_DECL_STREAM_FUNCS (VAR_DECL, var_decl)
 DEFINE_DECL_STREAM_FUNCS (TYPE_DECL, type_decl)
 DEFINE_DECL_STREAM_FUNCS (NAMESPACE_DECL, namespace_decl)
 DEFINE_DECL_STREAM_FUNCS (LABEL_DECL, label_decl)
-
-/* Returns a new bit-packing context for bit-packing into S.  */
-static inline struct bitpack_d
-bitpack_create (struct lto_output_stream *s)
-{
-  struct bitpack_d bp;
-  bp.pos = 0;
-  bp.word = 0;
-  bp.stream = (void *)s;
-  return bp;
-}
-
-/* Pack the NBITS bit sized value VAL into the bit-packing context BP.  */
-static inline void
-bp_pack_value (struct bitpack_d *bp, bitpack_word_t val, unsigned nbits)
-{
-  bitpack_word_t word = bp->word;
-  int pos = bp->pos;
-  /* If val does not fit into the current bitpack word switch to the
-     next one.  */
-  if (pos + nbits > BITS_PER_BITPACK_WORD)
-    {
-      lto_output_uleb128_stream ((struct lto_output_stream *) bp->stream, word);
-      word = val;
-      pos = nbits;
-    }
-  else
-    {
-      word |= val << pos;
-      pos += nbits;
-    }
-  bp->word = word;
-  bp->pos = pos;
-}
-
-/* Finishes bit-packing of BP.  */
-static inline void
-lto_output_bitpack (struct bitpack_d *bp)
-{
-  lto_output_uleb128_stream ((struct lto_output_stream *) bp->stream,
-			     bp->word);
-  bp->word = 0;
-  bp->pos = 0;
-}
-
-/* Returns a new bit-packing context for bit-unpacking from IB.  */
-static inline struct bitpack_d
-lto_input_bitpack (struct lto_input_block *ib)
-{
-  struct bitpack_d bp;
-  bp.word = lto_input_uleb128 (ib);
-  bp.pos = 0;
-  bp.stream = (void *)ib;
-  return bp;
-}
-
-/* Unpacks NBITS bits from the bit-packing context BP and returns them.  */
-static inline bitpack_word_t
-bp_unpack_value (struct bitpack_d *bp, unsigned nbits)
-{
-  bitpack_word_t mask, val;
-  int pos = bp->pos;
-
-  mask = (nbits == BITS_PER_BITPACK_WORD
-	  ? (bitpack_word_t) -1
-	  : ((bitpack_word_t) 1 << nbits) - 1);
-
-  /* If there are not continuous nbits in the current bitpack word
-     switch to the next one.  */
-  if (pos + nbits > BITS_PER_BITPACK_WORD)
-    {
-      bp->word = val = lto_input_uleb128 ((struct lto_input_block *)bp->stream);
-      bp->pos = nbits;
-      return val & mask;
-    }
-  val = bp->word;
-  val >>= pos;
-  bp->pos = pos + nbits;
-
-  return val & mask;
-}
-
-
-/* Write a character to the output block.  */
-
-static inline void
-lto_output_1_stream (struct lto_output_stream *obs, char c)
-{
-  /* No space left.  */
-  if (obs->left_in_block == 0)
-    lto_append_block (obs);
-
-  /* Write the actual character.  */
-  *obs->current_pointer = c;
-  obs->current_pointer++;
-  obs->total_size++;
-  obs->left_in_block--;
-}
-
-
-/* Read byte from the input block.  */
-
-static inline unsigned char
-lto_input_1_unsigned (struct lto_input_block *ib)
-{
-  if (ib->p >= ib->len)
-    lto_section_overrun (ib);
-  return (ib->data[ib->p++]);
-}
 
 #endif /* GCC_LTO_STREAMER_H  */

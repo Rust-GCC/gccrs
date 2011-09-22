@@ -1,6 +1,7 @@
 // Iterators -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
+// 2010, 2011
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -272,8 +273,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   //@{
   /**
-   *  @param  x  A %reverse_iterator.
-   *  @param  y  A %reverse_iterator.
+   *  @param  __x  A %reverse_iterator.
+   *  @param  __y  A %reverse_iterator.
    *  @return  A simple bool.
    *
    *  Reverse iterators forward many operations to their underlying base()
@@ -408,7 +409,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       back_insert_iterator(_Container& __x) : container(&__x) { }
 
       /**
-       *  @param  value  An instance of whatever type
+       *  @param  __value  An instance of whatever type
        *                 container_type::const_reference is; presumably a
        *                 reference-to-const T for container<T>.
        *  @return  This %iterator, for chained operations.
@@ -458,8 +459,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 
   /**
-   *  @param  x  A container of arbitrary type.
-   *  @return  An instance of back_insert_iterator working on @p x.
+   *  @param  __x  A container of arbitrary type.
+   *  @return  An instance of back_insert_iterator working on @p __x.
    *
    *  This wrapper function helps in creating back_insert_iterator instances.
    *  Typing the name of the %iterator requires knowing the precise full
@@ -498,7 +499,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       explicit front_insert_iterator(_Container& __x) : container(&__x) { }
 
       /**
-       *  @param  value  An instance of whatever type
+       *  @param  __value  An instance of whatever type
        *                 container_type::const_reference is; presumably a
        *                 reference-to-const T for container<T>.
        *  @return  This %iterator, for chained operations.
@@ -548,7 +549,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 
   /**
-   *  @param  x  A container of arbitrary type.
+   *  @param  __x  A container of arbitrary type.
    *  @return  An instance of front_insert_iterator working on @p x.
    *
    *  This wrapper function helps in creating front_insert_iterator instances.
@@ -597,7 +598,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       : container(&__x), iter(__i) {}
 
       /**
-       *  @param  value  An instance of whatever type
+       *  @param  __value  An instance of whatever type
        *                 container_type::const_reference is; presumably a
        *                 reference-to-const T for container<T>.
        *  @return  This %iterator, for chained operations.
@@ -662,8 +663,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 
   /**
-   *  @param  x  A container of arbitrary type.
-   *  @return  An instance of insert_iterator working on @p x.
+   *  @param __x  A container of arbitrary type.
+   *  @return  An instance of insert_iterator working on @p __x.
    *
    *  This wrapper function helps in creating insert_iterator instances.
    *  Typing the name of the %iterator requires knowing the precise full
@@ -1115,8 +1116,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _Iterator>
     inline move_iterator<_Iterator>
-    make_move_iterator(const _Iterator& __i)
+    make_move_iterator(_Iterator __i)
     { return move_iterator<_Iterator>(__i); }
+
+  template<typename _Iterator, typename _ReturnType
+    = typename conditional<__move_if_noexcept_cond
+      <typename iterator_traits<_Iterator>::value_type>::value,
+                _Iterator, move_iterator<_Iterator>>::type>
+    inline _ReturnType
+    __make_move_if_noexcept_iterator(_Iterator __i)
+    { return _ReturnType(__i); }
 
   // @} group iterators
 
@@ -1124,8 +1133,11 @@ _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 
 #define _GLIBCXX_MAKE_MOVE_ITERATOR(_Iter) std::make_move_iterator(_Iter)
+#define _GLIBCXX_MAKE_MOVE_IF_NOEXCEPT_ITERATOR(_Iter) \
+  std::__make_move_if_noexcept_iterator(_Iter)
 #else
 #define _GLIBCXX_MAKE_MOVE_ITERATOR(_Iter) (_Iter)
+#define _GLIBCXX_MAKE_MOVE_IF_NOEXCEPT_ITERATOR(_Iter) (_Iter)
 #endif // __GXX_EXPERIMENTAL_CXX0X__
 
 #endif

@@ -171,7 +171,7 @@ next_insn_no_annul (rtx insn)
     {
       /* If INSN is an annulled branch, skip any insns from the target
 	 of the branch.  */
-      if (INSN_P (insn)
+      if (JUMP_P (insn)
 	  && INSN_ANNULLED_BRANCH_P (insn)
 	  && NEXT_INSN (PREV_INSN (insn)) != insn)
 	{
@@ -492,9 +492,11 @@ find_dead_or_set_registers (rtx target, struct resources *res,
 	  if (jump_count++ < 10)
 	    {
 	      if (any_uncondjump_p (this_jump_insn)
-		  || GET_CODE (PATTERN (this_jump_insn)) == RETURN)
+		  || ANY_RETURN_P (PATTERN (this_jump_insn)))
 		{
 		  next = JUMP_LABEL (this_jump_insn);
+		  if (ANY_RETURN_P (next))
+		    next = NULL_RTX;
 		  if (jump_insn == 0)
 		    {
 		      jump_insn = insn;
@@ -562,9 +564,10 @@ find_dead_or_set_registers (rtx target, struct resources *res,
 		  AND_COMPL_HARD_REG_SET (scratch, needed.regs);
 		  AND_COMPL_HARD_REG_SET (fallthrough_res.regs, scratch);
 
-		  find_dead_or_set_registers (JUMP_LABEL (this_jump_insn),
-					      &target_res, 0, jump_count,
-					      target_set, needed);
+		  if (!ANY_RETURN_P (JUMP_LABEL (this_jump_insn)))
+		    find_dead_or_set_registers (JUMP_LABEL (this_jump_insn),
+						&target_res, 0, jump_count,
+						target_set, needed);
 		  find_dead_or_set_registers (next,
 					      &fallthrough_res, 0, jump_count,
 					      set, needed);
@@ -707,10 +710,18 @@ mark_set_resources (rtx x, struct resources *res, int in_dest,
       return;
 
     case SEQUENCE:
-      for (i = 0; i < XVECLEN (x, 0); i++)
-	if (! (INSN_ANNULLED_BRANCH_P (XVECEXP (x, 0, 0))
-	       && INSN_FROM_TARGET_P (XVECEXP (x, 0, i))))
-	  mark_set_resources (XVECEXP (x, 0, i), res, 0, mark_type);
+      {
+        rtx control = XVECEXP (x, 0, 0);
+        bool annul_p = JUMP_P (control) && INSN_ANNULLED_BRANCH_P (control);
+
+        mark_set_resources (control, res, 0, mark_type);
+        for (i = XVECLEN (x, 0) - 1; i >= 0; --i)
+	  {
+	    rtx elt = XVECEXP (x, 0, i);
+	    if (!annul_p && INSN_FROM_TARGET_P (elt))
+	      mark_set_resources (elt, res, 0, mark_type);
+	  }
+      }
       return;
 
     case POST_INC:
@@ -818,7 +829,7 @@ mark_set_resources (rtx x, struct resources *res, int in_dest,
 static bool
 return_insn_p (const_rtx insn)
 {
-  if (JUMP_P (insn) && GET_CODE (PATTERN (insn)) == RETURN)
+  if (JUMP_P (insn) && ANY_RETURN_P (PATTERN (insn)))
     return true;
 
   if (NONJUMP_INSN_P (insn) && GET_CODE (PATTERN (insn)) == SEQUENCE)
@@ -878,7 +889,7 @@ mark_target_live_regs (rtx insns, rtx target, struct resources *res)
   struct resources set, needed;
 
   /* Handle end of function.  */
-  if (target == 0)
+  if (target == 0 || ANY_RETURN_P (target))
     {
       *res = end_of_function_needs;
       return;
@@ -1097,8 +1108,9 @@ mark_target_live_regs (rtx insns, rtx target, struct resources *res)
       struct resources new_resources;
       rtx stop_insn = next_active_insn (jump_insn);
 
-      mark_target_live_regs (insns, next_active_insn (jump_target),
-			     &new_resources);
+      if (!ANY_RETURN_P (jump_target))
+	jump_target = next_active_insn (jump_target);
+      mark_target_live_regs (insns, jump_target, &new_resources);
       CLEAR_RESOURCE (&set);
       CLEAR_RESOURCE (&needed);
 

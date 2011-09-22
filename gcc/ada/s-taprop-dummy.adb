@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---         Copyright (C) 1992-2009, Free Software Foundation, Inc.          --
+--         Copyright (C) 1992-2011, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,6 +45,13 @@ package body System.Task_Primitives.Operations is
 
    pragma Warnings (Off);
    --  Turn off warnings since so many unreferenced parameters
+
+   ----------------------------------
+   -- ATCB allocation/deallocation --
+   ----------------------------------
+
+   package body ATCB_Allocation is separate;
+   --  The body of this package is shared across several targets
 
    ----------------
    -- Abort_Task --
@@ -252,15 +259,6 @@ package body System.Task_Primitives.Operations is
       return 0.0;
    end Monotonic_Clock;
 
-   --------------
-   -- New_ATCB --
-   --------------
-
-   function New_ATCB (Entry_Num : Task_Entry_Index) return Task_Id is
-   begin
-      return new Ada_Task_Control_Block (Entry_Num);
-   end New_ATCB;
-
    ---------------
    -- Read_Lock --
    ---------------
@@ -345,6 +343,15 @@ package body System.Task_Primitives.Operations is
    begin
       null;
    end Set_Priority;
+
+   -----------------------
+   -- Set_Task_Affinity --
+   -----------------------
+
+   procedure Set_Task_Affinity (T : ST.Task_Id) is
+   begin
+      null;
+   end Set_Task_Affinity;
 
    --------------
    -- Set_True --

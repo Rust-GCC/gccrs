@@ -133,22 +133,22 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       /**
        *  @brief  Creates a %multiset with no elements.
-       *  @param  comp  Comparator to use.
-       *  @param  a  An allocator object.
+       *  @param  __comp  Comparator to use.
+       *  @param  __a  An allocator object.
        */
       explicit
       multiset(const _Compare& __comp,
 	       const allocator_type& __a = allocator_type())
-      : _M_t(__comp, __a) { }
+      : _M_t(__comp, _Key_alloc_type(__a)) { }
 
       /**
        *  @brief  Builds a %multiset from a range.
-       *  @param  first  An input iterator.
-       *  @param  last  An input iterator.
+       *  @param  __first  An input iterator.
+       *  @param  __last  An input iterator.
        *
        *  Create a %multiset consisting of copies of the elements from
        *  [first,last).  This is linear in N if the range is already sorted,
-       *  and NlogN otherwise (where N is distance(first,last)).
+       *  and NlogN otherwise (where N is distance(__first,__last)).
        */
       template<typename _InputIterator>
         multiset(_InputIterator __first, _InputIterator __last)
@@ -157,28 +157,28 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       /**
        *  @brief  Builds a %multiset from a range.
-       *  @param  first  An input iterator.
-       *  @param  last  An input iterator.
-       *  @param  comp  A comparison functor.
-       *  @param  a  An allocator object.
+       *  @param  __first  An input iterator.
+       *  @param  __last  An input iterator.
+       *  @param  __comp  A comparison functor.
+       *  @param  __a  An allocator object.
        *
        *  Create a %multiset consisting of copies of the elements from
-       *  [first,last).  This is linear in N if the range is already sorted,
-       *  and NlogN otherwise (where N is distance(first,last)).
+       *  [__first,__last).  This is linear in N if the range is already sorted,
+       *  and NlogN otherwise (where N is distance(__first,__last)).
        */
       template<typename _InputIterator>
         multiset(_InputIterator __first, _InputIterator __last,
 		 const _Compare& __comp,
 		 const allocator_type& __a = allocator_type())
-	: _M_t(__comp, __a)
+	: _M_t(__comp, _Key_alloc_type(__a))
         { _M_t._M_insert_equal(__first, __last); }
 
       /**
        *  @brief  %Multiset copy constructor.
-       *  @param  x  A %multiset of identical element and allocator types.
+       *  @param  __x  A %multiset of identical element and allocator types.
        *
        *  The newly-created %multiset uses a copy of the allocation object used
-       *  by @a x.
+       *  by @a __x.
        */
       multiset(const multiset& __x)
       : _M_t(__x._M_t) { }
@@ -186,37 +186,38 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
      /**
        *  @brief  %Multiset move constructor.
-       *  @param  x  A %multiset of identical element and allocator types.
+       *  @param  __x  A %multiset of identical element and allocator types.
        *
-       *  The newly-created %multiset contains the exact contents of @a x.
-       *  The contents of @a x are a valid, but unspecified %multiset.
+       *  The newly-created %multiset contains the exact contents of @a __x.
+       *  The contents of @a __x are a valid, but unspecified %multiset.
        */
       multiset(multiset&& __x)
+      noexcept(is_nothrow_copy_constructible<_Compare>::value)
       : _M_t(std::move(__x._M_t)) { }
 
       /**
        *  @brief  Builds a %multiset from an initializer_list.
-       *  @param  l  An initializer_list.
-       *  @param  comp  A comparison functor.
-       *  @param  a  An allocator object.
+       *  @param  __l  An initializer_list.
+       *  @param  __comp  A comparison functor.
+       *  @param  __a  An allocator object.
        *
        *  Create a %multiset consisting of copies of the elements from
        *  the list.  This is linear in N if the list is already sorted,
-       *  and NlogN otherwise (where N is @a l.size()).
+       *  and NlogN otherwise (where N is @a __l.size()).
        */
       multiset(initializer_list<value_type> __l,
 	       const _Compare& __comp = _Compare(),
 	       const allocator_type& __a = allocator_type())
-      : _M_t(__comp, __a)
+      : _M_t(__comp, _Key_alloc_type(__a))
       { _M_t._M_insert_equal(__l.begin(), __l.end()); }
 #endif
 
       /**
        *  @brief  %Multiset assignment operator.
-       *  @param  x  A %multiset of identical element and allocator types.
+       *  @param  __x  A %multiset of identical element and allocator types.
        *
-       *  All the elements of @a x are copied, but unlike the copy constructor,
-       *  the allocator object is not copied.
+       *  All the elements of @a __x are copied, but unlike the copy
+       *  constructor, the allocator object is not copied.
        */
       multiset&
       operator=(const multiset& __x)
@@ -228,10 +229,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       /**
        *  @brief  %Multiset move assignment operator.
-       *  @param  x  A %multiset of identical element and allocator types.
+       *  @param  __x  A %multiset of identical element and allocator types.
        *
-       *  The contents of @a x are moved into this %multiset (without copying).
-       *  @a x is a valid, but unspecified %multiset.
+       *  The contents of @a __x are moved into this %multiset
+       *  (without copying).  @a __x is a valid, but unspecified
+       *  %multiset.
        */
       multiset&
       operator=(multiset&& __x)
@@ -245,10 +247,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       /**
        *  @brief  %Multiset list assignment operator.
-       *  @param  l  An initializer_list.
+       *  @param  __l  An initializer_list.
        *
        *  This function fills a %multiset with copies of the elements in the
-       *  initializer list @a l.
+       *  initializer list @a __l.
        *
        *  Note that the assignment completely changes the %multiset and
        *  that the resulting %multiset's size is the same as the number
@@ -275,8 +277,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       { return _M_t.key_comp(); }
       ///  Returns the memory allocation object.
       allocator_type
-      get_allocator() const
-      { return _M_t.get_allocator(); }
+      get_allocator() const _GLIBCXX_NOEXCEPT
+      { return allocator_type(_M_t.get_allocator()); }
 
       /**
        *  Returns a read-only (constant) iterator that points to the first
@@ -284,7 +286,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  according to the keys.
        */
       iterator
-      begin() const
+      begin() const _GLIBCXX_NOEXCEPT
       { return _M_t.begin(); }
 
       /**
@@ -293,7 +295,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  according to the keys.
        */
       iterator
-      end() const
+      end() const _GLIBCXX_NOEXCEPT
       { return _M_t.end(); }
 
       /**
@@ -302,7 +304,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  according to the keys.
        */
       reverse_iterator
-      rbegin() const
+      rbegin() const _GLIBCXX_NOEXCEPT
       { return _M_t.rbegin(); }
 
       /**
@@ -311,7 +313,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  according to the keys.
        */
       reverse_iterator
-      rend() const
+      rend() const _GLIBCXX_NOEXCEPT
       { return _M_t.rend(); }
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
@@ -321,7 +323,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  according to the keys.
        */
       iterator
-      cbegin() const
+      cbegin() const noexcept
       { return _M_t.begin(); }
 
       /**
@@ -330,7 +332,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  according to the keys.
        */
       iterator
-      cend() const
+      cend() const noexcept
       { return _M_t.end(); }
 
       /**
@@ -339,7 +341,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  according to the keys.
        */
       reverse_iterator
-      crbegin() const
+      crbegin() const noexcept
       { return _M_t.rbegin(); }
 
       /**
@@ -348,28 +350,28 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  according to the keys.
        */
       reverse_iterator
-      crend() const
+      crend() const noexcept
       { return _M_t.rend(); }
 #endif
 
       ///  Returns true if the %set is empty.
       bool
-      empty() const
+      empty() const _GLIBCXX_NOEXCEPT
       { return _M_t.empty(); }
 
       ///  Returns the size of the %set.
       size_type
-      size() const
+      size() const _GLIBCXX_NOEXCEPT
       { return _M_t.size(); }
 
       ///  Returns the maximum size of the %set.
       size_type
-      max_size() const
+      max_size() const _GLIBCXX_NOEXCEPT
       { return _M_t.max_size(); }
 
       /**
        *  @brief  Swaps data with another %multiset.
-       *  @param  x  A %multiset of the same element and allocator types.
+       *  @param  __x  A %multiset of the same element and allocator types.
        *
        *  This exchanges the elements between two multisets in constant time.
        *  (It is only swapping a pointer, an integer, and an instance of the @c
@@ -385,7 +387,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       // insert/erase
       /**
        *  @brief Inserts an element into the %multiset.
-       *  @param  x  Element to be inserted.
+       *  @param  __x  Element to be inserted.
        *  @return An iterator that points to the inserted element.
        *
        *  This function inserts an element into the %multiset.  Contrary
@@ -406,9 +408,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       /**
        *  @brief Inserts an element into the %multiset.
-       *  @param  position  An iterator that serves as a hint as to where the
+       *  @param  __position  An iterator that serves as a hint as to where the
        *                    element should be inserted.
-       *  @param  x  Element to be inserted.
+       *  @param  __x  Element to be inserted.
        *  @return An iterator that points to the inserted element.
        *
        *  This function inserts an element into the %multiset.  Contrary
@@ -436,9 +438,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       /**
        *  @brief A template function that tries to insert a range of elements.
-       *  @param  first  Iterator pointing to the start of the range to be
-       *                 inserted.
-       *  @param  last  Iterator pointing to the end of the range.
+       *  @param  __first  Iterator pointing to the start of the range to be
+       *                   inserted.
+       *  @param  __last  Iterator pointing to the end of the range.
        *
        *  Complexity similar to that of the range constructor.
        */
@@ -450,8 +452,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
       /**
        *  @brief Attempts to insert a list of elements into the %multiset.
-       *  @param  list  A std::initializer_list<value_type> of elements
-       *                to be inserted.
+       *  @param  __l  A std::initializer_list<value_type> of elements
+       *               to be inserted.
        *
        *  Complexity similar to that of the range constructor.
        */
@@ -465,7 +467,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       // DR 130. Associative erase should return an iterator.
       /**
        *  @brief Erases an element from a %multiset.
-       *  @param  position  An iterator pointing to the element to be erased.
+       *  @param  __position  An iterator pointing to the element to be erased.
        *  @return An iterator pointing to the element immediately following
        *          @a position prior to the element being erased. If no such 
        *          element exists, end() is returned.
@@ -482,7 +484,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #else
       /**
        *  @brief Erases an element from a %multiset.
-       *  @param  position  An iterator pointing to the element to be erased.
+       *  @param  __position  An iterator pointing to the element to be erased.
        *
        *  This function erases an element, pointed to by the given iterator,
        *  from a %multiset.  Note that this function only erases the element,
@@ -497,7 +499,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       /**
        *  @brief Erases elements according to the provided key.
-       *  @param  x  Key of element to be erased.
+       *  @param  __x  Key of element to be erased.
        *  @return  The number of elements erased.
        *
        *  This function erases all elements located by the given key from a
@@ -515,9 +517,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       // DR 130. Associative erase should return an iterator.
       /**
        *  @brief Erases a [first,last) range of elements from a %multiset.
-       *  @param  first  Iterator pointing to the start of the range to be
-       *                 erased.
-       *  @param  last  Iterator pointing to the end of the range to be erased.
+       *  @param  __first  Iterator pointing to the start of the range to be
+       *                   erased.
+       *  @param __last Iterator pointing to the end of the range to
+       *                be erased.
        *  @return The iterator @a last.
        *
        *  This function erases a sequence of elements from a %multiset.
@@ -554,14 +557,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  is the user's responsibility.
        */
       void
-      clear()
+      clear() _GLIBCXX_NOEXCEPT
       { _M_t.clear(); }
 
       // multiset operations:
 
       /**
        *  @brief Finds the number of elements with given key.
-       *  @param  x  Key of elements to be located.
+       *  @param  __x  Key of elements to be located.
        *  @return Number of elements with specified key.
        */
       size_type
@@ -573,7 +576,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       //@{
       /**
        *  @brief Tries to locate an element in a %set.
-       *  @param  x  Element to be located.
+       *  @param  __x  Element to be located.
        *  @return  Iterator pointing to sought-after element, or end() if not
        *           found.
        *
@@ -594,7 +597,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       //@{
       /**
        *  @brief Finds the beginning of a subsequence matching given key.
-       *  @param  x  Key to be located.
+       *  @param  __x  Key to be located.
        *  @return  Iterator pointing to first element equal to or greater
        *           than key, or end().
        *
@@ -615,7 +618,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       //@{
       /**
        *  @brief Finds the end of a subsequence matching given key.
-       *  @param  x  Key to be located.
+       *  @param  __x  Key to be located.
        *  @return Iterator pointing to the first element
        *          greater than key, or end().
        */
@@ -631,7 +634,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       //@{
       /**
        *  @brief Finds a subsequence matching given key.
-       *  @param  x  Key to be located.
+       *  @param  __x  Key to be located.
        *  @return  Pair of iterators that possibly points to the subsequence
        *           matching given key.
        *
@@ -651,6 +654,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       std::pair<const_iterator, const_iterator>
       equal_range(const key_type& __x) const
       { return _M_t.equal_range(__x); }
+      //@}
 
       template<typename _K1, typename _C1, typename _A1>
         friend bool
@@ -665,8 +669,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
   /**
    *  @brief  Multiset equality comparison.
-   *  @param  x  A %multiset.
-   *  @param  y  A %multiset of the same type as @a x.
+   *  @param  __x  A %multiset.
+   *  @param  __y  A %multiset of the same type as @a __x.
    *  @return  True iff the size and elements of the multisets are equal.
    *
    *  This is an equivalence relation.  It is linear in the size of the
@@ -682,9 +686,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
   /**
    *  @brief  Multiset ordering relation.
-   *  @param  x  A %multiset.
-   *  @param  y  A %multiset of the same type as @a x.
-   *  @return  True iff @a x is lexicographically less than @a y.
+   *  @param  __x  A %multiset.
+   *  @param  __y  A %multiset of the same type as @a __x.
+   *  @return  True iff @a __x is lexicographically less than @a __y.
    *
    *  This is a total ordering relation.  It is linear in the size of the
    *  maps.  The elements must be comparable with @c <.

@@ -88,9 +88,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "debug.h"
 #include "function.h"
 #include "target.h"
+#include "common/common-target.h"
 #include "langhooks.h"
 #include "obstack.h"
 #include "expr.h"
+#include "cgraph.h"
 
 #ifdef XCOFF_DEBUGGING_INFO
 #include "xcoffout.h"
@@ -950,7 +952,7 @@ dbxout_function_end (tree decl ATTRIBUTE_UNUSED)
      named sections.  */
   if (!use_gnu_debug_info_extensions
       || NO_DBX_FUNCTION_END
-      || !targetm.have_named_sections)
+      || !targetm_common.have_named_sections)
     return;
 
   /* By convention, GCC will mark the end of a function with an N_FUN
@@ -1509,7 +1511,7 @@ dbxout_type_fields (tree type)
     {
       /* If one of the nodes is an error_mark or its type is then
 	 return early.  */
-      if (tem == error_mark_node || TREE_TYPE (tem) == error_mark_node)
+      if (error_operand_p (tem))
 	return;
 
       /* Omit here local type decls until we know how to support them.  */
@@ -2470,6 +2472,20 @@ dbxout_expand_expr (tree expr)
 	 disable debug info for these variables.  */
       if (!targetm.have_tls && DECL_THREAD_LOCAL_P (expr))
 	return NULL;
+      if (TREE_STATIC (expr)
+	  && !TREE_ASM_WRITTEN (expr)
+	  && !DECL_HAS_VALUE_EXPR_P (expr)
+	  && !TREE_PUBLIC (expr)
+	  && DECL_RTL_SET_P (expr)
+	  && MEM_P (DECL_RTL (expr)))
+	{
+	  /* If this is a var that might not be actually output,
+	     return NULL, otherwise stabs might reference an undefined
+	     symbol.  */
+	  struct varpool_node *node = varpool_get_node (expr);
+	  if (!node || !node->needed)
+	    return NULL;
+	}
       /* FALLTHRU */
 
     case PARM_DECL:

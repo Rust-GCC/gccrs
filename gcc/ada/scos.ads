@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2009-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 2009-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,11 @@
 --  the ALI file, and by Get_SCO/Put_SCO to read and write the text form that
 --  is used in the ALI file.
 
-with Types; use Types;
+with Snames; use Snames;
+--  Note: used for Pragma_Id only, no other feature from Snames should be used,
+--  as a simplified version is maintained in Xcov.
+
+with Types;  use Types;
 
 with GNAT.Table;
 
@@ -143,18 +147,18 @@ package SCOs is
    --    where each sloc-range corresponds to a single statement, and * is
    --    one of:
 
-   --      t  type declaration
-   --      s  subtype declaration
-   --      o  object declaration
-   --      r  renaming declaration
-   --      i  generic instantiation
-   --      C  CASE statement (from CASE through end of expression)
-   --      E  EXIT statement
-   --      F  FOR loop statement (from FOR through end of iteration scheme)
-   --      I  IF statement (from IF through end of condition)
-   --      P  PRAGMA
-   --      R  extended RETURN statement
-   --      W  WHILE loop statement (from WHILE through end of condition)
+   --      t        type declaration
+   --      s        subtype declaration
+   --      o        object declaration
+   --      r        renaming declaration
+   --      i        generic instantiation
+   --      C        CASE statement (from CASE through end of expression)
+   --      E        EXIT statement
+   --      F        FOR loop (from FOR through end of iteration scheme)
+   --      I        IF statement (from IF through end of condition)
+   --      P[name:] PRAGMA with the indicated name
+   --      R        extended RETURN statement
+   --      W        WHILE loop statement (from WHILE through end of condition)
 
    --      Note: for I and W, condition above is in the RM syntax sense (this
    --      condition is a decision in SCO terminology).
@@ -164,6 +168,12 @@ package SCOs is
    --    Note: up to 6 entries can appear on a single CS line. If more than 6
    --    entries appear in one logical statement sequence, continuation lines
    --    are marked by Cs and appear immediately after the CS line.
+
+   --    Implementation permission: a SCO generator is permitted to emit a
+   --    narrower SLOC range for a statement if the corresponding code
+   --    generation circuitry ensures that all debug information for the code
+   --    implementing the statement will be labeled with SLOCs that fall within
+   --    that narrower range.
 
    --  Decisions
 
@@ -188,12 +198,12 @@ package SCOs is
    --    Decisions are either simple or complex. A simple decision is a top
    --    level boolean expression that has only one condition and that occurs
    --    in the context of a control structure in the source program, including
-   --    WHILE, IF, EXIT WHEN, or in an Assert, Check, Pre_Condition or
-   --    Post_Condition pragma. For pragmas, decision SCOs are generated only
-   --    if the corresponding pragma is enabled. Note that a top level boolean
-   --    expression with only one condition that occurs in any other context,
-   --    for example as right hand side of an assignment, is not considered to
-   --    be a (simple) decision.
+   --    WHILE, IF, EXIT WHEN, or immediately within an Assert, Check,
+   --    Pre_Condition or Post_Condition pragma, or as the first argument of a
+   --    dyadic pragma Debug. Note that a top level boolean expression with
+   --    only one condition that occurs in any other context, for example as
+   --    right hand side of an assignment, is not considered to be a (simple)
+   --    decision.
 
    --    A complex decision is a top level boolean expression that has more
    --    than one condition. A complex decision may occur in any boolean
@@ -220,14 +230,15 @@ package SCOs is
 
    --    Here * is one of the following characters:
 
-   --      I  decision in IF statement or conditional expression
    --      E  decision in EXIT WHEN statement
+   --      G  decision in entry guard
+   --      I  decision in IF statement or conditional expression
    --      P  decision in pragma Assert/Check/Pre_Condition/Post_Condition
    --      W  decision in WHILE iteration scheme
    --      X  decision appearing in some other expression context
 
-   --    For I, E, P, W, sloc is the source location of the IF, EXIT, PRAGMA or
-   --    WHILE token.
+   --    For E, G, I, P, W, sloc is the source location of the EXIT, ENTRY, IF,
+   --    PRAGMA or WHILE token, respectively
 
    --    For X, sloc is omitted
 
@@ -246,16 +257,17 @@ package SCOs is
    --      term ::= element
    --      term ::= expression
 
-   --      element ::= outcome sloc-range
+   --      element ::= *sloc-range
 
-   --    outcome is one of the following letters:
+   --    where * is one of the following letters:
 
    --      c  condition
    --      t  true condition
    --      f  false condition
 
-   --      where t/f are used to mark a condition that has been recognized by
-   --      the compiler as always being true or false.
+   --      t/f are used to mark a condition that has been recognized by the
+   --      compiler as always being true or false. c is the normal case of
+   --      conditions whose value is not known at compile time.
 
    --    & indicates AND THEN connecting two conditions
 
@@ -277,7 +289,8 @@ package SCOs is
    --    form is used, e.g. A in (2,7,11.15).
 
    --    The expression can be followed by chaining indicators of the form
-   --    Tsloc-range or Fsloc-range.
+   --    Tsloc-range or Fsloc-range, where the sloc-range is that of some
+   --    entry on a CS line.
 
    --    T* is present when the statement with the given sloc range is executed
    --    if, and only if, the decision evaluates to TRUE.
@@ -304,6 +317,12 @@ package SCOs is
 
    --    In all other cases, chaining indicators are omitted
 
+   --    Implementation permission: a SCO generator is permitted to emit a
+   --    narrower SLOC range for a condition if the corresponding code
+   --    generation circuitry ensures that all debug information for the code
+   --    evaluating the condition will be labeled with SLOCs that fall within
+   --    that narrower range.
+
    --  Case Expressions
 
    --    For case statements, we rely on statement coverage to make sure that
@@ -321,6 +340,10 @@ package SCOs is
    --    entries appear in one logical statement sequence, continuation lines
    --    are marked by Cc and appear immediately after the CC line.
 
+   --  Disabled pragmas
+
+   --    No SCO is generated for disabled pragmas
+
    ---------------------------------------------------------------------
    -- Internal table used to store Source Coverage Obligations (SCOs) --
    ---------------------------------------------------------------------
@@ -333,11 +356,19 @@ package SCOs is
    No_Source_Location : Source_Location := (No_Line_Number, No_Column_Number);
 
    type SCO_Table_Entry is record
-      From : Source_Location;
-      To   : Source_Location;
-      C1   : Character;
-      C2   : Character;
-      Last : Boolean;
+      From : Source_Location := No_Source_Location;
+      To   : Source_Location := No_Source_Location;
+      C1   : Character       := ' ';
+      C2   : Character       := ' ';
+      Last : Boolean         := False;
+
+      Pragma_Sloc : Source_Ptr := No_Location;
+      --  For the statement SCO for a pragma, or for any expression SCO nested
+      --  in a pragma Debug/Assert/PPC, location of PRAGMA token (used for
+      --  control of SCO output, value not recorded in ALI file).
+
+      Pragma_Name : Pragma_Id := Unknown_Pragma;
+      --  For the statement SCO for a pragma, gives the pragma name
    end record;
 
    package SCO_Table is new GNAT.Table (
@@ -363,31 +394,32 @@ package SCOs is
    --    statements on a single CS line (possibly followed by Cs continuation
    --    lines).
 
-   --    Decision (IF/EXIT/WHILE)
-   --      C1   = 'I'/'E'/'W' (for IF/EXIT/WHILE)
+   --    Note: for a pragma that may be disabled (Debug, Assert, PPC, Check),
+   --    the entry is initially created with C2 = 'p', to mark it as disabled.
+   --    Later on during semantic analysis, if the pragma is enabled,
+   --    Set_SCO_Pragma_Enabled changes C2 to 'P' to cause the entry to be
+   --    emitted in Put_SCOs.
+
+   --    Decision (EXIT/entry guard/IF/WHILE)
+   --      C1   = 'E'/'G'/'I'/'W' (for EXIT/entry Guard/IF/WHILE)
    --      C2   = ' '
-   --      From = IF/EXIT/WHILE token
+   --      From = EXIT/ENTRY/IF/WHILE token
    --      To   = No_Source_Location
    --      Last = unused
 
    --    Decision (PRAGMA)
    --      C1   = 'P'
-   --      C2   = 'e'/'d' for enabled/disabled
+   --      C2   = ' '
    --      From = PRAGMA token
    --      To   = No_Source_Location
    --      Last = unused
 
-   --      Note: when the parse tree is first scanned, we unconditionally build
-   --      a pragma decision entry for any decision in a pragma (here as always
-   --      in SCO contexts, the only pragmas with decisions are Assert, Check,
-   --      Precondition and Postcondition), and we mark the pragma as disabled.
-   --
-   --      During analysis, if the pragma is enabled, Set_SCO_Pragma_Enabled to
-   --      mark the SCO decision table entry as enabled (C2 set to 'e'). Then
-   --      in Put_SCOs, we only output the decision for a pragma if C2 is 'e'.
-   --
-   --      When we read SCOs from an ALI file (in Get_SCOs), we always set C2
-   --      to 'e', since clearly the pragma is enabled if it was written out.
+   --    Note: when the parse tree is first scanned, we unconditionally build a
+   --    pragma decision entry for any decision in a pragma (here as always in
+   --    SCO contexts, the only pragmas with decisions are Assert, Check,
+   --    dyadic Debug, Precondition and Postcondition). These entries will
+   --    be omitted in output if the pragma is disabled (see comments for
+   --    statement entries).
 
    --    Decision (Expression)
    --      C1   = 'X'
@@ -426,8 +458,8 @@ package SCOs is
 
    --  This table keeps track of the units and the corresponding starting and
    --  ending indexes (From, To) in the SCO table. Note that entry zero is
-   --  unused, it is for convenience in calling the sort routine. Thus the
-   --  real lower bound for active entries is 1.
+   --  present but unused, it is for convenience in calling the sort routine.
+   --  Thus the lower bound for real entries is 1.
 
    type SCO_Unit_Index is new Int;
    --  Used to index values in this table. Values start at 1 and are assigned
@@ -460,13 +492,5 @@ package SCOs is
 
    procedure Initialize;
    --  Reset tables for a new compilation
-
-   procedure Add_SCO
-     (From : Source_Location := No_Source_Location;
-      To   : Source_Location := No_Source_Location;
-      C1   : Character       := ' ';
-      C2   : Character       := ' ';
-      Last : Boolean         := False);
-   --  Adds one entry to SCO table with given field values
 
 end SCOs;

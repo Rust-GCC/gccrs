@@ -24,6 +24,7 @@
 /* %ecx */
 #define bit_SSE3	(1 << 0)
 #define bit_PCLMUL	(1 << 1)
+#define bit_LZCNT	(1 << 5)
 #define bit_SSSE3	(1 << 9)
 #define bit_FMA		(1 << 12)
 #define bit_CMPXCHG16B	(1 << 13)
@@ -57,6 +58,7 @@
 #define bit_TBM         (1 << 21)
 
 /* %edx */
+#define bit_MMXEXT	(1 << 22)
 #define bit_LM		(1 << 29)
 #define bit_3DNOWP	(1 << 30)
 #define bit_3DNOW	(1 << 31)
@@ -64,6 +66,8 @@
 /* Extended Features (%eax == 7) */
 #define bit_FSGSBASE	(1 << 0)
 #define bit_BMI		(1 << 3)
+#define bit_AVX2	(1 << 5)
+#define bit_BMI2	(1 << 8)
 
 #if defined(__i386__) && defined(__PIC__)
 /* %ebx may be the PIC register.  */

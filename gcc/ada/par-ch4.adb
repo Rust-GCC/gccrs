@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -35,13 +35,13 @@ package body Ch4 is
    --  Attributes that cannot have arguments
 
    Is_Parameterless_Attribute : constant Attribute_Class_Array :=
-     (Attribute_Body_Version => True,
+     (Attribute_Base         => True,
+      Attribute_Body_Version => True,
+      Attribute_Class        => True,
       Attribute_External_Tag => True,
       Attribute_Img          => True,
-      Attribute_Version      => True,
-      Attribute_Base         => True,
-      Attribute_Class        => True,
       Attribute_Stub_Type    => True,
+      Attribute_Version      => True,
       Attribute_Type_Key     => True,
       others                 => False);
    --  This map contains True for parameterless attributes that return a
@@ -90,6 +90,12 @@ package body Ch4 is
    --  Scan a range attribute reference. The caller has scanned out the
    --  prefix. The current token is known to be an apostrophe and the
    --  following token is known to be RANGE.
+
+   function P_Unparen_Cond_Case_Quant_Expression return Node_Id;
+   --  This function is called with Token pointing to IF, CASE, or FOR, in a
+   --  context that allows a case, conditional, or quantified expression if
+   --  it is surrounded by parentheses. If not surrounded by parentheses, the
+   --  expression is still returned, but an error message is issued.
 
    -------------------------
    -- Bad_Range_Attribute --
@@ -470,8 +476,8 @@ package body Ch4 is
                end if;
             end if;
 
-            --  We come here with an OK attribute scanned, and the
-            --  corresponding Attribute identifier node stored in Ident_Node.
+            --  We come here with an OK attribute scanned, and corresponding
+            --  Attribute identifier node stored in Ident_Node.
 
             Prefix_Node := Name_Node;
             Name_Node := New_Node (N_Attribute_Reference, Prev_Token_Ptr);
@@ -606,8 +612,18 @@ package body Ch4 is
             raise Error_Resync;
 
          elsif Token /= Tok_Right_Paren then
-            T_Right_Paren;
-            raise Error_Resync;
+            if Token = Tok_Arrow then
+
+               --  This may be an aggregate that is missing a qualification
+
+               Error_Msg_SC
+                 ("context of aggregate must be a qualified expression");
+               raise Error_Resync;
+
+            else
+               T_Right_Paren;
+               raise Error_Resync;
+            end if;
 
          else
             Scan; -- past right paren
@@ -648,7 +664,7 @@ package body Ch4 is
             Error_Msg
               ("expect identifier in parameter association",
                 Sloc (Expr_Node));
-            Scan;  --   past arrow
+            Scan;  -- past arrow
 
          elsif not Comma_Present then
             T_Right_Paren;
@@ -1422,19 +1438,9 @@ package body Ch4 is
          --  that doesn't belong to us!
 
          if Token in Token_Class_Eterm then
-
-            --  If Some becomes a keyword, the following is needed to make it
-            --  acceptable in older versions of Ada.
-
-            if Token = Tok_Some
-              and then Ada_Version < Ada_2012
-            then
-               Scan_Reserved_Identifier (False);
-            else
-               Error_Msg_AP
-                 ("expecting expression or component association");
-               exit;
-            end if;
+            Error_Msg_AP
+              ("expecting expression or component association");
+            exit;
          end if;
 
          --  Deal with misused box
@@ -1640,18 +1646,18 @@ package body Ch4 is
 
    --  This function is identical to the normal P_Expression, except that it
    --  also permits the appearance of a case, conditional, or quantified
-   --  expression without the usual surrounding parentheses.
+   --  expression if the call immediately follows a left paren, and followed
+   --  by a right parenthesis. These forms are allowed if these conditions
+   --  are not met, but an error message will be issued.
 
    function P_Expression_If_OK return Node_Id is
    begin
-      if Token = Tok_Case then
-         return P_Case_Expression;
+      --  Case of conditional, case or quantified expression
 
-      elsif Token = Tok_If then
-         return P_Conditional_Expression;
+      if Token = Tok_Case or else Token = Tok_If or else Token = Tok_For then
+         return P_Unparen_Cond_Case_Quant_Expression;
 
-      elsif Token = Tok_For then
-         return P_Quantified_Expression;
+      --  Normal case, not case/conditional/quantified expression
 
       else
          return P_Expression;
@@ -1749,18 +1755,18 @@ package body Ch4 is
    end P_Expression_Or_Range_Attribute;
 
    --  Version that allows a non-parenthesized case, conditional, or quantified
-   --  expression
+   --  expression if the call immediately follows a left paren, and followed
+   --  by a right parenthesis. These forms are allowed if these conditions
+   --  are not met, but an error message will be issued.
 
    function P_Expression_Or_Range_Attribute_If_OK return Node_Id is
    begin
-      if Token = Tok_Case then
-         return P_Case_Expression;
+      --  Case of conditional, case or quantified expression
 
-      elsif Token = Tok_If then
-         return P_Conditional_Expression;
+      if Token = Tok_Case or else Token = Tok_If or else Token = Tok_For then
+         return P_Unparen_Cond_Case_Quant_Expression;
 
-      elsif Token = Tok_For then
-         return P_Quantified_Expression;
+      --  Normal case, not one of the above expression types
 
       else
          return P_Expression_Or_Range_Attribute;
@@ -2435,9 +2441,16 @@ package body Ch4 is
 
                --  If this looks like a real if, defined as an IF appearing at
                --  the start of a new line, then we consider we have a missing
-               --  operand.
+               --  operand. If in Ada 2012 and the IF is not properly indented
+               --  for a statement, we prefer to issue a message about an ill-
+               --  parenthesized conditional expression.
 
-               if Token_Is_At_Start_Of_Line then
+               if Token_Is_At_Start_Of_Line
+                 and then not
+                   (Ada_Version >= Ada_2012
+                     and then Style_Check_Indentation /= 0
+                     and then Start_Column rem Style_Check_Indentation /= 0)
+               then
                   Error_Msg_AP ("missing operand");
                   return Error;
 
@@ -2461,9 +2474,16 @@ package body Ch4 is
 
                --  If this looks like a real case, defined as a CASE appearing
                --  the start of a new line, then we consider we have a missing
-               --  operand.
+               --  operand. If in Ada 2012 and the CASE is not properly
+               --  indented for a statement, we prefer to issue a message about
+               --  an ill-parenthesized case expression.
 
-               if Token_Is_At_Start_Of_Line then
+               if Token_Is_At_Start_Of_Line
+                 and then not
+                   (Ada_Version >= Ada_2012
+                     and then Style_Check_Indentation /= 0
+                     and then Start_Column rem Style_Check_Indentation /= 0)
+               then
                   Error_Msg_AP ("missing operand");
                   return Error;
 
@@ -2540,13 +2560,7 @@ package body Ch4 is
       if Token = Tok_All then
          Set_All_Present (Node1);
 
-      --  We treat Some as a non-reserved keyword, so it appears to the scanner
-      --  as an identifier. If Some is made into a reserved word, the check
-      --  below is against Tok_Some.
-
-      elsif Token /= Tok_Identifier
-        or else Chars (Token_Node) /= Name_Some
-      then
+      elsif Token /= Tok_Some then
          Error_Msg_AP ("missing quantifier");
          raise Error_Resync;
       end if;
@@ -2786,7 +2800,10 @@ package body Ch4 is
    --------------------
 
    --  ALLOCATOR ::=
-   --    new [NULL_EXCLUSION] SUBTYPE_INDICATION | new QUALIFIED_EXPRESSION
+   --      new [SUBPOOL_SPECIFICATION] SUBTYPE_INDICATION
+   --    | new [SUBPOOL_SPECIFICATION] QUALIFIED_EXPRESSION
+   --
+   --  SUBPOOL_SPECIFICATION ::= (subpool_handle_NAME)
 
    --  The caller has checked that the initial token is NEW
 
@@ -2801,7 +2818,24 @@ package body Ch4 is
       Alloc_Node := New_Node (N_Allocator, Token_Ptr);
       T_New;
 
+      --  Scan subpool_specification if present (Ada 2012 (AI05-0111-3))
+
       --  Scan Null_Exclusion if present (Ada 2005 (AI-231))
+
+      if Token = Tok_Left_Paren then
+         Scan; -- past (
+         Set_Subpool_Handle_Name (Alloc_Node, P_Name);
+         T_Right_Paren;
+
+         if Ada_Version < Ada_2012 then
+            Error_Msg_N
+              ("|subpool specification is an Ada 2012 feature",
+               Subpool_Handle_Name (Alloc_Node));
+            Error_Msg_N
+              ("\|unit must be compiled with -gnat2012 switch",
+               Subpool_Handle_Name (Alloc_Node));
+         end if;
+      end if;
 
       Null_Exclusion_Present := P_Null_Exclusion;
       Set_Null_Exclusion_Present (Alloc_Node, Null_Exclusion_Present);
@@ -3030,5 +3064,55 @@ package body Ch4 is
          Set_Alternatives (N, No_List);
       end if;
    end P_Membership_Test;
+
+   ------------------------------------------
+   -- P_Unparen_Cond_Case_Quant_Expression --
+   ------------------------------------------
+
+   function P_Unparen_Cond_Case_Quant_Expression return Node_Id is
+      Lparen : constant Boolean := Prev_Token = Tok_Left_Paren;
+      Result : Node_Id;
+
+   begin
+      --  Case expression
+
+      if Token = Tok_Case then
+         Result := P_Case_Expression;
+
+         if not (Lparen and then Token = Tok_Right_Paren) then
+            Error_Msg_N
+              ("case expression must be parenthesized!", Result);
+         end if;
+
+      --  Conditional expression
+
+      elsif Token = Tok_If then
+         Result := P_Conditional_Expression;
+
+         if not (Lparen and then Token = Tok_Right_Paren) then
+            Error_Msg_N
+              ("conditional expression must be parenthesized!", Result);
+         end if;
+
+      --  Quantified expression
+
+      elsif Token = Tok_For then
+         Result := P_Quantified_Expression;
+
+         if not (Lparen and then Token = Tok_Right_Paren) then
+            Error_Msg_N
+              ("quantified expression must be parenthesized!", Result);
+         end if;
+
+      --  No other possibility should exist (caller was supposed to check)
+
+      else
+         raise Program_Error;
+      end if;
+
+      --  Return expression (possibly after having given message)
+
+      return Result;
+   end P_Unparen_Cond_Case_Quant_Expression;
 
 end Ch4;

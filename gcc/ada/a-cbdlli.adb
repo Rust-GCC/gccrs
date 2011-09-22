@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -30,6 +30,22 @@
 with System;  use type System.Address;
 
 package body Ada.Containers.Bounded_Doubly_Linked_Lists is
+   type Iterator is new
+     List_Iterator_Interfaces.Reversible_Iterator with record
+        Container : List_Access;
+        Node      : Count_Type;
+   end record;
+
+   overriding function First (Object : Iterator) return Cursor;
+   overriding function Last  (Object : Iterator) return Cursor;
+
+   overriding function Next
+     (Object   : Iterator;
+      Position : Cursor) return Cursor;
+
+   overriding function Previous
+     (Object   : Iterator;
+      Position : Cursor) return Cursor;
 
    -----------------------
    -- Local Subprograms --
@@ -526,6 +542,15 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
       return Cursor'(Container'Unrestricted_Access, Container.First);
    end First;
 
+   function First (Object : Iterator) return Cursor is
+   begin
+      if Object.Container = null then
+         return No_Element;
+      else
+         return (Object.Container, Object.Container.First);
+      end if;
+   end First;
+
    -------------------
    -- First_Element --
    -------------------
@@ -557,52 +582,52 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
       --  The list container actually contains two lists: one for the "active"
       --  nodes that contain elements that have been inserted onto the list,
       --  and another for the "inactive" nodes for the free store.
-      --
+
       --  We desire that merely declaring an object should have only minimal
       --  cost; specially, we want to avoid having to initialize the free
       --  store (to fill in the links), especially if the capacity is large.
-      --
+
       --  The head of the free list is indicated by Container.Free. If its
-      --  value is non-negative, then the free store has been initialized
-      --  in the "normal" way: Container.Free points to the head of the list
-      --  of free (inactive) nodes, and the value 0 means the free list is
-      --  empty. Each node on the free list has been initialized to point
-      --  to the next free node (via its Next component), and the value 0
-      --  means that this is the last free node.
-      --
-      --  If Container.Free is negative, then the links on the free store
-      --  have not been initialized. In this case the link values are
-      --  implied: the free store comprises the components of the node array
-      --  started with the absolute value of Container.Free, and continuing
-      --  until the end of the array (Nodes'Last).
-      --
-      --  If the list container is manipulated on one end only (for example
-      --  if the container were being used as a stack), then there is no
-      --  need to initialize the free store, since the inactive nodes are
-      --  physically contiguous (in fact, they lie immediately beyond the
-      --  logical end being manipulated). The only time we need to actually
-      --  initialize the nodes in the free store is if the node that becomes
-      --  inactive is not at the end of the list. The free store would then
-      --  be discontiguous and so its nodes would need to be linked in the
-      --  traditional way.
-      --
+      --  value is non-negative, then the free store has been initialized in
+      --  the "normal" way: Container.Free points to the head of the list of
+      --  free (inactive) nodes, and the value 0 means the free list is empty.
+      --  Each node on the free list has been initialized to point to the next
+      --  free node (via its Next component), and the value 0 means that this
+      --  is the last free node.
+
+      --  If Container.Free is negative, then the links on the free store have
+      --  not been initialized. In this case the link values are implied: the
+      --  free store comprises the components of the node array started with
+      --  the absolute value of Container.Free, and continuing until the end of
+      --  the array (Nodes'Last).
+
+      --  If the list container is manipulated on one end only (for example if
+      --  the container were being used as a stack), then there is no need to
+      --  initialize the free store, since the inactive nodes are physically
+      --  contiguous (in fact, they lie immediately beyond the logical end
+      --  being manipulated). The only time we need to actually initialize the
+      --  nodes in the free store is if the node that becomes inactive is not
+      --  at the end of the list. The free store would then be discontiguous
+      --  and so its nodes would need to be linked in the traditional way.
+
       --  ???
       --  It might be possible to perform an optimization here. Suppose that
-      --  the free store can be represented as having two parts: one
-      --  comprising the non-contiguous inactive nodes linked together
-      --  in the normal way, and the other comprising the contiguous
-      --  inactive nodes (that are not linked together, at the end of the
-      --  nodes array). This would allow us to never have to initialize
-      --  the free store, except in a lazy way as nodes become inactive.
+      --  the free store can be represented as having two parts: one comprising
+      --  the non-contiguous inactive nodes linked together in the normal way,
+      --  and the other comprising the contiguous inactive nodes (that are not
+      --  linked together, at the end of the nodes array). This would allow us
+      --  to never have to initialize the free store, except in a lazy way as
+      --  nodes become inactive.
 
-      --  When an element is deleted from the list container, its node
-      --  becomes inactive, and so we set its Prev component to a negative
-      --  value, to indicate that it is now inactive. This provides a useful
-      --  way to detect a dangling cursor reference.
+      --  When an element is deleted from the list container, its node becomes
+      --  inactive, and so we set its Prev component to a negative value, to
+      --  indicate that it is now inactive. This provides a useful way to
+      --  detect a dangling cursor reference.
 
       N (X).Prev := -1;  -- Node is deallocated (not on active list)
 
       if Container.Free >= 0 then
+
          --  The free store has previously been initialized. All we need to
          --  do here is link the newly-free'd node onto the free list.
 
@@ -610,11 +635,12 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
          Container.Free := X;
 
       elsif X + 1 = abs Container.Free then
+
          --  The free store has not been initialized, and the node becoming
          --  inactive immediately precedes the start of the free store. All
          --  we need to do is move the start of the free store back by one.
 
-         N (X).Next := 0;  -- Not strictly necessary, but marginally safer
+         N (X).Next := 0;  -- not strictly necessary, but marginally safer
          Container.Free := Container.Free + 1;
 
       else
@@ -625,11 +651,10 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
          --  node onto the head of the free store.
 
          --  ???
-         --  See the comments above for an optimization opportunity. If
-         --  the next link for a node on the free store is negative, then
-         --  this means the remaining nodes on the free store are
-         --  physically contiguous, starting as the absolute value of
-         --  that index value.
+         --  See the comments above for an optimization opportunity. If the
+         --  next link for a node on the free store is negative, then this
+         --  means the remaining nodes on the free store are physically
+         --  contiguous, starting as the absolute value of that index value.
 
          Container.Free := abs Container.Free;
 
@@ -664,7 +689,7 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
          Node  : Count_Type := Container.First;
 
       begin
-         for I in 2 .. Container.Length loop
+         for J in 2 .. Container.Length loop
             if Nodes (Nodes (Node).Next).Element < Nodes (Node).Element then
                return False;
             end if;
@@ -741,17 +766,20 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
          N : Node_Array renames Container.Nodes;
 
          procedure Partition (Pivot, Back : Count_Type);
+         --  What does this do ???
 
          procedure Sort (Front, Back : Count_Type);
+         --  Internal procedure, what does it do??? rename it???
 
          ---------------
          -- Partition --
          ---------------
 
          procedure Partition (Pivot, Back : Count_Type) is
-            Node : Count_Type := N (Pivot).Next;
+            Node : Count_Type;
 
          begin
+            Node := N (Pivot).Next;
             while Node /= Back loop
                if N (Node).Element < N (Pivot).Element then
                   declare
@@ -1021,6 +1049,7 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
             Process (Cursor'(Container'Unrestricted_Access, Node));
             Node := Container.Nodes (Node).Next;
          end loop;
+
       exception
          when others =>
             B := B - 1;
@@ -1028,6 +1057,28 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
       end;
 
       B := B - 1;
+   end Iterate;
+
+   function Iterate
+     (Container : List)
+      return List_Iterator_Interfaces.Reversible_Iterator'class
+   is
+   begin
+      if Container.Length = 0 then
+         return Iterator'(null, Count_Type'First);
+      else
+         return Iterator'(Container'Unrestricted_Access, Container.First);
+      end if;
+   end Iterate;
+
+   function Iterate
+     (Container : List;
+      Start     : Cursor)
+      return List_Iterator_Interfaces.Reversible_Iterator'class
+   is
+      It : constant Iterator := (Container'Unrestricted_Access, Start.Node);
+   begin
+      return It;
    end Iterate;
 
    ----------
@@ -1041,6 +1092,15 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
       end if;
 
       return Cursor'(Container'Unrestricted_Access, Container.Last);
+   end Last;
+
+   function Last (Object : Iterator) return Cursor is
+   begin
+      if Object.Container = null then
+         return No_Element;
+      else
+         return (Object.Container, Object.Container.Last);
+      end if;
    end Last;
 
    ------------------
@@ -1133,6 +1193,20 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
       end;
    end Next;
 
+   function Next
+     (Object   : Iterator;
+      Position : Cursor) return Cursor
+   is
+      Nodes : Node_Array renames Position.Container.Nodes;
+      Node  : constant Count_Type := Nodes (Position.Node).Next;
+   begin
+      if Position.Node = Object.Container.Last then
+         return No_Element;
+      else
+         return (Object.Container, Node);
+      end if;
+   end Next;
+
    -------------
    -- Prepend --
    -------------
@@ -1173,6 +1247,20 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
 
          return Cursor'(Position.Container, Node);
       end;
+   end Previous;
+
+   function Previous
+     (Object   : Iterator;
+      Position : Cursor) return Cursor
+   is
+      Nodes : Node_Array renames Position.Container.Nodes;
+      Node  : constant Count_Type := Nodes (Position.Node).Prev;
+   begin
+      if Position.Node = 0 then
+         return No_Element;
+      else
+         return (Object.Container, Node);
+      end if;
    end Previous;
 
    -------------------
@@ -1256,6 +1344,52 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
    begin
       raise Program_Error with "attempt to stream list cursor";
    end Read;
+
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Reference_Type)
+   is
+   begin
+      raise Program_Error with "attempt to stream reference";
+   end Read;
+
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Constant_Reference_Type)
+   is
+   begin
+      raise Program_Error with "attempt to stream reference";
+   end Read;
+
+   ---------------
+   -- Reference --
+   ---------------
+
+   function Constant_Reference (Container : List; Position : Cursor)
+   return Constant_Reference_Type is
+   begin
+      pragma Unreferenced (Container);
+
+      if Position.Container = null then
+         raise Constraint_Error with "Position cursor has no element";
+      end if;
+
+      return (Element =>
+         Position.Container.Nodes (Position.Node).Element'Unrestricted_Access);
+   end Constant_Reference;
+
+   function Reference (Container : List; Position : Cursor)
+   return Reference_Type is
+   begin
+      pragma Unreferenced (Container);
+
+      if Position.Container = null then
+         raise Constraint_Error with "Position cursor has no element";
+      end if;
+
+      return (Element =>
+         Position.Container.Nodes (Position.Node).Element'Unrestricted_Access);
+   end Reference;
 
    ---------------------
    -- Replace_Element --
@@ -1486,10 +1620,9 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
            "attempt to tamper with cursors of Source (list is busy)";
       end if;
 
-      loop
-         Insert (Target, Before, Source.Nodes (Source.Last).Element);
-         Delete_Last (Source);
-         exit when Is_Empty (Source);
+      while not Is_Empty (Source) loop
+         Insert (Target, Before, Source.Nodes (Source.First).Element);
+         Delete_First (Source);
       end loop;
    end Splice;
 
@@ -1936,21 +2069,21 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
             return False;
          end if;
 
-         if Position.Node = L.First then  -- eliminates earlier disjunct
+         --  Eliminate earlier disjunct
+
+         if Position.Node = L.First then
             return True;
          end if;
 
-         --  If we get here, we know, per disjunctive syllogism (modus
-         --  tollendo ponens), that this predicate is true:
-         --  N (Position.Node).Prev /= 0
+         --  If we get here, we know (disjunctive syllogism) that this
+         --  predicate is true: N (Position.Node).Prev /= 0
 
          if Position.Node = L.Last then  -- eliminates earlier disjunct
             return True;
          end if;
 
-         --  If we get here, we know, per disjunctive syllogism (modus
-         --  tollendo ponens), that this predicate is true:
-         --  N (Position.Node).Next /= 0
+         --  If we get here, we know (disjunctive syllogism) that this
+         --  predicate is true: N (Position.Node).Next /= 0
 
          if N (N (Position.Node).Next).Prev /= Position.Node then
             return False;
@@ -2000,6 +2133,22 @@ package body Ada.Containers.Bounded_Doubly_Linked_Lists is
    is
    begin
       raise Program_Error with "attempt to stream list cursor";
+   end Write;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Reference_Type)
+   is
+   begin
+      raise Program_Error with "attempt to stream reference";
+   end Write;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Constant_Reference_Type)
+   is
+   begin
+      raise Program_Error with "attempt to stream reference";
    end Write;
 
 end Ada.Containers.Bounded_Doubly_Linked_Lists;

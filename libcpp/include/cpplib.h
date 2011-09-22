@@ -1,6 +1,6 @@
 /* Definitions for CPP library.
    Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003,
-   2004, 2005, 2007, 2008, 2009, 2010
+   2004, 2005, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Written by Per Bothner, 1994-95.
 
@@ -315,6 +315,10 @@ struct cpp_options
   /* Nonzero means process u/U prefix literals (UTF-16/32).  */
   unsigned char uliterals;
 
+  /* Nonzero means process r/R raw strings.  If this is set, uliterals
+     must be set as well.  */
+  unsigned char rliterals;
+
   /* Nonzero means print names of header files (-H).  */
   unsigned char print_include_names;
 
@@ -479,12 +483,12 @@ struct cpp_callbacks
   void (*file_change) (cpp_reader *, const struct line_map *);
 
   void (*dir_change) (cpp_reader *, const char *);
-  void (*include) (cpp_reader *, unsigned int, const unsigned char *,
+  void (*include) (cpp_reader *, source_location, const unsigned char *,
 		   const char *, int, const cpp_token **);
-  void (*define) (cpp_reader *, unsigned int, cpp_hashnode *);
-  void (*undef) (cpp_reader *, unsigned int, cpp_hashnode *);
-  void (*ident) (cpp_reader *, unsigned int, const cpp_string *);
-  void (*def_pragma) (cpp_reader *, unsigned int);
+  void (*define) (cpp_reader *, source_location, cpp_hashnode *);
+  void (*undef) (cpp_reader *, source_location, cpp_hashnode *);
+  void (*ident) (cpp_reader *, source_location, const cpp_string *);
+  void (*def_pragma) (cpp_reader *, source_location);
   int (*valid_pch) (cpp_reader *, const char *, int);
   void (*read_pch) (cpp_reader *, const char *, int, const char *);
   missing_header_cb missing_header;
@@ -501,8 +505,8 @@ struct cpp_callbacks
 
   /* Callbacks for when a macro is expanded, or tested (whether
      defined or not at the time) in #ifdef, #ifndef or "defined".  */
-  void (*used_define) (cpp_reader *, unsigned int, cpp_hashnode *);
-  void (*used_undef) (cpp_reader *, unsigned int, cpp_hashnode *);
+  void (*used_define) (cpp_reader *, source_location, cpp_hashnode *);
+  void (*used_undef) (cpp_reader *, source_location, cpp_hashnode *);
   /* Called before #define and #undef or other macro definition
      changes are processed.  */
   void (*before_define) (cpp_reader *);
@@ -984,5 +988,9 @@ extern int cpp_valid_state (cpp_reader *, const char *, int);
 extern void cpp_prepare_state (cpp_reader *, struct save_macro_data **);
 extern int cpp_read_state (cpp_reader *, const char *, FILE *,
 			   struct save_macro_data *);
+
+/* In lex.c */
+extern void cpp_force_token_locations (cpp_reader *, source_location *);
+extern void cpp_stop_forcing_token_locations (cpp_reader *);
 
 #endif /* ! LIBCPP_CPPLIB_H */

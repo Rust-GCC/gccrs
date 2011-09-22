@@ -136,7 +136,7 @@ static unsigned int xtensa_multibss_section_type_flags (tree, const char *,
 							int) ATTRIBUTE_UNUSED;
 static section *xtensa_select_rtx_section (enum machine_mode, rtx,
 					   unsigned HOST_WIDE_INT);
-static bool xtensa_rtx_costs (rtx, int, int, int *, bool);
+static bool xtensa_rtx_costs (rtx, int, int, int, int *, bool);
 static int xtensa_register_move_cost (enum machine_mode, reg_class_t,
 				      reg_class_t);
 static int xtensa_memory_move_cost (enum machine_mode, reg_class_t, bool);
@@ -144,11 +144,11 @@ static tree xtensa_build_builtin_va_list (void);
 static bool xtensa_return_in_memory (const_tree, const_tree);
 static tree xtensa_gimplify_va_arg_expr (tree, tree, gimple_seq *,
 					 gimple_seq *);
-static void xtensa_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode,
+static void xtensa_function_arg_advance (cumulative_args_t, enum machine_mode,
 					 const_tree, bool);
-static rtx xtensa_function_arg (CUMULATIVE_ARGS *, enum machine_mode,
+static rtx xtensa_function_arg (cumulative_args_t, enum machine_mode,
 				const_tree, bool);
-static rtx xtensa_function_incoming_arg (CUMULATIVE_ARGS *,
+static rtx xtensa_function_incoming_arg (cumulative_args_t,
 					 enum machine_mode, const_tree, bool);
 static rtx xtensa_function_value (const_tree, const_tree, bool);
 static rtx xtensa_libcall_value (enum machine_mode, const_rtx);
@@ -177,20 +177,6 @@ static bool xtensa_legitimate_constant_p (enum machine_mode, rtx);
 
 static const int reg_nonleaf_alloc_order[FIRST_PSEUDO_REGISTER] =
   REG_ALLOC_ORDER;
-
-/* Implement TARGET_OPTION_OPTIMIZATION_TABLE.  */
-
-static const struct default_options xtensa_option_optimization_table[] =
-  {
-    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
-    /* Reordering blocks for Xtensa is not a good idea unless the
-       compiler understands the range of conditional branches.
-       Currently all branch relaxation for Xtensa is handled in the
-       assembler, so GCC cannot do a good job of reordering blocks.
-       Do not enable reordering unless it is explicitly requested.  */
-    { OPT_LEVELS_ALL, OPT_freorder_blocks, NULL, 0 },
-    { OPT_LEVELS_NONE, 0, NULL, 0 }
-  };
 
 
 /* This macro generates the assembly code for function exit,
@@ -209,9 +195,6 @@ static const struct default_options xtensa_option_optimization_table[] =
 
 #undef TARGET_ASM_SELECT_RTX_SECTION
 #define TARGET_ASM_SELECT_RTX_SECTION  xtensa_select_rtx_section
-
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS (TARGET_DEFAULT)
 
 #undef TARGET_LEGITIMIZE_ADDRESS
 #define TARGET_LEGITIMIZE_ADDRESS xtensa_legitimize_address
@@ -304,8 +287,6 @@ static const struct default_options xtensa_option_optimization_table[] =
 
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE xtensa_option_override
-#undef TARGET_OPTION_OPTIMIZATION_TABLE
-#define TARGET_OPTION_OPTIMIZATION_TABLE xtensa_option_optimization_table
 
 #undef TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA
 #define TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA xtensa_output_addr_const_extra
@@ -2080,13 +2061,13 @@ init_cumulative_args (CUMULATIVE_ARGS *cum, int incoming)
 /* Advance the argument to the next argument position.  */
 
 static void
-xtensa_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+xtensa_function_arg_advance (cumulative_args_t cum, enum machine_mode mode,
 			     const_tree type, bool named ATTRIBUTE_UNUSED)
 {
   int words, max;
   int *arg_words;
 
-  arg_words = &cum->arg_words;
+  arg_words = &get_cumulative_args (cum)->arg_words;
   max = MAX_ARGS_IN_REGISTERS;
 
   words = (((mode != BLKmode)
@@ -2107,9 +2088,10 @@ xtensa_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
    if this is an incoming argument to the current function.  */
 
 static rtx
-xtensa_function_arg_1 (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+xtensa_function_arg_1 (cumulative_args_t cum_v, enum machine_mode mode,
 		       const_tree type, bool incoming_p)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   int regbase, words, max;
   int *arg_words;
   int regno;
@@ -2142,7 +2124,7 @@ xtensa_function_arg_1 (CUMULATIVE_ARGS *cum, enum machine_mode mode,
 /* Implement TARGET_FUNCTION_ARG.  */
 
 static rtx
-xtensa_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+xtensa_function_arg (cumulative_args_t cum, enum machine_mode mode,
 		     const_tree type, bool named ATTRIBUTE_UNUSED)
 {
   return xtensa_function_arg_1 (cum, mode, type, false);
@@ -2151,7 +2133,7 @@ xtensa_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
 /* Implement TARGET_FUNCTION_INCOMING_ARG.  */
 
 static rtx
-xtensa_function_incoming_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+xtensa_function_incoming_arg (cumulative_args_t cum, enum machine_mode mode,
 			      const_tree type, bool named ATTRIBUTE_UNUSED)
 {
   return xtensa_function_arg_1 (cum, mode, type, true);
@@ -2871,7 +2853,7 @@ xtensa_va_start (tree valist, rtx nextarg ATTRIBUTE_UNUSED)
 
   /* Set the __va_stk member to ($arg_ptr - 32).  */
   u = make_tree (ptr_type_node, virtual_incoming_args_rtx);
-  u = fold_build2 (POINTER_PLUS_EXPR, ptr_type_node, u, size_int (-32));
+  u = fold_build_pointer_plus_hwi (u, -32);
   t = build2 (MODIFY_EXPR, ptr_type_node, stk, u);
   TREE_SIDE_EFFECTS (t) = 1;
   expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
@@ -3060,7 +3042,7 @@ xtensa_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
 
   t = fold_convert (sizetype, unshare_expr (ndx));
   t = build2 (MINUS_EXPR, sizetype, t, size);
-  addr = build2 (POINTER_PLUS_EXPR, ptr_type_node, unshare_expr (array), t);
+  addr = fold_build_pointer_plus (unshare_expr (array), t);
 
   addr = fold_convert (build_pointer_type (type), addr);
   if (indirect)
@@ -3360,8 +3342,8 @@ xtensa_memory_move_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
    scanned.  In either case, *TOTAL contains the cost result.  */
 
 static bool
-xtensa_rtx_costs (rtx x, int code, int outer_code, int *total,
-		  bool speed ATTRIBUTE_UNUSED)
+xtensa_rtx_costs (rtx x, int code, int outer_code, int opno ATTRIBUTE_UNUSED,
+		  int *total, bool speed ATTRIBUTE_UNUSED)
 {
   switch (code)
     {

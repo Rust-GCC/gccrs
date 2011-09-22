@@ -54,6 +54,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks.h"
 #include "target.h"
 #include "lto-streamer.h"
+#include "data-streamer.h"
+#include "tree-streamer.h"
 #include "cfgloop.h"
 #include "tree-scalar-evolution.h"
 #include "intl.h"
@@ -735,7 +737,7 @@ analyze_function (struct cgraph_node *fn, bool ipa)
 		    flags_from_decl_or_type (fn->decl),
 		    cgraph_node_cannot_return (fn));
 
-  if (fn->thunk.thunk_p)
+  if (fn->thunk.thunk_p || fn->alias)
     {
       /* Thunk gets propagated through, so nothing interesting happens.  */
       gcc_assert (ipa);
@@ -948,7 +950,7 @@ pure_const_write_summary (cgraph_node_set set,
 	count++;
     }
 
-  lto_output_uleb128_stream (ob->main_stream, count);
+  streamer_write_uhwi_stream (ob->main_stream, count);
 
   /* Process all of the functions.  */
   for (csi = csi_start (set); !csi_end_p (csi); csi_next (&csi))
@@ -965,7 +967,7 @@ pure_const_write_summary (cgraph_node_set set,
 
 	  encoder = ob->decl_state->cgraph_node_encoder;
 	  node_ref = lto_cgraph_encoder_encode (encoder, node);
-	  lto_output_uleb128_stream (ob->main_stream, node_ref);
+	  streamer_write_uhwi_stream (ob->main_stream, node_ref);
 
 	  /* Note that flags will need to be read in the opposite
 	     order as we are pushing the bitflags into FLAGS.  */
@@ -975,7 +977,7 @@ pure_const_write_summary (cgraph_node_set set,
 	  bp_pack_value (&bp, fs->looping_previously_known, 1);
 	  bp_pack_value (&bp, fs->looping, 1);
 	  bp_pack_value (&bp, fs->can_throw, 1);
-	  lto_output_bitpack (&bp);
+	  streamer_write_bitpack (&bp);
 	}
     }
 
@@ -1004,7 +1006,7 @@ pure_const_read_summary (void)
       if (ib)
 	{
 	  unsigned int i;
-	  unsigned int count = lto_input_uleb128 (ib);
+	  unsigned int count = streamer_read_uhwi (ib);
 
 	  for (i = 0; i < count; i++)
 	    {
@@ -1015,7 +1017,7 @@ pure_const_read_summary (void)
 	      lto_cgraph_encoder_t encoder;
 
 	      fs = XCNEW (struct funct_state_d);
-	      index = lto_input_uleb128 (ib);
+	      index = streamer_read_uhwi (ib);
 	      encoder = file_data->cgraph_node_encoder;
 	      node = lto_cgraph_encoder_deref (encoder, index);
 	      set_function_state (node, fs);
@@ -1023,7 +1025,7 @@ pure_const_read_summary (void)
 	      /* Note that the flags must be read in the opposite
 		 order in which they were written (the bitflags were
 		 pushed into FLAGS).  */
-	      bp = lto_input_bitpack (ib);
+	      bp = streamer_read_bitpack (ib);
 	      fs->pure_const_state
 			= (enum pure_const_state_e) bp_unpack_value (&bp, 2);
 	      fs->state_previously_known
@@ -1070,14 +1072,16 @@ ignore_edge (struct cgraph_edge *e)
   return (!e->can_throw_external);
 }
 
-/* Return true if NODE is self recursive function.  */
+/* Return true if NODE is self recursive function.
+   ??? self recursive and indirectly recursive funcions should
+   be the same, so this function seems unnecesary.  */
 
 static bool
 self_recursive_p (struct cgraph_node *node)
 {
   struct cgraph_edge *e;
   for (e = node->callees; e; e = e->next_callee)
-    if (e->callee == node)
+    if (cgraph_function_node (e->callee, NULL) == node)
       return true;
   return false;
 }
@@ -1113,6 +1117,9 @@ propagate_pure_const (void)
       bool looping = false;
       int count = 0;
       node = order[i];
+
+      if (node->alias)
+	continue;
 
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "Starting cycle\n");
@@ -1167,7 +1174,8 @@ propagate_pure_const (void)
 	  /* Now walk the edges and merge in callee properties.  */
 	  for (e = w->callees; e; e = e->next_callee)
 	    {
-	      struct cgraph_node *y = e->callee;
+	      enum availability avail;
+	      struct cgraph_node *y = cgraph_function_node (e->callee, &avail);
 	      enum pure_const_state_e edge_state = IPA_CONST;
 	      bool edge_looping = false;
 
@@ -1178,7 +1186,7 @@ propagate_pure_const (void)
 			   cgraph_node_name (e->callee),
 			   e->callee->uid);
 		}
-	      if (cgraph_function_body_availability (y) > AVAIL_OVERWRITABLE)
+	      if (avail > AVAIL_OVERWRITABLE)
 		{
 		  funct_state y_l = get_function_state (y);
 		  if (dump_file && (dump_flags & TDF_DETAILS))
@@ -1225,7 +1233,7 @@ propagate_pure_const (void)
 	    break;
 
 	  /* Now process the indirect call.  */
-          for (ie = node->indirect_calls; ie; ie = ie->next_callee)
+          for (ie = w->indirect_calls; ie; ie = ie->next_callee)
 	    {
 	      enum pure_const_state_e edge_state = IPA_CONST;
 	      bool edge_looping = false;
@@ -1248,7 +1256,7 @@ propagate_pure_const (void)
 	    break;
 
 	  /* And finally all loads and stores.  */
-	  for (i = 0; ipa_ref_list_reference_iterate (&node->ref_list, i, ref); i++)
+	  for (i = 0; ipa_ref_list_reference_iterate (&w->ref_list, i, ref); i++)
 	    {
 	      enum pure_const_state_e ref_state = IPA_CONST;
 	      bool ref_looping = false;
@@ -1380,6 +1388,9 @@ propagate_nothrow (void)
       bool can_throw = false;
       node = order[i];
 
+      if (node->alias)
+	continue;
+
       /* Find the worst state for any node in the cycle.  */
       w = node;
       while (w)
@@ -1396,9 +1407,10 @@ propagate_nothrow (void)
 
 	  for (e = w->callees; e; e = e->next_callee)
 	    {
-	      struct cgraph_node *y = e->callee;
+	      enum availability avail;
+	      struct cgraph_node *y = cgraph_function_node (e->callee, &avail);
 
-	      if (cgraph_function_body_availability (y) > AVAIL_OVERWRITABLE)
+	      if (avail > AVAIL_OVERWRITABLE)
 		{
 		  funct_state y_l = get_function_state (y);
 
@@ -1426,10 +1438,7 @@ propagate_nothrow (void)
 	  funct_state w_l = get_function_state (w);
 	  if (!can_throw && !TREE_NOTHROW (w->decl))
 	    {
-	      struct cgraph_edge *e;
 	      cgraph_set_nothrow_flag (w, true);
-	      for (e = w->callers; e; e = e->next_caller)
-	        e->can_throw_external = false;
 	      if (dump_file)
 		fprintf (dump_file, "Function found to be nothrow: %s\n",
 			 cgraph_node_name (w));
@@ -1636,11 +1645,7 @@ local_pure_const (void)
     }
   if (!l->can_throw && !TREE_NOTHROW (current_function_decl))
     {
-      struct cgraph_edge *e;
-
       cgraph_set_nothrow_flag (node, true);
-      for (e = node->callers; e; e = e->next_caller)
-	e->can_throw_external = false;
       changed = true;
       if (dump_file)
 	fprintf (dump_file, "Function found to be nothrow: %s\n",

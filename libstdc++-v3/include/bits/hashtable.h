@@ -213,8 +213,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       _Hashtable(const _Hashtable&);
 
-      _Hashtable(_Hashtable&&);
-
+      _Hashtable(_Hashtable&&)
+      noexcept(__and_<is_nothrow_copy_constructible<_Equal>,
+	              is_nothrow_copy_constructible<_H1>>::value);
+ 
       _Hashtable&
       operator=(const _Hashtable& __ht)
       {
@@ -233,49 +235,49 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	return *this;
       }
 
-      ~_Hashtable();
+      ~_Hashtable() noexcept;
 
       void swap(_Hashtable&);
 
       // Basic container operations
       iterator
-      begin()
+      begin() noexcept
       { return iterator(_M_buckets + _M_begin_bucket_index); }
 
       const_iterator
-      begin() const
+      begin() const noexcept
       { return const_iterator(_M_buckets + _M_begin_bucket_index); }
 
       iterator
-      end()
+      end() noexcept
       { return iterator(_M_buckets + _M_bucket_count); }
 
       const_iterator
-      end() const
+      end() const noexcept
       { return const_iterator(_M_buckets + _M_bucket_count); }
 
       const_iterator
-      cbegin() const
+      cbegin() const noexcept
       { return const_iterator(_M_buckets + _M_begin_bucket_index); }
 
       const_iterator
-      cend() const
+      cend() const noexcept
       { return const_iterator(_M_buckets + _M_bucket_count); }
 
       size_type
-      size() const
+      size() const noexcept
       { return _M_element_count; }
 
       bool
-      empty() const
+      empty() const noexcept
       { return size() == 0; }
 
       allocator_type
-      get_allocator() const
+      get_allocator() const noexcept
       { return allocator_type(_M_node_allocator); }
 
       size_type
-      max_size() const
+      max_size() const noexcept
       { return _M_node_allocator.max_size(); }
 
       // Observers
@@ -287,11 +289,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       // Bucket operations
       size_type
-      bucket_count() const
+      bucket_count() const noexcept
       { return _M_bucket_count; }
 
       size_type
-      max_bucket_count() const
+      max_bucket_count() const noexcept
       { return max_size(); }
 
       size_type
@@ -331,7 +333,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return const_local_iterator(0); }
 
       float
-      load_factor() const
+      load_factor() const noexcept
       {
 	return static_cast<float>(size()) / static_cast<float>(bucket_count());
       }
@@ -447,7 +449,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       erase(const_iterator, const_iterator);
 
       void
-      clear();
+      clear() noexcept;
 
       // Set number of buckets to be appropriate for container of n element.
       void rehash(size_type __n);
@@ -456,8 +458,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // reserve, if present, comes from _Rehash_base.
 
     private:
-      // Unconditionally change size of bucket array to n.
-      void _M_rehash(size_type __n);
+      // Unconditionally change size of bucket array to n, restore hash policy
+      // resize value to __next_resize on exception.
+      void _M_rehash(size_type __n, size_type __next_resize);
     };
 
 
@@ -676,19 +679,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __detail::_Hash_code_base<_Key, _Value, _ExtractKey, _Equal,
 				_H1, _H2, _Hash, __chc>(__ht),
       __detail::_Map_base<_Key, _Value, _ExtractKey, __uk, _Hashtable>(__ht),
-      _M_node_allocator(__ht._M_node_allocator),
+      _M_node_allocator(std::move(__ht._M_node_allocator)),
       _M_buckets(__ht._M_buckets),
       _M_bucket_count(__ht._M_bucket_count),
       _M_begin_bucket_index(__ht._M_begin_bucket_index),
       _M_element_count(__ht._M_element_count),
       _M_rehash_policy(__ht._M_rehash_policy)
     {
-      size_type __n_bkt = __ht._M_rehash_policy._M_next_bkt(0);
-      __ht._M_buckets = __ht._M_allocate_buckets(__n_bkt);
-      __ht._M_bucket_count = __n_bkt;
+      __ht._M_rehash_policy = _RehashPolicy();
+      __ht._M_bucket_count = __ht._M_rehash_policy._M_next_bkt(0);
+      __ht._M_buckets = __ht._M_allocate_buckets(__ht._M_bucket_count);
       __ht._M_begin_bucket_index = __ht._M_bucket_count;
       __ht._M_element_count = 0;
-      __ht._M_rehash_policy = _RehashPolicy();
     }
 
   template<typename _Key, typename _Value,
@@ -697,7 +699,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	   bool __chc, bool __cit, bool __uk>
     _Hashtable<_Key, _Value, _Allocator, _ExtractKey, _Equal,
 	       _H1, _H2, _Hash, _RehashPolicy, __chc, __cit, __uk>::
-    ~_Hashtable()
+    ~_Hashtable() noexcept
     {
       clear();
       _M_deallocate_buckets(_M_buckets, _M_bucket_count);
@@ -739,10 +741,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	       _H1, _H2, _Hash, _RehashPolicy, __chc, __cit, __uk>::
     __rehash_policy(const _RehashPolicy& __pol)
     {
-      _M_rehash_policy = __pol;
       size_type __n_bkt = __pol._M_bkt_for_elements(_M_element_count);
       if (__n_bkt > _M_bucket_count)
-	_M_rehash(__n_bkt);
+	_M_rehash(__n_bkt, _M_rehash_policy._M_next_resize);
+      _M_rehash_policy = __pol;
     }
 
   template<typename _Key, typename _Value,
@@ -909,6 +911,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_insert_bucket(_Arg&& __v, size_type __n,
 		       typename _Hashtable::_Hash_code_type __code)
       {
+	const size_type __saved_next_resize = _M_rehash_policy._M_next_resize;
 	std::pair<bool, std::size_t> __do_rehash
 	  = _M_rehash_policy._M_need_rehash(_M_bucket_count,
 					    _M_element_count, 1);
@@ -919,14 +922,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    __n = this->_M_bucket_index(__k, __code, __do_rehash.second);
 	  }
 
-	// Allocate the new node before doing the rehash so that we don't
-	// do a rehash if the allocation throws.
-	_Node* __new_node = _M_allocate_node(std::forward<_Arg>(__v));
-
+	_Node* __new_node = 0;
 	__try
 	  {
+	    // Allocate the new node before doing the rehash so that we
+	    // don't do a rehash if the allocation throws.
+	    __new_node = _M_allocate_node(std::forward<_Arg>(__v));
 	    if (__do_rehash.first)
-	      _M_rehash(__do_rehash.second);
+	      _M_rehash(__do_rehash.second, __saved_next_resize);
 
 	    __new_node->_M_next = _M_buckets[__n];
 	    this->_M_store_code(__new_node, __code);
@@ -938,7 +941,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  }
 	__catch(...)
 	  {
-	    _M_deallocate_node(__new_node);
+	    if (!__new_node)
+	      _M_rehash_policy._M_next_resize = __saved_next_resize;
+	    else
+	      _M_deallocate_node(__new_node);
 	    __throw_exception_again;
 	  }
       }
@@ -980,11 +986,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		 _H1, _H2, _Hash, _RehashPolicy, __chc, __cit, __uk>::
       _M_insert(_Arg&& __v, std::false_type)
       {
+	const size_type __saved_next_resize = _M_rehash_policy._M_next_resize;
 	std::pair<bool, std::size_t> __do_rehash
 	  = _M_rehash_policy._M_need_rehash(_M_bucket_count,
 					    _M_element_count, 1);
 	if (__do_rehash.first)
-	  _M_rehash(__do_rehash.second);
+	  _M_rehash(__do_rehash.second, __saved_next_resize);
 
 	const key_type& __k = this->_M_extract(__v);
 	typename _Hashtable::_Hash_code_type __code = this->_M_hash_code(__k);
@@ -1023,11 +1030,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       insert(_InputIterator __first, _InputIterator __last)
       {
 	size_type __n_elt = __detail::__distance_fw(__first, __last);
+	const size_type __saved_next_resize = _M_rehash_policy._M_next_resize;
 	std::pair<bool, std::size_t> __do_rehash
 	  = _M_rehash_policy._M_need_rehash(_M_bucket_count,
 					    _M_element_count, __n_elt);
 	if (__do_rehash.first)
-	  _M_rehash(__do_rehash.second);
+	  _M_rehash(__do_rehash.second, __saved_next_resize);
 
 	for (; __first != __last; ++__first)
 	  this->insert(*__first);
@@ -1167,7 +1175,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     void
     _Hashtable<_Key, _Value, _Allocator, _ExtractKey, _Equal,
 	       _H1, _H2, _Hash, _RehashPolicy, __chc, __cit, __uk>::
-    clear()
+    clear() noexcept
     {
       _M_deallocate_nodes(_M_buckets, _M_bucket_count);
       _M_element_count = 0;
@@ -1183,9 +1191,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	       _H1, _H2, _Hash, _RehashPolicy, __chc, __cit, __uk>::
     rehash(size_type __n)
     {
+      const size_type __saved_next_resize = _M_rehash_policy._M_next_resize;
       _M_rehash(std::max(_M_rehash_policy._M_next_bkt(__n),
 			 _M_rehash_policy._M_bkt_for_elements(_M_element_count
-							      + 1)));
+							      + 1)),
+		__saved_next_resize);
     }
 
   template<typename _Key, typename _Value,
@@ -1195,11 +1205,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     void
     _Hashtable<_Key, _Value, _Allocator, _ExtractKey, _Equal,
 	       _H1, _H2, _Hash, _RehashPolicy, __chc, __cit, __uk>::
-    _M_rehash(size_type __n)
+    _M_rehash(size_type __n, size_type __next_resize)
     {
-      _Node** __new_array = _M_allocate_buckets(__n);
+      _Node** __new_array = 0;
       __try
 	{
+	  __new_array = _M_allocate_buckets(__n);
 	  _M_begin_bucket_index = __n;
 	  for (size_type __i = 0; __i < _M_bucket_count; ++__i)
 	    while (_Node* __p = _M_buckets[__i])
@@ -1217,15 +1228,23 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
       __catch(...)
 	{
-	  // A failure here means that a hash function threw an exception.
-	  // We can't restore the previous state without calling the hash
-	  // function again, so the only sensible recovery is to delete
-	  // everything.
-	  _M_deallocate_nodes(__new_array, __n);
-	  _M_deallocate_buckets(__new_array, __n);
-	  _M_deallocate_nodes(_M_buckets, _M_bucket_count);
-	  _M_element_count = 0;
-	  _M_begin_bucket_index = _M_bucket_count;
+	  if (__new_array)
+	    {
+	      // A failure here means that a hash function threw an exception.
+	      // We can't restore the previous state without calling the hash
+	      // function again, so the only sensible recovery is to delete
+	      // everything.
+	      _M_deallocate_nodes(__new_array, __n);
+	      _M_deallocate_buckets(__new_array, __n);
+	      _M_deallocate_nodes(_M_buckets, _M_bucket_count);
+	      _M_element_count = 0;
+	      _M_begin_bucket_index = _M_bucket_count;
+	      _M_rehash_policy._M_next_resize = 0;
+	    }
+	  else
+	    // A failure here means that buckets allocation failed.  We only
+	    // have to restore hash policy previous state.
+	    _M_rehash_policy._M_next_resize = __next_resize;
 	  __throw_exception_again;
 	}
     }

@@ -1,14 +1,8 @@
 #define _FP_W_TYPE_SIZE		64
 
-#ifdef _WIN64
- #define _FP_W_TYPE		unsigned long long
- #define _FP_WS_TYPE		signed long long
- #define _FP_I_TYPE		long long
-#else
- #define _FP_W_TYPE		unsigned long
- #define _FP_WS_TYPE		signed long
- #define _FP_I_TYPE		long
-#endif
+#define _FP_W_TYPE		unsigned long long
+#define _FP_WS_TYPE		signed long long
+#define _FP_I_TYPE		long long
 
 typedef int TItype __attribute__ ((mode (TI)));
 typedef unsigned int UTItype __attribute__ ((mode (TI)));
@@ -79,17 +73,25 @@ struct fenv
   unsigned short int __unused5;
 };
 
+#ifdef __AVX__
+ #define ASM_INVALID "vdivss %0, %0, %0"
+ #define ASM_DIVZERO "vdivss %1, %0, %0"
+#else
+ #define ASM_INVALID "divss %0, %0"
+ #define ASM_DIVZERO "divss %1, %0"
+#endif
+
 #define FP_HANDLE_EXCEPTIONS						\
   do {									\
     if (_fex & FP_EX_INVALID)						\
       {									\
 	float f = 0.0;							\
-	__asm__ __volatile__ ("divss %0, %0 " : : "x" (f));		\
+	__asm__ __volatile__ (ASM_INVALID : : "x" (f));			\
       }									\
     if (_fex & FP_EX_DIVZERO)						\
       {									\
 	float f = 1.0, g = 0.0;						\
-	__asm__ __volatile__ ("divss %1, %0" : : "x" (f), "x" (g));	\
+	__asm__ __volatile__ (ASM_DIVZERO : : "x" (f), "x" (g));	\
       }									\
     if (_fex & FP_EX_OVERFLOW)						\
       {									\

@@ -2052,7 +2052,7 @@ struct gimple_opt_pass pass_lower_eh =
   PROP_gimple_leh,			/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func			/* todo_flags_finish */
+  0             			/* todo_flags_finish */
  }
 };
 
@@ -2449,8 +2449,42 @@ tree_could_trap_p (tree expr)
     case CALL_EXPR:
       t = get_callee_fndecl (expr);
       /* Assume that calls to weak functions may trap.  */
-      if (!t || !DECL_P (t) || DECL_WEAK (t))
+      if (!t || !DECL_P (t))
 	return true;
+      if (DECL_WEAK (t))
+	return tree_could_trap_p (t);
+      return false;
+
+    case FUNCTION_DECL:
+      /* Assume that accesses to weak functions may trap, unless we know
+	 they are certainly defined in current TU or in some other
+	 LTO partition.  */
+      if (DECL_WEAK (expr))
+	{
+	  struct cgraph_node *node;
+	  if (!DECL_EXTERNAL (expr))
+	    return false;
+	  node = cgraph_function_node (cgraph_get_node (expr), NULL);
+	  if (node && node->in_other_partition)
+	    return false;
+	  return true;
+	}
+      return false;
+
+    case VAR_DECL:
+      /* Assume that accesses to weak vars may trap, unless we know
+	 they are certainly defined in current TU or in some other
+	 LTO partition.  */
+      if (DECL_WEAK (expr))
+	{
+	  struct varpool_node *node;
+	  if (!DECL_EXTERNAL (expr))
+	    return false;
+	  node = varpool_variable_node (varpool_get_node (expr), NULL);
+	  if (node && node->in_other_partition)
+	    return false;
+	  return true;
+	}
       return false;
 
     default:
@@ -2865,7 +2899,7 @@ struct gimple_opt_pass pass_refactor_eh =
   0,					/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func			/* todo_flags_finish */
+  0             			/* todo_flags_finish */
  }
 };
 
@@ -3071,7 +3105,7 @@ struct gimple_opt_pass pass_lower_resx =
   0,					/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func | TODO_verify_flow	/* todo_flags_finish */
+  TODO_verify_flow	                /* todo_flags_finish */
  }
 };
 
@@ -3272,7 +3306,7 @@ struct gimple_opt_pass pass_lower_eh_dispatch =
   0,					/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func | TODO_verify_flow	/* todo_flags_finish */
+  TODO_verify_flow	                /* todo_flags_finish */
  }
 };
 
@@ -4015,7 +4049,7 @@ struct gimple_opt_pass pass_cleanup_eh = {
    0,				/* properties_provided */
    0,				/* properties_destroyed */
    0,				/* todo_flags_start */
-   TODO_dump_func		/* todo_flags_finish */
+   0             		/* todo_flags_finish */
    }
 };
 

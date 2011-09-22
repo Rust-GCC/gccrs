@@ -152,7 +152,9 @@ vect_get_and_check_slp_defs (loop_vec_info loop_vinfo, bb_vec_info bb_vinfo,
       if (loop && def_stmt && gimple_bb (def_stmt)
           && flow_bb_inside_loop_p (loop, gimple_bb (def_stmt))
           && vinfo_for_stmt (def_stmt)
-          && STMT_VINFO_IN_PATTERN_P (vinfo_for_stmt (def_stmt)))
+          && STMT_VINFO_IN_PATTERN_P (vinfo_for_stmt (def_stmt))
+          && !STMT_VINFO_RELEVANT (vinfo_for_stmt (def_stmt))
+          && !STMT_VINFO_LIVE_P (vinfo_for_stmt (def_stmt)))
         {
           if (!*first_stmt_dt0)
             *pattern0 = true;
@@ -1900,6 +1902,8 @@ vect_get_constant_vectors (tree op, slp_tree slp_node,
   bool constant_p, is_store;
   tree neutral_op = NULL;
   enum tree_code code = gimple_assign_rhs_code (stmt);
+  gimple def_stmt;
+  struct loop *loop;
 
   if (STMT_VINFO_DEF_TYPE (stmt_vinfo) == vect_reduction_def)
     {
@@ -1941,8 +1945,16 @@ vect_get_constant_vectors (tree op, slp_tree slp_node,
             neutral_op = build_int_cst (TREE_TYPE (op), -1);
             break;
 
+          case MAX_EXPR:
+          case MIN_EXPR:
+            def_stmt = SSA_NAME_DEF_STMT (op);
+            loop = (gimple_bb (stmt))->loop_father;
+            neutral_op = PHI_ARG_DEF_FROM_EDGE (def_stmt,
+                                                loop_preheader_edge (loop));
+            break;
+
           default:
-             neutral_op = NULL;
+            neutral_op = NULL;
         }
     }
 
@@ -1995,8 +2007,8 @@ vect_get_constant_vectors (tree op, slp_tree slp_node,
 
           if (reduc_index != -1)
             {
-              struct loop *loop = (gimple_bb (stmt))->loop_father;
-              gimple def_stmt = SSA_NAME_DEF_STMT (op);
+              loop = (gimple_bb (stmt))->loop_father;
+              def_stmt = SSA_NAME_DEF_STMT (op);
 
               gcc_assert (loop);
 
@@ -2546,6 +2558,8 @@ vect_schedule_slp_instance (slp_tree node, slp_instance instance,
       && STMT_VINFO_STRIDED_ACCESS (stmt_info)
       && !REFERENCE_CLASS_P (gimple_get_lhs (stmt)))
     si = gsi_for_stmt (SLP_INSTANCE_FIRST_LOAD_STMT (instance));
+  else if (is_pattern_stmt_p (stmt_info))
+     si = gsi_for_stmt (STMT_VINFO_RELATED_STMT (stmt_info));
   else
     si = gsi_for_stmt (stmt);
 

@@ -1729,6 +1729,30 @@ match_pointer_init (gfc_expr **init, int procptr)
 }
 
 
+static gfc_try
+check_function_name (char *name)
+{
+  /* In functions that have a RESULT variable defined, the function name always
+     refers to function calls.  Therefore, the name is not allowed to appear in
+     specification statements. When checking this, be careful about
+     'hidden' procedure pointer results ('ppr@').  */
+
+  if (gfc_current_state () == COMP_FUNCTION)
+    {
+      gfc_symbol *block = gfc_current_block ();
+      if (block && block->result && block->result != block
+	  && strcmp (block->result->name, "ppr@") != 0
+	  && strcmp (block->name, name) == 0)
+	{
+	  gfc_error ("Function name '%s' not allowed at %C", name);
+	  return FAILURE;
+	}
+    }
+
+  return SUCCESS;
+}
+
+
 /* Match a variable name with an optional initializer.  When this
    subroutine is called, a variable is expected to be parsed next.
    Depending on what is happening at the moment, updates either the
@@ -1763,15 +1787,16 @@ variable_decl (int elem)
 
   /* Now we could see the optional array spec. or character length.  */
   m = gfc_match_array_spec (&as, true, true);
-  if (gfc_option.flag_cray_pointer && m == MATCH_YES)
-    cp_as = gfc_copy_array_spec (as);
-  else if (m == MATCH_ERROR)
+  if (m == MATCH_ERROR)
     goto cleanup;
 
   if (m == MATCH_NO)
     as = gfc_copy_array_spec (current_as);
   else if (current_as)
     merge_array_spec (current_as, as, true);
+
+  if (gfc_option.flag_cray_pointer)
+    cp_as = gfc_copy_array_spec (as);
 
   /* At this point, we know for sure if the symbol is PARAMETER and can thus
      determine (and check) whether it can be implied-shape.  If it
@@ -1934,17 +1959,9 @@ variable_decl (int elem)
 	    goto cleanup;
 	}
     }
-
-  /* In functions that have a RESULT variable defined, the function
-     name always refers to function calls.  Therefore, the name is
-     not allowed to appear in specification statements.  */
-  if (gfc_current_state () == COMP_FUNCTION
-      && gfc_current_block () != NULL
-      && gfc_current_block ()->result != NULL
-      && gfc_current_block ()->result != gfc_current_block ()
-      && strcmp (gfc_current_block ()->name, name) == 0)
+    
+  if (check_function_name (name) == FAILURE)
     {
-      gfc_error ("Function name '%s' not allowed at %C", name);
       m = MATCH_ERROR;
       goto cleanup;
     }
@@ -4969,6 +4986,7 @@ gfc_match_procedure (void)
     case COMP_MODULE:
     case COMP_SUBROUTINE:
     case COMP_FUNCTION:
+    case COMP_BLOCK:
       m = match_procedure_decl ();
       break;
     case COMP_INTERFACE:
@@ -5230,6 +5248,7 @@ gfc_match_entry (void)
 		       "an IF-THEN block");
 	    break;
 	  case COMP_DO:
+	  case COMP_DO_CONCURRENT:
 	    gfc_error ("ENTRY statement at %C cannot appear within "
 		       "a DO block");
 	    break;
@@ -5835,6 +5854,7 @@ gfc_match_end (gfc_statement *st)
       break;
 
     case COMP_DO:
+    case COMP_DO_CONCURRENT:
       *st = ST_ENDDO;
       target = " do";
       eos_ok = 0;
@@ -5993,6 +6013,12 @@ attr_decl1 (void)
   if (find_special (name, &sym, false))
     return MATCH_ERROR;
 
+  if (check_function_name (name) == FAILURE)
+    {
+      m = MATCH_ERROR;
+      goto cleanup;
+    }
+  
   var_locus = gfc_current_locus;
 
   /* Deal with possible array specification for certain attributes.  */
@@ -6478,8 +6504,19 @@ access_attr_decl (gfc_statement st)
 	case INTERFACE_INTRINSIC_OP:
 	  if (gfc_current_ns->operator_access[op] == ACCESS_UNKNOWN)
 	    {
+	      gfc_intrinsic_op other_op;
+
 	      gfc_current_ns->operator_access[op] =
 		(st == ST_PUBLIC) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
+
+	      /* Handle the case if there is another op with the same
+		 function, for INTRINSIC_EQ vs. INTRINSIC_EQ_OS and so on.  */
+	      other_op = gfc_equivalent_op (op);
+
+	      if (other_op != INTRINSIC_NONE)
+		gfc_current_ns->operator_access[other_op] =
+		  (st == ST_PUBLIC) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
+
 	    }
 	  else
 	    {
@@ -7005,6 +7042,7 @@ gfc_match_modproc (void)
   char name[GFC_MAX_SYMBOL_LEN + 1];
   gfc_symbol *sym;
   match m;
+  locus old_locus;
   gfc_namespace *module_ns;
   gfc_interface *old_interface_head, *interface;
 
@@ -7033,10 +7071,23 @@ gfc_match_modproc (void)
      end up with a syntax error and need to recover.  */
   old_interface_head = gfc_current_interface_head ();
 
+  /* Check if the F2008 optional double colon appears.  */
+  gfc_gobble_whitespace ();
+  old_locus = gfc_current_locus;
+  if (gfc_match ("::") == MATCH_YES)
+    {
+      if (gfc_notify_std (GFC_STD_F2008, "Fortran 2008: double colon in "
+			 "MODULE PROCEDURE statement at %L", &old_locus)
+	  == FAILURE)
+	return MATCH_ERROR;
+    }
+  else
+    gfc_current_locus = old_locus;
+      
   for (;;)
     {
-      locus old_locus = gfc_current_locus;
       bool last = false;
+      old_locus = gfc_current_locus;
 
       m = gfc_match_name (name);
       if (m == MATCH_NO)
@@ -7048,6 +7099,7 @@ gfc_match_modproc (void)
 	 current namespace.  */
       if (gfc_match_eos () == MATCH_YES)
 	last = true;
+
       if (!last && gfc_match_char (',') != MATCH_YES)
 	goto syntax;
 

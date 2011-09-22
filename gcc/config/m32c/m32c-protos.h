@@ -33,7 +33,6 @@ void m32c_init_expanders (void);
 int  m32c_initial_elimination_offset (int, int);
 void m32c_output_reg_pop (FILE *, int);
 void m32c_output_reg_push (FILE *, int);
-int  m32c_print_operand_punct_valid_p (int);
 unsigned int  m32c_push_rounding (int);
 int  m32c_reg_class_from_constraint (char, const char *);
 void m32c_register_pragmas (void);
@@ -45,7 +44,6 @@ int  m32c_trampoline_size (void);
 #ifdef RTX_CODE
 
 int  m32c_cannot_change_mode_class (enum machine_mode, enum machine_mode, int);
-int  m32c_class_max_nregs (int, enum machine_mode);
 rtx  m32c_eh_return_stackadj_rtx (void);
 void m32c_emit_eh_epilogue (rtx);
 int  m32c_expand_cmpstr (rtx *);
@@ -67,12 +65,8 @@ int  m32c_limit_reload_class (enum machine_mode, int);
 int  m32c_modes_tieable_p (enum machine_mode, enum machine_mode);
 bool m32c_mov_ok (rtx *, enum machine_mode);
 char * m32c_output_compare (rtx, rtx *);
-int  m32c_preferred_output_reload_class (rtx, int);
-int  m32c_preferred_reload_class (rtx, int);
 int  m32c_prepare_move (rtx *, enum machine_mode);
 int  m32c_prepare_shift (rtx *, int, int);
-void m32c_print_operand (FILE *, rtx, int);
-void m32c_print_operand_address (FILE *, rtx);
 int  m32c_reg_ok_for_base_p (rtx, int);
 enum reg_class m32c_regno_reg_class (int);
 rtx  m32c_return_addr_rtx (int);

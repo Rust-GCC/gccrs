@@ -114,6 +114,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "read-md.h"
 #include "gensupport.h"
 #include "vecprim.h"
+#include "fnmatch.h"
 
 /* Flags for make_internal_attr's `special' parameter.  */
 #define ATTR_NONE		0
@@ -433,8 +434,9 @@ attr_rtx_1 (enum rtx_code code, va_list p)
 	  XEXP (rt_val, 1) = arg1;
 	}
     }
-  else if (GET_RTX_LENGTH (code) == 1
-	   && GET_RTX_FORMAT (code)[0] == 's')
+  else if (code == SYMBOL_REF
+	   || (GET_RTX_LENGTH (code) == 1
+	       && GET_RTX_FORMAT (code)[0] == 's'))
     {
       char *arg0 = va_arg (p, char *);
 
@@ -452,6 +454,11 @@ attr_rtx_1 (enum rtx_code code, va_list p)
 	  rtl_obstack = hash_obstack;
 	  rt_val = rtx_alloc (code);
 	  XSTR (rt_val, 0) = arg0;
+	  if (code == SYMBOL_REF)
+	    {
+	      X0EXP (rt_val, 1) = NULL_RTX;
+	      X0EXP (rt_val, 2) = NULL_RTX;
+	    }
 	}
     }
   else if (GET_RTX_LENGTH (code) == 2
@@ -610,6 +617,7 @@ attr_string (const char *str, int len)
   memcpy (new_str, str, len);
   new_str[len] = '\0';
   attr_hash_add_string (hashcode, new_str);
+  copy_md_ptr_loc (new_str, str);
 
   return new_str;			/* Return the new string.  */
 }
@@ -650,6 +658,7 @@ attr_copy_rtx (rtx orig)
     case CONST_DOUBLE:
     case CONST_VECTOR:
     case SYMBOL_REF:
+    case MATCH_TEST:
     case CODE_LABEL:
     case PC:
     case CC0:
@@ -831,6 +840,11 @@ check_attr_test (rtx exp, int is_const, int lineno)
 
     case NOT:
       XEXP (exp, 0) = check_attr_test (XEXP (exp, 0), is_const, lineno);
+      break;
+
+    case MATCH_TEST:
+      exp = attr_rtx (MATCH_TEST, XSTR (exp, 0));
+      ATTR_IND_SIMPLIFIED_P (exp) = 1;
       break;
 
     case MATCH_OPERAND:
@@ -1916,6 +1930,37 @@ evaluate_eq_attr (rtx exp, struct attr_desc *attr, rtx value,
   rtx newexp;
   int i;
 
+  while (GET_CODE (value) == ATTR)
+    {
+      struct attr_value *av = NULL;
+
+      attr = find_attr (&XSTR (value, 0), 0);
+
+      if (insn_code_values)
+        {
+          struct attr_value_list *iv;
+          for (iv = insn_code_values[insn_code]; iv; iv = iv->next)
+            if (iv->attr == attr)
+              {
+                av = iv->av;
+                break;
+              }
+        }
+      else
+        {
+          struct insn_ent *ie;
+          for (av = attr->first_value; av; av = av->next)
+            for (ie = av->first_insn; ie; ie = ie->next)
+              if (ie->def->insn_code == insn_code)
+                goto got_av;
+        }
+      if (av)
+        {
+        got_av:
+          value = av->value;
+        }
+    }
+
   switch (GET_CODE (value))
     {
     case CONST_STRING:
@@ -2868,6 +2913,7 @@ clear_struct_flag (rtx x)
     case CONST_INT:
     case CONST_DOUBLE:
     case CONST_VECTOR:
+    case MATCH_TEST:
     case SYMBOL_REF:
     case CODE_LABEL:
     case PC:
@@ -3532,6 +3578,12 @@ write_test_expr (rtx exp, unsigned int attrs_cached, int flags)
       printf (HOST_WIDE_INT_PRINT_DEC, XWINT (exp, 0));
       break;
 
+    case MATCH_TEST:
+      print_c_condition (XSTR (exp, 0));
+      if (flags & FLG_BITWISE)
+	printf (" != 0");
+      break;
+
     /* A random C expression.  */
     case SYMBOL_REF:
       print_c_condition (XSTR (exp, 0));
@@ -3726,6 +3778,7 @@ walk_attr_value (rtx exp)
       must_extract = 1;
       return;
 
+    case MATCH_TEST:
     case EQ_ATTR_ALT:
       must_extract = must_constrain = 1;
       break;
@@ -4119,6 +4172,13 @@ write_attr_value (struct attr_desc *attr, rtx value)
     case ATTR:
       {
 	struct attr_desc *attr2 = find_attr (&XSTR (value, 0), 0);
+	if (attr->enum_name)
+	  printf ("(enum %s)", attr->enum_name);
+	else if (!attr->is_numeric)
+	  printf ("(enum attr_%s)", attr->name);
+	else if (!attr2->is_numeric)
+	  printf ("(int)");
+
 	printf ("get_attr_%s (%s)", attr2->name,
 		(attr2->is_const ? "" : "insn"));
       }
@@ -4515,7 +4575,7 @@ gen_insn_reserv (rtx def)
 struct bypass_list
 {
   struct bypass_list *next;
-  const char *insn;
+  const char *pattern;
 };
 
 static struct bypass_list *all_bypasses;
@@ -4531,11 +4591,11 @@ gen_bypass_1 (const char *s, size_t len)
 
   s = attr_string (s, len);
   for (b = all_bypasses; b; b = b->next)
-    if (s == b->insn)
+    if (s == b->pattern)
       return;  /* already got that one */
 
   b = oballoc (struct bypass_list);
-  b->insn = s;
+  b->pattern = s;
   b->next = all_bypasses;
   all_bypasses = b;
   n_bypasses++;
@@ -4569,7 +4629,7 @@ process_bypasses (void)
      list.  */
   for (r = all_insn_reservs; r; r = r->next)
     for (b = all_bypasses; b; b = b->next)
-      if (r->name == b->insn)
+      if (fnmatch (b->pattern, r->name, 0) == 0)
 	r->bypassed = true;
 }
 

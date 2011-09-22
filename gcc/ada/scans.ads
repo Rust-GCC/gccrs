@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -47,7 +47,7 @@ package Scans is
 
    --  Note: Namet.Is_Keyword_Name depends on the fact that the first entry in
    --  this type declaration is *not* for a reserved word. For details on why
-   --  there is this requirement, see Scans.Initialize_Ada_Keywords.
+   --  there is this requirement, see Initialize_Ada_Keywords below.
 
    type Token_Type is (
 
@@ -213,6 +213,9 @@ package Scans is
       --  characters '#', '$', '?', '@', '`', '\', '^', '~', or '_'. The
       --  character value itself is stored in Scans.Special_Character.
 
+      Tok_SPARK_Hide,
+      --  HIDE directive in SPARK
+
       No_Token);
       --  No_Token is used for initializing Token values to indicate that
       --  no value has been set yet.
@@ -338,7 +341,9 @@ package Scans is
    --  Flag array used to test for reserved word
 
    procedure Initialize_Ada_Keywords;
-   --  Set up Token_Type values in Names table entries for Ada reserved words
+   --  Set up Token_Type values in Names table entries for Ada reserved
+   --  words. This ignores Ada_Version; Ada_Version is taken into account in
+   --  Snames.Is_Keyword_Name.
 
    --------------------------
    -- Scan State Variables --

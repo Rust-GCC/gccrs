@@ -85,9 +85,6 @@ struct GTY(()) inline_summary
 
   /* False when there something makes inlining impossible (such as va_arg).  */
   unsigned inlinable : 1;
-  /* False when there something makes versioning impossible.
-     Currently computed and used only by ipa-cp.  */
-  unsigned versionable : 1;
 
   /* Information about function that will result after applying all the
      inline decisions present in the callgraph.  Generally kept up to
@@ -222,7 +219,7 @@ estimate_edge_time (struct cgraph_edge *edge)
   if ((int)VEC_length (edge_growth_cache_entry, edge_growth_cache) <= edge->uid
       || !(ret = VEC_index (edge_growth_cache_entry,
 			    edge_growth_cache,
-			    edge->uid)->size))
+			    edge->uid)->time))
     return do_estimate_edge_time (edge);
   return ret - (ret > 0);
 }

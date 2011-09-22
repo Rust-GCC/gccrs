@@ -57,6 +57,8 @@ struct ssaexpand SA;
    of comminucating the profile info to the builtin expanders.  */
 gimple currently_expanding_gimple_stmt;
 
+static rtx expand_debug_expr (tree);
+
 /* Return an expression tree corresponding to the RHS of GIMPLE
    statement STMT.  */
 
@@ -269,6 +271,8 @@ add_stack_var (tree decl)
   if (v->size == 0)
     v->size = 1;
   v->alignb = align_local_variable (SSAVAR (decl));
+  /* An alignment of zero can mightily confuse us later.  */
+  gcc_assert (v->alignb != 0);
 
   /* All variables are initially in their own partition.  */
   v->representative = stack_vars_num;
@@ -907,7 +911,7 @@ expand_one_register_var (tree var)
     mark_user_reg (x);
 
   if (POINTER_TYPE_P (type))
-    mark_reg_pointer (x, TYPE_ALIGN (TREE_TYPE (type)));
+    mark_reg_pointer (x, get_pointer_alignment (var));
 }
 
 /* A subroutine of expand_one_var.  Called to assign rtl to a VAR_DECL that
@@ -1098,7 +1102,9 @@ expand_used_vars_for_block (tree block, bool toplevel)
 
   /* Expand all variables at this level.  */
   for (t = BLOCK_VARS (block); t ; t = DECL_CHAIN (t))
-    if (TREE_USED (t))
+    if (TREE_USED (t)
+        && ((TREE_CODE (t) != VAR_DECL && TREE_CODE (t) != RESULT_DECL)
+	    || !DECL_NONSHAREABLE (t)))
       expand_one_var (t, toplevel, true);
 
   this_sv_num = stack_vars_num;
@@ -1131,6 +1137,8 @@ clear_tree_used (tree block)
 
   for (t = BLOCK_VARS (block); t ; t = DECL_CHAIN (t))
     /* if (!TREE_STATIC (t) && !DECL_EXTERNAL (t)) */
+    if ((TREE_CODE (t) != VAR_DECL && TREE_CODE (t) != RESULT_DECL)
+	|| !DECL_NONSHAREABLE (t))
       TREE_USED (t) = 0;
 
   for (t = BLOCK_SUBBLOCKS (block); t ; t = BLOCK_CHAIN (t))
@@ -1859,6 +1867,21 @@ expand_call_stmt (gimple stmt)
   SET_EXPR_LOCATION (exp, gimple_location (stmt));
   TREE_BLOCK (exp) = gimple_block (stmt);
 
+  /* Ensure RTL is created for debug args.  */
+  if (decl && DECL_HAS_DEBUG_ARGS_P (decl))
+    {
+      VEC(tree, gc) **debug_args = decl_debug_args_lookup (decl);
+      unsigned int ix;
+      tree dtemp;
+
+      if (debug_args)
+	for (ix = 1; VEC_iterate (tree, *debug_args, ix, dtemp); ix += 2)
+	  {
+	    gcc_assert (TREE_CODE (dtemp) == DEBUG_EXPR_DECL);
+	    expand_debug_expr (dtemp);
+	  }
+    }
+
   lhs = gimple_call_lhs (stmt);
   if (lhs)
     expand_assignment (lhs, exp, false);
@@ -2282,7 +2305,7 @@ convert_debug_memory_address (enum machine_mode mode, rtx x,
   if (GET_MODE (x) == mode || GET_MODE (x) == VOIDmode)
     return x;
 
-  if (GET_MODE_BITSIZE (mode) < GET_MODE_BITSIZE (xmode))
+  if (GET_MODE_PRECISION (mode) < GET_MODE_PRECISION (xmode))
     x = simplify_gen_subreg (mode, x, xmode,
 			     subreg_lowpart_offset
 			     (mode, xmode));
@@ -2337,8 +2360,60 @@ convert_debug_memory_address (enum machine_mode mode, rtx x,
   return x;
 }
 
-/* Return an RTX equivalent to the value of the tree expression
-   EXP.  */
+/* Return an RTX equivalent to the value of the parameter DECL.  */
+
+static rtx
+expand_debug_parm_decl (tree decl)
+{
+  rtx incoming = DECL_INCOMING_RTL (decl);
+
+  if (incoming
+      && GET_MODE (incoming) != BLKmode
+      && ((REG_P (incoming) && HARD_REGISTER_P (incoming))
+	  || (MEM_P (incoming)
+	      && REG_P (XEXP (incoming, 0))
+	      && HARD_REGISTER_P (XEXP (incoming, 0)))))
+    {
+      rtx rtl = gen_rtx_ENTRY_VALUE (GET_MODE (incoming));
+
+#ifdef HAVE_window_save
+      /* DECL_INCOMING_RTL uses the INCOMING_REGNO of parameter registers.
+	 If the target machine has an explicit window save instruction, the
+	 actual entry value is the corresponding OUTGOING_REGNO instead.  */
+      if (REG_P (incoming)
+	  && OUTGOING_REGNO (REGNO (incoming)) != REGNO (incoming))
+	incoming
+	  = gen_rtx_REG_offset (incoming, GET_MODE (incoming),
+				OUTGOING_REGNO (REGNO (incoming)), 0);
+      else if (MEM_P (incoming))
+	{
+	  rtx reg = XEXP (incoming, 0);
+	  if (OUTGOING_REGNO (REGNO (reg)) != REGNO (reg))
+	    {
+	      reg = gen_raw_REG (GET_MODE (reg), OUTGOING_REGNO (REGNO (reg)));
+	      incoming = replace_equiv_address_nv (incoming, reg);
+	    }
+	}
+#endif
+
+      ENTRY_VALUE_EXP (rtl) = incoming;
+      return rtl;
+    }
+
+  if (incoming
+      && GET_MODE (incoming) != BLKmode
+      && !TREE_ADDRESSABLE (decl)
+      && MEM_P (incoming)
+      && (XEXP (incoming, 0) == virtual_incoming_args_rtx
+	  || (GET_CODE (XEXP (incoming, 0)) == PLUS
+	      && XEXP (XEXP (incoming, 0), 0) == virtual_incoming_args_rtx
+	      && CONST_INT_P (XEXP (XEXP (incoming, 0), 1)))))
+    return incoming;
+
+  return NULL_RTX;
+}
+
+/* Return an RTX equivalent to the value of the tree expression EXP.  */
 
 static rtx
 expand_debug_expr (tree exp)
@@ -2537,7 +2612,7 @@ expand_debug_expr (tree exp)
 	      op0 = simplify_gen_unary (FIX, mode, op0, inner_mode);
 	  }
 	else if (CONSTANT_P (op0)
-		 || GET_MODE_BITSIZE (mode) <= GET_MODE_BITSIZE (inner_mode))
+		 || GET_MODE_PRECISION (mode) <= GET_MODE_PRECISION (inner_mode))
 	  op0 = simplify_gen_subreg (mode, op0, inner_mode,
 				     subreg_lowpart_offset (mode,
 							    inner_mode));
@@ -3148,22 +3223,12 @@ expand_debug_expr (tree exp)
 		if (SSA_NAME_IS_DEFAULT_DEF (exp)
 		    && TREE_CODE (SSA_NAME_VAR (exp)) == PARM_DECL)
 		  {
-		    rtx incoming = DECL_INCOMING_RTL (SSA_NAME_VAR (exp));
-		    if (incoming
-			&& GET_MODE (incoming) != BLKmode
-			&& ((REG_P (incoming) && HARD_REGISTER_P (incoming))
-			    || (MEM_P (incoming)
-				&& REG_P (XEXP (incoming, 0))
-				&& HARD_REGISTER_P (XEXP (incoming, 0)))))
-		      {
-			op0 = gen_rtx_ENTRY_VALUE (GET_MODE (incoming));
-			ENTRY_VALUE_EXP (op0) = incoming;
-			goto adjust_mode;
-		      }
+		    op0 = expand_debug_parm_decl (SSA_NAME_VAR (exp));
+		    if (op0)
+		      goto adjust_mode;
 		    op0 = expand_debug_expr (SSA_NAME_VAR (exp));
-		    if (!op0)
-		      return NULL;
-		    goto adjust_mode;
+		    if (op0)
+		      goto adjust_mode;
 		  }
 		return NULL;
 	      }
@@ -3279,6 +3344,98 @@ expand_debug_expr (tree exp)
     }
 }
 
+/* Return an RTX equivalent to the source bind value of the tree expression
+   EXP.  */
+
+static rtx
+expand_debug_source_expr (tree exp)
+{
+  rtx op0 = NULL_RTX;
+  enum machine_mode mode = VOIDmode, inner_mode;
+
+  switch (TREE_CODE (exp))
+    {
+    case PARM_DECL:
+      {
+	mode = DECL_MODE (exp);
+	op0 = expand_debug_parm_decl (exp);
+	if (op0)
+	   break;
+	/* See if this isn't an argument that has been completely
+	   optimized out.  */
+	if (!DECL_RTL_SET_P (exp)
+	    && !DECL_INCOMING_RTL (exp)
+	    && DECL_ABSTRACT_ORIGIN (current_function_decl))
+	  {
+	    tree aexp = exp;
+	    if (DECL_ABSTRACT_ORIGIN (exp))
+	      aexp = DECL_ABSTRACT_ORIGIN (exp);
+	    if (DECL_CONTEXT (aexp)
+		== DECL_ABSTRACT_ORIGIN (current_function_decl))
+	      {
+		VEC(tree, gc) **debug_args;
+		unsigned int ix;
+		tree ddecl;
+#ifdef ENABLE_CHECKING
+		tree parm;
+		for (parm = DECL_ARGUMENTS (current_function_decl);
+		     parm; parm = DECL_CHAIN (parm))
+		  gcc_assert (parm != exp
+			      && DECL_ABSTRACT_ORIGIN (parm) != aexp);
+#endif
+		debug_args = decl_debug_args_lookup (current_function_decl);
+		if (debug_args != NULL)
+		  {
+		    for (ix = 0; VEC_iterate (tree, *debug_args, ix, ddecl);
+			 ix += 2)
+		      if (ddecl == aexp)
+			return gen_rtx_DEBUG_PARAMETER_REF (mode, aexp);
+		  }
+	      }
+	  }
+	break;
+      }
+    default:
+      break;
+    }
+
+  if (op0 == NULL_RTX)
+    return NULL_RTX;
+
+  inner_mode = GET_MODE (op0);
+  if (mode == inner_mode)
+    return op0;
+
+  if (FLOAT_MODE_P (mode) && FLOAT_MODE_P (inner_mode))
+    {
+      if (GET_MODE_BITSIZE (mode) == GET_MODE_BITSIZE (inner_mode))
+	op0 = simplify_gen_subreg (mode, op0, inner_mode, 0);
+      else if (GET_MODE_BITSIZE (mode) < GET_MODE_BITSIZE (inner_mode))
+	op0 = simplify_gen_unary (FLOAT_TRUNCATE, mode, op0, inner_mode);
+      else
+	op0 = simplify_gen_unary (FLOAT_EXTEND, mode, op0, inner_mode);
+    }
+  else if (FLOAT_MODE_P (mode))
+    gcc_unreachable ();
+  else if (FLOAT_MODE_P (inner_mode))
+    {
+      if (TYPE_UNSIGNED (TREE_TYPE (exp)))
+	op0 = simplify_gen_unary (UNSIGNED_FIX, mode, op0, inner_mode);
+      else
+	op0 = simplify_gen_unary (FIX, mode, op0, inner_mode);
+    }
+  else if (CONSTANT_P (op0)
+	   || GET_MODE_BITSIZE (mode) <= GET_MODE_BITSIZE (inner_mode))
+    op0 = simplify_gen_subreg (mode, op0, inner_mode,
+			       subreg_lowpart_offset (mode, inner_mode));
+  else if (TYPE_UNSIGNED (TREE_TYPE (exp)))
+    op0 = simplify_gen_unary (ZERO_EXTEND, mode, op0, inner_mode);
+  else
+    op0 = simplify_gen_unary (SIGN_EXTEND, mode, op0, inner_mode);
+
+  return op0;
+}
+
 /* Expand the _LOCs in debug insns.  We run this after expanding all
    regular insns, so that any variables referenced in the function
    will have their DECL_RTLs set.  */
@@ -3306,7 +3463,11 @@ expand_debug_locations (void)
 	  val = NULL_RTX;
 	else
 	  {
-	    val = expand_debug_expr (value);
+	    if (INSN_VAR_LOCATION_STATUS (insn)
+		== VAR_INIT_STATUS_UNINITIALIZED)
+	      val = expand_debug_source_expr (value);
+	    else
+	      val = expand_debug_expr (value);
 	    gcc_assert (last == get_last_insn ());
 	  }
 
@@ -3583,6 +3744,39 @@ expand_gimple_basic_block (basic_block bb)
 	      stmt = gsi_stmt (nsi);
 	      if (!gimple_debug_bind_p (stmt))
 		break;
+	    }
+
+	  set_curr_insn_source_location (sloc);
+	  set_curr_insn_block (sblock);
+	}
+      else if (gimple_debug_source_bind_p (stmt))
+	{
+	  location_t sloc = get_curr_insn_source_location ();
+	  tree sblock = get_curr_insn_block ();
+	  tree var = gimple_debug_source_bind_get_var (stmt);
+	  tree value = gimple_debug_source_bind_get_value (stmt);
+	  rtx val;
+	  enum machine_mode mode;
+
+	  last = get_last_insn ();
+
+	  set_curr_insn_source_location (gimple_location (stmt));
+	  set_curr_insn_block (gimple_block (stmt));
+
+	  mode = DECL_MODE (var);
+
+	  val = gen_rtx_VAR_LOCATION (mode, var, (rtx)value,
+				      VAR_INIT_STATUS_UNINITIALIZED);
+
+	  emit_debug_insn (val);
+
+	  if (dump_file && (dump_flags & TDF_DETAILS))
+	    {
+	      /* We can't dump the insn with a TREE where an RTX
+		 is expected.  */
+	      PAT_VAR_LOCATION_LOC (val) = const0_rtx;
+	      maybe_dump_rtl_for_gimple_stmt (stmt, last);
+	      PAT_VAR_LOCATION_LOC (val) = (rtx)value;
 	    }
 
 	  set_curr_insn_source_location (sloc);
@@ -4073,6 +4267,31 @@ gimple_expand_cfg (void)
 	}
     }
 
+  /* If we have a class containing differently aligned pointers
+     we need to merge those into the corresponding RTL pointer
+     alignment.  */
+  for (i = 1; i < num_ssa_names; i++)
+    {
+      tree name = ssa_name (i);
+      int part;
+      rtx r;
+
+      if (!name
+	  || !POINTER_TYPE_P (TREE_TYPE (name))
+	  /* We might have generated new SSA names in
+	     update_alias_info_with_stack_vars.  They will have a NULL
+	     defining statements, and won't be part of the partitioning,
+	     so ignore those.  */
+	  || !SSA_NAME_DEF_STMT (name))
+	continue;
+      part = var_to_partition (SA.map, name);
+      if (part == NO_PARTITION)
+	continue;
+      r = SA.partition_to_pseudo[part];
+      if (REG_P (r))
+	mark_reg_pointer (r, get_pointer_alignment (name));
+    }
+
   /* If this function is `main', emit a call to `__main'
      to run global initializers, etc.  */
   if (DECL_NAME (current_function_decl)
@@ -4255,7 +4474,6 @@ struct rtl_opt_pass pass_expand =
   PROP_ssa | PROP_trees,		/* properties_destroyed */
   TODO_verify_ssa | TODO_verify_flow
     | TODO_verify_stmts,		/* todo_flags_start */
-  TODO_dump_func
-  | TODO_ggc_collect			/* todo_flags_finish */
+  TODO_ggc_collect			/* todo_flags_finish */
  }
 };

@@ -34,14 +34,14 @@ along with GCC; see the file COPYING3.  If not see
 
 static bool ix86_pragma_target_parse (tree, tree);
 static void ix86_target_macros_internal
-  (int, enum processor_type, enum processor_type, enum fpmath_unit,
+  (HOST_WIDE_INT, enum processor_type, enum processor_type, enum fpmath_unit,
    void (*def_or_undef) (cpp_reader *, const char *));
 
 
 /* Internal function to either define or undef the appropriate system
    macros.  */
 static void
-ix86_target_macros_internal (int isa_flag,
+ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
 			     enum processor_type arch,
 			     enum processor_type tune,
 			     enum fpmath_unit fpmath,
@@ -109,6 +109,10 @@ ix86_target_macros_internal (int isa_flag,
     case PROCESSOR_BDVER1:
       def_or_undef (parse_in, "__bdver1");
       def_or_undef (parse_in, "__bdver1__");
+      break;
+    case PROCESSOR_BDVER2:
+      def_or_undef (parse_in, "__bdver2");
+      def_or_undef (parse_in, "__bdver2__");
       break;
     case PROCESSOR_BTVER1:
       def_or_undef (parse_in, "__btver1");
@@ -198,6 +202,9 @@ ix86_target_macros_internal (int isa_flag,
     case PROCESSOR_BDVER1:
       def_or_undef (parse_in, "__tune_bdver1__");
       break;
+    case PROCESSOR_BDVER2:
+      def_or_undef (parse_in, "__tune_bdver2__");
+      break;
    case PROCESSOR_BTVER1:
       def_or_undef (parse_in, "__tune_btver1__");
       break;
@@ -250,6 +257,8 @@ ix86_target_macros_internal (int isa_flag,
     def_or_undef (parse_in, "__PCLMUL__");
   if (isa_flag & OPTION_MASK_ISA_AVX)
     def_or_undef (parse_in, "__AVX__");
+  if (isa_flag & OPTION_MASK_ISA_AVX2)
+    def_or_undef (parse_in, "__AVX2__");
   if (isa_flag & OPTION_MASK_ISA_FMA)
     def_or_undef (parse_in, "__FMA__");
   if (isa_flag & OPTION_MASK_ISA_SSE4A)
@@ -264,6 +273,10 @@ ix86_target_macros_internal (int isa_flag,
     def_or_undef (parse_in, "__ABM__");
   if (isa_flag & OPTION_MASK_ISA_BMI)
     def_or_undef (parse_in, "__BMI__");
+  if (isa_flag & OPTION_MASK_ISA_BMI2)
+    def_or_undef (parse_in, "__BMI2__");
+  if (isa_flag & OPTION_MASK_ISA_LZCNT)
+    def_or_undef (parse_in, "__LZCNT__");
   if (isa_flag & OPTION_MASK_ISA_TBM)
     def_or_undef (parse_in, "__TBM__");
   if (isa_flag & OPTION_MASK_ISA_POPCNT)
@@ -292,9 +305,9 @@ ix86_pragma_target_parse (tree args, tree pop_target)
   tree cur_tree;
   struct cl_target_option *prev_opt;
   struct cl_target_option *cur_opt;
-  int prev_isa;
-  int cur_isa;
-  int diff_isa;
+  HOST_WIDE_INT prev_isa;
+  HOST_WIDE_INT cur_isa;
+  HOST_WIDE_INT diff_isa;
   enum processor_type prev_arch;
   enum processor_type prev_tune;
   enum processor_type cur_arch;

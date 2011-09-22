@@ -1,3 +1,152 @@
+2011-09-21  Jakub Jelinek  <jakub@redhat.com>
+
+	* MAINTAINERS (sparc port): Remove myself.
+
+2011-09-14  Tom de Vries  <tom@codesourcery.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2011-08-14  Yao Qi  <yao@codesourcery.com>
+
+	* configure.ac (tic6x-*-*): Remove gdb from noconfigdirs.
+	* configure: Regenerate.
+
+2011-07-26  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Set have_compiler based on whether gcc directory
+	exists, rather than on whether gcc is in configdirs.
+	* configure: Rebuild.
+
+2011-07-21  Joseph Myers  <joseph@codesourcery.com>
+
+	* MAINTAINERS (Global Reviewers): Add self.
+
+2011-07-20  David Edelsohn  <dje.gcc@gmail.com>
+
+	* Makefile.tpl (POSTSTAGE1_CONFIGURE_FLAGS): Add libsupc++ to
+	link directories.
+	* Makefile.in: Rebuild.
+
+2011-07-20  Ian Lance Taylor  <iant@google.com>
+
+	PR bootstrap/49787
+	* configure.ac: Move --enable-bootstrap handling earlier in file.
+	If --enable-bootstrap and either --enable-build-with-cxx or
+	--enable-build-poststage1-with-cxx, enable C++ automatically.
+	* configure: Rebuild.
+
+2011-07-19  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: Add --enable-build-poststage1-with-cxx.  If set,
+	make C++ a boot_language.  Set and substitute
+	POSTSTAGE1_CONFIGURE_FLAGS.
+	* Makefile.tpl (POSTSTAGE1_CONFIGURE_FLAGS): New variable.
+	(STAGE[+id+]_CONFIGURE_FLAGS): Add $(POSTSTAGE1_CONFIGURE_FLAGS).
+	* configure, Makefile.in: Rebuild.
+
+2011-07-19  Vladimir Makarov  <vmakarov@redhat.com>
+
+	* MAINTAINERS (Register Allocation): Move myself from reviewers to
+	maintainers.
+
+2011-07-18  Jakub Jelinek  <jakub@redhat.com>
+
+	* MAINTAINERS (Global Reviewers): Add myself.
+
+2011-07-18  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure: Regenerate.
+
+2011-07-16  Jason Merrill  <jason@redhat.com>
+
+	* Makefile.def (language=c++): Add check-c++0x and
+	check-target-libmudflap-c++.
+	* Makefile.tpl (check-target-libmudflap-c++): New.
+	* Makefile.in: Regenerate.
+
+2011-07-16  Matthias Klose  <doko@ubuntu.com>
+
+	* Makefile.tpl (EXTRA_CONFIGARGS_LIBJAVA): Define.
+	* Makefile.def (target_modules/libjava): Pass
+	$(EXTRA_CONFIGARGS_LIBJAVA).
+	* configure.ac: Pass --disable-static in EXTRA_CONFIGARGS_LIBJAVA,
+	if not configured with --enable-static-libjava.
+	* Makefile.in: Regenerate.
+	* configure: Likewise.
+
+2011-07-15  Jason Merrill  <jason@redhat.com>
+
+	* Makefile.in (check-c++): Move check-gcc-c++0x after
+	check-target-libstdc++-v3.
+
+2011-07-15  Bernd Schmidt  <bernds@codesourcery.com>
+
+	* MAINTAINERS (c6x port): New entry.
+
+2011-07-13  Jason Merrill  <jason@redhat.com>
+
+	* Makefile.in (check-gcc-c++0x): New.
+	(check-c++): Depend on it.
+
+2011-07-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR target/39150
+	* configure.ac (i[3456789]86-*-solaris2*): Also accept
+	x86_64-*-solaris2.1[0-9]*.
+	* configure: Regenerate.
+
+2011-06-29  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* MAINTAINERS (RTL optimizers): Add self.
+
+2011-06-27  Gabriel Charette  <gchare@google.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2011-06-22  Hans-Peter Nilsson  <hp@axis.com>
+
+	PR regression/47836
+	PR bootstrap/23656
+	PR other/47733
+	PR bootstrap/49247
+	PR c/48825
+	* configure.ac (target_libraries): Remove target-libiberty.
+	Remove case-statement setting skipdirs=target-libiberty for
+	multiple targets.  Remove checking target_configdirs and
+	removing target-libiberty but keeping target-libgcc if
+	otherwise empty.
+	* Makefile.def (target_modules): Don't add libiberty.
+	(dependencies): Remove all traces of target-libiberty.
+	* configure, Makefile.in: Regenerate.
+
+2011-06-13  Walter Lee <walt@tilera.com>
+
+	* configure.ac (tilepro-*-*) New case.
+	(tilegx-*-*): Likewise.
+	* configure: Regenerate.
+
+2011-06-06  Jing Yu  <jingyu@google.com>
+
+	* configure.ac: Skip target-libiberty for
+	arm*-*-linux-androideabi.
+	* configure: Regenerated.
+
+2011-06-06  Nick Clifton  <nickc@redhat.com>
+
+	* config.sub: Sync from upstream.
+
+2011-06-05  Nenad Vukicevic  <nenad@intrepid.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2011-06-01  Daniel Jacobowitz  <drow@false.org>
+
+	* MAINTAINERS: Update my email address.
+
+2011-05-27  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* MAINTAINERS (Write After Approval): Update my email address.
+
 2011-05-11  Paul Pluzhnikov  <ppluzhnikov@google.com>
 
 	* MAINTAINERS (Write After Approval): Add myself.

@@ -221,6 +221,16 @@ cxx_print_xnode (FILE *file, tree node, int indent)
 	  fprintf (file, "pending_template");
 	}
       break;
+    case ARGUMENT_PACK_SELECT:
+      print_node (file, "pack", ARGUMENT_PACK_SELECT_FROM_PACK (node),
+		  indent+4);
+      indent_to (file, indent + 3);
+      fprintf (file, "index %d", ARGUMENT_PACK_SELECT_INDEX (node));
+      break;
+    case DEFERRED_NOEXCEPT:
+      print_node (file, "pattern", DEFERRED_NOEXCEPT_PATTERN (node), indent+4);
+      print_node (file, "args", DEFERRED_NOEXCEPT_ARGS (node), indent+4);
+      break;
     default:
       break;
     }

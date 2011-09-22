@@ -1,6 +1,7 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006, 2007, 2009, 2010 Free Software Foundation, Inc.
+// Copyright (C) 2005, 2006, 2007, 2009, 2010, 2011
+// Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -48,43 +49,48 @@
 
 namespace __gnu_pbds
 {
-  // A null node updator, indicating that no node updates are required.
-  template<typename Const_Node_Iterator,
-	   typename Node_Iterator,
-	   typename E_Access_Traits,
-	   typename Allocator>
-  struct null_trie_node_update
-  { };
+#define PB_DS_CLASS_T_DEC \
+  template<typename String, typename String::value_type Min_E_Val, \
+	   typename String::value_type Max_E_Val, bool Reverse, \
+	   typename _Alloc>
 
-#define PB_DS_CLASS_T_DEC						\
-  template<typename String, typename String::value_type Min_E_Val, typename String::value_type Max_E_Val, bool Reverse, typename Allocator>
+#define PB_DS_CLASS_C_DEC \
+  trie_string_access_traits<String, Min_E_Val,Max_E_Val,Reverse,_Alloc>
 
-#define PB_DS_CLASS_C_DEC						\
-  string_trie_e_access_traits<String, Min_E_Val,Max_E_Val,Reverse,Allocator>
-
-  // Element access traits for string types.
+  /**
+   *  Element access traits for string types.
+   *
+   *  @tparam String 	    	String type.
+   *  @tparam Min_E_Val        	Minimal element value.
+   *  @tparam Max_E_Val	    	Maximum element value.
+   *  @tparam Reverse	        Reverse iteration should be used.
+   *                            Default: false.
+   *  @tparam _Alloc 	    	Allocator type.
+   */
   template<typename String = std::string,
-	   typename String::value_type Min_E_Val = detail::__numeric_traits<typename String::value_type>::__min, 
-	   typename String::value_type Max_E_Val = detail::__numeric_traits<typename String::value_type>::__max, 
+	   typename String::value_type Min_E_Val = detail::__numeric_traits<typename String::value_type>::__min,
+	   typename String::value_type Max_E_Val = detail::__numeric_traits<typename String::value_type>::__max,
 	   bool Reverse = false,
-	   typename Allocator = std::allocator<char> >
-  struct string_trie_e_access_traits
+	   typename _Alloc = std::allocator<char> >
+  struct trie_string_access_traits
   {
   public:
-    typedef typename Allocator::size_type size_type;
-    typedef String key_type;
-    typedef typename Allocator::template rebind<key_type>::other key_rebind;
-    typedef typename key_rebind::const_reference const_key_reference;
+    typedef typename _Alloc::size_type			  size_type;
+    typedef String 					  key_type;
+    typedef typename _Alloc::template rebind<key_type>	  __rebind_k;
+    typedef typename __rebind_k::other::const_reference   key_const_reference;
 
     enum
       {
 	reverse = Reverse
       };
 
-    // Element const iterator type.
-    typedef typename detail::__conditional_type<Reverse, typename String::const_reverse_iterator, typename String::const_iterator>::__type const_iterator;
+    /// Element const iterator type.
+    typedef typename detail::__conditional_type<Reverse, \
+		       typename String::const_reverse_iterator, \
+		       typename String::const_iterator>::__type const_iterator;
 
-    // Element type.
+    /// Element type.
     typedef typename std::iterator_traits<const_iterator>::value_type e_type;
 
     enum
@@ -95,140 +101,141 @@ namespace __gnu_pbds
       };
     PB_DS_STATIC_ASSERT(min_max_size, max_size >= 2);
 
-    // Returns a const_iterator to the first element of
-    // const_key_reference agumnet.
+    /// Returns a const_iterator to the first element of
+    /// key_const_reference agumnet.
     inline static const_iterator
-    begin(const_key_reference);
+    begin(key_const_reference);
 
-    // Returns a const_iterator to the after-last element of
-    // const_key_reference argument.
+    /// Returns a const_iterator to the after-last element of
+    /// key_const_reference argument.
     inline static const_iterator
-    end(const_key_reference);
+    end(key_const_reference);
 
-    // Maps an element to a position.
+    /// Maps an element to a position.
     inline static size_type
     e_pos(e_type e);
 
   private:
+    inline static const_iterator
+    begin_imp(key_const_reference, detail::false_type);
 
     inline static const_iterator
-    begin_imp(const_key_reference, detail::false_type);
+    begin_imp(key_const_reference, detail::true_type);
 
     inline static const_iterator
-    begin_imp(const_key_reference, detail::true_type);
+    end_imp(key_const_reference, detail::false_type);
 
     inline static const_iterator
-    end_imp(const_key_reference, detail::false_type);
-
-    inline static const_iterator
-    end_imp(const_key_reference, detail::true_type);
+    end_imp(key_const_reference, detail::true_type);
 
     static detail::integral_constant<int, Reverse> s_rev_ind;
   };
 
-#include <ext/pb_ds/detail/trie_policy/string_trie_e_access_traits_imp.hpp>
+#include <ext/pb_ds/detail/trie_policy/trie_string_access_traits_imp.hpp>
 
 #undef PB_DS_CLASS_T_DEC
 #undef PB_DS_CLASS_C_DEC
 
 #define PB_DS_CLASS_T_DEC \
-  template<typename Const_Node_Iterator,typename Node_Iterator,class E_Access_Traits, typename Allocator>
+  template<typename Node_CItr,typename Node_Itr, \
+	   typename _ATraits, typename _Alloc>
 
 #define PB_DS_CLASS_C_DEC \
-  trie_prefix_search_node_update<Const_Node_Iterator, Node_Iterator, E_Access_Traits,Allocator>
+  trie_prefix_search_node_update<Node_CItr, Node_Itr, \
+				 _ATraits,_Alloc>
 
-#define PB_DS_BASE_C_DEC \
-  detail::trie_policy_base<Const_Node_Iterator,Node_Iterator,E_Access_Traits, Allocator>
+#define PB_DS_TRIE_POLICY_BASE \
+  detail::trie_policy_base<Node_CItr,Node_Itr,_ATraits, _Alloc>
 
-  // A node updator that allows tries to be searched for the range of
-  // values that match a certain prefix.
-  template<typename Const_Node_Iterator,
-	   typename Node_Iterator,
-	   typename E_Access_Traits,
-	   typename Allocator>
-  class trie_prefix_search_node_update : private PB_DS_BASE_C_DEC
+  /// A node updator that allows tries to be searched for the range of
+  /// values that match a certain prefix.
+  template<typename Node_CItr,
+	   typename Node_Itr,
+	   typename _ATraits,
+	   typename _Alloc>
+  class trie_prefix_search_node_update : private PB_DS_TRIE_POLICY_BASE
   {
   private:
-    typedef PB_DS_BASE_C_DEC base_type;
+    typedef PB_DS_TRIE_POLICY_BASE 		       	base_type;
 
   public:
-    typedef typename base_type::key_type key_type;
-    typedef typename base_type::const_key_reference const_key_reference;
+    typedef typename base_type::key_type 		key_type;
+    typedef typename base_type::key_const_reference 	key_const_reference;
 
-    // Element access traits.
-    typedef E_Access_Traits e_access_traits;
+    /// Element access traits.
+    typedef _ATraits 				access_traits;
 
-    // Const element iterator.
-    typedef typename e_access_traits::const_iterator const_e_iterator;
+    /// Const element iterator.
+    typedef typename access_traits::const_iterator 	a_const_iterator;
 
-    // Allocator type.
-    typedef Allocator allocator_type;
+    /// _Alloc type.
+    typedef _Alloc 	       				allocator_type;
 
-    // Size type.
-    typedef typename allocator_type::size_type size_type;
-    typedef detail::null_node_metadata metadata_type;
-    typedef Const_Node_Iterator const_node_iterator;
-    typedef Node_Iterator node_iterator;
-    typedef typename const_node_iterator::value_type const_iterator;
-    typedef typename node_iterator::value_type iterator;
+    /// Size type.
+    typedef typename allocator_type::size_type 		size_type;
+    typedef null_type 					metadata_type;
+    typedef Node_Itr 					node_iterator;
+    typedef Node_CItr 					node_const_iterator;
+    typedef typename node_iterator::value_type 		iterator;
+    typedef typename node_const_iterator::value_type 	const_iterator;
 
-    // Finds the const iterator range corresponding to all values
-    // whose prefixes match r_key.
+    /// Finds the const iterator range corresponding to all values
+    /// whose prefixes match r_key.
     std::pair<const_iterator, const_iterator>
-    prefix_range(const_key_reference) const;
+    prefix_range(key_const_reference) const;
 
-    // Finds the iterator range corresponding to all values whose
-    // prefixes match r_key.
+    /// Finds the iterator range corresponding to all values whose
+    /// prefixes match r_key.
     std::pair<iterator, iterator>
-    prefix_range(const_key_reference);
+    prefix_range(key_const_reference);
 
-    // Finds the const iterator range corresponding to all values
-    // whose prefixes match [b, e).
+    /// Finds the const iterator range corresponding to all values
+    /// whose prefixes match [b, e).
     std::pair<const_iterator, const_iterator>
-    prefix_range(const_e_iterator, const_e_iterator) const;
+    prefix_range(a_const_iterator, a_const_iterator) const;
 
-    // Finds the iterator range corresponding to all values whose
-    // prefixes match [b, e).
+    /// Finds the iterator range corresponding to all values whose
+    /// prefixes match [b, e).
     std::pair<iterator, iterator>
-    prefix_range(const_e_iterator, const_e_iterator);
+    prefix_range(a_const_iterator, a_const_iterator);
 
   protected:
-    // Called to update a node's metadata.
+    /// Called to update a node's metadata.
     inline void
-    operator()(node_iterator node_it, const_node_iterator end_nd_it) const;
+    operator()(node_iterator node_it, node_const_iterator end_nd_it) const;
 
   private:
-    // Returns the const iterator associated with the just-after last element.
+    node_iterator
+    next_child(node_iterator, a_const_iterator, a_const_iterator,
+	       node_iterator, const access_traits&);
+
+    /// Returns the const iterator associated with the just-after last element.
     virtual const_iterator
     end() const = 0;
 
-    // Returns the iterator associated with the just-after last element.
+    /// Returns the iterator associated with the just-after last element.
     virtual iterator
     end() = 0;
 
-    // Returns the const_node_iterator associated with the trie's root node.
-    virtual const_node_iterator
+    /// Returns the node_const_iterator associated with the trie's root node.
+    virtual node_const_iterator
     node_begin() const = 0;
 
-    // Returns the node_iterator associated with the trie's root node.
+    /// Returns the node_iterator associated with the trie's root node.
     virtual node_iterator
     node_begin() = 0;
 
-    // Returns the const_node_iterator associated with a just-after leaf node.
-    virtual const_node_iterator
+    /// Returns the node_const_iterator associated with a just-after leaf node.
+    virtual node_const_iterator
     node_end() const = 0;
 
-    // Returns the node_iterator associated with a just-after leaf node.
+    /// Returns the node_iterator associated with a just-after leaf node.
     virtual node_iterator
     node_end() = 0;
 
-    // Access to the cmp_fn object.
-    virtual const e_access_traits& 
-    get_e_access_traits() const = 0;
-
-    node_iterator
-    next_child(node_iterator, const_e_iterator, const_e_iterator, 
-	       node_iterator, const e_access_traits&);
+    /// Access to the cmp_fn object.
+    virtual const access_traits&
+    get_access_traits() const = 0;
   };
 
 #include <ext/pb_ds/detail/trie_policy/prefix_search_node_update_imp.hpp>
@@ -236,120 +243,118 @@ namespace __gnu_pbds
 #undef PB_DS_CLASS_C_DEC
 
 #define PB_DS_CLASS_C_DEC \
-  trie_order_statistics_node_update<Const_Node_Iterator, Node_Iterator,E_Access_Traits, Allocator>
+  trie_order_statistics_node_update<Node_CItr, Node_Itr, \
+				    _ATraits, _Alloc>
 
-  // Functor updating ranks of entrees.
-  template<typename Const_Node_Iterator,
-	   typename Node_Iterator,
-	   typename E_Access_Traits,
-	   typename Allocator>
-  class trie_order_statistics_node_update : private PB_DS_BASE_C_DEC
+  /// Functor updating ranks of entrees.
+  template<typename Node_CItr,
+	   typename Node_Itr,
+	   typename _ATraits,
+	   typename _Alloc>
+  class trie_order_statistics_node_update : private PB_DS_TRIE_POLICY_BASE
   {
   private:
-    typedef PB_DS_BASE_C_DEC base_type;
+    typedef PB_DS_TRIE_POLICY_BASE 		       	base_type;
 
   public:
-    typedef E_Access_Traits e_access_traits;
-    typedef typename e_access_traits::const_iterator const_e_iterator;
-    typedef Allocator allocator_type;
-    typedef typename allocator_type::size_type size_type;
-    typedef typename base_type::key_type key_type;
-    typedef typename base_type::const_key_reference const_key_reference;
+    typedef _ATraits 				access_traits;
+    typedef typename access_traits::const_iterator 	a_const_iterator;
+    typedef _Alloc 					allocator_type;
+    typedef typename allocator_type::size_type 		size_type;
+    typedef typename base_type::key_type 		key_type;
+    typedef typename base_type::key_const_reference 	key_const_reference;
 
-    typedef size_type metadata_type;
-    typedef Const_Node_Iterator const_node_iterator;
-    typedef Node_Iterator node_iterator;
-    typedef typename const_node_iterator::value_type const_iterator;
-    typedef typename node_iterator::value_type iterator;
+    typedef size_type 					metadata_type;
+    typedef Node_CItr 					node_const_iterator;
+    typedef Node_Itr 					node_iterator;
+    typedef typename node_const_iterator::value_type 	const_iterator;
+    typedef typename node_iterator::value_type 		iterator;
 
-    // Finds an entry by __order. Returns a const_iterator to the
-    // entry with the __order order, or a const_iterator to the
-    // container object's end if order is at least the size of the
-    // container object.
+    /// Finds an entry by __order. Returns a const_iterator to the
+    /// entry with the __order order, or a const_iterator to the
+    /// container object's end if order is at least the size of the
+    /// container object.
     inline const_iterator
     find_by_order(size_type) const;
 
-    // Finds an entry by __order. Returns an iterator to the entry
-    // with the __order order, or an iterator to the container
-    // object's end if order is at least the size of the container
-    // object.
+    /// Finds an entry by __order. Returns an iterator to the entry
+    /// with the __order order, or an iterator to the container
+    /// object's end if order is at least the size of the container
+    /// object.
     inline iterator
     find_by_order(size_type);
 
-    // Returns the order of a key within a sequence. For exapmle, if
-    // r_key is the smallest key, this method will return 0; if r_key
-    // is a key between the smallest and next key, this method will
-    // return 1; if r_key is a key larger than the largest key, this
-    // method will return the size of r_c.
+    /// Returns the order of a key within a sequence. For exapmle, if
+    /// r_key is the smallest key, this method will return 0; if r_key
+    /// is a key between the smallest and next key, this method will
+    /// return 1; if r_key is a key larger than the largest key, this
+    /// method will return the size of r_c.
     inline size_type
-    order_of_key(const_key_reference) const;
+    order_of_key(key_const_reference) const;
 
-    // Returns the order of a prefix within a sequence. For exapmle,
-    // if [b, e] is the smallest prefix, this method will return 0; if
-    // r_key is a key between the smallest and next key, this method
-    // will return 1; if r_key is a key larger than the largest key,
-    // this method will return the size of r_c.
+    /// Returns the order of a prefix within a sequence. For exapmle,
+    /// if [b, e] is the smallest prefix, this method will return 0; if
+    /// r_key is a key between the smallest and next key, this method
+    /// will return 1; if r_key is a key larger than the largest key,
+    /// this method will return the size of r_c.
     inline size_type
-    order_of_prefix(const_e_iterator, const_e_iterator) const;
+    order_of_prefix(a_const_iterator, a_const_iterator) const;
+
+  protected:
+    /// Updates the rank of a node through a node_iterator node_it;
+    /// end_nd_it is the end node iterator.
+    inline void
+    operator()(node_iterator, node_const_iterator) const;
 
   private:
-    typedef typename base_type::const_reference const_reference;
-    typedef typename base_type::const_pointer const_pointer;
+    typedef typename base_type::const_reference 	const_reference;
+    typedef typename base_type::const_pointer 		const_pointer;
 
-    typedef typename Allocator::template rebind<metadata_type>::other metadata_rebind;
-    typedef typename metadata_rebind::const_reference const_metadata_reference;
-    typedef typename metadata_rebind::reference metadata_reference;
+    typedef typename _Alloc::template rebind<metadata_type> __rebind_m;
+    typedef typename __rebind_m::other 			__rebind_ma;
+    typedef typename __rebind_ma::const_reference      metadata_const_reference;
+    typedef typename __rebind_ma::reference 		metadata_reference;
 
-    // Returns true if the container is empty.
+    /// Returns true if the container is empty.
     virtual bool
     empty() const = 0;
 
-    // Returns the iterator associated with the trie's first element.
+    /// Returns the iterator associated with the trie's first element.
     virtual iterator
     begin() = 0;
 
-    // Returns the iterator associated with the trie's
-    // just-after-last element.
+    /// Returns the iterator associated with the trie's
+    /// just-after-last element.
     virtual iterator
     end() = 0;
 
-    // Returns the const_node_iterator associated with the trie's root node.
-    virtual const_node_iterator
+    /// Returns the node_const_iterator associated with the trie's root node.
+    virtual node_const_iterator
     node_begin() const = 0;
 
-    // Returns the node_iterator associated with the trie's root node.
+    /// Returns the node_iterator associated with the trie's root node.
     virtual node_iterator
     node_begin() = 0;
 
-    // Returns the const_node_iterator associated with a just-after
-    // leaf node.
-    virtual const_node_iterator
+    /// Returns the node_const_iterator associated with a just-after
+    /// leaf node.
+    virtual node_const_iterator
     node_end() const = 0;
 
-    // Returns the node_iterator associated with a just-after leaf node.
+    /// Returns the node_iterator associated with a just-after leaf node.
     virtual node_iterator
     node_end() = 0;
 
-    // Access to the cmp_fn object.
-    virtual e_access_traits& 
-    get_e_access_traits() = 0;
-
-  protected:
-    // Updates the rank of a node through a node_iterator node_it;
-    // end_nd_it is the end node iterator.
-    inline void
-    operator()(node_iterator, const_node_iterator) const;
-
-    // Destructor.
-    virtual
-    ~trie_order_statistics_node_update();
+    /// Access to the cmp_fn object.
+    virtual access_traits&
+    get_access_traits() = 0;
   };
 
 #include <ext/pb_ds/detail/trie_policy/order_statistics_imp.hpp>
 
 #undef PB_DS_CLASS_T_DEC
 #undef PB_DS_CLASS_C_DEC
-#undef PB_DS_BASE_C_DEC
+#undef PB_DS_TRIE_POLICY_BASE
 
 } // namespace __gnu_pbds
 

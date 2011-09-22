@@ -542,7 +542,7 @@ extern void flush_pending_stmts (edge);
 extern void verify_ssa (bool);
 extern void delete_tree_ssa (void);
 extern bool ssa_undefined_value_p (tree);
-extern void warn_uninit (enum opt_code, tree, const char *, void *);
+extern void warn_uninit (enum opt_code, tree, tree, tree, const char *, void *);
 extern unsigned int warn_uninitialized_vars (bool);
 extern void execute_update_addresses_taken (void);
 
@@ -597,6 +597,7 @@ extern void dump_dominator_optimization_stats (FILE *);
 extern void debug_dominator_optimization_stats (void);
 int loop_depth_of_name (tree);
 tree degenerate_phi_result (gimple);
+bool simple_iv_increment_p (gimple);
 
 /* In tree-ssa-copy.c  */
 extern void propagate_value (use_operand_p, tree);
@@ -699,8 +700,6 @@ bool gimple_duplicate_loop_to_header_edge (struct loop *, edge,
 struct loop *slpeel_tree_duplicate_loop_to_edge_cfg (struct loop *, edge);
 void rename_variables_in_loop (struct loop *);
 void rename_variables_in_bb (basic_block bb);
-struct loop *tree_ssa_loop_version (struct loop *, tree,
-				    basic_block *);
 tree expand_simple_operations (tree);
 void substitute_in_loop_info (struct loop *, tree, tree);
 edge single_dom_exit (struct loop *);
@@ -808,7 +807,7 @@ bool may_be_nonaddressable_p (tree expr);
 
 /* In tree-ssa-threadupdate.c.  */
 extern bool thread_through_all_blocks (bool);
-extern void register_jump_thread (edge, edge);
+extern void register_jump_thread (edge, edge, edge);
 
 /* In gimplify.c  */
 tree force_gimple_operand_1 (tree, gimple_seq *, gimple_predicate, tree);

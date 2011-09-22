@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -123,7 +123,7 @@ package body Endh is
    function Explicit_Start_Label (SS_Index : Nat) return Boolean;
    --  Determines whether the specified entry in the scope stack has an
    --  explicit start label (i.e. one other than one that was created by
-   --  the parser when no explicit label was present)
+   --  the parser when no explicit label was present).
 
    procedure Output_End_Deleted;
    --  Output a message complaining that the current END structure does not
@@ -166,7 +166,10 @@ package body Endh is
    -- Check_End --
    ---------------
 
-   function Check_End (Decl : Node_Id := Empty) return Boolean is
+   function Check_End
+     (Decl   : Node_Id    := Empty;
+      Is_Loc : Source_Ptr := No_Location) return Boolean
+   is
       Name_On_Separate_Line : Boolean;
       --  Set True if the name on an END line is on a separate source line
       --  from the END. This is highly suspicious, but is allowed. The point
@@ -237,7 +240,7 @@ package body Endh is
                End_Type := E_Loop;
 
             --  FOR or WHILE allowed (signalling error) to substitute for LOOP
-            --  if on the same line as the END
+            --  if on the same line as the END.
 
             elsif (Token = Tok_For or else Token = Tok_While)
               and then not Token_Is_At_Start_Of_Line
@@ -371,11 +374,16 @@ package body Endh is
                   Set_Comes_From_Source (End_Labl, False);
                   End_Labl_Present := False;
 
-                  --  Do style check for missing label
+                  --  Do style check for label permitted but not present. Note:
+                  --  for the case of a block statement, the label is required
+                  --  to be repeated, and this legality rule is enforced
+                  --  independently.
 
                   if Style_Check
                     and then End_Type = E_Name
                     and then Explicit_Start_Label (Scope.Last)
+                    and then Nkind (Parent (Scope.Table (Scope.Last).Labl))
+                               /= N_Block_Statement
                   then
                      Style.No_End_Name (Scope.Table (Scope.Last).Labl);
                   end if;
@@ -390,11 +398,31 @@ package body Endh is
 
          if End_Type /= E_Record then
 
-            --  Scan aspect specifications if permitted here
+            --  Scan aspect specifications
 
             if Aspect_Specifications_Present then
+
+               --  Aspect specifications not allowed
+
                if No (Decl) then
-                  P_Aspect_Specifications (Error);
+
+                  --  Package declaration case
+
+                  if Is_Loc /= No_Location then
+                     Error_Msg_SC
+                       ("misplaced aspects for package declaration");
+                     Error_Msg
+                       ("info: aspect specifications belong here", Is_Loc);
+                     P_Aspect_Specifications (Empty);
+
+                  --  Other cases where aspect specifications are not allowed
+
+                  else
+                     P_Aspect_Specifications (Error);
+                  end if;
+
+               --  Aspect specifications allowed
+
                else
                   P_Aspect_Specifications (Decl);
                end if;
@@ -653,14 +681,16 @@ package body Endh is
    --  Error recovery: cannot raise Error_Resync;
 
    procedure End_Statements
-     (Parent : Node_Id := Empty;
-      Decl   : Node_Id := Empty) is
+     (Parent  : Node_Id    := Empty;
+      Decl    : Node_Id    := Empty;
+      Is_Sloc : Source_Ptr := No_Location)
+   is
    begin
       --  This loop runs more than once in the case where Check_End rejects
       --  the END sequence, as indicated by Check_End returning False.
 
       loop
-         if Check_End (Decl) then
+         if Check_End (Decl, Is_Sloc) then
             if Present (Parent) then
                Set_End_Label (Parent, End_Labl);
             end if;
@@ -774,25 +804,25 @@ package body Endh is
       --  In the following test we protect the call to Comes_From_Source
       --  against lines containing previously reported syntax errors.
 
-      elsif (Etyp = E_Loop
-         or else Etyp = E_Name
-         or else Etyp = E_Suspicious_Is
-         or else Etyp = E_Bad_Is)
+      elsif (Etyp = E_Loop          or else
+             Etyp = E_Name          or else
+             Etyp = E_Suspicious_Is or else
+             Etyp = E_Bad_Is)
          and then Comes_From_Source (L)
       then
          return True;
+
       else
          return False;
       end if;
    end Explicit_Start_Label;
 
    ------------------------
-   -- Output End Deleted --
+   -- Output_End_Deleted --
    ------------------------
 
    procedure Output_End_Deleted is
    begin
-
       if End_Type = E_Loop then
          Error_Msg_SC ("no LOOP for this `END LOOP`!");
 
@@ -817,23 +847,23 @@ package body Endh is
    end Output_End_Deleted;
 
    -------------------------
-   -- Output End Expected --
+   -- Output_End_Expected --
    -------------------------
 
    procedure Output_End_Expected (Ins : Boolean) is
       End_Type : SS_End_Type;
 
    begin
-      --  Suppress message if this was a potentially junk entry (e.g. a
-      --  record entry where no record keyword was present.
+      --  Suppress message if this was a potentially junk entry (e.g. a record
+      --  entry where no record keyword was present).
 
       if Scope.Table (Scope.Last).Junk then
          return;
       end if;
 
       End_Type := Scope.Table (Scope.Last).Etyp;
-      Error_Msg_Col    := Scope.Table (Scope.Last).Ecol;
-      Error_Msg_Sloc   := Scope.Table (Scope.Last).Sloc;
+      Error_Msg_Col  := Scope.Table (Scope.Last).Ecol;
+      Error_Msg_Sloc := Scope.Table (Scope.Last).Sloc;
 
       if Explicit_Start_Label (Scope.Last) then
          Error_Msg_Node_1 := Scope.Table (Scope.Last).Labl;
@@ -878,11 +908,11 @@ package body Endh is
          Error_Msg_SC -- CODEFIX
            ("`END SELECT;` expected@ for SELECT#!");
 
-      --  All remaining cases are cases with a name (we do not treat
-      --  the suspicious is cases specially for a replaced end, only
-      --  for an inserted end).
+      --  All remaining cases are cases with a name (we do not treat the
+      --  suspicious is cases specially for a replaced end, only for an
+      --  inserted end).
 
-      elsif End_Type = E_Name or else (not Ins) then
+      elsif End_Type = E_Name or else not Ins then
          if Error_Msg_Node_1 = Empty then
             Error_Msg_SC -- CODEFIX
               ("`END;` expected@ for BEGIN#!");
@@ -893,7 +923,7 @@ package body Endh is
 
       --  The other possibility is a missing END for a subprogram with a
       --  suspicious IS (that probably should have been a semicolon). The
-      --  Missing IS confirms the suspicion!
+      --  missing IS confirms the suspicion!
 
       else -- End_Type = E_Suspicious_Is or E_Bad_Is
          Scope.Table (Scope.Last).Etyp := E_Bad_Is;
@@ -901,15 +931,15 @@ package body Endh is
    end Output_End_Expected;
 
    ------------------------
-   -- Output End Missing --
+   -- Output_End_Missing --
    ------------------------
 
    procedure Output_End_Missing is
       End_Type : SS_End_Type;
 
    begin
-      --  Suppress message if this was a potentially junk entry (e.g. a
-      --  record entry where no record keyword was present.
+      --  Suppress message if this was a potentially junk entry (e.g. a record
+      --  entry where no record keyword was present).
 
       if Scope.Table (Scope.Last).Junk then
          return;
@@ -962,7 +992,7 @@ package body Endh is
    end Output_End_Missing;
 
    ---------------------
-   -- Pop End Context --
+   -- Pop_End_Context --
    ---------------------
 
    procedure Pop_End_Context is
@@ -1016,7 +1046,7 @@ package body Endh is
          --  We also reserve an end with a name before the end of file if the
          --  name is the one we expect at the outer level.
 
-         if (Token = Tok_EOF or else
+         if (Token = Tok_EOF  or else
              Token = Tok_With or else
              Token = Tok_Separate)
            and then End_Type >= E_Name

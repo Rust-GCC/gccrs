@@ -792,7 +792,9 @@ struct mips_cpu_info {
    the ABI's file format, but it can be overridden by -msym32.  Note that
    overriding the size with -msym32 changes the ABI of relocatable objects,
    although it doesn't change the ABI of a fully-linked object.  */
-#define ABI_HAS_64BIT_SYMBOLS	(FILE_HAS_64BIT_SYMBOLS && !TARGET_SYM32)
+#define ABI_HAS_64BIT_SYMBOLS	(FILE_HAS_64BIT_SYMBOLS \
+				 && Pmode == DImode	\
+				 && !TARGET_SYM32)
 
 /* ISA has instructions for managing 64-bit fp and gp regs (e.g. mips3).  */
 #define ISA_HAS_64BIT_REGS	(ISA_MIPS3				\
@@ -1079,14 +1081,6 @@ struct mips_cpu_info {
 #endif
 
 
-/* SUBTARGET_ASM_OPTIMIZING_SPEC handles passing optimization options
-   to the assembler.  It may be overridden by subtargets.  */
-#ifndef SUBTARGET_ASM_OPTIMIZING_SPEC
-#define SUBTARGET_ASM_OPTIMIZING_SPEC "\
-%{noasmopt:-O0} \
-%{!noasmopt:%{O:-O2} %{O1:-O2} %{O2:-O2} %{O3:-O3}}"
-#endif
-
 /* SUBTARGET_ASM_DEBUGGING_SPEC handles passing debugging options to
    the assembler.  It may be overridden by subtargets.
 
@@ -1123,7 +1117,7 @@ struct mips_cpu_info {
 %{mmt} %{mno-mt} \
 %{mfix-vr4120} %{mfix-vr4130} \
 %{mfix-24k} \
-%(subtarget_asm_optimizing_spec) \
+%{noasmopt:-O0; O0|fno-delayed-branch:-O1; O*:-O2; :-O1} \
 %(subtarget_asm_debugging_spec) \
 %{mabi=*} %{!mabi=*: %(asm_abi_default_spec)} \
 %{mgp32} %{mgp64} %{march=*} %{mxgot:-xgot} \
@@ -1181,7 +1175,6 @@ struct mips_cpu_info {
 #define EXTRA_SPECS							\
   { "subtarget_cc1_spec", SUBTARGET_CC1_SPEC },				\
   { "subtarget_cpp_spec", SUBTARGET_CPP_SPEC },				\
-  { "subtarget_asm_optimizing_spec", SUBTARGET_ASM_OPTIMIZING_SPEC },	\
   { "subtarget_asm_debugging_spec", SUBTARGET_ASM_DEBUGGING_SPEC },	\
   { "subtarget_asm_spec", SUBTARGET_ASM_SPEC },				\
   { "asm_abi_default_spec", "-" MULTILIB_ABI_DEFAULT },			\
@@ -2925,3 +2918,10 @@ extern GTY(()) struct target_globals *mips16_globals;
 
 /* For switching between MIPS16 and non-MIPS16 modes.  */
 #define SWITCHABLE_TARGET 1
+
+/* Several named MIPS patterns depend on Pmode.  These patterns have the
+   form <NAME>_si for Pmode == SImode and <NAME>_di for Pmode == DImode.
+   Add the appropriate suffix to generator function NAME and invoke it
+   with arguments ARGS.  */
+#define PMODE_INSN(NAME, ARGS) \
+  (Pmode == SImode ? NAME ## _si ARGS : NAME ## _di ARGS)

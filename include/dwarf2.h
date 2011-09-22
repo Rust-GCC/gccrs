@@ -366,6 +366,8 @@ enum dwarf_attribute
     DW_AT_GNU_all_tail_call_sites = 0x2116,
     DW_AT_GNU_all_call_sites = 0x2117,
     DW_AT_GNU_all_source_call_sites = 0x2118,
+    /* Section offset into .debug_macro section.  */
+    DW_AT_GNU_macros = 0x2119,
     /* VMS extensions.  */
     DW_AT_VMS_rtnbeg_pd_address = 0x2201,
     /* GNAT extensions.  */
@@ -563,6 +565,8 @@ enum dwarf_location_atom
     DW_OP_GNU_deref_type = 0xf6,
     DW_OP_GNU_convert = 0xf7,
     DW_OP_GNU_reinterpret = 0xf9,
+    /* The GNU parameter ref extension.  */
+    DW_OP_GNU_parameter_ref = 0xfa,
     /* HP extensions.  */
     DW_OP_HP_unknown     = 0xe0, /* Ouch, the same as GNU_push_tls_address.  */
     DW_OP_HP_is_value    = 0xe1,
@@ -876,6 +880,20 @@ enum dwarf_macinfo_record_type
     DW_MACINFO_start_file = 3,
     DW_MACINFO_end_file = 4,
     DW_MACINFO_vendor_ext = 255
+  };
+
+/* Names and codes for new style macro information.  */
+enum dwarf_macro_record_type
+  {
+    DW_MACRO_GNU_define = 1,
+    DW_MACRO_GNU_undef = 2,
+    DW_MACRO_GNU_start_file = 3,
+    DW_MACRO_GNU_end_file = 4,
+    DW_MACRO_GNU_define_indirect = 5,
+    DW_MACRO_GNU_undef_indirect = 6,
+    DW_MACRO_GNU_transparent_include = 7,
+    DW_MACRO_GNU_lo_user = 0xe0,
+    DW_MACRO_GNU_hi_user = 0xff
   };
 
 /* @@@ For use with GNU frame unwind information.  */

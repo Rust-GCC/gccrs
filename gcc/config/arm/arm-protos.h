@@ -23,6 +23,7 @@
 #ifndef GCC_ARM_PROTOS_H
 #define GCC_ARM_PROTOS_H
 
+extern enum unwind_info_type arm_except_unwind_info (struct gcc_options *);
 extern int use_return_insn (int, rtx);
 extern enum reg_class arm_regno_class (int);
 extern void arm_load_pic_register (unsigned long);
@@ -46,6 +47,7 @@ extern bool arm_vector_mode_supported_p (enum machine_mode);
 extern bool arm_small_register_classes_for_mode_p (enum machine_mode);
 extern int arm_hard_regno_mode_ok (unsigned int, enum machine_mode);
 extern int const_ok_for_arm (HOST_WIDE_INT);
+extern int const_ok_for_op (HOST_WIDE_INT, enum rtx_code);
 extern int arm_split_constant (RTX_CODE, enum machine_mode, rtx,
 			       HOST_WIDE_INT, rtx, rtx, int);
 extern RTX_CODE arm_canonicalize_comparison (RTX_CODE, rtx *, rtx *);
@@ -65,8 +67,12 @@ extern int vfp3_const_double_rtx (rtx);
 extern int neon_immediate_valid_for_move (rtx, enum machine_mode, rtx *, int *);
 extern int neon_immediate_valid_for_logic (rtx, enum machine_mode, int, rtx *,
 					   int *);
+extern int neon_immediate_valid_for_shift (rtx, enum machine_mode, rtx *,
+					   int *, bool);
 extern char *neon_output_logic_immediate (const char *, rtx *,
 					  enum machine_mode, int, int);
+extern char *neon_output_shift_immediate (const char *, char, rtx *,
+					  enum machine_mode, int, bool);
 extern void neon_pairwise_reduce (rtx, rtx, enum machine_mode,
 				  rtx (*) (rtx, rtx, rtx));
 extern rtx neon_make_constant (rtx);
@@ -126,8 +132,9 @@ extern const char *output_mov_long_double_arm_from_fpa (rtx *);
 extern const char *output_mov_long_double_arm_from_arm (rtx *);
 extern const char *output_mov_double_fpa_from_arm (rtx *);
 extern const char *output_mov_double_arm_from_fpa (rtx *);
-extern const char *output_move_double (rtx *);
+extern const char *output_move_double (rtx *, bool, int *count);
 extern const char *output_move_quad (rtx *);
+extern int arm_count_output_move_double_insns (rtx *);
 extern const char *output_move_vfp (rtx *operands);
 extern const char *output_move_neon (rtx *operands);
 extern int arm_attr_length_move_neon (rtx);
@@ -171,11 +178,13 @@ extern void arm_init_expanders (void);
 extern const char *thumb_unexpanded_epilogue (void);
 extern void thumb1_expand_prologue (void);
 extern void thumb1_expand_epilogue (void);
+extern const char *thumb1_output_interwork (void);
 #ifdef TREE_CODE
 extern int is_called_in_ARM_mode (tree);
 #endif
 extern int thumb_shiftable_const (unsigned HOST_WIDE_INT);
 #ifdef RTX_CODE
+extern enum arm_cond_code maybe_get_arm_condition_code (rtx);
 extern void thumb1_final_prescan_insn (rtx);
 extern void thumb2_final_prescan_insn (rtx);
 extern const char *thumb_load_double_from_address (rtx *);
@@ -221,9 +230,14 @@ struct tune_params
   bool (*rtx_costs) (rtx, RTX_CODE, RTX_CODE, int *, bool);
   bool (*sched_adjust_cost) (rtx, rtx, rtx, int *);
   int constant_limit;
+  /* Maximum number of instructions to conditionalise in
+     arm_final_prescan_insn.  */
+  int max_insns_skipped;
   int num_prefetch_slots;
   int l1_cache_size;
   int l1_cache_line_size;
+  bool prefer_constant_pool;
+  int (*branch_cost) (bool, bool);
 };
 
 extern const struct tune_params *current_tune;

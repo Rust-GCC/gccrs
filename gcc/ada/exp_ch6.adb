@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,6 +29,7 @@ with Debug;    use Debug;
 with Einfo;    use Einfo;
 with Errout;   use Errout;
 with Elists;   use Elists;
+with Exp_Aggr; use Exp_Aggr;
 with Exp_Atag; use Exp_Atag;
 with Exp_Ch2;  use Exp_Ch2;
 with Exp_Ch3;  use Exp_Ch3;
@@ -103,26 +104,16 @@ package body Exp_Ch6 is
    --  present, then use it, otherwise pass a literal corresponding to the
    --  Alloc_Form parameter (which must not be Unspecified in that case).
 
-   procedure Add_Extra_Actual_To_Call
-     (Subprogram_Call : Node_Id;
-      Extra_Formal    : Entity_Id;
-      Extra_Actual    : Node_Id);
-   --  Adds Extra_Actual as a named parameter association for the formal
-   --  Extra_Formal in Subprogram_Call.
-
-   procedure Add_Final_List_Actual_To_Build_In_Place_Call
-     (Function_Call : Node_Id;
-      Function_Id   : Entity_Id;
-      Acc_Type      : Entity_Id;
-      Sel_Comp      : Node_Id := Empty);
-   --  Ada 2005 (AI-318-02): For a build-in-place call, if the result type has
-   --  controlled parts, add an actual parameter that is a pointer to
-   --  appropriate finalization list. The finalization list is that of the
-   --  current scope, except for "new Acc'(F(...))" in which case it's the
-   --  finalization list of the access type returned by the allocator. Acc_Type
-   --  is that type in the allocator case; Empty otherwise. If Sel_Comp is
-   --  not Empty, then it denotes a selected component and the finalization
-   --  list is obtained from the _controller list of the prefix object.
+   procedure Add_Finalization_Master_Actual_To_Build_In_Place_Call
+     (Func_Call  : Node_Id;
+      Func_Id    : Entity_Id;
+      Ptr_Typ    : Entity_Id := Empty;
+      Master_Exp : Node_Id   := Empty);
+   --  Ada 2005 (AI-318-02): If the result type of a build-in-place call needs
+   --  finalization actions, add an actual parameter which is a pointer to the
+   --  finalization master of the caller. If Master_Exp is not Empty, then that
+   --  will be passed as the actual. Otherwise, if Ptr_Typ is left Empty, this
+   --  will result in an automatic "null" value for the actual.
 
    procedure Add_Task_Actuals_To_Build_In_Place_Call
      (Function_Call : Node_Id;
@@ -161,35 +152,10 @@ package body Exp_Ch6 is
    --  the values are not changed for the call, we know immediately that
    --  we have an infinite recursion.
 
-   procedure Expand_Actuals (N : Node_Id; Subp : Entity_Id);
-   --  For each actual of an in-out or out parameter which is a numeric
-   --  (view) conversion of the form T (A), where A denotes a variable,
-   --  we insert the declaration:
-   --
-   --    Temp : T[ := T (A)];
-   --
-   --  prior to the call. Then we replace the actual with a reference to Temp,
-   --  and append the assignment:
-   --
-   --    A := TypeA (Temp);
-   --
-   --  after the call. Here TypeA is the actual type of variable A. For out
-   --  parameters, the initial declaration has no expression. If A is not an
-   --  entity name, we generate instead:
-   --
-   --    Var  : TypeA renames A;
-   --    Temp : T := Var;       --  omitting expression for out parameter.
-   --    ...
-   --    Var := TypeA (Temp);
-   --
-   --  For other in-out parameters, we emit the required constraint checks
-   --  before and/or after the call.
-   --
-   --  For all parameter modes, actuals that denote components and slices of
-   --  packed arrays are expanded into suitable temporaries.
-   --
-   --  For non-scalar objects that are possibly unaligned, add call by copy
-   --  code (copy in for IN and IN OUT, copy out for OUT and IN OUT).
+   procedure Expand_Ctrl_Function_Call (N : Node_Id);
+   --  N is a function call which returns a controlled object. Transform the
+   --  call into a temporary which retrieves the returned object from the
+   --  secondary stack using 'reference.
 
    procedure Expand_Inlined_Call
     (N         : Node_Id;
@@ -207,7 +173,7 @@ package body Exp_Ch6 is
    procedure Expand_Non_Function_Return (N : Node_Id);
    --  Called by Expand_N_Simple_Return_Statement in case we're returning from
    --  a procedure body, entry body, accept statement, or extended return
-   --  statement.  Note that all non-function returns are simple return
+   --  statement. Note that all non-function returns are simple return
    --  statements.
 
    function Expand_Protected_Object_Reference
@@ -223,9 +189,10 @@ package body Exp_Ch6 is
    --  reference to the object itself, and the call becomes a call to the
    --  corresponding protected subprogram.
 
-   function Is_Null_Procedure (Subp : Entity_Id) return Boolean;
-   --  Predicate to recognize stubbed procedures and null procedures, which
-   --  can be inlined unconditionally in all cases.
+   function Has_Unconstrained_Access_Discriminants
+     (Subtyp : Entity_Id) return Boolean;
+   --  Returns True if the given subtype is unconstrained and has one
+   --  or more access discriminants.
 
    procedure Expand_Simple_Function_Return (N : Node_Id);
    --  Expand simple return from function. In the case where we are returning
@@ -340,6 +307,99 @@ package body Exp_Ch6 is
         (Function_Call, Alloc_Form_Formal, Alloc_Form_Actual);
    end Add_Alloc_Form_Actual_To_Build_In_Place_Call;
 
+   -----------------------------------------------------------
+   -- Add_Finalization_Master_Actual_To_Build_In_Place_Call --
+   -----------------------------------------------------------
+
+   procedure Add_Finalization_Master_Actual_To_Build_In_Place_Call
+     (Func_Call  : Node_Id;
+      Func_Id    : Entity_Id;
+      Ptr_Typ    : Entity_Id := Empty;
+      Master_Exp : Node_Id   := Empty)
+   is
+   begin
+      if not Needs_BIP_Finalization_Master (Func_Id) then
+         return;
+      end if;
+
+      declare
+         Formal : constant Entity_Id :=
+                    Build_In_Place_Formal (Func_Id, BIP_Finalization_Master);
+         Loc    : constant Source_Ptr := Sloc (Func_Call);
+
+         Actual    : Node_Id;
+         Desig_Typ : Entity_Id;
+
+      begin
+         --  If there is a finalization master actual, such as the implicit
+         --  finalization master of an enclosing build-in-place function,
+         --  then this must be added as an extra actual of the call.
+
+         if Present (Master_Exp) then
+            Actual := Master_Exp;
+
+         --  Case where the context does not require an actual master
+
+         elsif No (Ptr_Typ) then
+            Actual := Make_Null (Loc);
+
+         else
+            Desig_Typ := Directly_Designated_Type (Ptr_Typ);
+
+            --  Check for a library-level access type whose designated type has
+            --  supressed finalization. Such an access types lack a master.
+            --  Pass a null actual to the callee in order to signal a missing
+            --  master.
+
+            if Is_Library_Level_Entity (Ptr_Typ)
+              and then Finalize_Storage_Only (Desig_Typ)
+            then
+               Actual := Make_Null (Loc);
+
+            --  Types in need of finalization actions
+
+            elsif Needs_Finalization (Desig_Typ) then
+
+               --  The general mechanism of creating finalization masters for
+               --  anonymous access types is disabled by default, otherwise
+               --  finalization masters will pop all over the place. Such types
+               --  use context-specific masters.
+
+               if Ekind (Ptr_Typ) = E_Anonymous_Access_Type
+                 and then No (Finalization_Master (Ptr_Typ))
+               then
+                  Build_Finalization_Master
+                    (Typ        => Ptr_Typ,
+                     Ins_Node   => Associated_Node_For_Itype (Ptr_Typ),
+                     Encl_Scope => Scope (Ptr_Typ));
+               end if;
+
+               --  Access-to-controlled types should always have a master
+
+               pragma Assert (Present (Finalization_Master (Ptr_Typ)));
+
+               Actual :=
+                 Make_Attribute_Reference (Loc,
+                   Prefix =>
+                     New_Reference_To (Finalization_Master (Ptr_Typ), Loc),
+                   Attribute_Name => Name_Unrestricted_Access);
+
+            --  Tagged types
+
+            else
+               Actual := Make_Null (Loc);
+            end if;
+         end if;
+
+         Analyze_And_Resolve (Actual, Etype (Formal));
+
+         --  Build the parameter association for the new actual and add it to
+         --  the end of the function's actuals.
+
+         Add_Extra_Actual_To_Call (Func_Call, Formal, Actual);
+      end;
+   end Add_Finalization_Master_Actual_To_Build_In_Place_Call;
+
    ------------------------------
    -- Add_Extra_Actual_To_Call --
    ------------------------------
@@ -393,79 +453,6 @@ package body Exp_Ch6 is
       end if;
    end Add_Extra_Actual_To_Call;
 
-   --------------------------------------------------
-   -- Add_Final_List_Actual_To_Build_In_Place_Call --
-   --------------------------------------------------
-
-   procedure Add_Final_List_Actual_To_Build_In_Place_Call
-     (Function_Call : Node_Id;
-      Function_Id   : Entity_Id;
-      Acc_Type      : Entity_Id;
-      Sel_Comp      : Node_Id := Empty)
-   is
-      Loc               : constant Source_Ptr := Sloc (Function_Call);
-      Final_List        : Node_Id;
-      Final_List_Actual : Node_Id;
-      Final_List_Formal : Node_Id;
-      Is_Ctrl_Result    : constant Boolean :=
-                            Needs_Finalization
-                              (Underlying_Type (Etype (Function_Id)));
-
-   begin
-      --  No such extra parameter is needed if there are no controlled parts.
-      --  The test for Needs_Finalization accounts for class-wide results
-      --  (which potentially have controlled parts, even if the root type
-      --  doesn't), and the test for a tagged result type is needed because
-      --  calls to such a function can in general occur in dispatching
-      --  contexts, which must be treated the same as a call to class-wide
-      --  functions. Both of these situations require that a finalization list
-      --  be passed.
-
-      if not Needs_BIP_Final_List (Function_Id) then
-         return;
-      end if;
-
-      --  Locate implicit finalization list parameter in the called function
-
-      Final_List_Formal := Build_In_Place_Formal (Function_Id, BIP_Final_List);
-
-      --  Create the actual which is a pointer to the appropriate finalization
-      --  list. Acc_Type is present if and only if this call is the
-      --  initialization of an allocator. Use the Current_Scope or the
-      --  Acc_Type as appropriate.
-
-      if Present (Acc_Type)
-        and then (Ekind (Acc_Type) = E_Anonymous_Access_Type
-                   or else
-                     Present (Associated_Final_Chain (Base_Type (Acc_Type))))
-      then
-         Final_List := Find_Final_List (Acc_Type);
-
-      --  If Sel_Comp is present and the function result is controlled, then
-      --  the finalization list will be obtained from the _controller list of
-      --  the selected component's prefix object.
-
-      elsif Present (Sel_Comp) and then Is_Ctrl_Result then
-         Final_List := Find_Final_List (Current_Scope, Sel_Comp);
-
-      else
-         Final_List := Find_Final_List (Current_Scope);
-      end if;
-
-      Final_List_Actual :=
-        Make_Attribute_Reference (Loc,
-          Prefix         => Final_List,
-          Attribute_Name => Name_Unrestricted_Access);
-
-      Analyze_And_Resolve (Final_List_Actual, Etype (Final_List_Formal));
-
-      --  Build the parameter association for the new actual and add it to the
-      --  end of the function's actuals.
-
-      Add_Extra_Actual_To_Call
-        (Function_Call, Final_List_Formal, Final_List_Actual);
-   end Add_Final_List_Actual_To_Build_In_Place_Call;
-
    ---------------------------------------------
    -- Add_Task_Actuals_To_Build_In_Place_Call --
    ---------------------------------------------
@@ -481,7 +468,7 @@ package body Exp_Ch6 is
    begin
       --  No such extra parameters are needed if there are no tasks
 
-      if not Has_Task (Etype (Function_Id)) then
+      if not Has_Task (Available_View (Etype (Function_Id))) then
          return;
       end if;
 
@@ -489,6 +476,12 @@ package body Exp_Ch6 is
 
       if Restriction_Active (No_Task_Hierarchy) then
          Actual := New_Occurrence_Of (RTE (RE_Library_Task_Level), Loc);
+
+      --  In the case where we use the master associated with an access type,
+      --  the actual is an entity and requires an explicit reference.
+
+      elsif Nkind (Actual) = N_Defining_Identifier then
+         Actual := New_Reference_To (Actual, Loc);
       end if;
 
       --  The master
@@ -505,8 +498,7 @@ package body Exp_Ch6 is
          --  Build the parameter association for the new actual and add it to
          --  the end of the function's actuals.
 
-         Add_Extra_Actual_To_Call
-           (Function_Call, Master_Formal, Actual);
+         Add_Extra_Actual_To_Call (Function_Call, Master_Formal, Actual);
       end;
 
       --  The activation chain
@@ -518,8 +510,8 @@ package body Exp_Ch6 is
       begin
          --  Locate implicit activation chain parameter in the called function
 
-         Activation_Chain_Formal := Build_In_Place_Formal
-           (Function_Id, BIP_Activation_Chain);
+         Activation_Chain_Formal :=
+           Build_In_Place_Formal (Function_Id, BIP_Activation_Chain);
 
          --  Create the actual which is a pointer to the current activation
          --  chain
@@ -547,15 +539,15 @@ package body Exp_Ch6 is
    function BIP_Formal_Suffix (Kind : BIP_Formal_Kind) return String is
    begin
       case Kind is
-         when BIP_Alloc_Form       =>
+         when BIP_Alloc_Form          =>
             return "BIPalloc";
-         when BIP_Final_List       =>
-            return "BIPfinallist";
-         when BIP_Master           =>
+         when BIP_Finalization_Master =>
+            return "BIPfinalizationmaster";
+         when BIP_Master              =>
             return "BIPmaster";
-         when BIP_Activation_Chain =>
+         when BIP_Activation_Chain    =>
             return "BIPactivationchain";
-         when BIP_Object_Access    =>
+         when BIP_Object_Access       =>
             return "BIPaccess";
       end case;
    end BIP_Formal_Suffix;
@@ -573,6 +565,16 @@ package body Exp_Ch6 is
    begin
       --  Maybe it would be better for each implicit formal of a build-in-place
       --  function to have a flag or a Uint attribute to identify it. ???
+
+      --  The return type in the function declaration may have been a limited
+      --  view, and the extra formals for the function were not generated at
+      --  that point. At the point of call the full view must be available and
+      --  the extra formals can be created.
+
+      if No (Extra_Formal) then
+         Create_Extra_Formals (Func);
+         Extra_Formal := Extra_Formals (Func);
+      end if;
 
       loop
          pragma Assert (Present (Extra_Formal));
@@ -1193,10 +1195,49 @@ package body Exp_Ch6 is
 
                Set_Assignment_OK (Lhs);
 
-               Append_To (Post_Call,
-                 Make_Assignment_Statement (Loc,
-                   Name       => Lhs,
-                   Expression => Expr));
+               if Is_Access_Type (E_Formal)
+                 and then Is_Entity_Name (Lhs)
+                 and then
+                   Present (Effective_Extra_Accessibility (Entity (Lhs)))
+               then
+                  --  Copyback target is an Ada 2012 stand-alone object
+                  --  of an anonymous access type
+
+                  pragma Assert (Ada_Version >= Ada_2012);
+
+                  if Type_Access_Level (E_Formal) >
+                     Object_Access_Level (Lhs)
+                  then
+                     Append_To (Post_Call,
+                       Make_Raise_Program_Error (Loc,
+                         Reason => PE_Accessibility_Check_Failed));
+                  end if;
+
+                  Append_To (Post_Call,
+                    Make_Assignment_Statement (Loc,
+                      Name       => Lhs,
+                      Expression => Expr));
+
+                  --  We would like to somehow suppress generation of the
+                  --  extra_accessibility assignment generated by the expansion
+                  --  of the above assignment statement. It's not a correctness
+                  --  issue because the following assignment renders it dead,
+                  --  but generating back-to-back assignments to the same
+                  --  target is undesirable. ???
+
+                  Append_To (Post_Call,
+                    Make_Assignment_Statement (Loc,
+                      Name       => New_Occurrence_Of (
+                        Effective_Extra_Accessibility (Entity (Lhs)), Loc),
+                      Expression => Make_Integer_Literal (Loc,
+                        Type_Access_Level (E_Formal))));
+
+               else
+                  Append_To (Post_Call,
+                    Make_Assignment_Statement (Loc,
+                      Name       => Lhs,
+                      Expression => Expr));
+               end if;
             end;
          end if;
       end Add_Call_By_Copy_Code;
@@ -1472,9 +1513,7 @@ package body Exp_Ch6 is
             --  functions that are treated as build-in-place to include other
             --  composite result types.
 
-            if Ada_Version >= Ada_2005
-              and then Is_Build_In_Place_Function_Call (Actual)
-            then
+            if Is_Build_In_Place_Function_Call (Actual) then
                Make_Build_In_Place_Call_In_Anonymous_Context (Actual);
             end if;
 
@@ -1779,6 +1818,9 @@ package body Exp_Ch6 is
       --  convoluted tree traversal before setting the proper subprogram to be
       --  called.
 
+      function Is_Direct_Deep_Call (Subp : Entity_Id) return Boolean;
+      --  Determine if Subp denotes a non-dispatching call to a Deep routine
+
       function New_Value (From : Node_Id) return Node_Id;
       --  From is the original Expression. New_Value is equivalent to a call
       --  to Duplicate_Subexpr with an explicit dereference when From is an
@@ -1805,8 +1847,10 @@ package body Exp_Ch6 is
             if No (Prev) then
                if No (Parameter_Associations (Call_Node)) then
                   Set_Parameter_Associations (Call_Node, New_List);
-                  Append (Insert_Param, Parameter_Associations (Call_Node));
                end if;
+
+               Append (Insert_Param, Parameter_Associations (Call_Node));
+
             else
                Insert_After (Prev, Insert_Param);
             end if;
@@ -1947,6 +1991,42 @@ package body Exp_Ch6 is
          raise Program_Error;
       end Inherited_From_Formal;
 
+      -------------------------
+      -- Is_Direct_Deep_Call --
+      -------------------------
+
+      function Is_Direct_Deep_Call (Subp : Entity_Id) return Boolean is
+      begin
+         if Is_TSS (Subp, TSS_Deep_Adjust)
+           or else Is_TSS (Subp, TSS_Deep_Finalize)
+           or else Is_TSS (Subp, TSS_Deep_Initialize)
+         then
+            declare
+               Actual : Node_Id;
+               Formal : Node_Id;
+
+            begin
+               Actual := First (Parameter_Associations (N));
+               Formal := First_Formal (Subp);
+               while Present (Actual)
+                 and then Present (Formal)
+               loop
+                  if Nkind (Actual) = N_Identifier
+                    and then Is_Controlling_Actual (Actual)
+                    and then Etype (Actual) = Etype (Formal)
+                  then
+                     return True;
+                  end if;
+
+                  Next (Actual);
+                  Next_Formal (Formal);
+               end loop;
+            end;
+         end if;
+
+         return False;
+      end Is_Direct_Deep_Call;
+
       ---------------
       -- New_Value --
       ---------------
@@ -1965,7 +2045,8 @@ package body Exp_Ch6 is
 
       --  Local variables
 
-      Remote        : constant Boolean := Is_Remote_Call (Call_Node);
+      Curr_S        : constant Entity_Id := Current_Scope;
+      Remote        : constant Boolean   := Is_Remote_Call (Call_Node);
       Actual        : Node_Id;
       Formal        : Entity_Id;
       Orig_Subp     : Entity_Id := Empty;
@@ -2055,6 +2136,52 @@ package body Exp_Ch6 is
          end if;
       end if;
 
+      --  Detect the following code in System.Finalization_Masters only on
+      --  .NET/JVM targets:
+      --
+      --    procedure Finalize (Master : in out Finalization_Master) is
+      --    begin
+      --       . . .
+      --       begin
+      --          Finalize (Curr_Ptr.all);
+      --
+      --  Since .NET/JVM compilers lack address arithmetic and Deep_Finalize
+      --  cannot be named in library or user code, the compiler has to install
+      --  a kludge and transform the call to Finalize into Deep_Finalize.
+
+      if VM_Target /= No_VM
+        and then Chars (Subp) = Name_Finalize
+        and then Ekind (Curr_S) = E_Block
+        and then Ekind (Scope (Curr_S)) = E_Procedure
+        and then Chars (Scope (Curr_S)) = Name_Finalize
+        and then Etype (First_Formal (Scope (Curr_S))) =
+                   RTE (RE_Finalization_Master)
+      then
+         declare
+            Deep_Fin : constant Entity_Id :=
+                         Find_Prim_Op (RTE (RE_Root_Controlled),
+                                       TSS_Deep_Finalize);
+         begin
+            --  Since Root_Controlled is a tagged type, the compiler should
+            --  always generate Deep_Finalize for it.
+
+            pragma Assert (Present (Deep_Fin));
+
+            --  Generate:
+            --    Deep_Finalize (Curr_Ptr.all);
+
+            Rewrite (N,
+              Make_Procedure_Call_Statement (Loc,
+                Name =>
+                  New_Reference_To (Deep_Fin, Loc),
+                Parameter_Associations =>
+                  New_Copy_List_Tree (Parameter_Associations (N))));
+
+            Analyze (N);
+            return;
+         end;
+      end if;
+
       --  Ada 2005 (AI-345): We have a procedure call as a triggering
       --  alternative in an asynchronous select or as an entry call in
       --  a conditional or timed select. Check whether the procedure call
@@ -2107,8 +2234,8 @@ package body Exp_Ch6 is
       --  as we go through the loop, since this is a convenient place to do it.
       --  (Though it seems that this would be better done in Expand_Actuals???)
 
-      Formal      := First_Formal (Subp);
-      Actual      := First_Actual (Call_Node);
+      Formal := First_Formal (Subp);
+      Actual := First_Actual (Call_Node);
       Param_Count := 1;
       while Present (Formal) loop
 
@@ -2134,7 +2261,7 @@ package body Exp_Ch6 is
            CW_Interface_Formals_Present
              or else
                (Ekind (Etype (Formal)) = E_Class_Wide_Type
-                  and then Is_Interface (Etype (Etype (Formal))))
+                 and then Is_Interface (Etype (Etype (Formal))))
              or else
                (Ekind (Etype (Formal)) = E_Anonymous_Access_Type
                  and then Is_Interface (Directly_Designated_Type
@@ -2314,8 +2441,7 @@ package body Exp_Ch6 is
 
                else
                   Add_Extra_Actual
-                    (Make_Integer_Literal (Loc,
-                       Intval => Type_Access_Level (Etype (Prev_Orig))),
+                    (Dynamic_Accessibility_Level (Prev_Orig),
                      Extra_Accessibility (Formal));
                end if;
 
@@ -2344,12 +2470,40 @@ package body Exp_Ch6 is
                         --  For X'Access, pass on the level of the prefix X
 
                         when Attribute_Access =>
-                           Add_Extra_Actual
-                             (Make_Integer_Literal (Loc,
-                               Intval =>
-                                 Object_Access_Level
-                                   (Prefix (Prev_Orig))),
-                                    Extra_Accessibility (Formal));
+
+                           --  If this is an Access attribute applied to the
+                           --  the current instance object passed to a type
+                           --  initialization procedure, then use the level
+                           --  of the type itself. This is not really correct,
+                           --  as there should be an extra level parameter
+                           --  passed in with _init formals (only in the case
+                           --  where the type is immutably limited), but we
+                           --  don't have an easy way currently to create such
+                           --  an extra formal (init procs aren't ever frozen).
+                           --  For now we just use the level of the type,
+                           --  which may be too shallow, but that works better
+                           --  than passing Object_Access_Level of the type,
+                           --  which can be one level too deep in some cases.
+                           --  ???
+
+                           if Is_Entity_Name (Prefix (Prev_Orig))
+                             and then Is_Type (Entity (Prefix (Prev_Orig)))
+                           then
+                              Add_Extra_Actual
+                                (Make_Integer_Literal (Loc,
+                                   Intval =>
+                                     Type_Access_Level
+                                       (Entity (Prefix (Prev_Orig)))),
+                                 Extra_Accessibility (Formal));
+
+                           else
+                              Add_Extra_Actual
+                                (Make_Integer_Literal (Loc,
+                                   Intval =>
+                                     Object_Access_Level
+                                       (Prefix (Prev_Orig))),
+                                 Extra_Accessibility (Formal));
+                           end if;
 
                         --  Treat the unchecked attributes as library-level
 
@@ -2378,15 +2532,15 @@ package body Exp_Ch6 is
                           Intval => Scope_Depth (Current_Scope) + 1),
                         Extra_Accessibility (Formal));
 
-                  --  For other cases we simply pass the level of the actual's
-                  --  access type. The type is retrieved from Prev rather than
-                  --  Prev_Orig, because in some cases Prev_Orig denotes an
-                  --  original expression that has not been analyzed.
+                  --  For most other cases we simply pass the level of the
+                  --  actual's access type. The type is retrieved from
+                  --  Prev rather than Prev_Orig, because in some cases
+                  --  Prev_Orig denotes an original expression that has
+                  --  not been analyzed.
 
                   when others =>
                      Add_Extra_Actual
-                       (Make_Integer_Literal (Loc,
-                          Intval => Type_Access_Level (Etype (Prev))),
+                       (Dynamic_Accessibility_Level (Prev),
                         Extra_Accessibility (Formal));
                end case;
             end if;
@@ -2411,7 +2565,7 @@ package body Exp_Ch6 is
               and then Ekind (Formal) /= E_Out_Parameter
               and then Nkind (Prev) /= N_Raise_Constraint_Error
               and then (Known_Null (Prev)
-                          or else not Can_Never_Be_Null (Etype (Prev)))
+                         or else not Can_Never_Be_Null (Etype (Prev)))
             then
                Install_Null_Excluding_Check (Prev);
             end if;
@@ -2457,10 +2611,10 @@ package body Exp_Ch6 is
 
          if Validity_Checks_On then
             if  (Ekind (Formal) = E_In_Parameter
-                   and then Validity_Check_In_Params)
+                  and then Validity_Check_In_Params)
               or else
                 (Ekind (Formal) = E_In_Out_Parameter
-                   and then Validity_Check_In_Out_Params)
+                  and then Validity_Check_In_Out_Params)
             then
                --  If the actual is an indexed component of a packed type (or
                --  is an indexed or selected component whose prefix recursively
@@ -2486,6 +2640,15 @@ package body Exp_Ch6 is
 
                Ensure_Valid (Actual);
             end if;
+         end if;
+
+         --  For Ada 2012, if a parameter is aliased, the actual must be an
+         --  aliased object.
+
+         if Is_Aliased (Formal) and then not Is_Aliased_View (Actual) then
+            Error_Msg_NE
+              ("actual for aliased formal& must be aliased object",
+               Actual, Formal);
          end if;
 
          --  For IN OUT and OUT parameters, ensure that subscripts are valid
@@ -2539,9 +2702,7 @@ package body Exp_Ch6 is
                --  or IN OUT parameter! We do reset the Is_Known_Valid flag
                --  since the subprogram could have returned in invalid value.
 
-               if (Ekind (Formal) = E_Out_Parameter
-                     or else
-                   Ekind (Formal) = E_In_Out_Parameter)
+               if Ekind_In (Formal, E_Out_Parameter, E_In_Out_Parameter)
                  and then Is_Assignable (Ent)
                then
                   Sav := Last_Assignment (Ent);
@@ -2589,6 +2750,120 @@ package body Exp_Ch6 is
          Next_Actual (Actual);
          Next_Formal (Formal);
       end loop;
+
+      --  If we are calling an Ada2012 function which needs to have the
+      --  "accessibility level determined by the point of call" (AI05-0234)
+      --  passed in to it, then pass it in.
+
+      if Ekind_In (Subp, E_Function, E_Operator, E_Subprogram_Type)
+        and then
+          Present (Extra_Accessibility_Of_Result (Ultimate_Alias (Subp)))
+      then
+         declare
+            Ancestor : Node_Id := Parent (Call_Node);
+            Level    : Node_Id := Empty;
+            Defer    : Boolean := False;
+
+         begin
+            --  Unimplemented: if Subp returns an anonymous access type, then
+
+            --    a) if the call is the operand of an explict conversion, then
+            --       the target type of the conversion (a named access type)
+            --       determines the accessibility level pass in;
+
+            --    b) if the call defines an access discriminant of an object
+            --       (e.g., the discriminant of an object being created by an
+            --       allocator, or the discriminant of a function result),
+            --       then the accessibility level to pass in is that of the
+            --       discriminated object being initialized).
+
+            --  ???
+
+            while Nkind (Ancestor) = N_Qualified_Expression
+            loop
+               Ancestor := Parent (Ancestor);
+            end loop;
+
+            case Nkind (Ancestor) is
+               when N_Allocator =>
+
+                  --  At this point, we'd like to assign
+
+                  --    Level := Dynamic_Accessibility_Level (Ancestor);
+
+                  --  but Etype of Ancestor may not have been set yet,
+                  --  so that doesn't work.
+
+                  --  Handle this later in Expand_Allocator_Expression.
+
+                  Defer := True;
+
+               when N_Object_Declaration | N_Object_Renaming_Declaration =>
+                  declare
+                     Def_Id : constant Entity_Id :=
+                                Defining_Identifier (Ancestor);
+
+                  begin
+                     if Is_Return_Object (Def_Id) then
+                        if Present (Extra_Accessibility_Of_Result
+                                     (Return_Applies_To (Scope (Def_Id))))
+                        then
+                           --  Pass along value that was passed in if the
+                           --  routine we are returning from also has an
+                           --  Accessibility_Of_Result formal.
+
+                           Level :=
+                             New_Occurrence_Of
+                              (Extra_Accessibility_Of_Result
+                                (Return_Applies_To (Scope (Def_Id))), Loc);
+                        end if;
+                     else
+                        Level :=
+                          Make_Integer_Literal (Loc,
+                            Intval => Object_Access_Level (Def_Id));
+                     end if;
+                  end;
+
+               when N_Simple_Return_Statement =>
+                  if Present (Extra_Accessibility_Of_Result
+                               (Return_Applies_To
+                                 (Return_Statement_Entity (Ancestor))))
+                  then
+                     --  Pass along value that was passed in if the routine
+                     --  we are returning from also has an
+                     --  Accessibility_Of_Result formal.
+
+                     Level :=
+                       New_Occurrence_Of
+                         (Extra_Accessibility_Of_Result
+                            (Return_Applies_To
+                               (Return_Statement_Entity (Ancestor))), Loc);
+                  end if;
+
+               when others =>
+                  null;
+            end case;
+
+            if not Defer then
+               if not Present (Level) then
+
+                  --  The "innermost master that evaluates the function call".
+
+                  --  ??? - Should we use Integer'Last here instead in order
+                  --  to deal with (some of) the problems associated with
+                  --  calls to subps whose enclosing scope is unknown (e.g.,
+                  --  Anon_Access_To_Subp_Param.all)?
+
+                  Level := Make_Integer_Literal (Loc,
+                             Scope_Depth (Current_Scope) + 1);
+               end if;
+
+               Add_Extra_Actual
+                 (Level,
+                  Extra_Accessibility_Of_Result (Ultimate_Alias (Subp)));
+            end if;
+         end;
+      end if;
 
       --  If we are expanding a rhs of an assignment we need to check if tag
       --  propagation is needed. You might expect this processing to be in
@@ -2797,6 +3072,7 @@ package body Exp_Ch6 is
       if Nkind (Call_Node) /= N_Entry_Call_Statement
         and then No (Controlling_Argument (Call_Node))
         and then Present (Parent_Subp)
+        and then not Is_Direct_Deep_Call (Subp)
       then
          if Present (Inherited_From_Formal (Subp)) then
             Parent_Subp := Inherited_From_Formal (Subp);
@@ -2936,12 +3212,15 @@ package body Exp_Ch6 is
 
       --  Check for violation of No_Abort_Statements
 
-      if Is_RTE (Subp, RE_Abort_Task) then
+      if Restriction_Check_Required (No_Abort_Statements)
+        and then Is_RTE (Subp, RE_Abort_Task)
+      then
          Check_Restriction (No_Abort_Statements, Call_Node);
 
       --  Check for violation of No_Dynamic_Attachment
 
-      elsif RTU_Loaded (Ada_Interrupts)
+      elsif Restriction_Check_Required (No_Dynamic_Attachment)
+        and then RTU_Loaded (Ada_Interrupts)
         and then (Is_RTE (Subp, RE_Is_Reserved)      or else
                   Is_RTE (Subp, RE_Is_Attached)      or else
                   Is_RTE (Subp, RE_Current_Handler)  or else
@@ -3228,12 +3507,12 @@ package body Exp_Ch6 is
          Expand_Protected_Subprogram_Call (Call_Node, Subp, Scop);
       end if;
 
-      --  Functions returning controlled objects need special attention:
-      --  if the return type is limited, the context is an initialization
-      --  and different processing applies. If the call is to a protected
-      --  function, the expansion above will call Expand_Call recursively.
-      --  To prevent a double attachment, check that the current call is
-      --  not a rewriting of a protected function call.
+      --  Functions returning controlled objects need special attention. If
+      --  the return type is limited, then the context is initialization and
+      --  different processing applies. If the call is to a protected function,
+      --  the expansion above will call Expand_Call recursively. Otherwise the
+      --  function call is transformed into a temporary which obtains the
+      --  result from the secondary stack.
 
       if Needs_Finalization (Etype (Subp)) then
          if not Is_Immutably_Limited_Type (Etype (Subp))
@@ -3406,6 +3685,33 @@ package body Exp_Ch6 is
       end if;
    end Expand_Call;
 
+   -------------------------------
+   -- Expand_Ctrl_Function_Call --
+   -------------------------------
+
+   procedure Expand_Ctrl_Function_Call (N : Node_Id) is
+   begin
+      --  Optimization, if the returned value (which is on the sec-stack) is
+      --  returned again, no need to copy/readjust/finalize, we can just pass
+      --  the value thru (see Expand_N_Simple_Return_Statement), and thus no
+      --  attachment is needed
+
+      if Nkind (Parent (N)) = N_Simple_Return_Statement then
+         return;
+      end if;
+
+      --  Resolution is now finished, make sure we don't start analysis again
+      --  because of the duplication.
+
+      Set_Analyzed (N);
+
+      --  A function which returns a controlled object uses the secondary
+      --  stack. Rewrite the call into a temporary which obtains the result of
+      --  the function using 'reference.
+
+      Remove_Side_Effects (N);
+   end Expand_Ctrl_Function_Call;
+
    --------------------------
    -- Expand_Inlined_Call --
    --------------------------
@@ -3434,8 +3740,15 @@ package body Exp_Ch6 is
       New_A    : Node_Id;
       Num_Ret  : Int := 0;
       Ret_Type : Entity_Id;
-      Targ     : Node_Id;
-      Targ1    : Node_Id;
+
+      Targ : Node_Id;
+      --  The target of the call. If context is an assignment statement then
+      --  this is the left-hand side of the assignment. else it is a temporary
+      --  to which the return value is assigned prior to rewriting the call.
+
+      Targ1 : Node_Id;
+      --  A separate target used when the return type is unconstrained
+
       Temp     : Entity_Id;
       Temp_Typ : Entity_Id;
 
@@ -3443,8 +3756,8 @@ package body Exp_Ch6 is
       --  Entity in declaration in an extended_return_statement
 
       Is_Unc : constant Boolean :=
-                    Is_Array_Type (Etype (Subp))
-                      and then not Is_Constrained (Etype (Subp));
+                 Is_Array_Type (Etype (Subp))
+                   and then not Is_Constrained (Etype (Subp));
       --  If the type returned by the function is unconstrained and the call
       --  can be inlined, special processing is required.
 
@@ -3535,6 +3848,7 @@ package body Exp_Ch6 is
                   Rewrite (N, New_Copy (A));
                end if;
             end if;
+
             return Skip;
 
          elsif Is_Entity_Name (N)
@@ -3585,8 +3899,8 @@ package body Exp_Ch6 is
                if Nkind_In (Expression (N), N_Aggregate, N_Null) then
                   Ret :=
                     Make_Qualified_Expression (Sloc (N),
-                       Subtype_Mark => New_Occurrence_Of (Ret_Type, Sloc (N)),
-                       Expression => Relocate_Node (Expression (N)));
+                      Subtype_Mark => New_Occurrence_Of (Ret_Type, Sloc (N)),
+                      Expression => Relocate_Node (Expression (N)));
                else
                   Ret :=
                     Unchecked_Convert_To
@@ -3596,12 +3910,12 @@ package body Exp_Ch6 is
                if Nkind (Targ) = N_Defining_Identifier then
                   Rewrite (N,
                     Make_Assignment_Statement (Loc,
-                      Name => New_Occurrence_Of (Targ, Loc),
+                      Name       => New_Occurrence_Of (Targ, Loc),
                       Expression => Ret));
                else
                   Rewrite (N,
                     Make_Assignment_Statement (Loc,
-                      Name => New_Copy (Targ),
+                      Name       => New_Copy (Targ),
                       Expression => Ret));
                end if;
 
@@ -3609,19 +3923,17 @@ package body Exp_Ch6 is
 
                if Present (Exit_Lab) then
                   Insert_After (N,
-                    Make_Goto_Statement (Loc,
-                      Name => New_Copy (Lab_Id)));
+                    Make_Goto_Statement (Loc, Name => New_Copy (Lab_Id)));
                end if;
             end if;
 
             return OK;
 
+         --  An extended return becomes a block whose first statement is the
+         --  assignment of the initial expression of the return object to the
+         --  target of the call itself.
+
          elsif Nkind (N) = N_Extended_Return_Statement then
-
-            --  An extended return becomes a block whose first statement is
-            --  the assignment of the initial expression of the return object
-            --  to the target of the call itself.
-
             declare
                Return_Decl : constant Entity_Id :=
                                First (Return_Object_Declarations (N));
@@ -3634,12 +3946,12 @@ package body Exp_Ch6 is
                   if Nkind (Targ) = N_Defining_Identifier then
                      Assign :=
                        Make_Assignment_Statement (Loc,
-                         Name => New_Occurrence_Of (Targ, Loc),
+                         Name       => New_Occurrence_Of (Targ, Loc),
                          Expression => Expression (Return_Decl));
                   else
                      Assign :=
                        Make_Assignment_Statement (Loc,
-                         Name => New_Copy (Targ),
+                         Name       => New_Copy (Targ),
                          Expression => Expression (Return_Decl));
                   end if;
 
@@ -3705,7 +4017,6 @@ package body Exp_Ch6 is
            and then Nkind (Fst) = N_Assignment_Statement
            and then No (Next (Fst))
          then
-
             --  The function call may have been rewritten as the temporary
             --  that holds the result of the call, in which case remove the
             --  now useless declaration.
@@ -3725,12 +4036,20 @@ package body Exp_Ch6 is
 
             Insert_After (Parent (Entity (N)), Blk);
 
+         --  If the context is an assignment, and the left-hand side is free of
+         --  side-effects, the replacement is also safe.
+         --  Can this be generalized further???
+
          elsif Nkind (Parent (N)) = N_Assignment_Statement
            and then
             (Is_Entity_Name (Name (Parent (N)))
-               or else
-                  (Nkind (Name (Parent (N))) = N_Explicit_Dereference
-                    and then Is_Entity_Name (Prefix (Name (Parent (N))))))
+              or else
+                (Nkind (Name (Parent (N))) = N_Explicit_Dereference
+                  and then Is_Entity_Name (Prefix (Name (Parent (N)))))
+
+              or else
+                (Nkind (Name (Parent (N))) = N_Selected_Component
+                  and then Is_Entity_Name (Prefix (Name (Parent (N))))))
          then
             --  Replace assignment with the block
 
@@ -3766,6 +4085,7 @@ package body Exp_Ch6 is
 
       procedure Rewrite_Procedure_Call (N : Node_Id; Blk : Node_Id) is
          HSS  : constant Node_Id := Handled_Statement_Sequence (Blk);
+
       begin
          --  If there is a transient scope for N, this will be the scope of the
          --  actions for N, and the statements in Blk need to be within this
@@ -3847,7 +4167,6 @@ package body Exp_Ch6 is
    --  Start of processing for Expand_Inlined_Call
 
    begin
-
       --  Check for an illegal attempt to inline a recursive procedure. If the
       --  subprogram has parameters this is detected when trying to supply a
       --  binding for parameters that already have one. For parameterless
@@ -3895,22 +4214,27 @@ package body Exp_Ch6 is
          Set_Declarations (Blk, New_List);
       end if;
 
-      --  For the unconstrained case, capture the name of the local
-      --  variable that holds the result. This must be the first declaration
-      --  in the block, because its bounds cannot depend on local variables.
-      --  Otherwise there is no way to declare the result outside of the
-      --  block. Needless to say, in general the bounds will depend on the
-      --  actuals in the call.
+      --  For the unconstrained case, capture the name of the local variable
+      --  that holds the result. This must be the first declaration in the
+      --  block, because its bounds cannot depend on local variables. Otherwise
+      --  there is no way to declare the result outside of the block. Needless
+      --  to say, in general the bounds will depend on the actuals in the call.
+
+      --  If the context is an assignment statement, as is the case for the
+      --  expansion of an extended return, the left-hand side provides bounds
+      --  even if the return type is unconstrained.
 
       if Is_Unc then
-         Targ1 := Defining_Identifier (First (Declarations (Blk)));
+         if Nkind (Parent (N)) /= N_Assignment_Statement then
+            Targ1 := Defining_Identifier (First (Declarations (Blk)));
+         else
+            Targ1 := Name (Parent (N));
+         end if;
       end if;
 
       --  If this is a derived function, establish the proper return type
 
-      if Present (Orig_Subp)
-        and then Orig_Subp /= Subp
-      then
+      if Present (Orig_Subp) and then Orig_Subp /= Subp then
          Ret_Type := Etype (Orig_Subp);
       else
          Ret_Type := Etype (Subp);
@@ -3935,8 +4259,7 @@ package body Exp_Ch6 is
 
          if Is_Class_Wide_Type (Etype (F))
            or else (Is_Access_Type (Etype (F))
-                      and then
-                    Is_Class_Wide_Type (Designated_Type (Etype (F))))
+                     and then Is_Class_Wide_Type (Designated_Type (Etype (F))))
          then
             Temp_Typ := Etype (F);
 
@@ -3944,7 +4267,6 @@ package body Exp_Ch6 is
            and then Etype (F) /= Base_Type (Etype (F))
          then
             Temp_Typ := Etype (F);
-
          else
             Temp_Typ := Etype (A);
          end if;
@@ -3970,13 +4292,13 @@ package body Exp_Ch6 is
 
            or else
              (Nkind_In (A, N_Real_Literal,
-                            N_Integer_Literal,
-                            N_Character_Literal)
-                and then not Address_Taken (F))
+                           N_Integer_Literal,
+                           N_Character_Literal)
+               and then not Address_Taken (F))
          then
             if Etype (F) /= Etype (A) then
                Set_Renamed_Object
-                (F, Unchecked_Convert_To (Etype (F), Relocate_Node (A)));
+                 (F, Unchecked_Convert_To (Etype (F), Relocate_Node (A)));
             else
                Set_Renamed_Object (F, A);
             end if;
@@ -4020,19 +4342,18 @@ package body Exp_Ch6 is
             --  code will have the same semantics.
 
             if Ekind (F) = E_In_Parameter
-              and then not Is_Limited_Type (Etype (A))
-              and then not Is_Tagged_Type  (Etype (A))
+              and then not Is_By_Reference_Type (Etype (A))
               and then
-               (not Is_Array_Type (Etype (A))
-                 or else not Is_Object_Reference (A)
-                 or else Is_Bit_Packed_Array (Etype (A)))
+                (not Is_Array_Type (Etype (A))
+                  or else not Is_Object_Reference (A)
+                  or else Is_Bit_Packed_Array (Etype (A)))
             then
                Decl :=
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => Temp,
-                   Constant_Present => True,
-                   Object_Definition => New_Occurrence_Of (Temp_Typ, Loc),
-                   Expression => New_A);
+                   Constant_Present    => True,
+                   Object_Definition   => New_Occurrence_Of (Temp_Typ, Loc),
+                   Expression          => New_A);
             else
                Decl :=
                  Make_Object_Renaming_Declaration (Loc,
@@ -4050,10 +4371,10 @@ package body Exp_Ch6 is
       end loop;
 
       --  Establish target of function call. If context is not assignment or
-      --  declaration, create a temporary as a target. The declaration for
-      --  the temporary may be subsequently optimized away if the body is a
-      --  single expression, or if the left-hand side of the assignment is
-      --  simple enough, i.e. an entity or an explicit dereference of one.
+      --  declaration, create a temporary as a target. The declaration for the
+      --  temporary may be subsequently optimized away if the body is a single
+      --  expression, or if the left-hand side of the assignment is simple
+      --  enough, i.e. an entity or an explicit dereference of one.
 
       if Ekind (Subp) = E_Function then
          if Nkind (Parent (N)) = N_Assignment_Statement
@@ -4066,6 +4387,12 @@ package body Exp_Ch6 is
            and then Is_Entity_Name (Prefix (Name (Parent (N))))
          then
             Targ := Name (Parent (N));
+
+         elsif Nkind (Parent (N)) = N_Assignment_Statement
+           and then Nkind (Name (Parent (N))) = N_Selected_Component
+           and then Is_Entity_Name (Prefix (Name (Parent (N))))
+         then
+            Targ := New_Copy_Tree (Name (Parent (N)));
 
          elsif Nkind (Parent (N)) = N_Object_Declaration
            and then Is_Limited_Type (Etype (Subp))
@@ -4083,11 +4410,13 @@ package body Exp_Ch6 is
             --  eventually be possible to remove that temporary and use the
             --  result variable directly.
 
-            if Is_Unc then
+            if Is_Unc
+              and then Nkind (Parent (N)) /= N_Assignment_Statement
+            then
                Decl :=
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => Temp,
-                   Object_Definition =>
+                   Object_Definition   =>
                      New_Copy_Tree (Object_Definition (Parent (Targ1))));
 
                Replace_Formals (Decl);
@@ -4096,8 +4425,7 @@ package body Exp_Ch6 is
                Decl :=
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => Temp,
-                   Object_Definition =>
-                     New_Occurrence_Of (Ret_Type, Loc));
+                   Object_Definition   => New_Occurrence_Of (Ret_Type, Loc));
 
                Set_Etype (Temp, Ret_Type);
             end if;
@@ -4117,9 +4445,7 @@ package body Exp_Ch6 is
       Replace_Formals (Blk);
       Set_Parent (Blk, N);
 
-      if not Comes_From_Source (Subp)
-        or else Is_Predef
-      then
+      if not Comes_From_Source (Subp) or else Is_Predef then
          Reset_Slocs (Blk);
       end if;
 
@@ -4131,7 +4457,7 @@ package body Exp_Ch6 is
          if Num_Ret = 1
            and then
              Nkind (Last (Statements (Handled_Statement_Sequence (Blk)))) =
-               N_Goto_Statement
+                                                            N_Goto_Statement
          then
             Remove (Last (Statements (Handled_Statement_Sequence (Blk))));
          else
@@ -4169,6 +4495,7 @@ package body Exp_Ch6 is
 
       if Ekind (Subp) = E_Procedure then
          Rewrite_Procedure_Call (N, Blk);
+
       else
          Rewrite_Function_Call (N, Blk);
 
@@ -4244,25 +4571,53 @@ package body Exp_Ch6 is
    procedure Expand_N_Extended_Return_Statement (N : Node_Id) is
       Loc : constant Source_Ptr := Sloc (N);
 
-      Return_Object_Entity : constant Entity_Id :=
-                               First_Entity (Return_Statement_Entity (N));
-      Return_Object_Decl   : constant Node_Id :=
-                               Parent (Return_Object_Entity);
-      Parent_Function      : constant Entity_Id :=
-                               Return_Applies_To (Return_Statement_Entity (N));
-      Parent_Function_Typ  : constant Entity_Id := Etype (Parent_Function);
-      Is_Build_In_Place    : constant Boolean :=
-                               Is_Build_In_Place_Function (Parent_Function);
+      Par_Func     : constant Entity_Id :=
+                       Return_Applies_To (Return_Statement_Entity (N));
+      Ret_Obj_Id   : constant Entity_Id :=
+                       First_Entity (Return_Statement_Entity (N));
+      Ret_Obj_Decl : constant Node_Id := Parent (Ret_Obj_Id);
 
-      Return_Stm      : Node_Id;
-      Statements      : List_Id;
-      Handled_Stm_Seq : Node_Id;
-      Result          : Node_Id;
-      Exp             : Node_Id;
+      Is_Build_In_Place : constant Boolean :=
+                            Is_Build_In_Place_Function (Par_Func);
 
-      function Has_Controlled_Parts (Typ : Entity_Id) return Boolean;
-      --  Determine whether type Typ is controlled or contains a controlled
-      --  subcomponent.
+      Exp         : Node_Id;
+      HSS         : Node_Id;
+      Result      : Node_Id;
+      Return_Stmt : Node_Id;
+      Stmts       : List_Id;
+
+      function Build_Heap_Allocator
+        (Temp_Id    : Entity_Id;
+         Temp_Typ   : Entity_Id;
+         Func_Id    : Entity_Id;
+         Ret_Typ    : Entity_Id;
+         Alloc_Expr : Node_Id) return Node_Id;
+      --  Create the statements necessary to allocate a return object on the
+      --  caller's master. The master is available through implicit parameter
+      --  BIPfinalizationmaster.
+      --
+      --    if BIPfinalizationmaster /= null then
+      --       declare
+      --          type Ptr_Typ is access Ret_Typ;
+      --          for Ptr_Typ'Storage_Pool use
+      --                Base_Pool (BIPfinalizationmaster.all).all;
+      --          Local : Ptr_Typ;
+      --
+      --       begin
+      --          procedure Allocate (...) is
+      --          begin
+      --             System.Storage_Pools.Subpools.Allocate_Any (...);
+      --          end Allocate;
+      --
+      --          Local := <Alloc_Expr>;
+      --          Temp_Id := Temp_Typ (Local);
+      --       end;
+      --    end if;
+      --
+      --  Temp_Id is the temporary which is used to reference the internally
+      --  created object in all allocation forms. Temp_Typ is the type of the
+      --  temporary. Func_Id is the enclosing function. Ret_Typ is the return
+      --  type of Func_Id. Alloc_Expr is the actual allocator.
 
       function Move_Activation_Chain return Node_Id;
       --  Construct a call to System.Tasking.Stages.Move_Activation_Chain
@@ -4271,110 +4626,248 @@ package body Exp_Ch6 is
       --    To           activation chain passed in by the caller
       --    New_Master   master passed in by the caller
 
-      function Move_Final_List return Node_Id;
-      --  Construct call to System.Finalization_Implementation.Move_Final_List
-      --  with parameters:
-      --
-      --    From         finalization list of the return statement
-      --    To           finalization list passed in by the caller
-
       --------------------------
-      -- Has_Controlled_Parts --
+      -- Build_Heap_Allocator --
       --------------------------
 
-      function Has_Controlled_Parts (Typ : Entity_Id) return Boolean is
+      function Build_Heap_Allocator
+        (Temp_Id    : Entity_Id;
+         Temp_Typ   : Entity_Id;
+         Func_Id    : Entity_Id;
+         Ret_Typ    : Entity_Id;
+         Alloc_Expr : Node_Id) return Node_Id
+      is
       begin
-         return
-           Is_Controlled (Typ)
-             or else Has_Controlled_Component (Typ);
-      end Has_Controlled_Parts;
+         --  Processing for build-in-place object allocation. This is disabled
+         --  on .NET/JVM because the targets do not support pools.
+
+         if VM_Target = No_VM
+           and then Is_Build_In_Place_Function (Func_Id)
+           and then Needs_Finalization (Ret_Typ)
+         then
+            declare
+               Decls      : constant List_Id := New_List;
+               Fin_Mas_Id : constant Entity_Id :=
+                              Build_In_Place_Formal
+                                (Func_Id, BIP_Finalization_Master);
+               Stmts      : constant List_Id := New_List;
+               Desig_Typ  : Entity_Id;
+               Local_Id   : Entity_Id;
+               Pool_Id    : Entity_Id;
+               Ptr_Typ    : Entity_Id;
+
+            begin
+               --  Generate:
+               --    Pool_Id renames Base_Pool (BIPfinalizationmaster.all).all;
+
+               Pool_Id := Make_Temporary (Loc, 'P');
+
+               Append_To (Decls,
+                 Make_Object_Renaming_Declaration (Loc,
+                   Defining_Identifier => Pool_Id,
+                   Subtype_Mark        =>
+                     New_Reference_To (RTE (RE_Root_Storage_Pool), Loc),
+                   Name                =>
+                     Make_Explicit_Dereference (Loc,
+                       Prefix =>
+                         Make_Function_Call (Loc,
+                           Name                   =>
+                             New_Reference_To (RTE (RE_Base_Pool), Loc),
+                           Parameter_Associations => New_List (
+                             Make_Explicit_Dereference (Loc,
+                               Prefix =>
+                                 New_Reference_To (Fin_Mas_Id, Loc)))))));
+
+               --  Create an access type which uses the storage pool of the
+               --  caller's master. This additional type is necessary because
+               --  the finalization master cannot be associated with the type
+               --  of the temporary. Otherwise the secondary stack allocation
+               --  will fail.
+
+               Desig_Typ := Ret_Typ;
+
+               --  Ensure that the build-in-place machinery uses a fat pointer
+               --  when allocating an unconstrained array on the heap. In this
+               --  case the result object type is a constrained array type even
+               --  though the function type is unconstrained.
+
+               if Ekind (Desig_Typ) = E_Array_Subtype then
+                  Desig_Typ := Base_Type (Desig_Typ);
+               end if;
+
+               --  Generate:
+               --    type Ptr_Typ is access Desig_Typ;
+
+               Ptr_Typ := Make_Temporary (Loc, 'P');
+
+               Append_To (Decls,
+                 Make_Full_Type_Declaration (Loc,
+                   Defining_Identifier => Ptr_Typ,
+                   Type_Definition     =>
+                     Make_Access_To_Object_Definition (Loc,
+                       Subtype_Indication =>
+                         New_Reference_To (Desig_Typ, Loc))));
+
+               --  Perform minor decoration in order to set the master and the
+               --  storage pool attributes.
+
+               Set_Ekind (Ptr_Typ, E_Access_Type);
+               Set_Finalization_Master     (Ptr_Typ, Fin_Mas_Id);
+               Set_Associated_Storage_Pool (Ptr_Typ, Pool_Id);
+
+               --  Create the temporary, generate:
+               --    Local_Id : Ptr_Typ;
+
+               Local_Id := Make_Temporary (Loc, 'T');
+
+               Append_To (Decls,
+                 Make_Object_Declaration (Loc,
+                   Defining_Identifier => Local_Id,
+                   Object_Definition   =>
+                     New_Reference_To (Ptr_Typ, Loc)));
+
+               --  Allocate the object, generate:
+               --    Local_Id := <Alloc_Expr>;
+
+               Append_To (Stmts,
+                 Make_Assignment_Statement (Loc,
+                   Name       => New_Reference_To (Local_Id, Loc),
+                   Expression => Alloc_Expr));
+
+               --  Generate:
+               --    Temp_Id := Temp_Typ (Local_Id);
+
+               Append_To (Stmts,
+                 Make_Assignment_Statement (Loc,
+                   Name       => New_Reference_To (Temp_Id, Loc),
+                   Expression =>
+                     Unchecked_Convert_To (Temp_Typ,
+                       New_Reference_To (Local_Id, Loc))));
+
+               --  Wrap the allocation in a block. This is further conditioned
+               --  by checking the caller finalization master at runtime. A
+               --  null value indicates a non-existent master, most likely due
+               --  to a Finalize_Storage_Only allocation.
+
+               --  Generate:
+               --    if BIPfinalizationmaster /= null then
+               --       declare
+               --          <Decls>
+               --       begin
+               --          <Stmts>
+               --       end;
+               --    end if;
+
+               return
+                 Make_If_Statement (Loc,
+                   Condition       =>
+                     Make_Op_Ne (Loc,
+                       Left_Opnd  => New_Reference_To (Fin_Mas_Id, Loc),
+                       Right_Opnd => Make_Null (Loc)),
+
+                   Then_Statements => New_List (
+                     Make_Block_Statement (Loc,
+                       Declarations               => Decls,
+                       Handled_Statement_Sequence =>
+                         Make_Handled_Sequence_Of_Statements (Loc,
+                           Statements => Stmts))));
+            end;
+
+         --  For all other cases, generate:
+         --    Temp_Id := <Alloc_Expr>;
+
+         else
+            return
+              Make_Assignment_Statement (Loc,
+                Name       => New_Reference_To (Temp_Id, Loc),
+                Expression => Alloc_Expr);
+         end if;
+      end Build_Heap_Allocator;
 
       ---------------------------
       -- Move_Activation_Chain --
       ---------------------------
 
       function Move_Activation_Chain return Node_Id is
-         Activation_Chain_Formal : constant Entity_Id :=
-                                     Build_In_Place_Formal
-                                       (Parent_Function, BIP_Activation_Chain);
-         To                      : constant Node_Id :=
-                                     New_Reference_To
-                                       (Activation_Chain_Formal, Loc);
-         Master_Formal           : constant Entity_Id :=
-                                     Build_In_Place_Formal
-                                       (Parent_Function, BIP_Master);
-         New_Master              : constant Node_Id :=
-                                     New_Reference_To (Master_Formal, Loc);
-
-         Chain_Entity : Entity_Id;
-         From         : Node_Id;
-
       begin
-         Chain_Entity := First_Entity (Return_Statement_Entity (N));
-         while Chars (Chain_Entity) /= Name_uChain loop
-            Chain_Entity := Next_Entity (Chain_Entity);
-         end loop;
-
-         From :=
-           Make_Attribute_Reference (Loc,
-             Prefix         => New_Reference_To (Chain_Entity, Loc),
-             Attribute_Name => Name_Unrestricted_Access);
-         --  ??? Not clear why "Make_Identifier (Loc, Name_uChain)" doesn't
-         --  work, instead of "New_Reference_To (Chain_Entity, Loc)" above.
-
          return
            Make_Procedure_Call_Statement (Loc,
-             Name => New_Reference_To (RTE (RE_Move_Activation_Chain), Loc),
-             Parameter_Associations => New_List (From, To, New_Master));
+             Name                   =>
+               New_Reference_To (RTE (RE_Move_Activation_Chain), Loc),
+
+             Parameter_Associations => New_List (
+
+               --  Source chain
+
+               Make_Attribute_Reference (Loc,
+                 Prefix         => Make_Identifier (Loc, Name_uChain),
+                 Attribute_Name => Name_Unrestricted_Access),
+
+               --  Destination chain
+
+               New_Reference_To
+                 (Build_In_Place_Formal (Par_Func, BIP_Activation_Chain), Loc),
+
+               --  New master
+
+               New_Reference_To
+                 (Build_In_Place_Formal (Par_Func, BIP_Master), Loc)));
       end Move_Activation_Chain;
-
-      ---------------------
-      -- Move_Final_List --
-      ---------------------
-
-      function Move_Final_List return Node_Id is
-         Flist : constant Entity_Id  :=
-                   Finalization_Chain_Entity (Return_Statement_Entity (N));
-
-         From : constant Node_Id := New_Reference_To (Flist, Loc);
-
-         Caller_Final_List : constant Entity_Id :=
-                               Build_In_Place_Formal
-                                 (Parent_Function, BIP_Final_List);
-
-         To : constant Node_Id := New_Reference_To (Caller_Final_List, Loc);
-
-      begin
-         --  Catch cases where a finalization chain entity has not been
-         --  associated with the return statement entity.
-
-         pragma Assert (Present (Flist));
-
-         --  Build required call
-
-         return
-           Make_If_Statement (Loc,
-             Condition =>
-               Make_Op_Ne (Loc,
-                 Left_Opnd  => New_Copy (From),
-                 Right_Opnd => New_Node (N_Null, Loc)),
-             Then_Statements =>
-               New_List (
-                 Make_Procedure_Call_Statement (Loc,
-                   Name => New_Reference_To (RTE (RE_Move_Final_List), Loc),
-                   Parameter_Associations => New_List (From, To))));
-      end Move_Final_List;
 
    --  Start of processing for Expand_N_Extended_Return_Statement
 
    begin
-      if Nkind (Return_Object_Decl) = N_Object_Declaration then
-         Exp := Expression (Return_Object_Decl);
+      if Nkind (Ret_Obj_Decl) = N_Object_Declaration then
+         Exp := Expression (Ret_Obj_Decl);
       else
          Exp := Empty;
       end if;
 
-      Handled_Stm_Seq := Handled_Statement_Sequence (N);
+      HSS := Handled_Statement_Sequence (N);
+
+      --  If the returned object needs finalization actions, the function must
+      --  perform the appropriate cleanup should it fail to return. The state
+      --  of the function itself is tracked through a flag which is coupled
+      --  with the scope finalizer. There is one flag per each return object
+      --  in case of multiple returns.
+
+      if Is_Build_In_Place
+        and then Needs_Finalization (Etype (Ret_Obj_Id))
+      then
+         declare
+            Flag_Decl : Node_Id;
+            Flag_Id   : Entity_Id;
+            Func_Bod  : Node_Id;
+
+         begin
+            --  Recover the function body
+
+            Func_Bod := Unit_Declaration_Node (Par_Func);
+
+            if Nkind (Func_Bod) = N_Subprogram_Declaration then
+               Func_Bod := Parent (Parent (Corresponding_Body (Func_Bod)));
+            end if;
+
+            --  Create a flag to track the function state
+
+            Flag_Id := Make_Temporary (Loc, 'F');
+            Set_Return_Flag_Or_Transient_Decl (Ret_Obj_Id, Flag_Id);
+
+            --  Insert the flag at the beginning of the function declarations,
+            --  generate:
+            --    Fnn : Boolean := False;
+
+            Flag_Decl :=
+              Make_Object_Declaration (Loc,
+                Defining_Identifier => Flag_Id,
+                  Object_Definition =>
+                    New_Reference_To (Standard_Boolean, Loc),
+                  Expression        => New_Reference_To (Standard_False, Loc));
+
+            Prepend_To (Declarations (Func_Bod), Flag_Decl);
+            Analyze (Flag_Decl);
+         end;
+      end if;
 
       --  Build a simple_return_statement that returns the return object when
       --  there is a statement sequence, or no expression, or the result will
@@ -4382,89 +4875,86 @@ package body Exp_Ch6 is
       --  composite cases, even though nonlimited composite results are not yet
       --  built in place (though we plan to do so eventually).
 
-      if Present (Handled_Stm_Seq)
-        or else Is_Composite_Type (Etype (Parent_Function))
+      if Present (HSS)
+        or else Is_Composite_Type (Etype (Par_Func))
         or else No (Exp)
       then
-         if No (Handled_Stm_Seq) then
-            Statements := New_List;
+         if No (HSS) then
+            Stmts := New_List;
 
          --  If the extended return has a handled statement sequence, then wrap
          --  it in a block and use the block as the first statement.
 
          else
-            Statements :=
-              New_List (Make_Block_Statement (Loc,
-                          Declarations => New_List,
-                          Handled_Statement_Sequence => Handled_Stm_Seq));
+            Stmts := New_List (
+              Make_Block_Statement (Loc,
+                Declarations               => New_List,
+                Handled_Statement_Sequence => HSS));
          end if;
 
-         --  If control gets past the above Statements, we have successfully
-         --  completed the return statement. If the result type has controlled
-         --  parts and the return is for a build-in-place function, then we
-         --  call Move_Final_List to transfer responsibility for finalization
-         --  of the return object to the caller. An alternative would be to
-         --  declare a Success flag in the function, initialize it to False,
-         --  and set it to True here. Then move the Move_Final_List call into
-         --  the cleanup code, and check Success. If Success then make a call
-         --  to Move_Final_List else do finalization. Then we can remove the
-         --  abort-deferral and the nulling-out of the From parameter from
-         --  Move_Final_List. Note that the current method is not quite correct
-         --  in the rather obscure case of a select-then-abort statement whose
-         --  abortable part contains the return statement.
-
-         --  Check the type of the function to determine whether to move the
-         --  finalization list. A special case arises when processing a simple
-         --  return statement which has been rewritten as an extended return.
-         --  In that case check the type of the returned object or the original
-         --  expression.
+         --  If the result type contains tasks, we call Move_Activation_Chain.
+         --  Later, the cleanup code will call Complete_Master, which will
+         --  terminate any unactivated tasks belonging to the return statement
+         --  master. But Move_Activation_Chain updates their master to be that
+         --  of the caller, so they will not be terminated unless the return
+         --  statement completes unsuccessfully due to exception, abort, goto,
+         --  or exit. As a formality, we test whether the function requires the
+         --  result to be built in place, though that's necessarily true for
+         --  the case of result types with task parts.
 
          if Is_Build_In_Place
-           and then
-               (Has_Controlled_Parts (Parent_Function_Typ)
-                 or else (Is_Class_Wide_Type (Parent_Function_Typ)
-                           and then
-                        Has_Controlled_Parts (Root_Type (Parent_Function_Typ)))
-                 or else Has_Controlled_Parts (Etype (Return_Object_Entity))
-                 or else (Present (Exp)
-                           and then Has_Controlled_Parts (Etype (Exp))))
+           and then Has_Task (Etype (Par_Func))
          then
-            Append_To (Statements, Move_Final_List);
+            --  The return expression is an aggregate for a complex type which
+            --  contains tasks. This particular case is left unexpanded since
+            --  the regular expansion would insert all temporaries and
+            --  initialization code in the wrong block.
+
+            if Nkind (Exp) = N_Aggregate then
+               Expand_N_Aggregate (Exp);
+            end if;
+
+            Append_To (Stmts, Move_Activation_Chain);
          end if;
 
-         --  Similarly to the above Move_Final_List, if the result type
-         --  contains tasks, we call Move_Activation_Chain. Later, the cleanup
-         --  code will call Complete_Master, which will terminate any
-         --  unactivated tasks belonging to the return statement master. But
-         --  Move_Activation_Chain updates their master to be that of the
-         --  caller, so they will not be terminated unless the return statement
-         --  completes unsuccessfully due to exception, abort, goto, or exit.
-         --  As a formality, we test whether the function requires the result
-         --  to be built in place, though that's necessarily true for the case
-         --  of result types with task parts.
+         --  Update the state of the function right before the object is
+         --  returned.
 
-         if Is_Build_In_Place and Has_Task (Etype (Parent_Function)) then
-            Append_To (Statements, Move_Activation_Chain);
+         if Is_Build_In_Place
+           and then Needs_Finalization (Etype (Ret_Obj_Id))
+         then
+            declare
+               Flag_Id : constant Entity_Id :=
+                           Return_Flag_Or_Transient_Decl (Ret_Obj_Id);
+
+            begin
+               --  Generate:
+               --    Fnn := True;
+
+               Append_To (Stmts,
+                 Make_Assignment_Statement (Loc,
+                   Name       => New_Reference_To (Flag_Id, Loc),
+                   Expression => New_Reference_To (Standard_True, Loc)));
+            end;
          end if;
 
          --  Build a simple_return_statement that returns the return object
 
-         Return_Stm :=
+         Return_Stmt :=
            Make_Simple_Return_Statement (Loc,
-             Expression => New_Occurrence_Of (Return_Object_Entity, Loc));
-         Append_To (Statements, Return_Stm);
+             Expression => New_Occurrence_Of (Ret_Obj_Id, Loc));
+         Append_To (Stmts, Return_Stmt);
 
-         Handled_Stm_Seq :=
-           Make_Handled_Sequence_Of_Statements (Loc, Statements);
+         HSS := Make_Handled_Sequence_Of_Statements (Loc, Stmts);
       end if;
 
-      --  Case where we build a block
+      --  Case where we build a return statement block
 
-      if Present (Handled_Stm_Seq) then
+      if Present (HSS) then
          Result :=
            Make_Block_Statement (Loc,
-             Declarations => Return_Object_Declarations (N),
-             Handled_Statement_Sequence => Handled_Stm_Seq);
+             Declarations               => Return_Object_Declarations (N),
+             Handled_Statement_Sequence => HSS);
 
          --  We set the entity of the new block statement to be that of the
          --  return statement. This is necessary so that various fields, such
@@ -4475,23 +4965,24 @@ package body Exp_Ch6 is
          Set_Identifier
            (Result, New_Occurrence_Of (Return_Statement_Entity (N), Loc));
 
-         --  If the object decl was already rewritten as a renaming, then
-         --  we don't want to do the object allocation and transformation of
-         --  of the return object declaration to a renaming. This case occurs
+         --  If the object decl was already rewritten as a renaming, then we
+         --  don't want to do the object allocation and transformation of of
+         --  the return object declaration to a renaming. This case occurs
          --  when the return object is initialized by a call to another
-         --  build-in-place function, and that function is responsible for the
-         --  allocation of the return object.
+         --  build-in-place function, and that function is responsible for
+         --  the allocation of the return object.
 
          if Is_Build_In_Place
-           and then
-             Nkind (Return_Object_Decl) = N_Object_Renaming_Declaration
+           and then Nkind (Ret_Obj_Decl) = N_Object_Renaming_Declaration
          then
-            pragma Assert (Nkind (Original_Node (Return_Object_Decl)) =
-                            N_Object_Declaration
-              and then Is_Build_In_Place_Function_Call
-                         (Expression (Original_Node (Return_Object_Decl))));
+            pragma Assert
+              (Nkind (Original_Node (Ret_Obj_Decl)) = N_Object_Declaration
+                and then Is_Build_In_Place_Function_Call
+                           (Expression (Original_Node (Ret_Obj_Decl))));
 
-            Set_By_Ref (Return_Stm);  -- Return build-in-place results by ref
+            --  Return the build-in-place result by reference
+
+            Set_By_Ref (Return_Stmt);
 
          elsif Is_Build_In_Place then
 
@@ -4503,27 +4994,26 @@ package body Exp_Ch6 is
             --  expanded as separate assignments, then add an assignment
             --  statement to ensure the return object gets initialized.
 
-            --  declare
-            --     Result : T [:= <expression>];
-            --  begin
-            --     ...
+            --    declare
+            --       Result : T [:= <expression>];
+            --    begin
+            --       ...
 
             --  is converted to
 
-            --  declare
-            --     Result : T renames FuncRA.all;
-            --     [Result := <expression;]
-            --  begin
-            --     ...
+            --    declare
+            --       Result : T renames FuncRA.all;
+            --       [Result := <expression;]
+            --    begin
+            --       ...
 
             declare
                Return_Obj_Id    : constant Entity_Id :=
-                                    Defining_Identifier (Return_Object_Decl);
+                                    Defining_Identifier (Ret_Obj_Decl);
                Return_Obj_Typ   : constant Entity_Id := Etype (Return_Obj_Id);
                Return_Obj_Expr  : constant Node_Id :=
-                                    Expression (Return_Object_Decl);
-               Result_Subt      : constant Entity_Id :=
-                                    Etype (Parent_Function);
+                                    Expression (Ret_Obj_Decl);
+               Result_Subt      : constant Entity_Id := Etype (Par_Func);
                Constr_Result    : constant Boolean :=
                                     Is_Constrained (Result_Subt);
                Obj_Alloc_Formal : Entity_Id;
@@ -4534,12 +5024,12 @@ package body Exp_Ch6 is
             begin
                --  Build-in-place results must be returned by reference
 
-               Set_By_Ref (Return_Stm);
+               Set_By_Ref (Return_Stmt);
 
                --  Retrieve the implicit access parameter passed by the caller
 
                Object_Access :=
-                 Build_In_Place_Formal (Parent_Function, BIP_Object_Access);
+                 Build_In_Place_Formal (Par_Func, BIP_Object_Access);
 
                --  If the return object's declaration includes an expression
                --  and the declaration isn't marked as No_Initialization, then
@@ -4558,13 +5048,14 @@ package body Exp_Ch6 is
                --  interface has no assignment operation).
 
                if Present (Return_Obj_Expr)
-                 and then not No_Initialization (Return_Object_Decl)
+                 and then not No_Initialization (Ret_Obj_Decl)
                  and then not Is_Interface (Return_Obj_Typ)
                then
                   Init_Assignment :=
                     Make_Assignment_Statement (Loc,
                       Name       => New_Reference_To (Return_Obj_Id, Loc),
                       Expression => Relocate_Node (Return_Obj_Expr));
+
                   Set_Etype (Name (Init_Assignment), Etype (Return_Obj_Id));
                   Set_Assignment_OK (Name (Init_Assignment));
                   Set_No_Ctrl_Actions (Init_Assignment);
@@ -4572,7 +5063,7 @@ package body Exp_Ch6 is
                   Set_Parent (Name (Init_Assignment), Init_Assignment);
                   Set_Parent (Expression (Init_Assignment), Init_Assignment);
 
-                  Set_Expression (Return_Object_Decl, Empty);
+                  Set_Expression (Ret_Obj_Decl, Empty);
 
                   if Is_Class_Wide_Type (Etype (Return_Obj_Id))
                     and then not Is_Class_Wide_Type
@@ -4581,9 +5072,8 @@ package body Exp_Ch6 is
                      Rewrite (Expression (Init_Assignment),
                        Make_Type_Conversion (Loc,
                          Subtype_Mark =>
-                           New_Occurrence_Of
-                             (Etype (Return_Obj_Id), Loc),
-                         Expression =>
+                           New_Occurrence_Of (Etype (Return_Obj_Id), Loc),
+                         Expression   =>
                            Relocate_Node (Expression (Init_Assignment))));
                   end if;
 
@@ -4596,7 +5086,7 @@ package body Exp_Ch6 is
                   if Constr_Result
                     and then not Is_Tagged_Type (Underlying_Type (Result_Subt))
                   then
-                     Insert_After (Return_Object_Decl, Init_Assignment);
+                     Insert_After (Ret_Obj_Decl, Init_Assignment);
                   end if;
                end if;
 
@@ -4623,7 +5113,7 @@ package body Exp_Ch6 is
                  or else Is_Tagged_Type (Underlying_Type (Result_Subt))
                then
                   Obj_Alloc_Formal :=
-                    Build_In_Place_Formal (Parent_Function, BIP_Alloc_Form);
+                    Build_In_Place_Formal (Par_Func, BIP_Alloc_Form);
 
                   declare
                      Ref_Type       : Entity_Id;
@@ -4631,8 +5121,8 @@ package body Exp_Ch6 is
                      Alloc_Obj_Id   : Entity_Id;
                      Alloc_Obj_Decl : Node_Id;
                      Alloc_If_Stmt  : Node_Id;
-                     SS_Allocator   : Node_Id;
                      Heap_Allocator : Node_Id;
+                     SS_Allocator   : Node_Id;
 
                   begin
                      --  Reuse the itype created for the function's implicit
@@ -4640,7 +5130,7 @@ package body Exp_Ch6 is
                      --  access type here, plus it allows assigning the access
                      --  formal directly without applying a conversion.
 
-                     --  Ref_Type := Etype (Object_Access);
+                     --    Ref_Type := Etype (Object_Access);
 
                      --  Create an access type designating the function's
                      --  result subtype.
@@ -4650,13 +5140,13 @@ package body Exp_Ch6 is
                      Ptr_Type_Decl :=
                        Make_Full_Type_Declaration (Loc,
                          Defining_Identifier => Ref_Type,
-                         Type_Definition =>
+                         Type_Definition     =>
                            Make_Access_To_Object_Definition (Loc,
-                             All_Present => True,
+                             All_Present        => True,
                              Subtype_Indication =>
                                New_Reference_To (Return_Obj_Typ, Loc)));
 
-                     Insert_Before (Return_Object_Decl, Ptr_Type_Decl);
+                     Insert_Before (Ret_Obj_Decl, Ptr_Type_Decl);
 
                      --  Create an access object that will be initialized to an
                      --  access value denoting the return object, either coming
@@ -4669,17 +5159,17 @@ package body Exp_Ch6 is
                      Alloc_Obj_Decl :=
                        Make_Object_Declaration (Loc,
                          Defining_Identifier => Alloc_Obj_Id,
-                         Object_Definition   => New_Reference_To
-                                                  (Ref_Type, Loc));
+                         Object_Definition   =>
+                           New_Reference_To (Ref_Type, Loc));
 
-                     Insert_Before (Return_Object_Decl, Alloc_Obj_Decl);
+                     Insert_Before (Ret_Obj_Decl, Alloc_Obj_Decl);
 
                      --  Create allocators for both the secondary stack and
                      --  global heap. If there's an initialization expression,
                      --  then create these as initialized allocators.
 
                      if Present (Return_Obj_Expr)
-                       and then not No_Initialization (Return_Object_Decl)
+                       and then not No_Initialization (Ret_Obj_Decl)
                      then
                         --  Always use the type of the expression for the
                         --  qualified expression, rather than the result type.
@@ -4696,7 +5186,7 @@ package body Exp_Ch6 is
                                 Subtype_Mark =>
                                   New_Reference_To
                                     (Etype (Return_Obj_Expr), Loc),
-                                Expression =>
+                                Expression   =>
                                   New_Copy_Tree (Return_Obj_Expr)));
 
                      else
@@ -4764,16 +5254,16 @@ package body Exp_Ch6 is
                         --  The allocator is returned on the secondary stack,
                         --  so indicate that the function return, as well as
                         --  the block that encloses the allocator, must not
-                        --  release it. The flags must be set now because the
-                        --  decision to use the secondary stack is done very
-                        --  late in the course of expanding the return
+                        --  release it. The flags must be set now because
+                        --  the decision to use the secondary stack is done
+                        --  very late in the course of expanding the return
                         --  statement, past the point where these flags are
                         --  normally set.
 
-                        Set_Sec_Stack_Needed_For_Return (Parent_Function);
+                        Set_Sec_Stack_Needed_For_Return (Par_Func);
                         Set_Sec_Stack_Needed_For_Return
                           (Return_Statement_Entity (N));
-                        Set_Uses_Sec_Stack (Parent_Function);
+                        Set_Uses_Sec_Stack (Par_Func);
                         Set_Uses_Sec_Stack (Return_Statement_Entity (N));
                      end if;
 
@@ -4795,75 +5285,72 @@ package body Exp_Ch6 is
 
                      Alloc_If_Stmt :=
                        Make_If_Statement (Loc,
-                         Condition       =>
+                         Condition =>
                            Make_Op_Eq (Loc,
-                             Left_Opnd =>
+                             Left_Opnd  =>
                                New_Reference_To (Obj_Alloc_Formal, Loc),
                              Right_Opnd =>
                                Make_Integer_Literal (Loc,
                                  UI_From_Int (BIP_Allocation_Form'Pos
                                                 (Caller_Allocation)))),
-                         Then_Statements =>
-                           New_List (Make_Assignment_Statement (Loc,
-                                       Name       =>
-                                         New_Reference_To
-                                           (Alloc_Obj_Id, Loc),
-                                       Expression =>
-                                         Make_Unchecked_Type_Conversion (Loc,
-                                           Subtype_Mark =>
-                                             New_Reference_To (Ref_Type, Loc),
-                                           Expression =>
-                                             New_Reference_To
-                                               (Object_Access, Loc)))),
-                         Elsif_Parts     =>
-                           New_List (Make_Elsif_Part (Loc,
-                                       Condition       =>
-                                         Make_Op_Eq (Loc,
-                                           Left_Opnd =>
-                                             New_Reference_To
-                                               (Obj_Alloc_Formal, Loc),
-                                           Right_Opnd =>
-                                             Make_Integer_Literal (Loc,
-                                               UI_From_Int (
-                                                 BIP_Allocation_Form'Pos
+
+                         Then_Statements => New_List (
+                           Make_Assignment_Statement (Loc,
+                             Name       =>
+                               New_Reference_To (Alloc_Obj_Id, Loc),
+                             Expression =>
+                               Make_Unchecked_Type_Conversion (Loc,
+                                 Subtype_Mark =>
+                                   New_Reference_To (Ref_Type, Loc),
+                                 Expression   =>
+                                   New_Reference_To (Object_Access, Loc)))),
+
+                         Elsif_Parts => New_List (
+                           Make_Elsif_Part (Loc,
+                             Condition =>
+                               Make_Op_Eq (Loc,
+                                 Left_Opnd  =>
+                                   New_Reference_To (Obj_Alloc_Formal, Loc),
+                                 Right_Opnd =>
+                                   Make_Integer_Literal (Loc,
+                                     UI_From_Int (BIP_Allocation_Form'Pos
                                                     (Secondary_Stack)))),
-                                       Then_Statements =>
-                                          New_List
-                                            (Make_Assignment_Statement (Loc,
-                                               Name       =>
-                                                 New_Reference_To
-                                                   (Alloc_Obj_Id, Loc),
-                                               Expression =>
-                                                 SS_Allocator)))),
-                         Else_Statements =>
-                           New_List (Make_Assignment_Statement (Loc,
-                                        Name       =>
-                                          New_Reference_To
-                                            (Alloc_Obj_Id, Loc),
-                                        Expression =>
-                                          Heap_Allocator)));
+
+                             Then_Statements => New_List (
+                               Make_Assignment_Statement (Loc,
+                                 Name       =>
+                                   New_Reference_To (Alloc_Obj_Id, Loc),
+                                 Expression => SS_Allocator)))),
+
+                         Else_Statements => New_List (
+                           Build_Heap_Allocator
+                             (Temp_Id    => Alloc_Obj_Id,
+                              Temp_Typ   => Ref_Type,
+                              Func_Id    => Par_Func,
+                              Ret_Typ    => Return_Obj_Typ,
+                              Alloc_Expr => Heap_Allocator)));
 
                      --  If a separate initialization assignment was created
                      --  earlier, append that following the assignment of the
                      --  implicit access formal to the access object, to ensure
-                     --  that the return object is initialized in that case.
-                     --  In this situation, the target of the assignment must
-                     --  be rewritten to denote a dereference of the access to
-                     --  the return object passed in by the caller.
+                     --  that the return object is initialized in that case. In
+                     --  this situation, the target of the assignment must be
+                     --  rewritten to denote a dereference of the access to the
+                     --  return object passed in by the caller.
 
                      if Present (Init_Assignment) then
                         Rewrite (Name (Init_Assignment),
                           Make_Explicit_Dereference (Loc,
                             Prefix => New_Reference_To (Alloc_Obj_Id, Loc)));
+
                         Set_Etype
                           (Name (Init_Assignment), Etype (Return_Obj_Id));
 
                         Append_To
-                          (Then_Statements (Alloc_If_Stmt),
-                           Init_Assignment);
+                          (Then_Statements (Alloc_If_Stmt), Init_Assignment);
                      end if;
 
-                     Insert_Before (Return_Object_Decl, Alloc_If_Stmt);
+                     Insert_Before (Ret_Obj_Decl, Alloc_If_Stmt);
 
                      --  Remember the local access object for use in the
                      --  dereference of the renaming created below.
@@ -4880,12 +5367,12 @@ package body Exp_Ch6 is
                  Make_Explicit_Dereference (Loc,
                    Prefix => New_Reference_To (Object_Access, Loc));
 
-               Rewrite (Return_Object_Decl,
+               Rewrite (Ret_Obj_Decl,
                  Make_Object_Renaming_Declaration (Loc,
                    Defining_Identifier => Return_Obj_Id,
                    Access_Definition   => Empty,
-                   Subtype_Mark        => New_Occurrence_Of
-                                            (Return_Obj_Typ, Loc),
+                   Subtype_Mark        =>
+                     New_Occurrence_Of (Return_Obj_Typ, Loc),
                    Name                => Obj_Acc_Deref));
 
                Set_Renamed_Object (Return_Obj_Id, Obj_Acc_Deref);
@@ -4905,14 +5392,13 @@ package body Exp_Ch6 is
 
          --  Build simple_return_statement that returns the expression directly
 
-         Return_Stm := Make_Simple_Return_Statement (Loc, Expression => Exp);
-
-         Result := Return_Stm;
+         Return_Stmt := Make_Simple_Return_Statement (Loc, Expression => Exp);
+         Result := Return_Stmt;
       end if;
 
       --  Set the flag to prevent infinite recursion
 
-      Set_Comes_From_Extended_Return_Statement (Return_Stm);
+      Set_Comes_From_Extended_Return_Statement (Return_Stmt);
 
       Rewrite (N, Result);
       Analyze (N);
@@ -5067,10 +5553,8 @@ package body Exp_Ch6 is
               and then not Comes_From_Source (Parent (S))
             then
                Loc := Sloc (Last_Stm);
-
             elsif Present (End_Label (H)) then
                Loc := Sloc (End_Label (H));
-
             else
                Loc := Sloc (Last_Stm);
             end if;
@@ -5274,8 +5758,7 @@ package body Exp_Ch6 is
             Set_Declarations (N, Empty_List);
             Set_Handled_Statement_Sequence (N,
               Make_Handled_Sequence_Of_Statements (Loc,
-                Statements => New_List (
-                  Make_Null_Statement (Loc))));
+                Statements => New_List (Make_Null_Statement (Loc))));
             return;
          end if;
       end if;
@@ -5422,6 +5905,30 @@ package body Exp_Ch6 is
       Prot_Id   : Entity_Id;
 
    begin
+      --  In SPARK, subprogram declarations are only allowed in package
+      --  specifications.
+
+      if Nkind (Parent (N)) /= N_Package_Specification then
+         if Nkind (Parent (N)) = N_Compilation_Unit then
+            Check_SPARK_Restriction
+              ("subprogram declaration is not a library item", N);
+
+         elsif Present (Next (N))
+           and then Nkind (Next (N)) = N_Pragma
+           and then Get_Pragma_Id (Pragma_Name (Next (N))) = Pragma_Import
+         then
+            --  In SPARK, subprogram declarations are also permitted in
+            --  declarative parts when immediately followed by a corresponding
+            --  pragma Import. We only check here that there is some pragma
+            --  Import.
+
+            null;
+         else
+            Check_SPARK_Restriction
+              ("subprogram declaration is not allowed here", N);
+         end if;
+      end if;
+
       --  Deal with case of protected subprogram. Do not generate protected
       --  operation if operation is flagged as eliminated.
 
@@ -5477,10 +5984,10 @@ package body Exp_Ch6 is
             Pop_Scope;
          end if;
 
-      --  Ada 2005 (AI-348): Generate body for a null procedure.
-      --  In most cases this is superfluous because calls to it
-      --  will be automatically inlined, but we definitely need
-      --  the body if preconditions for the procedure are present.
+      --  Ada 2005 (AI-348): Generate body for a null procedure. In most
+      --  cases this is superfluous because calls to it will be automatically
+      --  inlined, but we definitely need the body if preconditions for the
+      --  procedure are present.
 
       elsif Nkind (Specification (N)) = N_Procedure_Specification
         and then Null_Present (Specification (N))
@@ -5518,11 +6025,11 @@ package body Exp_Ch6 is
 
    begin
       --  Call _Postconditions procedure if procedure with active
-      --  postconditions. Here, we use the Postcondition_Proc attribute, which
-      --  is needed for implicitly-generated returns. Functions never
-      --  have implicitly-generated returns, and there's no room for
-      --  Postcondition_Proc in E_Function, so we look up the identifier
-      --  Name_uPostconditions for function returns (see
+      --  postconditions. Here, we use the Postcondition_Proc attribute,
+      --  which is needed for implicitly-generated returns. Functions
+      --  never have implicitly-generated returns, and there's no
+      --  room for Postcondition_Proc in E_Function, so we look up the
+      --  identifier Name_uPostconditions for function returns (see
       --  Expand_Simple_Function_Return).
 
       if Ekind (Scope_Id) = E_Procedure
@@ -5605,11 +6112,10 @@ package body Exp_Ch6 is
                New_Reference_To (RTE (RE_Complete_Entry_Body), Loc),
              Parameter_Associations => New_List (
                Make_Attribute_Reference (Loc,
-                 Prefix =>
+                 Prefix         =>
                    New_Reference_To
                      (Find_Protection_Object (Current_Scope), Loc),
-                 Attribute_Name =>
-                   Name_Unchecked_Access)));
+                 Attribute_Name => Name_Unchecked_Access)));
 
          Insert_Before (N, Call);
          Analyze (Call);
@@ -5690,7 +6196,7 @@ package body Exp_Ch6 is
             Decls := New_List (
               Make_Full_Type_Declaration (Loc,
                 Defining_Identifier => Obj_Ptr,
-                  Type_Definition =>
+                  Type_Definition   =>
                      Make_Access_To_Object_Definition (Loc,
                        Subtype_Indication =>
                          New_Reference_To
@@ -5701,8 +6207,9 @@ package body Exp_Ch6 is
 
             Rec :=
               Make_Explicit_Dereference (Loc,
-                Unchecked_Convert_To (Obj_Ptr,
-                  New_Occurrence_Of (Param, Loc)));
+                Prefix =>
+                  Unchecked_Convert_To (Obj_Ptr,
+                    New_Occurrence_Of (Param, Loc)));
 
             --  Analyze new actual. Other actuals in calls are already analyzed
             --  and the list of actuals is not reanalyzed after rewriting.
@@ -5727,14 +6234,13 @@ package body Exp_Ch6 is
       Rec   : Node_Id;
 
    begin
-      --  If the protected object is not an enclosing scope, this is
-      --  an inter-object function call. Inter-object procedure
-      --  calls are expanded by Exp_Ch9.Build_Simple_Entry_Call.
-      --  The call is intra-object only if the subprogram being
-      --  called is in the protected body being compiled, and if the
-      --  protected object in the call is statically the enclosing type.
-      --  The object may be an component of some other data structure,
-      --  in which case this must be handled as an inter-object call.
+      --  If the protected object is not an enclosing scope, this is an inter-
+      --  object function call. Inter-object procedure calls are expanded by
+      --  Exp_Ch9.Build_Simple_Entry_Call. The call is intra-object only if the
+      --  subprogram being called is in the protected body being compiled, and
+      --  if the protected object in the call is statically the enclosing type.
+      --  The object may be an component of some other data structure, in which
+      --  case this must be handled as an inter-object call.
 
       if not In_Open_Scopes (Scop)
         or else not Is_Entity_Name (Name (N))
@@ -5748,8 +6254,8 @@ package body Exp_Ch6 is
          end if;
 
          Build_Protected_Subprogram_Call (N,
-           Name => New_Occurrence_Of (Subp, Sloc (N)),
-           Rec =>  Convert_Concurrent (Rec, Etype (Rec)),
+           Name     => New_Occurrence_Of (Subp, Sloc (N)),
+           Rec      => Convert_Concurrent (Rec, Etype (Rec)),
            External => True);
 
       else
@@ -5784,12 +6290,38 @@ package body Exp_Ch6 is
       end if;
    end Expand_Protected_Subprogram_Call;
 
+   --------------------------------------------
+   -- Has_Unconstrained_Access_Discriminants --
+   --------------------------------------------
+
+   function Has_Unconstrained_Access_Discriminants
+     (Subtyp : Entity_Id) return Boolean
+   is
+      Discr : Entity_Id;
+
+   begin
+      if Has_Discriminants (Subtyp)
+        and then not Is_Constrained (Subtyp)
+      then
+         Discr := First_Discriminant (Subtyp);
+         while Present (Discr) loop
+            if Ekind (Etype (Discr)) = E_Anonymous_Access_Type then
+               return True;
+            end if;
+
+            Next_Discriminant (Discr);
+         end loop;
+      end if;
+
+      return False;
+   end Has_Unconstrained_Access_Discriminants;
+
    -----------------------------------
    -- Expand_Simple_Function_Return --
    -----------------------------------
 
-   --  The "simple" comes from the syntax rule simple_return_statement.
-   --  The semantics are not at all simple!
+   --  The "simple" comes from the syntax rule simple_return_statement. The
+   --  semantics are not at all simple!
 
    procedure Expand_Simple_Function_Return (N : Node_Id) is
       Loc : constant Source_Ptr := Sloc (N);
@@ -5810,12 +6342,12 @@ package body Exp_Ch6 is
       --  The type of the expression (not necessarily the same as R_Type)
 
       Subtype_Ind : Node_Id;
-      --  If the result type of the function is class-wide and the
-      --  expression has a specific type, then we use the expression's
-      --  type as the type of the return object. In cases where the
-      --  expression is an aggregate that is built in place, this avoids
-      --  the need for an expensive conversion of the return object to
-      --  the specific type on assignments to the individual components.
+      --  If the result type of the function is class-wide and the expression
+      --  has a specific type, then we use the expression's type as the type of
+      --  the return object. In cases where the expression is an aggregate that
+      --  is built in place, this avoids the need for an expensive conversion
+      --  of the return object to the specific type on assignments to the
+      --  individual components.
 
    begin
       if Is_Class_Wide_Type (R_Type)
@@ -5979,13 +6511,13 @@ package body Exp_Ch6 is
          --  Optimize the case where the result is a function call. In this
          --  case either the result is already on the secondary stack, or is
          --  already being returned with the stack pointer depressed and no
-         --  further processing is required except to set the By_Ref flag to
-         --  ensure that gigi does not attempt an extra unnecessary copy.
+         --  further processing is required except to set the By_Ref flag
+         --  to ensure that gigi does not attempt an extra unnecessary copy.
          --  (actually not just unnecessary but harmfully wrong in the case
          --  of a controlled type, where gigi does not know how to do a copy).
-         --  To make up for a gcc 2.8.1 deficiency (???), we perform
-         --  the copy for array types if the constrained status of the
-         --  target type is different from that of the expression.
+         --  To make up for a gcc 2.8.1 deficiency (???), we perform the copy
+         --  for array types if the constrained status of the target type is
+         --  different from that of the expression.
 
          if Requires_Transient_Scope (Exptyp)
            and then
@@ -6079,12 +6611,12 @@ package body Exp_Ch6 is
          end if;
       end if;
 
-      --  Implement the rules of 6.5(8-10), which require a tag check in the
-      --  case of a limited tagged return type, and tag reassignment for
+      --  Implement the rules of 6.5(8-10), which require a tag check in
+      --  the case of a limited tagged return type, and tag reassignment for
       --  nonlimited tagged results. These actions are needed when the return
       --  type is a specific tagged type and the result expression is a
-      --  conversion or a formal parameter, because in that case the tag of the
-      --  expression might differ from the tag of the specific result type.
+      --  conversion or a formal parameter, because in that case the tag of
+      --  the expression might differ from the tag of the specific result type.
 
       if Is_Tagged_Type (Utyp)
         and then not Is_Class_Wide_Type (Utyp)
@@ -6093,28 +6625,29 @@ package body Exp_Ch6 is
                     or else (Is_Entity_Name (Exp)
                                and then Ekind (Entity (Exp)) in Formal_Kind))
       then
-         --  When the return type is limited, perform a check that the
-         --  tag of the result is the same as the tag of the return type.
+         --  When the return type is limited, perform a check that the tag of
+         --  the result is the same as the tag of the return type.
 
          if Is_Limited_Type (R_Type) then
             Insert_Action (Exp,
               Make_Raise_Constraint_Error (Loc,
                 Condition =>
                   Make_Op_Ne (Loc,
-                    Left_Opnd =>
+                    Left_Opnd  =>
                       Make_Selected_Component (Loc,
                         Prefix        => Duplicate_Subexpr (Exp),
                         Selector_Name => Make_Identifier (Loc, Name_uTag)),
                     Right_Opnd =>
                       Make_Attribute_Reference (Loc,
-                        Prefix => New_Occurrence_Of (Base_Type (Utyp), Loc),
+                        Prefix         =>
+                          New_Occurrence_Of (Base_Type (Utyp), Loc),
                         Attribute_Name => Name_Tag)),
-                Reason => CE_Tag_Check_Failed));
+                Reason    => CE_Tag_Check_Failed));
 
          --  If the result type is a specific nonlimited tagged type, then we
          --  have to ensure that the tag of the result is that of the result
-         --  type. This is handled by making a copy of the expression in the
-         --  case where it might have a different tag, namely when the
+         --  type. This is handled by making a copy of the expression in
+         --  the case where it might have a different tag, namely when the
          --  expression is a conversion or a formal parameter. We create a new
          --  object of the result type and initialize it from the expression,
          --  which will implicitly force the tag to be set appropriately.
@@ -6164,7 +6697,7 @@ package body Exp_Ch6 is
             or else Nkind_In (Exp, N_Type_Conversion,
                                    N_Unchecked_Type_Conversion)
             or else (Is_Entity_Name (Exp)
-                       and then Ekind (Entity (Exp)) in Formal_Kind)
+                      and then Ekind (Entity (Exp)) in Formal_Kind)
             or else Scope_Depth (Enclosing_Dynamic_Scope (Etype (Exp))) >
                       Scope_Depth (Enclosing_Dynamic_Scope (Scope_Id)))
       then
@@ -6173,8 +6706,8 @@ package body Exp_Ch6 is
 
          begin
             --  Ada 2005 (AI-251): In class-wide interface objects we displace
-            --  "this" to reference the base of the object --- required to get
-            --  access to the TSD of the object.
+            --  "this" to reference the base of the object. This is required to
+            --  get access to the TSD of the object.
 
             if Is_Class_Wide_Type (Etype (Exp))
               and then Is_Interface (Etype (Exp))
@@ -6182,16 +6715,18 @@ package body Exp_Ch6 is
             then
                Tag_Node :=
                  Make_Explicit_Dereference (Loc,
-                   Unchecked_Convert_To (RTE (RE_Tag_Ptr),
-                     Make_Function_Call (Loc,
-                       Name => New_Reference_To (RTE (RE_Base_Address), Loc),
-                       Parameter_Associations => New_List (
-                         Unchecked_Convert_To (RTE (RE_Address),
-                           Duplicate_Subexpr (Prefix (Exp)))))));
+                   Prefix =>
+                     Unchecked_Convert_To (RTE (RE_Tag_Ptr),
+                       Make_Function_Call (Loc,
+                         Name                   =>
+                           New_Reference_To (RTE (RE_Base_Address), Loc),
+                         Parameter_Associations => New_List (
+                           Unchecked_Convert_To (RTE (RE_Address),
+                             Duplicate_Subexpr (Prefix (Exp)))))));
             else
                Tag_Node :=
                  Make_Attribute_Reference (Loc,
-                   Prefix => Duplicate_Subexpr (Exp),
+                   Prefix         => Duplicate_Subexpr (Exp),
                    Attribute_Name => Name_Tag);
             end if;
 
@@ -6199,8 +6734,7 @@ package body Exp_Ch6 is
               Make_Raise_Program_Error (Loc,
                 Condition =>
                   Make_Op_Gt (Loc,
-                    Left_Opnd =>
-                      Build_Get_Access_Level (Loc, Tag_Node),
+                    Left_Opnd  => Build_Get_Access_Level (Loc, Tag_Node),
                     Right_Opnd =>
                       Make_Integer_Literal (Loc,
                         Scope_Depth (Enclosing_Dynamic_Scope (Scope_Id)))),
@@ -6226,18 +6760,235 @@ package body Exp_Ch6 is
                    Make_Op_Ne (Loc,
                      Left_Opnd  => Duplicate_Subexpr (Exp),
                      Right_Opnd => Make_Null (Loc)),
+
                  Right_Opnd => Make_Op_Ne (Loc,
                    Left_Opnd  =>
                      Make_Selected_Component (Loc,
                        Prefix        => Duplicate_Subexpr (Exp),
                        Selector_Name => Make_Identifier (Loc, Name_uTag)),
+
                    Right_Opnd =>
                      Make_Attribute_Reference (Loc,
                        Prefix         =>
                          New_Occurrence_Of (Designated_Type (R_Type), Loc),
                        Attribute_Name => Name_Tag))),
+
              Reason    => CE_Tag_Check_Failed),
              Suppress  => All_Checks);
+      end if;
+
+      --  AI05-0234: RM 6.5(21/3). Check access discriminants to
+      --  ensure that the function result does not outlive an
+      --  object designated by one of it discriminants.
+
+      if Present (Extra_Accessibility_Of_Result (Scope_Id))
+        and then Has_Unconstrained_Access_Discriminants (R_Type)
+      then
+         declare
+            Discrim_Source : Node_Id;
+
+            procedure Check_Against_Result_Level (Level : Node_Id);
+            --  Check the given accessibility level against the level
+            --  determined by the point of call. (AI05-0234).
+
+            --------------------------------
+            -- Check_Against_Result_Level --
+            --------------------------------
+
+            procedure Check_Against_Result_Level (Level : Node_Id) is
+            begin
+               Insert_Action (N,
+                 Make_Raise_Program_Error (Loc,
+                   Condition =>
+                     Make_Op_Gt (Loc,
+                       Left_Opnd  => Level,
+                       Right_Opnd =>
+                         New_Occurrence_Of
+                           (Extra_Accessibility_Of_Result (Scope_Id), Loc)),
+                       Reason => PE_Accessibility_Check_Failed));
+            end Check_Against_Result_Level;
+
+         begin
+            Discrim_Source := Exp;
+            while Nkind (Discrim_Source) = N_Qualified_Expression loop
+               Discrim_Source := Expression (Discrim_Source);
+            end loop;
+
+            if Nkind (Discrim_Source) = N_Identifier
+              and then Is_Return_Object (Entity (Discrim_Source))
+            then
+               Discrim_Source := Entity (Discrim_Source);
+
+               if Is_Constrained (Etype (Discrim_Source)) then
+                  Discrim_Source := Etype (Discrim_Source);
+               else
+                  Discrim_Source := Expression (Parent (Discrim_Source));
+               end if;
+
+            elsif Nkind (Discrim_Source) = N_Identifier
+              and then Nkind_In (Original_Node (Discrim_Source),
+                                 N_Aggregate, N_Extension_Aggregate)
+            then
+               Discrim_Source := Original_Node (Discrim_Source);
+
+            elsif Nkind (Discrim_Source) = N_Explicit_Dereference and then
+              Nkind (Original_Node (Discrim_Source)) = N_Function_Call
+            then
+               Discrim_Source := Original_Node (Discrim_Source);
+            end if;
+
+            while Nkind_In (Discrim_Source, N_Qualified_Expression,
+                                            N_Type_Conversion,
+                                            N_Unchecked_Type_Conversion)
+            loop
+               Discrim_Source := Expression (Discrim_Source);
+            end loop;
+
+            case Nkind (Discrim_Source) is
+               when N_Defining_Identifier =>
+
+                  pragma Assert (Is_Composite_Type (Discrim_Source)
+                                  and then Has_Discriminants (Discrim_Source)
+                                  and then Is_Constrained (Discrim_Source));
+
+                  declare
+                     Discrim   : Entity_Id :=
+                                   First_Discriminant (Base_Type (R_Type));
+                     Disc_Elmt : Elmt_Id   :=
+                                   First_Elmt (Discriminant_Constraint
+                                                 (Discrim_Source));
+                  begin
+                     loop
+                        if Ekind (Etype (Discrim)) =
+                             E_Anonymous_Access_Type
+                        then
+                           Check_Against_Result_Level
+                             (Dynamic_Accessibility_Level (Node (Disc_Elmt)));
+                        end if;
+
+                        Next_Elmt (Disc_Elmt);
+                        Next_Discriminant (Discrim);
+                        exit when not Present (Discrim);
+                     end loop;
+                  end;
+
+               when N_Aggregate | N_Extension_Aggregate =>
+
+                  --  Unimplemented: extension aggregate case where discrims
+                  --  come from ancestor part, not extension part.
+
+                  declare
+                     Discrim  : Entity_Id :=
+                                  First_Discriminant (Base_Type (R_Type));
+
+                     Disc_Exp : Node_Id   := Empty;
+
+                     Positionals_Exhausted
+                              : Boolean   := not Present (Expressions
+                                                            (Discrim_Source));
+
+                     function Associated_Expr
+                       (Comp_Id : Entity_Id;
+                        Associations : List_Id) return Node_Id;
+
+                     --  Given a component and a component associations list,
+                     --  locate the expression for that component; returns
+                     --  Empty if no such expression is found.
+
+                     ---------------------
+                     -- Associated_Expr --
+                     ---------------------
+
+                     function Associated_Expr
+                       (Comp_Id : Entity_Id;
+                        Associations : List_Id) return Node_Id
+                     is
+                        Assoc  : Node_Id;
+                        Choice : Node_Id;
+
+                     begin
+                        --  Simple linear search seems ok here
+
+                        Assoc := First (Associations);
+                        while Present (Assoc) loop
+                           Choice := First (Choices (Assoc));
+                           while Present (Choice) loop
+                              if (Nkind (Choice) = N_Identifier
+                                   and then Chars (Choice) = Chars (Comp_Id))
+                                or else (Nkind (Choice) = N_Others_Choice)
+                              then
+                                 return Expression (Assoc);
+                              end if;
+
+                              Next (Choice);
+                           end loop;
+
+                           Next (Assoc);
+                        end loop;
+
+                        return Empty;
+                     end Associated_Expr;
+
+                  --  Start of processing for Expand_Simple_Function_Return
+
+                  begin
+                     if not Positionals_Exhausted then
+                        Disc_Exp := First (Expressions (Discrim_Source));
+                     end if;
+
+                     loop
+                        if Positionals_Exhausted then
+                           Disc_Exp :=
+                             Associated_Expr
+                               (Discrim,
+                                Component_Associations (Discrim_Source));
+                        end if;
+
+                        if Ekind (Etype (Discrim)) =
+                             E_Anonymous_Access_Type
+                        then
+                           Check_Against_Result_Level
+                             (Dynamic_Accessibility_Level (Disc_Exp));
+                        end if;
+
+                        Next_Discriminant (Discrim);
+                        exit when not Present (Discrim);
+
+                        if not Positionals_Exhausted then
+                           Next (Disc_Exp);
+                           Positionals_Exhausted := not Present (Disc_Exp);
+                        end if;
+                     end loop;
+                  end;
+
+               when N_Function_Call =>
+
+                  --  No check needed (check performed by callee)
+
+                  null;
+
+               when others =>
+
+                  declare
+                     Level : constant Node_Id :=
+                               Make_Integer_Literal (Loc,
+                                 Object_Access_Level (Discrim_Source));
+
+                  begin
+                     --  Unimplemented: check for name prefix that includes
+                     --  a dereference of an access value with a dynamic
+                     --  accessibility level (e.g., an access param or a
+                     --  saooaaat) and use dynamic level in that case. For
+                     --  example:
+                     --    return Access_Param.all(Some_Index).Some_Component;
+                     --  ???
+
+                     Set_Etype (Level, Standard_Natural);
+                     Check_Against_Result_Level (Level);
+                  end;
+
+            end case;
+         end;
       end if;
 
       --  If we are returning an object that may not be bit-aligned, then copy
@@ -6257,7 +7008,7 @@ package body Exp_Ch6 is
                 Constant_Present    => True,
                 Object_Definition   => New_Occurrence_Of (R_Type, Loc),
                 Expression          => ExpR),
-              Suppress            => All_Checks);
+              Suppress => All_Checks);
             Rewrite (Exp, New_Occurrence_Of (Tnn, Loc));
          end;
       end if;
@@ -6282,7 +7033,7 @@ package body Exp_Ch6 is
                                   N_Integer_Literal,
                                   N_Real_Literal)
            or else (Nkind (Exp) = N_Explicit_Dereference
-                      and then Is_Entity_Name (Prefix (Exp)))
+                     and then Is_Entity_Name (Prefix (Exp)))
          then
             null;
 
@@ -6442,11 +7193,23 @@ package body Exp_Ch6 is
       Function_Id : Entity_Id;
 
    begin
+      --  Return False when the expander is inactive, since awareness of
+      --  build-in-place treatment is only relevant during expansion. Note that
+      --  Is_Build_In_Place_Function, which is called as part of this function,
+      --  is also conditioned this way, but we need to check here as well to
+      --  avoid blowing up on processing protected calls when expansion is
+      --  disabled (such as with -gnatc) since those would trip over the raise
+      --  of Program_Error below.
+
+      if not Expander_Active then
+         return False;
+      end if;
+
       --  Step past qualification or unchecked conversion (the latter can occur
       --  in cases of calls to 'Input).
 
-      if Nkind_In
-           (Exp_Node, N_Qualified_Expression, N_Unchecked_Type_Conversion)
+      if Nkind_In (Exp_Node, N_Qualified_Expression,
+                             N_Unchecked_Type_Conversion)
       then
          Exp_Node := Expression (N);
       end if;
@@ -6455,11 +7218,24 @@ package body Exp_Ch6 is
          return False;
 
       else
-         if Is_Entity_Name (Name (Exp_Node)) then
+         --  In Alfa mode, build-in-place calls are not expanded, so that we
+         --  may end up with a call that is neither resolved to an entity, nor
+         --  an indirect call.
+
+         if Alfa_Mode then
+            return False;
+
+         elsif Is_Entity_Name (Name (Exp_Node)) then
             Function_Id := Entity (Name (Exp_Node));
+
+         --  In the case of an explicitly dereferenced call, use the subprogram
+         --  type generated for the dereference.
 
          elsif Nkind (Name (Exp_Node)) = N_Explicit_Dereference then
             Function_Id := Etype (Name (Exp_Node));
+
+         else
+            raise Program_Error;
          end if;
 
          return Is_Build_In_Place_Function (Function_Id);
@@ -6508,7 +7284,7 @@ package body Exp_Ch6 is
            Next_Elmt (Next_Elmt (First_Elmt (Access_Disp_Table (Tagged_Typ))));
 
          while Present (Iface_DT_Ptr)
-            and then Ekind (Node (Iface_DT_Ptr)) = E_Constant
+           and then Ekind (Node (Iface_DT_Ptr)) = E_Constant
          loop
             pragma Assert (Has_Thunks (Node (Iface_DT_Ptr)));
             Expand_Interface_Thunk (Prim, Thunk_Id, Thunk_Code);
@@ -6518,9 +7294,9 @@ package body Exp_Ch6 is
                  Thunk_Code,
 
                  Build_Set_Predefined_Prim_Op_Address (Loc,
-                   Tag_Node =>
+                   Tag_Node     =>
                      New_Reference_To (Node (Next_Elmt (Iface_DT_Ptr)), Loc),
-                   Position => DT_Position (Prim),
+                   Position     => DT_Position (Prim),
                    Address_Node =>
                      Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                        Make_Attribute_Reference (Loc,
@@ -6528,11 +7304,11 @@ package body Exp_Ch6 is
                          Attribute_Name => Name_Unrestricted_Access))),
 
                  Build_Set_Predefined_Prim_Op_Address (Loc,
-                   Tag_Node =>
+                   Tag_Node     =>
                      New_Reference_To
                       (Node (Next_Elmt (Next_Elmt (Next_Elmt (Iface_DT_Ptr)))),
                        Loc),
-                   Position => DT_Position (Prim),
+                   Position     => DT_Position (Prim),
                    Address_Node =>
                      Unchecked_Convert_To (RTE (RE_Prim_Ptr),
                        Make_Attribute_Reference (Loc,
@@ -6545,13 +7321,12 @@ package body Exp_Ch6 is
             Next_Elmt (Iface_DT_Ptr);
             pragma Assert (Has_Thunks (Node (Iface_DT_Ptr)));
 
-            --  Skip the tag of the no-thunks dispatch table
+            --  Skip tag of the no-thunks dispatch table
 
             Next_Elmt (Iface_DT_Ptr);
             pragma Assert (not Has_Thunks (Node (Iface_DT_Ptr)));
 
-            --  Skip the tag of the predefined primitives no-thunks dispatch
-            --  table
+            --  Skip tag of predefined primitives no-thunks dispatch table
 
             Next_Elmt (Iface_DT_Ptr);
             pragma Assert (not Has_Thunks (Node (Iface_DT_Ptr)));
@@ -6562,7 +7337,7 @@ package body Exp_Ch6 is
 
       --  Local variables
 
-      Subp : constant Entity_Id := Entity (N);
+      Subp : constant Entity_Id  := Entity (N);
 
    --  Start of processing for Freeze_Subprogram
 
@@ -6603,8 +7378,8 @@ package body Exp_Ch6 is
             --  slots.
 
             elsif Is_Imported (Subp)
-                    and then (Convention (Subp) = Convention_CPP
-                                or else Convention (Subp) = Convention_C)
+               and then (Convention (Subp) = Convention_CPP
+                           or else Convention (Subp) = Convention_C)
             then
                null;
 
@@ -6713,11 +7488,11 @@ package body Exp_Ch6 is
      (Allocator     : Node_Id;
       Function_Call : Node_Id)
    is
+      Acc_Type          : constant Entity_Id := Etype (Allocator);
       Loc               : Source_Ptr;
       Func_Call         : Node_Id := Function_Call;
       Function_Id       : Entity_Id;
       Result_Subt       : Entity_Id;
-      Acc_Type          : constant Entity_Id := Etype (Allocator);
       New_Allocator     : Node_Id;
       Return_Obj_Access : Entity_Id;
 
@@ -6756,7 +7531,14 @@ package body Exp_Ch6 is
          raise Program_Error;
       end if;
 
-      Result_Subt := Etype (Function_Id);
+      Result_Subt := Available_View (Etype (Function_Id));
+
+      --  Check whether return type includes tasks. This may not have been done
+      --  previously, if the type was a limited view.
+
+      if Has_Task (Result_Subt) then
+         Build_Activation_Chain_Entity (Allocator);
+      end if;
 
       --  When the result subtype is constrained, the return object must be
       --  allocated on the caller side, and access to it is passed to the
@@ -6813,7 +7595,7 @@ package body Exp_Ch6 is
          Add_Alloc_Form_Actual_To_Build_In_Place_Call
            (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
 
-         Add_Final_List_Actual_To_Build_In_Place_Call
+         Add_Finalization_Master_Actual_To_Build_In_Place_Call
            (Func_Call, Function_Id, Acc_Type);
 
          Add_Task_Actuals_To_Build_In_Place_Call
@@ -6841,14 +7623,13 @@ package body Exp_Ch6 is
       --  operations. ???
 
       else
-
          --  Pass an allocation parameter indicating that the function should
          --  allocate its result on the heap.
 
          Add_Alloc_Form_Actual_To_Build_In_Place_Call
            (Func_Call, Function_Id, Alloc_Form => Global_Heap);
 
-         Add_Final_List_Actual_To_Build_In_Place_Call
+         Add_Finalization_Master_Actual_To_Build_In_Place_Call
            (Func_Call, Function_Id, Acc_Type);
 
          Add_Task_Actuals_To_Build_In_Place_Call
@@ -6859,6 +7640,37 @@ package body Exp_Ch6 is
 
          Add_Access_Actual_To_Build_In_Place_Call
            (Func_Call, Function_Id, Return_Object => Empty);
+      end if;
+
+      --  If the build-in-place function call returns a controlled object,
+      --  the finalization master will require a reference to routine
+      --  Finalize_Address of the designated type. Setting this attribute
+      --  is done in the same manner to expansion of allocators.
+
+      if Needs_Finalization (Result_Subt) then
+
+         --  Controlled types with supressed finalization do not need to
+         --  associate the address of their Finalize_Address primitives with
+         --  a master since they do not need a master to begin with.
+
+         if Is_Library_Level_Entity (Acc_Type)
+           and then Finalize_Storage_Only (Result_Subt)
+         then
+            null;
+
+         --  Do not generate the call to Set_Finalize_Address in Alfa mode
+         --  because it is not necessary and results in unwanted expansion.
+         --  This expansion is also not carried out in CodePeer mode because
+         --  Finalize_Address is never built.
+
+         elsif not Alfa_Mode
+           and then not CodePeer_Mode
+         then
+            Insert_Action (Allocator,
+              Make_Set_Finalize_Address_Call (Loc,
+                Typ     => Etype (Function_Id),
+                Ptr_Typ => Acc_Type));
+         end if;
       end if;
 
       --  Finally, replace the allocator node with a reference to the result
@@ -6921,10 +7733,47 @@ package body Exp_Ch6 is
 
       Result_Subt := Etype (Function_Id);
 
+      --  If the build-in-place function returns a controlled object, then the
+      --  object needs to be finalized immediately after the context. Since
+      --  this case produces a transient scope, the servicing finalizer needs
+      --  to name the returned object. Create a temporary which is initialized
+      --  with the function call:
+      --
+      --    Temp_Id : Func_Type := BIP_Func_Call;
+      --
+      --  The initialization expression of the temporary will be rewritten by
+      --  the expander using the appropriate mechanism in Make_Build_In_Place_
+      --  Call_In_Object_Declaration.
+
+      if Needs_Finalization (Result_Subt) then
+         declare
+            Temp_Id   : constant Entity_Id := Make_Temporary (Loc, 'R');
+            Temp_Decl : Node_Id;
+
+         begin
+            --  Reset the guard on the function call since the following does
+            --  not perform actual call expansion.
+
+            Set_Is_Expanded_Build_In_Place_Call (Func_Call, False);
+
+            Temp_Decl :=
+              Make_Object_Declaration (Loc,
+                Defining_Identifier => Temp_Id,
+                Object_Definition =>
+                  New_Reference_To (Result_Subt, Loc),
+                Expression =>
+                  New_Copy_Tree (Function_Call));
+
+            Insert_Action (Function_Call, Temp_Decl);
+
+            Rewrite (Function_Call, New_Reference_To (Temp_Id, Loc));
+            Analyze (Function_Call);
+         end;
+
       --  When the result subtype is constrained, an object of the subtype is
       --  declared and an access value designating it is passed as an actual.
 
-      if Is_Constrained (Underlying_Type (Result_Subt)) then
+      elsif Is_Constrained (Underlying_Type (Result_Subt)) then
 
          --  Create a temporary object to hold the function result
 
@@ -6950,8 +7799,8 @@ package body Exp_Ch6 is
          Add_Alloc_Form_Actual_To_Build_In_Place_Call
            (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
 
-         Add_Final_List_Actual_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Acc_Type => Empty);
+         Add_Finalization_Master_Actual_To_Build_In_Place_Call
+           (Func_Call, Function_Id);
 
          Add_Task_Actuals_To_Build_In_Place_Call
            (Func_Call, Function_Id, Make_Identifier (Loc, Name_uMaster));
@@ -6974,8 +7823,8 @@ package body Exp_Ch6 is
          Add_Alloc_Form_Actual_To_Build_In_Place_Call
            (Func_Call, Function_Id, Alloc_Form => Secondary_Stack);
 
-         Add_Final_List_Actual_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Acc_Type => Empty);
+         Add_Finalization_Master_Actual_To_Build_In_Place_Call
+           (Func_Call, Function_Id);
 
          Add_Task_Actuals_To_Build_In_Place_Call
            (Func_Call, Function_Id, Make_Identifier (Loc, Name_uMaster));
@@ -7052,16 +7901,8 @@ package body Exp_Ch6 is
       Add_Alloc_Form_Actual_To_Build_In_Place_Call
         (Func_Call, Func_Id, Alloc_Form => Caller_Allocation);
 
-      --  If Lhs is a selected component, then pass it along so that its prefix
-      --  object will be used as the source of the finalization list.
-
-      if Nkind (Lhs) = N_Selected_Component then
-         Add_Final_List_Actual_To_Build_In_Place_Call
-           (Func_Call, Func_Id, Acc_Type => Empty, Sel_Comp => Lhs);
-      else
-         Add_Final_List_Actual_To_Build_In_Place_Call
-           (Func_Call, Func_Id, Acc_Type => Empty);
-      end if;
+      Add_Finalization_Master_Actual_To_Build_In_Place_Call
+        (Func_Call, Func_Id);
 
       Add_Task_Actuals_To_Build_In_Place_Call
         (Func_Call, Func_Id, Make_Identifier (Loc, Name_uMaster));
@@ -7083,9 +7924,9 @@ package body Exp_Ch6 is
       Ptr_Typ_Decl :=
         Make_Full_Type_Declaration (Loc,
           Defining_Identifier => Ptr_Typ,
-          Type_Definition =>
+          Type_Definition     =>
             Make_Access_To_Object_Definition (Loc,
-              All_Present => True,
+              All_Present        => True,
               Subtype_Indication =>
                 New_Reference_To (Result_Subt, Loc)));
       Insert_After_And_Analyze (Assign, Ptr_Typ_Decl);
@@ -7099,11 +7940,8 @@ package body Exp_Ch6 is
       Obj_Decl :=
         Make_Object_Declaration (Loc,
           Defining_Identifier => Obj_Id,
-          Object_Definition =>
-            New_Reference_To (Ptr_Typ, Loc),
-          Expression =>
-            Make_Reference (Loc,
-              Prefix => Relocate_Node (Func_Call)));
+          Object_Definition   => New_Reference_To (Ptr_Typ, Loc),
+          Expression => Make_Reference (Loc, Relocate_Node (Func_Call)));
       Insert_After_And_Analyze (Ptr_Typ_Decl, Obj_Decl);
 
       Rewrite (Assign, Make_Null_Statement (Loc));
@@ -7126,58 +7964,6 @@ package body Exp_Ch6 is
          Target := Entity (Target);
       else
          return;
-      end if;
-
-      --  When the target of the assignment is a return object of an enclosing
-      --  build-in-place function and also requires finalization, the list
-      --  generated for the assignment must be moved to that of the enclosing
-      --  function.
-
-      --    function Enclosing_BIP_Function return Ctrl_Typ is
-      --    begin
-      --       return (Ctrl_Parent_Part => BIP_Function with ...);
-      --    end Enclosing_BIP_Function;
-
-      if Is_Return_Object (Target)
-        and then Needs_Finalization (Etype (Target))
-        and then Needs_Finalization (Result_Subt)
-      then
-         declare
-            Obj_List  : constant Node_Id := Find_Final_List (Obj_Id);
-            Encl_List : Node_Id;
-            Encl_Scop : Entity_Id;
-
-         begin
-            Encl_Scop := Scope (Target);
-
-            --  Locate the scope of the extended return statement
-
-            while Present (Encl_Scop)
-              and then Ekind (Encl_Scop) /= E_Return_Statement
-            loop
-               Encl_Scop := Scope (Encl_Scop);
-            end loop;
-
-            --  A return object should always be enclosed by a return statement
-            --  scope at some level.
-
-            pragma Assert (Present (Encl_Scop));
-
-            Encl_List :=
-              Make_Attribute_Reference (Loc,
-                Prefix =>
-                  New_Reference_To (
-                    Finalization_Chain_Entity (Encl_Scop), Loc),
-                Attribute_Name => Name_Unrestricted_Access);
-
-            --  Generate a call to move final list
-
-            Insert_After_And_Analyze (Obj_Decl,
-              Make_Procedure_Call_Statement (Loc,
-                Name =>
-                  New_Reference_To (RTE (RE_Move_Final_List), Loc),
-                Parameter_Associations => New_List (Obj_List, Encl_List)));
-         end;
       end if;
    end Make_Build_In_Place_Call_In_Assignment;
 
@@ -7202,7 +7988,9 @@ package body Exp_Ch6 is
       Ptr_Typ_Decl    : Node_Id;
       Def_Id          : Entity_Id;
       New_Expr        : Node_Id;
-      Enclosing_Func  : Entity_Id;
+      Enclosing_Func  : constant Entity_Id :=
+                          Enclosing_Subprogram (Obj_Def_Id);
+      Fmaster_Actual  : Node_Id := Empty;
       Pass_Caller_Acc : Boolean := False;
 
    begin
@@ -7241,54 +8029,24 @@ package body Exp_Ch6 is
 
       Result_Subt := Etype (Function_Id);
 
-      --  In the constrained case, add an implicit actual to the function call
-      --  that provides access to the declared object. An unchecked conversion
-      --  to the (specific) result type of the function is inserted to handle
-      --  the case where the object is declared with a class-wide type.
+      --  If the the object is a return object of an enclosing build-in-place
+      --  function, then the implicit build-in-place parameters of the
+      --  enclosing function are simply passed along to the called function.
+      --  (Unfortunately, this won't cover the case of extension aggregates
+      --  where the ancestor part is a build-in-place unconstrained function
+      --  call that should be passed along the caller's parameters. Currently
+      --  those get mishandled by reassigning the result of the call to the
+      --  aggregate return object, when the call result should really be
+      --  directly built in place in the aggregate and not in a temporary. ???)
 
-      if Is_Constrained (Underlying_Type (Result_Subt)) then
-         Caller_Object :=
-            Make_Unchecked_Type_Conversion (Loc,
-              Subtype_Mark => New_Reference_To (Result_Subt, Loc),
-              Expression   => New_Reference_To (Obj_Def_Id, Loc));
-
-         --  When the function has a controlling result, an allocation-form
-         --  parameter must be passed indicating that the caller is allocating
-         --  the result object. This is needed because such a function can be
-         --  called as a dispatching operation and must be treated similarly
-         --  to functions with unconstrained result subtypes.
-
-         Add_Alloc_Form_Actual_To_Build_In_Place_Call
-           (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
-
-      --  If the function's result subtype is unconstrained and the object is
-      --  a return object of an enclosing build-in-place function, then the
-      --  implicit build-in-place parameters of the enclosing function must be
-      --  passed along to the called function. (Unfortunately, this won't cover
-      --  the case of extension aggregates where the ancestor part is a build-
-      --  in-place unconstrained function call that should be passed along the
-      --  caller's parameters. Currently those get mishandled by reassigning
-      --  the result of the call to the aggregate return object, when the call
-      --  result should really be directly built in place in the aggregate and
-      --  not built in a temporary. ???)
-
-      elsif Is_Return_Object (Defining_Identifier (Object_Decl)) then
+      if Is_Return_Object (Defining_Identifier (Object_Decl)) then
          Pass_Caller_Acc := True;
 
-         Enclosing_Func := Enclosing_Subprogram (Obj_Def_Id);
+         --  When the enclosing function has a BIP_Alloc_Form formal then we
+         --  pass it along to the callee (such as when the enclosing function
+         --  has an unconstrained or tagged result type).
 
-         --  If the enclosing function has a constrained result type, then
-         --  caller allocation will be used.
-
-         if Is_Constrained (Etype (Enclosing_Func)) then
-            Add_Alloc_Form_Actual_To_Build_In_Place_Call
-              (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
-
-         --  Otherwise, when the enclosing function has an unconstrained result
-         --  type, the BIP_Alloc_Form formal of the enclosing function must be
-         --  passed along to the callee.
-
-         else
+         if Needs_BIP_Alloc_Form (Enclosing_Func) then
             Add_Alloc_Form_Actual_To_Build_In_Place_Call
               (Func_Call,
                Function_Id,
@@ -7296,6 +8054,20 @@ package body Exp_Ch6 is
                  New_Reference_To
                    (Build_In_Place_Formal (Enclosing_Func, BIP_Alloc_Form),
                     Loc));
+
+         --  Otherwise, if enclosing function has a constrained result subtype,
+         --  then caller allocation will be used.
+
+         else
+            Add_Alloc_Form_Actual_To_Build_In_Place_Call
+              (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
+         end if;
+
+         if Needs_BIP_Finalization_Master (Enclosing_Func) then
+            Fmaster_Actual :=
+              New_Reference_To
+                (Build_In_Place_Formal
+                   (Enclosing_Func, BIP_Finalization_Master), Loc);
          end if;
 
          --  Retrieve the BIPacc formal from the enclosing function and convert
@@ -7313,6 +8085,26 @@ package body Exp_Ch6 is
                   (Build_In_Place_Formal (Enclosing_Func, BIP_Object_Access),
                    Loc));
 
+      --  In the constrained case, add an implicit actual to the function call
+      --  that provides access to the declared object. An unchecked conversion
+      --  to the (specific) result type of the function is inserted to handle
+      --  the case where the object is declared with a class-wide type.
+
+      elsif Is_Constrained (Underlying_Type (Result_Subt)) then
+         Caller_Object :=
+            Make_Unchecked_Type_Conversion (Loc,
+              Subtype_Mark => New_Reference_To (Result_Subt, Loc),
+              Expression   => New_Reference_To (Obj_Def_Id, Loc));
+
+         --  When the function has a controlling result, an allocation-form
+         --  parameter must be passed indicating that the caller is allocating
+         --  the result object. This is needed because such a function can be
+         --  called as a dispatching operation and must be treated similarly
+         --  to functions with unconstrained result subtypes.
+
+         Add_Alloc_Form_Actual_To_Build_In_Place_Call
+           (Func_Call, Function_Id, Alloc_Form => Caller_Allocation);
+
       --  In other unconstrained cases, pass an indication to do the allocation
       --  on the secondary stack and set Caller_Object to Empty so that a null
       --  value will be passed for the caller's object address. A transient
@@ -7328,14 +8120,18 @@ package body Exp_Ch6 is
          Establish_Transient_Scope (Object_Decl, Sec_Stack => True);
       end if;
 
-      Add_Final_List_Actual_To_Build_In_Place_Call
-        (Func_Call, Function_Id, Acc_Type => Empty);
+      --  Pass along any finalization master actual, which is needed in the
+      --  case where the called function initializes a return object of an
+      --  enclosing build-in-place function.
+
+      Add_Finalization_Master_Actual_To_Build_In_Place_Call
+        (Func_Call  => Func_Call,
+         Func_Id    => Function_Id,
+         Master_Exp => Fmaster_Actual);
 
       if Nkind (Parent (Object_Decl)) = N_Extended_Return_Statement
         and then Has_Task (Result_Subt)
       then
-         Enclosing_Func := Enclosing_Subprogram (Obj_Def_Id);
-
          --  Here we're passing along the master that was passed in to this
          --  function.
 
@@ -7363,20 +8159,23 @@ package body Exp_Ch6 is
       Ptr_Typ_Decl :=
         Make_Full_Type_Declaration (Loc,
           Defining_Identifier => Ref_Type,
-          Type_Definition =>
+          Type_Definition     =>
             Make_Access_To_Object_Definition (Loc,
-              All_Present => True,
+              All_Present        => True,
               Subtype_Indication =>
                 New_Reference_To (Etype (Function_Call), Loc)));
 
       --  The access type and its accompanying object must be inserted after
       --  the object declaration in the constrained case, so that the function
       --  call can be passed access to the object. In the unconstrained case,
-      --  the access type and object must be inserted before the object, since
-      --  the object declaration is rewritten to be a renaming of a dereference
-      --  of the access object.
+      --  or if the object declaration is for a return object, the access type
+      --  and object must be inserted before the object, since the object
+      --  declaration is rewritten to be a renaming of a dereference of the
+      --  access object.
 
-      if Is_Constrained (Underlying_Type (Result_Subt)) then
+      if Is_Constrained (Underlying_Type (Result_Subt))
+        and then not Is_Return_Object (Defining_Identifier (Object_Decl))
+      then
          Insert_After_And_Analyze (Object_Decl, Ptr_Typ_Decl);
       else
          Insert_Action (Object_Decl, Ptr_Typ_Decl);
@@ -7385,9 +8184,7 @@ package body Exp_Ch6 is
       --  Finally, create an access object initialized to a reference to the
       --  function call.
 
-      New_Expr :=
-        Make_Reference (Loc,
-          Prefix => Relocate_Node (Func_Call));
+      New_Expr := Make_Reference (Loc, Relocate_Node (Func_Call));
 
       Def_Id := Make_Temporary (Loc, 'R', New_Expr);
       Set_Etype (Def_Id, Ref_Type);
@@ -7398,11 +8195,18 @@ package body Exp_Ch6 is
           Object_Definition   => New_Reference_To (Ref_Type, Loc),
           Expression          => New_Expr));
 
-      if Is_Constrained (Underlying_Type (Result_Subt)) then
+      --  If the result subtype of the called function is constrained and
+      --  is not itself the return expression of an enclosing BIP function,
+      --  then mark the object as having no initialization.
+
+      if Is_Constrained (Underlying_Type (Result_Subt))
+        and then not Is_Return_Object (Defining_Identifier (Object_Decl))
+      then
          Set_Expression (Object_Decl, Empty);
          Set_No_Initialization (Object_Decl);
 
-      --  In case of an unconstrained result subtype, rewrite the object
+      --  In case of an unconstrained result subtype, or if the call is the
+      --  return expression of an enclosing BIP function, rewrite the object
       --  declaration as an object renaming where the renamed object is a
       --  dereference of <function_Call>'reference:
       --
@@ -7457,7 +8261,10 @@ package body Exp_Ch6 is
 
             Preserve_Comes_From_Source
               (Object_Decl, Original_Node (Object_Decl));
-            Set_Comes_From_Source (Obj_Def_Id, True);
+
+            Preserve_Comes_From_Source
+              (Obj_Def_Id, Original_Node (Object_Decl));
+
             Set_Comes_From_Source (Renaming_Def_Id, False);
          end;
       end if;
@@ -7475,24 +8282,156 @@ package body Exp_Ch6 is
       end if;
    end Make_Build_In_Place_Call_In_Object_Declaration;
 
+   -----------------------------------
+   -- Needs_BIP_Finalization_Master --
+   -----------------------------------
+
+   function Needs_BIP_Finalization_Master
+     (Func_Id : Entity_Id) return Boolean
+   is
+      pragma Assert (Is_Build_In_Place_Function (Func_Id));
+      Func_Typ : constant Entity_Id := Underlying_Type (Etype (Func_Id));
+   begin
+      return
+        not Restriction_Active (No_Finalization)
+          and then Needs_Finalization (Func_Typ);
+   end Needs_BIP_Finalization_Master;
+
    --------------------------
-   -- Needs_BIP_Final_List --
+   -- Needs_BIP_Alloc_Form --
    --------------------------
 
-   function Needs_BIP_Final_List (E : Entity_Id) return Boolean is
-      pragma Assert (Is_Build_In_Place_Function (E));
-      Result_Subt : constant Entity_Id := Underlying_Type (Etype (E));
+   function Needs_BIP_Alloc_Form (Func_Id : Entity_Id) return Boolean is
+      pragma Assert (Is_Build_In_Place_Function (Func_Id));
+      Func_Typ : constant Entity_Id := Underlying_Type (Etype (Func_Id));
+   begin
+      return not Is_Constrained (Func_Typ) or else Is_Tagged_Type (Func_Typ);
+   end Needs_BIP_Alloc_Form;
+
+   --------------------------------------
+   -- Needs_Result_Accessibility_Level --
+   --------------------------------------
+
+   function Needs_Result_Accessibility_Level
+     (Func_Id : Entity_Id) return Boolean
+   is
+      Func_Typ : constant Entity_Id := Underlying_Type (Etype (Func_Id));
+
+      function Has_Unconstrained_Access_Discriminant_Component
+        (Comp_Typ : Entity_Id) return Boolean;
+      --  Returns True if any component of the type has an unconstrained access
+      --  discriminant.
+
+      -----------------------------------------------------
+      -- Has_Unconstrained_Access_Discriminant_Component --
+      -----------------------------------------------------
+
+      function Has_Unconstrained_Access_Discriminant_Component
+        (Comp_Typ :  Entity_Id) return Boolean
+      is
+      begin
+         if not Is_Limited_Type (Comp_Typ) then
+            return False;
+
+            --  Only limited types can have access discriminants with
+            --  defaults.
+
+         elsif Has_Unconstrained_Access_Discriminants (Comp_Typ) then
+            return True;
+
+         elsif Is_Array_Type (Comp_Typ) then
+            return Has_Unconstrained_Access_Discriminant_Component
+                     (Underlying_Type (Component_Type (Comp_Typ)));
+
+         elsif Is_Record_Type (Comp_Typ) then
+            declare
+               Comp : Entity_Id;
+
+            begin
+               Comp := First_Component (Comp_Typ);
+               while Present (Comp) loop
+                  if Has_Unconstrained_Access_Discriminant_Component
+                       (Underlying_Type (Etype (Comp)))
+                  then
+                     return True;
+                  end if;
+
+                  Next_Component (Comp);
+               end loop;
+            end;
+         end if;
+
+         return False;
+      end Has_Unconstrained_Access_Discriminant_Component;
+
+      Feature_Disabled : constant Boolean := True;
+      --  Temporary
+
+   --  Start of processing for Needs_Result_Accessibility_Level
 
    begin
-      --  We need the BIP_Final_List if the result type needs finalization. We
-      --  also need it for tagged types, even if not class-wide, because some
-      --  type extension might need finalization, and all overriding functions
-      --  must have the same calling conventions. However, if there is a
-      --  pragma Restrictions (No_Finalization), we never need this parameter.
+      --  False if completion unavailable (how does this happen???)
 
-      return (Needs_Finalization (Result_Subt)
-               or else Is_Tagged_Type (Underlying_Type (Result_Subt)))
-        and then not Restriction_Active (No_Finalization);
-   end Needs_BIP_Final_List;
+      if not Present (Func_Typ) then
+         return False;
+
+      elsif Feature_Disabled then
+         return False;
+
+      --  False if not a function, also handle enum-lit renames case
+
+      elsif Func_Typ = Standard_Void_Type
+        or else Is_Scalar_Type (Func_Typ)
+      then
+         return False;
+
+      --  Handle a corner case, a cross-dialect subp renaming. For example,
+      --  an Ada2012 renaming of an Ada05 subprogram. This can occur when a
+      --  non-Ada2012 unit references predefined runtime units.
+
+      elsif Present (Alias (Func_Id)) then
+
+         --  Unimplemented: a cross-dialect subp renaming which does not set
+         --  the Alias attribute (e.g., a rename of a dereference of an access
+         --  to subprogram value). ???
+
+         return Present (Extra_Accessibility_Of_Result (Alias (Func_Id)));
+
+      --  Remaining cases require Ada 2012 mode
+
+      elsif Ada_Version < Ada_2012 then
+         return False;
+
+      elsif Ekind (Func_Typ) = E_Anonymous_Access_Type
+        or else Is_Tagged_Type (Func_Typ)
+      then
+         --  In the case of, say, a null tagged record result type, the need
+         --  for this extra parameter might not be obvious. This function
+         --  returns True for all tagged types for compatibility reasons.
+         --  A function with, say, a tagged null controlling result type might
+         --  be overridden by a primitive of an extension having an access
+         --  discriminant and the overrider and overridden must have compatible
+         --  calling conventions (including implicitly declared parameters).
+         --  Similarly, values of one access-to-subprogram type might designate
+         --  both a primitive subprogram of a given type and a function
+         --  which is, for example, not a primitive subprogram of any type.
+         --  Again, this requires calling convention compatibility.
+         --  It might be possible to solve these issues by introducing
+         --  wrappers, but that is not the approach that was chosen.
+
+         return True;
+
+      elsif Has_Unconstrained_Access_Discriminants (Func_Typ) then
+         return True;
+
+      elsif Has_Unconstrained_Access_Discriminant_Component (Func_Typ) then
+         return True;
+
+      --  False for all other cases
+
+      else
+         return False;
+      end if;
+   end Needs_Result_Accessibility_Level;
 
 end Exp_Ch6;

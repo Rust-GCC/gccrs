@@ -31,18 +31,11 @@ along with GCC; see the file COPYING3.  If not see
     }						\
   while (0)
 
-#if TARGET_CPU_DEFAULT == TARGET_CPU_v9 \
-    || TARGET_CPU_DEFAULT == TARGET_CPU_ultrasparc \
-    || TARGET_CPU_DEFAULT == TARGET_CPU_ultrasparc3 \
-    || TARGET_CPU_DEFAULT == TARGET_CPU_niagara \
-    || TARGET_CPU_DEFAULT == TARGET_CPU_niagara2
-/* A 64 bit v9 compiler with stack-bias,
-   in a Medium/Low code model environment.  */
-
+#ifdef TARGET_64BIT_DEFAULT
 #undef TARGET_DEFAULT
 #define TARGET_DEFAULT \
-  (MASK_V9 + MASK_PTR64 + MASK_64BIT /* + MASK_HARD_QUAD */ \
-   + MASK_STACK_BIAS + MASK_APP_REGS + MASK_FPU + MASK_LONG_DOUBLE_128)
+  (MASK_V9 + MASK_PTR64 + MASK_64BIT + MASK_STACK_BIAS + \
+   MASK_APP_REGS + MASK_FPU + MASK_LONG_DOUBLE_128)
 #endif
 
 /* This must be v9a not just v9 because by default we enable
@@ -141,6 +134,22 @@ along with GCC; see the file COPYING3.  If not see
 %{mlittle-endian:-EL} \
 %{!mno-relax:%{!r:-relax}} \
 "
+
+/* -mcpu=native handling only makes sense with compiler running on
+   a SPARC chip.  */
+#if defined(__sparc__)
+extern const char *host_detect_local_cpu (int argc, const char **argv);
+# define EXTRA_SPEC_FUNCTIONS						\
+  { "local_cpu_detect", host_detect_local_cpu },
+
+# define MCPU_MTUNE_NATIVE_SPECS					\
+   " %{mcpu=native:%<mcpu=native %:local_cpu_detect(cpu)}"		\
+   " %{mtune=native:%<mtune=native %:local_cpu_detect(tune)}"
+#else
+# define MCPU_MTUNE_NATIVE_SPECS ""
+#endif
+
+#define DRIVER_SELF_SPECS MCPU_MTUNE_NATIVE_SPECS
 
 #undef	CC1_SPEC
 #if DEFAULT_ARCH32_P
@@ -260,8 +269,6 @@ do {									\
 
 /* Static stack checking is supported by means of probes.  */
 #define STACK_CHECK_STATIC_BUILTIN 1
-
-#define MD_UNWIND_SUPPORT "config/sparc/linux-unwind.h"
 
 /* Linux currently uses RMO in uniprocessor mode, which is equivalent to
    TMO, and TMO in multiprocessor mode.  But they reserve the right to

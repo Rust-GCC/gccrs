@@ -62,7 +62,7 @@ enable_shared=no])
 
 AC_CHECK_HEADERS(stdint.h execinfo.h signal.h dlfcn.h dirent.h pwd.h grp.h \
   netdb.h sys/ipc.h sys/sem.h sys/shm.h sys/wait.h ctype.h mntent.h \
-  sys/socket.h netinet/in.h arpa/inet.h dlfcn.h sys/mman.h)
+  sys/mnttab.h sys/socket.h netinet/in.h arpa/inet.h dlfcn.h sys/mman.h)
 
 AC_CHECK_FUNCS(backtrace backtrace_symbols gettimeofday signal)
 AC_CHECK_FUNCS(fopen64 fseeko64 ftello64 stat64 freopen64)
@@ -75,7 +75,9 @@ AC_CHECK_FUNCS(getservent getservbyname getservbyport getaddrinfo gai_strerror)
 AC_CHECK_FUNCS(getprotoent getprotobyname getprotobynumber)
 AC_CHECK_FUNCS(getmntent setmntent addmntent)
 AC_CHECK_FUNCS(inet_ntoa mmap munmap)
+AC_CHECK_FUNCS(mmap64)
 AC_CHECK_FUNCS(__libc_freeres)
+AC_CHECK_FUNCS(rawmemchr stpcpy mempcpy)
 
 AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/ipc.h>
@@ -110,12 +112,6 @@ else
 fi
 AC_SUBST(MF_HAVE_UINTPTR_T)
 
-if test ! -d pth
-then
-  # libmudflapth objects are built in this subdirectory
-  mkdir pth
-fi
-
 AC_CHECK_HEADERS(pthread.h)
 
 AC_MSG_CHECKING([for thread model used by GCC])
@@ -146,6 +142,9 @@ fi
 AC_SUBST(build_libmudflapth)
 
 AC_CHECK_LIB(dl, dlsym)
+
+AC_CHECK_FUNC(connect,, AC_CHECK_LIB(socket, connect))
+AC_CHECK_FUNC(sched_yield,, AC_CHECK_LIB(rt, sched_yield))
 
 # Calculate toolexeclibdir
 # Also toolexecdir, though it's only used in toolexeclibdir

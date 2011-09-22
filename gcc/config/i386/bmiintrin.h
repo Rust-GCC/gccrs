@@ -1,4 +1,4 @@
-/* Copyright (C) 2010 Free Software Foundation, Inc.
+/* Copyright (C) 2010, 2011 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -21,7 +21,7 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
-#ifndef _X86INTRIN_H_INCLUDED
+#if !defined _X86INTRIN_H_INCLUDED && !defined _IMMINTRIN_H_INCLUDED
 # error "Never use <bmiintrin.h> directly; include <x86intrin.h> instead."
 #endif
 
@@ -33,12 +33,6 @@
 #define _BMIINTRIN_H_INCLUDED
 
 extern __inline unsigned short __attribute__((__gnu_inline__, __always_inline__, __artificial__))
-__lzcnt_u16 (unsigned short __X)
-{
-  return __builtin_clzs (__X);
-}
-
-extern __inline unsigned short __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __tzcnt_u16 (unsigned short __X)
 {
   return __builtin_ctzs (__X);
@@ -48,8 +42,7 @@ __tzcnt_u16 (unsigned short __X)
 extern __inline unsigned int __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __andn_u32 (unsigned int __X, unsigned int __Y)
 {
-  unsigned int tmp = ~(__X) & (__Y);
-  return tmp;
+  return ~__X & __Y;
 }
 
 extern __inline unsigned int __attribute__((__gnu_inline__, __always_inline__, __artificial__))
@@ -61,28 +54,19 @@ __bextr_u32 (unsigned int __X, unsigned int __Y)
 extern __inline unsigned int __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __blsi_u32 (unsigned int __X)
 {
-  unsigned int tmp = (__X) & (-(__X));
-  return tmp;
+  return __X & -__X;
 }
 
 extern __inline unsigned int __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __blsmsk_u32 (unsigned int __X)
 {
-  unsigned int tmp = (__X) ^ (__X - 1);
-  return tmp;
+  return __X ^ (__X - 1);
 }
 
 extern __inline unsigned int __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __blsr_u32 (unsigned int __X)
 {
-  unsigned int tmp = (__X) & (__X - 1);
-  return tmp;
-}
-
-extern __inline unsigned int __attribute__((__gnu_inline__, __always_inline__, __artificial__))
-__lzcnt_u32 (unsigned int __X)
-{
-  return __builtin_clz (__X);
+  return __X & (__X - 1);
 }
 
 
@@ -97,8 +81,7 @@ __tzcnt_u32 (unsigned int __X)
 extern __inline unsigned long long __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __andn_u64 (unsigned long long __X, unsigned long long __Y)
 {
-  unsigned long long tmp = ~(__X) & (__Y);
-  return tmp;
+  return ~__X & __Y;
 }
 
 extern __inline unsigned long long __attribute__((__gnu_inline__, __always_inline__, __artificial__))
@@ -110,28 +93,19 @@ __bextr_u64 (unsigned long long __X, unsigned long long __Y)
 extern __inline unsigned long long __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __blsi_u64 (unsigned long long __X)
 {
-  unsigned long long tmp = (__X) & (-(__X));
-  return tmp;
+  return __X & -__X;
 }
 
 extern __inline unsigned long long __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __blsmsk_u64 (unsigned long long __X)
 {
-  unsigned long long tmp = (__X) ^ (__X - 1);
-  return tmp;
+  return __X ^ (__X - 1);
 }
 
 extern __inline unsigned long long __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __blsr_u64 (unsigned long long __X)
 {
-  unsigned long long tmp = (__X) & (__X - 1);
-  return tmp;
-}
-
-extern __inline unsigned long long __attribute__((__gnu_inline__, __always_inline__, __artificial__))
-__lzcnt_u64 (unsigned long long __X)
-{
-  return __builtin_clzll (__X);
+  return __X & (__X - 1);
 }
 
 extern __inline unsigned long long __attribute__((__gnu_inline__, __always_inline__, __artificial__))

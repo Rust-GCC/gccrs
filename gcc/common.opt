@@ -37,6 +37,13 @@ int optimize_size
 Variable
 int optimize_fast
 
+; True if this is the lto front end.  This is used to disable gimple
+; generation and lowering passes that are normally run on the output
+; of a front end.  These passes must be bypassed for lto since they
+; have already been done before the gimple was written.
+Variable
+bool in_lto_p = false
+
 ; 0 means straightforward implementation of complex divide acceptable.
 ; 1 means wide ranges of inputs must work for complex divide.
 ; 2 means C99-like requirements for complex multiply and divide.
@@ -137,6 +144,10 @@ enum vect_verbosity_levels user_vect_verbosity_level = MAX_VERBOSITY_LEVEL
 ; Type of stack check.
 Variable
 enum stack_check_type flag_stack_check = NO_STACK_CHECK
+
+; True if stack usage information needs to be computed.
+Variable
+bool flag_stack_usage_info = false
 
 ; -dA causes debug commentary information to be produced in
 ; the generated assembly code (to make it more readable).  This option
@@ -532,6 +543,10 @@ Wframe-larger-than=
 Common RejectNegative Joined UInteger
 -Wframe-larger-than=<number>	Warn if a function's stack frame requires more than <number> bytes
 
+Wfree-nonheap-object
+Common Var(warn_free_nonheap_object) Init(1) Warning
+Warn when attempting to free a non-heap object
+
 Winline
 Common Var(warn_inline) Warning
 Warn when an inlined function cannot be inlined
@@ -574,6 +589,10 @@ Warn when one local variable shadows another
 Wstack-protector
 Common Var(warn_stack_protect) Warning
 Warn when not issuing stack smashing protection for some reason
+
+Wstack-usage=
+Common Joined RejectNegative UInteger Var(warn_stack_usage) Init(-1) Warning
+Warn if stack usage might be larger than specified amount
 
 Wstrict-aliasing
 Common Warning
@@ -758,6 +777,9 @@ Driver Undocumented
 ;    in function pointer mangling, and corrects mangling of decltype and
 ;    function parameters used in other parameters and the return type.
 ;    First selectable in G++ 4.6.
+;
+; 6: The version of the ABI that doesn't promote scoped enums to int.
+;    First selectable in G++ 4.7.
 ;
 ; Additional positive integers will be assigned as new versions of
 ; the ABI become the default version of the ABI.
@@ -974,6 +996,14 @@ fdiagnostics-show-option
 Common Var(flag_diagnostics_show_option) Init(1)
 Amend appropriate diagnostic messages with the command line option that controls them
 
+fdisable-
+Common Joined RejectNegative Var(common_deferred_options) Defer
+-fdisable-[tree|rtl|ipa]-<pass>=range1+range2 disables an optimization pass
+
+fenable-
+Common Joined RejectNegative Var(common_deferred_options) Defer
+-fenable-[tree|rtl|ipa]-<pass>=range1+range2 enables an optimization pass
+
 fdump-
 Common Joined RejectNegative Var(common_deferred_options) Defer
 -fdump-<type>	Dump various compiler internals to a file
@@ -992,6 +1022,10 @@ Common RejectNegative Joined Var(flag_dump_go_spec)
 fdump-noaddr
 Common Report Var(flag_dump_noaddr)
 Suppress output of addresses in debugging dumps
+
+fdump-passes
+Common Var(flag_dump_passes) Init(0)
+Dump optimization passes
 
 fdump-unnumbered
 Common Report Var(flag_dump_unnumbered)
@@ -1214,7 +1248,7 @@ Common Report Var(flag_inline_functions) Optimization
 Integrate simple functions into their callers
 
 finline-functions-called-once
-Common Report Var(flag_inline_functions_called_once) Init(1) Optimization
+Common Report Var(flag_inline_functions_called_once) Optimization
 Integrate functions called once into their callers
 
 finline-limit-
@@ -2153,6 +2187,14 @@ Generate debug information in DWARF v2 (or later) format
 ggdb
 Common JoinedOrMissing
 Generate debug information in default extended format
+
+gno-record-gcc-switches
+Common RejectNegative Var(dwarf_record_gcc_switches,0) Init(0)
+Don't record gcc command line switches in DWARF DW_AT_producer.
+
+grecord-gcc-switches
+Common RejectNegative Var(dwarf_record_gcc_switches,1)
+Record gcc command line switches in DWARF DW_AT_producer.
 
 gstabs
 Common JoinedOrMissing Negative(gstabs+)

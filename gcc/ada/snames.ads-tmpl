@@ -6,7 +6,7 @@
 --                                                                          --
 --                             T e m p l a t e                              --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -137,8 +137,13 @@ package Snames is
    --  Names of aspects for which there are no matching pragmas or attributes
    --  so that they need to be included for aspect specification use.
 
+   Name_Default_Value                  : constant Name_Id := N + $;
+   Name_Default_Component_Value        : constant Name_Id := N + $;
+   Name_Dynamic_Predicate              : constant Name_Id := N + $;
    Name_Post                           : constant Name_Id := N + $;
    Name_Pre                            : constant Name_Id := N + $;
+   Name_Static_Predicate               : constant Name_Id := N + $;
+   Name_Type_Invariant                 : constant Name_Id := N + $;
 
    --  Some special names used by the expander. Note that the lower case u's
    --  at the start of these names get translated to extra underscores. These
@@ -149,15 +154,14 @@ package Snames is
    Name_uAssign                        : constant Name_Id := N + $;
    Name_uATCB                          : constant Name_Id := N + $;
    Name_uChain                         : constant Name_Id := N + $;
-   Name_uClean                         : constant Name_Id := N + $;
    Name_uController                    : constant Name_Id := N + $;
    Name_uCPU                           : constant Name_Id := N + $;
+   Name_uDispatching_Domain            : constant Name_Id := N + $;
    Name_uEntry_Bodies                  : constant Name_Id := N + $;
    Name_uExpunge                       : constant Name_Id := N + $;
-   Name_uFinal_List                    : constant Name_Id := N + $;
+   Name_uFinalizer                     : constant Name_Id := N + $;
    Name_uIdepth                        : constant Name_Id := N + $;
    Name_uInit                          : constant Name_Id := N + $;
-   Name_uLocal_Final_List              : constant Name_Id := N + $;
    Name_uMaster                        : constant Name_Id := N + $;
    Name_uObject                        : constant Name_Id := N + $;
    Name_uPostconditions                : constant Name_Id := N + $;
@@ -186,15 +190,12 @@ package Snames is
    Name_uDisp_Requeue                  : constant Name_Id := N + $;
    Name_uDisp_Timed_Select             : constant Name_Id := N + $;
 
-   --  Names of routines in Ada.Finalization, needed by expander
+   --  Names of routines and fields in Ada.Finalization, needed by expander
 
    Name_Initialize                     : constant Name_Id := N + $;
    Name_Adjust                         : constant Name_Id := N + $;
    Name_Finalize                       : constant Name_Id := N + $;
-
-   --  Names of fields declared in System.Finalization_Implementation,
-   --  needed by the expander when generating code for finalization.
-
+   Name_Finalize_Address               : constant Name_Id := N + $;
    Name_Next                           : constant Name_Id := N + $;
    Name_Prev                           : constant Name_Id := N + $;
 
@@ -235,7 +236,6 @@ package Snames is
 
    Name_Exception_Traces               : constant Name_Id := N + $;
    Name_Finalization                   : constant Name_Id := N + $;
-   Name_Finalization_Root              : constant Name_Id := N + $;
    Name_Interfaces                     : constant Name_Id := N + $;
    Name_Most_Recent_Exception          : constant Name_Id := N + $;
    Name_Standard                       : constant Name_Id := N + $;
@@ -347,6 +347,7 @@ package Snames is
    Name_Ada_2005                       : constant Name_Id := N + $; -- GNAT
    Name_Ada_12                         : constant Name_Id := N + $; -- GNAT
    Name_Ada_2012                       : constant Name_Id := N + $; -- GNAT
+   Name_Annotate                       : constant Name_Id := N + $; -- GNAT
    Name_Assertion_Policy               : constant Name_Id := N + $; -- Ada 05
    Name_Assume_No_Invalid_Values       : constant Name_Id := N + $; -- GNAT
    Name_C_Pass_By_Copy                 : constant Name_Id := N + $; -- GNAT
@@ -361,6 +362,7 @@ package Snames is
    Name_Detect_Blocking                : constant Name_Id := N + $; -- Ada 05
    Name_Default_Storage_Pool           : constant Name_Id := N + $; -- Ada 12
    Name_Discard_Names                  : constant Name_Id := N + $;
+   Name_Dispatching_Domain             : constant Name_Id := N + $; -- Ada 12
    Name_Elaboration_Checks             : constant Name_Id := N + $; -- GNAT
    Name_Eliminate                      : constant Name_Id := N + $; -- GNAT
    Name_Extend_System                  : constant Name_Id := N + $; -- GNAT
@@ -417,7 +419,6 @@ package Snames is
 
    Name_Abort_Defer                    : constant Name_Id := N + $; -- GNAT
    Name_All_Calls_Remote               : constant Name_Id := N + $;
-   Name_Annotate                       : constant Name_Id := N + $; -- GNAT
 
    --  Note: AST_Entry is not in this list because its name matches -- VMS
    --  the name of the corresponding attribute. However, it is
@@ -458,6 +459,7 @@ package Snames is
    Name_External                       : constant Name_Id := N + $; -- GNAT
    Name_Finalize_Storage_Only          : constant Name_Id := N + $; -- GNAT
    Name_Ident                          : constant Name_Id := N + $; -- VMS
+   Name_Implementation_Defined         : constant Name_Id := N + $; -- GNAT
    Name_Implemented                    : constant Name_Id := N + $; -- Ada 12
    Name_Import                         : constant Name_Id := N + $;
    Name_Import_Exception               : constant Name_Id := N + $; -- VMS
@@ -545,6 +547,7 @@ package Snames is
    Name_Suppress_Debug_Info            : constant Name_Id := N + $; -- GNAT
    Name_Suppress_Initialization        : constant Name_Id := N + $; -- GNAT
    Name_System_Name                    : constant Name_Id := N + $; -- Ada 83
+   Name_Test_Case                      : constant Name_Id := N + $; -- GNAT
    Name_Task_Info                      : constant Name_Id := N + $; -- GNAT
    Name_Task_Name                      : constant Name_Id := N + $; -- GNAT
    Name_Task_Storage                   : constant Name_Id := N + $; -- VMS
@@ -574,6 +577,8 @@ package Snames is
 
    First_Convention_Name               : constant Name_Id := N + $;
    Name_Ada                            : constant Name_Id := N + $;
+   Name_Ada_Pass_By_Copy               : constant Name_Id := N + $;
+   Name_Ada_Pass_By_Reference          : constant Name_Id := N + $;
    Name_Assembler                      : constant Name_Id := N + $;
    Name_CIL                            : constant Name_Id := N + $;
    Name_COBOL                          : constant Name_Id := N + $;
@@ -621,12 +626,15 @@ package Snames is
    Name_Copy                           : constant Name_Id := N + $;
    Name_D_Float                        : constant Name_Id := N + $;
    Name_Descriptor                     : constant Name_Id := N + $;
+   Name_Disable                        : constant Name_Id := N + $;
    Name_Dot_Replacement                : constant Name_Id := N + $;
    Name_Dynamic                        : constant Name_Id := N + $;
+   Name_Ensures                        : constant Name_Id := N + $;
    Name_Entity                         : constant Name_Id := N + $;
    Name_Entry_Count                    : constant Name_Id := N + $;
    Name_External_Name                  : constant Name_Id := N + $;
    Name_First_Optional_Parameter       : constant Name_Id := N + $;
+   Name_Force                          : constant Name_Id := N + $;
    Name_Form                           : constant Name_Id := N + $;
    Name_G_Float                        : constant Name_Id := N + $;
    Name_Gcc                            : constant Name_Id := N + $;
@@ -644,6 +652,7 @@ package Snames is
    Name_Mechanism                      : constant Name_Id := N + $;
    Name_Message                        : constant Name_Id := N + $;
    Name_Mixedcase                      : constant Name_Id := N + $;
+   Name_Mode                           : constant Name_Id := N + $;
    Name_Modified_GPL                   : constant Name_Id := N + $;
    Name_Name                           : constant Name_Id := N + $;
    Name_NCA                            : constant Name_Id := N + $;
@@ -651,17 +660,22 @@ package Snames is
    Name_No_Dependence                  : constant Name_Id := N + $;
    Name_No_Dynamic_Attachment          : constant Name_Id := N + $;
    Name_No_Dynamic_Interrupts          : constant Name_Id := N + $;
+   Name_No_Implementation_Extensions   : constant Name_Id := N + $;
    Name_No_Requeue                     : constant Name_Id := N + $;
    Name_No_Requeue_Statements          : constant Name_Id := N + $;
+   Name_No_Specification_Of_Aspect     : constant Name_Id := N + $;
    Name_No_Task_Attributes             : constant Name_Id := N + $;
    Name_No_Task_Attributes_Package     : constant Name_Id := N + $;
+   Name_Nominal                        : constant Name_Id := N + $;
    Name_On                             : constant Name_Id := N + $;
    Name_Policy                         : constant Name_Id := N + $;
    Name_Parameter_Types                : constant Name_Id := N + $;
    Name_Reference                      : constant Name_Id := N + $;
+   Name_Requires                       : constant Name_Id := N + $;
    Name_Restricted                     : constant Name_Id := N + $;
    Name_Result_Mechanism               : constant Name_Id := N + $;
    Name_Result_Type                    : constant Name_Id := N + $;
+   Name_Robustness                     : constant Name_Id := N + $;
    Name_Runtime                        : constant Name_Id := N + $;
    Name_SB                             : constant Name_Id := N + $;
    Name_Secondary_Stack_Size           : constant Name_Id := N + $;
@@ -723,12 +737,15 @@ package Snames is
    Name_Compiler_Version               : constant Name_Id := N + $; -- GNAT
    Name_Component_Size                 : constant Name_Id := N + $;
    Name_Compose                        : constant Name_Id := N + $;
+   Name_Constant_Indexing              : constant Name_Id := N + $; -- GNAT
    Name_Constrained                    : constant Name_Id := N + $;
    Name_Count                          : constant Name_Id := N + $;
    Name_Default_Bit_Order              : constant Name_Id := N + $; -- GNAT
+   Name_Default_Iterator               : constant Name_Id := N + $; -- GNAT
    Name_Definite                       : constant Name_Id := N + $;
    Name_Delta                          : constant Name_Id := N + $;
    Name_Denorm                         : constant Name_Id := N + $;
+   Name_Descriptor_Size                : constant Name_Id := N + $;
    Name_Digits                         : constant Name_Id := N + $;
    Name_Elaborated                     : constant Name_Id := N + $; -- GNAT
    Name_Emax                           : constant Name_Id := N + $; -- Ada 83
@@ -748,8 +765,10 @@ package Snames is
    Name_Has_Tagged_Values              : constant Name_Id := N + $; -- GNAT
    Name_Identity                       : constant Name_Id := N + $;
    Name_Img                            : constant Name_Id := N + $; -- GNAT
+   Name_Implicit_Dereference           : constant Name_Id := N + $; -- GNAT
    Name_Integer_Value                  : constant Name_Id := N + $; -- GNAT
    Name_Invalid_Value                  : constant Name_Id := N + $; -- GNAT
+   Name_Iterator_Element               : constant Name_Id := N + $; -- GNAT
    Name_Large                          : constant Name_Id := N + $; -- Ada 83
    Name_Last                           : constant Name_Id := N + $;
    Name_Last_Bit                       : constant Name_Id := N + $;
@@ -777,6 +796,7 @@ package Snames is
    Name_Null_Parameter                 : constant Name_Id := N + $; -- GNAT
    Name_Object_Size                    : constant Name_Id := N + $; -- GNAT
    Name_Old                            : constant Name_Id := N + $; -- GNAT
+   Name_Overlaps_Storage               : constant Name_Id := N + $; -- GNAT
    Name_Partition_ID                   : constant Name_Id := N + $;
    Name_Passed_By_Reference            : constant Name_Id := N + $; -- GNAT
    Name_Pool_Address                   : constant Name_Id := N + $;
@@ -793,6 +813,7 @@ package Snames is
    Name_Safe_Large                     : constant Name_Id := N + $; -- Ada 83
    Name_Safe_Last                      : constant Name_Id := N + $;
    Name_Safe_Small                     : constant Name_Id := N + $; -- Ada 83
+   Name_Same_Storage                   : constant Name_Id := N + $; -- Ada 12
    Name_Scale                          : constant Name_Id := N + $;
    Name_Scaling                        : constant Name_Id := N + $;
    Name_Signed_Zeros                   : constant Name_Id := N + $;
@@ -801,6 +822,7 @@ package Snames is
    Name_Storage_Size                   : constant Name_Id := N + $;
    Name_Storage_Unit                   : constant Name_Id := N + $; -- GNAT
    Name_Stream_Size                    : constant Name_Id := N + $; -- Ada 05
+   Name_System_Allocator_Alignment     : constant Name_Id := N + $; -- GNAT
    Name_Tag                            : constant Name_Id := N + $;
    Name_Target_Name                    : constant Name_Id := N + $; -- GNAT
    Name_Terminated                     : constant Name_Id := N + $;
@@ -817,6 +839,7 @@ package Snames is
    Name_Val                            : constant Name_Id := N + $;
    Name_Valid                          : constant Name_Id := N + $;
    Name_Value_Size                     : constant Name_Id := N + $; -- GNAT
+   Name_Variable_Indexing              : constant Name_Id := N + $; -- GNAT
    Name_Version                        : constant Name_Id := N + $;
    Name_Wchar_T_Size                   : constant Name_Id := N + $; -- GNAT
    Name_Wide_Wide_Width                : constant Name_Id := N + $; -- Ada 05
@@ -865,9 +888,13 @@ package Snames is
 
    --  Remaining attributes are ones that return entities
 
+   --  Note that Elab_Subp_Body is not considered to be a valid attribute
+   --  name unless we are operating in CodePeer mode.
+
    First_Entity_Attribute_Name         : constant Name_Id := N + $;
    Name_Elab_Body                      : constant Name_Id := N + $; -- GNAT
    Name_Elab_Spec                      : constant Name_Id := N + $; -- GNAT
+   Name_Elab_Subp_Body                 : constant Name_Id := N + $; -- GNAT
    Name_Storage_Pool                   : constant Name_Id := N + $;
 
    --  These attributes are the ones that return types
@@ -934,12 +961,8 @@ package Snames is
    Name_All_Checks                     : constant Name_Id := N + $;
    Last_Check_Name                     : constant Name_Id := N + $;
 
-   --  Names corresponding to reserved keywords, excluding those already
-   --  declared in the attribute list (Access, Delta, Digits, Mod, Range).
-
-   --  Note: Name_Some is here even though for now we do not treat it as being
-   --  reserved. We treat it instead as an unreserved keyword. This may change
-   --  in the future, but in any case it belongs in the following list.
+   --  Ada 83 reserved words, excluding those already declared in the attribute
+   --  list (Access, Delta, Digits, Mod, Range).
 
    Name_Abort                            : constant Name_Id := N + $;
    Name_Abs                              : constant Name_Id := N + $;
@@ -989,7 +1012,6 @@ package Snames is
    Name_Reverse                          : constant Name_Id := N + $;
    Name_Select                           : constant Name_Id := N + $;
    Name_Separate                         : constant Name_Id := N + $;
-   Name_Some                             : constant Name_Id := N + $;
    Name_Subtype                          : constant Name_Id := N + $;
    Name_Task                             : constant Name_Id := N + $;
    Name_Terminate                        : constant Name_Id := N + $;
@@ -1034,7 +1056,7 @@ package Snames is
 
    Name_Free                             : constant Name_Id := N + $;
 
-   --  Reserved words used only in Ada 95
+   --  Ada 95 reserved words
 
    First_95_Reserved_Word                : constant Name_Id := N + $;
    Name_Abstract                         : constant Name_Id := N + $;
@@ -1079,6 +1101,7 @@ package Snames is
    Name_Default_Language                 : constant Name_Id := N + $;
    Name_Default_Switches                 : constant Name_Id := N + $;
    Name_Dependency_Driver                : constant Name_Id := N + $;
+   Name_Dependency_Kind                  : constant Name_Id := N + $;
    Name_Dependency_Switches              : constant Name_Id := N + $;
    Name_Driver                           : constant Name_Id := N + $;
    Name_Excluded_Source_Dirs             : constant Name_Id := N + $;
@@ -1107,6 +1130,7 @@ package Snames is
    Name_Include_Path_File                : constant Name_Id := N + $;
    Name_Inherit_Source_Path              : constant Name_Id := N + $;
    Name_Languages                        : constant Name_Id := N + $;
+   Name_Language_Kind                    : constant Name_Id := N + $;
    Name_Leading_Library_Options          : constant Name_Id := N + $;
    Name_Leading_Required_Switches        : constant Name_Id := N + $;
    Name_Leading_Switches                 : constant Name_Id := N + $;
@@ -1177,6 +1201,7 @@ package Snames is
    Name_Shared_Library_Suffix            : constant Name_Id := N + $;
    Name_Separate_Suffix                  : constant Name_Id := N + $;
    Name_Source_Dirs                      : constant Name_Id := N + $;
+   Name_Source_File_Switches             : constant Name_Id := N + $;
    Name_Source_Files                     : constant Name_Id := N + $;
    Name_Source_List_File                 : constant Name_Id := N + $;
    Name_Spec                             : constant Name_Id := N + $;
@@ -1198,15 +1223,18 @@ package Snames is
 
    Name_Unaligned_Valid                  : constant Name_Id := N + $;
 
-   --  Names used to implement iterators over predefined  containers
+   --  Names used to implement iterators over predefined containers
 
    Name_Cursor                           : constant Name_Id := N + $;
    Name_Element                          : constant Name_Id := N + $;
    Name_Element_Type                     : constant Name_Id := N + $;
+   Name_Has_Element                      : constant Name_Id := N + $;
    Name_No_Element                       : constant Name_Id := N + $;
+   Name_Forward_Iterator                 : constant Name_Id := N + $;
+   Name_Reversible_Iterator              : constant Name_Id := N + $;
    Name_Previous                         : constant Name_Id := N + $;
 
-   --  Ada 05 reserved words
+   --  Ada 2005 reserved words
 
    First_2005_Reserved_Word              : constant Name_Id := N + $;
    Name_Interface                        : constant Name_Id := N + $;
@@ -1216,6 +1244,15 @@ package Snames is
 
    subtype Ada_2005_Reserved_Words is
      Name_Id range First_2005_Reserved_Word .. Last_2005_Reserved_Word;
+
+   --  Ada 2012 reserved words
+
+   First_2012_Reserved_Word              : constant Name_Id := N + $;
+   Name_Some                             : constant Name_Id := N + $;
+   Last_2012_Reserved_Word               : constant Name_Id := N + $;
+
+   subtype Ada_2012_Reserved_Words is
+     Name_Id range First_2012_Reserved_Word .. Last_2012_Reserved_Word;
 
    --  Mark last defined name for consistency check in Snames body
 
@@ -1255,12 +1292,15 @@ package Snames is
       Attribute_Compiler_Version,
       Attribute_Component_Size,
       Attribute_Compose,
+      Attribute_Constant_Indexing,
       Attribute_Constrained,
       Attribute_Count,
       Attribute_Default_Bit_Order,
+      Attribute_Default_Iterator,
       Attribute_Definite,
       Attribute_Delta,
       Attribute_Denorm,
+      Attribute_Descriptor_Size,
       Attribute_Digits,
       Attribute_Elaborated,
       Attribute_Emax,
@@ -1280,8 +1320,10 @@ package Snames is
       Attribute_Has_Tagged_Values,
       Attribute_Identity,
       Attribute_Img,
+      Attribute_Implicit_Dereference,
       Attribute_Integer_Value,
       Attribute_Invalid_Value,
+      Attribute_Iterator_Element,
       Attribute_Large,
       Attribute_Last,
       Attribute_Last_Bit,
@@ -1309,6 +1351,7 @@ package Snames is
       Attribute_Null_Parameter,
       Attribute_Object_Size,
       Attribute_Old,
+      Attribute_Overlaps_Storage,
       Attribute_Partition_ID,
       Attribute_Passed_By_Reference,
       Attribute_Pool_Address,
@@ -1325,6 +1368,7 @@ package Snames is
       Attribute_Safe_Large,
       Attribute_Safe_Last,
       Attribute_Safe_Small,
+      Attribute_Same_Storage,
       Attribute_Scale,
       Attribute_Scaling,
       Attribute_Signed_Zeros,
@@ -1333,6 +1377,7 @@ package Snames is
       Attribute_Storage_Size,
       Attribute_Storage_Unit,
       Attribute_Stream_Size,
+      Attribute_System_Allocator_Alignment,
       Attribute_Tag,
       Attribute_Target_Name,
       Attribute_Terminated,
@@ -1349,6 +1394,7 @@ package Snames is
       Attribute_Val,
       Attribute_Valid,
       Attribute_Value_Size,
+      Attribute_Variable_Indexing,
       Attribute_Version,
       Attribute_Wchar_T_Size,
       Attribute_Wide_Wide_Width,
@@ -1393,6 +1439,7 @@ package Snames is
 
       Attribute_Elab_Body,
       Attribute_Elab_Spec,
+      Attribute_Elab_Subp_Body,
       Attribute_Storage_Pool,
 
       --  Type attributes
@@ -1419,6 +1466,12 @@ package Snames is
       Convention_Protected,
       Convention_Stubbed,
 
+      --  The following conventions are equivalent to Ada for all purposes
+      --  except controlling the way parameters are passed.
+
+      Convention_Ada_Pass_By_Copy,
+      Convention_Ada_Pass_By_Reference,
+
       --  The remaining conventions are foreign language conventions
 
       Convention_Assembler,  --  also Asm, Assembly
@@ -1430,10 +1483,10 @@ package Snames is
       Convention_Java,
       Convention_Stdcall);   --  also DLL, Win32
 
-      --  Note: Convention C_Pass_By_Copy is allowed only for record
-      --  types (where it is treated like C except that the appropriate
-      --  flag is set in the record type). Recognizing this convention
-      --  is specially handled in Sem_Prag.
+      --  Note: Convention C_Pass_By_Copy is allowed only for record types
+      --  (where it is treated like C except that the appropriate flag is set
+      --  in the record type). Recognizing this convention is specially handled
+      --  in Sem_Prag.
 
    for Convention_Id'Size use 8;
    --  Plenty of space for expansion
@@ -1467,6 +1520,7 @@ package Snames is
       Pragma_Ada_2005,
       Pragma_Ada_12,
       Pragma_Ada_2012,
+      Pragma_Annotate,
       Pragma_Assertion_Policy,
       Pragma_Assume_No_Invalid_Values,
       Pragma_C_Pass_By_Copy,
@@ -1481,6 +1535,7 @@ package Snames is
       Pragma_Detect_Blocking,
       Pragma_Default_Storage_Pool,
       Pragma_Discard_Names,
+      Pragma_Dispatching_Domain,
       Pragma_Elaboration_Checks,
       Pragma_Eliminate,
       Pragma_Extend_System,
@@ -1529,7 +1584,6 @@ package Snames is
 
       Pragma_Abort_Defer,
       Pragma_All_Calls_Remote,
-      Pragma_Annotate,
       Pragma_Assert,
       Pragma_Asynchronous,
       Pragma_Atomic,
@@ -1563,6 +1617,7 @@ package Snames is
       Pragma_External,
       Pragma_Finalize_Storage_Only,
       Pragma_Ident,
+      Pragma_Implementation_Defined,
       Pragma_Implemented,
       Pragma_Import,
       Pragma_Import_Exception,
@@ -1626,6 +1681,7 @@ package Snames is
       Pragma_Suppress_Debug_Info,
       Pragma_Suppress_Initialization,
       Pragma_System_Name,
+      Pragma_Test_Case,
       Pragma_Task_Info,
       Pragma_Task_Name,
       Pragma_Task_Storage,
@@ -1682,7 +1738,10 @@ package Snames is
    --  Called to initialize the preset names in the names table
 
    function Is_Attribute_Name (N : Name_Id) return Boolean;
-   --  Test to see if the name N is the name of a recognized attribute
+   --  Test to see if the name N is the name of a recognized attribute. Note
+   --  that Name_Elab_Subp_Body returns False if not operating in CodePeer
+   --  mode. This is the mechanism for considering this pragma illegal in
+   --  normal GNAT programs.
 
    function Is_Entity_Attribute_Name (N : Name_Id) return Boolean;
    --  Test to see if the name N is the name of a recognized entity attribute,

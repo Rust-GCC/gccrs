@@ -8,6 +8,7 @@
 #define GO_GOGO_H
 
 class Traverse;
+class Statement_inserter;
 class Type;
 class Type_hash_identical;
 class Type_equal;
@@ -21,6 +22,7 @@ class Temporary_statement;
 class Block;
 class Function;
 class Bindings;
+class Bindings_snapshot;
 class Package;
 class Variable;
 class Pointer_type;
@@ -245,6 +247,10 @@ class Gogo
   Named_object*
   current_function() const;
 
+  // Return the current block.
+  Block*
+  current_block();
+
   // Start a new block.  This is not initially associated with a
   // function.
   void
@@ -268,9 +274,16 @@ class Gogo
   Label*
   add_label_definition(const std::string&, source_location);
 
-  // Add a label reference.
+  // Add a label reference.  ISSUE_GOTO_ERRORS is true if we should
+  // report errors for a goto from the current location to the label
+  // location.
   Label*
-  add_label_reference(const std::string&);
+  add_label_reference(const std::string&, source_location,
+		      bool issue_goto_errors);
+
+  // Return a snapshot of the current binding state.
+  Bindings_snapshot*
+  bindings_snapshot(source_location);
 
   // Add a statement to the current block.
   void
@@ -366,7 +379,7 @@ class Gogo
 
   // Lower an expression.
   void
-  lower_expression(Named_object* function, Expression**);
+  lower_expression(Named_object* function, Statement_inserter*, Expression**);
 
   // Lower a constant.
   void
@@ -421,6 +434,10 @@ class Gogo
   void
   simplify_thunk_statements();
 
+  // Dump AST if -fgo-dump-ast is set 
+  void
+  dump_ast(const char* basename);
+
   // Convert named types to the backend representation.
   void
   convert_named_types();
@@ -473,22 +490,6 @@ class Gogo
   slice_constructor(tree slice_type_tree, tree values, tree count,
 		    tree capacity);
 
-  // Build a map descriptor.
-  tree
-  map_descriptor(Map_type*);
-
-  // Return a tree for the type of a map descriptor.  This is struct
-  // __go_map_descriptor in libgo/runtime/map.h.  This is the same for
-  // all map types.
-  tree
-  map_descriptor_type();
-
-  // Build a type descriptor for TYPE using INITIALIZER as the type
-  // descriptor.  This builds a new decl stored in *PDECL.
-  void
-  build_type_descriptor_decl(const Type*, Expression* initializer,
-			     tree* pdecl);
-
   // Build required interface method tables.
   void
   build_interface_method_tables();
@@ -527,7 +528,6 @@ class Gogo
   receive_as_64bit_integer(tree type, tree channel, bool blocking,
 			   bool for_select);
 
-
   // Make a trampoline which calls FNADDR passing CLOSURE.
   tree
   make_trampoline(tree fnaddr, tree closure, source_location);
@@ -563,10 +563,6 @@ class Gogo
   const Bindings*
   current_bindings() const;
 
-  // Return the current block.
-  Block*
-  current_block();
-
   // Get the name of the magic initialization function.
   const std::string&
   get_init_fn_name();
@@ -592,32 +588,6 @@ class Gogo
   tree
   ptr_go_string_constant_tree(const std::string&);
 
-  // Return the name to use for a type descriptor decl for an unnamed
-  // type.
-  std::string
-  unnamed_type_descriptor_decl_name(const Type* type);
-
-  // Return the name to use for a type descriptor decl for a type
-  // named NO, defined in IN_FUNCTION.
-  std::string
-  type_descriptor_decl_name(const Named_object* no,
-			    const Named_object* in_function);
-
-  // Where a type descriptor should be defined.
-  enum Type_descriptor_location
-    {
-      // Defined in this file.
-      TYPE_DESCRIPTOR_DEFINED,
-      // Defined in some other file.
-      TYPE_DESCRIPTOR_UNDEFINED,
-      // Common definition which may occur in multiple files.
-      TYPE_DESCRIPTOR_COMMON
-    };
-
-  // Return where the decl for TYPE should be defined.
-  Type_descriptor_location
-  type_descriptor_location(const Type* type);
-
   // Return the type of a trampoline.
   static tree
   trampoline_type_tree();
@@ -630,14 +600,6 @@ class Gogo
 
   // Type used to map special names in the sys package.
   typedef std::map<std::string, std::string> Sys_names;
-
-  // Hash table mapping map types to map descriptor decls.
-  typedef Unordered_map_hash(const Map_type*, tree, Type_hash_identical,
-			     Type_identical) Map_descriptors;
-
-  // Map unnamed types to type descriptor decls.
-  typedef Unordered_map_hash(const Type*, tree, Type_hash_identical,
-			     Type_identical) Type_descriptor_decls;
 
   // The backend generator.
   Backend* backend_;
@@ -655,10 +617,6 @@ class Gogo
   // Mapping from package names we have seen to packages.  This does
   // not include the package we are compiling.
   Packages packages_;
-  // Mapping from map types to map descriptors.
-  Map_descriptors* map_descriptors_;
-  // Mapping from unnamed types to type descriptor decls.
-  Type_descriptor_decls* type_descriptor_decls_;
   // The functions named "init", if there are any.
   std::vector<Named_object*> init_functions_;
   // Whether we need a magic initialization function.
@@ -883,11 +841,14 @@ class Function
 
   // Add a label definition to the function.
   Label*
-  add_label_definition(const std::string& label_name, source_location);
+  add_label_definition(Gogo*, const std::string& label_name, source_location);
 
-  // Add a label reference to a function.
+  // Add a label reference to a function.  ISSUE_GOTO_ERRORS is true
+  // if we should report errors for a goto from the current location
+  // to the label location.
   Label*
-  add_label_reference(const std::string& label_name);
+  add_label_reference(Gogo*, const std::string& label_name,
+		      source_location, bool issue_goto_errors);
 
   // Warn about labels that are defined but not used.
   void
@@ -1028,6 +989,40 @@ class Function
   bool is_recover_thunk_;
   // True if this function already has a recover thunk.
   bool has_recover_thunk_;
+};
+
+// A snapshot of the current binding state.
+
+class Bindings_snapshot
+{
+ public:
+  Bindings_snapshot(const Block*, source_location);
+
+  // Report any errors appropriate for a goto from the current binding
+  // state of B to this one.
+  void
+  check_goto_from(const Block* b, source_location);
+
+  // Report any errors appropriate for a goto from this binding state
+  // to the current state of B.
+  void
+  check_goto_to(const Block* b);
+
+ private:
+  bool
+  check_goto_block(source_location, const Block*, const Block*, size_t*);
+
+  void
+  check_goto_defs(source_location, const Block*, size_t, size_t);
+
+  // The current block.
+  const Block* block_;
+  // The number of names currently defined in each open block.
+  // Element 0 is this->block_, element 1 is
+  // this->block_->enclosing(), etc.
+  std::vector<size_t> counts_;
+  // The location where this snapshot was taken.
+  source_location location_;
 };
 
 // A function declaration.
@@ -1211,7 +1206,7 @@ class Variable
 
   // Lower the initialization expression after parsing is complete.
   void
-  lower_init_expression(Gogo*, Named_object*);
+  lower_init_expression(Gogo*, Named_object*, Statement_inserter*);
 
   // A special case: the init value is used only to determine the
   // type.  This is used if the variable is defined using := with the
@@ -1262,7 +1257,7 @@ class Variable
 
   // Traverse the initializer expression.
   int
-  traverse_expression(Traverse*);
+  traverse_expression(Traverse*, unsigned int traverse_mask);
 
   // Determine the type of the variable if necessary.
   void
@@ -2158,7 +2153,8 @@ class Label
 {
  public:
   Label(const std::string& name)
-    : name_(name), location_(0), is_used_(false), blabel_(NULL)
+    : name_(name), location_(0), snapshot_(NULL), refs_(), is_used_(false),
+      blabel_(NULL)
   { }
 
   // Return the label's name.
@@ -2186,12 +2182,36 @@ class Label
   location() const
   { return this->location_; }
 
-  // Define the label at LOCATION.
+  // Return the bindings snapshot.
+  Bindings_snapshot*
+  snapshot() const
+  { return this->snapshot_; }
+
+  // Add a snapshot of a goto which refers to this label.
   void
-  define(source_location location)
+  add_snapshot_ref(Bindings_snapshot* snapshot)
   {
     go_assert(this->location_ == 0);
+    this->refs_.push_back(snapshot);
+  }
+
+  // Return the list of snapshots of goto statements which refer to
+  // this label.
+  const std::vector<Bindings_snapshot*>&
+  refs() const
+  { return this->refs_; }
+
+  // Clear the references.
+  void
+  clear_refs();
+
+  // Define the label at LOCATION with the given bindings snapshot.
+  void
+  define(source_location location, Bindings_snapshot* snapshot)
+  {
+    go_assert(this->location_ == 0 && this->snapshot_ == NULL);
     this->location_ = location;
+    this->snapshot_ = snapshot;
   }
 
   // Return the backend representation for this label.
@@ -2210,6 +2230,11 @@ class Label
   // The location of the definition.  This is 0 if the label has not
   // yet been defined.
   source_location location_;
+  // A snapshot of the set of bindings defined at this label, used to
+  // issue errors about invalid goto statements.
+  Bindings_snapshot* snapshot_;
+  // A list of snapshots of goto statements which refer to this label.
+  std::vector<Bindings_snapshot*> refs_;
   // Whether the label has been used.
   bool is_used_;
   // The backend representation.
@@ -2515,6 +2540,46 @@ class Traverse
   Types_seen* types_seen_;
   // Expressions which have been seen in this traversal.
   Expressions_seen* expressions_seen_;
+};
+
+// A class which makes it easier to insert new statements before the
+// current statement during a traversal.
+
+class Statement_inserter
+{
+ public:
+  // Empty constructor.
+  Statement_inserter()
+    : block_(NULL), pindex_(NULL), gogo_(NULL), var_(NULL)
+  { }
+
+  // Constructor for a statement in a block.
+  Statement_inserter(Block* block, size_t *pindex)
+    : block_(block), pindex_(pindex), gogo_(NULL), var_(NULL)
+  { }
+
+  // Constructor for a global variable.
+  Statement_inserter(Gogo* gogo, Variable* var)
+    : block_(NULL), pindex_(NULL), gogo_(gogo), var_(var)
+  { go_assert(var->is_global()); }
+
+  // We use the default copy constructor and assignment operator.
+
+  // Insert S before the statement we are traversing, or before the
+  // initialization expression of a global variable.
+  void
+  insert(Statement* s);
+
+ private:
+  // The block that the statement is in.
+  Block* block_;
+  // The index of the statement that we are traversing.
+  size_t* pindex_;
+  // The IR, needed when looking at an initializer expression for a
+  // global variable.
+  Gogo* gogo_;
+  // The global variable, when looking at an initializer expression.
+  Variable* var_;
 };
 
 // When translating the gogo IR into the backend data structure, this

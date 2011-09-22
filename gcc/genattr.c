@@ -1,6 +1,6 @@
 /* Generate attribute information (insn-attr.h) from machine description.
    Copyright (C) 1991, 1994, 1996, 1998, 1999, 2000, 2003, 2004, 2007, 2008,
-   2010  Free Software Foundation, Inc.
+   2010, 2011  Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
 This file is part of GCC.
@@ -30,15 +30,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gensupport.h"
 
 
-static void write_upcase (const char *);
 static void gen_attr (rtx);
-
-static void
-write_upcase (const char *str)
-{
-  for (; *str; str++)
-    putchar (TOUPPER(*str));
-}
 
 static VEC (rtx, heap) *const_attrs, *reservations;
 
@@ -46,7 +38,7 @@ static VEC (rtx, heap) *const_attrs, *reservations;
 static void
 gen_attr (rtx attr)
 {
-  const char *p, *tag;
+  const char *p;
   int is_const = GET_CODE (XEXP (attr, 2)) == CONST;
 
   if (is_const)
@@ -65,23 +57,8 @@ gen_attr (rtx attr)
 	printf ("extern int get_attr_%s (%s);\n", XSTR (attr, 0),
 		(is_const ? "void" : "rtx"));
       else
-	{
-	  printf ("enum attr_%s {", XSTR (attr, 0));
-
-	  while ((tag = scan_comma_elt (&p)) != 0)
-	    {
-	      write_upcase (XSTR (attr, 0));
-	      putchar ('_');
-	      while (tag != p)
-		putchar (TOUPPER (*tag++));
-	      if (*p == ',')
-		fputs (", ", stdout);
-	    }
-	  fputs ("};\n", stdout);
-
-	  printf ("extern enum attr_%s get_attr_%s (%s);\n\n",
-		  XSTR (attr, 0), XSTR (attr, 0), (is_const ? "void" : "rtx"));
-	}
+	printf ("extern enum attr_%s get_attr_%s (%s);\n\n",
+		XSTR (attr, 0), XSTR (attr, 0), (is_const ? "void" : "rtx"));
     }
 
   /* If `length' attribute, write additional function definitions and define
@@ -180,6 +157,8 @@ main (int argc, char **argv)
   puts ("#ifndef GCC_INSN_ATTR_H");
   puts ("#define GCC_INSN_ATTR_H\n");
 
+  puts ("#include \"insn-attr-common.h\"\n");
+
   /* For compatibility, define the attribute `alternative', which is just
      a reference to the variable `which_alternative'.  */
 
@@ -204,7 +183,6 @@ main (int argc, char **argv)
         {
 	  if (! have_delay)
 	    {
-	      printf ("#define DELAY_SLOTS\n");
 	      printf ("extern int num_delay_slots (rtx);\n");
 	      printf ("extern int eligible_for_delay (rtx, int, rtx, int);\n\n");
 	      printf ("extern int const_num_delay_slots (rtx);\n\n");
@@ -242,7 +220,6 @@ main (int argc, char **argv)
 	= find_tune_attr (XEXP (VEC_index (rtx, reservations, 0), 2));
       /* Output interface for pipeline hazards recognition based on
 	 DFA (deterministic finite state automata.  */
-      printf ("\n#define INSN_SCHEDULING\n");
       printf ("\n/* DFA based pipeline interface.  */");
       printf ("\n#ifndef AUTOMATON_ALTS\n");
       printf ("#define AUTOMATON_ALTS 0\n");

@@ -42,6 +42,9 @@ AM_PROG_LIBTOOL
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
 
+CC_FOR_BUILD=${CC_FOR_BUILD:-gcc}
+AC_SUBST(CC_FOR_BUILD)
+
 WARN_FLAGS='-Wall -Wextra -Wwrite-strings -Wcast-qual'
 AC_SUBST(WARN_FLAGS)
 
@@ -252,12 +255,6 @@ if test -f ${srcdir}/syscalls/syscall_${GOOS}_${GOARCH}.go; then
 fi
 AC_SUBST(GO_SYSCALLS_SYSCALL_OS_ARCH_FILE)
 
-GO_DEBUG_PROC_REGS_OS_ARCH_FILE=
-if test -f ${srcdir}/go/debug/proc/regs_${GOOS}_${GOARCH}.go; then
-  GO_DEBUG_PROC_REGS_OS_ARCH_FILE=go/debug/proc/regs_${GOOS}_${GOARCH}.go
-fi
-AC_SUBST(GO_DEBUG_PROC_REGS_OS_ARCH_FILE)
-
 dnl Some targets need special flags to build sysinfo.go.
 case "$target" in
     mips-sgi-irix6.5*)
@@ -428,10 +425,17 @@ no)
   ;;
 esac
 
-AC_CHECK_HEADERS(sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/syscall.h sys/user.h sys/utsname.h sys/select.h)
+AC_CHECK_HEADERS(sys/mman.h syscall.h sys/epoll.h sys/ptrace.h sys/syscall.h sys/user.h sys/utsname.h sys/select.h sys/socket.h net/if.h)
+
+AC_CHECK_HEADERS([linux/filter.h linux/netlink.h linux/rtnetlink.h], [], [],
+[#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+])
+
 AM_CONDITIONAL(HAVE_SYS_MMAN_H, test "$ac_cv_header_sys_mman_h" = yes)
 
-AC_CHECK_FUNCS(srandom random strerror_r strsignal wait4 mincore)
+AC_CHECK_FUNCS(srandom random strerror_r strsignal wait4 mincore setenv)
 AM_CONDITIONAL(HAVE_STRERROR_R, test "$ac_cv_func_strerror_r" = yes)
 AM_CONDITIONAL(HAVE_WAIT4, test "$ac_cv_func_wait4" = yes)
 

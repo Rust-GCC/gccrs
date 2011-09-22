@@ -6,7 +6,7 @@
  *                                                                          *
  *              Auxiliary C functions for Interfaces.C.Streams              *
  *                                                                          *
- *          Copyright (C) 1992-2010, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2011, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -29,7 +29,11 @@
  *                                                                          *
  ****************************************************************************/
 
-/* Routines required for implementing routines in Interfaces.C.Streams */
+/* Routines required for implementing routines in Interfaces.C.Streams.  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #ifdef __vxworks
 #include "vxWorks.h"
@@ -64,6 +68,16 @@
 #  undef stdout
 #endif
 
+#endif
+
+/* Don't use macros versions of this functions on VxWorks since they cause
+   imcompatible changes in some VxWorks versions */
+#ifdef __vxworks
+#undef getchar
+#undef putchar
+#undef feof
+#undef ferror
+#undef fileno
 #endif
 
 /* The _IONBF value in MINGW32 stdio.h is wrong.  */
@@ -242,3 +256,7 @@ __gnat_full_name (char *nam, char *buffer)
 
   return buffer;
 }
+
+#ifdef __cplusplus
+}
+#endif

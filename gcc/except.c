@@ -1,6 +1,6 @@
 /* Implements exception handling.
    Copyright (C) 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Mike Stump <mrs@cygnus.com>.
 
@@ -136,6 +136,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "ggc.h"
 #include "tm_p.h"
 #include "target.h"
+#include "common/common-target.h"
 #include "langhooks.h"
 #include "cgraph.h"
 #include "diagnostic.h"
@@ -209,7 +210,7 @@ init_eh (void)
 
   /* Create the SjLj_Function_Context structure.  This should match
      the definition in unwind-sjlj.c.  */
-  if (targetm.except_unwind_info (&global_options) == UI_SJLJ)
+  if (targetm_common.except_unwind_info (&global_options) == UI_SJLJ)
     {
       tree f_jbuf, f_per, f_lsda, f_prev, f_cs, f_data, tmp;
 
@@ -918,6 +919,34 @@ emit_to_new_bb_before (rtx seq, rtx insn)
   return bb;
 }
 
+/* A subroutine of dw2_build_landing_pads, also used for edge splitting
+   at the rtl level.  Emit the code required by the target at a landing
+   pad for the given region.  */
+
+void
+expand_dw2_landing_pad_for_region (eh_region region)
+{
+#ifdef HAVE_exception_receiver
+  if (HAVE_exception_receiver)
+    emit_insn (gen_exception_receiver ());
+  else
+#endif
+#ifdef HAVE_nonlocal_goto_receiver
+  if (HAVE_nonlocal_goto_receiver)
+    emit_insn (gen_nonlocal_goto_receiver ());
+  else
+#endif
+    { /* Nothing */ }
+
+  if (region->exc_ptr_reg)
+    emit_move_insn (region->exc_ptr_reg,
+		    gen_rtx_REG (ptr_mode, EH_RETURN_DATA_REGNO (0)));
+  if (region->filter_reg)
+    emit_move_insn (region->filter_reg,
+		    gen_rtx_REG (targetm.eh_return_filter_mode (),
+				 EH_RETURN_DATA_REGNO (1)));
+}
+
 /* Expand the extra code needed at landing pads for dwarf2 unwinding.  */
 
 static void
@@ -925,10 +954,17 @@ dw2_build_landing_pads (void)
 {
   int i;
   eh_landing_pad lp;
+  int e_flags = EDGE_FALLTHRU;
+
+  /* If we're going to partition blocks, we need to be able to add
+     new landing pads later, which means that we need to hold on to
+     the post-landing-pad block.  Prevent it from being merged away.
+     We'll remove this bit after partitioning.  */
+  if (flag_reorder_blocks_and_partition)
+    e_flags |= EDGE_PRESERVE;
 
   for (i = 1; VEC_iterate (eh_landing_pad, cfun->eh->lp_array, i, lp); ++i)
     {
-      eh_region region;
       basic_block bb;
       rtx seq;
       edge e;
@@ -942,32 +978,13 @@ dw2_build_landing_pads (void)
       emit_label (lp->landing_pad);
       LABEL_PRESERVE_P (lp->landing_pad) = 1;
 
-#ifdef HAVE_exception_receiver
-      if (HAVE_exception_receiver)
-	emit_insn (gen_exception_receiver ());
-      else
-#endif
-#ifdef HAVE_nonlocal_goto_receiver
-	if (HAVE_nonlocal_goto_receiver)
-	  emit_insn (gen_nonlocal_goto_receiver ());
-	else
-#endif
-	  { /* Nothing */ }
-
-      region = lp->region;
-      if (region->exc_ptr_reg)
-	emit_move_insn (region->exc_ptr_reg,
-			gen_rtx_REG (ptr_mode, EH_RETURN_DATA_REGNO (0)));
-      if (region->filter_reg)
-	emit_move_insn (region->filter_reg,
-			gen_rtx_REG (targetm.eh_return_filter_mode (),
-				     EH_RETURN_DATA_REGNO (1)));
+      expand_dw2_landing_pad_for_region (lp->region);
 
       seq = get_insns ();
       end_sequence ();
 
       bb = emit_to_new_bb_before (seq, label_rtx (lp->post_landing_pad));
-      e = make_edge (bb, bb->next_bb, EDGE_FALLTHRU);
+      e = make_edge (bb, bb->next_bb, e_flags);
       e->count = bb->count;
       e->probability = REG_BR_PROB_BASE;
     }
@@ -1395,13 +1412,13 @@ finish_eh_generation (void)
   basic_block bb;
 
   /* Construct the landing pads.  */
-  if (targetm.except_unwind_info (&global_options) == UI_SJLJ)
+  if (targetm_common.except_unwind_info (&global_options) == UI_SJLJ)
     sjlj_build_landing_pads ();
   else
     dw2_build_landing_pads ();
   break_superblocks ();
 
-  if (targetm.except_unwind_info (&global_options) == UI_SJLJ
+  if (targetm_common.except_unwind_info (&global_options) == UI_SJLJ
       /* Kludge for Alpha/Tru64 (see alpha_gp_save_rtx).  */
       || single_succ_edge (ENTRY_BLOCK_PTR)->insns.r)
     commit_edge_insertions ();
@@ -1457,7 +1474,7 @@ struct rtl_opt_pass pass_rtl_eh =
 {
  {
   RTL_PASS,
-  "rtl eh",                             /* name */
+  "rtl_eh",                             /* name */
   gate_handle_eh,                       /* gate */
   rest_of_handle_eh,			/* execute */
   NULL,                                 /* sub */
@@ -1468,7 +1485,7 @@ struct rtl_opt_pass pass_rtl_eh =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func                        /* todo_flags_finish */
+  0                                     /* todo_flags_finish */
  }
 };
 
@@ -1910,7 +1927,7 @@ struct rtl_opt_pass pass_set_nothrow_function_flags =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func,                       /* todo_flags_finish */
+  0                                     /* todo_flags_finish */
  }
 };
 
@@ -2387,9 +2404,6 @@ convert_to_eh_region_ranges (void)
   rtx section_switch_note = NULL_RTX;
   rtx first_no_action_insn_before_switch = NULL_RTX;
   rtx last_no_action_insn_before_switch = NULL_RTX;
-  rtx *pad_map = NULL;
-  sbitmap pad_loc = NULL;
-  int min_labelno = 0, max_labelno = 0;
   int saved_call_site_base = call_site_base;
 
   crtl->eh.action_record_data = VEC_alloc (uchar, gc, 64);
@@ -2522,13 +2536,7 @@ convert_to_eh_region_ranges (void)
 	gcc_assert (crtl->eh.call_site_record[cur_sec] == NULL);
 	crtl->eh.call_site_record[cur_sec]
 	  = VEC_alloc (call_site_record, gc, 10);
-	max_labelno = max_label_num ();
-	min_labelno = get_first_label_num ();
-	pad_map = XCNEWVEC (rtx, max_labelno - min_labelno + 1);
-	pad_loc = sbitmap_alloc (max_labelno - min_labelno + 1);
       }
-    else if (LABEL_P (iter) && pad_map)
-      SET_BIT (pad_loc, CODE_LABEL_NUMBER (iter) - min_labelno);
 
   if (last_action >= -1 && ! first_no_action_insn)
     {
@@ -2537,103 +2545,6 @@ convert_to_eh_region_ranges (void)
     }
 
   call_site_base = saved_call_site_base;
-
-  if (pad_map)
-    {
-      /* When doing hot/cold partitioning, ensure landing pads are
-	 always in the same section as the EH region, .gcc_except_table
-	 can't express it otherwise.  */
-      for (cur_sec = 0; cur_sec < 2; cur_sec++)
-	{
-	  int i, idx;
-	  int n = VEC_length (call_site_record,
-			      crtl->eh.call_site_record[cur_sec]);
-	  basic_block prev_bb = NULL, padbb;
-
-	  for (i = 0; i < n; ++i)
-	    {
-	      struct call_site_record_d *cs =
-		VEC_index (call_site_record,
-			   crtl->eh.call_site_record[cur_sec], i);
-	      rtx jump, note;
-
-	      if (cs->landing_pad == NULL_RTX)
-		continue;
-	      idx = CODE_LABEL_NUMBER (cs->landing_pad) - min_labelno;
-	      /* If the landing pad is in the correct section, nothing
-		 is needed.  */
-	      if (TEST_BIT (pad_loc, idx) ^ (cur_sec == 0))
-		continue;
-	      /* Otherwise, if we haven't seen this pad yet, we need to
-		 add a new label and jump to the correct section.  */
-	      if (pad_map[idx] == NULL_RTX)
-		{
-		  pad_map[idx] = gen_label_rtx ();
-		  if (prev_bb == NULL)
-		    for (iter = section_switch_note;
-			 iter; iter = PREV_INSN (iter))
-		      if (NOTE_INSN_BASIC_BLOCK_P (iter))
-			{
-			  prev_bb = NOTE_BASIC_BLOCK (iter);
-			  break;
-			}
-		  if (cur_sec == 0)
-		    {
-		      note = emit_label_before (pad_map[idx],
-						section_switch_note);
-		      jump = emit_jump_insn_before (gen_jump (cs->landing_pad),
-						    section_switch_note);
-		    }
-		  else
-		    {
-		      jump = emit_jump_insn_after (gen_jump (cs->landing_pad),
-						   section_switch_note);
-		      note = emit_label_after (pad_map[idx],
-					       section_switch_note);
-		    }
-		  JUMP_LABEL (jump) = cs->landing_pad;
-		  add_reg_note (jump, REG_CROSSING_JUMP, NULL_RTX);
-		  iter = NEXT_INSN (cs->landing_pad);
-		  if (iter && NOTE_INSN_BASIC_BLOCK_P (iter))
-		    padbb = NOTE_BASIC_BLOCK (iter);
-		  else
-		    padbb = NULL;
-		  if (padbb && prev_bb
-		      && BB_PARTITION (padbb) != BB_UNPARTITIONED)
-		    {
-		      basic_block bb;
-		      int part
-			= BB_PARTITION (padbb) == BB_COLD_PARTITION
-			  ? BB_HOT_PARTITION : BB_COLD_PARTITION;
-		      edge_iterator ei;
-		      edge e;
-
-		      bb = create_basic_block (note, jump, prev_bb);
-		      make_single_succ_edge (bb, padbb, EDGE_CROSSING);
-		      BB_SET_PARTITION (bb, part);
-		      for (ei = ei_start (padbb->preds);
-			   (e = ei_safe_edge (ei)); )
-			{
-			  if ((e->flags & (EDGE_EH|EDGE_CROSSING))
-			      == (EDGE_EH|EDGE_CROSSING))
-			    {
-			      redirect_edge_succ (e, bb);
-			      e->flags &= ~EDGE_CROSSING;
-			    }
-			  else
-			    ei_next (&ei);
-			}
-		      if (cur_sec == 0)
-			prev_bb = bb;
-		    }
-		}
-	      cs->landing_pad = pad_map[idx];
-	    }
-	}
-
-      sbitmap_free (pad_loc);
-      XDELETEVEC (pad_map);
-    }
 
   htab_delete (ar_hash);
   return 0;
@@ -2645,7 +2556,7 @@ gate_convert_to_eh_region_ranges (void)
   /* Nothing to do for SJLJ exceptions or if no regions created.  */
   if (cfun->eh->region_tree == NULL)
     return false;
-  if (targetm.except_unwind_info (&global_options) == UI_SJLJ)
+  if (targetm_common.except_unwind_info (&global_options) == UI_SJLJ)
     return false;
   return true;
 }
@@ -2665,7 +2576,7 @@ struct rtl_opt_pass pass_convert_to_eh_region_ranges =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func,			/* todo_flags_finish */
+  0              			/* todo_flags_finish */
  }
 };
 
@@ -2834,7 +2745,7 @@ switch_to_exception_section (const char * ARG_UNUSED (fnname))
     {
       /* Compute the section and cache it into exception_section,
 	 unless it depends on the function name.  */
-      if (targetm.have_named_sections)
+      if (targetm_common.have_named_sections)
 	{
 	  int flags;
 
@@ -2984,7 +2895,7 @@ output_one_function_exception_table (int section)
 		       eh_data_format_name (tt_format));
 
 #ifndef HAVE_AS_LEB128
-  if (targetm.except_unwind_info (&global_options) == UI_SJLJ)
+  if (targetm_common.except_unwind_info (&global_options) == UI_SJLJ)
     call_site_len = sjlj_size_of_call_site_table ();
   else
     call_site_len = dw2_size_of_call_site_table (section);
@@ -3051,14 +2962,14 @@ output_one_function_exception_table (int section)
   dw2_asm_output_delta_uleb128 (cs_end_label, cs_after_size_label,
 				"Call-site table length");
   ASM_OUTPUT_LABEL (asm_out_file, cs_after_size_label);
-  if (targetm.except_unwind_info (&global_options) == UI_SJLJ)
+  if (targetm_common.except_unwind_info (&global_options) == UI_SJLJ)
     sjlj_output_call_site_table ();
   else
     dw2_output_call_site_table (cs_format, section);
   ASM_OUTPUT_LABEL (asm_out_file, cs_end_label);
 #else
   dw2_asm_output_data_uleb128 (call_site_len, "Call-site table length");
-  if (targetm.except_unwind_info (&global_options) == UI_SJLJ)
+  if (targetm_common.except_unwind_info (&global_options) == UI_SJLJ)
     sjlj_output_call_site_table ();
   else
     dw2_output_call_site_table (cs_format, section);

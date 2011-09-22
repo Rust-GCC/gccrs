@@ -32,6 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gfortran.h"
 #include "intrinsic.h"
 #include "constructor.h"
+#include "target-memory.h"
 
 
 /* Make sure an expression is a scalar.  */
@@ -875,6 +876,15 @@ gfc_check_associated (gfc_expr *pointer, gfc_expr *target)
       return FAILURE;
     }
 
+  /* F2008, C1242.  */
+  if (attr1.pointer && gfc_is_coindexed (pointer))
+    {
+      gfc_error ("'%s' argument of '%s' intrinsic at %L shall not be "
+		 "conindexed", gfc_current_intrinsic_arg[0]->name,
+		 gfc_current_intrinsic, &pointer->where);
+      return FAILURE;
+    }
+
   /* Target argument is optional.  */
   if (target == NULL)
     return SUCCESS;
@@ -898,6 +908,15 @@ gfc_check_associated (gfc_expr *pointer, gfc_expr *target)
     {
       gfc_error ("'%s' argument of '%s' intrinsic at %L must be a POINTER "
 		 "or a TARGET", gfc_current_intrinsic_arg[1]->name,
+		 gfc_current_intrinsic, &target->where);
+      return FAILURE;
+    }
+
+  /* F2008, C1242.  */
+  if (attr1.pointer && gfc_is_coindexed (target))
+    {
+      gfc_error ("'%s' argument of '%s' intrinsic at %L shall not be "
+		 "conindexed", gfc_current_intrinsic_arg[1]->name,
 		 gfc_current_intrinsic, &target->where);
       return FAILURE;
     }
@@ -952,6 +971,72 @@ gfc_check_atan2 (gfc_expr *y, gfc_expr *x)
     return FAILURE;
 
   return SUCCESS;
+}
+
+
+static gfc_try
+gfc_check_atomic (gfc_expr *atom, gfc_expr *value)
+{
+  if (!(atom->ts.type == BT_INTEGER && atom->ts.kind == gfc_atomic_int_kind)
+      && !(atom->ts.type == BT_LOGICAL
+	   && atom->ts.kind == gfc_atomic_logical_kind))
+    {
+      gfc_error ("ATOM argument at %L to intrinsic function %s shall be an "
+		 "integer of ATOMIC_INT_KIND or a logical of "
+		 "ATOMIC_LOGICAL_KIND", &atom->where, gfc_current_intrinsic);
+      return FAILURE;
+    }
+
+  if (!gfc_expr_attr (atom).codimension)
+    {
+      gfc_error ("ATOM argument at %L of the %s intrinsic function shall be a "
+		 "coarray or coindexed", &atom->where, gfc_current_intrinsic);
+      return FAILURE;
+    }
+
+  if (atom->ts.type != value->ts.type)
+    {
+      gfc_error ("ATOM and VALUE argument of the %s intrinsic function shall "
+		 "have the same type at %L", gfc_current_intrinsic,
+		 &value->where);
+      return FAILURE;
+    }
+
+  return SUCCESS;
+}
+
+
+gfc_try
+gfc_check_atomic_def (gfc_expr *atom, gfc_expr *value)
+{
+  if (scalar_check (atom, 0) == FAILURE || scalar_check (value, 1) == FAILURE)
+    return FAILURE;
+
+  if (gfc_check_vardef_context (atom, false, false, NULL) == FAILURE)
+    {
+      gfc_error ("ATOM argument of the %s intrinsic function at %L shall be "
+		 "definable", gfc_current_intrinsic, &atom->where);
+      return FAILURE;
+    }
+
+  return gfc_check_atomic (atom, value);
+}
+
+
+gfc_try
+gfc_check_atomic_ref (gfc_expr *value, gfc_expr *atom)
+{
+  if (scalar_check (value, 0) == FAILURE || scalar_check (atom, 1) == FAILURE)
+    return FAILURE;
+
+  if (gfc_check_vardef_context (value, false, false, NULL) == FAILURE)
+    {
+      gfc_error ("VALUE argument of the %s intrinsic function at %L shall be "
+		 "definable", gfc_current_intrinsic, &value->where);
+      return FAILURE;
+    }
+
+  return gfc_check_atomic (atom, value);
 }
 
 
@@ -2588,6 +2673,10 @@ gfc_check_move_alloc (gfc_expr *from, gfc_expr *to)
       return FAILURE;
     }
 
+  /* CLASS arguments: Make sure the vtab is present.  */
+  if (to->ts.type == BT_CLASS)
+    gfc_find_derived_vtab (from->ts.u.derived);
+
   return SUCCESS;
 }
 
@@ -2643,10 +2732,25 @@ gfc_check_null (gfc_expr *mold)
 
   attr = gfc_variable_attr (mold, NULL);
 
-  if (!attr.pointer && !attr.proc_pointer)
+  if (!attr.pointer && !attr.proc_pointer && !attr.allocatable)
     {
-      gfc_error ("'%s' argument of '%s' intrinsic at %L must be a POINTER",
+      gfc_error ("'%s' argument of '%s' intrinsic at %L must be a POINTER, "
+		 "ALLOCATABLE or procedure pointer",
 		 gfc_current_intrinsic_arg[0]->name,
+		 gfc_current_intrinsic, &mold->where);
+      return FAILURE;
+    }
+
+  if (attr.allocatable
+      && gfc_notify_std (GFC_STD_F2003, "Fortran 2003: NULL intrinsic with "
+			 "allocatable MOLD at %L", &mold->where) == FAILURE)
+    return FAILURE;
+
+  /* F2008, C1242.  */
+  if (gfc_is_coindexed (mold))
+    {
+      gfc_error ("'%s' argument of '%s' intrinsic at %L shall not be "
+		 "conindexed", gfc_current_intrinsic_arg[0]->name,
 		 gfc_current_intrinsic, &mold->where);
       return FAILURE;
     }
@@ -2798,7 +2902,9 @@ gfc_check_present (gfc_expr *a)
 
   if (a->ref != NULL
       && !(a->ref->next == NULL && a->ref->type == REF_ARRAY
-	   && a->ref->u.ar.type == AR_FULL))
+	   && (a->ref->u.ar.type == AR_FULL
+	       || (a->ref->u.ar.type == AR_ELEMENT
+		   && a->ref->u.ar.as->rank == 0))))
     {
       gfc_error ("'%s' argument of '%s' intrinsic at %L must not be a "
 		 "subobject of '%s'", gfc_current_intrinsic_arg[0]->name,
@@ -2825,6 +2931,33 @@ gfc_check_range (gfc_expr *x)
 {
   if (numeric_check (x, 0) == FAILURE)
     return FAILURE;
+
+  return SUCCESS;
+}
+
+
+gfc_try
+gfc_check_rank (gfc_expr *a ATTRIBUTE_UNUSED)
+{
+  /* Any data object is allowed; a "data object" is a "constant (4.1.3),
+     variable (6), or subobject of a constant (2.4.3.2.3)" (F2008, 1.3.45).  */
+
+  bool is_variable = true;
+
+  /* Functions returning pointers are regarded as variable, cf. F2008, R602. */
+  if (a->expr_type == EXPR_FUNCTION) 
+    is_variable = a->value.function.esym
+		  ? a->value.function.esym->result->attr.pointer
+		  : a->symtree->n.sym->result->attr.pointer;
+
+  if (a->expr_type == EXPR_OP || a->expr_type == EXPR_NULL
+      || a->expr_type == EXPR_COMPCALL|| a->expr_type == EXPR_PPC
+      || !is_variable)
+    {
+      gfc_error ("The argument of the RANK intrinsic at %L must be a data "
+		 "object", &a->where);
+      return FAILURE;
+    }
 
   return SUCCESS;
 }
@@ -3356,7 +3489,7 @@ gfc_check_c_sizeof (gfc_expr *arg)
 {
   if (verify_c_interop (&arg->ts) != SUCCESS)
     {
-      gfc_error ("'%s' argument of '%s' intrinsic at %L must be be an "
+      gfc_error ("'%s' argument of '%s' intrinsic at %L must be an "
 		 "interoperable data entity",
 		 gfc_current_intrinsic_arg[0]->name, gfc_current_intrinsic,
 		 &arg->where);
@@ -3738,11 +3871,68 @@ gfc_check_this_image (gfc_expr *coarray, gfc_expr *dim)
   return SUCCESS;
 }
 
+/* Calculate the sizes for transfer, used by gfc_check_transfer and also
+   by gfc_simplify_transfer.  Return FAILURE if we cannot do so.  */
 
 gfc_try
-gfc_check_transfer (gfc_expr *source ATTRIBUTE_UNUSED,
-		    gfc_expr *mold ATTRIBUTE_UNUSED, gfc_expr *size)
+gfc_calculate_transfer_sizes (gfc_expr *source, gfc_expr *mold, gfc_expr *size,
+			      size_t *source_size, size_t *result_size,
+			      size_t *result_length_p)
+
 {
+  size_t result_elt_size;
+  mpz_t tmp;
+  gfc_expr *mold_element;
+
+  if (source->expr_type == EXPR_FUNCTION)
+    return FAILURE;
+
+    /* Calculate the size of the source.  */
+  if (source->expr_type == EXPR_ARRAY
+      && gfc_array_size (source, &tmp) == FAILURE)
+    return FAILURE;
+
+  *source_size = gfc_target_expr_size (source);
+
+  mold_element = mold->expr_type == EXPR_ARRAY
+		 ? gfc_constructor_first (mold->value.constructor)->expr
+		 : mold;
+
+  /* Determine the size of the element.  */
+  result_elt_size = gfc_target_expr_size (mold_element);
+  if (result_elt_size == 0)
+    return FAILURE;
+
+  if (mold->expr_type == EXPR_ARRAY || mold->rank || size)
+    {
+      int result_length;
+
+      if (size)
+	result_length = (size_t)mpz_get_ui (size->value.integer);
+      else
+	{
+	  result_length = *source_size / result_elt_size;
+	  if (result_length * result_elt_size < *source_size)
+	    result_length += 1;
+	}
+
+      *result_size = result_length * result_elt_size;
+      if (result_length_p)
+	*result_length_p = result_length;
+    }
+  else
+    *result_size = result_elt_size;
+
+  return SUCCESS;
+}
+
+
+gfc_try
+gfc_check_transfer (gfc_expr *source, gfc_expr *mold, gfc_expr *size)
+{
+  size_t source_size;
+  size_t result_size;
+
   if (mold->ts.type == BT_HOLLERITH)
     {
       gfc_error ("'MOLD' argument of 'TRANSFER' intrinsic at %L must not be %s",
@@ -3761,6 +3951,21 @@ gfc_check_transfer (gfc_expr *source ATTRIBUTE_UNUSED,
       if (nonoptional_check (size, 2) == FAILURE)
 	return FAILURE;
     }
+
+  if (!gfc_option.warn_surprising)
+    return SUCCESS;
+
+  /* If we can't calculate the sizes, we cannot check any more.
+     Return SUCCESS for that case.  */
+
+  if (gfc_calculate_transfer_sizes (source, mold, size, &source_size,
+				    &result_size, NULL) == FAILURE)
+    return SUCCESS;
+
+  if (source_size < result_size)
+    gfc_warning("Intrinsic TRANSFER at %L has partly undefined result: "
+		"source size %ld < result size %ld", &source->where,
+		(long) source_size, (long) result_size);
 
   return SUCCESS;
 }

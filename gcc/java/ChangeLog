@@ -1,3 +1,70 @@
+2011-08-24  Joseph Myers  <joseph@codesourcery.com>
+
+	* Make-lang.in (CFLAGS-java/jcf-io.o, CFLAGS-java/jcf-path.o):
+	New.
+	(java/jcf-io.o, java/jcf-path.o): Remove explicit compilation
+	rules.
+
+2011-08-18  Peter Collingbourne  <peter@pcc.me.uk>
+
+	* expr.c (expand_invoke) Use the type of the method rewrite
+	target.
+
+2011-08-10  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* jcf-dump.c (print_constant): Cast first frexp arg.
+
+2011-08-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Make-lang.in ($(XGCJ)$(exeext)): Add $(EXTRA_GCC_LIBS).
+
+2011-07-19  Richard Guenther  <rguenther@suse.de>
+
+	* builtins.c (static): Use fold_build_pointer_plus.
+	* class.c (make_class_data): Likewise.
+	(build_symbol_entry): Likewise.
+	* except.c (build_exception_object_ref): Likewise.
+	* expr.c (build_java_arrayaccess): Likewise.
+	(build_field_ref): Likewise.
+	(build_known_method_ref): Likewise.
+	(build_invokevirtual): Likewise.
+
+2011-07-06  Richard Guenther  <rguenther@suse.de>
+
+	* decl.c (java_init_decl_processing):
+	Merge calls to build_common_tree_nodes and build_common_tree_nodes_2.
+
+2011-06-21  Andrew MacLeod  <amacleod@redhat.com>
+
+	* builtins.c: Add sync_ or SYNC__ to builtin names.
+	* expr.c: Add sync_ or SYNC__ to builtin names.
+
+2011-06-07  Richard Guenther  <rguenther@suse.de>
+
+	* decl.c (java_init_decl_processing): Call build_common_nodes,
+	build_common_nodes_2 at the beginning.  Remove then duplicate
+	initializations.
+
+2011-06-07  Richard Guenther  <rguenther@suse.de>
+
+	* decl.c (java_init_decl_processing): Properly initialize
+	size_type_node.
+
+2011-05-30  Joern Rennecke  <joern.rennecke@embecosm.com>
+
+	PR middle-end/46500
+	* expr.c: Include "tm.h" .
+
+2011-05-26  Nathan Froyd  <froydnj@codesourcery.com>
+
+	* decl.c (poplevel): Don't access TREE_TYPE of BLOCKs.
+	* expr.c (build_jni_stub): Likewise.
+
+2011-05-24  Joseph Myers  <joseph@codesourcery.com>
+
+	* Make-lang.in ($(XGCJ)$(exeext)): Use libcommon-target.a instead
+	of prefix.o.
+
 2011-05-20  Joseph Myers  <joseph@codesourcery.com>
 
 	* Make-lang.in ($(XGCJ)$(exeext)): Don't explicitly use intl.o and

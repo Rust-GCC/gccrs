@@ -87,8 +87,6 @@ static int h8300_os_task_function_p (tree);
 static void h8300_emit_stack_adjustment (int, HOST_WIDE_INT, bool);
 static HOST_WIDE_INT round_frame_size (HOST_WIDE_INT);
 static unsigned int compute_saved_regs (void);
-static void push (int);
-static void pop (int);
 static const char *cond_string (enum rtx_code);
 static unsigned int h8300_asm_insn_count (const char *);
 static tree h8300_handle_fndecl_attribute (tree *, tree, tree, int, bool *);
@@ -308,17 +306,6 @@ enum h8_cpu
   H8_300H,
   H8_S
 };
-
-/* Implement TARGET_OPTION_OPTIMIZATION_TABLE.  */
-
-static const struct default_options h8300_option_optimization_table[] =
-  {
-    /* Basic block reordering is only beneficial on targets with cache
-       and/or variable-cycle branches where (cycle count taken !=
-       cycle count not taken).  */
-    { OPT_LEVELS_ALL, OPT_freorder_blocks, NULL, 0 },
-    { OPT_LEVELS_NONE, 0, NULL, 0 }
-  };
 
 /* Initialize various cpu specific globals at start up.  */
 
@@ -567,7 +554,7 @@ compute_saved_regs (void)
 
 /* Emit an insn to push register RN.  */
 
-static void
+static rtx
 push (int rn)
 {
   rtx reg = gen_rtx_REG (word_mode, rn);
@@ -581,11 +568,12 @@ push (int rn)
     x = gen_push_h8300hs_normal (reg);
   x = F (emit_insn (x), true);
   add_reg_note (x, REG_INC, stack_pointer_rtx);
+  return x;
 }
 
 /* Emit an insn to pop register RN.  */
 
-static void
+static rtx
 pop (int rn)
 {
   rtx reg = gen_rtx_REG (word_mode, rn);
@@ -599,6 +587,7 @@ pop (int rn)
     x = gen_pop_h8300hs_normal (reg);
   x = emit_insn (x);
   add_reg_note (x, REG_INC, stack_pointer_rtx);
+  return x;
 }
 
 /* Emit an instruction to push or pop NREGS consecutive registers
@@ -1042,9 +1031,11 @@ h8300_pr_saveall (struct cpp_reader *pfile ATTRIBUTE_UNUSED)
    case the first 3 arguments are passed in registers.  */
 
 static rtx
-h8300_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+h8300_function_arg (cumulative_args_t cum_v, enum machine_mode mode,
 		    const_tree type, bool named)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+
   static const char *const hand_list[] = {
     "__main",
     "__cmpsi2",
@@ -1113,9 +1104,11 @@ h8300_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
    (TYPE is null for libcalls where that information may not be available.)  */
 
 static void
-h8300_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+h8300_function_arg_advance (cumulative_args_t cum_v, enum machine_mode mode,
 			    const_tree type, bool named ATTRIBUTE_UNUSED)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+
   cum->nbytes += (mode != BLKmode
 		  ? (GET_MODE_SIZE (mode) + UNITS_PER_WORD - 1) & -UNITS_PER_WORD
 		  : (int_size_in_bytes (type) + UNITS_PER_WORD - 1) & -UNITS_PER_WORD);
@@ -1181,7 +1174,8 @@ h8300_shift_costs (rtx x)
 /* Worker function for TARGET_RTX_COSTS.  */
 
 static bool
-h8300_rtx_costs (rtx x, int code, int outer_code, int *total, bool speed)
+h8300_rtx_costs (rtx x, int code, int outer_code, int opno ATTRIBUTE_UNUSED,
+		 int *total, bool speed)
 {
   if (TARGET_H8300SX && outer_code == MEM)
     {
@@ -2649,8 +2643,8 @@ h8sx_emit_movmd (rtx dest, rtx src, rtx length,
       first_dest = replace_equiv_address (dest, dest_reg);
       first_src = replace_equiv_address (src, src_reg);
 
-      set_mem_size (first_dest, GEN_INT (n & -factor));
-      set_mem_size (first_src, GEN_INT (n & -factor));
+      set_mem_size (first_dest, n & -factor);
+      set_mem_size (first_src, n & -factor);
 
       length = copy_to_mode_reg (HImode, gen_int_mode (n / factor, HImode));
       emit_insn (gen_movmd (first_dest, first_src, length, GEN_INT (factor)));
@@ -2685,7 +2679,16 @@ h8sx_emit_movmd (rtx dest, rtx src, rtx length,
 void
 h8300_swap_into_er6 (rtx addr)
 {
-  push (HARD_FRAME_POINTER_REGNUM);
+  rtx insn = push (HARD_FRAME_POINTER_REGNUM);
+  if (frame_pointer_needed)
+    add_reg_note (insn, REG_CFA_DEF_CFA,
+		  plus_constant (gen_rtx_MEM (Pmode, stack_pointer_rtx),
+				 2 * UNITS_PER_WORD));
+  else
+    add_reg_note (insn, REG_CFA_ADJUST_CFA,
+		  gen_rtx_SET (VOIDmode, stack_pointer_rtx,
+			       plus_constant (stack_pointer_rtx, 4)));
+
   emit_move_insn (hard_frame_pointer_rtx, addr);
   if (REGNO (addr) == SP_REG)
     emit_move_insn (hard_frame_pointer_rtx,
@@ -2699,9 +2702,20 @@ h8300_swap_into_er6 (rtx addr)
 void
 h8300_swap_out_of_er6 (rtx addr)
 {
+  rtx insn;
+
   if (REGNO (addr) != SP_REG)
     emit_move_insn (addr, hard_frame_pointer_rtx);
-  pop (HARD_FRAME_POINTER_REGNUM);
+
+  insn = pop (HARD_FRAME_POINTER_REGNUM);
+  RTX_FRAME_RELATED_P (insn) = 1;
+  if (frame_pointer_needed)
+    add_reg_note (insn, REG_CFA_DEF_CFA,
+		  plus_constant (hard_frame_pointer_rtx, 2 * UNITS_PER_WORD));
+  else
+    add_reg_note (insn, REG_CFA_ADJUST_CFA,
+		  gen_rtx_SET (VOIDmode, stack_pointer_rtx,
+			       plus_constant (stack_pointer_rtx, -4)));
 }
 
 /* Return the length of mov instruction.  */
@@ -5820,6 +5834,40 @@ h8300_hard_regno_mode_ok (int regno, enum machine_mode mode)
        goes.  */
     return regno == MAC_REG ? mode == SImode : 1;
 }
+
+/* Helper function for the move patterns.  Make sure a move is legitimate.  */
+
+bool
+h8300_move_ok (rtx dest, rtx src)
+{
+  rtx addr, other;
+
+  /* Validate that at least one operand is a register.  */
+  if (MEM_P (dest))
+    {
+      if (MEM_P (src) || CONSTANT_P (src))
+	return false;
+      addr = XEXP (dest, 0);
+      other = src;
+    }
+  else if (MEM_P (src))
+    {
+      addr = XEXP (src, 0);
+      other = dest;
+    }
+  else
+    return true;
+
+  /* Validate that auto-inc doesn't affect OTHER.  */
+  if (GET_RTX_CLASS (GET_CODE (addr)) != RTX_AUTOINC)
+    return true;
+  addr = XEXP (addr, 0);
+
+  if (addr == stack_pointer_rtx)
+    return register_no_sp_elim_operand (other, VOIDmode);
+  else
+    return !reg_overlap_mentioned_p(other, addr);
+}
 
 /* Perform target dependent optabs initialization.  */
 static void
@@ -5987,9 +6035,6 @@ h8300_trampoline_init (rtx m_tramp, tree fndecl, rtx cxt)
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P	h8300_legitimate_address_p
 
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS TARGET_DEFAULT
-
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE h8300_can_eliminate
 
@@ -6001,12 +6046,6 @@ h8300_trampoline_init (rtx m_tramp, tree fndecl, rtx cxt)
 
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE h8300_option_override
-
-#undef TARGET_OPTION_OPTIMIZATION_TABLE
-#define TARGET_OPTION_OPTIMIZATION_TABLE h8300_option_optimization_table
-
-#undef TARGET_EXCEPT_UNWIND_INFO
-#define TARGET_EXCEPT_UNWIND_INFO sjlj_except_unwind_info
 
 #undef TARGET_MODE_DEPENDENT_ADDRESS_P
 #define TARGET_MODE_DEPENDENT_ADDRESS_P h8300_mode_dependent_address_p

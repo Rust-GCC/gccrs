@@ -1,3 +1,39 @@
+2011-09-04  Iain Sandoe  <iains@gcc.gnu.org>
+
+	PR libffi/49594
+	* src/powerpc/darwin_closure.S (stubs): Make the stub binding
+	helper reference track the architecture pointer size.
+
+2011-08-25  Andrew Haley  <aph@redhat.com>
+
+	* src/arm/ffi.c (FFI_INIT_TRAMPOLINE): Remove hard-coded assembly
+	instructions.
+	* src/arm/sysv.S (ffi_arm_trampoline): Put them here instead.
+
+2011-07-11  Andrew Haley  <aph@redhat.com>
+
+        * src/arm/ffi.c (FFI_INIT_TRAMPOLINE): Clear icache.
+
+2011-06-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* testsuite/libffi.call/cls_double_va.c: Move PR number to comment.
+	* testsuite/libffi.call/cls_longdouble_va.c: Likewise.
+
+2011-06-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libffi/46660
+	* testsuite/libffi.call/cls_double_va.c: xfail dg-output on
+	mips-sgi-irix6*.
+	* testsuite/libffi.call/cls_longdouble_va.c: Likewise.
+
+2011-06-14  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* testsuite/libffi.call/huge_struct.c (test_large_fn): Use PRIu8,
+	PRId8 instead of %hhu, %hhd.
+	* testsuite/libffi.call/ffitest.h [__alpha__ && __osf__] (PRId8,
+	PRIu8): Define.
+	[__sgi__] (PRId8, PRIu8): Define.
+
 2011-04-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* src/alpha/osf.S (UA_SI, FDE_ENCODING, FDE_ENCODE, FDE_ARANGE):

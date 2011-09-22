@@ -40,6 +40,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "pointer-set.h"
 #include "cfgloop.h"
 #include "flags.h"
+#include "target.h"
+#include "params.h"
 
 /*  This is a simple global reassociation pass.  It is, in part, based
     on the LLVM pass of the same name (They do some things more/less
@@ -190,6 +192,114 @@ static long *bb_rank;
 /* Operand->rank hashtable.  */
 static struct pointer_map_t *operand_rank;
 
+/* Forward decls.  */
+static long get_rank (tree);
+
+
+/* Bias amount for loop-carried phis.  We want this to be larger than
+   the depth of any reassociation tree we can see, but not larger than
+   the rank difference between two blocks.  */
+#define PHI_LOOP_BIAS (1 << 15)
+
+/* Rank assigned to a phi statement.  If STMT is a loop-carried phi of
+   an innermost loop, and the phi has only a single use which is inside
+   the loop, then the rank is the block rank of the loop latch plus an
+   extra bias for the loop-carried dependence.  This causes expressions
+   calculated into an accumulator variable to be independent for each
+   iteration of the loop.  If STMT is some other phi, the rank is the
+   block rank of its containing block.  */
+static long
+phi_rank (gimple stmt)
+{
+  basic_block bb = gimple_bb (stmt);
+  struct loop *father = bb->loop_father;
+  tree res;
+  unsigned i;
+  use_operand_p use;
+  gimple use_stmt;
+
+  /* We only care about real loops (those with a latch).  */
+  if (!father->latch)
+    return bb_rank[bb->index];
+
+  /* Interesting phis must be in headers of innermost loops.  */
+  if (bb != father->header
+      || father->inner)
+    return bb_rank[bb->index];
+
+  /* Ignore virtual SSA_NAMEs.  */
+  res = gimple_phi_result (stmt);
+  if (!is_gimple_reg (SSA_NAME_VAR (res)))
+    return bb_rank[bb->index];
+
+  /* The phi definition must have a single use, and that use must be
+     within the loop.  Otherwise this isn't an accumulator pattern.  */
+  if (!single_imm_use (res, &use, &use_stmt)
+      || gimple_bb (use_stmt)->loop_father != father)
+    return bb_rank[bb->index];
+
+  /* Look for phi arguments from within the loop.  If found, bias this phi.  */
+  for (i = 0; i < gimple_phi_num_args (stmt); i++)
+    {
+      tree arg = gimple_phi_arg_def (stmt, i);
+      if (TREE_CODE (arg) == SSA_NAME
+	  && !SSA_NAME_IS_DEFAULT_DEF (arg))
+	{
+	  gimple def_stmt = SSA_NAME_DEF_STMT (arg);
+	  if (gimple_bb (def_stmt)->loop_father == father)
+	    return bb_rank[father->latch->index] + PHI_LOOP_BIAS;
+	}
+    }
+
+  /* Must be an uninteresting phi.  */
+  return bb_rank[bb->index];
+}
+
+/* If EXP is an SSA_NAME defined by a PHI statement that represents a
+   loop-carried dependence of an innermost loop, return TRUE; else
+   return FALSE.  */
+static bool
+loop_carried_phi (tree exp)
+{
+  gimple phi_stmt;
+  long block_rank;
+
+  if (TREE_CODE (exp) != SSA_NAME
+      || SSA_NAME_IS_DEFAULT_DEF (exp))
+    return false;
+
+  phi_stmt = SSA_NAME_DEF_STMT (exp);
+
+  if (gimple_code (SSA_NAME_DEF_STMT (exp)) != GIMPLE_PHI)
+    return false;
+
+  /* Non-loop-carried phis have block rank.  Loop-carried phis have
+     an additional bias added in.  If this phi doesn't have block rank,
+     it's biased and should not be propagated.  */
+  block_rank = bb_rank[gimple_bb (phi_stmt)->index];
+
+  if (phi_rank (phi_stmt) != block_rank)
+    return true;
+
+  return false;
+}
+
+/* Return the maximum of RANK and the rank that should be propagated
+   from expression OP.  For most operands, this is just the rank of OP.
+   For loop-carried phis, the value is zero to avoid undoing the bias
+   in favor of the phi.  */
+static long
+propagate_rank (long rank, tree op)
+{
+  long op_rank;
+
+  if (loop_carried_phi (op))
+    return rank;
+
+  op_rank = get_rank (op);
+
+  return MAX (rank, op_rank);
+}
 
 /* Look up the operand rank structure for expression E.  */
 
@@ -232,11 +342,38 @@ get_rank (tree e)
      I make no claims that this is optimal, however, it gives good
      results.  */
 
+  /* We make an exception to the normal ranking system to break
+     dependences of accumulator variables in loops.  Suppose we
+     have a simple one-block loop containing:
+
+       x_1 = phi(x_0, x_2)
+       b = a + x_1
+       c = b + d
+       x_2 = c + e
+
+     As shown, each iteration of the calculation into x is fully
+     dependent upon the iteration before it.  We would prefer to
+     see this in the form:
+
+       x_1 = phi(x_0, x_2)
+       b = a + d
+       c = b + e
+       x_2 = c + x_1
+
+     If the loop is unrolled, the calculations of b and c from
+     different iterations can be interleaved.
+
+     To obtain this result during reassociation, we bias the rank
+     of the phi definition x_1 upward, when it is recognized as an
+     accumulator pattern.  The artificial rank causes it to be 
+     added last, providing the desired independence.  */
+
   if (TREE_CODE (e) == SSA_NAME)
     {
       gimple stmt;
-      long rank, maxrank;
+      long rank;
       int i, n;
+      tree op;
 
       if (TREE_CODE (SSA_NAME_VAR (e)) == PARM_DECL
 	  && SSA_NAME_IS_DEFAULT_DEF (e))
@@ -245,6 +382,9 @@ get_rank (tree e)
       stmt = SSA_NAME_DEF_STMT (e);
       if (gimple_bb (stmt) == NULL)
 	return 0;
+
+      if (gimple_code (stmt) == GIMPLE_PHI)
+	return phi_rank (stmt);
 
       if (!is_gimple_assign (stmt)
 	  || gimple_vdef (stmt))
@@ -255,30 +395,35 @@ get_rank (tree e)
       if (rank != -1)
 	return rank;
 
-      /* Otherwise, find the maximum rank for the operands, or the bb
-	 rank, whichever is less.   */
+      /* Otherwise, find the maximum rank for the operands.  As an
+	 exception, remove the bias from loop-carried phis when propagating
+	 the rank so that dependent operations are not also biased.  */
       rank = 0;
-      maxrank = bb_rank[gimple_bb(stmt)->index];
       if (gimple_assign_single_p (stmt))
 	{
 	  tree rhs = gimple_assign_rhs1 (stmt);
 	  n = TREE_OPERAND_LENGTH (rhs);
 	  if (n == 0)
-	    rank = MAX (rank, get_rank (rhs));
+	    rank = propagate_rank (rank, rhs);
 	  else
 	    {
-	      for (i = 0;
-		   i < n && TREE_OPERAND (rhs, i) && rank != maxrank; i++)
-		rank = MAX(rank, get_rank (TREE_OPERAND (rhs, i)));
+	      for (i = 0; i < n; i++)
+		{
+		  op = TREE_OPERAND (rhs, i);
+
+		  if (op != NULL_TREE)
+		    rank = propagate_rank (rank, op);
+		}
 	    }
 	}
       else
 	{
 	  n = gimple_num_ops (stmt);
-	  for (i = 1; i < n && rank != maxrank; i++)
+	  for (i = 1; i < n; i++)
 	    {
-	      gcc_assert (gimple_op (stmt, i));
-	      rank = MAX(rank, get_rank (gimple_op (stmt, i)));
+	      op = gimple_op (stmt, i);
+	      gcc_assert (op);
+	      rank = propagate_rank (rank, op);
 	    }
 	}
 
@@ -1474,6 +1619,62 @@ remove_visited_stmt_chain (tree var)
     }
 }
 
+/* This function checks three consequtive operands in
+   passed operands vector OPS starting from OPINDEX and
+   swaps two operands if it is profitable for binary operation
+   consuming OPINDEX + 1 abnd OPINDEX + 2 operands.
+
+   We pair ops with the same rank if possible.
+
+   The alternative we try is to see if STMT is a destructive
+   update style statement, which is like:
+   b = phi (a, ...)
+   a = c + b;
+   In that case, we want to use the destructive update form to
+   expose the possible vectorizer sum reduction opportunity.
+   In that case, the third operand will be the phi node. This
+   check is not performed if STMT is null.
+
+   We could, of course, try to be better as noted above, and do a
+   lot of work to try to find these opportunities in >3 operand
+   cases, but it is unlikely to be worth it.  */
+
+static void
+swap_ops_for_binary_stmt (VEC(operand_entry_t, heap) * ops,
+			  unsigned int opindex, gimple stmt)
+{
+  operand_entry_t oe1, oe2, oe3;
+
+  oe1 = VEC_index (operand_entry_t, ops, opindex);
+  oe2 = VEC_index (operand_entry_t, ops, opindex + 1);
+  oe3 = VEC_index (operand_entry_t, ops, opindex + 2);
+
+  if ((oe1->rank == oe2->rank
+       && oe2->rank != oe3->rank)
+      || (stmt && is_phi_for_stmt (stmt, oe3->op)
+	  && !is_phi_for_stmt (stmt, oe1->op)
+	  && !is_phi_for_stmt (stmt, oe2->op)))
+    {
+      struct operand_entry temp = *oe3;
+      oe3->op = oe1->op;
+      oe3->rank = oe1->rank;
+      oe1->op = temp.op;
+      oe1->rank= temp.rank;
+    }
+  else if ((oe1->rank == oe3->rank
+	    && oe2->rank != oe3->rank)
+	   || (stmt && is_phi_for_stmt (stmt, oe2->op)
+	       && !is_phi_for_stmt (stmt, oe1->op)
+	       && !is_phi_for_stmt (stmt, oe3->op)))
+    {
+      struct operand_entry temp = *oe2;
+      oe2->op = oe1->op;
+      oe2->rank = oe1->rank;
+      oe1->op = temp.op;
+      oe1->rank= temp.rank;
+    }
+}
+
 /* Recursively rewrite our linearized statements so that the operators
    match those in OPS[OPINDEX], putting the computation in rank
    order.  */
@@ -1486,53 +1687,10 @@ rewrite_expr_tree (gimple stmt, unsigned int opindex,
   tree rhs2 = gimple_assign_rhs2 (stmt);
   operand_entry_t oe;
 
-  /* If we have three operands left, then we want to make sure the one
-     that gets the double binary op are the ones with the same rank.
-
-     The alternative we try is to see if this is a destructive
-     update style statement, which is like:
-     b = phi (a, ...)
-     a = c + b;
-     In that case, we want to use the destructive update form to
-     expose the possible vectorizer sum reduction opportunity.
-     In that case, the third operand will be the phi node.
-
-     We could, of course, try to be better as noted above, and do a
-     lot of work to try to find these opportunities in >3 operand
-     cases, but it is unlikely to be worth it.  */
+  /* If we have three operands left, then we want to make sure the ones
+     that get the double binary op are chosen wisely.  */
   if (opindex + 3 == VEC_length (operand_entry_t, ops))
-    {
-      operand_entry_t oe1, oe2, oe3;
-
-      oe1 = VEC_index (operand_entry_t, ops, opindex);
-      oe2 = VEC_index (operand_entry_t, ops, opindex + 1);
-      oe3 = VEC_index (operand_entry_t, ops, opindex + 2);
-
-      if ((oe1->rank == oe2->rank
-	   && oe2->rank != oe3->rank)
-	  || (is_phi_for_stmt (stmt, oe3->op)
-	      && !is_phi_for_stmt (stmt, oe1->op)
-	      && !is_phi_for_stmt (stmt, oe2->op)))
-	{
-	  struct operand_entry temp = *oe3;
-	  oe3->op = oe1->op;
-	  oe3->rank = oe1->rank;
-	  oe1->op = temp.op;
-	  oe1->rank= temp.rank;
-	}
-      else if ((oe1->rank == oe3->rank
-		&& oe2->rank != oe3->rank)
-	       || (is_phi_for_stmt (stmt, oe2->op)
-		   && !is_phi_for_stmt (stmt, oe1->op)
-		   && !is_phi_for_stmt (stmt, oe3->op)))
-	{
-	  struct operand_entry temp = *oe2;
-	  oe2->op = oe1->op;
-	  oe2->rank = oe1->rank;
-	  oe1->op = temp.op;
-	  oe1->rank= temp.rank;
-	}
-    }
+    swap_ops_for_binary_stmt (ops, opindex, stmt);
 
   /* The final recursion case for this function is that you have
      exactly two operations left.
@@ -1615,6 +1773,178 @@ rewrite_expr_tree (gimple stmt, unsigned int opindex,
   /* Recurse on the LHS of the binary operator, which is guaranteed to
      be the non-leaf side.  */
   rewrite_expr_tree (SSA_NAME_DEF_STMT (rhs1), opindex + 1, ops, moved);
+}
+
+/* Find out how many cycles we need to compute statements chain.
+   OPS_NUM holds number os statements in a chain.  CPU_WIDTH is a
+   maximum number of independent statements we may execute per cycle.  */
+
+static int
+get_required_cycles (int ops_num, int cpu_width)
+{
+  int res;
+  int elog;
+  unsigned int rest;
+
+  /* While we have more than 2 * cpu_width operands
+     we may reduce number of operands by cpu_width
+     per cycle.  */
+  res = ops_num / (2 * cpu_width);
+
+  /* Remained operands count may be reduced twice per cycle
+     until we have only one operand.  */
+  rest = (unsigned)(ops_num - res * cpu_width);
+  elog = exact_log2 (rest);
+  if (elog >= 0)
+    res += elog;
+  else
+    res += floor_log2 (rest) + 1;
+
+  return res;
+}
+
+/* Returns an optimal number of registers to use for computation of
+   given statements.  */
+
+static int
+get_reassociation_width (int ops_num, enum tree_code opc,
+			 enum machine_mode mode)
+{
+  int param_width = PARAM_VALUE (PARAM_TREE_REASSOC_WIDTH);
+  int width;
+  int width_min;
+  int cycles_best;
+
+  if (param_width > 0)
+    width = param_width;
+  else
+    width = targetm.sched.reassociation_width (opc, mode);
+
+  if (width == 1)
+    return width;
+
+  /* Get the minimal time required for sequence computation.  */
+  cycles_best = get_required_cycles (ops_num, width);
+
+  /* Check if we may use less width and still compute sequence for
+     the same time.  It will allow us to reduce registers usage.
+     get_required_cycles is monotonically increasing with lower width
+     so we can perform a binary search for the minimal width that still
+     results in the optimal cycle count.  */
+  width_min = 1;
+  while (width > width_min)
+    {
+      int width_mid = (width + width_min) / 2;
+
+      if (get_required_cycles (ops_num, width_mid) == cycles_best)
+	width = width_mid;
+      else if (width_min < width_mid)
+	width_min = width_mid;
+      else
+	break;
+    }
+
+  return width;
+}
+
+/* Recursively rewrite our linearized statements so that the operators
+   match those in OPS[OPINDEX], putting the computation in rank
+   order and trying to allow operations to be executed in
+   parallel.  */
+
+static void
+rewrite_expr_tree_parallel (gimple stmt, int width,
+			    VEC(operand_entry_t, heap) * ops)
+{
+  enum tree_code opcode = gimple_assign_rhs_code (stmt);
+  int op_num = VEC_length (operand_entry_t, ops);
+  int stmt_num = op_num - 1;
+  gimple *stmts = XALLOCAVEC (gimple, stmt_num);
+  int op_index = op_num - 1;
+  int stmt_index = 0;
+  int ready_stmts_end = 0;
+  int i = 0;
+  tree last_rhs1 = gimple_assign_rhs1 (stmt);
+  tree lhs_var;
+
+  /* We start expression rewriting from the top statements.
+     So, in this loop we create a full list of statements
+     we will work with.  */
+  stmts[stmt_num - 1] = stmt;
+  for (i = stmt_num - 2; i >= 0; i--)
+    stmts[i] = SSA_NAME_DEF_STMT (gimple_assign_rhs1 (stmts[i+1]));
+
+  lhs_var = create_tmp_reg (TREE_TYPE (last_rhs1), NULL);
+  add_referenced_var (lhs_var);
+
+  for (i = 0; i < stmt_num; i++)
+    {
+      tree op1, op2;
+
+      /* Determine whether we should use results of
+	 already handled statements or not.  */
+      if (ready_stmts_end == 0
+	  && (i - stmt_index >= width || op_index < 1))
+	ready_stmts_end = i;
+
+      /* Now we choose operands for the next statement.  Non zero
+	 value in ready_stmts_end means here that we should use
+	 the result of already generated statements as new operand.  */
+      if (ready_stmts_end > 0)
+	{
+	  op1 = gimple_assign_lhs (stmts[stmt_index++]);
+	  if (ready_stmts_end > stmt_index)
+	    op2 = gimple_assign_lhs (stmts[stmt_index++]);
+	  else if (op_index >= 0)
+	    op2 = VEC_index (operand_entry_t, ops, op_index--)->op;
+	  else
+	    {
+	      gcc_assert (stmt_index < i);
+	      op2 = gimple_assign_lhs (stmts[stmt_index++]);
+	    }
+
+	  if (stmt_index >= ready_stmts_end)
+	    ready_stmts_end = 0;
+	}
+      else
+	{
+	  if (op_index > 1)
+	    swap_ops_for_binary_stmt (ops, op_index - 2, NULL);
+	  op2 = VEC_index (operand_entry_t, ops, op_index--)->op;
+	  op1 = VEC_index (operand_entry_t, ops, op_index--)->op;
+	}
+
+      /* If we emit the last statement then we should put
+	 operands into the last statement.  It will also
+	 break the loop.  */
+      if (op_index < 0 && stmt_index == i)
+	i = stmt_num - 1;
+
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	{
+	  fprintf (dump_file, "Transforming ");
+	  print_gimple_stmt (dump_file, stmts[i], 0, 0);
+	}
+
+      /* We keep original statement only for the last one.  All
+	 others are recreated.  */
+      if (i == stmt_num - 1)
+	{
+	  gimple_assign_set_rhs1 (stmts[i], op1);
+	  gimple_assign_set_rhs2 (stmts[i], op2);
+	  update_stmt (stmts[i]);
+	}
+      else
+	stmts[i] = build_and_add_sum (lhs_var, op1, op2, opcode);
+
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	{
+	  fprintf (dump_file, " into ");
+	  print_gimple_stmt (dump_file, stmts[i], 0, 0);
+	}
+    }
+
+  remove_visited_stmt_chain (last_rhs1);
 }
 
 /* Transform STMT, which is really (A +B) + (C + D) into the left
@@ -2139,7 +2469,21 @@ reassociate_bb (basic_block bb)
 		    }
 		}
 	      else
-		rewrite_expr_tree (stmt, 0, ops, false);
+		{
+		  enum machine_mode mode = TYPE_MODE (TREE_TYPE (lhs));
+		  int ops_num = VEC_length (operand_entry_t, ops);
+		  int width = get_reassociation_width (ops_num, rhs_code, mode);
+
+		  if (dump_file && (dump_flags & TDF_DETAILS))
+		    fprintf (dump_file,
+			     "Width = %d was chosen for reassociation\n", width);
+
+		  if (width > 1
+		      && VEC_length (operand_entry_t, ops) > 3)
+		    rewrite_expr_tree_parallel (stmt, width, ops);
+		  else
+		    rewrite_expr_tree (stmt, 0, ops, false);
+		}
 
 	      VEC_free (operand_entry_t, heap, ops);
 	    }
@@ -2299,8 +2643,6 @@ struct gimple_opt_pass pass_reassoc =
   0,					/* todo_flags_start */
   TODO_verify_ssa
     | TODO_verify_flow
-    | TODO_dump_func
     | TODO_ggc_collect			/* todo_flags_finish */
  }
 };
-

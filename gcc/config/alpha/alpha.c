@@ -47,6 +47,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm_p.h"
 #include "target.h"
 #include "target-def.h"
+#include "common/common-target.h"
 #include "debug.h"
 #include "langhooks.h"
 #include "splay-tree.h"
@@ -197,48 +198,10 @@ static rtx alpha_emit_xfloating_compare (enum rtx_code *, rtx, rtx);
 #if TARGET_ABI_OPEN_VMS
 static void alpha_write_linkage (FILE *, const char *, tree);
 static bool vms_valid_pointer_mode (enum machine_mode);
+#else
+#define vms_patch_builtins()  gcc_unreachable()
 #endif
 
-/* Implement TARGET_OPTION_OPTIMIZATION_TABLE.  */
-static const struct default_options alpha_option_optimization_table[] =
-  {
-    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
-    { OPT_LEVELS_NONE, 0, NULL, 0 }
-  };
-
-/* Implement TARGET_HANDLE_OPTION.  */
-
-static bool
-alpha_handle_option (struct gcc_options *opts,
-		     struct gcc_options *opts_set ATTRIBUTE_UNUSED,
-		     const struct cl_decoded_option *decoded,
-		     location_t loc)
-{
-  size_t code = decoded->opt_index;
-  const char *arg = decoded->arg;
-  int value = decoded->value;
-
-  switch (code)
-    {
-    case OPT_mfp_regs:
-      if (value == 0)
-	opts->x_target_flags |= MASK_SOFT_FP;
-      break;
-
-    case OPT_mieee:
-    case OPT_mieee_with_inexact:
-      opts->x_target_flags |= MASK_IEEE_CONFORMANT;
-      break;
-
-    case OPT_mtls_size_:
-      if (value != 16 && value != 32 && value != 64)
-	error_at (loc, "bad value %qs for -mtls-size switch", arg);
-      break;
-    }
-
-  return true;
-}
-
 #ifdef TARGET_ALTERNATE_LONG_DOUBLE_MANGLING
 /* Implement TARGET_MANGLE_TYPE.  */
 
@@ -606,59 +569,6 @@ direct_return (void)
 	  && get_frame_size () == 0
 	  && crtl->outgoing_args_size == 0
 	  && crtl->args.pretend_args_size == 0);
-}
-
-/* Return the ADDR_VEC associated with a tablejump insn.  */
-
-rtx
-alpha_tablejump_addr_vec (rtx insn)
-{
-  rtx tmp;
-
-  tmp = JUMP_LABEL (insn);
-  if (!tmp)
-    return NULL_RTX;
-  tmp = NEXT_INSN (tmp);
-  if (!tmp)
-    return NULL_RTX;
-  if (JUMP_P (tmp)
-      && GET_CODE (PATTERN (tmp)) == ADDR_DIFF_VEC)
-    return PATTERN (tmp);
-  return NULL_RTX;
-}
-
-/* Return the label of the predicted edge, or CONST0_RTX if we don't know.  */
-
-rtx
-alpha_tablejump_best_label (rtx insn)
-{
-  rtx jump_table = alpha_tablejump_addr_vec (insn);
-  rtx best_label = NULL_RTX;
-
-  /* ??? Once the CFG doesn't keep getting completely rebuilt, look
-     there for edge frequency counts from profile data.  */
-
-  if (jump_table)
-    {
-      int n_labels = XVECLEN (jump_table, 1);
-      int best_count = -1;
-      int i, j;
-
-      for (i = 0; i < n_labels; i++)
-	{
-	  int count = 1;
-
-	  for (j = i + 1; j < n_labels; j++)
-	    if (XEXP (XVECEXP (jump_table, 1, i), 0)
-		== XEXP (XVECEXP (jump_table, 1, j), 0))
-	      count++;
-
-	  if (count > best_count)
-	    best_count = count, best_label = XVECEXP (jump_table, 1, i);
-	}
-    }
-
-  return best_label ? best_label : const0_rtx;
 }
 
 /* Return the TLS model to use for SYMBOL.  */
@@ -1244,7 +1154,7 @@ alpha_legitimize_reload_address (rtx x,
    scanned.  In either case, *TOTAL contains the cost result.  */
 
 static bool
-alpha_rtx_costs (rtx x, int code, int outer_code, int *total,
+alpha_rtx_costs (rtx x, int code, int outer_code, int opno, int *total,
 		 bool speed)
 {
   enum machine_mode mode = GET_MODE (x);
@@ -1312,9 +1222,9 @@ alpha_rtx_costs (rtx x, int code, int outer_code, int *total,
 	       && const48_operand (XEXP (XEXP (x, 0), 1), VOIDmode))
 	{
 	  *total = (rtx_cost (XEXP (XEXP (x, 0), 0),
-			      (enum rtx_code) outer_code, speed)
+			      (enum rtx_code) outer_code, opno, speed)
 		    + rtx_cost (XEXP (x, 1),
-				(enum rtx_code) outer_code, speed)
+				(enum rtx_code) outer_code, opno, speed)
 		    + COSTS_N_INSNS (1));
 	  return true;
 	}
@@ -4722,6 +4632,13 @@ alpha_gp_save_rtx (void)
   return m;
 }
 
+static void
+alpha_instantiate_decls (void)
+{
+  if (cfun->machine->gp_save_rtx != NULL_RTX)
+    instantiate_decl_rtl (cfun->machine->gp_save_rtx);
+}
+
 static int
 alpha_ra_ever_killed (void)
 {
@@ -5395,7 +5312,7 @@ alpha_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
   if (TARGET_ABI_OSF)
     {
       emit_insn (gen_imb ());
-#ifdef ENABLE_EXECUTE_STACK
+#ifdef HAVE_ENABLE_EXECUTE_STACK
       emit_library_call (init_one_libfunc ("__enable_execute_stack"),
 			 LCT_NORMAL, VOIDmode, 1, XEXP (m_tramp, 0), Pmode);
 #endif
@@ -5419,9 +5336,10 @@ alpha_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
    and the rest are pushed.  */
 
 static rtx
-alpha_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+alpha_function_arg (cumulative_args_t cum_v, enum machine_mode mode,
 		    const_tree type, bool named ATTRIBUTE_UNUSED)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   int basereg;
   int num_args;
 
@@ -5480,9 +5398,10 @@ alpha_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
    (TYPE is null for libcalls where that information may not be available.)  */
 
 static void
-alpha_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+alpha_function_arg_advance (cumulative_args_t cum_v, enum machine_mode mode,
 			    const_tree type, bool named ATTRIBUTE_UNUSED)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   bool onstack = targetm.calls.must_pass_in_stack (mode, type);
   int increment = onstack ? 6 : ALPHA_ARG_SIZE (mode, type, named);
 
@@ -5496,12 +5415,13 @@ alpha_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
 }
 
 static int
-alpha_arg_partial_bytes (CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED,
+alpha_arg_partial_bytes (cumulative_args_t cum_v,
 			 enum machine_mode mode ATTRIBUTE_UNUSED,
 			 tree type ATTRIBUTE_UNUSED,
 			 bool named ATTRIBUTE_UNUSED)
 {
   int words = 0;
+  CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED = get_cumulative_args (cum_v);
 
 #if TARGET_ABI_OPEN_VMS
   if (cum->num_args < 6
@@ -5576,7 +5496,7 @@ alpha_return_in_memory (const_tree type, const_tree fndecl ATTRIBUTE_UNUSED)
 /* Return true if TYPE should be passed by invisible reference.  */
 
 static bool
-alpha_pass_by_reference (CUMULATIVE_ARGS *ca ATTRIBUTE_UNUSED,
+alpha_pass_by_reference (cumulative_args_t ca ATTRIBUTE_UNUSED,
 			 enum machine_mode mode,
 			 const_tree type ATTRIBUTE_UNUSED,
 			 bool named ATTRIBUTE_UNUSED)
@@ -5914,13 +5834,14 @@ escapes:
    variable number of arguments.  */
 
 static void
-alpha_setup_incoming_varargs (CUMULATIVE_ARGS *pcum, enum machine_mode mode,
+alpha_setup_incoming_varargs (cumulative_args_t pcum, enum machine_mode mode,
 			      tree type, int *pretend_size, int no_rtl)
 {
-  CUMULATIVE_ARGS cum = *pcum;
+  CUMULATIVE_ARGS cum = *get_cumulative_args (pcum);
 
   /* Skip the current argument.  */
-  targetm.calls.function_arg_advance (&cum, mode, type, true);
+  targetm.calls.function_arg_advance (pack_cumulative_args (&cum), mode, type,
+				      true);
 
 #if TARGET_ABI_OPEN_VMS
   /* For VMS, we allocate space for all 6 arg registers plus a count.
@@ -6023,8 +5944,7 @@ alpha_va_start (tree valist, rtx nextarg ATTRIBUTE_UNUSED)
   if (TARGET_ABI_OPEN_VMS)
     {
       t = make_tree (ptr_type_node, virtual_incoming_args_rtx);
-      t = build2 (POINTER_PLUS_EXPR, ptr_type_node, t,
-		 size_int (offset + NUM_ARGS * UNITS_PER_WORD));
+      t = fold_build_pointer_plus_hwi (t, offset + NUM_ARGS * UNITS_PER_WORD);
       t = build2 (MODIFY_EXPR, TREE_TYPE (valist), valist, t);
       TREE_SIDE_EFFECTS (t) = 1;
       expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
@@ -6040,8 +5960,7 @@ alpha_va_start (tree valist, rtx nextarg ATTRIBUTE_UNUSED)
 			     valist, offset_field, NULL_TREE);
 
       t = make_tree (ptr_type_node, virtual_incoming_args_rtx);
-      t = build2 (POINTER_PLUS_EXPR, ptr_type_node, t,
-		  size_int (offset));
+      t = fold_build_pointer_plus_hwi (t, offset);
       t = build2 (MODIFY_EXPR, TREE_TYPE (base_field), base_field, t);
       TREE_SIDE_EFFECTS (t) = 1;
       expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
@@ -6102,8 +6021,7 @@ alpha_gimplify_va_arg_1 (tree type, tree base, tree offset,
     }
 
   /* Build the final address and force that value into a temporary.  */
-  addr = build2 (POINTER_PLUS_EXPR, ptr_type, fold_convert (ptr_type, base),
-	         fold_convert (sizetype, addend));
+  addr = fold_build_pointer_plus (fold_convert (ptr_type, base), addend);
   internal_post = NULL;
   gimplify_expr (&addr, pre_p, &internal_post, is_gimple_val, fb_rvalue);
   gimple_seq_add_seq (pre_p, internal_post);
@@ -6402,12 +6320,6 @@ alpha_init_builtins (void)
 
   dimode_integer_type_node = lang_hooks.types.type_for_mode (DImode, 0);
 
-  /* Fwrite on VMS is non-standard.  */
-#if TARGET_ABI_OPEN_VMS
-  implicit_built_in_decls[(int) BUILT_IN_FWRITE] = NULL_TREE;
-  implicit_built_in_decls[(int) BUILT_IN_FWRITE_UNLOCKED] = NULL_TREE;
-#endif
-
   ftype = build_function_type_list (dimode_integer_type_node, NULL_TREE);
   alpha_add_builtins (zero_arg_builtins, ARRAY_SIZE (zero_arg_builtins),
 		      ftype);
@@ -6444,6 +6356,8 @@ alpha_init_builtins (void)
 					NULL_TREE);
       alpha_builtin_function ("__builtin_revert_vms_condition_handler", ftype,
 			      ALPHA_BUILTIN_REVERT_VMS_CONDITION_HANDLER, 0);
+
+      vms_patch_builtins ();
     }
 
   alpha_v8qi_u = build_vector_type (unsigned_intQI_type_node, 8);
@@ -7522,7 +7436,7 @@ alpha_expand_prologue (void)
   sa_size = alpha_sa_size ();
   frame_size = compute_frame_size (get_frame_size (), sa_size);
 
-  if (flag_stack_usage)
+  if (flag_stack_usage_info)
     current_function_static_stack_size = frame_size;
 
   if (TARGET_ABI_OPEN_VMS)
@@ -8194,7 +8108,8 @@ alpha_end_function (FILE *file, const char *fnname, tree decl ATTRIBUTE_UNUSED)
 #endif
 
   /* End the function.  */
-  if (!flag_inhibit_size_directive)
+  if (TARGET_ABI_OPEN_VMS
+      || !flag_inhibit_size_directive)
     {
       fputs ("\t.end ", file);
       assemble_name (file, fnname);
@@ -8202,15 +8117,6 @@ alpha_end_function (FILE *file, const char *fnname, tree decl ATTRIBUTE_UNUSED)
     }
   inside_function = FALSE;
 }
-
-#if TARGET_ABI_OPEN_VMS
-void avms_asm_output_external (FILE *file, tree decl ATTRIBUTE_UNUSED, const char *name)
-{
-#ifdef DO_CRTL_NAMES
-  DO_CRTL_NAMES;
-#endif
-}
-#endif
 
 #if TARGET_ABI_OSF
 /* Emit a tail call to FUNCTION after adjusting THIS by DELTA.
@@ -9912,6 +9818,9 @@ alpha_conditional_register_usage (void)
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT alpha_trampoline_init
 
+#undef TARGET_INSTANTIATE_DECLS
+#define TARGET_INSTANTIATE_DECLS alpha_instantiate_decls
+
 #undef TARGET_SECONDARY_RELOAD
 #define TARGET_SECONDARY_RELOAD alpha_secondary_reload
 
@@ -9932,17 +9841,8 @@ alpha_conditional_register_usage (void)
 #undef TARGET_RELAXED_ORDERING
 #define TARGET_RELAXED_ORDERING true
 
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS \
-  (TARGET_DEFAULT | TARGET_CPU_DEFAULT | TARGET_DEFAULT_EXPLICIT_RELOCS)
-#undef TARGET_HANDLE_OPTION
-#define TARGET_HANDLE_OPTION alpha_handle_option
-
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE alpha_option_override
-
-#undef TARGET_OPTION_OPTIMIZATION_TABLE
-#define TARGET_OPTION_OPTIMIZATION_TABLE alpha_option_optimization_table
 
 #ifdef TARGET_ALTERNATE_LONG_DOUBLE_MANGLING
 #undef TARGET_MANGLE_TYPE

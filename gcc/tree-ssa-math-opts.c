@@ -1,5 +1,5 @@
 /* Global, SSA-based optimizations using mathematical identities.
-   Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -398,9 +398,10 @@ replace_reciprocal (use_operand_p use_p)
   if (optimize_bb_for_speed_p (bb)
       && occ->recip_def && use_stmt != occ->recip_def_stmt)
     {
+      gimple_stmt_iterator gsi = gsi_for_stmt (use_stmt);
       gimple_assign_set_rhs_code (use_stmt, MULT_EXPR);
       SET_USE (use_p, occ->recip_def);
-      fold_stmt_inplace (use_stmt);
+      fold_stmt_inplace (&gsi);
       update_stmt (use_stmt);
     }
 }
@@ -610,8 +611,9 @@ execute_cse_reciprocals (void)
 
 		  FOR_EACH_IMM_USE_STMT (stmt, ui, arg1)
 		    {
+		      gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
 		      gimple_assign_set_rhs_code (stmt, MULT_EXPR);
-		      fold_stmt_inplace (stmt);
+		      fold_stmt_inplace (&gsi);
 		      update_stmt (stmt);
 		    }
 		}
@@ -645,7 +647,7 @@ struct gimple_opt_pass pass_cse_reciprocals =
   0,					/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func | TODO_update_ssa | TODO_verify_ssa
+  TODO_update_ssa | TODO_verify_ssa
     | TODO_verify_stmts                /* todo_flags_finish */
  }
 };
@@ -795,8 +797,583 @@ execute_cse_sincos_1 (tree name)
   return cfg_changed;
 }
 
+/* To evaluate powi(x,n), the floating point value x raised to the
+   constant integer exponent n, we use a hybrid algorithm that
+   combines the "window method" with look-up tables.  For an
+   introduction to exponentiation algorithms and "addition chains",
+   see section 4.6.3, "Evaluation of Powers" of Donald E. Knuth,
+   "Seminumerical Algorithms", Vol. 2, "The Art of Computer Programming",
+   3rd Edition, 1998, and Daniel M. Gordon, "A Survey of Fast Exponentiation
+   Methods", Journal of Algorithms, Vol. 27, pp. 129-146, 1998.  */
+
+/* Provide a default value for POWI_MAX_MULTS, the maximum number of
+   multiplications to inline before calling the system library's pow
+   function.  powi(x,n) requires at worst 2*bits(n)-2 multiplications,
+   so this default never requires calling pow, powf or powl.  */
+
+#ifndef POWI_MAX_MULTS
+#define POWI_MAX_MULTS  (2*HOST_BITS_PER_WIDE_INT-2)
+#endif
+
+/* The size of the "optimal power tree" lookup table.  All
+   exponents less than this value are simply looked up in the
+   powi_table below.  This threshold is also used to size the
+   cache of pseudo registers that hold intermediate results.  */
+#define POWI_TABLE_SIZE 256
+
+/* The size, in bits of the window, used in the "window method"
+   exponentiation algorithm.  This is equivalent to a radix of
+   (1<<POWI_WINDOW_SIZE) in the corresponding "m-ary method".  */
+#define POWI_WINDOW_SIZE 3
+
+/* The following table is an efficient representation of an
+   "optimal power tree".  For each value, i, the corresponding
+   value, j, in the table states than an optimal evaluation
+   sequence for calculating pow(x,i) can be found by evaluating
+   pow(x,j)*pow(x,i-j).  An optimal power tree for the first
+   100 integers is given in Knuth's "Seminumerical algorithms".  */
+
+static const unsigned char powi_table[POWI_TABLE_SIZE] =
+  {
+      0,   1,   1,   2,   2,   3,   3,   4,  /*   0 -   7 */
+      4,   6,   5,   6,   6,  10,   7,   9,  /*   8 -  15 */
+      8,  16,   9,  16,  10,  12,  11,  13,  /*  16 -  23 */
+     12,  17,  13,  18,  14,  24,  15,  26,  /*  24 -  31 */
+     16,  17,  17,  19,  18,  33,  19,  26,  /*  32 -  39 */
+     20,  25,  21,  40,  22,  27,  23,  44,  /*  40 -  47 */
+     24,  32,  25,  34,  26,  29,  27,  44,  /*  48 -  55 */
+     28,  31,  29,  34,  30,  60,  31,  36,  /*  56 -  63 */
+     32,  64,  33,  34,  34,  46,  35,  37,  /*  64 -  71 */
+     36,  65,  37,  50,  38,  48,  39,  69,  /*  72 -  79 */
+     40,  49,  41,  43,  42,  51,  43,  58,  /*  80 -  87 */
+     44,  64,  45,  47,  46,  59,  47,  76,  /*  88 -  95 */
+     48,  65,  49,  66,  50,  67,  51,  66,  /*  96 - 103 */
+     52,  70,  53,  74,  54, 104,  55,  74,  /* 104 - 111 */
+     56,  64,  57,  69,  58,  78,  59,  68,  /* 112 - 119 */
+     60,  61,  61,  80,  62,  75,  63,  68,  /* 120 - 127 */
+     64,  65,  65, 128,  66, 129,  67,  90,  /* 128 - 135 */
+     68,  73,  69, 131,  70,  94,  71,  88,  /* 136 - 143 */
+     72, 128,  73,  98,  74, 132,  75, 121,  /* 144 - 151 */
+     76, 102,  77, 124,  78, 132,  79, 106,  /* 152 - 159 */
+     80,  97,  81, 160,  82,  99,  83, 134,  /* 160 - 167 */
+     84,  86,  85,  95,  86, 160,  87, 100,  /* 168 - 175 */
+     88, 113,  89,  98,  90, 107,  91, 122,  /* 176 - 183 */
+     92, 111,  93, 102,  94, 126,  95, 150,  /* 184 - 191 */
+     96, 128,  97, 130,  98, 133,  99, 195,  /* 192 - 199 */
+    100, 128, 101, 123, 102, 164, 103, 138,  /* 200 - 207 */
+    104, 145, 105, 146, 106, 109, 107, 149,  /* 208 - 215 */
+    108, 200, 109, 146, 110, 170, 111, 157,  /* 216 - 223 */
+    112, 128, 113, 130, 114, 182, 115, 132,  /* 224 - 231 */
+    116, 200, 117, 132, 118, 158, 119, 206,  /* 232 - 239 */
+    120, 240, 121, 162, 122, 147, 123, 152,  /* 240 - 247 */
+    124, 166, 125, 214, 126, 138, 127, 153,  /* 248 - 255 */
+  };
+
+
+/* Return the number of multiplications required to calculate
+   powi(x,n) where n is less than POWI_TABLE_SIZE.  This is a
+   subroutine of powi_cost.  CACHE is an array indicating
+   which exponents have already been calculated.  */
+
+static int
+powi_lookup_cost (unsigned HOST_WIDE_INT n, bool *cache)
+{
+  /* If we've already calculated this exponent, then this evaluation
+     doesn't require any additional multiplications.  */
+  if (cache[n])
+    return 0;
+
+  cache[n] = true;
+  return powi_lookup_cost (n - powi_table[n], cache)
+	 + powi_lookup_cost (powi_table[n], cache) + 1;
+}
+
+/* Return the number of multiplications required to calculate
+   powi(x,n) for an arbitrary x, given the exponent N.  This
+   function needs to be kept in sync with powi_as_mults below.  */
+
+static int
+powi_cost (HOST_WIDE_INT n)
+{
+  bool cache[POWI_TABLE_SIZE];
+  unsigned HOST_WIDE_INT digit;
+  unsigned HOST_WIDE_INT val;
+  int result;
+
+  if (n == 0)
+    return 0;
+
+  /* Ignore the reciprocal when calculating the cost.  */
+  val = (n < 0) ? -n : n;
+
+  /* Initialize the exponent cache.  */
+  memset (cache, 0, POWI_TABLE_SIZE * sizeof (bool));
+  cache[1] = true;
+
+  result = 0;
+
+  while (val >= POWI_TABLE_SIZE)
+    {
+      if (val & 1)
+	{
+	  digit = val & ((1 << POWI_WINDOW_SIZE) - 1);
+	  result += powi_lookup_cost (digit, cache)
+		    + POWI_WINDOW_SIZE + 1;
+	  val >>= POWI_WINDOW_SIZE;
+	}
+      else
+	{
+	  val >>= 1;
+	  result++;
+	}
+    }
+
+  return result + powi_lookup_cost (val, cache);
+}
+
+/* Recursive subroutine of powi_as_mults.  This function takes the
+   array, CACHE, of already calculated exponents and an exponent N and
+   returns a tree that corresponds to CACHE[1]**N, with type TYPE.  */
+
+static tree
+powi_as_mults_1 (gimple_stmt_iterator *gsi, location_t loc, tree type,
+		 HOST_WIDE_INT n, tree *cache, tree target)
+{
+  tree op0, op1, ssa_target;
+  unsigned HOST_WIDE_INT digit;
+  gimple mult_stmt;
+
+  if (n < POWI_TABLE_SIZE && cache[n])
+    return cache[n];
+
+  ssa_target = make_ssa_name (target, NULL);
+
+  if (n < POWI_TABLE_SIZE)
+    {
+      cache[n] = ssa_target;
+      op0 = powi_as_mults_1 (gsi, loc, type, n - powi_table[n], cache, target);
+      op1 = powi_as_mults_1 (gsi, loc, type, powi_table[n], cache, target);
+    }
+  else if (n & 1)
+    {
+      digit = n & ((1 << POWI_WINDOW_SIZE) - 1);
+      op0 = powi_as_mults_1 (gsi, loc, type, n - digit, cache, target);
+      op1 = powi_as_mults_1 (gsi, loc, type, digit, cache, target);
+    }
+  else
+    {
+      op0 = powi_as_mults_1 (gsi, loc, type, n >> 1, cache, target);
+      op1 = op0;
+    }
+
+  mult_stmt = gimple_build_assign_with_ops (MULT_EXPR, ssa_target, op0, op1);
+  gimple_set_location (mult_stmt, loc);
+  gsi_insert_before (gsi, mult_stmt, GSI_SAME_STMT);
+
+  return ssa_target;
+}
+
+/* Convert ARG0**N to a tree of multiplications of ARG0 with itself.
+   This function needs to be kept in sync with powi_cost above.  */
+
+static tree
+powi_as_mults (gimple_stmt_iterator *gsi, location_t loc,
+	       tree arg0, HOST_WIDE_INT n)
+{
+  tree cache[POWI_TABLE_SIZE], result, type = TREE_TYPE (arg0), target;
+  gimple div_stmt;
+
+  if (n == 0)
+    return build_real (type, dconst1);
+
+  memset (cache, 0,  sizeof (cache));
+  cache[1] = arg0;
+
+  target = create_tmp_reg (type, "powmult");
+  add_referenced_var (target);
+
+  result = powi_as_mults_1 (gsi, loc, type, (n < 0) ? -n : n, cache, target);
+
+  if (n >= 0)
+    return result;
+
+  /* If the original exponent was negative, reciprocate the result.  */
+  target = make_ssa_name (target, NULL);
+  div_stmt = gimple_build_assign_with_ops (RDIV_EXPR, target, 
+					   build_real (type, dconst1),
+					   result);
+  gimple_set_location (div_stmt, loc);
+  gsi_insert_before (gsi, div_stmt, GSI_SAME_STMT);
+
+  return target;
+}
+
+/* ARG0 and N are the two arguments to a powi builtin in GSI with
+   location info LOC.  If the arguments are appropriate, create an
+   equivalent sequence of statements prior to GSI using an optimal
+   number of multiplications, and return an expession holding the
+   result.  */
+
+static tree
+gimple_expand_builtin_powi (gimple_stmt_iterator *gsi, location_t loc, 
+			    tree arg0, HOST_WIDE_INT n)
+{
+  /* Avoid largest negative number.  */
+  if (n != -n
+      && ((n >= -1 && n <= 2)
+	  || (optimize_function_for_speed_p (cfun)
+	      && powi_cost (n) <= POWI_MAX_MULTS)))
+    return powi_as_mults (gsi, loc, arg0, n);
+
+  return NULL_TREE;
+}
+
+/* Build a gimple call statement that calls FN with argument ARG.
+   Set the lhs of the call statement to a fresh SSA name for
+   variable VAR.  If VAR is NULL, first allocate it.  Insert the
+   statement prior to GSI's current position, and return the fresh
+   SSA name.  */
+
+static tree
+build_and_insert_call (gimple_stmt_iterator *gsi, location_t loc,
+		       tree *var, tree fn, tree arg)
+{
+  gimple call_stmt;
+  tree ssa_target;
+
+  if (!*var)
+    {
+      *var = create_tmp_reg (TREE_TYPE (arg), "powroot");
+      add_referenced_var (*var);
+    }
+
+  call_stmt = gimple_build_call (fn, 1, arg);
+  ssa_target = make_ssa_name (*var, NULL);
+  gimple_set_lhs (call_stmt, ssa_target);
+  gimple_set_location (call_stmt, loc);
+  gsi_insert_before (gsi, call_stmt, GSI_SAME_STMT);
+
+  return ssa_target;
+}
+
+/* Build a gimple binary operation with the given CODE and arguments
+   ARG0, ARG1, assigning the result to a new SSA name for variable
+   TARGET.  Insert the statement prior to GSI's current position, and
+   return the fresh SSA name.*/
+
+static tree
+build_and_insert_binop (gimple_stmt_iterator *gsi, location_t loc,
+			tree target, enum tree_code code, tree arg0, tree arg1)
+{
+  tree result = make_ssa_name (target, NULL);
+  gimple stmt = gimple_build_assign_with_ops (code, result, arg0, arg1);
+  gimple_set_location (stmt, loc);
+  gsi_insert_before (gsi, stmt, GSI_SAME_STMT);
+  return result;
+}
+
+/* Build a gimple reference operation with the given CODE and argument
+   ARG, assigning the result to a new SSA name for variable TARGET.  
+   Insert the statement prior to GSI's current position, and return
+   the fresh SSA name.  */
+
+static inline tree
+build_and_insert_ref (gimple_stmt_iterator *gsi, location_t loc, tree type,
+		      tree target, enum tree_code code, tree arg0)
+{
+  tree result = make_ssa_name (target, NULL);
+  gimple stmt = gimple_build_assign (result, build1 (code, type, arg0));
+  gimple_set_location (stmt, loc);
+  gsi_insert_before (gsi, stmt, GSI_SAME_STMT);
+  return result;
+}
+
+/* Build a gimple assignment to cast VAL to TARGET.  Insert the statement
+   prior to GSI's current position, and return the fresh SSA name.  */
+
+static tree
+build_and_insert_cast (gimple_stmt_iterator *gsi, location_t loc,
+		       tree target, tree val)
+{
+  return build_and_insert_binop (gsi, loc, target, CONVERT_EXPR, val, NULL);
+}
+
+/* ARG0 and ARG1 are the two arguments to a pow builtin call in GSI
+   with location info LOC.  If possible, create an equivalent and
+   less expensive sequence of statements prior to GSI, and return an
+   expession holding the result.  */
+
+static tree
+gimple_expand_builtin_pow (gimple_stmt_iterator *gsi, location_t loc, 
+			   tree arg0, tree arg1)
+{
+  REAL_VALUE_TYPE c, cint, dconst1_4, dconst3_4, dconst1_3, dconst1_6;
+  REAL_VALUE_TYPE c2, dconst3;
+  HOST_WIDE_INT n;
+  tree type, sqrtfn, cbrtfn, sqrt_arg0, sqrt_sqrt, result, cbrt_x, powi_cbrt_x;
+  tree target = NULL_TREE;
+  enum machine_mode mode;
+  bool hw_sqrt_exists;
+
+  /* If the exponent isn't a constant, there's nothing of interest
+     to be done.  */
+  if (TREE_CODE (arg1) != REAL_CST)
+    return NULL_TREE;
+
+  /* If the exponent is equivalent to an integer, expand to an optimal
+     multiplication sequence when profitable.  */
+  c = TREE_REAL_CST (arg1);
+  n = real_to_integer (&c);
+  real_from_integer (&cint, VOIDmode, n, n < 0 ? -1 : 0, 0);
+
+  if (real_identical (&c, &cint)
+      && ((n >= -1 && n <= 2)
+	  || (flag_unsafe_math_optimizations
+	      && optimize_insn_for_speed_p ()
+	      && powi_cost (n) <= POWI_MAX_MULTS)))
+    return gimple_expand_builtin_powi (gsi, loc, arg0, n);
+
+  /* Attempt various optimizations using sqrt and cbrt.  */
+  type = TREE_TYPE (arg0);
+  mode = TYPE_MODE (type);
+  sqrtfn = mathfn_built_in (type, BUILT_IN_SQRT);
+
+  /* Optimize pow(x,0.5) = sqrt(x).  This replacement is always safe
+     unless signed zeros must be maintained.  pow(-0,0.5) = +0, while
+     sqrt(-0) = -0.  */
+  if (sqrtfn
+      && REAL_VALUES_EQUAL (c, dconsthalf)
+      && !HONOR_SIGNED_ZEROS (mode))
+    return build_and_insert_call (gsi, loc, &target, sqrtfn, arg0);
+
+  /* Optimize pow(x,0.25) = sqrt(sqrt(x)).  Assume on most machines that
+     a builtin sqrt instruction is smaller than a call to pow with 0.25,
+     so do this optimization even if -Os.  Don't do this optimization
+     if we don't have a hardware sqrt insn.  */
+  dconst1_4 = dconst1;
+  SET_REAL_EXP (&dconst1_4, REAL_EXP (&dconst1_4) - 2);
+  hw_sqrt_exists = optab_handler (sqrt_optab, mode) != CODE_FOR_nothing;
+
+  if (flag_unsafe_math_optimizations
+      && sqrtfn
+      && REAL_VALUES_EQUAL (c, dconst1_4)
+      && hw_sqrt_exists)
+    {
+      /* sqrt(x)  */
+      sqrt_arg0 = build_and_insert_call (gsi, loc, &target, sqrtfn, arg0);
+
+      /* sqrt(sqrt(x))  */
+      return build_and_insert_call (gsi, loc, &target, sqrtfn, sqrt_arg0);
+    }
+      
+  /* Optimize pow(x,0.75) = sqrt(x) * sqrt(sqrt(x)) unless we are
+     optimizing for space.  Don't do this optimization if we don't have
+     a hardware sqrt insn.  */
+  real_from_integer (&dconst3_4, VOIDmode, 3, 0, 0);
+  SET_REAL_EXP (&dconst3_4, REAL_EXP (&dconst3_4) - 2);
+
+  if (flag_unsafe_math_optimizations
+      && sqrtfn
+      && optimize_function_for_speed_p (cfun)
+      && REAL_VALUES_EQUAL (c, dconst3_4)
+      && hw_sqrt_exists)
+    {
+      /* sqrt(x)  */
+      sqrt_arg0 = build_and_insert_call (gsi, loc, &target, sqrtfn, arg0);
+
+      /* sqrt(sqrt(x))  */
+      sqrt_sqrt = build_and_insert_call (gsi, loc, &target, sqrtfn, sqrt_arg0);
+
+      /* sqrt(x) * sqrt(sqrt(x))  */
+      return build_and_insert_binop (gsi, loc, target, MULT_EXPR,
+				     sqrt_arg0, sqrt_sqrt);
+    }
+
+  /* Optimize pow(x,1./3.) = cbrt(x).  This requires unsafe math
+     optimizations since 1./3. is not exactly representable.  If x
+     is negative and finite, the correct value of pow(x,1./3.) is
+     a NaN with the "invalid" exception raised, because the value
+     of 1./3. actually has an even denominator.  The correct value
+     of cbrt(x) is a negative real value.  */
+  cbrtfn = mathfn_built_in (type, BUILT_IN_CBRT);
+  dconst1_3 = real_value_truncate (mode, dconst_third ());
+
+  if (flag_unsafe_math_optimizations
+      && cbrtfn
+      && (gimple_val_nonnegative_real_p (arg0) || !HONOR_NANS (mode))
+      && REAL_VALUES_EQUAL (c, dconst1_3))
+    return build_and_insert_call (gsi, loc, &target, cbrtfn, arg0);
+  
+  /* Optimize pow(x,1./6.) = cbrt(sqrt(x)).  Don't do this optimization
+     if we don't have a hardware sqrt insn.  */
+  dconst1_6 = dconst1_3;
+  SET_REAL_EXP (&dconst1_6, REAL_EXP (&dconst1_6) - 1);
+
+  if (flag_unsafe_math_optimizations
+      && sqrtfn
+      && cbrtfn
+      && (gimple_val_nonnegative_real_p (arg0) || !HONOR_NANS (mode))
+      && optimize_function_for_speed_p (cfun)
+      && hw_sqrt_exists
+      && REAL_VALUES_EQUAL (c, dconst1_6))
+    {
+      /* sqrt(x)  */
+      sqrt_arg0 = build_and_insert_call (gsi, loc, &target, sqrtfn, arg0);
+
+      /* cbrt(sqrt(x))  */
+      return build_and_insert_call (gsi, loc, &target, cbrtfn, sqrt_arg0);
+    }
+
+  /* Optimize pow(x,c), where n = 2c for some nonzero integer n, into
+
+       sqrt(x) * powi(x, n/2),                n > 0;
+       1.0 / (sqrt(x) * powi(x, abs(n/2))),   n < 0.
+
+     Do not calculate the powi factor when n/2 = 0.  */
+  real_arithmetic (&c2, MULT_EXPR, &c, &dconst2);
+  n = real_to_integer (&c2);
+  real_from_integer (&cint, VOIDmode, n, n < 0 ? -1 : 0, 0);
+
+  if (flag_unsafe_math_optimizations
+      && sqrtfn
+      && real_identical (&c2, &cint))
+    {
+      tree powi_x_ndiv2 = NULL_TREE;
+
+      /* Attempt to fold powi(arg0, abs(n/2)) into multiplies.  If not
+         possible or profitable, give up.  Skip the degenerate case when
+         n is 1 or -1, where the result is always 1.  */
+      if (absu_hwi (n) != 1)
+	{
+	  powi_x_ndiv2 = gimple_expand_builtin_powi (gsi, loc, arg0,
+						     abs_hwi (n / 2));
+	  if (!powi_x_ndiv2)
+	    return NULL_TREE;
+	}
+
+      /* Calculate sqrt(x).  When n is not 1 or -1, multiply it by the
+	 result of the optimal multiply sequence just calculated.  */
+      sqrt_arg0 = build_and_insert_call (gsi, loc, &target, sqrtfn, arg0);
+
+      if (absu_hwi (n) == 1)
+	result = sqrt_arg0;
+      else
+	result = build_and_insert_binop (gsi, loc, target, MULT_EXPR,
+					 sqrt_arg0, powi_x_ndiv2);
+
+      /* If n is negative, reciprocate the result.  */
+      if (n < 0)
+	result = build_and_insert_binop (gsi, loc, target, RDIV_EXPR,
+					 build_real (type, dconst1), result);
+      return result;
+    }
+
+  /* Optimize pow(x,c), where 3c = n for some nonzero integer n, into
+
+     powi(x, n/3) * powi(cbrt(x), n%3),                    n > 0;
+     1.0 / (powi(x, abs(n)/3) * powi(cbrt(x), abs(n)%3)),  n < 0.
+
+     Do not calculate the first factor when n/3 = 0.  As cbrt(x) is
+     different from pow(x, 1./3.) due to rounding and behavior with
+     negative x, we need to constrain this transformation to unsafe
+     math and positive x or finite math.  */
+  real_from_integer (&dconst3, VOIDmode, 3, 0, 0);
+  real_arithmetic (&c2, MULT_EXPR, &c, &dconst3);
+  real_round (&c2, mode, &c2);
+  n = real_to_integer (&c2);
+  real_from_integer (&cint, VOIDmode, n, n < 0 ? -1 : 0, 0);
+  real_arithmetic (&c2, RDIV_EXPR, &cint, &dconst3);
+  real_convert (&c2, mode, &c2);
+
+  if (flag_unsafe_math_optimizations
+      && cbrtfn
+      && (gimple_val_nonnegative_real_p (arg0) || !HONOR_NANS (mode))
+      && real_identical (&c2, &c)
+      && optimize_function_for_speed_p (cfun)
+      && powi_cost (n / 3) <= POWI_MAX_MULTS)
+    {
+      tree powi_x_ndiv3 = NULL_TREE;
+
+      /* Attempt to fold powi(arg0, abs(n/3)) into multiplies.  If not
+         possible or profitable, give up.  Skip the degenerate case when
+         abs(n) < 3, where the result is always 1.  */
+      if (absu_hwi (n) >= 3)
+	{
+	  powi_x_ndiv3 = gimple_expand_builtin_powi (gsi, loc, arg0,
+						     abs_hwi (n / 3));
+	  if (!powi_x_ndiv3)
+	    return NULL_TREE;
+	}
+
+      /* Calculate powi(cbrt(x), n%3).  Don't use gimple_expand_builtin_powi
+         as that creates an unnecessary variable.  Instead, just produce
+         either cbrt(x) or cbrt(x) * cbrt(x).  */
+      cbrt_x = build_and_insert_call (gsi, loc, &target, cbrtfn, arg0);
+
+      if (absu_hwi (n) % 3 == 1)
+	powi_cbrt_x = cbrt_x;
+      else
+	powi_cbrt_x = build_and_insert_binop (gsi, loc, target, MULT_EXPR,
+					      cbrt_x, cbrt_x);
+
+      /* Multiply the two subexpressions, unless powi(x,abs(n)/3) = 1.  */
+      if (absu_hwi (n) < 3)
+	result = powi_cbrt_x;
+      else
+	result = build_and_insert_binop (gsi, loc, target, MULT_EXPR,
+					 powi_x_ndiv3, powi_cbrt_x);
+
+      /* If n is negative, reciprocate the result.  */
+      if (n < 0)
+	result = build_and_insert_binop (gsi, loc, target, RDIV_EXPR, 
+					 build_real (type, dconst1), result);
+
+      return result;
+    }
+
+  /* No optimizations succeeded.  */
+  return NULL_TREE;
+}
+
+/* ARG is the argument to a cabs builtin call in GSI with location info
+   LOC.  Create a sequence of statements prior to GSI that calculates
+   sqrt(R*R + I*I), where R and I are the real and imaginary components
+   of ARG, respectively.  Return an expression holding the result.  */
+
+static tree
+gimple_expand_builtin_cabs (gimple_stmt_iterator *gsi, location_t loc, tree arg)
+{
+  tree target, real_part, imag_part, addend1, addend2, sum, result;
+  tree type = TREE_TYPE (TREE_TYPE (arg));
+  tree sqrtfn = mathfn_built_in (type, BUILT_IN_SQRT);
+  enum machine_mode mode = TYPE_MODE (type);
+
+  if (!flag_unsafe_math_optimizations
+      || !optimize_bb_for_speed_p (gimple_bb (gsi_stmt (*gsi)))
+      || !sqrtfn
+      || optab_handler (sqrt_optab, mode) == CODE_FOR_nothing)
+    return NULL_TREE;
+
+  target = create_tmp_reg (type, "cabs");
+  add_referenced_var (target);
+
+  real_part = build_and_insert_ref (gsi, loc, type, target,
+				    REALPART_EXPR, arg);
+  addend1 = build_and_insert_binop (gsi, loc, target, MULT_EXPR,
+				    real_part, real_part);
+  imag_part = build_and_insert_ref (gsi, loc, type, target, 
+				    IMAGPART_EXPR, arg);
+  addend2 = build_and_insert_binop (gsi, loc, target, MULT_EXPR,
+				    imag_part, imag_part);
+  sum = build_and_insert_binop (gsi, loc, target, PLUS_EXPR, addend1, addend2);
+  result = build_and_insert_call (gsi, loc, &target, sqrtfn, sum);
+
+  return result;
+}
+
 /* Go through all calls to sin, cos and cexpi and call execute_cse_sincos_1
-   on the SSA_NAME argument of each of them.  */
+   on the SSA_NAME argument of each of them.  Also expand powi(x,n) into
+   an optimal number of multiplies, when n is a constant.  */
 
 static unsigned int
 execute_cse_sincos (void)
@@ -821,16 +1398,74 @@ execute_cse_sincos (void)
 	      && (fndecl = gimple_call_fndecl (stmt))
 	      && DECL_BUILT_IN_CLASS (fndecl) == BUILT_IN_NORMAL)
 	    {
-	      tree arg;
+	      tree arg, arg0, arg1, result;
+	      HOST_WIDE_INT n;
+	      location_t loc;
 
 	      switch (DECL_FUNCTION_CODE (fndecl))
 		{
 		CASE_FLT_FN (BUILT_IN_COS):
 		CASE_FLT_FN (BUILT_IN_SIN):
 		CASE_FLT_FN (BUILT_IN_CEXPI):
+		  /* Make sure we have either sincos or cexp.  */
+		  if (!TARGET_HAS_SINCOS && !TARGET_C99_FUNCTIONS)
+		    break;
+
 		  arg = gimple_call_arg (stmt, 0);
 		  if (TREE_CODE (arg) == SSA_NAME)
 		    cfg_changed |= execute_cse_sincos_1 (arg);
+		  break;
+
+		CASE_FLT_FN (BUILT_IN_POW):
+		  arg0 = gimple_call_arg (stmt, 0);
+		  arg1 = gimple_call_arg (stmt, 1);
+
+		  loc = gimple_location (stmt);
+		  result = gimple_expand_builtin_pow (&gsi, loc, arg0, arg1);
+
+		  if (result)
+		    {
+		      tree lhs = gimple_get_lhs (stmt);
+		      gimple new_stmt = gimple_build_assign (lhs, result);
+		      gimple_set_location (new_stmt, loc);
+		      unlink_stmt_vdef (stmt);
+		      gsi_replace (&gsi, new_stmt, true);
+		    }
+		  break;
+
+		CASE_FLT_FN (BUILT_IN_POWI):
+		  arg0 = gimple_call_arg (stmt, 0);
+		  arg1 = gimple_call_arg (stmt, 1);
+		  if (!host_integerp (arg1, 0))
+		    break;
+
+		  n = TREE_INT_CST_LOW (arg1);
+		  loc = gimple_location (stmt);
+		  result = gimple_expand_builtin_powi (&gsi, loc, arg0, n);
+
+		  if (result)
+		    {
+		      tree lhs = gimple_get_lhs (stmt);
+		      gimple new_stmt = gimple_build_assign (lhs, result);
+		      gimple_set_location (new_stmt, loc);
+		      unlink_stmt_vdef (stmt);
+		      gsi_replace (&gsi, new_stmt, true);
+		    }
+		  break;
+
+		CASE_FLT_FN (BUILT_IN_CABS):
+		  arg0 = gimple_call_arg (stmt, 0);
+		  loc = gimple_location (stmt);
+		  result = gimple_expand_builtin_cabs (&gsi, loc, arg0);
+
+		  if (result)
+		    {
+		      tree lhs = gimple_get_lhs (stmt);
+		      gimple new_stmt = gimple_build_assign (lhs, result);
+		      gimple_set_location (new_stmt, loc);
+		      unlink_stmt_vdef (stmt);
+		      gsi_replace (&gsi, new_stmt, true);
+		    }
 		  break;
 
 		default:;
@@ -849,10 +1484,9 @@ execute_cse_sincos (void)
 static bool
 gate_cse_sincos (void)
 {
-  /* Make sure we have either sincos or cexp.  */
-  return (TARGET_HAS_SINCOS
-	  || TARGET_C99_FUNCTIONS)
-	 && optimize;
+  /* We no longer require either sincos or cexp, since powi expansion
+     piggybacks on this pass.  */
+  return optimize;
 }
 
 struct gimple_opt_pass pass_cse_sincos =
@@ -870,7 +1504,7 @@ struct gimple_opt_pass pass_cse_sincos =
   0,					/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func | TODO_update_ssa | TODO_verify_ssa
+  TODO_update_ssa | TODO_verify_ssa
     | TODO_verify_stmts                 /* todo_flags_finish */
  }
 };
@@ -922,6 +1556,9 @@ do_shift_rotate (enum tree_code code,
     default:
       return false;
     }
+  /* Zero unused bits for size.  */
+  if (n->size < (int)sizeof (HOST_WIDEST_INT))
+    n->n &= ((unsigned HOST_WIDEST_INT)1 << (n->size * BITS_PER_UNIT)) - 1;
   return true;
 }
 
@@ -1119,15 +1756,16 @@ find_bswap (gimple stmt)
 
   struct symbolic_number n;
   tree source_expr;
+  int limit;
 
   /* The last parameter determines the depth search limit.  It usually
      correlates directly to the number of bytes to be touched.  We
-     increase that number by one here in order to also cover signed ->
-     unsigned conversions of the src operand as can be seen in
-     libgcc.  */
-  source_expr =  find_bswap_1 (stmt, &n,
-			       TREE_INT_CST_LOW (
-				 TYPE_SIZE_UNIT (gimple_expr_type (stmt))) + 1);
+     increase that number by three  here in order to also
+     cover signed -> unsigned converions of the src operand as can be seen
+     in libgcc, and for initial shift/and operation of the src operand.  */
+  limit = TREE_INT_CST_LOW (TYPE_SIZE_UNIT (gimple_expr_type (stmt)));
+  limit += 1 + (int) ceil_log2 ((unsigned HOST_WIDE_INT) limit);
+  source_expr =  find_bswap_1 (stmt, &n, limit);
 
   if (!source_expr)
     return NULL_TREE;
@@ -1196,7 +1834,11 @@ execute_optimize_bswap (void)
     {
       gimple_stmt_iterator gsi;
 
-      for (gsi = gsi_after_labels (bb); !gsi_end_p (gsi); gsi_next (&gsi))
+      /* We do a reverse scan for bswap patterns to make sure we get the
+	 widest match. As bswap pattern matching doesn't handle
+	 previously inserted smaller bswap replacements as sub-
+	 patterns, the wider variant wouldn't be detected.  */
+      for (gsi = gsi_last_bb (bb); !gsi_end_p (gsi); gsi_prev (&gsi))
         {
 	  gimple stmt = gsi_stmt (gsi);
 	  tree bswap_src, bswap_type;
@@ -1297,7 +1939,7 @@ execute_optimize_bswap (void)
   statistics_counter_event (cfun, "64-bit bswap implementations found",
 			    bswap_stats.found_64bit);
 
-  return (changed ? TODO_dump_func | TODO_update_ssa | TODO_verify_ssa
+  return (changed ? TODO_update_ssa | TODO_verify_ssa
 	  | TODO_verify_stmts : 0);
 }
 
@@ -1326,39 +1968,53 @@ struct gimple_opt_pass pass_optimize_bswap =
  }
 };
 
-/* Return true if RHS is a suitable operand for a widening multiplication.
+/* Return true if RHS is a suitable operand for a widening multiplication,
+   assuming a target type of TYPE.
    There are two cases:
 
-     - RHS makes some value twice as wide.  Store that value in *NEW_RHS_OUT
-       if so, and store its type in *TYPE_OUT.
+     - RHS makes some value at least twice as wide.  Store that value
+       in *NEW_RHS_OUT if so, and store its type in *TYPE_OUT.
 
      - RHS is an integer constant.  Store that value in *NEW_RHS_OUT if so,
        but leave *TYPE_OUT untouched.  */
 
 static bool
-is_widening_mult_rhs_p (tree rhs, tree *type_out, tree *new_rhs_out)
+is_widening_mult_rhs_p (tree type, tree rhs, tree *type_out,
+			tree *new_rhs_out)
 {
   gimple stmt;
-  tree type, type1, rhs1;
+  tree type1, rhs1;
   enum tree_code rhs_code;
 
   if (TREE_CODE (rhs) == SSA_NAME)
     {
-      type = TREE_TYPE (rhs);
       stmt = SSA_NAME_DEF_STMT (rhs);
-      if (!is_gimple_assign (stmt))
-	return false;
+      if (is_gimple_assign (stmt))
+	{
+	  rhs_code = gimple_assign_rhs_code (stmt);
+	  if (TREE_CODE (type) == INTEGER_TYPE
+	      ? !CONVERT_EXPR_CODE_P (rhs_code)
+	      : rhs_code != FIXED_CONVERT_EXPR)
+	    rhs1 = rhs;
+	  else
+	    {
+	      rhs1 = gimple_assign_rhs1 (stmt);
 
-      rhs_code = gimple_assign_rhs_code (stmt);
-      if (TREE_CODE (type) == INTEGER_TYPE
-	  ? !CONVERT_EXPR_CODE_P (rhs_code)
-	  : rhs_code != FIXED_CONVERT_EXPR)
-	return false;
+	      if (TREE_CODE (rhs1) == INTEGER_CST)
+		{
+		  *new_rhs_out = rhs1;
+		  *type_out = NULL;
+		  return true;
+		}
+	    }
+	}
+      else
+	rhs1 = rhs;
 
-      rhs1 = gimple_assign_rhs1 (stmt);
       type1 = TREE_TYPE (rhs1);
+
       if (TREE_CODE (type1) != TREE_CODE (type)
-	  || TYPE_PRECISION (type1) * 2 != TYPE_PRECISION (type))
+	  || TYPE_PRECISION (type1) * 2 > TYPE_PRECISION (type))
 	return false;
 
       *new_rhs_out = rhs1;
@@ -1376,28 +2032,27 @@ is_widening_mult_rhs_p (tree rhs, tree *type_out, tree *new_rhs_out)
   return false;
 }
 
-/* Return true if STMT performs a widening multiplication.  If so,
-   store the unwidened types of the operands in *TYPE1_OUT and *TYPE2_OUT
-   respectively.  Also fill *RHS1_OUT and *RHS2_OUT such that converting
-   those operands to types *TYPE1_OUT and *TYPE2_OUT would give the
-   operands of the multiplication.  */
+/* Return true if STMT performs a widening multiplication, assuming the
+   output type is TYPE.  If so, store the unwidened types of the operands
+   in *TYPE1_OUT and *TYPE2_OUT respectively.  Also fill *RHS1_OUT and
+   *RHS2_OUT such that converting those operands to types *TYPE1_OUT
+   and *TYPE2_OUT would give the operands of the multiplication.  */
 
 static bool
-is_widening_mult_p (gimple stmt,
+is_widening_mult_p (tree type, gimple stmt,
 		    tree *type1_out, tree *rhs1_out,
 		    tree *type2_out, tree *rhs2_out)
 {
-  tree type;
-
-  type = TREE_TYPE (gimple_assign_lhs (stmt));
   if (TREE_CODE (type) != INTEGER_TYPE
       && TREE_CODE (type) != FIXED_POINT_TYPE)
     return false;
 
-  if (!is_widening_mult_rhs_p (gimple_assign_rhs1 (stmt), type1_out, rhs1_out))
+  if (!is_widening_mult_rhs_p (type, gimple_assign_rhs1 (stmt), type1_out,
+			       rhs1_out))
     return false;
 
-  if (!is_widening_mult_rhs_p (gimple_assign_rhs2 (stmt), type2_out, rhs2_out))
+  if (!is_widening_mult_rhs_p (type, gimple_assign_rhs2 (stmt), type2_out,
+			       rhs2_out))
     return false;
 
   if (*type1_out == NULL)
@@ -1414,6 +2069,18 @@ is_widening_mult_p (gimple stmt,
       *type2_out = *type1_out;
     }
 
+  /* Ensure that the larger of the two operands comes first. */
+  if (TYPE_PRECISION (*type1_out) < TYPE_PRECISION (*type2_out))
+    {
+      tree tmp;
+      tmp = *type1_out;
+      *type1_out = *type2_out;
+      *type2_out = tmp;
+      tmp = *rhs1_out;
+      *rhs1_out = *rhs2_out;
+      *rhs2_out = tmp;
+    }
+
   return true;
 }
 
@@ -1422,31 +2089,100 @@ is_widening_mult_p (gimple stmt,
    value is true iff we converted the statement.  */
 
 static bool
-convert_mult_to_widen (gimple stmt)
+convert_mult_to_widen (gimple stmt, gimple_stmt_iterator *gsi)
 {
-  tree lhs, rhs1, rhs2, type, type1, type2;
+  tree lhs, rhs1, rhs2, type, type1, type2, tmp = NULL;
   enum insn_code handler;
+  enum machine_mode to_mode, from_mode, actual_mode;
+  optab op;
+  int actual_precision;
+  location_t loc = gimple_location (stmt);
+  bool from_unsigned1, from_unsigned2;
 
   lhs = gimple_assign_lhs (stmt);
   type = TREE_TYPE (lhs);
   if (TREE_CODE (type) != INTEGER_TYPE)
     return false;
 
-  if (!is_widening_mult_p (stmt, &type1, &rhs1, &type2, &rhs2))
+  if (!is_widening_mult_p (type, stmt, &type1, &rhs1, &type2, &rhs2))
     return false;
 
-  if (TYPE_UNSIGNED (type1) && TYPE_UNSIGNED (type2))
-    handler = optab_handler (umul_widen_optab, TYPE_MODE (type));
-  else if (!TYPE_UNSIGNED (type1) && !TYPE_UNSIGNED (type2))
-    handler = optab_handler (smul_widen_optab, TYPE_MODE (type));
+  to_mode = TYPE_MODE (type);
+  from_mode = TYPE_MODE (type1);
+  from_unsigned1 = TYPE_UNSIGNED (type1);
+  from_unsigned2 = TYPE_UNSIGNED (type2);
+
+  if (from_unsigned1 && from_unsigned2)
+    op = umul_widen_optab;
+  else if (!from_unsigned1 && !from_unsigned2)
+    op = smul_widen_optab;
   else
-    handler = optab_handler (usmul_widen_optab, TYPE_MODE (type));
+    op = usmul_widen_optab;
+
+  handler = find_widening_optab_handler_and_mode (op, to_mode, from_mode,
+						  0, &actual_mode);
 
   if (handler == CODE_FOR_nothing)
-    return false;
+    {
+      if (op != smul_widen_optab)
+	{
+	  /* We can use a signed multiply with unsigned types as long as
+	     there is a wider mode to use, or it is the smaller of the two
+	     types that is unsigned.  Note that type1 >= type2, always.  */
+	  if ((TYPE_UNSIGNED (type1)
+	       && TYPE_PRECISION (type1) == GET_MODE_PRECISION (from_mode))
+	      || (TYPE_UNSIGNED (type2)
+		  && TYPE_PRECISION (type2) == GET_MODE_PRECISION (from_mode)))
+	    {
+	      from_mode = GET_MODE_WIDER_MODE (from_mode);
+	      if (GET_MODE_SIZE (to_mode) <= GET_MODE_SIZE (from_mode))
+		return false;
+	    }
 
-  gimple_assign_set_rhs1 (stmt, fold_convert (type1, rhs1));
-  gimple_assign_set_rhs2 (stmt, fold_convert (type2, rhs2));
+	  op = smul_widen_optab;
+	  handler = find_widening_optab_handler_and_mode (op, to_mode,
+							  from_mode, 0,
+							  &actual_mode);
+
+	  if (handler == CODE_FOR_nothing)
+	    return false;
+
+	  from_unsigned1 = from_unsigned2 = false;
+	}
+      else
+	return false;
+    }
+
+  /* Ensure that the inputs to the handler are in the correct precison
+     for the opcode.  This will be the full mode size.  */
+  actual_precision = GET_MODE_PRECISION (actual_mode);
+  if (actual_precision != TYPE_PRECISION (type1)
+      || from_unsigned1 != TYPE_UNSIGNED (type1))
+    {
+      tmp = create_tmp_var (build_nonstandard_integer_type
+				(actual_precision, from_unsigned1),
+			    NULL);
+      rhs1 = build_and_insert_cast (gsi, loc, tmp, rhs1);
+    }
+  if (actual_precision != TYPE_PRECISION (type2)
+      || from_unsigned2 != TYPE_UNSIGNED (type2))
+    {
+      /* Reuse the same type info, if possible.  */
+      if (!tmp || from_unsigned1 != from_unsigned2)
+	tmp = create_tmp_var (build_nonstandard_integer_type
+				(actual_precision, from_unsigned2),
+			      NULL);
+      rhs2 = build_and_insert_cast (gsi, loc, tmp, rhs2);
+    }
+
+  /* Handle constants.  */
+  if (TREE_CODE (rhs1) == INTEGER_CST)
+    rhs1 = fold_convert (type1, rhs1);
+  if (TREE_CODE (rhs2) == INTEGER_CST)
+    rhs2 = fold_convert (type2, rhs2);
+
+  gimple_assign_set_rhs1 (stmt, rhs1);
+  gimple_assign_set_rhs2 (stmt, rhs2);
   gimple_assign_set_rhs_code (stmt, WIDEN_MULT_EXPR);
   update_stmt (stmt);
   widen_mul_stats.widen_mults_inserted++;
@@ -1464,11 +2200,17 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
 			    enum tree_code code)
 {
   gimple rhs1_stmt = NULL, rhs2_stmt = NULL;
-  tree type, type1, type2;
+  gimple conv1_stmt = NULL, conv2_stmt = NULL, conv_stmt;
+  tree type, type1, type2, optype, tmp = NULL;
   tree lhs, rhs1, rhs2, mult_rhs1, mult_rhs2, add_rhs;
   enum tree_code rhs1_code = ERROR_MARK, rhs2_code = ERROR_MARK;
   optab this_optab;
   enum tree_code wmult_code;
+  enum insn_code handler;
+  enum machine_mode to_mode, from_mode, actual_mode;
+  location_t loc = gimple_location (stmt);
+  int actual_precision;
+  bool from_unsigned1, from_unsigned2;
 
   lhs = gimple_assign_lhs (stmt);
   type = TREE_TYPE (lhs);
@@ -1490,8 +2232,6 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
       if (is_gimple_assign (rhs1_stmt))
 	rhs1_code = gimple_assign_rhs_code (rhs1_stmt);
     }
-  else
-    return false;
 
   if (TREE_CODE (rhs2) == SSA_NAME)
     {
@@ -1499,57 +2239,160 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple stmt,
       if (is_gimple_assign (rhs2_stmt))
 	rhs2_code = gimple_assign_rhs_code (rhs2_stmt);
     }
-  else
-    return false;
 
-  if (code == PLUS_EXPR && rhs1_code == MULT_EXPR)
+  /* Allow for one conversion statement between the multiply
+     and addition/subtraction statement.  If there are more than
+     one conversions then we assume they would invalidate this
+     transformation.  If that's not the case then they should have
+     been folded before now.  */
+  if (CONVERT_EXPR_CODE_P (rhs1_code))
     {
-      if (!is_widening_mult_p (rhs1_stmt, &type1, &mult_rhs1,
+      conv1_stmt = rhs1_stmt;
+      rhs1 = gimple_assign_rhs1 (rhs1_stmt);
+      if (TREE_CODE (rhs1) == SSA_NAME)
+	{
+	  rhs1_stmt = SSA_NAME_DEF_STMT (rhs1);
+	  if (is_gimple_assign (rhs1_stmt))
+	    rhs1_code = gimple_assign_rhs_code (rhs1_stmt);
+	}
+      else
+	return false;
+    }
+  if (CONVERT_EXPR_CODE_P (rhs2_code))
+    {
+      conv2_stmt = rhs2_stmt;
+      rhs2 = gimple_assign_rhs1 (rhs2_stmt);
+      if (TREE_CODE (rhs2) == SSA_NAME)
+	{
+	  rhs2_stmt = SSA_NAME_DEF_STMT (rhs2);
+	  if (is_gimple_assign (rhs2_stmt))
+	    rhs2_code = gimple_assign_rhs_code (rhs2_stmt);
+	}
+      else
+	return false;
+    }
+
+  /* If code is WIDEN_MULT_EXPR then it would seem unnecessary to call
+     is_widening_mult_p, but we still need the rhs returns.
+
+     It might also appear that it would be sufficient to use the existing
+     operands of the widening multiply, but that would limit the choice of
+     multiply-and-accumulate instructions.  */
+  if (code == PLUS_EXPR
+      && (rhs1_code == MULT_EXPR || rhs1_code == WIDEN_MULT_EXPR))
+    {
+      if (!is_widening_mult_p (type, rhs1_stmt, &type1, &mult_rhs1,
 			       &type2, &mult_rhs2))
 	return false;
       add_rhs = rhs2;
+      conv_stmt = conv1_stmt;
     }
-  else if (rhs2_code == MULT_EXPR)
+  else if (rhs2_code == MULT_EXPR || rhs2_code == WIDEN_MULT_EXPR)
     {
-      if (!is_widening_mult_p (rhs2_stmt, &type1, &mult_rhs1,
+      if (!is_widening_mult_p (type, rhs2_stmt, &type1, &mult_rhs1,
 			       &type2, &mult_rhs2))
 	return false;
       add_rhs = rhs1;
-    }
-  else if (code == PLUS_EXPR && rhs1_code == WIDEN_MULT_EXPR)
-    {
-      mult_rhs1 = gimple_assign_rhs1 (rhs1_stmt);
-      mult_rhs2 = gimple_assign_rhs2 (rhs1_stmt);
-      type1 = TREE_TYPE (mult_rhs1);
-      type2 = TREE_TYPE (mult_rhs2);
-      add_rhs = rhs2;
-    }
-  else if (rhs2_code == WIDEN_MULT_EXPR)
-    {
-      mult_rhs1 = gimple_assign_rhs1 (rhs2_stmt);
-      mult_rhs2 = gimple_assign_rhs2 (rhs2_stmt);
-      type1 = TREE_TYPE (mult_rhs1);
-      type2 = TREE_TYPE (mult_rhs2);
-      add_rhs = rhs1;
+      conv_stmt = conv2_stmt;
     }
   else
     return false;
 
-  if (TYPE_UNSIGNED (type1) != TYPE_UNSIGNED (type2))
-    return false;
+  to_mode = TYPE_MODE (type);
+  from_mode = TYPE_MODE (type1);
+  from_unsigned1 = TYPE_UNSIGNED (type1);
+  from_unsigned2 = TYPE_UNSIGNED (type2);
+
+  /* There's no such thing as a mixed sign madd yet, so use a wider mode.  */
+  if (from_unsigned1 != from_unsigned2)
+    {
+      /* We can use a signed multiply with unsigned types as long as
+	 there is a wider mode to use, or it is the smaller of the two
+	 types that is unsigned.  Note that type1 >= type2, always.  */
+      if ((from_unsigned1
+	   && TYPE_PRECISION (type1) == GET_MODE_PRECISION (from_mode))
+	  || (from_unsigned2
+	      && TYPE_PRECISION (type2) == GET_MODE_PRECISION (from_mode)))
+	{
+	  from_mode = GET_MODE_WIDER_MODE (from_mode);
+	  if (GET_MODE_SIZE (from_mode) >= GET_MODE_SIZE (to_mode))
+	    return false;
+	}
+
+      from_unsigned1 = from_unsigned2 = false;
+    }
+
+  /* If there was a conversion between the multiply and addition
+     then we need to make sure it fits a multiply-and-accumulate.
+     The should be a single mode change which does not change the
+     value.  */
+  if (conv_stmt)
+    {
+      /* We use the original, unmodified data types for this.  */
+      tree from_type = TREE_TYPE (gimple_assign_rhs1 (conv_stmt));
+      tree to_type = TREE_TYPE (gimple_assign_lhs (conv_stmt));
+      int data_size = TYPE_PRECISION (type1) + TYPE_PRECISION (type2);
+      bool is_unsigned = TYPE_UNSIGNED (type1) && TYPE_UNSIGNED (type2);
+
+      if (TYPE_PRECISION (from_type) > TYPE_PRECISION (to_type))
+	{
+	  /* Conversion is a truncate.  */
+	  if (TYPE_PRECISION (to_type) < data_size)
+	    return false;
+	}
+      else if (TYPE_PRECISION (from_type) < TYPE_PRECISION (to_type))
+	{
+	  /* Conversion is an extend.  Check it's the right sort.  */
+	  if (TYPE_UNSIGNED (from_type) != is_unsigned
+	      && !(is_unsigned && TYPE_PRECISION (from_type) > data_size))
+	    return false;
+	}
+      /* else convert is a no-op for our purposes.  */
+    }
 
   /* Verify that the machine can perform a widening multiply
      accumulate in this mode/signedness combination, otherwise
      this transformation is likely to pessimize code.  */
-  this_optab = optab_for_tree_code (wmult_code, type1, optab_default);
-  if (optab_handler (this_optab, TYPE_MODE (type)) == CODE_FOR_nothing)
+  optype = build_nonstandard_integer_type (from_mode, from_unsigned1);
+  this_optab = optab_for_tree_code (wmult_code, optype, optab_default);
+  handler = find_widening_optab_handler_and_mode (this_optab, to_mode,
+						  from_mode, 0, &actual_mode);
+
+  if (handler == CODE_FOR_nothing)
     return false;
 
-  /* ??? May need some type verification here?  */
+  /* Ensure that the inputs to the handler are in the correct precison
+     for the opcode.  This will be the full mode size.  */
+  actual_precision = GET_MODE_PRECISION (actual_mode);
+  if (actual_precision != TYPE_PRECISION (type1)
+      || from_unsigned1 != TYPE_UNSIGNED (type1))
+    {
+      tmp = create_tmp_var (build_nonstandard_integer_type
+				(actual_precision, from_unsigned1),
+			    NULL);
+      mult_rhs1 = build_and_insert_cast (gsi, loc, tmp, mult_rhs1);
+    }
+  if (actual_precision != TYPE_PRECISION (type2)
+      || from_unsigned2 != TYPE_UNSIGNED (type2))
+    {
+      if (!tmp || from_unsigned1 != from_unsigned2)
+	tmp = create_tmp_var (build_nonstandard_integer_type
+				(actual_precision, from_unsigned2),
+			      NULL);
+      mult_rhs2 = build_and_insert_cast (gsi, loc, tmp, mult_rhs2);
+    }
 
-  gimple_assign_set_rhs_with_ops_1 (gsi, wmult_code,
-				    fold_convert (type1, mult_rhs1),
-				    fold_convert (type2, mult_rhs2),
+  if (!useless_type_conversion_p (type, TREE_TYPE (add_rhs)))
+    add_rhs = build_and_insert_cast (gsi, loc, create_tmp_var (type, NULL),
+				     add_rhs);
+
+  /* Handle constants.  */
+  if (TREE_CODE (mult_rhs1) == INTEGER_CST)
+    mult_rhs1 = fold_convert (type1, mult_rhs1);
+  if (TREE_CODE (mult_rhs2) == INTEGER_CST)
+    mult_rhs2 = fold_convert (type2, mult_rhs2);
+
+  gimple_assign_set_rhs_with_ops_1 (gsi, wmult_code, mult_rhs1, mult_rhs2,
 				    add_rhs);
   update_stmt (gsi_stmt (*gsi));
   widen_mul_stats.maccs_inserted++;
@@ -1620,7 +2463,7 @@ convert_mult_to_fma (gimple mul_stmt, tree op1, tree op2)
       if (use_code == NEGATE_EXPR)
 	{
 	  ssa_op_iter iter;
-	  tree use;
+	  use_operand_p usep;
 
 	  result = gimple_assign_lhs (use_stmt);
 
@@ -1631,8 +2474,8 @@ convert_mult_to_fma (gimple mul_stmt, tree op1, tree op2)
 	    return false;
 
 	  /* Make sure the multiplication isn't also used on that stmt.  */
-	  FOR_EACH_SSA_TREE_OPERAND (use, neguse_stmt, iter, SSA_OP_USE)
-	    if (use == mul_result)
+	  FOR_EACH_PHI_OR_STMT_USE (usep, neguse_stmt, iter, SSA_OP_USE)
+	    if (USE_FROM_PTR (usep) == mul_result)
 	      return false;
 
 	  /* Re-validate.  */
@@ -1761,7 +2604,7 @@ execute_optimize_widening_mul (void)
 	      switch (code)
 		{
 		case MULT_EXPR:
-		  if (!convert_mult_to_widen (stmt)
+		  if (!convert_mult_to_widen (stmt, &gsi)
 		      && convert_mult_to_fma (stmt,
 					      gimple_assign_rhs1 (stmt),
 					      gimple_assign_rhs2 (stmt)))
@@ -1850,7 +2693,6 @@ struct gimple_opt_pass pass_optimize_widening_mul =
   0,					/* todo_flags_start */
   TODO_verify_ssa
   | TODO_verify_stmts
-  | TODO_dump_func
   | TODO_update_ssa                     /* todo_flags_finish */
  }
 };

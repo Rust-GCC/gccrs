@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,7 +23,6 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Aspects;  use Aspects;
 with Atree;    use Atree;
 with Checks;   use Checks;
 with Einfo;    use Einfo;
@@ -101,6 +100,8 @@ package body Sem_Ch9 is
 
    begin
       Tasking_Used := True;
+      Check_SPARK_Restriction ("abort statement is not allowed", N);
+
       T_Name := First (Names (N));
       while Present (T_Name) loop
          Analyze (T_Name);
@@ -170,6 +171,7 @@ package body Sem_Ch9 is
 
    begin
       Tasking_Used := True;
+      Check_SPARK_Restriction ("accept statement is not allowed", N);
 
       --  Entry name is initialized to Any_Id. It should get reset to the
       --  matching entry entity. An error is signalled if it is not reset.
@@ -400,6 +402,7 @@ package body Sem_Ch9 is
 
    begin
       Tasking_Used := True;
+      Check_SPARK_Restriction ("select statement is not allowed", N);
       Check_Restriction (Max_Asynchronous_Select_Nesting, N);
       Check_Restriction (No_Select_Statements, N);
 
@@ -444,8 +447,9 @@ package body Sem_Ch9 is
       Is_Disp_Select : Boolean := False;
 
    begin
-      Check_Restriction (No_Select_Statements, N);
       Tasking_Used := True;
+      Check_SPARK_Restriction ("select statement is not allowed", N);
+      Check_Restriction (No_Select_Statements, N);
 
       --  Ada 2005 (AI-345): The trigger may be a dispatching call
 
@@ -540,8 +544,9 @@ package body Sem_Ch9 is
    procedure Analyze_Delay_Relative (N : Node_Id) is
       E : constant Node_Id := Expression (N);
    begin
-      Check_Restriction (No_Relative_Delay, N);
       Tasking_Used := True;
+      Check_SPARK_Restriction ("delay statement is not allowed", N);
+      Check_Restriction (No_Relative_Delay, N);
       Check_Restriction (No_Delay, N);
       Check_Potentially_Blocking_Operation (N);
       Analyze_And_Resolve (E, Standard_Duration);
@@ -558,6 +563,7 @@ package body Sem_Ch9 is
 
    begin
       Tasking_Used := True;
+      Check_SPARK_Restriction ("delay statement is not allowed", N);
       Check_Restriction (No_Delay, N);
       Check_Potentially_Blocking_Operation (N);
       Analyze (E);
@@ -720,7 +726,7 @@ package body Sem_Ch9 is
       --  for the discriminals and privals and finally a declaration for the
       --  entry family index (if applicable).
 
-      if Expander_Active
+      if Full_Expander_Active
         and then Is_Protected_Type (P_Type)
       then
          Install_Private_Data_Declarations
@@ -844,6 +850,7 @@ package body Sem_Ch9 is
 
    begin
       Tasking_Used := True;
+      Check_SPARK_Restriction ("entry call is not allowed", N);
 
       if Present (Pragmas_Before (N)) then
          Analyze_List (Pragmas_Before (N));
@@ -877,6 +884,7 @@ package body Sem_Ch9 is
 
    begin
       Generate_Definition (Def_Id);
+      Set_Contract (Def_Id, Make_Contract (Sloc (Def_Id)));
       Tasking_Used := True;
 
       --  Case of no discrete subtype definition
@@ -920,7 +928,10 @@ package body Sem_Ch9 is
       end if;
 
       Generate_Reference_To_Formals (Def_Id);
-      Analyze_Aspect_Specifications (N, Def_Id, Aspect_Specifications (N));
+
+      if Has_Aspects (N) then
+         Analyze_Aspect_Specifications (N, Def_Id);
+      end if;
    end Analyze_Entry_Declaration;
 
    ---------------------------------------
@@ -1103,6 +1114,7 @@ package body Sem_Ch9 is
 
    begin
       Tasking_Used := True;
+      Check_SPARK_Restriction ("protected definition is not allowed", N);
       Analyze_Declarations (Visible_Declarations (N));
 
       if Present (Private_Declarations (N))
@@ -1261,19 +1273,25 @@ package body Sem_Ch9 is
          end if;
 
          --  Create corresponding record now, because some private dependents
-         --  may be subtypes of the partial view. Skip if errors are present,
-         --  to prevent cascaded messages.
+         --  may be subtypes of the partial view.
+
+         --  Skip if errors are present, to prevent cascaded messages
 
          if Serious_Errors_Detected = 0
-           and then Expander_Active
+
+           --  Also skip if expander is not active
+
+           and then Full_Expander_Active
          then
             Expand_N_Protected_Type_Declaration (N);
             Process_Full_View (N, T, Def_Id);
          end if;
       end if;
 
-      <<Leave>>
-         Analyze_Aspect_Specifications (N, Def_Id, Aspect_Specifications (N));
+   <<Leave>>
+      if Has_Aspects (N) then
+         Analyze_Aspect_Specifications (N, Def_Id);
+      end if;
    end Analyze_Protected_Type_Declaration;
 
    ---------------------
@@ -1293,9 +1311,10 @@ package body Sem_Ch9 is
       Outer_Ent   : Entity_Id;
 
    begin
+      Tasking_Used := True;
+      Check_SPARK_Restriction ("requeue statement is not allowed", N);
       Check_Restriction (No_Requeue_Statements, N);
       Check_Unreachable_Code (N);
-      Tasking_Used := True;
 
       Enclosing := Empty;
       for J in reverse 0 .. Scope_Stack.Last loop
@@ -1566,8 +1585,9 @@ package body Sem_Ch9 is
       Alt_Count         : Uint    := Uint_0;
 
    begin
-      Check_Restriction (No_Select_Statements, N);
       Tasking_Used := True;
+      Check_SPARK_Restriction ("select statement is not allowed", N);
+      Check_Restriction (No_Select_Statements, N);
 
       --  Loop to analyze alternatives
 
@@ -1705,7 +1725,6 @@ package body Sem_Ch9 is
           Defining_Identifier => O_Name,
           Object_Definition   => Make_Identifier (Loc,  Chars (T)));
 
-      Move_Aspects (N, O_Decl);
       Rewrite (N, T_Decl);
       Insert_After (N, O_Decl);
       Mark_Rewrite_Insertion (O_Decl);
@@ -1726,7 +1745,10 @@ package body Sem_Ch9 is
       --  disastrous result.
 
       Analyze_Protected_Type_Declaration (N);
-      Analyze_Aspect_Specifications (N, Id, Aspect_Specifications (N));
+
+      if Has_Aspects (N) then
+         Analyze_Aspect_Specifications (N, Id);
+      end if;
    end Analyze_Single_Protected_Declaration;
 
    -------------------------------------
@@ -1772,7 +1794,6 @@ package body Sem_Ch9 is
           Defining_Identifier => O_Name,
           Object_Definition   => Make_Identifier (Loc, Chars (T)));
 
-      Move_Aspects (N, O_Decl);
       Rewrite (N, T_Decl);
       Insert_After (N, O_Decl);
       Mark_Rewrite_Insertion (O_Decl);
@@ -1793,7 +1814,10 @@ package body Sem_Ch9 is
       --  disastrous result.
 
       Analyze_Task_Type_Declaration (N);
-      Analyze_Aspect_Specifications (N, Id, Aspect_Specifications (N));
+
+      if Has_Aspects (N) then
+         Analyze_Aspect_Specifications (N, Id);
+      end if;
    end Analyze_Single_Task_Declaration;
 
    -----------------------
@@ -1938,6 +1962,7 @@ package body Sem_Ch9 is
 
    begin
       Tasking_Used := True;
+      Check_SPARK_Restriction ("task definition is not allowed", N);
 
       if Present (Visible_Declarations (N)) then
          Analyze_Declarations (Visible_Declarations (N));
@@ -1976,10 +2001,18 @@ package body Sem_Ch9 is
 
       --  In the case of an incomplete type, use the full view, unless it's not
       --  present (as can occur for an incomplete view from a limited with).
+      --  Initialize the Corresponding_Record_Type (which overlays the Private
+      --  Dependents field of the incomplete view).
 
-      if Ekind (T) = E_Incomplete_Type and then Present (Full_View (T)) then
-         T := Full_View (T);
-         Set_Completion_Referenced (T);
+      if Ekind (T) = E_Incomplete_Type then
+         if Present (Full_View (T)) then
+            T := Full_View (T);
+            Set_Completion_Referenced (T);
+
+         else
+            Set_Ekind (T, E_Task_Type);
+            Set_Corresponding_Record_Type (T, Empty);
+         end if;
       end if;
 
       Set_Ekind              (T, E_Task_Type);
@@ -2053,18 +2086,24 @@ package body Sem_Ch9 is
          end if;
 
          --  Create corresponding record now, because some private dependents
-         --  may be subtypes of the partial view. Skip if errors are present,
-         --  to prevent cascaded messages.
+         --  may be subtypes of the partial view.
+
+         --  Skip if errors are present, to prevent cascaded messages
 
          if Serious_Errors_Detected = 0
-           and then Expander_Active
+
+           --  Also skip if expander is not active
+
+           and then Full_Expander_Active
          then
             Expand_N_Task_Type_Declaration (N);
             Process_Full_View (N, T, Def_Id);
          end if;
       end if;
 
-      Analyze_Aspect_Specifications (N, Def_Id, Aspect_Specifications (N));
+      if Has_Aspects (N) then
+         Analyze_Aspect_Specifications (N, Def_Id);
+      end if;
    end Analyze_Task_Type_Declaration;
 
    -----------------------------------
@@ -2094,8 +2133,9 @@ package body Sem_Ch9 is
       Is_Disp_Select : Boolean := False;
 
    begin
-      Check_Restriction (No_Select_Statements, N);
       Tasking_Used := True;
+      Check_SPARK_Restriction ("select statement is not allowed", N);
+      Check_Restriction (No_Select_Statements, N);
 
       --  Ada 2005 (AI-345): The trigger may be a dispatching call
 
@@ -2341,7 +2381,7 @@ package body Sem_Ch9 is
          --  declaration must be limited.
 
          if Present (Interface_List (N))
-           and then not Is_Limited_Record (Priv_T)
+           and then not Is_Limited_Type (Priv_T)
          then
             Error_Msg_Sloc := Sloc (Priv_T);
             Error_Msg_N ("(Ada 2005) limited type declaration expected for " &

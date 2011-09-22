@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -62,7 +62,7 @@ package System.Parameters is
    Unspecified_Size : constant Size_Type := Size_Type'First;
    --  Value used to indicate that no size type is set
 
-   subtype Ratio is Size_Type range -1 .. 100;
+   subtype Percentage is Size_Type range -1 .. 100;
    Dynamic : constant Size_Type := -1;
    --  The secondary stack ratio is a constant between 0 and 100 which
    --  determines the percentage of the allocated task stack that is
@@ -70,10 +70,10 @@ package System.Parameters is
    --  The special value of minus one indicates that the secondary
    --  stack is to be allocated from the heap instead.
 
-   Sec_Stack_Ratio : constant Ratio := Dynamic;
+   Sec_Stack_Percentage : constant Percentage := Dynamic;
    --  This constant defines the handling of the secondary stack
 
-   Sec_Stack_Dynamic : constant Boolean := Sec_Stack_Ratio = Dynamic;
+   Sec_Stack_Dynamic : constant Boolean := Sec_Stack_Percentage = Dynamic;
    --  Convenient Boolean for testing for dynamic secondary stack
 
    function Default_Stack_Size return Size_Type;
@@ -109,6 +109,18 @@ package System.Parameters is
    --  Number of bits in type long and unsigned_long. The normal convention
    --  is that this is the same as type Long_Integer, but this is not true
    --  of all targets. For example, in OpenVMS long /= Long_Integer.
+
+   ptr_bits  : constant := 32;
+   subtype C_Address is System.Address
+     range -2 ** (ptr_bits - 1) .. 2 ** (ptr_bits - 1) - 1;
+   for C_Address'Object_Size use ptr_bits;
+   --  Number of bits in Interfaces.C pointers, normally a standard address,
+   --  except on 64-bit VMS where they are 32-bit addresses, for compatibility
+   --  with legacy code. System.Aux_DEC.Short_Address can't be used because of
+   --  elaboration circularity.
+
+   C_Malloc_Linkname : constant String := "__gnat_malloc32";
+   --  Name of runtime function used to allocate such a pointer
 
    ----------------------------------------------
    -- Behavior of Pragma Finalize_Storage_Only --

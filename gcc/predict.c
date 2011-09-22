@@ -124,7 +124,7 @@ maybe_hot_frequency_p (int freq)
   if (profile_status == PROFILE_ABSENT)
     return true;
   if (node->frequency == NODE_FREQUENCY_EXECUTED_ONCE
-      && freq <= (ENTRY_BLOCK_PTR->frequency * 2 / 3))
+      && freq < (ENTRY_BLOCK_PTR->frequency * 2 / 3))
     return false;
   if (freq < ENTRY_BLOCK_PTR->frequency / PARAM_VALUE (HOT_BB_FREQUENCY_FRACTION))
     return false;
@@ -994,7 +994,7 @@ predict_loops (void)
 	     the loop, use it to predict this exit.  */
 	  else if (n_exits == 1)
 	    {
-	      nitercst = estimated_loop_iterations_int (loop, false);
+	      nitercst = max_stmt_executions_int (loop, false);
 	      if (nitercst < 0)
 		continue;
 	      if (nitercst > max)
@@ -2306,7 +2306,7 @@ struct gimple_opt_pass pass_profile =
 {
  {
   GIMPLE_PASS,
-  "profile",				/* name */
+  "profile_estimate",			/* name */
   gate_estimate_probability,		/* gate */
   tree_estimate_probability_driver,	/* execute */
   NULL,					/* sub */

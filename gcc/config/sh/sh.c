@@ -168,8 +168,6 @@ int assembler_dialect;
 
 static bool shmedia_space_reserved_for_target_registers;
 
-static bool sh_handle_option (struct gcc_options *, struct gcc_options *,
-			      const struct cl_decoded_option *, location_t);
 static void split_branches (rtx);
 static int branch_dest (rtx);
 static void force_into (rtx, rtx);
@@ -184,8 +182,6 @@ static int noncall_uses_reg (rtx, rtx, rtx *);
 static rtx gen_block_redirect (rtx, int, int);
 static void sh_reorg (void);
 static void sh_option_override (void);
-static void sh_option_init_struct (struct gcc_options *);
-static void sh_option_default_params (void);
 static void output_stack_adjust (int, rtx, int, HARD_REG_SET *, bool);
 static rtx frame_insn (rtx);
 static rtx push (int);
@@ -246,12 +242,12 @@ static void sh_file_start (void);
 static int flow_dependent_p (rtx, rtx);
 static void flow_dependent_p_1 (rtx, const_rtx, void *);
 static int shiftcosts (rtx);
-static int andcosts (rtx);
+static int and_xor_ior_costs (rtx, int code);
 static int addsubcosts (rtx);
 static int multcosts (rtx);
 static bool unspec_caller_rtx_p (rtx);
 static bool sh_cannot_copy_insn_p (rtx);
-static bool sh_rtx_costs (rtx, int, int, int *, bool);
+static bool sh_rtx_costs (rtx, int, int, int, int *, bool);
 static int sh_address_cost (rtx, bool);
 static int sh_pr_n_sets (void);
 static rtx sh_allocate_initial_value (rtx);
@@ -276,9 +272,9 @@ static bool sh_function_value_regno_p (const unsigned int);
 static rtx sh_libcall_value (enum machine_mode, const_rtx);
 static bool sh_return_in_memory (const_tree, const_tree);
 static rtx sh_builtin_saveregs (void);
-static void sh_setup_incoming_varargs (CUMULATIVE_ARGS *, enum machine_mode, tree, int *, int);
-static bool sh_strict_argument_naming (CUMULATIVE_ARGS *);
-static bool sh_pretend_outgoing_varargs_named (CUMULATIVE_ARGS *);
+static void sh_setup_incoming_varargs (cumulative_args_t, enum machine_mode, tree, int *, int);
+static bool sh_strict_argument_naming (cumulative_args_t);
+static bool sh_pretend_outgoing_varargs_named (cumulative_args_t);
 static tree sh_build_builtin_va_list (void);
 static void sh_va_start (tree, rtx);
 static tree sh_gimplify_va_arg_expr (tree, tree, gimple_seq *, gimple_seq *);
@@ -288,15 +284,15 @@ static enum machine_mode sh_promote_function_mode (const_tree type,
 						   int *punsignedp,
 						   const_tree funtype,
 						   int for_return);
-static bool sh_pass_by_reference (CUMULATIVE_ARGS *, enum machine_mode,
+static bool sh_pass_by_reference (cumulative_args_t, enum machine_mode,
 				  const_tree, bool);
-static bool sh_callee_copies (CUMULATIVE_ARGS *, enum machine_mode,
+static bool sh_callee_copies (cumulative_args_t, enum machine_mode,
 			      const_tree, bool);
-static int sh_arg_partial_bytes (CUMULATIVE_ARGS *, enum machine_mode,
+static int sh_arg_partial_bytes (cumulative_args_t, enum machine_mode,
 			         tree, bool);
-static void sh_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode,
+static void sh_function_arg_advance (cumulative_args_t, enum machine_mode,
 				     const_tree, bool);
-static rtx sh_function_arg (CUMULATIVE_ARGS *, enum machine_mode,
+static rtx sh_function_arg (cumulative_args_t, enum machine_mode,
 			    const_tree, bool);
 static bool sh_scalar_mode_supported_p (enum machine_mode);
 static int sh_dwarf_calling_convention (const_tree);
@@ -329,23 +325,6 @@ static const struct attribute_spec sh_attribute_table[] =
     sh2a_handle_function_vector_handler_attribute, false },
   { NULL,                0, 0, false, false, false, NULL, false }
 };
-
-/* Set default optimization options.  */
-static const struct default_options sh_option_optimization_table[] =
-  {
-    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
-    { OPT_LEVELS_1_PLUS_SPEED_ONLY, OPT_mdiv_, "inv:minlat", 1 },
-    { OPT_LEVELS_SIZE, OPT_mdiv_, SH_DIV_STR_FOR_SIZE, 1 },
-    { OPT_LEVELS_0_ONLY, OPT_mdiv_, "", 1 },
-    { OPT_LEVELS_SIZE, OPT_mcbranchdi, NULL, 0 },
-    /* We can't meaningfully test TARGET_SHMEDIA here, because -m
-       options haven't been parsed yet, hence we'd read only the
-       default.  sh_target_reg_class will return NO_REGS if this is
-       not SHMEDIA, so it's OK to always set
-       flag_branch_target_load_optimize.  */
-    { OPT_LEVELS_2_PLUS, OPT_fbranch_target_load_optimize, NULL, 1 },
-    { OPT_LEVELS_NONE, 0, NULL, 0 }
-  };
 
 /* Initialize the GCC target structure.  */
 #undef TARGET_ATTRIBUTE_TABLE
@@ -365,12 +344,6 @@ static const struct default_options sh_option_optimization_table[] =
 
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE sh_option_override
-#undef TARGET_OPTION_OPTIMIZATION_TABLE
-#define TARGET_OPTION_OPTIMIZATION_TABLE sh_option_optimization_table
-#undef TARGET_OPTION_INIT_STRUCT
-#define TARGET_OPTION_INIT_STRUCT sh_option_init_struct
-#undef TARGET_OPTION_DEFAULT_PARAMS
-#define TARGET_OPTION_DEFAULT_PARAMS sh_option_default_params
 
 #undef TARGET_PRINT_OPERAND
 #define TARGET_PRINT_OPERAND sh_print_operand
@@ -394,11 +367,6 @@ static const struct default_options sh_option_optimization_table[] =
 #define TARGET_ASM_FILE_START sh_file_start
 #undef TARGET_ASM_FILE_START_FILE_DIRECTIVE
 #define TARGET_ASM_FILE_START_FILE_DIRECTIVE true
-
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS TARGET_DEFAULT
-#undef TARGET_HANDLE_OPTION
-#define TARGET_HANDLE_OPTION sh_handle_option
 
 #undef TARGET_REGISTER_MOVE_COST
 #define TARGET_REGISTER_MOVE_COST sh_register_move_cost
@@ -607,164 +575,6 @@ static const struct default_options sh_option_optimization_table[] =
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
-/* Implement TARGET_HANDLE_OPTION.  */
-
-static bool
-sh_handle_option (struct gcc_options *opts,
-		  struct gcc_options *opts_set ATTRIBUTE_UNUSED,
-		  const struct cl_decoded_option *decoded,
-		  location_t loc ATTRIBUTE_UNUSED)
-{
-  size_t code = decoded->opt_index;
-
-  switch (code)
-    {
-    case OPT_m1:
-      opts->x_target_flags = (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH1;
-      return true;
-
-    case OPT_m2:
-      opts->x_target_flags = (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH2;
-      return true;
-
-    case OPT_m2a:
-      opts->x_target_flags = (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH2A;
-      return true;
-
-    case OPT_m2a_nofpu:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH2A_NOFPU;
-      return true;
-
-    case OPT_m2a_single:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH2A_SINGLE;
-      return true;
-
-    case OPT_m2a_single_only:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH2A_SINGLE_ONLY;
-      return true;
-
-    case OPT_m2e:
-      opts->x_target_flags = (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH2E;
-      return true;
-
-    case OPT_m3:
-      opts->x_target_flags = (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH3;
-      return true;
-
-    case OPT_m3e:
-      opts->x_target_flags = (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH3E;
-      return true;
-
-    case OPT_m4:
-    case OPT_m4_100:
-    case OPT_m4_200:
-    case OPT_m4_300:
-      opts->x_target_flags = (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH4;
-      return true;
-
-    case OPT_m4_nofpu:
-    case OPT_m4_100_nofpu:
-    case OPT_m4_200_nofpu:
-    case OPT_m4_300_nofpu:
-    case OPT_m4_340:
-    case OPT_m4_400:
-    case OPT_m4_500:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH4_NOFPU;
-      return true;
-
-    case OPT_m4_single:
-    case OPT_m4_100_single:
-    case OPT_m4_200_single:
-    case OPT_m4_300_single:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH4_SINGLE;
-      return true;
-
-    case OPT_m4_single_only:
-    case OPT_m4_100_single_only:
-    case OPT_m4_200_single_only:
-    case OPT_m4_300_single_only:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH4_SINGLE_ONLY;
-      return true;
-
-    case OPT_m4a:
-      opts->x_target_flags = (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH4A;
-      return true;
-
-    case OPT_m4a_nofpu:
-    case OPT_m4al:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH4A_NOFPU;
-      return true;
-
-    case OPT_m4a_single:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH4A_SINGLE;
-      return true;
-
-    case OPT_m4a_single_only:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH4A_SINGLE_ONLY;
-      return true;
-
-    case OPT_m5_32media:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH5_32MEDIA;
-      return true;
-
-    case OPT_m5_32media_nofpu:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH5_32MEDIA_NOFPU;
-      return true;
-
-    case OPT_m5_64media:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH5_64MEDIA;
-      return true;
-
-    case OPT_m5_64media_nofpu:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH5_64MEDIA_NOFPU;
-      return true;
-
-    case OPT_m5_compact:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH5_COMPACT;
-      return true;
-
-    case OPT_m5_compact_nofpu:
-      opts->x_target_flags
-	= (opts->x_target_flags & ~MASK_ARCH) | SELECT_SH5_COMPACT_NOFPU;
-      return true;
-
-    default:
-      return true;
-    }
-}
-
-/* Implement TARGET_OPTION_INIT_STRUCT.  */
-static void
-sh_option_init_struct (struct gcc_options *opts)
-{
-  /* We can't meaningfully test TARGET_SH2E / TARGET_IEEE
-     here, so leave it to TARGET_OPTION_OVERRIDE to set
-     flag_finite_math_only.  We set it to 2 here so we know if the user
-     explicitly requested this to be on or off.  */
-  opts->x_flag_finite_math_only = 2;
-}
-
-/* Implement TARGET_OPTION_DEFAULT_PARAMS.  */
-static void
-sh_option_default_params (void)
-{
-  set_default_param_value (PARAM_SIMULTANEOUS_PREFETCHES, 2);
-}
-
 /* Implement TARGET_OPTION_OVERRIDE macro.  Validate and override 
    various options, and do some machine dependent initialization.  */
 static void
@@ -1646,7 +1456,7 @@ expand_block_move (rtx *operands)
 	  rtx from = adjust_automodify_address (src, BLKmode,
 						src_addr, copied);
 
-	  set_mem_size (from, GEN_INT (4));
+	  set_mem_size (from, 4);
 	  emit_insn (gen_movua (temp, from));
 	  emit_move_insn (src_addr, plus_constant (src_addr, 4));
 	  emit_move_insn (to, temp);
@@ -1844,12 +1654,30 @@ prepare_move_operands (rtx operands[], enum machine_mode mode)
 	{
 	  rtx tga_op1, tga_ret, tmp, tmp2;
 
+	  if (! flag_pic
+	      && (tls_kind == TLS_MODEL_GLOBAL_DYNAMIC
+		  || tls_kind == TLS_MODEL_LOCAL_DYNAMIC
+		  || tls_kind == TLS_MODEL_INITIAL_EXEC))
+	    {
+	      /* Don't schedule insns for getting GOT address when
+		 the first scheduling is enabled, to avoid spill
+		 failures for R0.  */
+	      if (flag_schedule_insns)
+		emit_insn (gen_blockage ());
+	      emit_insn (gen_GOTaddr2picreg ());
+	      emit_use (gen_rtx_REG (SImode, PIC_REG));
+	      if (flag_schedule_insns)
+		emit_insn (gen_blockage ());
+	}
+
 	  switch (tls_kind)
 	    {
 	    case TLS_MODEL_GLOBAL_DYNAMIC:
 	      tga_ret = gen_rtx_REG (Pmode, R0_REG);
 	      emit_call_insn (gen_tls_global_dynamic (tga_ret, op1));
-	      op1 = tga_ret;
+	      tmp = gen_reg_rtx (Pmode);
+	      emit_move_insn (tmp, tga_ret);
+	      op1 = tmp;
 	      break;
 
 	    case TLS_MODEL_LOCAL_DYNAMIC:
@@ -1869,18 +1697,6 @@ prepare_move_operands (rtx operands[], enum machine_mode mode)
 	      break;
 
 	    case TLS_MODEL_INITIAL_EXEC:
-	      if (! flag_pic)
-		{
-		  /* Don't schedule insns for getting GOT address when
-		     the first scheduling is enabled, to avoid spill
-		     failures for R0.  */
-		  if (flag_schedule_insns)
-		    emit_insn (gen_blockage ());
-		  emit_insn (gen_GOTaddr2picreg ());
-		  emit_use (gen_rtx_REG (SImode, PIC_REG));
-		  if (flag_schedule_insns)
-		    emit_insn (gen_blockage ());
-		}
 	      tga_op1 = !can_create_pseudo_p () ? op0 : gen_reg_rtx (Pmode);
 	      tmp = gen_sym2GOTTPOFF (op1);
 	      emit_insn (gen_tls_initial_exec (tga_op1, tmp));
@@ -2143,7 +1959,10 @@ expand_cbranchdi4 (rtx *operands, enum rtx_code comparison)
 	  else if (op2h != CONST0_RTX (SImode))
 	    msw_taken = LTU;
 	  else
-	    break;
+	    {
+	      msw_skip = swap_condition (LTU);
+	      break;
+	    }
 	  msw_skip = swap_condition (msw_taken);
 	}
       break;
@@ -2196,6 +2015,13 @@ expand_cbranchdi4 (rtx *operands, enum rtx_code comparison)
 	{
 	  operands[1] = op1h;
 	  operands[2] = op2h;
+	  if (reload_completed
+	      && ! arith_reg_or_0_operand (op2h, SImode)
+	      && (true_regnum (op1h) || (comparison != EQ && comparison != NE)))
+	    {
+	      emit_move_insn (scratch, operands[2]);
+	      operands[2] = scratch;
+	    }
 	}
 
       operands[3] = skip_label = gen_label_rtx ();
@@ -3004,14 +2830,15 @@ shiftcosts (rtx x)
     return shift_insns[value];
 }
 
-/* Return the cost of an AND operation.  */
+/* Return the cost of an AND/XOR/IOR operation.  */
 
 static inline int
-andcosts (rtx x)
+and_xor_ior_costs (rtx x, int code)
 {
   int i;
 
-  /* Anding with a register is a single cycle and instruction.  */
+  /* A logical operation with two registers is a single cycle
+     instruction.  */
   if (!CONST_INT_P (XEXP (x, 1)))
     return 1;
 
@@ -3023,21 +2850,22 @@ andcosts (rtx x)
 	  || satisfies_constraint_J16 (XEXP (x, 1)))
 	return 1;
       else
-	return 1 + rtx_cost (XEXP (x, 1), AND, !optimize_size);
+	return 1 + rtx_cost (XEXP (x, 1), AND, 1, !optimize_size);
     }
 
   /* These constants are single cycle extu.[bw] instructions.  */
-  if (i == 0xff || i == 0xffff)
+  if ((i == 0xff || i == 0xffff) && code == AND)
     return 1;
-  /* Constants that can be used in an and immediate instruction in a single
-     cycle, but this requires r0, so make it a little more expensive.  */
+  /* Constants that can be used in an instruction as an immediate are
+     a single cycle, but this requires r0, so make it a little more
+     expensive.  */
   if (CONST_OK_FOR_K08 (i))
     return 2;
-  /* Constants that can be loaded with a mov immediate and an and.
+  /* Constants that can be loaded with a mov immediate need one more cycle.
      This case is probably unnecessary.  */
   if (CONST_OK_FOR_I08 (i))
     return 2;
-  /* Any other constants requires a 2 cycle pc-relative load plus an and.
+  /* Any other constant requires an additional 2 cycle pc-relative load.
      This case is probably unnecessary.  */
   return 3;
 }
@@ -3123,8 +2951,8 @@ multcosts (rtx x ATTRIBUTE_UNUSED)
    scanned.  In either case, *TOTAL contains the cost result.  */
 
 static bool
-sh_rtx_costs (rtx x, int code, int outer_code, int *total,
-	      bool speed ATTRIBUTE_UNUSED)
+sh_rtx_costs (rtx x, int code, int outer_code, int opno ATTRIBUTE_UNUSED,
+	      int *total, bool speed ATTRIBUTE_UNUSED)
 {
   switch (code)
     {
@@ -3206,7 +3034,9 @@ sh_rtx_costs (rtx x, int code, int outer_code, int *total,
       return true;
 
     case AND:
-      *total = COSTS_N_INSNS (andcosts (x));
+    case XOR:
+    case IOR:
+      *total = COSTS_N_INSNS (and_xor_ior_costs (x, code));
       return true;
 
     case MULT:
@@ -5448,9 +5278,7 @@ barrier_align (rtx barrier_or_label)
 	    slot = 0;
 	  credit -= get_attr_length (prev);
 	}
-      if (prev
-	  && JUMP_P (prev)
-	  && JUMP_LABEL (prev))
+      if (prev && jump_to_label_p (prev))
 	{
 	  rtx x;
 	  if (jump_to_next
@@ -6149,7 +5977,7 @@ split_branches (rtx first)
 			JUMP_LABEL (insn) = far_label;
 			LABEL_NUSES (far_label)++;
 		      }
-		    redirect_jump (insn, NULL_RTX, 1);
+		    redirect_jump (insn, ret_rtx, 1);
 		    far_label = 0;
 		  }
 	      }
@@ -7349,7 +7177,7 @@ sh_expand_prologue (void)
       emit_insn (gen_shcompact_incoming_args ());
     }
 
-  if (flag_stack_usage)
+  if (flag_stack_usage_info)
     current_function_static_stack_size = stack_usage;
 }
 
@@ -8005,8 +7833,7 @@ sh_va_start (tree valist, rtx nextarg)
     nfp = 8 - nfp;
   else
     nfp = 0;
-  u = fold_build2 (POINTER_PLUS_EXPR, ptr_type_node, u,
-		   size_int (UNITS_PER_WORD * nfp));
+  u = fold_build_pointer_plus_hwi (u, UNITS_PER_WORD * nfp);
   t = build2 (MODIFY_EXPR, ptr_type_node, next_fp_limit, u);
   TREE_SIDE_EFFECTS (t) = 1;
   expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
@@ -8020,8 +7847,7 @@ sh_va_start (tree valist, rtx nextarg)
     nint = 4 - nint;
   else
     nint = 0;
-  u = fold_build2 (POINTER_PLUS_EXPR, ptr_type_node, u,
-		   size_int (UNITS_PER_WORD * nint));
+  u = fold_build_pointer_plus_hwi (u, UNITS_PER_WORD * nint);
   t = build2 (MODIFY_EXPR, ptr_type_node, next_o_limit, u);
   TREE_SIDE_EFFECTS (t) = 1;
   expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
@@ -8157,8 +7983,7 @@ sh_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
 	  gimplify_assign (unshare_expr (next_fp_tmp), valist, pre_p);
 	  tmp = next_fp_limit;
 	  if (size > 4 && !is_double)
-	    tmp = build2 (POINTER_PLUS_EXPR, TREE_TYPE (tmp),
-			  unshare_expr (tmp), size_int (4 - size));
+	    tmp = fold_build_pointer_plus_hwi (unshare_expr (tmp), 4 - size);
 	  tmp = build2 (GE_EXPR, boolean_type_node,
 			unshare_expr (next_fp_tmp), unshare_expr (tmp));
 	  cmp = build3 (COND_EXPR, void_type_node, tmp,
@@ -8173,8 +7998,7 @@ sh_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
 	      tmp = fold_convert (sizetype, next_fp_tmp);
 	      tmp = build2 (BIT_AND_EXPR, sizetype, tmp,
 			    size_int (UNITS_PER_WORD));
-	      tmp = build2 (POINTER_PLUS_EXPR, ptr_type_node,
-			    unshare_expr (next_fp_tmp), tmp);
+	      tmp = fold_build_pointer_plus (unshare_expr (next_fp_tmp), tmp);
 	      gimplify_assign (unshare_expr (next_fp_tmp), tmp, pre_p);
 	    }
 	  if (is_double)
@@ -8219,8 +8043,7 @@ sh_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
 	}
       else
 	{
-	  tmp = build2 (POINTER_PLUS_EXPR, ptr_type_node,
-			unshare_expr (next_o), size_int (rsize));
+	  tmp = fold_build_pointer_plus_hwi (unshare_expr (next_o), rsize);
 	  tmp = build2 (GT_EXPR, boolean_type_node, tmp,
 			unshare_expr (next_o_limit));
 	  tmp = build3 (COND_EXPR, void_type_node, tmp,
@@ -8345,9 +8168,11 @@ shcompact_byref (const CUMULATIVE_ARGS *cum, enum machine_mode mode,
 }
 
 static bool
-sh_pass_by_reference (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+sh_pass_by_reference (cumulative_args_t cum_v, enum machine_mode mode,
 		      const_tree type, bool named)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+
   if (targetm.calls.must_pass_in_stack (mode, type))
     return true;
 
@@ -8367,21 +8192,22 @@ sh_pass_by_reference (CUMULATIVE_ARGS *cum, enum machine_mode mode,
 }
 
 static bool
-sh_callee_copies (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+sh_callee_copies (cumulative_args_t cum, enum machine_mode mode,
 		  const_tree type, bool named ATTRIBUTE_UNUSED)
 {
   /* ??? How can it possibly be correct to return true only on the
      caller side of the equation?  Is there someplace else in the
      sh backend that's magically producing the copies?  */
-  return (cum->outgoing
+  return (get_cumulative_args (cum)->outgoing
 	  && ((mode == BLKmode ? TYPE_ALIGN (type) : GET_MODE_ALIGNMENT (mode))
 	      % SH_MIN_ALIGN_FOR_CALLEE_COPY == 0));
 }
 
 static int
-sh_arg_partial_bytes (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+sh_arg_partial_bytes (cumulative_args_t cum_v, enum machine_mode mode,
 		      tree type, bool named ATTRIBUTE_UNUSED)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   int words = 0;
 
   if (!TARGET_SH5
@@ -8421,9 +8247,11 @@ sh_arg_partial_bytes (CUMULATIVE_ARGS *cum, enum machine_mode mode,
    its data type forbids.  */
 
 static rtx
-sh_function_arg (CUMULATIVE_ARGS *ca, enum machine_mode mode,
+sh_function_arg (cumulative_args_t ca_v, enum machine_mode mode,
 		 const_tree type, bool named)
 {
+  CUMULATIVE_ARGS *ca = get_cumulative_args (ca_v);
+
   if (! TARGET_SH5 && mode == VOIDmode)
     return GEN_INT (ca->renesas_abi ? 1 : 0);
 
@@ -8509,9 +8337,11 @@ sh_function_arg (CUMULATIVE_ARGS *ca, enum machine_mode mode,
    available.)  */
 
 static void
-sh_function_arg_advance (CUMULATIVE_ARGS *ca, enum machine_mode mode,
+sh_function_arg_advance (cumulative_args_t ca_v, enum machine_mode mode,
 			 const_tree type, bool named)
 {
+  CUMULATIVE_ARGS *ca = get_cumulative_args (ca_v);
+
   if (ca->force_mem)
     ca->force_mem = 0;
   else if (TARGET_SH5)
@@ -8737,7 +8567,7 @@ sh_return_in_memory (const_tree type, const_tree fndecl)
    later.  Fortunately, we already have two flags that are part of struct
    function that tell if a function uses varargs or stdarg.  */
 static void
-sh_setup_incoming_varargs (CUMULATIVE_ARGS *ca,
+sh_setup_incoming_varargs (cumulative_args_t ca,
 			   enum machine_mode mode,
 			   tree type,
 			   int *pretend_arg_size,
@@ -8748,7 +8578,7 @@ sh_setup_incoming_varargs (CUMULATIVE_ARGS *ca,
     {
       int named_parm_regs, anon_parm_regs;
 
-      named_parm_regs = (ROUND_REG (*ca, mode)
+      named_parm_regs = (ROUND_REG (*get_cumulative_args (ca), mode)
 			 + (mode == BLKmode
 			    ? ROUND_ADVANCE (int_size_in_bytes (type))
 			    : ROUND_ADVANCE (GET_MODE_SIZE (mode))));
@@ -8759,14 +8589,16 @@ sh_setup_incoming_varargs (CUMULATIVE_ARGS *ca,
 }
 
 static bool
-sh_strict_argument_naming (CUMULATIVE_ARGS *ca ATTRIBUTE_UNUSED)
+sh_strict_argument_naming (cumulative_args_t ca ATTRIBUTE_UNUSED)
 {
   return TARGET_SH5;
 }
 
 static bool
-sh_pretend_outgoing_varargs_named (CUMULATIVE_ARGS *ca)
+sh_pretend_outgoing_varargs_named (cumulative_args_t ca_v)
 {
+  CUMULATIVE_ARGS *ca = get_cumulative_args (ca_v);
+
   return ! (TARGET_HITACHI || ca->renesas_abi) && ! TARGET_SH5;
 }
 
@@ -11731,9 +11563,10 @@ sh_output_mi_thunk (FILE *file, tree thunk_fndecl ATTRIBUTE_UNUSED,
     {
       tree ptype = build_pointer_type (TREE_TYPE (funtype));
 
-      sh_function_arg_advance (&cum, Pmode, ptype, true);
+      sh_function_arg_advance (pack_cumulative_args (&cum), Pmode, ptype, true);
     }
-  this_rtx = sh_function_arg (&cum, Pmode, ptr_type_node, true);
+  this_rtx
+    = sh_function_arg (pack_cumulative_args (&cum), Pmode, ptr_type_node, true);
 
   /* For SHcompact, we only have r0 for a scratch register: r1 is the
      static chain pointer (even if you can't have nested virtual functions
@@ -11882,10 +11715,6 @@ sh_output_mi_thunk (FILE *file, tree thunk_fndecl ATTRIBUTE_UNUSED,
     }
 
   sh_reorg ();
-
-  if (optimize > 0 && flag_delayed_branch)
-    dbr_schedule (insns);
-
   shorten_branches (insns);
   final_start_function (insns, file, 1);
   final (insns, file, 1);

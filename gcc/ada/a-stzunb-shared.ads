@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -14,21 +14,19 @@
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -40,11 +38,12 @@
 --    - all ia64 platforms
 --    - all PowerPC platforms
 --    - all SPARC V9 platforms
+--    - all x86 platforms
 --    - all x86_64 platforms
 
 with Ada.Strings.Wide_Wide_Maps;
 private with Ada.Finalization;
-private with Interfaces;
+private with System.Atomic_Counters;
 
 package Ada.Strings.Wide_Wide_Unbounded is
    pragma Preelaborate;
@@ -419,11 +418,11 @@ private
    package AF renames Ada.Finalization;
 
    type Shared_Wide_Wide_String (Max_Length : Natural) is limited record
-      Counter : aliased Interfaces.Unsigned_32 := 1;
-      --  Reference counter.
+      Counter : System.Atomic_Counters.Atomic_Counter;
+      --  Reference counter
 
-      Last    : Natural                        := 0;
-      Data    : Wide_Wide_String (1 .. Max_Length);
+      Last : Natural := 0;
+      Data : Wide_Wide_String (1 .. Max_Length);
       --  Last is the index of last significant element of the Data. All
       --  elements with larger indices are just an extra room.
    end record;
@@ -467,22 +466,25 @@ private
 
    --  The Unbounded_Wide_Wide_String uses several techniques to increase speed
    --  of the application:
+
    --   - implicit sharing or copy-on-write. Unbounded_Wide_Wide_String
    --     contains only the reference to the data which is shared between
    --     several instances. The shared data is reallocated only when its value
    --     is changed and the object mutation can't be used or it is inefficient
    --     to use it;
+
    --   - object mutation. Shared data object can be reused without memory
    --     reallocation when all of the following requirements are meat:
    --      - shared data object don't used anywhere longer;
    --      - its size is sufficient to store new value;
    --      - the gap after reuse is less then some threshold.
+
    --   - memory preallocation. Most of used memory allocation algorithms
    --     aligns allocated segment on the some boundary, thus some amount of
    --     additional memory can be preallocated without any impact. Such
    --     preallocated memory can used later by Append/Insert operations
    --     without reallocation.
-   --
+
    --  Reference counting uses GCC builtin atomic operations, which allows to
    --  safely share internal data between Ada tasks. Nevertheless, this not
    --  make objects of Unbounded_Wide_Wide_String thread-safe, so each instance
@@ -503,8 +505,9 @@ private
      (Object : in out Unbounded_Wide_Wide_String);
 
    Null_Unbounded_Wide_Wide_String : constant Unbounded_Wide_Wide_String :=
-                             (AF.Controlled with
-                                Reference =>
-                                  Empty_Shared_Wide_Wide_String'Access);
+                                       (AF.Controlled with
+                                          Reference =>
+                                            Empty_Shared_Wide_Wide_String'
+                                              Access);
 
 end Ada.Strings.Wide_Wide_Unbounded;

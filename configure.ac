@@ -149,9 +149,8 @@ libgcj="target-libffi \
 
 # these libraries are built for the target environment, and are built after
 # the host libraries and the host tools (which may be a cross compiler)
-#
+# Note that libiberty is not a target library.
 target_libraries="target-libgcc \
-		target-libiberty \
 		target-libgloss \
 		target-newlib \
 		target-libgomp \
@@ -444,6 +443,20 @@ no)
   ;;
 esac
 
+AC_ARG_ENABLE(static-libjava,
+[AS_HELP_STRING([[--enable-static-libjava[=ARG]]],
+		[build static libjava @<:@default=no@:>@])],
+ENABLE_STATIC_LIBJAVA=$enableval,
+ENABLE_STATIC_LIBJAVA=no)
+enable_static_libjava=
+if test "${ENABLE_STATIC_LIBJAVA}" = "yes" ; then
+  enable_static_libjava=yes
+fi
+
+if test x$enable_static_libjava != xyes ; then
+  EXTRA_CONFIGARGS_LIBJAVA=--disable-static
+fi
+AC_SUBST(EXTRA_CONFIGARGS_LIBJAVA)
 
 # Disable libmudflap on some systems.
 if test x$enable_libmudflap = x ; then
@@ -487,51 +500,6 @@ case "${target}" in
     ;;
   powerpc-*-aix* | rs6000-*-aix*)
     noconfigdirs="$noconfigdirs target-libssp"
-    ;;
-esac
-
-# Disable target libiberty for some systems.
-case "${target}" in
-  *-*-kaos*)
-    # Remove unsupported stuff on all kaOS configurations.
-    skipdirs="target-libiberty"
-    ;;
-  *-*-netbsd*)
-    # Skip some stuff on all NetBSD configurations.
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
-  *-*-netware*)
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
-  *-*-rtems*)
-    skipdirs="${skipdirs} target-libiberty"
-    ;;
-  *-*-tpf*)
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
-  *-*-vxworks*)
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
-  sh*-*-pe|mips*-*-pe|*arm-wince-pe)
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
-  arm*-*-symbianelf*)
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
-  avr-*-*)
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
-  m68hc11-*-*|m6811-*-*|m68hc12-*-*|m6812-*-*)
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
-  picochip-*-*)
-    noconfigdirs="$noconfigdirs target-libiberty"
-    ;;
-  mips*-sde-elf*)
-    skipdirs="$skipdirs target-libiberty"
-    ;;
-  ip2k-*-*)
-    noconfigdirs="$noconfigdirs target-libiberty"
     ;;
 esac
 
@@ -969,7 +937,7 @@ case "${target}" in
   i[[3456789]]86-*-sco*)
     noconfigdirs="$noconfigdirs gprof target-libgloss"
     ;;
-  i[[3456789]]86-*-solaris2*)
+  i[[3456789]]86-*-solaris2* | x86_64-*-solaris2.1[[0-9]]*)
     noconfigdirs="$noconfigdirs target-libgloss"
     ;;
   i[[3456789]]86-*-sysv4*)
@@ -1052,7 +1020,10 @@ case "${target}" in
     fi
     ;;
   tic6x-*-*)
-    noconfigdirs="$noconfigdirs gdb sim"
+    noconfigdirs="$noconfigdirs sim"
+    ;;
+  tilepro-*-* | tilegx-*-*)
+    noconfigdirs="$noconfigdirs sim"
     ;;
   v810-*-*)
     noconfigdirs="$noconfigdirs bfd binutils gas gdb ld opcodes target-libgloss"
@@ -1162,12 +1133,62 @@ fi
 ACX_PROG_GNAT
 ACX_PROG_CMP_IGNORE_INITIAL
 
+AC_ARG_ENABLE([bootstrap],
+[AS_HELP_STRING([--enable-bootstrap],
+		[enable bootstrapping @<:@yes if native build@:>@])],,
+enable_bootstrap=default)
+
+# Issue errors and warnings for invalid/strange bootstrap combinations.
+if test -r $srcdir/gcc/configure; then
+  have_compiler=yes
+else
+  have_compiler=no
+fi
+
+case "$have_compiler:$host:$target:$enable_bootstrap" in
+  *:*:*:no) ;;
+
+  # Default behavior.  Enable bootstrap if we have a compiler
+  # and we are in a native configuration.
+  yes:$build:$build:default)
+    enable_bootstrap=yes ;;
+
+  *:*:*:default)
+    enable_bootstrap=no ;;
+
+  # We have a compiler and we are in a native configuration, bootstrap is ok
+  yes:$build:$build:yes)
+    ;;
+
+  # Other configurations, but we have a compiler.  Assume the user knows
+  # what he's doing.
+  yes:*:*:yes)
+    AC_MSG_WARN([trying to bootstrap a cross compiler])
+    ;;
+
+  # No compiler: if they passed --enable-bootstrap explicitly, fail
+  no:*:*:yes)
+    AC_MSG_ERROR([cannot bootstrap without a compiler]) ;;
+
+  # Fail if wrong command line
+  *)
+    AC_MSG_ERROR([invalid option for --enable-bootstrap])
+    ;;
+esac
+
 # See if we are building gcc with C++.
 AC_ARG_ENABLE(build-with-cxx,
 [AS_HELP_STRING([--enable-build-with-cxx],
 		[build with C++ compiler instead of C compiler])],
 ENABLE_BUILD_WITH_CXX=$enableval,
 ENABLE_BUILD_WITH_CXX=no)
+
+# Build stage1 with C and build stages 2 and 3 with C++.
+AC_ARG_ENABLE(build-poststage1-with-cxx,
+[AS_HELP_STRING([--enable-build-poststage1-with-cxx],
+		[build stages 2 and 3 with C++, not C])],
+ENABLE_BUILD_POSTSTAGE1_WITH_CXX=$enableval,
+ENABLE_BUILD_POSTSTAGE1_WITH_CXX=yes)
 
 # Used for setting $lt_cv_objdir
 _LT_CHECK_OBJDIR
@@ -1650,6 +1671,19 @@ if test -d ${srcdir}/gcc; then
       ;;
   esac
 
+  # If bootstrapping, then using --enable-build-with-cxx or
+  # --enable-build-poststage1-with-cxx requires enabling C++.
+  case ",$enable_languages,:,$ENABLE_BUILD_WITH_CXX,$ENABLE_BUILD_POSTSTAGE1_WITH_CXX,:$enable_bootstrap" in
+    *,c++,*:*:*) ;;
+    *:*,yes,*:yes)
+      if test -f ${srcdir}/gcc/cp/config-lang.in; then
+        enable_languages="${enable_languages},c++"
+      else
+        AC_MSG_ERROR([bootstrapping with --enable-build-with-cxx or --enable-build-poststage1-with-cxx requires c++ sources])
+      fi
+      ;;
+  esac
+
   # First scan to see if an enabled language requires some other language.
   # We assume that a given config-lang.in will list all the language
   # front ends it requires, even if some are required indirectly.
@@ -1739,9 +1773,11 @@ if test -d ${srcdir}/gcc; then
           exit 1
         fi
 
-	if test "$language" = "c++" \
-	   && test "$ENABLE_BUILD_WITH_CXX" = "yes"; then
-	  boot_language=yes
+	if test "$language" = "c++"; then
+	  if test "$ENABLE_BUILD_WITH_CXX" = "yes" \
+	     || test "$ENABLE_BUILD_POSTSTAGE1_WITH_CXX" = "yes"; then
+	    boot_language=yes
+	  fi
 	fi
 
         case ,${enable_languages}, in
@@ -1961,27 +1997,6 @@ for dir in . $skipdirs $noconfigdirs ; do
     fi
   fi
 done
-
-# Sometimes the tools are distributed with libiberty but with no other
-# libraries.  In that case, we don't want to build target-libiberty.
-# Don't let libgcc imply libiberty either.
-if test -n "${target_configdirs}" ; then
-  libgcc=
-  others=
-  for i in `echo ${target_configdirs} | sed -e s/target-//g` ; do
-    if test "$i" = "libgcc"; then
-      libgcc=target-libgcc
-    elif test "$i" != "libiberty" ; then
-      if test -r $srcdir/$i/configure ; then
-	others=yes;
-	break;
-      fi
-    fi
-  done
-  if test -z "${others}" ; then
-    target_configdirs=$libgcc
-  fi
-fi
 
 # Quietly strip out all directories which aren't configurable in this tree.
 # This relies on all configurable subdirectories being autoconfiscated, which
@@ -2418,55 +2433,6 @@ INSTALL_GDB_TK=`echo ${GDB_TK} | sed s/-all-/-install-/g`
 # the substitutions up that way, but only to remain below the limit of
 # 99 commands in a script, for HP-UX sed.
 # Do not nest @if/@endif pairs, because configure will not warn you at all.
-
-AC_ARG_ENABLE([bootstrap],
-[AS_HELP_STRING([--enable-bootstrap],
-		[enable bootstrapping @<:@yes if native build@:>@])],,
-enable_bootstrap=default)
-
-# Issue errors and warnings for invalid/strange bootstrap combinations.
-case "$configdirs" in
-  *gcc*) have_compiler=yes ;;
-  *) have_compiler=no ;;
-esac
-
-case "$have_compiler:$host:$target:$enable_bootstrap" in
-  *:*:*:no) ;;
-
-  # Default behavior.  Enable bootstrap if we have a compiler
-  # and we are in a native configuration.
-  yes:$build:$build:default)
-    enable_bootstrap=yes ;;
-
-  *:*:*:default)
-    enable_bootstrap=no ;;
-
-  # We have a compiler and we are in a native configuration, bootstrap is ok
-  yes:$build:$build:yes)
-    ;;
-
-  # Other configurations, but we have a compiler.  Assume the user knows
-  # what he's doing.
-  yes:*:*:yes)
-    AC_MSG_WARN([trying to bootstrap a cross compiler])
-    ;;
-
-  # No compiler: if they passed --enable-bootstrap explicitly, fail
-  no:*:*:yes)
-    AC_MSG_ERROR([cannot bootstrap without a compiler]) ;;
-
-  # Fail if wrong command line
-  *)
-    AC_MSG_ERROR([invalid option for --enable-bootstrap])
-    ;;
-esac
-
-case ",$enable_languages,:$ENABLE_BUILD_WITH_CXX:$enable_bootstrap" in
-  *,c++,*:yes:yes) ;;
-  *:yes:yes)
-    AC_MSG_ERROR([bootstrapping with --enable-build-with-cxx requires c++ in --enable-languages])
-    ;;
-esac
 
 case "$enable_bootstrap:$ENABLE_GOLD: $configdirs :,$stage1_languages," in
   yes:yes:*\ gold\ *:*,c++,*) ;;
@@ -3251,6 +3217,15 @@ case ${enable_werror} in
   *) stage2_werror_flag="" ;;
 esac
 AC_SUBST(stage2_werror_flag)
+
+# If using ENABLE_BUILD_POSTSTAGE1_WITH_CXX, pass
+# --enable-build-with-cxx after stage1.
+if test "$ENABLE_BUILD_POSTSTAGE1_WITH_CXX" = "yes"; then
+  POSTSTAGE1_CONFIGURE_FLAGS=--enable-build-with-cxx
+else
+  POSTSTAGE1_CONFIGURE_FLAGS=
+fi
+AC_SUBST(POSTSTAGE1_CONFIGURE_FLAGS)
 
 # Specify what files to not compare during bootstrap.
 

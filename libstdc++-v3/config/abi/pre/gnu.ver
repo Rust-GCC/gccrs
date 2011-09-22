@@ -500,10 +500,14 @@ GLIBCXX_3.4 {
     _ZNSt21__numeric_limits_base1[0-7]mi*;
     _ZNSt21__numeric_limits_base1[0-7]max_e*;
 
-    _ZNSt14numeric_limitsI[^g]E[5-9]*;
-    _ZNSt14numeric_limitsI[^g]E1[0-7][hirt]*;
-    _ZNSt14numeric_limitsI[^g]E1[0-7]mi*;
-    _ZNSt14numeric_limitsI[^g]E1[0-7]max_e*;
+    _ZNSt14numeric_limitsI[a-m]E[5-9]*;
+    _ZNSt14numeric_limitsI[p-z]E[5-9]*;
+    _ZNSt14numeric_limitsI[a-m]E1[0-7][hirt]*;
+    _ZNSt14numeric_limitsI[p-z]E1[0-7][hirt]*;
+    _ZNSt14numeric_limitsI[a-m]E1[0-7]mi*;
+    _ZNSt14numeric_limitsI[p-z]E1[0-7]mi*;
+    _ZNSt14numeric_limitsI[a-m]E1[0-7]max_e*;
+    _ZNSt14numeric_limitsI[p-z]E1[0-7]max_e*;
 
     # std::_Rb_tree
     _ZSt18_Rb_tree_decrementPKSt18_Rb_tree_node_base;
@@ -1185,7 +1189,8 @@ GLIBCXX_3.4.14 {
 
     # std::numeric_limits::max_digits10
     _ZNSt21__numeric_limits_base12max_digits10E;
-    _ZNSt14numeric_limitsI[^g]E12max_digits10E;
+    _ZNSt14numeric_limitsI[a-m]E12max_digits10E;
+    _ZNSt14numeric_limitsI[p-z]E12max_digits10E;
     _ZNSt14numeric_limitsID[is]E12max_digits10E;
 
 } GLIBCXX_3.4.13;
@@ -1270,7 +1275,34 @@ GLIBCXX_3.4.16 {
     _ZNSs10_S_compareE[jmy][jmy];
     _ZNSbIwSt11char_traitsIwESaIwEE10_S_compareE[jmy][jmy];
 
+    # basic_streambuf<>::__safe_gbump, __safe_pbump
+    _ZNSt15basic_streambufI[cw]St11char_traitsI[cw]EE12__safe_gbumpE*;
+    _ZNSt15basic_streambufI[cw]St11char_traitsI[cw]EE12__safe_pbumpE*;
+
+    # basic_stringbuf<>::_M_pbump
+    _ZNSt15basic_stringbufI[cw]St11char_traitsI[cw]ESaI[cw]EE8_M_pbumpE*;
+
 } GLIBCXX_3.4.15;
+
+GLIBCXX_3.4.17 {
+
+    # std::thread::hardware_concurrency
+    _ZNSt6thread20hardware_concurrencyEv;
+
+    # __gnu_debug::_Safe_unordered_container_base and _Safe_local_iterator_base
+    _ZN11__gnu_debug30_Safe_unordered_container_base7_M_swapERS0_;
+    _ZN11__gnu_debug30_Safe_unordered_container_base13_M_detach_allEv;
+    _ZN11__gnu_debug25_Safe_local_iterator_base9_M_attachEPNS_19_Safe_sequence_baseEb;
+    _ZN11__gnu_debug25_Safe_local_iterator_base9_M_detachEv;
+
+    # std::chrono::steady_clock::now()
+    _ZNSt6chrono12steady_clock3nowEv;
+
+    # std::numeric_limits<__int128> and <unsigned __int128>
+    _ZNSt14numeric_limitsInE*;
+    _ZNSt14numeric_limitsIoE*;
+
+} GLIBCXX_3.4.16;
 
 # Symbols in the support library (libsupc++) have their own tag.
 CXXABI_1.3 {

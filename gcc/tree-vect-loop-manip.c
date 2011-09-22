@@ -1105,35 +1105,6 @@ set_prologue_iterations (basic_block bb_before_first_loop,
   first_niters = PHI_RESULT (newphi);
 }
 
-
-/* Remove dead assignments from loop NEW_LOOP.  */
-
-static void
-remove_dead_stmts_from_loop (struct loop *new_loop)
-{
-  basic_block *bbs = get_loop_body (new_loop);
-  unsigned i;
-  for (i = 0; i < new_loop->num_nodes; ++i)
-    {
-      gimple_stmt_iterator gsi;
-      for (gsi = gsi_start_bb (bbs[i]); !gsi_end_p (gsi);)
-	{
-	  gimple stmt = gsi_stmt (gsi);
-	  if (is_gimple_assign (stmt)
-	      && TREE_CODE (gimple_assign_lhs (stmt)) == SSA_NAME
-	      && has_zero_uses (gimple_assign_lhs (stmt)))
-	    {
-	      gsi_remove (&gsi, true);
-	      release_defs (stmt);
-	    }
-	  else
-	    gsi_next (&gsi);
-	}
-    }
-  free (bbs);
-}
-
-
 /* Function slpeel_tree_peel_loop_to_edge.
 
    Peel the first (last) iterations of LOOP into a new prolog (epilog) loop
@@ -1445,13 +1416,6 @@ slpeel_tree_peel_loop_to_edge (struct loop *loop,
   BITMAP_FREE (definitions);
   delete_update_ssa ();
 
-  /* Remove all pattern statements from the loop copy.  They will confuse
-     the expander if DCE is disabled.
-     ???  The pattern recognizer should be split into an analysis and
-     a transformation phase that is then run only on the loop that is
-     going to be transformed.  */
-  remove_dead_stmts_from_loop (new_loop);
-
   adjust_vec_debug_stmts ();
 
   return new_loop;
@@ -1551,7 +1515,7 @@ vect_generate_tmps_on_preheader (loop_vec_info loop_vinfo,
   edge pe;
   basic_block new_bb;
   gimple_seq stmts;
-  tree ni_name;
+  tree ni_name, ni_minus_gap_name;
   tree var;
   tree ratio_name;
   tree ratio_mult_vf_name;
@@ -1568,9 +1532,39 @@ vect_generate_tmps_on_preheader (loop_vec_info loop_vinfo,
   ni_name = vect_build_loop_niters (loop_vinfo, cond_expr_stmt_list);
   log_vf = build_int_cst (TREE_TYPE (ni), exact_log2 (vf));
 
+  /* If epilogue loop is required because of data accesses with gaps, we
+     subtract one iteration from the total number of iterations here for
+     correct calculation of RATIO.  */
+  if (LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo))
+    {
+      ni_minus_gap_name = fold_build2 (MINUS_EXPR, TREE_TYPE (ni_name),
+				       ni_name,
+			               build_one_cst (TREE_TYPE (ni_name)));
+      if (!is_gimple_val (ni_minus_gap_name))
+	{
+	  var = create_tmp_var (TREE_TYPE (ni), "ni_gap");
+          add_referenced_var (var);
+
+          stmts = NULL;
+          ni_minus_gap_name = force_gimple_operand (ni_minus_gap_name, &stmts,
+						    true, var);
+          if (cond_expr_stmt_list)
+            gimple_seq_add_seq (&cond_expr_stmt_list, stmts);
+          else
+            {
+              pe = loop_preheader_edge (loop);
+              new_bb = gsi_insert_seq_on_edge_immediate (pe, stmts);
+              gcc_assert (!new_bb);
+            }
+        }
+    }
+  else
+    ni_minus_gap_name = ni_name;
+
   /* Create: ratio = ni >> log2(vf) */
 
-  ratio_name = fold_build2 (RSHIFT_EXPR, TREE_TYPE (ni_name), ni_name, log_vf);
+  ratio_name = fold_build2 (RSHIFT_EXPR, TREE_TYPE (ni_minus_gap_name),
+			    ni_minus_gap_name, log_vf);
   if (!is_gimple_val (ratio_name))
     {
       var = create_tmp_var (TREE_TYPE (ni), "bnd");
@@ -1825,9 +1819,7 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo, tree niters,
 			 fold_convert (TREE_TYPE (step_expr), niters),
 			 step_expr);
       if (POINTER_TYPE_P (TREE_TYPE (init_expr)))
-	ni = fold_build2 (POINTER_PLUS_EXPR, TREE_TYPE (init_expr),
-			  init_expr,
-			  fold_convert (sizetype, off));
+	ni = fold_build_pointer_plus (init_expr, off);
       else
 	ni = fold_build2 (PLUS_EXPR, TREE_TYPE (init_expr),
 			  init_expr,
@@ -2362,9 +2354,14 @@ static tree
 vect_vfa_segment_size (struct data_reference *dr, tree length_factor)
 {
   tree segment_length;
-  segment_length = size_binop (MULT_EXPR,
-			       fold_convert (sizetype, DR_STEP (dr)),
-			       fold_convert (sizetype, length_factor));
+
+  if (!compare_tree_int (DR_STEP (dr), 0))
+    segment_length = TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (dr)));
+  else
+    segment_length = size_binop (MULT_EXPR,
+                                 fold_convert (sizetype, DR_STEP (dr)),
+                                 fold_convert (sizetype, length_factor));
+
   if (vect_supportable_dr_alignment (dr, false)
         == dr_explicit_realign_optimized)
     {
@@ -2415,13 +2412,13 @@ vect_create_cond_for_alias_checks (loop_vec_info loop_vinfo,
   tree part_cond_expr, length_factor;
 
   /* Create expression
-     ((store_ptr_0 + store_segment_length_0) < load_ptr_0)
-     || (load_ptr_0 + load_segment_length_0) < store_ptr_0))
+     ((store_ptr_0 + store_segment_length_0) <= load_ptr_0)
+     || (load_ptr_0 + load_segment_length_0) <= store_ptr_0))
      &&
      ...
      &&
-     ((store_ptr_n + store_segment_length_n) < load_ptr_n)
-     || (load_ptr_n + load_segment_length_n) < store_ptr_n))  */
+     ((store_ptr_n + store_segment_length_n) <= load_ptr_n)
+     || (load_ptr_n + load_segment_length_n) <= store_ptr_n))  */
 
   if (VEC_empty (ddr_p, may_alias_ddrs))
     return;
@@ -2477,21 +2474,19 @@ vect_create_cond_for_alias_checks (loop_vec_info loop_vinfo,
 	}
 
       seg_a_min = addr_base_a;
-      seg_a_max = fold_build2 (POINTER_PLUS_EXPR, TREE_TYPE (addr_base_a), 
-			       addr_base_a, segment_length_a);
+      seg_a_max = fold_build_pointer_plus (addr_base_a, segment_length_a);
       if (tree_int_cst_compare (DR_STEP (dr_a), size_zero_node) < 0)
 	seg_a_min = seg_a_max, seg_a_max = addr_base_a;
 
       seg_b_min = addr_base_b;
-      seg_b_max = fold_build2 (POINTER_PLUS_EXPR, TREE_TYPE (addr_base_b),
-			       addr_base_b, segment_length_b);
+      seg_b_max = fold_build_pointer_plus (addr_base_b, segment_length_b);
       if (tree_int_cst_compare (DR_STEP (dr_b), size_zero_node) < 0)
 	seg_b_min = seg_b_max, seg_b_max = addr_base_b;
 
       part_cond_expr =
       	fold_build2 (TRUTH_OR_EXPR, boolean_type_node,
-	  fold_build2 (LT_EXPR, boolean_type_node, seg_a_max, seg_b_min),
-	  fold_build2 (LT_EXPR, boolean_type_node, seg_b_max, seg_a_min));
+	  fold_build2 (LE_EXPR, boolean_type_node, seg_a_max, seg_b_min),
+	  fold_build2 (LE_EXPR, boolean_type_node, seg_b_max, seg_a_min));
 
       if (*cond_expr)
 	*cond_expr = fold_build2 (TRUTH_AND_EXPR, boolean_type_node,

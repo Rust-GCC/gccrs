@@ -452,10 +452,10 @@ expand_start_catch_block (tree decl)
 	 generic exception header.  */
       exp = build_exc_ptr ();
       exp = build1 (NOP_EXPR, build_pointer_type (type), exp);
-      exp = build2 (POINTER_PLUS_EXPR, TREE_TYPE (exp), exp,
+      exp = fold_build_pointer_plus (exp,
 		    fold_build1_loc (input_location,
-				 NEGATE_EXPR, sizetype,
-			 	 TYPE_SIZE_UNIT (TREE_TYPE (exp))));
+				     NEGATE_EXPR, sizetype,
+				     TYPE_SIZE_UNIT (TREE_TYPE (exp))));
       exp = cp_build_indirect_ref (exp, RO_NULL, tf_warning_or_error);
       initialize_handler_parm (decl, exp);
       return type;
@@ -527,15 +527,17 @@ tree
 begin_eh_spec_block (void)
 {
   tree r;
+  location_t spec_location = DECL_SOURCE_LOCATION (current_function_decl);
+
   /* A noexcept specification (or throw() with -fnothrow-opt) is a
      MUST_NOT_THROW_EXPR.  */
   if (TYPE_NOEXCEPT_P (TREE_TYPE (current_function_decl)))
     {
-      r = build_stmt (input_location, MUST_NOT_THROW_EXPR, NULL_TREE);
+      r = build_stmt (spec_location, MUST_NOT_THROW_EXPR, NULL_TREE);
       TREE_SIDE_EFFECTS (r) = 1;
     }
   else
-    r = build_stmt (input_location, EH_SPEC_BLOCK, NULL_TREE, NULL_TREE);
+    r = build_stmt (spec_location, EH_SPEC_BLOCK, NULL_TREE, NULL_TREE);
   add_stmt (r);
   TREE_OPERAND (r, 0) = push_stmt_list ();
   return r;
@@ -722,7 +724,7 @@ build_throw (tree exp)
 	 respectively.  */
       temp_type = is_bitfield_expr_with_lowered_type (exp);
       if (!temp_type)
-	temp_type = type_decays_to (TREE_TYPE (exp));
+	temp_type = cv_unqualified (type_decays_to (TREE_TYPE (exp)));
 
       /* OK, this is kind of wacky.  The standard says that we call
 	 terminate when the exception handling mechanism, after
@@ -1160,6 +1162,7 @@ finish_noexcept_expr (tree expr, tsubst_flags_t complain)
 bool
 nothrow_spec_p (const_tree spec)
 {
+  gcc_assert (!DEFERRED_NOEXCEPT_SPEC_P (spec));
   if (spec == NULL_TREE
       || TREE_VALUE (spec) != NULL_TREE
       || spec == noexcept_false_spec)
@@ -1180,6 +1183,7 @@ bool
 type_noexcept_p (const_tree type)
 {
   tree spec = TYPE_RAISES_EXCEPTIONS (type);
+  gcc_assert (!DEFERRED_NOEXCEPT_SPEC_P (spec));
   if (flag_nothrow_opt)
     return nothrow_spec_p (spec);
   else
@@ -1193,6 +1197,7 @@ bool
 type_throw_all_p (const_tree type)
 {
   tree spec = TYPE_RAISES_EXCEPTIONS (type);
+  gcc_assert (!DEFERRED_NOEXCEPT_SPEC_P (spec));
   return spec == NULL_TREE || spec == noexcept_false_spec;
 }
 
@@ -1204,7 +1209,7 @@ build_noexcept_spec (tree expr, int complain)
 {
   /* This isn't part of the signature, so don't bother trying to evaluate
      it until instantiation.  */
-  if (!processing_template_decl)
+  if (!processing_template_decl && TREE_CODE (expr) != DEFERRED_NOEXCEPT)
     {
       expr = perform_implicit_conversion_flags (boolean_type_node, expr,
 						complain,
@@ -1219,7 +1224,10 @@ build_noexcept_spec (tree expr, int complain)
     return error_mark_node;
   else
     {
-      gcc_assert (processing_template_decl || expr == error_mark_node);
+      gcc_assert (processing_template_decl || expr == error_mark_node
+		  || TREE_CODE (expr) == DEFERRED_NOEXCEPT);
       return build_tree_list (expr, NULL_TREE);
     }
 }
+
+#include "gt-cp-except.h"

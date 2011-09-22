@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -36,6 +36,7 @@ with Opt;         use Opt;
 with Osint;       use Osint;
 with Osint.L;     use Osint.L;
 with Output;      use Output;
+with Prj.Env;     use Prj.Env;
 with Rident;      use Rident;
 with Sdefault;
 with Snames;
@@ -47,12 +48,6 @@ with GNAT.Case_Util; use GNAT.Case_Util;
 procedure Gnatls is
    pragma Ident (Gnat_Static_Version_String);
 
-   Gpr_Project_Path : constant String := "GPR_PROJECT_PATH";
-   Ada_Project_Path : constant String := "ADA_PROJECT_PATH";
-   --  Names of the env. variables that contains path name(s) of directories
-   --  where project files may reside. If GPR_PROJECT_PATH is defined, its
-   --  value is used, otherwise ADA_PROJECT_PATH is used, if defined.
-
    --  NOTE : The following string may be used by other tools, such as GPS. So
    --  it can only be modified if these other uses are checked and coordinated.
 
@@ -60,7 +55,7 @@ procedure Gnatls is
    --  Label displayed in verbose mode before the directories in the project
    --  search path. Do not modify without checking NOTE above.
 
-   No_Project_Default_Dir : constant String := "-";
+   Prj_Path : Prj.Env.Project_Search_Path;
 
    Max_Column : constant := 80;
 
@@ -223,7 +218,7 @@ procedure Gnatls is
       end if;
    end Add_Lib_Dir;
 
-   -- -----------------
+   --------------------
    -- Add_Source_Dir --
    --------------------
 
@@ -827,41 +822,13 @@ procedure Gnatls is
    --------------------------------
 
    procedure Output_License_Information is
-      Params_File_Name : constant String := "gnatlic.adl";
-      --  Name of license file
-
-      Lo   : constant Source_Ptr := 1;
-      Hi   : Source_Ptr;
-      Text : Source_Buffer_Ptr;
-
    begin
-      Name_Len := 0;
-      Add_Str_To_Name_Buffer (Params_File_Name);
-      Read_Source_File (Name_Find, Lo, Hi, Text);
-
-      if Text /= null then
-
-         --  Omit last character (end-of-file marker) in output
-
-         Write_Str (String (Text (Lo .. Hi - 1)));
-         Write_Eol;
-
-         --  The following condition is determined at compile time: disable
-         --  "condition is always true/false" warning.
-
-         pragma Warnings (Off);
-      elsif Build_Type /= GPL and then Build_Type /= FSF then
-         pragma Warnings (On);
-
-         Write_Str ("License file missing, please contact AdaCore.");
-         Write_Eol;
-
-      else
-         Write_Str ("Please refer to file COPYING in your distribution"
-                  & " for license terms.");
-         Write_Eol;
-
-      end if;
+      case Build_Type is
+         when others =>
+            Write_Str ("Please refer to file COPYING in your distribution"
+                     & " for license terms.");
+            Write_Eol;
+      end case;
 
       Exit_Program (E_Success);
    end Output_License_Information;
@@ -1419,6 +1386,8 @@ procedure Gnatls is
       Write_Str ("switches:");
       Write_Eol;
 
+      Display_Usage_Version_And_Help;
+
       --  Line for -a
 
       Write_Str ("  -a         also output relevant predefined units");
@@ -1614,23 +1583,16 @@ begin
       Write_Str ("   <Current_Directory>");
       Write_Eol;
 
+      Initialize_Default_Project_Path
+        (Prj_Path, Target_Name => Sdefault.Target_Name.all);
+
       declare
-         Project_Path : String_Access := Getenv (Gpr_Project_Path);
-
-         Lib : constant String :=
-                 Directory_Separator & "lib" & Directory_Separator;
-
-         First : Natural;
-         Last  : Natural;
-
-         Add_Default_Dir : Boolean := True;
+         Project_Path : String_Access;
+         First        : Natural;
+         Last         : Natural;
 
       begin
-         --  If there is a project path, display each directory in the path
-
-         if Project_Path.all = "" then
-            Project_Path := Getenv (Ada_Project_Path);
-         end if;
+         Get_Path (Prj_Path, Project_Path);
 
          if Project_Path.all /= "" then
             First := Project_Path'First;
@@ -1650,13 +1612,7 @@ begin
                   Last := Last + 1;
                end loop;
 
-               --  If the directory is No_Default_Project_Dir, set
-               --  Add_Default_Dir to False.
-
-               if Project_Path (First .. Last) = No_Project_Default_Dir then
-                  Add_Default_Dir := False;
-
-               elsif First /= Last or else Project_Path (First) /= '.' then
+               if First /= Last or else Project_Path (First) /= '.' then
 
                   --  If the directory is ".", skip it as it is the current
                   --  directory and it is already the first directory in the
@@ -1664,51 +1620,14 @@ begin
 
                   Write_Str ("   ");
                   Write_Str
-                    (To_Host_Dir_Spec
-                       (Project_Path (First .. Last), True).all);
+                    (Normalize_Pathname
+                      (To_Host_Dir_Spec
+                        (Project_Path (First .. Last), True).all));
                   Write_Eol;
                end if;
 
                First := Last + 1;
             end loop;
-         end if;
-
-         --  Add the default dir, except if "-" was one of the "directories"
-         --  specified in ADA_PROJECT_DIR.
-
-         if Add_Default_Dir then
-            Name_Len := 0;
-            Add_Str_To_Name_Buffer (Sdefault.Search_Dir_Prefix.all);
-
-            --  On Windows, make sure that all directory separators are '\'
-
-            if Directory_Separator /= '/' then
-               for J in 1 .. Name_Len loop
-                  if Name_Buffer (J) = '/' then
-                     Name_Buffer (J) := Directory_Separator;
-                  end if;
-               end loop;
-            end if;
-
-            --  Find the sequence "/lib/"
-
-            while Name_Len >= Lib'Length
-              and then Name_Buffer (Name_Len - 4 .. Name_Len) /= Lib
-            loop
-               Name_Len := Name_Len - 1;
-            end loop;
-
-            --  If the sequence "/lib"/ was found, display the default
-            --  directory <prefix>/lib/gnat/.
-
-            if Name_Len >= 5 then
-               Name_Buffer (Name_Len + 1 .. Name_Len + 4) := "gnat";
-               Name_Buffer (Name_Len + 5) := Directory_Separator;
-               Name_Len := Name_Len + 5;
-               Write_Str ("   ");
-               Write_Line
-                 (To_Host_Dir_Spec (Name_Buffer (1 .. Name_Len), True).all);
-            end if;
          end if;
       end;
 

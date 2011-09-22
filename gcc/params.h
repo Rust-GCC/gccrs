@@ -105,6 +105,11 @@ extern void maybe_set_param_value (compiler_param num, int value,
 
 extern void set_default_param_value (compiler_param num, int value);
 
+/* Add all parameters and default values that can be set in both the
+   driver and the compiler proper.  */
+
+extern void global_init_params (void);
+
 /* Note that all parameters have been added and all default values
    set.  */
 extern void finish_params (void);
@@ -206,4 +211,6 @@ extern void init_param_values (int *params);
   PARAM_VALUE (PARAM_MIN_NONDEBUG_INSN_UID)
 #define MAX_STORES_TO_SINK \
   PARAM_VALUE (PARAM_MAX_STORES_TO_SINK)
+#define ALLOW_STORE_DATA_RACES \
+  PARAM_VALUE (PARAM_ALLOW_STORE_DATA_RACES)
 #endif /* ! GCC_PARAMS_H */

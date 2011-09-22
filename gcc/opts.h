@@ -96,6 +96,8 @@ struct cl_option
   BOOL_BITFIELD cl_missing_ok : 1;
   /* Argument is an integer >=0.  */
   BOOL_BITFIELD cl_uinteger : 1;
+  /* Argument is a HOST_WIDE_INT.  */
+  BOOL_BITFIELD cl_host_wide_int : 1;
   /* Argument should be converted to lowercase.  */
   BOOL_BITFIELD cl_tolower : 1;
   /* Report argument with -fverbose-asm  */
@@ -109,7 +111,7 @@ struct cl_option
   /* How this option's value is determined and sets a field.  */
   enum cl_var_type var_type;
   /* Value or bit-mask with which to set a field.  */
-  int var_value;
+  HOST_WIDE_INT var_value;
 };
 
 /* Records that the state of an option consists of SIZE bytes starting
@@ -125,12 +127,12 @@ extern const unsigned int cl_options_count;
 extern const char *const lang_names[];
 extern const unsigned int cl_lang_count;
 
-#define CL_PARAMS               (1U << 11) /* Fake entry.  Used to display --param info with --help.  */
-#define CL_WARNING		(1U << 12) /* Enables an (optional) warning message.  */
-#define CL_OPTIMIZATION		(1U << 13) /* Enables an (optional) optimization.  */
-#define CL_DRIVER		(1U << 14) /* Driver option.  */
-#define CL_TARGET		(1U << 15) /* Target-specific option.  */
-#define CL_COMMON		(1U << 16) /* Language-independent.  */
+#define CL_PARAMS               (1U << 16) /* Fake entry.  Used to display --param info with --help.  */
+#define CL_WARNING		(1U << 17) /* Enables an (optional) warning message.  */
+#define CL_OPTIMIZATION		(1U << 18) /* Enables an (optional) optimization.  */
+#define CL_DRIVER		(1U << 19) /* Driver option.  */
+#define CL_TARGET		(1U << 20) /* Target-specific option.  */
+#define CL_COMMON		(1U << 21) /* Language-independent.  */
 
 #define CL_MIN_OPTION_CLASS	CL_PARAMS
 #define CL_MAX_OPTION_CLASS	CL_COMMON
@@ -140,9 +142,9 @@ extern const unsigned int cl_lang_count;
    This distinction is important because --help will not list options
    which only have these higher bits set.  */
 
-#define CL_JOINED		(1U << 17) /* If takes joined argument.  */
-#define CL_SEPARATE		(1U << 18) /* If takes a separate argument.  */
-#define CL_UNDOCUMENTED		(1U << 19) /* Do not output with --help.  */
+#define CL_JOINED		(1U << 22) /* If takes joined argument.  */
+#define CL_SEPARATE		(1U << 23) /* If takes a separate argument.  */
+#define CL_UNDOCUMENTED		(1U << 24) /* Do not output with --help.  */
 
 /* Flags for an enumerated option argument.  */
 #define CL_ENUM_CANONICAL	(1 << 0) /* Canonical for this value.  */

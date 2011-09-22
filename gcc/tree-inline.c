@@ -1,5 +1,5 @@
 /* Tree inlining.
-   Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Contributed by Alexandre Oliva <aoliva@redhat.com>
 
@@ -188,6 +188,33 @@ remap_ssa_name (tree name, copy_body_data *id)
 
   if (processing_debug_stmt)
     {
+      if (TREE_CODE (SSA_NAME_VAR (name)) == PARM_DECL
+	  && SSA_NAME_IS_DEFAULT_DEF (name)
+	  && id->entry_bb == NULL
+	  && single_succ_p (ENTRY_BLOCK_PTR))
+	{
+	  tree vexpr = make_node (DEBUG_EXPR_DECL);
+	  gimple def_temp;
+	  gimple_stmt_iterator gsi;
+	  tree val = SSA_NAME_VAR (name);
+
+	  n = (tree *) pointer_map_contains (id->decl_map, val);
+	  if (n != NULL)
+	    val = *n;
+	  if (TREE_CODE (val) != PARM_DECL)
+	    {
+	      processing_debug_stmt = -1;
+	      return name;
+	    }
+	  def_temp = gimple_build_debug_source_bind (vexpr, val, NULL);
+	  DECL_ARTIFICIAL (vexpr) = 1;
+	  TREE_TYPE (vexpr) = TREE_TYPE (name);
+	  DECL_MODE (vexpr) = DECL_MODE (SSA_NAME_VAR (name));
+	  gsi = gsi_after_labels (single_succ (ENTRY_BLOCK_PTR));
+	  gsi_insert_before (&gsi, def_temp, GSI_SAME_STMT);
+	  return vexpr;
+	}
+
       processing_debug_stmt = -1;
       return name;
     }
@@ -826,42 +853,15 @@ remap_gimple_op_r (tree *tp, int *walk_subtrees, void *data)
 	  tree ptr = TREE_OPERAND (*tp, 0);
 	  tree type = remap_type (TREE_TYPE (*tp), id);
 	  tree old = *tp;
-	  tree tem;
 
 	  /* We need to re-canonicalize MEM_REFs from inline substitutions
 	     that can happen when a pointer argument is an ADDR_EXPR.
 	     Recurse here manually to allow that.  */
 	  walk_tree (&ptr, remap_gimple_op_r, data, NULL);
-	  if ((tem = maybe_fold_offset_to_reference (EXPR_LOCATION (*tp),
-						     ptr,
-						     TREE_OPERAND (*tp, 1),
-						     type))
-	      && TREE_THIS_VOLATILE (tem) == TREE_THIS_VOLATILE (old))
-	    {
-	      tree *tem_basep = &tem;
-	      while (handled_component_p (*tem_basep))
-		tem_basep = &TREE_OPERAND (*tem_basep, 0);
-	      if (TREE_CODE (*tem_basep) == MEM_REF)
-		*tem_basep
-		    = build2 (MEM_REF, TREE_TYPE (*tem_basep),
-			      TREE_OPERAND (*tem_basep, 0),
-			      fold_convert (TREE_TYPE (TREE_OPERAND (*tp, 1)),
-					    TREE_OPERAND (*tem_basep, 1)));
-	      else
-		*tem_basep
-		    = build2 (MEM_REF, TREE_TYPE (*tem_basep),
-			      build_fold_addr_expr (*tem_basep),
-			      build_int_cst
-			      (TREE_TYPE (TREE_OPERAND (*tp, 1)), 0));
-	      *tp = tem;
-	    }
-	  else
-	    {
-	      *tp = fold_build2 (MEM_REF, type,
-				 ptr, TREE_OPERAND (*tp, 1));
-	      TREE_THIS_VOLATILE (*tp) = TREE_THIS_VOLATILE (old);
-	      TREE_THIS_NOTRAP (*tp) = TREE_THIS_NOTRAP (old);
-	    }
+	  *tp = fold_build2 (MEM_REF, type,
+			     ptr, TREE_OPERAND (*tp, 1));
+	  TREE_THIS_NOTRAP (*tp) = TREE_THIS_NOTRAP (old);
+	  TREE_THIS_VOLATILE (*tp) = TREE_THIS_VOLATILE (old);
 	  TREE_NO_WARNING (*tp) = TREE_NO_WARNING (old);
 	  *walk_subtrees = 0;
 	  return NULL;
@@ -1403,6 +1403,14 @@ remap_gimple_stmt (gimple stmt, copy_body_data *id)
 	  VEC_safe_push (gimple, heap, id->debug_stmts, copy);
 	  return copy;
 	}
+      if (gimple_debug_source_bind_p (stmt))
+	{
+	  copy = gimple_build_debug_source_bind
+		   (gimple_debug_source_bind_get_var (stmt),
+		    gimple_debug_source_bind_get_value (stmt), stmt);
+	  VEC_safe_push (gimple, heap, id->debug_stmts, copy);
+	  return copy;
+	}
 
       /* Create a new deep copy of the statement.  */
       copy = gimple_copy (stmt);
@@ -1478,7 +1486,7 @@ remap_gimple_stmt (gimple stmt, copy_body_data *id)
 
   gimple_set_block (copy, new_block);
 
-  if (gimple_debug_bind_p (copy))
+  if (gimple_debug_bind_p (copy) || gimple_debug_source_bind_p (copy))
     return copy;
 
   /* Remap all the operands in COPY.  */
@@ -2151,22 +2159,33 @@ maybe_move_debug_stmts_to_successors (copy_body_data *id, basic_block new_bb)
 	    {
 	      si = ssi;
 	      gsi_prev (&ssi);
-	      if (!single_pred_p (e->dest))
+	      if (!single_pred_p (e->dest) && gimple_debug_bind_p (stmt))
 		gimple_debug_bind_reset_value (stmt);
 	      gsi_remove (&si, false);
 	      gsi_insert_before (&dsi, stmt, GSI_SAME_STMT);
 	      continue;
 	    }
 
-	  var = gimple_debug_bind_get_var (stmt);
-	  if (single_pred_p (e->dest))
+	  if (gimple_debug_bind_p (stmt))
 	    {
-	      value = gimple_debug_bind_get_value (stmt);
-	      value = unshare_expr (value);
+	      var = gimple_debug_bind_get_var (stmt);
+	      if (single_pred_p (e->dest))
+		{
+		  value = gimple_debug_bind_get_value (stmt);
+		  value = unshare_expr (value);
+		}
+	      else
+		value = NULL_TREE;
+	      new_stmt = gimple_build_debug_bind (var, value, stmt);
+	    }
+	  else if (gimple_debug_source_bind_p (stmt))
+	    {
+	      var = gimple_debug_source_bind_get_var (stmt);
+	      value = gimple_debug_source_bind_get_value (stmt);
+	      new_stmt = gimple_build_debug_source_bind (var, value, stmt);
 	    }
 	  else
-	    value = NULL_TREE;
-	  new_stmt = gimple_build_debug_bind (var, value, stmt);
+	    gcc_unreachable ();
 	  gsi_insert_before (&dsi, new_stmt, GSI_SAME_STMT);
 	  VEC_safe_push (gimple, heap, id->debug_stmts, new_stmt);
 	  gsi_prev (&ssi);
@@ -2317,7 +2336,6 @@ copy_debug_stmt (gimple stmt, copy_body_data *id)
   t = id->block;
   if (gimple_block (stmt))
     {
-      tree *n;
       n = (tree *) pointer_map_contains (id->decl_map, gimple_block (stmt));
       if (n)
 	t = *n;
@@ -2330,7 +2348,10 @@ copy_debug_stmt (gimple stmt, copy_body_data *id)
 
   processing_debug_stmt = 1;
 
-  t = gimple_debug_bind_get_var (stmt);
+  if (gimple_debug_source_bind_p (stmt))
+    t = gimple_debug_source_bind_get_var (stmt);
+  else
+    t = gimple_debug_bind_get_var (stmt);
 
   if (TREE_CODE (t) == PARM_DECL && id->debug_map
       && (n = (tree *) pointer_map_contains (id->debug_map, t)))
@@ -2347,15 +2368,24 @@ copy_debug_stmt (gimple stmt, copy_body_data *id)
   else
     walk_tree (&t, remap_gimple_op_r, &wi, NULL);
 
-  gimple_debug_bind_set_var (stmt, t);
+  if (gimple_debug_bind_p (stmt))
+    {
+      gimple_debug_bind_set_var (stmt, t);
 
-  if (gimple_debug_bind_has_value_p (stmt))
-    walk_tree (gimple_debug_bind_get_value_ptr (stmt),
-	       remap_gimple_op_r, &wi, NULL);
+      if (gimple_debug_bind_has_value_p (stmt))
+	walk_tree (gimple_debug_bind_get_value_ptr (stmt),
+		   remap_gimple_op_r, &wi, NULL);
 
-  /* Punt if any decl couldn't be remapped.  */
-  if (processing_debug_stmt < 0)
-    gimple_debug_bind_reset_value (stmt);
+      /* Punt if any decl couldn't be remapped.  */
+      if (processing_debug_stmt < 0)
+	gimple_debug_bind_reset_value (stmt);
+    }
+  else if (gimple_debug_source_bind_p (stmt))
+    {
+      gimple_debug_source_bind_set_var (stmt, t);
+      walk_tree (gimple_debug_source_bind_get_value_ptr (stmt),
+		 remap_gimple_op_r, &wi, NULL);
+    }
 
   processing_debug_stmt = 0;
 
@@ -3192,7 +3222,7 @@ tree_inlinable_function_p (tree fn)
 	 As a bonus we can now give more details about the reason why a
 	 function is not inlinable.  */
       if (always_inline)
-	sorry (inline_forbidden_reason, fn);
+	error (inline_forbidden_reason, fn);
       else if (do_warning)
 	warning (OPT_Winline, inline_forbidden_reason, fn);
 
@@ -3742,11 +3772,13 @@ expand_call_inline (basic_block bb, gimple stmt, copy_body_data *id)
 
       if (lookup_attribute ("always_inline", DECL_ATTRIBUTES (fn))
 	  /* Avoid warnings during early inline pass. */
-	  && cgraph_global_info_ready)
+	  && cgraph_global_info_ready
+	  /* PR 20090218-1_0.c. Body can be provided by another module. */
+	  && (reason != CIF_BODY_NOT_AVAILABLE || !flag_generate_lto))
 	{
-	  sorry ("inlining failed in call to %q+F: %s", fn,
-		 _(cgraph_inline_failed_string (reason)));
-	  sorry ("called from here");
+	  error ("inlining failed in call to always_inline %q+F: %s", fn,
+		 cgraph_inline_failed_string (reason));
+	  error ("called from here");
 	}
       else if (warn_inline
 	       && DECL_DECLARED_INLINE_P (fn)
@@ -4055,6 +4087,14 @@ fold_marked_statements (int first, struct pointer_set_t *statements)
 		  if (fold_stmt (&gsi))
 		    {
 		      gimple new_stmt;
+		      /* If a builtin at the end of a bb folded into nothing,
+			 the following loop won't work.  */
+		      if (gsi_end_p (gsi))
+			{
+			  cgraph_update_edges_for_call_stmt (old_stmt,
+							     old_decl, NULL);
+			  break;
+			}
 		      if (gsi_end_p (i2))
 			i2 = gsi_start_bb (BASIC_BLOCK (first));
 		      else
@@ -4800,6 +4840,8 @@ copy_arguments_for_versioning (tree orig_parm, copy_body_data * id,
     if (!args_to_skip || !bitmap_bit_p (args_to_skip, i))
       {
         tree new_tree = remap_decl (arg, id);
+	if (TREE_CODE (new_tree) != PARM_DECL)
+	  new_tree = id->copy_decl (arg, id);
         lang_hooks.dup_lang_specific_decl (new_tree);
         *parg = new_tree;
 	parg = &DECL_CHAIN (new_tree);
@@ -4990,6 +5032,20 @@ tree_function_versioning (tree old_decl, tree new_decl,
   gcc_checking_assert (old_version_node);
   new_version_node = cgraph_get_node (new_decl);
   gcc_checking_assert (new_version_node);
+
+  /* Copy over debug args.  */
+  if (DECL_HAS_DEBUG_ARGS_P (old_decl))
+    {
+      VEC(tree, gc) **new_debug_args, **old_debug_args;
+      gcc_checking_assert (decl_debug_args_lookup (new_decl) == NULL);
+      DECL_HAS_DEBUG_ARGS_P (new_decl) = 0;
+      old_debug_args = decl_debug_args_lookup (old_decl);
+      if (old_debug_args)
+	{
+	  new_debug_args = decl_debug_args_insert (new_decl);
+	  *new_debug_args = VEC_copy (tree, gc, *old_debug_args);
+	}
+    }
 
   /* Output the inlining info for this abstract function, since it has been
      inlined.  If we don't do this now, we can lose the information about the

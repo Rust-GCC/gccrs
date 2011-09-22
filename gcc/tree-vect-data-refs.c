@@ -607,6 +607,11 @@ vect_analyze_data_ref_dependence (struct data_dependence_relation *ddr,
       if (vect_check_interleaving (dra, drb))
          return false;
 
+      /* Read-read is OK (we need this check here, after checking for
+         interleaving).  */
+      if (DR_IS_READ (dra) && DR_IS_READ (drb))
+        return false;
+
       if (vect_print_dump_info (REPORT_DR_DETAILS))
         {
           fprintf (vect_dump, "can't determine dependence between ");
@@ -859,7 +864,8 @@ vect_compute_data_ref_alignment (struct data_reference *dr)
       || (TREE_CODE (base_addr) == SSA_NAME
 	  && tree_int_cst_compare (ssize_int (TYPE_ALIGN_UNIT (TREE_TYPE (
 						      TREE_TYPE (base_addr)))),
-				   alignment) >= 0))
+				   alignment) >= 0)
+      || (get_pointer_alignment (base_addr) >= TYPE_ALIGN (vectype)))
     base_aligned = true;
   else
     base_aligned = false;
@@ -1248,7 +1254,9 @@ vect_peeling_hash_get_most_frequent (void **slot, void *data)
   vect_peel_info elem = (vect_peel_info) *slot;
   vect_peel_extended_info max = (vect_peel_extended_info) data;
 
-  if (elem->count > max->peel_info.count)
+  if (elem->count > max->peel_info.count
+      || (elem->count == max->peel_info.count
+          && max->peel_info.npeel > elem->npeel))
     {
       max->peel_info.npeel = elem->npeel;
       max->peel_info.count = elem->count;
@@ -1491,11 +1499,18 @@ vect_enhance_data_refs_alignment (loop_vec_info loop_vinfo)
       stmt = DR_STMT (dr);
       stmt_info = vinfo_for_stmt (stmt);
 
+      if (!STMT_VINFO_RELEVANT (stmt_info))
+	continue;
+
       /* For interleaving, only the alignment of the first access
          matters.  */
       if (STMT_VINFO_STRIDED_ACCESS (stmt_info)
           && GROUP_FIRST_ELEMENT (stmt_info) != stmt)
         continue;
+
+      /* For invariant accesses there is nothing to enhance.  */
+      if (integer_zerop (DR_STEP (dr)))
+	continue;
 
       supportable_dr_alignment = vect_supportable_dr_alignment (dr, true);
       do_peeling = vector_alignment_reachable_p (dr);
@@ -2043,8 +2058,12 @@ vect_analyze_group_access (struct data_reference *dr)
   loop_vec_info loop_vinfo = STMT_VINFO_LOOP_VINFO (stmt_info);
   bb_vec_info bb_vinfo = STMT_VINFO_BB_VINFO (stmt_info);
   HOST_WIDE_INT dr_step = TREE_INT_CST_LOW (step);
-  HOST_WIDE_INT stride;
+  HOST_WIDE_INT stride, last_accessed_element = 1;
   bool slp_impossible = false;
+  struct loop *loop = NULL;
+
+  if (loop_vinfo)
+    loop = LOOP_VINFO_LOOP (loop_vinfo);
 
   /* For interleaving, STRIDE is STEP counted in elements, i.e., the size of the
      interleaving group (including gaps).  */
@@ -2072,6 +2091,23 @@ vect_analyze_group_access (struct data_reference *dr)
 	      fprintf (vect_dump, " step ");
 	      print_generic_expr (vect_dump, step, TDF_SLIM);
 	    }
+
+	  if (loop_vinfo)
+	    {
+	      if (vect_print_dump_info (REPORT_DETAILS))
+		fprintf (vect_dump, "Data access with gaps requires scalar "
+				    "epilogue loop");
+              if (loop->inner)
+                {
+                  if (vect_print_dump_info (REPORT_DETAILS))
+                    fprintf (vect_dump, "Peeling for outer loop is not"
+                                        " supported");
+                  return false;
+                }
+
+              LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo) = true;
+	    }
+
 	  return true;
 	}
 
@@ -2137,6 +2173,7 @@ vect_analyze_group_access (struct data_reference *dr)
               next = GROUP_NEXT_ELEMENT (vinfo_for_stmt (next));
               continue;
             }
+
           prev = next;
 
           /* Check that all the accesses have the same STEP.  */
@@ -2166,6 +2203,8 @@ vect_analyze_group_access (struct data_reference *dr)
 
               gaps += diff - 1;
 	    }
+
+	  last_accessed_element += diff;
 
           /* Store the gap from the previous member of the group. If there is no
              gap in the access, GROUP_GAP is always 1.  */
@@ -2245,6 +2284,22 @@ vect_analyze_group_access (struct data_reference *dr)
             VEC_safe_push (gimple, heap, BB_VINFO_STRIDED_STORES (bb_vinfo),
                            stmt);
         }
+
+      /* There is a gap in the end of the group.  */
+      if (stride - last_accessed_element > 0 && loop_vinfo)
+	{
+	  if (vect_print_dump_info (REPORT_DETAILS))
+	    fprintf (vect_dump, "Data access with gaps requires scalar "
+				"epilogue loop");
+          if (loop->inner)
+            {
+              if (vect_print_dump_info (REPORT_DETAILS))
+                fprintf (vect_dump, "Peeling for outer loop is not supported");
+              return false;
+            }
+
+          LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo) = true;
+	}
     }
 
   return true;
@@ -2276,9 +2331,12 @@ vect_analyze_data_ref_access (struct data_reference *dr)
       return false;
     }
 
-  /* Don't allow invariant accesses in loops.  */
+  /* Allow invariant loads in loops.  */
   if (loop_vinfo && dr_step == 0)
-    return false;
+    {
+      GROUP_FIRST_ELEMENT (vinfo_for_stmt (stmt)) = NULL;
+      return DR_IS_READ (dr);
+    }
 
   if (loop && nested_in_vect_loop_p (loop, stmt))
     {
@@ -2537,14 +2595,7 @@ vect_analyze_data_refs (loop_vec_info loop_vinfo,
               print_gimple_stmt (vect_dump, stmt, 0, TDF_SLIM);
             }
 
-          if (bb_vinfo)
-            {
-              /* Mark the statement as not vectorizable.  */
-              STMT_VINFO_VECTORIZABLE (stmt_info) = false;
-              continue;
-            }
-          else
-            return false;
+          return false;
         }
 
       if (TREE_CODE (DR_BASE_ADDRESS (dr)) == INTEGER_CST)
@@ -2552,14 +2603,17 @@ vect_analyze_data_refs (loop_vec_info loop_vinfo,
           if (vect_print_dump_info (REPORT_UNVECTORIZED_LOCATIONS))
             fprintf (vect_dump, "not vectorized: base addr of dr is a "
                      "constant");
-          if (bb_vinfo)
+          return false;
+        }
+
+      if (TREE_THIS_VOLATILE (DR_REF (dr)))
+        {
+          if (vect_print_dump_info (REPORT_UNVECTORIZED_LOCATIONS))
             {
-              /* Mark the statement as not vectorizable.  */
-              STMT_VINFO_VECTORIZABLE (stmt_info) = false;
-              continue;
+              fprintf (vect_dump, "not vectorized: volatile type ");
+              print_gimple_stmt (vect_dump, stmt, 0, TDF_SLIM);
             }
-          else
-            return false;
+          return false;
         }
 
       base = unshare_expr (DR_BASE_ADDRESS (dr));
@@ -2599,9 +2653,7 @@ vect_analyze_data_refs (loop_vec_info loop_vinfo,
 	     inner-loop: *(BASE+INIT).  (The first location is actually
 	     BASE+INIT+OFFSET, but we add OFFSET separately later).  */
           tree inner_base = build_fold_indirect_ref
-                                (fold_build2 (POINTER_PLUS_EXPR,
-                                              TREE_TYPE (base), base,
-                                              fold_convert (sizetype, init)));
+                                (fold_build_pointer_plus (base, init));
 
 	  if (vect_print_dump_info (REPORT_DETAILS))
 	    {
@@ -2882,8 +2934,7 @@ vect_create_addr_base_for_vector_ref (gimple stmt,
 
   /* base + base_offset */
   if (loop_vinfo)
-    addr_base = fold_build2 (POINTER_PLUS_EXPR, TREE_TYPE (data_ref_base),
-                             data_ref_base, base_offset);
+    addr_base = fold_build_pointer_plus (data_ref_base, base_offset);
   else
     {
       addr_base = build1 (ADDR_EXPR,

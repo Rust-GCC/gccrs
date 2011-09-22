@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -479,11 +479,27 @@ package body Checks is
       Insert_Node : Node_Id)
    is
       Loc         : constant Source_Ptr := Sloc (N);
-      Param_Ent   : constant Entity_Id  := Param_Entity (N);
+      Param_Ent   : Entity_Id           := Param_Entity (N);
       Param_Level : Node_Id;
       Type_Level  : Node_Id;
 
    begin
+      if Ada_Version >= Ada_2012
+         and then not Present (Param_Ent)
+         and then Is_Entity_Name (N)
+         and then Ekind_In (Entity (N), E_Constant, E_Variable)
+         and then Present (Effective_Extra_Accessibility (Entity (N)))
+      then
+         Param_Ent := Entity (N);
+         while Present (Renamed_Object (Param_Ent)) loop
+
+            --  Renamed_Object must return an Entity_Name here
+            --  because of preceding "Present (E_E_A (...))" test.
+
+            Param_Ent := Entity (Renamed_Object (Param_Ent));
+         end loop;
+      end if;
+
       if Inside_A_Generic then
          return;
 
@@ -494,7 +510,8 @@ package body Checks is
 
       elsif Present (Param_Ent)
          and then Present (Extra_Accessibility (Param_Ent))
-         and then UI_Gt (Object_Access_Level (N), Type_Access_Level (Typ))
+         and then UI_Gt (Object_Access_Level (N),
+                         Deepest_Type_Access_Level (Typ))
          and then not Accessibility_Checks_Suppressed (Param_Ent)
          and then not Accessibility_Checks_Suppressed (Typ)
       then
@@ -502,7 +519,7 @@ package body Checks is
            New_Occurrence_Of (Extra_Accessibility (Param_Ent), Loc);
 
          Type_Level :=
-           Make_Integer_Literal (Loc, Type_Access_Level (Typ));
+           Make_Integer_Literal (Loc, Deepest_Type_Access_Level (Typ));
 
          --  Raise Program_Error if the accessibility level of the access
          --  parameter is deeper than the level of the target access type.
@@ -1545,7 +1562,7 @@ package body Checks is
    --          Lo_OK be True.
    --      (3) If I'Last < 0, then let Hi be F'Succ (I'Last) and let Hi_OK
    --          be False. Otherwise let Hi be F'Pred (I'Last + 1) and let
-   --          Hi_OK be False
+   --          Hi_OK be True.
 
    procedure Apply_Float_Conversion_Check
      (Ck_Node    : Node_Id;
@@ -1690,7 +1707,7 @@ package body Checks is
 
       if Truncate and then Ilast < 0 then
          Hi := Succ (Expr_Type, UR_From_Uint (Ilast));
-         Lo_OK := False;
+         Hi_OK := False;
 
       elsif Truncate then
          Hi := Pred (Expr_Type, UR_From_Uint (Ilast + 1));
@@ -1860,6 +1877,10 @@ package body Checks is
       if Is_Subscr_Ref then
          Arr := Prefix (Parnt);
          Arr_Typ := Get_Actual_Subtype_If_Available (Arr);
+
+         if Is_Access_Type (Arr_Typ) then
+            Arr_Typ := Directly_Designated_Type (Arr_Typ);
+         end if;
       end if;
 
       if not Do_Range_Check (Expr) then
@@ -2325,7 +2346,11 @@ package body Checks is
       Target_Type : constant Entity_Id := Etype (N);
       Target_Base : constant Entity_Id := Base_Type (Target_Type);
       Expr        : constant Node_Id   := Expression (N);
-      Expr_Type   : constant Entity_Id := Etype (Expr);
+
+      Expr_Type : constant Entity_Id := Underlying_Type (Etype (Expr));
+      --  Note: if Etype (Expr) is a private type without discriminants, its
+      --  full view might have discriminants with defaults, so we need the
+      --  full view here to retrieve the constraints.
 
    begin
       if Inside_A_Generic then
@@ -2383,7 +2408,7 @@ package body Checks is
         and then not Is_Constrained (Target_Type)
         and then Present (Stored_Constraint (Target_Type))
       then
-         --  An unconstrained derived type may have inherited discriminant
+         --  An unconstrained derived type may have inherited discriminant.
          --  Build an actual discriminant constraint list using the stored
          --  constraint, to verify that the expression of the parent type
          --  satisfies the constraints imposed by the (unconstrained!)
@@ -3087,6 +3112,20 @@ package body Checks is
    --  Start of processing for Determine_Range
 
    begin
+      --  For temporary constants internally generated to remove side effects
+      --  we must use the corresponding expression to determine the range of
+      --  the expression.
+
+      if Is_Entity_Name (N)
+        and then Nkind (Parent (Entity (N))) = N_Object_Declaration
+        and then Ekind (Entity (N)) = E_Constant
+        and then Is_Internal_Name (Chars (Entity (N)))
+      then
+         Determine_Range
+           (Expression (Parent (Entity (N))), OK, Lo, Hi, Assume_Valid);
+         return;
+      end if;
+
       --  Prevent junk warnings by initializing range variables
 
       Lo  := No_Uint;
@@ -3442,6 +3481,19 @@ package body Checks is
       --  At this stage, if OK1 is true, then we know that the actual result of
       --  the computed expression is in the range Lor .. Hir. We can use this
       --  to restrict the possible range of results.
+
+      --  If one of the computed bounds is outside the range of the base type,
+      --  the expression may raise an exception and we had better indicate that
+      --  the evaluation has failed, at least if checks are enabled.
+
+      if OK1
+        and then Enable_Overflow_Checks
+        and then not Is_Entity_Name (N)
+        and then (Lor < Lo or else Hir > Hi)
+      then
+         OK := False;
+         return;
+      end if;
 
       if OK1 then
 
@@ -4556,75 +4608,180 @@ package body Checks is
    ---------------------------
 
    procedure Generate_Index_Checks (N : Node_Id) is
-      Loc : constant Source_Ptr := Sloc (N);
-      A   : constant Node_Id    := Prefix (N);
-      Sub : Node_Id;
-      Ind : Nat;
-      Num : List_Id;
+
+      function Entity_Of_Prefix return Entity_Id;
+      --  Returns the entity of the prefix of N (or Empty if not found)
+
+      ----------------------
+      -- Entity_Of_Prefix --
+      ----------------------
+
+      function Entity_Of_Prefix return Entity_Id is
+         P : Node_Id;
+
+      begin
+         P := Prefix (N);
+         while not Is_Entity_Name (P) loop
+            if not Nkind_In (P, N_Selected_Component,
+                                N_Indexed_Component)
+            then
+               return Empty;
+            end if;
+
+            P := Prefix (P);
+         end loop;
+
+         return Entity (P);
+      end Entity_Of_Prefix;
+
+      --  Local variables
+
+      Loc   : constant Source_Ptr := Sloc (N);
+      A     : constant Node_Id    := Prefix (N);
+      A_Ent : constant Entity_Id  := Entity_Of_Prefix;
+      Sub   : Node_Id;
+
+   --  Start of processing for Generate_Index_Checks
 
    begin
-      --  Ignore call if index checks suppressed for array object or type
+      --  Ignore call if the prefix is not an array since we have a serious
+      --  error in the sources. Ignore it also if index checks are suppressed
+      --  for array object or type.
 
-      if (Is_Entity_Name (A) and then Index_Checks_Suppressed (Entity (A)))
+      if not Is_Array_Type (Etype (A))
+        or else (Present (A_Ent)
+                  and then Index_Checks_Suppressed (A_Ent))
         or else Index_Checks_Suppressed (Etype (A))
       then
          return;
       end if;
 
-      --  Generate the checks
+      --  Generate a raise of constraint error with the appropriate reason and
+      --  a condition of the form:
+
+      --    Base_Type (Sub) not in Array'Range (Subscript)
+
+      --  Note that the reason we generate the conversion to the base type here
+      --  is that we definitely want the range check to take place, even if it
+      --  looks like the subtype is OK. Optimization considerations that allow
+      --  us to omit the check have already been taken into account in the
+      --  setting of the Do_Range_Check flag earlier on.
 
       Sub := First (Expressions (N));
-      Ind := 1;
-      while Present (Sub) loop
+
+      --  Handle string literals
+
+      if Ekind (Etype (A)) = E_String_Literal_Subtype then
          if Do_Range_Check (Sub) then
             Set_Do_Range_Check (Sub, False);
 
-            --  Force evaluation except for the case of a simple name of a
-            --  non-volatile entity.
-
-            if not Is_Entity_Name (Sub)
-              or else Treat_As_Volatile (Entity (Sub))
-            then
-               Force_Evaluation (Sub);
-            end if;
-
-            --  Generate a raise of constraint error with the appropriate
-            --  reason and a condition of the form:
-
-            --    Base_Type(Sub) not in array'range (subscript)
-
-            --  Note that the reason we generate the conversion to the base
-            --  type here is that we definitely want the range check to take
-            --  place, even if it looks like the subtype is OK. Optimization
-            --  considerations that allow us to omit the check have already
-            --  been taken into account in the setting of the Do_Range_Check
-            --  flag earlier on.
-
-            if Ind = 1 then
-               Num := No_List;
-            else
-               Num :=  New_List (Make_Integer_Literal (Loc, Ind));
-            end if;
+            --  For string literals we obtain the bounds of the string from the
+            --  associated subtype.
 
             Insert_Action (N,
-              Make_Raise_Constraint_Error (Loc,
-                Condition =>
-                  Make_Not_In (Loc,
-                    Left_Opnd  =>
-                      Convert_To (Base_Type (Etype (Sub)),
-                        Duplicate_Subexpr_Move_Checks (Sub)),
-                    Right_Opnd =>
-                      Make_Attribute_Reference (Loc,
-                        Prefix         =>
-                          Duplicate_Subexpr_Move_Checks (A, Name_Req => True),
-                        Attribute_Name => Name_Range,
-                        Expressions    => Num)),
-                Reason => CE_Index_Check_Failed));
+               Make_Raise_Constraint_Error (Loc,
+                 Condition =>
+                    Make_Not_In (Loc,
+                      Left_Opnd  =>
+                        Convert_To (Base_Type (Etype (Sub)),
+                          Duplicate_Subexpr_Move_Checks (Sub)),
+                      Right_Opnd =>
+                        Make_Attribute_Reference (Loc,
+                          Prefix         => New_Reference_To (Etype (A), Loc),
+                          Attribute_Name => Name_Range)),
+                 Reason => CE_Index_Check_Failed));
          end if;
 
-         Ind := Ind + 1;
-         Next (Sub);
-      end loop;
+      --  General case
+
+      else
+         declare
+            A_Idx   : Node_Id := Empty;
+            A_Range : Node_Id;
+            Ind     : Nat;
+            Num     : List_Id;
+            Range_N : Node_Id;
+
+         begin
+            A_Idx := First_Index (Etype (A));
+            Ind   := 1;
+            while Present (Sub) loop
+               if Do_Range_Check (Sub) then
+                  Set_Do_Range_Check (Sub, False);
+
+                  --  Force evaluation except for the case of a simple name of
+                  --  a non-volatile entity.
+
+                  if not Is_Entity_Name (Sub)
+                    or else Treat_As_Volatile (Entity (Sub))
+                  then
+                     Force_Evaluation (Sub);
+                  end if;
+
+                  if Nkind (A_Idx) = N_Range then
+                     A_Range := A_Idx;
+
+                  elsif Nkind (A_Idx) = N_Identifier
+                    or else Nkind (A_Idx) = N_Expanded_Name
+                  then
+                     A_Range := Scalar_Range (Entity (A_Idx));
+
+                  else pragma Assert (Nkind (A_Idx) = N_Subtype_Indication);
+                     A_Range := Range_Expression (Constraint (A_Idx));
+                  end if;
+
+                  --  For array objects with constant bounds we can generate
+                  --  the index check using the bounds of the type of the index
+
+                  if Present (A_Ent)
+                    and then Ekind (A_Ent) = E_Variable
+                    and then Is_Constant_Bound (Low_Bound (A_Range))
+                    and then Is_Constant_Bound (High_Bound (A_Range))
+                  then
+                     Range_N :=
+                       Make_Attribute_Reference (Loc,
+                         Prefix         =>
+                           New_Reference_To (Etype (A_Idx), Loc),
+                         Attribute_Name => Name_Range);
+
+                  --  For arrays with non-constant bounds we cannot generate
+                  --  the index check using the bounds of the type of the index
+                  --  since it may reference discriminants of some enclosing
+                  --  type. We obtain the bounds directly from the prefix
+                  --  object.
+
+                  else
+                     if Ind = 1 then
+                        Num := No_List;
+                     else
+                        Num := New_List (Make_Integer_Literal (Loc, Ind));
+                     end if;
+
+                     Range_N :=
+                       Make_Attribute_Reference (Loc,
+                         Prefix =>
+                           Duplicate_Subexpr_Move_Checks (A, Name_Req => True),
+                         Attribute_Name => Name_Range,
+                         Expressions    => Num);
+                  end if;
+
+                  Insert_Action (N,
+                     Make_Raise_Constraint_Error (Loc,
+                       Condition =>
+                          Make_Not_In (Loc,
+                            Left_Opnd  =>
+                              Convert_To (Base_Type (Etype (Sub)),
+                                Duplicate_Subexpr_Move_Checks (Sub)),
+                            Right_Opnd => Range_N),
+                       Reason => CE_Index_Check_Failed));
+               end if;
+
+               A_Idx := Next_Index (A_Idx);
+               Ind := Ind + 1;
+               Next (Sub);
+            end loop;
+         end;
+      end if;
    end Generate_Index_Checks;
 
    --------------------------

@@ -207,7 +207,9 @@
 (define_insn "*thumb2_movhi_insn"
   [(set (match_operand:HI 0 "nonimmediate_operand" "=r,r,m,r")
 	(match_operand:HI 1 "general_operand"      "rI,n,r,m"))]
-  "TARGET_THUMB2"
+  "TARGET_THUMB2
+  && (register_operand (operands[0], HImode)
+     || register_operand (operands[1], HImode))"
   "@
    mov%?\\t%0, %1\\t%@ movhi
    movw%?\\t%0, %L1\\t%@ movhi
@@ -779,26 +781,6 @@
    (set_attr "length" "2")]
 )
 
-(define_insn "divsi3"
-  [(set (match_operand:SI	  0 "s_register_operand" "=r")
-	(div:SI (match_operand:SI 1 "s_register_operand"  "r")
-		(match_operand:SI 2 "s_register_operand"  "r")))]
-  "TARGET_THUMB2 && arm_arch_hwdiv"
-  "sdiv%?\t%0, %1, %2"
-  [(set_attr "predicable" "yes")
-   (set_attr "insn" "sdiv")]
-)
-
-(define_insn "udivsi3"
-  [(set (match_operand:SI	   0 "s_register_operand" "=r")
-	(udiv:SI (match_operand:SI 1 "s_register_operand"  "r")
-		 (match_operand:SI 2 "s_register_operand"  "r")))]
-  "TARGET_THUMB2 && arm_arch_hwdiv"
-  "udiv%?\t%0, %1, %2"
-  [(set_attr "predicable" "yes")
-   (set_attr "insn" "udiv")]
-)
-
 (define_insn "*thumb2_subsi_short"
   [(set (match_operand:SI 0 "low_register_operand" "=l")
 	(minus:SI (match_operand:SI 1 "low_register_operand" "l")
@@ -969,7 +951,7 @@
         (if_then_else
 	    (and (ge (minus (match_dup 1) (pc)) (const_int 2))
 	         (le (minus (match_dup 1) (pc)) (const_int 128))
-	         (eq (symbol_ref ("which_alternative")) (const_int 0)))
+	         (not (match_test "which_alternative")))
 	    (const_int 2)
 	    (const_int 8)))]
 )
@@ -992,7 +974,7 @@
         (if_then_else
 	    (and (ge (minus (match_dup 1) (pc)) (const_int 2))
 	         (le (minus (match_dup 1) (pc)) (const_int 128))
-	         (eq (symbol_ref ("which_alternative")) (const_int 0)))
+	         (not (match_test "which_alternative")))
 	    (const_int 2)
 	    (const_int 8)))]
 )

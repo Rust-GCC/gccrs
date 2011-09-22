@@ -1,7 +1,7 @@
 /* C-compiler utilities for types and variables storage layout
    Copyright (C) 1987, 1988, 1992, 1993, 1994, 1995, 1996, 1996, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
-   Free Software Foundation, Inc.
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+   2011 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -935,7 +935,8 @@ update_alignment_for_field (record_layout_info rli, tree field,
 	 applies if there was an immediately prior, nonzero-size
 	 bitfield.  (That's the way it is, experimentally.) */
       if ((!is_bitfield && !DECL_PACKED (field))
-	  || (!integer_zerop (DECL_SIZE (field))
+	  || ((DECL_SIZE (field) == NULL_TREE
+	       || !integer_zerop (DECL_SIZE (field)))
 	      ? !DECL_PACKED (field)
 	      : (rli->prev_field
 		 && DECL_BIT_FIELD_TYPE (rli->prev_field)
@@ -1958,16 +1959,15 @@ layout_type (tree type)
 	    if (integer_zerop (element_size))
 	      length = size_zero_node;
 
-	    /* The computation should happen in the original type so
-	       that (possible) negative values are handled appropriately.  */
+	    /* The computation should happen in the original signedness so
+	       that (possible) negative values are handled appropriately
+	       when determining overflow.  */
 	    else
 	      length
 		= fold_convert (sizetype,
-				fold_build2 (PLUS_EXPR, TREE_TYPE (lb),
-					     build_int_cst (TREE_TYPE (lb), 1),
-					     fold_build2 (MINUS_EXPR,
-							  TREE_TYPE (lb),
-							  ub, lb)));
+				size_binop (PLUS_EXPR,
+					    build_int_cst (TREE_TYPE (lb), 1),
+					    size_binop (MINUS_EXPR, ub, lb)));
 
 	    TYPE_SIZE (type) = size_binop (MULT_EXPR, element_size,
 					   fold_convert (bitsizetype,
@@ -2189,93 +2189,76 @@ make_accum_type (int precision, int unsignedp, int satp)
   return type;
 }
 
-/* Initialize sizetype and bitsizetype to a reasonable and temporary
-   value to enable integer types to be created.  */
+/* Initialize sizetypes so layout_type can use them.  */
 
 void
 initialize_sizetypes (void)
 {
-  tree t = make_node (INTEGER_TYPE);
-  int precision = GET_MODE_BITSIZE (SImode);
+  int precision, bprecision;
 
-  SET_TYPE_MODE (t, SImode);
-  TYPE_ALIGN (t) = GET_MODE_ALIGNMENT (SImode);
-  TYPE_IS_SIZETYPE (t) = 1;
-  TYPE_UNSIGNED (t) = 1;
-  TYPE_SIZE (t) = build_int_cst (t, precision);
-  TYPE_SIZE_UNIT (t) = build_int_cst (t, GET_MODE_SIZE (SImode));
-  TYPE_PRECISION (t) = precision;
+  /* Get sizetypes precision from the SIZE_TYPE target macro.  */
+  if (strcmp (SIZE_TYPE, "unsigned int") == 0)
+    precision = INT_TYPE_SIZE;
+  else if (strcmp (SIZE_TYPE, "long unsigned int") == 0)
+    precision = LONG_TYPE_SIZE;
+  else if (strcmp (SIZE_TYPE, "long long unsigned int") == 0)
+    precision = LONG_LONG_TYPE_SIZE;
+  else if (strcmp (SIZE_TYPE, "short unsigned int") == 0)
+    precision = SHORT_TYPE_SIZE;
+  else
+    gcc_unreachable ();
 
-  set_min_and_max_values_for_integral_type (t, precision,
+  bprecision
+    = MIN (precision + BITS_PER_UNIT_LOG + 1, MAX_FIXED_MODE_SIZE);
+  bprecision
+    = GET_MODE_PRECISION (smallest_mode_for_size (bprecision, MODE_INT));
+  if (bprecision > HOST_BITS_PER_WIDE_INT * 2)
+    bprecision = HOST_BITS_PER_WIDE_INT * 2;
+
+  /* Create stubs for sizetype and bitsizetype so we can create constants.  */
+  sizetype = make_node (INTEGER_TYPE);
+  TYPE_NAME (sizetype) = get_identifier ("sizetype");
+  TYPE_PRECISION (sizetype) = precision;
+  TYPE_UNSIGNED (sizetype) = 1;
+  TYPE_IS_SIZETYPE (sizetype) = 1;
+  bitsizetype = make_node (INTEGER_TYPE);
+  TYPE_NAME (bitsizetype) = get_identifier ("bitsizetype");
+  TYPE_PRECISION (bitsizetype) = bprecision;
+  TYPE_UNSIGNED (bitsizetype) = 1;
+  TYPE_IS_SIZETYPE (bitsizetype) = 1;
+
+  /* Now layout both types manually.  */
+  SET_TYPE_MODE (sizetype, smallest_mode_for_size (precision, MODE_INT));
+  TYPE_ALIGN (sizetype) = GET_MODE_ALIGNMENT (TYPE_MODE (sizetype));
+  TYPE_SIZE (sizetype) = bitsize_int (precision);
+  TYPE_SIZE_UNIT (sizetype) = size_int (GET_MODE_SIZE (TYPE_MODE (sizetype)));
+  set_min_and_max_values_for_integral_type (sizetype, precision,
 					    /*is_unsigned=*/true);
-
-  sizetype = t;
-  bitsizetype = build_distinct_type_copy (t);
-}
-
-/* Make sizetype a version of TYPE, and initialize *sizetype accordingly.
-   We do this by overwriting the stub sizetype and bitsizetype nodes created
-   by initialize_sizetypes.  This makes sure that (a) anything stubby about
-   them no longer exists and (b) any INTEGER_CSTs created with such a type,
-   remain valid.  */
-
-void
-set_sizetype (tree type)
-{
-  tree t, max;
-  int oprecision = TYPE_PRECISION (type);
-  /* The *bitsizetype types use a precision that avoids overflows when
-     calculating signed sizes / offsets in bits.  However, when
-     cross-compiling from a 32 bit to a 64 bit host, we are limited to 64 bit
-     precision.  */
-  int precision
-    = MIN (oprecision + BITS_PER_UNIT_LOG + 1, MAX_FIXED_MODE_SIZE);
-  precision
-    = GET_MODE_PRECISION (smallest_mode_for_size (precision, MODE_INT));
-  if (precision > HOST_BITS_PER_WIDE_INT * 2)
-    precision = HOST_BITS_PER_WIDE_INT * 2;
-
-  /* sizetype must be an unsigned type.  */
-  gcc_assert (TYPE_UNSIGNED (type));
-
-  t = build_distinct_type_copy (type);
-  /* We want to use sizetype's cache, as we will be replacing that type.  */
-  TYPE_CACHED_VALUES (t) = TYPE_CACHED_VALUES (sizetype);
-  TYPE_CACHED_VALUES_P (t) = TYPE_CACHED_VALUES_P (sizetype);
-  TYPE_UID (t) = TYPE_UID (sizetype);
-  TYPE_IS_SIZETYPE (t) = 1;
-
-  /* Replace our original stub sizetype.  */
-  memcpy (sizetype, t, tree_size (sizetype));
-  TYPE_MAIN_VARIANT (sizetype) = sizetype;
-  TYPE_CANONICAL (sizetype) = sizetype;
-
   /* sizetype is unsigned but we need to fix TYPE_MAX_VALUE so that it is
      sign-extended in a way consistent with force_fit_type.  */
-  max = TYPE_MAX_VALUE (sizetype);
   TYPE_MAX_VALUE (sizetype)
-    = double_int_to_tree (sizetype, tree_to_double_int (max));
+    = double_int_to_tree (sizetype,
+			  tree_to_double_int (TYPE_MAX_VALUE (sizetype)));
 
-  t = make_node (INTEGER_TYPE);
-  TYPE_NAME (t) = get_identifier ("bit_size_type");
-  /* We want to use bitsizetype's cache, as we will be replacing that type.  */
-  TYPE_CACHED_VALUES (t) = TYPE_CACHED_VALUES (bitsizetype);
-  TYPE_CACHED_VALUES_P (t) = TYPE_CACHED_VALUES_P (bitsizetype);
-  TYPE_PRECISION (t) = precision;
-  TYPE_UID (t) = TYPE_UID (bitsizetype);
-  TYPE_IS_SIZETYPE (t) = 1;
-
-  /* Replace our original stub bitsizetype.  */
-  memcpy (bitsizetype, t, tree_size (bitsizetype));
-  TYPE_MAIN_VARIANT (bitsizetype) = bitsizetype;
-  TYPE_CANONICAL (bitsizetype) = bitsizetype;
-
-  fixup_unsigned_type (bitsizetype);
+  SET_TYPE_MODE (bitsizetype, smallest_mode_for_size (bprecision, MODE_INT));
+  TYPE_ALIGN (bitsizetype) = GET_MODE_ALIGNMENT (TYPE_MODE (bitsizetype));
+  TYPE_SIZE (bitsizetype) = bitsize_int (bprecision);
+  TYPE_SIZE_UNIT (bitsizetype)
+    = size_int (GET_MODE_SIZE (TYPE_MODE (bitsizetype)));
+  set_min_and_max_values_for_integral_type (bitsizetype, bprecision,
+					    /*is_unsigned=*/true);
+  /* bitsizetype is unsigned but we need to fix TYPE_MAX_VALUE so that it is
+     sign-extended in a way consistent with force_fit_type.  */
+  TYPE_MAX_VALUE (bitsizetype)
+    = double_int_to_tree (bitsizetype,
+			  tree_to_double_int (TYPE_MAX_VALUE (bitsizetype)));
 
   /* Create the signed variants of *sizetype.  */
-  ssizetype = make_signed_type (oprecision);
+  ssizetype = make_signed_type (TYPE_PRECISION (sizetype));
+  TYPE_NAME (ssizetype) = get_identifier ("ssizetype");
   TYPE_IS_SIZETYPE (ssizetype) = 1;
-  sbitsizetype = make_signed_type (precision);
+  sbitsizetype = make_signed_type (TYPE_PRECISION (bitsizetype));
+  TYPE_NAME (sbitsizetype) = get_identifier ("sbitsizetype");
   TYPE_IS_SIZETYPE (sbitsizetype) = 1;
 }
 
@@ -2384,6 +2367,13 @@ fixup_unsigned_type (tree type)
 /* Find the best machine mode to use when referencing a bit field of length
    BITSIZE bits starting at BITPOS.
 
+   BITREGION_START is the bit position of the first bit in this
+   sequence of bit fields.  BITREGION_END is the last bit in this
+   sequence.  If these two fields are non-zero, we should restrict the
+   memory access to a maximum sized chunk of
+   BITREGION_END - BITREGION_START + 1.  Otherwise, we are allowed to touch
+   any adjacent non bit-fields.
+
    The underlying object is known to be aligned to a boundary of ALIGN bits.
    If LARGEST_MODE is not VOIDmode, it means that we should not use a mode
    larger than LARGEST_MODE (usually SImode).
@@ -2401,18 +2391,29 @@ fixup_unsigned_type (tree type)
    decide which of the above modes should be used.  */
 
 enum machine_mode
-get_best_mode (int bitsize, int bitpos, unsigned int align,
+get_best_mode (int bitsize, int bitpos,
+	       unsigned HOST_WIDE_INT bitregion_start,
+	       unsigned HOST_WIDE_INT bitregion_end,
+	       unsigned int align,
 	       enum machine_mode largest_mode, int volatilep)
 {
   enum machine_mode mode;
   unsigned int unit = 0;
+  unsigned HOST_WIDE_INT maxbits;
+
+  /* If unset, no restriction.  */
+  if (!bitregion_end)
+    maxbits = MAX_FIXED_MODE_SIZE;
+  else
+    maxbits = (bitregion_end - bitregion_start) % align + 1;
 
   /* Find the narrowest integer mode that contains the bit field.  */
   for (mode = GET_CLASS_NARROWEST_MODE (MODE_INT); mode != VOIDmode;
        mode = GET_MODE_WIDER_MODE (mode))
     {
       unit = GET_MODE_BITSIZE (mode);
-      if ((bitpos % unit) + bitsize <= unit)
+      if (unit == GET_MODE_PRECISION (mode)
+	  && (bitpos % unit) + bitsize <= unit)
 	break;
     }
 
@@ -2437,9 +2438,11 @@ get_best_mode (int bitsize, int bitpos, unsigned int align,
 	   tmode = GET_MODE_WIDER_MODE (tmode))
 	{
 	  unit = GET_MODE_BITSIZE (tmode);
-	  if (bitpos / unit == (bitpos + bitsize - 1) / unit
+	  if (unit == GET_MODE_PRECISION (tmode)
+	      && bitpos / unit == (bitpos + bitsize - 1) / unit
 	      && unit <= BITS_PER_WORD
 	      && unit <= MIN (align, BIGGEST_ALIGNMENT)
+	      && unit <= maxbits
 	      && (largest_mode == VOIDmode
 		  || unit <= GET_MODE_BITSIZE (largest_mode)))
 	    wide_mode = tmode;

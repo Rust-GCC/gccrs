@@ -255,6 +255,11 @@ typedef struct _loop_vec_info {
   /* Hash table used to choose the best peeling option.  */
   htab_t peeling_htab;
 
+  /* When we have strided data accesses with gaps, we may introduce invalid
+     memory accesses.  We peel the last iteration of the loop to prevent
+     this.  */
+  bool peeling_for_gaps;
+
 } *loop_vec_info;
 
 /* Access Functions.  */
@@ -283,6 +288,7 @@ typedef struct _loop_vec_info {
 #define LOOP_VINFO_REDUCTIONS(L)           (L)->reductions
 #define LOOP_VINFO_REDUCTION_CHAINS(L)     (L)->reduction_chains
 #define LOOP_VINFO_PEELING_HTAB(L)         (L)->peeling_htab
+#define LOOP_VINFO_PEELING_FOR_GAPS(L)     (L)->peeling_for_gaps
 
 #define LOOP_REQUIRES_VERSIONING_FOR_ALIGNMENT(L) \
 VEC_length (gimple, (L)->may_misalign_stmts) > 0
@@ -463,6 +469,9 @@ typedef struct _stmt_vec_info {
         pattern).  */
   gimple related_stmt;
 
+  /* Used to keep a def stmt of a pattern stmt if such exists.  */
+  gimple pattern_def_stmt;
+
   /* List of datarefs that are known to have the same alignment as the dataref
      of this stmt.  */
   VEC(dr_p,heap) *same_align_refs;
@@ -530,6 +539,7 @@ typedef struct _stmt_vec_info {
 
 #define STMT_VINFO_IN_PATTERN_P(S)         (S)->in_pattern_p
 #define STMT_VINFO_RELATED_STMT(S)         (S)->related_stmt
+#define STMT_VINFO_PATTERN_DEF_STMT(S)     (S)->pattern_def_stmt
 #define STMT_VINFO_SAME_ALIGN_REFS(S)      (S)->same_align_refs
 #define STMT_VINFO_DEF_TYPE(S)             (S)->def_type
 #define STMT_VINFO_GROUP_FIRST_ELEMENT(S)  (S)->first_element
@@ -813,6 +823,7 @@ extern bool vectorizable_condition (gimple, gimple_stmt_iterator *, gimple *,
 extern void vect_get_load_cost (struct data_reference *, int, bool,
                                 unsigned int *, unsigned int *);
 extern void vect_get_store_cost (struct data_reference *, int, unsigned int *);
+extern bool vect_supportable_shift (enum tree_code, tree);
 
 /* In tree-vect-data-refs.c.  */
 extern bool vect_can_force_dr_alignment_p (const_tree, unsigned int);
@@ -890,8 +901,8 @@ extern void vect_slp_transform_bb (basic_block);
 /* Pattern recognition functions.
    Additional pattern recognition functions can (and will) be added
    in the future.  */
-typedef gimple (* vect_recog_func_ptr) (gimple, tree *, tree *);
-#define NUM_PATTERNS 4
+typedef gimple (* vect_recog_func_ptr) (VEC (gimple, heap) **, tree *, tree *);
+#define NUM_PATTERNS 5
 void vect_pattern_recog (loop_vec_info);
 
 /* In tree-vectorizer.c.  */

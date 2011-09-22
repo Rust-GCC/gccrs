@@ -1,3 +1,96 @@
+2011-08-28  Dodji Seketeli  <dodji@redhat.com>
+
+	* line-map.c (linemap_add): Assert that reason must not be
+	LC_RENAME when called for the first time on a "main input file".
+
+2011-08-22  Gabriel Charette  <gchare@google.com>
+
+	* init.c (cpp_create_reader): Inititalize forced_token_location_p.
+	* internal.h (struct cpp_reader): Add field forced_token_location_p.
+	* lex.c (_cpp_lex_direct): Use forced_token_location_p.
+	(cpp_force_token_locations): New.
+	(cpp_stop_forcing_token_locations): New.
+
+2011-08-18  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libstdc++/1773
+	* init.c (cpp_init_builtins): Define __cplusplus 19971L.
+
+2011-08-18  Joseph Myers  <joseph@codesourcery.com>
+
+	* include/cpplib.h (struct cpp_options): Fix typo.
+
+2011-08-18  Joseph Myers  <joseph@codesourcery.com>
+
+	* include/cpplib.h (struct cpp_options): Add rliterals.
+	* init.c  (struct lang_flags, lang_defaults): Add rliterals.
+	(cpp_set_lang): Set rliterals option.
+	(cpp_init_builtins): Define __STDC_UTF_16__ and __STDC_UTF_32__.
+	* lex.c (_cpp_lex_direct): Only accept raw strings if rliterals.
+
+2011-08-15  Gabriel Charette  <gchare@google.com>
+
+	* include/line-map.h (LINEMAP_POSITION_FOR_COLUMN): Remove.
+	Update all users to use linemap_position_for_column instead.
+
+2011-07-28  Gabriel Charette  <gchare@google.com>
+
+	* include/line-map.h (struct line_maps):
+	Remove unused field last_listed. Update all users.
+
+2011-07-28  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* configure.ac: Set need_64bit_hwint to yes for x86 targets.
+	* configure: Regenerated.
+
+2011-07-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* system.h [__cplusplus]: Wrap C function declarations in extern "C".
+
+2011-07-22  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+	    Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR bootstrap/49794
+	* configure.ac: Test AM_ICONV with CXX.
+	* configure: Regenerate.
+	* system.h (HAVE_DESIGNATED_INITIALIZERS): Never define for C++.
+
+2011-07-15  Dodji Seketeli  <dodji@redhat.com>
+
+	* directives.c (struct if_stack): Use source_location as type
+	here.
+	* include/cpplib.h (struct cpp_callbacks)<include, define, undef,
+	indent, def_pragma, used_define, used_undef>: Properly use
+	source_location as parameter type, rather than unsigned int.
+
+2011-07-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR target/39150
+	* configure.ac (host_wide_int): Handle x86_64-*-solaris2.1[0-9]
+	like i[34567]86-*-solaris2.1[0-9]*.
+	* configure: Regenerate.
+
+2011-06-16  Jason Merrill  <jason@redhat.com>
+
+	PR c++/45399
+	* lex.c (lex_raw_string): Don't check for embedded NUL.
+
+2011-06-06  Dodji Seketeli  <dodji@redhat.com>
+
+	PR preprocessor/48532
+	* directives.c (do_pragma): Don't forget the invocation location
+	when parsing the pragma name of a namespaced pragma directive.
+
+2011-05-29  John Tytgat  <John.Tytgat@aaug.net>
+
+	* files.c (read_file_guts): Add test on non-zero value of S_ISREG.
+
+2011-05-22  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/49104
+	* lex.c (init_vectorized_lexer): Do not set "minimum" when __3dNOW_A__
+	is defined.  Check bit_MMXEXT and bit_CMOV to use search_line_mmx.
+
 2011-04-25  Jan Kratochvil  <jan.kratochvil@redhat.com>
 
 	* system.h (ENUM_BITFIELD): Remove.

@@ -825,7 +825,7 @@ DEFPARAM (PARAM_MIN_INSN_TO_PREFETCH_RATIO,
 	  "min-insn-to-prefetch-ratio",
 	  "Min. ratio of insns to prefetches to enable prefetching for "
           "a loop with an unknown trip count",
-	  10, 0, 0)
+	  9, 0, 0)
 
 DEFPARAM (PARAM_PREFETCH_MIN_INSN_TO_MEM_RATIO,
 	  "prefetch-min-insn-to-mem-ratio",
@@ -838,6 +838,14 @@ DEFPARAM (PARAM_MAX_VARTRACK_SIZE,
 	  "max-vartrack-size",
 	  "Max. size of var tracking hash tables",
 	  50000000, 0, 0)
+
+/* Set maximum recursion depth for var tracking expression expansion
+   and resolution.  */
+
+DEFPARAM (PARAM_MAX_VARTRACK_EXPR_DEPTH,
+	  "max-vartrack-expr-depth",
+	  "Max. recursion depth for expanding var tracking expressions",
+	  12, 0, 0)
 
 /* Set minimum insn uid for non-debug insns.  */
 
@@ -852,11 +860,17 @@ DEFPARAM (PARAM_IPA_SRA_PTR_GROWTH_FACTOR,
 	  "a pointer to an aggregate with",
 	  2, 0, 0)
 
-DEFPARAM (PARAM_DEVIRT_TYPE_LIST_SIZE,
-	  "devirt-type-list-size",
-	  "Maximum size of a type list associated with each parameter for "
-	  "devirtualization",
+DEFPARAM (PARAM_IPA_CP_VALUE_LIST_SIZE,
+	  "ipa-cp-value-list-size",
+	  "Maximum size of a list of values associated with each parameter for "
+	  "interprocedural constant propagation",
 	  8, 0, 0)
+
+DEFPARAM (PARAM_IPA_CP_EVAL_THRESHOLD,
+	  "ipa-cp-eval-threshold",
+	  "Threshold ipa-cp opportunity evaluation that is still considered "
+	  "beneficial to clone.",
+	  500, 0, 0)
 
 /* WHOPR partitioning configuration.  */
 
@@ -883,6 +897,29 @@ DEFPARAM (PARAM_MAX_STORES_TO_SINK,
           "max-stores-to-sink",
           "Maximum number of conditional store pairs that can be sunk",
           2, 0, 0)
+
+/* Override CASE_VALUES_THRESHOLD of when to switch from doing switch
+   statements via if statements to using a table jump operation.  If the value
+   is 0, the default CASE_VALUES_THRESHOLD will be used.  */
+DEFPARAM (PARAM_CASE_VALUES_THRESHOLD,
+          "case-values-threshold",
+          "The smallest number of different values for which it is best to "
+	  "use a jump-table instead of a tree of conditional branches, "
+	  "if 0, use the default for the machine",
+          0, 0, 0)
+
+/* Data race flags for C++0x memory model compliance.  */
+DEFPARAM (PARAM_ALLOW_STORE_DATA_RACES,
+	  "allow-store-data-races",
+	  "Allow new data races on stores to be introduced",
+	  1, 0, 1)
+
+/* Reassociation width to be used by tree reassoc optimization.  */
+DEFPARAM (PARAM_TREE_REASSOC_WIDTH,
+	  "tree-reassoc-width",
+	  "Set the maximum number of instructions executed in parallel in "
+	  "reassociated tree. If 0, use the target dependent heuristic.",
+	  0, 0, 0)
 
 
 /*

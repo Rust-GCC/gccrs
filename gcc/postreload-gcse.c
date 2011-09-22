@@ -1,5 +1,5 @@
 /* Post reload partially redundant load elimination
-   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2010
+   Copyright (C) 2004, 2005, 2006, 2007, 2008, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -923,6 +923,9 @@ bb_has_well_behaved_predecessors (basic_block bb)
       if ((pred->flags & EDGE_ABNORMAL) && EDGE_CRITICAL_P (pred))
 	return false;
 
+      if ((pred->flags & EDGE_ABNORMAL_CALL) && cfun->has_nonlocal_label)
+	return false;
+
       if (JUMP_TABLE_DATA_P (BB_END (pred->src)))
 	return false;
     }
@@ -1128,7 +1131,8 @@ eliminate_partially_redundant_load (basic_block bb, rtx insn,
      discover additional redundancies, so mark it for later deletion.  */
   for (a_occr = get_bb_avail_insn (bb, expr->avail_occr);
        a_occr && (a_occr->insn != insn);
-       a_occr = get_bb_avail_insn (bb, a_occr->next));
+       a_occr = get_bb_avail_insn (bb, a_occr->next))
+    ;
 
   if (!a_occr)
     {
@@ -1341,8 +1345,7 @@ struct rtl_opt_pass pass_gcse2 =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func | TODO_verify_rtl_sharing
+  TODO_verify_rtl_sharing
   | TODO_verify_flow | TODO_ggc_collect /* todo_flags_finish */
  }
 };
-

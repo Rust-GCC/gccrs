@@ -33,6 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfglayout.h"
 #include "cfgloop.h"
 #include "target.h"
+#include "common/common-target.h"
 #include "ggc.h"
 #include "alloc-pool.h"
 #include "flags.h"
@@ -378,7 +379,7 @@ struct rtl_opt_pass pass_into_cfg_layout_mode =
   PROP_cfglayout,                       /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func,                       /* todo_flags_finish */
+  0                                     /* todo_flags_finish */
  }
 };
 
@@ -397,7 +398,7 @@ struct rtl_opt_pass pass_outof_cfg_layout_mode =
   0,                                    /* properties_provided */
   PROP_cfglayout,                       /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func,                       /* todo_flags_finish */
+  0                                     /* todo_flags_finish */
  }
 };
 
@@ -766,6 +767,7 @@ fixup_reorder_chain (void)
     {
       edge e_fall, e_taken, e;
       rtx bb_end_insn;
+      rtx ret_label = NULL_RTX;
       basic_block nb, src_bb;
       edge_iterator ei;
 
@@ -785,6 +787,7 @@ fixup_reorder_chain (void)
       bb_end_insn = BB_END (bb);
       if (JUMP_P (bb_end_insn))
 	{
+	  ret_label = JUMP_LABEL (bb_end_insn);
 	  if (any_condjump_p (bb_end_insn))
 	    {
 	      /* This might happen if the conditional jump has side
@@ -898,7 +901,7 @@ fixup_reorder_chain (void)
 	 Note force_nonfallthru can delete E_FALL and thus we have to
 	 save E_FALL->src prior to the call to force_nonfallthru.  */
       src_bb = e_fall->src;
-      nb = force_nonfallthru (e_fall);
+      nb = force_nonfallthru_and_redirect (e_fall, e_fall->dest, ret_label);
       if (nb)
 	{
 	  nb->il.rtl->visited = 1;
@@ -912,7 +915,7 @@ fixup_reorder_chain (void)
 	     section boundaries).  */
 	  BB_COPY_PARTITION (src_bb, single_pred (bb));
 	  if (flag_reorder_blocks_and_partition
-	      && targetm.have_named_sections
+	      && targetm_common.have_named_sections
 	      && JUMP_P (BB_END (bb))
 	      && !any_condjump_p (BB_END (bb))
 	      && (EDGE_SUCC (bb, 0)->flags & EDGE_CROSSING))
@@ -1194,6 +1197,9 @@ duplicate_insn_chain (rtx from, rtx to)
 	      break;
 	    }
 	  copy = emit_copy_of_insn_after (insn, get_last_insn ());
+	  if (JUMP_P (insn) && JUMP_LABEL (insn) != NULL_RTX
+	      && ANY_RETURN_P (JUMP_LABEL (insn)))
+	    JUMP_LABEL (copy) = JUMP_LABEL (insn);
           maybe_copy_prologue_epilogue_insn (insn, copy);
 	  break;
 

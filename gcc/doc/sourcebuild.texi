@@ -1016,6 +1016,11 @@ This directive does nothing on targets that enable the features by
 default, or that don't provide them at all.  It must come after
 all @code{dg-options} directives.
 For supported values of @var{feature} see @ref{Add Options, ,}.
+
+@item @{ dg-additional-options @var{options} [@{ target @var{selector} @}] @}
+This directive provides a list of compiler options, to be used
+if the target system matches @var{selector}, that are added to the default
+options used for this set of tests.
 @end table
 
 @subsubsection Modify the test timeout value
@@ -1674,6 +1679,9 @@ Target might have errors of a few ULP in string to floating-point
 conversion functions and overflow is not always detected correctly by
 those functions.
 
+@item mmap
+Target supports @code{mmap}.
+
 @item newlib
 Target supports Newlib.
 
@@ -1755,6 +1763,9 @@ Target uses GNU @command{as}.
 @item gc_sections
 Target supports @option{--gc-sections}.
 
+@item gld
+Target uses GNU @command{ld}.
+
 @item keeps_null_pointer_checks
 Target keeps null pointer checks, either due to the use of
 @option{-fno-delete-null-pointer-checks} or hardwired into the target.
@@ -1781,6 +1792,9 @@ Target defines @code{PCC_BITFIELD_TYPE_MATTERS}.
 
 @item pe_aligned_commons
 Target supports @option{-mpe-aligned-commons}.
+
+@item pie
+Target supports @option{-pie}, @option{-fpie} and @option{-fPIE}.
 
 @item section_anchors
 Target supports section anchors.

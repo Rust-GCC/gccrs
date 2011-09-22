@@ -23,7 +23,11 @@
    and Basile Starynkevitch <basile@starynkevitch.net>
 */
 
+#ifdef GENERATOR_FILE
 #include "bconfig.h"
+#else
+#include "config.h"
+#endif
 #include "system.h"
 #include "errors.h"	/* For fatal.  */
 #include "double-int.h"
@@ -1190,8 +1194,6 @@ write_state (const char *state_path)
   fprintf (state_file,
 	   ";;; This file should be parsed by the same %s which wrote it.\n",
 	   progname);
-  fprintf (state_file, ";;; file %s generated on %s\n", state_path,
-	   ctime (&now));
   /* The first non-comment significant line gives the version string.  */
   write_state_version (version_string);
   write_state_srcdir ();
@@ -2137,7 +2139,7 @@ read_state_param_structs (type_p *param_structs)
   int nbparamstructs = 0;
   int countparamstructs = 0;
   type_p head = NULL;
-  type_p previous;
+  type_p previous = NULL;
   type_p tmp;
   struct state_token_st *t0 = peek_state_token (0);
   struct state_token_st *t1 = peek_state_token (1);

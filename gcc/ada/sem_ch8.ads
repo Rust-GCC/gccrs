@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -44,16 +44,16 @@ package Sem_Ch8 is
    -- Subprograms --
    -----------------
 
-   procedure Analyze_Exception_Renaming                 (N : Node_Id);
-   procedure Analyze_Expanded_Name                      (N : Node_Id);
-   procedure Analyze_Generic_Function_Renaming          (N : Node_Id);
-   procedure Analyze_Generic_Package_Renaming           (N : Node_Id);
-   procedure Analyze_Generic_Procedure_Renaming         (N : Node_Id);
-   procedure Analyze_Object_Renaming                    (N : Node_Id);
-   procedure Analyze_Package_Renaming                   (N : Node_Id);
-   procedure Analyze_Subprogram_Renaming                (N : Node_Id);
-   procedure Analyze_Use_Package                        (N : Node_Id);
-   procedure Analyze_Use_Type                           (N : Node_Id);
+   procedure Analyze_Exception_Renaming         (N : Node_Id);
+   procedure Analyze_Expanded_Name              (N : Node_Id);
+   procedure Analyze_Generic_Function_Renaming  (N : Node_Id);
+   procedure Analyze_Generic_Package_Renaming   (N : Node_Id);
+   procedure Analyze_Generic_Procedure_Renaming (N : Node_Id);
+   procedure Analyze_Object_Renaming            (N : Node_Id);
+   procedure Analyze_Package_Renaming           (N : Node_Id);
+   procedure Analyze_Subprogram_Renaming        (N : Node_Id);
+   procedure Analyze_Use_Package                (N : Node_Id);
+   procedure Analyze_Use_Type                   (N : Node_Id);
 
    procedure End_Scope;
    --  Called at end of scope. On exit from blocks and bodies (subprogram,
@@ -71,19 +71,26 @@ package Sem_Ch8 is
 
    procedure End_Use_Package (N : Node_Id);
    procedure End_Use_Type    (N : Node_Id);
-   --  Subsidiaries of End_Use_Clauses.  Also called directly for use clauses
+   --  Subsidiaries of End_Use_Clauses. Also called directly for use clauses
    --  appearing in context clauses.
 
    procedure Find_Direct_Name (N : Node_Id);
    --  Given a direct name (Identifier or Operator_Symbol), this routine scans
-   --  the homonym chain for the name searching for corresponding visible
+   --  the homonym chain for the name, searching for corresponding visible
    --  entities to find the referenced entity (or in the case of overloading,
-   --  entities). On return, the Entity and Etype fields are set. In the
-   --  non-overloaded case, these are the correct final entries. In the
-   --  overloaded case, Is_Overloaded is set, Etype and Entity refer to an
-   --  arbitrary element of the overloads set, and an appropriate list of
-   --  entries has been made in the overload interpretation table (to be
-   --  disambiguated in the resolve phase).
+   --  one candidate interpretation). On return, the Entity and Etype fields
+   --  are set. In the non-overloaded case, these are the correct entries.
+   --  In the overloaded case, the flag Is_Overloaded is set, Etype and Entity
+   --  refer to an arbitrary element of the overloads set, and the appropriate
+   --  entries have been added to the overloads table entry for the node. The
+   --  overloading will be disambiguated during type resolution.
+   --
+   --  Note, when this is called during semantic analysis in the overloaded
+   --  case, the entity set will be the most recently declared homonym. In
+   --  particular, the caller may follow the homonym chain checking for all
+   --  entries in the current scope, and that will give all homonyms that are
+   --  declared before the point of call in the current scope. This is useful
+   --  for example in the processing for pragma Inline.
 
    procedure Find_Selected_Component (N : Node_Id);
    --  Resolve various cases of selected components, recognize expanded names
@@ -101,6 +108,15 @@ package Sem_Ch8 is
    --  of the full declaration as well. This procedure also has special
    --  processing for 'Class attribute references.
 
+   function Has_Loop_In_Inner_Open_Scopes (S : Entity_Id) return Boolean;
+   --  S is the entity of an open scope. This function determines if there is
+   --  an inner scope of S which is a loop (i.e. it appears somewhere in the
+   --  scope stack after S).
+
+   function In_Open_Scopes (S : Entity_Id) return Boolean;
+   --  S is the entity of a scope. This function determines if this scope is
+   --  currently open (i.e. it appears somewhere in the scope stack).
+
    procedure Initialize;
    --  Initializes data structures used for visibility analysis. Must be
    --  called before analyzing each new main source program.
@@ -115,18 +131,14 @@ package Sem_Ch8 is
    --  Analyze_Subunit.Re_Install_Use_Clauses to insure that, after the
    --  analysis of the subunit, the parent's environment is again identical.
 
-   function In_Open_Scopes (S : Entity_Id) return Boolean;
-   --  S is the entity of a scope. This function determines if this scope
-   --  is currently open (i.e. it appears somewhere in the scope stack).
-
    procedure Push_Scope (S : Entity_Id);
-   --  Make new scope stack entry, pushing S, the entity for a scope
-   --  onto the top of the scope table. The current setting of the scope
-   --  suppress flags is saved for restoration on exit.
+   --  Make new scope stack entry, pushing S, the entity for a scope onto the
+   --  top of the scope table. The current setting of the scope suppress flags
+   --  is saved for restoration on exit.
 
    procedure Pop_Scope;
-   --  Remove top entry from scope stack, restoring the saved setting
-   --  of the scope suppress flags.
+   --  Remove top entry from scope stack, restoring the saved setting of the
+   --  scope suppress flags.
 
    function Present_System_Aux (N : Node_Id := Empty) return Boolean;
    --  Return True if the auxiliary system file has been successfully loaded.

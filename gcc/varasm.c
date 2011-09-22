@@ -46,6 +46,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm_p.h"
 #include "debug.h"
 #include "target.h"
+#include "common/common-target.h"
 #include "targhooks.h"
 #include "tree-mudflap.h"
 #include "cgraph.h"
@@ -313,7 +314,11 @@ get_section (const char *name, unsigned int flags, tree decl)
 	  if (decl == 0)
 	    decl = sect->named.decl;
 	  gcc_assert (decl);
-	  error ("%+D causes a section type conflict", decl);
+	  error ("%+D causes a section type conflict with %D", 
+			decl, sect->named.decl);
+	  if (decl != sect->named.decl)
+            inform (DECL_SOURCE_LOCATION (sect->named.decl), 
+		    "%qD was declared here", sect->named.decl);
 	  /* Make sure we don't error about one section multiple times.  */
 	  sect->common.flags |= SECTION_OVERRIDE;
 	}
@@ -412,7 +417,7 @@ resolve_unique_section (tree decl, int reloc ATTRIBUTE_UNUSED,
 			int flag_function_or_data_sections)
 {
   if (DECL_SECTION_NAME (decl) == NULL_TREE
-      && targetm.have_named_sections
+      && targetm_common.have_named_sections
       && (flag_function_or_data_sections
 	  || DECL_ONE_ONLY (decl)))
     {
@@ -460,7 +465,7 @@ hot_function_section (tree decl)
 {
   if (decl != NULL_TREE
       && DECL_SECTION_NAME (decl) != NULL_TREE
-      && targetm.have_named_sections)
+      && targetm_common.have_named_sections)
     return get_named_section (decl, NULL, 0);
   else
     return text_section;
@@ -532,7 +537,7 @@ default_function_section (tree decl, enum node_frequency freq,
 #endif
 
   if (!flag_reorder_functions
-      || !targetm.have_named_sections)
+      || !targetm_common.have_named_sections)
     return NULL;
   /* Startup code should go to startup subsection unless it is
      unlikely executed (this happens especially with function splitting
@@ -737,7 +742,8 @@ mergeable_string_section (tree decl ATTRIBUTE_UNUSED,
       const char *str;
       HOST_WIDE_INT i;
       int j, unit;
-      char name[30];
+      const char *prefix = targetm.asm_out.mergeable_rodata_prefix;
+      char *name = (char *) alloca (strlen (prefix) + 30);
 
       mode = TYPE_MODE (TREE_TYPE (TREE_TYPE (decl)));
       modesize = GET_MODE_BITSIZE (mode);
@@ -761,8 +767,8 @@ mergeable_string_section (tree decl ATTRIBUTE_UNUSED,
 	    }
 	  if (i == len - unit)
 	    {
-	      sprintf (name, ".rodata.str%d.%d", modesize / 8,
-		       (int) (align / 8));
+	      sprintf (name, "%s.str%d.%d", prefix,
+		       modesize / 8, (int) (align / 8));
 	      flags |= (modesize / 8) | SECTION_MERGE | SECTION_STRINGS;
 	      return get_section (name, flags, NULL);
 	    }
@@ -789,9 +795,10 @@ mergeable_constant_section (enum machine_mode mode ATTRIBUTE_UNUSED,
       && align <= 256
       && (align & (align - 1)) == 0)
     {
-      char name[24];
+      const char *prefix = targetm.asm_out.mergeable_rodata_prefix;
+      char *name = (char *) alloca (strlen (prefix) + 30);
 
-      sprintf (name, ".rodata.cst%d", (int) (align / 8));
+      sprintf (name, "%s.cst%d", prefix, (int) (align / 8));
       flags |= (align / 8) | SECTION_MERGE;
       return get_section (name, flags, NULL);
     }
@@ -1237,7 +1244,7 @@ make_decl_rtl (tree decl)
 #endif
 	      nregs = hard_regno_nregs[reg_number][DECL_MODE (decl)];
 	      while (nregs > 0)
-		globalize_reg (reg_number + --nregs);
+		globalize_reg (decl, reg_number + --nregs);
 	    }
 
 	  /* As a register variable, it has no section.  */
@@ -2384,7 +2391,7 @@ assemble_trampoline_template (void)
 
   initial_trampoline = gen_const_mem (BLKmode, symbol);
   set_mem_align (initial_trampoline, TRAMPOLINE_ALIGNMENT);
-  set_mem_size (initial_trampoline, GEN_INT (TRAMPOLINE_SIZE));
+  set_mem_size (initial_trampoline, TRAMPOLINE_SIZE);
 
   return initial_trampoline;
 }
@@ -2584,6 +2591,12 @@ decode_addr_const (tree exp, struct addr_const *value)
 	  offset += (tree_low_cst (TYPE_SIZE_UNIT (TREE_TYPE (target)), 1)
 		     * tree_low_cst (TREE_OPERAND (target, 1), 0));
 	  target = TREE_OPERAND (target, 0);
+	}
+      else if (TREE_CODE (target) == MEM_REF
+	       && TREE_CODE (TREE_OPERAND (target, 0)) == ADDR_EXPR)
+	{
+	  offset += mem_ref_offset (target).low;
+	  target = TREE_OPERAND (TREE_OPERAND (target, 0), 0);
 	}
       else if (TREE_CODE (target) == INDIRECT_REF
 	       && TREE_CODE (TREE_OPERAND (target, 0)) == NOP_EXPR
@@ -4621,9 +4634,10 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
 static unsigned HOST_WIDE_INT
 array_size_for_constructor (tree val)
 {
-  tree max_index, i;
+  tree max_index;
   unsigned HOST_WIDE_INT cnt;
   tree index, value, tmp;
+  double_int i;
 
   /* This code used to attempt to handle string constants that are not
      arrays of single-bytes, but nothing else does, so there's no point in
@@ -4645,14 +4659,15 @@ array_size_for_constructor (tree val)
 
   /* Compute the total number of array elements.  */
   tmp = TYPE_MIN_VALUE (TYPE_DOMAIN (TREE_TYPE (val)));
-  i = size_binop (MINUS_EXPR, fold_convert (sizetype, max_index),
-		  fold_convert (sizetype, tmp));
-  i = size_binop (PLUS_EXPR, i, size_one_node);
+  i = double_int_sub (tree_to_double_int (max_index), tree_to_double_int (tmp));
+  i = double_int_add (i, double_int_one);
 
   /* Multiply by the array element unit size to find number of bytes.  */
-  i = size_binop (MULT_EXPR, i, TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (val))));
+  i = double_int_mul (i, tree_to_double_int
+		           (TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (val)))));
 
-  return tree_low_cst (i, 1);
+  gcc_assert (double_int_fits_in_uhwi_p (i));
+  return i.low;
 }
 
 /* Other datastructures + helpers for output_constructor.  */
@@ -5057,14 +5072,12 @@ output_constructor (tree exp, unsigned HOST_WIDE_INT size,
       else if (TREE_CODE (local.type) == ARRAY_TYPE)
 	local.index = ce->index;
 
-#ifdef ASM_COMMENT_START
       if (local.field && flag_verbose_asm)
 	fprintf (asm_out_file, "%s %s:\n",
 		 ASM_COMMENT_START,
 		 DECL_NAME (local.field)
 		 ? IDENTIFIER_POINTER (DECL_NAME (local.field))
 		 : "<anonymous>");
-#endif
 
       /* Eliminate the marker that makes a cast not be an lvalue.  */
       if (local.val != NULL_TREE)
@@ -6175,12 +6188,10 @@ default_elf_asm_named_section (const char *name, unsigned int flags,
 	type = "progbits";
 
       format = ",@%s";
-#ifdef ASM_COMMENT_START
       /* On platforms that use "@" as the assembly comment character,
 	 use "%" instead.  */
       if (strcmp (ASM_COMMENT_START, "@") == 0)
 	format = ",%%%s";
-#endif
       fprintf (asm_out_file, format, type);
 
       if (flags & SECTION_ENTSIZE)
@@ -6704,7 +6715,7 @@ default_binds_local_p_1 (const_tree exp, int shlib)
   bool resolved_to_local_def = false;
 
   /* With resolution file in hands, take look into resolutions.
-     We can't just return true for resolved_localy symbols,
+     We can't just return true for resolved_locally symbols,
      because dynamic linking might overwrite symbols
      in shared libraries.  */
   if (TREE_CODE (exp) == VAR_DECL && TREE_PUBLIC (exp)
@@ -6719,7 +6730,7 @@ default_binds_local_p_1 (const_tree exp, int shlib)
     }
   else if (TREE_CODE (exp) == FUNCTION_DECL && TREE_PUBLIC (exp))
     {
-      struct cgraph_node *node = cgraph_get_node_or_alias (exp);
+      struct cgraph_node *node = cgraph_get_node (exp);
       if (node
 	  && resolution_local_p (node->resolution))
 	resolved_locally = true;
@@ -6807,13 +6818,13 @@ decl_binds_to_current_def_p (tree decl)
     }
   else if (TREE_CODE (decl) == FUNCTION_DECL)
     {
-      struct cgraph_node *node = cgraph_get_node_or_alias (decl);
+      struct cgraph_node *node = cgraph_get_node (decl);
       if (node
 	  && node->resolution != LDPR_UNKNOWN)
 	return resolution_to_local_definition_p (node->resolution);
     }
   /* Otherwise we have to assume the worst for DECL_WEAK (hidden weaks
-     binds localy but still can be overwritten).
+     binds locally but still can be overwritten).
      This rely on fact that binds_local_p behave as decl_replaceable_p
      for all other declaration types.  */
   return !DECL_WEAK (decl);
@@ -7345,6 +7356,64 @@ make_debug_expr_from_rtl (const_rtx exp)
   DEBUG_EXPR_TREE_DECL (dval) = ddecl;
   SET_DECL_RTL (ddecl, dval);
   return dval;
+}
+
+static GTY(()) section *elf_init_array_section;
+static GTY(()) section *elf_fini_array_section;
+
+static section *
+get_elf_initfini_array_priority_section (int priority,
+					 bool constructor_p)
+{
+  section *sec;
+  if (priority != DEFAULT_INIT_PRIORITY)
+    {
+      char buf[18];
+      sprintf (buf, "%s.%.5u", 
+	       constructor_p ? ".init_array" : ".fini_array",
+	       priority);
+      sec = get_section (buf, SECTION_WRITE, NULL_TREE);
+    }
+  else
+    {
+      if (constructor_p)
+	{
+	  if (elf_init_array_section == NULL)
+	    elf_init_array_section
+	      = get_unnamed_section (0, output_section_asm_op,
+				     "\t.section\t.init_array");
+	  sec = elf_init_array_section;
+	}
+      else
+	{
+	  if (elf_fini_array_section == NULL)
+	    elf_fini_array_section
+	      = get_unnamed_section (0, output_section_asm_op,
+				     "\t.section\t.fini_array");
+	  sec = elf_fini_array_section;
+	}
+    }
+  return sec;
+}
+
+/* Use .init_array section for constructors. */
+
+void
+default_elf_init_array_asm_out_constructor (rtx symbol, int priority)
+{
+  section *sec = get_elf_initfini_array_priority_section (priority,
+							  true);
+  assemble_addr_to_section (symbol, sec);
+}
+
+/* Use .fini_array section for destructors. */
+
+void
+default_elf_fini_array_asm_out_destructor (rtx symbol, int priority)
+{
+  section *sec = get_elf_initfini_array_priority_section (priority,
+							  false);
+  assemble_addr_to_section (symbol, sec);
 }
 
 #include "gt-varasm.h"

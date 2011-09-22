@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -32,6 +32,7 @@ with Fname;    use Fname;
 with Fname.UF; use Fname.UF;
 with Lib.Util; use Lib.Util;
 with Lib.Xref; use Lib.Xref;
+               use Lib.Xref.Alfa;
 with Nlists;   use Nlists;
 with Gnatvsn;  use Gnatvsn;
 with Opt;      use Opt;
@@ -460,6 +461,12 @@ package body Lib.Writ is
          Write_Info_Str (" O");
          Write_Info_Char (OA_Setting (Unit_Num));
 
+         if Ekind_In (Uent, E_Package, E_Package_Body)
+           and then Present (Finalizer (Uent))
+         then
+            Write_Info_Str (" PF");
+         end if;
+
          if Is_Preelaborated (Uent) then
             Write_Info_Str (" PR");
          end if;
@@ -789,6 +796,12 @@ package body Lib.Writ is
                       or else
                      Nkind (Unit (Cunit)) in N_Generic_Renaming_Declaration)
                     and then Generic_May_Lack_ALI (Fname))
+
+              --  In Alfa mode, always generate the dependencies on ALI
+              --  files, which are required to compute frame conditions
+              --  of subprograms.
+
+              or else Alfa_Mode
             then
                Write_Info_Tab (25);
 
@@ -860,6 +873,13 @@ package body Lib.Writ is
       if Original_Operating_Mode = Check_Syntax
         or flag_compare_debug /= 0
       then
+         return;
+      end if;
+
+      --  Generation of ALI files may be disabled, e.g. for formal verification
+      --  back-end.
+
+      if Disable_ALI_File then
          return;
       end if;
 
@@ -1141,13 +1161,13 @@ package body Lib.Writ is
 
       --  Output R lines for No_Dependence entries
 
-      for J in No_Dependence.First .. No_Dependence.Last loop
-         if In_Extended_Main_Source_Unit (No_Dependence.Table (J).Unit)
-           and then not No_Dependence.Table (J).Warn
+      for J in No_Dependences.First .. No_Dependences.Last loop
+         if In_Extended_Main_Source_Unit (No_Dependences.Table (J).Unit)
+           and then not No_Dependences.Table (J).Warn
          then
             Write_Info_Initiate ('R');
             Write_Info_Char (' ');
-            Write_Unit_Name (No_Dependence.Table (J).Unit);
+            Write_Unit_Name (No_Dependences.Table (J).Unit);
             Write_Info_EOL;
          end if;
       end loop;
@@ -1293,12 +1313,21 @@ package body Lib.Writ is
 
       --  Output cross-references
 
-      Output_References;
+      if Opt.Xref_Active then
+         Output_References;
+      end if;
 
       --  Output SCO information if present
 
       if Generate_SCO then
          SCO_Output;
+      end if;
+
+      --  Output Alfa information if needed
+
+      if Opt.Xref_Active and then Alfa_Mode then
+         Collect_Alfa (Sdep_Table => Sdep_Table, Num_Sdep => Num_Sdep);
+         Output_Alfa;
       end if;
 
       --  Output final blank line and we are done. This final blank line is

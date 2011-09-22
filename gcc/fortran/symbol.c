@@ -373,7 +373,7 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
     *volatile_ = "VOLATILE", *is_protected = "PROTECTED",
     *is_bind_c = "BIND(C)", *procedure = "PROCEDURE",
     *asynchronous = "ASYNCHRONOUS", *codimension = "CODIMENSION",
-    *contiguous = "CONTIGUOUS";
+    *contiguous = "CONTIGUOUS", *generic = "GENERIC";
   static const char *threadprivate = "THREADPRIVATE";
 
   const char *a1, *a2;
@@ -490,8 +490,6 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
   conf (in_common, codimension);
   conf (in_common, result);
 
-  conf (dummy, result);
-
   conf (in_equivalence, use_assoc);
   conf (in_equivalence, codimension);
   conf (in_equivalence, dummy);
@@ -503,7 +501,9 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
   conf (in_equivalence, allocatable);
   conf (in_equivalence, threadprivate);
 
+  conf (dummy, result);
   conf (entry, result);
+  conf (generic, result);
 
   conf (function, subroutine);
 
@@ -673,7 +673,8 @@ check_conflict (symbol_attribute *attr, const char *name, locus *where)
 	  conf2 (codimension);
 	  conf2 (dimension);
 	  conf2 (function);
-	  conf2 (threadprivate);
+	  if (!attr->proc_pointer)
+	    conf2 (threadprivate);
 	}
 
       if (!attr->proc_pointer)
@@ -1672,7 +1673,12 @@ gfc_add_type (gfc_symbol *sym, gfc_typespec *ts, locus *where)
 
   if (type != BT_UNKNOWN && !(sym->attr.function && sym->attr.implicit_type))
     {
-      gfc_error ("Symbol '%s' at %L already has basic type of %s", sym->name,
+      if (sym->attr.use_assoc)
+	gfc_error ("Symbol '%s' at %L conflicts with symbol from module '%s', "
+		   "use-associated at %L", sym->name, where, sym->module,
+		   &sym->declared_at);
+      else
+	gfc_error ("Symbol '%s' at %L already has basic type of %s", sym->name,
 		 where, gfc_basic_typename (type));
       return FAILURE;
     }
@@ -1939,6 +1945,9 @@ gfc_use_derived (gfc_symbol *sym)
   gfc_symtree *st;
   int i;
 
+  if (!sym)
+    return NULL;
+
   if (sym->components != NULL || sym->attr.zero_comp)
     return sym;               /* Already defined.  */
 
@@ -1996,7 +2005,7 @@ gfc_find_component (gfc_symbol *sym, const char *name,
 {
   gfc_component *p;
 
-  if (name == NULL)
+  if (name == NULL || sym == NULL)
     return NULL;
 
   sym = gfc_use_derived (sym);
@@ -2127,11 +2136,16 @@ gfc_get_st_label (int labelno)
   gfc_st_label *lp;
   gfc_namespace *ns;
 
-  /* Find the namespace of the scoping unit:
-     If we're in a BLOCK construct, jump to the parent namespace.  */
-  ns = gfc_current_ns;
-  while (ns->proc_name && ns->proc_name->attr.flavor == FL_LABEL)
-    ns = ns->parent;
+  if (gfc_current_state () == COMP_DERIVED)
+    ns = gfc_current_block ()->f2k_derived;
+  else
+    {
+      /* Find the namespace of the scoping unit:
+	 If we're in a BLOCK construct, jump to the parent namespace.  */
+      ns = gfc_current_ns;
+      while (ns->proc_name && ns->proc_name->attr.flavor == FL_LABEL)
+	ns = ns->parent;
+    }
 
   /* First see if the label is already in this namespace.  */
   lp = ns->st_labels;

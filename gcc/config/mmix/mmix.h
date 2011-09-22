@@ -452,12 +452,6 @@ enum reg_class
 
 #define REGNO_OK_FOR_INDEX_P(REGNO) REGNO_OK_FOR_BASE_P (REGNO)
 
-#define PREFERRED_RELOAD_CLASS(X, CLASS) \
- mmix_preferred_reload_class (X, CLASS)
-
-#define PREFERRED_OUTPUT_RELOAD_CLASS(X, CLASS) \
- mmix_preferred_output_reload_class (X, CLASS)
-
 #define SECONDARY_INPUT_RELOAD_CLASS(CLASS, MODE, X) \
  mmix_secondary_reload_class (CLASS, MODE, X, 1)
 
@@ -603,17 +597,6 @@ typedef struct { int regs; int lib; } CUMULATIVE_ARGS;
 
 #define MAX_REGS_PER_ADDRESS 2
 
-#ifndef REG_OK_STRICT
-# define REG_OK_FOR_BASE_P(X)			\
-  (REGNO (X) <= MMIX_LAST_GENERAL_REGISTER	\
-   || REGNO (X) == MMIX_ARG_POINTER_REGNUM	\
-   || REGNO (X) >= FIRST_PSEUDO_REGISTER)
-#else
-# define REG_OK_FOR_BASE_P(X) REGNO_OK_FOR_BASE_P (REGNO (X))
-#endif /* REG_OK_STRICT */
-
-#define REG_OK_FOR_INDEX_P(X) REG_OK_FOR_BASE_P (X)
-
 
 /* Node: Condition Code */
 
@@ -633,23 +616,6 @@ typedef struct { int regs; int lib; } CUMULATIVE_ARGS;
 
 
 /* Node: Costs */
-
-/* The special registers can only move to and from general regs, and we
-   need to check that their constraints match, so say 3 for them.  */
-/* WARNING: gcc-2.7.2.2 i686-pc-linux-gnulibc1 (as shipped with RH 4.2)
-   miscompiles reload1.c:reload_cse_simplify_set; a call to
-   reload_cse_regno_equal_p is missing when checking if a substitution of
-   a register setting is valid if this is defined to just the expression
-   in mmix_register_move_cost.
-
-   Symptom: a (all?) register setting is optimized away for e.g.
-   "char *p1(char *p) { return p+1; }" and the value of register zero ($0)
-   is returned.
-
-   We can workaround by making this a function call - unknown if this
-   causes dire speed effects.  */
-#define REGISTER_MOVE_COST(MODE, FROM, TO) \
- mmix_register_move_cost (MODE, FROM, TO)
 
 #define SLOW_BYTE_ACCESS 0
 
@@ -792,15 +758,6 @@ typedef struct { int regs; int lib; } CUMULATIVE_ARGS;
 #define ADDITIONAL_REGISTER_NAMES			\
  {{"sp", 254}, {":sp", 254}, {"rD", 256}, {"rE", 257},	\
   {"rH", 258}, {"rJ", MMIX_rJ_REGNUM}, {"rO", MMIX_rO_REGNUM}}
-
-#define PRINT_OPERAND(STREAM, X, CODE) \
- mmix_print_operand (STREAM, X, CODE)
-
-#define PRINT_OPERAND_PUNCT_VALID_P(CODE) \
- mmix_print_operand_punct_valid_p (CODE)
-
-#define PRINT_OPERAND_ADDRESS(STREAM, X) \
- mmix_print_operand_address (STREAM, X)
 
 #define ASM_OUTPUT_REG_PUSH(STREAM, REGNO) \
  mmix_asm_output_reg_push (STREAM, REGNO)

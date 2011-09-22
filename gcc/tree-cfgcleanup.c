@@ -599,7 +599,7 @@ split_bbs_on_noreturn_calls (void)
 	   BB is present in the cfg.  */
 	if (bb == NULL
 	    || bb->index < NUM_FIXED_BLOCKS
-	    || bb->index >= n_basic_blocks
+	    || bb->index >= last_basic_block
 	    || BASIC_BLOCK (bb->index) != bb
 	    || !gimple_call_noreturn_p (stmt))
 	  continue;
@@ -1054,7 +1054,7 @@ struct gimple_opt_pass pass_merge_phi =
   0,				/* properties_provided */
   0,				/* properties_destroyed */
   0,				/* todo_flags_start */
-  TODO_dump_func | TODO_ggc_collect	/* todo_flags_finish */
+  TODO_ggc_collect      	/* todo_flags_finish */
   | TODO_verify_ssa
  }
 };

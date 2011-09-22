@@ -90,6 +90,10 @@ along with GCC; see the file COPYING3.  If not see
 #  define fputc(C, Stream) fputc_unlocked (C, Stream)
 # endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 # ifdef HAVE_CLEARERR_UNLOCKED
 #  undef clearerr
 #  define clearerr(Stream) clearerr_unlocked (Stream)
@@ -169,6 +173,10 @@ extern size_t fwrite_unlocked (const void *, size_t, size_t, FILE *);
 extern int fprintf_unlocked (FILE *, const char *, ...);
 #  endif
 # endif
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 
@@ -390,6 +398,10 @@ extern int errno;
    here.  These checks will be in the undefined state while configure
    is running so be careful to test "defined (HAVE_DECL_*)".  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if defined (HAVE_DECL_ATOF) && !HAVE_DECL_ATOF
 extern double atof (const char *);
 #endif
@@ -430,8 +442,16 @@ extern void *sbrk (int);
 extern char *strstr (const char *, const char *);
 #endif
 
+#ifdef __cplusplus
+}
+#endif
+
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #if defined (HAVE_DECL_MALLOC) && !HAVE_DECL_MALLOC
@@ -446,12 +466,20 @@ extern void *calloc (size_t, size_t);
 extern void *realloc (void *, size_t);
 #endif
 
+#ifdef __cplusplus
+}
+#endif
+
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
 
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 /* If the system doesn't provide strsignal, we get it defined in
@@ -493,11 +521,21 @@ extern int snprintf (char *, size_t, const char *, ...);
 extern int vsnprintf(char *, size_t, const char *, va_list);
 #endif
 
+#ifdef __cplusplus
+}
+#endif
+
 /* 1 if we have C99 designated initializers.  */
 #if !defined(HAVE_DESIGNATED_INITIALIZERS)
 #define HAVE_DESIGNATED_INITIALIZERS \
   (((GCC_VERSION >= 2007) || (__STDC_VERSION__ >= 199901L)) \
    && !defined(__cplusplus))
+#endif
+
+#if !defined(HAVE_DESIGNATED_UNION_INITIALIZERS)
+#define HAVE_DESIGNATED_UNION_INITIALIZERS \
+  (((GCC_VERSION >= 2007) || (__STDC_VERSION__ >= 199901L)) \
+   && (!defined(__cplusplus) || (GCC_VERSION >= 4007)))
 #endif
 
 #if HAVE_SYS_STAT_H
@@ -759,11 +797,13 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	LABEL_ALIGN_MAX_SKIP LOOP_ALIGN_MAX_SKIP			\
 	LABEL_ALIGN_AFTER_BARRIER_MAX_SKIP JUMP_ALIGN_MAX_SKIP 		\
 	CAN_DEBUG_WITHOUT_FP UNLIKELY_EXECUTED_TEXT_SECTION_NAME	\
-	HOT_TEXT_SECTION_NAME LEGITIMATE_CONSTANT_P
+	HOT_TEXT_SECTION_NAME LEGITIMATE_CONSTANT_P ALWAYS_STRIP_DOTDOT
 
 /* Target macros only used for code built for the target, that have
-   moved to libgcc-tm.h.  */
- #pragma GCC poison DECLARE_LIBRARY_RENAMES
+   moved to libgcc-tm.h or have never been present elsewhere.  */
+ #pragma GCC poison DECLARE_LIBRARY_RENAMES LIBGCC2_GNU_PREFIX		\
+	MD_UNWIND_SUPPORT MD_FROB_UPDATE_CONTEXT ENABLE_EXECUTE_STACK	\
+	REG_VALUE_IN_UNWIND_CONTEXT ASSUME_EXTENDED_UNWIND_CONTEXT
 
 /* Other obsolete target macros, or macros that used to be in target
    headers and were not used, and may be obsolete or may never have
@@ -825,7 +865,9 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	FUNCTION_ARG_BOUNDARY MUST_USE_SJLJ_EXCEPTIONS US_SOFTWARE_GOFAST  \
 	USING_SVR4_H SVR4_ASM_SPEC FUNCTION_ARG FUNCTION_ARG_ADVANCE	   \
 	FUNCTION_INCOMING_ARG IRA_COVER_CLASSES TARGET_VERSION		   \
-	MACHINE_TYPE TARGET_HAS_TARGETCM ASM_OUTPUT_BSS
+	MACHINE_TYPE TARGET_HAS_TARGETCM ASM_OUTPUT_BSS			   \
+	SETJMP_VIA_SAVE_AREA FORBIDDEN_INC_DEC_CLASSES			   \
+	PREFERRED_OUTPUT_RELOAD_CLASS
 
 /* Hooks that are no longer used.  */
  #pragma GCC poison LANG_HOOKS_FUNCTION_MARK LANG_HOOKS_FUNCTION_FREE	\
@@ -837,7 +879,7 @@ extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
 	TARGET_PROMOTE_FUNCTION_ARGS TARGET_PROMOTE_FUNCTION_RETURN \
 	LANG_HOOKS_MISSING_ARGUMENT LANG_HOOKS_HASH_TYPES \
 	TARGET_HANDLE_OFAST TARGET_OPTION_OPTIMIZATION \
-        TARGET_IRA_COVER_CLASSES
+        TARGET_IRA_COVER_CLASSES TARGET_HELP
 
 /* Hooks into libgcc2.  */
  #pragma GCC poison LIBGCC2_DOUBLE_TYPE_SIZE LIBGCC2_WORDS_BIG_ENDIAN \

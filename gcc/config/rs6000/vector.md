@@ -370,7 +370,7 @@
 
 
 ;; Vector comparisons
-(define_expand "vcond<mode>"
+(define_expand "vcond<mode><mode>"
   [(set (match_operand:VEC_F 0 "vfloat_operand" "")
 	(if_then_else:VEC_F
 	 (match_operator 3 "comparison_operator"
@@ -388,7 +388,7 @@
     FAIL;
 }")
 
-(define_expand "vcond<mode>"
+(define_expand "vcond<mode><mode>"
   [(set (match_operand:VEC_I 0 "vint_operand" "")
 	(if_then_else:VEC_I
 	 (match_operator 3 "comparison_operator"
@@ -406,7 +406,7 @@
     FAIL;
 }")
 
-(define_expand "vcondu<mode>"
+(define_expand "vcondu<mode><mode>"
   [(set (match_operand:VEC_I 0 "vint_operand" "")
 	(if_then_else:VEC_I
 	 (match_operator 3 "comparison_operator"
@@ -465,21 +465,21 @@
   [(set (match_operand:VEC_L 0 "vlogical_operand" "")
 	(if_then_else:VEC_L
 	 (ne:CC (match_operand:VEC_L 3 "vlogical_operand" "")
-		(const_int 0))
+		(match_dup 4))
 	 (match_operand:VEC_L 2 "vlogical_operand" "")
 	 (match_operand:VEC_L 1 "vlogical_operand" "")))]
   "VECTOR_UNIT_ALTIVEC_OR_VSX_P (<MODE>mode)"
-  "")
+  "operands[4] = CONST0_RTX (<MODE>mode);")
 
 (define_expand "vector_select_<mode>_uns"
   [(set (match_operand:VEC_L 0 "vlogical_operand" "")
 	(if_then_else:VEC_L
 	 (ne:CCUNS (match_operand:VEC_L 3 "vlogical_operand" "")
-		   (const_int 0))
+		   (match_dup 4))
 	 (match_operand:VEC_L 2 "vlogical_operand" "")
 	 (match_operand:VEC_L 1 "vlogical_operand" "")))]
   "VECTOR_UNIT_ALTIVEC_OR_VSX_P (<MODE>mode)"
-  "")
+  "operands[4] = CONST0_RTX (<MODE>mode);")
 
 ;; Expansions that compare vectors producing a vector result and a predicate,
 ;; setting CR6 to indicate a combined status

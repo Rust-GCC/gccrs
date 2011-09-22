@@ -2062,7 +2062,7 @@ static ds_t new_ready (rtx, ds_t);
 static int schedule_more_p (void);
 static const char *rgn_print_insn (const_rtx, int);
 static int rgn_rank (rtx, rtx);
-static void compute_jump_reg_dependencies (rtx, regset, regset, regset);
+static void compute_jump_reg_dependencies (rtx, regset);
 
 /* Functions for speculative scheduling.  */
 static void rgn_add_remove_insn (rtx, int);
@@ -2295,16 +2295,12 @@ contributes_to_priority (rtx next, rtx insn)
   return BLOCK_TO_BB (BLOCK_NUM (next)) == BLOCK_TO_BB (BLOCK_NUM (insn));
 }
 
-/* INSN is a JUMP_INSN, COND_SET is the set of registers that are
-   conditionally set before INSN.  Store the set of registers that
-   must be considered as used by this jump in USED and that of
-   registers that must be considered as set in SET.  */
+/* INSN is a JUMP_INSN.  Store the set of registers that must be
+   considered as used by this jump in USED.  */
 
 static void
 compute_jump_reg_dependencies (rtx insn ATTRIBUTE_UNUSED,
-			       regset cond_exec ATTRIBUTE_UNUSED,
-			       regset used ATTRIBUTE_UNUSED,
-			       regset set ATTRIBUTE_UNUSED)
+			       regset used ATTRIBUTE_UNUSED)
 {
   /* Nothing to do here, since we postprocess jumps in
      add_branch_dependences.  */
@@ -2371,6 +2367,7 @@ static const struct haifa_sched_info rgn_const_sched_info =
   begin_schedule_ready,
   NULL,
   advance_target_bb,
+  NULL, NULL,
   SCHED_RGN
 };
 
@@ -3396,7 +3393,8 @@ rgn_add_block (basic_block bb, basic_block after)
       /* Now POS is the index of the last block in the region.  */
 
       /* Find index of basic block AFTER.  */
-      for (; rgn_bb_table[pos] != after->index; pos--);
+      for (; rgn_bb_table[pos] != after->index; pos--)
+	;
 
       pos++;
       gcc_assert (pos > ebb_head[i - 1]);
@@ -3443,12 +3441,14 @@ rgn_fix_recovery_cfg (int bbi, int check_bbi, int check_bb_nexti)
 
   for (old_pos = ebb_head[BLOCK_TO_BB (check_bbi) + 1] - 1;
        rgn_bb_table[old_pos] != check_bb_nexti;
-       old_pos--);
+       old_pos--)
+    ;
   gcc_assert (old_pos > ebb_head[BLOCK_TO_BB (check_bbi)]);
 
   for (new_pos = ebb_head[BLOCK_TO_BB (bbi) + 1] - 1;
        rgn_bb_table[new_pos] != bbi;
-       new_pos--);
+       new_pos--)
+    ;
   new_pos++;
   gcc_assert (new_pos > ebb_head[BLOCK_TO_BB (bbi)]);
 
@@ -3508,7 +3508,7 @@ gate_handle_sched2 (void)
 {
 #ifdef INSN_SCHEDULING
   return optimize > 0 && flag_schedule_insns_after_reload
-    && dbg_cnt (sched2_func);
+    && !targetm.delay_sched2 && dbg_cnt (sched2_func);
 #else
   return 0;
 #endif
@@ -3551,7 +3551,6 @@ struct rtl_opt_pass pass_sched =
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
   TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_dump_func |
   TODO_verify_flow |
   TODO_ggc_collect                      /* todo_flags_finish */
  }
@@ -3573,7 +3572,6 @@ struct rtl_opt_pass pass_sched2 =
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
   TODO_df_finish | TODO_verify_rtl_sharing |
-  TODO_dump_func |
   TODO_verify_flow |
   TODO_ggc_collect                      /* todo_flags_finish */
  }

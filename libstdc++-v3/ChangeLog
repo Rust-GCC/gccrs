@@ -1,3 +1,2907 @@
+2011-09-21  Benjamin Kosnik  <bkoz@redhat.com
+
+	* doc/Makefile.am (stamp-epub-docbook): Fix image directory location.
+	* doc/Makefile.in: Regenerate.
+
+2011-09-21  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* src/limits.cc: Replace everywhere __int128_t -> __int128, and
+	__uint128_t -> unsigned __int128.
+	* include/std/type_traits: Likewise.
+	* include/std/limits: Likewise.
+	* testsuite/18_support/numeric_limits/dr559.cc: Likewise.
+	* testsuite/18_support/numeric_limits/lowest.cc: Likewise.
+	* testsuite/18_support/numeric_limits/40856.cc: Likewise.
+	* testsuite/18_support/numeric_limits/max_digits10.cc: Likewise.
+	* testsuite/util/testsuite_common_types.h: Likewise.
+	* testsuite/20_util/make_signed/requirements/typedefs-1.cc: Likewise.
+	* testsuite/20_util/make_signed/requirements/typedefs-2.cc: Likewise.
+	* testsuite/20_util/is_floating_point/value.cc: Likewise.
+	* testsuite/20_util/make_unsigned/requirements/typedefs-1.cc: Likewise.
+	* testsuite/20_util/make_unsigned/requirements/typedefs-2.cc: Likewise.
+	* testsuite/20_util/is_signed/value.cc: Likewise.
+	* testsuite/20_util/is_unsigned/value.cc: Likewise.
+	* testsuite/20_util/is_integral/value.cc: Likewise.
+	* config/abi/pre/gnu.ver: Likewise.
+	* acinclude.m4: Likewise.
+	* configure: Regenerate.
+	* config.h.in: Likewise.
+
+2011-09-19  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/40856
+	* include/std/limits (numeric_limits<__int128_t>,
+	numeric_limits<__uint128_t>): Add.
+	* src/limits.cc:Define.
+	* config/abi/pre/gnu.ver: Export.
+	* include/ext/typelist.h (_GLIBCXX_TYPELIST_CHAIN16, 20): Add.
+	* testsuite/util/testsuite_common_types.h (integral_types_gnu): Add
+	(limits_tl): Use it.
+	* testsuite/18_support/numeric_limits/requirements/
+	constexpr_functions.cc: Likewise.
+	* testsuite/18_support/numeric_limits/40856.cc: New.
+	* testsuite/18_support/numeric_limits/dr559.cc: Extend.
+	* testsuite/18_support/numeric_limits/lowest.cc: Likewise.
+	* testsuite/18_support/numeric_limits/max_digits10.cc: Likewise.
+	* testsuite/29_atomics/atomic/cons/assign_neg.cc: Adjust dg-error
+	line numbers.
+	* testsuite/29_atomics/atomic/cons/copy_neg.cc: Likewise.
+	* testsuite/29_atomics/atomic_integral/cons/assign_neg.cc: Likewise.
+	* testsuite/29_atomics/atomic_integral/cons/copy_neg.cc: Likewise.
+	* testsuite/29_atomics/atomic_integral/operators/bitwise_neg.cc:
+	Likewise.
+	* testsuite/29_atomics/atomic_integral/operators/decrement_neg.cc:
+	Likewise.
+	* testsuite/29_atomics/atomic_integral/operators/increment_neg.cc:
+	Likewise.
+
+2011-09-17  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/50441
+	* acinclude.m4 ([GLIBCXX_ENABLE_INT128_FLOAT128]): Add.
+	* configure.ac: Call it.
+	* include/std/type_traits (__is_integral_helper<__int128_t>,
+	__is_integral_helper<__uint128_t>,
+	__is_floating_point_helper<__float128>,
+	__make_unsigned<__int128_t>, __make_signed<__uint128_t>): Add.
+	* testsuite/20_util/make_signed/requirements/typedefs-1.cc: Extend.
+	* testsuite/20_util/make_signed/requirements/typedefs-2.cc: Likewise.
+	* testsuite/20_util/make_unsigned/requirements/typedefs-1.cc: Likewise.
+	* testsuite/20_util/make_unsigned/requirements/typedefs-2.cc: Likewise.
+	* testsuite/20_util/is_signed/value.cc: Likewise.
+	* testsuite/20_util/is_unsigned/value.cc: Likewise.
+	* testsuite/20_util/is_integral/value.cc: Likewise.
+	* testsuite/20_util/is_floating_point/value.cc: New.
+	* testsuite/20_util/is_floating_point/requirements/typedefs.cc:
+	Likewise.
+	* testsuite/20_util/is_floating_point/requirements/
+	explicit_instantiation.cc: Likewise.
+	* testsuite/20_util/make_signed/requirements/typedefs_neg.cc: Adjust
+	dg-error line numbers.
+	* testsuite/20_util/make_unsigned/requirements/typedefs_neg.cc:
+	Likewise.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Likewise.
+	* configure: Regenerate.
+	* config.h.in: Likewise.
+
+2011-09-17  François Dumont  <fdumont@gcc.gnu.org>
+
+	* include/bits/hashtable.h (_Hashtable<>::__rehash_policy(const
+	_RehashPolicy&)): Commit the modification of the policy only if no
+	exception occured.
+	* testsuite/23_containers/unordered_set/max_load_factor/robustness.cc:
+	New.
+
+2011-09-16  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/23_containers/array/comparison_operators/
+	less_or_equal.cc: New.
+	* testsuite/23_containers/array/comparison_operators/
+	greater_or_equal.cc: Likewise.
+	* testsuite/23_containers/array/comparison_operators/less.cc: Likewise.
+	* testsuite/23_containers/array/comparison_operators/equal.cc: Likewise.
+	* testsuite/23_containers/array/comparison_operators/not_equal.cc:
+	Likewise.
+	* testsuite/23_containers/array/comparison_operators/greater.cc:
+	Likewise.
+	* testsuite/23_containers/array/iterators/end_is_one_past.cc: Likewise.
+	* testsuite/23_containers/array/capacity/empty.cc: Likewise.
+	* testsuite/23_containers/array/capacity/max_size.cc: Likewise.
+	* testsuite/23_containers/array/capacity/size.cc: Likewise.
+	* testsuite/23_containers/array/tuple_interface/tuple_element.cc:
+	Likewise.
+	* testsuite/23_containers/array/tuple_interface/tuple_size.cc:
+	Likewise.
+	* testsuite/23_containers/array/element_access/at_out_of_range.cc:
+	Likewise.
+	* testsuite/23_containers/array/element_access/back.cc: Likewise.
+	* testsuite/23_containers/array/element_access/front.cc: Likewise.
+	* testsuite/23_containers/array/element_access/data.cc: Likewise.
+	* testsuite/23_containers/array/cons/aggregate_initialization.cc:
+	Likewise.
+	* testsuite/23_containers/array/requirements/zero_sized_arrays.cc:
+	Likewise.
+	* testsuite/23_containers/array/requirements/contiguous.cc: Likewise.
+	* testsuite/23_containers/array/requirements/member_swap.cc: Likewise.
+	* testsuite/23_containers/array/specialized_algorithms/swap.cc:
+	Likewise.
+	* testsuite/23_containers/array/constexpr_get.cc: Move...
+	* testsuite/23_containers/array/tuple_interface/constexpr_get.cc:
+	... here.
+	* testsuite/23_containers/array/requirements/get.cc: Move...
+	* testsuite/23_containers/array/tuple_interface/get: ... here.
+	* testsuite/23_containers/array/at_neg.cc: Move...
+	* testsuite/23_containers/array/element_access: ... here.
+	* testsuite/23_containers/array/requirements/constexpr_functions.cc:
+	Move...
+	* testsuite/23_containers/array/capacity: ... here.
+	* testsuite/23_containers/array/requirements/
+	constexpr_element_access.cc: Move...
+	* testsuite/23_containers/array/element_access: ... here.
+
+	* testsuite/20_util/duration/cons/1_neg.cc: Avoid -Wall warnings.
+	* testsuite/20_util/tuple/creation_functions/constexpr.cc: Likewise.
+	* testsuite/20_util/pair/make_pair/constexpr.cc: Likewise.
+	* testsuite/20_util/time_point/nonmember/constexpr.cc: Likewise.
+	* testsuite/23_containers/bitset/operations/constexpr.cc: Likewise.
+
+	* testsuite/20_util/duration/cons/1_neg.cc: Discard bogus warning.
+	* testsuite/20_util/forward/1_neg.cc: Likewise.
+
+2011-09-15  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/tuple (make_tuple, forward_as_tuple): Declare constexpr.
+	(_Tuple_impl<>::_Tuple_impl(_Tuple_impl<>&&)): Likewise.
+	* testsuite/20_util/tuple/creation_functions/constexpr.cc: Enable
+	make_tuple test.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-warning
+	line number.
+
+2011-09-14  François Dumont  <fdumont@gcc.gnu.org>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/hashtable.h (_Hashtable<>::_M_rehash): Take and restore
+	hash policy _M_prev_resize on exception.
+	(_Hashtable<>::_M_insert_bucket): Capture hash policy next resize
+	before using it and use latter method to have it restored on exception.
+	(_Hashtable<>::_M_insert(_Arg&& __v, std::false_type): Likewise.
+	(_Hashtable<>::insert(_InputIterator, _InputIterator): Likewise.
+	(_Hashtable<>::rehash): Likewise.
+	* testsuite/23_containers/unordered_set/insert/hash_policy.cc: New.
+	* testsuite/23_containers/unordered_multiset/insert/hash_policy.cc:
+	Likewise.
+
+2011-09-13  Paul Brook  <paul@codesourcery.com>
+
+	* libsupc++/eh_arm.cc (__cxa_end_cleanup): Add C6X implementation.
+	* libsupc++/eh_call.cc (__cxa_call_unexpected): Set rtti_base.
+	* libsupc++/eh_personality.cc (NO_SIZE_OF_ENCODED_VALUE): Remove
+	__ARM_EABI_UNWINDER__ check.
+	(parse_lsda_header): Check _GLIBCXX_OVERRIDE_TTYPE_ENCODING.
+	(get_ttype_entry): Use generic implementation on ARM EABI.
+	(check_exception_spec): Use _Unwind_decode_typeinfo_ptr and
+	UNWIND_STACK_REG.
+	(PERSONALITY_FUNCTION): Set ttype_base.
+
+2011-09-12  Daniel Krugler  <daniel.kruegler@googlemail.com>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/tuple (_Head_base<>::_M_head, _Head_base<>::_M_tail,
+	_Tuple_impl<>::_M_head, _Tuple_impl<>::_M_tail): Change to static
+	constexpr functions; adjust everywhere.
+	(__get_helper, get): Declare constexpr all three overloads.
+	(tuple_cat): Declare constexpr; use late return type to improve
+	error messages.
+	* include/std/utility (__pair_get<>::__get, __pair_get<>::__move_get,
+	__pair_get<>::__const_get, get): Declare all constexpr.
+	* include/std/array (get): Likewise.
+	* testsuite/20_util/tuple/creation_functions/constexpr.cc: Re-enable
+	tuple_cat test.
+	* testsuite/23_containers/array/constexpr_get.cc: New.
+	* testsuite/20_util/tuple/element_access/constexpr_get.cc: Likewise.
+	* testsuite/20_util/pair/constexpr_get.cc: Likewise.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-error
+	line number.
+
+2011-09-12  Jason Merrill  <jason@redhat.com>
+
+	* testsuite/20_util/is_constructible/value-2.cc: Adjust
+	expected values.
+
+2011-09-11  Daniel Krugler  <daniel.kruegler@googlemail.com>
+
+	PR libstdc++/50159
+	* include/std/tuple (tuple_cat): Reimplement according to the
+	resolution of LWG 1385.
+	* include/std/type_traits: Define __and_ and __or_ for zero
+	arguments too; minor tweaks.
+	* testsuite/20_util/tuple/creation_functions/tuple_cat.cc: New.
+	* testsuite/20_util/tuple/creation_functions/constexpr.cc: Disable
+	for now tuple_cat test.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Adjust dg-error
+	line numbers.
+	* testsuite/20_util/make_signed/requirements/typedefs_neg.cc: Likewise.
+	* testsuite/20_util/make_unsigned/requirements/typedefs_neg.cc:
+	Likewise.
+	* doc/xml/manual/status_cxx200x.xml: Update.
+
+2011-09-09  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/tuple: Use everywhere std::size_t... instead of int...
+	* include/std/functional: Likewise.
+	* include/std/scoped_allocator: Likewise.
+	* include/bits/stl_pair.h: Likewise.
+
+2011-09-09  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/50336
+	* include/bits/streambuf_iterator.h (class istreambuf_iterator):
+	Implement LWG 445 in C++0x mode.
+	* testsuite/24_iterators/istreambuf_iterator/requirements/dr445.cc:
+	New.
+
+2011-09-08  Dodji Seketeli  <dodji@redhat.com>
+
+	PR c++/33255 - Support -Wunused-local-typedefs warning
+	* include/ext/bitmap_allocator.h
+    	(__detail::__mini_vector::__lower_bound): Remove unused typedef.
+	* src/istream.cc (std::operator>>(basic_istream<char>& __in,
+    	basic_string<char>& __str)): Likewise.
+    	(std::getline): Likewise.
+	* src/valarray.cc (__valarray_product): Likewise.
+
+2011-09-07  François Dumont  <francois.cppdevs@free.fr>
+
+	* testsuite/23_containers/array/at.cc: Revert to...
+	* testsuite/23_containers/array/at_neg.cc: ...this.
+
+2011-09-07  Jason Merrill  <jason@redhat.com>
+
+	* testsuite/20_util/bind/ref_neg.cc: Adjust errors.
+	* testsuite/20_util/duration/cons/1_neg.cc: Adjust errors.
+
+2011-09-06  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/std/tuple (_Tuple_impl::_M_head, _M_tail): Mark constexpr.
+	(tuple(tuple&&)): Same.
+	(tuple(const tuple<_UElements...>& __in)): Same.
+	(tuple(tuple<_UElements...>&& __in)): Same.
+	(tuple_cat(const tuple<_TElements...>&, const tuple<_UElements...>&)):
+	Same.
+	(get): Same.
+	* include/std/array: Consolidate array::data usage.
+	* testsuite/23_containers/array/requirements/constexpr_functions.cc:
+	Remove extra include.
+	* testsuite/20_util/tuple/creation_functions/constexpr.cc: New.
+	* testsuite/20_util/tuple/cons/constexpr-2.cc: Add tests.
+	* testsuite/20_util/tuple/cons/constexpr-3.cc: Same.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust line numbers.
+
+2011-09-06  François Dumont  <fdumont@gcc.gnu.org>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/hashtable_policy.h (_Prime_rehash_policy::
+	_M_next_bkt): Cast _M_max_load_factor to long double.
+	(_Prime_rehash_policy::_M_bkt_for_elements): Use _M_next_bkt.
+	(_Prime_rehash_policy::_M_need_rehash): Likewise; cast all
+	float quantities to long double.
+
+2011-09-06  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/50257
+	* include/bits/hashtable_policy.h (_Prime_rehash_policy::
+   	_M_next_bkt): Optimize for small argument.
+
+2011-09-02  François Dumont  <fdumont@gcc.gnu.org>
+
+	* testsuite/util/testsuite_allocator.h (tracker_allocator_counter::
+	allocate): Update allocation count only if allocation succeeded.
+
+2011-09-02  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/bitset: Trivial formatting fixes.
+
+2011-09-02  Paolo Carlini  <paolo.carlini@oracle.com>
+	    Marc Glisse  <marc.glisse@normalesup.org>
+
+	* include/std/bitset (_Base_bitset<>::_M_are_all_aux): Remove.
+	(_Base_bitset<>::_M_are_all): Add.
+	(bitset<>::all): Use the latter, improve implementation.
+
+2011-09-02  Paolo Carlini  <paolo.carlini@oracle.com>
+	    Marc Glisse  <marc.glisse@normalesup.org>
+
+	PR libstdc++/50268
+	* include/std/bitset (struct _Sanitize_val): Add.
+	(bitset<>::bitset(unsigned long long)): Fix.
+	* testsuite/23_containers/bitset/cons/50268.cc: New.
+
+2011-09-01  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/hashtable.h (_Hashtable<>::_Hashtable(_Hashtable&&)):
+	Remove noexcept, the move constructor allocates memory; rearrange
+	the code in the body to consistently update __ht._M_rehash_policy
+	before using _M_next_bkt on it.
+	* include/debug/unordered_map: Adjust.
+	* include/debug/unordered_set: Likewise.
+	* include/profile/unordered_map: Likewise.
+	* include/profile/unordered_set: Likewise.
+	* testsuite/23_containers/unordered_map/cons/
+	noexcept_move_construct.cc: Remove.
+	* testsuite/23_containers/unordered_set/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/unordered_multimap/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/unordered_multiset/cons/
+	noexcept_move_construct.cc: Likewise.
+
+2011-08-31  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/chrono (operator*(const _Rep1&, const duration<>&)):
+	Fix order of template parameters per LWG 2004.
+
+2011-08-30  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/stl_iterator.h (make_move_iterator): Implement DR2061.
+	* testsuite/24_iterators/move_iterator/dr2061.cc: New.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-warning
+	line numbers.
+
+2011-08-30  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* config/os/mingw32/error_constants.h: Fix commas.
+
+2011-08-29  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* testsuite/20_util/duration/arithmetic/constexpr.cc: Add.
+
+2011-08-29  Kai Tietz  <ktietz@redhat.com>
+
+	* configure: Regenerated.
+	* config.h.in: Regenerated.
+	* acinclude.m4 (GLIBCXX_CHECK_SYSTEM_ERROR)  Add
+	checks for ECHILD, ENOSPC, EPERM, ETIMEDOUT, and
+	EWOULDBLOCK.
+	* config/os/mingw32/error_constants.h (errc): Add
+	enumerator values no_child_process, no_space_on_device,
+	not_supported, operation_not_permitted, operation_would_block,
+	timed_out, and value_too_large,
+
+2011-08-29  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/50118
+	* include/bits/stl_list.h (_List_base<>::
+	_List_base(const allocator_type&)): Remove.
+	(_List_base<>::_List_base(const _Node_alloc_type&)): Add.
+	(list<>:list(const allocator_type&), list(size_type, const
+	value_type&, const allocator_type&),
+	list(initializer_list<, const allocator_type&),
+	list(_InputIterator, _InputIterator, const allocator_type&),
+	insert(iterator, size_type, const value_type&),
+	insert(iterator, _InputIterator, _InputIterator)): Adjust.
+	* include/bits/stl_tree.h (_Rb_tree<>::_Rb_tree(const _Compare&,
+	const allocator_type&)): Fix.
+	* include/bits/stl_map.h (map<>::map(const _Compare&,
+ 	const allocator_type&), map(initializer_list<>,
+	const _Compare&, const allocator_type&), map(_InputIterator,
+	_InputIterator, const _Compare&, const allocator_type&),
+	get_allocator): Adjust.
+	* include/bits/stl_set.h (set<>::set(const _Compare&,
+ 	const allocator_type&), set(initializer_list<>,
+	const _Compare&, const allocator_type&), set(_InputIterator,
+	_InputIterator, const _Compare&, const allocator_type&),
+	get_allocator): Likewise.
+	* include/bits/stl_multimap.h (multimap<>::multimap(const _Compare&,
+ 	const allocator_type&), multimap(initializer_list<>,
+	const _Compare&, const allocator_type&), multimap(_InputIterator,
+	_InputIterator, const _Compare&, const allocator_type&),
+	get_allocator): Likewise.
+	* include/bits/stl_multiset.h (multiset<>::multiset(const _Compare&,
+ 	const allocator_type&), multiset(initializer_list<>,
+	const _Compare&, const allocator_type&), multiset(_InputIterator,
+	_InputIterator, const _Compare&, const allocator_type&),
+	get_allocator): Likewise.
+	* include/bits/forward_list.h (_Fwd_list_base<>::
+	_Fwd_list_base(const _Alloc&), _Fwd_list_base(const _Fwd_list_base&,
+	const _Alloc&), _Fwd_list_base(_Fwd_list_base&&, const _Alloc&)):
+	Remove.
+	(_Fwd_list_base<>::_Fwd_list_base(const _Node_alloc_type&),
+	_Fwd_list_base(const _Fwd_list_base&,
+	const _Node_alloc_type&), _Fwd_list_base(_Fwd_list_base&&,
+	const _Node_alloc_type&)): Add.
+	(forward_list<>::forward_list(const _Alloc&),
+	forward_list(const forward_list&, const _Alloc&),
+	forward_list(forward_list&&, const _Alloc&),
+	forward_list(size_type, const _Tp&, const _Alloc&),
+	forward_list(_InputIterator, _InputIterator, const _Alloc&),
+	forward_list(std::initializer_list<>, const _Alloc&),
+	get_allocator): Adjust.
+	* include/bits/forward_list.tcc: Adjust.
+	* testsuite/util/testsuite_allocator.h (ExplicitConsAlloc): Add.
+	* testsuite/23_containers/unordered_map/requirements/
+	explicit_instantiation/5.cc: New.
+	* testsuite/23_containers/multimap/requirements/
+	explicit_instantiation/5.cc: Likewise.
+	* testsuite/23_containers/multimap/requirements/
+	explicit_instantiation/5_c++0x.cc: Likewise.
+	* testsuite/23_containers/set/requirements/explicit_instantiation/
+	5.cc: Likewise.
+	* testsuite/23_containers/set/requirements/explicit_instantiation/
+	5_c++0x.cc: Likewise.
+	* testsuite/23_containers/unordered_multimap/requirements/
+	explicit_instantiation/5.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/
+	explicit_instantiation/5.cc: Likewise.
+	* testsuite/23_containers/unordered_set/requirements/
+	explicit_instantiation/5.cc: Likewise.
+	testsuite/23_containers/multiset/requirements/explicit_instantiation/
+	5.cc: Likewise.
+	* testsuite/23_containers/multiset/requirements/
+	explicit_instantiation/5_c++0x.cc: Likewise.
+	* testsuite/23_containers/list/requirements/explicit_instantiation/
+	5_c++0x.cc: Likewise.
+	* testsuite/23_containers/list/requirements/explicit_instantiation/
+	5.cc: Likewise.
+	* testsuite/23_containers/unordered_multiset/requirements/
+	explicit_instantiation/5.cc: Likewise.
+	* testsuite/23_containers/map/requirements/explicit_instantiation/
+	5.cc: Likewise.
+	* testsuite/23_containers/map/requirements/explicit_instantiation/
+	5_c++0x.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	assign_neg.cc: Adjust dg-error line number.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/assign_neg.cc:
+	Likewise.
+	* testsuite/23_containers/list/requirements/dr438/insert_neg.cc:
+	Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+
+2011-08-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* acinclude.m4 (GLIBCXX_CHECK_MATH_PROTO)
+	(GLIBCXX_CHECK_STDLIB_PROTO): New tests.
+	* configure.ac (GLIBCXX_CHECK_MATH_PROTO)
+	(GLIBCXX_CHECK_STDLIB_PROTO): Call them.
+	* configure: Regenerate.
+	* config.h.in: Regenerate.
+	* config/os/solaris/solaris2.8/os_defines.h
+	(__CORRECT_ISO_CPP_MATH_H_PROTO2): Don't define.
+	* config/os/solaris/solaris2.9: Remove.
+	* configure.host (solaris2.8): Merge with ...
+	(solaris2.9, solaris2.1[0-9]): ... this.
+	Always use os/solaris/solaris2.8.
+
+2011-08-28  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/move.h (swap(_Tp(&)[_Nm], _Tp(&)[_Nm])): Remove
+	workaround for c++/49045.
+	* include/bits/algorithmfwd.h: Likewise.
+
+2011-08-25  Tom Tromey  <tromey@redhat.com>
+
+	* testsuite/libstdc++-prettyprinters/simple.cc: New file.
+	* testsuite/lib/gdb-test.exp: New file.
+	* testsuite/libstdc++-prettyprinters/prettyprinters.exp: New
+	file.
+
+2011-08-18  Marc Glisse  <marc.glisse@normalesup.org>
+
+	* include/tr1/cmath: Extend/update comment.
+
+2011-08-18  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/50119
+	* include/bits/stl_algo.h (__copy_n(_InputIterator, _Size,
+	_OutputIterator, input_iterator_tag)): Fix.
+	* testsuite/25_algorithms/copy_n/50119.cc: New.
+
+2011-08-18  Marc Glisse  <marc.glisse@normalesup.org>
+	    Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libstdc++/1773
+	* config/os/solaris2.7: Rename to config/os/solaris2.9.
+	* config/os/solaris/solaris2.9/os_defines.h
+	(__CORRECT_ISO_CPP_MATH_H_PROTO1)
+	(__CORRECT_ISO_CPP_STDLIB_H_PROTO)
+	(__CORRECT_ISO_CPP_STRING_H_PROTO)
+	(__CORRECT_ISO_CPP_WCHAR_H_PROTO): Define.
+	* config/os/solaris2.8/ctype_base.h,
+	config/os/solaris2.8/ctype_configure_char.cc,
+	config/solaris2.8/ctype_inline.h,
+	config/os/solaris2.8/os_defines.h: New files.
+
+	* configure.host (solaris2.[89], solaris2.1[0-9]):
+	Split into ...
+	(solaris2.8): ... this.
+	Use os/solaris/solaris2.8.
+	(solaris2.9, solaris2.1[0-9]): ... and this.
+	Use os/solaris/solaris2.9.
+
+	* include/c_global/cmath (double abs(double)): Wrap in
+	!__CORRECT_ISO_CPP_MATH_H_PROTO1 &&
+	!__CORRECT_ISO_CPP_MATH_H_PROTO2.
+	(float abs(float), long double abs(long double): Wrap in
+	!__CORRECT_ISO_CPP_MATH_H_PROTO1.
+	(float acos(float), long double acos(long double)): Likewise.
+	(float asin(float), long double asin(long double)): Likewise.
+	(float atan(float), long double atan(long double)): Likewise.
+	(float atan2(float, float), long double atan2(long double, long
+	double)): Likewise.
+	(float ceil(float), long double ceil(long double)): Likewise.
+	(float cos(float), long double cos(long double)): Likewise.
+	(float cosh(float), long double cosh(long double)): Likewise.
+	(float exp(float), long double exp(long double)): Likewise.
+	(float fabs(float), long double fabs(long double)): Likewise.
+	(float floor(float), long double floor(long double)): Likewise.
+	(float fmod(float, float), long double fmod(long double, long
+	double)): Likewise.
+	(float frexp(float, int*), long double frexp(long double, int*)):
+	Likewise.
+	(float ldexp(float, int), long double ldexp(long double, int)):
+	Likewise.
+	(float log(float), long double log(long double)): Likewise.
+	(float log10(float), long double log10(long double)): Likewise.
+	(float modf(float, float*), long double modf(long double, long
+	double*))): Likewise.
+	(float pow(float, float), long double pow(long double, long
+	double)): Likewise.
+	(float sin(float), long double sin(long double)): Likewise.
+	(float sinh(float), long double sinh(long double)): Likewise.
+	(float sqrt(float), long double sqrt(long double)): Likewise.
+	(float tan(float), long double tan(long double)): Likewise.
+	(float tanh(float), long double tanh(long double)): Likewise.
+	* include/c_global/cstdlib (long abs(long), ldiv_t div(long,
+	long)): Wrap in !__CORRECT_ISO_CPP_STDLIB_H_PROTO.
+	* include/tr1/cmath (float fabs(float), long double fabs(long
+	double)): Wrap in !__CORRECT_ISO_CPP_MATH_H_PROTO1.
+
+2011-08-14  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/xml/images/*: Image and image filename changes.
+
+2011-08-14  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* testsuite/data/make_graph_test_infos.xml: Edit.
+	* testsuite/data/make_graph_htmls.xml: Remove
+	* scripts/make_graph.py: Edit, fix.
+	* scripts/make_graphs.py: Remove.
+
+	* doc/Makefile.am (doc-svg-performance): New.
+	(doc-html-performance): Remove.
+	* doc/Makefile.in: Regenerate.
+
+	* doc/xml/manual/test_policy_data_structures.xml: Markup changes.
+	* doc/xml/manual/policy_data_structures.xml: Same.
+	* doc/xml/manual/locale.xml: Same.
+
+	Testsuite renames.
+	* performance/ext/pb_ds/priority_queue_text_modify_down_timing.cc:
+	Rename.
+	* performance/ext/pb_ds/random_int_find_timing.cc: Same.
+	* performance/ext/pb_ds/multimap_text_insert_mem_usage.hpp
+	* performance/ext/pb_ds/multimap_text_find_timing.hpp
+	* performance/ext/pb_ds/priority_queue_random_int_push_timing.cc: Same.
+	* performance/ext/pb_ds/priority_queue_text_modify_timing.hpp
+	* performance/ext/pb_ds/tree_order_statistics_timing.cc: Same.
+	* performance/ext/pb_ds/multimap_text_insert_mem_usage_large.cc: Same.
+	* performance/ext/pb_ds/priority_queue_text_push_pop_timing.cc: Same.
+	* performance/ext/pb_ds/priority_queue_text_join_timing.cc: Same.
+	* performance/ext/pb_ds/multimap_text_insert_timing_small.cc: Same.
+	* performance/ext/pb_ds/random_int_subscript_insert_timing.cc: Same.
+	* performance/ext/pb_ds/tree_text_lor_find_timing.cc: Same.
+	* performance/ext/pb_ds/priority_queue_text_pop_mem_usage.cc: Same.
+	* performance/ext/pb_ds/multimap_text_find_timing_small.cc: Same.
+	* performance/ext/pb_ds/text_find_timing.cc: Same.
+	* performance/ext/pb_ds/tree_text_insert_timing.cc: Same.
+	* performance/ext/pb_ds/hash_random_int_erase_mem_usage.cc: Same.
+	* performance/ext/pb_ds/random_int_subscript_find_timing.cc: Same.
+	* performance/ext/pb_ds/priority_queue_text_push_timing.cc: Same.
+	* performance/ext/pb_ds/tree_split_join_timing.cc: Same.
+	* performance/ext/pb_ds/multimap_text_insert_timing_large.cc: Same.
+	* performance/ext/pb_ds/priority_queue_text_modify_up_timing.cc: Same.
+	* performance/ext/pb_ds/multimap_text_find_timing_large.cc: Same.
+	* performance/ext/pb_ds/priority_queue_random_int_push_pop_timing.cc:
+	Same.
+	* performance/ext/pb_ds/multimap_text_insert_timing.hpp
+	* performance/ext/pb_ds/multimap_text_insert_mem_usage_small.cc: Same.
+	* performance/ext/pb_ds/hash_zlob_random_int_find_timing.cc: Same.
+
+	* performance/ext/pb_ds/all_int_find.cc: To these new files...
+	* performance/ext/pb_ds/all_int_subscript_find.cc: ...this.
+	* performance/ext/pb_ds/all_int_subscript_insert.cc: ...this.
+	* performance/ext/pb_ds/all_text_find.cc: ...this.
+	* performance/ext/pb_ds/hash_int_erase_mem.cc: ...this.
+	* performance/ext/pb_ds/hash_zlob_int_find.cc: ...this.
+	* performance/ext/pb_ds/multimap_text_find.hpp
+	* performance/ext/pb_ds/multimap_text_find_large.cc: ...this.
+	* performance/ext/pb_ds/multimap_text_find_small.cc: ...this.
+	* performance/ext/pb_ds/multimap_text_insert.hpp
+	* performance/ext/pb_ds/multimap_text_insert_large.cc: ...this.
+	* performance/ext/pb_ds/multimap_text_insert_mem.hpp
+	* performance/ext/pb_ds/multimap_text_insert_mem_large.cc: ...this.
+	* performance/ext/pb_ds/multimap_text_insert_mem_small.cc: ...this.
+	* performance/ext/pb_ds/multimap_text_insert_small.cc: ...this.
+	* performance/ext/pb_ds/priority_queue_int_push.cc: ...this.
+	* performance/ext/pb_ds/priority_queue_int_push_pop.cc: ...this.
+	* performance/ext/pb_ds/priority_queue_text_join.cc: ...this.
+	* performance/ext/pb_ds/priority_queue_text_modify_down.cc: ...this.
+	* performance/ext/pb_ds/priority_queue_text_modify.hpp
+	* performance/ext/pb_ds/priority_queue_text_modify_up.cc: ...this.
+	* performance/ext/pb_ds/priority_queue_text_pop_mem.cc: ...this.
+	* performance/ext/pb_ds/priority_queue_text_push.cc: ...this.
+	* performance/ext/pb_ds/priority_queue_text_push_pop.cc: ...this.
+	* performance/ext/pb_ds/tree_order_statistics.cc: ...this.
+	* performance/ext/pb_ds/tree_split_join.cc: ...this.
+	* performance/ext/pb_ds/tree_text_insert.cc: ...this.
+	* performance/ext/pb_ds/tree_text_lor_find.cc: ...this.
+
+	* doc/xml/images/*: Image and image filename changes.
+
+2011-08-12  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/c_global/cmath (fmod(_Tp, _Up)): Add.
+	* include/c_std/cmath: Likewise.
+
+2011-08-11  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/future: constexpr functions are implicitly inline.
+	* include/std/chrono: Likewise.
+	* include/std/complex: Likewise.
+	* include/bits/move.h: Likewise.
+	* include/bits/stl_pair.h: Likewise.
+
+2011-08-07  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/alloc_traits.h: Fix doxygen @headername.
+
+2011-08-06  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/doxygen/user.cfg.in (PDF_HYPERLINKS): To NO.
+
+2011-08-06  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/doxygen/user.cfg.in: Add scoped_allocator.
+
+	* include/debug/safe_sequence.h: Fix doxygen markup.
+	* include/debug/safe_unordered_base.h: Same.
+	* include/debug/safe_local_iterator.tcc: Same.
+	* include/debug/safe_unordered_container.h: Same.
+	* include/std/valarray: Same.
+	* include/std/iomanip: Same.
+	* include/std/streambuf: Same.
+	* include/std/bitset: Same.
+	* include/std/fstream: Same.
+	* include/std/functional: Same.
+	* include/std/istream: Same.
+	* include/std/ostream: Same.
+	* include/std/scoped_allocator: Same.
+	* include/std/sstream: Same.
+	* include/parallel/multiway_merge.h: Same.
+	* include/parallel/base.h: Same.
+	* include/parallel/for_each_selectors.h: Same.
+	* include/parallel/multiway_mergesort.h: Same.
+	* include/parallel/search.h: Same.
+	* include/parallel/partial_sum.h: Same.
+	* include/parallel/queue.h: Same.
+	* include/parallel/sort.h: Same.
+	* include/parallel/random_number.h: Same.
+	* include/ext/vstring.h: Same.
+	* include/ext/algorithm: Same.
+	* include/ext/pb_ds/assoc_container.h: Same.
+	* include/ext/bitmap_allocator.h: Same.
+	* include/ext/stdio_filebuf.h: Same.
+	* include/ext/memory: Same.
+	* include/ext/functional: Same.
+	* include/bits/basic_ios.h: Same.
+	* include/bits/stl_list.h: Same.
+	* include/bits/stl_map.h: Same.
+	* include/bits/stl_algobase.h: Same.
+	* include/bits/stl_queue.h: Same.
+	* include/bits/gslice.h: Same.
+	* include/bits/locale_classes.h: Same.
+	* include/bits/stl_set.h: Same.
+	* include/bits/locale_facets.h: Same.
+	* include/bits/stl_stack.h: Same.
+	* include/bits/stl_heap.h: Same.
+	* include/bits/forward_list.h: Same.
+	* include/bits/stream_iterator.h: Same.
+	* include/bits/basic_string.h: Same.
+	* include/bits/stl_multimap.h: Same.
+	* include/bits/stl_pair.h: Same.
+	* include/bits/ios_base.h: Same.
+	* include/bits/stl_numeric.h: Same.
+	* include/bits/stl_vector.h: Same.
+	* include/bits/stl_deque.h: Same.
+	* include/bits/codecvt.h: Same.
+	* include/bits/stl_multiset.h: Same.
+	* include/bits/stl_uninitialized.h: Same.
+	* include/bits/ptr_traits.h: Same.
+	* include/bits/slice_array.h: Same.
+	* include/bits/stl_iterator_base_funcs.h: Same.
+	* include/bits/stl_algo.h: Same.
+	* include/bits/stl_iterator.h: Same.
+	* include/bits/stl_tempbuf.h: Same.
+	* include/bits/regex.h: Same.
+	* include/bits/range_access.h: Same.
+	* include/bits/random.h: Same.
+	* include/bits/alloc_traits.h: Same.
+	* include/bits/regex_error.h: Same.
+	* include/bits/locale_facets_nonio.h: Same.
+	* include/bits/stl_relops.h: Same.
+	* include/backward/auto_ptr.h: Same.
+	* libsupc++/initializer_list: Same.
+
+	* testsuite/23_containers/list/requirements/dr438/assign_neg.cc:
+	Adjust line numbers.
+	* testsuite/23_containers/list/requirements/dr438/insert_neg.cc: Same.
+	* testsuite/23_containers/list/requirements/dr438/constructor_1_neg.cc:
+	Same.
+	* testsuite/23_containers/list/requirements/dr438/constructor_2_neg.cc:
+	Same.
+
+2011-08-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* acinclude.m4 (GLIBCXX_EXPORT_INCLUDES): Point TOPLEVEL_INCLUDES
+	to $(toplevel_srcdir)/libgcc.
+	* configure: Regenerate.
+
+2011-08-04  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/xml/manual/build_hacking.xml: Use relative fileref for PNG
+	imagedata.
+	* doc/xml/manual/test_policy_data_structures.xml: Same.
+	* doc/xml/manual/policy_data_structures.xml: Same.
+
+	* doc/Makefile.am (stamp-html-docbook-images)
+	(stamp-html-docbook-lwg, stamp-html-docbook-data): New.
+	(xml_extra): Add lwg html file dependencies.
+	(xml_images): Add image html file dependencies.
+	* doc/Makefile.in: Regenerate.
+	(stamp-html): Change to stamp-html-docbook-data.
+	(stamp-html-copy): Remove.
+
+2011-08-04  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* src/atomic.cc: Use noexcept.
+	* include/std/atomic: Likewise.
+	* include/bits/atomic_0.h: Likewise.
+	* include/bits/atomic_2.h: Likewise.
+	* include/bits/atomic_base.h: Likewise.
+
+2011-08-03  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* testsuite/performance/27_io/filebuf_sputn_unbuf.cc: Include
+	unistd.h for unlink.
+	* testsuite/performance/27_io/ofstream_insert_int.cc: Same.
+	* testsuite/performance/27_io/ifstream_extract_int.cc: Same.
+	* testsuite/performance/27_io/ifstream_getline-2.cc: Same.
+	* testsuite/performance/27_io/fstream_seek_write.cc: Same.
+	* testsuite/performance/27_io/ifstream_extract_chars.cc: Same.
+	* testsuite/performance/27_io/ofstream_insert_float.cc: Same.
+	* testsuite/performance/27_io/ifstream_extract_float.cc: Same.
+	* testsuite/performance/27_io/filebuf_sputc.cc: Same.
+
+2011-08-03  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/std/tuple: Mark more constructors constexpr.
+	* testsuite/20_util/tuple/cons/constexpr.cc: Split into and extend as:
+	* testsuite/20_util/tuple/cons/constexpr-2.cc: ...this.
+	* testsuite/20_util/tuple/cons/constexpr-3.cc: ... and this.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust line numbers.
+
+2011-08-03  Benjamin Kosnik  <bkoz@redhat.com>
+	    François Dumont  <francois.cppdevs@free.fr>
+
+	* testsuite/23_containers/array/at_neg.cc: Move...
+	* testsuite/23_containers/array/at.cc: ...here. Remove
+	-fno-exceptions, call const at member function.
+
+2011-08-01  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* config/abi/post/x86_64-linux-gnu/x32/baseline_symbols.txt: Generated.
+
+2011-08-01  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/49813
+	* include/c_global/cmath (isinf): Remove workaround.
+
+2011-07-31  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49925
+	* include/bits/shared_ptr.h (make_shared): Qualify allocate_shared
+	with std::.
+	* include/bits/shared_ptr_base.h (__make_shared): Likewise.
+
+2011-07-29  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/xml/manual/build_hacking.xml: Markup imagedata changes.
+	* doc/xml/manual/policy_data_structures.xml: Same.
+
+	* doc/xml/class.txml: Remove biblioid.
+	* doc/xml/manual/allocator.xml: Same.
+	* doc/xml/manual/ctype.xml: Same.
+	* doc/xml/manual/codecvt.xml: Same.
+	* doc/xml/manual/backwards_compatibility.xml: Same.
+	* doc/xml/manual/abi.xml: Same.
+	* doc/xml/manual/shared_ptr.xml: Same.
+	* doc/xml/manual/using_exceptions.xml: Same.
+	* doc/xml/manual/messages.xml: Same.
+
+2011-07-29  Benjamin Kosnik  <bkoz@redhat.com>
+
+	Docbook conversion of existing ext/pb_ds documentation.
+	* doc/Makefile.am (xml_sources_manual): Add
+	policy_data_structures.xml and
+	test_policy_data_structures.xml.
+	(stamp-html-copy): Remove special-case for ext/pb_ds directory.
+	(XSLTPROC_FLAGS): Split into XSLT_FLAGS and XSLT_PARAM, use.
+	* doc/Makefile.in: Regenerate.
+	* doc/xml/manual/policy_data_structures.xml: New, adapted from
+	  previous html-only instance in doc/html/ext/pb_ds.
+	* doc/xml/manual/test_policy_data_structures.xml: New, same as above.
+
+	* doc/xml/spine.xml: Update copyright.
+	* doc/xml/manual/spine.xml: Same.
+	* doc/xml/manual/extensions.xml: Adjust set, chapter, sections.
+	* doc/xml/manual/bitmap_allocator.xml: Same.
+	* doc/xml/manual/mt_allocator.xml: Same.
+
+	Populate image directory.
+	* doc/xml/images/(pbds_balls_and_bins.png,
+	pbds_binary_priority_queue_random_int_push_timing_test_local.pdf,
+	pbds_binary_priority_queue_random_int_push_timing_test_local.png,
+	pbds_binary_priority_queue_random_int_push_timing_test_local.svg,
+	pbds_cc_hash_random_int_find_timing_test_local.pdf,
+	pbds_cc_hash_random_int_find_timing_test_local.png,
+	pbds_cc_hash_random_int_find_timing_test_local.svg,
+	pbds_cc_hash_random_int_subscript_timing_test_find_local.pdf,
+	pbds_cc_hash_random_int_subscript_timing_test_find_local.png,
+	pbds_cc_hash_random_int_subscript_timing_test_find_local.svg,
+	pbds_cc_hash_random_int_subscript_timing_test_insert_local.pdf,
+	pbds_cc_hash_random_int_subscript_timing_test_insert_local.png,
+	pbds_cc_hash_random_int_subscript_timing_test_insert_local.svg,
+	pbds_container_tag_hierarchy.pdf,
+	pbds_container_tag_hierarchy.png,
+	pbds_container_tag_hierarchy.svg,
+	pbds_different_underlying_dss_1.png,
+	pbds_different_underlying_dss_2.png,
+	pbds_embedded_lists_1.png, pbds_embedded_lists_2.png,
+	pbds_embedded_lists_3.png, pbds_exception_hierarchy.pdf,
+	pbds_exception_hierarchy.png, pbds_exception_hierarchy.svg,
+	pbds_gp_hash_random_int_find_timing_test_local.pdf,
+	pbds_gp_hash_random_int_find_timing_test_local.png,
+	pbds_gp_hash_random_int_find_timing_test_local.svg,
+	pbds_gp_hash_random_int_subscript_timing_test_find_local.pdf,
+	pbds_gp_hash_random_int_subscript_timing_test_find_local.png,
+	pbds_gp_hash_random_int_subscript_timing_test_find_local.svg,
+	pbds_gp_hash_random_int_subscript_timing_test_insert_local.pdf,
+	pbds_gp_hash_random_int_subscript_timing_test_insert_local.png,
+	pbds_gp_hash_random_int_subscript_timing_test_insert_local.svg,
+	pbds_hash_policy_cd.png,
+	pbds_hash_random_int_erase_mem_usage_test_local.pdf,
+	pbds_hash_random_int_erase_mem_usage_test_local.png,
+	pbds_hash_random_int_erase_mem_usage_test_local.svg,
+	pbds_hash_ranged_hash_range_hashing_fns.png,
+	pbds_hash_range_hashing_seq_diagram2.png,
+	pbds_hash_range_hashing_seq_diagram.png,
+	pbds_hash_zlob_random_int_find_timing_test_local.pdf,
+	pbds_hash_zlob_random_int_find_timing_test_local.png,
+	pbds_hash_zlob_random_int_find_timing_test_local.svg,
+	pbds_insert_resize_sequence_diagram1.png,
+	pbds_insert_resize_sequence_diagram2.png,
+	pbds_insert_resize_sequence_diagram3.png,
+	pbds_invalidation_guarantee_erase.png,
+	pbds_invalidation_tag_hierarchy.pdf,
+	pbds_invalidation_tag_hierarchy.png,
+	pbds_invalidation_tag_hierarchy.svg, pbds_list_update.png,
+	pbds_multimap_text_find_timing_test_large_s2p_hash_local.pdf,
+	pbds_multimap_text_find_timing_test_large_s2p_hash_local.png,
+	pbds_multimap_text_find_timing_test_large_s2p_hash_local.svg,
+	pbds_multimap_text_find_timing_test_large_s2p_tree_local.pdf,
+	pbds_multimap_text_find_timing_test_large_s2p_tree_local.png,
+	pbds_multimap_text_find_timing_test_large_s2p_tree_local.svg,
+	pbds_multimap_text_find_timing_test_small_s2p_hash_local.pdf,
+	pbds_multimap_text_find_timing_test_small_s2p_hash_local.png,
+	pbds_multimap_text_find_timing_test_small_s2p_hash_local.svg,
+	pbds_multimap_text_find_timing_test_small_s2p_tree_local.pdf,
+	pbds_multimap_text_find_timing_test_small_s2p_tree_local.png,
+	pbds_multimap_text_find_timing_test_small_s2p_tree_local.svg,
+	pbds_multimap_text_insert_mem_usage_test_large_s2p_hash_local.pdf,
+	pbds_multimap_text_insert_mem_usage_test_large_s2p_hash_local.png,
+	pbds_multimap_text_insert_mem_usage_test_large_s2p_hash_local.svg,
+	pbds_multimap_text_insert_mem_usage_test_large_s2p_tree_local.pdf,
+	pbds_multimap_text_insert_mem_usage_test_large_s2p_tree_local.png,
+	pbds_multimap_text_insert_mem_usage_test_large_s2p_tree_local.svg,
+	pbds_multimap_text_insert_mem_usage_test_small_s2p_hash_local.pdf,
+	pbds_multimap_text_insert_mem_usage_test_small_s2p_hash_local.png,
+	pbds_multimap_text_insert_mem_usage_test_small_s2p_hash_local.svg,
+	pbds_multimap_text_insert_mem_usage_test_small_s2p_tree_local.pdf,
+	pbds_multimap_text_insert_mem_usage_test_small_s2p_tree_local.png,
+	pbds_multimap_text_insert_mem_usage_test_small_s2p_tree_local.svg,
+	pbds_multimap_text_insert_timing_test_large_s2p_hash_local.pdf,
+	pbds_multimap_text_insert_timing_test_large_s2p_hash_local.png,
+	pbds_multimap_text_insert_timing_test_large_s2p_hash_local.svg,
+	pbds_multimap_text_insert_timing_test_large_s2p_tree_local.pdf,
+	pbds_multimap_text_insert_timing_test_large_s2p_tree_local.png,
+	pbds_multimap_text_insert_timing_test_large_s2p_tree_local.svg,
+	pbds_multimap_text_insert_timing_test_small_s2p_hash_local.pdf,
+	pbds_multimap_text_insert_timing_test_small_s2p_hash_local.png,
+	pbds_multimap_text_insert_timing_test_small_s2p_hash_local.svg,
+	pbds_multimap_text_insert_timing_test_small_s2p_tree_local.pdf,
+	pbds_multimap_text_insert_timing_test_small_s2p_tree_local.png,
+	pbds_multimap_text_insert_timing_test_small_s2p_tree_local.svg,
+	pbds_node_invariants.png,
+	pbds_pairing_priority_queue_text_push_pop_timing_test_local.pdf,
+	pbds_pairing_priority_queue_text_push_pop_timing_test_local.png,
+	pbds_pairing_priority_queue_text_push_pop_timing_test_local.svg,
+	pbds_pairing_priority_queue_text_push_timing_test_local.pdf,
+	pbds_pairing_priority_queue_text_push_timing_test_local.png,
+	pbds_pairing_priority_queue_text_push_timing_test_local.svg,
+	pbds_pat_trie.png, pbds_point_iterator_hierarchy.png,
+	pbds_point_iterators_range_ops_1.png,
+	pbds_point_iterators_range_ops_2.png,
+	pbds_priority_queue_different_underlying_dss.png,
+	pbds_priority_queue_random_int_push_pop_timing_test_local.pdf,
+	pbds_priority_queue_random_int_push_pop_timing_test_local.png,
+	pbds_priority_queue_random_int_push_pop_timing_test_local.svg,
+	pbds_priority_queue_random_int_push_timing_test_local.pdf,
+	pbds_priority_queue_random_int_push_timing_test_local.png,
+	pbds_priority_queue_random_int_push_timing_test_local.svg,
+	pbds_priority_queue_tag_hierarchy.pdf,
+	pbds_priority_queue_tag_hierarchy.png,
+	pbds_priority_queue_tag_hierarchy.svg,
+	pbds_priority_queue_text_join_timing_test_local.pdf,
+	pbds_priority_queue_text_join_timing_test_local.png,
+	pbds_priority_queue_text_join_timing_test_local.svg,
+	pbds_priority_queue_text_modify_down_timing_test_local.pdf,
+	pbds_priority_queue_text_modify_down_timing_test_local.png,
+	pbds_priority_queue_text_modify_down_timing_test_local.svg,
+	pbds_priority_queue_text_modify_down_timing_test_pairing_thin_local.pdf,
+	pbds_priority_queue_text_modify_down_timing_test_pairing_thin_local.png,
+	pbds_priority_queue_text_modify_down_timing_test_pairing_thin_local.svg,
+	pbds_priority_queue_text_modify_up_timing_test_local.pdf,
+	pbds_priority_queue_text_modify_up_timing_test_local.png,
+	pbds_priority_queue_text_modify_up_timing_test_local.svg,
+	pbds_priority_queue_text_modify_up_timing_test_pairing_thin_local.pdf,
+	pbds_priority_queue_text_modify_up_timing_test_pairing_thin_local.png,
+	pbds_priority_queue_text_modify_up_timing_test_pairing_thin_local.svg,
+	pbds_priority_queue_text_pop_mem_usage_test_local.pdf,
+	pbds_priority_queue_text_pop_mem_usage_test_local.png,
+	pbds_priority_queue_text_pop_mem_usage_test_local.svg,
+	pbds_priority_queue_text_push_pop_timing_test_local.pdf,
+	pbds_priority_queue_text_push_pop_timing_test_local.png,
+	pbds_priority_queue_text_push_pop_timing_test_local.svg,
+	pbds_priority_queue_text_push_timing_test_local.pdf,
+	pbds_priority_queue_text_push_timing_test_local.png,
+	pbds_priority_queue_text_push_timing_test_local.svg,
+	pbds_rationale_null_node_updator.png,
+	pbds_resize_policy_cd.png, pbds_restoring_node_invariants.png,
+	pbds_simple_list.png,
+	pbds_text_find_timing_test_hash_local.pdf,
+	pbds_text_find_timing_test_hash_local.png,
+	pbds_text_find_timing_test_hash_local.svg,
+	pbds_text_find_timing_test_tree_like_local.pdf,
+	pbds_text_find_timing_test_tree_like_local.png,
+	pbds_text_find_timing_test_tree_like_local.svg,
+	pbds_tree_node_invalidations.png,
+	pbds_tree_node_invariants.png,
+	pbds_tree_node_updator_policy_cd.png,
+	pbds_tree_order_statistics_timing_test_local.pdf,
+	pbds_tree_order_statistics_timing_test_local.png,
+	pbds_tree_order_statistics_timing_test_local.svg,
+	pbds_tree_split_join_timing_test_local.pdf,
+	pbds_tree_split_join_timing_test_local.png,
+	pbds_tree_split_join_timing_test_local.svg,
+	pbds_tree_text_insert_timing_test_node_tree_local.pdf,
+	pbds_tree_text_insert_timing_test_node_tree_local.png,
+	pbds_tree_text_insert_timing_test_node_tree_local.svg,
+	pbds_tree_text_insert_timing_test_pat_trie_local.pdf,
+	pbds_tree_text_insert_timing_test_pat_trie_local.png,
+	pbds_tree_text_insert_timing_test_pat_trie_local.svg,
+	pbds_tree_text_insert_timing_test_vector_tree_local.pdf,
+	pbds_tree_text_insert_timing_test_vector_tree_local.png,
+	pbds_tree_text_insert_timing_test_vector_tree_local.svg,
+	pbds_tree_text_lor_find_timing_test_local.pdf,
+	pbds_tree_text_lor_find_timing_test_local.png,
+	pbds_tree_text_lor_find_timing_test_local.svg,
+	pbds_trie_node_updator_policy_cd.png,
+	pbds_update_seq_diagram.png): Add.
+
+	* doc/html/ext/pb_ds: Remove.
+	* doc/html/ext/pb_ds/(acks.html, assoc_container_tag_cd.png,
+	assoc_container_tag_cd.svg, assoc_container_traits.html,
+	assoc_design.html, assoc_examples.html,
+	associative_container_tag.html, assoc_performance_tests.html,
+	assoc_regression_tests.html, assoc_tests.html,
+	balls_and_bins.png, basic_hash_table.html,
+	basic_hash_tag.html, basic_invalidation_guarantee.html,
+	basic_tree_assoc_container_const_node_iterator.html,
+	basic_tree.html, basic_tree_tag.html, binary_heap_tag.html,
+	binary_priority_queue_random_int_push_timing_test_gcc.png,
+	binary_priority_queue_random_int_push_timing_test_local.png,
+	binary_priority_queue_random_int_push_timing_test_msvc.png,
+	binomial_heap_tag.html,
+	ccgp_hash_random_int_subscript_timing_test_insert_gcc.png,
+	ccgp_hash_random_int_subscript_timing_test_insert_local.png,
+	ccgp_hash_random_int_subscript_timing_test_insert_msvc.png,
+	cc_hash_max_collision_check_resize_trigger.html,
+	cc_hash_random_int_find_timing_test_gcc.png,
+	cc_hash_random_int_find_timing_test_local.png,
+	cc_hash_random_int_find_timing_test_msvc.png,
+	cc_hash_random_int_subscript_timing_test_find_gcc.png,
+	cc_hash_random_int_subscript_timing_test_find_local.png,
+	cc_hash_random_int_subscript_timing_test_find_msvc.png,
+	cc_hash_random_int_subscript_timing_test_insert_gcc.png,
+	cc_hash_random_int_subscript_timing_test_insert_local.png,
+	cc_hash_random_int_subscript_timing_test_insert_msvc.png,
+	cc_hash_table.html, cc_hash_tag.html, checked_by_tidy.gif
+	concepts.html, contact.html, container_base.html,
+	container_cd.png, container_cd.svg, container_tag.html,
+	counter_lu_policy.html, design.html,
+	different_underlying_dss.png, direct_mask_range_hashing.html,
+	direct_mod_range_hashing.html, disclaimer.html, ds_gen.html,
+	embedded_lists_1.png, embedded_lists_2.png,
+	embedded_lists_3.png, examples.html, exceptions.html,
+	gp_hash_random_int_find_timing_test_gcc.png,
+	gp_hash_random_int_find_timing_test_local.png,
+	gp_hash_random_int_find_timing_test_msvc.png,
+	gp_hash_random_int_subscript_timing_test_find_gcc.png,
+	gp_hash_random_int_subscript_timing_test_find_local.png,
+	gp_hash_random_int_subscript_timing_test_find_msvc.png,
+	gp_hash_random_int_subscript_timing_test_insert_gcc.png,
+	gp_hash_random_int_subscript_timing_test_insert_local.png,
+	gp_hash_random_int_subscript_timing_test_insert_msvc.png,
+	gp_hash_table.html, gp_hash_tag.html,
+	hash_based_containers.html, hash_exponential_size_policy.html,
+	hash_load_check_resize_trigger.html, hash_policy_cd.png,
+	hash_prime_size_policy.html,
+	hash_random_int_erase_mem_usage_test_gcc.png,
+	hash_random_int_erase_mem_usage_test.html,
+	hash_random_int_erase_mem_usage_test_local.png,
+	hash_random_int_erase_mem_usage_test_msvc.png,
+	hash_random_int_find_find_timing_test.html,
+	hash_random_int_subscript_find_timing_test.html,
+	hash_random_int_subscript_insert_timing_test.html,
+	hash_ranged_hash_range_hashing_fns.png,
+	hash_range_hashing_seq_diagram2.png,
+	hash_range_hashing_seq_diagram.png,
+	hash_standard_resize_policy.html,
+	hash_text_find_find_timing_test.html,
+	hash_zlob_random_int_find_find_timing_test.html,
+	hash_zlob_random_int_find_timing_test_gcc.png,
+	hash_zlob_random_int_find_timing_test_local.png,
+	hash_zlob_random_int_find_timing_test_msvc.png, index.html,
+	insert_error.html, insert_resize_sequence_diagram1.png,
+	insert_resize_sequence_diagram2.png,
+	insert_resize_sequence_diagram3.png, interface.html,
+	introduction.html, invalidation_guarantee_cd.png,
+	invalidation_guarantee_erase.png, join_error.html,
+	linear_probe_fn.html, list_update.html, list_update_tag.html,
+	lu_based_containers.html, lu.png, misc.html, motivation.html,
+	move_to_front_lu_policy.html,
+	multimap_text_find_timing_test_large.html,
+	multimap_text_find_timing_test_large_s2p_hash_gcc.png,
+	multimap_text_find_timing_test_large_s2p_hash_local.png,
+	multimap_text_find_timing_test_large_s2p_hash_msvc.png,
+	multimap_text_find_timing_test_large_s2p_tree_gcc.png,
+	multimap_text_find_timing_test_large_s2p_tree_local.png,
+	multimap_text_find_timing_test_large_s2p_tree_msvc.png,
+	multimap_text_find_timing_test_small.html,
+	multimap_text_find_timing_test_small_s2p_hash_gcc.png,
+	multimap_text_find_timing_test_small_s2p_hash_local.png,
+	multimap_text_find_timing_test_small_s2p_hash_msvc.png,
+	multimap_text_find_timing_test_small_s2p_tree_gcc.png,
+	multimap_text_find_timing_test_small_s2p_tree_local.png,
+	multimap_text_find_timing_test_small_s2p_tree_msvc.png,
+	multimap_text_insert_mem_usage_test_large.html,
+	multimap_text_insert_mem_usage_test_large_s2p_hash_gcc.png,
+	multimap_text_insert_mem_usage_test_large_s2p_hash_local.png,
+	multimap_text_insert_mem_usage_test_large_s2p_hash_msvc.png,
+	multimap_text_insert_mem_usage_test_large_s2p_tree_gcc.png,
+	multimap_text_insert_mem_usage_test_large_s2p_tree_local.png,
+	multimap_text_insert_mem_usage_test_large_s2p_tree_msvc.png,
+	multimap_text_insert_mem_usage_test_small.html,
+	multimap_text_insert_mem_usage_test_small_s2p_hash_gcc.png,
+	multimap_text_insert_mem_usage_test_small_s2p_hash_local.png,
+	multimap_text_insert_mem_usage_test_small_s2p_hash_msvc.png,
+	multimap_text_insert_mem_usage_test_small_s2p_tree_gcc.png,
+	multimap_text_insert_mem_usage_test_small_s2p_tree_local.png,
+	multimap_text_insert_mem_usage_test_small_s2p_tree_msvc.png,
+	multimap_text_insert_timing_test_large.html,
+	multimap_text_insert_timing_test_large_s2p_hash_gcc.png,
+	multimap_text_insert_timing_test_large_s2p_hash_local.png,
+	multimap_text_insert_timing_test_large_s2p_hash_msvc.png,
+	multimap_text_insert_timing_test_large_s2p_tree_gcc.png,
+	multimap_text_insert_timing_test_large_s2p_tree_local.png,
+	multimap_text_insert_timing_test_large_s2p_tree_msvc.png,
+	multimap_text_insert_timing_test_small.html,
+	multimap_text_insert_timing_test_small_s2p_hash_gcc.png,
+	multimap_text_insert_timing_test_small_s2p_hash_local.png,
+	multimap_text_insert_timing_test_small_s2p_hash_msvc.png,
+	multimap_text_insert_timing_test_small_s2p_tree_gcc.png,
+	multimap_text_insert_timing_test_small_s2p_tree_local.png,
+	multimap_text_insert_timing_test_small_s2p_tree_msvc.png,
+	node_invariant_invalidations.png, node_invariants.png,
+	null_hash_fn.html, null_lu_metadata.html,
+	null_mapped_type.html, null_probe_fn.html,
+	null_tree_node_update.html, null_trie_node_update.html,
+	ov_tree_tag.html, pairing_heap_tag.html,
+	pairing_priority_queue_text_push_pop_timing_test_gcc.png,
+	pairing_priority_queue_text_push_pop_timing_test_local.png,
+	pairing_priority_queue_text_push_pop_timing_test_msvc.png,
+	pairing_priority_queue_text_push_timing_test_gcc.png,
+	pairing_priority_queue_text_push_timing_test_local.png,
+	pairing_priority_queue_text_push_timing_test_msvc.png,
+	pat_trie.png, pat_trie_tag.html,
+	point_invalidation_guarantee.html, point_iterators_cd.png,
+	point_iterators_range_ops_1.png,
+	point_iterators_range_ops_2.png, pq_container_traits.html,
+	pq_design.html, pq_different_underlying_dss.png,
+	pq_examples.html, pq_performance_tests.html,
+	pq_regression_tests.html, pq_tests.html, prerequisites.html,
+	priority_queue.html,
+	priority_queue_random_int_push_pop_timing_test_gcc.png,
+	priority_queue_random_int_push_pop_timing_test.html,
+	priority_queue_random_int_push_pop_timing_test_local.png,
+	priority_queue_random_int_push_pop_timing_test_msvc.png,
+	priority_queue_random_int_push_timing_test_gcc.png,
+	priority_queue_random_int_push_timing_test.html,
+	priority_queue_random_int_push_timing_test_local.png,
+	priority_queue_random_int_push_timing_test_msvc.png,
+	priority_queue_tag_cd.png, priority_queue_tag_cd.svg,
+	priority_queue_tag.html,
+	priority_queue_text_join_timing_test_gcc.png,
+	priority_queue_text_join_timing_test.html,
+	priority_queue_text_join_timing_test_local.png,
+	priority_queue_text_join_timing_test_msvc.png,
+	priority_queue_text_modify_down_timing_test_gcc.png,
+	priority_queue_text_modify_down_timing_test.html,
+	priority_queue_text_modify_down_timing_test_local.png,
+	priority_queue_text_modify_down_timing_test_msvc.png,
+	priority_queue_text_modify_down_timing_test_pairing_thin_gcc.png,
+	priority_queue_text_modify_down_timing_test_pairing_thin_local.png,
+	priority_queue_text_modify_down_timing_test_pairing_thin_msvc.png,
+	priority_queue_text_modify_up_timing_test_gcc.png,
+	priority_queue_text_modify_up_timing_test.html,
+	priority_queue_text_modify_up_timing_test_local.png,
+	priority_queue_text_modify_up_timing_test_msvc.png,
+	priority_queue_text_modify_up_timing_test_pairing_thin_gcc.png,
+	priority_queue_text_modify_up_timing_test_pairing_thin_local.png,
+	priority_queue_text_modify_up_timing_test_pairing_thin_msvc.png,
+	priority_queue_text_pop_mem_usage_test_gcc.png,
+	priority_queue_text_pop_mem_usage_test.html,
+	priority_queue_text_pop_mem_usage_test_local.png,
+	priority_queue_text_pop_mem_usage_test_msvc.png,
+	priority_queue_text_push_pop_timing_test_gcc.png,
+	priority_queue_text_push_pop_timing_test.html,
+	priority_queue_text_push_pop_timing_test_local.png,
+	priority_queue_text_push_pop_timing_test_msvc.png,
+	priority_queue_text_push_timing_test_gcc.png,
+	priority_queue_text_push_timing_test.html,
+	priority_queue_text_push_timing_test_local.png,
+	priority_queue_text_push_timing_test_msvc.png,
+	PythonPoweredSmall.gif quadratic_probe_fn.html,
+	random_int_find_find_timing_test_tree_gcc.png,
+	random_int_find_find_timing_test_tree_local.png,
+	random_int_find_find_timing_test_tree_msvc.png,
+	range_invalidation_guarantee.html,
+	rationale_null_node_updator.png, rb_tree_tag.html,
+	rc_binomial_heap_tag.html, references.html, resize_error.html,
+	resize_policy_cd.png, restoring_node_invariants.png,
+	sample_probe_fn.html, sample_ranged_hash_fn.html,
+	sample_ranged_probe_fn.html, sample_range_hashing.html,
+	sample_resize_policy.html, sample_resize_trigger.html,
+	sample_size_policy.html, sample_tree_node_update.html,
+	sample_trie_access_traits.html, sample_trie_node_update.html,
+	sample_update_policy.html, simple_list.png,
+	splay_tree_tag.html, tests.html,
+	text_find_timing_test_hash_gcc.png,
+	text_find_timing_test_hash_local.png,
+	text_find_timing_test_hash_msvc.png,
+	text_find_timing_test_tree_like_gcc.png,
+	text_find_timing_test_tree_like_local.png,
+	text_find_timing_test_tree_like_msvc.png, thin_heap_tag.html,
+	tree_based_containers.html, tree.html,
+	tree_node_iterator.html, tree_node_updator_policy_cd.png,
+	tree_order_statistics_node_update.html,
+	tree_order_statistics_timing_test_gcc.png,
+	tree_order_statistics_timing_test.html,
+	tree_order_statistics_timing_test_local.png,
+	tree_order_statistics_timing_test_msvc.png,
+	tree_random_int_find_find_timing_test.html,
+	tree_split_join_timing_test_gcc.png,
+	tree_split_join_timing_test.html,
+	tree_split_join_timing_test_local.png,
+	tree_split_join_timing_test_msvc.png, tree_tag.html,
+	tree_text_find_find_timing_test.html,
+	tree_text_insert_timing_test.html,
+	tree_text_insert_timing_test_node_tree_gcc.png,
+	tree_text_insert_timing_test_node_tree_local.png,
+	tree_text_insert_timing_test_node_tree_msvc.png,
+	tree_text_insert_timing_test_pat_trie_gcc.png,
+	tree_text_insert_timing_test_pat_trie_local.png,
+	tree_text_insert_timing_test_pat_trie_msvc.png,
+	tree_text_insert_timing_test_vector_tree_gcc.png,
+	tree_text_insert_timing_test_vector_tree_local.png,
+	tree_text_insert_timing_test_vector_tree_msvc.png,
+	tree_text_lor_find_find_timing_test.html,
+	tree_text_lor_find_timing_test_gcc.png,
+	tree_text_lor_find_timing_test_local.png,
+	tree_text_lor_find_timing_test_msvc.png,
+	trie_based_containers.html, trie_const_node_iterator.html,
+	trie.html, trie_node_iterator.html,
+	trie_node_updator_policy_cd.png,
+	trie_order_statistics_node_update.html,
+	trie_prefix_search_node_update.html,
+	trie_string_access_traits.html, trie_tag.html,
+	trivial_iterator_tag.html, tutorial.html,
+	update_policy_cd.png, update_seq_diagram.png): Remove.
+
+2011-07-27  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/49813
+	* include/c_global/cmath: Use _GLIBCXX_CONSTEXPR and constexpr.
+
+2011-07-27  Jeffrey Yasskin  <jyasskin@google.com>
+
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Updated.
+
+2011-07-25  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/std/array (at): Remove constexpr when -fno-exceptions.
+	* testsuite/23_containers/array/at_neg.cc: Test.
+
+2011-07-25  Paolo Carlini  <paolo.carlini@oracle.com>
+	    Nathan Ridge  <zeratul976@hotmail.com>
+
+	PR libstdc++/49836
+	* include/bits/stl_vector.h (vector<>::_M_emplace_back_aux):
+	Declare.
+	(vector<>::push_back(const value_type&)): Use it.
+	* include/bits/vector.tcc: Define.
+	(vector<>::emplace_back(_Args&&...)): Use it.
+	* testsuite/util/testsuite_tr1.h (CopyConsOnlyType, MoveConsOnlyType):
+	Add.
+	* testsuite/23_containers/vector/modifiers/push_back/49836.cc: New.
+	* testsuite/23_containers/deque/modifiers/push_back/49836.cc:
+	Likewise.
+	* testsuite/23_containers/deque/modifiers/push_front/49836.cc:
+	Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/assign_neg.cc:
+	Adjust dg-error line number.
+	* testsuite/23_containers/vector/requirements/dr438/insert_neg.cc:
+	Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+
+2011-07-24  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/hashtable_policy.h (_Prime_rehash_policy::_M_next_bkt,
+	_M_bkt_for_elements, _M_need_rehash): Fix typos in the last commit.
+
+2011-07-24  François Dumont  <francois.cppdevs@free.fr>
+
+	* include/bits/hashtable_policy.h (_Prime_rehash_policy): Use
+	__builtin_floor rather than __builtin_ceil to compute next resize
+	value.
+	* testsuite/23_containers/unordered_set/hash_policy/load_factor.cc:
+	New.
+
+2011-07-22  Benjamin Kosnik  <bkoz@redhat.com>
+	    Daniel Krugler  <daniel.kruegler@googlemail.com>
+
+	* include/bits/move.h (move, forward): Mark constexpr.
+	* include/bits/stl_pair.h (pair): Mark move ctors constexpr.
+	* testsuite/20_util/pair/make_pair/constexpr.cc: New.
+	* testsuite/20_util/pair/cons/constexpr.cc: Add tests.
+
+2011-07-22  Ian Lance Taylor  <iant@google.com>
+
+	* fragment.am (CONFIG_CXXFLAGS): Add -frandom-seed.
+	* Makefile.in: Rebuild.
+	* doc/Makefile.in: Rebuild.
+	* include/Makefile.in: Rebuild.
+	* libsupc++/Makefile.in: Rebuild.
+	* po/Makefile.in: Rebuild.
+	* python/Makefile.in: Rebuild.
+	* src/Makefile.in: Rebuild.
+	* testsuite/Makefile.in: Rebuild.
+
+2011-07-21  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* testsuite/ext/pb_ds/regression/tree_no_data_map_rand.cc: Move...
+	* testsuite/ext/pb_ds/regression/tree_set_rand.cc: ... here.
+	* testsuite/ext/pb_ds/regression/tree_no_data_map_rand_debug.cc: Move...
+	* testsuite/ext/pb_ds/regression/tree_set_rand_debug.cc: ... here.
+	* testsuite/ext/pb_ds/regression/tree_data_map_rand.cc: Move...
+	* testsuite/ext/pb_ds/regression/tree_map_rand.cc: ... here.
+	* testsuite/ext/pb_ds/regression/tree_data_map_rand_debug.cc: Move...
+	* testsuite/ext/pb_ds/regression/tree_map_rand_debug.cc: ... here.
+
+	* testsuite/ext/pb_ds/regression/trie_no_data_map_rand.cc: Move...
+	* testsuite/ext/pb_ds/regression/trie_set_rand.cc: ... here.
+	* testsuite/ext/pb_ds/regression/trie_no_data_map_rand_debug.cc: Move...
+	* testsuite/ext/pb_ds/regression/trie_set_rand_debug.cc: ... here.
+	* testsuite/ext/pb_ds/regression/trie_data_map_rand.cc: Move...
+	* testsuite/ext/pb_ds/regression/trie_map_rand.cc: ... here.
+	* testsuite/ext/pb_ds/regression/trie_data_map_rand_debug.cc: Move...
+	* testsuite/ext/pb_ds/regression/trie_map_rand_debug.cc: ... here.
+
+	* testsuite/ext/pb_ds/regression/list_update_no_data_map_rand.cc: Move.
+	* testsuite/ext/pb_ds/regression/list_update_set_rand.cc: ...here.
+	* testsuite/ext/pb_ds/regression/list_update_no_data_map_rand_debug.cc:
+	Move...
+	* testsuite/ext/pb_ds/regression/list_update_set_rand_debug.cc: ...here.
+	* testsuite/ext/pb_ds/regression/list_update_data_map_rand.cc: Move...
+	* testsuite/ext/pb_ds/regression/list_update_map_rand.cc: ...here.
+	* testsuite/ext/pb_ds/regression/list_update_data_map_rand_debug.cc:
+	Move...
+	* testsuite/ext/pb_ds/regression/list_update_map_rand_debug.cc: ...here.
+
+	* testsuite/ext/pb_ds/regression/hash_no_data_map_rand.cc: Move...
+	* testsuite/ext/pb_ds/regression/hash_set_rand.cc: ...here.
+	* testsuite/ext/pb_ds/regression/hash_no_data_map_rand_debug.cc: Move...
+	* testsuite/ext/pb_ds/regression/hash_set_rand_debug.cc: ...here.
+
+	* testsuite/ext/pb_ds/regression/hash_data_map_rand.cc: Move...
+	* testsuite/ext/pb_ds/regression/hash_map_rand.cc: ...here.
+	* testsuite/ext/pb_ds/regression/hash_data_map_rand_debug.cc: Move...
+	* testsuite/ext/pb_ds/regression/hash_map_rand_debug.cc: ...here.
+
+2011-07-21  François Dumont  <francois.cppdevs@free.fr>
+
+	* include/debug/safe_unordered_sequence.h,
+	safe_unordered_sequence.tcc: Rename respectively in...
+	* include/debug/safe_unordered_container.h,
+	safe_unordered_container.tcc: ...those. _Safe_unordered_sequence
+	rename _Safe_unordered_container.
+	* include/debug/safe_unordered_base.h: _Safe_unordered_sequence_base
+	rename _Safe_unordered_container_base.
+	* include/debug/unordered_map, unordered_set: Adapt to previous
+	modifications.
+	* config/abi/pre/gnu.ver: Likewise.
+	* src/debug.cc: Likewise.
+	* include/Makefile.am: Likewise.
+	* include/Makefile.in: Regenerate.
+
+2011-07-21  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/mutex (timed_mutex, recursive_timed_mutex): Update
+	to use steady_clock instead of monotonic_clock.
+	* config/abi/pre/gnu.ver: Export steady_clock::now.
+
+2011-07-20  Benjamin Kosnik  <bkoz@redhat.com>
+	    Daniel Krugler  <daniel.kruegler@googlemail.com>
+
+	* include/std/array (array::at, array::operator[]): Mark constexpr.
+	* testsuite/23_containers/array/requirements/
+	constexpr_element_access.cc: Add.
+
+2011-07-20  Benjamin Kosnik  <bkoz@redhat.com>
+	    Daniel Krugler  <daniel.kruegler@googlemail.com>
+
+	* include/std/chrono: (system_clock::is_steady): Update to N3291
+	from is_monotonic.
+	(time_point): Mark nonmember arithmetic operators constexpr.
+	* src/chrono.cc: Modify for above.
+	* src/compatibility-c++0x.cc: Same.
+	* testsuite/20_util/time_point/nonmember/constexpr.cc: New.
+	* testsuite/20_util/time_point/1.cc: Modify.
+	* testsuite/20_util/system_clock/constexpr_data.cc: Modify.
+	* testsuite/20_util/system_clock/1.cc: Modify.
+	* testsuite/20_util/monotonic_clock/constexpr_data.cc: Move to...
+	* testsuite/20_util/steady_clock/constexpr_data.cc: ...here.
+	* testsuite/30_threads/condition_variable/members/2.cc: Modify.
+	* testsuite/30_threads/condition_variable_any/members/2.cc: Modify.
+
+2011-07-20  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/system_error: Use noexcept.
+	* src/system_error.cc: Likewise.
+	* testsuite/19_diagnostics/error_condition/modifiers/39881.cc: Adjust.
+	* testsuite/19_diagnostics/error_condition/cons/39881.cc: Likewise.
+	* testsuite/19_diagnostics/error_code/modifiers/39882.cc: Likewise.
+	* testsuite/19_diagnostics/error_code/cons/39882.cc: Likewise.
+	* testsuite/util/testsuite_error.h: Likewise.
+
+	* include/std/system_error (error_code::error_code(_ErrorCodeEnum)):
+	Use enable_if on template parameter default.
+	(error_condition::error_condition(_ErrorConditionEnum)): Likewise.
+
+2011-07-20  Ed Smith-Rowland  <3dw4rd@verizon.net>
+
+	* include/precompiled/stdc++.h: Add scoped_allocator.
+
+2011-07-20  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/std/bitset (operator[]): Make constexpr.
+	* testsuite/23_containers/bitset/operations/constexpr.cc: New.
+
+2011-07-20  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/debug/safe_local_iterator.h (_Safe_local_iterator<>::
+	_Safe_local_iterator(const _Iterator&, size_type, const _Sequence*)):
+	Fix typo.
+
+2011-07-19  François Dumont  <francois.cppdevs@free.fr>
+
+	* include/debug/safe_unordered_base.h, safe_unordered_sequence.h,
+	safe_unordered_sequence.tcc, safe_local_iterator.h,
+	safe_local_iterator.tcc: New, support for unordered sequence safe
+	local iterators.
+	* include/Makefile.am: Add previous files.
+	* include/Makefile.in: Regenerate.
+	* include/debug/unordered_map, unordered_set: Implement
+	_Safe_unordered_sequence and expose _Safe_local_iterator.
+	* include/debug/safe_iterator.h, safe_iterator.tcc: Refactor
+	_Safe_iterator::_M_get_distance static method to expose it as
+	__get_distance function and use it in _Safe_local_iterator type.
+	* include/debug/formatter.h: Add __msg_local_iter_compare_bad
+	_Debug_msg_id enum entry to notify invalid comparison between local
+	iterators from different buckets. Add _Parameter constructor from
+	_Safe_local_iterator.
+	* include/debug/functions.h: Add __valid_range overload for
+	_Safe_local_iterator.
+	* src/debug.cc: Add _Safe_unordered_sequence_base and
+	_Safe_local_iterator_base methods implementations.
+	* config/abi/pre/gnu.ver: Add export of some
+	_Safe_unordered_sequence_base and _Safe_local_iterator_base methods.
+	* testsuite/util/debug/checks.h: Add use_invalid_iterator function to
+	simulate use of a singular iterator.
+	* testsuite/util/debug/unordered_checks.h: New, several functions
+	to simulate classic invalid usage of unordered sequence local
+	iterators.
+	* testsuite/23_containers/unordered_map/debug/
+	use_erased_local_iterator_neg.cc, invalid_local_iterator_range_neg.cc,
+	use_invalid_local_iterator_neg.cc, use_invalid_iterator_neg.cc,
+	invalid_local_iterator_compare_neg.cc: New.
+	* testsuite/23_containers/unordered_multimap/debug/
+	use_erased_local_iterator_neg.cc, invalid_local_iterator_range_neg.cc,
+	use_invalid_local_iterator_neg.cc, use_invalid_iterator_neg.cc,
+	invalid_local_iterator_compare_neg.cc: New.
+	* testsuite/23_containers/unordered_set/debug/
+	use_erased_local_iterator_neg.cc, invalid_local_iterator_range_neg.cc,
+	use_invalid_local_iterator_neg.cc, use_invalid_iterator_neg.cc,
+	invalid_local_iterator_compare_neg.cc: New.
+	* testsuite/23_containers/unordered_multiset/debug/
+	use_erased_local_iterator_neg.cc, invalid_local_iterator_range_neg.cc,
+	use_invalid_local_iterator_neg.cc, use_invalid_iterator_neg.cc,
+	invalid_local_iterator_compare_neg.cc: New.
+
+2011-07-18  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/48430
+	* include/bits/shared_ptr.h (struct hash<shared_ptr<>>): Use
+	__hash_base.
+	* include/bits/unique_ptr.h (struct hash<unique_ptr<>>): Likewise.
+
+2011-07-18  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* crossconfig.m4 (*-netware): Remove.
+	* configure: Regenerate.
+
+2011-07-15  Yufeng Zhang  <yufeng.zhang@arm.com>
+
+	* config/locale/newlib/ctype_members.cc: New file.
+	* acinclude.m4 (GLIBCXX_ENABLE_CLOCALE): Add a new C locale
+	kind: newlib.  Configure to use the newlib specific
+	ctype_members.cc when with_newlib is enabled.
+	* configure: Regenerate.
+
+2011-07-15  Paolo Carlini  <paolo.carlini@oracle.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/49745
+	* acinclude.m4 ([GLIBCXX_CHECK_GTHREADS]): Check separately for
+	_POSIX_TIMEOUTS and define _GTHREADS_USE_MUTEX_TIMEDLOCK.
+	* libsupc++/guard.cc: Include <unistd.h>.
+	* testsuite/17_intro/headers/c++1998/49745.cc: New.
+	* configure: Regenerate.
+	* config.h.in: Likewise.
+
+2011-07-11  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49559
+	* include/bits/stl_algo.h (__move_merge_backward): Remove.
+	(__move_merge_adaptive, __move_merge_adaptive_backward): New.
+	(__merge_adaptive): Use the latter two.
+	(__rotate_adaptive): Avoid self move-assignment.
+	* include/bits/stl_algobase.h (move_backward): Fix comment.
+	* testsuite/25_algorithms/stable_sort/49559.cc: New.
+	* testsuite/25_algorithms/inplace_merge/49559.cc: Likewise.
+	* testsuite/25_algorithms/inplace_merge/moveable.cc: Extend.
+	* testsuite/25_algorithms/inplace_merge/moveable2.cc: Likewise.
+	* testsuite/util/testsuite_rvalref.h (rvalstruct::operator=
+	(rvalstruct&&)): Check for self move-assignment.
+
+2011-07-11  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/util/testsuite_allocator.h (propagating_allocator<>::
+	operator=(const propagating_allocator<>&)): Retun *this.
+
+2011-07-09  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/Makefile.am: Add new header.
+	* include/Makefile.in: Regenerate.
+	* include/std/scoped_allocator: New.
+	* doc/xml/manual/status_cxx200x.xml: Update.
+	* testsuite/20_util/scoped_allocator/1.cc: New.
+	* testsuite/20_util/scoped_allocator/propagation.cc: New.
+	* testsuite/20_util/scoped_allocator/requirements/typedefs.cc: New.
+	* testsuite/20_util/scoped_allocator/requirements/
+	explicit_instantiation.cc: New.
+
+2011-07-09  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/stl_vector.h: Use new allocator model in C++0x mode.
+	* include/bits/vector.tcc: Likewise.
+	* testsuite/util/testsuite_allocator.h (propagating_allocator): Define.
+	* testsuite/23_containers/vector/allocator/copy_assign.cc: New.
+	* testsuite/23_containers/vector/allocator/noexcept.cc: New.
+	* testsuite/23_containers/vector/allocator/copy.cc: New.
+	* testsuite/23_containers/vector/allocator/swap.cc: New.
+	* testsuite/23_containers/vector/allocator/move_assign.cc: New.
+	* testsuite/23_containers/vector/requirements/dr438/assign_neg.cc:
+	Adjust dg-error line numbers.
+	* testsuite/23_containers/vector/requirements/dr438/insert_neg.cc:
+	Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+
+2011-07-09  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/ext/alloc_traits.h (__allocator_always_compares_equal): New
+	trait, provide partial specializations for known allocators.
+	(__alloc_traits::construct, __alloc_traits::destroy): Overload for
+	non-standard pointer types.
+	(__alloc_traits::_S_always_equal): New trait for use with noexcept.
+	(__alloc_traits::_S_nothrow_move): Likewise.
+	(__alloc_traits::_S_nothrow_swap): Likewise.
+
+2011-07-09  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/ext/cast.h: Fix typo in include guard.
+	* include/ext/pointer.h (_Unqualified_type): Remove redundant
+	partial specializations for volatile types. Fix typos in comments.
+	(pointer_traits<_Pointer_adaptor<Tp>>::pointer_to): Define.
+
+2011-07-09  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/49668
+	* include/std/functional (__bind_simple): Define.
+	* include/std/future (_Task_setter): Parameterize by type of result
+	pointer instead of state object.
+	(_S_task_setter): Type deduction helper.
+	(_Task_state): Use _S_task_setter and __bind_simple.
+	(_Deferred_state, _Async_state): Store call wrapper directly not as
+	std::function. Use _S_task_setter and __bind_simple.
+	(_S_make_deferred_state, _S_make_async_state): Type deduction helpers.
+	(async): Use new functions and __bind_simple.
+	* include/std/mutex (call_once): Use __bind_simple.
+	* include/std/thread (thread): Likewise. Remove unused headers.
+	* src/thread.cc: Add header.
+	* testsuite/30_threads/async/49668.cc: New.
+	* testsuite/30_threads/call_once/49668.cc: New.
+	* testsuite/30_threads/thread/cons/49668.cc: New.
+	* testsuite/30_threads/thread/cons/moveable.cc: Remove unused bool.
+
+2011-07-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.host (abi_baseline_subdir_switch): Describe.
+	Provide default.
+	(*-*-solaris2.[89], *-*-solaris2.1[0-9]): Override.
+	* acinclude.m4 (GLIBCXX_CONFIGURE_TESTSUITE): Substitute
+	baseline_subdir_switch.
+	* testsuite/Makefile.am (site.exp): Emit it.
+	(baseline_subdir): Use it.
+	* testsuite/libstdc++-abi/abi.exp: Use it.
+	* configure: Regenerate.
+	* Makefile.in: Regenerate.
+	* doc/Makefile.in: Regenerate.
+	* include/Makefile.in: Regenerate.
+	* libsupc++/Makefile.in: Regenerate.
+	* po/Makefile.in: Regenerate.
+	* python/Makefile.in: Regenerate.
+	* src/Makefile.in: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
+2011-06-29  François Dumont  <francois.cppdevs@free.fr>
+
+	* include/debug/set.h, unordered_map, multiset.h, forward_list,
+	unordered_set, vector, deque, string, list, multimap.h: Remove
+	base class default constructor calls.
+	* include/debug/map.h: Likewise and cleanup several redefinition of
+	base iterator typedef.
+
+2011-06-29  Nathan Sidwell  <nathan@codesourcery.com>
+
+	* libsupc++/eh_arm.c (__cxa_type_match): Construct address of
+	thrown object here.  Return succeded_with_ptr_to_base for all
+	pointer cases.
+
+2011-06-23  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/tr1/6_containers/tuple/creation_functions/tie2.cc: Fix for
+	C++0x mode.
+	* testsuite/25_algorithms/sort/35588.cc: Likewise.
+	* testsuite/26_numerics/headers/complex/synopsis.cc: Likewise.
+
+2011-06-22  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/20_util/bind/socket.cc: Use variable and remove attribute.
+
+2011-06-22  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/ext/pb_ds/detail/pat_trie_/pat_trie_base.hpp: Avoid -Wall
+	warning.
+
+2011-06-22  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/20_util/reference_wrapper/invoke.cc: Avoid -Wall warnings.
+	* testsuite/20_util/reference_wrapper/typedefs-3.cc: Likewise.
+	* testsuite/20_util/reference_wrapper/invoke-2.cc: Likewise.
+	* testsuite/20_util/allocator_traits/members/allocate_hint.cc:
+	Likewise.
+	* testsuite/20_util/ratio/operations/ops_overflow_neg.cc: Likewise.
+	* testsuite/20_util/bind/socket.cc: Likewise.
+	* testsuite/20_util/pointer_traits/pointer_to.cc: Likewise.
+	* testsuite/util/testsuite_random.h: Likewise.
+
+2011-06-22  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/Makefile.am: Add alloc_traits.h headers.
+	* include/Makefile.in: Regenerate.
+	* include/std/memory: Include uses_allocator.h explicitly.
+	* include/bits/allocator.h (allocator_traits): Move to ...
+	* include/bits/alloc_traits.h: New header.
+	* include/ext/alloc_traits.h (__alloc_traits): Extension to provide
+	a common allocator interface for C++98 and C++0x.
+	* include/bits/stl_construct.h: Use __alloc_traits.
+	* include/bits/stl_uninitialized.h: Likewise.
+
+2011-06-22  Daniel Krugler  <daniel.kruegler@googlemail.com>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/move.h (__is_nothrow_swappable): Add.
+	(swap(_Tp(&)[_Nm], _Tp(&)[_Nm])): Use noexcept.
+	* include/bits/algorithmfwd.h: Adjust.
+	* testsuite/25_algorithms/swap/noexcept.cc: New.
+
+2011-06-21  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/Makefile.am (check_DEJAGNU_normal_targets): Add
+	check-DEJAGNUnormal[4-9].
+	(check-DEJAGNU): Split into 10 jobs for parallel testing instead of 4.
+	* testsuite/Makefile.in: Regenerated.
+
+2011-06-20  Daniel Krugler  <daniel.kruegler@googlemail.com>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/tuple (__conv_types, __one_by_one_convertible,
+	__all_convertible): Add.
+	(tuple): Use the latter.
+	(tuple<_T1>): Remove.
+	* testsuite/20_util/uses_allocator/cons_neg.cc: Adjust dg-error
+	line number.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Likewise.
+
+2011-06-14  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/ptr_traits.h (pointer_traits<T*>::pointer_to): Use
+	noexcept.
+
+2011-06-14  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/valarray (~valarray): Use noexcept.
+	* include/bits/unique_ptr.h (~unique_ptr): Likewise.
+	* testsuite/26_numerics/valarray/noexcept_move_construct.cc: New.
+	* testsuite/20_util/shared_ptr/cons/noexcept_move_construct.cc:
+	Likewise.
+	* testsuite/20_util/unique_ptr/cons/noexcept_move_construct.cc:
+	Likewise.
+	* testsuite/20_util/weak_ptr/cons/noexcept_move_construct.cc:
+	Likewise.
+
+2011-06-14  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/functional: Use noexcept.
+	* include/bits/stl_tempbuf.h: Likewise.
+
+2011-06-12  François Dumont  <francois.cppdevs@free.fr>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/allocator.h (__shrink_to_fit): Rename to
+	__shrink_to_fit_aux, fix.
+	* include/bits/stl_vector.h (_M_shrink_to_fit): Declare.
+	(shrink_to_fit): Use the latter.
+	* include/debug/vector (shrink_to_fit): Likewise.
+	* include/bits/vector.tcc (_M_shrink_to_fit): Define.
+	* include/bits/stl_deque.h (_M_shrink_to_fit): Declare.
+	(shrink_to_fit): Use the latter.
+	* include/debug/deque (shrink_to_fit): Likewise.
+	* include/bits/deque.tcc (_M_shrink_to_fit): Define.
+	* include/bits/vector.tcc (vector<bool>::_M_reallocate): Add.
+	* include/bits/stl_bvector.h (_M_shrink_to_fit): Declare.
+	(shrink_to_fit): Use the latter.
+	(reserve): Use _M_reallocate, move inline.
+	(_Bvector_base<>::_S_nword): Add, use it throughout.
+	* include/debug/string (shrink_to_fit): Redo.
+	* include/ext/vstring.h (shrink_to_fit): Optimize.
+	* include/bits/basic_string.h (shrink_to_fit): Likewise.
+	* testsuite/21_strings/debug/shrink_to_fit.cc: New.
+	* testsuite/23_containers/vector/debug/shrink_to_fit.cc: Likewise.
+	* testsuite/23_containers/vector/debug/bool/shrink_to_fit.cc:
+	Likewise.
+	* testsuite/23_containers/vector/bool/capacity/shrink_to_fit.cc:
+	Likewise.
+	* testsuite/23_containers/deque/debug/shrink_to_fit.cc: Likewise.
+
+2011-06-11  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/ext/extptr_allocator.h (construct, destroy): Fix for C++0x
+	mode by overloading to take allocator's pointer type.
+	* testsuite/23_containers/vector/ext_pointer/types/2.cc: New.
+	* testsuite/23_containers/vector/ext_pointer/explicit_instantiation/
+	2.cc: New.
+
+2011-06-11  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/20_util/allocator_traits/requirements/
+	explicit_instantiation.cc: Add another instantiation.
+
+2011-06-11  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/20_util/allocator_traits/requirements/typedefs.cc: Check
+	for allocator_type and value_type.
+
+2011-06-11  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/30_threads/packaged_task/uses_allocator.cc: New.
+	* testsuite/30_threads/promise/uses_allocator.cc: Likewise.
+
+2011-06-10  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/ext/throw_allocator.h: Use noexcept.
+	* include/ext/pool_allocator.h: Likewise.
+	* include/ext/bitmap_allocator.h: Likewise.
+	* include/ext/new_allocator.h: Likewise.
+	* include/ext/malloc_allocator.h: Likewise.
+	* include/ext/array_allocator.h: Likewise.
+	* include/ext/mt_allocator.h: Likewise.
+	* include/ext/extptr_allocator.h: Likewise.
+	* testsuite/util/testsuite_allocator.h: Likewise; do not include
+	<cassert> directly, include <testsuite_hooks.h> instead.
+
+2011-06-10  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* include/ext/pb_ds/*: Doxygen markup redo.
+	* include/Makefile.am: Fold in constructors_destructor_fn_imps.hpp.
+	* include/Makefile.in: Regenerate.
+
+2011-06-10  Jason Merrill  <jason@redhat.com>
+
+	* testsuite/20_util/bind/ref_neg.cc: Remove wrong test lines.
+
+	* testsuite/20_util/bind/ref_neg.cc: Remove dg-excess-errors,
+	fix dg-error markup.
+
+2011-06-09  Jason Merrill  <jason@redhat.com>
+
+	* testsuite/20_util/ratio/cons/cons_overflow_neg.cc: Adjust.
+
+	* testsuite/lib/prune.exp (libstdc++-dg-prune): Prune notes.
+	* testsuite/20_util/duration/cons/1_neg.cc: Remove dg-excess-errors.
+	* testsuite/20_util/duration/requirements/typedefs_neg2.cc: Likewise.
+	* testsuite/20_util/forward/1_neg.cc: Likewise.
+	* testsuite/20_util/function/cmp/cmp_neg.cc: Likewise.
+	* testsuite/20_util/ratio/operations/ops_overflow_neg.cc: Likewise.
+	* testsuite/20_util/reference_wrapper/ref_neg.cc: Likewise.
+	* testsuite/20_util/tuple/comparison_operators/35480_neg.cc: Likewise.
+	* testsuite/tr1/6_containers/tuple/comparison_operators/35480_neg.cc:
+	Likewise.
+	* testsuite/20_util/shared_ptr/assign/auto_ptr_neg.cc: Likewise.
+	* testsuite/20_util/shared_ptr/cons/unique_ptr_neg.cc: Likewise.
+	* testsuite/20_util/shared_ptr/assign/unique_ptr_lvalue_neg.cc:
+	Likewise.
+	* testsuite/20_util/unique_ptr/cons/auto_ptr_neg.cc: Likewise.
+	* testsuite/20_util/unique_ptr/cons/ptr_deleter_neg.cc: Likewise.
+	* testsuite/tr1/2_general_utilities/shared_ptr/assign/auto_ptr_neg.cc:
+	Likewise.
+	* testsuite/tr1/2_general_utilities/shared_ptr/assign/
+	auto_ptr_rvalue_neg.cc: Likewise.
+	* testsuite/tr1/2_general_utilities/shared_ptr/cons/auto_ptr_neg.cc:
+	Likewise.
+	* testsuite/20_util/uses_allocator/cons_neg.cc: Likewise.
+	* testsuite/23_containers/deque/requirements/dr438/assign_neg.cc:
+	Likewise.
+	* testsuite/23_containers/deque/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/deque/requirements/dr438/insert_neg.cc:
+	Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	assign_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	assign_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	assign_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/map/operators/1_neg.cc: Likewise.
+	* testsuite/29_atomics/atomic_integral/operators/
+	bitwise_neg.cc: Likewise.
+	* testsuite/decimal/mixed-mode-arith_neg.cc: Likewise.
+	* testsuite/decimal/mixed-mode-cmp_neg.cc: Likewise.
+	* testsuite/decimal/operator_neg.cc: Likewise.
+
+2011-06-09  Simon Baldwin  <simonb@google.com>
+
+	* scripts/extract_symvers.in: Handle processor/OS specific or
+	unknown symbol binding strings from readelf.
+
+2011-06-09  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/type_traits (__is_copy_assignable_impl,
+	__is_nt_copy_assignable_impl): Fix typo.
+
+2011-06-08  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/ext/extptr_allocator.h: Include <ext/numeric_traits.h>
+	instead of <limits>.
+	* include/bits/allocator.h: Likewise.
+
+	* include/std/chrono (duration_values<>::min): Call lowest, not min.
+
+2011-06-08  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/allocator.h (__shrink_to_fit): Simplify.
+	* include/bits/stl_vector.h (vector<>::shrink_to_fit): Adjust.
+	* include/bits/stl_deque.h: Likewise.
+	* include/bits/stl_bvector.h: Likewise.
+
+2011-06-07  Jason Merrill  <jason@redhat.com>
+
+	* testsuite/lib/prune.exp: s/required/instantiated/.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Likewise.
+	* testsuite/20_util/duration/requirements/typedefs_neg1.cc: Likewise.
+	* testsuite/20_util/duration/requirements/typedefs_neg2.cc: Likewise.
+	* testsuite/20_util/duration/requirements/typedefs_neg3.cc: Likewise.
+	* testsuite/20_util/forward/1_neg.cc: Likewise.
+	* testsuite/20_util/make_signed/requirements/typedefs_neg.cc: Likewise.
+	* testsuite/20_util/make_unsigned/requirements/typedefs_neg.cc:
+	Likewise.
+	* testsuite/20_util/ratio/cons/cons_overflow_neg.cc: Likewise.
+	* testsuite/20_util/ratio/operations/ops_overflow_neg.cc: Likewise.
+	* testsuite/20_util/shared_ptr/assign/shared_ptr_neg.cc: Likewise.
+	* testsuite/ext/ext_pointer/1_neg.cc: Likewise.
+	* testsuite/ext/pb_ds/example/hash_resize_neg.cc: Likewise.
+	* testsuite/ext/type_traits/add_unsigned_floating_neg.cc: Likewise.
+	* testsuite/ext/type_traits/add_unsigned_integer_neg.cc: Likewise.
+	* testsuite/ext/type_traits/remove_unsigned_floating_neg.cc: Likewise.
+	* testsuite/ext/type_traits/remove_unsigned_integer_neg.cc: Likewise.
+	* testsuite/tr1/2_general_utilities/shared_ptr/assign/
+	shared_ptr_neg.cc: Likewise.
+
+2011-06-07  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/move.h (struct __move_if_noexcept_cond): Add.
+	(move_if_noexcept): Use the latter.
+	* include/bits/stl_iterator.h (__make_move_if_noexcept_iterator,
+	_GLIBCXX_MAKE_MOVE_IF_NOEXCEPT_ITERATOR): Add.
+	* include/bits/stl_uninitialized.h
+	(__uninitialized_move_if_noexcept_a): Add.
+	* include/bits/vector.tcc (vector<>::reserve): Use
+	_GLIBCXX_MAKE_MOVE_IF_NOEXCEPT_ITERATOR.
+	(vector<>::_M_insert_aux, _M_fill_insert, _M_default_append,
+	_M_range_insert): Use __uninitialized_move_if_noexcept_a.
+	* testsuite/util/testsuite_rvalref.h (throwing_move_constructor):
+	Add.
+	(copycounter::copycounter(copycounter&&)): Use noexcept.
+	* testsuite/23_containers/vector/modifiers/moveable2.cc: New.
+	* testsuite/23_containers/vector/capacity/resize/moveable2.cc:
+	Likewise.
+	* testsuite/23_containers/vector/capacity/reserve/moveable2.cc:
+	Likewise.
+
+2011-06-07  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49293
+	* testsuite/22_locale/time_get/get_weekday/char/38081-1.cc: Tweak
+	for glibc 2.14.
+	* testsuite/22_locale/time_get/get_weekday/char/38081-2.cc: Likewise.
+
+2011-06-06  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/move.h (move_if_noexcept): Use __and_ and __not_.
+
+2011-06-05  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/bits/ptr_traits.h (pointer_traits): Fix typos.
+	* include/ext/pointer.h (pointer_traits): Add partial specialization
+	for _Pointer_adapter.
+
+2011-06-04  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/util/testsuite_allocator.h (tracker_allocator::construct):
+	Update to C++0x definition using type to construct as template
+	parameter.
+	(tracker_allocator::destroy): Likewise for type to destroy.
+	(uneq_allocator::construct, uneq_allocator::destroy): Likewise.
+
+2011-06-01  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/hashtable.h (_Hashtable<>::_Hashtable(_Hashtable&&)):
+	Use std::move on the allocator, use noexcept.
+	(_Hashtable<>::~_Hashtable): Use noexcept.
+	* include/bits/stl_list.h: Likewise.
+	* include/bits/forward_list.h: Likewise.
+	* include/bits/stl_vector.h: Likewise.
+	* include/bits/stl_bvector.h: Likewise.
+	* include/bits/stl_map.h (map<>::map(map&&)): Use noexcept.
+	* include/bits/stl_set.h: Likewise.
+	* include/bits/stl_multimap.h: Likewise.
+	* include/bits/stl_multiset.h: Likewise.
+	* include/bits/stl_tree.h (_Rb_tree<>::_Rb_tree(_Rb_tree&&)): Use
+	std::move on the allocator.
+	(_Rb_tree<>::~_Rb_tree): Use noexcept.
+	* include/bits/stl_deque.h: Likewise.
+	* include/bits/basic_string.h (basic_string<>::~basic_string): Use
+	noexcept.
+	* include/ext/vstring.h (__versa_string<>::~__versa_string): Likewise.
+	* include/debug/set.h: Adjust.
+	* include/debug/unordered_map: Likewise.
+	* include/debug/multiset.h: Likewise.
+	* include/debug/forward_list: Likewise.
+	* include/debug/vector: Likewise.
+	* include/debug/unordered_set: Likewise.
+	* include/debug/deque: Likewise.
+	* include/debug/map.h: Likewise.
+	* include/debug/string: Likewise.
+	* include/debug/list: Likewise.
+	* include/debug/multimap.h: Likewise.
+	* include/profile/set.h: Likewise.
+	* include/profile/unordered_map: Likewise.
+	* include/profile/multiset.h: Likewise.
+	* include/profile/forward_list: Likewise.
+	* include/profile/unordered_set: Likewise.
+	* include/profile/vector: Likewise.
+	* include/profile/deque: Likewise.
+	* include/profile/map.h: Likewise.
+	* include/profile/list: Likewise.
+	* include/profile/multimap.h: Likewise.
+	* testsuite/21_strings/basic_string/cons/wchar_t/
+	noexcept_move_construct.cc: New.
+	* testsuite/21_strings/basic_string/cons/char/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/ext/vstring/cons/noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/unordered_map/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/multimap/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/set/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/unordered_multimap/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/forward_list/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/unordered_set/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/vector/bool/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/vector/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/multiset/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/list/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/unordered_multiset/cons/
+	noexcept_move_construct.cc: Likewise.
+	* testsuite/23_containers/map/cons/noexcept_move_construct.cc
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	assign_neg.cc: Adjust dg-error line numbers.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/forward_list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	assign_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+	* testsuite/23_containers/deque/requirements/dr438/
+	assign_neg.cc: Likewise.
+	* testsuite/23_containers/deque/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/deque/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/deque/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	assign_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	insert_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+
+	* include/bits/move.h (swap): Use __and_ in the noexcept.
+	* include/bits/algorithmfwd.h: Adjust.
+
+2011-05-31  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/basic_string.h: Use noexcept per the FDIS (minus
+	compare(const string&), which uses char_traits::compare, which
+	isn't noexcept; also no noexcept in the move assignment operator
+	and move assign, see c++std-lib-30855).
+	* include/bits/basic_string.tcc: Likewise.
+	* include/ext/vstring.h: Likewise.
+	* include/ext/vstring.tcc: Likewise.
+	* include/debug/string: Likewise.
+
+2011-05-31  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* doc/xml/manual/status_cxx200x.xml: Update.
+	* doc/html/*: Regenerate.
+
+2011-05-30  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/type_traits (__or_, __and_): Add trivial definitions
+	for a single element.
+	* include/bits/stl_pair.h: Use __and_ in noexcept specs and
+	constraints.
+	(pair<>::pair(pair&&)): Define.
+	(pair<>::pair(const pair<>&)): Constrain with is_convertible.
+	(pair<>::pair(pair<>&&)): Likewise, remove noexcept.
+	* include/std/tuple: Use __and_ in noexcept specs and constraints.
+	(_Tuple_impl<>::_Tuple_impl(allocator_arg_t, const _Alloc&,
+	_Tuple_impl&&)): Remove noexcept.
+	(tuple<>::tuple(_UElements&&...), tuple(const tuple<_UElements...>&),
+	tuple(tuple<_UElements...>&&), tuple(const pair<_U1, _U2>&),
+	tuple(pair<_U1, _U2>&&)): Constrain with is_convertible.
+	* testsuite/20_util/tuple/moveable2.cc: Use = delete.
+	* testsuite/20_util/make_signed/requirements/typedefs_neg.cc:
+	Adjust dg-error line numbers.
+	* testsuite/20_util/make_unsigned/requirements/typedefs_neg.cc:
+	Likewise.
+	* testsuite/20_util/declval/requirements/1_neg.cc: Likewise.
+	* testsuite/20_util/ratio/cons/cons_overflow_neg.cc: Likewise.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Likewise.
+
+2011-05-31  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/tuple: Restore is_convertible constraint.
+	* testsuite/20_util/tuple/cons/allocate_noncopyable.cc: Remove.
+
+2011-05-30  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49236
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-warning
+	line number.
+
+2011-05-30  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/tuple: Implement uses-allocator construction.
+	* include/bits/allocator.h (uses_allocator): Move to ...
+	* include/bits/uses_allocator.h: New file.
+	* include/Makefile.am: Add new header.
+	* include/Makefile.in: Regenerate.
+	* testsuite/20_util/uses_allocator/cons_neg.cc: New.
+	* testsuite/20_util/uses_allocator/construction.cc: New.
+	* testsuite/20_util/tuple/cons/allocate_noncopyable.cc: New.
+	* testsuite/20_util/tuple/cons/allocators.cc: New.
+
+2011-05-28  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/20_util/pointer_traits/pointer_to.cc: Fix.
+
+2011-05-28  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* acinclude.m4: Define GLIBCXX_CHECK_GET_NPROCS and
+	GLIBCXX_CHECK_SC_NPROCESSORS_ONLN.
+	* configure.ac: Use them. Increase minor version.
+	* configure: Regenerate.
+	* config.h.in: Regenerate.
+	* include/std/thread (thread::hardware_concurrency): Remove inline
+	definition.
+	* src/thread.cc (thread::hardware_concurrency): Define.
+	* config/abi/pre/gnu.ver: Export new symbol @3.4.17
+	* testsuite/util/testsuite_abi.cc: Add new version.
+	* testsuite/lib/libstdc++.exp (check_v3_target_nprocs): Add.
+	* testsuite/lib/dg-options.exp (dg-require-nprocs): Add.
+	* testsuite/30_threads/thread/members/hardware_concurrency.cc: Use
+	dg-require-nprocs and verify hardware_concurrency returns non-zero.
+
+2011-05-28  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/20_util/pointer_traits/pointer_to.cc: New.
+
+2011-05-28  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/Makefile.am: Add new ptr_traits.h header.
+	* include/Makefile.in: Regenerate.
+	* include/bits/ptr_traits.h (pointer_traits): New.
+	* include/bits/allocator.h (allocator_traits): Add.
+	* include/ext/array_allocator.h (construct, destroy): Update C++0x
+	versions.
+	* include/ext/bitmap_allocator.h (construct, destroy): Likewise.
+	* include/ext/extptr_allocator.h (construct, destroy): Likewise.
+	* include/ext/malloc_allocator.h (construct, destroy): Likewise.
+	* include/ext/mt_allocator.h (construct, destroy): Likewise.
+	* include/ext/new_allocator.h (construct, destroy): Likewise.
+	* include/ext/pool_allocator.h (construct, destroy): Likewise.
+	* include/ext/throw_allocator.h (construct, destroy): Likewise.
+	* testsuite/20_util/allocator_traits/requirements/typedefs.cc: New.
+	* testsuite/20_util/allocator_traits/requirements/
+	explicit_instantiation.cc: New.
+	* testsuite/20_util/allocator_traits/members/max_size.cc: New.
+	* testsuite/20_util/allocator_traits/members/select.cc: New.
+	* testsuite/20_util/allocator_traits/members/construct.cc: New.
+	* testsuite/20_util/allocator_traits/members/allocate_hint.cc: New.
+	* testsuite/20_util/allocator_traits/members/destroy.cc: New.
+	* testsuite/20_util/pointer_traits/requirements/typedefs.cc: New.
+	* testsuite/20_util/pointer_traits/requirements/
+	explicit_instantiation.cc: New.
+
+2011-05-28  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/future (launch): Update enumerators and define
+	operators required for bitmask type. Remove trailing whitespace.
+	* src/future.cc: Remove trailing whitespace.
+	* testsuite/30_threads/async/any.cc: Adjust.
+	* testsuite/30_threads/async/sync.cc: Adjust.
+	* testsuite/30_threads/async/launch.cc: New.
+
+2011-05-28  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/future: Use noexcept.
+	* src/future.cc: Likewise.
+
+2011-05-27  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/thread (this_thread::sleep_until): Move after sleep_for.
+
+2011-05-27  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49187
+	* include/parallel/losertree.h: Add missing using declarations
+	of _Base::_M_comp.
+	* include/parallel/algobase.h: Include <parallel/algorithmfwd.h>.
+	* include/parallel/multiway_merge.h: Include <parallel/
+	multiseq_selection.h>, forward declare __merge_advance.
+	* include/parallel/multiseq_selection.h: Don't include <parallel/
+	sort.h> here.
+	* include/ext/pb_ds/detail/thin_heap_/erase_fn_imps.hpp: Fix
+	qualification of upper_bound.
+
+	* testsuite/ext/pb_ds/regression/tree_no_data_map_rand_debug.cc:
+	Use dg-require-debug-mode.
+	* testsuite/ext/pb_ds/regression/tree_data_map_rand_debug.cc:
+	Likewise.
+	* testsuite/ext/pb_ds/regression/priority_queue_rand_debug.cc:
+	Likewise.
+	* testsuite/ext/pb_ds/regression/trie_no_data_map_rand_debug.cc:
+	Likewise.
+	* testsuite/ext/pb_ds/regression/trie_data_map_rand_debug.cc:
+	Likewise.
+	* testsuite/ext/pb_ds/regression/list_update_no_data_map_rand_debug.cc:
+	Likewise.
+	* testsuite/ext/pb_ds/regression/list_update_data_map_rand_debug.cc:
+	Likewise.
+	* testsuite/ext/pb_ds/regression/hash_no_data_map_rand_debug.cc:
+	Likewise.
+	* testsuite/ext/pb_ds/regression/hash_data_map_rand_debug.cc:
+	Likewise.
+
+	* include/parallel/algo.h: Minor uglification fixes.
+
+2011-05-26  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* src/list.cc: Use noexcept per the FDIS.
+	* src/compatibility-list-2.cc: Likewise.
+	* include/debug/set.h: Likewise.
+	* include/debug/unordered_map: Likewise.
+	* include/debug/multiset.h: Likewise.
+	* include/debug/forward_list: Likewise.
+	* include/debug/unordered_set: Likewise.
+	* include/debug/vector: Likewise.
+	* include/debug/map.h: Likewise.
+	* include/debug/deque: Likewise.
+	* include/debug/list: Likewise.
+	* include/debug/multimap.h: Likewise.
+	* include/profile/set.h: Likewise.
+	* include/profile/unordered_map: Likewise.
+	* include/profile/multiset.h: Likewise.
+	* include/profile/forward_list: Likewise.
+	* include/profile/vector: Likewise.
+	* include/profile/unordered_set: Likewise.
+	* include/profile/map.h: Likewise.
+	* include/profile/deque: Likewise.
+	* include/profile/list: Likewise.
+	* include/profile/multimap.h: Likewise.
+	* include/bits/hashtable.h: Likewise.
+	* include/bits/stl_list.h: Likewise.
+	* include/bits/stl_map.h: Likewise.
+	* include/bits/hashtable_policy.h: Likewise.
+	* include/bits/stl_set.h: Likewise.
+	* include/bits/forward_list.h: Likewise.
+	* include/bits/stl_multimap.h: Likewise.
+	* include/bits/stl_vector.h: Likewise.
+	* include/bits/stl_deque.h: Likewise.
+	* include/bits/stl_multiset.h: Likewise.
+	* include/bits/stl_bvector.h: Likewise.
+	* include/bits/stl_tree.h: Likewise.
+
+2011-05-25  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/stl_queue.h: Use noexcept per the FDIS.
+	* include/bits/stl_stack.h: Likewise.
+
+2011-05-25  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* config/abi/pre/gnu.ver: Correct last change, export instead
+	at the existing @3.4.16.
+	* configure.ac: Revert last change.
+	* testsuite/util/testsuite_abi.cc: Likewise.
+	* configure: Regenerate.
+
+2011-05-26  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* doc/xml/manual/documentation_hacking.xml: Minor corrections.
+
+2011-05-26  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/std/mutex: Add doxygen comments.
+
+2011-05-25  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* config/abi/pre/gnu.ver: Export recently added  basic_streambuf
+	and basic_stringbuf symbols @3.4.17.
+	* configure.ac: Update.
+	* testsuite/util/testsuite_abi.cc: Likewise.
+	* configure: Regenerate.
+
+2011-05-26  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* libsupc++/guard.cc: Fix comments.
+
+2011-05-25  Ian Lance Taylor  <iant@google.com>
+
+	PR libstdc++/49060
+	* include/backward/hashtable.h (hashtable::erase): Don't crash if
+	erasing first and another element with a reference to the other
+	element.
+	* testsuite/backward/hash_set/49060.cc: New.
+
+2011-05-25  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/random.h (random_device::min, max): Specify constexpr.
+
+2011-05-25  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/std/thread: Use noexcept throughout per the FDIS.
+	* include/std/mutex: Likewise.
+
+2011-05-24  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/20_util/duration/arithmetic/dr2020.cc: Fix typo.
+
+2011-05-24  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49151
+	* include/std/chrono (operator+, operator-, operator*, operator/,
+	operator&): Implement LWG 2020 [WP]; specify constexpr.
+	* testsuite/20_util/duration/arithmetic/dr2020.cc: New.
+
+2011-05-24  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49141
+	* testsuite/26_numerics/complex/cons/48760.cc: Use dg-require-c-std.
+	* testsuite/26_numerics/complex/cons/48760_c++0x.cc: Likewise.
+	* testsuite/26_numerics/headers/cmath/19322.cc: Likewise.
+
+2011-05-24  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/c++config (_GLIBCXX_NOTHROW): Update for noexcept.
+	* testsuite/ext/profile/mutex_extensions_neg.cc: Adjust dg-error
+	line number.
+
+2011-05-23  Benjamin Kosnik  <bkoz@redhat.com>
+
+	PR libstdc++/37144
+	PR libstdc++/28457
+	Interface changes for ext/pb_ds.
+	PB_DS_BASE_C_DEC to unique PB_DS_*_BASE macros.
+	* include/ext/pb_ds/assoc_container.hpp (container_base): Remove.
+	(basic_hash_table, basic_branch, list_update): Derive from
+	container_base_dispatch.
+	* include/ext/pb_ds/list_update_policy.hpp (null_lu_metadata): Remove.
+	(move_to_front_lu_policy): To lu_move_to_front_policy.
+	(counter_lu_policy): To lu_counter_policy.
+	* include/ext/pb_ds/tree_policy.hpp (null_tree_node_update): Remove.
+	* include/ext/pb_ds/tag_and_trait.hpp (container_base_dispatch): Adjust
+	template parameters, declare here.
+	(null_mapped_type) Remove.
+	(null_type): Just use this for template tricks everywhere.
+	* include/ext/pb_ds/hash_policy.hpp (null_hash_fn, null_probe_fn):
+	Remove.
+	* include/ext/pb_ds/trie_policy.hpp (null_trie_node_update): Remove.
+	(string_trie_e_access_traits): To trie_string_access_traits.
+	* include/ext/pb_ds/priority_queue.hpp: Use container_base_dispatch.
+
+	File changes.
+	* include/Makefile.am (pb_headers): Removed and changed file names.
+	* include/Makefile.in: Regenerated.
+	* include/ext/pb_ds/detail/basic_types.hpp: Remove.
+	* include/ext/pb_ds/detail/bin_search_tree_/
+	  cond_dtor_entry_dealtor.hpp: Remove.
+	* include/ext/pb_ds/detail/bin_search_tree_/
+	  cond_key_dtor_entry_dealtor.hpp: Remove.
+	* include/ext/pb_ds/detail/binary_heap_/const_point_iterator.hpp: Move..
+	* include/ext/pb_ds/detail/binary_heap_/
+	  point_const_iterator.hpp: ..here.
+	* include/ext/pb_ds/detail/basic_tree_policy: Move to...
+	* include/ext/pb_ds/detail/branch_policy: This.
+	* include/ext/pb_ds/detail/branch_policy/
+	  basic_tree_policy_base.hpp: Move...
+	* include/ext/pb_ds/detail/branch_policy/branch_policy.hpp: ...here.
+	* include/ext/pb_ds/detail/branch_policy/null_node_metadata.hpp: Add.
+	* include/ext/pb_ds/detail/branch_policy/traits.hpp: Add.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	null_metadata.hpp: Remove.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	const_point_iterator.hpp: Move...
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	point_const_iterator.hpp: ...here.
+	* include/ext/pb_ds/detail/list_update_policy/
+	counter_lu_metadata.hpp: Move..
+	* include/ext/pb_ds/detail/list_update_policy/
+	lu_counter_metadata.hpp: ...here.
+	* include/ext/pb_ds/detail/list_update_policy/
+	counter_lu_policy_imp.hpp: Remove.
+	* include/ext/pb_ds/detail/list_update_policy/
+	mtf_lu_policy_imp.hpp: Remove.
+	* include/ext/pb_ds/detail/trie_policy/
+	string_trie_e_access_traits_imp.hpp: Move...
+	* include/ext/pb_ds/detail/trie_policy/
+	sample_trie_access_traits.hpp: ...here.
+	* include/ext/pb_ds/detail/trie_policy/
+	sample_trie_e_access_traits.hpp: Move...
+	* include/ext/pb_ds/detail/trie_policy/
+	trie_string_access_traits_imp.hpp: ...here.
+	* include/ext/pb_ds/detail/trie_policy/null_node_update_imp.hpp: Remove.
+	* include/ext/pb_ds/detail/tree_policy/null_node_update_imp.hpp: Remove.
+	* include/ext/pb_ds/detail/ov_tree_map_/cond_dtor.hpp: Remove.
+	* include/ext/pb_ds/detail/pat_trie_/pat_trie_base.hpp: New, fold all
+	types found in the following files into pat_trie_base.
+	* include/ext/pb_ds/detail/pat_trie_/const_child_iterator.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/
+	  cond_dtor_entry_dealtor.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/child_iterator.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/split_join_branch_bag.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/head.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/leaf.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/node_base.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/node_metadata_base.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/internal_node.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/node_iterators.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/point_iterators.hpp: Folded.
+	* include/ext/pb_ds/detail/pat_trie_/synth_e_access_traits.hpp: Move...
+	* include/ext/pb_ds/detail/pat_trie_/synth_access_traits.hpp: ...here.
+	* include/ext/pb_ds/detail/unordered_iterator/
+	const_point_iterator.hpp: Move...
+	* include/ext/pb_ds/detail/unordered_iterator/
+	point_const_iterator.hpp: ...here.
+
+
+	Adjust for above changes.
+	* include/ext/pb_ds/detail/resize_policy/sample_size_policy.hpp: Same.
+	* include/ext/pb_ds/detail/resize_policy/sample_resize_policy.hpp: Same.
+	* include/ext/pb_ds/detail/resize_policy/
+	  sample_resize_trigger.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_base_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_base_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_base_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_base_/
+	  binomial_heap_base_.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_base_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_base_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_base_/
+	  split_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/container_base_dispatch.hpp: Same. Adjust
+	  for template parameter ordering change.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  erase_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  constructor_destructor_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/cmp_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  insert_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  policy_access_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  resize_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  constructor_destructor_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  insert_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  entry_list_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/trace_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  find_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  debug_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/cc_ht_map_.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/resize_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  constructor_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  cond_key_dtor_entry_dealtor.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  debug_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  erase_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/size_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  iterators_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  resize_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/cc_hash_table_map_/
+	  standard_policies.hpp: Same.
+	* include/ext/pb_ds/detail/tree_trace_base.hpp: Same.
+	* include/ext/pb_ds/detail/unordered_iterator/iterator.hpp: Same.
+	* include/ext/pb_ds/detail/unordered_iterator/const_iterator.hpp: Same.
+	* include/ext/pb_ds/detail/unordered_iterator/point_iterator.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/policy_access_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/r_erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/update_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/insert_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/pat_trie_.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/split_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/traits.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/rotate_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/trace_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pat_trie_/iterators_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/
+	  policy_access_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/r_erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/traits.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/rotate_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/bin_search_tree_.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/node_iterators.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/point_iterators.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/
+	  split_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/bin_search_tree_/iterators_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_policy/
+	  sample_update_policy.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  trace_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  erase_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  constructor_destructor_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  insert_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  policy_access_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  resize_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/gp_ht_map_.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  constructor_destructor_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  insert_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  iterator_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  find_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/trace_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  find_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  debug_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/resize_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  constructor_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  debug_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  erase_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  resize_no_store_hash_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/gp_hash_table_map_/
+	  standard_policies.hpp: Same.
+	* include/ext/pb_ds/detail/standard_policies.hpp: Same.
+	* include/ext/pb_ds/detail/types_traits.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/policy_access_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/const_iterator.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/entry_cmp.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/trace_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/entry_pred.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/binary_heap_.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/resize_policy.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/split_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binary_heap_/iterators_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/tree_policy/order_statistics_imp.hpp: Same.
+	* include/ext/pb_ds/detail/tree_policy/node_metadata_selector.hpp: Same.
+	* include/ext/pb_ds/detail/tree_policy/
+	  sample_tree_node_update.hpp: Same.
+	* include/ext/pb_ds/detail/trie_policy/order_statistics_imp.hpp: Same.
+	* include/ext/pb_ds/detail/trie_policy/
+	  sample_trie_node_update.hpp: Same.
+	* include/ext/pb_ds/detail/trie_policy/trie_policy_base.hpp: Same.
+	* include/ext/pb_ds/detail/trie_policy/
+	  prefix_search_node_update_imp.hpp: Same.
+	* include/ext/pb_ds/detail/trie_policy/node_metadata_selector.hpp: Same.
+	* include/ext/pb_ds/detail/cond_dealtor.hpp: Same.
+	* include/ext/pb_ds/detail/priority_queue_base_dispatch.hpp: Same.
+	  Adjust for template parameter change, fold into
+	  container_base_dispatch.
+	* include/ext/pb_ds/detail/pairing_heap_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pairing_heap_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pairing_heap_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pairing_heap_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pairing_heap_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/pairing_heap_/pairing_heap_.hpp: Same.
+	* include/ext/pb_ds/detail/pairing_heap_/split_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/binomial_heap_/binomial_heap_.hpp: Same.
+	* include/ext/pb_ds/detail/constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/type_utils.hpp: Same.
+	* include/ext/pb_ds/detail/eq_fn/hash_eq_fn.hpp: Same.
+	* include/ext/pb_ds/detail/eq_fn/eq_by_less.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  policy_access_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  left_child_next_sibling_heap_.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  const_iterator.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  node.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/left_child_next_sibling_heap_/
+	  iterators_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/thin_heap_/trace_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/thin_heap_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/thin_heap_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/thin_heap_/thin_heap_.hpp: Same.
+	* include/ext/pb_ds/detail/thin_heap_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/thin_heap_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/thin_heap_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/thin_heap_/split_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/policy_access_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/ov_tree_map_.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/node_iterators.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/split_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/traits.hpp: Same.
+	* include/ext/pb_ds/detail/ov_tree_map_/iterators_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/debug_map_base.hpp: Same.
+	* include/ext/pb_ds/detail/hash_fn/ranged_probe_fn.hpp: Same.
+	* include/ext/pb_ds/detail/hash_fn/sample_probe_fn.hpp: Same.
+	* include/ext/pb_ds/detail/hash_fn/sample_ranged_probe_fn.hpp: Same.
+	* include/ext/pb_ds/detail/hash_fn/sample_range_hashing.hpp: Same.
+	* include/ext/pb_ds/detail/hash_fn/probe_fn_base.hpp: Same.
+	* include/ext/pb_ds/detail/hash_fn/ranged_hash_fn.hpp: Same.
+	* include/ext/pb_ds/detail/hash_fn/sample_ranged_hash_fn.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/splay_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/node.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/split_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/splay_tree_.hpp: Same.
+	* include/ext/pb_ds/detail/splay_tree_/traits.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/trace_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/
+	  entry_metadata_base.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/lu_map_.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/
+	  constructor_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/list_update_map_/iterators_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rc_binomial_heap_/trace_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rc_binomial_heap_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rc_binomial_heap_/
+	  rc_binomial_heap_.hpp: Same.
+	* include/ext/pb_ds/detail/rc_binomial_heap_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rc_binomial_heap_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rc_binomial_heap_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rc_binomial_heap_/rc.hpp: Same.
+	* include/ext/pb_ds/detail/rc_binomial_heap_/
+	  split_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/erase_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/find_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/insert_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/
+	  constructors_destructor_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/debug_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/rb_tree_.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/node.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/split_join_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/info_fn_imps.hpp: Same.
+	* include/ext/pb_ds/detail/rb_tree_map_/traits.hpp: Same.
+
+
+	Documentation changes.
+	* include/ext/pb_ds/*: Add doxygen markup.
+	* doc/doxygen/user.cfg.in: Add details for extracting comments
+	from pb_ds.
+	* scripts/run_doxygen: Fixup __gnu_pb_ds::detail.
+	* scripts/make_graph.py: Move to svg output. Re-format generated tables.
+
+	* doc/Makefile.am (stamp-html-copy): New rule.
+	(stamp-html): Use it to copy non-generated files into html docs.
+	* doc/Makefile.in: Regenerated.
+
+	* doc/html/ext/pb_ds/sample_trie_e_access_traits.html: Move...
+	* doc/html/ext/pb_ds/trie_string_access_traits.html: ...here.
+	* doc/html/ext/pb_ds/string_trie_e_access_traits.html: Move..
+	* doc/html/ext/pb_ds/sample_trie_access_traits.html: ...here.
+
+	* doc/html/ext/pb_ds/tree_text_lor_find_timing_test_local.png,
+	hash_random_int_erase_mem_usage_test_local.png,
+	multimap_text_insert_mem_usage_test_small_s2p_hash_local.png,
+	tree_text_insert_timing_test_pat_trie_local.png ,
+	multimap_text_insert_mem_usage_test_small_s2p_tree_local.png ,
+	priority_queue_text_modify_down_timing_test_local.png,
+	gp_hash_random_int_subscript_timing_test_find_local.png,
+	text_find_timing_test_hash_local.png,
+	multimap_text_insert_timing_test_small_s2p_hash_local.png,
+	multimap_text_insert_timing_test_small_s2p_tree_local.png,
+	multimap_text_insert_mem_usage_test_large_s2p_hash_local.png,
+	multimap_text_insert_mem_usage_test_large_s2p_tree_local.png,
+	multimap_text_insert_timing_test_large_s2p_hash_local.png,
+	hash_zlob_random_int_find_timing_test_local.png,
+	multimap_text_insert_timing_test_large_s2p_tree_local.png,
+	binary_priority_queue_random_int_push_timing_test_local.png,
+	priority_queue_text_pop_mem_usage_test_local.png,
+	priority_queue_text_modify_down_timing_test_pairing_thin_local.png,
+	tree_split_join_timing_test_local.png,
+	multimap_text_find_timing_test_small_s2p_hash_local.png,
+	ccgp_hash_random_int_subscript_timing_test_insert_local.png,
+	priority_queue_random_int_push_pop_timing_test_local.png,
+	multimap_text_find_timing_test_small_s2p_tree_local.png,
+	gp_hash_random_int_subscript_timing_test_insert_local.png,
+	priority_queue_text_push_timing_test_local.png,
+	cc_hash_random_int_subscript_timing_test_find_local.png,
+	tree_text_insert_timing_test_vector_tree_local.png,
+	multimap_text_find_timing_test_large_s2p_hash_local.png,
+	pairing_priority_queue_text_push_timing_test_local.png,
+	tree_order_statistics_timing_test_local.png,
+	priority_queue_text_push_pop_timing_test_local.png,
+	text_find_timing_test_tree_like_local.png,
+	multimap_text_find_timing_test_large_s2p_tree_local.png,
+	priority_queue_text_modify_up_timing_test_pairing_thin_local.png,
+	cc_hash_random_int_subscript_timing_test_insert_local.png,
+	priority_queue_text_modify_up_timing_test_local.png,
+	random_int_find_find_timing_test_tree_local.png,
+	priority_queue_random_int_push_timing_test_local.png,
+	tree_text_insert_timing_test_node_tree_local.png,
+	pairing_priority_queue_text_push_pop_timing_test_local.png,
+	gp_hash_random_int_find_timing_test_local.png,
+	cc_hash_random_int_find_timing_test_local.png,
+	priority_queue_text_join_timing_test_local.png: Update local pngs.
+
+
+	Testsuite changes.
+	* testsuite/ext/pb_ds/regression/tree_no_data_map_rand_debug.cc: New.
+	* testsuite/ext/pb_ds/regression/tree_data_map_rand_debug.cc: New.
+	* testsuite/ext/pb_ds/regression/priority_queue_rand_debug.cc: New.
+	* testsuite/ext/pb_ds/regression/trie_no_data_map_rand_debug.cc: New.
+	* testsuite/ext/pb_ds/regression/trie_data_map_rand_debug.cc: New.
+	* testsuite/ext/pb_ds/regression/list_update_no_data_map_rand_debug.cc:
+	New.
+	* testsuite/ext/pb_ds/regression/list_update_data_map_rand_debug.cc:
+	New.
+	* testsuite/ext/pb_ds/regression/hash_no_data_map_rand_debug.cc: New.
+	* testsuite/ext/pb_ds/regression/hash_data_map_rand_debug.cc: New.
+
+	* testsuite/ext/pb_ds/regression/list_update_data_map_rand.cc: Fix typo.
+
+	* testsuite/ext/pb_ds/example/basic_set.cc: Update.
+	* testsuite/ext/pb_ds/example/ranged_hash.cc: Same.
+	* testsuite/ext/pb_ds/example/tree_order_statistics.cc: Same.
+	* testsuite/ext/pb_ds/example/trie_prefix_search.cc: Same.
+	* testsuite/ext/pb_ds/example/trie_dna.cc: Same.
+	* testsuite/ext/pb_ds/example/tree_intervals.cc: Same.
+	* testsuite/ext/pb_ds/example/basic_multimap.cc: Same.
+	* testsuite/performance/ext/pb_ds/hash_random_int_erase_mem_usage.cc:
+	  Same.
+	* testsuite/performance/ext/pb_ds/tree_split_join_timing.cc: Same.
+	* testsuite/performance/ext/pb_ds/tree_order_statistics_timing.cc: Same.
+	* testsuite/data/make_graph_test_infos.xml: Same.
+	* testsuite/util/regression/common_type.hpp: Same.
+	* testsuite/util/regression/trait/assoc/native_type_trait.hpp: Same.
+	* testsuite/util/regression/trait/assoc/trait.hpp: Same.
+	* testsuite/util/regression/trait/assoc/type_trait.hpp: Same.
+	* testsuite/util/regression/rand/priority_queue/
+	  rand_regression_test.hpp: Same.
+	* testsuite/util/regression/rand/priority_queue/
+	  container_rand_regression_test.tcc: Same.
+	* testsuite/util/regression/rand/assoc/rand_regression_test.hpp: Same.
+	* testsuite/util/regression/rand/assoc/container_rand_regression_test.h
+	* testsuite/util/regression/rand/assoc/
+	  container_rand_regression_test.tcc: Same.
+	* testsuite/util/native_type/native_priority_queue.hpp: Same.
+	* testsuite/util/native_type/native_multimap.hpp: Same.
+	* testsuite/util/native_type/native_hash_multimap.hpp: Same.
+	* testsuite/util/native_type/native_set.hpp: Same.
+	* testsuite/util/native_type/native_map.hpp: Same.
+	* testsuite/util/native_type/native_hash_set.hpp: Same.
+	* testsuite/util/native_type/native_hash_map.hpp: Same.
+	* testsuite/util/testsuite_containers.h
+	* testsuite/util/common_type/priority_queue/common_type.hpp: Same.
+	* testsuite/util/common_type/assoc/common_type.hpp: Same.
+	* testsuite/util/common_type/assoc/string_form.hpp: Same.
+	* testsuite/util/common_type/assoc/template_policy.hpp: Same.
+	* testsuite/util/common_type/assoc/detail/
+	  trigger_policy_string_form.hpp: Same.
+	* testsuite/util/common_type/assoc/detail/ds_string_form.hpp: Same.
+	* testsuite/util/common_type/assoc/detail/
+	  size_policy_string_form.hpp: Same.
+	* testsuite/util/common_type/assoc/detail/
+	  probe_fn_string_form.hpp: Same.
+	* testsuite/util/common_type/assoc/detail/
+	  tree_supports_order_statistics.hpp: Same.
+	* testsuite/util/common_type/assoc/detail/
+	  trie_supports_prefix_search.hpp: Same.
+	* testsuite/util/common_type/assoc/detail/
+	  list_update_policy_string_form.hpp: Same.
+	* testsuite/util/common_type/assoc/detail/
+	  trie_supports_order_statistics.hpp: Same.
+	* testsuite/util/common_type/assoc/native_set.hpp: Same.
+	* testsuite/util/performance/assoc/timing/common_type.hpp: Same.
+	* testsuite/util/performance/assoc/timing/multimap_find_test.hpp: Same.
+	* testsuite/util/performance/assoc/multimap_common_type.hpp: Same.
+
+2011-05-23  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/streambuf_iterator.h: Use noexcept per the FDIS.
+	(istreambuf_iterator<>::istreambuf_iterator(const
+	istreambuf_iterator&),  ~istreambuf_iterator()): Add defaulted
+	in C++0x mode.
+
+2011-05-23  Jason Merrill  <jason@redhat.com>
+
+	* libsupc++/exception_ptr.h: Fix compilation in C++0x mode.
+
+2011-05-22  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/20_util/bind/cv_quals_2.cc: New.
+
+2011-05-22  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49058
+	* include/std/functional (_Bind<_Functor(_Bound_args...)>::
+	operator()(_Args&&...)): Don't cv qualify _Functor directly
+	in the default template argument, SFINAE doesn't apply when
+	the functor has no arguments.
+	* testsuite/20_util/bind/49058_1.cc: New.
+	* testsuite/20_util/bind/49058_2.cc: Likewise.
+
+2011-05-21  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/unique_ptr.h: Use noexcept per the FDIS.
+
+2011-05-20  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/21_strings/basic_string/requirements/exception/
+	propagation_consistent.cc: Fix vs POD-ness of value_type.
+	* testsuite/21_strings/basic_string/requirements/exception/
+	basic.cc: Likewise.
+	* testsuite/ext/vstring/requirements/exception/
+	propagation_consistent.cc: Likewise.
+	* testsuite/ext/vstring/requirements/exception/basic.cc: Likewise.
+
+2011-05-20  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/char_traits.h: Use noexcept throughout.
+	* include/std/typeindex: Likewise.
+
+	* include/std/tuple (_Tuple_impl<>_Tuple_impl(_Tuple_impl&&)): Use
+	noexcept; adjust callers.
+	* include/bits/stl_pair.h (pair<>::pair(pair<>&&)): Use noexcept.
+	* testsuite/20_util/tuple/cons/noexcept_move_construct.cc: New.
+	* testsuite/20_util/pair/cons/noexcept_move_construct.cc: Likewise.
+	* testsuite/20_util/pair/noexcept_swap.cc: Likewise.
+	* testsuite/20_util/pair/noexcept_move_assign.cc: Likewise.
+	* testsuite/20_util/weak_ptr/comparison/cmp_neg.cc: Adjust dg-warning
+	line numbers.
+
 2011-05-20  Jason Merrill  <jason@redhat.com>
 
 	* include/ext/pb_ds/assoc_container.hpp: Explicitly qualify calls to
@@ -40,7 +2944,7 @@
 2011-05-19  Paolo Carlini  <paolo.carlini@oracle.com>
 
 	* include/std/tuple (tuple<>::operator=(tuple&&)): Specify as
-        noexcept.
+	noexcept.
 	(__get_helper): Likewise.
 	(_Head_base<>::_M_head, _Tuple_impl<>::_M_head, _M_tail): Likewise.
 	* include/bits/move.h (swap): Likewise.
@@ -733,8 +3637,8 @@
 
 2011-03-31  Jeffrey Yasskin  <jyasskin@google.com>
 
-        * libsupc++/exception_ptr.h: Forward-declare std::type_info.
-        * libsupc++/nested_exception.h (__throw_with_nested): Remove a
+	* libsupc++/exception_ptr.h: Forward-declare std::type_info.
+	* libsupc++/nested_exception.h (__throw_with_nested): Remove a
 	redundant default argument from std::__throw_with_nested.
 
 2011-03-31  Paolo Carlini  <paolo.carlini@oracle.com>

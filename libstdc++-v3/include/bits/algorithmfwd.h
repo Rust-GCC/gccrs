@@ -551,14 +551,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     void 
     swap(_Tp&, _Tp&)
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
-    noexcept(is_nothrow_move_constructible<_Tp>::value
-	     && is_nothrow_move_assignable<_Tp>::value)
+    noexcept(__and_<is_nothrow_move_constructible<_Tp>,
+	            is_nothrow_move_assignable<_Tp>>::value)
 #endif
     ;
 
   template<typename _Tp, size_t _Nm>
     void
-    swap(_Tp (&)[_Nm], _Tp (&)[_Nm]);
+    swap(_Tp (&__a)[_Nm], _Tp (&__b)[_Nm])
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+    noexcept(noexcept(swap(*__a, *__b)))
+#endif
+    ;
 
   template<typename _FIter1, typename _FIter2>
     _FIter2 

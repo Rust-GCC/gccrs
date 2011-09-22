@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -226,6 +226,16 @@ package body Ch3 is
                         and then Prev_Token /= Tok_Pragma)
             then
                Error_Msg_N ("& is a reserved word in Ada 2005?", Token_Node);
+            end if;
+         end if;
+
+         --  Similarly, warn about Ada 2012 reserved words
+
+         if Ada_Version in Ada_95 .. Ada_2005
+           and then Warn_On_Ada_2012_Compatibility
+         then
+            if Token_Name = Name_Some then
+               Error_Msg_N ("& is a reserved word in Ada 2012?", Token_Node);
             end if;
          end if;
 
@@ -1073,7 +1083,11 @@ package body Ch3 is
    begin
       Constr_Node := P_Constraint_Opt;
 
-      if No (Constr_Node) then
+      if No (Constr_Node)
+        or else
+          (Nkind (Constr_Node) = N_Range_Constraint
+             and then Nkind (Range_Expression (Constr_Node)) = N_Error)
+      then
          return Subtype_Mark;
       else
          if Not_Null_Present then
@@ -1124,16 +1138,6 @@ package body Ch3 is
          Error_Msg_SC ("anonymous array definition not allowed here");
          Discard_Junk_Node (P_Array_Type_Definition);
          return Error;
-
-      --  If Some becomes a keyword, the following is needed to make it
-      --  acceptable in older versions of Ada.
-
-      elsif Token = Tok_Some
-        and then Ada_Version < Ada_2012
-      then
-         Scan_Reserved_Identifier (False);
-         Scan;
-         return Token_Node;
 
       else
          Type_Node := P_Qualified_Simple_Name_Resync;
@@ -2528,6 +2532,7 @@ package body Ch3 is
    --  Note: this is an obsolescent feature in Ada 95 (I.3)
 
    --  Note: in Ada 83, the EXPRESSION must be a SIMPLE_EXPRESSION
+   --  (also true in formal modes).
 
    --  The caller has checked that the initial token is DELTA
 
@@ -2542,6 +2547,7 @@ package body Ch3 is
       Scan; -- past DELTA
       Expr_Node := P_Expression;
       Check_Simple_Expression_In_Ada_83 (Expr_Node);
+
       Set_Delta_Expression (Constraint_Node, Expr_Node);
 
       if Token = Tok_Range then
@@ -2666,9 +2672,12 @@ package body Ch3 is
             Error_Msg_SP ("\unit must be compiled with -gnat05 switch");
          end if;
 
-         if Aliased_Present then
-            Error_Msg_SP ("ALIASED not allowed here");
-         end if;
+         --  AI95-406 makes "aliased" legal (and useless) in this context so
+         --  followintg code which used to be needed is commented out.
+
+         --  if Aliased_Present then
+         --     Error_Msg_SP ("ALIASED not allowed here");
+         --  end if;
 
          Set_Subtype_Indication     (CompDef_Node, Empty);
          Set_Aliased_Present        (CompDef_Node, False);
@@ -2776,9 +2785,15 @@ package body Ch3 is
          Set_High_Bound (Range_Node, Expr_Node);
          return Range_Node;
 
-      --  Otherwise we must have a subtype mark
+      --  Otherwise we must have a subtype mark, or an Ada 2012 iterator
 
       elsif Expr_Form = EF_Simple_Name then
+         return Expr_Node;
+
+      --  The domain of iteration must be a name. Semantics will determine that
+      --  the expression has the proper form.
+
+      elsif Ada_Version >= Ada_2012 then
          return Expr_Node;
 
       --  If incorrect, complain that we expect ..
@@ -3435,9 +3450,12 @@ package body Ch3 is
                   Error_Msg_SP ("\unit must be compiled with -gnat05 switch");
                end if;
 
-               if Aliased_Present then
-                  Error_Msg_SP ("ALIASED not allowed here");
-               end if;
+               --  AI95-406 makes "aliased" legal (and useless) here, so the
+               --  following code which used to be required is commented out.
+
+               --  if Aliased_Present then
+               --     Error_Msg_SP ("ALIASED not allowed here");
+               --  end if;
 
                Set_Subtype_Indication (CompDef_Node, Empty);
                Set_Aliased_Present    (CompDef_Node, False);
@@ -3714,13 +3732,23 @@ package body Ch3 is
          end if;
 
          if Token = Tok_Comma then
-            Error_Msg_SC -- CODEFIX
-              (""","" should be ""'|""");
+            Scan; -- past comma
+
+            if Token = Tok_Vertical_Bar then
+               Error_Msg_SP -- CODEFIX
+                 ("|extra "","" ignored");
+               Scan; -- past |
+
+            else
+               Error_Msg_SP -- CODEFIX
+                 (""","" should be ""'|""");
+            end if;
+
          else
             exit when Token /= Tok_Vertical_Bar;
+            Scan; -- past |
          end if;
 
-         Scan; -- past | or comma
       end loop;
 
       return Choices;
@@ -4264,8 +4292,42 @@ package body Ch3 is
 
          when Tok_With =>
             Check_Bad_Layout;
-            Error_Msg_SC ("WITH can only appear in context clause");
-            raise Error_Resync;
+
+            if Aspect_Specifications_Present then
+
+               --  If we are after a semicolon, complain that it was ignored.
+               --  But we don't really ignore it, since we dump the aspects,
+               --  so we make the error message a normal fatal message which
+               --  will inhibit semantic analysis anyway).
+
+               if Prev_Token = Tok_Semicolon then
+                  Error_Msg_SP -- CODEFIX
+                    ("extra "";"" ignored");
+
+               --  If not just past semicolon, just complain that aspects are
+               --  not allowed at this point.
+
+               else
+                  Error_Msg_SC ("aspect specifications not allowed here");
+               end if;
+
+               declare
+                  Dummy_Node : constant Node_Id :=
+                                 New_Node (N_Package_Specification, Token_Ptr);
+                  pragma Warnings (Off, Dummy_Node);
+                  --  Dummy node to attach aspect specifications to. We will
+                  --  then throw them away.
+
+               begin
+                  P_Aspect_Specifications (Dummy_Node, Semicolon => True);
+               end;
+
+            --  Here if not aspect specifications case
+
+            else
+               Error_Msg_SC ("WITH can only appear in context clause");
+               raise Error_Resync;
+            end if;
 
          --  BEGIN terminates the scan of a sequence of declarations unless
          --  there is a missing subprogram body, see section on handling

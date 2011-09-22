@@ -1,6 +1,6 @@
 /* Definitions of target machine for GCC for IA-32.
    Copyright (C) 1988, 1992, 1994, 1995, 1996, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -18,6 +18,12 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
+
+/* In i386-common.c.  */
+extern bool ix86_handle_option (struct gcc_options *opts,
+				struct gcc_options *opts_set ATTRIBUTE_UNUSED,
+				const struct cl_decoded_option *decoded,
+				location_t loc);
 
 /* Functions in i386.c */
 extern bool ix86_target_stack_probe (void);
@@ -84,6 +90,11 @@ extern void ix86_fixup_binary_operands_no_copy (enum rtx_code,
 extern void ix86_expand_binary_operator (enum rtx_code,
 					 enum machine_mode, rtx[]);
 extern bool ix86_binary_operator_ok (enum rtx_code, enum machine_mode, rtx[]);
+extern bool ix86_lea_outperforms (rtx, unsigned int, unsigned int,
+				  unsigned int, unsigned int);
+extern bool ix86_avoid_lea_for_add (rtx, rtx[]);
+extern bool ix86_avoid_lea_for_addr (rtx, rtx[]);
+extern void ix86_split_lea_for_addr (rtx[], enum machine_mode);
 extern bool ix86_lea_for_add_ok (rtx, rtx[]);
 extern bool ix86_vec_interleave_v2df_operator_ok (rtx operands[3], bool high);
 extern bool ix86_dep_by_shift_count (const_rtx set_insn, const_rtx use_insn);
@@ -157,6 +168,7 @@ extern void x86_emit_floatuns (rtx [2]);
 extern void ix86_emit_fp_unordered_jump (rtx);
 
 extern void ix86_emit_i387_log1p (rtx, rtx);
+extern void ix86_emit_i387_round (rtx, rtx);
 extern void ix86_emit_swdivsf (rtx, rtx, rtx, enum machine_mode);
 extern void ix86_emit_swsqrtsf (rtx, rtx, enum machine_mode, bool);
 
@@ -167,6 +179,7 @@ extern void ix86_expand_lfloorceil (rtx, rtx, bool);
 extern void ix86_expand_rint (rtx, rtx);
 extern void ix86_expand_floorceil (rtx, rtx, bool);
 extern void ix86_expand_floorceildf_32 (rtx, rtx, bool);
+extern void ix86_expand_round_sse4 (rtx, rtx);
 extern void ix86_expand_round (rtx, rtx);
 extern void ix86_expand_rounddf_32 (rtx, rtx);
 extern void ix86_expand_trunc (rtx, rtx);
@@ -198,7 +211,7 @@ extern rtx ix86_tls_module_base (void);
 extern void ix86_expand_vector_init (bool, rtx, rtx);
 extern void ix86_expand_vector_set (bool, rtx, rtx, int);
 extern void ix86_expand_vector_extract (bool, rtx, rtx, int);
-extern void ix86_expand_reduc_v4sf (rtx (*)(rtx, rtx, rtx), rtx, rtx);
+extern void ix86_expand_reduc (rtx (*)(rtx, rtx, rtx), rtx, rtx);
 
 extern void ix86_expand_vec_extract_even_odd (rtx, rtx, rtx, unsigned);
 extern bool ix86_expand_pinsr (rtx *);

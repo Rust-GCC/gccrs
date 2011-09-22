@@ -39,6 +39,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "pointer-set.h"
 #include "bitmap.h"
 #include "langhooks.h"
+#include "data-streamer.h"
 #include "lto-streamer.h"
 #include "lto-compress.h"
 
@@ -265,71 +266,6 @@ lto_output_data_stream (struct lto_output_stream *obs, const void *data,
 }
 
 
-/* Output an unsigned LEB128 quantity to OBS.  */
-
-void
-lto_output_uleb128_stream (struct lto_output_stream *obs,
-			   unsigned HOST_WIDE_INT work)
-{
-  do
-    {
-      unsigned int byte = (work & 0x7f);
-      work >>= 7;
-      if (work != 0)
-	/* More bytes to follow.  */
-	byte |= 0x80;
-
-      lto_output_1_stream (obs, byte);
-    }
-  while (work != 0);
-}
-
-/* Identical to output_uleb128_stream above except using unsigned
-   HOST_WIDEST_INT type.  For efficiency on host where unsigned HOST_WIDEST_INT
-   is not native, we only use this if we know that HOST_WIDE_INT is not wide
-   enough.  */
-
-void
-lto_output_widest_uint_uleb128_stream (struct lto_output_stream *obs,
-				       unsigned HOST_WIDEST_INT work)
-{
-  do
-    {
-      unsigned int byte = (work & 0x7f);
-      work >>= 7;
-      if (work != 0)
-	/* More bytes to follow.  */
-	byte |= 0x80;
-
-      lto_output_1_stream (obs, byte);
-    }
-  while (work != 0);
-}
-
-
-/* Output a signed LEB128 quantity.  */
-
-void
-lto_output_sleb128_stream (struct lto_output_stream *obs, HOST_WIDE_INT work)
-{
-  int more, byte;
-
-  do
-    {
-      byte = (work & 0x7f);
-      /* arithmetic shift */
-      work >>= 7;
-      more = !((work == 0 && (byte & 0x40) == 0)
-	       || (work == -1 && (byte & 0x40) != 0));
-      if (more)
-	byte |= 0x80;
-
-      lto_output_1_stream (obs, byte);
-    }
-  while (more);
-}
-
-
 /* Lookup NAME in ENCODER.  If NAME is not found, create a new entry in
    ENCODER for NAME with the next available index of ENCODER,  then
    print the index to OBS.  True is returned if NAME was added to
@@ -368,7 +304,7 @@ lto_output_decl_index (struct lto_output_stream *obs,
     }
 
   if (obs)
-    lto_output_uleb128_stream (obs, index);
+    streamer_write_uhwi_stream (obs, index);
   *this_index = index;
   return new_entry_p;
 }

@@ -45,52 +45,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    * @addtogroup metaprogramming
    * @{
    */
-  struct __sfinae_types
-  {
-    typedef char __one;
-    typedef struct { char __arr[2]; } __two;
-  };
-
-  // Meta programming helper types.
-
-  template<bool, typename, typename>
-    struct conditional;
-
-  template<typename _Tp, _Tp>
-    struct integral_constant;
-
-  template<typename, typename, typename...>
-    struct __or_;
-
-  template<typename _B1, typename _B2>
-    struct __or_<_B1, _B2>
-    : public conditional<_B1::value, _B1, _B2>::type
-    { };
-
-  template<typename _B1, typename _B2, typename _B3, typename... _Bn>
-    struct __or_<_B1, _B2, _B3, _Bn...>
-    : public conditional<_B1::value, _B1, __or_<_B2, _B3, _Bn...>>::type
-    { };
-
-  template<typename, typename, typename...>
-    struct __and_;
-
-  template<typename _B1, typename _B2>
-    struct __and_<_B1, _B2>
-    : public conditional<_B1::value, _B2, _B1>::type
-    { };
-
-  template<typename _B1, typename _B2, typename _B3, typename... _Bn>
-    struct __and_<_B1, _B2, _B3, _Bn...>
-    : public conditional<_B1::value, __and_<_B2, _B3, _Bn...>, _B1>::type
-    { };
-
-  template<typename _Pp>
-    struct __not_
-    : public integral_constant<bool, !_Pp::value>
-    { };
-
-  // helper class.
 
   /// integral_constant
   template<typename _Tp, _Tp __v>
@@ -110,6 +64,68 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _Tp, _Tp __v>
     constexpr _Tp integral_constant<_Tp, __v>::value;
+
+  // Meta programming helper types.
+
+  template<bool, typename, typename>
+    struct conditional;
+
+  template<typename...>
+    struct __or_;
+
+  template<>
+    struct __or_<>
+    : public false_type
+    { };
+
+  template<typename _B1>
+    struct __or_<_B1>
+    : public _B1
+    { };
+
+  template<typename _B1, typename _B2>
+    struct __or_<_B1, _B2>
+    : public conditional<_B1::value, _B1, _B2>::type
+    { };
+
+  template<typename _B1, typename _B2, typename _B3, typename... _Bn>
+    struct __or_<_B1, _B2, _B3, _Bn...>
+    : public conditional<_B1::value, _B1, __or_<_B2, _B3, _Bn...>>::type
+    { };
+
+  template<typename...>
+    struct __and_;
+
+  template<>
+    struct __and_<>
+    : public true_type
+    { };
+
+  template<typename _B1>
+    struct __and_<_B1>
+    : public _B1
+    { };
+
+  template<typename _B1, typename _B2>
+    struct __and_<_B1, _B2>
+    : public conditional<_B1::value, _B2, _B1>::type
+    { };
+
+  template<typename _B1, typename _B2, typename _B3, typename... _Bn>
+    struct __and_<_B1, _B2, _B3, _Bn...>
+    : public conditional<_B1::value, __and_<_B2, _B3, _Bn...>, _B1>::type
+    { };
+
+  template<typename _Pp>
+    struct __not_
+    : public integral_constant<bool, !_Pp::value>
+    { };
+
+  struct __sfinae_types
+  {
+    typedef char __one;
+    typedef struct { char __arr[2]; } __two;
+  };
 
   // primary type categories.
 
@@ -197,6 +213,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __is_integral_helper<unsigned long long>
     : public true_type { };
 
+#if !defined(__STRICT_ANSI__) && defined(_GLIBCXX_USE_INT128)
+  template<>
+    struct __is_integral_helper<__int128>
+    : public true_type { };
+
+  template<>
+    struct __is_integral_helper<unsigned __int128>
+    : public true_type { };
+#endif
+
   /// is_integral
   template<typename _Tp>
     struct is_integral
@@ -219,6 +245,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<>
     struct __is_floating_point_helper<long double>
     : public true_type { };
+
+#if !defined(__STRICT_ANSI__) && defined(_GLIBCXX_USE_FLOAT128)
+  template<>
+    struct __is_floating_point_helper<__float128>
+    : public true_type { };
+#endif
 
   /// is_floating_point
   template<typename _Tp>
@@ -1019,7 +1051,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _Tp>
     struct __is_copy_assignable_impl<_Tp, false>
-    : public is_assignable<_Tp&, const _Tp&&>
+    : public is_assignable<_Tp&, const _Tp&>
     { };
 
   /// is_copy_assignable
@@ -1067,7 +1099,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _Tp>
     struct __is_nt_copy_assignable_impl<_Tp, false>
-    : public is_nothrow_assignable<_Tp&, const _Tp&&>
+    : public is_nothrow_assignable<_Tp&, const _Tp&>
     { };
 
   /// is_nothrow_copy_assignable
@@ -1382,6 +1414,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __make_unsigned<long long>
     { typedef unsigned long long __type; };
 
+#if !defined(__STRICT_ANSI__) && defined(_GLIBCXX_USE_INT128)
+  template<>
+    struct __make_unsigned<__int128>
+    { typedef unsigned __int128 __type; };
+#endif
+
   // Select between integral and enum: not possible to be both.
   template<typename _Tp, 
 	   bool _IsInt = is_integral<_Tp>::value,
@@ -1457,6 +1495,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<>
     struct __make_signed<unsigned long long>
     { typedef signed long long __type; };
+
+#if !defined(__STRICT_ANSI__) && defined(_GLIBCXX_USE_INT128)
+  template<>
+    struct __make_signed<unsigned __int128>
+    { typedef __int128 __type; };
+#endif
 
   // Select between integral and enum: not possible to be both.
   template<typename _Tp, 

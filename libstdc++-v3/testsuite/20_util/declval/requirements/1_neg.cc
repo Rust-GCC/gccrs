@@ -19,11 +19,11 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-error "static assertion failed" "" { target *-*-* } 1715 }
+// { dg-error "static assertion failed" "" { target *-*-* } 1759 }
 
 #include <utility>
 
 void test01()
 {
-  std::declval<int>();		// { dg-error "instantiated from here" }
+  std::declval<int>();		// { dg-error "required from here" }
 }

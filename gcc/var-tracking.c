@@ -34,7 +34,7 @@
    operations.
    The micro operations of one instruction are ordered so that
    pre-modifying stack adjustment < use < use with no var < call insn <
-     < set < clobber < post-modifying stack adjustment
+     < clobber < set < post-modifying stack adjustment
 
    Then, a forward dataflow analysis is performed to find out how locations
    of variables change through code and to propagate the variable locations
@@ -365,7 +365,7 @@ typedef const struct value_chain_def *const_value_chain;
 #define VTI(BB) ((variable_tracking_info) (BB)->aux)
 
 /* Macro to access MEM_OFFSET as an HOST_WIDE_INT.  Evaluates MEM twice.  */
-#define INT_MEM_OFFSET(mem) (MEM_OFFSET (mem) ? INTVAL (MEM_OFFSET (mem)) : 0)
+#define INT_MEM_OFFSET(mem) (MEM_OFFSET_KNOWN_P (mem) ? MEM_OFFSET (mem) : 0)
 
 /* Alloc pool for struct attrs_def.  */
 static alloc_pool attrs_pool;
@@ -399,6 +399,17 @@ static shared_hash empty_shared_hash;
 
 /* Scratch register bitmap used by cselib_expand_value_rtx.  */
 static bitmap scratch_regs = NULL;
+
+typedef struct GTY(()) parm_reg {
+  rtx outgoing;
+  rtx incoming;
+} parm_reg_t;
+
+DEF_VEC_O(parm_reg_t);
+DEF_VEC_ALLOC_O(parm_reg_t, gc);
+
+/* Vector of windowed parameter registers, if any.  */
+static VEC(parm_reg_t, gc) *windowed_parm_regs = NULL;
 
 /* Variable used to tell whether cselib_process_insn called our hook.  */
 static bool cselib_hook_called;
@@ -705,7 +716,8 @@ vt_stack_adjustments (void)
 static rtx cfa_base_rtx;
 static HOST_WIDE_INT cfa_base_offset;
 
-/* Compute a CFA-based value for the stack pointer.  */
+/* Compute a CFA-based value for an ADJUSTMENT made to stack_pointer_rtx
+   or hard_frame_pointer_rtx.  */
 
 static inline rtx
 compute_cfa_pointer (HOST_WIDE_INT adjustment)
@@ -969,6 +981,33 @@ adjust_insn (basic_block bb, rtx insn)
 {
   struct adjust_mem_data amd;
   rtx set;
+
+#ifdef HAVE_window_save
+  /* If the target machine has an explicit window save instruction, the
+     transformation OUTGOING_REGNO -> INCOMING_REGNO is done there.  */
+  if (RTX_FRAME_RELATED_P (insn)
+      && find_reg_note (insn, REG_CFA_WINDOW_SAVE, NULL_RTX))
+    {
+      unsigned int i, nregs = VEC_length(parm_reg_t, windowed_parm_regs);
+      rtx rtl = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (nregs * 2));
+      parm_reg_t *p;
+
+      FOR_EACH_VEC_ELT (parm_reg_t, windowed_parm_regs, i, p)
+	{
+	  XVECEXP (rtl, 0, i * 2)
+	    = gen_rtx_SET (VOIDmode, p->incoming, p->outgoing);
+	  /* Do not clobber the attached DECL, but only the REG.  */
+	  XVECEXP (rtl, 0, i * 2 + 1)
+	    = gen_rtx_CLOBBER (GET_MODE (p->outgoing),
+			       gen_raw_REG (GET_MODE (p->outgoing),
+					    REGNO (p->outgoing)));
+	}
+
+      validate_change (NULL_RTX, &PATTERN (insn), rtl, true);
+      return;
+    }
+#endif
+
   amd.mem_mode = VOIDmode;
   amd.stack_adjust = -VTI (bb)->out.stack_adjust;
   amd.side_effects = NULL_RTX;
@@ -4635,8 +4674,8 @@ track_expr_p (tree expr, bool need_rtl)
       if (GET_MODE (decl_rtl) == BLKmode
 	  || AGGREGATE_TYPE_P (TREE_TYPE (realdecl)))
 	return 0;
-      if (MEM_SIZE (decl_rtl)
-	  && INTVAL (MEM_SIZE (decl_rtl)) > MAX_VAR_PARTS)
+      if (MEM_SIZE_KNOWN_P (decl_rtl)
+	  && MEM_SIZE (decl_rtl) > MAX_VAR_PARTS)
 	return 0;
     }
 
@@ -4836,7 +4875,7 @@ get_address_mode (rtx mem)
 static rtx
 replace_expr_with_values (rtx loc)
 {
-  if (REG_P (loc))
+  if (REG_P (loc) || GET_CODE (loc) == ENTRY_VALUE)
     return NULL;
   else if (MEM_P (loc))
     {
@@ -5051,6 +5090,7 @@ add_uses (rtx *ploc, void *data)
 	  if (MEM_P (vloc)
 	      && !REG_P (XEXP (vloc, 0))
 	      && !MEM_P (XEXP (vloc, 0))
+	      && GET_CODE (XEXP (vloc, 0)) != ENTRY_VALUE
 	      && (GET_CODE (XEXP (vloc, 0)) != PLUS
 		  || XEXP (XEXP (vloc, 0), 0) != cfa_base_rtx
 		  || !CONST_INT_P (XEXP (XEXP (vloc, 0), 1))))
@@ -5129,6 +5169,7 @@ add_uses (rtx *ploc, void *data)
 	  if (MEM_P (oloc)
 	      && !REG_P (XEXP (oloc, 0))
 	      && !MEM_P (XEXP (oloc, 0))
+	      && GET_CODE (XEXP (oloc, 0)) != ENTRY_VALUE
 	      && (GET_CODE (XEXP (oloc, 0)) != PLUS
 		  || XEXP (XEXP (oloc, 0), 0) != cfa_base_rtx
 		  || !CONST_INT_P (XEXP (XEXP (oloc, 0), 1))))
@@ -5213,6 +5254,8 @@ add_uses_1 (rtx *x, void *cui)
 {
   for_each_rtx (x, add_uses, cui);
 }
+
+#define EXPR_DEPTH (PARAM_VALUE (PARAM_MAX_VARTRACK_EXPR_DEPTH))
 
 /* Attempt to reverse the EXPR operation in the debug info.  Say for
    reg1 = reg2 + 6 even when reg2 is no longer live we
@@ -5380,6 +5423,7 @@ add_stores (rtx loc, const_rtx expr, void *cuip)
       if (MEM_P (loc) && type == MO_VAL_SET
 	  && !REG_P (XEXP (loc, 0))
 	  && !MEM_P (XEXP (loc, 0))
+	  && GET_CODE (XEXP (loc, 0)) != ENTRY_VALUE
 	  && (GET_CODE (XEXP (loc, 0)) != PLUS
 	      || XEXP (XEXP (loc, 0), 0) != cfa_base_rtx
 	      || !CONST_INT_P (XEXP (XEXP (loc, 0), 1))))
@@ -5583,9 +5627,11 @@ prepare_call_arguments (basic_block bb, rtx insn)
   rtx this_arg = NULL_RTX;
   tree type = NULL_TREE, t, fndecl = NULL_TREE;
   tree obj_type_ref = NULL_TREE;
-  CUMULATIVE_ARGS args_so_far;
+  CUMULATIVE_ARGS args_so_far_v;
+  cumulative_args_t args_so_far;
 
-  memset (&args_so_far, 0, sizeof (args_so_far));
+  memset (&args_so_far_v, 0, sizeof (args_so_far_v));
+  args_so_far = pack_cumulative_args (&args_so_far_v);
   if (GET_CODE (call) == PARALLEL)
     call = XVECEXP (call, 0, 0);
   if (GET_CODE (call) == SET)
@@ -5633,11 +5679,11 @@ prepare_call_arguments (basic_block bb, rtx insn)
 		  tree struct_addr = build_pointer_type (TREE_TYPE (type));
 		  enum machine_mode mode = TYPE_MODE (struct_addr);
 		  rtx reg;
-		  INIT_CUMULATIVE_ARGS (args_so_far, type, NULL_RTX, fndecl,
+		  INIT_CUMULATIVE_ARGS (args_so_far_v, type, NULL_RTX, fndecl,
 					nargs + 1);
-		  reg = targetm.calls.function_arg (&args_so_far, mode,
+		  reg = targetm.calls.function_arg (args_so_far, mode,
 						    struct_addr, true);
-		  targetm.calls.function_arg_advance (&args_so_far, mode,
+		  targetm.calls.function_arg_advance (args_so_far, mode,
 						      struct_addr, true);
 		  if (reg == NULL_RTX)
 		    {
@@ -5652,14 +5698,14 @@ prepare_call_arguments (basic_block bb, rtx insn)
 		}
 	      else
 #endif
-		INIT_CUMULATIVE_ARGS (args_so_far, type, NULL_RTX, fndecl,
+		INIT_CUMULATIVE_ARGS (args_so_far_v, type, NULL_RTX, fndecl,
 				      nargs);
 	      if (obj_type_ref && TYPE_ARG_TYPES (type) != void_list_node)
 		{
 		  enum machine_mode mode;
 		  t = TYPE_ARG_TYPES (type);
 		  mode = TYPE_MODE (TREE_VALUE (t));
-		  this_arg = targetm.calls.function_arg (&args_so_far, mode,
+		  this_arg = targetm.calls.function_arg (args_so_far, mode,
 							 TREE_VALUE (t), true);
 		  if (this_arg && !REG_P (this_arg))
 		    this_arg = NULL_RTX;
@@ -5684,11 +5730,18 @@ prepare_call_arguments (basic_block bb, rtx insn)
       {
 	rtx item = NULL_RTX;
 	x = XEXP (XEXP (link, 0), 0);
-	if (REG_P (x))
+	if (GET_MODE (link) == VOIDmode
+	    || GET_MODE (link) == BLKmode
+	    || (GET_MODE (link) != GET_MODE (x)
+		&& (GET_MODE_CLASS (GET_MODE (link)) != MODE_INT
+		    || GET_MODE_CLASS (GET_MODE (x)) != MODE_INT)))
+	  /* Can't do anything for these, if the original type mode
+	     isn't known or can't be converted.  */;
+	else if (REG_P (x))
 	  {
 	    cselib_val *val = cselib_lookup (x, GET_MODE (x), 0, VOIDmode);
 	    if (val && cselib_preserved_value_p (val))
-	      item = gen_rtx_CONCAT (GET_MODE (x), x, val->val_rtx);
+	      item = val->val_rtx;
 	    else if (GET_MODE_CLASS (GET_MODE (x)) == MODE_INT)
 	      {
 		enum machine_mode mode = GET_MODE (x);
@@ -5703,10 +5756,7 @@ prepare_call_arguments (basic_block bb, rtx insn)
 		    val = cselib_lookup (reg, mode, 0, VOIDmode);
 		    if (val && cselib_preserved_value_p (val))
 		      {
-			item = gen_rtx_CONCAT (GET_MODE (x), x,
-					       lowpart_subreg (GET_MODE (x),
-							       val->val_rtx,
-							       mode));
+			item = val->val_rtx;
 			break;
 		      }
 		  }
@@ -5730,21 +5780,44 @@ prepare_call_arguments (basic_block bb, rtx insn)
 	      }
 	    val = cselib_lookup (mem, GET_MODE (mem), 0, VOIDmode);
 	    if (val && cselib_preserved_value_p (val))
-	      item = gen_rtx_CONCAT (GET_MODE (x), copy_rtx (x), val->val_rtx);
+	      item = val->val_rtx;
+	    else if (GET_MODE_CLASS (GET_MODE (mem)) != MODE_INT)
+	      {
+		/* For non-integer stack argument see also if they weren't
+		   initialized by integers.  */
+		enum machine_mode imode = int_mode_for_mode (GET_MODE (mem));
+		if (imode != GET_MODE (mem) && imode != BLKmode)
+		  {
+		    val = cselib_lookup (adjust_address_nv (mem, imode, 0),
+					 imode, 0, VOIDmode);
+		    if (val && cselib_preserved_value_p (val))
+		      item = lowpart_subreg (GET_MODE (x), val->val_rtx,
+					     imode);
+		  }
+	      }
 	  }
 	if (item)
-	  call_arguments = gen_rtx_EXPR_LIST (VOIDmode, item, call_arguments);
+	  {
+	    rtx x2 = x;
+	    if (GET_MODE (item) != GET_MODE (link))
+	      item = lowpart_subreg (GET_MODE (link), item, GET_MODE (item));
+	    if (GET_MODE (x2) != GET_MODE (link))
+	      x2 = lowpart_subreg (GET_MODE (link), x2, GET_MODE (x2));
+	    item = gen_rtx_CONCAT (GET_MODE (link), x2, item);
+	    call_arguments
+	      = gen_rtx_EXPR_LIST (VOIDmode, item, call_arguments);
+	  }
 	if (t && t != void_list_node)
 	  {
 	    tree argtype = TREE_VALUE (t);
 	    enum machine_mode mode = TYPE_MODE (argtype);
 	    rtx reg;
-	    if (pass_by_reference (&args_so_far, mode, argtype, true))
+	    if (pass_by_reference (&args_so_far_v, mode, argtype, true))
 	      {
 		argtype = build_pointer_type (argtype);
 		mode = TYPE_MODE (argtype);
 	      }
-	    reg = targetm.calls.function_arg (&args_so_far, mode,
+	    reg = targetm.calls.function_arg (args_so_far, mode,
 					      argtype, true);
 	    if (TREE_CODE (argtype) == REFERENCE_TYPE
 		&& INTEGRAL_TYPE_P (TREE_TYPE (argtype))
@@ -5798,11 +5871,34 @@ prepare_call_arguments (basic_block bb, rtx insn)
 			}
 		  }
 	      }
-	    targetm.calls.function_arg_advance (&args_so_far, mode,
+	    targetm.calls.function_arg_advance (args_so_far, mode,
 						argtype, true);
 	    t = TREE_CHAIN (t);
 	  }
       }
+
+  /* Add debug arguments.  */
+  if (fndecl
+      && TREE_CODE (fndecl) == FUNCTION_DECL
+      && DECL_HAS_DEBUG_ARGS_P (fndecl))
+    {
+      VEC(tree, gc) **debug_args = decl_debug_args_lookup (fndecl);
+      if (debug_args)
+	{
+	  unsigned int ix;
+	  tree param;
+	  for (ix = 0; VEC_iterate (tree, *debug_args, ix, param); ix += 2)
+	    {
+	      rtx item;
+	      tree dtemp = VEC_index (tree, *debug_args, ix + 1);
+	      enum machine_mode mode = DECL_MODE (dtemp);
+	      item = gen_rtx_DEBUG_PARAMETER_REF (mode, param);
+	      item = gen_rtx_CONCAT (mode, item, DECL_RTL (dtemp));
+	      call_arguments = gen_rtx_EXPR_LIST (VOIDmode, item,
+						  call_arguments);
+	    }
+	}
+    }
 
   /* Reverse call_arguments chain.  */
   prev = NULL_RTX;
@@ -7415,7 +7511,7 @@ vt_expand_loc (rtx loc, htab_t vars, bool ignore_cur_loc)
   data.dummy = false;
   data.cur_loc_changed = false;
   data.ignore_cur_loc = ignore_cur_loc;
-  loc = cselib_expand_value_rtx_cb (loc, scratch_regs, 8,
+  loc = cselib_expand_value_rtx_cb (loc, scratch_regs, EXPR_DEPTH,
 				    vt_expand_loc_callback, &data);
 
   if (loc && MEM_P (loc))
@@ -7437,7 +7533,7 @@ vt_expand_loc_dummy (rtx loc, htab_t vars, bool *pcur_loc_changed)
   data.dummy = true;
   data.cur_loc_changed = false;
   data.ignore_cur_loc = false;
-  ret = cselib_dummy_expand_value_rtx_cb (loc, scratch_regs, 8,
+  ret = cselib_dummy_expand_value_rtx_cb (loc, scratch_regs, EXPR_DEPTH,
 					  vt_expand_loc_callback, &data);
   *pcur_loc_changed = data.cur_loc_changed;
   return ret;
@@ -7971,6 +8067,23 @@ emit_notes_for_differences (rtx insn, dataflow_set *old_set,
   emit_notes_for_changes (insn, EMIT_NOTE_BEFORE_INSN, new_set->vars);
 }
 
+/* Return the next insn after INSN that is not a NOTE_INSN_VAR_LOCATION.  */
+
+static rtx
+next_non_note_insn_var_location (rtx insn)
+{
+  while (insn)
+    {
+      insn = NEXT_INSN (insn);
+      if (insn == 0
+	  || !NOTE_P (insn)
+	  || NOTE_KIND (insn) != NOTE_INSN_VAR_LOCATION)
+	break;
+    }
+
+  return insn;
+}
+
 /* Emit the notes for changes of location parts in the basic block BB.  */
 
 static void
@@ -7985,6 +8098,7 @@ emit_notes_in_bb (basic_block bb, dataflow_set *set)
   FOR_EACH_VEC_ELT (micro_operation, VTI (bb)->mos, i, mo)
     {
       rtx insn = mo->insn;
+      rtx next_insn = next_non_note_insn_var_location (insn);
 
       switch (mo->type)
 	{
@@ -8191,7 +8305,7 @@ emit_notes_in_bb (basic_block bb, dataflow_set *set)
 		val_store (set, XEXP (reverse, 0), XEXP (reverse, 1),
 			   insn, false);
 
-	      emit_notes_for_changes (NEXT_INSN (insn), EMIT_NOTE_BEFORE_INSN,
+	      emit_notes_for_changes (next_insn, EMIT_NOTE_BEFORE_INSN,
 				      set->vars);
 	    }
 	    break;
@@ -8214,7 +8328,7 @@ emit_notes_in_bb (basic_block bb, dataflow_set *set)
 		var_mem_delete_and_set (set, loc, true, VAR_INIT_STATUS_INITIALIZED,
 					set_src);
 
-	      emit_notes_for_changes (NEXT_INSN (insn), EMIT_NOTE_BEFORE_INSN,
+	      emit_notes_for_changes (next_insn, EMIT_NOTE_BEFORE_INSN,
 				      set->vars);
 	    }
 	    break;
@@ -8239,7 +8353,7 @@ emit_notes_in_bb (basic_block bb, dataflow_set *set)
 	      else
 		var_mem_delete_and_set (set, loc, false, src_status, set_src);
 
-	      emit_notes_for_changes (NEXT_INSN (insn), EMIT_NOTE_BEFORE_INSN,
+	      emit_notes_for_changes (next_insn, EMIT_NOTE_BEFORE_INSN,
 				      set->vars);
 	    }
 	    break;
@@ -8266,7 +8380,7 @@ emit_notes_in_bb (basic_block bb, dataflow_set *set)
 	      else
 		var_mem_delete (set, loc, true);
 
-	      emit_notes_for_changes (NEXT_INSN (insn), EMIT_NOTE_BEFORE_INSN,
+	      emit_notes_for_changes (next_insn, EMIT_NOTE_BEFORE_INSN,
 				      set->vars);
 	    }
 	    break;
@@ -8375,6 +8489,39 @@ vt_get_decl_and_offset (rtx rtl, tree *declp, HOST_WIDE_INT *offsetp)
   return false;
 }
 
+/* Helper function for vt_add_function_parameter.  RTL is
+   the expression and VAL corresponding cselib_val pointer
+   for which ENTRY_VALUE should be created.  */
+
+static void
+create_entry_value (rtx rtl, cselib_val *val)
+{
+  cselib_val *val2;
+  struct elt_loc_list *el;
+  el = (struct elt_loc_list *) ggc_alloc_cleared_atomic (sizeof (*el));
+  el->loc = gen_rtx_ENTRY_VALUE (GET_MODE (rtl));
+  ENTRY_VALUE_EXP (el->loc) = rtl;
+  val2 = cselib_lookup_from_insn (el->loc, GET_MODE (rtl), true,
+				  VOIDmode, get_insns ());
+  el->next = val->locs;
+  el->setting_insn = get_insns ();
+  val->locs = el;
+  if (val2
+      && val2 != val
+      && val2->locs
+      && rtx_equal_p (val2->locs->loc, el->loc))
+    {
+      struct elt_loc_list *el2;
+
+      preserve_value (val2);
+      el2 = (struct elt_loc_list *) ggc_alloc_cleared_atomic (sizeof (*el2));
+      el2->next = val2->locs;
+      el2->loc = val->val_rtx;
+      el2->setting_insn = get_insns ();
+      val2->locs = el2;
+    }
+}
+
 /* Insert function parameter PARM in IN and OUT sets of ENTRY_BLOCK.  */
 
 static void
@@ -8396,6 +8543,61 @@ vt_add_function_parameter (tree parm)
 
   if (GET_MODE (decl_rtl) == BLKmode || GET_MODE (incoming) == BLKmode)
     return;
+
+  /* If there is a DRAP register, rewrite the incoming location of parameters
+     passed on the stack into MEMs based on the argument pointer, as the DRAP
+     register can be reused for other purposes and we do not track locations
+     based on generic registers.  But the prerequisite is that this argument
+     pointer be also the virtual CFA pointer, see vt_initialize.  */
+  if (MEM_P (incoming)
+      && stack_realign_drap
+      && arg_pointer_rtx == cfa_base_rtx
+      && (XEXP (incoming, 0) == crtl->args.internal_arg_pointer
+	  || (GET_CODE (XEXP (incoming, 0)) == PLUS
+	      && XEXP (XEXP (incoming, 0), 0)
+		 == crtl->args.internal_arg_pointer
+	      && CONST_INT_P (XEXP (XEXP (incoming, 0), 1)))))
+    {
+      HOST_WIDE_INT off = -FIRST_PARM_OFFSET (current_function_decl);
+      if (GET_CODE (XEXP (incoming, 0)) == PLUS)
+	off += INTVAL (XEXP (XEXP (incoming, 0), 1));
+      incoming
+	= replace_equiv_address_nv (incoming,
+				    plus_constant (arg_pointer_rtx, off));
+    }
+
+#ifdef HAVE_window_save
+  /* DECL_INCOMING_RTL uses the INCOMING_REGNO of parameter registers.
+     If the target machine has an explicit window save instruction, the
+     actual entry value is the corresponding OUTGOING_REGNO instead.  */
+  if (REG_P (incoming)
+      && HARD_REGISTER_P (incoming)
+      && OUTGOING_REGNO (REGNO (incoming)) != REGNO (incoming))
+    {
+      parm_reg_t *p
+	= VEC_safe_push (parm_reg_t, gc, windowed_parm_regs, NULL);
+      p->incoming = incoming;
+      incoming
+	= gen_rtx_REG_offset (incoming, GET_MODE (incoming),
+			      OUTGOING_REGNO (REGNO (incoming)), 0);
+      p->outgoing = incoming;
+    }
+  else if (MEM_P (incoming)
+	   && REG_P (XEXP (incoming, 0))
+	   && HARD_REGISTER_P (XEXP (incoming, 0)))
+    {
+      rtx reg = XEXP (incoming, 0);
+      if (OUTGOING_REGNO (REGNO (reg)) != REGNO (reg))
+	{
+	  parm_reg_t *p
+	    = VEC_safe_push (parm_reg_t, gc, windowed_parm_regs, NULL);
+	  p->incoming = reg;
+	  reg = gen_raw_REG (GET_MODE (reg), OUTGOING_REGNO (REGNO (reg)));
+	  p->outgoing = reg;
+	  incoming = replace_equiv_address_nv (incoming, reg);
+	}
+    }
+#endif
 
   if (!vt_get_decl_and_offset (incoming, &decl, &offset))
     {
@@ -8476,32 +8678,8 @@ vt_add_function_parameter (tree parm)
 			 VAR_INIT_STATUS_INITIALIZED, NULL, INSERT);
       if (dv_is_value_p (dv))
 	{
-	  cselib_val *val = CSELIB_VAL_PTR (dv_as_value (dv)), *val2;
-	  struct elt_loc_list *el;
-	  el = (struct elt_loc_list *)
-	    ggc_alloc_cleared_atomic (sizeof (*el));
-	  el->next = val->locs;
-	  el->loc = gen_rtx_ENTRY_VALUE (GET_MODE (incoming));
-	  ENTRY_VALUE_EXP (el->loc) = incoming;
-	  el->setting_insn = get_insns ();
-	  val->locs = el;
-	  val2 = cselib_lookup_from_insn (el->loc, GET_MODE (incoming),
-					  true, VOIDmode, get_insns ());
-	  if (val2
-	      && val2 != val
-	      && val2->locs
-	      && rtx_equal_p (val2->locs->loc, el->loc))
-	    {
-	      struct elt_loc_list *el2;
-
-	      preserve_value (val2);
-	      el2 = (struct elt_loc_list *)
-		ggc_alloc_cleared_atomic (sizeof (*el2));
-	      el2->next = val2->locs;
-	      el2->loc = dv_as_value (dv);
-	      el2->setting_insn = get_insns ();
-	      val2->locs = el2;
-	    }
+	  cselib_val *val = CSELIB_VAL_PTR (dv_as_value (dv));
+	  create_entry_value (incoming, val);
 	  if (TREE_CODE (TREE_TYPE (parm)) == REFERENCE_TYPE
 	      && INTEGRAL_TYPE_P (TREE_TYPE (TREE_TYPE (parm))))
 	    {
@@ -8513,31 +8691,7 @@ vt_add_function_parameter (tree parm)
 	      if (val)
 		{
 		  preserve_value (val);
-		  el = (struct elt_loc_list *)
-		    ggc_alloc_cleared_atomic (sizeof (*el));
-		  el->next = val->locs;
-		  el->loc = gen_rtx_ENTRY_VALUE (indmode);
-		  ENTRY_VALUE_EXP (el->loc) = mem;
-		  el->setting_insn = get_insns ();
-		  val->locs = el;
-		  val2 = cselib_lookup_from_insn (el->loc, GET_MODE (mem),
-						  true, VOIDmode,
-						  get_insns ());
-		  if (val2
-		      && val2 != val
-		      && val2->locs
-		      && rtx_equal_p (val2->locs->loc, el->loc))
-		    {
-		      struct elt_loc_list *el2;
-
-		      preserve_value (val2);
-		      el2 = (struct elt_loc_list *)
-			ggc_alloc_cleared_atomic (sizeof (*el2));
-		      el2->next = val2->locs;
-		      el2->loc = val->val_rtx;
-		      el2->setting_insn = get_insns ();
-		      val2->locs = el2;
-		    }
+		  create_entry_value (mem, val);
 		}
 	    }
 	}
@@ -8646,9 +8800,11 @@ vt_init_cfa_base (void)
 
   /* Tell alias analysis that cfa_base_rtx should share
      find_base_term value with stack pointer or hard frame pointer.  */
-  vt_equate_reg_base_value (cfa_base_rtx,
-			    frame_pointer_needed
-			    ? hard_frame_pointer_rtx : stack_pointer_rtx);
+  if (!frame_pointer_needed)
+    vt_equate_reg_base_value (cfa_base_rtx, stack_pointer_rtx);
+  else if (!crtl->stack_realign_tried)
+    vt_equate_reg_base_value (cfa_base_rtx, hard_frame_pointer_rtx);
+
   val = cselib_lookup_from_insn (cfa_base_rtx, GET_MODE (cfa_base_rtx), 1,
 				 VOIDmode, get_insns ());
   preserve_value (val);
@@ -8664,7 +8820,7 @@ vt_init_cfa_base (void)
 static bool
 vt_initialize (void)
 {
-  basic_block bb, prologue_bb = NULL;
+  basic_block bb, prologue_bb = single_succ (ENTRY_BLOCK_PTR);
   HOST_WIDE_INT fp_cfa_offset = -1;
 
   alloc_aux_for_blocks (sizeof (struct variable_tracking_info_def));
@@ -8722,6 +8878,16 @@ vt_initialize (void)
 
   CLEAR_HARD_REG_SET (argument_reg_set);
 
+  /* In order to factor out the adjustments made to the stack pointer or to
+     the hard frame pointer and thus be able to use DW_OP_fbreg operations
+     instead of individual location lists, we're going to rewrite MEMs based
+     on them into MEMs based on the CFA by de-eliminating stack_pointer_rtx
+     or hard_frame_pointer_rtx to the virtual CFA pointer frame_pointer_rtx
+     resp. arg_pointer_rtx.  We can do this either when there is no frame
+     pointer in the function and stack adjustments are consistent for all
+     basic blocks or when there is a frame pointer and no stack realignment.
+     But we first have to check that frame_pointer_rtx resp. arg_pointer_rtx
+     has been eliminated.  */
   if (!frame_pointer_needed)
     {
       rtx reg, elim;
@@ -8764,10 +8930,38 @@ vt_initialize (void)
 	    }
 	  if (elim != hard_frame_pointer_rtx)
 	    fp_cfa_offset = -1;
-	  else
-	    prologue_bb = single_succ (ENTRY_BLOCK_PTR);
+	}
+      else
+	fp_cfa_offset = -1;
+    }
+
+  /* If the stack is realigned and a DRAP register is used, we're going to
+     rewrite MEMs based on it representing incoming locations of parameters
+     passed on the stack into MEMs based on the argument pointer.  Although
+     we aren't going to rewrite other MEMs, we still need to initialize the
+     virtual CFA pointer in order to ensure that the argument pointer will
+     be seen as a constant throughout the function.
+
+     ??? This doesn't work if FRAME_POINTER_CFA_OFFSET is defined.  */
+  else if (stack_realign_drap)
+    {
+      rtx reg, elim;
+
+#ifdef FRAME_POINTER_CFA_OFFSET
+      reg = frame_pointer_rtx;
+#else
+      reg = arg_pointer_rtx;
+#endif
+      elim = eliminate_regs (reg, VOIDmode, NULL_RTX);
+      if (elim != reg)
+	{
+	  if (GET_CODE (elim) == PLUS)
+	    elim = XEXP (elim, 0);
+	  if (elim == hard_frame_pointer_rtx)
+	    vt_init_cfa_base ();
 	}
     }
+
   if (frame_pointer_needed)
     {
       rtx insn;
@@ -8868,6 +9062,7 @@ vt_initialize (void)
 		    }
 
 		  if (bb == prologue_bb
+		      && fp_cfa_offset != -1
 		      && hard_frame_pointer_adjustment == -1
 		      && RTX_FRAME_RELATED_P (insn)
 		      && fp_setter (insn))
@@ -8969,6 +9164,8 @@ vt_finalize (void)
       scratch_regs = NULL;
     }
 
+  VEC_free (parm_reg_t, gc, windowed_parm_regs);
+
   if (vui_vec)
     XDELETEVEC (vui_vec);
   vui_vec = NULL;
@@ -9057,7 +9254,7 @@ variable_tracking_main (void)
 static bool
 gate_handle_var_tracking (void)
 {
-  return (flag_var_tracking);
+  return (flag_var_tracking && !targetm.delay_vartrack);
 }
 
 
@@ -9077,6 +9274,6 @@ struct rtl_opt_pass pass_variable_tracking =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func | TODO_verify_rtl_sharing/* todo_flags_finish */
+  TODO_verify_rtl_sharing               /* todo_flags_finish */
  }
 };

@@ -968,15 +968,11 @@ get_expr_operands (gimple stmt, tree *expr_p, int flags)
 	gimple_set_has_volatile_ops (stmt, true);
       /* FALLTHRU */
 
-    case TRUTH_NOT_EXPR:
     case VIEW_CONVERT_EXPR:
     do_unary:
       get_expr_operands (stmt, &TREE_OPERAND (expr, 0), flags);
       return;
 
-    case TRUTH_AND_EXPR:
-    case TRUTH_OR_EXPR:
-    case TRUTH_XOR_EXPR:
     case COMPOUND_EXPR:
     case OBJ_TYPE_REF:
     case ASSERT_EXPR:
@@ -1153,7 +1149,8 @@ swap_tree_operands (gimple stmt, tree *exp0, tree *exp1)
 
   /* If the operand cache is active, attempt to preserve the relative
      positions of these two operands in their respective immediate use
-     lists.  */
+     lists by adjusting their use pointer to point to the new
+     operand position.  */
   if (ssa_operands_active () && op0 != op1)
     {
       use_optype_p use0, use1, ptr;
@@ -1174,14 +1171,12 @@ swap_tree_operands (gimple stmt, tree *exp0, tree *exp1)
 	    break;
 	  }
 
-      /* If both uses don't have operand entries, there isn't much we can do
-         at this point.  Presumably we don't need to worry about it.  */
-      if (use0 && use1)
-        {
-	  tree *tmp = USE_OP_PTR (use1)->use;
-	  USE_OP_PTR (use1)->use = USE_OP_PTR (use0)->use;
-	  USE_OP_PTR (use0)->use = tmp;
-	}
+      /* And adjust their location to point to the new position of the
+         operand.  */
+      if (use0)
+	USE_OP_PTR (use0)->use = exp1;
+      if (use1)
+	USE_OP_PTR (use1)->use = exp0;
     }
 
   /* Now swap the data.  */

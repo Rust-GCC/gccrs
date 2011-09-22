@@ -2210,7 +2210,9 @@ Clauses are represented by separate sub-codes defined in
 @code{OMP_CLAUSE_COPYPRIVATE}, @code{OMP_CLAUSE_IF},
 @code{OMP_CLAUSE_NUM_THREADS}, @code{OMP_CLAUSE_SCHEDULE},
 @code{OMP_CLAUSE_NOWAIT}, @code{OMP_CLAUSE_ORDERED},
-@code{OMP_CLAUSE_DEFAULT}, and @code{OMP_CLAUSE_REDUCTION}.  Each code
+@code{OMP_CLAUSE_DEFAULT}, @code{OMP_CLAUSE_REDUCTION},
+@code{OMP_CLAUSE_COLLAPSE}, @code{OMP_CLAUSE_UNTIED},
+@code{OMP_CLAUSE_FINAL}, and @code{OMP_CLAUSE_MERGEABLE}.  Each code
 represents the corresponding OpenMP clause.
 
 Clauses associated with the same directive are chained together
@@ -2502,7 +2504,7 @@ should submit your patches for inclusion in GCC@.
 @tindex UNKNOWN_TYPE
 @tindex TYPENAME_TYPE
 @tindex TYPEOF_TYPE
-@findex CP_TYPE_QUALS
+@findex cp_type_quals
 @findex TYPE_UNQUALIFIED
 @findex TYPE_QUAL_CONST
 @findex TYPE_QUAL_VOLATILE
@@ -2534,8 +2536,8 @@ the type @code{const int ()[7]}, denoting an array of seven @code{int}s.
 
 The following functions and macros deal with cv-qualification of types:
 @ftable @code
-@item CP_TYPE_QUALS
-This macro returns the set of type qualifiers applied to this type.
+@item cp_type_quals
+This function returns the set of type qualifiers applied to this type.
 This value is @code{TYPE_UNQUALIFIED} if no qualifiers have been
 applied.  The @code{TYPE_QUAL_CONST} bit is set if the type is
 @code{const}-qualified.  The @code{TYPE_QUAL_VOLATILE} bit is set if the

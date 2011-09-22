@@ -84,10 +84,12 @@ gfortranspec.o: $(srcdir)/fortran/gfortranspec.c $(SYSTEM_H) $(TM_H) $(GCC_H) \
 		$(INCLUDES) $(srcdir)/fortran/gfortranspec.c)
 
 # Create the compiler driver gfortran.
-GFORTRAN_D_OBJS = $(GCC_OBJS) gfortranspec.o prefix.o
-gfortran$(exeext): $(GFORTRAN_D_OBJS) $(EXTRA_GCC_OBJS) $(LIBDEPS)
+GFORTRAN_D_OBJS = $(GCC_OBJS) gfortranspec.o
+gfortran$(exeext): $(GFORTRAN_D_OBJS) $(EXTRA_GCC_OBJS) libcommon-target.a \
+	$(LIBDEPS)
 	+$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
-	  $(GFORTRAN_D_OBJS) $(EXTRA_GCC_OBJS) $(LIBS)
+	  $(GFORTRAN_D_OBJS) $(EXTRA_GCC_OBJS) libcommon-target.a \
+	  $(EXTRA_GCC_LIBS) $(LIBS)
 
 # Create a version of the gfortran driver which calls the cross-compiler.
 gfortran-cross$(exeext): gfortran$(exeext)
@@ -170,9 +172,12 @@ check-fortran-subtargets : check-gfortran-subtargets
 lang_checks += check-gfortran
 lang_checks_parallelized += check-gfortran
 # For description see comment above check_gcc_parallelize in gcc/Makefile.in.
-check_gfortran_parallelize = dg.exp=gfortran.dg/\[a-cA-C\]* \
-			     dg.exp=gfortran.dg/\[d-mD-M\]* \
-			     dg.exp=gfortran.dg/\[n-zN-Z0-9\]*
+check_gfortran_parallelize = dg.exp=gfortran.dg/\[adAD\]* \
+			     dg.exp=gfortran.dg/\[bcBC\]* \
+			     dg.exp=gfortran.dg/\[nopNOP\]* \
+			     dg.exp=gfortran.dg/\[isuvISUV\]* \
+			     dg.exp=gfortran.dg/\[efhkqrxzEFHKQRXZ\]* \
+			     dg.exp=gfortran.dg/\[0-9gjlmtwyGJLMTWY\]*
 
 # GFORTRAN documentation.
 GFORTRAN_TEXI = \
@@ -362,5 +367,3 @@ fortran/resolve.o: fortran/dependency.h fortran/data.h fortran/target-memory.h
 fortran/data.o: fortran/data.h
 fortran/options.o: $(PARAMS_H) $(TARGET_H) fortran/cpp.h
 fortran/cpp.o: fortran/cpp.c incpath.h incpath.o cppbuiltin.h
-	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) \
-		$< $(OUTPUT_OPTION)

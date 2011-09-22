@@ -79,6 +79,7 @@ cp_tree_size (enum tree_code code)
     case BASELINK:		return sizeof (struct tree_baselink);
     case TEMPLATE_PARM_INDEX:	return sizeof (template_parm_index);
     case DEFAULT_ARG:		return sizeof (struct tree_default_arg);
+    case DEFERRED_NOEXCEPT:	return sizeof (struct tree_deferred_noexcept);
     case OVERLOAD:		return sizeof (struct tree_overload);
     case STATIC_ASSERT:         return sizeof (struct tree_static_assert);
     case TYPE_ARGUMENT_PACK:
@@ -241,6 +242,7 @@ cp_common_init_ts (void)
   MARK_TS_COMMON (UNDERLYING_TYPE);
   MARK_TS_COMMON (BASELINK);
   MARK_TS_COMMON (TYPE_PACK_EXPANSION);
+  MARK_TS_COMMON (TYPE_ARGUMENT_PACK);
   MARK_TS_COMMON (DECLTYPE_TYPE);
   MARK_TS_COMMON (BOUND_TEMPLATE_TEMPLATE_PARM);
   MARK_TS_COMMON (UNBOUND_CLASS_TEMPLATE);
@@ -297,6 +299,7 @@ cp_common_init_ts (void)
   MARK_TS_TYPED (VEC_INIT_EXPR);
   MARK_TS_TYPED (USING_STMT);
   MARK_TS_TYPED (LAMBDA_EXPR);
+  MARK_TS_TYPED (CTOR_INITIALIZER);
 }
 
 #include "gt-cp-cp-objcp-common.h"

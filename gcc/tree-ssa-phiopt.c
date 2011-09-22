@@ -544,8 +544,9 @@ conditional_replacement (basic_block cond_bb, basic_block middle_bb,
   /* To handle special cases like floating point comparison, it is easier and
      less error-prone to build a tree and gimplify it on the fly though it is
      less efficient.  */
-  cond = fold_build2 (gimple_cond_code (stmt), boolean_type_node,
-		      gimple_cond_lhs (stmt), gimple_cond_rhs (stmt));
+  cond = fold_build2_loc (gimple_location (stmt),
+			  gimple_cond_code (stmt), boolean_type_node,
+			  gimple_cond_lhs (stmt), gimple_cond_rhs (stmt));
 
   /* We need to know which is the true edge and which is the false
      edge so that we know when to invert the condition below.  */
@@ -554,7 +555,8 @@ conditional_replacement (basic_block cond_bb, basic_block middle_bb,
       || (e0 == false_edge && integer_onep (arg0))
       || (e1 == true_edge && integer_zerop (arg1))
       || (e1 == false_edge && integer_onep (arg1)))
-    cond = fold_build1 (TRUTH_NOT_EXPR, TREE_TYPE (cond), cond);
+    cond = fold_build1_loc (gimple_location (stmt),
+			    TRUTH_NOT_EXPR, TREE_TYPE (cond), cond);
 
   /* Insert our new statements at the end of conditional block before the
      COND_STMT.  */
@@ -1267,10 +1269,7 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
   /* 2) Create a temporary where we can store the old content
         of the memory touched by the store, if we need to.  */
   if (!condstoretemp || TREE_TYPE (lhs) != TREE_TYPE (condstoretemp))
-    {
-      condstoretemp = create_tmp_reg (TREE_TYPE (lhs), "cstore");
-      get_var_ann (condstoretemp);
-    }
+    condstoretemp = create_tmp_reg (TREE_TYPE (lhs), "cstore");
   add_referenced_var (condstoretemp);
 
   /* 3) Insert a load from the memory of the store to the temporary
@@ -1353,10 +1352,7 @@ cond_if_else_store_replacement_1 (basic_block then_bb, basic_block else_bb,
   /* 2) Create a temporary where we can store the old content
 	of the memory touched by the store, if we need to.  */
   if (!condstoretemp || TREE_TYPE (lhs) != TREE_TYPE (condstoretemp))
-    {
-      condstoretemp = create_tmp_reg (TREE_TYPE (lhs), "cstore");
-      get_var_ann (condstoretemp);
-    }
+    condstoretemp = create_tmp_reg (TREE_TYPE (lhs), "cstore");
   add_referenced_var (condstoretemp);
 
   /* 3) Create a PHI node at the join block, with one argument
@@ -1452,7 +1448,7 @@ cond_if_else_store_replacement (basic_block then_bb, basic_block else_bb,
         continue;
 
       then_store = DR_STMT (then_dr);
-      then_lhs = gimple_assign_lhs (then_store);
+      then_lhs = gimple_get_lhs (then_store);
       found = false;
 
       FOR_EACH_VEC_ELT (data_reference_p, else_datarefs, j, else_dr)
@@ -1461,7 +1457,7 @@ cond_if_else_store_replacement (basic_block then_bb, basic_block else_bb,
             continue;
 
           else_store = DR_STMT (else_dr);
-          else_lhs = gimple_assign_lhs (else_store);
+          else_lhs = gimple_get_lhs (else_store);
 
           if (operand_equal_p (then_lhs, else_lhs, 0))
             {
@@ -1588,8 +1584,7 @@ struct gimple_opt_pass pass_phiopt =
   0,					/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func
-    | TODO_ggc_collect
+  TODO_ggc_collect
     | TODO_verify_ssa
     | TODO_verify_flow
     | TODO_verify_stmts	 		/* todo_flags_finish */
@@ -1617,8 +1612,7 @@ struct gimple_opt_pass pass_cselim =
   0,					/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func
-    | TODO_ggc_collect
+  TODO_ggc_collect
     | TODO_verify_ssa
     | TODO_verify_flow
     | TODO_verify_stmts	 		/* todo_flags_finish */

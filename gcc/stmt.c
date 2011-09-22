@@ -53,6 +53,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "alloc-pool.h"
 #include "pretty-print.h"
 #include "bitmap.h"
+#include "params.h"
 
 
 /* Functions and data structures for expanding case statements.  */
@@ -1758,7 +1759,8 @@ expand_return (tree retval)
 
 	  /* Use bitpos for the source extraction (left justified) and
 	     xbitpos for the destination store (right justified).  */
-	  store_bit_field (dst, bitsize, xbitpos % BITS_PER_WORD, word_mode,
+	  store_bit_field (dst, bitsize, xbitpos % BITS_PER_WORD,
+			   0, 0, word_mode,
 			   extract_bit_field (src, bitsize,
 					      bitpos % BITS_PER_WORD, 1, false,
 					      NULL_RTX, word_mode, word_mode));
@@ -2014,10 +2016,13 @@ expand_stack_save (void)
 void
 expand_stack_restore (tree var)
 {
-  rtx sa = expand_normal (var);
+  rtx prev, sa = expand_normal (var);
 
   sa = convert_memory_address (Pmode, sa);
+
+  prev = get_last_insn ();
   emit_stack_restore (SAVE_BLOCK, sa);
+  fixup_args_size_notes (prev, get_last_insn (), 0);
 }
 
 /* Do the insertion of a case label into case_list.  The labels are
@@ -2129,8 +2134,8 @@ bool lshift_cheap_p (void)
   if (!init[speed_p])
     {
       rtx reg = gen_rtx_REG (word_mode, 10000);
-      int cost = rtx_cost (gen_rtx_ASHIFT (word_mode, const1_rtx, reg), SET,
-      			   speed_p);
+      int cost = set_src_cost (gen_rtx_ASHIFT (word_mode, const1_rtx, reg),
+			       speed_p);
       cheap[speed_p] = cost < COSTS_N_INSNS (3);
       init[speed_p] = true;
     }
@@ -2268,6 +2273,20 @@ expand_switch_using_bit_tests_p (tree index_expr, tree range,
 	  && ((uniq == 1 && count >= 3)
 	      || (uniq == 2 && count >= 5)
 	      || (uniq == 3 && count >= 6)));
+}
+
+/* Return the smallest number of different values for which it is best to use a
+   jump-table instead of a tree of conditional branches.  */
+
+static unsigned int
+case_values_threshold (void)
+{
+  unsigned int threshold = PARAM_VALUE (PARAM_CASE_VALUES_THRESHOLD);
+
+  if (threshold == 0)
+    threshold = targetm.case_values_threshold ();
+
+  return threshold;
 }
 
 /* Terminate a case (Pascal/Ada) or switch (C) statement
@@ -2424,7 +2443,7 @@ expand_case (gimple stmt)
 	 If the switch-index is a constant, do it this way
 	 because we can optimize it.  */
 
-      else if (count < targetm.case_values_threshold ()
+      else if (count < case_values_threshold ()
 	       || compare_tree_int (range,
 				    (optimize_insn_for_size_p () ? 3 : 10) * count) > 0
 	       /* RANGE may be signed, and really large ranges will show up

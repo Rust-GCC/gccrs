@@ -1145,9 +1145,9 @@ gimple_ic (gimple icall_stmt, struct cgraph_node *direct_call,
 {
   gimple dcall_stmt, load_stmt, cond_stmt;
   tree tmp0, tmp1, tmpv, tmp;
-  basic_block cond_bb, dcall_bb, icall_bb, join_bb;
+  basic_block cond_bb, dcall_bb, icall_bb, join_bb = NULL;
   tree optype = build_pointer_type (void_type_node);
-  edge e_cd, e_ci, e_di, e_dj, e_ij;
+  edge e_cd, e_ci, e_di, e_dj = NULL, e_ij;
   gimple_stmt_iterator gsi;
   int lp_nr;
 
@@ -1194,12 +1194,19 @@ gimple_ic (gimple icall_stmt, struct cgraph_node *direct_call,
   else
     {
       e_ij = find_fallthru_edge (icall_bb->succs);
-      e_ij->probability = REG_BR_PROB_BASE;
-      e_ij->count = all - count;
-      e_ij = single_pred_edge (split_edge (e_ij));
+      /* The indirect call might be noreturn.  */
+      if (e_ij != NULL)
+	{
+	  e_ij->probability = REG_BR_PROB_BASE;
+	  e_ij->count = all - count;
+	  e_ij = single_pred_edge (split_edge (e_ij));
+	}
     }
-  join_bb = e_ij->dest;
-  join_bb->count = all;
+  if (e_ij != NULL)
+    {
+      join_bb = e_ij->dest;
+      join_bb->count = all;
+    }
 
   e_cd->flags = (e_cd->flags & ~EDGE_FALLTHRU) | EDGE_TRUE_VALUE;
   e_cd->probability = prob;
@@ -1211,12 +1218,15 @@ gimple_ic (gimple icall_stmt, struct cgraph_node *direct_call,
 
   remove_edge (e_di);
 
-  e_dj = make_edge (dcall_bb, join_bb, EDGE_FALLTHRU);
-  e_dj->probability = REG_BR_PROB_BASE;
-  e_dj->count = count;
+  if (e_ij != NULL)
+    {
+      e_dj = make_edge (dcall_bb, join_bb, EDGE_FALLTHRU);
+      e_dj->probability = REG_BR_PROB_BASE;
+      e_dj->count = count;
 
-  e_ij->probability = REG_BR_PROB_BASE;
-  e_ij->count = all - count;
+      e_ij->probability = REG_BR_PROB_BASE;
+      e_ij->count = all - count;
+    }
 
   /* Insert PHI node for the call result if necessary.  */
   if (gimple_call_lhs (icall_stmt)
@@ -1518,13 +1528,13 @@ gimple_stringops_transform (gimple_stmt_iterator *gsi)
   else
     prob = 0;
   dest = gimple_call_arg (stmt, 0);
-  dest_align = get_pointer_alignment (dest, BIGGEST_ALIGNMENT);
+  dest_align = get_pointer_alignment (dest);
   switch (fcode)
     {
     case BUILT_IN_MEMCPY:
     case BUILT_IN_MEMPCPY:
       src = gimple_call_arg (stmt, 1);
-      src_align = get_pointer_alignment (src, BIGGEST_ALIGNMENT);
+      src_align = get_pointer_alignment (src);
       if (!can_move_by_pieces (val, MIN (dest_align, src_align)))
 	return false;
       break;
