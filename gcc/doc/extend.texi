@@ -6561,6 +6561,55 @@ invoke undefined behavior at runtime.  Warnings for out of bound
 accesses for vector subscription can be enabled with
 @option{-Warray-bounds}.
 
+In GNU C vector comparison is supported within standard comparison
+operators: @code{==, !=, <, <=, >, >=}. Comparison operands can be
+vector expressions of integer-type or real-type. Comparison between
+integer-type vectors and real-type vectors are not supported.  The
+result of the comparison is a vector of the same width and number of
+elements as the comparison operands with a signed integral element
+type.
+
+Vectors are compared element-wise producing 0 when comparison is false
+and -1 (constant of the appropriate type where all bits are set)
+otherwise. Consider the following example.
+
+@smallexample
+typedef int v4si __attribute__ ((vector_size (16)));
+
+v4si a = @{1,2,3,4@};
+v4si b = @{3,2,1,4@};
+v4si c;
+
+c = a >  b;     /* The result would be @{0, 0,-1, 0@}  */
+c = a == b;     /* The result would be @{0,-1, 0,-1@}  */
+@end smallexample
+
+Vector shuffling is available using functions
+@code{__builtin_shuffle (vec, mask)} and
+@code{__builtin_shuffle (vec0, vec1, mask)}. Both functions construct
+a permutation of elements from one or two vectors and return a vector
+of the same type as input vector(s). The mask is a vector of
+integer-typed elements. The size of each element of the mask must be
+the same as the size of each input vector element. The number of
+elements in input vector(s) and mask must be the same.
+
+The elements of the input vectors are numbered from left to right across
+one or both of the vectors. Each element in the mask specifies a number
+of element from the input vector(s). Consider the following example.
+
+@smallexample
+typedef int v4si __attribute__ ((vector_size (16)));
+
+v4si a = @{1,2,3,4@};
+v4si b = @{5,6,7,8@};
+v4si mask1 = @{0,1,1,3@};
+v4si mask2 = @{0,4,2,5@};
+v4si res;
+
+res = __builtin_shuffle (a, mask1);       /* res is @{1,2,2,4@}  */
+res = __builtin_shuffle (a, b, mask2);    /* res is @{1,5,3,6@}  */
+@end smallexample
+
 You can declare variables and use them in function calls and returns, as
 well as in assignments and some casts.  You can specify a vector type as
 a return type for a function.  Vector types can also be used as function
@@ -6699,8 +6748,8 @@ return the new value.  That is,
 builtin as @code{*ptr = ~(*ptr & value)} instead of
 @code{*ptr = ~*ptr & value}.
 
-@item bool __sync_bool_compare_and_swap (@var{type} *ptr, @var{type} oldval @var{type} newval, ...)
-@itemx @var{type} __sync_val_compare_and_swap (@var{type} *ptr, @var{type} oldval @var{type} newval, ...)
+@item bool __sync_bool_compare_and_swap (@var{type} *ptr, @var{type} oldval, @var{type} newval, ...)
+@itemx @var{type} __sync_val_compare_and_swap (@var{type} *ptr, @var{type} oldval, @var{type} newval, ...)
 @findex __sync_bool_compare_and_swap
 @findex __sync_val_compare_and_swap
 These builtins perform an atomic compare and swap.  That is, if the current
@@ -12929,11 +12978,15 @@ the SPARC Visual Instruction Set (VIS).  When you use the @option{-mvis}
 switch, the VIS extension is exposed as the following built-in functions:
 
 @smallexample
+typedef int v1si __attribute__ ((vector_size (4)));
 typedef int v2si __attribute__ ((vector_size (8)));
 typedef short v4hi __attribute__ ((vector_size (8)));
 typedef short v2hi __attribute__ ((vector_size (4)));
 typedef unsigned char v8qi __attribute__ ((vector_size (8)));
 typedef unsigned char v4qi __attribute__ ((vector_size (4)));
+
+void __builtin_vis_write_gsr (int64_t);
+int64_t __builtin_vis_read_gsr (void);
 
 void * __builtin_vis_alignaddr (void *, long);
 void * __builtin_vis_alignaddrl (void *, long);
@@ -12959,21 +13012,104 @@ v8qi __builtin_vis_fpmerge (v4qi, v4qi);
 
 int64_t __builtin_vis_pdist (v8qi, v8qi, int64_t);
 
-int __builtin_vis_edge8 (void *, void *);
-int __builtin_vis_edge8l (void *, void *);
-int __builtin_vis_edge16 (void *, void *);
-int __builtin_vis_edge16l (void *, void *);
-int __builtin_vis_edge32 (void *, void *);
-int __builtin_vis_edge32l (void *, void *);
+long __builtin_vis_edge8 (void *, void *);
+long __builtin_vis_edge8l (void *, void *);
+long __builtin_vis_edge16 (void *, void *);
+long __builtin_vis_edge16l (void *, void *);
+long __builtin_vis_edge32 (void *, void *);
+long __builtin_vis_edge32l (void *, void *);
 
-int __builtin_vis_fcmple16 (v4hi, v4hi);
-int __builtin_vis_fcmple32 (v2si, v2si);
-int __builtin_vis_fcmpne16 (v4hi, v4hi);
-int __builtin_vis_fcmpne32 (v2si, v2si);
-int __builtin_vis_fcmpgt16 (v4hi, v4hi);
-int __builtin_vis_fcmpgt32 (v2si, v2si);
-int __builtin_vis_fcmpeq16 (v4hi, v4hi);
-int __builtin_vis_fcmpeq32 (v2si, v2si);
+long __builtin_vis_fcmple16 (v4hi, v4hi);
+long __builtin_vis_fcmple32 (v2si, v2si);
+long __builtin_vis_fcmpne16 (v4hi, v4hi);
+long __builtin_vis_fcmpne32 (v2si, v2si);
+long __builtin_vis_fcmpgt16 (v4hi, v4hi);
+long __builtin_vis_fcmpgt32 (v2si, v2si);
+long __builtin_vis_fcmpeq16 (v4hi, v4hi);
+long __builtin_vis_fcmpeq32 (v2si, v2si);
+
+v4hi __builtin_vis_fpadd16 (v4hi, v4hi);
+v2hi __builtin_vis_fpadd16s (v2hi, v2hi);
+v2si __builtin_vis_fpadd32 (v2si, v2si);
+v1si __builtin_vis_fpadd32s (v1si, v1si);
+v4hi __builtin_vis_fpsub16 (v4hi, v4hi);
+v2hi __builtin_vis_fpsub16s (v2hi, v2hi);
+v2si __builtin_vis_fpsub32 (v2si, v2si);
+v1si __builtin_vis_fpsub32s (v1si, v1si);
+
+long __builtin_vis_array8 (long, long);
+long __builtin_vis_array16 (long, long);
+long __builtin_vis_array32 (long, long);
+@end smallexample
+
+When you use the @option{-mvis2} switch, the VIS version 2.0 built-in
+functions also become available:
+
+@smallexample
+long __builtin_vis_bmask (long, long);
+int64_t __builtin_vis_bshuffledi (int64_t, int64_t);
+v2si __builtin_vis_bshufflev2si (v2si, v2si);
+v4hi __builtin_vis_bshufflev2si (v4hi, v4hi);
+v8qi __builtin_vis_bshufflev2si (v8qi, v8qi);
+
+long __builtin_vis_edge8n (void *, void *);
+long __builtin_vis_edge8ln (void *, void *);
+long __builtin_vis_edge16n (void *, void *);
+long __builtin_vis_edge16ln (void *, void *);
+long __builtin_vis_edge32n (void *, void *);
+long __builtin_vis_edge32ln (void *, void *);
+@end smallexample
+
+When you use the @option{-mvis3} switch, the VIS version 3.0 built-in
+functions also become available:
+
+@smallexample
+void __builtin_vis_cmask8 (long);
+void __builtin_vis_cmask16 (long);
+void __builtin_vis_cmask32 (long);
+
+v4hi __builtin_vis_fchksm16 (v4hi, v4hi);
+
+v4hi __builtin_vis_fsll16 (v4hi, v4hi);
+v4hi __builtin_vis_fslas16 (v4hi, v4hi);
+v4hi __builtin_vis_fsrl16 (v4hi, v4hi);
+v4hi __builtin_vis_fsra16 (v4hi, v4hi);
+v2si __builtin_vis_fsll16 (v2si, v2si);
+v2si __builtin_vis_fslas16 (v2si, v2si);
+v2si __builtin_vis_fsrl16 (v2si, v2si);
+v2si __builtin_vis_fsra16 (v2si, v2si);
+
+long __builtin_vis_pdistn (v8qi, v8qi);
+
+v4hi __builtin_vis_fmean16 (v4hi, v4hi);
+
+int64_t __builtin_vis_fpadd64 (int64_t, int64_t);
+int64_t __builtin_vis_fpsub64 (int64_t, int64_t);
+
+v4hi __builtin_vis_fpadds16 (v4hi, v4hi);
+v2hi __builtin_vis_fpadds16s (v2hi, v2hi);
+v4hi __builtin_vis_fpsubs16 (v4hi, v4hi);
+v2hi __builtin_vis_fpsubs16s (v2hi, v2hi);
+v2si __builtin_vis_fpadds32 (v2si, v2si);
+v1si __builtin_vis_fpadds32s (v1si, v1si);
+v2si __builtin_vis_fpsubs32 (v2si, v2si);
+v1si __builtin_vis_fpsubs32s (v1si, v1si);
+
+long __builtin_vis_fucmple8 (v8qi, v8qi);
+long __builtin_vis_fucmpne8 (v8qi, v8qi);
+long __builtin_vis_fucmpgt8 (v8qi, v8qi);
+long __builtin_vis_fucmpeq8 (v8qi, v8qi);
+
+float __builtin_vis_fhadds (float, float);
+double __builtin_vis_fhaddd (double, double);
+float __builtin_vis_fhsubs (float, float);
+double __builtin_vis_fhsubd (double, double);
+float __builtin_vis_fnhadds (float, float);
+double __builtin_vis_fnhaddd (double, double);
+
+int64_t __builtin_vis_umulxhi (int64_t, int64_t);
+int64_t __builtin_vis_xmulx (int64_t, int64_t);
+int64_t __builtin_vis_xmulxhi (int64_t, int64_t);
 @end smallexample
 
 @node SPU Built-in Functions

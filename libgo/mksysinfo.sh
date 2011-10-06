@@ -36,13 +36,17 @@ cat > sysinfo.c <<EOF
 #include <netinet/in.h>
 /* <netinet/tcp.h> needs u_char/u_short, but <sys/bsd_types> is only
    included by <netinet/in.h> if _SGIAPI (i.e. _SGI_SOURCE
-   && !_XOPEN_SOURCE.  */
+   && !_XOPEN_SOURCE.
+   <sys/termios.h> only defines TIOCNOTTY if !_XOPEN_SOURCE, while
+   <sys/ttold.h> does so unconditionally.  */
 #ifdef __sgi__
 #include <sys/bsd_types.h>
+#include <sys/ttold.h>
 #endif
 #include <netinet/tcp.h>
 #include <signal.h>
 #include <sys/ioctl.h>
+#include <termios.h>
 #if defined(HAVE_SYSCALL_H)
 #include <syscall.h>
 #endif
@@ -95,6 +99,7 @@ ${CC} -fdump-go-spec=gen-sysinfo.go -std=gnu99 -S -o sysinfo.s sysinfo.c
 
 echo 'package syscall' > ${OUT}
 echo 'import "unsafe"' >> ${OUT}
+echo 'type _ unsafe.Pointer' >> ${OUT}
 
 # Get all the consts and types, skipping ones which could not be
 # represented in Go and ones which we need to rewrite.  We also skip
@@ -496,6 +501,14 @@ grep '^type _passwd ' gen-sysinfo.go | \
 # The ioctl flags for the controlling TTY.
 grep '^const _TIOC' gen-sysinfo.go | \
     sed -e 's/^\(const \)_\(TIOC[^= ]*\)\(.*\)$/\1\2 = _\2/' >> ${OUT}
+
+# ioctl constants.  Might fall back to 0 if TIOCNXCL is missing, too, but
+# needs handling in syscalls.exec.go.
+if ! grep '^const _TIOCSCTTY ' gen-sysinfo.go >/dev/null 2>&1; then
+  if grep '^const _TIOCNXCL ' gen-sysinfo.go >/dev/null 2>&1; then
+    echo "const TIOCSCTTY = TIOCNXCL" >> ${OUT}
+  fi
+fi
 
 # The nlmsghdr struct.
 grep '^type _nlmsghdr ' gen-sysinfo.go | \

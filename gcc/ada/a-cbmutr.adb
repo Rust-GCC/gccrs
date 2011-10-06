@@ -40,9 +40,28 @@ package body Ada.Containers.Bounded_Multiway_Trees is
    end record;
 
    overriding function First (Object : Iterator) return Cursor;
+
    overriding function Next
      (Object : Iterator;
       Position : Cursor) return Cursor;
+
+   type Child_Iterator is new Tree_Iterator_Interfaces.Reversible_Iterator with
+   record
+      Container : Tree_Access;
+      Position  : Cursor;
+   end record;
+
+   overriding function First (Object : Child_Iterator) return Cursor;
+
+   overriding function Next
+     (Object : Child_Iterator;
+      Position : Cursor) return Cursor;
+
+   overriding function Previous
+     (Object : Child_Iterator;
+      Position : Cursor) return Cursor;
+
+   overriding function Last (Object : Child_Iterator) return Cursor;
 
    -----------------------
    -- Local Subprograms --
@@ -1241,6 +1260,14 @@ package body Ada.Containers.Bounded_Multiway_Trees is
       return Object.Position;
    end First;
 
+   function First (Object : Child_Iterator) return Cursor is
+      Node : Count_Type'Base;
+
+   begin
+      Node := Object.Container.Nodes (Object.Position.Node).Children.First;
+      return (Object.Container, Node);
+   end First;
+
    -----------------
    -- First_Child --
    -----------------
@@ -1737,18 +1764,13 @@ package body Ada.Containers.Bounded_Multiway_Trees is
      return Tree_Iterator_Interfaces.Forward_Iterator'Class
    is
       Root_Cursor : constant Cursor :=
-        (Container'Unrestricted_Access, Root_Node (Container));
+                      (Container'Unrestricted_Access, Root_Node (Container));
    begin
       return
         Iterator'(Container'Unrestricted_Access,
-                     First_Child (Root_Cursor), From_Root => True);
+                  First_Child (Root_Cursor),
+                  From_Root => True);
    end Iterate;
-
-   function Iterate_Subtree (Position : Cursor)
-     return Tree_Iterator_Interfaces.Forward_Iterator'Class is
-   begin
-      return Iterator'(Position.Container, Position, From_Root => False);
-   end Iterate_Subtree;
 
    ----------------------
    -- Iterate_Children --
@@ -1814,9 +1836,27 @@ package body Ada.Containers.Bounded_Multiway_Trees is
       end loop;
    end Iterate_Children;
 
+   function Iterate_Children
+     (Container : Tree;
+      Parent    : Cursor)
+     return Tree_Iterator_Interfaces.Reversible_Iterator'Class
+   is
+      pragma Unreferenced (Container);
+   begin
+      return Child_Iterator'(Parent.Container, Parent);
+   end Iterate_Children;
+
    ---------------------
    -- Iterate_Subtree --
    ---------------------
+
+   function Iterate_Subtree
+     (Position : Cursor)
+      return Tree_Iterator_Interfaces.Forward_Iterator'Class
+   is
+   begin
+      return Iterator'(Position.Container, Position, From_Root => False);
+   end Iterate_Subtree;
 
    procedure Iterate_Subtree
      (Position  : Cursor;
@@ -1841,7 +1881,6 @@ package body Ada.Containers.Bounded_Multiway_Trees is
 
          if Is_Root (Position) then
             Iterate_Children (T, Position.Node, Process);
-
          else
             Iterate_Subtree (T, Position.Node, Process);
          end if;
@@ -1868,6 +1907,15 @@ package body Ada.Containers.Bounded_Multiway_Trees is
       Process (Cursor'(Container'Unrestricted_Access, Subtree));
       Iterate_Children (Container, Subtree, Process);
    end Iterate_Subtree;
+
+   ----------
+   -- Last --
+   ----------
+
+   overriding function Last (Object : Child_Iterator) return Cursor is
+   begin
+      return Last_Child (Object.Position);
+   end Last;
 
    ----------------
    -- Last_Child --
@@ -1938,7 +1986,7 @@ package body Ada.Containers.Bounded_Multiway_Trees is
    begin
       if Is_Leaf (Position) then
 
-         --  If sibling is present, return it.
+         --  If sibling is present, return it
 
          if N.Next /= 0 then
             return (Object.Container, N.Next);
@@ -1955,7 +2003,7 @@ package body Ada.Containers.Bounded_Multiway_Trees is
                while Par.Next = 0 loop
                   Pos := Par.Parent;
 
-                  --  If we are back at the root the iteration is complete.
+                  --  If we are back at the root the iteration is complete
 
                   if Pos = No_Node then
                      return No_Element;
@@ -1983,12 +2031,24 @@ package body Ada.Containers.Bounded_Multiway_Trees is
             end;
          end if;
 
+      --  If an internal node, return its first child
+
       else
-
-         --  If an internal node, return its first child.
-
          return (Object.Container, N.Children.First);
       end if;
+   end Next;
+
+   function Next
+     (Object : Child_Iterator;
+      Position : Cursor) return Cursor
+   is
+
+   begin
+      if Object.Container /= Position.Container then
+         raise Program_Error;
+      end if;
+
+      return Next_Sibling (Position);
    end Next;
 
    ------------------
@@ -2135,6 +2195,22 @@ package body Ada.Containers.Bounded_Multiway_Trees is
 
       Container.Count := Container.Count + Count;
    end Prepend_Child;
+
+   --------------
+   -- Previous --
+   --------------
+
+   overriding function Previous
+     (Object : Child_Iterator;
+      Position : Cursor) return Cursor
+   is
+   begin
+      if Object.Container /= Position.Container then
+         raise Program_Error;
+      end if;
+
+      return Previous_Sibling (Position);
+   end Previous;
 
    ----------------------
    -- Previous_Sibling --
@@ -2351,24 +2427,22 @@ package body Ada.Containers.Bounded_Multiway_Trees is
      (Container : aliased Tree;
       Position  : Cursor) return Constant_Reference_Type
    is
-   begin
       pragma Unreferenced (Container);
-
+   begin
       return
         (Element =>
-            Position.Container.Elements (Position.Node)'Unchecked_Access);
+           Position.Container.Elements (Position.Node)'Unchecked_Access);
    end Constant_Reference;
 
    function Reference
      (Container : aliased Tree;
       Position  : Cursor) return Reference_Type
    is
-   begin
       pragma Unreferenced (Container);
-
+   begin
       return
         (Element =>
-            Position.Container.Elements (Position.Node)'Unchecked_Access);
+           Position.Container.Elements (Position.Node)'Unchecked_Access);
    end Reference;
 
    --------------------

@@ -817,16 +817,30 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 		    && No (Address_Clause (gnat_entity))))
 	    && TREE_CODE (TYPE_SIZE (gnu_type)) == INTEGER_CST)
 	  {
-	    /* No point in jumping through all the hoops needed in order
+	    unsigned int size_cap, align_cap;
+
+	    /* No point in promoting the alignment if this doesn't prevent
+	       BLKmode access to the object, in particular block copy, as
+	       this will for example disable the NRV optimization for it.
+	       No point in jumping through all the hoops needed in order
 	       to support BIGGEST_ALIGNMENT if we don't really have to.
 	       So we cap to the smallest alignment that corresponds to
 	       a known efficient memory access pattern of the target.  */
-	    unsigned int align_cap = Is_Atomic (gnat_entity)
-				     ? BIGGEST_ALIGNMENT
-				     : get_mode_alignment (ptr_mode);
+	    if (Is_Atomic (gnat_entity))
+	      {
+		size_cap = UINT_MAX;
+		align_cap = BIGGEST_ALIGNMENT;
+	      }
+	    else
+	      {
+		size_cap = MAX_FIXED_MODE_SIZE;
+		align_cap = get_mode_alignment (ptr_mode);
+	      }
 
 	    if (!host_integerp (TYPE_SIZE (gnu_type), 1)
-		|| compare_tree_int (TYPE_SIZE (gnu_type), align_cap) >= 0)
+		|| compare_tree_int (TYPE_SIZE (gnu_type), size_cap) > 0)
+	      align = 0;
+	    else if (compare_tree_int (TYPE_SIZE (gnu_type), align_cap) > 0)
 	      align = align_cap;
 	    else
 	      align = ceil_alignment (tree_low_cst (TYPE_SIZE (gnu_type), 1));
@@ -1403,6 +1417,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 			     gnat_entity);
 	DECL_BY_REF_P (gnu_decl) = used_by_ref;
 	DECL_POINTS_TO_READONLY_P (gnu_decl) = used_by_ref && inner_const_flag;
+	DECL_CAN_NEVER_BE_NULL_P (gnu_decl) = Can_Never_Be_Null (gnat_entity);
 
 	/* If we are defining an Out parameter and optimization isn't enabled,
 	   create a fake PARM_DECL for debugging purposes and make it point to
@@ -1995,6 +2010,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	gnu_template_reference
 	  = build_unary_op (INDIRECT_REF, gnu_template_type, tem);
 	TREE_READONLY (gnu_template_reference) = 1;
+	TREE_THIS_NOTRAP (gnu_template_reference) = 1;
 
 	/* Now create the GCC type for each index and add the fields for that
 	   index to the template.  */
@@ -3498,8 +3514,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	 fill it in later.  */
       if (!definition && defer_incomplete_level != 0)
 	{
-	  struct incomplete *p
-	    = (struct incomplete *) xmalloc (sizeof (struct incomplete));
+	  struct incomplete *p = XNEW (struct incomplete);
 
 	  gnu_type
 	    = build_pointer_type
@@ -3824,15 +3839,15 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
     case E_Access_Subtype:
 
       /* We treat this as identical to its base type; any constraint is
-	 meaningful only to the front end.
+	 meaningful only to the front-end.
 
 	 The designated type must be elaborated as well, if it does
 	 not have its own freeze node.  Designated (sub)types created
 	 for constrained components of records with discriminants are
-	 not frozen by the front end and thus not elaborated by gigi,
+	 not frozen by the front-end and thus not elaborated by gigi,
 	 because their use may appear before the base type is frozen,
 	 and because it is not clear that they are needed anywhere in
-	 Gigi.  With the current model, there is no correct place where
+	 gigi.  With the current model, there is no correct place where
 	 they could be elaborated.  */
 
       gnu_type = gnat_to_gnu_type (Etype (gnat_entity));
@@ -3846,20 +3861,17 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, int definition)
 	     elaborate it later.  */
 	  if (!definition && defer_incomplete_level != 0)
 	    {
-	      struct incomplete *p
-		= (struct incomplete *) xmalloc (sizeof (struct incomplete));
-	      tree gnu_ptr_type
-		= build_pointer_type
-		  (make_dummy_type (Directly_Designated_Type (gnat_entity)));
+	      struct incomplete *p = XNEW (struct incomplete);
 
-	      p->old_type = TREE_TYPE (gnu_ptr_type);
+	      p->old_type
+		= make_dummy_type (Directly_Designated_Type (gnat_entity));
 	      p->full_type = Directly_Designated_Type (gnat_entity);
 	      p->next = defer_incomplete_list;
 	      defer_incomplete_list = p;
 	    }
 	  else if (!IN (Ekind (Base_Type
-			      (Directly_Designated_Type (gnat_entity))),
-		       Incomplete_Or_Private_Kind))
+			       (Directly_Designated_Type (gnat_entity))),
+		        Incomplete_Or_Private_Kind))
 	    gnat_to_gnu_entity (Directly_Designated_Type (gnat_entity),
 				NULL_TREE, 0);
 	}
@@ -5557,6 +5569,7 @@ gnat_to_gnu_param (Entity_Id gnat_param, Mechanism_Type mech,
                                       mech == By_Short_Descriptor);
   DECL_POINTS_TO_READONLY_P (gnu_param)
     = (ro_param && (by_ref || by_component_ptr));
+  DECL_CAN_NEVER_BE_NULL_P (gnu_param) = Can_Never_Be_Null (gnat_param);
 
   /* Save the alternate descriptor type, if any.  */
   if (gnu_param_type_alt)

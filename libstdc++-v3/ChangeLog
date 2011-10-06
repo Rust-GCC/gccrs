@@ -1,3 +1,141 @@
+2011-10-04  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/49561
+	* include/bits/stl_list.h (_List_base<>::_List_impl::_M_size):
+	Add in C++0x mode.
+	(_List_base<>::_List_impl, _List_base<>::_M_get_node,
+	_List_base<>::_M_put_node, _List_base<>::_List_base(_List_base&&),
+	list<>::size, list<>::swap, list<>::splice): Use it.
+	(operator==(const list<>&, const list<>&)): Rewrite in C++0x mode.
+	* include/bits/list.tcc (list<>::erase): Likewise.
+	(list<>::merge): Adjust in C++0x mode.
+	* testsuite/23_containers/list/requirements/dr438/assign_neg.cc:
+	Adjust dg-error line number.
+	* testsuite/23_containers/list/requirements/dr438/insert_neg.cc:
+	Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/list/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+
+2011-10-04  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* testsuite/20_util/bind/48698.cc (g): Fix return type, avoid -Wall
+	warning.
+
+2011-10-04  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* include/ext/alloc_traits.h (__alloc_traits::max_size): Define.
+	(__alloc_traits::rebind): Define.
+	* include/bits/stl_vector.h: Use them.
+	* testsuite/util/testsuite_allocator.h (SimpleAllocator): Define.
+	* testsuite/23_containers/vector/allocator/minimal.cc: New.
+	* testsuite/23_containers/vector/requirements/dr438/assign_neg.cc:
+	Adjust dg-error line numbers.
+	* testsuite/23_containers/vector/requirements/dr438/insert_neg.cc:
+	Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_1_neg.cc: Likewise.
+	* testsuite/23_containers/vector/requirements/dr438/
+	constructor_2_neg.cc: Likewise.
+
+2011-10-03  Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	* testsuite/20_util/pointer_traits/pointer_to.cc: Define equality
+	operator and use.
+
+2011-10-03  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/hashtable.h (_Hashtable<>::insert(value_type&&),
+	insert(const_iterator, value_type&&)): Don't define here...
+	* include/bits/unordered_set.h (__unordered_set<>,
+	__unordered_multiset<>): ... define here instead.
+
+2011-09-29  Jason Merrill  <jason@redhat.com>
+
+	* testsuite/util/testsuite_tr1.h (test_property): Avoid
+	ambiguity.
+
+2011-10-01  François Dumont  <fdumont@gcc.gnu.org>
+
+	* include/debug/vector (vector<>::erase(iterator, iterator): Check
+	iterators equality using normal iterators.
+	* include/debug/deque (deque<>::erase(iterator, iterator): Likewise.
+
+2011-09-29  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	* include/bits/hashtable.h (_Hashtable<>::_Hashtable(_Hashtable&&)):
+	Remove noexcept from declaration too.
+
+2011-09-27  Benjamin Kosnik  <bkoz@redhat.com>
+
+	* doc/html/*: Regenerate.
+
+	* doc/Makefile.am: Un-nest the ext output directory.
+	* doc/Makefile.in: Regenerate.
+	* spine.xml: Remove authors, add abstract for short
+	contents. Rename to index.html for html output.
+	* manual/spine.xml: Authors here, manual starts with index.html.
+	* api.xml: Update.
+	* faq.xml: Same.
+
+2011-09-27  Marcus Shawcroft  <marcus.shawcroft@arm.com>
+
+	* libsupc++/tinfo.cc (type_info::operator==): Test __name instead
+	of name().
+
+2011-09-26  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR libstdc++/50529
+	* include/bits/vector.tcc (vector<>::erase(iterator, iterator)):
+	Fix to do nothing if the range is empty.
+	* include/bits/stl_bvector.h: Likewise.
+	* include/bits/deque.tcc: Likewise.
+	* include/debug/vector: Adjust.
+	* include/debug/deque: Likewise.
+	* testsuite/23_containers/vector/modifiers/erase/50529.cc: New.
+	* testsuite/23_containers/deque/modifiers/erase/50529.cc: Likewise.
+	* testsuite/23_containers/deque/modifiers/erase/3.cc: Adjust.
+
+2011-09-25  Benjamin Kosnik  <bkoz@redhat.com>
+            Jonathan Wakely  <jwakely.gcc@gmail.com>
+
+	PR libstdc++/48698
+	* acinclude.m4 (GLIBCXX_ENABLE_SYMVERS): Set libtool_VERSION here.
+	* configure.ac: Move AC_SUBST of libtool_VERSION past call to
+	GLIBCXX_ENABLE_SYMVERS.
+	* configure: Regenerate.
+	* include/bits/c++config: Use __7 as versioned namespace name.
+	* config/abi/pre/gnu-versioned-namespace.ver: Change mangling as
+	per above.
+	* include/c_global/cwchar: Adjust nested namespaces.
+	* testsuite/20_util/bind/48698.cc: Add test case.
+	* testsuite/ext/profile/mutex_extensions_neg.cc: Change line number.
+
+2011-09-25  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	Revert (no longer necessary post r179130):
+
+	2010-04-27  Fabien Chêne  <fabien.chene@gmail.com>
+
+	* testsuite/util/testsuite_error.h: Add empty default constructor
+	to __gnu_test::test_category and
+	__gnu_test::test_derived_category.
+	* src/future.cc: Add empty default constructor to
+	future_error_category.
+	* src/system_error.cc: Add default ctor to generic_error_category
+	and system_error_category.
+
+2011-09-24  John Salmon  <john.salmon@deshaw.com>
+
+	PR libstdc++/50510
+	* include/bits/random.tcc (seed_seq::generate): Fix computation.
+
+2011-09-24  John Salmon  <john.salmon@deshaw.com>
+
+	PR libstdc++/50509
+	* include/bits/random.tcc (seed_seq::generate): Fix computation.
+
 2011-09-21  Benjamin Kosnik  <bkoz@redhat.com
 
 	* doc/Makefile.am (stamp-epub-docbook): Fix image directory location.

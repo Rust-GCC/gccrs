@@ -47,6 +47,7 @@ extern int short_branch (int, int);
 extern void sparc_profile_hook (int);
 extern void sparc_override_options (void);
 extern void sparc_output_scratch_registers (FILE *);
+extern void sparc_target_macros (void);
 
 #ifdef RTX_CODE
 extern enum machine_mode select_cc_mode (enum rtx_code, rtx, rtx);
@@ -104,6 +105,7 @@ extern int v9_regcmp_p (enum rtx_code);
 extern int sparc_check_64 (rtx, rtx);
 extern rtx gen_df_reg (rtx, int);
 extern void sparc_expand_compare_and_swap_12 (rtx, rtx, rtx, rtx);
+extern const char *output_v8plus_mult (rtx, rtx *, const char *);
 #endif /* RTX_CODE */
 
 #endif /* __SPARC_PROTOS_H__ */

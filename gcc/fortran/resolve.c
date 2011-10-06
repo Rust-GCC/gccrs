@@ -269,18 +269,21 @@ resolve_formal_arglist (gfc_symbol *proc)
       if (sym->attr.if_source != IFSRC_UNKNOWN)
 	resolve_formal_arglist (sym);
 
+      /* F08:C1279.  */
+      if (gfc_pure (proc)
+	  && sym->attr.flavor == FL_PROCEDURE && !gfc_pure (sym))
+	{
+	  gfc_error ("Dummy procedure '%s' of PURE procedure at %L must "
+		     "also be PURE", sym->name, &sym->declared_at);
+	  continue;
+	}
+      
       if (sym->attr.subroutine || sym->attr.external || sym->attr.intrinsic)
 	{
-	  if (gfc_pure (proc) && !gfc_pure (sym))
-	    {
-	      gfc_error ("Dummy procedure '%s' of PURE procedure at %L must "
-			 "also be PURE", sym->name, &sym->declared_at);
-	      continue;
-	    }
-
 	  if (proc->attr.implicit_pure && !gfc_pure(sym))
 	    proc->attr.implicit_pure = 0;
 
+	  /* F08:C1289.  */
 	  if (gfc_elemental (proc))
 	    {
 	      gfc_error ("Dummy procedure at %L not allowed in ELEMENTAL "
@@ -382,7 +385,7 @@ resolve_formal_arglist (gfc_symbol *proc)
 
       if (gfc_elemental (proc))
 	{
-	  /* F2008, C1289.  */
+	  /* F08:C1289.  */
 	  if (sym->attr.codimension)
 	    {
 	      gfc_error ("Coarray dummy argument '%s' at %L to elemental "
@@ -904,6 +907,10 @@ resolve_common_blocks (gfc_symtree *common_root)
   if (sym->attr.flavor == FL_PARAMETER)
     gfc_error ("COMMON block '%s' at %L is used as PARAMETER at %L",
 	       sym->name, &common_root->n.common->where, &sym->declared_at);
+
+  if (sym->attr.external)
+    gfc_error ("COMMON block '%s' at %L can not have the EXTERNAL attribute",
+	       sym->name, &common_root->n.common->where);
 
   if (sym->attr.intrinsic)
     gfc_error ("COMMON block '%s' at %L is also an intrinsic procedure",

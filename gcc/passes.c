@@ -1,7 +1,7 @@
 /* Top level of GCC compilers (cc1, cc1plus, etc.)
    Copyright (C) 1987, 1988, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010
-   Free Software Foundation, Inc.
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+   2011  Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1321,6 +1321,7 @@ init_optimization_passes (void)
       NEXT_PASS (pass_forwprop);
       NEXT_PASS (pass_phiopt);
       NEXT_PASS (pass_object_sizes);
+      NEXT_PASS (pass_strlen);
       NEXT_PASS (pass_ccp);
       NEXT_PASS (pass_copy_prop);
       NEXT_PASS (pass_cse_sincos);
@@ -1354,7 +1355,6 @@ init_optimization_passes (void)
 	  NEXT_PASS (pass_vectorize);
 	    {
 	      struct opt_pass **p = &pass_vectorize.pass.sub;
-	      NEXT_PASS (pass_lower_vector_ssa);
 	      NEXT_PASS (pass_dce_loop);
 	    }
           NEXT_PASS (pass_predcom);
@@ -1366,6 +1366,7 @@ init_optimization_passes (void)
 	  NEXT_PASS (pass_lim);
 	  NEXT_PASS (pass_tree_loop_done);
 	}
+      NEXT_PASS (pass_lower_vector_ssa);
       NEXT_PASS (pass_cse_reciprocals);
       NEXT_PASS (pass_reassoc);
       NEXT_PASS (pass_vrp);

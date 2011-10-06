@@ -9134,7 +9134,8 @@ static GTY(()) rtx queued_cfa_restores;
 static void
 ix86_add_cfa_restore_note (rtx insn, rtx reg, HOST_WIDE_INT cfa_offset)
 {
-  if (cfa_offset <= cfun->machine->fs.red_zone_offset)
+  if (!crtl->shrink_wrapped
+      && cfa_offset <= cfun->machine->fs.red_zone_offset)
     return;
 
   if (insn)
@@ -10738,6 +10739,8 @@ ix86_expand_epilogue (int style)
 				 GEN_INT (m->fs.sp_offset - UNITS_PER_WORD),
 				 style, true);
     }
+  else
+    ix86_add_queued_cfa_restore_notes (get_last_insn ());
 
   /* Sibcall epilogues don't want a return instruction.  */
   if (style == 0)
@@ -10779,13 +10782,13 @@ ix86_expand_epilogue (int style)
 
 	  pro_epilogue_adjust_stack (stack_pointer_rtx, stack_pointer_rtx,
 				     popc, -1, true);
-	  emit_jump_insn (gen_return_indirect_internal (ecx));
+	  emit_jump_insn (gen_simple_return_indirect_internal (ecx));
 	}
       else
-	emit_jump_insn (gen_return_pop_internal (popc));
+	emit_jump_insn (gen_simple_return_pop_internal (popc));
     }
   else
-    emit_jump_insn (gen_return_internal ());
+    emit_jump_insn (gen_simple_return_internal ());
 
   /* Restore the state back to the state from the prologue,
      so that it's correct for the next epilogue.  */
@@ -13513,6 +13516,7 @@ get_some_local_dynamic_name (void)
    Y -- print condition for XOP pcom* instruction.
    + -- print a branch hint as 'cs' or 'ds' prefix
    ; -- print a semicolon (after prefixes due to bug in older gas).
+   ~ -- print "i" if TARGET_AVX2, "f" otherwise.
    @ -- print a segment register of thread base pointer load
  */
 
@@ -14006,6 +14010,10 @@ ix86_print_operand (FILE *file, rtx x, int code)
 	    fputs ("gs", file);
 	  return;
 
+	case '~':
+	  putc (TARGET_AVX2 ? 'i' : 'f', file);
+	  return;
+
 	default:
 	    output_operand_lossage ("invalid operand code '%c'", code);
 	}
@@ -14141,7 +14149,7 @@ static bool
 ix86_print_operand_punct_valid_p (unsigned char code)
 {
   return (code == '@' || code == '*' || code == '+'
-	  || code == '&' || code == ';');
+	  || code == '&' || code == ';' || code == '~');
 }
 
 /* Print a memory operand whose address is ADDR.  */
@@ -16134,19 +16142,20 @@ distance_non_agu_define (unsigned int regno1, unsigned int regno2,
 
 	  FOR_EACH_EDGE (e, ei, bb->preds)
 	    {
-	      int bb_dist = distance_non_agu_define_in_bb (regno1, regno2,
-							   insn, distance,
-							   BB_END (e->src),
-							   &found_in_bb);
+	      int bb_dist
+		= distance_non_agu_define_in_bb (regno1, regno2,
+						 insn, distance,
+						 BB_END (e->src),
+						 &found_in_bb);
 	      if (found_in_bb)
 		{
 		  if (shortest_dist < 0)
 		    shortest_dist = bb_dist;
 		  else if (bb_dist > 0)
 		    shortest_dist = MIN (bb_dist, shortest_dist);
-		}
 
-	      found = found || found_in_bb;
+		  found = true;
+		}
 	    }
 
 	  distance = shortest_dist;
@@ -16159,11 +16168,9 @@ distance_non_agu_define (unsigned int regno1, unsigned int regno2,
   extract_insn_cached (insn);
 
   if (!found)
-    distance = -1;
-  else
-    distance = distance >> 1;
+    return -1;
 
-  return distance;
+  return distance >> 1;
 }
 
 /* Return the distance in half-cycles between INSN and the next
@@ -16176,9 +16183,9 @@ distance_non_agu_define (unsigned int regno1, unsigned int regno2,
    found and false otherwise.  */
 
 static int
-distance_agu_use_in_bb(unsigned int regno,
-		       rtx insn, int distance, rtx start,
-		       bool *found, bool *redefined)
+distance_agu_use_in_bb (unsigned int regno,
+			rtx insn, int distance, rtx start,
+			bool *found, bool *redefined)
 {
   basic_block bb = start ? BLOCK_FOR_INSN (start) : NULL;
   rtx next = start;
@@ -16263,18 +16270,19 @@ distance_agu_use (unsigned int regno0, rtx insn)
 
 	  FOR_EACH_EDGE (e, ei, bb->succs)
 	    {
-	      int bb_dist = distance_agu_use_in_bb (regno0, insn,
-						    distance, BB_HEAD (e->dest),
-						    &found_in_bb, &redefined_in_bb);
+	      int bb_dist
+		= distance_agu_use_in_bb (regno0, insn,
+					  distance, BB_HEAD (e->dest),
+					  &found_in_bb, &redefined_in_bb);
 	      if (found_in_bb)
 		{
 		  if (shortest_dist < 0)
 		    shortest_dist = bb_dist;
 		  else if (bb_dist > 0)
 		    shortest_dist = MIN (bb_dist, shortest_dist);
-		}
 
-	      found = found || found_in_bb;
+		  found = true;
+		}
 	    }
 
 	  distance = shortest_dist;
@@ -16282,11 +16290,9 @@ distance_agu_use (unsigned int regno0, rtx insn)
     }
 
   if (!found || redefined)
-    distance = -1;
-  else
-    distance = distance >> 1;
+    return -1;
 
-  return distance;
+  return distance >> 1;
 }
 
 /* Define this macro to tune LEA priority vs ADD, it take effect when
@@ -16341,7 +16347,7 @@ ix86_lea_outperforms (rtx insn, unsigned int regno0, unsigned int regno1,
    false otherwise.  */
 
 static bool
-ix86_ok_to_clobber_flags(rtx insn)
+ix86_ok_to_clobber_flags (rtx insn)
 {
   basic_block bb = BLOCK_FOR_INSN (insn);
   df_ref *use;
@@ -16465,6 +16471,21 @@ ix86_avoid_lea_for_addr (rtx insn, rtx operands[])
   return !ix86_lea_outperforms (insn, regno0, regno1, regno2, split_cost);
 }
 
+/* Emit x86 binary operand CODE in mode MODE, where the first operand
+   matches destination.  RTX includes clobber of FLAGS_REG.  */
+
+static void
+ix86_emit_binop (enum rtx_code code, enum machine_mode mode,
+		 rtx dst, rtx src)
+{
+  rtx op, clob;
+
+  op = gen_rtx_SET (VOIDmode, dst, gen_rtx_fmt_ee (code, mode, dst, src));
+  clob = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, FLAGS_REG));
+  
+  emit_insn (gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, op, clob)));
+}
+
 /* Split lea instructions into a sequence of instructions
    which are executed on ALU to avoid AGU stalls.
    It is assumed that it is allowed to clobber flags register
@@ -16477,8 +16498,7 @@ ix86_split_lea_for_addr (rtx operands[], enum machine_mode mode)
   unsigned int regno1 = INVALID_REGNUM;
   unsigned int regno2 = INVALID_REGNUM;
   struct ix86_address parts;
-  rtx tmp, clob;
-  rtvec par;
+  rtx tmp;
   int ok, adds;
 
   ok = ix86_decompose_address (operands[1], &parts);
@@ -16510,14 +16530,7 @@ ix86_split_lea_for_addr (rtx operands[], enum machine_mode mode)
 	  gcc_assert (regno2 != regno0);
 
 	  for (adds = parts.scale; adds > 0; adds--)
-	    {
-	      tmp = gen_rtx_PLUS (mode, operands[0], parts.index);
-	      tmp = gen_rtx_SET (VOIDmode, operands[0], tmp);
-	      clob = gen_rtx_CLOBBER (VOIDmode,
-				      gen_rtx_REG (CCmode, FLAGS_REG));
-	      par = gen_rtvec (2, tmp, clob);
-	      emit_insn (gen_rtx_PARALLEL (VOIDmode, par));
-	    }
+	    ix86_emit_binop (PLUS, mode, operands[0], parts.index);
 	}
       else
 	{
@@ -16526,30 +16539,14 @@ ix86_split_lea_for_addr (rtx operands[], enum machine_mode mode)
 	    emit_insn (gen_rtx_SET (VOIDmode, operands[0], parts.index));
 
 	  /* Use shift for scaling.  */
-	  tmp = gen_rtx_ASHIFT (mode, operands[0],
-				GEN_INT (exact_log2 (parts.scale)));
-	  tmp = gen_rtx_SET (VOIDmode, operands[0], tmp);
-	  clob = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, FLAGS_REG));
-	  par = gen_rtvec (2, tmp, clob);
-	  emit_insn (gen_rtx_PARALLEL (VOIDmode, par));
+	  ix86_emit_binop (ASHIFT, mode, operands[0],
+			   GEN_INT (exact_log2 (parts.scale)));
 
 	  if (parts.base)
-	    {
-	      tmp = gen_rtx_PLUS (mode, operands[0], parts.base);
-	      tmp = gen_rtx_SET (VOIDmode, operands[0], tmp);
-	      clob = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, FLAGS_REG));
-	      par = gen_rtvec (2, tmp, clob);
-	      emit_insn (gen_rtx_PARALLEL (VOIDmode, par));
-	    }
+	    ix86_emit_binop (PLUS, mode, operands[0], parts.base);
 
 	  if (parts.disp && parts.disp != const0_rtx)
-	    {
-	      tmp = gen_rtx_PLUS (mode, operands[0], parts.disp);
-	      tmp = gen_rtx_SET (VOIDmode, operands[0], tmp);
-	      clob = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, FLAGS_REG));
-	      par = gen_rtvec (2, tmp, clob);
-	      emit_insn (gen_rtx_PARALLEL (VOIDmode, par));
-	    }
+	    ix86_emit_binop (PLUS, mode, operands[0], parts.disp);
 	}
     }
   else if (!parts.base && !parts.index)
@@ -16560,41 +16557,32 @@ ix86_split_lea_for_addr (rtx operands[], enum machine_mode mode)
   else
     {
       if (!parts.base)
-      {
-        if (regno0 != regno2)
-	  emit_insn (gen_rtx_SET (VOIDmode, operands[0], parts.index));
-      }
+	{
+	  if (regno0 != regno2)
+	    emit_insn (gen_rtx_SET (VOIDmode, operands[0], parts.index));
+	}
       else if (!parts.index)
-      {
-        if (regno0 != regno1)
-          emit_insn (gen_rtx_SET (VOIDmode, operands[0], parts.base));
-      }
-      else
-      {
-	if (regno0 == regno1)
-	  tmp = gen_rtx_PLUS (mode, operands[0], parts.index);
-	else if (regno0 == regno2)
-	  tmp = gen_rtx_PLUS (mode, operands[0], parts.base);
-	else
-	  {
+	{
+	  if (regno0 != regno1)
 	    emit_insn (gen_rtx_SET (VOIDmode, operands[0], parts.base));
-	    tmp = gen_rtx_PLUS (mode, operands[0], parts.index);
-	  }
+	}
+      else
+	{
+	  if (regno0 == regno1)
+	    tmp = parts.index;
+	  else if (regno0 == regno2)
+	    tmp = parts.base;
+	  else
+	    {
+	      emit_insn (gen_rtx_SET (VOIDmode, operands[0], parts.base));
+	      tmp = parts.index;
+	    }
 
-        tmp = gen_rtx_SET (VOIDmode, operands[0], tmp);
-	clob = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, FLAGS_REG));
-	par = gen_rtvec (2, tmp, clob);
-	emit_insn (gen_rtx_PARALLEL (VOIDmode, par));
-      }
+	  ix86_emit_binop (PLUS, mode, operands[0], tmp);
+	}
 
       if (parts.disp && parts.disp != const0_rtx)
-      {
-        tmp = gen_rtx_PLUS (mode, operands[0], parts.disp);
-        tmp = gen_rtx_SET (VOIDmode, operands[0], tmp);
-	clob = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, FLAGS_REG));
-	par = gen_rtvec (2, tmp, clob);
-	emit_insn (gen_rtx_PARALLEL (VOIDmode, par));
-      }
+	ix86_emit_binop (PLUS, mode, operands[0], parts.disp);
     }
 }
 
@@ -18735,15 +18723,13 @@ ix86_prepare_sse_fp_compare_args (rtx dest, enum rtx_code code,
 {
   rtx tmp;
 
-  /* AVX supports all the needed comparisons, no need to swap arguments
-     nor help reload.  */
-  if (TARGET_AVX)
-    return code;
-
   switch (code)
     {
     case LTGT:
     case UNEQ:
+      /* AVX supports all the needed comparisons.  */
+      if (TARGET_AVX)
+	break;
       /* We have no LTGT as an operator.  We could implement it with
 	 NE & ORDERED, but this requires an extra temporary.  It's
 	 not clear that it's worth it.  */
@@ -18760,6 +18746,9 @@ ix86_prepare_sse_fp_compare_args (rtx dest, enum rtx_code code,
     case NE:
     case UNORDERED:
     case ORDERED:
+      /* AVX has 3 operand comparisons, no need to swap anything.  */
+      if (TARGET_AVX)
+	break;
       /* For commutative operators, try to canonicalize the destination
 	 operand to be first in the comparison - this helps reload to
 	 avoid extra moves.  */
@@ -18771,8 +18760,10 @@ ix86_prepare_sse_fp_compare_args (rtx dest, enum rtx_code code,
     case GT:
     case UNLE:
     case UNLT:
-      /* These are not supported directly.  Swap the comparison operands
-	 to transform into something that is supported.  */
+      /* These are not supported directly before AVX, and furthermore
+	 ix86_expand_sse_fp_minmax only optimizes LT/UNGE.  Swap the
+	 comparison operands to transform into something that is
+	 supported.  */
       tmp = *pop0;
       *pop0 = *pop1;
       *pop1 = tmp;
@@ -18882,7 +18873,12 @@ ix86_expand_sse_movcc (rtx dest, rtx cmp, rtx op_true, rtx op_false)
   enum machine_mode mode = GET_MODE (dest);
   rtx t2, t3, x;
 
-  if (op_false == CONST0_RTX (mode))
+  if (vector_all_ones_operand (op_true, GET_MODE (op_true))
+      && rtx_equal_p (op_false, CONST0_RTX (mode)))
+    {
+      emit_insn (gen_rtx_SET (VOIDmode, dest, cmp));
+    }
+  else if (op_false == CONST0_RTX (mode))
     {
       op_true = force_reg (mode, op_true);
       x = gen_rtx_AND (mode, cmp, op_true);
@@ -18893,6 +18889,12 @@ ix86_expand_sse_movcc (rtx dest, rtx cmp, rtx op_true, rtx op_false)
       op_false = force_reg (mode, op_false);
       x = gen_rtx_NOT (mode, cmp);
       x = gen_rtx_AND (mode, x, op_false);
+      emit_insn (gen_rtx_SET (VOIDmode, dest, x));
+    }
+  else if (INTEGRAL_MODE_P (mode) && op_true == CONSTM1_RTX (mode))
+    {
+      op_false = force_reg (mode, op_false);
+      x = gen_rtx_IOR (mode, cmp, op_false);
       emit_insn (gen_rtx_SET (VOIDmode, dest, x));
     }
   else if (TARGET_XOP)
@@ -18910,6 +18912,9 @@ ix86_expand_sse_movcc (rtx dest, rtx cmp, rtx op_true, rtx op_false)
   else
     {
       rtx (*gen) (rtx, rtx, rtx, rtx) = NULL;
+
+      if (!nonimmediate_operand (op_true, mode))
+	op_true = force_reg (mode, op_true);
 
       op_false = force_reg (mode, op_false);
 
@@ -19230,6 +19235,141 @@ ix86_expand_int_vcond (rtx operands[])
   ix86_expand_sse_movcc (operands[0], x, operands[1+negate],
 			 operands[2-negate]);
   return true;
+}
+
+void
+ix86_expand_vshuffle (rtx operands[])
+{
+  rtx target = operands[0];
+  rtx op0 = operands[1];
+  rtx op1 = operands[2];
+  rtx mask = operands[3];
+  rtx vt, vec[16];
+  enum machine_mode mode = GET_MODE (op0);
+  enum machine_mode maskmode = GET_MODE (mask);
+  int w, e, i;
+  bool one_operand_shuffle = rtx_equal_p (op0, op1);
+
+  gcc_checking_assert (GET_MODE_BITSIZE (mode) == 128);
+
+  /* Number of elements in the vector.  */
+  w = GET_MODE_NUNITS (mode);
+  e = GET_MODE_UNIT_SIZE (mode);
+
+  if (TARGET_XOP)
+    {
+      /* The XOP VPPERM insn supports three inputs.  By ignoring the 
+	 one_operand_shuffle special case, we avoid creating another
+	 set of constant vectors in memory.  */
+      one_operand_shuffle = false;
+
+      /* mask = mask & {2*w-1, ...} */
+      vt = GEN_INT (2*w - 1);
+    }
+  else
+    {
+      /* mask = mask & {w-1, ...} */
+      vt = GEN_INT (w - 1);
+    }
+
+  for (i = 0; i < w; i++)
+    vec[i] = vt;
+  vt = gen_rtx_CONST_VECTOR (maskmode, gen_rtvec_v (w, vec));
+  mask = expand_simple_binop (maskmode, AND, mask, vt,
+			      NULL_RTX, 0, OPTAB_DIRECT);
+
+  /* For non-QImode operations, convert the word permutation control
+     into a byte permutation control.  */
+  if (mode != V16QImode)
+    {
+      mask = expand_simple_binop (maskmode, ASHIFT, mask,
+				  GEN_INT (exact_log2 (e)),
+				  NULL_RTX, 0, OPTAB_DIRECT);
+
+      /* Convert mask to vector of chars.  */
+      mask = force_reg (V16QImode, gen_lowpart (V16QImode, mask));
+
+      /* Replicate each of the input bytes into byte positions:
+	 (v2di) --> {0,0,0,0,0,0,0,0, 8,8,8,8,8,8,8,8}
+	 (v4si) --> {0,0,0,0, 4,4,4,4, 8,8,8,8, 12,12,12,12}
+	 (v8hi) --> {0,0, 2,2, 4,4, 6,6, ...}.  */
+      for (i = 0; i < 16; ++i)
+	vec[i] = GEN_INT (i/e * e);
+      vt = gen_rtx_CONST_VECTOR (V16QImode, gen_rtvec_v (16, vec));
+      vt = force_const_mem (V16QImode, vt);
+      if (TARGET_XOP)
+	emit_insn (gen_xop_pperm (mask, mask, mask, vt));
+      else
+	emit_insn (gen_ssse3_pshufbv16qi3 (mask, mask, vt));
+
+      /* Convert it into the byte positions by doing
+	 mask = mask + {0,1,..,16/w, 0,1,..,16/w, ...}  */
+      for (i = 0; i < 16; ++i)
+	vec[i] = GEN_INT (i % e);
+      vt = gen_rtx_CONST_VECTOR (V16QImode, gen_rtvec_v (16, vec));
+      vt = force_const_mem (V16QImode, vt);
+      emit_insn (gen_addv16qi3 (mask, mask, vt));
+    }
+
+  /* The actual shuffle operations all operate on V16QImode.  */
+  op0 = gen_lowpart (V16QImode, op0);
+  op1 = gen_lowpart (V16QImode, op1);
+  target = gen_lowpart (V16QImode, target);
+
+  if (TARGET_XOP)
+    {
+      emit_insn (gen_xop_pperm (target, op0, op1, mask));
+    }
+  else if (one_operand_shuffle)
+    {
+      emit_insn (gen_ssse3_pshufbv16qi3 (target, op0, mask));
+    }
+  else
+    {
+      rtx xops[6], t1, t2;
+      bool ok;
+
+      /* Shuffle the two input vectors independently.  */
+      t1 = gen_reg_rtx (V16QImode);
+      t2 = gen_reg_rtx (V16QImode);
+      emit_insn (gen_ssse3_pshufbv16qi3 (t1, op0, mask));
+      emit_insn (gen_ssse3_pshufbv16qi3 (t2, op1, mask));
+
+      /* Then merge them together.  The key is whether any given control
+         element contained a bit set that indicates the second word.  */
+      mask = operands[3];
+      vt = GEN_INT (w);
+      if (maskmode == V2DImode && !TARGET_SSE4_1)
+	{
+	  /* Without SSE4.1, we don't have V2DImode EQ.  Perform one
+	     more shuffle to convert the V2DI input mask into a V4SI
+	     input mask.  At which point the masking that expand_int_vcond
+	     will work as desired.  */
+	  rtx t3 = gen_reg_rtx (V4SImode);
+	  emit_insn (gen_sse2_pshufd_1 (t3, gen_lowpart (V4SImode, mask),
+				        const0_rtx, const0_rtx,
+				        const2_rtx, const2_rtx));
+	  mask = t3;
+	  maskmode = V4SImode;
+	  e = w = 4;
+	}
+
+      for (i = 0; i < w; i++)
+	vec[i] = vt;
+      vt = gen_rtx_CONST_VECTOR (maskmode, gen_rtvec_v (w, vec));
+      vt = force_reg (maskmode, vt);
+      mask = expand_simple_binop (maskmode, AND, mask, vt,
+				  NULL_RTX, 0, OPTAB_DIRECT);
+
+      xops[0] = gen_lowpart (maskmode, operands[0]);
+      xops[1] = gen_lowpart (maskmode, t2);
+      xops[2] = gen_lowpart (maskmode, t1);
+      xops[3] = gen_rtx_EQ (maskmode, mask, vt);
+      xops[4] = mask;
+      xops[5] = vt;
+      ok = ix86_expand_int_vcond (xops);
+      gcc_assert (ok);
+    }
 }
 
 /* Unpack OP[1] into the next wider integer vector type.  UNSIGNED_P is
@@ -30777,7 +30917,7 @@ x86_output_mi_thunk (FILE *file,
 	    }
 	}
 
-      emit_insn (ix86_gen_add3 (delta_dst, delta_dst, delta_rtx));
+      ix86_emit_binop (PLUS, Pmode, delta_dst, delta_rtx);
     }
 
   /* Adjust the this parameter by a value stored in the vtable.  */
@@ -30820,7 +30960,7 @@ x86_output_mi_thunk (FILE *file,
 						  REGNO (this_reg)),
 				     vcall_mem));
       else
-	emit_insn (ix86_gen_add3 (this_reg, this_reg, vcall_mem));
+	ix86_emit_binop (PLUS, Pmode, this_reg, vcall_mem);
     }
 
   /* If necessary, drop THIS back to its stack slot.  */
@@ -31167,7 +31307,7 @@ ix86_pad_returns (void)
 	}
       if (replace)
 	{
-	  emit_jump_insn_before (gen_return_internal_long (), ret);
+	  emit_jump_insn_before (gen_simple_return_internal_long (), ret);
 	  delete_insn (ret);
 	}
     }
@@ -31450,6 +31590,9 @@ struct expand_vec_perm_d
 
 static bool expand_vec_perm_1 (struct expand_vec_perm_d *d);
 static bool expand_vec_perm_broadcast_1 (struct expand_vec_perm_d *d);
+static int extract_vec_perm_cst (struct expand_vec_perm_d *, tree);
+static bool ix86_vectorize_builtin_vec_perm_ok (tree vec_type, tree mask);
+
 
 /* Get a vector mode of the same size as the original but with elements
    twice as wide.  This is only guaranteed to apply to integral vectors.  */
@@ -33081,7 +33224,7 @@ void ix86_emit_i387_round (rtx op0, rtx op1)
   res = gen_reg_rtx (outmode);
 
   half = CONST_DOUBLE_FROM_REAL_VALUE (dconsthalf, inmode);
-  
+
   /* round(a) = sgn(a) * floor(fabs(a) + 0.5) */
 
   /* scratch = fxam(op1) */
@@ -35240,10 +35383,10 @@ ix86_vectorize_builtin_vec_perm_ok (tree vec_type, tree mask)
 
   vec_mask = extract_vec_perm_cst (&d, mask);
 
-  /* This hook is cannot be called in response to something that the
-     user does (unlike the builtin expander) so we shouldn't ever see
-     an error generated from the extract.  */
-  gcc_assert (vec_mask > 0 && vec_mask <= 3);
+  /* Check whether the mask can be applied to the vector type.  */
+  if (vec_mask < 0 || vec_mask > 3)
+    return false;
+
   one_vec = (vec_mask != 3);
 
   /* Implementable with shufps or pshufd.  */

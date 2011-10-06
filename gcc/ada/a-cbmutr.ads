@@ -179,6 +179,11 @@ package Ada.Containers.Bounded_Multiway_Trees is
    function Iterate_Subtree (Position : Cursor)
      return Tree_Iterator_Interfaces.Forward_Iterator'Class;
 
+   function Iterate_Children
+     (Container : Tree;
+      Parent    : Cursor)
+     return Tree_Iterator_Interfaces.Reversible_Iterator'Class;
+
    function Child_Count (Parent : Cursor) return Count_Type;
 
    function Child_Depth (Parent, Child : Cursor) return Count_Type;
@@ -377,13 +382,11 @@ private
 
    function Constant_Reference
      (Container : aliased Tree;
-      Position  : Cursor)
-   return Constant_Reference_Type;
+      Position  : Cursor) return Constant_Reference_Type;
 
    function Reference
      (Container : aliased Tree;
-      Position  : Cursor)
-    return Reference_Type;
+      Position  : Cursor) return Reference_Type;
 
    Empty_Tree : constant Tree := (Capacity => 0, others => <>);
 

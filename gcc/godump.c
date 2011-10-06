@@ -301,17 +301,21 @@ go_define (unsigned int lineno, const char *buffer)
 	case '\'':
 	  {
 	    char quote;
+	    int count;
 
 	    if (saw_operand)
 	      goto unknown;
 	    quote = *p;
 	    *q++ = *p++;
+	    count = 0;
 	    while (*p != quote)
 	      {
 		int c;
 
 		if (*p == '\0')
 		  goto unknown;
+
+		++count;
 
 		if (*p != '\\')
 		  {
@@ -358,7 +362,15 @@ go_define (unsigned int lineno, const char *buffer)
 		    goto unknown;
 		  }
 	      }
+
 	    *q++ = *p++;
+
+	    if (quote == '\'' && count != 1)
+	      goto unknown;
+
+	    saw_operand = true;
+	    need_operand = false;
+
 	    break;
 	  }
 
@@ -908,9 +920,20 @@ go_output_typedef (struct godump_container *container, tree decl)
 	  if (*slot == NULL)
 	    {
 	      *slot = CONST_CAST (char *, name);
-	      fprintf (go_dump_file,
-		       "const _%s = " HOST_WIDE_INT_PRINT_DEC "\n",
-		       name, tree_low_cst (TREE_VALUE (element), 0));
+	      fprintf (go_dump_file, "const _%s = ", name);
+	      if (host_integerp (TREE_VALUE (element), 0))
+		fprintf (go_dump_file, HOST_WIDE_INT_PRINT_DEC,
+			 tree_low_cst (TREE_VALUE (element), 0));
+	      else if (host_integerp (TREE_VALUE (element), 1))
+		fprintf (go_dump_file, HOST_WIDE_INT_PRINT_UNSIGNED,
+			 ((unsigned HOST_WIDE_INT)
+			  tree_low_cst (TREE_VALUE (element), 1)));
+	      else
+		fprintf (go_dump_file, HOST_WIDE_INT_PRINT_DOUBLE_HEX,
+			 ((unsigned HOST_WIDE_INT)
+			  TREE_INT_CST_HIGH (TREE_VALUE (element))),
+			 TREE_INT_CST_LOW (TREE_VALUE (element)));
+	      fprintf (go_dump_file, "\n");
 	    }
 	}
       pointer_set_insert (container->decls_seen, TREE_TYPE (decl));

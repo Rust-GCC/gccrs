@@ -551,6 +551,7 @@ gimplify_and_update_call_from_tree (gimple_stmt_iterator *si_p, tree expr)
   reaching_vuse = gimple_vuse (stmt);
 
   push_gimplify_context (&gctx);
+  gctx.into_ssa = gimple_in_ssa_p (cfun);
 
   if (lhs == NULL_TREE)
     {
@@ -1200,28 +1201,45 @@ fold_stmt_1 (gimple_stmt_iterator *gsi, bool inplace)
 
     case GIMPLE_ASM:
       /* Fold *& in asm operands.  */
-      for (i = 0; i < gimple_asm_noutputs (stmt); ++i)
-	{
-	  tree link = gimple_asm_output_op (stmt, i);
-	  tree op = TREE_VALUE (link);
-	  if (REFERENCE_CLASS_P (op)
-	      && (op = maybe_fold_reference (op, true)) != NULL_TREE)
-	    {
-	      TREE_VALUE (link) = op;
-	      changed = true;
-	    }
-	}
-      for (i = 0; i < gimple_asm_ninputs (stmt); ++i)
-	{
-	  tree link = gimple_asm_input_op (stmt, i);
-	  tree op = TREE_VALUE (link);
-	  if (REFERENCE_CLASS_P (op)
-	      && (op = maybe_fold_reference (op, false)) != NULL_TREE)
-	    {
-	      TREE_VALUE (link) = op;
-	      changed = true;
-	    }
-	}
+      {
+	size_t noutputs;
+	const char **oconstraints;
+	const char *constraint;
+	bool allows_mem, allows_reg;
+
+	noutputs = gimple_asm_noutputs (stmt);
+	oconstraints = XALLOCAVEC (const char *, noutputs);
+
+	for (i = 0; i < gimple_asm_noutputs (stmt); ++i)
+	  {
+	    tree link = gimple_asm_output_op (stmt, i);
+	    tree op = TREE_VALUE (link);
+	    oconstraints[i]
+	      = TREE_STRING_POINTER (TREE_VALUE (TREE_PURPOSE (link)));
+	    if (REFERENCE_CLASS_P (op)
+		&& (op = maybe_fold_reference (op, true)) != NULL_TREE)
+	      {
+		TREE_VALUE (link) = op;
+		changed = true;
+	      }
+	  }
+	for (i = 0; i < gimple_asm_ninputs (stmt); ++i)
+	  {
+	    tree link = gimple_asm_input_op (stmt, i);
+	    tree op = TREE_VALUE (link);
+	    constraint
+	      = TREE_STRING_POINTER (TREE_VALUE (TREE_PURPOSE (link)));
+	    parse_input_constraint (&constraint, 0, 0, noutputs, 0,
+				    oconstraints, &allows_mem, &allows_reg);
+	    if (REFERENCE_CLASS_P (op)
+		&& (op = maybe_fold_reference (op, !allows_reg && allows_mem))
+		   != NULL_TREE)
+	      {
+		TREE_VALUE (link) = op;
+		changed = true;
+	      }
+	  }
+      }
       break;
 
     case GIMPLE_DEBUG:
@@ -2551,6 +2569,19 @@ gimple_fold_stmt_to_constant_1 (gimple stmt, tree (*valueize) (tree))
               tree op1 = (*valueize) (gimple_assign_rhs2 (stmt));
               tree op2 = (*valueize) (gimple_assign_rhs3 (stmt));
 
+	      /* Fold embedded expressions in ternary codes.  */
+	      if ((subcode == COND_EXPR
+		   || subcode == VEC_COND_EXPR)
+		  && COMPARISON_CLASS_P (op0))
+		{
+		  tree op00 = (*valueize) (TREE_OPERAND (op0, 0));
+		  tree op01 = (*valueize) (TREE_OPERAND (op0, 1));
+		  tree tem = fold_binary_loc (loc, TREE_CODE (op0),
+					      TREE_TYPE (op0), op00, op01);
+		  if (tem)
+		    op0 = tem;
+		}
+
               return fold_ternary_loc (loc, subcode,
 				       gimple_expr_type (stmt), op0, op1, op2);
             }
@@ -2729,10 +2760,12 @@ fold_array_ctor_reference (tree type, tree ctor,
   double_int low_bound, elt_size;
   double_int index, max_index;
   double_int access_index;
-  tree domain_type = TYPE_DOMAIN (TREE_TYPE (ctor));
+  tree domain_type = NULL_TREE;
   HOST_WIDE_INT inner_offset;
 
   /* Compute low bound and elt size.  */
+  if (TREE_CODE (TREE_TYPE (ctor)) == ARRAY_TYPE)
+    domain_type = TYPE_DOMAIN (TREE_TYPE (ctor));
   if (domain_type && TYPE_MIN_VALUE (domain_type))
     {
       /* Static constructors for variably sized objects makes no sense.  */
@@ -2899,7 +2932,8 @@ fold_ctor_reference (tree type, tree ctor, unsigned HOST_WIDE_INT offset,
   if (TREE_CODE (ctor) == CONSTRUCTOR)
     {
 
-      if (TREE_CODE (TREE_TYPE (ctor)) == ARRAY_TYPE)
+      if (TREE_CODE (TREE_TYPE (ctor)) == ARRAY_TYPE
+	  || TREE_CODE (TREE_TYPE (ctor)) == VECTOR_TYPE)
 	return fold_array_ctor_reference (type, ctor, offset, size);
       else
 	return fold_nonarray_ctor_reference (type, ctor, offset, size);
@@ -2918,6 +2952,9 @@ fold_const_aggregate_ref_1 (tree t, tree (*valueize) (tree))
   tree ctor, idx, base;
   HOST_WIDE_INT offset, size, max_size;
   tree tem;
+
+  if (TREE_THIS_VOLATILE (t))
+    return NULL_TREE;
 
   if (TREE_CODE_CLASS (TREE_CODE (t)) == tcc_declaration)
     return get_symbol_constant_value (t);

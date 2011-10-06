@@ -52,7 +52,10 @@ static void output_cgraph_opt_summary (cgraph_node_set set);
 static void input_cgraph_opt_summary (VEC (cgraph_node_ptr, heap) * nodes);
 
 /* Number of LDPR values known to GCC.  */
-#define LDPR_NUM_KNOWN (LDPR_RESOLVED_DYN + 1)
+#define LDPR_NUM_KNOWN (LDPR_PREVAILING_DEF_IRONLY_EXP + 1)
+
+/* All node orders are ofsetted by ORDER_BASE.  */
+static int order_base;
 
 /* Cgraph streaming is organized as set of record whose type
    is indicated by a tag.  */
@@ -425,6 +428,7 @@ lto_output_node (struct lto_simple_output_block *ob, struct cgraph_node *node,
 
   streamer_write_enum (ob->main_stream, LTO_cgraph_tags, LTO_cgraph_last_tag,
 		       tag);
+  streamer_write_hwi_stream (ob->main_stream, node->order);
 
   /* In WPA mode, we only output part of the call-graph.  Also, we
      fake cgraph node attributes.  There are two cases that we care.
@@ -548,6 +552,7 @@ lto_output_varpool_node (struct lto_simple_output_block *ob, struct varpool_node
   struct bitpack_d bp;
   int ref;
 
+  streamer_write_hwi_stream (ob->main_stream, node->order);
   lto_output_var_decl_index (ob->decl_state, ob->main_stream, node->decl);
   bp = bitpack_create (ob->main_stream);
   bp_pack_value (&bp, node->externally_visible, 1);
@@ -817,7 +822,6 @@ output_cgraph (cgraph_node_set set, varpool_node_set vset)
   int i, n_nodes;
   lto_cgraph_encoder_t encoder;
   lto_varpool_encoder_t varpool_encoder;
-  struct cgraph_asm_node *can;
   static bool asm_nodes_output = false;
 
   if (flag_wpa)
@@ -854,6 +858,8 @@ output_cgraph (cgraph_node_set set, varpool_node_set vset)
 
   streamer_write_uhwi_stream (ob->main_stream, 0);
 
+  lto_destroy_simple_output_block (ob);
+
   /* Emit toplevel asms.
      When doing WPA we must output every asm just once.  Since we do not partition asm
      nodes at all, output them to first output.  This is kind of hack, but should work
@@ -861,19 +867,9 @@ output_cgraph (cgraph_node_set set, varpool_node_set vset)
   if (!asm_nodes_output)
     {
       asm_nodes_output = true;
-      for (can = cgraph_asm_nodes; can; can = can->next)
-	{
-	  int len = TREE_STRING_LENGTH (can->asm_str);
-	  streamer_write_uhwi_stream (ob->main_stream, len);
-	  for (i = 0; i < len; ++i)
-	    streamer_write_char_stream (ob->main_stream,
-					TREE_STRING_POINTER (can->asm_str)[i]);
-	}
+      lto_output_toplevel_asms ();
     }
 
-  streamer_write_uhwi_stream (ob->main_stream, 0);
-
-  lto_destroy_simple_output_block (ob);
   output_varpool (set, vset);
   output_refs (set, vset, encoder, varpool_encoder);
 }
@@ -969,7 +965,9 @@ input_node (struct lto_file_decl_data *file_data,
   unsigned decl_index;
   int ref = LCC_NOT_FOUND, ref2 = LCC_NOT_FOUND;
   int clone_ref;
+  int order;
 
+  order = streamer_read_hwi (ib) + order_base;
   clone_ref = streamer_read_hwi (ib);
 
   decl_index = streamer_read_uhwi (ib);
@@ -982,6 +980,10 @@ input_node (struct lto_file_decl_data *file_data,
     }
   else
     node = cgraph_get_create_node (fn_decl);
+
+  node->order = order;
+  if (order >= cgraph_order)
+    cgraph_order = order + 1;
 
   node->count = streamer_read_hwi (ib);
   node->count_materialization_scale = streamer_read_hwi (ib);
@@ -1044,10 +1046,15 @@ input_varpool_node (struct lto_file_decl_data *file_data,
   struct bitpack_d bp;
   int ref = LCC_NOT_FOUND;
   bool non_null_aliasof;
+  int order;
 
+  order = streamer_read_hwi (ib) + order_base;
   decl_index = streamer_read_uhwi (ib);
   var_decl = lto_file_decl_data_get_var_decl (file_data, decl_index);
   node = varpool_node (var_decl);
+  node->order = order;
+  if (order >= cgraph_order)
+    cgraph_order = order + 1;
   node->lto_file_data = file_data;
 
   bp = streamer_read_bitpack (ib);
@@ -1185,9 +1192,9 @@ input_cgraph_1 (struct lto_file_decl_data *file_data,
   VEC(cgraph_node_ptr, heap) *nodes = NULL;
   struct cgraph_node *node;
   unsigned i;
-  unsigned HOST_WIDE_INT len;
 
   tag = streamer_read_enum (ib, LTO_cgraph_tags, LTO_cgraph_last_tag);
+  order_base = cgraph_order;
   while (tag)
     {
       if (tag == LTO_cgraph_edge)
@@ -1206,18 +1213,8 @@ input_cgraph_1 (struct lto_file_decl_data *file_data,
       tag = streamer_read_enum (ib, LTO_cgraph_tags, LTO_cgraph_last_tag);
     }
 
-  /* Input toplevel asms.  */
-  len = streamer_read_uhwi (ib);
-  while (len)
-    {
-      char *str = (char *)xmalloc (len + 1);
-      for (i = 0; i < len; ++i)
-	str[i] = streamer_read_uchar (ib);
-      cgraph_add_asm_node (build_string (len, str));
-      free (str);
+  lto_input_toplevel_asms (file_data, order_base);
 
-      len = streamer_read_uhwi (ib);
-    }
   /* AUX pointers should be all non-zero for nodes read from the stream.  */
 #ifdef ENABLE_CHECKING
   FOR_EACH_VEC_ELT (cgraph_node_ptr, nodes, i, node)

@@ -355,8 +355,8 @@ Objective-C and Objective-C++ Dialects}.
 -fcx-limited-range @gol
 -fdata-sections -fdce -fdce -fdelayed-branch @gol
 -fdelete-null-pointer-checks -fdse -fdevirtualize -fdse @gol
--fearly-inlining -fipa-sra -fexpensive-optimizations -ffast-math @gol
--ffinite-math-only -ffloat-store -fexcess-precision=@var{style} @gol
+-fearly-inlining -fipa-sra -fexpensive-optimizations -ffat-lto-objects @gol
+-ffast-math -ffinite-math-only -ffloat-store -fexcess-precision=@var{style} @gol
 -fforward-propagate -ffp-contract=@var{style} -ffunction-sections @gol
 -fgcse -fgcse-after-reload -fgcse-las -fgcse-lm -fgraphite-identity @gol
 -fgcse-sm -fif-conversion -fif-conversion2 -findirect-inlining @gol
@@ -396,10 +396,10 @@ Objective-C and Objective-C++ Dialects}.
 -fschedule-insns -fschedule-insns2 -fsection-anchors @gol
 -fselective-scheduling -fselective-scheduling2 @gol
 -fsel-sched-pipelining -fsel-sched-pipelining-outer-loops @gol
--fsignaling-nans -fsingle-precision-constant -fsplit-ivs-in-unroller @gol
--fsplit-wide-types -fstack-protector -fstack-protector-all @gol
--fstrict-aliasing -fstrict-overflow -fthread-jumps -ftracer @gol
--ftree-bit-ccp @gol
+-fshrink-wrap -fsignaling-nans -fsingle-precision-constant @gol
+-fsplit-ivs-in-unroller -fsplit-wide-types -fstack-protector @gol
+-fstack-protector-all -fstrict-aliasing -fstrict-overflow @gol
+-fthread-jumps -ftracer -ftree-bit-ccp @gol
 -ftree-builtin-call-dce -ftree-ccp -ftree-ch -ftree-copy-prop @gol
 -ftree-copyrename -ftree-dce -ftree-dominator-opts -ftree-dse @gol
 -ftree-forwprop -ftree-fre -ftree-loop-if-convert @gol
@@ -407,7 +407,7 @@ Objective-C and Objective-C++ Dialects}.
 -ftree-phiprop -ftree-loop-distribution -ftree-loop-distribute-patterns @gol
 -ftree-loop-ivcanon -ftree-loop-linear -ftree-loop-optimize @gol
 -ftree-parallelize-loops=@var{n} -ftree-pre -ftree-pta -ftree-reassoc @gol
--ftree-sink -ftree-sra -ftree-switch-conversion @gol
+-ftree-sink -ftree-sra -ftree-switch-conversion -ftree-tail-merge @gol
 -ftree-ter -ftree-vect-loop-version -ftree-vectorize -ftree-vrp @gol
 -funit-at-a-time -funroll-all-loops -funroll-loops @gol
 -funsafe-loop-optimizations -funsafe-math-optimizations -funswitch-loops @gol
@@ -828,6 +828,7 @@ See RS/6000 and PowerPC Options.
 -mrelax@gol
 -mmax-constant-size=@gol
 -mint-register=@gol
+-mpid@gol
 -msave-acc-in-interrupts}
 
 @emph{S/390 and zSeries Options}
@@ -879,7 +880,9 @@ See RS/6000 and PowerPC Options.
 -mlittle-endian @gol
 -mstack-bias  -mno-stack-bias @gol
 -munaligned-doubles  -mno-unaligned-doubles @gol
--mv8plus  -mno-v8plus  -mvis  -mno-vis}
+-mv8plus  -mno-v8plus  -mvis  -mno-vis @gol
+-mvis2  -mno-vis2  -mvis3  -mno-vis3 @gol
+-mfmaf  -mno-fmaf}
 
 @emph{SPU Options}
 @gccoptlist{-mwarn-reloc -merror-reloc @gol
@@ -6136,7 +6139,7 @@ also turns on the following optimization flags:
 -fsched-interblock  -fsched-spec @gol
 -fschedule-insns  -fschedule-insns2 @gol
 -fstrict-aliasing -fstrict-overflow @gol
--ftree-switch-conversion @gol
+-ftree-switch-conversion -ftree-tail-merge @gol
 -ftree-pre @gol
 -ftree-vrp}
 
@@ -6878,6 +6881,12 @@ This option has no effect until one of @option{-fselective-scheduling} or
 When pipelining loops during selective scheduling, also pipeline outer loops.
 This option has no effect until @option{-fsel-sched-pipelining} is turned on.
 
+@item -fshrink-wrap
+@opindex fshrink-wrap
+Emit function prologues only before parts of the function that need it,
+rather than at the top of the function.  This flag is enabled by default at
+@option{-O} and higher.
+
 @item -fcaller-saves
 @opindex fcaller-saves
 Enable values to be allocated in registers that will be clobbered by
@@ -7018,6 +7027,13 @@ at @option{-O} and higher.
 Perform conversion of simple initializations in a switch to
 initializations from a scalar array.  This flag is enabled by default
 at @option{-O2} and higher.
+
+@item -ftree-tail-merge
+Look for identical code sequences.  When found, replace one with a jump to the
+other.  This optimization is known as tail merging or cross jumping.  This flag
+is enabled by default at @option{-O2} and higher.  The run time of this pass can
+be limited using @option{max-tail-merge-comparisons} parameter and
+@option{max-tail-merge-iterations} parameter.
 
 @item -ftree-dce
 @opindex ftree-dce
@@ -7890,6 +7906,22 @@ use it.
 Enabled by default when LTO support in GCC is enabled and GCC was compiled
 with a linker supporting plugins (GNU ld 2.21 or newer or gold).
 
+@item -ffat-lto-objects
+@opindex ffat-lto-objects
+Fat LTO objects are object files that contain both the intermediate language
+and the object code. This makes them useable for both LTO linking and normal
+linking. This option makes effect only with @option{-flto} and is ignored 
+at linktime.
+
+@option{-fno-fat-lto-objects} improves compilation time over plain LTO, but
+requires the complete toolchain to be aware of LTO. It requires a linker with
+linker plugin support for basic functionality.  Additionally, nm, ar and ranlib
+need to support linker plugins to allow a full-featured build environment
+(capable of building static libraries etc).
+
+The default is @option{-ffat-lto-objects} but this default is intended to
+change in future releases when linker plugin enabled environments become more
+common.
 @item -fcompare-elim
 @opindex fcompare-elim
 After register allocation and post-register allocation instruction splitting,
@@ -8450,6 +8482,11 @@ before flushing the current state and starting over.  Large functions
 with few branches or calls can create excessively large lists which
 needlessly consume memory and resources.
 
+@item max-modulo-backtrack-attempts
+The maximum number of backtrack attempts the scheduler should make
+when modulo scheduling a loop.  Larger values can exponentially increase
+compile time.
+
 @item max-inline-insns-single
 Several parameters control the tree inliner used in gcc.
 This number sets the maximum number of instructions (counted in GCC's
@@ -8585,6 +8622,14 @@ The depth of search in the dominator tree for expressions to hoist.
 This is used to avoid quadratic behavior in hoisting algorithm.
 The value of 0 will avoid limiting the search, but may slow down compilation
 of huge functions.  The default value is 30.
+
+@item max-tail-merge-comparisons
+The maximum amount of similar bbs to compare a bb with.  This is used to
+avoid quadratic behaviour in tree tail merging.  The default value is 10.
+
+@item max-tail-merge-iterations
+The maximum amount of iterations of the pass over the function.  This is used to
+limit run time in tree tail merging.  The default value is 2.
 
 @item max-unrolled-insns
 The maximum number of instructions that a loop should have if that loop
@@ -16532,10 +16577,11 @@ which can be placed into the small data area.  Using the small data
 area can lead to smaller and faster code, but the size of area is
 limited and it is up to the programmer to ensure that the area does
 not overflow.  Also when the small data area is used one of the RX's
-registers (@code{r13}) is reserved for use pointing to this area, so
-it is no longer available for use by the compiler.  This could result
-in slower and/or larger code if variables which once could have been
-held in @code{r13} are now pushed onto the stack.
+registers (usually @code{r13}) is reserved for use pointing to this
+area, so it is no longer available for use by the compiler.  This
+could result in slower and/or larger code if variables which once
+could have been held in the reserved register are now pushed onto the
+stack.
 
 Note, common variables (variables which have not been initialised) and
 constants are not placed into the small data area as they are assigned
@@ -16544,9 +16590,10 @@ to other sections in the output executable.
 The default value is zero, which disables this feature.  Note, this
 feature is not enabled by default with higher optimization levels
 (@option{-O2} etc) because of the potentially detrimental effects of
-reserving register @code{r13}.  It is up to the programmer to
-experiment and discover whether this feature is of benefit to their
-program.
+reserving a register.  It is up to the programmer to experiment and
+discover whether this feature is of benefit to their program.  See the
+description of the @option{-mpid} option for a description of how the
+actual register to hold the small data area pointer is chosen.
 
 @item -msim
 @itemx -mno-sim
@@ -16600,6 +16647,35 @@ accumulator register.  This is only necessary if normal code might use
 the accumulator register, for example because it performs 64-bit
 multiplications.  The default is to ignore the accumulator as this
 makes the interrupt handlers faster.
+
+@item -mpid
+@itemx -mno-pid
+@opindex mpid
+@opindex mno-pid
+Enables the generation of position independent data.  When enabled any
+access to constant data will done via an offset from a base address
+held in a register.  This allows the location of constant data to be
+determined at run-time without requiring the executable to be
+relocated, which is a benefit to embedded applications with tight
+memory constraints.  Data that can be modified is not affected by this
+option.
+
+Note, using this feature reserves a register, usually @code{r13}, for
+the constant data base address.  This can result in slower and/or
+larger code, especially in complicated functions.
+
+The actual register chosen to hold the constant data base address
+depends upon whether the @option{-msmall-data-limit} and/or the
+@option{-mint-register} command line options are enabled.  Starting
+with register @code{r13} and proceeding downwards, registers are
+allocated first to satisfy the requirements of @option{-mint-register},
+then @option{-mpid} and finally @option{-msmall-data-limit}.  Thus it
+is possible for the small data area register to be @code{r8} if both
+@option{-mint-register=4} and @option{-mpid} are specified on the
+command line.
+
+By default this feature is not enabled.  The default can be restored
+via the @option{-mno-pid} command line option.
 
 @end table
 
@@ -17307,7 +17383,7 @@ for machine type @var{cpu_type}.  Supported values for @var{cpu_type} are
 @samp{ultrasparc3}, @samp{niagara}, @samp{niagara2}, @samp{niagara3},
 and @samp{niagara4}.
 
-Native Solaris and Linux toolchains also support the value @samp{native},
+Native Solaris and GNU/Linux toolchains also support the value @samp{native},
 which selects the best architecture option for the host processor.
 @option{-mcpu=native} has no effect if GCC does not recognize
 the processor.
@@ -17380,7 +17456,7 @@ that select a particular CPU implementation.  Those are @samp{cypress},
 @samp{supersparc}, @samp{hypersparc}, @samp{leon}, @samp{f930}, @samp{f934},
 @samp{sparclite86x}, @samp{tsc701}, @samp{ultrasparc}, @samp{ultrasparc3},
 @samp{niagara}, @samp{niagara2}, @samp{niagara3} and @samp{niagara4}.  With
-native Solaris and Linux toolchains, @samp{native} can also be used.
+native Solaris and GNU/Linux toolchains, @samp{native} can also be used.
 
 @item -mv8plus
 @itemx -mno-v8plus
@@ -17397,6 +17473,35 @@ mode for all SPARC-V9 processors.
 @opindex mno-vis
 With @option{-mvis}, GCC generates code that takes advantage of the UltraSPARC
 Visual Instruction Set extensions.  The default is @option{-mno-vis}.
+
+@item -mvis2
+@itemx -mno-vis2
+@opindex mvis2
+@opindex mno-vis2
+With @option{-mvis2}, GCC generates code that takes advantage of
+version 2.0 of the UltraSPARC Visual Instruction Set extensions.  The
+default is @option{-mvis2} when targetting a cpu that supports such
+instructions, such as UltraSPARC-III and later.  Setting @option{-mvis2}
+also sets @option{-mvis}.
+
+@item -mvis3
+@itemx -mno-vis3
+@opindex mvis3
+@opindex mno-vis3
+With @option{-mvis3}, GCC generates code that takes advantage of
+version 3.0 of the UltraSPARC Visual Instruction Set extensions.  The
+default is @option{-mvis3} when targetting a cpu that supports such
+instructions, such as niagara-3 and later.  Setting @option{-mvis3}
+also sets @option{-mvis2} and @option{-mvis}.
+
+@item -mfmaf
+@itemx -mno-fmaf
+@opindex mfmaf
+@opindex mno-fmaf
+With @option{-mfmaf}, GCC generates code that takes advantage of the UltraSPARC
+Fused Multiply-Add Floating-point extensions.  The default is @option{-mfmaf}
+when targetting a cpu that supports such instructions, such as Niagara-3 and
+later.
 @end table
 
 These @samp{-m} options are supported in addition to the above

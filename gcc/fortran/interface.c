@@ -69,6 +69,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "gfortran.h"
 #include "match.h"
+#include "arith.h"
 
 /* The current_interface structure holds information about the
    interface currently being parsed.  This structure is saved and
@@ -1071,13 +1072,51 @@ check_dummy_characteristics (gfc_symbol *s1, gfc_symbol *s2,
   /* Check array shape.  */
   if (s1->as && s2->as)
     {
+      int i, compval;
+      gfc_expr *shape1, *shape2;
+
       if (s1->as->type != s2->as->type)
 	{
 	  snprintf (errmsg, err_len, "Shape mismatch in argument '%s'",
 		    s1->name);
 	  return FAILURE;
 	}
-      /* FIXME: Check exact shape.  */
+
+      if (s1->as->type == AS_EXPLICIT)
+	for (i = 0; i < s1->as->rank + s1->as->corank; i++)
+	  {
+	    shape1 = gfc_subtract (gfc_copy_expr (s1->as->upper[i]),
+				  gfc_copy_expr (s1->as->lower[i]));
+	    shape2 = gfc_subtract (gfc_copy_expr (s2->as->upper[i]),
+				  gfc_copy_expr (s2->as->lower[i]));
+	    compval = gfc_dep_compare_expr (shape1, shape2);
+	    gfc_free_expr (shape1);
+	    gfc_free_expr (shape2);
+	    switch (compval)
+	    {
+	      case -1:
+	      case  1:
+	      case -3:
+		snprintf (errmsg, err_len, "Shape mismatch in dimension %i of "
+			  "argument '%s'", i, s1->name);
+		return FAILURE;
+
+	      case -2:
+		/* FIXME: Implement a warning for this case.
+		gfc_warning ("Possible shape mismatch in argument '%s'",
+			    s1->name);*/
+		break;
+
+	      case 0:
+		break;
+
+	      default:
+		gfc_internal_error ("check_dummy_characteristics: Unexpected "
+				    "result %i of gfc_dep_compare_expr",
+				    compval);
+		break;
+	    }
+	  }
     }
     
   return SUCCESS;
@@ -1087,12 +1126,12 @@ check_dummy_characteristics (gfc_symbol *s1, gfc_symbol *s2,
 /* 'Compare' two formal interfaces associated with a pair of symbols.
    We return nonzero if there exists an actual argument list that
    would be ambiguous between the two interfaces, zero otherwise.
-   'intent_flag' specifies whether INTENT and OPTIONAL of the arguments are
+   'strict_flag' specifies whether all the characteristics are
    required to match, which is not the case for ambiguity checks.*/
 
 int
 gfc_compare_interfaces (gfc_symbol *s1, gfc_symbol *s2, const char *name2,
-			int generic_flag, int intent_flag,
+			int generic_flag, int strict_flag,
 			char *errmsg, int err_len)
 {
   gfc_formal_arglist *f1, *f2;
@@ -1115,17 +1154,34 @@ gfc_compare_interfaces (gfc_symbol *s1, gfc_symbol *s2, const char *name2,
       return 0;
     }
 
-  /* If the arguments are functions, check type and kind
-     (only for dummy procedures and procedure pointer assignments).  */
-  if (!generic_flag && intent_flag && s1->attr.function && s2->attr.function)
+  /* Do strict checks on all characteristics
+     (for dummy procedures and procedure pointer assignments).  */
+  if (!generic_flag && strict_flag)
     {
-      if (s1->ts.type == BT_UNKNOWN)
-	return 1;
-      if ((s1->ts.type != s2->ts.type) || (s1->ts.kind != s2->ts.kind))
+      if (s1->attr.function && s2->attr.function)
 	{
-	  if (errmsg != NULL)
-	    snprintf (errmsg, err_len, "Type/kind mismatch in return value "
-		      "of '%s'", name2);
+	  /* If both are functions, check result type.  */
+	  if (s1->ts.type == BT_UNKNOWN)
+	    return 1;
+	  if (!compare_type_rank (s1,s2))
+	    {
+	      if (errmsg != NULL)
+		snprintf (errmsg, err_len, "Type/rank mismatch in return value "
+			  "of '%s'", name2);
+	      return 0;
+	    }
+
+	  /* FIXME: Check array bounds and string length of result.  */
+	}
+
+      if (s1->attr.pure && !s2->attr.pure)
+	{
+	  snprintf (errmsg, err_len, "Mismatch in PURE attribute");
+	  return 0;
+	}
+      if (s1->attr.elemental && !s2->attr.elemental)
+	{
+	  snprintf (errmsg, err_len, "Mismatch in ELEMENTAL attribute");
 	  return 0;
 	}
     }
@@ -1166,7 +1222,7 @@ gfc_compare_interfaces (gfc_symbol *s1, gfc_symbol *s2, const char *name2,
 	    return 0;
 	  }
 
-	if (intent_flag)
+	if (strict_flag)
 	  {
 	    /* Check all characteristics.  */
 	    if (check_dummy_characteristics (f1->sym, f2->sym,
@@ -1944,7 +2000,7 @@ get_expr_storage_size (gfc_expr *e)
 	    {
 	      /* The string length is the substring length.
 		 Set now to full string length.  */
-	      if (ref->u.ss.length == NULL
+	      if (!ref->u.ss.length || !ref->u.ss.length->length
 		  || ref->u.ss.length->length->expr_type != EXPR_CONSTANT)
 		return 0;
 
@@ -2272,16 +2328,6 @@ compare_actual_formal (gfc_actual_arglist **ap, gfc_formal_arglist *formal,
 	{
 	  if (where)
 	    gfc_error ("Expected a procedure for argument '%s' at %L",
-		       f->sym->name, &a->expr->where);
-	  return 0;
-	}
-
-      if (f->sym->attr.flavor == FL_PROCEDURE && f->sym->attr.pure
-	  && a->expr->ts.type == BT_PROCEDURE
-	  && !a->expr->symtree->n.sym->attr.pure)
-	{
-	  if (where)
-	    gfc_error ("Expected a PURE procedure for argument '%s' at %L",
 		       f->sym->name, &a->expr->where);
 	  return 0;
 	}
